@@ -65,6 +65,17 @@ pnpm dist:win   # NSIS .exe（x64）
 
 GitHub Actions：[`.github/workflows/build-app.yml`](.github/workflows/build-app.yml) 在 `v*` 标签与手动触发时构建；打 tag 会发布 [GitHub Release](https://github.com/DavidKk/chaya/releases) 并挂上安装包。
 
+macOS 安装包为 **ad-hoc 签名**（无 Apple 开发者账号）。将 **Chaya** 拖入「应用程序」后：
+
+1. **右键 → 打开 → 打开**（只需一次），一般即可用。
+2. 若仍提示「已损坏」，再执行：
+
+```bash
+xattr -cr /Applications/Chaya.app
+```
+
+Windows：若 SmartScreen 拦截安装包，选 **更多信息 → 仍要运行**。
+
 ## 本地运行
 
 需要 **Node.js ≥ 22.19**（使用 `node:sqlite`）和 **pnpm**。

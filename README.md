@@ -65,6 +65,17 @@ pnpm dist:win   # NSIS .exe (x64)
 
 GitHub Actions: [`.github/workflows/build-app.yml`](.github/workflows/build-app.yml) runs on `v*` tags and `workflow_dispatch`. Tag builds publish installers to a [GitHub Release](https://github.com/DavidKk/chaya/releases).
 
+macOS builds are **ad-hoc signed** (no Apple Developer ID). After dragging **Chaya** into Applications:
+
+1. **Right-click → Open → Open** (once). That is usually enough.
+2. Only if macOS still says the app is **damaged**, run:
+
+```bash
+xattr -cr /Applications/Chaya.app
+```
+
+Windows: if SmartScreen blocks the installer, choose **More info → Run anyway**.
+
 ## Local development
 
 Requires **Node.js ≥ 22.19** (uses `node:sqlite`) and **pnpm**.

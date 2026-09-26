@@ -1,9 +1,14 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { CONFIG_FILE_PATH, LEGACY_CONFIG_FILE_PATHS } from '@/constants/paths'
 import type { ChayaConfig } from '@/lib/game'
 
 import { isLibraryEntryId, normalizeLibrary, pathEquals } from './library'
+
+function ensureConfigDir(file: string): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+}
 
 function readConfigFile(file: string): ChayaConfig | null {
   try {
@@ -33,10 +38,18 @@ function persistLibraryIdMigration(file: string, config: ChayaConfig): void {
       return !isLibraryEntryId(oldId) || oldId !== entry.id
     })
     if (!needsWrite) return
+    ensureConfigDir(file)
     fs.writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`)
   } catch {
     /* ignore migrate write */
   }
+}
+
+function writeConfigFile(file: string, config: ChayaConfig): void {
+  ensureConfigDir(file)
+  const tmp = `${file}.${process.pid}.tmp`
+  fs.writeFileSync(tmp, `${JSON.stringify(config, null, 2)}\n`)
+  fs.renameSync(tmp, file)
 }
 
 export function loadConfig(): ChayaConfig {
@@ -50,7 +63,7 @@ export function loadConfig(): ChayaConfig {
     const legacy = readConfigFile(legacyPath)
     if (!legacy) continue
     try {
-      fs.writeFileSync(CONFIG_FILE_PATH, `${JSON.stringify(legacy, null, 2)}\n`)
+      writeConfigFile(CONFIG_FILE_PATH, legacy)
     } catch {
       /* ignore migrate write */
     }
@@ -67,9 +80,7 @@ export function saveConfig(partial: Partial<ChayaConfig>): ChayaConfig {
     shellSource: partial.shellSource !== undefined ? String(partial.shellSource || '') : prev.shellSource,
     library: partial.library !== undefined ? normalizeLibrary(partial.library) : prev.library,
   }
-  const tmp = `${CONFIG_FILE_PATH}.${process.pid}.tmp`
-  fs.writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`)
-  fs.renameSync(tmp, CONFIG_FILE_PATH)
+  writeConfigFile(CONFIG_FILE_PATH, next)
   return next
 }
 

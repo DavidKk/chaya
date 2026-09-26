@@ -29,10 +29,12 @@ export {
 } from '@/constants/path-names'
 
 export const ROOT_PATH = join(process.cwd(), '.jest-chaya-root')
-export const CONFIG_FILE_PATH = join(ROOT_PATH, CONFIG_FILE_NAME)
-export const LEGACY_CONFIG_FILE_PATHS = LEGACY_CONFIG_FILE_NAMES.map((name) => join(ROOT_PATH, name))
-
-export const DATA_DIR = join(ROOT_PATH, DATA_DIR_NAME)
+export const DATA_DIR = process.env.CHAYA_DATA_DIR || join(ROOT_PATH, DATA_DIR_NAME)
+export const CONFIG_FILE_PATH = process.env.CHAYA_DATA_DIR ? join(DATA_DIR, CONFIG_FILE_NAME) : join(ROOT_PATH, CONFIG_FILE_NAME)
+export const LEGACY_CONFIG_FILE_PATHS = [
+  ...LEGACY_CONFIG_FILE_NAMES.map((name) => join(ROOT_PATH, name)),
+  ...(process.env.CHAYA_DATA_DIR ? [join(ROOT_PATH, CONFIG_FILE_NAME), ...LEGACY_CONFIG_FILE_NAMES.map((name) => join(DATA_DIR, name))] : []),
+]
 export const SHELL_DIR = join(DATA_DIR, SHELL_DIR_NAME)
 export const SHELL_CACHE_DIR = join(DATA_DIR, SHELL_CACHE_DIR_NAME)
 export const SHELL_APP_PATH = join(SHELL_DIR, SHELL_APP_NAME)

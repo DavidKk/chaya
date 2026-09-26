@@ -31,7 +31,9 @@ pnpm dist:win    # release/*Setup*.exe
 - CI：[`.github/workflows/build-app.yml`](../../.github/workflows/build-app.yml)（`v*` / `workflow_dispatch`）
 - 安装包内 Next 走 Resources/`app-root`；可写数据在 `userData`（`CHAYA_DATA_DIR` / `CHAYA_LOGS_DIR`）
 
-当前 CI **不签名 / 不公证**；本机有 Apple / Windows 证书时再改 `identity` 与 Actions secrets。
+当前 CI 用 **ad-hoc 签名**（`mac.identity: null` + `afterPack` 执行 `codesign --sign -`，无 Apple Developer ID / 不公证），避免未签名 + 隔离导致的「已损坏」；首启仍可能需右键打开。有正式证书时设 `identity` 即可（`afterPack` 验签通过后不会覆盖）。
+
+打包态配置写在 `CHAYA_DATA_DIR`（`userData/data`），不写进 `Resources/app-root`。
 
 ## 环境变量
 

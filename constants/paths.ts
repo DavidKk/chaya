@@ -41,15 +41,20 @@ export {
  */
 export const ROOT_PATH = process.env.CHAYA_ROOT ? resolve(process.env.CHAYA_ROOT) : resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-/** 工具根配置文件绝对路径 */
-export const CONFIG_FILE_PATH = join(ROOT_PATH, CONFIG_FILE_NAME)
-export const LEGACY_CONFIG_FILE_PATHS = LEGACY_CONFIG_FILE_NAMES.map((name) => join(ROOT_PATH, name))
-
 /**
  * 本机数据与壳。
  * 打包 App 通过 `CHAYA_DATA_DIR` 指到 `userData/data`（Resources 只读）。
  */
 export const DATA_DIR = process.env.CHAYA_DATA_DIR ? resolve(process.env.CHAYA_DATA_DIR) : join(ROOT_PATH, DATA_DIR_NAME)
+
+/**
+ * 工具配置：开发态仍在仓库根；打包态写入 `CHAYA_DATA_DIR`（避免写进只读 app bundle）。
+ */
+export const CONFIG_FILE_PATH = process.env.CHAYA_DATA_DIR ? join(DATA_DIR, CONFIG_FILE_NAME) : join(ROOT_PATH, CONFIG_FILE_NAME)
+export const LEGACY_CONFIG_FILE_PATHS = [
+  ...LEGACY_CONFIG_FILE_NAMES.map((name) => join(ROOT_PATH, name)),
+  ...(process.env.CHAYA_DATA_DIR ? [join(ROOT_PATH, CONFIG_FILE_NAME), ...LEGACY_CONFIG_FILE_NAMES.map((name) => join(DATA_DIR, name))] : []),
+]
 export const SHELL_DIR = join(DATA_DIR, SHELL_DIR_NAME)
 export const SHELL_CACHE_DIR = join(DATA_DIR, SHELL_CACHE_DIR_NAME)
 export const SHELL_APP_PATH = join(SHELL_DIR, SHELL_APP_NAME)
