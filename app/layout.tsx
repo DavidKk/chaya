@@ -1,7 +1,7 @@
 import './globals.css'
 
 import type { Metadata } from 'next'
-import { JetBrains_Mono, Manrope, Outfit } from 'next/font/google'
+import localFont from 'next/font/local'
 
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { AppProviders } from '@/components/AppProviders'
@@ -10,22 +10,26 @@ import { ButtonGlow } from '@/components/ButtonGlow'
 import { LOCALE_HTML_LANG } from '@/lib/i18n'
 import { resolveRequestLocale } from '@/lib/i18n/server'
 
-const display = Outfit({
+/** Self-hosted fonts so CI / offline builds do not call fonts.google.com */
+const display = localFont({
+  src: './fonts/outfit-latin-wght-normal.woff2',
   variable: '--font-display',
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
+  weight: '500 700',
+  display: 'swap',
 })
 
-const body = Manrope({
+const body = localFont({
+  src: './fonts/manrope-latin-wght-normal.woff2',
   variable: '--font-body',
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+  weight: '400 700',
+  display: 'swap',
 })
 
-const mono = JetBrains_Mono({
+const mono = localFont({
+  src: './fonts/jetbrains-mono-latin-wght-normal.woff2',
   variable: '--font-mono',
-  subsets: ['latin'],
-  weight: ['400', '500'],
+  weight: '400 500',
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
