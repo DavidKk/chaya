@@ -3,11 +3,10 @@ import { apiBadRequest, apiOk } from '@/initializer/response'
 import { normalizeNwVersion, nwArchiveName, nwDownloadUrl, nwFileKey } from '@/lib/game/nw-download-meta'
 
 export const runtime = 'nodejs'
-export const maxDuration = 600
 
 /**
- * 元信息：当前平台应下哪个 NW 包（浏览器可直接用；装壳下载走 nw-archive 代理）。
- * RemoteOnly，不碰用户盘。
+ * 元信息：当前平台应下哪个 NW 包（官方 CDN 直链）。
+ * 各端自行从 url 下载；本站不代理、不托管 NW 包。
  */
 export const GET = defineApiRoute('get:/api/remote/nw-meta', async ({ request }) => {
   const url = new URL(request.url)
@@ -30,7 +29,6 @@ export const GET = defineApiRoute('get:/api/remote/nw-meta', async ({ request })
       fileKey,
       archive: nwArchiveName(version, fileKey),
       url: nwDownloadUrl(version, fileKey),
-      proxyPath: `/api/remote/nw-archive?version=${encodeURIComponent(version)}&file=${encodeURIComponent(fileKey)}`,
       chromium: meta?.components?.chromium,
     })
   } catch (e) {

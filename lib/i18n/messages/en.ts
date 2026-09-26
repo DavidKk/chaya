@@ -146,7 +146,7 @@ const dashboardEn = {
     tipWaiting: 'Launched — waiting',
     remoteSessionHint: 'Remote session — can’t launch or change path',
     linuxQuitFirst: 'Quit the game before installing the shell. When done, launch from the game folder.',
-    downloadLinuxShell: 'Linux shell',
+    downloadLinuxShell: 'Download NW.js package',
     kindRemote: 'Remote',
     kindExe: 'Packaged exe',
     kindApp: 'Packaged .app',

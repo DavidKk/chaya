@@ -127,7 +127,7 @@ assertCanUseDisk() // → HTTP 501, code DISK_UNAVAILABLE
 | ---------------------------------------------- | ----------------------------------------------------------------------- |
 | `GET /api/status`                              | 带 `serviceMode`；无绑定也可                                            |
 | `GET /api/plugins/:name`                       | 读 **部署包内** `plugins/dist`（含 Loader）；vercel 可供浏览器 FSA 写入 |
-| `GET /api/remote/nw-meta` / `nw-archive`       | NW 版本元信息与同源 zip 代理（绕过 CDN CORS）                           |
+| `GET /api/remote/nw-meta`                      | NW 版本元信息 + 官方 CDN 直链（各端自行下载，本站不代理包）             |
 | 静态/对象存储上的 Toolkit、插件包 URL          | RemoteAPI                                                               |
 | 拆分后的无盘 `POST /api/translate`（仅 texts） | §4.4                                                                    |
 

@@ -28,8 +28,17 @@ cleanup() {
   exit "$result"
 }
 trap cleanup EXIT
-version=v0.116.0
-echo '正在下载并安装 NW.js，请稍候…'
+echo '正在查询 NW.js 稳定版…'
+versions_json=$(curl --fail --location --retry 2 --connect-timeout 20 --max-time 60 --proto '=https' --proto-redir '=https' \
+  'https://nwjs.io/versions.json')
+version=$(printf '%s' "$versions_json" | sed -n 's/.*"stable"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+[ -n "$version" ] || version=$(printf '%s' "$versions_json" | sed -n 's/.*"latest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+case "$version" in
+  '') echo '无法解析 NW.js 版本。'; exit 1;;
+  v*) ;;
+  *) version="v$version";;
+esac
+printf '正在从 dl.nwjs.io 下载并安装 NW.js %s，请稍候…\n' "$version"
 curl --fail --location --retry 2 --connect-timeout 20 --max-time 900 --proto '=https' --proto-redir '=https' \
   "https://dl.nwjs.io/$version/nwjs-$version-osx-$arch.zip" -o "$work/nwjs.zip"
 ditto -x -k "$work/nwjs.zip" "$work/extracted"

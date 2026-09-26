@@ -45,7 +45,7 @@ export const dashboardZh = {
     tipWaiting: '已启动，等待连接',
     remoteSessionHint: '远程会话由游戏连入，本机无法启动或改路径',
     linuxQuitFirst: '请先退出游戏再装壳。完成后从游戏目录启动。',
-    downloadLinuxShell: '下载 Linux 壳',
+    downloadLinuxShell: '下载 NW.js 官方包',
     kindRemote: '远程',
     kindExe: '已打包 exe',
     kindApp: '已打包 .app',

@@ -140,7 +140,7 @@ const base = {
     tipWaiting: '시작됨 — 연결 대기',
     remoteSessionHint: '원격 — 시작·경로 변경 불가',
     linuxQuitFirst: '먼저 게임을 종료한 뒤 셸을 설치하세요. 완료 후 게임 폴더에서 실행합니다.',
-    downloadLinuxShell: 'Linux 셸',
+    downloadLinuxShell: 'NW.js 공식 패키지',
     kindRemote: '원격',
     kindExe: 'exe 패키지',
     kindApp: '.app 패키지',

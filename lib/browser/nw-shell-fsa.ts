@@ -1,11 +1,12 @@
 /**
- * 浏览器侧 NW 壳：代理下载 → OPFS 缓存 zip → 解压写入游戏目录（可断点续写）。
+ * 浏览器侧 NW 壳：直连 dl.nwjs.io 下载 → OPFS 缓存 zip → 解压写入游戏目录（可断点续写）。
+ * CDN 无 CORS，浏览器无法 fetch 读包体：触发官方下载后由用户选本地 zip。
  * FSA 无系统解压 API，只能逐文件写入；中断后可跳过已写满的文件并复用缓存 zip。
  */
 import { unzipSync } from 'fflate'
 
 import { SHELL_APP_NAME, SHELL_BUNDLE_BASE, SHELL_LAUNCHER_LINUX, SHELL_LAUNCHER_MAC, SHELL_LAUNCHER_WIN, SHELL_WIN_DIR_NAME } from '@/constants/brand'
-import { normalizeNwVersion, nwFileKey } from '@/lib/game/nw-download-meta'
+import { normalizeNwVersion, nwArchiveName, nwDownloadUrl, nwFileKey } from '@/lib/game/nw-download-meta'
 
 import { detectClientArch, dirExists, ensurePath, fileByteLength, fileExists, getDir, writeBytesFile, writeTextFile } from './fsa'
 
@@ -61,48 +62,70 @@ async function writeZipToOpfs(version: string, fileKey: string, data: Uint8Array
   }
 }
 
-async function downloadNwZip(version: string, fileKey: string, onProgress?: (p: NwShellProgress) => void): Promise<Uint8Array> {
-  const proxyUrl = `/api/remote/nw-archive?version=${encodeURIComponent(version)}&file=${encodeURIComponent(fileKey)}`
-  onProgress?.({ phase: 'shell', message: `下载 NW.js ${version}（约 200MB）…`, percent: 0 })
-
-  const res = await fetch(proxyUrl)
-  if (!res.ok) {
-    const t = await res.text().catch(() => '')
-    throw new Error(`下载 NW.js 失败 HTTP ${res.status}${t ? `: ${t.slice(0, 160)}` : ''}`)
+type OpenFilePickerWindow = Window &
+  typeof globalThis & {
+    showOpenFilePicker?: (options?: { multiple?: boolean; types?: Array<{ description?: string; accept: Record<string, string[]> }> }) => Promise<FileSystemFileHandle[]>
   }
 
-  const total = Number(res.headers.get('content-length') || 0)
-  if (!res.body) {
-    const buf = new Uint8Array(await res.arrayBuffer())
-    onProgress?.({ phase: 'shell', message: `下载完成 ${formatMb(buf.byteLength)}`, percent: 100 })
-    return buf
-  }
+/** 触发浏览器从官方 CDN 下载（不经本站代理） */
+function startOfficialNwDownload(url: string): void {
+  const a = document.createElement('a')
+  a.href = url
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  a.click()
+}
 
-  const reader = res.body.getReader()
-  const chunks: Uint8Array[] = []
-  let received = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    if (!value?.length) continue
-    chunks.push(value)
-    received += value.length
-    const pct = total > 0 ? Math.min(99, Math.round((received / total) * 100)) : undefined
-    onProgress?.({
-      phase: 'shell',
-      message: total > 0 ? `下载 NW.js ${version}… ${formatMb(received)} / ${formatMb(total)}` : `下载 NW.js ${version}… ${formatMb(received)}`,
-      percent: pct,
+async function pickLocalNwZip(archiveName: string): Promise<Uint8Array> {
+  const w = window as OpenFilePickerWindow
+  if (typeof w.showOpenFilePicker === 'function') {
+    const [handle] = await w.showOpenFilePicker({
+      multiple: false,
+      types: [{ description: 'NW.js zip', accept: { 'application/zip': ['.zip'] } }],
     })
+    const file = await handle.getFile()
+    if (file.size < 1_000_000) throw new Error(`所选文件过小（${formatMb(file.size)}），请选择已下载完成的 ${archiveName}`)
+    return new Uint8Array(await file.arrayBuffer())
   }
 
-  const out = new Uint8Array(received)
-  let offset = 0
-  for (const c of chunks) {
-    out.set(c, offset)
-    offset += c.length
-  }
-  onProgress?.({ phase: 'shell', message: `下载完成 ${formatMb(received)}`, percent: 100 })
-  return out
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.zip,application/zip'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) {
+        reject(new Error('未选择 NW.js 压缩包'))
+        return
+      }
+      if (file.size < 1_000_000) {
+        reject(new Error(`所选文件过小（${formatMb(file.size)}），请选择已下载完成的 ${archiveName}`))
+        return
+      }
+      resolve(new Uint8Array(await file.arrayBuffer()))
+    }
+    input.oncancel = () => reject(new Error('已取消选择 NW.js 压缩包'))
+    input.click()
+  })
+}
+
+/**
+ * 从官方 CDN 取得 zip：优先 OPFS 外由调用方处理；此处打开下载并读用户选中的本地文件。
+ * （dl.nwjs.io 无 CORS，不能用 fetch 读包体。）
+ */
+async function downloadNwZip(version: string, fileKey: string, onProgress?: (p: NwShellProgress) => void): Promise<Uint8Array> {
+  const url = nwDownloadUrl(version, fileKey)
+  const archive = nwArchiveName(version, fileKey)
+  onProgress?.({ phase: 'shell', message: `正在打开官方下载 ${archive}（约 200MB）…`, percent: 0 })
+  startOfficialNwDownload(url)
+  onProgress?.({
+    phase: 'shell',
+    message: `下载完成后请选择本地文件 ${archive}`,
+    percent: 10,
+  })
+  const buf = await pickLocalNwZip(archive)
+  onProgress?.({ phase: 'shell', message: `已读取 ${formatMb(buf.byteLength)}`, percent: 100 })
+  return buf
 }
 
 /** 优先 OPFS 缓存，未命中再下载并写入缓存 */

@@ -5,8 +5,8 @@ import { ensureLatestNwShellSource } from '@/services/game/nw-download'
 import { getNwShellUpdate } from '@/services/game/nw-update'
 
 export const runtime = 'nodejs'
-/** 官方包约百兆级，给下载+解压留足时间（自托管 Node 忽略亦可） */
-export const maxDuration = 600
+/** 本机从 nwjs.io 下载装壳；Hobby 上限 300s（自托管忽略） */
+export const maxDuration = 300
 
 export const GET = defineApiRoute('get:/api/shell', async () => {
   const denied = requireDisk()

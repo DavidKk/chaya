@@ -140,7 +140,7 @@ const base = {
     tipWaiting: '起動済み・接続待ち',
     remoteSessionHint: 'リモートは起動・パス変更不可',
     linuxQuitFirst: '先にゲームを終了してからシェルを導入してください。完了後はゲームフォルダから起動します。',
-    downloadLinuxShell: 'Linux シェル',
+    downloadLinuxShell: 'NW.js 公式パッケージ',
     kindRemote: 'リモート',
     kindExe: 'exe 済',
     kindApp: '.app 済',

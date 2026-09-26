@@ -27,7 +27,10 @@ beforeEach(() => {
   fs.writeFileSync(path.join(game, 'Chaya.app', 'original'), 'old-shell')
   stub('uname', 'if [ "$1" = -s ]; then echo Darwin; else echo arm64; fi')
   stub('osascript', 'printf "%s\\n" "$TEST_GAME"')
-  stub('curl', 'if [ "${TEST_FAIL:-}" = download ]; then exit 22; fi\nfor last; do :; done\ntouch "$last"')
+  stub(
+    'curl',
+    'for arg; do case "$arg" in *versions.json*) printf \'{"stable":"v0.116.0","latest":"v0.116.0"}\\n\'; exit 0;; esac; done\nif [ "${TEST_FAIL:-}" = download ]; then exit 22; fi\nfor last; do :; done\ntouch "$last"'
+  )
   stub(
     'ditto',
     `fresh="$4/nwjs-v0.116.0-osx-arm64/nwjs.app"
