@@ -39,6 +39,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: LayoutProps<'/'>) {
   const locale = await resolveRequestLocale()
+  const Analytics = process.env.VERCEL === '1' ? (await import('@vercel/analytics/next')).Analytics : null
 
   return (
     <html lang={LOCALE_HTML_LANG[locale]} className={`${display.variable} ${body.variable} ${mono.variable} h-full`}>
@@ -48,6 +49,7 @@ export default async function RootLayout({ children }: LayoutProps<'/'>) {
         <AppProviders locale={locale}>
           <AppShell>{children}</AppShell>
         </AppProviders>
+        {Analytics ? <Analytics /> : null}
       </body>
     </html>
   )
