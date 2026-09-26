@@ -1,10 +1,10 @@
 'use strict'
 
 /**
- * Chaya Toolkit App — Electron 主进程。
- * - 开发：默认假定 Next 已由 `pnpm dev:app` 拉起（CHAYA_ELECTRON_EXTERNAL=1）；
- *   未设 EXTERNAL 时自行 spawn `next dev`（CHAYA_SERVICE=app）。
- * - 安装包：`app.isPackaged` 时从 Resources/app-root 拉起 Next standalone。
+ * Chaya Toolkit App — Electron main process.
+ * - Dev: assume Next is already up via `pnpm dev:app` when CHAYA_ELECTRON_EXTERNAL=1;
+ *   otherwise spawn `next dev` with CHAYA_SERVICE=app.
+ * - Packaged: when `app.isPackaged`, start Next standalone from Resources/app-root.
  */
 const { app, BrowserWindow, shell } = require('electron')
 const { spawn } = require('node:child_process')
@@ -56,7 +56,7 @@ async function waitForServer(url, timeoutMs = 120_000) {
     }
     await sleep(400)
   }
-  throw new Error(`服务未在 ${timeoutMs}ms 内就绪: ${url}${lastErr ? `（${lastErr}）` : ''}`)
+  throw new Error(`server not ready within ${timeoutMs}ms: ${url}${lastErr ? ` (${lastErr})` : ''}`)
 }
 
 function spawnNext(args, { cwd, env }) {
@@ -68,7 +68,7 @@ function spawnNext(args, { cwd, env }) {
   })
   nextProc.on('exit', (code, signal) => {
     if (!quitting && code && code !== 0) {
-      console.error(`[electron] next 退出 code=${code} signal=${signal}`)
+      console.error(`[electron] next exited code=${code} signal=${signal}`)
     }
   })
 }
@@ -76,7 +76,7 @@ function spawnNext(args, { cwd, env }) {
 function startStandalone(appRoot) {
   const serverJs = path.join(appRoot, 'server.js')
   if (!fs.existsSync(serverJs)) {
-    throw new Error(`找不到 Next standalone：${serverJs}`)
+    throw new Error(`Next standalone not found: ${serverJs}`)
   }
   spawnNext([serverJs], {
     cwd: appRoot,

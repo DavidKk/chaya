@@ -15,7 +15,7 @@ function ensureAccessToken() {
   const file = path.join(dir, 'token')
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
   if (!fs.existsSync(file)) {
-    // Electron 与 Next 可同时首启：完整写入临时文件后原子发布，避免读到空 token。
+    // Electron and Next may start together: write temp then atomic publish to avoid an empty token.
     const pending = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`
     try {
       fs.writeFileSync(pending, randomBytes(32).toString('hex'), { flag: 'wx', mode: 0o600 })
@@ -29,7 +29,7 @@ function ensureAccessToken() {
     }
   }
   const token = fs.readFileSync(file, 'utf8').trim()
-  if (!/^[a-f0-9]{64}$/.test(token)) throw new Error('data/access/token 格式无效，请移除后重新启动')
+  if (!/^[a-f0-9]{64}$/.test(token)) throw new Error('invalid data/access/token; remove it and restart')
   return token
 }
 

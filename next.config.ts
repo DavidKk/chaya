@@ -2,7 +2,7 @@ import os from 'node:os'
 
 import type { NextConfig } from 'next'
 
-/** 开发态经局域网 IP 打开时，放行 HMR / `_next/*`（否则页面能开但脚本被拦） */
+/** Allow HMR / `_next/*` when opened via LAN IP in dev (page loads but scripts would otherwise be blocked). */
 function allowedDevHosts(): string[] {
   const hosts = new Set<string>(['127.0.0.1', 'localhost'])
   for (const addrs of Object.values(os.networkInterfaces())) {
@@ -16,7 +16,7 @@ function allowedDevHosts(): string[] {
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: allowedDevHosts(),
-  // Electron 安装包用 standalone；Vercel / 普通 `next build` 不设，避免多余产物
+  // Electron installers need standalone; skip for Vercel / plain `next build`
   ...(process.env.CHAYA_ELECTRON_BUILD === '1' ? { output: 'standalone' as const } : {}),
 }
 

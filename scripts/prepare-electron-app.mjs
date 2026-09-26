@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 组装 Electron extraResources：Next standalone + static/public + plugins/dist
+ * Assemble Electron extraResources: Next standalone + static/public + plugins/dist
  * → `.electron-builder/app-root`
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
@@ -27,14 +27,14 @@ function findServerJs(dir, depth = 0) {
 }
 
 function copyDir(from, to) {
-  if (!existsSync(from)) throw new Error(`缺少目录: ${from}`)
+  if (!existsSync(from)) throw new Error(`missing directory: ${from}`)
   mkdirSync(path.dirname(to), { recursive: true })
   cpSync(from, to, { recursive: true })
 }
 
 const serverJs = findServerJs(standaloneRoot)
 if (!serverJs) {
-  console.error('未找到 .next/standalone/**/server.js。请先以 CHAYA_ELECTRON_BUILD=1 执行 pnpm build:next')
+  console.error('Missing .next/standalone/**/server.js. Run pnpm build:next with CHAYA_ELECTRON_BUILD=1 first.')
   process.exit(1)
 }
 
@@ -55,7 +55,7 @@ if (existsSync(publicDir)) {
 
 const pluginsDist = path.join(root, 'plugins', 'dist')
 if (!existsSync(pluginsDist)) {
-  console.error('缺少 plugins/dist，请先 pnpm build:plugins')
+  console.error('Missing plugins/dist. Run pnpm build:plugins first.')
   process.exit(1)
 }
 copyDir(pluginsDist, path.join(outRoot, 'plugins', 'dist'))

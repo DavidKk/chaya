@@ -1,8 +1,11 @@
 /**
- * MVP 流程冒烟（不依赖 Next 启动）：
- * 绑定解析 → 装壳（软链 app.nw）→ 检查插件/缓存
+ * MVP smoke (no Next server):
+ * resolve bind → install shell (symlink app.nw) → check plugins / cache
  *
- * 用法: node scripts/smoke-mvp.mjs
+ * Usage:
+ *   CHAYA_CONTENT=/path/to/www CHAYA_SHELL=/path/to/nwjs.app node scripts/smoke-mvp.mjs
+ *
+ * Optional: CHAYA_DEMO (default demos/smoke-mvp)
  */
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
@@ -12,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
 
-// 动态加载编译前 TS：优先用已安装的 tsx / next 转译；否则用内联精简实现
+/** Prefer installed tsx/next for TS; otherwise keep a self-contained inline path. */
 async function loadLibs() {
   try {
     const require = createRequire(import.meta.url)
@@ -21,8 +24,8 @@ async function loadLibs() {
     // fall through to inline
   }
 
-  // 内联：与 lib/game-root / lib/shell / lib/plugins 同逻辑的最小副本，避免缺依赖时跑不动
-  // 直接用 node --experimental-strip-types 时可由外部调用；这里自包含
+  // Minimal inline stand-in for lib/game-root / shell / plugins when deps are missing.
+  // External callers may use node --experimental-strip-types; this file stays self-contained.
   return null
 }
 
@@ -32,7 +35,7 @@ function looksLikeContent(dir) {
 
 function resolveGame(input) {
   let p = path.resolve(String(input).trim())
-  if (!fs.existsSync(p)) return { ok: false, error: `路径不存在: ${p}` }
+  if (!fs.existsSync(p)) return { ok: false, error: `path does not exist: ${p}` }
 
   const finish = (contentRoot, selected, kind) => {
     const base = path.basename(contentRoot).toLowerCase()
@@ -53,7 +56,7 @@ function resolveGame(input) {
     for (const c of [path.join(p, 'Contents/Resources/app.nw'), path.join(p, 'Contents/Resources/app')]) {
       if (looksLikeContent(c)) return finish(c, p, 'app.nw')
     }
-    return { ok: false, error: '在 .app 内找不到内容根' }
+    return { ok: false, error: 'content root not found inside .app' }
   }
   if (looksLikeContent(p)) {
     const kind = path.basename(p).toLowerCase() === 'www' ? 'www' : 'content-root'
@@ -61,7 +64,7 @@ function resolveGame(input) {
   }
   const www = path.join(p, 'www')
   if (looksLikeContent(www)) return finish(www, p, 'www')
-  return { ok: false, error: '未识别为 RPG Maker 内容' }
+  return { ok: false, error: 'not recognized as RPG Maker content' }
 }
 
 function installShell({ shellSource, projectRoot, contentRoot }) {
@@ -70,7 +73,7 @@ function installShell({ shellSource, projectRoot, contentRoot }) {
   const appNwLink = path.join(resourcesDir, 'app.nw')
 
   if (projectRoot.includes(`${path.sep}Contents${path.sep}`)) {
-    throw new Error('游戏根在 .app/Contents 内，无法装壳')
+    throw new Error('game root is inside .app/Contents; cannot install shell')
   }
 
   let created = false
@@ -101,26 +104,31 @@ function installShell({ shellSource, projectRoot, contentRoot }) {
   return { shellApp: dest, created, contentLink: appNwLink }
 }
 
-const REAL_CONTENT = process.env.CHAYA_CONTENT || '/Users/davidjones/Downloads/nwjs-sdk-v0.116.0-osx-arm64/nwjs.app/Contents/Resources/app.nw'
-const SHELL_SOURCE = process.env.CHAYA_SHELL || '/Users/davidjones/Downloads/nwjs-sdk-v0.116.0-osx-arm64/nwjs.app'
+const REAL_CONTENT = String(process.env.CHAYA_CONTENT || '').trim()
+const SHELL_SOURCE = String(process.env.CHAYA_SHELL || '').trim()
 const DEMO = process.env.CHAYA_DEMO || path.join(root, 'demos/smoke-mvp')
+
+if (!REAL_CONTENT || !SHELL_SOURCE) {
+  console.error('Usage: CHAYA_CONTENT=<game content root> CHAYA_SHELL=<nwjs.app or shell source> node scripts/smoke-mvp.mjs')
+  process.exit(1)
+}
 
 await loadLibs()
 
 console.log('=== Chaya MVP smoke ===')
 console.log('real content:', REAL_CONTENT)
 if (!looksLikeContent(REAL_CONTENT)) {
-  console.error('FAIL: 真实内容根无效')
+  console.error('FAIL: invalid content root')
   process.exit(1)
 }
 
-// 搭独立发布根：www → 真实内容（不复制）
+// Standalone publish root: www → real content (symlink, no copy)
 fs.mkdirSync(DEMO, { recursive: true })
 const www = path.join(DEMO, 'www')
 try {
   fs.rmSync(www, { recursive: true, force: true })
 } catch {
-  /* */
+  /* ignore */
 }
 fs.symlinkSync(REAL_CONTENT, www)
 
@@ -131,7 +139,7 @@ if (!resolved.ok) {
   process.exit(1)
 }
 if (resolved.projectRoot.includes(`${path.sep}Contents${path.sep}`)) {
-  console.error('FAIL: 仍 nestedInApp')
+  console.error('FAIL: still nestedInApp')
   process.exit(1)
 }
 
@@ -158,7 +166,7 @@ if (!okLink || !fs.existsSync(shell.shellApp)) {
   process.exit(1)
 }
 
-// 写回工具配置，方便 UI 直接接着测
+// Write toolkit config so the UI can pick up the smoke demo immediately
 const cfgPath = path.join(root, 'chaya.config.json')
 fs.writeFileSync(
   cfgPath,
@@ -172,5 +180,5 @@ fs.writeFileSync(
   )}\n`
 )
 console.log('wrote config →', cfgPath)
-console.log('OK — 流程打通：绑定独立游戏根 → 装壳 → app.nw 软链内容根')
-console.log('下一步: pnpm i 完成后 pnpm dev，浏览器点「在 Finder 显示壳」')
+console.log('OK — flow: bind standalone game root → install shell → app.nw → content root')
+console.log('Next: after pnpm i, run pnpm dev and use “Reveal shell in Finder” in the UI')

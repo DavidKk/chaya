@@ -1,7 +1,7 @@
 'use strict'
 
 /**
- * 预留桥接；首版不暴露 Node。contextIsolation + sandbox。
+ * Reserved preload bridge; v1 exposes no Node APIs. contextIsolation + sandbox.
  */
 const { contextBridge } = require('electron')
 

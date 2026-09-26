@@ -4,7 +4,7 @@ const { app, BrowserWindow } = require('electron')
 const path = require('node:path')
 
 const contentRoot = path.resolve(process.argv[2] || process.env.CHAYA_DEMO_GAME || '')
-if (!process.argv[2] && !process.env.CHAYA_DEMO_GAME) throw new Error('缺少 Demo 内容目录')
+if (!process.argv[2] && !process.env.CHAYA_DEMO_GAME) throw new Error('missing demo content directory')
 
 app.whenReady().then(() => {
   const win = new BrowserWindow({
@@ -12,7 +12,7 @@ app.whenReady().then(() => {
     height: 760,
     minWidth: 860,
     minHeight: 620,
-    title: 'Chaya 翻译测试游戏',
+    title: 'Chaya translation demo',
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,

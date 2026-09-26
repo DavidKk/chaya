@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * 包装 `next dev|start`：生成管理令牌与授权链接，并将启动日志改成
+ * Wrap `next dev|start`: mint the management token / auth link, and rewrite listen logs to
  *   Local:   http://127.0.0.1:PORT
- *   Network: http://<局域网IP>:PORT
- * （Next 默认会把 Local 打成 localhost、Network 打成 0.0.0.0）
+ *   Network: http://<lan-ip>:PORT
+ * (Next defaults Local to localhost and Network to 0.0.0.0.)
  */
 import { spawn } from 'node:child_process'
 import os from 'node:os'
@@ -41,7 +41,7 @@ function rewriteListenLine(line, lanIp) {
   // Next: `- Local:         http://localhost:3927`
   let out = line.replace(/(- Local:\s+)https?:\/\/localhost(:\d+)/, '$1http://127.0.0.1$2')
   out = out.replace(/(- Local:\s+)https?:\/\/127\.0\.0\.1(:\d+)/, '$1http://127.0.0.1$2')
-  // Next: `- Network:       http://0.0.0.0:3927`（显式 -H 0.0.0.0 时）
+  // Next: `- Network:       http://0.0.0.0:3927` (when -H 0.0.0.0)
   if (lanIp) {
     out = out.replace(/(- Network:\s+)https?:\/\/(?:0\.0\.0\.0|\[::\])(:\d+)/, `$1http://${lanIp}$2`)
   }
@@ -75,8 +75,8 @@ if (process.env.CHAYA_SERVICE !== 'vercel' && process.env.VERCEL !== '1') {
   const portIndex = args.findIndex((a) => a === '-p' || a === '--port')
   const port = portIndex >= 0 ? args[portIndex + 1] : process.env.PORT || 3927
   const suffix = `/api/access?token=${encodeURIComponent(process.env.CHAYA_AUTH_TOKEN)}`
-  console.log(`[Chaya] 本机授权链接：http://127.0.0.1:${port}${suffix}`)
-  if (args.includes('0.0.0.0') && lanIp) console.log(`[Chaya] 局域网授权链接：http://${lanIp}:${port}${suffix}`)
+  console.log(`[Chaya] local auth link: http://127.0.0.1:${port}${suffix}`)
+  if (args.includes('0.0.0.0') && lanIp) console.log(`[Chaya] LAN auth link: http://${lanIp}:${port}${suffix}`)
 }
 const child = spawn(process.execPath, [nextBin, ...args], {
   cwd: root,

@@ -1,8 +1,9 @@
 'use strict'
 
 /**
- * pack 后确保 mac 有可用签名：未签则补 ad-hoc（electron-builder 之后可能再签一次）。
- * 用 afterPack 而非 afterSign：签名被跳过时 afterSign 可能不跑。
+ * Ensure a usable macOS signature after pack: apply ad-hoc if unsigned.
+ * Prefer afterPack over afterSign — afterSign may not run when signing is skipped.
+ * electron-builder may re-sign afterward when a real identity is configured.
  */
 const { spawnSync } = require('node:child_process')
 const path = require('node:path')

@@ -3,7 +3,7 @@ productName: Chaya
 copyright: Copyright © 2026 DavidJones
 asar: true
 npmRebuild: false
-# CI 打 tag 构建后由 Actions 汇总到 GitHub Release（不在此隐式 publish）
+# Tag builds publish via Actions Release (do not implicit-publish here)
 publish: null
 directories:
   output: release
@@ -12,7 +12,7 @@ files:
   - package.json
   - electron/**/*
   - scripts/local-access.cjs
-  # Next 跑在 extraResources/app-root；asar 内不要打生产依赖
+  # Next runs from extraResources/app-root; keep production deps out of asar
   - '!**/node_modules/**'
   - '!**/.next/**'
   - '!**/.electron-builder/**'
@@ -24,7 +24,7 @@ files:
 extraResources:
   - from: .electron-builder/app-root
     to: app-root
-# pack 后补 ad-hoc（identity 为 null 时 electron-builder 不签；有正式证书时改 identity，本钩子验签通过即跳过）
+# Ad-hoc sign after pack when identity is null; with a real cert, skip if already valid
 afterPack: scripts/electron-after-pack.cjs
 mac:
   category: public.app-category.utilities
@@ -34,7 +34,7 @@ mac:
       arch:
         - x64
         - arm64
-  # 显式关闭内置签名，由 afterPack 统一 ad-hoc（避免「已损坏」）
+  # Disable built-in signing; afterPack applies ad-hoc (avoids "damaged" Gatekeeper)
   identity: null
   hardenedRuntime: false
   gatekeeperAssess: false

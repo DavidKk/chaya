@@ -24,7 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # version 由 package.json#packageManager 决定，勿再写死以免冲突
+      # Version comes from package.json#packageManager; do not pin here (avoids clashes)
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 

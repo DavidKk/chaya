@@ -1,4 +1,4 @@
-# MagickMonkey 同款：不拆多 package，仅声明 allowBuilds
+# Same as MagickMonkey: single package; only declare allowBuilds
 packages: []
 
 allowBuilds:

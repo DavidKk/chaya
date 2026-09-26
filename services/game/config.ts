@@ -26,7 +26,7 @@ function readConfigFile(file: string): ChayaConfig | null {
   }
 }
 
-/** 路径 base64url → UUID 后写回，避免每次启动重新发号 */
+/** Persist path-base64url → UUID ids so cold starts do not re-issue them */
 function persistLibraryIdMigration(file: string, config: ChayaConfig): void {
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as { library?: unknown }
@@ -84,5 +84,5 @@ export function saveConfig(partial: Partial<ChayaConfig>): ChayaConfig {
   return next
 }
 
-/** @deprecated 请用 `@/constants` 的 `CONFIG_FILE_PATH` */
+/** @deprecated use `CONFIG_FILE_PATH` from `@/constants` */
 export const CONFIG_FILE = CONFIG_FILE_PATH

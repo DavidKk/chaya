@@ -27,7 +27,7 @@ if (!fs.existsSync(settingsFile)) {
 }
 for (const name of names) {
   const from = path.join(root, 'plugins/dist', `${name}.js`)
-  if (!fs.existsSync(from)) throw new Error(`缺少插件产物：${from}`)
+  if (!fs.existsSync(from)) throw new Error(`missing plugin build: ${from}`)
   fs.copyFileSync(from, path.join(plugins, `${name}.js`))
 }
 const electron = require('electron')

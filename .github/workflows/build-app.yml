@@ -42,7 +42,7 @@ jobs:
           cache: pnpm
 
       - name: Use official Electron downloads
-        # 仓库 .npmrc 含国内镜像，CI 偶发 502；改走官方 GitHub Releases
+        # Repo .npmrc may point at a China mirror that 502s in CI; use official GitHub Releases
         shell: bash
         run: |
           if [ -f .npmrc ]; then
@@ -61,7 +61,7 @@ jobs:
           HUSKY: '0'
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: pnpm ${{ matrix.dist_script }}
-        # electron-builder 拉二进制偶发 5xx，失败整 job 重跑即可；此处不再套一层 shell 重试以免拖太久
+        # electron-builder binary downloads occasionally 5xx; re-run the job instead of shell retries
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -76,7 +76,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # Tag builds → GitHub Release（业界常见：矩阵构建产物汇总后挂到 Release）
+  # Tag builds → GitHub Release (matrix artifacts aggregated onto the Release)
   release:
     name: GitHub Release
     needs: build
@@ -99,7 +99,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Chaya ${{ github.ref_name }}
           draft: false
-          # 0.x 当作预发布测试；1.0.0+ 为正式版
+          # Treat 0.x as prerelease; 1.0.0+ as stable
           prerelease: ${{ startsWith(github.ref_name, 'v0.') }}
           generate_release_notes: true
           files: |
