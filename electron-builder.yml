@@ -1,0 +1,50 @@
+appId: app.chaya.toolkit
+productName: Chaya
+copyright: Copyright © 2026 DavidJones
+asar: true
+npmRebuild: false
+# CI 只上传 artifact，不往 GitHub Releases 发
+publish: null
+directories:
+  output: release
+  buildResources: electron/assets
+files:
+  - package.json
+  - electron/**/*
+  - scripts/local-access.cjs
+  # Next 跑在 extraResources/app-root；asar 内不要打生产依赖
+  - '!**/node_modules/**'
+  - '!**/.next/**'
+  - '!**/.electron-builder/**'
+  - '!**/release/**'
+  - '!**/plugins/**'
+  - '!**/docs/**'
+  - '!**/.agents/**'
+  - '!**/__tests__/**'
+extraResources:
+  - from: .electron-builder/app-root
+    to: app-root
+mac:
+  category: public.app-category.utilities
+  icon: electron/assets/icon.icns
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  # CI 默认不签名；本地有证书时可去掉
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+win:
+  icon: electron/assets/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}

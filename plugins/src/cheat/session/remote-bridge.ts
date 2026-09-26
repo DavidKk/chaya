@@ -1,0 +1,205 @@
+/**
+ * In-game: receive Web edit.cmd and apply; after subscribe, push edit.state.
+ */
+import { emptySession, lockKeyForActorSkill, lockKeyForActorState, type SessionState } from '@/components/game-edit/types'
+import { fieldsForEditCmd } from '@/lib/runtime/game-edit-sync'
+import type { GameEditCmd, GameEditStateMsg, GameLinkMessage } from '@/lib/runtime/game-link-protocol'
+
+import { applyRunAction, applyRunFlag, applySpeed } from '../runtime/apply-run'
+import { Cheats } from '../runtime/cheats'
+import { RunCheats } from '../runtime/cheats-run'
+import { buildLiveCatalog, readLiveSession, setItemCount, setPartyGold } from './live-session'
+
+type SendFn = (msg: GameLinkMessage) => void
+
+let subscribed = false
+let pushTimer: ReturnType<typeof setInterval> | null = null
+let sendFn: SendFn | null = null
+/** Local overlay mirror; merge with live before push */
+let mirror: SessionState = emptySession()
+/** Successfully acked cmdIds (bounded; avoid retry double-effects) */
+const ackedCmdIds = new Set<string>()
+const ACKED_CAP = 64
+
+function rememberAcked(cmdId: string) {
+  ackedCmdIds.add(cmdId)
+  if (ackedCmdIds.size <= ACKED_CAP) return
+  const first = ackedCmdIds.values().next().value
+  if (first) ackedCmdIds.delete(first)
+}
+
+export function applyEditCmd(cmd: GameEditCmd): void {
+  Cheats.ensureHooks()
+  RunCheats.ensureHooks()
+  switch (cmd.op) {
+    case 'gold':
+      setPartyGold(cmd.value)
+      if (Cheats.isLocked('gold')) Cheats.updateLockValue('gold', 0, cmd.value)
+      return
+    case 'goldLock':
+      Cheats.setLock('gold', 0, cmd.on, cmd.value)
+      return
+    case 'count':
+      setItemCount(cmd.kind, cmd.id, cmd.value)
+      if (Cheats.isLocked(cmd.kind, cmd.id)) Cheats.updateLockValue(cmd.kind, cmd.id, cmd.value)
+      return
+    case 'countLock':
+      Cheats.setLock(cmd.kind, cmd.id, cmd.on, cmd.value)
+      return
+    case 'var':
+      if ($gameVariables) $gameVariables.setValue(cmd.id, Math.floor(cmd.value))
+      if (Cheats.isLocked('var', cmd.id)) Cheats.updateLockValue('var', cmd.id, cmd.value)
+      return
+    case 'varLock':
+      Cheats.setLock('var', cmd.id, cmd.on, cmd.value)
+      return
+    case 'sw':
+      if ($gameSwitches) $gameSwitches.setValue(cmd.id, cmd.value)
+      if (Cheats.isLocked('sw', cmd.id)) Cheats.updateLockValue('sw', cmd.id, cmd.value ? 1 : 0)
+      return
+    case 'swLock':
+      Cheats.setLock('sw', cmd.id, cmd.on, cmd.value)
+      return
+    case 'runFlag':
+      applyRunFlag(cmd.key, cmd.value)
+      return
+    case 'runAction':
+      applyRunAction(cmd.id)
+      return
+    case 'walkRate':
+      applySpeed(cmd.value, mirror.runRate)
+      mirror = { ...mirror, walkRate: cmd.value }
+      return
+    case 'runRate':
+      applySpeed(mirror.walkRate, cmd.value)
+      mirror = { ...mirror, runRate: cmd.value }
+      return
+    case 'expRate':
+      RunCheats.setExpRate(cmd.value)
+      return
+    case 'actor': {
+      const api = window.ChayaEdit?.actor?.(cmd.id)
+      const patch = cmd.patch
+      if (api) {
+        if (patch.name != null) api.name?.(patch.name)
+        if (patch.nickname != null) api.nickname?.(patch.nickname)
+        if (patch.profile != null) api.profile?.(patch.profile)
+        if (patch.level != null) api.level?.(patch.level)
+        if (patch.exp != null) api.exp?.(patch.exp)
+        if (patch.classId != null) api.classId?.(patch.classId)
+        if (patch.hp != null) api.hp?.(patch.hp)
+        if (patch.mp != null) api.mp?.(patch.mp)
+        if (patch.mhp != null) api.mhp?.(patch.mhp)
+        if (patch.mmp != null) api.mmp?.(patch.mmp)
+        if (patch.atk != null) api.atk?.(patch.atk)
+        if (patch.def != null) api.def?.(patch.def)
+        if (patch.mat != null) api.mat?.(patch.mat)
+        if (patch.mdf != null) api.mdf?.(patch.mdf)
+        if (patch.agi != null) api.agi?.(patch.agi)
+        if (patch.luk != null) api.luk?.(patch.luk)
+        if (patch.skillIds) api.setSkills?.(patch.skillIds)
+        if (patch.stateIds) api.setStates?.(patch.stateIds)
+      }
+      return
+    }
+    case 'actorVitalLock':
+      Cheats.setLock(cmd.kind, cmd.actorId, cmd.on, cmd.value)
+      return
+    case 'actorOwnedLock': {
+      const key = cmd.kind === 'skills' ? lockKeyForActorSkill(cmd.actorId, cmd.entryId) : lockKeyForActorState(cmd.actorId, cmd.entryId)
+      const locks = { ...mirror.locks }
+      if (!cmd.on) delete locks[key]
+      else locks[key] = cmd.owned ? 1 : 0
+      mirror = { ...mirror, locks }
+      return
+    }
+    default:
+      return
+  }
+}
+
+function buildStateMsg(): GameEditStateMsg {
+  if (!$gameParty) {
+    const { hotkeys: _h, hotkeysGlobal: _hg, ...rest } = emptySession()
+    return { type: 'edit.state', ready: false, session: rest, error: '请先读档进游戏' }
+  }
+  mirror = readLiveSession(mirror)
+  const { hotkeys: _hotkeys, hotkeysGlobal: _hotkeysGlobal, ...session } = mirror
+  return { type: 'edit.state', ready: true, session }
+}
+
+function pushState() {
+  if (!subscribed || !sendFn) return
+  try {
+    sendFn(buildStateMsg())
+  } catch {
+    /* */
+  }
+}
+
+export function handleRemoteEditMessage(msg: GameLinkMessage, send: SendFn) {
+  sendFn = send
+  if (msg.type === 'edit.catalog.request') {
+    send({ type: 'edit.catalog', catalog: buildLiveCatalog() })
+    return
+  }
+  if (msg.type === 'edit.subscribe') {
+    subscribed = true
+    Cheats.ensureHooks()
+    RunCheats.ensureHooks()
+    if (!pushTimer) pushTimer = setInterval(pushState, 1000)
+    pushState()
+    try {
+      send({ type: 'edit.catalog', catalog: buildLiveCatalog() })
+    } catch {
+      /* Catalog must not block live state updates. */
+    }
+    return
+  }
+  if (msg.type === 'edit.unsubscribe') {
+    subscribed = false
+    if (pushTimer) {
+      clearInterval(pushTimer)
+      pushTimer = null
+    }
+    return
+  }
+  if (msg.type === 'edit.cmd') {
+    const fields = fieldsForEditCmd(msg)
+    const already = !!msg.cmdId && ackedCmdIds.has(msg.cmdId)
+    try {
+      if (!already) {
+        applyEditCmd(msg)
+        if (msg.cmdId) rememberAcked(msg.cmdId)
+      }
+      if (msg.cmdId) {
+        send({ type: 'edit.ack', cmdId: msg.cmdId, fields, ok: true })
+      }
+      pushState()
+    } catch {
+      if (msg.cmdId) {
+        try {
+          send({ type: 'edit.ack', cmdId: msg.cmdId, fields, ok: false })
+        } catch {
+          /* */
+        }
+      }
+    }
+  }
+}
+
+export function stopRemoteEditBridge() {
+  subscribed = false
+  sendFn = null
+  ackedCmdIds.clear()
+  if (pushTimer) {
+    clearInterval(pushTimer)
+    pushTimer = null
+  }
+}
+
+/** After local panel edits: update mirror and push Web immediately if subscribed */
+export function syncRemoteMirror(session: SessionState) {
+  mirror = session
+  pushState()
+}

@@ -1,0 +1,12 @@
+# MagickMonkey 同款：不拆多 package，仅声明 allowBuilds
+packages: []
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - unrs-resolver

@@ -1,0 +1,7 @@
+{
+  "name": "chaya-translation-demo",
+  "main": "index.html",
+  "window": {
+    "title": "Chaya 翻译测试游戏"
+  }
+}

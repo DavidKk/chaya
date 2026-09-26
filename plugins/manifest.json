@@ -1,0 +1,39 @@
+{
+  "plugins": [
+    {
+      "id": "ChayaLoader",
+      "name": "ChayaLoader",
+      "description": "薄加载器：从本机 Chaya 拉 dist，失败回退磁盘缓存",
+      "source": "plugins/dist/ChayaLoader.js",
+      "priority": 0
+    },
+    {
+      "id": "ChayaLog",
+      "name": "ChayaLog",
+      "description": "插件运行时：logger/http（对齐 MagickMonkey plugins）",
+      "source": "plugins/dist/ChayaLog.js",
+      "priority": 1
+    },
+    {
+      "id": "ChayaTrans",
+      "name": "ChayaTrans",
+      "description": "局内翻译：预翻译缓存 / Ollama 非阻塞中文字幕",
+      "source": "plugins/dist/ChayaTrans.js",
+      "priority": 10
+    },
+    {
+      "id": "ChayaBoost",
+      "name": "ChayaBoost",
+      "description": "全局加速：ChayaBoost.on()/off()",
+      "source": "plugins/dist/ChayaBoost.js",
+      "priority": 20
+    },
+    {
+      "id": "ChayaEdit",
+      "name": "ChayaEdit",
+      "description": "运行时改物品/变量/开关：ChayaEdit.help()",
+      "source": "plugins/dist/ChayaEdit.js",
+      "priority": 30
+    }
+  ]
+}

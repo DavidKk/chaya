@@ -1,0 +1,40 @@
+/**
+ * Chaya 色板唯一真源。换皮 / 换主题只改本文件。
+ * 控制台挂 :root，局内 overlay 挂 :host（Shadow 内）；两边 @import 同一份。
+ */
+:root,
+:host {
+  /* 表面 */
+  --paper: #060a11;
+  --paper-2: #0c121c;
+  --paper-wash: #071018;
+  --paper-glow-top: #123a5c;
+  --paper-glow-bottom: #0a2a40;
+  --mist: #1e2f45;
+  --panel: #101826;
+  --panel-2: #172234;
+  --inset: #080d16;
+
+  /* 文字 / 线 */
+  --ink: #f0f7ff;
+  --ink-soft: #8aa0bc;
+  --line: rgb(240 247 255 / 0.12);
+  --line-soft: rgb(240 247 255 / 0.06);
+
+  /* 强调：霓虹电光青蓝
+   * 实心钮 / Switch 开态同用 --accent + 近白字（--accent-ink）；亮青上白字对比可接受，勿再改回深色 ink。
+   */
+  --accent: #2ad4ff;
+  --accent-ink: #f0f7ff;
+  --accent-glow: rgb(42 212 255 / 0.62);
+
+  /* 状态 */
+  --ok: #3ee9a8;
+  --ok-glow: rgb(62 233 168 / 0.55);
+  --ok-ink: #041510;
+  --warn: #ffd60a;
+  --fail: #ff6b7a;
+  --fail-ink: #1a0608;
+  --info: #5ce1ff;
+  --debug: #9eb0d4;
+}

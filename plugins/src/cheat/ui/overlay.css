@@ -1,0 +1,84 @@
+/**
+ * GameEdit overlay — Tailwind + tokens (inside Shadow; does not leak into the game)
+ * No Web Component; host is in host.ts
+ */
+@import 'tailwindcss';
+@import '../../../../styles/chaya-palette.css';
+
+@source "../../../../components/game-edit/**/*.{ts,tsx}";
+@source "../../../../components/GameEditRunSettings.tsx";
+@source "../../../../components/TranslateRunPane.tsx";
+@source "../../../../components/translate/**/*.{ts,tsx}";
+@source "../../../../components/notification/**/*.{ts,tsx}";
+@source "../../../../components/layoutClasses.ts";
+@source "../../../../components/sk/**/*.{ts,tsx}";
+@source "./**/*.{ts,tsx}";
+
+@theme inline {
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-display: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
+
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-mist: var(--mist);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-inset: var(--inset);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-fail: var(--fail);
+  --color-info: var(--info);
+  --color-debug: var(--debug);
+}
+
+:host {
+  position: fixed;
+  inset: 8% 6%;
+  z-index: 2147483645;
+  display: none;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+  color-scheme: dark;
+  pointer-events: auto;
+}
+
+:host *,
+:host *::before,
+:host *::after {
+  box-sizing: border-box;
+}
+
+/* 与 globals 一致：Shadow 内隐藏系统条，滚动走 ScrollArea */
+:host * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+:host *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent;
+}
+
+:host([data-open]) {
+  display: flex;
+  flex-direction: column;
+}
+
+.mount-root {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}

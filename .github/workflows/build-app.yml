@@ -1,0 +1,66 @@
+name: Build App
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            dist_script: dist:mac
+          - name: Windows
+            os: windows-latest
+            dist_script: dist:win
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: pnpm
+
+      - name: Install dependencies
+        env:
+          HUSKY: '0'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installers
+        env:
+          HUSKY: '0'
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm ${{ matrix.dist_script }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaya-${{ matrix.name }}-${{ github.ref_name }}
+          path: |
+            release/*.dmg
+            release/*.exe
+            release/*.yml
+            release/*.yaml
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 30

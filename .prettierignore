@@ -1,0 +1,33 @@
+# Generated / runtime — skip formatters
+next-env.d.ts
+data/
+logs/
+.next/
+coverage/
+out/
+build/
+dist/
+tmp/
+.jest-chaya-root/
+node_modules/
+.corepack/
+.pnpm/
+.pnpm-cache/
+.pnpm-store/
+pnpm-lock.yaml
+package-lock.json
+
+# local MVP smoke / demo
+.mvp-demo-game/
+mvp-demo-game/
+demos/
+
+# Agent 约定只在 .agents/；跳过本地 .cursor
+.cursor/
+
+# husky 钩子
+.husky/
+
+# plugins 构建产物（含旧目录名）
+plugins/dist/
+preset/dist/

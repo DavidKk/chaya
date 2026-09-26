@@ -1,0 +1,92 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/package-lock.json
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing / build outputs
+/coverage
+/.next/
+/out/
+/build
+/dist/
+/tmp/
+/.electron-builder/
+/release/
+.jest-chaya-root/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# local Chaya binding (may contain absolute game paths)
+chaya.config.json
+shiru-kit.config.json
+
+# 插件 / 运行日志（NDJSON）
+/logs/
+
+# 工具本机数据（按用途分子目录；禁止把运行时文件直接丢在 data 根下）
+# 全游戏共享翻译缓存（SQLite + WAL）
+/data/translate-cache/*.sqlite
+/data/translate-cache/*.sqlite-*
+!/data/translate-cache/.gitkeep
+# Seed 补译后台任务状态（含本机 contentRoot）
+/data/translate-jobs/*.json
+!/data/translate-jobs/.gitkeep
+# 共用 NW.js 壳
+/data/shell/Chaya.app/
+/data/shell/ShiruKit.app/
+/data/shell/nw/
+# 官方 NW.js 下载解压缓存
+/data/shell-cache/
+!/data/shell-cache/.gitkeep
+# 旧路径兼容（迁移前曾装在 data 根）
+/data/Chaya.app/
+/data/ShiruKit.app/
+!/data/shell/.gitkeep
+# local MVP smoke / demo（壳 + www；勿入库）
+.mvp-demo-game/
+mvp-demo-game/
+demos/
+
+# Agent 约定只在 .agents/；本地若生成 .cursor 勿入库
+.cursor/
+
+# husky 钩子本地维护，勿入库
+.husky/
+
+# plugins 构建产物与本地镜像
+plugins/dist/
+plugins/**/_legacy*
+plugins/**/_legacy_js/
+# 旧目录名兼容（preset → plugins）
+preset/dist/
+preset/**/_legacy*
+preset/**/_legacy_js/
+
+# Local management pairing credential
+/data/access/
