@@ -3,7 +3,7 @@ productName: Chaya
 copyright: Copyright © 2026 DavidJones
 asar: true
 npmRebuild: false
-# CI 只上传 artifact，不往 GitHub Releases 发
+# CI 打 tag 构建后由 Actions 汇总到 GitHub Release（不在此隐式 publish）
 publish: null
 directories:
   output: release

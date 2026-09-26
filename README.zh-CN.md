@@ -63,7 +63,7 @@ pnpm dist:mac   # .dmg（x64 + arm64）
 pnpm dist:win   # NSIS .exe（x64）
 ```
 
-GitHub Actions：[`.github/workflows/build-app.yml`](.github/workflows/build-app.yml) 在 `v*` 标签与手动触发时构建，产物上传自 `release/`。
+GitHub Actions：[`.github/workflows/build-app.yml`](.github/workflows/build-app.yml) 在 `v*` 标签与手动触发时构建；打 tag 会发布 [GitHub Release](https://github.com/DavidKk/chaya/releases) 并挂上安装包。
 
 ## 本地运行
 
@@ -84,7 +84,7 @@ pnpm dev            # local 形态，127.0.0.1:3927 + 插件 watch
 | `pnpm dev:edge` | 本地模拟 Edge                        |
 | `pnpm ok:ci`    | 格式检查、lint、类型、测试、完整构建 |
 
-GitHub Actions：[CI](.github/workflows/ci.yml) 在 `main` / PR 跑 `pnpm ok:ci`；[Build App](.github/workflows/build-app.yml) 在 `v*` 或手动触发时打安装包。
+GitHub Actions：[CI](.github/workflows/ci.yml) 在 `main` / PR 跑 `pnpm ok:ci`。[Build App](.github/workflows/build-app.yml) 在 `v*` 标签（或手动触发）打安装包，并发布 [GitHub Release](https://github.com/DavidKk/chaya/releases)（附带 `.dmg` / `.exe`）。
 
 常用环境变量：
 

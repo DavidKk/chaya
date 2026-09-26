@@ -63,7 +63,7 @@ pnpm dist:mac   # .dmg (x64 + arm64)
 pnpm dist:win   # NSIS .exe (x64)
 ```
 
-GitHub Actions: [`.github/workflows/build-app.yml`](.github/workflows/build-app.yml) runs on `v*` tags and `workflow_dispatch`, uploading artifacts under `release/`.
+GitHub Actions: [`.github/workflows/build-app.yml`](.github/workflows/build-app.yml) runs on `v*` tags and `workflow_dispatch`. Tag builds publish installers to a [GitHub Release](https://github.com/DavidKk/chaya/releases).
 
 ## Local development
 
@@ -84,7 +84,7 @@ Open the **auth link** printed in the terminal (HttpOnly session). Do not share 
 | `pnpm dev:edge` | Edge mode locally                                |
 | `pnpm ok:ci`    | Format check, lint, typecheck, tests, full build |
 
-GitHub Actions: [CI](.github/workflows/ci.yml) runs `pnpm ok:ci` on `main` / PRs; [Build App](.github/workflows/build-app.yml) builds installers on `v*` tags or manual dispatch.
+GitHub Actions: [CI](.github/workflows/ci.yml) runs `pnpm ok:ci` on `main` / PRs. [Build App](.github/workflows/build-app.yml) builds installers on `v*` tags (or manual dispatch) and publishes a [GitHub Release](https://github.com/DavidKk/chaya/releases) with `.dmg` / `.exe` attached.
 
 Useful env vars:
 
