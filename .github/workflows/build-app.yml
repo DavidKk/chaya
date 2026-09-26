@@ -41,6 +41,16 @@ jobs:
           node-version: 22.19.0
           cache: pnpm
 
+      - name: Use official Electron downloads
+        # 仓库 .npmrc 含国内镜像，CI 偶发 502；改走官方 GitHub Releases
+        shell: bash
+        run: |
+          if [ -f .npmrc ]; then
+            sed -i.bak '/^electron_mirror=/d' .npmrc || true
+            rm -f .npmrc.bak
+          fi
+          echo "ELECTRON_MIRROR=${ELECTRON_MIRROR:-}"
+
       - name: Install dependencies
         env:
           HUSKY: '0'
@@ -51,6 +61,7 @@ jobs:
           HUSKY: '0'
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: pnpm ${{ matrix.dist_script }}
+        # electron-builder 拉二进制偶发 5xx，失败整 job 重跑即可；此处不再套一层 shell 重试以免拖太久
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
