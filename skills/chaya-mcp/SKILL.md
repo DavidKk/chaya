@@ -31,17 +31,16 @@ description: 通过 Chaya 本机 MCP 控制游戏库、启动游戏、局内修�
 
 ## 工具分组
 
-| 分组       | 工具                                                                                                                                           |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 游戏库     | `chaya_library_list` / `bind` / `remark` / `remove`                                                                                            |
-| 当前游戏   | `chaya_game_status` / `launch` / `quit` / `plugins_install` / `plugins_clear` / `shell_install` / `shell_check` / `shell_uninstall` / `window` |
-| 局内实时   | `chaya_live_games` / `state` / `plugins` / `call` / `press`（`eval` 默认关闭）                                                                 |
-| 修改目录   | `chaya_edit_catalog`                                                                                                                           |
-| 翻译       | `chaya_translate_text` / `extract` / `job` / `batch` / `engines` / `play_settings`                                                             |
-| 共享翻译库 | `chaya_cache_query` / `update` / `delete` / `import`                                                                                           |
-| 日志       | `chaya_logs_query` / `clear`                                                                                                                   |
-
-| 插件工具 | `chaya_plugin_edit_*`（gold / item / variable / switch / god / through / teleport / common_event / save / load / find）、`chaya_plugin_boost_*`（on / off / status）、`chaya_plugin_trans_*`（status / reload）——游戏在线时才出现 |
+| 分组       | 工具                                                                                                                                                                                                                              |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 游戏库     | `chaya_library_list` / `bind` / `remark` / `remove`                                                                                                                                                                               |
+| 当前游戏   | `chaya_game_status` / `launch` / `quit` / `plugins_install` / `plugins_clear` / `shell_install` / `shell_check` / `shell_uninstall` / `window`                                                                                    |
+| 局内实时   | `chaya_live_games` / `state` / `plugins` / `call` / `press`（`eval` 默认关闭）                                                                                                                                                    |
+| 修改目录   | `chaya_edit_catalog`                                                                                                                                                                                                              |
+| 翻译       | `chaya_translate_text` / `extract` / `job` / `batch` / `engines` / `play_settings`                                                                                                                                                |
+| 共享翻译库 | `chaya_cache_query` / `update` / `delete` / `import`                                                                                                                                                                              |
+| 日志       | `chaya_logs_query` / `clear`                                                                                                                                                                                                      |
+| 插件工具   | `chaya_plugin_edit_*`（gold / item / variable / switch / god / through / teleport / common_event / save / load / find）、`chaya_plugin_boost_*`（on / off / status）、`chaya_plugin_trans_*`（status / reload）——游戏在线时才出现 |
 
 完整参数见控制台「集成 → MCP」或 `tools/list`。插件工具也可用 `chaya_live_call {plugin, tool, input}` 调用，`chaya_live_plugins` 会列出每个插件声明的工具。
 

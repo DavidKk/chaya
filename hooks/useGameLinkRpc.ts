@@ -86,7 +86,13 @@ export function useGameLinkRpc({ connected, send, translationRequest, subscribeM
           unsubscribe()
           resolve(msg.catalog)
         })
-        sendRef.current({ type: 'edit.catalog.request' })
+        try {
+          sendRef.current({ type: 'edit.catalog.request' })
+        } catch (error) {
+          window.clearTimeout(timer)
+          unsubscribe()
+          reject(error)
+        }
       }),
     [subscribeMessages]
   )

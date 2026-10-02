@@ -1,6 +1,6 @@
 /**
  * ChayaAgent — runs MCP / WebMCP commands in-game.
- * Local: Agent → /api/mcp → agent bridge queue → POST /api/runtime/agent (this loop) → window.Chaya*.
+ * Local: Agent → /api/mcp → agent bridge queue → POST /api/runtime/agent (this loop) → ChayaEdit / ChayaBoost / ChayaTrans.
  * Edge: page WebMCP → game DataChannel → `window.ChayaAgent.run` (eval refused on that path).
  */
 
@@ -21,7 +21,7 @@ const DISABLED_RETRY_MS = 5 * 60_000
 type AgentGlobal = {
   stop: () => void
   status: () => { running: boolean; roomId: string; handled: number }
-  /** Run one command (used by the DataChannel route; it filters methods first) */
+  /** Run one command for the DataChannel route; never evals */
   run: (cmd: AgentCommand) => Promise<unknown>
 }
 
@@ -44,7 +44,7 @@ function gameInfo(): AgentGameInfo {
 
 async function execute(cmd: AgentCommand): Promise<AgentResult> {
   try {
-    return { id: cmd.id, ok: true, data: await runAgentCommand(cmd) }
+    return { id: cmd.id, ok: true, data: await runAgentCommand(cmd, { allowEval: true }) }
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -72,6 +72,8 @@ function start(): AgentGlobal {
         pending = []
         retry = RETRY_MIN_MS
         const { commands } = (await res.json()) as AgentPollResponse
+        // Stopped by a reload while polling: the new loop never reports these results, so leave them.
+        if (!running) break
         if (commands?.length) {
           pending = await Promise.all(commands.map(execute))
           handled += commands.length

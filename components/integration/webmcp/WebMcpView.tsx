@@ -53,6 +53,7 @@ export function WebMcpView() {
   const t = useT()
   const [report, setReport] = useState<WebMcpSupportReport | null>(null)
   const tools = useRegisteredTools()
+  const contentNote = t('integration.mcpContentNote')
 
   useEffect(() => setReport(getWebMcpSupportReport()), [])
 
@@ -111,6 +112,7 @@ export function WebMcpView() {
             </h2>
             <span className="text-xs text-ink-soft">{t('integration.toolCount', { count: tools.length })}</span>
           </div>
+          {contentNote ? <p className="m-0 text-xs text-ink-soft">{contentNote}</p> : null}
           {groups.length === 0 ? <p className="m-0 text-xs text-ink-soft">{t('integration.webmcpEmpty')}</p> : null}
           {groups.map((group) => (
             <div key={group.id} className={integrationCard}>

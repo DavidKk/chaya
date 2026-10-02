@@ -22,9 +22,11 @@ function requireLink(link: EditLinkDeps) {
   if (!link.connected()) throw webMcpCodedError('game_offline', '游戏未连接：请从 Chaya 启动游戏（网页版先在游戏库选择游戏并打开）')
 }
 
-function waitForMessage<T extends GameLinkMessage>(link: EditLinkDeps, match: (msg: GameLinkMessage) => msg is T, timeoutMs: number, onTick?: () => void): Promise<T> {
+/** Subscribe, then run `send` now and on every resend tick; a throwing `send` rejects and cleans up immediately. */
+function waitForMessage<T extends GameLinkMessage>(link: EditLinkDeps, match: (msg: GameLinkMessage) => msg is T, timeoutMs: number, send?: () => void): Promise<T> {
   return new Promise((resolve, reject) => {
-    const tick = onTick ? window.setInterval(onTick, RESEND_MS) : undefined
+    let tick: number | undefined
+    let settled = false
     const timer = window.setTimeout(() => {
       done()
       reject(webMcpCodedError('timeout', `游戏 ${timeoutMs / 1000} 秒内未响应`))
@@ -35,10 +37,22 @@ function waitForMessage<T extends GameLinkMessage>(link: EditLinkDeps, match: (m
       resolve(msg)
     })
     function done() {
+      settled = true
       window.clearTimeout(timer)
       window.clearInterval(tick)
       unsubscribe()
     }
+    if (!send) return
+    const sendOrFail = () => {
+      try {
+        send()
+      } catch (error) {
+        done()
+        reject(error)
+      }
+    }
+    sendOrFail()
+    if (!settled) tick = window.setInterval(sendOrFail, RESEND_MS)
   })
 }
 
@@ -51,7 +65,6 @@ async function sendCmd(link: EditLinkDeps, op: GameEditCmdOp) {
     ACK_TIMEOUT_MS,
     () => link.send(cmd)
   )
-  link.send(cmd)
   const ack = await acked
   return { applied: ack.ok, fields: ack.fields }
 }

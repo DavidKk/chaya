@@ -58,4 +58,13 @@ describe('handleMcpPost', () => {
     const res = await (await call({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'plugin_x' } })).json()
     expect(res.result.content[0].text).toContain('x')
   })
+
+  it('rejects malformed requests without throwing', async () => {
+    const nullParams = await (await rpc({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: null })).json()
+    expect(nullParams.error.code).toBe(-32602)
+    const batch = await (await rpc([null, { jsonrpc: '2.0', id: 10, method: 'ping' }])).json()
+    expect(batch).toEqual([expect.objectContaining({ error: expect.objectContaining({ code: -32600 }) }), expect.objectContaining({ id: 10, result: {} })])
+    const empty = await rpc([])
+    expect(empty.status).toBe(400)
+  })
 })

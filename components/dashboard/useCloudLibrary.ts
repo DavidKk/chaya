@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { useNotification } from '@/components/notification/useNotification'
-import { CLOUD_LIBRARY_CHANGED_EVENT, type CloudLibraryEntry, cloudLibraryStorage, readCloudGameId, requireCloudPermission, selectCloudGameId } from '@/lib/browser/cloud-library'
+import {
+  CLOUD_GAME_SELECTION_EVENT,
+  CLOUD_LIBRARY_CHANGED_EVENT,
+  type CloudLibraryEntry,
+  cloudLibraryStorage,
+  readCloudGameId,
+  requireCloudPermission,
+  selectCloudGameId,
+} from '@/lib/browser/cloud-library'
 import {
   clearCloudPlugins,
   type CloudGame,
@@ -25,6 +33,8 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
   const [downloadUrl, setDownloadUrl] = useState<string>()
   const [progress, setProgress] = useState('')
   const notify = useNotification()
+  const selectIdRef = useRef(selectId)
+  selectIdRef.current = selectId
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
@@ -52,6 +62,15 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
   useEffect(() => {
     if (enabled && loaded) selectCloudGameId(activeId)
   }, [enabled, loaded, activeId])
+  useEffect(() => {
+    if (!enabled || !queryId) return
+    const sync = () => {
+      const selected = readCloudGameId()
+      if (selected && selected !== queryId) selectIdRef.current(selected)
+    }
+    window.addEventListener(CLOUD_GAME_SELECTION_EVENT, sync)
+    return () => window.removeEventListener(CLOUD_GAME_SELECTION_EVENT, sync)
+  }, [enabled, queryId])
   async function save(next: CloudLibraryEntry[]) {
     await cloudLibraryStorage(next)
     setEntries(next)

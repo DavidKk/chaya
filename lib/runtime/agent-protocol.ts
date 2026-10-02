@@ -3,7 +3,7 @@
  * The game POSTs results + presence and receives queued commands in the same round trip.
  */
 
-import type { PluginToolMeta } from './plugin-tools'
+import { type PluginToolMeta, sanitizePluginTools } from './plugin-tools'
 
 export const AGENT_INPUT_KEYS = ['ok', 'cancel', 'shift', 'menu', 'up', 'down', 'left', 'right', 'pageup', 'pagedown', 'escape'] as const
 export type AgentInputKey = (typeof AGENT_INPUT_KEYS)[number]
@@ -27,6 +27,22 @@ export const AGENT_LINK_PATH = '/agent'
 export type AgentResult = { id: string; ok: true; data: unknown } | { id: string; ok: false; error: string }
 
 export type AgentGameInfo = { name?: string; gameRoot?: string; contentRoot?: string; plugins?: string[]; tools?: PluginToolMeta[] }
+
+const INFO_TEXT_MAX = 300
+const INFO_PLUGINS_MAX = 32
+const PLUGIN_NAME = /^Chaya[A-Z]\w{0,31}$/
+
+function infoText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, INFO_TEXT_MAX) : undefined
+}
+
+/** Untrusted game report → known fields only (it is shown to agents and must not spoof `gameId`). */
+export function sanitizeAgentGameInfo(raw: unknown): AgentGameInfo | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const info = raw as Record<string, unknown>
+  const plugins = Array.isArray(info.plugins) ? info.plugins.filter((name): name is string => typeof name === 'string' && PLUGIN_NAME.test(name)).slice(0, INFO_PLUGINS_MAX) : []
+  return { name: infoText(info.name), gameRoot: infoText(info.gameRoot), contentRoot: infoText(info.contentRoot), plugins, tools: sanitizePluginTools(info.tools) }
+}
 
 /** Game → server: deliver results, refresh presence, then wait for the next commands. */
 export type AgentPollRequest = { roomId: string; info?: AgentGameInfo; results?: AgentResult[] }

@@ -83,7 +83,7 @@
 | ChayaTrans | `status`、`reload`                                                                                               |
 
 - 游戏连上后出现，断开后消失。本机 MCP 的 `tools/list` 随在线游戏变化；客户端没有重新拉清单时，`chaya_live_plugins` 也返回各插件声明的工具与参数，`chaya_live_call` 可按工具名调用。
-- 新的第一方插件按同一约定声明即可自动对外，无需改服务端。
+- 新增插件工具需在 `lib/runtime/plugin-tool-catalog.ts` 登记元数据（描述、参数、标注），插件内只提供实现；未登记的工具名会被丢弃。
 
 ## 5. 约束
 

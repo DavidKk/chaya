@@ -62,10 +62,9 @@ export function CopyField({ value, label, className }: CopyFieldProps) {
   const tip = state === 'ok' ? t('common.copied') : state === 'fail' ? t('common.copyFailed') : t('common.copy')
 
   return (
-    <div className={cn('relative rounded-[0.25rem] border border-line bg-panel-2', className)}>
+    <div role={label ? 'group' : undefined} aria-label={label} className={cn('relative rounded-[0.25rem] border border-line bg-panel-2', className)}>
       <code
         tabIndex={0}
-        aria-label={label}
         className="block min-h-10 whitespace-pre-wrap break-all py-2.5 pr-12 pl-3 font-mono text-xs leading-relaxed text-ink select-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         {value}

@@ -1,15 +1,15 @@
 /**
- * ChayaAgent command handlers — read RPG Maker state, call window.Chaya* plugins, press keys.
+ * ChayaAgent command handlers — read RPG Maker state, call first-party Chaya plugins, press keys.
  */
 
 import type { AgentCommand, AgentInputKey, AgentParams } from '@/lib/runtime/agent-protocol'
+import { isFirstPartyToolPlugin } from '@/lib/runtime/plugin-tools'
 
 import { findPluginTool, listPluginToolMetas } from '../helpers/plugin-tools'
 
 type Loose = Record<string, unknown>
 type AnyFn = (...args: unknown[]) => unknown
 
-const PLUGIN_GLOBAL = /^Chaya[A-Z]\w*$/
 const DEFAULT_PRESS_FRAMES = 6
 const MAX_PRESS_FRAMES = 600
 
@@ -109,7 +109,7 @@ function listPlugins(): unknown {
   const w = g()
   const tools = listPluginToolMetas()
   return Object.keys(w)
-    .filter((key) => PLUGIN_GLOBAL.test(key) && w[key] && typeof w[key] === 'object')
+    .filter((key) => isFirstPartyToolPlugin(key) && w[key] && typeof w[key] === 'object')
     .sort()
     .map((key) => {
       const declared = tools.filter((tool) => tool.plugin === key).map(({ plugin: _plugin, ...meta }) => meta)
@@ -125,7 +125,8 @@ async function callPluginTool({ plugin, tool, input = {} }: AgentParams<'plugin.
 }
 
 async function callPlugin({ plugin, method, args = [], chain = [] }: AgentParams<'plugin.call'>): Promise<unknown> {
-  if (!PLUGIN_GLOBAL.test(plugin)) throw new Error(`只能调用 window.Chaya* 插件，收到：${plugin}`)
+  // Not every `window.Chaya*`: ChayaAgent.run would reach game.eval and ChayaAgent.stop the bridge.
+  if (!isFirstPartyToolPlugin(plugin)) throw new Error(`只能调用 ChayaEdit / ChayaBoost / ChayaTrans，收到：${plugin}`)
   const target = g()[plugin]
   if (!target || typeof target !== 'object') throw new Error(`插件未加载：${plugin}`)
   let self: unknown = target
@@ -162,7 +163,12 @@ async function evalCode(code: string): Promise<unknown> {
   return toJsonSafe(await new AsyncFunction(code)())
 }
 
-export async function runAgentCommand(cmd: AgentCommand): Promise<unknown> {
+export type AgentRunOptions = {
+  /** Only the local long-poll bridge (server-gated by CHAYA_MCP_EVAL) may eval */
+  allowEval?: boolean
+}
+
+export async function runAgentCommand(cmd: AgentCommand, { allowEval = false }: AgentRunOptions = {}): Promise<unknown> {
   switch (cmd.method) {
     case 'game.state':
       return gameState()
@@ -175,6 +181,7 @@ export async function runAgentCommand(cmd: AgentCommand): Promise<unknown> {
     case 'input.press':
       return pressKey(cmd.params)
     case 'game.eval':
+      if (!allowEval) throw new Error('此通道不允许执行 game.eval')
       return evalCode(cmd.params.code)
     default:
       throw new Error(`未知指令：${(cmd as { method?: string }).method}`)

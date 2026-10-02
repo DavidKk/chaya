@@ -29,8 +29,6 @@ function libraryIdForRoot(library: LibraryItemView[], gameRoot: string): string 
 
 type GameLinkContextValue = GameLinkRpc & {
   roomId: string | null
-  /** 浏览器（Edge）模式：/api/status canUseDisk === false */
-  browserMode: boolean
   connected: boolean
   negotiating: boolean
   /** 启动前钉住房间 id（不必等 Provider 慢扫 /api/status） */
@@ -150,7 +148,6 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
     () => ({
       ...rpc,
       roomId,
-      browserMode,
       connected: link.connected,
       negotiating: link.negotiating,
       armRoom,
@@ -160,7 +157,7 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
       subscribeMessages,
       translationRequest: translation.rpc.request,
     }),
-    [rpc, roomId, browserMode, link.connected, link.negotiating, armRoom, link.restart, link.quit, link.send, subscribeMessages, translation]
+    [rpc, roomId, link.connected, link.negotiating, armRoom, link.restart, link.quit, link.send, subscribeMessages, translation]
   )
 
   return <GameLinkContext.Provider value={value}>{children}</GameLinkContext.Provider>

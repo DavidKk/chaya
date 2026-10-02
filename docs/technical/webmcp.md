@@ -41,17 +41,18 @@ lib/integration/tools/     # 两端共用的 MCP 工具实现（纯函数 + 注�
 lib/webmcp/
   mcp-mirror.ts            # tools/list 条目 → WebMCP 定义（标注映射）、tools/call 结果解析与截断
   mode-matrix.ts           # Edge 不可用工具与原因（page_get_context、测试共用）
-lib/runtime/plugin-tools.ts  # 插件工具声明类型、命名、校验、第一方插件名单
+lib/runtime/plugin-tool-catalog.ts  # 插件工具静态元数据（描述 / schema / 标注）
+lib/runtime/plugin-tools.ts  # 命名、目录查找、上报校验、第一方插件名单
 components/webmcp/
   ChayaWebMcpHost.tsx      # AppProviders 内挂一次：探测形态，挂四个注册者
-  useMcpMirror.ts          # 本机：拉 tools/list、同步、调用 /api/mcp
-  edge/{library,game,link,logs,index}.ts  # Edge 浏览器实现（按分组拆）
+  mcp-mirror-client.ts     # 本机：拉 tools/list、调用 /api/mcp
+  edge/{library,game,link,index}.ts  # Edge 浏览器实现（按分组拆；日志查询在 link.ts）
   edit-tools.ts            # chaya_web_edit_*
   page/                    # 页面工具（移植工单服务：elements / snapshot / actions / tools）
 components/GameLinkProvider.tsx  # 增加 callAgent / requestCatalog / acquireEditSession（拆 useGameLinkRpc）
 components/integration/webmcp/WebMcpView.tsx
-plugins/src/helpers/plugin-tools.ts   # declarePluginTools(plugin, specs)
-plugins/src/{cheat,translator}/tools.ts、game-boost 内声明
+plugins/src/helpers/plugin-tools.ts   # declarePluginTools(plugin, { tool: run })
+plugins/src/cheat/console/tools.ts、game-boost.ts、translator/index.ts 内提供实现
 ```
 
 ## 3. 注册层 `initializer/webmcp`
@@ -105,7 +106,7 @@ plugins/src/{cheat,translator}/tools.ts、game-boost 内声明
 
 不新增消息类型。现有 `createTranslationRpc` 已有 4KB 分片（单条 < 16KiB）、并发上限、取消与超时，游戏侧的处理函数按路径路由：
 
-- `path === '/agent'`、`method === 'POST'`：`body = { method, params }`，只允许 `game.state` / `plugins.list` / `plugin.call` / `plugin.tool` / `input.press`，**拒绝 `game.eval`**（Edge 的 `/api/runtime/webrtc` 信令无鉴权，DataChannel 视为不可信入口）；交给 `window.ChayaAgent.run`，未加载返回 400 "ChayaAgent 未加载"。
+- `path === '/agent'`、`method === 'POST'`：`body = { method, params }`，只允许 `game.state` / `plugins.list` / `plugin.call` / `plugin.tool` / `input.press`，**拒绝 `game.eval`**（Edge 的 `/api/runtime/webrtc` 信令无鉴权，DataChannel 视为不可信入口）；交给 `window.ChayaAgent.run`（该入口固定不允许 eval），未加载返回 400 "ChayaAgent 未加载"。
 - 其余路径照旧交给翻译运行时。
 
 网页侧（`useGameLinkRpc`，从 `GameLinkProvider` 拆出）：
@@ -191,3 +192,4 @@ Jest 运行在 node 环境（无 jsdom），单测覆盖纯函数与假 `modelCo
 | 2026-10-03 | 初稿                                                                                                                                                                                                                                                                                                                                    |
 | 2026-10-03 | 评审修订：Edge 工具矩阵（翻译 / 翻译库 / quit / shell 经运行时实现）；形态探测改用 `/api/status`；敏感字段与确认框禁区；DataChannel 复用翻译 RPC 并拒绝 eval；插件声明限第一方；Edge 日志只读；扩展 `live_plugins` / `live_call` 替代新工具；共用工具工厂                                                                               |
 | 2026-10-03 | 开发后评审：插件工具元数据改为静态目录（防游戏脚本注入描述）；`plugin.call` 只允许列出的方法（堵 `Function` 构造链）；`page_wait_for` 走脱敏文本；`page_navigate` / `page_click` 拒绝解码后的 `/api`；确认框只响应用户真实事件（`isTrusted`）；`save` 标记 destructive；镜像刷新丢弃过期响应、连上游戏后延迟补刷；Edge 插件工具退避重试 |
+| 2026-10-03 | 整体评审：`plugin.call` / `plugins.list` 只允许 `ChayaEdit` / `ChayaBoost` / `ChayaTrans`（原先 `window.Chaya*` 可调 `ChayaAgent.run` 执行 eval、`stop` 停桥）；`game.eval` 只在本机长轮询路径执行；游戏上报的 `info` 只保留已知字段且不能覆盖 `gameId`；长轮询中止时命令留在队列；畸形 JSON-RPC 返回 -32600                            |

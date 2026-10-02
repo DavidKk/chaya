@@ -49,7 +49,8 @@ function visible(config: McpServerConfig) {
 }
 
 async function handle(config: McpServerConfig, req: JsonRpcRequest, ctx: McpCallContext) {
-  const { id, method, params = {} } = req
+  const { id, method } = req
+  const params = req.params && typeof req.params === 'object' && !Array.isArray(req.params) ? req.params : {}
   switch (method) {
     case 'initialize': {
       const requested = String(params.protocolVersion || '')
@@ -89,8 +90,13 @@ export async function handleMcpPost(config: McpServerConfig, request: Request): 
   if (!body || typeof body !== 'object') return NextResponse.json(fail(null, -32700, '无法解析 JSON'), { status: 400 })
 
   const batch = Array.isArray(body) ? body : [body]
+  if (!batch.length) return NextResponse.json(fail(null, -32600, '空的批量请求'), { status: 400 })
   const responses = []
   for (const req of batch) {
+    if (!req || typeof req !== 'object' || typeof req.method !== 'string') {
+      responses.push(fail(req && typeof req === 'object' && 'id' in req ? (req.id ?? null) : null, -32600, '无效的 JSON-RPC 请求'))
+      continue
+    }
     if (req.id === undefined || req.id === null) continue
     responses.push(await handle(config, req, { signal: request.signal }))
   }

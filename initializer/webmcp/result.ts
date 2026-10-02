@@ -7,8 +7,6 @@ export type WebMcpErrResult<E extends string = string> = {
   message?: string
 }
 
-export type WebMcpResult<T extends Record<string, unknown> = Record<string, never>, E extends string = string> = WebMcpOkResult<T> | WebMcpErrResult<E>
-
 export function webMcpOk<T extends Record<string, unknown>>(payload?: T): WebMcpOkResult<T> {
   return { ...(payload ?? ({} as T)), ok: true }
 }

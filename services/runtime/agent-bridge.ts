@@ -51,7 +51,7 @@ export function listAgentGames(): AgentGameSummary[] {
     .filter((s) => isLive(s, now))
     .map((s) => {
       const { tools, ...info } = s.info
-      return { gameId: s.roomId, lastSeenMs: now - s.lastSeen, toolCount: tools?.length ?? 0, ...info }
+      return { ...info, gameId: s.roomId, lastSeenMs: now - s.lastSeen, toolCount: tools?.length ?? 0 }
     })
 }
 
@@ -104,7 +104,8 @@ export async function pollAgentCommands(roomId: string, input: { info?: AgentGam
     })
     s.lastSeen = Date.now()
   }
-  return s.queue.splice(0)
+  // An aborted poll's response is never read; keep the commands for the next one.
+  return input.signal?.aborted ? [] : s.queue.splice(0)
 }
 
 export class AgentBridgeError extends Error {}

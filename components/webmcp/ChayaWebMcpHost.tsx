@@ -18,7 +18,8 @@ import { buildPageTools, PAGE_REGISTRAR_ID, type PageRoute } from './page/tools'
 
 export const MCP_REGISTRAR_ID = 'chaya.mcp'
 export const PLUGINS_REGISTRAR_ID = 'chaya.plugins'
-const MIRROR_SYNC_MS = 30_000
+/** Plugin tools follow the agent bridge (not this tab's DataChannel), so poll often; tools/list is local and cheap. */
+const MIRROR_SYNC_MS = 10_000
 /** The agent bridge / ChayaAgent usually report plugin tools a few seconds after the DataChannel opens. */
 const PLUGIN_TOOL_RETRY_MS = [0, 3_000, 10_000, 30_000]
 

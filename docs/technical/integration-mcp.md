@@ -17,7 +17,7 @@ Agent ──JSON-RPC（Bearer token）──► POST /api/mcp
    进程内调用现有路由          services/*（少量直调）      agent-bridge 指令队列
  （status / launch / …）     （备注、日志关键词）              ▲
                                                                │ POST /api/runtime/agent（长轮询）
-                                                     游戏内 ChayaAgent → window.Chaya*
+                                                     游戏内 ChayaAgent → ChayaEdit / ChayaBoost / ChayaTrans
 ```
 
 - MCP 只在 `canUseDisk()`（local / app）开放；Edge 返回 404 `LOCAL_ONLY`。
@@ -86,7 +86,7 @@ const res = await invokeRoute(StatusRoute.PUT, { method: 'PUT', path: '/api/stat
 - `/api/integration/mcp` 在 Edge 返回 `{ available: false }`，绝不返回 token（Edge 下 `mayAccessApi` 全放行，必须自行判 `canUseDisk`）；响应 `no-store`；服务地址固定 `http://127.0.0.1:<port>/api/mcp`（`dev:lan` 监听 0.0.0.0 时也不把局域网地址写进安装链接）。
 - `proxy.ts` 只放行 `/skills/` 前缀；`/integration/skills` 页面仍需管理授权。
 - `chaya_live_eval` 由 `CHAYA_MCP_EVAL=1` 控制：关闭时不出现在 `tools/list`，也不可调用。
-- `chaya_live_call` 只允许 `window.Chaya*` 全局对象。
+- `chaya_live_call` 只允许 `ChayaEdit` / `ChayaBoost` / `ChayaTrans`，链式调用每一步只能调这些对象列出的方法；`game.eval` 只在本机长轮询且开启 `CHAYA_MCP_EVAL=1` 时执行。
 - 破坏性工具在描述里写明「先征得用户同意」，目录里标 `destructive: true`，页面显示 ⚠️。
 
 ## 5. 页面

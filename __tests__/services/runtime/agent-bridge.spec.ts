@@ -1,3 +1,4 @@
+import { sanitizeAgentGameInfo } from '@/lib/runtime/agent-protocol'
 import { callAgentGame, listAgentGames, pollAgentCommands, resetAgentBridge, resolveAgentGame } from '@/services/runtime/agent-bridge'
 
 describe('agent bridge', () => {
@@ -12,6 +13,26 @@ describe('agent bridge', () => {
     expect(() => resolveAgentGame()).toThrow('请传 gameId')
     expect(resolveAgentGame('room-B')).toBe('room-B')
     expect(() => resolveAgentGame('room-C')).toThrow('未连接')
+  })
+
+  it('never lets game info spoof gameId and drops unknown fields', async () => {
+    const info = sanitizeAgentGameInfo({ name: ' A ', gameId: 'fake', extra: 'x'.repeat(5000), plugins: ['ChayaEdit', 'evil', 3], tools: [{ plugin: 'ChayaEdit', tool: 'gold' }] })
+    expect(info).toEqual({ name: 'A', gameRoot: undefined, contentRoot: undefined, plugins: ['ChayaEdit'], tools: [expect.objectContaining({ tool: 'gold' })] })
+    expect(sanitizeAgentGameInfo('nope')).toBeUndefined()
+    await pollAgentCommands('room-A', { info: { ...info, gameId: 'fake' } as never, waitMs: 0 })
+    expect(listAgentGames()[0]).toMatchObject({ gameId: 'room-A', toolCount: 1 })
+  })
+
+  it('keeps commands queued when the long-poll is aborted', async () => {
+    const controller = new AbortController()
+    const poll = pollAgentCommands('room-A', { waitMs: 5_000, signal: controller.signal })
+    controller.abort()
+    expect(await poll).toEqual([])
+    const call = callAgentGame('room-A', 'game.state', {})
+    const [cmd] = await pollAgentCommands('room-A', { waitMs: 0 })
+    expect(cmd.method).toBe('game.state')
+    await pollAgentCommands('room-A', { results: [{ id: cmd.id, ok: true, data: 1 }], waitMs: 0 })
+    await expect(call).resolves.toBe(1)
   })
 
   it('wakes the long-poll with queued commands and resolves with the result', async () => {

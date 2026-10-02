@@ -211,7 +211,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     readOnly: true,
     group: 'live',
     title: '局内插件',
-    description: '列出游戏内已加载的 Chaya 插件（window.Chaya*）、方法，以及插件声明的工具（tools：名称、说明、参数）。调用 chaya_live_call 前先看这里。',
+    description: '列出游戏内已加载的 Chaya 插件（ChayaEdit / ChayaBoost / ChayaTrans）、方法，以及插件声明的工具（tools：名称、说明、参数）。调用 chaya_live_call 前先看这里。',
     inputSchema: obj({ gameId }),
   },
   {

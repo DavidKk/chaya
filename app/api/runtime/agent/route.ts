@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { defineApiRoute } from '@/initializer/controller'
 import { json } from '@/initializer/response'
-import { AGENT_POLL_WAIT_MS, type AgentPollRequest, type AgentPollResponse } from '@/lib/runtime/agent-protocol'
-import { sanitizePluginTools } from '@/lib/runtime/plugin-tools'
+import { AGENT_POLL_WAIT_MS, type AgentPollRequest, type AgentPollResponse, sanitizeAgentGameInfo } from '@/lib/runtime/agent-protocol'
 import { canUseDisk } from '@/lib/service-mode/mode'
 import { pollAgentCommands } from '@/services/runtime/agent-bridge'
 
@@ -27,9 +26,8 @@ export const POST = defineApiRoute('post:/api/runtime/agent', async ({ request }
   const roomId = String(body?.roomId || '').trim()
   if (!roomId) return json({ ok: false, error: { code: 'BAD_REQUEST', message: '缺少 roomId' } }, { status: 400, headers: CORS })
 
-  const info = body?.info && typeof body.info === 'object' ? { ...body.info, tools: sanitizePluginTools(body.info.tools) } : undefined
   const commands = await pollAgentCommands(roomId, {
-    info,
+    info: sanitizeAgentGameInfo(body?.info),
     results: Array.isArray(body?.results) ? body.results : [],
     waitMs: AGENT_POLL_WAIT_MS,
     signal: request.signal,

@@ -114,6 +114,9 @@ export function ConfirmProvider({
       if (e.isComposing || e.keyCode === 229) return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      // Enter on Cancel / a link activates that control natively, never the confirm action.
+      const control = t?.closest('button, a[href]')
+      if (control && control.getAttribute('data-modal-initial') !== 'confirm') return
       e.preventDefault()
       e.stopPropagation()
       void runConfirm()

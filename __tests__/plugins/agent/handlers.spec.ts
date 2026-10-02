@@ -7,7 +7,7 @@ describe('ChayaAgent handlers', () => {
   const g = globalThis as unknown as Globals
 
   afterEach(() => {
-    delete g.ChayaFake
+    delete g.ChayaBoost
     delete g.Input
   })
 
@@ -20,27 +20,46 @@ describe('ChayaAgent handlers', () => {
 
   it('calls Chaya* plugins with fluent chains', async () => {
     const actor = { hp: jest.fn((n: number) => ({ hp: n })) }
-    g.ChayaFake = {
+    g.ChayaBoost = {
       gold(n: number) {
         return n * 2
       },
       actor: jest.fn(() => actor),
       self() {
-        return g.ChayaFake
+        return g.ChayaBoost
       },
     }
-    expect(await runAgentCommand({ id: '1', method: 'plugin.call', params: { plugin: 'ChayaFake', method: 'gold', args: [5] } })).toBe(10)
-    expect(await runAgentCommand({ id: '2', method: 'plugin.call', params: { plugin: 'ChayaFake', method: 'actor', args: [1], chain: [{ method: 'hp', args: [999] }] } })).toEqual({
-      hp: 999,
-    })
-    expect(await runAgentCommand({ id: '3', method: 'plugin.call', params: { plugin: 'ChayaFake', method: 'self' } })).toBe('[ChayaFake]')
-    expect((await runAgentCommand({ id: '4', method: 'plugins.list', params: {} })) as unknown[]).toContainEqual({ name: 'ChayaFake', methods: ['actor', 'gold', 'self'] })
+    expect(await runAgentCommand({ id: '1', method: 'plugin.call', params: { plugin: 'ChayaBoost', method: 'gold', args: [5] } })).toBe(10)
+    expect(await runAgentCommand({ id: '2', method: 'plugin.call', params: { plugin: 'ChayaBoost', method: 'actor', args: [1], chain: [{ method: 'hp', args: [999] }] } })).toEqual(
+      {
+        hp: 999,
+      }
+    )
+    expect(await runAgentCommand({ id: '3', method: 'plugin.call', params: { plugin: 'ChayaBoost', method: 'self' } })).toBe('[ChayaBoost]')
+    expect((await runAgentCommand({ id: '4', method: 'plugins.list', params: {} })) as unknown[]).toContainEqual({ name: 'ChayaBoost', methods: ['actor', 'gold', 'self'] })
+  })
+
+  it('refuses ChayaAgent and other non-whitelisted globals', async () => {
+    const run = jest.fn()
+    g.ChayaAgent = { run, stop: jest.fn() }
+    const evalCmd = { id: 'x', method: 'game.eval', params: { code: 'return 1' } }
+    await expect(runAgentCommand({ id: '1', method: 'plugin.call', params: { plugin: 'ChayaAgent', method: 'run', args: [evalCmd] } })).rejects.toThrow('只能调用')
+    await expect(runAgentCommand({ id: '2', method: 'plugin.call', params: { plugin: 'ChayaAgent', method: 'stop' } })).rejects.toThrow('只能调用')
+    expect(run).not.toHaveBeenCalled()
+    expect(((await runAgentCommand({ id: '3', method: 'plugins.list', params: {} })) as Array<{ name: string }>).map((p) => p.name)).not.toContain('ChayaAgent')
+    delete g.ChayaAgent
+  })
+
+  it('evals only when the caller allows it', async () => {
+    const cmd = { id: '1', method: 'game.eval' as const, params: { code: 'return 1 + 1' } }
+    await expect(runAgentCommand(cmd)).rejects.toThrow('不允许')
+    expect(await runAgentCommand(cmd, { allowEval: true })).toBe(2)
   })
 
   it('refuses non-Chaya globals and missing methods', async () => {
-    await expect(runAgentCommand({ id: '1', method: 'plugin.call', params: { plugin: 'process', method: 'exit' } })).rejects.toThrow('window.Chaya*')
-    g.ChayaFake = {}
-    await expect(runAgentCommand({ id: '2', method: 'plugin.call', params: { plugin: 'ChayaFake', method: 'nope' } })).rejects.toThrow('方法不存在')
+    await expect(runAgentCommand({ id: '1', method: 'plugin.call', params: { plugin: 'process', method: 'exit' } })).rejects.toThrow('只能调用')
+    g.ChayaBoost = {}
+    await expect(runAgentCommand({ id: '2', method: 'plugin.call', params: { plugin: 'ChayaBoost', method: 'nope' } })).rejects.toThrow('方法不存在')
   })
 
   it('holds a key for the requested frames', async () => {
@@ -63,7 +82,7 @@ describe('ChayaAgent handlers', () => {
   })
 
   it('blocks prototype gadgets that reach the Function constructor', async () => {
-    g.ChayaFake = { gold: () => 1 }
+    g.ChayaBoost = { gold: () => 1 }
     const gadgets = [
       { method: '__lookupGetter__', args: ['__proto__'], chain: [{ method: 'constructor', args: ['return 1'] }, { method: 'call' }] },
       { method: 'gold', chain: [{ method: 'constructor' }] },
@@ -71,7 +90,7 @@ describe('ChayaAgent handlers', () => {
       { method: 'toString' },
     ]
     for (const gadget of gadgets) {
-      await expect(runAgentCommand({ id: 'x', method: 'plugin.call', params: { plugin: 'ChayaFake', ...gadget } })).rejects.toThrow('方法不存在')
+      await expect(runAgentCommand({ id: 'x', method: 'plugin.call', params: { plugin: 'ChayaBoost', ...gadget } })).rejects.toThrow('方法不存在')
     }
   })
 

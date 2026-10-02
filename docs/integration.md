@@ -57,7 +57,7 @@
 2. 连接：`http://127.0.0.1:3927/api/mcp` + `Authorization: Bearer <token>`；各 Agent 安装方式。
 3. 标准工作流：读状态 → 查 id（目录）→ 修改 → 再读状态确认。
 4. 场景配方：改金钱 / 物品 / 角色、传送、推进对话、整作补译、修正一条译文、排查日志。
-5. 安全约定：破坏性工具（移除游戏、清日志、删除译文、清除插件）需先和用户确认；`chaya_live_eval` 默认关闭。
+5. 安全约定：破坏性工具（移除游戏、清除插件、卸载共用壳、删除译文、清日志、插件存档 / 读档）需先和用户确认；`chaya_live_eval` 默认关闭。
 
 ## 4. MCP 能力清单
 
@@ -88,16 +88,18 @@
 
 ### 4.3 局内实时 `live`（需游戏运行并加载 ChayaAgent）
 
-| 工具                 | 作用                                                         | 主要参数                              |
-| -------------------- | ------------------------------------------------------------ | ------------------------------------- |
-| `chaya_live_games`   | 列出已连接的游戏                                             | —                                     |
-| `chaya_live_state`   | 场景、地图坐标、金钱、队伍、对话文字与选项                   | `gameId?`                             |
-| `chaya_live_plugins` | 已加载的 `Chaya*` 插件及方法                                 | `gameId?`                             |
-| `chaya_live_call`    | 调用插件方法（改金钱 / 物品 / 变量 / 开关 / 传送 / 存读档…） | `plugin`, `method`, `args?`, `chain?` |
-| `chaya_live_press`   | 模拟按键：确认 / 取消 / 菜单 / 方向                          | `key`, `frames?`                      |
-| `chaya_live_eval`    | 执行任意 JS（默认关闭，`CHAYA_MCP_EVAL=1` 开启）⚠️           | `code`                                |
+| 工具                 | 作用                                                          | 主要参数                                                  |
+| -------------------- | ------------------------------------------------------------- | --------------------------------------------------------- |
+| `chaya_live_games`   | 列出已连接的游戏                                              | —                                                         |
+| `chaya_live_state`   | 场景、地图坐标、金钱、队伍、对话文字与选项                    | `gameId?`                                                 |
+| `chaya_live_plugins` | 已加载的 Chaya 插件、方法与声明的工具                         | `gameId?`                                                 |
+| `chaya_live_call`    | 调用插件方法或插件工具（改金钱 / 物品 / 变量 / 开关 / 传送…） | `plugin`, `method?`, `args?`, `chain?`, `tool?`, `input?` |
+| `chaya_live_press`   | 模拟按键：确认 / 取消 / 菜单 / 方向                           | `key`, `frames?`                                          |
+| `chaya_live_eval`    | 执行任意 JS（默认关闭，`CHAYA_MCP_EVAL=1` 开启）⚠️            | `code`                                                    |
 
 对应接口：`POST /api/runtime/agent`（游戏侧长轮询，Agent 不直接调用）。
+
+游戏在线时还会出现插件工具 `chaya_plugin_edit_*` / `chaya_plugin_boost_*` / `chaya_plugin_trans_*`（参数见 `tools/list`；`save` / `load` ⚠️），也可用 `chaya_live_call {plugin, tool, input}` 调用。
 
 ### 4.4 修改目录 `edit`
 
