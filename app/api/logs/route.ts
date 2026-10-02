@@ -23,12 +23,13 @@ export const GET = defineApiRoute('get:/api/logs', async ({ request }) => {
   const source = u.searchParams.get('source') || undefined
   const level = (u.searchParams.get('level') as LogLevel | null) || undefined
   const since = u.searchParams.get('since') ? Number(u.searchParams.get('since')) : undefined
+  const q = u.searchParams.get('q') || undefined
   return json(
     {
       ok: true,
       stats: logBusStats(),
       levels: ['ok', 'warn', 'fail', 'info'],
-      entries: listLogs({ limit, source, level, since }),
+      entries: listLogs({ limit, source, level, since, q }),
     },
     { headers: CORS }
   )

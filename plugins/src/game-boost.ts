@@ -3,13 +3,14 @@
  */
 
 import { PLUGIN_BOOST_NAME } from '@/constants/brand'
+import { BOOST_DEFAULT_RATE as BOOST_RATE } from '@/lib/runtime/plugin-tool-catalog'
 
 import { createLogger } from './helpers'
+import { declarePluginTools, toolNum } from './helpers/plugin-tools'
 
 const log = createLogger(PLUGIN_BOOST_NAME)
 
 const DEFAULT_RATE = 1
-const BOOST_RATE = 3
 
 type SpeedActor = {
   _moveSpeedRate?: number
@@ -190,5 +191,11 @@ const w = window as Window & {
 w.ChayaBoost = ChayaBoost
 w.boostOn = (rate?: number) => ChayaBoost.on(rate)
 w.boostOff = () => ChayaBoost.off()
+
+declarePluginTools('ChayaBoost', {
+  on: (input) => ChayaBoost.on(input.rate === undefined ? undefined : toolNum(input, 'rate')),
+  off: () => ChayaBoost.off(),
+  status: () => ChayaBoost.status(),
+})
 
 log.ok(`已注册：${PLUGIN_BOOST_NAME}.on()/off()/walkRate()/runRate()/rates()`)

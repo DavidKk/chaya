@@ -41,7 +41,9 @@ description: 通过 Chaya 本机 MCP 控制游戏库、启动游戏、局内修�
 | 共享翻译库 | `chaya_cache_query` / `update` / `delete` / `import`                                                                                           |
 | 日志       | `chaya_logs_query` / `clear`                                                                                                                   |
 
-完整参数见控制台「集成 → MCP」或 `tools/list`。
+| 插件工具 | `chaya_plugin_edit_*`（gold / item / variable / switch / god / through / teleport / common_event / save / load / find）、`chaya_plugin_boost_*`（on / off / status）、`chaya_plugin_trans_*`（status / reload）——游戏在线时才出现 |
+
+完整参数见控制台「集成 → MCP」或 `tools/list`。插件工具也可用 `chaya_live_call {plugin, tool, input}` 调用，`chaya_live_plugins` 会列出每个插件声明的工具。
 
 ## 标准工作流
 
@@ -54,7 +56,7 @@ description: 通过 Chaya 本机 MCP 控制游戏库、启动游戏、局内修�
 
 | 需求            | 调用                                                                                                               |
 | --------------- | ------------------------------------------------------------------------------------------------------------------ |
-| 金钱改成 99999  | `chaya_live_call` `{plugin:"ChayaEdit", method:"gold", args:[99999]}`                                              |
+| 金钱改成 99999  | `chaya_plugin_edit_gold {value:99999}`（或 `chaya_live_call {plugin:"ChayaEdit", method:"gold", args:[99999]}`）   |
 | 给 10 个某物品  | `chaya_edit_catalog {kind:"items", q:"药"}` → `chaya_live_call {plugin:"ChayaEdit", method:"item", args:[id, 10]}` |
 | 1 号角色 HP 999 | `chaya_live_call {plugin:"ChayaEdit", method:"actor", args:[1], chain:[{method:"hp", args:[999]}]}`                |
 | 无敌 / 穿墙     | `ChayaEdit.god(true)` / `ChayaEdit.through(true)`                                                                  |
@@ -66,10 +68,18 @@ description: 通过 Chaya 本机 MCP 控制游戏库、启动游戏、局内修�
 | 排查插件报错    | `chaya_logs_query {level:"fail"}` 或 `{source:"ChayaEdit"}`                                                        |
 | 开游戏          | `chaya_library_list` → `chaya_library_bind` → `chaya_game_launch` → 等几秒 `chaya_live_games`                      |
 
+## WebMCP（浏览器内 Agent）
+
+控制台每个页面都通过 `document.modelContext` 注册 WebMCP 工具，是 MCP 的超集：
+
+- 全部 MCP 工具：App / 本地 dev 镜像 `/api/mcp`；Edge 网页版在浏览器内实现（启动游戏、卸载命令、窗口、`eval`、批量翻译、清日志除外）。
+- 额外：`page_*` 页面工具（导航、快照、读文本、点击、输入、按键、滚动、等待）与 `chaya_web_edit_*` 局内修改面板工具；Edge 连上游戏后自动注册插件工具。
+- 启用：Chrome 146+ 打开 `chrome://flags/#enable-webmcp-testing`；详见控制台「集成 → WebMCP」。
+
 ## 约定
 
 - **破坏性工具先问用户**：`chaya_library_remove`、`chaya_game_plugins_clear`、`chaya_game_shell_uninstall`、`chaya_cache_delete`、`chaya_logs_clear`、`chaya_live_eval`。
-- 大幅修改前建议先 `ChayaEdit.save(slot)` 存档。
+- 大幅修改前建议先 `ChayaEdit.save(slot)` 存档；`chaya_plugin_edit_save` 会覆盖存档位、`chaya_plugin_edit_load` 会丢弃当前进度，都先问用户。
 - 只有一个游戏在线时可省略 `gameId`；多个在线时先 `chaya_live_games` 再指定。
 - `chaya_live_eval` 需要服务端设置 `CHAYA_MCP_EVAL=1` 才出现，能用插件方法时不要用它。
 - 工具报错时把错误原文告诉用户（例如「没有已连接的游戏」通常是游戏未从 Chaya 启动或未装 ChayaAgent）。

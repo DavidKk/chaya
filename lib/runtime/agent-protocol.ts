@@ -3,6 +3,8 @@
  * The game POSTs results + presence and receives queued commands in the same round trip.
  */
 
+import type { PluginToolMeta } from './plugin-tools'
+
 export const AGENT_INPUT_KEYS = ['ok', 'cancel', 'shift', 'menu', 'up', 'down', 'left', 'right', 'pageup', 'pagedown', 'escape'] as const
 export type AgentInputKey = (typeof AGENT_INPUT_KEYS)[number]
 
@@ -10,15 +12,21 @@ export type AgentCommand =
   | { id: string; method: 'game.state'; params: Record<string, never> }
   | { id: string; method: 'plugins.list'; params: Record<string, never> }
   | { id: string; method: 'plugin.call'; params: { plugin: string; method: string; args?: unknown[]; chain?: { method: string; args?: unknown[] }[] } }
+  | { id: string; method: 'plugin.tool'; params: { plugin: string; tool: string; input?: Record<string, unknown> } }
   | { id: string; method: 'input.press'; params: { key: AgentInputKey; frames?: number } }
   | { id: string; method: 'game.eval'; params: { code: string } }
 
 export type AgentMethod = AgentCommand['method']
 export type AgentParams<M extends AgentMethod> = Extract<AgentCommand, { method: M }>['params']
 
+/** Commands accepted over the game DataChannel (Edge signaling is unauthenticated, so no eval). */
+export const AGENT_LINK_METHODS = ['game.state', 'plugins.list', 'plugin.call', 'plugin.tool', 'input.press'] as const satisfies readonly AgentMethod[]
+/** Translation RPC path that routes to ChayaAgent instead of the translator runtime */
+export const AGENT_LINK_PATH = '/agent'
+
 export type AgentResult = { id: string; ok: true; data: unknown } | { id: string; ok: false; error: string }
 
-export type AgentGameInfo = { name?: string; gameRoot?: string; contentRoot?: string; plugins?: string[] }
+export type AgentGameInfo = { name?: string; gameRoot?: string; contentRoot?: string; plugins?: string[]; tools?: PluginToolMeta[] }
 
 /** Game → server: deliver results, refresh presence, then wait for the next commands. */
 export type AgentPollRequest = { roomId: string; info?: AgentGameInfo; results?: AgentResult[] }

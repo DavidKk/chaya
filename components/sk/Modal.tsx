@@ -26,6 +26,8 @@ export type ModalProps = {
   hideCloseButton?: boolean
   className?: string
   panelClassName?: string
+  /** Only the user may settle it: WebMCP page tools refuse to click inside or press Enter */
+  userConfirmOnly?: boolean
 }
 
 function isImeComposing(e: KeyboardEvent) {
@@ -43,7 +45,20 @@ function focusables(root: HTMLElement): HTMLElement[] {
  * 阻塞式模态框：portal + dialog 语义 + Escape/遮罩关闭 + 焦点陷阱与还原 + body 锁滚。
  * ConfirmDialog 等组合此组件，勿再复制一套壳。
  */
-export function Modal({ open, title, description, onClose, children, footer, busy = false, portalContainer, hideCloseButton = false, className, panelClassName }: ModalProps) {
+export function Modal({
+  open,
+  title,
+  description,
+  onClose,
+  children,
+  footer,
+  busy = false,
+  portalContainer,
+  hideCloseButton = false,
+  className,
+  panelClassName,
+  userConfirmOnly = false,
+}: ModalProps) {
   const titleId = useId()
   const descId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -123,6 +138,7 @@ export function Modal({ open, title, description, onClose, children, footer, bus
         ref={panelRef}
         role="dialog"
         aria-modal="true"
+        data-webmcp-confirm={userConfirmOnly ? '' : undefined}
         aria-labelledby={titleId}
         aria-describedby={hasDesc ? descId : undefined}
         className={cn(

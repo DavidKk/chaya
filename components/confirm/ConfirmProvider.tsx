@@ -110,7 +110,7 @@ export function ConfirmProvider({
   useEffect(() => {
     if (!session || confirming) return
     function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Enter') return
+      if (e.key !== 'Enter' || !e.isTrusted) return
       if (e.isComposing || e.keyCode === 229) return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'TEXTAREA' || t.isContentEditable)) return
@@ -137,6 +137,7 @@ export function ConfirmProvider({
           description={req.description}
           busy={confirming}
           hideCloseButton
+          userConfirmOnly
           portalContainer={portalContainer}
           onClose={() => {
             if (!confirming) settle(false)
@@ -146,7 +147,15 @@ export function ConfirmProvider({
               <Button variant="ghost" disabled={confirming} onClick={() => settle(false)}>
                 {req.cancelLabel ?? t('common.cancel')}
               </Button>
-              <Button variant={confirmVariant} loading={confirming} disabled={confirming} data-modal-initial="confirm" onClick={() => void runConfirm()}>
+              <Button
+                variant={confirmVariant}
+                loading={confirming}
+                disabled={confirming}
+                data-modal-initial="confirm"
+                onClick={(e) => {
+                  if (e.nativeEvent.isTrusted) void runConfirm()
+                }}
+              >
                 {req.confirmLabel ?? t('common.confirm')}
               </Button>
             </>

@@ -32,7 +32,7 @@ type SetSession = Dispatch<SetStateAction<SessionState>>
  * 作弊页：连上后订阅 edit.state；改动带 cmdId，pending 字段不被旧快照覆盖；ack / 快照匹配后放行。
  */
 export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: string) => void, onCatalog?: (catalog: GameEditCatalog) => void) {
-  const { roomId, connected, send, subscribeMessages } = useGameLinkContext()
+  const { roomId, connected, send, subscribeMessages, acquireEditSession } = useGameLinkContext()
   const [synced, setSynced] = useState(false)
   const catalogRef = useRef(onCatalog)
   catalogRef.current = onCatalog
@@ -76,17 +76,17 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
       setLiveError(msg.ready ? '' : msg.error || '游戏未就绪')
     })
     const pending = pendingRef.current
-    if (connected) send({ type: 'edit.subscribe' })
-    else {
+    const release = connected ? acquireEditSession() : null
+    if (!connected) {
       pending.clear()
       setSynced(false)
     }
     return () => {
       unsubscribe()
-      if (connected) send({ type: 'edit.unsubscribe' })
+      release?.()
       pending.clear()
     }
-  }, [connected, roomId, send, subscribeMessages, setSession, setLiveError, clearFields])
+  }, [connected, roomId, subscribeMessages, acquireEditSession, setSession, setLiveError, clearFields])
 
   /** 未 ack 的命令定时重发；超时放弃 pending 以免永久卡住 */
   useEffect(() => {

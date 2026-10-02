@@ -23,37 +23,52 @@ export type ActorDraft = {
 }
 
 /** 运行页开关（与金钱/倍速并列） */
-export type RunFlagKey =
-  'fullscreen' | 'alwaysDash' | 'god' | 'through' | 'autotalk' | 'encounter' | 'menuEnabled' | 'saveEnabled' | 'clickMove' | 'followers' | 'clickTeleport' | 'resourceSkip'
+export const RUN_FLAG_KEYS = [
+  'fullscreen',
+  'alwaysDash',
+  'god',
+  'through',
+  'autotalk',
+  'encounter',
+  'menuEnabled',
+  'saveEnabled',
+  'clickMove',
+  'followers',
+  'clickTeleport',
+  'resourceSkip',
+] as const
+export type RunFlagKey = (typeof RUN_FLAG_KEYS)[number]
 
-export type RunActionId =
-  | 'scene:status'
-  | 'scene:equip'
-  | 'scene:skill'
-  | 'scene:item'
-  | 'scene:menu'
-  | 'scene:load'
-  | 'scene:save'
-  | 'scene:options'
-  | 'scene:debug'
-  | 'scene:pop'
-  | 'fix:clearPictures'
-  | 'fix:clearEvent'
-  | 'fix:clearMoveRoute'
-  | 'fix:closeWindows'
-  | 'fix:title'
-  | 'fix:map'
-  | 'fix:fadeIn'
-  | 'fix:resume'
-  | 'battle:victory'
-  | 'battle:escape'
-  | 'battle:defeat'
-  | 'battle:abort'
-  | 'battle:enemyHp1'
-  | 'battle:enemyHpMax'
-  | 'battle:partyHeal'
-  | 'battle:partyHp1'
-  | 'battle:partyHp0'
+export const RUN_ACTION_IDS = [
+  'scene:status',
+  'scene:equip',
+  'scene:skill',
+  'scene:item',
+  'scene:menu',
+  'scene:load',
+  'scene:save',
+  'scene:options',
+  'scene:debug',
+  'scene:pop',
+  'fix:clearPictures',
+  'fix:clearEvent',
+  'fix:clearMoveRoute',
+  'fix:closeWindows',
+  'fix:title',
+  'fix:map',
+  'fix:fadeIn',
+  'fix:resume',
+  'battle:victory',
+  'battle:escape',
+  'battle:defeat',
+  'battle:abort',
+  'battle:enemyHp1',
+  'battle:enemyHpMax',
+  'battle:partyHeal',
+  'battle:partyHp1',
+  'battle:partyHp0',
+] as const
+export type RunActionId = (typeof RUN_ACTION_IDS)[number]
 
 export type SessionState = {
   gold: number

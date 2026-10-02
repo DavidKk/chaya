@@ -3,6 +3,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useGameLink } from '@/hooks/useGameLink'
+import { type GameLinkRpc, useGameLinkRpc } from '@/hooks/useGameLinkRpc'
 import { CLOUD_GAME_SELECTION_EVENT, readCloudGameId } from '@/lib/browser/cloud-library'
 import type { LibraryItemView } from '@/lib/game'
 import type { GameLinkMessage } from '@/lib/runtime/game-link-protocol'
@@ -26,8 +27,10 @@ function libraryIdForRoot(library: LibraryItemView[], gameRoot: string): string 
   return hit?.id ?? null
 }
 
-type GameLinkContextValue = {
+type GameLinkContextValue = GameLinkRpc & {
   roomId: string | null
+  /** 浏览器（Edge）模式：/api/status canUseDisk === false */
+  browserMode: boolean
   connected: boolean
   negotiating: boolean
   /** 启动前钉住房间 id（不必等 Provider 慢扫 /api/status） */
@@ -141,10 +144,13 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
       listenersRef.current.delete(fn)
     }
   }, [])
+  const rpc = useGameLinkRpc({ connected, send, translationRequest: translation.rpc.request, subscribeMessages })
 
   const value = useMemo<GameLinkContextValue>(
     () => ({
+      ...rpc,
       roomId,
+      browserMode,
       connected: link.connected,
       negotiating: link.negotiating,
       armRoom,
@@ -154,7 +160,7 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
       subscribeMessages,
       translationRequest: translation.rpc.request,
     }),
-    [roomId, link.connected, link.negotiating, armRoom, link.restart, link.quit, link.send, subscribeMessages, translation]
+    [rpc, roomId, browserMode, link.connected, link.negotiating, armRoom, link.restart, link.quit, link.send, subscribeMessages, translation]
   )
 
   return <GameLinkContext.Provider value={value}>{children}</GameLinkContext.Provider>

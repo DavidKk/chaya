@@ -8,6 +8,7 @@ import { isStorableTranslation } from '@/services/translate/text-classify'
 
 import { createLogger, detectGameIdentity, tryNodeFsPath } from '../helpers'
 import { hookMethod } from '../helpers/game/method-hook'
+import { declarePluginTools } from '../helpers/plugin-tools'
 import { installDialogueSubtitles } from './engine/dialogue-subtitles'
 import { installEngineHooks } from './engine/engine-hooks'
 import { createRealtimeClient } from './engine/realtime-client'
@@ -339,6 +340,13 @@ function main() {
     }
   }
   publishTransGlobals()
+  declarePluginTools('ChayaTrans', {
+    status: () => window.ChayaTrans?.status(),
+    reload: async () => {
+      await window.ChayaTrans?.reload()
+      return window.ChayaTrans?.status()
+    },
+  })
 
   const sampleKeys = ['ワールド移動', '休憩する', '夜まで休む']
   sampleKeys.forEach((k) => {

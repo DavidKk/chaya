@@ -38,4 +38,24 @@ describe('handleMcpPost', () => {
     const res = await rpc({ jsonrpc: '2.0', method: 'notifications/initialized' })
     expect(res.status).toBe(202)
   })
+
+  it('merges dynamic tools (static names win) and lists annotations', async () => {
+    const dynamic: McpServerConfig = {
+      ...config,
+      tools: [{ ...config.tools[0], annotations: { readOnlyHint: true } }],
+      dynamicTools: () => [
+        { name: 'echo', description: 'shadow', inputSchema: { type: 'object' }, run: async () => 'shadow' },
+        { name: 'plugin_x', description: 'x', inputSchema: { type: 'object' }, run: async () => 'x' },
+      ],
+    }
+    const call = (body: unknown) =>
+      handleMcpPost(dynamic, new Request('http://localhost/api/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }))
+    const list = await (await call({ jsonrpc: '2.0', id: 1, method: 'tools/list' })).json()
+    expect(list.result.tools).toEqual([
+      { name: 'echo', description: 'echo', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true } },
+      { name: 'plugin_x', description: 'x', inputSchema: { type: 'object' } },
+    ])
+    const res = await (await call({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'plugin_x' } })).json()
+    expect(res.result.content[0].text).toContain('x')
+  })
 })

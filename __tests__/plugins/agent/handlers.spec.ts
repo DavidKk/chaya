@@ -1,4 +1,5 @@
 import { runAgentCommand, toJsonSafe } from '@/plugins/src/agent/handlers'
+import { declarePluginTools } from '@/plugins/src/helpers/plugin-tools'
 
 type Globals = Record<string, unknown>
 
@@ -59,5 +60,31 @@ describe('ChayaAgent handlers', () => {
       if (!hadWindow) delete winGlobal.window
       jest.useRealTimers()
     }
+  })
+
+  it('blocks prototype gadgets that reach the Function constructor', async () => {
+    g.ChayaFake = { gold: () => 1 }
+    const gadgets = [
+      { method: '__lookupGetter__', args: ['__proto__'], chain: [{ method: 'constructor', args: ['return 1'] }, { method: 'call' }] },
+      { method: 'gold', chain: [{ method: 'constructor' }] },
+      { method: 'hasOwnProperty', args: ['gold'] },
+      { method: 'toString' },
+    ]
+    for (const gadget of gadgets) {
+      await expect(runAgentCommand({ id: 'x', method: 'plugin.call', params: { plugin: 'ChayaFake', ...gadget } })).rejects.toThrow('方法不存在')
+    }
+  })
+
+  it('runs declared plugin tools and lists them with plugins', async () => {
+    g.ChayaEdit = { gold: () => 1 }
+    const run = jest.fn((input: Record<string, unknown>) => ({ gold: input.value }))
+    declarePluginTools('ChayaEdit', { gold: run, bad: run })
+    expect(await runAgentCommand({ id: '1', method: 'plugin.tool', params: { plugin: 'ChayaEdit', tool: 'gold', input: { value: 7 } } })).toEqual({ gold: 7 })
+    await expect(runAgentCommand({ id: '2', method: 'plugin.tool', params: { plugin: 'ChayaEdit', tool: 'bad' } })).rejects.toThrow('插件工具不存在')
+    await expect(runAgentCommand({ id: '2b', method: 'plugin.tool', params: { plugin: 'ChayaEdit', tool: 'save' } })).rejects.toThrow('插件工具不存在')
+    const plugins = (await runAgentCommand({ id: '3', method: 'plugins.list', params: {} })) as Array<{ name: string; tools?: Array<{ tool: string }> }>
+    expect(plugins.find((p) => p.name === 'ChayaEdit')?.tools?.map((t) => t.tool)).toEqual(['gold'])
+    delete g.ChayaEdit
+    delete g.__chayaPluginTools
   })
 })

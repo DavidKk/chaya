@@ -11,6 +11,7 @@ export type McpTool = {
   name: string
   description: string
   inputSchema: Record<string, unknown>
+  annotations?: McpToolAnnotations
   /** Hidden tools are neither listed nor callable */
   enabled?: () => boolean
   run: (args: Record<string, unknown>, ctx: McpCallContext) => Promise<unknown>
@@ -18,10 +19,15 @@ export type McpTool = {
 
 export type McpCallContext = { signal: AbortSignal }
 
+/** MCP standard tool annotations (hints only) */
+export type McpToolAnnotations = { title?: string; readOnlyHint?: boolean; destructiveHint?: boolean }
+
 export type McpServerConfig = {
   serverInfo: { name: string; version: string }
   instructions?: string
   tools: readonly McpTool[]
+  /** Tools that come and go at runtime (e.g. plugin tools of online games); static names win on clash */
+  dynamicTools?: () => readonly McpTool[]
 }
 
 type JsonRpcRequest = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> }
@@ -32,7 +38,14 @@ const ok = (id: JsonRpcRequest['id'], result: unknown) => ({ jsonrpc: '2.0', id:
 const fail = (id: JsonRpcRequest['id'], code: number, message: string) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } })
 
 function visible(config: McpServerConfig) {
-  return config.tools.filter((tool) => tool.enabled?.() ?? true)
+  const tools = config.tools.filter((tool) => tool.enabled?.() ?? true)
+  const names = new Set(tools.map((tool) => tool.name))
+  for (const tool of config.dynamicTools?.() ?? []) {
+    if (names.has(tool.name) || !(tool.enabled?.() ?? true)) continue
+    names.add(tool.name)
+    tools.push(tool)
+  }
+  return tools
 }
 
 async function handle(config: McpServerConfig, req: JsonRpcRequest, ctx: McpCallContext) {
@@ -50,7 +63,9 @@ async function handle(config: McpServerConfig, req: JsonRpcRequest, ctx: McpCall
     case 'ping':
       return ok(id, {})
     case 'tools/list':
-      return ok(id, { tools: visible(config).map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) })
+      return ok(id, {
+        tools: visible(config).map(({ name, description, inputSchema, annotations }) => ({ name, description, inputSchema, ...(annotations ? { annotations } : {}) })),
+      })
     case 'tools/call': {
       const name = String(params.name || '')
       const tool = visible(config).find((candidate) => candidate.name === name)

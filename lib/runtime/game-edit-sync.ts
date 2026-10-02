@@ -10,6 +10,7 @@ import {
   lockKeyForCount,
   lockKeyForSwitch,
   lockKeyForVar,
+  RUN_FLAG_KEYS,
   type RunFlagKey,
   type SessionState,
 } from '@/components/game-edit/types'
@@ -24,21 +25,6 @@ export type EditPendingEntry = {
 }
 
 export type EditPendingMap = Map<string, EditPendingEntry>
-
-const RUN_FLAG_KEYS: RunFlagKey[] = [
-  'fullscreen',
-  'alwaysDash',
-  'god',
-  'through',
-  'autotalk',
-  'encounter',
-  'menuEnabled',
-  'saveEnabled',
-  'clickMove',
-  'followers',
-  'clickTeleport',
-  'resourceSkip',
-]
 
 /** 本命令影响的会话字段键（Web pending / Game ack 共用） */
 export function fieldsForEditCmd(cmd: GameEditCmd): string[] {

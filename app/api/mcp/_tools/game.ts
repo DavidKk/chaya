@@ -3,8 +3,8 @@ import * as PluginsRoute from '@/app/api/plugins/route'
 import * as ShellRoute from '@/app/api/shell/route'
 import * as StatusRoute from '@/app/api/status/route'
 import * as WindowRoute from '@/app/api/window/route'
+import { optBool, optObj, optStr, type ToolImpls } from '@/lib/integration/tools/args'
 
-import { optBool, optObj, optStr, type ToolImpls } from './args'
 import { invokeRoute } from './route-invoke'
 
 type StatusBody = Record<string, unknown> & {

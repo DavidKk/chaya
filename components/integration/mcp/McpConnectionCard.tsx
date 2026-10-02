@@ -29,7 +29,7 @@ export function McpConnectionCard({ connection }: { connection: Extract<McpConne
   const install = useMemo(() => ({ name: MCP_SERVER_NAME, url: connection.endpoint, token: connection.token }), [connection])
 
   return (
-    <section className={integrationCard} aria-label={t('integration.connectionAria')}>
+    <section className={integrationCard} aria-label={t('integration.connectionAria')} data-webmcp-sensitive={connection.token ? '' : undefined}>
       <div className="grid gap-3 md:grid-cols-2">
         <Field label={t('integration.endpoint')}>
           <CopyField value={connection.endpoint} label={t('integration.endpoint')} />

@@ -1,12 +1,14 @@
 /**
- * ChayaAgent — long-polls the local Chaya server for MCP commands and runs them in-game.
- * Agent → /api/mcp → agent bridge queue → POST /api/runtime/agent (this loop) → window.Chaya*.
+ * ChayaAgent — runs MCP / WebMCP commands in-game.
+ * Local: Agent → /api/mcp → agent bridge queue → POST /api/runtime/agent (this loop) → window.Chaya*.
+ * Edge: page WebMCP → game DataChannel → `window.ChayaAgent.run` (eval refused on that path).
  */
 
 import { PLUGIN_AGENT_NAME } from '@/constants/brand'
 import type { AgentCommand, AgentGameInfo, AgentPollRequest, AgentPollResponse, AgentResult } from '@/lib/runtime/agent-protocol'
 
 import { chayaPostJson, createLogger, detectGameIdentity, gameRoomId } from '../helpers'
+import { listPluginToolMetas } from '../helpers/plugin-tools'
 import { runAgentCommand } from './handlers'
 
 const log = createLogger(PLUGIN_AGENT_NAME)
@@ -16,7 +18,12 @@ const RETRY_MAX_MS = 30_000
 /** Server answered 404: not a local (disk) service — check again rarely. */
 const DISABLED_RETRY_MS = 5 * 60_000
 
-type AgentGlobal = { stop: () => void; status: () => { running: boolean; roomId: string; handled: number } }
+type AgentGlobal = {
+  stop: () => void
+  status: () => { running: boolean; roomId: string; handled: number }
+  /** Run one command (used by the DataChannel route; it filters methods first) */
+  run: (cmd: AgentCommand) => Promise<unknown>
+}
 
 declare global {
   interface Window {
@@ -32,7 +39,7 @@ function sleep(ms: number): Promise<void> {
 function gameInfo(): AgentGameInfo {
   const id = detectGameIdentity()
   const plugins = Object.keys(window).filter((k) => /^Chaya[A-Z]\w*$/.test(k))
-  return { name: id?.name || document.title || undefined, gameRoot: id?.gameRoot, contentRoot: id?.contentRoot, plugins }
+  return { name: id?.name || document.title || undefined, gameRoot: id?.gameRoot, contentRoot: id?.contentRoot, plugins, tools: listPluginToolMetas() }
 }
 
 async function execute(cmd: AgentCommand): Promise<AgentResult> {
@@ -56,7 +63,7 @@ function start(): AgentGlobal {
         const body: AgentPollRequest = { roomId: gameRoomId(), info: gameInfo(), results: pending }
         const res = await chayaPostJson('/api/runtime/agent', body)
         if (res.status === 404) {
-          if (!warned) log.info('当前服务非本机模式，Agent 桥未启用')
+          if (!warned) log.info('网页版无本机 Agent 桥，Agent 能力经游戏连接（WebMCP）提供')
           warned = true
           await sleep(DISABLED_RETRY_MS)
           continue
@@ -83,6 +90,10 @@ function start(): AgentGlobal {
       running = false
     },
     status: () => ({ running, roomId: gameRoomId(), handled }),
+    run: async (cmd) => {
+      handled += 1
+      return runAgentCommand(cmd)
+    },
   }
 }
 
@@ -90,4 +101,4 @@ window.__chayaStopAgent?.()
 const agent = start()
 window.ChayaAgent = agent
 window.__chayaStopAgent = agent.stop
-log.ok('Agent 桥已启动，可通过本机 MCP（/api/mcp）控制游戏')
+log.ok('Agent 桥已启动：本机 MCP（/api/mcp）或网页 WebMCP 可控制游戏')

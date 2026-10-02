@@ -1,6 +1,4 @@
-import type { McpTool } from '@/initializer/mcp'
-
-export type ToolImpls = Record<string, McpTool['run']>
+export type { ToolImpls } from './types'
 
 type Args = Record<string, unknown>
 

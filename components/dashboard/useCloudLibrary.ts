@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { useNotification } from '@/components/notification/useNotification'
-import { type CloudLibraryEntry, cloudLibraryStorage, readCloudGameId, requireCloudPermission, selectCloudGameId } from '@/lib/browser/cloud-library'
+import { CLOUD_LIBRARY_CHANGED_EVENT, type CloudLibraryEntry, cloudLibraryStorage, readCloudGameId, requireCloudPermission, selectCloudGameId } from '@/lib/browser/cloud-library'
 import {
   clearCloudPlugins,
   type CloudGame,
@@ -28,18 +28,22 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
-    cloudLibraryStorage()
-      .then((saved) => {
-        if (!cancelled) setEntries(saved)
-      })
-      .catch(() => {
-        if (!cancelled) notify.error('无法读取浏览器游戏库，请检查浏览器存储权限。')
-      })
-      .finally(() => {
-        if (!cancelled) setLoaded(true)
-      })
+    const load = () =>
+      cloudLibraryStorage()
+        .then((saved) => {
+          if (!cancelled) setEntries(saved)
+        })
+        .catch(() => {
+          if (!cancelled) notify.error('无法读取浏览器游戏库，请检查浏览器存储权限。')
+        })
+        .finally(() => {
+          if (!cancelled) setLoaded(true)
+        })
+    void load()
+    window.addEventListener(CLOUD_LIBRARY_CHANGED_EVENT, load)
     return () => {
       cancelled = true
+      window.removeEventListener(CLOUD_LIBRARY_CHANGED_EVENT, load)
     }
   }, [enabled, notify])
 

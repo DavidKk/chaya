@@ -22,6 +22,8 @@ export type McpToolMeta = {
   destructive?: boolean
   /** Hidden unless `CHAYA_MCP_EVAL=1` */
   evalOnly?: boolean
+  /** Pure read: no data, game or file changes */
+  readOnly?: boolean
 }
 
 export type JsonSchema = {
@@ -64,6 +66,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   // library
   {
     name: 'chaya_library_list',
+    readOnly: true,
     group: 'library',
     title: '游戏库列表',
     description: '列出本机游戏库与当前绑定的游戏，可按名称 / 备注 / 路径关键词筛选。',
@@ -97,6 +100,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   // game
   {
     name: 'chaya_game_status',
+    readOnly: true,
     group: 'game',
     title: '当前游戏状态',
     description: '当前绑定游戏的详情：内容根、类型、壳是否就绪、插件安装情况、翻译缓存、游戏是否在线。',
@@ -146,6 +150,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   },
   {
     name: 'chaya_game_shell_check',
+    readOnly: true,
     group: 'game',
     title: '检查壳更新',
     description: '检查当前游戏的 NW.js 壳是否有新版本。',
@@ -187,6 +192,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   // live
   {
     name: 'chaya_live_games',
+    readOnly: true,
     group: 'live',
     title: '在线游戏',
     description: '列出已连接的游戏（需从 Chaya 启动且加载 ChayaAgent 插件）。',
@@ -194,6 +200,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   },
   {
     name: 'chaya_live_state',
+    readOnly: true,
     group: 'live',
     title: '局内状态',
     description: '读取游戏当前状态：场景、地图与坐标、金钱、队伍（等级 / HP / MP）、对话文字与选项。修改前后用它确认效果。',
@@ -201,9 +208,10 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   },
   {
     name: 'chaya_live_plugins',
+    readOnly: true,
     group: 'live',
     title: '局内插件',
-    description: '列出游戏内已加载的 Chaya 插件（window.Chaya*）及其方法。调用 chaya_live_call 前先看这里。',
+    description: '列出游戏内已加载的 Chaya 插件（window.Chaya*）、方法，以及插件声明的工具（tools：名称、说明、参数）。调用 chaya_live_call 前先看这里。',
     inputSchema: obj({ gameId }),
   },
   {
@@ -216,12 +224,15 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
       'ChayaEdit.god(true)、ChayaEdit.through(true)、ChayaEdit.teleport(mapId, x, y)、ChayaEdit.save(slot)、ChayaEdit.load(slot)、ChayaEdit.commonEvent(id)、',
       'ChayaBoost.on(rate) / off()、ChayaTrans.status()。id 可先用 chaya_edit_catalog 查。',
       '链式 API 用 chain，例如 plugin="ChayaEdit", method="actor", args=[1], chain=[{method:"hp", args:[999]}]。',
+      '也可按插件声明的工具调用：传 tool（chaya_live_plugins 的 tools[].tool）与 input（对象参数），不传 method。',
     ].join(''),
     inputSchema: obj(
       {
         gameId,
         plugin: str('插件全局名，如 ChayaEdit、ChayaBoost、ChayaTrans'),
-        method: str('方法名'),
+        method: str('方法名（与 tool 二选一）'),
+        tool: str('插件声明的工具名，如 gold、status（与 method 二选一）'),
+        input: { type: 'object', description: 'tool 的参数对象', properties: {} },
         args: { type: 'array', description: '位置参数', items: {} },
         chain: {
           type: 'array',
@@ -229,7 +240,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
           items: obj({ method: str('方法名'), args: { type: 'array', items: {} } }, ['method']),
         },
       },
-      ['plugin', 'method']
+      ['plugin']
     ),
   },
   {
@@ -251,6 +262,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   // edit
   {
     name: 'chaya_edit_catalog',
+    readOnly: true,
     group: 'edit',
     title: '查 id',
     description: '从当前游戏 data 读取指定类别的条目（id、名称、说明；有译文时显示中文），可按关键词筛选。修改物品 / 变量 / 开关前用它找 id。',
@@ -336,6 +348,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   // cache
   {
     name: 'chaya_cache_query',
+    readOnly: true,
     group: 'cache',
     title: '查询翻译库',
     description: '分页查询本机共享翻译库，支持关键词、引擎、只看敏感词与排序。',
@@ -378,6 +391,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   // logs
   {
     name: 'chaya_logs_query',
+    readOnly: true,
     group: 'logs',
     title: '查询日志',
     description: '查询最近的服务 / 插件日志，可按来源、级别、起始时间、关键词筛选。排查游戏或插件问题时先看这里。',
@@ -405,6 +419,7 @@ export const MCP_INSTRUCTIONS = [
   '控制本机 Chaya：游戏库、启动游戏、局内修改、翻译与日志。',
   '工作流：chaya_game_status / chaya_live_state 看状态 → chaya_edit_catalog 查 id → chaya_live_call 修改 → 再读状态确认。',
   '标注「破坏性操作」的工具必须先征得用户同意。',
+  '游戏在线时，插件声明的工具（chaya_plugin_*）会出现在工具列表中，随游戏连接增减；客户端未刷新列表时可用 chaya_live_plugins + chaya_live_call 的 tool 参数调用。',
 ].join('\n')
 
 export function mcpToolsByGroup(tools: readonly McpToolMeta[] = MCP_TOOLS) {

@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
  * - `/cheat` 修改（局内 GameEdit）
  * - `/translate/run` 翻译动作；`/translate/cache` 翻译库浏览
  * - `/logs` 日志
- * - `/integration/skills` · `/integration/mcp` 集成
+ * - `/integration/skills` · `/integration/mcp` · `/integration/webmcp` 集成
  * `/` 暂空，重定向到 `/game`
  */
 const LINKS = [

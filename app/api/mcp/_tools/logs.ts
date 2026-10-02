@@ -1,9 +1,9 @@
 import * as LogsRoute from '@/app/api/logs/route'
 import { LOG_LEVEL_VALUES } from '@/lib/integration/mcp-catalog'
+import { optNum, optStr, type ToolImpls } from '@/lib/integration/tools/args'
 import type { LogLevel } from '@/lib/log/types'
 import { listLogs } from '@/services/log'
 
-import { optNum, optStr, type ToolImpls } from './args'
 import { invokeRoute } from './route-invoke'
 
 const DEFAULT_LIMIT = 100

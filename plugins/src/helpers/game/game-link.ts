@@ -3,6 +3,7 @@
  * Keep the channel; handle quit / ping; edit.* goes to cheat via registerGameLinkEditHandlers.
  */
 
+import { AGENT_LINK_PATH } from '@/lib/runtime/agent-protocol'
 import { encodeGameLinkMessage, type GameLinkMessage, parseGameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import { createTranslationRpc, sendTranslationPacket } from '@/lib/runtime/translation-rpc'
 import { installedTranslationRuntime } from '@/lib/translate/runtime-api'
@@ -11,6 +12,7 @@ import { ensureLaunchEnvGlobals } from '../env/ensure-launch-env'
 import { resolveApiBase, resolveApiBaseFallbacks } from '../env/env'
 import { chayaFetch, chayaPostJson } from '../net/http'
 import { ChayaLog } from '../net/logger'
+import { runLinkAgentRequest } from './agent-link'
 import { dispatchGameLinkEditMessage, stopGameLinkEditBridge } from './edit-link-bridge'
 import { detectGameIdentity } from './game-identity'
 
@@ -106,6 +108,7 @@ function bindDc(dc: RTCDataChannel) {
       return sendTranslationPacket(dc, packet)
     },
     async (request, signal) => {
+      if (request.path === AGENT_LINK_PATH) return runLinkAgentRequest(request.body, (window as unknown as { ChayaAgent?: Parameters<typeof runLinkAgentRequest>[1] }).ChayaAgent)
       const runtime = installedTranslationRuntime()
       if (!runtime) throw new Error('游戏翻译插件未就绪，请更新插件后重新打开游戏')
       return runtime.request(request, signal)

@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { AGENT_CALL_TIMEOUT_MS, AGENT_GAME_TTL_MS, type AgentCommand, type AgentGameInfo, type AgentMethod, type AgentParams, type AgentResult } from '@/lib/runtime/agent-protocol'
+import { type PluginToolMeta, pluginToolName } from '@/lib/runtime/plugin-tools'
 
 type Pending = { resolve: (data: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
 
@@ -18,7 +19,10 @@ type GameSlot = {
   pending: Map<string, Pending>
 }
 
-export type AgentGameSummary = { gameId: string; lastSeenMs: number } & AgentGameInfo
+export type AgentGameSummary = { gameId: string; lastSeenMs: number; toolCount: number } & Omit<AgentGameInfo, 'tools'>
+
+/** A plugin tool and the online games that declared it */
+export type AgentPluginTool = PluginToolMeta & { gameIds: string[] }
 
 const STORE_KEY = '__chaya_agent_bridge_v1__'
 
@@ -43,7 +47,28 @@ function isLive(s: GameSlot, now = Date.now()) {
 
 export function listAgentGames(): AgentGameSummary[] {
   const now = Date.now()
-  return [...board().values()].filter((s) => isLive(s, now)).map((s) => ({ gameId: s.roomId, lastSeenMs: now - s.lastSeen, ...s.info }))
+  return [...board().values()]
+    .filter((s) => isLive(s, now))
+    .map((s) => {
+      const { tools, ...info } = s.info
+      return { gameId: s.roomId, lastSeenMs: now - s.lastSeen, toolCount: tools?.length ?? 0, ...info }
+    })
+}
+
+/** Plugin tools across online games, deduped by generated name. */
+export function listPluginTools(): AgentPluginTool[] {
+  const now = Date.now()
+  const byName = new Map<string, AgentPluginTool>()
+  for (const s of board().values()) {
+    if (!isLive(s, now)) continue
+    for (const tool of s.info.tools ?? []) {
+      const name = pluginToolName(tool.plugin, tool.tool)
+      const hit = byName.get(name)
+      if (hit) hit.gameIds.push(s.roomId)
+      else byName.set(name, { ...tool, gameIds: [s.roomId] })
+    }
+  }
+  return [...byName.values()]
 }
 
 function deliver(s: GameSlot, results: AgentResult[]) {

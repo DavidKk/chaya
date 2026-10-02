@@ -4,6 +4,8 @@
 
 import type { AgentCommand, AgentInputKey, AgentParams } from '@/lib/runtime/agent-protocol'
 
+import { findPluginTool, listPluginToolMetas } from '../helpers/plugin-tools'
+
 type Loose = Record<string, unknown>
 type AnyFn = (...args: unknown[]) => unknown
 
@@ -105,10 +107,21 @@ function methodNames(obj: object): string[] {
 
 function listPlugins(): unknown {
   const w = g()
+  const tools = listPluginToolMetas()
   return Object.keys(w)
     .filter((key) => PLUGIN_GLOBAL.test(key) && w[key] && typeof w[key] === 'object')
     .sort()
-    .map((key) => ({ name: key, methods: methodNames(w[key] as object) }))
+    .map((key) => {
+      const declared = tools.filter((tool) => tool.plugin === key).map(({ plugin: _plugin, ...meta }) => meta)
+      return { name: key, methods: methodNames(w[key] as object), ...(declared.length ? { tools: declared } : {}) }
+    })
+}
+
+async function callPluginTool({ plugin, tool, input = {} }: AgentParams<'plugin.tool'>): Promise<unknown> {
+  const run = findPluginTool(plugin, tool)
+  if (!run) throw new Error(`插件工具不存在：${plugin}.${tool}`)
+  const result = await run(input && typeof input === 'object' && !Array.isArray(input) ? input : {})
+  return result === undefined ? null : toJsonSafe(result)
 }
 
 async function callPlugin({ plugin, method, args = [], chain = [] }: AgentParams<'plugin.call'>): Promise<unknown> {
@@ -119,8 +132,9 @@ async function callPlugin({ plugin, method, args = [], chain = [] }: AgentParams
   let result: unknown = target
   for (const step of [{ method, args }, ...chain]) {
     if (result == null) throw new Error(`链式调用中断：${step.method} 前的返回值为空`)
+    // Only listed methods of plain objects: function values / Object.prototype / constructor lead to `Function` (arbitrary code).
+    if (typeof result !== 'object' || !methodNames(result).includes(step.method)) throw new Error(`方法不存在：${step.method}`)
     const fn = (result as Loose)[step.method]
-    if (typeof fn !== 'function') throw new Error(`方法不存在：${step.method}`)
     self = result
     result = await (fn as AnyFn).apply(self, step.args ?? [])
   }
@@ -156,6 +170,8 @@ export async function runAgentCommand(cmd: AgentCommand): Promise<unknown> {
       return listPlugins()
     case 'plugin.call':
       return callPlugin(cmd.params)
+    case 'plugin.tool':
+      return callPluginTool(cmd.params)
     case 'input.press':
       return pressKey(cmd.params)
     case 'game.eval':

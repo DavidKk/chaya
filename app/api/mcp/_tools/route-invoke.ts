@@ -1,27 +1,9 @@
 import type { DefaultRouteContext, ExistingRouteHandler } from '@/initializer/controller'
 import { readApiErrorMessage } from '@/lib/api-error'
+import { type ApiInvoke, type InvokeInput, pathWithQuery, redactSecrets } from '@/lib/integration/tools/types'
 
-/** Plugin credentials that must never reach an agent */
-const SECRET_KEYS = new Set(['launchToken', 'token', 'env'])
-
-export type InvokeInput = {
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-  path: string
-  query?: Record<string, string | number | boolean | undefined>
-  body?: unknown
-  signal?: AbortSignal
-}
-
-export function redactSecrets<T>(value: T): T {
-  if (Array.isArray(value)) return value.map((v) => redactSecrets(v)) as T
-  if (!value || typeof value !== 'object') return value
-  const out: Record<string, unknown> = {}
-  for (const [key, v] of Object.entries(value)) {
-    if (SECRET_KEYS.has(key)) continue
-    out[key] = redactSecrets(v)
-  }
-  return out as T
-}
+export { redactSecrets }
+export type { InvokeInput }
 
 /**
  * Call an API route handler in-process with the server's management token, so MCP tools reuse the
@@ -29,10 +11,7 @@ export function redactSecrets<T>(value: T): T {
  * throws with the route's error message otherwise.
  */
 export async function invokeRoute(handler: ExistingRouteHandler<DefaultRouteContext>, input: InvokeInput): Promise<Record<string, unknown>> {
-  const url = new URL(input.path, 'http://127.0.0.1')
-  for (const [key, value] of Object.entries(input.query ?? {})) {
-    if (value !== undefined && value !== '') url.searchParams.set(key, String(value))
-  }
+  const url = new URL(pathWithQuery(input.path, input.query), 'http://127.0.0.1')
   const headers = new Headers({ Authorization: `Bearer ${process.env.CHAYA_AUTH_TOKEN || ''}` })
   if (input.body !== undefined) headers.set('Content-Type', 'application/json')
   const request = new Request(url, {
@@ -48,4 +27,20 @@ export async function invokeRoute(handler: ExistingRouteHandler<DefaultRouteCont
   }
   const { ok: _ok, ...rest } = data
   return redactSecrets(rest)
+}
+
+type RouteModule = Partial<Record<InvokeInput['method'], ExistingRouteHandler<DefaultRouteContext>>>
+
+const ROUTES: Record<string, () => Promise<RouteModule>> = {
+  '/api/translate': () => import('@/app/api/translate/route'),
+  '/api/extract': () => import('@/app/api/extract/route'),
+  '/api/translate-cache': () => import('@/app/api/translate-cache/route'),
+  '/api/game-edit/catalog': () => import('@/app/api/game-edit/catalog/route'),
+}
+
+/** `ApiInvoke` over the in-process routes used by the shared tool factories. */
+export const invokeLocalApi: ApiInvoke = async (input) => {
+  const handler = (await ROUTES[input.path]?.())?.[input.method]
+  if (!handler) throw new Error(`不支持的接口：${input.method} ${input.path}`)
+  return invokeRoute(handler, input)
 }

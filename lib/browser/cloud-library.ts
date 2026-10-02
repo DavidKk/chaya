@@ -37,6 +37,9 @@ export async function requireCloudPermission(game: CloudGame): Promise<void> {
   if ((await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') throw new Error('需要授权访问游戏目录，请重新点击操作或添加游戏。')
 }
 
+/** Library rewritten outside the dashboard (WebMCP tools): the dashboard reloads from IndexedDB */
+export const CLOUD_LIBRARY_CHANGED_EVENT = 'chaya:browser-library-changed'
+
 const ACTIVE_GAME_KEY = 'chaya.browserActiveGame'
 export const CLOUD_GAME_SELECTION_EVENT = 'chaya:browser-game-selected'
 export function readCloudGameId(): string | null {

@@ -47,4 +47,27 @@ export type IntegrationMessages = {
   resultError: string
   invalidJson: string
   tryTool: string
+  tabWebMcp: string
+  regionWebMcp: string
+  webmcpIntro: string
+  webmcpSupported: string
+  webmcpUnsupported: string
+  webmcpNeedSecure: string
+  webmcpStepsTitle: string
+  webmcpStep1: string
+  webmcpStep2: string
+  webmcpStep3: string
+  webmcpModesTitle: string
+  webmcpModeLocal: string
+  webmcpModeEdge: string
+  webmcpModeLocked: string
+  webmcpRegistered: string
+  webmcpEmpty: string
+  webmcpGroupPage: string
+  webmcpGroupEdit: string
+  webmcpGroupMcp: string
+  webmcpGroupPlugins: string
+  webmcpReadOnly: string
+  webmcpConsequential: string
+  webmcpUntrusted: string
 }
