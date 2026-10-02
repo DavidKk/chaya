@@ -1,10 +1,11 @@
 import { editKo } from '@/lib/i18n/messages/parts/edit.ko'
+import { integrationKo } from '@/lib/i18n/messages/parts/integration'
 import { translateKo } from '@/lib/i18n/messages/parts/translate.ko'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 const base = {
   locale: { label: '언어', switch: '언어' },
-  nav: { main: '탐색', library: '보관함', edit: '수정', translate: '번역', logs: '로그' },
+  nav: { main: '탐색', library: '보관함', edit: '수정', translate: '번역', logs: '로그', integration: '연동' },
   common: {
     close: '닫기',
     cancel: '취소',
@@ -15,6 +16,8 @@ const base = {
     emptyOptions: '없음',
     chooseGame: '게임 선택',
     copy: '복사',
+    copied: '복사됨',
+    copyFailed: '복사 실패 — 직접 선택하세요',
     remove: '제거',
     more: '더보기',
     search: '검색',
@@ -47,6 +50,13 @@ const base = {
     heroCopy: 'RPG Maker 전용 로컬 도구. 추출·보강과 실시간/자막, 골드·아이템·변수·액터 수정도. 콘솔과 인게임이 같은 세트.',
     downloadMac: 'macOS',
     downloadWin: 'Windows',
+    chipApple: 'Apple 실리콘',
+    chipIntel: 'Intel',
+    chipX64: '64비트',
+    recommended: '추천',
+    allReleases: '전체 릴리스',
+    macFirstLaunch: 'macOS에서는 터미널에 아래 한 줄을 붙여 넣어 설치하면 "손상됨" 경고 없이 실행됩니다:',
+    macInstallAria: 'macOS 앱 설치 명령',
     orTryBrowser: '브라우저에서 체험',
     openConsole: '콘솔',
     featuresTitle: '보관함부터 인게임까지',
@@ -66,14 +76,23 @@ const base = {
     macFixLink: 'macOS 실행 안 됨?',
     macTitle: 'macOS 셸 설치 / 복구',
     macDescription: '종료 → 터미널 붙여넣기 → 폴더 선택',
-    copyCommand: '명령 복사',
-    copied: '복사됨 — 터미널에 붙여넣기',
-    copyFailed: '실패 — 직접 선택',
     pickSameDir: '같은 폴더: {name}',
-    macBody1: 'NW.js 0.116.0 설치·백업. 세이브 유지.',
-    macBody2: '완료 후 Chaya.app 실행. 게임 다시 선택.',
-    viewCommand: '명령 보기',
+    macStep1: '게임 종료',
+    macStep2: '명령 오른쪽 복사 버튼 → 터미널에 붙여 넣고 Return',
+    macStep3: '뜨는 창에서 게임 폴더 선택',
+    macStep4: '터미널에 6단계 진행 상황과 다운로드 바가 표시됩니다. "✓ 安装完成"(완료)이 보이면 Chaya.app 실행',
+    macNote: 'NW.js 최신 안정판을 자동으로 받습니다. 세이브 유지, 기존 셸 자동 백업, 플러그인은 따로 설치. 완료 후 여기서 게임을 다시 선택해 새로 고침.',
+    viewCommand: '브라우저에서 전체 스크립트 보기',
     commandAria: 'macOS 설치 명령',
+  },
+  remoteScript: {
+    installTitle: 'Chaya 데스크톱 앱 설치 (macOS)',
+    macShellTitle: 'macOS 게임 셸 설치 / 복구',
+    runHint: '터미널을 열고 이 한 줄을 붙여 넣은 뒤 Return:',
+    commandAria: '설치 명령',
+    viewRaw: '원본 텍스트',
+    sourceAria: '스크립트 소스',
+    lines: '{count}줄',
   },
   requireBound: { cloudHint: '먼저 보관함에서 폴더 선택' },
   notFound: {
@@ -227,4 +246,5 @@ export const ko: MessageTree = {
   ...base,
   ...translateKo,
   ...editKo,
+  ...integrationKo,
 }

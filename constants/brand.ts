@@ -46,6 +46,11 @@ export const PLUGIN_TRANS_NAME = `${PRODUCT_DISPLAY_NAME}Trans`
 export const PLUGIN_EDIT_NAME = `${PRODUCT_DISPLAY_NAME}Edit`
 /** 局内加速 */
 export const PLUGIN_BOOST_NAME = `${PRODUCT_DISPLAY_NAME}Boost`
+/** Agent / MCP bridge: lets a local agent drive the game and other plugins */
+export const PLUGIN_AGENT_NAME = `${PRODUCT_DISPLAY_NAME}Agent`
+
+/** 官方站点（Edge 部署）；本机页面优先用当前 origin */
+export const DEFAULT_SITE_ORIGIN = 'https://chaya-gray.vercel.app'
 
 /** 旧品牌运行时插件名（注入时从 plugins.js / js/plugins 清掉） */
 export const LEGACY_PLUGIN_RUNTIME_NAMES = ['ShiruLog'] as const

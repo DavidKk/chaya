@@ -34,6 +34,13 @@
       "description": "运行时改物品/变量/开关：ChayaEdit.help()",
       "source": "plugins/dist/ChayaEdit.js",
       "priority": 30
+    },
+    {
+      "id": "ChayaAgent",
+      "name": "ChayaAgent",
+      "description": "Agent 桥：本机 MCP（/api/mcp）经长轮询驱动游戏与其他 Chaya 插件",
+      "source": "plugins/dist/ChayaAgent.js",
+      "priority": 40
     }
   ]
 }

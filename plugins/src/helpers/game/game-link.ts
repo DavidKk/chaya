@@ -23,7 +23,7 @@ const POLL_LINKED_MS = 20_000
 type Sdp = { type: RTCSdpType; sdp?: string }
 type WebrtcRoom = { offer?: Sdp | null; answer?: Sdp | null }
 
-function roomId(): string {
+export function gameRoomId(): string {
   try {
     const w = window as Window & { CHAYA_GAME_ID?: string; CHAYA_LAUNCH_TOKEN?: string }
     return String(w.CHAYA_GAME_ID || w.CHAYA_LAUNCH_TOKEN || '').trim() || 'default'
@@ -33,7 +33,7 @@ function roomId(): string {
 }
 
 function hasLaunchRoom(): boolean {
-  return roomId() !== 'default'
+  return gameRoomId() !== 'default'
 }
 
 function normalizeLocalSdp(description: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
@@ -118,7 +118,7 @@ function bindDc(dc: RTCDataChannel) {
     sendOnDc(dc, {
       type: 'hello',
       role: 'game',
-      gameId: roomId(),
+      gameId: gameRoomId(),
       name: id?.name,
       contentRoot: id?.contentRoot,
       gameRoot: id?.gameRoot,
@@ -165,7 +165,7 @@ let answering = false
 async function tryAnswer() {
   if (answering) return false
   if (!hasLaunchRoom()) ensureLaunchEnvGlobals()
-  const id = roomId()
+  const id = gameRoomId()
   const bases = resolveApiBaseFallbacks()
   // Still on default: do not claim an empty room; wait for Env / console
   if (id === 'default') return false
@@ -260,9 +260,9 @@ function schedule(ms: number) {
 async function loop() {
   if (!started) return
   try {
-    const before = roomId()
+    const before = gameRoomId()
     if (before === 'default') ensureLaunchEnvGlobals()
-    const after = roomId()
+    const after = gameRoomId()
     if (before === 'default' && after !== 'default') {
       ChayaLog.info('ChayaLink', `已读到房间 id，开始协商（room=${after}, api=${resolveApiBase()}）`)
     }
@@ -298,7 +298,7 @@ export function startGameLink() {
       window.setTimeout(() => boot(attempt + 1), 250)
       return
     }
-    const id = roomId()
+    const id = gameRoomId()
     if (id === 'default') {
       ChayaLog.warn('ChayaLink', '未读到 CHAYA_GAME_ID / LAUNCH_TOKEN，暂不进 default 房间（将持续重试 Env）')
     } else {

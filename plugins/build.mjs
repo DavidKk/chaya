@@ -13,6 +13,7 @@ const entries = [
   { name: 'ChayaBoost', entry: 'src/game-boost.ts', react: false },
   { name: 'ChayaEdit', entry: 'src/cheat/index.ts', react: true },
   { name: 'ChayaTrans', entry: 'src/translator/index.ts', react: false },
+  { name: 'ChayaAgent', entry: 'src/agent/index.ts', react: false },
 ]
 
 const watch = process.argv.includes('--watch')

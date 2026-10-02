@@ -55,7 +55,7 @@ export function appendLog(partial: { level?: string; source: string; message: st
   return entry
 }
 
-export function listLogs(opts?: { limit?: number; source?: string; level?: LogLevel; since?: number }): LogEntry[] {
+export function listLogs(opts?: { limit?: number; source?: string; level?: LogLevel; since?: number; q?: string }): LogEntry[] {
   hydrateOnce()
   const limit = Math.min(1000, Math.max(1, opts?.limit ?? 200))
   let rows = buffer
@@ -68,6 +68,8 @@ export function listLogs(opts?: { limit?: number; source?: string; level?: LogLe
     rows = rows.filter((e) => e.level === lv)
   }
   if (opts?.since) rows = rows.filter((e) => e.ts >= opts.since!)
+  const q = opts?.q?.trim().toLowerCase()
+  if (q) rows = rows.filter((e) => e.message.toLowerCase().includes(q) || e.source.toLowerCase().includes(q))
   return rows.slice(-limit)
 }
 

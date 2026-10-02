@@ -2,7 +2,7 @@ import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const commonZh = {
   locale: { label: '语言', switch: '切换语言' },
-  nav: { main: '导航', library: '游戏库', edit: '修改', translate: '翻译', logs: '日志' },
+  nav: { main: '导航', library: '游戏库', edit: '修改', translate: '翻译', logs: '日志', integration: '集成' },
   common: {
     close: '关闭',
     cancel: '取消',
@@ -13,6 +13,8 @@ export const commonZh = {
     emptyOptions: '无选项',
     chooseGame: '选择游戏',
     copy: '复制',
+    copied: '已复制',
+    copyFailed: '复制失败，请手动选中',
     remove: '移除',
     more: '更多',
     search: '搜索',
@@ -45,14 +47,23 @@ export const commonZh = {
     macFixLink: 'macOS 无法启动？',
     macTitle: '安装 / 修复 macOS 壳',
     macDescription: '退出游戏 → 终端粘贴命令 → 选游戏目录',
-    copyCommand: '复制命令',
-    copied: '已复制，粘贴到终端回车',
-    copyFailed: '复制失败，请手动选中命令',
     pickSameDir: '请选同一游戏目录：{name}',
-    macBody1: '下载 NW.js 0.116.0 并装壳、备份旧壳。存档保留；插件另装。',
-    macBody2: '完成后双击 Chaya.app。网页不自动执行；再选一次游戏刷新状态。',
-    viewCommand: '查看命令',
+    macStep1: '先退出游戏',
+    macStep2: '点命令右侧的复制按钮，打开「终端」粘贴并回车',
+    macStep3: '在弹出的窗口中选择游戏目录',
+    macStep4: '终端会按 6 步显示进度（含下载进度条），看到「✓ 安装完成」后双击 Chaya.app',
+    macNote: '自动下载 NW.js 最新稳定版；存档保留，旧壳自动备份；插件需在网页另装。完成后在网页再选一次游戏以刷新状态。',
+    viewCommand: '在浏览器查看完整脚本',
     commandAria: 'macOS 安装命令',
+  },
+  remoteScript: {
+    installTitle: '安装 Chaya 桌面应用（macOS）',
+    macShellTitle: '安装 / 修复 macOS 游戏壳',
+    runHint: '打开「终端」，粘贴这一行并回车：',
+    commandAria: '安装命令',
+    viewRaw: '纯文本',
+    sourceAria: '脚本源码',
+    lines: '{count} 行',
   },
   requireBound: { cloudHint: '请先在游戏库选择本地目录' },
   notFound: {
@@ -75,4 +86,4 @@ export const commonZh = {
     saved: '已保存',
     loadFailed: '加载失败',
   },
-} as const satisfies Pick<MessageTree, 'locale' | 'nav' | 'common' | 'gate' | 'layout' | 'launchHelp' | 'requireBound' | 'notFound' | 'notify'>
+} as const satisfies Pick<MessageTree, 'locale' | 'nav' | 'common' | 'gate' | 'layout' | 'launchHelp' | 'remoteScript' | 'requireBound' | 'notFound' | 'notify'>

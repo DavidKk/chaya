@@ -29,8 +29,9 @@ afterPack: scripts/electron-after-pack.cjs
 mac:
   category: public.app-category.utilities
   icon: electron/assets/icon.icns
+  # Zip (app + README_FIRST.txt) is assembled by scripts/package-mac-zip.mjs
   target:
-    - target: dmg
+    - target: dir
       arch:
         - x64
         - arm64
@@ -51,6 +52,3 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   artifactName: ${productName}-Setup-${version}-${arch}.${ext}
-dmg:
-  artifactName: ${productName}-${version}-${arch}.${ext}
-  title: ${productName} ${version}

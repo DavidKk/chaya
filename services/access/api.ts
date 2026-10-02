@@ -27,6 +27,13 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
     if (room !== (session.libraryId || session.token)) return false
     return request.method === 'GET' || (request.method === 'POST' && body?.action === 'answer')
   }
+  if (path === '/api/runtime/agent' && request.method === 'POST') {
+    const body = await request
+      .clone()
+      .json()
+      .catch(() => null)
+    return body?.roomId === (session.libraryId || session.token)
+  }
   if (path === '/api/translate' && request.method === 'POST') {
     const body = await request
       .clone()

@@ -4,53 +4,52 @@ import { useState } from 'react'
 import { IoHelpCircleOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { Button, Modal } from '@/components/sk'
-import { MAC_SHELL_COMMAND } from '@/lib/game/mac-shell-command'
+import { Button, CopyField, Modal } from '@/components/sk'
+import { usePageOrigin } from '@/hooks/usePageOrigin'
+import { remoteScriptCommand, remoteScriptUrl } from '@/lib/remote-scripts/command'
+
+const MAC_SHELL_SCRIPT_NAME = 'mac-shell.sh'
+const MAC_STEP_KEYS = ['launchHelp.macStep1', 'launchHelp.macStep2', 'launchHelp.macStep3', 'launchHelp.macStep4'] as const
 
 /** Both installation and recovery use native extraction, never browser ZIP writes. */
 export function MacShellDialog({ open, onClose, gameName }: { open: boolean; onClose: () => void; gameName?: string }) {
   const t = useT()
-  const [copyStatus, setCopyStatus] = useState('')
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(MAC_SHELL_COMMAND)
-      setCopyStatus(t('launchHelp.copied'))
-    } catch {
-      setCopyStatus(t('launchHelp.copyFailed'))
-    }
-  }
+  const origin = usePageOrigin()
+  const command = origin ? remoteScriptCommand(origin, MAC_SHELL_SCRIPT_NAME) : ''
   return (
     <Modal
       open={open}
       onClose={onClose}
       title={t('launchHelp.macTitle')}
       description={t('launchHelp.macDescription')}
-      footer={
-        <>
-          <Button onClick={onClose}>{t('common.close')}</Button>
-          <Button variant="accent" onClick={() => void copy()}>
-            {t('launchHelp.copyCommand')}
-          </Button>
-        </>
-      }
+      footer={<Button onClick={onClose}>{t('common.close')}</Button>}
     >
       <div className="flex flex-col gap-3 text-left text-sm leading-relaxed text-ink-soft">
         {gameName ? <p className="m-0 break-all">{t('launchHelp.pickSameDir', { name: gameName })}</p> : null}
-        <p className="m-0">{t('launchHelp.macBody1')}</p>
-        <p className="m-0">{t('launchHelp.macBody2')}</p>
-        <details className="rounded-md border border-line p-3">
-          <summary className="cursor-pointer text-ink">{t('launchHelp.viewCommand')}</summary>
-          <pre
-            tabIndex={0}
-            aria-label={t('launchHelp.commandAria')}
-            className="m-0 whitespace-pre-wrap break-all rounded-md border border-line bg-panel-2 p-3 text-xs text-ink select-text"
-          >
-            {MAC_SHELL_COMMAND}
-          </pre>
-        </details>
-        <p role="status" className="m-0 text-xs">
-          {copyStatus}
-        </p>
+        <ol className="m-0 flex list-none flex-col gap-2 p-0">
+          {MAC_STEP_KEYS.map((key, index) => (
+            <li key={key} className="flex gap-2.5">
+              <span aria-hidden className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-line text-[0.7rem] font-semibold text-ink">
+                {index + 1}
+              </span>
+              <span>{t(key)}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="m-0 text-xs">{t('launchHelp.macNote')}</p>
+        <div className="flex flex-col gap-2">
+          <CopyField value={command} label={t('launchHelp.commandAria')} />
+          {origin ? (
+            <a
+              href={remoteScriptUrl(origin, MAC_SHELL_SCRIPT_NAME)}
+              target="_blank"
+              rel="noreferrer"
+              className="self-start text-xs text-ink-soft underline underline-offset-2 hover:text-ink"
+            >
+              {t('launchHelp.viewCommand')}
+            </a>
+          ) : null}
+        </div>
       </div>
     </Modal>
   )

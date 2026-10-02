@@ -13,6 +13,7 @@ export function appNavPathFromPathname(pathname: string): AppNavPath {
   if (pathname.startsWith('/cheat') || pathname.startsWith('/edit')) return '/cheat'
   if (pathname.startsWith('/translate') || pathname.startsWith('/cache')) return '/translate'
   if (pathname.startsWith('/logs')) return '/logs'
+  if (pathname.startsWith('/integration')) return '/integration'
   return '/game'
 }
 

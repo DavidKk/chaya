@@ -1,7 +1,9 @@
+import type { IntegrationMessages } from './integration-types'
+
 /** 叶子为 string 的同构文案树 */
 export type MessageTree = {
   locale: { label: string; switch: string }
-  nav: { main: string; library: string; edit: string; translate: string; logs: string }
+  nav: { main: string; library: string; edit: string; translate: string; logs: string; integration: string }
   common: {
     close: string
     cancel: string
@@ -12,6 +14,8 @@ export type MessageTree = {
     emptyOptions: string
     chooseGame: string
     copy: string
+    copied: string
+    copyFailed: string
     remove: string
     more: string
     search: string
@@ -44,6 +48,13 @@ export type MessageTree = {
     heroCopy: string
     downloadMac: string
     downloadWin: string
+    chipApple: string
+    chipIntel: string
+    chipX64: string
+    recommended: string
+    allReleases: string
+    macFirstLaunch: string
+    macInstallAria: string
     orTryBrowser: string
     openConsole: string
     featuresTitle: string
@@ -63,14 +74,23 @@ export type MessageTree = {
     macFixLink: string
     macTitle: string
     macDescription: string
-    copyCommand: string
-    copied: string
-    copyFailed: string
     pickSameDir: string
-    macBody1: string
-    macBody2: string
+    macStep1: string
+    macStep2: string
+    macStep3: string
+    macStep4: string
+    macNote: string
     viewCommand: string
     commandAria: string
+  }
+  remoteScript: {
+    installTitle: string
+    macShellTitle: string
+    runHint: string
+    commandAria: string
+    viewRaw: string
+    sourceAria: string
+    lines: string
   }
   requireBound: { cloudHint: string }
   notFound: { title: string; hint: string; backLibrary: string; translate: string; backHome: string }
@@ -635,4 +655,5 @@ export type MessageTree = {
     copyFailed: string
     overlayAria: string
   }
+  integration: IntegrationMessages
 }

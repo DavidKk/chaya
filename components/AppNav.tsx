@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
  * - `/cheat` 修改（局内 GameEdit）
  * - `/translate/run` 翻译动作；`/translate/cache` 翻译库浏览
  * - `/logs` 日志
+ * - `/integration/skills` · `/integration/mcp` 集成
  * `/` 暂空，重定向到 `/game`
  */
 const LINKS = [
@@ -20,9 +21,10 @@ const LINKS = [
   { href: '/cheat/run', labelKey: 'nav.edit' },
   { href: '/translate/run', labelKey: 'nav.translate' },
   { href: '/logs', labelKey: 'nav.logs' },
+  { href: '/integration/skills', labelKey: 'nav.integration' },
 ] as const satisfies ReadonlyArray<{ href: string; labelKey: MessageKey }>
 
-export type AppNavPath = (typeof LINKS)[number]['href'] | '/cheat' | '/translate'
+export type AppNavPath = (typeof LINKS)[number]['href'] | '/cheat' | '/translate' | '/integration'
 
 const LINK_SELECTOR = '[data-app-nav-link]'
 
@@ -41,6 +43,7 @@ function measureIndicator(nav: HTMLElement, target: HTMLElement): IndicatorState
 function navActive(current: AppNavPath, href: (typeof LINKS)[number]['href']) {
   if (href === '/cheat/run') return current === '/cheat' || current === '/cheat/run' || current.startsWith('/cheat/')
   if (href === '/translate/run') return current === '/translate' || current === '/translate/run' || current.startsWith('/translate/')
+  if (href === '/integration/skills') return current === '/integration' || current.startsWith('/integration/')
   if (href === '/game') return current === '/game'
   return current === href
 }

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 
 import { MarketingHome } from '@/components/MarketingHome'
+import { getLatestReleaseDownloads } from '@/lib/release/github-release'
 import { canUseDisk } from '@/lib/service-mode'
 import packageJson from '@/package.json'
 
@@ -23,9 +24,11 @@ function githubUrlFromPackage() {
  * - local / app（含 Electron）：进游戏库控制台
  * - edge（vercel）：官方介绍 / 下载页
  */
-export default function Home() {
+export default async function Home() {
   if (canUseDisk()) {
     redirect('/game')
   }
-  return <MarketingHome githubUrl={githubUrlFromPackage()} />
+  const githubUrl = githubUrlFromPackage()
+  const downloads = await getLatestReleaseDownloads(githubUrl)
+  return <MarketingHome githubUrl={githubUrl} downloads={downloads} />
 }

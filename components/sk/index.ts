@@ -1,5 +1,6 @@
 export { Badge, type BadgeProps, type BadgeTone } from '@/components/sk/Badge'
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from '@/components/sk/Button'
+export { CopyField, type CopyFieldProps } from '@/components/sk/CopyField'
 export { DataTable, type DataTableColumn, type DataTableProps, type DataTableSortState } from '@/components/sk/DataTable'
 export { EmptyState } from '@/components/sk/EmptyState'
 export { GateButton, type GateButtonProps } from '@/components/sk/GateButton'

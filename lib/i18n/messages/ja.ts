@@ -1,10 +1,11 @@
 import { editJa } from '@/lib/i18n/messages/parts/edit.ja'
+import { integrationJa } from '@/lib/i18n/messages/parts/integration'
 import { translateJa } from '@/lib/i18n/messages/parts/translate.ja'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 const base = {
   locale: { label: '言語', switch: '言語' },
-  nav: { main: 'ナビ', library: 'ゲーム庫', edit: '編集', translate: '翻訳', logs: 'ログ' },
+  nav: { main: 'ナビ', library: 'ゲーム庫', edit: '編集', translate: '翻訳', logs: 'ログ', integration: '連携' },
   common: {
     close: '閉じる',
     cancel: '取消',
@@ -15,6 +16,8 @@ const base = {
     emptyOptions: 'なし',
     chooseGame: 'ゲーム選択',
     copy: 'コピー',
+    copied: 'コピーしました',
+    copyFailed: 'コピー失敗。手動で選択してください',
     remove: '削除',
     more: 'その他',
     search: '検索',
@@ -47,6 +50,13 @@ const base = {
     heroCopy: 'RPG Maker 向けローカル専用。抽出・補訳とリアルタイム／字幕、金・道具・変数・アクターも編集。コンソールと局内は同じ一式。',
     downloadMac: 'macOS',
     downloadWin: 'Windows',
+    chipApple: 'Apple シリコン',
+    chipIntel: 'Intel',
+    chipX64: '64 ビット',
+    recommended: 'おすすめ',
+    allReleases: 'すべてのリリース',
+    macFirstLaunch: 'macOS はターミナルにこの 1 行を貼り付けてインストールすると「壊れている」警告を回避できます：',
+    macInstallAria: 'macOS アプリのインストールコマンド',
     orTryBrowser: 'ブラウザで試す',
     openConsole: 'コンソール',
     featuresTitle: 'ゲーム庫から局内まで',
@@ -66,14 +76,23 @@ const base = {
     macFixLink: 'macOS で起動できない？',
     macTitle: 'macOS シェル導入 / 修復',
     macDescription: '終了 → ターミナル貼付 → フォルダ選択',
-    copyCommand: 'コマンドコピー',
-    copied: 'コピー済み。ターミナルへ貼付',
-    copyFailed: '失敗。手動で選択',
     pickSameDir: '同じフォルダ：{name}',
-    macBody1: 'NW.js 0.116.0 を導入し旧シェルを退避。セーブ保持。',
-    macBody2: '完了後 Chaya.app を起動。ゲームを再選択。',
-    viewCommand: 'コマンド表示',
+    macStep1: 'ゲームを終了',
+    macStep2: 'コマンド右のコピーボタン → ターミナルに貼り付けて Return',
+    macStep3: '表示されたウィンドウでゲームフォルダを選択',
+    macStep4: 'ターミナルに 6 段階の進捗とダウンロードバーが出ます。「✓ 安装完成」（完了）が出たら Chaya.app を起動',
+    macNote: 'NW.js 最新安定版を自動取得。セーブ保持・旧シェルは自動退避。プラグインは別途導入。完了後ここでゲームを再選択して更新。',
+    viewCommand: 'ブラウザでスクリプト全文を見る',
     commandAria: 'macOS 導入コマンド',
+  },
+  remoteScript: {
+    installTitle: 'Chaya デスクトップアプリをインストール（macOS）',
+    macShellTitle: 'macOS ゲームシェルの導入 / 修復',
+    runHint: 'ターミナルを開き、この 1 行を貼り付けて Return：',
+    commandAria: 'インストールコマンド',
+    viewRaw: 'プレーンテキスト',
+    sourceAria: 'スクリプトのソース',
+    lines: '{count} 行',
   },
   requireBound: { cloudHint: '先にゲーム庫でフォルダを選択' },
   notFound: {
@@ -227,4 +246,5 @@ export const ja: MessageTree = {
   ...base,
   ...translateJa,
   ...editJa,
+  ...integrationJa,
 }

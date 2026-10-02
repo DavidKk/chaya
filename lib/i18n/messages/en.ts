@@ -1,10 +1,11 @@
 import { editEn } from '@/lib/i18n/messages/parts/edit.en'
+import { integrationEn } from '@/lib/i18n/messages/parts/integration'
 import { translateEn } from '@/lib/i18n/messages/parts/translate.en'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 const commonEn = {
   locale: { label: 'Language', switch: 'Language' },
-  nav: { main: 'Nav', library: 'Library', edit: 'Edit', translate: 'Translate', logs: 'Logs' },
+  nav: { main: 'Nav', library: 'Library', edit: 'Edit', translate: 'Translate', logs: 'Logs', integration: 'Integrations' },
   common: {
     close: 'Close',
     cancel: 'Cancel',
@@ -15,6 +16,8 @@ const commonEn = {
     emptyOptions: 'None',
     chooseGame: 'Choose game',
     copy: 'Copy',
+    copied: 'Copied',
+    copyFailed: 'Copy failed — select manually',
     remove: 'Remove',
     more: 'More',
     search: 'Search',
@@ -47,14 +50,23 @@ const commonEn = {
     macFixLink: 'macOS won’t launch?',
     macTitle: 'Install / fix macOS shell',
     macDescription: 'Quit game → paste in Terminal → pick folder',
-    copyCommand: 'Copy command',
-    copied: 'Copied — paste in Terminal',
-    copyFailed: 'Copy failed — select manually',
     pickSameDir: 'Same game folder: {name}',
-    macBody1: 'Fetches NW.js 0.116.0, installs shell, backs up old. Saves kept; plugins separate.',
-    macBody2: 'Then open Chaya.app. Re-select game to refresh.',
-    viewCommand: 'Show command',
+    macStep1: 'Quit the game',
+    macStep2: 'Click the copy button next to the command, then paste it into Terminal and press Return',
+    macStep3: 'Pick the game folder in the window that pops up',
+    macStep4: 'Terminal shows 6 steps with a download bar; when you see "✓ 安装完成" (done), open Chaya.app',
+    macNote: 'Fetches the latest stable NW.js. Saves are kept and the old shell is backed up; plugins install separately. Re-select the game here afterwards to refresh.',
+    viewCommand: 'View full script in browser',
     commandAria: 'macOS install command',
+  },
+  remoteScript: {
+    installTitle: 'Install Chaya desktop app (macOS)',
+    macShellTitle: 'Install / fix macOS game shell',
+    runHint: 'Open Terminal, paste this line and press Return:',
+    commandAria: 'Install command',
+    viewRaw: 'Raw',
+    sourceAria: 'Script source',
+    lines: '{count} lines',
   },
   requireBound: { cloudHint: 'Pick a local folder in Library first' },
   notFound: {
@@ -86,6 +98,13 @@ const marketingEn = {
     heroCopy: 'Built for RPG Maker on your machine: extract & fill, realtime or subtitles, plus gold, items, vars and actors — one toolkit in console and in-game.',
     downloadMac: 'macOS',
     downloadWin: 'Windows',
+    chipApple: 'Apple silicon',
+    chipIntel: 'Intel',
+    chipX64: '64-bit',
+    recommended: 'For you',
+    allReleases: 'All releases',
+    macFirstLaunch: 'On macOS, paste this into Terminal to install and skip the "damaged" warning:',
+    macInstallAria: 'macOS app install command',
     orTryBrowser: 'Or try in browser',
     openConsole: 'Open console',
     featuresTitle: 'Library to in-game',
@@ -235,4 +254,5 @@ export const en: MessageTree = {
   ...dashboardEn,
   ...translateEn,
   ...editEn,
+  ...integrationEn,
 }

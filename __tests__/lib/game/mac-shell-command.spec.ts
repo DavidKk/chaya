@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { MAC_SHELL_COMMAND } from '@/lib/game/mac-shell-command'
+import { MAC_SHELL_SCRIPT } from '@/lib/game/mac-shell-command'
 
 let root: string
 let game: string
@@ -12,7 +12,7 @@ function stub(name: string, body: string) {
   fs.writeFileSync(path.join(bin, name), `#!/bin/bash\nset -eu\n${body}\n`, { mode: 0o755 })
 }
 function execute(extra: Record<string, string> = {}) {
-  return spawnSync('/bin/bash', { input: MAC_SHELL_COMMAND, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:/usr/bin:/bin`, TEST_GAME: game, ...extra } })
+  return spawnSync('/bin/bash', { input: MAC_SHELL_SCRIPT, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:/usr/bin:/bin`, TEST_GAME: game, ...extra } })
 }
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-command-test-'))
@@ -44,8 +44,8 @@ chmod +x "$fresh/Contents/MacOS/nwjs"`
 })
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }))
 
-test('copyable command is valid Bash', () => {
-  expect(spawnSync('/bin/bash', ['-n'], { input: MAC_SHELL_COMMAND }).status).toBe(0)
+test('served script is valid Bash', () => {
+  expect(spawnSync('/bin/bash', ['-n'], { input: MAC_SHELL_SCRIPT }).status).toBe(0)
 })
 test('installs the new shell, links content and retains old shell and saves', () => {
   const result = execute()

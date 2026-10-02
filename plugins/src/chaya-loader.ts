@@ -3,14 +3,14 @@
  * Development services enable SSE hot replacement after the initial disk load.
  */
 
-import { PLUGIN_BOOST_NAME, PLUGIN_EDIT_NAME, PLUGIN_RUNTIME_NAME, PLUGIN_TRANS_NAME } from '@/constants/brand'
+import { PLUGIN_AGENT_NAME, PLUGIN_BOOST_NAME, PLUGIN_EDIT_NAME, PLUGIN_RUNTIME_NAME, PLUGIN_TRANS_NAME } from '@/constants/brand'
 
 import { ensureLaunchEnvGlobals, pinApiBaseFromUrl, resolveApiBase, resolveApiBaseFallbacks, restorePluginErrors, showPluginError } from './helpers'
 import { tryNodeFsPath } from './helpers/node/node-require'
 
 declare const PluginManager: { setParameters?: (name: string, params: Record<string, string>) => void } | undefined
 
-const LOAD_ORDER = [PLUGIN_RUNTIME_NAME, PLUGIN_TRANS_NAME, PLUGIN_BOOST_NAME, PLUGIN_EDIT_NAME] as const
+const LOAD_ORDER = [PLUGIN_RUNTIME_NAME, PLUGIN_TRANS_NAME, PLUGIN_BOOST_NAME, PLUGIN_EDIT_NAME, PLUGIN_AGENT_NAME] as const
 
 type LoadFail = { name: string; reason: string }
 

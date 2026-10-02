@@ -1,4 +1,13 @@
-import { LEGACY_SHELL_APP_NAMES, PLUGIN_BOOST_NAME, PLUGIN_EDIT_NAME, PLUGIN_RUNTIME_NAME, PLUGIN_TRANS_NAME, SHELL_APP_NAME, SHELL_WIN_DIR_NAME } from '@/constants/brand'
+import {
+  LEGACY_SHELL_APP_NAMES,
+  PLUGIN_AGENT_NAME,
+  PLUGIN_BOOST_NAME,
+  PLUGIN_EDIT_NAME,
+  PLUGIN_RUNTIME_NAME,
+  PLUGIN_TRANS_NAME,
+  SHELL_APP_NAME,
+  SHELL_WIN_DIR_NAME,
+} from '@/constants/brand'
 
 export { SHELL_APP_NAME, SHELL_WIN_DIR_NAME }
 
@@ -64,9 +73,9 @@ export type ResolveError = {
 }
 
 /** 由 ChayaLoader 动态拉取的跟踪插件（不含 Env / Loader） */
-export type TrackedPlugin = typeof PLUGIN_RUNTIME_NAME | typeof PLUGIN_TRANS_NAME | typeof PLUGIN_EDIT_NAME | typeof PLUGIN_BOOST_NAME
+export type TrackedPlugin = typeof PLUGIN_RUNTIME_NAME | typeof PLUGIN_TRANS_NAME | typeof PLUGIN_EDIT_NAME | typeof PLUGIN_BOOST_NAME | typeof PLUGIN_AGENT_NAME
 
-export const TRACKED_PLUGINS: readonly TrackedPlugin[] = [PLUGIN_RUNTIME_NAME, PLUGIN_TRANS_NAME, PLUGIN_EDIT_NAME, PLUGIN_BOOST_NAME] as const
+export const TRACKED_PLUGINS: readonly TrackedPlugin[] = [PLUGIN_RUNTIME_NAME, PLUGIN_TRANS_NAME, PLUGIN_EDIT_NAME, PLUGIN_BOOST_NAME, PLUGIN_AGENT_NAME] as const
 
 /** 内容根旁可能存在的旧品牌壳名（解析回退） */
 export const LEGACY_PROJECT_SHELL_NAMES = LEGACY_SHELL_APP_NAMES
