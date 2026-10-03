@@ -8,7 +8,7 @@
 
 ## 0. 用语与状态标识
 
-> **本文的 "edge" 是项目内部「云端无盘构建目标」的名称，不等同于 Next.js Edge Runtime。** 云端 API 目前全部运行在 Node.js runtime（各路由 `export const runtime = 'nodejs'`）；edge 构建只是在构建时剔除了读写本机磁盘的路由。改名计划见优化方案 O8。
+> **本文的 "edge" 是项目内部「云端无盘构建目标」的名称，不等同于 Next.js Edge Runtime。** 云端 API 运行在 Node.js runtime（关键 API 显式声明 `export const runtime = 'nodejs'`，其余沿用 Next.js 默认）；edge 构建只是在构建时剔除了读写本机磁盘的路由。改名计划见优化方案 O8。
 
 | 标识          | 含义                                          |
 | ------------- | --------------------------------------------- |
@@ -39,7 +39,7 @@
 | ---------- | ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 构建目标   | `server` / `edge` / `dev`    | 是否剔除 `*.server.*` / `*.dev.*` 路由 | **构建时**：`VERCEL=1` 或 `CHAYA_TARGET=edge` → edge；dev 阶段 → dev；否则 server。写成常量 `NEXT_PUBLIC_CHAYA_TARGET`（`next.config.ts`、`lib/service-mode/target.ts`） |
 | 服务形态   | `local` / `app` / `vercel`   | 服务的能力边界                         | edge 构建或 `VERCEL=1` 强制 `vercel`；dev 看右上角切换器（Server / Edge，进程级）；否则看 `CHAYA_SERVICE`（`lib/service-mode/mode.ts`）                                  |
-| 执行运行时 | Node.js（Edge Runtime 未用） | Next 路由实际在哪执行                  | 各路由 `export const runtime`，目前全部 `nodejs`                                                                                                                         |
+| 执行运行时 | Node.js（Edge Runtime 未用） | Next 路由实际在哪执行                  | 关键 API 显式声明 `runtime = 'nodejs'`，其余沿用 Next.js 默认                                                                                                            |
 
 由服务形态派生：
 
@@ -93,7 +93,7 @@
 - **鉴权**（已实现·有测试，`__tests__/app/webrtc-signaling-api.spec.ts`）：
   - 所有请求必须带 `roomId`，不再有公共房间 `'default'`；读取 / 应答不会创建房间。
   - 服务端模式：页面需管理授权，游戏的 launch token 只能读自己的房间并应答（`services/access/api.ts`）。
-  - 浏览器模式：页面为每个游戏生成连接令牌（`lib/browser/link-token.ts`，存 localStorage），「连接」时写进游戏 Env（`CHAYA_LINK_TOKEN`）。双方请求信令都带 `X-Chaya-Link-Token`；Web 首次 `reset` / `offer` 时服务器绑定令牌哈希，之后令牌不符一律 403，`reset` 保留绑定。
+  - 浏览器模式：页面为每个游戏生成连接令牌（`lib/browser/link-token.ts`，存 localStorage），「连接」时写进游戏 Env（`CHAYA_LINK_TOKEN`）。双方请求信令都带 `X-Chaya-Link-Token`；Web 首次 `reset` / `offer` 时服务器绑定令牌哈希，缺令牌返回 401、令牌不符返回 403，`reset` 保留绑定。
   - 「连接」会同时刷新插件文件，保证游戏侧插件支持令牌。
 
 ### 3.4 已定决策：不新增 Node 部署类型（2026-10-03）

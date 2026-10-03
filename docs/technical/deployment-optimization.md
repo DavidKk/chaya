@@ -1,34 +1,35 @@
 # 部署方式 × 操作系统：优化方案
 
-> 状态：待实施（逐项落地后在 §11 记录，并同步 [deployment-platforms.md](deployment-platforms.md)）  
+> 状态：部分实施（逐项状态见 §0，落地记录见 §11；完成后同步 [deployment-platforms.md](deployment-platforms.md)）
+>
 > 现状与已定决策以 [deployment-platforms.md](deployment-platforms.md) 为准；本文只写要改什么、怎么改、怎么验收。
 
 ---
 
 ## 0. 总览
 
-| 编号 | 优化项                                        | 优先级 | 解决的问题                                             | 依赖          |
-| ---- | --------------------------------------------- | ------ | ------------------------------------------------------ | ------------- |
-| O1   | 浏览器模式日志隔离                            | P0     | 所有访问者共用日志（隐私）、可被任意灌入               | —             |
-| O2   | 能力层：拆分 `canUseDisk`                     | P1     | 一个开关同时管"用户游戏文件"和"服务端存储"             | —             |
-| O3   | 服务端「下载 / 升级 NW.js」改后台任务         | P1     | 确认弹窗一直转圈、期间不能操作、卡住最长约 5 分钟      | O2（可选）    |
-| O4   | 浏览器模式 Windows 装壳不再锁整张卡片         | P1     | 装壳期间整卡 busy                                      | —             |
-| O5   | Windows 装壳增加 PowerShell 命令备选          | P2     | 页面装壳步骤多、无下载进度、非 Chromium 无法装         | —             |
-| O6   | 信令：鉴权 + 共享存储 + 部署门禁              | P0     | 信令无鉴权可被抢连；Vercel 多实例下连不上游戏          | —             |
-| O7   | Linux 装壳改终端命令                          | P3     | 只有下载链接，用户需自己解压、`chmod`                  | O5 的脚本框架 |
-| O8   | 命名：构建目标 `edge`、形态 `vercel` 改语义名 | P3     | `edge` 被误读为 Next Edge Runtime；自托管也叫 `vercel` | O2、O9        |
-| O9   | 部署文档修正                                  | P0     | 命名混淆、前置条件缺失、Linux 写成已实现、过度承诺     | —             |
-| O10  | 浏览器模式前置条件检测与提示                  | P1     | 非 HTTPS / 非 Chromium 时选目录失败且无说明            | —             |
+| 编号 | 优化项                                        | 优先级 | 状态           | 解决的问题                                             | 依赖          |
+| ---- | --------------------------------------------- | ------ | -------------- | ------------------------------------------------------ | ------------- |
+| O1   | 浏览器模式日志隔离                            | P0     | **已完成**     | 所有访问者共用日志（隐私）、可被任意灌入               | —             |
+| O2   | 能力层：拆分 `canUseDisk`                     | P1     | 待实施         | 一个开关同时管"用户游戏文件"和"服务端存储"             | —             |
+| O3   | 服务端「下载 / 升级 NW.js」改后台任务         | P1     | 待实施         | 确认弹窗一直转圈、期间不能操作、卡住最长约 5 分钟      | O2（可选）    |
+| O4   | 浏览器模式 Windows 装壳不再锁整张卡片         | P1     | 待实施         | 装壳期间整卡 busy                                      | —             |
+| O5   | Windows 装壳增加 PowerShell 命令备选          | P2     | 待实施         | 页面装壳步骤多、无下载进度、非 Chromium 无法装         | —             |
+| O6   | 信令：鉴权 + 共享存储 + 部署门禁              | P0     | **鉴权已完成** | 信令无鉴权可被抢连；Vercel 多实例下连不上游戏          | —             |
+| O7   | Linux 装壳改终端命令                          | P3     | 待实施         | 只有下载链接，用户需自己解压、`chmod`                  | O5 的脚本框架 |
+| O8   | 命名：构建目标 `edge`、形态 `vercel` 改语义名 | P3     | 待实施         | `edge` 被误读为 Next Edge Runtime；自托管也叫 `vercel` | O2、O9        |
+| O9   | 部署文档修正                                  | P0     | **已完成**     | 命名混淆、前置条件缺失、Linux 写成已实现、过度承诺     | —             |
+| O10  | 浏览器模式前置条件检测与提示                  | P1     | 待实施         | 非 HTTPS / 非 Chromium 时选目录失败且无说明            | —             |
 
 建议顺序：O9（纯文档，先做）→ O6 鉴权 + O1 → O6 共享存储 → O2 → O3 / O4 / O10 → O5 → O7 → O8。
 
-O1 与 O6 必须一起看：日志若含游戏 id（即信令房间号），而日志又对所有人可见、信令又无鉴权，别人就能拿房间号抢先连上用户的游戏；浏览器模式下游戏具备 Node 文件能力，后果比泄露日志严重。
+O1 与 O6 必须一起看：实施前，日志若含游戏 id（即信令房间号），而日志又对所有人可见、信令又无鉴权，别人就能拿房间号抢先连上用户的游戏；浏览器模式下游戏具备 Node 文件能力，后果比泄露日志严重。O1 与 O6.2 已消除这条攻击链，Vercel 多实例可用性仍待 O6.3。
 
 ---
 
 ## 1. O1 浏览器模式日志隔离（P0，已完成：采用 1.3）
 
-### 1.1 现状
+### 1.1 实施前问题（已修复）
 
 - 游戏插件把日志 `POST` 到 `CHAYA_LOG_URL`（`buildChayaEnvJs` 写入，等于页面 origin 的 `/api/logs`）。
 - `/api/logs`、`/api/logs/stream` 读写同一个进程内缓冲（`services/log/bus.ts`），不区分游戏 / 用户；接口开放跨域（`Access-Control-Allow-Origin: *`）。
@@ -41,23 +42,21 @@ O1 与 O6 必须一起看：日志若含游戏 id（即信令房间号），而�
 - 浏览器模式不在服务器落盘。
 - 服务端模式行为不变。
 
-### 1.3 方案：浏览器模式日志改走游戏连接（推荐）
+### 1.3 已采用方案：浏览器模式日志改走游戏连接
 
 浏览器模式下，翻译、修改器已经经 WebRTC 数据通道由游戏执行，日志同样走这条通道，不经服务器。
 
-1. **协议**（`lib/runtime/game-link-protocol.ts`）新增：
-   - `{ type: 'log.batch'; entries: LogEntry[] }`：游戏 → 页面。
-   - `{ type: 'log.backlog.request'; limit: number }`：页面 → 游戏，连接建立后拉取积压。
+1. **协议**（`lib/runtime/game-link-protocol.ts`）新增 `{ type: 'log.batch'; entries: LogEntry[] }`（游戏 → 页面）。未增加单独的 backlog request；DataChannel 打开时游戏主动补发最近 200 条。
 2. **游戏侧**（插件 logger）：
    - 保留环形缓冲（如 2000 条）。
-   - 已连接：批量（如 200ms 或 50 条）发 `log.batch`。
-   - 未连接：只入缓冲；连接后响应 `log.backlog.request`。
-   - 浏览器模式下 `buildChayaEnvJs` **不写** `CHAYA_LOG_URL`（或写空），插件不再 `POST` 服务器。
+   - 已连接：每 200ms 按约 6000 字符分批发送 `log.batch`；单条消息与 meta 会截断，控制 DataChannel 消息体积。
+   - 未连接：只入缓冲；连接后主动补发最近 200 条。
+   - 浏览器模式下 `buildChayaEnvJs` 写 `CHAYA_LOG_TRANSPORT = 'link'`、清空 `CHAYA_LOG_URL`，插件不再 `POST` 服务器。
 3. **页面侧**：
-   - `GameLinkProvider` 收 `log.batch`，写入页面内日志存储（内存环形缓冲，可选持久化到 IndexedDB 按游戏 id 分库）。
+   - `GameLinkProvider` 收 `log.batch`，写入页面内存日志存储；切换游戏时清空，不持久化到 IndexedDB。
    - `LogPanel` 在浏览器模式读页面日志存储，不连 `/api/logs/stream`；清空只清本地，可放开「清空」。
    - WebMCP `chaya_logs_*` 读页面日志存储；从 `EDGE_UNAVAILABLE_TOOLS` 移除 `chaya_logs_clear`。
-4. **服务端**：浏览器模式下 `/api/logs` 的 `POST` 返回 410（兼容旧插件：静默丢弃也可），`GET` / `stream` 返回空。服务端模式不变。
+4. **服务端**：浏览器模式下 `/api/logs` 的 `POST` 为兼容旧插件返回 200 但静默丢弃，`GET` 返回空；SSE 只保活、不推日志条目。服务端模式不变。
 
 ### 1.4 备选：服务端按房间隔离（过渡方案）
 
@@ -246,26 +245,26 @@ type ShellJob = {
 
 信令是浏览器模式的核心链路：配不上对 = 连不上游戏 = 翻译、修改器全部不可用。不能当普通体验问题处理。
 
-### 6.1 现状
+### 6.1 当前状态
 
-- `/api/runtime/webrtc`：房间存在进程内 `Map`（`services/runtime/webrtc-signaling.ts`，已有 10 分钟 TTL）。
-- **无鉴权**：任何人知道房间号即可读 offer、写 answer、`reset`；跨域 `*`。允许头里列了 `X-Chaya-Launch-Token` 但从未校验。
-- 缺省房间：服务端不传 `roomId` 时落到公共房间 `'default'`；插件 `game-link.ts` 读不到 `CHAYA_GAME_ID` / `CHAYA_LAUNCH_TOKEN` 时也回退 `'default'`。
-- 房间号即游戏 id（浏览器模式为随机 UUID），只能降低误碰概率，不能当认证；且可能出现在日志里（见 O1）。
-- Vercel：offer 与 answer 可能落在不同实例，冷启动后房间消失 → 连不上。日志 SSE（`services/log/bus.ts`）同理，不能承诺跨实例实时日志。
+- `/api/runtime/webrtc` 的房间仍存在进程内 `Map`（`services/runtime/webrtc-signaling.ts`，10 分钟 TTL），因此只适用于单进程。
+- **鉴权已完成**：浏览器模式用按游戏生成的连接令牌；服务端模式沿用管理授权与 launch token。服务器只保存连接令牌的 SHA-256。
+- API 必须显式提供 `roomId`；读取 / 应答不会创建房间。插件内部仍用 `'default'` 作“尚未取得游戏 id”的哨兵值，但不会向该房间发请求。
+- 浏览器模式日志已经改走 DataChannel，不经过服务端日志总线；房间号会在插件诊断日志中打码，工具输出会过滤 `linkToken`。
+- Vercel 上 offer 与 answer 仍可能落在不同实例，冷启动后房间也会消失，因而仍可能连不上游戏；这是 O6.3 尚未解决的核心问题。
 
-### 6.2 鉴权（所有部署都做，先于共享存储）
+### 6.2 鉴权（已完成）
 
 1. **房间令牌**：
-   - 浏览器模式：页面在写入 Env 时同时生成 `linkToken`（≥128 bit 随机），与 `CHAYA_GAME_ID` 一起经 FSA 写进 `chaya-env.js`（`window.CHAYA_LINK_TOKEN`）。令牌只存在用户本机游戏目录与页面内存 / IndexedDB 游戏库。
-   - 服务端模式：复用 `/api/launch` 签发的 launch token（`services/runtime/write-launch-env.ts`），或同样签发 `linkToken`。
+   - 浏览器模式：页面在写入 Env 时生成 256 bit `linkToken`，按游戏 id 存在浏览器 `localStorage`，并与 `CHAYA_GAME_ID` 一起经 FSA 写进游戏 Env（`window.CHAYA_LINK_TOKEN`）。服务器仅在房间内存中保存哈希。
+   - 服务端模式：复用 `/api/launch` 签发的 launch token（`services/runtime/write-launch-env.ts`）。
 2. **校验**：
-   - 页面与游戏所有信令请求带 `X-Chaya-Link-Token`。
-   - 服务端首次写入房间时记录令牌哈希（SHA-256）；之后读写必须匹配，否则 403。`reset` 同样需要令牌。
+   - 浏览器模式下页面与游戏的所有信令请求带 `X-Chaya-Link-Token`；服务端模式仍由管理会话或 `X-Chaya-Launch-Token` 进入 API 门禁。
+   - 浏览器页面首次 `reset` / `offer` 时记录令牌哈希（SHA-256）；之后读写必须匹配，否则 403。`reset` 清空协商状态但保留令牌绑定。
    - 房间 TTL 保持 10 分钟；令牌随房间过期。
-3. **去掉缺省房间**：服务端缺 `roomId` 或令牌返回 400；插件读不到游戏 id 时不连（不回退 `'default'`）。
+3. **去掉缺省房间**：缺 `roomId` 返回 400；浏览器模式缺连接令牌返回 401、令牌不符返回 403。插件读不到游戏 id 时不发起连接。
 4. **来源**：CORS 不是安全边界（非浏览器客户端可直接请求），安全靠令牌；仍可把 `Allow-Origin` 收窄为页面 origin + NW.js 游戏页实际 origin（需实测：`file://` / `chrome-extension://` / `null`）。
-5. **限流**：房间总数设上限（如 1 万），按 IP 限制创建频率，防止内存被刷爆。
+5. **容量限制**：房间总数最多 5000，同一来源最多同时持有 20 个未过期房间；来源优先取 `x-real-ip`，再取 `x-forwarded-for` 首段。此限制不是按时间窗口的请求速率限制。
 6. **日志脱敏**：日志与 MCP 输出不打印房间号、令牌（`lib/integration/tools/types.ts` 的 `SECRET_KEYS` 加 `linkToken`）。
 
 ### 6.3 共享存储（Vercel 生产环境必须）
@@ -288,11 +287,12 @@ type ShellJob = {
 
 ### 6.5 验收
 
-- 不带令牌或令牌错误的 `GET` / `POST` / `reset` 一律 403；缺 `roomId` 400。
+- 浏览器模式缺令牌返回 401、令牌错误返回 403；缺 `roomId` 返回 400。
 - 两个用户同时连接各自游戏互不影响；第三方拿到房间号也无法写 answer 或重置房间。
 - Vercel 生产两台设备"连接 → 启动游戏"20 次全部配对成功（配置 KV 后）。
 - 无 KV 配置时，本地 / 自托管单进程行为不变。
-- 测试：令牌首写绑定、不匹配拒绝、TTL 过期、房间上限、插件不再回退 `'default'`。
+- 已有测试：令牌首写绑定、不匹配拒绝、reset 保留绑定、读取 / 应答不建房、房间总量和单来源容量限制、服务端模式门禁分工。
+- 待补测试：TTL 过期清理，以及插件在缺游戏 id 时不会发信令请求。
 
 ---
 
@@ -326,7 +326,7 @@ type ShellJob = {
 
 ### 9.1 `deployment-platforms.md`
 
-1. **开头声明**：本文的 edge 是项目内部"云端无盘构建目标"的名称，不等同于 Next.js Edge Runtime；云端 API 目前全部运行在 Node.js runtime。§1"不按运行时（Node / Edge）区分"改为"不按部署平台区分"。
+1. **开头声明**：本文的 edge 是项目内部"云端无盘构建目标"的名称，不等同于 Next.js Edge Runtime；云端 API 运行在 Node.js runtime（关键 API 显式声明，其余沿用 Next.js 默认）。§1"不按运行时（Node / Edge）区分"改为"不按部署平台区分"。
 2. **改为四层结构**：
    1. 能力模型：游戏文件归属、`canUseDisk`、服务端 / 浏览器模式；
    2. 构建与运行时模型：构建目标 ≠ 执行运行时（O8 的三层表）；
@@ -348,7 +348,7 @@ type ShellJob = {
    - 装壳自动化程度按平台不同：Windows 页面安装，macOS 终端命令，Linux 仅下载链接。
 5. **自托管 Node 的表述**改为：自托管 Node 使用云端构建目标，只提供浏览器模式；它仍运行 Node.js API，但主动剔除本机磁盘路由。推荐单进程、固定实例，必须启用 HTTPS。
 6. **§2.1"远程 Node 与 Edge 能力完全一致"** 改为：两者在"游戏文件由浏览器读写"这一能力边界上相同；运行时稳定性、内存状态、长任务和多实例行为不同（自托管单进程可保留内存状态，Vercel 多实例 / 冷启动不行）。
-7. **信令从"已知问题"提升为部署限制**：写明 Vercel 生产在 O6 完成前为实验性；自托管禁止多副本；日志 SSE 不承诺跨实例；信令目前无鉴权。
+7. **信令从"已知问题"提升为部署限制**：写明 Vercel 生产在共享存储完成前为实验性；自托管禁止多副本；同时记录 O6.2 已完成鉴权、浏览器模式日志不再依赖服务端 SSE。
 8. **壳缓存路径**写准确：`data/shell-cache/[sdk-]<版本>-<fileKey>/extract/`，`fileKey` 含系统与架构（如 `win-x64`、`osx-arm64`）；或改写为"按版本、平台、架构、flavor 缓存"。
 
 ### 9.2 `cloud-prepare-strategy.md`

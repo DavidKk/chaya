@@ -202,7 +202,7 @@ assertCanUseDisk() // → HTTP 501, code DISK_UNAVAILABLE
 
 ## 8. 构建
 
-> **edge 是项目内部「云端无盘构建目标」的名称，不等同于 Next.js Edge Runtime**：edge 构建只在构建时剔除 `*.server` / `*.dev` 路由，云端 API 仍全部运行在 Node.js runtime（`export const runtime = 'nodejs'`）。三层概念（构建目标 / 服务形态 / 执行运行时）见 [deployment-platforms.md](deployment-platforms.md) §2。
+> **edge 是项目内部「云端无盘构建目标」的名称，不等同于 Next.js Edge Runtime**：edge 构建只在构建时剔除 `*.server` / `*.dev` 路由，云端 API 运行在 Node.js runtime（关键 API 显式声明 `export const runtime = 'nodejs'`，其余沿用 Next.js 默认）。三层概念（构建目标 / 服务形态 / 执行运行时）见 [deployment-platforms.md](deployment-platforms.md) §2。
 
 URL 在所有形态下相同（无 `/app`、`/edge` 前缀）。构建目标只有两个：**edge** 与 **server**；App 是 server 产物的打包变体，不是第三套路由。
 
