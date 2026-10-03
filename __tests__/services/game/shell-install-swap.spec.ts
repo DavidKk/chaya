@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { ensureShellLinkedToContent, installShell, recoverOldIfNeeded, uninstallToolkitShell, validShellExists } from '@/services/game/shell'
+import { ensureShellLinkedToContent, installShell, recoverOldIfNeeded, shellInstallHint, uninstallToolkitShell, validShellExists } from '@/services/game/shell'
 
 const realPlatform = process.platform
 const dirs: string[] = []
@@ -113,11 +113,12 @@ describeUnix('installShell 暂存后替换（Linux 布局）', () => {
     installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
     const real = fs.renameSync
     const spy = jest.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
-      if (String(from) === t.staging || String(from) === t.old) throw errnoError('EIO')
+      if (String(from) === t.staging) throw Object.assign(new Error('activate failed'), { code: 'EIO' })
+      if (String(from) === t.old) throw Object.assign(new Error('rollback failed'), { code: 'EIO' })
       return real(from, to)
     })
     expect(() => installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })).toThrow(
-      expect.objectContaining({ code: 'SHELL_SWAP_RECOVERY_REQUIRED' })
+      expect.objectContaining({ code: 'SHELL_SWAP_RECOVERY_REQUIRED', message: expect.stringContaining('rollback failed') })
     )
     expect(fs.existsSync(t.shellApp)).toBe(false)
     expect(marker(t.old)).toBe('A')
@@ -144,6 +145,11 @@ describeUnix('installShell 暂存后替换（Linux 布局）', () => {
     expect(recoverOldIfNeeded(t.shellApp)).toBe(true)
     expect(fs.lstatSync(t.shellApp).isSymbolicLink()).toBe(false)
     expect(marker(t.shellApp)).toBe('A')
+  })
+
+  it('Linux 安装提示不误写成 macOS .app', () => {
+    expect(shellInstallHint()).toContain('nw / nwjs')
+    expect(shellInstallHint()).not.toContain('.app')
   })
 
   it('正式路径是残缺目录、.old 可用：残缺目录改名为 .broken 后恢复', () => {

@@ -108,6 +108,9 @@ export async function serverDownloadsEnabled(): Promise<boolean> {
 export function startServerDownloadSync(): () => void {
   refCount += 1
   if (refCount === 1) {
+    // 完全卸载后重新挂载时，首帧应重新作为基线；标签页隐藏重连不会走这里，
+    // 因而仍能补发隐藏期间完成的任务。
+    firstSnapshotSeen = false
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') disconnect()
       else connect()

@@ -40,7 +40,7 @@ export function DownloadItemRow({ item }: { item: DownloadItem }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percent}
-        aria-busy={percent == null || undefined}
+        aria-busy={percent == null ? true : undefined}
         className="h-1.5 overflow-hidden rounded-full bg-inset"
       >
         {percent == null ? (

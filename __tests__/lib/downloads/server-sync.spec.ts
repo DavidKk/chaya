@@ -77,6 +77,17 @@ test('首次快照不通知；后续快照移除服务端已不存在的终态�
   stop()
 })
 
+test('同步完全停止后重新挂载，第一份快照重新作为基线', () => {
+  const stopFirst = startServerDownloadSync()
+  latest().emit('snapshot', { jobs: [] })
+  stopFirst()
+
+  const stopSecond = startServerDownloadSync()
+  latest().emit('snapshot', { jobs: [job('historical', { status: 'done' })] })
+  expect(finished).toEqual([])
+  stopSecond()
+})
+
 test('隐藏时断开、可见时重连；期间新建并结束的任务补发结束事件', () => {
   const stop = startServerDownloadSync()
   latest().emit('snapshot', { jobs: [] })

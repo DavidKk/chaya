@@ -223,8 +223,8 @@ function swapInShell(shellSourceRoot: string, shellApp: string, contentRoot: str
     if (hadFormal) {
       try {
         fs.renameSync(old, shellApp)
-      } catch {
-        throw recoveryRequired(old, e)
+      } catch (rollbackError) {
+        throw recoveryRequired(old, rollbackError)
       }
     }
     fs.rmSync(staging, { recursive: true, force: true })
@@ -351,7 +351,9 @@ export function ensureShellLinkedToContent(opts: { shellApp: string; contentRoot
 
 export function shellInstallHint(): string {
   const folder = `${DATA_DIR_NAME}/${SHELL_DIR_NAME}/${toolkitShellFolderName()}`
-  return isWin32() ? `干净 NW.js（nw.exe），安装到工具 ${folder}（各作共用）` : `干净的 NW.js .app，安装到工具 ${folder}（各作共用）`
+  if (isWin32()) return `干净 NW.js（nw.exe），安装到工具 ${folder}（各作共用）`
+  if (process.platform === 'linux') return `干净 NW.js（nw / nwjs），安装到工具 ${folder}（各作共用）`
+  return `干净的 NW.js .app，安装到工具 ${folder}（各作共用）`
 }
 
 export type UninstallShellResult = {
