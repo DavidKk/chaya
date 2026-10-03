@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { MAC_SHELL_SCRIPT } from '@/lib/game/mac-shell-command'
+import { MAC_SHELL_MESSAGES } from '@/lib/game/mac-shell-messages'
 
 let root: string
 let game: string
@@ -15,7 +16,7 @@ function execute(extra: Record<string, string> = {}) {
   return spawnSync('/bin/bash', {
     input: MAC_SHELL_SCRIPT,
     encoding: 'utf8',
-    env: { ...process.env, PATH: `${bin}:/usr/bin:/bin`, TEST_GAME: game, CHAYA_NW_CACHE_DIR: path.join(root, 'cache'), ...extra },
+    env: { ...process.env, PATH: `${bin}:/usr/bin:/bin`, TEST_GAME: game, CHAYA_NW_CACHE_DIR: path.join(root, 'cache'), CHAYA_LANG: 'en', ...extra },
   })
 }
 beforeEach(() => {
@@ -35,12 +36,21 @@ beforeEach(() => {
   const older = Array.from({ length: 3000 }, (_, i) => ({ version: `v0.${i}.0`, components: { chromium: `${i}.0.0.0` } }))
   const versions = { latest: 'v0.116.0', stable: 'v0.116.0', versions: [{ version: 'v0.116.0', components: { chromium: '153.0.8010.12' } }, ...older] }
   fs.writeFileSync(path.join(root, 'versions.json'), JSON.stringify(versions, null, 4))
+  fs.mkdirSync(path.join(root, 'i18n'))
+  for (const [locale, messages] of Object.entries(MAC_SHELL_MESSAGES)) fs.writeFileSync(path.join(root, 'i18n', `mac-shell.${locale}.json`), JSON.stringify(messages))
   stub(
     'curl',
-    'for arg; do case "$arg" in *versions.json*) cat "$TEST_GAME/../versions.json"; exit 0;; esac; done\nout=; prev=\nfor arg; do case "$arg" in *SHASUMS256.txt) exit 22;; esac; if [ "$prev" = -o ]; then out="$arg"; fi; prev="$arg"; done\nif [ "${TEST_FAIL:-}" = download ]; then exit 22; fi\necho "$*" >> "$TEST_GAME/../downloads"\nprintf zip >> "$out"\nif [ "${TEST_FAIL:-}" = interrupt ]; then exit 18; fi'
+    'for arg; do case "$arg" in *versions.json*) cat "$TEST_GAME/../versions.json"; exit 0;; esac; done\n' +
+      'for arg; do case "$arg" in */sh/i18n/*) [ -z "${TEST_NO_I18N:-}" ] || exit 22; f=$(basename "$arg"); prev=; for a; do [ "$prev" = -o ] && cp "$TEST_GAME/../i18n/$f" "$a"; prev="$a"; done; exit 0;; esac; done\n' +
+      'out=; prev=\nfor arg; do case "$arg" in *SHASUMS256.txt) exit 22;; esac; if [ "$prev" = -o ]; then out="$arg"; fi; prev="$arg"; done\nif [ "${TEST_FAIL:-}" = download ]; then exit 22; fi\necho "$*" >> "$TEST_GAME/../downloads"\nprintf zip >> "$out"\nif [ "${TEST_FAIL:-}" = interrupt ]; then exit 18; fi'
   )
   stub('unzip', '[ "${TEST_FAIL:-}" != interrupt ] && [ "${TEST_FAIL:-}" != corrupt ]')
-  stub('plutil', '[ -n "${TEST_CHROMIUM:-}" ] && printf "%s" "$TEST_CHROMIUM"')
+  // JSON language packs are read with a Node stand-in (CI has no plutil); Info.plist reads return TEST_CHROMIUM.
+  stub(
+    'plutil',
+    `case "$6" in */Info.plist) [ -n "\${TEST_CHROMIUM:-}" ] && printf "%s" "$TEST_CHROMIUM"; exit;; esac
+exec "${process.execPath}" -e 'const v = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))[process.argv[2]]; if (typeof v !== "string") process.exit(1); process.stdout.write(v)' "$6" "$2"`
+  )
   stub(
     'ditto',
     `fresh="$4/nwjs-v0.116.0-osx-arm64/nwjs.app"
@@ -56,6 +66,25 @@ afterEach(() => fs.rmSync(root, { recursive: true, force: true }))
 
 test('served script is valid Bash', () => {
   expect(spawnSync('/bin/bash', ['-n'], { input: MAC_SHELL_SCRIPT }).status).toBe(0)
+})
+test.each([
+  [{ CHAYA_LANG: 'zh' }, '安装完成'],
+  [{ CHAYA_LANG: '', LC_ALL: '', LC_MESSAGES: '', LANG: 'ja_JP.UTF-8' }, 'インストール完了'],
+  [{ CHAYA_LANG: '', LC_ALL: '', LC_MESSAGES: '', LANG: 'ko_KR.UTF-8' }, '설치 완료'],
+  [{ CHAYA_LANG: 'fr' }, 'Installed'],
+  [{ CHAYA_LANG: 'zh', TEST_NO_I18N: '1' }, 'Installed'],
+])('picks the message language (%o)', (env, installed) => {
+  const result = execute(env)
+  expect(result.status).toBe(0)
+  expect(result.stdout).toContain(installed)
+})
+test('a language pack value with quotes is ignored', () => {
+  const pack = { ...MAC_SHELL_MESSAGES.zh, installed: 'x" & do shell script "touch PWNED' }
+  fs.writeFileSync(path.join(root, 'i18n', 'mac-shell.zh.json'), JSON.stringify(pack))
+  const result = execute({ CHAYA_LANG: 'zh' })
+  expect(result.status).toBe(0)
+  expect(result.stdout).toContain('✓ Installed')
+  expect(result.stdout).toContain('游戏壳：')
 })
 test('installs the new shell, links content and retains old shell and saves', () => {
   const result = execute()
@@ -75,17 +104,17 @@ function backups() {
   return fs.readdirSync(game).filter((name) => name.startsWith('Chaya.app.backup-')).length
 }
 test.each([
-  ['up to date', '153.0.8010.12', '跳过下载'],
-  ['newer', '160.0.0.1', '跳过下载'],
-  ['older without confirmation', '152.0.1.1', '较旧'],
-  ['unknown version without confirmation', '', '无法判断'],
+  ['up to date', '153.0.8010.12', 'skipping download'],
+  ['newer', '160.0.0.1', 'skipping download'],
+  ['older without confirmation', '152.0.1.1', 'outdated'],
+  ['unknown version without confirmation', '', 'Cannot determine'],
 ])('intact existing shell (%s) is kept without downloading', (_case, chromium, message) => {
   expect(execute().status).toBe(0)
   expect(downloads()).toBe(1)
   const result = execute({ TEST_CHROMIUM: chromium })
   expect(result.status).toBe(0)
   expect(result.stdout).toContain(message)
-  expect(result.stdout).toContain('保留现有游戏壳')
+  expect(result.stdout).toContain('Kept the existing shell')
   expect(downloads()).toBe(1)
   expect(backups()).toBe(1)
 })
@@ -98,7 +127,7 @@ describe('download cache', () => {
     expect(fs.existsSync(cached())).toBe(true)
     const result = execute()
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('使用已下载的缓存')
+    expect(result.stdout).toContain('Using cached download')
     expect(downloads()).toBe(1)
     expect((fs.statSync(path.join(root, 'cache')).mode & 0o777).toString(8)).toBe('700')
   })
@@ -108,7 +137,7 @@ describe('download cache', () => {
     fs.writeFileSync(`${cached()}.part`, 'half')
     const result = execute()
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('继续上次未完成的下载')
+    expect(result.stdout).toContain('Resuming the previous download')
     expect(fs.readFileSync(path.join(root, 'downloads'), 'utf8')).toContain('--continue-at -')
     expect(fs.readFileSync(cached(), 'utf8')).toBe('halfzip')
     expect(fs.existsSync(`${cached()}.part`)).toBe(false)
@@ -117,7 +146,7 @@ describe('download cache', () => {
   test('an interrupted download keeps its progress', () => {
     const result = execute({ TEST_FAIL: 'interrupt' })
     expect(result.status).not.toBe(0)
-    expect(result.stdout).toContain('已保留进度')
+    expect(result.stdout).toContain('progress kept')
     expect(fs.existsSync(`${cached()}.part`)).toBe(true)
     expect(fs.readFileSync(path.join(game, 'Chaya.app/original'), 'utf8')).toBe('old-shell')
   })
@@ -125,7 +154,7 @@ describe('download cache', () => {
   test('a complete but corrupt download is discarded', () => {
     const result = execute({ TEST_FAIL: 'corrupt' })
     expect(result.status).not.toBe(0)
-    expect(result.stdout).toContain('校验失败')
+    expect(result.stdout).toContain('checksum failed')
     expect(fs.existsSync(`${cached()}.part`)).toBe(false)
   })
 

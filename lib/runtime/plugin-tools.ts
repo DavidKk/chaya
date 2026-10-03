@@ -3,6 +3,8 @@
  * reports which ones and the local MCP / WebMCP expose them as `chaya_plugin_<plugin>_<tool>`.
  */
 
+import { ASK_FIRST } from '@/lib/integration/ask-first'
+
 import { PLUGIN_TOOL_CATALOG, type PluginToolCatalogEntry } from './plugin-tool-catalog'
 
 export type PluginToolMeta = PluginToolCatalogEntry
@@ -41,6 +43,6 @@ export function sanitizePluginTools(raw: unknown): PluginToolMeta[] {
 
 /** Tool description shown to agents: plugin prefix + destructive warning. */
 export function pluginToolDescription(meta: PluginToolMeta): string {
-  const ask = meta.destructive ? ' 破坏性操作：调用前必须先征得用户同意。' : ''
+  const ask = meta.destructive ? ` ${ASK_FIRST}` : ''
   return `[${meta.plugin}] ${meta.description}${ask}`
 }

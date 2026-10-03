@@ -107,6 +107,11 @@ export type MessageTree = {
     saveFailed: string
     saved: string
     loadFailed: string
+    cloudLibraryReadFailed: string
+    cloudAddedHint: string
+    shellTaskLocked: string
+    pluginsInstalled: string
+    pluginsCleared: string
   }
   library: {
     title: string

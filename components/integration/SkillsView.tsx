@@ -1,64 +1,71 @@
 'use client'
 
-import Link from 'next/link'
-import { LuExternalLink } from 'react-icons/lu'
+import type { IconType } from 'react-icons'
+import { LuDownload, LuGamepad2, LuPlug } from 'react-icons/lu'
 
-import { useT } from '@/components/i18n/LocaleProvider'
+import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
+import { hubBlock, HubLayout, HubNav, HubNavItem, HubNavSection, HubPaneHeader } from '@/components/integration/Hub'
 import { markdownBody } from '@/components/integration/markdown'
 import { SkillInstall } from '@/components/integration/SkillInstall'
-import { ScrollArea } from '@/components/sk'
-import { integrationSkillHref, type SkillId, skillRawPath, SKILLS } from '@/lib/integration/skills'
+import type { Locale } from '@/lib/i18n/locales'
+import { integrationSkillHref, type SkillId, SKILLS } from '@/lib/integration/skills'
 import { cn } from '@/lib/utils'
 
-/** Skills 子页：左侧 skill 列表，右侧安装命令 + 正文（构建期渲染的 HTML） */
-export function SkillsView({ activeId, html }: { activeId: SkillId; html: string }) {
+const SKILL_ICONS: Record<SkillId, IconType> = {
+  'chaya-setup': LuDownload,
+  'chaya-launch': LuGamepad2,
+  'chaya-mcp': LuPlug,
+}
+
+/** Skills 子页：左半「skill 列表 + 正文」（构建期渲染的 HTML），右半「安装到 Agent」 */
+export function SkillsView({ activeId, html }: { activeId: SkillId; html: Record<Locale, string> }) {
   const t = useT()
-  const note = t('integration.contentNote')
+  const locale = useLocaleCode()
+  const active = SKILLS.find((skill) => skill.id === activeId) ?? SKILLS[0]
 
   return (
-    <div className="flex h-full min-h-0 flex-col md:flex-row">
-      <nav aria-label={t('integration.skillsListAria')} className="shrink-0 border-b border-line md:w-64 md:border-r md:border-b-0">
-        <ul className="m-0 flex list-none flex-row gap-1 overflow-x-auto p-2 md:flex-col md:overflow-visible">
-          {SKILLS.map((skill) => {
-            const active = skill.id === activeId
-            return (
-              <li key={skill.id} className="min-w-48 md:min-w-0">
-                <Link
+    <HubLayout
+      header={
+        <HubPaneHeader
+          title={active.title[locale]}
+          description={
+            <>
+              {active.summary[locale]} <code className="font-mono text-[11px]">{active.id}</code>
+            </>
+          }
+        />
+      }
+      nav={
+        <HubNav label={t('integration.skillsListAria')}>
+          <HubNavSection>
+            {SKILLS.map((skill) => {
+              const Icon = SKILL_ICONS[skill.id]
+              return (
+                <HubNavItem
+                  key={skill.id}
                   href={integrationSkillHref(skill.id)}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'flex flex-col gap-0.5 rounded-[0.3rem] px-3 py-2 no-underline transition-colors',
-                    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                    active ? 'bg-paper-2 text-ink' : 'text-ink-soft hover:bg-paper-2 hover:text-ink'
-                  )}
-                >
-                  <span className="text-[13px] font-semibold">{skill.title}</span>
-                  <span className="text-xs leading-snug text-ink-soft">{skill.summary}</span>
-                  <code className="mt-0.5 font-mono text-[11px] text-ink-soft">{skill.id}</code>
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
-      </nav>
-      <ScrollArea className="min-h-0 flex-1" indicator="vertical">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <a
-              href={skillRawPath(activeId)}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-ink-soft underline-offset-2 hover:text-ink hover:underline"
-            >
-              {t('integration.viewRaw')}
-              <LuExternalLink aria-hidden className="size-3.5" />
-            </a>
-          </div>
-          <SkillInstall id={activeId} />
-          {note ? <p className="m-0 text-xs text-ink-soft">{note}</p> : null}
-          <article className={markdownBody} dangerouslySetInnerHTML={{ __html: html }} />
-        </div>
-      </ScrollArea>
-    </div>
+                  active={skill.id === activeId}
+                  icon={<Icon size={15} />}
+                  label={skill.title[locale]}
+                  meta={skill.id}
+                  title={skill.summary[locale]}
+                />
+              )
+            })}
+          </HubNavSection>
+        </HubNav>
+      }
+      contentKey={activeId}
+      aside={{
+        header: <HubPaneHeader title={t('integration.installTitle')} description={t('integration.installHint')} />,
+        children: <SkillInstall id={activeId} />,
+      }}
+    >
+      <section className={cn(hubBlock, 'md:hidden')} aria-label={t('integration.installTitle')}>
+        <h2 className="m-0 text-[13px] font-semibold text-ink">{t('integration.installTitle')}</h2>
+        <SkillInstall id={activeId} />
+      </section>
+      <article className={markdownBody} dangerouslySetInnerHTML={{ __html: html[locale] ?? html.en }} />
+    </HubLayout>
   )
 }

@@ -26,7 +26,7 @@ function toMcpTool(name: string): McpTool {
   return { name, description: meta.description, inputSchema: meta.inputSchema, annotations: toolAnnotations(meta), enabled: meta.evalOnly ? mcpEvalEnabled : undefined, run }
 }
 
-const GAME_ID_PROPERTY = { type: 'string', description: '目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略' }
+const GAME_ID_PROPERTY = { type: 'string', description: 'Target game id (from chaya_live_games); optional when only one game is online' }
 
 /** Plugin tool → MCP tool; the input schema gains an optional `gameId` (defaults to the only game declaring it). */
 export function pluginMcpTool(meta: PluginToolMeta & { gameIds?: string[] }): McpTool {

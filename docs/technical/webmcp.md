@@ -73,6 +73,7 @@ plugins/src/cheat/console/tools.ts、game-boost.ts、translator/index.ts 内提�
 ### 4.2 插件工具
 
 - `lib/runtime/plugin-tool-catalog.ts`：`PLUGIN_TOOL_CATALOG` 是全部第一方插件工具的**静态元数据**（插件、工具名、标题、描述、schema、`readOnly` / `destructive`）。游戏只上报"实现了哪些工具"，Agent 看到的描述与 schema 一律取自这里——游戏内任意脚本都能写全局注册表，不能让它把文本注入 `tools/list`。
+- 语言：所有 WebMCP 工具定义（`page_*`、`chaya_web_edit_*`、插件工具、页面工具的提示与报错）只用英文；集成页展示的说明来自 `lib/integration/web-tools-messages.json`（zh / ja / ko），经 `localizedToolDescription` 取用，缺失时显示英文原文。
 - `lib/runtime/plugin-tools.ts`：
 
   ```ts
@@ -137,7 +138,8 @@ plugins/src/cheat/console/tools.ts、game-boost.ts、translator/index.ts 内提�
 
 - 工具定义取自 `MCP_TOOLS`（同名同参同标注），只换执行函数；不可用工具不注册，`page_get_context.unavailableTools` 给原因（`lib/webmcp/mode-matrix.ts`）。
 - 游戏库：`cloudLibraryStorage` / `selectCloudGameId`；`bind` 只接受库中已有 id。
-- 目录读写：先 `queryPermission({ mode: 'read' | 'readwrite' })`，未授权返回 `permission_required`（授权需用户手势）；绝不走 `requireCloudPermission`。`status` / `shell_check` 用 `inspectCloudGame`；`plugins_install` / `clear` / `shell_install` 调对应 `cloud-prepare-game` 函数。
+- 目录读写：先 `queryPermission({ mode: 'read' | 'readwrite' })`，未授权返回 `permission_required`（授权需用户手势）；绝不走 `requireCloudPermission`。`status` / `shell_check` 用 `inspectCloudGame`；`plugins_install` / `clear` / `shell_install` 调对应 `cloud-prepare-game` 函数；`window` 用 `inspectCloudGame` 的 `nwPackage` 读、`writeCloudWindow` 写。
+- `chaya_game_status`：与本机共用 `GameStatusView`（`lib/integration/tools/game-status.ts`）。库为空返回 `ready: false`；`serviceMode` 取 `/api/status`；网页版恒 `remote: false`、`bundled: false`、`sharedCache: null`，`translateCache.file / sizeBytes` 为 null，`contentRoot` 为相对所选目录的显示路径。
 - `quit`：GameLink `quit`。
 - 局内实时 / 翻译 / 共享翻译库 / 修改目录：`makeLiveTools` / `makeTranslateTools` / `makeCacheTools` 注入 `callAgent` 与 `translationRequest`；未连接返回 `game_offline`。
 - 日志：`GET /api/logs`（内存，跨访问者共享，`untrustedContentHint`）；不注册 `clear`。
@@ -193,3 +195,4 @@ Jest 运行在 node 环境（无 jsdom），单测覆盖纯函数与假 `modelCo
 | 2026-10-03 | 评审修订：Edge 工具矩阵（翻译 / 翻译库 / quit / shell 经运行时实现）；形态探测改用 `/api/status`；敏感字段与确认框禁区；DataChannel 复用翻译 RPC 并拒绝 eval；插件声明限第一方；Edge 日志只读；扩展 `live_plugins` / `live_call` 替代新工具；共用工具工厂                                                                               |
 | 2026-10-03 | 开发后评审：插件工具元数据改为静态目录（防游戏脚本注入描述）；`plugin.call` 只允许列出的方法（堵 `Function` 构造链）；`page_wait_for` 走脱敏文本；`page_navigate` / `page_click` 拒绝解码后的 `/api`；确认框只响应用户真实事件（`isTrusted`）；`save` 标记 destructive；镜像刷新丢弃过期响应、连上游戏后延迟补刷；Edge 插件工具退避重试 |
 | 2026-10-03 | 整体评审：`plugin.call` / `plugins.list` 只允许 `ChayaEdit` / `ChayaBoost` / `ChayaTrans`（原先 `window.Chaya*` 可调 `ChayaAgent.run` 执行 eval、`stop` 停桥）；`game.eval` 只在本机长轮询路径执行；游戏上报的 `info` 只保留已知字段且不能覆盖 `gameId`；长轮询中止时命令留在队列；畸形 JSON-RPC 返回 -32600                            |
+| 2026-10-03 | 工具定义统一英文（Agent 读），集成页说明按界面语言展示（`web-tools-messages.json`）；`ASK_FIRST` 抽到 `lib/integration/ask-first.ts` 供 MCP 与插件工具共用                                                                                                                                                                              |

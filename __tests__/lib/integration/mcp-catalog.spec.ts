@@ -13,7 +13,9 @@ jest.mock('@/services/log', () => ({}))
 jest.mock('@/services/runtime/agent-bridge', () => ({}))
 
 import { CHAYA_MCP_SERVER, MCP_TOOL_IMPLS } from '@/app/api/mcp/_tools'
-import { MCP_TOOL_GROUPS, MCP_TOOLS, mcpToolsByGroup } from '@/lib/integration/mcp-catalog'
+import type { Locale } from '@/lib/i18n/locales'
+import { ASK_FIRST, MCP_INSTRUCTIONS, MCP_TOOL_GROUPS, MCP_TOOLS, mcpToolsByGroup } from '@/lib/integration/mcp-catalog'
+import { localizedMcpToolsByGroup, localizeMcpTool, MCP_CATALOG_MESSAGES } from '@/lib/integration/mcp-catalog-i18n'
 
 describe('MCP catalog', () => {
   it('has unique names following chaya_<group>_<verb>', () => {
@@ -36,7 +38,33 @@ describe('MCP catalog', () => {
   })
 
   it('marks destructive tools as ask-first in their description', () => {
-    for (const tool of MCP_TOOLS.filter((t) => t.destructive)) expect(tool.description).toContain('征得用户同意')
+    for (const tool of MCP_TOOLS.filter((t) => t.destructive)) expect(tool.description).toContain(ASK_FIRST)
+  })
+
+  it('keeps agent-facing text English', () => {
+    const cjk = /[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/
+    expect(JSON.stringify({ MCP_TOOLS, MCP_TOOL_GROUPS, MCP_INSTRUCTIONS })).not.toMatch(cjk)
+  })
+
+  it.each(Object.keys(MCP_CATALOG_MESSAGES))('translates every group, tool and top-level param for %s', (locale) => {
+    const messages = MCP_CATALOG_MESSAGES[locale as Locale]!
+    expect(Object.keys(messages.groups).sort()).toEqual(MCP_TOOL_GROUPS.map((g) => g.id).sort())
+    expect(Object.keys(messages.tools).sort()).toEqual(MCP_TOOLS.map((t) => t.name).sort())
+    for (const tool of MCP_TOOLS) {
+      const entry = messages.tools[tool.name]
+      expect(entry.title).toBeTruthy()
+      expect(entry.description).toBeTruthy()
+      expect(Object.keys(entry.params ?? {}).sort()).toEqual(Object.keys(tool.inputSchema.properties ?? {}).sort())
+    }
+  })
+
+  it('localizes tools for the page while keeping names and schemas', () => {
+    const tool = MCP_TOOLS.find((t) => t.name === 'chaya_logs_query')!
+    expect(localizeMcpTool(tool, 'en')).toBe(tool)
+    const zh = localizeMcpTool(tool, 'zh')
+    expect(zh.name).toBe(tool.name)
+    expect(zh.description).toBe(MCP_CATALOG_MESSAGES.zh!.tools[tool.name].description)
+    expect(localizedMcpToolsByGroup('ja').map((g) => g.title)).toEqual(MCP_TOOL_GROUPS.map((g) => MCP_CATALOG_MESSAGES.ja!.groups[g.id].title))
   })
 
   it('groups every tool under a known group', () => {

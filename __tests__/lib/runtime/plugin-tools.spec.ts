@@ -1,3 +1,4 @@
+import { ASK_FIRST } from '@/lib/integration/ask-first'
 import { PLUGIN_TOOL_CATALOG } from '@/lib/runtime/plugin-tool-catalog'
 import { findPluginToolMeta, FIRST_PARTY_TOOL_PLUGINS, pluginToolDescription, pluginToolName, sanitizePluginTools } from '@/lib/runtime/plugin-tools'
 
@@ -37,6 +38,6 @@ describe('plugin-tools', () => {
   it('describes destructive tools with a consent warning', () => {
     const gold = findPluginToolMeta('ChayaEdit', 'gold')!
     expect(pluginToolDescription(gold)).toBe(`[ChayaEdit] ${gold.description}`)
-    expect(pluginToolDescription(findPluginToolMeta('ChayaEdit', 'load')!)).toContain('征得用户同意')
+    expect(pluginToolDescription(findPluginToolMeta('ChayaEdit', 'load')!)).toContain(ASK_FIRST)
   })
 })

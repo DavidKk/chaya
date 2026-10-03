@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { integrationCard } from '@/components/integration/mcp/McpConnectionCard'
 import { parseArgsJson, readToolCallResponse, type ToolCallOutcome } from '@/components/integration/mcp/schema'
 import { Button, Select, Spinner } from '@/components/sk'
 import { formControlChrome, formControlPadX } from '@/components/sk/control'
@@ -52,11 +51,7 @@ export function McpPlayground({ tools, toolName, argsText, onToolChange, onArgsC
   }
 
   return (
-    <section id="mcp-playground" className={cn(integrationCard, 'scroll-mt-4')} aria-label={t('integration.playground')}>
-      <div className="flex flex-col gap-1">
-        <h2 className="m-0 text-[13px] font-semibold text-ink">{t('integration.playground')}</h2>
-        <p className="m-0 text-xs text-ink-soft">{t('integration.playgroundHint')}</p>
-      </div>
+    <section className="flex flex-col gap-3" aria-label={t('integration.playground')}>
       <label className="flex flex-col gap-2">
         <span className="text-xs font-semibold text-ink-soft">{t('integration.playgroundTool')}</span>
         <Select value={toolName} options={options} onChange={onToolChange} />

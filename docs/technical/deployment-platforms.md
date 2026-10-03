@@ -137,6 +137,8 @@
 | macOS   | 同上，装成 `data/shell/Chaya.app`                                                                                                                                                                                                                                                     | 页面给终端命令（`/sh/mac-shell.sh`）：`curl` 下载（缓存 `/tmp/chaya-nwjs-<uid>/`，可断点续传、校验 SHA256）→ `ditto` 解压 → 建 `app.nw` → `xattr -cr` + `codesign` 重签 → 装成 `<游戏目录>/Chaya.app`（旧的改名备份）   |
 | Linux   | 同上（壳目录直接是 NW.js 解压结果，不建 `.app` / `app.nw`）                                                                                                                                                                                                                           | 只给 nwjs.io 下载链接，用户自行解压、`chmod +x` 并启动；不写启动脚本（`writeShellLaunchers` 支持 linux 但未调用）。自动化见优化方案 O7（未实现）                                                                        |
 
+`/sh/install.sh`、`/sh/mac-shell.sh` 终端提示多语言（公共逻辑 `lib/remote-scripts/i18n.ts`）：脚本只内置英文；复制命令带 `CHAYA_LANG=<界面语言>`（否则看 `LC_ALL` / `LC_MESSAGES` / `LANG`），非英文时从下发脚本的同一服务取 `/sh/i18n/<脚本>.<locale>.json`，用 `plutil` 读取，失败回落英文。文案来源 `lib/remote-scripts/install-app-messages.json`、`lib/game/mac-shell-messages.json`，在 `SCRIPT_MESSAGES`（`lib/remote-scripts/registry.ts`）登记。脚本按请求把访问地址（`Host` / `X-Forwarded-Host`，仅接受 `http(s)://主机[:端口]`）写入；语言包值含 `"` 或 `\` 时丢弃，提示语经 `on run argv` 传给 AppleScript，不拼进源码。
+
 **为什么浏览器模式三平台不同**
 
 | 需要的步骤              | Windows                                                     | macOS                                                  | Linux                                    |

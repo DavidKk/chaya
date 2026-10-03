@@ -19,7 +19,7 @@ export type EditLinkDeps = {
 }
 
 function requireLink(link: EditLinkDeps) {
-  if (!link.connected()) throw webMcpCodedError('game_offline', '游戏未连接：请从 Chaya 启动游戏（网页版先在游戏库选择游戏并打开）')
+  if (!link.connected()) throw webMcpCodedError('game_offline', 'Game not connected: launch it from Chaya (on the web version, pick and open the game in the library first)')
 }
 
 /** Subscribe, then run `send` now and on every resend tick; a throwing `send` rejects and cleans up immediately. */
@@ -29,7 +29,7 @@ function waitForMessage<T extends GameLinkMessage>(link: EditLinkDeps, match: (m
     let settled = false
     const timer = window.setTimeout(() => {
       done()
-      reject(webMcpCodedError('timeout', `游戏 ${timeoutMs / 1000} 秒内未响应`))
+      reject(webMcpCodedError('timeout', `The game did not respond within ${timeoutMs / 1000}s`))
     }, timeoutMs)
     const unsubscribe = link.subscribeMessages((msg) => {
       if (!match(msg)) return
@@ -72,16 +72,16 @@ async function sendCmd(link: EditLinkDeps, op: GameEditCmdOp) {
 const EDIT_SET_SCHEMA = {
   type: 'object',
   properties: {
-    op: { type: 'string', enum: EDIT_OPS, description: '改值类型' },
-    value: { description: '目标值：gold / count / var / walkRate / runRate / expRate 为数字，sw / runFlag 为布尔' },
-    on: { type: 'boolean', description: '*Lock：true 锁定、false 解锁' },
-    kind: { type: 'string', description: 'count / countLock：item / weapon / armor；actorVitalLock：level / exp / hp / mp；actorOwnedLock：skills / states' },
-    id: { type: 'number', description: '物品 / 变量 / 开关 / 角色 id（用 chaya_edit_catalog 查）' },
-    key: { type: 'string', enum: RUN_FLAG_KEYS, description: 'runFlag 的开关名' },
-    patch: { type: 'object', description: 'actor：要改的字段，如 {"level":99,"hp":999}', properties: {} },
-    actorId: { type: 'number', description: 'actorVitalLock / actorOwnedLock 的角色 id' },
-    entryId: { type: 'number', description: 'actorOwnedLock 的技能 / 状态 id' },
-    owned: { type: 'boolean', description: 'actorOwnedLock：锁定为拥有 / 不拥有' },
+    op: { type: 'string', enum: EDIT_OPS, description: 'Edit operation' },
+    value: { description: 'Target value: a number for gold / count / var / walkRate / runRate / expRate, a boolean for sw / runFlag' },
+    on: { type: 'boolean', description: '*Lock: true to lock, false to unlock' },
+    kind: { type: 'string', description: 'count / countLock: item / weapon / armor; actorVitalLock: level / exp / hp / mp; actorOwnedLock: skills / states' },
+    id: { type: 'number', description: 'Item / variable / switch / actor id (look up with chaya_edit_catalog)' },
+    key: { type: 'string', enum: RUN_FLAG_KEYS, description: 'runFlag flag name' },
+    patch: { type: 'object', description: 'actor: fields to change, e.g. {"level":99,"hp":999}', properties: {} },
+    actorId: { type: 'number', description: 'Actor id for actorVitalLock / actorOwnedLock' },
+    entryId: { type: 'number', description: 'Skill / state id for actorOwnedLock' },
+    owned: { type: 'boolean', description: 'actorOwnedLock: lock as owned / not owned' },
   },
   required: ['op'],
 }
@@ -92,7 +92,8 @@ export function buildEditTools(link: EditLinkDeps): WebMcpToolDefinition[] {
     functionToolDefinition(
       {
         name: 'chaya_web_edit_state',
-        description: '读取局内实时修改会话：金钱、物品 / 武器 / 防具持有数、变量、开关、锁定、角色、移动倍率、运行开关。与修改页同一数据源。',
+        description:
+          'Read the live in-game edit session: gold, item / weapon / armor counts, variables, switches, locks, actors, movement rates and run flags. Same source as the cheat page.',
         inputSchema: { type: 'object', properties: {} },
         readOnly: true,
       },
@@ -110,7 +111,8 @@ export function buildEditTools(link: EditLinkDeps): WebMcpToolDefinition[] {
     functionToolDefinition(
       {
         name: 'chaya_web_edit_set',
-        description: '局内改值 / 锁定（与修改页相同的指令）：金钱、持有数、变量、开关、锁定、运行开关、倍率、角色属性。等游戏确认后返回。',
+        description:
+          'Set or lock in-game values (same commands as the cheat page): gold, counts, variables, switches, locks, run flags, rates and actor stats. Returns after the game acknowledges.',
         inputSchema: EDIT_SET_SCHEMA,
       },
       async (args) => sendCmd(link, parseEditOp(args))
@@ -118,8 +120,8 @@ export function buildEditTools(link: EditLinkDeps): WebMcpToolDefinition[] {
     functionToolDefinition(
       {
         name: 'chaya_web_edit_action',
-        description: '执行运行动作：打开场景（scene:*）、修复卡住（fix:*）、战斗控制（battle:*）。',
-        inputSchema: { type: 'object', properties: { id: { type: 'string', enum: RUN_ACTION_IDS, description: '动作 id' } }, required: ['id'] },
+        description: 'Run an action: open a scene (scene:*), fix a stuck state (fix:*), or control battle (battle:*).',
+        inputSchema: { type: 'object', properties: { id: { type: 'string', enum: RUN_ACTION_IDS, description: 'Action id' } }, required: ['id'] },
       },
       async (args) => sendCmd(link, { op: 'runAction', id: parseRunAction(args) })
     ),

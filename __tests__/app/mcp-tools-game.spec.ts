@@ -16,6 +16,7 @@ import { cacheTools } from '@/app/api/mcp/_tools/cache'
 import { gameTools } from '@/app/api/mcp/_tools/game'
 import { liveTools } from '@/app/api/mcp/_tools/live'
 import { translateTools } from '@/app/api/mcp/_tools/translate'
+import * as PluginsRoute from '@/app/api/plugins/route.server'
 import * as ShellRoute from '@/app/api/shell/route.server'
 import * as StatusRoute from '@/app/api/status/route'
 import * as TranslateRoute from '@/app/api/translate/route.server'
@@ -34,16 +35,53 @@ describe('game tools', () => {
     mocked(StatusRoute.GET).mockResolvedValueOnce(okJson({ ready: false, serviceMode: 'local', config: {} }))
     expect(await gameTools.chaya_game_status({}, ctx)).toEqual({ ready: false, serviceMode: 'local', error: '尚未绑定游戏', gameRoot: null })
     mocked(StatusRoute.GET).mockResolvedValueOnce(
-      okJson({ ready: true, selected: '/g', plugins: [{ name: 'ChayaEdit', fileExists: true, registered: true, enabled: false }], runtime: { gameOnline: true }, launchToken: 'x' })
+      okJson({
+        ready: true,
+        selected: '/g',
+        host: { platform: 'darwin' },
+        library: [{ gameRoot: '/g', name: 'G', remark: '备注' }],
+        plugins: [{ name: 'ChayaEdit', fileExists: true, registered: true, enabled: false }],
+        runtime: { gameOnline: true },
+        launchToken: 'x',
+      })
     )
     const view = (await gameTools.chaya_game_status({}, ctx)) as Record<string, unknown>
     expect(view).toMatchObject({ ready: true, gameRoot: '/g', gameOnline: true, plugins: [{ name: 'ChayaEdit', installed: true, enabled: false }] })
+    expect(view).toMatchObject({ name: '备注', os: 'mac', kind: 'content-root', pluginsReady: 1, pluginsTotal: 1, fingerprint: null })
     expect(JSON.stringify(view)).not.toContain('launchToken')
   })
 
+  it('plugins install / clear return the shared plugin counts without route internals', async () => {
+    mocked(PluginsRoute.POST).mockResolvedValue(okJson({ launchToken: 'secret', copied: ['ChayaEdit'] }))
+    mocked(PluginsRoute.DELETE).mockResolvedValue(okJson({ removed: ['ChayaEdit'] }))
+    const plugin = (ready: boolean) => ({ name: 'ChayaEdit', fileExists: ready, registered: ready, enabled: ready })
+    mocked(StatusRoute.GET).mockResolvedValueOnce(okJson({ ready: true, selected: '/g', plugins: [plugin(true)] }))
+    expect(await gameTools.chaya_game_plugins_install({}, ctx)).toEqual({
+      installed: true,
+      plugins: [{ name: 'ChayaEdit', installed: true, enabled: true }],
+      pluginsReady: 1,
+      pluginsTotal: 1,
+      hint: expect.any(String),
+    })
+    mocked(StatusRoute.GET).mockResolvedValueOnce(okJson({ ready: true, selected: '/g', plugins: [plugin(false)] }))
+    expect(await gameTools.chaya_game_plugins_clear({}, ctx)).toEqual({
+      cleared: true,
+      plugins: [{ name: 'ChayaEdit', installed: false, enabled: false }],
+      pluginsReady: 0,
+      pluginsTotal: 1,
+    })
+  })
+
   it('shell_install downloads the latest shell unless a source is given', async () => {
-    mocked(ShellRoute.POST).mockImplementation(async () => okJson())
-    await gameTools.chaya_game_shell_install({}, ctx)
+    mocked(ShellRoute.POST).mockImplementation(async () => okJson({ shellApp: '/shell/nwjs.app', config: {} }))
+    expect(await gameTools.chaya_game_shell_install({}, ctx)).toEqual({
+      pending: false,
+      hasShell: true,
+      shellApp: '/shell/nwjs.app',
+      taskId: null,
+      downloadUrl: null,
+      hint: expect.any(String),
+    })
     await gameTools.chaya_game_shell_install({ shellSource: '/nw.app', force: true }, ctx)
     expect(await bodyOf(ShellRoute.POST, 0)).toEqual({ fetchLatest: true, wait: true })
     expect(await bodyOf(ShellRoute.POST, 1)).toEqual({ shellSource: '/nw.app', force: true })

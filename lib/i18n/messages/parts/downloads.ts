@@ -29,7 +29,7 @@ export const downloadsZh = {
     files: '{done}/{total} 个文件',
     awaitFileHint: '浏览器下载完 {name} 后，在游戏卡片点「选择已下载的压缩包」',
     awaitFileCard: '安装壳：浏览器下载完 {name} 后选择它继续',
-    action: { openDownload: '打开官方下载', pickFile: '选择已下载的压缩包' },
+    action: { openDownload: '打开官方下载', pickFile: '选择已下载的压缩包', abandon: '放弃安装' },
     toast: {
       shellDone: '已安装 NW.js {version}',
       shellFailed: '下载 NW.js 失败：{error}',
@@ -70,7 +70,7 @@ export const downloadsEn = {
     files: '{done}/{total} files',
     awaitFileHint: 'When {name} finishes downloading, click "Choose downloaded archive" on the game card',
     awaitFileCard: 'Shell install: choose {name} once the browser finishes downloading it',
-    action: { openDownload: 'Open official download', pickFile: 'Choose downloaded archive' },
+    action: { openDownload: 'Open official download', pickFile: 'Choose downloaded archive', abandon: 'Cancel install' },
     toast: {
       shellDone: 'NW.js {version} installed',
       shellFailed: 'NW.js download failed: {error}',
@@ -111,7 +111,7 @@ export const downloadsJa = {
     files: '{done}/{total} ファイル',
     awaitFileHint: '{name} のダウンロードが終わったら、ゲームカードの「ダウンロードしたアーカイブを選択」を押してください',
     awaitFileCard: 'シェルのインストール：{name} のダウンロードが終わったら選択して続行',
-    action: { openDownload: '公式ダウンロードを開く', pickFile: 'ダウンロードしたアーカイブを選択' },
+    action: { openDownload: '公式ダウンロードを開く', pickFile: 'ダウンロードしたアーカイブを選択', abandon: 'インストールをやめる' },
     toast: {
       shellDone: 'NW.js {version} をインストールしました',
       shellFailed: 'NW.js のダウンロードに失敗しました：{error}',
@@ -152,7 +152,7 @@ export const downloadsKo = {
     files: '{done}/{total}개 파일',
     awaitFileHint: '{name} 다운로드가 끝나면 게임 카드에서 「다운로드한 압축 파일 선택」을 누르세요',
     awaitFileCard: '셸 설치: {name} 다운로드가 끝나면 선택해서 계속하세요',
-    action: { openDownload: '공식 다운로드 열기', pickFile: '다운로드한 압축 파일 선택' },
+    action: { openDownload: '공식 다운로드 열기', pickFile: '다운로드한 압축 파일 선택', abandon: '설치 취소' },
     toast: {
       shellDone: 'NW.js {version} 설치됨',
       shellFailed: 'NW.js 다운로드 실패: {error}',

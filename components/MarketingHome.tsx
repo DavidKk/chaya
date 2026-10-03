@@ -7,7 +7,7 @@ import { FaApple, FaGithub, FaWindows } from 'react-icons/fa'
 
 import { BrandLogo } from '@/components/BrandLogo'
 import { DevTargetSwitch } from '@/components/DevTargetSwitch'
-import { useT } from '@/components/i18n/LocaleProvider'
+import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
 import { CopyField } from '@/components/sk'
 import { DEFAULT_SITE_ORIGIN } from '@/constants/brand'
@@ -85,7 +85,7 @@ const downloadBtnClass = cn(
 export function MarketingHome({ githubUrl, downloads }: { githubUrl: string; downloads: ReleaseDownloads }) {
   const t = useT()
   const recommended = useRecommendedDownload()
-  const installCommand = remoteScriptCommand(usePageOrigin() || DEFAULT_SITE_ORIGIN, 'install.sh')
+  const installCommand = remoteScriptCommand(usePageOrigin() || DEFAULT_SITE_ORIGIN, 'install.sh', useLocaleCode())
 
   return (
     <div className="fixed inset-0 z-[1] flex flex-col bg-transparent text-ink" aria-label={t('marketing.introAria')}>

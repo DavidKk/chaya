@@ -1,6 +1,6 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiBadRequest, apiError, apiOk } from '@/initializer/response'
-import { getResolvedFromConfig, installShell, isToolkitShellInstalled, requireDisk, saveConfig, uninstallToolkitShell } from '@/services/disk-ops'
+import { getResolvedFromConfig, installShell, isShellInstalling, isToolkitShellInstalled, requireDisk, saveConfig, uninstallToolkitShell } from '@/services/disk-ops'
 import { findRunningJob } from '@/services/downloads/jobs'
 import { getNwShellUpdate } from '@/services/game/nw-update'
 import { startLatestShellJob } from '@/services/game/shell-job'
@@ -56,7 +56,7 @@ export const POST = defineApiRoute('post:/api/shell', async ({ request }) => {
       return apiBadRequest('请先填写干净的 NW.js 壳源路径（shellSource），或使用「下载最新壳」')
     }
 
-    const result = installShell({
+    const result = await installShell({
       shellSource,
       contentRoot: resolved.contentRoot,
       force: !!body.force,
@@ -73,7 +73,7 @@ export const DELETE = defineApiRoute('delete:/api/shell', async () => {
   const denied = requireDisk()
   if (denied) return denied
 
-  if (findRunningJob('nw-shell')) return shellJobRunning()
+  if (findRunningJob('nw-shell') || isShellInstalling()) return shellJobRunning()
   if (!isToolkitShellInstalled()) {
     return apiBadRequest('没有可卸载的共用壳（工具 data/shell 下未安装）')
   }

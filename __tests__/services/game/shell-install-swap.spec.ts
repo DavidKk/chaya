@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { ensureShellLinkedToContent, installShell, recoverOldIfNeeded, shellInstallHint, uninstallToolkitShell, validShellExists } from '@/services/game/shell'
+import { ensureShellLinkedToContent, installShell, isShellInstalling, recoverOldIfNeeded, shellInstallHint, uninstallToolkitShell, validShellExists } from '@/services/game/shell'
 
 const realPlatform = process.platform
 const dirs: string[] = []
@@ -53,71 +53,89 @@ describeUnix('installShell 暂存后替换（Linux 布局）', () => {
     for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true })
   })
 
-  it('首次安装：不建 app.nw，启动重链无操作', () => {
+  it('并发安装串行执行：后发的安装最终生效，期间报告安装中', async () => {
     const t = setup()
-    const r = installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
+    const first = installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })
+    const second = installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })
+    expect(isShellInstalling()).toBe(true)
+    await Promise.all([first, second])
+    expect(isShellInstalling()).toBe(false)
+    expect(marker(t.shellApp)).toBe('B')
+    expect(fs.existsSync(t.staging)).toBe(false)
+  })
+
+  it('一次安装失败不阻塞后续安装', async () => {
+    const t = setup()
+    await expect(installShell({ shellSource: path.join(t.srcA, 'missing'), contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })).rejects.toThrow()
+    await installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
+    expect(marker(t.shellApp)).toBe('A')
+  })
+
+  it('首次安装：不建 app.nw，启动重链无操作', async () => {
+    const t = setup()
+    const r = await installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
     expect(r).toMatchObject({ shellApp: t.shellApp, created: true, relinked: false, contentLink: t.contentRoot })
     expect(marker(t.shellApp)).toBe('A')
     expect(fs.existsSync(path.join(t.shellApp, 'Contents'))).toBe(false)
     expect(ensureShellLinkedToContent({ shellApp: t.shellApp, contentRoot: t.contentRoot })).toBe(false)
   })
 
-  it('force 替换成功：新壳就位，不留 .old / .staging', () => {
+  it('force 替换成功：新壳就位，不留 .old / .staging', async () => {
     const t = setup()
-    installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
-    installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })
+    await installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
+    await installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })
     expect(marker(t.shellApp)).toBe('B')
     expect(fs.existsSync(t.old)).toBe(false)
     expect(fs.existsSync(t.staging)).toBe(false)
   })
 
-  it('已有可用壳且不 force：直接复用', () => {
+  it('已有可用壳且不 force：直接复用', async () => {
     const t = setup()
-    installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
-    const r = installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
+    await installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
+    const r = await installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
     expect(r.created).toBe(false)
     expect(marker(t.shellApp)).toBe('A')
   })
 
-  it('旧壳改名一直被占用（EBUSY）：抛 SHELL_IN_USE，旧壳完好，暂存清理', () => {
+  it('旧壳改名一直被占用（EBUSY）：抛 SHELL_IN_USE，旧壳完好，暂存清理', async () => {
     const t = setup()
-    installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
+    await installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
     const real = fs.renameSync
     jest.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
       if (String(from) === t.shellApp) throw errnoError('EBUSY')
       return real(from, to)
     })
-    expect(() => installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })).toThrow(
+    await expect(installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })).rejects.toThrow(
       expect.objectContaining({ code: 'SHELL_IN_USE' })
     )
     expect(marker(t.shellApp)).toBe('A')
     expect(fs.existsSync(t.staging)).toBe(false)
   })
 
-  it('暂存改正式名失败：回滚到旧壳', () => {
+  it('暂存改正式名失败：回滚到旧壳', async () => {
     const t = setup()
-    installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
+    await installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
     const real = fs.renameSync
     jest.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
       if (String(from) === t.staging) throw errnoError('EIO')
       return real(from, to)
     })
-    expect(() => installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })).toThrow('EIO')
+    await expect(installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })).rejects.toThrow('EIO')
     expect(marker(t.shellApp)).toBe('A')
     expect(fs.existsSync(t.old)).toBe(false)
     expect(fs.existsSync(t.staging)).toBe(false)
   })
 
-  it('回滚也失败：保留 .old 并抛 SHELL_SWAP_RECOVERY_REQUIRED；之后恢复', () => {
+  it('回滚也失败：保留 .old 并抛 SHELL_SWAP_RECOVERY_REQUIRED；之后恢复', async () => {
     const t = setup()
-    installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
+    await installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
     const real = fs.renameSync
     const spy = jest.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
       if (String(from) === t.staging) throw Object.assign(new Error('activate failed'), { code: 'EIO' })
       if (String(from) === t.old) throw Object.assign(new Error('rollback failed'), { code: 'EIO' })
       return real(from, to)
     })
-    expect(() => installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })).toThrow(
+    await expect(installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })).rejects.toThrow(
       expect.objectContaining({ code: 'SHELL_SWAP_RECOVERY_REQUIRED', message: expect.stringContaining('rollback failed') })
     )
     expect(fs.existsSync(t.shellApp)).toBe(false)
@@ -129,10 +147,10 @@ describeUnix('installShell 暂存后替换（Linux 布局）', () => {
     expect(fs.existsSync(t.old)).toBe(false)
   })
 
-  it('安装前先恢复 .old，再正常替换', () => {
+  it('安装前先恢复 .old，再正常替换', async () => {
     const t = setup()
     writeFakeLinuxNw(t.old, 'A')
-    installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })
+    await installShell({ shellSource: t.srcB, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot, force: true })
     expect(marker(t.shellApp)).toBe('B')
     expect(fs.existsSync(t.old)).toBe(false)
   })
@@ -177,17 +195,17 @@ describeUnix('installShell 暂存后替换（Linux 布局）', () => {
     expect(fs.existsSync(t.old)).toBe(true)
   })
 
-  it('清理上次残留的 .staging', () => {
+  it('清理上次残留的 .staging', async () => {
     const t = setup()
     fs.mkdirSync(path.join(t.staging, 'junk'), { recursive: true })
-    installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
+    await installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
     expect(fs.existsSync(t.staging)).toBe(false)
     expect(marker(t.shellApp)).toBe('A')
   })
 
-  it('卸载同时删 .old，避免之后被恢复回来', () => {
+  it('卸载同时删 .old，避免之后被恢复回来', async () => {
     const t = setup()
-    installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
+    await installShell({ shellSource: t.srcA, contentRoot: t.contentRoot, toolkitRoot: t.toolkitRoot })
     writeFakeLinuxNw(t.old, 'OLD')
     uninstallToolkitShell(t.toolkitRoot)
     expect(fs.existsSync(t.shellApp)).toBe(false)

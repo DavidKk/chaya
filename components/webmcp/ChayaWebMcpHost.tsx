@@ -26,11 +26,11 @@ const PLUGIN_TOOL_RETRY_MS = [0, 3_000, 10_000, 30_000]
 type HostMode = { kind: 'local' | 'edge'; serviceMode: string } | { kind: 'guest' }
 
 const ROUTES: PageRoute[] = [
-  { path: '/game', label: '游戏库' },
-  { path: '/cheat/run', label: '修改' },
-  ...TRANSLATE_TABS.map((tab) => ({ path: `/translate/${tab.id}`, label: tab.id === 'cache' ? '共享翻译库' : '翻译' })),
-  { path: '/logs', label: '日志' },
-  ...INTEGRATION_TABS.map((tab) => ({ path: tab.href, label: `集成 · ${tab.id}` })),
+  { path: '/game', label: 'Game library' },
+  { path: '/cheat/run', label: 'Cheat' },
+  ...TRANSLATE_TABS.map((tab) => ({ path: `/translate/${tab.id}`, label: tab.id === 'cache' ? 'Shared translation library' : 'Translate' })),
+  { path: '/logs', label: 'Logs' },
+  ...INTEGRATION_TABS.map((tab) => ({ path: tab.href, label: `Integration · ${tab.id}` })),
 ]
 
 /** Mode via /api/status (never the MCP connection endpoint: it carries the token). 401 = signed-out public page. */
@@ -111,6 +111,7 @@ export function ChayaWebMcpHost() {
 
   const authed = supported && !!mode && mode.kind !== 'guest'
   const edge = mode?.kind === 'edge'
+  const serviceMode = mode && mode.kind !== 'guest' ? mode.serviceMode : ''
 
   useEffect(() => {
     if (!authed) return
@@ -124,11 +125,16 @@ export function ChayaWebMcpHost() {
     })
     registerPageTools(EDIT_REGISTRAR_ID, editTools, controller.signal).catch((error: unknown) => logFailure(EDIT_REGISTRAR_ID, error))
     if (edge) {
-      const edgeTools = buildEdgeMcpTools({ ...edgeLinkDeps(linkRef), gameOnline: () => live().connected, quit: (reason) => live().quit(reason) })
+      const edgeTools = buildEdgeMcpTools({
+        ...edgeLinkDeps(linkRef),
+        gameOnline: () => live().connected,
+        quit: (reason) => live().quit(reason),
+        serviceMode,
+      })
       registerPageTools(MCP_REGISTRAR_ID, edgeTools, controller.signal).catch((error: unknown) => logFailure(MCP_REGISTRAR_ID, error))
     }
     return () => controller.abort()
-  }, [authed, edge])
+  }, [authed, edge, serviceMode])
 
   const connected = link.connected
   const mirrorRefreshRef = useRef<(() => void) | null>(null)

@@ -168,8 +168,9 @@ function linkContent(appNwLink: string, contentRoot: string): void {
   fs.symlinkSync(contentRoot, appNwLink, type)
 }
 
-function copyShellSource(shellSourceRoot: string, dest: string): void {
-  fs.cpSync(shellSourceRoot, dest, {
+/** 异步复制：壳目录上百 MB，同步复制会卡住整个服务的事件循环 */
+async function copyShellSource(shellSourceRoot: string, dest: string): Promise<void> {
+  await fs.promises.cp(shellSourceRoot, dest, {
     recursive: true,
     filter: (src) => {
       const rel = path.relative(shellSourceRoot, src)
@@ -186,23 +187,25 @@ function copyShellSource(shellSourceRoot: string, dest: string): void {
   })
 }
 
+const removeDir = (dir: string) => fs.promises.rm(dir, { recursive: true, force: true })
+
 /** 复制到暂存目录 → 旧壳改名 `.old` → 暂存改为正式名；失败回滚，旧壳不受影响 */
-function swapInShell(shellSourceRoot: string, shellApp: string, contentRoot: string): void {
+async function swapInShell(shellSourceRoot: string, shellApp: string, contentRoot: string): Promise<void> {
   const { dir, staging, old } = swapPaths(shellApp)
   fs.mkdirSync(dir, { recursive: true })
-  fs.rmSync(staging, { recursive: true, force: true })
+  await removeDir(staging)
   // recoverOldIfNeeded 之后：正式壳可用，或 .old 不可用，两种情况 .old 都可清理
-  if (validShellExists(shellApp) || !validShellExists(old)) fs.rmSync(old, { recursive: true, force: true })
+  if (validShellExists(shellApp) || !validShellExists(old)) await removeDir(old)
 
   try {
-    copyShellSource(shellSourceRoot, staging)
+    await copyShellSource(shellSourceRoot, staging)
     if (isMacHost()) {
       const resourcesDir = path.join(staging, 'Contents/Resources')
       if (!fs.existsSync(resourcesDir)) throw new Error(`壳结构异常，缺少 Contents/Resources: ${shellSourceRoot}`)
       linkContent(path.join(resourcesDir, 'app.nw'), contentRoot)
     }
   } catch (e) {
-    fs.rmSync(staging, { recursive: true, force: true })
+    await removeDir(staging)
     throw e
   }
 
@@ -211,7 +214,7 @@ function swapInShell(shellSourceRoot: string, shellApp: string, contentRoot: str
     try {
       renameWithRetry(shellApp, old)
     } catch (e) {
-      fs.rmSync(staging, { recursive: true, force: true })
+      await removeDir(staging)
       const code = errCode(e)
       if (code && RENAME_RETRY_CODES.has(code)) throw new ShellSwapError('SHELL_IN_USE', '游戏正在运行（共用壳被占用），请退出游戏后重新下载 / 安装')
       throw e
@@ -227,16 +230,34 @@ function swapInShell(shellSourceRoot: string, shellApp: string, contentRoot: str
         throw recoveryRequired(old, rollbackError)
       }
     }
-    fs.rmSync(staging, { recursive: true, force: true })
+    await removeDir(staging)
     throw e
   }
   if (validShellExists(shellApp)) {
     try {
-      fs.rmSync(old, { recursive: true, force: true })
+      await removeDir(old)
     } catch {
       /* 下次安装再清理 */
     }
   }
+}
+
+type InstallShellOptions = {
+  shellSource: string
+  contentRoot: string
+  /** @deprecated 旁挂时代参数；现忽略，壳固定在 data/shell/ */
+  projectRoot?: string
+  toolkitRoot?: string
+  /** 已有共用壳时先删除再拷贝（用于升级到新版 NW.js） */
+  force?: boolean
+}
+
+/** 共用壳只有一份：安装串行执行，异步复制期间不能有第二个安装或卸载动同一目录 */
+let shellQueue: Promise<unknown> = Promise.resolve()
+let shellInstalling = 0
+
+export function isShellInstalling(): boolean {
+  return shellInstalling > 0
 }
 
 /**
@@ -245,15 +266,16 @@ function swapInShell(shellSourceRoot: string, shellApp: string, contentRoot: str
  * - Windows / Linux：拷 nw 目录；启动时传内容根参数
  * 替换已有壳时走暂存目录 + 改名，失败回滚到旧壳。
  */
-export function installShell(opts: {
-  shellSource: string
-  contentRoot: string
-  /** @deprecated 旁挂时代参数；现忽略，壳固定在 data/shell/ */
-  projectRoot?: string
-  toolkitRoot?: string
-  /** 已有共用壳时先删除再拷贝（用于升级到新版 NW.js） */
-  force?: boolean
-}): ShellInstallResult {
+export function installShell(opts: InstallShellOptions): Promise<ShellInstallResult> {
+  shellInstalling++
+  const run = shellQueue.then(() => installShellNow(opts))
+  shellQueue = run.catch(() => undefined)
+  return run.finally(() => {
+    shellInstalling--
+  })
+}
+
+async function installShellNow(opts: InstallShellOptions): Promise<ShellInstallResult> {
   const contentRoot = path.resolve(opts.contentRoot)
   const toolkitRoot = opts.toolkitRoot ? path.resolve(opts.toolkitRoot) : undefined
 
@@ -281,7 +303,7 @@ export function installShell(opts: {
   recoverOldIfNeeded(shellApp)
   let created = false
   if (opts.force || !validShellExists(shellApp)) {
-    swapInShell(shellSourceRoot, shellApp, contentRoot)
+    await swapInShell(shellSourceRoot, shellApp, contentRoot)
     created = true
   }
 

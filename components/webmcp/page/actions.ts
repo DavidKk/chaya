@@ -30,16 +30,16 @@ export function currentAppUrl(): string {
   return relativeAppPath(window.location.href) ?? window.location.href
 }
 
-export const CONFIRM_REQUIRED = webMcpError('needs_user_confirmation', '确认框需要用户亲自点击确认或取消；请把确认框内容转述给用户')
+export const CONFIRM_REQUIRED = webMcpError('needs_user_confirmation', 'The confirmation dialog must be confirmed or cancelled by the user; relay its content to the user')
 
 /** Existing + visible; for writes also enabled and not inside a confirm dialog. */
 export function resolveActionTarget(ref: unknown, requireEnabled = true): ActionTarget {
   const found = findElementByRef(ref)
   if (!found.ok) return webMcpError(found.error, found.message)
-  if (!isElementVisible(found.element)) return webMcpError('element_hidden', `元素 ${String(ref)} 当前不可见`)
+  if (!isElementVisible(found.element)) return webMcpError('element_hidden', `Element ${String(ref)} is not visible`)
   if (!requireEnabled) return found
   if (isInConfirmDialog(found.element)) return CONFIRM_REQUIRED
-  if (isElementDisabled(found.element)) return webMcpError('element_disabled', `元素 ${String(ref)} 已禁用`)
+  if (isElementDisabled(found.element)) return webMcpError('element_disabled', `Element ${String(ref)} is disabled`)
   return found
 }
 
@@ -117,20 +117,23 @@ async function selectCustomOption(trigger: HTMLElement, value: string): Promise<
   const option = pickOption(options, (item) => item.innerText, value)
   if (!option) {
     const available = options.map((item) => collapseText(item.innerText)).filter(Boolean)
-    return webMcpError('option_not_found', available.length ? `没有匹配"${value}"的选项，可选：${available.slice(0, 30).join('、')}` : '下拉没有展开出可选项')
+    return webMcpError(
+      'option_not_found',
+      available.length ? `No option matches "${value}"; available: ${available.slice(0, 30).join(', ')}` : 'The dropdown did not open any options'
+    )
   }
-  if (isElementDisabled(option)) return webMcpError('element_disabled', `选项"${collapseText(option.innerText)}"已禁用`)
+  if (isElementDisabled(option)) return webMcpError('element_disabled', `Option "${collapseText(option.innerText)}" is disabled`)
   clickElement(option)
   return null
 }
 
 /** Fill input / textarea / native or custom select / contenteditable. Returns an error or null. */
 export async function fillElement(element: HTMLElement, value: string): Promise<WebMcpErrResult | null> {
-  if (isSensitiveField(element)) return webMcpError('sensitive_field', '敏感字段不允许由 Agent 填写')
+  if (isSensitiveField(element)) return webMcpError('sensitive_field', 'Agents may not fill sensitive fields')
   if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-    if (element.readOnly) return webMcpError('element_readonly', '输入框为只读')
+    if (element.readOnly) return webMcpError('element_readonly', 'The input is read-only')
     if (element instanceof HTMLInputElement && ['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'image'].includes(element.type)) {
-      return webMcpError('unsupported_element', `type=${element.type} 的输入请用 page_click`)
+      return webMcpError('unsupported_element', `Use page_click for inputs of type=${element.type}`)
     }
     element.scrollIntoView({ block: 'center', inline: 'nearest' })
     element.focus({ preventScroll: true })
@@ -139,7 +142,7 @@ export async function fillElement(element: HTMLElement, value: string): Promise<
   }
   if (element instanceof HTMLSelectElement) {
     const option = [...element.options].find((item) => item.value === value) ?? pickOption([...element.options], (item) => item.text, value)
-    if (!option) return webMcpError('option_not_found', `可选：${[...element.options].map((item) => item.text).join('、')}`)
+    if (!option) return webMcpError('option_not_found', `Available: ${[...element.options].map((item) => item.text).join(', ')}`)
     element.value = option.value
     element.dispatchEvent(new Event('input', { bubbles: true }))
     element.dispatchEvent(new Event('change', { bubbles: true }))
@@ -152,7 +155,7 @@ export async function fillElement(element: HTMLElement, value: string): Promise<
     element.dispatchEvent(new InputEvent('input', { bubbles: true, data: value, inputType: 'insertText' }))
     return null
   }
-  return webMcpError('unsupported_element', '该元素不可填写；按钮、链接、复选框请用 page_click')
+  return webMcpError('unsupported_element', 'This element cannot be filled; use page_click for buttons, links and checkboxes')
 }
 
 export function pressKey(target: HTMLElement, key: PressableKey): void {

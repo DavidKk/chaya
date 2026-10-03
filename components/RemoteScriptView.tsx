@@ -3,10 +3,11 @@
 import { FaGithub } from 'react-icons/fa'
 
 import { BrandLogo } from '@/components/BrandLogo'
-import { useT } from '@/components/i18n/LocaleProvider'
+import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
+import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
 import { CopyField } from '@/components/sk'
 import { usePageOrigin } from '@/hooks/usePageOrigin'
-import { REMOTE_SCRIPT_PREFIX, remoteScriptCommand, type RemoteScriptName } from '@/lib/remote-scripts/command'
+import { REMOTE_SCRIPT_ORIGIN_PLACEHOLDER, REMOTE_SCRIPT_PREFIX, remoteScriptCommand, type RemoteScriptName } from '@/lib/remote-scripts/command'
 
 const TITLE_KEYS = {
   'install.sh': 'remoteScript.installTitle',
@@ -17,22 +18,26 @@ const TITLE_KEYS = {
 export function RemoteScriptView({ name, html, lineCount, githubUrl }: { name: RemoteScriptName; html: string; lineCount: number; githubUrl: string }) {
   const t = useT()
   const origin = usePageOrigin()
-  const command = origin ? remoteScriptCommand(origin, name) : ''
+  const locale = useLocaleCode()
+  const command = origin ? remoteScriptCommand(origin, name, locale) : ''
 
   return (
     <div className="fixed inset-0 z-[1] overflow-y-auto overscroll-contain text-ink">
       <div className="mx-auto flex w-full max-w-[60rem] flex-col gap-6 px-6 py-6 sm:px-10 sm:py-8">
         <header className="flex items-center justify-between gap-4">
           <BrandLogo href="/" className="text-lg" markClassName="size-7" />
-          <a
-            href={githubUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 text-sm text-ink-soft no-underline transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          >
-            <FaGithub aria-hidden className="size-4" />
-            GitHub
-          </a>
+          <div className="flex items-center gap-3">
+            <LocaleSwitcher compact />
+            <a
+              href={githubUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 text-sm text-ink-soft no-underline transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              <FaGithub aria-hidden className="size-4" />
+              GitHub
+            </a>
+          </div>
         </header>
 
         <section className="flex flex-col gap-3" aria-labelledby="script-title">
@@ -58,7 +63,10 @@ export function RemoteScriptView({ name, html, lineCount, githubUrl }: { name: R
               {t('remoteScript.viewRaw')}
             </a>
           </div>
-          <div className="remote-script-code overflow-x-auto py-3 text-xs leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
+          <div
+            className="remote-script-code overflow-x-auto py-3 text-xs leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: origin ? html.replaceAll(REMOTE_SCRIPT_ORIGIN_PLACEHOLDER, origin) : html }}
+          />
         </section>
       </div>
 

@@ -26,7 +26,7 @@ export type DownloadsMessages = {
   awaitFileHint: string
   /** 游戏卡片上等待选压缩包的提示 */
   awaitFileCard: string
-  action: { openDownload: string; pickFile: string }
+  action: { openDownload: string; pickFile: string; abandon: string }
   toast: { shellDone: string; shellFailed: string; retryHint: string; smartScreen: string }
   error: { interrupted: string; requestFailed: string }
 }

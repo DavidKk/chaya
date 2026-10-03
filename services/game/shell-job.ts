@@ -16,7 +16,7 @@ export function startLatestShellJob(contentRoot: string) {
     })
     signal.throwIfAborted()
     update({ phase: 'install', version: dl.version })
-    const result = installShell({ shellSource: dl.shellSource, contentRoot, force: true })
+    const result = await installShell({ shellSource: dl.shellSource, contentRoot, force: true })
     saveConfig({ shellSource: dl.shellSource })
     pruneShellCacheParts(dl.packDir)
     return {

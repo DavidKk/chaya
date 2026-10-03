@@ -11,6 +11,7 @@ function deps(overrides: Partial<EdgeToolDeps> = {}): EdgeToolDeps {
     requestCatalog: jest.fn(),
     gameOnline: () => true,
     quit: jest.fn(),
+    serviceMode: 'vercel',
     ...overrides,
   }
 }

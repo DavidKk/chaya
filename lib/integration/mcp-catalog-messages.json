@@ -1,0 +1,770 @@
+{
+  "zh": {
+    "groups": {
+      "library": {
+        "title": "游戏库",
+        "summary": "列出、绑定、备注、移除本机游戏库条目。"
+      },
+      "game": {
+        "title": "当前游戏",
+        "summary": "本机磁盘侧：状态、启动 / 关闭、插件、NW.js 壳、窗口。"
+      },
+      "live": {
+        "title": "局内实时",
+        "summary": "游戏运行中（需 ChayaAgent 插件）：读状态、调用插件修改、模拟按键。"
+      },
+      "edit": {
+        "title": "修改目录",
+        "summary": "从游戏 data 查物品 / 角色 / 变量 / 开关等 id，配合局内修改使用。"
+      },
+      "translate": {
+        "title": "翻译",
+        "summary": "翻译文本、抽取原文、整作补译任务、引擎与游戏内翻译设置。"
+      },
+      "cache": {
+        "title": "共享翻译库",
+        "summary": "本机共享翻译库的查询筛选、修改、删除与导入。"
+      },
+      "logs": {
+        "title": "日志",
+        "summary": "查询与清空服务 / 插件日志。"
+      }
+    },
+    "tools": {
+      "chaya_library_list": {
+        "title": "游戏库列表",
+        "description": "列出本机游戏库与当前绑定的游戏，可按名称 / 备注 / 路径关键词筛选。",
+        "params": {
+          "q": "关键词（不区分大小写）"
+        }
+      },
+      "chaya_library_bind": {
+        "title": "绑定游戏",
+        "description": "把一个游戏目录加入游戏库并切换为当前游戏（已在库中则只切换）。目录需是 RPG Maker MV/MZ 游戏根或其 www。",
+        "params": {
+          "gameRoot": "游戏目录绝对路径"
+        }
+      },
+      "chaya_library_remark": {
+        "title": "修改备注",
+        "description": "修改游戏库条目的备注，不切换当前游戏。remark 传空字符串或 null 清除备注。",
+        "params": {
+          "gameRoot": "游戏库中的游戏目录",
+          "remark": "备注内容"
+        }
+      },
+      "chaya_library_remove": {
+        "title": "移除游戏",
+        "description": "从游戏库移除一个条目（不删除游戏文件）；移除当前游戏会解除绑定。破坏性操作：调用前必须先征得用户同意。",
+        "params": {
+          "gameRoot": "游戏库中的游戏目录"
+        }
+      },
+      "chaya_game_status": {
+        "title": "当前游戏状态",
+        "description": "当前绑定游戏的详情：内容根、类型、壳是否就绪、插件安装情况、翻译缓存、游戏是否在线。"
+      },
+      "chaya_game_launch": {
+        "title": "启动游戏",
+        "description": "注入 / 更新插件并启动当前游戏。需已绑定游戏且壳就绪；游戏已在运行时会报错。"
+      },
+      "chaya_game_quit": {
+        "title": "关闭游戏",
+        "description": "请求关闭正在运行的游戏（未保存进度会丢失，必要时先用 chaya_live_call 调 ChayaEdit.save 存档）。"
+      },
+      "chaya_game_plugins_install": {
+        "title": "安装插件",
+        "description": "把 ChayaLoader 与插件缓存写入当前游戏并登记到 js/plugins.js；更新插件后重启游戏生效。"
+      },
+      "chaya_game_plugins_clear": {
+        "title": "清除插件",
+        "description": "从当前游戏清除 ChayaLoader、插件缓存与 Env。破坏性操作：调用前必须先征得用户同意。"
+      },
+      "chaya_game_shell_install": {
+        "title": "安装 NW.js 壳",
+        "description": "为当前游戏安装 NW.js 壳。不传 shellSource 时从 nwjs.io 下载当前平台最新版（约 100 MB，最长约 5 分钟，中断后重试会接着下载）；进度同时显示在控制台右上角下载中心。",
+        "params": {
+          "shellSource": "本机干净 NW.js 壳路径（可选）",
+          "force": "已存在时强制覆盖"
+        }
+      },
+      "chaya_game_shell_check": {
+        "title": "检查壳更新",
+        "description": "检查当前游戏的 NW.js 壳是否有新版本。"
+      },
+      "chaya_game_shell_uninstall": {
+        "title": "卸载共用壳",
+        "description": "卸载工具数据目录里的共用 NW.js 壳（不影响已打包游戏）。破坏性操作：调用前必须先征得用户同意。"
+      },
+      "chaya_game_window": {
+        "title": "游戏窗口",
+        "description": "读取或修改当前游戏 package.json 的窗口配置。不传 window 时只读；传入时只合并给出的字段，下次启动生效。",
+        "params": {
+          "window": "要修改的窗口字段"
+        }
+      },
+      "chaya_live_games": {
+        "title": "在线游戏",
+        "description": "列出已连接的游戏（需从 Chaya 启动且加载 ChayaAgent 插件）。"
+      },
+      "chaya_live_state": {
+        "title": "局内状态",
+        "description": "读取游戏当前状态：场景、地图与坐标、金钱、队伍（等级 / HP / MP）、对话文字与选项。修改前后用它确认效果。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略"
+        }
+      },
+      "chaya_live_plugins": {
+        "title": "局内插件",
+        "description": "列出游戏内已加载的 Chaya 插件（ChayaEdit / ChayaBoost / ChayaTrans）、方法，以及插件声明的工具（tools：名称、说明、参数）。调用 chaya_live_call 前先看这里。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略"
+        }
+      },
+      "chaya_live_call": {
+        "title": "调用插件",
+        "description": "调用游戏内 Chaya 插件的方法，结果以 JSON 返回。常用：ChayaEdit.gold(99999)、ChayaEdit.item(id, count)、ChayaEdit.weapon(id, count)、ChayaEdit.var(id, value)、ChayaEdit.sw(id, true)、ChayaEdit.god(true)、ChayaEdit.through(true)、ChayaEdit.teleport(mapId, x, y)、ChayaEdit.save(slot)、ChayaEdit.load(slot)、ChayaEdit.commonEvent(id)、ChayaBoost.on(rate) / off()、ChayaTrans.status()。id 可先用 chaya_edit_catalog 查。链式 API 用 chain，例如 plugin=\"ChayaEdit\", method=\"actor\", args=[1], chain=[{method:\"hp\", args:[999]}]。也可按插件声明的工具调用：传 tool（chaya_live_plugins 的 tools[].tool）与 input（对象参数），不传 method。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "plugin": "插件全局名，如 ChayaEdit、ChayaBoost、ChayaTrans",
+          "method": "方法名（与 tool 二选一）",
+          "tool": "插件声明的工具名，如 gold、status（与 method 二选一）",
+          "input": "tool 的参数对象",
+          "args": "位置参数",
+          "chain": "对返回值继续链式调用"
+        }
+      },
+      "chaya_live_press": {
+        "title": "模拟按键",
+        "description": "模拟 RPG Maker 按键：ok=确认、cancel=取消、menu=菜单、方向键移动 / 选择。用于推进对话、选菜单、走动。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "key": "按键",
+          "frames": "按住帧数（默认 6，约 0.1 秒；走一格约 16）"
+        }
+      },
+      "chaya_live_eval": {
+        "title": "执行 JS",
+        "description": "在游戏内执行任意 JS（可访问 $gameParty、$gameMap 等），支持 await，用 return 返回结果。仅当服务端设置 CHAYA_MCP_EVAL=1 时可用。破坏性操作：调用前必须先征得用户同意。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "code": "函数体"
+        }
+      },
+      "chaya_edit_catalog": {
+        "title": "查 id",
+        "description": "从当前游戏 data 读取指定类别的条目（id、名称、说明；有译文时显示中文），可按关键词筛选。修改物品 / 变量 / 开关前用它找 id。",
+        "params": {
+          "kind": "类别",
+          "q": "名称 / 说明关键词，或 id",
+          "limit": "最多返回条数（默认 50，上限 500）"
+        }
+      },
+      "chaya_translate_text": {
+        "title": "翻译文本",
+        "description": "把日文翻成中文，优先命中缓存；默认把结果写入缓存。",
+        "params": {
+          "texts": "原文列表",
+          "force": "跳过缓存强制重译",
+          "persist": "是否写入缓存（默认 true）"
+        }
+      },
+      "chaya_translate_extract": {
+        "title": "抽取原文",
+        "description": "从当前游戏 data/ 抽取可翻译文本，写入 / 合并 seed 文件。整作补译前先执行。"
+      },
+      "chaya_translate_job": {
+        "title": "补译任务",
+        "description": "服务端整作补译任务：start 开始、pause 暂停、status 查看进度。",
+        "params": {
+          "action": "动作"
+        }
+      },
+      "chaya_translate_batch": {
+        "title": "补译一批",
+        "description": "只对 seed 缺词补译一批（同步返回），适合小步验证。",
+        "params": {
+          "limit": "本批最多条数"
+        }
+      },
+      "chaya_translate_engines": {
+        "title": "翻译引擎",
+        "description": "读取或修改翻译引擎开关与补译顺序。不传参数时只读。",
+        "params": {
+          "switches": "引擎开关，如 {\"google\": false}",
+          "order": "补译顺序"
+        }
+      },
+      "chaya_translate_play_settings": {
+        "title": "游戏内翻译设置",
+        "description": "读取或修改当前游戏的游戏内翻译方式：pretranslated 预翻译、realtime 实时、subtitle 字幕；以及本地模型与超时。不传 settings 时只读。",
+        "params": {
+          "settings": "要写入的设置"
+        }
+      },
+      "chaya_cache_query": {
+        "title": "查询翻译库",
+        "description": "分页查询本机共享翻译库，支持关键词、引擎、只看敏感词与排序。",
+        "params": {
+          "q": "原文 / 译文关键词",
+          "engine": "引擎筛选，如 ollama、bing、google、manual、import",
+          "nsfw": "只看敏感词条",
+          "sort": "排序字段",
+          "order": "排序方向",
+          "page": "页码（从 1 开始）",
+          "pageSize": "每页条数（默认 50）"
+        }
+      },
+      "chaya_cache_update": {
+        "title": "修改译文",
+        "description": "按原文修改一条译文（标记为人工修订）。",
+        "params": {
+          "src": "原文（完全一致）",
+          "zh": "新译文"
+        }
+      },
+      "chaya_cache_delete": {
+        "title": "删除译文",
+        "description": "按原文删除一条译文。破坏性操作：调用前必须先征得用户同意。",
+        "params": {
+          "src": "原文（完全一致）"
+        }
+      },
+      "chaya_cache_import": {
+        "title": "导入译文",
+        "description": "导入 JSON（{\"原文\":\"译文\"}）或 NDJSON（[\"原文\",\"译文\"] / {\"s\",\"t\"}）到共享翻译库。",
+        "params": {
+          "text": "文件内容",
+          "overwrite": "覆盖已有译文（默认 false）"
+        }
+      },
+      "chaya_logs_query": {
+        "title": "查询日志",
+        "description": "查询最近的服务 / 插件日志，可按来源、级别、起始时间、关键词筛选。排查游戏或插件问题时先看这里。",
+        "params": {
+          "q": "message / source 关键词",
+          "source": "来源，如 ChayaEdit、ChayaTrans、ChayaAgent、translate",
+          "level": "级别",
+          "since": "起始时间（毫秒时间戳）",
+          "limit": "最多条数（默认 100，上限 1000）"
+        }
+      },
+      "chaya_logs_clear": {
+        "title": "清空日志",
+        "description": "清空全部日志。破坏性操作：调用前必须先征得用户同意。"
+      }
+    }
+  },
+  "ja": {
+    "groups": {
+      "library": {
+        "title": "ゲームライブラリ",
+        "summary": "ローカルのゲームライブラリの一覧・選択・メモ・削除。"
+      },
+      "game": {
+        "title": "現在のゲーム",
+        "summary": "ディスク側：状態、起動 / 終了、プラグイン、NW.js シェル、ウィンドウ。"
+      },
+      "live": {
+        "title": "ゲーム内リアルタイム",
+        "summary": "ゲーム実行中（ChayaAgent プラグインが必要）：状態の取得、プラグインでの改造、キー操作。"
+      },
+      "edit": {
+        "title": "改造用カタログ",
+        "summary": "ゲーム data からアイテム / キャラ / 変数 / スイッチなどの id を調べ、ゲーム内改造に使います。"
+      },
+      "translate": {
+        "title": "翻訳",
+        "summary": "テキスト翻訳、原文の抽出、ゲーム全体の補完翻訳ジョブ、エンジンとゲーム内翻訳の設定。"
+      },
+      "cache": {
+        "title": "共有翻訳ライブラリ",
+        "summary": "ローカル共有翻訳ライブラリの検索・絞り込み・編集・削除・インポート。"
+      },
+      "logs": {
+        "title": "ログ",
+        "summary": "サーバー / プラグインのログの検索と消去。"
+      }
+    },
+    "tools": {
+      "chaya_library_list": {
+        "title": "ライブラリ一覧",
+        "description": "ローカルのゲームライブラリと現在選択中のゲームを一覧表示します。名前 / メモ / パスのキーワードで絞り込めます。",
+        "params": {
+          "q": "キーワード（大文字小文字を区別しない）"
+        }
+      },
+      "chaya_library_bind": {
+        "title": "ゲームを選択",
+        "description": "ゲームフォルダーをライブラリに追加して現在のゲームにします（登録済みなら切り替えのみ）。RPG Maker MV/MZ のゲームルートまたはその www を指定してください。",
+        "params": {
+          "gameRoot": "ゲームフォルダーの絶対パス"
+        }
+      },
+      "chaya_library_remark": {
+        "title": "メモを変更",
+        "description": "現在のゲームを切り替えずにライブラリ項目のメモを変更します。remark に空文字か null を渡すと消去します。",
+        "params": {
+          "gameRoot": "ライブラリ内のゲームフォルダー",
+          "remark": "メモ"
+        }
+      },
+      "chaya_library_remove": {
+        "title": "ゲームを削除",
+        "description": "ライブラリから項目を削除します（ゲームファイルは残ります）。現在のゲームを削除すると選択も解除されます。破壊的な操作：呼び出す前に必ずユーザーの同意を得てください。",
+        "params": {
+          "gameRoot": "ライブラリ内のゲームフォルダー"
+        }
+      },
+      "chaya_game_status": {
+        "title": "ゲームの状態",
+        "description": "選択中のゲームの詳細：コンテンツルート、種類、シェルの準備状況、プラグインの導入状況、翻訳キャッシュ、ゲームがオンラインか。"
+      },
+      "chaya_game_launch": {
+        "title": "ゲームを起動",
+        "description": "プラグインを注入 / 更新して現在のゲームを起動します。ゲームの選択とシェルの準備が必要で、起動中ならエラーになります。"
+      },
+      "chaya_game_quit": {
+        "title": "ゲームを終了",
+        "description": "実行中のゲームに終了を要求します（未保存の進行は失われます。必要なら先に chaya_live_call で ChayaEdit.save を呼んでセーブ）。"
+      },
+      "chaya_game_plugins_install": {
+        "title": "プラグインを導入",
+        "description": "ChayaLoader とプラグインキャッシュを現在のゲームに書き込み、js/plugins.js に登録します。更新後はゲームの再起動で反映されます。"
+      },
+      "chaya_game_plugins_clear": {
+        "title": "プラグインを消去",
+        "description": "現在のゲームから ChayaLoader、プラグインキャッシュ、Env を削除します。破壊的な操作：呼び出す前に必ずユーザーの同意を得てください。"
+      },
+      "chaya_game_shell_install": {
+        "title": "NW.js シェルを導入",
+        "description": "現在のゲームに NW.js シェルを導入します。shellSource を省略すると nwjs.io からこのプラットフォームの最新版をダウンロードします（約 100 MB、最大約 5 分、中断後の再試行は続きから）。進行状況はコンソール右上のダウンロードセンターにも表示されます。",
+        "params": {
+          "shellSource": "ローカルのクリーンな NW.js シェルのパス（任意）",
+          "force": "既存のシェルを上書き"
+        }
+      },
+      "chaya_game_shell_check": {
+        "title": "シェルの更新を確認",
+        "description": "現在のゲームの NW.js シェルに新しいバージョンがあるか確認します。"
+      },
+      "chaya_game_shell_uninstall": {
+        "title": "共有シェルを削除",
+        "description": "ツールのデータフォルダーにある共有 NW.js シェルを削除します（パッケージ済みのゲームには影響しません）。破壊的な操作：呼び出す前に必ずユーザーの同意を得てください。"
+      },
+      "chaya_game_window": {
+        "title": "ゲームウィンドウ",
+        "description": "現在のゲームの package.json のウィンドウ設定を読み書きします。window を省略すると読み取りのみ。渡した項目だけをマージし、次回起動時に反映されます。",
+        "params": {
+          "window": "変更するウィンドウ項目"
+        }
+      },
+      "chaya_live_games": {
+        "title": "オンラインのゲーム",
+        "description": "接続中のゲームを一覧表示します（Chaya から起動し ChayaAgent プラグインを読み込んだもの）。"
+      },
+      "chaya_live_state": {
+        "title": "ゲーム内の状態",
+        "description": "ゲームの現在の状態を取得します：シーン、マップと座標、所持金、パーティー（レベル / HP / MP）、会話テキストと選択肢。改造の前後で効果の確認に使います。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可"
+        }
+      },
+      "chaya_live_plugins": {
+        "title": "ゲーム内プラグイン",
+        "description": "ゲームに読み込まれた Chaya プラグイン（ChayaEdit / ChayaBoost / ChayaTrans）とメソッド、プラグインが宣言したツール（tools：名前、説明、引数）を一覧表示します。chaya_live_call の前に確認してください。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可"
+        }
+      },
+      "chaya_live_call": {
+        "title": "プラグインを呼び出す",
+        "description": "ゲーム内の Chaya プラグインのメソッドを呼び出し、結果を JSON で返します。よく使うもの：ChayaEdit.gold(99999)、ChayaEdit.item(id, count)、ChayaEdit.weapon(id, count)、ChayaEdit.var(id, value)、ChayaEdit.sw(id, true)、ChayaEdit.god(true)、ChayaEdit.through(true)、ChayaEdit.teleport(mapId, x, y)、ChayaEdit.save(slot)、ChayaEdit.load(slot)、ChayaEdit.commonEvent(id)、ChayaBoost.on(rate) / off()、ChayaTrans.status()。id は先に chaya_edit_catalog で調べられます。チェーン API は chain を使います（例：plugin=\"ChayaEdit\", method=\"actor\", args=[1], chain=[{method:\"hp\", args:[999]}]）。プラグインが宣言したツールでも呼び出せます：method の代わりに tool（chaya_live_plugins の tools[].tool）と input（オブジェクト引数）を渡します。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "plugin": "プラグインのグローバル名（例：ChayaEdit、ChayaBoost、ChayaTrans）",
+          "method": "メソッド名（tool とどちらか一方）",
+          "tool": "プラグインが宣言したツール名（例：gold、status。method とどちらか一方）",
+          "input": "tool の引数オブジェクト",
+          "args": "位置引数",
+          "chain": "戻り値に対するチェーン呼び出し"
+        }
+      },
+      "chaya_live_press": {
+        "title": "キー操作",
+        "description": "RPG Maker のキーを模擬します：ok＝決定、cancel＝キャンセル、menu＝メニュー、方向キーで移動 / 選択。会話を進める、メニューを選ぶ、歩くときに使います。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "key": "キー",
+          "frames": "押し続けるフレーム数（既定 6、約 0.1 秒。1 マス歩くには約 16）"
+        }
+      },
+      "chaya_live_eval": {
+        "title": "JS を実行",
+        "description": "ゲーム内で任意の JS を実行します（$gameParty、$gameMap などにアクセス可）。await に対応し、return で結果を返します。サーバーで CHAYA_MCP_EVAL=1 を設定したときのみ使えます。破壊的な操作：呼び出す前に必ずユーザーの同意を得てください。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "code": "関数本体"
+        }
+      },
+      "chaya_edit_catalog": {
+        "title": "id を調べる",
+        "description": "現在のゲーム data から指定カテゴリの項目（id、名前、説明。訳文があれば翻訳後の表記）を読み取り、キーワードで絞り込めます。アイテム / 変数 / スイッチを改造する前に id を探すのに使います。",
+        "params": {
+          "kind": "カテゴリ",
+          "q": "名前 / 説明のキーワード、または id",
+          "limit": "最大件数（既定 50、上限 500）"
+        }
+      },
+      "chaya_translate_text": {
+        "title": "テキストを翻訳",
+        "description": "日本語を中国語に翻訳します。キャッシュを優先し、既定で結果をキャッシュに書き込みます。",
+        "params": {
+          "texts": "原文のリスト",
+          "force": "キャッシュを使わず再翻訳",
+          "persist": "キャッシュに書き込む（既定 true）"
+        }
+      },
+      "chaya_translate_extract": {
+        "title": "原文を抽出",
+        "description": "現在のゲームの data/ から翻訳対象のテキストを抽出し、seed ファイルに書き込み / マージします。ゲーム全体の補完翻訳の前に実行してください。"
+      },
+      "chaya_translate_job": {
+        "title": "補完翻訳ジョブ",
+        "description": "サーバー側のゲーム全体の補完翻訳ジョブ：start で開始、pause で一時停止、status で進行状況。",
+        "params": {
+          "action": "操作"
+        }
+      },
+      "chaya_translate_batch": {
+        "title": "1 バッチ補完",
+        "description": "seed の未翻訳分を 1 バッチだけ補完します（同期で返却）。小さく試すのに向いています。",
+        "params": {
+          "limit": "このバッチの最大件数"
+        }
+      },
+      "chaya_translate_engines": {
+        "title": "翻訳エンジン",
+        "description": "翻訳エンジンのオン / オフと補完の順序を読み書きします。引数なしなら読み取りのみ。",
+        "params": {
+          "switches": "エンジンのオン / オフ（例：{\"google\": false}）",
+          "order": "補完の順序"
+        }
+      },
+      "chaya_translate_play_settings": {
+        "title": "ゲーム内翻訳の設定",
+        "description": "現在のゲームのゲーム内翻訳方式（pretranslated 事前翻訳、realtime リアルタイム、subtitle 字幕）とローカルモデル、タイムアウトを読み書きします。settings を省略すると読み取りのみ。",
+        "params": {
+          "settings": "書き込む設定"
+        }
+      },
+      "chaya_cache_query": {
+        "title": "翻訳ライブラリを検索",
+        "description": "ローカル共有翻訳ライブラリをページ単位で検索します。キーワード、エンジン、センシティブのみ、並び替えに対応。",
+        "params": {
+          "q": "原文 / 訳文のキーワード",
+          "engine": "エンジンで絞り込み（例：ollama、bing、google、manual、import）",
+          "nsfw": "センシティブな項目のみ",
+          "sort": "並び替え項目",
+          "order": "並び順",
+          "page": "ページ番号（1 から）",
+          "pageSize": "1 ページの件数（既定 50）"
+        }
+      },
+      "chaya_cache_update": {
+        "title": "訳文を修正",
+        "description": "原文を指定して訳文を 1 件修正します（手動修正として記録）。",
+        "params": {
+          "src": "原文（完全一致）",
+          "zh": "新しい訳文"
+        }
+      },
+      "chaya_cache_delete": {
+        "title": "訳文を削除",
+        "description": "原文を指定して訳文を 1 件削除します。破壊的な操作：呼び出す前に必ずユーザーの同意を得てください。",
+        "params": {
+          "src": "原文（完全一致）"
+        }
+      },
+      "chaya_cache_import": {
+        "title": "訳文をインポート",
+        "description": "JSON（{\"原文\":\"訳文\"}）または NDJSON（[\"原文\",\"訳文\"] / {\"s\",\"t\"}）を共有翻訳ライブラリにインポートします。",
+        "params": {
+          "text": "ファイルの内容",
+          "overwrite": "既存の訳文を上書き（既定 false）"
+        }
+      },
+      "chaya_logs_query": {
+        "title": "ログを検索",
+        "description": "最近のサーバー / プラグインのログを検索します。ソース、レベル、開始時刻、キーワードで絞り込めます。ゲームやプラグインの問題調査はまずここから。",
+        "params": {
+          "q": "message / source のキーワード",
+          "source": "ソース（例：ChayaEdit、ChayaTrans、ChayaAgent、translate）",
+          "level": "レベル",
+          "since": "開始時刻（ミリ秒タイムスタンプ）",
+          "limit": "最大件数（既定 100、上限 1000）"
+        }
+      },
+      "chaya_logs_clear": {
+        "title": "ログを消去",
+        "description": "すべてのログを消去します。破壊的な操作：呼び出す前に必ずユーザーの同意を得てください。"
+      }
+    }
+  },
+  "ko": {
+    "groups": {
+      "library": {
+        "title": "게임 라이브러리",
+        "summary": "로컬 게임 라이브러리 항목의 목록, 선택, 메모, 삭제."
+      },
+      "game": {
+        "title": "현재 게임",
+        "summary": "디스크 쪽: 상태, 실행 / 종료, 플러그인, NW.js 셸, 창."
+      },
+      "live": {
+        "title": "게임 내 실시간",
+        "summary": "게임 실행 중(ChayaAgent 플러그인 필요): 상태 읽기, 플러그인으로 수정, 키 입력 시뮬레이션."
+      },
+      "edit": {
+        "title": "수정용 카탈로그",
+        "summary": "게임 data에서 아이템 / 캐릭터 / 변수 / 스위치 등의 id를 찾아 게임 내 수정에 사용합니다."
+      },
+      "translate": {
+        "title": "번역",
+        "summary": "텍스트 번역, 원문 추출, 게임 전체 보충 번역 작업, 엔진과 게임 내 번역 설정."
+      },
+      "cache": {
+        "title": "공유 번역 라이브러리",
+        "summary": "로컬 공유 번역 라이브러리의 검색·필터·수정·삭제·가져오기."
+      },
+      "logs": {
+        "title": "로그",
+        "summary": "서버 / 플러그인 로그 조회와 지우기."
+      }
+    },
+    "tools": {
+      "chaya_library_list": {
+        "title": "라이브러리 목록",
+        "description": "로컬 게임 라이브러리와 현재 선택된 게임을 나열합니다. 이름 / 메모 / 경로 키워드로 거를 수 있습니다.",
+        "params": {
+          "q": "키워드(대소문자 구분 없음)"
+        }
+      },
+      "chaya_library_bind": {
+        "title": "게임 선택",
+        "description": "게임 폴더를 라이브러리에 추가하고 현재 게임으로 전환합니다(이미 있으면 전환만). RPG Maker MV/MZ 게임 루트나 그 www여야 합니다.",
+        "params": {
+          "gameRoot": "게임 폴더의 절대 경로"
+        }
+      },
+      "chaya_library_remark": {
+        "title": "메모 수정",
+        "description": "현재 게임을 바꾸지 않고 라이브러리 항목의 메모를 수정합니다. remark에 빈 문자열이나 null을 주면 메모를 지웁니다.",
+        "params": {
+          "gameRoot": "라이브러리의 게임 폴더",
+          "remark": "메모 내용"
+        }
+      },
+      "chaya_library_remove": {
+        "title": "게임 삭제",
+        "description": "라이브러리에서 항목을 삭제합니다(게임 파일은 남습니다). 현재 게임을 삭제하면 선택도 해제됩니다. 파괴적인 작업: 호출 전에 반드시 사용자 동의를 받으세요.",
+        "params": {
+          "gameRoot": "라이브러리의 게임 폴더"
+        }
+      },
+      "chaya_game_status": {
+        "title": "게임 상태",
+        "description": "선택된 게임의 상세 정보: 콘텐츠 루트, 종류, 셸 준비 여부, 플러그인 설치 상태, 번역 캐시, 게임 온라인 여부."
+      },
+      "chaya_game_launch": {
+        "title": "게임 실행",
+        "description": "플러그인을 주입 / 업데이트하고 현재 게임을 실행합니다. 게임 선택과 셸 준비가 필요하며 이미 실행 중이면 오류가 납니다."
+      },
+      "chaya_game_quit": {
+        "title": "게임 종료",
+        "description": "실행 중인 게임에 종료를 요청합니다(저장하지 않은 진행은 사라집니다. 필요하면 먼저 chaya_live_call로 ChayaEdit.save를 호출해 저장)."
+      },
+      "chaya_game_plugins_install": {
+        "title": "플러그인 설치",
+        "description": "ChayaLoader와 플러그인 캐시를 현재 게임에 쓰고 js/plugins.js에 등록합니다. 업데이트 후에는 게임을 다시 시작해야 적용됩니다."
+      },
+      "chaya_game_plugins_clear": {
+        "title": "플러그인 지우기",
+        "description": "현재 게임에서 ChayaLoader, 플러그인 캐시, Env를 지웁니다. 파괴적인 작업: 호출 전에 반드시 사용자 동의를 받으세요."
+      },
+      "chaya_game_shell_install": {
+        "title": "NW.js 셸 설치",
+        "description": "현재 게임에 NW.js 셸을 설치합니다. shellSource를 주지 않으면 nwjs.io에서 이 플랫폼의 최신 버전을 내려받습니다(약 100 MB, 최대 약 5분, 중단 후 재시도하면 이어서 받음). 진행 상황은 콘솔 오른쪽 위 다운로드 센터에도 표시됩니다.",
+        "params": {
+          "shellSource": "로컬의 깨끗한 NW.js 셸 경로(선택)",
+          "force": "기존 셸 덮어쓰기"
+        }
+      },
+      "chaya_game_shell_check": {
+        "title": "셸 업데이트 확인",
+        "description": "현재 게임의 NW.js 셸에 새 버전이 있는지 확인합니다."
+      },
+      "chaya_game_shell_uninstall": {
+        "title": "공용 셸 제거",
+        "description": "도구 데이터 폴더의 공용 NW.js 셸을 제거합니다(패키징된 게임에는 영향 없음). 파괴적인 작업: 호출 전에 반드시 사용자 동의를 받으세요."
+      },
+      "chaya_game_window": {
+        "title": "게임 창",
+        "description": "현재 게임 package.json의 창 설정을 읽거나 수정합니다. window를 주지 않으면 읽기만 하며, 준 항목만 병합해 다음 실행 때 적용됩니다.",
+        "params": {
+          "window": "수정할 창 항목"
+        }
+      },
+      "chaya_live_games": {
+        "title": "온라인 게임",
+        "description": "연결된 게임을 나열합니다(Chaya에서 실행하고 ChayaAgent 플러그인을 불러온 게임)."
+      },
+      "chaya_live_state": {
+        "title": "게임 내 상태",
+        "description": "게임의 현재 상태를 읽습니다: 장면, 맵과 좌표, 소지금, 파티(레벨 / HP / MP), 대화 텍스트와 선택지. 수정 전후로 효과를 확인할 때 씁니다.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능"
+        }
+      },
+      "chaya_live_plugins": {
+        "title": "게임 내 플러그인",
+        "description": "게임에 불러온 Chaya 플러그인(ChayaEdit / ChayaBoost / ChayaTrans)과 메서드, 플러그인이 선언한 도구(tools: 이름, 설명, 인자)를 나열합니다. chaya_live_call 전에 먼저 확인하세요.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능"
+        }
+      },
+      "chaya_live_call": {
+        "title": "플러그인 호출",
+        "description": "게임 안 Chaya 플러그인의 메서드를 호출하고 결과를 JSON으로 반환합니다. 자주 쓰는 호출: ChayaEdit.gold(99999), ChayaEdit.item(id, count), ChayaEdit.weapon(id, count), ChayaEdit.var(id, value), ChayaEdit.sw(id, true), ChayaEdit.god(true), ChayaEdit.through(true), ChayaEdit.teleport(mapId, x, y), ChayaEdit.save(slot), ChayaEdit.load(slot), ChayaEdit.commonEvent(id), ChayaBoost.on(rate) / off(), ChayaTrans.status(). id는 먼저 chaya_edit_catalog로 찾을 수 있습니다. 체인 API는 chain을 씁니다(예: plugin=\"ChayaEdit\", method=\"actor\", args=[1], chain=[{method:\"hp\", args:[999]}]). 플러그인이 선언한 도구로도 호출할 수 있습니다: method 대신 tool(chaya_live_plugins의 tools[].tool)과 input(객체 인자)을 전달합니다.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "plugin": "플러그인 전역 이름(예: ChayaEdit, ChayaBoost, ChayaTrans)",
+          "method": "메서드 이름(tool과 둘 중 하나)",
+          "tool": "플러그인이 선언한 도구 이름(예: gold, status. method와 둘 중 하나)",
+          "input": "tool의 인자 객체",
+          "args": "위치 인자",
+          "chain": "반환값에 이어서 체인 호출"
+        }
+      },
+      "chaya_live_press": {
+        "title": "키 입력",
+        "description": "RPG Maker 키를 시뮬레이션합니다: ok=확인, cancel=취소, menu=메뉴, 방향키로 이동 / 선택. 대화 진행, 메뉴 선택, 걷기에 씁니다.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "key": "키",
+          "frames": "누르고 있을 프레임 수(기본 6, 약 0.1초. 한 칸 걷기는 약 16)"
+        }
+      },
+      "chaya_live_eval": {
+        "title": "JS 실행",
+        "description": "게임 안에서 임의의 JS를 실행합니다($gameParty, $gameMap 등에 접근 가능). await를 지원하며 return으로 결과를 돌려줍니다. 서버에 CHAYA_MCP_EVAL=1을 설정했을 때만 쓸 수 있습니다. 파괴적인 작업: 호출 전에 반드시 사용자 동의를 받으세요.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "code": "함수 본문"
+        }
+      },
+      "chaya_edit_catalog": {
+        "title": "id 찾기",
+        "description": "현재 게임 data에서 지정한 분류의 항목(id, 이름, 설명. 번역이 있으면 번역문)을 읽고 키워드로 거를 수 있습니다. 아이템 / 변수 / 스위치를 수정하기 전에 id를 찾을 때 씁니다.",
+        "params": {
+          "kind": "분류",
+          "q": "이름 / 설명 키워드 또는 id",
+          "limit": "최대 항목 수(기본 50, 최대 500)"
+        }
+      },
+      "chaya_translate_text": {
+        "title": "텍스트 번역",
+        "description": "일본어를 중국어로 번역합니다. 캐시를 우선 쓰고, 기본적으로 결과를 캐시에 씁니다.",
+        "params": {
+          "texts": "원문 목록",
+          "force": "캐시를 건너뛰고 다시 번역",
+          "persist": "캐시에 쓰기(기본 true)"
+        }
+      },
+      "chaya_translate_extract": {
+        "title": "원문 추출",
+        "description": "현재 게임의 data/에서 번역할 텍스트를 추출해 seed 파일에 쓰거나 병합합니다. 게임 전체 보충 번역 전에 먼저 실행하세요."
+      },
+      "chaya_translate_job": {
+        "title": "보충 번역 작업",
+        "description": "서버 쪽 게임 전체 보충 번역 작업: start로 시작, pause로 일시 정지, status로 진행 상황 확인.",
+        "params": {
+          "action": "동작"
+        }
+      },
+      "chaya_translate_batch": {
+        "title": "한 묶음 보충",
+        "description": "seed의 미번역 항목을 한 묶음만 보충합니다(동기 반환). 작게 확인할 때 좋습니다.",
+        "params": {
+          "limit": "이번 묶음의 최대 항목 수"
+        }
+      },
+      "chaya_translate_engines": {
+        "title": "번역 엔진",
+        "description": "번역 엔진 켜기 / 끄기와 보충 순서를 읽거나 수정합니다. 인자가 없으면 읽기만 합니다.",
+        "params": {
+          "switches": "엔진 켜기 / 끄기(예: {\"google\": false})",
+          "order": "보충 순서"
+        }
+      },
+      "chaya_translate_play_settings": {
+        "title": "게임 내 번역 설정",
+        "description": "현재 게임의 게임 내 번역 방식(pretranslated 사전 번역, realtime 실시간, subtitle 자막)과 로컬 모델, 시간 제한을 읽거나 수정합니다. settings를 주지 않으면 읽기만 합니다.",
+        "params": {
+          "settings": "쓸 설정"
+        }
+      },
+      "chaya_cache_query": {
+        "title": "번역 라이브러리 조회",
+        "description": "로컬 공유 번역 라이브러리를 페이지 단위로 조회합니다. 키워드, 엔진, 민감 항목만, 정렬을 지원합니다.",
+        "params": {
+          "q": "원문 / 번역문 키워드",
+          "engine": "엔진 필터(예: ollama, bing, google, manual, import)",
+          "nsfw": "민감 항목만",
+          "sort": "정렬 기준",
+          "order": "정렬 방향",
+          "page": "페이지 번호(1부터)",
+          "pageSize": "페이지당 항목 수(기본 50)"
+        }
+      },
+      "chaya_cache_update": {
+        "title": "번역 수정",
+        "description": "원문으로 번역 하나를 수정합니다(수동 수정으로 표시).",
+        "params": {
+          "src": "원문(완전 일치)",
+          "zh": "새 번역"
+        }
+      },
+      "chaya_cache_delete": {
+        "title": "번역 삭제",
+        "description": "원문으로 번역 하나를 삭제합니다. 파괴적인 작업: 호출 전에 반드시 사용자 동의를 받으세요.",
+        "params": {
+          "src": "원문(완전 일치)"
+        }
+      },
+      "chaya_cache_import": {
+        "title": "번역 가져오기",
+        "description": "JSON({\"원문\":\"번역\"}) 또는 NDJSON([\"원문\",\"번역\"] / {\"s\",\"t\"})을 공유 번역 라이브러리로 가져옵니다.",
+        "params": {
+          "text": "파일 내용",
+          "overwrite": "기존 번역 덮어쓰기(기본 false)"
+        }
+      },
+      "chaya_logs_query": {
+        "title": "로그 조회",
+        "description": "최근 서버 / 플러그인 로그를 조회합니다. 출처, 레벨, 시작 시각, 키워드로 거를 수 있습니다. 게임이나 플러그인 문제를 살필 때 먼저 여기를 보세요.",
+        "params": {
+          "q": "message / source 키워드",
+          "source": "출처(예: ChayaEdit, ChayaTrans, ChayaAgent, translate)",
+          "level": "레벨",
+          "since": "시작 시각(밀리초 타임스탬프)",
+          "limit": "최대 항목 수(기본 100, 최대 1000)"
+        }
+      },
+      "chaya_logs_clear": {
+        "title": "로그 지우기",
+        "description": "모든 로그를 지웁니다. 파괴적인 작업: 호출 전에 반드시 사용자 동의를 받으세요."
+      }
+    }
+  }
+}

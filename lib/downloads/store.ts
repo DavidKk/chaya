@@ -42,6 +42,8 @@ type ActionResult = void | Promise<void>
 export type DownloadActions = {
   openDownload?(): ActionResult
   pickFile?(): ActionResult
+  /** 放弃等待选文件：任务以 canceled 结束并释放游戏锁 */
+  abandon?(): ActionResult
 }
 
 const MAX_BROWSER_ITEMS = 50

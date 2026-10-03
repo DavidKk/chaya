@@ -212,7 +212,6 @@ export function LibraryRail({ entries, activeRoot, busy = false, canUseDisk = tr
                           <span className="truncate text-[0.9rem] font-semibold tracking-[-0.01em] text-ink">{entry.remark?.trim() || entry.name}</span>
                           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.72rem] text-ink-soft">
                             {entry.remark?.trim() ? <span className="truncate">{entry.name}</span> : null}
-                            <span>{entry.kindLabel}</span>
                             {entry.hasShell && !entry.missing ? <span>{t('library.shellReady')}</span> : null}
                             {fingerprint && fingerprint.engine !== 'unknown' ? (
                               <span>{fingerprint.engineVersion ? `${fingerprint.engine} ${fingerprint.engineVersion}` : fingerprint.engine}</span>

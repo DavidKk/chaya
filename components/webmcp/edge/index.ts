@@ -7,13 +7,13 @@ import { functionToolDefinition } from '@/lib/webmcp/mcp-mirror'
 import { EDGE_UNAVAILABLE_TOOLS } from '@/lib/webmcp/mode-matrix'
 
 import { type EdgeGameDeps, makeEdgeGameTools } from './game'
-import { edgeLibraryTools } from './library'
+import { makeEdgeLibraryTools } from './library'
 import { type EdgeLinkDeps, edgeLogsTools, linkAgentCaller, makeEdgeLinkTools } from './link'
 
 export type EdgeToolDeps = EdgeLinkDeps & EdgeGameDeps
 
 export function makeEdgeToolImpls(deps: EdgeToolDeps): ToolImpls {
-  return { ...edgeLibraryTools, ...makeEdgeGameTools(deps), ...makeEdgeLinkTools(deps), ...edgeLogsTools }
+  return { ...makeEdgeLibraryTools(deps), ...makeEdgeGameTools(deps), ...makeEdgeLinkTools(deps), ...edgeLogsTools }
 }
 
 /** Catalog tools available on Edge, with the same names / schemas as the local MCP. */

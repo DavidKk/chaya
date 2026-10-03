@@ -36,6 +36,7 @@ export {
 export {
   ensureShellLinkedToContent,
   installShell,
+  isShellInstalling,
   isToolkitShellInstalled,
   recoverOldIfNeeded,
   shellInstallHint,

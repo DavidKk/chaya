@@ -1,0 +1,50 @@
+{
+  "en": {
+    "notMac": "This installer only supports macOS.",
+    "badArch": "Unsupported architecture: %s",
+    "lookingUp": "Looking up the latest Chaya release (%s)...",
+    "noGithub": "Could not reach GitHub.",
+    "noBuild": "No macOS %s build found. See %s",
+    "downloading": "Downloading %s...",
+    "notInDownload": "%s not found in the download.",
+    "quitting": "Quitting running Chaya...",
+    "installing": "Installing to %s...",
+    "done": "Done. Opening Chaya..."
+  },
+  "zh": {
+    "notMac": "此安装程序仅支持 macOS。",
+    "badArch": "不支持的芯片架构：%s",
+    "lookingUp": "正在查询最新的 Chaya 版本（%s）…",
+    "noGithub": "无法连接 GitHub。",
+    "noBuild": "没有找到 macOS %s 的安装包，请查看 %s",
+    "downloading": "正在下载 %s…",
+    "notInDownload": "下载内容中找不到 %s。",
+    "quitting": "正在退出运行中的 Chaya…",
+    "installing": "正在安装到 %s…",
+    "done": "安装完成，正在打开 Chaya…"
+  },
+  "ja": {
+    "notMac": "このインストーラーは macOS 専用です。",
+    "badArch": "対応していないアーキテクチャです：%s",
+    "lookingUp": "最新の Chaya リリースを確認しています（%s）…",
+    "noGithub": "GitHub に接続できません。",
+    "noBuild": "macOS %s 向けのビルドが見つかりません。%s を確認してください",
+    "downloading": "%s をダウンロードしています…",
+    "notInDownload": "ダウンロードに %s が見つかりません。",
+    "quitting": "実行中の Chaya を終了しています…",
+    "installing": "%s にインストールしています…",
+    "done": "完了しました。Chaya を開いています…"
+  },
+  "ko": {
+    "notMac": "이 설치 프로그램은 macOS만 지원합니다.",
+    "badArch": "지원하지 않는 아키텍처입니다: %s",
+    "lookingUp": "최신 Chaya 릴리스를 확인하는 중 (%s)...",
+    "noGithub": "GitHub에 연결할 수 없습니다.",
+    "noBuild": "macOS %s 빌드를 찾을 수 없습니다. %s 를 확인하세요",
+    "downloading": "%s 다운로드 중...",
+    "notInDownload": "다운로드에서 %s 를 찾을 수 없습니다.",
+    "quitting": "실행 중인 Chaya를 종료하는 중...",
+    "installing": "%s 에 설치하는 중...",
+    "done": "완료했습니다. Chaya를 여는 중..."
+  }
+}

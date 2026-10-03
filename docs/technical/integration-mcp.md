@@ -25,21 +25,23 @@ Agent ──JSON-RPC（Bearer token）──► POST /api/mcp
 
 ## 2. 模块落点
 
-| 文件                                 | 职责                                                                                                                                                |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/integration/mcp-catalog.ts`     | **纯元数据**：分组、工具名、标题、说明、`inputSchema`、对应接口、危险标记；前后端共用                                                               |
-| `lib/integration/mcp-install.ts`     | 生成 Cursor / VS Code 链接与 Claude Code / Codex 命令                                                                                               |
-| `lib/integration/skills.ts`          | Skill 清单（id、标题、摘要）与原文路径约定                                                                                                          |
-| `app/api/mcp/_tools/*.ts`            | 按分组的工具实现 `name → run`；`index.ts` 组装 `McpServerConfig`。放在 API 层：工具是 HTTP API 的投影，调用同层路由不构成 `services → app` 反向依赖 |
-| `app/api/mcp/_tools/route-invoke.ts` | 进程内调用路由处理函数（带服务端管理 token、透传取消信号）并解包 `apiOk` 信封、去掉凭证字段                                                         |
-| `services/integration/skills.ts`     | 读取 `skills/<id>/SKILL.md`（字面路径保证被 output file tracing 打包）                                                                              |
-| `services/runtime/agent-bridge.ts`   | 内存指令队列（已存在）                                                                                                                              |
-| `app/api/mcp/route.server.ts`        | MCP 入口                                                                                                                                            |
-| `app/api/integration/mcp/route.ts`   | 页面用：服务地址、token（仅本机 + 管理会话）、eval 开关                                                                                             |
-| `app/integration/**`                 | 集成页（layout + skills / mcp 子页）                                                                                                                |
-| `app/skills/[file]/route.ts`         | 公开 Skill 原文 `/skills/<id>.md`                                                                                                                   |
-| `components/integration/*`           | 页面组件                                                                                                                                            |
-| `skills/<id>/SKILL.md`               | Skill 正文                                                                                                                                          |
+| 文件                                  | 职责                                                                                                                                                |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/integration/mcp-catalog.ts`      | **纯元数据**：分组、工具名、标题、说明、`inputSchema`、对应接口、危险标记；前后端共用。文案只有英文（Agent 读的就是这份）                           |
+| `lib/integration/mcp-catalog-i18n.ts` | 页面展示用翻译：`mcp-catalog-messages.json`（zh / ja / ko 的分组、标题、说明、顶层参数说明）与 `web-tools-messages.json`（WebMCP 专属工具说明）     |
+| `lib/integration/mcp-install.ts`      | 生成 Cursor / VS Code 链接与 Claude Code / Codex 命令                                                                                               |
+| `lib/integration/skills.ts`           | Skill 清单（id、标题、摘要）与原文路径约定                                                                                                          |
+| `app/api/mcp/_tools/*.ts`             | 按分组的工具实现 `name → run`；`index.ts` 组装 `McpServerConfig`。放在 API 层：工具是 HTTP API 的投影，调用同层路由不构成 `services → app` 反向依赖 |
+| `app/api/mcp/_tools/route-invoke.ts`  | 进程内调用路由处理函数（带服务端管理 token、透传取消信号）并解包 `apiOk` 信封、去掉凭证字段                                                         |
+| `services/integration/skills.ts`      | 读取 `skills/<id>/SKILL.md`；`readSkillBody(id, locale)` 读页面展示正文（字面路径保证被 output file tracing 打包）                                  |
+| `services/runtime/agent-bridge.ts`    | 内存指令队列（已存在）                                                                                                                              |
+| `app/api/mcp/route.server.ts`         | MCP 入口                                                                                                                                            |
+| `app/api/integration/mcp/route.ts`    | 页面用：服务地址、token（仅本机 + 管理会话）、eval 开关                                                                                             |
+| `app/integration/**`                  | 集成页（layout + skills / mcp 子页）                                                                                                                |
+| `app/skills/[file]/route.ts`          | 公开 Skill 原文 `/skills/<id>.md`                                                                                                                   |
+| `components/integration/*`            | 页面组件                                                                                                                                            |
+| `skills/<id>/SKILL.md`                | Skill 正文（英文，安装给 Agent 的就是这份）                                                                                                         |
+| `skills/<id>/i18n/<locale>.md`        | 页面展示用译文（zh / ja / ko，只有正文、无 frontmatter）                                                                                            |
 
 元数据与实现分离：页面只引用 `lib/integration/mcp-catalog.ts`，不把服务端代码打进客户端。单测保证「目录里每个工具都有实现、每个实现都在目录里」。
 
@@ -72,7 +74,7 @@ const res = await invokeRoute(StatusRoute.PUT, { method: 'PUT', path: '/api/stat
 
 ### 3.3 返回体裁剪
 
-`GET /api/status` 体量大。`chaya_library_list` 只返回 `{ serviceMode, current, total, games[] }`（`gameRoot / name / remark / kindLabel / missing / remote / hasShell / lastOpenedAt`）；`chaya_game_status` 只保留绑定、壳、插件、缓存、在线、`nwPackage.name` 等字段。`chaya_edit_catalog` 按 `kind` 取一类并按 `q` 过滤，默认最多 50 条。
+`GET /api/status` 体量大。`chaya_library_list` 只返回 `{ serviceMode, current, total, games[] }`（`gameRoot / name / remark / kindLabel / missing / remote / hasShell / lastOpenedAt`）；`chaya_game_status` 输出 `GameStatusView`（`lib/integration/tools/game-status.ts`，与网页版 WebMCP 同形）：绑定、名称 / 标题、内容根、系统、壳、插件、缓存、体积、指纹、在线。`chaya_game_plugins_install` / `chaya_game_plugins_clear` 写完后重读状态，返回 `{ installed | cleared, plugins, pluginsReady, pluginsTotal }`；`chaya_game_shell_install` 返回 `{ pending, hasShell, shellApp, taskId, downloadUrl, hint }`，两端同形。`chaya_edit_catalog` 按 `kind` 取一类并按 `q` 过滤，默认最多 50 条。
 
 ## 4. 鉴权与安全
 
@@ -92,11 +94,13 @@ const res = await invokeRoute(StatusRoute.PUT, { method: 'PUT', path: '/api/stat
 ## 5. 页面
 
 - `app/integration/layout.tsx`：二级导航（Skills / MCP），参照 `app/translate/layout.tsx`；不包 `RequireBoundGame`。
-- `/integration/skills/[id]`：`generateStaticParams` + `dynamicParams=false` 限定 id；根布局读 cookie，所以页面按需渲染（`/skills/[file]` 原文路由是构建期 SSG）。服务端用 `marked` 把 Skill Markdown 转 HTML（仓库内可信内容）。左侧列表，右侧正文 + 「安装到 Agent」（Cursor / Claude Code / Codex 三个目标的 `curl` 命令，`CopyField`）。
+- `/integration/skills/[id]`：`generateStaticParams` + `dynamicParams=false` 限定 id；根布局读 cookie，所以页面按需渲染（`/skills/[file]` 原文路由是构建期 SSG）。服务端用 `marked` 把每种语言的 Skill Markdown 都转成 HTML（仓库内可信内容），客户端按当前语言取用；`en` 用 `SKILL.md` 正文，其他语言用 `i18n/<locale>.md`，缺失时回退英文。左半列表 + 正文，右半「安装到 Agent」（Cursor / Claude Code / Codex 三个目标的 `curl` 命令，`CopyField`；窄屏放进正文顶部）。
+- 三个子页共用 `components/integration/Hub.tsx` 的 `HubLayout`：左半「导航 + 说明」，右半面板底「操作」（Skills 安装、MCP 试调、WebMCP 浏览器支持与启用步骤）。
 - `/integration/mcp`：客户端组件读取 `/api/integration/mcp`：
   - 可用：服务地址 + token（`CopyField`）+ 安装按钮 + 试调面板。
   - 不可用（Edge）：提示改用本机 dev / App，文档照常。
-  - 工具卡片由 `mcp-catalog` 渲染：参数表从 `inputSchema` 生成。
+  - 工具卡片由 `mcp-catalog` 渲染：参数表从 `inputSchema` 生成；标题、说明、参数说明按当前语言替换（`localizedMcpToolsByGroup`），工具名与 schema 不变。
+- **语言约定**：给 Agent 的内容（`SKILL.md`、`tools/list`、`MCP_INSTRUCTIONS`、WebMCP 工具定义）只用英文；页面展示跟随界面语言。
 - 主导航 `AppNav` 增加「集成」，匹配 `/integration/*`。
 - `proxy.ts`：`/skills/` 前缀与 `/sh/` 一样公开。
 
@@ -120,7 +124,8 @@ Skill 安装命令：`mkdir -p <dir>/<id> && curl -fsSL <origin>/skills/<id>.md 
 | 工具   | `invokeRoute` 解包与报错；library 筛选与裁剪；remark 不切换当前游戏；logs 关键词；catalog 过滤；translate job 参数映射；game 状态裁剪 / 装壳 / 窗口；live 调用与按键校验；cache 查询映射；play_settings 合并 |
 | 安装   | 四种安装链接 / 命令格式                                                                                                                                                                                      |
 | 鉴权   | `/api/integration/mcp` 在 Edge 不返回 token；插件 token 不能调 `/api/mcp` 与 `/api/integration/mcp`；proxy 放行 `/skills/` 但拦截 `/integration/*`                                                           |
-| Skill  | 清单里每个 id 都有 `SKILL.md`，frontmatter `name` 与 id 一致                                                                                                                                                 |
+| Skill  | 清单里每个 id 都有 `SKILL.md`，frontmatter `name` 与 id 一致；`SKILL.md` 不含中日韩文字（行内代码除外），每种语言都有展示译文与标题 / 摘要                                                                   |
+| 语言   | 目录与 WebMCP 工具定义不含中日韩文字；zh / ja / ko 译文覆盖每个分组、工具与顶层参数                                                                                                                          |
 | 端到端 | 本机实例 curl：`tools/list` 数量、`chaya_library_list`、`chaya_logs_query`、`chaya_cache_query`；浏览器：Skills / MCP 页、试调、Edge 提示                                                                    |
 | 页面   | 参数表 / 示例参数 / JSON 校验 / `tools/call` 结果解析（`components/integration/mcp/schema.ts`）                                                                                                              |
 
@@ -131,3 +136,4 @@ Skill 安装命令：`mkdir -p <dir>/<id> && curl -fsSL <origin>/skills/<id>.md 
 | 2026-10-03 | 初稿                                                                                                                                   |
 | 2026-10-03 | Review：凭证脱敏、日志先筛后截、透传 signal、工具实现移到 `app/api/mcp/_tools`、补窗口 / 壳卸载 / 游戏内翻译设置、参数枚举、不暴露清单 |
 | 2026-10-03 | 开发后 Review：Codex 环境变量提示、真实鉴权与 proxy 单测、各分组工具单测、MCP 内容语言提示、试调显示服务端错误原因                     |
+| 2026-10-03 | Agent 内容统一英文，页面展示多语言：Skill 译文目录、目录翻译 JSON，移除内容语言提示                                                    |

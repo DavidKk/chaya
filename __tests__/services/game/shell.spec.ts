@@ -31,7 +31,7 @@ describeMac('shell install / uninstall 核心流程', () => {
     }
   })
 
-  it('安装共用壳 → 重链 app.nw → 卸载只删 data/shell', () => {
+  it('安装共用壳 → 重链 app.nw → 卸载只删 data/shell', async () => {
     const toolkitRoot = mkTmp('chaya-toolkit-')
     const contentRoot = mkTmp('chaya-content-')
     const shellSource = path.join(mkTmp('chaya-src-'), 'nwjs.app')
@@ -43,7 +43,7 @@ describeMac('shell install / uninstall 核心流程', () => {
 
     expect(isToolkitShellInstalled(toolkitRoot)).toBe(false)
 
-    const installed = installShell({ shellSource, contentRoot, toolkitRoot })
+    const installed = await installShell({ shellSource, contentRoot, toolkitRoot })
     expect(installed.created).toBe(true)
     expect(installed.relinked).toBe(true)
     expect(fs.existsSync(installed.shellApp)).toBe(true)
@@ -67,7 +67,7 @@ describeMac('shell install / uninstall 核心流程', () => {
     expect(fs.existsSync(shellSource)).toBe(true)
   })
 
-  it('复用已装壳时只重链到新内容根', () => {
+  it('复用已装壳时只重链到新内容根', async () => {
     const toolkitRoot = mkTmp('chaya-toolkit-')
     const contentA = mkTmp('chaya-a-')
     const contentB = mkTmp('chaya-b-')
@@ -79,16 +79,16 @@ describeMac('shell install / uninstall 核心流程', () => {
       fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: path.basename(root), main: 'index.html' }))
     }
 
-    const first = installShell({ shellSource, contentRoot: contentA, toolkitRoot })
+    const first = await installShell({ shellSource, contentRoot: contentA, toolkitRoot })
     expect(first.created).toBe(true)
 
-    const second = installShell({ shellSource, contentRoot: contentB, toolkitRoot })
+    const second = await installShell({ shellSource, contentRoot: contentB, toolkitRoot })
     expect(second.created).toBe(false)
     expect(second.relinked).toBe(true)
     expect(fs.realpathSync(path.join(second.shellApp, 'Contents/Resources/app.nw'))).toBe(fs.realpathSync(contentB))
   })
 
-  it('force 可覆盖已装壳', () => {
+  it('force 可覆盖已装壳', async () => {
     const toolkitRoot = mkTmp('chaya-toolkit-')
     const contentRoot = mkTmp('chaya-content-')
     const srcA = path.join(mkTmp('chaya-src-a-'), 'nwjs.app')
@@ -100,11 +100,11 @@ describeMac('shell install / uninstall 核心流程', () => {
     fs.writeFileSync(path.join(srcB, 'Contents', 'MacOS', 'marker-b'), 'b')
     fs.writeFileSync(path.join(contentRoot, 'package.json'), JSON.stringify({ name: 'demo', main: 'index.html' }))
 
-    const first = installShell({ shellSource: srcA, contentRoot, toolkitRoot })
+    const first = await installShell({ shellSource: srcA, contentRoot, toolkitRoot })
     expect(first.created).toBe(true)
     expect(fs.existsSync(path.join(first.shellApp, 'Contents', 'MacOS', 'marker-b'))).toBe(false)
 
-    const forced = installShell({ shellSource: srcB, contentRoot, toolkitRoot, force: true })
+    const forced = await installShell({ shellSource: srcB, contentRoot, toolkitRoot, force: true })
     expect(forced.created).toBe(true)
     expect(fs.existsSync(path.join(forced.shellApp, 'Contents', 'MacOS', 'marker-b'))).toBe(true)
   })
@@ -115,7 +115,7 @@ describeMac('shell install / uninstall 核心流程', () => {
     expect(uninstallToolkitShell(toolkitRoot).removed).toEqual([])
   })
 
-  it('拒绝把内容根装进已打包 .app 的 Contents', () => {
+  it('拒绝把内容根装进已打包 .app 的 Contents', async () => {
     const toolkitRoot = mkTmp('chaya-toolkit-')
     const gameApp = path.join(mkTmp('chaya-game-'), 'Game.app')
     const shellSource = path.join(mkTmp('chaya-src-'), 'nwjs.app')
@@ -127,7 +127,7 @@ describeMac('shell install / uninstall 核心流程', () => {
     fs.mkdirSync(nested, { recursive: true })
     fs.writeFileSync(path.join(nested, 'package.json'), JSON.stringify({ name: 'bundled', main: 'index.html' }))
 
-    expect(() => installShell({ shellSource, contentRoot: nested, toolkitRoot })).toThrow(/已是 NW\.js 打包应用/)
+    await expect(installShell({ shellSource, contentRoot: nested, toolkitRoot })).rejects.toThrow(/已是 NW\.js 打包应用/)
   })
 })
 

@@ -9,7 +9,7 @@ import type { DownloadStatus, ServerDownloadKind } from '@/lib/downloads/types'
 
 export type BrowserTaskControl = {
   update(patch: Partial<DownloadItem>): void
-  /** 阶段设为 awaitFile 并挂上「打开官方下载 / 选择文件」（由游戏卡片展示）；用户选中后 resolve */
+  /** 阶段设为 awaitFile 并挂上「打开官方下载 / 选择文件 / 放弃」（由游戏卡片展示）；选中后 resolve，放弃时以 AbortError reject */
   waitForFile<T>(opts: { archiveName: string; openDownload: () => void; pickFile: () => Promise<T> }): Promise<T>
   /** 进入读写前排队（标签页内串行，阶段为 queued），返回出队函数 */
   enterIoQueue(): Promise<() => void>
@@ -57,10 +57,14 @@ function runTask(id: string, spec: BrowserTaskSpec): Promise<DownloadItem> {
     update,
     enterIoQueue: () => enterIoQueue(update),
     waitForFile: ({ archiveName, openDownload, pickFile }) =>
-      new Promise((resolve) => {
+      new Promise((resolve, reject) => {
         update({ phase: 'awaitFile', archiveName })
         setDownloadActions(id, {
           openDownload,
+          abandon: () => {
+            setDownloadActions(id, {})
+            reject(new DOMException('abandoned', 'AbortError'))
+          },
           pickFile: async () => {
             try {
               const picked = await pickFile()
@@ -88,6 +92,7 @@ function runTask(id: string, spec: BrowserTaskSpec): Promise<DownloadItem> {
       await spec.onDone?.()
       return finish('done')
     } catch (e) {
+      if (isAbort(e)) return finish('canceled')
       return finish('error', e instanceof Error ? e.message : String(e))
     }
   })()

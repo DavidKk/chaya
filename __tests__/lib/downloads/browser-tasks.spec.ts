@@ -138,6 +138,23 @@ test('选错文件：错误抛给界面，任务停在等待选文件', async ()
   expect(getDownloads()[0]).toMatchObject({ status: 'running', phase: 'awaitFile' })
 })
 
+test('放弃等待选文件：任务以 canceled 结束、清掉步骤并释放游戏锁', async () => {
+  let after = false
+  const task = (await startBrowserDownload(
+    spec(async (ctl) => {
+      await ctl.waitForFile({ archiveName: 'nw.zip', openDownload: () => {}, pickFile: async () => 'ok' })
+      after = true
+    })
+  )) as BrowserTaskHandle
+  await flush()
+  await getDownloadActions(task.id)!.abandon!()
+  expect((await task.done).status).toBe('canceled')
+  expect(after).toBe(false)
+  expect(getDownloadActions(task.id)?.pickFile).toBeUndefined()
+  await flush()
+  expect('id' in (await startBrowserDownload(spec(async () => {})))).toBe(true)
+})
+
 test('失败记 error，一小时后自动从列表移除', async () => {
   jest.useFakeTimers()
   try {

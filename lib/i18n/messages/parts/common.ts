@@ -85,5 +85,10 @@ export const commonZh = {
     saveFailed: '保存失败',
     saved: '已保存',
     loadFailed: '加载失败',
+    cloudLibraryReadFailed: '无法读取浏览器游戏库，请检查浏览器存储权限。',
+    cloudAddedHint: '已加入游戏库，壳与插件可按需安装',
+    shellTaskLocked: '另一个页面正在为此游戏安装壳',
+    pluginsInstalled: '插件已安装',
+    pluginsCleared: '插件已清除',
   },
 } as const satisfies Pick<MessageTree, 'locale' | 'nav' | 'common' | 'gate' | 'layout' | 'launchHelp' | 'remoteScript' | 'requireBound' | 'notFound' | 'notify'>

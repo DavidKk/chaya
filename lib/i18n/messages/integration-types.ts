@@ -6,12 +6,11 @@ export type IntegrationMessages = {
   regionSkills: string
   regionMcp: string
   skillsListAria: string
-  contentNote: string
   installTitle: string
   installHint: string
   installAria: string
+  installEnglishNote: string
   targetAria: string
-  viewRaw: string
   mcpIntro: string
   mcpUnavailableTitle: string
   mcpUnavailableHint: string
@@ -25,7 +24,6 @@ export type IntegrationMessages = {
   codex: string
   codexHint: string
   connectionAria: string
-  mcpContentNote: string
   evalOn: string
   evalOff: string
   toolsTitle: string
@@ -40,6 +38,7 @@ export type IntegrationMessages = {
   evalOnly: string
   playground: string
   playgroundHint: string
+  playgroundUnavailable: string
   playgroundTool: string
   playgroundArgs: string
   run: string
@@ -48,7 +47,9 @@ export type IntegrationMessages = {
   invalidJson: string
   tryTool: string
   tabWebMcp: string
+  navOverview: string
   regionWebMcp: string
+  webmcpBrowserTitle: string
   webmcpIntro: string
   webmcpSupported: string
   webmcpUnsupported: string

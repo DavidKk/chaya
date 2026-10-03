@@ -4,15 +4,17 @@ import { useMemo } from 'react'
 import { LuExternalLink } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
+import { hubBlock } from '@/components/integration/Hub'
 import type { McpConnection } from '@/components/integration/mcp/useMcpConnection'
 import { Badge, CopyField } from '@/components/sk'
 import { MCP_SERVER_NAME } from '@/lib/integration/mcp-catalog'
 import { claudeCodeInstallCommand, codexInstallCommand, cursorInstallLink, mcpJsonConfig, vscodeInstallLink } from '@/lib/integration/mcp-install'
+import { cn } from '@/lib/utils'
 
-export const integrationCard = 'flex flex-col gap-3 rounded-[0.35rem] border border-line bg-panel px-4 py-3'
+export const integrationCard = cn(hubBlock, 'gap-3')
 
 const linkClass =
-  'inline-flex h-8 items-center gap-2 rounded-[0.3rem] border border-line bg-paper-2 px-3 text-xs font-medium text-ink no-underline transition-colors hover:bg-inset focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
+  'inline-flex h-8 items-center gap-2 rounded-[0.3rem] border border-line bg-paper px-3 text-xs font-medium text-ink no-underline transition-colors hover:bg-inset focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

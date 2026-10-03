@@ -26,7 +26,7 @@ export function parseMcpCallResult(result: McpCallResult | null | undefined) {
     .filter((part) => part?.type === 'text' && typeof part.text === 'string')
     .map((part) => part.text)
     .join('\n')
-  if (result?.isError) return webMcpError('mcp_error', text || '工具执行失败')
+  if (result?.isError) return webMcpError('mcp_error', text || 'Tool failed')
   if (text.length > MIRROR_MAX_CHARS) return webMcpOk({ text: text.slice(0, MIRROR_MAX_CHARS), truncated: true })
   try {
     return webMcpOk({ result: JSON.parse(text) as unknown })

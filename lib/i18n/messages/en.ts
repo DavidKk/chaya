@@ -89,6 +89,11 @@ const commonEn = {
     saveFailed: 'Save failed',
     saved: 'Saved',
     loadFailed: 'Load failed',
+    cloudLibraryReadFailed: 'Cannot read the browser game library. Check the browser storage permission.',
+    cloudAddedHint: 'Added to library. Install the shell and plugins when needed.',
+    shellTaskLocked: 'Another page is installing the shell for this game',
+    pluginsInstalled: 'Plugins installed',
+    pluginsCleared: 'Plugins cleared',
   },
 } as const
 

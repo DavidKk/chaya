@@ -1,20 +1,20 @@
 ---
 name: chaya-mcp
-description: 通过 Chaya 本机 MCP 控制游戏库、启动游戏、局内修改（金钱 / 物品 / 角色 / 传送 / 按键）、翻译、翻译库与日志。用户要求 Agent 直接操作游戏或 Chaya 插件时使用。
+description: Use the local Chaya MCP server to control the game library, launch games, make live edits (gold / items / actors / teleport / keys), translate, manage the translation library and read logs. Use when the user wants the agent to operate the game or Chaya plugins directly.
 ---
 
-# Chaya MCP：让 Agent 控制游戏
+# Chaya MCP: let the agent control the game
 
-## 前提
+## Prerequisites
 
-- Chaya 以 **App 或本地 dev** 运行（Edge 网页版没有 MCP）。
-- 局内工具（`chaya_live_*`）需要游戏 **从 Chaya 启动** 且加载了 `ChayaAgent` 插件；旧游戏先 `chaya_game_plugins_install` 再重启。
+- Chaya runs as the **App or local dev** (the Edge web version has no MCP).
+- Live tools (`chaya_live_*`) need the game **launched from Chaya** with the `ChayaAgent` plugin loaded; for older games run `chaya_game_plugins_install` and restart first.
 
-## 连接
+## Connect
 
-- 地址：`http://127.0.0.1:3927/api/mcp`
-- 鉴权：请求头 `Authorization: Bearer <token>`。token 在控制台「集成 → MCP」页面复制，或在本地 dev 的 `data/access/token`。
-- Cursor `~/.cursor/mcp.json`：
+- Endpoint: `http://127.0.0.1:3927/api/mcp`
+- Auth: header `Authorization: Bearer <token>`. Copy the token from the console's Integrations → MCP page, or from `data/access/token` in local dev.
+- Cursor `~/.cursor/mcp.json`:
 
   ```json
   {
@@ -27,58 +27,58 @@ description: 通过 Chaya 本机 MCP 控制游戏库、启动游戏、局内修�
   }
   ```
 
-- Claude Code：`claude mcp add --transport http --scope user chaya http://127.0.0.1:3927/api/mcp --header "Authorization: Bearer <token>"`
+- Claude Code: `claude mcp add --transport http --scope user chaya http://127.0.0.1:3927/api/mcp --header "Authorization: Bearer <token>"`
 
-## 工具分组
+## Tool groups
 
-| 分组       | 工具                                                                                                                                                                                                                              |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 游戏库     | `chaya_library_list` / `bind` / `remark` / `remove`                                                                                                                                                                               |
-| 当前游戏   | `chaya_game_status` / `launch` / `quit` / `plugins_install` / `plugins_clear` / `shell_install` / `shell_check` / `shell_uninstall` / `window`                                                                                    |
-| 局内实时   | `chaya_live_games` / `state` / `plugins` / `call` / `press`（`eval` 默认关闭）                                                                                                                                                    |
-| 修改目录   | `chaya_edit_catalog`                                                                                                                                                                                                              |
-| 翻译       | `chaya_translate_text` / `extract` / `job` / `batch` / `engines` / `play_settings`                                                                                                                                                |
-| 共享翻译库 | `chaya_cache_query` / `update` / `delete` / `import`                                                                                                                                                                              |
-| 日志       | `chaya_logs_query` / `clear`                                                                                                                                                                                                      |
-| 插件工具   | `chaya_plugin_edit_*`（gold / item / variable / switch / god / through / teleport / common_event / save / load / find）、`chaya_plugin_boost_*`（on / off / status）、`chaya_plugin_trans_*`（status / reload）——游戏在线时才出现 |
+| Group               | Tools                                                                                                                                                                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Library             | `chaya_library_list` / `bind` / `remark` / `remove`                                                                                                                                                                                        |
+| Current game        | `chaya_game_status` / `launch` / `quit` / `plugins_install` / `plugins_clear` / `shell_install` / `shell_check` / `shell_uninstall` / `window`                                                                                             |
+| Live game           | `chaya_live_games` / `state` / `plugins` / `call` / `press` (`eval` is off by default)                                                                                                                                                     |
+| Edit catalog        | `chaya_edit_catalog`                                                                                                                                                                                                                       |
+| Translation         | `chaya_translate_text` / `extract` / `job` / `batch` / `engines` / `play_settings`                                                                                                                                                         |
+| Translation library | `chaya_cache_query` / `update` / `delete` / `import`                                                                                                                                                                                       |
+| Logs                | `chaya_logs_query` / `clear`                                                                                                                                                                                                               |
+| Plugin tools        | `chaya_plugin_edit_*` (gold / item / variable / switch / god / through / teleport / common_event / save / load / find), `chaya_plugin_boost_*` (on / off / status), `chaya_plugin_trans_*` (status / reload) — only while a game is online |
 
-完整参数见控制台「集成 → MCP」或 `tools/list`。插件工具也可用 `chaya_live_call {plugin, tool, input}` 调用，`chaya_live_plugins` 会列出每个插件声明的工具。
+Full parameters are on the console's Integrations → MCP page or in `tools/list`. Plugin tools can also be called through `chaya_live_call {plugin, tool, input}`; `chaya_live_plugins` lists the tools each plugin declares.
 
-## 标准工作流
+## Standard workflow
 
-1. **看状态**：`chaya_game_status`（绑定、壳、插件、是否在线）；游戏运行中用 `chaya_live_state`。
-2. **查 id**：`chaya_edit_catalog`（如 `kind=items, q=ポーション`）。
-3. **执行**：`chaya_live_call` / `chaya_live_press` / 翻译或翻译库工具。
-4. **确认**：再次读取状态或日志，向用户报告前后变化。
+1. **Read state**: `chaya_game_status` (binding, shell, plugins, online); use `chaya_live_state` while the game runs.
+2. **Look up ids**: `chaya_edit_catalog` (e.g. `kind=items, q=ポーション`).
+3. **Act**: `chaya_live_call` / `chaya_live_press` / translation or library tools.
+4. **Confirm**: read the state or logs again and report the before / after to the user.
 
-## 场景配方
+## Recipes
 
-| 需求            | 调用                                                                                                               |
-| --------------- | ------------------------------------------------------------------------------------------------------------------ |
-| 金钱改成 99999  | `chaya_plugin_edit_gold {value:99999}`（或 `chaya_live_call {plugin:"ChayaEdit", method:"gold", args:[99999]}`）   |
-| 给 10 个某物品  | `chaya_edit_catalog {kind:"items", q:"药"}` → `chaya_live_call {plugin:"ChayaEdit", method:"item", args:[id, 10]}` |
-| 1 号角色 HP 999 | `chaya_live_call {plugin:"ChayaEdit", method:"actor", args:[1], chain:[{method:"hp", args:[999]}]}`                |
-| 无敌 / 穿墙     | `ChayaEdit.god(true)` / `ChayaEdit.through(true)`                                                                  |
-| 传送            | `ChayaEdit.teleport(mapId, x, y)`                                                                                  |
-| 推进对话        | `chaya_live_state` 读对话 → `chaya_live_press {key:"ok"}`；选项用 `up` / `down` 再 `ok`                            |
-| 存档再改        | `ChayaEdit.save(1)` 后再修改，出问题 `ChayaEdit.load(1)`                                                           |
-| 整作补译        | `chaya_translate_extract` → `chaya_translate_job {action:"start"}` → 定期 `{action:"status"}`                      |
-| 修正一条译文    | `chaya_cache_query {q:"原文片段"}` → `chaya_cache_update {src, zh}`                                                |
-| 排查插件报错    | `chaya_logs_query {level:"fail"}` 或 `{source:"ChayaEdit"}`                                                        |
-| 开游戏          | `chaya_library_list` → `chaya_library_bind` → `chaya_game_launch` → 等几秒 `chaya_live_games`                      |
+| Goal                    | Calls                                                                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Set gold to 99999       | `chaya_plugin_edit_gold {value:99999}` (or `chaya_live_call {plugin:"ChayaEdit", method:"gold", args:[99999]}`)        |
+| Give 10 of an item      | `chaya_edit_catalog {kind:"items", q:"potion"}` → `chaya_live_call {plugin:"ChayaEdit", method:"item", args:[id, 10]}` |
+| Actor 1 HP to 999       | `chaya_live_call {plugin:"ChayaEdit", method:"actor", args:[1], chain:[{method:"hp", args:[999]}]}`                    |
+| God mode / walk-through | `ChayaEdit.god(true)` / `ChayaEdit.through(true)`                                                                      |
+| Teleport                | `ChayaEdit.teleport(mapId, x, y)`                                                                                      |
+| Advance dialogue        | read it with `chaya_live_state` → `chaya_live_press {key:"ok"}`; for choices use `up` / `down` then `ok`               |
+| Save before editing     | `ChayaEdit.save(1)` first; if something breaks, `ChayaEdit.load(1)`                                                    |
+| Whole-game fill         | `chaya_translate_extract` → `chaya_translate_job {action:"start"}` → poll `{action:"status"}`                          |
+| Fix one translation     | `chaya_cache_query {q:"source snippet"}` → `chaya_cache_update {src, zh}`                                              |
+| Debug plugin errors     | `chaya_logs_query {level:"fail"}` or `{source:"ChayaEdit"}`                                                            |
+| Start a game            | `chaya_library_list` → `chaya_library_bind` → `chaya_game_launch` → wait a few seconds → `chaya_live_games`            |
 
-## WebMCP（浏览器内 Agent）
+## WebMCP (agents in the browser)
 
-控制台每个页面都通过 `document.modelContext` 注册 WebMCP 工具，是 MCP 的超集：
+Every console page registers WebMCP tools through `document.modelContext`, a superset of the MCP tools:
 
-- 全部 MCP 工具：App / 本地 dev 镜像 `/api/mcp`；Edge 网页版在浏览器内实现（启动游戏、卸载命令、窗口、`eval`、批量翻译、清日志除外）。
-- 额外：`page_*` 页面工具（导航、快照、读文本、点击、输入、按键、滚动、等待）与 `chaya_web_edit_*` 局内修改面板工具；Edge 连上游戏后自动注册插件工具。
-- 启用：Chrome 146+ 打开 `chrome://flags/#enable-webmcp-testing`；详见控制台「集成 → WebMCP」。
+- All MCP tools: App / local dev mirror `/api/mcp`; the Edge web version implements them in the browser (except launching games, uninstall commands, window, `eval`, batch translation and clearing logs).
+- Extra: `page_*` page tools (navigate, snapshot, read text, click, fill, press, scroll, wait) and `chaya_web_edit_*` live edit panel tools; Edge registers plugin tools automatically once a game connects.
+- Enable: Chrome 146+ with `chrome://flags/#enable-webmcp-testing`; see the console's Integrations → WebMCP page.
 
-## 约定
+## Rules
 
-- **破坏性工具先问用户**：`chaya_library_remove`、`chaya_game_plugins_clear`、`chaya_game_shell_uninstall`、`chaya_cache_delete`、`chaya_logs_clear`、`chaya_live_eval`。
-- 大幅修改前建议先 `ChayaEdit.save(slot)` 存档；`chaya_plugin_edit_save` 会覆盖存档位、`chaya_plugin_edit_load` 会丢弃当前进度，都先问用户。
-- 只有一个游戏在线时可省略 `gameId`；多个在线时先 `chaya_live_games` 再指定。
-- `chaya_live_eval` 需要服务端设置 `CHAYA_MCP_EVAL=1` 才出现，能用插件方法时不要用它。
-- 工具报错时把错误原文告诉用户（例如「没有已连接的游戏」通常是游戏未从 Chaya 启动或未装 ChayaAgent）。
+- **Ask the user before destructive tools**: `chaya_library_remove`, `chaya_game_plugins_clear`, `chaya_game_shell_uninstall`, `chaya_cache_delete`, `chaya_logs_clear`, `chaya_live_eval`.
+- Save with `ChayaEdit.save(slot)` before big edits; `chaya_plugin_edit_save` overwrites a save slot and `chaya_plugin_edit_load` discards current progress, so ask the user first for both.
+- `gameId` can be omitted when only one game is online; with several online, call `chaya_live_games` first and pass it.
+- `chaya_live_eval` only appears when the server sets `CHAYA_MCP_EVAL=1`; do not use it when a plugin method can do the job.
+- When a tool fails, pass the original error to the user (e.g. "no connected game" usually means the game was not launched from Chaya or lacks ChayaAgent).

@@ -115,6 +115,11 @@ const base = {
     saveFailed: '保存失敗',
     saved: '保存済み',
     loadFailed: '読込失敗',
+    cloudLibraryReadFailed: 'ブラウザのゲーム庫を読み込めません。ブラウザのストレージ権限を確認してください。',
+    cloudAddedHint: 'ゲーム庫に追加しました。シェルとプラグインは必要に応じてインストールできます',
+    shellTaskLocked: '別のページがこのゲームのシェルをインストール中です',
+    pluginsInstalled: 'プラグインをインストールしました',
+    pluginsCleared: 'プラグインを削除しました',
   },
   library: {
     title: 'ゲーム庫',

@@ -52,38 +52,40 @@ function gameView(entry: CloudLibraryEntry) {
 }
 
 /** `chaya_library_*` over the browser (IndexedDB) library; adding games needs the user's directory picker. */
-export const edgeLibraryTools: ToolImpls = {
-  async chaya_library_list(args) {
-    const { entries, active } = await activeCloudEntry()
-    const q = optStr(args, 'q')?.toLowerCase()
-    const games = q ? entries.filter(({ item }) => includesText(item.name, q) || includesText(item.remark, q) || includesText(item.gameRoot, q)) : entries
-    return { serviceMode: 'vercel', current: active?.item.gameRoot ?? null, total: entries.length, matched: games.length, games: games.map(gameView) }
-  },
+export function makeEdgeLibraryTools({ serviceMode }: { serviceMode: string }): ToolImpls {
+  return {
+    async chaya_library_list(args) {
+      const { entries, active } = await activeCloudEntry()
+      const q = optStr(args, 'q')?.toLowerCase()
+      const games = q ? entries.filter(({ item }) => includesText(item.name, q) || includesText(item.remark, q) || includesText(item.gameRoot, q)) : entries
+      return { serviceMode, current: active?.item.gameRoot ?? null, total: entries.length, matched: games.length, games: games.map(gameView) }
+    },
 
-  async chaya_library_bind(args) {
-    const { entries, active } = await activeCloudEntry()
-    const entry = findEntry(entries, reqStr(args, 'gameRoot'))
-    const unchanged = entry === active
-    await saveEntries(entries.map((e) => (e === entry ? { ...e, item: { ...e.item, lastOpenedAt: Date.now() } } : e)))
-    selectCloudGameId(entry.item.id)
-    return { current: entry.item.gameRoot, unchanged, hint: '网页版只能切换库中已有游戏；添加新游戏需用户在游戏库页面选择目录' }
-  },
+    async chaya_library_bind(args) {
+      const { entries, active } = await activeCloudEntry()
+      const entry = findEntry(entries, reqStr(args, 'gameRoot'))
+      const unchanged = entry === active
+      await saveEntries(entries.map((e) => (e === entry ? { ...e, item: { ...e.item, lastOpenedAt: Date.now() } } : e)))
+      selectCloudGameId(entry.item.id)
+      return { current: entry.item.gameRoot, unchanged, hint: '网页版只能切换库中已有游戏；添加新游戏需用户在游戏库页面选择目录' }
+    },
 
-  async chaya_library_remark(args) {
-    const { entries } = await activeCloudEntry()
-    const entry = findEntry(entries, reqStr(args, 'gameRoot'))
-    const remark = typeof args.remark === 'string' && args.remark.trim() ? args.remark.trim() : undefined
-    await saveEntries(entries.map((e) => (e === entry ? { ...e, item: { ...e.item, remark } } : e)))
-    return { gameRoot: entry.item.gameRoot, remark: remark ?? null }
-  },
+    async chaya_library_remark(args) {
+      const { entries } = await activeCloudEntry()
+      const entry = findEntry(entries, reqStr(args, 'gameRoot'))
+      const remark = typeof args.remark === 'string' && args.remark.trim() ? args.remark.trim() : undefined
+      await saveEntries(entries.map((e) => (e === entry ? { ...e, item: { ...e.item, remark } } : e)))
+      return { gameRoot: entry.item.gameRoot, remark: remark ?? null }
+    },
 
-  async chaya_library_remove(args) {
-    const { entries, active } = await activeCloudEntry()
-    const entry = findEntry(entries, reqStr(args, 'gameRoot'))
-    const next = entries.filter((e) => e !== entry)
-    await saveEntries(next)
-    forgetCloudLinkToken(entry.item.id)
-    if (entry === active) selectCloudGameId(next[0]?.item.id ?? null)
-    return { removed: entry.item.gameRoot, current: (entry === active ? next[0] : active)?.item.gameRoot ?? null, total: next.length }
-  },
+    async chaya_library_remove(args) {
+      const { entries, active } = await activeCloudEntry()
+      const entry = findEntry(entries, reqStr(args, 'gameRoot'))
+      const next = entries.filter((e) => e !== entry)
+      await saveEntries(next)
+      forgetCloudLinkToken(entry.item.id)
+      if (entry === active) selectCloudGameId(next[0]?.item.id ?? null)
+      return { removed: entry.item.gameRoot, current: (entry === active ? next[0] : active)?.item.gameRoot ?? null, total: next.length }
+    },
+  }
 }

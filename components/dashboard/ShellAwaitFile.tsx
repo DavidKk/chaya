@@ -5,10 +5,10 @@ import { LuFolderOpen, LuSquareArrowOutUpRight } from 'react-icons/lu'
 
 import { useLocale } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button } from '@/components/sk'
+import { Button, TextAction } from '@/components/sk'
 import { useBrowserAwaitFile, useDownloadActions } from '@/lib/downloads/store'
 
-/** 浏览器装壳等待用户选压缩包时，在卡片上承接需要用户手势的两步；下载中心只展示 */
+/** 浏览器装壳等待用户选压缩包时，在卡片上承接需要用户手势的操作（选文件 / 打开下载 / 放弃）；下载中心只展示 */
 export function ShellAwaitFile({ gameId, buttonClassName }: { gameId?: string; buttonClassName: string }) {
   const { t } = useLocale()
   const notify = useNotification()
@@ -41,6 +41,11 @@ export function ShellAwaitFile({ gameId, buttonClassName }: { gameId?: string; b
             <LuSquareArrowOutUpRight size={16} aria-hidden />
             {t('downloads.action.openDownload')}
           </Button>
+        ) : null}
+        {actions.abandon ? (
+          <TextAction disabled={picking} onClick={() => void actions.abandon?.()}>
+            {t('downloads.action.abandon')}
+          </TextAction>
         ) : null}
       </div>
     </div>

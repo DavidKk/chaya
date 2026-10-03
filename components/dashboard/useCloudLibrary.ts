@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
+import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
 import { measureCloudFootprint } from '@/lib/browser/cloud-footprint'
 import {
@@ -59,6 +60,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
   const [macOpen, setMacOpen] = useState(false)
   const [downloadUrl, setDownloadUrl] = useState<string>()
   const notify = useNotification()
+  const t = useT()
   const selectIdRef = useRef(selectId)
   selectIdRef.current = selectId
   useEffect(() => {
@@ -70,7 +72,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
           if (!cancelled) setEntries(saved.map(withLibraryView))
         })
         .catch(() => {
-          if (!cancelled) notify.error('无法读取浏览器游戏库，请检查浏览器存储权限。')
+          if (!cancelled) notify.error(t('notify.cloudLibraryReadFailed'))
         })
         .finally(() => {
           if (!cancelled) setLoaded(true)
@@ -81,7 +83,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
       cancelled = true
       window.removeEventListener(CLOUD_LIBRARY_CHANGED_EVENT, load)
     }
-  }, [enabled, notify])
+  }, [enabled, notify, t])
 
   const active = entries.find((entry) => entry.item.id === (queryId || readCloudGameId())) ?? entries[0]
   const activeId = active?.item.id ?? null
@@ -98,35 +100,65 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
     return () => window.removeEventListener(CLOUD_GAME_SELECTION_EVENT, sync)
   }, [enabled, queryId])
   const enriching = useRef(new Set<string>())
-  /** 已授权时静默补齐信息条数据（旧条目缺检测结果、体积需遍历目录），不弹授权 */
+  /** 本页已重新检测过的条目：壳 / 插件 / 指纹可能在本页外被改（本机服务、手动拷贝），每次打开页面各刷新一次 */
+  const inspected = useRef(new Set<string>())
+  /** 逐个检测：指纹要读每个插件文件头，游戏多时并发会集中占满磁盘读取 */
+  const enrichQueue = useRef<Promise<void>>(Promise.resolve())
+  /** 任务结束后再跑一轮：期间切换的当前游戏可能还缺体积 */
+  const [enrichTick, setEnrichTick] = useState(0)
+  /** 已授权时静默刷新游戏库条目（与 server 每次读盘同口径），当前游戏优先且只给它补体积；不弹授权 */
   useEffect(() => {
-    const target = entries.find((entry) => entry.item.id === activeId)
-    if (!enabled || !target || enriching.current.has(target.item.id)) return
-    const { game } = target
-    const needsInspect = game.nwPackage === undefined || !Array.isArray(game.plugins) || game.cacheEntries === undefined || game.fingerprint === undefined
-    if (!needsInspect && game.footprint) return
-    const id = target.item.id
-    enriching.current.add(id)
-    const patch = (fields: Partial<CloudGame>) =>
-      setEntries((prev) => {
-        const next = prev.map((e) => (e.item.id === id ? withLibraryView({ ...e, game: { ...e.game, ...fields } }) : e))
-        void cloudLibraryStorage(next)
-        return next
-      })
-    void (async () => {
-      const handle = game.picked as FileSystemDirectoryHandle & { queryPermission?(options: { mode: 'readwrite' }): Promise<PermissionState> }
-      if (typeof handle.queryPermission !== 'function') return
-      if ((await handle.queryPermission({ mode: 'readwrite' }).catch(() => 'denied')) !== 'granted') return
-      let fresh = game
-      if (needsInspect) {
-        fresh = await inspectCloudGame(game)
-        patch({ nwPackage: fresh.nwPackage, plugins: fresh.plugins, cacheEntries: fresh.cacheEntries, fingerprint: fresh.fingerprint, existingShell: fresh.existingShell })
+    if (!enabled) return
+    const ordered = [...entries].sort((a, b) => Number(b.item.id === activeId) - Number(a.item.id === activeId))
+    for (const target of ordered) {
+      const id = target.item.id
+      if (enriching.current.has(id)) continue
+      const needsInspect = !inspected.current.has(id)
+      const needsFootprint = id === activeId && !target.game.footprint
+      if (!needsInspect && !needsFootprint) continue
+      enriching.current.add(id)
+      const patch = (fields: Partial<CloudGame>) =>
+        setEntries((prev) => {
+          const next = prev.map((e) => (e.item.id === id ? withLibraryView({ ...e, game: { ...e.game, ...fields } }) : e))
+          void cloudLibraryStorage(next)
+          return next
+        })
+      /** 返回是否完成了检测；未授权 / 失败不触发下一轮，避免反复排队 */
+      const task = async (): Promise<boolean> => {
+        const { game } = target
+        const handle = game.picked as FileSystemDirectoryHandle & { queryPermission?(options: { mode: 'readwrite' }): Promise<PermissionState> }
+        if (typeof handle.queryPermission !== 'function') return false
+        if ((await handle.queryPermission({ mode: 'readwrite' }).catch(() => 'denied')) !== 'granted') return false
+        let fresh = game
+        let shellChanged = false
+        if (needsInspect) {
+          fresh = await inspectCloudGame(game)
+          inspected.current.add(id)
+          shellChanged = fresh.existingShell !== game.existingShell
+          patch({
+            nwPackage: fresh.nwPackage,
+            plugins: fresh.plugins,
+            cacheEntries: fresh.cacheEntries,
+            fingerprint: fresh.fingerprint,
+            existingShell: fresh.existingShell,
+            pluginsInstalled: fresh.pluginsInstalled,
+            ...(shellChanged ? { footprint: undefined } : {}),
+          })
+        }
+        if (id === activeId && (needsFootprint || shellChanged)) {
+          patch({ footprint: await measureCloudFootprint(fresh.picked, fresh.content, fresh.existingShell) })
+        }
+        return true
       }
-      if (!game.footprint) patch({ footprint: await measureCloudFootprint(fresh.picked, fresh.content, fresh.existingShell) })
-    })()
-      .catch(() => {})
-      .finally(() => enriching.current.delete(id))
-  }, [enabled, activeId, entries])
+      enrichQueue.current = enrichQueue.current
+        .then(task)
+        .catch(() => false)
+        .then((done) => {
+          enriching.current.delete(id)
+          if (done) setEnrichTick((n) => n + 1)
+        })
+    }
+  }, [enabled, activeId, entries, enrichTick])
   async function save(entries: CloudLibraryEntry[]) {
     const next = entries.map(withLibraryView)
     await cloudLibraryStorage(next)
@@ -174,7 +206,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
       }
       await save(existing ? entries.map((e) => (e.item.id === id ? entry : e)) : [...entries, entry])
       selectId(id)
-      notify.success('已加入游戏库，壳与插件可按需安装')
+      notify.success(t('notify.cloudAddedHint'))
     })
   }
   async function operate(action: (game: CloudGame) => Promise<void>, opts?: { remeasure?: boolean }) {
@@ -198,7 +230,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
       try {
         await requireCloudPermission(selected.game)
         const task = await startCloudShellTask(selected)
-        if ('error' in task) notify.error('另一个页面正在为此游戏安装壳')
+        if ('error' in task) notify.error(t('notify.shellTaskLocked'))
         else requestDownloadCenterOpen()
       } catch (error) {
         if (!(error instanceof DOMException && error.name === 'AbortError')) notify.error(error instanceof Error ? error.message : String(error))
@@ -293,12 +325,12 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
     installPlugins: () =>
       operate(async (game) => {
         await installCloudPlugins(game, active?.item.id)
-        notify.success('插件已安装')
+        notify.success(t('notify.pluginsInstalled'))
       }),
     clearPlugins: () =>
       operate(async (game) => {
         await clearCloudPlugins(game)
-        notify.success('插件已清除')
+        notify.success(t('notify.pluginsCleared'))
       }),
   }
 }

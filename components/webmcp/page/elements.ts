@@ -5,7 +5,7 @@ export const SENSITIVE_ATTRIBUTE = 'data-webmcp-sensitive'
 export const CONFIRM_ATTRIBUTE = 'data-webmcp-confirm'
 const REF_PATTERN = /^e\d+$/
 const NAME_MAX_CHARS = 80
-export const HIDDEN_TEXT = '[已隐藏]'
+export const HIDDEN_TEXT = '[hidden]'
 
 const INTERACTIVE_ROLES = [
   'button',
@@ -58,9 +58,9 @@ export function ensureElementRef(element: Element): string {
 export type ElementLookup = { ok: true; element: HTMLElement } | { ok: false; error: 'invalid_input' | 'element_not_found'; message: string }
 
 export function findElementByRef(ref: unknown): ElementLookup {
-  if (typeof ref !== 'string' || !REF_PATTERN.test(ref)) return { ok: false, error: 'invalid_input', message: 'ref 需为 page_snapshot 返回的编号，如 e12' }
+  if (typeof ref !== 'string' || !REF_PATTERN.test(ref)) return { ok: false, error: 'invalid_input', message: 'ref must be an element ref returned by page_snapshot, e.g. e12' }
   const element = document.querySelector<HTMLElement>(`[${PAGE_REF_ATTRIBUTE}="${ref}"]`)
-  return element ? { ok: true, element } : { ok: false, error: 'element_not_found', message: `元素 ${ref} 已不在页面上，请重新调用 page_snapshot` }
+  return element ? { ok: true, element } : { ok: false, error: 'element_not_found', message: `Element ${ref} is no longer on the page; call page_snapshot again` }
 }
 
 export function isElementVisible(element: Element): boolean {
@@ -228,7 +228,7 @@ export function dialogName(dialog: HTMLElement): string {
     collapseText(dialog.getAttribute('aria-label')) ||
     (labelledBy ? collapseText(textOfIds(labelledBy)) : '') ||
     collapseText(dialog.querySelector('h1,h2,h3,h4')?.textContent) ||
-    '对话框'
+    'Dialog'
   )
 }
 

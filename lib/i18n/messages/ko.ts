@@ -115,6 +115,11 @@ const base = {
     saveFailed: '저장 실패',
     saved: '저장됨',
     loadFailed: '불러오기 실패',
+    cloudLibraryReadFailed: '브라우저 게임 보관함을 읽을 수 없습니다. 브라우저 저장소 권한을 확인하세요.',
+    cloudAddedHint: '보관함에 추가했습니다. 셸과 플러그인은 필요할 때 설치하세요',
+    shellTaskLocked: '다른 페이지에서 이 게임의 셸을 설치하는 중입니다',
+    pluginsInstalled: '플러그인을 설치했습니다',
+    pluginsCleared: '플러그인을 제거했습니다',
   },
   library: {
     title: '보관함',

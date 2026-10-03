@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { IoHelpCircleOutline } from 'react-icons/io5'
 
-import { useT } from '@/components/i18n/LocaleProvider'
+import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { Button, CopyField, Modal } from '@/components/sk'
 import { usePageOrigin } from '@/hooks/usePageOrigin'
 import { remoteScriptCommand, remoteScriptUrl } from '@/lib/remote-scripts/command'
@@ -15,7 +15,8 @@ const MAC_STEP_KEYS = ['launchHelp.macStep1', 'launchHelp.macStep2', 'launchHelp
 export function MacShellDialog({ open, onClose, gameName }: { open: boolean; onClose: () => void; gameName?: string }) {
   const t = useT()
   const origin = usePageOrigin()
-  const command = origin ? remoteScriptCommand(origin, MAC_SHELL_SCRIPT_NAME) : ''
+  const locale = useLocaleCode()
+  const command = origin ? remoteScriptCommand(origin, MAC_SHELL_SCRIPT_NAME, locale) : ''
   return (
     <Modal
       open={open}

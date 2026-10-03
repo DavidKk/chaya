@@ -1,70 +1,70 @@
 ---
 name: chaya-launch
-description: 在 Chaya 中添加游戏、装壳、注入插件、启动游戏，以及修改 / 翻译 / 日志的使用流程。用户问「怎么开游戏」「插件没生效」「怎么翻译 / 改金钱」时使用。
+description: How to add a game in Chaya, install the shell, inject plugins, launch the game, and use edit / translation / logs. Use when the user asks how to start a game, why plugins do not work, or how to translate / change gold.
 ---
 
-# Chaya：添加游戏与启动
+# Chaya: add a game and launch it
 
-## 1. 添加游戏
+## 1. Add a game
 
-- **App / 本地 dev**：控制台「游戏库」→ 选择游戏。可选 `www` 目录、含 `www` 的发布目录，或 NW.js 包（macOS `.app` / Windows `Game.exe` 所在目录）。Chaya 会识别 MV / MZ 内容根并加入游戏库。
-- **Edge**：在 Chrome / Edge 中选择含 `www` 或 `index.html` 的目录并授权读写。
-- 游戏库支持备注、切换、移除（只移除记录，不删游戏文件）。
+- **App / local dev**: console → Library → choose a game. You can pick the `www` folder, a release folder containing `www`, or an NW.js package (the folder with macOS `.app` / Windows `Game.exe`). Chaya detects the MV / MZ content root and adds it to the library.
+- **Edge**: in Chrome / Edge, pick a folder containing `www` or `index.html` and grant read / write access.
+- Library entries can be annotated, switched and removed (removing only drops the record, never the game files).
 
-## 2. 装壳（NW.js）
+## 2. Install the shell (NW.js)
 
-RPG Maker 游戏需要 NW.js 运行。Chaya 使用统一的壳：
+RPG Maker games run on NW.js. Chaya uses one shared shell:
 
-- 游戏库详情里点「安装壳」，默认从 nwjs.io 下载当前平台最新稳定版（约 100 MB）。已自带壳的打包游戏无需安装。
-- **macOS 壳无法启动**：退出游戏后在终端运行下面的命令，按 6 步进度提示选择游戏目录，看到「✓ 安装完成」后双击 `Chaya.app`：
+- Click "Install shell" in the library details; by default it downloads the latest stable build for your platform from nwjs.io (about 100 MB). Packaged games that ship their own shell need nothing.
+- **macOS shell will not start**: quit the game, run the command below in Terminal, follow the 6-step prompts to pick the game folder, and double-click `Chaya.app` once you see "✓ Installed":
 
   ```bash
   /bin/bash -c "$(curl -fsSL https://chaya-gray.vercel.app/sh/mac-shell.sh)"
   ```
 
-  存档会保留，旧壳自动备份。
+  Saves are kept and the old shell is backed up automatically.
 
-## 3. 插件
+## 3. Plugins
 
-启动游戏时 Chaya 会自动注入插件；也可以在游戏库手动「安装 / 清除插件」。
+Chaya injects plugins automatically on launch; you can also "Install / Clear plugins" in the library.
 
-| 插件          | 作用                                                                       |
-| ------------- | -------------------------------------------------------------------------- |
-| `ChayaLoader` | 薄加载器：从本机 Chaya 拉取插件，离线时回退到磁盘缓存                      |
-| `ChayaLog`    | 插件运行时与日志上报                                                       |
-| `ChayaTrans`  | 局内翻译：预翻译缓存 / 本地模型实时翻译 / 字幕                             |
-| `ChayaBoost`  | 移动加速：`ChayaBoost.on()` / `off()`                                      |
-| `ChayaEdit`   | 局内修改：金钱、物品、变量、开关、角色、传送、存读档（`ChayaEdit.help()`） |
-| `ChayaAgent`  | Agent 桥：本机 MCP 通过它控制游戏                                          |
+| Plugin        | Purpose                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------ |
+| `ChayaLoader` | Thin loader: pulls plugins from the local Chaya, falls back to the disk cache offline            |
+| `ChayaLog`    | Plugin runtime and log reporting                                                                 |
+| `ChayaTrans`  | In-game translation: pretranslated cache / realtime local model / subtitles                      |
+| `ChayaBoost`  | Movement speed-up: `ChayaBoost.on()` / `off()`                                                   |
+| `ChayaEdit`   | Live edits: gold, items, variables, switches, actors, teleport, save / load (`ChayaEdit.help()`) |
+| `ChayaAgent`  | Agent bridge: the local MCP controls the game through it                                         |
 
-更新插件后需重启游戏；已安装过的旧游戏需要重新安装一次插件才会加载新插件。
+Restart the game after updating plugins; older games need plugins reinstalled once before new plugins load.
 
-## 4. 启动与关闭
+## 4. Launch and quit
 
-- **App / 本地 dev**：游戏库点「启动」。Chaya 会写入启动配置（含本次的启动 token）并打开游戏；控制台与游戏通过 WebRTC 直连，顶栏显示在线状态。
-- 关闭：控制台点「关闭游戏」，或直接关游戏窗口。
-- **Edge**：网页写好插件与壳后，在本机双击游戏目录旁的 `Chaya.app` / `Chaya` 启动。
+- **App / local dev**: click "Launch" in the library. Chaya writes the launch config (including this launch's token) and opens the game; the console and game connect directly over WebRTC and the top bar shows the online status.
+- Quit: click "Quit game" in the console, or just close the game window.
+- **Edge**: once the page has written plugins and the shell, double-click `Chaya.app` / `Chaya` next to the game folder to launch.
 
-## 5. 修改（/cheat）
+## 5. Edit (/cheat)
 
-游戏在线时进入「修改」页：改金钱、物品 / 武器 / 防具数量、变量、开关、角色属性，开启无敌、穿墙、加速，传送与存读档。也可在游戏内按快捷键打开同一套修改面板。
+With the game online, open the Edit page: change gold, item / weapon / armor counts, variables, switches and actor stats, toggle god mode, walk-through-walls and speed-up, teleport, and save / load. The same panel also opens in game via a hotkey.
 
-## 6. 翻译（/translate）
+## 6. Translation (/translate)
 
-1. **抽取**：从游戏 data 抽取原文，生成 seed。
-2. **补译**：开启整作补译任务，按引擎顺序（默认 Ollama → Bing → Google）补全缺词；可随时暂停。
-3. **翻译库**：浏览、搜索、修改、删除、导入共享译文（所有游戏共用）。
-4. **游戏内翻译方式**：预翻译（只用缓存）、实时（本地模型翻对话）、字幕。
+1. **Extract**: pull source text from the game data to build the seed.
+2. **Fill**: start the whole-game fill job; it fills missing entries in engine order (default Ollama → Bing → Google) and can be paused at any time.
+3. **Library**: browse, search, edit, delete and import shared translations (shared by all games).
+4. **In-game mode**: pretranslated (cache only), realtime (local model translates dialogue), or subtitles.
 
-## 7. 日志（/logs）
+## 7. Logs (/logs)
 
-插件与服务的日志集中在「日志」页，可按来源和级别筛选；插件异常、翻译失败、连接问题先看这里。
+Plugin and server logs are collected on the Logs page and can be filtered by source and level; check here first for plugin errors, translation failures and connection problems.
 
-## 排查
+## Troubleshooting
 
-| 现象                 | 检查                                                  |
-| -------------------- | ----------------------------------------------------- |
-| 启动报「尚未安装壳」 | 先安装壳                                              |
-| 插件没生效           | 重新安装插件并重启游戏；看日志里 `ChayaLoader` 的报错 |
-| 控制台显示游戏离线   | 确认游戏是从 Chaya 启动的；刷新控制台页面             |
-| macOS 游戏打不开     | 运行上面的 macOS 壳修复命令                           |
+| Symptom                            | Check                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| Launch says the shell is missing   | Install the shell first                                                        |
+| Plugins have no effect             | Reinstall plugins and restart the game; check `ChayaLoader` errors in the logs |
+| The console shows the game offline | Make sure the game was launched from Chaya; refresh the console                |
+| A macOS game will not open         | Run the macOS shell repair command above                                       |

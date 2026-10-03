@@ -20,6 +20,7 @@ export {
   type InjectPluginsResult,
   injectTrackedPlugins,
   installShell,
+  isShellInstalling,
   isToolkitShellInstalled,
   launchShellWithContent,
   loadConfig,
