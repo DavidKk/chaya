@@ -22,8 +22,10 @@ import {
   installCloudShell,
   selectCloudGame,
 } from '@/lib/browser/cloud-prepare-game'
+import { startCloudShellTask } from '@/lib/browser/cloud-shell-task'
 import { writeCloudWindow } from '@/lib/browser/cloud-window'
 import { forgetCloudLinkToken } from '@/lib/browser/link-token'
+import { requestDownloadCenterOpen } from '@/lib/downloads/store'
 import { formatBytes } from '@/lib/format-bytes'
 import { libraryKindLabel } from '@/lib/game/library-label'
 import { nwGameDisplayName } from '@/lib/game/nw-window'
@@ -56,7 +58,6 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
   const [busy, setBusy] = useState(false)
   const [macOpen, setMacOpen] = useState(false)
   const [downloadUrl, setDownloadUrl] = useState<string>()
-  const [progress, setProgress] = useState('')
   const notify = useNotification()
   const selectIdRef = useRef(selectId)
   selectIdRef.current = selectId
@@ -143,7 +144,6 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
     } finally {
       actionInFlight.current = false
       setBusy(false)
-      setProgress('')
     }
   }
   async function choose() {
@@ -193,9 +193,21 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
       setMacOpen(true)
       return
     }
+    if (active?.game.os === 'win') {
+      const selected = active
+      try {
+        await requireCloudPermission(selected.game)
+        const task = await startCloudShellTask(selected)
+        if ('error' in task) notify.error('另一个页面正在为此游戏安装壳')
+        else requestDownloadCenterOpen()
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) notify.error(error instanceof Error ? error.message : String(error))
+      }
+      return
+    }
     await operate(
       async (game) => {
-        const result = await installCloudShell(game, (p) => setProgress(p.message))
+        const result = await installCloudShell(game)
         setDownloadUrl(result.downloadUrl)
         notify.success(result.hint)
       },
@@ -241,7 +253,6 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
     setMacOpen,
     installShell,
     downloadUrl,
-    progress,
     configureConnection: async () => {
       let configured = false
       await operate(async (game) => {

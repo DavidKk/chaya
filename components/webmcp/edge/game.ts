@@ -1,4 +1,5 @@
 import { clearCloudPlugins, type CloudGame, inspectCloudGame, installCloudPlugins, installCloudShell } from '@/lib/browser/cloud-prepare-game'
+import { startCloudShellTask } from '@/lib/browser/cloud-shell-task'
 import type { ToolImpls } from '@/lib/integration/tools/types'
 
 import { activeCloudEntry, ensureDirPermission, requireActiveGame, saveEntries } from './library'
@@ -66,6 +67,21 @@ export function makeEdgeGameTools({ gameOnline, quit }: EdgeGameDeps): ToolImpls
 
     async chaya_game_shell_install() {
       const { entry } = await inspectActive('readwrite')
+      if (entry.game.os === 'win') {
+        const task = await startCloudShellTask(entry)
+        if ('error' in task) throw new Error('另一个页面正在为此游戏安装壳')
+        if (await task.needsFile) {
+          return {
+            pending: true,
+            taskId: task.id,
+            hint: '已创建装壳任务（进度见右上角下载中心）：请用户下载官方压缩包后，在游戏卡片点「选择已下载的压缩包」（Agent 调用无法弹出文件选择框）',
+          }
+        }
+        const finished = await task.done
+        if (finished.status !== 'done') throw new Error(finished.error || '装壳已取消')
+        const game = await inspectCloudGame(entry.game)
+        return { hasShell: !!game.existingShell, hint: '壳已就绪。双击启动脚本启动游戏。' }
+      }
       const result = await installCloudShell(entry.game)
       const game = await inspectCloudGame(entry.game)
       await refreshEntry(entry.item.id, game)

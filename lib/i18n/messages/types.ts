@@ -1,3 +1,4 @@
+import type { DownloadsMessages } from './downloads-types'
 import type { IntegrationMessages } from './integration-types'
 
 /** 叶子为 string 的同构文案树 */
@@ -668,4 +669,5 @@ export type MessageTree = {
     overlayAria: string
   }
   integration: IntegrationMessages
+  downloads: DownloadsMessages
 }

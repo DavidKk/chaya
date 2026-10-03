@@ -4,7 +4,7 @@ import path from 'node:path'
 import { LEGACY_SHELL_APP_NAMES, LEGACY_SHELL_WIN_DIR_NAMES } from '@/constants/brand'
 import { DATA_DIR_NAME, SHELL_DIR_NAME } from '@/constants/path-names'
 import { LEGACY_SHELL_AT_DATA_PATHS, LEGACY_SHELL_IN_SHELL_PATHS } from '@/constants/paths'
-import { isWin32, looksLikeNwShellSource, resolveShellSourceRoot, toolkitShellFolderName } from '@/lib/game/shell-layout'
+import { findNwExeInDir, findNwLinuxBinary, isWin32, looksLikeNwShellSource, resolveShellSourceRoot, toolkitShellFolderName } from '@/lib/game/shell-layout'
 import { toolkitShellAppPath } from '@/lib/game/toolkit-data'
 
 export type ShellInstallResult = {
@@ -20,6 +20,99 @@ function isSymlink(p: string): boolean {
   } catch {
     return false
   }
+}
+
+/** 只有 macOS 用 `.app` + `app.nw` 链接；Windows / Linux 由启动参数传内容根 */
+function isMacHost(): boolean {
+  return process.platform === 'darwin'
+}
+
+/** 路径名是否被占用（不跟随符号链接，失效链接也算） */
+export function pathEntryExists(p: string): boolean {
+  try {
+    fs.lstatSync(p)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** 是否是可用壳：能解析到真实目录，且按平台找得到壳可执行文件 */
+export function validShellExists(p: string): boolean {
+  try {
+    if (!fs.statSync(p).isDirectory()) return false
+  } catch {
+    return false
+  }
+  if (isMacHost()) return looksLikeMacNwApp(p)
+  return Boolean(findNwExeInDir(p) || findNwLinuxBinary(p))
+}
+
+export class ShellSwapError extends Error {
+  constructor(
+    readonly code: 'SHELL_IN_USE' | 'SHELL_SWAP_RECOVERY_REQUIRED',
+    message: string
+  ) {
+    super(message)
+  }
+}
+
+function swapPaths(shellApp: string) {
+  const dir = path.dirname(shellApp)
+  const name = path.basename(shellApp)
+  return { dir, staging: path.join(dir, `.${name}.staging`), old: path.join(dir, `.${name}.old`), broken: path.join(dir, `.${name}.broken`) }
+}
+
+const RENAME_RETRY_CODES = new Set(['EPERM', 'EBUSY', 'EACCES'])
+
+function errCode(e: unknown): string | undefined {
+  return (e as NodeJS.ErrnoException | undefined)?.code
+}
+
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+/** Windows 上刚复制的文件可能被杀毒软件短暂占用：间隔 200 ms 重试 3 次 */
+function renameWithRetry(from: string, to: string): void {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      fs.renameSync(from, to)
+      return
+    } catch (e) {
+      const code = errCode(e)
+      if (attempt >= 3 || !code || !RENAME_RETRY_CODES.has(code)) throw e
+      sleepSync(200)
+    }
+  }
+}
+
+function recoveryRequired(old: string, cause: unknown): ShellSwapError {
+  const detail = cause instanceof Error ? cause.message : String(cause)
+  return new ShellSwapError('SHELL_SWAP_RECOVERY_REQUIRED', `共用壳替换未完成且自动恢复失败，旧壳保留在 ${old}，请手动改回原名后重试（${detail}）`)
+}
+
+/**
+ * 上次替换 / 回滚中途进程退出时，把 `.old` 恢复为正式壳。
+ * 安装、启动、读取状态前都要调用，且必须在解析游戏状态之前。返回是否做了恢复。
+ */
+export function recoverOldIfNeeded(shellApp: string = toolkitShellAppPath()): boolean {
+  const { old, broken } = swapPaths(path.resolve(shellApp))
+  if (validShellExists(shellApp) || !validShellExists(old)) return false
+  try {
+    if (pathEntryExists(shellApp)) {
+      if (fs.lstatSync(shellApp).isDirectory()) {
+        fs.rmSync(broken, { recursive: true, force: true })
+        fs.renameSync(shellApp, broken)
+      } else {
+        fs.unlinkSync(shellApp)
+      }
+    }
+    fs.renameSync(old, shellApp)
+  } catch (e) {
+    throw recoveryRequired(old, e)
+  }
+  return true
 }
 
 function looksLikeMacNwApp(appPath: string): boolean {
@@ -38,9 +131,9 @@ export function validateShellSource(shellSource: string, contentRoot: string): s
   const src = path.resolve(shellSource)
   if (!fs.existsSync(src)) return '壳源路径不存在'
 
-  if (isWin32()) {
+  if (!isMacHost()) {
     if (!looksLikeNwShellSource(src)) {
-      return '壳源需为 nw.exe，或含 nw.exe 的 NW.js 目录'
+      return isWin32() ? '壳源需为 nw.exe，或含 nw.exe 的 NW.js 目录' : '壳源需为 nw 可执行文件，或含 nw 的 NW.js 目录'
     }
     let root: string
     try {
@@ -75,10 +168,82 @@ function linkContent(appNwLink: string, contentRoot: string): void {
   fs.symlinkSync(contentRoot, appNwLink, type)
 }
 
+function copyShellSource(shellSourceRoot: string, dest: string): void {
+  fs.cpSync(shellSourceRoot, dest, {
+    recursive: true,
+    filter: (src) => {
+      const rel = path.relative(shellSourceRoot, src)
+      if (!rel || rel === '.') return true
+      // 不把游戏内容拷进共用壳
+      if (rel === 'package.nw' || rel === 'www' || rel === 'app.nw') return false
+      if (rel.startsWith(`package.nw${path.sep}`) || rel.startsWith(`www${path.sep}`) || rel.startsWith(`app.nw${path.sep}`)) {
+        return false
+      }
+      if (rel === path.join('Contents', 'Resources', 'app.nw')) return false
+      if (rel.startsWith(path.join('Contents', 'Resources', 'app.nw') + path.sep)) return false
+      return true
+    },
+  })
+}
+
+/** 复制到暂存目录 → 旧壳改名 `.old` → 暂存改为正式名；失败回滚，旧壳不受影响 */
+function swapInShell(shellSourceRoot: string, shellApp: string, contentRoot: string): void {
+  const { dir, staging, old } = swapPaths(shellApp)
+  fs.mkdirSync(dir, { recursive: true })
+  fs.rmSync(staging, { recursive: true, force: true })
+  // recoverOldIfNeeded 之后：正式壳可用，或 .old 不可用，两种情况 .old 都可清理
+  if (validShellExists(shellApp) || !validShellExists(old)) fs.rmSync(old, { recursive: true, force: true })
+
+  try {
+    copyShellSource(shellSourceRoot, staging)
+    if (isMacHost()) {
+      const resourcesDir = path.join(staging, 'Contents/Resources')
+      if (!fs.existsSync(resourcesDir)) throw new Error(`壳结构异常，缺少 Contents/Resources: ${shellSourceRoot}`)
+      linkContent(path.join(resourcesDir, 'app.nw'), contentRoot)
+    }
+  } catch (e) {
+    fs.rmSync(staging, { recursive: true, force: true })
+    throw e
+  }
+
+  const hadFormal = pathEntryExists(shellApp)
+  if (hadFormal) {
+    try {
+      renameWithRetry(shellApp, old)
+    } catch (e) {
+      fs.rmSync(staging, { recursive: true, force: true })
+      const code = errCode(e)
+      if (code && RENAME_RETRY_CODES.has(code)) throw new ShellSwapError('SHELL_IN_USE', '游戏正在运行（共用壳被占用），请退出游戏后重新下载 / 安装')
+      throw e
+    }
+  }
+  try {
+    renameWithRetry(staging, shellApp)
+  } catch (e) {
+    if (hadFormal) {
+      try {
+        fs.renameSync(old, shellApp)
+      } catch {
+        throw recoveryRequired(old, e)
+      }
+    }
+    fs.rmSync(staging, { recursive: true, force: true })
+    throw e
+  }
+  if (validShellExists(shellApp)) {
+    try {
+      fs.rmSync(old, { recursive: true, force: true })
+    } catch {
+      /* 下次安装再清理 */
+    }
+  }
+}
+
 /**
  * 把干净 NW.js 装到工具 `data/shell/…`（全游戏共用一份）。
  * - macOS：拷 .app，并把 app.nw 链到内容根
- * - Windows：拷 nw 目录；启动时传内容根参数（不强制 junction）
+ * - Windows / Linux：拷 nw 目录；启动时传内容根参数
+ * 替换已有壳时走暂存目录 + 改名，失败回滚到旧壳。
  */
 export function installShell(opts: {
   shellSource: string
@@ -92,7 +257,7 @@ export function installShell(opts: {
   const contentRoot = path.resolve(opts.contentRoot)
   const toolkitRoot = opts.toolkitRoot ? path.resolve(opts.toolkitRoot) : undefined
 
-  if (!isWin32() && contentRoot.includes(`${path.sep}Contents${path.sep}`)) {
+  if (isMacHost() && contentRoot.includes(`${path.sep}Contents${path.sep}`)) {
     const errBundle = contentRoot.match(/^(.*\.app)(?:\/|$)/i)?.[1]
     if (errBundle && contentRoot.startsWith(path.join(errBundle, 'Contents'))) {
       throw new Error('当前已是 NW.js 打包应用，壳已就绪。无需再装壳，可直接处理插件与翻译。')
@@ -108,38 +273,20 @@ export function installShell(opts: {
 
   const shellSourceRoot = resolveShellSourceRoot(opts.shellSource)
   const shellApp = toolkitRoot ? toolkitShellAppPath(toolkitRoot) : toolkitShellAppPath()
-  const dataDir = path.dirname(shellApp)
 
   if (contentRoot === shellApp || contentRoot.startsWith(shellApp + path.sep)) {
     throw new Error('内容根不能位于共用壳内部')
   }
 
+  recoverOldIfNeeded(shellApp)
   let created = false
-  if (opts.force && (fs.existsSync(shellApp) || isSymlink(shellApp))) {
-    fs.rmSync(shellApp, { recursive: true, force: true })
-  }
-  if (!fs.existsSync(shellApp)) {
-    fs.mkdirSync(dataDir, { recursive: true })
-    fs.cpSync(shellSourceRoot, shellApp, {
-      recursive: true,
-      filter: (src) => {
-        const rel = path.relative(shellSourceRoot, src)
-        if (!rel || rel === '.') return true
-        // 不把游戏内容拷进共用壳
-        if (rel === 'package.nw' || rel === 'www' || rel === 'app.nw') return false
-        if (rel.startsWith(`package.nw${path.sep}`) || rel.startsWith(`www${path.sep}`) || rel.startsWith(`app.nw${path.sep}`)) {
-          return false
-        }
-        if (rel === path.join('Contents', 'Resources', 'app.nw')) return false
-        if (rel.startsWith(path.join('Contents', 'Resources', 'app.nw') + path.sep)) return false
-        return true
-      },
-    })
+  if (opts.force || !validShellExists(shellApp)) {
+    swapInShell(shellSourceRoot, shellApp, contentRoot)
     created = true
   }
 
-  if (isWin32()) {
-    // Windows：启动传参，无 app.nw 链
+  if (!isMacHost()) {
+    // Windows / Linux：启动传参，无 app.nw 链
     return { shellApp, contentLink: contentRoot, created, relinked: false }
   }
 
@@ -149,7 +296,7 @@ export function installShell(opts: {
     throw new Error(`壳结构异常，缺少 Contents/Resources: ${shellApp}`)
   }
 
-  let relinked = false
+  let relinked = created
   if (fs.existsSync(appNwLink) || isSymlink(appNwLink)) {
     const current = isSymlink(appNwLink) ? fs.readlinkSync(appNwLink) : null
     const currentResolved = current ? path.resolve(path.dirname(appNwLink), current) : null
@@ -166,9 +313,9 @@ export function installShell(opts: {
   return { shellApp, contentLink: appNwLink, created, relinked }
 }
 
-/** 启动前确保共用壳指向当前内容根（macOS 重链 app.nw；Windows 无操作） */
+/** 启动前确保共用壳指向当前内容根（macOS 重链 app.nw；Windows / Linux 无操作） */
 export function ensureShellLinkedToContent(opts: { shellApp: string; contentRoot: string }): boolean {
-  if (isWin32()) return false
+  if (!isMacHost()) return false
 
   const shellApp = path.resolve(opts.shellApp)
   const contentRoot = path.resolve(opts.contentRoot)
@@ -237,7 +384,9 @@ export function uninstallToolkitShell(toolkitRoot?: string): UninstallShellResul
   const dataDirResolved = path.resolve(path.dirname(path.dirname(primary))) + path.sep
   const removed: string[] = []
 
-  for (const target of toolkitShellCandidates(toolkitRoot)) {
+  // 卸载后不应再被 recoverOldIfNeeded 从 .old 恢复回来
+  const leftovers = Object.values(swapPaths(primary)).filter((p) => p !== path.dirname(primary))
+  for (const target of [...toolkitShellCandidates(toolkitRoot), ...leftovers]) {
     const abs = path.resolve(target)
     // 只允许删 data/ 下已知壳名，防止误删用户壳源或游戏包
     if (!abs.startsWith(dataDirResolved)) continue

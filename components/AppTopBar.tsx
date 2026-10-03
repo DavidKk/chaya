@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { AppNav, type AppNavPath } from '@/components/AppNav'
 import { BrandLogo } from '@/components/BrandLogo'
 import { DevTargetSwitch } from '@/components/DevTargetSwitch'
+import { DownloadCenter } from '@/components/downloads/DownloadCenter'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
 import { brand, topBarFrame, topBarNav, topBarRow, topRight } from '@/components/layoutClasses'
 import { BUILD_TARGET } from '@/lib/service-mode/target'
@@ -27,7 +28,7 @@ type Props = {
 }
 
 /**
- * 应用顶栏：品牌 + 主导航 + 右上角语言切换。
+ * 应用顶栏：品牌 + 主导航 + 右上角下载中心与语言切换。
  * 导航槽相对内容行向下多 1px，指示条盖住 frame 的 border-b；frame 无 overflow，避免裁切。
  */
 export function AppTopBar({ current, end, className }: Props) {
@@ -44,8 +45,9 @@ export function AppTopBar({ current, end, className }: Props) {
           <AppNav current={resolved} />
         </div>
         <div className={cn(topRight, 'self-center')}>
-          {end}
           {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
+          {end}
+          <DownloadCenter />
           <LocaleSwitcher />
         </div>
       </div>

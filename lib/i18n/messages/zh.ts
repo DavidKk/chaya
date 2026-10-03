@@ -1,5 +1,6 @@
 import { commonZh } from '@/lib/i18n/messages/parts/common'
 import { dashboardZh } from '@/lib/i18n/messages/parts/dashboard'
+import { downloadsZh } from '@/lib/i18n/messages/parts/downloads'
 import { editZh } from '@/lib/i18n/messages/parts/edit'
 import { integrationZh } from '@/lib/i18n/messages/parts/integration'
 import { marketingZh } from '@/lib/i18n/messages/parts/marketing'
@@ -14,6 +15,7 @@ export const zh = {
   ...translateZh,
   ...editZh,
   ...integrationZh,
+  ...downloadsZh,
 } as const satisfies MessageTree
 
 export type { MessageTree } from '@/lib/i18n/messages/types'

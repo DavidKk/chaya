@@ -13,6 +13,7 @@ import { LibraryRail } from '@/components/LibraryRail'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, ScrollArea } from '@/components/sk'
 import { readApiErrorMessage } from '@/lib/api-error'
+import { onDownloadFinished, useBrowserDownloadRunning, useServerDownloadRunning } from '@/lib/downloads/store'
 import type { LibraryItemView } from '@/lib/game'
 import { useQueryPatch } from '@/lib/url/use-query-patch'
 
@@ -23,6 +24,9 @@ import { useCloudLibrary } from './dashboard/useCloudLibrary'
 import { useDashboardActions } from './dashboard/useDashboardActions'
 import { useDashboardLaunch } from './dashboard/useDashboardLaunch'
 import { useWindowSettings } from './dashboard/useWindowSettings'
+
+/** 浏览器装壳进入读写队列后才会动游戏目录；等待选文件时仍可连接 */
+const SHELL_WRITE_PHASES = ['queued', 'read', 'write'] as const
 
 export function Dashboard() {
   const t = useT()
@@ -99,6 +103,18 @@ export function Dashboard() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  const serverShellJob = useServerDownloadRunning('nw-shell')
+  const browserShellJob = useBrowserDownloadRunning('nw-shell', cloudGameId)
+  const browserShellWriting = useBrowserDownloadRunning('nw-shell', cloudGameId, SHELL_WRITE_PHASES)
+  const shellJobRunning = browserMode ? browserShellJob : serverShellJob
+  useEffect(
+    () =>
+      onDownloadFinished((item) => {
+        if (!browserMode && item.channel === 'server' && item.kind === 'nw-shell' && (item.status === 'done' || item.status === 'error')) void refresh()
+      }),
+    [browserMode, refresh]
+  )
 
   useEffect(() => {
     const online = gameLink.connected
@@ -493,7 +509,7 @@ export function Dashboard() {
                           launch={{
                             online: gameOnline,
                             pending: launchPending,
-                            enabled: canLaunch,
+                            enabled: canLaunch && !(browserMode && browserShellWriting),
                             label: launchLabel,
                             tooltip: launchTooltip,
                             onStart: browserMode
@@ -517,28 +533,21 @@ export function Dashboard() {
                             canUninstall: canUninstallShell,
                             canFetch: canFetchLatestShell,
                             hasShell: status.hasShell,
-                            hasSource: browserMode || !!shellSource.trim(),
+                            hasSource: browserMode || (!!shellSource.trim() && status.config.shellSourceValid !== false),
+                            jobRunning: shellJobRunning,
                             onInstall: browserMode ? cloud.installShell : installShell,
                             onFetchLatest: fetchLatestShell,
                             onUninstall: uninstallShell,
                           }}
+                          shellTaskGameId={browserMode ? cloudGameId : undefined}
                         />
                       )
                     }
                     notes={
-                      browserMode && (cloud.progress || cloud.downloadUrl) ? (
-                        <>
-                          {cloud.progress ? (
-                            <p role="status" className="m-0">
-                              {cloud.progress}
-                            </p>
-                          ) : null}
-                          {cloud.downloadUrl ? (
-                            <a className="text-accent underline" href={cloud.downloadUrl}>
-                              {t('dashboard.downloadLinuxShell')}
-                            </a>
-                          ) : null}
-                        </>
+                      browserMode && cloud.downloadUrl ? (
+                        <a className="text-accent underline" href={cloud.downloadUrl}>
+                          {t('dashboard.downloadLinuxShell')}
+                        </a>
                       ) : null
                     }
                   />

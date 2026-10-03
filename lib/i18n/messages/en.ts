@@ -1,3 +1,4 @@
+import { downloadsEn } from '@/lib/i18n/messages/parts/downloads'
 import { editEn } from '@/lib/i18n/messages/parts/edit.en'
 import { integrationEn } from '@/lib/i18n/messages/parts/integration'
 import { translateEn } from '@/lib/i18n/messages/parts/translate.en'
@@ -262,4 +263,5 @@ export const en: MessageTree = {
   ...translateEn,
   ...editEn,
   ...integrationEn,
+  ...downloadsEn,
 }

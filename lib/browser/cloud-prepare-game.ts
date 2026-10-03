@@ -31,7 +31,7 @@ import {
   writeTextFile,
 } from './fsa'
 import { ensureCloudLinkToken } from './link-token'
-import { installWindowsShellFsa, isCompleteMacShell, isCompleteWinShell, looksLikeMacNwApp, writeShellLaunchers } from './nw-shell-fsa'
+import { isCompleteMacShell, isCompleteWinShell, looksLikeMacNwApp } from './nw-shell-fsa'
 
 export { type FsaSupport, getFsaSupport }
 
@@ -212,14 +212,10 @@ export async function clearCloudPlugins(game: CloudGame): Promise<void> {
   }
 }
 
-export async function installCloudShell(game: CloudGame, onProgress?: (p: CloudPrepareProgress) => void): Promise<{ hint: string; downloadUrl?: string }> {
+/** macOS 走终端命令、Linux 给下载链接；Windows 由下载中心任务（`startCloudShellTask`）安装 */
+export async function installCloudShell(game: CloudGame): Promise<{ hint: string; downloadUrl?: string }> {
   if (game.os === 'mac') throw new Error('macOS 请复制安装命令，在终端中执行。')
-  if (game.os === 'win') {
-    // Always install the canonical shell: legacy shells may live elsewhere and cannot use this launcher.
-    if (!(await isCompleteWinShell(game.picked, SHELL_WIN_DIR_NAME))) await installWindowsShellFsa(game.picked, onProgress)
-    const launcher = await writeShellLaunchers(game.picked, 'win')
-    return { hint: `壳已就绪。双击 ${launcher} 启动游戏。` }
-  }
+  if (game.os === 'win') throw new Error('Windows 壳请在游戏库点「安装壳」，进度见右上角下载中心。')
   if (game.os === 'linux') {
     const response = await fetch('https://nwjs.io/versions.json')
     if (!response.ok) throw new Error(`拉取 NW.js 版本失败 HTTP ${response.status}`)

@@ -12,8 +12,8 @@
 | ---- | --------------------------------------------- | ------ | -------------- | ------------------------------------------------------ | ------------- |
 | O1   | 浏览器模式日志隔离                            | P0     | **已完成**     | 所有访问者共用日志（隐私）、可被任意灌入               | —             |
 | O2   | 能力层：拆分 `canUseDisk`                     | P1     | 待实施         | 一个开关同时管"用户游戏文件"和"服务端存储"             | —             |
-| O3   | 服务端「下载 / 升级 NW.js」改后台任务         | P1     | 待实施         | 确认弹窗一直转圈、期间不能操作、卡住最长约 5 分钟      | O2（可选）    |
-| O4   | 浏览器模式 Windows 装壳不再锁整张卡片         | P1     | 待实施         | 装壳期间整卡 busy                                      | —             |
+| O3   | 服务端「下载 / 升级 NW.js」改后台任务         | P1     | 已完成         | 确认弹窗一直转圈、期间不能操作、卡住最长约 5 分钟      | O2（可选）    |
+| O4   | 浏览器模式 Windows 装壳不再锁整张卡片         | P1     | 已完成         | 装壳期间整卡 busy                                      | —             |
 | O5   | Windows 装壳增加 PowerShell 命令备选          | P2     | 待实施         | 页面装壳步骤多、无下载进度、非 Chromium 无法装         | —             |
 | O6   | 信令：鉴权 + 共享存储 + 部署门禁              | P0     | **鉴权已完成** | 信令无鉴权可被抢连；Vercel 多实例下连不上游戏          | —             |
 | O7   | Linux 装壳改终端命令                          | P3     | 待实施         | 只有下载链接，用户需自己解压、`chmod`                  | O5 的脚本框架 |
@@ -140,79 +140,37 @@ export function getCapabilities(mode = getServiceMode()): Capabilities
 
 ---
 
-## 3. O3 服务端「下载 / 升级 NW.js」改后台任务（P1）
+## 3. O3 服务端「下载 / 升级 NW.js」改后台任务（P1，并入下载中心，已完成）
 
-### 3.1 现状
+### 3.1 实施前问题（已修复）
 
-`POST /api/shell { fetchLatest: true }` 同步执行：拉版本 → 下载约百兆 → 解压 → 复制到 `data/shell`，全部完成才返回。确认弹窗在 `onConfirm` 里等待，期间弹窗关不掉、取消禁用。下载无超时（仅 Node fetch 默认 5 分钟空闲超时），无进度。
+`POST /api/shell { fetchLatest: true }` 同步执行：拉版本 → 下载约百兆 → 解压 → 复制到 `data/shell`，全部完成才返回。确认弹窗在 `onConfirm` 里等待，期间弹窗关不掉；下载无超时、无进度、失败后从头再下。
 
 ### 3.2 设计
 
-**服务端任务**（新增 `services/game/shell-job.ts`，进程内单例，同时只允许一个任务）：
+见 [`download-center.md`](./download-center.md) §3：后台任务 + SSE 推进度 + 右上角下载中心；`.part` + Range 断点续传（对齐 bash）、SHA-256 校验、60 秒空闲超时、可取消；安装改为暂存后整体替换（游戏运行中也不会把壳弄坏）；MCP 传 `wait: true` 保持同步语义。
 
-```ts
-type ShellJob = {
-  id: string
-  kind: 'install' | 'upgrade'
-  phase: 'versions' | 'download' | 'extract' | 'install' | 'done' | 'error' | 'canceled'
-  version?: string
-  received?: number
-  total?: number // Content-Length，可能缺失
-  error?: string
-  startedAt: number
-  finishedAt?: number
-}
-```
-
-- `downloadToFile` 增加进度回调与**空闲超时**（每收到一块数据重置，60 秒无数据则中止），支持 `AbortSignal`。
-- 失败 / 取消时删除 `.part`；缓存命中（已解压同版本）直接进入 `install`。
-- 进程重启任务丢失：启动时清理残留 `.part`；界面看到无任务即恢复正常。
-
-**接口**：
-
-| 接口                                    | 行为                                                         |
-| --------------------------------------- | ------------------------------------------------------------ |
-| `POST /api/shell { fetchLatest: true }` | 启动任务，立即返回 `202 { job }`；已有进行中任务则返回该任务 |
-| `DELETE /api/shell/job`                 | 取消进行中任务                                               |
-| `GET /api/status`                       | 增加 `shellJob`（进行中或最近 1 分钟内结束的任务）           |
-
-界面已有状态轮询，复用即可，不必新开推送通道。
-
-**界面**：
-
-- 确认后立即关闭弹窗（`onConfirm` 只负责发起，不等待完成）。
-- 进度显示在当前游戏卡片的「补充信息」段（`DashboardGameCard` 的 `notes`）：阶段 + 百分比 / 已下载大小 + 取消按钮。
-- 任务进行中：只禁用装壳 / 升级 / 卸载壳和「开始游戏」（壳正在替换）；其余操作照常。
-- 任务结束：成功提示版本并刷新状态；失败提示原因；取消静默。
-- 现有确认弹窗"服务端返回非 JSON 时无提示"的问题，在发起请求处统一处理。
+与本节旧稿的差异：进度改为 SSE 推送（不复用 `/api/status` 轮询）；进度显示在下载中心（不在卡片补充信息段）；失败 / 取消保留 `.part`，启动时不清理。
 
 ### 3.3 验收
 
-- 点确认后弹窗 1 秒内关闭，可继续切换游戏、改设置。
-- 进度随下载更新；断网 60 秒内报错并可重试。
-- 取消后 `.part` 被删除，壳保持原样。
-- 下载中刷新页面：进度条恢复显示（来自 `/api/status`）。
-- 测试：任务状态机（成功 / 失败 / 取消 / 重复发起）、空闲超时、`.part` 清理。
+见 `download-center.md` §8。
 
 ---
 
-## 4. O4 浏览器模式 Windows 装壳不再锁整张卡片（P1）
+## 4. O4 浏览器模式 Windows 装壳不再锁整张卡片（P1，并入下载中心，已完成）
 
-### 4.1 现状
+### 4.1 实施前问题（已修复）
 
-`useCloudLibrary.installShell` 走 `run()`，设置全局 `busy`，装壳（选压缩包 → 解压 → 写入数百个文件）期间整张卡片不可操作；进度文字在补充信息段。
+`useCloudLibrary.installShell` 走 `run()`，设置全局 `busy`，装壳期间整张卡片不可操作；进度文字在补充信息段。选压缩包的文件框在 `await` 拉版本之后才弹出，可能超过用户手势有效期。
 
 ### 4.2 设计
 
-- 装壳改用独立状态 `shellTask: { phase, percent?, message } | null`，不设全局 `busy`。
-- 任务进行中只禁用装壳按钮与「连接」（壳未写完不应启动）；装 / 清插件、改窗口配置、切换游戏照常。切换游戏不打断写入（写入持有原游戏的目录句柄）。
-- 完成提示补充 SmartScreen 说明：首次运行若提示"已保护你的电脑"，点「更多信息 → 仍要运行」。
-- **需验证的风险**：选压缩包的文件框需要用户手势（transient activation，约 5 秒）。当前流程在点击后先 `await` 拉版本再弹文件框，可能超时导致文件框弹不出。修正：把"打开官方下载"与"选择已下载的压缩包"拆成两个按钮，第二步在独立点击里弹文件框。
+见 [`download-center.md`](./download-center.md) §4：装壳成为下载中心的浏览器任务，不设全局 `busy`；任务行提供「打开官方下载」「选择已下载的压缩包」两个按钮承接用户手势；按游戏加 Web Locks；可取消，已写文件续写。完成提示补充 SmartScreen 说明（首次运行若提示"已保护你的电脑"，点「更多信息 → 仍要运行」）。
 
 ### 4.3 验收
 
-- 装壳期间可装插件、改窗口配置、切换游戏。
-- 拉版本较慢（人为延迟 6 秒）时，文件框仍能正常弹出。
+见 `download-center.md` §8。
 
 ---
 
@@ -397,6 +355,7 @@ type ShellJob = {
 | 2026-10-03 | O6.2    | 完成：房间令牌鉴权（`X-Chaya-Link-Token`，服务端存 SHA-256，首个 Web `reset` / `offer` 绑定，`reset` 保留绑定）；去掉 `'default'` 房间；读取 / 应答不建房；房间上限 5000（503）、同一来源最多 20 个房间（429，取 `x-real-ip`）；插件日志里房间号打码；`SECRET_KEYS` 加 `linkToken`。服务端模式沿用原有的管理授权 + launch token 策略。未做：`Allow-Origin` 收窄                                                                           |
 | 2026-10-03 | O1      | 完成（1.3 方案）：游戏 DataChannel 打开后补发最近 200 条再批量推送 `log.batch`（未单独设 `log.backlog.request`；单条消息截断、按约 6000 字符分批，与翻译 RPC 一样控制在 16 KiB 内）；Env 写 `CHAYA_LOG_TRANSPORT = 'link'` 且不写 `CHAYA_LOG_URL`；页面 `lib/log/link-log-store.ts` 去重 / 清空 / 切游戏重置；`LogPanel`、WebMCP `chaya_logs_query` / `chaya_logs_clear` 读页面存储；服务器在浏览器模式丢弃上报、读取返回空、SSE 不推条目 |
 | 2026-10-03 | O1 / O6 | 行为变化：浏览器模式「连接」会同时刷新插件文件（旧插件不带令牌，否则上线后连不上）。已在用的浏览器模式用户需重新点一次「连接」并重启游戏                                                                                                                                                                                                                                                                                                  |
+| 2026-10-03 | O3 / O4 | 完成（下载中心）：`services/downloads` 任务表 + `/api/downloads(/stream)` SSE；`.part` + Range 续传、SHA-256、60 秒空闲超时、可取消（安装阶段除外）；`installShell` 暂存替换 + `recoverOldIfNeeded`（安装 / 启动 / 状态前），顺带修复 Linux 装壳 / 启动；前端 `lib/downloads` 存储 + 右上角 `DownloadCenter`；浏览器 Windows 装壳改为下载中心任务（Web Locks、页面内 IO 串行、选文件按钮承接手势）；MCP `shell_install` 传 `wait: true`   |
 
 ---
 

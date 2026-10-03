@@ -7,6 +7,7 @@ import {
   injectTrackedPlugins,
   launchShellWithContent,
   openInFinder,
+  recoverOldIfNeeded,
   requireDisk,
 } from '@/services/disk-ops'
 import { anyWebConnected, clearGameQuitRequest, getGamePresence, preferredPluginApiBase, requestGameQuit, toolkitListenPort, writeLaunchEnv } from '@/services/runtime'
@@ -23,6 +24,11 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
   }
   clearGameQuitRequest()
 
+  try {
+    recoverOldIfNeeded()
+  } catch (err) {
+    return apiError(500, 'SHELL_SWAP_RECOVERY_REQUIRED', err instanceof Error ? err.message : String(err))
+  }
   const resolved = getResolvedFromConfig()
   if (!resolved.ok) {
     return apiBadRequest(resolved.error || '尚未绑定游戏')

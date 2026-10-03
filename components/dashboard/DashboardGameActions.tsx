@@ -9,6 +9,7 @@ import { LaunchHelp } from '@/components/LaunchHelp'
 import { Button } from '@/components/sk'
 
 import { ShellActionsMenu } from './ShellActionsMenu'
+import { ShellAwaitFile } from './ShellAwaitFile'
 
 const actionButtonClass = 'min-h-11 shrink-0 px-4 text-sm focus-visible:!outline-2 focus-visible:!outline-offset-2 focus-visible:!outline-accent'
 type Props = {
@@ -16,10 +17,12 @@ type Props = {
   launch: { online: boolean; pending: boolean; enabled: boolean; label: string; tooltip?: string; onStart: () => Promise<void>; onQuit: () => Promise<void> }
   plugins: { state: 'missing' | 'ready' | 'unavailable'; onInstall: () => Promise<void>; onClear: () => Promise<void> }
   shell: Omit<ComponentProps<typeof ShellActionsMenu>, 'busy' | 'gameOnline' | 'buttonClassName'>
+  /** 浏览器模式：该游戏的装壳任务等待选压缩包时在此显示步骤 */
+  shellTaskGameId?: string
 }
 
 /** 同一操作栏，只由宿主提供能力与动作；不区分本机版和浏览器版布局。 */
-export function DashboardGameActions({ busy, launch, plugins, shell }: Props) {
+export function DashboardGameActions({ busy, launch, plugins, shell, shellTaskGameId }: Props) {
   const t = useT()
   return (
     <div className="flex flex-col items-start gap-2">
@@ -49,6 +52,7 @@ export function DashboardGameActions({ busy, launch, plugins, shell }: Props) {
         ) : null}
         <ShellActionsMenu {...shell} busy={busy} gameOnline={launch.online} buttonClassName={actionButtonClass} />
       </div>
+      <ShellAwaitFile gameId={shellTaskGameId} buttonClassName={actionButtonClass} />
       <LaunchHelp />
     </div>
   )

@@ -45,7 +45,7 @@ describe('game tools', () => {
     mocked(ShellRoute.POST).mockImplementation(async () => okJson())
     await gameTools.chaya_game_shell_install({}, ctx)
     await gameTools.chaya_game_shell_install({ shellSource: '/nw.app', force: true }, ctx)
-    expect(await bodyOf(ShellRoute.POST, 0)).toEqual({ fetchLatest: true })
+    expect(await bodyOf(ShellRoute.POST, 0)).toEqual({ fetchLatest: true, wait: true })
     expect(await bodyOf(ShellRoute.POST, 1)).toEqual({ shellSource: '/nw.app', force: true })
   })
 

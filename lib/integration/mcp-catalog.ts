@@ -146,7 +146,8 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     name: 'chaya_game_shell_install',
     group: 'game',
     title: '安装 NW.js 壳',
-    description: '为当前游戏安装 NW.js 壳。不传 shellSource 时从 nwjs.io 下载当前平台最新版（约 100 MB，最长约 5 分钟）。',
+    description:
+      '为当前游戏安装 NW.js 壳。不传 shellSource 时从 nwjs.io 下载当前平台最新版（约 100 MB，最长约 5 分钟，中断后重试会接着下载）；进度同时显示在控制台右上角下载中心。',
     inputSchema: obj({ shellSource: str('本机干净 NW.js 壳路径（可选）'), force: bool('已存在时强制覆盖') }),
     http: 'POST /api/shell',
   },

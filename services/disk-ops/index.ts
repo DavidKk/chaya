@@ -34,6 +34,7 @@ export {
   readNwPackage,
   readTranslateSwitches,
   reconcileLibraryConfig,
+  recoverOldIfNeeded,
   removeLibraryEntry,
   resolveGame,
   revealInFinder,

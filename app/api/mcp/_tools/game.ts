@@ -63,7 +63,7 @@ export const gameTools: ToolImpls = {
 
   async chaya_game_shell_install(args, { signal }) {
     const shellSource = optStr(args, 'shellSource')
-    const body = shellSource ? { shellSource, force: optBool(args, 'force') ?? false } : { fetchLatest: true }
+    const body = shellSource ? { shellSource, force: optBool(args, 'force') ?? false } : { fetchLatest: true, wait: true }
     return invokeRoute(ShellRoute.POST, { method: 'POST', path: '/api/shell', body, signal })
   },
 

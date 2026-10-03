@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useNotification } from '@/components/notification/useNotification'
 import { readApiErrorMessage } from '@/lib/api-error'
+import { startServerShellDownload } from '@/lib/downloads/server-sync'
 
 import type { Status } from './types'
 
@@ -125,34 +126,15 @@ export function useDashboardActions({ status, shellSource, setShellSource, setBu
     const ok = await confirm({
       title: upgrading ? '升级到最新 NW.js？' : '下载最新 NW.js？',
       description: upgrading
-        ? '当前共用壳已可启动游戏，一般不必升级。确认后会下载约百兆包并替换工具 data/shell 中的壳；请先退出游戏。'
-        : '将从 nwjs.io 下载当前平台最新包并安装到工具 data/shell（约百兆）。也可在设置里指定本地壳源后点「安装」。',
+        ? '当前共用壳已可启动游戏，一般不必升级。确认后在后台下载约百兆包并替换工具 data/shell 中的壳，进度见右上角下载中心；中断后再次下载会接着上次进度。Windows 上游戏运行中替换会失败，退出游戏后再点一次即可。'
+        : '将在后台从 nwjs.io 下载当前平台最新包并安装到工具 data/shell（约百兆），进度见右上角下载中心；中断后再次下载会接着上次进度。也可在设置里指定本地壳源后点「安装」。',
       confirmLabel: upgrading ? '下载并升级' : '下载并安装',
       confirmVariant: 'accent',
       onConfirm: async () => {
-        setBusy(true)
         try {
-          const res = await fetch('/api/shell', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fetchLatest: true }),
-          })
-          const data = (await res.json()) as {
-            ok?: boolean
-            error?: string
-            created?: boolean
-            nw?: { version?: string; chromium?: string; downloaded?: boolean }
-          }
-          if (!res.ok) {
-            notify.error(readApiErrorMessage(data, '下载 / 升级壳失败'))
-            throw new Error('shell-fetch-failed')
-          }
-          const ver = data.nw?.version || ''
-          const chrome = data.nw?.chromium ? ` · Chromium ${data.nw.chromium}` : ''
-          notify.success([data.created ? '已安装' : '已升级', ver ? `NW.js ${ver}` : '最新 NW.js', chrome].filter(Boolean).join(' '))
-          await refresh()
-        } finally {
-          setBusy(false)
+          await startServerShellDownload()
+        } catch (err) {
+          notify.error(err instanceof Error ? err.message : '下载 / 升级壳失败')
         }
       },
     })

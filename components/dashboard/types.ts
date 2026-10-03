@@ -27,7 +27,7 @@ export type Status =
       serviceMode?: 'local' | 'vercel' | 'app'
       canUseDisk?: boolean
       error?: string
-      config?: { gameRoot: string; shellSource: string }
+      config?: { gameRoot: string; shellSource: string; shellSourceValid?: boolean }
       library?: LibraryItem[]
       heal?: { pruned?: string[]; switchedTo?: string | null; message?: string }
       runtime?: {
@@ -41,7 +41,7 @@ export type Status =
       serviceMode?: 'local' | 'vercel' | 'app'
       canUseDisk?: boolean
       remote?: boolean
-      config: { gameRoot: string; shellSource: string }
+      config: { gameRoot: string; shellSource: string; shellSourceValid?: boolean }
       library?: LibraryItem[]
       heal?: { pruned?: string[]; switchedTo?: string | null; message?: string }
       contentRoot: string

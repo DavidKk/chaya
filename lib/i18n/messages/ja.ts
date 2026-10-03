@@ -1,3 +1,4 @@
+import { downloadsJa } from '@/lib/i18n/messages/parts/downloads'
 import { editJa } from '@/lib/i18n/messages/parts/edit.ja'
 import { integrationJa } from '@/lib/i18n/messages/parts/integration'
 import { translateJa } from '@/lib/i18n/messages/parts/translate.ja'
@@ -254,4 +255,5 @@ export const ja: MessageTree = {
   ...translateJa,
   ...editJa,
   ...integrationJa,
+  ...downloadsJa,
 }

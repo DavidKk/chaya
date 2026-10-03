@@ -1,6 +1,5 @@
 import { clearCloudPlugins, configureCloudConnection, installCloudPlugins, installCloudShell, selectCloudGame } from '@/lib/browser/cloud-prepare-game'
 import * as fsa from '@/lib/browser/fsa'
-import * as shell from '@/lib/browser/nw-shell-fsa'
 
 jest.mock('@/lib/browser/fsa', () => ({
   getFsaSupport: jest.fn(() => ({ ok: true })),
@@ -17,8 +16,6 @@ jest.mock('@/lib/browser/fsa', () => ({
 jest.mock('@/lib/browser/nw-shell-fsa', () => ({
   isCompleteMacShell: jest.fn(() => false),
   isCompleteWinShell: jest.fn(() => false),
-  installWindowsShellFsa: jest.fn(),
-  writeShellLaunchers: jest.fn(() => 'Chaya启动.bat'),
 }))
 
 const picked = { name: 'Game' } as FileSystemDirectoryHandle
@@ -45,17 +42,14 @@ test('selecting a game never downloads, creates files or installs anything', asy
   expect(fsa.writeTextFile).not.toHaveBeenCalled()
   expect(fsa.ensurePath).not.toHaveBeenCalled()
   expect(fetchMock).not.toHaveBeenCalled()
-  expect(shell.installWindowsShellFsa).not.toHaveBeenCalled()
 })
 
-test('installing plugins preserves game plugins and does not install a shell', async () => {
+test('installing plugins preserves game plugins', async () => {
   await installCloudPlugins(await selectCloudGame())
   const writes = jest.mocked(fsa.writeTextFile).mock.calls
   const registration = writes.find((call) => call[1] === 'plugins.js')![2]
   expect(registration).toContain('OriginalPlugin')
   expect(registration).toContain('ChayaLoader')
-  expect(shell.installWindowsShellFsa).not.toHaveBeenCalled()
-  expect(shell.writeShellLaunchers).not.toHaveBeenCalled()
 })
 
 test('invalid plugin registration fails before any mutation', async () => {
@@ -78,11 +72,9 @@ test('macOS shell cannot accidentally use browser extraction', async () => {
   expect(fsa.writeTextFile).not.toHaveBeenCalled()
 })
 
-test('Windows installation does not touch plugin registration', async () => {
+test('Windows shell goes through the download center task, not installCloudShell', async () => {
   const game = await selectCloudGame()
-  await installCloudShell({ ...game, os: 'win' })
-  expect(shell.installWindowsShellFsa).toHaveBeenCalledWith(picked, undefined)
-  expect(shell.writeShellLaunchers).toHaveBeenCalledWith(picked, 'win')
+  await expect(installCloudShell({ ...game, os: 'win' })).rejects.toThrow('下载中心')
   expect(fsa.writeTextFile).not.toHaveBeenCalled()
 })
 

@@ -5,6 +5,7 @@ import { apiBadRequest, apiOk } from '@/initializer/response'
 import { resolveToolkitShellAppPath } from '@/lib/game'
 import { nwGameDisplayName } from '@/lib/game/nw-window'
 import { countReadyPlugins } from '@/lib/game/plugins-status'
+import { looksLikeNwShellSource } from '@/lib/game/shell-layout'
 import { canUseDisk, requireDisk, serviceModePayload } from '@/lib/service-mode'
 import {
   detectPlugins,
@@ -18,6 +19,7 @@ import {
   pathEquals,
   readNwPackage,
   readTranslateSwitches,
+  recoverOldIfNeeded,
   removeLibraryEntry,
   resolveGame,
   saveConfig,
@@ -89,7 +91,13 @@ export const GET = defineApiRoute('get:/api/status', async () => {
     return remoteOnlyStatus()
   }
 
-  const config = loadConfig()
+  try {
+    recoverOldIfNeeded()
+  } catch {
+    /* 恢复失败时按未装壳展示；启动 / 安装会给出带 .old 路径的错误 */
+  }
+  const saved = loadConfig()
+  const config = { ...saved, shellSourceValid: !!saved.shellSource && looksLikeNwShellSource(saved.shellSource) }
   const resolved = getResolvedFromConfig()
   const library = config.library.map(toLibraryItemView)
   const bindEpoch = peekGameBindEpoch()
