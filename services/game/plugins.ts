@@ -22,6 +22,7 @@ import {
   TRACKED_PLUGINS,
 } from '@/lib/game'
 import { mergeLoaderPluginEntries } from '@/lib/game/plugins-merge'
+import { trackedPluginStatuses } from '@/lib/game/plugins-status'
 
 export function loadPluginManifest(): PluginManifestEntry[] {
   try {
@@ -39,13 +40,6 @@ export function resolveKitPluginSource(name: string): string | null {
   if (!hit) return null
   const abs = path.join(ROOT_PATH, hit.source)
   return fs.existsSync(abs) ? abs : null
-}
-
-function loaderInstalled(contentRoot: string, registered: Map<string, { name: string; status: boolean }>): boolean {
-  const pluginsDir = path.join(contentRoot, 'js/plugins')
-  const fileOk = fs.existsSync(path.join(pluginsDir, `${PLUGIN_LOADER_NAME}.js`))
-  const hit = registered.get(PLUGIN_LOADER_NAME)
-  return Boolean(fileOk && hit && hit.status !== false)
 }
 
 /** 去掉 index.html 里已删除的旧翻译加载器 script 标签 */
@@ -69,27 +63,9 @@ function stripLegacyIndexScriptTags(contentRoot: string) {
 export function detectPlugins(contentRoot: string): PluginStatus[] {
   const pluginsJs = path.join(contentRoot, 'js/plugins.js')
   const pluginsDir = path.join(contentRoot, 'js/plugins')
-  let registered: Array<{ name: string; status: boolean }> = []
-  if (fs.existsSync(pluginsJs)) {
-    registered = parsePluginsJs(fs.readFileSync(pluginsJs, 'utf8'))
-  }
-  const byName = new Map(registered.map((p) => [p.name, p]))
-  const viaLoader = loaderInstalled(contentRoot, byName)
-
-  return TRACKED_PLUGINS.map((name) => {
-    const hit = byName.get(name)
-    const cacheExists = fs.existsSync(path.join(pluginsDir, `${name}.js`))
-    // Loader 模式下：已注册 Loader 即视为跟踪插件已挂上；缓存文件用于离线回退
-    const registeredOk = viaLoader || Boolean(hit)
-    const enabledOk = viaLoader || Boolean(hit?.status)
-    return {
-      name,
-      registered: registeredOk,
-      enabled: enabledOk,
-      fileExists: cacheExists || viaLoader,
-      kitSource: resolveKitPluginSource(name),
-    }
-  })
+  const registered = fs.existsSync(pluginsJs) ? parsePluginsJs(fs.readFileSync(pluginsJs, 'utf8')) : []
+  const files = new Set([PLUGIN_LOADER_NAME, ...TRACKED_PLUGINS].filter((name) => fs.existsSync(path.join(pluginsDir, `${name}.js`))))
+  return trackedPluginStatuses({ registered, files, kitSource: resolveKitPluginSource })
 }
 
 export type InjectPluginsResult = {

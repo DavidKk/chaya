@@ -27,7 +27,11 @@ afterEach(async () => {
 })
 
 function renderWithLocale(node: ReactNode) {
-  return root.render(<LocaleProvider initialLocale="zh">{node}</LocaleProvider>)
+  return root.render(
+    <LocaleProvider initialLocale="zh" initialPreference="zh">
+      {node}
+    </LocaleProvider>
+  )
 }
 
 test('日志懒加载使用筛选头、四列表格和页脚骨架', async () => {

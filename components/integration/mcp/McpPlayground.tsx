@@ -57,14 +57,14 @@ export function McpPlayground({ tools, toolName, argsText, onToolChange, onArgsC
         <h2 className="m-0 text-[13px] font-semibold text-ink">{t('integration.playground')}</h2>
         <p className="m-0 text-xs text-ink-soft">{t('integration.playgroundHint')}</p>
       </div>
-      <label className="flex flex-col gap-1.5">
+      <label className="flex flex-col gap-2">
         <span className="text-xs font-semibold text-ink-soft">{t('integration.playgroundTool')}</span>
         <Select value={toolName} options={options} onChange={onToolChange} />
       </label>
-      <label className="flex flex-col gap-1.5">
+      <label className="flex flex-col gap-2">
         <span className="text-xs font-semibold text-ink-soft">{t('integration.playgroundArgs')}</span>
         <textarea
-          className={cn(formControlChrome, formControlPadX, 'h-auto min-h-[6rem] resize-y py-[0.45rem] font-mono text-xs leading-snug focus:border-accent')}
+          className={cn(formControlChrome, formControlPadX, 'h-auto min-h-[6rem] resize-y py-2 font-mono text-xs leading-snug focus:border-accent')}
           value={argsText}
           spellCheck={false}
           onChange={(event) => onArgsChange(event.target.value)}
@@ -77,11 +77,11 @@ export function McpPlayground({ tools, toolName, argsText, onToolChange, onArgsC
         </Button>
       </div>
       {outcome ? (
-        <div className="flex flex-col gap-1.5" role="status">
+        <div className="flex flex-col gap-2" role="status">
           <span className={cn('text-xs font-semibold', outcome.isError ? 'text-fail' : 'text-ink-soft')}>
             {outcome.isError ? t('integration.resultError') : t('integration.result')}
           </span>
-          <pre className="m-0 max-h-[28rem] overflow-auto rounded-[0.3rem] border border-line bg-inset px-3 py-2.5 font-mono text-[12px] leading-[1.55] whitespace-pre-wrap break-all text-ink">
+          <pre className="m-0 max-h-[28rem] overflow-auto rounded-[0.3rem] border border-line bg-inset px-3 py-2 font-mono text-[12px] leading-[1.55] whitespace-pre-wrap break-all text-ink">
             {outcome.text}
           </pre>
         </div>

@@ -3,6 +3,7 @@
  */
 
 import { RunCheats } from './cheats-run'
+import { gameMap, gamePlayer, gameTroop } from './game-globals'
 
 export type LockKind = 'item' | 'weapon' | 'armor' | 'var' | 'gold' | 'hp' | 'mp' | 'sw' | 'level' | 'exp'
 
@@ -83,8 +84,8 @@ function tickLocks() {
     }
   }
 
-  if (throughWalls && $gamePlayer && typeof $gamePlayer.setThrough === 'function') {
-    if (!$gamePlayer.isThrough || !$gamePlayer.isThrough()) $gamePlayer.setThrough(true)
+  if (throughWalls && gamePlayer() && typeof gamePlayer().setThrough === 'function') {
+    if (!gamePlayer().isThrough || !gamePlayer().isThrough()) gamePlayer().setThrough(true)
   }
 }
 
@@ -175,18 +176,18 @@ export const Cheats = {
   setThrough(on: boolean) {
     ensureHooks()
     throughWalls = !!on
-    if ($gamePlayer && typeof $gamePlayer.setThrough === 'function') {
-      $gamePlayer.setThrough(throughWalls)
+    if (gamePlayer() && typeof gamePlayer().setThrough === 'function') {
+      gamePlayer().setThrough(throughWalls)
     }
     return throughWalls
   },
 
   teleport(mapId: number, x: number, y: number, d = 2) {
-    if (!$gamePlayer || typeof $gamePlayer.reserveTransfer !== 'function') return false
+    if (!gamePlayer() || typeof gamePlayer().reserveTransfer !== 'function') return false
     const mid = Math.max(1, Math.floor(Number(mapId) || 1))
     const xx = Math.max(0, Math.floor(Number(x) || 0))
     const yy = Math.max(0, Math.floor(Number(y) || 0))
-    $gamePlayer.reserveTransfer(mid, xx, yy, d, 0)
+    gamePlayer().reserveTransfer(mid, xx, yy, d, 0)
     return true
   },
 
@@ -199,8 +200,8 @@ export const Cheats = {
   },
 
   startMapEvent(eventId: number) {
-    if (!$gameMap || typeof $gameMap.event !== 'function') return false
-    const ev = $gameMap.event(Math.floor(Number(eventId) || 0))
+    if (!gameMap() || typeof gameMap().event !== 'function') return false
+    const ev = gameMap().event(Math.floor(Number(eventId) || 0))
     if (!ev || typeof ev.start !== 'function') return false
     ev.start()
     return true
@@ -241,10 +242,10 @@ export const Cheats = {
     const push = (it: any) => {
       if (it && typeof it.isRunning === 'function' && it.isRunning() && !list.includes(it)) list.push(it)
     }
-    if ($gameMap && $gameMap._interpreter) push($gameMap._interpreter)
-    if ($gameTroop && $gameTroop._interpreter) push($gameTroop._interpreter)
-    if ($gameMap && typeof $gameMap.events === 'function') {
-      for (const ev of $gameMap.events()) {
+    if (gameMap() && gameMap()._interpreter) push(gameMap()._interpreter)
+    if (gameTroop() && gameTroop()._interpreter) push(gameTroop()._interpreter)
+    if (gameMap() && typeof gameMap().events === 'function') {
+      for (const ev of gameMap().events()) {
         if (ev && ev._interpreter) push(ev._interpreter)
       }
     }
@@ -255,7 +256,7 @@ export const Cheats = {
     const list = this.activeInterpreters()
     if (!list.length) {
       // Even with none running, still try to advance the map main interpreter
-      const it = $gameMap && $gameMap._interpreter
+      const it = gameMap() && gameMap()._interpreter
       if (it && typeof it._index === 'number') {
         it._index = (it._index || 0) + 1
         return true
@@ -270,7 +271,7 @@ export const Cheats = {
 
   clearInterpreter() {
     const list = this.activeInterpreters()
-    const targets = list.length > 0 ? list : [$gameMap && $gameMap._interpreter, $gameTroop && $gameTroop._interpreter].filter(Boolean)
+    const targets = list.length > 0 ? list : [gameMap() && gameMap()._interpreter, gameTroop() && gameTroop()._interpreter].filter(Boolean)
     let n = 0
     for (const it of targets) {
       if (it && typeof it.clear === 'function') {
@@ -278,8 +279,8 @@ export const Cheats = {
         n++
       }
     }
-    if ($gameMap && typeof $gameMap.events === 'function') {
-      for (const ev of $gameMap.events()) {
+    if (gameMap() && typeof gameMap().events === 'function') {
+      for (const ev of gameMap().events()) {
         if (ev && typeof ev.unlock === 'function') ev.unlock()
       }
     }
@@ -294,9 +295,9 @@ export const Cheats = {
   },
 
   wipeEnemies() {
-    if (!this.inBattle() || !$gameTroop || typeof $gameTroop.members !== 'function') return false
+    if (!this.inBattle() || !gameTroop() || typeof gameTroop().members !== 'function') return false
     let n = 0
-    for (const e of $gameTroop.members()) {
+    for (const e of gameTroop().members()) {
       if (!e || (typeof e.isHidden === 'function' && e.isHidden())) continue
       if (typeof e.isDead === 'function' && e.isDead()) continue
       if (typeof e.setHp === 'function') {
@@ -374,10 +375,7 @@ declare const $dataTroops: any[]
 declare const $gameParty: any
 declare const $gameVariables: any
 declare const $gameActors: any
-declare const $gamePlayer: any
 declare const $gameTemp: any
-declare const $gameMap: any
-declare const $gameTroop: any
 declare const SceneManager: {
   _stopped?: boolean
   goto?: (scene: unknown) => void

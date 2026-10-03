@@ -1,11 +1,11 @@
 jest.mock('@/app/api/status/route', () => ({ GET: jest.fn() }))
-jest.mock('@/app/api/launch/route', () => ({ POST: jest.fn(), DELETE: jest.fn() }))
-jest.mock('@/app/api/plugins/route', () => ({ POST: jest.fn(), DELETE: jest.fn() }))
-jest.mock('@/app/api/shell/route', () => ({ GET: jest.fn(), POST: jest.fn(), DELETE: jest.fn() }))
-jest.mock('@/app/api/window/route', () => ({ GET: jest.fn(), PUT: jest.fn() }))
-jest.mock('@/app/api/translate/route', () => ({ POST: jest.fn() }))
-jest.mock('@/app/api/extract/route', () => ({ POST: jest.fn() }))
-jest.mock('@/app/api/translate-cache/route', () => ({ GET: jest.fn(), PATCH: jest.fn(), DELETE: jest.fn(), POST: jest.fn() }))
+jest.mock('@/app/api/launch/route.server', () => ({ POST: jest.fn(), DELETE: jest.fn() }))
+jest.mock('@/app/api/plugins/route.server', () => ({ POST: jest.fn(), DELETE: jest.fn() }))
+jest.mock('@/app/api/shell/route.server', () => ({ GET: jest.fn(), POST: jest.fn(), DELETE: jest.fn() }))
+jest.mock('@/app/api/window/route.server', () => ({ GET: jest.fn(), PUT: jest.fn() }))
+jest.mock('@/app/api/translate/route.server', () => ({ POST: jest.fn() }))
+jest.mock('@/app/api/extract/route.server', () => ({ POST: jest.fn() }))
+jest.mock('@/app/api/translate-cache/route.server', () => ({ GET: jest.fn(), PATCH: jest.fn(), DELETE: jest.fn(), POST: jest.fn() }))
 jest.mock('@/services/runtime/agent-bridge', () => ({
   listAgentGames: jest.fn(() => [{ id: 'g1' }]),
   resolveAgentGame: jest.fn((id?: string) => id || 'g1'),
@@ -16,11 +16,11 @@ import { cacheTools } from '@/app/api/mcp/_tools/cache'
 import { gameTools } from '@/app/api/mcp/_tools/game'
 import { liveTools } from '@/app/api/mcp/_tools/live'
 import { translateTools } from '@/app/api/mcp/_tools/translate'
-import * as ShellRoute from '@/app/api/shell/route'
+import * as ShellRoute from '@/app/api/shell/route.server'
 import * as StatusRoute from '@/app/api/status/route'
-import * as TranslateRoute from '@/app/api/translate/route'
-import * as CacheRoute from '@/app/api/translate-cache/route'
-import * as WindowRoute from '@/app/api/window/route'
+import * as TranslateRoute from '@/app/api/translate/route.server'
+import * as CacheRoute from '@/app/api/translate-cache/route.server'
+import * as WindowRoute from '@/app/api/window/route.server'
 import { callAgentGame } from '@/services/runtime/agent-bridge'
 
 const ctx = { signal: new AbortController().signal }

@@ -114,14 +114,14 @@ export function SizeInput({
   return (
     <div
       className={cn(
-        'inline-flex h-8 w-max max-w-full min-w-0 items-center gap-[0.35rem] overflow-visible rounded-[0.25rem] border border-line bg-paper py-0 pr-[0.4rem] pl-2',
+        'inline-flex h-8 w-max max-w-full min-w-0 items-center gap-1 overflow-visible rounded-[0.25rem] border border-line bg-paper py-0 pr-2 pl-2',
         'focus-within:border-[color-mix(in_oklab,var(--accent)_55%,var(--line))]',
         className
       )}
       role="group"
       aria-label={ariaLabel}
     >
-      <label className={cn('m-0 inline-flex cursor-text items-center gap-[0.35rem]', SIZE_LINE)}>
+      <label className={cn('m-0 inline-flex cursor-text items-center gap-1', SIZE_LINE)}>
         <span
           className={cn(
             'relative inline-flex shrink-0 select-none items-center justify-center text-[0.68rem] leading-none text-ink-soft after:pointer-events-none after:absolute after:top-[calc(50%+0.38rem)] after:left-1/2 after:h-px after:w-[0.35rem] after:-translate-x-1/2 after:bg-[color-mix(in_oklab,var(--ink-soft)_55%,transparent)] after:content-[""]',
@@ -130,7 +130,7 @@ export function SizeInput({
         >
           宽
         </span>
-        <span className={cn('inline-flex min-w-0 items-center gap-[0.2rem] border-none bg-transparent p-0', SIZE_LINE)}>
+        <span className={cn('inline-flex min-w-0 items-center gap-1 border-none bg-transparent p-0', SIZE_LINE)}>
           <NumberInput className={valueClass} value={width} disabled={disabled} aria-label="宽" onValueChange={onWidth} />
           <span className={cn('inline-flex shrink-0 select-none items-center justify-center text-[0.62rem] font-medium leading-none text-ink-soft', SIZE_LINE)}>{unit}</span>
         </span>
@@ -138,7 +138,7 @@ export function SizeInput({
       <span className={cn('m-0 inline-flex shrink-0 select-none items-center justify-center text-xs font-medium leading-none text-ink-soft', SIZE_LINE)} aria-hidden>
         ×
       </span>
-      <label className={cn('m-0 inline-flex cursor-text items-center gap-[0.35rem]', SIZE_LINE)}>
+      <label className={cn('m-0 inline-flex cursor-text items-center gap-1', SIZE_LINE)}>
         <span
           className={cn(
             'relative inline-flex shrink-0 select-none items-center justify-center text-[0.68rem] leading-none text-ink-soft after:pointer-events-none after:absolute after:top-[calc(50%+0.38rem)] after:left-1/2 after:h-px after:w-[0.35rem] after:-translate-x-1/2 after:bg-[color-mix(in_oklab,var(--ink-soft)_55%,transparent)] after:content-[""]',
@@ -147,7 +147,7 @@ export function SizeInput({
         >
           高
         </span>
-        <span className={cn('inline-flex min-w-0 items-center gap-[0.2rem] border-none bg-transparent p-0', SIZE_LINE)}>
+        <span className={cn('inline-flex min-w-0 items-center gap-1 border-none bg-transparent p-0', SIZE_LINE)}>
           <NumberInput className={valueClass} value={height} disabled={disabled} aria-label="高" onValueChange={onHeight} />
           <span className={cn('inline-flex shrink-0 select-none items-center justify-center text-[0.62rem] font-medium leading-none text-ink-soft', SIZE_LINE, SIZE_TRAIL)}>
             {unit}
@@ -160,7 +160,7 @@ export function SizeInput({
           'relative m-0 inline-flex max-w-none min-w-[2.75rem] shrink-0 items-center',
           SIZE_LINE,
           SIZE_TRAIL,
-          '[&_button]:h-5 [&_button]:min-h-5 [&_button]:w-full [&_button]:min-w-0 [&_button]:justify-center [&_button]:gap-0 [&_button]:rounded-[0.15rem] [&_button]:border-none [&_button]:bg-transparent [&_button]:px-[0.15rem] [&_button]:py-0 [&_button]:text-[0.62rem] [&_button]:font-medium [&_button]:leading-none [&_button]:tracking-[0.02em] [&_button]:text-ink-soft [&_button]:shadow-none',
+          '[&_button]:h-5 [&_button]:min-h-5 [&_button]:w-full [&_button]:min-w-0 [&_button]:justify-center [&_button]:gap-0 [&_button]:rounded-[0.15rem] [&_button]:border-none [&_button]:bg-transparent [&_button]:px-0.5 [&_button]:py-0 [&_button]:text-[0.62rem] [&_button]:font-medium [&_button]:leading-none [&_button]:tracking-[0.02em] [&_button]:text-ink-soft [&_button]:shadow-none',
           '[&_button:hover:not(:disabled)]:border-none [&_button:hover:not(:disabled)]:bg-[rgb(230_238_248/0.05)] [&_button:hover:not(:disabled)]:text-ink-soft',
           '[&_button:focus-visible]:border-none [&_button:focus-visible]:bg-[rgb(230_238_248/0.06)] [&_button:focus-visible]:text-ink-soft',
           '[&_button[aria-expanded=true]]:border-none [&_button[aria-expanded=true]]:bg-[rgb(230_238_248/0.06)] [&_button[aria-expanded=true]]:text-ink-soft',

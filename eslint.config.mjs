@@ -67,6 +67,22 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // edge 构建按扩展名剔除 *.server / *.dev 路由；普通模块引用它们会把仅本机代码带回 edge 包
+    files: ['**/*.{ts,tsx}'],
+    ignores: ['**/*.server.{ts,tsx}', '**/*.dev.{ts,tsx}', 'app/api/mcp/**', '__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['*.server', '*.dev'], message: '仅 server / dev 构建收录的模块，只能被同类 *.server / *.dev 文件引用' },
+            { group: ['**/mcp/_tools', '**/mcp/_tools/*'], message: 'MCP 工具依赖仅本机路由；共享常量放 lib/integration' },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: [
       'plugins/**/*.{ts,js,mjs}',
       'scripts/**/*.{js,mjs,cjs}',

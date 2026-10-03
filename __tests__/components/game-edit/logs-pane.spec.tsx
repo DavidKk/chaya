@@ -21,7 +21,7 @@ beforeAll(() => {
 })
 
 afterEach(() => {
-  window.localStorage.removeItem('chaya.locale')
+  window.localStorage.removeItem('chaya.localePref')
 })
 
 test('uses the shared Web level filter and copies only the visible entries', async () => {
@@ -56,7 +56,7 @@ test('uses the shared Web level filter and copies only the visible entries', asy
   try {
     await act(async () =>
       root.render(
-        <LocaleProvider initialLocale="zh">
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
           <GameEditLogsPane />
         </LocaleProvider>
       )

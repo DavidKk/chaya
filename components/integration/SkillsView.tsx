@@ -42,7 +42,7 @@ export function SkillsView({ activeId, html }: { activeId: SkillId; html: string
         </ul>
       </nav>
       <ScrollArea className="min-h-0 flex-1" indicator="vertical">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-5 py-5">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4">
           <div className="flex flex-wrap items-center justify-end gap-2">
             <a
               href={skillRawPath(activeId)}

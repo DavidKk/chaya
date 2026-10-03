@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { IoPauseOutline, IoPlayOutline, IoTrashOutline } from 'react-icons/io5'
 
+import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
 import { LogEntriesSkeleton, LogEntriesView, matchesLogQuery } from '@/components/LogEntriesView'
 import { LogLevelMultiSelect } from '@/components/LogLevelMultiSelect'
 import { Badge, Button, TextInput } from '@/components/sk'
+import { clearLinkLogs, readLinkLogs, subscribeLinkLogs } from '@/lib/log/link-log-store'
 import { LOG_LEVELS, type LogEntry, type LogLevel } from '@/lib/log/types'
 import { useQueryPatch } from '@/lib/url/use-query-patch'
 
@@ -36,10 +38,14 @@ export function LogPanel() {
   const { searchParams, replaceQuery } = useQueryPatch()
   const q = searchParams.get('q') ?? ''
   const levelFilter = useMemo(() => parseLevelFilter(searchParams.get('level')), [searchParams])
-  const [entries, setEntries] = useState<LogEntry[]>([])
-  const [connected, setConnected] = useState(false)
+  const link = useGameLinkContext()
+  const browserMode = link.browserMode
+  const linkEntries = useSyncExternalStore(subscribeLinkLogs, readLinkLogs, readLinkLogs)
+  const [streamEntries, setStreamEntries] = useState<LogEntry[]>([])
+  const [streamConnected, setStreamConnected] = useState(false)
   const [booted, setBooted] = useState(false)
   const [paused, setPaused] = useState(false)
+  const [frozenLinkEntries, setFrozenLinkEntries] = useState<readonly LogEntry[]>([])
   const [qInput, setQInput] = useState(q)
   const scroller = useRef<HTMLDivElement>(null)
   const pausedRef = useRef(paused)
@@ -49,17 +55,19 @@ export function LogPanel() {
     setQInput(q)
   }, [q])
 
+  // 浏览器模式日志只来自游戏连接；服务端模式订阅本机服务的 SSE
   useEffect(() => {
+    if (browserMode) return
     const es = new EventSource('/api/logs/stream?backlog=150')
     es.addEventListener('hello', () => {
-      setConnected(true)
+      setStreamConnected(true)
       setBooted(true)
     })
     es.addEventListener('log', (ev) => {
       try {
         const entry = JSON.parse((ev as MessageEvent).data) as LogEntry
         if (pausedRef.current) return
-        setEntries((prev) => {
+        setStreamEntries((prev) => {
           const next = [...prev, entry]
           return next.length > 400 ? next.slice(-400) : next
         })
@@ -68,11 +76,14 @@ export function LogPanel() {
       }
     })
     es.onerror = () => {
-      setConnected(false)
+      setStreamConnected(false)
       setBooted(true)
     }
     return () => es.close()
-  }, [])
+  }, [browserMode])
+
+  const entries = browserMode ? (paused ? frozenLinkEntries : linkEntries.slice(-400)) : streamEntries
+  const connected = browserMode ? link.connected : streamConnected
 
   useEffect(() => {
     if (paused) return
@@ -82,8 +93,18 @@ export function LogPanel() {
   }, [entries, paused])
 
   async function clearAll() {
+    if (browserMode) {
+      clearLinkLogs()
+      setFrozenLinkEntries([])
+      return
+    }
     await fetch('/api/logs', { method: 'DELETE' })
-    setEntries([])
+    setStreamEntries([])
+  }
+
+  function togglePaused() {
+    if (!paused) setFrozenLinkEntries(linkEntries.slice(-400))
+    setPaused(!paused)
   }
 
   function commitQ(next: string) {
@@ -103,7 +124,7 @@ export function LogPanel() {
     <div className={panelShell} role="region" aria-label={t('logs.region')}>
       <div className={panelHead}>
         <div className={panelHeadEnd}>
-          <Badge tone={connected ? 'ok' : 'neutral'}>{connected ? t('logs.live') : t('logs.streamDown')}</Badge>
+          <Badge tone={connected ? 'ok' : 'neutral'}>{connected ? t('logs.live') : browserMode ? t('logs.waitGame') : t('logs.streamDown')}</Badge>
           <TextInput
             search
             className="w-52 max-w-full shrink"
@@ -122,7 +143,7 @@ export function LogPanel() {
             size="icon"
             aria-label={paused ? t('common.resume') : t('common.pause')}
             tooltip={paused ? t('common.resume') : t('common.pause')}
-            onClick={() => setPaused((p) => !p)}
+            onClick={togglePaused}
           >
             {paused ? <IoPlayOutline size={16} aria-hidden /> : <IoPauseOutline size={16} aria-hidden />}
           </Button>
@@ -132,7 +153,7 @@ export function LogPanel() {
         </div>
       </div>
 
-      {!booted ? (
+      {!booted && !browserMode ? (
         <LogEntriesSkeleton />
       ) : (
         <LogEntriesView
@@ -141,7 +162,7 @@ export function LogPanel() {
           hasFilter={hasFilter}
           scrollRef={scroller}
           ariaLabel={t('logs.region')}
-          status={paused ? t('logs.pausedRecv') : connected ? t('logs.live') : t('logs.connecting')}
+          status={paused ? t('logs.pausedRecv') : connected ? t('logs.live') : browserMode ? t('logs.waitGame') : t('logs.connecting')}
         />
       )}
     </div>

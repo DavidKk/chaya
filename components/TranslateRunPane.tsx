@@ -132,10 +132,10 @@ function StatTile({ label, value, hint, tone = 'ink' }: { label: string; value: 
   const valueTone = tone === 'ok' ? 'text-ok' : tone === 'warn' ? 'text-warn' : tone === 'accent' ? 'text-accent' : 'text-ink'
 
   return (
-    <div className="rounded-[0.3rem] bg-inset/80 px-3.5 py-3">
+    <div className="rounded-[0.3rem] bg-inset/80 px-4 py-3">
       <div className="text-[0.6875rem] font-medium tracking-wide text-ink-soft">{label}</div>
-      <div className={cn('mt-1.5 text-[1.35rem] font-semibold leading-none tabular-nums tracking-tight', valueTone)}>{animated.toLocaleString()}</div>
-      {hint ? <div className="mt-1.5 text-[0.6875rem] leading-snug text-ink-soft/90">{hint}</div> : null}
+      <div className={cn('mt-2 text-[1.35rem] font-semibold leading-none tabular-nums tracking-tight', valueTone)}>{animated.toLocaleString()}</div>
+      {hint ? <div className="mt-2 text-[0.6875rem] leading-snug text-ink-soft/90">{hint}</div> : null}
     </div>
   )
 }
@@ -386,7 +386,7 @@ export function TranslateRunPane({
         <div className="flex min-h-0 flex-1 items-stretch">
           <TranslateEngineRail disabled={busy} mobileOpen={enginesOpen} onMobileOpenChange={setEnginesOpen} onChange={onEnginesChange} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-line px-4 py-2.5">
+            <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-line px-4 py-2">
               <SegmentedNav items={tabs} value={tab} onChange={setTab} aria-label={t('translate.configAria')} />
             </div>
             <ScrollArea className="min-h-0 flex-1" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.taskAria') }}>
@@ -412,7 +412,7 @@ export function TranslateRunPane({
 
                       {progress.hasSeed ? (
                         <>
-                          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                             <StatTile
                               label={t('translate.total')}
                               value={progress.total}
@@ -471,7 +471,7 @@ export function TranslateRunPane({
                         </>
                       ) : null}
 
-                      <div className="flex flex-wrap items-center gap-3 [&_button]:min-h-11 [&_button]:min-w-[8.5rem] [&_button]:px-5 [&_button]:py-2.5 [&_button]:text-[0.9375rem] [&_button]:font-semibold">
+                      <div className="flex flex-wrap items-center gap-3 [&_button]:min-h-11 [&_button]:min-w-[8.5rem] [&_button]:px-4 [&_button]:py-2 [&_button]:text-[0.9375rem] [&_button]:font-semibold">
                         <Button disabled={busy} loading={importing} onClick={() => fileRef.current?.click()}>
                           <IoCloudUploadOutline size={18} aria-hidden />
                           {t('translate.importFile')}

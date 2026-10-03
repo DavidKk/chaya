@@ -152,7 +152,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
       className={cn(
         'font-mono',
         affix
-          ? 'm-0 h-full min-h-0 min-w-[3.5rem] flex-1 appearance-none rounded-none border-none bg-transparent px-[0.1rem] py-0 font-inherit text-[0.8125rem] leading-none text-ink outline-none disabled:cursor-not-allowed'
+          ? 'm-0 h-full min-h-0 min-w-[3.5rem] flex-1 appearance-none rounded-none border-none bg-transparent px-0.5 py-0 font-inherit text-[0.8125rem] leading-none text-ink outline-none disabled:cursor-not-allowed'
           : cn(formControlChrome, formControlPadX, FORM_CONTROL_H, 'min-w-[5.5rem] focus:border-accent disabled:cursor-not-allowed disabled:opacity-45'),
         inputLocked && 'cursor-not-allowed opacity-55',
         !affix && invalid && 'border-fail',
@@ -201,7 +201,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
       className={cn(
         formControlChrome,
         FORM_CONTROL_H,
-        'inline-flex w-fit min-w-[5.5rem] items-center gap-[0.2rem] pr-[0.4rem] pl-[0.45rem] focus-within:border-accent',
+        'inline-flex w-fit min-w-[5.5rem] items-center gap-1 pr-2 pl-2 focus-within:border-accent',
         'group/num',
         invalid && 'border-fail',
         shellDisabled && 'cursor-not-allowed opacity-45',

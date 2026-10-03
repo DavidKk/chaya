@@ -34,7 +34,7 @@ Agent ──JSON-RPC（Bearer token）──► POST /api/mcp
 | `app/api/mcp/_tools/route-invoke.ts` | 进程内调用路由处理函数（带服务端管理 token、透传取消信号）并解包 `apiOk` 信封、去掉凭证字段                                                         |
 | `services/integration/skills.ts`     | 读取 `skills/<id>/SKILL.md`（字面路径保证被 output file tracing 打包）                                                                              |
 | `services/runtime/agent-bridge.ts`   | 内存指令队列（已存在）                                                                                                                              |
-| `app/api/mcp/route.ts`               | MCP 入口                                                                                                                                            |
+| `app/api/mcp/route.server.ts`        | MCP 入口                                                                                                                                            |
 | `app/api/integration/mcp/route.ts`   | 页面用：服务地址、token（仅本机 + 管理会话）、eval 开关                                                                                             |
 | `app/integration/**`                 | 集成页（layout + skills / mcp 子页）                                                                                                                |
 | `app/skills/[file]/route.ts`         | 公开 Skill 原文 `/skills/<id>.md`                                                                                                                   |

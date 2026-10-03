@@ -20,12 +20,12 @@ export default function NotFound() {
           404
         </p>
         <p className="mt-4 mb-0 text-[0.9375rem] font-medium text-ink">{t('notFound.title')}</p>
-        <p className="mt-[0.4rem] mb-0 text-[0.75rem] leading-relaxed text-ink-soft">{t('notFound.hint')}</p>
+        <p className="mt-2 mb-0 text-[0.75rem] leading-relaxed text-ink-soft">{t('notFound.hint')}</p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           <Link
             href="/game"
             className={cn(
-              'inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-[0.2rem] px-[0.85rem]',
+              'inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-[0.2rem] px-3',
               'border-0 bg-accent text-[0.8125rem] font-semibold text-accent-ink no-underline',
               'shadow-[0_0_0_1px_color-mix(in_oklab,var(--accent)_40%,transparent),0_3px_14px_color-mix(in_oklab,var(--accent-glow)_45%,transparent)]',
               'transition-[filter,box-shadow] duration-100 hover:brightness-110'
@@ -36,7 +36,7 @@ export default function NotFound() {
           <Link
             href="/translate/run"
             className={cn(
-              'inline-flex h-8 items-center justify-center rounded-[0.2rem] border border-line bg-transparent px-[0.85rem]',
+              'inline-flex h-8 items-center justify-center rounded-[0.2rem] border border-line bg-transparent px-3',
               'text-[0.8125rem] font-medium text-ink-soft no-underline transition-colors hover:bg-[rgb(230_238_248/0.06)] hover:text-ink'
             )}
           >

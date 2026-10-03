@@ -22,6 +22,7 @@ import {
   type SessionState,
   type TableRow,
 } from '@/components/game-edit/types'
+import { useT } from '@/components/i18n/LocaleProvider'
 import { EditTableSkeleton } from '@/components/sk'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 
@@ -109,6 +110,9 @@ function tabNeedsCatalog(tab: TabId): boolean {
 
 /** In-game React panel: shared GameEditWorkbench + runtime data */
 export function GameEditApp({ open, onRequestClose }: Props) {
+  const t = useT()
+  const tRef = useRef(t)
+  tRef.current = t
   const [initial] = useState(initialView)
   const [tab, setTab] = useState<TabId>(initial.tab)
   const [lastEditTab, setLastEditTab] = useState<TabId>(initial.lastEditTab)
@@ -140,7 +144,7 @@ export function GameEditApp({ open, onRequestClose }: Props) {
     try {
       if (!$gameParty) {
         setCatalog(null)
-        setError('请先读档进游戏')
+        setError(tRef.current('edit.needSave'))
         return
       }
       ensureGameEditDiskApplied()
@@ -162,7 +166,7 @@ export function GameEditApp({ open, onRequestClose }: Props) {
     } catch (err) {
       setCatalog(null)
       catalogReadyRef.current = false
-      setError(err instanceof Error ? err.message : '无法读取游戏数据')
+      setError(err instanceof Error ? err.message : tRef.current('edit.readFailed'))
     }
   }, [])
 
@@ -181,7 +185,7 @@ export function GameEditApp({ open, onRequestClose }: Props) {
           setGameHotkeysCache(boot.hotkeys)
           refresh(tabRef.current)
         } catch (err) {
-          setError(err instanceof Error ? err.message : '无法初始化')
+          setError(err instanceof Error ? err.message : tRef.current('edit.initFailed'))
         } finally {
           if (!cancelled) setBootstrapping(false)
         }
@@ -454,7 +458,7 @@ export function GameEditApp({ open, onRequestClose }: Props) {
 
   return (
     <GameEditOverlayProviders>
-      <Suspense fallback={<EditTableSkeleton label="加载编辑面板" />}>
+      <Suspense fallback={<EditTableSkeleton label={t('edit.loadPanel')} />}>
         <GameEditWorkbench
           surface="overlay"
           tab={tab}

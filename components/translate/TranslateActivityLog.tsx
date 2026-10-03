@@ -58,12 +58,12 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
         </span>
       </div>
       {liveStatus ? (
-        <p className={cn(formDesc, 'mt-1.5 animate-pulse text-[0.75rem] text-accent')}>{liveStatus}</p>
+        <p className={cn(formDesc, 'mt-2 animate-pulse text-[0.75rem] text-accent')}>{liveStatus}</p>
       ) : (
-        <p className={cn(formDesc, 'mt-1.5')}>开始翻译后显示每段进度与样例。</p>
+        <p className={cn(formDesc, 'mt-2')}>开始翻译后显示每段进度与样例。</p>
       )}
       <ScrollArea scrollRef={scrollRef} className="mt-3 h-[11rem]" indicator="vertical" scrollProps={{ 'aria-label': '翻译活动日志', tabIndex: 0 }}>
-        <ul className="m-0 flex list-none flex-col gap-1.5 p-0 font-mono text-[0.7rem] leading-relaxed">
+        <ul className="m-0 flex list-none flex-col gap-2 p-0 font-mono text-[0.7rem] leading-relaxed">
           {entries.length === 0 ? (
             <li className="text-ink-soft">暂无记录</li>
           ) : (

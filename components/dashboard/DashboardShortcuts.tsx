@@ -17,13 +17,13 @@ const HOME_SHORTCUTS: { href: string; titleKey: MessageKey; descKey: MessageKey;
 export function DashboardShortcuts() {
   const t = useT()
   return (
-    <nav className="grid grid-cols-3 gap-3 border-t border-[var(--line-soft)] pt-4" aria-label={t('dashboard.shortcutNav')}>
+    <nav className="grid grid-cols-3 gap-3" aria-label={t('dashboard.shortcutNav')}>
       {HOME_SHORTCUTS.map(({ href, titleKey, descKey, Icon }) => (
         <Link
           key={href}
           href={href}
           className={cn(
-            'group flex min-w-0 items-center gap-3 rounded-[0.4rem] border border-line bg-inset px-3.5 py-3 no-underline',
+            'group flex min-w-0 items-center gap-3 rounded-[0.4rem] border border-line bg-inset p-3 no-underline',
             'transition-colors hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--line))] hover:bg-[color-mix(in_oklab,var(--accent)_8%,var(--inset))]',
             'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]'
           )}

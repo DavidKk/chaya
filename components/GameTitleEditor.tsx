@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { GrFormEdit } from 'react-icons/gr'
 
+import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -55,68 +56,73 @@ export function GameTitleEditor({ originalName, remark = '', busy = false, onSav
   }
 
   return (
-    <div className={cn('flex min-w-0 flex-1 items-center gap-1.5', className)}>
-      <span
-        ref={titleRef}
-        role={editing ? 'textbox' : undefined}
-        aria-label="游戏备注名称"
-        aria-readonly={!editing}
-        contentEditable={editing && !busy}
-        suppressContentEditableWarning
-        tabIndex={editing ? 0 : undefined}
-        className={cn(
-          'min-w-0 max-w-full font-display text-lg font-semibold leading-[1.25] tracking-[-0.02em] text-ink',
-          // 非编辑也占住下划线高度，避免切入编辑时抖动
-          'border-b border-transparent pb-px',
-          editing
-            ? cn(
-                'min-w-[10rem] cursor-text whitespace-nowrap outline-none border-accent',
-                'empty:before:pointer-events-none empty:before:font-normal empty:before:text-ink-soft empty:before:content-[attr(data-placeholder)]'
-              )
-            : 'truncate'
-        )}
-        data-placeholder={originalName || '输入备注名称'}
-        onBlur={() => {
-          if (editing) void commit()
-        }}
-        onKeyDown={(e) => {
-          if (!editing) return
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            e.currentTarget.blur()
-          }
-          if (e.key === 'Escape') {
-            e.preventDefault()
-            skipCommitRef.current = true
-            if (titleRef.current) titleRef.current.textContent = display
-            setEditing(false)
-          }
-        }}
-      >
-        {editing ? null : display}
-      </span>
+    <div className={cn('flex min-w-0 flex-1 items-center gap-2', className)}>
+      <Tooltip touchBehavior="passthrough" content={stored ? `备注名称：${display}` : `游戏名称：${display}`}>
+        <span className="flex min-w-0 max-w-full">
+          <span
+            ref={titleRef}
+            role={editing ? 'textbox' : undefined}
+            aria-label="游戏备注名称"
+            aria-readonly={!editing}
+            contentEditable={editing && !busy}
+            suppressContentEditableWarning
+            tabIndex={editing ? 0 : undefined}
+            className={cn(
+              'min-w-0 max-w-full font-display text-lg font-semibold leading-[1.25] tracking-[-0.02em] text-ink',
+              // 非编辑也占住下划线高度，避免切入编辑时抖动
+              'border-b border-transparent pb-px',
+              editing
+                ? cn(
+                    'min-w-[10rem] cursor-text whitespace-nowrap outline-none border-accent',
+                    'empty:before:pointer-events-none empty:before:font-normal empty:before:text-ink-soft empty:before:content-[attr(data-placeholder)]'
+                  )
+                : 'truncate'
+            )}
+            data-placeholder={originalName || '输入备注名称'}
+            onBlur={() => {
+              if (editing) void commit()
+            }}
+            onKeyDown={(e) => {
+              if (!editing) return
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                e.currentTarget.blur()
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                skipCommitRef.current = true
+                if (titleRef.current) titleRef.current.textContent = display
+                setEditing(false)
+              }
+            }}
+          >
+            {editing ? null : display}
+          </span>
+        </span>
+      </Tooltip>
       {!editing ? (
-        <button
-          type="button"
-          className={cn(
-            'm-0 inline-flex size-[1.375rem] shrink-0 cursor-pointer appearance-none items-center justify-center border-none bg-transparent p-0 text-ink-soft opacity-45',
-            'hover:opacity-100 hover:text-ink focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]',
-            'disabled:cursor-not-allowed disabled:opacity-45'
-          )}
-          disabled={busy}
-          aria-label="编辑备注名称"
-          title="编辑备注名称"
-          onClick={startEdit}
-        >
-          <GrFormEdit className="size-3.5" aria-hidden />
-        </button>
+        <Tooltip content="编辑备注名称">
+          <button
+            type="button"
+            className={cn(
+              'm-0 inline-flex size-[1.375rem] shrink-0 cursor-pointer appearance-none items-center justify-center border-none bg-transparent p-0 text-ink-soft opacity-45',
+              'hover:opacity-100 hover:text-ink focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]',
+              'disabled:cursor-not-allowed disabled:opacity-45'
+            )}
+            disabled={busy}
+            aria-label="编辑备注名称"
+            onClick={startEdit}
+          >
+            <GrFormEdit className="size-3.5" aria-hidden />
+          </button>
+        </Tooltip>
       ) : (
         <span className="inline-flex size-[1.375rem] shrink-0" aria-hidden />
       )}
       {!editing && stored ? (
-        <span className="min-w-0 truncate text-[0.75rem] font-normal text-ink-soft" title={originalName}>
-          {originalName}
-        </span>
+        <Tooltip content={`原始名称：${originalName}`}>
+          <span className="min-w-0 truncate text-[0.75rem] font-normal text-ink-soft">{originalName}</span>
+        </Tooltip>
       ) : null}
     </div>
   )

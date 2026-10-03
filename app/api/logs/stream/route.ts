@@ -1,4 +1,5 @@
 import { defineApiRoute } from '@/initializer/controller'
+import { canUseDisk } from '@/lib/service-mode'
 import { listLogs, type LogEntry, subscribeLogs } from '@/services/log'
 
 export const runtime = 'nodejs'
@@ -24,17 +25,20 @@ export const GET = defineApiRoute('get:/api/logs/stream', async ({ request }) =>
       }
 
       send('hello', { ok: true, ts: Date.now() })
-      for (const entry of listLogs({ limit: backlog })) {
-        send('log', entry)
-      }
-
-      const unsub = subscribeLogs((entry: LogEntry) => {
-        try {
-          send('log', entry)
-        } catch {
-          unsub()
-        }
-      })
+      // 浏览器模式：日志经游戏连接直达页面，只保活不推条目（关流会让 EventSource 不停重连）
+      const unsub = canUseDisk()
+        ? (() => {
+            for (const entry of listLogs({ limit: backlog })) send('log', entry)
+            const off = subscribeLogs((entry: LogEntry) => {
+              try {
+                send('log', entry)
+              } catch {
+                off()
+              }
+            })
+            return off
+          })()
+        : () => {}
 
       const ping = setInterval(() => {
         try {

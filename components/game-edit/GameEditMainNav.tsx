@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 
 import { useT } from '@/components/i18n/LocaleProvider'
+import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
 import { cn } from '@/lib/utils'
 
 import type { TabId } from './tabs'
@@ -35,7 +36,7 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, refreshButton, close
             aria-current={active ? 'page' : undefined}
             data-main-nav-id={item.id}
             className={cn(
-              'relative inline-flex shrink-0 cursor-pointer items-center border-0 bg-transparent px-[0.8rem] text-[0.9375rem] font-semibold text-ink-soft transition-colors hover:text-ink',
+              'relative inline-flex shrink-0 cursor-pointer items-center border-0 bg-transparent px-3 text-[0.9375rem] font-semibold text-ink-soft transition-colors hover:text-ink',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent',
               active && 'text-ink'
             )}
@@ -46,7 +47,8 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, refreshButton, close
           </button>
         )
       })}
-      <div className="ml-auto flex items-center gap-[0.4rem]">
+      <div className="ml-auto flex items-center gap-2">
+        <LocaleSwitcher compact />
         {refreshButton}
         {closeButton}
       </div>

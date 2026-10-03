@@ -1,4 +1,4 @@
-import { POST } from '@/app/api/translate/route'
+import { POST } from '@/app/api/translate/route.server'
 import { resolveGame } from '@/lib/game'
 import { hasManagementAccess } from '@/services/access/management'
 import { peekLaunchToken } from '@/services/runtime/launch-token'

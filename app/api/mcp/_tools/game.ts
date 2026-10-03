@@ -1,8 +1,8 @@
-import * as LaunchRoute from '@/app/api/launch/route'
-import * as PluginsRoute from '@/app/api/plugins/route'
-import * as ShellRoute from '@/app/api/shell/route'
+import * as LaunchRoute from '@/app/api/launch/route.server'
+import * as PluginsRoute from '@/app/api/plugins/route.server'
+import * as ShellRoute from '@/app/api/shell/route.server'
 import * as StatusRoute from '@/app/api/status/route'
-import * as WindowRoute from '@/app/api/window/route'
+import * as WindowRoute from '@/app/api/window/route.server'
 import { optBool, optObj, optStr, type ToolImpls } from '@/lib/integration/tools/args'
 
 import { invokeRoute } from './route-invoke'

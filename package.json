@@ -22,6 +22,8 @@
     "electron:open": "CHAYA_SERVICE=app CHAYA_ELECTRON_EXTERNAL=1 node ./node_modules/electron/cli.js .",
     "build": "pnpm build:plugins && pnpm build:next",
     "build:next": "next build --webpack",
+    "build:edge": "cross-env CHAYA_TARGET=edge pnpm build",
+    "check:edge": "pnpm build:edge && node scripts/check-edge-build.mjs",
     "build:plugins": "node plugins/build.mjs",
     "build:plugins:dev": "node plugins/build.mjs --watch",
     "build:app": "cross-env CHAYA_ELECTRON_BUILD=1 CHAYA_SERVICE=app pnpm build && node scripts/prepare-electron-app.mjs",

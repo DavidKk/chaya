@@ -61,27 +61,61 @@ export function CopyField({ value, label, className }: CopyFieldProps) {
   const Icon = state === 'ok' ? LuCheck : state === 'fail' ? LuX : LuCopy
   const tip = state === 'ok' ? t('common.copied') : state === 'fail' ? t('common.copyFailed') : t('common.copy')
 
+  const copyButton = (
+    <Button
+      size="icon"
+      variant="ghost"
+      aria-label={tip}
+      disabled={!value}
+      onClick={() => void copy()}
+      className={cn(value.includes('\n') ? 'absolute top-1 right-1' : 'h-full rounded-none border-0', state === 'ok' && 'text-ok', state === 'fail' && 'text-fail')}
+    >
+      <Icon aria-hidden className="size-4" />
+    </Button>
+  )
+  const status = (
+    <span role="status" className="sr-only">
+      {state === 'idle' ? '' : tip}
+    </span>
+  )
+
+  if (value.includes('\n')) {
+    return (
+      <div role={label ? 'group' : undefined} aria-label={label} className={cn('relative rounded-[0.25rem] border border-line bg-panel-2', className)}>
+        <code
+          tabIndex={0}
+          className="block overflow-x-auto whitespace-pre py-2 pr-12 pl-3 font-mono text-xs leading-relaxed text-ink select-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          {value}
+        </code>
+        {copyButton}
+        {status}
+      </div>
+    )
+  }
+
   return (
-    <div role={label ? 'group' : undefined} aria-label={label} className={cn('relative rounded-[0.25rem] border border-line bg-panel-2', className)}>
-      <code
-        tabIndex={0}
-        className="block min-h-10 whitespace-pre-wrap break-all py-2.5 pr-12 pl-3 font-mono text-xs leading-relaxed text-ink select-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
-        {value}
-      </code>
-      <Button
-        size="icon"
-        variant="ghost"
-        aria-label={tip}
-        disabled={!value}
-        onClick={() => void copy()}
-        className={cn('absolute top-1 right-1', state === 'ok' && 'text-ok', state === 'fail' && 'text-fail')}
-      >
-        <Icon aria-hidden className="size-4" />
-      </Button>
-      <span role="status" className="sr-only">
-        {state === 'idle' ? '' : tip}
-      </span>
+    <div
+      role={label ? 'group' : undefined}
+      aria-label={label}
+      className={cn(
+        'flex h-9 w-full min-w-0 items-stretch overflow-hidden rounded-[0.25rem] border border-line bg-panel-2 transition-[border-color] duration-100 focus-within:border-accent',
+        className
+      )}
+    >
+      <input
+        type="text"
+        readOnly
+        value={value}
+        aria-label={label}
+        spellCheck={false}
+        onFocus={(event) => event.currentTarget.select()}
+        onClick={(event) => event.currentTarget.select()}
+        className="m-0 min-w-0 flex-1 appearance-none border-none bg-transparent px-3 font-mono text-xs text-ink outline-none"
+      />
+      <span aria-hidden className="my-2 w-px shrink-0 bg-line" />
+      {copyButton}
+      {status}
     </div>
   )
 }

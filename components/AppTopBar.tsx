@@ -5,8 +5,10 @@ import type { ReactNode } from 'react'
 
 import { AppNav, type AppNavPath } from '@/components/AppNav'
 import { BrandLogo } from '@/components/BrandLogo'
+import { DevTargetSwitch } from '@/components/DevTargetSwitch'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
 import { brand, topBarFrame, topBarNav, topBarRow, topRight } from '@/components/layoutClasses'
+import { BUILD_TARGET } from '@/lib/service-mode/target'
 import { cn } from '@/lib/utils'
 
 export function appNavPathFromPathname(pathname: string): AppNavPath {
@@ -43,6 +45,7 @@ export function AppTopBar({ current, end, className }: Props) {
         </div>
         <div className={cn(topRight, 'self-center')}>
           {end}
+          {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
           <LocaleSwitcher />
         </div>
       </div>

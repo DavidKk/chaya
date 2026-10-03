@@ -91,6 +91,15 @@ function formatMessage(parts: unknown[]): string {
     .join(' ')
 }
 
+/** Browser mode: Env sets `CHAYA_LOG_TRANSPORT = 'link'`; entries reach the page via the game link, never the server */
+export function logsViaLink(): boolean {
+  try {
+    return (window as Window & { CHAYA_LOG_TRANSPORT?: string }).CHAYA_LOG_TRANSPORT === 'link'
+  } catch {
+    return false
+  }
+}
+
 function scheduleReconnectProbe() {
   if (probeTimer) return
   probeTimer = setTimeout(() => {
@@ -160,8 +169,8 @@ function emit(level: ChayaLogLevel, source: string, ...contents: unknown[]) {
   local.entries = [...local.entries.slice(-(LOCAL_LOG_LIMIT - 1)), entry]
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(LOCAL_LOG_EVENT))
 
-  // Known disconnected: do not queue or send
-  if (connected === false) return
+  // Known disconnected, or logs travel over the game link: do not queue HTTP reports
+  if (connected === false || logsViaLink()) return
 
   queue.push({
     level,

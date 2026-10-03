@@ -1,4 +1,4 @@
-import { type LogEntry, type LogLevel, normalizeLogLevel } from '@/lib/log'
+import { filterLogEntries, type LogEntry, type LogLevel, type LogQuery, normalizeLogLevel } from '@/lib/log'
 import { canUseDisk } from '@/lib/service-mode'
 
 import { appendLogToFile, clearLogFiles, loadLogsFromFiles, pluginLogFileStats, resolvePluginLogDir } from './file-store'
@@ -55,22 +55,9 @@ export function appendLog(partial: { level?: string; source: string; message: st
   return entry
 }
 
-export function listLogs(opts?: { limit?: number; source?: string; level?: LogLevel; since?: number; q?: string }): LogEntry[] {
+export function listLogs(opts?: LogQuery): LogEntry[] {
   hydrateOnce()
-  const limit = Math.min(1000, Math.max(1, opts?.limit ?? 200))
-  let rows = buffer
-  if (opts?.source) {
-    const s = opts.source.toLowerCase()
-    rows = rows.filter((e) => e.source.toLowerCase() === s)
-  }
-  if (opts?.level) {
-    const lv = normalizeLogLevel(opts.level)
-    rows = rows.filter((e) => e.level === lv)
-  }
-  if (opts?.since) rows = rows.filter((e) => e.ts >= opts.since!)
-  const q = opts?.q?.trim().toLowerCase()
-  if (q) rows = rows.filter((e) => e.message.toLowerCase().includes(q) || e.source.toLowerCase().includes(q))
-  return rows.slice(-limit)
+  return filterLogEntries(buffer, opts)
 }
 
 export function clearLogs() {

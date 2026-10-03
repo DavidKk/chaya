@@ -152,7 +152,7 @@ export function LogLevelMultiSelect({ value, onChange, className, disabled = fal
                     <button
                       type="button"
                       className={cn(
-                        'm-0 flex w-full appearance-none cursor-pointer items-center gap-2 rounded-[0.15rem] border-none bg-transparent px-[0.55rem] py-[0.4rem] text-left font-inherit text-ink',
+                        'm-0 flex w-full appearance-none cursor-pointer items-center gap-2 rounded-[0.15rem] border-none bg-transparent px-2 py-2 text-left font-inherit text-ink',
                         'hover:bg-[color-mix(in_oklab,var(--accent)_10%,transparent)]',
                         checked && 'bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]'
                       )}
@@ -178,8 +178,8 @@ export function LogLevelMultiSelect({ value, onChange, className, disabled = fal
         ref={triggerRef}
         type="button"
         className={cn(
-          'relative flex h-8 w-full appearance-none cursor-pointer items-center justify-between gap-[0.45rem]',
-          'rounded-[0.2rem] border border-line bg-paper px-[0.55rem] py-0 font-inherit text-ink outline-none',
+          'relative flex h-8 w-full appearance-none cursor-pointer items-center justify-between gap-2',
+          'rounded-[0.2rem] border border-line bg-paper px-2 py-0 font-inherit text-ink outline-none',
           'hover:enabled:border-[rgb(230_238_248_/_0.2)]',
           open && 'border-accent',
           'focus-visible:border-accent',
@@ -196,7 +196,7 @@ export function LogLevelMultiSelect({ value, onChange, className, disabled = fal
           setOpen((current) => !current)
         }}
       >
-        <span ref={measureRef} className="pointer-events-none absolute top-0 left-0 flex flex-nowrap items-center gap-[0.28rem] whitespace-nowrap invisible" aria-hidden>
+        <span ref={measureRef} className="pointer-events-none absolute top-0 left-0 flex flex-nowrap items-center gap-1 whitespace-nowrap invisible" aria-hidden>
           {selected.map((level) => (
             <span key={level} data-level-tag className={logBadgeClass(level)}>
               {level}
@@ -206,7 +206,7 @@ export function LogLevelMultiSelect({ value, onChange, className, disabled = fal
             …
           </span>
         </span>
-        <span ref={tagsRef} className="flex min-w-0 flex-1 flex-nowrap items-center gap-[0.28rem] overflow-hidden">
+        <span ref={tagsRef} className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden">
           {selected.length === 0 ? (
             <span className="text-[0.8125rem] text-ink-soft">{t('logs.level')}</span>
           ) : (

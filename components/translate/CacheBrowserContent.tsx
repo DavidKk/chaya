@@ -410,7 +410,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery }: QueryState) 
                   <td className="tabular-nums">{row.hitCount}</td>
                   <td className="whitespace-nowrap font-mono text-xs">{fmtTime(row.updatedAt, LOCALE_HTML_LANG[locale])}</td>
                   <td className="align-middle">
-                    <div className="inline-flex items-center gap-[0.2rem]">
+                    <div className="inline-flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -446,8 +446,8 @@ export function CacheBrowserContent({ searchParams, replaceQuery }: QueryState) 
 
       <div className={panelFoot}>
         <span>{total ? `${from}–${to} / ${total.toLocaleString()}` : t('translate.cacheTitle')}</span>
-        <div className="inline-flex items-center gap-[0.35rem]">
-          <label className="mr-1 inline-flex items-center gap-[0.35rem] whitespace-nowrap text-[0.7rem] text-ink-soft">
+        <div className="inline-flex items-center gap-1">
+          <label className="mr-1 inline-flex items-center gap-1 whitespace-nowrap text-[0.7rem] text-ink-soft">
             <span>{t('translate.cachePageSize')}</span>
             <Select
               className="w-[4.75rem]"
@@ -459,7 +459,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery }: QueryState) 
               onChange={(v) => setFilters({ page: 1, pageSize: snapPageSize(Number(v)) })}
             />
           </label>
-          <span className="mr-[0.1rem] tabular-nums">
+          <span className="mr-0.5 tabular-nums">
             {page} / {totalPages}
           </span>
           <Button variant="ghost" size="icon" disabled={busy || page <= 1} aria-label={t('translate.cacheFirst')} tooltip={t('translate.cacheFirst')} onClick={() => go(1)}>
@@ -583,7 +583,7 @@ function CacheEditDialog({
         </>
       }
     >
-      <div className="flex flex-col gap-[0.3rem]">
+      <div className="flex flex-col gap-1">
         <span className="text-[0.7rem] font-medium text-ink-soft">{t('translate.cacheSrc')}</span>
         <ScrollArea
           className="max-h-24 rounded-[0.15rem] border border-line bg-paper"
@@ -591,7 +591,7 @@ function CacheEditDialog({
           reserveGutter={false}
           scrollProps={{ 'aria-label': t('translate.cacheSrc') }}
         >
-          <div className="px-[0.55rem] py-[0.45rem] text-[0.8125rem] leading-snug whitespace-pre-wrap break-words text-ink">
+          <div className="px-2 py-2 text-[0.8125rem] leading-snug whitespace-pre-wrap break-words text-ink">
             {src}
             {nsfw ? (
               <Badge tone="warn" dot={false} className={nsfwBadgeClass}>
@@ -601,13 +601,13 @@ function CacheEditDialog({
           </div>
         </ScrollArea>
       </div>
-      <label className="flex flex-col gap-[0.3rem]">
+      <label className="flex flex-col gap-1">
         <span className="text-[0.7rem] font-medium text-ink-soft">{t('translate.cacheZh')}</span>
         <textarea
           className={cn(
             formControlChrome,
             formControlPadX,
-            'h-auto min-h-[6.5rem] resize-none py-[0.45rem] leading-snug focus:border-accent disabled:cursor-not-allowed disabled:opacity-45'
+            'h-auto min-h-[6.5rem] resize-none py-2 leading-snug focus:border-accent disabled:cursor-not-allowed disabled:opacity-45'
           )}
           value={draft}
           disabled={busy}

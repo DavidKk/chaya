@@ -293,7 +293,7 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
                   onDragLeave={() => onDragLeave(id)}
                   onDrop={(e) => void onDrop(id, e)}
                   className={cn(
-                    'relative grid h-11 grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1 rounded-[0.35rem] border border-line bg-panel pr-2.5 pl-0 transition-[opacity,transform,box-shadow,border-color] duration-150 ease-out',
+                    'relative grid h-11 grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1 rounded-[0.35rem] border border-line bg-panel pr-3 pl-0 transition-[opacity,transform,box-shadow,border-color] duration-150 ease-out',
                     draggingId === id && 'scale-[0.985] opacity-40 shadow-none',
                     !draggingId && 'hover:border-[color-mix(in_oklab,var(--line)_70%,var(--accent))]'
                   )}

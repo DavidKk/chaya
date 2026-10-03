@@ -330,7 +330,7 @@ export function GameEditWorkbench({
                 },
               }}
             >
-              <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-[0.4rem] pr-0.5 pl-1">
+              <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-2 pr-0.5 pl-1">
                 {showTableFilters ? (
                   <>
                     {showOwnedFilter ? (
@@ -586,7 +586,7 @@ export function GameEditWorkbench({
                         />
                       ) : null}
                       {row.valueType === 'sw' ? (
-                        <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-2">
                           <SwitchToggle
                             checked={!!row.value}
                             aria-label={t('edit.switchOf', { name: row.name })}

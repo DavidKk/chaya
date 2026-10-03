@@ -15,6 +15,7 @@ export {
   ensureShellLinkedToContent,
   findLibraryEntry,
   formatBytes,
+  getGameFingerprint,
   getResolvedFromConfig,
   type InjectPluginsResult,
   injectTrackedPlugins,

@@ -3,6 +3,8 @@ import path from 'node:path'
 import { defineApiRoute } from '@/initializer/controller'
 import { apiBadRequest, apiOk } from '@/initializer/response'
 import { resolveToolkitShellAppPath } from '@/lib/game'
+import { nwGameDisplayName } from '@/lib/game/nw-window'
+import { countReadyPlugins } from '@/lib/game/plugins-status'
 import { canUseDisk, requireDisk, serviceModePayload } from '@/lib/service-mode'
 import {
   detectPlugins,
@@ -53,10 +55,7 @@ function platformPayload() {
 }
 
 function resolveDisplayName(contentRoot: string, gameRoot: string): string {
-  const pkg = readNwPackage(contentRoot)
-  const title = pkg?.window.title?.trim()
-  const name = pkg?.name?.trim()
-  return title || name || displayNameFromPath(gameRoot)
+  return nwGameDisplayName(readNwPackage(contentRoot), displayNameFromPath(gameRoot))
 }
 
 /** 无盘形态：不下探用户盘 / toolkit data，只回形态字段 */
@@ -157,7 +156,7 @@ export const GET = defineApiRoute('get:/api/status', async () => {
       ? measureDirSizeBytes(resolved.shellApp)
       : null
   const plugins = detectPlugins(resolved.contentRoot)
-  const pluginsReady = plugins.filter((p) => p.fileExists && p.registered).length
+  const pluginsReady = countReadyPlugins(plugins)
 
   return {
     ready: true,

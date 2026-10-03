@@ -25,7 +25,7 @@ export function Badge({ tone = 'neutral', dot = true, className, children, ...re
   return (
     <span
       className={cn(
-        'pointer-events-none inline-flex h-[1.35rem] cursor-default select-none items-center gap-[0.35rem] whitespace-nowrap rounded-full border-none px-[0.55rem] pl-[0.45rem] text-[0.68rem] font-medium leading-none tracking-[0.02em]',
+        'pointer-events-none inline-flex h-[1.35rem] cursor-default select-none items-center gap-1 whitespace-nowrap rounded-full border-none px-2 pl-2 text-[0.68rem] font-medium leading-none tracking-[0.02em]',
         TONE[tone],
         className
       )}

@@ -89,7 +89,7 @@ function TabIconMenu({ tab, setTab, tabs }: { tab: TabId; setTab: (tab: TabId) =
         className={cn(
           formControlChrome,
           FORM_CONTROL_H,
-          'inline-flex cursor-pointer items-center justify-center px-1.5 text-ink',
+          'inline-flex cursor-pointer items-center justify-center px-2 text-ink',
           'hover:enabled:border-[rgb(230_238_248/0.2)]',
           'focus-visible:border-accent',
           open && 'border-accent'
@@ -124,7 +124,7 @@ function TabIconMenu({ tab, setTab, tabs }: { tab: TabId; setTab: (tab: TabId) =
                     role="menuitemradio"
                     aria-checked={active}
                     className={cn(
-                      'flex w-full cursor-pointer items-center gap-2 rounded-[0.12rem] border-0 bg-transparent px-2 py-[0.4rem] text-left text-[0.8125rem]',
+                      'flex w-full cursor-pointer items-center gap-2 rounded-[0.12rem] border-0 bg-transparent px-2 py-2 text-left text-[0.8125rem]',
                       'text-ink hover:bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]',
                       active && 'text-accent'
                     )}

@@ -8,11 +8,11 @@ export const formControlChrome = cn(
   'box-border h-8 appearance-none rounded-[0.15rem] border border-line bg-paper font-inherit text-[0.8125rem] leading-none text-ink outline-none transition-[border-color] duration-100'
 )
 
-export const formControlPadX = 'px-[0.55rem]'
+export const formControlPadX = 'px-2'
 
 /** 工具条筛选开关（仅有名 / NSFW 等）：未开描边弱字，开态底边短横（居中、不随文宽） */
 export const filterToggle = cn(
-  'relative inline-flex h-8 shrink-0 cursor-pointer items-center rounded-[0.2rem] border border-line bg-inset px-2.5 text-[0.75rem] text-ink-soft transition-colors',
+  'relative inline-flex h-8 shrink-0 cursor-pointer items-center rounded-[0.2rem] border border-line bg-inset px-3 text-[0.75rem] text-ink-soft transition-colors',
   'hover:text-ink disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45'
 )
 

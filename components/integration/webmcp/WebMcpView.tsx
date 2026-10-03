@@ -37,7 +37,7 @@ function ToolRow({ tool }: { tool: RegisteredPageTool }) {
   const hints = tool.annotations
   return (
     <li className="flex flex-col gap-1 border-t border-line py-2 first:border-t-0">
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
         <code className="font-mono text-[13px] text-ink">{tool.name}</code>
         {hints?.readOnlyHint ? <Badge tone="ok">{t('integration.webmcpReadOnly')}</Badge> : null}
         {hints?.consequentialHint ? <Badge tone="warn">{t('integration.webmcpConsequential')}</Badge> : null}
@@ -67,7 +67,7 @@ export function WebMcpView() {
 
   return (
     <ScrollArea className="h-full min-h-0" indicator="vertical">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-5 py-5">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4">
         <p className="m-0 text-[13px] leading-relaxed text-ink">{t('integration.webmcpIntro')}</p>
 
         {report ? (
@@ -87,7 +87,7 @@ export function WebMcpView() {
           <h2 id="webmcp-steps-title" className="m-0 text-sm font-semibold text-ink">
             {t('integration.webmcpStepsTitle')}
           </h2>
-          <ol className="m-0 flex list-decimal flex-col gap-1 pl-5 text-xs leading-relaxed text-ink-soft">
+          <ol className="m-0 flex list-decimal flex-col gap-1 pl-4 text-xs leading-relaxed text-ink-soft">
             {STEP_KEYS.map((key) => (
               <li key={key}>{t(key)}</li>
             ))}
@@ -98,7 +98,7 @@ export function WebMcpView() {
           <h2 id="webmcp-modes-title" className="m-0 text-sm font-semibold text-ink">
             {t('integration.webmcpModesTitle')}
           </h2>
-          <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-xs leading-relaxed text-ink-soft">
+          <ul className="m-0 flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-ink-soft">
             {MODE_KEYS.map((key) => (
               <li key={key}>{t(key)}</li>
             ))}

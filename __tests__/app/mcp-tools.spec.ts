@@ -1,8 +1,8 @@
 jest.mock('@/app/api/status/route', () => ({ GET: jest.fn(), PUT: jest.fn(), DELETE: jest.fn() }))
-jest.mock('@/app/api/translate/route', () => ({ POST: jest.fn() }))
-jest.mock('@/app/api/extract/route', () => ({ POST: jest.fn() }))
+jest.mock('@/app/api/translate/route.server', () => ({ POST: jest.fn() }))
+jest.mock('@/app/api/extract/route.server', () => ({ POST: jest.fn() }))
 jest.mock('@/app/api/logs/route', () => ({ DELETE: jest.fn() }))
-jest.mock('@/app/api/game-edit/catalog/route', () => ({ GET: jest.fn() }))
+jest.mock('@/app/api/game-edit/catalog/route.server', () => ({ GET: jest.fn() }))
 jest.mock('@/services/game', () => ({ loadConfig: jest.fn(), saveConfig: jest.fn(), findLibraryEntry: jest.fn(), upsertLibraryEntry: jest.fn() }))
 jest.mock('@/services/log', () => ({ listLogs: jest.fn(() => []) }))
 
@@ -12,7 +12,7 @@ import { logsTools } from '@/app/api/mcp/_tools/logs'
 import { invokeRoute, redactSecrets } from '@/app/api/mcp/_tools/route-invoke'
 import { translateTools } from '@/app/api/mcp/_tools/translate'
 import * as StatusRoute from '@/app/api/status/route'
-import * as TranslateRoute from '@/app/api/translate/route'
+import * as TranslateRoute from '@/app/api/translate/route.server'
 import * as game from '@/services/game'
 import { listLogs } from '@/services/log'
 

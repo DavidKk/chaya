@@ -27,7 +27,7 @@ beforeAll(() => {
 })
 
 afterEach(() => {
-  window.localStorage.removeItem('chaya.locale')
+  window.localStorage.removeItem('chaya.localePref')
 })
 
 test('search keeps the icon at narrow widths and preserves the query across modes', async () => {
@@ -39,7 +39,7 @@ test('search keeps the icon at narrow widths and preserves the query across mode
   try {
     await act(async () =>
       root.render(
-        <LocaleProvider initialLocale="zh">
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
           <GameEditSearch value="村民" onChange={onChange} />
         </LocaleProvider>
       )

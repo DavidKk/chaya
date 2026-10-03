@@ -63,8 +63,15 @@ export type GameEditStateMsg = {
 
 export type GameEditCatalogMessage = { type: 'edit.catalog'; catalog: GameEditCatalog } | { type: 'edit.catalog.request' }
 
+/** 游戏内插件日志（id 为游戏进程内自增，重启游戏会从头计） */
+export type GameLinkLogEntry = { id: number; ts: number; level: string; source: string; message: string; meta?: unknown }
+
+/** 游戏 → Web：浏览器模式日志不经服务器，连上后先补发积压再实时推送 */
+export type GameLinkLogBatch = { type: 'log.batch'; entries: GameLinkLogEntry[] }
+
 export type GameLinkMessage =
   | TranslationPacket
+  | GameLinkLogBatch
   | GameEditCatalogMessage
   | GameLinkHello
   | GameLinkQuit
@@ -77,6 +84,8 @@ export type GameLinkMessage =
   | GameEditStateMsg
 
 export const GAME_LINK_CHANNEL = 'chaya'
+/** 浏览器模式信令鉴权头：页面生成令牌并写入游戏 Env（`CHAYA_LINK_TOKEN`），双方请求信令时携带 */
+export const GAME_LINK_TOKEN_HEADER = 'X-Chaya-Link-Token'
 export const GAME_LINK_STUN = 'stun:stun.cloudflare.com:3478'
 
 export function parseGameLinkMessage(raw: string): GameLinkMessage | null {

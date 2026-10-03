@@ -30,7 +30,7 @@ beforeAll(() => {
 })
 
 afterEach(() => {
-  window.localStorage.removeItem('chaya.locale')
+  window.localStorage.removeItem('chaya.localePref')
 })
 
 afterAll(() => {
@@ -86,11 +86,11 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
       <GameEditTransPane surface={surface} refreshKey={refreshKey} {...(surface === 'overlay' ? { tab, onTabChange: setTab, section, onSectionChange: setSection } : {})} />
     )
     return surface === 'overlay' ? (
-      <LocaleProvider initialLocale="zh">
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
         <ConfirmProvider>{child}</ConfirmProvider>
       </LocaleProvider>
     ) : (
-      <LocaleProvider initialLocale="zh">
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
         <NotificationProvider>
           <TranslationRuntimeProvider request={webRpc.request}>{child}</TranslationRuntimeProvider>
         </NotificationProvider>
@@ -192,7 +192,7 @@ test('timeout changes save automatically, retain a failed edit and allow retry w
   try {
     await act(async () =>
       root.render(
-        <LocaleProvider initialLocale="zh">
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
           <TranslationRuntimeProvider request={request}>
             <TranslationPlaySettings />
           </TranslationRuntimeProvider>

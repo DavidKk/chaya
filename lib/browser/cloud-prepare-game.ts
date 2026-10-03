@@ -7,11 +7,15 @@ import {
   SHELL_APP_NAME,
   SHELL_WIN_DIR_NAME,
 } from '@/constants/brand'
+import type { GameFingerprintSummary } from '@/lib/game/fingerprint'
 import { normalizeNwVersion, nwDownloadUrl, nwFileKey } from '@/lib/game/nw-download-meta'
 import { buildChayaEnvJs, mergeLoaderPluginEntries } from '@/lib/game/plugins-merge'
 import { parsePluginsJsEntries, serializePluginsJs } from '@/lib/game/plugins-parse'
-import { TRACKED_PLUGINS } from '@/lib/game/types'
+import { type PluginStatus, TRACKED_PLUGINS } from '@/lib/game/types'
 
+import { collectCloudFingerprint } from './cloud-fingerprint'
+import { type CloudFootprint, countCloudCacheEntries, detectCloudPlugins } from './cloud-footprint'
+import { type CloudNwPackage, readCloudNwPackage } from './cloud-window'
 import {
   detectClientArch,
   detectClientOs,
@@ -26,6 +30,7 @@ import {
   resolveContentRootHandle,
   writeTextFile,
 } from './fsa'
+import { ensureCloudLinkToken } from './link-token'
 import { installWindowsShellFsa, isCompleteMacShell, isCompleteWinShell, looksLikeMacNwApp, writeShellLaunchers } from './nw-shell-fsa'
 
 export { type FsaSupport, getFsaSupport }
@@ -43,6 +48,12 @@ export type CloudGame = {
   os: ReturnType<typeof detectClientOs>
   pluginsInstalled: boolean
   existingShell?: string
+  nwPackage?: CloudNwPackage | null
+  plugins?: PluginStatus[]
+  fingerprint?: GameFingerprintSummary | null
+  cacheEntries?: number
+  /** 目录遍历较慢，由 useCloudLibrary 后台补齐；装壳后置空重算 */
+  footprint?: CloudFootprint
 }
 
 async function dirHasLinuxNw(root: FileSystemDirectoryHandle, dirName: string): Promise<boolean> {
@@ -118,7 +129,7 @@ async function injectPluginsIntoContent(content: FileSystemDirectoryHandle, apiB
     await writeTextFile(pluginsDir, `${name}.js`, bodies[i])
     written.push(name)
   }
-  await writeTextFile(pluginsDir, `${PLUGIN_ENV_NAME}.js`, buildChayaEnvJs(base, { gameId }))
+  await writeTextFile(pluginsDir, `${PLUGIN_ENV_NAME}.js`, cloudEnvJs(base, gameId))
   written.push(PLUGIN_ENV_NAME)
   const next = mergeLoaderPluginEntries(parsed.list, {
     name: PLUGIN_LOADER_NAME,
@@ -131,6 +142,12 @@ async function injectPluginsIntoContent(content: FileSystemDirectoryHandle, apiB
   if (pluginsJsUpdated) await writeTextFile(jsDir, 'plugins.js', nextRaw)
 
   return { written, pluginsJsUpdated }
+}
+
+/** 浏览器模式 Env：带信令令牌，日志只经游戏连接发给页面 */
+function cloudEnvJs(apiBase: string, gameId?: string): string {
+  const id = String(gameId || '').trim()
+  return buildChayaEnvJs(apiBase, { gameId: id, linkToken: id ? ensureCloudLinkToken(id) : undefined, logTransport: 'link' })
 }
 
 /**
@@ -162,7 +179,13 @@ export async function inspectCloudGame(game: CloudGame): Promise<CloudGame> {
   const pluginsInstalled = !!parsed && parsed.list.some((p) => p.name === PLUGIN_LOADER_NAME && p.status === true)
   const finder = game.os === 'mac' ? findExistingMacShell : game.os === 'win' ? findExistingWinShell : findExistingLinuxShell
   const existingShell = (await finder(game.picked, game.content)) || undefined
-  return { ...game, pluginsInstalled, existingShell }
+  const [nwPackage, plugins, cacheEntries, fingerprint] = await Promise.all([
+    readCloudNwPackage(game.content),
+    detectCloudPlugins(game.content),
+    countCloudCacheEntries(game.picked, game.content),
+    collectCloudFingerprint(game.content),
+  ])
+  return { ...game, pluginsInstalled, existingShell, nwPackage, plugins, cacheEntries, fingerprint: fingerprint ?? null }
 }
 
 export async function installCloudPlugins(game: CloudGame, gameId?: string): Promise<void> {
@@ -210,11 +233,10 @@ export async function installCloudShell(game: CloudGame, onProgress?: (p: CloudP
   throw new Error('当前系统不支持安装壳')
 }
 
-/** Update only the connection config for an already installed game. */
+/** Rewrite connection config for an installed game; plugin files are refreshed too so they match this page's signaling protocol. */
 export async function configureCloudConnection(game: CloudGame, gameId: string): Promise<void> {
   if (!gameId.trim()) throw new Error('未选择游戏')
   const fresh = await inspectCloudGame(game)
   if (!fresh.pluginsInstalled) throw new Error('请先安装插件，再连接游戏')
-  const plugins = await getDir(await getDir(game.content, 'js'), 'plugins')
-  await writeTextFile(plugins, `${PLUGIN_ENV_NAME}.js`, buildChayaEnvJs(pageOriginApiBase(), { gameId }))
+  await injectPluginsIntoContent(game.content, pageOriginApiBase(), gameId)
 }

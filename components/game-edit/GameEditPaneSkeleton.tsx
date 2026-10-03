@@ -50,7 +50,7 @@ function GameEditHeadEndSkeleton({ tab }: { tab: TabId }) {
   const showTableFilters = tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans'
   return (
     <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-0 flex-1 shrink overflow-hidden')} aria-hidden>
-      <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-[0.4rem] pr-0.5 pl-1">
+      <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-2 pr-0.5 pl-1">
         {showTableFilters ? (
           <>
             <Skeleton className="h-8 w-[11rem] shrink-0 rounded-[0.15rem]" />
@@ -82,7 +82,7 @@ export function GameEditRunSkeleton({ label }: { label?: string }) {
         <div className={cn(formCardDense, 'm-0 w-full max-w-[36rem]')}>
           <Skeleton className="h-4 w-16" />
           <Skeleton className="mt-2 h-3 w-[70%]" />
-          <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {Array.from({ length: 8 }, (_, i) => (
               <Skeleton key={i} className="h-8 w-full rounded-[0.2rem]" />
             ))}

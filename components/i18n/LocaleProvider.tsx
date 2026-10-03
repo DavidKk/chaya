@@ -2,44 +2,70 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
-import { DEFAULT_LOCALE, type Locale, LOCALE_HTML_LANG, type MessageKey, type MessageParams, MESSAGES, readStoredLocale, translate, writeStoredLocale } from '@/lib/i18n'
+import {
+  clearLegacyLocale,
+  DEFAULT_LOCALE,
+  detectBrowserLocale,
+  type Locale,
+  LOCALE_HTML_LANG,
+  localeForPreference,
+  type LocalePreference,
+  type MessageKey,
+  type MessageParams,
+  MESSAGES,
+  readStoredLocale,
+  translate,
+  writeStoredLocale,
+} from '@/lib/i18n'
 
 type LocaleContextValue = {
   locale: Locale
+  /** `auto` 表示跟随系统语言 */
+  preference: LocalePreference
   /** SSR 已带初始语言；始终可用 */
   ready: boolean
-  setLocale: (locale: Locale) => void
+  setLocale: (preference: LocalePreference) => void
   t: (key: MessageKey, params?: MessageParams) => string
 }
 
 const LocaleContext = createContext<LocaleContextValue | null>(null)
 
-export function LocaleProvider({ children, initialLocale = DEFAULT_LOCALE }: { children: ReactNode; initialLocale?: Locale }) {
-  const [locale, setLocaleState] = useState<Locale>(initialLocale)
+type Props = {
+  children: ReactNode
+  /** SSR 解析出的语言；缺省（游戏内插件）时直接取浏览器 / 系统语言 */
+  initialLocale?: Locale
+  initialPreference?: LocalePreference
+  /** 游戏内插件传 false：`<html lang>` 影响游戏画面的 CJK 字形选择 */
+  syncDocumentLang?: boolean
+}
+
+export function LocaleProvider({ children, initialLocale, initialPreference = 'auto', syncDocumentLang = true }: Props) {
+  const [preference, setPreference] = useState<LocalePreference>(initialPreference)
+  const [systemLocale, setSystemLocale] = useState<Locale>(() => initialLocale ?? detectBrowserLocale())
+  const locale = localeForPreference(preference, systemLocale)
 
   useEffect(() => {
-    // 兼容仅写过 localStorage 的旧会话：显式偏好覆盖 SSR（Accept-Language / cookie）
+    clearLegacyLocale()
     const stored = readStoredLocale()
-    if (stored && stored !== initialLocale) {
-      setLocaleState(stored)
-      writeStoredLocale(stored)
-      return
-    }
-    writeStoredLocale(initialLocale)
-  }, [initialLocale])
+    if (stored) setPreference(stored)
+    setSystemLocale(detectBrowserLocale())
+    const onLanguageChange = () => setSystemLocale(detectBrowserLocale())
+    window.addEventListener('languagechange', onLanguageChange)
+    return () => window.removeEventListener('languagechange', onLanguageChange)
+  }, [])
 
   useEffect(() => {
-    document.documentElement.lang = LOCALE_HTML_LANG[locale]
-  }, [locale])
+    if (syncDocumentLang) document.documentElement.lang = LOCALE_HTML_LANG[locale]
+  }, [locale, syncDocumentLang])
 
-  const setLocale = useCallback((next: Locale) => {
-    setLocaleState(next)
+  const setLocale = useCallback((next: LocalePreference) => {
+    setPreference(next)
     writeStoredLocale(next)
   }, [])
 
   const t = useCallback((key: MessageKey, params?: MessageParams) => translate(MESSAGES[locale], key, params), [locale])
 
-  const value = useMemo(() => ({ locale, ready: true, setLocale, t }), [locale, setLocale, t])
+  const value = useMemo(() => ({ locale, preference, ready: true, setLocale, t }), [locale, preference, setLocale, t])
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
 }

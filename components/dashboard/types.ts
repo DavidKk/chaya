@@ -1,4 +1,5 @@
 import type { LibraryItemView } from '@/lib/game'
+import type { NwWindowConfig } from '@/lib/game/nw-window'
 
 export function rootsEqual(a: string, b: string) {
   return a.replace(/\/$/, '') === b.replace(/\/$/, '')
@@ -16,24 +17,7 @@ type PluginStatus = {
   fileExists: boolean
 }
 
-export type NwWindowConfig = {
-  title: string
-  width: number
-  height: number
-  resizable: boolean
-  fullscreen: boolean
-  frame: boolean
-  toolbar: boolean
-  show: boolean
-  'always-on-top': boolean
-  devtools: boolean
-  position: string
-  icon: string
-  min_width: number | null
-  min_height: number | null
-  max_width: number | null
-  max_height: number | null
-}
+export type { NwWindowConfig } from '@/lib/game/nw-window'
 
 type LibraryItem = LibraryItemView
 

@@ -1,7 +1,7 @@
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const commonZh = {
-  locale: { label: '语言', switch: '切换语言' },
+  locale: { label: '语言', switch: '切换语言', auto: '跟随系统（{name}）' },
   nav: { main: '导航', library: '游戏库', edit: '修改', translate: '翻译', logs: '日志', integration: '集成' },
   common: {
     close: '关闭',

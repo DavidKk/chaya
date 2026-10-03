@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 }
 
 export default async function RootLayout({ children }: LayoutProps<'/'>) {
-  const locale = await resolveRequestLocale()
+  const { locale, preference } = await resolveRequestLocale()
   const Analytics = process.env.VERCEL === '1' ? (await import('@vercel/analytics/next')).Analytics : null
 
   return (
@@ -46,7 +46,7 @@ export default async function RootLayout({ children }: LayoutProps<'/'>) {
       <body className="h-full overflow-hidden">
         <AmbientBackground />
         <ButtonGlow />
-        <AppProviders locale={locale}>
+        <AppProviders locale={locale} preference={preference}>
           <AppShell>{children}</AppShell>
         </AppProviders>
         {Analytics ? <Analytics /> : null}

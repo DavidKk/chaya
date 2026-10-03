@@ -170,7 +170,7 @@ export function Modal({
         </div>
         {hasDesc || children ? (
           <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': title }}>
-            <div className="flex flex-col gap-[0.65rem] px-4 py-3">
+            <div className="flex flex-col gap-3 px-4 py-3">
               {hasDesc ? (
                 <div id={descId} className="text-[0.8125rem] leading-snug text-ink">
                   {description}
@@ -180,7 +180,7 @@ export function Modal({
             </div>
           </ScrollArea>
         ) : null}
-        {footer ? <div className="flex shrink-0 items-center justify-end gap-[0.4rem] border-t border-line px-4 py-[0.55rem]">{footer}</div> : null}
+        {footer ? <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-4 py-2">{footer}</div> : null}
       </div>
     </div>,
     mount

@@ -32,10 +32,10 @@ export async function invokeRoute(handler: ExistingRouteHandler<DefaultRouteCont
 type RouteModule = Partial<Record<InvokeInput['method'], ExistingRouteHandler<DefaultRouteContext>>>
 
 const ROUTES: Record<string, () => Promise<RouteModule>> = {
-  '/api/translate': () => import('@/app/api/translate/route'),
-  '/api/extract': () => import('@/app/api/extract/route'),
-  '/api/translate-cache': () => import('@/app/api/translate-cache/route'),
-  '/api/game-edit/catalog': () => import('@/app/api/game-edit/catalog/route'),
+  '/api/translate': () => import('@/app/api/translate/route.server'),
+  '/api/extract': () => import('@/app/api/extract/route.server'),
+  '/api/translate-cache': () => import('@/app/api/translate-cache/route.server'),
+  '/api/game-edit/catalog': () => import('@/app/api/game-edit/catalog/route.server'),
 }
 
 /** `ApiInvoke` over the in-process routes used by the shared tool factories. */

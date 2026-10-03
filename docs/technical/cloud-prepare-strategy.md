@@ -190,11 +190,13 @@
 
 ### C. Linux + Chromium（vercel）
 
-| 步骤    | 做法                                                |
-| ------- | --------------------------------------------------- |
-| 准备    | 原位 + `Chaya/` + `Chaya启动.sh`（提示 `chmod +x`） |
-| 壳      | zip 可浏览器解压；tar.gz 仍建议本机或后续加解压库   |
-| DiskOps | reflink → hardlink → copy + 确认                    |
+> 现状：仅下载链接。原设想"原位 + `Chaya/` + `Chaya启动.sh`"未实现，改为终端命令的方案见 [deployment-optimization.md](deployment-optimization.md) O7。
+
+| 步骤    | 做法                                                                                                 |
+| ------- | ---------------------------------------------------------------------------------------------------- |
+| 准备    | 原位写插件 / `ChayaEnv`；**不写启动脚本**（`writeShellLaunchers` 支持 linux，但 Linux 分支未调用）   |
+| 壳      | **仅给 NW.js 下载链接**：用户手动解压到游戏目录、`chmod +x` 并运行 `nw <内容根>`；不在浏览器解压写入 |
+| DiskOps | reflink → hardlink → copy + 确认                                                                     |
 
 ### D. local / app（所有 OS）
 

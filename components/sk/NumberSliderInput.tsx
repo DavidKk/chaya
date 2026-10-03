@@ -161,13 +161,13 @@ export function NumberSliderInput({ value, onValueChange, min, max, step = 1, di
             role="dialog"
             aria-label="拖拽调整数值"
             className={cn(
-              'box-border h-8 rounded-[0.25rem] border border-line bg-panel px-[0.35rem] py-[0.2rem] shadow-[0_8px_24px_rgb(0_0_0/0.35),0_0_0_1px_color-mix(in_oklab,var(--line)_60%,transparent)]',
+              'box-border h-8 rounded-[0.25rem] border border-line bg-panel px-1 py-1 shadow-[0_8px_24px_rgb(0_0_0/0.35),0_0_0_1px_color-mix(in_oklab,var(--line)_60%,transparent)]',
               dragging &&
                 'border-[color-mix(in_oklab,var(--accent)_55%,var(--line))] shadow-[0_8px_24px_rgb(0_0_0/0.35),0_0_0_1px_color-mix(in_oklab,var(--accent)_35%,transparent)]'
             )}
             style={panelStyle}
           >
-            <div className="relative h-full px-[0.35rem]">
+            <div className="relative h-full px-1">
               <div
                 className="absolute inset-x-[0.35rem] top-1/2 h-[0.375rem] -translate-y-1/2 rounded-full bg-[color-mix(in_oklab,var(--line)_85%,transparent)] shadow-[inset_0_1px_1px_rgb(0_0_0/0.2)]"
                 aria-hidden

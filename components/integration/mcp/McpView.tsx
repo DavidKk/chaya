@@ -44,7 +44,7 @@ export function McpView() {
 
   return (
     <ScrollArea className="h-full min-h-0" indicator="vertical">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-5 py-5">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4">
         <p className="m-0 text-[13px] leading-relaxed text-ink">{t('integration.mcpIntro')}</p>
 
         {state.status === 'loading' ? (
@@ -75,7 +75,7 @@ export function McpView() {
             <span className="text-xs text-ink-soft">{t('integration.toolCount', { count: MCP_TOOLS.length })}</span>
           </div>
           {contentNote ? <p className="m-0 text-xs text-ink-soft">{contentNote}</p> : null}
-          <nav aria-label={t('integration.groupNavAria')} className="flex flex-wrap gap-1.5">
+          <nav aria-label={t('integration.groupNavAria')} className="flex flex-wrap gap-2">
             {groups.map((group) => (
               <a
                 key={group.id}

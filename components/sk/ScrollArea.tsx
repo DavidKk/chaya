@@ -63,9 +63,9 @@ function computeHorizontalThumb(el: HTMLElement): ThumbState | null {
 
 function gutterClass(mode: IndicatorMode, reserve: boolean) {
   if (!reserve) return ''
-  if (mode === 'both') return 'pr-[0.35rem] pb-[0.35rem]'
-  if (mode === 'horizontal') return 'pb-[0.35rem]'
-  return 'pr-[0.35rem]'
+  if (mode === 'both') return 'pr-1 pb-1'
+  if (mode === 'horizontal') return 'pb-1'
+  return 'pr-1'
 }
 
 /** 全站滚动容器：隐藏系统滚动条，使用 2px 非交互位置指示器。 */

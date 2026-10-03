@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { defineApiRoute } from '@/initializer/controller'
 import { apiErrorBody, json } from '@/initializer/response'
+import { canUseDisk } from '@/lib/service-mode'
 import { appendLog, clearLogs, listLogs, logBusStats, type LogLevel } from '@/services/log'
 
 export const runtime = 'nodejs'
@@ -16,8 +17,12 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS })
 }
 
-/** 最近日志 + 总线状态（本机持久化；Edge 使用有界内存缓冲） */
+/** 浏览器模式日志只经游戏连接到页面；服务器不收、不存、不返回，避免不同访问者互相可见 */
+const BROWSER_MODE_NOTE = '网页版日志经游戏连接直达页面，服务器不保存'
+
+/** 最近日志 + 总线状态（本机持久化） */
 export const GET = defineApiRoute('get:/api/logs', async ({ request }) => {
+  if (!canUseDisk()) return json({ ok: true, levels: ['ok', 'warn', 'fail', 'info'], entries: [], note: BROWSER_MODE_NOTE }, { headers: CORS })
   const u = new URL(request.url)
   const limit = Number(u.searchParams.get('limit') || 200)
   const source = u.searchParams.get('source') || undefined
@@ -58,6 +63,8 @@ export const POST = defineApiRoute('post:/api/logs', async ({ request }) => {
     | null
 
   if (!body) return json(apiErrorBody('BAD_REQUEST', 'invalid json'), { status: 400, headers: CORS })
+  // 旧版插件仍会上报：静默丢弃，不报错
+  if (!canUseDisk()) return json({ ok: true, count: 0, note: BROWSER_MODE_NOTE }, { headers: CORS })
 
   if (Array.isArray(body.entries)) {
     const saved = body.entries
@@ -89,6 +96,6 @@ export const POST = defineApiRoute('post:/api/logs', async ({ request }) => {
 })
 
 export const DELETE = defineApiRoute('delete:/api/logs', async () => {
-  clearLogs()
+  if (canUseDisk()) clearLogs()
   return json({ ok: true }, { headers: CORS })
 })

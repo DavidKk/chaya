@@ -44,7 +44,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       aria-label={ariaLabel}
       data-variant={variant === 'default' ? undefined : variant}
       className={cn(
-        'relative isolate inline-flex h-8 cursor-pointer appearance-none items-center justify-center gap-[0.4rem] overflow-hidden rounded-[0.2rem] border border-line bg-[var(--panel-2)] px-[0.85rem] font-inherit text-[0.8125rem] font-medium leading-none text-ink transition-[background-color,border-color,opacity,box-shadow] duration-100 ease-out',
+        'relative isolate inline-flex h-8 cursor-pointer appearance-none items-center justify-center gap-2 overflow-hidden rounded-[0.2rem] border border-line bg-[var(--panel-2)] px-3 font-inherit text-[0.8125rem] font-medium leading-none text-ink transition-[background-color,border-color,opacity,box-shadow] duration-100 ease-out',
         'outline-none focus:outline-none focus-visible:outline-none',
         'hover:enabled:border-[rgb(230_238_248/0.18)] hover:enabled:bg-[color-mix(in_oklab,var(--panel-2)_80%,white)]',
         !loading && 'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none',
@@ -64,7 +64,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         size === 'icon' && 'w-8 shrink-0 px-0',
         size === 'gate' &&
           cn(
-            'relative mt-[0.85rem] h-[2.85rem] min-w-[11rem] justify-center gap-0 rounded-[0.3rem] px-7 text-[0.95rem] leading-normal shadow-[0_8px_32px_var(--accent-glow)] motion-safe:animate-[kit-rise_0.4s_0.12s_ease_backwards] hover:enabled:shadow-[0_10px_40px_var(--accent-glow)]',
+            'relative mt-3 h-[2.85rem] min-w-[11rem] justify-center gap-0 rounded-[0.3rem] px-6 text-[0.95rem] leading-normal shadow-[0_8px_32px_var(--accent-glow)] motion-safe:animate-[kit-rise_0.4s_0.12s_ease_backwards] hover:enabled:shadow-[0_10px_40px_var(--accent-glow)]',
             gateSheenBg
           ),
         loading && size === 'gate' && 'shadow-[0_4px_18px_color-mix(in_oklab,var(--accent-glow)_55%,transparent)]',
@@ -78,7 +78,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     >
       {loading ? (
         <span className="relative inline-flex items-center justify-center">
-          <span className="invisible inline-flex items-center gap-[0.4rem]" aria-hidden>
+          <span className="invisible inline-flex items-center gap-2" aria-hidden>
             {children}
           </span>
           <span className="absolute inset-0 flex items-center justify-center">

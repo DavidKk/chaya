@@ -95,11 +95,20 @@ test('clearing plugins keeps the game registration', async () => {
   expect(registration).not.toContain('ChayaLoader')
 })
 
-test('existing plugins can acquire a room id without reinstalling plugin files', async () => {
+test('connecting refreshes plugin files and writes a room id, link token and link-only logging', async () => {
   const game = await selectCloudGame()
   jest.mocked(fsa.readTextFile).mockResolvedValue('var $plugins = [{"name":"ChayaLoader","status":true}];')
   await configureCloudConnection(game, 'library-room-123')
-  expect(fsa.writeTextFile).toHaveBeenCalledTimes(1)
-  expect(fsa.writeTextFile).toHaveBeenCalledWith(expect.anything(), 'ChayaEnv.js', expect.stringContaining('window.CHAYA_GAME_ID = "library-room-123"'))
-  expect(fetchMock).not.toHaveBeenCalled()
+  expect(fetchMock).toHaveBeenCalled()
+  const env = jest.mocked(fsa.writeTextFile).mock.calls.find((call) => call[1] === 'ChayaEnv.js')![2]
+  expect(env).toContain('window.CHAYA_GAME_ID = "library-room-123"')
+  expect(env).toMatch(/window\.CHAYA_LINK_TOKEN = "[0-9a-f]{64}"/)
+  expect(env).toContain('window.CHAYA_LOG_TRANSPORT = "link"')
+  expect(env).not.toContain('window.CHAYA_LOG_URL =')
+})
+
+test('connecting requires installed plugins', async () => {
+  const game = await selectCloudGame()
+  await expect(configureCloudConnection(game, 'library-room-123')).rejects.toThrow('请先安装插件')
+  expect(fsa.writeTextFile).not.toHaveBeenCalled()
 })

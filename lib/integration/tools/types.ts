@@ -16,7 +16,7 @@ export type InvokeInput = {
 export type ApiInvoke = (input: InvokeInput) => Promise<Record<string, unknown>>
 
 /** Plugin credentials that must never reach an agent */
-const SECRET_KEYS = new Set(['launchToken', 'token', 'env'])
+const SECRET_KEYS = new Set(['launchToken', 'linkToken', 'token', 'env'])
 
 export function redactSecrets<T>(value: T): T {
   if (Array.isArray(value)) return value.map((v) => redactSecrets(v)) as T

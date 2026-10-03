@@ -38,7 +38,7 @@ export function ChooseGameGate({ busy = false, onChoose, className, canUseDisk =
   const Icon = toLibrary ? IoLibraryOutline : IoFolderOpenOutline
 
   return (
-    <div className={cn('flex min-h-0 flex-1 flex-col items-center justify-center gap-[0.65rem] p-8 text-center', gateRise, className)} role="status">
+    <div className={cn('flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center', gateRise, className)} role="status">
       <style>{riseKeyframes}</style>
       <h1 className="m-0 font-display text-[clamp(1.5rem,3.5vw,1.85rem)] font-semibold tracking-[-0.02em] text-ink">{t('gate.title')}</h1>
       {toLibrary ? (

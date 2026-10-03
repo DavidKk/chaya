@@ -9,6 +9,8 @@ import {
   SHELL_WIN_DIR_NAME,
 } from '@/constants/brand'
 
+import type { GameFingerprintSummary } from './fingerprint/types'
+
 export { SHELL_APP_NAME, SHELL_WIN_DIR_NAME }
 
 /** 游戏库条目（本地多游戏列表，当前选中仍用 gameRoot） */
@@ -37,6 +39,8 @@ export type LibraryItemView = LibraryEntry & {
   kindLabel: string
   pathLabel: string
   hasShell: boolean
+  /** 引擎 / 插件摘要；远程、路径失效或读不到时缺省 */
+  fingerprint?: GameFingerprintSummary
 }
 
 export type ChayaConfig = {

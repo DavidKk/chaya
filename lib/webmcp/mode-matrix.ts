@@ -5,7 +5,6 @@ export const EDGE_UNAVAILABLE_TOOLS: Readonly<Record<string, string>> = {
   chaya_game_window: '网页版未实现 package.json 窗口配置',
   chaya_live_eval: '网页版无服务端开关，游戏连接拒绝执行任意 JS',
   chaya_translate_batch: '游戏内翻译运行时没有单批补译，请用 chaya_translate_job',
-  chaya_logs_clear: '网页版日志与其他访问者共用，不允许清空',
 }
 
 export function edgeUnavailableTools(): Array<{ name: string; reason: string }> {

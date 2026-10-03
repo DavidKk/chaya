@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { IoCopyOutline, IoGameControllerOutline } from 'react-icons/io5'
 import { LuHardDrive } from 'react-icons/lu'
 
@@ -35,6 +36,13 @@ type Props = {
   bundled: boolean
   /** 远程会话：路径只读，配置不可改 */
   remote?: boolean
+  /** 浏览器（Edge）模式：拿不到本机绝对路径，只改游戏目录内的 package.json 窗口配置 */
+  browserMode?: boolean
+  /** 浏览器模式下尚未获得目录授权、还没读到 package.json */
+  windowNeedsAuth?: boolean
+  onAuthorizeWindow?: () => void
+  /** 浏览器模式下展示的游戏目录名 */
+  browserFolder?: string
   /** 服务进程平台：win32 / darwin … */
   platform?: string
   gameRoot: string
@@ -53,11 +61,78 @@ type Props = {
   boundShellSource: string
 }
 
+type PathAction = { label: string; tooltip: string; onClick: () => void }
+
+/** 路径行：标题 + 说明 + 等宽输入 + 选择 / 复制按钮；只读（远程 / 浏览器）时不提交 */
+function PathField({
+  title,
+  desc,
+  value,
+  placeholder,
+  disabled,
+  readOnly,
+  onChange,
+  onCommit,
+  pick,
+  copy,
+}: {
+  title: string
+  desc: string
+  value: string
+  placeholder: string
+  disabled: boolean
+  readOnly: boolean
+  onChange: (value: string) => void
+  onCommit: () => void
+  pick: PathAction & { icon: ReactNode; primary?: boolean }
+  copy?: PathAction
+}) {
+  return (
+    <div className={formField}>
+      <span className={formTitle}>{title}</span>
+      <span className={formDesc}>{desc}</span>
+      <div className={formControl}>
+        <TextInput
+          fullWidth
+          className={formMonoInput}
+          value={value}
+          disabled={disabled}
+          readOnly={readOnly}
+          spellCheck={false}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={(e) => {
+            if (!readOnly) e.currentTarget.select()
+          }}
+          onBlur={() => {
+            if (!readOnly) onCommit()
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur()
+          }}
+        />
+        <Button size="icon" variant={pick.primary ? undefined : 'ghost'} disabled={disabled} aria-label={pick.label} tooltip={pick.tooltip} onClick={pick.onClick}>
+          {pick.icon}
+        </Button>
+        {copy ? (
+          <Button variant="ghost" size="icon" disabled={readOnly || !value.trim()} aria-label={copy.label} tooltip={copy.tooltip} onClick={copy.onClick}>
+            <IoCopyOutline size={15} aria-hidden />
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 /** 首页折叠区内的绑定路径与窗口设置。 */
 export function DashboardSettings({
   busy,
   bundled,
   remote = false,
+  browserMode = false,
+  windowNeedsAuth = false,
+  onAuthorizeWindow,
+  browserFolder = '',
   platform,
   gameRoot,
   shellSource,
@@ -106,103 +181,54 @@ export function DashboardSettings({
 
   return (
     <div className={formCard}>
-      <div className={formField}>
-        <span className={formTitle}>{t('settings.game')}</span>
-        <span className={formDesc}>{gameDesc}</span>
-        <div className={formControl}>
-          <TextInput
-            fullWidth
-            className={formMonoInput}
-            value={gameValue}
-            disabled={locked}
-            readOnly={remote}
-            spellCheck={false}
-            placeholder={t('settings.gamePh')}
-            onChange={(e) => onGameRootChange(e.target.value)}
-            onFocus={(e) => {
-              if (!remote) e.currentTarget.select()
-            }}
-            onBlur={() => {
-              if (remote) return
-              const next = gameRoot.trim()
-              if (!next) return
-              const bound = boundGameRoot.replace(/\/$/, '')
-              if (next.replace(/\/$/, '') === bound) return
-              onBindGame(next)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur()
-            }}
-          />
-          <Button
-            size="icon"
-            disabled={locked}
-            aria-label={t('settings.changePath')}
-            tooltip={remote ? t('settings.remoteNoPath') : t('settings.changePath')}
-            onClick={onChooseGame}
-          >
-            <IoGameControllerOutline size={17} aria-hidden />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={remote || !gameRoot.trim()}
-            aria-label={t('settings.copyGamePath')}
-            tooltip={remote ? t('settings.remoteNoPath') : t('settings.copyGamePath')}
-            onClick={() => onCopyPath(gameRoot)}
-          >
-            <IoCopyOutline size={15} aria-hidden />
-          </Button>
-        </div>
-      </div>
-
-      <div className={formField}>
-        <span className={formTitle}>{t('settings.shellSource')}</span>
-        <span className={formDesc}>{shellDesc}</span>
-        <div className={formControl}>
-          <TextInput
-            fullWidth
-            className={formMonoInput}
-            value={shellValue}
-            disabled={locked || bundled}
-            readOnly={remote}
-            spellCheck={false}
-            placeholder={shellPlaceholder}
-            onChange={(e) => onShellSourceChange(e.target.value)}
-            onFocus={(e) => {
-              if (!remote) e.currentTarget.select()
-            }}
-            onBlur={() => {
-              if (remote) return
-              const next = shellSource.trim()
-              if (next !== boundShellSource) onBindShell(next)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur()
-            }}
-          />
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={locked || bundled}
-            aria-label={t('settings.pickShell')}
-            tooltip={remote ? t('settings.remoteNoShell') : t('settings.pickShell')}
-            onClick={onChooseShell}
-          >
-            <LuHardDrive size={16} aria-hidden />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={remote || !shellSource.trim()}
-            aria-label={t('settings.copyShellPath')}
-            tooltip={remote ? t('settings.remoteNoShell') : t('settings.copyShellPath')}
-            onClick={() => onCopyPath(shellSource)}
-          >
-            <IoCopyOutline size={15} aria-hidden />
-          </Button>
-        </div>
-      </div>
+      <PathField
+        title={t('settings.game')}
+        desc={browserMode ? t('settings.gameHintBrowser') : gameDesc}
+        value={browserMode ? browserFolder : gameValue}
+        placeholder={t('settings.gamePh')}
+        disabled={locked}
+        readOnly={remote || browserMode}
+        onChange={onGameRootChange}
+        onCommit={() => {
+          const next = gameRoot.trim()
+          if (!next || next.replace(/\/$/, '') === boundGameRoot.replace(/\/$/, '')) return
+          onBindGame(next)
+        }}
+        pick={{
+          label: t('settings.changePath'),
+          tooltip: remote ? t('settings.remoteNoPath') : t('settings.changePath'),
+          icon: <IoGameControllerOutline size={17} aria-hidden />,
+          primary: true,
+          onClick: onChooseGame,
+        }}
+        copy={
+          browserMode
+            ? undefined
+            : { label: t('settings.copyGamePath'), tooltip: remote ? t('settings.remoteNoPath') : t('settings.copyGamePath'), onClick: () => onCopyPath(gameRoot) }
+        }
+      />
+      {browserMode ? null : (
+        <PathField
+          title={t('settings.shellSource')}
+          desc={shellDesc}
+          value={shellValue}
+          placeholder={shellPlaceholder}
+          disabled={locked || bundled}
+          readOnly={remote}
+          onChange={onShellSourceChange}
+          onCommit={() => {
+            const next = shellSource.trim()
+            if (next !== boundShellSource) onBindShell(next)
+          }}
+          pick={{
+            label: t('settings.pickShell'),
+            tooltip: remote ? t('settings.remoteNoShell') : t('settings.pickShell'),
+            icon: <LuHardDrive size={16} aria-hidden />,
+            onClick: onChooseShell,
+          }}
+          copy={{ label: t('settings.copyShellPath'), tooltip: remote ? t('settings.remoteNoShell') : t('settings.copyShellPath'), onClick: () => onCopyPath(shellSource) }}
+        />
+      )}
 
       {win && !remote ? (
         <>
@@ -251,9 +277,16 @@ export function DashboardSettings({
           ))}
         </>
       ) : (
-        <div className={formField}>
-          <span className={formTitle}>{t('settings.window')}</span>
-          <span className={formDesc}>{remote ? t('settings.remoteNoWindow') : t('settings.noPackageJson')}</span>
+        <div className={formFieldInline}>
+          <span className={formTitleInline}>{t('settings.window')}</span>
+          <span className={formDescInline}>{remote ? t('settings.remoteNoWindow') : windowNeedsAuth ? t('settings.windowNeedsAuth') : t('settings.noPackageJson')}</span>
+          {windowNeedsAuth && onAuthorizeWindow ? (
+            <div className={formControlInline}>
+              <Button variant="ghost" disabled={busy} onClick={onAuthorizeWindow}>
+                {t('settings.windowAuthorize')}
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

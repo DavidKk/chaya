@@ -46,7 +46,7 @@ export function RemoteScriptView({ name, html, lineCount, githubUrl }: { name: R
         <section className="overflow-hidden rounded-md border border-line bg-panel" aria-label={t('remoteScript.sourceAria')}>
           <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2 text-xs text-ink-soft">
             <span className="flex items-center gap-2">
-              <span aria-hidden className="flex gap-1.5">
+              <span aria-hidden className="flex gap-2">
                 <span className="size-2.5 rounded-full bg-fail/70" />
                 <span className="size-2.5 rounded-full bg-warn/70" />
                 <span className="size-2.5 rounded-full bg-ok/70" />

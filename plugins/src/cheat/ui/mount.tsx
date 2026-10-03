@@ -1,5 +1,6 @@
-import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+
+import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 
 import { clearElement, showPluginError } from '../../helpers'
 import { GameEditApp } from './App'
@@ -40,10 +41,9 @@ function resumeGame() {
 function render() {
   if (!state.root) return
   state.root.render(
-    createElement(GameEditApp, {
-      open: state.open,
-      onRequestClose: hideGameEditUi,
-    })
+    <LocaleProvider syncDocumentLang={false}>
+      <GameEditApp open={state.open} onRequestClose={hideGameEditUi} />
+    </LocaleProvider>
   )
 }
 

@@ -27,16 +27,4 @@ export function measureDirSizeBytes(dir: string): number | null {
   return entry.bytes
 }
 
-export function formatBytes(bytes: number | null | undefined): string | null {
-  if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return null
-  if (bytes < 1024) return `${bytes} B`
-  const units = ['KB', 'MB', 'GB', 'TB'] as const
-  let n = bytes / 1024
-  let i = 0
-  while (n >= 1024 && i < units.length - 1) {
-    n /= 1024
-    i += 1
-  }
-  const digits = n >= 100 || i === 0 ? 0 : n >= 10 ? 1 : 2
-  return `${n.toFixed(digits)} ${units[i]}`
-}
+export { formatBytes } from '@/lib/format-bytes'

@@ -7,11 +7,11 @@ import { GameLinkProvider } from '@/components/GameLinkProvider'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
 import { ChayaWebMcpHost } from '@/components/webmcp/ChayaWebMcpHost'
-import type { Locale } from '@/lib/i18n'
+import type { Locale, LocalePreference } from '@/lib/i18n'
 
-export function AppProviders({ children, locale }: { children: ReactNode; locale: Locale }) {
+export function AppProviders({ children, locale, preference }: { children: ReactNode; locale: Locale; preference: LocalePreference }) {
   return (
-    <LocaleProvider initialLocale={locale}>
+    <LocaleProvider initialLocale={locale} initialPreference={preference}>
       <NotificationProvider>
         <ConfirmProvider>
           <GameLinkProvider>

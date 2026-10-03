@@ -155,7 +155,7 @@ export function Select({ id, value, options, onChange, placeholder, emptyLabel, 
             >
               <div className="m-0 list-none p-0.5">
                 {options.length === 0 ? (
-                  <div className="p-[0.55rem] text-xs text-ink-soft" role="status">
+                  <div className="p-2 text-xs text-ink-soft" role="status">
                     {resolvedEmptyLabel}
                   </div>
                 ) : (
@@ -169,7 +169,7 @@ export function Select({ id, value, options, onChange, placeholder, emptyLabel, 
                         aria-selected={isSelected}
                         aria-disabled={opt.disabled || undefined}
                         className={cn(
-                          'flex cursor-pointer items-center justify-between gap-2 rounded-[0.12rem] px-2 py-[0.4rem] text-[0.8125rem] text-ink',
+                          'flex cursor-pointer items-center justify-between gap-2 rounded-[0.12rem] px-2 py-2 text-[0.8125rem] text-ink',
                           panelWidth === 'content' && 'whitespace-nowrap',
                           isSelected && 'text-accent',
                           isHi && 'bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]',

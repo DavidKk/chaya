@@ -3,6 +3,9 @@ import path from 'node:path'
 
 import type { ChayaConfig, LibraryEntry, LibraryItemView } from '@/lib/game'
 import { findEnclosingAppBundle, resolveGame } from '@/lib/game'
+import { libraryKindLabel } from '@/lib/game/library-label'
+
+import { getGameFingerprintSummary } from './fingerprint'
 
 function normalizeRootKey(gameRoot: string): string {
   return String(gameRoot || '')
@@ -183,12 +186,7 @@ export function touchLibraryOpen(config: ChayaConfig, gameRoot: string, name?: s
 }
 
 function kindLabelOf(kind: string | undefined, missing: boolean, remote: boolean): string {
-  if (remote) return '远程连接'
-  if (missing) return '路径失效'
-  if (kind === 'www') return 'www 内容'
-  if (kind === 'app.nw') return process.platform === 'win32' ? '已打包 exe' : '已打包 .app'
-  if (kind === 'content-root') return '内容根'
-  return '游戏'
+  return libraryKindLabel(kind, { missing, remote, platform: process.platform })
 }
 
 function shortenPath(p: string, max = 42): string {
@@ -210,6 +208,7 @@ export function toLibraryItemView(entry: LibraryEntry): LibraryItemView {
   }
   const resolved = resolveGame(entry.gameRoot)
   const missing = !resolved.ok
+  const fingerprint = resolved.ok ? getGameFingerprintSummary(resolved) : undefined
   return {
     ...entry,
     remote: false,
@@ -217,6 +216,7 @@ export function toLibraryItemView(entry: LibraryEntry): LibraryItemView {
     kindLabel: kindLabelOf(resolved.ok ? resolved.kind : undefined, missing, false),
     pathLabel: shortenPath(entry.gameRoot),
     hasShell: resolved.ok ? resolved.hasShell : false,
+    ...(fingerprint ? { fingerprint } : {}),
   }
 }
 

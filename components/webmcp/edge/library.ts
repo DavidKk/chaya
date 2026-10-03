@@ -1,5 +1,6 @@
 import { CLOUD_LIBRARY_CHANGED_EVENT, type CloudLibraryEntry, cloudLibraryStorage, readCloudGameId, selectCloudGameId } from '@/lib/browser/cloud-library'
 import type { CloudGame } from '@/lib/browser/cloud-prepare-game'
+import { forgetCloudLinkToken } from '@/lib/browser/link-token'
 import { includesText, optStr, reqStr } from '@/lib/integration/tools/args'
 import type { ToolImpls } from '@/lib/integration/tools/types'
 import { webMcpCodedError } from '@/lib/webmcp/mcp-mirror'
@@ -81,6 +82,7 @@ export const edgeLibraryTools: ToolImpls = {
     const entry = findEntry(entries, reqStr(args, 'gameRoot'))
     const next = entries.filter((e) => e !== entry)
     await saveEntries(next)
+    forgetCloudLinkToken(entry.item.id)
     if (entry === active) selectCloudGameId(next[0]?.item.id ?? null)
     return { removed: entry.item.gameRoot, current: (entry === active ? next[0] : active)?.item.gameRoot ?? null, total: next.length }
   },

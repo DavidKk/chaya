@@ -24,8 +24,14 @@ type SpeedActor = {
   followers?: () => Array<SpeedActor | null>
 }
 
-declare const $gamePlayer: SpeedActor | null
-declare const ConfigManager: { alwaysDash: boolean }
+/** 非标准游戏可能没声明这些引擎全局，裸读会 ReferenceError */
+const engine = globalThis as { $gamePlayer?: SpeedActor | null; ConfigManager?: { alwaysDash: boolean } }
+function gamePlayer(): SpeedActor | null {
+  return engine.$gamePlayer ?? null
+}
+function alwaysDash(): boolean {
+  return !!engine.ConfigManager?.alwaysDash
+}
 declare const Game_Player: {
   prototype: {
     moveSpeedRate: (this: SpeedActor) => number
@@ -77,7 +83,8 @@ function clampRate(rate: number): number | null {
 }
 
 function applyRates(walk: number, run: number): boolean {
-  if (!$gamePlayer) {
+  const player = gamePlayer()
+  if (!player) {
     log.warn('还没进地图，$gamePlayer 不存在')
     return false
   }
@@ -88,11 +95,11 @@ function applyRates(walk: number, run: number): boolean {
     return false
   }
   ensureWalkRunHook()
-  $gamePlayer._walkSpeedRate = w
-  $gamePlayer._runSpeedRate = r
-  $gamePlayer._moveSpeedRate = w
-  if ($gamePlayer.followers) {
-    $gamePlayer.followers().forEach((f) => {
+  player._walkSpeedRate = w
+  player._runSpeedRate = r
+  player._moveSpeedRate = w
+  if (player.followers) {
+    player.followers().forEach((f) => {
       if (!f) return
       f._walkSpeedRate = w
       f._runSpeedRate = r
@@ -112,20 +119,21 @@ function applyMoveRate(rate: number): boolean {
 }
 
 function setAlwaysDash(on: boolean): boolean {
-  ConfigManager.alwaysDash = !!on
-  if ($gamePlayer) {
-    $gamePlayer._dashing = !!on && !!$gamePlayer.canMove?.() && !$gamePlayer.isInVehicle?.()
+  if (engine.ConfigManager) engine.ConfigManager.alwaysDash = !!on
+  const player = gamePlayer()
+  if (player) {
+    player._dashing = !!on && !!player.canMove?.() && !player.isInVehicle?.()
   }
-  return ConfigManager.alwaysDash
+  return alwaysDash()
 }
 
 function currentRates() {
-  const p = $gamePlayer
+  const p = gamePlayer()
   return {
     walk: p?._walkSpeedRate ?? p?._moveSpeedRate ?? DEFAULT_RATE,
     run: p?._runSpeedRate ?? p?._moveSpeedRate ?? DEFAULT_RATE,
     moveRate: p?._moveSpeedRate ?? null,
-    alwaysDash: ConfigManager.alwaysDash,
+    alwaysDash: alwaysDash(),
   }
 }
 
@@ -173,7 +181,7 @@ const ChayaBoost = {
   },
   dash(on?: boolean) {
     setAlwaysDash(on !== false)
-    log.ok(`一直疾跑 → ${ConfigManager.alwaysDash}`)
+    log.ok(`一直疾跑 → ${alwaysDash()}`)
     return this.status()
   },
   status() {

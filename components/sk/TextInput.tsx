@@ -27,7 +27,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function T
       className={cn(
         search
           ? cn(
-              'm-0 h-full min-h-0 min-w-0 flex-1 appearance-none rounded-none border-none bg-transparent py-0 pr-[0.15rem] pl-0',
+              'm-0 h-full min-h-0 min-w-0 flex-1 appearance-none rounded-none border-none bg-transparent py-0 pr-0.5 pl-0',
               'font-inherit text-[0.8125rem] leading-none text-ink outline-none',
               'disabled:cursor-not-allowed'
             )
@@ -47,7 +47,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function T
       className={cn(
         formControlChrome,
         FORM_CONTROL_H,
-        'inline-flex min-w-[5.5rem] items-center gap-[0.3rem] pr-[0.55rem] pl-[0.45rem] focus-within:border-accent',
+        'inline-flex min-w-[5.5rem] items-center gap-1 pr-2 pl-2 focus-within:border-accent',
         fullWidth && 'w-full min-w-0 flex-1',
         invalid && 'border-fail',
         disabled && 'cursor-not-allowed opacity-45',

@@ -2,7 +2,8 @@
 
 > 状态：设计稿（随实现修订）  
 > 需求真源：[docs/requirements-service-modes.md](../requirements-service-modes.md)  
-> 适用范围：Next 服务端 / API、本机 DiskOps、局内插件连 API；不含 UI 视觉（`chaya-ui-style-guide.md`）
+> 适用范围：Next 服务端 / API、本机 DiskOps、局内插件连 API；不含 UI 视觉（`chaya-ui-style-guide.md`）  
+> 部署方式 × 操作系统总览（含壳安装、浏览器模式数据、共用组件）：[deployment-platforms.md](deployment-platforms.md)
 
 ---
 
@@ -79,8 +80,10 @@ canUseDisk: boolean
 assertCanUseDisk() // → HTTP 501, code DISK_UNAVAILABLE
 ```
 
-- 首迭代：**方案 A** — DiskOps route 可留在 vercel 包内，运行时 501。
-- 可选：**方案 B** — CI/分 entry 剔除 Disk 实现。
+两层并用：
+
+- **构建期剔除**：整条都是 DiskOps 的路由命名为 `route.server.ts`，edge 构建按 `pageExtensions` 不收录（见 §8）。
+- **运行时 501**：混合路由（如 `status` 的 `GET` 可上云、`PUT` 写盘）留在 `route.ts`，写盘分支仍走 `requireDisk()`；`.server` 路由也保留 `requireDisk()`，供 dev 切到 edge 时返回 501。
 
 ---
 
@@ -173,7 +176,7 @@ assertCanUseDisk() // → HTTP 501, code DISK_UNAVAILABLE
 | `DATA_DIR`      | `<repo>/data`    | 平台约定（macOS Application Support / Windows `%AppData%` / Linux XDG，实现时定） |
 | UI              | 浏览器或 webview | webview 为主                                                                      |
 
-禁止复制 inject/cache；只换 `toolkitRoot`。
+禁止复制 inject/cache；只换 `toolkitRoot`。代码层不按 `app` 分支，App 与 local 共用 server 构建（§8）。
 
 ---
 
@@ -199,13 +202,27 @@ assertCanUseDisk() // → HTTP 501, code DISK_UNAVAILABLE
 
 ## 8. 构建
 
-|        |                                                                                               |
-| ------ | --------------------------------------------------------------------------------------------- |
-| local  | 现状                                                                                          |
-| vercel | `VERCEL=1`；Disk route 可保留 + 501                                                           |
-| app    | `pnpm dev:app`（Electron）；写入 `CHAYA_SERVICE=app`；见 [electron-app.md](./electron-app.md) |
+> **edge 是项目内部「云端无盘构建目标」的名称，不等同于 Next.js Edge Runtime**：edge 构建只在构建时剔除 `*.server` / `*.dev` 路由，云端 API 仍全部运行在 Node.js runtime（`export const runtime = 'nodejs'`）。三层概念（构建目标 / 服务形态 / 执行运行时）见 [deployment-platforms.md](deployment-platforms.md) §2。
 
-CI 以 local 全量为准。
+URL 在所有形态下相同（无 `/app`、`/edge` 前缀）。构建目标只有两个：**edge** 与 **server**；App 是 server 产物的打包变体，不是第三套路由。
+
+| 命令                        | 构建目标 | 收录路由                    | 说明                                                                                                                   |
+| --------------------------- | -------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                  | dev      | 全部 + `*.server` + `*.dev` | 右上角 dev 切换器（Server / Edge）热切换，整个 dev 进程生效、整页刷新，无需重启                                        |
+| `pnpm build` → `pnpm start` | server   | 全部 + `*.server`           | 本机 Node 服务                                                                                                         |
+| `pnpm build:app` / `dist:*` | server   | 同上                        | 同一产物 + `output: 'standalone'` + Electron；`CHAYA_DATA_DIR` 等由 Electron 运行时注入，不进构建判断                  |
+| `pnpm build:edge` / Vercel  | edge     | 不含 `*.server` / `*.dev`   | `VERCEL=1` 自动视为 edge；自托管须在**构建时**设 `CHAYA_TARGET=edge` 再 `next start`（前提见 deployment-platforms §3） |
+| `pnpm check:edge`           | edge     | —                           | edge 构建后校验 manifest 中没有 `*.server` / `*.dev` 路由                                                              |
+
+实现要点：
+
+- `next.config.ts` 按阶段算出目标，设置 `pageExtensions` 并注入 `NEXT_PUBLIC_CHAYA_TARGET`（`dev` / `edge` / `server`）。
+- `lib/service-mode/target.ts` 的 `BUILD_TARGET` 在构建产物里是常量：edge 构建内 `getServiceMode()` 恒为 `vercel`，dev 专用代码（`DevTargetSwitch`、`/api/dev/target`）在生产包中被摇掉。
+- dev 下 `getServiceMode()` 读开关：edge → `vercel`；server → `CHAYA_SERVICE=app` 时 `app`，否则 `local`。`pnpm dev:edge`（`CHAYA_SERVICE=vercel`）只是以 edge 起步，仍可切换。
+- ESLint `no-restricted-imports`：非 `*.server` / `*.dev` 文件不得引用这两类模块，也不得引用 `app/api/mcp/_tools`（共享常量放 `lib/integration`）。
+- 新增「整条都要本机磁盘」的路由时命名为 `route.server.ts`；Electron App 专属能力放 `electron/` 或 preload 暴露的标记，不新增构建目标。
+
+CI 以 server 全量为准；改动路由归属时跑 `pnpm check:edge`。
 
 ---
 
@@ -256,8 +273,10 @@ CI 以 local 全量为准。
 
 ## 12. 修订
 
-| 日期       | 说明                                                                                            |
-| ---------- | ----------------------------------------------------------------------------------------------- |
-| 2026-09-22 | 初稿                                                                                            |
-| 2026-09-22 | CR：强制 vercel、501、清单、迁移、方案 A                                                        |
-| 2026-09-22 | 再 CR：修正 `content-files` 路径、补全 Route、translate 单一路径、里程碑、模拟云、插件 GET 归属 |
+| 日期       | 说明                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| 2026-09-22 | 初稿                                                                                             |
+| 2026-09-22 | CR：强制 vercel、501、清单、迁移、方案 A                                                         |
+| 2026-09-22 | 再 CR：修正 `content-files` 路径、补全 Route、translate 单一路径、里程碑、模拟云、插件 GET 归属  |
+| 2026-10-03 | 构建期剔除落地：`route.server.ts` + `pageExtensions`；edge / server 两个构建目标；dev 热切换开关 |
+| 2026-10-03 | 声明 edge 构建目标 ≠ Next Edge Runtime；补自托管构建时设目标；dev 切换器位置更正为右上角         |

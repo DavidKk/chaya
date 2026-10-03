@@ -6,7 +6,6 @@ jest.mock('@/lib/service-mode/mode', () => ({
 }))
 jest.mock('@/services/runtime', () => ({ toolkitListenPort: () => 3927 }))
 jest.mock('@/services/access/api', () => ({ mayAccessApi: async () => true }))
-jest.mock('@/app/api/mcp/_tools', () => ({ mcpEvalEnabled: () => false }))
 jest.mock('@/services/runtime/launch-token', () => ({ peekLaunchToken: () => ({ token: 'launch', libraryId: 'lib' }) }))
 jest.mock('@/services/access/management', () => ({ hasManagementAccess: () => false }))
 

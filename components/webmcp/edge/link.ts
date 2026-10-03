@@ -6,6 +6,8 @@ import { makeCatalogTools } from '@/lib/integration/tools/catalog'
 import { type AgentCaller, makeLiveTools } from '@/lib/integration/tools/live'
 import { makeTranslateTools } from '@/lib/integration/tools/translate'
 import { type ApiInvoke, pathWithQuery, redactSecrets, type ToolImpls } from '@/lib/integration/tools/types'
+import { filterLogEntries, normalizeLogLevel } from '@/lib/log'
+import { clearLinkLogs, readLinkLogs } from '@/lib/log/link-log-store'
 import type { AgentMethod, AgentParams } from '@/lib/runtime/agent-protocol'
 import type { TranslationRequestFn } from '@/lib/translate/runtime-api'
 import { webMcpCodedError } from '@/lib/webmcp/mcp-mirror'
@@ -63,21 +65,21 @@ export function makeEdgeLinkTools(deps: EdgeLinkDeps): ToolImpls {
   }
 }
 
-/** Edge `chaya_logs_query`: the deployment's in-memory buffer, shared with other visitors. */
+/** Edge logs: only what the linked game pushed over the DataChannel, kept in this page. */
 export const edgeLogsTools: ToolImpls = {
-  async chaya_logs_query(args, { signal }) {
-    const params = new URLSearchParams()
-    for (const key of ['q', 'source', 'level'] as const) {
-      const v = optStr(args, key)
-      if (v) params.set(key, v)
-    }
-    const since = optNum(args, 'since')
-    if (since !== undefined) params.set('since', String(since))
-    params.set('limit', String(Math.min(1000, Math.max(1, optNum(args, 'limit') ?? 100))))
-    const res = await fetch(`/api/logs?${params}`, { signal, cache: 'no-store' })
-    const data = (await res.json().catch(() => null)) as { ok?: boolean; entries?: unknown[] } | null
-    if (!res.ok || !data?.ok) throw new Error(readApiErrorMessage(data, `读取日志失败（HTTP ${res.status}）`))
-    const entries = data.entries ?? []
-    return { count: entries.length, entries, note: '网页版日志与其他访问者共用' }
+  async chaya_logs_query(args) {
+    const level = optStr(args, 'level')
+    const entries = filterLogEntries(readLinkLogs(), {
+      q: optStr(args, 'q'),
+      source: optStr(args, 'source'),
+      level: level ? normalizeLogLevel(level) : undefined,
+      since: optNum(args, 'since'),
+      limit: Math.min(1000, Math.max(1, optNum(args, 'limit') ?? 100)),
+    })
+    return { count: entries.length, entries, note: '网页版日志来自当前连接的游戏，仅保存在本页' }
+  },
+  async chaya_logs_clear() {
+    clearLinkLogs()
+    return { cleared: true }
   },
 }

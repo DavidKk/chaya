@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { useNotification } from '@/components/notification/useNotification'
+import { measureCloudFootprint } from '@/lib/browser/cloud-footprint'
 import {
   CLOUD_GAME_SELECTION_EVENT,
   CLOUD_LIBRARY_CHANGED_EVENT,
@@ -21,8 +22,32 @@ import {
   installCloudShell,
   selectCloudGame,
 } from '@/lib/browser/cloud-prepare-game'
+import { writeCloudWindow } from '@/lib/browser/cloud-window'
+import { forgetCloudLinkToken } from '@/lib/browser/link-token'
+import { formatBytes } from '@/lib/format-bytes'
+import { libraryKindLabel } from '@/lib/game/library-label'
+import { nwGameDisplayName } from '@/lib/game/nw-window'
+import { countReadyPlugins } from '@/lib/game/plugins-status'
+import { TRACKED_PLUGINS } from '@/lib/game/types'
 
-import type { Status } from './types'
+import type { NwWindowConfig, Status } from './types'
+
+const contentKind = (game: CloudGame) => (game.content.name === 'www' ? 'www' : 'content-root')
+
+/** 游戏库条目与 server toLibraryItemView 同口径（名称 / 结构标签 / 壳 / 指纹）；目录名留在 pathLabel */
+function withLibraryView({ game, item }: CloudLibraryEntry): CloudLibraryEntry {
+  return {
+    game,
+    item: {
+      ...item,
+      name: nwGameDisplayName(game.nwPackage, game.picked.name),
+      kindLabel: libraryKindLabel(contentKind(game)),
+      pathLabel: game.picked.name,
+      hasShell: !!game.existingShell,
+      fingerprint: game.fingerprint ?? undefined,
+    },
+  }
+}
 
 export function useCloudLibrary(enabled: boolean, queryId: string | null, selectId: (id: string | null) => void) {
   const [entries, setEntries] = useState<CloudLibraryEntry[]>([])
@@ -41,7 +66,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
     const load = () =>
       cloudLibraryStorage()
         .then((saved) => {
-          if (!cancelled) setEntries(saved)
+          if (!cancelled) setEntries(saved.map(withLibraryView))
         })
         .catch(() => {
           if (!cancelled) notify.error('无法读取浏览器游戏库，请检查浏览器存储权限。')
@@ -71,7 +96,38 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
     window.addEventListener(CLOUD_GAME_SELECTION_EVENT, sync)
     return () => window.removeEventListener(CLOUD_GAME_SELECTION_EVENT, sync)
   }, [enabled, queryId])
-  async function save(next: CloudLibraryEntry[]) {
+  const enriching = useRef(new Set<string>())
+  /** 已授权时静默补齐信息条数据（旧条目缺检测结果、体积需遍历目录），不弹授权 */
+  useEffect(() => {
+    const target = entries.find((entry) => entry.item.id === activeId)
+    if (!enabled || !target || enriching.current.has(target.item.id)) return
+    const { game } = target
+    const needsInspect = game.nwPackage === undefined || !Array.isArray(game.plugins) || game.cacheEntries === undefined || game.fingerprint === undefined
+    if (!needsInspect && game.footprint) return
+    const id = target.item.id
+    enriching.current.add(id)
+    const patch = (fields: Partial<CloudGame>) =>
+      setEntries((prev) => {
+        const next = prev.map((e) => (e.item.id === id ? withLibraryView({ ...e, game: { ...e.game, ...fields } }) : e))
+        void cloudLibraryStorage(next)
+        return next
+      })
+    void (async () => {
+      const handle = game.picked as FileSystemDirectoryHandle & { queryPermission?(options: { mode: 'readwrite' }): Promise<PermissionState> }
+      if (typeof handle.queryPermission !== 'function') return
+      if ((await handle.queryPermission({ mode: 'readwrite' }).catch(() => 'denied')) !== 'granted') return
+      let fresh = game
+      if (needsInspect) {
+        fresh = await inspectCloudGame(game)
+        patch({ nwPackage: fresh.nwPackage, plugins: fresh.plugins, cacheEntries: fresh.cacheEntries, fingerprint: fresh.fingerprint, existingShell: fresh.existingShell })
+      }
+      if (!game.footprint) patch({ footprint: await measureCloudFootprint(fresh.picked, fresh.content, fresh.existingShell) })
+    })()
+      .catch(() => {})
+      .finally(() => enriching.current.delete(id))
+  }, [enabled, activeId, entries])
+  async function save(entries: CloudLibraryEntry[]) {
+    const next = entries.map(withLibraryView)
     await cloudLibraryStorage(next)
     setEntries(next)
   }
@@ -111,9 +167,9 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
           lastOpenedAt: Date.now(),
           addedAt: existing?.item.addedAt ?? Date.now(),
           missing: false,
-          kindLabel: '浏览器目录',
+          kindLabel: '',
           pathLabel: game.picked.name,
-          hasShell: !!game.existingShell,
+          hasShell: false,
         },
       }
       await save(existing ? entries.map((e) => (e.item.id === id ? entry : e)) : [...entries, entry])
@@ -121,14 +177,15 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
       notify.success('已加入游戏库，壳与插件可按需安装')
     })
   }
-  async function operate(action: (game: CloudGame) => Promise<void>) {
+  async function operate(action: (game: CloudGame) => Promise<void>, opts?: { remeasure?: boolean }) {
     if (!active) return
     const selected = active
     await run(async () => {
       await requireCloudPermission(selected.game)
       await action(selected.game)
-      const game = await inspectCloudGame(selected.game)
-      await save(entries.map((e) => (e.item.id === selected.item.id ? { ...e, game, item: { ...e.item, hasShell: !!game.existingShell } } : e)))
+      const inspected = await inspectCloudGame(selected.game)
+      const game = opts?.remeasure ? { ...inspected, footprint: undefined } : inspected
+      await save(entries.map((e) => (e.item.id === selected.item.id ? { ...e, game } : e)))
     })
   }
   async function installShell() {
@@ -136,13 +193,18 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
       setMacOpen(true)
       return
     }
-    await operate(async (game) => {
-      const result = await installCloudShell(game, (p) => setProgress(p.message))
-      setDownloadUrl(result.downloadUrl)
-      notify.success(result.hint)
-    })
+    await operate(
+      async (game) => {
+        const result = await installCloudShell(game, (p) => setProgress(p.message))
+        setDownloadUrl(result.downloadUrl)
+        notify.success(result.hint)
+      },
+      { remeasure: true }
+    )
   }
   const library = entries.map((e) => e.item)
+  const footprint = active?.game.footprint
+  const activePlugins = Array.isArray(active?.game.plugins) ? active.game.plugins : []
   const status: Status = active
     ? {
         ready: true,
@@ -151,14 +213,21 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
         library,
         contentRoot: active.game.content.name,
         projectRoot: active.game.picked.name,
-        kind: active.game.content.name === 'www' ? 'www' : 'root',
+        kind: contentKind(active.game),
         hasShell: !!active.game.existingShell,
         bundled: false,
         nestedInApp: false,
-        cache: { entries: 0 },
-        plugins: [],
-        pluginsReady: active.game.pluginsInstalled ? 1 : 0,
-        pluginsTotal: 1,
+        cache: { entries: active.game.cacheEntries ?? 0 },
+        footprint: footprint && {
+          contentBytes: footprint.contentBytes,
+          contentLabel: formatBytes(footprint.contentBytes),
+          shellBytes: footprint.shellBytes,
+          shellLabel: formatBytes(footprint.shellBytes),
+        },
+        plugins: activePlugins,
+        pluginsReady: countReadyPlugins(activePlugins),
+        pluginsTotal: TRACKED_PLUGINS.length,
+        nwPackage: active.game.nwPackage ?? null,
         host: { platform: active.game.os === 'mac' ? 'darwin' : active.game.os === 'win' ? 'win32' : 'linux' },
       }
     : { ready: false, canUseDisk: false, library }
@@ -193,8 +262,19 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
       run(async () => {
         const next = entries.filter((e) => e.item.gameRoot !== root)
         await save(next)
+        for (const e of entries) if (e.item.gameRoot === root) forgetCloudLinkToken(e.item.id)
         if (active?.item.gameRoot === root) selectId(next[0]?.item.id ?? null)
       }),
+    /** 须由点击触发：请求目录授权后重新检测（含 package.json） */
+    reinspect: () => operate(async () => {}),
+    /** 不走 run()：避免改尺寸时整卡进入 busy；失败抛给调用方提示 */
+    saveWindow: async (next: NwWindowConfig) => {
+      const selected = active
+      if (!selected) return
+      await requireCloudPermission(selected.game)
+      const nwPackage = await writeCloudWindow(selected.game.content, next, selected.game.picked.name)
+      await save(entries.map((e) => (e.item.id === selected.item.id ? { ...e, game: { ...e.game, nwPackage } } : e)))
+    },
     rename: (remark: string) =>
       run(async () => {
         await save(entries.map((e) => (e === active ? { ...e, item: { ...e.item, remark } } : e)))

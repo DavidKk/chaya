@@ -63,16 +63,27 @@
 
 表单行 / 列表行边距真源；新 UI 引这些 token，勿各页再写魔法数。
 
+**阶梯（硬）**：padding / gap / margin 只用 Tailwind `1`(4px)、`2`(8px)、`3`(12px)、`4`(16px)；`6` 及以上仅空态与营销页大块；`0.5`(2px) 仅细微对齐。不写 `[0.35rem]` 类 rem 魔法数，不用 `1.5` / `2.5` / `3.5` / `5`。
+
+| 档  | 用途                                                 |
+| --- | ---------------------------------------------------- |
+| `1` | 图标↔文字、标题↔描述                                 |
+| `2` | 控件之间、按钮组、紧凑行内                           |
+| `3` | 紧凑内边距（表格单元格、磁贴、dense 表单）、组内间距 |
+| `4` | 卡片 / 面板 / 页面内边距、区块间距、分隔线两侧留白   |
+
+**对齐规则**：容器内边距 = 子块间距 = 分隔线两侧留白（如卡片 `p-4` + `gap-4`，分隔线 `border-t pt-4`），不要外 20 内 16。
+
 | Token                          | 值                         | 用途                                 |
 | ------------------------------ | -------------------------- | ------------------------------------ |
-| `padXDense` / `padYDense`      | `px-3` / `py-[0.5rem]`     | GameEdit 运行/角色表单、编辑表单元格 |
-| `padXComfort` / `padYComfort`  | `px-4` / `py-[1.05rem]`    | 首页设置等宽松表单                   |
+| `padXDense` / `padYDense`      | `px-3` / `py-2`            | GameEdit 运行/角色表单、编辑表单元格 |
+| `padXComfort` / `padYComfort`  | `px-4` / `py-4`            | 首页设置等宽松表单                   |
 | `formCard` / `formCardDense`   | 子项用上表 comfort / dense | 表单卡片容器                         |
 | `editCell` / `editHeadCell`    | = dense pad                | GameEdit CSS grid 表                 |
 | `dataTable`                    | th/td = dense pad          | 翻译/日志 HTML 表                    |
-| `gapField`                     | `0.35rem`                  | 标题↔描述↔控件竖向                   |
-| `gapControl`                   | `0.2rem`                   | 同行控件间距                         |
-| `gapInline` / `gapInlineDense` | `1rem` / `0.75rem`         | 左右分栏列间距                       |
+| `gapField`                     | `gap-1`                    | 标题↔描述↔控件竖向                   |
+| `gapControl`                   | `gap-1`                    | 同行控件间距                         |
+| `gapInline` / `gapInlineDense` | `gap-x-4` / `gap-x-3`      | 左右分栏列间距                       |
 | `formFieldInline` / `…Dense`   | 分栏行布局                 | 开关/数字行                          |
 
 控件高度另见 `components/sk/control.ts`（`FORM_CONTROL_H` = `h-8`）。

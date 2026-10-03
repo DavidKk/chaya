@@ -128,9 +128,9 @@ export function LibraryRail({ entries, activeRoot, busy = false, canUseDisk = tr
         )}
         aria-label={t('library.title')}
       >
-        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line py-0 pr-[0.65rem] pl-4">
+        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line py-0 pr-3 pl-4">
           <span className="shrink-0 text-[0.8125rem] font-semibold tracking-[0.02em] text-ink-soft">{t('library.title')}</span>
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
             <Select
               value={sortMode}
               options={sortOptions}
@@ -152,19 +152,20 @@ export function LibraryRail({ entries, activeRoot, busy = false, canUseDisk = tr
         </div>
         <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('library.listAria') }}>
           {sorted.length === 0 ? (
-            <div className="px-4 py-5 text-[0.8125rem] text-ink-soft" role="status">
+            <div className="px-4 py-4 text-[0.8125rem] text-ink-soft" role="status">
               {t('library.empty')}
             </div>
           ) : (
-            <ul className="m-0 flex list-none flex-col gap-[0.65rem] p-3">
+            <ul className="m-0 flex list-none flex-col gap-3 p-3">
               {sorted.map((entry) => {
                 const selected = pathEquals(entry.gameRoot, active)
                 const remote = !!entry.remote
+                const fingerprint = entry.missing ? undefined : entry.fingerprint
                 return (
                   <li key={entry.id}>
                     <div
                       className={cn(
-                        'group relative flex flex-col gap-[0.35rem] rounded-[0.45rem] border border-line bg-panel px-[0.65rem] pt-[0.7rem] pb-[0.65rem]',
+                        'group relative flex flex-col gap-1 rounded-[0.45rem] border border-line bg-panel px-3 pt-3 pb-2',
                         'transition-[border-color,background,box-shadow] duration-150',
                         'hover:border-[color-mix(in_oklab,var(--accent)_28%,var(--line))] hover:bg-[color-mix(in_oklab,var(--panel)_88%,var(--accent))]',
                         selected &&
@@ -186,7 +187,7 @@ export function LibraryRail({ entries, activeRoot, busy = false, canUseDisk = tr
                       <button
                         type="button"
                         className={cn(
-                          'm-0 flex w-full cursor-pointer items-center gap-[0.65rem] border-none bg-transparent py-0 pr-[1.35rem] pl-0 text-left text-inherit',
+                          'm-0 flex w-full cursor-pointer items-center gap-3 border-none bg-transparent py-0 pr-[1.35rem] pl-0 text-left text-inherit',
                           'disabled:cursor-not-allowed disabled:opacity-72',
                           'focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]'
                         )}
@@ -207,12 +208,20 @@ export function LibraryRail({ entries, activeRoot, busy = false, canUseDisk = tr
                         >
                           <IoGameControllerOutline size={18} />
                         </span>
-                        <span className="flex min-w-0 flex-1 flex-col justify-center gap-[0.2rem]">
+                        <span className="flex min-w-0 flex-1 flex-col justify-center gap-1">
                           <span className="truncate text-[0.9rem] font-semibold tracking-[-0.01em] text-ink">{entry.remark?.trim() || entry.name}</span>
-                          <span className="flex flex-wrap items-center gap-x-[0.55rem] gap-y-[0.35rem] text-[0.72rem] text-ink-soft">
+                          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.72rem] text-ink-soft">
                             {entry.remark?.trim() ? <span className="truncate">{entry.name}</span> : null}
                             <span>{entry.kindLabel}</span>
                             {entry.hasShell && !entry.missing ? <span>{t('library.shellReady')}</span> : null}
+                            {fingerprint && fingerprint.engine !== 'unknown' ? (
+                              <span>{fingerprint.engineVersion ? `${fingerprint.engine} ${fingerprint.engineVersion}` : fingerprint.engine}</span>
+                            ) : null}
+                            {fingerprint && fingerprint.pluginCount > 0 ? (
+                              <span title={fingerprint.topFamilies.length ? t('library.mainPlugins', { families: fingerprint.topFamilies.join(' / ') }) : undefined}>
+                                {t('library.pluginCount', { count: fingerprint.pluginCount })}
+                              </span>
+                            ) : null}
                           </span>
                         </span>
                       </button>

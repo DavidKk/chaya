@@ -177,15 +177,15 @@ function ActionCard({
 }) {
   return (
     <div className={cn(formCardDense, 'm-0')}>
-      <div className="flex flex-col gap-[0.2rem]">
+      <div className="flex flex-col gap-1">
         <span className={formTitle}>{title}</span>
         <span className={formDesc}>{description}</span>
       </div>
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-3">
         {groups.map((g) => (
-          <div key={g.labelKey} className="flex flex-col gap-1.5">
+          <div key={g.labelKey} className="flex flex-col gap-2">
             <span className="text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase">{t(g.labelKey)}</span>
-            <div className={cn('grid gap-1.5', gridCols[g.cols ?? 2])}>
+            <div className={cn('grid gap-2', gridCols[g.cols ?? 2])}>
               {g.items.map((a) => (
                 <Button
                   key={a.id}

@@ -73,7 +73,7 @@ export function Switch({ checked, label, description, toggleTooltip, onCheckedCh
   return (
     <div className={cn('flex items-center justify-between gap-4 text-ink', disabled && 'opacity-45', className)}>
       {/* 文案区整块可点：左右拉开时不必摸到右侧滑块；内边距由 formCard 等外层统一 */}
-      <div className={cn('grid min-w-0 flex-1 cursor-pointer gap-[0.3rem] rounded-[0.15rem]', disabled && 'pointer-events-none cursor-not-allowed')} onClick={toggle}>
+      <div className={cn('grid min-w-0 flex-1 cursor-pointer gap-1 rounded-[0.15rem]', disabled && 'pointer-events-none cursor-not-allowed')} onClick={toggle}>
         <span id={labelId} className="text-[0.875rem] font-medium leading-[1.35] text-ink">
           {label}
         </span>

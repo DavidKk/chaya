@@ -1,10 +1,8 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiOk } from '@/initializer/response'
-import { MCP_ENDPOINT_PATH } from '@/lib/integration/mcp-catalog'
+import { MCP_ENDPOINT_PATH, mcpEvalEnabled } from '@/lib/integration/mcp-catalog'
 import { canUseDisk, getServiceMode } from '@/lib/service-mode/mode'
 import { toolkitListenPort } from '@/services/runtime'
-
-import { mcpEvalEnabled } from '../../mcp/_tools'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

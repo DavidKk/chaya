@@ -6,6 +6,7 @@ import { useGameLink } from '@/hooks/useGameLink'
 import { type GameLinkRpc, useGameLinkRpc } from '@/hooks/useGameLinkRpc'
 import { CLOUD_GAME_SELECTION_EVENT, readCloudGameId } from '@/lib/browser/cloud-library'
 import type { LibraryItemView } from '@/lib/game'
+import { appendLinkLogs, resetLinkLogs } from '@/lib/log/link-log-store'
 import type { GameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import { createTranslationRpc } from '@/lib/runtime/translation-rpc'
 import type { TranslationRequestFn } from '@/lib/translate/runtime-api'
@@ -29,6 +30,8 @@ function libraryIdForRoot(library: LibraryItemView[], gameRoot: string): string 
 
 type GameLinkContextValue = GameLinkRpc & {
   roomId: string | null
+  /** 浏览器模式：日志等只经游戏连接，不经服务器 */
+  browserMode: boolean
   connected: boolean
   negotiating: boolean
   /** 启动前钉住房间 id（不必等 Provider 慢扫 /api/status） */
@@ -104,9 +107,17 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
     setEnabled(true)
   }, [])
 
+  useEffect(() => {
+    resetLinkLogs()
+  }, [roomId])
+
   const onMessage = useCallback((msg: GameLinkMessage) => {
     if (msg.type === 'translation.rpc') {
       translationRef.current?.receive(msg)
+      return
+    }
+    if (msg.type === 'log.batch') {
+      if (Array.isArray(msg.entries)) appendLinkLogs(msg.entries)
       return
     }
     for (const fn of listenersRef.current) {
@@ -148,6 +159,7 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
     () => ({
       ...rpc,
       roomId,
+      browserMode,
       connected: link.connected,
       negotiating: link.negotiating,
       armRoom,
@@ -157,7 +169,7 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
       subscribeMessages,
       translationRequest: translation.rpc.request,
     }),
-    [rpc, roomId, link.connected, link.negotiating, armRoom, link.restart, link.quit, link.send, subscribeMessages, translation]
+    [rpc, roomId, browserMode, link.connected, link.negotiating, armRoom, link.restart, link.quit, link.send, subscribeMessages, translation]
   )
 
   return <GameLinkContext.Provider value={value}>{children}</GameLinkContext.Provider>

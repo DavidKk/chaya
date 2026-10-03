@@ -22,8 +22,8 @@ type Props = {
 export function DashboardGameActions({ busy, launch, plugins, shell }: Props) {
   const t = useT()
   return (
-    <div className="flex flex-col items-start gap-2 border-t border-[var(--line-soft)] pt-4">
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+    <div className="flex flex-col items-start gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           className={actionButtonClass}
           variant={launch.online ? 'accent' : 'ok'}

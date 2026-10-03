@@ -12,6 +12,7 @@
 @source "../../../../components/notification/**/*.{ts,tsx}";
 @source "../../../../components/layoutClasses.ts";
 @source "../../../../components/sk/**/*.{ts,tsx}";
+@source "../../../../components/i18n/**/*.{ts,tsx}";
 @source "./**/*.{ts,tsx}";
 
 @theme inline {

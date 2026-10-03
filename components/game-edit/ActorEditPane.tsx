@@ -252,7 +252,7 @@ export function ActorEditPane({
             <div className="flex h-[3.25rem] shrink-0 items-center gap-1 border-b border-line px-4">
               <SegmentedNav items={ACTOR_PANES.map((item) => ({ id: item.id, label: t(item.labelKey) }))} value={pane} onChange={onPaneChange} aria-label={t('edit.category')} />
               {pane === 'states' || pane === 'skills' ? (
-                <div className="ml-auto inline-flex shrink-0 items-center gap-[0.4rem]">
+                <div className="ml-auto inline-flex shrink-0 items-center gap-2">
                   <TextInput
                     search
                     className="h-8 w-[11rem] max-w-[40vw] shrink-0 text-[0.8125rem]"
@@ -462,7 +462,7 @@ export function ActorEditPane({
                               )}
                             </div>
                             <div className={cn(editCell, 'flex justify-center')} role="cell">
-                              <span className="inline-flex items-center gap-1.5">
+                              <span className="inline-flex items-center gap-2">
                                 <SwitchToggle
                                   checked={checked}
                                   aria-label={pane === 'skills' ? t('edit.skillOf', { name }) : t('edit.stateOf', { name })}

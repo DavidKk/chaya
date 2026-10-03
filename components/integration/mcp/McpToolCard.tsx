@@ -30,12 +30,12 @@ export function McpToolCard({ tool, onTry }: { tool: McpToolMeta; onTry?: (name:
             <tbody>
               {rows.map((row) => (
                 <tr key={row.name} className="border-t border-line first:border-t-0">
-                  <td className="py-1.5 pr-3 align-top whitespace-nowrap">
+                  <td className="py-2 pr-3 align-top whitespace-nowrap">
                     <code className="font-mono text-ink">{row.name}</code>
                   </td>
-                  <td className="py-1.5 pr-3 align-top font-mono whitespace-nowrap text-ink-soft">{row.type}</td>
-                  <td className="py-1.5 pr-3 align-top whitespace-nowrap text-ink-soft">{row.required ? t('integration.required') : t('integration.optional')}</td>
-                  <td className="py-1.5 align-top text-ink-soft">
+                  <td className="py-2 pr-3 align-top font-mono whitespace-nowrap text-ink-soft">{row.type}</td>
+                  <td className="py-2 pr-3 align-top whitespace-nowrap text-ink-soft">{row.required ? t('integration.required') : t('integration.optional')}</td>
+                  <td className="py-2 align-top text-ink-soft">
                     {row.description}
                     {row.enumValues ? <span className="ml-1 font-mono text-[11px]">({row.enumValues.join(' | ')})</span> : null}
                   </td>

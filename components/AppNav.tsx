@@ -143,7 +143,7 @@ export function AppNav({ current, className }: { current: AppNavPath; className?
             data-active={active}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'relative z-0 inline-flex h-full items-center justify-center whitespace-nowrap border-0 bg-transparent px-[0.7rem]',
+              'relative z-0 inline-flex h-full items-center justify-center whitespace-nowrap border-0 bg-transparent px-3',
               'text-[0.9375rem] font-semibold leading-none text-ink-soft no-underline shadow-none outline-none',
               'transition-colors duration-150 hover:text-ink',
               'focus-visible:text-ink focus-visible:outline-none',

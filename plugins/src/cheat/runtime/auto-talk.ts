@@ -2,25 +2,30 @@
  * Auto-talk: prefer Message.autoFlg when present; else hook Window_Message.isTriggered.
  */
 
+import { gameMessage } from './game-globals'
+
 const autoTalkState = { fallback: false, hooked: false, lastToggleAt: 0, hotkeyArmed: false }
 
 export function getAutoTalkState() {
   return autoTalkState
 }
 
-function hasMessageAutoApi() {
-  return !!($gameMessage && typeof $gameMessage.setAutoFlg === 'function' && typeof $gameMessage.autoFlg === 'function')
+function messageAutoApi() {
+  const message = gameMessage()
+  return message && typeof message.setAutoFlg === 'function' && typeof message.autoFlg === 'function' ? message : null
 }
 
 export function getAutoTalk() {
-  if (hasMessageAutoApi()) return !!$gameMessage.autoFlg()
+  const message = messageAutoApi()
+  if (message) return !!message.autoFlg()
   return !!autoTalkState.fallback
 }
 
 export function setAutoTalk(on: boolean) {
   const v = !!on
-  if (hasMessageAutoApi()) {
-    $gameMessage.setAutoFlg(v)
+  const message = messageAutoApi()
+  if (message) {
+    message.setAutoFlg(v)
   } else {
     autoTalkState.fallback = v
     ensureAutoTalkFallback()

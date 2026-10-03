@@ -2,6 +2,8 @@
  * Runtime page extras: system toggles, scene jumps, battle shortcuts, click teleport, soft-skip asset errors
  */
 
+import { gameMap, gameMessage, gamePlayer, gameScreen, gameTroop } from './game-globals'
+
 export type ScenePushId = 'status' | 'equip' | 'skill' | 'item' | 'menu' | 'load' | 'save' | 'options' | 'debug'
 
 const SCENE_MAP: Record<ScenePushId, () => unknown> = {
@@ -52,9 +54,9 @@ function ensureTouchHook() {
   const _set = Game_Temp.prototype.setDestination
   Game_Temp.prototype.setDestination = function (x: number, y: number) {
     const f = flags()
-    if (f.clickTeleport && $gamePlayer && typeof $gamePlayer.locate === 'function') {
+    if (f.clickTeleport && gamePlayer() && typeof gamePlayer().locate === 'function') {
       try {
-        $gamePlayer.locate(Math.floor(x), Math.floor(y))
+        gamePlayer().locate(Math.floor(x), Math.floor(y))
         if (typeof this.clearDestination === 'function') this.clearDestination()
       } catch {
         /* */
@@ -273,15 +275,15 @@ export const RunCheats = {
   },
 
   getFollowersVisible(): boolean {
-    if (!$gamePlayer || typeof $gamePlayer.followers !== 'function') return true
-    const f = $gamePlayer.followers()
+    if (!gamePlayer() || typeof gamePlayer().followers !== 'function') return true
+    const f = gamePlayer().followers()
     if (!f) return true
     if (typeof f.isVisible === 'function') return !!f.isVisible()
     return f._visible !== false
   },
   setFollowersVisible(on: boolean) {
-    if (!$gamePlayer || typeof $gamePlayer.followers !== 'function') return false
-    const fol = $gamePlayer.followers()
+    if (!gamePlayer() || typeof gamePlayer().followers !== 'function') return false
+    const fol = gamePlayer().followers()
     if (!fol) return false
     if (on && typeof fol.show === 'function') fol.show()
     else if (!on && typeof fol.hide === 'function') fol.hide()
@@ -355,17 +357,16 @@ export const RunCheats = {
       scene.startFadeIn(24, false)
       return true
     }
-    if (typeof $gameScreen !== 'undefined' && typeof $gameScreen.startFadeIn === 'function') {
-      $gameScreen.startFadeIn(24)
+    if (typeof gameScreen()?.startFadeIn === 'function') {
+      gameScreen().startFadeIn(24)
       return true
     }
     return false
   },
 
   clearPictures() {
-    if (typeof $gameScreen === 'undefined') return false
-    if (typeof $gameScreen.clearPictures === 'function') {
-      $gameScreen.clearPictures()
+    if (typeof gameScreen()?.clearPictures === 'function') {
+      gameScreen().clearPictures()
       return true
     }
     return false
@@ -384,16 +385,16 @@ export const RunCheats = {
         /* */
       }
     }
-    clearOne($gamePlayer)
-    if ($gameMap && typeof $gameMap.events === 'function') {
-      for (const ev of $gameMap.events()) clearOne(ev)
+    clearOne(gamePlayer())
+    if (gameMap() && typeof gameMap().events === 'function') {
+      for (const ev of gameMap().events()) clearOne(ev)
     }
     return n > 0
   },
 
   closeAllWindows() {
     try {
-      if ($gameMessage && typeof $gameMessage.clear === 'function') $gameMessage.clear()
+      if (gameMessage() && typeof gameMessage().clear === 'function') gameMessage().clear()
     } catch {
       /* */
     }
@@ -410,7 +411,7 @@ export const RunCheats = {
       }
       return true
     }
-    return !!$gameMessage
+    return !!gameMessage()
   },
 
   resumeAfterError() {
@@ -441,9 +442,9 @@ export const RunCheats = {
   },
 
   setEnemyHp(mode: 'one' | 'max') {
-    if (!$gameTroop || typeof $gameTroop.members !== 'function') return false
+    if (!gameTroop() || typeof gameTroop().members !== 'function') return false
     let n = 0
-    for (const e of $gameTroop.members()) {
+    for (const e of gameTroop().members()) {
       if (!e || (typeof e.isHidden === 'function' && e.isHidden())) continue
       if (typeof e.isDead === 'function' && e.isDead()) continue
       if (typeof e.setHp !== 'function') continue
@@ -473,12 +474,7 @@ export const RunCheats = {
 }
 
 declare const $gameSystem: any
-declare const $gamePlayer: any
-declare const $gameMap: any
-declare const $gameTroop: any
 declare const $gameParty: any
-declare const $gameScreen: any
-declare const $gameMessage: any
 declare const Game_Temp: { prototype: { setDestination: (x: number, y: number) => void; clearDestination?: () => void } }
 declare const Game_Actor: { prototype: { gainExp: (exp: number) => void } }
 declare const Bitmap: {

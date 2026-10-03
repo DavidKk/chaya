@@ -147,7 +147,7 @@ export function SegmentedNav<T extends string>({ items, value, onChange, 'aria-l
               'relative z-[1] inline-flex h-full min-h-0 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-[0.15rem] border-0 bg-transparent',
               'text-[0.8125rem] font-medium leading-none text-ink-soft no-underline transition-colors hover:text-ink',
               'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]',
-              iconOnly ? 'w-8 px-0' : 'px-[0.85rem]',
+              iconOnly ? 'w-8 px-0' : 'px-3',
               active && 'text-accent'
             )}
             onClick={() => onChange(item.id)}

@@ -5,9 +5,16 @@ export type Locale = (typeof LOCALES)[number]
 
 export const DEFAULT_LOCALE: Locale = 'en'
 
-/** localStorage 与 cookie 共用，便于 SSR 读 cookie、客户端读写 storage */
-export const LOCALE_STORAGE_KEY = 'chaya.locale'
+/** `auto`：跟随系统 / 浏览器语言；只有用户明确选过才是具体语言 */
+export type LocalePreference = Locale | 'auto'
+
+/**
+ * 只存用户明确的选择；localStorage 与 cookie 共用（SSR 读 cookie）。
+ * 旧键 `chaya.locale` 会在首次访问时自动写入，无法区分是否为用户选择，故弃用。
+ */
+export const LOCALE_STORAGE_KEY = 'chaya.localePref'
 export const LOCALE_COOKIE_KEY = LOCALE_STORAGE_KEY
+const LEGACY_LOCALE_KEY = 'chaya.locale'
 
 const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 
@@ -60,6 +67,16 @@ export function detectBrowserLocale(): Locale {
   return localeFromLanguageTags([navigator.language, ...(navigator.languages ?? [])])
 }
 
+export function isLocalePreference(value: unknown): value is LocalePreference {
+  return value === 'auto' || isLocale(value)
+}
+
+/** 偏好 → 实际语言；`auto` 时由调用方给出系统语言 */
+export function localeForPreference(preference: LocalePreference, systemLocale: Locale): Locale {
+  return preference === 'auto' ? systemLocale : preference
+}
+
+/** 用户明确选过的语言；没选过（跟随系统）返回 null */
 export function readStoredLocale(): Locale | null {
   if (typeof window === 'undefined') return null
   try {
@@ -70,23 +87,29 @@ export function readStoredLocale(): Locale | null {
   }
 }
 
-function writeLocaleCookie(locale: Locale) {
+function setCookie(key: string, value: string, maxAge: number) {
   if (typeof document === 'undefined') return
-  document.cookie = `${LOCALE_COOKIE_KEY}=${locale};path=/;max-age=${LOCALE_COOKIE_MAX_AGE};samesite=lax`
+  document.cookie = `${key}=${value};path=/;max-age=${maxAge};samesite=lax`
 }
 
-export function writeStoredLocale(locale: Locale) {
+/** `auto` 清除存储，回到跟随系统 */
+export function writeStoredLocale(preference: LocalePreference) {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
+    if (preference === 'auto') window.localStorage.removeItem(LOCALE_STORAGE_KEY)
+    else window.localStorage.setItem(LOCALE_STORAGE_KEY, preference)
   } catch {
     /* ignore quota / private mode */
   }
-  writeLocaleCookie(locale)
+  setCookie(LOCALE_COOKIE_KEY, preference === 'auto' ? '' : preference, preference === 'auto' ? 0 : LOCALE_COOKIE_MAX_AGE)
 }
 
-export const localeCookieOptions = {
-  path: '/',
-  maxAge: LOCALE_COOKIE_MAX_AGE,
-  sameSite: 'lax' as const,
+export function clearLegacyLocale() {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(LEGACY_LOCALE_KEY)
+  } catch {
+    /* */
+  }
+  if (typeof document !== 'undefined' && document.cookie.includes(`${LEGACY_LOCALE_KEY}=`)) setCookie(LEGACY_LOCALE_KEY, '', 0)
 }

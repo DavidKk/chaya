@@ -1,3 +1,5 @@
 export { diskUnavailable, requireDisk } from './assert'
 export type { ServiceMode } from './mode'
 export { canUseDisk, getServiceMode, serviceModePayload } from './mode'
+export type { BuildTarget, DevTarget } from './target'
+export { BUILD_TARGET, getDevTarget, isDevTarget, setDevTarget } from './target'

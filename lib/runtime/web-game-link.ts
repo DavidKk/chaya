@@ -1,6 +1,7 @@
 'use client'
 
-import { encodeGameLinkMessage, GAME_LINK_CHANNEL, type GameLinkMessage, parseGameLinkMessage } from '@/lib/runtime/game-link-protocol'
+import { readCloudLinkToken } from '@/lib/browser/link-token'
+import { encodeGameLinkMessage, GAME_LINK_CHANNEL, GAME_LINK_TOKEN_HEADER, type GameLinkMessage, parseGameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import { sendTranslationPacket } from '@/lib/runtime/translation-rpc'
 import { defaultPeerConfig, normalizeLocalWebRtcDescription, waitForIceGathering } from '@/lib/runtime/webrtc-ice'
 
@@ -10,11 +11,17 @@ type Handlers = {
   onMessage?: (msg: GameLinkMessage) => void
 }
 
-async function postSignal(body: Record<string, unknown>): Promise<boolean> {
+/** 浏览器模式才有令牌（服务端模式走管理会话），没有就不带 */
+function signalHeaders(roomId: string, extra?: Record<string, string>): Record<string, string> {
+  const token = readCloudLinkToken(roomId)
+  return token ? { ...extra, [GAME_LINK_TOKEN_HEADER]: token } : { ...extra }
+}
+
+async function postSignal(body: { roomId: string } & Record<string, unknown>): Promise<boolean> {
   try {
     const res = await fetch('/api/runtime/webrtc', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: signalHeaders(body.roomId, { 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     })
     if (!res.ok) return false
@@ -27,7 +34,7 @@ async function postSignal(body: Record<string, unknown>): Promise<boolean> {
 }
 
 async function getRoom(roomId: string) {
-  const res = await fetch(`/api/runtime/webrtc?roomId=${encodeURIComponent(roomId)}`)
+  const res = await fetch(`/api/runtime/webrtc?roomId=${encodeURIComponent(roomId)}`, { headers: signalHeaders(roomId) })
   if (!res.ok) throw new Error(`signaling get ${res.status}`)
   const data = (await res.json()) as { room?: { answer?: RTCSessionDescriptionInit | null } }
   return data.room

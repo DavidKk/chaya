@@ -1,3 +1,4 @@
+import { GAME_LINK_TOKEN_HEADER } from '@/lib/runtime/game-link-protocol'
 import { mayAccessApi } from '@/services/access/api'
 
 import { apiError, packApiRouteResult, packApiRouteThrown } from './response'
@@ -19,7 +20,7 @@ export function defineApiRoute<TContext = DefaultRouteContext>(_policyId: string
     try {
       if (!(await mayAccessApi(request))) {
         return apiError(401, 'ACCESS_DENIED', '请使用启动终端中的授权链接打开控制台', {
-          headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, X-Chaya-Launch-Token' },
+          headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': `Content-Type, X-Chaya-Launch-Token, ${GAME_LINK_TOKEN_HEADER}` },
         })
       }
       const result: ApiRouteHandlerResult = await handler({ request, context })

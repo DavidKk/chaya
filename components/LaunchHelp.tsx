@@ -28,7 +28,7 @@ export function MacShellDialog({ open, onClose, gameName }: { open: boolean; onC
         {gameName ? <p className="m-0 break-all">{t('launchHelp.pickSameDir', { name: gameName })}</p> : null}
         <ol className="m-0 flex list-none flex-col gap-2 p-0">
           {MAC_STEP_KEYS.map((key, index) => (
-            <li key={key} className="flex gap-2.5">
+            <li key={key} className="flex gap-3">
               <span aria-hidden className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-line text-[0.7rem] font-semibold text-ink">
                 {index + 1}
               </span>

@@ -8,6 +8,8 @@ import { AGENT_INPUT_KEYS } from '@/lib/runtime/agent-protocol'
 export const MCP_SERVER_NAME = 'chaya'
 export const MCP_ENDPOINT_PATH = '/api/mcp'
 
+export const mcpEvalEnabled = () => process.env.CHAYA_MCP_EVAL === '1'
+
 export type McpToolGroupId = 'library' | 'game' | 'live' | 'edit' | 'translate' | 'cache' | 'logs'
 
 export type McpToolMeta = {

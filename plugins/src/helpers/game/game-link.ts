@@ -4,14 +4,14 @@
  */
 
 import { AGENT_LINK_PATH } from '@/lib/runtime/agent-protocol'
-import { encodeGameLinkMessage, type GameLinkMessage, parseGameLinkMessage } from '@/lib/runtime/game-link-protocol'
+import { encodeGameLinkMessage, GAME_LINK_TOKEN_HEADER, type GameLinkLogEntry, type GameLinkMessage, parseGameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import { createTranslationRpc, sendTranslationPacket } from '@/lib/runtime/translation-rpc'
 import { installedTranslationRuntime } from '@/lib/translate/runtime-api'
 
 import { ensureLaunchEnvGlobals } from '../env/ensure-launch-env'
 import { resolveApiBase, resolveApiBaseFallbacks } from '../env/env'
-import { chayaFetch, chayaPostJson } from '../net/http'
-import { ChayaLog } from '../net/logger'
+import { chayaFetch } from '../net/http'
+import { ChayaLog, type LocalPluginLog, logsViaLink } from '../net/logger'
 import { runLinkAgentRequest } from './agent-link'
 import { dispatchGameLinkEditMessage, stopGameLinkEditBridge } from './edit-link-bridge'
 import { detectGameIdentity } from './game-identity'
@@ -36,6 +36,85 @@ export function gameRoomId(): string {
 
 function hasLaunchRoom(): boolean {
   return gameRoomId() !== 'default'
+}
+
+/** Browser mode only: page-generated secret bound to the signaling room */
+function signalHeaders(): Record<string, string> {
+  try {
+    const token = String((window as Window & { CHAYA_LINK_TOKEN?: string }).CHAYA_LINK_TOKEN || '').trim()
+    return token ? { [GAME_LINK_TOKEN_HEADER]: token } : {}
+  } catch {
+    return {}
+  }
+}
+
+/** Room ids double as signaling credentials in older builds; never print them in full */
+function maskRoom(id: string): string {
+  return id.length > 8 ? `${id.slice(0, 4)}…${id.slice(-2)}` : '…'
+}
+
+const LOG_BACKLOG = 200
+const LOG_FLUSH_MS = 200
+let logUnsub: (() => void) | null = null
+let logTimer: ReturnType<typeof setTimeout> | null = null
+let lastSentLogId = 0
+
+/** Keep each DataChannel message well under 16 KiB, like translation RPC chunks */
+const LOG_MESSAGE_CHARS = 4_000
+const LOG_META_CHARS = 1_000
+const LOG_BATCH_CHARS = 6_000
+
+function toLinkLog(e: LocalPluginLog): GameLinkLogEntry {
+  let meta = e.meta
+  if (meta !== undefined) {
+    try {
+      const raw = JSON.stringify(meta)
+      if (raw && raw.length > LOG_META_CHARS) meta = `${raw.slice(0, LOG_META_CHARS)}…`
+    } catch {
+      meta = undefined
+    }
+  }
+  const message = e.message.length > LOG_MESSAGE_CHARS ? `${e.message.slice(0, LOG_MESSAGE_CHARS)}…` : e.message
+  return { id: e.id, ts: e.ts, level: e.level, source: e.source, message, meta }
+}
+
+function flushLogs(dc: RTCDataChannel) {
+  logTimer = null
+  const fresh = ChayaLog.history().filter((e) => e.id > lastSentLogId)
+  if (!fresh.length) return
+  lastSentLogId = fresh[fresh.length - 1].id
+  let batch: GameLinkLogEntry[] = []
+  let size = 0
+  for (const entry of fresh.map(toLinkLog)) {
+    const len = JSON.stringify(entry).length
+    if (batch.length && size + len > LOG_BATCH_CHARS) {
+      sendOnDc(dc, { type: 'log.batch', entries: batch })
+      batch = []
+      size = 0
+    }
+    batch.push(entry)
+    size += len
+  }
+  if (batch.length) sendOnDc(dc, { type: 'log.batch', entries: batch })
+}
+
+/** Backlog first, then batched live entries; only when Env says logs go over the link */
+function startLogForward(dc: RTCDataChannel) {
+  stopLogForward()
+  if (!logsViaLink()) return
+  const history = ChayaLog.history()
+  lastSentLogId = history.length > LOG_BACKLOG ? history[history.length - LOG_BACKLOG - 1].id : 0
+  flushLogs(dc)
+  logUnsub = ChayaLog.subscribe(() => {
+    if (!logTimer) logTimer = setTimeout(() => flushLogs(dc), LOG_FLUSH_MS)
+  })
+}
+
+function stopLogForward() {
+  logUnsub?.()
+  logUnsub = null
+  if (logTimer) clearTimeout(logTimer)
+  logTimer = null
 }
 
 function normalizeLocalSdp(description: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
@@ -127,8 +206,10 @@ function bindDc(dc: RTCDataChannel) {
       gameRoot: id?.gameRoot,
     })
     ChayaLog.ok('ChayaLink', 'WebRTC DataChannel 已连接')
+    startLogForward(dc)
   }
   dc.onclose = () => {
+    stopLogForward()
     translation.dispose()
     if (activeDc === dc) activeDc = null
     linkOpen = false
@@ -175,7 +256,7 @@ async function tryAnswer() {
   let room: WebrtcRoom | null = null
   for (const base of bases) {
     try {
-      const res = await chayaFetch(`${base}/api/runtime/webrtc?roomId=${encodeURIComponent(id)}`)
+      const res = await chayaFetch(`${base}/api/runtime/webrtc?roomId=${encodeURIComponent(id)}`, { headers: signalHeaders() })
       if (!res.ok) continue
       const data = (await res.json()) as { room?: WebrtcRoom | null }
       room = data.room || null
@@ -232,10 +313,10 @@ async function tryAnswer() {
 
     for (const base of bases) {
       try {
-        const res = await chayaPostJson(`${base}/api/runtime/webrtc`, {
-          action: 'answer',
-          roomId: id,
-          sdp: answer,
+        const res = await chayaFetch(`${base}/api/runtime/webrtc`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...signalHeaders() },
+          body: JSON.stringify({ action: 'answer', roomId: id, sdp: answer }),
         })
         if (res.ok) {
           ChayaLog.ok('ChayaLink', `已应答 Web offer → ${base}`)
@@ -267,7 +348,7 @@ async function loop() {
     if (before === 'default') ensureLaunchEnvGlobals()
     const after = gameRoomId()
     if (before === 'default' && after !== 'default') {
-      ChayaLog.info('ChayaLink', `已读到房间 id，开始协商（room=${after}, api=${resolveApiBase()}）`)
+      ChayaLog.info('ChayaLink', `已读到房间 id，开始协商（room=${maskRoom(after)}, api=${resolveApiBase()}）`)
     }
     // When connected, only low-frequency probe whether Web has a new offer
     await tryAnswer()
@@ -305,7 +386,7 @@ export function startGameLink() {
     if (id === 'default') {
       ChayaLog.warn('ChayaLink', '未读到 CHAYA_GAME_ID / LAUNCH_TOKEN，暂不进 default 房间（将持续重试 Env）')
     } else {
-      ChayaLog.info('ChayaLink', `等待 Web 连接（room=${id}, api=${resolveApiBase()}）`)
+      ChayaLog.info('ChayaLink', `等待 Web 连接（room=${maskRoom(id)}, api=${resolveApiBase()}）`)
     }
     void loop()
   }
@@ -314,6 +395,7 @@ export function startGameLink() {
 
 export function stopGameLink() {
   started = false
+  stopLogForward()
   if (timer) {
     clearTimeout(timer)
     timer = null

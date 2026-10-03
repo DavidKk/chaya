@@ -2,7 +2,7 @@ import type { IntegrationMessages } from './integration-types'
 
 /** 叶子为 string 的同构文案树 */
 export type MessageTree = {
-  locale: { label: string; switch: string }
+  locale: { label: string; switch: string; auto: string }
   nav: { main: string; library: string; edit: string; translate: string; logs: string; integration: string }
   common: {
     close: string
@@ -125,22 +125,18 @@ export type MessageTree = {
     remoteTag: string
     localTag: string
     remoteName: string
+    pluginCount: string
+    mainPlugins: string
   }
   dashboard: {
     currentGame: string
     packageName: string
-    pathNa: string
-    content: string
-    shell: string
-    shellFound: string
     shellReady: string
     shellInstalled: string
     shellMissing: string
-    plugins: string
     gameRunning: string
     connecting: string
     gameOffline: string
-    sharedCache: string
     launchStart: string
     launchConnect: string
     launchWait: string
@@ -150,7 +146,6 @@ export type MessageTree = {
     tipQuit: string
     tipWaiting: string
     remoteSessionHint: string
-    linuxQuitFirst: string
     downloadLinuxShell: string
     kindRemote: string
     kindExe: string
@@ -161,6 +156,15 @@ export type MessageTree = {
     shortcutEditDesc: string
     shortcutTranslateDesc: string
     shortcutLogsDesc: string
+    metaPath: string
+    metaContent: string
+    metaShellSize: string
+    metaLayout: string
+    metaShell: string
+    metaWindow: string
+    metaPlugins: string
+    metaConnection: string
+    metaSharedCache: string
   }
   settings: {
     game: string
@@ -176,10 +180,13 @@ export type MessageTree = {
     remoteNoShell: string
     remoteNoWindow: string
     noPackageJson: string
+    windowNeedsAuth: string
+    windowAuthorize: string
     gamePh: string
     shellPhWin: string
     shellPhMac: string
     gameHintRemote: string
+    gameHintBrowser: string
     gameHintBundledWin: string
     gameHintBundledMac: string
     gameHintWin: string
@@ -439,6 +446,9 @@ export type MessageTree = {
     actorsCount: string
     truncated: string
     loadPanel: string
+    needSave: string
+    readFailed: string
+    initFailed: string
     loadRun: string
     loadHotkeys: string
     loadActor: string
@@ -639,6 +649,8 @@ export type MessageTree = {
     clear: string
     pausedRecv: string
     connecting: string
+    /** 浏览器模式：日志来自游戏连接 */
+    waitGame: string
     level: string
     levelAria: string
     emptyTitle: string

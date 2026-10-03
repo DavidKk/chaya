@@ -12,11 +12,11 @@ import { claudeCodeInstallCommand, codexInstallCommand, cursorInstallLink, mcpJs
 export const integrationCard = 'flex flex-col gap-3 rounded-[0.35rem] border border-line bg-panel px-4 py-3'
 
 const linkClass =
-  'inline-flex h-8 items-center gap-1.5 rounded-[0.3rem] border border-line bg-paper-2 px-3 text-xs font-medium text-ink no-underline transition-colors hover:bg-inset focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
+  'inline-flex h-8 items-center gap-2 rounded-[0.3rem] border border-line bg-paper-2 px-3 text-xs font-medium text-ink no-underline transition-colors hover:bg-inset focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2">
       <span className="text-xs font-semibold text-ink-soft">{label}</span>
       {children}
     </div>

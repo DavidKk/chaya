@@ -3,11 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { IoListOutline } from 'react-icons/io5'
 
-import { BindingStatusMenu } from '@/components/BindingStatusMenu'
 import { ChooseGameGate } from '@/components/ChooseGameGate'
 import { DashboardSettings } from '@/components/DashboardSettings'
 import { useGameLinkContext } from '@/components/GameLinkProvider'
-import { GameTitleEditor } from '@/components/GameTitleEditor'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { MacShellDialog } from '@/components/LaunchHelp'
 import { LibraryPageSkeleton } from '@/components/LibraryPageSkeleton'
@@ -19,7 +17,7 @@ import type { LibraryItemView } from '@/lib/game'
 import { useQueryPatch } from '@/lib/url/use-query-patch'
 
 import { DashboardGameActions } from './dashboard/DashboardGameActions'
-import { DashboardShortcuts } from './dashboard/DashboardShortcuts'
+import { DashboardGameCard } from './dashboard/DashboardGameCard'
 import { libraryIdForRoot, rootsEqual, type Status } from './dashboard/types'
 import { useCloudLibrary } from './dashboard/useCloudLibrary'
 import { useDashboardActions } from './dashboard/useDashboardActions'
@@ -50,7 +48,16 @@ export function Dashboard() {
   const cloud = useCloudLibrary(browserMode, searchParams.get('game'), (id) => replaceQuery({ game: id }))
   const status = browserMode ? cloud.status : serverStatus
   const busy = localBusy || (browserMode && cloud.busy)
-  const { win, setWin, winSaveTimer, patchWin, patchWinSize } = useWindowSettings(browserMode ? '' : status?.config?.gameRoot || '')
+  const { win, setWin, winSaveTimer, patchWin, patchWinSize } = useWindowSettings(
+    browserMode ? cloud.active?.item.gameRoot || '' : status?.config?.gameRoot || '',
+    browserMode ? (next) => cloud.saveWindow(next) : undefined
+  )
+  const cloudWindow = browserMode ? cloud.active?.game.nwPackage?.window : undefined
+  const cloudGameId = cloud.active?.item.id
+  useEffect(() => {
+    if (!browserMode || winSaveTimer.current) return
+    setWin(cloudWindow ? { ...cloudWindow } : null)
+  }, [browserMode, cloudGameId, cloudWindow, setWin, winSaveTimer])
   const gameLink = useGameLinkContext()
 
   const refresh = useCallback(async (): Promise<Status | null> => {
@@ -63,8 +70,7 @@ export function Dashboard() {
     if (data.config?.gameRoot) setGameRoot(data.config.gameRoot)
     else setGameRoot('')
     if (data.config?.shellSource) setShellSource(data.config.shellSource)
-    if (data.ready && data.nwPackage?.window) setWin({ ...data.nwPackage.window })
-    else setWin(null)
+    if (data.canUseDisk !== false) setWin(data.ready && data.nwPackage?.window ? { ...data.nwPackage.window } : null)
     if (data.heal?.message) notifyRef.current.info(data.heal.message)
     return data
   }, [setWin])
@@ -79,7 +85,7 @@ export function Dashboard() {
       }
       if (applyingGameQuery.current || targetGameId.current) return
       setStatus(data)
-      if (!winSaveTimer.current) {
+      if (!winSaveTimer.current && data.canUseDisk !== false) {
         if (data.ready && data.nwPackage?.window) setWin({ ...data.nwPackage.window })
         else if (!data.ready) setWin(null)
       }
@@ -372,16 +378,12 @@ export function Dashboard() {
   const loading = serverStatus === null || (browserMode && !cloud.loaded)
   const library = status?.library || []
   const emptyLibrary = !loading && !ready && library.length === 0
-  const gameTitle =
-    browserMode && cloud.active
-      ? cloud.active.item.name
-      : ready && status.nwPackage?.window?.title?.trim()
-        ? status.nwPackage.window.title.trim()
-        : ready && status.nwPackage?.name?.trim()
-          ? status.nwPackage.name.trim()
-          : ready
-            ? status.config.gameRoot.split(/[/\\]/).filter(Boolean).pop() || (remote ? '远程游戏' : '游戏')
-            : ''
+  const gameTitle = !ready
+    ? ''
+    : status.nwPackage?.window?.title?.trim() ||
+      status.nwPackage?.name?.trim() ||
+      (browserMode && cloud.active ? cloud.active.item.name : status.config.gameRoot.split(/[/\\]/).filter(Boolean).pop()) ||
+      (remote ? '远程游戏' : '游戏')
   const libraryEntry = ready ? (status.library || []).find((item) => rootsEqual(item.gameRoot, status.config.gameRoot)) : undefined
   const gameRemark = libraryEntry?.remark?.trim() || ''
   const gamePackageName = ready && status.nwPackage?.name?.trim() ? status.nwPackage.name.trim() : null
@@ -422,7 +424,7 @@ export function Dashboard() {
 
   return (
     <>
-      <MacShellDialog open={cloud.macOpen} onClose={() => cloud.setMacOpen(false)} gameName={cloud.active?.item.name} />
+      <MacShellDialog open={cloud.macOpen} onClose={() => cloud.setMacOpen(false)} gameName={cloud.active?.game.picked.name} />
       {loading ? (
         <LibraryPageSkeleton />
       ) : emptyLibrary ? (
@@ -443,7 +445,7 @@ export function Dashboard() {
             onRemove={(root) => (browserMode ? cloud.remove(root) : removeGame(root))}
           />
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col px-5 pt-4 pb-5">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4">
             <div className="mb-3 flex shrink-0 items-center md:hidden">
               <Button
                 variant="ghost"
@@ -462,135 +464,109 @@ export function Dashboard() {
             ) : (
               <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('dashboard.currentGame') }}>
                 <div className="flex w-full max-w-[48rem] flex-col gap-4">
-                  <div className="flex flex-col items-stretch gap-5 rounded-[0.4rem] border border-line bg-panel px-5 py-5">
-                    <div className="flex min-w-0 flex-col gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        {!remote && !browserMode ? (
-                          <BindingStatusMenu
-                            status={{
-                              kind: status.kind,
-                              hasShell: status.hasShell,
-                              bundled: status.bundled,
-                              plugins: status.plugins,
-                              hasNwPackage: !!status.nwPackage,
-                              platform: status.host?.platform,
-                            }}
-                          />
-                        ) : null}
-                        <GameTitleEditor
-                          originalName={gameTitle}
-                          remark={gameRemark}
+                  <DashboardGameCard
+                    title={gameTitle}
+                    remark={gameRemark}
+                    packageName={gamePackageName}
+                    busy={busy}
+                    onRename={(next) => void (browserMode ? cloud.rename(next) : saveGameRemark(next))}
+                    binding={
+                      remote
+                        ? undefined
+                        : {
+                            kind: status.kind,
+                            hasShell: status.hasShell,
+                            bundled: status.bundled,
+                            plugins: status.plugins,
+                            hasNwPackage: !!status.nwPackage,
+                            platform: status.host?.platform,
+                            shellPath: browserMode && cloud.active ? `${cloud.active.game.picked.name}/${cloud.active.game.existingShell ?? ''}` : undefined,
+                          }
+                    }
+                    meta={{ status, remote, layoutLabel, win, online: gameOnline, pending: launchPending }}
+                    actions={
+                      remote ? (
+                        <p className="m-0 text-[0.75rem] leading-relaxed text-ink-soft">{t('dashboard.remoteSessionHint')}</p>
+                      ) : (
+                        <DashboardGameActions
                           busy={busy}
-                          onSave={(next) => void (browserMode ? cloud.rename(next) : saveGameRemark(next))}
-                        />
-                      </div>
-                      {gamePackageName && gamePackageName !== gameTitle ? <div className="text-[0.75rem] text-ink-soft">包名 {gamePackageName}</div> : null}
-                      <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 text-[0.75rem] leading-relaxed text-ink-soft">
-                        {remote ? <span>路径 N/A</span> : null}
-                        {!remote && status.footprint?.contentLabel ? <span>内容 {status.footprint.contentLabel}</span> : null}
-                        {!remote && status.footprint?.shellLabel && !status.bundled ? <span>壳 {status.footprint.shellLabel}</span> : null}
-                        <span>{layoutLabel}</span>
-                        {!remote ? (
-                          <span>
-                            {status.hasShell
-                              ? browserMode
-                                ? t('dashboard.shellFound')
-                                : status.bundled
-                                  ? t('dashboard.shellReady')
-                                  : t('dashboard.shellInstalled')
-                              : t('dashboard.shellMissing')}
-                          </span>
-                        ) : null}
-                        {!remote && win ? (
-                          <span>
-                            {win.width}×{win.height}
-                          </span>
-                        ) : null}
-                        {!remote && typeof status.pluginsTotal === 'number' ? (
-                          <span>
-                            插件 {status.pluginsReady ?? 0}/{status.pluginsTotal}
-                          </span>
-                        ) : null}
-                        <span className={gameOnline ? 'text-ok' : undefined}>
-                          {gameOnline ? t('dashboard.gameRunning') : launchPending ? t('dashboard.connecting') : t('dashboard.gameOffline')}
-                        </span>
-                        {!remote && status.cache?.entries ? <span>共享译文 {status.cache.entries.toLocaleString()} 条</span> : null}
-                      </div>
-                    </div>
-                    <DashboardShortcuts />
-                    {!remote ? (
-                      <DashboardGameActions
-                        busy={busy}
-                        launch={{
-                          online: gameOnline,
-                          pending: launchPending,
-                          enabled: canLaunch,
-                          label: launchLabel,
-                          tooltip: launchTooltip,
-                          onStart: browserMode
-                            ? async () => {
-                                if (!(await cloud.configureConnection())) return
-                                if (cloud.active) {
-                                  gameLink.armRoom(cloud.active.item.id)
-                                  await gameLink.restart(cloud.active.item.id)
+                          launch={{
+                            online: gameOnline,
+                            pending: launchPending,
+                            enabled: canLaunch,
+                            label: launchLabel,
+                            tooltip: launchTooltip,
+                            onStart: browserMode
+                              ? async () => {
+                                  if (!(await cloud.configureConnection())) return
+                                  if (cloud.active) {
+                                    gameLink.armRoom(cloud.active.item.id)
+                                    await gameLink.restart(cloud.active.item.id)
+                                  }
                                 }
-                              }
-                            : launchGame,
-                          onQuit: quitGame,
-                        }}
-                        plugins={{
-                          state: pluginsNeedInject ? 'missing' : pluginsInjected ? 'ready' : 'unavailable',
-                          onInstall: browserMode ? cloud.installPlugins : injectPlugins,
-                          onClear: browserMode ? cloud.clearPlugins : clearPlugins,
-                        }}
-                        shell={{
-                          canInstall,
-                          canUninstall: canUninstallShell,
-                          canFetch: canFetchLatestShell,
-                          hasShell: status.hasShell,
-                          hasSource: browserMode || !!shellSource.trim(),
-                          onInstall: browserMode ? cloud.installShell : installShell,
-                          onFetchLatest: fetchLatestShell,
-                          onUninstall: uninstallShell,
-                        }}
-                      />
-                    ) : (
-                      <div className="border-t border-[var(--line-soft)] pt-4 text-[0.75rem] leading-relaxed text-ink-soft">{t('dashboard.remoteSessionHint')}</div>
-                    )}
-                  </div>
+                              : launchGame,
+                            onQuit: quitGame,
+                          }}
+                          plugins={{
+                            state: pluginsNeedInject ? 'missing' : pluginsInjected ? 'ready' : 'unavailable',
+                            onInstall: browserMode ? cloud.installPlugins : injectPlugins,
+                            onClear: browserMode ? cloud.clearPlugins : clearPlugins,
+                          }}
+                          shell={{
+                            canInstall,
+                            canUninstall: canUninstallShell,
+                            canFetch: canFetchLatestShell,
+                            hasShell: status.hasShell,
+                            hasSource: browserMode || !!shellSource.trim(),
+                            onInstall: browserMode ? cloud.installShell : installShell,
+                            onFetchLatest: fetchLatestShell,
+                            onUninstall: uninstallShell,
+                          }}
+                        />
+                      )
+                    }
+                    notes={
+                      browserMode && (cloud.progress || cloud.downloadUrl) ? (
+                        <>
+                          {cloud.progress ? (
+                            <p role="status" className="m-0">
+                              {cloud.progress}
+                            </p>
+                          ) : null}
+                          {cloud.downloadUrl ? (
+                            <a className="text-accent underline" href={cloud.downloadUrl}>
+                              {t('dashboard.downloadLinuxShell')}
+                            </a>
+                          ) : null}
+                        </>
+                      ) : null
+                    }
+                  />
 
-                  {browserMode ? (
-                    <div className="flex flex-col gap-2 text-sm text-ink-soft">
-                      <p className="m-0">{t('dashboard.linuxQuitFirst')}</p>
-                      {cloud.progress ? <p role="status">{cloud.progress}</p> : null}
-                      {cloud.downloadUrl ? (
-                        <a className="text-accent underline" href={cloud.downloadUrl}>
-                          {t('dashboard.downloadLinuxShell')}
-                        </a>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <DashboardSettings
-                      busy={busy}
-                      bundled={status.bundled}
-                      remote={remote}
-                      platform={status.host?.platform}
-                      gameRoot={gameRoot}
-                      shellSource={shellSource}
-                      win={win}
-                      boundGameRoot={status.config.gameRoot}
-                      boundShellSource={status.config.shellSource}
-                      onGameRootChange={setGameRoot}
-                      onShellSourceChange={setShellSource}
-                      onBindGame={(path) => void bindGame(path, { announce: t('notify.switchedPath') })}
-                      onBindShell={(path) => void bindShell(path)}
-                      onChooseGame={() => void chooseGame()}
-                      onChooseShell={() => void chooseShell()}
-                      onCopyPath={(text) => void copyPath(text)}
-                      onPatchWin={patchWin}
-                      onPatchWinSize={patchWinSize}
-                    />
-                  )}
+                  <DashboardSettings
+                    busy={busy}
+                    bundled={status.bundled}
+                    remote={remote}
+                    browserMode={browserMode}
+                    windowNeedsAuth={browserMode && cloud.active?.game.nwPackage === undefined}
+                    onAuthorizeWindow={() => void cloud.reinspect()}
+                    browserFolder={cloud.active?.game.picked.name}
+                    platform={status.host?.platform}
+                    gameRoot={gameRoot}
+                    shellSource={shellSource}
+                    win={win}
+                    boundGameRoot={status.config.gameRoot}
+                    boundShellSource={status.config.shellSource}
+                    onGameRootChange={setGameRoot}
+                    onShellSourceChange={setShellSource}
+                    onBindGame={(path) => void bindGame(path, { announce: t('notify.switchedPath') })}
+                    onBindShell={(path) => void bindShell(path)}
+                    onChooseGame={() => void chooseGame()}
+                    onChooseShell={() => void chooseShell()}
+                    onCopyPath={(text) => void copyPath(text)}
+                    onPatchWin={patchWin}
+                    onPatchWinSize={patchWinSize}
+                  />
                 </div>
               </ScrollArea>
             )}

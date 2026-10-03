@@ -15,7 +15,7 @@ function EngineRailSkeleton() {
       </div>
       <div className="flex flex-col gap-2 p-4">
         {Array.from({ length: 3 }, (_, i) => (
-          <div key={i} className="grid h-11 grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1 rounded-[0.35rem] border border-line bg-panel pr-2.5 pl-0">
+          <div key={i} className="grid h-11 grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1 rounded-[0.35rem] border border-line bg-panel pr-3 pl-0">
             <Skeleton className="mx-auto size-3 rounded-[0.15rem]" />
             <Skeleton className="h-[0.8125rem] w-14" />
             <Skeleton className="h-5 w-9 rounded-full" />
@@ -83,12 +83,12 @@ function SeedProgressSkeleton() {
   const t = useT()
   return (
     <div className={cn(formCardDense, 'w-full')} aria-label={t('translate.loadSeedProgress')}>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="rounded-[0.3rem] bg-inset/80 px-3.5 py-3">
+          <div key={i} className="rounded-[0.3rem] bg-inset/80 px-4 py-3">
             <Skeleton className="h-[0.6875rem] w-12" />
-            <Skeleton className="mt-1.5 h-[1.35rem] w-16" />
-            <Skeleton className="mt-1.5 h-[0.6875rem]" style={{ width: `${58 + (i % 3) * 11}%` }} />
+            <Skeleton className="mt-2 h-[1.35rem] w-16" />
+            <Skeleton className="mt-2 h-[0.6875rem]" style={{ width: `${58 + (i % 3) * 11}%` }} />
           </div>
         ))}
       </div>
@@ -116,7 +116,7 @@ export function TranslateRunSkeleton({ tab = 'play' }: { tab?: TranslateModeTab 
       <div className="flex min-h-0 flex-1 items-stretch">
         <EngineRailSkeleton />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 py-2.5" aria-hidden>
+          <div className="flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 py-2" aria-hidden>
             <Skeleton className="h-8 w-20" />
             <Skeleton className="h-8 w-20" />
           </div>

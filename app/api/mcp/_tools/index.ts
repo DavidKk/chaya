@@ -1,5 +1,5 @@
 import type { McpServerConfig, McpTool, McpToolAnnotations } from '@/initializer/mcp'
-import { MCP_INSTRUCTIONS, MCP_SERVER_NAME, MCP_TOOLS, type McpToolMeta } from '@/lib/integration/mcp-catalog'
+import { MCP_INSTRUCTIONS, MCP_SERVER_NAME, MCP_TOOLS, mcpEvalEnabled, type McpToolMeta } from '@/lib/integration/mcp-catalog'
 import type { ToolImpls } from '@/lib/integration/tools/args'
 import { pluginToolRun } from '@/lib/integration/tools/live'
 import { pluginToolDescription, type PluginToolMeta, pluginToolName } from '@/lib/runtime/plugin-tools'
@@ -14,8 +14,6 @@ import { logsTools } from './logs'
 import { translateTools } from './translate'
 
 export const MCP_TOOL_IMPLS: ToolImpls = { ...libraryTools, ...gameTools, ...liveTools, ...editTools, ...translateTools, ...cacheTools, ...logsTools }
-
-export const mcpEvalEnabled = () => process.env.CHAYA_MCP_EVAL === '1'
 
 export function toolAnnotations(meta: Pick<McpToolMeta, 'title' | 'readOnly' | 'destructive'>): McpToolAnnotations {
   return { title: meta.title, ...(meta.readOnly ? { readOnlyHint: true } : {}), ...(meta.destructive ? { destructiveHint: true } : {}) }
