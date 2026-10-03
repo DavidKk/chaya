@@ -7,7 +7,8 @@ import { Tooltip, withTooltip } from '@/components/sk/Tooltip/Tooltip'
 import { cn } from '@/lib/utils'
 
 export type SwitchToggleProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type' | 'role' | 'onClick'> & {
-  checked: boolean
+  /** `'mixed'`：部分开启（总开关），滑块居中；点击后变为开启 */
+  checked: boolean | 'mixed'
   onCheckedChange: (checked: boolean) => void
   /** 悬停提示；无文案的裸开关建议必传 */
   tooltip?: string
@@ -21,13 +22,15 @@ export function SwitchToggle({ checked, onCheckedChange, className, disabled, id
       role="switch"
       aria-checked={checked}
       disabled={disabled}
-      onClick={() => onCheckedChange(!checked)}
+      onClick={() => onCheckedChange(checked !== true)}
       className={cn(
         'relative inline-flex shrink-0 cursor-pointer items-center rounded-[0.25rem] transition-[background-color,border-color] duration-150 ease-out',
         'box-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]',
         'disabled:cursor-not-allowed',
         switchTrackClass,
-        checked ? 'border-[color-mix(in_oklab,var(--accent)_80%,transparent)] bg-accent' : 'border-line bg-[var(--inset)]',
+        checked === true && 'border-[color-mix(in_oklab,var(--accent)_80%,transparent)] bg-accent',
+        checked === 'mixed' && 'border-[color-mix(in_oklab,var(--accent)_60%,transparent)] bg-[color-mix(in_oklab,var(--accent)_35%,var(--inset))]',
+        checked === false && 'border-line bg-[var(--inset)]',
         className
       )}
       {...rest}
@@ -39,7 +42,7 @@ export function SwitchToggle({ checked, onCheckedChange, className, disabled, id
           'pointer-events-none block rounded-[0.15rem] bg-white shadow-[0_1px_2px_rgb(0_0_0/0.35)] transition-transform duration-150 ease-out will-change-transform',
           switchThumbClass
         )}
-        style={{ transform: checked ? `translateX(${SWITCH_TRAVEL}px)` : 'translateX(0)' }}
+        style={{ transform: `translateX(${checked === true ? SWITCH_TRAVEL : checked === 'mixed' ? SWITCH_TRAVEL / 2 : 0}px)` }}
       />
     </button>
   )

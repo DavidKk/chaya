@@ -1,5 +1,6 @@
-import type { DownloadsMessages } from './downloads-types'
-import type { IntegrationMessages } from './integration-types'
+import type { DownloadsMessages } from '@/lib/i18n/messages/downloads-types'
+import type { IntegrationMessages } from '@/lib/i18n/messages/integration-types'
+import type { McpGatewayMessages } from '@/lib/i18n/messages/mcp-gateway-types'
 
 /** 叶子为 string 的同构文案树 */
 export type MessageTree = {
@@ -112,6 +113,8 @@ export type MessageTree = {
     shellTaskLocked: string
     pluginsInstalled: string
     pluginsCleared: string
+    shellUninstalled: string
+    shellNothingToUninstall: string
   }
   library: {
     title: string
@@ -158,10 +161,6 @@ export type MessageTree = {
     kindApp: string
     kindWww: string
     kindRoot: string
-    shortcutNav: string
-    shortcutEditDesc: string
-    shortcutTranslateDesc: string
-    shortcutLogsDesc: string
     metaPath: string
     metaContent: string
     metaShellSize: string
@@ -674,5 +673,6 @@ export type MessageTree = {
     overlayAria: string
   }
   integration: IntegrationMessages
+  mcpGateway: McpGatewayMessages
   downloads: DownloadsMessages
 }

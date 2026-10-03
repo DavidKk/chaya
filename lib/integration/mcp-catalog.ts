@@ -4,12 +4,10 @@
  * Implementations live in `app/api/mcp/_tools`; a unit test keeps both sides in sync.
  */
 
+import { ASK_FIRST } from '@/lib/integration/ask-first'
 import { AGENT_INPUT_KEYS } from '@/lib/runtime/agent-protocol'
 
-import { ASK_FIRST } from './ask-first'
-
-export const MCP_SERVER_NAME = 'chaya'
-export const MCP_ENDPOINT_PATH = '/api/mcp'
+export { MCP_ENDPOINT_PATH, MCP_SERVER_NAME } from '@/lib/integration/mcp-endpoint'
 
 export const mcpEvalEnabled = () => process.env.CHAYA_MCP_EVAL === '1'
 
@@ -430,6 +428,19 @@ export const MCP_INSTRUCTIONS = [
   'Tools marked "Destructive" require the user\'s consent first.',
   'While a game is online, tools declared by its plugins (chaya_plugin_*) appear in the tool list and come and go with the connection; if the client has not refreshed the list, call them via chaya_live_plugins + the tool argument of chaya_live_call.',
 ].join('\n')
+
+/** Live-game instructions for the in-game gateway (only `live` tools, never eval) */
+export const MCP_GAME_INSTRUCTIONS = [
+  'Chaya in-game gateway: live tools for the running game only (state, plugin edits, key presses).',
+  'Library, launching, shell, translation library and log tools need the local Chaya server (dev or App).',
+  'Workflow: chaya_live_state → chaya_live_plugins → chaya_live_call → chaya_live_state again to confirm.',
+  'Tools marked "Destructive" require the user\'s consent first.',
+].join('\n')
+
+/** MCP standard annotations (hints only) from catalog metadata */
+export function mcpToolAnnotations(meta: Pick<McpToolMeta, 'title' | 'readOnly' | 'destructive'>) {
+  return { title: meta.title, ...(meta.readOnly ? { readOnlyHint: true } : {}), ...(meta.destructive ? { destructiveHint: true } : {}) }
+}
 
 export function mcpToolsByGroup(tools: readonly McpToolMeta[] = MCP_TOOLS) {
   return MCP_TOOL_GROUPS.map((group) => ({ ...group, tools: tools.filter((tool) => tool.group === group.id) }))

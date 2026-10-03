@@ -1,6 +1,7 @@
 import { downloadsJa } from '@/lib/i18n/messages/parts/downloads'
 import { editJa } from '@/lib/i18n/messages/parts/edit.ja'
 import { integrationJa } from '@/lib/i18n/messages/parts/integration'
+import { mcpGatewayJa } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { translateJa } from '@/lib/i18n/messages/parts/translate.ja'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
@@ -120,6 +121,8 @@ const base = {
     shellTaskLocked: '別のページがこのゲームのシェルをインストール中です',
     pluginsInstalled: 'プラグインをインストールしました',
     pluginsCleared: 'プラグインを削除しました',
+    shellUninstalled: 'シェルを削除しました',
+    shellNothingToUninstall: '削除できるシェルはありません',
   },
   library: {
     title: 'ゲーム庫',
@@ -166,10 +169,6 @@ const base = {
     kindApp: '.app 済',
     kindWww: 'www',
     kindRoot: '内容根',
-    shortcutNav: 'ショートカット',
-    shortcutEditDesc: '金・道具・変数',
-    shortcutTranslateDesc: '抽出と翻訳',
-    shortcutLogsDesc: 'ログ',
     metaPath: 'ゲームのパス',
     metaContent: 'コンテンツ容量',
     metaShellSize: 'シェル容量',
@@ -260,5 +259,6 @@ export const ja: MessageTree = {
   ...translateJa,
   ...editJa,
   ...integrationJa,
+  ...mcpGatewayJa,
   ...downloadsJa,
 }

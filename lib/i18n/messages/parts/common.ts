@@ -90,5 +90,7 @@ export const commonZh = {
     shellTaskLocked: '另一个页面正在为此游戏安装壳',
     pluginsInstalled: '插件已安装',
     pluginsCleared: '插件已清除',
+    shellUninstalled: '已删除壳',
+    shellNothingToUninstall: '没有可删除的壳',
   },
 } as const satisfies Pick<MessageTree, 'locale' | 'nav' | 'common' | 'gate' | 'layout' | 'launchHelp' | 'remoteScript' | 'requireBound' | 'notFound' | 'notify'>

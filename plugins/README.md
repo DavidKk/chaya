@@ -48,7 +48,7 @@ chaya/config/      game-edit.json
 
 ChayaEdit UI：React `createRoot`，与控制台 `/edit` 共用 `components/game-edit` + `components/sk`（无 Next 依赖）。Shadow 宿主仅作样式隔离。
 
-开发（`pnpm dev` / `pnpm dev:app` / `pnpm dev:edge`）：共用插件 watch 和 `/api/plugins/stream` SSE。ChayaLoader 先确认服务处于开发环境，再订阅构建通知，按依赖顺序热替换插件；首次连接及重连会核对版本，断线期间的改动也会补上。游戏先启动、开发服务后启动也会自动连接。生产服务不开放热替换流。
+开发（`pnpm dev` / `pnpm dev:app`）：共用插件 watch 和 `/api/plugins/stream` SSE。ChayaLoader 先确认服务处于开发环境，再订阅构建通知，按依赖顺序热替换插件；首次连接及重连会核对版本，断线期间的改动也会补上。游戏先启动、开发服务后启动也会自动连接。生产服务不开放热替换流。
 
 ChayaEdit 会先卸载旧 React 挂载点再挂载，面板开着会自动重开；ChayaTrans 会清理旧钩子、文件监听及翻译请求，不刷新游戏页。旧版 Loader 需要更新安装并在下一次启动游戏时加载一次，此后的普通插件和共用 UI 改动无需重启游戏。Loader 自身不参与热替换。
 

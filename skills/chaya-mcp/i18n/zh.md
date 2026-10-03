@@ -2,27 +2,25 @@
 
 ## 前提
 
-- Chaya 以 **App 或本地 dev** 运行（Edge 网页版没有 MCP）。
+- 所有情况只用一个地址：`http://127.0.0.1:39271/mcp`（默认端口 39271；改过端口时以控制台「集成 → MCP」或游戏内「MCP」页显示的地址为准）。
+- **App / 本地 dev** 运行时由它提供（全部工具）；否则由从 Edge 网页版装好插件后打开的游戏提供（只有局内工具与插件工具，不含 `eval`）。都没开时连接失败，打开后即恢复。
 - 局内工具（`chaya_live_*`）需要游戏 **从 Chaya 启动** 且加载了 `ChayaAgent` 插件；旧游戏先 `chaya_game_plugins_install` 再重启。
 
 ## 连接
 
-- 地址：`http://127.0.0.1:3927/api/mcp`
-- 鉴权：请求头 `Authorization: Bearer <token>`。token 在控制台「集成 → MCP」页面复制，或在本地 dev 的 `data/access/token`。
+- 鉴权：无需。网关只监听 `127.0.0.1`，不需要令牌，客户端连上即可使用当前可用的全部工具。
 - Cursor `~/.cursor/mcp.json`：
 
   ```json
   {
     "mcpServers": {
-      "chaya": {
-        "url": "http://127.0.0.1:3927/api/mcp",
-        "headers": { "Authorization": "Bearer <token>" }
-      }
+      "chaya": { "url": "http://127.0.0.1:39271/mcp" }
     }
   }
   ```
 
-- Claude Code：`claude mcp add --transport http --scope user chaya http://127.0.0.1:3927/api/mcp --header "Authorization: Bearer <token>"`
+- Claude Code：`claude mcp add --transport http --scope user chaya http://127.0.0.1:39271/mcp`
+- Codex：`codex mcp add chaya --url http://127.0.0.1:39271/mcp`
 
 ## 工具分组
 

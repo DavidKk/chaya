@@ -58,7 +58,9 @@ export function integrationSkillHref(id: SkillId): string {
   return `${INTEGRATION_SKILLS_PATH}/${id}`
 }
 
+/** `agents`：多 Agent 共用的 `~/.agents/skills`（Cursor、Codex 等支持该约定） */
 export const SKILL_AGENT_TARGETS = [
+  { id: 'agents', label: 'Universal', dir: '~/.agents/skills' },
   { id: 'cursor', label: 'Cursor', dir: '~/.cursor/skills' },
   { id: 'claude', label: 'Claude Code', dir: '~/.claude/skills' },
   { id: 'codex', label: 'Codex', dir: '~/.codex/skills' },

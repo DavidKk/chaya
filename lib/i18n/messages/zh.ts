@@ -4,6 +4,7 @@ import { downloadsZh } from '@/lib/i18n/messages/parts/downloads'
 import { editZh } from '@/lib/i18n/messages/parts/edit'
 import { integrationZh } from '@/lib/i18n/messages/parts/integration'
 import { marketingZh } from '@/lib/i18n/messages/parts/marketing'
+import { mcpGatewayZh } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { translateZh } from '@/lib/i18n/messages/parts/translate'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
@@ -15,6 +16,7 @@ export const zh = {
   ...translateZh,
   ...editZh,
   ...integrationZh,
+  ...mcpGatewayZh,
   ...downloadsZh,
 } as const satisfies MessageTree
 

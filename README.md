@@ -32,12 +32,9 @@ On Vercel, `VERCEL=1` forces **edge** mode: the marketing / console UI is served
 3. Deploy. Open the deployment URL — `/` shows the product page; **Open console** goes to `/game`.
 4. Use Chrome / Edge on the client machine to grant folder access and prepare games.
 
-Optional local simulation of edge (no Vercel account):
+Optional local simulation of edge (no Vercel account): run `pnpm dev` and pick **Edge** in the dev switcher (top right); DiskOps APIs return 501.
 
-```bash
-pnpm i
-pnpm dev:edge   # CHAYA_SERVICE=vercel — DiskOps APIs return 501
-```
+Edge has no sign-in and no server-side MCP. External agents connect to the unified MCP address `http://127.0.0.1:39271/mcp`, served by the open game (or the local server) — see [docs/integration.md](docs/integration.md).
 
 ## Build the app
 
@@ -82,25 +79,25 @@ Requires **Node.js ≥ 22.19** (uses `node:sqlite`) and **pnpm**.
 
 ```bash
 pnpm i
-pnpm dev            # local mode on 127.0.0.1:3927 + plugin watch
+pnpm dev            # local mode on localhost:3000 + plugin watch
 ```
 
-Open the **auth link** printed in the terminal (HttpOnly session). Do not share that link.
+Open `http://localhost:3000`. Local / App mode has no sign-in; the API only accepts same-origin requests from localhost, LAN IPs or `CHAYA_PUBLIC_ORIGIN`, and MCP needs no authorization: agents use `http://127.0.0.1:39271/mcp` (the port can be changed on the **Integration → MCP** page or in-game).
 
-| Command         | Purpose                                          |
-| --------------- | ------------------------------------------------ |
-| `pnpm dev`      | Local console (loopback only)                    |
-| `pnpm dev:lan`  | Same, listen on LAN for other devices / VMs      |
-| `pnpm dev:app`  | Toolkit App (Next + Electron)                    |
-| `pnpm dev:edge` | Edge mode locally                                |
-| `pnpm ok:ci`    | Format check, lint, typecheck, tests, full build |
+| Command        | Purpose                                          |
+| -------------- | ------------------------------------------------ |
+| `pnpm dev`     | Local console (loopback only)                    |
+| `pnpm dev:lan` | Same, listen on LAN for other devices / VMs      |
+| `pnpm dev:app` | Toolkit App (Next + Electron)                    |
+| `pnpm ok:ci`   | Format check, lint, typecheck, tests, full build |
 
 GitHub Actions: [CI](.github/workflows/ci.yml) runs `pnpm ok:ci` on `main` / PRs. [Build App](.github/workflows/build-app.yml) builds installers on `v*` tags (or manual dispatch) and publishes a [GitHub Release](https://github.com/DavidKk/chaya/releases) with `.dmg` / `.exe` attached.
 
 Useful env vars:
 
 - `CHAYA_SERVICE` — `local` \| `app` \| `vercel` (ignored when `VERCEL=1`)
-- `CHAYA_AUTH_TOKEN` — management token (otherwise auto-written under `data/access/token` for local / app)
+- `CHAYA_AUTH_TOKEN` — internal management token for scripts and MCP self-calls; it cannot sign in a browser (otherwise auto-written under `data/access/token` for local / app)
+- `CHAYA_PUBLIC_ORIGIN` — extra host name the local API accepts (e.g. a LAN domain)
 - `CHAYA_API_LAN=1` — advertise LAN API base for in-game plugins
 
 After launch, plugins write `js/plugins/ChayaEnv.js` and heartbeat to `/api/runtime/heartbeat`. Restart the game from the console after upgrading plugins.

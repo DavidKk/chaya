@@ -229,6 +229,22 @@ export async function installCloudShell(game: CloudGame): Promise<{ hint: string
   throw new Error('当前系统不支持安装壳')
 }
 
+const SHELL_ENTRY_NAMES = new Set<string>([SHELL_APP_NAME, ...LEGACY_SHELL_APP_NAMES, SHELL_WIN_DIR_NAME, ...LEGACY_SHELL_WIN_DIR_NAMES])
+
+/** 删除检测到的共用壳（只认 Chaya 写入的壳目录名，游戏自带程序不动）；返回删除处数 */
+export async function uninstallCloudShell(game: CloudGame): Promise<number> {
+  const name = game.existingShell
+  if (!name || !SHELL_ENTRY_NAMES.has(name)) return 0
+  const roots = game.picked === game.content ? [game.picked] : [game.picked, game.content]
+  let removed = 0
+  for (const root of roots) {
+    if (!(await dirExists(root, name))) continue
+    await root.removeEntry(name, { recursive: true })
+    removed += 1
+  }
+  return removed
+}
+
 /** Rewrite connection config for an installed game; plugin files are refreshed too so they match this page's signaling protocol. */
 export async function configureCloudConnection(game: CloudGame, gameId: string): Promise<void> {
   if (!gameId.trim()) throw new Error('未选择游戏')

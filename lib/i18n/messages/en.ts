@@ -1,6 +1,7 @@
 import { downloadsEn } from '@/lib/i18n/messages/parts/downloads'
 import { editEn } from '@/lib/i18n/messages/parts/edit.en'
 import { integrationEn } from '@/lib/i18n/messages/parts/integration'
+import { mcpGatewayEn } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { translateEn } from '@/lib/i18n/messages/parts/translate.en'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
@@ -94,6 +95,8 @@ const commonEn = {
     shellTaskLocked: 'Another page is installing the shell for this game',
     pluginsInstalled: 'Plugins installed',
     pluginsCleared: 'Plugins cleared',
+    shellUninstalled: 'Shell removed',
+    shellNothingToUninstall: 'No shell to remove',
   },
 } as const
 
@@ -172,10 +175,6 @@ const dashboardEn = {
     kindApp: 'Packaged .app',
     kindWww: 'www',
     kindRoot: 'Content root',
-    shortcutNav: 'Shortcuts',
-    shortcutEditDesc: 'Gold, items, vars',
-    shortcutTranslateDesc: 'Extract & translate',
-    shortcutLogsDesc: 'Plugin logs',
     metaPath: 'Game path',
     metaContent: 'Content size',
     metaShellSize: 'Shell size',
@@ -268,5 +267,6 @@ export const en: MessageTree = {
   ...translateEn,
   ...editEn,
   ...integrationEn,
+  ...mcpGatewayEn,
   ...downloadsEn,
 }

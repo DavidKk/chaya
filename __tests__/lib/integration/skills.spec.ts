@@ -42,6 +42,9 @@ describe('integration skills', () => {
     expect(skillInstallCommand('https://example.com/', 'chaya-mcp', 'claude')).toBe(
       'mkdir -p ~/.claude/skills/chaya-mcp && curl -fsSL https://example.com/skills/chaya-mcp.md -o ~/.claude/skills/chaya-mcp/SKILL.md'
     )
+    expect(skillInstallCommand('https://example.com', 'chaya-setup', 'agents')).toBe(
+      'mkdir -p ~/.agents/skills/chaya-setup && curl -fsSL https://example.com/skills/chaya-setup.md -o ~/.agents/skills/chaya-setup/SKILL.md'
+    )
   })
 
   it('splits frontmatter from the body', () => {

@@ -1,14 +1,14 @@
 # 集成页与本机 MCP 技术设计
 
 > 需求真源：[docs/integration.md](../integration.md)
-> 相关：[service-modes.md](./service-modes.md)（`canUseDisk` 门禁）
+> 相关：[service-modes.md](./service-modes.md)（`canUseDisk` 门禁）、[mcp-gateway.md](./mcp-gateway.md)（统一入口 `127.0.0.1:39271/mcp`（默认端口）：本机服务进程内复用本文 `/api/mcp` 的处理逻辑，Edge 由游戏插件提供局内工具）
 
 ---
 
 ## 1. 总览
 
 ```text
-Agent ──JSON-RPC（Bearer token）──► POST /api/mcp
+Agent ──JSON-RPC（本机免授权）────────► POST /api/mcp
                                       │ initializer/mcp.ts（协议）
                                       ▼
                          app/api/mcp/_tools/*（工具实现）
@@ -20,7 +20,7 @@ Agent ──JSON-RPC（Bearer token）──► POST /api/mcp
                                                      游戏内 ChayaAgent → ChayaEdit / ChayaBoost / ChayaTrans
 ```
 
-- MCP 只在 `canUseDisk()`（local / app）开放；Edge 返回 404 `LOCAL_ONLY`。
+- `/api/mcp` 只在 `canUseDisk()`（local / app）开放；Edge 返回 404 `LOCAL_ONLY`。Agent 推荐连统一网关，本机网关原样转发到这里（[mcp-gateway.md](./mcp-gateway.md) §4）。
 - 协议：Streamable HTTP，只回 JSON（不推 SSE）；支持 `initialize` / `ping` / `tools/list` / `tools/call`，通知返回 202，支持批量。
 
 ## 2. 模块落点
@@ -36,7 +36,7 @@ Agent ──JSON-RPC（Bearer token）──► POST /api/mcp
 | `services/integration/skills.ts`      | 读取 `skills/<id>/SKILL.md`；`readSkillBody(id, locale)` 读页面展示正文（字面路径保证被 output file tracing 打包）                                  |
 | `services/runtime/agent-bridge.ts`    | 内存指令队列（已存在）                                                                                                                              |
 | `app/api/mcp/route.server.ts`         | MCP 入口                                                                                                                                            |
-| `app/api/integration/mcp/route.ts`    | 页面用：服务地址、token（仅本机 + 管理会话）、eval 开关                                                                                             |
+| `app/api/integration/mcp/route.ts`    | 页面用：服务地址、eval 开关（不含任何凭证）                                                                                                         |
 | `app/integration/**`                  | 集成页（layout + skills / mcp 子页）                                                                                                                |
 | `app/skills/[file]/route.ts`          | 公开 Skill 原文 `/skills/<id>.md`                                                                                                                   |
 | `components/integration/*`            | 页面组件                                                                                                                                            |
@@ -80,13 +80,15 @@ const res = await invokeRoute(StatusRoute.PUT, { method: 'PUT', path: '/api/stat
 
 | 调用方             | 凭证                                 | 可访问                                                 |
 | ------------------ | ------------------------------------ | ------------------------------------------------------ |
-| Agent → `/api/mcp` | `Authorization: Bearer <管理 token>` | 全部 MCP 工具                                          |
-| 浏览器页面         | 管理 cookie                          | `/api/mcp`（试调）、`/api/integration/mcp`（取 token） |
+| Agent → `/api/mcp` | 无（同源或非浏览器请求即放行）       | 全部 MCP 工具                                          |
+| 脚本               | `Authorization: Bearer <管理 token>` | 全部 API                                               |
+| 浏览器页面         | 无（同源 + `Host` 校验）             | 全部 API（含 `/api/mcp` 试调、`/api/integration/mcp`） |
 | 游戏插件           | `X-Chaya-Launch-Token`               | 仅本房间的 `/api/runtime/agent`；**不能**调 `/api/mcp` |
 | 任何人             | 无                                   | `/skills/<id>.md`（公开文档）                          |
 
-- `/api/integration/mcp` 在 Edge 返回 `{ available: false }`，绝不返回 token（Edge 下 `mayAccessApi` 全放行，必须自行判 `canUseDisk`）；响应 `no-store`；服务地址固定 `http://127.0.0.1:<port>/api/mcp`（`dev:lan` 监听 0.0.0.0 时也不把局域网地址写进安装链接）。
-- `proxy.ts` 只放行 `/skills/` 前缀；`/integration/skills` 页面仍需管理授权。
+- `/api/integration/mcp` 在 Edge 返回 `{ available: false }`（Edge 下 `mayAccessApi` 全放行，必须自行判 `canUseDisk`）；响应 `no-store`；安装链接用统一网关地址 `http://127.0.0.1:<网关端口>/mcp`，`endpoint` 为兼容地址 `http://127.0.0.1:<port>/api/mcp`（`dev:lan` 监听 0.0.0.0 时也不把局域网地址写进安装链接）；同时返回网关状态，`PUT` / `DELETE` / `POST` 管理端口配置（[mcp-gateway.md](./mcp-gateway.md) §8）。
+- 本机不登录、MCP 免授权；Edge 没有服务端 MCP，也没有 OAuth（[mcp-gateway.md](./mcp-gateway.md) §9）。
+- `proxy.ts` 不拦页面；跨站网页调用本机 API 由 `mayAccessApi` 拒绝。
 - `chaya_live_eval` 由 `CHAYA_MCP_EVAL=1` 控制：关闭时不出现在 `tools/list`，也不可调用。
 - `chaya_live_call` 只允许 `ChayaEdit` / `ChayaBoost` / `ChayaTrans`，链式调用每一步只能调这些对象列出的方法；`game.eval` 只在本机长轮询且开启 `CHAYA_MCP_EVAL=1` 时执行。
 - 破坏性工具在描述里写明「先征得用户同意」，目录里标 `destructive: true`，页面显示 ⚠️。
@@ -97,7 +99,7 @@ const res = await invokeRoute(StatusRoute.PUT, { method: 'PUT', path: '/api/stat
 - `/integration/skills/[id]`：`generateStaticParams` + `dynamicParams=false` 限定 id；根布局读 cookie，所以页面按需渲染（`/skills/[file]` 原文路由是构建期 SSG）。服务端用 `marked` 把每种语言的 Skill Markdown 都转成 HTML（仓库内可信内容），客户端按当前语言取用；`en` 用 `SKILL.md` 正文，其他语言用 `i18n/<locale>.md`，缺失时回退英文。左半列表 + 正文，右半「安装到 Agent」（Cursor / Claude Code / Codex 三个目标的 `curl` 命令，`CopyField`；窄屏放进正文顶部）。
 - 三个子页共用 `components/integration/Hub.tsx` 的 `HubLayout`：左半「导航 + 说明」，右半面板底「操作」（Skills 安装、MCP 试调、WebMCP 浏览器支持与启用步骤）。
 - `/integration/mcp`：客户端组件读取 `/api/integration/mcp`：
-  - 可用：服务地址 + token（`CopyField`）+ 安装按钮 + 试调面板。
+  - 可用：服务地址（`CopyField`）+「本地直连，无需授权」+ 安装按钮 + 试调面板。
   - 不可用（Edge）：提示改用本机 dev / App，文档照常。
   - 工具卡片由 `mcp-catalog` 渲染：参数表从 `inputSchema` 生成；标题、说明、参数说明按当前语言替换（`localizedMcpToolsByGroup`），工具名与 schema 不变。
 - **语言约定**：给 Agent 的内容（`SKILL.md`、`tools/list`、`MCP_INSTRUCTIONS`、WebMCP 工具定义）只用英文；页面展示跟随界面语言。
@@ -106,14 +108,14 @@ const res = await invokeRoute(StatusRoute.PUT, { method: 'PUT', path: '/api/stat
 
 ## 6. 安装链接
 
-| 目标        | 形式                                                                                                |
-| ----------- | --------------------------------------------------------------------------------------------------- |
-| Cursor      | `cursor://anysphere.cursor-deeplink/mcp/install?name=chaya&config=<base64({url, headers})>`         |
-| VS Code     | `vscode:mcp/install?<urlencode({name, type:'http', url, headers})>`                                 |
-| Claude Code | `claude mcp add --transport http --scope user chaya <url> --header "Authorization: Bearer <token>"` |
-| Codex       | `codex mcp add chaya --url <url> --bearer-token-env-var CHAYA_MCP_TOKEN`（并提示导出该环境变量）    |
+| 目标        | 形式                                                                               |
+| ----------- | ---------------------------------------------------------------------------------- |
+| Cursor      | `cursor://anysphere.cursor-deeplink/mcp/install?name=chaya&config=<base64({url})>` |
+| VS Code     | `vscode:mcp/install?<urlencode({name, type:'http', url})>`                         |
+| Claude Code | `claude mcp add --transport http --scope user chaya <url>`                         |
+| Codex       | `codex mcp add chaya --url <url>`                                                  |
 
-Skill 安装命令：`mkdir -p <dir>/<id> && curl -fsSL <origin>/skills/<id>.md -o <dir>/<id>/SKILL.md`，`<dir>` 为 `~/.cursor/skills` / `~/.claude/skills` / `~/.codex/skills`。
+Skill 安装命令：`mkdir -p <dir>/<id> && curl -fsSL <origin>/skills/<id>.md -o <dir>/<id>/SKILL.md`，`<dir>` 为 `~/.agents/skills`（默认「通用」，多 Agent 共用）/ `~/.cursor/skills` / `~/.claude/skills` / `~/.codex/skills`。
 
 ## 7. 测试
 
@@ -123,7 +125,7 @@ Skill 安装命令：`mkdir -p <dir>/<id> && curl -fsSL <origin>/skills/<id>.md 
 | 目录   | 目录与实现一一对应；名称唯一且符合 `chaya_<group>_<verb>`；`inputSchema` 为 object                                                                                                                           |
 | 工具   | `invokeRoute` 解包与报错；library 筛选与裁剪；remark 不切换当前游戏；logs 关键词；catalog 过滤；translate job 参数映射；game 状态裁剪 / 装壳 / 窗口；live 调用与按键校验；cache 查询映射；play_settings 合并 |
 | 安装   | 四种安装链接 / 命令格式                                                                                                                                                                                      |
-| 鉴权   | `/api/integration/mcp` 在 Edge 不返回 token；插件 token 不能调 `/api/mcp` 与 `/api/integration/mcp`；proxy 放行 `/skills/` 但拦截 `/integration/*`                                                           |
+| 鉴权   | `/api/integration/mcp` 不返回任何凭证；本机同源放行、跨站拒绝；插件 token 不能调 `/api/mcp` 与 `/api/integration/mcp`                                                                                        |
 | Skill  | 清单里每个 id 都有 `SKILL.md`，frontmatter `name` 与 id 一致；`SKILL.md` 不含中日韩文字（行内代码除外），每种语言都有展示译文与标题 / 摘要                                                                   |
 | 语言   | 目录与 WebMCP 工具定义不含中日韩文字；zh / ja / ko 译文覆盖每个分组、工具与顶层参数                                                                                                                          |
 | 端到端 | 本机实例 curl：`tools/list` 数量、`chaya_library_list`、`chaya_logs_query`、`chaya_cache_query`；浏览器：Skills / MCP 页、试调、Edge 提示                                                                    |
@@ -137,3 +139,6 @@ Skill 安装命令：`mkdir -p <dir>/<id> && curl -fsSL <origin>/skills/<id>.md 
 | 2026-10-03 | Review：凭证脱敏、日志先筛后截、透传 signal、工具实现移到 `app/api/mcp/_tools`、补窗口 / 壳卸载 / 游戏内翻译设置、参数枚举、不暴露清单 |
 | 2026-10-03 | 开发后 Review：Codex 环境变量提示、真实鉴权与 proxy 单测、各分组工具单测、MCP 内容语言提示、试调显示服务端错误原因                     |
 | 2026-10-03 | Agent 内容统一英文，页面展示多语言：Skill 译文目录、目录翻译 JSON，移除内容语言提示                                                    |
+| 2026-10-03 | MCP 改为 OAuth 授权（授权页 + 已授权应用列表），页面不再展示令牌；dev 端口改 3000                                                      |
+| 2026-10-03 | 本机 MCP 改为免授权（同源 + Host 校验），去掉已授权应用与浏览器接力；OAuth 只守 Edge MCP                                               |
+| 2026-10-03 | 统一入口改为本机网关（见 mcp-gateway.md），`/api/mcp` 作为其本机后端与兼容地址保留                                                     |

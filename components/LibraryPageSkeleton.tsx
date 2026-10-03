@@ -1,7 +1,7 @@
 import { formCard, formControl, formControlInline, formField, formFieldInline } from '@/components/layoutClasses'
 import { Skeleton, SkeletonRegion } from '@/components/sk/Skeleton'
 
-/** 游戏库页初始加载：对齐 LibraryRail + 首页头卡（快捷入口/操作）+ DashboardSettings。 */
+/** 游戏库页初始加载：对齐 LibraryRail + 首页头卡（信息/操作）+ DashboardSettings。 */
 export function LibraryPageSkeleton() {
   return (
     <SkeletonRegion label="加载游戏库" className="flex min-h-0 flex-1 items-stretch gap-0 border-t border-line">
@@ -48,18 +48,6 @@ export function LibraryPageSkeleton() {
                 <Skeleton className="h-[0.75rem] w-12" />
                 <Skeleton className="h-[0.75rem] w-[4.5rem]" />
               </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 border-t border-[var(--line-soft)] pt-4">
-              {Array.from({ length: 3 }, (_, i) => (
-                <div key={i} className="flex min-w-0 items-center gap-3 rounded-[0.4rem] border border-line bg-inset px-4 py-3">
-                  <Skeleton className="size-10 shrink-0 rounded-[0.35rem]" />
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <Skeleton className="h-[0.875rem] w-10" />
-                    <Skeleton className="h-[0.72rem] w-[88%]" />
-                  </div>
-                </div>
-              ))}
             </div>
 
             <div className="flex items-center justify-start gap-3 border-t border-[var(--line-soft)] pt-4">

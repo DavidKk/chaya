@@ -1,10 +1,9 @@
+import { apiError, packApiRouteResult, packApiRouteThrown } from '@/initializer/response'
+import type { ApiRouteHandler, ApiRouteHandlerResult, DefaultRouteContext, ExistingRouteHandler } from '@/initializer/types'
 import { GAME_LINK_TOKEN_HEADER } from '@/lib/runtime/game-link-protocol'
 import { mayAccessApi } from '@/services/access/api'
 
-import { apiError, packApiRouteResult, packApiRouteThrown } from './response'
-import type { ApiRouteHandler, ApiRouteHandlerResult, DefaultRouteContext, ExistingRouteHandler } from './types'
-
-export type { ApiRouteHandler, ApiRouteHandlerResult, DefaultRouteContext, ExistingRouteHandler } from './types'
+export type { ApiRouteHandler, ApiRouteHandlerResult, DefaultRouteContext, ExistingRouteHandler } from '@/initializer/types'
 
 /**
  * 本机工具 API 注册工厂（对齐工单 `defineApiRoute` 形态，统一校验管理会话与插件权限）。
@@ -19,7 +18,7 @@ export function defineApiRoute<TContext = DefaultRouteContext>(_policyId: string
   return async (request, context) => {
     try {
       if (!(await mayAccessApi(request))) {
-        return apiError(401, 'ACCESS_DENIED', '请使用启动终端中的授权链接打开控制台', {
+        return apiError(401, 'ACCESS_DENIED', '无权访问：本机 API 拒绝跨站请求', {
           headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': `Content-Type, X-Chaya-Launch-Token, ${GAME_LINK_TOKEN_HEADER}` },
         })
       }

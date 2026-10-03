@@ -5,7 +5,7 @@
 
 ## 1. 背景与目标
 
-本机 MCP（`/api/mcp`）只在本机 dev / App 可用；网页版（Edge）没有 MCP。WebMCP 是 Chrome 的浏览器原生能力（`document.modelContext.registerTool`）：页面打开期间向浏览器注册工具，浏览器里的 Agent 发现并调用，调用在页面内执行、沿用当前登录态。
+本机 MCP（`/api/mcp`）只在本机 dev / App 可用；网页版（Edge）没有 MCP。WebMCP 是 Chrome 的浏览器原生能力（`document.modelContext.registerTool`）：页面打开期间向浏览器注册工具，浏览器里的 Agent 发现并调用，调用在页面内执行、沿用当前页面的访问权限。
 
 目标：
 
@@ -16,12 +16,12 @@
 
 ## 2. 各形态的对外 MCP
 
-| 形态       | 本机 MCP（HTTP）   | WebMCP                                                           | 插件工具                                   |
-| ---------- | ------------------ | ---------------------------------------------------------------- | ------------------------------------------ |
-| 本机 dev   | `/api/mcp`（已有） | 全部 MCP 工具（转发本机 MCP）+ 页面工具 + 局内修改               | 本机 MCP 与 WebMCP（经 ChayaAgent 长轮询） |
-| App        | 同上               | 同上，需在 Chrome 中打开授权链接（App 窗口内没有 Agent）         | 同上                                       |
-| Edge       | 不提供（见 2.1）   | 26 / 32 个 MCP 工具在浏览器内执行（见 4.2）+ 页面工具 + 局内修改 | WebMCP（经游戏 DataChannel）               |
-| 游戏内插件 | —                  | 不注册（见 2.2）                                                 | 由插件声明，经 ChayaAgent 对外             |
+| 形态       | 本机 MCP（HTTP）   | WebMCP                                                                   | 插件工具                                   |
+| ---------- | ------------------ | ------------------------------------------------------------------------ | ------------------------------------------ |
+| 本机 dev   | `/api/mcp`（已有） | 全部 MCP 工具（转发本机 MCP）+ 页面工具 + 局内修改                       | 本机 MCP 与 WebMCP（经 ChayaAgent 长轮询） |
+| App        | 同上               | 同上，需在 Chrome 中打开 `http://localhost:3927`（App 窗口内没有 Agent） | 同上                                       |
+| Edge       | 不提供（见 2.1）   | 26 / 32 个 MCP 工具在浏览器内执行（见 4.2）+ 页面工具 + 局内修改         | WebMCP（经游戏 DataChannel）               |
+| 游戏内插件 | —                  | 不注册（见 2.2）                                                         | 由插件声明，经 ChayaAgent 对外             |
 
 ### 2.1 Edge 不提供远程 HTTP MCP
 
@@ -34,14 +34,14 @@
 ## 3. 使用方式
 
 1. Chrome 146+：打开 `chrome://flags/#enable-webmcp-testing` 设为 Enabled 并重启。
-2. 打开任一 Chaya 页面（本机形态需先用授权链接登录）；浏览器内 Agent 即可看到工具。
+2. 打开任一 Chaya 页面；浏览器内 Agent 即可看到工具。
 3. 集成页新增 **WebMCP** 子页：当前浏览器是否支持、本页已注册工具（按来源分组）、开启方法、各形态说明。
 
 ## 4. 工具清单
 
 ### 4.1 MCP 镜像（本机 dev / App）
 
-页面加载后读取本机 MCP 的 `tools/list`（含 `chaya_live_eval` 开关与在线游戏的插件工具），逐个注册为同名 WebMCP 工具，执行时以登录 cookie 调 `/api/mcp` 的 `tools/call`，结果与直连本机 MCP 一致。清单在游戏连接变化时与每 30 秒同步一次。
+页面加载后读取本机 MCP 的 `tools/list`（含 `chaya_live_eval` 开关与在线游戏的插件工具），逐个注册为同名 WebMCP 工具，执行时以同源请求调 `/api/mcp` 的 `tools/call`，结果与直连本机 MCP 一致。清单在游戏连接变化时与每 30 秒同步一次。
 
 ### 4.2 Edge 工具矩阵
 
@@ -87,9 +87,9 @@
 
 ## 5. 约束
 
-- 不放大权限：本机形态 WebMCP 走 `/api/mcp`，与本机 MCP 同一鉴权（管理 cookie）；页面不额外取管理令牌。本机未授权时页面本身是 401，不运行脚本；公开页（脚本查看页）只注册页面工具。
+- 不放大权限：本机形态 WebMCP 走 `/api/mcp`，与控制台一样只靠同源校验（本机 MCP 免授权）；页面不额外取任何令牌。公开页（脚本查看页）只注册页面工具。
 - 标注：只读工具 `readOnlyHint`，其余全部 `consequentialHint`；镜像与游戏相关工具都标 `untrustedContentHint`（游戏名、文本、日志来自游戏）。破坏性工具描述写明先征得用户同意。
-- 页面工具不读 cookie / storage / 剪贴板，不跳站外；令牌与安装命令等敏感内容不返回、不可填写；确认框内的按钮不允许 Agent 点击（需用户亲自确认）。
+- 页面工具不读 cookie / storage / 剪贴板，不跳站外；凭证等敏感内容不返回、不可填写；确认框内的按钮不允许 Agent 点击（需用户亲自确认）。
 - 插件声明只接受第一方插件，声明冻结、长度受限；描述作为不可信内容。
 - 不支持 WebMCP 的浏览器整段跳过，不影响页面。
 
@@ -97,7 +97,7 @@
 
 1. 本机 dev + 开启 WebMCP 的 Chrome 打开任一页面：`getTools()` 包含本机 MCP `tools/list` 全部工具 + 10 个页面工具 + 3 个局内修改工具，无重名；切页不重复注册。
 2. 镜像工具结果与 `/api/mcp` 直调一致（抽查 `chaya_library_list`、`chaya_logs_query`、`chaya_cache_query`）。
-3. Edge（`pnpm dev:edge`）：注册 4.2 中 ✓ 的工具与 4.3 全部工具；`chaya_library_list` 返回浏览器游戏库；`page_get_context.unavailableTools` 列出 6 个 ✗ 工具。
+3. Edge（`pnpm dev` 切到 Edge）：注册 4.2 中 ✓ 的工具与 4.3 全部工具；`chaya_library_list` 返回浏览器游戏库；`page_get_context.unavailableTools` 列出 6 个 ✗ 工具。
 4. 游戏连上后插件工具出现在本机 MCP `tools/list` 与 WebMCP，`chaya_plugin_boost_status` 可调用；断开后消失。
-5. `page_snapshot` 不返回令牌与含令牌的安装命令；确认框按钮 `page_click` 被拒绝。
+5. `page_snapshot` 不返回标记为敏感的内容；确认框按钮 `page_click` 被拒绝。
 6. 集成页 WebMCP 子页显示支持状态与工具清单；不支持的浏览器显示开启方法且无报错。

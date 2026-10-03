@@ -13,10 +13,10 @@ type Props = {
   animated?: boolean
 }
 
-/** Shared Chaya mark and wordmark for dark application surfaces. */
-export function BrandLogo({ className, markClassName, wordmarkClassName, priority = false, href, animated = false }: Props) {
-  const mark = animated ? (
-    <svg viewBox="205 195 650 650" aria-hidden focusable="false" className={cn('size-6 shrink-0', markClassName)}>
+/** Chaya mark only; `animated` blinks the eyes. */
+export function BrandMark({ className, priority = false, animated = false }: { className?: string; priority?: boolean; animated?: boolean }) {
+  return animated ? (
+    <svg viewBox="205 195 650 650" aria-hidden focusable="false" className={cn('size-6 shrink-0', className)}>
       <use href="/brand/chaya-mark.svg#chaya-body" />
       <use
         href="/brand/chaya-mark.svg#chaya-eyes"
@@ -25,8 +25,13 @@ export function BrandLogo({ className, markClassName, wordmarkClassName, priorit
       />
     </svg>
   ) : (
-    <Image src="/brand/chaya-mark.svg" alt="" aria-hidden width={40} height={40} priority={priority} className={cn('size-6 shrink-0', markClassName)} />
+    <Image src="/brand/chaya-mark.svg" alt="" aria-hidden width={40} height={40} priority={priority} className={cn('size-6 shrink-0', className)} />
   )
+}
+
+/** Shared Chaya mark and wordmark for dark application surfaces. */
+export function BrandLogo({ className, markClassName, wordmarkClassName, priority = false, href, animated = false }: Props) {
+  const mark = <BrandMark className={markClassName} priority={priority} animated={animated} />
 
   const content = (
     <>

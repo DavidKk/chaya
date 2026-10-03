@@ -56,7 +56,7 @@ export type ChayaEnvOptions = {
   gameId?: string
   /** 浏览器模式信令令牌（见 `GAME_LINK_TOKEN_HEADER`） */
   linkToken?: string
-  /** `link`：日志只经游戏连接发给页面，不上报服务器（浏览器模式） */
+  /** `link`：日志只经游戏连接发给页面，不上报服务器；同时开启游戏内 MCP 网关（浏览器模式） */
   logTransport?: 'http' | 'link'
 }
 
@@ -70,6 +70,7 @@ export function buildChayaEnvJs(apiBase: string, opts?: ChayaEnvOptions): string
     window.CHAYA_API_BASE = ${JSON.stringify(base)}
     ${envAssign('CHAYA_LOG_URL', viaLink ? '' : `${base}/api/logs`)}
     ${envAssign('CHAYA_LOG_TRANSPORT', viaLink ? 'link' : '')}
+    ${viaLink ? 'window.CHAYA_MCP_GATEWAY = true' : 'try { delete window.CHAYA_MCP_GATEWAY } catch (e) {}'}
     ${envAssign('CHAYA_LAUNCH_TOKEN', String(opts?.launchToken || '').trim())}
     ${envAssign('CHAYA_GAME_ID', String(opts?.gameId || '').trim())}
     ${envAssign('CHAYA_LINK_TOKEN', String(opts?.linkToken || '').trim())}

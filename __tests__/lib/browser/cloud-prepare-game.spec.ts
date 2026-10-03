@@ -1,4 +1,4 @@
-import { clearCloudPlugins, configureCloudConnection, installCloudPlugins, installCloudShell, selectCloudGame } from '@/lib/browser/cloud-prepare-game'
+import { clearCloudPlugins, configureCloudConnection, installCloudPlugins, installCloudShell, selectCloudGame, uninstallCloudShell } from '@/lib/browser/cloud-prepare-game'
 import * as fsa from '@/lib/browser/fsa'
 
 jest.mock('@/lib/browser/fsa', () => ({
@@ -103,4 +103,17 @@ test('connecting requires installed plugins', async () => {
   const game = await selectCloudGame()
   await expect(configureCloudConnection(game, 'library-room-123')).rejects.toThrow('请先安装插件')
   expect(fsa.writeTextFile).not.toHaveBeenCalled()
+})
+
+test('uninstalling removes only the detected Chaya shell entry', async () => {
+  const rootRemove = jest.fn()
+  const root = { name: 'Game', removeEntry: rootRemove } as unknown as FileSystemDirectoryHandle
+  jest.mocked(fsa.dirExists).mockImplementation(async (_dir, name) => name === 'Chaya')
+  const game = { picked: root, content: root, os: 'win' as const, pluginsInstalled: false }
+  expect(await uninstallCloudShell({ ...game, existingShell: 'Chaya' })).toBe(1)
+  expect(rootRemove).toHaveBeenCalledWith('Chaya', { recursive: true })
+  rootRemove.mockClear()
+  expect(await uninstallCloudShell({ ...game, existingShell: 'Game.exe' })).toBe(0)
+  expect(await uninstallCloudShell(game)).toBe(0)
+  expect(rootRemove).not.toHaveBeenCalled()
 })

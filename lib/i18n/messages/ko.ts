@@ -1,6 +1,7 @@
 import { downloadsKo } from '@/lib/i18n/messages/parts/downloads'
 import { editKo } from '@/lib/i18n/messages/parts/edit.ko'
 import { integrationKo } from '@/lib/i18n/messages/parts/integration'
+import { mcpGatewayKo } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { translateKo } from '@/lib/i18n/messages/parts/translate.ko'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
@@ -120,6 +121,8 @@ const base = {
     shellTaskLocked: '다른 페이지에서 이 게임의 셸을 설치하는 중입니다',
     pluginsInstalled: '플러그인을 설치했습니다',
     pluginsCleared: '플러그인을 제거했습니다',
+    shellUninstalled: '셸을 삭제했습니다',
+    shellNothingToUninstall: '삭제할 셸이 없습니다',
   },
   library: {
     title: '보관함',
@@ -166,10 +169,6 @@ const base = {
     kindApp: '.app 패키지',
     kindWww: 'www',
     kindRoot: '콘텐츠 루트',
-    shortcutNav: '바로가기',
-    shortcutEditDesc: '소지금·아이템·변수',
-    shortcutTranslateDesc: '추출·번역',
-    shortcutLogsDesc: '로그',
     metaPath: '게임 경로',
     metaContent: '콘텐츠 용량',
     metaShellSize: '셸 용량',
@@ -260,5 +259,6 @@ export const ko: MessageTree = {
   ...translateKo,
   ...editKo,
   ...integrationKo,
+  ...mcpGatewayKo,
   ...downloadsKo,
 }

@@ -416,9 +416,9 @@ export function Dashboard() {
             ? 'app.nw'
             : t('dashboard.kindRoot')
     : ''
-  const canInstall = browserMode ? ready : diskOk && ready && !remote && !status.bundled && !status.hasShell
-  /** 仅工具 data/shell 注入的共用壳可卸；游戏自带 .app / exe 不展示 */
-  const canUninstallShell = diskOk && ready && !remote && !status.bundled && !!status.installedShell
+  const canInstall = browserMode ? ready && !status.hasShell : diskOk && ready && !remote && !status.bundled && !status.hasShell
+  /** 仅 Chaya 注入的共用壳可卸；游戏自带 .app / exe 不展示（浏览器只检测 Chaya 壳目录名） */
+  const canUninstallShell = browserMode ? ready && status.hasShell : diskOk && ready && !remote && !status.bundled && !!status.installedShell
   const gameOnline = gameLink.connected
   /** 本机未打包：可从 nwjs.io 拉最新壳（含 Windows，效果同自备 nwjs.app） */
   const canFetchLatestShell = diskOk && ready && !remote && !status.bundled && !gameOnline
@@ -537,7 +537,7 @@ export function Dashboard() {
                             jobRunning: shellJobRunning,
                             onInstall: browserMode ? cloud.installShell : installShell,
                             onFetchLatest: fetchLatestShell,
-                            onUninstall: uninstallShell,
+                            onUninstall: browserMode ? cloud.uninstallShell : uninstallShell,
                           }}
                           shellTaskGameId={browserMode ? cloudGameId : undefined}
                         />

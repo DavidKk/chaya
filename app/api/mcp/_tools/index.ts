@@ -1,29 +1,31 @@
-import type { McpServerConfig, McpTool, McpToolAnnotations } from '@/initializer/mcp'
-import { MCP_INSTRUCTIONS, MCP_SERVER_NAME, MCP_TOOLS, mcpEvalEnabled, type McpToolMeta } from '@/lib/integration/mcp-catalog'
+import { cacheTools } from '@/app/api/mcp/_tools/cache'
+import { editTools } from '@/app/api/mcp/_tools/edit'
+import { gameTools } from '@/app/api/mcp/_tools/game'
+import { libraryTools } from '@/app/api/mcp/_tools/library'
+import { callBridgeAgent, liveTools } from '@/app/api/mcp/_tools/live'
+import { logsTools } from '@/app/api/mcp/_tools/logs'
+import { translateTools } from '@/app/api/mcp/_tools/translate'
+import type { McpServerConfig, McpTool } from '@/initializer/mcp'
+import { MCP_INSTRUCTIONS, MCP_SERVER_NAME, MCP_TOOLS, mcpEvalEnabled, mcpToolAnnotations } from '@/lib/integration/mcp-catalog'
 import type { ToolImpls } from '@/lib/integration/tools/args'
 import { pluginToolRun } from '@/lib/integration/tools/live'
 import { pluginToolDescription, type PluginToolMeta, pluginToolName } from '@/lib/runtime/plugin-tools'
 import { listPluginTools } from '@/services/runtime/agent-bridge'
 
-import { cacheTools } from './cache'
-import { editTools } from './edit'
-import { gameTools } from './game'
-import { libraryTools } from './library'
-import { callBridgeAgent, liveTools } from './live'
-import { logsTools } from './logs'
-import { translateTools } from './translate'
-
 export const MCP_TOOL_IMPLS: ToolImpls = { ...libraryTools, ...gameTools, ...liveTools, ...editTools, ...translateTools, ...cacheTools, ...logsTools }
-
-export function toolAnnotations(meta: Pick<McpToolMeta, 'title' | 'readOnly' | 'destructive'>): McpToolAnnotations {
-  return { title: meta.title, ...(meta.readOnly ? { readOnlyHint: true } : {}), ...(meta.destructive ? { destructiveHint: true } : {}) }
-}
 
 function toMcpTool(name: string): McpTool {
   const meta = MCP_TOOLS.find((tool) => tool.name === name)
   const run = MCP_TOOL_IMPLS[name]
   if (!meta || !run) throw new Error(`MCP 工具未对齐：${name}`)
-  return { name, description: meta.description, inputSchema: meta.inputSchema, annotations: toolAnnotations(meta), enabled: meta.evalOnly ? mcpEvalEnabled : undefined, run }
+  return {
+    name,
+    description: meta.description,
+    inputSchema: meta.inputSchema,
+    annotations: mcpToolAnnotations(meta),
+    enabled: meta.evalOnly ? mcpEvalEnabled : undefined,
+    run,
+  }
 }
 
 const GAME_ID_PROPERTY = { type: 'string', description: 'Target game id (from chaya_live_games); optional when only one game is online' }
@@ -35,7 +37,7 @@ export function pluginMcpTool(meta: PluginToolMeta & { gameIds?: string[] }): Mc
     name: pluginToolName(meta.plugin, meta.tool),
     description: pluginToolDescription(meta),
     inputSchema: { ...meta.inputSchema, properties: { ...meta.inputSchema.properties, gameId: GAME_ID_PROPERTY } },
-    annotations: toolAnnotations(meta),
+    annotations: mcpToolAnnotations(meta),
     run: pluginToolRun(meta, (gameId, method, params) => callBridgeAgent(gameId ?? only, method, params)),
   }
 }

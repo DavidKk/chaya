@@ -10,7 +10,7 @@ import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { GameEditRunSettings } from '@/components/GameEditRunSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell, panelBody, panelFoot, panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
-import { Button, EmptyState, NumberInput, ScrollArea, SwitchToggle } from '@/components/sk'
+import { Button, EmptyState, NumberInput, ScrollArea, Spinner, SwitchToggle } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import type { CatalogEntry, GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
@@ -22,7 +22,7 @@ import { GameEditPaneSkeleton } from './GameEditPaneSkeleton'
 import { GameEditSearch } from './GameEditSearch'
 import { GameEditTabNav } from './GameEditTabNav'
 import { LockEndAction, lockIconBtn } from './lock-ui'
-import { type ActorPaneId, type TabId } from './tabs'
+import { type ActorPaneId, isEditTab, type TabId } from './tabs'
 import {
   type ActorDraft,
   type ActorVitalLockKind,
@@ -46,6 +46,7 @@ const ActorEditPane = lazy(() => import('./ActorEditPane').then((m) => ({ defaul
 const GameEditHotkeysPane = lazy(() => import('./GameEditHotkeysPane').then((m) => ({ default: m.GameEditHotkeysPane })))
 const GameEditTransPane = lazy(() => import('./GameEditTransPane').then((m) => ({ default: m.GameEditTransPane })))
 const GameEditLogsPane = lazy(() => import('./GameEditLogsPane').then((m) => ({ default: m.GameEditLogsPane })))
+const GameEditMcpPane = lazy(() => import('./GameEditMcpPane').then((m) => ({ default: m.GameEditMcpPane })))
 
 function TabSuspense({ tab, children, translateSection, translateTab }: { tab: TabId; children: ReactNode; translateSection?: 'run' | 'cache'; translateTab?: 'play' | 'seed' }) {
   const t = useT()
@@ -271,11 +272,11 @@ export function GameEditWorkbench({
   const visible = rows.slice(0, MAX_ROWS)
   const truncated = rows.length > MAX_ROWS
   const canLock = tab === 'bag' || tab === 'item' || tab === 'weapon' || tab === 'armor' || tab === 'var' || tab === 'sw'
-  const showTableFilters = tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans' && tab !== 'logs'
+  const showTableFilters = tab !== 'run' && tab !== 'hotkeys' && isEditTab(tab)
   const showOwnedFilter = tab !== 'run' && tab !== 'actor'
   const goldLocked = GOLD_LOCK_KEY in session.locks
   const actorCount = catalog && tab === 'actor' ? catalog.actors.length : 0
-  const showEditNav = tab !== 'trans' && tab !== 'logs'
+  const showEditNav = isEditTab(tab)
   const refreshButton = (
     <Button
       variant="ghost"
@@ -387,7 +388,7 @@ export function GameEditWorkbench({
         </div>
       ) : null}
 
-      <div className={tab === 'trans' || tab === 'logs' ? 'flex min-h-0 flex-1 flex-col' : panelBody}>
+      <div className={isEditTab(tab) ? panelBody : 'flex min-h-0 flex-1 flex-col'}>
         {tab === 'run' ? (
           <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('edit.runSettingsAria') }}>
             <GameEditRunSettings
@@ -448,6 +449,10 @@ export function GameEditWorkbench({
           <TabSuspense tab="logs">
             <GameEditLogsPane />
           </TabSuspense>
+        ) : tab === 'mcp' ? (
+          <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
+            <GameEditMcpPane />
+          </Suspense>
         ) : error ? (
           <EmptyState title={t('edit.catalogFailTitle')} message={error} hint={t('edit.catalogFailHint')} />
         ) : loading && !catalog ? (
@@ -605,7 +610,7 @@ export function GameEditWorkbench({
         )}
       </div>
 
-      {tab !== 'trans' ? (
+      {tab !== 'trans' && tab !== 'mcp' ? (
         <div className={panelFoot}>
           <span>
             {t(footPrimaryKey(surface, tab, linked))}

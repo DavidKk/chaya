@@ -218,7 +218,7 @@ URL 在所有形态下相同（无 `/app`、`/edge` 前缀）。构建目标只�
 
 - `next.config.ts` 按阶段算出目标，设置 `pageExtensions` 并注入 `NEXT_PUBLIC_CHAYA_TARGET`（`dev` / `edge` / `server`）。
 - `lib/service-mode/target.ts` 的 `BUILD_TARGET` 在构建产物里是常量：edge 构建内 `getServiceMode()` 恒为 `vercel`，dev 专用代码（`DevTargetSwitch`、`/api/dev/target`）在生产包中被摇掉。
-- dev 下 `getServiceMode()` 读开关：edge → `vercel`；server → `CHAYA_SERVICE=app` 时 `app`，否则 `local`。`pnpm dev:edge`（`CHAYA_SERVICE=vercel`）只是以 edge 起步，仍可切换。
+- dev 下 `getServiceMode()` 读开关：edge → `vercel`；server → `CHAYA_SERVICE=app` 时 `app`，否则 `local`。启动时设 `CHAYA_SERVICE=vercel` 可让开关以 edge 起步。
 - ESLint `no-restricted-imports`：非 `*.server` / `*.dev` 文件不得引用这两类模块，也不得引用 `app/api/mcp/_tools`（共享常量放 `lib/integration`）。
 - 新增「整条都要本机磁盘」的路由时命名为 `route.server.ts`；Electron App 专属能力放 `electron/` 或 preload 暴露的标记，不新增构建目标。
 

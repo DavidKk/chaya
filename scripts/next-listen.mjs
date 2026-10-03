@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Wrap `next dev|start`: mint the management token / auth link, and rewrite listen logs to
- *   Local:   http://127.0.0.1:PORT
+ * Wrap `next dev|start`: mint the management token, print the console URL, and rewrite listen logs to
+ *   Local:   http://localhost:PORT
  *   Network: http://<lan-ip>:PORT
  * (Next defaults Local to localhost and Network to 0.0.0.0.)
  */
@@ -38,9 +38,8 @@ function detectLanIpv4() {
 }
 
 function rewriteListenLine(line, lanIp) {
-  // Next: `- Local:         http://localhost:3927`
-  let out = line.replace(/(- Local:\s+)https?:\/\/localhost(:\d+)/, '$1http://127.0.0.1$2')
-  out = out.replace(/(- Local:\s+)https?:\/\/127\.0\.0\.1(:\d+)/, '$1http://127.0.0.1$2')
+  // Next: `- Local:         http://127.0.0.1:3000` — show localhost, the canonical console host
+  let out = line.replace(/(- Local:\s+)https?:\/\/127\.0\.0\.1(:\d+)/, '$1http://localhost$2')
   // Next: `- Network:       http://0.0.0.0:3927` (when -H 0.0.0.0)
   if (lanIp) {
     out = out.replace(/(- Network:\s+)https?:\/\/(?:0\.0\.0\.0|\[::\])(:\d+)/, `$1http://${lanIp}$2`)
@@ -70,13 +69,14 @@ if (args.length === 0) {
 }
 
 const lanIp = detectLanIpv4()
+const portIndex = args.findIndex((a) => a === '-p' || a === '--port')
+const port = portIndex >= 0 ? args[portIndex + 1] : process.env.PORT || 3927
+// The server derives the compat `/api/mcp` URL from PORT (`toolkitListenPort`).
+process.env.PORT = String(port)
 if (process.env.CHAYA_SERVICE !== 'vercel' && process.env.VERCEL !== '1') {
   process.env.CHAYA_AUTH_TOKEN = localAccess.ensureAccessToken()
-  const portIndex = args.findIndex((a) => a === '-p' || a === '--port')
-  const port = portIndex >= 0 ? args[portIndex + 1] : process.env.PORT || 3927
-  const suffix = `/api/access?token=${encodeURIComponent(process.env.CHAYA_AUTH_TOKEN)}`
-  console.log(`[Chaya] local auth link: http://127.0.0.1:${port}${suffix}`)
-  if (args.includes('0.0.0.0') && lanIp) console.log(`[Chaya] LAN auth link: http://${lanIp}:${port}${suffix}`)
+  console.log(`[Chaya] console: http://localhost:${port}`)
+  if (args.includes('0.0.0.0') && lanIp) console.log(`[Chaya] LAN console: http://${lanIp}:${port}`)
 }
 const child = spawn(process.execPath, [nextBin, ...args], {
   cwd: root,

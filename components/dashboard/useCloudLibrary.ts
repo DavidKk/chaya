@@ -22,6 +22,7 @@ import {
   installCloudPlugins,
   installCloudShell,
   selectCloudGame,
+  uninstallCloudShell,
 } from '@/lib/browser/cloud-prepare-game'
 import { startCloudShellTask } from '@/lib/browser/cloud-shell-task'
 import { writeCloudWindow } from '@/lib/browser/cloud-window'
@@ -246,6 +247,16 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
       { remeasure: true }
     )
   }
+  async function uninstallShell() {
+    await operate(
+      async (game) => {
+        const removed = await uninstallCloudShell(game)
+        if (removed) notify.success(t('notify.shellUninstalled'))
+        else notify.info(t('notify.shellNothingToUninstall'))
+      },
+      { remeasure: true }
+    )
+  }
   const library = entries.map((e) => e.item)
   const footprint = active?.game.footprint
   const activePlugins = Array.isArray(active?.game.plugins) ? active.game.plugins : []
@@ -284,6 +295,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
     macOpen,
     setMacOpen,
     installShell,
+    uninstallShell,
     downloadUrl,
     configureConnection: async () => {
       let configured = false

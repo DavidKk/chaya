@@ -33,7 +33,7 @@ const ROUTES: PageRoute[] = [
   ...INTEGRATION_TABS.map((tab) => ({ path: tab.href, label: `Integration · ${tab.id}` })),
 ]
 
-/** Mode via /api/status (never the MCP connection endpoint: it carries the token). 401 = signed-out public page. */
+/** Mode via /api/status (not the MCP connection endpoint, which only serves the integration page). 401 = signed-out public page. */
 async function detectMode(): Promise<HostMode> {
   try {
     const res = await fetch('/api/status', { cache: 'no-store' })

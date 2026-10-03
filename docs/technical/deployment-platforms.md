@@ -67,7 +67,7 @@
 
 - 局域网里用手机 / 另一台电脑打开本地 server：游戏仍在服务那台机器上，仍是服务端模式（不能按访问 IP 判断）。
 - **远程游戏连入**（服务端模式下的特例）：游戏在另一台机器上运行，主动连入本地 server，游戏库记为远程条目（`status.remote`）。服务不能读写它的文件、不能启动它，只能经游戏连接操作；界面不显示绑定状态、操作区换成提示，路径显示 N/A。
-- 访问控制：服务端模式由 `proxy.ts` 要求管理授权（启动终端打印的授权链接），防止局域网内他人操作本机磁盘；浏览器模式没有这道门禁。
+- 访问控制：服务端模式不登录，API 只接受同源且 `Host` 为本机 / IP / `CHAYA_PUBLIC_ORIGIN` 的请求，挡住其他网站借浏览器操作本机磁盘；浏览器模式页面与 API 公开、没有登录，也没有服务端 MCP（外部 Agent 连游戏内网关，见 [mcp-gateway.md](./mcp-gateway.md)）。
 - App 与 local 代码不分支，区别只是 `data/` 位置：App 由 `electron/main.cjs` 设 `CHAYA_DATA_DIR = userData/data`（安装包资源只读）。
 
 ### 3.1 浏览器模式的前提（Vercel 与自托管都适用）
@@ -192,17 +192,17 @@
 
 改 UI 或判定时只改一处，两种模式同时生效。
 
-| 内容                                                                                                     | 共用实现                                                                      |
-| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| 游戏显示名：窗口标题 → 包名 → 目录名（去 `.app`）                                                        | `nwGameDisplayName`（`lib/game/nw-window.ts`）                                |
-| 游戏库结构标签                                                                                           | `libraryKindLabel`（`lib/game/library-label.ts`）                             |
-| 跟踪插件就绪判定（Loader 已注册即全部就绪）                                                              | `trackedPluginStatuses` / `countReadyPlugins`（`lib/game/plugins-status.ts`） |
-| 体积文案                                                                                                 | `formatBytes`（`lib/format-bytes.ts`）                                        |
-| `package.json` 窗口合并写入                                                                              | `mergeNwPackageWindow`（`lib/game/nw-window.ts`）                             |
-| 指纹摘要                                                                                                 | `summarizeFingerprint`（`lib/game/fingerprint`）                              |
-| 当前游戏卡片：头部（绑定状态 + 标题 + 信息条）｜快捷入口｜操作区｜补充信息；分隔与间距只在 `CardSection` | `components/dashboard/DashboardGameCard.tsx`                                  |
-| 信息条：游戏｜运行环境｜数据，连接状态靠右                                                               | `components/dashboard/DashboardGameMeta.tsx`                                  |
-| 设置面板路径行                                                                                           | `PathField`（`components/DashboardSettings.tsx`）                             |
+| 内容                                                                                           | 共用实现                                                                      |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 游戏显示名：窗口标题 → 包名 → 目录名（去 `.app`）                                              | `nwGameDisplayName`（`lib/game/nw-window.ts`）                                |
+| 游戏库结构标签                                                                                 | `libraryKindLabel`（`lib/game/library-label.ts`）                             |
+| 跟踪插件就绪判定（Loader 已注册即全部就绪）                                                    | `trackedPluginStatuses` / `countReadyPlugins`（`lib/game/plugins-status.ts`） |
+| 体积文案                                                                                       | `formatBytes`（`lib/format-bytes.ts`）                                        |
+| `package.json` 窗口合并写入                                                                    | `mergeNwPackageWindow`（`lib/game/nw-window.ts`）                             |
+| 指纹摘要                                                                                       | `summarizeFingerprint`（`lib/game/fingerprint`）                              |
+| 当前游戏卡片：头部（绑定状态 + 标题 + 信息条）｜操作区｜补充信息；分隔与间距只在 `CardSection` | `components/dashboard/DashboardGameCard.tsx`                                  |
+| 信息条：游戏｜运行环境｜数据，连接状态靠右                                                     | `components/dashboard/DashboardGameMeta.tsx`                                  |
+| 设置面板路径行                                                                                 | `PathField`（`components/DashboardSettings.tsx`）                             |
 
 **允许的差异**（其余应保持一致）：
 

@@ -8,15 +8,17 @@
 ```bash
 pnpm i                 # 若 electron 二进制下载慢：已配置 .npmrc 镜像
 pnpm dev:app           # Next(app) + plugins watch + Electron 窗口
-# 或仅窗口（需已有服务在 3927）：
+# 或仅窗口（需已有服务在 3927，或设置 PORT）：
 pnpm electron:open
 ```
 
-- 窗口加载 `http://127.0.0.1:3927`（Next 默认绑 `0.0.0.0`，局域网亦可访问）
+- 窗口加载 `http://127.0.0.1:3927`（Next 默认绑 `0.0.0.0`，局域网亦可访问），窗口直接打开控制台（本机形态不登录，见 [deployment-platforms.md](./deployment-platforms.md)）
+- 本机 MCP 免授权，外部 Agent 连统一地址 `http://127.0.0.1:39271/mcp`（[mcp-gateway.md](./mcp-gateway.md)）；`http://localhost:3927/api/mcp` 为兼容地址
+- `pnpm dev:app` 用 3000 端口且窗口主机为 `localhost`，与 `pnpm dev` 一致
 - 主进程：[`electron/main.cjs`](../../electron/main.cjs)
 - 预加载：[`electron/preload.cjs`](../../electron/preload.cjs)（仅暴露 `window.chayaDesktop`）
 
-`pnpm dev` / `pnpm dev:edge` 仍为浏览器；**App 形态用 `dev:app`**。
+`pnpm dev` 仍为浏览器（可用右上角 dev 切换器切到 Edge）；**App 形态用 `dev:app`**。
 
 ## 打包安装包
 

@@ -12,14 +12,17 @@ import { SKILL_AGENT_TARGETS, type SkillAgentTargetId, type SkillId, skillInstal
 export function SkillInstall({ id }: { id: SkillId }) {
   const t = useT()
   const origin = usePageOrigin() || DEFAULT_SITE_ORIGIN
-  const [target, setTarget] = useState<SkillAgentTargetId>('cursor')
-  const items = useMemo(() => SKILL_AGENT_TARGETS.map((item) => ({ id: item.id, label: item.label })), [])
+  const [target, setTarget] = useState<SkillAgentTargetId>('agents')
+  const items = useMemo(() => SKILL_AGENT_TARGETS.map((item) => ({ id: item.id, label: item.id === 'agents' ? t('integration.targetUniversal') : item.label })), [t])
 
   return (
     <div className="flex flex-col gap-3">
       <SegmentedNav items={items} value={target} onChange={setTarget} aria-label={t('integration.targetAria')} />
       <CopyField value={skillInstallCommand(origin, id, target)} label={t('integration.installAria')} />
-      <p className="m-0 text-xs leading-relaxed text-ink-soft">{t('integration.installEnglishNote')}</p>
+      <p className="m-0 text-xs leading-relaxed text-ink-soft">
+        {target === 'agents' ? `${t('integration.targetUniversalHint')} ` : null}
+        {t('integration.installEnglishNote')}
+      </p>
     </div>
   )
 }

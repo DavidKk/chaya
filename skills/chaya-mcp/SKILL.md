@@ -7,27 +7,25 @@ description: Use the local Chaya MCP server to control the game library, launch 
 
 ## Prerequisites
 
-- Chaya runs as the **App or local dev** (the Edge web version has no MCP).
+- One address for every case: `http://127.0.0.1:39271/mcp` (default port 39271; if it was changed, use the address shown on the console's Integrations → MCP page or the in-game **MCP** tab).
+- Served by the **App / local dev** when running (all tools), otherwise by a game opened from the Edge web version with the plugins installed (live tools and plugin tools only, no `eval`). If neither runs, the connection fails until one is opened.
 - Live tools (`chaya_live_*`) need the game **launched from Chaya** with the `ChayaAgent` plugin loaded; for older games run `chaya_game_plugins_install` and restart first.
 
 ## Connect
 
-- Endpoint: `http://127.0.0.1:3927/api/mcp`
-- Auth: header `Authorization: Bearer <token>`. Copy the token from the console's Integrations → MCP page, or from `data/access/token` in local dev.
+- Auth: none. The gateway only listens on `127.0.0.1` and needs no token; clients get every available tool as soon as they connect.
 - Cursor `~/.cursor/mcp.json`:
 
   ```json
   {
     "mcpServers": {
-      "chaya": {
-        "url": "http://127.0.0.1:3927/api/mcp",
-        "headers": { "Authorization": "Bearer <token>" }
-      }
+      "chaya": { "url": "http://127.0.0.1:39271/mcp" }
     }
   }
   ```
 
-- Claude Code: `claude mcp add --transport http --scope user chaya http://127.0.0.1:3927/api/mcp --header "Authorization: Bearer <token>"`
+- Claude Code: `claude mcp add --transport http --scope user chaya http://127.0.0.1:39271/mcp`
+- Codex: `codex mcp add chaya --url http://127.0.0.1:39271/mcp`
 
 ## Tool groups
 

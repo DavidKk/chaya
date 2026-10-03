@@ -32,12 +32,9 @@ Chaya 是面向 **RPG Maker** 的本机优先工具台：翻译（抽取、补�
 3. 部署后打开站点：`/` 为产品页，**打开控制台** 进入 `/game`。
 4. 在本机用 Chrome / Edge 授权游戏目录并完成准备。
 
-本地模拟 edge（无需 Vercel 账号）：
+本地模拟 edge（无需 Vercel 账号）：`pnpm dev` 后在右上角 dev 切换器选 **Edge**；DiskOps 接口返回 501。
 
-```bash
-pnpm i
-pnpm dev:edge   # CHAYA_SERVICE=vercel — DiskOps 接口返回 501
-```
+Edge 没有登录，也没有服务端 MCP。外部 Agent 连接统一地址 `http://127.0.0.1:39271/mcp`，由打开的游戏（或本机服务）提供，见 [docs/integration.md](docs/integration.md)。
 
 ## 构建应用
 
@@ -82,25 +79,25 @@ Windows：若 SmartScreen 拦截安装包，选 **更多信息 → 仍要运行*
 
 ```bash
 pnpm i
-pnpm dev            # local 形态，127.0.0.1:3927 + 插件 watch
+pnpm dev            # local 形态，localhost:3000 + 插件 watch
 ```
 
-请用终端打印的**授权链接**打开控制台（HttpOnly 会话）。不要把链接分享给无关人员。
+打开 `http://localhost:3000` 即可使用。local / App 形态没有登录：API 只接受来自 localhost、局域网 IP 或 `CHAYA_PUBLIC_ORIGIN` 的同源请求；MCP 也无需授权，Agent 连接 `http://127.0.0.1:39271/mcp`（端口可在「集成 → MCP」或游戏内修改）。
 
-| 命令            | 用途                                 |
-| --------------- | ------------------------------------ |
-| `pnpm dev`      | 本机控制台（仅回环）                 |
-| `pnpm dev:lan`  | 开放局域网，供其他设备 / VM          |
-| `pnpm dev:app`  | Toolkit App（Next + Electron）       |
-| `pnpm dev:edge` | 本地模拟 Edge                        |
-| `pnpm ok:ci`    | 格式检查、lint、类型、测试、完整构建 |
+| 命令           | 用途                                 |
+| -------------- | ------------------------------------ |
+| `pnpm dev`     | 本机控制台（仅回环）                 |
+| `pnpm dev:lan` | 开放局域网，供其他设备 / VM          |
+| `pnpm dev:app` | Toolkit App（Next + Electron）       |
+| `pnpm ok:ci`   | 格式检查、lint、类型、测试、完整构建 |
 
 GitHub Actions：[CI](.github/workflows/ci.yml) 在 `main` / PR 跑 `pnpm ok:ci`。[Build App](.github/workflows/build-app.yml) 在 `v*` 标签（或手动触发）打安装包，并发布 [GitHub Release](https://github.com/DavidKk/chaya/releases)（附带 `.dmg` / `.exe`）。
 
 常用环境变量：
 
 - `CHAYA_SERVICE` — `local` \| `app` \| `vercel`（存在 `VERCEL=1` 时无效）
-- `CHAYA_AUTH_TOKEN` — 管理令牌（local / app 未设时会写入 `data/access/token`）
+- `CHAYA_AUTH_TOKEN` — 内部管理令牌，供脚本与 MCP 进程内调用，不能用来登录浏览器（local / app 未设时会写入 `data/access/token`）
+- `CHAYA_PUBLIC_ORIGIN` — 本机 API 额外接受的主机名（如局域网域名）
 - `CHAYA_API_LAN=1` — 向局内插件广播局域网 API 根
 
 开局会写入 `js/plugins/ChayaEnv.js`，并向 `/api/runtime/heartbeat` 心跳。升级插件后请从控制台重新开局。

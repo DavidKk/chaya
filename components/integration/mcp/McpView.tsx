@@ -7,13 +7,16 @@ import { LuActivity, LuDatabase, LuGamepad2, LuLanguages, LuLibrary, LuPlug, LuS
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { HubLayout, HubNav, HubNavItem, HubNavSection, HubPaneHeader } from '@/components/integration/Hub'
 import { integrationCard, McpConnectionCard } from '@/components/integration/mcp/McpConnectionCard'
+import { McpEdgeGuide } from '@/components/integration/mcp/McpEdgeGuide'
+import { McpLocalGateway } from '@/components/integration/mcp/McpLocalGateway'
 import { McpPlayground } from '@/components/integration/mcp/McpPlayground'
 import { McpToolCard } from '@/components/integration/mcp/McpToolCard'
 import { exampleArgs } from '@/components/integration/mcp/schema'
 import { useMcpConnection } from '@/components/integration/mcp/useMcpConnection'
 import { Spinner } from '@/components/sk'
-import { MCP_ENDPOINT_PATH, MCP_TOOLS, type McpToolGroupId, type McpToolMeta } from '@/lib/integration/mcp-catalog'
+import { MCP_TOOLS, type McpToolGroupId, type McpToolMeta } from '@/lib/integration/mcp-catalog'
 import { localizedMcpToolsByGroup } from '@/lib/integration/mcp-catalog-i18n'
+import { MCP_GATEWAY_DEFAULT_PORT, mcpGatewayUrl } from '@/lib/integration/mcp-port'
 
 const SETUP = 'setup'
 
@@ -38,6 +41,7 @@ export function McpView() {
   const state = useMcpConnection()
   const locale = useLocaleCode()
   const connection = state.status === 'ready' && state.connection.available ? state.connection : null
+  const edge = state.status === 'ready' && !state.connection.available
   const groups = useMemo(() => localizedMcpToolsByGroup(locale), [locale])
   const playgroundTools = useMemo(() => MCP_TOOLS.filter((tool) => !tool.evalOnly || connection?.evalEnabled), [connection])
   const callable = useCallback((tool: McpToolMeta) => Boolean(connection && (!tool.evalOnly || connection.evalEnabled)), [connection])
@@ -69,7 +73,13 @@ export function McpView() {
       nav={
         <HubNav label={t('integration.groupNavAria')}>
           <HubNavSection>
-            <HubNavItem active={!group} icon={<LuPlug size={15} />} label={t('integration.navOverview')} meta={MCP_ENDPOINT_PATH} onSelect={() => setSection(SETUP)} />
+            <HubNavItem
+              active={!group}
+              icon={<LuPlug size={15} />}
+              label={t('integration.navOverview')}
+              meta={`:${connection?.gateway.port ?? MCP_GATEWAY_DEFAULT_PORT}`}
+              onSelect={() => setSection(SETUP)}
+            />
           </HubNavSection>
           <HubNavSection label={t('integration.groupNavAria')}>
             {groups.map((candidate) => {
@@ -105,7 +115,15 @@ export function McpView() {
       }}
     >
       {group ? (
-        group.tools.map((tool) => <McpToolCard key={tool.name} tool={tool} active={callable(tool) && tool.name === toolName} onTry={callable(tool) ? selectTool : undefined} />)
+        group.tools.map((tool) => (
+          <McpToolCard
+            key={tool.name}
+            tool={tool}
+            active={callable(tool) && tool.name === toolName}
+            serverOnly={edge && group.id !== 'live'}
+            onTry={callable(tool) ? selectTool : undefined}
+          />
+        ))
       ) : (
         <>
           <p className="m-0 text-[13px] leading-relaxed text-ink">{t('integration.mcpIntro')}</p>
@@ -119,12 +137,15 @@ export function McpView() {
               <p className="m-0 text-xs text-ink-soft">{state.message}</p>
             </div>
           ) : connection ? (
-            <McpConnectionCard connection={connection} />
+            <>
+              <McpConnectionCard url={connection.gateway.url} compatEndpoint={connection.endpoint} evalEnabled={connection.evalEnabled} />
+              <McpLocalGateway initial={connection.gateway} onChange={state.reload} />
+            </>
           ) : (
-            <div className={integrationCard} role="note">
-              <p className="m-0 text-[13px] font-semibold text-ink">{t('integration.mcpUnavailableTitle')}</p>
-              <p className="m-0 text-xs text-ink-soft">{t('integration.mcpUnavailableHint')}</p>
-            </div>
+            <>
+              <McpEdgeGuide />
+              <McpConnectionCard url={mcpGatewayUrl(MCP_GATEWAY_DEFAULT_PORT)} />
+            </>
           )}
         </>
       )}

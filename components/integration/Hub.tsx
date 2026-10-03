@@ -17,19 +17,19 @@ export const hubBlock = 'flex flex-col gap-2 rounded-[0.4rem] border border-tran
 export const hubBlockActive = 'border-[color-mix(in_oklab,var(--accent)_38%,transparent)] bg-[color-mix(in_oklab,var(--accent)_10%,var(--panel))]'
 
 const navItemBase = cn(
-  'flex min-w-0 shrink-0 items-center gap-2.5 rounded-[0.35rem] border px-2 py-1.5 text-left no-underline md:w-full',
+  'flex w-full min-w-0 items-center justify-center gap-2.5 rounded-[0.35rem] border p-1.5 text-left no-underline md:justify-start md:px-2',
   'transition-[background,border-color,color] duration-150',
   'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]'
 )
 const navItemIdle = 'border-transparent text-ink-soft hover:bg-[color-mix(in_oklab,var(--ink)_6%,transparent)] hover:text-ink'
 const navItemActive = 'border-[color-mix(in_oklab,var(--accent)_38%,transparent)] bg-[color-mix(in_oklab,var(--accent)_13%,transparent)] text-ink'
 
-/** 左侧导航：children 为一个或多个 `HubNavSection` */
+/** 左侧导航：children 为一个或多个 `HubNavSection`；窄屏收成只有图标的窄栏 */
 export function HubNav({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <nav aria-label={label} className="flex min-h-0 shrink-0 flex-col border-b border-line bg-paper md:w-44 md:border-r md:border-b-0">
-      <ScrollArea className="min-h-0 md:flex-1" indicator={false}>
-        <div className="flex flex-row gap-1 overflow-x-auto p-2 md:flex-col md:gap-0 md:overflow-visible">{children}</div>
+    <nav aria-label={label} className="flex min-h-0 w-12 shrink-0 flex-col border-r border-line bg-paper md:w-44">
+      <ScrollArea className="min-h-0 flex-1" indicator={false}>
+        <div className="flex flex-col p-1.5 md:p-2">{children}</div>
       </ScrollArea>
     </nav>
   )
@@ -38,16 +38,9 @@ export function HubNav({ label, children }: { label: string; children: ReactNode
 /** 导航分段：页面级入口（如「接入」）与分组列表分开；有标题时分组明确从属于该标题 */
 export function HubNavSection({ label, children }: { label?: string; children: ReactNode }) {
   return (
-    <section
-      aria-label={label}
-      className={cn(
-        'flex shrink-0 flex-row gap-1 md:flex-col',
-        'max-md:[&+&]:ml-1 max-md:[&+&]:border-l max-md:[&+&]:border-line max-md:[&+&]:pl-2',
-        'md:[&+&]:mt-2 md:[&+&]:border-t md:[&+&]:border-line md:[&+&]:pt-2'
-      )}
-    >
+    <section aria-label={label} className={cn('flex shrink-0 flex-col', '[&+&]:mt-1.5 [&+&]:border-t [&+&]:border-line [&+&]:pt-1.5 md:[&+&]:mt-2 md:[&+&]:pt-2')}>
       {label ? <h3 className="m-0 hidden px-2 pt-1 pb-1 text-[11px] font-semibold tracking-wide text-ink-soft uppercase md:block">{label}</h3> : null}
-      <ul className="m-0 flex list-none flex-row gap-1 p-0 md:flex-col">{children}</ul>
+      <ul className="m-0 flex list-none flex-col gap-1 p-0">{children}</ul>
     </section>
   )
 }
@@ -63,6 +56,7 @@ type HubNavItemProps = {
 /** 左侧导航项：图标 + 标题 + 次要信息（id / 数量） */
 export function HubNavItem({ active, icon, label, meta, title, href, onSelect }: HubNavItemProps) {
   const className = cn(navItemBase, active ? navItemActive : navItemIdle)
+  const hint = typeof label === 'string' ? (title ? `${label}\n${title}` : label) : title
   const body = (
     <>
       <span
@@ -74,20 +68,20 @@ export function HubNavItem({ active, icon, label, meta, title, href, onSelect }:
       >
         {icon}
       </span>
-      <span className="flex min-w-0 flex-1 flex-col">
+      <span className="flex min-w-0 flex-1 flex-col max-md:sr-only">
         <span className={cn('truncate text-[13px]', active ? 'font-semibold text-ink' : 'font-medium')}>{label}</span>
         {meta ? <span className="truncate font-mono text-[11px] text-ink-soft">{meta}</span> : null}
       </span>
     </>
   )
   return (
-    <li className="shrink-0 md:shrink">
+    <li>
       {href ? (
-        <Link href={href} aria-current={active ? 'page' : undefined} title={title} className={className}>
+        <Link href={href} aria-current={active ? 'page' : undefined} title={hint} className={className}>
           {body}
         </Link>
       ) : (
-        <button type="button" aria-current={active ? 'true' : undefined} title={title} onClick={onSelect} className={cn(className, 'cursor-pointer bg-transparent')}>
+        <button type="button" aria-current={active ? 'true' : undefined} title={hint} onClick={onSelect} className={cn(className, 'cursor-pointer bg-transparent')}>
           {body}
         </button>
       )}
@@ -137,7 +131,7 @@ export function HubLayout({ header, nav, contentKey, children, aside }: HubLayou
     <div className="flex h-full min-h-0 flex-col md:flex-row">
       <section className="flex min-h-0 min-w-0 flex-1 flex-col md:w-1/2 md:border-r md:border-line">
         {header}
-        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <div className="flex min-h-0 flex-1 flex-row">
           {nav}
           <HubPane key={contentKey}>{children}</HubPane>
         </div>

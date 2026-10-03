@@ -1,9 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { SKILL_RAW_PREFIX } from '@/lib/integration/skills'
 import { REMOTE_SCRIPT_PREFIX } from '@/lib/remote-scripts/command'
-import { canUseDisk } from '@/lib/service-mode/mode'
-import { hasManagementAccess } from '@/services/access/management'
 
 /** `/sh/<name>`: same URL serves raw Bash to curl and a highlighted viewer to browsers. Public in every mode. */
 function remoteScript(request: NextRequest) {
@@ -17,16 +14,9 @@ function remoteScript(request: NextRequest) {
   return NextResponse.next()
 }
 
+/** 页面一律放行：本机不登录、Edge 登录可选；数据访问由 API 门禁（`defineApiRoute`）把关 */
 export function proxy(request: NextRequest) {
-  const script = remoteScript(request)
-  if (script) return script
-  /** `/skills/<id>.md`: public agent skill docs */
-  if (request.nextUrl.pathname.startsWith(SKILL_RAW_PREFIX)) return NextResponse.next()
-  if (!canUseDisk() || hasManagementAccess(request)) return NextResponse.next()
-  return new NextResponse('请使用 Chaya 启动终端中的授权链接打开控制台。', {
-    status: 401,
-    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
-  })
+  return remoteScript(request) ?? NextResponse.next()
 }
 
 // API 在 defineApiRoute 内独立校验，插件只取得受限权限。

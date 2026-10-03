@@ -11,18 +11,17 @@ export type IntegrationMessages = {
   installAria: string
   installEnglishNote: string
   targetAria: string
+  targetUniversal: string
+  targetUniversalHint: string
   mcpIntro: string
   mcpUnavailableTitle: string
-  mcpUnavailableHint: string
   mcpLoadFailed: string
   endpoint: string
-  token: string
-  tokenHint: string
+  localHint: string
   configJson: string
   installLinks: string
   claudeCode: string
   codex: string
-  codexHint: string
   connectionAria: string
   evalOn: string
   evalOff: string

@@ -1,17 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
+import type { McpGatewayView } from '@/components/integration/mcp/McpGatewayCard'
 import { readApiErrorMessage } from '@/lib/api-error'
 import type { ServiceMode } from '@/lib/service-mode/mode'
 
 export type McpConnection =
-  { available: false; serviceMode: ServiceMode } | { available: true; serviceMode: ServiceMode; endpoint: string; token: string | null; evalEnabled: boolean }
+  { available: false; serviceMode: ServiceMode } | { available: true; serviceMode: ServiceMode; endpoint: string; evalEnabled: boolean; gateway: McpGatewayView }
 
 export type McpConnectionState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; connection: McpConnection }
 
-export function useMcpConnection(): McpConnectionState {
+export function useMcpConnection(): McpConnectionState & { reload: () => void } {
   const [state, setState] = useState<McpConnectionState>({ status: 'loading' })
+  const [version, setVersion] = useState(0)
+  const reload = useCallback(() => setVersion((v) => v + 1), [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -30,7 +33,7 @@ export function useMcpConnection(): McpConnectionState {
       }
     })()
     return () => controller.abort()
-  }, [])
+  }, [version])
 
-  return state
+  return { ...state, reload }
 }

@@ -120,7 +120,7 @@ plugins/src/cheat/console/tools.ts、game-boost.ts、translator/index.ts 内提�
 
 ### 6.1 `ChayaWebMcpHost`
 
-挂在 `AppProviders` 的 `GameLinkProvider` 内。形态探测用 `/api/status`（`canUseDisk === false` → Edge；401 → 未授权），**不调用 `/api/integration/mcp`**（会返回令牌）。
+挂在 `AppProviders` 的 `GameLinkProvider` 内。形态探测用 `/api/status`（`canUseDisk === false` → Edge；401 → 未授权），**不调用 `/api/integration/mcp`**（只服务集成页）。
 
 | 注册者          | 本机 dev / App                  | Edge                                            | 未授权（公开页） |
 | --------------- | ------------------------------- | ----------------------------------------------- | ---------------- |
@@ -155,7 +155,7 @@ plugins/src/cheat/console/tools.ts、game-boost.ts、translator/index.ts 内提�
 
 移植工单服务 10 个通用工具。差异：
 
-- 敏感：`[data-webmcp-sensitive]` 及其子树不出现在快照与 `page_read_text`，`page_fill` 拒绝；`CopyField` 新增 `sensitive` 属性，集成页令牌、含令牌的命令、启动链接标上。
+- 敏感：`[data-webmcp-sensitive]` 及其子树不出现在快照与 `page_read_text`，`page_fill` 拒绝；`CopyField` 新增 `sensitive` 属性，启动链接等凭证类内容标上（集成页已不再展示令牌）。
 - 禁区：确认框（`ConfirmProvider` 对话框，`data-webmcp-confirm`）内的按钮 `page_click` 返回 `needs_user_confirmation`；确认框自身的 Enter 与确认按钮也只响应 `isTrusted` 事件，脚本派发的事件无效。
 - `page_get_context`：路径、标题、导航、形态、绑定游戏、连接状态、已注册的注册者、`unavailableTools`。
 - `page_list_routes`：按形态列出（Edge 不列只在本机可用的页面）。
@@ -167,7 +167,7 @@ plugins/src/cheat/console/tools.ts、game-boost.ts、translator/index.ts 内提�
 
 ## 8. 安全
 
-- 不放大权限：本机镜像用 cookie 调 `/api/mcp`；页面不取令牌；令牌字段对页面工具不可见。
+- 不放大权限：本机镜像以同源请求调 `/api/mcp`（本机 MCP 免授权）；页面不取任何令牌；凭证字段对页面工具不可见。
 - DataChannel 入口拒绝 eval；插件工具只接受第一方插件声明，冻结并限长；服务端再校验 `info.tools`。
 - Edge 不触发目录授权弹窗；日志只读。
 - `chaya_live_eval`：本机由 `tools/list`（`CHAYA_MCP_EVAL`）决定是否出现；Edge 不提供。

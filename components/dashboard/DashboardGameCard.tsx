@@ -7,7 +7,6 @@ import { GameTitleEditor } from '@/components/GameTitleEditor'
 import { cn } from '@/lib/utils'
 
 import { DashboardGameMeta, type DashboardGameMetaProps } from './DashboardGameMeta'
-import { DashboardShortcuts } from './DashboardShortcuts'
 
 type Props = {
   title: string
@@ -29,7 +28,7 @@ function CardSection({ divided = true, className, children }: { divided?: boolea
   return <div className={cn(divided && 'border-t border-[var(--line-soft)] pt-4', className)}>{children}</div>
 }
 
-/** 当前游戏卡片（server / Edge 共用）：头部（状态 + 标题 + 信息条）｜快捷入口｜操作区｜补充信息 */
+/** 当前游戏卡片（server / Edge 共用）：头部（状态 + 标题 + 信息条）｜操作区｜补充信息 */
 export function DashboardGameCard({ title, remark, packageName, busy, onRename, binding, meta, actions, notes }: Props) {
   return (
     <div className="flex flex-col items-stretch gap-4 rounded-[0.4rem] border border-line bg-panel p-4">
@@ -40,9 +39,6 @@ export function DashboardGameCard({ title, remark, packageName, busy, onRename, 
         </div>
         {packageName && packageName !== title ? <div className="text-[0.75rem] text-ink-soft">包名 {packageName}</div> : null}
         <DashboardGameMeta {...meta} />
-      </CardSection>
-      <CardSection>
-        <DashboardShortcuts />
       </CardSection>
       <CardSection>{actions}</CardSection>
       {notes ? (

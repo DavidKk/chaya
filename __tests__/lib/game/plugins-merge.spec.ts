@@ -11,6 +11,7 @@ describe('buildChayaEnvJs', () => {
     expect(js).toContain('window.CHAYA_LAUNCH_TOKEN = "lt"')
     expect(js).toContain('delete window.CHAYA_LINK_TOKEN')
     expect(js).toContain('delete window.CHAYA_LOG_TRANSPORT')
+    expect(js).toContain('delete window.CHAYA_MCP_GATEWAY')
   })
 
   it('browser mode carries the link token and keeps logs off the server', () => {
@@ -18,6 +19,7 @@ describe('buildChayaEnvJs', () => {
     expect(js).toContain('window.CHAYA_LINK_TOKEN = "secret"')
     expect(js).toContain('window.CHAYA_LOG_TRANSPORT = "link"')
     expect(js).toContain('delete window.CHAYA_LOG_URL')
+    expect(js).toContain('window.CHAYA_MCP_GATEWAY = true')
   })
 })
 

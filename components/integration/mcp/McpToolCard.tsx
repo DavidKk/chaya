@@ -1,5 +1,7 @@
 'use client'
 
+import { LuPlay } from 'react-icons/lu'
+
 import { useT } from '@/components/i18n/LocaleProvider'
 import { hubBlock, hubBlockActive } from '@/components/integration/Hub'
 import { toolParamRows } from '@/components/integration/mcp/schema'
@@ -8,7 +10,7 @@ import type { McpToolMeta } from '@/lib/integration/mcp-catalog'
 import { cn } from '@/lib/utils'
 
 /** 单个工具：名称、说明、参数表、对应 HTTP 接口；可用时带「试调」 */
-export function McpToolCard({ tool, active = false, onTry }: { tool: McpToolMeta; active?: boolean; onTry?: (name: string) => void }) {
+export function McpToolCard({ tool, active = false, serverOnly = false, onTry }: { tool: McpToolMeta; active?: boolean; serverOnly?: boolean; onTry?: (name: string) => void }) {
   const t = useT()
   const rows = toolParamRows(tool.inputSchema)
 
@@ -19,9 +21,17 @@ export function McpToolCard({ tool, active = false, onTry }: { tool: McpToolMeta
         <span className="text-xs text-ink-soft">{tool.title}</span>
         {tool.destructive ? <Badge tone="fail">{t('integration.destructive')}</Badge> : null}
         {tool.evalOnly ? <Badge tone="warn">{t('integration.evalOnly')}</Badge> : null}
+        {serverOnly ? <Badge>{t('mcpGateway.needsServer')}</Badge> : null}
         {onTry ? (
-          <Button variant="ghost" className="ml-auto max-md:hidden" onClick={() => onTry(tool.name)}>
-            {t('integration.tryTool')}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto max-md:hidden"
+            tooltip={t('integration.tryTool')}
+            aria-label={`${t('integration.tryTool')} ${tool.name}`}
+            onClick={() => onTry(tool.name)}
+          >
+            <LuPlay size={14} aria-hidden />
           </Button>
         ) : null}
       </header>

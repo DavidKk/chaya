@@ -6,7 +6,7 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
 import { cn } from '@/lib/utils'
 
-import type { TabId } from './tabs'
+import { isEditTab, type TabId } from './tabs'
 
 type Props = {
   tab: TabId
@@ -18,7 +18,7 @@ type Props = {
 
 export function GameEditMainNav({ tab, lastEditTab, setTab, refreshButton, closeButton }: Props) {
   const t = useT()
-  const showEditNav = tab !== 'trans' && tab !== 'logs'
+  const showEditNav = isEditTab(tab)
   return (
     <nav aria-label={t('edit.mainNav')} className="flex h-[3.25rem] shrink-0 items-stretch border-b border-line bg-[color-mix(in_oklab,var(--panel-2)_70%,transparent)] px-4">
       {(
@@ -26,6 +26,7 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, refreshButton, close
           { id: 'edit', labelKey: 'edit.tabEdit' as const, target: lastEditTab },
           { id: 'trans', labelKey: 'edit.tabTranslate' as const, target: 'trans' as const },
           { id: 'logs', labelKey: 'edit.tabLogs' as const, target: 'logs' as const },
+          { id: 'mcp', labelKey: 'mcpGateway.tab' as const, target: 'mcp' as const },
         ] as const
       ).map((item) => {
         const active = item.id === (showEditNav ? 'edit' : tab)

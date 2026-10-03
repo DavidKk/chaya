@@ -11,6 +11,7 @@ export const TABS = [
   { id: 'actor', labelKey: 'edit.actor' },
   { id: 'trans', labelKey: 'edit.tabTranslate' },
   { id: 'logs', labelKey: 'edit.tabLogs' },
+  { id: 'mcp', labelKey: 'mcpGateway.tab' },
   { id: 'hotkeys', labelKey: 'edit.hotkeys' },
 ] as const satisfies ReadonlyArray<{ id: string; labelKey: MessageKey }>
 
@@ -18,10 +19,13 @@ export type TabId = (typeof TABS)[number]['id']
 
 export type GameEditSurface = 'page' | 'overlay'
 
-export const EDIT_TABS = TABS.filter((tab) => tab.id !== 'trans' && tab.id !== 'logs')
+/** Overlay-only main pages: not part of the「修改」sub navigation */
+const MAIN_PAGES = new Set<string>(['trans', 'logs', 'mcp'])
+
+export const EDIT_TABS = TABS.filter((tab) => !MAIN_PAGES.has(tab.id))
 
 export function isEditTab(tab: TabId): boolean {
-  return tab !== 'trans' && tab !== 'logs'
+  return !MAIN_PAGES.has(tab)
 }
 
 /**

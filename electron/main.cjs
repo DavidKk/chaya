@@ -32,7 +32,6 @@ applyPackagedEnv()
 
 const { ensureAccessToken } = require('../scripts/local-access.cjs')
 process.env.CHAYA_AUTH_TOKEN = ensureAccessToken()
-const AUTH_URL = `${ROOT_URL}/api/access?token=${encodeURIComponent(process.env.CHAYA_AUTH_TOKEN)}`
 
 /** @type {import('node:child_process').ChildProcess | null} */
 let nextProc = null
@@ -138,7 +137,7 @@ function createWindow() {
     return { action: 'deny' }
   })
 
-  void mainWindow.loadURL(AUTH_URL)
+  void mainWindow.loadURL(ROOT_URL)
 }
 
 function stopNext() {

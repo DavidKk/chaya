@@ -1,14 +1,16 @@
 /**
  * ChayaAgent — runs MCP / WebMCP commands in-game.
  * Local: Agent → /api/mcp → agent bridge queue → POST /api/runtime/agent (this loop) → ChayaEdit / ChayaBoost / ChayaTrans.
- * Edge: page WebMCP → game DataChannel → `window.ChayaAgent.run` (eval refused on that path).
+ * Edge: page WebMCP → game DataChannel → `window.ChayaAgent.run`; external agents → fixed-port gateway (`./gateway`). Neither evals.
  */
 
 import { PLUGIN_AGENT_NAME } from '@/constants/brand'
+import type { McpGatewayControl } from '@/lib/integration/mcp-gateway'
 import type { AgentCommand, AgentGameInfo, AgentPollRequest, AgentPollResponse, AgentResult } from '@/lib/runtime/agent-protocol'
 
 import { chayaPostJson, createLogger, detectGameIdentity, gameRoomId } from '../helpers'
 import { listPluginToolMetas } from '../helpers/plugin-tools'
+import { startGameGateway } from './gateway'
 import { runAgentCommand } from './handlers'
 
 const log = createLogger(PLUGIN_AGENT_NAME)
@@ -23,6 +25,8 @@ type AgentGlobal = {
   status: () => { running: boolean; roomId: string; handled: number }
   /** Run one command for the DataChannel route; never evals */
   run: (cmd: AgentCommand) => Promise<unknown>
+  /** Unified MCP gateway status / port management for the in-game panel */
+  gateway: McpGatewayControl
 }
 
 declare global {
@@ -53,6 +57,7 @@ async function execute(cmd: AgentCommand): Promise<AgentResult> {
 function start(): AgentGlobal {
   let running = true
   let handled = 0
+  const gateway = startGameGateway({ gameId: gameRoomId, gameInfo: () => ({ ...gameInfo(), tools: undefined }), log })
 
   void (async () => {
     let pending: AgentResult[] = []
@@ -90,12 +95,14 @@ function start(): AgentGlobal {
   return {
     stop: () => {
       running = false
+      void gateway.stop()
     },
     status: () => ({ running, roomId: gameRoomId(), handled }),
     run: async (cmd) => {
       handled += 1
       return runAgentCommand(cmd)
     },
+    gateway: gateway.control,
   }
 }
 

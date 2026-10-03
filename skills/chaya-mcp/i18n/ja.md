@@ -2,27 +2,25 @@
 
 ## 前提
 
-- Chaya が **App かローカル dev** で動いていること（Edge の Web 版には MCP がありません）。
+- どの場合もアドレスは 1 つ：`http://127.0.0.1:39271/mcp`（既定ポート 39271。変更した場合はコンソールの「連携 → MCP」またはゲーム内「MCP」タブに表示されるアドレスを使います）。
+- **App / ローカル dev** が動いていればそれが提供します（全ツール）。そうでなければ Edge の Web 版でプラグインを入れて開いたゲームが提供します（ゲーム内ツールとプラグインツールのみ、`eval` なし）。どちらもなければ接続に失敗し、開けば復帰します。
 - ゲーム内ツール（`chaya_live_*`）は、ゲームを **Chaya から起動** し `ChayaAgent` プラグインを読み込んでいる必要があります。古いゲームは先に `chaya_game_plugins_install` を実行して再起動してください。
 
 ## 接続
 
-- アドレス：`http://127.0.0.1:3927/api/mcp`
-- 認証：リクエストヘッダー `Authorization: Bearer <token>`。token はコンソールの「連携 → MCP」ページでコピーするか、ローカル dev の `data/access/token` にあります。
+- 認証：不要。ゲートウェイは `127.0.0.1` だけで待ち受け、トークンは不要です。接続すると利用可能なすべてのツールを使えます。
 - Cursor `~/.cursor/mcp.json`：
 
   ```json
   {
     "mcpServers": {
-      "chaya": {
-        "url": "http://127.0.0.1:3927/api/mcp",
-        "headers": { "Authorization": "Bearer <token>" }
-      }
+      "chaya": { "url": "http://127.0.0.1:39271/mcp" }
     }
   }
   ```
 
-- Claude Code：`claude mcp add --transport http --scope user chaya http://127.0.0.1:3927/api/mcp --header "Authorization: Bearer <token>"`
+- Claude Code：`claude mcp add --transport http --scope user chaya http://127.0.0.1:39271/mcp`
+- Codex：`codex mcp add chaya --url http://127.0.0.1:39271/mcp`
 
 ## ツールのグループ
 

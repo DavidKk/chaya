@@ -1,13 +1,12 @@
 import { canUseDisk } from '@/lib/service-mode/mode'
+import { hasManagementAccess } from '@/services/access/management'
 import { peekLaunchToken } from '@/services/runtime/launch-token'
-
-import { hasManagementAccess } from './management'
 
 export async function mayAccessApi(request: Request): Promise<boolean> {
   const url = new URL(request.url)
   const path = url.pathname
+  // Edge：无登录，数据都在浏览器本地；`/api/mcp` 不进 Edge 构建
   if (!canUseDisk()) return true
-  if (path === '/api/access') return true // 授权入口自行校验令牌。
   if ((request.method === 'GET' || request.method === 'HEAD') && (path.startsWith('/api/remote/') || /^\/api\/plugins\/[^/]+$/.test(path))) return true
   if (hasManagementAccess(request)) return true
 
