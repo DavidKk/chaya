@@ -1,10 +1,10 @@
-/** 识别 Chaya 不支持的游戏引擎（只支持 RPG Maker MV / MZ）；只看文件名，客户端与服务端共用。 */
+/** Detect game engines Chaya does not support (only RPG Maker MV / MZ); file names only, shared by client and server. */
 
 export const UNSUPPORTED_ENGINE_CODE = 'UNSUPPORTED_ENGINE'
 
 export type UnsupportedEngine = 'RPG Maker VX Ace' | 'RPG Maker VX' | 'RPG Maker XP' | 'RPG Maker 2000/2003' | 'Unity'
 
-/** 游戏目录根、`Data/`、`System/` 下的文件名 */
+/** File names under the game root, `Data/` and `System/` */
 export type EngineDirListing = {
   root: readonly string[]
   data?: readonly string[]
@@ -39,7 +39,7 @@ export function unsupportedEngineMessage(engine: UnsupportedEngine): string {
   return `不支持该引擎（${engine}），目前只支持 RPG Maker MV / MZ`
 }
 
-/** 从 API 错误体读出不支持的引擎名 */
+/** Read the unsupported engine name from an API error body */
 export function readUnsupportedEngine(data: unknown): UnsupportedEngine | null {
   const error = data && typeof data === 'object' ? (data as { error?: unknown }).error : null
   if (!error || typeof error !== 'object') return null

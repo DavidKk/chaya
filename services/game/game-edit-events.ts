@@ -8,7 +8,7 @@ import { openSharedCache } from '@/services/translate/shared-cache'
 
 type CachedJson = { mtimeMs: number; size: number; data: unknown }
 
-/** 按文件 mtime / 大小缓存解析结果；译名每次请求重新查，翻译库更新即时生效 */
+/** Parsed JSON cached by file mtime / size; names are translated per request so translation updates apply immediately */
 const jsonCache = new Map<string, CachedJson>()
 const MAX_CACHED_FILES = 4_000
 
@@ -42,7 +42,7 @@ function mapFileName(id: number) {
   return `Map${String(id).padStart(3, '0')}.json`
 }
 
-/** 读已绑定游戏的公共事件、调用关系（含全部地图）与译名，供网页「修改 › 公共事件」 */
+/** Common events, call references (all maps scanned) and translated names of the bound game, for the web Edit › Common events page */
 export function loadCommonEventsData(): CommonEventsData | { ok: false; error: string } {
   const resolved = getResolvedFromConfig()
   if (!resolved.ok) return { ok: false, error: resolved.error || '尚未绑定游戏' }

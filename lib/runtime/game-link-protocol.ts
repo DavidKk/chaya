@@ -54,7 +54,7 @@ export type GameEditAck = {
   cmdId: string
   fields: string[]
   ok: boolean
-  /** 失败原因（给用户看） */
+  /** Failure reason shown to the user */
   error?: string
 }
 
@@ -64,13 +64,13 @@ export type GameEditStateMsg = {
   session: Omit<SessionState, 'hotkeys' | 'hotkeysGlobal'>
   ready: boolean
   error?: string
-  /** 当前在地图场景（公共事件只能在地图上执行） */
+  /** On the map scene (common events can only run on the map) */
   onMap?: boolean
 }
 
 export type GameEditCatalogMessage = { type: 'edit.catalog'; catalog: GameEditCatalog } | { type: 'edit.catalog.request' }
 
-/** 公共事件与调用关系：数据较大，按需请求，不随订阅推送；游戏端经 `link.chunk` 分片发送 */
+/** Common events and call references: large, requested on demand rather than pushed; the game sends it chunked via `link.chunk` */
 export type GameEditEventsMessage = { type: 'edit.events'; data: CommonEventsData | { ok: false; error: string } } | { type: 'edit.events.request'; force?: boolean }
 
 /** 游戏内插件日志（id 为游戏进程内自增，重启游戏会从头计） */

@@ -1,6 +1,6 @@
 import type { EventCommand, EventNames } from './types'
 
-/** 对应 i18n `events.cmd.<key>` */
+/** Maps to i18n `events.cmd.<key>` */
 export type ScriptKey =
   | 'text'
   | 'scroll'
@@ -58,7 +58,7 @@ export type ScriptKey =
   | 'comment'
   | 'other'
 
-/** 着色：对话 / 流程 / 改数据 / 高风险 / 注释 */
+/** Tone: dialogue / flow / data change / risky / comment */
 export type ScriptTone = 'text' | 'flow' | 'effect' | 'risk' | 'muted'
 
 export type ScriptLine = {
@@ -66,9 +66,9 @@ export type ScriptLine = {
   key: ScriptKey
   tone: ScriptTone
   args?: Record<string, string | number>
-  /** 对话 / 脚本正文（有译文时为译文） */
+  /** Dialogue / script body (translated when available) */
   body?: string
-  /** 正文原文；与 body 相同时省略 */
+  /** Original body text; omitted when identical to body */
   source?: string
   link?: { kind: 'common' | 'map'; id: number }
 }
@@ -147,11 +147,11 @@ function conditionLine(names: EventNames, p: readonly unknown[]): Pick<ScriptLin
   }
 }
 
-/** 指令码后跟的续行（401 对话、405 滚动文字、408 注释、655 脚本） */
+/** Continuation codes following a command (401 dialogue, 405 scrolling text, 408 comment, 655 script) */
 const CONTINUATION: Record<number, number> = { 101: 401, 105: 405, 108: 408, 355: 655 }
 const SKIP = new Set([0, 404, 412, 413, 604])
 
-/** 指令列表 → 可读剧本；未知指令保留指令码，不报错 */
+/** Command list → readable script; unknown commands keep their code instead of throwing */
 export function interpretCommands(list: readonly EventCommand[], names: EventNames, texts: Readonly<Record<string, string>> = {}): ScriptLine[] {
   const tr = (text: string) => texts[text] ?? text
   const out: ScriptLine[] = []

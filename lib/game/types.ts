@@ -75,7 +75,7 @@ export type ResolvedGame = {
 export type ResolveError = {
   ok: false
   error: string
-  /** 识别出是 MV / MZ 以外的引擎 */
+  /** Detected engine other than MV / MZ */
   engine?: UnsupportedEngine
 }
 

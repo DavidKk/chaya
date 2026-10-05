@@ -1,39 +1,39 @@
-/** RPG Maker MV / MZ 事件数据：服务端读盘、网页、游戏插件共用。 */
+/** RPG Maker MV / MZ event data shared by the disk reader, the web console and the game plugin. */
 
 export type EventCommand = { code: number; indent: number; parameters: unknown[] }
 
-/** 0 无（只能被调用）· 1 自动执行 · 2 并行处理 */
+/** 0 none (call only) · 1 autorun · 2 parallel */
 export type CommonEventTrigger = 0 | 1 | 2
 
 export type CommonEventInfo = {
   id: number
-  /** 译名（无译文时为原名） */
+  /** Translated name (original when untranslated) */
   name: string
   rawName: string
   trigger: CommonEventTrigger
-  /** 自动执行 / 并行处理的条件开关 */
+  /** Trigger switch for autorun / parallel */
   switchId: number
   list: EventCommand[]
-  /** 指令条数，不含结尾 / 分支结束的空指令（code 0） */
+  /** Command count, excluding empty end / branch-end commands (code 0) */
   commandCount: number
 }
 
 export type EventRefKind = 'common' | 'map' | 'troop'
 
-/** 调用某条公共事件的位置 */
+/** A location that calls a common event */
 export type EventRef = {
   kind: EventRefKind
-  /** 公共事件 / 地图 / 敌群编号 */
+  /** Common event / map / troop id */
   id: number
   name: string
-  /** 地图事件编号与名称 */
+  /** Map event id and name */
   eventId?: number
   eventName?: string
-  /** 事件页（从 1 起） */
+  /** Event page (1-based) */
   page?: number
 }
 
-/** 下标即编号；未命名为空串 */
+/** Indexed by id; empty string when unnamed */
 export type EventNames = {
   switches: string[]
   variables: string[]
@@ -51,14 +51,14 @@ export type CommonEventsData = {
   source: 'disk' | 'live'
   events: CommonEventInfo[]
   names: EventNames
-  /** 指令中的对话 / 选项原文 → 译文（只收有译文的） */
+  /** Dialogue / choice source text → translation (translated entries only) */
   texts: Record<string, string>
-  /** 公共事件编号 → 调用它的位置 */
+  /** Common event id → locations that call it */
   calledBy: Record<number, EventRef[]>
-  /** 开关编号 → 引用它的位置（地图事件页条件、公共事件触发开关、条件分支、开关操作） */
+  /** Switch id → locations that use it (map event page conditions, common event triggers, conditional branches, switch operations) */
   switchRefs: Record<number, EventRef[]>
-  /** 是否提供了地图数据（未扫描时只含公共事件与敌群的引用） */
+  /** Whether map data was provided (otherwise only common event and troop references) */
   mapsScanned: boolean
-  /** 读取或解析失败的地图数；大于 0 时引用关系可能不完整 */
+  /** Maps that failed to load or parse; references may be incomplete when > 0 */
   mapsFailed: number
 }

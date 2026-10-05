@@ -1,6 +1,6 @@
 import type { CommonEventInfo, CommonEventsData, CommonEventTrigger, EventCommand, EventNames, EventRef } from './types'
 
-/** 读盘或游戏内存里的原始 data/*.json；读不到的传 null */
+/** Raw data/*.json from disk or game memory; null when unavailable */
 export type RawEventSources = {
   commonEvents: unknown[] | null
   system: { switches?: unknown[]; variables?: unknown[] } | null
@@ -10,9 +10,9 @@ export type RawEventSources = {
   actors: unknown[] | null
   troops: unknown[] | null
   mapInfos: unknown[] | null
-  /** `data/MapXXX.json`；null 表示没有扫描地图 */
+  /** `data/MapXXX.json`; null means maps were not scanned */
   maps: Array<{ id: number; data: unknown }> | null
-  /** 读取或解析失败的地图数 */
+  /** Number of maps that failed to load or parse */
   mapsFailed?: number
 }
 
@@ -52,7 +52,7 @@ function namesFromList(list: unknown[] | undefined, tr: Translate): string[] {
   return out
 }
 
-/** 对话、滚动文字、选项、MZ 说话人：送去查译文 */
+/** Dialogue, scrolling text, choices and MZ speaker names to look up translations for */
 function collectTexts(list: readonly EventCommand[], into: Set<string>) {
   for (const cmd of list) {
     const p = cmd.parameters
@@ -81,7 +81,7 @@ function refKey(ref: EventRef) {
   return `${ref.kind}:${ref.id}:${ref.eventId ?? ''}:${ref.page ?? ''}`
 }
 
-/** 同一位置对同一开关只记一次 */
+/** Record each switch at most once per location */
 function addSwitchRef(refs: Record<number, EventRef[]>, seen: Set<string>, switchId: number, ref: EventRef) {
   if (switchId <= 0) return
   const key = `${switchId}|${refKey(ref)}`

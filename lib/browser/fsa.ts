@@ -143,7 +143,7 @@ async function listNames(dir: FileSystemDirectoryHandle): Promise<FileSystemHand
   try {
     for await (const handle of (dir as IterableDir).values()) handles.push(handle)
   } catch {
-    /* 无读权限时按空目录处理 */
+    /* Treat as an empty directory when read permission is missing */
   }
   return handles
 }

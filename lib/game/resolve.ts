@@ -27,7 +27,7 @@ function listingEngine(dir: string): UnsupportedEngine | null {
   return detectUnsupportedEngine({ root, data: sub('data'), system: sub('system') })
 }
 
-/** 选中的是 MV / MZ 以外的引擎（旧版 RPG Maker、Unity）时给出引擎名 */
+/** Engine name when the selected game is not MV / MZ (legacy RPG Maker, Unity) */
 function detectUnsupportedEngineAt(selected: string): UnsupportedEngine | null {
   let dir = selected
   try {

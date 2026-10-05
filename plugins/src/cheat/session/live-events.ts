@@ -47,7 +47,7 @@ async function loadMaps(infos: unknown[] | undefined): Promise<LoadedMaps> {
   return ids.length && !maps.length ? { maps: null, failed } : { maps, failed }
 }
 
-/** 地图文件在一局游戏内不变：整局只读一次，浮层与网页请求共用；刷新时传 force */
+/** Map files do not change during a session: read once, shared by the overlay and web requests; pass `force` to reload */
 let cachedMaps: Promise<LoadedMaps> | null = null
 
 export async function buildLiveCommonEventsData(opts?: { force?: boolean }): Promise<CommonEventsData> {

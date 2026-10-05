@@ -1,6 +1,6 @@
 import type { EventCommand } from './types'
 
-/** 一段指令会改动的游戏数据；用于执行前判断风险 */
+/** Game data a command list changes; used to assess risk before running it */
 export type EventEffects = {
   switches: number[]
   variables: number[]
@@ -112,7 +112,7 @@ export function summarizeEffects(list: readonly EventCommand[]): EventEffects {
   return out
 }
 
-/** 传送、战斗、游戏结束、回标题、存档画面：执行前需确认 */
+/** Transfer, battle, game over, return to title, save screen: require confirmation before running */
 export function isRiskyEffects(effects: EventEffects): boolean {
   return effects.transfers.length > 0 || effects.battle || effects.gameOver || effects.title || effects.save
 }

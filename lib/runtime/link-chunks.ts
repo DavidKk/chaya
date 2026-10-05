@@ -1,8 +1,8 @@
-/** 大消息分片：把一条完整的 link 消息拆成多个 `link.chunk`，接收端重组后按原消息分发。 */
+/** Large message chunking: split one link message into `link.chunk` packets; the receiver reassembles and dispatches the original message. */
 
 export type LinkChunkPacket = { type: 'link.chunk'; id: string; index: number; total: number; chunk: string }
 
-const CHUNK = 4_096 // 即使全是汉字，单条 DataChannel 消息也小于 16 KiB。
+const CHUNK = 4_096 // Keeps each DataChannel message under 16 KiB even for all-CJK text.
 const MAX_CHARS = 32 * 1024 * 1024
 const TIMEOUT = 60_000
 const MAX_PENDING = 8
@@ -10,7 +10,7 @@ const MAX_PENDING = 8
 let sequence = 0
 const prefix = Math.random().toString(36).slice(2)
 
-/** 每 8 片让出一次事件循环，避免一次塞满通道缓冲区 */
+/** Yields to the event loop every 8 packets so the channel buffer is not flooded */
 export async function sendChunked(send: (packet: LinkChunkPacket) => void | Promise<void>, message: unknown): Promise<void> {
   const raw = JSON.stringify(message)
   if (raw.length > MAX_CHARS) throw new Error('数据过大，无法通过游戏连接发送')
