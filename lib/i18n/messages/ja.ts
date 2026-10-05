@@ -1,5 +1,6 @@
 import { downloadsJa } from '@/lib/i18n/messages/parts/downloads'
 import { editJa } from '@/lib/i18n/messages/parts/edit.ja'
+import { eventsJa } from '@/lib/i18n/messages/parts/events.ja'
 import { integrationJa } from '@/lib/i18n/messages/parts/integration'
 import { mcpGatewayJa } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { translateJa } from '@/lib/i18n/messages/parts/translate.ja'
@@ -274,4 +275,5 @@ export const ja: MessageTree = {
   ...integrationJa,
   ...mcpGatewayJa,
   ...downloadsJa,
+  ...eventsJa,
 }

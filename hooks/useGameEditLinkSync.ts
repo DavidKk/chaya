@@ -24,9 +24,37 @@ import {
 import { useGameLinkContext } from '@/components/GameLinkProvider'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { EDIT_CMD_GIVE_UP_MS, EDIT_CMD_RETRY_MS, type EditPendingMap, expectForEditCmd, fieldsForEditCmd, mergeRemoteSession, newEditCmdId } from '@/lib/runtime/game-edit-sync'
-import type { GameEditCmd, GameEditCmdOp } from '@/lib/runtime/game-link-protocol'
+import type { GameEditAck, GameEditCmd, GameEditCmdOp, GameEditStateMsg } from '@/lib/runtime/game-link-protocol'
 
 type SetSession = Dispatch<SetStateAction<SessionState>>
+
+/** Scene / map fields pushed with every `edit.state` */
+export type GameLiveScene = { onMap: boolean; mapId: number; playerX: number; playerY: number; recentMaps: number[]; runningCommon: number[] }
+
+const EMPTY_SCENE: GameLiveScene = { onMap: false, mapId: 0, playerX: 0, playerY: 0, recentMaps: [], runningCommon: [] }
+
+function sameList(a: readonly number[], b: readonly number[]) {
+  return a.length === b.length && a.every((v, i) => v === b[i])
+}
+
+function sceneFrom(msg: GameEditStateMsg, prev: GameLiveScene): GameLiveScene {
+  const next: GameLiveScene = {
+    onMap: !!msg.onMap,
+    mapId: msg.mapId ?? 0,
+    playerX: msg.playerX ?? 0,
+    playerY: msg.playerY ?? 0,
+    recentMaps: msg.recentMaps ?? [],
+    runningCommon: msg.runningCommon ?? [],
+  }
+  const same =
+    next.onMap === prev.onMap &&
+    next.mapId === prev.mapId &&
+    next.playerX === prev.playerX &&
+    next.playerY === prev.playerY &&
+    sameList(next.recentMaps, prev.recentMaps) &&
+    sameList(next.runningCommon, prev.runningCommon)
+  return same ? prev : next
+}
 
 /**
  * 作弊页：连上后订阅 edit.state；改动带 cmdId，pending 字段不被旧快照覆盖；ack / 快照匹配后放行。
@@ -34,6 +62,8 @@ type SetSession = Dispatch<SetStateAction<SessionState>>
 export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: string) => void, onCatalog?: (catalog: GameEditCatalog) => void) {
   const { roomId, connected, send, subscribeMessages, acquireEditSession } = useGameLinkContext()
   const [synced, setSynced] = useState(false)
+  const [scene, setScene] = useState<GameLiveScene>(EMPTY_SCENE)
+  const ackWaitersRef = useRef(new Map<string, (ack: GameEditAck) => void>())
   const catalogRef = useRef(onCatalog)
   catalogRef.current = onCatalog
   useEffect(() => {
@@ -64,10 +94,16 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
       }
       if (msg.type === 'edit.ack') {
         clearFields(msg.fields, msg.cmdId)
+        const waiter = ackWaitersRef.current.get(msg.cmdId)
+        if (waiter) {
+          ackWaitersRef.current.delete(msg.cmdId)
+          waiter(msg)
+        }
         return
       }
       if (msg.type !== 'edit.state') return
       setSynced(msg.ready)
+      setScene((prev) => sceneFrom(msg, prev))
       setSession((prev) => {
         const { session, matchedFields } = mergeRemoteSession(prev, msg.session, pendingRef.current)
         if (matchedFields.length) clearFields(matchedFields)
@@ -80,6 +116,7 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
     if (!connected) {
       pending.clear()
       setSynced(false)
+      setScene(EMPTY_SCENE)
     }
     return () => {
       unsubscribe()
@@ -114,8 +151,8 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
     return () => window.clearInterval(timer)
   }, [connected])
 
-  const sendCmd = useCallback((op: GameEditCmdOp) => {
-    if (!connectedRef.current) return
+  const sendCmd = useCallback((op: GameEditCmdOp): string | null => {
+    if (!connectedRef.current) return null
     const cmd: GameEditCmd = { type: 'edit.cmd', cmdId: newEditCmdId(), ...op }
     const fields = fieldsForEditCmd(cmd)
     const expect = expectForEditCmd(cmd)
@@ -125,10 +162,31 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
       map.set(field, { cmdId: cmd.cmdId, expect, sentAt, cmd })
     }
     sendRef.current(cmd)
+    return cmd.cmdId
   }, [])
 
+  /** Send and wait for the game's ack; rejects with the game's error message or on timeout */
+  const runCmd = useCallback(
+    (op: GameEditCmdOp) =>
+      new Promise<void>((resolve, reject) => {
+        const cmdId = sendCmd(op)
+        if (!cmdId) return reject(new Error('游戏未连接'))
+        const waiters = ackWaitersRef.current
+        const timer = window.setTimeout(() => {
+          waiters.delete(cmdId)
+          reject(new Error('游戏无响应'))
+        }, EDIT_CMD_GIVE_UP_MS)
+        waiters.set(cmdId, (ack) => {
+          window.clearTimeout(timer)
+          if (ack.ok) resolve()
+          else reject(new Error(ack.error || '操作失败'))
+        })
+      }),
+    [sendCmd]
+  )
+
   const requestCatalog = useCallback(() => send({ type: 'edit.catalog.request' }), [send])
-  return { linked: connected && synced, connected, sendCmd, requestCatalog }
+  return { linked: connected && synced, connected, scene, sendCmd, runCmd, requestCatalog }
 }
 
 export function buildOptimisticHandlers(setSession: SetSession, sendCmd: (op: GameEditCmdOp) => void, catalogActorName?: (id: number) => string | undefined) {

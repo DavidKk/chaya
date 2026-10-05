@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-import { DEFAULT_TAB, editActorHref, editTabHref, isTabId, parseActorIdSegment, parseActorPaneSegment } from '@/components/game-edit'
+import { DEFAULT_TAB, editActorHref, editMapHref, editTabHref, isTabId, parseActorIdSegment, parseActorPaneSegment } from '@/components/game-edit'
 
 type CheatTabPageProps = {
   params: Promise<{ tab: string; pane?: string[] }>
@@ -38,6 +38,20 @@ export default async function CheatTabPage({ params }: CheatTabPageProps) {
     }
 
     redirect(editActorHref(null))
+  }
+
+  if (tab === 'common') {
+    if (segments.length === 0) return null
+    if (segments.length > 1 || parseActorIdSegment(segments[0]) == null) redirect(editTabHref(tab))
+    return null
+  }
+
+  if (tab === 'map') {
+    if (segments.length === 0) return null
+    const mapId = parseActorIdSegment(segments[0])
+    if (mapId == null || segments.length > 2) redirect(editTabHref(tab))
+    if (segments.length === 2 && parseActorIdSegment(segments[1]) == null) redirect(editMapHref(mapId))
+    return null
   }
 
   if (segments.length > 0) redirect(editTabHref(tab))

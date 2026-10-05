@@ -2,7 +2,7 @@ import { lazy, type ReactNode, Suspense, useCallback, useEffect, useLayoutEffect
 
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
 import { effectiveHotkeys, hotkeyMapsEqual, loadGlobalHotkeys, matchKeyChord, parseHotkeyId, saveGlobalHotkeys, setGameHotkeysCache } from '@/components/game-edit/run-hotkeys'
-import { type ActorPaneId, isActorPaneId, isEditTab, parseTabId, type TabId } from '@/components/game-edit/tabs'
+import { type ActorPaneId, isActorPaneId, isEditTab, isEventsTab, parseTabId, type TabId } from '@/components/game-edit/tabs'
 import {
   type ActorDraft,
   type ActorVitalLockKind,
@@ -34,6 +34,7 @@ import { RunCheats } from '../runtime/cheats-run'
 import { buildLiveCatalog, type LiveSessionScope, readLiveSession, setItemCount, setPartyGold } from '../session/live-session'
 import { bootstrapGameEditSession, diskStateFromSession, ensureGameEditDiskApplied, loadGameEditDisk, scheduleSaveGameEditDisk } from '../session/persist'
 import { syncRemoteMirror } from '../session/remote-bridge'
+import { useOverlayEvents } from './useOverlayEvents'
 
 /** 延迟拉 Workbench，首帧先出轻量占位，避免唤出时同步解析整树 */
 const GameEditWorkbench = lazy(() => import('@/components/game-edit/GameEditWorkbench').then((m) => ({ default: m.GameEditWorkbench })))
@@ -101,13 +102,14 @@ function scopeForTab(tab: TabId): LiveSessionScope {
   if (tab === 'run' || tab === 'hotkeys' || tab === 'trans') return 'run'
   if (tab === 'bag' || tab === 'item' || tab === 'weapon' || tab === 'armor') return 'items'
   if (tab === 'var') return 'vars'
-  if (tab === 'sw') return 'switches'
+  if (tab === 'sw' || tab === 'common') return 'switches'
   if (tab === 'actor') return 'actors'
+  if (tab === 'map') return 'full'
   return 'run'
 }
 
 function tabNeedsCatalog(tab: TabId): boolean {
-  return tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings'
+  return tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings' && !isEventsTab(tab)
 }
 
 /** In-game React panel: shared GameEditWorkbench + runtime data */
@@ -413,6 +415,11 @@ export function GameEditApp({ open, onRequestClose }: Props) {
     applyRunAction(id)
   }
 
+  const setSwitchRef = useRef(setSwitch)
+  setSwitchRef.current = setSwitch
+  const onEventsSwitch = useCallback((id: number, value: boolean) => setSwitchRef.current(id, value), [])
+  const { slot: eventsSlot, refresh: refreshEvents } = useOverlayEvents({ open, tab, selectTab, onClose: onRequestClose, onSwitchChange: onEventsSwitch })
+
   const hotkeyRef = useRef({ session, setRunFlag, runAction })
   hotkeyRef.current = { session, setRunFlag, runAction }
 
@@ -449,6 +456,7 @@ export function GameEditApp({ open, onRequestClose }: Props) {
   }, [])
 
   const forceRefresh = useCallback(() => {
+    if (isEventsTab(tabRef.current)) refreshEvents()
     catalogReadyRef.current = false
     if (tabNeedsCatalog(tabRef.current)) {
       try {
@@ -459,7 +467,7 @@ export function GameEditApp({ open, onRequestClose }: Props) {
       }
     }
     refresh()
-  }, [refresh])
+  }, [refresh, refreshEvents])
 
   if (!open) return null
 
@@ -539,6 +547,7 @@ export function GameEditApp({ open, onRequestClose }: Props) {
           onActorChange={setActor}
           onActorOwnedLockChange={setActorOwnedLock}
           onActorVitalLockChange={setActorVitalLock}
+          events={eventsSlot}
         />
       </Suspense>
     </GameEditOverlayProviders>

@@ -8,7 +8,7 @@ import { Cheats } from '../runtime/cheats'
 
 const MAP_FETCH_CONCURRENCY = 8
 
-function loadDataJson(file: string): Promise<unknown> {
+export function loadDataJson(file: string): Promise<unknown> {
   return new Promise((resolve) => {
     try {
       const xhr = new XMLHttpRequest()

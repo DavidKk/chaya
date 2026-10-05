@@ -9,6 +9,8 @@ export const TABS = [
   { id: 'var', labelKey: 'edit.var' },
   { id: 'sw', labelKey: 'edit.sw' },
   { id: 'actor', labelKey: 'edit.actor' },
+  { id: 'common', labelKey: 'events.tabCommon' },
+  { id: 'map', labelKey: 'events.tabMap' },
   { id: 'trans', labelKey: 'edit.tabTranslate' },
   { id: 'logs', labelKey: 'edit.tabLogs' },
   { id: 'mcp', labelKey: 'nav.integration' },
@@ -100,6 +102,21 @@ export function editActorHref(actorId: number | null | undefined, pane: ActorPan
   const meta = ACTOR_PANES.find((p) => p.id === pane)
   if (!meta?.segment) return base
   return `${base}/${meta.segment}`
+}
+
+/** `/cheat/common` · `/cheat/common/12` */
+export function editCommonHref(id: number | null | undefined): string {
+  return id != null && id > 0 ? `/cheat/common/${id}` : '/cheat/common'
+}
+
+/** `/cheat/map` · `/cheat/map/3` · `/cheat/map/3/14` */
+export function editMapHref(mapId: number | null | undefined, eventId?: number | null): string {
+  if (mapId == null || mapId <= 0) return '/cheat/map'
+  return eventId != null && eventId > 0 ? `/cheat/map/${mapId}/${eventId}` : `/cheat/map/${mapId}`
+}
+
+export function isEventsTab(tab: TabId): tab is 'common' | 'map' {
+  return tab === 'common' || tab === 'map'
 }
 
 /** 控制台作弊页路径，如 `/cheat/run`；角色默认进 `/cheat/actor` */

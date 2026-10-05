@@ -8,6 +8,7 @@ import { createLogger, registerGameLinkEditHandlers, restorePluginErrors, showPl
 import { installConsoleApi } from './console/console-api'
 import { startPanelHotkeys } from './console/panel-hotkeys'
 import { Cheats } from './runtime/cheats'
+import { disposeMapHistory, installMapHistory } from './session/map-history'
 import { startGameEditDiskWatcher } from './session/persist'
 import { handleRemoteEditMessage, stopRemoteEditBridge } from './session/remote-bridge'
 import { captureGameEditView } from './ui/App'
@@ -27,6 +28,7 @@ const reopenAfterHot = (() => {
 })()
 
 installConsoleApi()
+installMapHistory()
 const unregisterLink = registerGameLinkEditHandlers({
   onMessage: handleRemoteEditMessage,
   onStop: stopRemoteEditBridge,
@@ -63,6 +65,7 @@ function disposeGameEditRuntime(): boolean {
   unmountGameAgentUi()
   unregisterLink()
   stopRemoteEditBridge()
+  disposeMapHistory()
   return wasOpen
 }
 

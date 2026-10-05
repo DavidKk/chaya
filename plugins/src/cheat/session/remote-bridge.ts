@@ -10,7 +10,9 @@ import { applyRunAction, applyRunFlag, applySpeed } from '../runtime/apply-run'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
 import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from './live-events'
+import { buildLiveMapDetail, playerSpot, runMapEvent, runningCommonEvents, setSelfSwitch, teleportPlayer } from './live-map'
 import { buildLiveCatalog, readLiveSession, setItemCount, setPartyGold } from './live-session'
+import { recentMaps } from './map-history'
 
 type SendFn = (msg: GameLinkMessage) => void
 
@@ -118,6 +120,15 @@ export function applyEditCmd(cmd: GameEditCmd): void {
     case 'commonEvent':
       runCommonEventOnMap(cmd.id)
       return
+    case 'selfSwitch':
+      setSelfSwitch(cmd.mapId, cmd.eventId, cmd.letter, cmd.value)
+      return
+    case 'teleport':
+      teleportPlayer(cmd.mapId, cmd.x, cmd.y, cmd.direction, cmd.near)
+      return
+    case 'mapEvent':
+      runMapEvent(cmd.mapId, cmd.eventId)
+      return
     default:
       return
   }
@@ -131,7 +142,18 @@ export function buildStateMsg(): GameEditStateMsg {
   }
   mirror = readLiveSession(mirror)
   const { hotkeys: _hotkeys, hotkeysGlobal: _hotkeysGlobal, ...session } = mirror
-  return { type: 'edit.state', ready: true, session, onMap: isOnMapScene() }
+  const spot = playerSpot()
+  return {
+    type: 'edit.state',
+    ready: true,
+    session,
+    onMap: isOnMapScene(),
+    mapId: spot.mapId,
+    playerX: spot.x,
+    playerY: spot.y,
+    recentMaps: recentMaps(),
+    runningCommon: runningCommonEvents(),
+  }
 }
 
 function pushState() {
@@ -153,6 +175,13 @@ export function handleRemoteEditMessage(msg: GameLinkMessage, send: SendFn) {
     buildLiveCommonEventsData({ force: msg.force })
       .then((data) => sendChunked(send, { type: 'edit.events', data }))
       .catch((err) => send({ type: 'edit.events', data: { ok: false, error: err instanceof Error ? err.message : '读取公共事件失败' } }))
+    return
+  }
+  if (msg.type === 'edit.map.request') {
+    const mapId = msg.mapId
+    buildLiveMapDetail(mapId)
+      .then((data) => sendChunked(send, { type: 'edit.map', mapId, data }))
+      .catch((err) => send({ type: 'edit.map', mapId, data: { ok: false, error: err instanceof Error ? err.message : '读取地图失败' } }))
     return
   }
   if (msg.type === 'edit.subscribe') {

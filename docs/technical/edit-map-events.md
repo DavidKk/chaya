@@ -1,6 +1,6 @@
 # 修改：地图与公共事件技术方案
 
-> 状态：实施中（第 1 期数据层、协议、link 分片已完成，UI 未接入）
+> 状态：实施中（第 1、2 期已完成，edge 授权读盘未接；第 3、4 期未开始）
 > 日期：2026-10-05
 > 需求：[`../edit-map-events.md`](../edit-map-events.md)
 > 关联：[`chaya-ui-style-guide.md`](./chaya-ui-style-guide.md)、[`../capabilities.md`](../capabilities.md)、[`../run-modes.md`](../run-modes.md)
@@ -47,29 +47,35 @@ lib/game/events/                       # 纯函数，无 IO
   build.ts       RawEventSources → CommonEventsData；normalizeCommands；calledBy 引用表      ✅
   effects.ts     summarizeEffects / isRiskyEffects / hasEffects                             ✅
   interpret.ts   interpretCommands → ScriptLine[]；ScriptKey ↔ i18n events.cmd.*            ✅
-  groups.ts      公共事件分组识别（分隔名 → 组标题）                                          ☐ 第 1 期
-  map-index.ts   MapInfos 树、入口（201）、事件类型推断、各图事件名（跨图搜索用）              ☐ 第 2 期
+  commands.ts    normalizeCommands / countCommands / 文本收集                               ✅
+  groups.ts      公共事件分组识别（分隔名 → 组标题）、筛选与内容搜索                         ✅
+  map-index.ts   MapInfos 树、入口（201）、事件类型推断、各图事件名、页条件推算                ✅
   index.ts       barrel                                                                     ✅
 
 services/game/game-edit-events.ts      # local 读盘 + 翻译、按文件 mtime / 大小缓存、mapsFailed ✅
 app/api/game-edit/events/route.server.ts  GET，requireDisk                                  ✅
-app/api/game-edit/map/route.server.ts     GET ?id=，单张地图详情                             ☐ 第 2 期
+app/api/game-edit/map/route.server.ts     GET ?id=，单张地图详情                             ✅
 
-lib/runtime/game-link-protocol.ts      # op commonEvent、ack.error、edit.events(.request)   ✅
-lib/runtime/link-chunks.ts             # 通用分片 / 重组（`link.chunk`），edit.events 已接入 ✅
-lib/runtime/game-edit-sync.ts          # commonEvent 的 ack 期望值                          ✅
+lib/runtime/game-link-protocol.ts      # 事件类 op、ack.error、edit.events / edit.map(.request) ✅
+lib/runtime/link-chunks.ts             # 通用分片 / 重组（`link.chunk`），edit.events / edit.map ✅
+lib/runtime/game-edit-sync.ts          # 事件类 op 的 ack 期望值                            ✅
 plugins/src/cheat/session/live-events.ts  # 局内构建 + runCommonEventOnMap                 ✅
-plugins/src/cheat/session/remote-bridge.ts # 处理 commonEvent 与 edit.events.request        ✅
+plugins/src/cheat/session/remote-bridge.ts # 处理事件类 op 与 edit.events / edit.map 请求    ✅
+plugins/src/cheat/session/live-map.ts     # 单图详情、传送（near）、独立开关、触发地图事件  ✅
+plugins/src/cheat/session/map-history.ts  # 最近去过（Scene_Map.start，localStorage）        ✅
+plugins/src/cheat/ui/useOverlayEvents.ts  # 局内浮层取数与操作                              ✅
 
 components/game-edit/
-  events/EventScript.tsx           解释器渲染（缩进、折叠、链接、原文悬停）                  ☐ 第 1 期
-  events/CommonEventsPane.tsx      列表 + 详情（宽屏分栏 / 窄屏逐层）                        ☐ 第 1 期
-  events/CommonEventDetail.tsx     头部、执行、触发开关、会修改、引用关系                    ☐ 第 1 期
-  events/useEventsData.ts          page 取数（link 优先，回退 API）                          ☐ 第 1 期
-  map/MapPane.tsx 等               地图树、地图信息、事件表、事件详情抽屉                     ☐ 第 2 期
-  tabs.ts / tab-icons.tsx          新增 common、map                                         ☐
+  events/EventScript.tsx           解释器渲染（缩进、折叠、链接、原文悬停）                  ✅
+  events/CommonEventsPane.tsx      列表 + 详情（宽屏分栏 / 窄屏逐层）                        ✅
+  events/CommonEventDetail.tsx     头部、执行、触发开关、会修改、引用关系                    ✅
+  events/useEventsData.ts          page 取数（link 优先，回退 API）                          ✅
+  events/MapPane.tsx               地图树（当前 / 最近置顶）、跨图搜索                       ✅
+  events/MapDetail.tsx             地图信息、传送、事件表、独立开关                          ✅
+  events/MapEventDetail.tsx        事件详情：各页条件、触发、脚本、传送到旁边                ✅
+  tabs.ts / tab-icons.tsx          新增 common、map                                         ✅
 
-lib/i18n/messages/events-types.ts + parts/events.ts   events.* 四语言                       ☐ 第 1 期
+lib/i18n/messages/events-types.ts + parts/events.ts   events.* 四语言                       ✅
 ```
 
 单文件目标 ≤600 行。`GameEditWorkbench.tsx` 已接近上限，新分类只在其中加一个分支，props 收敛为 `events?: EventsSlot`（数据、加载态、执行回调），具体 UI 全在 `events/` 下。
@@ -92,16 +98,18 @@ type RawEventSources = {
 
 ### 4.2 输出 `CommonEventsData`
 
-| 字段          | 说明                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------- |
-| `source`      | `disk`（服务读盘）/ `live`（游戏进程）                                                            |
-| `events`      | 全部非 null 槽位（含空事件，由 UI 默认隐藏）；`name` 为译名，`rawName` 原名                       |
-| `names`       | 按 id 下标的名称数组（开关、变量、物品、角色、地图、公共事件、敌群），已翻译                      |
-| `texts`       | 对话 / 选项原文 → 译文，解释器渲染时查                                                            |
-| `calledBy`    | `公共事件 id → EventRef[]`，来源为公共事件、敌群、地图事件页中的 117                              |
-| `mapsScanned` | 是否提供了地图数据（未扫描时为 `false`）                                                          |
-| `mapsFailed`  | 读取 / 解析失败的地图数；与 `!mapsScanned` 任一成立时 UI 在引用关系处标「可能不完整」             |
-| `switchRefs`  | 开关 id → `EventRef[]`，提示显示数量、确认框列出事件，见 §6.2；第 2 期按同样方式补 `variableRefs` |
+| 字段           | 说明                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------- |
+| `source`       | `disk`（服务读盘）/ `live`（游戏进程）                                                |
+| `events`       | 全部非 null 槽位（含空事件，由 UI 默认隐藏）；`name` 为译名，`rawName` 原名           |
+| `names`        | 按 id 下标的名称数组（开关、变量、物品、角色、地图、公共事件、敌群），已翻译          |
+| `texts`        | 对话 / 选项原文 → 译文，解释器渲染时查                                                |
+| `calledBy`     | `公共事件 id → EventRef[]`，来源为公共事件、敌群、地图事件页中的 117                  |
+| `mapsScanned`  | 是否提供了地图数据（未扫描时为 `false`）                                              |
+| `mapsFailed`   | 读取 / 解析失败的地图数；与 `!mapsScanned` 任一成立时 UI 在引用关系处标「可能不完整」 |
+| `switchRefs`   | 开关 id → `EventRef[]`，提示显示数量、确认框列出事件，见 §6.2                         |
+| `variableRefs` | 变量 id → `EventRef[]`（122、111 变量条件、页条件），地图事件页条件旁显示引用数       |
+| `mapIndex`     | `{ nodes, entrances }`：地图树节点（含事件名，跨图搜索用）与 201 入口汇总，不含指令   |
 
 翻译：local 用 `loadGameTranslateLookup` + `translateWithLookup`（共享缓存 `openSharedCache`）；局内用 ChayaTrans 的 `tName`。只查不补译，不触发网络请求。
 
@@ -123,7 +131,7 @@ type ScriptLine = {
 
 - 101 + 后续 401 合并为一行，说话人取 101 的名字参数（MZ `parameters[4]`，MV 无此参数则不显示）；102 / 402 / 403 / 404、111 / 411 / 412、112 / 413 用 indent 表达层级，组件按 indent 折叠。
 - 121 / 122 / 123 显示名称与编号；范围操作（如 #3–#8）合并一行。
-- 201 产生 `link.kind = 'map'`（地图页上线前组件只显示地图名，不渲染为链接）；117 产生 `link.kind = 'common'`。
+- 201 产生 `link.kind = 'map'`；117 产生 `link.kind = 'common'`；组件均渲染为跳转链接。
 - 355 + 655 合并为脚本块，356（MV）/ 357（MZ）原样显示参数。
 - 未识别指令 → `key: 'other'`、`tone: 'muted'`，`args: { code, params }`（params 为 JSON，截断 120 字）。
 
@@ -136,23 +144,23 @@ type ScriptLine = {
 ```ts
 // GameEditCmdOp 新增
 | { op: 'commonEvent'; id: number }                         // 第 1 期 ✅
-| { op: 'selfSwitch'; mapId: number; eventId: number; letter: 'A'|'B'|'C'|'D'; value: boolean } // 第 2 期
-| { op: 'teleport'; mapId: number; x: number; y: number; direction?: 2|4|6|8; near?: boolean } // 第 2 期
-| { op: 'mapEvent'; eventId: number }                        // 第 2 期，仅当前地图，Cheats.startMapEvent
+| { op: 'selfSwitch'; mapId: number; eventId: number; letter: 'A'|'B'|'C'|'D'; value: boolean } // 第 2 期 ✅
+| { op: 'teleport'; mapId: number; x: number; y: number; direction?: 2|4|6|8; near?: boolean } // 第 2 期 ✅
+| { op: 'mapEvent'; mapId: number; eventId: number }         // 第 2 期 ✅，仅当前地图，插件校验 mapId
 | { op: 'undo' }                                             // 第 3 期
 
 // 消息
 { type: 'edit.events.request' }                 // 控制台 → 游戏
 { type: 'edit.events'; data: CommonEventsData }  // 游戏 → 控制台
-{ type: 'edit.map.request'; mapId }              // 第 2 期
-{ type: 'edit.map'; data: MapDetailData }        // 第 2 期
+{ type: 'edit.map.request'; mapId }              // 第 2 期 ✅
+{ type: 'edit.map'; mapId; data: MapDetailData } // 第 2 期 ✅，失败时 data 为 { ok: false, error }
 ```
 
 - **分片传输（第 1 期必须）**：`edit.events` / `edit.map` 体积可达数 MB，而 link 走 WebRTC DataChannel，单条消息过大会发送失败（现有 `edit.catalog` 也未分片）。通用分片 `lib/runtime/link-chunks.ts`（4 KiB 一片、乱序丢弃、60 秒超时、总量上限，与 `translation-rpc` 同参数）：游戏端 `sendChunked` 发 `link.chunk`，网页端 `WebGameLink` 收齐后按原消息分发，业务代码照常监听 `edit.events`。`edit.map`（第 2 期）同样经它发送；`translation-rpc` 带请求关联与取消，暂不迁移。HTTP API 不受影响。
 - `edit.ack` 增加 `error?: string`，插件抛出的 `Error.message` 原样回传，UI 用 toast 显示。
-- `useGameEditLinkSync.sendCmd` 改为返回 `cmdId`，新增 `onAck(cmdId, cb)`；乐观更新类操作行为不变，事件执行类等待 ack 再提示成功。
+- `useGameEditLinkSync.sendCmd` 改为返回 `cmdId`，新增 `runCmd(op): Promise<void>`（等 ack，超时 `EDIT_CMD_GIVE_UP_MS`，ack error 时 reject）；乐观更新类操作行为不变，事件执行类等待 ack 再提示成功。
 - 触发开关切换复用已有 `{ op: 'sw', id, value }`，不新增 op。
-- `edit.state` 增加 `onMap: boolean`（✅，随每秒状态推送），网页端据此置灰「执行」；ack error 作为兜底（状态同步有延迟）。第 2 期再加 `mapId`、`playerX`、`playerY`、`recentMaps`。
+- `edit.state` 增加 `onMap: boolean`（✅，随每秒状态推送），网页端据此置灰「执行」；ack error 作为兜底（状态同步有延迟）。第 2 期已加 `mapId`、`playerX`、`playerY`、`recentMaps`、`runningCommon`（运行中的公共事件 id）。
 
 ## 6. UI
 
@@ -204,12 +212,12 @@ type ScriptLine = {
 
 ## 9. 分期与状态
 
-| 期  | 内容                                                                                                                                                                | 状态                       |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| 1   | 事件索引、解释器、公共事件页、执行、触发开关切换、link 分片、i18n、测试                                                                                             | 数据层 / 协议完成，UI 待做 |
-| 2   | 地图页、单图详情、传送（入口 / 指定坐标 / near）/ 独立开关 / 触发地图事件 op、最近去过、edge 授权读盘、公共事件内容搜索与「运行中」状态（`$gameMap._commonEvents`） | 未开始                     |
-| 3   | 迷你地图、插件侧撤销栈、批量操作                                                                                                                                    | 未开始                     |
-| 4   | 迷你地图图块 / 截图底图                                                                                                                                             | 未开始                     |
+| 期  | 内容                                                                                                                                                                | 状态                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| 1   | 事件索引、解释器、公共事件页、执行、触发开关切换、link 分片、i18n、测试                                                                                             | 完成                      |
+| 2   | 地图页、单图详情、传送（入口 / 指定坐标 / near）/ 独立开关 / 触发地图事件 op、最近去过、edge 授权读盘、公共事件内容搜索与「运行中」状态（`$gameMap._commonEvents`） | 完成（edge 授权读盘未接） |
+| 3   | 迷你地图、插件侧撤销栈、批量操作                                                                                                                                    | 未开始                    |
+| 4   | 迷你地图图块 / 截图底图                                                                                                                                             | 未开始                    |
 
 ## 10. 风险
 

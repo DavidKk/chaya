@@ -1,14 +1,17 @@
 'use client'
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   type ActorPaneId,
   editActorHref,
+  editCommonHref,
+  editMapHref,
   editTabHref,
   emptySession,
   GameEditWorkbench,
+  isEventsTab,
   loadGameStoredHotkeys,
   loadGlobalHotkeys,
   parseActorIdSegment,
@@ -19,6 +22,8 @@ import {
   type SessionState,
   type TabId,
 } from '@/components/game-edit'
+import type { EventsSlot } from '@/components/game-edit/events/types'
+import { useEventsData } from '@/components/game-edit/events/useEventsData'
 import { pageMainFlush } from '@/components/layoutClasses'
 import { Button, EmptyState } from '@/components/sk'
 import { buildOptimisticHandlers, useGameEditLinkSync } from '@/hooks/useGameEditLinkSync'
@@ -35,6 +40,10 @@ export function GameEditPage() {
   const tab = parseTabId(params.tab)
   const actorId = tab === 'actor' ? parseActorIdSegment(params.pane?.[0]) : null
   const actorPane: ActorPaneId = tab === 'actor' && actorId != null ? (parseActorPaneSegment(params.pane?.[1]) ?? 'actor') : 'actor'
+  const commonId = tab === 'common' ? parseActorIdSegment(params.pane?.[0]) : null
+  const mapId = tab === 'map' ? parseActorIdSegment(params.pane?.[0]) : null
+  const mapEventId = tab === 'map' && mapId != null ? parseActorIdSegment(params.pane?.[1]) : null
+  const events = useEventsData({ enabled: isEventsTab(tab), mapId })
   const filter = searchParams.get('q') ?? ''
   const onlyOwned = parseFlag01(searchParams.get('owned'), false)
   const onlyNamed = parseFlag01(searchParams.get('named'), true)
@@ -82,9 +91,45 @@ export function GameEditPage() {
     setError('')
     setLoading(false)
   }, [])
-  const { linked, connected, sendCmd, requestCatalog } = useGameEditLinkSync(setSession, setLiveError, receiveCatalog)
+  const { linked, connected, scene, sendCmd, runCmd, requestCatalog } = useGameEditLinkSync(setSession, setLiveError, receiveCatalog)
 
   const handlers = useMemo(() => buildOptimisticHandlers(setSession, sendCmd, (id) => catalog?.actors.find((a) => a.id === id)?.name), [sendCmd, catalog])
+
+  const { reloadMap } = events
+  /** Map state (player position, active pages) changes after a transfer lands */
+  const lastSceneMap = useRef(scene.mapId)
+  useEffect(() => {
+    if (lastSceneMap.current === scene.mapId) return
+    lastSceneMap.current = scene.mapId
+    if (tab === 'map' && mapId != null) reloadMap()
+  }, [scene.mapId, tab, mapId, reloadMap])
+
+  const eventsQuery = searchParams.toString()
+  const eventsSlot: EventsSlot = {
+    data: events.data,
+    loading: events.loading,
+    error: events.error,
+    unavailable: events.unavailable,
+    live: linked,
+    canAct: linked,
+    onMap: scene.onMap,
+    runningCommon: scene.runningCommon,
+    commonId,
+    onSelectCommon: (id) => router.push(hrefWithQuery(editCommonHref(id), eventsQuery)),
+    onAct: async (op) => {
+      await runCmd(op)
+      if (op.op === 'selfSwitch' || op.op === 'mapEvent') reloadMap()
+    },
+    onSwitchChange: handlers.setSwitch,
+    mapId,
+    eventId: mapEventId,
+    onSelectMap: (nextMap, nextEvent) => router.push(hrefWithQuery(editMapHref(nextMap, nextEvent), eventsQuery)),
+    mapDetail: events.mapDetail,
+    mapLoading: events.mapLoading,
+    mapError: events.mapError,
+    player: linked && scene.mapId > 0 ? { mapId: scene.mapId, x: scene.playerX, y: scene.playerY } : null,
+    recentMaps: scene.recentMaps,
+  }
 
   const refresh = useCallback(async () => {
     if (connected) {
@@ -162,7 +207,10 @@ export function GameEditPage() {
         error={displayError}
         catalog={catalog}
         session={session}
-        onRefresh={() => void refresh()}
+        onRefresh={() => {
+          void refresh()
+          if (isEventsTab(tab)) events.refresh()
+        }}
         onGoldChange={handlers.setGold}
         onGoldLockChange={handlers.setGoldLock}
         onWalkRateChange={handlers.setWalkRate}
@@ -195,6 +243,7 @@ export function GameEditPage() {
         onActorVitalLockChange={handlers.setActorVitalLock}
         surface="page"
         linked={linked}
+        events={eventsSlot}
       />
     </div>
   )

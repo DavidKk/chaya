@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { buildCommonEventsData, type CommonEventsData } from '@/lib/game/events'
+import { buildCommonEventsData, buildMapDetail, type CommonEventsData, type MapDetailData } from '@/lib/game/events'
 import { getResolvedFromConfig } from '@/services/game'
 import { loadGameTranslateLookup, translateWithLookup } from '@/services/translate/game-lookup'
 import { openSharedCache } from '@/services/translate/shared-cache'
@@ -42,8 +42,11 @@ function mapFileName(id: number) {
   return `Map${String(id).padStart(3, '0')}.json`
 }
 
-/** Common events, call references (all maps scanned) and translated names of the bound game, for the web Edit › Common events page */
-export function loadCommonEventsData(): CommonEventsData | { ok: false; error: string } {
+type Failure = { ok: false; error: string }
+type GameData = { dataDir: string; tr: (text: string) => string; close: () => void }
+
+/** Bound game's data dir plus a translation lookup (no network); call `close` when done */
+function openGameData(): GameData | Failure {
   const resolved = getResolvedFromConfig()
   if (!resolved.ok) return { ok: false, error: resolved.error || '尚未绑定游戏' }
   const dataDir = path.join(resolved.contentRoot, 'data')
@@ -60,7 +63,14 @@ export function loadCommonEventsData(): CommonEventsData | { ok: false; error: s
     const zh = translateWithLookup(lookup, text, { extraGet: shared ? (src) => shared!.get(src) : undefined })
     return zh || text
   }
+  return { dataDir, tr, close: () => shared?.close() }
+}
 
+/** Common events, call references (all maps scanned) and translated names of the bound game, for the web Edit › Common events page */
+export function loadCommonEventsData(): CommonEventsData | Failure {
+  const game = openGameData()
+  if ('ok' in game) return game
+  const { dataDir, tr } = game
   try {
     const mapInfos = readArray(dataDir, 'MapInfos.json')
     const maps: Array<{ id: number; data: unknown }> = []
@@ -89,6 +99,20 @@ export function loadCommonEventsData(): CommonEventsData | { ok: false; error: s
       'disk'
     )
   } finally {
-    shared?.close()
+    game.close()
+  }
+}
+
+/** One map with event pages and command lists, for the web Edit › Maps page */
+export function loadMapDetailData(mapId: number): MapDetailData | Failure {
+  if (!Number.isInteger(mapId) || mapId <= 0) return { ok: false, error: '地图编号无效' }
+  const game = openGameData()
+  if ('ok' in game) return game
+  try {
+    const raw = readJson(path.join(game.dataDir, mapFileName(mapId)))
+    if (!raw) return { ok: false, error: `无法读取 ${mapFileName(mapId)}` }
+    return buildMapDetail(mapId, raw, readArray(game.dataDir, 'MapInfos.json'), game.tr, 'disk')
+  } finally {
+    game.close()
   }
 }

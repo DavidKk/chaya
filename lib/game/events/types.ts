@@ -1,5 +1,7 @@
 /** RPG Maker MV / MZ event data shared by the disk reader, the web console and the game plugin. */
 
+import type { MapIndex } from './map-index'
+
 export type EventCommand = { code: number; indent: number; parameters: unknown[] }
 
 /** 0 none (call only) · 1 autorun · 2 parallel */
@@ -57,6 +59,10 @@ export type CommonEventsData = {
   calledBy: Record<number, EventRef[]>
   /** Switch id → locations that use it (map event page conditions, common event triggers, conditional branches, switch operations) */
   switchRefs: Record<number, EventRef[]>
+  /** Variable id → locations that use it (map event page conditions, conditional branches, variable operations) */
+  variableRefs: Record<number, EventRef[]>
+  /** Map tree, per-map event names and transfer destinations; no command lists */
+  mapIndex: MapIndex
   /** Whether map data was provided (otherwise only common event and troop references) */
   mapsScanned: boolean
   /** Maps that failed to load or parse; references may be incomplete when > 0 */

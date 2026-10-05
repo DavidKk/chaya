@@ -51,6 +51,12 @@ export function fieldsForEditCmd(cmd: GameEditCmd): string[] {
       return [`action:${cmd.id}`]
     case 'commonEvent':
       return [`action:commonEvent:${cmd.id}`]
+    case 'mapEvent':
+      return [`action:mapEvent:${cmd.eventId}`]
+    case 'teleport':
+      return [`action:teleport`]
+    case 'selfSwitch':
+      return [`selfSwitch:${cmd.mapId}:${cmd.eventId}:${cmd.letter}`]
     case 'walkRate':
       return ['walkRate']
     case 'runRate':
@@ -96,7 +102,11 @@ export function expectForEditCmd(cmd: GameEditCmd): unknown {
       return cmd.patch
     case 'runAction':
     case 'commonEvent':
+    case 'mapEvent':
+    case 'teleport':
       return true
+    case 'selfSwitch':
+      return cmd.value
     default:
       return undefined
   }

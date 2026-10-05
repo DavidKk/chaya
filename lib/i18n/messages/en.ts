@@ -1,5 +1,6 @@
 import { downloadsEn } from '@/lib/i18n/messages/parts/downloads'
 import { editEn } from '@/lib/i18n/messages/parts/edit.en'
+import { eventsEn } from '@/lib/i18n/messages/parts/events.en'
 import { integrationEn } from '@/lib/i18n/messages/parts/integration'
 import { mcpGatewayEn } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { translateEn } from '@/lib/i18n/messages/parts/translate.en'
@@ -282,4 +283,5 @@ export const en: MessageTree = {
   ...integrationEn,
   ...mcpGatewayEn,
   ...downloadsEn,
+  ...eventsEn,
 }

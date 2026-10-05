@@ -1,7 +1,7 @@
 /** Web ↔ 游戏 DataChannel 消息（JSON） */
 
 import type { ActorDraft, ActorVitalLockKind, ItemKind, RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
-import type { CommonEventsData } from '@/lib/game/events'
+import type { CommonEventsData, MapDetailData, SelfSwitchLetter } from '@/lib/game/events'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import type { LinkChunkPacket } from '@/lib/runtime/link-chunks'
 import type { TranslationPacket } from '@/lib/runtime/translation-rpc'
@@ -44,6 +44,11 @@ export type GameEditCmdOp =
   | { op: 'actorVitalLock'; actorId: number; kind: ActorVitalLockKind; on: boolean; value: number }
   | { op: 'actorOwnedLock'; actorId: number; kind: 'skills' | 'states'; entryId: number; on: boolean; owned: boolean }
   | { op: 'commonEvent'; id: number }
+  | { op: 'selfSwitch'; mapId: number; eventId: number; letter: SelfSwitchLetter; value: boolean }
+  /** `near`: land on the first passable neighbour when the target tile is blocked */
+  | { op: 'teleport'; mapId: number; x: number; y: number; direction?: 2 | 4 | 6 | 8; near?: boolean }
+  /** Current map only; the game rejects it when `mapId` is not the current map */
+  | { op: 'mapEvent'; mapId: number; eventId: number }
 
 /** Web → 游戏：改值指令（cmdId 用于 ack / 去重重试） */
 export type GameEditCmd = { type: 'edit.cmd'; cmdId: string } & GameEditCmdOp
@@ -66,12 +71,23 @@ export type GameEditStateMsg = {
   error?: string
   /** On the map scene (common events can only run on the map) */
   onMap?: boolean
+  /** Current map and player tile; 0 when no map is loaded */
+  mapId?: number
+  playerX?: number
+  playerY?: number
+  /** Recently visited map ids, newest first */
+  recentMaps?: number[]
+  /** Common events running in parallel / autorun on the current map */
+  runningCommon?: number[]
 }
 
 export type GameEditCatalogMessage = { type: 'edit.catalog'; catalog: GameEditCatalog } | { type: 'edit.catalog.request' }
 
 /** Common events and call references: large, requested on demand rather than pushed; the game sends it chunked via `link.chunk` */
 export type GameEditEventsMessage = { type: 'edit.events'; data: CommonEventsData | { ok: false; error: string } } | { type: 'edit.events.request'; force?: boolean }
+
+/** One map's events with pages, requested when the map page opens it; sent chunked */
+export type GameEditMapMessage = { type: 'edit.map'; mapId: number; data: MapDetailData | { ok: false; error: string } } | { type: 'edit.map.request'; mapId: number }
 
 /** 游戏内插件日志（id 为游戏进程内自增，重启游戏会从头计） */
 export type GameLinkLogEntry = { id: number; ts: number; level: string; source: string; message: string; meta?: unknown }
@@ -84,6 +100,7 @@ export type GameLinkMessage =
   | GameLinkLogBatch
   | GameEditCatalogMessage
   | GameEditEventsMessage
+  | GameEditMapMessage
   | LinkChunkPacket
   | GameLinkHello
   | GameLinkQuit

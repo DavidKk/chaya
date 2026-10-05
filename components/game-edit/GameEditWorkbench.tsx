@@ -17,13 +17,14 @@ import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import type { CatalogEntry, GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { cn } from '@/lib/utils'
 
+import type { EventsSlot } from './events/types'
 import { footPrimaryKey } from './foot-copy'
 import { GameEditMainNav } from './GameEditMainNav'
 import { GameEditPaneSkeleton } from './GameEditPaneSkeleton'
 import { GameEditSearch } from './GameEditSearch'
 import { GameEditTabNav } from './GameEditTabNav'
 import { LockEndAction, lockIconBtn } from './lock-ui'
-import { type ActorPaneId, isEditTab, type TabId } from './tabs'
+import { type ActorPaneId, isEditTab, isEventsTab, type TabId } from './tabs'
 import {
   type ActorDraft,
   type ActorVitalLockKind,
@@ -48,6 +49,8 @@ const GameEditHotkeysPane = lazy(() => import('./GameEditHotkeysPane').then((m) 
 const GameEditTransPane = lazy(() => import('./GameEditTransPane').then((m) => ({ default: m.GameEditTransPane })))
 const GameEditLogsPane = lazy(() => import('./GameEditLogsPane').then((m) => ({ default: m.GameEditLogsPane })))
 const GameEditMcpPane = lazy(() => import('./GameEditMcpPane').then((m) => ({ default: m.GameEditMcpPane })))
+const CommonEventsPane = lazy(() => import('./events/CommonEventsPane').then((m) => ({ default: m.CommonEventsPane })))
+const MapPane = lazy(() => import('./events/MapPane').then((m) => ({ default: m.MapPane })))
 const GameEditAgentSettingsPane = lazy(() => import('@/components/settings/GameEditAgentSettingsPane').then((m) => ({ default: m.GameEditAgentSettingsPane })))
 
 function TabSuspense({ tab, children, translateSection, translateTab }: { tab: TabId; children: ReactNode; translateSection?: 'run' | 'cache'; translateTab?: 'play' | 'seed' }) {
@@ -112,6 +115,8 @@ export type GameEditWorkbenchProps = {
   linked?: boolean
   className?: string
   agentRequest?: GameAgentRequest
+  /** 公共事件 / 地图 data and actions */
+  events?: EventsSlot
 }
 
 function isRowLocked(row: TableRow, locks: SessionState['locks']) {
@@ -211,6 +216,7 @@ export function GameEditWorkbench({
   linked = false,
   className,
   agentRequest,
+  events,
 }: GameEditWorkbenchProps) {
   const t = useT()
   const q = filter.trim().toLowerCase()
@@ -300,6 +306,7 @@ export function GameEditWorkbench({
   const goldLocked = GOLD_LOCK_KEY in session.locks
   const actorCount = catalog && tab === 'actor' ? catalog.actors.length : 0
   const showEditNav = isEditTab(tab)
+  const eventsTab = isEventsTab(tab)
   const refreshButton = (
     <Button
       variant="ghost"
@@ -337,7 +344,7 @@ export function GameEditWorkbench({
         <div className={panelHead}>
           <GameEditTabNav tab={tab} setTab={setTab} surface={surface} />
           <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-8 flex-1 shrink justify-end overflow-hidden')}>
-            {showTableFilters ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
+            {showTableFilters || (eventsTab && events?.data?.events.length) ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
             <ScrollArea
               indicator="horizontal"
               reserveGutter={false}
@@ -480,6 +487,14 @@ export function GameEditWorkbench({
           <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
             <GameEditAgentSettingsPane request={agentRequest} />
           </Suspense>
+        ) : eventsTab ? (
+          !events ? (
+            <EmptyState title={t('events.needLink')} message={t('events.needLinkMsg')} />
+          ) : (
+            <TabSuspense tab={tab}>
+              {tab === 'common' ? <CommonEventsPane slot={events} filter={filter} switches={session.switches} /> : <MapPane slot={events} filter={filter} session={session} />}
+            </TabSuspense>
+          )
         ) : error ? (
           <EmptyState title={t('edit.catalogFailTitle')} message={error} hint={t('edit.catalogFailHint')} />
         ) : loading && !catalog ? (
@@ -643,7 +658,7 @@ export function GameEditWorkbench({
         <div className={panelFoot}>
           <span>
             {t(footPrimaryKey(surface, tab, linked))}
-            {catalog && tab !== 'run' && tab !== 'hotkeys' && tab !== 'logs' ? ` · ${t('edit.itemsCount', { count: catalog.items.length })}` : ''}
+            {catalog && tab !== 'run' && tab !== 'hotkeys' && tab !== 'logs' && !eventsTab ? ` · ${t('edit.itemsCount', { count: catalog.items.length })}` : ''}
           </span>
           <span>
             {surface === 'page' && linked ? t('edit.synced') : ''}
@@ -653,11 +668,13 @@ export function GameEditWorkbench({
                 ? t('edit.footSwitch')
                 : tab === 'logs'
                   ? t('edit.footSession')
-                  : tab === 'actor'
-                    ? t('edit.actorsCount', { count: actorCount })
-                    : truncated
-                      ? t('edit.truncated', { shown: visible.length, total: rows.length })
-                      : String(visible.length)}
+                  : eventsTab
+                    ? t('events.count', { count: events?.data?.events.length ?? 0 })
+                    : tab === 'actor'
+                      ? t('edit.actorsCount', { count: actorCount })
+                      : truncated
+                        ? t('edit.truncated', { shown: visible.length, total: rows.length })
+                        : String(visible.length)}
           </span>
         </div>
       ) : null}

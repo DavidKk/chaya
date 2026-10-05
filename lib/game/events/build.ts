@@ -1,4 +1,8 @@
+import { collectTexts, countCommands, normalizeCommands, translatedTexts } from './commands'
+import { buildMapIndex, collectEntrances, type MapDetailData, type MapEntrance, type MapLiveState, normalizeMapEvents } from './map-index'
 import type { CommonEventInfo, CommonEventsData, CommonEventTrigger, EventCommand, EventNames, EventRef } from './types'
+
+export { countCommands, normalizeCommands } from './commands'
 
 /** Raw data/*.json from disk or game memory; null when unavailable */
 export type RawEventSources = {
@@ -21,17 +25,6 @@ type Translate = (text: string) => string
 const asRecord = (value: unknown): Record<string, unknown> | null => (value && typeof value === 'object' ? (value as Record<string, unknown>) : null)
 const num = (value: unknown) => Math.floor(Number(value) || 0)
 
-export function normalizeCommands(list: unknown): EventCommand[] {
-  if (!Array.isArray(list)) return []
-  const out: EventCommand[] = []
-  for (const raw of list) {
-    const rec = asRecord(raw)
-    if (!rec) continue
-    out.push({ code: num(rec.code), indent: num(rec.indent), parameters: Array.isArray(rec.parameters) ? rec.parameters : [] })
-  }
-  return out
-}
-
 function namesFromDb(rows: unknown[] | null, tr: Translate): string[] {
   const out: string[] = []
   if (!rows) return out
@@ -52,18 +45,6 @@ function namesFromList(list: unknown[] | undefined, tr: Translate): string[] {
   return out
 }
 
-/** Dialogue, scrolling text, choices and MZ speaker names to look up translations for */
-function collectTexts(list: readonly EventCommand[], into: Set<string>) {
-  for (const cmd of list) {
-    const p = cmd.parameters
-    if ((cmd.code === 401 || cmd.code === 405) && typeof p[0] === 'string') into.add(p[0])
-    else if (cmd.code === 101 && typeof p[4] === 'string' && p[4]) into.add(p[4])
-    else if (cmd.code === 102 && Array.isArray(p[0])) {
-      for (const choice of p[0]) if (typeof choice === 'string') into.add(choice)
-    } else if (cmd.code === 402 && typeof p[1] === 'string') into.add(p[1])
-  }
-}
-
 function addCalls(calledBy: Record<number, EventRef[]>, list: readonly EventCommand[], ref: EventRef) {
   const seen = new Set<number>()
   for (const cmd of list) {
@@ -81,31 +62,36 @@ function refKey(ref: EventRef) {
   return `${ref.kind}:${ref.id}:${ref.eventId ?? ''}:${ref.page ?? ''}`
 }
 
-/** Record each switch at most once per location */
-function addSwitchRef(refs: Record<number, EventRef[]>, seen: Set<string>, switchId: number, ref: EventRef) {
-  if (switchId <= 0) return
-  const key = `${switchId}|${refKey(ref)}`
-  if (seen.has(key)) return
-  seen.add(key)
-  ;(refs[switchId] ??= []).push(ref)
-}
+/** Switch / variable id → locations; each id recorded at most once per location */
+class RefTable {
+  readonly refs: Record<number, EventRef[]> = {}
+  private seen = new Set<string>()
 
-function addListSwitchRefs(refs: Record<number, EventRef[]>, seen: Set<string>, list: readonly EventCommand[], ref: EventRef) {
-  for (const cmd of list) {
-    const p = cmd.parameters
-    if (cmd.code === 111 && num(p[0]) === 0) addSwitchRef(refs, seen, num(p[1]), ref)
-    else if (cmd.code === 121) {
-      const start = num(p[0])
-      const end = Math.min(num(p[1]), start + MAX_RANGE_REFS - 1)
-      for (let id = start; id <= end; id++) addSwitchRef(refs, seen, id, ref)
-    }
+  add(id: number, ref: EventRef) {
+    if (id <= 0) return
+    const key = `${id}|${refKey(ref)}`
+    if (this.seen.has(key)) return
+    this.seen.add(key)
+    ;(this.refs[id] ??= []).push(ref)
+  }
+
+  addRange(start: unknown, end: unknown, ref: EventRef) {
+    const from = num(start)
+    const to = Math.min(num(end), from + MAX_RANGE_REFS - 1)
+    for (let id = from; id <= to; id++) this.add(id, ref)
   }
 }
 
-export function countCommands(list: readonly EventCommand[]): number {
-  let n = 0
-  for (const cmd of list) if (cmd.code !== 0) n++
-  return n
+function addListRefs(switches: RefTable, variables: RefTable, list: readonly EventCommand[], ref: EventRef) {
+  for (const cmd of list) {
+    const p = cmd.parameters
+    if (cmd.code === 111 && num(p[0]) === 0) switches.add(num(p[1]), ref)
+    else if (cmd.code === 111 && num(p[0]) === 1) {
+      variables.add(num(p[1]), ref)
+      if (num(p[2]) === 1) variables.add(num(p[3]), ref)
+    } else if (cmd.code === 121) switches.addRange(p[0], p[1], ref)
+    else if (cmd.code === 122) variables.addRange(p[0], p[1], ref)
+  }
 }
 
 type RawPage = { list: EventCommand[]; conditions: Record<string, unknown> | null }
@@ -131,8 +117,9 @@ export function buildCommonEventsData(raw: RawEventSources, tr: Translate, sourc
   const events: CommonEventInfo[] = []
   const textSources = new Set<string>()
   const calledBy: Record<number, EventRef[]> = {}
-  const switchRefs: Record<number, EventRef[]> = {}
-  const switchSeen = new Set<string>()
+  const switches = new RefTable()
+  const variables = new RefTable()
+  const entrances: Record<number, MapEntrance[]> = {}
   for (let id = 1; id < (raw.commonEvents?.length ?? 0); id++) {
     const rec = asRecord(raw.commonEvents![id])
     if (!rec) continue
@@ -152,15 +139,16 @@ export function buildCommonEventsData(raw: RawEventSources, tr: Translate, sourc
     collectTexts(list, textSources)
     const ref: EventRef = { kind: 'common', id, name: names.commonEvents[id] || '' }
     addCalls(calledBy, list, ref)
-    if (info.trigger !== 0) addSwitchRef(switchRefs, switchSeen, info.switchId, ref)
-    addListSwitchRefs(switchRefs, switchSeen, list, ref)
+    if (info.trigger !== 0) switches.add(info.switchId, ref)
+    addListRefs(switches, variables, list, ref)
+    collectEntrances(entrances, list, ref)
   }
 
   for (let id = 1; id < (raw.troops?.length ?? 0); id++) {
     pagesOf(raw.troops![id]).forEach(({ list }, index) => {
       const ref: EventRef = { kind: 'troop', id, name: names.troops[id] || '', page: index + 1 }
       addCalls(calledBy, list, ref)
-      addListSwitchRefs(switchRefs, switchSeen, list, ref)
+      addListRefs(switches, variables, list, ref)
     })
   }
 
@@ -175,18 +163,48 @@ export function buildCommonEventsData(raw: RawEventSources, tr: Translate, sourc
       pagesOf(rec).forEach(({ list, conditions }, index) => {
         const ref: EventRef = { kind: 'map', id: map.id, name: names.maps[map.id] || '', eventId: num(rec.id), eventName: translated, page: index + 1 }
         addCalls(calledBy, list, ref)
-        if (conditions?.switch1Valid) addSwitchRef(switchRefs, switchSeen, num(conditions.switch1Id), ref)
-        if (conditions?.switch2Valid) addSwitchRef(switchRefs, switchSeen, num(conditions.switch2Id), ref)
-        addListSwitchRefs(switchRefs, switchSeen, list, ref)
+        if (conditions?.switch1Valid) switches.add(num(conditions.switch1Id), ref)
+        if (conditions?.switch2Valid) switches.add(num(conditions.switch2Id), ref)
+        if (conditions?.variableValid) variables.add(num(conditions.variableId), ref)
+        addListRefs(switches, variables, list, ref)
+        collectEntrances(entrances, list, ref)
       })
     }
   }
 
-  const texts: Record<string, string> = {}
-  for (const src of textSources) {
-    const zh = tr(src)
-    if (zh && zh !== src) texts[src] = zh
+  return {
+    ok: true,
+    source,
+    events,
+    names,
+    texts: translatedTexts(textSources, tr),
+    calledBy,
+    switchRefs: switches.refs,
+    variableRefs: variables.refs,
+    mapIndex: buildMapIndex(raw.mapInfos, raw.maps, names.maps, tr, entrances),
+    mapsScanned: raw.maps != null,
+    mapsFailed: raw.mapsFailed ?? 0,
   }
+}
 
-  return { ok: true, source, events, names, texts, calledBy, switchRefs, mapsScanned: raw.maps != null, mapsFailed: raw.mapsFailed ?? 0 }
+/** One `MapXXX.json` → events with pages and command lists (loaded on demand) */
+export function buildMapDetail(mapId: number, rawMap: unknown, mapInfos: unknown[] | null, tr: Translate, source: MapDetailData['source'], live?: MapLiveState): MapDetailData {
+  const rec = asRecord(rawMap)
+  const rawName = String(asRecord(mapInfos?.[mapId])?.name ?? '').trim()
+  const displayName = String(rec?.displayName ?? '').trim()
+  const events = normalizeMapEvents(rawMap, tr)
+  const textSources = new Set<string>()
+  for (const ev of events) for (const page of ev.pages) collectTexts(page.list, textSources)
+  return {
+    ok: true,
+    source,
+    mapId,
+    name: rawName ? tr(rawName) : '',
+    displayName: displayName ? tr(displayName) : '',
+    width: num(rec?.width),
+    height: num(rec?.height),
+    events,
+    texts: translatedTexts(textSources, tr),
+    ...(live ? { live } : {}),
+  }
 }
