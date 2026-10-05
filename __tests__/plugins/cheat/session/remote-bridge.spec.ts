@@ -42,9 +42,10 @@ jest.mock('@/plugins/src/cheat/runtime/apply-run', () => ({
   applyRunFlag: jest.fn(),
   applyRunAction: jest.fn(),
   applySpeed: jest.fn(),
+  applyGameSpeed: jest.fn(),
 }))
 
-import { applyRunAction, applyRunFlag, applySpeed } from '@/plugins/src/cheat/runtime/apply-run'
+import { applyGameSpeed, applyRunAction, applyRunFlag, applySpeed } from '@/plugins/src/cheat/runtime/apply-run'
 import { applyEditCmd, handleRemoteEditMessage, stopRemoteEditBridge, syncRemoteMirror } from '@/plugins/src/cheat/session/remote-bridge'
 
 describe('remote-bridge', () => {
@@ -88,6 +89,17 @@ describe('remote-bridge', () => {
 
     applyEditCmd({ type: 'edit.cmd', op: 'expRate', value: 1.5, cmdId: '7' } as never)
     expect(setExpRate).toHaveBeenCalledWith(1.5)
+  })
+
+  it('moveRate sets walk and run together; gameSpeed goes to boost', () => {
+    applyEditCmd({ type: 'edit.cmd', op: 'moveRate', value: 2.5, cmdId: 'm1' } as never)
+    expect(applySpeed).toHaveBeenCalledWith(2.5, 2.5)
+
+    applyEditCmd({ type: 'edit.cmd', op: 'walkRate', value: 3, cmdId: 'm2' } as never)
+    expect(applySpeed).toHaveBeenLastCalledWith(3, 2.5)
+
+    applyEditCmd({ type: 'edit.cmd', op: 'gameSpeed', value: 2, cmdId: 'm3' } as never)
+    expect(applyGameSpeed).toHaveBeenCalledWith(2)
   })
 
   it('same cmdId runs side effects once but still acks', () => {

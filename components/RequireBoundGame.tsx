@@ -17,6 +17,7 @@ type GatePhase = 'loading' | 'cloud' | 'need-game' | 'ready'
 type StatusLite = {
   ready?: boolean
   canUseDisk?: boolean
+  remote?: boolean
   library?: unknown[]
 }
 
@@ -24,16 +25,18 @@ type StatusLite = {
  * 修改 / 翻译：当前游戏已绑定且连接成功才展示功能，否则展示「选择游戏」。
  * - 库为空：直接打开系统选择器并绑定（与游戏库「选择游戏」相同）
  * - 库有条目但未选中：跳转游戏库从左侧点选
+ * - `allowLocalOffline`：本机服务 + 本机游戏时不要求游戏在运行（走服务端磁盘接口）
  * 日志页不经此门闸。
  * `loadingFallback`：状态拉取中展示正常数据骨架（勿用居中按钮条）。
  */
-export function RequireBoundGame({ children, loadingFallback }: { children: ReactNode; loadingFallback?: ReactNode }) {
+export function RequireBoundGame({ children, loadingFallback, allowLocalOffline = false }: { children: ReactNode; loadingFallback?: ReactNode; allowLocalOffline?: boolean }) {
   const t = useT()
   const router = useRouter()
   const gameLink = useGameLinkContext()
   const notify = useNotification()
   const [phase, setPhase] = useState<GatePhase>('loading')
   const [libraryEmpty, setLibraryEmpty] = useState(true)
+  const [remote, setRemote] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const refreshPhase = useCallback(async () => {
@@ -44,6 +47,7 @@ export function RequireBoundGame({ children, loadingFallback }: { children: Reac
       return
     }
     setLibraryEmpty(!Array.isArray(data.library) || data.library.length === 0)
+    setRemote(data.remote === true)
     setPhase(data.ready ? 'ready' : 'need-game')
   }, [])
 
@@ -59,6 +63,7 @@ export function RequireBoundGame({ children, loadingFallback }: { children: Reac
           return
         }
         setLibraryEmpty(!Array.isArray(data.library) || data.library.length === 0)
+        setRemote(data.remote === true)
         setPhase(data.ready ? 'ready' : 'need-game')
       } catch {
         if (!cancelled) setPhase('need-game')
@@ -130,6 +135,7 @@ export function RequireBoundGame({ children, loadingFallback }: { children: Reac
 
   const hasGame = phase === 'ready' || (phase === 'cloud' && !!gameLink.roomId)
   if (hasGame && gameLink.connected) return children
+  if (allowLocalOffline && phase === 'ready' && !remote) return children
 
   if (phase === 'cloud') {
     return (

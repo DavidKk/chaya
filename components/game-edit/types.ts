@@ -80,6 +80,8 @@ export type SessionState = {
   actors: Record<number, ActorDraft>
   walkRate: number
   runRate: number
+  /** Whole-game update speed; 1 = normal */
+  gameSpeed: number
   fullscreen: boolean
   alwaysDash: boolean
   god: boolean
@@ -188,6 +190,7 @@ export function emptySession(): SessionState {
     actors: {},
     walkRate: 1,
     runRate: 1,
+    gameSpeed: 1,
     fullscreen: false,
     alwaysDash: false,
     god: false,

@@ -18,6 +18,8 @@ export const EDIT_OPS = [
   'runFlag',
   'walkRate',
   'runRate',
+  'moveRate',
+  'gameSpeed',
   'expRate',
   'actor',
   'actorVitalLock',
@@ -98,8 +100,11 @@ export function parseEditOp(args: Args): GameEditCmdOp {
       return { op, key: oneOf<RunFlagKey>(args, 'key', RUN_FLAG_KEYS), value: bool(args, 'value') }
     case 'walkRate':
     case 'runRate':
+    case 'moveRate':
     case 'expRate':
       return { op, value: num(args, 'value') }
+    case 'gameSpeed':
+      return { op, value: Math.min(5, Math.max(1, num(args, 'value'))) }
     case 'actor':
       return { op, id: int(args, 'id'), patch: actorPatch(args.patch) }
     case 'actorVitalLock':

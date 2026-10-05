@@ -6,7 +6,7 @@ import { fieldsForEditCmd } from '@/lib/runtime/game-edit-sync'
 import type { GameEditCmd, GameEditStateMsg, GameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import { sendChunked } from '@/lib/runtime/link-chunks'
 
-import { applyRunAction, applyRunFlag, applySpeed } from '../runtime/apply-run'
+import { applyGameSpeed, applyRunAction, applyRunFlag, applySpeed } from '../runtime/apply-run'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
 import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from './live-events'
@@ -84,6 +84,14 @@ export function applyEditCmd(cmd: GameEditCmd): void {
     case 'runRate':
       applySpeed(mirror.walkRate, cmd.value)
       mirror = { ...mirror, runRate: cmd.value }
+      return
+    case 'moveRate':
+      applySpeed(cmd.value, cmd.value)
+      mirror = { ...mirror, walkRate: cmd.value, runRate: cmd.value }
+      return
+    case 'gameSpeed':
+      applyGameSpeed(cmd.value)
+      mirror = { ...mirror, gameSpeed: cmd.value }
       return
     case 'expRate':
       RunCheats.setExpRate(cmd.value)

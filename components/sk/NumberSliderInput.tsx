@@ -214,6 +214,7 @@ export function NumberSliderInput({ value, onValueChange, min, max, step = 1, di
         value={value}
         min={min}
         max={max}
+        step={safeStep}
         disabled={disabled}
         onValueChange={commit}
         onBlur={(e) => {

@@ -34,7 +34,7 @@ afterEach(() => {
 it('saves local settings, translates directly and preserves its library across restarts without a Chaya server', async () => {
   const saved = await call('/api/translate', { mode: 'play-settings', contentRoot: root, settings: { mode: 'realtime', model: 'mini-test', timeoutMs: 5000 } })
   expect(saved.status).toBe(200)
-  const result = await runtime.translate(['こんにちは'], { interactive: true })
+  const result = await runtime.translate(['こんにちは'], { interactive: true, engines: ['ollama'] })
   expect(result[0].zh).toBe('你好')
   expect(engineFetch).toHaveBeenCalledWith('http://127.0.0.1:11434/api/chat', expect.objectContaining({ body: expect.stringContaining('mini-test') }))
   expect(fs.readFileSync(path.join(root, gameContentRelPath('cacheNdjson')), 'utf8')).toContain('你好')
@@ -66,7 +66,7 @@ it('does not store an unchanged or partially untranslated model response', async
 })
 
 it('uses enabled platforms for dialogue but always benchmarks the local model', async () => {
-  await call('/api/translate', { mode: 'switches', switches: { ollama: false, bing: false, google: true }, order: ['google', 'bing', 'ollama'] })
+  await call('/api/translate', { mode: 'switches', switches: { bing: false, google: true }, order: ['google', 'bing'] })
   jest.mocked(engineFetch).mockResolvedValue(new Response(JSON.stringify([[['你好', 'こんにちは']]])))
   expect((await runtime.translate(['こんにちは'], { interactive: true, remote: false }))[0]).toMatchObject({ zh: '你好', engine: 'live:google' })
   jest.mocked(engineFetch).mockResolvedValue(new Response(JSON.stringify({ message: { content: '前面的森林有魔物，请在天黑前回村。' } })))
@@ -79,8 +79,8 @@ it('falls back to local inference when Edge has no shared library and preserves 
   jest.mocked(chayaFetch).mockResolvedValue(new Response(JSON.stringify({ available: false, items: [] })))
   jest.mocked(engineFetch).mockResolvedValue(new Response(JSON.stringify({ message: { content: '前往村庄' } })))
   const src = '\\C[2]村へ行くif(s[1])'
-  expect((await runtime.translate([src], { interactive: true }))[0].zh).toBe('\\C[2]前往村庄if(s[1])')
-  expect(JSON.parse(String(jest.mocked(engineFetch).mock.calls[0][1]?.body)).messages[1].content).toBe('村へ行く')
+  expect((await runtime.translate([src], { interactive: true, engines: ['ollama'] }))[0].zh).toBe('\\C[2]前往村庄if(s[1])')
+  expect(JSON.parse(String(jest.mocked(engineFetch).mock.calls[0][1]?.body)).messages[1].content).toBe('日文：\n村へ行く\n\n简体中文：')
 })
 
 it('does not persist or display a cancelled late model response', async () => {
@@ -110,6 +110,8 @@ it('extracts locally, runs a plugin-owned job and supports import/edit/delete wi
   fs.writeFileSync(path.join(root, 'data', 'Map001.json'), JSON.stringify({ events: [null, { id: 1, pages: [{ list: [{ code: 401, parameters: ['こんにちは'] }] }] }] }))
   expect((await call('/api/extract')).data.total).toBe(1)
   expect((await call('/api/translate', { mode: 'progress' })).data.missing).toBe(1)
+  await call('/api/translate', { mode: 'switches', switches: { bing: false, google: true } })
+  jest.mocked(engineFetch).mockResolvedValue(new Response(JSON.stringify([[['你好', 'こんにちは']]])))
   expect((await call('/api/translate', { mode: 'job', action: 'start' })).status).toBe(200)
   for (let i = 0; i < 100; i++) {
     const snapshot = await call('/api/translate', { mode: 'progress' })
@@ -215,4 +217,56 @@ it('exposes recent in-game dialogue activity to the translation panel', async ()
     sessionDone: 0,
     logs: [expect.objectContaining({ text: '翻译中：応接室へ行く' }), expect.objectContaining({ text: '未得到有效译文：応接室へ行く' })],
   })
+})
+
+it('saves agent entries and translates through the local service', async () => {
+  const saved = await call('/api/translate', {
+    mode: 'switches',
+    switches: { bing: false, google: false },
+    agents: [{ id: 'a1', profileId: 'agent-1', model: 'qwen', enabled: true }],
+  })
+  expect(saved.data).toMatchObject({ enabled: ['agent:a1'], agents: [{ id: 'a1', profileId: 'agent-1', model: 'qwen', enabled: true }] })
+
+  jest.mocked(chayaFetch).mockImplementation(async (_url, init) => {
+    const body = JSON.parse(String(init?.body))
+    if (body.mode === 'ai') return new Response(JSON.stringify({ ok: true, text: '你好' }))
+    return new Response(JSON.stringify({ available: true, items: [] }))
+  })
+  expect((await runtime.translate(['こんにちは'], { interactive: true }))[0]).toMatchObject({ zh: '你好', engine: 'live:agent:agent-1' })
+  const aiCall = jest
+    .mocked(chayaFetch)
+    .mock.calls.map(([, init]) => JSON.parse(String(init?.body)))
+    .find((b) => b.mode === 'ai')
+  expect(aiCall).toEqual({ mode: 'ai', text: 'こんにちは', ai: { profileId: 'agent-1', model: 'qwen' }, interactive: true })
+  expect(engineFetch).not.toHaveBeenCalled()
+})
+
+it('can remove the last enabled engine', async () => {
+  await call('/api/translate', { mode: 'switches', switches: { bing: false, google: false }, agents: [{ id: 'a1', profileId: 'p' }] })
+  const res = await call('/api/translate', { mode: 'switches', agents: [] })
+  expect(res.status).toBe(200)
+  expect(res.data).toMatchObject({ agents: [], enabled: [] })
+})
+
+it('surfaces agent service errors per item', async () => {
+  await call('/api/translate', { mode: 'switches', switches: { bing: false, google: false }, agents: [{ id: 'a1', profileId: 'p' }] })
+  jest.mocked(chayaFetch).mockResolvedValue(new Response(JSON.stringify({ ok: false, error: { message: '没有可用的 Agent 实例' } }), { status: 500 }))
+  expect((await runtime.translate(['こんにちは'], { remote: false }))[0]).toMatchObject({ zh: null, error: '没有可用的 Agent 实例' })
+})
+
+it('lists agent instances through the local service', async () => {
+  jest.mocked(chayaFetch).mockResolvedValue(new Response(JSON.stringify({ ok: true, profiles: [{ id: 'p', label: 'P', defaultModel: '' }], models: {} })))
+  expect((await call('/api/translate', { mode: 'agents' })).data).toMatchObject({ ok: true, profiles: [{ id: 'p', label: 'P' }] })
+  jest.mocked(chayaFetch).mockRejectedValue(new Error('Chaya 服务未启动'))
+  expect((await call('/api/translate', { mode: 'agents' })).status).toBe(400)
+})
+
+it('refuses to start a batch job when every engine is off', async () => {
+  fs.mkdirSync(path.join(root, 'data'))
+  fs.writeFileSync(path.join(root, 'data', 'Map001.json'), JSON.stringify({ events: [null, { id: 1, pages: [{ list: [{ code: 401, parameters: ['こんにちは'] }] }] }] }))
+  await call('/api/extract')
+  expect((await call('/api/translate', { mode: 'switches', switches: { bing: false, google: false } })).status).toBe(200)
+  const started = await call('/api/translate', { mode: 'job', action: 'start' })
+  expect(started.status).toBe(400)
+  expect(JSON.stringify(started.data)).toContain('未开启任何翻译平台')
 })

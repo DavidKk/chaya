@@ -216,11 +216,11 @@
       },
       "chaya_edit_set": {
         "title": "改值",
-        "description": "用修改页的指令改值或锁定：金钱、持有数、变量、开关、运行开关（无敌、穿墙…）、移动 / 经验倍率与角色属性。id 用 chaya_edit_catalog 查；修改页会立即更新。",
+        "description": "用修改页的指令改值或锁定：金钱、持有数、变量、开关、运行开关（无敌、穿墙…）、移动 / 运行 / 经验倍率与角色属性。id 用 chaya_edit_catalog 查；修改页会立即更新。",
         "params": {
           "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
           "op": "修改操作",
-          "value": "目标值：gold / count / var / walkRate / runRate / expRate 为数字，sw / runFlag 为布尔",
+          "value": "目标值：gold / count / var / walkRate / runRate / moveRate / gameSpeed / expRate 为数字，sw / runFlag 为布尔",
           "on": "*Lock：true 锁定，false 解锁",
           "kind": "count / countLock：item / weapon / armor；actorVitalLock：level / exp / hp / mp；actorOwnedLock：skills / states",
           "id": "物品 / 变量 / 开关 / 角色 id",
@@ -292,7 +292,7 @@
         "description": "分页查询本机共享翻译库，支持关键词、引擎、只看敏感词与排序。",
         "params": {
           "q": "原文 / 译文关键词",
-          "engine": "引擎筛选，如 ollama、bing、google、manual、import",
+          "engine": "引擎筛选，如 ollama、agent:<profileId>、bing、google、manual、import",
           "nsfw": "只看敏感词条",
           "sort": "排序字段",
           "order": "排序方向",
@@ -557,11 +557,11 @@
       },
       "chaya_edit_set": {
         "title": "値の変更",
-        "description": "改造ページのコマンドで値を変更 / ロックします：所持金、所持数、変数、スイッチ、実行フラグ（無敵・壁抜け…）、移動 / 経験値倍率、キャラの能力値。id は chaya_edit_catalog で調べます。改造ページはすぐ更新されます。",
+        "description": "改造ページのコマンドで値を変更 / ロックします：所持金、所持数、変数、スイッチ、実行フラグ（無敵・壁抜け…）、移動 / 実行速度 / 経験値倍率、キャラの能力値。id は chaya_edit_catalog で調べます。改造ページはすぐ更新されます。",
         "params": {
           "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
           "op": "改造操作",
-          "value": "目標値：gold / count / var / walkRate / runRate / expRate は数値、sw / runFlag は真偽値",
+          "value": "目標値：gold / count / var / walkRate / runRate / moveRate / gameSpeed / expRate は数値、sw / runFlag は真偽値",
           "on": "*Lock：true でロック、false で解除",
           "kind": "count / countLock：item / weapon / armor；actorVitalLock：level / exp / hp / mp；actorOwnedLock：skills / states",
           "id": "アイテム / 変数 / スイッチ / キャラ id",
@@ -633,7 +633,7 @@
         "description": "ローカル共有翻訳ライブラリをページ単位で検索します。キーワード、エンジン、センシティブのみ、並び替えに対応。",
         "params": {
           "q": "原文 / 訳文のキーワード",
-          "engine": "エンジンで絞り込み（例：ollama、bing、google、manual、import）",
+          "engine": "エンジンで絞り込み（例：ollama、agent:<profileId>、bing、google、manual、import）",
           "nsfw": "センシティブな項目のみ",
           "sort": "並び替え項目",
           "order": "並び順",
@@ -898,11 +898,11 @@
       },
       "chaya_edit_set": {
         "title": "값 변경",
-        "description": "수정 페이지 명령으로 값을 바꾸거나 잠급니다: 소지금, 개수, 변수, 스위치, 실행 플래그(무적, 벽 통과…), 이동 / 경험치 배율, 캐릭터 능력치. id는 chaya_edit_catalog로 찾으며 수정 페이지가 바로 갱신됩니다.",
+        "description": "수정 페이지 명령으로 값을 바꾸거나 잠급니다: 소지금, 개수, 변수, 스위치, 실행 플래그(무적, 벽 통과…), 이동 / 실행 배속 / 경험치 배율, 캐릭터 능력치. id는 chaya_edit_catalog로 찾으며 수정 페이지가 바로 갱신됩니다.",
         "params": {
           "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
           "op": "수정 작업",
-          "value": "목표 값: gold / count / var / walkRate / runRate / expRate는 숫자, sw / runFlag는 불리언",
+          "value": "목표 값: gold / count / var / walkRate / runRate / moveRate / gameSpeed / expRate는 숫자, sw / runFlag는 불리언",
           "on": "*Lock: true면 잠금, false면 해제",
           "kind": "count / countLock: item / weapon / armor; actorVitalLock: level / exp / hp / mp; actorOwnedLock: skills / states",
           "id": "아이템 / 변수 / 스위치 / 캐릭터 id",
@@ -974,7 +974,7 @@
         "description": "로컬 공유 번역 라이브러리를 페이지 단위로 조회합니다. 키워드, 엔진, 민감 항목만, 정렬을 지원합니다.",
         "params": {
           "q": "원문 / 번역문 키워드",
-          "engine": "엔진 필터(예: ollama, bing, google, manual, import)",
+          "engine": "엔진 필터(예: ollama, agent:<profileId>, bing, google, manual, import)",
           "nsfw": "민감 항목만",
           "sort": "정렬 기준",
           "order": "정렬 방향",

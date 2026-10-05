@@ -193,9 +193,11 @@ test('timeout changes save automatically, retain a failed edit and allow retry w
     await act(async () =>
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
-          <TranslationRuntimeProvider request={request}>
-            <TranslationPlaySettings />
-          </TranslationRuntimeProvider>
+          <NotificationProvider>
+            <TranslationRuntimeProvider request={request}>
+              <TranslationPlaySettings />
+            </TranslationRuntimeProvider>
+          </NotificationProvider>
         </LocaleProvider>
       )
     )
@@ -204,16 +206,17 @@ test('timeout changes save automatically, retain a failed edit and allow retry w
     expect(input.getAttribute('inputmode')).toBe('numeric')
     await act(async () => input.focus())
     await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '12')
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '12000')
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    expect(input.value).toBe('12')
+    expect(input.value).toBe('12000')
+    expect(host.textContent).toContain('12 秒')
     await act(async () => input.blur())
     await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
     const saveCall = request.mock.calls.find((call) => call[0].body?.settings && typeof (call[0].body.settings as { timeoutMs?: number }).timeoutMs === 'number')
     expect(saveCall?.[0].body).toMatchObject({ mode: 'play-settings', contentRoot: '/game/www', settings: { timeoutMs: 12000 } })
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('设置未保存')
-    expect(input.value).toBe('12')
+    expect(input.value).toBe('12000')
     expect(host.textContent).not.toContain('保存模式')
     failSave = false
     await act(async () => [...host.querySelectorAll('button')].find((button) => button.textContent === '重试')!.click())
@@ -235,6 +238,45 @@ test('timeout changes save automatically, retain a failed edit and allow retry w
     expect(settings.mode).toBe('pretranslated')
     expect(subtitle.getAttribute('aria-checked')).toBe('false')
     expect(host.textContent).not.toContain('修改后自动保存')
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
+})
+
+test('local model benchmark reports through toasts instead of an inline result block', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  let fail = false
+  const request = jest.fn<ReturnType<TranslationRuntime['request']>, Parameters<TranslationRuntime['request']>>(async ({ body }) => {
+    if (body?.mode === 'benchmark') {
+      if (fail) return { status: 400, data: { ok: false, error: { message: '本地模型没有返回有效译文' } } }
+      return { status: 200, data: { sample: '準備', translation: '准备好了', characters: 46, elapsedMs: 1800 } }
+    }
+    return { status: 200, data: { settings: DEFAULT_PLAY_SETTINGS, contentRoot: '/game/www' } }
+  })
+  const host = document.createElement('div')
+  document.body.append(host)
+  const root = createRoot(host)
+  try {
+    await act(async () =>
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <NotificationProvider>
+            <TranslationRuntimeProvider request={request}>
+              <TranslationPlaySettings />
+            </TranslationRuntimeProvider>
+          </NotificationProvider>
+        </LocaleProvider>
+      )
+    )
+    const button = () => [...host.querySelectorAll('button')].find((b) => b.textContent === '测试本地模型速度')!
+    await act(async () => button().click())
+    expect(document.body.textContent).toContain('46 字 · 1.80 秒（本次总耗时）：准备好了')
+    expect(host.querySelector('section')?.textContent).not.toContain('准备好了')
+    fail = true
+    await act(async () => button().click())
+    expect(document.body.textContent).toContain('本地模型测速失败：本地模型没有返回有效译文')
+    expect(host.querySelector('section [role="alert"]')).toBeNull()
   } finally {
     await act(async () => root.unmount())
     host.remove()

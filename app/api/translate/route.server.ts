@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
 import { resolveGame } from '@/lib/game'
+import { normalizeAiConfig } from '@/lib/translate/engines'
 import { hasManagementAccess } from '@/services/access/management'
 import {
   fillMissingFromSeed,
@@ -37,7 +38,9 @@ export const dynamic = 'force-dynamic'
  * - `{ mode: 'seed' }`：对当前绑定游戏 seed 缺词补一轮（单批）
  * - `{ mode: 'progress' }`：只读进度 + 后台任务快照
  * - `{ mode: 'job', action: 'start' | 'pause' }`：启停服务端补译循环
- * - `{ mode: 'switches' }`：读引擎开关/顺序；带 `switches` / `order` 则写入
+ * - `{ mode: 'switches' }`：读引擎开关/顺序/Agent 条目；带 `switches` / `order` / `agents` 则写入
+ * - `{ mode: 'agents' }`：列出可选的 Agent 实例（名称 / 模型，不含端点与 token）
+ * - `{ mode: 'ai', text, ai }`：用选定 Agent 实例翻译一段（插件 AI 引擎走这里，token 不出服务端）
  *
  * 迁移期：整路由属 DiskOps（未拆无盘核心前 vercel 一律 501）。
  */
@@ -48,7 +51,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     const body = (await request.json().catch(() => ({}))) as {
       text?: string
       texts?: string[]
-      mode?: 'lookup' | 'live' | 'realtime' | 'play-settings' | 'benchmark' | 'seed' | 'progress' | 'switches' | 'job'
+      mode?: 'lookup' | 'live' | 'realtime' | 'ai' | 'agents' | 'play-settings' | 'benchmark' | 'seed' | 'progress' | 'switches' | 'job'
       settings?: unknown
       contentRoot?: string
       action?: 'start' | 'pause'
@@ -59,6 +62,11 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       persist?: boolean
       switches?: Partial<TranslateEngineSwitches>
       order?: TranslateEngineId[]
+      /** switches：Agent 翻译条目整表替换 */
+      agents?: unknown
+      /** ai：本次翻译用的实例 / 模型 */
+      ai?: unknown
+      interactive?: boolean
     }
 
     // 插件可选共享库查询：不绑定服务端当前游戏，也绝不触发推理或写游戏文件。
@@ -90,15 +98,16 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'switches') {
-      if ((body.switches && typeof body.switches === 'object') || Array.isArray(body.order)) {
-        return apiOk(
-          setTranslateEngineSwitches({
-            switches: body.switches,
-            order: body.order,
-          })
-        )
+      const agents = Array.isArray(body.agents) ? body.agents : undefined
+      if ((body.switches && typeof body.switches === 'object') || Array.isArray(body.order) || agents) {
+        return apiOk(setTranslateEngineSwitches({ switches: body.switches, order: body.order, agents }))
       }
       return apiOk(getTranslateEngineSwitches())
+    }
+
+    if (body.mode === 'agents') {
+      const { listTranslateAgents } = await import('@/services/translate/agent-translate')
+      return apiOk(listTranslateAgents())
     }
 
     if (body.mode === 'seed') {
@@ -114,6 +123,12 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     const session = !hasManagementAccess(request) ? peekLaunchToken(request.headers.get('x-chaya-launch-token')) : null
     const game = session ? resolveGame(session.gameRoot) : null
     if (session && (!game?.ok || game.remote)) return apiError(400, 'GAME_UNAVAILABLE', '游戏路径不可用')
+    if (body.mode === 'ai') {
+      const text = typeof body.text === 'string' ? body.text : ''
+      if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_AI_INPUT', 'AI 翻译需要 1–20000 字的 text')
+      const { agentJaToZh } = await import('@/services/translate/agent-translate')
+      return apiOk({ text: await agentJaToZh(text, normalizeAiConfig(body.ai), { interactive: body.interactive === true, signal: request.signal }) })
+    }
     if (body.mode === 'realtime') {
       const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
       return apiOk(await translateDialogue(root, texts, request.signal))

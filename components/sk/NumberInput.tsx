@@ -14,6 +14,8 @@ export type NumberInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type
   allowDecimal?: boolean
   min?: number
   max?: number
+  /** ↑ / ↓ 步进量（Shift ×10）；默认 1 */
+  step?: number
   /** 控件内后缀单位（如 倍），与输入同框 */
   suffix?: ReactNode
   /** 同框右侧操作（如锁死按钮）；与输入同框，不拆成第二个控件 */
@@ -81,6 +83,10 @@ function parseValue(raw: string, allowDecimal: boolean) {
   return allowDecimal ? n : Math.trunc(n)
 }
 
+function stepPlaces(step: number) {
+  return Math.min(6, String(step).split('.')[1]?.length ?? 0)
+}
+
 function clamp(n: number, min?: number, max?: number) {
   let next = n
   if (typeof min === 'number') next = Math.max(min, next)
@@ -89,7 +95,7 @@ function clamp(n: number, min?: number, max?: number) {
 }
 
 export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(function NumberInput(
-  { className, invalid = false, value, onValueChange, disabled, allowDecimal = false, min, max, suffix, endAction, tooltip, onDraftChange, onBlur, onFocus, ...rest },
+  { className, invalid = false, value, onValueChange, disabled, allowDecimal = false, min, max, step = 1, suffix, endAction, tooltip, onDraftChange, onBlur, onFocus, ...rest },
   ref
 ) {
   const exact = formatExactNumber(value, allowDecimal)
@@ -124,6 +130,20 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
       e.preventDefault()
       commit(sanitize(e.currentTarget.value, allowDecimal))
       e.currentTarget.blur()
+      return
+    }
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.altKey && !e.metaKey && !e.ctrlKey && !rest.readOnly) {
+      e.preventDefault()
+      const unit = Number.isFinite(step) && step > 0 ? step : 1
+      const base = parseValue(sanitize(e.currentTarget.value, allowDecimal), allowDecimal) ?? value
+      const delta = unit * (e.shiftKey ? 10 : 1) * (e.key === 'ArrowUp' ? 1 : -1)
+      const raw = Number((base + delta).toFixed(stepPlaces(unit)))
+      const next = clamp(allowDecimal ? raw : Math.trunc(raw), min, max)
+      const nextText = formatExactNumber(next, allowDecimal)
+      textRef.current = nextText
+      setText(nextText)
+      onDraftChange?.(next)
+      if (next !== value) onValueChange(next)
       return
     }
     if (e.key === 'Escape') {

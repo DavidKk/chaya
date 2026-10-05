@@ -5,7 +5,7 @@ import { IoCloudUploadOutline, IoPauseOutline, IoPlayOutline } from 'react-icons
 import { LuScanText } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { formCardDense, panelFoot } from '@/components/layoutClasses'
+import { formCardDense } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
 import { TranslateActivityLog, type TranslateLogEntry } from '@/components/translate/TranslateActivityLog'
@@ -174,7 +174,7 @@ export function TranslateRunPane({
   const [starting, setStarting] = useState(false)
   const [pausing, setPausing] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [enabledEngines, setEnabledEngines] = useState<EngineId[]>(['ollama', 'bing', 'google'])
+  const [enabledEngines, setEnabledEngines] = useState<EngineId[]>(['bing', 'google'])
   const { open: enginesOpen, setOpen: setEnginesOpen } = useTranslateEnginesDrawer()
   const prevStatus = useRef<JobStatus>('idle')
 
@@ -359,17 +359,6 @@ export function TranslateRunPane({
         })
       : null
   const remainEta = remainMs != null ? formatRemainEta(remainMs) : null
-  const footRight = (() => {
-    if (running || job.sessionDone > 0) {
-      const session = t('translate.sessionLines', { count: job.sessionDone.toLocaleString() })
-      if (remainEta) return `${session} · ${t('translate.etaLeft', { eta: remainEta })}`
-      if (progress.batchesLeft > 0) return `${session} · ${t('translate.stillMissing', { count: progress.batchesLeft })}`
-      return session
-    }
-    if (progress.hasSeed) return progress.batchesLeft > 0 ? t('translate.stillMissing', { count: progress.batchesLeft }) : t('translate.doneAll')
-    return t('translate.noSeed')
-  })()
-
   if (loading) return <TranslateRunSkeleton tab={tab} />
 
   return (
@@ -388,7 +377,13 @@ export function TranslateRunPane({
       />
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 items-stretch">
-          <TranslateEngineRail disabled={busy} mobileOpen={enginesOpen} onMobileOpenChange={setEnginesOpen} onChange={onEnginesChange} />
+          <TranslateEngineRail
+            disabled={busy}
+            mobileOpen={enginesOpen}
+            onMobileOpenChange={setEnginesOpen}
+            onChange={onEnginesChange}
+            manageAgentsHref={surface === 'page' ? '/settings/agents' : undefined}
+          />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-line px-4 py-2">
               <SegmentedNav items={tabs} value={tab} onChange={setTab} aria-label={t('translate.configAria')} />
@@ -510,12 +505,6 @@ export function TranslateRunPane({
                 </div>
               </div>
             </ScrollArea>
-            {tab === 'seed' ? (
-              <div className={panelFoot}>
-                <span>{liveStatus || t('translate.footHint')}</span>
-                <span>{footRight}</span>
-              </div>
-            ) : null}
           </div>
         </div>
       </div>

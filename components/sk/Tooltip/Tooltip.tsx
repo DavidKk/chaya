@@ -14,6 +14,8 @@ interface TooltipProps {
   triggerClassName?: string
   /** 触屏默认让链接、按钮等操作控件直接响应；纯说明触发器点击切换提示。 */
   touchBehavior?: 'auto' | 'toggle' | 'passthrough'
+  /** 为 true 时收起且不再弹出（如触发器的下拉已打开，收不到 mouseleave） */
+  suppressed?: boolean
 }
 
 const TOOLTIP_HOVER_MEDIA_QUERY = '(hover: hover) and (pointer: fine) and (min-width: 768px)'
@@ -101,7 +103,7 @@ function isTouchActionTarget(event: React.MouseEvent<HTMLElement>): boolean {
   return action !== null && trigger.contains(action)
 }
 
-export function Tooltip({ content, placement = 'bottom', children, triggerClassName = '', touchBehavior = 'auto' }: TooltipProps) {
+export function Tooltip({ content, placement = 'bottom', children, triggerClassName = '', touchBehavior = 'auto', suppressed = false }: TooltipProps) {
   const hoverMode = useTooltipHoverMode()
   const tooltipId = React.useId()
   const [open, setOpen] = React.useState(false)
@@ -204,6 +206,10 @@ export function Tooltip({ content, placement = 'bottom', children, triggerClassN
     }
   }, [hoverMode])
 
+  React.useEffect(() => {
+    if (suppressed) setOpen(false)
+  }, [suppressed])
+
   const setTriggerNode = React.useCallback((node: HTMLElement | null) => {
     triggerRef.current = node
   }, [])
@@ -247,7 +253,7 @@ export function Tooltip({ content, placement = 'bottom', children, triggerClassN
   })
 
   const tooltipEl =
-    open && content ? (
+    open && content && !suppressed ? (
       <div
         ref={tooltipRef}
         id={tooltipId}

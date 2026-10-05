@@ -29,7 +29,7 @@ import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { readViewState, writeViewState } from '@/lib/view-state'
 
 import { pluginGameAgentRequest } from '../../agent-ui/request'
-import { applyRunAction, applyRunFlag, applySpeed, runActionNeedsClose } from '../runtime/apply-run'
+import { applyGameSpeed, applyRunAction, applyRunFlag, applySpeed, runActionNeedsClose } from '../runtime/apply-run'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
 import { buildLiveCatalog, type LiveSessionScope, readLiveSession, setItemCount, setPartyGold } from '../session/live-session'
@@ -518,17 +518,13 @@ export function GameEditApp({ open, onRequestClose }: Props) {
           onClose={onRequestClose}
           onGoldChange={setGold}
           onGoldLockChange={setGoldLock}
-          onWalkRateChange={(rate) => {
-            setSession((prev) => {
-              applySpeed(rate, prev.runRate)
-              return { ...prev, walkRate: rate }
-            })
+          onMoveRateChange={(rate) => {
+            applySpeed(rate, rate)
+            setSession((prev) => ({ ...prev, walkRate: rate, runRate: rate }))
           }}
-          onRunRateChange={(rate) => {
-            setSession((prev) => {
-              applySpeed(prev.walkRate, rate)
-              return { ...prev, runRate: rate }
-            })
+          onGameSpeedChange={(rate) => {
+            applyGameSpeed(rate)
+            setSession((prev) => ({ ...prev, gameSpeed: rate }))
           }}
           onExpRateChange={(rate) => {
             RunCheats.setExpRate(rate)

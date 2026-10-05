@@ -92,8 +92,9 @@ declare global {
       walkRate: (n?: number) => unknown
       runRate: (n?: number) => unknown
       rates: (opts?: { walk?: number; run?: number }) => unknown
+      speed: (n?: number) => unknown
       dash: (on?: boolean) => unknown
-      status: () => { walk: number; run: number; moveRate: number | null; alwaysDash: boolean }
+      status: () => { walk: number; run: number; moveRate: number | null; gameSpeed: number; alwaysDash: boolean }
     }
     /** In-game edit panel (PLUGIN_EDIT_NAME); short alias `ge` */
     ChayaEdit: any

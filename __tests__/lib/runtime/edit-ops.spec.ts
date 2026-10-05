@@ -7,6 +7,10 @@ describe('edit-ops', () => {
     expect(parseEditOp({ op: 'sw', id: 2, value: true })).toEqual({ op: 'sw', id: 2, value: true })
     expect(parseEditOp({ op: 'swLock', id: 2, on: true, value: false })).toEqual({ op: 'swLock', id: 2, on: true, value: 0 })
     expect(parseEditOp({ op: 'walkRate', value: 1.5 })).toEqual({ op: 'walkRate', value: 1.5 })
+    expect(parseEditOp({ op: 'moveRate', value: 2 })).toEqual({ op: 'moveRate', value: 2 })
+    expect(parseEditOp({ op: 'gameSpeed', value: 3 })).toEqual({ op: 'gameSpeed', value: 3 })
+    expect(parseEditOp({ op: 'gameSpeed', value: 20 })).toEqual({ op: 'gameSpeed', value: 5 })
+    expect(parseEditOp({ op: 'gameSpeed', value: 0.5 })).toEqual({ op: 'gameSpeed', value: 1 })
   })
 
   it('validates actor patches', () => {

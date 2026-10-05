@@ -1,4 +1,14 @@
 import { createBingTranslator, requestGoogle, requestOllama } from '@/lib/translate/engine-http'
+import {
+  DEFAULT_ENGINE_ORDER,
+  engineAcceptsSensitive,
+  engineSourceTag,
+  findAgentEntry,
+  type TranslateAgentEntry,
+  type TranslateAiConfig,
+  type TranslateEngineId,
+  type TranslateRunEngine,
+} from '@/lib/translate/engines'
 import { toRmDigitTemplate } from '@/lib/translate/rm-escape'
 import { scheduleOllama } from '@/services/translate/ollama-queue'
 import { isSensitiveForCloud } from '@/services/translate/sensitive-text'
@@ -9,10 +19,19 @@ import { chayaFetch } from '../../helpers/net/http'
 import { engineFetch } from './engine-fetch'
 import type { TranslationStore } from './store'
 
-export type EngineId = 'ollama' | 'bing' | 'google'
+export type EngineId = TranslateEngineId
 export type TranslateItem = { src: string; zh: string | null; engine?: string; error?: string }
-export type TranslateOptions = { signal?: AbortSignal; model?: string; interactive?: boolean; engines?: EngineId[]; force?: boolean; persist?: boolean; remote?: boolean }
-export const ENGINE_ORDER: EngineId[] = ['ollama', 'bing', 'google']
+export type TranslateOptions = {
+  signal?: AbortSignal
+  model?: string
+  interactive?: boolean
+  engines?: TranslateRunEngine[]
+  force?: boolean
+  persist?: boolean
+  remote?: boolean
+  agents?: TranslateAgentEntry[]
+}
+export const ENGINE_ORDER: EngineId[] = DEFAULT_ENGINE_ORDER
 
 export function createPluginTranslator(store: TranslationStore, http = engineFetch) {
   const bing = createBingTranslator(http)
@@ -49,6 +68,36 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
     }
   }
 
+  /** Agent 的端点与 token 只在本机服务上，插件经服务端代翻 */
+  async function requestAgent(text: string, ai: TranslateAiConfig, interactive: boolean | undefined, signal: AbortSignal) {
+    const response = await chayaFetch(`${resolveApiBase()}/api/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal,
+      body: JSON.stringify({ mode: 'ai', text, ai: { profileId: ai.profileId, model: ai.model }, interactive: !!interactive }),
+    })
+    const data = (await response.json().catch(() => null)) as { ok?: boolean; text?: unknown; error?: { message?: unknown } } | null
+    if (!response.ok || !data || data.ok === false || typeof data.text !== 'string') {
+      const message = typeof data?.error?.message === 'string' ? data.error.message : `AI 翻译服务不可用（${response.status}）`
+      throw new Error(message)
+    }
+    return data.text
+  }
+
+  async function listAgents(signal?: AbortSignal): Promise<Record<string, unknown>> {
+    const response = await chayaFetch(`${resolveApiBase()}/api/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal,
+      body: JSON.stringify({ mode: 'agents' }),
+    })
+    const data = (await response.json().catch(() => null)) as { ok?: boolean; profiles?: unknown; models?: unknown; error?: { message?: unknown } } | null
+    if (!response.ok || !data || data.ok === false || !Array.isArray(data.profiles)) {
+      throw new Error(typeof data?.error?.message === 'string' ? data.error.message : `Agent 实例需要 Chaya 本机服务（${response.status}）`)
+    }
+    return { profiles: data.profiles, models: data.models && typeof data.models === 'object' ? data.models : {} }
+  }
+
   async function translate(texts: string[], options: TranslateOptions = {}): Promise<TranslateItem[]> {
     const signal = options.signal || new AbortController().signal
     await store.load()
@@ -72,11 +121,14 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
         items.push({ src, zh: src, engine: 'skip' })
         continue
       }
-      const engines = (options.engines || ['ollama']).filter((engine) => engine === 'ollama' || !isSensitiveForCloud(guard.plain))
+      const sensitive = isSensitiveForCloud(guard.plain)
+      const engines = (options.engines || []).filter((engine) => !sensitive || engineAcceptsSensitive(engine))
       let result: TranslateItem = { src, zh: null, error: '未开启可用翻译引擎' }
       for (const engine of engines) {
         signal.throwIfAborted()
         try {
+          const agent = findAgentEntry(options.agents, engine)
+          if (!agent && engine.startsWith('agent:')) throw new Error('Agent 翻译条目已移除')
           const raw =
             engine === 'ollama'
               ? await scheduleOllama(
@@ -84,9 +136,11 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
                   !!options.interactive,
                   signal
                 )
-              : engine === 'google'
-                ? await requestGoogle(http, guard.plain, signal)
-                : await bing(guard.plain, signal)
+              : agent
+                ? await requestAgent(guard.plain, agent, options.interactive, signal)
+                : engine === 'google'
+                  ? await requestGoogle(http, guard.plain, signal)
+                  : await bing(guard.plain, signal)
           signal.throwIfAborted()
           const zh = restoreForTranslate(raw, guard)
           if (!isUsefulTranslation(src, guard.plain, raw, zh) || guard.tokens.some((_, i) => !raw.includes(`__C${i}__`))) throw new Error('引擎未返回有效译文或丢失控制码')
@@ -98,9 +152,9 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
             ]
             const template = toRmDigitTemplate(guard.core)
             if (template !== guard.core) pairs.push([template, toRmDigitTemplate(core)])
-            await store.put(pairs, `live:${engine}`)
+            await store.put(pairs, `live:${engineSourceTag(engine, options.agents)}`)
           }
-          result = { src, zh, engine: `live:${engine}` }
+          result = { src, zh, engine: `live:${engineSourceTag(engine, options.agents)}` }
           break
         } catch (error) {
           signal.throwIfAborted()
@@ -111,5 +165,5 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
     }
     return items
   }
-  return { translate, remoteOnline: () => remoteOnline }
+  return { translate, listAgents, remoteOnline: () => remoteOnline }
 }

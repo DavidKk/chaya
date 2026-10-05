@@ -1,3 +1,4 @@
+import { engineStateFileBody, mergeEngineState, TRANSLATE_ENGINE_IDS, type TranslateEngineSwitches } from '@/lib/translate/engines'
 import { normalizePlaySettings, type TranslationPlaySettings } from '@/lib/translate/play-settings'
 import type { TranslationRequest, TranslationRequestFn } from '@/lib/translate/runtime-api'
 import { parseTranslateImportText } from '@/services/translate/import-text'
@@ -7,7 +8,7 @@ import { type NodeFsPath, tryNodeFsPath } from '../../helpers/node/node-require'
 import { extractPluginSeed } from './extract'
 import { createPluginTranslationJob } from './jobs'
 import { createTranslationStore } from './store'
-import { createPluginTranslator, ENGINE_ORDER, type EngineId, type TranslateOptions } from './translator'
+import { createPluginTranslator, type TranslateOptions } from './translator'
 
 type Activity = { id: number; at: number; level: 'info' | 'ok' | 'warn' | 'fail'; text: string }
 
@@ -60,14 +61,13 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
   }
   async function engineState(patch?: Record<string, unknown>) {
     const raw = await store.readJson<Record<string, unknown>>('switches', {})
-    const switches: Record<EngineId, boolean> = { ollama: raw.ollama !== false, bing: raw.bing !== false, google: raw.google !== false }
-    const provided = patch?.switches as Partial<Record<EngineId, boolean>> | undefined
-    if (provided) for (const id of ENGINE_ORDER) if (typeof provided[id] === 'boolean') switches[id] = provided[id]!
-    const inputOrder = patch?.order ?? raw.order
-    const order = [...new Set([...(Array.isArray(inputOrder) ? inputOrder.filter((id): id is EngineId => ENGINE_ORDER.includes(id as EngineId)) : []), ...ENGINE_ORDER])]
-    if (!order.some((id) => switches[id])) throw new Error('至少开启一个翻译平台')
-    if (patch?.switches || patch?.order) await store.writeJson('switches', { ...switches, order })
-    return { switches, order, enabled: order.filter((id) => switches[id]) }
+    const provided = patch?.switches && typeof patch.switches === 'object' ? (patch.switches as Partial<TranslateEngineSwitches>) : undefined
+    const switches = provided ? Object.fromEntries(TRANSLATE_ENGINE_IDS.filter((id) => typeof provided[id] === 'boolean').map((id) => [id, provided[id]])) : undefined
+    const agents = Array.isArray(patch?.agents) ? patch.agents : undefined
+    const writing = !!(switches || patch?.order || agents)
+    const state = mergeEngineState(raw, writing ? { switches, order: patch?.order, agents } : undefined)
+    if (writing) await store.writeJson('switches', engineStateFileBody(state))
+    return state
   }
   async function translate(texts: string[], opts: TranslateOptions = {}) {
     await initialize
@@ -80,11 +80,13 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
     opts.signal?.addEventListener('abort', cancel, { once: true })
     const timer = setTimeout(cancel, opts.interactive ? settings.timeoutMs : 30_000)
     try {
+      const engines = await engineState()
       return await translator.translate(texts, {
         ...opts,
         model: opts.model ?? settings.model,
         signal: abort.signal,
-        engines: opts.engines || (await engineState()).enabled,
+        engines: opts.engines || engines.enabled,
+        agents: opts.agents ?? engines.agents,
       })
     } finally {
       clearTimeout(timer)
@@ -146,11 +148,12 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
       return { settings, contentRoot }
     }
     if (body.mode === 'switches') return engineState(body)
+    if (body.mode === 'agents') return translator.listAgents(signal)
     if (body.mode === 'progress') return { ...(await job.snapshot()), activity: { logs: [...activity], liveStatus: activityStatus, sessionDone: activityDone } }
     if (body.mode === 'job') {
       if (body.action === 'pause') return job.pause()
       if (body.action === 'start') {
-        await engineState()
+        if (!(await engineState()).enabled.length) throw new Error('未开启任何翻译平台')
         return job.start()
       }
       throw new Error('无效任务操作')

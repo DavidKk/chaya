@@ -265,7 +265,9 @@ export function Select({
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => pick(index)}
                       >
-                        <span>{opt.label}</span>
+                        <span className="min-w-0 truncate" title={opt.label}>
+                          {opt.label}
+                        </span>
                         {isSelected ? <IoCheckmark size={14} aria-hidden className="shrink-0 text-accent" /> : null}
                       </div>
                     )

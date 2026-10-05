@@ -68,10 +68,6 @@ export type IntegrationMessages = {
   agentKeepAliveForeverOn: string
   agentKeepAliveForeverOff: string
   agentKeepAliveUnload: string
-  agentKeepAliveMs: string
-  agentKeepAliveSec: string
-  agentKeepAliveMin: string
-  agentKeepAliveHour: string
   agentTest: string
   agentTestDesc: string
   agentTesting: string

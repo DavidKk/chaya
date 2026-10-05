@@ -1,27 +1,45 @@
 'use client'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { formCard, formCardDense, formControlInline, formFieldInlineDense, panelFoot } from '@/components/layoutClasses'
+import { formCard, formCardDense, formControlInline, formFieldInlineDense } from '@/components/layoutClasses'
 import { Skeleton, SkeletonRegion } from '@/components/sk/Skeleton'
 import { cn } from '@/lib/utils'
 
 type TranslateModeTab = 'play' | 'seed'
 
-function EngineRailSkeleton() {
+function EngineGroupSkeleton({ rows, subtitle, add }: { rows: number; subtitle?: boolean; add?: boolean }) {
   return (
-    <aside className="hidden w-[18.5rem] shrink-0 flex-col border-r border-line bg-paper-2 md:flex" aria-hidden>
-      <div className="flex h-12 shrink-0 items-center border-b border-line px-4">
-        <Skeleton className="h-[0.8125rem] w-16" />
+    <section className="flex flex-col">
+      <div className="flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 py-2">
+        <Skeleton className="size-[0.8125rem] shrink-0 rounded-[0.15rem]" />
+        <Skeleton className="h-[0.7rem] w-14" />
+        <Skeleton className="h-[0.7rem] w-2" />
+        {add ? <Skeleton className="ml-auto size-5 rounded-[0.2rem]" /> : null}
       </div>
-      <div className="flex flex-col gap-2 p-4">
-        {Array.from({ length: 3 }, (_, i) => (
-          <div key={i} className="grid h-11 grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1 rounded-[0.35rem] border border-line bg-panel pr-3 pl-0">
-            <Skeleton className="mx-auto size-3 rounded-[0.15rem]" />
-            <Skeleton className="h-[0.8125rem] w-14" />
+      <div className="flex flex-col gap-2 border-b border-line p-4">
+        {Array.from({ length: rows }, (_, i) => (
+          <div
+            key={i}
+            className={cn('grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1 rounded-[0.35rem] border border-line bg-panel pr-3 pl-0', subtitle ? 'h-12' : 'h-11')}
+          >
+            <Skeleton className="mx-auto h-3 w-1.5 rounded-[0.15rem]" />
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <Skeleton className="h-[0.8125rem] w-20" />
+              {subtitle ? <Skeleton className="h-[0.65rem] w-28" /> : null}
+            </div>
             <Skeleton className="h-5 w-9 rounded-full" />
           </div>
         ))}
       </div>
+    </section>
+  )
+}
+
+function EngineRailSkeleton() {
+  return (
+    <aside className="hidden w-[21rem] shrink-0 flex-col border-r border-line bg-paper-2 md:flex" aria-hidden>
+      <EngineGroupSkeleton rows={1} subtitle add />
+      <EngineGroupSkeleton rows={2} />
     </aside>
   )
 }
@@ -32,7 +50,7 @@ function InlineSettingSkeleton({ control = 'switch' }: { control?: 'switch' | 's
       <Skeleton className="h-[0.8125rem] w-16" />
       <Skeleton className="h-[0.7rem] w-[70%]" />
       <div className={formControlInline}>
-        <Skeleton className={control === 'switch' ? 'h-5 w-9 rounded-full' : 'h-8 w-[7.25rem] rounded-[0.25rem]'} />
+        <Skeleton className={control === 'switch' ? 'h-5 w-9 rounded-full' : 'h-8 w-full rounded-[0.25rem]'} />
       </div>
     </div>
   )
@@ -116,9 +134,11 @@ export function TranslateRunSkeleton({ tab = 'play' }: { tab?: TranslateModeTab 
       <div className="flex min-h-0 flex-1 items-stretch">
         <EngineRailSkeleton />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 py-2" aria-hidden>
-            <Skeleton className="h-8 w-20" />
-            <Skeleton className="h-8 w-20" />
+          <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-line px-4 py-2" aria-hidden>
+            <div className="flex h-8 items-center gap-0.5 rounded-[0.2rem] border border-line p-0.5">
+              <Skeleton className="h-full w-[3.25rem] rounded-[0.15rem]" />
+              <Skeleton className="h-full w-[3.25rem] rounded-[0.15rem] opacity-50" />
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden" aria-hidden>
             <div className="flex items-start justify-start p-4">
@@ -127,12 +147,6 @@ export function TranslateRunSkeleton({ tab = 'play' }: { tab?: TranslateModeTab 
           </div>
         </div>
       </div>
-      {tab === 'seed' ? (
-        <div className={panelFoot} aria-hidden>
-          <Skeleton className="h-[0.7rem] w-48" />
-          <Skeleton className="h-[0.7rem] w-24" />
-        </div>
-      ) : null}
     </SkeletonRegion>
   )
 }

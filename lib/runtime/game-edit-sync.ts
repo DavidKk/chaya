@@ -64,6 +64,10 @@ export function fieldsForEditCmd(cmd: GameEditCmd): string[] {
       return ['walkRate']
     case 'runRate':
       return ['runRate']
+    case 'moveRate':
+      return ['walkRate', 'runRate']
+    case 'gameSpeed':
+      return ['gameSpeed']
     case 'expRate':
       return ['expRate']
     case 'actor':
@@ -92,6 +96,8 @@ export function expectForEditCmd(cmd: GameEditCmd): unknown {
     case 'gold':
     case 'walkRate':
     case 'runRate':
+    case 'moveRate':
+    case 'gameSpeed':
     case 'expRate':
       return cmd.value
     case 'count':
@@ -127,6 +133,7 @@ function remoteMatchesExpect(remote: Omit<SessionState, 'hotkeys' | 'hotkeysGlob
   if (field === 'gold') return remote.gold === expect
   if (field === 'walkRate') return remote.walkRate === expect
   if (field === 'runRate') return remote.runRate === expect
+  if (field === 'gameSpeed') return remote.gameSpeed === expect
   if (field === 'expRate') return remote.expRate === expect
   if (field.startsWith('count:')) {
     const key = field.slice('count:'.length)
@@ -202,6 +209,7 @@ export function mergeRemoteSession(
   if (blocked.has('gold')) next.gold = prev.gold
   if (blocked.has('walkRate')) next.walkRate = prev.walkRate
   if (blocked.has('runRate')) next.runRate = prev.runRate
+  if (blocked.has('gameSpeed')) next.gameSpeed = prev.gameSpeed
   if (blocked.has('expRate')) next.expRate = prev.expRate
 
   for (const key of RUN_FLAG_KEYS) {

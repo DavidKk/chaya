@@ -49,6 +49,7 @@
 | 滚动     | 一律 `components/sk/ScrollArea`                                                                            |
 | 按钮等   | `components/sk/*`（内部 Tailwind）                                                                         |
 | 有界数字 | `NumberSliderInput`；无界 `NumberInput`                                                                    |
+| 时长     | `DurationInput`（毫秒输入，后缀实时换算「1 分钟 30 秒」）                                                  |
 | Tooltip  | `components/sk/Tooltip`；图标钮用 `tooltip` prop                                                           |
 | 反馈     | `useNotification`                                                                                          |
 | 空/门闸  | `EmptyState` / `ChooseGameGate`                                                                            |

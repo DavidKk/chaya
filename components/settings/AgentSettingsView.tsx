@@ -8,8 +8,8 @@ import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formCard, formControlInline, formDescInline, formFieldInline, formTitleInline, panelHead } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, EmptyState, NumberInput, NumberSliderInput, Select, Spinner, TextInput, Tooltip, TruncateText } from '@/components/sk'
-import { keepAliveLabel, keepAliveToMs, msToKeepAlive } from '@/lib/game-agent/keep-alive'
+import { Button, DurationInput, EmptyState, NumberSliderInput, Select, Spinner, TextInput, Tooltip, TruncateText } from '@/components/sk'
+import { keepAliveToMs, msToKeepAlive } from '@/lib/game-agent/keep-alive'
 import type { AgentSyncDocument } from '@/lib/game-agent/settings-sync'
 import { cn } from '@/lib/utils'
 
@@ -19,13 +19,6 @@ const API = '/api/integration/game-agent'
 
 const infinityBtn =
   'm-0 -mr-1 inline-flex h-full cursor-pointer items-center border-0 border-l border-solid border-line bg-transparent pr-1 pl-2 text-ink-soft hover:text-ink focus-visible:outline-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]'
-
-const KEEP_ALIVE_UNIT_KEY = {
-  hour: 'integration.agentKeepAliveHour',
-  min: 'integration.agentKeepAliveMin',
-  sec: 'integration.agentKeepAliveSec',
-  ms: 'integration.agentKeepAliveMs',
-} as const
 
 function apiError(body: unknown, fallback: string) {
   const value = body as { error?: { message?: unknown } }
@@ -51,8 +44,6 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   const [busy, setBusy] = useState<'load' | 'test' | 'save' | ''>('load')
   const [deletingId, setDeletingId] = useState('')
   const [loadError, setLoadError] = useState('')
-  /** Keep Alive being typed (ms), so the duration label follows each keystroke */
-  const [keepAliveTyping, setKeepAliveTyping] = useState<number | null>(null)
   /** Last finite Keep Alive, restored when ∞ is switched off */
   const keepAliveFinite = useRef(600_000)
   const modelRequestId = useRef(0)
@@ -309,13 +300,6 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   const keepAliveMs = keepAliveToMs(draft.keepAlive)
   const keepAliveForever = keepAliveMs < 0
   if (!keepAliveForever) keepAliveFinite.current = keepAliveMs
-  const keepAliveInfo = keepAliveLabel(keepAliveTyping ?? keepAliveMs)
-  const keepAliveText =
-    keepAliveInfo.kind === 'forever'
-      ? t('integration.agentKeepAliveForever')
-      : keepAliveInfo.kind === 'unload'
-        ? t('integration.agentKeepAliveUnload')
-        : keepAliveInfo.parts.map(({ unit, n }) => t(KEEP_ALIVE_UNIT_KEY[unit], { n })).join(' ')
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -374,12 +358,13 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
               <span className={formTitleInline}>{t('integration.agentKeepAlive')}</span>
               <span className={formDescInline}>{t('integration.agentKeepAliveDesc')}</span>
               <div className={formControlInline}>
-                <NumberInput
+                <DurationInput
                   className="w-full"
                   value={keepAliveForever ? keepAliveFinite.current : keepAliveMs}
                   min={0}
                   disabled={keepAliveForever}
-                  suffix={keepAliveText}
+                  label={keepAliveForever ? t('integration.agentKeepAliveForever') : undefined}
+                  zeroLabel={t('integration.agentKeepAliveUnload')}
                   endAction={
                     <Tooltip content={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}>
                       <button
@@ -393,8 +378,6 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                       </button>
                     </Tooltip>
                   }
-                  onDraftChange={setKeepAliveTyping}
-                  onBlur={() => setKeepAliveTyping(null)}
                   onValueChange={(ms) => update({ keepAlive: msToKeepAlive(ms) })}
                 />
               </div>

@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { act, createElement } from 'react'
+import { act, type ComponentProps, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { RequireBoundGame } from '@/components/RequireBoundGame'
@@ -59,6 +59,25 @@ test.each([
   try {
     await act(async () => root.render(createElement(RequireBoundGame, null, 'features')))
     expect(host.textContent).toBe('choose-game')
+  } finally {
+    await act(async () => root.unmount())
+    globalThis.fetch = originalFetch
+  }
+})
+
+test.each([
+  ['local game', { canUseDisk: true, ready: true, library: [{ id: 'game' }] }, 'features'],
+  ['remote game', { canUseDisk: true, ready: true, remote: true, library: [{ id: 'game' }] }, 'choose-game'],
+  ['Edge', { canUseDisk: false, ready: false }, 'choose-game'],
+])('allowLocalOffline opens a %s without a running game', async (_mode, status, expected) => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = jest.fn().mockResolvedValue({ json: async () => status })
+  const host = document.createElement('div')
+  const root = createRoot(host)
+  mockRoom = 'selected-game'
+  try {
+    await act(async () => root.render(createElement(RequireBoundGame, { allowLocalOffline: true } as ComponentProps<typeof RequireBoundGame>, 'features')))
+    expect(host.textContent).toBe(expected)
   } finally {
     await act(async () => root.unmount())
     globalThis.fetch = originalFetch

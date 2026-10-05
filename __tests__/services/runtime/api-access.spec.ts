@@ -74,6 +74,8 @@ describe('API authorization', () => {
     expect(await mayAccessApi(request('/api/shell', { method: 'DELETE', headers }))).toBe(false)
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ texts: ['こんにちは'] }) }))).toBe(true)
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'realtime', texts: ['こんにちは'] }) }))).toBe(true)
+    expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'ai', text: 'こんにちは' }) }))).toBe(true)
+    expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'agents' }) }))).toBe(true)
     for (const mode of ['play-settings', 'benchmark']) {
       expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode }) }))).toBe(false)
     }

@@ -9,7 +9,7 @@ import { gameContentRelPath, LEGACY_FLAT_FILES } from '@/lib/game/content-paths'
 
 import { detectGameIdentity } from '../../helpers/game/game-identity'
 import { tryNodeFsPath } from '../../helpers/node/node-require'
-import { applyRunFlag } from '../runtime/apply-run'
+import { applyGameSpeed, applyRunFlag, applySpeed } from '../runtime/apply-run'
 import { Cheats, type LockKind } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
 
@@ -20,6 +20,7 @@ const CHEAT_LOCK_KINDS = new Set<string>(['item', 'weapon', 'armor', 'var', 'gol
 export type GameEditDiskRun = {
   walkRate?: number
   runRate?: number
+  gameSpeed?: number
   expRate?: number
   fullscreen?: boolean
   alwaysDash?: boolean
@@ -89,6 +90,7 @@ function normalizeDisk(raw: unknown): GameEditDiskState | null {
     run: {
       walkRate: asFiniteNumber(runIn.walkRate),
       runRate: asFiniteNumber(runIn.runRate),
+      gameSpeed: asFiniteNumber(runIn.gameSpeed),
       expRate: asFiniteNumber(runIn.expRate),
       fullscreen: asBool(runIn.fullscreen),
       alwaysDash: asBool(runIn.alwaysDash),
@@ -147,6 +149,7 @@ export function diskStateFromSession(session: SessionState): GameEditDiskState {
     run: {
       walkRate: session.walkRate,
       runRate: session.runRate,
+      gameSpeed: session.gameSpeed,
       expRate: session.expRate,
       fullscreen: session.fullscreen,
       alwaysDash: session.alwaysDash,
@@ -185,10 +188,8 @@ export function applyGameEditDisk(disk: GameEditDiskState) {
   const run = disk.run || {}
   const walk = run.walkRate
   const runRate = run.runRate
-  if (walk != null || runRate != null) {
-    const boost = (window as Window & { ChayaBoost?: { rates?: (o: { walk?: number; run?: number }) => void } }).ChayaBoost
-    boost?.rates?.({ walk: walk ?? 1, run: runRate ?? 1 })
-  }
+  if (walk != null || runRate != null) applySpeed(walk ?? 1, runRate ?? 1)
+  if (run.gameSpeed != null) applyGameSpeed(run.gameSpeed)
   if (run.expRate != null) RunCheats.setExpRate(run.expRate)
 
   const flags: RunFlagKey[] = [
@@ -223,6 +224,7 @@ export function mergeDiskIntoSession(prev: SessionState, disk: GameEditDiskState
     ...prev,
     walkRate: run.walkRate ?? prev.walkRate,
     runRate: run.runRate ?? prev.runRate,
+    gameSpeed: run.gameSpeed ?? prev.gameSpeed,
     expRate: run.expRate ?? prev.expRate,
     fullscreen: run.fullscreen ?? prev.fullscreen,
     alwaysDash: run.alwaysDash ?? prev.alwaysDash,

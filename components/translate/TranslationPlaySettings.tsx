@@ -4,24 +4,23 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formCardDense, formControlInline, formDescInline, formFieldInlineDense, formTitleInline } from '@/components/layoutClasses'
-import { Button, NumberSliderInput, Skeleton, Switch } from '@/components/sk'
+import { useNotification } from '@/components/notification/useNotification'
+import { Button, DurationInput, Skeleton, Switch } from '@/components/sk'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { DEFAULT_PLAY_SETTINGS, type TranslationPlaySettings as Settings } from '@/lib/translate/play-settings'
 import { cn } from '@/lib/utils'
 
-type Benchmark = { sample: string; translation: string; characters: number; elapsedMs: number }
-
 export function TranslationPlaySettings() {
   const t = useT()
   const translationFetch = useTranslationFetch()
+  const notify = useNotification()
   const [draft, setDraft] = useState<Settings>(DEFAULT_PLAY_SETTINGS)
   const [saved, setSaved] = useState<Settings | null>(null)
   const [contentRoot, setContentRoot] = useState('')
   const [pending, setPending] = useState<'load' | 'save' | 'test' | null>('load')
   const [error, setError] = useState('')
   const [feedback, setFeedback] = useState('')
-  const [benchmark, setBenchmark] = useState<Benchmark | null>(null)
   const current = useRef<AbortController | null>(null)
   const saving = useRef(false)
   const timeoutSave = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -34,7 +33,6 @@ export function TranslationPlaySettings() {
     setPending('load')
     setSaved(null)
     setFeedback('')
-    setBenchmark(null)
     setError('')
     try {
       const response = await translationFetch('/api/translate', {
@@ -73,7 +71,6 @@ export function TranslationPlaySettings() {
     setPending(action)
     setError('')
     setFeedback('')
-    setBenchmark(null)
     try {
       const response = await translationFetch('/api/translate', {
         method: 'POST',
@@ -81,18 +78,19 @@ export function TranslationPlaySettings() {
         signal: abort.signal,
         body: JSON.stringify({ mode: action === 'save' ? 'play-settings' : 'benchmark', settings: next, contentRoot }),
       })
-      const data = (await response.json()) as Benchmark & { settings: Settings }
+      const data = (await response.json()) as { settings: Settings; translation: string; characters: number; elapsedMs: number }
       if (!response.ok) throw new Error(readApiErrorMessage(data, action === 'save' ? t('notify.saveFailed') : t('translate.benchFailed')))
       if (abort.signal.aborted) return
       if (action === 'save') {
         setSaved(data.settings)
         setDraft(data.settings)
         setFeedback(t('translate.savedPlay'))
-      } else setBenchmark(data)
+      } else notify.info(`${t('translate.benchLine', { chars: data.characters, sec: (data.elapsedMs / 1000).toFixed(2) })}：${data.translation}`)
     } catch (err) {
       if (!abort.signal.aborted) {
         const message = err instanceof Error ? err.message : t('translate.requestFailed')
-        setError(action === 'test' ? t('translate.benchFailPrefix', { message }) : t('translate.saveNotSaved', { message }))
+        if (action === 'test') notify.error(t('translate.benchFailPrefix', { message }))
+        else setError(t('translate.saveNotSaved', { message }))
       }
     } finally {
       if (current.current === abort) {
@@ -103,9 +101,9 @@ export function TranslationPlaySettings() {
   }
 
   const dirty = saved != null && JSON.stringify(draft) !== JSON.stringify(saved)
-  const saveTimeout = (seconds: number) => {
+  const saveTimeout = (timeoutMs: number) => {
     if (!saved) return
-    const next = { ...draft, timeoutMs: seconds * 1000 }
+    const next = { ...draft, timeoutMs }
     setDraft(next)
     if (timeoutSave.current) clearTimeout(timeoutSave.current)
     if (saved.timeoutMs === next.timeoutMs) return
@@ -143,17 +141,16 @@ export function TranslationPlaySettings() {
               {t('translate.timeoutHint')}
             </span>
             <div className={formControlInline}>
-              <NumberSliderInput
+              <DurationInput
                 id="translation-timeout"
                 aria-describedby="translation-timeout-help"
                 aria-label={t('translate.timeout')}
-                className="w-[7.25rem] min-w-[7.25rem]"
-                min={2}
-                max={30}
-                step={1}
-                suffix={t('common.seconds')}
+                className="w-full"
+                min={2000}
+                max={30_000}
+                step={1000}
                 disabled={!!pending}
-                value={draft.timeoutMs / 1000}
+                value={draft.timeoutMs}
                 onValueChange={saveTimeout}
               />
             </div>
@@ -178,13 +175,6 @@ export function TranslationPlaySettings() {
               {t('common.retry')}
             </Button>
           ) : null}
-        </div>
-      ) : null}
-      {benchmark ? (
-        <div role="status" className="text-sm">
-          <p>{t('translate.benchLine', { chars: benchmark.characters, sec: (benchmark.elapsedMs / 1000).toFixed(2) })}</p>
-          <p className="mt-2 text-ink-soft">{benchmark.sample}</p>
-          <p className="mt-2 text-ink">{benchmark.translation}</p>
         </div>
       ) : null}
     </section>

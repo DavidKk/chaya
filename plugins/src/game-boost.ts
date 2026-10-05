@@ -1,5 +1,5 @@
 /**
- * ChayaBoost — move speed multipliers (walk / run separate) + always dash
+ * ChayaBoost — move speed multipliers (walk / run separate) + whole-game speed + always dash
  */
 
 import { PLUGIN_BOOST_NAME } from '@/constants/brand'
@@ -38,7 +38,21 @@ declare const Game_Player: {
   }
 }
 
+type SceneManagerLike = {
+  updateScene: (this: SceneManagerLike) => void
+  updateInputData?: () => void
+  _exiting?: boolean
+  _nextScene?: unknown
+}
+const sceneEngine = globalThis as { SceneManager?: SceneManagerLike }
+
+const GAME_SPEED_MIN = 1
+const GAME_SPEED_MAX = 5
+
 let _origPlayerMoveSpeedRate: ((this: SpeedActor) => number) | null = null
+let _origUpdateScene: ((this: SceneManagerLike) => void) | null = null
+let gameSpeed = 1
+let speedCarry = 0
 const hot = globalThis as typeof globalThis & { __chayaBoostDispose?: () => void }
 hot.__chayaBoostDispose?.()
 hot.__chayaBoostDispose = () => {
@@ -46,6 +60,51 @@ hot.__chayaBoostDispose = () => {
     if (_origPlayerMoveSpeedRate) Game_Player.prototype.moveSpeedRate = _origPlayerMoveSpeedRate
     else Reflect.deleteProperty(Game_Player.prototype, 'moveSpeedRate')
   }
+  const sm = sceneEngine.SceneManager
+  if (sm && _origUpdateScene && sm.updateScene === chayaUpdateScene) sm.updateScene = _origUpdateScene
+}
+
+/** Extra scene updates per frame; input is refreshed between them so triggers fire once */
+function chayaUpdateScene(this: SceneManagerLike): void {
+  const orig = _origUpdateScene
+  if (!orig) return
+  orig.call(this)
+  if (gameSpeed <= 1) return
+  speedCarry += gameSpeed - 1
+  while (speedCarry >= 1) {
+    speedCarry -= 1
+    if (this._exiting || this._nextScene) {
+      speedCarry = 0
+      break
+    }
+    this.updateInputData?.()
+    orig.call(this)
+  }
+}
+
+function ensureSceneHook(): boolean {
+  const sm = sceneEngine.SceneManager
+  if (!sm || typeof sm.updateScene !== 'function') return false
+  if (sm.updateScene !== chayaUpdateScene) {
+    _origUpdateScene = sm.updateScene
+    sm.updateScene = chayaUpdateScene
+  }
+  return true
+}
+
+function applyGameSpeed(rate: number): boolean {
+  const r = Number(rate)
+  if (!isFinite(r)) {
+    log.warn('运行倍速无效', rate)
+    return false
+  }
+  gameSpeed = Math.min(GAME_SPEED_MAX, Math.max(GAME_SPEED_MIN, r))
+  speedCarry = 0
+  if (gameSpeed > 1 && !ensureSceneHook()) {
+    log.warn('SceneManager 不存在，运行倍速未生效')
+    return false
+  }
+  return true
 }
 
 function chayaPlayerMoveSpeedRate(this: SpeedActor): number {
@@ -133,6 +192,7 @@ function currentRates() {
     walk: p?._walkSpeedRate ?? p?._moveSpeedRate ?? DEFAULT_RATE,
     run: p?._runSpeedRate ?? p?._moveSpeedRate ?? DEFAULT_RATE,
     moveRate: p?._moveSpeedRate ?? null,
+    gameSpeed,
     alwaysDash: alwaysDash(),
   }
 }
@@ -179,6 +239,13 @@ const ChayaBoost = {
     log.ok('倍率', currentRates())
     return this.status()
   },
+  /** Whole-game update speed (1–5); 1 = normal */
+  speed(n?: number) {
+    if (n == null) return gameSpeed
+    applyGameSpeed(n)
+    log.ok(`运行倍速 → ${gameSpeed}`)
+    return this.status()
+  },
   dash(on?: boolean) {
     setAlwaysDash(on !== false)
     log.ok(`一直疾跑 → ${alwaysDash()}`)
@@ -206,4 +273,4 @@ declarePluginTools('ChayaBoost', {
   status: () => ChayaBoost.status(),
 })
 
-log.ok(`已注册：${PLUGIN_BOOST_NAME}.on()/off()/walkRate()/runRate()/rates()`)
+log.ok(`已注册：${PLUGIN_BOOST_NAME}.on()/off()/walkRate()/runRate()/rates()/speed()`)

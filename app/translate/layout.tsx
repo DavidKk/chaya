@@ -12,7 +12,7 @@ import { TranslateLayoutShell } from '@/components/translate/TranslateLayoutShel
 export default function TranslateLayout({ children }: { children: ReactNode }) {
   return (
     <Suspense fallback={<TranslateBoundLoading />}>
-      <RequireBoundGame loadingFallback={<TranslateBoundLoading />}>
+      <RequireBoundGame allowLocalOffline loadingFallback={<TranslateBoundLoading />}>
         <TranslateLayoutShell>{children}</TranslateLayoutShell>
       </RequireBoundGame>
     </Suspense>

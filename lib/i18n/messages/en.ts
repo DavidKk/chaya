@@ -49,6 +49,10 @@ const commonEn = {
     remote: 'Remote',
     local: 'Local',
     seconds: 's',
+    durationMs: '{n} ms',
+    durationSec: '{n} sec',
+    durationMin: '{n} min',
+    durationHour: '{n} hr',
     chars: 'chars',
   },
   gate: {

@@ -363,13 +363,13 @@ export function buildOptimisticHandlers(setSession: SetSession, sendCmd: (op: Ga
     })
   }
 
-  const setWalkRate = (rate: number) => {
-    sendCmd({ op: 'walkRate', value: rate })
-    setSession((prev) => ({ ...prev, walkRate: rate }))
+  const setMoveRate = (rate: number) => {
+    sendCmd({ op: 'moveRate', value: rate })
+    setSession((prev) => ({ ...prev, walkRate: rate, runRate: rate }))
   }
-  const setRunRate = (rate: number) => {
-    sendCmd({ op: 'runRate', value: rate })
-    setSession((prev) => ({ ...prev, runRate: rate }))
+  const setGameSpeed = (rate: number) => {
+    sendCmd({ op: 'gameSpeed', value: rate })
+    setSession((prev) => ({ ...prev, gameSpeed: rate }))
   }
   const setExpRate = (rate: number) => {
     sendCmd({ op: 'expRate', value: rate })
@@ -393,8 +393,8 @@ export function buildOptimisticHandlers(setSession: SetSession, sendCmd: (op: Ga
     setActorOwnedLock,
     setActorVitalLock,
     setActor,
-    setWalkRate,
-    setRunRate,
+    setMoveRate,
+    setGameSpeed,
     setExpRate,
     setRunFlag,
     runAction,

@@ -8,6 +8,7 @@ import { RunCheats, type ScenePushId } from './cheats-run'
 
 type BoostApi = {
   rates?: (o: { walk?: number; run?: number }) => void
+  speed?: (n?: number) => unknown
   dash?: (v: boolean) => void
 }
 
@@ -17,6 +18,10 @@ function boostApi(): BoostApi | undefined {
 
 export function applySpeed(walk: number, run: number) {
   boostApi()?.rates?.({ walk, run })
+}
+
+export function applyGameSpeed(rate: number) {
+  boostApi()?.speed?.(rate)
 }
 
 export function applyRunFlag(key: RunFlagKey, on: boolean) {

@@ -47,6 +47,10 @@ export type MessageTree = {
     remote: string
     local: string
     seconds: string
+    durationMs: string
+    durationSec: string
+    durationMin: string
+    durationHour: string
     chars: string
   }
   gate: {
@@ -314,14 +318,9 @@ export type MessageTree = {
     completed: string
     extracting: string
     extractingText: string
-    noSeed: string
-    doneAll: string
-    stillMissing: string
     stillMissingNoEta: string
     sessionDone: string
-    sessionLines: string
     etaLeft: string
-    footHint: string
     playModeAria: string
     playLoadAria: string
     realtime: string
@@ -339,16 +338,33 @@ export type MessageTree = {
     saveNotSaved: string
     benchFailPrefix: string
     requestFailed: string
-    enginesTitle: string
     enginesClose: string
     dragOrder: string
     dragEngine: string
     engineToggle: string
-    needOneEngine: string
     engineOn: string
     engineOff: string
     enginesLoadFailed: string
     enginesSaveFailed: string
+    groupAgent: string
+    groupPlatform: string
+    agentAddAria: string
+    agentEdit: string
+    agentRemove: string
+    agentAdded: string
+    agentRemoved: string
+    agentAlreadyAdded: string
+    agentSaved: string
+    agentEmpty: string
+    engineBing: string
+    engineGoogle: string
+    aiProfile: string
+    aiModel: string
+    aiModelAuto: string
+    aiNoProfiles: string
+    aiProfileMissing: string
+    aiManage: string
+    aiLoadFailed: string
     progressFailed: string
     extractFailed: string
     extractDoneAdded: string
@@ -526,10 +542,10 @@ export type MessageTree = {
     goldUnlock: string
     goldLockTip: string
     goldUnlockTip: string
-    walkRate: string
-    walkRateDesc: string
-    runRate: string
-    runRateDesc: string
+    gameSpeed: string
+    gameSpeedDesc: string
+    moveRate: string
+    moveRateDesc: string
     expRate: string
     expRateDesc: string
     rateSuffix: string

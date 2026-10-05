@@ -17,6 +17,7 @@ import {
   AGENT_SNAP_MAX_WIDTH,
 } from '@/lib/runtime/agent-protocol'
 import { EDIT_ACTION_IDS, EDIT_OPS } from '@/lib/runtime/edit-ops'
+import { TRANSLATE_ENGINE_IDS } from '@/lib/translate/engines'
 
 export { MCP_ENDPOINT_PATH, MCP_SERVER_NAME } from '@/lib/integration/mcp-endpoint'
 
@@ -80,7 +81,7 @@ const gameId = str('Game id (chaya_live_games); omit when only one is online')
 
 export const CATALOG_KINDS = ['items', 'weapons', 'armors', 'actors', 'skills', 'states', 'classes', 'variables', 'switches'] as const
 export const LOG_LEVEL_VALUES = ['ok', 'warn', 'fail', 'info', 'debug'] as const
-export const TRANSLATE_ENGINE_VALUES = ['ollama', 'bing', 'google'] as const
+export const TRANSLATE_ENGINE_VALUES = TRANSLATE_ENGINE_IDS
 
 export const MCP_TOOLS: readonly McpToolMeta[] = [
   // library
@@ -372,12 +373,12 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     group: 'edit',
     title: 'Set value',
     description:
-      'Set or lock values with the edit page commands: gold, item counts, variables, switches, run flags (god mode, walk through walls…), movement / exp rates and actor stats. Look up ids with chaya_edit_catalog; the edit page updates right away.',
+      'Set or lock values with the edit page commands: gold, item counts, variables, switches, run flags (god mode, walk through walls…), movement / game speed / exp rates and actor stats. Look up ids with chaya_edit_catalog; the edit page updates right away.',
     inputSchema: obj(
       {
         gameId,
         op: str('Edit operation', { enum: EDIT_OPS }),
-        value: { description: 'Target value: a number for gold / count / var / walkRate / runRate / expRate, a boolean for sw / runFlag' },
+        value: { description: 'Target value: a number for gold / count / var / walkRate / runRate / moveRate / gameSpeed / expRate, a boolean for sw / runFlag' },
         on: bool('*Lock: true to lock, false to unlock'),
         kind: str('count / countLock: item / weapon / armor; actorVitalLock: level / exp / hp / mp; actorOwnedLock: skills / states'),
         id: num('Item / variable / switch / actor id'),
@@ -487,7 +488,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     description: 'Page through the local shared translation library with keyword, engine, sensitive-only and sort filters.',
     inputSchema: obj({
       q: str('Source / translation keyword'),
-      engine: str('Engine filter, e.g. ollama, bing, google, manual, import'),
+      engine: str('Engine filter, e.g. ollama, agent:<profileId>, bing, google, manual, import'),
       nsfw: bool('Sensitive entries only'),
       sort: str('Sort field', { enum: ['updated', 'hits'] }),
       order: str('Sort direction', { enum: ['desc', 'asc'] }),

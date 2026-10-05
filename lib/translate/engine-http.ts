@@ -7,20 +7,36 @@ export type EngineFetch = (url: string, init?: RequestInit) => Promise<Response>
 
 export async function requestOllama(
   http: EngineFetch,
-  input: { host?: string; model?: string; text: string; system?: string; temperature?: number; interactive?: boolean; signal?: AbortSignal }
+  input: {
+    host?: string
+    model?: string
+    text: string
+    system?: string
+    temperature?: number
+    interactive?: boolean
+    signal?: AbortSignal
+    /** Bearer token for Ollama-compatible endpoints behind auth */
+    token?: string
+    keepAlive?: string
+  }
 ) {
-  const res = await http(`${input.host || DEFAULT_OLLAMA_HOST}/api/chat`, {
+  const system = input.system || OLLAMA_TRANSLATE_SYSTEM
+  /* 小模型（如 gemma4 e2b）收到裸日文常原样复述；标出原文 / 译文槽位后才稳定输出中文 */
+  const user = system === OLLAMA_TRANSLATE_SYSTEM ? `日文：\n${input.text}\n\n简体中文：` : input.text
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (input.token) headers.Authorization = `Bearer ${input.token}`
+  const res = await http(`${(input.host || DEFAULT_OLLAMA_HOST).replace(/\/$/, '')}/api/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     signal: input.signal,
     body: JSON.stringify({
       model: input.model || DEFAULT_OLLAMA_MODEL,
       stream: false,
       think: false,
-      keep_alive: '30m',
+      keep_alive: input.keepAlive || '30m',
       messages: [
-        { role: 'system', content: input.system || OLLAMA_TRANSLATE_SYSTEM },
-        { role: 'user', content: input.text },
+        { role: 'system', content: system },
+        { role: 'user', content: user },
       ],
       options: { temperature: input.temperature ?? 0.2, ...(input.interactive ? { num_predict: Math.min(1024, Math.max(128, input.text.length * 3)) } : {}) },
     }),
@@ -30,6 +46,7 @@ export async function requestOllama(
   if (body.error) throw new Error(body.error)
   return String(body.message?.content || body.response || '')
     .replace(/^\s*<think>[\s\S]*?<\/think>\s*/i, '')
+    .replace(/^\s*(?:简体)?中文[:：]\s*/, '')
     .replace(/^["「『]+|["」』]+$/g, '')
     .trim()
 }

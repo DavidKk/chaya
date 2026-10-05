@@ -71,6 +71,7 @@ function readRunFields(
   | 'gold'
   | 'walkRate'
   | 'runRate'
+  | 'gameSpeed'
   | 'fullscreen'
   | 'alwaysDash'
   | 'god'
@@ -85,13 +86,14 @@ function readRunFields(
   | 'resourceSkip'
   | 'expRate'
 > {
-  const boost = (window as Window & { ChayaBoost?: { status?: () => { walk: number; run: number } } }).ChayaBoost
+  const boost = (window as Window & { ChayaBoost?: { status?: () => { walk: number; run: number; gameSpeed?: number } } }).ChayaBoost
   const st = boost?.status?.()
   RunCheats.ensureHooks()
   return {
     gold: $gameParty ? $gameParty.gold() : prev.gold,
     walkRate: st?.walk ?? prev.walkRate,
     runRate: st?.run ?? prev.runRate,
+    gameSpeed: st?.gameSpeed ?? prev.gameSpeed,
     fullscreen: RunCheats.getFullscreen(),
     alwaysDash: typeof ConfigManager !== 'undefined' ? !!ConfigManager.alwaysDash : prev.alwaysDash,
     god: Cheats.getGod(),

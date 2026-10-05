@@ -42,6 +42,10 @@ export const commonZh = {
     remote: '远程',
     local: '本地',
     seconds: '秒',
+    durationMs: '{n} 毫秒',
+    durationSec: '{n} 秒',
+    durationMin: '{n} 分钟',
+    durationHour: '{n} 小时',
     chars: '字',
   },
   gate: {

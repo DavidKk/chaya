@@ -49,6 +49,10 @@ const base = {
     remote: '원격',
     local: '로컬',
     seconds: '초',
+    durationMs: '{n}밀리초',
+    durationSec: '{n}초',
+    durationMin: '{n}분',
+    durationHour: '{n}시간',
     chars: '자',
   },
   gate: {

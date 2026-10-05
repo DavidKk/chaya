@@ -242,8 +242,8 @@ export function GameEditPage() {
         }}
         onGoldChange={handlers.setGold}
         onGoldLockChange={handlers.setGoldLock}
-        onWalkRateChange={handlers.setWalkRate}
-        onRunRateChange={handlers.setRunRate}
+        onMoveRateChange={handlers.setMoveRate}
+        onGameSpeedChange={handlers.setGameSpeed}
         onExpRateChange={handlers.setExpRate}
         onRunFlagChange={handlers.setRunFlag}
         onRunAction={handlers.runAction}

@@ -1,36 +1,68 @@
 'use client'
 
+import { Menu } from '@base-ui/react/menu'
+import Link from 'next/link'
 import { type DragEvent, useEffect, useEffectEvent, useRef, useState } from 'react'
-import { IoCloseOutline } from 'react-icons/io5'
-import { LuGripVertical } from 'react-icons/lu'
+import { IoAdd, IoChevronForward, IoCloseOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { formTitle } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, ScrollArea, SwitchToggle, TruncateText } from '@/components/sk'
+import { Button, ScrollArea, Tooltip } from '@/components/sk'
+import { dropdownItemClass, dropdownPopupClass, dropdownTriggerClass } from '@/components/sk/dropdownMenu'
+import { TranslateAgentEntryConfig } from '@/components/translate/TranslateAgentEntryConfig'
+import { TranslateEngineRow } from '@/components/translate/TranslateEngineRow'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
+import { useTranslateAgentProfiles } from '@/components/translate/useTranslateAgentProfiles'
 import { readApiErrorMessage } from '@/lib/api-error'
+import type { MessageKey } from '@/lib/i18n'
+import {
+  agentEngineKey,
+  DEFAULT_ENGINE_ORDER,
+  DEFAULT_ENGINE_SWITCHES,
+  engineGroup,
+  findAgentEntry,
+  isBuiltinEngineId,
+  MAX_TRANSLATE_AGENTS,
+  mergeEngineState,
+  type TranslateAgentEntry,
+  type TranslateBuiltinId,
+  type TranslateEngineGroup,
+  type TranslateEngineId,
+  type TranslateEngineState,
+  type TranslateEngineSwitches,
+} from '@/lib/translate/engines'
 import { cn } from '@/lib/utils'
 
-export type EngineId = 'ollama' | 'bing' | 'google'
+export type EngineId = TranslateEngineId
 
-export type EngineSwitches = Record<EngineId, boolean>
+export type EngineSwitches = TranslateEngineSwitches
 
-const ENGINE_LABEL: Record<EngineId, string> = {
-  ollama: 'Ollama',
-  bing: 'Bing',
-  google: 'Google',
+const BUILTIN_LABEL_KEY: Record<TranslateBuiltinId, MessageKey> = {
+  bing: 'translate.engineBing',
+  google: 'translate.engineGoogle',
 }
 
-const DEFAULT_ORDER: EngineId[] = ['ollama', 'bing', 'google']
-const DEFAULT_SWITCHES: EngineSwitches = { ollama: true, bing: true, google: true }
+const GROUPS: Array<{ id: TranslateEngineGroup; labelKey: MessageKey }> = [
+  { id: 'agent', labelKey: 'translate.groupAgent' },
+  { id: 'platform', labelKey: 'translate.groupPlatform' },
+]
+
+const groupLabel = 'text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase'
+
+type EngineView = Omit<TranslateEngineState, 'enabled'>
+
+const INITIAL: EngineView = { switches: DEFAULT_ENGINE_SWITCHES, agents: [], order: DEFAULT_ENGINE_ORDER }
 
 function sameIds(a: EngineId[], b: EngineId[]) {
   return a.length === b.length && a.every((id, i) => id === b[i])
 }
 
-function enabledFrom(order: EngineId[], switches: EngineSwitches): EngineId[] {
-  return order.filter((id) => switches[id])
+function enabledOf(view: EngineView): EngineId[] {
+  return mergeEngineState({ ...view.switches, order: view.order, agents: view.agents }).enabled
+}
+
+function newEntryId() {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 }
 
 type Props = {
@@ -40,44 +72,47 @@ type Props = {
   /** 小屏抽屉是否打开（由父级控制） */
   mobileOpen?: boolean
   onMobileOpenChange?: (open: boolean) => void
+  /** 控制台里的 Agent 管理页；局内浮层不传 */
+  manageAgentsHref?: string
 }
 
-/** 翻译页左侧：开关 + 拖拽排序补译优先级；小屏为滑出抽屉，不占主栏宽度 */
-export function TranslateEngineRail({ disabled, className, onChange, mobileOpen = false, onMobileOpenChange }: Props) {
+/** 翻译页左侧：Agent 组（用户添加的 Agent 实例）与翻译平台组；组内拖拽排序，先试 Agent 再试平台 */
+export function TranslateEngineRail({ disabled, className, onChange, mobileOpen = false, onMobileOpenChange, manageAgentsHref }: Props) {
   const t = useT()
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
+  const agentProfiles = useTranslateAgentProfiles()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [switches, setSwitches] = useState<EngineSwitches>(DEFAULT_SWITCHES)
-  const [order, setOrder] = useState<EngineId[]>(DEFAULT_ORDER)
+  const [view, setView] = useState<EngineView>(INITIAL)
+  const [openEntry, setOpenEntry] = useState<string | null>(null)
+  const [openGroups, setOpenGroups] = useState<ReadonlySet<TranslateEngineGroup>>(() => new Set(['agent', 'platform']))
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [addMenuContainer, setAddMenuContainer] = useState<ShadowRoot>()
+  const addAnchorRef = useRef<HTMLDivElement>(null)
   const [draggingId, setDraggingId] = useState<EngineId | null>(null)
   const [overId, setOverId] = useState<EngineId | null>(null)
   const [overEdge, setOverEdge] = useState<'before' | 'after'>('before')
-  const enabledRef = useRef<EngineId[]>(DEFAULT_ORDER)
+  const enabledRef = useRef<EngineId[]>([])
   const dragGhostRef = useRef<HTMLElement | null>(null)
+  const locked = loading || saving || !!disabled
 
   function closeMobile() {
     onMobileOpenChange?.(false)
   }
 
-  const emitChange = useEffectEvent((nextSwitches: EngineSwitches, nextOrder: EngineId[]) => {
-    const enabled = enabledFrom(nextOrder, nextSwitches)
+  function publish(next: EngineView) {
+    const enabled = enabledOf(next)
     if (sameIds(enabledRef.current, enabled)) return
     enabledRef.current = enabled
-    onChange?.(nextSwitches, enabled)
-  })
-
-  function publishEnabled(nextSwitches: EngineSwitches, nextOrder: EngineId[]) {
-    const enabled = enabledFrom(nextOrder, nextSwitches)
-    if (sameIds(enabledRef.current, enabled)) return
-    enabledRef.current = enabled
-    onChange?.(nextSwitches, enabled)
+    onChange?.(next.switches, enabled)
   }
+  const publishEvent = useEffectEvent(publish)
+  const reportError = useEffectEvent((message: string) => notify.error(message))
 
-  const reportError = useEffectEvent((message: string) => {
-    notify.error(message)
-  })
+  function viewFrom(json: Partial<EngineView>, fallback: EngineView): EngineView {
+    return { switches: json.switches ?? fallback.switches, agents: json.agents ?? fallback.agents, order: json.order?.length ? json.order : fallback.order }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -88,24 +123,15 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: 'switches' }),
         })
-        const json = (await res.json()) as {
-          ok?: boolean
-          switches?: EngineSwitches
-          order?: EngineId[]
-          enabled?: EngineId[]
-          file?: string
-          error?: unknown
-        }
+        const json = (await res.json()) as Partial<EngineView> & { ok?: boolean; error?: unknown }
         if (cancelled) return
         if (!res.ok || json.ok === false) {
           reportError(readApiErrorMessage(json, t('translate.enginesLoadFailed')))
           return
         }
-        const nextSwitches = json.switches ?? DEFAULT_SWITCHES
-        const nextOrder = json.order?.length ? json.order : DEFAULT_ORDER
-        setSwitches(nextSwitches)
-        setOrder(nextOrder)
-        emitChange(nextSwitches, nextOrder)
+        const next = viewFrom(json, INITIAL)
+        setView(next)
+        publishEvent(next)
       } catch (err) {
         if (!cancelled) reportError(err instanceof Error ? err.message : t('translate.enginesLoadFailed'))
       } finally {
@@ -117,7 +143,7 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
     }
   }, [t, translationFetch])
 
-  async function persist(patch: { switches?: Partial<EngineSwitches>; order?: EngineId[] }, okMsg?: string) {
+  async function persist(patch: { switches?: Partial<EngineSwitches>; order?: EngineId[]; agents?: TranslateAgentEntry[] }, okMsg?: string) {
     setSaving(true)
     try {
       const res = await translationFetch('/api/translate', {
@@ -125,22 +151,14 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'switches', ...patch }),
       })
-      const json = (await res.json()) as {
-        ok?: boolean
-        switches?: EngineSwitches
-        order?: EngineId[]
-        file?: string
-        error?: unknown
-      }
+      const json = (await res.json()) as Partial<EngineView> & { ok?: boolean; error?: unknown }
       if (!res.ok || json.ok === false) {
         notify.error(readApiErrorMessage(json, t('translate.enginesSaveFailed')))
         return false
       }
-      const nextSwitches = json.switches ?? switches
-      const nextOrder = json.order?.length ? json.order : order
-      setSwitches(nextSwitches)
-      setOrder(nextOrder)
-      publishEnabled(nextSwitches, nextOrder)
+      const next = viewFrom(json, view)
+      setView(next)
+      publish(next)
       if (okMsg) notify.success(okMsg)
       return true
     } catch (err) {
@@ -151,14 +169,52 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
     }
   }
 
+  function engineLabel(id: EngineId): string {
+    if (isBuiltinEngineId(id)) return t(BUILTIN_LABEL_KEY[id])
+    const entry = findAgentEntry(view.agents, id)
+    const profile = agentProfiles.profiles.find((p) => p.id === entry?.profileId)
+    return profile?.label ?? (agentProfiles.loading ? entry?.profileId || '' : t('translate.aiProfileMissing', { id: entry?.profileId ?? '' }))
+  }
+
+  function engineSubtitle(id: EngineId): string | undefined {
+    const entry = findAgentEntry(view.agents, id)
+    if (!entry) return undefined
+    const profile = agentProfiles.profiles.find((p) => p.id === entry.profileId)
+    return entry.model || profile?.defaultModel || t('translate.aiModelAuto')
+  }
+
   async function toggle(id: EngineId, checked: boolean) {
-    if (saving || disabled) return
-    const draft = { ...switches, [id]: checked }
-    if (!DEFAULT_ORDER.some((key) => draft[key])) {
-      notify.warning(t('translate.needOneEngine'))
+    if (locked) return
+    const name = engineLabel(id)
+    const msg = t(checked ? 'translate.engineOn' : 'translate.engineOff', { name })
+    if (isBuiltinEngineId(id)) {
+      await persist({ switches: { [id]: checked } }, msg)
       return
     }
-    await persist({ switches: { [id]: checked } }, t(checked ? 'translate.engineOn' : 'translate.engineOff', { name: ENGINE_LABEL[id] }))
+    const agents = view.agents.map((a) => (agentEngineKey(a.id) === id ? { ...a, enabled: checked } : a))
+    await persist({ agents }, msg)
+  }
+
+  async function addAgent(profileId: string) {
+    if (locked || view.agents.length >= MAX_TRANSLATE_AGENTS || view.agents.some((a) => a.profileId === profileId)) return
+    const entry: TranslateAgentEntry = { id: newEntryId(), profileId, model: '', enabled: true }
+    const name = agentProfiles.profiles.find((p) => p.id === profileId)?.label ?? profileId
+    if (await persist({ agents: [...view.agents, entry] }, t('translate.agentAdded', { name }))) {
+      setOpenGroups((cur) => (cur.has('agent') ? cur : new Set(cur).add('agent')))
+      setOpenEntry(entry.id)
+    }
+  }
+
+  async function updateAgent(entryId: string, patch: Partial<TranslateAgentEntry>) {
+    if (locked) return
+    await persist({ agents: view.agents.map((a) => (a.id === entryId ? { ...a, ...patch } : a)) }, t('translate.agentSaved'))
+  }
+
+  async function removeAgent(entryId: string) {
+    if (locked) return
+    const name = engineLabel(agentEngineKey(entryId))
+    const agents = view.agents.filter((a) => a.id !== entryId)
+    if (await persist({ agents }, t('translate.agentRemoved', { name }))) setOpenEntry(null)
   }
 
   function clearDrag() {
@@ -171,34 +227,36 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
   }
 
   function onDragStart(id: EngineId, e: DragEvent<HTMLButtonElement>) {
-    if (saving || disabled || loading) {
+    if (locked) {
       e.preventDefault()
       return
     }
     setDraggingId(id)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', id)
-
     const row = e.currentTarget.closest('li')
     if (row) {
       const ghost = row.cloneNode(true) as HTMLElement
-      ghost.style.position = 'fixed'
-      ghost.style.top = '-9999px'
-      ghost.style.left = '-9999px'
-      ghost.style.width = `${row.getBoundingClientRect().width}px`
-      ghost.style.opacity = '0.92'
-      ghost.style.pointerEvents = 'none'
-      ghost.style.boxShadow = '0 10px 28px rgb(0 0 0 / 0.45)'
-      ghost.style.transform = 'rotate(1.5deg) scale(1.02)'
-      ghost.style.borderRadius = '0.35rem'
+      Object.assign(ghost.style, {
+        position: 'fixed',
+        top: '-9999px',
+        left: '-9999px',
+        width: `${row.getBoundingClientRect().width}px`,
+        opacity: '0.92',
+        pointerEvents: 'none',
+        boxShadow: '0 10px 28px rgb(0 0 0 / 0.45)',
+        transform: 'rotate(1.5deg) scale(1.02)',
+        borderRadius: '0.35rem',
+      })
       document.body.appendChild(ghost)
       dragGhostRef.current = ghost
       e.dataTransfer.setDragImage(ghost, 16, 20)
     }
   }
 
+  /** 只允许组内拖拽：跨组顺序由「先 Agent 后平台」固定 */
   function onDragOver(id: EngineId, e: DragEvent<HTMLLIElement>) {
-    if (!draggingId || draggingId === id) return
+    if (!draggingId || draggingId === id || engineGroup(draggingId) !== engineGroup(id)) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     const rect = e.currentTarget.getBoundingClientRect()
@@ -206,34 +264,20 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
     setOverEdge(e.clientY < rect.top + rect.height / 2 ? 'before' : 'after')
   }
 
-  function onDragLeave(id: EngineId) {
-    if (overId === id) setOverId(null)
-  }
-
   async function onDrop(targetId: EngineId, e: DragEvent<HTMLLIElement>) {
     e.preventDefault()
     const sourceId = (e.dataTransfer.getData('text/plain') as EngineId) || draggingId
     const edge = overEdge
     clearDrag()
-    if (!sourceId || saving || disabled) return
-    const from = order.indexOf(sourceId)
-    let to = order.indexOf(targetId)
-    if (from < 0 || to < 0) return
-    if (sourceId === targetId) return
-    if (edge === 'after') to += 1
-    const next = [...order]
-    next.splice(from, 1)
-    const insertAt = from < to ? to - 1 : to
-    next.splice(insertAt, 0, sourceId)
-    if (sameIds(next, order)) return
-    const prev = order
-    setOrder(next)
-    const ok = await persist({ order: next })
-    if (!ok) setOrder(prev)
-  }
-
-  function onDragEnd() {
-    clearDrag()
+    if (!sourceId || locked || sourceId === targetId || engineGroup(sourceId) !== engineGroup(targetId)) return
+    const next = view.order.filter((id) => id !== sourceId)
+    const at = next.indexOf(targetId)
+    if (at < 0) return
+    next.splice(edge === 'after' ? at + 1 : at, 0, sourceId)
+    if (sameIds(next, view.order)) return
+    const prev = view
+    setView({ ...view, order: next })
+    if (!(await persist({ order: next }))) setView(prev)
   }
 
   useEffect(() => {
@@ -255,6 +299,47 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
     }
   }, [mobileOpen, onMobileOpenChange])
 
+  function isChecked(id: EngineId) {
+    return isBuiltinEngineId(id) ? view.switches[id] : !!findAgentEntry(view.agents, id)?.enabled
+  }
+
+  function renderRow(id: EngineId) {
+    const entry = findAgentEntry(view.agents, id)
+    const open = !!entry && openEntry === entry.id
+    return (
+      <TranslateEngineRow
+        key={id}
+        label={engineLabel(id)}
+        subtitle={engineSubtitle(id)}
+        checked={isChecked(id)}
+        locked={locked}
+        dragging={draggingId === id}
+        dropEdge={overId === id && draggingId && draggingId !== id ? overEdge : null}
+        onToggle={(v) => void toggle(id, v)}
+        onDragStart={(e) => onDragStart(id, e)}
+        onDragEnd={clearDrag}
+        onDragOver={(e) => onDragOver(id, e)}
+        onDragLeave={() => overId === id && setOverId(null)}
+        onDrop={(e) => void onDrop(id, e)}
+        onEdit={entry ? () => setOpenEntry(open ? null : entry.id) : undefined}
+        editing={open}
+      >
+        {entry && open ? (
+          <TranslateAgentEntryConfig
+            entry={entry}
+            agents={agentProfiles}
+            takenProfileIds={view.agents.filter((a) => a.id !== entry.id).map((a) => a.profileId)}
+            disabled={locked}
+            onChange={(patch) => void updateAgent(entry.id, patch)}
+            onRemove={() => void removeAgent(entry.id)}
+          />
+        ) : null}
+      </TranslateEngineRow>
+    )
+  }
+
+  const addDisabled = locked || view.agents.length >= MAX_TRANSLATE_AGENTS
+
   return (
     <>
       <button
@@ -266,7 +351,7 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
       />
       <aside
         className={cn(
-          'flex w-[18.5rem] flex-col min-h-0 border-r border-line bg-paper-2',
+          'flex w-[21rem] max-w-[88vw] flex-col min-h-0 border-r border-line bg-paper-2',
           'md:relative md:shrink-0 md:translate-x-0',
           'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-[70] max-md:h-dvh max-md:shadow-[8px_0_28px_rgb(0_0_0/0.4)]',
           'max-md:transition-transform max-md:duration-200 max-md:ease-out',
@@ -275,66 +360,109 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
         )}
         aria-label={t('translate.platformsConfig')}
       >
-        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
-          <h2 className={cn(formTitle, 'm-0 text-[0.8125rem]')}>{loading ? t('common.loading') : t('translate.enginesTitle')}</h2>
+        <div className="flex h-10 shrink-0 items-center justify-end border-b border-line px-2 md:hidden">
           <Button variant="ghost" size="icon" className="md:hidden" aria-label={t('translate.enginesClose')} tooltip={t('common.close')} onClick={() => closeMobile()}>
             <IoCloseOutline size={16} aria-hidden />
           </Button>
         </div>
         <ScrollArea className="min-h-0 flex-1" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.enginesList') }}>
-          <ul className="m-0 flex list-none flex-col gap-2 p-4">
-            {order.map((id) => {
-              const label = ENGINE_LABEL[id]
-              const showLine = overId === id && draggingId && draggingId !== id
-              return (
-                <li
-                  key={id}
-                  onDragOver={(e) => onDragOver(id, e)}
-                  onDragLeave={() => onDragLeave(id)}
-                  onDrop={(e) => void onDrop(id, e)}
-                  className={cn(
-                    'relative grid h-11 grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1 rounded-[0.35rem] border border-line bg-panel pr-3 pl-0 transition-[opacity,transform,box-shadow,border-color] duration-150 ease-out',
-                    draggingId === id && 'scale-[0.985] opacity-40 shadow-none',
-                    !draggingId && 'hover:border-[color-mix(in_oklab,var(--line)_70%,var(--accent))]'
-                  )}
-                >
-                  {showLine && overEdge === 'before' ? (
-                    <span className="pointer-events-none absolute inset-x-1 -top-1 h-0.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent-glow)]" />
-                  ) : null}
-                  {showLine && overEdge === 'after' ? (
-                    <span className="pointer-events-none absolute inset-x-1 -bottom-1 h-0.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent-glow)]" />
-                  ) : null}
+          {GROUPS.map((group) => {
+            const ids = view.order.filter((id) => engineGroup(id) === group.id)
+            return (
+              <section key={group.id} className="flex flex-col" aria-label={t(group.labelKey)}>
+                <div ref={group.id === 'agent' ? addAnchorRef : undefined} className="flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 py-2">
                   <button
                     type="button"
-                    draggable={!loading && !saving && !disabled}
-                    disabled={loading || saving || disabled}
-                    aria-label={t('translate.dragEngine', { name: label })}
-                    title={t('translate.dragOrder')}
-                    className={cn(
-                      'inline-flex h-full w-full cursor-grab appearance-none items-center justify-center border-none bg-transparent p-0 text-ink-soft/70',
-                      'hover:enabled:text-ink active:cursor-grabbing',
-                      'disabled:cursor-not-allowed disabled:opacity-40'
-                    )}
-                    onDragStart={(e) => onDragStart(id, e)}
-                    onDragEnd={onDragEnd}
+                    aria-expanded={openGroups.has(group.id)}
+                    aria-controls={`translate-engine-group-${group.id}`}
+                    className="flex h-8 min-w-0 flex-1 cursor-pointer items-center gap-2 border-none bg-transparent p-0 text-left"
+                    onClick={() =>
+                      setOpenGroups((cur) => {
+                        const next = new Set(cur)
+                        if (!next.delete(group.id)) next.add(group.id)
+                        return next
+                      })
+                    }
                   >
-                    <LuGripVertical size={12} aria-hidden />
+                    <IoChevronForward size={13} aria-hidden className={cn('shrink-0 text-ink-soft transition-transform duration-150', openGroups.has(group.id) && 'rotate-90')} />
+                    <span className={groupLabel}>{t(group.labelKey)}</span>
+                    <span className="text-[0.68rem] tabular-nums text-ink-soft">{ids.length}</span>
                   </button>
-                  <div className="flex min-w-0 items-center">
-                    <TruncateText text={label} className="text-[0.8125rem] font-medium leading-none text-ink" />
+                  {group.id === 'agent' ? (
+                    <Menu.Root
+                      open={addMenuOpen}
+                      onOpenChange={(open) => {
+                        const root = addAnchorRef.current?.getRootNode()
+                        if (open && typeof ShadowRoot !== 'undefined' && root instanceof ShadowRoot) setAddMenuContainer(root)
+                        setAddMenuOpen(open)
+                      }}
+                    >
+                      <Tooltip content={t('translate.agentAddAria')} suppressed={addMenuOpen}>
+                        <Menu.Trigger
+                          aria-label={t('translate.agentAddAria')}
+                          disabled={addDisabled}
+                          className={cn(dropdownTriggerClass, 'size-7 justify-center p-0 disabled:cursor-not-allowed disabled:opacity-50')}
+                        >
+                          <IoAdd size={15} aria-hidden />
+                        </Menu.Trigger>
+                      </Tooltip>
+                      <Menu.Portal container={addMenuContainer}>
+                        <Menu.Positioner side="bottom" align="end" sideOffset={6} collisionPadding={8} positionMethod="fixed" className="z-[80]">
+                          <Menu.Popup aria-label={t('translate.agentAddAria')} finalFocus={(type) => type === 'keyboard'} className={cn(dropdownPopupClass, 'max-w-[16rem]')}>
+                            {agentProfiles.loading ? (
+                              <Menu.Item disabled className={cn(dropdownItemClass, 'text-ink-soft')}>
+                                {t('common.loading')}
+                              </Menu.Item>
+                            ) : null}
+                            {!agentProfiles.loading && !agentProfiles.profiles.length ? (
+                              <Menu.Item disabled className={cn(dropdownItemClass, 'text-ink-soft')}>
+                                {agentProfiles.error ? t('translate.aiLoadFailed', { message: agentProfiles.error }) : t('translate.aiNoProfiles')}
+                              </Menu.Item>
+                            ) : null}
+                            {agentProfiles.profiles.map((p) => {
+                              const added = view.agents.some((a) => a.profileId === p.id)
+                              return (
+                                <Menu.Item
+                                  key={p.id}
+                                  closeOnClick
+                                  disabled={added}
+                                  className={cn(dropdownItemClass, added && 'cursor-not-allowed opacity-50')}
+                                  onClick={() => void addAgent(p.id)}
+                                >
+                                  <span className="min-w-0 truncate">{p.label}</span>
+                                  <span className="min-w-0 truncate text-[0.72rem] text-ink-soft">{added ? t('translate.agentAlreadyAdded') : p.defaultModel}</span>
+                                </Menu.Item>
+                              )
+                            })}
+                            {manageAgentsHref ? (
+                              <>
+                                <Menu.Separator className="mx-2 my-1 h-px bg-[rgb(230_238_248/0.08)]" />
+                                <Menu.Item render={<Link href={manageAgentsHref} />} className={cn(dropdownItemClass, 'text-ink-soft')}>
+                                  {t('translate.aiManage')}
+                                </Menu.Item>
+                              </>
+                            ) : null}
+                          </Menu.Popup>
+                        </Menu.Positioner>
+                      </Menu.Portal>
+                    </Menu.Root>
+                  ) : null}
+                </div>
+                {openGroups.has(group.id) ? (
+                  <div id={`translate-engine-group-${group.id}`} className="flex flex-col gap-2 border-b border-line p-4">
+                    {group.id === 'agent' && agentProfiles.error ? (
+                      <p className="m-0 text-[0.72rem] leading-snug text-ink-soft">{t('translate.aiLoadFailed', { message: agentProfiles.error })}</p>
+                    ) : null}
+                    {ids.length ? (
+                      <ul className="m-0 flex list-none flex-col gap-2 p-0">{ids.map(renderRow)}</ul>
+                    ) : (
+                      <p className="m-0 rounded-[0.35rem] border border-dashed border-line px-3 py-3 text-[0.72rem] leading-snug text-ink-soft">{t('translate.agentEmpty')}</p>
+                    )}
                   </div>
-                  <div className="flex h-full items-center justify-center">
-                    <SwitchToggle
-                      checked={!!switches[id]}
-                      disabled={loading || saving || disabled}
-                      aria-label={t('translate.engineToggle', { name: label })}
-                      onCheckedChange={(v) => void toggle(id, v)}
-                    />
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+                ) : null}
+              </section>
+            )
+          })}
         </ScrollArea>
       </aside>
     </>

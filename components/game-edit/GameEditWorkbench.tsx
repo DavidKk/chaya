@@ -92,8 +92,8 @@ export type GameEditWorkbenchProps = {
   onClose?: () => void
   onGoldChange: (gold: number) => void
   onGoldLockChange: (on: boolean) => void
-  onWalkRateChange: (rate: number) => void
-  onRunRateChange: (rate: number) => void
+  onMoveRateChange: (rate: number) => void
+  onGameSpeedChange: (rate: number) => void
   onExpRateChange: (rate: number) => void
   onRunFlagChange: (key: RunFlagKey, on: boolean) => void
   onRunAction: (id: RunActionId) => void
@@ -202,8 +202,8 @@ export function GameEditWorkbench({
   onClose,
   onGoldChange,
   onGoldLockChange,
-  onWalkRateChange,
-  onRunRateChange,
+  onMoveRateChange,
+  onGameSpeedChange,
   onExpRateChange,
   onRunFlagChange,
   onRunAction,
@@ -438,7 +438,7 @@ export function GameEditWorkbench({
                     gold: session.gold,
                     goldLocked,
                     walkRate: session.walkRate,
-                    runRate: session.runRate,
+                    gameSpeed: session.gameSpeed,
                     alwaysDash: session.alwaysDash,
                     fullscreen: session.fullscreen,
                     god: session.god,
@@ -456,8 +456,8 @@ export function GameEditWorkbench({
                   actionsEnabled={surface === 'overlay' || linked}
                   onGoldChange={onGoldChange}
                   onGoldLockChange={onGoldLockChange}
-                  onWalkRateChange={onWalkRateChange}
-                  onRunRateChange={onRunRateChange}
+                  onMoveRateChange={onMoveRateChange}
+                  onGameSpeedChange={onGameSpeedChange}
                   onExpRateChange={onExpRateChange}
                   onFlagChange={onRunFlagChange}
                   onAction={onRunAction}

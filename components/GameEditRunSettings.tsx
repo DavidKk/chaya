@@ -15,7 +15,7 @@ export type GameEditRunSettingsState = Pick<
   SessionState,
   | 'gold'
   | 'walkRate'
-  | 'runRate'
+  | 'gameSpeed'
   | 'fullscreen'
   | 'alwaysDash'
   | 'god'
@@ -37,8 +37,9 @@ type Props = {
   actionsEnabled?: boolean
   onGoldChange: (gold: number) => void
   onGoldLockChange: (on: boolean) => void
-  onWalkRateChange: (rate: number) => void
-  onRunRateChange: (rate: number) => void
+  /** Sets walk and run together */
+  onMoveRateChange: (rate: number) => void
+  onGameSpeedChange: (rate: number) => void
   onExpRateChange: (rate: number) => void
   onFlagChange: (key: RunFlagKey, on: boolean) => void
   onAction: (id: RunActionId) => void
@@ -47,6 +48,11 @@ type Props = {
 function clampRate(n: number) {
   if (!Number.isFinite(n)) return 1
   return Math.min(8, Math.max(0.5, Math.round(n * 100) / 100))
+}
+
+function clampGameSpeed(n: number) {
+  if (!Number.isFinite(n)) return 1
+  return Math.min(5, Math.max(1, Math.round(n * 100) / 100))
 }
 
 function clampExp(n: number) {
@@ -213,8 +219,8 @@ export function GameEditRunSettings({
   actionsEnabled = true,
   onGoldChange,
   onGoldLockChange,
-  onWalkRateChange,
-  onRunRateChange,
+  onMoveRateChange,
+  onGameSpeedChange,
   onExpRateChange,
   onFlagChange,
   onAction,
@@ -255,8 +261,26 @@ export function GameEditRunSettings({
         </div>
 
         <div className={formFieldInlineDense}>
-          <span className={formTitleInline}>{t('edit.walkRate')}</span>
-          <span className={formDescInline}>{t('edit.walkRateDesc')}</span>
+          <span className={formTitleInline}>{t('edit.gameSpeed')}</span>
+          <span className={formDescInline}>{t('edit.gameSpeedDesc')}</span>
+          <div className={formControlInline}>
+            <NumberSliderInput
+              className="w-[7.25rem] min-w-[7.25rem]"
+              value={value.gameSpeed}
+              min={1}
+              max={5}
+              step={0.25}
+              allowDecimal
+              suffix={t('edit.rateSuffix')}
+              aria-label={t('edit.gameSpeed')}
+              onValueChange={(v) => onGameSpeedChange(clampGameSpeed(v))}
+            />
+          </div>
+        </div>
+
+        <div className={formFieldInlineDense}>
+          <span className={formTitleInline}>{t('edit.moveRate')}</span>
+          <span className={formDescInline}>{t('edit.moveRateDesc')}</span>
           <div className={formControlInline}>
             <NumberSliderInput
               className="w-[7.25rem] min-w-[7.25rem]"
@@ -266,26 +290,8 @@ export function GameEditRunSettings({
               step={0.25}
               allowDecimal
               suffix={t('edit.rateSuffix')}
-              aria-label={t('edit.walkRate')}
-              onValueChange={(v) => onWalkRateChange(clampRate(v))}
-            />
-          </div>
-        </div>
-
-        <div className={formFieldInlineDense}>
-          <span className={formTitleInline}>{t('edit.runRate')}</span>
-          <span className={formDescInline}>{t('edit.runRateDesc')}</span>
-          <div className={formControlInline}>
-            <NumberSliderInput
-              className="w-[7.25rem] min-w-[7.25rem]"
-              value={value.runRate}
-              min={0.5}
-              max={8}
-              step={0.25}
-              allowDecimal
-              suffix={t('edit.rateSuffix')}
-              aria-label={t('edit.runRate')}
-              onValueChange={(v) => onRunRateChange(clampRate(v))}
+              aria-label={t('edit.moveRate')}
+              onValueChange={(v) => onMoveRateChange(clampRate(v))}
             />
           </div>
         </div>

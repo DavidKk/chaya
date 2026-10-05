@@ -55,7 +55,7 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
       .clone()
       .json()
       .catch(() => null)
-    return !!body && (body.mode == null || body.mode === 'live' || body.mode === 'realtime' || body.mode === 'lookup')
+    return !!body && (body.mode == null || body.mode === 'live' || body.mode === 'realtime' || body.mode === 'lookup' || body.mode === 'ai' || body.mode === 'agents')
   }
   return false
 }

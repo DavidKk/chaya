@@ -53,6 +53,10 @@ export type GameEditCmdOp =
   | { op: 'runAction'; id: RunActionId }
   | { op: 'walkRate'; value: number }
   | { op: 'runRate'; value: number }
+  /** Walk and run together */
+  | { op: 'moveRate'; value: number }
+  /** Whole-game update speed (scene updates per frame) */
+  | { op: 'gameSpeed'; value: number }
   | { op: 'expRate'; value: number }
   | { op: 'actor'; id: number; patch: Partial<ActorDraft> }
   | { op: 'actorVitalLock'; actorId: number; kind: ActorVitalLockKind; on: boolean; value: number }

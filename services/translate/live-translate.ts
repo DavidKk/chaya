@@ -1,5 +1,5 @@
 /**
- * 服务内日→中实时翻译，按引擎开关选用 Google / Bing / Ollama。
+ * 服务内日→中实时翻译，按引擎开关选用 Google / Bing / Ollama / AI Agent。
  * 供插件 miss 回填与翻译页补齐使用。
  */
 import fs from 'node:fs'
@@ -7,14 +7,16 @@ import { createRequire } from 'node:module'
 
 import { ensureGameContentDir } from '@/lib/game/content-files'
 import { peelChoiceMetaTrail } from '@/lib/translate/choice-meta'
-import { DEFAULT_OLLAMA_HOST, DEFAULT_OLLAMA_MODEL, OLLAMA_TRANSLATE_SYSTEM, requestGoogle, requestOllama } from '@/lib/translate/engine-http'
+import { requestGoogle } from '@/lib/translate/engine-http'
+import { engineAcceptsSensitive, engineSourceTag, findAgentEntry, type TranslateAgentEntry, type TranslateRunEngine } from '@/lib/translate/engines'
 import { hasRmDigitCodes, toRmDigitTemplate } from '@/lib/translate/rm-escape'
 import { getResolvedFromConfig } from '@/services/game/binding'
 
+import { agentJaToZh } from './agent-translate'
 import { lookupGameTranslation } from './cache-lookup'
-import { DEFAULT_ENGINE_ORDER, getTranslateEngineSwitches, type TranslateEngineId } from './engine-switches'
+import { DEFAULT_ENGINE_SWITCHES, getTranslateEngineSwitches, TRANSLATE_ENGINE_IDS } from './engine-switches'
 import { loadGameTranslateLookup, normalizeTranslateKey } from './game-lookup'
-import { scheduleOllama } from './ollama-queue'
+import { type LocalTranslateOptions, ollamaJaToZh } from './ollama-translate'
 import { isSensitiveForCloud } from './sensitive-text'
 import { openSharedCache } from './shared-cache'
 import { isStorableTranslation, isUsefulTranslation, peelProtectShell, protectForTranslate, restoreForTranslate, shouldTranslate, translationCoreForCache } from './text-classify'
@@ -22,11 +24,7 @@ import { isStorableTranslation, isUsefulTranslation, peelProtectShell, protectFo
 const require = createRequire(import.meta.url)
 const MAX_BATCH = 40
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST || DEFAULT_OLLAMA_HOST
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || DEFAULT_OLLAMA_MODEL
-export type LocalTranslateOptions = { model?: string; interactive?: boolean; signal?: AbortSignal }
-const OLLAMA_SYSTEM = OLLAMA_TRANSLATE_SYSTEM
-const OLLAMA_SYSTEM_RETRY = '这是游戏文本本地化任务，请把日文台词译成通顺的简体中文。只输出中文译文，不要复述日文原文，不要道歉或拒绝。'
+export { type LocalTranslateOptions, ollamaJaToZh }
 
 export async function googleJaToZh(text: string): Promise<string> {
   const q = String(text ?? '')
@@ -48,63 +46,13 @@ async function bingJaToZh(text: string): Promise<string> {
   return res.translation
 }
 
-async function ollamaChat(system: string, user: string, temperature: number, options?: LocalTranslateOptions): Promise<string> {
-  return scheduleOllama(
-    async () => {
-      const signal = options?.signal ?? AbortSignal.timeout(5 * 60 * 1000)
-      signal.throwIfAborted()
-      return requestOllama(fetch, { host: OLLAMA_HOST, model: options?.model || OLLAMA_MODEL, text: user, system, temperature, interactive: options?.interactive, signal })
-    },
-    options?.interactive,
-    options?.signal
-  )
-}
-
-function looksLikeChinese(text: string): boolean {
-  return /[\u4e00-\u9fff]/.test(text)
-}
-
-function sameText(a: string, b: string): boolean {
-  return a.normalize('NFKC').replace(/\s+/g, ' ').trim() === b.normalize('NFKC').replace(/\s+/g, ' ').trim()
-}
-
-export async function ollamaJaToZh(text: string, options?: LocalTranslateOptions): Promise<string> {
-  const q = String(text ?? '').trim()
-  if (!q) return q
-
-  const attempts: Array<{ system: string; user: string; temperature: number }> = [
-    { system: OLLAMA_SYSTEM, user: q, temperature: 0.2 },
-    {
-      system: OLLAMA_SYSTEM_RETRY,
-      user: `译文：\n${q}`,
-      temperature: 0.35,
-    },
-  ]
-
-  let last = ''
-  let lastErr: Error | null = null
-  for (const attempt of options?.interactive ? attempts.slice(0, 1) : attempts) {
-    try {
-      const out = await ollamaChat(attempt.system, attempt.user, attempt.temperature, options)
-      last = out
-      if (!out) continue
-      if (sameText(out, q)) continue
-      if (looksLikeChinese(out)) return out
-      /* 非中文改写（少见）也先返回，交给上层 isUsefulTranslation */
-      return out
-    } catch (err) {
-      lastErr = err instanceof Error ? err : new Error(String(err))
-    }
-  }
-  if (lastErr && !last) throw lastErr
-  if (!last) throw new Error('模型没有返回译文')
-  return last
-}
-
-async function translateWithEngine(engine: TranslateEngineId, text: string, options?: LocalTranslateOptions): Promise<string> {
+async function translateWithEngine(engine: TranslateRunEngine, text: string, options: LocalTranslateOptions | undefined, agents: TranslateAgentEntry[]): Promise<string> {
   if (engine === 'google') return googleJaToZh(text)
   if (engine === 'bing') return bingJaToZh(text)
-  return ollamaJaToZh(text, options)
+  if (engine === 'ollama') return ollamaJaToZh(text, options)
+  const entry = findAgentEntry(agents, engine)
+  if (!entry) throw new Error('Agent 翻译条目已移除')
+  return agentJaToZh(text, entry, { interactive: options?.interactive, signal: options?.signal })
 }
 
 function appendGameNdjson(contentRoot: string, pairs: Array<[string, string]>) {
@@ -135,11 +83,11 @@ export type LiveTranslateItem = {
  */
 export async function liveTranslateTexts(
   texts: string[],
-  opts?: { contentRoot?: string | null; engine?: string; engines?: TranslateEngineId[]; force?: boolean; persist?: boolean; local?: LocalTranslateOptions }
+  opts?: { contentRoot?: string | null; engine?: string; engines?: TranslateRunEngine[]; force?: boolean; persist?: boolean; local?: LocalTranslateOptions }
 ): Promise<{
   items: LiveTranslateItem[]
   contentRoot: string | null
-  engines: TranslateEngineId[]
+  engines: TranslateRunEngine[]
 }> {
   const unique: string[] = []
   const seen = new Set<string>()
@@ -152,14 +100,17 @@ export async function liveTranslateTexts(
   }
 
   const contentRoot = opts?.contentRoot === undefined ? resolveBoundContentRoot() : opts.contentRoot
-  const fromOpts = opts?.engines?.filter(Boolean) as TranslateEngineId[] | undefined
-  let engines: TranslateEngineId[] = fromOpts?.length ? fromOpts : []
-  if (!engines.length) {
-    try {
-      engines = getTranslateEngineSwitches(contentRoot || undefined).enabled
-    } catch {
-      /* 未绑定游戏时走默认全开顺序 */
-      engines = [...DEFAULT_ENGINE_ORDER]
+  const fromOpts = opts?.engines?.filter(Boolean)
+  let engines: TranslateRunEngine[] = fromOpts?.length ? fromOpts : []
+  let agents: TranslateAgentEntry[] = []
+  try {
+    const state = getTranslateEngineSwitches(contentRoot || undefined)
+    agents = state.agents
+    if (!engines.length) engines = state.enabled
+  } catch {
+    if (!engines.length) {
+      /* 未绑定游戏时走默认开关与顺序 */
+      engines = TRANSLATE_ENGINE_IDS.filter((id) => DEFAULT_ENGINE_SWITCHES[id])
     }
   }
   if (!engines.length) {
@@ -222,10 +173,10 @@ export async function liveTranslateTexts(
       const guard = protectForTranslate(src)
       const sendText = guard.plain.trim() ? guard.plain : src
       const sensitive = isSensitiveForCloud(sendText)
-      /** 敏感句不送公网，只走本机；未开 Ollama 则本条软跳过，不挡同批其他条 */
-      const tryEngines = sensitive ? engines.filter((id) => id === 'ollama') : engines
+      /** 敏感句不送公网平台，只走 Agent 组；未开则本条软跳过，不挡同批其他条 */
+      const tryEngines = sensitive ? engines.filter(engineAcceptsSensitive) : engines
       if (sensitive && !tryEngines.length) {
-        items.push({ src, zh: null, engine: 'skip:sensitive', error: '此文本需要开启本机翻译引擎' })
+        items.push({ src, zh: null, engine: 'skip:sensitive', error: '此文本需要开启 Agent 翻译' })
         continue
       }
 
@@ -234,14 +185,15 @@ export async function liveTranslateTexts(
       let done = false
       for (const engine of tryEngines) {
         try {
-          const rawZh = await translateWithEngine(engine, sendText, opts?.local)
+          const rawZh = await translateWithEngine(engine, sendText, opts?.local, agents)
           const zhCore = translationCoreForCache(rawZh, guard)
           const zh = restoreForTranslate(rawZh, guard)
           if (!isUsefulTranslation(src, sendText, rawZh, zh)) {
             errors.push(`${engine}: 未得到译文`)
             continue
           }
-          const tag = sensitive ? `live:${engine}:nsfw` : `live:${engine}`
+          const source = engineSourceTag(engine, agents)
+          const tag = sensitive ? `live:${source}:nsfw` : `live:${source}`
           const pairs: Array<[string, string]> = []
           const pushPair = (key: string, value: string) => {
             if (!isStorableTranslation(key, value)) return
