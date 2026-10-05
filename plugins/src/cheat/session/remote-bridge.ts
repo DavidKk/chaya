@@ -13,6 +13,7 @@ import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from './
 import { buildLiveMapDetail, playerSpot, runMapEvent, runningCommonEvents, setSelfSwitch, teleportPlayer } from './live-map'
 import { buildLiveCatalog, readLiveSession, setItemCount, setPartyGold } from './live-session'
 import { recentMaps } from './map-history'
+import { handleDataMessage, isDataCmd, runDataCmd, sendSized, stopDataBridge } from './save-data-bridge'
 
 type SendFn = (msg: GameLinkMessage) => void
 
@@ -23,13 +24,19 @@ let sendFn: SendFn | null = null
 let mirror: SessionState = emptySession()
 /** Successfully acked cmdIds (bounded; avoid retry double-effects) */
 const ackedCmdIds = new Set<string>()
-const ACKED_CAP = 64
+/** Results of acked data ops, replayed when a retry arrives */
+const ackResults = new Map<string, unknown>()
+const ACKED_CAP = 200
 
-function rememberAcked(cmdId: string) {
+function rememberAcked(cmdId: string, result?: unknown) {
   ackedCmdIds.add(cmdId)
+  if (result !== undefined) ackResults.set(cmdId, result)
   if (ackedCmdIds.size <= ACKED_CAP) return
   const first = ackedCmdIds.values().next().value
-  if (first) ackedCmdIds.delete(first)
+  if (first) {
+    ackedCmdIds.delete(first)
+    ackResults.delete(first)
+  }
 }
 
 export function applyEditCmd(cmd: GameEditCmd): void {
@@ -167,6 +174,7 @@ function pushState() {
 
 export function handleRemoteEditMessage(msg: GameLinkMessage, send: SendFn) {
   sendFn = send
+  if (handleDataMessage(msg, send)) return
   if (msg.type === 'edit.catalog.request') {
     send({ type: 'edit.catalog', catalog: buildLiveCatalog() })
     return
@@ -209,14 +217,17 @@ export function handleRemoteEditMessage(msg: GameLinkMessage, send: SendFn) {
     const fields = fieldsForEditCmd(msg)
     const already = !!msg.cmdId && ackedCmdIds.has(msg.cmdId)
     try {
-      if (!already) {
-        applyEditCmd(msg)
-        if (msg.cmdId) rememberAcked(msg.cmdId)
+      let result: unknown
+      if (already) result = ackResults.get(msg.cmdId)
+      else {
+        if (isDataCmd(msg)) result = runDataCmd(msg)
+        else applyEditCmd(msg)
+        if (msg.cmdId) rememberAcked(msg.cmdId, result)
       }
       if (msg.cmdId) {
-        send({ type: 'edit.ack', cmdId: msg.cmdId, fields, ok: true })
+        sendSized(send, { type: 'edit.ack', cmdId: msg.cmdId, fields, ok: true, ...(result !== undefined ? { result } : {}) })
       }
-      pushState()
+      if (!isDataCmd(msg)) pushState()
     } catch (err) {
       if (msg.cmdId) {
         try {
@@ -233,6 +244,8 @@ export function stopRemoteEditBridge() {
   subscribed = false
   sendFn = null
   ackedCmdIds.clear()
+  ackResults.clear()
+  stopDataBridge()
   if (pushTimer) {
     clearInterval(pushTimer)
     pushTimer = null

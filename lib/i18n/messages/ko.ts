@@ -1,3 +1,4 @@
+import { dataKo } from '@/lib/i18n/messages/parts/data.ko'
 import { downloadsKo } from '@/lib/i18n/messages/parts/downloads'
 import { editKo } from '@/lib/i18n/messages/parts/edit.ko'
 import { eventsKo } from '@/lib/i18n/messages/parts/events.ko'
@@ -287,4 +288,5 @@ export const ko: MessageTree = {
   ...mcpGatewayKo,
   ...downloadsKo,
   ...eventsKo,
+  ...dataKo,
 }

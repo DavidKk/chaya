@@ -7,6 +7,7 @@ import {
   type ActorPaneId,
   editActorHref,
   editCommonHref,
+  editDataHref,
   editMapHref,
   editTabHref,
   emptySession,
@@ -16,6 +17,7 @@ import {
   loadGlobalHotkeys,
   parseActorIdSegment,
   parseActorPaneSegment,
+  parseDataSegments,
   parseTabId,
   saveGameStoredHotkeys,
   saveGlobalHotkeys,
@@ -24,6 +26,8 @@ import {
 } from '@/components/game-edit'
 import type { EventsSlot } from '@/components/game-edit/events/types'
 import { useEventsData } from '@/components/game-edit/events/useEventsData'
+import { useLinkSaveDataTransport } from '@/components/game-edit/save-data/link-transport'
+import type { SaveDataSlot } from '@/components/game-edit/save-data/transport'
 import { pageMainFlush } from '@/components/layoutClasses'
 import { Button, EmptyState } from '@/components/sk'
 import { buildOptimisticHandlers, useGameEditLinkSync } from '@/hooks/useGameEditLinkSync'
@@ -130,6 +134,22 @@ export function GameEditPage() {
     player: linked && scene.mapId > 0 ? { mapId: scene.mapId, x: scene.playerX, y: scene.playerY } : null,
     recentMaps: scene.recentMaps,
   }
+
+  const paneKey = tab === 'data' ? (params.pane ?? []).join('/') : ''
+  const dataPath = useMemo(() => (tab === 'data' ? (parseDataSegments(paneKey ? paneKey.split('/') : []) ?? []) : []), [tab, paneKey])
+  const saveDataTransport = useLinkSaveDataTransport(tab === 'data' && linked, runCmd)
+  const onDataNavigate = useCallback(
+    (next: string[], opts?: { replace?: boolean }) => {
+      const href = hrefWithQuery(editDataHref(next), searchParams.toString())
+      if (opts?.replace) router.replace(href)
+      else router.push(href)
+    },
+    [router, searchParams]
+  )
+  const saveDataSlot: SaveDataSlot = useMemo(
+    () => ({ transport: saveDataTransport, path: dataPath, onNavigate: onDataNavigate, surface: 'page' }),
+    [saveDataTransport, dataPath, onDataNavigate]
+  )
 
   const refresh = useCallback(async () => {
     if (connected) {
@@ -244,6 +264,7 @@ export function GameEditPage() {
         surface="page"
         linked={linked}
         events={eventsSlot}
+        saveData={saveDataSlot}
       />
     </div>
   )

@@ -1,3 +1,4 @@
+import type { DataMessages } from '@/lib/i18n/messages/data-types'
 import type { DownloadsMessages } from '@/lib/i18n/messages/downloads-types'
 import type { EventsMessages } from '@/lib/i18n/messages/events-types'
 import type { IntegrationMessages } from '@/lib/i18n/messages/integration-types'
@@ -702,4 +703,5 @@ export type MessageTree = {
   mcpGateway: McpGatewayMessages
   downloads: DownloadsMessages
   events: EventsMessages
+  data: DataMessages
 }

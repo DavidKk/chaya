@@ -25,6 +25,7 @@ import { GameEditPaneSkeleton } from './GameEditPaneSkeleton'
 import { GameEditSearch } from './GameEditSearch'
 import { GameEditTabNav } from './GameEditTabNav'
 import { LockEndAction, lockIconBtn } from './lock-ui'
+import type { SaveDataSlot } from './save-data/transport'
 import { type ActorPaneId, isEditTab, isEventsTab, type TabId, TABS } from './tabs'
 import {
   type ActorDraft,
@@ -52,6 +53,7 @@ const GameEditLogsPane = lazy(() => import('./GameEditLogsPane').then((m) => ({ 
 const GameEditIntegrationPane = lazy(() => import('./GameEditIntegrationPane').then((m) => ({ default: m.GameEditIntegrationPane })))
 const CommonEventsPane = lazy(() => import('./events/CommonEventsPane').then((m) => ({ default: m.CommonEventsPane })))
 const MapPane = lazy(() => import('./events/MapPane').then((m) => ({ default: m.MapPane })))
+const SaveDataPane = lazy(() => import('./save-data/SaveDataPane').then((m) => ({ default: m.SaveDataPane })))
 const GameEditAgentSettingsPane = lazy(() => import('@/components/settings/GameEditAgentSettingsPane').then((m) => ({ default: m.GameEditAgentSettingsPane })))
 
 function TabSuspense({ tab, children, translateSection, translateTab }: { tab: TabId; children: ReactNode; translateSection?: 'run' | 'cache'; translateTab?: 'play' | 'seed' }) {
@@ -118,6 +120,8 @@ export type GameEditWorkbenchProps = {
   agentRequest?: GameAgentRequest
   /** 公共事件 / 地图 data and actions */
   events?: EventsSlot
+  /** 数据页 transport and path */
+  saveData?: SaveDataSlot
 }
 
 function isRowLocked(row: TableRow, locks: SessionState['locks']) {
@@ -218,6 +222,7 @@ export function GameEditWorkbench({
   className,
   agentRequest,
   events,
+  saveData,
 }: GameEditWorkbenchProps) {
   const t = useT()
   const q = filter.trim().toLowerCase()
@@ -347,7 +352,7 @@ export function GameEditWorkbench({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {surface === 'page' || showEditNav ? (
             <div className={panelHead}>
-              <PanelHeadTitle title={activeTab ? t(activeTab.labelKey) : t('edit.tabEdit')} description={t('edit.panelDesc')} />
+              <PanelHeadTitle title={activeTab ? t(activeTab.labelKey) : t('edit.tabEdit')} description={tab === 'data' ? t('data.panelDesc') : t('edit.panelDesc')} />
               <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-8 flex-1 shrink justify-end overflow-hidden')}>
                 {showTableFilters || (eventsTab && events?.data?.events.length) ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
                 <ScrollArea
@@ -492,6 +497,14 @@ export function GameEditWorkbench({
               <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
                 <GameEditAgentSettingsPane request={agentRequest} />
               </Suspense>
+            ) : tab === 'data' ? (
+              saveData ? (
+                <TabSuspense tab="data">
+                  <SaveDataPane slot={saveData} />
+                </TabSuspense>
+              ) : (
+                <EmptyState title={t('data.needLink')} message={t('data.needLinkMsg')} />
+              )
             ) : eventsTab ? (
               !events ? (
                 <EmptyState title={t('events.needLink')} message={t('events.needLinkMsg')} />
@@ -663,7 +676,9 @@ export function GameEditWorkbench({
             <div className={panelFoot}>
               <span>
                 {t(footPrimaryKey(surface, tab, linked))}
-                {catalog && tab !== 'run' && tab !== 'hotkeys' && tab !== 'logs' && !eventsTab ? ` · ${t('edit.itemsCount', { count: catalog.items.length })}` : ''}
+                {catalog && tab !== 'run' && tab !== 'hotkeys' && tab !== 'logs' && tab !== 'data' && !eventsTab
+                  ? ` · ${t('edit.itemsCount', { count: catalog.items.length })}`
+                  : ''}
               </span>
               <span>
                 {surface === 'page' && linked ? t('edit.synced') : ''}
@@ -673,13 +688,15 @@ export function GameEditWorkbench({
                     ? t('edit.footSwitch')
                     : tab === 'logs'
                       ? t('edit.footSession')
-                      : eventsTab
-                        ? t('events.count', { count: events?.data?.events.length ?? 0 })
-                        : tab === 'actor'
-                          ? t('edit.actorsCount', { count: actorCount })
-                          : truncated
-                            ? t('edit.truncated', { shown: visible.length, total: rows.length })
-                            : String(visible.length)}
+                      : tab === 'data'
+                        ? t('data.footHint')
+                        : eventsTab
+                          ? t('events.count', { count: events?.data?.events.length ?? 0 })
+                          : tab === 'actor'
+                            ? t('edit.actorsCount', { count: actorCount })
+                            : truncated
+                              ? t('edit.truncated', { shown: visible.length, total: rows.length })
+                              : String(visible.length)}
               </span>
             </div>
           ) : null}

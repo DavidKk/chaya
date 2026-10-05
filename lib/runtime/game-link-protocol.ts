@@ -3,6 +3,20 @@
 import type { ActorDraft, ActorVitalLockKind, ItemKind, RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
 import type { CommonEventsData, MapDetailData, SelfSwitchLetter } from '@/lib/game/events'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
+import type {
+  DataCell,
+  DataDiff,
+  DataErrorCode,
+  DataMissingRow,
+  DataOp,
+  DataPage,
+  DataPath,
+  DataRowAt,
+  DataStatus,
+  SearchBatch,
+  SearchScope,
+  WatchEntry,
+} from '@/lib/game/save-data/types'
 import type { LinkChunkPacket } from '@/lib/runtime/link-chunks'
 import type { TranslationPacket } from '@/lib/runtime/translation-rpc'
 
@@ -49,6 +63,7 @@ export type GameEditCmdOp =
   | { op: 'teleport'; mapId: number; x: number; y: number; direction?: 2 | 4 | 6 | 8; near?: boolean }
   /** Current map only; the game rejects it when `mapId` is not the current map */
   | { op: 'mapEvent'; mapId: number; eventId: number }
+  | DataOp
 
 /** Web → 游戏：改值指令（cmdId 用于 ack / 去重重试） */
 export type GameEditCmd = { type: 'edit.cmd'; cmdId: string } & GameEditCmdOp
@@ -61,6 +76,8 @@ export type GameEditAck = {
   ok: boolean
   /** Failure reason shown to the user */
   error?: string
+  /** Op-specific result (data ops); replayed for duplicate cmdIds */
+  result?: unknown
 }
 
 /** 游戏 → Web：会话快照（不含 hotkeys） */
@@ -89,6 +106,23 @@ export type GameEditEventsMessage = { type: 'edit.events'; data: CommonEventsDat
 /** One map's events with pages, requested when the map page opens it; sent chunked */
 export type GameEditMapMessage = { type: 'edit.map'; mapId: number; data: MapDetailData | { ok: false; error: string } } | { type: 'edit.map.request'; mapId: number }
 
+/** Save data reads (request / response by `reqId`); writes are `edit.cmd` data ops */
+export type GameDataMessage =
+  | { type: 'data.list'; reqId: string; path: DataPath; offset: number; limit: number }
+  | { type: 'data.read'; reqId: string; path: DataPath }
+  | { type: 'data.rows'; reqId: string; paths: DataPath[] }
+  | { type: 'data.watch'; sid: number; entries: WatchEntry[] }
+  | { type: 'data.search'; reqId: string; path: DataPath; query: string; scope: SearchScope }
+  | { type: 'data.search.cancel'; reqId: string }
+  | { type: 'data.status.request' }
+  | { type: 'data.page'; reqId: string; ok: true; page: DataPage }
+  | { type: 'data.page'; reqId: string; ok: false; error: string; code?: DataErrorCode; existingDepth?: number }
+  | { type: 'data.value'; reqId: string; ok: boolean; cell?: DataCell; error?: string; code?: DataErrorCode }
+  | { type: 'data.rows.result'; reqId: string; ok: boolean; rows?: (DataRowAt | DataMissingRow)[]; error?: string; code?: DataErrorCode }
+  | ({ type: 'data.diff' } & DataDiff)
+  | ({ type: 'data.search.hits'; reqId: string } & SearchBatch)
+  | ({ type: 'data.status' } & DataStatus)
+
 /** 游戏内插件日志（id 为游戏进程内自增，重启游戏会从头计） */
 export type GameLinkLogEntry = { id: number; ts: number; level: string; source: string; message: string; meta?: unknown }
 
@@ -101,6 +135,7 @@ export type GameLinkMessage =
   | GameEditCatalogMessage
   | GameEditEventsMessage
   | GameEditMapMessage
+  | GameDataMessage
   | LinkChunkPacket
   | GameLinkHello
   | GameLinkQuit

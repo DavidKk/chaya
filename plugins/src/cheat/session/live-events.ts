@@ -49,14 +49,25 @@ async function loadMaps(infos: unknown[] | undefined): Promise<LoadedMaps> {
 
 /** Map files do not change during a session: read once, shared by the overlay and web requests; pass `force` to reload */
 let cachedMaps: Promise<LoadedMaps> | null = null
+let loadedMaps: LoadedMaps['maps'] = null
+
+/** Raw map data if the map files were already loaded for the events page; never triggers a load */
+export function loadedMapData(mapId: number): unknown {
+  return loadedMaps?.find((m) => m.id === mapId)?.data ?? null
+}
 
 export async function buildLiveCommonEventsData(opts?: { force?: boolean }): Promise<CommonEventsData> {
   const g = globalThis as { $dataMapInfos?: unknown[] }
   if (opts?.force || !cachedMaps) {
     cachedMaps = loadMaps(g.$dataMapInfos)
-    cachedMaps.catch(() => {
-      cachedMaps = null
-    })
+    cachedMaps.then(
+      (loaded) => {
+        loadedMaps = loaded.maps
+      },
+      () => {
+        cachedMaps = null
+      }
+    )
   }
   const { maps, failed } = await cachedMaps
   return buildCommonEventsData(

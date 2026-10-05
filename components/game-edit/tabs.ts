@@ -1,3 +1,4 @@
+import { type DataPath, decodePathSegments, encodeSegment, PATH_DEPTH_MAX } from '@/lib/game/save-data'
 import type { MessageKey } from '@/lib/i18n'
 
 export const TABS = [
@@ -11,6 +12,7 @@ export const TABS = [
   { id: 'actor', labelKey: 'edit.actor' },
   { id: 'common', labelKey: 'events.tabCommon' },
   { id: 'map', labelKey: 'events.tabMap' },
+  { id: 'data', labelKey: 'data.tab' },
   { id: 'trans', labelKey: 'edit.tabTranslate' },
   { id: 'logs', labelKey: 'edit.tabLogs' },
   { id: 'mcp', labelKey: 'nav.integration' },
@@ -113,6 +115,18 @@ export function editCommonHref(id: number | null | undefined): string {
 export function editMapHref(mapId: number | null | undefined, eventId?: number | null): string {
   if (mapId == null || mapId <= 0) return '/cheat/map'
   return eventId != null && eventId > 0 ? `/cheat/map/${mapId}/${eventId}` : `/cheat/map/${mapId}`
+}
+
+/** `/cheat/data` · `/cheat/data/party/_items` (segments use the reversible URL-safe encoding) */
+export function editDataHref(path: readonly string[]): string {
+  return path.length ? `/cheat/data/${path.map(encodeSegment).join('/')}` : '/cheat/data'
+}
+
+/** Route segments → data path; null when malformed (too deep, too long, bad encoding, reserved names) */
+export function parseDataSegments(segments: readonly string[] | undefined): DataPath | null {
+  if (!segments?.length) return []
+  if (segments.length > PATH_DEPTH_MAX) return null
+  return decodePathSegments(segments)
 }
 
 export function isEventsTab(tab: TabId): tab is 'common' | 'map' {

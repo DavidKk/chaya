@@ -71,6 +71,13 @@ export function fieldsForEditCmd(cmd: GameEditCmd): string[] {
       const key = cmd.kind === 'skills' ? lockKeyForActorSkill(cmd.actorId, cmd.entryId) : lockKeyForActorState(cmd.actorId, cmd.entryId)
       return [`lock:${key}`]
     }
+    case 'dataWrite':
+    case 'dataStruct':
+    case 'dataLock':
+    case 'dataUnlockAll':
+    case 'dataUndo':
+    case 'dataPins':
+      return [`data:${cmd.cmdId}`]
     default:
       return []
   }

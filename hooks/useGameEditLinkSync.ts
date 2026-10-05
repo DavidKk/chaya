@@ -165,10 +165,10 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
     return cmd.cmdId
   }, [])
 
-  /** Send and wait for the game's ack; rejects with the game's error message or on timeout */
+  /** Send and wait for the game's ack; resolves with `ack.result`, rejects with the game's error message or on timeout */
   const runCmd = useCallback(
     (op: GameEditCmdOp) =>
-      new Promise<void>((resolve, reject) => {
+      new Promise<unknown>((resolve, reject) => {
         const cmdId = sendCmd(op)
         if (!cmdId) return reject(new Error('游戏未连接'))
         const waiters = ackWaitersRef.current
@@ -178,7 +178,7 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
         }, EDIT_CMD_GIVE_UP_MS)
         waiters.set(cmdId, (ack) => {
           window.clearTimeout(timer)
-          if (ack.ok) resolve()
+          if (ack.ok) resolve(ack.result)
           else reject(new Error(ack.error || '操作失败'))
         })
       }),

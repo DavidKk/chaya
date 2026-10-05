@@ -1,5 +1,6 @@
 import { commonZh } from '@/lib/i18n/messages/parts/common'
 import { dashboardZh } from '@/lib/i18n/messages/parts/dashboard'
+import { dataZh } from '@/lib/i18n/messages/parts/data'
 import { downloadsZh } from '@/lib/i18n/messages/parts/downloads'
 import { editZh } from '@/lib/i18n/messages/parts/edit'
 import { eventsZh } from '@/lib/i18n/messages/parts/events'
@@ -20,6 +21,7 @@ export const zh = {
   ...mcpGatewayZh,
   ...downloadsZh,
   ...eventsZh,
+  ...dataZh,
 } as const satisfies MessageTree
 
 export type { MessageTree } from '@/lib/i18n/messages/types'

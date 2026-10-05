@@ -35,6 +35,7 @@ import { buildLiveCatalog, type LiveSessionScope, readLiveSession, setItemCount,
 import { bootstrapGameEditSession, diskStateFromSession, ensureGameEditDiskApplied, loadGameEditDisk, scheduleSaveGameEditDisk } from '../session/persist'
 import { syncRemoteMirror } from '../session/remote-bridge'
 import { useOverlayEvents } from './useOverlayEvents'
+import { useOverlaySaveData } from './useOverlaySaveData'
 
 /** 延迟拉 Workbench，首帧先出轻量占位，避免唤出时同步解析整树 */
 const GameEditWorkbench = lazy(() => import('@/components/game-edit/GameEditWorkbench').then((m) => ({ default: m.GameEditWorkbench })))
@@ -109,7 +110,7 @@ function scopeForTab(tab: TabId): LiveSessionScope {
 }
 
 function tabNeedsCatalog(tab: TabId): boolean {
-  return tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings' && !isEventsTab(tab)
+  return tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings' && tab !== 'data' && !isEventsTab(tab)
 }
 
 /** In-game React panel: shared GameEditWorkbench + runtime data */
@@ -420,6 +421,8 @@ export function GameEditApp({ open, onRequestClose }: Props) {
   const onEventsSwitch = useCallback((id: number, value: boolean) => setSwitchRef.current(id, value), [])
   const { slot: eventsSlot, refresh: refreshEvents } = useOverlayEvents({ open, tab, selectTab, onClose: onRequestClose, onSwitchChange: onEventsSwitch })
 
+  const saveDataSlot = useOverlaySaveData(open, tab)
+
   const hotkeyRef = useRef({ session, setRunFlag, runAction })
   hotkeyRef.current = { session, setRunFlag, runAction }
 
@@ -548,6 +551,7 @@ export function GameEditApp({ open, onRequestClose }: Props) {
           onActorOwnedLockChange={setActorOwnedLock}
           onActorVitalLockChange={setActorVitalLock}
           events={eventsSlot}
+          saveData={saveDataSlot}
         />
       </Suspense>
     </GameEditOverlayProviders>
