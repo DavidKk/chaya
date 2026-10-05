@@ -349,7 +349,8 @@
   function render() {
     const ctx = canvas.getContext('2d')
     const current = scene()
-    if (current instanceof Scene_Menu) drawMenu(ctx, current)
+    if (typeof current.draw === 'function') current.draw(ctx)
+    else if (current instanceof Scene_Menu) drawMenu(ctx, current)
     else {
       drawMap(ctx)
       drawMessage(ctx)
@@ -410,7 +411,12 @@
       $gameSystem._frames++
       Input.update()
       scene().update()
+      window.WalkDemo.AgentScenarios?.update()
       render()
     }, FRAME_MS)
+    const scenario = typeof process !== 'undefined' ? process.env.CHAYA_DEMO_SCENARIO : ''
+    if (scenario === 'battle') setTimeout(() => window.WalkDemo.AgentScenarios?.startBattle(), 1_500)
+    if (scenario === 'story') setTimeout(() => window.WalkDemo.AgentScenarios?.startStory(), 1_500)
+    if (scenario === 'choice') setTimeout(() => window.WalkDemo.AgentScenarios?.startStory(true), 1_500)
   }
 })()

@@ -150,3 +150,35 @@ test('does not start a second turn before the first SSE response arrives', async
     await turnResponse
   })
 })
+
+test('replays the most recent completed turn when the sidebar is reopened', async () => {
+  const request = jest.fn(async (path: string) => {
+    if (path.startsWith('/api/game-agent/status')) {
+      return json({
+        available: true,
+        gameOnline: true,
+        profiles: [{ id: 'local', label: 'Local Ollama', provider: 'ollama', online: true, models: [{ name: 'gemma' }], defaultModel: 'gemma', reason: null }],
+        defaultProfileId: 'local',
+        session: { id: 'session-a', profileId: 'local', activeTurnId: null, recentTurnId: 'turn-a' },
+        reason: null,
+      })
+    }
+    return sse([
+      { type: 'goal.updated', seq: 1, summary: '完成当前战斗' },
+      { type: 'assistant.delta', seq: 2, text: '本场战斗结果：victory。' },
+      { type: 'turn.completed', seq: 3, text: '本场战斗结果：victory。', reason: 'verified' },
+    ])
+  }) as unknown as jest.MockedFunction<GameAgentRequest>
+
+  await act(async () => {
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <GameAgentWorkspace gameId="game-a" request={request} />
+      </LocaleProvider>
+    )
+  })
+  await act(async () => {})
+
+  expect(request.mock.calls.some(([path]) => path.startsWith('/api/game-agent/turn/turn-a/events?'))).toBe(true)
+  expect(document.body.textContent).toContain('本场战斗结果：victory。')
+})

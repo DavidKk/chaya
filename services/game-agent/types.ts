@@ -25,6 +25,7 @@ export type GameAgentSession = {
   profileId: string
   messages: GameAgentMessage[]
   activeTurnId: string | null
+  lastTurnId?: string
   updatedAt: number
 }
 
@@ -33,17 +34,31 @@ export type GameAgentTurn = {
   sessionId: string
   gameId: string
   abort: AbortController
-  state: 'running' | 'completed' | 'stopped' | 'failed'
+  state: 'running' | 'waiting_user' | 'completed' | 'stopped' | 'failed'
   startedAt: number
+  goal?: string
+  phase?: string
+  question?: string
+  lastSeq: number
+  events: SequencedGameAgentEvent[]
+  listeners: Set<(event: SequencedGameAgentEvent) => void>
+  reply?: string
+  replyId?: string
+  resume?: () => void
 }
+
+export type SequencedGameAgentEvent = GameAgentEvent & { seq: number }
 
 export type GameAgentEvent =
   | { type: 'turn.started'; turnId: string; sessionId: string }
-  | { type: 'phase'; phase: 'observing' | 'thinking'; step: number; maxSteps: number }
+  | { type: 'phase'; phase: 'observing' | 'thinking' | 'acting' | 'verifying' | 'waiting_user'; step: number; maxSteps: number }
+  | { type: 'goal.updated'; summary: string }
+  | { type: 'approval.required'; question: string }
+  | { type: 'history.gap'; fromSeq: number }
   | { type: 'tool.started'; callId: string; name: string }
   | { type: 'tool.completed'; callId: string; name: string; ok: boolean }
   | { type: 'assistant.delta'; text: string }
-  | { type: 'turn.completed'; text: string; reason: 'answered' }
+  | { type: 'turn.completed'; text: string; reason: 'answered' | 'verified' | 'limit_reached' }
   | { type: 'turn.stopped' }
   | { type: 'turn.failed'; code: string; message: string }
 

@@ -58,6 +58,29 @@ describe('ChayaAgent handlers', () => {
     }
   })
 
+  it('rejects a guarded choice and a stale selection before dispatching input', async () => {
+    const originalDocument = g.document
+    const scene = {
+      constructor: { name: 'Scene_Map' },
+      _choiceWindow: { visible: true, openness: 255, active: true, _index: 0, currentSymbol: () => null, item: () => null },
+    }
+    g.document = { title: 'Game', body: { innerText: '' } }
+    g.SceneManager = { _scene: scene }
+    g.$gameMessage = { isBusy: () => true, isChoice: () => true, choices: () => ['是', '否'], allText: () => '请选择' }
+    try {
+      const state = (await runAgentCommand({ id: 'state', method: 'game.state', params: {} })) as { controlToken: string }
+      const guard = { controlToken: state.controlToken, allowedEffects: ['navigate', 'advance_dialogue'] as Array<'navigate' | 'advance_dialogue'> }
+      await expect(runAgentCommand({ id: 'choice', method: 'input.press', params: { key: 'ok', guard } })).rejects.toThrow('ACTION_REQUIRES_CONFIRMATION:choose_branch')
+      scene._choiceWindow._index = 1
+      await expect(runAgentCommand({ id: 'stale', method: 'input.press', params: { key: 'ok', guard } })).rejects.toThrow('STATE_CHANGED')
+    } finally {
+      if (originalDocument === undefined) delete g.document
+      else g.document = originalDocument
+      delete g.SceneManager
+      delete g.$gameMessage
+    }
+  })
+
   it('dispatches DOM keys and runs a sequence with the resulting state', async () => {
     jest.useFakeTimers()
     const winGlobal = g as Globals & { window?: unknown; document?: unknown; KeyboardEvent?: unknown }

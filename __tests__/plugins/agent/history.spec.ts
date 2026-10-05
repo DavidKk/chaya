@@ -85,7 +85,7 @@ describe('agent story history', () => {
     expect(entries[1].choices).toEqual(['はい', 'いいえ'])
     expect(entries[2]).toMatchObject({ index: 1, text: 'いいえ' })
     expect(entries[3]).toMatchObject({ mapId: 5, mapName: '王都' })
-    expect(lastSeq).toBe(4)
+    expect(lastSeq).toBe(5)
     expect(dropped).toBe(0)
   })
 
@@ -97,6 +97,13 @@ describe('agent story history', () => {
     expect(readHistory({ kinds: ['message'] }).entries.map((e) => e.text)).toEqual(['一', '二', '三'])
     expect(readHistory({ limit: 1 }).entries.map((e) => e.text)).toEqual(['三'])
     expect(readHistory({ afterSeq: 2 }).entries.map((e) => e.kind)).toEqual(['map', 'message'])
+  })
+
+  it('exposes a repeated line through the incremental cursor', () => {
+    say('再见')
+    const start = readHistory({}).lastSeq
+    say('再见')
+    expect(readHistory({ afterSeq: start })).toMatchObject({ lastSeq: start + 1, entries: [{ text: '再见', repeat: 2, seq: start + 1 }] })
   })
 
   it('attaches cached translations at read time', () => {

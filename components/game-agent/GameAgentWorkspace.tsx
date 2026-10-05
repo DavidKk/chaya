@@ -24,7 +24,13 @@ type Status = {
   gameOnline: boolean
   profiles: AgentProfile[]
   defaultProfileId: string
-  session: { id: string; profileId: string; activeTurnId: string | null } | null
+  session: {
+    id: string
+    profileId: string
+    activeTurnId: string | null
+    recentTurnId?: string | null
+    activeTurn?: { id: string; state: string; phase?: string; goal?: string; question?: string; lastSeq: number } | null
+  } | null
   reason: string | null
 }
 type ToolActivity = { id: string; name: string; state: 'running' | 'completed' | 'failed' }
@@ -147,6 +153,9 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   const [turnId, setTurnId] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [phase, setPhase] = useState('')
+  const [goal, setGoal] = useState('')
+  const [question, setQuestion] = useState('')
+  const [reconnectTick, setReconnectTick] = useState(0)
   const [prompt, setPrompt] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [width, setWidth] = useState(() => {
@@ -154,9 +163,99 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
     return Math.max(320, Math.min(560, saved))
   })
   const abortRef = useRef<AbortController | null>(null)
+  const eventSeqRef = useRef(0)
+  const assistantIdRef = useRef('')
+  const recentRecoveredRef = useRef(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const running = submitting || !!turnId
+
+  const applyEvent = useCallback(
+    (item: {
+      type: string
+      seq?: number
+      turnId?: string
+      sessionId?: string
+      phase?: string
+      summary?: string
+      question?: string
+      text?: string
+      message?: string
+      callId?: string
+      name?: string
+      ok?: boolean
+    }) => {
+      if (item.seq && item.seq <= eventSeqRef.current) return
+      eventSeqRef.current = Math.max(eventSeqRef.current, item.seq || 0)
+      const assistantId = assistantIdRef.current
+      if (item.type === 'turn.started') {
+        setTurnId(item.turnId || '')
+        setSessionId(item.sessionId || '')
+        setNewSession(false)
+      } else if (item.type === 'goal.updated') {
+        setGoal(item.summary || '')
+      } else if (item.type === 'approval.required') {
+        setQuestion(item.question || '')
+        setPhase('等待你的决定')
+      } else if (item.type === 'history.gap') {
+        setMessages((current) => [...current, { id: `gap-${Date.now()}`, role: 'error', text: '较早的进度记录已过期，以下是仍可恢复的内容。' }])
+      } else if (item.type === 'phase') {
+        setPhase(item.phase === 'observing' ? copy.observing : item.phase === 'waiting_user' ? '等待你的决定' : copy.thinking)
+      } else if (item.type === 'tool.started' && item.callId && item.name) {
+        setPhase(`${copy.toolCalling} ${item.name}…`)
+        const callId = item.callId
+        const name = item.name
+        setMessages((current) =>
+          current.map((message) => (message.id === assistantId ? { ...message, tools: [...(message.tools || []), { id: callId, name, state: 'running' }] } : message))
+        )
+      } else if (item.type === 'tool.completed' && item.callId) {
+        const callId = item.callId
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === assistantId
+              ? { ...message, tools: message.tools?.map((tool) => (tool.id === callId ? { ...tool, state: item.ok ? 'completed' : 'failed' } : tool)) }
+              : message
+          )
+        )
+      } else if (item.type === 'assistant.delta') {
+        setMessages((current) => current.map((message) => (message.id === assistantId ? { ...message, text: message.text + (item.text || '') } : message)))
+      } else if (item.type === 'turn.failed') {
+        setMessages((current) => [...current, { id: `error-${Date.now()}`, role: 'error', text: item.message || 'Agent failed' }])
+      }
+      if (['turn.completed', 'turn.stopped', 'turn.failed'].includes(item.type)) {
+        recentRecoveredRef.current = true
+        setTurnId('')
+        setPhase('')
+        setQuestion('')
+      }
+    },
+    [copy]
+  )
+
+  const consumeStream = useCallback(
+    async (response: Response) => {
+      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const chunks = buffer.split('\n\n')
+        buffer = chunks.pop() || ''
+        for (const chunk of chunks) {
+          const data = chunk
+            .split(/\r?\n/)
+            .find((line) => line.startsWith('data:'))
+            ?.slice(5)
+            .trim()
+          if (data) applyEvent(JSON.parse(data))
+        }
+      }
+    },
+    [applyEvent]
+  )
 
   const refresh = useCallback(async () => {
     setLoadingStatus(true)
@@ -165,6 +264,10 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
       const body = (await response.json()) as Status & { ok?: boolean }
       if (!response.ok) throw new Error(errorMessage(body, `HTTP ${response.status}`))
       setStatus(body)
+      if (!body.session?.activeTurnId && !abortRef.current) {
+        setTurnId('')
+        setQuestion('')
+      }
       const nextProfileId = body.profiles.some((item) => item.id === profileId) ? profileId : body.defaultProfileId
       const nextProfile = body.profiles.find((item) => item.id === nextProfileId)
       setProfileId(nextProfileId)
@@ -189,6 +292,42 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   }, [open, refresh])
 
   useEffect(() => {
+    if (!open) abortRef.current?.abort()
+  }, [open])
+
+  useEffect(() => () => abortRef.current?.abort(), [])
+
+  useEffect(() => {
+    const active = status?.session?.activeTurn
+    const recentId = !active && !recentRecoveredRef.current ? status?.session?.recentTurnId : null
+    const targetId = active?.id || recentId
+    if (!open || !targetId || abortRef.current) return
+    if (!active) recentRecoveredRef.current = true
+    assistantIdRef.current = `assistant-recovered-${targetId}`
+    setMessages((current) =>
+      current.some((message) => message.id === assistantIdRef.current) ? current : [...current, { id: assistantIdRef.current, role: 'assistant', text: '' }]
+    )
+    if (active) {
+      setTurnId(active.id)
+      setGoal(active.goal || '')
+      setQuestion(active.question || '')
+    }
+    const abort = new AbortController()
+    abortRef.current = abort
+    void request(`/api/game-agent/turn/${encodeURIComponent(targetId)}/events?gameId=${encodeURIComponent(gameId)}&after=${eventSeqRef.current}`, { signal: abort.signal })
+      .then(consumeStream)
+      .catch(() => {})
+      .finally(() => {
+        if (abortRef.current === abort) abortRef.current = null
+        if (!abort.signal.aborted) {
+          void refresh()
+          window.setTimeout(() => setReconnectTick((value) => value + 1), 1_000)
+        }
+      })
+    return () => abort.abort()
+  }, [open, status?.session?.activeTurn, status?.session?.recentTurnId, request, gameId, consumeStream, reconnectTick, refresh])
+
+  useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight })
   }, [messages, phase])
 
@@ -202,11 +341,11 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
 
   const stop = useCallback(async () => {
     abortRef.current?.abort()
-    if (turnId) await request(`/api/game-agent/turn/${encodeURIComponent(turnId)}`, { method: 'DELETE' }).catch(() => null)
+    if (turnId) await request(`/api/game-agent/turn/${encodeURIComponent(turnId)}?gameId=${encodeURIComponent(gameId)}`, { method: 'DELETE' }).catch(() => null)
     setSubmitting(false)
     setTurnId('')
     setPhase('')
-  }, [request, turnId])
+  }, [request, turnId, gameId])
 
   useEffect(() => {
     const onStop = () => void stop()
@@ -217,8 +356,26 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   const send = async (event?: FormEvent) => {
     event?.preventDefault()
     const text = prompt.trim()
-    if (!text || !model || running || abortRef.current || !status?.available) return
+    if (!text || !model || (!question && (running || abortRef.current)) || !status?.available) return
+    if (question && turnId) {
+      setPrompt('')
+      setQuestion('')
+      try {
+        const response = await request(`/api/game-agent/turn/${encodeURIComponent(turnId)}/reply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gameId, reply: text, replyId: crypto.randomUUID() }),
+        })
+        if (!response.ok) throw new Error(errorMessage(await response.json().catch(() => null), `HTTP ${response.status}`))
+        setMessages((current) => [...current, { id: `user-${Date.now()}`, role: 'user', text }])
+      } catch (error) {
+        setMessages((current) => [...current, { id: `error-${Date.now()}`, role: 'error', text: error instanceof Error ? error.message : String(error) }])
+      }
+      return
+    }
     const assistantId = `assistant-${Date.now()}`
+    assistantIdRef.current = assistantId
+    eventSeqRef.current = 0
     setMessages((current) => [...current, { id: `user-${Date.now()}`, role: 'user', text }, { id: assistantId, role: 'assistant', text: '' }])
     setPrompt('')
     setPhase(copy.observing)
@@ -236,62 +393,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
         const body = await response.json().catch(() => null)
         throw new Error(errorMessage(body, `HTTP ${response.status}`))
       }
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const chunks = buffer.split('\n\n')
-        buffer = chunks.pop() || ''
-        for (const chunk of chunks) {
-          const data = chunk
-            .split(/\r?\n/)
-            .find((line) => line.startsWith('data:'))
-            ?.slice(5)
-            .trim()
-          if (!data) continue
-          const item = JSON.parse(data) as {
-            type: string
-            turnId?: string
-            sessionId?: string
-            phase?: string
-            text?: string
-            message?: string
-            callId?: string
-            name?: string
-            ok?: boolean
-          }
-          if (item.type === 'turn.started') {
-            setTurnId(item.turnId || '')
-            setSessionId(item.sessionId || '')
-            setNewSession(false)
-          } else if (item.type === 'phase') {
-            setPhase(item.phase === 'observing' ? copy.observing : copy.thinking)
-          } else if (item.type === 'tool.started' && item.callId && item.name) {
-            setPhase(`${copy.toolCalling} ${item.name}…`)
-            const callId = item.callId
-            const name = item.name
-            setMessages((current) =>
-              current.map((message) => (message.id === assistantId ? { ...message, tools: [...(message.tools || []), { id: callId, name, state: 'running' }] } : message))
-            )
-          } else if (item.type === 'tool.completed' && item.callId) {
-            const callId = item.callId
-            setMessages((current) =>
-              current.map((message) =>
-                message.id === assistantId
-                  ? { ...message, tools: message.tools?.map((tool) => (tool.id === callId ? { ...tool, state: item.ok ? 'completed' : 'failed' } : tool)) }
-                  : message
-              )
-            )
-          } else if (item.type === 'assistant.delta') {
-            setMessages((current) => current.map((message) => (message.id === assistantId ? { ...message, text: message.text + (item.text || '') } : message)))
-          } else if (item.type === 'turn.failed') {
-            throw new Error(item.message || 'Agent failed')
-          }
-        }
-      }
+      await consumeStream(response)
     } catch (error) {
       if (!abort.signal.aborted) {
         setMessages((current) => [...current, { id: `error-${Date.now()}`, role: 'error', text: error instanceof Error ? error.message : String(error) }])
@@ -299,8 +401,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
     } finally {
       abortRef.current = null
       setSubmitting(false)
-      setTurnId('')
-      setPhase('')
+      void refresh()
     }
   }
 
@@ -403,7 +504,12 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
           )}
         </div>
 
-        {phase ? <div className="shrink-0 border-t border-line-soft px-4 py-2 text-xs text-ink-soft">{phase}</div> : null}
+        {goal || phase || question ? (
+          <div className="shrink-0 border-t border-line-soft px-4 py-2 text-xs text-ink-soft">
+            {goal ? <strong className="mr-2 text-ink">{goal}</strong> : null}
+            {question || phase}
+          </div>
+        ) : null}
         <form className="shrink-0 px-3 pt-1 pb-3" aria-busy={running || undefined} onSubmit={(event) => void send(event)}>
           <div className="rounded-lg border border-line bg-panel-2 px-3 pt-2 shadow-[0_6px_24px_rgb(0_0_0/0.2)] transition-colors focus-within:border-accent">
             <textarea
@@ -418,7 +524,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
                 }
               }}
               onKeyUp={(event) => event.stopPropagation()}
-              placeholder={copy.placeholder}
+              placeholder={question || copy.placeholder}
               disabled={!status?.available}
               rows={1}
               className="block min-h-12 max-h-40 w-full resize-none border-0 bg-transparent py-1 text-sm leading-6 text-ink outline-none placeholder:text-ink-soft"
@@ -435,7 +541,16 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
                     setModel(nextModel)
                   }}
                 />
-                {running ? (
+                {running && question ? (
+                  <>
+                    <Button className="rounded-full" variant="fail" size="icon" aria-label={copy.stop} tooltip={copy.stop} onClick={() => void stop()}>
+                      <IoStop size={17} aria-hidden />
+                    </Button>
+                    <Button variant="accent" size="icon" type="submit" className="rounded-full" aria-label={copy.send} tooltip={copy.send} disabled={!prompt.trim()}>
+                      <IoArrowUp size={17} aria-hidden />
+                    </Button>
+                  </>
+                ) : running ? (
                   <Button className="rounded-full" variant="fail" size="icon" aria-label={copy.stop} tooltip={copy.stop} onClick={() => void stop()}>
                     <IoStop size={17} aria-hidden />
                   </Button>

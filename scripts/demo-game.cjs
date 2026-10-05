@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '..')
 /** `node scripts/demo-game.cjs [translate|walk]`: fixture → demos/<dir>/www with the freshly built plugins */
 const DEMOS = {
   translate: { fixture: 'fixtures/game-demo/www', dir: 'demos/simple-game/www', files: ['index.html', 'game.js', 'package.json'] },
-  walk: { fixture: 'fixtures/game-walk/www', dir: 'demos/walk-game/www', files: ['index.html', 'data.js', 'objects.js', 'game.js', 'package.json'] },
+  walk: { fixture: 'fixtures/game-walk/www', dir: 'demos/walk-game/www', files: ['index.html', 'data.js', 'objects.js', 'game.js', 'agent-scenarios.js', 'package.json'] },
 }
 const demo = DEMOS[process.argv[2] || 'translate']
 if (!demo) throw new Error(`unknown demo: ${process.argv[2]} (use ${Object.keys(DEMOS).join(' / ')})`)

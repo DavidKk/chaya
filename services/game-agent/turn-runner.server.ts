@@ -18,7 +18,14 @@ function logArgs(args: Record<string, unknown>) {
   return text.length <= 2_000 ? safe : { clipped: `${text.slice(0, 2_000)}...` }
 }
 
-export async function runAskTurn(input: StartTurnInput, profile: GameAgentProfile, session: GameAgentSession, turn: GameAgentTurn, emit: (event: GameAgentEvent) => void) {
+export async function runAskTurn(
+  input: StartTurnInput,
+  profile: GameAgentProfile,
+  session: GameAgentSession,
+  turn: GameAgentTurn,
+  emit: (event: GameAgentEvent) => void,
+  gameReadOnly = false
+) {
   try {
     const token = readGameAgentToken(profile.id)
     emit({ type: 'phase', phase: 'observing', step: 0, maxSteps: MAX_TOOL_STEPS })
@@ -29,7 +36,7 @@ export async function runAskTurn(input: StartTurnInput, profile: GameAgentProfil
     if (turn.abort.signal.aborted) throw turn.abort.signal.reason
 
     const messages = buildAskMessages({ history: session.messages, prompt: input.prompt, locale: input.locale || 'zh-CN', gameId: offerTools ? gameId : undefined, state })
-    const gameTools = offerTools ? createGameAgentTools(gameId) : []
+    const gameTools = offerTools ? createGameAgentTools(gameId).filter((tool) => !gameReadOnly || tool.readOnly || tool.definition.function.name.startsWith('chaya_agent_')) : []
     const tools = gameTools.map((tool) => tool.definition)
     const credentials = new Set<string>()
     let answer = ''

@@ -20,6 +20,7 @@ export type HistoryEntry = {
   mapId?: number
   mapName?: string
   result?: string
+  battleId?: string
   slot?: number
   /** Consecutive identical messages merged into one entry */
   repeat?: number
@@ -34,7 +35,11 @@ const STORAGE_PREFIX = 'chaya.agent.history:'
 
 let entries: HistoryEntry[] = []
 let seq = 0
+let droppedSeq = 0
 let dirty = false
+let battleEpoch = 0
+let activeBattleId: string | null = null
+let lastBattleResult: { id: string; result: string } | null = null
 
 const g = () => globalThis as unknown as Loose
 
@@ -74,22 +79,27 @@ function push(entry: Omit<HistoryEntry, 'seq' | 'at' | 'playtime'>) {
   const last = entries[entries.length - 1]
   if (entry.kind === 'message' && last?.kind === 'message' && last.text === entry.text && last.speaker === entry.speaker) {
     last.repeat = (last.repeat ?? 1) + 1
+    last.seq = ++seq
     last.at = Date.now()
     dirty = true
     return
   }
   const playtime = call<string>(g().$gameSystem, 'playtimeText')
   entries.push({ seq: ++seq, at: Date.now(), ...(playtime ? { playtime } : {}), ...entry })
-  if (entries.length > AGENT_HISTORY_MAX) entries = entries.slice(-AGENT_HISTORY_MAX)
+  if (entries.length > AGENT_HISTORY_MAX) {
+    droppedSeq = entries[entries.length - AGENT_HISTORY_MAX - 1].seq
+    entries = entries.slice(-AGENT_HISTORY_MAX)
+  }
   dirty = true
 }
 
 function restore() {
   try {
-    const saved = JSON.parse(localStorage.getItem(storageKey()) || 'null') as { seq?: number; entries?: HistoryEntry[] } | null
+    const saved = JSON.parse(localStorage.getItem(storageKey()) || 'null') as { seq?: number; droppedSeq?: number; entries?: HistoryEntry[] } | null
     if (!saved || !Array.isArray(saved.entries)) return
     entries = saved.entries.filter((e) => e && typeof e.seq === 'number' && AGENT_HISTORY_KINDS.includes(e.kind)).slice(-AGENT_HISTORY_MAX)
     seq = Math.max(Number(saved.seq) || 0, entries[entries.length - 1]?.seq ?? 0)
+    droppedSeq = Math.max(0, Number(saved.droppedSeq) || 0)
   } catch {
     /* corrupt or unavailable storage: start fresh */
   }
@@ -99,7 +109,7 @@ function persist() {
   if (!dirty) return
   dirty = false
   try {
-    localStorage.setItem(storageKey(), JSON.stringify({ seq, entries }))
+    localStorage.setItem(storageKey(), JSON.stringify({ seq, droppedSeq, entries }))
   } catch {
     /* quota / private mode */
   }
@@ -174,15 +184,32 @@ function installHooks(): Array<() => void> {
   })
   const battle = w.BattleManager as object | undefined
   after(battle, 'setup', (_result, [troopId]) => {
+    activeBattleId = `battle-${++battleEpoch}`
+    lastBattleResult = null
     const troops = w.$dataTroops as Array<{ name?: string } | null> | undefined
     const enemies = (call<string[]>(w.$gameTroop, 'enemyNames') ?? []).join('、')
-    push({ kind: 'battle', result: 'start', text: enemies || troops?.[Number(troopId)]?.name || undefined })
+    push({ kind: 'battle', result: 'start', battleId: activeBattleId, text: enemies || troops?.[Number(troopId)]?.name || undefined })
   })
-  after(battle, 'processVictory', () => push({ kind: 'battle', result: 'victory' }))
-  after(battle, 'processDefeat', () => push({ kind: 'battle', result: 'defeat' }))
-  after(battle, 'processEscape', (ok) => push({ kind: 'battle', result: ok === false ? 'escape_failed' : 'escape' }))
+  after(battle, 'processVictory', () => {
+    if (activeBattleId) lastBattleResult = { id: activeBattleId, result: 'victory' }
+    push({ kind: 'battle', result: 'victory', battleId: activeBattleId || undefined })
+  })
+  after(battle, 'processDefeat', () => {
+    if (activeBattleId) lastBattleResult = { id: activeBattleId, result: 'defeat' }
+    push({ kind: 'battle', result: 'defeat', battleId: activeBattleId || undefined })
+  })
+  after(battle, 'processEscape', (ok) => {
+    const result = ok === false ? 'escape_failed' : 'escape'
+    if (activeBattleId && ok !== false) lastBattleResult = { id: activeBattleId, result }
+    push({ kind: 'battle', result, battleId: activeBattleId || undefined })
+  })
   after(w.DataManager as object | undefined, 'loadGame', (result, [slot]) => {
-    const record = () => push({ kind: 'load', slot: Number(slot) })
+    const record = () => {
+      activeBattleId = null
+      lastBattleResult = null
+      battleEpoch += 1
+      push({ kind: 'load', slot: Number(slot) })
+    }
     if (result && typeof (result as Promise<unknown>).then === 'function') void (result as Promise<unknown>).then(record, () => {})
     else if (result) record()
   })
@@ -224,13 +251,21 @@ export function readHistory({ limit, kinds, afterSeq }: AgentParams<'game.histor
       return { ...e, ...(text ? { translated: text } : {}), ...(changed ? { translatedChoices: choices } : {}) }
     }),
     lastSeq: seq,
-    dropped: Math.max(0, (entries[0]?.seq ?? seq + 1) - 1),
+    dropped: droppedSeq,
   }
+}
+
+export function battleProgress() {
+  return { activeBattleId, lastBattleResult }
 }
 
 /** Test hook */
 export function resetHistory() {
   entries = []
   seq = 0
+  droppedSeq = 0
   dirty = false
+  battleEpoch = 0
+  activeBattleId = null
+  lastBattleResult = null
 }

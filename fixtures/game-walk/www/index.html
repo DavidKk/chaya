@@ -26,10 +26,33 @@
         margin: 0 auto;
         color: #9fb2c0;
       }
+      .scenarios {
+        display: flex;
+        gap: 8px;
+        width: 816px;
+        margin: 10px auto 0;
+      }
+      .scenarios button {
+        padding: 7px 12px;
+        border: 1px solid #82a5b8;
+        border-radius: 4px;
+        background: #244b62;
+        color: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+      .scenarios button:hover {
+        background: #35627c;
+      }
     </style>
   </head>
   <body>
     <canvas id="game" width="816" height="624"></canvas>
+    <div class="scenarios">
+      <button type="button" onclick="WalkDemo.AgentScenarios.startBattle()">开始战斗</button>
+      <button type="button" onclick="WalkDemo.AgentScenarios.startStory()">播放剧情</button>
+      <button type="button" onclick="WalkDemo.AgentScenarios.startStory(true)">带选项剧情</button>
+    </div>
     <div class="hint">方向键行走 · Enter / Z 对话、确认 · X / Esc 打开菜单、取消 · 点击地面寻路 · ` 插件面板</div>
     <script>
       // `pnpm demo:walk` passes the Chaya service address (e.g. dev on :3000) through the Electron env.
@@ -38,6 +61,7 @@
     <script src="data.js"></script>
     <script src="objects.js"></script>
     <script src="game.js"></script>
+    <script src="agent-scenarios.js"></script>
     <script src="js/plugins.js"></script>
     <script src="js/plugins/ChayaLoader.js"></script>
     <script>

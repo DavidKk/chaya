@@ -1,4 +1,4 @@
-import { beginTurn, finishTurn, getOrCreateSession, resetGameAgentStore, stopTurn } from '@/services/game-agent/session-store'
+import { beginTurn, emitTurnEvent, finishTurn, getOrCreateSession, resetGameAgentStore, stopTurn, subscribeTurn } from '@/services/game-agent/session-store'
 
 describe('game agent session store', () => {
   afterEach(resetGameAgentStore)
@@ -29,5 +29,30 @@ describe('game agent session store', () => {
     expect(stopTurn(turn.id, 'game-a')?.state).toBe('stopped')
     expect(stopTurn(turn.id, 'game-a')?.state).toBe('stopped')
     expect(turn.abort.signal.aborted).toBe(true)
+  })
+
+  it('keeps a waiting task exclusive even when a new session is requested', () => {
+    const session = getOrCreateSession('game-a', 'profile', 'model')
+    const turn = beginTurn(session)
+    turn.state = 'waiting_user'
+    expect(getOrCreateSession('game-a', 'profile', 'model', undefined, true)).toBe(session)
+    expect(() => beginTurn(session)).toThrow('AGENT_TURN_RUNNING')
+    const resume = jest.fn()
+    turn.resume = resume
+    stopTurn(turn.id, 'game-a')
+    expect(resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('sequences events and replays the retained window to subscribers', () => {
+    const turn = beginTurn(getOrCreateSession('game-a', 'profile', 'model'))
+    const listener = jest.fn()
+    const unsubscribe = subscribeTurn(turn, listener)
+    emitTurnEvent(turn, { type: 'goal.updated', summary: '当前战斗' })
+    emitTurnEvent(turn, { type: 'phase', phase: 'thinking', step: 1, maxSteps: 20 })
+    unsubscribe()
+    emitTurnEvent(turn, { type: 'turn.stopped' })
+    expect(listener.mock.calls.map(([event]) => event.seq)).toEqual([1, 2])
+    expect(turn.events.map((event) => event.seq)).toEqual([1, 2, 3])
+    expect(turn.goal).toBe('当前战斗')
   })
 })

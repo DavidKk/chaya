@@ -1,6 +1,6 @@
 import type { GameAgentMessage, OllamaModel, OllamaTool, OllamaToolCall } from './types'
 
-export const DEFAULT_GAME_AGENT_MODEL = 'gemma4:e2b-it-q4_K_M'
+export const DEFAULT_GAME_AGENT_MODEL = 'qwen3:4b'
 export const DEFAULT_OLLAMA_HOST = 'http://127.0.0.1:11434'
 
 function messageFrom(error: unknown) {
@@ -38,7 +38,18 @@ export function pickAvailableModel(models: OllamaModel[], preferred?: string): s
 }
 
 export async function streamOllamaChat(
-  input: { endpoint?: string; model: string; messages: GameAgentMessage[]; tools?: OllamaTool[]; temperature?: number; keepAlive?: string; token?: string; signal?: AbortSignal },
+  input: {
+    endpoint?: string
+    model: string
+    messages: GameAgentMessage[]
+    tools?: OllamaTool[]
+    format?: 'json' | Record<string, unknown>
+    temperature?: number
+    maxTokens?: number
+    keepAlive?: string
+    token?: string
+    signal?: AbortSignal
+  },
   onDelta: (text: string) => void,
   fetcher: typeof fetch = fetch
 ): Promise<GameAgentMessage> {
@@ -53,7 +64,8 @@ export async function streamOllamaChat(
         think: false,
         messages: input.messages,
         ...(input.tools?.length ? { tools: input.tools } : {}),
-        options: { temperature: input.temperature ?? 0.2, num_ctx: 16_384 },
+        ...(input.format ? { format: input.format } : {}),
+        options: { temperature: input.temperature ?? 0.2, num_ctx: 16_384, ...(input.maxTokens ? { num_predict: input.maxTokens } : {}) },
         keep_alive: input.keepAlive || '10m',
       }),
       signal: input.signal,

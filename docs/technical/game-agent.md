@@ -5,6 +5,8 @@
 > 需求：[`../game-agent.md`](../game-agent.md)  
 > 关联：[`integration-mcp.md`](./integration-mcp.md)、[`webmcp.md`](./webmcp.md)、[`chaya-ui-style-guide.md`](./chaya-ui-style-guide.md)、[`game-assistance.md`](./game-assistance.md)
 
+> 本文的 `ask`/`play` 示例、八轮工具循环和 SSE 断线取消描述的是 M1/M2 基线。自然语言自主托管的运行策略、任务范围、完成证据、暂停/续接和停止行为以 [`game-assistance.md`](./game-assistance.md) 为准；两者冲突时使用后者。
+
 ## 1. 决策
 
 第一版使用 provider adapter 架构并交付 Ollama 原生 `POST /api/chat` 适配器，不引入 OpenAI SDK、Vercel AI SDK 或完整 ACP Runtime。产品层实体统一称为 Agent：同一个 `provider: ollama` 可以创建多个 Agent，每个 Agent 独立保存名称、endpoint、默认模型和参数。现有持久化字段 `profiles` 暂时保留用于兼容，UI 与路由语义使用 Agent。
@@ -114,9 +116,9 @@ plugins/src/agent-ui/
 
 - `GET /api/tags`：列出本机模型。
 - `POST /api/show`：读取模型信息；信息只能作为提示，不能单凭模型名判断工具调用能力。
-- 第一次进入游玩模式时执行轻量工具调用探测并缓存结果。
+- 首次发起自主托管时执行轻量工具调用探测并缓存结果。
 
-从 `/api/tags` 读取已安装模型：优先选择仓库现有默认模型 `gemma4:e2b-it-q4_K_M`，未安装时选择列表中的第一个模型。当前请求使用 16K 上下文；后续再增加 `/api/show` 能力探测与按模型调整上下文。
+从 `/api/tags` 读取已安装模型：优先选择已在游戏 Demo 验证的 `qwen3:4b`，未安装时选择列表中的第一个模型。当前请求使用 16K 上下文；后续再增加 `/api/show` 能力探测与按模型调整上下文。
 
 首次没有配置文件时，用 `OLLAMA_HOST` 或 `http://127.0.0.1:11434` 生成默认 Profile；保存后以配置文件为准。环境变量不会覆盖用户保存内容。游戏插件只访问 Chaya API，不直接访问 Ollama。
 
@@ -161,7 +163,7 @@ type GameAgentProfile = {
 - NDJSON 逐行解析；每个增量转换为统一 Agent 事件。
 - 响应中的 assistant message 原样加入会话，包括 `tool_calls`。
 - 每个工具结果使用 Ollama 的 `role: "tool"` message 继续下一次请求。
-- 不支持工具调用的模型在询问模式仍可用；游玩模式直接返回能力错误，不在第一版实现自由文本 JSON 回退。
+- 不支持工具调用的模型在询问模式仍可用；游玩模式仅在原生工具调用缺失时尝试 JSON Schema 约束的单步动作决策，不解析任意自由文本为操作。
 
 ## 5. 工具定义与执行
 
@@ -246,7 +248,7 @@ Rules:
 
 ### 6.2 动态上下文
 
-每轮请求追加：
+当前 M2 询问循环的每轮请求追加：
 
 - 模式和当前循环编号。
 - 用户原始目标。
@@ -254,7 +256,7 @@ Rules:
 - 上轮进度摘要。
 - 最近消息窗口。
 
-每个 Turn 先由 Host 确定性调用一次 `chaya_live_state` 并裁剪到上下文中。随后 Gemma 自主选择工具；写工具的返回中由 Host 附带 read-back 验证状态，最多执行八轮。
+每个 Turn 先由 Host 确定性调用一次 `chaya_live_state` 并裁剪到上下文中。随后所选模型自主选择工具；写工具的返回中由 Host 附带 read-back 验证状态，询问循环最多八轮。自主托管的预算和逐步回读规则见 [`game-assistance.md`](./game-assistance.md)。
 
 系统 Prompt 要求使用用户本轮输入语言回答；无法判断时使用当前 UI 语言。
 
@@ -283,7 +285,9 @@ idle
 
 状态转换由 Host 决定，模型只能通过文本和工具调用表达建议，不能改变运行上限。
 
-### 7.2 伪代码
+### 7.2 M2 基线伪代码
+
+下例只解释原 ask/play 规划，不是自主托管实现：其中 `input.mode`、模型正文直接完成以及一轮内执行全部工具调用均由新方案取代。
 
 ```ts
 async function runTurn(input, signal) {
@@ -368,14 +372,15 @@ async function runTurn(input, signal) {
 
 `POST /api/game-agent/turn`，响应 `text/event-stream`：
 
+自主托管目标请求由 Host 根据自然语言与首次观察决定执行策略，不需要 `mode` 字段；当前 M2 路由仍按询问循环处理，须实现新方案后才能托管游玩。
+
 ```json
 {
   "gameId": "...",
   "sessionId": "optional",
   "profileId": "ollama-local",
   "model": "qwen3:8b",
-  "mode": "play",
-  "prompt": "选择第二个选项并继续对话"
+  "prompt": "帮我代打"
 }
 ```
 
@@ -394,7 +399,7 @@ type GameAgentEvent =
   | { type: 'turn.failed'; code: string; message: string }
 ```
 
-M1 中 SSE 断开立即 abort 当前 Turn，避免侧栏离开后 Ollama 继续占用资源。短时重连与事件续传放到 M3。
+当前 M1/M2 中 SSE 断开立即 abort 当前 Turn。自主托管目标中 SSE 只是事件订阅，断开不取消 Turn；事件续读和状态恢复按 [`game-assistance.md`](./game-assistance.md) 实现。
 
 ### 8.3 停止
 
@@ -536,7 +541,7 @@ type AgentMessage = UserMessage | AssistantMessage | ToolActivity
 
 ## 14. 已固定的实现参数
 
-- 默认模型：优先 `gemma4:e2b-it-q4_K_M`，否则使用 `/api/tags` 返回的第一个本机模型。
+- 默认模型：优先 `qwen3:4b`，否则使用 `/api/tags` 返回的第一个本机模型。
 - 默认 Profile：首次启动创建 `Local Ollama`；配置页允许添加多个同类实例，并始终使用列表第一项作为默认项。`defaultProfileId` 作为兼容字段保留，保存时固定写入 `profiles[0].id`。
 - M1 不设置最低上下文长度；M2 单独探测工具调用能力。
 - 侧栏默认 400px，范围为 320px 到 `min(560px, viewport - 160px)`。

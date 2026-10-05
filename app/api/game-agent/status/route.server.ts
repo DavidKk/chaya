@@ -3,7 +3,7 @@ import { apiError, apiOk } from '@/initializer/response'
 import { canUseDisk } from '@/lib/service-mode/mode'
 import { listOllamaModels, pickAvailableModel } from '@/services/game-agent/ollama-client'
 import { readGameAgentToken } from '@/services/game-agent/secrets'
-import { getSessionForGame } from '@/services/game-agent/session-store'
+import { getSessionForGame, getTurn } from '@/services/game-agent/session-store'
 import { loadGameAgentSettings } from '@/services/game-agent/settings'
 import { listAgentGames } from '@/services/runtime/agent-bridge'
 
@@ -51,7 +51,20 @@ export const GET = defineApiRoute('get:/api/game-agent/status', async ({ request
     gameOnline: !!game,
     profiles,
     defaultProfileId: defaultProfile?.id || '',
-    session: session ? { id: session.id, profileId: session.profileId, activeTurnId: session.activeTurnId } : null,
+    session: session
+      ? {
+          id: session.id,
+          profileId: session.profileId,
+          activeTurnId: session.activeTurnId,
+          recentTurnId: session.lastTurnId || null,
+          activeTurn: session.activeTurnId
+            ? (() => {
+                const turn = getTurn(session.activeTurnId!)
+                return turn ? { id: turn.id, state: turn.state, phase: turn.phase, goal: turn.goal, question: turn.question, lastSeq: turn.lastSeq } : null
+              })()
+            : null,
+        }
+      : null,
     reason: available ? null : defaultProfile?.reason || '没有可用的 Agent',
   })
 })

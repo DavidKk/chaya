@@ -46,8 +46,13 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
     return body?.gameId === (session.libraryId || session.token)
   }
   const stopMatch = path.match(/^\/api\/game-agent\/turn\/([^/]+)$/)
-  if (stopMatch && request.method === 'DELETE') {
+  if (stopMatch && ['DELETE', 'GET'].includes(request.method)) {
     const turn = getTurn(decodeURIComponent(stopMatch[1]))
+    return !!turn && turn.gameId === (session.libraryId || session.token)
+  }
+  const turnChild = path.match(/^\/api\/game-agent\/turn\/([^/]+)\/(events|reply)$/)
+  if (turnChild && (request.method === 'GET' || request.method === 'POST')) {
+    const turn = getTurn(decodeURIComponent(turnChild[1]))
     return !!turn && turn.gameId === (session.libraryId || session.token)
   }
   if (path === '/api/translate' && request.method === 'POST') {

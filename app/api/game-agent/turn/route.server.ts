@@ -1,6 +1,7 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError } from '@/initializer/response'
-import { beginTurn, getOrCreateSession, stopTurn } from '@/services/game-agent/session-store'
+import { classifyGameIntent, runManagedTurn } from '@/services/game-agent/managed-turn.server'
+import { beginTurn, emitTurnEvent, finishTurn, getOrCreateSession, subscribeTurn } from '@/services/game-agent/session-store'
 import { loadGameAgentSettings, profileById } from '@/services/game-agent/settings'
 import { runAskTurn } from '@/services/game-agent/turn-runner.server'
 import type { GameAgentEvent, StartTurnInput } from '@/services/game-agent/types'
@@ -21,7 +22,6 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
   const profileId = String(body?.profileId || '').trim()
   const prompt = String(body?.prompt || '').trim()
   if (!gameId || !profileId || !model || !prompt) return apiError(400, 'INVALID_AGENT_TURN', 'gameId、profileId、model 和 prompt 不能为空')
-  if (body?.mode && body.mode !== 'ask') return apiError(400, 'PLAY_MODE_NOT_READY', '游玩模式将在第二阶段开放')
 
   const input: StartTurnInput = {
     gameId,
@@ -44,33 +44,61 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
     throw error
   }
 
+  let unsubscribe = () => {}
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder()
       let closed = false
-      const emit = (event: GameAgentEvent) => {
+      const send = (event: GameAgentEvent & { seq: number }) => {
         if (closed) return
         try {
-          controller.enqueue(encoder.encode(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`))
+          controller.enqueue(encoder.encode(`id: ${event.seq}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`))
           if (event.type === 'turn.completed' || event.type === 'turn.stopped' || event.type === 'turn.failed') {
             closed = true
+            unsubscribe()
             controller.close()
           }
         } catch {
           closed = true
-          stopTurn(turn.id, gameId)
+          unsubscribe()
         }
       }
+      unsubscribe = subscribeTurn(turn, send)
+      const emit = (event: GameAgentEvent) => emitTurnEvent(turn, event)
       emit({ type: 'turn.started', turnId: turn.id, sessionId: session.id })
-      void runAskTurn(input, profile, session, turn, emit)
-      const disconnect = () => {
-        if (!closed) stopTurn(turn.id, gameId)
-      }
-      if (request.signal.aborted) disconnect()
-      else request.signal.addEventListener('abort', disconnect, { once: true })
+      void (async () => {
+        try {
+          const intent = await classifyGameIntent(input, profile, turn.abort.signal)
+          if (intent.managed) await runManagedTurn(input, profile, turn)
+          else await runAskTurn(input, profile, session, turn, emit, !intent.edit)
+        } catch (error) {
+          if (turn.abort.signal.aborted) {
+            finishTurn(turn, 'stopped')
+            emit({ type: 'turn.stopped' })
+          } else {
+            finishTurn(turn, 'failed')
+            emit({ type: 'turn.failed', code: 'AGENT_TURN_FAILED', message: error instanceof Error ? error.message : String(error) })
+          }
+        }
+      })()
+      request.signal.addEventListener(
+        'abort',
+        () => {
+          if (!closed) {
+            closed = true
+            unsubscribe()
+            try {
+              controller.close()
+            } catch {
+              /* already closed */
+            }
+          }
+        },
+        { once: true }
+      )
     },
     cancel() {
-      stopTurn(turn.id, gameId)
+      unsubscribe()
     },
   })
 

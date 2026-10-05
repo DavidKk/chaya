@@ -45,7 +45,17 @@ test('executes Gemma tool calls, returns the tool result, then emits the verifie
     })
     .mockResolvedValueOnce({ role: 'assistant', content: '移动速度已设置为 2 倍。' })
   const session: GameAgentSession = { id: 'session', gameId: 'game-a', model: 'gemma', profileId: 'local', messages: [], activeTurnId: 'turn', updatedAt: 0 }
-  const turn: GameAgentTurn = { id: 'turn', sessionId: 'session', gameId: 'game-a', abort: new AbortController(), state: 'running', startedAt: 0 }
+  const turn: GameAgentTurn = {
+    id: 'turn',
+    sessionId: 'session',
+    gameId: 'game-a',
+    abort: new AbortController(),
+    state: 'running',
+    startedAt: 0,
+    lastSeq: 0,
+    events: [],
+    listeners: new Set(),
+  }
   const profile = {
     id: 'local',
     label: 'Local',
@@ -73,7 +83,17 @@ test('answers through service tools without reading game state when no game is c
   ;(listAgentGames as jest.MockedFunction<typeof listAgentGames>).mockReturnValue([])
   ;(streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>).mockResolvedValueOnce({ role: 'assistant', content: '本地服务可用。' })
   const session: GameAgentSession = { id: 'session', gameId: 'chaya-console', model: 'gemma', profileId: 'local', messages: [], activeTurnId: 'turn', updatedAt: 0 }
-  const turn: GameAgentTurn = { id: 'turn', sessionId: 'session', gameId: 'chaya-console', abort: new AbortController(), state: 'running', startedAt: 0 }
+  const turn: GameAgentTurn = {
+    id: 'turn',
+    sessionId: 'session',
+    gameId: 'chaya-console',
+    abort: new AbortController(),
+    state: 'running',
+    startedAt: 0,
+    lastSeq: 0,
+    events: [],
+    listeners: new Set(),
+  }
   const profile = {
     id: 'local',
     label: 'Local',
@@ -102,7 +122,17 @@ test('deletes a named Agent configuration without requiring a connected game', a
     })
     .mockResolvedValueOnce({ role: 'assistant', content: '已删除 Agent「Flow Local」。' })
   const session: GameAgentSession = { id: 'session', gameId: 'chaya-console', model: 'gemma', profileId: 'local', messages: [], activeTurnId: 'turn', updatedAt: 0 }
-  const turn: GameAgentTurn = { id: 'turn', sessionId: 'session', gameId: 'chaya-console', abort: new AbortController(), state: 'running', startedAt: 0 }
+  const turn: GameAgentTurn = {
+    id: 'turn',
+    sessionId: 'session',
+    gameId: 'chaya-console',
+    abort: new AbortController(),
+    state: 'running',
+    startedAt: 0,
+    lastSeq: 0,
+    events: [],
+    listeners: new Set(),
+  }
   const profile = {
     id: 'local',
     label: 'Local',
@@ -128,7 +158,17 @@ test('answers a presence check without reading game state or offering tools', as
   const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
   chat.mockResolvedValueOnce({ role: 'assistant', content: '在，有什么需要？' })
   const session: GameAgentSession = { id: 'session', gameId: 'game-a', model: 'gemma', profileId: 'local', messages: [], activeTurnId: 'turn', updatedAt: 0 }
-  const turn: GameAgentTurn = { id: 'turn', sessionId: 'session', gameId: 'game-a', abort: new AbortController(), state: 'running', startedAt: 0 }
+  const turn: GameAgentTurn = {
+    id: 'turn',
+    sessionId: 'session',
+    gameId: 'game-a',
+    abort: new AbortController(),
+    state: 'running',
+    startedAt: 0,
+    lastSeq: 0,
+    events: [],
+    listeners: new Set(),
+  }
   const profile = {
     id: 'local',
     label: 'Local',
@@ -159,7 +199,17 @@ test('removes write-only credentials from logs, answers and saved conversation h
     })
     .mockResolvedValueOnce({ role: 'assistant', content: '已保存 private-token。' })
   const session: GameAgentSession = { id: 'session', gameId: 'chaya-console', model: 'gemma', profileId: 'local', messages: [], activeTurnId: 'turn', updatedAt: 0 }
-  const turn: GameAgentTurn = { id: 'turn', sessionId: 'session', gameId: 'chaya-console', abort: new AbortController(), state: 'running', startedAt: 0 }
+  const turn: GameAgentTurn = {
+    id: 'turn',
+    sessionId: 'session',
+    gameId: 'chaya-console',
+    abort: new AbortController(),
+    state: 'running',
+    startedAt: 0,
+    lastSeq: 0,
+    events: [],
+    listeners: new Set(),
+  }
   const profile = {
     id: 'local',
     label: 'Local',

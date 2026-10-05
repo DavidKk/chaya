@@ -3,13 +3,13 @@
  * No arbitrary plugin method calls: agents only reach preset abilities (see docs/capabilities.md).
  */
 
-import type { AgentCommand, AgentInputKey, AgentInputStep, AgentParams } from '@/lib/runtime/agent-protocol'
+import type { AgentCommand, AgentInputEffect, AgentInputGuard, AgentInputKey, AgentInputStep, AgentParams } from '@/lib/runtime/agent-protocol'
 import { parseEditAction, parseEditOp } from '@/lib/runtime/edit-ops'
 import { isFirstPartyToolPlugin } from '@/lib/runtime/plugin-tools'
 
 import { findPluginTool, listPluginToolMetas } from '../helpers/plugin-tools'
 import { movePlayer, quitGame, snapScreen, tapScreen } from './game-control'
-import { readHistory } from './history'
+import { battleProgress, readHistory } from './history'
 
 type Loose = Record<string, unknown>
 type AnyFn = (...args: unknown[]) => unknown
@@ -18,6 +18,24 @@ const DEFAULT_PRESS_FRAMES = 6
 const DEFAULT_WAIT_FRAMES = 6
 const MAX_PRESS_FRAMES = 600
 const MAX_SEQUENCE_STEPS = 64
+let manualInputEpoch = 0
+
+export function startManualInputTracking(): () => void {
+  const onInput = (event: Event) => {
+    if (!event.isTrusted) return
+    const target = event.target as Element | null
+    if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) return
+    if (event.type === 'pointerdown' && target?.tagName !== 'CANVAS') return
+    if (event.composedPath().some((node) => node instanceof Element && node.id === 'chaya-game-agent-host')) return
+    manualInputEpoch += 1
+  }
+  document.addEventListener('keydown', onInput, true)
+  document.addEventListener('pointerdown', onInput, true)
+  return () => {
+    document.removeEventListener('keydown', onInput, true)
+    document.removeEventListener('pointerdown', onInput, true)
+  }
+}
 
 const DOM_KEYS: Record<AgentInputKey, { key: string; code: string; keyCode: number }> = {
   ok: { key: 'Enter', code: 'Enter', keyCode: 13 },
@@ -73,7 +91,7 @@ export function toJsonSafe(value: unknown, depth = 4, seen = new WeakSet<object>
   return out
 }
 
-function gameState(): unknown {
+function gameState() {
   const w = g()
   const scene = (w.SceneManager as Loose | undefined)?._scene as Loose | undefined
   const map = w.$gameMap
@@ -129,7 +147,18 @@ function gameState(): unknown {
           .replace(/\s+/g, ' ')
           .trim()
           .slice(0, 4000) || null
-  return {
+  const progress = battleProgress()
+  const battleManager = w.BattleManager as Loose | undefined
+  const acting = read<Loose>(battleManager, 'actor')
+  const selectedAction = read<Loose>(battleManager, 'inputtingAction')
+  const skills = (read<Loose[]>(acting, 'skills') ?? []).slice(0, 50).map((skill) => ({
+    id: skill.id ?? null,
+    name: skill.name ?? null,
+    usable: read<boolean>(acting, 'canUse', skill) ?? null,
+    mpCost: read<number>(acting, 'skillMpCost', skill) ?? skill.mpCost ?? null,
+    tpCost: read<number>(acting, 'skillTpCost', skill) ?? skill.tpCost ?? null,
+  }))
+  const state = {
     scene: (scene?.constructor as { name?: string } | undefined)?.name ?? null,
     title: (w.$dataSystem as { gameTitle?: string } | undefined)?.gameTitle ?? document.title,
     map: mapId ? { id: mapId, name: mapInfos?.[mapId]?.name ?? null, displayName: read(map, 'displayName') || null } : null,
@@ -147,19 +176,34 @@ function gameState(): unknown {
     playtime: read(w.$gameSystem, 'playtimeText') ?? null,
     inventory: party ? { items: items('items'), weapons: items('weapons'), armors: items('armors') } : null,
     nearbyEvents: events,
-    battle: enemies.length
-      ? {
-          turn: (w.BattleManager as Loose | undefined)?._turnCount ?? null,
-          phase: (w.BattleManager as Loose | undefined)?._phase ?? null,
-          enemies: enemies.map((enemy, index) => ({
-            index,
-            name: read(enemy, 'name') ?? null,
-            hp: enemy._hp ?? null,
-            mhp: read(enemy, 'param', 0) ?? null,
-            states: (read<Loose[]>(enemy, 'states') ?? []).map((state) => state.name).filter(Boolean),
-          })),
-        }
-      : null,
+    battle:
+      (scene?.constructor as { name?: string } | undefined)?.name === 'Scene_Battle'
+        ? {
+            instanceId: progress.activeBattleId,
+            turn: battleManager?._turnCount ?? null,
+            phase: battleManager?._phase ?? null,
+            actor: acting
+              ? { id: read(acting, 'actorId') ?? null, name: read(acting, 'name') ?? null, hp: acting._hp ?? null, mp: acting._mp ?? null, tp: acting._tp ?? null, skills }
+              : null,
+            selectedAction: selectedAction
+              ? {
+                  attack: read<boolean>(selectedAction, 'isAttack') ?? null,
+                  guard: read<boolean>(selectedAction, 'isGuard') ?? null,
+                  skill: read<boolean>(selectedAction, 'isSkill') ?? null,
+                  item: read<boolean>(selectedAction, 'isItem') ?? null,
+                }
+              : null,
+            enemies: enemies.map((enemy, index) => ({
+              index,
+              name: read(enemy, 'name') ?? null,
+              hp: enemy._hp ?? null,
+              mhp: read(enemy, 'param', 0) ?? null,
+              states: (read<Loose[]>(enemy, 'states') ?? []).map((state) => state.name).filter(Boolean),
+            })),
+          }
+        : null,
+    lastBattleResult: progress.lastBattleResult,
+    manualInputEpoch,
     windows,
     screenText,
     message: message
@@ -171,6 +215,48 @@ function gameState(): unknown {
         }
       : null,
   }
+  const control = JSON.stringify({
+    scene: state.scene,
+    map: state.map?.id,
+    player: state.player,
+    party: state.party.map((member) => [member.id, member.hp, member.mp]),
+    battle: state.battle,
+    windows: state.windows,
+    message: state.message,
+    manualInputEpoch,
+  })
+  let hash = 2166136261
+  for (let i = 0; i < control.length; i += 1) hash = Math.imul(hash ^ control.charCodeAt(i), 16777619)
+  return { ...state, controlToken: (hash >>> 0).toString(36) }
+}
+
+function inputEffect(key: AgentInputKey, state: ReturnType<typeof gameState>): AgentInputEffect {
+  if (key !== 'ok') return 'navigate'
+  const active = state.windows.find((window) => window?.active)
+  const name = String(active?.name || '').toLowerCase()
+  if (name.includes('choice') || state.message?.choices?.length) return 'choose_branch'
+  if (name.includes('save') || name.includes('load')) return 'save_load'
+  if (name.includes('item') || name.includes('skill')) return 'spend_resource'
+  if (state.message?.busy && !state.message.choices?.length) return 'advance_dialogue'
+  if (state.scene === 'Scene_Battle') {
+    if (active?.symbol === 'attack' || active?.symbol === 'guard' || active?.symbol === 'fight') return 'battle_command'
+    if (active?.symbol === 'skill' || active?.symbol === 'item') return 'navigate'
+    if (name.includes('enemy') || name.includes('actor')) {
+      const action = read(g().BattleManager, 'inputtingAction') ?? (g().BattleManager as Loose | undefined)?._inputtingAction
+      return read<boolean>(action, 'isAttack') ? 'battle_command' : 'unknown'
+    }
+    return 'unknown'
+  }
+  return 'unknown'
+}
+
+function checkInputGuard(key: AgentInputKey, guard: AgentInputGuard) {
+  const state = gameState()
+  if (state.controlToken !== guard.controlToken) throw new Error('STATE_CHANGED')
+  if (guard.battleInstanceId && state.battle?.instanceId !== guard.battleInstanceId) throw new Error('SCOPE_CHANGED')
+  if (guard.mapId != null && state.map?.id !== guard.mapId) throw new Error('SCOPE_CHANGED')
+  const effect = inputEffect(key, state)
+  if (!Array.isArray(guard.allowedEffects) || !guard.allowedEffects.includes(effect)) throw new Error(`ACTION_REQUIRES_CONFIRMATION:${effect}`)
 }
 
 function listPlugins(): unknown {
@@ -229,7 +315,8 @@ function waitFrames(value: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, Math.round((value * 1000) / 60)))
 }
 
-async function pressKey({ key, frames: requested }: { key: AgentInputKey; frames?: number }): Promise<unknown> {
+async function pressKey({ key, frames: requested, guard }: AgentParams<'input.press'>): Promise<unknown> {
+  if (guard) checkInputGuard(key, guard)
   const input = g().Input as { _currentState?: Record<string, boolean> } | undefined
   const n = Math.max(1, frames(requested, DEFAULT_PRESS_FRAMES))
   if (!input?._currentState && typeof document === 'undefined') throw new Error('Input 未就绪（游戏尚未启动？）')
