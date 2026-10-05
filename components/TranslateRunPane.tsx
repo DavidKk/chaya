@@ -7,7 +7,7 @@ import { LuScanText } from 'react-icons/lu'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formCardDense, panelFoot } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, ScrollArea, SegmentedNav } from '@/components/sk'
+import { Button, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
 import { TranslateActivityLog, type TranslateLogEntry } from '@/components/translate/TranslateActivityLog'
 import { type EngineId, TranslateEngineRail } from '@/components/translate/TranslateEngineRail'
 import { useTranslateEnginesDrawer } from '@/components/translate/TranslateEnginesDrawerContext'
@@ -110,10 +110,14 @@ function ProgressMeter({ label, pct, hint, indeterminate = false }: { label: str
   return (
     <div role="progressbar" aria-valuenow={indeterminate ? undefined : clamped} aria-valuemin={0} aria-valuemax={100} aria-busy={indeterminate || undefined} aria-label={label}>
       <div className="mb-2 flex justify-between gap-3 text-[0.75rem] text-ink-soft">
-        <span className="min-w-0 truncate">
-          {label}
-          {hint ? <span className="text-ink-soft/80"> · {hint}</span> : null}
-        </span>
+        <TruncateText
+          text={
+            <>
+              {label}
+              {hint ? <span className="text-ink-soft/80"> · {hint}</span> : null}
+            </>
+          }
+        />
         <span className="shrink-0 tabular-nums">{indeterminate ? '…' : `${clamped}%`}</span>
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-inset">

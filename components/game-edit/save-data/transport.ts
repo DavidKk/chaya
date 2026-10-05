@@ -20,10 +20,15 @@ export type SaveDataTransport = {
 }
 
 /** Data page wiring from the host (web page or overlay) */
+export type DataRootView = 'pins' | 'all'
+
 export type SaveDataSlot = {
   /** null: not linked to a game */
   transport: SaveDataTransport | null
   path: DataPath
-  onNavigate: (path: DataPath, opts?: { replace?: boolean }) => void
+  /** Root level shows pinned fields or every top-level entry (default pins) */
+  rootView?: DataRootView
+  /** `root` picks the root view when `path` is empty */
+  onNavigate: (path: DataPath, opts?: { replace?: boolean; root?: DataRootView }) => void
   surface: 'page' | 'overlay'
 }

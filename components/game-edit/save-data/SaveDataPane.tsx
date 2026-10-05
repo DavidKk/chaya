@@ -6,7 +6,7 @@ import { IoAdd, IoCopyOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, EmptyState, Select, Skeleton, Spinner, TextAction, TextInput } from '@/components/sk'
+import { Button, EmptyState, Select, Skeleton, Spinner, TextAction, TextInput, TruncateText } from '@/components/sk'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { allowedTypes, type DataPath, type DataRow, isContainerKind, pathKey, type SearchScope } from '@/lib/game/save-data'
 import { cn } from '@/lib/utils'
@@ -25,8 +25,7 @@ import { useDataActions } from './useDataActions'
 import { useSaveData } from './useSaveData'
 
 const SEARCH_DEBOUNCE_MS = 300
-type DataTab = 'pins' | 'all'
-const crumbBtn = 'max-w-[12rem] cursor-pointer truncate border-none bg-transparent p-0 text-xs text-ink-soft hover:text-accent'
+const crumbBtn = 'inline-flex min-w-0 max-w-[12rem] cursor-pointer border-none bg-transparent p-0 text-xs text-ink-soft hover:text-accent'
 
 /** 修改 › 数据: level-by-level fields with live current values and separate drafts */
 export function SaveDataPane({ slot, headSlot }: { slot: SaveDataSlot; headSlot?: HTMLElement | null }) {
@@ -47,27 +46,21 @@ export function SaveDataPane({ slot, headSlot }: { slot: SaveDataSlot; headSlot?
 
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<SearchScope>('all')
-  const [tab, setTab] = useState<DataTab>(() => (path.length ? 'all' : 'pins'))
   const levelKey = pathKey(path)
-  useEffect(() => setQuery(''), [levelKey])
   const deep = path.length > 0
-  useEffect(() => {
-    if (deep) setTab('all')
-  }, [levelKey, deep])
+  const onPins = !deep && (slot.rootView ?? 'pins') === 'pins'
+  useEffect(() => setQuery(''), [levelKey, onPins])
   const open = useCallback(
     (p: DataPath) => {
       setQuery('')
-      setTab('all')
-      onNavigate(p)
+      onNavigate(p, { root: 'all' })
     },
     [onNavigate]
   )
   const openPins = useCallback(() => {
     setQuery('')
-    setTab('pins')
-    onNavigate([])
+    onNavigate([], { root: 'pins' })
   }, [onNavigate])
-  const onPins = tab === 'pins' && !deep
   const { startSearch, stopSearch } = state
   useEffect(() => {
     if (!query.trim()) {
@@ -161,20 +154,16 @@ export function SaveDataPane({ slot, headSlot }: { slot: SaveDataSlot; headSlot?
   const crumbs = (
     <nav className="flex min-h-7 min-w-0 flex-1 items-center gap-1 overflow-hidden" aria-label={t('data.breadcrumbAria')}>
       {!deep && !onPins ? (
-        <span className="truncate text-xs font-medium text-ink" aria-current="page">
-          {t('data.rootCrumb')}
-        </span>
+        <TruncateText text={t('data.rootCrumb')} className="text-xs font-medium text-ink" aria-current="page" />
       ) : (
         <button type="button" className={crumbBtn} onClick={() => open([])}>
-          {t('data.rootCrumb')}
+          <TruncateText text={t('data.rootCrumb')} />
         </button>
       )}
       {onPins ? (
         <span className="flex min-w-0 items-center gap-1">
           <span className="text-xs text-ink-soft">›</span>
-          <span className="truncate text-xs font-medium text-ink" aria-current="page">
-            {t('data.pinsTitle')}
-          </span>
+          <TruncateText text={t('data.pinsTitle')} className="text-xs font-medium text-ink" aria-current="page" />
         </span>
       ) : null}
       {path.map((seg, i) => {
@@ -184,12 +173,10 @@ export function SaveDataPane({ slot, headSlot }: { slot: SaveDataSlot; headSlot?
           <span key={i} className="flex min-w-0 items-center gap-1">
             <span className="text-xs text-ink-soft">›</span>
             {last ? (
-              <span className="truncate text-xs font-medium text-ink" aria-current="page" title={label}>
-                {label}
-              </span>
+              <TruncateText text={label} className="text-xs font-medium text-ink" aria-current="page" />
             ) : (
-              <button type="button" className={crumbBtn} title={label} onClick={() => open(path.slice(0, i + 1))}>
-                {label}
+              <button type="button" className={crumbBtn} onClick={() => open(path.slice(0, i + 1))}>
+                <TruncateText text={label} />
               </button>
             )}
           </span>

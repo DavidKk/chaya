@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { IoCheckmark, IoChevronBack, IoChevronDown, IoRefreshOutline } from 'react-icons/io5'
 
 import { useLocaleCode } from '@/components/i18n/LocaleProvider'
-import { ScrollArea, TextInput } from '@/components/sk'
+import { ScrollArea, TextInput, TruncateText } from '@/components/sk'
 import { cn } from '@/lib/utils'
 
 type Profile = {
@@ -104,9 +104,7 @@ export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = fa
           aria-label={copy.trigger}
           className="inline-flex h-8 min-w-0 max-w-full items-center gap-1 overflow-hidden rounded-full px-1 text-xs font-medium text-ink-soft outline-none transition-colors hover:enabled:bg-[rgb(230_238_248/0.06)] hover:enabled:text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-45"
         >
-          <span className="min-w-0 truncate whitespace-nowrap" title={label}>
-            {label}
-          </span>
+          <TruncateText text={label} className="whitespace-nowrap" />
           <IoChevronDown className={cn('shrink-0 transition-transform', open && 'rotate-180')} size={13} aria-hidden />
         </Popover.Trigger>
         <Popover.Portal container={container}>
@@ -183,9 +181,7 @@ function MenuValueRow({ label, value, disabled, onClick }: { label: string; valu
       onClick={onClick}
     >
       <span className="shrink-0 text-ink-soft">{label}</span>
-      <span className="min-w-0 truncate text-right font-semibold text-ink" title={value}>
-        {value}
-      </span>
+      <TruncateText text={value} className="text-right font-semibold text-ink" />
     </button>
   )
 }
@@ -218,9 +214,7 @@ function MenuOption({ label, selected, disabled, onClick }: { label: string; sel
       )}
       onClick={onClick}
     >
-      <span className="min-w-0 truncate" title={label}>
-        {label}
-      </span>
+      <TruncateText text={label} />
       {selected ? <IoCheckmark size={14} className="shrink-0" aria-hidden /> : null}
     </button>
   )

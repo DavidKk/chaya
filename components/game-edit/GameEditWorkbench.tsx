@@ -12,7 +12,7 @@ import { GameEditRunSettings } from '@/components/GameEditRunSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell, panelBody, panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
-import { Button, EmptyState, NumberInput, ScrollArea, Spinner, SwitchToggle } from '@/components/sk'
+import { Button, EmptyState, NumberInput, ScrollArea, Spinner, SwitchToggle, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import type { CatalogEntry, GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
@@ -594,18 +594,12 @@ export function GameEditWorkbench({
                         <div className={cn(editCell, 'min-w-0')} role="cell">
                           {row.meta ? (
                             <div className="flex h-[2.35rem] min-w-0 flex-col justify-center gap-0.5">
-                              <div className="truncate font-medium leading-tight text-ink" title={row.name}>
-                                {row.name}
-                              </div>
-                              <Tooltip content={row.meta} triggerClassName="block min-w-0 max-w-full">
-                                <div className="truncate text-[0.7rem] leading-[1.35] text-ink-soft">{row.meta}</div>
-                              </Tooltip>
+                              <TruncateText text={row.name} className="block font-medium leading-tight text-ink" />
+                              <TruncateText text={row.meta} className="block text-[0.7rem] leading-[1.35] text-ink-soft" />
                             </div>
                           ) : (
                             <div className="flex h-[2.35rem] min-w-0 items-center">
-                              <div className="truncate font-medium leading-tight text-ink" title={row.name}>
-                                {row.name}
-                              </div>
+                              <TruncateText text={row.name} className="block font-medium leading-tight text-ink" />
                             </div>
                           )}
                         </div>

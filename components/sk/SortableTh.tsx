@@ -24,7 +24,7 @@ export function SortableTh({ label, active, order, disabled, onCycle, className 
         type="button"
         className={cn(
           'm-0 inline-flex cursor-pointer items-center gap-0.5 border-none bg-transparent p-0 text-inherit outline-none',
-          'hover:text-ink focus:outline-none focus-visible:outline-none',
+          'hover:enabled:text-ink focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed',
           active ? 'text-ink' : 'text-ink-soft'
         )}
         disabled={disabled}

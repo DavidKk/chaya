@@ -1,19 +1,31 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { IoAdd, IoArrowBack, IoRefreshOutline, IoTrashOutline } from 'react-icons/io5'
+import { IoAdd, IoArrowBack, IoInfinite, IoTrashOutline } from 'react-icons/io5'
 import { TbPencilCog } from 'react-icons/tb'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formCard, formControlInline, formDescInline, formFieldInline, formTitleInline, panelHead } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, EmptyState, NumberSliderInput, Select, Spinner, TextInput } from '@/components/sk'
+import { Button, EmptyState, NumberInput, NumberSliderInput, Select, Spinner, TextInput, Tooltip, TruncateText } from '@/components/sk'
+import { keepAliveLabel, keepAliveToMs, msToKeepAlive } from '@/lib/game-agent/keep-alive'
 import type { AgentSyncDocument } from '@/lib/game-agent/settings-sync'
+import { cn } from '@/lib/utils'
 
 import { type AgentModel, type AgentProfile, type AgentSettings, type AgentSettingsRequest, createAgentProfile } from './agent-types'
 
 const API = '/api/integration/game-agent'
+
+const infinityBtn =
+  'm-0 -mr-1 inline-flex h-full cursor-pointer items-center border-0 border-l border-solid border-line bg-transparent pr-1 pl-2 text-ink-soft hover:text-ink focus-visible:outline-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]'
+
+const KEEP_ALIVE_UNIT_KEY = {
+  hour: 'integration.agentKeepAliveHour',
+  min: 'integration.agentKeepAliveMin',
+  sec: 'integration.agentKeepAliveSec',
+  ms: 'integration.agentKeepAliveMs',
+} as const
 
 function apiError(body: unknown, fallback: string) {
   const value = body as { error?: { message?: unknown } }
@@ -39,6 +51,10 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   const [busy, setBusy] = useState<'load' | 'test' | 'save' | ''>('load')
   const [deletingId, setDeletingId] = useState('')
   const [loadError, setLoadError] = useState('')
+  /** Keep Alive being typed (ms), so the duration label follows each keystroke */
+  const [keepAliveTyping, setKeepAliveTyping] = useState<number | null>(null)
+  /** Last finite Keep Alive, restored when ∞ is switched off */
+  const keepAliveFinite = useRef(600_000)
   const modelRequestId = useRef(0)
   const autoModelsTimer = useRef<number | undefined>(undefined)
   const draftRef = useRef<AgentProfile | null>(null)
@@ -129,7 +145,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   }
 
   const fetchModels = useCallback(
-    async (profile: AgentProfile, feedback: 'none' | 'refresh' | 'test') => {
+    async (profile: AgentProfile, feedback: 'none' | 'open' | 'test') => {
       const requestId = ++modelRequestId.current
       setModelsBusy(true)
       if (feedback === 'test') setBusy('test')
@@ -150,7 +166,6 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
           return selectedStillExists || !body.defaultModel ? current : { ...current, defaultModel: body.defaultModel }
         })
         if (feedback === 'test') notify.success(t('integration.agentConnected'))
-        else if (feedback === 'refresh') notify.success(t('integration.agentModelsRefreshed'))
       } catch (error) {
         if (requestId === modelRequestId.current && feedback !== 'none') notify.error(error instanceof Error ? error.message : String(error))
       } finally {
@@ -181,11 +196,11 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
     await fetchModels({ ...draft }, 'test')
   }
 
-  const refreshModels = async () => {
-    if (!draft) return
+  const loadModelsOnOpen = () => {
+    if (!draft?.endpoint.trim() || modelsBusy) return
     if (autoModelsTimer.current !== undefined) window.clearTimeout(autoModelsTimer.current)
     autoModelsTimer.current = undefined
-    await fetchModels({ ...draft }, 'refresh')
+    void fetchModels({ ...draft }, 'open')
   }
 
   const removeProfile = async (profile: AgentProfile, navigateAfter = false) => {
@@ -247,25 +262,28 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
               {settings.profiles.map((profile) => (
                 <li key={profile.id} className="flex items-center gap-3 px-3 py-3 hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]">
                   <div className="min-w-0 flex-1">
-                    <p className="m-0 truncate text-sm font-medium text-ink">{profile.label}</p>
-                    <p className="mt-1 mb-0 truncate text-xs text-ink-soft">
-                      {profile.provider} · {profile.defaultModel || t('integration.agentNoModels')} · {profile.endpoint}
-                    </p>
+                    <TruncateText text={profile.label} className="block text-sm font-medium text-ink" />
+                    <TruncateText
+                      text={`${profile.provider} · ${profile.defaultModel || t('integration.agentNoModels')} · ${profile.endpoint}`}
+                      className="mt-1 block text-xs text-ink-soft"
+                    />
                   </div>
-                  <Button variant="plain" size="icon" aria-label={t('integration.agentEdit')} onClick={() => onNavigate(profile.id)}>
-                    <TbPencilCog size={16} aria-hidden />
-                  </Button>
-                  <Button
-                    variant="plain"
-                    size="icon"
-                    className="text-fail"
-                    aria-label={t('integration.agentDelete')}
-                    disabled={settings.profiles.length <= 1 || Boolean(deletingId)}
-                    loading={deletingId === profile.id}
-                    onClick={() => void removeProfile(profile)}
-                  >
-                    <IoTrashOutline size={16} aria-hidden />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-px">
+                    <Button variant="plain" size="icon" aria-label={t('integration.agentEdit')} onClick={() => onNavigate(profile.id)}>
+                      <TbPencilCog size={16} aria-hidden />
+                    </Button>
+                    <Button
+                      variant="plain"
+                      size="icon"
+                      className="text-fail"
+                      aria-label={t('integration.agentDelete')}
+                      disabled={settings.profiles.length <= 1 || Boolean(deletingId)}
+                      loading={deletingId === profile.id}
+                      onClick={() => void removeProfile(profile)}
+                    >
+                      <IoTrashOutline size={16} aria-hidden />
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -288,12 +306,23 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
     setDraft({ ...draft, ...patch })
   }
 
+  const keepAliveMs = keepAliveToMs(draft.keepAlive)
+  const keepAliveForever = keepAliveMs < 0
+  if (!keepAliveForever) keepAliveFinite.current = keepAliveMs
+  const keepAliveInfo = keepAliveLabel(keepAliveTyping ?? keepAliveMs)
+  const keepAliveText =
+    keepAliveInfo.kind === 'forever'
+      ? t('integration.agentKeepAliveForever')
+      : keepAliveInfo.kind === 'unload'
+        ? t('integration.agentKeepAliveUnload')
+        : keepAliveInfo.parts.map(({ unit, n }) => t(KEEP_ALIVE_UNIT_KEY[unit], { n })).join(' ')
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className={panelHead}>
         <div className="min-w-0 flex-1">
-          <strong className="block truncate text-sm text-ink">{creating ? t('integration.agentCreateTitle') : t('integration.agentEditTitle')}</strong>
-          <span className="block truncate text-xs text-ink-soft">{t('integration.agentDetailHint')}</span>
+          <TruncateText text={creating ? t('integration.agentCreateTitle') : t('integration.agentEditTitle')} className="block text-sm font-bold text-ink" />
+          <TruncateText text={t('integration.agentDetailHint')} className="block text-xs text-ink-soft" />
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -322,31 +351,52 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
             <div className={formFieldInline}>
               <span className={formTitleInline}>{t('integration.agentDefaultModel')}</span>
               <span className={formDescInline}>{t('integration.agentDefaultModelDesc')}</span>
-              <div className={`${formControlInline} flex items-center gap-1`}>
+              <div className={formControlInline}>
                 <Select
-                  className="min-w-0 flex-1"
+                  className="w-full"
                   value={draft.defaultModel}
                   options={modelOptions}
                   placeholder={t('integration.agentNoModels')}
+                  loading={modelsBusy}
+                  onOpen={loadModelsOnOpen}
                   onChange={(defaultModel) => update({ defaultModel })}
                 />
-                <Button variant="plain" size="icon" loading={modelsBusy} aria-label={t('common.refresh')} tooltip={t('common.refresh')} onClick={() => void refreshModels()}>
-                  <IoRefreshOutline size={16} aria-hidden />
-                </Button>
               </div>
             </div>
             <label className={formFieldInline}>
               <span className={formTitleInline}>{t('integration.agentTemperature')}</span>
               <span className={formDescInline}>{t('integration.agentTemperatureDesc')}</span>
               <div className={formControlInline}>
-                <NumberSliderInput value={draft.temperature} min={0} max={2} step={0.1} allowDecimal onValueChange={(temperature) => update({ temperature })} />
+                <NumberSliderInput className="w-full" value={draft.temperature} min={0} max={2} step={0.1} allowDecimal onValueChange={(temperature) => update({ temperature })} />
               </div>
             </label>
             <label className={formFieldInline}>
               <span className={formTitleInline}>{t('integration.agentKeepAlive')}</span>
               <span className={formDescInline}>{t('integration.agentKeepAliveDesc')}</span>
               <div className={formControlInline}>
-                <TextInput className="w-full" value={draft.keepAlive} onChange={(event) => update({ keepAlive: event.target.value })} />
+                <NumberInput
+                  className="w-full"
+                  value={keepAliveForever ? keepAliveFinite.current : keepAliveMs}
+                  min={0}
+                  disabled={keepAliveForever}
+                  suffix={keepAliveText}
+                  endAction={
+                    <Tooltip content={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}>
+                      <button
+                        type="button"
+                        className={cn(infinityBtn, keepAliveForever && 'text-accent')}
+                        aria-label={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}
+                        aria-pressed={keepAliveForever}
+                        onClick={() => update({ keepAlive: keepAliveForever ? msToKeepAlive(keepAliveFinite.current) : '-1' })}
+                      >
+                        <IoInfinite size={16} aria-hidden />
+                      </button>
+                    </Tooltip>
+                  }
+                  onDraftChange={setKeepAliveTyping}
+                  onBlur={() => setKeepAliveTyping(null)}
+                  onValueChange={(ms) => update({ keepAlive: msToKeepAlive(ms) })}
+                />
               </div>
             </label>
             <div className="flex min-w-0 items-center justify-between gap-3" data-agent-detail-toolbar>

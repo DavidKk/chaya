@@ -49,8 +49,10 @@ export default async function CheatTabPage({ params }: CheatTabPageProps) {
   if (tab === 'map') {
     if (segments.length === 0) return null
     const mapId = parseActorIdSegment(segments[0])
-    if (mapId == null || segments.length > 2) redirect(editTabHref(tab))
-    if (segments.length === 2 && parseActorIdSegment(segments[1]) == null) redirect(editMapHref(mapId))
+    if (mapId == null || segments.length > 3) redirect(editTabHref(tab))
+    const eventId = segments.length >= 2 ? parseActorIdSegment(segments[1]) : null
+    if (segments.length >= 2 && eventId == null) redirect(editMapHref(mapId))
+    if (segments.length === 3 && parseActorIdSegment(segments[2]) == null) redirect(editMapHref(mapId, eventId))
     return null
   }
 

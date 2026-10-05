@@ -33,7 +33,7 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, closeButton }: Props
     >
       <Tooltip content={PRODUCT_DISPLAY_NAME}>
         <span role="img" aria-label={PRODUCT_DISPLAY_NAME} className="mr-2 inline-flex shrink-0 items-center self-center">
-          <BrandMarkInline className="size-7" />
+          <BrandMarkInline className="size-7" animated />
         </span>
       </Tooltip>
       {(

@@ -19,5 +19,6 @@ export { SWITCH_BORDER, SWITCH_INSET, SWITCH_THUMB, SWITCH_TRACK_H, SWITCH_TRACK
 export { TextAction, type TextActionProps } from '@/components/sk/TextAction'
 export { TextInput, type TextInputProps } from '@/components/sk/TextInput'
 export { computeTooltipPosition, Tooltip, type TooltipPlacement, withTooltip } from '@/components/sk/Tooltip'
+export { TruncateText, type TruncateTextProps } from '@/components/sk/TruncateText'
 export { type FloatingPanelWidthMode, useFloatingPanel } from '@/components/sk/useFloatingPanel'
 export { VirtualList, type VirtualListProps } from '@/components/sk/VirtualList'

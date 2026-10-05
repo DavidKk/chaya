@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 
-import { ScrollArea } from '@/components/sk'
+import { ScrollArea, Tooltip, TruncateText } from '@/components/sk'
 import { cn } from '@/lib/utils'
 
 /**
@@ -76,15 +76,17 @@ export function HubNavItem({ active, icon, label, meta, title, href, onSelect }:
   )
   return (
     <li>
-      {href ? (
-        <Link href={href} aria-current={active ? 'page' : undefined} title={hint} className={className}>
-          {body}
-        </Link>
-      ) : (
-        <button type="button" aria-current={active ? 'true' : undefined} title={hint} onClick={onSelect} className={cn(className, 'cursor-pointer bg-transparent')}>
-          {body}
-        </button>
-      )}
+      <Tooltip content={hint ?? ''} placement="right" touchBehavior="passthrough">
+        {href ? (
+          <Link href={href} aria-current={active ? 'page' : undefined} className={className}>
+            {body}
+          </Link>
+        ) : (
+          <button type="button" aria-current={active ? 'true' : undefined} onClick={onSelect} className={cn(className, 'cursor-pointer bg-transparent')}>
+            {body}
+          </button>
+        )}
+      </Tooltip>
     </li>
   )
 }
@@ -94,8 +96,10 @@ export function HubPaneHeader({ title, description, actions }: { title: ReactNod
   return (
     <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-line-soft px-4 py-2">
       <div className="flex min-w-0 flex-col gap-0.5">
-        <h2 className="m-0 truncate text-sm font-semibold text-ink">{title}</h2>
-        {description ? <div className="truncate text-xs text-ink-soft">{description}</div> : null}
+        <h2 className="m-0 flex min-w-0 text-sm font-semibold text-ink">
+          <TruncateText text={title} />
+        </h2>
+        {description ? <TruncateText text={description} className="block text-xs text-ink-soft" /> : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </header>

@@ -5,12 +5,12 @@ const BODY =
 const EYES =
   'M537.25 448.5C537.61 465.12 535.84 481.89 535.23 498.5C534.13 528.47 533.7 558.63 531.36 588.53C530.03 605.39 533.33 626.66 519.25 638.72C509.62 646.97 497.34 645.75 485.5 645.75C477.83 645.74 470.17 645.75 462.5 645.75C449.53 645.76 428.18 648.43 417.07 641.44C400.93 631.29 403.1 615.13 403.06 598.5C402.98 564.83 403.06 531.17 403.06 497.5C403.06 485.79 400.08 461.49 408.55 453.04C416.66 444.93 431.14 447.7 441.5 447.74C462.83 447.8 484.17 447.75 505.5 447.73C514.54 447.72 529 446.22 537.25 448.5ZM558.5 447.82C589.1 446.84 619.89 447.58 650.5 447.71C660.68 447.76 677.53 445.02 685.69 451.85C695.69 460.21 692.35 484.18 692.34 496.5C692.31 530.5 692.38 564.5 692.35 598.5C692.33 614.35 694.06 631.61 678.74 641.26C667.69 648.21 647.34 645.55 634.5 645.58C624.5 645.6 614.5 645.56 604.5 645.58C594.13 645.61 584.08 645.93 575.81 638.66C565.86 629.91 565.48 618.86 564.89 606.5C564.63 601.16 564.16 595.85 563.97 590.5C562.84 557.85 561.39 525.13 559.75 492.5C559.29 483.17 558.85 473.83 558.31 464.5C558 459.08 557.11 453.01 558.5 447.82Z'
 
-/** Inline Chaya mark (no asset URL), for surfaces without the site's `/brand` path such as the game plugin */
-export function BrandMarkInline({ className }: { className?: string }) {
+/** Inline Chaya mark (no asset URL), for surfaces without the site's `/brand` path such as the game plugin; `animated` styling lives in the host CSS (`[data-chaya-mark]`) */
+export function BrandMarkInline({ className, animated = false }: { className?: string; animated?: boolean }) {
   return (
-    <svg viewBox="205 195 650 650" aria-hidden focusable="false" className={cn('size-6 shrink-0', className)}>
+    <svg viewBox="205 195 650 650" aria-hidden focusable="false" data-chaya-mark={animated || undefined} className={cn('size-6 shrink-0', className)}>
       <path d={BODY} fill="#2AD4FF" fillRule="evenodd" />
-      <path d={EYES} fill="#F0F7FF" fillRule="evenodd" />
+      <path d={EYES} fill="#F0F7FF" fillRule="evenodd" data-chaya-eyes={animated || undefined} />
     </svg>
   )
 }

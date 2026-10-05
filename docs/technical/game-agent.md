@@ -3,7 +3,7 @@
 > 状态：实施中（M1 已完成，M2 核心工具循环已完成）
 > 日期：2026-10-04  
 > 需求：[`../game-agent.md`](../game-agent.md)  
-> 关联：[`integration-mcp.md`](./integration-mcp.md)、[`webmcp.md`](./webmcp.md)、[`chaya-ui-style-guide.md`](./chaya-ui-style-guide.md)
+> 关联：[`integration-mcp.md`](./integration-mcp.md)、[`webmcp.md`](./webmcp.md)、[`chaya-ui-style-guide.md`](./chaya-ui-style-guide.md)、[`game-assistance.md`](./game-assistance.md)
 
 ## 1. 决策
 

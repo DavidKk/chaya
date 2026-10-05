@@ -5,7 +5,7 @@ import { IoChevronForward, IoStar } from 'react-icons/io5'
 import { MdDragIndicator } from 'react-icons/md'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { EmptyState, ScrollArea, TextAction } from '@/components/sk'
+import { EmptyState, ScrollArea, TextAction, TruncateText } from '@/components/sk'
 import { type DataPath, type DataRowAt, pathExpression, pathKey } from '@/lib/game/save-data'
 import { cn } from '@/lib/utils'
 
@@ -27,11 +27,11 @@ export function WherePath({ row, onOpen }: { row: Pick<DataRowAt, 'path' | 'labe
             {i ? <span aria-hidden>›</span> : null}
             <button
               type="button"
-              className="max-w-[8rem] cursor-pointer truncate border-none bg-transparent p-0 font-mono text-[0.68rem] text-ink-soft hover:text-accent"
-              title={t('data.open', { name: label })}
+              className="inline-flex min-w-0 max-w-[8rem] cursor-pointer border-none bg-transparent p-0 font-mono text-[0.68rem] text-ink-soft hover:text-accent"
+              aria-label={t('data.open', { name: label })}
               onClick={() => onOpen(row.path.slice(0, i + 1))}
             >
-              {label}
+              <TruncateText text={label} />
             </button>
           </span>
         )
@@ -140,7 +140,7 @@ export function PinsList({ rows, userPins, narrow, lockedKeys, canEdit, onUnpin,
               row,
               key,
               <div className="flex h-full items-center gap-2 border-b border-line px-3 text-xs text-ink-soft">
-                <span className="min-w-0 flex-1 truncate font-mono">{pathExpression(row.path)}</span>
+                <TruncateText text={pathExpression(row.path)} className="flex-1 font-mono" />
                 <span>{t('data.pinUnavailable')}</span>
                 {userPins.has(key) ? <TextAction onClick={() => onUnpin(row.path)}>{t('data.unpin')}</TextAction> : null}
               </div>

@@ -7,7 +7,7 @@ import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { countKey, type SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
-import { Badge, Button, ScrollArea, SegmentedNav } from '@/components/sk'
+import { Badge, Button, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
 import { type CommonEventsData, type EventEffects, isRiskyEffects, type MapDetailData, type MapEventInfo, type MapNode, reachableFrom, summarizeEffects } from '@/lib/game/events'
 
 import { EventScript } from './EventScript'
@@ -29,7 +29,7 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
   const texts = useMemo(() => ({ ...data.texts, ...detail.texts }), [data.texts, detail.texts])
   const activeIndex = state.kind !== 'unknown' && state.page > 0 ? state.page - 1 : -1
   /** Follows the live active page until a tab is picked */
-  const [pickedPage, setPickedPage] = useState<number | null>(null)
+  const pickedPage = slot.eventPage != null && slot.eventPage < ev.pages.length ? slot.eventPage : null
   const shownIndex = pickedPage ?? Math.max(0, activeIndex)
   const shownPage = ev.pages[shownIndex]
   const pageTabs = ev.pages.map((_, i) => ({
@@ -102,7 +102,9 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
         </Button>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="m-0 truncate text-[0.9rem] font-semibold text-ink">{name}</h2>
+            <h2 className="m-0 flex min-w-0 text-[0.9rem] font-semibold text-ink">
+              <TruncateText text={name} />
+            </h2>
             {onThisMap ? (
               <Badge dot={false} tone="info" className="shrink-0">
                 {t('events.map.current')}
@@ -115,8 +117,8 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
               </Badge>
             ) : null}
           </div>
-          <p className="m-0 truncate text-[0.7rem] text-ink-soft">
-            {node.name || `#${node.id}`} · ({ev.x},{ev.y}) · {t(TYPE_KEY[ev.type])}
+          <p className="m-0 flex min-w-0 text-[0.7rem] text-ink-soft">
+            <TruncateText text={`${node.name || `#${node.id}`} · (${ev.x},${ev.y}) · ${t(TYPE_KEY[ev.type])}`} />
           </p>
         </div>
         <Button
@@ -133,7 +135,7 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
         <div>
           {ev.pages.length > 1 ? (
             <div className="px-3 py-2.5">
-              <SegmentedNav items={pageTabs} value={String(shownIndex)} onChange={(id) => setPickedPage(Number(id))} aria-label={t('events.map.pagesAria')} />
+              <SegmentedNav items={pageTabs} value={String(shownIndex)} onChange={(id) => slot.onSelectEventPage(Number(id))} aria-label={t('events.map.pagesAria')} />
             </div>
           ) : null}
           {shownPage ? (

@@ -8,7 +8,7 @@ import { countKey, type SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Badge, Button, EmptyState, ScrollArea, Spinner } from '@/components/sk'
+import { Badge, Button, EmptyState, ScrollArea, Spinner, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { type CommonEventsData, estimateActivePage, type MapDetailData, type MapEventInfo, type MapNode } from '@/lib/game/events'
@@ -134,21 +134,25 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
         </Button>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="m-0 truncate text-[0.9rem] font-semibold text-ink">{node.name || `#${node.id}`}</h2>
+            <h2 className="m-0 flex min-w-0 text-[0.9rem] font-semibold text-ink">
+              <TruncateText text={node.name || `#${node.id}`} />
+            </h2>
             {isCurrent ? (
               <Badge dot={false} tone="info" className="shrink-0">
                 {t('events.map.current')}
               </Badge>
             ) : null}
           </div>
-          <p className="m-0 truncate text-[0.7rem] text-ink-soft">
-            {[
-              detail?.displayName,
-              detail ? t('events.map.size', { width: detail.width, height: detail.height }) : '',
-              detail ? t('events.map.eventsCount', { count: detail.events.length }) : '',
-            ]
-              .filter(Boolean)
-              .join(' · ')}
+          <p className="m-0 flex min-w-0 text-[0.7rem] text-ink-soft">
+            <TruncateText
+              text={[
+                detail?.displayName,
+                detail ? t('events.map.size', { width: detail.width, height: detail.height }) : '',
+                detail ? t('events.map.eventsCount', { count: detail.events.length }) : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            />
           </p>
         </div>
         <MapTeleportField
@@ -220,11 +224,11 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
                   <div className={cn(editCell, 'min-w-0')} role="cell">
                     <button
                       type="button"
-                      className="m-0 block w-full cursor-pointer truncate border-none bg-transparent p-0 text-left font-medium text-ink underline-offset-2 hover:underline"
-                      title={t('events.map.openDetail', { name })}
+                      className="m-0 flex w-full min-w-0 cursor-pointer border-none bg-transparent p-0 text-left font-medium text-ink underline-offset-2 hover:underline"
+                      aria-label={t('events.map.openDetail', { name })}
                       onClick={() => slot.onSelectMap(node.id, ev.id)}
                     >
-                      {name}
+                      <TruncateText text={name} />
                     </button>
                   </div>
                   <div className={cn(editCell, 'font-mono text-[0.72rem] text-ink-soft')} role="cell">

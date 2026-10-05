@@ -1,6 +1,7 @@
 'use client'
 
 import { useLocale } from '@/components/i18n/LocaleProvider'
+import { TruncateText } from '@/components/sk'
 import { etaSeconds, formatDuration } from '@/lib/downloads/rate'
 import { type DownloadItem, itemPercent } from '@/lib/downloads/store'
 import { formatBytes } from '@/lib/format-bytes'
@@ -30,10 +31,10 @@ export function DownloadItemRow({ item }: { item: DownloadItem }) {
   return (
     <li className="flex flex-col gap-1.5 px-3 py-2.5">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="min-w-0 truncate text-[0.8125rem] font-medium text-ink">{title}</span>
+        <TruncateText text={title} className="text-[0.8125rem] font-medium text-ink" />
         <span className="shrink-0 text-[0.75rem] text-ink-soft">{t(`downloads.phase.${item.phase}` as MessageKey)}</span>
       </div>
-      <div className="truncate text-[0.75rem] text-ink-soft">{item.gameName ? `${channel} · ${item.gameName}` : channel}</div>
+      <TruncateText text={item.gameName ? `${channel} · ${item.gameName}` : channel} className="block text-[0.75rem] text-ink-soft" />
       <div
         role="progressbar"
         aria-label={title}

@@ -27,7 +27,7 @@ import {
 import type { EventsSlot } from '@/components/game-edit/events/types'
 import { useEventsData } from '@/components/game-edit/events/useEventsData'
 import { useLinkSaveDataTransport } from '@/components/game-edit/save-data/link-transport'
-import type { SaveDataSlot } from '@/components/game-edit/save-data/transport'
+import type { DataRootView, SaveDataSlot } from '@/components/game-edit/save-data/transport'
 import { pageMainFlush } from '@/components/layoutClasses'
 import { Button, EmptyState } from '@/components/sk'
 import { buildOptimisticHandlers, useGameEditLinkSync } from '@/hooks/useGameEditLinkSync'
@@ -47,6 +47,7 @@ export function GameEditPage() {
   const commonId = tab === 'common' ? parseActorIdSegment(params.pane?.[0]) : null
   const mapId = tab === 'map' ? parseActorIdSegment(params.pane?.[0]) : null
   const mapEventId = tab === 'map' && mapId != null ? parseActorIdSegment(params.pane?.[1]) : null
+  const mapEventPage = mapEventId != null ? parseActorIdSegment(params.pane?.[2]) : null
   const events = useEventsData({ enabled: isEventsTab(tab), mapId })
   const filter = searchParams.get('q') ?? ''
   const onlyOwned = parseFlag01(searchParams.get('owned'), false)
@@ -129,6 +130,8 @@ export function GameEditPage() {
     mapId,
     eventId: mapEventId,
     onSelectMap: (nextMap, nextEvent) => router.push(hrefWithQuery(editMapHref(nextMap, nextEvent), eventsQuery)),
+    eventPage: mapEventPage != null ? mapEventPage - 1 : null,
+    onSelectEventPage: (page) => router.push(hrefWithQuery(editMapHref(mapId, mapEventId, page + 1), eventsQuery)),
     mapDetail: events.mapDetail,
     mapLoading: events.mapLoading,
     mapError: events.mapError,
@@ -139,18 +142,22 @@ export function GameEditPage() {
 
   const paneKey = tab === 'data' ? (params.pane ?? []).join('/') : ''
   const dataPath = useMemo(() => (tab === 'data' ? (parseDataSegments(paneKey ? paneKey.split('/') : []) ?? []) : []), [tab, paneKey])
+  const dataRootView: DataRootView = searchParams.get('list') === 'all' ? 'all' : 'pins'
   const saveDataTransport = useLinkSaveDataTransport(tab === 'data' && linked, runCmd)
   const onDataNavigate = useCallback(
-    (next: string[], opts?: { replace?: boolean }) => {
-      const href = hrefWithQuery(editDataHref(next), searchParams.toString())
+    (next: string[], opts?: { replace?: boolean; root?: DataRootView }) => {
+      const query = new URLSearchParams(searchParams.toString())
+      if (!next.length && opts?.root === 'all') query.set('list', 'all')
+      else query.delete('list')
+      const href = hrefWithQuery(editDataHref(next), query.toString())
       if (opts?.replace) router.replace(href)
       else router.push(href)
     },
     [router, searchParams]
   )
   const saveDataSlot: SaveDataSlot = useMemo(
-    () => ({ transport: saveDataTransport, path: dataPath, onNavigate: onDataNavigate, surface: 'page' }),
-    [saveDataTransport, dataPath, onDataNavigate]
+    () => ({ transport: saveDataTransport, path: dataPath, rootView: dataRootView, onNavigate: onDataNavigate, surface: 'page' }),
+    [saveDataTransport, dataPath, dataRootView, onDataNavigate]
   )
 
   const refresh = useCallback(async () => {

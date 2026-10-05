@@ -7,7 +7,7 @@ import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { countKey, type SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
-import { Badge, Button, ScrollArea, SwitchToggle } from '@/components/sk'
+import { Badge, Button, ScrollArea, SwitchToggle, TruncateText } from '@/components/sk'
 import { type CommonEventInfo, type CommonEventsData, type EventRef, isRiskyEffects, labelOf, reachableFrom, summarizeEffects } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
@@ -21,7 +21,7 @@ const MAX_CONFIRM_REFS = 8
 
 export const sectionTitle = 'm-0 px-3 pt-3 pb-1 text-[0.68rem] font-semibold tracking-[0.05em] text-ink-soft uppercase'
 export const refLink =
-  'm-0 block w-full cursor-pointer truncate rounded-[0.2rem] border-none bg-transparent px-2 py-1 text-left text-[0.78rem] text-ink hover:bg-[color-mix(in_oklab,var(--accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]'
+  'm-0 flex w-full min-w-0 cursor-pointer rounded-[0.2rem] border-none bg-transparent px-2 py-1 text-left text-[0.78rem] text-ink hover:bg-[color-mix(in_oklab,var(--accent)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]'
 
 type Props = {
   event: CommonEventInfo
@@ -41,13 +41,11 @@ export function RefList({ refs, data, slot }: { refs: readonly EventRef[]; data:
         return (
           <li key={`${ref.kind}-${ref.id}-${ref.eventId ?? ''}-${ref.page ?? ''}-${index}`}>
             {open ? (
-              <button type="button" className={refLink} title={label} onClick={open}>
-                {label}
+              <button type="button" className={refLink} onClick={open}>
+                <TruncateText text={label} />
               </button>
             ) : (
-              <span className="block truncate px-2 py-1 text-[0.78rem] text-ink-soft" title={label}>
-                {label}
-              </span>
+              <TruncateText text={label} className="block px-2 py-1 text-[0.78rem] text-ink-soft" />
             )}
           </li>
         )
@@ -169,10 +167,10 @@ export function CommonEventDetail({ event, data, slot, session, onBack }: Props)
           <IoArrowBack size={16} aria-hidden />
         </Button>
         <div className="min-w-0 flex-1">
-          <h2 className="m-0 truncate text-[0.9rem] font-semibold text-ink" title={name}>
-            {name}
+          <h2 className="m-0 flex min-w-0 text-[0.9rem] font-semibold text-ink">
+            <TruncateText text={name} />
           </h2>
-          {event.rawName && event.rawName !== name ? <p className="m-0 truncate text-[0.7rem] text-ink-soft">{event.rawName}</p> : null}
+          {event.rawName && event.rawName !== name ? <TruncateText text={event.rawName} className="block text-[0.7rem] text-ink-soft" /> : null}
         </div>
         <Badge dot={false} tone={event.trigger === 0 ? 'neutral' : event.trigger === 1 ? 'warn' : 'info'}>
           {t(TRIGGER_KEY[event.trigger])}
@@ -189,7 +187,7 @@ export function CommonEventDetail({ event, data, slot, session, onBack }: Props)
           <>
             <h3 className={sectionTitle}>{t('events.triggerSwitch')}</h3>
             <div className="flex items-center gap-3 px-3 pb-2 text-[0.8125rem]">
-              <span className="min-w-0 truncate text-ink">{switchName}</span>
+              <TruncateText text={switchName} className="text-ink" />
               <span className="text-[0.7rem] text-ink-soft">{t('events.switchRefs', { count: switchRefs.length })}</span>
               <span className="ml-auto">
                 {slot.live ? (

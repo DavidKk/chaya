@@ -3,15 +3,28 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { EventsOp, EventsSlot, PlayerSpot } from '@/components/game-edit/events/types'
 import { isEventsTab, type TabId } from '@/components/game-edit/tabs'
 import type { CommonEventsData, MapDetailData } from '@/lib/game/events'
+import { readViewState, writeViewState } from '@/lib/view-state'
 
 import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from '../session/live-events'
 import { buildLiveMapDetail, playerSpot, runMapEvent, runningCommonEvents, setSelfSwitch, teleportPlayer } from '../session/live-map'
 import { recentMaps } from '../session/map-history'
 
-type EventsView = { commonId: number | null; mapId: number | null; eventId: number | null }
+type EventsView = { commonId: number | null; mapId: number | null; eventId: number | null; eventPage: number | null }
 
 function viewHost() {
   return window as Window & { __chayaEventsView?: EventsView }
+}
+
+const optionalId = (v: unknown): number | null => (typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null)
+
+/** Kept on window across overlay remounts and in sessionStorage across page refreshes */
+function initialEventsView(): EventsView {
+  const saved = (viewHost().__chayaEventsView ?? readViewState('events')) as Partial<EventsView> | undefined
+  const mapId = optionalId(saved?.mapId)
+  const eventId = mapId == null ? null : optionalId(saved?.eventId)
+  const page = saved?.eventPage
+  const eventPage = eventId != null && typeof page === 'number' && Number.isInteger(page) && page >= 0 ? page : null
+  return { commonId: optionalId(saved?.commonId), mapId, eventId, eventPage }
 }
 
 type Scene = { onMap: boolean; player: PlayerSpot | null; recent: number[]; running: number[] }
@@ -58,7 +71,7 @@ type Options = {
 
 /** In-game 公共事件 / 地图: data built in-process, operations applied directly */
 export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange, onVarChange }: Options) {
-  const [view, setView] = useState<EventsView>(() => viewHost().__chayaEventsView ?? { commonId: null, mapId: null, eventId: null })
+  const [view, setView] = useState<EventsView>(initialEventsView)
   const [data, setData] = useState<CommonEventsData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -72,6 +85,7 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
 
   useEffect(() => {
     viewHost().__chayaEventsView = view
+    writeViewState('events', view)
   }, [view])
 
   const load = useCallback(async (force = false) => {
@@ -149,9 +163,11 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
       mapId: view.mapId,
       eventId: view.eventId,
       onSelectMap: (mapId, eventId) => {
-        setView((v) => ({ ...v, mapId, eventId: eventId ?? null }))
+        setView((v) => ({ ...v, mapId, eventId: eventId ?? null, eventPage: null }))
         if (tab !== 'map') selectTab('map')
       },
+      eventPage: view.eventPage,
+      onSelectEventPage: (eventPage) => setView((v) => ({ ...v, eventPage })),
       mapDetail: mapDetail?.mapId === view.mapId ? mapDetail : null,
       mapLoading,
       mapError,

@@ -51,6 +51,8 @@ function slot(overrides: Partial<EventsSlot> = {}): EventsSlot {
     mapId: null,
     eventId: null,
     onSelectMap: jest.fn(),
+    eventPage: null,
+    onSelectEventPage: jest.fn(),
     mapDetail: null,
     mapLoading: false,
     mapError: '',

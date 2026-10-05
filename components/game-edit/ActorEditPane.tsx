@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell, formCardDense, formControlInline, formDescInline, formFieldInlineDense, formTitleInline, padXDense, padYDense } from '@/components/layoutClasses'
-import { EmptyState, formatCompactNumber, formatExactNumber, NumberInput, ScrollArea, SegmentedNav, Select, SwitchToggle, TextInput, Tooltip } from '@/components/sk'
+import { EmptyState, formatCompactNumber, formatExactNumber, NumberInput, ScrollArea, SegmentedNav, Select, SwitchToggle, TextInput, Tooltip, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import type { CatalogEntry } from '@/lib/game/game-edit-catalog-types'
 import { cn } from '@/lib/utils'
@@ -234,7 +234,7 @@ export function ActorEditPane({
                 return (
                   <li key={entry.id}>
                     <button type="button" className={cn(listItem, on && listItemOn)} aria-current={on ? 'true' : undefined} onClick={() => onSelectActor(entry.id)}>
-                      <span className="min-w-0 truncate font-medium text-ink">{entry.name || t('edit.actorFallback', { id: entry.id })}</span>
+                      <TruncateText text={entry.name || t('edit.actorFallback', { id: entry.id })} className="font-medium text-ink" />
                     </button>
                   </li>
                 )
@@ -448,16 +448,12 @@ export function ActorEditPane({
                             <div className={cn(editCell, 'min-w-0')} role="cell">
                               {entry.description ? (
                                 <div className="flex h-[2.35rem] min-w-0 flex-col justify-center gap-0.5">
-                                  <div className="truncate font-medium leading-tight text-ink" title={name}>
-                                    {name}
-                                  </div>
-                                  <div className="truncate text-[0.7rem] leading-[1.35] text-ink-soft">{entry.description}</div>
+                                  <TruncateText text={name} className="block font-medium leading-tight text-ink" />
+                                  <TruncateText text={entry.description} className="block text-[0.7rem] leading-[1.35] text-ink-soft" />
                                 </div>
                               ) : (
                                 <div className="flex h-[2.35rem] min-w-0 items-center">
-                                  <div className="truncate font-medium leading-tight text-ink" title={name}>
-                                    {name}
-                                  </div>
+                                  <TruncateText text={name} className="block font-medium leading-tight text-ink" />
                                 </div>
                               )}
                             </div>

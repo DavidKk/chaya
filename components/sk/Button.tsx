@@ -48,7 +48,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         'outline-none focus:outline-none focus-visible:outline-none',
         'hover:enabled:bg-[color-mix(in_oklab,var(--panel-2)_80%,white)]',
         variant !== 'plain' && 'hover:enabled:border-[rgb(230_238_248/0.18)]',
-        !loading && 'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none',
+        !loading && 'disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none',
         loading && 'pointer-events-none cursor-wait opacity-[0.72] !animate-none after:!opacity-0',
         sheen && accentSheen,
         (variant === 'accent' || variant === 'ok' || variant === 'warn' || variant === 'fail') && size !== 'gate' && accentSheenBg,

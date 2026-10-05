@@ -6,7 +6,7 @@ import { IoChevronDown, IoChevronForward } from 'react-icons/io5'
 import type { SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { padXDense } from '@/components/layoutClasses'
-import { EmptyState, ScrollArea, SegmentedNav, Spinner } from '@/components/sk'
+import { EmptyState, ScrollArea, SegmentedNav, Spinner, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import { type CommonEventFilter, type CommonEventInfo, filterCommonEventGroups } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
@@ -57,9 +57,7 @@ function EventRow({
   const name = commonEventName(ev, t)
   return (
     <button type="button" className={cn(listRow, selected && listRowOn)} aria-current={selected ? 'true' : undefined} onClick={onSelect}>
-      <span className={cn('min-w-0 flex-1 truncate', ev.commandCount === 0 ? 'text-ink-soft' : 'text-ink')} title={name}>
-        {name}
-      </span>
+      <TruncateText text={name} className={cn('flex-1', ev.commandCount === 0 ? 'text-ink-soft' : 'text-ink')} />
       {ev.commandCount === 0 ? <span className="shrink-0 text-[0.65rem] text-ink-soft">{t('events.emptyEvent')}</span> : null}
       {ev.trigger !== 0 ? (
         <span className={cn('shrink-0 text-[0.65rem]', ev.trigger === 1 ? 'text-warn' : 'text-info')}>
@@ -149,7 +147,7 @@ export function CommonEventsPane({ slot, filter, session }: Props) {
                         onClick={() => toggleGroup(group.id)}
                       >
                         {isCollapsed ? <IoChevronForward size={11} aria-hidden /> : <IoChevronDown size={11} aria-hidden />}
-                        <span className="min-w-0 flex-1 truncate">{group.title}</span>
+                        <TruncateText text={group.title} className="flex-1" />
                         <span className="font-mono font-normal">{group.events.length}</span>
                       </button>
                     ) : null}

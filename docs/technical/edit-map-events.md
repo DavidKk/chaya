@@ -174,6 +174,8 @@ type ScriptLine = {
 ### 6.1 路由与分类
 
 - `TABS` 在 `actor` 后插入 `common`（公共事件）、`map`（地图，第 2 期）。路由 `/cheat/common/:id?`、`/cheat/map/:mapId?/:eventId?`，沿用 `[[...pane]]`。
+- 网页详情都有独立 URL：地图事件页签 `/cheat/map/<map>/<event>/<page>`（1 起）、数据根「全部」`/cheat/data?list=all`、MCP 分组 `/integration/mcp/<group>`、WebMCP 分组 `/integration/webmcp/<page|mcp|plugins>`。
+- 局内没有 URL：分类、角色、事件 / 地图选中与事件页签、数据路径与根视图、Agent 详情、集成分区、技能、MCP / WebMCP 分组都存在 `window`（浮层重挂载）和 `sessionStorage`（`lib/view-state.ts`，键前缀 `chaya:view:`，刷新游戏后恢复），刷新不会退回列表。
 - 局内 `scopeForTab` 中两者不需要 catalog；`tabNeedsCatalog` 返回 false，改为进入时调 `buildLiveCommonEventsData()`。结果缓存在 `live-events.ts` 模块级（整局游戏一份，局内浮层与 link 请求共用），刷新按钮传 `force` 重建。
 
 ### 6.2 公共事件页

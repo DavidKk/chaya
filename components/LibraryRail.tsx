@@ -7,7 +7,7 @@ import { MdCloudQueue } from 'react-icons/md'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { Button, ScrollArea, Select, withTooltip } from '@/components/sk'
+import { Button, ScrollArea, Select, TruncateText, withTooltip } from '@/components/sk'
 import type { LibraryItemView, LibrarySortMode } from '@/lib/game'
 import { parseLibrarySortMode, sortLibraryEntries } from '@/lib/game/library-sort'
 import { cn } from '@/lib/utils'
@@ -209,9 +209,9 @@ export function LibraryRail({ entries, activeRoot, busy = false, canUseDisk = tr
                           <IoGameControllerOutline size={18} />
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-                          <span className="truncate text-[0.9rem] font-semibold tracking-[-0.01em] text-ink">{entry.remark?.trim() || entry.name}</span>
+                          <TruncateText text={entry.remark?.trim() || entry.name} className="block text-[0.9rem] font-semibold tracking-[-0.01em] text-ink" />
                           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.72rem] text-ink-soft">
-                            {entry.remark?.trim() ? <span className="truncate">{entry.name}</span> : null}
+                            {entry.remark?.trim() ? <TruncateText text={entry.name} /> : null}
                             {entry.hasShell && !entry.missing ? <span>{t('library.shellReady')}</span> : null}
                             {fingerprint && fingerprint.engine !== 'unknown' ? (
                               <span>{fingerprint.engineVersion ? `${fingerprint.engine} ${fingerprint.engineVersion}` : fingerprint.engine}</span>

@@ -7,7 +7,7 @@ import { LuGripVertical } from 'react-icons/lu'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formTitle } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, ScrollArea, SwitchToggle } from '@/components/sk'
+import { Button, ScrollArea, SwitchToggle, TruncateText } from '@/components/sk'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
@@ -321,7 +321,7 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
                     <LuGripVertical size={12} aria-hidden />
                   </button>
                   <div className="flex min-w-0 items-center">
-                    <span className="truncate text-[0.8125rem] font-medium leading-none text-ink">{label}</span>
+                    <TruncateText text={label} className="text-[0.8125rem] font-medium leading-none text-ink" />
                   </div>
                   <div className="flex h-full items-center justify-center">
                     <SwitchToggle

@@ -23,6 +23,8 @@ export type NumberInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type
    * 传空字符串可关闭自动 tip。
    */
   tooltip?: string
+  /** 输入过程中实时回调（未提交）；`null` 表示当前串不是合法数字 */
+  onDraftChange?: (value: number | null) => void
 }
 
 /** 编辑 / tip 用的完整数字串 */
@@ -87,7 +89,7 @@ function clamp(n: number, min?: number, max?: number) {
 }
 
 export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(function NumberInput(
-  { className, invalid = false, value, onValueChange, disabled, allowDecimal = false, min, max, suffix, endAction, tooltip, onBlur, onFocus, ...rest },
+  { className, invalid = false, value, onValueChange, disabled, allowDecimal = false, min, max, suffix, endAction, tooltip, onDraftChange, onBlur, onFocus, ...rest },
   ref
 ) {
   const exact = formatExactNumber(value, allowDecimal)
@@ -177,6 +179,10 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
         const next = sanitize(e.target.value, allowDecimal)
         textRef.current = next
         setText(next)
+        if (onDraftChange) {
+          const parsed = parseValue(next, allowDecimal)
+          onDraftChange(parsed === null ? null : clamp(parsed, min, max))
+        }
       }}
       onKeyDown={onKeyDown}
     />

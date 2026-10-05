@@ -8,9 +8,9 @@ import { cn } from '@/lib/utils'
 
 export const lockIconBtn = cn(
   'm-0 inline-flex h-[1.35rem] w-[1.35rem] cursor-pointer items-center justify-center rounded-[0.15rem] border-none bg-transparent p-0 text-ink-soft',
-  'hover:bg-[color-mix(in_oklab,var(--panel-2)_70%,transparent)] hover:text-ink',
+  'hover:enabled:bg-[color-mix(in_oklab,var(--panel-2)_70%,transparent)] hover:enabled:text-ink',
   'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]',
-  'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40'
+  'disabled:cursor-not-allowed disabled:opacity-40'
 )
 
 export function LockEndAction({ locked, name, onChange }: { locked: boolean; name: string; onChange: (on: boolean) => void }) {
@@ -20,7 +20,7 @@ export function LockEndAction({ locked, name, onChange }: { locked: boolean; nam
     <Tooltip content={tip}>
       <button
         type="button"
-        className={cn(lockIconBtn, locked && 'text-accent hover:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] hover:text-accent')}
+        className={cn(lockIconBtn, locked && 'text-accent hover:enabled:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] hover:enabled:text-accent')}
         aria-label={tip}
         aria-pressed={locked}
         onClick={() => onChange(!locked)}

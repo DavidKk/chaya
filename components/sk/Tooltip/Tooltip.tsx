@@ -46,7 +46,7 @@ let tooltipMediaListening = false
 const tooltipMediaListeners = new Set<() => void>()
 
 function ensureTooltipMediaListening() {
-  if (typeof window === 'undefined' || tooltipMediaListening) {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function' || tooltipMediaListening) {
     return
   }
   tooltipMedia = window.matchMedia(TOOLTIP_HOVER_MEDIA_QUERY)
@@ -246,17 +246,18 @@ export function Tooltip({ content, placement = 'bottom', children, triggerClassN
     onClick: hoverMode ? childProps.onClick : handleTouchClick,
   })
 
-  const tooltipEl = open ? (
-    <div
-      ref={tooltipRef}
-      id={tooltipId}
-      role="tooltip"
-      className="pointer-events-none z-50 max-w-[min(calc(100vw-16px),18rem)] rounded-[0.25rem] border border-line bg-[var(--panel-2)] px-2 py-2 text-xs font-medium leading-[1.35] break-words whitespace-pre-line text-ink shadow-[0_8px_24px_rgb(0_0_0/0.35)]"
-      style={style}
-    >
-      {content}
-    </div>
-  ) : null
+  const tooltipEl =
+    open && content ? (
+      <div
+        ref={tooltipRef}
+        id={tooltipId}
+        role="tooltip"
+        className="pointer-events-none z-50 max-w-[min(calc(100vw-16px),18rem)] rounded-[0.25rem] border border-line bg-[var(--panel-2)] px-2 py-2 text-xs font-medium leading-[1.35] break-words whitespace-pre-line text-ink shadow-[0_8px_24px_rgb(0_0_0/0.35)]"
+        style={style}
+      >
+        {content}
+      </div>
+    ) : null
 
   return (
     <>

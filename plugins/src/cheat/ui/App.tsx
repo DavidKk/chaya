@@ -26,6 +26,7 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
 import { EditTableSkeleton } from '@/components/sk'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
+import { readViewState, writeViewState } from '@/lib/view-state'
 
 import { pluginGameAgentRequest } from '../../agent-ui/request'
 import { applyRunAction, applyRunFlag, applySpeed, runActionNeedsClose } from '../runtime/apply-run'
@@ -62,7 +63,7 @@ function viewHost() {
 }
 
 function initialView(): OverlayView {
-  const saved = viewHost().__chayaGameEditView
+  const saved = viewHost().__chayaGameEditView ?? (readViewState('edit') as Partial<OverlayView> | undefined)
   const previousEditTab = parseTabId(saved?.lastEditTab ?? saved?.tab)
   return {
     tab: parseTabId(saved?.tab),
@@ -138,7 +139,9 @@ export function GameEditApp({ open, onRequestClose }: Props) {
     return () => window.removeEventListener('chaya:game-settings-opened', openSettings)
   }, [])
   useLayoutEffect(() => {
-    viewHost().__chayaGameEditView = { tab, lastEditTab, actorId, actorPane, filter, onlyOwned, onlyNamed, translateTab, translateSection }
+    const view = { tab, lastEditTab, actorId, actorPane, filter, onlyOwned, onlyNamed, translateTab, translateSection }
+    viewHost().__chayaGameEditView = view
+    writeViewState('edit', view)
   }, [tab, lastEditTab, actorId, actorPane, filter, onlyOwned, onlyNamed, translateTab, translateSection])
   /** 先空会话出壳，打开后再异步 bootstrap，避免首帧卡在读盘 */
   const [session, setSession] = useState<SessionState>(() => emptySession())

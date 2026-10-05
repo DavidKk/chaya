@@ -80,8 +80,8 @@ function fakeTransport(over: Partial<DataStatus> = {}) {
   return { transport, run, diff: (d: DataDiff) => diffCb?.(d) }
 }
 
-async function render(transport: SaveDataTransport | null, path: string[] = ['party'], onNavigate: SaveDataSlot['onNavigate'] = jest.fn()) {
-  const slot: SaveDataSlot = { transport, path, onNavigate, surface: 'page' }
+async function render(transport: SaveDataTransport | null, path: string[] = ['party'], onNavigate: SaveDataSlot['onNavigate'] = jest.fn(), rootView?: SaveDataSlot['rootView']) {
+  const slot: SaveDataSlot = { transport, path, rootView, onNavigate, surface: 'page' }
   await act(async () => {
     root.render(
       <LocaleProvider initialLocale="zh" initialPreference="zh">
@@ -184,6 +184,18 @@ test('root shows the quick access entry and opens field paths from the breadcrum
   expect(container.textContent).toContain('还没有常用字段')
   const rootCrumb = Array.from(nav.querySelectorAll('button')).find((b) => b.textContent === '全部')!
   await act(async () => rootCrumb.click())
-  expect(onNavigate).toHaveBeenCalledWith([])
+  expect(onNavigate).toHaveBeenCalledWith([], { root: 'all' })
+  await render(transport, [], onNavigate, 'all')
   expect(container.querySelector('button[aria-label="进入 常用"]')).not.toBeNull()
+})
+
+test('root "all" view comes from the slot; the quick access entry switches back to pins', async () => {
+  const { transport } = fakeTransport()
+  const onNavigate = jest.fn()
+  await render(transport, [], onNavigate, 'all')
+  const nav = container.querySelector('nav[aria-label="数据路径"]')!
+  expect(nav.querySelector('[aria-current="page"]')?.textContent).toBe('全部')
+  expect(nav.textContent).not.toContain('常用')
+  await act(async () => (container.querySelector('button[aria-label="进入 常用"]') as HTMLButtonElement).click())
+  expect(onNavigate).toHaveBeenCalledWith([], { root: 'pins' })
 })

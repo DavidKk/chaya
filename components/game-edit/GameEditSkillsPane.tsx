@@ -12,6 +12,7 @@ import { markdownBody } from '@/components/integration/markdown'
 import { Spinner } from '@/components/sk'
 import { type SkillId, skillRawPath, SKILLS, splitFrontmatter } from '@/lib/integration/skills'
 import { cn } from '@/lib/utils'
+import { useViewState } from '@/lib/view-state'
 
 const SKILL_ICONS: Record<SkillId, IconType> = {
   'chaya-setup': LuDownload,
@@ -19,11 +20,13 @@ const SKILL_ICONS: Record<SkillId, IconType> = {
   'chaya-mcp': LuPlug,
 }
 
+const isSkillId = (v: unknown): v is SkillId => SKILLS.some((skill) => skill.id === v)
+
 /** Skill docs inside the game overlay. Sources come from the connected Chaya service. */
 export function GameEditSkillsPane({ request = fetch }: { request?: GameAgentRequest }) {
   const t = useT()
   const locale = useLocaleCode()
-  const [activeId, setActiveId] = useState<SkillId>(SKILLS[0].id)
+  const [activeId, setActiveId] = useViewState<SkillId>('integration.skill', SKILLS[0].id, isSkillId)
   const [html, setHtml] = useState('')
   const [error, setError] = useState('')
   const active = SKILLS.find((skill) => skill.id === activeId) || SKILLS[0]

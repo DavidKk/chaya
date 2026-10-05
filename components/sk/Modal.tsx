@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { IoCloseOutline } from 'react-icons/io5'
 
 import { ScrollArea } from '@/components/sk/ScrollArea'
+import { TruncateText } from '@/components/sk/TruncateText'
 import { cn } from '@/lib/utils'
 
 export type ModalProps = {
@@ -149,8 +150,8 @@ export function Modal({
         )}
       >
         <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
-          <h2 id={titleId} className="m-0 truncate text-[0.8125rem] font-semibold text-ink">
-            {title}
+          <h2 id={titleId} className="m-0 flex min-w-0 text-[0.8125rem] font-semibold text-ink">
+            <TruncateText text={title} />
           </h2>
           {!hideCloseButton ? (
             <button

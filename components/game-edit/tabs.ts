@@ -111,10 +111,11 @@ export function editCommonHref(id: number | null | undefined): string {
   return id != null && id > 0 ? `/cheat/common/${id}` : '/cheat/common'
 }
 
-/** `/cheat/map` · `/cheat/map/3` · `/cheat/map/3/14` */
-export function editMapHref(mapId: number | null | undefined, eventId?: number | null): string {
+/** `/cheat/map` · `/cheat/map/3` · `/cheat/map/3/14` · `/cheat/map/3/14/2` (`page` is 1-based) */
+export function editMapHref(mapId: number | null | undefined, eventId?: number | null, page?: number | null): string {
   if (mapId == null || mapId <= 0) return '/cheat/map'
-  return eventId != null && eventId > 0 ? `/cheat/map/${mapId}/${eventId}` : `/cheat/map/${mapId}`
+  if (eventId == null || eventId <= 0) return `/cheat/map/${mapId}`
+  return page != null && page > 0 ? `/cheat/map/${mapId}/${eventId}/${page}` : `/cheat/map/${mapId}/${eventId}`
 }
 
 /** `/cheat/data` · `/cheat/data/party/_items` (segments use the reversible URL-safe encoding) */

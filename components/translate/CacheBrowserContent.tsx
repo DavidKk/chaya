@@ -10,7 +10,7 @@ import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { panelFoot } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { PanelHeadEnd } from '@/components/PanelHeadEnd'
-import { Badge, Button, DataTable, type DataTableColumn, EmptyState, Modal, ScrollArea, Select, TextInput } from '@/components/sk'
+import { Badge, Button, DataTable, type DataTableColumn, EmptyState, Modal, ScrollArea, Select, TextInput, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOnWarn, formControlChrome, formControlPadX } from '@/components/sk/control'
 import { TRANSLATE_CACHE_COLUMN_WIDTHS, TranslateCacheTableSkeleton } from '@/components/translate/TranslateCacheTableSkeleton'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
@@ -405,8 +405,8 @@ export function CacheBrowserContent({ searchParams, replaceQuery }: QueryState) 
                   <td className="align-top" title={row.zh}>
                     <div className={cellClamp3}>{row.zh}</div>
                   </td>
-                  <td className="truncate" title={row.engine || undefined}>
-                    {row.engine || '—'}
+                  <td>
+                    <TruncateText text={row.engine || '—'} className="block" />
                   </td>
                   <td className="tabular-nums">{row.hitCount}</td>
                   <td className="whitespace-nowrap font-mono text-xs">{fmtTime(row.updatedAt, LOCALE_HTML_LANG[locale])}</td>

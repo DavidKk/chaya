@@ -123,7 +123,25 @@ test('lists multiple agents, opens a detail route, and saves edits through the s
 
   await act(async () => editButtons[1].click())
   expect(host.textContent).toContain('Agent 使用的模型服务平台。')
-  expect(host.textContent).toContain('模型在内存中保留的时长，例如 10m。')
+  expect(host.textContent).toContain('模型在内存中保留的时长。')
+  expect(host.textContent).toContain('10 分钟')
+  const keepAlive = [...host.querySelectorAll<HTMLInputElement>('input')].find((input) => input.value === '600000')!
+  await act(async () => keepAlive.focus())
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(keepAlive, '5430250')
+    keepAlive.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  expect(host.textContent).toContain('1 小时 30 分钟 30 秒 250 毫秒')
+  await act(async () => keepAlive.blur())
+  expect(host.textContent).toContain('1 小时 30 分钟 30 秒 250 毫秒')
+  const forever = host.querySelector<HTMLButtonElement>('button[aria-label="常驻内存"]')!
+  await act(async () => forever.click())
+  expect(keepAlive.disabled).toBe(true)
+  expect(host.querySelector('button[aria-label="取消常驻"]')?.getAttribute('aria-pressed')).toBe('true')
+  expect(host.textContent).toContain('常驻')
+  await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="取消常驻"]')!.click())
+  expect(keepAlive.disabled).toBe(false)
+  expect(host.textContent).toContain('1 小时 30 分钟 30 秒 250 毫秒')
   const toolbar = host.querySelector<HTMLElement>('[data-agent-detail-toolbar]')!
   const back = [...toolbar.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '返回')!
   const remove = [...toolbar.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '删除')!
@@ -136,7 +154,13 @@ test('lists multiple agents, opens a detail route, and saves edits through the s
   expect(saveButton.parentElement).toBe(toolbar.lastElementChild)
   expect(testButton.nextElementSibling).toBe(saveButton)
   expect(host.textContent).not.toContain('验证服务连接并刷新可用模型列表。')
-  expect(host.querySelector<HTMLButtonElement>('button[aria-label="刷新"]')).not.toBeNull()
+  expect(host.querySelector<HTMLButtonElement>('button[aria-label="刷新"]')).toBeNull()
+  const modelCalls = () => request.mock.calls.filter(([, init]) => init?.method === 'POST' && String(init.body).includes('"action":"models"')).length
+  const modelSelect = host.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="listbox"]')[1]
+  expect(modelCalls()).toBe(0)
+  await act(async () => modelSelect.click())
+  expect(modelCalls()).toBe(1)
+  await act(async () => modelSelect.click())
   expect(toolbar.closest('section')).not.toBeNull()
   expect(host.querySelectorAll('[data-agent-detail-card]')).toHaveLength(1)
   expect(toolbar.closest('[data-agent-detail-card]')?.textContent).toContain('Temperature')

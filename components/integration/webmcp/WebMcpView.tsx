@@ -6,6 +6,7 @@ import { LuGlobe, LuMousePointerClick, LuPlug, LuPuzzle } from 'react-icons/lu'
 
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { hubBlock, HubLayout, HubNav, HubNavItem, HubNavSection, HubPaneHeader } from '@/components/integration/Hub'
+import { type HubRoute, useHubSection } from '@/components/integration/hub-section'
 import { integrationCard } from '@/components/integration/mcp/McpConnectionCard'
 import { useMcpConnection } from '@/components/integration/mcp/useMcpConnection'
 import { Badge } from '@/components/sk'
@@ -14,13 +15,13 @@ import { listRegisteredPageTools, type RegisteredPageTool, subscribeRegisteredPa
 import type { MessageKey } from '@/lib/i18n'
 import { localizedToolDescription } from '@/lib/integration/mcp-catalog-i18n'
 import { cn } from '@/lib/utils'
-import { MCP_REGISTRAR_ID, PAGE_REGISTRAR_ID, PLUGINS_REGISTRAR_ID } from '@/lib/webmcp/registrars'
+import { MCP_REGISTRAR_ID, PAGE_REGISTRAR_ID, PLUGINS_REGISTRAR_ID, WEBMCP_GROUP_SLUGS } from '@/lib/webmcp/registrars'
 
 const GROUPS = [
-  { id: PAGE_REGISTRAR_ID, labelKey: 'integration.webmcpGroupPage', icon: LuMousePointerClick },
-  { id: MCP_REGISTRAR_ID, labelKey: 'integration.webmcpGroupMcp', icon: LuPlug },
-  { id: PLUGINS_REGISTRAR_ID, labelKey: 'integration.webmcpGroupPlugins', icon: LuPuzzle },
-] as const satisfies ReadonlyArray<{ id: string; labelKey: MessageKey; icon: IconType }>
+  { id: PAGE_REGISTRAR_ID, slug: WEBMCP_GROUP_SLUGS[PAGE_REGISTRAR_ID], labelKey: 'integration.webmcpGroupPage', icon: LuMousePointerClick },
+  { id: MCP_REGISTRAR_ID, slug: WEBMCP_GROUP_SLUGS[MCP_REGISTRAR_ID], labelKey: 'integration.webmcpGroupMcp', icon: LuPlug },
+  { id: PLUGINS_REGISTRAR_ID, slug: WEBMCP_GROUP_SLUGS[PLUGINS_REGISTRAR_ID], labelKey: 'integration.webmcpGroupPlugins', icon: LuPuzzle },
+] as const satisfies ReadonlyArray<{ id: string; slug: string; labelKey: MessageKey; icon: IconType }>
 
 const STEP_KEYS = ['integration.webmcpStep1', 'integration.webmcpStep2', 'integration.webmcpStep3'] as const satisfies ReadonlyArray<MessageKey>
 
@@ -51,8 +52,6 @@ function ToolBlock({ tool }: { tool: RegisteredPageTool }) {
   )
 }
 
-const SETUP = 'setup'
-
 function ServerModeNote() {
   const t = useT()
   const connection = useMcpConnection()
@@ -60,11 +59,11 @@ function ServerModeNote() {
   return <p className="m-0 text-xs leading-relaxed text-ink-soft">{t(connection.connection.available ? 'integration.webmcpModeLocal' : 'integration.webmcpModeEdge')}</p>
 }
 
-/** WebMCP 子页：左半「接入 + 已注册分组」与工具说明，右半浏览器支持状态与启用步骤 */
-export function WebMcpView({ embedded = false }: { embedded?: boolean }) {
+/** WebMCP 子页：左半「接入 + 已注册分组」与工具说明，右半浏览器支持状态与启用步骤；分组在网页走 `route` URL */
+export function WebMcpView({ embedded = false, route }: { embedded?: boolean; route?: HubRoute }) {
   const t = useT()
   const [report, setReport] = useState<WebMcpSupportReport | null>(null)
-  const [section, setSection] = useState<string>(SETUP)
+  const { section, navTo } = useHubSection(route, 'webmcp.section')
   const tools = useRegisteredTools()
 
   useEffect(() => setReport(getWebMcpSupportReport()), [])
@@ -76,7 +75,7 @@ export function WebMcpView({ embedded = false }: { embedded?: boolean }) {
       ),
     [tools]
   )
-  const group = groups.find((candidate) => candidate.id === section)
+  const group = groups.find((candidate) => candidate.slug === section)
 
   const support = report ? (
     <div className={cn(integrationCard, 'md:hidden')} role="status">
@@ -103,7 +102,7 @@ export function WebMcpView({ embedded = false }: { embedded?: boolean }) {
               icon={<LuGlobe size={15} />}
               label={t('integration.navOverview')}
               meta={t('integration.toolCount', { count: tools.length })}
-              onSelect={() => setSection(SETUP)}
+              {...navTo('')}
             />
           </HubNavSection>
           {groups.length > 0 ? (
@@ -115,14 +114,14 @@ export function WebMcpView({ embedded = false }: { embedded?: boolean }) {
                   icon={<candidate.icon size={15} />}
                   label={t(candidate.labelKey)}
                   meta={t('integration.toolCount', { count: candidate.tools.length })}
-                  onSelect={() => setSection(candidate.id)}
+                  {...navTo(candidate.slug)}
                 />
               ))}
             </HubNavSection>
           ) : null}
         </HubNav>
       }
-      contentKey={group?.id ?? SETUP}
+      contentKey={group?.id ?? ''}
       aside={{
         header: (
           <HubPaneHeader

@@ -1,11 +1,12 @@
 'use client'
 
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import type { IconType } from 'react-icons'
 import { LuActivity, LuDatabase, LuGamepad2, LuLanguages, LuLibrary, LuPlug, LuScrollText, LuWrench } from 'react-icons/lu'
 
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { HubLayout, HubNav, HubNavItem, HubNavSection, HubPaneHeader } from '@/components/integration/Hub'
+import { type HubRoute, useHubSection } from '@/components/integration/hub-section'
 import { integrationCard, McpConnectionCard } from '@/components/integration/mcp/McpConnectionCard'
 import { McpPlayground, type McpRpc } from '@/components/integration/mcp/McpPlayground'
 import { McpToolCard } from '@/components/integration/mcp/McpToolCard'
@@ -15,8 +16,7 @@ import { EmptyState, Spinner } from '@/components/sk'
 import { mcpToolsFor } from '@/lib/integration/mcp-availability'
 import { MCP_ENDPOINT_PATH, MCP_TOOLS, type McpToolGroupId, type McpToolMeta } from '@/lib/integration/mcp-catalog'
 import { localizedMcpToolsByGroup } from '@/lib/integration/mcp-catalog-i18n'
-
-const SETUP = 'setup'
+import { useViewState } from '@/lib/view-state'
 
 const GROUP_ICONS: Record<McpToolGroupId, IconType> = {
   library: LuLibrary,
@@ -33,6 +33,16 @@ function argsTextFor(name: string): string {
   return JSON.stringify(tool ? exampleArgs(tool.inputSchema) : {}, null, 2)
 }
 
+type PlaygroundState = { toolName: string; argsText: string }
+
+const playgroundFor = (toolName: string): PlaygroundState => ({ toolName, argsText: argsTextFor(toolName) })
+
+function isPlaygroundState(value: unknown): value is PlaygroundState {
+  if (!value || typeof value !== 'object') return false
+  const { toolName, argsText } = value as Record<string, unknown>
+  return typeof argsText === 'string' && MCP_TOOLS.some((tool) => tool.name === toolName)
+}
+
 /** In-game host: plugin-MCP tool set, gateway overview, playground through `ChayaAgent.gateway.rpc` */
 export type McpGameHost = { overview: ReactNode; rpc: McpRpc }
 
@@ -44,10 +54,11 @@ type HubProps = {
   overview: ReactNode
   endpointMeta?: string
   rpc?: McpRpc
+  route?: HubRoute
 }
 
 /** MCP 子页：左半「说明」（分组导航 + 文档），右半「试调」；本机服务与游戏内共用 */
-function McpHub({ tools, callable, overview, endpointMeta, rpc }: HubProps) {
+function McpHub({ tools, callable, overview, endpointMeta, rpc, route }: HubProps) {
   const t = useT()
   const locale = useLocaleCode()
   const groups = useMemo(() => {
@@ -58,24 +69,31 @@ function McpHub({ tools, callable, overview, endpointMeta, rpc }: HubProps) {
   }, [locale, tools])
   const playgroundTools = useMemo(() => (tools ?? []).filter(callable), [callable, tools])
 
-  const [section, setSection] = useState<string>(SETUP)
-  const [toolName, setToolName] = useState<string>(() => playgroundTools[0]?.name ?? MCP_TOOLS[0].name)
-  const [argsText, setArgsText] = useState(() => argsTextFor(toolName))
+  const { section, navTo } = useHubSection(route, 'mcp.section')
+  const [playground, setPlayground] = useViewState<PlaygroundState>(
+    rpc ? 'mcp.playground.game' : 'mcp.playground',
+    playgroundFor(playgroundTools[0]?.name ?? MCP_TOOLS[0].name),
+    isPlaygroundState
+  )
+  const { toolName, argsText } = playground
+  const setArgsText = useCallback((next: string) => setPlayground((p) => ({ ...p, argsText: next })), [setPlayground])
   const group = groups.find((candidate) => candidate.id === section)
 
-  const selectTool = useCallback((name: string) => {
-    setToolName(name)
-    setArgsText(argsTextFor(name))
-  }, [])
+  const selectTool = useCallback((name: string) => setPlayground(playgroundFor(name)), [setPlayground])
 
-  const selectSection = useCallback(
-    (id: string) => {
-      setSection(id)
-      const first = groups.find((candidate) => candidate.id === id)?.tools.find(callable)
-      if (first) selectTool(first.name)
-    },
-    [callable, groups, selectTool]
-  )
+  /** Entering a group points the playground at its first callable tool unless the restored one belongs to it */
+  const pointedAt = useRef<string | null>(null)
+  useEffect(() => {
+    if (pointedAt.current === section) return
+    if (!group) {
+      if (tools) pointedAt.current = section
+      return
+    }
+    const usable = group.tools.filter(callable)
+    if (!usable.length) return
+    pointedAt.current = section
+    if (!usable.some((tool) => tool.name === toolName)) selectTool(usable[0].name)
+  }, [callable, group, section, selectTool, toolName, tools])
 
   return (
     <HubLayout
@@ -88,7 +106,7 @@ function McpHub({ tools, callable, overview, endpointMeta, rpc }: HubProps) {
       nav={
         <HubNav label={t('integration.groupNavAria')}>
           <HubNavSection>
-            <HubNavItem active={!group} icon={<LuPlug size={15} />} label={t('integration.navOverview')} meta={endpointMeta} onSelect={() => setSection(SETUP)} />
+            <HubNavItem active={!group} icon={<LuPlug size={15} />} label={t('integration.navOverview')} meta={endpointMeta} {...navTo('')} />
           </HubNavSection>
           {groups.length > 0 ? (
             <HubNavSection label={t('integration.groupNavAria')}>
@@ -102,7 +120,7 @@ function McpHub({ tools, callable, overview, endpointMeta, rpc }: HubProps) {
                     label={candidate.title}
                     meta={t('integration.toolCount', { count: candidate.tools.length })}
                     title={candidate.summary}
-                    onSelect={() => selectSection(candidate.id)}
+                    {...navTo(candidate.id)}
                   />
                 )
               })}
@@ -110,7 +128,7 @@ function McpHub({ tools, callable, overview, endpointMeta, rpc }: HubProps) {
           ) : null}
         </HubNav>
       }
-      contentKey={section}
+      contentKey={group?.id ?? ''}
       aside={{
         header: <HubPaneHeader title={t('integration.playground')} description={t('integration.playgroundHint')} />,
         children: tools ? (
@@ -130,7 +148,7 @@ function McpHub({ tools, callable, overview, endpointMeta, rpc }: HubProps) {
 const PLUGIN_TOOLS = mcpToolsFor('plugin')
 const always = () => true
 
-function ServerMcpView() {
+function ServerMcpView({ route }: { route?: HubRoute }) {
   const t = useT()
   const state = useMcpConnection()
   const connection = state.status === 'ready' && state.connection.available ? state.connection : null
@@ -158,11 +176,11 @@ function ServerMcpView() {
       <McpConnectionCard url={connection.endpoint} evalEnabled={connection.evalEnabled} />
     ) : null
 
-  return <McpHub tools={connection ? MCP_TOOLS : null} callable={callable} overview={overview} endpointMeta={connection ? MCP_ENDPOINT_PATH : undefined} />
+  return <McpHub tools={connection ? MCP_TOOLS : null} callable={callable} overview={overview} endpointMeta={connection ? MCP_ENDPOINT_PATH : undefined} route={route} />
 }
 
-/** 本机服务：全部工具；游戏内（`game`）：插件 MCP 工具集，见 `mcpToolsFor` */
-export function McpView({ game }: { game?: McpGameHost }) {
-  if (!game) return <ServerMcpView />
+/** 本机服务：全部工具，分组走 `route` URL；游戏内（`game`）：插件 MCP 工具集，见 `mcpToolsFor` */
+export function McpView({ game, route }: { game?: McpGameHost; route?: HubRoute }) {
+  if (!game) return <ServerMcpView route={route} />
   return <McpHub tools={PLUGIN_TOOLS} callable={always} overview={game.overview} rpc={game.rpc} />
 }

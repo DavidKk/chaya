@@ -7,7 +7,7 @@ import { IoChevronBack, IoChevronForward } from 'react-icons/io5'
 import type { SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { padXDense } from '@/components/layoutClasses'
-import { EmptyState, ScrollArea, TextInput } from '@/components/sk'
+import { EmptyState, ScrollArea, TextInput, TruncateText } from '@/components/sk'
 import { flattenMapTree, type MapTreeRow } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
@@ -103,16 +103,10 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
     const path = pathOf(id)
     return (
       <div key={key ?? id} className={cn('flex items-center', id === selected?.id && treeRowOn)}>
-        <button
-          type="button"
-          className={cn(treeRow, 'min-w-0 flex-1')}
-          aria-current={id === selected?.id ? 'true' : undefined}
-          title={path ? `${path} › ${label}` : label}
-          onClick={() => slot.onSelectMap(id, null)}
-        >
-          <span className="min-w-0 flex-1 truncate text-ink">
-            {label}
-            {extra ? <span className="ml-1.5 text-[0.7rem] text-ink-soft">· {extra}</span> : null}
+        <button type="button" className={cn(treeRow, 'min-w-0 flex-1')} aria-current={id === selected?.id ? 'true' : undefined} onClick={() => slot.onSelectMap(id, null)}>
+          <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+            <TruncateText text={label} tip={path ? `${path} › ${label}` : label} className="text-ink" />
+            {extra ? <TruncateText text={`· ${extra}`} className="text-[0.7rem] text-ink-soft" style={{ flexShrink: 999 }} /> : null}
           </span>
           {id === currentId ? (
             <span className="shrink-0 text-[0.65rem] text-info">{t('events.map.current')}</span>
@@ -136,7 +130,7 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
     )
   }
 
-  const crumbBtn = 'm-0 min-w-0 shrink cursor-pointer truncate rounded-[0.2rem] border-none bg-transparent px-1 py-0.5 text-[0.72rem] text-ink-soft hover:text-ink'
+  const crumbBtn = 'm-0 inline-flex min-w-0 shrink cursor-pointer items-center rounded-[0.2rem] border-none bg-transparent px-1 py-0.5 text-[0.72rem] text-ink-soft hover:text-ink'
   const breadcrumb = (
     <nav className="flex min-w-0 items-center gap-0.5 border-b border-line px-2 py-1.5" aria-label={t('events.map.levelAria')}>
       {level ? (
@@ -158,8 +152,8 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
       {crumbs.slice(-2).map((id) => (
         <span key={id} className="flex min-w-0 items-center gap-0.5">
           <span className="text-[0.7rem] text-ink-soft">›</span>
-          <button type="button" className={cn(crumbBtn, id === level && 'font-semibold text-ink')} title={nameOf(id)} onClick={() => goTo(id)}>
-            {nameOf(id)}
+          <button type="button" className={cn(crumbBtn, id === level && 'font-semibold text-ink')} onClick={() => goTo(id)}>
+            <TruncateText text={nameOf(id)} />
           </button>
         </span>
       ))}

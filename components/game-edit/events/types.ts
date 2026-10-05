@@ -38,6 +38,9 @@ export type EventsSlot = {
   mapId: number | null
   eventId: number | null
   onSelectMap: (mapId: number | null, eventId?: number | null) => void
+  /** Event page tab picked in the event detail (0-based); null follows the live active page */
+  eventPage: number | null
+  onSelectEventPage: (page: number) => void
   mapDetail: MapDetailData | null
   mapLoading: boolean
   mapError: string

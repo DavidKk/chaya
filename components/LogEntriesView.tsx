@@ -4,7 +4,7 @@ import type { RefObject } from 'react'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { dataTable, logBadgeClass, panelBody, panelFoot } from '@/components/layoutClasses'
-import { EmptyState, ScrollArea, TableSkeleton } from '@/components/sk'
+import { EmptyState, ScrollArea, TableSkeleton, TruncateText } from '@/components/sk'
 import type { LogEntry } from '@/lib/log/types'
 import { cn } from '@/lib/utils'
 
@@ -95,8 +95,8 @@ export function LogEntriesView({
                     <td>
                       <span className={logBadgeClass(entry.level)}>{entry.level}</span>
                     </td>
-                    <td className="truncate text-ink-soft" title={entry.source}>
-                      {entry.source || '—'}
+                    <td className="text-ink-soft">
+                      <TruncateText text={entry.source || '—'} className="block" />
                     </td>
                     <td>
                       <p className="m-0 whitespace-pre-wrap break-words text-ink">{entry.message}</p>

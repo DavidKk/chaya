@@ -7,6 +7,7 @@ import { IoChevronForward, IoEllipsisHorizontal, IoLockClosed, IoLockOpenOutline
 import { useT } from '@/components/i18n/LocaleProvider'
 import { dropdownItemClass, dropdownPopupClass } from '@/components/sk/dropdownMenu'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
+import { TruncateText } from '@/components/sk/TruncateText'
 import { type DataCell, type DataPath, type DataRow, isContainerKind } from '@/lib/game/save-data'
 import { cn } from '@/lib/utils'
 
@@ -54,8 +55,8 @@ function CurrentValue({ rowKey, fallback }: { rowKey: string; fallback: DataCell
   }, [changedAt])
   const text = cellText(t, cell)
   return (
-    <span ref={ref} className={cn('block min-w-0 truncate rounded-[0.2rem] px-1 font-mono text-[0.75rem]', cellTone(cell))} title={text}>
-      {text}
+    <span ref={ref} className={cn('flex min-w-0 rounded-[0.2rem] px-1 font-mono text-[0.75rem]', cellTone(cell))}>
+      <TruncateText text={text} />
     </span>
   )
 }
@@ -115,23 +116,18 @@ export const DataRowView = memo(function DataRowView({ row, rowKey, path, ownerO
         {container ? (
           <button
             type="button"
-            className="block max-w-full cursor-pointer truncate border-none bg-transparent p-0 text-left text-[0.8125rem] font-medium text-ink hover:text-accent"
+            className="flex max-w-full min-w-0 cursor-pointer border-none bg-transparent p-0 text-left text-[0.8125rem] font-medium text-ink hover:text-accent"
             onClick={() => onOpen(path)}
-            title={name}
           >
-            {name}
+            <TruncateText text={name} />
           </button>
         ) : (
-          <div className="truncate text-[0.8125rem] font-medium text-ink" title={name}>
-            {name}
-          </div>
+          <TruncateText text={name} className="block text-[0.8125rem] font-medium text-ink" />
         )}
         {where ? (
           <div className="truncate font-mono text-[0.68rem] text-ink-soft">{where}</div>
         ) : name !== row.key ? (
-          <div className="truncate font-mono text-[0.68rem] text-ink-soft" title={row.key}>
-            {row.key}
-          </div>
+          <TruncateText text={row.key} className="block font-mono text-[0.68rem] text-ink-soft" />
         ) : null}
       </div>
       {row.readonly ? (

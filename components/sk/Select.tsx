@@ -7,7 +7,9 @@ import { IoCheckmark, IoChevronDown } from 'react-icons/io5'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { FORM_CONTROL_H, formControlChrome, formControlPadX } from '@/components/sk/control'
 import { ScrollArea } from '@/components/sk/ScrollArea'
+import { Spinner } from '@/components/sk/Spinner'
 import { TextInput } from '@/components/sk/TextInput'
+import { TruncateText } from '@/components/sk/TruncateText'
 import { type FloatingPanelWidthMode, useFloatingPanel } from '@/components/sk/useFloatingPanel'
 import { cn } from '@/lib/utils'
 
@@ -32,9 +34,26 @@ export type SelectProps = {
   'aria-label'?: string
   /** anchor：与触发器等宽；content：按选项内容收缩（不撑开锚点） */
   panelWidth?: FloatingPanelWidthMode
+  /** 每次展开时触发，用于按需加载选项 */
+  onOpen?: () => void
+  /** 选项加载中：面板顶部显示加载行 */
+  loading?: boolean
 }
 
-export function Select({ id, value, options, onChange, placeholder, emptyLabel, disabled = false, className, 'aria-label': ariaLabel, panelWidth = 'anchor' }: SelectProps) {
+export function Select({
+  id,
+  value,
+  options,
+  onChange,
+  placeholder,
+  emptyLabel,
+  disabled = false,
+  className,
+  'aria-label': ariaLabel,
+  panelWidth = 'anchor',
+  onOpen,
+  loading = false,
+}: SelectProps) {
   const t = useT()
   const resolvedPlaceholder = placeholder ?? t('common.selectPlaceholder')
   const resolvedEmptyLabel = emptyLabel ?? t('common.emptyOptions')
@@ -80,7 +99,8 @@ export function Select({ id, value, options, onChange, placeholder, emptyLabel, 
     setHighlight(idx >= 0 ? idx : options.findIndex((o) => !o.disabled))
     setQuery('')
     setOpen(true)
-  }, [disabled, options, value])
+    onOpen?.()
+  }, [disabled, onOpen, options, value])
 
   const pick = useCallback(
     (index: number) => {
@@ -214,7 +234,13 @@ export function Select({ id, value, options, onChange, placeholder, emptyLabel, 
               }}
             >
               <div className="m-0 list-none p-0.5">
-                {visibleOptions.length === 0 ? (
+                {loading ? (
+                  <div className="flex items-center gap-2 p-2 text-xs text-ink-soft" role="status">
+                    <Spinner size="sm" />
+                    {t('common.loading')}
+                  </div>
+                ) : null}
+                {loading && visibleOptions.length === 0 ? null : visibleOptions.length === 0 ? (
                   <div className="p-2 text-xs text-ink-soft" role="status">
                     {resolvedEmptyLabel}
                   </div>
@@ -275,9 +301,7 @@ export function Select({ id, value, options, onChange, placeholder, emptyLabel, 
         onClick={() => (open ? close() : openPanel())}
         onKeyDown={onTriggerKey}
       >
-        <span className={cn('min-w-0 truncate whitespace-nowrap text-left', !selected && 'text-ink-soft')} title={selected ? label : undefined}>
-          {label}
-        </span>
+        <TruncateText text={label} className={cn('whitespace-nowrap text-left', !selected && 'text-ink-soft')} />
         <IoChevronDown className="shrink-0 text-ink-soft" size={14} aria-hidden />
       </button>
       {panel}

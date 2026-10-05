@@ -8,7 +8,8 @@ import type { EventsSlot } from '@/components/game-edit/events/types'
 import { emptySession } from '@/components/game-edit/types'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
-import { buildCommonEventsData } from '@/lib/game/events'
+import { buildCommonEventsData, type MapDetailData } from '@/lib/game/events'
+import { type MapEventPage, normalizeConditions } from '@/lib/game/events/map-index'
 
 // 世界 › 村 › 家, plus a root 城
 const data = buildCommonEventsData(
@@ -49,6 +50,8 @@ function slot(over: Partial<EventsSlot> = {}): EventsSlot {
     mapId: null,
     eventId: null,
     onSelectMap: jest.fn(),
+    eventPage: null,
+    onSelectEventPage: jest.fn(),
     mapDetail: null,
     mapLoading: false,
     mapError: '',
@@ -60,6 +63,7 @@ function slot(over: Partial<EventsSlot> = {}): EventsSlot {
 
 beforeAll(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  globalThis.CSS ??= { escape: (value: string) => value } as unknown as typeof CSS
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     value: jest.fn((media: string) => ({ matches: false, media, addEventListener: jest.fn(), removeEventListener: jest.fn() })),
@@ -102,8 +106,7 @@ afterEach(async () => {
 
 const aside = () => document.querySelector('aside') as HTMLElement
 /** Map name buttons in the list (not breadcrumb / drill buttons) */
-const listed = () =>
-  [...aside().querySelectorAll('[aria-current], button[title]')].filter((b) => !b.closest('nav') && !b.getAttribute('aria-label')).map((b) => b.textContent?.trim())
+const listed = () => [...aside().querySelectorAll('button')].filter((b) => !b.closest('nav') && !b.getAttribute('aria-label')).map((b) => b.textContent?.trim())
 const drill = (name: string) => aside().querySelector(`button[aria-label="查看「${name}」的子地图"]`) as HTMLButtonElement | null
 const crumb = (text: string) => [...aside().querySelectorAll('nav button')].find((b) => b.textContent?.trim() === text) as HTMLButtonElement
 
@@ -151,4 +154,31 @@ test('selecting a map reports it', async () => {
   const btn = [...aside().querySelectorAll('button')].find((b) => b.textContent?.trim() === '城') as HTMLButtonElement
   await act(async () => btn.click())
   expect(s.onSelectMap).toHaveBeenCalledWith(3, null)
+})
+
+const page = (characterName: string): MapEventPage => ({ conditions: normalizeConditions(null), trigger: 0, list: [], commandCount: 0, characterName, tileId: 0 })
+const villageDetail: MapDetailData = {
+  ok: true,
+  source: 'disk',
+  mapId: 2,
+  name: '村',
+  displayName: '',
+  width: 10,
+  height: 10,
+  events: [{ id: 5, name: '门卫', rawName: '门卫', x: 1, y: 2, type: 'npc', pages: [page('a'), page('b')] }],
+  texts: {},
+}
+const pageTab = (index: number) => document.querySelector(`nav[aria-label="事件页"] [data-nav-id="${index}"]`) as HTMLElement
+
+test('event detail shows the page tab from the slot and reports picks', async () => {
+  const s = slot({ mapId: 2, eventId: 5, mapDetail: villageDetail, eventPage: 1 })
+  await render(s)
+  expect(pageTab(1).getAttribute('aria-selected')).toBe('true')
+  await act(async () => pageTab(0).click())
+  expect(s.onSelectEventPage).toHaveBeenCalledWith(0)
+})
+
+test('an out-of-range page tab falls back to the first page', async () => {
+  await render(slot({ mapId: 2, eventId: 5, mapDetail: villageDetail, eventPage: 7 }))
+  expect(pageTab(0).getAttribute('aria-selected')).toBe('true')
 })

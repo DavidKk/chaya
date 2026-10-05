@@ -4,7 +4,7 @@ import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useLayoutEf
 import { IoArrowUp, IoCheckmark, IoCloseCircleOutline, IoCloseOutline, IoStop, IoTrashOutline } from 'react-icons/io5'
 
 import { useLocaleCode } from '@/components/i18n/LocaleProvider'
-import { Button, Spinner } from '@/components/sk'
+import { Button, Spinner, TruncateText } from '@/components/sk'
 import { cn } from '@/lib/utils'
 
 import { GameAgentRuntimeMenu } from './GameAgentRuntimeMenu'
@@ -391,7 +391,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
                             )}
                           </span>
                           <span className="shrink-0">{tool.state === 'running' ? copy.toolCalling : tool.state === 'completed' ? copy.toolCalled : copy.toolFailed}</span>
-                          <code className="truncate font-mono text-[11px] text-ink">{tool.name}</code>
+                          <TruncateText text={tool.name} className="font-mono text-[11px] text-ink" />
                         </div>
                       ))}
                     </div>

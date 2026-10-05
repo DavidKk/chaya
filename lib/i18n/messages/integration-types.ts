@@ -64,11 +64,18 @@ export type IntegrationMessages = {
   agentTemperatureDesc: string
   agentKeepAlive: string
   agentKeepAliveDesc: string
+  agentKeepAliveForever: string
+  agentKeepAliveForeverOn: string
+  agentKeepAliveForeverOff: string
+  agentKeepAliveUnload: string
+  agentKeepAliveMs: string
+  agentKeepAliveSec: string
+  agentKeepAliveMin: string
+  agentKeepAliveHour: string
   agentTest: string
   agentTestDesc: string
   agentTesting: string
   agentConnected: string
-  agentModelsRefreshed: string
   agentSave: string
   agentSaved: string
   agentDelete: string
