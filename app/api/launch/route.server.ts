@@ -12,6 +12,7 @@ import {
   requireDisk,
 } from '@/services/disk-ops'
 import { findRunningJob } from '@/services/downloads/jobs'
+import { ensureGameAppIcon, updateSharedMacAppIcon } from '@/services/game/app-icon'
 import { anyWebConnected, clearGameQuitRequest, getGamePresence, preferredPluginApiBase, requestGameQuit, toolkitListenPort, writeLaunchEnv } from '@/services/runtime'
 
 export const runtime = 'nodejs'
@@ -49,6 +50,14 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
   try {
     // 部分 Windows 发布包 package.json name 为空，NW.js 会直接拒启
     const nwPackage = ensureNwPackageName(resolved.contentRoot)
+    let gameIcon: string | undefined
+    if (!resolved.bundled) {
+      try {
+        gameIcon = (await ensureGameAppIcon(resolved.contentRoot)).icon
+      } catch (error) {
+        process.emitWarning(error instanceof Error ? error : String(error), { code: 'CHAYA_GAME_ICON' })
+      }
+    }
     const apiBase = preferredPluginApiBase(toolkitListenPort())
     const plugins = injectTrackedPlugins(resolved.contentRoot)
     if (plugins.missingKit.length && plugins.copied.length === 0) {
@@ -79,6 +88,13 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
       shellApp: resolved.shellApp,
       contentRoot: resolved.contentRoot,
     })
+    if (gameIcon) {
+      try {
+        await updateSharedMacAppIcon(resolved.shellApp, resolved.contentRoot, gameIcon)
+      } catch (error) {
+        process.emitWarning(error instanceof Error ? error : String(error), { code: 'CHAYA_MAC_APP_ICON' })
+      }
+    }
     await launchShellWithContent(resolved.shellApp, resolved.contentRoot)
     return apiOk({
       path: resolved.shellApp,

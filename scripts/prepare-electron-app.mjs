@@ -44,7 +44,7 @@ console.log(`[prepare-electron-app] out → ${outRoot}`)
 
 rmSync(outRoot, { recursive: true, force: true })
 mkdirSync(path.dirname(outRoot), { recursive: true })
-cpSync(standaloneApp, outRoot, { recursive: true })
+cpSync(standaloneApp, outRoot, { recursive: true, verbatimSymlinks: true })
 
 copyDir(path.join(root, '.next', 'static'), path.join(outRoot, '.next', 'static'))
 

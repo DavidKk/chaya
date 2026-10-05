@@ -2,7 +2,7 @@
 ;(function () {
   'use strict'
 
-  const { TILE, COLS, ROWS, W, H, FRAME_MS, SAVE_KEY, MAPS, COMMON_EVENTS, MENU, interpreter } = window.WalkDemo
+  const { TILE, COLS, ROWS, W, H, FRAME_MS, SAVE_KEY, MAPS, DIRS, COMMON_EVENTS, MENU, interpreter } = window.WalkDemo
 
   /** Only what ChayaTrans hooks; drawing happens in `render()` */
   class Window_Base {

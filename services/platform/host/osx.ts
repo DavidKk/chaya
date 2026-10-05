@@ -21,7 +21,7 @@ export class OsxHostShell implements HostShellCapability {
   launchShell(shellApp: string, contentRoot: string): Promise<void> {
     assertPathExists(shellApp)
     assertPathExists(contentRoot)
-    const bin = findNwMacBinary(shellApp)
-    return spawnDetached(bin, [path.resolve(contentRoot)], { cwd: path.dirname(bin) })
+    findNwMacBinary(shellApp)
+    return spawnDetached('open', ['-n', shellApp, '--args', path.resolve(contentRoot)])
   }
 }
