@@ -20,6 +20,9 @@ export type EditPendingEntry = {
   cmdId: string
   /** 期望值（标量核对用；复杂字段可空） */
   expect?: unknown
+  /** First send time; retries must not extend the give-up deadline. */
+  startedAt: number
+  /** Most recent send time, used to schedule the next retry. */
   sentAt: number
   cmd: GameEditCmd
 }

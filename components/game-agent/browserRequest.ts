@@ -1,3 +1,6 @@
+import type { WebMcpToolDefinition } from '@/initializer/webmcp/model-context'
+import { gameAgentProfileToolSpecs } from '@/lib/game-agent/profile-tool-specs'
+import { functionToolDefinition } from '@/lib/webmcp/mcp-mirror'
 import { pickAvailableModel } from '@/services/game-agent/ollama-client'
 
 import { createBrowserAgentRuntime } from './browserTurn'
@@ -52,6 +55,75 @@ function settings() {
   return { ...value, version: 1 as const, defaultProfileId: value.profiles[0].id }
 }
 
+function saveSettings(value: Settings) {
+  const next = { ...value, version: 1 as const, defaultProfileId: value.profiles[0]?.id || '' }
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
+  return next
+}
+
+function target(args: Record<string, unknown>) {
+  const value = typeof args.target === 'string' ? args.target.trim() : ''
+  if (!value) throw new Error('缺少参数 target')
+  return value
+}
+
+function resolveProfile(current: Settings, value: string) {
+  const byId = current.profiles.find((profile) => profile.id === value)
+  if (byId) return byId
+  const matches = current.profiles.filter((profile) => profile.label.localeCompare(value, undefined, { sensitivity: 'accent' }) === 0)
+  if (matches.length > 1) throw new Error(`名称 ${value} 对应多个 Agent，请使用 id`)
+  if (!matches.length) throw new Error(`找不到 Agent：${value}`)
+  return matches[0]
+}
+
+function profilePatch(args: Record<string, unknown>) {
+  const patch: Partial<BrowserAgentProfile> = {}
+  for (const key of ['id', 'label', 'endpoint', 'defaultModel', 'keepAlive'] as const) {
+    if (typeof args[key] === 'string') patch[key] = args[key].trim()
+  }
+  if (typeof args.temperature === 'number' && Number.isFinite(args.temperature)) patch.temperature = Math.min(2, Math.max(0, args.temperature))
+  return patch
+}
+
+/** Edge Agent CRUD uses the same names and intent descriptions as the local Agent runtime. */
+export function buildBrowserAgentProfileTools(): WebMcpToolDefinition[] {
+  return gameAgentProfileToolSpecs({ credentials: false }).map((spec) =>
+    functionToolDefinition(spec, async (args) => {
+      const current = settings()
+      if (spec.name === 'chaya_agent_profiles') return { defaultProfileId: current.profiles[0]?.id || '', profiles: current.profiles }
+      if (spec.name === 'chaya_agent_profile_create') {
+        const patch = profilePatch(args)
+        if (!patch.label) throw new Error('创建 Agent 时必须提供名称')
+        const id = patch.id || globalThis.crypto?.randomUUID?.() || `ollama-${Date.now().toString(36)}`
+        if (current.profiles.some((profile) => profile.id === id)) throw new Error(`Agent id 已存在：${id}`)
+        const profile: BrowserAgentProfile = {
+          id,
+          label: patch.label,
+          provider: 'ollama',
+          endpoint: patch.endpoint || 'http://127.0.0.1:11434',
+          defaultModel: patch.defaultModel || '',
+          temperature: patch.temperature ?? 0.2,
+          keepAlive: patch.keepAlive || '10m',
+        }
+        saveSettings({ ...current, profiles: [...current.profiles, profile] })
+        return profile
+      }
+      const existing = resolveProfile(current, target(args))
+      if (spec.name === 'chaya_agent_profile_update') {
+        const updated = { ...existing, ...profilePatch(args), id: existing.id, provider: 'ollama' as const }
+        saveSettings({ ...current, profiles: current.profiles.map((profile) => (profile.id === existing.id ? updated : profile)) })
+        return updated
+      }
+      if (current.profiles.length <= 1) throw new Error('至少需要保留一个 Agent')
+      const saved = saveSettings({ ...current, profiles: current.profiles.filter((profile) => profile.id !== existing.id) })
+      const cache = modelCache()
+      delete cache[existing.id]
+      localStorage.setItem(MODELS_KEY, JSON.stringify(cache))
+      return { deleted: { id: existing.id, label: existing.label }, defaultProfileId: saved.defaultProfileId, count: saved.profiles.length }
+    })
+  )
+}
+
 function modelCache() {
   return readJson<Record<string, ModelCacheEntry>>(MODELS_KEY, {})
 }
@@ -82,8 +154,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean }, run
       }
       const body = JSON.parse(String(init?.body || '{}')) as { action?: string; profile?: BrowserAgentProfile; settings?: Settings }
       if (method === 'PUT' && body.settings?.profiles?.length) {
-        const next = { ...body.settings, version: 1 as const, defaultProfileId: body.settings.profiles[0].id }
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
+        const next = saveSettings(body.settings)
         return response({ ok: true, settings: next })
       }
       if (method === 'POST' && (body.action === 'test' || body.action === 'models') && body.profile) {

@@ -6,6 +6,7 @@ import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { type DataDiff, DataError, type DataErrorCode, type DataOp, type DataStatus, type SearchBatch } from '@/lib/game/save-data'
 import type { GameEditCmdOp, GameLinkMessage } from '@/lib/runtime/game-link-protocol'
 
+import { draftStore, markAllStale, valueStore, writtenStore } from './store'
 import type { SaveDataTransport } from './transport'
 
 const REQUEST_TIMEOUT_MS = 15_000
@@ -19,6 +20,7 @@ type Deps = {
 }
 
 let reqSeq = 0
+let storeRoomId: string | null = null
 const nextReqId = () => `d-${Date.now().toString(36)}-${++reqSeq}`
 
 function toError(msg: { error?: string; code?: DataErrorCode; existingDepth?: number }): DataError {
@@ -168,7 +170,19 @@ export function useLinkSaveDataTransport(enabled: boolean, runCmd: (op: GameEdit
   const { roomId, connected, send, subscribeMessages } = useGameLinkContext()
   const [transport, setTransport] = useState<(SaveDataTransport & { dispose(): void }) | null>(null)
   const runCmdRef = useRef(runCmd)
+  const linkRef = useRef({ roomId, connected })
   runCmdRef.current = runCmd
+  useEffect(() => {
+    const previous = linkRef.current
+    const roomChanged = (previous.roomId != null && previous.roomId !== roomId) || (storeRoomId != null && storeRoomId !== roomId)
+    const disconnected = previous.connected && !connected
+    linkRef.current = { roomId, connected }
+    if (roomId != null) storeRoomId = roomId
+    if (!roomChanged && !disconnected) return
+    valueStore.clear()
+    writtenStore.clear()
+    if (draftStore.size) markAllStale()
+  }, [roomId, connected])
   useEffect(() => {
     if (!enabled || !connected) {
       setTransport(null)

@@ -28,7 +28,7 @@ function sources(): RawEventSources {
           height: 15,
           events: [
             null,
-            { id: 1, name: '入口', x: 3, y: 4, pages: [page({}, [cmd(201, [0, 2, 10, 11, 2, 0]), cmd(0)], { trigger: 1 })] },
+            { id: 1, name: '入口', x: 3, y: 4, pages: [page({}, [cmd(201, [0, 2, 4, 5, 8, 0]), cmd(201, [0, 2, 10, 11, 2, 0]), cmd(0)], { trigger: 1 })] },
             { id: 2, name: '宝箱', x: 5, y: 5, pages: [page({}, [cmd(126, [1, 0, 0, 1]), cmd(123, ['A', 0]), cmd(0)], { image: { characterName: '!Chest', tileId: 0 } })] },
             {
               id: 3,
@@ -59,6 +59,7 @@ describe('map index', () => {
     const entrances = data.mapIndex.entrances[2]
     expect(entrances.map((e) => [e.x, e.y, e.from.kind])).toEqual([
       [4, 5, 'common'],
+      [4, 5, 'map'],
       [10, 11, 'map'],
     ])
     expect(data.variableRefs[9]?.map((r) => [r.kind, r.id, r.eventId])).toEqual([['map', 1, 3]])

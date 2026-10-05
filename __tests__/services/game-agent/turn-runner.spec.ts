@@ -7,6 +7,18 @@ jest.mock('@/services/game-agent/tool-runtime.server', () => ({
       readOnly: false,
       run: jest.fn(),
     },
+    {
+      definition: {
+        type: 'function',
+        function: {
+          name: 'chaya_agent_profile_delete',
+          description: 'Delete a Chaya Settings > Agents configuration by exact id or display name.',
+          parameters: { type: 'object', properties: { target: { type: 'string' } }, required: ['target'] },
+        },
+      },
+      readOnly: false,
+      run: jest.fn(),
+    },
   ]),
   executeGameAgentTool: jest.fn(async () => ({ ok: true, content: '{"ok":true,"verification":{"walkRate":2}}' })),
 }))
@@ -77,4 +89,98 @@ test('answers through service tools without reading game state when no game is c
 
   expect(callAgentGame).not.toHaveBeenCalled()
   expect(events).toContainEqual({ type: 'assistant.delta', text: '本地服务可用。' })
+})
+
+test('deletes a named Agent configuration without requiring a connected game', async () => {
+  ;(listAgentGames as jest.MockedFunction<typeof listAgentGames>).mockReturnValue([])
+  const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
+  chat
+    .mockResolvedValueOnce({
+      role: 'assistant',
+      content: '',
+      tool_calls: [{ function: { name: 'chaya_agent_profile_delete', arguments: { target: 'Flow Local' } } }],
+    })
+    .mockResolvedValueOnce({ role: 'assistant', content: '已删除 Agent「Flow Local」。' })
+  const session: GameAgentSession = { id: 'session', gameId: 'chaya-console', model: 'gemma', profileId: 'local', messages: [], activeTurnId: 'turn', updatedAt: 0 }
+  const turn: GameAgentTurn = { id: 'turn', sessionId: 'session', gameId: 'chaya-console', abort: new AbortController(), state: 'running', startedAt: 0 }
+  const profile = {
+    id: 'local',
+    label: 'Local',
+    provider: 'ollama',
+    endpoint: 'http://127.0.0.1:11434',
+    defaultModel: 'gemma',
+    temperature: 0.2,
+    keepAlive: '10m',
+  } as GameAgentProfile
+  const events: GameAgentEvent[] = []
+
+  await runAskTurn({ gameId: 'chaya-console', model: 'gemma', profileId: 'local', mode: 'ask', prompt: '删除 agent 名称叫 Flow Local' }, profile, session, turn, (event) =>
+    events.push(event)
+  )
+
+  expect(callAgentGame).not.toHaveBeenCalled()
+  expect(chat.mock.calls[0][0].tools).toEqual(expect.arrayContaining([expect.objectContaining({ function: expect.objectContaining({ name: 'chaya_agent_profile_delete' }) })]))
+  expect(executeGameAgentTool).toHaveBeenCalledWith(expect.any(Array), 'chaya_agent_profile_delete', { target: 'Flow Local' }, undefined, turn.abort.signal)
+  expect(events).toContainEqual({ type: 'tool.completed', callId: '1-0', name: 'chaya_agent_profile_delete', ok: true })
+})
+
+test('answers a presence check without reading game state or offering tools', async () => {
+  const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
+  chat.mockResolvedValueOnce({ role: 'assistant', content: '在，有什么需要？' })
+  const session: GameAgentSession = { id: 'session', gameId: 'game-a', model: 'gemma', profileId: 'local', messages: [], activeTurnId: 'turn', updatedAt: 0 }
+  const turn: GameAgentTurn = { id: 'turn', sessionId: 'session', gameId: 'game-a', abort: new AbortController(), state: 'running', startedAt: 0 }
+  const profile = {
+    id: 'local',
+    label: 'Local',
+    provider: 'ollama',
+    endpoint: 'http://127.0.0.1:11434',
+    defaultModel: 'gemma',
+    temperature: 0.2,
+    keepAlive: '10m',
+  } as GameAgentProfile
+  const events: GameAgentEvent[] = []
+
+  await runAskTurn({ gameId: 'game-a', model: 'gemma', profileId: 'local', mode: 'ask', prompt: '在吗', locale: 'zh-CN' }, profile, session, turn, (event) => events.push(event))
+
+  expect(callAgentGame).not.toHaveBeenCalled()
+  expect(chat.mock.calls[0][0].tools).toEqual([])
+  expect(chat.mock.calls[0][0].messages.at(-1)?.content).not.toContain('Current observed game state')
+  expect(events.some((event) => event.type === 'tool.started')).toBe(false)
+  expect(events).toContainEqual({ type: 'assistant.delta', text: '在，有什么需要？' })
+})
+
+test('removes write-only credentials from logs, answers and saved conversation history', async () => {
+  const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
+  chat
+    .mockResolvedValueOnce({
+      role: 'assistant',
+      content: '',
+      tool_calls: [{ function: { name: 'chaya_agent_profile_update', arguments: { target: 'Flow Local', token: 'private-token' } } }],
+    })
+    .mockResolvedValueOnce({ role: 'assistant', content: '已保存 private-token。' })
+  const session: GameAgentSession = { id: 'session', gameId: 'chaya-console', model: 'gemma', profileId: 'local', messages: [], activeTurnId: 'turn', updatedAt: 0 }
+  const turn: GameAgentTurn = { id: 'turn', sessionId: 'session', gameId: 'chaya-console', abort: new AbortController(), state: 'running', startedAt: 0 }
+  const profile = {
+    id: 'local',
+    label: 'Local',
+    provider: 'ollama',
+    endpoint: 'http://127.0.0.1:11434',
+    defaultModel: 'gemma',
+    temperature: 0.2,
+    keepAlive: '10m',
+  } as GameAgentProfile
+  const events: GameAgentEvent[] = []
+
+  await runAskTurn(
+    { gameId: 'chaya-console', model: 'gemma', profileId: 'local', mode: 'ask', prompt: '把 token private-token 保存到 Flow Local' },
+    profile,
+    session,
+    turn,
+    (event) => events.push(event)
+  )
+
+  expect(JSON.stringify(events)).not.toContain('private-token')
+  expect(JSON.stringify(session.messages)).not.toContain('private-token')
+  expect(JSON.stringify((appendLog as jest.Mock).mock.calls)).not.toContain('private-token')
+  expect(events).toContainEqual({ type: 'assistant.delta', text: '已保存 [credential omitted]。' })
 })

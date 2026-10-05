@@ -59,6 +59,16 @@ describe('game agent Ollama client', () => {
     expect(fetcher).toHaveBeenCalledWith('http://ollama.test/api/tags', expect.any(Object))
   })
 
+  it('uses a bearer token without placing it in the request body', async () => {
+    const fetcher = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer private-token')
+      expect(String(init?.body)).not.toContain('private-token')
+      return streamed(['{"message":{"content":"ok"}}\n'])
+    }) as unknown as typeof fetch
+
+    await streamOllamaChat({ model: 'demo', messages: [], token: 'private-token' }, () => {}, fetcher)
+  })
+
   it('surfaces invalid NDJSON instead of returning a partial answer', async () => {
     const fetcher = jest.fn(async () => streamed(['not-json\n'])) as unknown as typeof fetch
     await expect(streamOllamaChat({ model: 'demo', messages: [] }, () => {}, fetcher)).rejects.toThrow('无效的 NDJSON')

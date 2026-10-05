@@ -7,9 +7,12 @@ import { SaveData, type Watcher } from '../session/save-data'
 export function createDirectTransport(): SaveDataTransport & { dispose(): void } {
   const diffSubs = new Set<(diff: DataDiff) => void>()
   const statusSubs = new Set<(status: DataStatus) => void>()
+  const searchCancels = new Set<() => void>()
   let watcher: Watcher | null = null
+  let disposed = false
 
   const pushStatus = () => {
+    if (disposed) return
     const status = SaveData.status()
     for (const cb of statusSubs) cb(status)
   }
@@ -42,15 +45,35 @@ export function createDirectTransport(): SaveDataTransport & { dispose(): void }
     },
     requestStatus: () => queueMicrotask(pushStatus),
     search: (path, query, scope, onBatch) => {
+      if (disposed) return () => {}
+      let cancelService = () => {}
+      let finished = false
+      const cancel = () => {
+        if (finished) return
+        finished = true
+        searchCancels.delete(cancel)
+        cancelService()
+      }
       try {
-        return SaveData.search(path, query, scope, onBatch)
+        cancelService = SaveData.search(path, query, scope, (batch) => {
+          if (finished || disposed) return
+          onBatch(batch)
+          if (batch.done) {
+            finished = true
+            searchCancels.delete(cancel)
+          }
+        })
+        if (!finished) searchCancels.add(cancel)
+        return cancel
       } catch {
-        onBatch({ hits: [], done: true, truncated: false, scanned: 0 })
+        if (!disposed) onBatch({ hits: [], done: true, truncated: false, scanned: 0 })
         return () => {}
       }
     },
     run: (op) => later(() => SaveData.run(op)),
     dispose() {
+      disposed = true
+      for (const cancel of [...searchCancels]) cancel()
       offStatus()
       watcher?.dispose()
       watcher = null

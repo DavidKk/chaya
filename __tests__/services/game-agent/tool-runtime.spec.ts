@@ -22,6 +22,12 @@ jest.mock('@/app/api/mcp/_tools', () => ({
     ],
   },
 }))
+jest.mock('@/services/game-agent/profile-tools.server', () => ({
+  listGameAgentProfiles: jest.fn(() => ({ profiles: [{ id: 'flow-local', label: 'Flow Local', hasToken: true }] })),
+  createGameAgentProfile: jest.fn(),
+  updateGameAgentProfile: jest.fn(),
+  deleteGameAgentProfile: jest.fn(() => ({ deleted: { id: 'flow-local', label: 'Flow Local' }, count: 1 })),
+}))
 
 import { createGameAgentTools, executeGameAgentTool } from '@/services/game-agent/tool-runtime.server'
 import { callAgentGame, listAgentGames, listPluginTools } from '@/services/runtime/agent-bridge'
@@ -46,8 +52,17 @@ beforeEach(() => {
 
 test('offers the bound game tools while excluding destructive and oversized tools', () => {
   const names = createGameAgentTools('game-a').map((tool) => tool.definition.function.name)
-  expect(names).toEqual(expect.arrayContaining(['chaya_live_state', 'chaya_live_play', 'chaya_edit_set', 'chaya_plugin_boost_on']))
+  expect(names).toEqual(
+    expect.arrayContaining(['chaya_agent_profiles', 'chaya_agent_profile_delete', 'chaya_live_state', 'chaya_live_play', 'chaya_edit_set', 'chaya_plugin_boost_on'])
+  )
   expect(names).not.toEqual(expect.arrayContaining(['chaya_live_screenshot', 'chaya_live_quit', 'chaya_live_eval', 'chaya_edit_action']))
+})
+
+test('deletes an Agent by display name without returning or verifying credentials', async () => {
+  const result = await executeGameAgentTool(createGameAgentTools('game-a'), 'chaya_agent_profile_delete', { target: 'Flow Local' }, 'game-a', new AbortController().signal)
+  expect(result.ok).toBe(true)
+  expect(JSON.parse(result.content)).toEqual({ ok: true, result: { deleted: { id: 'flow-local', label: 'Flow Local' }, count: 1 } })
+  expect(mockedCall).not.toHaveBeenCalled()
 })
 
 test('forces the bound game id and includes read-back verification after a write', async () => {

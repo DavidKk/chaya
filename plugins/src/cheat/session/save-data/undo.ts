@@ -17,8 +17,17 @@ export type SetStep = {
 
 export type StructStep =
   | { t: 'insert'; path: DataPath; ownerOid: number; index: number; element: unknown }
-  | { t: 'remove'; path: DataPath; ownerOid: number; index: number; element: unknown }
-  | { t: 'addKey'; path: DataPath; ownerOid: number; key: string }
+  | {
+      t: 'remove'
+      path: DataPath
+      ownerOid: number
+      index: number
+      element: unknown
+      expectedLength: number
+      previous: { exists: boolean; value?: unknown }
+      next: { exists: boolean; value?: unknown }
+    }
+  | { t: 'addKey'; path: DataPath; ownerOid: number; key: string; value: PrimitiveValue }
   | { t: 'removeKey'; path: DataPath; ownerOid: number; key: string; value: unknown }
 
 export type UndoStep = SetStep | StructStep
@@ -97,12 +106,19 @@ function structStillValid(step: StructStep): boolean {
       return now === step.element || samePrimitive(now, step.element)
     }
     case 'remove':
-      return Array.isArray(obj) && obj.length >= step.index
+      if (!Array.isArray(obj) || obj.length !== step.expectedLength) return false
+      return sameOptional(obj, step.index - 1, step.previous) && sameOptional(obj, step.index, step.next)
     case 'addKey':
-      return Object.prototype.hasOwnProperty.call(obj, step.key)
+      return Object.prototype.hasOwnProperty.call(obj, step.key) && samePrimitive(obj[step.key], step.value)
     case 'removeKey':
       return !Object.prototype.hasOwnProperty.call(obj, step.key)
   }
+}
+
+function sameOptional(obj: unknown[], index: number, expected: { exists: boolean; value?: unknown }): boolean {
+  const exists = index >= 0 && index < obj.length
+  if (exists !== expected.exists) return false
+  return !exists || obj[index] === expected.value || samePrimitive(obj[index], expected.value)
 }
 
 function currentValue(path: DataPath): unknown {

@@ -36,7 +36,8 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   const [draft, setDraft] = useState<AgentProfile | null>(null)
   const [models, setModels] = useState<AgentModel[]>([])
   const [modelsBusy, setModelsBusy] = useState(false)
-  const [busy, setBusy] = useState<'load' | 'test' | 'save' | 'delete' | ''>('load')
+  const [busy, setBusy] = useState<'load' | 'test' | 'save' | ''>('load')
+  const [deletingId, setDeletingId] = useState('')
   const [loadError, setLoadError] = useState('')
   const modelRequestId = useRef(0)
   const autoModelsTimer = useRef<number | undefined>(undefined)
@@ -187,23 +188,24 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
     await fetchModels({ ...draft }, 'refresh')
   }
 
-  const remove = async () => {
-    if (!settings || !draft || creating || settings.profiles.length <= 1) return
+  const removeProfile = async (profile: AgentProfile, navigateAfter = false) => {
+    if (!settings || settings.profiles.length <= 1 || deletingId) return
     const ok = await confirm({
       title: t('integration.agentDeleteTitle'),
-      description: t('integration.agentDeleteDescription', { name: draft.label }),
+      description: t('integration.agentDeleteDescription', { name: profile.label }),
       confirmLabel: t('integration.agentDelete'),
       confirmVariant: 'fail',
     })
     if (!ok) return
-    setBusy('delete')
+    setDeletingId(profile.id)
     try {
-      await saveSettings({ ...settings, profiles: settings.profiles.filter((item) => item.id !== draft.id) })
+      await saveSettings({ ...settings, profiles: settings.profiles.filter((item) => item.id !== profile.id) })
       onSaved?.()
-      onNavigate()
+      if (navigateAfter) onNavigate()
     } catch (error) {
       notify.error(error instanceof Error ? error.message : String(error))
-      setBusy('')
+    } finally {
+      setDeletingId('')
     }
   }
 
@@ -252,6 +254,17 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                   </div>
                   <Button variant="plain" size="icon" aria-label={t('integration.agentEdit')} onClick={() => onNavigate(profile.id)}>
                     <TbPencilCog size={16} aria-hidden />
+                  </Button>
+                  <Button
+                    variant="plain"
+                    size="icon"
+                    className="text-fail"
+                    aria-label={t('integration.agentDelete')}
+                    disabled={settings.profiles.length <= 1 || Boolean(deletingId)}
+                    loading={deletingId === profile.id}
+                    onClick={() => void removeProfile(profile)}
+                  >
+                    <IoTrashOutline size={16} aria-hidden />
                   </Button>
                 </li>
               ))}
@@ -343,7 +356,12 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                   {t('integration.agentBack')}
                 </Button>
                 {!creating ? (
-                  <Button variant="fail" disabled={settings.profiles.length <= 1} loading={busy === 'delete'} onClick={() => void remove()}>
+                  <Button
+                    variant="fail"
+                    disabled={settings.profiles.length <= 1 || Boolean(deletingId)}
+                    loading={deletingId === draft.id}
+                    onClick={() => void removeProfile(draft, true)}
+                  >
                     <IoTrashOutline size={15} />
                     {t('integration.agentDelete')}
                   </Button>

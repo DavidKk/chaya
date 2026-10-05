@@ -90,7 +90,10 @@ function addListRefs(switches: RefTable, variables: RefTable, list: readonly Eve
       variables.add(num(p[1]), ref)
       if (num(p[2]) === 1) variables.add(num(p[3]), ref)
     } else if (cmd.code === 121) switches.addRange(p[0], p[1], ref)
-    else if (cmd.code === 122) variables.addRange(p[0], p[1], ref)
+    else if (cmd.code === 122) {
+      variables.addRange(p[0], p[1], ref)
+      if (num(p[3]) === 1) variables.add(num(p[4]), ref)
+    }
   }
 }
 

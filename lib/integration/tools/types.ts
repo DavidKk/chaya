@@ -15,15 +15,52 @@ export type InvokeInput = {
 /** Calls an API-shaped endpoint; resolves with the payload (no `ok`, secrets removed) or throws its error message. */
 export type ApiInvoke = (input: InvokeInput) => Promise<Record<string, unknown>>
 
-/** Plugin credentials that must never reach an agent */
-const SECRET_KEYS = new Set(['launchToken', 'linkToken', 'token', 'env'])
+/** Credentials that must never reach an agent, logs, or MCP responses. */
+export function isSecretKey(key: string) {
+  const normalized = key.replace(/[^a-z]/gi, '').toLowerCase()
+  if (normalized.startsWith('has')) return false
+  return (
+    normalized === 'env' ||
+    normalized === 'authorization' ||
+    normalized === 'password' ||
+    normalized === 'secret' ||
+    normalized === 'apikey' ||
+    normalized === 'token' ||
+    normalized.endsWith('token') ||
+    normalized.endsWith('apikey') ||
+    normalized.endsWith('password') ||
+    normalized.endsWith('secret')
+  )
+}
+
+export function collectSecretValues(value: unknown, into = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) {
+    for (const item of value) collectSecretValues(item, into)
+    return into
+  }
+  if (!value || typeof value !== 'object') return into
+  for (const [key, item] of Object.entries(value)) {
+    if (isSecretKey(key)) {
+      if (typeof item === 'string' && item) into.add(item)
+      continue
+    }
+    collectSecretValues(item, into)
+  }
+  return into
+}
+
+export function redactSecretText(text: string, secrets: Iterable<string>): string {
+  let safe = text
+  for (const secret of [...secrets].filter(Boolean).sort((a, b) => b.length - a.length)) safe = safe.split(secret).join('[credential omitted]')
+  return safe
+}
 
 export function redactSecrets<T>(value: T): T {
   if (Array.isArray(value)) return value.map((v) => redactSecrets(v)) as T
   if (!value || typeof value !== 'object') return value
   const out: Record<string, unknown> = {}
   for (const [key, v] of Object.entries(value)) {
-    if (SECRET_KEYS.has(key)) continue
+    if (isSecretKey(key)) continue
     out[key] = redactSecrets(v)
   }
   return out as T

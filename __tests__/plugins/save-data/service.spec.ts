@@ -170,6 +170,25 @@ describe('struct', () => {
     expect(world.$gameParty._actors).toEqual([])
   })
 
+  it('refuses to undo a removal after the array structure changes again', () => {
+    world.$gameParty._actors.push(2, 3)
+    const page = SaveData.list(['party', '_actors'], 0, 200)
+    SaveData.run({ op: 'dataStruct', path: ['party', '_actors'], ownerOid: page.oid, action: 'remove', index: 1, confirmed: true })
+    world.$gameParty._actors.push(4)
+
+    expect(SaveData.run({ op: 'dataUndo' })).toMatchObject({ applied: false, reason: 'struct-moved' })
+    expect(world.$gameParty._actors).toEqual([1, 3, 4])
+  })
+
+  it('refuses to undo an added field after the game changes its value', () => {
+    const page = SaveData.list(['party'], 0, 200)
+    SaveData.run({ op: 'dataStruct', path: ['party'], ownerOid: page.oid, action: 'addKey', key: '_custom', valueType: 'number', value: 1 })
+    ;(world.$gameParty as Record<string, unknown>)._custom = 2
+
+    expect(SaveData.run({ op: 'dataUndo' })).toMatchObject({ applied: false, reason: 'struct-moved' })
+    expect((world.$gameParty as Record<string, unknown>)._custom).toBe(2)
+  })
+
   it('adds items and self switches through the engine', () => {
     const items = SaveData.list(['party', '_items'], 0, 200)
     SaveData.run({ op: 'dataStruct', path: ['party', '_items'], ownerOid: items.oid, action: 'addKey', key: '2', valueType: 'number', value: 4 })

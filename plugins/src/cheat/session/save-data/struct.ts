@@ -114,7 +114,16 @@ export function applyStruct(op: StructOp): DataStructResult {
       requireConfirm(op)
       index = asIndex(op.index, obj.length - 1)
       const [element] = obj.splice(index, 1)
-      step = { t: 'remove', path, ownerOid: c.oid, index, element }
+      step = {
+        t: 'remove',
+        path,
+        ownerOid: c.oid,
+        index,
+        element,
+        expectedLength: obj.length,
+        previous: index > 0 ? { exists: true, value: obj[index - 1] } : { exists: false },
+        next: index < obj.length ? { exists: true, value: obj[index] } : { exists: false },
+      }
     } else throw new DataError('数组不支持该操作', 'unsupported')
     target = String(index)
   } else {
@@ -124,8 +133,9 @@ export function applyStruct(op: StructOp): DataStructResult {
     if (op.action === 'addKey') {
       if (Object.prototype.hasOwnProperty.call(obj, key)) throw new DataError('字段已存在', 'invalid')
       if (key in obj || key.startsWith('@')) throw new DataError('该字段名会与游戏内部字段冲突', 'invalid')
-      obj[key] = primitiveOf(op)
-      step = { t: 'addKey', path, ownerOid: c.oid, key }
+      const value = primitiveOf(op)
+      obj[key] = value
+      step = { t: 'addKey', path, ownerOid: c.oid, key, value }
     } else if (op.action === 'removeKey') {
       requireConfirm(op)
       if (!isDataProperty(obj, key)) throw new DataError('字段不存在', 'missing')

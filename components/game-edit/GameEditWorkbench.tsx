@@ -313,6 +313,7 @@ export function GameEditWorkbench({
   const actorCount = catalog && tab === 'actor' ? catalog.actors.length : 0
   const showEditNav = isEditTab(tab)
   const eventsTab = isEventsTab(tab)
+  const eventSourceCount = !events?.data ? 0 : tab === 'map' ? events.data.mapIndex.nodes.length : events.data.events.length
   const activeTab = TABS.find((item) => item.id === tab)
   const refreshButton = (
     <Button
@@ -346,7 +347,7 @@ export function GameEditWorkbench({
       role="region"
       aria-label={t('edit.panelAria')}
     >
-      {surface === 'overlay' ? <GameEditMainNav tab={tab} lastEditTab={lastEditTab} setTab={setTab} refreshButton={refreshButton} closeButton={closeButton} /> : null}
+      {surface === 'overlay' ? <GameEditMainNav tab={tab} lastEditTab={lastEditTab} setTab={setTab} closeButton={closeButton} /> : null}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {surface === 'page' || showEditNav ? <GameEditTabNav tab={tab} setTab={setTab} surface={surface} /> : null}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -354,7 +355,7 @@ export function GameEditWorkbench({
             <div className={panelHead}>
               <PanelHeadTitle title={activeTab ? t(activeTab.labelKey) : t('edit.tabEdit')} description={tab === 'data' ? t('data.panelDesc') : t('edit.panelDesc')} />
               <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-8 flex-1 shrink justify-end overflow-hidden')}>
-                {showTableFilters || (eventsTab && events?.data?.events.length) ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
+                {showTableFilters || (eventsTab && eventSourceCount > 0) ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
                 <ScrollArea
                   indicator="horizontal"
                   reserveGutter={false}
@@ -691,7 +692,7 @@ export function GameEditWorkbench({
                       : tab === 'data'
                         ? t('data.footHint')
                         : eventsTab
-                          ? t('events.count', { count: events?.data?.events.length ?? 0 })
+                          ? t('events.count', { count: eventSourceCount })
                           : tab === 'actor'
                             ? t('edit.actorsCount', { count: actorCount })
                             : truncated

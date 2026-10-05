@@ -185,7 +185,17 @@ export function collectEntrances(into: Record<number, MapEntrance[]>, list: read
     const target = num(p[1])
     const entry: MapEntrance = { x: num(p[2]), y: num(p[3]), direction: num(p[4]), from }
     const list2 = (into[target] ??= [])
-    if (!list2.some((e) => e.x === entry.x && e.y === entry.y)) list2.push(entry)
+    const duplicate = list2.some(
+      (e) =>
+        e.x === entry.x &&
+        e.y === entry.y &&
+        e.direction === entry.direction &&
+        e.from.kind === entry.from.kind &&
+        e.from.id === entry.from.id &&
+        e.from.eventId === entry.from.eventId &&
+        e.from.page === entry.from.page
+    )
+    if (!duplicate) list2.push(entry)
   }
 }
 

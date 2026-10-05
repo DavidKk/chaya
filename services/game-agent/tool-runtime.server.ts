@@ -1,10 +1,12 @@
 import { CHAYA_MCP_SERVER } from '@/app/api/mcp/_tools'
+import { gameAgentProfileToolSpecs } from '@/lib/game-agent/profile-tool-specs'
 import { MCP_TOOLS } from '@/lib/integration/mcp-catalog'
 import { type AgentCaller, pluginToolRun } from '@/lib/integration/tools/live'
-import type { ToolRun } from '@/lib/integration/tools/types'
+import { redactSecrets, type ToolRun } from '@/lib/integration/tools/types'
 import { pluginToolDescription, pluginToolName } from '@/lib/runtime/plugin-tools'
 import { callAgentGame, listPluginTools } from '@/services/runtime/agent-bridge'
 
+import { createGameAgentProfile, deleteGameAgentProfile, type GameAgentProfilePatch, listGameAgentProfiles, updateGameAgentProfile } from './profile-tools.server'
 import type { OllamaTool } from './types'
 
 const RESULT_LIMIT = 16_000
@@ -19,7 +21,7 @@ type AgentTool = {
 export type GameAgentToolResult = { ok: boolean; content: string }
 
 function clipResult(value: unknown): string {
-  const text = JSON.stringify(value)
+  const text = JSON.stringify(redactSecrets(value))
   return text.length <= RESULT_LIMIT ? text : `${text.slice(0, RESULT_LIMIT)}...`
 }
 
@@ -32,6 +34,36 @@ function definition(name: string, description: string, parameters: Record<string
   return { type: 'function', function: { name, description, parameters } }
 }
 
+function profilePatch(args: Record<string, unknown>): GameAgentProfilePatch {
+  const patch: GameAgentProfilePatch = {}
+  for (const key of ['id', 'label', 'endpoint', 'defaultModel', 'keepAlive'] as const) {
+    if (typeof args[key] === 'string') patch[key] = args[key].trim()
+  }
+  if (typeof args.temperature === 'number') patch.temperature = args.temperature
+  if (typeof args.token === 'string') patch.token = args.token
+  if (typeof args.clearToken === 'boolean') patch.clearToken = args.clearToken
+  return patch
+}
+
+function requiredTarget(args: Record<string, unknown>) {
+  const target = typeof args.target === 'string' ? args.target.trim() : ''
+  if (!target) throw new Error('缺少参数 target')
+  return target
+}
+
+function agentProfileTools(): AgentTool[] {
+  return gameAgentProfileToolSpecs({ credentials: true }).map((spec): AgentTool => ({
+    definition: definition(spec.name, spec.description, spec.inputSchema),
+    readOnly: spec.readOnly,
+    run: async (args) => {
+      if (spec.name === 'chaya_agent_profiles') return listGameAgentProfiles()
+      if (spec.name === 'chaya_agent_profile_create') return createGameAgentProfile(profilePatch(args))
+      if (spec.name === 'chaya_agent_profile_update') return updateGameAgentProfile(requiredTarget(args), profilePatch(args))
+      return deleteGameAgentProfile(requiredTarget(args))
+    },
+  }))
+}
+
 export function createGameAgentTools(gameId?: string): AgentTool[] {
   const serverTools = new Map(CHAYA_MCP_SERVER.tools.map((tool) => [tool.name, tool]))
   const staticTools = MCP_TOOLS.filter((meta) => !meta.destructive && !meta.evalOnly && !EXCLUDED_TOOLS.has(meta.name) && serverTools.has(meta.name)).map((meta): AgentTool => ({
@@ -39,7 +71,8 @@ export function createGameAgentTools(gameId?: string): AgentTool[] {
     readOnly: meta.readOnly === true,
     run: serverTools.get(meta.name)!.run,
   }))
-  if (!gameId) return staticTools
+  const serviceTools = agentProfileTools()
+  if (!gameId) return [...serviceTools, ...staticTools]
   const call: AgentCaller = (_requestedGameId, method, params) => callAgentGame(gameId, method, params)
   const dynamicTools = listPluginTools()
     .filter((meta) => meta.gameIds.includes(gameId) && !meta.destructive)
@@ -54,11 +87,11 @@ export function createGameAgentTools(gameId?: string): AgentTool[] {
         run: pluginToolRun(meta, call),
       }
     })
-  return [...staticTools, ...dynamicTools]
+  return [...serviceTools, ...staticTools, ...dynamicTools]
 }
 
 async function verificationFor(toolName: string, gameId: string, _signal: AbortSignal): Promise<unknown> {
-  if (toolName === 'chaya_live_play') return undefined
+  if (toolName === 'chaya_live_play' || toolName.startsWith('chaya_agent_')) return undefined
   if (toolName.startsWith('chaya_edit_') || toolName.startsWith('chaya_plugin_boost_')) return callAgentGame(gameId, 'edit.state', {})
   return callAgentGame(gameId, 'game.state', {})
 }

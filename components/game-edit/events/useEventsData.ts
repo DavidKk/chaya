@@ -33,8 +33,9 @@ async function canUseDisk(): Promise<boolean> {
  * Loads only while `enabled`; the map detail follows `mapId`.
  */
 export function useEventsData({ enabled, mapId }: { enabled: boolean; mapId: number | null }) {
-  const { connected, send, subscribeMessages } = useGameLinkContext()
+  const { roomId, connected, send, subscribeMessages } = useGameLinkContext()
   const source: Source = connected ? 'live' : 'disk'
+  const sourceKey = source === 'live' ? `live:${roomId || ''}` : source
   const [data, setData] = useState<CommonEventsData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -42,7 +43,9 @@ export function useEventsData({ enabled, mapId }: { enabled: boolean; mapId: num
   const [mapDetail, setMapDetail] = useState<MapDetailData | null>(null)
   const [mapLoading, setMapLoading] = useState(false)
   const [mapError, setMapError] = useState('')
-  const loadedFor = useRef<Source | null>(null)
+  const loadedFor = useRef<string | null>(null)
+  const sourceKeyRef = useRef(sourceKey)
+  sourceKeyRef.current = sourceKey
   const mapRef = useRef(mapId)
   mapRef.current = mapId
   const eventsTimer = useRef<number | null>(null)
@@ -56,6 +59,7 @@ export function useEventsData({ enabled, mapId }: { enabled: boolean; mapId: num
   useEffect(
     () =>
       subscribeMessages((msg) => {
+        if (source !== 'live' || sourceKeyRef.current !== sourceKey) return
         if (msg.type === 'edit.events') {
           clearTimer(eventsTimer)
           if (msg.data.ok) {
@@ -74,8 +78,19 @@ export function useEventsData({ enabled, mapId }: { enabled: boolean; mapId: num
           setMapLoading(false)
         }
       }),
-    [subscribeMessages]
+    [source, sourceKey, subscribeMessages]
   )
+
+  useEffect(() => {
+    clearTimer(eventsTimer)
+    clearTimer(mapTimer)
+    loadedFor.current = null
+    setData(null)
+    setError('')
+    setUnavailable(false)
+    setMapDetail(null)
+    setMapError('')
+  }, [sourceKey])
 
   useEffect(
     () => () => {
@@ -87,13 +102,15 @@ export function useEventsData({ enabled, mapId }: { enabled: boolean; mapId: num
 
   const loadEvents = useCallback(
     async (force = false) => {
-      loadedFor.current = source
+      const requestSource = sourceKey
+      loadedFor.current = requestSource
       setLoading(true)
       setError('')
       setUnavailable(false)
       clearTimer(eventsTimer)
       if (source === 'live') {
         eventsTimer.current = window.setTimeout(() => {
+          if (sourceKeyRef.current !== requestSource) return
           setLoading(false)
           setError('游戏无响应')
         }, LINK_TIMEOUT_MS)
@@ -102,28 +119,33 @@ export function useEventsData({ enabled, mapId }: { enabled: boolean; mapId: num
       }
       try {
         if (!(await canUseDisk())) {
+          if (sourceKeyRef.current !== requestSource) return
           setData(null)
           setUnavailable(true)
           return
         }
-        setData(await fetchJson<CommonEventsData>('/api/game-edit/events'))
+        const next = await fetchJson<CommonEventsData>('/api/game-edit/events')
+        if (sourceKeyRef.current === requestSource) setData(next)
       } catch (err) {
+        if (sourceKeyRef.current !== requestSource) return
         setData(null)
         setError(err instanceof Error ? err.message : '加载失败')
       } finally {
-        setLoading(false)
+        if (sourceKeyRef.current === requestSource) setLoading(false)
       }
     },
-    [send, source]
+    [send, source, sourceKey]
   )
 
   const loadMap = useCallback(
     async (id: number) => {
+      const requestSource = sourceKey
       setMapLoading(true)
       setMapError('')
       clearTimer(mapTimer)
       if (source === 'live') {
         mapTimer.current = window.setTimeout(() => {
+          if (sourceKeyRef.current !== requestSource) return
           setMapLoading(false)
           setMapError('游戏无响应')
         }, LINK_TIMEOUT_MS)
@@ -132,20 +154,20 @@ export function useEventsData({ enabled, mapId }: { enabled: boolean; mapId: num
       }
       try {
         const detail = await fetchJson<MapDetailData>(`/api/game-edit/map?id=${id}`)
-        if (mapRef.current === id) setMapDetail(detail)
+        if (sourceKeyRef.current === requestSource && mapRef.current === id) setMapDetail(detail)
       } catch (err) {
-        if (mapRef.current === id) setMapError(err instanceof Error ? err.message : '加载失败')
+        if (sourceKeyRef.current === requestSource && mapRef.current === id) setMapError(err instanceof Error ? err.message : '加载失败')
       } finally {
-        if (mapRef.current === id) setMapLoading(false)
+        if (sourceKeyRef.current === requestSource && mapRef.current === id) setMapLoading(false)
       }
     },
-    [send, source]
+    [send, source, sourceKey]
   )
 
   useEffect(() => {
-    if (!enabled || loadedFor.current === source) return
+    if (!enabled || loadedFor.current === sourceKey) return
     void loadEvents()
-  }, [enabled, source, loadEvents])
+  }, [enabled, sourceKey, loadEvents])
 
   useEffect(() => {
     if (!enabled || mapId == null) return

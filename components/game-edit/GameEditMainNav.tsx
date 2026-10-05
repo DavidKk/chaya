@@ -14,11 +14,10 @@ type Props = {
   tab: TabId
   lastEditTab: TabId
   setTab: (tab: TabId) => void
-  refreshButton: ReactNode
   closeButton: ReactNode
 }
 
-export function GameEditMainNav({ tab, lastEditTab, setTab, refreshButton, closeButton }: Props) {
+export function GameEditMainNav({ tab, lastEditTab, setTab, closeButton }: Props) {
   const t = useT()
   const showEditNav = isEditTab(tab)
   return (
@@ -62,7 +61,6 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, refreshButton, close
         >
           <IoSparklesOutline size={17} aria-hidden />
         </Button>
-        {refreshButton}
         {closeButton}
       </div>
     </nav>

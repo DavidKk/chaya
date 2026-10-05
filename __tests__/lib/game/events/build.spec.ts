@@ -66,6 +66,16 @@ describe('buildCommonEventsData', () => {
     expect(data.switchRefs[9]).toBeUndefined()
   })
 
+  it('collects both target and operand variable references', () => {
+    const raw = sources()
+    raw.commonEvents![1] = { id: 1, name: 'Variables', trigger: 0, switchId: 0, list: [cmd(122, [3, 4, 0, 1, 9]), cmd(0)] }
+    const data = buildCommonEventsData(raw, tr, 'disk')
+    const ref = { kind: 'common', id: 1, name: 'Variables' }
+    expect(data.variableRefs[3]).toEqual([ref])
+    expect(data.variableRefs[4]).toEqual([ref])
+    expect(data.variableRefs[9]).toEqual([ref])
+  })
+
   it('translates choice texts including 402 branches', () => {
     const data = buildCommonEventsData(sources(), tr, 'disk')
     expect(data.texts).toEqual({ はい: '是' })

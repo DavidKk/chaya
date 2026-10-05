@@ -1,6 +1,6 @@
 # 修改：数据 技术方案
 
-> 状态：待实施（一次性完整实现）。需求见 [../edit-save-data.md](../edit-save-data.md)，下文「需求 §x」均指该文档。
+> 状态：已实现。需求见 [../edit-save-data.md](../edit-save-data.md)，下文「需求 §x」均指该文档。
 
 ## 1. 决策
 
@@ -328,22 +328,22 @@ interface SaveDataTransport {
   onStatus(cb: (status: DataStatus) => void): () => void
   search(path: DataPath, query: string, scope: SearchScope, onHits: (batch: SearchBatch) => void): () => void // 返回取消函数
   run(op: DataOp): Promise<unknown> // 写入类，resolve 为 ack.result
-  available: { ok: true } | { ok: false; reason: 'not-linked' | 'not-ready' }
 }
 ```
 
-- `LinkTransport`：`list` / `read` 用 `reqId` 关联 `data.page` / `data.value`，超时 15 秒；`run` 调 `runCmd`。断线时 `available = not-linked`。
-- `DirectTransport`（局内浮层）：直接调 `SaveDataService`，`watch` 创建本地 Watcher，`run` 同步执行后 resolve 结果。
+- `LinkTransport`：`list` / `read` 用 `reqId` 关联 `data.page` / `data.value`，超时 15 秒；`run` 调 `runCmd`。断线时 transport 置空并拒绝未完成请求。
+- `DirectTransport`（局内浮层）：直接调 `SaveDataService`，`watch` 创建本地 Watcher，`run` 同步执行后 resolve 结果；关闭页面时释放 watcher 并取消仍在分片执行的搜索。
 
 ### 7.2 状态（`store.ts`、`useSaveData.ts`）
 
 - **值 store**：`Map<pathKey, DataCell>` + 按键订阅；`data.diff` 只更新对应键并通知该键的订阅者。`DataRowView` 用 `useSyncExternalStore(subscribe(key), get(key))`，只有变化的行重渲；变化时行上加一个 600 ms 的高亮 class。
 - **草稿 store**：`Map<pathKey, Draft>`，`Draft = { path, label, type, raw, ownerOid, state: 'pending' | 'stale' | 'error', error? }`，同样按键订阅；输入框受控于草稿，不读值 store，因此值刷新不影响输入（需求 §4.3）。
-  - 失效判定（只有这四条）：
+  - 失效判定：
     1. 重取到草稿所在层时 `page.oid` 与草稿 `ownerOid` 不同（单独行经 `rows` / 搜索取到时比较 `DataRowAt.ownerOid`）。
     2. 本页结构修改成功后，同一数组下标 ≥ 变动下标的路径上的草稿（含其下层）。
     3. 代数变化：全部草稿。
     4. 写入回 `code: 'stale'`。
+    5. 网页连接断开或切换到另一个游戏房间：全部草稿；同时清空当前值与已写入标记，避免对象编号碰巧相同时写入另一局游戏。
   - 不在屏幕上的草稿不主动校验，提交时由游戏侧按 `ownerOid` 兜底。
 - **已写入标记**：本页会话内写入成功的 `pathKey` 集合，用于行首标记（需求 §4.1）。
   - 草稿随页面会话保存在模块级 store（同一标签页内切换分类不丢），刷新页面清空。
@@ -360,7 +360,7 @@ interface SaveDataTransport {
 
 ### 7.4 路由
 
-- `tabs.ts` 在 `map` 后新增 `data`（`labelKey: 'data.tab'`），`editDataHref(path)` 生成 `/cheat/data/<encodeURIComponent(seg)>/...`。
+- `tabs.ts` 在 `map` 后新增 `data`（`labelKey: 'data.tab'`），`editDataHref(path)` 使用仅包含 `[A-Za-z0-9_.-~]` 的可逆 UTF-8 十六进制编码生成路径，避免路由层重复解码 `%2F` 等字符。
 - `page.tsx`：`data` 分类下段数 ≤ 32、每段解码后 ≤ 256 字符，否则重定向到 `/cheat/data`；不校验路径是否存在（由游戏侧回答）。
 - 局内浮层没有 URL，当前路径保存在 `window.__chayaDataView`（同 `__chayaEventsView`）。
 

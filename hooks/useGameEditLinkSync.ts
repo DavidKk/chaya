@@ -27,6 +27,7 @@ import { EDIT_CMD_GIVE_UP_MS, EDIT_CMD_RETRY_MS, type EditPendingMap, expectForE
 import type { GameEditAck, GameEditCmd, GameEditCmdOp, GameEditStateMsg } from '@/lib/runtime/game-link-protocol'
 
 type SetSession = Dispatch<SetStateAction<SessionState>>
+type AckWaiter = { timer: number; finish: (ack: GameEditAck) => void; reject: (error: Error) => void }
 
 /** Scene / map fields pushed with every `edit.state` */
 export type GameLiveScene = { onMap: boolean; mapId: number; playerX: number; playerY: number; recentMaps: number[]; runningCommon: number[] }
@@ -63,7 +64,7 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
   const { roomId, connected, send, subscribeMessages, acquireEditSession } = useGameLinkContext()
   const [synced, setSynced] = useState(false)
   const [scene, setScene] = useState<GameLiveScene>(EMPTY_SCENE)
-  const ackWaitersRef = useRef(new Map<string, (ack: GameEditAck) => void>())
+  const ackWaitersRef = useRef(new Map<string, AckWaiter>())
   const catalogRef = useRef(onCatalog)
   catalogRef.current = onCatalog
   useEffect(() => {
@@ -97,7 +98,7 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
         const waiter = ackWaitersRef.current.get(msg.cmdId)
         if (waiter) {
           ackWaitersRef.current.delete(msg.cmdId)
-          waiter(msg)
+          waiter.finish(msg)
         }
         return
       }
@@ -125,6 +126,18 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
     }
   }, [connected, roomId, subscribeMessages, acquireEditSession, setSession, setLiveError, clearFields])
 
+  useEffect(
+    () => () => {
+      const error = new Error('游戏连接已断开')
+      for (const waiter of ackWaitersRef.current.values()) {
+        window.clearTimeout(waiter.timer)
+        waiter.reject(error)
+      }
+      ackWaitersRef.current.clear()
+    },
+    [connected, roomId]
+  )
+
   /** 未 ack 的命令定时重发；超时放弃 pending 以免永久卡住 */
   useEffect(() => {
     if (!connected) return
@@ -133,12 +146,11 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
       const map = pendingRef.current
       const byCmd = new Map<string, GameEditCmd>()
       for (const [field, entry] of map) {
-        const age = now - entry.sentAt
-        if (age >= EDIT_CMD_GIVE_UP_MS) {
+        if (now - entry.startedAt >= EDIT_CMD_GIVE_UP_MS) {
           map.delete(field)
           continue
         }
-        if (age >= EDIT_CMD_RETRY_MS) byCmd.set(entry.cmdId, entry.cmd)
+        if (now - entry.sentAt >= EDIT_CMD_RETRY_MS) byCmd.set(entry.cmdId, entry.cmd)
       }
       for (const cmd of byCmd.values()) {
         sendRef.current(cmd)
@@ -159,7 +171,7 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
     const sentAt = Date.now()
     const map = pendingRef.current
     for (const field of fields) {
-      map.set(field, { cmdId: cmd.cmdId, expect, sentAt, cmd })
+      map.set(field, { cmdId: cmd.cmdId, expect, startedAt: sentAt, sentAt, cmd })
     }
     sendRef.current(cmd)
     return cmd.cmdId
@@ -176,10 +188,14 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
           waiters.delete(cmdId)
           reject(new Error('游戏无响应'))
         }, EDIT_CMD_GIVE_UP_MS)
-        waiters.set(cmdId, (ack) => {
-          window.clearTimeout(timer)
-          if (ack.ok) resolve(ack.result)
-          else reject(new Error(ack.error || '操作失败'))
+        waiters.set(cmdId, {
+          timer,
+          reject,
+          finish: (ack) => {
+            window.clearTimeout(timer)
+            if (ack.ok) resolve(ack.result)
+            else reject(new Error(ack.error || '操作失败'))
+          },
         })
       }),
     [sendCmd]

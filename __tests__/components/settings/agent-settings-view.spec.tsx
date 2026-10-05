@@ -13,6 +13,11 @@ Object.defineProperty(window, 'matchMedia', {
   configurable: true,
   value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
 })
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver
 
 let host: HTMLDivElement
 let root: Root
@@ -96,7 +101,26 @@ test('lists multiple agents, opens a detail route, and saves edits through the s
   expect([...listCard.querySelectorAll<HTMLButtonElement>('button')].some((button) => button.textContent === '添加实例')).toBe(true)
 
   const editButtons = host.querySelectorAll<HTMLButtonElement>('button[aria-label="编辑 Agent"]')
+  const deleteButtons = listCard.querySelectorAll<HTMLButtonElement>('button[aria-label="删除"]')
   expect([...editButtons].every((button) => button.dataset.variant === 'plain' && button.className.includes('border-transparent'))).toBe(true)
+  expect(deleteButtons).toHaveLength(2)
+  expect(
+    [...listCard.querySelectorAll('li')].every((row) => {
+      const actions = [...row.querySelectorAll<HTMLButtonElement>('button')]
+      return actions.map((button) => button.getAttribute('aria-label')).join(',') === '编辑 Agent,删除'
+    })
+  ).toBe(true)
+
+  await act(async () => deleteButtons[1].click())
+  const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!
+  expect(dialog).not.toBeNull()
+  expect(dialog.textContent).toContain('Office Ollama')
+  expect(writes).toHaveLength(0)
+  const cancelDelete = [...dialog.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '取消')!
+  await act(async () => cancelDelete.click())
+  expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+  expect(writes).toHaveLength(0)
+
   await act(async () => editButtons[1].click())
   expect(host.textContent).toContain('Agent 使用的模型服务平台。')
   expect(host.textContent).toContain('模型在内存中保留的时长，例如 10m。')

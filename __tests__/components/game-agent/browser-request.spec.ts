@@ -1,4 +1,4 @@
-import { createBrowserGameAgentRequest } from '@/components/game-agent/browserRequest'
+import { buildBrowserAgentProfileTools, createBrowserGameAgentRequest } from '@/components/game-agent/browserRequest'
 
 const store = new Map<string, string>()
 Object.assign(globalThis, {
@@ -42,6 +42,27 @@ test('Edge adapter completes create, edit, delete, and reload with the shared se
     body: JSON.stringify({ settings: { ...initialBody.settings, profiles: [initialBody.settings.profiles[0]] } }),
   })
   expect((await removed.json()).settings.profiles.map((profile: { id: string }) => profile.id)).toEqual(['ollama-local'])
+})
+
+test('Edge Agent tools delete a configuration by display name', async () => {
+  const request = createBrowserGameAgentRequest({ connected: false })
+  const initial = await request('/api/integration/game-agent')
+  const initialSettings = (await initial.json()).settings
+  await request('/api/integration/game-agent', {
+    method: 'PUT',
+    body: JSON.stringify({
+      settings: { ...initialSettings, profiles: [...initialSettings.profiles, { ...initialSettings.profiles[0], id: 'flow-local', label: 'Flow Local' }] },
+    }),
+  })
+  const tool = buildBrowserAgentProfileTools().find((candidate) => candidate.name === 'chaya_agent_profile_delete')
+
+  expect(tool?.description).toContain('delete the Agent named Flow Local')
+  expect(await tool?.execute({ target: 'Flow Local' })).toMatchObject({
+    ok: true,
+    result: { deleted: { id: 'flow-local', label: 'Flow Local' }, count: 1 },
+  })
+  const reloaded = await request('/api/integration/game-agent')
+  expect((await reloaded.json()).settings.profiles.map((profile: { id: string }) => profile.id)).toEqual(['ollama-local'])
 })
 
 test('Edge adapter enables the shared Agent panel from cached models without requiring a game', async () => {

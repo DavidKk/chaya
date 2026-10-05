@@ -1,7 +1,8 @@
 import { executeRegisteredPageTool, listRegisteredPageTools } from '@/initializer/webmcp/register-page-tools'
+import { collectSecretValues, redactSecrets, redactSecretText } from '@/lib/integration/tools/types'
 import { appendBrowserLog } from '@/lib/log/link-log-store'
 import { streamOllamaChat } from '@/services/game-agent/ollama-client'
-import { buildAskMessages } from '@/services/game-agent/prompt'
+import { buildAskMessages, shouldOfferAgentTools } from '@/services/game-agent/prompt'
 import type { GameAgentEvent, GameAgentMessage, OllamaTool } from '@/services/game-agent/types'
 
 import type { BrowserAgentProfile } from './browserRequest'
@@ -72,7 +73,8 @@ export function createBrowserAgentRuntime() {
           emit({ type: 'turn.started', turnId, sessionId: session.id })
           emit({ type: 'phase', phase: 'observing', step: 0, maxSteps: MAX_TOOL_STEPS })
           const messages = buildAskMessages({ history: session.messages, prompt: input.prompt, locale: input.locale })
-          const tools = asTools()
+          const tools = shouldOfferAgentTools(input.prompt) ? asTools() : []
+          const credentials = new Set<string>()
           let answer = ''
           for (let step = 1; step <= MAX_TOOL_STEPS; step += 1) {
             emit({ type: 'phase', phase: 'thinking', step, maxSteps: MAX_TOOL_STEPS })
@@ -96,13 +98,14 @@ export function createBrowserAgentRuntime() {
               continue
             }
             for (const [index, call] of message.tool_calls.entries()) {
+              collectSecretValues(call.function.arguments, credentials)
               const callId = `${step}-${index}`
               const startedAt = Date.now()
               appendBrowserLog({
                 level: 'info',
                 source: 'ChayaAgent',
                 message: `tool.started ${call.function.name}`,
-                meta: { event: 'tool.started', callId, tool: call.function.name, args: call.function.arguments, turnId, sessionId: session.id, model: input.model },
+                meta: { event: 'tool.started', callId, tool: call.function.name, args: redactSecrets(call.function.arguments), turnId, sessionId: session.id, model: input.model },
               })
               emit({ type: 'tool.started', callId, name: call.function.name })
               let result: unknown
@@ -119,8 +122,8 @@ export function createBrowserAgentRuntime() {
                 meta: { event: 'tool.completed', callId, tool: call.function.name, ok, durationMs: Date.now() - startedAt, turnId, sessionId: session.id, model: input.model },
               })
               // eslint-disable-next-line no-console -- Edge has no server log store; keep Agent tool calls inspectable in DevTools.
-              console.info('[ChayaAgent]', 'tool.completed', { tool: call.function.name, args: call.function.arguments, ok })
-              messages.push({ role: 'tool', tool_name: call.function.name, content: clipped(result) })
+              console.info('[ChayaAgent]', 'tool.completed', { tool: call.function.name, args: redactSecrets(call.function.arguments), ok })
+              messages.push({ role: 'tool', tool_name: call.function.name, content: clipped(redactSecrets(result)) })
               emit({ type: 'tool.completed', callId, name: call.function.name, ok })
             }
           }
@@ -138,7 +141,8 @@ export function createBrowserAgentRuntime() {
             )
             answer = final.content.trim() || '操作未完成：已达到工具调用步数上限。'
           }
-          session.messages.push({ role: 'user', content: input.prompt }, { role: 'assistant', content: answer })
+          answer = redactSecretText(answer, credentials)
+          session.messages.push({ role: 'user', content: redactSecretText(input.prompt, credentials) }, { role: 'assistant', content: answer })
           session.messages = session.messages.slice(-12)
           emit({ type: 'assistant.delta', text: answer })
           emit({ type: 'turn.completed', text: answer, reason: 'answered' })

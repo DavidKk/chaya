@@ -2,6 +2,7 @@ import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
 import { canUseDisk } from '@/lib/service-mode/mode'
 import { listOllamaModels, pickAvailableModel } from '@/services/game-agent/ollama-client'
+import { readGameAgentToken } from '@/services/game-agent/secrets'
 import { getSessionForGame } from '@/services/game-agent/session-store'
 import { loadGameAgentSettings } from '@/services/game-agent/settings'
 import { listAgentGames } from '@/services/runtime/agent-bridge'
@@ -20,7 +21,7 @@ export const GET = defineApiRoute('get:/api/game-agent/status', async ({ request
   const profiles = await Promise.all(
     settings.profiles.map(async (profile) => {
       try {
-        const models = await listOllamaModels(profile.endpoint, fetch, AbortSignal.timeout(3_000))
+        const models = await listOllamaModels(profile.endpoint, fetch, AbortSignal.timeout(3_000), readGameAgentToken(profile.id))
         return {
           id: profile.id,
           label: profile.label,

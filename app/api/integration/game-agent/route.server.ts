@@ -4,6 +4,7 @@ import { agentSettingsFromSyncDocument, type AgentSyncDocument } from '@/lib/gam
 import { canUseDisk } from '@/lib/service-mode/mode'
 import { loadAgentModelCache, saveAgentModelCache } from '@/services/game-agent/model-cache'
 import { listOllamaModels, pickDefaultModel } from '@/services/game-agent/ollama-client'
+import { readGameAgentToken } from '@/services/game-agent/secrets'
 import {
   type GameAgentProfile,
   type GameAgentSettings,
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic'
 
 async function testProfile(value: Partial<GameAgentProfile>) {
   const profile = normalizeGameAgentProfile(value)
-  const models = await listOllamaModels(profile.endpoint, fetch, AbortSignal.timeout(5_000))
+  const models = await listOllamaModels(profile.endpoint, fetch, AbortSignal.timeout(5_000), readGameAgentToken(profile.id))
   saveAgentModelCache(profile, models)
   const defaultModel = models.some((model) => model.name === profile.defaultModel) ? profile.defaultModel : pickDefaultModel(models)
   return { profileId: profile.id, models, defaultModel }

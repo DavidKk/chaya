@@ -3,13 +3,14 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
+import { buildBrowserAgentProfileTools } from '@/components/game-agent/browserRequest'
 import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { INTEGRATION_TABS } from '@/components/integration/tabs'
 import { TRANSLATE_TABS } from '@/components/translate/tabs'
 import { createPageToolSync, registerPageTools } from '@/initializer/webmcp/register-page-tools'
 import { usePageWebMcp } from '@/initializer/webmcp/usePageWebMcp'
 import { edgeUnavailableTools } from '@/lib/webmcp/mode-matrix'
-import { MCP_REGISTRAR_ID, PLUGINS_REGISTRAR_ID } from '@/lib/webmcp/registrars'
+import { AGENT_PROFILES_REGISTRAR_ID, MCP_REGISTRAR_ID, PLUGINS_REGISTRAR_ID } from '@/lib/webmcp/registrars'
 
 import { buildEdgeMcpTools, loadEdgePluginTools } from './edge'
 import type { EdgeLinkDeps } from './edge/link'
@@ -123,6 +124,7 @@ export function ChayaWebMcpHost() {
         serviceMode,
       })
       registerPageTools(MCP_REGISTRAR_ID, edgeTools, controller.signal).catch((error: unknown) => logFailure(MCP_REGISTRAR_ID, error))
+      registerPageTools(AGENT_PROFILES_REGISTRAR_ID, buildBrowserAgentProfileTools(), controller.signal).catch((error: unknown) => logFailure(AGENT_PROFILES_REGISTRAR_ID, error))
     }
     return () => controller.abort()
   }, [authed, edge, serviceMode, supported])

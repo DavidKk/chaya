@@ -10,7 +10,7 @@ describe('shared tool factories', () => {
   it('builds query paths and redacts secrets', () => {
     expect(pathWithQuery('/api/x', { q: 'a b', page: 2, empty: undefined })).toBe('/api/x?q=a+b&page=2')
     expect(pathWithQuery('/api/x', undefined)).toBe('/api/x')
-    expect(redactSecrets({ token: 'secret', apiKey: 'k', data: { ok: 1 } })).not.toHaveProperty('token')
+    expect(redactSecrets({ token: 'secret', apiKey: 'k', password: 'p', hasToken: true, data: { ok: 1 } })).toEqual({ hasToken: true, data: { ok: 1 } })
   })
 
   it('cache tools call the translate-cache API through the injected invoke', async () => {

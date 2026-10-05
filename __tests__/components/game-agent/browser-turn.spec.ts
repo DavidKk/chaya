@@ -60,3 +60,20 @@ test('Edge Agent executes a registered WebMCP tool without a connected game', as
   )
   controller.abort()
 })
+
+test('Edge Agent does not offer WebMCP tools for a presence check', async () => {
+  const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
+  chat.mockResolvedValueOnce({ role: 'assistant', content: '在，有什么需要？' })
+
+  const response = createBrowserAgentRuntime().start({
+    profile: { id: 'local', label: 'Local', provider: 'ollama', endpoint: 'http://127.0.0.1:11434', defaultModel: 'gemma', temperature: 0.2, keepAlive: '10m' },
+    model: 'gemma',
+    prompt: '在吗',
+    locale: 'zh-CN',
+  })
+  const text = await response.text()
+
+  expect(chat.mock.calls[0][0].tools).toEqual([])
+  expect(text).not.toContain('tool.started')
+  expect(text).toContain('在，有什么需要？')
+})

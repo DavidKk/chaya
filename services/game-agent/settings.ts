@@ -73,7 +73,7 @@ export function normalizeGameAgentEndpoint(value: unknown): string {
   return url.toString().replace(/\/$/, '')
 }
 
-export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fallbackId = randomUUID()): GameAgentProfile {
+export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fallbackId: string = randomUUID()): GameAgentProfile {
   if (value.provider && value.provider !== 'ollama') throw new Error(`暂不支持接入类型：${String(value.provider)}`)
   const temperature = Number(value.temperature ?? 0.2)
   if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new Error('Temperature 必须在 0 到 2 之间')

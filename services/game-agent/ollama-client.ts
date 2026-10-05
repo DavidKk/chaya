@@ -7,10 +7,14 @@ function messageFrom(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-export async function listOllamaModels(endpoint = DEFAULT_OLLAMA_HOST, fetcher: typeof fetch = fetch, signal?: AbortSignal): Promise<OllamaModel[]> {
+function authorizationHeaders(token?: string) {
+  return token ? { Authorization: `Bearer ${token}` } : undefined
+}
+
+export async function listOllamaModels(endpoint = DEFAULT_OLLAMA_HOST, fetcher: typeof fetch = fetch, signal?: AbortSignal, token?: string): Promise<OllamaModel[]> {
   let response: Response
   try {
-    response = await fetcher(`${endpoint.replace(/\/$/, '')}/api/tags`, { signal, cache: 'no-store' })
+    response = await fetcher(`${endpoint.replace(/\/$/, '')}/api/tags`, { signal, cache: 'no-store', headers: authorizationHeaders(token) })
   } catch (error) {
     throw new Error(`无法连接 Ollama：${messageFrom(error)}`)
   }
@@ -34,7 +38,7 @@ export function pickAvailableModel(models: OllamaModel[], preferred?: string): s
 }
 
 export async function streamOllamaChat(
-  input: { endpoint?: string; model: string; messages: GameAgentMessage[]; tools?: OllamaTool[]; temperature?: number; keepAlive?: string; signal?: AbortSignal },
+  input: { endpoint?: string; model: string; messages: GameAgentMessage[]; tools?: OllamaTool[]; temperature?: number; keepAlive?: string; token?: string; signal?: AbortSignal },
   onDelta: (text: string) => void,
   fetcher: typeof fetch = fetch
 ): Promise<GameAgentMessage> {
@@ -42,7 +46,7 @@ export async function streamOllamaChat(
   try {
     response = await fetcher(`${(input.endpoint || DEFAULT_OLLAMA_HOST).replace(/\/$/, '')}/api/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authorizationHeaders(input.token) },
       body: JSON.stringify({
         model: input.model,
         stream: true,
