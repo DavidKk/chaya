@@ -1,11 +1,9 @@
-import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
+import { CHAYA_MCP_SERVER } from '@/app/api/mcp/_tools'
 import { MCP_TOOLS } from '@/lib/integration/mcp-catalog'
-import { makeCatalogTools } from '@/lib/integration/tools/catalog'
-import { makeEditTools } from '@/lib/integration/tools/edit'
-import { type AgentCaller, makeLiveTools, pluginToolRun } from '@/lib/integration/tools/live'
-import type { ToolImpls, ToolRun } from '@/lib/integration/tools/types'
+import { type AgentCaller, pluginToolRun } from '@/lib/integration/tools/live'
+import type { ToolRun } from '@/lib/integration/tools/types'
 import { pluginToolDescription, pluginToolName } from '@/lib/runtime/plugin-tools'
-import { callAgentGame, listAgentGames, listPluginTools } from '@/services/runtime/agent-bridge'
+import { callAgentGame, listPluginTools } from '@/services/runtime/agent-bridge'
 
 import type { OllamaTool } from './types'
 
@@ -34,20 +32,15 @@ function definition(name: string, description: string, parameters: Record<string
   return { type: 'function', function: { name, description, parameters } }
 }
 
-export function createGameAgentTools(gameId: string): AgentTool[] {
-  const call: AgentCaller = (_requestedGameId, method, params) => callAgentGame(gameId, method, params)
-  const implementations: ToolImpls = {
-    ...makeLiveTools({ games: () => listAgentGames().filter((game) => game.gameId === gameId), call }),
-    ...makeEditTools(call),
-    ...makeCatalogTools(async () => (await callAgentGame(gameId, 'edit.catalog', {})) as Partial<GameEditCatalog>),
-  }
-  const staticTools = MCP_TOOLS.filter(
-    (meta) => (meta.group === 'live' || meta.group === 'edit') && !meta.destructive && !meta.evalOnly && !EXCLUDED_TOOLS.has(meta.name) && implementations[meta.name]
-  ).map((meta): AgentTool => ({
+export function createGameAgentTools(gameId?: string): AgentTool[] {
+  const serverTools = new Map(CHAYA_MCP_SERVER.tools.map((tool) => [tool.name, tool]))
+  const staticTools = MCP_TOOLS.filter((meta) => !meta.destructive && !meta.evalOnly && !EXCLUDED_TOOLS.has(meta.name) && serverTools.has(meta.name)).map((meta): AgentTool => ({
     definition: definition(meta.name, meta.description, meta.inputSchema),
     readOnly: meta.readOnly === true,
-    run: implementations[meta.name],
+    run: serverTools.get(meta.name)!.run,
   }))
+  if (!gameId) return staticTools
+  const call: AgentCaller = (_requestedGameId, method, params) => callAgentGame(gameId, method, params)
   const dynamicTools = listPluginTools()
     .filter((meta) => meta.gameIds.includes(gameId) && !meta.destructive)
     .map((meta): AgentTool => {
@@ -70,17 +63,23 @@ async function verificationFor(toolName: string, gameId: string, _signal: AbortS
   return callAgentGame(gameId, 'game.state', {})
 }
 
-export async function executeGameAgentTool(tools: AgentTool[], name: string, args: Record<string, unknown>, gameId: string, signal: AbortSignal): Promise<GameAgentToolResult> {
+export async function executeGameAgentTool(
+  tools: AgentTool[],
+  name: string,
+  args: Record<string, unknown>,
+  gameId: string | undefined,
+  signal: AbortSignal
+): Promise<GameAgentToolResult> {
   const tool = tools.find((candidate) => candidate.definition.function.name === name)
   if (!tool) return { ok: false, content: clipResult({ ok: false, error: `Tool is not available in this turn: ${name}` }) }
-  const boundArgs = hasGameId(tool.definition.function.parameters) ? { ...args, gameId } : args
+  const boundArgs = gameId && hasGameId(tool.definition.function.parameters) ? { ...args, gameId } : args
   let result: unknown
   try {
     result = await tool.run(boundArgs, { signal })
   } catch (error) {
     return { ok: false, content: clipResult({ ok: false, error: error instanceof Error ? error.message : String(error) }) }
   }
-  if (tool.readOnly) return { ok: true, content: clipResult({ ok: true, result }) }
+  if (tool.readOnly || !gameId) return { ok: true, content: clipResult({ ok: true, result }) }
   try {
     const verification = await verificationFor(name, gameId, signal)
     return { ok: true, content: clipResult({ ok: true, result, ...(verification === undefined ? {} : { verification }) }) }

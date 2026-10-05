@@ -8,6 +8,7 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
 import { LogEntriesSkeleton, LogEntriesView, matchesLogQuery } from '@/components/LogEntriesView'
 import { LogLevelMultiSelect } from '@/components/LogLevelMultiSelect'
+import { PanelHeadTitle } from '@/components/PanelHeadTitle'
 import { Badge, Button, TextInput } from '@/components/sk'
 import { clearLinkLogs, readLinkLogs, subscribeLinkLogs } from '@/lib/log/link-log-store'
 import { LOG_LEVELS, type LogEntry, type LogLevel } from '@/lib/log/types'
@@ -123,6 +124,7 @@ export function LogPanel() {
   return (
     <div className={panelShell} role="region" aria-label={t('logs.region')}>
       <div className={panelHead}>
+        <PanelHeadTitle title={t('logs.region')} description={t('logs.regionDesc')} />
         <div className={panelHeadEnd}>
           <Badge tone={connected ? 'ok' : 'neutral'}>{connected ? t('logs.live') : browserMode ? t('logs.waitGame') : t('logs.streamDown')}</Badge>
           <TextInput

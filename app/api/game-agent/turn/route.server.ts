@@ -2,7 +2,7 @@ import { defineApiRoute } from '@/initializer/controller'
 import { apiError } from '@/initializer/response'
 import { beginTurn, getOrCreateSession, stopTurn } from '@/services/game-agent/session-store'
 import { loadGameAgentSettings, profileById } from '@/services/game-agent/settings'
-import { runAskTurn } from '@/services/game-agent/turn-runner'
+import { runAskTurn } from '@/services/game-agent/turn-runner.server'
 import type { GameAgentEvent, StartTurnInput } from '@/services/game-agent/types'
 
 export const runtime = 'nodejs'

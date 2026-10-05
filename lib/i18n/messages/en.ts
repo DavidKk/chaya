@@ -7,7 +7,18 @@ import type { MessageTree } from '@/lib/i18n/messages/types'
 
 const commonEn = {
   locale: { label: 'Language', switch: 'Language', auto: 'System ({name})' },
-  nav: { main: 'Nav', library: 'Library', edit: 'Edit', translate: 'Translate', logs: 'Logs', integration: 'Integrations', settings: 'Settings' },
+  nav: {
+    main: 'Nav',
+    menu: 'Navigation',
+    openMenu: 'Open navigation menu',
+    closeMenu: 'Close navigation menu',
+    library: 'Library',
+    edit: 'Edit',
+    translate: 'Translate',
+    logs: 'Logs',
+    integration: 'Integrations',
+    settings: 'Settings',
+  },
   common: {
     close: 'Close',
     cancel: 'Cancel',

@@ -3,8 +3,27 @@ jest.mock('@/services/runtime/agent-bridge', () => ({
   listAgentGames: jest.fn(),
   listPluginTools: jest.fn(),
 }))
+jest.mock('@/app/api/mcp/_tools', () => ({
+  CHAYA_MCP_SERVER: {
+    tools: [
+      {
+        name: 'chaya_live_state',
+        run: (args: Record<string, unknown>) =>
+          (jest.requireMock('@/services/runtime/agent-bridge') as { callAgentGame: jest.Mock }).callAgentGame(String(args.gameId || ''), 'game.state', {}),
+      },
+      { name: 'chaya_live_play', run: jest.fn(async () => ({ played: true })) },
+      {
+        name: 'chaya_edit_set',
+        run: (args: Record<string, unknown>) =>
+          (jest.requireMock('@/services/runtime/agent-bridge') as { callAgentGame: jest.Mock }).callAgentGame(String(args.gameId || ''), 'edit.apply', {
+            op: { op: args.op, value: args.value },
+          }),
+      },
+    ],
+  },
+}))
 
-import { createGameAgentTools, executeGameAgentTool } from '@/services/game-agent/tool-runtime'
+import { createGameAgentTools, executeGameAgentTool } from '@/services/game-agent/tool-runtime.server'
 import { callAgentGame, listAgentGames, listPluginTools } from '@/services/runtime/agent-bridge'
 
 const mockedCall = callAgentGame as jest.MockedFunction<typeof callAgentGame>

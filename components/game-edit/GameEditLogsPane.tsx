@@ -7,6 +7,7 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { panelHead, panelHeadEnd } from '@/components/layoutClasses'
 import { LogEntriesView, matchesLogQuery } from '@/components/LogEntriesView'
 import { LogLevelMultiSelect } from '@/components/LogLevelMultiSelect'
+import { PanelHeadTitle } from '@/components/PanelHeadTitle'
 import { Button, TextInput } from '@/components/sk'
 import { LOG_LEVELS, type LogLevel } from '@/lib/log/types'
 
@@ -63,6 +64,7 @@ export function GameEditLogsPane() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className={panelHead}>
+        <PanelHeadTitle title={t('logs.region')} description={t('logs.regionDesc')} />
         <div className={panelHeadEnd}>
           <TextInput
             search

@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
-import { IoChevronBackOutline, IoChevronForwardOutline, IoCreateOutline, IoPlaySkipBackOutline, IoPlaySkipForwardOutline, IoTrashOutline } from 'react-icons/io5'
+import { IoChevronBackOutline, IoChevronForwardOutline, IoPlaySkipBackOutline, IoPlaySkipForwardOutline, IoTrashOutline } from 'react-icons/io5'
 import { RiTranslateAi2 } from 'react-icons/ri'
+import { TbPencilCog } from 'react-icons/tb'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
@@ -412,7 +413,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery }: QueryState) 
                   <td className="align-middle">
                     <div className="inline-flex items-center gap-1">
                       <Button
-                        variant="ghost"
+                        variant="plain"
                         size="icon"
                         disabled={busy}
                         loading={retranslatingSrc === row.src}
@@ -423,16 +424,16 @@ export function CacheBrowserContent({ searchParams, replaceQuery }: QueryState) 
                         <RiTranslateAi2 size={16} aria-hidden />
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="plain"
                         size="icon"
                         disabled={busy}
                         aria-label={t('translate.cacheModify')}
                         tooltip={t('translate.cacheModify')}
                         onClick={() => setEdit({ src: row.src, zh: row.zh, nsfw: row.nsfw })}
                       >
-                        <IoCreateOutline size={16} aria-hidden />
+                        <TbPencilCog size={16} aria-hidden />
                       </Button>
-                      <Button variant="ghost" size="icon" disabled={busy} aria-label={t('common.remove')} tooltip={t('common.remove')} onClick={() => void askDelete(row)}>
+                      <Button variant="plain" size="icon" disabled={busy} aria-label={t('common.remove')} tooltip={t('common.remove')} onClick={() => void askDelete(row)}>
                         <IoTrashOutline size={16} aria-hidden />
                       </Button>
                     </div>

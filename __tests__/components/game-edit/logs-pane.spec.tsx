@@ -61,6 +61,8 @@ test('uses the shared Web level filter and copies only the visible entries', asy
         </LocaleProvider>
       )
     )
+    expect(shadow.textContent).toContain('插件日志')
+    expect(shadow.textContent).toContain('实时查看、筛选并管理 Chaya 插件运行日志。')
     expect(shadow.querySelectorAll('[aria-label="局内插件日志"] tbody tr')).toHaveLength(2)
     expect(shadow.textContent).not.toContain('实时流')
     expect(shadow.querySelector('[aria-label="暂停"]')).toBeNull()

@@ -7,7 +7,18 @@ import type { MessageTree } from '@/lib/i18n/messages/types'
 
 const base = {
   locale: { label: '언어', switch: '언어', auto: '시스템 ({name})' },
-  nav: { main: '탐색', library: '보관함', edit: '수정', translate: '번역', logs: '로그', integration: '연동', settings: '설정' },
+  nav: {
+    main: '탐색',
+    menu: '탐색',
+    openMenu: '탐색 메뉴 열기',
+    closeMenu: '탐색 메뉴 닫기',
+    library: '보관함',
+    edit: '수정',
+    translate: '번역',
+    logs: '로그',
+    integration: '연동',
+    settings: '설정',
+  },
   common: {
     close: '닫기',
     cancel: '취소',

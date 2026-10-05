@@ -2,6 +2,7 @@ import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
 import { agentSettingsFromSyncDocument, type AgentSyncDocument } from '@/lib/game-agent/settings-sync'
 import { canUseDisk } from '@/lib/service-mode/mode'
+import { loadAgentModelCache, saveAgentModelCache } from '@/services/game-agent/model-cache'
 import { listOllamaModels, pickDefaultModel } from '@/services/game-agent/ollama-client'
 import {
   type GameAgentProfile,
@@ -18,20 +19,23 @@ export const dynamic = 'force-dynamic'
 async function testProfile(value: Partial<GameAgentProfile>) {
   const profile = normalizeGameAgentProfile(value)
   const models = await listOllamaModels(profile.endpoint, fetch, AbortSignal.timeout(5_000))
-  return { profileId: profile.id, models, defaultModel: profile.defaultModel || pickDefaultModel(models) }
+  saveAgentModelCache(profile, models)
+  const defaultModel = models.some((model) => model.name === profile.defaultModel) ? profile.defaultModel : pickDefaultModel(models)
+  return { profileId: profile.id, models, defaultModel }
 }
 
 export const GET = defineApiRoute('get:/api/integration/game-agent', async () => {
   if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent 配置仅在 Chaya App 或本机服务中可用')
   let sync = loadGameAgentSyncDocument()
   if (agentSettingsFromSyncDocument(sync).profiles.length === 0) sync = updateGameAgentSyncFromSettings({ profiles: [] }).sync
-  return apiOk({ settings: agentSettingsFromSyncDocument(sync), sync })
+  const settings = agentSettingsFromSyncDocument(sync)
+  return apiOk({ settings, sync, models: loadAgentModelCache(settings.profiles) })
 })
 
 export const POST = defineApiRoute('post:/api/integration/game-agent', async ({ request }) => {
   if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent 配置仅在 Chaya App 或本机服务中可用')
   const body = (await request.json().catch(() => null)) as { action?: unknown; profile?: Partial<GameAgentProfile> } | null
-  if (body?.action !== 'test' || !body.profile) return apiError(400, 'INVALID_AGENT_ACTION', '仅支持 test 操作')
+  if ((body?.action !== 'test' && body?.action !== 'models') || !body.profile) return apiError(400, 'INVALID_AGENT_ACTION', '仅支持 test 或 models 操作')
   try {
     return apiOk(await testProfile(body.profile))
   } catch (error) {

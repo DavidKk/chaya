@@ -68,6 +68,7 @@ export type IntegrationMessages = {
   agentTestDesc: string
   agentTesting: string
   agentConnected: string
+  agentModelsRefreshed: string
   agentSave: string
   agentSaved: string
   agentDelete: string

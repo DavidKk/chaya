@@ -61,7 +61,7 @@ function ServerModeNote() {
 }
 
 /** WebMCP 子页：左半「接入 + 已注册分组」与工具说明，右半浏览器支持状态与启用步骤 */
-export function WebMcpView() {
+export function WebMcpView({ embedded = false }: { embedded?: boolean }) {
   const t = useT()
   const [report, setReport] = useState<WebMcpSupportReport | null>(null)
   const [section, setSection] = useState<string>(SETUP)
@@ -169,7 +169,7 @@ export function WebMcpView() {
               {t('integration.webmcpModesTitle')}
             </h3>
             <p className="m-0 text-xs leading-relaxed text-ink">{t('integration.webmcpIntro')}</p>
-            <ServerModeNote />
+            {embedded ? null : <ServerModeNote />}
             {groups.length === 0 ? <p className="m-0 text-xs text-ink-soft">{t('integration.webmcpEmpty')}</p> : null}
           </section>
         </>

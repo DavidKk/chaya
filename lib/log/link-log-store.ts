@@ -12,6 +12,7 @@ const MAX = 1000
 let entries: readonly LogEntry[] = []
 /** 用户清空的时间点：重连补发的积压不再出现 */
 let clearedAt = 0
+let browserLogId = 0
 const seen = new Set<string>()
 const listeners = new Set<() => void>()
 
@@ -42,12 +43,30 @@ export function appendLinkLogs(batch: readonly GameLinkLogEntry[]): void {
     })
   }
   if (!fresh.length) return
+  appendEntries(fresh)
+}
+
+function appendEntries(fresh: LogEntry[]): void {
   const next = [...entries, ...fresh].sort((a, b) => a.ts - b.ts)
   if (next.length > MAX) {
     for (const dropped of next.splice(0, next.length - MAX)) seen.delete(dropped.id)
   }
   entries = next
   emit()
+}
+
+/** Browser-side events such as Edge Agent calls share the same log view as game-link logs. */
+export function appendBrowserLog(entry: { level: string; source: string; message: string; meta?: unknown }): void {
+  appendEntries([
+    {
+      id: `browser-${++browserLogId}`,
+      ts: Date.now(),
+      level: normalizeLogLevel(entry.level),
+      source: entry.source.slice(0, 64),
+      message: entry.message.slice(0, 8000),
+      meta: entry.meta,
+    },
+  ])
 }
 
 /** 返回稳定引用（无变化时同一数组），可直接用于 useSyncExternalStore */

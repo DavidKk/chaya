@@ -25,12 +25,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           end={
             <Button
               variant="ghost"
+              size="icon"
               className="aria-expanded:border-[rgb(230_238_248/0.18)] aria-expanded:bg-[rgb(230_238_248/0.06)] aria-expanded:text-ink"
+              aria-label="Chaya 助手"
+              tooltip="Chaya 助手"
               aria-expanded={agentOpen}
               onClick={() => setAgentOpen((open) => !open)}
             >
               <Bot size={15} aria-hidden />
-              Chaya 助手
             </Button>
           }
         />

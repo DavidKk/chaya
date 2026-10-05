@@ -24,6 +24,7 @@ export const editZh = {
     states: '状态',
     skills: '技能',
     panelAria: '游戏编辑',
+    panelDesc: '修改当前游戏的运行状态、数据与快捷操作。',
     filtersAria: '筛选与操作',
     onlyOwned: '仅已有',
     onlyNamed: '仅有名',
@@ -261,6 +262,7 @@ export const editZh = {
   },
   logs: {
     region: '插件日志',
+    regionDesc: '实时查看、筛选并管理 Chaya 插件运行日志。',
     live: '实时',
     streamDown: '中断',
     searchPh: '搜索来源 / 消息…',

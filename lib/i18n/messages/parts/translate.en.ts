@@ -11,6 +11,8 @@ export const translateEn = {
     tabCache: 'Cache',
     regionRun: 'Translate',
     regionCache: 'Shared cache',
+    regionRunDesc: 'Configure play translation, then extract and translate text for the current game.',
+    regionCacheDesc: 'View, search, and maintain translations for the current game.',
     configAria: 'Translate settings',
     taskAria: 'Translate jobs',
     playTab: 'Play',

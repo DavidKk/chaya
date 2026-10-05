@@ -98,7 +98,6 @@ export function ChayaWebMcpHost() {
   )
 
   useEffect(() => {
-    if (!supported) return
     let cancelled = false
     void detectMode().then((next) => {
       if (!cancelled) setMode(next)
@@ -106,9 +105,9 @@ export function ChayaWebMcpHost() {
     return () => {
       cancelled = true
     }
-  }, [supported])
+  }, [])
 
-  const authed = supported && !!mode && mode.kind !== 'guest'
+  const authed = !!mode && mode.kind !== 'guest'
   const edge = mode?.kind === 'edge'
   const serviceMode = mode && mode.kind !== 'guest' ? mode.serviceMode : ''
 
@@ -126,7 +125,7 @@ export function ChayaWebMcpHost() {
       registerPageTools(MCP_REGISTRAR_ID, edgeTools, controller.signal).catch((error: unknown) => logFailure(MCP_REGISTRAR_ID, error))
     }
     return () => controller.abort()
-  }, [authed, edge, serviceMode])
+  }, [authed, edge, serviceMode, supported])
 
   const connected = link.connected
   const mirrorRefreshRef = useRef<(() => void) | null>(null)
@@ -155,7 +154,7 @@ export function ChayaWebMcpHost() {
       document.removeEventListener('visibilitychange', refresh)
       sync.dispose()
     }
-  }, [authed, edge])
+  }, [authed, edge, supported])
 
   useEffect(() => {
     if (!connected) {
@@ -194,7 +193,7 @@ export function ChayaWebMcpHost() {
       window.clearTimeout(timer)
       sync.dispose()
     }
-  }, [authed, edge, connected])
+  }, [authed, edge, connected, supported])
 
   return null
 }

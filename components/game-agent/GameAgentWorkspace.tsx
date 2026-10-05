@@ -51,14 +51,14 @@ type Copy = {
 const COPY: Record<string, Copy> = {
   zh: {
     title: 'Chaya 助手',
-    placeholder: '询问当前游戏状态或下一步建议…',
-    empty: '我会读取当前游戏状态，并按你的要求调用可用工具。',
+    placeholder: '输入任务或询问下一步建议…',
+    empty: '我会根据你的要求调用当前可用工具。',
     stop: '停止',
     newSession: '新会话',
     send: '发送',
     profile: '平台',
     model: '模型',
-    observing: '正在读取游戏状态…',
+    observing: '正在准备上下文…',
     thinking: 'Ollama 正在回答…',
     toolCalling: '正在调用',
     toolCalled: '已调用',
@@ -68,14 +68,14 @@ const COPY: Record<string, Copy> = {
   },
   en: {
     title: 'Chaya Assistant',
-    placeholder: 'Ask about the current game state or next step…',
-    empty: 'I will inspect the current game and call available tools when needed.',
+    placeholder: 'Enter a task or ask for the next step…',
+    empty: 'I will call the currently available tools for your request.',
     stop: 'Stop',
     newSession: 'New session',
     send: 'Send',
     profile: 'Provider',
     model: 'Model',
-    observing: 'Reading game state…',
+    observing: 'Preparing context…',
     thinking: 'Ollama is answering…',
     toolCalling: 'Calling',
     toolCalled: 'Called',
@@ -85,14 +85,14 @@ const COPY: Record<string, Copy> = {
   },
   ja: {
     title: 'Chaya アシスタント',
-    placeholder: '現在の状態や次の行動を質問…',
-    empty: '現在のゲーム状態を確認し、必要に応じてツールを呼び出します。',
+    placeholder: 'タスクまたは次の行動を入力…',
+    empty: 'リクエストに応じて現在利用できるツールを呼び出します。',
     stop: '停止',
     newSession: '新しい会話',
     send: '送信',
     profile: 'プロバイダー',
     model: 'モデル',
-    observing: 'ゲーム状態を確認中…',
+    observing: 'コンテキストを準備中…',
     thinking: 'Ollama が回答中…',
     toolCalling: '呼び出し中',
     toolCalled: '呼び出し済み',
@@ -102,14 +102,14 @@ const COPY: Record<string, Copy> = {
   },
   ko: {
     title: 'Chaya 어시스턴트',
-    placeholder: '현재 게임 상태나 다음 행동을 질문하세요…',
-    empty: '현재 게임 상태를 확인하고 필요할 때 도구를 호출합니다.',
+    placeholder: '작업을 입력하거나 다음 단계를 질문하세요…',
+    empty: '요청에 따라 현재 사용 가능한 도구를 호출합니다.',
     stop: '중지',
     newSession: '새 대화',
     send: '보내기',
     profile: '공급자',
     model: '모델',
-    observing: '게임 상태 확인 중…',
+    observing: '컨텍스트 준비 중…',
     thinking: 'Ollama 응답 중…',
     toolCalling: '호출 중',
     toolCalled: '호출됨',
@@ -145,6 +145,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   const [sessionId, setSessionId] = useState('')
   const [newSession, setNewSession] = useState(false)
   const [turnId, setTurnId] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [phase, setPhase] = useState('')
   const [prompt, setPrompt] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
@@ -155,7 +156,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   const abortRef = useRef<AbortController | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const promptRef = useRef<HTMLTextAreaElement>(null)
-  const running = !!turnId
+  const running = submitting || !!turnId
 
   const refresh = useCallback(async () => {
     setLoadingStatus(true)
@@ -202,6 +203,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   const stop = useCallback(async () => {
     abortRef.current?.abort()
     if (turnId) await request(`/api/game-agent/turn/${encodeURIComponent(turnId)}`, { method: 'DELETE' }).catch(() => null)
+    setSubmitting(false)
     setTurnId('')
     setPhase('')
   }, [request, turnId])
@@ -215,13 +217,14 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   const send = async (event?: FormEvent) => {
     event?.preventDefault()
     const text = prompt.trim()
-    if (!text || !model || running || !status?.available) return
+    if (!text || !model || running || abortRef.current || !status?.available) return
     const assistantId = `assistant-${Date.now()}`
     setMessages((current) => [...current, { id: `user-${Date.now()}`, role: 'user', text }, { id: assistantId, role: 'assistant', text: '' }])
     setPrompt('')
     setPhase(copy.observing)
     const abort = new AbortController()
     abortRef.current = abort
+    setSubmitting(true)
     try {
       const response = await request('/api/game-agent/turn', {
         method: 'POST',
@@ -295,6 +298,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
       }
     } finally {
       abortRef.current = null
+      setSubmitting(false)
       setTurnId('')
       setPhase('')
     }

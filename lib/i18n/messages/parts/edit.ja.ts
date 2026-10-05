@@ -24,6 +24,7 @@ export const editJa = {
     states: 'ステート',
     skills: 'スキル',
     panelAria: 'ゲーム編集',
+    panelDesc: '現在のゲームの実行状態、データ、ショートカットを編集します。',
     filtersAria: '絞り込み',
     onlyOwned: '所持のみ',
     onlyNamed: '名前のみ',
@@ -261,6 +262,7 @@ export const editJa = {
   },
   logs: {
     region: 'ログ',
+    regionDesc: 'Chaya プラグインの実行ログをリアルタイムで表示、絞り込み、管理します。',
     live: 'ライブ',
     streamDown: '切断',
     searchPh: 'ソース / メッセージ…',

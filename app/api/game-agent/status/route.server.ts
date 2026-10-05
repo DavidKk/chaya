@@ -1,7 +1,7 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
 import { canUseDisk } from '@/lib/service-mode/mode'
-import { listOllamaModels, pickDefaultModel } from '@/services/game-agent/ollama-client'
+import { listOllamaModels, pickAvailableModel } from '@/services/game-agent/ollama-client'
 import { getSessionForGame } from '@/services/game-agent/session-store'
 import { loadGameAgentSettings } from '@/services/game-agent/settings'
 import { listAgentGames } from '@/services/runtime/agent-bridge'
@@ -27,7 +27,7 @@ export const GET = defineApiRoute('get:/api/game-agent/status', async ({ request
           provider: profile.provider,
           online: true,
           models,
-          defaultModel: session?.profileId === profile.id ? session.model : profile.defaultModel || pickDefaultModel(models),
+          defaultModel: pickAvailableModel(models, session?.profileId === profile.id ? session.model : profile.defaultModel),
           reason: models.length ? null : '没有已安装模型',
         }
       } catch (error) {
@@ -44,13 +44,13 @@ export const GET = defineApiRoute('get:/api/game-agent/status', async ({ request
     })
   )
   const defaultProfile = profiles.find((profile) => profile.id === (session?.profileId || settings.defaultProfileId)) || profiles[0]
-  const available = !!game && profiles.some((profile) => profile.online && profile.models.length > 0)
+  const available = profiles.some((profile) => profile.online && profile.models.length > 0)
   return apiOk({
     available,
     gameOnline: !!game,
     profiles,
     defaultProfileId: defaultProfile?.id || '',
     session: session ? { id: session.id, profileId: session.profileId, activeTurnId: session.activeTurnId } : null,
-    reason: !game ? 'Chaya 助手尚未连接游戏' : available ? null : defaultProfile?.reason || '没有可用的 Agent',
+    reason: available ? null : defaultProfile?.reason || '没有可用的 Agent',
   })
 })

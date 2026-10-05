@@ -1,4 +1,4 @@
-import { DEFAULT_GAME_AGENT_MODEL, listOllamaModels, pickDefaultModel, streamOllamaChat } from '@/services/game-agent/ollama-client'
+import { DEFAULT_GAME_AGENT_MODEL, listOllamaModels, pickAvailableModel, pickDefaultModel, streamOllamaChat } from '@/services/game-agent/ollama-client'
 
 function streamed(lines: string[]) {
   const encoder = new TextEncoder()
@@ -54,6 +54,8 @@ describe('game agent Ollama client', () => {
     ])
     expect(pickDefaultModel(models)).toBe(DEFAULT_GAME_AGENT_MODEL)
     expect(pickDefaultModel([{ name: 'only' }])).toBe('only')
+    expect(pickAvailableModel(models, 'qwen3:8b')).toBe('qwen3:8b')
+    expect(pickAvailableModel([{ name: 'only' }], 'removed')).toBe('only')
     expect(fetcher).toHaveBeenCalledWith('http://ollama.test/api/tags', expect.any(Object))
   })
 

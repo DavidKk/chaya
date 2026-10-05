@@ -44,8 +44,60 @@ test('Edge adapter completes create, edit, delete, and reload with the shared se
   expect((await removed.json()).settings.profiles.map((profile: { id: string }) => profile.id)).toEqual(['ollama-local'])
 })
 
-test('Edge adapter keeps the shared Agent panel visible while execution is unavailable', async () => {
+test('Edge adapter enables the shared Agent panel from cached models without requiring a game', async () => {
+  localStorage.setItem('chaya.gameAgent.models', JSON.stringify({ 'ollama-local': { endpoint: 'http://127.0.0.1:11434', models: [{ name: 'gemma4' }] } }))
+  const request = createBrowserGameAgentRequest({ connected: false })
+  const status = await request('/api/game-agent/status?gameId=chaya-console')
+  expect(await status.json()).toMatchObject({ available: true, gameOnline: false, reason: null, profiles: [{ provider: 'ollama', online: true }] })
+})
+
+test('Edge adapter falls back when the configured model is no longer installed', async () => {
+  localStorage.setItem(
+    'chaya.gameAgent.settings',
+    JSON.stringify({
+      version: 1,
+      defaultProfileId: 'ollama-local',
+      profiles: [
+        {
+          id: 'ollama-local',
+          label: 'Local Ollama',
+          provider: 'ollama',
+          endpoint: 'http://127.0.0.1:11434',
+          defaultModel: 'removed-model',
+          temperature: 0.2,
+          keepAlive: '10m',
+        },
+      ],
+    })
+  )
+  localStorage.setItem('chaya.gameAgent.models', JSON.stringify({ 'ollama-local': { endpoint: 'http://127.0.0.1:11434', models: [{ name: 'available-model' }] } }))
+
+  const status = await createBrowserGameAgentRequest({ connected: false })('/api/game-agent/status?gameId=chaya-console')
+  expect((await status.json()).profiles[0].defaultModel).toBe('available-model')
+})
+
+test('Edge adapter reports game state separately from Agent availability', async () => {
   const request = createBrowserGameAgentRequest({ connected: true })
   const status = await request('/api/game-agent/status?gameId=demo')
   expect(await status.json()).toMatchObject({ available: false, gameOnline: true, profiles: [{ provider: 'ollama' }] })
+})
+
+test('Edge adapter caches models fetched automatically from an endpoint', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ models: [{ name: 'gemma4' }] }) }) as Response)
+  try {
+    const request = createBrowserGameAgentRequest({ connected: true })
+    const initial = await request('/api/integration/game-agent')
+    const profile = (await initial.json()).settings.profiles[0]
+    const refreshed = await request('/api/integration/game-agent', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'models', profile }),
+    })
+    expect((await refreshed.json()).models).toEqual([{ name: 'gemma4' }])
+
+    const cached = await request('/api/integration/game-agent')
+    expect((await cached.json()).models).toEqual({ 'ollama-local': [{ name: 'gemma4' }] })
+  } finally {
+    globalThis.fetch = previousFetch
+  }
 })
