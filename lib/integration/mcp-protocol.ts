@@ -4,6 +4,8 @@
  * Framework-free so the Next route and the in-game gateway (ChayaAgent) share it.
  */
 
+import { isMcpImageResult } from '@/lib/integration/tools/types'
+
 export type McpTool = {
   name: string
   description: string
@@ -79,6 +81,16 @@ async function handle(config: McpServerConfig, req: JsonRpcRequest, ctx: McpCall
       const args = params.arguments && typeof params.arguments === 'object' ? (params.arguments as Record<string, unknown>) : {}
       try {
         const result = await tool.run(args, ctx)
+        if (isMcpImageResult(result)) {
+          const { mcpImage, ...meta } = result
+          return ok(id, {
+            content: [
+              { type: 'image', data: mcpImage.data, mimeType: mcpImage.mimeType },
+              { type: 'text', text: JSON.stringify(meta, null, 2) },
+            ],
+            isError: false,
+          })
+        }
         return ok(id, { content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result, null, 2) }], isError: false })
       } catch (error) {
         return ok(id, { content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }], isError: true })

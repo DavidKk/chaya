@@ -1,25 +1,29 @@
 /**
- * In-game side of the unified MCP gateway (Edge only): live tools for this game on the shared 127.0.0.1 port.
+ * In-game side of the unified MCP gateway (Edge only): this game's plugin-MCP tools (`mcpToolsFor('plugin')`) on the shared 127.0.0.1 port.
  * Local-service games never bind (the server does) but still expose status and port management to the panel.
  */
 
-import { MCP_GAME_INSTRUCTIONS, MCP_SERVER_NAME, MCP_TOOLS, mcpToolAnnotations } from '@/lib/integration/mcp-catalog'
+import { MCP_PLUGIN_INSTRUCTIONS, mcpToolsFor } from '@/lib/integration/mcp-availability'
+import { MCP_SERVER_NAME, mcpToolAnnotations } from '@/lib/integration/mcp-catalog'
 import { createMcpGateway, type McpGateway, type McpGatewayControl } from '@/lib/integration/mcp-gateway'
 import { MCP_DOCS_URL, processMcpPortEnv } from '@/lib/integration/mcp-port'
 import { dispatchMcp, type McpServerConfig, type McpTool } from '@/lib/integration/mcp-protocol'
+import { makeEditTools } from '@/lib/integration/tools/edit'
 import { type AgentCaller, makeLiveTools, pluginToolRun } from '@/lib/integration/tools/live'
+import type { ToolImpls } from '@/lib/integration/tools/types'
 import type { AgentCommand } from '@/lib/runtime/agent-protocol'
 import { pluginToolDescription, pluginToolName } from '@/lib/runtime/plugin-tools'
 
 import { tryNodeRequire } from '../helpers/node/node-require'
 import { listPluginToolMetas } from '../helpers/plugin-tools'
+import { makeGameTools } from './game-tools'
 import { runAgentCommand } from './handlers'
 
 type Log = { info: (msg: string) => void; warn: (msg: string) => void }
 
 type NwShell = { openExternal?: (url: string) => void; showItemInFolder?: (path: string) => void; openItem?: (path: string) => void }
 
-const GAME_ID_PROPERTY = { type: 'string', description: 'Target game id (from chaya_live_games); optional, only this game is served' }
+const GAME_ID_PROPERTY = { type: 'string', description: 'Game id; optional, only this game is served' }
 
 let commandSeq = 0
 
@@ -37,8 +41,8 @@ function buildServer(gameId: () => string, gameInfo: () => Record<string, unknow
     commandSeq += 1
     return runAgentCommand({ id: `gw-${commandSeq}`, method, params } as AgentCommand)
   }
-  const impls = makeLiveTools({ games: () => [{ ...gameInfo(), gameId: gameId() }], call })
-  const tools: McpTool[] = MCP_TOOLS.filter((meta) => meta.group === 'live' && !meta.evalOnly).map((meta) => ({
+  const impls: ToolImpls = { ...makeLiveTools({ games: () => [{ ...gameInfo(), gameId: gameId() }], call }), ...makeEditTools(call), ...makeGameTools() }
+  const tools: McpTool[] = mcpToolsFor('plugin').map((meta) => ({
     name: meta.name,
     description: meta.description,
     inputSchema: meta.inputSchema,
@@ -47,7 +51,7 @@ function buildServer(gameId: () => string, gameInfo: () => Record<string, unknow
   }))
   return {
     serverInfo: { name: MCP_SERVER_NAME, version: '0.3.0' },
-    instructions: MCP_GAME_INSTRUCTIONS,
+    instructions: MCP_PLUGIN_INSTRUCTIONS,
     tools,
     dynamicTools: () =>
       listPluginToolMetas().map((meta) => ({
@@ -64,11 +68,11 @@ function buildServer(gameId: () => string, gameInfo: () => Record<string, unknow
 export function startGameGateway(opts: { gameId: () => string; gameInfo: () => Record<string, unknown>; log: Log }): { control: McpGatewayControl; stop: () => Promise<void> } {
   const req = tryNodeRequire()
   const enabled = gatewayEnabled()
+  const server = buildServer(opts.gameId, opts.gameInfo)
   let gateway: McpGateway | null = null
   try {
     if (req) {
       const os = req('os') as typeof import('os')
-      const server = buildServer(opts.gameId, opts.gameInfo)
       gateway = createMcpGateway({
         http: req('http') as typeof import('http'),
         fs: req('fs') as typeof import('fs'),
@@ -96,6 +100,7 @@ export function startGameGateway(opts: { gameId: () => string; gameInfo: () => R
     refresh: async () => (gateway ? gateway.refresh() : null),
     setPort: async (port) => need().setPort(port),
     resetPort: async () => need().resetPort(),
+    rpc: (body) => dispatchMcp(server, body),
     openFolder: () => {
       const status = gateway?.status()
       const shell = nwShell()

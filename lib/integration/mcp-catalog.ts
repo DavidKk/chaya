@@ -4,8 +4,19 @@
  * Implementations live in `app/api/mcp/_tools`; a unit test keeps both sides in sync.
  */
 
+import { RUN_FLAG_KEYS } from '@/components/game-edit/types'
 import { ASK_FIRST } from '@/lib/integration/ask-first'
-import { AGENT_INPUT_KEYS } from '@/lib/runtime/agent-protocol'
+import {
+  AGENT_HISTORY_DEFAULT,
+  AGENT_HISTORY_KINDS,
+  AGENT_HISTORY_MAX,
+  AGENT_INPUT_KEYS,
+  AGENT_MOVE_DEFAULT_MS,
+  AGENT_MOVE_MAX_MS,
+  AGENT_SNAP_DEFAULT_WIDTH,
+  AGENT_SNAP_MAX_WIDTH,
+} from '@/lib/runtime/agent-protocol'
+import { EDIT_ACTION_IDS, EDIT_OPS } from '@/lib/runtime/edit-ops'
 
 export { MCP_ENDPOINT_PATH, MCP_SERVER_NAME } from '@/lib/integration/mcp-endpoint'
 
@@ -27,6 +38,8 @@ export type McpToolMeta = {
   evalOnly?: boolean
   /** Pure read: no data, game or file changes */
   readOnly?: boolean
+  /** Game operation (observe / input like a player); default is a tool operation. See docs/capabilities.md */
+  kind?: 'game'
 }
 
 export type JsonSchema = {
@@ -42,9 +55,13 @@ export type JsonSchemaObject = JsonSchema & { type: 'object'; properties: Record
 
 export const MCP_TOOL_GROUPS: readonly { id: McpToolGroupId; title: string; summary: string }[] = [
   { id: 'library', title: 'Library', summary: 'List, bind, annotate and remove entries in the local game library.' },
-  { id: 'game', title: 'Current game', summary: 'On-disk side: status, launch / quit, plugins, NW.js shell, window.' },
-  { id: 'live', title: 'Live game', summary: 'While the game runs (needs the ChayaAgent plugin): read state, call plugin edits, simulate keys.' },
-  { id: 'edit', title: 'Edit catalog', summary: 'Look up item / actor / variable / switch ids in the game data for live edits.' },
+  { id: 'game', title: 'Current game', summary: 'On-disk side: status, launch, plugins, NW.js shell, window.' },
+  {
+    id: 'live',
+    title: 'Live game',
+    summary: 'While the game runs (needs the ChayaAgent plugin): read state and recent story, see the screen, press keys, tap, walk, quit; call declared plugin tools.',
+  },
+  { id: 'edit', title: 'Edit', summary: 'The in-game edit page: look up ids, read the live edit session, set / lock values, run actions.' },
   { id: 'translate', title: 'Translation', summary: 'Translate text, extract source text, whole-game fill jobs, engines and in-game translation settings.' },
   { id: 'cache', title: 'Translation library', summary: 'Query, edit, delete and import entries in the local shared translation library.' },
   { id: 'logs', title: 'Logs', summary: 'Query and clear server / plugin logs.' },
@@ -59,7 +76,7 @@ const str = (description: string, extra: Partial<JsonSchema> = {}): JsonSchema =
 const num = (description: string, extra: Partial<JsonSchema> = {}): JsonSchema => ({ type: 'number', description, ...extra })
 const bool = (description: string, extra: Partial<JsonSchema> = {}): JsonSchema => ({ type: 'boolean', description, ...extra })
 
-const gameId = str('Target game id (from chaya_live_games); optional when only one game is online')
+const gameId = str('Game id (chaya_live_games); omit when only one is online')
 
 export const CATALOG_KINDS = ['items', 'weapons', 'armors', 'actors', 'skills', 'states', 'classes', 'variables', 'switches'] as const
 export const LOG_LEVEL_VALUES = ['ok', 'warn', 'fail', 'info', 'debug'] as const
@@ -119,14 +136,6 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     http: 'POST /api/launch',
   },
   {
-    name: 'chaya_game_quit',
-    group: 'game',
-    title: 'Quit game',
-    description: 'Ask the running game to close (unsaved progress is lost; save first with chaya_live_call ChayaEdit.save if needed).',
-    inputSchema: obj(),
-    http: 'DELETE /api/launch',
-  },
-  {
     name: 'chaya_game_plugins_install',
     group: 'game',
     title: 'Install plugins',
@@ -147,8 +156,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     name: 'chaya_game_shell_install',
     group: 'game',
     title: 'Install NW.js shell',
-    description:
-      'Install the NW.js shell for the current game. Without shellSource it downloads the latest build for this platform from nwjs.io (about 100 MB, up to ~5 minutes; retries resume the download); progress also shows in the console download center.',
+    description: 'Install the NW.js shell for the current game. Without shellSource it downloads the latest build from nwjs.io (~100 MB, up to ~5 min; resumable).',
     inputSchema: obj({ shellSource: str('Path to a clean local NW.js shell (optional)'), force: bool('Overwrite an existing shell') }),
     http: 'POST /api/shell',
   },
@@ -197,6 +205,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   {
     name: 'chaya_live_games',
     readOnly: true,
+    kind: 'game',
     group: 'live',
     title: 'Online games',
     description: 'List connected games (launched from Chaya with the ChayaAgent plugin loaded).',
@@ -205,56 +214,120 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   {
     name: 'chaya_live_state',
     readOnly: true,
+    kind: 'game',
     group: 'live',
     title: 'Live state',
     description:
-      'Read the current game state: scene, map and position, gold, party (level / HP / MP), dialogue text and choices. Use it before and after edits to confirm the effect.',
+      'Read the current game state: scene, visible screen text and windows, map position and nearby events, inventory, party, battle, dialogue and choices. Use it before and after actions to decide the next move.',
     inputSchema: obj({ gameId }),
+  },
+  {
+    name: 'chaya_live_history',
+    readOnly: true,
+    kind: 'game',
+    group: 'live',
+    title: 'Recent story',
+    description:
+      'Recent story log, oldest first: rendered dialogue (also lines the player skipped or fast-forwarded), shown choices and the picked one, map changes, battles and save loads. Use it to summarize progress or advise what to do next; afterSeq reads only newer entries.',
+    inputSchema: obj({
+      gameId,
+      limit: num(`Max entries (default ${AGENT_HISTORY_DEFAULT}, up to ${AGENT_HISTORY_MAX})`),
+      kinds: { type: 'array', description: 'Only these entry kinds', items: str('Entry kind', { enum: AGENT_HISTORY_KINDS }) },
+      afterSeq: num('Only entries with seq greater than this (lastSeq of a previous read)'),
+    }),
+  },
+  {
+    name: 'chaya_live_screenshot',
+    readOnly: true,
+    kind: 'game',
+    group: 'live',
+    title: 'Screenshot',
+    description: `Capture the current game screen as an image (scaled to maxWidth). screen gives the game resolution for chaya_live_tap. Images cost many tokens: prefer chaya_live_state / chaya_live_history for text and only look when you need the picture.`,
+    inputSchema: obj({ gameId, maxWidth: num(`Output width in px (default ${AGENT_SNAP_DEFAULT_WIDTH}, max ${AGENT_SNAP_MAX_WIDTH})`) }),
   },
   {
     name: 'chaya_live_plugins',
     readOnly: true,
     group: 'live',
     title: 'Live plugins',
-    description:
-      'List the Chaya plugins loaded in the game (ChayaEdit / ChayaBoost / ChayaTrans), their methods and the tools they declare (tools: name, description, params). Check here before chaya_live_call.',
+    description: 'List the Chaya plugins loaded in the game and the preset tools they declare (name, description, params). Check here before chaya_live_call.',
     inputSchema: obj({ gameId }),
   },
   {
     name: 'chaya_live_call',
     group: 'live',
-    title: 'Call plugin',
-    description: [
-      'Call a method of an in-game Chaya plugin; the result comes back as JSON. Common calls: ',
-      'ChayaEdit.gold(99999), ChayaEdit.item(id, count), ChayaEdit.weapon(id, count), ChayaEdit.var(id, value), ChayaEdit.sw(id, true), ',
-      'ChayaEdit.god(true), ChayaEdit.through(true), ChayaEdit.teleport(mapId, x, y), ChayaEdit.save(slot), ChayaEdit.load(slot), ChayaEdit.commonEvent(id), ',
-      'ChayaBoost.on(rate) / off(), ChayaTrans.status(). Look up ids with chaya_edit_catalog first. ',
-      'Use chain for chained APIs, e.g. plugin="ChayaEdit", method="actor", args=[1], chain=[{method:"hp", args:[999]}]. ',
-      'You can also call a tool declared by the plugin: pass tool (tools[].tool from chaya_live_plugins) and input (object args) instead of method.',
-    ].join(''),
+    title: 'Call plugin tool',
+    description:
+      'Call a preset tool declared by an in-game plugin (see chaya_live_plugins), e.g. plugin="ChayaBoost", tool="on". Same as the chaya_plugin_* tools, for clients that have not refreshed the tool list. Edits go through chaya_edit_set / chaya_edit_action.',
     inputSchema: obj(
       {
         gameId,
-        plugin: str('Plugin global name, e.g. ChayaEdit, ChayaBoost, ChayaTrans'),
-        method: str('Method name (either method or tool)'),
-        tool: str('Tool declared by the plugin, e.g. gold, status (either method or tool)'),
-        input: { type: 'object', description: 'Argument object for tool', properties: {} },
-        args: { type: 'array', description: 'Positional arguments', items: {} },
-        chain: {
-          type: 'array',
-          description: 'Chained calls on the return value',
-          items: obj({ method: str('Method name'), args: { type: 'array', items: {} } }, ['method']),
-        },
+        plugin: str('Plugin global name, e.g. ChayaBoost, ChayaTrans'),
+        tool: str('Tool declared by the plugin, e.g. on, status'),
+        input: { type: 'object', description: 'Argument object for the tool', properties: {} },
       },
-      ['plugin']
+      ['plugin', 'tool']
     ),
   },
   {
     name: 'chaya_live_press',
+    kind: 'game',
     group: 'live',
     title: 'Press key',
     description: 'Simulate RPG Maker keys: ok = confirm, cancel = back, menu = menu, arrows to move / select. Use it to advance dialogue, pick menus and walk.',
     inputSchema: obj({ gameId, key: str('Key', { enum: AGENT_INPUT_KEYS }), frames: num('Frames to hold (default 6, about 0.1 s; one tile is about 16)') }, ['key']),
+  },
+  {
+    name: 'chaya_live_play',
+    kind: 'game',
+    group: 'live',
+    title: 'Play actions',
+    description:
+      'Run a sequence of RPG Maker key presses, then return the updated game state. Use this for agent play loops: observe with chaya_live_state, send a short sequence, inspect the returned state, and repeat.',
+    inputSchema: obj(
+      {
+        gameId,
+        steps: {
+          type: 'array',
+          description: 'Actions to run in order (maximum 64)',
+          items: obj(
+            {
+              key: str('Key', { enum: AGENT_INPUT_KEYS }),
+              frames: num('Frames to hold (default 6, maximum 600)'),
+              waitFrames: num('Frames to wait after release (default 6, maximum 600)'),
+            },
+            ['key']
+          ),
+        },
+      },
+      ['steps']
+    ),
+  },
+  {
+    name: 'chaya_live_tap',
+    kind: 'game',
+    group: 'live',
+    title: 'Tap screen',
+    description: 'Tap / click the game screen at (x, y) in game resolution pixels (see chaya_live_screenshot screen), like a mouse click or touch: menu items, choices, buttons.',
+    inputSchema: obj({ gameId, x: num('Screen x (0 … screen.width − 1)'), y: num('Screen y (0 … screen.height − 1)'), frames: num('Frames to hold (default 6)') }, ['x', 'y']),
+  },
+  {
+    name: 'chaya_live_move_to',
+    kind: 'game',
+    group: 'live',
+    title: 'Walk to tile',
+    description:
+      'Walk the player to map tile (x, y) with the built-in pathfinding and wait until arrival or timeout. Works even when click-to-move is off; blocked paths, events and messages stop it (arrived = false); stepping on a transfer stops it with transferred = true and the new mapId. Map scene only.',
+    inputSchema: obj({ gameId, x: num('Map tile x'), y: num('Map tile y'), timeoutMs: num(`Wait limit (default ${AGENT_MOVE_DEFAULT_MS}, max ${AGENT_MOVE_MAX_MS})`) }, ['x', 'y']),
+  },
+  {
+    name: 'chaya_live_quit',
+    kind: 'game',
+    group: 'live',
+    title: 'Quit game',
+    description: `Close the running game (unsaved progress is lost; save first with chaya_edit_action id="save" if needed). ${ASK_FIRST}`,
+    inputSchema: obj({ gameId }),
+    destructive: true,
   },
   {
     name: 'chaya_live_eval',
@@ -264,6 +337,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     inputSchema: obj({ gameId, code: str('Function body') }, ['code']),
     destructive: true,
     evalOnly: true,
+    kind: 'game',
   },
   // edit
   {
@@ -272,9 +346,10 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     group: 'edit',
     title: 'Look up ids',
     description:
-      'Read entries of a category from the current game data (id, name, description; translated text when available), filtered by keyword. Use it to find ids before editing items / variables / switches.',
+      'Read entries of a category from the game data (id, name, description; translated text when available), filtered by keyword. Use it to find ids before editing items / variables / switches; pass the same gameId as chaya_edit_set.',
     inputSchema: obj(
       {
+        gameId: str('Game id (chaya_live_games), same as chaya_edit_set; omit to read the current game data files'),
         kind: str('Category', { enum: CATALOG_KINDS }),
         q: str('Name / description keyword, or id'),
         limit: num('Max entries (default 50, up to 500)'),
@@ -282,6 +357,57 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
       ['kind']
     ),
     http: 'GET /api/game-edit/catalog',
+  },
+  {
+    name: 'chaya_edit_state',
+    readOnly: true,
+    group: 'edit',
+    title: 'Edit session',
+    description:
+      'Read the live edit session (same as the in-game edit page): gold, item / weapon / armor counts, variables, switches, locks, actors, movement rates and run flags.',
+    inputSchema: obj({ gameId }),
+  },
+  {
+    name: 'chaya_edit_set',
+    group: 'edit',
+    title: 'Set value',
+    description:
+      'Set or lock values with the edit page commands: gold, item counts, variables, switches, run flags (god mode, walk through walls…), movement / exp rates and actor stats. Look up ids with chaya_edit_catalog; the edit page updates right away.',
+    inputSchema: obj(
+      {
+        gameId,
+        op: str('Edit operation', { enum: EDIT_OPS }),
+        value: { description: 'Target value: a number for gold / count / var / walkRate / runRate / expRate, a boolean for sw / runFlag' },
+        on: bool('*Lock: true to lock, false to unlock'),
+        kind: str('count / countLock: item / weapon / armor; actorVitalLock: level / exp / hp / mp; actorOwnedLock: skills / states'),
+        id: num('Item / variable / switch / actor id'),
+        key: str('runFlag flag name', { enum: RUN_FLAG_KEYS }),
+        patch: { type: 'object', description: 'actor: fields to change, e.g. {"level":99,"hp":999}', properties: {} },
+        actorId: num('Actor id for actorVitalLock / actorOwnedLock'),
+        entryId: num('Skill / state id for actorOwnedLock'),
+        owned: bool('actorOwnedLock: lock as owned / not owned'),
+      },
+      ['op']
+    ),
+  },
+  {
+    name: 'chaya_edit_action',
+    group: 'edit',
+    title: 'Run action',
+    description: `Run an edit page action: open a scene (scene:*), fix a stuck state (fix:*), control battle (battle:*), or teleport (mapId, x, y, direction?), common_event (eventId), save / load (slot, default 1). save, load, fix:title, battle:defeat and battle:partyHp0 are destructive: ${ASK_FIRST}`,
+    inputSchema: obj(
+      {
+        gameId,
+        id: str('Action id', { enum: EDIT_ACTION_IDS }),
+        mapId: num('teleport: map id'),
+        x: num('teleport: tile x'),
+        y: num('teleport: tile y'),
+        direction: num('teleport: facing 2 down, 4 left, 6 right, 8 up'),
+        eventId: num('common_event: common event id'),
+        slot: num('save / load: slot (default 1)'),
+      },
+      ['id']
+    ),
   },
   // translate
   {
@@ -423,18 +549,12 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
 ]
 
 export const MCP_INSTRUCTIONS = [
-  'Control the local Chaya: game library, launching games, live edits, translation and logs.',
-  'Workflow: read state with chaya_game_status / chaya_live_state → look up ids with chaya_edit_catalog → edit with chaya_live_call → read state again to confirm.',
+  'Control the local Chaya: game library, launching games, playing and editing the running game, translation and logs.',
+  'Play workflow: chaya_live_state → chaya_live_play with a short key sequence → inspect the returned state → repeat.',
+  'Edit workflow: look up ids with chaya_edit_catalog → chaya_edit_set / chaya_edit_action → chaya_edit_state to confirm.',
+  'Story help: when the user skipped dialogue or asks what to do next, read chaya_live_history, then chaya_live_state (chaya_live_screenshot only if the picture matters).',
   'Tools marked "Destructive" require the user\'s consent first.',
   'While a game is online, tools declared by its plugins (chaya_plugin_*) appear in the tool list and come and go with the connection; if the client has not refreshed the list, call them via chaya_live_plugins + the tool argument of chaya_live_call.',
-].join('\n')
-
-/** Live-game instructions for the in-game gateway (only `live` tools, never eval) */
-export const MCP_GAME_INSTRUCTIONS = [
-  'Chaya in-game gateway: live tools for the running game only (state, plugin edits, key presses).',
-  'Library, launching, shell, translation library and log tools need the local Chaya server (dev or App).',
-  'Workflow: chaya_live_state → chaya_live_plugins → chaya_live_call → chaya_live_state again to confirm.',
-  'Tools marked "Destructive" require the user\'s consent first.',
 ].join('\n')
 
 /** MCP standard annotations (hints only) from catalog metadata */

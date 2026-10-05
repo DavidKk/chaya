@@ -6,7 +6,9 @@ import { LuDownload, LuGamepad2, LuPlug } from 'react-icons/lu'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { hubBlock, HubLayout, HubNav, HubNavItem, HubNavSection, HubPaneHeader } from '@/components/integration/Hub'
 import { markdownBody } from '@/components/integration/markdown'
+import { useMcpConnection } from '@/components/integration/mcp/useMcpConnection'
 import { SkillInstall } from '@/components/integration/SkillInstall'
+import { Spinner } from '@/components/sk'
 import type { Locale } from '@/lib/i18n/locales'
 import { integrationSkillHref, type SkillId, SKILLS } from '@/lib/integration/skills'
 import { cn } from '@/lib/utils'
@@ -22,6 +24,9 @@ export function SkillsView({ activeId, html }: { activeId: SkillId; html: Record
   const t = useT()
   const locale = useLocaleCode()
   const active = SKILLS.find((skill) => skill.id === activeId) ?? SKILLS[0]
+  const connection = useMcpConnection()
+  const local = connection.status === 'ready' && connection.connection.available
+  const install = connection.status === 'loading' ? <Spinner size="sm" label={t('common.loading')} /> : <SkillInstall id={activeId} local={local} />
 
   return (
     <HubLayout
@@ -57,13 +62,18 @@ export function SkillsView({ activeId, html }: { activeId: SkillId; html: Record
       }
       contentKey={activeId}
       aside={{
-        header: <HubPaneHeader title={t('integration.installTitle')} description={t('integration.installHint')} />,
-        children: <SkillInstall id={activeId} />,
+        header: (
+          <HubPaneHeader
+            title={t('integration.installTitle')}
+            description={connection.status === 'loading' ? null : t(local ? 'integration.installHintLocal' : 'integration.installHint')}
+          />
+        ),
+        children: <section className={hubBlock}>{install}</section>,
       }}
     >
       <section className={cn(hubBlock, 'md:hidden')} aria-label={t('integration.installTitle')}>
         <h2 className="m-0 text-[13px] font-semibold text-ink">{t('integration.installTitle')}</h2>
-        <SkillInstall id={activeId} />
+        {install}
       </section>
       <article className={markdownBody} dangerouslySetInnerHTML={{ __html: html[locale] ?? html.en }} />
     </HubLayout>

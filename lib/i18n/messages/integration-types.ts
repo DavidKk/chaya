@@ -8,18 +8,22 @@ export type IntegrationMessages = {
   skillsListAria: string
   installTitle: string
   installHint: string
+  installHintLocal: string
   installAria: string
   installEnglishNote: string
-  targetAria: string
   targetUniversal: string
   targetUniversalHint: string
-  mcpIntro: string
-  mcpUnavailableTitle: string
   mcpLoadFailed: string
-  endpoint: string
-  localHint: string
+  serverEndpoint: string
   configJson: string
   installLinks: string
+  clientInstall: string
+  clientUninstall: string
+  clientActionFailed: string
+  clientUninstallDone: string
+  clientInstallDone: string
+  clientIdleHint: string
+  installCommandHint: string
   claudeCode: string
   codex: string
   connectionAria: string
@@ -37,7 +41,6 @@ export type IntegrationMessages = {
   evalOnly: string
   playground: string
   playgroundHint: string
-  playgroundUnavailable: string
   playgroundTool: string
   playgroundArgs: string
   run: string
@@ -46,6 +49,26 @@ export type IntegrationMessages = {
   invalidJson: string
   tryTool: string
   tabWebMcp: string
+  regionAgent: string
+  agentProfiles: string
+  agentProfilesHint: string
+  agentAddProfile: string
+  agentProfileLabel: string
+  agentProvider: string
+  agentEndpoint: string
+  agentDefaultModel: string
+  agentTemperature: string
+  agentKeepAlive: string
+  agentTest: string
+  agentTesting: string
+  agentConnected: string
+  agentSave: string
+  agentSaved: string
+  agentDelete: string
+  agentDefault: string
+  agentSetDefault: string
+  agentNoModels: string
+  agentSettingsFailed: string
   navOverview: string
   regionWebMcp: string
   webmcpBrowserTitle: string
@@ -60,11 +83,9 @@ export type IntegrationMessages = {
   webmcpModesTitle: string
   webmcpModeLocal: string
   webmcpModeEdge: string
-  webmcpModeLocked: string
   webmcpRegistered: string
   webmcpEmpty: string
   webmcpGroupPage: string
-  webmcpGroupEdit: string
   webmcpGroupMcp: string
   webmcpGroupPlugins: string
   webmcpReadOnly: string

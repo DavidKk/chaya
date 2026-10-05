@@ -18,6 +18,7 @@ set -euo pipefail
 REPO="DavidKk/chaya"
 APP_NAME="Chaya.app"
 MOUNT=""
+STAGE_DIR=""
 
 say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -51,6 +52,13 @@ TMP="$(mktemp -d)"
 cleanup() {
   if [ -n "$MOUNT" ]; then hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1 || true; fi
   rm -rf "$TMP"
+  if [ -n "$STAGE_DIR" ]; then
+    if [ -d "$STAGE_DIR/previous.app" ] && [ ! -e "$DEST/$APP_NAME" ]; then
+      printf 'Previous app preserved at %s\n' "$STAGE_DIR/previous.app" >&2
+    else
+      rm -rf "$STAGE_DIR"
+    fi
+  fi
 }
 trap cleanup EXIT
 
@@ -77,8 +85,18 @@ if pgrep -xq Chaya; then
 fi
 
 say "$(msg "$M_installing" "$DEST/$APP_NAME")"
-rm -rf "$DEST/$APP_NAME"
-ditto "$SRC" "$DEST/$APP_NAME"
+STAGE_DIR="$(mktemp -d "$DEST/.chaya-install.XXXXXX")"
+ditto "$SRC" "$STAGE_DIR/$APP_NAME"
+xattr -dr com.apple.quarantine "$STAGE_DIR/$APP_NAME" 2>/dev/null || true
+if [ -e "$DEST/$APP_NAME" ]; then
+  mv "$DEST/$APP_NAME" "$STAGE_DIR/previous.app"
+fi
+if ! mv "$STAGE_DIR/$APP_NAME" "$DEST/$APP_NAME"; then
+  if [ -d "$STAGE_DIR/previous.app" ]; then
+    mv "$STAGE_DIR/previous.app" "$DEST/$APP_NAME" || true
+  fi
+  die "Could not activate the new app; the previous app was restored if possible"
+fi
 xattr -dr com.apple.quarantine "$DEST/$APP_NAME" 2>/dev/null || true
 
 say "$M_done"

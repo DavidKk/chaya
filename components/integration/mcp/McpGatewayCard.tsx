@@ -34,8 +34,6 @@ type Props = {
   onDelete: () => Promise<McpGatewayView | null>
   onOpenFolder?: () => void
   onOpenDocs?: () => void
-  /** false: address and mcp.json are shown elsewhere (local integration page) */
-  connectionFields?: boolean
   className?: string
 }
 
@@ -77,7 +75,7 @@ function useNow(active: boolean): number {
 }
 
 /** Unified gateway: address, status + advice, port change, config file (delete / open), docs. */
-export function McpGatewayCard({ context, view, available = true, onSavePort, onDelete, onOpenFolder, onOpenDocs, connectionFields = true, className }: Props) {
+export function McpGatewayCard({ context, view, available = true, onSavePort, onDelete, onOpenFolder, onOpenDocs, className }: Props) {
   const t = useT()
   const confirm = useConfirm()
   const port = view?.port ?? MCP_GATEWAY_DEFAULT_PORT
@@ -115,11 +113,9 @@ export function McpGatewayCard({ context, view, available = true, onSavePort, on
 
   return (
     <section className={cn('flex flex-col gap-4', className)} aria-label={t('mcpGateway.regionAria')}>
-      {connectionFields ? (
-        <Field label={t('mcpGateway.address')}>
-          <CopyField value={url} label={t('mcpGateway.address')} />
-        </Field>
-      ) : null}
+      <Field label={t('mcpGateway.address')}>
+        <CopyField value={url} label={t('mcpGateway.address')} />
+      </Field>
 
       <Field label={t('mcpGateway.status')}>
         <div className="flex flex-wrap items-center gap-2">
@@ -193,11 +189,9 @@ export function McpGatewayCard({ context, view, available = true, onSavePort, on
         </div>
       </Field>
 
-      {connectionFields ? (
-        <Field label={t('mcpGateway.configJson')}>
-          <CopyField value={JSON.stringify(mcpJsonConfig({ name: MCP_SERVER_NAME, url }), null, 2)} label={t('mcpGateway.configJson')} />
-        </Field>
-      ) : null}
+      <Field label={t('mcpGateway.configJson')}>
+        <CopyField value={JSON.stringify(mcpJsonConfig({ name: MCP_SERVER_NAME, url }), null, 2)} label={t('mcpGateway.configJson')} />
+      </Field>
     </section>
   )
 }

@@ -48,6 +48,8 @@ export type McpGatewayControl = {
   refresh: () => Promise<McpGatewayStatus | null>
   setPort: (port: number) => Promise<McpGatewayStatus>
   resetPort: () => Promise<McpGatewayStatus>
+  /** JSON-RPC straight into this game's MCP server (in-game playground); works without Node */
+  rpc: (body: unknown) => Promise<McpHttpResult>
   openFolder: () => void
   openDocs: () => void
 }

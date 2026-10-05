@@ -28,7 +28,7 @@ function toMcpTool(name: string): McpTool {
   }
 }
 
-const GAME_ID_PROPERTY = { type: 'string', description: 'Target game id (from chaya_live_games); optional when only one game is online' }
+const GAME_ID_PROPERTY = { type: 'string', description: 'Game id (chaya_live_games); omit when only one is online' }
 
 /** Plugin tool → MCP tool; the input schema gains an optional `gameId` (defaults to the only game declaring it). */
 export function pluginMcpTool(meta: PluginToolMeta & { gameIds?: string[] }): McpTool {

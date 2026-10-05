@@ -10,7 +10,7 @@ export type McpCatalogMessages = { groups: Record<string, { title: string; summa
 
 export const MCP_CATALOG_MESSAGES: Partial<Record<Locale, McpCatalogMessages>> = messages
 
-/** Page-only descriptions of the WebMCP-only tools (`page_*`, `chaya_web_edit_*`, `chaya_plugin_*`). */
+/** Page-only descriptions of the WebMCP-only tools (`page_*`, `chaya_plugin_*`). */
 export const WEB_TOOL_MESSAGES: Partial<Record<Locale, Record<string, string>>> = webToolMessages
 
 /** Localized description of any registered tool name; falls back to the agent (English) text. */

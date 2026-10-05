@@ -118,7 +118,8 @@ export function applyEditCmd(cmd: GameEditCmd): void {
   }
 }
 
-function buildStateMsg(): GameEditStateMsg {
+/** Same session the edit page receives; also read by agents via `ChayaEdit.agentEdit` */
+export function buildStateMsg(): GameEditStateMsg {
   if (!$gameParty) {
     const { hotkeys: _h, hotkeysGlobal: _hg, ...rest } = emptySession()
     return { type: 'edit.state', ready: false, session: rest, error: '请先读档进游戏' }
@@ -196,6 +197,11 @@ export function stopRemoteEditBridge() {
     clearInterval(pushTimer)
     pushTimer = null
   }
+}
+
+/** After an agent edit: push the new state to a subscribed edit page right away */
+export function pushRemoteState() {
+  pushState()
 }
 
 /** After local panel edits: update mirror and push Web immediately if subscribed */

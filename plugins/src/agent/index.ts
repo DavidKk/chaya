@@ -12,6 +12,7 @@ import { chayaPostJson, createLogger, detectGameIdentity, gameRoomId } from '../
 import { listPluginToolMetas } from '../helpers/plugin-tools'
 import { startGameGateway } from './gateway'
 import { runAgentCommand } from './handlers'
+import { startHistory } from './history'
 
 const log = createLogger(PLUGIN_AGENT_NAME)
 
@@ -58,6 +59,7 @@ function start(): AgentGlobal {
   let running = true
   let handled = 0
   const gateway = startGameGateway({ gameId: gameRoomId, gameInfo: () => ({ ...gameInfo(), tools: undefined }), log })
+  const stopHistory = startHistory()
 
   void (async () => {
     let pending: AgentResult[] = []
@@ -95,6 +97,7 @@ function start(): AgentGlobal {
   return {
     stop: () => {
       running = false
+      stopHistory()
       void gateway.stop()
     },
     status: () => ({ running, roomId: gameRoomId(), handled }),

@@ -2,12 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-import type { McpGatewayView } from '@/components/integration/mcp/McpGatewayCard'
 import { readApiErrorMessage } from '@/lib/api-error'
 import type { ServiceMode } from '@/lib/service-mode/mode'
 
-export type McpConnection =
-  { available: false; serviceMode: ServiceMode } | { available: true; serviceMode: ServiceMode; endpoint: string; evalEnabled: boolean; gateway: McpGatewayView }
+export type McpConnection = { available: false; serviceMode: ServiceMode } | { available: true; serviceMode: ServiceMode; endpoint: string; evalEnabled: boolean }
 
 export type McpConnectionState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; connection: McpConnection }
 

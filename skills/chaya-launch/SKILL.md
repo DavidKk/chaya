@@ -1,6 +1,6 @@
 ---
 name: chaya-launch
-description: How to add a game in Chaya, install the shell, inject plugins, launch the game, and use edit / translation / logs. Use when the user asks how to start a game, why plugins do not work, or how to translate / change gold.
+description: Chaya game workflow: add a game, install the shell, inject plugins, launch, then edit / translate / read logs. Use only when the user mentions Chaya or its plugins (ChayaEdit / ChayaTrans / ChayaBoost).
 ---
 
 # Chaya: add a game and launch it

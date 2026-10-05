@@ -1,0 +1,7 @@
+{
+  "name": "chaya-walk-demo",
+  "main": "index.html",
+  "window": {
+    "title": "Chaya 行走测试"
+  }
+}

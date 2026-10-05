@@ -37,3 +37,15 @@ export function pathWithQuery(path: string, query: InvokeInput['query']): string
   const qs = params.toString()
   return qs ? `${path}${path.includes('?') ? '&' : '?'}${qs}` : path
 }
+
+/** A tool result carrying an image: MCP returns it as `image` content, WebMCP keeps this object as is */
+export type McpImageResult = { mcpImage: { mimeType: string; data: string } } & Record<string, unknown>
+
+export function mcpImage(image: { mimeType: string; data: string }, meta: Record<string, unknown> = {}): McpImageResult {
+  return { ...meta, mcpImage: { mimeType: image.mimeType, data: image.data } }
+}
+
+export function isMcpImageResult(value: unknown): value is McpImageResult {
+  const image = (value as { mcpImage?: { mimeType?: unknown; data?: unknown } } | null)?.mcpImage
+  return !!image && typeof image.mimeType === 'string' && image.mimeType.startsWith('image/') && typeof image.data === 'string'
+}

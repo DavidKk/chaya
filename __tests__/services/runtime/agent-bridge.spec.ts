@@ -16,8 +16,8 @@ describe('agent bridge', () => {
   })
 
   it('never lets game info spoof gameId and drops unknown fields', async () => {
-    const info = sanitizeAgentGameInfo({ name: ' A ', gameId: 'fake', extra: 'x'.repeat(5000), plugins: ['ChayaEdit', 'evil', 3], tools: [{ plugin: 'ChayaEdit', tool: 'gold' }] })
-    expect(info).toEqual({ name: 'A', gameRoot: undefined, contentRoot: undefined, plugins: ['ChayaEdit'], tools: [expect.objectContaining({ tool: 'gold' })] })
+    const info = sanitizeAgentGameInfo({ name: ' A ', gameId: 'fake', extra: 'x'.repeat(5000), plugins: ['ChayaEdit', 'evil', 3], tools: [{ plugin: 'ChayaBoost', tool: 'on' }] })
+    expect(info).toEqual({ name: 'A', gameRoot: undefined, contentRoot: undefined, plugins: ['ChayaEdit'], tools: [expect.objectContaining({ tool: 'on' })] })
     expect(sanitizeAgentGameInfo('nope')).toBeUndefined()
     await pollAgentCommands('room-A', { info: { ...info, gameId: 'fake' } as never, waitMs: 0 })
     expect(listAgentGames()[0]).toMatchObject({ gameId: 'room-A', toolCount: 1 })
@@ -37,9 +37,9 @@ describe('agent bridge', () => {
 
   it('wakes the long-poll with queued commands and resolves with the result', async () => {
     const poll = pollAgentCommands('room-A', { waitMs: 5_000 })
-    const call = callAgentGame('room-A', 'plugin.call', { plugin: 'ChayaEdit', method: 'gold', args: [100] })
+    const call = callAgentGame('room-A', 'edit.apply', { op: { op: 'gold', value: 100 } })
     const [cmd] = await poll
-    expect(cmd).toMatchObject({ method: 'plugin.call', params: { plugin: 'ChayaEdit', method: 'gold', args: [100] } })
+    expect(cmd).toMatchObject({ method: 'edit.apply', params: { op: { op: 'gold', value: 100 } } })
     await pollAgentCommands('room-A', { results: [{ id: cmd.id, ok: true, data: 100 }], waitMs: 0 })
     await expect(call).resolves.toBe(100)
   })

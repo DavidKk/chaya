@@ -1,5 +1,6 @@
 import { POST } from '@/app/api/launch/route.server'
 import * as diskOps from '@/services/disk-ops'
+import { clearDownloadJobsForTest, startDownloadJob } from '@/services/downloads/jobs'
 
 const calls: string[] = []
 
@@ -24,6 +25,7 @@ jest.mock('@/services/disk-ops', () => ({
     return { ok: true, hasShell: true, remote: false, bundled: false, shellApp: '/data/shell/Chaya', contentRoot: '/game/www' }
   }),
   ensureNwPackageName: () => ({}),
+  isShellInstalling: jest.fn(() => false),
   injectTrackedPlugins: () => ({ missingKit: [], copied: ['x'] }),
   ensureShellLinkedToContent: jest.fn(),
   launchShellWithContent: jest.fn(async () => {}),
@@ -35,6 +37,12 @@ const launch = () => POST(new Request('http://localhost/api/launch', { method: '
 
 beforeEach(() => {
   calls.splice(0)
+  jest.clearAllMocks()
+  clearDownloadJobsForTest()
+})
+
+afterEach(() => {
+  clearDownloadJobsForTest()
 })
 
 test('启动前先恢复 .old，再解析游戏状态', async () => {
@@ -53,5 +61,21 @@ test('恢复失败：返回错误，不解析也不启动', async () => {
   const body = await res.json()
   expect(body.error).toMatchObject({ code: 'SHELL_SWAP_RECOVERY_REQUIRED', message: expect.stringContaining('.Chaya.old') })
   expect(diskOps.getResolvedFromConfig).not.toHaveBeenCalled()
+  expect(diskOps.launchShellWithContent).not.toHaveBeenCalled()
+})
+
+test('共享壳安装期间拒绝启动', async () => {
+  jest.mocked(diskOps.isShellInstalling).mockReturnValueOnce(true)
+  const res = await launch()
+  expect(res.status).toBe(409)
+  expect((await res.json()).error.code).toBe('SHELL_JOB_RUNNING')
+  expect(diskOps.getResolvedFromConfig).not.toHaveBeenCalled()
+})
+
+test('壳下载任务运行期间拒绝启动', async () => {
+  startDownloadJob('nw-shell', () => new Promise(() => {}))
+  const res = await launch()
+  expect(res.status).toBe(409)
+  expect((await res.json()).error.code).toBe('SHELL_JOB_RUNNING')
   expect(diskOps.launchShellWithContent).not.toHaveBeenCalled()
 })

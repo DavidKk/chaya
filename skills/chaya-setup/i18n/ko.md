@@ -59,5 +59,5 @@ pnpm dev          # 로컬 모드, localhost:3000에서 대기
 | macOS에서 "손상됨"이라고 나옴 | 위의 한 줄 명령으로 설치하거나 `xattr -cr /Applications/Chaya.app`                                            |
 | API가 401을 반환함            | `localhost` 또는 IP 주소로 콘솔을 엽니다. 사용자 지정 호스트 이름이면 `CHAYA_PUBLIC_ORIGIN`을 설정하고 재시작 |
 | 3927 / 3000 포트 사용 중      | 다른 Chaya App / dev를 종료하고 다시 시작(App은 `PORT` 환경 변수로 포트 변경 가능)                            |
-| MCP 포트 39271 사용 중        | "연동 → MCP" 또는 게임 내 "MCP" 탭에서 포트를 바꾸고 에이전트의 주소도 갱신                                   |
+| MCP 포트 39271 사용 중        | 게임 내 "연동 → MCP" 탭에서 포트를 바꾸고 에이전트의 주소도 갱신                                              |
 | Edge에서 폴더를 고를 수 없음  | Chrome / Edge로 바꿉니다                                                                                      |

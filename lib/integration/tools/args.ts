@@ -1,4 +1,4 @@
-export type { ToolImpls } from './types'
+export type { ToolImpls, ToolRun } from './types'
 
 type Args = Record<string, unknown>
 

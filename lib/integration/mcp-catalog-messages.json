@@ -11,11 +11,11 @@
       },
       "live": {
         "title": "局内实时",
-        "summary": "游戏运行中（需 ChayaAgent 插件）：读状态、调用插件修改、模拟按键。"
+        "summary": "游戏运行中（需 ChayaAgent 插件）：读状态与最近剧情、看画面、按键、点击、寻路、关闭游戏；调用插件声明的工具。"
       },
       "edit": {
-        "title": "修改目录",
-        "summary": "从游戏 data 查物品 / 角色 / 变量 / 开关等 id，配合局内修改使用。"
+        "title": "修改",
+        "summary": "游戏内修改页的能力：查 id、读实时修改会话、改值 / 锁定、执行运行动作。"
       },
       "translate": {
         "title": "翻译",
@@ -68,10 +68,6 @@
         "title": "启动游戏",
         "description": "注入 / 更新插件并启动当前游戏。需已绑定游戏且壳就绪；游戏已在运行时会报错。"
       },
-      "chaya_game_quit": {
-        "title": "关闭游戏",
-        "description": "请求关闭正在运行的游戏（未保存进度会丢失，必要时先用 chaya_live_call 调 ChayaEdit.save 存档）。"
-      },
       "chaya_game_plugins_install": {
         "title": "安装插件",
         "description": "把 ChayaLoader 与插件缓存写入当前游戏并登记到 js/plugins.js；更新插件后重启游戏生效。"
@@ -109,29 +105,44 @@
       },
       "chaya_live_state": {
         "title": "局内状态",
-        "description": "读取游戏当前状态：场景、地图与坐标、金钱、队伍（等级 / HP / MP）、对话文字与选项。修改前后用它确认效果。",
+        "description": "读取游戏当前状态：场景、屏幕文字与窗口、地图坐标与附近事件、背包、队伍、战斗、对话和选项。操作前后用它判断下一步。",
         "params": {
           "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略"
         }
       },
+      "chaya_live_history": {
+        "title": "最近剧情",
+        "description": "最近的剧情记录（旧到新）：渲染过的对话（包括玩家跳过或快进的台词）、出现的选项与所选项、换地图、战斗与读档。用来总结进度或建议下一步；afterSeq 只读更新的条目。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "limit": "最多条数（默认 50，上限 300）",
+          "kinds": "只要这些类型",
+          "afterSeq": "只要 seq 大于此值的条目（上次读到的 lastSeq）"
+        }
+      },
+      "chaya_live_screenshot": {
+        "title": "截图",
+        "description": "截取当前游戏画面为图片（缩放到 maxWidth）。screen 给出游戏分辨率，供 chaya_live_tap 使用。图片很费 token：文字信息优先用 chaya_live_state / chaya_live_history，需要看画面时再截图。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "maxWidth": "输出宽度 px（默认 512，上限 1280）"
+        }
+      },
       "chaya_live_plugins": {
         "title": "局内插件",
-        "description": "列出游戏内已加载的 Chaya 插件（ChayaEdit / ChayaBoost / ChayaTrans）、方法，以及插件声明的工具（tools：名称、说明、参数）。调用 chaya_live_call 前先看这里。",
+        "description": "列出游戏内已加载的 Chaya 插件及其声明的预设工具（名称、说明、参数）。调用 chaya_live_call 前先看这里。",
         "params": {
           "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略"
         }
       },
       "chaya_live_call": {
-        "title": "调用插件",
-        "description": "调用游戏内 Chaya 插件的方法，结果以 JSON 返回。常用：ChayaEdit.gold(99999)、ChayaEdit.item(id, count)、ChayaEdit.weapon(id, count)、ChayaEdit.var(id, value)、ChayaEdit.sw(id, true)、ChayaEdit.god(true)、ChayaEdit.through(true)、ChayaEdit.teleport(mapId, x, y)、ChayaEdit.save(slot)、ChayaEdit.load(slot)、ChayaEdit.commonEvent(id)、ChayaBoost.on(rate) / off()、ChayaTrans.status()。id 可先用 chaya_edit_catalog 查。链式 API 用 chain，例如 plugin=\"ChayaEdit\", method=\"actor\", args=[1], chain=[{method:\"hp\", args:[999]}]。也可按插件声明的工具调用：传 tool（chaya_live_plugins 的 tools[].tool）与 input（对象参数），不传 method。",
+        "title": "调用插件工具",
+        "description": "调用游戏内插件声明的预设工具（见 chaya_live_plugins），例如 plugin=\"ChayaBoost\", tool=\"on\"。与 chaya_plugin_* 工具相同，供未刷新工具列表的客户端使用。修改请用 chaya_edit_set / chaya_edit_action。",
         "params": {
           "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
-          "plugin": "插件全局名，如 ChayaEdit、ChayaBoost、ChayaTrans",
-          "method": "方法名（与 tool 二选一）",
-          "tool": "插件声明的工具名，如 gold、status（与 method 二选一）",
-          "input": "tool 的参数对象",
-          "args": "位置参数",
-          "chain": "对返回值继续链式调用"
+          "plugin": "插件全局名，如 ChayaBoost、ChayaTrans",
+          "tool": "插件声明的工具名，如 on、status",
+          "input": "tool 的参数对象"
         }
       },
       "chaya_live_press": {
@@ -141,6 +152,41 @@
           "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
           "key": "按键",
           "frames": "按住帧数（默认 6，约 0.1 秒；走一格约 16）"
+        }
+      },
+      "chaya_live_play": {
+        "title": "执行游玩操作",
+        "description": "按顺序执行一组 RPG Maker 按键，并返回操作后的最新游戏状态。用于 Agent 游玩循环：先观察状态，执行一小段操作，再根据返回状态继续。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "steps": "按顺序执行的操作（最多 64 个）"
+        }
+      },
+      "chaya_live_tap": {
+        "title": "点击屏幕",
+        "description": "按游戏分辨率坐标 (x, y) 点击 / 触摸画面（见 chaya_live_screenshot 的 screen），等同鼠标点击：菜单项、选项、按钮。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "x": "屏幕 x（0 … screen.width − 1）",
+          "y": "屏幕 y（0 … screen.height − 1）",
+          "frames": "按住帧数（默认 6）"
+        }
+      },
+      "chaya_live_move_to": {
+        "title": "寻路到格子",
+        "description": "用内置寻路让玩家走到地图格 (x, y)，等到达或超时。关闭点击移动时也能用；路被挡、遇到事件或对话会停下（arrived = false）；途中踩到传送点会停下并返回 transferred = true 和新的 mapId。仅地图场景。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "x": "地图格 x",
+          "y": "地图格 y",
+          "timeoutMs": "等待上限（默认 8000，上限 12000）"
+        }
+      },
+      "chaya_live_quit": {
+        "title": "关闭游戏",
+        "description": "关闭正在运行的游戏（未保存进度会丢失，必要时先用 chaya_edit_action id=\"save\" 存档）。破坏性操作：调用前先征得用户同意。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略"
         }
       },
       "chaya_live_eval": {
@@ -153,11 +199,50 @@
       },
       "chaya_edit_catalog": {
         "title": "查 id",
-        "description": "从当前游戏 data 读取指定类别的条目（id、名称、说明；有译文时显示中文），可按关键词筛选。修改物品 / 变量 / 开关前用它找 id。",
+        "description": "从游戏 data 读取指定类别的条目（id、名称、说明；有译文时显示中文），可按关键词筛选。修改物品 / 变量 / 开关前用它找 id；gameId 与 chaya_edit_set 保持一致。",
         "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回），与 chaya_edit_set 相同；省略时读当前游戏的数据文件",
           "kind": "类别",
           "q": "名称 / 说明关键词，或 id",
           "limit": "最多返回条数（默认 50，上限 500）"
+        }
+      },
+      "chaya_edit_state": {
+        "title": "修改会话",
+        "description": "读取实时修改会话（与游戏内修改页相同）：金钱、物品 / 武器 / 防具持有数、变量、开关、锁定、角色、移动倍率与运行开关。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略"
+        }
+      },
+      "chaya_edit_set": {
+        "title": "改值",
+        "description": "用修改页的指令改值或锁定：金钱、持有数、变量、开关、运行开关（无敌、穿墙…）、移动 / 经验倍率与角色属性。id 用 chaya_edit_catalog 查；修改页会立即更新。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "op": "修改操作",
+          "value": "目标值：gold / count / var / walkRate / runRate / expRate 为数字，sw / runFlag 为布尔",
+          "on": "*Lock：true 锁定，false 解锁",
+          "kind": "count / countLock：item / weapon / armor；actorVitalLock：level / exp / hp / mp；actorOwnedLock：skills / states",
+          "id": "物品 / 变量 / 开关 / 角色 id",
+          "key": "runFlag 开关名",
+          "patch": "actor：要改的字段，如 {\"level\":99,\"hp\":999}",
+          "actorId": "actorVitalLock / actorOwnedLock 的角色 id",
+          "entryId": "actorOwnedLock 的技能 / 状态 id",
+          "owned": "actorOwnedLock：锁定为拥有 / 不拥有"
+        }
+      },
+      "chaya_edit_action": {
+        "title": "执行动作",
+        "description": "执行修改页动作：打开场景（scene:*）、修复卡住（fix:*）、战斗控制（battle:*），或 teleport（mapId、x、y、direction?）、common_event（eventId）、save / load（slot，默认 1）。save、load、fix:title、battle:defeat、battle:partyHp0 为破坏性操作：调用前先征得用户同意。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "id": "动作 id",
+          "mapId": "teleport：地图 id",
+          "x": "teleport：格子 x",
+          "y": "teleport：格子 y",
+          "direction": "teleport：朝向 2 下、4 左、6 右、8 上",
+          "eventId": "common_event：公共事件 id",
+          "slot": "save / load：存档位（默认 1）"
         }
       },
       "chaya_translate_text": {
@@ -267,11 +352,11 @@
       },
       "live": {
         "title": "ゲーム内リアルタイム",
-        "summary": "ゲーム実行中（ChayaAgent プラグインが必要）：状態の取得、プラグインでの改造、キー操作。"
+        "summary": "ゲーム実行中（ChayaAgent プラグインが必要）：状態と最近のストーリーの取得、画面確認、キー・タップ・移動、ゲーム終了、プラグインが宣言したツールの呼び出し。"
       },
       "edit": {
-        "title": "改造用カタログ",
-        "summary": "ゲーム data からアイテム / キャラ / 変数 / スイッチなどの id を調べ、ゲーム内改造に使います。"
+        "title": "改造",
+        "summary": "ゲーム内の改造ページの機能：id 検索、リアルタイム改造セッションの取得、値の変更 / ロック、実行アクション。"
       },
       "translate": {
         "title": "翻訳",
@@ -324,10 +409,6 @@
         "title": "ゲームを起動",
         "description": "プラグインを注入 / 更新して現在のゲームを起動します。ゲームの選択とシェルの準備が必要で、起動中ならエラーになります。"
       },
-      "chaya_game_quit": {
-        "title": "ゲームを終了",
-        "description": "実行中のゲームに終了を要求します（未保存の進行は失われます。必要なら先に chaya_live_call で ChayaEdit.save を呼んでセーブ）。"
-      },
       "chaya_game_plugins_install": {
         "title": "プラグインを導入",
         "description": "ChayaLoader とプラグインキャッシュを現在のゲームに書き込み、js/plugins.js に登録します。更新後はゲームの再起動で反映されます。"
@@ -365,29 +446,44 @@
       },
       "chaya_live_state": {
         "title": "ゲーム内の状態",
-        "description": "ゲームの現在の状態を取得します：シーン、マップと座標、所持金、パーティー（レベル / HP / MP）、会話テキストと選択肢。改造の前後で効果の確認に使います。",
+        "description": "ゲームの現在状態を取得します：シーン、画面テキストとウィンドウ、マップ座標と周辺イベント、所持品、パーティー、戦闘、会話、選択肢。操作の前後に次の行動を判断できます。",
         "params": {
           "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可"
         }
       },
+      "chaya_live_history": {
+        "title": "最近のストーリー",
+        "description": "最近のストーリー記録（古い順）：表示された会話（プレイヤーがスキップ・早送りした台詞も含む）、表示された選択肢と選んだもの、マップ移動、戦闘、ロード。進行のまとめや次の行動の助言に使います。afterSeq で新しい分だけ読めます。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "limit": "最大件数（既定 50、上限 300）",
+          "kinds": "この種類だけ",
+          "afterSeq": "seq がこの値より大きいものだけ（前回の lastSeq）"
+        }
+      },
+      "chaya_live_screenshot": {
+        "title": "スクリーンショット",
+        "description": "現在のゲーム画面を画像で取得します（maxWidth に縮小）。screen は chaya_live_tap 用のゲーム解像度です。画像はトークンを多く使うため、文字情報は chaya_live_state / chaya_live_history を優先し、画面が必要なときだけ使います。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "maxWidth": "出力幅 px（既定 512、上限 1280）"
+        }
+      },
       "chaya_live_plugins": {
         "title": "ゲーム内プラグイン",
-        "description": "ゲームに読み込まれた Chaya プラグイン（ChayaEdit / ChayaBoost / ChayaTrans）とメソッド、プラグインが宣言したツール（tools：名前、説明、引数）を一覧表示します。chaya_live_call の前に確認してください。",
+        "description": "ゲームに読み込まれた Chaya プラグインと、宣言されたプリセットツール（名前・説明・引数）を一覧します。chaya_live_call の前に確認します。",
         "params": {
           "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可"
         }
       },
       "chaya_live_call": {
-        "title": "プラグインを呼び出す",
-        "description": "ゲーム内の Chaya プラグインのメソッドを呼び出し、結果を JSON で返します。よく使うもの：ChayaEdit.gold(99999)、ChayaEdit.item(id, count)、ChayaEdit.weapon(id, count)、ChayaEdit.var(id, value)、ChayaEdit.sw(id, true)、ChayaEdit.god(true)、ChayaEdit.through(true)、ChayaEdit.teleport(mapId, x, y)、ChayaEdit.save(slot)、ChayaEdit.load(slot)、ChayaEdit.commonEvent(id)、ChayaBoost.on(rate) / off()、ChayaTrans.status()。id は先に chaya_edit_catalog で調べられます。チェーン API は chain を使います（例：plugin=\"ChayaEdit\", method=\"actor\", args=[1], chain=[{method:\"hp\", args:[999]}]）。プラグインが宣言したツールでも呼び出せます：method の代わりに tool（chaya_live_plugins の tools[].tool）と input（オブジェクト引数）を渡します。",
+        "title": "プラグインツール呼び出し",
+        "description": "ゲーム内プラグインが宣言したプリセットツールを呼び出します（chaya_live_plugins 参照）。例：plugin=\"ChayaBoost\", tool=\"on\"。chaya_plugin_* ツールと同じで、ツール一覧を更新していないクライアント向けです。改造は chaya_edit_set / chaya_edit_action を使います。",
         "params": {
           "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
-          "plugin": "プラグインのグローバル名（例：ChayaEdit、ChayaBoost、ChayaTrans）",
-          "method": "メソッド名（tool とどちらか一方）",
-          "tool": "プラグインが宣言したツール名（例：gold、status。method とどちらか一方）",
-          "input": "tool の引数オブジェクト",
-          "args": "位置引数",
-          "chain": "戻り値に対するチェーン呼び出し"
+          "plugin": "プラグインのグローバル名（ChayaBoost、ChayaTrans など）",
+          "tool": "プラグインが宣言したツール名（on、status など）",
+          "input": "tool の引数オブジェクト"
         }
       },
       "chaya_live_press": {
@@ -397,6 +493,41 @@
           "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
           "key": "キー",
           "frames": "押し続けるフレーム数（既定 6、約 0.1 秒。1 マス歩くには約 16）"
+        }
+      },
+      "chaya_live_play": {
+        "title": "プレイ操作を実行",
+        "description": "RPG Maker のキー操作を順番に実行し、操作後の最新ゲーム状態を返します。エージェントのプレイループでは、状態を確認し、短い操作列を送り、返された状態から次の操作を決めます。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "steps": "順番に実行する操作（最大 64 個）"
+        }
+      },
+      "chaya_live_tap": {
+        "title": "画面タップ",
+        "description": "ゲーム解像度の座標 (x, y) で画面をタップ / クリックします（chaya_live_screenshot の screen 参照）。メニュー項目・選択肢・ボタンなど。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "x": "画面 x（0 … screen.width − 1）",
+          "y": "画面 y（0 … screen.height − 1）",
+          "frames": "押し続けるフレーム数（既定 6）"
+        }
+      },
+      "chaya_live_move_to": {
+        "title": "マスへ移動",
+        "description": "内蔵の経路探索でプレイヤーをマップのマス (x, y) へ歩かせ、到着かタイムアウトまで待ちます。クリック移動がオフでも動作します。道が塞がれる・イベントやメッセージで止まります（arrived = false）。途中で場所移動を踏むと transferred = true と新しい mapId を返して止まります。マップシーンのみ。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "x": "マップのマス x",
+          "y": "マップのマス y",
+          "timeoutMs": "待機上限（既定 8000、上限 12000）"
+        }
+      },
+      "chaya_live_quit": {
+        "title": "ゲームを終了",
+        "description": "実行中のゲームを終了します（未保存の進行は失われます。必要なら先に chaya_edit_action id=\"save\" でセーブ）。破壊的操作：呼び出す前にユーザーの同意を得てください。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可"
         }
       },
       "chaya_live_eval": {
@@ -409,11 +540,50 @@
       },
       "chaya_edit_catalog": {
         "title": "id を調べる",
-        "description": "現在のゲーム data から指定カテゴリの項目（id、名前、説明。訳文があれば翻訳後の表記）を読み取り、キーワードで絞り込めます。アイテム / 変数 / スイッチを改造する前に id を探すのに使います。",
+        "description": "ゲーム data から指定カテゴリの項目（id、名前、説明。訳文があれば翻訳後の表記）を読み取り、キーワードで絞り込めます。アイテム / 変数 / スイッチを改造する前に id を探すのに使います。gameId は chaya_edit_set と揃えてください。",
         "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。chaya_edit_set と同じ値。省略すると現在のゲームのデータファイルを読みます",
           "kind": "カテゴリ",
           "q": "名前 / 説明のキーワード、または id",
           "limit": "最大件数（既定 50、上限 500）"
+        }
+      },
+      "chaya_edit_state": {
+        "title": "改造セッション",
+        "description": "リアルタイム改造セッションを読み取ります（ゲーム内の改造ページと同じ）：所持金、アイテム / 武器 / 防具の所持数、変数、スイッチ、ロック、キャラ、移動倍率、実行フラグ。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可"
+        }
+      },
+      "chaya_edit_set": {
+        "title": "値の変更",
+        "description": "改造ページのコマンドで値を変更 / ロックします：所持金、所持数、変数、スイッチ、実行フラグ（無敵・壁抜け…）、移動 / 経験値倍率、キャラの能力値。id は chaya_edit_catalog で調べます。改造ページはすぐ更新されます。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "op": "改造操作",
+          "value": "目標値：gold / count / var / walkRate / runRate / expRate は数値、sw / runFlag は真偽値",
+          "on": "*Lock：true でロック、false で解除",
+          "kind": "count / countLock：item / weapon / armor；actorVitalLock：level / exp / hp / mp；actorOwnedLock：skills / states",
+          "id": "アイテム / 変数 / スイッチ / キャラ id",
+          "key": "runFlag のフラグ名",
+          "patch": "actor：変更するフィールド。例 {\"level\":99,\"hp\":999}",
+          "actorId": "actorVitalLock / actorOwnedLock のキャラ id",
+          "entryId": "actorOwnedLock のスキル / ステート id",
+          "owned": "actorOwnedLock：所持 / 非所持でロック"
+        }
+      },
+      "chaya_edit_action": {
+        "title": "アクション実行",
+        "description": "改造ページのアクションを実行します：シーンを開く（scene:*）、詰まりを直す（fix:*）、戦闘操作（battle:*）、または teleport（mapId、x、y、direction?）、common_event（eventId）、save / load（slot、既定 1）。save、load、fix:title、battle:defeat、battle:partyHp0 は破壊的操作：呼び出す前にユーザーの同意を得てください。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "id": "アクション id",
+          "mapId": "teleport：マップ id",
+          "x": "teleport：マス x",
+          "y": "teleport：マス y",
+          "direction": "teleport：向き 2 下、4 左、6 右、8 上",
+          "eventId": "common_event：コモンイベント id",
+          "slot": "save / load：セーブ枠（既定 1）"
         }
       },
       "chaya_translate_text": {
@@ -523,11 +693,11 @@
       },
       "live": {
         "title": "게임 내 실시간",
-        "summary": "게임 실행 중(ChayaAgent 플러그인 필요): 상태 읽기, 플러그인으로 수정, 키 입력 시뮬레이션."
+        "summary": "게임 실행 중(ChayaAgent 플러그인 필요): 상태와 최근 스토리 읽기, 화면 보기, 키·탭·이동, 게임 종료, 플러그인이 선언한 도구 호출."
       },
       "edit": {
-        "title": "수정용 카탈로그",
-        "summary": "게임 data에서 아이템 / 캐릭터 / 변수 / 스위치 등의 id를 찾아 게임 내 수정에 사용합니다."
+        "title": "수정",
+        "summary": "게임 내 수정 페이지 기능: id 찾기, 실시간 수정 세션 읽기, 값 변경 / 잠금, 실행 동작."
       },
       "translate": {
         "title": "번역",
@@ -580,10 +750,6 @@
         "title": "게임 실행",
         "description": "플러그인을 주입 / 업데이트하고 현재 게임을 실행합니다. 게임 선택과 셸 준비가 필요하며 이미 실행 중이면 오류가 납니다."
       },
-      "chaya_game_quit": {
-        "title": "게임 종료",
-        "description": "실행 중인 게임에 종료를 요청합니다(저장하지 않은 진행은 사라집니다. 필요하면 먼저 chaya_live_call로 ChayaEdit.save를 호출해 저장)."
-      },
       "chaya_game_plugins_install": {
         "title": "플러그인 설치",
         "description": "ChayaLoader와 플러그인 캐시를 현재 게임에 쓰고 js/plugins.js에 등록합니다. 업데이트 후에는 게임을 다시 시작해야 적용됩니다."
@@ -621,29 +787,44 @@
       },
       "chaya_live_state": {
         "title": "게임 내 상태",
-        "description": "게임의 현재 상태를 읽습니다: 장면, 맵과 좌표, 소지금, 파티(레벨 / HP / MP), 대화 텍스트와 선택지. 수정 전후로 효과를 확인할 때 씁니다.",
+        "description": "게임의 현재 상태를 읽습니다: 장면, 화면 텍스트와 창, 맵 좌표와 주변 이벤트, 소지품, 파티, 전투, 대화와 선택지. 조작 전후에 다음 행동을 판단할 때 씁니다.",
         "params": {
           "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능"
         }
       },
+      "chaya_live_history": {
+        "title": "최근 스토리",
+        "description": "최근 스토리 기록(오래된 순): 표시된 대화(플레이어가 건너뛰거나 빨리 넘긴 대사 포함), 표시된 선택지와 고른 항목, 맵 이동, 전투, 불러오기. 진행 요약이나 다음 행동 조언에 사용합니다. afterSeq로 새 항목만 읽을 수 있습니다.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "limit": "최대 개수(기본 50, 최대 300)",
+          "kinds": "이 종류만",
+          "afterSeq": "seq가 이 값보다 큰 항목만(이전 lastSeq)"
+        }
+      },
+      "chaya_live_screenshot": {
+        "title": "스크린샷",
+        "description": "현재 게임 화면을 이미지로 캡처합니다(maxWidth로 축소). screen은 chaya_live_tap에 쓸 게임 해상도입니다. 이미지는 토큰을 많이 쓰므로 텍스트 정보는 chaya_live_state / chaya_live_history를 우선 사용하고 화면이 필요할 때만 사용하세요.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "maxWidth": "출력 너비 px(기본 512, 최대 1280)"
+        }
+      },
       "chaya_live_plugins": {
         "title": "게임 내 플러그인",
-        "description": "게임에 불러온 Chaya 플러그인(ChayaEdit / ChayaBoost / ChayaTrans)과 메서드, 플러그인이 선언한 도구(tools: 이름, 설명, 인자)를 나열합니다. chaya_live_call 전에 먼저 확인하세요.",
+        "description": "게임에 로드된 Chaya 플러그인과 선언된 프리셋 도구(이름, 설명, 인자)를 나열합니다. chaya_live_call 전에 확인하세요.",
         "params": {
           "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능"
         }
       },
       "chaya_live_call": {
-        "title": "플러그인 호출",
-        "description": "게임 안 Chaya 플러그인의 메서드를 호출하고 결과를 JSON으로 반환합니다. 자주 쓰는 호출: ChayaEdit.gold(99999), ChayaEdit.item(id, count), ChayaEdit.weapon(id, count), ChayaEdit.var(id, value), ChayaEdit.sw(id, true), ChayaEdit.god(true), ChayaEdit.through(true), ChayaEdit.teleport(mapId, x, y), ChayaEdit.save(slot), ChayaEdit.load(slot), ChayaEdit.commonEvent(id), ChayaBoost.on(rate) / off(), ChayaTrans.status(). id는 먼저 chaya_edit_catalog로 찾을 수 있습니다. 체인 API는 chain을 씁니다(예: plugin=\"ChayaEdit\", method=\"actor\", args=[1], chain=[{method:\"hp\", args:[999]}]). 플러그인이 선언한 도구로도 호출할 수 있습니다: method 대신 tool(chaya_live_plugins의 tools[].tool)과 input(객체 인자)을 전달합니다.",
+        "title": "플러그인 도구 호출",
+        "description": "게임 내 플러그인이 선언한 프리셋 도구를 호출합니다(chaya_live_plugins 참고). 예: plugin=\"ChayaBoost\", tool=\"on\". chaya_plugin_* 도구와 같으며 도구 목록을 갱신하지 않은 클라이언트용입니다. 수정은 chaya_edit_set / chaya_edit_action을 사용하세요.",
         "params": {
           "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
-          "plugin": "플러그인 전역 이름(예: ChayaEdit, ChayaBoost, ChayaTrans)",
-          "method": "메서드 이름(tool과 둘 중 하나)",
-          "tool": "플러그인이 선언한 도구 이름(예: gold, status. method와 둘 중 하나)",
-          "input": "tool의 인자 객체",
-          "args": "위치 인자",
-          "chain": "반환값에 이어서 체인 호출"
+          "plugin": "플러그인 전역 이름(예: ChayaBoost, ChayaTrans)",
+          "tool": "플러그인이 선언한 도구 이름(예: on, status)",
+          "input": "tool의 인자 객체"
         }
       },
       "chaya_live_press": {
@@ -653,6 +834,41 @@
           "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
           "key": "키",
           "frames": "누르고 있을 프레임 수(기본 6, 약 0.1초. 한 칸 걷기는 약 16)"
+        }
+      },
+      "chaya_live_play": {
+        "title": "플레이 조작 실행",
+        "description": "RPG Maker 키 입력을 순서대로 실행하고 조작 후 최신 게임 상태를 반환합니다. 에이전트 플레이 루프에서는 상태를 확인하고 짧은 입력 묶음을 보낸 뒤 반환된 상태를 보고 다음 행동을 정합니다.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "steps": "순서대로 실행할 조작(최대 64개)"
+        }
+      },
+      "chaya_live_tap": {
+        "title": "화면 탭",
+        "description": "게임 해상도 좌표 (x, y)로 화면을 탭 / 클릭합니다(chaya_live_screenshot의 screen 참고). 메뉴 항목, 선택지, 버튼 등.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "x": "화면 x(0 … screen.width − 1)",
+          "y": "화면 y(0 … screen.height − 1)",
+          "frames": "누르고 있을 프레임 수(기본 6)"
+        }
+      },
+      "chaya_live_move_to": {
+        "title": "칸으로 이동",
+        "description": "내장 길찾기로 플레이어를 맵 칸 (x, y)까지 걷게 하고 도착이나 시간 초과까지 기다립니다. 클릭 이동이 꺼져 있어도 동작하며, 길이 막히거나 이벤트·메시지가 나오면 멈춥니다(arrived = false). 도중에 장소 이동을 밟으면 transferred = true와 새 mapId를 반환하고 멈춥니다. 맵 장면에서만.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "x": "맵 칸 x",
+          "y": "맵 칸 y",
+          "timeoutMs": "대기 한도(기본 8000, 최대 12000)"
+        }
+      },
+      "chaya_live_quit": {
+        "title": "게임 종료",
+        "description": "실행 중인 게임을 종료합니다(저장하지 않은 진행은 사라집니다. 필요하면 먼저 chaya_edit_action id=\"save\"로 저장). 파괴적인 작업: 호출 전에 사용자 동의를 받으세요.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능"
         }
       },
       "chaya_live_eval": {
@@ -665,11 +881,50 @@
       },
       "chaya_edit_catalog": {
         "title": "id 찾기",
-        "description": "현재 게임 data에서 지정한 분류의 항목(id, 이름, 설명. 번역이 있으면 번역문)을 읽고 키워드로 거를 수 있습니다. 아이템 / 변수 / 스위치를 수정하기 전에 id를 찾을 때 씁니다.",
+        "description": "게임 data에서 지정한 분류의 항목(id, 이름, 설명. 번역이 있으면 번역문)을 읽고 키워드로 거를 수 있습니다. 아이템 / 변수 / 스위치를 수정하기 전에 id를 찾을 때 씁니다. gameId는 chaya_edit_set과 같게 맞추세요.",
         "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). chaya_edit_set과 같은 값. 생략하면 현재 게임의 데이터 파일을 읽습니다",
           "kind": "분류",
           "q": "이름 / 설명 키워드 또는 id",
           "limit": "최대 항목 수(기본 50, 최대 500)"
+        }
+      },
+      "chaya_edit_state": {
+        "title": "수정 세션",
+        "description": "실시간 수정 세션을 읽습니다(게임 내 수정 페이지와 동일): 소지금, 아이템 / 무기 / 방어구 개수, 변수, 스위치, 잠금, 캐릭터, 이동 배율, 실행 플래그.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능"
+        }
+      },
+      "chaya_edit_set": {
+        "title": "값 변경",
+        "description": "수정 페이지 명령으로 값을 바꾸거나 잠급니다: 소지금, 개수, 변수, 스위치, 실행 플래그(무적, 벽 통과…), 이동 / 경험치 배율, 캐릭터 능력치. id는 chaya_edit_catalog로 찾으며 수정 페이지가 바로 갱신됩니다.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "op": "수정 작업",
+          "value": "목표 값: gold / count / var / walkRate / runRate / expRate는 숫자, sw / runFlag는 불리언",
+          "on": "*Lock: true면 잠금, false면 해제",
+          "kind": "count / countLock: item / weapon / armor; actorVitalLock: level / exp / hp / mp; actorOwnedLock: skills / states",
+          "id": "아이템 / 변수 / 스위치 / 캐릭터 id",
+          "key": "runFlag 플래그 이름",
+          "patch": "actor: 바꿀 필드, 예 {\"level\":99,\"hp\":999}",
+          "actorId": "actorVitalLock / actorOwnedLock의 캐릭터 id",
+          "entryId": "actorOwnedLock의 스킬 / 상태 id",
+          "owned": "actorOwnedLock: 보유 / 미보유로 잠금"
+        }
+      },
+      "chaya_edit_action": {
+        "title": "동작 실행",
+        "description": "수정 페이지 동작을 실행합니다: 장면 열기(scene:*), 멈춤 해결(fix:*), 전투 제어(battle:*), 또는 teleport(mapId, x, y, direction?), common_event(eventId), save / load(slot, 기본 1). save, load, fix:title, battle:defeat, battle:partyHp0은 파괴적인 작업: 호출 전에 사용자 동의를 받으세요.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "id": "동작 id",
+          "mapId": "teleport: 맵 id",
+          "x": "teleport: 칸 x",
+          "y": "teleport: 칸 y",
+          "direction": "teleport: 방향 2 아래, 4 왼쪽, 6 오른쪽, 8 위",
+          "eventId": "common_event: 공통 이벤트 id",
+          "slot": "save / load: 세이브 슬롯(기본 1)"
         }
       },
       "chaya_translate_text": {

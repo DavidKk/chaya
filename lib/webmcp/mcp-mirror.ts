@@ -12,7 +12,7 @@ export type McpListedTool = {
   annotations?: { title?: string; readOnlyHint?: boolean; destructiveHint?: boolean }
 }
 
-export type McpCallResult = { content?: Array<{ type?: string; text?: string }>; isError?: boolean }
+export type McpCallResult = { content?: Array<{ type?: string; text?: string; data?: string; mimeType?: string }>; isError?: boolean }
 
 export const MIRROR_MAX_CHARS = 100_000
 
@@ -27,11 +27,22 @@ export function parseMcpCallResult(result: McpCallResult | null | undefined) {
     .map((part) => part.text)
     .join('\n')
   if (result?.isError) return webMcpError('mcp_error', text || 'Tool failed')
+  const image = result?.content?.find((part) => part?.type === 'image' && typeof part.data === 'string' && typeof part.mimeType === 'string')
+  if (image) return webMcpOk({ result: { ...parseMeta(text), mcpImage: { mimeType: image.mimeType, data: image.data } } })
   if (text.length > MIRROR_MAX_CHARS) return webMcpOk({ text: text.slice(0, MIRROR_MAX_CHARS), truncated: true })
   try {
     return webMcpOk({ result: JSON.parse(text) as unknown })
   } catch {
     return webMcpOk({ text })
+  }
+}
+
+function parseMeta(text: string): Record<string, unknown> {
+  try {
+    const meta = JSON.parse(text) as unknown
+    return meta && typeof meta === 'object' && !Array.isArray(meta) ? (meta as Record<string, unknown>) : {}
+  } catch {
+    return {}
   }
 }
 

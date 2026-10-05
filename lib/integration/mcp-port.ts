@@ -9,7 +9,7 @@ export const MCP_GATEWAY_PROBE_PATH = '/.well-known/chaya-mcp'
 export const MCP_PORT_MIN = 1024
 export const MCP_PORT_MAX = 65535
 export const MCP_PORT_FILE_NAME = 'mcp.json'
-export const MCP_DOCS_URL = 'https://github.com/DavidKk/chaya/blob/main/docs/integration.md'
+export const MCP_DOCS_URL = 'https://github.com/DavidKk/chaya/blob/main/docs/mcp-plugin.md'
 
 /** `GET MCP_GATEWAY_PROBE_PATH` body: tells another Chaya who holds the port */
 export type McpGatewayIdentity = { chaya: true; role: 'server' | 'game'; gameId?: string; name?: string }

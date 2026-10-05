@@ -69,7 +69,7 @@ describe('in-game MCP gateway', () => {
 
     const list = await rpc(port, { jsonrpc: '2.0', id: 1, method: 'tools/list' })
     const names = (list.result?.tools as { name: string }[]).map((t) => t.name)
-    expect(names).toEqual(expect.arrayContaining(['chaya_live_games', 'chaya_live_state', 'chaya_live_call', 'chaya_live_press']))
+    expect(names).toEqual(expect.arrayContaining(['chaya_live_games', 'chaya_live_state', 'chaya_live_call', 'chaya_live_press', 'chaya_live_play']))
     expect(names.some((n) => n === 'chaya_live_eval' || n.startsWith('chaya_library_'))).toBe(false)
 
     const state = await rpc(port, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'chaya_live_state', arguments: {} } })

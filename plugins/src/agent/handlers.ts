@@ -1,17 +1,37 @@
 /**
- * ChayaAgent command handlers — read RPG Maker state, call first-party Chaya plugins, press keys.
+ * ChayaAgent command handlers — read RPG Maker state, run declared plugin tools and edit-page commands, press keys.
+ * No arbitrary plugin method calls: agents only reach preset abilities (see docs/capabilities.md).
  */
 
-import type { AgentCommand, AgentInputKey, AgentParams } from '@/lib/runtime/agent-protocol'
+import type { AgentCommand, AgentInputKey, AgentInputStep, AgentParams } from '@/lib/runtime/agent-protocol'
+import { parseEditAction, parseEditOp } from '@/lib/runtime/edit-ops'
 import { isFirstPartyToolPlugin } from '@/lib/runtime/plugin-tools'
 
 import { findPluginTool, listPluginToolMetas } from '../helpers/plugin-tools'
+import { movePlayer, quitGame, snapScreen, tapScreen } from './game-control'
+import { readHistory } from './history'
 
 type Loose = Record<string, unknown>
 type AnyFn = (...args: unknown[]) => unknown
 
 const DEFAULT_PRESS_FRAMES = 6
+const DEFAULT_WAIT_FRAMES = 6
 const MAX_PRESS_FRAMES = 600
+const MAX_SEQUENCE_STEPS = 64
+
+const DOM_KEYS: Record<AgentInputKey, { key: string; code: string; keyCode: number }> = {
+  ok: { key: 'Enter', code: 'Enter', keyCode: 13 },
+  cancel: { key: 'Escape', code: 'Escape', keyCode: 27 },
+  shift: { key: 'Shift', code: 'ShiftLeft', keyCode: 16 },
+  menu: { key: 'x', code: 'KeyX', keyCode: 88 },
+  up: { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
+  down: { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
+  left: { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 },
+  right: { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 },
+  pageup: { key: 'PageUp', code: 'PageUp', keyCode: 33 },
+  pagedown: { key: 'PageDown', code: 'PageDown', keyCode: 34 },
+  escape: { key: 'Escape', code: 'Escape', keyCode: 27 },
+}
 
 function g(): Loose {
   return globalThis as unknown as Loose
@@ -63,6 +83,52 @@ function gameState(): unknown {
   const mapId = read<number>(map, 'mapId')
   const mapInfos = w.$dataMapInfos as Array<{ name?: string } | null> | undefined
   const members = read<Loose[]>(party, 'members') ?? []
+  const enemies = read<Loose[]>(w.$gameTroop, 'members') ?? []
+  const items = (kind: 'items' | 'weapons' | 'armors') =>
+    (read<Loose[]>(party, kind) ?? []).slice(0, 100).map((item) => ({ id: item.id ?? null, name: item.name ?? null, count: read(party, 'numItems', item) ?? null }))
+  const events = (read<Loose[]>(map, 'events') ?? [])
+    .filter((event) => !event._erased)
+    .map((event) => {
+      const x = Number(event._x)
+      const y = Number(event._y)
+      const px = Number(player?._x)
+      const py = Number(player?._y)
+      return {
+        id: read(event, 'eventId') ?? event._eventId ?? null,
+        name: (read<Loose>(event, 'event')?.name as string | undefined) ?? null,
+        x: Number.isFinite(x) ? x : null,
+        y: Number.isFinite(y) ? y : null,
+        distance: Number.isFinite(x + y + px + py) ? Math.abs(x - px) + Math.abs(y - py) : null,
+        running: Boolean(read(event, 'isStarting')),
+      }
+    })
+    .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+    .slice(0, 50)
+  const windows = scene
+    ? Object.entries(scene)
+        .filter(([name, value]) => name.endsWith('Window') && value && typeof value === 'object')
+        .map(([name, value]) => {
+          const win = value as Loose
+          const visible = win.visible !== false && Number(win.openness ?? 255) > 0
+          if (!visible) return null
+          return {
+            name: name.replace(/^_/, ''),
+            active: Boolean(win.active),
+            index: read(win, 'index') ?? win._index ?? null,
+            symbol: read(win, 'currentSymbol') ?? null,
+            item: toJsonSafe(read(win, 'item'), 2),
+          }
+        })
+        .filter(Boolean)
+        .slice(0, 30)
+    : []
+  const screenText =
+    typeof document === 'undefined'
+      ? null
+      : String(document.body?.innerText || document.body?.textContent || '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 4000) || null
   return {
     scene: (scene?.constructor as { name?: string } | undefined)?.name ?? null,
     title: (w.$dataSystem as { gameTitle?: string } | undefined)?.gameTitle ?? document.title,
@@ -79,6 +145,23 @@ function gameState(): unknown {
       mmp: read(a, 'param', 1) ?? null,
     })),
     playtime: read(w.$gameSystem, 'playtimeText') ?? null,
+    inventory: party ? { items: items('items'), weapons: items('weapons'), armors: items('armors') } : null,
+    nearbyEvents: events,
+    battle: enemies.length
+      ? {
+          turn: (w.BattleManager as Loose | undefined)?._turnCount ?? null,
+          phase: (w.BattleManager as Loose | undefined)?._phase ?? null,
+          enemies: enemies.map((enemy, index) => ({
+            index,
+            name: read(enemy, 'name') ?? null,
+            hp: enemy._hp ?? null,
+            mhp: read(enemy, 'param', 0) ?? null,
+            states: (read<Loose[]>(enemy, 'states') ?? []).map((state) => state.name).filter(Boolean),
+          })),
+        }
+      : null,
+    windows,
+    screenText,
     message: message
       ? {
           busy: Boolean(read(message, 'isBusy')),
@@ -90,21 +173,6 @@ function gameState(): unknown {
   }
 }
 
-function methodNames(obj: object): string[] {
-  const names = new Set<string>()
-  for (let p: object | null = obj; p && p !== Object.prototype; p = Object.getPrototypeOf(p)) {
-    for (const key of Object.getOwnPropertyNames(p)) {
-      if (key === 'constructor' || key.startsWith('_')) continue
-      try {
-        if (typeof (obj as Loose)[key] === 'function') names.add(key)
-      } catch {
-        /* getter threw */
-      }
-    }
-  }
-  return [...names].sort()
-}
-
 function listPlugins(): unknown {
   const w = g()
   const tools = listPluginToolMetas()
@@ -113,7 +181,7 @@ function listPlugins(): unknown {
     .sort()
     .map((key) => {
       const declared = tools.filter((tool) => tool.plugin === key).map(({ plugin: _plugin, ...meta }) => meta)
-      return { name: key, methods: methodNames(w[key] as object), ...(declared.length ? { tools: declared } : {}) }
+      return { name: key, tools: declared }
     })
 }
 
@@ -124,38 +192,65 @@ async function callPluginTool({ plugin, tool, input = {} }: AgentParams<'plugin.
   return result === undefined ? null : toJsonSafe(result)
 }
 
-async function callPlugin({ plugin, method, args = [], chain = [] }: AgentParams<'plugin.call'>): Promise<unknown> {
-  // Not every `window.Chaya*`: ChayaAgent.run would reach game.eval and ChayaAgent.stop the bridge.
-  if (!isFirstPartyToolPlugin(plugin)) throw new Error(`只能调用 ChayaEdit / ChayaBoost / ChayaTrans，收到：${plugin}`)
-  const target = g()[plugin]
-  if (!target || typeof target !== 'object') throw new Error(`插件未加载：${plugin}`)
-  let self: unknown = target
-  let result: unknown = target
-  for (const step of [{ method, args }, ...chain]) {
-    if (result == null) throw new Error(`链式调用中断：${step.method} 前的返回值为空`)
-    // Only listed methods of plain objects: function values / Object.prototype / constructor lead to `Function` (arbitrary code).
-    if (typeof result !== 'object' || !methodNames(result).includes(step.method)) throw new Error(`方法不存在：${step.method}`)
-    const fn = (result as Loose)[step.method]
-    self = result
-    result = await (fn as AnyFn).apply(self, step.args ?? [])
-  }
-  return result === target ? `[${plugin}]` : toJsonSafe(result)
+type AgentEditApi = {
+  state: () => unknown
+  apply: (op: AgentParams<'edit.apply'>['op']) => unknown
+  action: (action: AgentParams<'edit.action'>['action']) => unknown
 }
 
-function pressKey({ key, frames }: { key: AgentInputKey; frames?: number }): Promise<unknown> {
+function agentEdit(): AgentEditApi {
+  const api = (g().ChayaEdit as { agentEdit?: AgentEditApi } | undefined)?.agentEdit
+  if (!api) throw new Error('修改插件未就绪：请确认已安装并加载 ChayaEdit')
+  return api
+}
+
+function editCatalog(): unknown {
+  const catalog = (g().ChayaEdit as { catalog?: () => unknown } | undefined)?.catalog
+  if (typeof catalog !== 'function') throw new Error('修改插件未就绪：请确认已安装并加载 ChayaEdit')
+  // Plain data from buildLiveCatalog; toJsonSafe would cut lists at 200 entries
+  return catalog()
+}
+
+function frames(value: number | undefined, fallback: number): number {
+  return Math.min(MAX_PRESS_FRAMES, Math.max(0, Math.round(value ?? fallback)))
+}
+
+function dispatchKey(type: 'keydown' | 'keyup', key: AgentInputKey) {
+  if (typeof document === 'undefined' || typeof KeyboardEvent === 'undefined') return false
+  const dom = DOM_KEYS[key]
+  const event = new KeyboardEvent(type, { key: dom.key, code: dom.code, bubbles: true, cancelable: true })
+  // Old RPG Maker games and DOM demos may inspect the deprecated numeric fields.
+  for (const field of ['keyCode', 'which'] as const) Object.defineProperty(event, field, { configurable: true, get: () => dom.keyCode })
+  document.dispatchEvent(event)
+  return true
+}
+
+function waitFrames(value: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, Math.round((value * 1000) / 60)))
+}
+
+async function pressKey({ key, frames: requested }: { key: AgentInputKey; frames?: number }): Promise<unknown> {
   const input = g().Input as { _currentState?: Record<string, boolean> } | undefined
-  if (!input?._currentState) throw new Error('Input 未就绪（游戏尚未启动？）')
-  const n = Math.min(MAX_PRESS_FRAMES, Math.max(1, Math.round(frames ?? DEFAULT_PRESS_FRAMES)))
-  input._currentState[key] = true
-  return new Promise((resolve) => {
-    window.setTimeout(
-      () => {
-        if (input._currentState) input._currentState[key] = false
-        resolve({ key, frames: n })
-      },
-      Math.round((n * 1000) / 60)
-    )
-  })
+  const n = Math.max(1, frames(requested, DEFAULT_PRESS_FRAMES))
+  if (!input?._currentState && typeof document === 'undefined') throw new Error('Input 未就绪（游戏尚未启动？）')
+  if (input?._currentState) input._currentState[key] = true
+  dispatchKey('keydown', key)
+  await waitFrames(n)
+  if (input?._currentState) input._currentState[key] = false
+  dispatchKey('keyup', key)
+  return { key, frames: n }
+}
+
+async function playSequence({ steps }: { steps: AgentInputStep[] }): Promise<unknown> {
+  if (!Array.isArray(steps) || !steps.length) throw new Error('steps 不能为空')
+  if (steps.length > MAX_SEQUENCE_STEPS) throw new Error(`steps 最多 ${MAX_SEQUENCE_STEPS} 个`)
+  const actions = []
+  for (const step of steps) {
+    if (!step || !DOM_KEYS[step.key]) throw new Error(`无效按键：${String(step?.key)}`)
+    actions.push(await pressKey(step))
+    await waitFrames(frames(step.waitFrames, DEFAULT_WAIT_FRAMES))
+  }
+  return { actions, state: gameState() }
 }
 
 async function evalCode(code: string): Promise<unknown> {
@@ -172,14 +267,33 @@ export async function runAgentCommand(cmd: AgentCommand, { allowEval = false }: 
   switch (cmd.method) {
     case 'game.state':
       return gameState()
+    case 'game.history':
+      return readHistory(cmd.params ?? {})
+    case 'game.snap':
+      return snapScreen(cmd.params ?? {})
+    case 'game.quit':
+      return quitGame()
     case 'plugins.list':
       return listPlugins()
-    case 'plugin.call':
-      return callPlugin(cmd.params)
     case 'plugin.tool':
       return callPluginTool(cmd.params)
     case 'input.press':
       return pressKey(cmd.params)
+    case 'input.sequence':
+      return playSequence(cmd.params)
+    case 'input.tap':
+      return tapScreen(cmd.params)
+    case 'player.moveTo':
+      return movePlayer(cmd.params)
+    case 'edit.catalog':
+      return editCatalog()
+    case 'edit.state':
+      return toJsonSafe(await agentEdit().state(), 6)
+    case 'edit.apply':
+      // Re-validated here: the DataChannel route is untrusted
+      return toJsonSafe(await agentEdit().apply(parseEditOp((cmd.params?.op ?? {}) as Record<string, unknown>)))
+    case 'edit.action':
+      return toJsonSafe(await agentEdit().action(parseEditAction((cmd.params?.action ?? {}) as Record<string, unknown>)))
     case 'game.eval':
       if (!allowEval) throw new Error('此通道不允许执行 game.eval')
       return evalCode(cmd.params.code)

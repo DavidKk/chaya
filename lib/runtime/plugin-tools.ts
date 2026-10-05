@@ -17,7 +17,7 @@ export function isFirstPartyToolPlugin(plugin: string): boolean {
   return (FIRST_PARTY_TOOL_PLUGINS as readonly string[]).includes(plugin)
 }
 
-/** `ChayaEdit` + `gold` → `chaya_plugin_edit_gold` */
+/** `ChayaBoost` + `on` → `chaya_plugin_boost_on` */
 export function pluginToolName(plugin: string, tool: string): string {
   return `${PLUGIN_TOOL_PREFIX}${plugin.replace(/^Chaya/, '').toLowerCase()}_${tool}`
 }

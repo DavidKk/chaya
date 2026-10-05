@@ -1,4 +1,3 @@
-import { buildEditTools, type EditLinkDeps } from '@/components/webmcp/edit-tools'
 import { buildPageTools } from '@/components/webmcp/page/tools'
 import type { Locale } from '@/lib/i18n/locales'
 import { localizedToolDescription, WEB_TOOL_MESSAGES } from '@/lib/integration/mcp-catalog-i18n'
@@ -7,8 +6,7 @@ import { pluginToolDescription, pluginToolName } from '@/lib/runtime/plugin-tool
 
 const CJK = /[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/
 
-const link: EditLinkDeps = { connected: () => false, send: () => {}, subscribeMessages: () => () => {}, acquireEditSession: () => () => {} }
-const webTools = [...buildPageTools({ navigate: () => {}, routes: () => [], context: () => ({}) }), ...buildEditTools(link)]
+const webTools = buildPageTools({ navigate: () => {}, routes: () => [], context: () => ({}) })
 const pluginTools = PLUGIN_TOOL_CATALOG.map((meta) => ({ name: pluginToolName(meta.plugin, meta.tool), description: pluginToolDescription(meta), meta }))
 
 describe('WebMCP-only tool text', () => {
@@ -23,8 +21,8 @@ describe('WebMCP-only tool text', () => {
   })
 
   it('falls back to the agent text for English', () => {
-    const gold = pluginTools.find((tool) => tool.name === 'chaya_plugin_edit_gold')!
-    expect(localizedToolDescription(gold.name, gold.description, 'en')).toBe(gold.description)
-    expect(localizedToolDescription(gold.name, gold.description, 'zh')).toBe(WEB_TOOL_MESSAGES.zh!.chaya_plugin_edit_gold)
+    const tool = pluginTools[0]!
+    expect(localizedToolDescription(tool.name, tool.description, 'en')).toBe(tool.description)
+    expect(localizedToolDescription(tool.name, tool.description, 'zh')).toBe(WEB_TOOL_MESSAGES.zh![tool.name])
   })
 })

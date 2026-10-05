@@ -59,5 +59,5 @@ pnpm dev          # 本机模式，监听 localhost:3000
 | macOS 提示「已损坏」   | 用上面的一行命令安装，或 `xattr -cr /Applications/Chaya.app`                       |
 | 接口返回 401           | 用 `localhost` 或 IP 地址打开控制台；自定义域名需设置 `CHAYA_PUBLIC_ORIGIN` 后重启 |
 | 3927 / 3000 端口被占用 | 关闭其他 Chaya App / dev 实例后重启（App 也可用 `PORT` 环境变量换端口）            |
-| MCP 端口 39271 被占用  | 在「集成 → MCP」或游戏内「MCP」页改端口，再在 Agent 中改成新地址                   |
+| MCP 端口 39271 被占用  | 在游戏内「集成 → MCP」页改端口，再在 Agent 中改成新地址                            |
 | Edge 无法选择目录      | 换 Chrome / Edge 浏览器                                                            |

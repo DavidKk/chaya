@@ -1,9 +1,11 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { IoSparklesOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
+import { Button } from '@/components/sk'
 import { cn } from '@/lib/utils'
 
 import { isEditTab, type TabId } from './tabs'
@@ -26,7 +28,7 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, refreshButton, close
           { id: 'edit', labelKey: 'edit.tabEdit' as const, target: lastEditTab },
           { id: 'trans', labelKey: 'edit.tabTranslate' as const, target: 'trans' as const },
           { id: 'logs', labelKey: 'edit.tabLogs' as const, target: 'logs' as const },
-          { id: 'mcp', labelKey: 'mcpGateway.tab' as const, target: 'mcp' as const },
+          { id: 'mcp', labelKey: 'nav.integration' as const, target: 'mcp' as const },
         ] as const
       ).map((item) => {
         const active = item.id === (showEditNav ? 'edit' : tab)
@@ -50,6 +52,15 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, refreshButton, close
       })}
       <div className="ml-auto flex items-center gap-2">
         <LocaleSwitcher compact />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Agent"
+          tooltip="Agent (Ctrl/⌘ + Shift + A)"
+          onClick={() => window.dispatchEvent(new CustomEvent('chaya:game-agent-toggle'))}
+        >
+          <IoSparklesOutline size={17} aria-hidden />
+        </Button>
         {refreshButton}
         {closeButton}
       </div>

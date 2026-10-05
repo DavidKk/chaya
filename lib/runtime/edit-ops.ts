@@ -1,4 +1,7 @@
-/** `chaya_web_edit_*` argument parsing: agent input → validated `GameEditCmdOp` (same ops as the edit page). */
+/**
+ * `chaya_edit_set` / `chaya_edit_action` argument parsing: agent input → validated edit-page commands.
+ * Runs in the tool layer and again inside the game (the DataChannel is untrusted).
+ */
 
 import { type ActorDraft, type ItemKind, RUN_ACTION_IDS, RUN_FLAG_KEYS, type RunActionId, type RunFlagKey } from '@/components/game-edit/types'
 import type { GameEditCmdOp } from '@/lib/runtime/game-link-protocol'
@@ -108,4 +111,38 @@ export function parseEditOp(args: Args): GameEditCmdOp {
 
 export function parseRunAction(args: Args): RunActionId {
   return oneOf<RunActionId>(args, 'id', RUN_ACTION_IDS)
+}
+
+/** Edit-page run actions plus the preset ChayaEdit actions that used to be plugin tools */
+export const EDIT_EXTRA_ACTIONS = ['teleport', 'common_event', 'save', 'load'] as const
+export const EDIT_ACTION_IDS = [...RUN_ACTION_IDS, ...EDIT_EXTRA_ACTIONS] as const
+export type EditActionId = (typeof EDIT_ACTION_IDS)[number]
+
+export type EditAction =
+  | { id: RunActionId }
+  | { id: 'teleport'; mapId: number; x: number; y: number; direction?: number }
+  | { id: 'common_event'; eventId: number }
+  | { id: 'save' | 'load'; slot: number }
+
+const DIRECTIONS = [2, 4, 6, 8]
+
+export function parseEditAction(args: Args): EditAction {
+  const id = oneOf<EditActionId>(args, 'id', EDIT_ACTION_IDS)
+  switch (id) {
+    case 'teleport': {
+      const direction = args.direction === undefined ? undefined : int(args, 'direction')
+      if (direction !== undefined && !DIRECTIONS.includes(direction)) throw new Error('direction 只能是 2（下）、4（左）、6（右）、8（上）')
+      return { id, mapId: int(args, 'mapId'), x: int(args, 'x'), y: int(args, 'y'), ...(direction === undefined ? {} : { direction }) }
+    }
+    case 'common_event':
+      return { id, eventId: int(args, 'eventId') }
+    case 'save':
+    case 'load': {
+      const slot = args.slot === undefined ? 1 : int(args, 'slot')
+      if (slot < 1) throw new Error('slot 需 ≥ 1')
+      return { id, slot }
+    }
+    default:
+      return { id }
+  }
 }

@@ -1,6 +1,6 @@
 ---
 name: chaya-setup
-description: What Chaya is, how its three editions (Edge / local dev / App) differ, and how to install each. Use when the user asks how to install Chaya, which edition to pick, or why the app will not open / is "damaged".
+description: Chaya (RPG Maker MV/MZ toolkit) editions and installation: Edge vs local dev vs App, install steps, "damaged" app fixes. Use only when the user mentions Chaya.
 ---
 
 # Chaya: what it is and how to install
@@ -50,7 +50,7 @@ pnpm dev          # local mode, listens on localhost:3000
 1. Open `https://chaya-gray.vercel.app` in **Chrome or Edge** (Safari / Firefox do not support folder access).
 2. Go to the library, pick the local game folder (containing `www` or `index.html`) and grant read / write access.
 3. The page writes plugins and the shell into the game folder; then double-click to launch the game locally (a web page cannot start processes).
-4. The shared translation library, whole-game fill and other features that need local disk access are not available on Edge; use the App or local dev. Agents can still use live tools through the game's MCP gateway `http://127.0.0.1:39271/mcp` while the game is open.
+4. The shared translation library, whole-game fill and other features that need local disk access are not available on Edge; use the App or local dev. Agents can still use in-game tools (live, edit catalog, translation, translation library, logs) through the game's MCP gateway `http://127.0.0.1:39271/mcp` while the game is open.
 
 ## Access and security
 
@@ -64,5 +64,5 @@ pnpm dev          # local mode, listens on localhost:3000
 | macOS says the app is "damaged" | Install with the one-line command above, or run `xattr -cr /Applications/Chaya.app`                             |
 | API calls return 401            | Open the console via `localhost` or an IP address; for a custom host name set `CHAYA_PUBLIC_ORIGIN` and restart |
 | Port 3927 / 3000 is in use      | Quit other Chaya App / dev instances and restart (the App also accepts a `PORT` env var)                        |
-| MCP port 39271 is in use        | Change it on Integrations → MCP or the in-game MCP tab, then update the address in the agent                    |
+| MCP port 39271 is in use        | Change it in the in-game Integration → MCP tab, then update the address in the agent                            |
 | Edge cannot pick a folder       | Switch to Chrome / Edge                                                                                         |

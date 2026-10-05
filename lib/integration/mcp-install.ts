@@ -27,10 +27,18 @@ export function vscodeInstallLink({ name, url }: McpInstallInput): string {
   return `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name, type: 'http', url }))}`
 }
 
-export function claudeCodeInstallCommand({ name, url }: McpInstallInput): string {
-  return `claude mcp add --transport http --scope user ${shellQuote(name)} ${shellQuote(url)}`
+export function claudeCodeInstallArgs({ name, url }: McpInstallInput): string[] {
+  return ['mcp', 'add', '--transport', 'http', '--scope', 'user', name, url]
 }
 
-export function codexInstallCommand({ name, url }: McpInstallInput): string {
-  return `codex mcp add ${shellQuote(name)} --url ${shellQuote(url)}`
+export function codexInstallArgs({ name, url }: McpInstallInput): string[] {
+  return ['mcp', 'add', name, '--url', url]
+}
+
+export function claudeCodeInstallCommand(input: McpInstallInput): string {
+  return ['claude', ...claudeCodeInstallArgs(input)].map(shellQuote).join(' ')
+}
+
+export function codexInstallCommand(input: McpInstallInput): string {
+  return ['codex', ...codexInstallArgs(input)].map(shellQuote).join(' ')
 }

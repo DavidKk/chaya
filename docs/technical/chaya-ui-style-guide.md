@@ -88,6 +88,13 @@
 
 控件高度另见 `components/sk/control.ts`（`FORM_CONTROL_H` = `h-8`）。
 
+### 4.2 文字只在卡片内（全局）
+
+- 内容区的**说明文字、提示、空态文案都必须放在卡片里**（`hubBlock` / `integrationCard` / `formCard` / `EmptyState` 等容器），卡片外不放裸段落、列表或提示行。
+- 卡片外只允许：页头 / 列头（`panelHead`、`HubPaneHeader` 的标题与一行描述）、导航、tabs。
+- 需要一句开场说明时，并进第一张卡片作为标题或首段，不要单独悬在卡片上方。
+- 窄屏把侧栏内容移进正文时同样包成卡片。
+
 ## 5. GameEdit
 
 - **同一套 React 组件**：`components/game-edit/GameEditWorkbench` + `components/sk`；控制台与局内插件共用，只换外壳。
@@ -110,3 +117,4 @@
 - [ ] 表/列表不横溢；长路径 truncate
 - [ ] 窄宽可用
 - [ ] GameEdit 与 Toolkit 同属一套皮
+- [ ] 内容区文字都在卡片内（§4.2）

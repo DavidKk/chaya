@@ -12,11 +12,13 @@ app.whenReady().then(() => {
     height: 760,
     minWidth: 860,
     minHeight: 620,
-    title: 'Chaya translation demo',
+    title: 'Chaya demo',
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
       sandbox: false,
+      // Agents drive the game while the window sits in the background
+      backgroundThrottling: false,
     },
   })
   win.webContents.on('console-message', ({ level, message }) => {

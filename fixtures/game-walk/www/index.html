@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chaya 行走测试</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0e1620;
+        color: #dfe8ee;
+        font:
+          13px/1.5 system-ui,
+          sans-serif;
+      }
+      #game {
+        display: block;
+        width: 816px;
+        height: 624px;
+        margin: 12px auto 6px;
+        border: 1px solid #5b6b7a;
+        image-rendering: pixelated;
+      }
+      .hint {
+        width: 816px;
+        margin: 0 auto;
+        color: #9fb2c0;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game" width="816" height="624"></canvas>
+    <div class="hint">方向键行走 · Enter / Z 对话、确认 · X / Esc 打开菜单、取消 · 点击地面寻路 · ` 插件面板</div>
+    <script>
+      // `pnpm demo:walk` passes the Chaya service address (e.g. dev on :3000) through the Electron env.
+      if (typeof process !== 'undefined' && process.env && process.env.CHAYA_API_BASE) window.CHAYA_API_BASE = process.env.CHAYA_API_BASE
+    </script>
+    <script src="data.js"></script>
+    <script src="objects.js"></script>
+    <script src="game.js"></script>
+    <script src="js/plugins.js"></script>
+    <script src="js/plugins/ChayaLoader.js"></script>
+    <script>
+      window.startWalkDemo()
+    </script>
+  </body>
+</html>

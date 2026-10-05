@@ -4,6 +4,8 @@
 import { createLogger, showPluginError } from '../../helpers'
 import { getAutoTalk, setAutoTalk } from '../runtime/auto-talk'
 import { Cheats, type LockKind } from '../runtime/cheats'
+import { agentEdit } from '../session/agent-edit'
+import { buildLiveCatalog } from '../session/live-session'
 import { hideGameEditUi, isGameEditUiOpen, showGameEditUi, toggleGameEditUi } from '../ui/mount'
 import { actorApi } from './actor-api'
 import { findInDb, needParty, setItemLike } from './party-items'
@@ -113,6 +115,12 @@ export function installConsoleApi() {
     actor(id?: number) {
       return actorApi(id == null ? 1 : id)
     },
+    /** Database names / ids for the edit panel and the in-game MCP `chaya_edit_catalog` */
+    catalog() {
+      return buildLiveCatalog()
+    },
+    /** Edit-page commands for ChayaAgent (`edit.state` / `edit.apply` / `edit.action`) */
+    agentEdit,
     autoTalk(on?: boolean) {
       if (arguments.length === 0) return getAutoTalk()
       const v = setAutoTalk(!!on)

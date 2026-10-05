@@ -1,5 +1,6 @@
 import { canUseDisk } from '@/lib/service-mode/mode'
 import { hasManagementAccess } from '@/services/access/management'
+import { getTurn } from '@/services/game-agent/session-store'
 import { peekLaunchToken } from '@/services/runtime/launch-token'
 
 export async function mayAccessApi(request: Request): Promise<boolean> {
@@ -32,6 +33,22 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
       .json()
       .catch(() => null)
     return body?.roomId === (session.libraryId || session.token)
+  }
+  if (path === '/api/game-agent/status' && request.method === 'GET') {
+    return url.searchParams.get('gameId') === (session.libraryId || session.token)
+  }
+  if (path === '/api/integration/game-agent' && ['GET', 'POST', 'PUT'].includes(request.method)) return true
+  if (path === '/api/game-agent/turn' && request.method === 'POST') {
+    const body = await request
+      .clone()
+      .json()
+      .catch(() => null)
+    return body?.gameId === (session.libraryId || session.token)
+  }
+  const stopMatch = path.match(/^\/api\/game-agent\/turn\/([^/]+)$/)
+  if (stopMatch && request.method === 'DELETE') {
+    const turn = getTurn(decodeURIComponent(stopMatch[1]))
+    return !!turn && turn.gameId === (session.libraryId || session.token)
   }
   if (path === '/api/translate' && request.method === 'POST') {
     const body = await request

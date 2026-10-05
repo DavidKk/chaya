@@ -2,7 +2,6 @@ import type { McpGatewayMessages } from '@/lib/i18n/messages/mcp-gateway-types'
 
 export const mcpGatewayZh: { mcpGateway: McpGatewayMessages } = {
   mcpGateway: {
-    tab: 'MCP',
     title: 'MCP 网关',
     regionAria: 'MCP 网关',
     address: '统一地址',
@@ -19,6 +18,8 @@ export const mcpGatewayZh: { mcpGateway: McpGatewayMessages } = {
     adviceServer: '无需操作，Agent 连接上面的地址即可使用全部工具。',
     adviceOccupied: '关闭占用该端口的程序，或在下方修改端口。',
     adviceOff: '在 Edge 游戏库给游戏「安装插件」后重开游戏。',
+    edgeTitle: '网页版不支持 MCP，请在游戏中查看',
+    edgeBody: '给游戏安装插件并打开游戏后，在游戏内「集成」页查看并接入 Agent。',
     adviceNoNode: '当前游戏没有 Node 环境，无法开启网关。',
     lastRequest: '最近一次 Agent 请求：{seconds} 秒前',
     lastRequestNever: '尚未收到 Agent 请求',
@@ -35,21 +36,11 @@ export const mcpGatewayZh: { mcpGateway: McpGatewayMessages } = {
     openFolder: '打开所在文件夹',
     openDocs: '打开文档',
     configJson: 'mcp.json 片段',
-    compatEndpoint: '兼容地址（直连本机服务）',
-    edgeTitle: '统一地址由本机游戏提供',
-    edgeStep1: '在 Edge 游戏库给游戏「安装插件」',
-    edgeStep2: '打开游戏（插件会在本机开启 MCP 网关）',
-    edgeStep3: '在 Agent 中连接统一地址',
-    edgeDefaultPort: '默认端口 {port}；若在游戏内改过端口，以游戏内「MCP」页显示为准。',
-    edgeToolsHint: '只提供局内工具；游戏库、装壳、翻译库、日志等需本机服务（dev / App）。',
-    needsServer: '需本机服务',
-    configFiles: '端口配置文件位置（删除即恢复默认端口）',
   },
 }
 
 export const mcpGatewayEn: { mcpGateway: McpGatewayMessages } = {
   mcpGateway: {
-    tab: 'MCP',
     title: 'MCP gateway',
     regionAria: 'MCP gateway',
     address: 'Unified address',
@@ -66,6 +57,8 @@ export const mcpGatewayEn: { mcpGateway: McpGatewayMessages } = {
     adviceServer: 'Nothing to do: agents get every tool at the address above.',
     adviceOccupied: 'Close the program using this port, or change the port below.',
     adviceOff: 'Run "Install plugins" for this game in the Edge library, then restart the game.',
+    edgeTitle: 'MCP is not available on the web version; check it in game',
+    edgeBody: 'Install the plugins for a game and open it, then view and connect from the in-game Integrations tab.',
     adviceNoNode: 'This game has no Node context, so the gateway cannot run.',
     lastRequest: 'Last agent request: {seconds}s ago',
     lastRequestNever: 'No agent request yet',
@@ -82,21 +75,11 @@ export const mcpGatewayEn: { mcpGateway: McpGatewayMessages } = {
     openFolder: 'Open folder',
     openDocs: 'Open docs',
     configJson: 'mcp.json snippet',
-    compatEndpoint: 'Compatibility address (local server directly)',
-    edgeTitle: 'The unified address is served by your local game',
-    edgeStep1: 'Run "Install plugins" for the game in the Edge library',
-    edgeStep2: 'Open the game (the plugin starts the MCP gateway on this computer)',
-    edgeStep3: 'Connect your agent to the unified address',
-    edgeDefaultPort: 'Default port {port}; if you changed it in game, the in-game "MCP" page shows the actual one.',
-    edgeToolsHint: 'Live tools only; library, shell, translation library and logs need the local server (dev / App).',
-    needsServer: 'Needs local server',
-    configFiles: 'Port config file (delete it to restore the default port)',
   },
 }
 
 export const mcpGatewayJa: { mcpGateway: McpGatewayMessages } = {
   mcpGateway: {
-    tab: 'MCP',
     title: 'MCP ゲートウェイ',
     regionAria: 'MCP ゲートウェイ',
     address: '統一アドレス',
@@ -113,6 +96,8 @@ export const mcpGatewayJa: { mcpGateway: McpGatewayMessages } = {
     adviceServer: '操作は不要です。上のアドレスですべてのツールを使えます。',
     adviceOccupied: 'このポートを使っているプログラムを閉じるか、下でポートを変更してください。',
     adviceOff: 'Edge のゲームライブラリで「プラグインをインストール」してからゲームを再起動してください。',
+    edgeTitle: 'Web 版は MCP に対応していません。ゲーム内で確認してください',
+    edgeBody: 'ゲームにプラグインをインストールして起動すると、ゲーム内「連携」ページで確認・接続できます。',
     adviceNoNode: 'このゲームには Node 環境がないため、ゲートウェイを起動できません。',
     lastRequest: '最後の Agent リクエスト：{seconds} 秒前',
     lastRequestNever: 'まだ Agent リクエストはありません',
@@ -129,21 +114,11 @@ export const mcpGatewayJa: { mcpGateway: McpGatewayMessages } = {
     openFolder: 'フォルダーを開く',
     openDocs: 'ドキュメントを開く',
     configJson: 'mcp.json スニペット',
-    compatEndpoint: '互換アドレス（ローカルサーバー直結）',
-    edgeTitle: '統一アドレスはローカルのゲームが提供します',
-    edgeStep1: 'Edge のゲームライブラリでゲームに「プラグインをインストール」',
-    edgeStep2: 'ゲームを開く（プラグインがこの PC で MCP ゲートウェイを起動）',
-    edgeStep3: 'Agent を統一アドレスに接続',
-    edgeDefaultPort: '既定ポートは {port}。ゲーム内で変更した場合はゲーム内「MCP」ページの表示が正です。',
-    edgeToolsHint: 'ゲーム内ツールのみです。ライブラリ・シェル・翻訳ライブラリ・ログはローカルサーバー（dev / App）が必要です。',
-    needsServer: 'ローカルサーバーが必要',
-    configFiles: 'ポート設定ファイルの場所（削除すると既定ポートに戻ります）',
   },
 }
 
 export const mcpGatewayKo: { mcpGateway: McpGatewayMessages } = {
   mcpGateway: {
-    tab: 'MCP',
     title: 'MCP 게이트웨이',
     regionAria: 'MCP 게이트웨이',
     address: '통합 주소',
@@ -160,6 +135,8 @@ export const mcpGatewayKo: { mcpGateway: McpGatewayMessages } = {
     adviceServer: '할 일 없음: 위 주소로 모든 도구를 쓸 수 있습니다.',
     adviceOccupied: '이 포트를 쓰는 프로그램을 닫거나 아래에서 포트를 바꾸세요.',
     adviceOff: 'Edge 게임 라이브러리에서 「플러그인 설치」 후 게임을 다시 실행하세요.',
+    edgeTitle: '웹 버전은 MCP를 지원하지 않습니다. 게임에서 확인하세요',
+    edgeBody: '게임에 플러그인을 설치하고 실행하면 게임 내 「연동」 페이지에서 확인하고 연결할 수 있습니다.',
     adviceNoNode: '이 게임에는 Node 환경이 없어 게이트웨이를 실행할 수 없습니다.',
     lastRequest: '마지막 Agent 요청: {seconds}초 전',
     lastRequestNever: '아직 Agent 요청이 없습니다',
@@ -176,14 +153,5 @@ export const mcpGatewayKo: { mcpGateway: McpGatewayMessages } = {
     openFolder: '폴더 열기',
     openDocs: '문서 열기',
     configJson: 'mcp.json 조각',
-    compatEndpoint: '호환 주소(로컬 서버 직접 연결)',
-    edgeTitle: '통합 주소는 로컬 게임이 제공합니다',
-    edgeStep1: 'Edge 게임 라이브러리에서 게임에 「플러그인 설치」',
-    edgeStep2: '게임 실행(플러그인이 이 PC에서 MCP 게이트웨이를 켭니다)',
-    edgeStep3: 'Agent를 통합 주소에 연결',
-    edgeDefaultPort: '기본 포트는 {port}입니다. 게임 안에서 바꿨다면 게임 내 「MCP」 페이지 표시를 따르세요.',
-    edgeToolsHint: '게임 내 도구만 제공합니다. 라이브러리·셸·번역 라이브러리·로그는 로컬 서버(dev / App)가 필요합니다.',
-    needsServer: '로컬 서버 필요',
-    configFiles: '포트 설정 파일 위치(삭제하면 기본 포트로 돌아갑니다)',
   },
 }

@@ -22,12 +22,14 @@ export async function chayaFetch(pathOrUrl: string, init?: RequestInit): Promise
       init = { ...init, headers }
     }
   }
-  if (typeof fetch === 'function') {
+  const reqFn = (globalThis as { require?: NodeRequire }).require
+  const fileGame = typeof location !== 'undefined' && location.protocol === 'file:'
+  if (typeof fetch === 'function' && !(fileGame && reqFn)) {
     return fetch(url, init)
   }
 
-  // NW.js Node context (when fetch is missing)
-  const reqFn = (globalThis as { require?: NodeRequire }).require
+  // Desktop games run at file://. Use their Node context so a valid launch
+  // token is not blocked by browser CORS before the local API can verify it.
   if (!reqFn) {
     throw new Error('chayaFetch: 无 fetch / require')
   }

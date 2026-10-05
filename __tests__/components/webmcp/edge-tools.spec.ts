@@ -46,14 +46,14 @@ describe('Edge WebMCP tools', () => {
     const callAgent = jest.fn(async (method: string) =>
       method === 'plugins.list'
         ? [
-            { name: 'ChayaEdit', tools: [{ tool: 'gold', title: '金钱', description: '设置金钱', inputSchema: { type: 'object', properties: {} } }] },
+            { name: 'ChayaBoost', tools: [{ tool: 'on', title: '加速', description: '开启加速', inputSchema: { type: 'object', properties: {} } }] },
             { name: 'ChayaEvil', tools: [{ tool: 'x', title: 'x', description: 'x', inputSchema: { type: 'object', properties: {} } }] },
           ]
-        : { gold: 5 }
+        : { rate: 5 }
     ) as unknown as EdgeToolDeps['callAgent']
     const tools = await loadEdgePluginTools(deps({ callAgent }))
-    expect(tools.map((tool) => tool.name)).toEqual(['chaya_plugin_edit_gold'])
-    expect(await tools[0].execute({ value: 5 })).toEqual({ ok: true, result: { gold: 5 } })
-    expect(callAgent).toHaveBeenLastCalledWith('plugin.tool', { plugin: 'ChayaEdit', tool: 'gold', input: { value: 5 } })
+    expect(tools.map((tool) => tool.name)).toEqual(['chaya_plugin_boost_on'])
+    expect(await tools[0].execute({ rate: 5 })).toEqual({ ok: true, result: { rate: 5 } })
+    expect(callAgent).toHaveBeenLastCalledWith('plugin.tool', { plugin: 'ChayaBoost', tool: 'on', input: { rate: 5 } })
   })
 })

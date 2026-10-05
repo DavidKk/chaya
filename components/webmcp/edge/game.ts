@@ -130,7 +130,8 @@ export function makeEdgeGameTools({ gameOnline, quit, serviceMode }: EdgeGameDep
       return shellInstallView({ pending: !hasShell, hasShell, shellApp: game.existingShell ?? null, downloadUrl: downloadUrl ?? null, hint })
     },
 
-    async chaya_game_quit() {
+    /** Overrides the in-game `game.quit`: the page asks the linked game to exit */
+    async chaya_live_quit() {
       if (!gameOnline()) throw new Error('游戏未连接')
       quit('webmcp')
       return { quit: true }

@@ -1,6 +1,6 @@
 # 统一 MCP 入口（本机网关）技术设计
 
-> 需求真源：[docs/integration.md](../integration.md) §2.1
+> 需求真源：[docs/mcp-plugin.md](../mcp-plugin.md)（插件 MCP）、[docs/mcp-edge.md](../mcp-edge.md)（Edge 页说明）；本机侧见 [docs/mcp-local.md](../mcp-local.md)
 > 相关：[integration-mcp.md](./integration-mcp.md)（本机 `/api/mcp` 与工具实现）、[webmcp.md](./webmcp.md)（浏览器内 Agent）
 
 - **日期**：2026-10-03
@@ -55,7 +55,7 @@ Agent ──HTTP──► 127.0.0.1:<端口，默认 39271>/mcp（网关，谁�
 - 内容 `{ "port": 39271 }`；文件缺失或非法按默认 39271。不提供环境变量覆盖：游戏由用户双击启动，读不到本机服务的环境变量，有覆盖就会出现两边端口不一致。
 - 落点：路径解析与读写放 `lib/integration/mcp-port.ts`（路径解析为纯函数：平台 + `HOME` / `APPDATA` / `XDG_CONFIG_HOME` → 路径），本机服务（`instrumentation.ts`，§4）与插件（Vite 打包时经 `@/lib` 引入，已有先例）共用。
 - 目录名：macOS / Windows 用 `Chaya`，与打包 App（`electron-builder.yml` 的 `productName: Chaya`）的 `userData` 同一目录，App 用户不多出新目录；Linux 按 XDG 惯例用小写 `chaya`。
-- 在游戏内（§5.4）或本机「集成 → MCP」（§8）修改：校验 1024–65535 → 试监听新端口 → 写文件（先写临时文件再改名）；被占用则不写。
+- 在游戏内（§5.4）修改：校验 1024–65535 → 试监听新端口 → 写文件（先写临时文件再改名）；被占用则不写。
 - 生效：网关持有者用 `fs.watchFile`（轮询 stat，约 2 秒；文件或目录不存在也能监听，`fs.watch` 做不到）发现变化后关旧端口、监听新端口；本机服务同样；其他游戏下次探测即用新端口。
 - 不乱放：只用上表一个位置，不在游戏目录、壳目录或其他位置写任何 MCP 配置；文件只有端口一项（几十字节）。
 - 按需创建：端口为默认值时不建文件；改回默认等同删除。
@@ -77,7 +77,7 @@ Agent ──HTTP──► 127.0.0.1:<端口，默认 39271>/mcp（网关，谁�
 - 为什么转发而不是进程内调用：instrumentation 与路由是不同的打包产物，模块级状态（日志、配置缓存等）不共享；转发保证与直连 `/api/mcp` 行为完全一致。令牌只在本机进程间传递，不出现在响应。
 - dev 热更新会重复执行 `register()`：用 `globalThis.__chayaLocalMcpGateway` 保存实例，已在监听则跳过。启动失败只记日志，不阻塞服务就绪。
 - 本机服务模式下游戏插件**不开网关**（`ChayaEnv` 不写开启标记），游戏工具经现有 `/api/runtime/agent` 长轮询，避免同一游戏两份工具。
-- 「集成 → MCP」主推网关地址（读 §3.1 实际端口）；`/api/mcp`（3000 / 3927）列为兼容地址。
+- 本机「集成 → MCP」只介绍本机服务自身的 `/api/mcp`（3000 / 3927），不展示网关（§8）。
 
 ## 5. 游戏插件侧（ChayaAgent）
 
@@ -88,18 +88,20 @@ Agent ──HTTP──► 127.0.0.1:<端口，默认 39271>/mcp（网关，谁�
 
 ### 5.2 工具
 
-| 工具                 | 实现                                                 |
-| -------------------- | ---------------------------------------------------- |
-| `chaya_live_games`   | 返回本游戏（二期：合并已登记游戏）                   |
-| `chaya_live_state`   | `runAgentCommand({ method: 'game.state' })`          |
-| `chaya_live_plugins` | `plugins.list`                                       |
-| `chaya_live_call`    | `plugin.call` / `plugin.tool`                        |
-| `chaya_live_press`   | `input.press`                                        |
-| `chaya_plugin_*`     | 由 `plugins.list` 声明的插件工具生成，与本机同名同参 |
+工具集取自 `mcpToolsFor('plugin')`（`lib/integration/mcp-availability.ts`，与本机 `/api/mcp` 同名同 schema）；实现在 `plugins/src/agent/gateway.ts` + `game-tools.ts`，复用与 Edge 相同的工具工厂，只是注入游戏内的全局对象：
 
-- 定义取自 `lib/integration/mcp-catalog` 的 live 分组，与本机 `/api/mcp` 同名同 schema；`gameId` 参数保留（一期只接受本游戏 id 或省略）。
+| 工具                                               | 实现                                                                                                                                                            |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chaya_live_*`（除 `eval`）                        | `makeLiveTools` → `runAgentCommand`（`game.state` / `game.history` / `input.*` / `game.snap` / `player.moveTo` / `game.quit` / `plugins.list` / `plugin.tool`） |
+| `chaya_edit_state` / `set` / `action`              | `makeEditTools` → `runAgentCommand`（`edit.*` → `window.ChayaEdit.agentEdit`，与「修改」页同一套指令）                                                          |
+| `chaya_edit_catalog`                               | `makeCatalogTools` → `window.ChayaEdit.catalog()`（修改插件 `buildLiveCatalog`）                                                                                |
+| `chaya_translate_*`（除 `batch`）、`chaya_cache_*` | `makeTranslateTools` / `makeCacheTools` → `installedTranslationRuntime().request`（与 Edge 经 DataChannel 调的是同一运行时）                                    |
+| `chaya_logs_query` / `chaya_logs_clear`            | `window.ChayaLog.history()` / `clear()`（本游戏所有插件共享的日志）                                                                                             |
+| `chaya_plugin_*`                                   | 由 `plugins.list` 声明的插件工具生成（ChayaBoost / ChayaTrans），与本机同名同参                                                                                 |
+
+- `gameId` 参数保留（一期只接受本游戏 id 或省略）。
 - 方法白名单同 `AGENT_LINK_METHODS`，**永不开放 `game.eval`**。
-- 游戏库、装壳、缓存、日志、翻译任务等控制台工具不在游戏内；Edge 下由页面 WebMCP 提供。
+- 游戏库、当前游戏（启动 / 装插件 / 装壳）、批量翻译需要本机磁盘与任务队列，不在游戏内。
 
 ### 5.3 协议
 
@@ -108,7 +110,7 @@ Agent ──HTTP──► 127.0.0.1:<端口，默认 39271>/mcp（网关，谁�
 
 ### 5.4 游戏内展示
 
-- ChayaAgent 没有界面：由它在 `window.ChayaAgent.gateway` 暴露状态与操作（`status` / `setPort` / `resetPort` / `openFolder` / `openDocs`），局内面板（ChayaEdit）顶栏新增「MCP」页（`components/game-edit/GameEditMcpPane.tsx`，只在局内浮层出现）显示统一地址（可复制）、状态与处理建议：
+- ChayaAgent 没有界面：由它在 `window.ChayaAgent.gateway` 暴露状态与操作（`status` / `setPort` / `resetPort` / `rpc` / `openFolder` / `openDocs`；`rpc` 直接把 JSON-RPC 交给本游戏的 MCP server，供试调使用，无 Node 也可用）。局内面板（ChayaEdit）顶栏「集成」页（`components/game-edit/GameEditMcpPane.tsx`，只在局内浮层出现）只有 MCP，复用控制台的 `McpView`（传 `game`：插件工具集 + 下述网关卡片作为概览 + `rpc` 试调），不含 WebMCP（[capabilities.md](../capabilities.md) §6）。网关卡片显示统一地址（可复制）、状态与处理建议：
 
 | 状态                 | 判定                               | 建议文案                     |
 | -------------------- | ---------------------------------- | ---------------------------- |
@@ -122,7 +124,7 @@ Agent ──HTTP──► 127.0.0.1:<端口，默认 39271>/mcp（网关，谁�
 - 按钮：
   - 「删除端口配置」：二次确认后执行 §3.1 一键删除，提示「已恢复默认端口 39271，请在 Agent 中改回默认地址」；文件不存在时置灰并显示「未创建（使用默认端口）」。
   - 「打开所在文件夹」：用系统文件管理器打开配置目录（NW.js `nw.Shell.showItemInFolder` / `openItem`）；文件不存在时置灰。
-  - 「打开文档」：用系统浏览器打开集成文档（`nw.Shell.openExternal`，固定链接 `https://github.com/DavidKk/chaya/blob/main/docs/integration.md`），不依赖 Edge 或本机服务在线。
+  - 「打开文档」：用系统浏览器打开集成文档（`nw.Shell.openExternal`，固定链接 `https://github.com/DavidKk/chaya/blob/main/docs/mcp-plugin.md`），不依赖 Edge 或本机服务在线。
 - 另显示「最近一次 Agent 请求：xx 秒前」（网关记录最后一次 `POST /mcp` 时间），用于判断 Agent 是否真的连上。
 - 不回报 Edge 页面：页面只是静态文档（三步前提、默认端口「以游戏内为准」、各平台端口配置文件位置）。不让页面直接探测 `127.0.0.1:39271`：需放开浏览器跨站请求（与 §7 冲突），且会触发 Chrome 私有网络访问限制。
 
@@ -142,10 +144,10 @@ Agent ──HTTP──► 127.0.0.1:<端口，默认 39271>/mcp（网关，谁�
 
 ## 8. 页面
 
-- 「集成 → MCP」两种形态都展示统一地址、Cursor / VS Code 安装链接、Claude Code / Codex 命令、`mcp.json`：
-  - 本机：网关地址为主，`/api/mcp` 为兼容；试调面板不变。
+- 「集成 → MCP」所有内容都在卡片内（不放卡片外说明，也不放「打开文档」），都展示地址、Cursor / VS Code 安装链接、Claude Code / Codex 命令、`mcp.json`：
+  - 本机：只介绍本机服务自身——地址为 `http://127.0.0.1:<端口>/api/mcp`、全部工具、试调；不展示网关与插件内 MCP。
   - Edge：不再提示「改用本机」；静态展示统一地址、安装方式与三步前提（Edge 安装插件 → 打开游戏 → Agent 连接）；不随连接变化；工具卡片中不可用分组标注「需本机服务」。
-- 本机页面读实际生效端口生成地址与安装链接，并提供改端口 / 删除端口配置 / 打开所在文件夹（`/api/integration/mcp` 的 `PUT` / `DELETE` / `POST`，`POST` 在 Finder / 资源管理器中显示配置文件）；Edge 页面无法读取本机文件，写明默认值与文件位置。
+- `/api/integration/mcp` 只有 `GET`（本机返回自身地址与 `eval` 开关）；网关端口只在游戏内管理。Edge 页面无法读取本机文件，写明默认值与文件位置。
 
 ## 9. 清理（一期已完成）
 
@@ -187,3 +189,6 @@ Edge 不再有服务端 MCP，已删除：
 | 2026-10-04 | Review：本机网关改为 `instrumentation.ts` 进程内分派（不再转发、不需令牌）；目录统一小写 `chaya`；去掉 `CHAYA_MCP_PORT`；`fs.watchFile`；补端口配置测试  |
 | 2026-10-04 | 双文档 Review PASS；本机网关回到 HTTP 转发（instrumentation 与路由模块状态不共享）；局内入口为顶栏「MCP」；本机集成页可管理端口；Edge 登录随 OAuth 移除  |
 | 2026-10-04 | 一期实现：macOS / Windows 目录对齐 App `productName` 为 `Chaya`；打开文件夹改走 `POST /api/integration/mcp`；Edge 工具卡标注「需本机服务」；删除登录文档 |
+| 2026-10-04 | 本机集成页只介绍本机服务自身的 `/api/mcp`，去掉网关卡片与端口管理接口（`PUT` / `DELETE` / `POST`）；端口只在游戏内改                                     |
+| 2026-10-04 | 插件网关增加修改目录 / 翻译 / 翻译库 / 日志（`mcp-availability.ts` 为可用性矩阵）；局内「MCP」页改为「集成」（MCP / WebMCP），`gateway.rpc` 供试调       |
+| 2026-10-04 | 按能力总表：插件 MCP 增加截图 / 点击 / 寻路 / 退出与 `chaya_edit_*`；游戏内「集成」页只保留 MCP                                                          |

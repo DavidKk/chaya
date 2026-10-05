@@ -5,13 +5,20 @@ const path = require('node:path')
 const { spawn } = require('node:child_process')
 
 const root = path.resolve(__dirname, '..')
-const source = path.join(root, 'fixtures/game-demo/www')
-const target = path.join(root, 'demos/simple-game/www')
+/** `node scripts/demo-game.cjs [translate|walk]`: fixture → demos/<dir>/www with the freshly built plugins */
+const DEMOS = {
+  translate: { fixture: 'fixtures/game-demo/www', dir: 'demos/simple-game/www', files: ['index.html', 'game.js', 'package.json'] },
+  walk: { fixture: 'fixtures/game-walk/www', dir: 'demos/walk-game/www', files: ['index.html', 'data.js', 'objects.js', 'game.js', 'package.json'] },
+}
+const demo = DEMOS[process.argv[2] || 'translate']
+if (!demo) throw new Error(`unknown demo: ${process.argv[2]} (use ${Object.keys(DEMOS).join(' / ')})`)
+const source = path.join(root, demo.fixture)
+const target = path.join(root, demo.dir)
 const plugins = path.join(target, 'js/plugins')
-const names = ['ChayaLoader', 'ChayaLog', 'ChayaTrans', 'ChayaBoost', 'ChayaEdit']
+const names = ['ChayaLoader', 'ChayaLog', 'ChayaTrans', 'ChayaBoost', 'ChayaEdit', 'ChayaAgent']
 
 fs.mkdirSync(plugins, { recursive: true })
-for (const file of ['index.html', 'game.js', 'package.json']) {
+for (const file of demo.files) {
   fs.copyFileSync(path.join(source, file), path.join(target, file))
 }
 const pluginsJs = path.join(target, 'js/plugins.js')

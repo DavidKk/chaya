@@ -9,15 +9,14 @@ import { TRANSLATE_TABS } from '@/components/translate/tabs'
 import { createPageToolSync, registerPageTools } from '@/initializer/webmcp/register-page-tools'
 import { usePageWebMcp } from '@/initializer/webmcp/usePageWebMcp'
 import { edgeUnavailableTools } from '@/lib/webmcp/mode-matrix'
+import { MCP_REGISTRAR_ID, PLUGINS_REGISTRAR_ID } from '@/lib/webmcp/registrars'
 
 import { buildEdgeMcpTools, loadEdgePluginTools } from './edge'
 import type { EdgeLinkDeps } from './edge/link'
-import { buildEditTools, EDIT_REGISTRAR_ID } from './edit-tools'
 import { buildMirrorTools, fetchMirrorTools } from './mcp-mirror-client'
 import { buildPageTools, PAGE_REGISTRAR_ID, type PageRoute } from './page/tools'
 
-export const MCP_REGISTRAR_ID = 'chaya.mcp'
-export const PLUGINS_REGISTRAR_ID = 'chaya.plugins'
+export { MCP_REGISTRAR_ID, PLUGINS_REGISTRAR_ID } from '@/lib/webmcp/registrars'
 /** Plugin tools follow the agent bridge (not this tab's DataChannel), so poll often; tools/list is local and cheap. */
 const MIRROR_SYNC_MS = 10_000
 /** The agent bridge / ChayaAgent usually report plugin tools a few seconds after the DataChannel opens. */
@@ -117,13 +116,6 @@ export function ChayaWebMcpHost() {
     if (!authed) return
     const controller = new AbortController()
     const live = () => linkRef.current
-    const editTools = buildEditTools({
-      connected: () => live().connected,
-      send: (msg) => live().send(msg),
-      subscribeMessages: (fn) => live().subscribeMessages(fn),
-      acquireEditSession: () => live().acquireEditSession(),
-    })
-    registerPageTools(EDIT_REGISTRAR_ID, editTools, controller.signal).catch((error: unknown) => logFailure(EDIT_REGISTRAR_ID, error))
     if (edge) {
       const edgeTools = buildEdgeMcpTools({
         ...edgeLinkDeps(linkRef),

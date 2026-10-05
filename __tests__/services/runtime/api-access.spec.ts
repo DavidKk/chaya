@@ -1,5 +1,6 @@
 import { mayAccessApi } from '@/services/access/api'
 import { hasManagementAccess } from '@/services/access/management'
+import { beginTurn, getOrCreateSession, resetGameAgentStore } from '@/services/game-agent/session-store'
 import { clearLaunchToken, issueLaunchToken } from '@/services/runtime/launch-token'
 
 describe('API authorization', () => {
@@ -13,6 +14,7 @@ describe('API authorization', () => {
   afterEach(() => {
     process.env = { ...previous }
     clearLaunchToken()
+    resetGameAgentStore()
   })
 
   const request = (route: string, init?: RequestInit) => new Request(`http://localhost:3927${route}`, init)
@@ -52,6 +54,22 @@ describe('API authorization', () => {
     expect(await mayAccessApi(request('/api/runtime/webrtc', { method: 'POST', headers, body: JSON.stringify({ roomId: 'room-A', action: 'reset' }) }))).toBe(false)
     expect(await mayAccessApi(request('/api/runtime/agent', { method: 'POST', headers, body: JSON.stringify({ roomId: 'room-A' }) }))).toBe(true)
     expect(await mayAccessApi(request('/api/runtime/agent', { method: 'POST', headers, body: JSON.stringify({ roomId: 'room-B' }) }))).toBe(false)
+    expect(await mayAccessApi(request('/api/game-agent/status?gameId=room-A', { headers }))).toBe(true)
+    expect(await mayAccessApi(request('/api/game-agent/status?gameId=room-B', { headers }))).toBe(false)
+    expect(await mayAccessApi(request('/api/game-agent/turn', { method: 'POST', headers, body: JSON.stringify({ gameId: 'room-A' }) }))).toBe(true)
+    expect(await mayAccessApi(request('/api/game-agent/turn', { method: 'POST', headers, body: JSON.stringify({ gameId: 'room-B' }) }))).toBe(false)
+    const turn = beginTurn(getOrCreateSession('room-A', 'profile', 'demo'))
+    expect(await mayAccessApi(request('/api/integration/game-agent', { headers }))).toBe(true)
+    expect(await mayAccessApi(request(`/api/game-agent/turn/${turn.id}`, { method: 'DELETE', headers }))).toBe(true)
+    const other = issueLaunchToken({ gameRoot: '/games/B', libraryId: 'room-B' })
+    expect(
+      await mayAccessApi(
+        request(`/api/game-agent/turn/${turn.id}`, {
+          method: 'DELETE',
+          headers: { ...headers, 'X-Chaya-Launch-Token': other.token },
+        })
+      )
+    ).toBe(false)
     expect(await mayAccessApi(request('/api/mcp', { method: 'POST', headers, body: '{}' }))).toBe(false)
     expect(await mayAccessApi(request('/api/shell', { method: 'DELETE', headers }))).toBe(false)
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ texts: ['こんにちは'] }) }))).toBe(true)

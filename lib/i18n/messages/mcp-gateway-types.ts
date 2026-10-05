@@ -1,6 +1,5 @@
-/** `mcpGateway.*` messages: unified MCP gateway (in-game「MCP」page + integration page) */
+/** `mcpGateway.*` messages: unified MCP gateway (in-game「集成」page + integration page) */
 export type McpGatewayMessages = {
-  tab: string
   title: string
   regionAria: string
   address: string
@@ -33,13 +32,6 @@ export type McpGatewayMessages = {
   openFolder: string
   openDocs: string
   configJson: string
-  compatEndpoint: string
   edgeTitle: string
-  edgeStep1: string
-  edgeStep2: string
-  edgeStep3: string
-  edgeDefaultPort: string
-  edgeToolsHint: string
-  needsServer: string
-  configFiles: string
+  edgeBody: string
 }

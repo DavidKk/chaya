@@ -34,7 +34,7 @@ On Vercel, `VERCEL=1` forces **edge** mode: the marketing / console UI is served
 
 Optional local simulation of edge (no Vercel account): run `pnpm dev` and pick **Edge** in the dev switcher (top right); DiskOps APIs return 501.
 
-Edge has no sign-in and no server-side MCP. External agents connect to the unified MCP address `http://127.0.0.1:39271/mcp`, served by the open game (or the local server) — see [docs/integration.md](docs/integration.md).
+Edge has no sign-in and no server-side MCP. External agents connect to the unified MCP address `http://127.0.0.1:39271/mcp`, served by the open game (or the local server) — see [docs/mcp-plugin.md](docs/mcp-plugin.md) and [docs/mcp-edge.md](docs/mcp-edge.md).
 
 ## Build the app
 
@@ -82,7 +82,7 @@ pnpm i
 pnpm dev            # local mode on localhost:3000 + plugin watch
 ```
 
-Open `http://localhost:3000`. Local / App mode has no sign-in; the API only accepts same-origin requests from localhost, LAN IPs or `CHAYA_PUBLIC_ORIGIN`, and MCP needs no authorization: agents use `http://127.0.0.1:39271/mcp` (the port can be changed on the **Integration → MCP** page or in-game).
+Open `http://localhost:3000`. Local / App mode has no sign-in; the API only accepts same-origin requests from localhost, LAN IPs or `CHAYA_PUBLIC_ORIGIN`, and MCP needs no authorization: agents use `http://127.0.0.1:39271/mcp` (or the server's own `http://127.0.0.1:3000/api/mcp`, shown on **Integration → MCP**; the gateway port can be changed in-game).
 
 | Command        | Purpose                                          |
 | -------------- | ------------------------------------------------ |

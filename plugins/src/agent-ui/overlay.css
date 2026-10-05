@@ -1,0 +1,49 @@
+@import 'tailwindcss';
+@import '../../../styles/chaya-palette.css';
+
+@source "../../../components/game-agent/**/*.{ts,tsx}";
+@source "../../../components/sk/**/*.{ts,tsx}";
+@source "../../../components/i18n/**/*.{ts,tsx}";
+
+@theme inline {
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-inset: var(--inset);
+  --color-ok: var(--ok);
+  --color-fail: var(--fail);
+}
+
+:host {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 2147483646;
+  display: none;
+  height: 100vh;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+  color-scheme: dark;
+  pointer-events: none;
+}
+
+:host([data-open]) {
+  display: block;
+}
+
+:host *,
+:host *::before,
+:host *::after {
+  box-sizing: border-box;
+}
+.agent-mount-root {
+  height: 100%;
+  pointer-events: auto;
+}

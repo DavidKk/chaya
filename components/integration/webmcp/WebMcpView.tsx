@@ -2,30 +2,27 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { IconType } from 'react-icons'
-import { LuGlobe, LuMousePointerClick, LuPlug, LuPuzzle, LuWrench } from 'react-icons/lu'
+import { LuGlobe, LuMousePointerClick, LuPlug, LuPuzzle } from 'react-icons/lu'
 
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { hubBlock, HubLayout, HubNav, HubNavItem, HubNavSection, HubPaneHeader } from '@/components/integration/Hub'
 import { integrationCard } from '@/components/integration/mcp/McpConnectionCard'
+import { useMcpConnection } from '@/components/integration/mcp/useMcpConnection'
 import { Badge } from '@/components/sk'
-import { MCP_REGISTRAR_ID, PLUGINS_REGISTRAR_ID } from '@/components/webmcp/ChayaWebMcpHost'
-import { EDIT_REGISTRAR_ID } from '@/components/webmcp/edit-tools'
-import { PAGE_REGISTRAR_ID } from '@/components/webmcp/page/tools'
 import { getWebMcpSupportReport, type WebMcpSupportReport } from '@/initializer/webmcp/model-context'
 import { listRegisteredPageTools, type RegisteredPageTool, subscribeRegisteredPageTools } from '@/initializer/webmcp/register-page-tools'
 import type { MessageKey } from '@/lib/i18n'
 import { localizedToolDescription } from '@/lib/integration/mcp-catalog-i18n'
 import { cn } from '@/lib/utils'
+import { MCP_REGISTRAR_ID, PAGE_REGISTRAR_ID, PLUGINS_REGISTRAR_ID } from '@/lib/webmcp/registrars'
 
 const GROUPS = [
   { id: PAGE_REGISTRAR_ID, labelKey: 'integration.webmcpGroupPage', icon: LuMousePointerClick },
   { id: MCP_REGISTRAR_ID, labelKey: 'integration.webmcpGroupMcp', icon: LuPlug },
-  { id: EDIT_REGISTRAR_ID, labelKey: 'integration.webmcpGroupEdit', icon: LuWrench },
   { id: PLUGINS_REGISTRAR_ID, labelKey: 'integration.webmcpGroupPlugins', icon: LuPuzzle },
 ] as const satisfies ReadonlyArray<{ id: string; labelKey: MessageKey; icon: IconType }>
 
 const STEP_KEYS = ['integration.webmcpStep1', 'integration.webmcpStep2', 'integration.webmcpStep3'] as const satisfies ReadonlyArray<MessageKey>
-const MODE_KEYS = ['integration.webmcpModeLocal', 'integration.webmcpModeEdge', 'integration.webmcpModeLocked'] as const satisfies ReadonlyArray<MessageKey>
 
 function useRegisteredTools(): RegisteredPageTool[] {
   const [tools, setTools] = useState<RegisteredPageTool[]>([])
@@ -55,6 +52,13 @@ function ToolBlock({ tool }: { tool: RegisteredPageTool }) {
 }
 
 const SETUP = 'setup'
+
+function ServerModeNote() {
+  const t = useT()
+  const connection = useMcpConnection()
+  if (connection.status !== 'ready') return null
+  return <p className="m-0 text-xs leading-relaxed text-ink-soft">{t(connection.connection.available ? 'integration.webmcpModeLocal' : 'integration.webmcpModeEdge')}</p>
+}
 
 /** WebMCP 子页：左半「接入 + 已注册分组」与工具说明，右半浏览器支持状态与启用步骤 */
 export function WebMcpView() {
@@ -132,8 +136,12 @@ export function WebMcpView() {
         ),
         children: (
           <>
-            {report?.reason === 'no_secure_context' ? <p className="m-0 text-xs text-ink-soft">{t('integration.webmcpNeedSecure')}</p> : null}
-            <section className="flex flex-col gap-2" aria-labelledby="webmcp-steps-title">
+            {report?.reason === 'no_secure_context' ? (
+              <div className={integrationCard} role="note">
+                <p className="m-0 text-xs text-ink-soft">{t('integration.webmcpNeedSecure')}</p>
+              </div>
+            ) : null}
+            <section className={integrationCard} aria-labelledby="webmcp-steps-title">
               <h3 id="webmcp-steps-title" className="m-0 text-[13px] font-semibold text-ink">
                 {t('integration.webmcpStepsTitle')}
               </h3>
@@ -155,19 +163,15 @@ export function WebMcpView() {
         </ul>
       ) : (
         <>
-          <p className="m-0 text-[13px] leading-relaxed text-ink">{t('integration.webmcpIntro')}</p>
           {support}
           <section className={integrationCard} aria-labelledby="webmcp-modes-title">
             <h3 id="webmcp-modes-title" className="m-0 text-sm font-semibold text-ink">
               {t('integration.webmcpModesTitle')}
             </h3>
-            <ul className="m-0 flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-ink-soft">
-              {MODE_KEYS.map((key) => (
-                <li key={key}>{t(key)}</li>
-              ))}
-            </ul>
+            <p className="m-0 text-xs leading-relaxed text-ink">{t('integration.webmcpIntro')}</p>
+            <ServerModeNote />
+            {groups.length === 0 ? <p className="m-0 text-xs text-ink-soft">{t('integration.webmcpEmpty')}</p> : null}
           </section>
-          {groups.length === 0 ? <p className="m-0 text-xs text-ink-soft">{t('integration.webmcpEmpty')}</p> : null}
         </>
       )}
     </HubLayout>

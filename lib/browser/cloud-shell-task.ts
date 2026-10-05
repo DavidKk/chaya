@@ -74,7 +74,6 @@ export async function startCloudShellTask(entry: CloudLibraryEntry): Promise<Clo
       let fromCache = !!file
       for (;;) {
         if (!file) {
-          openOfficialNwDownload(plan.url)
           markNeedsFile(true)
           file = await ctl.waitForFile({
             archiveName: plan.archiveName,

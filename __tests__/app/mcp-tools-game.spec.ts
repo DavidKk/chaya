@@ -12,7 +12,9 @@ jest.mock('@/services/runtime/agent-bridge', () => ({
   callAgentGame: jest.fn(async () => ({ ok: true })),
 }))
 
+import * as LaunchRoute from '@/app/api/launch/route.server'
 import { cacheTools } from '@/app/api/mcp/_tools/cache'
+import { editTools } from '@/app/api/mcp/_tools/edit'
 import { gameTools } from '@/app/api/mcp/_tools/game'
 import { liveTools } from '@/app/api/mcp/_tools/live'
 import { translateTools } from '@/app/api/mcp/_tools/translate'
@@ -22,7 +24,7 @@ import * as StatusRoute from '@/app/api/status/route'
 import * as TranslateRoute from '@/app/api/translate/route.server'
 import * as CacheRoute from '@/app/api/translate-cache/route.server'
 import * as WindowRoute from '@/app/api/window/route.server'
-import { callAgentGame } from '@/services/runtime/agent-bridge'
+import { callAgentGame, listAgentGames } from '@/services/runtime/agent-bridge'
 
 const ctx = { signal: new AbortController().signal }
 const okJson = (body: Record<string, unknown> = {}) => Response.json({ ok: true, ...body })
@@ -98,9 +100,38 @@ describe('game tools', () => {
 })
 
 describe('live tools', () => {
-  it('routes plugin calls to the resolved game', async () => {
-    await liveTools.chaya_live_call({ plugin: 'ChayaEdit', method: 'gold', args: [99999] }, ctx)
-    expect(callAgentGame).toHaveBeenCalledWith('g1', 'plugin.call', { plugin: 'ChayaEdit', method: 'gold', args: [99999], chain: [] })
+  it('routes edits to the resolved game', async () => {
+    await liveTools.chaya_edit_set({ op: 'gold', value: 99999 }, ctx)
+    expect(callAgentGame).toHaveBeenCalledWith('g1', 'edit.apply', { op: { op: 'gold', value: 99999 } })
+  })
+
+  it('quits the targeted bridge game', async () => {
+    await liveTools.chaya_live_quit({ gameId: 'g2' }, ctx)
+    expect(callAgentGame).toHaveBeenCalledWith('g2', 'game.quit', {})
+    expect(LaunchRoute.DELETE).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the launch route when no bridge game is online', async () => {
+    mocked(listAgentGames).mockReturnValueOnce([])
+    mocked(LaunchRoute.DELETE).mockResolvedValue(okJson())
+    expect(await liveTools.chaya_live_quit({}, ctx)).toEqual({ quit: true })
+    expect(callAgentGame).not.toHaveBeenCalled()
+  })
+
+  it('reads the catalog from the game when gameId is given', async () => {
+    mocked(callAgentGame).mockResolvedValueOnce({
+      items: [
+        { id: 1, name: '药草' },
+        { id: 2, name: '旧钥匙' },
+      ],
+    })
+    expect(await editTools.chaya_edit_catalog({ gameId: 'g1', kind: 'items', q: '钥匙' }, ctx)).toEqual({
+      kind: 'items',
+      total: 2,
+      matched: 1,
+      entries: [{ id: 2, name: '旧钥匙' }],
+    })
+    expect(callAgentGame).toHaveBeenCalledWith('g1', 'edit.catalog', {})
   })
 
   it('rejects unknown keys before reaching the game', async () => {

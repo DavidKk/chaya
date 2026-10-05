@@ -11,7 +11,7 @@ export const TABS = [
   { id: 'actor', labelKey: 'edit.actor' },
   { id: 'trans', labelKey: 'edit.tabTranslate' },
   { id: 'logs', labelKey: 'edit.tabLogs' },
-  { id: 'mcp', labelKey: 'mcpGateway.tab' },
+  { id: 'mcp', labelKey: 'nav.integration' },
   { id: 'hotkeys', labelKey: 'edit.hotkeys' },
 ] as const satisfies ReadonlyArray<{ id: string; labelKey: MessageKey }>
 

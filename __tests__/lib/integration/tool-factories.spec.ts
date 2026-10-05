@@ -1,4 +1,5 @@
 import { makeCacheTools } from '@/lib/integration/tools/cache'
+import { makeEditTools } from '@/lib/integration/tools/edit'
 import { type AgentCaller, makeLiveTools, pluginToolRun } from '@/lib/integration/tools/live'
 import { makeTranslateTools } from '@/lib/integration/tools/translate'
 import { type ApiInvoke, pathWithQuery, redactSecrets } from '@/lib/integration/tools/types'
@@ -32,16 +33,77 @@ describe('shared tool factories', () => {
     expect(invoke.mock.calls[0][0].path).toBe('/api/extract')
   })
 
-  it('live tools route plugin.call, plugin.tool and input.press', async () => {
+  it('live tools route plugin calls and validated input commands', async () => {
     const call = jest.fn(async () => 'ok') as unknown as jest.MockedFunction<AgentCaller>
     const tools = makeLiveTools({ games: () => [{ gameId: 'g1' }], call })
     expect(await tools.chaya_live_games({}, ctx)).toEqual({ games: [{ gameId: 'g1' }] })
-    await tools.chaya_live_call({ plugin: 'ChayaEdit', tool: 'gold', input: { value: 1 } }, ctx)
-    expect(call).toHaveBeenLastCalledWith(undefined, 'plugin.tool', { plugin: 'ChayaEdit', tool: 'gold', input: { value: 1 } })
-    await tools.chaya_live_call({ gameId: 'g1', plugin: 'ChayaEdit', method: 'actor', args: [1], chain: [{ method: 'hp', args: [9] }] }, ctx)
-    expect(call).toHaveBeenLastCalledWith('g1', 'plugin.call', { plugin: 'ChayaEdit', method: 'actor', args: [1], chain: [{ method: 'hp', args: [9] }] })
-    await expect(tools.chaya_live_call({ plugin: 'ChayaEdit' }, ctx)).rejects.toThrow('method 或 tool')
+    await tools.chaya_live_call({ plugin: 'ChayaBoost', tool: 'on', input: { rate: 2 } }, ctx)
+    expect(call).toHaveBeenLastCalledWith(undefined, 'plugin.tool', { plugin: 'ChayaBoost', tool: 'on', input: { rate: 2 } })
+    await expect(tools.chaya_live_call({ plugin: 'ChayaBoost', method: 'on' }, ctx)).rejects.toThrow('tool')
     await expect(tools.chaya_live_press({ key: 'f5' }, ctx)).rejects.toThrow('key 只能是')
+    await tools.chaya_live_play(
+      {
+        gameId: 'g1',
+        steps: [
+          { key: 'down', frames: 2 },
+          { key: 'ok', waitFrames: 12 },
+        ],
+      },
+      ctx
+    )
+    expect(call).toHaveBeenLastCalledWith('g1', 'input.sequence', {
+      steps: [
+        { key: 'down', frames: 2, waitFrames: undefined },
+        { key: 'ok', frames: undefined, waitFrames: 12 },
+      ],
+    })
+    await expect(tools.chaya_live_play({ steps: [] }, ctx)).rejects.toThrow('steps 不能为空')
+    await expect(tools.chaya_live_play({ steps: [{ key: 'jump' }] }, ctx)).rejects.toThrow('steps[0].key')
+  })
+
+  it('live game ops map to agent commands; screenshot returns an MCP image', async () => {
+    const call = jest.fn(async (_game: string | undefined, method: string) =>
+      method === 'game.snap' ? { mimeType: 'image/jpeg', data: 'AAAA', width: 512, height: 384, screen: { width: 816, height: 624 } } : 'ok'
+    ) as unknown as jest.MockedFunction<AgentCaller>
+    const tools = makeLiveTools({ games: () => [], call })
+    await tools.chaya_live_history({ limit: 20, kinds: ['message', 'choice'], afterSeq: 3 }, ctx)
+    expect(call).toHaveBeenLastCalledWith(undefined, 'game.history', { limit: 20, kinds: ['message', 'choice'], afterSeq: 3 })
+    await expect(tools.chaya_live_history({ kinds: ['secret'] }, ctx)).rejects.toThrow('kinds')
+    expect(await tools.chaya_live_screenshot({ maxWidth: 512 }, ctx)).toEqual({
+      width: 512,
+      height: 384,
+      screen: { width: 816, height: 624 },
+      mcpImage: { mimeType: 'image/jpeg', data: 'AAAA' },
+    })
+    await tools.chaya_live_tap({ x: 10, y: 20 }, ctx)
+    expect(call).toHaveBeenLastCalledWith(undefined, 'input.tap', { x: 10, y: 20, frames: undefined })
+    await expect(tools.chaya_live_tap({ x: 10 }, ctx)).rejects.toThrow('y')
+    await tools.chaya_live_move_to({ gameId: 'g1', x: 3, y: 4, timeoutMs: 5000 }, ctx)
+    expect(call).toHaveBeenLastCalledWith('g1', 'player.moveTo', { x: 3, y: 4, timeoutMs: 5000 })
+    await tools.chaya_live_quit({}, ctx)
+    expect(call).toHaveBeenLastCalledWith(undefined, 'game.quit', {})
+  })
+
+  it('a host can override quit', async () => {
+    const call = jest.fn() as unknown as jest.MockedFunction<AgentCaller>
+    const quit = jest.fn(async () => ({ quit: true }))
+    expect(await makeLiveTools({ games: () => [], call, quit }).chaya_live_quit({}, ctx)).toEqual({ quit: true })
+    expect(call).not.toHaveBeenCalled()
+  })
+
+  it('edit tools validate before sending edit commands', async () => {
+    const call = jest.fn(async () => 'ok') as unknown as jest.MockedFunction<AgentCaller>
+    const tools = makeEditTools(call)
+    await tools.chaya_edit_state({ gameId: 'g1' }, ctx)
+    expect(call).toHaveBeenLastCalledWith('g1', 'edit.state', {})
+    await tools.chaya_edit_set({ op: 'gold', value: 999 }, ctx)
+    expect(call).toHaveBeenLastCalledWith(undefined, 'edit.apply', { op: { op: 'gold', value: 999 } })
+    await tools.chaya_edit_action({ id: 'save', slot: 2 }, ctx)
+    expect(call).toHaveBeenLastCalledWith(undefined, 'edit.action', { action: expect.objectContaining({ id: 'save', slot: 2 }) })
+    call.mockClear()
+    await expect(tools.chaya_edit_set({ op: 'nope' }, ctx)).rejects.toThrow()
+    await expect(tools.chaya_edit_action({ id: 'teleport', mapId: 1 }, ctx)).rejects.toThrow()
+    expect(call).not.toHaveBeenCalled()
   })
 
   it('plugin tool runs strip gameId from the input', async () => {

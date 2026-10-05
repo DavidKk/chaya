@@ -5,11 +5,13 @@ import {
   ensureShellLinkedToContent,
   getResolvedFromConfig,
   injectTrackedPlugins,
+  isShellInstalling,
   launchShellWithContent,
   openInFinder,
   recoverOldIfNeeded,
   requireDisk,
 } from '@/services/disk-ops'
+import { findRunningJob } from '@/services/downloads/jobs'
 import { anyWebConnected, clearGameQuitRequest, getGamePresence, preferredPluginApiBase, requestGameQuit, toolkitListenPort, writeLaunchEnv } from '@/services/runtime'
 
 export const runtime = 'nodejs'
@@ -18,6 +20,10 @@ export const runtime = 'nodejs'
 export const POST = defineApiRoute('post:/api/launch', async () => {
   const denied = requireDisk()
   if (denied) return denied
+
+  if (findRunningJob('nw-shell') || isShellInstalling()) {
+    return apiError(409, 'SHELL_JOB_RUNNING', '正在下载安装 NW.js，请等下载中心里的任务结束后再启动游戏')
+  }
 
   if (anyWebConnected()) {
     return apiBadRequest('游戏已在运行（WebRTC 已连接），请勿重复启动', 'ALREADY_RUNNING')

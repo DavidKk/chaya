@@ -34,7 +34,7 @@ Chaya 是面向 **RPG Maker** 的本机优先工具台：翻译（抽取、补�
 
 本地模拟 edge（无需 Vercel 账号）：`pnpm dev` 后在右上角 dev 切换器选 **Edge**；DiskOps 接口返回 501。
 
-Edge 没有登录，也没有服务端 MCP。外部 Agent 连接统一地址 `http://127.0.0.1:39271/mcp`，由打开的游戏（或本机服务）提供，见 [docs/integration.md](docs/integration.md)。
+Edge 没有登录，也没有服务端 MCP。外部 Agent 连接统一地址 `http://127.0.0.1:39271/mcp`，由打开的游戏（或本机服务）提供，见 [docs/mcp-plugin.md](docs/mcp-plugin.md) 与 [docs/mcp-edge.md](docs/mcp-edge.md)。
 
 ## 构建应用
 
@@ -82,7 +82,7 @@ pnpm i
 pnpm dev            # local 形态，localhost:3000 + 插件 watch
 ```
 
-打开 `http://localhost:3000` 即可使用。local / App 形态没有登录：API 只接受来自 localhost、局域网 IP 或 `CHAYA_PUBLIC_ORIGIN` 的同源请求；MCP 也无需授权，Agent 连接 `http://127.0.0.1:39271/mcp`（端口可在「集成 → MCP」或游戏内修改）。
+打开 `http://localhost:3000` 即可使用。local / App 形态没有登录：API 只接受来自 localhost、局域网 IP 或 `CHAYA_PUBLIC_ORIGIN` 的同源请求；MCP 也无需授权，Agent 连接 `http://127.0.0.1:39271/mcp`（也可直连本机服务自身的 `http://127.0.0.1:3000/api/mcp`，见「集成 → MCP」；网关端口在游戏内修改）。
 
 | 命令           | 用途                                 |
 | -------------- | ------------------------------------ |

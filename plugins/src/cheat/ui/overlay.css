@@ -10,6 +10,8 @@
 @source "../../../../components/TranslateRunPane.tsx";
 @source "../../../../components/translate/**/*.{ts,tsx}";
 @source "../../../../components/notification/**/*.{ts,tsx}";
+@source "../../../../components/confirm/**/*.{ts,tsx}";
+@source "../../../../components/integration/**/*.{ts,tsx}";
 @source "../../../../components/layoutClasses.ts";
 @source "../../../../components/sk/**/*.{ts,tsx}";
 @source "../../../../components/i18n/**/*.{ts,tsx}";
@@ -37,6 +39,31 @@
   --color-fail: var(--fail);
   --color-info: var(--info);
   --color-debug: var(--debug);
+}
+
+/* Shadow DOM ignores @property, and Tailwind only ships this fallback for old Safari / Firefox: without it borders, shadows and rings never draw */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    --tw-translate-x: 0;
+    --tw-translate-y: 0;
+    --tw-translate-z: 0;
+    --tw-border-style: solid;
+    --tw-outline-style: solid;
+    --tw-content: '';
+    --tw-shadow: 0 0 #0000;
+    --tw-shadow-alpha: 100%;
+    --tw-inset-shadow: 0 0 #0000;
+    --tw-inset-shadow-alpha: 100%;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-inset-ring-shadow: 0 0 #0000;
+    --tw-ring-offset-width: 0px;
+    --tw-ring-offset-color: #fff;
+    --tw-ring-offset-shadow: 0 0 #0000;
+    --tw-drop-shadow-alpha: 100%;
+  }
 }
 
 :host {

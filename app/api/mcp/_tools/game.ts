@@ -5,7 +5,7 @@ import * as StatusRoute from '@/app/api/status/route'
 import * as WindowRoute from '@/app/api/window/route.server'
 import type { GameFingerprintSummary } from '@/lib/game/fingerprint/types'
 import type { PluginStatus } from '@/lib/game/types'
-import { optBool, optObj, optStr, type ToolImpls } from '@/lib/integration/tools/args'
+import { optBool, optObj, optStr, type ToolImpls, type ToolRun } from '@/lib/integration/tools/args'
 import {
   footprintView,
   type GamePluginsClearView,
@@ -84,11 +84,6 @@ export const gameTools: ToolImpls = {
     return { launched: true, mode: res.mode, path: res.path, apiBase: res.apiBase, plugins: res.plugins, hint: '游戏启动后约数秒 ChayaAgent 会连上，可用 chaya_live_games 确认。' }
   },
 
-  async chaya_game_quit(_args, { signal }) {
-    await invokeRoute(LaunchRoute.DELETE, { method: 'DELETE', path: '/api/launch', signal })
-    return { quit: true }
-  },
-
   async chaya_game_plugins_install(_args, { signal }): Promise<GamePluginsInstallView> {
     await invokeRoute(PluginsRoute.POST, { method: 'POST', path: '/api/plugins', signal })
     return pluginsInstallView((await readStatus(signal)).plugins ?? [])
@@ -122,4 +117,10 @@ export const gameTools: ToolImpls = {
     if (!status.ready || !status.selected) throw new Error(status.error || '尚未绑定游戏')
     return invokeRoute(WindowRoute.PUT, { method: 'PUT', path: '/api/window', body: { window, gameRoot: status.selected }, signal })
   },
+}
+
+/** `chaya_live_quit` fallback on the local service: ask the launched game to quit */
+export const quitLaunchedGame: ToolRun = async (_args, { signal }) => {
+  await invokeRoute(LaunchRoute.DELETE, { method: 'DELETE', path: '/api/launch', signal })
+  return { quit: true }
 }

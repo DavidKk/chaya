@@ -13,7 +13,7 @@ import { type EdgeLinkDeps, edgeLogsTools, linkAgentCaller, makeEdgeLinkTools } 
 export type EdgeToolDeps = EdgeLinkDeps & EdgeGameDeps
 
 export function makeEdgeToolImpls(deps: EdgeToolDeps): ToolImpls {
-  return { ...makeEdgeLibraryTools(deps), ...makeEdgeGameTools(deps), ...makeEdgeLinkTools(deps), ...edgeLogsTools }
+  return { ...makeEdgeLinkTools(deps), ...makeEdgeLibraryTools(deps), ...makeEdgeGameTools(deps), ...edgeLogsTools }
 }
 
 /** Catalog tools available on Edge, with the same names / schemas as the local MCP. */

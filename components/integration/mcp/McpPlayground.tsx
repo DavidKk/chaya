@@ -10,16 +10,30 @@ import { readApiErrorMessage } from '@/lib/api-error'
 import { MCP_ENDPOINT_PATH, type McpToolMeta } from '@/lib/integration/mcp-catalog'
 import { cn } from '@/lib/utils'
 
+/** JSON-RPC transport; same shape as the MCP HTTP handler result */
+export type McpRpc = (body: unknown) => Promise<{ status: number; body: unknown }>
+
 export type PlaygroundProps = {
   tools: readonly McpToolMeta[]
   toolName: string
   argsText: string
   onToolChange: (name: string) => void
   onArgsChange: (text: string) => void
+  /** Default: POST the local `/api/mcp` */
+  rpc?: McpRpc
 }
 
-/** 页面内直接调本机 `/api/mcp`（cookie 鉴权），结果与 Agent 所见一致 */
-export function McpPlayground({ tools, toolName, argsText, onToolChange, onArgsChange }: PlaygroundProps) {
+const fetchRpc: McpRpc = async (body) => {
+  const res = await fetch(MCP_ENDPOINT_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return { status: res.status, body: await res.json().catch(() => null) }
+}
+
+/** 页面内直接调 MCP（本机 `/api/mcp` 或游戏内网关），结果与 Agent 所见一致 */
+export function McpPlayground({ tools, toolName, argsText, onToolChange, onArgsChange, rpc = fetchRpc }: PlaygroundProps) {
   const t = useT()
   const [busy, setBusy] = useState(false)
   const [last, setLast] = useState<(ToolCallOutcome & { tool: string }) | null>(null)
@@ -36,13 +50,9 @@ export function McpPlayground({ tools, toolName, argsText, onToolChange, onArgsC
     setBusy(true)
     setLast(null)
     try {
-      const res = await fetch(MCP_ENDPOINT_PATH, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'tools/call', params: { name: tool, arguments: args } }),
-      })
-      const data: unknown = await res.json().catch(() => null)
-      setLast({ tool, ...(res.ok ? readToolCallResponse(data) : { isError: true, text: readApiErrorMessage(data, `HTTP ${res.status}`) }) })
+      const res = await rpc({ jsonrpc: '2.0', id: Date.now(), method: 'tools/call', params: { name: tool, arguments: args } })
+      const ok = res.status >= 200 && res.status < 300
+      setLast({ tool, ...(ok ? readToolCallResponse(res.body) : { isError: true, text: readApiErrorMessage(res.body, `HTTP ${res.status}`) }) })
     } catch (error) {
       setLast({ tool, isError: true, text: error instanceof Error ? error.message : String(error) })
     } finally {

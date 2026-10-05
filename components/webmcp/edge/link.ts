@@ -3,6 +3,7 @@ import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { optNum, optStr } from '@/lib/integration/tools/args'
 import { makeCacheTools } from '@/lib/integration/tools/cache'
 import { makeCatalogTools } from '@/lib/integration/tools/catalog'
+import { makeEditTools } from '@/lib/integration/tools/edit'
 import { type AgentCaller, makeLiveTools } from '@/lib/integration/tools/live'
 import { makeTranslateTools } from '@/lib/integration/tools/translate'
 import { type ApiInvoke, pathWithQuery, redactSecrets, type ToolImpls } from '@/lib/integration/tools/types'
@@ -45,7 +46,7 @@ export function linkInvoke(deps: EdgeLinkDeps): ApiInvoke {
   }
 }
 
-/** Edge live / translate / cache / catalog tools through the game DataChannel. */
+/** Edge live / edit / translate / cache / catalog tools through the game DataChannel. */
 export function makeEdgeLinkTools(deps: EdgeLinkDeps): ToolImpls {
   const call = linkAgentCaller(deps)
   const invoke = linkInvoke(deps)
@@ -56,6 +57,7 @@ export function makeEdgeLinkTools(deps: EdgeLinkDeps): ToolImpls {
   const { chaya_translate_batch: _batch, ...translate } = makeTranslateTools(invoke)
   return {
     ...live,
+    ...makeEditTools(call),
     ...translate,
     ...makeCacheTools(invoke),
     ...makeCatalogTools(async () => {

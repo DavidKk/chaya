@@ -17,6 +17,17 @@ describe('mcp-mirror', () => {
     expect(long.text).toHaveLength(MIRROR_MAX_CHARS)
   })
 
+  it('restores image results with their metadata', () => {
+    expect(
+      parseMcpCallResult({
+        content: [
+          { type: 'image', data: 'AAAA', mimeType: 'image/jpeg' },
+          { type: 'text', text: '{"width":512}' },
+        ],
+      })
+    ).toEqual({ ok: true, result: { width: 512, mcpImage: { mimeType: 'image/jpeg', data: 'AAAA' } } })
+  })
+
   it('mirrors a listed tool and forwards calls', async () => {
     const call = jest.fn(async () => ({ ok: true }))
     const def = mirrorToolDefinition({ name: 'chaya_game_status', annotations: { readOnlyHint: true } }, call)

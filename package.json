@@ -29,6 +29,7 @@
     "dist:win": "pnpm build:app && electron-builder --win --config electron-builder.yml --publish never",
     "dist:dir": "pnpm build:app && electron-builder --dir --config electron-builder.yml --publish never",
     "demo:game": "pnpm build:plugins && node scripts/demo-game.cjs",
+    "demo:walk": "pnpm build:plugins && node scripts/demo-game.cjs walk",
     "start": "CHAYA_API_LAN=0 node scripts/next-listen.mjs start -p 3927 -H 127.0.0.1",
     "start:lan": "CHAYA_API_LAN=1 node scripts/next-listen.mjs start -p 3927 -H 0.0.0.0",
     "start:loopback": "pnpm start",

@@ -1,10 +1,11 @@
 /**
  * ChayaEdit — entry: HMR dispose, wire API / hotkeys / disk watch.
  */
+import { startGameAgentHotkeys } from '../agent-ui/hotkeys'
+import { unmountGameAgentUi } from '../agent-ui/mount'
 import { createLogger, registerGameLinkEditHandlers, restorePluginErrors, showPluginError } from '../helpers'
 import { installConsoleApi } from './console/console-api'
 import { startPanelHotkeys } from './console/panel-hotkeys'
-import { declareEditTools } from './console/tools'
 import { Cheats } from './runtime/cheats'
 import { startGameEditDiskWatcher } from './session/persist'
 import { handleRemoteEditMessage, stopRemoteEditBridge } from './session/remote-bridge'
@@ -25,13 +26,13 @@ const reopenAfterHot = (() => {
 })()
 
 installConsoleApi()
-declareEditTools()
 const unregisterLink = registerGameLinkEditHandlers({
   onMessage: handleRemoteEditMessage,
   onStop: stopRemoteEditBridge,
 })
 
 const stopHotkeys = startPanelHotkeys()
+const stopAgentHotkeys = startGameAgentHotkeys()
 
 function disposeGameEditRuntime(): boolean {
   const wasOpen = isGameEditUiOpen()
@@ -46,6 +47,8 @@ function disposeGameEditRuntime(): boolean {
     /* */
   }
   stopHotkeys()
+  stopAgentHotkeys()
+  unmountGameAgentUi()
   unregisterLink()
   stopRemoteEditBridge()
   return wasOpen

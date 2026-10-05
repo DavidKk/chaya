@@ -1,12 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useT } from '@/components/i18n/LocaleProvider'
+import { integrationCard } from '@/components/integration/mcp/McpConnectionCard'
 import { McpGatewayCard, type McpGatewayView } from '@/components/integration/mcp/McpGatewayCard'
-import { ScrollArea } from '@/components/sk'
+import type { McpRpc } from '@/components/integration/mcp/McpPlayground'
+import { McpView } from '@/components/integration/mcp/McpView'
+import { panelBody } from '@/components/layoutClasses'
 import type { McpGatewayControl, McpGatewayStatus } from '@/lib/integration/mcp-gateway'
 import { MCP_DOCS_URL } from '@/lib/integration/mcp-port'
+import { cn } from '@/lib/utils'
 
 const REFRESH_MS = 3_000
 
@@ -21,8 +25,13 @@ function toView(status: McpGatewayStatus | null | undefined): McpGatewayView | n
   return { state, port, url, file, fileExists, holderRole: holder?.role, lastRequestAt }
 }
 
-/** In-game「MCP」page: ChayaAgent owns the gateway; this pane only reads and drives `window.ChayaAgent.gateway`. */
-export function GameEditMcpPane() {
+const gatewayRpc: McpRpc = async (body) => {
+  const gateway = gatewayControl()
+  if (!gateway) return { status: 503, body: { error: 'ChayaAgent 未就绪：请确认已安装 Agent 插件' } }
+  return gateway.rpc(body)
+}
+
+function GatewayOverview() {
   const t = useT()
   const [view, setView] = useState<McpGatewayView | null>(() => toView(gatewayControl()?.status()))
   const control = gatewayControl()
@@ -49,19 +58,31 @@ export function GameEditMcpPane() {
   }
 
   return (
-    <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('mcpGateway.regionAria') }}>
-      <div className="flex max-w-2xl flex-col gap-3 p-4">
-        <h2 className="m-0 text-[0.9375rem] font-semibold text-ink">{t('mcpGateway.title')}</h2>
-        <McpGatewayCard
-          context="game"
-          view={view}
-          available={!!control?.available}
-          onSavePort={(port) => apply((gateway) => gateway.setPort(port))}
-          onDelete={() => apply((gateway) => gateway.resetPort())}
-          onOpenFolder={control ? () => control.openFolder() : undefined}
-          onOpenDocs={() => (control ? control.openDocs() : window.open(MCP_DOCS_URL, '_blank', 'noopener'))}
-        />
+    <section className={integrationCard}>
+      <h2 className="m-0 text-[0.9375rem] font-semibold text-ink">{t('mcpGateway.title')}</h2>
+      <McpGatewayCard
+        context="game"
+        view={view}
+        available={!!control?.available}
+        onSavePort={(port) => apply((gateway) => gateway.setPort(port))}
+        onDelete={() => apply((gateway) => gateway.resetPort())}
+        onOpenFolder={control ? () => control.openFolder() : undefined}
+        onOpenDocs={() => (control ? control.openDocs() : window.open(MCP_DOCS_URL, '_blank', 'noopener'))}
+      />
+    </section>
+  )
+}
+
+/** In-game「集成」page: the MCP view scoped to this game (ChayaAgent owns the gateway); no WebMCP in the game window. */
+export function GameEditMcpPane() {
+  const t = useT()
+  const game = useMemo(() => ({ overview: <GatewayOverview />, rpc: gatewayRpc }), [])
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-paper" role="region" aria-label={t('mcpGateway.regionAria')}>
+      <div className={cn(panelBody, 'overflow-hidden')}>
+        <McpView game={game} />
       </div>
-    </ScrollArea>
+    </div>
   )
 }
