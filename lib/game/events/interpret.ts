@@ -62,6 +62,8 @@ export type ScriptKey =
 export type ScriptTone = 'text' | 'flow' | 'effect' | 'risk' | 'muted'
 
 export type ScriptLine = {
+  /** Index of the command in the source list; the interpreter can start here */
+  at: number
   indent: number
   key: ScriptKey
   tone: ScriptTone
@@ -71,7 +73,11 @@ export type ScriptLine = {
   /** Original body text; omitted when identical to body */
   source?: string
   link?: { kind: 'common' | 'map'; id: number }
+  /** Single switch / variable / self switch the line reads or writes, for inline editing */
+  ref?: ScriptRef
 }
+
+export type ScriptRef = { kind: 'switch'; id: number } | { kind: 'variable'; id: number } | { kind: 'self'; ch: string }
 
 const num = (value: unknown) => Math.floor(Number(value) || 0)
 const PARAMS_PREVIEW = 120
@@ -91,6 +97,8 @@ export function labelOf(list: readonly string[], id: number): string {
   const name = list[id]
   return name ? `#${id} ${name}` : `#${id}`
 }
+
+const single = (p: readonly unknown[]) => num(p[1]) <= num(p[0])
 
 function rangeLabel(list: readonly string[], start: unknown, end: unknown): string {
   const from = num(start)
@@ -125,17 +133,18 @@ function variableOperand(names: EventNames, p: readonly unknown[]): string {
   }
 }
 
-function conditionLine(names: EventNames, p: readonly unknown[]): Pick<ScriptLine, 'key' | 'args'> {
+function conditionLine(names: EventNames, p: readonly unknown[]): Pick<ScriptLine, 'key' | 'args' | 'ref'> {
   switch (num(p[0])) {
     case 0:
-      return { key: num(p[2]) === 0 ? 'ifSwitchOn' : 'ifSwitchOff', args: { target: labelOf(names.switches, num(p[1])) } }
+      return { key: num(p[2]) === 0 ? 'ifSwitchOn' : 'ifSwitchOff', args: { target: labelOf(names.switches, num(p[1])) }, ref: { kind: 'switch', id: num(p[1]) } }
     case 1:
       return {
         key: 'ifVariable',
         args: { target: labelOf(names.variables, num(p[1])), op: COMPARE_OPS[num(p[4])] ?? '?', value: operandValue(names, p[2], p[3]) },
+        ref: { kind: 'variable', id: num(p[1]) },
       }
     case 2:
-      return { key: num(p[2]) === 0 ? 'ifSelfOn' : 'ifSelfOff', args: { ch: str(p[1]) } }
+      return { key: num(p[2]) === 0 ? 'ifSelfOn' : 'ifSelfOff', args: { ch: str(p[1]) }, ref: { kind: 'self', ch: str(p[1]) } }
     case 7:
       return { key: 'ifGold', args: { op: GOLD_COMPARE[num(p[2])] ?? '?', value: num(p[1]) } }
     case 8:
@@ -159,8 +168,9 @@ export function interpretCommands(list: readonly EventCommand[], names: EventNam
     const cmd = list[i]
     const p = cmd.parameters
     if (SKIP.has(cmd.code)) continue
+    const at = i
     const line = (key: ScriptKey, tone: ScriptTone, args?: ScriptLine['args'], extra?: Partial<ScriptLine>) =>
-      out.push({ indent: cmd.indent, key, tone, ...(args ? { args } : {}), ...extra })
+      out.push({ at, indent: cmd.indent, key, tone, ...(args ? { args } : {}), ...extra })
 
     const follow = CONTINUATION[cmd.code]
     if (follow) {
@@ -188,7 +198,7 @@ export function interpretCommands(list: readonly EventCommand[], names: EventNam
         break
       case 111: {
         const cond = conditionLine(names, p)
-        line(cond.key, 'flow', cond.args)
+        line(cond.key, 'flow', cond.args, cond.ref ? { ref: cond.ref } : undefined)
         break
       }
       case 411:
@@ -213,13 +223,23 @@ export function interpretCommands(list: readonly EventCommand[], names: EventNam
         line('jump', 'flow', { name: str(p[0]) })
         break
       case 121:
-        line(num(p[2]) === 0 ? 'switchOn' : 'switchOff', 'effect', { target: rangeLabel(names.switches, p[0], p[1]) })
+        line(
+          num(p[2]) === 0 ? 'switchOn' : 'switchOff',
+          'effect',
+          { target: rangeLabel(names.switches, p[0], p[1]) },
+          single(p) ? { ref: { kind: 'switch', id: num(p[0]) } } : undefined
+        )
         break
       case 122:
-        line('variable', 'effect', { target: rangeLabel(names.variables, p[0], p[1]), op: VAR_OPS[num(p[2])] ?? '=', value: variableOperand(names, p) })
+        line(
+          'variable',
+          'effect',
+          { target: rangeLabel(names.variables, p[0], p[1]), op: VAR_OPS[num(p[2])] ?? '=', value: variableOperand(names, p) },
+          single(p) ? { ref: { kind: 'variable', id: num(p[0]) } } : undefined
+        )
         break
       case 123:
-        line(num(p[1]) === 0 ? 'selfOn' : 'selfOff', 'effect', { ch: str(p[0]) })
+        line(num(p[1]) === 0 ? 'selfOn' : 'selfOff', 'effect', { ch: str(p[0]) }, { ref: { kind: 'self', ch: str(p[0]) } })
         break
       case 124:
         if (num(p[0]) === 0) line('timerStart', 'effect', { sec: num(p[1]) })

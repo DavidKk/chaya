@@ -125,16 +125,17 @@ export function applyEditCmd(cmd: GameEditCmd): void {
       return
     }
     case 'commonEvent':
-      runCommonEventOnMap(cmd.id)
+      runCommonEventOnMap(cmd.id, cmd.from)
       return
     case 'selfSwitch':
       setSelfSwitch(cmd.mapId, cmd.eventId, cmd.letter, cmd.value)
       return
     case 'teleport':
-      teleportPlayer(cmd.mapId, cmd.x, cmd.y, cmd.direction, cmd.near)
+      // The ack only covers the synchronous checks; landing shows up in the next state push
+      void teleportPlayer(cmd).catch(() => undefined)
       return
     case 'mapEvent':
-      runMapEvent(cmd.mapId, cmd.eventId)
+      runMapEvent(cmd)
       return
     default:
       return
@@ -158,6 +159,7 @@ export function buildStateMsg(): GameEditStateMsg {
     mapId: spot.mapId,
     playerX: spot.x,
     playerY: spot.y,
+    playerDir: spot.direction,
     recentMaps: recentMaps(),
     runningCommon: runningCommonEvents(),
   }

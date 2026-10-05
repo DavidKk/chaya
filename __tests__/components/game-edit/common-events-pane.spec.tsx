@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
 import { CommonEventsPane } from '@/components/game-edit/events/CommonEventsPane'
 import type { EventsSlot } from '@/components/game-edit/events/types'
+import { emptySession } from '@/components/game-edit/types'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
 import { buildCommonEventsData, type CommonEventsData } from '@/lib/game/events'
@@ -46,6 +47,7 @@ function slot(overrides: Partial<EventsSlot> = {}): EventsSlot {
     onSelectCommon: jest.fn(),
     onAct: jest.fn().mockResolvedValue(undefined),
     onSwitchChange: jest.fn(),
+    onVarChange: jest.fn(),
     mapId: null,
     eventId: null,
     onSelectMap: jest.fn(),
@@ -86,7 +88,7 @@ async function render(s: EventsSlot, filter = '') {
       <LocaleProvider initialLocale="zh" initialPreference="zh">
         <NotificationProvider>
           <ConfirmProvider>
-            <CommonEventsPane slot={s} filter={filter} switches={{ 4: true }} />
+            <CommonEventsPane slot={s} filter={filter} session={{ ...emptySession(), switches: { 4: true } }} />
           </ConfirmProvider>
         </NotificationProvider>
       </LocaleProvider>

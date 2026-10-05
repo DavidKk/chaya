@@ -1,7 +1,8 @@
 export { buildCommonEventsData, buildMapDetail, countCommands, normalizeCommands, type RawEventSources } from './build'
 export { type EventEffects, hasEffects, isRiskyEffects, summarizeEffects } from './effects'
+export { analyzeFlow, type FlowMark, type FlowResult, type FlowState, reachableFrom, variableCandidates } from './flow'
 export { type CommonEventFilter, type CommonEventGroup, filterCommonEventGroups, groupCommonEvents, isSeparatorEvent, matchesCommonEvent, separatorTitle } from './groups'
-export { interpretCommands, labelOf, type ScriptKey, type ScriptLine, type ScriptTone } from './interpret'
+export { interpretCommands, labelOf, type ScriptKey, type ScriptLine, type ScriptRef, type ScriptTone } from './interpret'
 export {
   estimateActivePage,
   flattenMapTree,
@@ -21,4 +22,5 @@ export {
   SELF_SWITCH_LETTERS,
   type SelfSwitchLetter,
 } from './map-index'
+export { blockedMask, nearestSpot, type Spot, terrainBlockedMask } from './spot'
 export * from './types'

@@ -11,8 +11,8 @@ import { type DataCell, type DataPath, type DataRow, isContainerKind } from '@/l
 import { cn } from '@/lib/utils'
 
 import { lockIconBtn } from '../lock-ui'
-import { DraftInput } from './DraftInput'
-import { cellText, rowName } from './labels'
+import { ActionSlot, DraftActions, DraftInput } from './DraftInput'
+import { cellText, cellTone, rowName } from './labels'
 import { valueStore, writtenStore } from './store'
 
 export type RowMenuItem = { id: string; label: string; danger?: boolean; onSelect: () => void }
@@ -26,7 +26,7 @@ type Props = {
   locked: boolean
   canEdit: boolean
   /** Secondary line under the name (search hits: where the field lives) */
-  where?: string
+  where?: ReactNode
   onOpen: (path: DataPath) => void
   onApply: (key: string) => void
   onLock: (path: DataPath, ownerOid: number, on: boolean, label?: string) => void
@@ -54,7 +54,7 @@ function CurrentValue({ rowKey, fallback }: { rowKey: string; fallback: DataCell
   }, [changedAt])
   const text = cellText(t, cell)
   return (
-    <span ref={ref} className={cn('block min-w-0 truncate rounded-[0.2rem] px-1 font-mono text-[0.75rem]', isContainerKind(cell.kind) ? 'text-ink-soft' : 'text-ink')} title={text}>
+    <span ref={ref} className={cn('block min-w-0 truncate rounded-[0.2rem] px-1 font-mono text-[0.75rem]', cellTone(cell))} title={text}>
       {text}
     </span>
   )
@@ -126,9 +126,11 @@ export const DataRowView = memo(function DataRowView({ row, rowKey, path, ownerO
             {name}
           </div>
         )}
-        {where || name !== row.key ? (
-          <div className="truncate font-mono text-[0.68rem] text-ink-soft" title={where || row.key}>
-            {where || row.key}
+        {where ? (
+          <div className="truncate font-mono text-[0.68rem] text-ink-soft">{where}</div>
+        ) : name !== row.key ? (
+          <div className="truncate font-mono text-[0.68rem] text-ink-soft" title={row.key}>
+            {row.key}
           </div>
         ) : null}
       </div>
@@ -144,12 +146,25 @@ export const DataRowView = memo(function DataRowView({ row, rowKey, path, ownerO
     </div>
   )
 
+  const draftProps = {
+    rowKey,
+    path,
+    ownerOid,
+    cell: live,
+    expectType: row.expectType,
+    nullable: row.nullable !== false,
+    label: name,
+    confirm: row.confirm,
+    onApply,
+    onReadFull,
+  }
+
   let target: ReactNode = null
   if (container) {
     target = (
       <button
         type="button"
-        className="inline-flex cursor-pointer items-center gap-0.5 border-none bg-transparent p-0 text-[0.75rem] text-ink-soft hover:text-accent"
+        className={cn('inline-flex cursor-pointer items-center gap-0.5 border-none bg-transparent p-0 font-mono text-[0.75rem] hover:text-accent', cellTone(live))}
         onClick={() => onOpen(path)}
         aria-label={t('data.open', { name })}
       >
@@ -158,25 +173,20 @@ export const DataRowView = memo(function DataRowView({ row, rowKey, path, ownerO
       </button>
     )
   } else if (editable) {
-    target = (
-      <DraftInput
-        rowKey={rowKey}
-        path={path}
-        ownerOid={ownerOid}
-        cell={live}
-        expectType={row.expectType}
-        nullable={row.nullable !== false}
-        label={name}
-        confirm={row.confirm}
-        onApply={onApply}
-        onReadFull={onReadFull}
-      />
-    )
+    target = <DraftInput {...draftProps} />
   }
 
   const lockTip = row.presetLock ? t('data.lockPreset', { lock: row.presetLock }) : locked ? t('data.lockOff', { name }) : t('data.lockOn', { name })
   const actions = (
     <div className="flex shrink-0 items-center justify-end gap-0.5">
+      {editable ? (
+        <DraftActions {...draftProps} />
+      ) : (
+        <>
+          <ActionSlot />
+          <ActionSlot />
+        </>
+      )}
       {lockable || locked || row.presetLock ? (
         <Tooltip content={lockTip}>
           <button
@@ -190,7 +200,9 @@ export const DataRowView = memo(function DataRowView({ row, rowKey, path, ownerO
             {locked || row.presetLock ? <IoLockClosed size={14} aria-hidden /> : <IoLockOpenOutline size={14} aria-hidden />}
           </button>
         </Tooltip>
-      ) : null}
+      ) : (
+        <ActionSlot />
+      )}
       <RowMenu getItems={() => menu(path, row, ownerOid)} label={t('data.more')} />
     </div>
   )
@@ -222,6 +234,6 @@ export const DataRowView = memo(function DataRowView({ row, rowKey, path, ownerO
   )
 })
 
-export const DATA_COLS = 'grid-cols-[minmax(9rem,1.1fr)_minmax(6rem,1fr)_minmax(13rem,1.4fr)_3.5rem]'
+export const DATA_COLS = 'grid-cols-[minmax(9rem,1.1fr)_minmax(6rem,1fr)_minmax(12rem,1.4fr)_6rem]'
 export const ROW_HEIGHT = 40
 export const ROW_HEIGHT_NARROW = 64

@@ -4,7 +4,7 @@ import { type KeyboardEvent, useSyncExternalStore } from 'react'
 import { IoAlertCircleOutline, IoArrowUndoOutline, IoCheckmark, IoReturnDownBackOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { Select, TextInput } from '@/components/sk'
+import { Select, SwitchToggle, TextInput } from '@/components/sk'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { allowedTypes, type DataCell, type DataPath, defaultType, draftText, type ExpectType, parseDraft, type ValueType } from '@/lib/game/save-data'
 import { cn } from '@/lib/utils'
@@ -28,15 +28,16 @@ type Props = {
 
 const TYPE_LABEL = { number: 'data.typeNumber', string: 'data.typeString', boolean: 'data.typeBoolean', null: 'data.typeNull' } as const
 
-const boolBtn = cn(
+const nullBtn = cn(
   'h-7 cursor-pointer rounded-[0.2rem] border border-line bg-transparent px-2 font-mono text-[0.75rem] text-ink-soft transition-colors',
   'hover:border-accent hover:text-ink disabled:cursor-not-allowed disabled:opacity-45'
 )
-const boolBtnOn = 'border-accent bg-[color-mix(in_oklab,var(--accent)_16%,transparent)] text-ink'
+const nullBtnOn = 'border-accent bg-[color-mix(in_oklab,var(--accent)_16%,transparent)] text-ink'
 
-/** The "change to" control: edits a draft only; live value updates never touch it */
-export function DraftInput({ rowKey, path, ownerOid, cell, expectType, nullable, label, confirm, disabled, onApply, onReadFull }: Props) {
-  const t = useT()
+type RowProps = Pick<Props, 'rowKey' | 'path' | 'ownerOid' | 'cell' | 'expectType' | 'nullable' | 'label' | 'confirm' | 'onReadFull'>
+
+/** Draft state of one row plus the write / fill helpers shared by the input and its action buttons */
+function useDraftRow({ rowKey, path, ownerOid, cell, expectType, nullable, label, confirm, onReadFull }: RowProps) {
   const draft = useSyncExternalStore(
     (cb) => draftStore.subscribeKey(rowKey, cb),
     () => draftStore.get(rowKey),
@@ -45,7 +46,7 @@ export function DraftInput({ rowKey, path, ownerOid, cell, expectType, nullable,
   const kind = cell?.kind ?? 'undefined'
   const types = allowedTypes(kind, expectType, nullable)
   const type: ValueType = draft?.type ?? defaultType({ kind }, expectType)
-  if (!types.length) return null
+  const stale = draft?.state === 'stale'
 
   const write = (patch: Partial<Draft> & { raw: string; type: ValueType }) => {
     const base: Draft = draft && draft.state !== 'stale' ? draft : { path, ownerOid, label, confirm, type, raw: '', state: 'pending' }
@@ -63,6 +64,21 @@ export function DraftInput({ rowKey, path, ownerOid, cell, expectType, nullable,
     write({ raw: draftText(cell.value), type: nextType })
   }
 
+  return { draft, kind, types, type, stale, write, fill }
+}
+
+/** Fixed-width empty slot so action columns line up row to row */
+export function ActionSlot() {
+  return <span aria-hidden className="inline-block h-[1.35rem] w-[1.35rem] shrink-0" />
+}
+
+/** The "change to" control: edits a draft only; live value updates never touch it */
+export function DraftInput(props: Props) {
+  const { rowKey, cell, disabled, onApply } = props
+  const t = useT()
+  const { draft, kind, types, type, stale, write, fill } = useDraftRow(props)
+  if (!types.length) return null
+
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && draft) {
       e.preventDefault()
@@ -74,7 +90,6 @@ export function DraftInput({ rowKey, path, ownerOid, cell, expectType, nullable,
     }
   }
 
-  const stale = draft?.state === 'stale'
   const invalid = draft?.state === 'error' || (!!draft && type === 'number' && !parseDraft(draft.raw, 'number').ok)
   const tip = stale ? t('data.stale') : draft?.state === 'error' ? draft.error : undefined
 
@@ -96,26 +111,21 @@ export function DraftInput({ rowKey, path, ownerOid, cell, expectType, nullable,
 
   let control
   if (type === 'boolean') {
-    control = (
-      <span className="inline-flex items-center gap-1">
-        {(['true', 'false'] as const).map((v) => (
-          <button key={v} type="button" disabled={disabled} className={cn(boolBtn, draft?.raw === v && !stale && boolBtnOn)} onClick={() => write({ raw: v, type })}>
-            {v}
-          </button>
-        ))}
-      </span>
-    )
+    const on = draft && !stale ? draft.raw === 'true' : cell?.kind === 'boolean' && cell.value === true
+    control = <SwitchToggle checked={on} disabled={disabled} aria-label={t('data.colTarget')} onCheckedChange={(v) => write({ raw: String(v), type })} />
   } else if (type === 'null') {
     control = (
-      <button type="button" disabled={disabled} className={cn(boolBtn, draft && !stale && boolBtnOn)} onClick={() => write({ raw: '', type })}>
+      <button type="button" disabled={disabled} className={cn(nullBtn, draft && !stale && nullBtnOn)} onClick={() => write({ raw: '', type })}>
         null
       </button>
     )
   } else {
+    const integer = cell?.kind === 'number' && Number.isInteger(cell.value)
+    const ph = stale ? t('data.stale') : type === 'number' ? t(integer ? 'data.draftPhInt' : 'data.draftPhDecimal') : t('data.draftPh')
     control = (
       <TextInput
         value={stale ? '' : (draft?.raw ?? '')}
-        placeholder={stale ? t('data.stale') : t('data.draftPh')}
+        placeholder={ph}
         inputMode={type === 'number' ? 'decimal' : undefined}
         disabled={disabled}
         invalid={invalid || stale}
@@ -138,7 +148,7 @@ export function DraftInput({ rowKey, path, ownerOid, cell, expectType, nullable,
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1">
       {typeSelect}
-      <span className="flex min-w-0 flex-1">{control}</span>
+      <span className="flex min-w-0 flex-1 items-center">{control}</span>
       {tip ? (
         <Tooltip content={tip}>
           <span className="inline-flex shrink-0 text-fail" role="img" aria-label={tip}>
@@ -146,25 +156,50 @@ export function DraftInput({ rowKey, path, ownerOid, cell, expectType, nullable,
           </span>
         </Tooltip>
       ) : null}
-      <Tooltip content={t('data.fill')}>
-        <button type="button" className={lockIconBtn} disabled={disabled} aria-label={t('data.fill')} onClick={() => void fill()}>
-          <IoReturnDownBackOutline size={14} aria-hidden />
-        </button>
-      </Tooltip>
-      {draft ? (
-        <>
-          <Tooltip content={t('data.applyRow')}>
-            <button type="button" className={cn(lockIconBtn, 'text-accent')} disabled={disabled || stale} aria-label={t('data.applyRow')} onClick={() => onApply(rowKey)}>
-              <IoCheckmark size={15} aria-hidden />
-            </button>
-          </Tooltip>
-          <Tooltip content={t('data.discardRow')}>
-            <button type="button" className={lockIconBtn} aria-label={t('data.discardRow')} onClick={() => draftStore.delete(rowKey)}>
-              <IoArrowUndoOutline size={14} aria-hidden />
-            </button>
-          </Tooltip>
-        </>
-      ) : null}
     </div>
+  )
+}
+
+/** Two fixed slots in the actions column: apply (or fill when there is no draft) · discard */
+export function DraftActions(props: Props) {
+  const { rowKey, disabled, onApply } = props
+  const t = useT()
+  const { draft, types, type, stale, fill } = useDraftRow(props)
+  if (!types.length) {
+    return (
+      <>
+        <ActionSlot />
+        <ActionSlot />
+      </>
+    )
+  }
+  const canFill = type !== 'boolean' && type !== 'null'
+  return (
+    <>
+      {draft ? (
+        <Tooltip content={t('data.applyRow')}>
+          <button type="button" className={cn(lockIconBtn, 'text-accent')} disabled={disabled || stale} aria-label={t('data.applyRow')} onClick={() => onApply(rowKey)}>
+            <IoCheckmark size={15} aria-hidden />
+          </button>
+        </Tooltip>
+      ) : canFill ? (
+        <Tooltip content={t('data.fill')}>
+          <button type="button" className={lockIconBtn} disabled={disabled} aria-label={t('data.fill')} onClick={() => void fill()}>
+            <IoReturnDownBackOutline size={14} aria-hidden />
+          </button>
+        </Tooltip>
+      ) : (
+        <ActionSlot />
+      )}
+      {draft ? (
+        <Tooltip content={t('data.discardRow')}>
+          <button type="button" className={lockIconBtn} aria-label={t('data.discardRow')} onClick={() => draftStore.delete(rowKey)}>
+            <IoArrowUndoOutline size={14} aria-hidden />
+          </button>
+        </Tooltip>
+      ) : (
+        <ActionSlot />
+      )}
+    </>
   )
 }

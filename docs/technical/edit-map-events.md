@@ -50,6 +50,8 @@ lib/game/events/                       # 纯函数，无 IO
   commands.ts    normalizeCommands / countCommands / 文本收集                               ✅
   groups.ts      公共事件分组识别（分隔名 → 组标题）、筛选与内容搜索                         ✅
   map-index.ts   MapInfos 树、入口（201）、事件类型推断、各图事件名、页条件推算                ✅
+  flow.ts        analyzeFlow 分支走向 / reachableFrom 从某行起可达指令 / variableCandidates    ✅
+  spot.ts        nearestSpot 就近可站格                                                     ✅
   index.ts       barrel                                                                     ✅
 
 services/game/game-edit-events.ts      # local 读盘 + 翻译、按文件 mtime / 大小缓存、mapsFailed ✅
@@ -62,17 +64,21 @@ lib/runtime/game-edit-sync.ts          # 事件类 op 的 ack 期望值         
 plugins/src/cheat/session/live-events.ts  # 局内构建 + runCommonEventOnMap                 ✅
 plugins/src/cheat/session/remote-bridge.ts # 处理事件类 op 与 edit.events / edit.map 请求    ✅
 plugins/src/cheat/session/live-map.ts     # 单图详情、传送（near）、独立开关、触发地图事件  ✅
+plugins/src/cheat/session/run-from.ts     # 从任意行执行：预置分支、忙时拒绝                ✅
 plugins/src/cheat/session/map-history.ts  # 最近去过（Scene_Map.start，localStorage）        ✅
 plugins/src/cheat/ui/useOverlayEvents.ts  # 局内浮层取数与操作                              ✅
 
 components/game-edit/
-  events/EventScript.tsx           解释器渲染（缩进、折叠、链接、原文悬停）                  ✅
+  events/EventScript.tsx           执行内容：ID / 内容 / 操作三列数据列表、搜索、分支走向 badge、逐行执行 ✅
+  events/ScriptValue.tsx           行内修改：开关 SwitchToggle、变量候选值 Select / NumberInput  ✅
   events/CommonEventsPane.tsx      列表 + 详情（宽屏分栏 / 窄屏逐层）                        ✅
   events/CommonEventDetail.tsx     头部、执行、触发开关、会修改、引用关系                    ✅
   events/useEventsData.ts          page 取数（link 优先，回退 API）                          ✅
-  events/MapPane.tsx               地图树（当前 / 最近置顶）、跨图搜索                       ✅
-  events/MapDetail.tsx             地图信息、传送、事件表、独立开关                          ✅
-  events/MapEventDetail.tsx        事件详情：各页条件、触发、脚本、传送到旁边                ✅
+  events/MapPane.tsx               地图逐层列表 + 面包屑（任意深度）、最近去过、跨图搜索     ✅
+  events/MapDetail.tsx             地图信息、传送、事件表（名称 / 坐标 / 类型 / 状态）        ✅
+  events/MapTeleportField.tsx      X / Y 坐标输入 + 传送按钮一体（按地图尺寸限制范围）       ✅
+  events/MiniMap.tsx               迷你地图：事件点、玩家、点选传送                          ✅
+  events/MapEventDetail.tsx        事件详情：标题 badge（当前 / 出现中）、页 tab、传送、执行内容 ✅
   tabs.ts / tab-icons.tsx          新增 common、map                                         ✅
 
 lib/i18n/messages/events-types.ts + parts/events.ts   events.* 四语言                       ✅
@@ -117,6 +123,7 @@ type RawEventSources = {
 
 ```ts
 type ScriptLine = {
+  at: number // 指令在原列表中的下标，「从这里执行」用
   indent: number
   key: ScriptKey // i18n events.cmd.<key>
   tone: ScriptTone // text / flow / effect / risk / muted
@@ -129,7 +136,7 @@ type ScriptLine = {
 
 规则：
 
-- 101 + 后续 401 合并为一行，说话人取 101 的名字参数（MZ `parameters[4]`，MV 无此参数则不显示）；102 / 402 / 403 / 404、111 / 411 / 412、112 / 413 用 indent 表达层级，组件按 indent 折叠。
+- 101 + 后续 401 合并为一行，说话人取 101 的名字参数（MZ `parameters[4]`，MV 无此参数则不显示）；102 / 402 / 403 / 404、111 / 411 / 412、112 / 413 保留 indent（插件预置分支用），组件平铺显示、不缩进不折叠。
 - 121 / 122 / 123 显示名称与编号；范围操作（如 #3–#8）合并一行。
 - 201 产生 `link.kind = 'map'`；117 产生 `link.kind = 'common'`；组件均渲染为跳转链接。
 - 355 + 655 合并为脚本块，356（MV）/ 357（MZ）原样显示参数。
@@ -143,10 +150,10 @@ type ScriptLine = {
 
 ```ts
 // GameEditCmdOp 新增
-| { op: 'commonEvent'; id: number }                         // 第 1 期 ✅
+| { op: 'commonEvent'; id: number; from?: number }          // 第 1 期 ✅；from：从该指令下标开始
 | { op: 'selfSwitch'; mapId: number; eventId: number; letter: 'A'|'B'|'C'|'D'; value: boolean } // 第 2 期 ✅
 | { op: 'teleport'; mapId: number; x: number; y: number; direction?: 2|4|6|8; near?: boolean } // 第 2 期 ✅
-| { op: 'mapEvent'; mapId: number; eventId: number }         // 第 2 期 ✅，仅当前地图，插件校验 mapId
+| { op: 'mapEvent'; mapId: number; eventId: number; page?: number; from?: number } // 第 2 期 ✅，仅当前地图；带 page 时从该页第 from 条开始
 | { op: 'undo' }                                             // 第 3 期
 
 // 消息
@@ -172,7 +179,7 @@ type ScriptLine = {
 ### 6.2 公共事件页
 
 - 宽屏：左列表 `w-[17rem]`（对齐 `ActorEditPane` 的 aside 模式），右详情；窄屏（内容区容器宽度 < 56rem，覆盖 816 宽游戏窗口）列表 → 详情，顶部返回。用容器查询而非视口断点，page 与 overlay 一致。
-- 列表行：编号（`font-mono`）、译名、触发方式 `Badge`；自动 / 并行附开关状态。分组标题可折叠（`groups.ts`）。
+- 列表行：译名（无名时回退 `#id`）、触发方式 `Badge`；公共事件 / 地图的列表、详情标题、事件表、迷你地图提示都不单独展示 ID（搜索仍可按 ID）；自动 / 并行附开关状态。分组标题可折叠（`groups.ts`）。
 - 筛选用 `SegmentedNav`（全部 / 手动 / 自动执行 / 并行），搜索复用 `GameEditSearch`；「显示空事件」「仅未被调用」放筛选区开关。
 - 详情：
   - 执行按钮：`trigger === 0` 时显示；未连接或 `onMap === false` 时禁用并在 tooltip 说明原因。
@@ -182,18 +189,26 @@ type ScriptLine = {
   - 「未被调用」筛选只作用于 `trigger === 0`；`mapsFailed > 0` 或未扫描地图时在筛选旁提示结果可能偏多。
   - 离线（`source === 'disk'` 且未连接）时不显示触发开关状态与「运行中」，只显示开关编号与名称。
 - 空态：数据为空用 `EmptyState`（无数据），筛选无结果用「无匹配」；游戏非 RPG Maker MV/MZ 数据时显示无数据，不报错。
-- 局内执行成功后关闭面板（`onClose`），网页端保持页面并 toast。
+- 局内执行事件成功后关闭面板（`onClose`），网页端保持页面并 toast；传送不关闭面板，只 toast，方便连续传送和查看结果。面板打开时游戏是暂停的（`SceneManager.stop()`），传送需要游戏循环跑完 `reserveTransfer`，所以局内传送会临时恢复游戏，直到玩家到达目标图（`plugins/src/cheat/session/game-pause.ts` 的 `runGameUntil`，超时 10s 报错），之后重新暂停，并刷新场景信息与地图详情（迷你地图玩家圆环、不可通行格随之更新）。
+- 传送只有一条路径：页面侧 `MapDetail` 的 `useTeleport().teleport(x, y)` 统一组 op 并读取「就近」开关（坐标框、迷你地图、事件表坐标、事件详情都调它）；插件侧 `live-map.ts` 的 `teleportPlayer(op)` 统一做校验（同步抛错）→ 传送 → 等到达 → 就近修正 → 返回最终落点。远程命令（网页端）复用同一函数，ack 只覆盖同步校验。
 
 ### 6.3 地图页（第 2 期）
 
-- 树：`MapInfos` 按 `parentId` / `order` 组装；事件数、跨图事件名搜索来自 map-index（随 `edit.events` 下发的轻量索引，不含指令）。当前地图来自 `edit.state` 新增字段 `mapId`、`playerX`、`playerY`。
-- 事件表：`map-index` 推断类型；状态「出现中 / 未出现」在当前地图读 `$gameMap.events()`，非当前地图按页条件 + `$gameSwitches` / `$gameVariables` / `$gameSelfSwitches` 推算，并标「推算」。
-- 单张地图详情按需请求（`edit.map.request` 或 `GET /api/game-edit/map?id=`），不进总索引。离线（走 API）时 `MapDetailData` 不含状态字段，事件表状态列与独立开关显示「—」。
-- 确认规则（与需求 §2.4 一致）：入口 / 指定坐标传送、单个独立开关切换不弹确认；迷你地图点选传送、批量操作、执行含风险副作用的事件弹确认。
-- 传送落点：入口来自 map-index 的 201 汇总；指定坐标在 UI 按 `width` / `height` 校验。`near: true` 时插件在 `Scene_Map` 就绪后按 `$gameMap.isPassable` 检查目标四邻，选第一个可走格再 `locate`，都不可走则留在原坐标。
-- 立即触发 `mapEvent` 只对当前地图开放，插件侧再校验 `$gameMap.mapId()`。
+- 地图列表：`MapInfos` 按 `parentId` / `order` 组装，但不画树——一次只列一层（`MapPane` 的 `level`），有子图的行右侧贴边一个 `›` 进入下一层，顶部面包屑「‹ 全部地图 › … › 父 › 当前层」返回（超过两级时中间折叠为 `…`），任意深度、任意宽度布局不变。默认停在所选地图（或玩家所在地图）的上一层；当前地图标「当前」，其祖先标「当前在内」；「最近去过」只在顶层显示并带路径。列表顶部有搜索框（与面板搜索任一有值即搜索），命中项平铺并附路径与命中的事件名，点 `›` 清空搜索进入该层。事件名索引来自 map-index（随 `edit.events` 下发，不含指令）；当前地图来自 `edit.state` 的 `mapId`、`playerX`、`playerY`。
+- 事件表：名称 / 坐标 / 类型 / 状态四列；`map-index` 推断类型；状态「出现中 / 未出现」在当前地图读 `$gameMap.events()`，非当前地图按页条件 + `$gameSwitches` / `$gameVariables` / `$gameSelfSwitches` 推算，并标「推算」。独立开关不在界面展示（玩家看不懂、作用有限），只参与状态推算与分支判断；`selfSwitch` op 保留给远程调用。
+- 事件详情：标题旁 badge 先「当前」（info）后「出现中」（ok）。多页时用 `SegmentedNav` 按页切换，生效页 tab 标「生效中」（推算时标「推算」），默认停在生效页、跟随实时变化，手动点选后不再跟随；单页不显示 tab。下面直接是执行内容（不再有触发方式 / 出现条件 / 会修改摘要，也没有「立即触发」按钮——从第 1 行执行即等价）。
+- 执行内容（`EventScript`）：ID / 内容 / 操作三列数据列表（列宽 `4rem minmax(0,1fr) 8rem`，ID 左对齐、超长省略；操作右对齐），内容列标题行 + 灰色正文（对话等，无底色，悬停看原文），顶部搜索框按标题 / 正文 / 原文过滤并显示 `命中 / 总数`。不缩进不折叠，分支内的行左侧画细竖线。
+- 分支走向（`lib/game/events/flow.ts` 的 `analyzeFlow`）：用当前开关 / 变量 / 独立开关 / 金钱 / 物品数顺序模拟，列表里 121 / 122 / 123 / 125 / 126 的修改会带到后面；条件分支头标「会走这里 / 不会执行 / 待定」，不会执行的行变淡、待定的置灰。选项、战斗结果、读不到的条件一律「待定」；遇到 117（调用公共事件）/ 355（脚本）/ 356 / 357（插件指令）后，之前读到的值全部视为未知，除非后面又被列表重新设置。离线时全部「待定」。
+- 行内修改（`ScriptValue`）：引用单个开关的行（121 单个、111 开关条件）右侧放 `SwitchToggle`；单个变量的行放下拉，候选值为列表里与该变量比较的常量、给它赋的常量和当前值（只有一个时用 `NumberInput`）。走现有 `sw` / `var` 指令，改完分支标记随状态推送更新。
+- 逐行执行：操作列的小按钮（与开关同高 24px，图标 + tooltip「从第 N 行开始执行，之后按原流程继续」）。地图事件发 `{ op: 'mapEvent', page, from }`（`page` 为当前 tab，可不是生效页），公共事件发 `{ op: 'commonEvent', from }`（from 为 0 时走原来的预约执行）。插件 `run-from.ts` 用 `$gameMap._interpreter.setup(list, eventId)` 后把 `_index` 设为 `from`，并为 `from` 所在的各层分支预置 `_branch`（选项 402 = 选项序号、取消 403 = -2、否则 411 = false、战斗 601–603 = 0/1/2），于是从「选择 X 时」开始会直接走该分支，结束后跳过兄弟分支继续往下。所有执行路径（含从第 1 行）在地图解释器忙时都直接拒绝（`assertIdle`），不静默排队；没有 `Game_Interpreter` 的引擎报「不支持从指定行执行」。风险确认只看 `reachableFrom(list, from)`——跳过不会进入的兄弟分支（其他选项、已进入的 if 的 else、其他战斗结果）；起点本身是 if 时两边都算。
+- 单张地图详情按需请求（`edit.map.request` 或 `GET /api/game-edit/map?id=`），不进总索引。离线（走 API）时 `MapDetailData` 不含状态字段，事件表状态列显示「—」。
+- 确认规则（与需求 §2.4 一致）：指定坐标 / 事件坐标传送不弹确认；迷你地图点选传送、批量操作、执行含风险副作用的事件弹确认。
+- 传送落点：不单独设传送区，地图详情标题栏右侧放 `MapTeleportField`（无标题 / 描述；入口 / 出口不单列，迷你地图上的传送事件点即可看到并点选；map-index 仍保留 201 入口汇总供数据层使用）：一个框内左右两个输入「X 10 Y 10」，右端紧接传送按钮，两轴各自限定 0…宽−1 / 0…高−1（失焦 / 回车提交时截断，↑↓ 步进 1、Shift 步进 10），地图尺寸未知时只限下界。坐标统一写成 `x,y`（无空格）。
+- 「就近」（`near: true`）：整页一个开关，放在面板标题栏搜索框右侧（`MapPane` 持有状态，经 `headSlot` portal 渲染；文案「就近模式」+ tooltip 说明），坐标框传送、迷你地图点格、事件表坐标与事件详情的传送都遵循它。插件在到达目标图的同一帧（重新暂停之前）检查目标格能否站立——图块任一方向 `isPassable`，且没有其他角色（未消除、有活动页，且有行走图 / 图块或为同层非穿透事件）与本图载具；不能站则按欧氏距离由近到远找全图最近可站格再 `locate`，全图都不行才留在原坐标（`lib/game/events/spot.ts` 的 `nearestSpot`）。
+- 事件表的坐标可点击：按「就近」开关传送到该事件旁（关掉时直接落在事件格），不弹确认。
+- `mapEvent` 只对当前地图开放，插件侧再校验 `$gameMap.mapId()`。
 - 最近去过：`plugins/src/cheat/session/map-history.ts` 挂 `Scene_Map.prototype.start` 记录 mapId（去重、最多 10 条），按游戏存 localStorage，经 `edit.state.recentMaps` 同步；不依赖 ChayaAgent。
-- 迷你地图第 3 期（之前事件表占满右栏），图块 / 截图底图第 4 期。
+- 迷你地图（`MiniMap.tsx`）：紧接标题栏下方，SVG 按地图宽高画格子（≤ 80 格时画网格线），不可站立格画斜线阴影（`MapDetailData.blocked`，行优先 `0`/`1`）：局内当前图用 `$gameMap.isPassable` 四方向判定，其他图与网页读盘按 RPG Maker 通行规则（图块 flags + 4 层，跳过星号）由 `terrainBlockedMask` 计算，缺图块数据或 flags 时不标；「就近模式」开着时不可通行格照样可选中、传送（落到最近可站格），悬停提示「不可通行，将传送到最近可站立处」；关掉时悬停提示「不可通行，无法传送」，点击不响应；事件按类型着色、未出现的半透明，玩家在本图时画圆环，环内箭头指向角色朝向（`PlayerSpot.direction`，局内读 `$gamePlayer.direction()`，网页端经 `edit.state.playerDir`；未知时画圆点）；悬停显示 `x,y`，点击空白格只设为传送目标（同步到标题栏坐标框、画虚线框），再次点击已选中的格才弹确认并传送（遵循「就近」开关），点击事件打开详情。图块 / 截图底图第 4 期。
 
 ## 7. 安全与撤销
 
@@ -207,17 +222,19 @@ type ScriptLine = {
 - `effects.spec.ts`：各风险指令识别；121 范围；不展开 117。
 - `interpret.spec.ts`：101+401 合并、102/111 缩进、201/117 link、355+655 合并、未知指令、译文与原文。
 - `services/game/game-edit-events` 用临时目录 fixture 读盘；`app/api/game-edit/events` 覆盖未绑定游戏返回 4xx。
-- 组件：`CommonEventsPane` 空态 / 无匹配、筛选、执行按钮禁用条件、风险确认。
-- 手测：两个 demo 都不带 `data/*.json`（`demo:game` 无数据，`demo:walk` 数据在 `data.js` 里），只能验证空态与「无数据」；执行、引用关系、ack 错误提示用真实 MV / MZ 游戏验证，并用数百张地图的游戏验证加载进度与耗时。
+- `flow.spec.ts`：分支走向、修改带到后面、117 / 355 / 356 / 357 后变未知、金钱 / 物品模拟、除法向下取整、`reachableFrom` 跳过兄弟分支、`variableCandidates`。
+- `__tests__/plugins/cheat/session/run-from.spec.ts`：`enclosingBranches` 各分支类型；设置 `_index` / `_branch`；忙时、越界、缺页、无解释器报错。
+- 组件：`CommonEventsPane` 空态 / 无匹配、筛选、执行按钮禁用条件、风险确认；`event-script.spec.tsx` 平铺编号、分支 badge、离线待定、搜索、逐行执行与禁用、行内开关 / 变量；`map-pane.spec.tsx` 逐层进入 / 面包屑返回、按所选地图定位层级、搜索平铺与 `›` 退出搜索。
+- 手测：`demo:walk`（`fixtures/game-walk`）带 RPG Maker 形状的数据与解释器：`data.js` 的 `rmMap` 生成 `$dataMap` / `data/MapXXX.json`，`objects.js` 的 interpreter 按 `Game_Interpreter` 的 `setup` / `_index` / `_branch` 执行 101/102/402/111/411/121/122/125/126/201/314/117/115，可验证逐行执行、分支走向与行内修改。地图：村庄（含子地图「村长的家」）、森林；村长对话由开关 #1 分两支。`demo:game` 无数据只验证空态；引用关系与大量地图的加载耗时仍用真实 MV / MZ 游戏验证。
 
 ## 9. 分期与状态
 
-| 期  | 内容                                                                                                                                                                | 状态                      |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| 1   | 事件索引、解释器、公共事件页、执行、触发开关切换、link 分片、i18n、测试                                                                                             | 完成                      |
-| 2   | 地图页、单图详情、传送（入口 / 指定坐标 / near）/ 独立开关 / 触发地图事件 op、最近去过、edge 授权读盘、公共事件内容搜索与「运行中」状态（`$gameMap._commonEvents`） | 完成（edge 授权读盘未接） |
-| 3   | 迷你地图、插件侧撤销栈、批量操作                                                                                                                                    | 未开始                    |
-| 4   | 迷你地图图块 / 截图底图                                                                                                                                             | 未开始                    |
+| 期  | 内容                                                                                                                                                         | 状态                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- |
+| 1   | 事件索引、解释器、公共事件页、执行、触发开关切换、link 分片、i18n、测试                                                                                      | 完成                      |
+| 2   | 地图页、单图详情、传送（指定坐标 / near）/ 独立开关 / 触发地图事件 op、最近去过、edge 授权读盘、公共事件内容搜索与「运行中」状态（`$gameMap._commonEvents`） | 完成（edge 授权读盘未接） |
+| 3   | 迷你地图、插件侧撤销栈、批量操作                                                                                                                             | 迷你地图完成，其余未开始  |
+| 4   | 迷你地图图块 / 截图底图                                                                                                                                      | 未开始                    |
 
 ## 10. 风险
 

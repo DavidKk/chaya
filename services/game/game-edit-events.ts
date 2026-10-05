@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { buildCommonEventsData, buildMapDetail, type CommonEventsData, type MapDetailData } from '@/lib/game/events'
+import { buildCommonEventsData, buildMapDetail, type CommonEventsData, type MapDetailData, terrainBlockedMask } from '@/lib/game/events'
 import { getResolvedFromConfig } from '@/services/game'
 import { loadGameTranslateLookup, translateWithLookup } from '@/services/translate/game-lookup'
 import { openSharedCache } from '@/services/translate/shared-cache'
@@ -111,7 +111,11 @@ export function loadMapDetailData(mapId: number): MapDetailData | Failure {
   try {
     const raw = readJson(path.join(game.dataDir, mapFileName(mapId)))
     if (!raw) return { ok: false, error: `无法读取 ${mapFileName(mapId)}` }
-    return buildMapDetail(mapId, raw, readArray(game.dataDir, 'MapInfos.json'), game.tr, 'disk')
+    const detail = buildMapDetail(mapId, raw, readArray(game.dataDir, 'MapInfos.json'), game.tr, 'disk')
+    const tilesetId = Number((raw as { tilesetId?: unknown }).tilesetId) || 0
+    const tileset = readArray(game.dataDir, 'Tilesets.json')?.[tilesetId] as { flags?: unknown } | null | undefined
+    const blocked = terrainBlockedMask(raw, tileset?.flags)
+    return blocked ? { ...detail, blocked } : detail
   } finally {
     game.close()
   }

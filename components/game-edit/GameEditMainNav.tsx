@@ -3,11 +3,15 @@
 import type { ReactNode } from 'react'
 import { IoSparklesOutline } from 'react-icons/io5'
 
+import { BrandMarkInline } from '@/components/BrandMarkInline'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
 import { Button } from '@/components/sk'
+import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
+import { PRODUCT_DISPLAY_NAME } from '@/constants/brand'
 import { cn } from '@/lib/utils'
 
+import { panelDragHandlers } from './panel-drag'
 import { isEditTab, type TabId } from './tabs'
 
 type Props = {
@@ -20,8 +24,18 @@ type Props = {
 export function GameEditMainNav({ tab, lastEditTab, setTab, closeButton }: Props) {
   const t = useT()
   const showEditNav = isEditTab(tab)
+  const drag = panelDragHandlers()
   return (
-    <nav aria-label={t('edit.mainNav')} className="flex h-[3.25rem] shrink-0 items-stretch border-b border-line bg-[color-mix(in_oklab,var(--panel-2)_70%,transparent)] px-4">
+    <nav
+      aria-label={t('edit.mainNav')}
+      {...drag}
+      className="flex h-[3.25rem] shrink-0 cursor-move touch-none items-stretch border-b border-line bg-[color-mix(in_oklab,var(--panel-2)_70%,transparent)] px-4 select-none"
+    >
+      <Tooltip content={PRODUCT_DISPLAY_NAME}>
+        <span role="img" aria-label={PRODUCT_DISPLAY_NAME} className="mr-2 inline-flex shrink-0 items-center self-center">
+          <BrandMarkInline className="size-7" />
+        </span>
+      </Tooltip>
       {(
         [
           { id: 'edit', labelKey: 'edit.tabEdit' as const, target: lastEditTab },

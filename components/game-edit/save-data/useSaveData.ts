@@ -238,7 +238,7 @@ export function useSaveData(slot: SaveDataSlot, onPathGone: () => void) {
   }, [])
 
   const startSearch = useCallback(
-    (query: string, scope: SearchScope) => {
+    (query: string, scope: SearchScope, from: DataPath = pathRef.current) => {
       searchCancel.current?.()
       searchCancel.current = null
       if (!transport || !query.trim()) {
@@ -246,7 +246,7 @@ export function useSaveData(slot: SaveDataSlot, onPathGone: () => void) {
         return
       }
       setSearch({ query, scope, hits: [], running: true, truncated: false, scanned: 0 })
-      searchCancel.current = transport.search(pathRef.current, query, scope, (batch) => {
+      searchCancel.current = transport.search(from, query, scope, (batch) => {
         for (const hit of batch.hits) setCell(pathKey(hit.path), hit, false)
         setSearch((prev) =>
           prev && prev.query === query && prev.scope === scope

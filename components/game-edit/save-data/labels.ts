@@ -56,6 +56,21 @@ export function cellText(t: T, cell: DataCell | undefined): string {
   }
 }
 
+const KIND_TONE: Partial<Record<DataCell['kind'], string>> = {
+  number: 'text-accent',
+  string: 'text-ok',
+  boolean: 'text-[color-mix(in_oklab,var(--accent)_35%,var(--fail))]',
+  null: 'text-ink-soft italic',
+  undefined: 'text-ink-soft italic',
+  object: 'text-warn',
+  array: 'text-[color-mix(in_oklab,var(--warn)_50%,var(--fail))]',
+}
+
+/** Text color by value type so numbers, strings, booleans and containers read apart */
+export function cellTone(cell: DataCell | undefined): string {
+  return (cell && KIND_TONE[cell.kind]) || 'text-ink-soft'
+}
+
 export function undoText(t: T, summary: DataUndoSummary | null): string {
   const first = summary?.first
   if (!summary || !first) return t('data.undoEmpty')

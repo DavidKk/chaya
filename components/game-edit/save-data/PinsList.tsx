@@ -1,23 +1,69 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { IoChevronForward, IoStar } from 'react-icons/io5'
 import { MdDragIndicator } from 'react-icons/md'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { TextAction } from '@/components/sk'
+import { EmptyState, ScrollArea, TextAction } from '@/components/sk'
 import { type DataPath, type DataRowAt, pathExpression, pathKey } from '@/lib/game/save-data'
 import { cn } from '@/lib/utils'
 
 import { DataListHeader, type RowHandlers } from './DataList'
-import { DataRowView, ROW_HEIGHT, ROW_HEIGHT_NARROW } from './DataRowView'
-import { segmentName, type T } from './labels'
+import { DATA_COLS, DataRowView, ROW_HEIGHT, ROW_HEIGHT_NARROW } from './DataRowView'
+import { segmentName } from './labels'
 import type { PinRow } from './useSaveData'
 
-export function whereText(t: T, row: Pick<DataRowAt, 'path' | 'labels'>): string {
-  return row.path
-    .slice(0, -1)
-    .map((seg, i) => segmentName(t, seg, row.labels[i], i))
-    .join(' › ')
+/** Parent path of a pinned / found field; each segment opens that level */
+export function WherePath({ row, onOpen }: { row: Pick<DataRowAt, 'path' | 'labels'>; onOpen: (path: DataPath) => void }) {
+  const t = useT()
+  const parents = row.path.slice(0, -1)
+  return (
+    <span className="flex min-w-0 items-center gap-0.5 overflow-hidden">
+      {parents.map((seg, i) => {
+        const label = segmentName(t, seg, row.labels[i], i)
+        return (
+          <span key={i} className="flex min-w-0 items-center gap-0.5">
+            {i ? <span aria-hidden>›</span> : null}
+            <button
+              type="button"
+              className="max-w-[8rem] cursor-pointer truncate border-none bg-transparent p-0 font-mono text-[0.68rem] text-ink-soft hover:text-accent"
+              title={t('data.open', { name: label })}
+              onClick={() => onOpen(row.path.slice(0, i + 1))}
+            >
+              {label}
+            </button>
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
+/** Root-level row that opens the 常用 virtual level */
+export function PinsEntry({ count, narrow, onOpen }: { count: number; narrow: boolean; onOpen: () => void }) {
+  const t = useT()
+  return (
+    <button
+      type="button"
+      className={cn(
+        'h-full w-full cursor-pointer items-center gap-3 border-0 border-b border-line bg-transparent px-3 text-left hover:bg-[color-mix(in_oklab,var(--accent)_6%,transparent)]',
+        narrow ? 'flex' : cn('grid', DATA_COLS)
+      )}
+      onClick={onOpen}
+      aria-label={t('data.open', { name: t('data.pinsTitle') })}
+    >
+      <span className="flex min-w-0 items-center gap-1.5 text-[0.8125rem] font-medium text-ink">
+        <IoStar size={13} className="shrink-0 text-warn" aria-hidden />
+        {t('data.pinsTitle')}
+      </span>
+      <span className="px-1 font-mono text-[0.75rem] text-ink-soft">{t('data.pinsHint')}</span>
+      <span className="inline-flex items-center gap-0.5 text-[0.75rem] text-warn">
+        {t('data.items', { count })}
+        <IoChevronForward size={13} aria-hidden />
+      </span>
+    </button>
+  )
 }
 
 type Props = RowHandlers & {
@@ -30,12 +76,12 @@ type Props = RowHandlers & {
   onReorder: (from: DataPath, to: DataPath) => void
 }
 
-/** Preset + user pins shown as regular rows above the level list; user pins can be dragged to reorder */
-export function PinsBar({ rows, userPins, narrow, lockedKeys, canEdit, onUnpin, onReorder, ...handlers }: Props) {
+/** 常用 level: preset + user pins as regular rows; user pins can be dragged to reorder */
+export function PinsList({ rows, userPins, narrow, lockedKeys, canEdit, onUnpin, onReorder, ...handlers }: Props) {
   const t = useT()
   const [dragging, setDragging] = useState<DataPath | null>(null)
   const [over, setOver] = useState<string | null>(null)
-  if (!rows.length) return null
+  if (!rows.length) return <EmptyState title={t('data.pinsEmpty')} message={t('data.pinsEmptyMsg')} />
   const height = narrow ? ROW_HEIGHT_NARROW : ROW_HEIGHT
 
   const wrap = (row: PinRow, key: string, content: ReactNode) => {
@@ -82,10 +128,11 @@ export function PinsBar({ rows, userPins, narrow, lockedKeys, canEdit, onUnpin, 
   }
 
   return (
-    <section className="shrink-0 border-b border-line" aria-label={t('data.pinsTitle')}>
-      <div className="px-3 pt-2 pb-1 text-[0.7rem] font-medium text-ink-soft">{t('data.pinsTitle')}</div>
-      <DataListHeader narrow={narrow} className="pl-7" />
-      <div className="max-h-[30vh] overflow-auto overscroll-contain" role="list">
+    <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('data.pinsTitle') }}>
+      <div className="sticky top-0 z-[2]">
+        <DataListHeader narrow={narrow} className="pl-7" />
+      </div>
+      <div role="list">
         {rows.map((row) => {
           const key = pathKey(row.path)
           if ('missing' in row) {
@@ -107,7 +154,7 @@ export function PinsBar({ rows, userPins, narrow, lockedKeys, canEdit, onUnpin, 
               rowKey={key}
               path={row.path}
               ownerOid={row.ownerOid}
-              where={whereText(t, row)}
+              where={<WherePath row={row} onOpen={handlers.onOpen} />}
               narrow={narrow}
               locked={lockedKeys.has(key)}
               canEdit={canEdit}
@@ -116,6 +163,6 @@ export function PinsBar({ rows, userPins, narrow, lockedKeys, canEdit, onUnpin, 
           )
         })}
       </div>
-    </section>
+    </ScrollArea>
   )
 }

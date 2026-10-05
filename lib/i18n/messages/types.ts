@@ -469,13 +469,6 @@ export type MessageTree = {
     switchOf: string
     toggleOn: string
     toggleOff: string
-    itemsCount: string
-    synced: string
-    footMoney: string
-    footSwitch: string
-    footSession: string
-    actorsCount: string
-    truncated: string
     loadPanel: string
     needSave: string
     readFailed: string
@@ -657,19 +650,6 @@ export type MessageTree = {
     hkClearGame: string
     hkClearGlobal: string
     hkChordAria: string
-    footOverlayRun: string
-    footOverlayHotkeys: string
-    footOverlayTrans: string
-    footOverlayLogs: string
-    footOverlayEdit: string
-    footLinkedRun: string
-    footLinkedHotkeys: string
-    footLinkedTrans: string
-    footLinkedEdit: string
-    footPreviewRun: string
-    footPreviewHotkeys: string
-    footPreviewTrans: string
-    footPreviewEdit: string
   }
   logs: {
     region: string

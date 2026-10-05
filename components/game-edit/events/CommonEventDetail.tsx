@@ -4,14 +4,16 @@ import { type ReactNode, useMemo, useState } from 'react'
 import { IoArrowBack, IoPlayOutline } from 'react-icons/io5'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
+import { countKey, type SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
 import { Badge, Button, ScrollArea, SwitchToggle } from '@/components/sk'
-import { type CommonEventInfo, type CommonEventsData, type EventRef, isRiskyEffects, labelOf, summarizeEffects } from '@/lib/game/events'
+import { type CommonEventInfo, type CommonEventsData, type EventRef, isRiskyEffects, labelOf, reachableFrom, summarizeEffects } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
 import { EventScript } from './EventScript'
 import { commonEventName, effectLabels, refLabel } from './labels'
+import type { ScriptLive } from './ScriptValue'
 import type { EventsSlot } from './types'
 
 const TRIGGER_KEY = { 0: 'events.trigger0', 1: 'events.trigger1', 2: 'events.trigger2' } as const
@@ -25,7 +27,7 @@ type Props = {
   event: CommonEventInfo
   data: CommonEventsData
   slot: EventsSlot
-  switches: Readonly<Record<number, boolean>>
+  session: SessionState
   onBack: () => void
 }
 
@@ -69,7 +71,8 @@ function ConfirmList({ intro, items, more }: { intro: string; items: string[]; m
 }
 
 /** Header, run, trigger switch, effects, references and script of one common event */
-export function CommonEventDetail({ event, data, slot, switches, onBack }: Props) {
+export function CommonEventDetail({ event, data, slot, session, onBack }: Props) {
+  const switches = session.switches
   const t = useT()
   const confirm = useConfirm()
   const notify = useNotification()
@@ -84,11 +87,25 @@ export function CommonEventDetail({ event, data, slot, switches, onBack }: Props
 
   const runBlocked = !slot.canAct ? t('events.runNeedLink') : !slot.onMap ? t('events.runNeedMap') : ''
 
-  async function run() {
-    if (risky) {
+  const live = useMemo(
+    (): ScriptLive | null =>
+      slot.live
+        ? {
+            state: { switches: session.switches, vars: session.vars, self: null, gold: session.gold, itemCount: (id) => session.counts[countKey('item', id)] },
+            canEdit: slot.canAct,
+            onSwitch: slot.onSwitchChange,
+            onVar: slot.onVarChange,
+          }
+        : null,
+    [slot, session.switches, session.vars, session.gold, session.counts]
+  )
+
+  async function run(from = 0) {
+    const runEffects = from ? summarizeEffects(reachableFrom(event.list, from)) : effects
+    if (from ? isRiskyEffects(runEffects) : risky) {
       const ok = await confirm({
         title: t('events.runRiskTitle', { name }),
-        description: <ConfirmList intro={t('events.runRiskDesc')} items={effectItems.map((e) => e.text)} />,
+        description: <ConfirmList intro={t('events.runRiskDesc')} items={effectLabels(runEffects, data.names, t).map((e) => e.text)} />,
         confirmLabel: t('events.runConfirm'),
         confirmVariant: 'warn',
       })
@@ -96,7 +113,7 @@ export function CommonEventDetail({ event, data, slot, switches, onBack }: Props
     }
     setRunning(true)
     try {
-      await slot.onAct({ op: 'commonEvent', id: event.id })
+      await slot.onAct(from ? { op: 'commonEvent', id: event.id, from } : { op: 'commonEvent', id: event.id })
       notify.success(t('events.runOk', { name }))
       slot.afterRun?.()
     } catch (err) {
@@ -151,18 +168,23 @@ export function CommonEventDetail({ event, data, slot, switches, onBack }: Props
         <Button variant="ghost" size="icon" className="@4xl:hidden" aria-label={t('events.back')} tooltip={t('events.back')} onClick={onBack}>
           <IoArrowBack size={16} aria-hidden />
         </Button>
-        <span className="font-mono text-[0.75rem] text-ink-soft">#{event.id}</span>
         <div className="min-w-0 flex-1">
           <h2 className="m-0 truncate text-[0.9rem] font-semibold text-ink" title={name}>
             {name}
           </h2>
           {event.rawName && event.rawName !== name ? <p className="m-0 truncate text-[0.7rem] text-ink-soft">{event.rawName}</p> : null}
         </div>
-        <Badge tone={event.trigger === 0 ? 'neutral' : event.trigger === 1 ? 'warn' : 'info'}>{t(TRIGGER_KEY[event.trigger])}</Badge>
-        {isRunning ? <Badge tone="ok">{t('events.running')}</Badge> : null}
+        <Badge dot={false} tone={event.trigger === 0 ? 'neutral' : event.trigger === 1 ? 'warn' : 'info'}>
+          {t(TRIGGER_KEY[event.trigger])}
+        </Badge>
+        {isRunning ? (
+          <Badge dot={false} tone="ok">
+            {t('events.running')}
+          </Badge>
+        ) : null}
         {runButton}
       </header>
-      <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('events.detailAria') }}>
+      <ScrollArea className="min-h-0 flex-1" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('events.detailAria') }}>
         {event.trigger !== 0 ? (
           <>
             <h3 className={sectionTitle}>{t('events.triggerSwitch')}</h3>
@@ -208,7 +230,17 @@ export function CommonEventDetail({ event, data, slot, switches, onBack }: Props
         <h3 className={sectionTitle}>
           {t('events.script')} · {t('events.commands', { count: event.commandCount })}
         </h3>
-        <EventScript list={event.list} names={data.names} texts={data.texts} onOpenCommon={(id) => slot.onSelectCommon(id)} onOpenMap={(id) => slot.onSelectMap(id, null)} />
+        <EventScript
+          list={event.list}
+          names={data.names}
+          texts={data.texts}
+          onOpenCommon={(id) => slot.onSelectCommon(id)}
+          onOpenMap={(id) => slot.onSelectMap(id, null)}
+          onRunFrom={(at) => void run(at)}
+          runBlocked={runBlocked}
+          busy={running}
+          live={live}
+        />
       </ScrollArea>
     </section>
   )

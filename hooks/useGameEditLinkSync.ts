@@ -30,9 +30,9 @@ type SetSession = Dispatch<SetStateAction<SessionState>>
 type AckWaiter = { timer: number; finish: (ack: GameEditAck) => void; reject: (error: Error) => void }
 
 /** Scene / map fields pushed with every `edit.state` */
-export type GameLiveScene = { onMap: boolean; mapId: number; playerX: number; playerY: number; recentMaps: number[]; runningCommon: number[] }
+export type GameLiveScene = { onMap: boolean; mapId: number; playerX: number; playerY: number; playerDir: number; recentMaps: number[]; runningCommon: number[] }
 
-const EMPTY_SCENE: GameLiveScene = { onMap: false, mapId: 0, playerX: 0, playerY: 0, recentMaps: [], runningCommon: [] }
+const EMPTY_SCENE: GameLiveScene = { onMap: false, mapId: 0, playerX: 0, playerY: 0, playerDir: 0, recentMaps: [], runningCommon: [] }
 
 function sameList(a: readonly number[], b: readonly number[]) {
   return a.length === b.length && a.every((v, i) => v === b[i])
@@ -44,6 +44,7 @@ function sceneFrom(msg: GameEditStateMsg, prev: GameLiveScene): GameLiveScene {
     mapId: msg.mapId ?? 0,
     playerX: msg.playerX ?? 0,
     playerY: msg.playerY ?? 0,
+    playerDir: msg.playerDir ?? 0,
     recentMaps: msg.recentMaps ?? [],
     runningCommon: msg.runningCommon ?? [],
   }
@@ -52,6 +53,7 @@ function sceneFrom(msg: GameEditStateMsg, prev: GameLiveScene): GameLiveScene {
     next.mapId === prev.mapId &&
     next.playerX === prev.playerX &&
     next.playerY === prev.playerY &&
+    next.playerDir === prev.playerDir &&
     sameList(next.recentMaps, prev.recentMaps) &&
     sameList(next.runningCommon, prev.runningCommon)
   return same ? prev : next

@@ -5,6 +5,7 @@ import { buildCommonEventsData, type CommonEventsData } from '@/lib/game/events'
 
 import { tName } from '../console/item-label'
 import { Cheats } from '../runtime/cheats'
+import { assertIdle, startCommonEventAt } from './run-from'
 
 const MAP_FETCH_CONCURRENCY = 8
 
@@ -95,7 +96,9 @@ export function isOnMapScene(): boolean {
 }
 
 /** Common events only start from the map scene (`$gameTemp.reserveCommonEvent`) */
-export function runCommonEventOnMap(id: number): void {
+export function runCommonEventOnMap(id: number, from?: number): void {
   if (!isOnMapScene()) throw new Error('请回到地图场景再执行公共事件')
-  if (!Cheats.runCommonEvent(id)) throw new Error('执行失败：游戏未就绪')
+  if (from) return startCommonEventAt(id, from)
+  assertIdle()
+  if (!Cheats.runCommonEvent(id)) throw new Error('游戏未就绪')
 }

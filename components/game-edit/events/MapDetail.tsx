@@ -1,40 +1,26 @@
 'use client'
 
 import { useState } from 'react'
-import { IoArrowBack, IoNavigateOutline } from 'react-icons/io5'
+import { IoArrowBack } from 'react-icons/io5'
 
+import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { countKey, type SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Badge, Button, EmptyState, NumberInput, ScrollArea, Spinner } from '@/components/sk'
+import { Badge, Button, EmptyState, ScrollArea, Spinner } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
-import {
-  type CommonEventsData,
-  estimateActivePage,
-  type MapDetailData,
-  type MapEventInfo,
-  type MapEventType,
-  type MapNode,
-  SELF_SWITCH_LETTERS,
-  type SelfSwitchLetter,
-} from '@/lib/game/events'
-import type { MessageKey } from '@/lib/i18n'
+import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
+import { type CommonEventsData, estimateActivePage, type MapDetailData, type MapEventInfo, type MapNode } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
-import { refLabel } from './labels'
+import { type EventState, TYPE_KEY } from './event-meta'
 import { MapEventDetail } from './MapEventDetail'
+import { MapTeleportField } from './MapTeleportField'
+import { MiniMap } from './MiniMap'
 import type { EventsOp, EventsSlot } from './types'
 
-export const TYPE_KEY: Record<MapEventType, MessageKey> = {
-  npc: 'events.map.typeNpc',
-  transfer: 'events.map.typeTransfer',
-  chest: 'events.map.typeChest',
-  trigger: 'events.map.typeTrigger',
-  other: 'events.map.typeOther',
-}
-
-export type EventState = { kind: 'shown' | 'hidden' | 'unknown'; page: number; exact: boolean }
+export { type EventState, TYPE_KEY } from './event-meta'
 
 /** Exact on the player's map, estimated from page conditions elsewhere, unknown offline */
 export function eventStateOf(ev: MapEventInfo, detail: MapDetailData, session: SessionState): EventState {
@@ -65,72 +51,49 @@ export function StateBadge({ state }: { state: EventState }) {
   )
 }
 
-const selfBtn =
-  'm-0 inline-flex size-6 cursor-pointer items-center justify-center rounded-[0.2rem] border border-line bg-transparent p-0 font-mono text-[0.68rem] text-ink-soft hover:enabled:text-ink disabled:cursor-not-allowed disabled:opacity-60'
-const selfBtnOn = 'border-transparent bg-[color-mix(in_oklab,var(--accent)_22%,transparent)] text-accent'
+/** Name · position · type · state */
+const tableCols = { gridTemplateColumns: 'minmax(8rem, 1fr) 4.75rem 4.5rem 6rem' }
 
-export function SelfSwitches({ mapId, eventId, on, slot }: { mapId: number; eventId: number; on: string | null; slot: EventsSlot }) {
+/** Page-wide "teleport beside the target when it is blocked" switch, shown in the panel header */
+export function NearToggle({ near, onChange }: { near: boolean; onChange: (near: boolean) => void }) {
   const t = useT()
-  const notify = useNotification()
-  const [busy, setBusy] = useState(false)
-  if (on == null) return <span className="text-ink-soft">{t('events.map.stateUnknown')}</span>
-  const set = async (letter: SelfSwitchLetter, value: boolean) => {
-    setBusy(true)
-    try {
-      await slot.onAct({ op: 'selfSwitch', mapId, eventId, letter, value })
-    } catch (err) {
-      notify.error(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
   return (
-    <span className="inline-flex gap-1">
-      {SELF_SWITCH_LETTERS.map((letter) => {
-        const active = on.includes(letter)
-        return (
-          <button
-            key={letter}
-            type="button"
-            role="switch"
-            aria-checked={active}
-            aria-label={t('events.map.selfSwitch', { ch: letter })}
-            title={!slot.canAct ? t('events.runNeedLink') : t('events.map.selfSwitch', { ch: letter })}
-            disabled={!slot.canAct || busy}
-            className={cn(selfBtn, active && selfBtnOn)}
-            onClick={() => void set(letter, !active)}
-          >
-            {letter}
-          </button>
-        )
-      })}
-    </span>
+    <Tooltip content={t('events.map.teleportNear')}>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={near}
+        aria-label={t('events.map.teleportNear')}
+        className={cn(filterToggle, 'shrink-0', near && filterToggleOn)}
+        onClick={() => onChange(!near)}
+      >
+        {t('events.map.teleportNearShort')}
+      </button>
+    </Tooltip>
   )
 }
 
-const tableCols = 'grid-cols-[2.75rem_minmax(8rem,1fr)_4.75rem_4.5rem_6rem_max-content]'
-
-function TeleportSection({ node, data, detail, slot }: { node: MapNode; data: CommonEventsData; detail: MapDetailData | null; slot: EventsSlot }) {
+/** Teleport target (follows the player until edited) and the send action */
+function useTeleport(node: MapNode, slot: EventsSlot, near: boolean) {
   const t = useT()
   const notify = useNotification()
-  const onThisMap = slot.player?.mapId === node.id
-  const [x, setX] = useState(onThisMap ? slot.player!.x : 0)
-  const [y, setY] = useState(onThisMap ? slot.player!.y : 0)
-  const [near, setNear] = useState(true)
+  const confirm = useConfirm()
+  const player = slot.player?.mapId === node.id ? slot.player : null
+  const [picked, setPicked] = useState<{ mapId: number; x: number; y: number } | null>(null)
   const [busy, setBusy] = useState(false)
-  const entrances = data.mapIndex.entrances[node.id] ?? []
+  const own = picked?.mapId === node.id ? picked : null
+  const target = own ?? (player ? { x: player.x, y: player.y } : { x: 0, y: 0 })
+  const setTarget = (x: number, y: number) => setPicked({ mapId: node.id, x, y })
   const blocked = !slot.canAct ? t('events.runNeedLink') : !slot.onMap ? t('events.runNeedMap') : ''
-  const maxX = detail ? detail.width - 1 : null
-  const maxY = detail ? detail.height - 1 : null
-  const outOfRange = maxX != null && maxY != null && (x < 0 || y < 0 || x > maxX || y > maxY)
   const name = node.name || `#${node.id}`
 
-  const go = async (op: EventsOp) => {
+  /** Every teleport on the map page goes through here, so the "nearby" switch applies to all of them */
+  const teleport = async (x: number, y: number) => {
+    const op: EventsOp = { op: 'teleport', mapId: node.id, x, y, near }
     setBusy(true)
     try {
       await slot.onAct(op)
       notify.success(t('events.map.teleportOk', { name }))
-      slot.afterRun?.()
     } catch (err) {
       notify.error(t('events.map.teleportFail', { error: err instanceof Error ? err.message : String(err) }))
     } finally {
@@ -138,63 +101,29 @@ function TeleportSection({ node, data, detail, slot }: { node: MapNode; data: Co
     }
   }
 
-  const dir = (d: number) => (d === 2 || d === 4 || d === 6 || d === 8 ? { direction: d as 2 | 4 | 6 | 8 } : {})
+  /** First click selects the tile as the target; clicking the selected tile again asks to teleport */
+  const pickCell = async (x: number, y: number) => {
+    if (own?.x !== x || own?.y !== y) return setTarget(x, y)
+    if (blocked || busy) return
+    const ok = await confirm({ title: t('events.map.minimapTeleportTitle', { name, x, y }) })
+    if (ok) await teleport(x, y)
+  }
 
-  return (
-    <section className="border-b border-line px-3 py-2">
-      <h3 className="m-0 pb-1.5 text-[0.68rem] font-semibold tracking-[0.05em] text-ink-soft uppercase">{t('events.map.teleport')}</h3>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[0.75rem] text-ink-soft">{t('events.map.teleportCoords')}</span>
-        <NumberInput className="w-[6.5rem]" value={x} min={0} max={maxX ?? undefined} aria-label="X" onValueChange={(v) => setX(Math.max(0, Math.floor(v)))} />
-        <NumberInput className="w-[6.5rem]" value={y} min={0} max={maxY ?? undefined} aria-label="Y" onValueChange={(v) => setY(Math.max(0, Math.floor(v)))} />
-        <button type="button" role="switch" aria-checked={near} className={cn(filterToggle, near && filterToggleOn)} onClick={() => setNear(!near)}>
-          {t('events.map.teleportNear')}
-        </button>
-        <Button
-          variant="accent"
-          loading={busy}
-          disabled={!!blocked || outOfRange}
-          tooltip={blocked || (outOfRange ? t('events.map.teleportOutOfRange', { maxX: maxX ?? 0, maxY: maxY ?? 0 }) : undefined)}
-          onClick={() => void go({ op: 'teleport', mapId: node.id, x, y, near })}
-        >
-          <IoNavigateOutline size={15} aria-hidden />
-          {t('events.map.teleport')}
-        </Button>
-      </div>
-      <p className="m-0 pt-2 pb-1 text-[0.7rem] text-ink-soft">{t('events.map.teleportEntrances')}</p>
-      {entrances.length ? (
-        <ul className="m-0 flex list-none flex-wrap gap-1.5 pl-0">
-          {entrances.slice(0, 12).map((e, i) => {
-            const from = refLabel(e.from, data.names, t)
-            return (
-              <li key={`${e.x}-${e.y}-${i}`}>
-                <Button
-                  disabled={!!blocked || busy}
-                  tooltip={blocked || t('events.map.entranceFrom', { from })}
-                  onClick={() => void go({ op: 'teleport', mapId: node.id, x: e.x, y: e.y, ...dir(e.direction) })}
-                >
-                  ({e.x}, {e.y})
-                </Button>
-              </li>
-            )
-          })}
-        </ul>
-      ) : (
-        <p className="m-0 text-xs text-ink-soft">{t('events.map.noEntrances')}</p>
-      )}
-    </section>
-  )
+  return { target, setTarget, near, busy, blocked, teleport, pickCell, player }
 }
 
-/** One map: header, teleport, event table; selecting an event opens its detail in place */
-export function MapDetail({ node, data, slot, session }: { node: MapNode; data: CommonEventsData; slot: EventsSlot; session: SessionState }) {
+export type Teleport = ReturnType<typeof useTeleport>
+
+/** One map: header with the coordinate teleport, mini map, event table; selecting an event opens its detail in place */
+export function MapDetail({ node, data, slot, session, near }: { node: MapNode; data: CommonEventsData; slot: EventsSlot; session: SessionState; near: boolean }) {
   const t = useT()
   const detail = slot.mapDetail?.mapId === node.id ? slot.mapDetail : null
   const isCurrent = slot.live && slot.player?.mapId === node.id
   const selectedEvent = detail && slot.eventId != null ? (detail.events.find((ev) => ev.id === slot.eventId) ?? null) : null
+  const tp = useTeleport(node, slot, near)
 
   if (selectedEvent && detail) {
-    return <MapEventDetail key={selectedEvent.id} ev={selectedEvent} node={node} detail={detail} data={data} slot={slot} session={session} />
+    return <MapEventDetail key={selectedEvent.id} ev={selectedEvent} node={node} detail={detail} data={data} slot={slot} session={session} tp={tp} />
   }
 
   return (
@@ -203,9 +132,15 @@ export function MapDetail({ node, data, slot, session }: { node: MapNode; data: 
         <Button variant="ghost" size="icon" className="@4xl:hidden" aria-label={t('events.back')} tooltip={t('events.back')} onClick={() => slot.onSelectMap(null)}>
           <IoArrowBack size={16} aria-hidden />
         </Button>
-        <span className="font-mono text-[0.75rem] text-ink-soft">#{node.id}</span>
         <div className="min-w-0 flex-1">
-          <h2 className="m-0 truncate text-[0.9rem] font-semibold text-ink">{node.name || `#${node.id}`}</h2>
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="m-0 truncate text-[0.9rem] font-semibold text-ink">{node.name || `#${node.id}`}</h2>
+            {isCurrent ? (
+              <Badge dot={false} tone="info" className="shrink-0">
+                {t('events.map.current')}
+              </Badge>
+            ) : null}
+          </div>
           <p className="m-0 truncate text-[0.7rem] text-ink-soft">
             {[
               detail?.displayName,
@@ -216,24 +151,50 @@ export function MapDetail({ node, data, slot, session }: { node: MapNode; data: 
               .join(' · ')}
           </p>
         </div>
-        {isCurrent ? <Badge tone="ok">{t('events.map.current')}</Badge> : null}
+        <MapTeleportField
+          x={tp.target.x}
+          y={tp.target.y}
+          width={detail?.width ?? null}
+          height={detail?.height ?? null}
+          busy={tp.busy}
+          blocked={tp.blocked}
+          onChange={tp.setTarget}
+          onTeleport={() => void tp.teleport(tp.target.x, tp.target.y)}
+        />
       </header>
-      <ScrollArea className="min-h-0 flex-1" indicator="both" scrollProps={{ 'aria-label': t('events.map.events') }}>
-        <TeleportSection node={node} data={data} detail={detail} slot={slot} />
+      <ScrollArea className="min-h-0 flex-1" indicator="both" reserveGutter={false} scrollProps={{ 'aria-label': t('events.map.events') }}>
+        {detail ? (
+          <MiniMap
+            detail={detail}
+            player={tp.player}
+            target={tp.target}
+            stateOf={(id) => {
+              const ev = detail.events.find((e) => e.id === id)
+              return ev ? eventStateOf(ev, detail, session) : { kind: 'unknown', page: 0, exact: false }
+            }}
+            near={tp.near}
+            disabled={!!tp.blocked || tp.busy}
+            onPickCell={(x, y) => void tp.pickCell(x, y)}
+            onSelectEvent={(id) => slot.onSelectMap(node.id, id)}
+          />
+        ) : null}
         {!detail ? (
           slot.mapError ? (
-            <EmptyState title={t('events.map.loadFail')} message={slot.mapError} />
+            <EmptyState title={t('events.map.loadFail')} message={slot.mapError}>
+              {slot.onReloadMap ? (
+                <Button loading={slot.mapLoading} onClick={slot.onReloadMap}>
+                  {t('common.retry')}
+                </Button>
+              ) : null}
+            </EmptyState>
           ) : (
             <Spinner size="sm" label={t('events.loading')} />
           )
         ) : !detail.events.length ? (
           <EmptyState title={t('events.map.emptyMap')} />
         ) : (
-          <div className="min-w-[36rem] text-[0.8125rem]" role="table" aria-label={t('events.map.events')}>
-            <div className={cn('sticky top-0 z-[2] grid items-center border-b border-line bg-paper-2', tableCols)} role="row">
-              <div className={editHeadCell} role="columnheader">
-                {t('events.map.colId')}
-              </div>
+          <div className="text-[0.8125rem]" style={{ minWidth: '24rem' }} role="table" aria-label={t('events.map.events')}>
+            <div className="sticky top-0 z-[2] grid items-center border-b border-line bg-paper-2" style={tableCols} role="row">
               <div className={editHeadCell} role="columnheader">
                 {t('events.map.colName')}
               </div>
@@ -246,21 +207,16 @@ export function MapDetail({ node, data, slot, session }: { node: MapNode; data: 
               <div className={editHeadCell} role="columnheader">
                 {t('events.map.colState')}
               </div>
-              <div className={editHeadCell} role="columnheader">
-                {t('events.map.colSelf')}
-              </div>
             </div>
             {detail.events.map((ev) => {
               const name = ev.name || `#${ev.id}`
               return (
                 <div
                   key={ev.id}
-                  className={cn('grid items-center border-t border-line first:border-t-0 hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]', tableCols)}
+                  className="grid items-center border-t border-line first:border-t-0 hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]"
+                  style={tableCols}
                   role="row"
                 >
-                  <div className={cn(editCell, 'font-mono text-[0.75rem] text-ink-soft')} role="cell">
-                    {ev.id}
-                  </div>
                   <div className={cn(editCell, 'min-w-0')} role="cell">
                     <button
                       type="button"
@@ -272,16 +228,23 @@ export function MapDetail({ node, data, slot, session }: { node: MapNode; data: 
                     </button>
                   </div>
                   <div className={cn(editCell, 'font-mono text-[0.72rem] text-ink-soft')} role="cell">
-                    {ev.x}, {ev.y}
+                    <Tooltip content={tp.blocked || t(tp.near ? 'events.map.teleportBeside' : 'events.map.teleportTo', { name })}>
+                      <button
+                        type="button"
+                        className="m-0 cursor-pointer border-none bg-transparent p-0 font-mono text-[0.72rem] text-ink-soft underline-offset-2 hover:text-accent hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:hover:text-ink-soft"
+                        disabled={!!tp.blocked || tp.busy}
+                        aria-label={t(tp.near ? 'events.map.teleportBeside' : 'events.map.teleportTo', { name })}
+                        onClick={() => void tp.teleport(ev.x, ev.y)}
+                      >
+                        {ev.x},{ev.y}
+                      </button>
+                    </Tooltip>
                   </div>
                   <div className={cn(editCell, 'text-[0.75rem] text-ink-soft')} role="cell">
                     {t(TYPE_KEY[ev.type])}
                   </div>
                   <div className={editCell} role="cell">
                     <StateBadge state={eventStateOf(ev, detail, session)} />
-                  </div>
-                  <div className={editCell} role="cell">
-                    <SelfSwitches mapId={node.id} eventId={ev.id} on={detail.live ? (detail.live.selfSwitches[ev.id] ?? '') : null} slot={slot} />
                   </div>
                 </div>
               )

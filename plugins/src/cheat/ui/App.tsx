@@ -419,7 +419,17 @@ export function GameEditApp({ open, onRequestClose }: Props) {
   const setSwitchRef = useRef(setSwitch)
   setSwitchRef.current = setSwitch
   const onEventsSwitch = useCallback((id: number, value: boolean) => setSwitchRef.current(id, value), [])
-  const { slot: eventsSlot, refresh: refreshEvents } = useOverlayEvents({ open, tab, selectTab, onClose: onRequestClose, onSwitchChange: onEventsSwitch })
+  const setVarRef = useRef(setVar)
+  setVarRef.current = setVar
+  const onEventsVar = useCallback((id: number, value: number) => setVarRef.current(id, value), [])
+  const { slot: eventsSlot, refresh: refreshEvents } = useOverlayEvents({
+    open,
+    tab,
+    selectTab,
+    onClose: onRequestClose,
+    onSwitchChange: onEventsSwitch,
+    onVarChange: onEventsVar,
+  })
 
   const saveDataSlot = useOverlaySaveData(open, tab)
 

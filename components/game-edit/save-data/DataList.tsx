@@ -1,6 +1,6 @@
 'use client'
 
-import { type RefObject, useLayoutEffect, useState } from 'react'
+import { type ReactNode, type RefObject, useLayoutEffect, useState } from 'react'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { VirtualList } from '@/components/sk'
@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 
 import { DATA_COLS, DataRowView, ROW_HEIGHT, ROW_HEIGHT_NARROW, type RowMenuItem } from './DataRowView'
 
-export type ListItem = { key: string; path: DataPath; ownerOid: number; row: DataRow; where?: string }
+export type ListItem = { key: string; path: DataPath; ownerOid: number; row: DataRow; where?: ReactNode }
 
 export type RowHandlers = {
   onOpen: (path: DataPath) => void
@@ -57,25 +57,30 @@ type Props = RowHandlers & {
   canEdit: boolean
   onRange?: (start: number, end: number) => void
   onEndReached?: () => void
-  footer?: React.ReactNode
+  footer?: ReactNode
+  /** Extra first row before the fields (the 常用 entry at the root) */
+  lead?: ReactNode
   className?: string
 }
 
 /** Virtualized field list; only rows near the viewport are mounted (and watched, via `onRange`) */
-export function DataList({ items, narrow, lockedKeys, canEdit, onRange, onEndReached, footer, className, ...handlers }: Props) {
+export function DataList({ items, narrow, lockedKeys, canEdit, onRange, onEndReached, footer, lead, className, ...handlers }: Props) {
   const t = useT()
-  const count = items.length + (footer ? 1 : 0)
+  const offset = lead ? 1 : 0
+  const count = offset + items.length + (footer ? 1 : 0)
+  const clamp = (i: number) => Math.min(Math.max(0, i - offset), items.length)
   return (
     <VirtualList
       count={count}
       rowHeight={narrow ? ROW_HEIGHT_NARROW : ROW_HEIGHT}
       header={<DataListHeader narrow={narrow} />}
-      onRangeChange={onRange ? (start, end) => onRange(Math.min(start, items.length), Math.min(end, items.length)) : undefined}
+      onRangeChange={onRange ? (start, end) => onRange(clamp(start), clamp(end)) : undefined}
       onEndReached={onEndReached}
       aria-label={t('data.listAria')}
       className={className}
       renderRow={(index) => {
-        const item = items[index]
+        if (lead && index === 0) return lead
+        const item = items[index - offset]
         if (!item) return <div className="flex h-full items-center justify-center text-xs text-ink-soft">{footer}</div>
         return (
           <DataRowView

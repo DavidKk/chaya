@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 
 import { clearElement, showPluginError } from '../../helpers'
+import { pauseGame, resumeGame } from '../session/game-pause'
 import { GameEditApp } from './App'
 import { ensureGameEditHost, type GameEditHost } from './host'
 import overlayCss from './overlay.css?inline'
@@ -11,31 +12,12 @@ type UiState = {
   host: GameEditHost | null
   root: Root | null
   open: boolean
-  didPauseGame: boolean
 }
 
 const state: UiState = {
   host: null,
   root: null,
   open: false,
-  didPauseGame: false,
-}
-
-function pauseGame() {
-  if (typeof SceneManager === 'undefined') return
-  if (!SceneManager._stopped) {
-    state.didPauseGame = true
-    SceneManager.stop()
-  }
-}
-
-function resumeGame() {
-  if (!state.didPauseGame) return
-  state.didPauseGame = false
-  if (typeof Input !== 'undefined' && Input.clear) Input.clear()
-  if (typeof SceneManager !== 'undefined' && SceneManager.resume) {
-    SceneManager.resume()
-  }
 }
 
 function render() {

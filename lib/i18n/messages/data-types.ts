@@ -5,7 +5,6 @@ export type DataMessages = {
   regionAria: string
   breadcrumbAria: string
   rootCrumb: string
-  up: string
   copyPath: string
   pathCopied: string
   colName: string
@@ -70,6 +69,12 @@ export type DataMessages = {
   pinsFull: string
   pinUnavailable: string
   draftPh: string
+  draftPhInt: string
+  draftPhDecimal: string
+  pinsEmpty: string
+  pinsEmptyMsg: string
+  pinsHint: string
+  searchPhAll: string
   fill: string
   applyRow: string
   discardRow: string
@@ -116,7 +121,6 @@ export type DataMessages = {
   emptyLevel: string
   loadFail: string
   pathGone: string
-  footHint: string
   err: {
     stale: string
     readonly: string

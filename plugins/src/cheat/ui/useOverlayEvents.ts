@@ -28,6 +28,7 @@ function sameScene(a: Scene, b: Scene) {
     a.player?.mapId === b.player?.mapId &&
     a.player?.x === b.player?.x &&
     a.player?.y === b.player?.y &&
+    a.player?.direction === b.player?.direction &&
     a.recent.join() === b.recent.join() &&
     a.running.join() === b.running.join()
   )
@@ -36,13 +37,13 @@ function sameScene(a: Scene, b: Scene) {
 function applyOp(op: EventsOp) {
   switch (op.op) {
     case 'commonEvent':
-      return runCommonEventOnMap(op.id)
+      return runCommonEventOnMap(op.id, op.from)
     case 'selfSwitch':
       return setSelfSwitch(op.mapId, op.eventId, op.letter, op.value)
     case 'teleport':
-      return teleportPlayer(op.mapId, op.x, op.y, op.direction, op.near)
+      return teleportPlayer(op)
     case 'mapEvent':
-      return runMapEvent(op.mapId, op.eventId)
+      return runMapEvent(op)
   }
 }
 
@@ -52,10 +53,11 @@ type Options = {
   selectTab: (tab: TabId) => void
   onClose: () => void
   onSwitchChange: (id: number, value: boolean) => void
+  onVarChange: (id: number, value: number) => void
 }
 
 /** In-game 公共事件 / 地图: data built in-process, operations applied directly */
-export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange }: Options) {
+export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange, onVarChange }: Options) {
   const [view, setView] = useState<EventsView>(() => viewHost().__chayaEventsView ?? { commonId: null, mapId: null, eventId: null })
   const [data, setData] = useState<CommonEventsData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -137,10 +139,12 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
         if (tab !== 'common') selectTab('common')
       },
       onAct: async (op) => {
-        applyOp(op)
-        if ((op.op === 'selfSwitch' || op.op === 'mapEvent') && mapRef.current != null) void loadMap(mapRef.current)
+        await applyOp(op)
+        if (op.op === 'teleport') setScene(readScene())
+        if (op.op !== 'commonEvent' && mapRef.current != null) void loadMap(mapRef.current)
       },
       onSwitchChange,
+      onVarChange,
       afterRun: onClose,
       mapId: view.mapId,
       eventId: view.eventId,
@@ -151,10 +155,13 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
       mapDetail: mapDetail?.mapId === view.mapId ? mapDetail : null,
       mapLoading,
       mapError,
+      onReloadMap: () => {
+        if (mapRef.current != null) void loadMap(mapRef.current)
+      },
       player: scene.player,
       recentMaps: scene.recent,
     }),
-    [data, loading, error, scene, view, tab, selectTab, loadMap, onSwitchChange, onClose, mapDetail, mapLoading, mapError]
+    [data, loading, error, scene, view, tab, selectTab, loadMap, onSwitchChange, onVarChange, onClose, mapDetail, mapLoading, mapError]
   )
 
   return { slot, refresh }

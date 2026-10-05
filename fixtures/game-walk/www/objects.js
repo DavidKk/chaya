@@ -102,6 +102,15 @@
     isStarting() {
       return this._starting
     }
+    clearStarting() {
+      this._starting = false
+    }
+    /** Commands of the last page whose switch condition holds (RPG Maker picks the highest such page) */
+    list() {
+      const pages = window.$dataMap?.events?.[this._eventId]?.pages || []
+      const page = [...pages].reverse().find((pg) => !pg.conditions.switch1Valid || $gameSwitches.value(pg.conditions.switch1Id))
+      return page ? page.list : null
+    }
     start() {
       interpreter.startEvent(this)
     }
@@ -111,6 +120,9 @@
     setup(mapId) {
       this._mapId = mapId
       this._events = MAPS[mapId].events.map((data) => new Game_Event(mapId, data))
+      window.$dataMap = window.WalkDemo.rmMap(mapId)
+      window.$dataTilesets = [null, window.WalkDemo.rmTileset]
+      this._interpreter = interpreter
     }
     mapId() {
       return this._mapId
@@ -430,41 +442,140 @@
     }
   }
 
-  /** Runs one event's commands, one message at a time */
+  const compare = (a, b, op) => [a === b, a >= b, a <= b, a > b, a < b, a !== b][op] ?? false
+
+  /**
+   * Map interpreter over RPG Maker command lists ($dataMap pages / $dataCommonEvents), same shape as
+   * Game_Interpreter: setup(list, eventId), _index, _branch[indent], isRunning().
+   */
   const interpreter = {
-    queue: [],
-    event: null,
+    _list: null,
+    _index: 0,
+    _indent: 0,
+    _branch: {},
+    _eventId: 0,
+    setup(list, eventId = 0) {
+      this._list = list && list.length ? list.slice() : null
+      this._index = 0
+      this._branch = {}
+      this._eventId = eventId
+    },
+    clear() {
+      this.setup(null)
+    },
     startEvent(event) {
-      const data = event._data
+      const list = event.list()
+      if (!list) return
       event._starting = true
-      this.event = event
-      if (data.talk) this.queue.push(...data.talk)
-      if (data.chest) {
-        const opened = $gameSwitches.value(100 + data.id)
-        const item = $dataItems[data.chest.itemId]
-        this.queue.push(opened ? { text: '宝箱是空的。' } : [{ gain: data.chest }, { switch: [100 + data.id, true] }, { text: `得到了 ${item.name} ×${data.chest.count}！` }])
-      }
-      this.queue = this.queue.flat()
+      this.setup(list, event.eventId())
     },
     isRunning() {
-      return this.queue.length > 0 || $gameMessage.isBusy()
+      return !!this._list || $gameMessage.isBusy()
     },
     update() {
-      while (this.queue.length && !$gameMessage.isBusy()) {
-        const cmd = this.queue.shift()
-        if (cmd.switch) $gameSwitches.setValue(...cmd.switch)
-        if (cmd.gain) $gameParty.gainItem($dataItems[cmd.gain.itemId], cmd.gain.count)
-        if (cmd.heal) $gameParty.members().forEach((actor) => actor.recoverAll())
-        if (cmd.text) {
-          $gameMessage.setSpeakerName(cmd.speaker)
-          $gameMessage.add(cmd.text)
-          if (cmd.choices) $gameMessage.setChoices(cmd.choices, (n) => this.queue.unshift(...(cmd.branches[n] || [])))
-          SceneManager._scene._messageWindow.startMessage()
+      while (this._list && !$gameMessage.isBusy()) {
+        const cmd = this._list[this._index]
+        if (!cmd) {
+          $gameMap.event(this._eventId)?.clearStarting()
+          this._list = null
+          break
         }
+        this._indent = cmd.indent
+        this.execute(cmd, cmd.parameters)
+        this._index++
       }
-      if (!this.isRunning() && this.event) {
-        this.event._starting = false
-        this.event = null
+    },
+    /** Skip the body of the branch header at `_index` */
+    skipBranch() {
+      while (this._list[this._index + 1] && this._list[this._index + 1].indent > this._indent) this._index++
+    },
+    execute(cmd, p) {
+      switch (cmd.code) {
+        case 101: {
+          const lines = []
+          while (this._list[this._index + 1]?.code === 401) lines.push(this._list[++this._index].parameters[0])
+          $gameMessage.setSpeakerName(p[4])
+          $gameMessage.add(lines.join('\n'))
+          const next = this._list[this._index + 1]
+          if (next?.code === 102) {
+            this._index++
+            this.setupChoices(next.parameters)
+          }
+          SceneManager._scene._messageWindow.startMessage()
+          return
+        }
+        case 102:
+          this.setupChoices(p)
+          $gameMessage.add('')
+          SceneManager._scene._messageWindow.startMessage()
+          return
+        case 402:
+          if (this._branch[this._indent] !== p[0]) this.skipBranch()
+          return
+        case 403:
+          if (this._branch[this._indent] !== -2) this.skipBranch()
+          return
+        case 111: {
+          const result = this.condition(p)
+          this._branch[this._indent] = result
+          if (!result) this.skipBranch()
+          return
+        }
+        case 411:
+          if (this._branch[this._indent] !== false) this.skipBranch()
+          return
+        case 115:
+          this._index = this._list.length
+          return
+        case 117: {
+          const list = window.$dataCommonEvents[p[0]]?.list || []
+          const body = list.filter((c) => c.code !== 0 || c.indent > 0).map((c) => ({ ...c, indent: c.indent + this._indent }))
+          this._list.splice(this._index + 1, 0, ...body)
+          return
+        }
+        case 121:
+          for (let id = p[0]; id <= p[1]; id++) $gameSwitches.setValue(id, p[2] === 0)
+          return
+        case 122:
+          for (let id = p[0]; id <= p[1]; id++) {
+            const operand = p[3] === 0 ? p[4] : $gameVariables.value(p[4])
+            const cur = $gameVariables.value(id)
+            $gameVariables.setValue(id, [operand, cur + operand, cur - operand, cur * operand][p[2]] ?? cur)
+          }
+          return
+        case 125:
+          $gameParty.gainGold((p[0] === 0 ? 1 : -1) * (p[1] === 0 ? p[2] : $gameVariables.value(p[2])))
+          return
+        case 126:
+          $gameParty.gainItem($dataItems[p[0]], (p[1] === 0 ? 1 : -1) * (p[2] === 0 ? p[3] : $gameVariables.value(p[3])))
+          return
+        case 201:
+          $gamePlayer.reserveTransfer(p[1], p[2], p[3], p[4])
+          return
+        case 314:
+          $gameParty.members().forEach((actor) => actor.recoverAll())
+          return
+        default:
+      }
+    },
+    setupChoices(p) {
+      const indent = this._indent
+      $gameMessage.setChoices(p[0], (n) => {
+        this._branch[indent] = n
+      })
+    },
+    condition(p) {
+      switch (p[0]) {
+        case 0:
+          return !!$gameSwitches.value(p[1]) === (p[2] === 0)
+        case 1:
+          return compare($gameVariables.value(p[1]), p[2] === 0 ? p[3] : $gameVariables.value(p[3]), p[4])
+        case 7:
+          return compare($gameParty.gold(), p[1], [1, 2, 4][p[2]])
+        case 8:
+          return $gameParty.hasItem($dataItems[p[1]])
+        default:
+          return false
       }
     },
   }

@@ -57,12 +57,13 @@ export type GameEditCmdOp =
   | { op: 'actor'; id: number; patch: Partial<ActorDraft> }
   | { op: 'actorVitalLock'; actorId: number; kind: ActorVitalLockKind; on: boolean; value: number }
   | { op: 'actorOwnedLock'; actorId: number; kind: 'skills' | 'states'; entryId: number; on: boolean; owned: boolean }
-  | { op: 'commonEvent'; id: number }
+  /** `from`: start at this command index of the list (entering the branch it sits in) */
+  | { op: 'commonEvent'; id: number; from?: number }
   | { op: 'selfSwitch'; mapId: number; eventId: number; letter: SelfSwitchLetter; value: boolean }
   /** `near`: land on the first passable neighbour when the target tile is blocked */
   | { op: 'teleport'; mapId: number; x: number; y: number; direction?: 2 | 4 | 6 | 8; near?: boolean }
-  /** Current map only; the game rejects it when `mapId` is not the current map */
-  | { op: 'mapEvent'; mapId: number; eventId: number }
+  /** Current map only; the game rejects it when `mapId` is not the current map. `page` (0-based) + `from` run that page's list from a command index instead of the active page */
+  | { op: 'mapEvent'; mapId: number; eventId: number; page?: number; from?: number }
   | DataOp
 
 /** Web → 游戏：改值指令（cmdId 用于 ack / 去重重试） */
@@ -92,6 +93,8 @@ export type GameEditStateMsg = {
   mapId?: number
   playerX?: number
   playerY?: number
+  /** Player facing: 2 down, 4 left, 6 right, 8 up */
+  playerDir?: number
   /** Recently visited map ids, newest first */
   recentMaps?: number[]
   /** Common events running in parallel / autorun on the current map */

@@ -12,6 +12,24 @@ import { defineConfig } from 'vite'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '..')
 
+/**
+ * Next client modules (next/link, next/navigation) read these at module init. Browser-hosted games have no `process`,
+ * so they must be inlined; a `process` shim is not an option because plugins detect NW.js via `typeof process`.
+ */
+const NEXT_ENV_KEYS = [
+  'NEXT_RUNTIME',
+  '__NEXT_CACHE_COMPONENTS',
+  '__NEXT_DEV_SERVER',
+  '__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS',
+  '__NEXT_I18N_SUPPORT',
+  '__NEXT_LINK_NO_TOUCH_START',
+  '__NEXT_MANUAL_CLIENT_BASE_PATH',
+  '__NEXT_MANUAL_TRAILING_SLASH',
+  '__NEXT_ROUTER_BASEPATH',
+  '__NEXT_TRAILING_SLASH',
+]
+const nextEnvDefines = Object.fromEntries(NEXT_ENV_KEYS.map((key) => [`process.env.${key}`, 'undefined']))
+
 /** @param {{ name: string, entry: string, react?: boolean }} entry */
 /** @param {boolean} emptyOutDir */
 /** @param {{ dev?: boolean }} [opts] */
@@ -32,6 +50,7 @@ export function createPluginsViteConfig(entry, emptyOutDir = false, opts = {}) {
     define: {
       // 局内 IIFE 始终打 production React，避免 development 体积把插件撑挂
       'process.env.NODE_ENV': JSON.stringify('production'),
+      ...nextEnvDefines,
       __CHAYA_PLUGINS_DEV__: isDev,
       // 防止误打进 Node 包时在浏览器抛 ReferenceError
       __dirname: JSON.stringify('/'),

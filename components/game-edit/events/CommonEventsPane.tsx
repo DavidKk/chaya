@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { IoChevronDown, IoChevronForward } from 'react-icons/io5'
 
+import type { SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { padXDense } from '@/components/layoutClasses'
 import { EmptyState, ScrollArea, SegmentedNav, Spinner } from '@/components/sk'
@@ -19,7 +20,7 @@ type TriggerFilter = 'all' | '0' | '1' | '2'
 type Props = {
   slot: EventsSlot
   filter: string
-  switches: Readonly<Record<number, boolean>>
+  session: SessionState
 }
 
 const listRow = cn(
@@ -56,7 +57,6 @@ function EventRow({
   const name = commonEventName(ev, t)
   return (
     <button type="button" className={cn(listRow, selected && listRowOn)} aria-current={selected ? 'true' : undefined} onClick={onSelect}>
-      <span className="w-8 shrink-0 font-mono text-[0.7rem] text-ink-soft">{ev.id}</span>
       <span className={cn('min-w-0 flex-1 truncate', ev.commandCount === 0 ? 'text-ink-soft' : 'text-ink')} title={name}>
         {name}
       </span>
@@ -72,7 +72,8 @@ function EventRow({
 }
 
 /** 修改 › 公共事件: grouped list + detail; narrow containers show one at a time */
-export function CommonEventsPane({ slot, filter, switches }: Props) {
+export function CommonEventsPane({ slot, filter, session }: Props) {
+  const switches = session.switches
   const t = useT()
   const [trigger, setTrigger] = useState<TriggerFilter>('all')
   const [showEmpty, setShowEmpty] = useState(false)
@@ -173,7 +174,7 @@ export function CommonEventsPane({ slot, filter, switches }: Props) {
         </aside>
         <div className={cn('min-h-0 min-w-0 flex-1', selected ? 'flex' : 'hidden @4xl:flex')}>
           {selected ? (
-            <CommonEventDetail key={selected.id} event={selected} data={data} slot={slot} switches={switches} onBack={() => slot.onSelectCommon(null)} />
+            <CommonEventDetail key={selected.id} event={selected} data={data} slot={slot} session={session} onBack={() => slot.onSelectCommon(null)} />
           ) : (
             <EmptyState title={t('events.selectHint')} />
           )}

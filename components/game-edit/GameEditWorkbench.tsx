@@ -10,7 +10,7 @@ import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { GameEditRunSettings } from '@/components/GameEditRunSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { editCell, editHeadCell, panelBody, panelFoot, panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
+import { editCell, editHeadCell, panelBody, panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
 import { Button, EmptyState, NumberInput, ScrollArea, Spinner, SwitchToggle } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
@@ -19,7 +19,6 @@ import type { CatalogEntry, GameEditCatalog } from '@/lib/game/game-edit-catalog
 import { cn } from '@/lib/utils'
 
 import type { EventsSlot } from './events/types'
-import { footPrimaryKey } from './foot-copy'
 import { GameEditMainNav } from './GameEditMainNav'
 import { GameEditPaneSkeleton } from './GameEditPaneSkeleton'
 import { GameEditSearch } from './GameEditSearch'
@@ -305,13 +304,12 @@ export function GameEditWorkbench({
   const filtered = !!q || onlyNamed || (onlyOwned && (tab === 'item' || tab === 'weapon' || tab === 'armor'))
   const noMatch = sourceCount > 0 && filtered
   const visible = rows.slice(0, MAX_ROWS)
-  const truncated = rows.length > MAX_ROWS
   const canLock = tab === 'bag' || tab === 'item' || tab === 'weapon' || tab === 'armor' || tab === 'var' || tab === 'sw'
   const showTableFilters = tab !== 'run' && tab !== 'hotkeys' && isEditTab(tab) && sourceCount > 0
   const showOwnedFilter = tab !== 'run' && tab !== 'actor'
   const goldLocked = GOLD_LOCK_KEY in session.locks
-  const actorCount = catalog && tab === 'actor' ? catalog.actors.length : 0
   const showEditNav = isEditTab(tab)
+  const [paneHead, setPaneHead] = useState<HTMLDivElement | null>(null)
   const eventsTab = isEventsTab(tab)
   const eventSourceCount = !events?.data ? 0 : tab === 'map' ? events.data.mapIndex.nodes.length : events.data.events.length
   const activeTab = TABS.find((item) => item.id === tab)
@@ -356,75 +354,78 @@ export function GameEditWorkbench({
               <PanelHeadTitle title={activeTab ? t(activeTab.labelKey) : t('edit.tabEdit')} description={tab === 'data' ? t('data.panelDesc') : t('edit.panelDesc')} />
               <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-8 flex-1 shrink justify-end overflow-hidden')}>
                 {showTableFilters || (eventsTab && eventSourceCount > 0) ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
-                <ScrollArea
-                  indicator="horizontal"
-                  reserveGutter={false}
-                  className="h-8 min-w-0 shrink"
-                  scrollClassName="flex items-center"
-                  scrollProps={{
-                    'aria-label': t('edit.filtersAria'),
-                    onWheel: (e) => {
-                      const el = e.currentTarget
-                      if (el.scrollWidth <= el.clientWidth + 1) return
-                      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
-                      e.preventDefault()
-                      el.scrollLeft += e.deltaY
-                    },
-                  }}
-                >
-                  <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-2 pr-0.5 pl-1">
-                    {showTableFilters ? (
-                      <>
-                        {showOwnedFilter ? (
+                {tab === 'data' || tab === 'map' ? <div ref={setPaneHead} className="flex min-w-0 shrink items-center" /> : null}
+                {showTableFilters || tab === 'hotkeys' || surface === 'page' ? (
+                  <ScrollArea
+                    indicator="horizontal"
+                    reserveGutter={false}
+                    className="h-8 min-w-0 shrink"
+                    scrollClassName="flex items-center"
+                    scrollProps={{
+                      'aria-label': t('edit.filtersAria'),
+                      onWheel: (e) => {
+                        const el = e.currentTarget
+                        if (el.scrollWidth <= el.clientWidth + 1) return
+                        if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+                        e.preventDefault()
+                        el.scrollLeft += e.deltaY
+                      },
+                    }}
+                  >
+                    <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-2 pr-0.5 pl-1">
+                      {showTableFilters ? (
+                        <>
+                          {showOwnedFilter ? (
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={onlyOwned}
+                              aria-label={t('edit.onlyOwned')}
+                              className={cn(filterToggle, onlyOwned && filterToggleOn)}
+                              onClick={() => setOnlyOwned(!onlyOwned)}
+                            >
+                              {t('edit.onlyOwned')}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             role="switch"
-                            aria-checked={onlyOwned}
-                            aria-label={t('edit.onlyOwned')}
-                            className={cn(filterToggle, onlyOwned && filterToggleOn)}
-                            onClick={() => setOnlyOwned(!onlyOwned)}
+                            aria-checked={onlyNamed}
+                            aria-label={t('edit.onlyNamed')}
+                            className={cn(filterToggle, onlyNamed && filterToggleOn)}
+                            onClick={() => setOnlyNamed(!onlyNamed)}
                           >
-                            {t('edit.onlyOwned')}
+                            {t('edit.onlyNamed')}
                           </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={onlyNamed}
-                          aria-label={t('edit.onlyNamed')}
-                          className={cn(filterToggle, onlyNamed && filterToggleOn)}
-                          onClick={() => setOnlyNamed(!onlyNamed)}
+                        </>
+                      ) : null}
+                      {tab === 'hotkeys' ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('edit.resetHotkeys')}
+                          tooltip={t('edit.resetHotkeys')}
+                          onClick={() => {
+                            void (async () => {
+                              const ok = await confirm({
+                                title: t('edit.resetHotkeysTitle'),
+                                description: t('edit.resetHotkeysDesc'),
+                                confirmLabel: t('edit.resetHotkeysConfirm'),
+                                confirmVariant: 'fail',
+                              })
+                              if (!ok) return
+                              onHotkeysChange?.('game', {})
+                              onHotkeysChange?.('global', {})
+                            })()
+                          }}
                         >
-                          {t('edit.onlyNamed')}
-                        </button>
-                      </>
-                    ) : null}
-                    {tab === 'hotkeys' ? (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t('edit.resetHotkeys')}
-                        tooltip={t('edit.resetHotkeys')}
-                        onClick={() => {
-                          void (async () => {
-                            const ok = await confirm({
-                              title: t('edit.resetHotkeysTitle'),
-                              description: t('edit.resetHotkeysDesc'),
-                              confirmLabel: t('edit.resetHotkeysConfirm'),
-                              confirmVariant: 'fail',
-                            })
-                            if (!ok) return
-                            onHotkeysChange?.('game', {})
-                            onHotkeysChange?.('global', {})
-                          })()
-                        }}
-                      >
-                        <BiReset size={17} aria-hidden />
-                      </Button>
-                    ) : null}
-                    {surface === 'page' ? refreshButton : null}
-                  </div>
-                </ScrollArea>
+                          <BiReset size={17} aria-hidden />
+                        </Button>
+                      ) : null}
+                      {surface === 'page' ? refreshButton : null}
+                    </div>
+                  </ScrollArea>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -501,7 +502,7 @@ export function GameEditWorkbench({
             ) : tab === 'data' ? (
               saveData ? (
                 <TabSuspense tab="data">
-                  <SaveDataPane slot={saveData} />
+                  <SaveDataPane slot={saveData} headSlot={paneHead} />
                 </TabSuspense>
               ) : (
                 <EmptyState title={t('data.needLink')} message={t('data.needLinkMsg')} />
@@ -511,7 +512,11 @@ export function GameEditWorkbench({
                 <EmptyState title={t('events.needLink')} message={t('events.needLinkMsg')} />
               ) : (
                 <TabSuspense tab={tab}>
-                  {tab === 'common' ? <CommonEventsPane slot={events} filter={filter} switches={session.switches} /> : <MapPane slot={events} filter={filter} session={session} />}
+                  {tab === 'common' ? (
+                    <CommonEventsPane slot={events} filter={filter} session={session} />
+                  ) : (
+                    <MapPane slot={events} filter={filter} session={session} headSlot={paneHead} />
+                  )}
                 </TabSuspense>
               )
             ) : error ? (
@@ -672,35 +677,6 @@ export function GameEditWorkbench({
               </ScrollArea>
             )}
           </div>
-
-          {tab !== 'trans' && tab !== 'mcp' ? (
-            <div className={panelFoot}>
-              <span>
-                {t(footPrimaryKey(surface, tab, linked))}
-                {catalog && tab !== 'run' && tab !== 'hotkeys' && tab !== 'logs' && tab !== 'data' && !eventsTab
-                  ? ` · ${t('edit.itemsCount', { count: catalog.items.length })}`
-                  : ''}
-              </span>
-              <span>
-                {surface === 'page' && linked ? t('edit.synced') : ''}
-                {tab === 'run'
-                  ? t('edit.footMoney')
-                  : tab === 'hotkeys'
-                    ? t('edit.footSwitch')
-                    : tab === 'logs'
-                      ? t('edit.footSession')
-                      : tab === 'data'
-                        ? t('data.footHint')
-                        : eventsTab
-                          ? t('events.count', { count: eventSourceCount })
-                          : tab === 'actor'
-                            ? t('edit.actorsCount', { count: actorCount })
-                            : truncated
-                              ? t('edit.truncated', { shown: visible.length, total: rows.length })
-                              : String(visible.length)}
-              </span>
-            </div>
-          ) : null}
         </div>
       </div>
     </div>

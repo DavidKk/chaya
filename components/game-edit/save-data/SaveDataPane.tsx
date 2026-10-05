@@ -1,20 +1,23 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { IoAdd, IoArrowUp, IoCopyOutline } from 'react-icons/io5'
+import { createPortal } from 'react-dom'
+import { IoAdd, IoCopyOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, EmptyState, Select, Skeleton, Spinner, TextAction, TextInput } from '@/components/sk'
+import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { allowedTypes, type DataPath, type DataRow, isContainerKind, pathKey, type SearchScope } from '@/lib/game/save-data'
 import { cn } from '@/lib/utils'
 
+import { lockIconBtn } from '../lock-ui'
 import { resolvePortalRoot } from '../resolvePortalRoot'
 import { DataList, type ListItem, type RowHandlers, useNarrow } from './DataList'
 import type { RowMenuItem } from './DataRowView'
 import { DataToolbar } from './DataToolbar'
 import { errorText, rowName, segmentName } from './labels'
-import { PinsBar, whereText } from './PinsBar'
+import { PinsEntry, PinsList, WherePath } from './PinsList'
 import { draftStore, valueStore } from './store'
 import { StructDialog, type StructRequest } from './StructDialog'
 import type { SaveDataSlot } from './transport'
@@ -22,10 +25,11 @@ import { useDataActions } from './useDataActions'
 import { useSaveData } from './useSaveData'
 
 const SEARCH_DEBOUNCE_MS = 300
+type DataTab = 'pins' | 'all'
 const crumbBtn = 'max-w-[12rem] cursor-pointer truncate border-none bg-transparent p-0 text-xs text-ink-soft hover:text-accent'
 
 /** 修改 › 数据: level-by-level fields with live current values and separate drafts */
-export function SaveDataPane({ slot }: { slot: SaveDataSlot }) {
+export function SaveDataPane({ slot, headSlot }: { slot: SaveDataSlot; headSlot?: HTMLElement | null }) {
   const t = useT()
   const notify = useNotification()
   const { transport, path, onNavigate } = slot
@@ -43,17 +47,36 @@ export function SaveDataPane({ slot }: { slot: SaveDataSlot }) {
 
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<SearchScope>('all')
+  const [tab, setTab] = useState<DataTab>(() => (path.length ? 'all' : 'pins'))
   const levelKey = pathKey(path)
   useEffect(() => setQuery(''), [levelKey])
+  const deep = path.length > 0
+  useEffect(() => {
+    if (deep) setTab('all')
+  }, [levelKey, deep])
+  const open = useCallback(
+    (p: DataPath) => {
+      setQuery('')
+      setTab('all')
+      onNavigate(p)
+    },
+    [onNavigate]
+  )
+  const openPins = useCallback(() => {
+    setQuery('')
+    setTab('pins')
+    onNavigate([])
+  }, [onNavigate])
+  const onPins = tab === 'pins' && !deep
   const { startSearch, stopSearch } = state
   useEffect(() => {
     if (!query.trim()) {
       stopSearch()
       return
     }
-    const timer = setTimeout(() => startSearch(query.trim(), scope), SEARCH_DEBOUNCE_MS)
+    const timer = setTimeout(() => startSearch(query.trim(), scope, onPins ? [] : undefined), SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [query, scope, startSearch, stopSearch])
+  }, [query, scope, onPins, startSearch, stopSearch])
 
   const lockedKeys = useMemo(() => new Set((status?.locks ?? []).map((l) => pathKey(l.path))), [status?.locks])
   const userPins = useMemo(() => new Set((status?.pins ?? []).map((p) => pathKey(p.path))), [status?.pins])
@@ -69,8 +92,8 @@ export function SaveDataPane({ slot }: { slot: SaveDataSlot }) {
   }, [level.rows, meta, levelKey])
 
   const searchItems = useMemo<ListItem[]>(
-    () => (search ? search.hits.map((hit) => ({ key: pathKey(hit.path), path: hit.path, ownerOid: hit.ownerOid, row: hit, where: whereText(t, hit) })) : []),
-    [search, t]
+    () => (search ? search.hits.map((hit) => ({ key: pathKey(hit.path), path: hit.path, ownerOid: hit.ownerOid, row: hit, where: <WherePath row={hit} onOpen={open} /> })) : []),
+    [search, open]
   )
 
   const { struct, copyPath, togglePin, setLock, applyDrafts, readFull } = actions
@@ -118,13 +141,13 @@ export function SaveDataPane({ slot }: { slot: SaveDataSlot }) {
 
   const handlers: RowHandlers = useMemo(
     () => ({
-      onOpen: (p) => onNavigate(p),
+      onOpen: open,
       onApply: (key) => void applyDrafts([key]),
       onLock: (p, oid, on, label) => void setLock(p, oid, on, label),
       onReadFull: readFull,
       menu,
     }),
-    [onNavigate, applyDrafts, setLock, readFull, menu]
+    [open, applyDrafts, setLock, readFull, menu]
   )
 
   const addRequest = (): StructRequest | null => {
@@ -136,13 +159,24 @@ export function SaveDataPane({ slot }: { slot: SaveDataSlot }) {
   const add = canEdit ? addRequest() : null
 
   const crumbs = (
-    <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden" aria-label={t('data.breadcrumbAria')}>
-      <Button variant="ghost" size="icon" disabled={!path.length} aria-label={t('data.up')} onClick={() => onNavigate(path.slice(0, -1))}>
-        <IoArrowUp size={15} aria-hidden />
-      </Button>
-      <button type="button" className={cn(crumbBtn, !path.length && 'text-ink')} onClick={() => onNavigate([])}>
-        {t('data.rootCrumb')}
-      </button>
+    <nav className="flex min-h-7 min-w-0 flex-1 items-center gap-1 overflow-hidden" aria-label={t('data.breadcrumbAria')}>
+      {!deep && !onPins ? (
+        <span className="truncate text-xs font-medium text-ink" aria-current="page">
+          {t('data.rootCrumb')}
+        </span>
+      ) : (
+        <button type="button" className={crumbBtn} onClick={() => open([])}>
+          {t('data.rootCrumb')}
+        </button>
+      )}
+      {onPins ? (
+        <span className="flex min-w-0 items-center gap-1">
+          <span className="text-xs text-ink-soft">›</span>
+          <span className="truncate text-xs font-medium text-ink" aria-current="page">
+            {t('data.pinsTitle')}
+          </span>
+        </span>
+      ) : null}
       {path.map((seg, i) => {
         const last = i === path.length - 1
         const label = segmentName(t, seg, meta?.labels[i], i)
@@ -154,17 +188,19 @@ export function SaveDataPane({ slot }: { slot: SaveDataSlot }) {
                 {label}
               </span>
             ) : (
-              <button type="button" className={crumbBtn} title={label} onClick={() => onNavigate(path.slice(0, i + 1))}>
+              <button type="button" className={crumbBtn} title={label} onClick={() => open(path.slice(0, i + 1))}>
                 {label}
               </button>
             )}
           </span>
         )
       })}
-      {path.length ? (
-        <Button variant="ghost" size="icon" aria-label={t('data.copyPath')} onClick={() => void copyPath(path)}>
-          <IoCopyOutline size={14} aria-hidden />
-        </Button>
+      {deep ? (
+        <Tooltip content={t('data.copyPath')}>
+          <button type="button" className={cn(lockIconBtn, 'ml-1.5 shrink-0')} aria-label={t('data.copyPath')} onClick={() => void copyPath(path)}>
+            <IoCopyOutline size={13} aria-hidden />
+          </button>
+        </Tooltip>
       ) : null}
     </nav>
   )
@@ -181,7 +217,20 @@ export function SaveDataPane({ slot }: { slot: SaveDataSlot }) {
           : t('data.searchDone', { count: search.hits.length })
         : t('data.searchEmpty')
     body = <DataList items={searchItems} narrow={narrow} lockedKeys={lockedKeys} canEdit={canEdit} onRange={state.onRange} footer={footer} {...handlers} />
-  } else if (level.error) body = <EmptyState title={t('data.loadFail')} message={errorText(t, level.error.code, level.error.message)} />
+  } else if (onPins)
+    body = (
+      <PinsList
+        rows={pinRows}
+        userPins={userPins}
+        narrow={narrow}
+        lockedKeys={lockedKeys}
+        canEdit={canEdit}
+        onUnpin={(p) => void togglePin(p)}
+        onReorder={(a, b) => void actions.reorderPins(a, b)}
+        {...handlers}
+      />
+    )
+  else if (level.error) body = <EmptyState title={t('data.loadFail')} message={errorText(t, level.error.code, level.error.message)} />
   else if (!meta) body = <Skeleton className="m-3 h-40" />
   else if (!level.rows.length) body = <EmptyState title={t('data.emptyLevel')} />
   else {
@@ -195,57 +244,57 @@ export function SaveDataPane({ slot }: { slot: SaveDataSlot }) {
         onRange={state.onRange}
         onEndReached={more ? state.loadMore : undefined}
         footer={more ? <Spinner size="sm" label={t('data.loadMore')} /> : null}
+        lead={deep ? undefined : <PinsEntry count={pinRows.length} narrow={narrow} onOpen={openPins} />}
         {...handlers}
       />
     )
   }
+
+  const searchBox =
+    transport && ready ? (
+      <div className="flex items-center gap-1.5">
+        <TextInput
+          search
+          value={query}
+          placeholder={t(onPins ? 'data.searchPhAll' : 'data.searchPh')}
+          aria-label={t('data.searchAria')}
+          className="w-48"
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <Select
+          value={scope}
+          options={[
+            { value: 'all', label: t('data.scopeAll') },
+            { value: 'name', label: t('data.scopeName') },
+            { value: 'value', label: t('data.scopeValue') },
+          ]}
+          onChange={(v) => setScope(v as SearchScope)}
+          aria-label={t('data.scopeAria')}
+          panelWidth="content"
+        />
+        {search ? <TextAction onClick={() => setQuery('')}>{t('data.searchClose')}</TextAction> : null}
+      </div>
+    ) : null
 
   return (
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col" role="region" aria-label={t('data.regionAria')}>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
         {crumbs}
         {transport && ready ? (
-          <div className="flex items-center gap-1.5">
-            <TextInput search value={query} placeholder={t('data.searchPh')} aria-label={t('data.searchAria')} className="w-48" onChange={(e) => setQuery(e.target.value)} />
-            <Select
-              value={scope}
-              options={[
-                { value: 'all', label: t('data.scopeAll') },
-                { value: 'name', label: t('data.scopeName') },
-                { value: 'value', label: t('data.scopeValue') },
-              ]}
-              onChange={(v) => setScope(v as SearchScope)}
-              aria-label={t('data.scopeAria')}
-              panelWidth="content"
-            />
-            {search ? <TextAction onClick={() => setQuery('')}>{t('data.searchClose')}</TextAction> : null}
+          <div className="flex shrink-0 items-center gap-2">
+            {add && !search && !onPins ? (
+              <Button variant="ghost" onClick={() => setRequest(add)}>
+                <IoAdd size={15} aria-hidden />
+                {t(add.mode === 'object' ? 'data.addField' : 'data.addItem')}
+              </Button>
+            ) : null}
+            <DataToolbar status={status} actions={actions} disabled={!canEdit} />
           </div>
         ) : null}
+        {searchBox && !headSlot ? searchBox : null}
       </div>
-      {transport && ready ? (
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-1.5">
-          <DataToolbar status={status} actions={actions} disabled={!canEdit} />
-          {add && !search ? (
-            <Button variant="ghost" onClick={() => setRequest(add)}>
-              <IoAdd size={15} aria-hidden />
-              {t(add.mode === 'object' ? 'data.addField' : 'data.addItem')}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-      {transport && ready && !search ? (
-        <PinsBar
-          rows={pinRows}
-          userPins={userPins}
-          narrow={narrow}
-          lockedKeys={lockedKeys}
-          canEdit={canEdit}
-          onUnpin={(p) => void togglePin(p)}
-          onReorder={(a, b) => void actions.reorderPins(a, b)}
-          {...handlers}
-        />
-      ) : null}
       {body}
+      {searchBox && headSlot ? createPortal(searchBox, headSlot) : null}
       <StructDialog request={request} onClose={() => setRequest(null)} struct={struct} portalContainer={portal} />
     </div>
   )

@@ -207,7 +207,7 @@ export const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(function S
       {showVertical && verticalThumb ? (
         <div
           className={cn(
-            'pointer-events-none absolute top-0 right-0 bottom-0 w-0.5 transition-opacity duration-200 ease-out motion-reduce:transition-none',
+            'pointer-events-none absolute top-0 right-0 bottom-0 z-[4] w-0.5 transition-opacity duration-200 ease-out motion-reduce:transition-none',
             trackOpacity,
             indicatorMode === 'both' && 'bottom-2'
           )}
@@ -222,7 +222,7 @@ export const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(function S
       {showHorizontal && horizontalThumb ? (
         <div
           className={cn(
-            'pointer-events-none absolute right-0 bottom-0 left-0 h-0.5 transition-opacity duration-200 ease-out motion-reduce:transition-none',
+            'pointer-events-none absolute right-0 bottom-0 left-0 z-[4] h-0.5 transition-opacity duration-200 ease-out motion-reduce:transition-none',
             trackOpacity,
             indicatorMode === 'both' && 'right-2'
           )}

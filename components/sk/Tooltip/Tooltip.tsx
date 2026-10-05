@@ -161,7 +161,7 @@ export function Tooltip({ content, placement = 'bottom', children, triggerClassN
       window.removeEventListener('resize', handleViewportChange)
       window.removeEventListener('scroll', handleViewportChange, true)
     }
-  }, [content, open, updatePosition])
+  }, [content, open, portalRoot, updatePosition])
 
   React.useEffect(() => {
     if (!open) {

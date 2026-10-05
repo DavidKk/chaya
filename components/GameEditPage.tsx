@@ -125,13 +125,15 @@ export function GameEditPage() {
       if (op.op === 'selfSwitch' || op.op === 'mapEvent') reloadMap()
     },
     onSwitchChange: handlers.setSwitch,
+    onVarChange: handlers.setVar,
     mapId,
     eventId: mapEventId,
     onSelectMap: (nextMap, nextEvent) => router.push(hrefWithQuery(editMapHref(nextMap, nextEvent), eventsQuery)),
     mapDetail: events.mapDetail,
     mapLoading: events.mapLoading,
     mapError: events.mapError,
-    player: linked && scene.mapId > 0 ? { mapId: scene.mapId, x: scene.playerX, y: scene.playerY } : null,
+    onReloadMap: reloadMap,
+    player: linked && scene.mapId > 0 ? { mapId: scene.mapId, x: scene.playerX, y: scene.playerY, direction: scene.playerDir } : null,
     recentMaps: scene.recentMaps,
   }
 

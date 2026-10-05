@@ -17,7 +17,6 @@ export type EventsMessages = {
   unnamed: string
   commands: string
   emptyEvent: string
-  count: string
   back: string
   selectHint: string
   loading: string
@@ -30,6 +29,17 @@ export type EventsMessages = {
   run: string
   runNeedLink: string
   runNeedMap: string
+  scriptSearch: string
+  scriptColId: string
+  scriptColContent: string
+  scriptColActions: string
+  runFrom: string
+  flowRun: string
+  flowSkip: string
+  flowMaybe: string
+  flowMaybeTip: string
+  flowRunTip: string
+  flowSkipTip: string
   runOk: string
   runFail: string
   runRiskTitle: string
@@ -76,8 +86,6 @@ export type EventsMessages = {
   script: string
   scriptEmpty: string
   original: string
-  expand: string
-  collapse: string
   map: EventsMapMessages
   cmd: Record<ScriptKey | 'textBy', string>
 }
@@ -86,6 +94,12 @@ export type EventsMapMessages = {
   treeAria: string
   searchHint: string
   current: string
+  treeSearch: string
+  allMaps: string
+  enterChildren: string
+  containsCurrent: string
+  levelUp: string
+  levelAria: string
   recent: string
   recentEmpty: string
   events: string
@@ -93,12 +107,10 @@ export type EventsMapMessages = {
   size: string
   selectHint: string
   loadFail: string
-  colId: string
   colName: string
   colPos: string
   colType: string
   colState: string
-  colSelf: string
   typeNpc: string
   typeTransfer: string
   typeChest: string
@@ -109,32 +121,26 @@ export type EventsMapMessages = {
   stateGuess: string
   stateUnknown: string
   page: string
-  pageCond: string
-  condNone: string
-  condSwitch: string
-  condVariable: string
-  condSelf: string
-  condItem: string
-  condActor: string
-  triggerAction: string
-  triggerTouch: string
-  triggerEventTouch: string
-  triggerAuto: string
-  triggerParallel: string
+  pageActive: string
+  pagesAria: string
   teleport: string
   teleportTo: string
-  teleportEntrances: string
-  teleportCoords: string
   teleportNear: string
+  teleportNearShort: string
+  teleportBeside: string
+  coordAxis: string
+  coordRange: string
+  minimap: string
+  minimapHint: string
+  minimapPlayer: string
+  minimapBlocked: string
+  minimapBlockedAt: string
+  minimapBlockedNear: string
+  minimapTeleportTitle: string
   teleportOk: string
   teleportFail: string
   teleportOutOfRange: string
-  entranceFrom: string
-  noEntrances: string
-  runEvent: string
   runEventOnlyCurrent: string
-  runEventHidden: string
-  selfSwitch: string
   selfOk: string
   openDetail: string
   closeDetail: string

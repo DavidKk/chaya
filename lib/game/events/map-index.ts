@@ -85,6 +85,8 @@ export type MapDetailData = {
   events: MapEventInfo[]
   /** Dialogue / choice source → translation for this map's events */
   texts: Record<string, string>
+  /** Row-major `0` / `1` per tile, `1` = cannot stand there (terrain); absent when unknown */
+  blocked?: string
   live?: MapLiveState
 }
 

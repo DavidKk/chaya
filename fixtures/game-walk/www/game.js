@@ -105,8 +105,8 @@
     }
     update() {
       if ($gamePlayer._transfer && !$gamePlayer.isMoving()) $gamePlayer.performTransfer()
-      if ($gameTemp._commonEventId) {
-        interpreter.queue.push(...(COMMON_EVENTS[$gameTemp._commonEventId] || []))
+      if ($gameTemp._commonEventId && !interpreter.isRunning()) {
+        interpreter.setup($dataCommonEvents[$gameTemp._commonEventId]?.list)
         $gameTemp._commonEventId = 0
       }
       const tap = TouchInput.take()
@@ -207,7 +207,7 @@
       $gameSwitches._data = data.switches
       Object.assign($gameActors.actor(1), data.actor)
       $gameMessage.clear()
-      interpreter.queue = []
+      interpreter.clear()
       return true
     },
   }
@@ -377,8 +377,8 @@
     },
     $dataItems: [null, { id: 1, name: '药草', description: '回复少量 HP 的草药。' }, { id: 2, name: '旧钥匙', description: '不知道能打开哪扇门。' }],
     $dataActors: [null, { id: 1, name: '勇者', description: '' }],
-    $dataMapInfos: [null, { name: '村庄' }, { name: '森林' }],
-    $dataCommonEvents: [null, { id: 1, name: '回复' }],
+    $dataMapInfos: window.WalkDemo.MAP_INFOS,
+    $dataCommonEvents: [null, { id: 1, name: '回复', trigger: 0, switchId: 1, list: window.WalkDemo.rmEventList(COMMON_EVENTS[1]) }],
   })
   for (const name of ['Classes', 'Skills', 'Weapons', 'Armors', 'Enemies', 'States', 'Animations', 'Tilesets', 'Troops']) window[`$data${name}`] = [null]
 

@@ -53,8 +53,8 @@ plugins/src/cheat/session/save-data/
   undo.ts         撤销栈（50 步）、冲突检查、强制还原
   search.ts       分片 DFS 搜索、取消
   writers.ts      已知结构的专用写入（开关 / 变量 / 独立开关 / 物品数量 / 设置）
-  pins.ts         钉住项（游戏侧 localStorage，按游戏键）
-  status.ts       状态快照（代数、撤销摘要、锁定列表、钉住项）与变更通知
+  pins.ts         常用项（游戏侧 localStorage，按游戏键）
+  status.ts       状态快照（代数、撤销摘要、锁定列表、常用项）与变更通知
   index.ts        SaveDataService：供 remote-bridge 与局内浮层调用的统一入口
 plugins/src/cheat/session/remote-bridge.ts   # 处理 data.* 请求与 data 类 edit.cmd；回执带结果
 plugins/src/cheat/ui/save-data-transport.ts  # DirectTransport（局内浮层）
@@ -68,12 +68,12 @@ components/game-edit/save-data/
   link-transport.ts       LinkTransport（网页，经 GameLinkContext）
   store.ts                行值 store、草稿 store（外部 store + 订阅）
   useSaveData.ts          当前层、分页、订阅、代数、状态、搜索的编排
-  SaveDataPane.tsx        页面骨架：面包屑、工具栏、常用栏、列表 / 搜索结果
+  SaveDataPane.tsx        页面骨架：面包屑 + 图标工具栏、搜索（挂到工作台标题栏右侧）、常用层 / 列表 / 搜索结果
   DataList.tsx            虚拟列表 + 可见区上报
   DataRowView.tsx         一行：名称 / 当前值 / 修改为 / 操作（宽、窄两种布局）
-  DraftInput.tsx          按类型的输入控件（数字 / 文本 / 布尔 / 空 / 类型选择）
-  DataToolbar.tsx         待应用、全部应用、清空、撤销、锁定列表
-  PinsBar.tsx             常用与钉住
+  DraftInput.tsx          按类型的输入控件（数字 / 文本 / 布尔开关 / 空 / 类型选择）与操作列的应用 · 放弃槽
+  DataToolbar.tsx         待应用数量 + 图标按钮：全部应用、清空、撤销（多步显示步数）、锁定（显示数量，点击全部解除）
+  PinsList.tsx            常用层（拖动排序）、根层「常用」入口行、可点击的父路径 WherePath
   StructDialogs.tsx       添加项 / 添加字段 / 删除确认
 components/sk/VirtualList.tsx          # 固定行高虚拟列表（通用）
 components/game-edit/tabs.ts / tab-icons.tsx   # 新增 data 分类、editDataHref
@@ -354,8 +354,9 @@ interface SaveDataTransport {
 ### 7.3 列表与行
 
 - `components/sk/VirtualList.tsx`：固定行高（宽屏 36 px、浮层两行布局 52 px），`overscan` 8，基于滚动容器 `scrollTop` 计算区间；`onRangeChange` 回调供订阅使用；到底时触发 `onEndReached` 取下一页。
-- `DataRowView`：宽屏四列（名称 / 当前值 / 修改为 / 操作），`@container` 窄于 40rem 时切两行布局；名称列显示 `label`（或 `t(labelKey)`），原始键淡色；容器行整行可点击进入。
-- `DraftInput`：数字用现有 `NumberInput`（`allowDecimal`，允许负数，提交时经 `value.ts` 校验有限值），布尔用 `SwitchToggle`，字符串单行输入，`truncated` 时先 `read` 取全文再进入多行编辑；空值字段左侧显示类型选择（已知结构锁定为 `expectType`，`number|string` 默认数字）；`nullable` 为 false 时类型选择里没有「空」。回车 = 应用本行，Esc = 删除本行草稿。
+- `DataRowView`：宽屏四列（名称 / 当前值 / 修改为 / 操作），列宽固定（`DATA_COLS`）保证逐行对齐；`@container` 窄于 40rem 时切两行布局；名称列显示 `label`（或 `t(labelKey)`），原始键淡色；容器行整行可点击进入。当前值按类型着色（`labels.ts` 的 `cellTone`：数字 accent、字符串 ok、布尔偏红、空值斜体弱色、对象 warn、数组橙）。
+- 操作列固定四个槽位，没有的按钮用等宽占位：① 有草稿时「应用 ✓」，否则「填入当前值」（布尔 / 空值无此项）② 有草稿时「放弃」③ 锁定 ④ 更多菜单。
+- `DraftInput`：数字 / 字符串单行输入（数字占位按当前值提示「整数」或「数字」，提交时经 `value.ts` 校验有限值），布尔只显示 `SwitchToggle`（不再显示 true / false 文字，未改时显示当前值），`truncated` 时先 `read` 取全文；空值字段左侧显示类型选择（已知结构锁定为 `expectType`，`number|string` 默认数字）；`nullable` 为 false 时类型选择里没有「空」。回车 = 应用本行，Esc = 删除本行草稿。
 - 「全部应用」：收集全部 `pending` 草稿 → 本地校验 → 需确认项合并到一个 `confirm()` → `run({ op: 'dataWrite', items })` → 按结果逐行处理：成功或读回不同（提示）则删除草稿，失败则 `state: 'error'`。
 
 ### 7.4 路由
@@ -364,11 +365,15 @@ interface SaveDataTransport {
 - `page.tsx`：`data` 分类下段数 ≤ 32、每段解码后 ≤ 256 字符，否则重定向到 `/cheat/data`；不校验路径是否存在（由游戏侧回答）。
 - 局内浮层没有 URL，当前路径保存在 `window.__chayaDataView`（同 `__chayaEventsView`）。
 
-### 7.5 常用与钉住（`pins.ts`）
+### 7.5 面包屑与常用（`pins.ts`）
 
+- 页头只保留面包屑：「全部 › 段 › 段」，每段可点击回到该层，末段后有无边框的「复制路径」图标；没有分组 tab 和「上一层」按钮。
+- 「常用」是根层下的虚拟层：根层列表第一行是「★ 常用」入口（显示条数），进入后面包屑为「全部 › 常用」，列表为预置 + 用户加入的字段，用户项可拖动排序；搜索在常用层时从根开始搜全部数据。
+- 常用与搜索结果的名称下方显示父路径，每段可点击直接进入该层。
 - 预置常用（路径常量）：`party._gold`、`party._steps`、`timer._frames`、`player._x` / `_y`、`player._encounterCount`、`system._saveCount`。
-- 钉住项保存在游戏侧 `plugins/src/cheat/session/save-data/pins.ts`：`localStorage['chaya:data-pins:' + 游戏键]`，游戏键沿用 `map-history` 的规则（标题 + 游戏根目录）。经 `data.status.pins` 下发、`dataPins` 全量更新，网页与局内浮层共用一份；上限 30。
-- 常用栏（预置 + 钉住）的行用一次 `rows(paths)` 取得（含 `ownerOid`）并加入订阅；`missing` 时显示「不可用」。
+- 「加入常用」（行的更多菜单）只是收藏入口，不影响游戏；「锁定」会每 200 ms 把值写回游戏，保持不变。两者互不影响。
+- 常用项保存在游戏侧 `plugins/src/cheat/session/save-data/pins.ts`：`localStorage['chaya:data-pins:' + 游戏键]`，游戏键沿用 `map-history` 的规则（标题 + 游戏根目录）。经 `data.status.pins` 下发、`dataPins` 全量更新，网页与局内浮层共用一份；上限 30。
+- 常用层的行用一次 `rows(paths)` 取得（含 `ownerOid`）并加入订阅；`missing` 时显示「不可用」。
 
 ### 7.6 Agent 与 WebMCP
 
@@ -401,7 +406,7 @@ interface SaveDataTransport {
 | `SEARCH_SLICE_MS`   | 8      | 搜索每片耗时            |
 | `PATH_DEPTH_MAX`    | 32     | 路径深度                |
 | `KEY_CHARS_MAX`     | 256    | 单段长度                |
-| `PINS_MAX`          | 30     | 钉住项                  |
+| `PINS_MAX`          | 30     | 常用项                  |
 
 稳态成本：停留在某层不操作时，游戏侧每秒一次 ≤ 300 次路径解析与比较（预算 2 ms），无变化不发消息；网页端只重渲变化的行。翻页一次为一层 200 项的构建与分片发送。
 

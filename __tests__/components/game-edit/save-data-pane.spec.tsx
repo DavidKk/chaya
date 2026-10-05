@@ -16,6 +16,7 @@ let root: Root
 beforeAll(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   window.matchMedia ??= ((query: string) => ({ matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
+  globalThis.CSS ??= { escape: (v: string) => v } as unknown as typeof CSS
   globalThis.ResizeObserver ??= class {
     observe() {}
     unobserve() {}
@@ -79,8 +80,8 @@ function fakeTransport(over: Partial<DataStatus> = {}) {
   return { transport, run, diff: (d: DataDiff) => diffCb?.(d) }
 }
 
-async function render(transport: SaveDataTransport | null) {
-  const slot: SaveDataSlot = { transport, path: ['party'], onNavigate: jest.fn(), surface: 'page' }
+async function render(transport: SaveDataTransport | null, path: string[] = ['party'], onNavigate: SaveDataSlot['onNavigate'] = jest.fn()) {
+  const slot: SaveDataSlot = { transport, path, onNavigate, surface: 'page' }
   await act(async () => {
     root.render(
       <LocaleProvider initialLocale="zh" initialPreference="zh">
@@ -105,7 +106,7 @@ function type(input: HTMLInputElement, value: string) {
   })
 }
 
-const draftInputs = () => Array.from(container.querySelectorAll<HTMLInputElement>('input[placeholder="修改为…"]'))
+const draftInputs = () => Array.from(container.querySelectorAll<HTMLInputElement>('input[aria-label="修改为"]'))
 
 test('asks to link the game without a transport', async () => {
   await render(null)
@@ -150,7 +151,7 @@ test('apply all sends nothing while a draft is stale', async () => {
   await render(transport)
   type(draftInputs()[0], '500')
   draftStore.set(JSON.stringify(['map', '_events', '1', '_x']), { path: ['map', '_events', '1', '_x'], ownerOid: 3, type: 'number', raw: '4', state: 'stale' })
-  const applyAll = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('全部应用'))!
+  const applyAll = Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '全部应用')!
   await act(async () => applyAll.click())
   expect(run).not.toHaveBeenCalled()
   expect(draftStore.size).toBe(2)
@@ -160,7 +161,7 @@ test('apply all blocks invalid numbers and writes valid drafts', async () => {
   const { transport, run } = fakeTransport()
   await render(transport)
   type(draftInputs()[1], 'abc')
-  const applyAll = () => Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('全部应用'))!
+  const applyAll = () => Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '全部应用')!
   await act(async () => applyAll().click())
   expect(run).not.toHaveBeenCalled()
   expect(draftInputs()[1].getAttribute('aria-invalid')).toBe('true')
@@ -171,4 +172,18 @@ test('apply all blocks invalid numbers and writes valid drafts', async () => {
   await act(async () => applyAll().click())
   expect(run).toHaveBeenCalledWith({ op: 'dataWrite', items: [{ path: ['party', '_gold'], ownerOid: 7, type: 'number', value: 500 }] })
   expect(draftStore.size).toBe(0)
+})
+
+test('root shows the quick access entry and opens field paths from the breadcrumb', async () => {
+  const { transport } = fakeTransport()
+  const onNavigate = jest.fn()
+  await render(transport, [], onNavigate)
+  const nav = container.querySelector('nav[aria-label="数据路径"]')!
+  expect(nav.textContent).toContain('全部')
+  expect(nav.textContent).toContain('常用')
+  expect(container.textContent).toContain('还没有常用字段')
+  const rootCrumb = Array.from(nav.querySelectorAll('button')).find((b) => b.textContent === '全部')!
+  await act(async () => rootCrumb.click())
+  expect(onNavigate).toHaveBeenCalledWith([])
+  expect(container.querySelector('button[aria-label="进入 常用"]')).not.toBeNull()
 })
