@@ -6,6 +6,45 @@ import { ROOT_PATH } from '@/constants/paths'
 import { findEnclosingLinuxBinary, findEnclosingWinExe, isWin32, validShellExists } from './shell-layout'
 import { resolveToolkitShellAppPath } from './toolkit-data'
 import { LEGACY_PROJECT_SHELL_NAMES, type ResolvedGame, type ResolveError, SHELL_APP_NAME } from './types'
+import { detectUnsupportedEngine, type UnsupportedEngine, unsupportedEngineMessage } from './unsupported-engine'
+
+const RGSS_ASSET_DIRS = new Set(['data', 'system', 'graphics', 'audio', 'fonts'])
+
+function readNames(dir: string): string[] {
+  try {
+    return fs.readdirSync(/* turbopackIgnore: true */ dir)
+  } catch {
+    return []
+  }
+}
+
+function listingEngine(dir: string): UnsupportedEngine | null {
+  const root = readNames(dir)
+  const sub = (name: string) => {
+    const hit = root.find((entry) => entry.toLowerCase() === name)
+    return hit ? readNames(path.join(dir, hit)) : []
+  }
+  return detectUnsupportedEngine({ root, data: sub('data'), system: sub('system') })
+}
+
+/** 选中的是 MV / MZ 以外的引擎（旧版 RPG Maker、Unity）时给出引擎名 */
+function detectUnsupportedEngineAt(selected: string): UnsupportedEngine | null {
+  let dir = selected
+  try {
+    if (!fs.statSync(/* turbopackIgnore: true */ selected).isDirectory()) dir = path.dirname(selected)
+  } catch {
+    return null
+  }
+  if (dir.toLowerCase().endsWith('.app')) return detectUnsupportedEngine({ root: readNames(path.join(dir, 'Contents/Frameworks')) })
+  const engine = listingEngine(dir)
+  if (engine || !RGSS_ASSET_DIRS.has(path.basename(dir).toLowerCase())) return engine
+  return listingEngine(path.dirname(dir))
+}
+
+function unsupportedOr(selected: string, error: string): ResolveError {
+  const engine = detectUnsupportedEngineAt(selected)
+  return engine ? { ok: false, error: unsupportedEngineMessage(engine), engine } : { ok: false, error }
+}
 
 export function looksLikeContent(dir: string): boolean {
   try {
@@ -169,7 +208,7 @@ export function resolveGame(input: string, toolkitRoot = ROOT_PATH): ResolvedGam
     for (const c of [path.join(dir, 'www'), path.join(dir, 'package.nw'), path.join(dir, 'app.nw'), dir]) {
       if (looksLikeContent(c)) return finish(c, p, path.basename(c).toLowerCase() === 'www' ? 'www' : 'app.nw')
     }
-    return { ok: false, error: '在可执行文件旁找不到内容根（需 www/ 或含 index.html + data/ + js/）' }
+    return unsupportedOr(p, '在可执行文件旁找不到内容根（需 www/ 或含 index.html + data/ + js/）')
   }
 
   function resolvePackagedApp(appPath: string, selected: string): ResolvedGame | ResolveError {
@@ -177,7 +216,7 @@ export function resolveGame(input: string, toolkitRoot = ROOT_PATH): ResolvedGam
     for (const c of candidates) {
       if (looksLikeContent(c)) return finish(c, selected, 'app.nw')
     }
-    return { ok: false, error: '在 .app 内找不到 app.nw 内容根（需 index.html + data/ + js/）' }
+    return unsupportedOr(appPath, '在 .app 内找不到 app.nw 内容根（需 index.html + data/ + js/）')
   }
 
   if (p.toLowerCase().endsWith('.app')) {
@@ -220,12 +259,12 @@ export function resolveGame(input: string, toolkitRoot = ROOT_PATH): ResolvedGam
     /* ignore */
   }
 
-  return {
-    ok: false,
-    error: isWin32()
+  return unsupportedOr(
+    p,
+    isWin32()
       ? '未识别为 RPG Maker 内容（需要 index.html + data/ + js/、www/，或旁挂 Game.exe 的发布目录）'
       : process.platform === 'linux'
         ? '未识别为 RPG Maker 内容（需要 index.html + data/ + js/、www/，或旁挂 Game/nw 的发布目录）'
-        : '未识别为 RPG Maker 内容（需要 index.html + data/ + js/，子目录 www/，或已打包的 .app；macOS 请用选择器直接点选 .app）',
-  }
+        : '未识别为 RPG Maker 内容（需要 index.html + data/ + js/，子目录 www/，或已打包的 .app；macOS 请用选择器直接点选 .app）'
+  )
 }

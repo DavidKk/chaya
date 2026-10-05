@@ -113,6 +113,7 @@ const base = {
     addedToLibrary: 'ゲーム庫に追加',
     switchedPath: 'パス切替',
     needGamePath: 'パスを入力',
+    unsupportedEngine: '未対応のエンジンです（{engine}）。対応しているのは RPG Maker MV / MZ のみです',
     saveFailed: '保存失敗',
     saved: '保存済み',
     loadFailed: '読込失敗',

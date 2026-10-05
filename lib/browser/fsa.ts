@@ -1,5 +1,7 @@
 /** 浏览器 File System Access：仅 Chromium（Chrome / Edge）+ 安全上下文 */
 
+import { detectUnsupportedEngine, type UnsupportedEngine, UnsupportedEngineError } from '@/lib/game/unsupported-engine'
+
 type DirectoryPickerWindow = Window &
   typeof globalThis & {
     showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite'; id?: string }) => Promise<FileSystemDirectoryHandle>
@@ -129,7 +131,30 @@ export async function resolveContentRootHandle(picked: FileSystemDirectoryHandle
     const www = await getDir(picked, 'www')
     if (await looksLikeContentRoot(www)) return www
   }
+  const engine = await detectUnsupportedEngineInDir(picked)
+  if (engine) throw new UnsupportedEngineError(engine)
   throw new Error('未识别为 RPG Maker 内容根：请选择含 index.html 与 js/ 的目录，或含 www/ 的发布根')
+}
+
+type IterableDir = FileSystemDirectoryHandle & { values(): AsyncIterable<FileSystemHandle> }
+
+async function listNames(dir: FileSystemDirectoryHandle): Promise<FileSystemHandle[]> {
+  const handles: FileSystemHandle[] = []
+  try {
+    for await (const handle of (dir as IterableDir).values()) handles.push(handle)
+  } catch {
+    /* 无读权限时按空目录处理 */
+  }
+  return handles
+}
+
+async function detectUnsupportedEngineInDir(dir: FileSystemDirectoryHandle): Promise<UnsupportedEngine | null> {
+  const root = await listNames(dir)
+  const sub = async (name: string) => {
+    const hit = root.find((handle) => handle.kind === 'directory' && handle.name.toLowerCase() === name)
+    return hit ? (await listNames(hit as FileSystemDirectoryHandle)).map((handle) => handle.name) : []
+  }
+  return detectUnsupportedEngine({ root: root.map((handle) => handle.name), data: await sub('data'), system: await sub('system') })
 }
 
 async function looksLikeContentRoot(dir: FileSystemDirectoryHandle): Promise<boolean> {

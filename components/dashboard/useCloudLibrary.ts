@@ -35,6 +35,7 @@ import { libraryKindLabel } from '@/lib/game/library-label'
 import { nwGameDisplayName } from '@/lib/game/nw-window'
 import { countReadyPlugins } from '@/lib/game/plugins-status'
 import { TRACKED_PLUGINS } from '@/lib/game/types'
+import { UnsupportedEngineError } from '@/lib/game/unsupported-engine'
 
 import type { NwWindowConfig, Status } from './types'
 
@@ -174,7 +175,8 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
       await action()
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
-      notify.error(error instanceof Error ? error.message : String(error))
+      if (error instanceof UnsupportedEngineError) notify.error(t('notify.unsupportedEngine', { engine: error.engine }))
+      else notify.error(error instanceof Error ? error.message : String(error))
     } finally {
       actionInFlight.current = false
       setBusy(false)

@@ -1,11 +1,12 @@
 import path from 'node:path'
 
 import { defineApiRoute } from '@/initializer/controller'
-import { apiBadRequest, apiOk } from '@/initializer/response'
+import { apiBadRequest, apiOk, json } from '@/initializer/response'
 import { resolveToolkitShellAppPath } from '@/lib/game'
 import { nwGameDisplayName } from '@/lib/game/nw-window'
 import { countReadyPlugins } from '@/lib/game/plugins-status'
 import { looksLikeNwShellSource } from '@/lib/game/shell-layout'
+import { UNSUPPORTED_ENGINE_CODE } from '@/lib/game/unsupported-engine'
 import { canUseDisk, requireDisk, serviceModePayload } from '@/lib/service-mode'
 import {
   detectPlugins,
@@ -286,6 +287,7 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
 
     const check = resolveGame(input)
     if (!check.ok) {
+      if (check.engine) return json({ ok: false, error: { code: UNSUPPORTED_ENGINE_CODE, message: check.error, engine: check.engine } }, { status: 400 })
       return apiBadRequest(check.error)
     }
     // 已是当前选中且库路径一致：不写盘（避免 lastOpenedAt 抖动触发控制台重复 PUT）

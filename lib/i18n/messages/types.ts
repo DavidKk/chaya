@@ -105,6 +105,7 @@ export type MessageTree = {
     addedToLibrary: string
     switchedPath: string
     needGamePath: string
+    unsupportedEngine: string
     saveFailed: string
     saved: string
     loadFailed: string

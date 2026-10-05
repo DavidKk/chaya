@@ -10,6 +10,7 @@ import {
 } from '@/constants/brand'
 
 import type { GameFingerprintSummary } from './fingerprint/types'
+import type { UnsupportedEngine } from './unsupported-engine'
 
 export { SHELL_APP_NAME, SHELL_WIN_DIR_NAME }
 
@@ -74,6 +75,8 @@ export type ResolvedGame = {
 export type ResolveError = {
   ok: false
   error: string
+  /** 识别出是 MV / MZ 以外的引擎 */
+  engine?: UnsupportedEngine
 }
 
 /** 由 ChayaLoader 动态拉取的跟踪插件（不含 Env / Loader） */

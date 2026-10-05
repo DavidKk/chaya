@@ -15,6 +15,7 @@ import { Button, ScrollArea } from '@/components/sk'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { onDownloadFinished, useBrowserDownloadRunning, useServerDownloadRunning } from '@/lib/downloads/store'
 import type { LibraryItemView } from '@/lib/game'
+import { readUnsupportedEngine } from '@/lib/game/unsupported-engine'
 import { useQueryPatch } from '@/lib/url/use-query-patch'
 
 import { DashboardGameActions } from './dashboard/DashboardGameActions'
@@ -259,7 +260,8 @@ export function Dashboard() {
         return
       }
       if (!res.ok) {
-        notify.error(readApiErrorMessage(data, t('notify.bindFailed')))
+        const engine = readUnsupportedEngine(data)
+        notify.error(engine ? t('notify.unsupportedEngine', { engine }) : readApiErrorMessage(data, t('notify.bindFailed')))
         setGameRoot(next)
         clearGameTargetLock()
         return

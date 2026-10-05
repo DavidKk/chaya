@@ -10,6 +10,7 @@ import { pageMainFlush } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { Skeleton, SkeletonRegion } from '@/components/sk/Skeleton'
 import { readApiErrorMessage } from '@/lib/api-error'
+import { readUnsupportedEngine } from '@/lib/game/unsupported-engine'
 
 type GatePhase = 'loading' | 'cloud' | 'need-game' | 'ready'
 
@@ -95,7 +96,8 @@ export function RequireBoundGame({ children, loadingFallback }: { children: Reac
       })
       const bindData = await bindRes.json()
       if (!bindRes.ok) {
-        notify.error(readApiErrorMessage(bindData, t('notify.bindFailed')))
+        const engine = readUnsupportedEngine(bindData)
+        notify.error(engine ? t('notify.unsupportedEngine', { engine }) : readApiErrorMessage(bindData, t('notify.bindFailed')))
         return
       }
       notify.success(t('notify.addedToLibrary'))

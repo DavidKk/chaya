@@ -82,6 +82,7 @@ export const commonZh = {
     addedToLibrary: '已加入游戏库',
     switchedPath: '已切换路径',
     needGamePath: '请填写游戏目录',
+    unsupportedEngine: '不支持该引擎（{engine}），目前只支持 RPG Maker MV / MZ',
     saveFailed: '保存失败',
     saved: '已保存',
     loadFailed: '加载失败',

@@ -113,6 +113,7 @@ const base = {
     addedToLibrary: '보관함에 추가',
     switchedPath: '경로 변경',
     needGamePath: '경로 입력',
+    unsupportedEngine: '지원하지 않는 엔진입니다({engine}). RPG Maker MV / MZ만 지원합니다',
     saveFailed: '저장 실패',
     saved: '저장됨',
     loadFailed: '불러오기 실패',

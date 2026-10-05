@@ -87,6 +87,7 @@ const commonEn = {
     addedToLibrary: 'Added to library',
     switchedPath: 'Path switched',
     needGamePath: 'Enter game path',
+    unsupportedEngine: 'Unsupported engine ({engine}). Only RPG Maker MV / MZ are supported',
     saveFailed: 'Save failed',
     saved: 'Saved',
     loadFailed: 'Load failed',
