@@ -2,6 +2,7 @@
 
 import { readCloudLinkToken } from '@/lib/browser/link-token'
 import { encodeGameLinkMessage, GAME_LINK_CHANNEL, GAME_LINK_TOKEN_HEADER, type GameLinkMessage, parseGameLinkMessage } from '@/lib/runtime/game-link-protocol'
+import { createChunkReceiver } from '@/lib/runtime/link-chunks'
 import { sendTranslationPacket } from '@/lib/runtime/translation-rpc'
 import { defaultPeerConfig, normalizeLocalWebRtcDescription, waitForIceGathering } from '@/lib/runtime/webrtc-ice'
 
@@ -51,6 +52,7 @@ export class WebGameLink {
   private disconnectTimer: ReturnType<typeof setTimeout> | null = null
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null
   private closed = false
+  private chunks = createChunkReceiver((msg) => this.handlers.onMessage?.(msg as GameLinkMessage))
   connected = false
 
   constructor(
@@ -141,6 +143,7 @@ export class WebGameLink {
       const msg = parseGameLinkMessage(String(ev.data || ''))
       if (!msg) return
       if (msg.type === 'ping') this.send({ type: 'pong', t: msg.t })
+      if (msg.type === 'link.chunk') return this.chunks.receive(msg)
       this.handlers.onMessage?.(msg)
     }
   }
@@ -201,6 +204,7 @@ export class WebGameLink {
 
   stop(opts?: { silent?: boolean }) {
     this.closed = true
+    this.chunks.dispose()
     this.clearDisconnectTimer()
     this.clearKeepalive()
     if (this.pollTimer) {

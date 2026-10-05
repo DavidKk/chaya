@@ -49,6 +49,8 @@ export function fieldsForEditCmd(cmd: GameEditCmd): string[] {
       return [`runFlag:${cmd.key}`]
     case 'runAction':
       return [`action:${cmd.id}`]
+    case 'commonEvent':
+      return [`action:commonEvent:${cmd.id}`]
     case 'walkRate':
       return ['walkRate']
     case 'runRate':
@@ -93,6 +95,7 @@ export function expectForEditCmd(cmd: GameEditCmd): unknown {
     case 'actor':
       return cmd.patch
     case 'runAction':
+    case 'commonEvent':
       return true
     default:
       return undefined

@@ -12,7 +12,13 @@
 @source "../../../../components/notification/**/*.{ts,tsx}";
 @source "../../../../components/confirm/**/*.{ts,tsx}";
 @source "../../../../components/integration/**/*.{ts,tsx}";
+@source "../../../../components/game-agent/**/*.{ts,tsx}";
+@source "../../../../components/settings/**/*.{ts,tsx}";
 @source "../../../../components/layoutClasses.ts";
+@source "../../../../components/SectionSideNav.tsx";
+@source "../../../../components/PanelHeadEnd.tsx";
+@source "../../../../components/LogEntriesView.tsx";
+@source "../../../../components/LogLevelMultiSelect.tsx";
 @source "../../../../components/sk/**/*.{ts,tsx}";
 @source "../../../../components/i18n/**/*.{ts,tsx}";
 @source "./**/*.{ts,tsx}";

@@ -1,7 +1,9 @@
 /** Web ↔ 游戏 DataChannel 消息（JSON） */
 
 import type { ActorDraft, ActorVitalLockKind, ItemKind, RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
+import type { CommonEventsData } from '@/lib/game/events'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
+import type { LinkChunkPacket } from '@/lib/runtime/link-chunks'
 import type { TranslationPacket } from '@/lib/runtime/translation-rpc'
 
 export type GameLinkRole = 'web' | 'game'
@@ -41,6 +43,7 @@ export type GameEditCmdOp =
   | { op: 'actor'; id: number; patch: Partial<ActorDraft> }
   | { op: 'actorVitalLock'; actorId: number; kind: ActorVitalLockKind; on: boolean; value: number }
   | { op: 'actorOwnedLock'; actorId: number; kind: 'skills' | 'states'; entryId: number; on: boolean; owned: boolean }
+  | { op: 'commonEvent'; id: number }
 
 /** Web → 游戏：改值指令（cmdId 用于 ack / 去重重试） */
 export type GameEditCmd = { type: 'edit.cmd'; cmdId: string } & GameEditCmdOp
@@ -51,6 +54,8 @@ export type GameEditAck = {
   cmdId: string
   fields: string[]
   ok: boolean
+  /** 失败原因（给用户看） */
+  error?: string
 }
 
 /** 游戏 → Web：会话快照（不含 hotkeys） */
@@ -59,9 +64,14 @@ export type GameEditStateMsg = {
   session: Omit<SessionState, 'hotkeys' | 'hotkeysGlobal'>
   ready: boolean
   error?: string
+  /** 当前在地图场景（公共事件只能在地图上执行） */
+  onMap?: boolean
 }
 
 export type GameEditCatalogMessage = { type: 'edit.catalog'; catalog: GameEditCatalog } | { type: 'edit.catalog.request' }
+
+/** 公共事件与调用关系：数据较大，按需请求，不随订阅推送；游戏端经 `link.chunk` 分片发送 */
+export type GameEditEventsMessage = { type: 'edit.events'; data: CommonEventsData | { ok: false; error: string } } | { type: 'edit.events.request'; force?: boolean }
 
 /** 游戏内插件日志（id 为游戏进程内自增，重启游戏会从头计） */
 export type GameLinkLogEntry = { id: number; ts: number; level: string; source: string; message: string; meta?: unknown }
@@ -73,6 +83,8 @@ export type GameLinkMessage =
   | TranslationPacket
   | GameLinkLogBatch
   | GameEditCatalogMessage
+  | GameEditEventsMessage
+  | LinkChunkPacket
   | GameLinkHello
   | GameLinkQuit
   | GameLinkPing

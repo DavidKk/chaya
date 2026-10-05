@@ -273,10 +273,29 @@ export function GameEditWorkbench({
     return []
   }, [catalog, onlyNamed, onlyOwned, q, session.counts, session.switches, session.vars, t, tab])
 
+  const sourceCount = !catalog
+    ? 0
+    : tab === 'bag'
+      ? catalog.items.length + catalog.weapons.length + catalog.armors.length
+      : tab === 'item'
+        ? catalog.items.length
+        : tab === 'weapon'
+          ? catalog.weapons.length
+          : tab === 'armor'
+            ? catalog.armors.length
+            : tab === 'var'
+              ? catalog.variables.length
+              : tab === 'sw'
+                ? catalog.switches.length
+                : tab === 'actor'
+                  ? catalog.actors.length
+                  : 0
+  const filtered = !!q || onlyNamed || (onlyOwned && (tab === 'item' || tab === 'weapon' || tab === 'armor'))
+  const noMatch = sourceCount > 0 && filtered
   const visible = rows.slice(0, MAX_ROWS)
   const truncated = rows.length > MAX_ROWS
   const canLock = tab === 'bag' || tab === 'item' || tab === 'weapon' || tab === 'armor' || tab === 'var' || tab === 'sw'
-  const showTableFilters = tab !== 'run' && tab !== 'hotkeys' && isEditTab(tab)
+  const showTableFilters = tab !== 'run' && tab !== 'hotkeys' && isEditTab(tab) && sourceCount > 0
   const showOwnedFilter = tab !== 'run' && tab !== 'actor'
   const goldLocked = GOLD_LOCK_KEY in session.locks
   const actorCount = catalog && tab === 'actor' ? catalog.actors.length : 0
@@ -465,6 +484,8 @@ export function GameEditWorkbench({
           <EmptyState title={t('edit.catalogFailTitle')} message={error} hint={t('edit.catalogFailHint')} />
         ) : loading && !catalog ? (
           <GameEditPaneSkeleton tab={tab} />
+        ) : isEditTab(tab) && sourceCount === 0 ? (
+          <EmptyState title={t('edit.noData')} message={t('edit.noDataMsg')} />
         ) : tab === 'actor' && catalog ? (
           <TabSuspense tab="actor">
             <ActorEditPane
@@ -494,9 +515,9 @@ export function GameEditWorkbench({
           </TabSuspense>
         ) : visible.length === 0 ? (
           <EmptyState
-            title={q || onlyOwned || onlyNamed ? t('edit.noMatch') : t('edit.noData')}
-            message={q || onlyOwned || onlyNamed ? t('edit.noMatchMsg') : t('edit.noDataMsg')}
-            hint={q || onlyOwned || onlyNamed ? t('edit.noMatchHint') : undefined}
+            title={noMatch ? t('edit.noMatch') : t('edit.noData')}
+            message={noMatch ? t('edit.noMatchMsg') : t('edit.noDataMsg')}
+            hint={noMatch ? t('edit.noMatchHint') : undefined}
           />
         ) : (
           <ScrollArea className="min-h-0 flex-1" indicator="both" scrollProps={{ 'aria-label': t('edit.editTableAria') }}>

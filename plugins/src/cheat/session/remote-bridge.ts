@@ -4,10 +4,12 @@
 import { emptySession, lockKeyForActorSkill, lockKeyForActorState, type SessionState } from '@/components/game-edit/types'
 import { fieldsForEditCmd } from '@/lib/runtime/game-edit-sync'
 import type { GameEditCmd, GameEditStateMsg, GameLinkMessage } from '@/lib/runtime/game-link-protocol'
+import { sendChunked } from '@/lib/runtime/link-chunks'
 
 import { applyRunAction, applyRunFlag, applySpeed } from '../runtime/apply-run'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
+import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from './live-events'
 import { buildLiveCatalog, readLiveSession, setItemCount, setPartyGold } from './live-session'
 
 type SendFn = (msg: GameLinkMessage) => void
@@ -113,6 +115,9 @@ export function applyEditCmd(cmd: GameEditCmd): void {
       mirror = { ...mirror, locks }
       return
     }
+    case 'commonEvent':
+      runCommonEventOnMap(cmd.id)
+      return
     default:
       return
   }
@@ -126,7 +131,7 @@ export function buildStateMsg(): GameEditStateMsg {
   }
   mirror = readLiveSession(mirror)
   const { hotkeys: _hotkeys, hotkeysGlobal: _hotkeysGlobal, ...session } = mirror
-  return { type: 'edit.state', ready: true, session }
+  return { type: 'edit.state', ready: true, session, onMap: isOnMapScene() }
 }
 
 function pushState() {
@@ -142,6 +147,12 @@ export function handleRemoteEditMessage(msg: GameLinkMessage, send: SendFn) {
   sendFn = send
   if (msg.type === 'edit.catalog.request') {
     send({ type: 'edit.catalog', catalog: buildLiveCatalog() })
+    return
+  }
+  if (msg.type === 'edit.events.request') {
+    buildLiveCommonEventsData({ force: msg.force })
+      .then((data) => sendChunked(send, { type: 'edit.events', data }))
+      .catch((err) => send({ type: 'edit.events', data: { ok: false, error: err instanceof Error ? err.message : '读取公共事件失败' } }))
     return
   }
   if (msg.type === 'edit.subscribe') {
@@ -177,10 +188,10 @@ export function handleRemoteEditMessage(msg: GameLinkMessage, send: SendFn) {
         send({ type: 'edit.ack', cmdId: msg.cmdId, fields, ok: true })
       }
       pushState()
-    } catch {
+    } catch (err) {
       if (msg.cmdId) {
         try {
-          send({ type: 'edit.ack', cmdId: msg.cmdId, fields, ok: false })
+          send({ type: 'edit.ack', cmdId: msg.cmdId, fields, ok: false, ...(err instanceof Error && err.message ? { error: err.message } : {}) })
         } catch {
           /* */
         }
