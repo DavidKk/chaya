@@ -73,7 +73,7 @@ function GatewayOverview() {
   )
 }
 
-/** In-game「集成」page: the MCP view scoped to this game (ChayaAgent owns the gateway); no WebMCP in the game window. */
+/** In-game integration's MCP section, scoped to this game; ChayaAgent owns the gateway. */
 export function GameEditMcpPane() {
   const t = useT()
   const game = useMemo(() => ({ overview: <GatewayOverview />, rpc: gatewayRpc }), [])

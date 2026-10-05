@@ -11,6 +11,8 @@ export const translateKo = {
     tabCache: '보관함',
     regionRun: '번역',
     regionCache: '공유 보관함',
+    regionRunDesc: '플레이 번역을 설정하고 현재 게임의 텍스트를 추출·번역합니다.',
+    regionCacheDesc: '현재 게임의 번역 내용을 확인하고 검색하며 관리합니다.',
     configAria: '번역 설정',
     taskAria: '번역 작업',
     playTab: '플레이',

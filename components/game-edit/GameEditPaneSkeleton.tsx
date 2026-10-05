@@ -65,6 +65,15 @@ function GameEditHeadEndSkeleton({ tab }: { tab: TabId }) {
   )
 }
 
+function PanelHeadTitleSkeleton() {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-1" aria-hidden>
+      <Skeleton className="h-3.5 w-20" />
+      <Skeleton className="h-3 w-48 max-w-full" />
+    </div>
+  )
+}
+
 /** 运行设置：表单卡 + 开关行 + 动作钮格 */
 export function GameEditRunSkeleton({ label }: { label?: string }) {
   const t = useT()
@@ -166,6 +175,7 @@ export function GameEditLogsSkeleton({ label }: { label?: string }) {
   return (
     <SkeletonRegion label={label ?? t('edit.loadLogs')} className="flex min-h-0 flex-1 flex-col">
       <div className={panelHead} aria-hidden>
+        <PanelHeadTitleSkeleton />
         <div className={panelHeadEnd}>
           <Skeleton className="h-8 w-52 min-w-[5.5rem] shrink rounded-[0.2rem]" />
           <Skeleton className="h-8 w-[15.5rem] min-w-[9.5rem] shrink rounded-[0.2rem]" />
@@ -187,18 +197,27 @@ export function GameEditTransSkeleton({ section = 'run', translateTab = 'play', 
   const t = useT()
   return (
     <SkeletonRegion label={label ?? t('edit.loadTrans')} className="flex min-h-0 flex-1 flex-col">
-      <div className={panelHead} aria-hidden>
-        <Skeleton className="h-8 w-20 rounded-[0.2rem]" />
-        <Skeleton className="h-8 w-20 rounded-[0.2rem]" />
-        {section === 'cache' ? (
-          <div className={panelHeadEnd}>
-            <Skeleton className="h-8 w-52 min-w-[5.5rem] shrink rounded-[0.2rem]" />
-            <Skeleton className="h-8 w-28 shrink-0 rounded-[0.2rem]" />
-            <Skeleton className="h-8 w-[4.5rem] shrink-0 rounded-[0.2rem]" />
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row" aria-hidden>
+        <aside className="shrink-0 border-b border-line bg-paper md:w-[3.75rem] md:border-r md:border-b-0">
+          <div className="flex gap-1 p-2 md:flex-col">
+            <Skeleton className="size-11 rounded-[0.35rem]" />
+            <Skeleton className="size-11 rounded-[0.35rem]" />
           </div>
-        ) : null}
+        </aside>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className={panelHead}>
+            <PanelHeadTitleSkeleton />
+            {section === 'cache' ? (
+              <div className={panelHeadEnd}>
+                <Skeleton className="h-8 w-52 min-w-[5.5rem] shrink rounded-[0.2rem]" />
+                <Skeleton className="h-8 w-28 shrink-0 rounded-[0.2rem]" />
+                <Skeleton className="h-8 w-[4.5rem] shrink-0 rounded-[0.2rem]" />
+              </div>
+            ) : null}
+          </div>
+          <div className={panelBody}>{section === 'cache' ? <TranslateCacheTableSkeleton /> : <TranslateRunSkeleton tab={translateTab} />}</div>
+        </div>
       </div>
-      <div className={panelBody}>{section === 'cache' ? <TranslateCacheTableSkeleton /> : <TranslateRunSkeleton tab={translateTab} />}</div>
     </SkeletonRegion>
   )
 }
@@ -233,12 +252,17 @@ export function GameEditBoundLoading() {
   return (
     <div className={pageMainFlush}>
       <div className={panelShell} role="status" aria-label={t('edit.loadEdit')}>
-        <div className={panelHead}>
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <GameEditTabNav tab={tab} setTab={(next) => router.push(editTabHref(next))} surface="page" />
-          <GameEditHeadEndSkeleton tab={tab} />
-        </div>
-        <div className={tab === 'trans' || tab === 'logs' ? 'flex min-h-0 flex-1 flex-col' : panelBody}>
-          <GameEditPaneSkeleton tab={tab} />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className={panelHead}>
+              <PanelHeadTitleSkeleton />
+              <GameEditHeadEndSkeleton tab={tab} />
+            </div>
+            <div className={tab === 'trans' || tab === 'logs' ? 'flex min-h-0 flex-1 flex-col' : panelBody}>
+              <GameEditPaneSkeleton tab={tab} />
+            </div>
+          </div>
         </div>
       </div>
     </div>

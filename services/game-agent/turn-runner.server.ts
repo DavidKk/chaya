@@ -1,11 +1,11 @@
 import { appendLog } from '@/services/log'
-import { callAgentGame, resolveAgentGame } from '@/services/runtime/agent-bridge'
+import { callAgentGame, listAgentGames } from '@/services/runtime/agent-bridge'
 
 import { streamOllamaChat } from './ollama-client'
 import { buildAskMessages } from './prompt'
 import { finishTurn } from './session-store'
 import type { GameAgentProfile } from './settings'
-import { createGameAgentTools, executeGameAgentTool } from './tool-runtime'
+import { createGameAgentTools, executeGameAgentTool } from './tool-runtime.server'
 import type { GameAgentEvent, GameAgentSession, GameAgentTurn, StartTurnInput } from './types'
 
 const MAX_TOOL_STEPS = 8
@@ -18,8 +18,9 @@ function logArgs(args: Record<string, unknown>) {
 export async function runAskTurn(input: StartTurnInput, profile: GameAgentProfile, session: GameAgentSession, turn: GameAgentTurn, emit: (event: GameAgentEvent) => void) {
   try {
     emit({ type: 'phase', phase: 'observing', step: 0, maxSteps: MAX_TOOL_STEPS })
-    const gameId = resolveAgentGame(input.gameId)
-    const state = await callAgentGame(gameId, 'game.state', {})
+    const requestedGameId = input.gameId === 'chaya-console' ? '' : input.gameId
+    const gameId = requestedGameId && listAgentGames().some((game) => game.gameId === requestedGameId) ? requestedGameId : undefined
+    const state = gameId ? await callAgentGame(gameId, 'game.state', {}) : undefined
     if (turn.abort.signal.aborted) throw turn.abort.signal.reason
 
     const messages = buildAskMessages({ history: session.messages, prompt: input.prompt, locale: input.locale || 'zh-CN', gameId, state })
@@ -55,7 +56,7 @@ export async function runAskTurn(input: StartTurnInput, profile: GameAgentProfil
             args: logArgs(call.function.arguments),
             turnId: turn.id,
             sessionId: session.id,
-            gameId,
+            gameId: gameId || null,
             model: input.model,
           },
         })
@@ -75,7 +76,7 @@ export async function runAskTurn(input: StartTurnInput, profile: GameAgentProfil
             durationMs: Date.now() - startedAt,
             turnId: turn.id,
             sessionId: session.id,
-            gameId,
+            gameId: gameId || null,
             model: input.model,
           },
         })

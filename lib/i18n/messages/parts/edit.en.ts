@@ -24,6 +24,7 @@ export const editEn = {
     states: 'States',
     skills: 'Skills',
     panelAria: 'Game edit',
+    panelDesc: 'Edit runtime state, game data, and shortcuts for the current game.',
     filtersAria: 'Filters',
     onlyOwned: 'Owned only',
     onlyNamed: 'Named only',
@@ -261,6 +262,7 @@ export const editEn = {
   },
   logs: {
     region: 'Plugin logs',
+    regionDesc: 'View, filter, and manage Chaya plugin logs in real time.',
     live: 'Live',
     streamDown: 'Down',
     searchPh: 'Search source / message…',

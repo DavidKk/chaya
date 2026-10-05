@@ -24,9 +24,14 @@ describe('register-page-tools', () => {
     delete (globalThis as { document?: unknown }).document
   })
 
-  it('returns false without document.modelContext', async () => {
-    expect(await registerPageTools('x', [tool('a')], new AbortController().signal)).toBe(false)
-    expect(await createPageToolSync('x').sync([tool('a')])).toBe(false)
+  it('keeps tools internally callable without document.modelContext', async () => {
+    const controller = new AbortController()
+    const sync = createPageToolSync('sync-x')
+    expect(await registerPageTools('x', [tool('a')], controller.signal)).toBe(false)
+    expect(await sync.sync([tool('b')])).toBe(false)
+    expect(listRegisteredPageTools()).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'a' }), expect.objectContaining({ name: 'b' })]))
+    controller.abort()
+    sync.dispose()
   })
 
   it('tracks registered tools and releases them on abort', async () => {

@@ -6,8 +6,8 @@ import { Spinner } from '@/components/sk/Spinner'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { cn } from '@/lib/utils'
 
-/** default：浅底+描边；ghost：透明底+描边；accent/ok/warn/fail：色实心（gate 尺寸仅配合 accent） */
-export type ButtonVariant = 'default' | 'accent' | 'ok' | 'warn' | 'fail' | 'ghost'
+/** default：浅底+描边；ghost：透明底+描边；plain：无底无描边；accent/ok/warn/fail：色实心（gate 尺寸仅配合 accent） */
+export type ButtonVariant = 'default' | 'accent' | 'ok' | 'warn' | 'fail' | 'ghost' | 'plain'
 export type ButtonSize = 'md' | 'icon' | 'gate'
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -46,7 +46,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       className={cn(
         'relative isolate inline-flex h-8 cursor-pointer appearance-none items-center justify-center gap-2 overflow-hidden rounded-[0.2rem] border border-line bg-[var(--panel-2)] px-3 font-inherit text-[0.8125rem] font-medium leading-none text-ink transition-[background-color,border-color,opacity,box-shadow] duration-100 ease-out',
         'outline-none focus:outline-none focus-visible:outline-none',
-        'hover:enabled:border-[rgb(230_238_248/0.18)] hover:enabled:bg-[color-mix(in_oklab,var(--panel-2)_80%,white)]',
+        'hover:enabled:bg-[color-mix(in_oklab,var(--panel-2)_80%,white)]',
+        variant !== 'plain' && 'hover:enabled:border-[rgb(230_238_248/0.18)]',
         !loading && 'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none',
         loading && 'pointer-events-none cursor-wait opacity-[0.72] !animate-none after:!opacity-0',
         sheen && accentSheen,
@@ -61,6 +62,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
           'border-transparent bg-[linear-gradient(145deg,color-mix(in_oklab,var(--fail)_82%,white)_0%,color-mix(in_oklab,var(--fail)_70%,#dc2626)_40%,color-mix(in_oklab,var(--fail)_55%,#b91c1c)_100%)] font-semibold text-[#fef2f2] shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_0_0_1px_color-mix(in_oklab,var(--fail)_40%,transparent),0_3px_14px_color-mix(in_oklab,var(--fail)_35%,transparent)] hover:enabled:bg-[linear-gradient(145deg,color-mix(in_oklab,var(--fail)_90%,white)_0%,color-mix(in_oklab,var(--fail)_78%,#ef4444)_40%,color-mix(in_oklab,var(--fail)_60%,#dc2626)_100%)] hover:enabled:text-[#fef2f2] hover:enabled:shadow-[inset_0_1px_0_rgb(255_255_255/0.26),0_0_20px_color-mix(in_oklab,var(--fail)_45%,transparent),0_0_0_1px_color-mix(in_oklab,var(--fail)_50%,transparent)]',
         // ghost：描边透明底（「只有边」）；default：浅底+边（弱实心）；accent/ok/warn/fail：色实心
         variant === 'ghost' && 'bg-transparent text-ink-soft hover:enabled:bg-[rgb(230_238_248/0.06)] hover:enabled:text-ink',
+        // plain：列表 / 表格内的轻量图标操作；无底无描边，hover 时只出现弱底色。
+        variant === 'plain' &&
+          'border-transparent bg-transparent text-ink-soft shadow-none hover:enabled:border-transparent hover:enabled:bg-[rgb(230_238_248/0.06)] hover:enabled:text-ink',
         size === 'icon' && 'w-8 shrink-0 px-0',
         size === 'gate' &&
           cn(

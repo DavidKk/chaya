@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { GrFormEdit } from 'react-icons/gr'
+import { TbPencilCog } from 'react-icons/tb'
 
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { cn } from '@/lib/utils'
@@ -113,7 +113,7 @@ export function GameTitleEditor({ originalName, remark = '', busy = false, onSav
             aria-label="编辑备注名称"
             onClick={startEdit}
           >
-            <GrFormEdit className="size-3.5" aria-hidden />
+            <TbPencilCog className="size-3.5" aria-hidden />
           </button>
         </Tooltip>
       ) : (

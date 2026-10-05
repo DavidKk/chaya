@@ -17,7 +17,7 @@ export const hubBlock = 'flex flex-col gap-2 rounded-[0.4rem] border border-tran
 export const hubBlockActive = 'border-[color-mix(in_oklab,var(--accent)_38%,transparent)] bg-[color-mix(in_oklab,var(--accent)_10%,var(--panel))]'
 
 const navItemBase = cn(
-  'flex w-full min-w-0 items-center justify-center gap-2.5 rounded-[0.35rem] border p-1.5 text-left no-underline md:justify-start md:px-2',
+  'flex size-10 shrink-0 items-center justify-center rounded-[0.35rem] border p-1 text-left no-underline md:h-auto md:w-full md:min-w-0 md:justify-start md:gap-2 md:px-2 md:py-1.5',
   'transition-[background,border-color,color] duration-150',
   'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]'
 )
@@ -27,9 +27,9 @@ const navItemActive = 'border-[color-mix(in_oklab,var(--accent)_38%,transparent)
 /** 左侧导航：children 为一个或多个 `HubNavSection`；窄屏收成只有图标的窄栏 */
 export function HubNav({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <nav aria-label={label} className="flex min-h-0 w-12 shrink-0 flex-col border-r border-line bg-paper md:w-44">
+    <nav aria-label={label} className="flex min-h-0 w-14 shrink-0 flex-col border-r border-line bg-paper md:w-44">
       <ScrollArea className="min-h-0 flex-1" indicator={false}>
-        <div className="flex flex-col p-1.5 md:p-2">{children}</div>
+        <div className="flex flex-col items-center p-2 md:items-stretch">{children}</div>
       </ScrollArea>
     </nav>
   )

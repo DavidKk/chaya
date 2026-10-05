@@ -7,6 +7,15 @@ import { SettingsSectionNav } from '@/components/settings/SettingsSectionNav'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
+Object.defineProperty(window, 'matchMedia', {
+  configurable: true,
+  value: () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }),
+})
+
 let host: HTMLDivElement
 let root: Root
 
@@ -31,10 +40,12 @@ test('uses link navigation on settings pages', async () => {
   )
 
   const nav = host.querySelector<HTMLElement>('[data-settings-section-nav] nav')!
+  expect(nav.closest('aside')!.className).toContain('hidden')
   const link = nav.querySelector<HTMLAnchorElement>('a')!
   expect(link.getAttribute('href')).toBe('/settings/agents')
+  expect(link.getAttribute('aria-label')).toBe('Agent')
   expect(link.getAttribute('aria-current')).toBe('page')
-  expect(link.textContent).toContain('Agent')
+  expect(link.textContent).toBe('')
 })
 
 test('uses button navigation inside the game plugin', async () => {
@@ -48,7 +59,9 @@ test('uses button navigation inside the game plugin', async () => {
   )
 
   const button = host.querySelector<HTMLButtonElement>('button')!
+  expect(host.querySelector('aside')!.getAttribute('data-mobile-visible')).toBe('true')
   await act(async () => button.click())
   expect(onSelect).toHaveBeenCalledTimes(1)
+  expect(button.getAttribute('aria-label')).toBe('Agent')
   expect(button.getAttribute('aria-current')).toBe('page')
 })

@@ -8,7 +8,18 @@ import type { MessageTree } from '@/lib/i18n/messages/types'
 
 const base = {
   locale: { label: '言語', switch: '言語', auto: 'システム（{name}）' },
-  nav: { main: 'ナビ', library: 'ゲーム庫', edit: '編集', translate: '翻訳', logs: 'ログ', integration: '連携', settings: '設定' },
+  nav: {
+    main: 'ナビ',
+    menu: 'ナビゲーション',
+    openMenu: 'ナビゲーションメニューを開く',
+    closeMenu: 'ナビゲーションメニューを閉じる',
+    library: 'ゲーム庫',
+    edit: '編集',
+    translate: '翻訳',
+    logs: 'ログ',
+    integration: '連携',
+    settings: '設定',
+  },
   common: {
     close: '閉じる',
     cancel: '取消',

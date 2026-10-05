@@ -24,6 +24,7 @@ export const editKo = {
     states: '상태',
     skills: '스킬',
     panelAria: '게임 편집',
+    panelDesc: '현재 게임의 실행 상태, 데이터 및 단축 작업을 수정합니다.',
     filtersAria: '필터',
     onlyOwned: '보유만',
     onlyNamed: '이름만',
@@ -261,6 +262,7 @@ export const editKo = {
   },
   logs: {
     region: '로그',
+    regionDesc: 'Chaya 플러그인 실행 로그를 실시간으로 확인하고 필터링하며 관리합니다.',
     live: '실시간',
     streamDown: '끊김',
     searchPh: '출처 / 메시지…',

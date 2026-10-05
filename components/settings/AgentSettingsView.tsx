@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { IoAdd, IoArrowBack, IoCreateOutline, IoTrashOutline } from 'react-icons/io5'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { IoAdd, IoArrowBack, IoRefreshOutline, IoTrashOutline } from 'react-icons/io5'
+import { TbPencilCog } from 'react-icons/tb'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
@@ -34,8 +35,13 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   const [baseSync, setBaseSync] = useState<AgentSyncDocument | null>(null)
   const [draft, setDraft] = useState<AgentProfile | null>(null)
   const [models, setModels] = useState<AgentModel[]>([])
+  const [modelsBusy, setModelsBusy] = useState(false)
   const [busy, setBusy] = useState<'load' | 'test' | 'save' | 'delete' | ''>('load')
   const [loadError, setLoadError] = useState('')
+  const modelRequestId = useRef(0)
+  const autoModelsTimer = useRef<number | undefined>(undefined)
+  const draftRef = useRef<AgentProfile | null>(null)
+  draftRef.current = draft
   const editing = agentId != null
   const creating = agentId === 'new'
 
@@ -47,12 +53,14 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
       }
       try {
         const response = await request(API, { cache: 'no-store' })
-        const body = (await response.json().catch(() => null)) as { settings?: AgentSettings; sync?: AgentSyncDocument }
+        const body = (await response.json().catch(() => null)) as { settings?: AgentSettings; sync?: AgentSyncDocument; models?: Record<string, AgentModel[]> }
         if (!response.ok || !body.settings) throw new Error(apiError(body, `HTTP ${response.status}`))
         setSettings(body.settings)
         setBaseSync(body.sync || null)
-        if (creating) setDraft(createAgentProfile())
-        else if (agentId) {
+        if (creating) {
+          setDraft(createAgentProfile())
+          setModels([])
+        } else if (agentId) {
           const profile = body.settings.profiles.find((item) => item.id === agentId)
           if (!profile) {
             setDraft(null)
@@ -60,6 +68,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
             return
           }
           setDraft({ ...profile })
+          setModels(body.models?.[profile.id] || [])
         } else setDraft(null)
       } catch (error) {
         if (!silent) {
@@ -118,25 +127,64 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
     }
   }
 
+  const fetchModels = useCallback(
+    async (profile: AgentProfile, feedback: 'none' | 'refresh' | 'test') => {
+      const requestId = ++modelRequestId.current
+      setModelsBusy(true)
+      if (feedback === 'test') setBusy('test')
+      try {
+        const response = await request(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: feedback === 'test' ? 'test' : 'models', profile }),
+        })
+        const body = (await response.json().catch(() => null)) as { models?: AgentModel[]; defaultModel?: string }
+        if (!response.ok) throw new Error(apiError(body, `HTTP ${response.status}`))
+        if (requestId !== modelRequestId.current) return
+        const nextModels = body.models || []
+        setModels(nextModels)
+        setDraft((current) => {
+          if (!current || current.id !== profile.id || current.endpoint !== profile.endpoint) return current
+          const selectedStillExists = nextModels.some((model) => model.name === current.defaultModel)
+          return selectedStillExists || !body.defaultModel ? current : { ...current, defaultModel: body.defaultModel }
+        })
+        if (feedback === 'test') notify.success(t('integration.agentConnected'))
+        else if (feedback === 'refresh') notify.success(t('integration.agentModelsRefreshed'))
+      } catch (error) {
+        if (requestId === modelRequestId.current && feedback !== 'none') notify.error(error instanceof Error ? error.message : String(error))
+      } finally {
+        if (requestId === modelRequestId.current) setModelsBusy(false)
+        if (feedback === 'test') setBusy('')
+      }
+    },
+    [notify, request, t]
+  )
+
+  useEffect(() => {
+    const profile = draftRef.current
+    if (!profile?.endpoint.trim()) return
+    autoModelsTimer.current = window.setTimeout(() => {
+      autoModelsTimer.current = undefined
+      void fetchModels(profile, 'none')
+    }, 500)
+    return () => {
+      if (autoModelsTimer.current !== undefined) window.clearTimeout(autoModelsTimer.current)
+      autoModelsTimer.current = undefined
+    }
+  }, [draft?.endpoint, draft?.id, fetchModels])
+
   const test = async () => {
     if (!draft) return
-    setBusy('test')
-    try {
-      const response = await request(API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'test', profile: draft }),
-      })
-      const body = (await response.json().catch(() => null)) as { models?: AgentModel[]; defaultModel?: string }
-      if (!response.ok) throw new Error(apiError(body, `HTTP ${response.status}`))
-      setModels(body.models || [])
-      if (!draft.defaultModel && body.defaultModel) setDraft({ ...draft, defaultModel: body.defaultModel })
-      notify.success(`${t('integration.agentConnected')} · ${(body.models || []).length}`)
-    } catch (error) {
-      notify.error(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy('')
-    }
+    if (autoModelsTimer.current !== undefined) window.clearTimeout(autoModelsTimer.current)
+    autoModelsTimer.current = undefined
+    await fetchModels({ ...draft }, 'test')
+  }
+
+  const refreshModels = async () => {
+    if (!draft) return
+    if (autoModelsTimer.current !== undefined) window.clearTimeout(autoModelsTimer.current)
+    autoModelsTimer.current = undefined
+    await fetchModels({ ...draft }, 'refresh')
   }
 
   const remove = async () => {
@@ -202,8 +250,8 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                       {profile.provider} · {profile.defaultModel || t('integration.agentNoModels')} · {profile.endpoint}
                     </p>
                   </div>
-                  <Button variant="ghost" size="icon" aria-label={t('integration.agentEdit')} onClick={() => onNavigate(profile.id)}>
-                    <IoCreateOutline size={16} />
+                  <Button variant="plain" size="icon" aria-label={t('integration.agentEdit')} onClick={() => onNavigate(profile.id)}>
+                    <TbPencilCog size={16} aria-hidden />
                   </Button>
                 </li>
               ))}
@@ -237,7 +285,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <div className="flex w-full max-w-2xl flex-col gap-4">
-          <section className={formCard}>
+          <section className={formCard} data-agent-detail-card>
             <label className={formFieldInline}>
               <span className={formTitleInline}>{t('integration.agentProfileLabel')}</span>
               <div className={formControlInline}>
@@ -258,30 +306,22 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                 <TextInput className="w-full" value={draft.endpoint} onChange={(event) => update({ endpoint: event.target.value })} />
               </div>
             </label>
-            <label className={formFieldInline}>
+            <div className={formFieldInline}>
               <span className={formTitleInline}>{t('integration.agentDefaultModel')}</span>
               <span className={formDescInline}>{t('integration.agentDefaultModelDesc')}</span>
-              <div className={formControlInline}>
+              <div className={`${formControlInline} flex items-center gap-1`}>
                 <Select
-                  className="w-full"
+                  className="min-w-0 flex-1"
                   value={draft.defaultModel}
                   options={modelOptions}
                   placeholder={t('integration.agentNoModels')}
                   onChange={(defaultModel) => update({ defaultModel })}
                 />
-              </div>
-            </label>
-            <div className={formFieldInline}>
-              <span className={formTitleInline}>{t('integration.agentTest')}</span>
-              <span className={formDescInline}>{t('integration.agentTestDesc')}</span>
-              <div className={formControlInline}>
-                <Button loading={busy === 'test'} onClick={() => void test()}>
-                  {t('integration.agentTest')}
+                <Button variant="plain" size="icon" loading={modelsBusy} aria-label={t('common.refresh')} tooltip={t('common.refresh')} onClick={() => void refreshModels()}>
+                  <IoRefreshOutline size={16} aria-hidden />
                 </Button>
               </div>
             </div>
-          </section>
-          <section className={formCard}>
             <label className={formFieldInline}>
               <span className={formTitleInline}>{t('integration.agentTemperature')}</span>
               <span className={formDescInline}>{t('integration.agentTemperatureDesc')}</span>
@@ -302,14 +342,17 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                   <IoArrowBack size={15} />
                   {t('integration.agentBack')}
                 </Button>
-              </div>
-              <div className="flex min-w-0 items-center justify-end gap-2">
                 {!creating ? (
                   <Button variant="fail" disabled={settings.profiles.length <= 1} loading={busy === 'delete'} onClick={() => void remove()}>
                     <IoTrashOutline size={15} />
                     {t('integration.agentDelete')}
                   </Button>
                 ) : null}
+              </div>
+              <div className="flex min-w-0 items-center justify-end gap-2">
+                <Button loading={busy === 'test'} onClick={() => void test()}>
+                  {t('integration.agentTest')}
+                </Button>
                 <Button variant="accent" disabled={!draft.label.trim()} loading={busy === 'save'} onClick={() => void save()}>
                   {t('integration.agentSave')}
                 </Button>

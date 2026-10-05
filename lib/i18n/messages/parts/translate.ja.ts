@@ -11,6 +11,8 @@ export const translateJa = {
     tabCache: '翻訳庫',
     regionRun: '翻訳',
     regionCache: '共有庫',
+    regionRunDesc: 'プレイ翻訳を設定し、現在のゲームのテキストを抽出・翻訳します。',
+    regionCacheDesc: '現在のゲームの翻訳内容を表示、検索、管理します。',
     configAria: '翻訳設定',
     taskAria: '翻訳ジョブ',
     playTab: 'プレイ',

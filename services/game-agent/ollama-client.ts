@@ -29,6 +29,10 @@ export function pickDefaultModel(models: OllamaModel[]): string {
   return models.some((model) => model.name === DEFAULT_GAME_AGENT_MODEL) ? DEFAULT_GAME_AGENT_MODEL : models[0]?.name || ''
 }
 
+export function pickAvailableModel(models: OllamaModel[], preferred?: string): string {
+  return preferred && models.some((model) => model.name === preferred) ? preferred : pickDefaultModel(models)
+}
+
 export async function streamOllamaChat(
   input: { endpoint?: string; model: string; messages: GameAgentMessage[]; tools?: OllamaTool[]; temperature?: number; keepAlive?: string; signal?: AbortSignal },
   onDelta: (text: string) => void,

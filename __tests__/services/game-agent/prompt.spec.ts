@@ -8,7 +8,7 @@ describe('game agent prompt', () => {
     expect(messages[0]?.content).toContain('result has ok=true')
     expect(messages[0]?.content).toContain('Never expose raw tool JSON')
     expect(messages[0]?.content).not.toContain('Do not control or modify the game')
-    expect(messages[1]?.content).toContain('Bound game id: game-a')
+    expect(messages[1]?.content).toContain('Connected game id: game-a')
     expect(messages[1]?.content).toContain('选择道路')
     expect(messages[1]?.content).toContain('我该做什么？')
   })

@@ -11,6 +11,8 @@ export const translateZh = {
     tabCache: '翻译库',
     regionRun: '翻译',
     regionCache: '共享翻译库',
+    regionRunDesc: '配置游玩翻译，并抽取、补译当前游戏文本。',
+    regionCacheDesc: '查看、搜索并维护当前游戏的翻译内容。',
     configAria: '翻译配置',
     taskAria: '翻译任务',
     playTab: '游玩',

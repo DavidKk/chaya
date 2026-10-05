@@ -132,9 +132,9 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
     if (surface === 'overlay') expect(host.querySelector<HTMLButtonElement>('[role="tab"][data-nav-id="seed"]')?.getAttribute('aria-selected')).toBe('true')
 
     if (surface === 'overlay') {
-      const cache = host.querySelector<HTMLButtonElement>('[role="tab"][data-nav-id="cache"]')!
+      const cache = host.querySelector<HTMLButtonElement>('[data-translate-section-nav] button[aria-label="翻译库"]')!
       await act(async () => cache.click())
-      expect(cache.getAttribute('aria-selected')).toBe('true')
+      expect(cache.getAttribute('aria-current')).toBe('page')
       expect(host.querySelector('[aria-label="本作翻译库表"]')).not.toBeNull()
       expect(host.textContent).toContain('前往会客室')
       expect(host.querySelector('[aria-label="搜索原文 / 译文"]')?.closest('[class*="ml-auto"]')).not.toBeNull()

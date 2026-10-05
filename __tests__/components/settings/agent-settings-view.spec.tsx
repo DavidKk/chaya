@@ -96,22 +96,33 @@ test('lists multiple agents, opens a detail route, and saves edits through the s
   expect([...listCard.querySelectorAll<HTMLButtonElement>('button')].some((button) => button.textContent === '添加实例')).toBe(true)
 
   const editButtons = host.querySelectorAll<HTMLButtonElement>('button[aria-label="编辑 Agent"]')
+  expect([...editButtons].every((button) => button.dataset.variant === 'plain' && button.className.includes('border-transparent'))).toBe(true)
   await act(async () => editButtons[1].click())
   expect(host.textContent).toContain('Agent 使用的模型服务平台。')
   expect(host.textContent).toContain('模型在内存中保留的时长，例如 10m。')
   const toolbar = host.querySelector<HTMLElement>('[data-agent-detail-toolbar]')!
-  const back = [...toolbar.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '返回列表')!
-  const remove = [...toolbar.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '删除实例')!
+  const back = [...toolbar.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '返回')!
+  const remove = [...toolbar.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '删除')!
+  const testButton = [...toolbar.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '测试')!
+  const saveButton = [...toolbar.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '保存配置')!
   expect(back.parentElement).toBe(toolbar.firstElementChild)
-  expect(remove.parentElement).toBe(toolbar.lastElementChild)
+  expect(remove.parentElement).toBe(toolbar.firstElementChild)
+  expect([...toolbar.firstElementChild!.querySelectorAll('button')].map((button) => button.textContent)).toEqual(['返回', '删除'])
+  expect(testButton.parentElement).toBe(toolbar.lastElementChild)
+  expect(saveButton.parentElement).toBe(toolbar.lastElementChild)
+  expect(testButton.nextElementSibling).toBe(saveButton)
+  expect(host.textContent).not.toContain('验证服务连接并刷新可用模型列表。')
+  expect(host.querySelector<HTMLButtonElement>('button[aria-label="刷新"]')).not.toBeNull()
   expect(toolbar.closest('section')).not.toBeNull()
+  expect(host.querySelectorAll('[data-agent-detail-card]')).toHaveLength(1)
+  expect(toolbar.closest('[data-agent-detail-card]')?.textContent).toContain('Temperature')
+  expect(toolbar.closest('[data-agent-detail-card]')?.textContent).toContain('Keep Alive')
   const name = host.querySelector<HTMLInputElement>('input')!
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(name, 'Office Agent')
     name.dispatchEvent(new Event('input', { bubbles: true }))
   })
-  const save = [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '保存配置')!
-  await act(async () => save.click())
+  await act(async () => saveButton.click())
 
   expect(writes).toHaveLength(1)
   expect(writes[0].profiles[1].label).toBe('Office Agent')
@@ -167,7 +178,7 @@ test('refreshes the list after plugin sync but leaves an open detail draft untou
   expect(name.value).toBe('Unsaved Draft')
 })
 
-test('shows connection results in a toast instead of inside the form', async () => {
+test('shows a plain test result in a toast instead of describing the model refresh', async () => {
   let resolveTest!: (value: Response) => void
   const request = jest.fn(async (_path: string, init?: RequestInit) => {
     if (init?.method === 'POST') return new Promise<Response>((resolve) => (resolveTest = resolve))
@@ -182,14 +193,44 @@ test('shows connection results in a toast instead of inside the form', async () 
     )
   )
 
-  const testButton = [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '测试并读取模型')!
+  const testButton = [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '测试')!
   await act(async () => testButton.click())
   expect(testButton.disabled).toBe(true)
 
   await act(async () => resolveTest({ ok: true, status: 200, json: async () => ({ models: [{ name: 'qwen3' }] }) } as Response))
 
   const toast = document.body.querySelector<HTMLElement>('[role="status"]')!
-  expect(toast.textContent).toContain('连接成功，可用模型 · 1')
-  expect(host.textContent).not.toContain('连接成功，可用模型 · 1')
+  expect(toast.textContent).toContain('测试成功')
+  expect(toast.textContent).not.toContain('模型')
   expect(testButton.disabled).toBe(false)
+})
+
+test('loads cached models immediately and refreshes them automatically from the endpoint', async () => {
+  jest.useFakeTimers()
+  const request = jest.fn(async (_path: string, init?: RequestInit) => {
+    if (init?.method === 'POST') {
+      return { ok: true, status: 200, json: async () => ({ models: [{ name: 'gemma4' }], defaultModel: 'gemma4' }) } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({ settings, models: { local: [{ name: 'qwen3' }] } }) } as Response
+  })
+
+  try {
+    await act(async () =>
+      root.render(
+        <Providers>
+          <AgentSettingsView request={request} agentId="local" onNavigate={jest.fn()} />
+        </Providers>
+      )
+    )
+
+    const selects = host.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="listbox"]')
+    expect(selects[1]?.textContent).toContain('qwen3')
+    await act(async () => jest.advanceTimersByTime(500))
+
+    const modelRequest = request.mock.calls.find(([, init]) => init?.method === 'POST')
+    expect(JSON.parse(String(modelRequest?.[1]?.body))).toMatchObject({ action: 'models', profile: { endpoint: 'http://127.0.0.1:11434' } })
+    expect(selects[1]?.textContent).toContain('gemma4')
+  } finally {
+    jest.useRealTimers()
+  }
 })

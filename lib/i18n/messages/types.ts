@@ -6,7 +6,18 @@ import type { McpGatewayMessages } from '@/lib/i18n/messages/mcp-gateway-types'
 /** 叶子为 string 的同构文案树 */
 export type MessageTree = {
   locale: { label: string; switch: string; auto: string }
-  nav: { main: string; library: string; edit: string; translate: string; logs: string; integration: string; settings: string }
+  nav: {
+    main: string
+    menu: string
+    openMenu: string
+    closeMenu: string
+    library: string
+    edit: string
+    translate: string
+    logs: string
+    integration: string
+    settings: string
+  }
   common: {
     close: string
     cancel: string
@@ -272,6 +283,8 @@ export type MessageTree = {
     tabCache: string
     regionRun: string
     regionCache: string
+    regionRunDesc: string
+    regionCacheDesc: string
     configAria: string
     taskAria: string
     playTab: string
@@ -421,6 +434,7 @@ export type MessageTree = {
     states: string
     skills: string
     panelAria: string
+    panelDesc: string
     filtersAria: string
     onlyOwned: string
     onlyNamed: string
@@ -658,6 +672,7 @@ export type MessageTree = {
   }
   logs: {
     region: string
+    regionDesc: string
     live: string
     streamDown: string
     searchPh: string

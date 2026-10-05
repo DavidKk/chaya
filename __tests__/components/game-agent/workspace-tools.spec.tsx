@@ -96,3 +96,57 @@ test('keeps completed tool calls visible with the assistant reply', async () => 
   expect(document.body.textContent).toContain('chaya_edit_set')
   expect(document.body.textContent).toContain('已完成调用。')
 })
+
+test('does not start a second turn before the first SSE response arrives', async () => {
+  let resolveTurn!: (response: Response) => void
+  const turnResponse = new Promise<Response>((resolve) => {
+    resolveTurn = resolve
+  })
+  const request = jest.fn(async (path: string) => {
+    if (path.startsWith('/api/game-agent/status')) {
+      return json({
+        available: true,
+        gameOnline: false,
+        profiles: [{ id: 'local', label: 'Local Ollama', provider: 'ollama', online: true, models: [{ name: 'gemma' }], defaultModel: 'gemma', reason: null }],
+        defaultProfileId: 'local',
+        session: null,
+        reason: null,
+      })
+    }
+    return turnResponse
+  }) as unknown as jest.MockedFunction<GameAgentRequest>
+
+  await act(async () => {
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <GameAgentWorkspace gameId="chaya-console" request={request} />
+      </LocaleProvider>
+    )
+  })
+  await act(async () => {})
+
+  const textarea = document.querySelector<HTMLTextAreaElement>('textarea')!
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
+    setter.call(textarea, '检查配置')
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  const send = document.querySelector<HTMLButtonElement>('button[aria-label="发送"]')!
+  await act(async () => {
+    send.click()
+    send.click()
+  })
+
+  expect(request.mock.calls.filter(([path]) => path === '/api/game-agent/turn')).toHaveLength(1)
+
+  await act(async () => {
+    resolveTurn(
+      sse([
+        { type: 'turn.started', turnId: 'turn-a', sessionId: 'session-a' },
+        { type: 'assistant.delta', text: '完成。' },
+        { type: 'turn.completed', text: '完成。', reason: 'answered' },
+      ])
+    )
+    await turnResponse
+  })
+})

@@ -2,6 +2,7 @@ import fs from 'node:fs'
 
 import { GET, POST, PUT } from '@/app/api/integration/game-agent/route.server'
 import { applySettingsToAgentSyncDocument, createEmptyAgentSyncDocument, withAgentSyncActor } from '@/lib/game-agent/settings-sync'
+import { GAME_AGENT_MODEL_CACHE_PATH } from '@/services/game-agent/model-cache'
 import * as ollamaClient from '@/services/game-agent/ollama-client'
 import { GAME_AGENT_SETTINGS_PATH, GAME_AGENT_SYNC_PATH } from '@/services/game-agent/settings'
 import { clearLaunchToken, issueLaunchToken } from '@/services/runtime/launch-token'
@@ -20,12 +21,14 @@ beforeEach(() => {
   clearLaunchToken()
   fs.rmSync(GAME_AGENT_SETTINGS_PATH, { force: true })
   fs.rmSync(GAME_AGENT_SYNC_PATH, { force: true })
+  fs.rmSync(GAME_AGENT_MODEL_CACHE_PATH, { force: true })
 })
 
 afterEach(() => {
   clearLaunchToken()
   fs.rmSync(GAME_AGENT_SETTINGS_PATH, { force: true })
   fs.rmSync(GAME_AGENT_SYNC_PATH, { force: true })
+  fs.rmSync(GAME_AGENT_MODEL_CACHE_PATH, { force: true })
 })
 
 test('same-origin console can read shared Agent settings', async () => {
@@ -70,6 +73,9 @@ test('valid plugin token can read, test, and save profiles', async () => {
   const saved = await PUT(request('PUT', token, { settings: { version: 1, defaultProfileId: profile.id, profiles: [profile] } }), ctx)
   expect(saved.status).toBe(200)
   expect((await saved.json()).settings).toMatchObject({ defaultProfileId: profile.id, profiles: [profile] })
+
+  const cached = await GET(request('GET', token), ctx)
+  expect((await cached.json()).models).toEqual({ 'ollama-office': [{ name: 'demo-model' }] })
 })
 
 test('unknown launch token is rejected before the route handler', async () => {
