@@ -4,7 +4,7 @@ import path from 'node:path'
 import { LEGACY_SHELL_APP_NAMES, LEGACY_SHELL_WIN_DIR_NAMES } from '@/constants/brand'
 import { DATA_DIR_NAME, SHELL_DIR_NAME } from '@/constants/path-names'
 import { LEGACY_SHELL_AT_DATA_PATHS, LEGACY_SHELL_IN_SHELL_PATHS } from '@/constants/paths'
-import { findNwExeInDir, findNwLinuxBinary, isWin32, looksLikeNwShellSource, resolveShellSourceRoot, toolkitShellFolderName } from '@/lib/game/shell-layout'
+import { isWin32, looksLikeMacNwApp, looksLikeNwShellSource, resolveShellSourceRoot, toolkitShellFolderName, validShellExists } from '@/lib/game/shell-layout'
 import { toolkitShellAppPath } from '@/lib/game/toolkit-data'
 
 export type ShellInstallResult = {
@@ -37,16 +37,7 @@ export function pathEntryExists(p: string): boolean {
   }
 }
 
-/** 是否是可用壳：能解析到真实目录，且按平台找得到壳可执行文件 */
-export function validShellExists(p: string): boolean {
-  try {
-    if (!fs.statSync(p).isDirectory()) return false
-  } catch {
-    return false
-  }
-  if (isMacHost()) return looksLikeMacNwApp(p)
-  return Boolean(findNwExeInDir(p) || findNwLinuxBinary(p))
-}
+export { validShellExists }
 
 export class ShellSwapError extends Error {
   constructor(
@@ -113,17 +104,6 @@ export function recoverOldIfNeeded(shellApp: string = toolkitShellAppPath()): bo
     throw recoveryRequired(old, e)
   }
   return true
-}
-
-function looksLikeMacNwApp(appPath: string): boolean {
-  const macOs = path.join(appPath, 'Contents/MacOS')
-  if (!fs.existsSync(macOs)) return false
-  try {
-    const bins = fs.readdirSync(macOs)
-    return bins.some((b) => /nw/i.test(b) || b === 'nwjs' || b === 'node-webkit')
-  } catch {
-    return false
-  }
 }
 
 /** 壳源不应直接等于正在用的内容根所在包（避免把游戏拷进壳） */

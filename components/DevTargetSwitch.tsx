@@ -9,7 +9,7 @@ import { dropdownItemClass, dropdownPopupClass, dropdownTriggerClass } from '@/c
 import { type DevTarget, isDevTarget } from '@/lib/service-mode/target'
 
 const OPTIONS: readonly { value: DevTarget; label: string }[] = [
-  { value: 'server', label: 'Server' },
+  { value: 'server', label: 'Local' },
   { value: 'edge', label: 'Edge' },
 ]
 

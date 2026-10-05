@@ -9,9 +9,9 @@ import { usePageOrigin } from '@/hooks/usePageOrigin'
 import { remoteScriptCommand, remoteScriptUrl } from '@/lib/remote-scripts/command'
 
 const MAC_SHELL_SCRIPT_NAME = 'mac-shell.sh'
-const MAC_STEP_KEYS = ['launchHelp.macStep1', 'launchHelp.macStep2', 'launchHelp.macStep3', 'launchHelp.macStep4'] as const
+const MAC_STEPS = ['launchHelp.macStep1', 'launchHelp.macStep2', 'launchHelp.macStep3', 'launchHelp.macStep4'] as const
 
-/** Both installation and recovery use native extraction, never browser ZIP writes. */
+/** Installation and recovery run natively: the browser cannot write the bundle's framework symlinks. */
 export function MacShellDialog({ open, onClose, gameName }: { open: boolean; onClose: () => void; gameName?: string }) {
   const t = useT()
   const origin = usePageOrigin()
@@ -28,7 +28,7 @@ export function MacShellDialog({ open, onClose, gameName }: { open: boolean; onC
       <div className="flex flex-col gap-3 text-left text-sm leading-relaxed text-ink-soft">
         {gameName ? <p className="m-0 break-all">{t('launchHelp.pickSameDir', { name: gameName })}</p> : null}
         <ol className="m-0 flex list-none flex-col gap-2 p-0">
-          {MAC_STEP_KEYS.map((key, index) => (
+          {MAC_STEPS.map((key, index) => (
             <li key={key} className="flex gap-3">
               <span aria-hidden className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-line text-[0.7rem] font-semibold text-ink">
                 {index + 1}

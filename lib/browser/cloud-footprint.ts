@@ -1,5 +1,6 @@
 import { PLUGIN_LOADER_NAME } from '@/constants/brand'
 import { gameContentRelPath, LEGACY_FLAT_FILES } from '@/lib/game/content-paths'
+import { DIGEST_PLUGIN_NAMES, pluginDigest, pluginsOutdated } from '@/lib/game/plugin-digest'
 import { parsePluginsJs } from '@/lib/game/plugins-parse'
 import { trackedPluginStatuses } from '@/lib/game/plugins-status'
 import { type PluginStatus, TRACKED_PLUGINS } from '@/lib/game/types'
@@ -51,6 +52,22 @@ export async function detectCloudPlugins(content: FileSystemDirectoryHandle): Pr
     }
   }
   return trackedPluginStatuses({ registered, files })
+}
+
+/** Same check as `detectPluginsOutdated` on the server; unknown latest digests → not outdated */
+export async function detectCloudPluginsOutdated(content: FileSystemDirectoryHandle): Promise<boolean> {
+  const latest = await fetch('/api/plugins/digests', { cache: 'no-store' })
+    .then(async (res) => (res.ok ? ((await res.json()) as { digests?: Record<string, string> | null }).digests || null : null))
+    .catch(() => null)
+  if (!latest) return false
+  const js = (await dirExists(content, 'js')) ? await getDir(content, 'js') : null
+  const pluginsDir = js && (await dirExists(js, 'plugins')) ? await getDir(js, 'plugins') : null
+  const game: Record<string, string | null> = {}
+  for (const name of DIGEST_PLUGIN_NAMES) {
+    const text = pluginsDir ? await readTextFile(pluginsDir, `${name}.js`) : null
+    game[name] = text == null ? null : pluginDigest(text)
+  }
+  return pluginsOutdated(game, latest)
 }
 
 async function countLines(file: File): Promise<number> {

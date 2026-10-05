@@ -1,16 +1,18 @@
 'use client'
 
-import { type KeyboardEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { type ChangeEvent, type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { IoCheckmark, IoChevronDown } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { FORM_CONTROL_H, formControlChrome, formControlPadX } from '@/components/sk/control'
 import { ScrollArea } from '@/components/sk/ScrollArea'
+import { TextInput } from '@/components/sk/TextInput'
 import { type FloatingPanelWidthMode, useFloatingPanel } from '@/components/sk/useFloatingPanel'
 import { cn } from '@/lib/utils'
 
 const PANEL_MAX_HEIGHT_PX = 224
+const SEARCH_THRESHOLD = 10
 
 export type SelectOption = {
   value: string
@@ -40,12 +42,20 @@ export function Select({ id, value, options, onChange, placeholder, emptyLabel, 
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(-1)
   const [mounted, setMounted] = useState(false)
+  const [query, setQuery] = useState('')
 
   const selected = options.find((o) => o.value === value)
   const label = selected?.label ?? resolvedPlaceholder
+  const searchable = options.length > SEARCH_THRESHOLD
+  const visibleOptions = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase()
+    if (!searchable || !needle) return options
+    return options.filter((option) => `${option.label}\n${option.value}`.toLocaleLowerCase().includes(needle))
+  }, [options, query, searchable])
   const panelStyle = useFloatingPanel({
     open,
     anchorRef: rootRef,
@@ -61,25 +71,31 @@ export function Select({ id, value, options, onChange, placeholder, emptyLabel, 
   const close = useCallback(() => {
     setOpen(false)
     setHighlight(-1)
+    setQuery('')
   }, [])
 
   const openPanel = useCallback(() => {
     if (disabled) return
     const idx = options.findIndex((o) => o.value === value && !o.disabled)
     setHighlight(idx >= 0 ? idx : options.findIndex((o) => !o.disabled))
+    setQuery('')
     setOpen(true)
   }, [disabled, options, value])
 
   const pick = useCallback(
     (index: number) => {
-      const opt = options[index]
+      const opt = visibleOptions[index]
       if (!opt || opt.disabled) return
       onChange(opt.value)
       close()
       triggerRef.current?.focus()
     },
-    [close, onChange, options]
+    [close, onChange, visibleOptions]
   )
+
+  useEffect(() => {
+    if (open && searchable) searchRef.current?.focus()
+  }, [open, searchable])
 
   useEffect(() => {
     if (!open) return
@@ -105,26 +121,55 @@ export function Select({ id, value, options, onChange, placeholder, emptyLabel, 
 
   const onTriggerKey = (e: KeyboardEvent<HTMLButtonElement>) => {
     if (disabled) return
-    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+    if (e.key === 'ArrowDown') {
       e.preventDefault()
       if (!open) openPanel()
-      else if (e.key === 'Enter' || e.key === ' ') pick(highlight)
+      else
+        setHighlight((h) => {
+          for (let i = h + 1; i < visibleOptions.length; i += 1) {
+            if (!visibleOptions[i]?.disabled) return i
+          }
+          return h
+        })
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      if (!open) openPanel()
+      else pick(highlight)
     } else if (e.key === 'ArrowUp' && open) {
       e.preventDefault()
       setHighlight((h) => {
         for (let i = h - 1; i >= 0; i -= 1) {
-          if (!options[i]?.disabled) return i
+          if (!visibleOptions[i]?.disabled) return i
         }
         return h
       })
-    } else if (e.key === 'ArrowDown' && open) {
-      e.preventDefault()
-      setHighlight((h) => {
-        for (let i = h + 1; i < options.length; i += 1) {
-          if (!options[i]?.disabled) return i
-        }
-        return h
+    }
+  }
+
+  const onSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextQuery = event.target.value
+    const needle = nextQuery.trim().toLocaleLowerCase()
+    const nextOptions = needle ? options.filter((option) => `${option.label}\n${option.value}`.toLocaleLowerCase().includes(needle)) : options
+    setQuery(nextQuery)
+    setHighlight(nextOptions.findIndex((option) => !option.disabled))
+  }
+
+  const onSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setHighlight((current) => {
+        for (let index = current + 1; index < visibleOptions.length; index += 1) if (!visibleOptions[index]?.disabled) return index
+        return current
       })
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setHighlight((current) => {
+        for (let index = current - 1; index >= 0; index -= 1) if (!visibleOptions[index]?.disabled) return index
+        return current
+      })
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      pick(highlight)
     }
   }
 
@@ -142,6 +187,21 @@ export function Select({ id, value, options, onChange, placeholder, emptyLabel, 
             style={{ ...panelStyle, maxHeight: PANEL_MAX_HEIGHT_PX }}
             data-listbox-panel=""
           >
+            {searchable ? (
+              <div className="shrink-0 border-b border-line p-1.5">
+                <TextInput
+                  ref={searchRef}
+                  value={query}
+                  onChange={onSearchChange}
+                  onKeyDown={onSearchKey}
+                  type="search"
+                  search
+                  fullWidth
+                  aria-label={t('common.search')}
+                  placeholder={`${t('common.search')}…`}
+                />
+              </div>
+            ) : null}
             <ScrollArea
               className="min-h-0 flex-1"
               indicator="vertical"
@@ -154,12 +214,12 @@ export function Select({ id, value, options, onChange, placeholder, emptyLabel, 
               }}
             >
               <div className="m-0 list-none p-0.5">
-                {options.length === 0 ? (
+                {visibleOptions.length === 0 ? (
                   <div className="p-2 text-xs text-ink-soft" role="status">
                     {resolvedEmptyLabel}
                   </div>
                 ) : (
-                  options.map((opt, index) => {
+                  visibleOptions.map((opt, index) => {
                     const isSelected = opt.value === value
                     const isHi = index === highlight
                     return (
@@ -215,7 +275,9 @@ export function Select({ id, value, options, onChange, placeholder, emptyLabel, 
         onClick={() => (open ? close() : openPanel())}
         onKeyDown={onTriggerKey}
       >
-        <span className={cn(!selected && 'text-ink-soft')}>{label}</span>
+        <span className={cn('min-w-0 truncate whitespace-nowrap text-left', !selected && 'text-ink-soft')} title={selected ? label : undefined}>
+          {label}
+        </span>
         <IoChevronDown className="shrink-0 text-ink-soft" size={14} aria-hidden />
       </button>
       {panel}

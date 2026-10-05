@@ -59,6 +59,8 @@ type Props = {
   onPatchWinSize: (size: { width: number; height: number }) => void
   boundGameRoot: string
   boundShellSource: string
+  /** Omitted when plugins cannot be installed here; `supported: false` locks it to manual */
+  autoUpdatePlugins?: { enabled: boolean; supported: boolean; hint?: string; onChange: (next: boolean) => void }
 }
 
 type PathAction = { label: string; tooltip: string; onClick: () => void }
@@ -148,6 +150,7 @@ export function DashboardSettings({
   onPatchWinSize,
   boundGameRoot,
   boundShellSource,
+  autoUpdatePlugins: autoUpdate,
 }: Props) {
   const t = useT()
   const locked = busy || remote
@@ -229,6 +232,26 @@ export function DashboardSettings({
           copy={{ label: t('settings.copyShellPath'), tooltip: remote ? t('settings.remoteNoShell') : t('settings.copyShellPath'), onClick: () => onCopyPath(shellSource) }}
         />
       )}
+
+      {autoUpdate ? (
+        <div className={formFieldInline}>
+          <span className={cn(formTitleInline, autoUpdate.supported && 'cursor-pointer')} onClick={() => autoUpdate.supported && autoUpdate.onChange(!autoUpdate.enabled)}>
+            {t('settings.autoUpdatePlugins')}
+          </span>
+          <span className={formDescInline}>{autoUpdate.supported ? autoUpdate.hint || t('settings.autoUpdatePluginsDesc') : t('settings.autoUpdateManualOnly')}</span>
+          <div className={formControlInline}>
+            <SwitchToggle
+              checked={autoUpdate.supported && autoUpdate.enabled}
+              disabled={!autoUpdate.supported}
+              onCheckedChange={autoUpdate.onChange}
+              aria-label={t('settings.autoUpdatePlugins')}
+              tooltip={
+                autoUpdate.enabled ? t('settings.toggleOff', { label: t('settings.autoUpdatePlugins') }) : t('settings.toggleOn', { label: t('settings.autoUpdatePlugins') })
+              }
+            />
+          </div>
+        </div>
+      ) : null}
 
       {win && !remote ? (
         <>

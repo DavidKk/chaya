@@ -166,6 +166,30 @@ describe('download cache', () => {
     expect(fs.readdirSync(elsewhere)).toEqual([])
   })
 })
+describe('uninstall', () => {
+  test('removes Chaya-written shells, keeps saves, backups and other apps', () => {
+    fs.mkdirSync(path.join(game, 'nwjs.app'))
+    fs.mkdirSync(path.join(game, 'Chaya.app.backup-1'))
+    fs.mkdirSync(path.join(game, 'Game.app'))
+    // FSA cannot delete this; the script must
+    fs.symlinkSync('original', path.join(game, 'Chaya.app', 'Current'))
+    const result = execute({ CHAYA_ACTION: 'uninstall', CHAYA_LANG: 'zh' })
+    expect(result.stderr).toBe('')
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('[3/3]')
+    expect(result.stdout).toContain('卸载完成')
+    expect(fs.readdirSync(game).sort()).toEqual(['Chaya.app.backup-1', 'Game.app', 'www'])
+    expect(fs.readFileSync(path.join(game, 'www/save.rpgsave'), 'utf8')).toBe('save')
+    expect(downloads()).toBe(0)
+  })
+
+  test('changes nothing without a Chaya shell', () => {
+    fs.rmSync(path.join(game, 'Chaya.app'), { recursive: true })
+    const result = execute({ CHAYA_ACTION: 'uninstall' })
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('nothing was changed')
+  })
+})
 test.each(['download', 'sign', 'replace'])('%s failure preserves or restores original shell', (failure) => {
   const result = execute({ TEST_FAIL: failure })
   expect(result.status).not.toBe(0)

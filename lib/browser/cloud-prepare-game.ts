@@ -14,7 +14,7 @@ import { parsePluginsJsEntries, serializePluginsJs } from '@/lib/game/plugins-pa
 import { type PluginStatus, TRACKED_PLUGINS } from '@/lib/game/types'
 
 import { collectCloudFingerprint } from './cloud-fingerprint'
-import { type CloudFootprint, countCloudCacheEntries, detectCloudPlugins } from './cloud-footprint'
+import { type CloudFootprint, countCloudCacheEntries, detectCloudPlugins, detectCloudPluginsOutdated } from './cloud-footprint'
 import { type CloudNwPackage, readCloudNwPackage } from './cloud-window'
 import {
   detectClientArch,
@@ -50,6 +50,8 @@ export type CloudGame = {
   existingShell?: string
   nwPackage?: CloudNwPackage | null
   plugins?: PluginStatus[]
+  /** Installed plugin files differ from the current build */
+  pluginsOutdated?: boolean
   fingerprint?: GameFingerprintSummary | null
   cacheEntries?: number
   /** 目录遍历较慢，由 useCloudLibrary 后台补齐；装壳后置空重算 */
@@ -179,13 +181,14 @@ export async function inspectCloudGame(game: CloudGame): Promise<CloudGame> {
   const pluginsInstalled = !!parsed && parsed.list.some((p) => p.name === PLUGIN_LOADER_NAME && p.status === true)
   const finder = game.os === 'mac' ? findExistingMacShell : game.os === 'win' ? findExistingWinShell : findExistingLinuxShell
   const existingShell = (await finder(game.picked, game.content)) || undefined
-  const [nwPackage, plugins, cacheEntries, fingerprint] = await Promise.all([
+  const [nwPackage, plugins, pluginsOutdated, cacheEntries, fingerprint] = await Promise.all([
     readCloudNwPackage(game.content),
     detectCloudPlugins(game.content),
+    pluginsInstalled ? detectCloudPluginsOutdated(game.content) : false,
     countCloudCacheEntries(game.picked, game.content),
     collectCloudFingerprint(game.content),
   ])
-  return { ...game, pluginsInstalled, existingShell, nwPackage, plugins, cacheEntries, fingerprint: fingerprint ?? null }
+  return { ...game, pluginsInstalled, existingShell, nwPackage, plugins, pluginsOutdated, cacheEntries, fingerprint: fingerprint ?? null }
 }
 
 export async function installCloudPlugins(game: CloudGame, gameId?: string): Promise<void> {

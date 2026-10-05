@@ -17,6 +17,7 @@ export function appNavPathFromPathname(pathname: string): AppNavPath {
   if (pathname.startsWith('/translate') || pathname.startsWith('/cache')) return '/translate'
   if (pathname.startsWith('/logs')) return '/logs'
   if (pathname.startsWith('/integration')) return '/integration'
+  if (pathname.startsWith('/settings')) return '/settings'
   return '/game'
 }
 
@@ -46,9 +47,9 @@ export function AppTopBar({ current, end, className }: Props) {
         </div>
         <div className={cn(topRight, 'self-center')}>
           {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
-          {end}
           <DownloadCenter />
           <LocaleSwitcher />
+          {end}
         </div>
       </div>
     </header>

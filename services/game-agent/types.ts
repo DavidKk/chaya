@@ -2,7 +2,21 @@ export type GameAgentMode = 'ask' | 'play'
 
 export type OllamaModel = { name: string; size?: number; modifiedAt?: string }
 
-export type GameAgentMessage = { role: 'user' | 'assistant' | 'system'; content: string }
+export type OllamaToolCall = {
+  function: { name: string; arguments: Record<string, unknown> }
+}
+
+export type OllamaTool = {
+  type: 'function'
+  function: { name: string; description: string; parameters: Record<string, unknown> }
+}
+
+export type GameAgentMessage = {
+  role: 'user' | 'assistant' | 'system' | 'tool'
+  content: string
+  tool_calls?: OllamaToolCall[]
+  tool_name?: string
+}
 
 export type GameAgentSession = {
   id: string
@@ -26,6 +40,8 @@ export type GameAgentTurn = {
 export type GameAgentEvent =
   | { type: 'turn.started'; turnId: string; sessionId: string }
   | { type: 'phase'; phase: 'observing' | 'thinking'; step: number; maxSteps: number }
+  | { type: 'tool.started'; callId: string; name: string }
+  | { type: 'tool.completed'; callId: string; name: string; ok: boolean }
   | { type: 'assistant.delta'; text: string }
   | { type: 'turn.completed'; text: string; reason: 'answered' }
   | { type: 'turn.stopped' }

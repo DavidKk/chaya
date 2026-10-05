@@ -122,7 +122,7 @@ export function useDashboardActions({ status, shellSource, setShellSource, setBu
   }
 
   async function fetchLatestShell() {
-    const upgrading = !!(status && 'hasShell' in status && status.hasShell)
+    const upgrading = !!(status && 'installedShell' in status && status.installedShell)
     const ok = await confirm({
       title: upgrading ? '升级到最新 NW.js？' : '下载最新 NW.js？',
       description: upgrading
@@ -158,18 +158,23 @@ export function useDashboardActions({ status, shellSource, setShellSource, setBu
     }
   }
 
-  async function injectPlugins() {
+  /** `quiet`: auto update shows its own toast; errors still surface */
+  async function injectPlugins(opts?: { quiet?: boolean }): Promise<boolean> {
     setBusy(true)
     try {
       const res = await fetch('/api/plugins', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
         notify.error(readApiErrorMessage(data, '安装插件失败'))
-        return
+        return false
       }
       const copied = Array.isArray(data.copied) ? data.copied.length : 0
-      notify.success(data.pluginsJsUpdated ? `已安装插件（缓存 ${copied} 个）` : copied ? `插件已更新（缓存 ${copied} 个）` : '插件已是最新')
+      if (!opts?.quiet) notify.success(data.pluginsJsUpdated ? `已安装插件（缓存 ${copied} 个）` : copied ? `插件已更新（缓存 ${copied} 个）` : '插件已是最新')
       await refresh()
+      return true
+    } catch {
+      notify.error('安装插件失败')
+      return false
     } finally {
       setBusy(false)
     }

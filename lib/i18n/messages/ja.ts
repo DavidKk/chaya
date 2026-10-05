@@ -7,7 +7,7 @@ import type { MessageTree } from '@/lib/i18n/messages/types'
 
 const base = {
   locale: { label: '言語', switch: '言語', auto: 'システム（{name}）' },
-  nav: { main: 'ナビ', library: 'ゲーム庫', edit: '編集', translate: '翻訳', logs: 'ログ', integration: '連携' },
+  nav: { main: 'ナビ', library: 'ゲーム庫', edit: '編集', translate: '翻訳', logs: 'ログ', integration: '連携', settings: '設定' },
   common: {
     close: '閉じる',
     cancel: '取消',
@@ -121,6 +121,8 @@ const base = {
     shellTaskLocked: '別のページがこのゲームのシェルをインストール中です',
     pluginsInstalled: 'プラグインをインストールしました',
     pluginsCleared: 'プラグインを削除しました',
+    pluginsAutoUpdated: 'プラグインを自動更新しました',
+    pluginsAutoUpdatedRestart: 'プラグインを自動更新しました · ゲームを再起動すると反映されます',
     shellUninstalled: 'シェルを削除しました',
     shellNothingToUninstall: '削除できるシェルはありません',
   },
@@ -216,6 +218,10 @@ const base = {
     winFullscreenDesc: '全画面で起動',
     winFrame: '枠',
     winFrameDesc: 'OS タイトルバー',
+    autoUpdatePlugins: 'プラグインを自動更新',
+    autoUpdatePluginsDesc: 'プラグインが最新でないとき自動で更新します',
+    autoUpdateBrowserHint: 'フォルダー許可中は自動更新',
+    autoUpdateManualOnly: 'このブラウザーは非対応、手動で更新',
     toggleOn: '{label} オン',
     toggleOff: '{label} オフ',
   },
@@ -248,9 +254,15 @@ const base = {
     needSource: '元を選ぶか取得',
     upgrade: '更新',
     downloadLatest: '最新を取得',
+    upToDate: '最新のシェルです',
+    checking: '確認中…',
     uninstall: '削除',
   },
-  gameActions: { installPlugins: '導入', clearPlugins: '消去' },
+  gameActions: {
+    installPlugins: '導入',
+    updatePlugins: '更新',
+    clearPlugins: '消去',
+  },
   titleEditor: { remarkAria: 'メモ名', placeholder: 'メモ名', edit: 'メモ編集' },
 } as const
 

@@ -2,7 +2,7 @@
 
 import type { ComponentProps } from 'react'
 import { IoPauseOutline, IoPlayOutline } from 'react-icons/io5'
-import { MdOutlineExtension, MdOutlineExtensionOff } from 'react-icons/md'
+import { MdOutlineExtension, MdOutlineExtensionOff, MdOutlineUpdate } from 'react-icons/md'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { LaunchHelp } from '@/components/LaunchHelp'
@@ -15,7 +15,8 @@ const actionButtonClass = 'min-h-11 shrink-0 px-4 text-sm focus-visible:!outline
 type Props = {
   busy: boolean
   launch: { online: boolean; pending: boolean; enabled: boolean; label: string; tooltip?: string; onStart: () => Promise<void>; onQuit: () => Promise<void> }
-  plugins: { state: 'missing' | 'ready' | 'unavailable'; onInstall: () => Promise<void>; onClear: () => Promise<void> }
+  /** `outdated`: installed but not the current build; reinstalling overwrites in place */
+  plugins: { state: 'missing' | 'outdated' | 'ready' | 'unavailable'; onInstall: () => Promise<unknown>; onClear: () => Promise<void> }
   shell: Omit<ComponentProps<typeof ShellActionsMenu>, 'busy' | 'gameOnline' | 'buttonClassName'>
   /** 浏览器模式：该游戏的装壳任务等待选压缩包时在此显示步骤 */
   shellTaskGameId?: string
@@ -41,13 +42,19 @@ export function DashboardGameActions({ busy, launch, plugins, shell, shellTaskGa
         {plugins.state !== 'unavailable' ? (
           <Button
             className={actionButtonClass}
-            variant={plugins.state === 'missing' ? 'accent' : 'fail'}
+            variant={plugins.state === 'ready' ? 'fail' : 'accent'}
             disabled={busy}
             loading={busy}
-            onClick={() => void (plugins.state === 'missing' ? plugins.onInstall() : plugins.onClear())}
+            onClick={() => void (plugins.state === 'ready' ? plugins.onClear() : plugins.onInstall())}
           >
-            {plugins.state === 'missing' ? <MdOutlineExtension size={18} aria-hidden /> : <MdOutlineExtensionOff size={18} aria-hidden />}
-            {plugins.state === 'missing' ? t('gameActions.installPlugins') : t('gameActions.clearPlugins')}
+            {plugins.state === 'ready' ? (
+              <MdOutlineExtensionOff size={18} aria-hidden />
+            ) : plugins.state === 'outdated' ? (
+              <MdOutlineUpdate size={18} aria-hidden />
+            ) : (
+              <MdOutlineExtension size={18} aria-hidden />
+            )}
+            {t(plugins.state === 'ready' ? 'gameActions.clearPlugins' : plugins.state === 'outdated' ? 'gameActions.updatePlugins' : 'gameActions.installPlugins')}
           </Button>
         ) : null}
         <ShellActionsMenu {...shell} busy={busy} gameOnline={launch.online} buttonClassName={actionButtonClass} />

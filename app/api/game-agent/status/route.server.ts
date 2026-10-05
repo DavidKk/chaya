@@ -51,6 +51,6 @@ export const GET = defineApiRoute('get:/api/game-agent/status', async ({ request
     profiles,
     defaultProfileId: defaultProfile?.id || '',
     session: session ? { id: session.id, profileId: session.profileId, activeTurnId: session.activeTurnId } : null,
-    reason: !game ? '游戏 Agent bridge 尚未连接' : available ? null : defaultProfile?.reason || '没有可用的 Agent 接入实例',
+    reason: !game ? 'Chaya 助手尚未连接游戏' : available ? null : defaultProfile?.reason || '没有可用的 Agent',
   })
 })

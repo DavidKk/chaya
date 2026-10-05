@@ -208,7 +208,7 @@ URL 在所有形态下相同（无 `/app`、`/edge` 前缀）。构建目标只�
 
 | 命令                        | 构建目标 | 收录路由                    | 说明                                                                                                                   |
 | --------------------------- | -------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                  | dev      | 全部 + `*.server` + `*.dev` | 右上角 dev 切换器（Server / Edge）热切换，整个 dev 进程生效、整页刷新，无需重启                                        |
+| `pnpm dev`                  | dev      | 全部 + `*.server` + `*.dev` | 右上角 dev 切换器（Local / Edge，对应 [run-modes.md](../run-modes.md)）热切换，整个 dev 进程生效、整页刷新，无需重启   |
 | `pnpm build` → `pnpm start` | server   | 全部 + `*.server`           | 本机 Node 服务                                                                                                         |
 | `pnpm build:app` / `dist:*` | server   | 同上                        | 同一产物 + `output: 'standalone'` + Electron；`CHAYA_DATA_DIR` 等由 Electron 运行时注入，不进构建判断                  |
 | `pnpm build:edge` / Vercel  | edge     | 不含 `*.server` / `*.dev`   | `VERCEL=1` 自动视为 edge；自托管须在**构建时**设 `CHAYA_TARGET=edge` 再 `next start`（前提见 deployment-platforms §3） |

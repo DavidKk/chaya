@@ -7,7 +7,7 @@ import type { MessageTree } from '@/lib/i18n/messages/types'
 
 const base = {
   locale: { label: '언어', switch: '언어', auto: '시스템 ({name})' },
-  nav: { main: '탐색', library: '보관함', edit: '수정', translate: '번역', logs: '로그', integration: '연동' },
+  nav: { main: '탐색', library: '보관함', edit: '수정', translate: '번역', logs: '로그', integration: '연동', settings: '설정' },
   common: {
     close: '닫기',
     cancel: '취소',
@@ -121,6 +121,8 @@ const base = {
     shellTaskLocked: '다른 페이지에서 이 게임의 셸을 설치하는 중입니다',
     pluginsInstalled: '플러그인을 설치했습니다',
     pluginsCleared: '플러그인을 제거했습니다',
+    pluginsAutoUpdated: '플러그인을 자동 업데이트했습니다',
+    pluginsAutoUpdatedRestart: '플러그인을 자동 업데이트했습니다 · 게임을 다시 시작하면 적용됩니다',
     shellUninstalled: '셸을 삭제했습니다',
     shellNothingToUninstall: '삭제할 셸이 없습니다',
   },
@@ -216,6 +218,10 @@ const base = {
     winFullscreenDesc: '전체 화면 시작',
     winFrame: '테두리',
     winFrameDesc: 'OS 제목 표시줄',
+    autoUpdatePlugins: '플러그인 자동 업데이트',
+    autoUpdatePluginsDesc: '플러그인이 최신이 아니면 자동으로 업데이트합니다',
+    autoUpdateBrowserHint: '폴더 권한이 있으면 자동 업데이트',
+    autoUpdateManualOnly: '이 브라우저는 미지원, 수동 업데이트',
     toggleOn: '{label} 켜기',
     toggleOff: '{label} 끄기',
   },
@@ -246,11 +252,17 @@ const base = {
     quitFirst: '먼저 종료',
     install: '설치',
     needSource: '원본 선택 또는 받기',
-    upgrade: '업그레이드',
+    upgrade: '업데이트',
     downloadLatest: '최신 받기',
+    upToDate: '최신 셸입니다',
+    checking: '확인 중…',
     uninstall: '제거',
   },
-  gameActions: { installPlugins: '설치', clearPlugins: '지우기' },
+  gameActions: {
+    installPlugins: '설치',
+    updatePlugins: '업데이트',
+    clearPlugins: '지우기',
+  },
   titleEditor: { remarkAria: '메모', placeholder: '메모 이름', edit: '메모 편집' },
 } as const
 

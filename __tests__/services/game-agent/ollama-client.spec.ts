@@ -17,8 +17,25 @@ describe('game agent Ollama client', () => {
     const fetcher = jest.fn(async () => streamed(['{"message":{"content":"你', '好"}}\n{"message":{"content":"！"}}\n'])) as unknown as typeof fetch
     const deltas: string[] = []
     const answer = await streamOllamaChat({ model: 'demo', messages: [{ role: 'user', content: 'hi' }] }, (text) => deltas.push(text), fetcher)
-    expect(answer).toBe('你好！')
+    expect(answer).toEqual({ role: 'assistant', content: '你好！' })
     expect(deltas).toEqual(['你好', '！'])
+  })
+
+  it('sends tools and parses Gemma tool calls with object or JSON arguments', async () => {
+    const fetcher = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body))
+      expect(body.tools[0].function.name).toBe('chaya_edit_set')
+      expect(body.options.num_ctx).toBe(16_384)
+      return streamed([
+        '{"message":{"content":"","tool_calls":[{"function":{"name":"chaya_edit_set","arguments":{"op":"walkRate","value":2}}},{"function":{"name":"chaya_edit_set","arguments":"{\\"op\\":\\"runRate\\",\\"value\\":2}"}}]}}\n',
+      ])
+    }) as unknown as typeof fetch
+    const tools = [{ type: 'function' as const, function: { name: 'chaya_edit_set', description: 'Set a value', parameters: { type: 'object' } } }]
+    const message = await streamOllamaChat({ model: 'gemma', messages: [], tools }, () => {}, fetcher)
+    expect(message.tool_calls).toEqual([
+      { function: { name: 'chaya_edit_set', arguments: { op: 'walkRate', value: 2 } } },
+      { function: { name: 'chaya_edit_set', arguments: { op: 'runRate', value: 2 } } },
+    ])
   })
 
   it('reads installed models and prefers the existing repository default', async () => {

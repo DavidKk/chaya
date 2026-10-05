@@ -5,7 +5,7 @@ import type { McpGatewayMessages } from '@/lib/i18n/messages/mcp-gateway-types'
 /** 叶子为 string 的同构文案树 */
 export type MessageTree = {
   locale: { label: string; switch: string; auto: string }
-  nav: { main: string; library: string; edit: string; translate: string; logs: string; integration: string }
+  nav: { main: string; library: string; edit: string; translate: string; logs: string; integration: string; settings: string }
   common: {
     close: string
     cancel: string
@@ -113,6 +113,8 @@ export type MessageTree = {
     shellTaskLocked: string
     pluginsInstalled: string
     pluginsCleared: string
+    pluginsAutoUpdated: string
+    pluginsAutoUpdatedRestart: string
     shellUninstalled: string
     shellNothingToUninstall: string
   }
@@ -208,6 +210,10 @@ export type MessageTree = {
     winFullscreenDesc: string
     winFrame: string
     winFrameDesc: string
+    autoUpdatePlugins: string
+    autoUpdatePluginsDesc: string
+    autoUpdateBrowserHint: string
+    autoUpdateManualOnly: string
     toggleOn: string
     toggleOff: string
   }
@@ -240,10 +246,13 @@ export type MessageTree = {
     needSource: string
     upgrade: string
     downloadLatest: string
+    upToDate: string
+    checking: string
     uninstall: string
   }
   gameActions: {
     installPlugins: string
+    updatePlugins: string
     clearPlugins: string
   }
   titleEditor: {

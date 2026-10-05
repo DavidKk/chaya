@@ -6,10 +6,12 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
 import { measureCloudFootprint } from '@/lib/browser/cloud-footprint'
 import {
+  canQueryCloudPermission,
   CLOUD_GAME_SELECTION_EVENT,
   CLOUD_LIBRARY_CHANGED_EVENT,
   type CloudLibraryEntry,
   cloudLibraryStorage,
+  hasCloudPermission,
   readCloudGameId,
   requireCloudPermission,
   selectCloudGameId,
@@ -58,7 +60,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
   const [loaded, setLoaded] = useState(false)
   const actionInFlight = useRef(false)
   const [busy, setBusy] = useState(false)
-  const [macOpen, setMacOpen] = useState(false)
+  const [macDialogOpen, setMacDialogOpen] = useState(false)
   const [downloadUrl, setDownloadUrl] = useState<string>()
   const notify = useNotification()
   const t = useT()
@@ -127,9 +129,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
       /** 返回是否完成了检测；未授权 / 失败不触发下一轮，避免反复排队 */
       const task = async (): Promise<boolean> => {
         const { game } = target
-        const handle = game.picked as FileSystemDirectoryHandle & { queryPermission?(options: { mode: 'readwrite' }): Promise<PermissionState> }
-        if (typeof handle.queryPermission !== 'function') return false
-        if ((await handle.queryPermission({ mode: 'readwrite' }).catch(() => 'denied')) !== 'granted') return false
+        if (!(await hasCloudPermission(game))) return false
         let fresh = game
         let shellChanged = false
         if (needsInspect) {
@@ -143,6 +143,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
             fingerprint: fresh.fingerprint,
             existingShell: fresh.existingShell,
             pluginsInstalled: fresh.pluginsInstalled,
+            pluginsOutdated: fresh.pluginsOutdated,
             ...(shellChanged ? { footprint: undefined } : {}),
           })
         }
@@ -210,11 +211,13 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
       notify.success(t('notify.cloudAddedHint'))
     })
   }
-  async function operate(action: (game: CloudGame) => Promise<void>, opts?: { remeasure?: boolean }) {
+  /** `silent`: never prompt (no click to ask from); skips when the folder is not already authorized */
+  async function operate(action: (game: CloudGame) => Promise<void>, opts?: { remeasure?: boolean; silent?: boolean }) {
     if (!active) return
     const selected = active
+    if (opts?.silent && !(await hasCloudPermission(selected.game))) return
     await run(async () => {
-      await requireCloudPermission(selected.game)
+      if (!opts?.silent) await requireCloudPermission(selected.game)
       await action(selected.game)
       const inspected = await inspectCloudGame(selected.game)
       const game = opts?.remeasure ? { ...inspected, footprint: undefined } : inspected
@@ -223,7 +226,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
   }
   async function installShell() {
     if (active?.game.os === 'mac') {
-      setMacOpen(true)
+      setMacDialogOpen(true)
       return
     }
     if (active?.game.os === 'win') {
@@ -282,6 +285,7 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
         plugins: activePlugins,
         pluginsReady: countReadyPlugins(activePlugins),
         pluginsTotal: TRACKED_PLUGINS.length,
+        pluginsOutdated: !!active.game.pluginsOutdated,
         nwPackage: active.game.nwPackage ?? null,
         host: { platform: active.game.os === 'mac' ? 'darwin' : active.game.os === 'win' ? 'win32' : 'linux' },
       }
@@ -292,8 +296,8 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
     busy,
     active,
     choose,
-    macOpen,
-    setMacOpen,
+    macDialogOpen,
+    closeMacDialog: () => setMacDialogOpen(false),
     installShell,
     uninstallShell,
     downloadUrl,
@@ -339,6 +343,20 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
         await installCloudPlugins(game, active?.item.id)
         notify.success(t('notify.pluginsInstalled'))
       }),
+    /** Auto update: no prompt, no own toast; `null` when the folder is not authorized yet */
+    autoUpdatePlugins: async (): Promise<boolean | null> => {
+      if (!active || !(await hasCloudPermission(active.game))) return null
+      let updated = false
+      await operate(
+        async (game) => {
+          await installCloudPlugins(game, active?.item.id)
+          updated = true
+        },
+        { silent: true }
+      )
+      return updated
+    },
+    canAutoUpdatePlugins: !!active && canQueryCloudPermission(active.game),
     clearPlugins: () =>
       operate(async (game) => {
         await clearCloudPlugins(game)

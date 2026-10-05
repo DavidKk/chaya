@@ -11,7 +11,7 @@ describe('game agent settings', () => {
     expect(settings.profiles[0]).toMatchObject({ id: settings.defaultProfileId, provider: 'ollama', endpoint: 'http://127.0.0.1:11434' })
   })
 
-  it('persists multiple profiles and keeps their labels', () => {
+  it('persists multiple profiles and always uses the first profile as default', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-agent-'))
     const file = path.join(dir, 'settings.json')
     const first = defaultGameAgentSettings().profiles[0]
@@ -23,7 +23,7 @@ describe('game agent settings', () => {
       file
     )
     expect(loadGameAgentSettings(file)).toMatchObject({
-      defaultProfileId: 'second',
+      defaultProfileId: first.id,
       profiles: [{ label: 'Local Ollama' }, { id: 'second', label: 'Office Ollama', endpoint: 'http://192.168.1.2:11434' }],
     })
   })

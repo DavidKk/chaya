@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { ROOT_PATH } from '@/constants/paths'
 
-import { findEnclosingLinuxBinary, findEnclosingWinExe, isWin32 } from './shell-layout'
+import { findEnclosingLinuxBinary, findEnclosingWinExe, isWin32, validShellExists } from './shell-layout'
 import { resolveToolkitShellAppPath } from './toolkit-data'
 import { LEGACY_PROJECT_SHELL_NAMES, type ResolvedGame, type ResolveError, SHELL_APP_NAME } from './types'
 
@@ -146,7 +146,7 @@ export function resolveGame(input: string, toolkitRoot = ROOT_PATH): ResolvedGam
     const projectRoot = base === 'www' || base === 'app.nw' || base === 'package.nw' ? path.dirname(contentAbs) : contentAbs
     const shellApp = resolveToolkitShellAppPath(toolkitRoot)
     const legacyCandidates = [SHELL_APP_NAME, ...LEGACY_PROJECT_SHELL_NAMES].map((name) => path.join(projectRoot, name))
-    const legacyHit = legacyCandidates.find((p) => fs.existsSync(/* turbopackIgnore: true */ p))
+    const legacyHit = legacyCandidates.find((p) => validShellExists(p))
     const hasShared = fs.existsSync(shellApp)
     return {
       ok: true,

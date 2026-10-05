@@ -1,4 +1,4 @@
-import type { GameAgentMessage, OllamaModel } from './types'
+import type { GameAgentMessage, OllamaModel, OllamaTool, OllamaToolCall } from './types'
 
 export const DEFAULT_GAME_AGENT_MODEL = 'gemma4:e2b-it-q4_K_M'
 export const DEFAULT_OLLAMA_HOST = 'http://127.0.0.1:11434'
@@ -30,10 +30,10 @@ export function pickDefaultModel(models: OllamaModel[]): string {
 }
 
 export async function streamOllamaChat(
-  input: { endpoint?: string; model: string; messages: GameAgentMessage[]; temperature?: number; keepAlive?: string; signal?: AbortSignal },
+  input: { endpoint?: string; model: string; messages: GameAgentMessage[]; tools?: OllamaTool[]; temperature?: number; keepAlive?: string; signal?: AbortSignal },
   onDelta: (text: string) => void,
   fetcher: typeof fetch = fetch
-): Promise<string> {
+): Promise<GameAgentMessage> {
   let response: Response
   try {
     response = await fetcher(`${(input.endpoint || DEFAULT_OLLAMA_HOST).replace(/\/$/, '')}/api/chat`, {
@@ -44,7 +44,8 @@ export async function streamOllamaChat(
         stream: true,
         think: false,
         messages: input.messages,
-        options: { temperature: input.temperature ?? 0.2 },
+        ...(input.tools?.length ? { tools: input.tools } : {}),
+        options: { temperature: input.temperature ?? 0.2, num_ctx: 16_384 },
         keep_alive: input.keepAlive || '10m',
       }),
       signal: input.signal,
@@ -63,11 +64,30 @@ export async function streamOllamaChat(
   const decoder = new TextDecoder()
   let buffer = ''
   let full = ''
+  const toolCalls: OllamaToolCall[] = []
+
+  const normalizeToolCall = (raw: unknown): OllamaToolCall | null => {
+    const fn = raw && typeof raw === 'object' ? (raw as { function?: unknown }).function : null
+    if (!fn || typeof fn !== 'object') return null
+    const name = typeof (fn as { name?: unknown }).name === 'string' ? (fn as { name: string }).name.trim() : ''
+    if (!name) return null
+    const rawArgs = (fn as { arguments?: unknown }).arguments
+    if (rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)) return { function: { name, arguments: rawArgs as Record<string, unknown> } }
+    if (typeof rawArgs === 'string' && rawArgs.trim()) {
+      try {
+        const parsed = JSON.parse(rawArgs) as unknown
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return { function: { name, arguments: parsed as Record<string, unknown> } }
+      } catch {
+        return { function: { name, arguments: {} } }
+      }
+    }
+    return { function: { name, arguments: {} } }
+  }
 
   const parseLine = (line: string) => {
     const trimmed = line.trim()
     if (!trimmed) return
-    let item: { message?: { content?: unknown }; error?: unknown }
+    let item: { message?: { content?: unknown; tool_calls?: unknown }; error?: unknown }
     try {
       item = JSON.parse(trimmed) as typeof item
     } catch {
@@ -78,6 +98,12 @@ export async function streamOllamaChat(
     if (delta) {
       full += delta
       onDelta(delta)
+    }
+    if (Array.isArray(item.message?.tool_calls)) {
+      for (const raw of item.message.tool_calls) {
+        const call = normalizeToolCall(raw)
+        if (call) toolCalls.push(call)
+      }
     }
   }
 
@@ -91,5 +117,5 @@ export async function streamOllamaChat(
   }
   buffer += decoder.decode()
   if (buffer.trim()) parseLine(buffer)
-  return full
+  return { role: 'assistant', content: full, ...(toolCalls.length ? { tool_calls: toolCalls } : {}) }
 }

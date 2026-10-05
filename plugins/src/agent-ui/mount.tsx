@@ -3,9 +3,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { GameAgentSidebar } from '@/components/game-agent/GameAgentSidebar'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 
-import { chayaFetch, gameRoomId } from '../helpers'
+import { gameRoomId } from '../helpers'
 import { ensureGameAgentHost } from './host'
 import overlayCss from './overlay.css?inline'
+import { pluginGameAgentRequest } from './request'
 
 let root: Root | null = null
 let host: HTMLElement | null = null
@@ -15,7 +16,7 @@ function render() {
   if (!root) return
   root.render(
     <LocaleProvider syncDocumentLang={false}>
-      <GameAgentSidebar gameId={gameRoomId()} open={open} onClose={hideGameAgentUi} request={chayaFetch} />
+      <GameAgentSidebar gameId={gameRoomId()} open={open} onClose={hideGameAgentUi} request={pluginGameAgentRequest} />
     </LocaleProvider>
   )
 }

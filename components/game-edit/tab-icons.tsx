@@ -4,7 +4,7 @@ import type { IconType } from 'react-icons'
 import { GiAbdominalArmor, GiAxeSword, GiBackpack, GiBurn, GiCharacter, GiKey, GiNothingToSay, GiSettingsKnobs } from 'react-icons/gi'
 import { HiVariable } from 'react-icons/hi'
 import { IoIosSwitch } from 'react-icons/io'
-import { IoListOutline } from 'react-icons/io5'
+import { IoListOutline, IoSettingsOutline } from 'react-icons/io5'
 import { LuPlug } from 'react-icons/lu'
 
 import type { TabId } from './tabs'
@@ -23,4 +23,5 @@ export const TAB_ICONS: Record<TabId, IconType> = {
   logs: IoListOutline,
   hotkeys: GiKey,
   mcp: LuPlug,
+  settings: IoSettingsOutline,
 }

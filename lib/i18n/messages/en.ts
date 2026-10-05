@@ -7,7 +7,7 @@ import type { MessageTree } from '@/lib/i18n/messages/types'
 
 const commonEn = {
   locale: { label: 'Language', switch: 'Language', auto: 'System ({name})' },
-  nav: { main: 'Nav', library: 'Library', edit: 'Edit', translate: 'Translate', logs: 'Logs', integration: 'Integrations' },
+  nav: { main: 'Nav', library: 'Library', edit: 'Edit', translate: 'Translate', logs: 'Logs', integration: 'Integrations', settings: 'Settings' },
   common: {
     close: 'Close',
     cancel: 'Cancel',
@@ -95,6 +95,8 @@ const commonEn = {
     shellTaskLocked: 'Another page is installing the shell for this game',
     pluginsInstalled: 'Plugins installed',
     pluginsCleared: 'Plugins cleared',
+    pluginsAutoUpdated: 'Plugins updated automatically',
+    pluginsAutoUpdatedRestart: 'Plugins updated automatically · restart the game to apply',
     shellUninstalled: 'Shell removed',
     shellNothingToUninstall: 'No shell to remove',
   },
@@ -222,6 +224,10 @@ const dashboardEn = {
     winFullscreenDesc: 'Launch fullscreen',
     winFrame: 'Frame',
     winFrameDesc: 'OS title bar',
+    autoUpdatePlugins: 'Auto-update plugins',
+    autoUpdatePluginsDesc: 'Update automatically when installed plugins are out of date',
+    autoUpdateBrowserHint: 'Auto-updates while the folder is authorized',
+    autoUpdateManualOnly: 'Not supported here; update manually',
     toggleOn: 'Enable {label}',
     toggleOff: 'Disable {label}',
   },
@@ -252,11 +258,17 @@ const dashboardEn = {
     quitFirst: 'Quit game first',
     install: 'Install shell',
     needSource: 'Pick source or download',
-    upgrade: 'Upgrade shell',
+    upgrade: 'Update shell',
     downloadLatest: 'Download latest',
+    upToDate: 'Shell is up to date',
+    checking: 'Checking…',
     uninstall: 'Uninstall shell',
   },
-  gameActions: { installPlugins: 'Install plugins', clearPlugins: 'Clear plugins' },
+  gameActions: {
+    installPlugins: 'Install plugins',
+    updatePlugins: 'Update plugins',
+    clearPlugins: 'Clear plugins',
+  },
   titleEditor: { remarkAria: 'Remark', placeholder: 'Remark name', edit: 'Edit remark' },
 } as const
 

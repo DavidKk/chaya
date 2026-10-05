@@ -20,8 +20,12 @@ export function remoteScriptUrl(origin: string, name: RemoteScriptName): string 
 /** Scripts that print localized messages, picked via `CHAYA_LANG`. */
 const LOCALIZED_SCRIPTS: ReadonlySet<RemoteScriptName> = new Set(['install.sh', 'mac-shell.sh'])
 
+/** `mac-shell.sh` installs by default; `uninstall` removes the Chaya-written shell. */
+export type RemoteScriptAction = 'uninstall'
+
 /** `bash -c` keeps stdin free for prompts, unlike `curl … | bash`. */
-export function remoteScriptCommand(origin: string, name: RemoteScriptName, locale?: Locale): string {
-  const env = locale && LOCALIZED_SCRIPTS.has(name) ? `CHAYA_LANG=${locale} ` : ''
-  return `${env}/bin/bash -c "$(curl -fsSL ${remoteScriptUrl(origin, name)})"`
+export function remoteScriptCommand(origin: string, name: RemoteScriptName, locale?: Locale, action?: RemoteScriptAction): string {
+  const lang = locale && LOCALIZED_SCRIPTS.has(name) ? `CHAYA_LANG=${locale} ` : ''
+  const act = action ? `CHAYA_ACTION=${action} ` : ''
+  return `${lang}${act}/bin/bash -c "$(curl -fsSL ${remoteScriptUrl(origin, name)})"`
 }

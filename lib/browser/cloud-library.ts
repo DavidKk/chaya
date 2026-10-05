@@ -37,6 +37,19 @@ export async function requireCloudPermission(game: CloudGame): Promise<void> {
   if ((await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') throw new Error('需要授权访问游戏目录，请重新点击操作或添加游戏。')
 }
 
+type QueryableHandle = FileSystemDirectoryHandle & { queryPermission?(options: { mode: 'readwrite' }): Promise<PermissionState> }
+
+/** Silent work (no click) is only allowed when this returns true; it never prompts */
+export function canQueryCloudPermission(game: CloudGame): boolean {
+  return typeof (game.picked as QueryableHandle).queryPermission === 'function'
+}
+
+export async function hasCloudPermission(game: CloudGame): Promise<boolean> {
+  const handle = game.picked as QueryableHandle
+  if (typeof handle.queryPermission !== 'function') return false
+  return (await handle.queryPermission({ mode: 'readwrite' }).catch(() => 'denied')) === 'granted'
+}
+
 /** Library rewritten outside the dashboard (WebMCP tools): the dashboard reloads from IndexedDB */
 export const CLOUD_LIBRARY_CHANGED_EVENT = 'chaya:browser-library-changed'
 

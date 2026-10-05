@@ -43,6 +43,25 @@ export function findNwLinuxBinary(dir: string): string | null {
   return null
 }
 
+export function looksLikeMacNwApp(appPath: string): boolean {
+  try {
+    return fs.readdirSync(/* turbopackIgnore: true */ path.join(appPath, 'Contents/MacOS')).some((b) => /nw/i.test(b) || b === 'node-webkit')
+  } catch {
+    return false
+  }
+}
+
+/** 是否是可用壳：能解析到真实目录，且按平台找得到壳可执行文件（删到一半的残骸不算） */
+export function validShellExists(p: string): boolean {
+  try {
+    if (!fs.statSync(/* turbopackIgnore: true */ p).isDirectory()) return false
+  } catch {
+    return false
+  }
+  if (process.platform === 'darwin') return looksLikeMacNwApp(p)
+  return Boolean(findNwExeInDir(p) || findNwLinuxBinary(p))
+}
+
 function isLinuxNwBinaryPath(p: string): boolean {
   const base = path.basename(p)
   return LINUX_NW_BIN_NAMES.some((n) => n.toLowerCase() === base.toLowerCase())

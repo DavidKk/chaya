@@ -9,6 +9,7 @@ import { looksLikeNwShellSource } from '@/lib/game/shell-layout'
 import { canUseDisk, requireDisk, serviceModePayload } from '@/lib/service-mode'
 import {
   detectPlugins,
+  detectPluginsOutdated,
   displayNameFromPath,
   findLibraryEntry,
   formatBytes,
@@ -195,6 +196,7 @@ export const GET = defineApiRoute('get:/api/status', async () => {
     plugins,
     pluginsReady,
     pluginsTotal: plugins.length,
+    pluginsOutdated: pluginsReady >= plugins.length && detectPluginsOutdated(resolved.contentRoot),
     translateSwitches: switches,
     nwPackage,
     runtime: runtimePayload(),

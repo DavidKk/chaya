@@ -42,7 +42,13 @@
     "confirmOpen": "Open the game now?",
     "started": "Game started.",
     "openFailed": "Launch failed; double-click Chaya.app to open it.",
-    "bye": "Done. Double-click Chaya.app to start the game later."
+    "bye": "Done. Double-click Chaya.app to start the game later.",
+    "titleUninstall": "Chaya · Uninstall the macOS game shell",
+    "step3Uninstall": "Remove the game shell",
+    "removed": "Removed: %s",
+    "nothingToRemove": "No game shell installed by Chaya was found; nothing was changed.",
+    "uninstalled": "Uninstalled",
+    "uninstallHint": "Saves, game content and old shell backups were left untouched. Pick the game again on the web page to refresh its status."
   },
   "zh": {
     "title": "Chaya · 安装 / 修复 macOS 游戏壳",
@@ -87,7 +93,13 @@
     "confirmOpen": "现在打开游戏？",
     "started": "已启动游戏。",
     "openFailed": "启动失败，请双击 Chaya.app 打开。",
-    "bye": "已退出；之后双击 Chaya.app 即可启动游戏。"
+    "bye": "已退出；之后双击 Chaya.app 即可启动游戏。",
+    "titleUninstall": "Chaya · 卸载 macOS 游戏壳",
+    "step3Uninstall": "删除游戏壳",
+    "removed": "已删除：%s",
+    "nothingToRemove": "未找到 Chaya 安装的游戏壳，未做任何修改。",
+    "uninstalled": "卸载完成",
+    "uninstallHint": "存档、游戏内容和旧壳备份都未改动。请回到网页再选一次游戏以刷新状态。"
   },
   "ja": {
     "title": "Chaya · macOS ゲームシェルのインストール / 修復",
@@ -132,7 +144,13 @@
     "confirmOpen": "今すぐゲームを開きますか？",
     "started": "ゲームを起動しました。",
     "openFailed": "起動に失敗しました。Chaya.app をダブルクリックして開いてください。",
-    "bye": "終了しました。今後は Chaya.app をダブルクリックしてゲームを起動できます。"
+    "bye": "終了しました。今後は Chaya.app をダブルクリックしてゲームを起動できます。",
+    "titleUninstall": "Chaya · macOS ゲームシェルをアンインストール",
+    "step3Uninstall": "ゲームシェルを削除",
+    "removed": "削除しました：%s",
+    "nothingToRemove": "Chaya が導入したゲームシェルが見つかりません。何も変更していません。",
+    "uninstalled": "アンインストール完了",
+    "uninstallHint": "セーブ、ゲーム本体、旧シェルのバックアップは変更していません。Web ページでゲームを選び直して状態を更新してください。"
   },
   "ko": {
     "title": "Chaya · macOS 게임 셸 설치 / 복구",
@@ -177,6 +195,12 @@
     "confirmOpen": "지금 게임을 열까요?",
     "started": "게임을 시작했습니다.",
     "openFailed": "실행에 실패했습니다. Chaya.app을 더블클릭하여 여세요.",
-    "bye": "종료했습니다. 이후에는 Chaya.app을 더블클릭하여 게임을 시작하세요."
+    "bye": "종료했습니다. 이후에는 Chaya.app을 더블클릭하여 게임을 시작하세요.",
+    "titleUninstall": "Chaya · macOS 게임 셸 제거",
+    "step3Uninstall": "게임 셸 삭제",
+    "removed": "삭제함: %s",
+    "nothingToRemove": "Chaya가 설치한 게임 셸을 찾지 못했습니다. 아무것도 변경하지 않았습니다.",
+    "uninstalled": "제거 완료",
+    "uninstallHint": "세이브, 게임 콘텐츠, 이전 셸 백업은 그대로입니다. 웹 페이지에서 게임을 다시 선택해 상태를 새로 고치세요."
   }
 }

@@ -23,9 +23,11 @@ import {
   type TableRow,
 } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
+import { NotificationProvider } from '@/components/notification/NotificationProvider'
 import { EditTableSkeleton } from '@/components/sk'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 
+import { pluginGameAgentRequest } from '../../agent-ui/request'
 import { applyRunAction, applyRunFlag, applySpeed, runActionNeedsClose } from '../runtime/apply-run'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
@@ -88,7 +90,7 @@ export function captureGameEditView() {
   const activeTranslateSection = shadow.querySelector<HTMLElement>('[role="tablist"][aria-label="翻译分区"] [role="tab"][aria-selected="true"]')?.dataset.navId
   viewHost().__chayaGameEditView = {
     ...saved,
-    tab: mainTab === 'trans' || mainTab === 'logs' || mainTab === 'mcp' ? mainTab : parseTabId(tab, saved.tab),
+    tab: mainTab === 'trans' || mainTab === 'logs' || mainTab === 'mcp' || mainTab === 'settings' ? mainTab : parseTabId(tab, saved.tab),
     lastEditTab: isEditTab(parseTabId(tab, saved.lastEditTab)) ? parseTabId(tab, saved.lastEditTab) : saved.lastEditTab,
     translateTab: activeTranslateTab === 'seed' ? 'seed' : activeTranslateTab === 'play' ? 'play' : saved.translateTab,
     translateSection: activeTranslateSection === 'cache' ? 'cache' : activeTranslateSection === 'run' ? 'run' : saved.translateSection,
@@ -105,7 +107,7 @@ function scopeForTab(tab: TabId): LiveSessionScope {
 }
 
 function tabNeedsCatalog(tab: TabId): boolean {
-  return tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans' && tab !== 'mcp'
+  return tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings'
 }
 
 /** In-game React panel: shared GameEditWorkbench + runtime data */
@@ -127,6 +129,11 @@ export function GameEditApp({ open, onRequestClose }: Props) {
   const [onlyNamed, setOnlyNamed] = useState(initial.onlyNamed)
   const [translateTab, setTranslateTab] = useState<'play' | 'seed'>(initial.translateTab)
   const [translateSection, setTranslateSection] = useState<'run' | 'cache'>(initial.translateSection)
+  useEffect(() => {
+    const openSettings = () => setTab('settings')
+    window.addEventListener('chaya:game-settings-opened', openSettings)
+    return () => window.removeEventListener('chaya:game-settings-opened', openSettings)
+  }, [])
   useLayoutEffect(() => {
     viewHost().__chayaGameEditView = { tab, lastEditTab, actorId, actorPane, filter, onlyOwned, onlyNamed, translateTab, translateSection }
   }, [tab, lastEditTab, actorId, actorPane, filter, onlyOwned, onlyNamed, translateTab, translateSection])
@@ -461,6 +468,7 @@ export function GameEditApp({ open, onRequestClose }: Props) {
       <Suspense fallback={<EditTableSkeleton label={t('edit.loadPanel')} />}>
         <GameEditWorkbench
           surface="overlay"
+          agentRequest={pluginGameAgentRequest}
           tab={tab}
           setTab={selectTab}
           lastEditTab={lastEditTab}
@@ -537,12 +545,14 @@ export function GameEditApp({ open, onRequestClose }: Props) {
   )
 }
 
-/** Shadow 内挂 Confirm，保证弹层吃到 overlay token */
+/** Shadow 内挂弹层 Provider，保证浮层吃到 overlay token */
 function GameEditOverlayProviders({ children }: { children: ReactNode }) {
   const [portalHost, setPortalHost] = useState<HTMLDivElement | null>(null)
   return (
     <div ref={setPortalHost} className="relative flex min-h-0 flex-1 flex-col">
-      <ConfirmProvider portalContainer={portalHost}>{children}</ConfirmProvider>
+      <NotificationProvider portalContainer={portalHost}>
+        <ConfirmProvider portalContainer={portalHost}>{children}</ConfirmProvider>
+      </NotificationProvider>
     </div>
   )
 }

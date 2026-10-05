@@ -1,6 +1,7 @@
 # 部署方式 × 操作系统：整体设计
 
 > 状态：现状 + 已定决策（随实现修订；各项实现状态见 §0 标识）。改相关功能先看本文，不必每次读代码；改完同步本文。  
+> 术语：local / edge / plugin 三种运行模式的定义见 [run-modes.md](../run-modes.md)。  
 > 优化方案（待实施项、设计与验收）：[deployment-optimization.md](deployment-optimization.md)  
 > 细节文档：形态判定与 Route 门禁见 [service-modes.md](service-modes.md)；浏览器准备 / 壳策略见 [cloud-prepare-strategy.md](cloud-prepare-strategy.md)；下载中心需求与实现见 [download-center.md](download-center.md) / [download-center-design.md](download-center-design.md)；App 打包见 [electron-app.md](electron-app.md)；视觉见 [chaya-ui-style-guide.md](chaya-ui-style-guide.md)。
 
@@ -38,7 +39,7 @@
 | 概念       | 取值                         | 含义                                   | 判定 / 位置                                                                                                                                                              |
 | ---------- | ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 构建目标   | `server` / `edge` / `dev`    | 是否剔除 `*.server.*` / `*.dev.*` 路由 | **构建时**：`VERCEL=1` 或 `CHAYA_TARGET=edge` → edge；dev 阶段 → dev；否则 server。写成常量 `NEXT_PUBLIC_CHAYA_TARGET`（`next.config.ts`、`lib/service-mode/target.ts`） |
-| 服务形态   | `local` / `app` / `vercel`   | 服务的能力边界                         | edge 构建或 `VERCEL=1` 强制 `vercel`；dev 看右上角切换器（Server / Edge，进程级）；否则看 `CHAYA_SERVICE`（`lib/service-mode/mode.ts`）                                  |
+| 服务形态   | `local` / `app` / `vercel`   | 服务的能力边界                         | edge 构建或 `VERCEL=1` 强制 `vercel`；dev 看右上角切换器（Local / Edge，进程级）；否则看 `CHAYA_SERVICE`（`lib/service-mode/mode.ts`）                                   |
 | 执行运行时 | Node.js（Edge Runtime 未用） | Next 路由实际在哪执行                  | 关键 API 显式声明 `runtime = 'nodejs'`，其余沿用 Next.js 默认                                                                                                            |
 
 由服务形态派生：
@@ -111,7 +112,7 @@
 | ---------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | 选游戏 / 绑定路径            | 系统选目录或手填完整路径                                       | FSA 选目录，只能拿到目录名                                                                                            | 浏览器拿不到绝对路径         |
 | 游戏库                       | 服务端配置文件                                                 | 浏览器 IndexedDB（含目录授权句柄），换浏览器 / 设备看不到                                                             | 授权句柄只能存在浏览器本地   |
-| 装 / 清除插件                | 服务写 `js/plugins/` 与 `js/plugins.js`                        | 浏览器经 FSA 写入；插件文件从 `GET /api/plugins/:name` 拉                                                             | 普通文件，三平台都能写       |
+| 装 / 更新 / 清除插件         | 服务写 `js/plugins/` 与 `js/plugins.js`                        | 浏览器经 FSA 写入；插件文件从 `GET /api/plugins/:name` 拉                                                             | 普通文件，三平台都能写       |
 | 窗口配置（`package.json`）   | `/api/window` 读写                                             | FSA 读写 `<内容根>/package.json`；不存在则不创建                                                                      | 同上                         |
 | 信息条统计                   | 服务统计（体积用 `du`，占盘值）                                | 浏览器统计（逐个文件累加逻辑大小，略小于 `du`）                                                                       | 浏览器只能读文件大小         |
 | 装壳                         | 下载到 `data/`，所有游戏共用                                   | 写进游戏目录，按平台不同（§5）                                                                                        | 见 §5                        |
@@ -127,6 +128,14 @@
 
 ---
 
+插件是否最新：已安装时，把游戏 `js/plugins/` 下的 `ChayaLoader` 与各跟踪插件和当前构建（`plugins/dist`）比对，任一缺失或内容不同即为「不是最新」，游戏卡片的插件按钮由「清除插件」变为「更新插件」（复用安装，覆盖写入，不必先清除）。比对用内容摘要（长度 + FNV-1a，`lib/game/plugin-digest.ts`；不用 WebCrypto，局域网 http 页面没有 `crypto.subtle`）：服务端模式由 `GET /api/status` 返回 `pluginsOutdated`（摘要按文件修改时间缓存）；浏览器模式从 `GET /api/plugins/digests` 取最新摘要，读游戏里的插件文件比对，取不到时不提示更新。
+
+自动更新插件：游戏卡片下方配置面板里的「自动更新插件」开关（插件按钮不可用时不显示），默认开启，偏好存在本浏览器 `localStorage`（`chaya.autoUpdatePlugins`）。开启时检测到「不是最新」就在控制台里静默执行一次「更新插件」（只更新已安装的插件，不会替用户首次安装），成功后提示；游戏运行中更新则提示重启生效。同一游戏失败后本页不再重试，避免反复报错，可手动点「更新插件」或关开一次开关重试。
+
+- 服务端模式：随时可写游戏目录，支持自动更新。
+- 浏览器模式（edge 构建 / 浏览器选目录）：写目录需要用户授权，网页不能在无点击时弹授权。游戏目录**当前已授权**（本页点过操作，或浏览器对该站点「每次访问时都允许」）时自动更新；未授权时不检测也不更新，回到手动。浏览器不提供权限查询（`queryPermission`）时开关固定关闭并提示手动更新。
+- 自动更新只发生在控制台页面打开期间；未打开控制台直接启动游戏不会更新。
+
 ## 5. 操作系统 × 部署方式
 
 ### 5.1 装壳
@@ -136,6 +145,8 @@
 | Windows | 后台任务从 nwjs.io 下载（`.part` + Range 续传、SHA-256 校验，进度经 SSE 显示在下载中心）→ 解压到 `data/shell-cache/[sdk-]<版本>-<fileKey>/extract/`（`fileKey` 含系统与架构，如 `win-x64`、`osx-arm64`；解压后删压缩包）→ 复制到同目录暂存 `.<壳名>.staging` 后整体替换 `data/shell/` | 下载中心任务（只读展示进度）：游戏卡片上「打开官方下载」让浏览器下载到"下载"文件夹 →「选择已下载的压缩包」→ 缓存进 OPFS（下次跳过）→ 页面内排队读取 / 解压写入 `<游戏目录>/<壳目录>/`（可断点续写）→ 写 `Chaya启动.bat` |
 | macOS   | 同上，装成 `data/shell/Chaya.app`                                                                                                                                                                                                                                                     | 页面给终端命令（`/sh/mac-shell.sh`）：`curl` 下载（缓存 `/tmp/chaya-nwjs-<uid>/`，可断点续传、校验 SHA256）→ `ditto` 解压 → 建 `app.nw` → `xattr -cr` + `codesign` 重签 → 装成 `<游戏目录>/Chaya.app`（旧的改名备份）   |
 | Linux   | 同上（壳目录直接是 NW.js 解压结果，不建 `.app` / `app.nw`）                                                                                                                                                                                                                           | 只给 nwjs.io 下载链接，用户自行解压、`chmod +x` 并启动；不写启动脚本（`writeShellLaunchers` 支持 linux 但未调用）。自动化见优化方案 O7（未实现）                                                                        |
+
+浏览器模式卸载壳：点击后请求目录授权，由页面经 File System Access 直接删除壳目录（各系统相同），不弹框、无兜底；用户不授权或浏览器拒绝删除时只 toast 错误。macOS 的 `Chaya.app` 含 Framework 符号链接，Chromium 会跳过符号链接并在删除中途报 `InvalidModificationError`，此时普通文件可能已删掉一部分。脚本仍保留卸载命令（`CHAYA_ACTION=uninstall`，界面不再提供入口）：选游戏目录 → 检查游戏未运行 → 删除 Chaya 写入的壳（`Chaya.app` 及旧名 `ShiruKit.app` / `nwjs.app`），不动存档、游戏内容与旧壳备份。
 
 `/sh/install.sh`、`/sh/mac-shell.sh` 终端提示多语言（公共逻辑 `lib/remote-scripts/i18n.ts`）：脚本只内置英文；复制命令带 `CHAYA_LANG=<界面语言>`（否则看 `LC_ALL` / `LC_MESSAGES` / `LANG`），非英文时从下发脚本的同一服务取 `/sh/i18n/<脚本>.<locale>.json`，用 `plutil` 读取，失败回落英文。文案来源 `lib/remote-scripts/install-app-messages.json`、`lib/game/mac-shell-messages.json`，在 `SCRIPT_MESSAGES`（`lib/remote-scripts/registry.ts`）登记。脚本按请求把访问地址（`Host` / `X-Forwarded-Host`，仅接受 `http(s)://主机[:端口]`）写入；语言包值含 `"` 或 `\` 时丢弃，提示语经 `on run argv` 传给 AppleScript，不拼进源码。
 

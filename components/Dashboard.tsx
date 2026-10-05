@@ -20,6 +20,7 @@ import { useQueryPatch } from '@/lib/url/use-query-patch'
 import { DashboardGameActions } from './dashboard/DashboardGameActions'
 import { DashboardGameCard } from './dashboard/DashboardGameCard'
 import { libraryIdForRoot, rootsEqual, type Status } from './dashboard/types'
+import { useAutoUpdatePlugins } from './dashboard/useAutoUpdatePlugins'
 import { useCloudLibrary } from './dashboard/useCloudLibrary'
 import { useDashboardActions } from './dashboard/useDashboardActions'
 import { useDashboardLaunch } from './dashboard/useDashboardLaunch'
@@ -420,8 +421,8 @@ export function Dashboard() {
   /** 仅 Chaya 注入的共用壳可卸；游戏自带 .app / exe 不展示（浏览器只检测 Chaya 壳目录名） */
   const canUninstallShell = browserMode ? ready && status.hasShell : diskOk && ready && !remote && !status.bundled && !!status.installedShell
   const gameOnline = gameLink.connected
-  /** 本机未打包：可从 nwjs.io 拉最新壳（含 Windows，效果同自备 nwjs.app） */
-  const canFetchLatestShell = diskOk && ready && !remote && !status.bundled && !gameOnline
+  /** 下载到工具共用 data/shell，与当前游戏是否装壳 / 自带壳无关；游戏运行中由菜单置灰 */
+  const canFetchLatestShell = diskOk && ready && !remote
   const canLaunch = browserMode ? ready && !gameOnline : diskOk && ready && !remote && status.hasShell && !gameOnline && !launchPending
   // 空闲时后台也会协商 offer，勿把 negotiating 当成「正在等人点启动」
   const launchLabel = gameOnline ? t('dashboard.launchPause') : launchPending ? t('dashboard.launchWait') : browserMode ? t('dashboard.launchConnect') : t('dashboard.launchStart')
@@ -437,10 +438,18 @@ export function Dashboard() {
   const pluginsNeedInject = (diskOk || browserMode) && ready && !remote && typeof status.pluginsTotal === 'number' && (status.pluginsReady ?? 0) < status.pluginsTotal
   const pluginsInjected =
     (diskOk || browserMode) && ready && !remote && typeof status.pluginsTotal === 'number' && status.pluginsTotal > 0 && (status.pluginsReady ?? 0) >= status.pluginsTotal
+  const autoUpdate = useAutoUpdatePlugins({
+    supported: browserMode ? cloud.canAutoUpdatePlugins : diskOk && !remote,
+    outdated: pluginsInjected && !!status?.pluginsOutdated,
+    gameKey: ready ? status.config.gameRoot : '',
+    busy,
+    gameOnline,
+    update: browserMode ? cloud.autoUpdatePlugins : () => injectPlugins({ quiet: true }),
+  })
 
   return (
     <>
-      <MacShellDialog open={cloud.macOpen} onClose={() => cloud.setMacOpen(false)} gameName={cloud.active?.game.picked.name} />
+      <MacShellDialog open={cloud.macDialogOpen} onClose={cloud.closeMacDialog} gameName={cloud.active?.game.picked.name} />
       {loading ? (
         <LibraryPageSkeleton />
       ) : emptyLibrary ? (
@@ -524,8 +533,8 @@ export function Dashboard() {
                             onQuit: quitGame,
                           }}
                           plugins={{
-                            state: pluginsNeedInject ? 'missing' : pluginsInjected ? 'ready' : 'unavailable',
-                            onInstall: browserMode ? cloud.installPlugins : injectPlugins,
+                            state: pluginsNeedInject ? 'missing' : pluginsInjected ? (status.pluginsOutdated ? 'outdated' : 'ready') : 'unavailable',
+                            onInstall: browserMode ? cloud.installPlugins : () => injectPlugins(),
                             onClear: browserMode ? cloud.clearPlugins : clearPlugins,
                           }}
                           shell={{
@@ -538,6 +547,7 @@ export function Dashboard() {
                             onInstall: browserMode ? cloud.installShell : installShell,
                             onFetchLatest: fetchLatestShell,
                             onUninstall: browserMode ? cloud.uninstallShell : uninstallShell,
+                            onRefresh: browserMode ? undefined : pollStatus,
                           }}
                           shellTaskGameId={browserMode ? cloudGameId : undefined}
                         />
@@ -575,6 +585,7 @@ export function Dashboard() {
                     onCopyPath={(text) => void copyPath(text)}
                     onPatchWin={patchWin}
                     onPatchWinSize={patchWinSize}
+                    autoUpdatePlugins={pluginsNeedInject || pluginsInjected ? { ...autoUpdate, hint: browserMode ? t('settings.autoUpdateBrowserHint') : undefined } : undefined}
                   />
                 </div>
               </ScrollArea>

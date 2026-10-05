@@ -29,6 +29,7 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, refreshButton, close
           { id: 'trans', labelKey: 'edit.tabTranslate' as const, target: 'trans' as const },
           { id: 'logs', labelKey: 'edit.tabLogs' as const, target: 'logs' as const },
           { id: 'mcp', labelKey: 'nav.integration' as const, target: 'mcp' as const },
+          { id: 'settings', labelKey: 'nav.settings' as const, target: 'settings' as const },
         ] as const
       ).map((item) => {
         const active = item.id === (showEditNav ? 'edit' : tab)
@@ -55,8 +56,8 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, refreshButton, close
         <Button
           variant="ghost"
           size="icon"
-          aria-label="Agent"
-          tooltip="Agent (Ctrl/⌘ + Shift + A)"
+          aria-label="Chaya 助手"
+          tooltip="Chaya 助手 (Ctrl/⌘ + Shift + A)"
           onClick={() => window.dispatchEvent(new CustomEvent('chaya:game-agent-toggle'))}
         >
           <IoSparklesOutline size={17} aria-hidden />

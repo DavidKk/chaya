@@ -7,6 +7,7 @@ import { MdExposurePlus1 } from 'react-icons/md'
 import { TbNumber99Small } from 'react-icons/tb'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
+import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { GameEditRunSettings } from '@/components/GameEditRunSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell, panelBody, panelFoot, panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
@@ -47,6 +48,7 @@ const GameEditHotkeysPane = lazy(() => import('./GameEditHotkeysPane').then((m) 
 const GameEditTransPane = lazy(() => import('./GameEditTransPane').then((m) => ({ default: m.GameEditTransPane })))
 const GameEditLogsPane = lazy(() => import('./GameEditLogsPane').then((m) => ({ default: m.GameEditLogsPane })))
 const GameEditMcpPane = lazy(() => import('./GameEditMcpPane').then((m) => ({ default: m.GameEditMcpPane })))
+const GameEditAgentSettingsPane = lazy(() => import('@/components/settings/GameEditAgentSettingsPane').then((m) => ({ default: m.GameEditAgentSettingsPane })))
 
 function TabSuspense({ tab, children, translateSection, translateTab }: { tab: TabId; children: ReactNode; translateSection?: 'run' | 'cache'; translateTab?: 'play' | 'seed' }) {
   const t = useT()
@@ -109,6 +111,7 @@ export type GameEditWorkbenchProps = {
   /** 网页侧是否已与游戏 DataChannel 连通（影响页脚提示） */
   linked?: boolean
   className?: string
+  agentRequest?: GameAgentRequest
 }
 
 function isRowLocked(row: TableRow, locks: SessionState['locks']) {
@@ -207,6 +210,7 @@ export function GameEditWorkbench({
   surface = 'page',
   linked = false,
   className,
+  agentRequest,
 }: GameEditWorkbenchProps) {
   const t = useT()
   const q = filter.trim().toLowerCase()
@@ -452,6 +456,10 @@ export function GameEditWorkbench({
         ) : tab === 'mcp' ? (
           <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
             <GameEditMcpPane />
+          </Suspense>
+        ) : tab === 'settings' && agentRequest ? (
+          <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
+            <GameEditAgentSettingsPane request={agentRequest} />
           </Suspense>
         ) : error ? (
           <EmptyState title={t('edit.catalogFailTitle')} message={error} hint={t('edit.catalogFailHint')} />

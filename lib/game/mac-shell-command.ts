@@ -18,7 +18,9 @@ if [ -t 1 ]; then
 else
   bold=''; dim=''; green=''; red=''; reset=''
 fi
+action=$(printenv CHAYA_ACTION || true)
 total=6
+[ "$action" != uninstall ] || total=3
 step() { printf '\n%s[%s/%s] %s%s\n' "$bold" "$1" "$total" "$2" "$reset"; }
 info() { printf '      %s%s%s\n' "$dim" "$1" "$reset"; }
 fail() { printf '%s✗ %s%s\n' "$red" "$1" "$reset"; exit 1; }
@@ -43,7 +45,11 @@ version_lt() {
 
 [ "$(uname -s)" = Darwin ] || fail "$M_needMac"
 
-printf '%s%s%s\n' "$bold" "$M_title" "$reset"
+if [ "$action" = uninstall ]; then
+  printf '%s%s%s\n' "$bold" "$M_titleUninstall" "$reset"
+else
+  printf '%s%s%s\n' "$bold" "$M_title" "$reset"
+fi
 
 step 1 "$M_step1"
 # The prompt goes in as an argument, never as AppleScript source (messages may come from a downloaded language pack).
@@ -60,6 +66,33 @@ content="$game"
 [ -f "$content/index.html" ] && [ -d "$content/js" ] || fail "$M_noContent"
 
 app="$game/Chaya.app"
+
+# Browser mode cannot delete the bundle (framework symlinks); only Chaya-written shell names, never saves or backups.
+if [ "$action" = uninstall ]; then
+  set --
+  for name in Chaya.app ShiruKit.app nwjs.app; do
+    if [ -e "$game/$name" ] || [ -L "$game/$name" ]; then set -- "$@" "$game/$name"; fi
+  done
+  if [ "$#" -eq 0 ]; then
+    printf '\n%s\n' "$M_nothingToRemove"
+    exit 0
+  fi
+  for shell; do
+    for bin in "$shell/Contents/MacOS/nwjs" "$shell/Contents/MacOS/nw"; do
+      if [ -f "$bin" ] && /usr/sbin/lsof -t "$bin" >/dev/null 2>&1; then
+        fail "$M_running"
+      fi
+    done
+  done
+  step 3 "$M_step3Uninstall"
+  for shell; do
+    rm -rf "$shell"
+    info "$(msg "$M_removed" "$shell")"
+  done
+  printf '\n%s✓ %s%s\n' "$green$bold" "$M_uninstalled" "$reset"
+  printf '%s\n' "$M_uninstallHint"
+  exit 0
+fi
 
 case "$(uname -m)" in
   arm64) arch=arm64 ;;

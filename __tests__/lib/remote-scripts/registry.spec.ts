@@ -21,6 +21,7 @@ test('localized scripts receive the page locale', () => {
   expect(remoteScriptCommand('http://x', 'mac-shell.sh', 'zh')).toBe('CHAYA_LANG=zh /bin/bash -c "$(curl -fsSL http://x/sh/mac-shell.sh)"')
   expect(remoteScriptCommand('http://x', 'install.sh', 'zh')).toBe('CHAYA_LANG=zh /bin/bash -c "$(curl -fsSL http://x/sh/install.sh)"')
   expect(remoteScriptCommand('http://x', 'install.sh')).toBe('/bin/bash -c "$(curl -fsSL http://x/sh/install.sh)"')
+  expect(remoteScriptCommand('http://x', 'mac-shell.sh', 'zh', 'uninstall')).toBe('CHAYA_LANG=zh CHAYA_ACTION=uninstall /bin/bash -c "$(curl -fsSL http://x/sh/mac-shell.sh)"')
 })
 
 test('the serving origin is filled in only when it is a plain URL origin', () => {

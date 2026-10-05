@@ -3,6 +3,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { DATA_DIR } from '@/constants/paths'
+import {
+  agentSettingsFromSyncDocument,
+  type AgentSyncDocument,
+  agentSyncDocumentFromSettings,
+  applySettingsDiffToAgentSyncDocument,
+  applySettingsToAgentSyncDocument,
+  createEmptyAgentSyncDocument,
+  mergeAgentSyncDocuments,
+  parseAgentSyncDocument,
+  withAgentSyncActor,
+} from '@/lib/game-agent/settings-sync'
 
 import { DEFAULT_GAME_AGENT_MODEL, DEFAULT_OLLAMA_HOST } from './ollama-client'
 
@@ -25,6 +36,8 @@ export type GameAgentSettings = {
 }
 
 export const GAME_AGENT_SETTINGS_PATH = path.join(DATA_DIR, 'game-agent-settings.json')
+export const GAME_AGENT_SYNC_PATH = path.join(DATA_DIR, 'game-agent-settings.sync.json')
+export const GAME_AGENT_SERVICE_ACTOR = 'service:chaya'
 
 export function defaultGameAgentProfile(): GameAgentProfile {
   return {
@@ -81,8 +94,7 @@ export function normalizeGameAgentSettings(value: Partial<GameAgentSettings>): G
   const source = Array.isArray(value.profiles) && value.profiles.length ? value.profiles : [defaultGameAgentProfile()]
   const profiles = source.map((profile) => normalizeGameAgentProfile(profile))
   if (new Set(profiles.map((profile) => profile.id)).size !== profiles.length) throw new Error('接入实例 id 不能重复')
-  const requestedDefault = text(value.defaultProfileId, profiles[0].id)
-  return { version: 1, defaultProfileId: profiles.some((profile) => profile.id === requestedDefault) ? requestedDefault : profiles[0].id, profiles }
+  return { version: 1, defaultProfileId: profiles[0].id, profiles }
 }
 
 export function loadGameAgentSettings(file = GAME_AGENT_SETTINGS_PATH): GameAgentSettings {
@@ -102,6 +114,63 @@ export function saveGameAgentSettings(value: Partial<GameAgentSettings>, file = 
   fs.writeFileSync(temp, `${JSON.stringify(settings, null, 2)}\n`, 'utf8')
   fs.renameSync(temp, file)
   return settings
+}
+
+function writeJsonAtomic(file: string, value: unknown) {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  const temp = `${file}.${process.pid}.tmp`
+  fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+  fs.renameSync(temp, file)
+}
+
+export function loadGameAgentSyncDocument(syncFile = GAME_AGENT_SYNC_PATH, settingsFile = GAME_AGENT_SETTINGS_PATH): AgentSyncDocument {
+  if (fs.existsSync(syncFile)) {
+    const parsed = parseAgentSyncDocument(JSON.parse(fs.readFileSync(syncFile, 'utf8')))
+    if (!parsed) throw new Error('Agent 同步文件格式无效')
+    return withAgentSyncActor(parsed, GAME_AGENT_SERVICE_ACTOR)
+  }
+  if (!fs.existsSync(settingsFile)) return createEmptyAgentSyncDocument(GAME_AGENT_SERVICE_ACTOR)
+  const modifiedAt = Math.max(1, Math.floor(fs.statSync(settingsFile).mtimeMs))
+  return agentSyncDocumentFromSettings(loadGameAgentSettings(settingsFile), GAME_AGENT_SERVICE_ACTOR, modifiedAt)
+}
+
+export function saveGameAgentSyncDocument(document: AgentSyncDocument, syncFile = GAME_AGENT_SYNC_PATH, settingsFile = GAME_AGENT_SETTINGS_PATH) {
+  const parsed = parseAgentSyncDocument(document)
+  if (!parsed) throw new Error('Agent 同步数据格式无效')
+  let serviceDocument = withAgentSyncActor(parsed, GAME_AGENT_SERVICE_ACTOR)
+  const settings = normalizeGameAgentSettings(agentSettingsFromSyncDocument(serviceDocument))
+  serviceDocument = applySettingsToAgentSyncDocument(serviceDocument, settings)
+  writeJsonAtomic(syncFile, serviceDocument)
+  saveGameAgentSettings(settings, settingsFile)
+  return { sync: serviceDocument, settings }
+}
+
+export function updateGameAgentSyncFromSettings(
+  value: Partial<GameAgentSettings>,
+  actorId = GAME_AGENT_SERVICE_ACTOR,
+  baseline?: AgentSyncDocument,
+  syncFile = GAME_AGENT_SYNC_PATH,
+  settingsFile = GAME_AGENT_SETTINGS_PATH
+) {
+  const current = withAgentSyncActor(loadGameAgentSyncDocument(syncFile, settingsFile), actorId)
+  const parsedBaseline = baseline ? parseAgentSyncDocument(baseline) : null
+  const baseSettings = parsedBaseline ? agentSettingsFromSyncDocument(parsedBaseline) : agentSettingsFromSyncDocument(current)
+  const next = applySettingsDiffToAgentSyncDocument(current, baseSettings, normalizeGameAgentSettings(value))
+  return saveGameAgentSyncDocument(next, syncFile, settingsFile)
+}
+
+export function mergeGameAgentSyncDocument(incoming: AgentSyncDocument, syncFile = GAME_AGENT_SYNC_PATH, settingsFile = GAME_AGENT_SETTINGS_PATH) {
+  const parsed = parseAgentSyncDocument(incoming)
+  if (!parsed) throw new Error('Agent 同步数据格式无效')
+  const current = loadGameAgentSyncDocument(syncFile, settingsFile)
+  let merged = mergeAgentSyncDocuments(current, parsed)
+  if (agentSettingsFromSyncDocument(merged).profiles.length === 0) {
+    merged = applySettingsToAgentSyncDocument(merged, defaultGameAgentSettings())
+  }
+  if (JSON.stringify(merged) === JSON.stringify(current)) {
+    return { sync: current, settings: normalizeGameAgentSettings(agentSettingsFromSyncDocument(current)) }
+  }
+  return saveGameAgentSyncDocument(merged, syncFile, settingsFile)
 }
 
 export function profileById(settings: GameAgentSettings, id: string) {

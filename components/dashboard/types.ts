@@ -64,6 +64,8 @@ export type Status =
       plugins: PluginStatus[]
       pluginsReady?: number
       pluginsTotal?: number
+      /** Installed, but the game's plugin files differ from the current build */
+      pluginsOutdated?: boolean
       nwPackage?: { name?: string; window: NwWindowConfig } | null
       runtime?: {
         gameOnline: boolean

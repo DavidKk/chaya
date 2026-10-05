@@ -2,7 +2,8 @@ import { Blob } from 'node:buffer'
 
 import { PLUGIN_LOADER_NAME } from '@/constants/brand'
 import { collectCloudFingerprint } from '@/lib/browser/cloud-fingerprint'
-import { countCloudCacheEntries, detectCloudPlugins, measureCloudDirBytes, measureCloudFootprint } from '@/lib/browser/cloud-footprint'
+import { countCloudCacheEntries, detectCloudPlugins, detectCloudPluginsOutdated, measureCloudDirBytes, measureCloudFootprint } from '@/lib/browser/cloud-footprint'
+import { DIGEST_PLUGIN_NAMES, pluginDigest } from '@/lib/game/plugin-digest'
 import { countReadyPlugins } from '@/lib/game/plugins-status'
 import { TRACKED_PLUGINS } from '@/lib/game/types'
 
@@ -91,5 +92,33 @@ describe('cloud footprint (FSA)', () => {
     const content = fakeDir('www', {})
     expect(await countCloudCacheEntries(fakeDir('game', { www: {}, 'translate-both.cache.ndjson': lines }), content)).toBe(3)
     expect(await countCloudCacheEntries(fakeDir('game', { www: {} }), content)).toBe(0)
+  })
+
+  describe('plugins outdated', () => {
+    const files = Object.fromEntries(DIGEST_PLUGIN_NAMES.map((name) => [`${name}.js`, `/* ${name} v2 */`]))
+    const digests = Object.fromEntries(DIGEST_PLUGIN_NAMES.map((name) => [name, pluginDigest(`/* ${name} v2 */`)]))
+    const respond = (body: unknown, ok = true) => {
+      globalThis.fetch = jest.fn(async () => ({ ok, json: async () => body })) as unknown as typeof fetch
+    }
+
+    it('matches the current build', async () => {
+      respond({ ok: true, digests })
+      expect(await detectCloudPluginsOutdated(fakeDir('www', { js: { plugins: files } }))).toBe(false)
+    })
+
+    it('flags a changed or missing plugin file', async () => {
+      respond({ ok: true, digests })
+      const [first, second] = DIGEST_PLUGIN_NAMES
+      const { [`${second}.js`]: _missing, ...rest } = files
+      expect(await detectCloudPluginsOutdated(fakeDir('www', { js: { plugins: { ...files, [`${first}.js`]: '/* v1 */' } } }))).toBe(true)
+      expect(await detectCloudPluginsOutdated(fakeDir('www', { js: { plugins: rest } }))).toBe(true)
+    })
+
+    it('never flags when the latest digests are unavailable', async () => {
+      respond({}, false)
+      expect(await detectCloudPluginsOutdated(fakeDir('www', { js: { plugins: {} } }))).toBe(false)
+      globalThis.fetch = jest.fn(async () => Promise.reject(new Error('offline'))) as unknown as typeof fetch
+      expect(await detectCloudPluginsOutdated(fakeDir('www', {}))).toBe(false)
+    })
   })
 })

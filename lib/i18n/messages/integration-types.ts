@@ -55,20 +55,34 @@ export type IntegrationMessages = {
   agentAddProfile: string
   agentProfileLabel: string
   agentProvider: string
+  agentProviderDesc: string
   agentEndpoint: string
+  agentEndpointDesc: string
   agentDefaultModel: string
+  agentDefaultModelDesc: string
   agentTemperature: string
+  agentTemperatureDesc: string
   agentKeepAlive: string
+  agentKeepAliveDesc: string
   agentTest: string
+  agentTestDesc: string
   agentTesting: string
   agentConnected: string
   agentSave: string
   agentSaved: string
   agentDelete: string
-  agentDefault: string
-  agentSetDefault: string
   agentNoModels: string
   agentSettingsFailed: string
+  agentSettingsSection: string
+  agentSettingsTab: string
+  agentEdit: string
+  agentBack: string
+  agentCreateTitle: string
+  agentEditTitle: string
+  agentDetailHint: string
+  agentNotFound: string
+  agentDeleteTitle: string
+  agentDeleteDescription: string
   navOverview: string
   regionWebMcp: string
   webmcpBrowserTitle: string

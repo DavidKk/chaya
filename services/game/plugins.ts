@@ -21,6 +21,7 @@ import {
   serializePluginsJs,
   TRACKED_PLUGINS,
 } from '@/lib/game'
+import { DIGEST_PLUGIN_NAMES, pluginDigest, pluginsOutdated } from '@/lib/game/plugin-digest'
 import { mergeLoaderPluginEntries } from '@/lib/game/plugins-merge'
 import { trackedPluginStatuses } from '@/lib/game/plugins-status'
 
@@ -58,6 +59,39 @@ function stripLegacyIndexScriptTags(contentRoot: string) {
   } catch {
     /* */
   }
+}
+
+const digestCache = new Map<string, { mtimeMs: number; size: number; digest: string }>()
+
+function fileDigest(file: string): string | null {
+  try {
+    const st = fs.statSync(file)
+    const hit = digestCache.get(file)
+    if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.digest
+    const digest = pluginDigest(fs.readFileSync(file, 'utf8'))
+    digestCache.set(file, { mtimeMs: st.mtimeMs, size: st.size, digest })
+    return digest
+  } catch {
+    return null
+  }
+}
+
+/** Digests of the current plugin build; null when nothing is built */
+export function kitPluginDigests(): Record<string, string> | null {
+  const out: Record<string, string> = {}
+  for (const name of DIGEST_PLUGIN_NAMES) {
+    const src = resolveKitPluginSource(name)
+    const digest = src && fileDigest(src)
+    if (digest) out[name] = digest
+  }
+  return Object.keys(out).length ? out : null
+}
+
+/** Whether the game's plugin files differ from the current build */
+export function detectPluginsOutdated(contentRoot: string): boolean {
+  const pluginsDir = path.join(contentRoot, 'js/plugins')
+  const game = Object.fromEntries(DIGEST_PLUGIN_NAMES.map((name) => [name, fileDigest(path.join(pluginsDir, `${name}.js`))]))
+  return pluginsOutdated(game, kitPluginDigests())
 }
 
 export function detectPlugins(contentRoot: string): PluginStatus[] {

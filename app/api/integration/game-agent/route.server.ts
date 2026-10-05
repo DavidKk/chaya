@@ -1,9 +1,16 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
+import { agentSettingsFromSyncDocument, type AgentSyncDocument } from '@/lib/game-agent/settings-sync'
 import { canUseDisk } from '@/lib/service-mode/mode'
 import { listOllamaModels, pickDefaultModel } from '@/services/game-agent/ollama-client'
-import { type GameAgentProfile, type GameAgentSettings, loadGameAgentSettings, normalizeGameAgentProfile, saveGameAgentSettings } from '@/services/game-agent/settings'
-import { peekLaunchToken } from '@/services/runtime/launch-token'
+import {
+  type GameAgentProfile,
+  type GameAgentSettings,
+  loadGameAgentSyncDocument,
+  mergeGameAgentSyncDocument,
+  normalizeGameAgentProfile,
+  updateGameAgentSyncFromSettings,
+} from '@/services/game-agent/settings'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,19 +21,15 @@ async function testProfile(value: Partial<GameAgentProfile>) {
   return { profileId: profile.id, models, defaultModel: profile.defaultModel || pickDefaultModel(models) }
 }
 
-function pluginOnly(request: Request) {
-  return peekLaunchToken(request.headers.get('x-chaya-launch-token'))
-}
-
-export const GET = defineApiRoute('get:/api/integration/game-agent', async ({ request }) => {
-  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent 接入配置仅在 Chaya App 或本机服务中可用')
-  if (!pluginOnly(request)) return apiError(403, 'GAME_AGENT_PLUGIN_ONLY', 'Agent 配置仅允许游戏插件访问')
-  return apiOk({ settings: loadGameAgentSettings() })
+export const GET = defineApiRoute('get:/api/integration/game-agent', async () => {
+  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent 配置仅在 Chaya App 或本机服务中可用')
+  let sync = loadGameAgentSyncDocument()
+  if (agentSettingsFromSyncDocument(sync).profiles.length === 0) sync = updateGameAgentSyncFromSettings({ profiles: [] }).sync
+  return apiOk({ settings: agentSettingsFromSyncDocument(sync), sync })
 })
 
 export const POST = defineApiRoute('post:/api/integration/game-agent', async ({ request }) => {
-  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent 接入配置仅在 Chaya App 或本机服务中可用')
-  if (!pluginOnly(request)) return apiError(403, 'GAME_AGENT_PLUGIN_ONLY', 'Agent 配置仅允许游戏插件访问')
+  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent 配置仅在 Chaya App 或本机服务中可用')
   const body = (await request.json().catch(() => null)) as { action?: unknown; profile?: Partial<GameAgentProfile> } | null
   if (body?.action !== 'test' || !body.profile) return apiError(400, 'INVALID_AGENT_ACTION', '仅支持 test 操作')
   try {
@@ -37,12 +40,14 @@ export const POST = defineApiRoute('post:/api/integration/game-agent', async ({ 
 })
 
 export const PUT = defineApiRoute('put:/api/integration/game-agent', async ({ request }) => {
-  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent 接入配置仅在 Chaya App 或本机服务中可用')
-  if (!pluginOnly(request)) return apiError(403, 'GAME_AGENT_PLUGIN_ONLY', 'Agent 配置仅允许游戏插件访问')
-  const body = (await request.json().catch(() => null)) as { settings?: Partial<GameAgentSettings> } | null
-  if (!body?.settings) return apiError(400, 'INVALID_AGENT_SETTINGS', '缺少 Agent 配置')
+  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent 配置仅在 Chaya App 或本机服务中可用')
+  const body = (await request.json().catch(() => null)) as { settings?: Partial<GameAgentSettings>; sync?: AgentSyncDocument; baseSync?: AgentSyncDocument } | null
+  if (!body?.settings && !body?.sync) return apiError(400, 'INVALID_AGENT_SETTINGS', '缺少 Agent 配置')
   try {
-    return apiOk({ settings: saveGameAgentSettings(body.settings) })
+    if (body.sync) return apiOk(mergeGameAgentSyncDocument(body.sync))
+    const requestedActor = request.headers.has('x-chaya-launch-token') ? request.headers.get('x-chaya-agent-sync-actor') : null
+    const actorId = requestedActor && /^plugin:[a-zA-Z0-9._:-]{1,120}$/.test(requestedActor) ? requestedActor : undefined
+    return apiOk(updateGameAgentSyncFromSettings(body.settings!, actorId, body.baseSync))
   } catch (error) {
     return apiError(400, 'INVALID_AGENT_SETTINGS', error instanceof Error ? error.message : String(error))
   }
