@@ -165,7 +165,7 @@ export function createLinkTransport({ send, subscribe, runCmd }: Deps): SaveData
 
 /** Link transport while connected; null otherwise */
 export function useLinkSaveDataTransport(enabled: boolean, runCmd: (op: GameEditCmdOp) => Promise<unknown>): SaveDataTransport | null {
-  const { connected, send, subscribeMessages } = useGameLinkContext()
+  const { roomId, connected, send, subscribeMessages } = useGameLinkContext()
   const [transport, setTransport] = useState<(SaveDataTransport & { dispose(): void }) | null>(null)
   const runCmdRef = useRef(runCmd)
   runCmdRef.current = runCmd
@@ -177,6 +177,6 @@ export function useLinkSaveDataTransport(enabled: boolean, runCmd: (op: GameEdit
     const next = createLinkTransport({ send, subscribe: subscribeMessages, runCmd: (op) => runCmdRef.current(op) })
     setTransport(next)
     return () => next.dispose()
-  }, [enabled, connected, send, subscribeMessages])
+  }, [enabled, connected, roomId, send, subscribeMessages])
   return transport
 }
