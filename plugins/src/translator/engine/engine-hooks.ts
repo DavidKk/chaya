@@ -67,10 +67,26 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
         'drawText',
         (original) =>
           function (text: string, ...args: unknown[]) {
-            return original.call(this, preserveBitmap ? text : translate(text), ...args)
+            const rendered = preserveBitmap ? text : translate(text)
+            return draw(() => original.call(this, rendered, ...args))
           }
       )
     )
+  if (typeof CanvasRenderingContext2D !== 'undefined') {
+    const canvas = CanvasRenderingContext2D.prototype
+    for (const method of ['fillText', 'strokeText']) {
+      remove.push(
+        hookMethod(
+          canvas,
+          method,
+          (original) =>
+            function (text: string, ...args: unknown[]) {
+              return original.call(this, preserveBitmap ? text : translate(text), ...args)
+            }
+        )
+      )
+    }
+  }
   if (typeof Game_Message !== 'undefined') {
     remove.push(
       hookMethod(

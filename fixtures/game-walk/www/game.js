@@ -421,6 +421,7 @@
     }, FRAME_MS)
     const scenario = typeof process !== 'undefined' ? process.env.CHAYA_DEMO_SCENARIO : ''
     if (scenario === 'battle') setTimeout(() => window.WalkDemo.AgentScenarios?.startBattle(), 1_500)
+    if (scenario === 'qte') setTimeout(() => window.WalkDemo.AgentScenarios?.startQteBattle(), 1_500)
     if (scenario === 'story') setTimeout(() => window.WalkDemo.AgentScenarios?.startStory(), 1_500)
     if (scenario === 'choice') setTimeout(() => window.WalkDemo.AgentScenarios?.startStory(true), 1_500)
   }

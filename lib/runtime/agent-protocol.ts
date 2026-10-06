@@ -12,6 +12,7 @@ export type AgentInputKey = (typeof AGENT_INPUT_KEYS)[number]
 export type AgentInputStep = { key: AgentInputKey; frames?: number; waitFrames?: number }
 export type AgentInputEffect = 'navigate' | 'advance_dialogue' | 'battle_command' | 'spend_resource' | 'choose_branch' | 'save_load' | 'unknown'
 export type AgentInputGuard = { controlToken: string; allowedEffects: AgentInputEffect[]; battleInstanceId?: string; mapId?: number }
+export type AgentReactionCue = { id: string; key: AgentInputKey; expiresAt: number; startedAt?: number }
 
 export const AGENT_HISTORY_KINDS = ['message', 'choices', 'choice', 'map', 'battle', 'load'] as const
 export type AgentHistoryKind = (typeof AGENT_HISTORY_KINDS)[number]
@@ -32,6 +33,8 @@ export type AgentCommand =
   | { id: string; method: 'plugins.list'; params: Record<string, never> }
   | { id: string; method: 'plugin.tool'; params: { plugin: string; tool: string; input?: Record<string, unknown> } }
   | { id: string; method: 'input.press'; params: { key: AgentInputKey; frames?: number; guard?: AgentInputGuard } }
+  | { id: string; method: 'input.reaction.arm'; params: { battleInstanceId: string; mapId?: number; allowedKeys: AgentInputKey[]; ttlMs: number } }
+  | { id: string; method: 'input.reaction.stop'; params: Record<string, never> }
   | { id: string; method: 'input.sequence'; params: { steps: AgentInputStep[] } }
   | { id: string; method: 'input.tap'; params: { x: number; y: number; frames?: number } }
   | { id: string; method: 'player.moveTo'; params: { x: number; y: number; timeoutMs?: number } }

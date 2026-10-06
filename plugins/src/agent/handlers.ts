@@ -10,6 +10,8 @@ import { isFirstPartyToolPlugin } from '@/lib/runtime/plugin-tools'
 import { findPluginTool, listPluginToolMetas } from '../helpers/plugin-tools'
 import { movePlayer, quitGame, snapScreen, tapScreen } from './game-control'
 import { battleProgress, originalMessageText, readHistory } from './history'
+import { armReaction, currentReactionCue, reactionAvailable, reactionOutcome, reactionResult, startReactionMonitor, stopReaction } from './reaction'
+import { readRenderedText } from './rendered-text'
 
 type Loose = Record<string, unknown>
 type AnyFn = (...args: unknown[]) => unknown
@@ -205,9 +207,14 @@ function gameState() {
           }
         : null,
     lastBattleResult: progress.lastBattleResult,
+    reactionAvailable: reactionAvailable(),
+    qte: currentReactionCue(),
+    lastReaction: reactionResult(),
+    qteOutcome: reactionOutcome(),
     manualInputEpoch,
     windows,
     screenText,
+    renderedText: readRenderedText(),
     message: message
       ? {
           busy: Boolean(read(message, 'isBusy')),
@@ -223,6 +230,7 @@ function gameState() {
     player: state.player,
     party: state.party.map((member) => [member.id, member.hp, member.mp]),
     battle: state.battle,
+    qte: state.qte,
     windows: state.windows,
     message: state.message,
     manualInputEpoch,
@@ -332,6 +340,22 @@ async function pressKey({ key, frames: requested, guard }: AgentParams<'input.pr
   return { key, frames: n }
 }
 
+export function startReactionTracking(): () => void {
+  return startReactionMonitor(
+    () => {
+      const scene = (g().SceneManager as Loose | undefined)?._scene as Loose | undefined
+      const battleScene = g().Scene_Battle
+      const inBattle = typeof battleScene === 'function' ? scene instanceof battleScene : (scene?.constructor as { name?: string } | undefined)?.name === 'Scene_Battle'
+      return {
+        battleInstanceId: inBattle ? battleProgress().activeBattleId : null,
+        mapId: read<number>(g().$gameMap, 'mapId') ?? null,
+        manualInputEpoch,
+      }
+    },
+    (key) => pressKey({ key, frames: 2 })
+  )
+}
+
 async function playSequence({ steps }: { steps: AgentInputStep[] }): Promise<unknown> {
   if (!Array.isArray(steps) || !steps.length) throw new Error('steps 不能为空')
   if (steps.length > MAX_SEQUENCE_STEPS) throw new Error(`steps 最多 ${MAX_SEQUENCE_STEPS} 个`)
@@ -370,6 +394,10 @@ export async function runAgentCommand(cmd: AgentCommand, { allowEval = false }: 
       return callPluginTool(cmd.params)
     case 'input.press':
       return pressKey(cmd.params)
+    case 'input.reaction.arm':
+      return armReaction(cmd.params)
+    case 'input.reaction.stop':
+      return stopReaction()
     case 'input.sequence':
       return playSequence(cmd.params)
     case 'input.tap':

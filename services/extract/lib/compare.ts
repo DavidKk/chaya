@@ -42,6 +42,6 @@ export function compareWithManual(allStrings: Set<string>, dialogue: any[], manu
     manualNotInExtracted: onlyManual,
     dialogueUniqueInManual: dialogueInManual,
     overlapPct: manualKeys.length ? Number(((hit / manualKeys.length) * 100).toFixed(2)) : 0,
-    hint: '种子表通常还含插件/脚本/备注等，本脚本只扫 data/，对不上是正常的。',
+    hint: '种子表可能还含插件源码、脚本或图片里的文字；本抽取只读取 data/ 与启用插件参数。',
   }
 }

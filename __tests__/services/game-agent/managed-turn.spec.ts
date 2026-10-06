@@ -114,6 +114,40 @@ test('selects a non-default enemy before confirming the target', async () => {
   expect(finishTurn).toHaveBeenCalledWith(expect.anything(), 'completed')
 })
 
+test('arms the local reaction monitor for a battle and stops it when the turn ends', async () => {
+  const game = callAgentGame as jest.MockedFunction<typeof callAgentGame>
+  const states = [
+    {
+      scene: 'Scene_Battle',
+      map: { id: 1 },
+      battle: { instanceId: 'battle-1' },
+      reactionAvailable: true,
+      controlToken: 'before',
+      windows: [{ name: 'partyCommandWindow', active: true, index: 0, symbol: 'fight', options: [{ label: '战斗', symbol: 'fight' }] }],
+    },
+    {
+      scene: 'Scene_Map',
+      map: { id: 1 },
+      battle: null,
+      lastBattleResult: { id: 'battle-1', result: 'victory' },
+      lastReaction: { id: 'dodge-1', latencyMs: 3 },
+      qteOutcome: { id: 'dodge-1', result: 'success' },
+    },
+  ]
+  game.mockImplementation(async (_id, method) => (method === 'game.state' ? states.shift() : method === 'game.history' ? { entries: [], lastSeq: 0, dropped: 0 } : {}))
+  ;(streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>)
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"summary":"完成当前战斗","scope":"battle"}' })
+    .mockResolvedValue({ role: 'assistant', content: '{"index":0}' })
+
+  await runManagedTurn(input, profile, turn())
+
+  const methods = game.mock.calls.map((call) => call[1])
+  expect(methods.indexOf('input.reaction.arm')).toBeLessThan(methods.indexOf('input.press'))
+  expect(methods.at(-1)).toBe('input.reaction.stop')
+  expect(game).toHaveBeenCalledWith('game-a', 'input.reaction.arm', expect.objectContaining({ battleInstanceId: 'battle-1', allowedKeys: expect.arrayContaining(['left']) }))
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.completed', text: expect.stringContaining('限时反应：成功') }))
+})
+
 test('stale control token causes a fresh observation before another input', async () => {
   const game = callAgentGame as jest.MockedFunction<typeof callAgentGame>
   const states = [

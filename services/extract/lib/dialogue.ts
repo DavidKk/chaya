@@ -1,3 +1,4 @@
+import { extractPluginText } from './plugin-text'
 import { clean, isUseful } from './text'
 
 function paramsOf(cmd: { parameters?: unknown[]; params?: unknown[] }) {
@@ -93,6 +94,13 @@ export function extractDialogueFromEvents(events: any[] | undefined, loc: Dialog
           const row = { ...base(), kind: 'c', choices }
           delete row.face
           ordered.push(row)
+          return
+        }
+
+        if (cmd.code === 357) {
+          flush()
+          const lines = extractPluginText(p[3])
+          if (lines.length) ordered.push({ ...base(), kind: 'p', lines })
           return
         }
 

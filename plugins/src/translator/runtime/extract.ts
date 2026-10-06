@@ -1,5 +1,6 @@
 import { DB_SPECS } from '@/lib/translate/database-fields'
 import { extractDialogueFromEvents } from '@/services/extract/lib/dialogue'
+import { extractPluginsJsText } from '@/services/extract/lib/plugin-text'
 import { clean, isUseful } from '@/services/extract/lib/text'
 
 import type { NodeFsPath } from '../../helpers/node/node-require'
@@ -35,6 +36,12 @@ export async function extractPluginSeed(root: string, mods: NodeFsPath, store: T
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+  try {
+    const pluginsJs = await fs.promises.readFile(path.join(root, 'js', 'plugins.js'), 'utf8')
+    for (const text of extractPluginsJsText(pluginsJs)) add(text)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
   await store.load()
   const seed = { ...store.seed() }

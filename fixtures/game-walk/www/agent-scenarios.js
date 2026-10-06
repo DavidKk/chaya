@@ -9,6 +9,7 @@
   ]
   let pendingStory = []
   let storyActive = false
+  let qteDemo = false
 
   function showNextLine() {
     const line = pendingStory.shift()
@@ -136,6 +137,9 @@
   class Scene_Battle {
     constructor() {
       this._windowLayer = { children: [] }
+      this._qte = null
+      this._qteScheduled = false
+      this._qteResult = null
       this._partyCommandWindow = command([
         { symbol: 'fight', label: '战斗' },
         { symbol: 'escape', label: '逃跑' },
@@ -216,6 +220,21 @@
       this.show('_actorCommandWindow')
     }
     update() {
+      if (this._qte) {
+        if (Input.isTriggered(this._qte.key)) {
+          this._qteResult = 'success'
+          window.ChayaAgentQteSource.lastResult = { id: this._qte.id, result: 'success' }
+          BattleManager.log('闪避成功，躲开了突袭。')
+          this._qte = null
+        } else if (Date.now() >= this._qte.expiresAt) {
+          this._qteResult = 'missed'
+          window.ChayaAgentQteSource.lastResult = { id: this._qte.id, result: 'missed' }
+          $gameActors.actor(1).setHp($gameActors.actor(1).hp - 12)
+          BattleManager.log('闪避失败，剑士受到 12 点伤害。')
+          this._qte = null
+        }
+        return
+      }
       const menu = this.menu()
       if (Input.isTriggered('down') && menu.options.length) menu.select((menu.index() + 1) % menu.options.length)
       if (Input.isTriggered('up') && menu.options.length) menu.select((menu.index() + menu.options.length - 1) % menu.options.length)
@@ -234,7 +253,17 @@
         if (selected.symbol === 'escape') {
           BattleManager.processEscape()
           SceneManager.goto(Scene_Map)
-        } else this.show('_actorCommandWindow')
+        } else {
+          this.show('_actorCommandWindow')
+          if (qteDemo && !this._qteScheduled) {
+            this._qteScheduled = true
+            window.setTimeout(() => {
+              if (SceneManager._scene !== this) return
+              const startedAt = Date.now()
+              this._qte = { id: `forest-dodge-${startedAt}`, key: 'left', startedAt, expiresAt: startedAt + 700 }
+            }, 300)
+          }
+        }
       } else if (this._activeMenu === '_actorCommandWindow') {
         if (selected.symbol === 'guard') {
           actor._guarding = true
@@ -355,10 +384,24 @@
       ctx.font = '15px system-ui'
       ctx.fillText(BattleManager._log.at(-1) || '', 36, 568)
       ctx.fillText('方向键选择  ·  Enter 确认  ·  Esc 返回', 36, 600)
+      if (this._qte) {
+        ctx.fillStyle = '#111e27'
+        ctx.fillRect(120, 175, 576, 240)
+        ctx.strokeStyle = '#f1c56f'
+        ctx.lineWidth = 4
+        ctx.strokeRect(120, 175, 576, 240)
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 30px system-ui'
+        ctx.fillText('突袭！按 ← 闪避', 245, 285)
+        ctx.font = '18px system-ui'
+        ctx.fillText(`剩余 ${Math.max(0, this._qte.expiresAt - Date.now())} ms`, 310, 335)
+      }
     }
   }
 
-  function startBattle() {
+  function startBattle(withQte = false) {
+    qteDemo = withQte
+    window.ChayaAgentQteSource.lastResult = null
     storyActive = false
     pendingStory = []
     $gameMessage.clear()
@@ -386,8 +429,12 @@
 
   window.BattleManager = BattleManager
   window.Scene_Battle = Scene_Battle
+  window.ChayaAgentQteSource = function currentQte() {
+    return SceneManager._scene instanceof Scene_Battle ? SceneManager._scene._qte : null
+  }
   window.WalkDemo.AgentScenarios = {
     startBattle,
+    startQteBattle: () => startBattle(true),
     startStory,
     update() {
       if (storyActive && SceneManager._scene instanceof Scene_Map && !$gameMessage.isBusy()) showNextLine()

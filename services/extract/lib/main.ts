@@ -5,6 +5,7 @@ import { gameContentPath, gameContentReadPath } from '../../../lib/game/content-
 import { collectAllStrings, compareWithManual } from './compare'
 import { extractDatabase, loadJson } from './database'
 import { extractDialogueFromEvents } from './dialogue'
+import { extractPluginsJsText } from './plugin-text'
 
 export function resolveContentRoot(argv = process.argv.slice(2)) {
   const eq = argv.find((a) => a.startsWith('--root='))
@@ -43,6 +44,8 @@ export function runExtract(contentRoot: string) {
   dialogue.push(...extractDialogueFromEvents(troops || [], { src: 'troop' }))
 
   const db = extractDatabase(DATA)
+  const pluginsFile = path.join(contentRoot, 'js', 'plugins.js')
+  if (fs.existsSync(pluginsFile)) db.plugins = extractPluginsJsText(fs.readFileSync(pluginsFile, 'utf8'))
   const allStrings = collectAllStrings(dialogue, db)
   const counts: Record<string, number> = {
     dialogueBlocks: dialogue.length,
@@ -57,8 +60,8 @@ export function runExtract(contentRoot: string) {
   const result = {
     meta: {
       generatedAt: new Date().toISOString(),
-      source: 'data/*.json',
-      note: '精简抽取：dialogue=游玩顺序；db=数据库字段。无 flat / 无引擎调试字段。',
+      source: fs.existsSync(pluginsFile) ? 'data/*.json + js/plugins.js' : 'data/*.json',
+      note: '精简抽取：dialogue=游玩顺序；db=数据库字段与插件参数。无 flat / 无引擎调试字段。',
       counts,
     },
     dialogue,

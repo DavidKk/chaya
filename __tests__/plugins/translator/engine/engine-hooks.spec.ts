@@ -89,3 +89,57 @@ it('keeps dialogue and choices original in subtitle mode while preserving cached
     }
   }
 })
+
+it('translates direct canvas text without translating Bitmap text twice', () => {
+  class CanvasContext {
+    fillText(text: string) {
+      return text
+    }
+    strokeText(text: string) {
+      return text
+    }
+    measureText(text: string) {
+      return { width: text.length }
+    }
+  }
+  class BitmapStub {
+    drawText(text: string) {
+      return new CanvasContext().fillText(text)
+    }
+  }
+  class Base {
+    convertEscapeCharacters(text: string) {
+      return text
+    }
+    drawText(text: string) {
+      return new BitmapStub().drawText(text)
+    }
+    drawTextEx(text: string) {
+      return this.drawText(text)
+    }
+  }
+  const globals = { window: {}, Window_Base: Base, Bitmap: BitmapStub, CanvasRenderingContext2D: CanvasContext }
+  const previous = Object.fromEntries(Object.keys(globals).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  Object.assign(globalThis, globals)
+  try {
+    const translate = jest.fn((text: unknown) => (text === '敵の攻撃' ? '敌人攻击' : String(text)))
+    const remove = installEngineHooks(translate)
+    const canvas = new CanvasContext()
+    expect(canvas.fillText('敵の攻撃')).toBe('敌人攻击')
+    expect(canvas.strokeText('敵の攻撃')).toBe('敌人攻击')
+    expect(canvas.measureText('敵の攻撃').width).toBe(4)
+    translate.mockClear()
+    expect(new BitmapStub().drawText('敵の攻撃')).toBe('敌人攻击')
+    expect(translate).toHaveBeenCalledTimes(1)
+    translate.mockClear()
+    expect(new Base().drawText('敵の攻撃')).toBe('敌人攻击')
+    expect(translate).toHaveBeenCalledTimes(1)
+    remove()
+    expect(canvas.fillText('敵の攻撃')).toBe('敵の攻撃')
+  } finally {
+    for (const key of Object.keys(globals)) {
+      if (previous[key]) Object.defineProperty(globalThis, key, previous[key]!)
+      else Reflect.deleteProperty(globalThis, key)
+    }
+  }
+})
