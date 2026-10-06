@@ -32,6 +32,7 @@ type AnyFn = (...args: unknown[]) => unknown
 const TEXT_MAX = 1000
 const PERSIST_MS = 5_000
 const STORAGE_PREFIX = 'chaya.agent.history:'
+const ORIGINAL_MESSAGE_LINES = Symbol.for('chaya.originalMessageLines')
 
 let entries: HistoryEntry[] = []
 let seq = 0
@@ -68,6 +69,11 @@ export function plainText(raw: unknown): string {
     .replace(/[ \t]+\n/g, '\n')
     .trim()
   return text.length > TEXT_MAX ? `${text.slice(0, TEXT_MAX)}…` : text
+}
+
+export function originalMessageText(message: unknown): string {
+  const source = (message as Record<symbol, unknown> | null | undefined)?.[ORIGINAL_MESSAGE_LINES]
+  return plainText(Array.isArray(source) && source.length ? source.join('\n') : call(message, 'allText'))
 }
 
 function storageKey(): string {
@@ -164,7 +170,7 @@ function installHooks(): Array<() => void> {
 
   before(proto('Window_Message'), 'startMessage', () => {
     const message = w.$gameMessage
-    const text = plainText(call(message, 'allText'))
+    const text = originalMessageText(message)
     if (!text) return
     const speaker = plainText(call(message, 'speakerName') ?? '')
     push({ kind: 'message', text, ...(speaker ? { speaker } : {}) })

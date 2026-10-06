@@ -9,7 +9,7 @@ import { isFirstPartyToolPlugin } from '@/lib/runtime/plugin-tools'
 
 import { findPluginTool, listPluginToolMetas } from '../helpers/plugin-tools'
 import { movePlayer, quitGame, snapScreen, tapScreen } from './game-control'
-import { battleProgress, readHistory } from './history'
+import { battleProgress, originalMessageText, readHistory } from './history'
 
 type Loose = Record<string, unknown>
 type AnyFn = (...args: unknown[]) => unknown
@@ -129,12 +129,14 @@ function gameState() {
           const win = value as Loose
           const visible = win.visible !== false && Number(win.openness ?? 255) > 0
           if (!visible) return null
+          const menu = Array.isArray(win.options) ? win.options : Array.isArray(win._list) ? win._list : null
           return {
             name: name.replace(/^_/, ''),
             active: Boolean(win.active),
             index: read(win, 'index') ?? win._index ?? null,
             symbol: read(win, 'currentSymbol') ?? null,
             item: toJsonSafe(read(win, 'item'), 2),
+            options: menu?.slice(0, 30).map((entry: Loose) => ({ label: entry.label ?? entry.name ?? null, symbol: entry.symbol ?? null, enabled: entry.enabled ?? true })) ?? null,
           }
         })
         .filter(Boolean)
@@ -210,7 +212,7 @@ function gameState() {
       ? {
           busy: Boolean(read(message, 'isBusy')),
           speaker: read(message, 'speakerName') || null,
-          text: read<string>(message, 'allText') || null,
+          text: originalMessageText(message) || null,
           choices: read<boolean>(message, 'isChoice') ? (read<string[]>(message, 'choices') ?? []) : null,
         }
       : null,
@@ -239,11 +241,13 @@ function inputEffect(key: AgentInputKey, state: ReturnType<typeof gameState>): A
   if (name.includes('item') || name.includes('skill')) return 'spend_resource'
   if (state.message?.busy && !state.message.choices?.length) return 'advance_dialogue'
   if (state.scene === 'Scene_Battle') {
-    if (active?.symbol === 'attack' || active?.symbol === 'guard' || active?.symbol === 'fight') return 'battle_command'
+    if (active?.symbol === 'attack' || active?.symbol === 'guard' || active?.symbol === 'fight' || active?.symbol === 'escape') return 'battle_command'
     if (active?.symbol === 'skill' || active?.symbol === 'item') return 'navigate'
-    if (name.includes('enemy') || name.includes('actor')) {
+    if (name.includes('enemy') || name.includes('actor') || name.includes('ally')) {
       const action = read(g().BattleManager, 'inputtingAction') ?? (g().BattleManager as Loose | undefined)?._inputtingAction
-      return read<boolean>(action, 'isAttack') ? 'battle_command' : 'unknown'
+      if (read<boolean>(action, 'isAttack')) return 'battle_command'
+      if (read<boolean>(action, 'isSkill') || read<boolean>(action, 'isItem')) return 'spend_resource'
+      return 'unknown'
     }
     return 'unknown'
   }

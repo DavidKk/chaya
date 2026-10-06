@@ -376,8 +376,13 @@
       switches: [null, '听过村长的话'],
       terms: { basic: [], commands: [], params: [], messages: {} },
     },
-    $dataItems: [null, { id: 1, name: '药草', description: '回复少量 HP 的草药。' }, { id: 2, name: '旧钥匙', description: '不知道能打开哪扇门。' }],
-    $dataActors: [null, { id: 1, name: '勇者', description: '' }],
+    $dataItems: [
+      null,
+      { id: 1, name: '药草', description: '回复 28 HP。' },
+      { id: 2, name: '旧钥匙', description: '不知道能打开哪扇门。' },
+      { id: 3, name: '以太水', description: '回复 12 MP。' },
+    ],
+    $dataActors: [null, { id: 1, name: '剑士', description: '' }, { id: 2, name: '术士', description: '' }],
     $dataMapInfos: window.WalkDemo.MAP_INFOS,
     $dataCommonEvents: [null, { id: 1, name: '回复', trigger: 0, switchId: 1, list: window.WalkDemo.rmEventList(COMMON_EVENTS[1]) }],
   })
@@ -397,8 +402,8 @@
       $gameSwitches: new Game_Values(),
       $gameTroop: { members: () => [] },
     })
-    const actor = new Game_Actor(1, '勇者')
-    window.$gameActors = { _data: [null, actor], actor: (id) => (id === 1 ? actor : null) }
+    const actors = [null, new Game_Actor(1, '剑士'), new Game_Actor(2, '术士')]
+    window.$gameActors = { _data: actors, actor: (id) => actors[id] || null }
     $gameMap.setup(1)
     mapScene = new Scene_Map()
     SceneManager._scene = mapScene

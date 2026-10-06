@@ -4,6 +4,7 @@ import { hookMethod } from '../../helpers/game/method-hook'
 
 /** Hook RM draw / message entry points so translate takes effect. */
 type Translate = (text: unknown) => string
+const ORIGINAL_MESSAGE_LINES = Symbol.for('chaya.originalMessageLines')
 
 export function installEngineHooks(translate: Translate, getMode: () => TranslationPlayMode = () => 'pretranslated') {
   const base = Window_Base.prototype
@@ -74,9 +75,23 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
     remove.push(
       hookMethod(
         Game_Message.prototype,
+        'clear',
+        (original) =>
+          function (...args: unknown[]) {
+            const result = original.apply(this, args)
+            ;(this as Record<symbol, string[]>)[ORIGINAL_MESSAGE_LINES] = []
+            return result
+          }
+      )
+    )
+    remove.push(
+      hookMethod(
+        Game_Message.prototype,
         'add',
         (original) =>
           function (text: string, ...args: unknown[]) {
+            const source = this as Record<symbol, string[]>
+            ;(source[ORIGINAL_MESSAGE_LINES] ??= []).push(text)
             return original.call(this, getMode() === 'pretranslated' ? translate(text) : text, ...args)
           }
       )
@@ -103,6 +118,7 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
   return () => {
     active = false
     for (const dispose of remove.reverse()) dispose()
+    if (typeof $gameMessage !== 'undefined') delete ($gameMessage as Record<symbol, string[]>)[ORIGINAL_MESSAGE_LINES]
     if (window.TranslationManager === manager) delete window.TranslationManager
   }
 }

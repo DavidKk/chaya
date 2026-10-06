@@ -27,6 +27,7 @@ let stop: () => void
 beforeEach(() => {
   localStorage.clear()
   resetHistory()
+  delete (message as unknown as Record<symbol, string[]>)[Symbol.for('chaya.originalMessageLines')]
   Object.assign(g, {
     Window_Message,
     Window_ChoiceList,
@@ -114,6 +115,12 @@ describe('agent story history', () => {
     const [line, choices] = readHistory({}).entries
     expect(line).toMatchObject({ text: 'こんにちは', translated: '你好' })
     expect(choices).toMatchObject({ choices: ['はい', 'いいえ'], translatedChoices: ['是', 'いいえ'] })
+  })
+
+  it('records the original message when pretranslated playback changed the visible text', () => {
+    ;(message as unknown as Record<symbol, string[]>)[Symbol.for('chaya.originalMessageLines')] = ['職人が橋を修理した。']
+    say('工匠修好了桥。')
+    expect(readHistory({}).entries[0]).toMatchObject({ kind: 'message', text: '職人が橋を修理した。' })
   })
 
   it('records loads after the save resolves and persists on stop', async () => {

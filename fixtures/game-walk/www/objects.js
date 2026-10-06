@@ -356,7 +356,7 @@
       this.gainGold(-n)
     }
     members() {
-      return [$gameActors.actor(1)]
+      return $gameActors._data.filter(Boolean)
     }
     numItems(item) {
       return (item && this._items[item.id]) || 0

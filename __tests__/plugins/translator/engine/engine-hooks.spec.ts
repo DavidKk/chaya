@@ -25,6 +25,10 @@ it('keeps dialogue and choices original in subtitle mode while preserving cached
   class GameMessage {
     texts: string[] = []
     choices: string[] = []
+    clear() {
+      this.texts = []
+      this.choices = []
+    }
     add(text: string) {
       this.texts.push(text)
     }
@@ -65,6 +69,10 @@ it('keeps dialogue and choices original in subtitle mode while preserving cached
     game.setChoices(['進む'])
     expect(game.texts[2]).toBe('ZH:次の会話')
     expect(game.choices).toEqual(['ZH:進む'])
+    expect((game as unknown as Record<symbol, string[]>)[Symbol.for('chaya.originalMessageLines')]).toEqual(['こんにちは', '次の会話', '次の会話'])
+    game.clear()
+    game.add('新しい台詞')
+    expect((game as unknown as Record<symbol, string[]>)[Symbol.for('chaya.originalMessageLines')]).toEqual(['新しい台詞'])
     remove()
     expect(new Base().drawText('メニュー')).toBe('メニュー')
     expect(new BitmapStub().drawText('メニュー')).toBe('メニュー')
