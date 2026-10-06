@@ -2,7 +2,7 @@
  * ChayaEdit — entry: HMR dispose, wire API / hotkeys / disk watch.
  */
 import { startGameAgentHotkeys } from '../agent-ui/hotkeys'
-import { hideGameAgentUi, unmountGameAgentUi } from '../agent-ui/mount'
+import { hideGameAgentUi, mountGameAgentCompanion, unmountGameAgentUi } from '../agent-ui/mount'
 import { startPluginGameAgentSync } from '../agent-ui/request'
 import { createLogger, registerGameLinkEditHandlers, restorePluginErrors, showPluginError } from '../helpers'
 import { installConsoleApi } from './console/console-api'
@@ -12,7 +12,7 @@ import { disposeMapHistory, installMapHistory } from './session/map-history'
 import { startGameEditDiskWatcher } from './session/persist'
 import { handleRemoteEditMessage, stopRemoteEditBridge } from './session/remote-bridge'
 import { captureGameEditView } from './ui/App'
-import { isGameEditUiOpen, remountGameEditUi, showGameEditUi, unmountGameEditUi } from './ui/mount'
+import { isGameEditUiOpen, mountGameEditTools, remountGameEditUi, showGameEditUi, unmountGameEditUi } from './ui/mount'
 
 const log = createLogger('ChayaEdit')
 
@@ -37,6 +37,8 @@ const unregisterLink = registerGameLinkEditHandlers({
 const stopHotkeys = startPanelHotkeys()
 const stopAgentHotkeys = startGameAgentHotkeys()
 const stopAgentSettingsSync = startPluginGameAgentSync()
+mountGameAgentCompanion()
+mountGameEditTools()
 const openAgentSettings = () => {
   const host = window as Window & { __chayaGameEditView?: Record<string, unknown> }
   host.__chayaGameEditView = { ...(host.__chayaGameEditView || {}), tab: 'settings' }

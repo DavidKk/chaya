@@ -34,7 +34,7 @@ test('uses link navigation on settings pages', async () => {
   await act(async () =>
     root.render(
       <LocaleProvider initialLocale="zh" initialPreference="zh">
-        <SettingsSectionNav href="/settings/agents" />
+        <SettingsSectionNav active="agents" />
       </LocaleProvider>
     )
   )

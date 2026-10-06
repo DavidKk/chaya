@@ -45,6 +45,28 @@ describe('game agent Ollama client', () => {
     ])
   })
 
+  it('removes the fast-mode directive when thinking is enabled for one call', async () => {
+    const fetcher = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body))
+      expect(body.think).toBe(true)
+      expect(body.messages[0].content).toBe('Analyze the goal.')
+      expect(body.options.num_predict).toBe(2048)
+      return streamed(['{"message":{"thinking":"checking","content":"done"}}\n'])
+    }) as unknown as typeof fetch
+    await expect(
+      streamOllamaChat({ model: 'demo', think: true, maxTokens: 128, messages: [{ role: 'system', content: '/no_think\nAnalyze the goal.' }] }, () => {}, fetcher)
+    ).resolves.toMatchObject({ content: 'done' })
+  })
+
+  it('falls back when a model explicitly rejects thinking', async () => {
+    const fetcher = jest
+      .fn()
+      .mockResolvedValueOnce(new Response('model does not support thinking', { status: 400 }))
+      .mockResolvedValueOnce(streamed(['{"message":{"content":"ok"}}\n'])) as unknown as typeof fetch
+    await expect(streamOllamaChat({ model: 'basic', think: true, messages: [] }, () => {}, fetcher)).resolves.toMatchObject({ content: 'ok' })
+    expect(JSON.parse(String((fetcher as jest.Mock).mock.calls[1][1].body)).think).toBe(false)
+  })
+
   it('passes screenshot bytes in the Ollama image field', async () => {
     const fetcher = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body))

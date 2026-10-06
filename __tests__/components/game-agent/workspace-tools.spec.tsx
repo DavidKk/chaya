@@ -26,6 +26,13 @@ beforeAll(() => {
       dispatchEvent: jest.fn(),
     })),
   })
+  Object.defineProperty(window, 'ResizeObserver', {
+    configurable: true,
+    value: class {
+      observe() {}
+      disconnect() {}
+    },
+  })
 })
 
 beforeEach(() => {

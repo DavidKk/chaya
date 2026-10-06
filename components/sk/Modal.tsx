@@ -125,7 +125,7 @@ export function Modal({
   const hasDesc = description != null && description !== false && description !== ''
 
   return createPortal(
-    <div className={cn('fixed inset-0 z-[80] flex items-center justify-center p-4', className)} role="presentation">
+    <div className={cn('pointer-events-auto fixed inset-0 z-[80] flex items-center justify-center p-4', className)} role="presentation">
       <button
         type="button"
         className="absolute inset-0 cursor-default border-none bg-[rgb(0_0_0/0.45)] p-0"

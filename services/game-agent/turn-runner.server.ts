@@ -35,7 +35,15 @@ export async function runAskTurn(
     const state = offerTools && gameId ? await callAgentGame(gameId, 'game.state', {}) : undefined
     if (turn.abort.signal.aborted) throw turn.abort.signal.reason
 
-    const messages = buildAskMessages({ history: session.messages, prompt: input.prompt, locale: input.locale || 'zh-CN', gameId: offerTools ? gameId : undefined, state })
+    const messages = buildAskMessages({
+      history: session.messages,
+      prompt: input.prompt,
+      locale: input.locale || 'zh-CN',
+      gameId: offerTools ? gameId : undefined,
+      state,
+      surface: input.surface,
+      companionCharacter: input.companionCharacter,
+    })
     const gameTools = offerTools ? createGameAgentTools(gameId).filter((tool) => !gameReadOnly || tool.readOnly || tool.definition.function.name.startsWith('chaya_agent_')) : []
     const tools = gameTools.map((tool) => tool.definition)
     const credentials = new Set<string>()

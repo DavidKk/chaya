@@ -2,7 +2,7 @@
  * AI Agent 翻译：用选定的 Agent 实例（端点 / 模型 / token）做日→中。
  * token 只在服务端读取；游戏插件经 `/api/translate { mode: 'ai' }` 调用。
  */
-import { requestOllama } from '@/lib/translate/engine-http'
+import { OLLAMA_TRANSLATE_RETRY_SYSTEM, requestOllama, translationNeedsReasoning } from '@/lib/translate/engine-http'
 import type { TranslateAiConfig } from '@/lib/translate/engines'
 import { loadAgentModelCache } from '@/services/game-agent/model-cache'
 import { listOllamaModels, pickAvailableModel } from '@/services/game-agent/ollama-client'
@@ -24,8 +24,8 @@ export async function agentJaToZh(text: string, config: TranslateAiConfig, optio
   if (!model) model = pickAvailableModel(await listOllamaModels(profile.endpoint, fetch, signal, token))
   if (!model) throw new Error(`Agent 实例「${profile.label}」没有可用模型`)
   return scheduleOllama(
-    () =>
-      requestOllama(fetch, {
+    async () => {
+      const request = {
         host: profile.endpoint,
         model,
         text,
@@ -34,7 +34,11 @@ export async function agentJaToZh(text: string, config: TranslateAiConfig, optio
         token,
         interactive: options.interactive,
         signal,
-      }),
+      }
+      const translated = await requestOllama(fetch, { ...request, think: !options.interactive && translationNeedsReasoning(text) })
+      if (translated && translated.normalize('NFKC').trim() !== text.normalize('NFKC').trim()) return translated
+      return requestOllama(fetch, { ...request, text: `译文：\n${text}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true })
+    },
     !!options.interactive,
     signal
   )

@@ -10,8 +10,8 @@ import { type PluginToolMeta, sanitizePluginTools } from './plugin-tools'
 export const AGENT_INPUT_KEYS = ['ok', 'cancel', 'shift', 'menu', 'up', 'down', 'left', 'right', 'pageup', 'pagedown', 'escape'] as const
 export type AgentInputKey = (typeof AGENT_INPUT_KEYS)[number]
 export type AgentInputStep = { key: AgentInputKey; frames?: number; waitFrames?: number }
-export type AgentInputEffect = 'navigate' | 'advance_dialogue' | 'battle_command' | 'spend_resource' | 'choose_branch' | 'save_load' | 'unknown'
-export type AgentInputGuard = { controlToken: string; allowedEffects: AgentInputEffect[]; battleInstanceId?: string; mapId?: number }
+export type AgentInputEffect = 'navigate' | 'advance_dialogue' | 'interact_event' | 'battle_command' | 'spend_resource' | 'choose_branch' | 'save_load' | 'unknown'
+export type AgentInputGuard = { controlToken: string; allowedEffects: AgentInputEffect[]; battleInstanceId?: string; mapId?: number; targetEventId?: number }
 export type AgentReactionCue = { id: string; key: AgentInputKey; expiresAt: number; startedAt?: number }
 
 export const AGENT_HISTORY_KINDS = ['message', 'choices', 'choice', 'map', 'battle', 'load'] as const
@@ -37,7 +37,7 @@ export type AgentCommand =
   | { id: string; method: 'input.reaction.stop'; params: Record<string, never> }
   | { id: string; method: 'input.sequence'; params: { steps: AgentInputStep[] } }
   | { id: string; method: 'input.tap'; params: { x: number; y: number; frames?: number } }
-  | { id: string; method: 'player.moveTo'; params: { x: number; y: number; timeoutMs?: number } }
+  | { id: string; method: 'player.moveTo'; params: { x: number; y: number; timeoutMs?: number; stepwise?: boolean; guard?: AgentInputGuard } }
   | { id: string; method: 'edit.catalog'; params: Record<string, never> }
   | { id: string; method: 'edit.state'; params: Record<string, never> }
   | { id: string; method: 'edit.apply'; params: { op: GameEditCmdOp } }

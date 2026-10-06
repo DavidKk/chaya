@@ -9,6 +9,7 @@ import {
   parseAgentSyncDocument,
   withAgentSyncActor,
 } from '@/lib/game-agent/settings-sync'
+import { cacheToolSettings, normalizeToolSettings, readCachedToolSettings } from '@/lib/game-agent/tool-settings'
 
 import { chayaFetch } from '../helpers'
 
@@ -141,7 +142,16 @@ export const pluginGameAgentRequest = createPluginGameAgentRequest()
 export function startPluginGameAgentSync() {
   let stopped = false
   const run = () => {
-    if (!stopped) void pluginGameAgentRequest('/api/integration/game-agent', { cache: 'no-store' })
+    if (stopped) return
+    void pluginGameAgentRequest('/api/integration/game-agent', { cache: 'no-store' })
+    void pluginGameAgentRequest('/api/integration/game-agent/tools', { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok || stopped) return
+        const body = (await response.json()) as { settings?: unknown }
+        const next = normalizeToolSettings(body.settings)
+        if (JSON.stringify(next) !== JSON.stringify(readCachedToolSettings())) cacheToolSettings(next)
+      })
+      .catch(() => {})
   }
   const interval = window.setInterval(run, AUTO_SYNC_MS)
   window.addEventListener('focus', run)

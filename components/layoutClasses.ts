@@ -65,6 +65,11 @@ export const formCard = cn(
 /** 运行 / 角色等基础页：与编辑表行同边距，尽量一屏看完 */
 export const formCardDense = cn(formCard, '[&>*]:px-3 [&>*]:py-2 [&>*+*]:before:inset-x-3')
 
+/** 设置子页的卡片列：靠左排列，按表单内容选宽度档位。 */
+export const settingsCardColumn = 'flex w-full flex-col gap-4'
+export const settingsCardNarrow = cn(settingsCardColumn, 'max-w-xl')
+export const settingsCardWide = cn(settingsCardColumn, 'max-w-2xl')
+
 export const formField = cn('flex flex-col items-stretch', gapField)
 /** 左右分栏表单项：略宽松，避免数字行与开关行挤在一起 */
 export const formFieldInline = cn('grid min-h-[3.1rem] grid-cols-[minmax(9rem,13rem)_minmax(0,1fr)] items-center gap-y-1', gapInline)

@@ -5,6 +5,7 @@ import sharp from 'sharp'
 import type { AgentInputKey } from '@/lib/runtime/agent-protocol'
 import { callAgentGame } from '@/services/runtime/agent-bridge'
 
+import { battleNeedsReasoning, type ManagedState } from './managed-goal.server'
 import { listOllamaModels, readOllamaModelCapabilities, streamOllamaChat } from './ollama-client'
 import { readGameAgentToken } from './secrets'
 import type { GameAgentProfile } from './settings'
@@ -136,7 +137,8 @@ export async function inspectBattleImage(
         keepAlive: profile.keepAlive,
         signal,
         temperature: 0,
-        maxTokens: 80,
+        maxTokens: battleNeedsReasoning(state as ManagedState, options.length) ? 384 : 80,
+        think: battleNeedsReasoning(state as ManagedState, options.length),
         format: { type: 'object', properties: { targetText: { type: ['string', 'null'] } }, required: ['targetText'], additionalProperties: false },
         messages: [
           {

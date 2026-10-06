@@ -91,6 +91,7 @@
       this._data = data
       this._x = data.x
       this._y = data.y
+      this._trigger = data.touch ? 1 : 0
       this._starting = false
     }
     eventId() {

@@ -24,7 +24,7 @@ function render() {
   if (!state.root) return
   state.root.render(
     <LocaleProvider syncDocumentLang={false}>
-      <GameEditApp open={state.open} onRequestClose={hideGameEditUi} />
+      <GameEditApp open={state.open} onRequestOpen={showGameEditUi} onRequestClose={hideGameEditUi} />
     </LocaleProvider>
   )
 }
@@ -70,6 +70,11 @@ function ensureMounted() {
   clearElement(host.mount)
   state.root = createRoot(host.mount)
   return host
+}
+
+export function mountGameEditTools() {
+  ensureMounted()
+  render()
 }
 
 export function isGameEditUiOpen() {

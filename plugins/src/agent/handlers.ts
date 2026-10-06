@@ -67,6 +67,13 @@ function read<T = unknown>(obj: unknown, name: string, ...args: unknown[]): T | 
   }
 }
 
+/** First Show Text line of the event's active page; game text, so callers must treat it as untrusted data. */
+function eventHint(event: Loose): string | null {
+  const list = read<Array<{ code?: number; parameters?: unknown[] }>>(event, 'list') ?? []
+  const line = list.find((command) => command?.code === 401)?.parameters?.[0]
+  return typeof line === 'string' && line.trim() ? line.trim().slice(0, 40) : null
+}
+
 /** JSON-safe copy: drops functions, breaks cycles, caps depth / size. */
 export function toJsonSafe(value: unknown, depth = 4, seen = new WeakSet<object>()): unknown {
   if (value == null || typeof value === 'boolean' || typeof value === 'string') return value
@@ -93,7 +100,7 @@ export function toJsonSafe(value: unknown, depth = 4, seen = new WeakSet<object>
   return out
 }
 
-function gameState() {
+export function readAgentGameState() {
   const w = g()
   const scene = (w.SceneManager as Loose | undefined)?._scene as Loose | undefined
   const map = w.$gameMap
@@ -120,6 +127,9 @@ function gameState() {
         y: Number.isFinite(y) ? y : null,
         distance: Number.isFinite(x + y + px + py) ? Math.abs(x - px) + Math.abs(y - py) : null,
         running: Boolean(read(event, 'isStarting')),
+        sprite: typeof event._characterName === 'string' && event._characterName ? event._characterName : null,
+        trigger: typeof event._trigger === 'number' ? (['action', 'player_touch', 'event_touch', 'autorun', 'parallel'][event._trigger] ?? null) : null,
+        hint: eventHint(event),
       }
     })
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
@@ -240,7 +250,7 @@ function gameState() {
   return { ...state, controlToken: (hash >>> 0).toString(36) }
 }
 
-function inputEffect(key: AgentInputKey, state: ReturnType<typeof gameState>): AgentInputEffect {
+function inputEffect(key: AgentInputKey, state: ReturnType<typeof readAgentGameState>): AgentInputEffect {
   if (key !== 'ok') return 'navigate'
   const active = state.windows.find((window) => window?.active)
   const name = String(active?.name || '').toLowerCase()
@@ -259,16 +269,41 @@ function inputEffect(key: AgentInputKey, state: ReturnType<typeof gameState>): A
     }
     return 'unknown'
   }
+  if (state.scene === 'Scene_Map' && state.player?.x != null && state.player.y != null) {
+    const direction = state.player.direction
+    const [dx, dy] = direction === 2 ? [0, 1] : direction === 4 ? [-1, 0] : direction === 6 ? [1, 0] : direction === 8 ? [0, -1] : [0, 0]
+    if (state.nearbyEvents.some((event) => event.x === Number(state.player!.x) + dx && event.y === Number(state.player!.y) + dy)) return 'interact_event'
+  }
   return 'unknown'
 }
 
 function checkInputGuard(key: AgentInputKey, guard: AgentInputGuard) {
-  const state = gameState()
+  const state = readAgentGameState()
   if (state.controlToken !== guard.controlToken) throw new Error('STATE_CHANGED')
   if (guard.battleInstanceId && state.battle?.instanceId !== guard.battleInstanceId) throw new Error('SCOPE_CHANGED')
   if (guard.mapId != null && state.map?.id !== guard.mapId) throw new Error('SCOPE_CHANGED')
   const effect = inputEffect(key, state)
+  if (effect === 'interact_event' && guard.targetEventId != null) {
+    const player = state.player
+    const direction = player?.direction
+    const [dx, dy] = direction === 2 ? [0, 1] : direction === 4 ? [-1, 0] : direction === 6 ? [1, 0] : direction === 8 ? [0, -1] : [0, 0]
+    if (!state.nearbyEvents.some((event) => event.id === guard.targetEventId && event.x === Number(player!.x) + dx && event.y === Number(player!.y) + dy))
+      throw new Error('SCOPE_CHANGED')
+  }
   if (!Array.isArray(guard.allowedEffects) || !guard.allowedEffects.includes(effect)) throw new Error(`ACTION_REQUIRES_CONFIRMATION:${effect}`)
+}
+
+/** Walking only navigates; touch events on the way may still fire, which the host detects by re-observing. */
+function guardedMove(params: AgentParams<'player.moveTo'>) {
+  const { guard } = params
+  if (guard) {
+    const state = readAgentGameState()
+    if (state.controlToken !== guard.controlToken) throw new Error('STATE_CHANGED')
+    if (guard.mapId != null && state.map?.id !== guard.mapId) throw new Error('SCOPE_CHANGED')
+    if (!Array.isArray(guard.allowedEffects) || !guard.allowedEffects.includes('navigate')) throw new Error('ACTION_REQUIRES_CONFIRMATION:navigate')
+  }
+  const epoch = manualInputEpoch
+  return movePlayer(params, () => manualInputEpoch !== epoch)
 }
 
 function listPlugins(): unknown {
@@ -365,7 +400,7 @@ async function playSequence({ steps }: { steps: AgentInputStep[] }): Promise<unk
     actions.push(await pressKey(step))
     await waitFrames(frames(step.waitFrames, DEFAULT_WAIT_FRAMES))
   }
-  return { actions, state: gameState() }
+  return { actions, state: readAgentGameState() }
 }
 
 async function evalCode(code: string): Promise<unknown> {
@@ -381,7 +416,7 @@ export type AgentRunOptions = {
 export async function runAgentCommand(cmd: AgentCommand, { allowEval = false }: AgentRunOptions = {}): Promise<unknown> {
   switch (cmd.method) {
     case 'game.state':
-      return gameState()
+      return readAgentGameState()
     case 'game.history':
       return readHistory(cmd.params ?? {})
     case 'game.snap':
@@ -403,7 +438,7 @@ export async function runAgentCommand(cmd: AgentCommand, { allowEval = false }: 
     case 'input.tap':
       return tapScreen(cmd.params)
     case 'player.moveTo':
-      return movePlayer(cmd.params)
+      return guardedMove(cmd.params)
     case 'edit.catalog':
       return editCatalog()
     case 'edit.state':

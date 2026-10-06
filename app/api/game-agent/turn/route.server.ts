@@ -1,5 +1,6 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError } from '@/initializer/response'
+import { normalizeCompanionCharacter } from '@/lib/game-agent/companion'
 import { classifyGameIntent, runManagedTurn } from '@/services/game-agent/managed-turn.server'
 import { beginTurn, emitTurnEvent, finishTurn, getOrCreateSession, subscribeTurn } from '@/services/game-agent/session-store'
 import { loadGameAgentSettings, profileById } from '@/services/game-agent/settings'
@@ -32,6 +33,8 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
     sessionId: body?.sessionId,
     newSession: body?.newSession === true,
     locale: String(body?.locale || ''),
+    surface: body?.surface === 'companion' ? 'companion' : undefined,
+    companionCharacter: body?.surface === 'companion' ? normalizeCompanionCharacter(body.companionCharacter) : undefined,
   }
   const profile = profileById(loadGameAgentSettings(), profileId)
   if (!profile) return apiError(400, 'AGENT_PROFILE_NOT_FOUND', '接入实例不存在或已删除')

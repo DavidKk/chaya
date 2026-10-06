@@ -66,7 +66,7 @@ it('second section renders the full disclaimer', async () => {
   await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="免责声明"]')?.click())
 
   expect(host.querySelector('h1')?.textContent).toBe('免责声明')
-  expect(host.textContent).toContain('不提供任何形式的分发')
+  expect(host.textContent).toContain('开发者不提供游戏本体、游戏素材、译文')
 })
 
 it('privacy and license sections render their documents', async () => {

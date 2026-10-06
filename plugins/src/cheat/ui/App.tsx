@@ -22,6 +22,7 @@ import {
   type SessionState,
   type TableRow,
 } from '@/components/game-edit/types'
+import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
 import { EditTableSkeleton } from '@/components/sk'
@@ -35,6 +36,7 @@ import { RunCheats } from '../runtime/cheats-run'
 import { buildLiveCatalog, type LiveSessionScope, readLiveSession, setItemCount, setPartyGold } from '../session/live-session'
 import { bootstrapGameEditSession, diskStateFromSession, ensureGameEditDiskApplied, loadGameEditDisk, scheduleSaveGameEditDisk } from '../session/persist'
 import { syncRemoteMirror } from '../session/remote-bridge'
+import { FloatingMiniMap } from './FloatingMiniMap'
 import { useOverlayEvents } from './useOverlayEvents'
 import { useOverlaySaveData } from './useOverlaySaveData'
 
@@ -43,6 +45,7 @@ const GameEditWorkbench = lazy(() => import('@/components/game-edit/GameEditWork
 
 type Props = {
   open: boolean
+  onRequestOpen: () => void
   onRequestClose: () => void
 }
 
@@ -115,8 +118,9 @@ function tabNeedsCatalog(tab: TabId): boolean {
 }
 
 /** In-game React panel: shared GameEditWorkbench + runtime data */
-export function GameEditApp({ open, onRequestClose }: Props) {
+export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   const t = useT()
+  const toolSettings = useToolSettings(pluginGameAgentRequest, 3000)
   const tRef = useRef(t)
   tRef.current = t
   const [initial] = useState(initialView)
@@ -485,95 +489,106 @@ export function GameEditApp({ open, onRequestClose }: Props) {
     refresh()
   }, [refresh, refreshEvents])
 
-  if (!open) return null
-
   return (
-    <GameEditOverlayProviders>
-      <Suspense fallback={<EditTableSkeleton label={t('edit.loadPanel')} />}>
-        <GameEditWorkbench
-          surface="overlay"
-          agentRequest={pluginGameAgentRequest}
-          tab={tab}
-          setTab={selectTab}
-          lastEditTab={lastEditTab}
-          actorId={actorId}
-          setActorId={setActorId}
-          actorPane={actorPane}
-          setActorPane={setActorPane}
-          filter={filter}
-          setFilter={setFilter}
-          onlyOwned={onlyOwned}
-          setOnlyOwned={setOnlyOwned}
-          onlyNamed={onlyNamed}
-          setOnlyNamed={setOnlyNamed}
-          translateTab={translateTab}
-          setTranslateTab={setTranslateTab}
-          translateSection={translateSection}
-          setTranslateSection={setTranslateSection}
-          loading={bootstrapping}
-          error={error}
-          catalog={catalog}
-          session={session}
-          onRefresh={forceRefresh}
-          onClose={onRequestClose}
-          onGoldChange={setGold}
-          onGoldLockChange={setGoldLock}
-          onMoveRateChange={(rate) => {
-            applySpeed(rate, rate)
-            setSession((prev) => ({ ...prev, walkRate: rate, runRate: rate }))
-          }}
-          onGameSpeedChange={(rate) => {
-            applyGameSpeed(rate)
-            setSession((prev) => ({ ...prev, gameSpeed: rate }))
-          }}
-          onExpRateChange={(rate) => {
-            RunCheats.setExpRate(rate)
-            setSession((prev) => ({ ...prev, expRate: rate }))
-          }}
-          onRunFlagChange={setRunFlag}
-          onRunAction={runAction}
-          onHotkeysChange={(scope, hotkeys) => {
-            if (scope === 'game') {
+    <GameEditOverlayProviders open={open}>
+      <FloatingMiniMap
+        enabled={toolSettings.settings.miniMapEnabled}
+        onClose={() => void toolSettings.update({ miniMapEnabled: false })}
+        onSelectEvent={(mapId, eventId) => {
+          eventsSlot.onSelectMap(mapId, eventId)
+          selectTab('map')
+          onRequestOpen()
+        }}
+      />
+      {open ? (
+        <Suspense fallback={<EditTableSkeleton label={t('edit.loadPanel')} />}>
+          <GameEditWorkbench
+            surface="overlay"
+            agentRequest={pluginGameAgentRequest}
+            tab={tab}
+            setTab={selectTab}
+            lastEditTab={lastEditTab}
+            actorId={actorId}
+            setActorId={setActorId}
+            actorPane={actorPane}
+            setActorPane={setActorPane}
+            filter={filter}
+            setFilter={setFilter}
+            onlyOwned={onlyOwned}
+            setOnlyOwned={setOnlyOwned}
+            onlyNamed={onlyNamed}
+            setOnlyNamed={setOnlyNamed}
+            translateTab={translateTab}
+            setTranslateTab={setTranslateTab}
+            translateSection={translateSection}
+            setTranslateSection={setTranslateSection}
+            loading={bootstrapping}
+            error={error}
+            catalog={catalog}
+            session={session}
+            onRefresh={forceRefresh}
+            onClose={onRequestClose}
+            onGoldChange={setGold}
+            onGoldLockChange={setGoldLock}
+            onMoveRateChange={(rate) => {
+              applySpeed(rate, rate)
+              setSession((prev) => ({ ...prev, walkRate: rate, runRate: rate }))
+            }}
+            onGameSpeedChange={(rate) => {
+              applyGameSpeed(rate)
+              setSession((prev) => ({ ...prev, gameSpeed: rate }))
+            }}
+            onExpRateChange={(rate) => {
+              RunCheats.setExpRate(rate)
+              setSession((prev) => ({ ...prev, expRate: rate }))
+            }}
+            onRunFlagChange={setRunFlag}
+            onRunAction={runAction}
+            onHotkeysChange={(scope, hotkeys) => {
+              if (scope === 'game') {
+                setGameHotkeysCache(hotkeys)
+                setSession((prev) => ({ ...prev, hotkeys }))
+                return
+              }
+              saveGlobalHotkeys(hotkeys)
+              setSession((prev) => ({ ...prev, hotkeysGlobal: hotkeys }))
+            }}
+            onHotkeysReload={() => {
+              const disk = loadGameEditDisk()
+              const hotkeysGlobal = loadGlobalHotkeys()
+              let hotkeys = {} as SessionState['hotkeys']
+              if (disk?.hotkeys && Object.keys(disk.hotkeys).length) {
+                hotkeys = { ...disk.hotkeys }
+                if (hotkeyMapsEqual(hotkeys, hotkeysGlobal)) hotkeys = {}
+              }
               setGameHotkeysCache(hotkeys)
-              setSession((prev) => ({ ...prev, hotkeys }))
-              return
-            }
-            saveGlobalHotkeys(hotkeys)
-            setSession((prev) => ({ ...prev, hotkeysGlobal: hotkeys }))
-          }}
-          onHotkeysReload={() => {
-            const disk = loadGameEditDisk()
-            const hotkeysGlobal = loadGlobalHotkeys()
-            let hotkeys = {} as SessionState['hotkeys']
-            if (disk?.hotkeys && Object.keys(disk.hotkeys).length) {
-              hotkeys = { ...disk.hotkeys }
-              if (hotkeyMapsEqual(hotkeys, hotkeysGlobal)) hotkeys = {}
-            }
-            setGameHotkeysCache(hotkeys)
-            setSession((prev) => ({ ...prev, hotkeys, hotkeysGlobal }))
-          }}
-          onCountChange={setCount}
-          onVarChange={setVar}
-          onSwitchChange={setSwitch}
-          onRowLockChange={setRowLock}
-          onActorChange={setActor}
-          onActorOwnedLockChange={setActorOwnedLock}
-          onActorVitalLockChange={setActorVitalLock}
-          events={eventsSlot}
-          saveData={saveDataSlot}
-        />
-      </Suspense>
+              setSession((prev) => ({ ...prev, hotkeys, hotkeysGlobal }))
+            }}
+            onCountChange={setCount}
+            onVarChange={setVar}
+            onSwitchChange={setSwitch}
+            onRowLockChange={setRowLock}
+            onActorChange={setActor}
+            onActorOwnedLockChange={setActorOwnedLock}
+            onActorVitalLockChange={setActorVitalLock}
+            events={eventsSlot}
+            saveData={saveDataSlot}
+          />
+        </Suspense>
+      ) : null}
     </GameEditOverlayProviders>
   )
 }
 
 /** Shadow 内挂弹层 Provider，保证浮层吃到 overlay token */
-function GameEditOverlayProviders({ children }: { children: ReactNode }) {
+function GameEditOverlayProviders({ children, open }: { children: ReactNode; open: boolean }) {
   const [portalHost, setPortalHost] = useState<HTMLDivElement | null>(null)
   return (
     <div ref={setPortalHost} className="relative flex min-h-0 flex-1 flex-col">
       <NotificationProvider portalContainer={portalHost}>
-        <ConfirmProvider portalContainer={portalHost}>{children}</ConfirmProvider>
+        <ConfirmProvider portalContainer={portalHost}>
+          <div className={open ? 'flex min-h-0 flex-1 flex-col' : 'contents'}>{children}</div>
+        </ConfirmProvider>
       </NotificationProvider>
     </div>
   )

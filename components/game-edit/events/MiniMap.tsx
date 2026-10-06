@@ -2,6 +2,7 @@
 
 import { type MouseEvent, useId, useMemo, useState } from 'react'
 
+import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
 import { useT } from '@/components/i18n/LocaleProvider'
 import type { MapDetailData, MapEventType } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
@@ -52,6 +53,7 @@ export function MiniMap({
   stateOf,
   near,
   disabled,
+  onClose,
   onPickCell,
   onSelectEvent,
 }: {
@@ -62,6 +64,7 @@ export function MiniMap({
   /** "Nearby" mode: impassable tiles can still be picked */
   near: boolean
   disabled?: boolean
+  onClose: () => void
   onPickCell: (x: number, y: number) => void
   onSelectEvent: (id: number) => void
 }) {
@@ -91,114 +94,123 @@ export function MiniMap({
   }
 
   return (
-    <section className="border-b border-line px-3 py-2">
-      <div className="flex items-baseline justify-between gap-2 pb-1.5">
-        <h3 className="m-0 text-[0.68rem] font-semibold tracking-[0.05em] text-ink-soft uppercase">{t('events.map.minimap')}</h3>
-        <span className={cn('font-mono text-[0.7rem]', hoverBlocked ? 'text-warn' : 'text-ink-soft')}>
-          {!hover
-            ? t('events.map.minimapHint')
-            : !hoverBlocked
-              ? `${hover.x},${hover.y}`
-              : t(near ? 'events.map.minimapBlockedNear' : 'events.map.minimapBlockedAt', { x: hover.x, y: hover.y })}
-        </span>
-      </div>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        className={cn('block max-h-[16rem] w-full max-w-[40rem]', disabled || hoverRefused ? 'cursor-not-allowed' : 'cursor-crosshair')}
-        preserveAspectRatio="xMinYMin meet"
-        role="img"
-        aria-label={t('events.map.minimap')}
-        onMouseMove={(e) => setHover(cellAt(e))}
-        onMouseLeave={() => setHover(null)}
-        onClick={(e) => {
-          if (disabled) return
-          const cell = cellAt(e)
-          if (cell && canPick(cell)) onPickCell(cell.x, cell.y)
-        }}
-      >
-        <defs>
-          {showGrid ? (
-            <pattern id={gridId} width="1" height="1" patternUnits="userSpaceOnUse">
-              <path d="M 1 0 L 0 0 0 1" fill="none" className="stroke-line" strokeWidth="0.04" />
+    <FloatingToolPanel
+      title={t('events.map.minimap')}
+      onClose={onClose}
+      storageKey="chaya.minimap.frame.v1"
+      initialEdge="top"
+      defaultSize={{ width: 320, height: 300 }}
+      minSize={{ width: 220, height: 170 }}
+      maxSize={{ width: 640, height: 640 }}
+    >
+      <div className="flex h-full min-h-0 flex-col p-2">
+        <div className="flex h-12 shrink-0 items-start justify-end pb-1">
+          <span className={cn('line-clamp-3 text-right font-mono text-[0.7rem] leading-4', hoverBlocked ? 'text-warn' : 'text-ink-soft')}>
+            {!hover
+              ? t('events.map.minimapHint')
+              : !hoverBlocked
+                ? `${hover.x},${hover.y}`
+                : t(near ? 'events.map.minimapBlockedNear' : 'events.map.minimapBlockedAt', { x: hover.x, y: hover.y })}
+          </span>
+        </div>
+        <svg
+          viewBox={`0 0 ${w} ${h}`}
+          className={cn('block min-h-0 w-full flex-1', disabled || hoverRefused ? 'cursor-not-allowed' : 'cursor-crosshair')}
+          preserveAspectRatio="xMinYMin meet"
+          role="img"
+          aria-label={t('events.map.minimap')}
+          onMouseMove={(e) => setHover(cellAt(e))}
+          onMouseLeave={() => setHover(null)}
+          onClick={(e) => {
+            if (disabled) return
+            const cell = cellAt(e)
+            if (cell && canPick(cell)) onPickCell(cell.x, cell.y)
+          }}
+        >
+          <defs>
+            {showGrid ? (
+              <pattern id={gridId} width="1" height="1" patternUnits="userSpaceOnUse">
+                <path d="M 1 0 L 0 0 0 1" fill="none" className="stroke-line" strokeWidth="0.04" />
+              </pattern>
+            ) : null}
+            <pattern id={`${gridId}-x`} width="0.5" height="0.5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="0.5" height="0.5" className="fill-[color-mix(in_oklab,var(--ink-soft)_22%,var(--inset))]" />
+              <path d="M 0 0 L 0 0.5" className="stroke-[color-mix(in_oklab,var(--ink-soft)_45%,transparent)]" strokeWidth="0.12" />
             </pattern>
+          </defs>
+          <rect x="0" y="0" width={w} height={h} className="fill-inset" />
+          {blockedD ? <path d={blockedD} fill={`url(#${gridId}-x)`} /> : null}
+          {showGrid ? <rect x="0" y="0" width={w} height={h} fill={`url(#${gridId})`} /> : null}
+          {hover ? (
+            <rect
+              x={hover.x}
+              y={hover.y}
+              width="1"
+              height="1"
+              className={hoverRefused ? 'fill-[color-mix(in_oklab,var(--warn)_30%,transparent)]' : 'fill-[color-mix(in_oklab,var(--accent)_25%,transparent)]'}
+            />
           ) : null}
-          <pattern id={`${gridId}-x`} width="0.5" height="0.5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <rect width="0.5" height="0.5" className="fill-[color-mix(in_oklab,var(--ink-soft)_22%,var(--inset))]" />
-            <path d="M 0 0 L 0 0.5" className="stroke-[color-mix(in_oklab,var(--ink-soft)_45%,transparent)]" strokeWidth="0.12" />
-          </pattern>
-        </defs>
-        <rect x="0" y="0" width={w} height={h} className="fill-inset" />
-        {blockedD ? <path d={blockedD} fill={`url(#${gridId}-x)`} /> : null}
-        {showGrid ? <rect x="0" y="0" width={w} height={h} fill={`url(#${gridId})`} /> : null}
-        {hover ? (
-          <rect
-            x={hover.x}
-            y={hover.y}
-            width="1"
-            height="1"
-            className={hoverRefused ? 'fill-[color-mix(in_oklab,var(--warn)_30%,transparent)]' : 'fill-[color-mix(in_oklab,var(--accent)_25%,transparent)]'}
-          />
-        ) : null}
-        {target ? (
-          <rect x={target.x + 0.05} y={target.y + 0.05} width="0.9" height="0.9" fill="none" className="stroke-accent" strokeWidth="0.08" strokeDasharray="0.2 0.12" />
-        ) : null}
-        {detail.events.map((ev) => {
-          const state = stateOf(ev.id)
-          return (
-            <circle
-              key={ev.id}
-              cx={ev.x + 0.5}
-              cy={ev.y + 0.5}
-              r="0.38"
-              className={cn(TYPE_FILL[ev.type], 'cursor-pointer', state.kind === 'hidden' && 'opacity-35')}
-              onClick={(e) => {
-                e.stopPropagation()
-                onSelectEvent(ev.id)
-              }}
-            >
-              <title>{`${ev.name || `#${ev.id}`} (${ev.x},${ev.y}) · ${t(TYPE_KEY[ev.type])}`}</title>
-            </circle>
-          )
-        })}
-        {onPlayerMap && player ? (
-          <g pointerEvents="none" transform={`translate(${player.x + 0.5} ${player.y + 0.5})`}>
-            <circle r="0.48" fill="none" className="stroke-ink" strokeWidth="0.1" />
-            {FACING_DEG[player.direction] != null ? (
-              <path d={FACING_ARROW} transform={`rotate(${FACING_DEG[player.direction]})`} className="fill-ink" />
-            ) : (
-              <circle r="0.2" className="fill-ink" />
-            )}
-          </g>
-        ) : null}
-      </svg>
-      <ul className="m-0 flex list-none flex-wrap gap-x-3 gap-y-1 pt-1.5 pl-0 text-[0.7rem] text-ink-soft">
-        {onPlayerMap ? (
-          <li className="inline-flex items-center gap-1">
-            <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
-              <circle cx="5" cy="5" r="4" fill="none" className="stroke-ink" strokeWidth="1.2" />
-              <path d={FACING_ARROW} transform="translate(5 5) scale(10)" className="fill-ink" />
-            </svg>
-            {t('events.map.minimapPlayer')}
-          </li>
-        ) : null}
-        {mask ? (
-          <li className="inline-flex items-center gap-1">
-            <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
-              <rect width="10" height="10" className="fill-[color-mix(in_oklab,var(--ink-soft)_22%,var(--inset))]" />
-              <path d="M0 10L10 0M-2 4L4 -2M6 12L12 6" className="stroke-[color-mix(in_oklab,var(--ink-soft)_45%,transparent)]" strokeWidth="1.6" />
-            </svg>
-            {t('events.map.minimapBlocked')}
-          </li>
-        ) : null}
-        {LEGEND.map((type) => (
-          <li key={type} className="inline-flex items-center gap-1">
-            <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
-              <circle cx="5" cy="5" r="4" className={TYPE_FILL[type]} />
-            </svg>
-            {t(TYPE_KEY[type])}
-          </li>
-        ))}
-      </ul>
-    </section>
+          {target ? (
+            <rect x={target.x + 0.05} y={target.y + 0.05} width="0.9" height="0.9" fill="none" className="stroke-accent" strokeWidth="0.08" strokeDasharray="0.2 0.12" />
+          ) : null}
+          {detail.events.map((ev) => {
+            const state = stateOf(ev.id)
+            return (
+              <circle
+                key={ev.id}
+                cx={ev.x + 0.5}
+                cy={ev.y + 0.5}
+                r="0.38"
+                className={cn(TYPE_FILL[ev.type], 'cursor-pointer', state.kind === 'hidden' && 'opacity-35')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelectEvent(ev.id)
+                }}
+              >
+                <title>{`${ev.name || `#${ev.id}`} (${ev.x},${ev.y}) · ${t(TYPE_KEY[ev.type])}`}</title>
+              </circle>
+            )
+          })}
+          {onPlayerMap && player ? (
+            <g pointerEvents="none" transform={`translate(${player.x + 0.5} ${player.y + 0.5})`}>
+              <circle r="0.48" fill="none" className="stroke-ink" strokeWidth="0.1" />
+              {FACING_DEG[player.direction] != null ? (
+                <path d={FACING_ARROW} transform={`rotate(${FACING_DEG[player.direction]})`} className="fill-ink" />
+              ) : (
+                <circle r="0.2" className="fill-ink" />
+              )}
+            </g>
+          ) : null}
+        </svg>
+        <ul className="m-0 flex shrink-0 list-none flex-wrap gap-x-3 gap-y-1 pt-1.5 pl-0 text-[0.7rem] text-ink-soft">
+          {onPlayerMap ? (
+            <li className="inline-flex items-center gap-1">
+              <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
+                <circle cx="5" cy="5" r="4" fill="none" className="stroke-ink" strokeWidth="1.2" />
+                <path d={FACING_ARROW} transform="translate(5 5) scale(10)" className="fill-ink" />
+              </svg>
+              {t('events.map.minimapPlayer')}
+            </li>
+          ) : null}
+          {mask ? (
+            <li className="inline-flex items-center gap-1">
+              <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
+                <rect width="10" height="10" className="fill-[color-mix(in_oklab,var(--ink-soft)_22%,var(--inset))]" />
+                <path d="M0 10L10 0M-2 4L4 -2M6 12L12 6" className="stroke-[color-mix(in_oklab,var(--ink-soft)_45%,transparent)]" strokeWidth="1.6" />
+              </svg>
+              {t('events.map.minimapBlocked')}
+            </li>
+          ) : null}
+          {LEGEND.map((type) => (
+            <li key={type} className="inline-flex items-center gap-1">
+              <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
+                <circle cx="5" cy="5" r="4" className={TYPE_FILL[type]} />
+              </svg>
+              {t(TYPE_KEY[type])}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </FloatingToolPanel>
   )
 }

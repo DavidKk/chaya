@@ -3,7 +3,7 @@ import type { LegalDoc } from './types'
 export const privacyEn: LegalDoc = {
   intro: [
     'This Privacy Policy explains how the Chaya open-source software and its related website, plugins and documentation (collectively, the “Tool”) handle data. “Developers” means the authors and contributors of the Tool.',
-    'The Tool requires no account. The Developers do not collect your name, contact details, identification numbers or any other personally identifiable information, and do not sell, rent or otherwise provide user data to third parties. By using the Tool you acknowledge that you have read and understood this Policy.',
+    'The Tool requires no account. The Developers do not actively request your name, contact details or identification numbers, and do not sell or rent user data. The online site’s hosting provider may process IP addresses and request metadata, as described below.',
   ],
   sections: [
     {
@@ -29,7 +29,7 @@ export const privacyEn: LegalDoc = {
       title: 'Online edition',
       items: [
         'Game folders: only after you grant access in the browser does the online edition read and write the selected game folder, locally within the browser; file contents are not uploaded. Folder permissions are kept in your browser’s local storage.',
-        'Translation: in the online edition, the game process on your device calls the translation service you selected directly; the text does not pass through the Developers’ servers.',
+        'Translation: the online edition does not query the Developers’ shared translation library. The game process on your device sends translation requests to your selected translation service; the text does not pass through the Developers’ servers.',
         'Game link: when the online edition connects to a game, the Developers’ service temporarily holds the session description required for the connection (which includes connection candidates such as network addresses) and a link token, and may use the requesting IP address for abuse protection. This information is kept in service memory only to establish the connection and is not persisted. Once connected, game data flows directly between your browser and the game. To discover usable network addresses, the browser contacts a STUN service provided by Cloudflare.',
         'Analytics: the online edition uses Vercel Web Analytics to measure page visits, collecting aggregated information such as page path, referrer, browser and operating system, device type and country or region. The service uses no cookies, and the Developers do not use it to identify individuals.',
         'Server logs: the online edition is hosted on Vercel, which may record access logs such as IP address, request time and request path under its own policies to operate and secure the service.',
@@ -71,7 +71,7 @@ export const privacyEn: LegalDoc = {
       id: 'rights',
       title: 'Your rights',
       items: [
-        'Because the Developers collect no personally identifiable information, you retain full control over all Tool-related data by deleting local data, clearing this site’s browser data or uninstalling the Tool.',
+        'You can manage data on your device and in your browser by deleting local data, clearing this site’s browser data or uninstalling the Tool. The hosting provider retains online site logs under its own policies; for questions, contact the Developers through the project’s GitHub Issues.',
         'Questions about this Policy may be raised with the Developers through the project’s GitHub Issues.',
       ],
     },

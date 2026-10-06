@@ -4,7 +4,7 @@ import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useLayoutEf
 import { IoArrowUp, IoCheckmark, IoCloseCircleOutline, IoCloseOutline, IoStop, IoTrashOutline } from 'react-icons/io5'
 
 import { useLocaleCode } from '@/components/i18n/LocaleProvider'
-import { Button, Spinner, TruncateText } from '@/components/sk'
+import { Button, ScrollArea, Spinner, TruncateText } from '@/components/sk'
 import { cn } from '@/lib/utils'
 
 import { GameAgentRuntimeMenu } from './GameAgentRuntimeMenu'
@@ -459,7 +459,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
           ) : null}
         </header>
 
-        <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <ScrollArea className="flex-1" scrollRef={bodyRef} scrollClassName="px-4 py-4" reserveGutter={false}>
           {!status?.available ? (
             <div className="flex min-h-full flex-col items-center justify-center gap-3 text-center text-ink-soft">
               {loadingStatus ? <Spinner /> : <strong className="text-ink">{copy.unavailable}</strong>}
@@ -502,7 +502,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
               ))}
             </div>
           )}
-        </div>
+        </ScrollArea>
 
         {goal || phase || question ? (
           <div className="shrink-0 border-t border-line-soft px-4 py-2 text-xs text-ink-soft">

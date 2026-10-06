@@ -19,3 +19,18 @@ it('sends text as-is with a custom system prompt', async () => {
   await requestOllama(http, { text: '译文：\n応接室へ行く', system: '自定义' })
   expect(sentUser(http)).toBe('译文：\n応接室へ行く')
 })
+
+it('gives an interactive thinking call enough output budget', async () => {
+  const http = reply('译文')
+  await requestOllama(http, { text: '長い台詞', think: true, interactive: true })
+  expect(JSON.parse(String(http.mock.calls[0][1]?.body))).toMatchObject({ think: true, options: { num_predict: 2048 } })
+})
+
+it('retries without thinking only when Ollama rejects that option', async () => {
+  const http = jest
+    .fn()
+    .mockResolvedValueOnce(new Response('model does not support thinking', { status: 400 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ message: { content: '译文' } })))
+  await expect(requestOllama(http, { text: '原文', think: true })).resolves.toBe('译文')
+  expect(JSON.parse(String(http.mock.calls[1][1].body)).think).toBe(false)
+})

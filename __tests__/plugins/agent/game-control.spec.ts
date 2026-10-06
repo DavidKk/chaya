@@ -7,9 +7,19 @@ const g = globalThis as unknown as Globals
 
 class Scene_Map {}
 
-const player = { x: 0, y: 0, moving: false, isMoving: () => player.moving }
+const player = {
+  x: 0,
+  y: 0,
+  moving: false,
+  isMoving: () => player.moving,
+  findDirectionTo: (_x: number, _y: number) => 6,
+  moveStraight: (direction: number) => {
+    if (direction === 6) player.x++
+  },
+}
 const temp = { _destinationX: null as number | null, _destinationY: null as number | null, isDestinationValid: () => temp._destinationX != null }
-const map = { id: 1, mapId: () => map.id }
+const events: Array<{ _x: number; _y: number; _eventId: number; _trigger: number; isStarting?: () => boolean }> = []
+const map = { id: 1, mapId: () => map.id, events: () => events }
 let step: () => void = () => {}
 
 beforeEach(() => {
@@ -17,13 +27,14 @@ beforeEach(() => {
   Object.assign(player, { x: 0, y: 0, moving: false })
   Object.assign(temp, { _destinationX: null, _destinationY: null })
   map.id = 1
+  events.length = 0
   step = () => {}
   Object.assign(g, { Scene_Map, SceneManager: { _scene: new Scene_Map() }, $gamePlayer: player, $gameTemp: temp, $gameMap: map })
 })
 
 afterEach(() => {
   jest.useRealTimers()
-  for (const key of ['Scene_Map', 'SceneManager', '$gamePlayer', '$gameTemp', '$gameMap', 'Graphics', 'TouchInput']) delete g[key]
+  for (const key of ['Scene_Map', 'SceneManager', '$gamePlayer', '$gameTemp', '$gameMap', '$gameMessage', 'Graphics', 'TouchInput']) delete g[key]
 })
 
 /** Advance fake time in 100ms polls, running one game step per poll */
@@ -74,6 +85,33 @@ describe('movePlayer', () => {
   it('only works on the map scene', async () => {
     g.SceneManager = { _scene: {} }
     await expect(movePlayer({ x: 1, y: 1 })).rejects.toThrow('地图')
+  })
+
+  it('takes only one step toward a distant target', async () => {
+    expect(await movePlayer({ x: 5, y: 0, stepwise: true })).toMatchObject({ moved: true, arrived: false, position: { x: 1, y: 0 } })
+  })
+
+  it('does not step onto another touch event', async () => {
+    events.push({ _x: 1, _y: 0, _eventId: 7, _trigger: 1 })
+    expect(await movePlayer({ x: 5, y: 0, stepwise: true, guard: { controlToken: 'test', allowedEffects: ['navigate'], targetEventId: 3 } })).toMatchObject({
+      blockedEventId: 7,
+      position: { x: 0, y: 0 },
+    })
+  })
+
+  it('only reports the target touch event when activation is observed', async () => {
+    let started = false
+    events.push({ _x: 1, _y: 0, _eventId: 3, _trigger: 1, isStarting: () => started })
+    const guard = { controlToken: 'test', allowedEffects: ['navigate' as const], targetEventId: 3 }
+    expect(await movePlayer({ x: 1, y: 0, stepwise: true, guard })).not.toHaveProperty('triggeredEventId')
+    player.x = 0
+    started = true
+    expect(await movePlayer({ x: 1, y: 0, stepwise: true, guard })).toMatchObject({ triggeredEventId: 3 })
+  })
+
+  it('does not move while a dialogue is already open', async () => {
+    g.$gameMessage = { isBusy: () => true }
+    expect(await movePlayer({ x: 5, y: 0, stepwise: true })).toMatchObject({ interrupted: true, position: { x: 0, y: 0 } })
   })
 })
 

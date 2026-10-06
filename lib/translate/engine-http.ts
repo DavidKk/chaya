@@ -3,6 +3,8 @@ export const DEFAULT_OLLAMA_HOST = 'http://127.0.0.1:11434'
 export const DEFAULT_OLLAMA_MODEL = 'gemma4:e2b-it-q4_K_M'
 export const OLLAMA_TRANSLATE_SYSTEM =
   '你是日→简体中文游戏文本翻译器。只输出自然的简体中文译文，不要解释，不要 Markdown。不要保留日文假名或整段日文汉字词；例如「応接室へ行く」应译为「去会客室」，不可写成「去応接室」。文中的 __C0__ __C1__ 等占位符必须原样保留。专有名词请音译或意译。'
+export const OLLAMA_TRANSLATE_RETRY_SYSTEM = '这是游戏文本本地化任务，请把日文台词译成通顺的简体中文。只输出中文译文，不要复述日文原文，不要道歉或拒绝。'
+export const translationNeedsReasoning = (text: string) => text.length > 140 || text.split('\n').filter(Boolean).length >= 3
 export type EngineFetch = (url: string, init?: RequestInit) => Promise<Response>
 
 export async function requestOllama(
@@ -14,12 +16,13 @@ export async function requestOllama(
     system?: string
     temperature?: number
     interactive?: boolean
+    think?: boolean
     signal?: AbortSignal
     /** Bearer token for Ollama-compatible endpoints behind auth */
     token?: string
     keepAlive?: string
   }
-) {
+): Promise<string> {
   const system = input.system || OLLAMA_TRANSLATE_SYSTEM
   /* 小模型（如 gemma4 e2b）收到裸日文常原样复述；标出原文 / 译文槽位后才稳定输出中文 */
   const user = system === OLLAMA_TRANSLATE_SYSTEM ? `日文：\n${input.text}\n\n简体中文：` : input.text
@@ -32,16 +35,20 @@ export async function requestOllama(
     body: JSON.stringify({
       model: input.model || DEFAULT_OLLAMA_MODEL,
       stream: false,
-      think: false,
+      think: input.think === true,
       keep_alive: input.keepAlive || '30m',
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
       ],
-      options: { temperature: input.temperature ?? 0.2, ...(input.interactive ? { num_predict: Math.min(1024, Math.max(128, input.text.length * 3)) } : {}) },
+      options: { temperature: input.temperature ?? 0.2, ...(input.interactive ? { num_predict: input.think ? 2048 : Math.min(1024, Math.max(128, input.text.length * 3)) } : {}) },
     }),
   })
-  if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`)
+  if (!res.ok) {
+    const detail = await res.text()
+    if (input.think && res.status === 400 && /think/i.test(detail) && /support|invalid|unknown/i.test(detail)) return requestOllama(http, { ...input, think: false })
+    throw new Error(`Ollama ${res.status}: ${detail}`)
+  }
   const body = (await res.json()) as { message?: { content?: string }; response?: string; error?: string }
   if (body.error) throw new Error(body.error)
   return String(body.message?.content || body.response || '')

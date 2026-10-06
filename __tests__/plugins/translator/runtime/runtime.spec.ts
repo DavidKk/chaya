@@ -54,6 +54,20 @@ it('uses a remote library hit without inference and persists it locally', async 
   expect(fs.readFileSync(path.join(root, gameContentRelPath('cacheNdjson')), 'utf8')).toContain('您好')
 })
 
+it('does not send source text to the shared library in online game mode', async () => {
+  const browser = globalThis as typeof globalThis & { window?: { CHAYA_LOG_TRANSPORT?: string } }
+  const previousWindow = browser.window
+  browser.window = { CHAYA_LOG_TRANSPORT: 'link' }
+  try {
+    const result = await runtime.translate(['こんにちは'], { interactive: true, engines: ['ollama'] })
+    expect(result[0]).toMatchObject({ zh: '你好', engine: 'live:ollama' })
+    expect(chayaFetch).not.toHaveBeenCalled()
+  } finally {
+    if (previousWindow === undefined) delete browser.window
+    else browser.window = previousWindow
+  }
+})
+
 it('does not store an unchanged or partially untranslated model response', async () => {
   jest.mocked(engineFetch).mockResolvedValue(new Response(JSON.stringify({ message: { content: '你好、こんにちは' } })))
   const result = await runtime.translate(['こんにちは'], { interactive: true, remote: false, engines: ['ollama'] })

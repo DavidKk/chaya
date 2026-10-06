@@ -72,4 +72,6 @@ export type StartTurnInput = {
   mode: GameAgentMode
   prompt: string
   locale?: string
+  surface?: 'companion'
+  companionCharacter?: import('@/lib/game-agent/companion').CompanionCharacter
 }

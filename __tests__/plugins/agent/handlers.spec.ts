@@ -81,6 +81,32 @@ describe('ChayaAgent handlers', () => {
     }
   })
 
+  it('allows interaction only with the bound map event', async () => {
+    jest.useFakeTimers()
+    const originals = { document: g.document, window: g.window, SceneManager: g.SceneManager, $gameMap: g.$gameMap, $gamePlayer: g.$gamePlayer, $gameMessage: g.$gameMessage }
+    g.document = { title: 'Game', body: { innerText: '' } }
+    g.window = globalThis
+    g.SceneManager = { _scene: { constructor: { name: 'Scene_Map' } } }
+    g.$gamePlayer = { _x: 9, _y: 4, direction: () => 4 }
+    g.$gameMap = { mapId: () => 1, events: () => [{ _x: 8, _y: 4, _eventId: 1, eventId: () => 1, event: () => ({ name: '村长' }) }] }
+    g.$gameMessage = { isBusy: () => false, isChoice: () => false, allText: () => '' }
+    g.Input = { _currentState: {} }
+    try {
+      const state = (await runAgentCommand({ id: 'state', method: 'game.state', params: {} })) as { controlToken: string }
+      const guard = { controlToken: state.controlToken, mapId: 1, allowedEffects: ['interact_event' as const] }
+      await expect(runAgentCommand({ id: 'wrong', method: 'input.press', params: { key: 'ok', guard: { ...guard, targetEventId: 2 } } })).rejects.toThrow('SCOPE_CHANGED')
+      const done = runAgentCommand({ id: 'elder', method: 'input.press', params: { key: 'ok', guard: { ...guard, targetEventId: 1 } } })
+      await jest.runAllTimersAsync()
+      await expect(done).resolves.toMatchObject({ key: 'ok' })
+    } finally {
+      for (const [key, value] of Object.entries(originals)) {
+        if (value === undefined) delete g[key]
+        else g[key] = value
+      }
+      jest.useRealTimers()
+    }
+  })
+
   it('dispatches DOM keys and runs a sequence with the resulting state', async () => {
     jest.useFakeTimers()
     const winGlobal = g as Globals & { window?: unknown; document?: unknown; KeyboardEvent?: unknown }

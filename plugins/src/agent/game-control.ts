@@ -10,8 +10,19 @@ type RmGlobals = {
   Graphics?: { width: number; height: number }
   TouchInput?: { _onTrigger?: (x: number, y: number) => void; _onRelease?: (x: number, y: number) => void }
   Scene_Map?: new () => unknown
-  $gameMap?: { mapId: () => number }
-  $gamePlayer?: { x: number; y: number; isMoving: () => boolean }
+  $gameMap?: {
+    mapId: () => number
+    events?: () => Array<{ _x: number; _y: number; _eventId?: number; _trigger?: number; _erased?: boolean; eventId?: () => number; isStarting?: () => boolean }>
+  }
+  $gamePlayer?: {
+    x: number
+    y: number
+    isMoving: () => boolean
+    findDirectionTo?: (x: number, y: number) => number
+    stepToward?: (x: number, y: number) => number
+    moveStraight?: (direction: number) => void
+  }
+  $gameMessage?: { isBusy?: () => boolean }
   $gameTemp?: { _destinationX: number | null; _destinationY: number | null; isDestinationValid: () => boolean }
 }
 
@@ -66,19 +77,57 @@ export async function tapScreen(params: AgentParams<'input.tap'>) {
   return { tapped: { x, y }, frames }
 }
 
-export async function movePlayer(params: AgentParams<'player.moveTo'>) {
+export async function movePlayer(params: AgentParams<'player.moveTo'>, interrupted: () => boolean = () => false) {
   const { $gamePlayer, $gameTemp, $gameMap } = rm()
   if (!onMap() || !$gamePlayer || !$gameTemp || !$gameMap) throw new Error('只能在地图场景中行走')
   const x = Math.round(finite(params.x, 'x'))
   const y = Math.round(finite(params.y, 'y'))
   const timeout = clamp(params.timeoutMs == null ? AGENT_MOVE_DEFAULT_MS : finite(params.timeoutMs, 'timeoutMs'), 500, AGENT_MOVE_MAX_MS)
+  if (params.stepwise) {
+    if (!$gamePlayer.moveStraight || (!$gamePlayer.findDirectionTo && !$gamePlayer.stepToward)) throw new Error('当前游戏不支持逐格寻路')
+    if (rm().$gameMessage?.isBusy?.() || $gamePlayer.isMoving())
+      return { arrived: false, interrupted: true, mapId: $gameMap.mapId(), position: { x: $gamePlayer.x, y: $gamePlayer.y }, target: { x, y } }
+    const direction = ($gamePlayer.findDirectionTo || $gamePlayer.stepToward)!.call($gamePlayer, x, y)
+    const delta = { 2: [0, 1], 4: [-1, 0], 6: [1, 0], 8: [0, -1] }[direction as 2 | 4 | 6 | 8]
+    if (!delta)
+      return { arrived: $gamePlayer.x === x && $gamePlayer.y === y, blocked: true, mapId: $gameMap.mapId(), position: { x: $gamePlayer.x, y: $gamePlayer.y }, target: { x, y } }
+    const nextX = $gamePlayer.x + delta[0]
+    const nextY = $gamePlayer.y + delta[1]
+    const event = $gameMap.events?.().find((item) => !item._erased && item._x === nextX && item._y === nextY && (item._trigger === 1 || item._trigger === 2))
+    const eventId = event ? (event.eventId?.() ?? event._eventId) : undefined
+    if (event && eventId !== params.guard?.targetEventId)
+      return { arrived: false, blockedEventId: eventId ?? null, mapId: $gameMap.mapId(), position: { x: $gamePlayer.x, y: $gamePlayer.y }, target: { x, y } }
+    const startX = $gamePlayer.x
+    const startY = $gamePlayer.y
+    const startMap = $gameMap.mapId()
+    $gamePlayer.moveStraight(direction)
+    const deadline = Date.now() + timeout
+    while (Date.now() < deadline && $gameMap.mapId() === startMap && onMap() && !interrupted() && $gamePlayer.isMoving()) await wait(16)
+    const transferred = $gameMap.mapId() !== startMap
+    const moved = startX !== $gamePlayer.x || startY !== $gamePlayer.y
+    return {
+      arrived: !transferred && $gamePlayer.x === x && $gamePlayer.y === y,
+      moved,
+      ...(transferred ? { transferred: true } : {}),
+      ...(interrupted() || !onMap() || rm().$gameMessage?.isBusy?.() ? { interrupted: true } : {}),
+      ...(eventId != null && (transferred || event?.isStarting?.() || rm().$gameMessage?.isBusy?.()) ? { triggeredEventId: eventId } : {}),
+      mapId: $gameMap.mapId(),
+      position: { x: $gamePlayer.x, y: $gamePlayer.y },
+      target: { x, y },
+    }
+  }
   // Written directly: with click-move off, `setDestination` is patched into a no-op
   $gameTemp._destinationX = x
   $gameTemp._destinationY = y
   const startMap = $gameMap.mapId()
   const deadline = Date.now() + timeout
+  let stopped = false
   while (Date.now() < deadline) {
     await wait(100)
+    if (interrupted()) {
+      stopped = true
+      break
+    }
     // A transfer tile on the way moved the player to another map
     if ($gameMap.mapId() !== startMap) break
     if ($gamePlayer.x === x && $gamePlayer.y === y && !$gamePlayer.isMoving()) break
@@ -91,7 +140,7 @@ export async function movePlayer(params: AgentParams<'player.moveTo'>) {
     $gameTemp._destinationX = null
     $gameTemp._destinationY = null
   }
-  return { arrived, ...(transferred ? { transferred } : {}), mapId, position: { x: $gamePlayer.x, y: $gamePlayer.y }, target: { x, y } }
+  return { arrived, ...(transferred ? { transferred } : {}), ...(stopped ? { interrupted: true } : {}), mapId, position: { x: $gamePlayer.x, y: $gamePlayer.y }, target: { x, y } }
 }
 
 export function quitGame() {

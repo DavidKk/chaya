@@ -63,6 +63,7 @@ function slot(over: Partial<EventsSlot> = {}): EventsSlot {
 
 beforeAll(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  globalThis.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ settings: {} }) })) as unknown as typeof fetch
   globalThis.CSS ??= { escape: (value: string) => value } as unknown as typeof CSS
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,

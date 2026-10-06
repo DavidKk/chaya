@@ -523,7 +523,7 @@ export function GameEditWorkbench({
                   {tab === 'common' ? (
                     <CommonEventsPane slot={events} filter={filter} session={session} />
                   ) : (
-                    <MapPane slot={events} filter={filter} session={session} headSlot={paneHead} />
+                    <MapPane slot={events} filter={filter} session={session} headSlot={paneHead} toolRequest={agentRequest} showMiniMap={surface !== 'overlay'} />
                   )}
                 </TabSuspense>
               )

@@ -1,6 +1,7 @@
 'use client'
 
 import { Popover } from '@base-ui/react/popover'
+import { Bot } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { IoCheckmark, IoChevronBack, IoChevronDown, IoRefreshOutline } from 'react-icons/io5'
 
@@ -21,6 +22,7 @@ type Props = {
   profileId: string
   model: string
   disabled?: boolean
+  compact?: boolean
   onChange: (profileId: string, model: string) => void
 }
 
@@ -51,7 +53,7 @@ const COPY = {
   ko: { trigger: '공급자 및 모델 선택', profile: '공급자', model: '모델', reset: '기본값 복원', back: '뒤로', search: '모델 검색…', empty: '사용 가능한 모델이 없습니다' },
 } as const
 
-export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = false, onChange }: Props) {
+export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = false, compact = false, onChange }: Props) {
   const locale = useLocaleCode()
   const copy = COPY[locale] || COPY.en
   const anchorRef = useRef<HTMLSpanElement>(null)
@@ -97,15 +99,25 @@ export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = fa
   }
 
   return (
-    <span ref={anchorRef} className="inline-flex min-w-0 max-w-40 shrink">
+    <span ref={anchorRef} className={compact ? 'inline-flex shrink-0' : 'inline-flex min-w-0 max-w-40 shrink'}>
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger
           disabled={disabled || profiles.length === 0}
-          aria-label={copy.trigger}
-          className="inline-flex h-8 min-w-0 max-w-full items-center gap-1 overflow-hidden rounded-full px-1 text-xs font-medium text-ink-soft outline-none transition-colors hover:enabled:bg-[rgb(230_238_248/0.06)] hover:enabled:text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-45"
+          aria-label={compact ? `${copy.trigger}: ${label}` : copy.trigger}
+          title={compact ? label : undefined}
+          className={cn(
+            'inline-flex items-center gap-1 overflow-hidden text-xs font-medium text-ink-soft outline-none transition-colors hover:enabled:bg-[rgb(230_238_248/0.06)] hover:enabled:text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-45',
+            compact ? 'h-7 w-7 justify-center rounded-sm [@media(hover:none)]:h-11 [@media(hover:none)]:w-11' : 'h-8 min-w-0 max-w-full rounded-full px-1'
+          )}
         >
-          <TruncateText text={label} className="whitespace-nowrap" />
-          <IoChevronDown className={cn('shrink-0 transition-transform', open && 'rotate-180')} size={13} aria-hidden />
+          {compact ? (
+            <Bot size={15} aria-hidden />
+          ) : (
+            <>
+              <TruncateText text={label} className="whitespace-nowrap" />
+              <IoChevronDown className={cn('shrink-0 transition-transform', open && 'rotate-180')} size={13} aria-hidden />
+            </>
+          )}
         </Popover.Trigger>
         <Popover.Portal container={container}>
           <Popover.Positioner side="top" align="start" sideOffset={6} collisionPadding={8} positionMethod="fixed" className="z-[70]">

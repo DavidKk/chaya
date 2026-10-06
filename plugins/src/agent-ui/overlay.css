@@ -2,6 +2,7 @@
 @import '../../../styles/chaya-palette.css';
 
 @source "../../../components/game-agent/**/*.{ts,tsx}";
+@source "../../../components/game-tools/**/*.{ts,tsx}";
 @source "../../../components/sk/**/*.{ts,tsx}";
 @source "../../../components/i18n/**/*.{ts,tsx}";
 
@@ -22,10 +23,10 @@
 
 :host {
   position: fixed;
-  inset: 0 0 0 auto;
+  inset: 0;
   z-index: 2147483646;
-  display: none;
-  height: 100vh;
+  display: block;
+  height: 100dvh;
   font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.4;
@@ -34,16 +35,29 @@
   pointer-events: none;
 }
 
-:host([data-open]) {
-  display: block;
-}
-
 :host *,
 :host *::before,
 :host *::after {
   box-sizing: border-box;
 }
+
+:host * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+:host *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent;
+}
+
 .agent-mount-root {
   height: 100%;
+  pointer-events: none;
+}
+/* Popovers portal into the shadow root beside the mount; without this they inherit the host's pointer-events: none. */
+.agent-mount-root ~ * {
   pointer-events: auto;
 }

@@ -1,4 +1,5 @@
 import { executeRegisteredPageTool, listRegisteredPageTools } from '@/initializer/webmcp/register-page-tools'
+import type { CompanionCharacter } from '@/lib/game-agent/companion'
 import { collectSecretValues, redactSecrets, redactSecretText } from '@/lib/integration/tools/types'
 import { appendBrowserLog } from '@/lib/log/link-log-store'
 import { streamOllamaChat } from '@/services/game-agent/ollama-client'
@@ -45,7 +46,17 @@ export function createBrowserAgentRuntime() {
     return true
   }
 
-  const start = (input: { profile: BrowserAgentProfile; model: string; prompt: string; locale: string; sessionId?: string; newSession?: boolean; signal?: AbortSignal | null }) => {
+  const start = (input: {
+    profile: BrowserAgentProfile
+    model: string
+    prompt: string
+    locale: string
+    sessionId?: string
+    newSession?: boolean
+    surface?: 'companion'
+    companionCharacter?: CompanionCharacter
+    signal?: AbortSignal | null
+  }) => {
     const known = !input.newSession && input.sessionId ? sessions.get(input.sessionId) : undefined
     const session = known || { id: id('session'), messages: [] }
     sessions.set(session.id, session)
@@ -72,7 +83,13 @@ export function createBrowserAgentRuntime() {
         void (async () => {
           emit({ type: 'turn.started', turnId, sessionId: session.id })
           emit({ type: 'phase', phase: 'observing', step: 0, maxSteps: MAX_TOOL_STEPS })
-          const messages = buildAskMessages({ history: session.messages, prompt: input.prompt, locale: input.locale })
+          const messages = buildAskMessages({
+            history: session.messages,
+            prompt: input.prompt,
+            locale: input.locale,
+            surface: input.surface,
+            companionCharacter: input.companionCharacter,
+          })
           const tools = shouldOfferAgentTools(input.prompt) ? asTools() : []
           const credentials = new Set<string>()
           let answer = ''

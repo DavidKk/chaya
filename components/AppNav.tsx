@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LuChevronDown, LuMenu, LuX } from 'react-icons/lu'
 
@@ -84,7 +84,7 @@ function childActive(pathname: string, href: string) {
  * 顶栏主导航：经典底线样式。
  * hover 只变字色；滑动指示条贴底，需与 `topBarFrame` 的 border-b 重合（导航勿放进 overflow:hidden）。
  */
-export function AppNav({ current, className }: { current: AppNavPath; className?: string }) {
+export function AppNav({ current, className, mobileActions, mobileEnd }: { current: AppNavPath; className?: string; mobileActions?: ReactNode; mobileEnd?: ReactNode }) {
   const t = useT()
   const pathname = usePathname() || ''
   const navRef = useRef<HTMLElement>(null)
@@ -255,7 +255,7 @@ export function AppNav({ current, className }: { current: AppNavPath; className?
 
       {mobileOpen && typeof document !== 'undefined'
         ? createPortal(
-            <div className="fixed inset-0 z-[80] md:hidden" data-app-mobile-nav>
+            <div className="fixed inset-0 z-[60] md:hidden" data-app-mobile-nav>
               <button type="button" className="absolute inset-0 border-0 bg-black/45" aria-label={t('nav.closeMenu')} onClick={closeMobileNav} />
               <div
                 ref={mobilePanelRef}
@@ -272,6 +272,14 @@ export function AppNav({ current, className }: { current: AppNavPath; className?
                   <Button variant="ghost" size="icon" aria-label={t('nav.closeMenu')} tooltip={t('nav.closeMenu')} onClick={closeMobileNav}>
                     <LuX size={18} aria-hidden />
                   </Button>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line p-3">
+                  {mobileActions}
+                  {mobileEnd ? (
+                    <div className="ml-auto" onClick={closeMobileNav}>
+                      {mobileEnd}
+                    </div>
+                  ) : null}
                 </div>
                 <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2" aria-label={t('nav.main')}>
                   {APP_NAV_ITEMS.map((item) => {

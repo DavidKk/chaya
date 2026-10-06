@@ -42,6 +42,17 @@ it('uses the chosen instance endpoint, model and token', async () => {
   expect(JSON.parse(init.body)).toMatchObject({ model: 'qwen', keep_alive: '5m', options: { temperature: 0.3 } })
 })
 
+it('retries an echoed translation with thinking on the selected instance', async () => {
+  jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
+  fetchMock
+    .mockResolvedValueOnce(new Response(JSON.stringify({ message: { content: 'こんにちは' } })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ message: { content: '你好' } })))
+
+  await expect(agentJaToZh('こんにちは', { profileId: 'a', model: 'qwen' }, { interactive: true })).resolves.toBe('你好')
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body).think).toBe(false)
+  expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ think: true, model: 'qwen' })
+})
+
 it('falls back to the default instance and its default model', async () => {
   jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
   fetchMock.mockResolvedValue(new Response(JSON.stringify({ message: { content: '你好' } })))

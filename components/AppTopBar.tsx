@@ -42,10 +42,20 @@ export function AppTopBar({ current, end, className }: Props) {
         <div className="flex shrink-0 items-center">
           <BrandLogo href="/" className={brand} />
         </div>
-        <div className={topBarNav}>
-          <AppNav current={resolved} />
+        <div className={cn(topBarNav, 'max-md:ml-auto')}>
+          <AppNav
+            current={resolved}
+            mobileActions={
+              <>
+                {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
+                <DownloadCenter />
+                <LocaleSwitcher />
+              </>
+            }
+            mobileEnd={end}
+          />
         </div>
-        <div className={cn(topRight, 'self-center')}>
+        <div className={cn(topRight, 'hidden self-center md:flex')}>
           {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
           <DownloadCenter />
           <LocaleSwitcher />

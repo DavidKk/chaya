@@ -60,13 +60,13 @@ it('every locale covers the same disclaimer sections, including the translation-
   }
   expect(DISCLAIMER.zh.sections.find((section) => section.id === 'terms')?.items.join('')).toContain('明确禁止翻译')
   const distribution = DISCLAIMER.zh.sections.find((section) => section.id === 'distribution')?.items.join('')
-  expect(distribution).toContain('经翻译的数据文件（含 JSON 等格式）')
+  expect(distribution).toContain('译文、翻译补丁、翻译缓存')
   expect(distribution).toContain('均属用户的独立行为')
 })
 
 it('links to the disclaimer page by default and drops the link inside the game overlay', async () => {
   await act(async () => root.render(<LegalNotice kind="translate" />))
-  expect(host.querySelector('[role="note"]')?.textContent).toContain('provides no distribution service')
+  expect(host.querySelector('[role="note"]')?.textContent).toContain('does not distribute games or translations')
   expect(host.querySelector('a')?.getAttribute('href')).toBe('/disclaimer')
 
   await act(async () => root.render(<LegalNotice kind="edit" link={false} />))
@@ -84,7 +84,7 @@ it('renders the full disclaimer in the current locale', async () => {
   )
   expect(host.querySelector('h1')?.textContent).toBe('免责声明')
   expect(host.querySelectorAll('section')).toHaveLength(DISCLAIMER.zh.sections.length)
-  expect(host.textContent).toContain('不提供任何形式的分发')
+  expect(host.textContent).toContain('开发者不提供游戏本体、游戏素材、译文')
 })
 
 it('privacy policy and license keep the same sections in every locale', () => {

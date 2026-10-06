@@ -50,6 +50,10 @@ function liveStateOf(mapId: number): MapLiveState {
   return { onThisMap, activePage, selfSwitches: selfSwitchesOf(mapId) }
 }
 
+export function currentMapLiveState(mapId: number): MapLiveState {
+  return liveStateOf(mapId)
+}
+
 export async function buildLiveMapDetail(mapId: number): Promise<MapDetailData> {
   const id = Math.floor(Number(mapId) || 0)
   if (id <= 0) throw new Error('地图编号无效')

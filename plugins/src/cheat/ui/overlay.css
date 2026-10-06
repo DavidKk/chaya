@@ -13,6 +13,7 @@
 @source "../../../../components/confirm/**/*.{ts,tsx}";
 @source "../../../../components/integration/**/*.{ts,tsx}";
 @source "../../../../components/game-agent/**/*.{ts,tsx}";
+@source "../../../../components/game-tools/**/*.{ts,tsx}";
 @source "../../../../components/settings/**/*.{ts,tsx}";
 @source "../../../../components/layoutClasses.ts";
 @source "../../../../components/SectionSideNav.tsx";
@@ -76,14 +77,14 @@
   position: fixed;
   inset: 8% 6%;
   z-index: 2147483645;
-  display: none;
+  display: flex;
   box-sizing: border-box;
   font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.4;
   color: var(--ink);
   color-scheme: dark;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 :host *,
@@ -106,8 +107,8 @@
 }
 
 :host([data-open]) {
-  display: flex;
   flex-direction: column;
+  pointer-events: auto;
 }
 
 [data-chaya-mark] {

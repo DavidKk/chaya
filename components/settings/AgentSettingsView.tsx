@@ -6,7 +6,7 @@ import { TbPencilCog } from 'react-icons/tb'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { formCard, formControlInline, formDescInline, formFieldInline, formTitleInline, panelHead } from '@/components/layoutClasses'
+import { formCard, formControlInline, formDescInline, formFieldInline, formTitleInline, panelHead, settingsCardWide } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, DurationInput, EmptyState, NumberSliderInput, Select, Spinner, TextInput, Tooltip, TruncateText } from '@/components/sk'
 import { keepAliveToMs, msToKeepAlive } from '@/lib/game-agent/keep-alive'
@@ -310,7 +310,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="flex w-full max-w-2xl flex-col gap-4">
+        <div className={settingsCardWide}>
           <section className={formCard} data-agent-detail-card>
             <label className={formFieldInline}>
               <span className={formTitleInline}>{t('integration.agentProfileLabel')}</span>

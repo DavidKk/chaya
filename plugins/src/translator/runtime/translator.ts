@@ -39,6 +39,7 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
   let remoteOnline: boolean | null = null
 
   async function remoteLookup(texts: string[], signal: AbortSignal) {
+    if (typeof window !== 'undefined' && (window as Window & { CHAYA_LOG_TRANSPORT?: string }).CHAYA_LOG_TRANSPORT === 'link') return [] as TranslateItem[]
     if (Date.now() < retryRemoteAt) return [] as TranslateItem[]
     const abort = new AbortController()
     const cancel = () => abort.abort()

@@ -79,7 +79,8 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
   const [mapLoading, setMapLoading] = useState(false)
   const [mapError, setMapError] = useState('')
   const [scene, setScene] = useState<Scene>(() => ({ onMap: false, player: null, recent: [], running: [] }))
-  const active = open && isEventsTab(tab)
+  const sceneRef = useRef(scene)
+  const active = (open && isEventsTab(tab)) || (!open && tab === 'map' && view.mapId != null)
   const mapRef = useRef(view.mapId)
   mapRef.current = view.mapId
 
@@ -126,12 +127,19 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
     if (!active) return
     const tick = () => {
       const next = readScene()
-      setScene((prev) => (sameScene(prev, next) ? prev : next))
+      const previous = sceneRef.current
+      if (!open && previous.player?.mapId === mapRef.current && next.player?.mapId && next.player.mapId !== previous.player.mapId) {
+        setView((current) => ({ ...current, mapId: next.player!.mapId, eventId: null, eventPage: null }))
+      }
+      if (!sameScene(previous, next)) {
+        sceneRef.current = next
+        setScene(next)
+      }
     }
     tick()
     const id = window.setInterval(tick, 1000)
     return () => window.clearInterval(id)
-  }, [active])
+  }, [active, open])
 
   const refresh = useCallback(() => {
     void load(true)

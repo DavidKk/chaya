@@ -4,6 +4,8 @@ jest.mock('@/services/game-agent/secrets', () => ({ readGameAgentToken: jest.fn(
 jest.mock('@/services/game-agent/session-store', () => ({ emitTurnEvent: jest.fn(), finishTurn: jest.fn() }))
 jest.mock('@/services/game-agent/visual-observation.server', () => ({ findVisionModel: jest.fn(), inspectBattleImage: jest.fn(), battleImageFingerprint: jest.fn() }))
 
+import { decide } from '@/services/game-agent/managed-decide.server'
+import { resolveGoal } from '@/services/game-agent/managed-goal.server'
 import { classifyGameIntent, runManagedTurn } from '@/services/game-agent/managed-turn.server'
 import { streamOllamaChat } from '@/services/game-agent/ollama-client'
 import { emitTurnEvent, finishTurn } from '@/services/game-agent/session-store'
@@ -27,10 +29,440 @@ beforeEach(() => {
   ;(battleImageFingerprint as jest.Mock).mockReset()
 })
 
-test('routes an explicit battle handoff without relying on model intent classification', async () => {
-  await expect(classifyGameIntent(input, profile, new AbortController().signal)).resolves.toEqual({ managed: true, edit: false })
-  await expect(classifyGameIntent({ ...input, prompt: '帮我跳过当前剧情并总结' }, profile, new AbortController().signal)).resolves.toEqual({ managed: true, edit: false })
-  expect(streamOllamaChat).not.toHaveBeenCalled()
+test('routes play requests in any language through the model instead of keyword matching', async () => {
+  ;(callAgentGame as jest.Mock).mockResolvedValue({
+    scene: 'Scene_Battle',
+    battle: { instanceId: 'battle-1' },
+    inventory: { items: [{ name: '药草' }] },
+    screenText: '开始战斗 图片菜单',
+  })
+  const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
+  chat.mockResolvedValue({ role: 'assistant', content: '{"operate":true,"edit":false}' })
+
+  await expect(classifyGameIntent({ ...input, prompt: '이 전투를 대신 싸워줘' }, profile, new AbortController().signal)).resolves.toEqual({ managed: true, edit: false })
+  const sent = chat.mock.calls[0][0].messages[1].content
+  expect(sent).toContain('이 전투를 대신 싸워줘')
+  expect(sent).toContain('"inBattle":true')
+  expect(sent).not.toMatch(/药草|开始战斗/)
+})
+
+test('retries an invalid intent classification before routing', async () => {
+  ;(callAgentGame as jest.Mock).mockResolvedValue({ scene: 'Scene_Map', nearbyEvents: [{ id: 1, name: '村长', distance: 2 }] })
+  const chat = streamOllamaChat as jest.Mock
+  chat.mockResolvedValueOnce({ role: 'assistant', content: 'not json' }).mockResolvedValueOnce({ role: 'assistant', content: '{"operate":true,"edit":false}' })
+
+  await expect(classifyGameIntent({ ...input, prompt: '找村长聊聊' }, profile, new AbortController().signal)).resolves.toEqual({ managed: true, edit: false })
+  expect(chat).toHaveBeenCalledTimes(2)
+  expect(chat.mock.calls.map((call: unknown[]) => (call[0] as { think?: boolean }).think)).toEqual([false, true])
+})
+
+test('rechecks a read-only classification before dropping an in-game action', async () => {
+  ;(callAgentGame as jest.Mock).mockResolvedValue({ scene: 'Scene_Map', map: { id: 1, name: '村庄' }, nearbyEvents: [{ id: 2, name: '森林入口', distance: 4 }] })
+  const chat = streamOllamaChat as jest.Mock
+  chat
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"operate":false,"edit":false}' })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"operate":true,"edit":false}' })
+
+  await expect(classifyGameIntent({ ...input, prompt: '打开宝箱' }, profile, new AbortController().signal)).resolves.toEqual({ managed: true, edit: false })
+  expect(chat.mock.calls[1][0].messages[1].content).toContain('不要把操作请求改写成建议')
+})
+
+test('uses the model decision to authorize escape across languages', async () => {
+  ;(streamOllamaChat as jest.Mock).mockResolvedValue({
+    role: 'assistant',
+    content: JSON.stringify({ summary: 'Flee this fight', scope: 'battle', targetEventId: null, skill: null, allowEscape: true, openQuestion: null }),
+  })
+  const goal = await resolveGoal(
+    profile,
+    { ...input, prompt: 'Please flee this fight' },
+    { scene: 'Scene_Battle', battle: { instanceId: 'battle-1' } },
+    new AbortController().signal
+  )
+  expect(goal).toMatchObject({ scope: 'battle', allowEscape: true })
+})
+
+test('uses thinking for tactical battle choices but not the opening command', async () => {
+  const chat = streamOllamaChat as jest.Mock
+  chat.mockResolvedValue({ role: 'assistant', content: '{"index":0}' })
+  const state = {
+    battle: { instanceId: 'battle-1', enemies: [{ hp: 10 }, { hp: 8 }] },
+    party: [
+      { hp: 30, mhp: 30 },
+      { hp: 8, mhp: 30 },
+    ],
+    windows: [{ name: 'partyCommandWindow', active: true, index: 0, options: [{ symbol: 'fight' }, { symbol: 'escape' }] }],
+  }
+  const messages = [
+    { role: 'system' as const, content: 'battle' },
+    { role: 'user' as const, content: 'state' },
+  ]
+  await decide(profile, input, messages, state, 'battle', new AbortController().signal, async () => null)
+  expect(chat.mock.calls[0][0]).toMatchObject({ think: false, maxTokens: 64 })
+
+  state.windows[0] = { name: 'enemyWindow', active: true, index: 0, options: [{ symbol: 'enemy' }, { symbol: 'enemy' }] }
+  await decide(profile, input, messages, state, 'battle', new AbortController().signal, async () => null)
+  expect(chat.mock.calls[1][0]).toMatchObject({ think: true, maxTokens: 384 })
+})
+
+type MapEventMock = {
+  id: number
+  name: string
+  x: number
+  y: number
+  trigger?: string
+  sprite?: string
+  hint?: string
+  text?: string
+  transfer?: { mapId: number; name: string; x?: number; y?: number }
+}
+
+/** Small map: moveTo reaches any free tile unless `blocked`, ok on a faced action event shows its text. */
+function mockMap(
+  events: MapEventMock[],
+  start: { x: number; y: number; direction: number },
+  options: { blocked?: boolean; manualAfterMove?: boolean; initialMapId?: number; maps?: Record<number, { name: string; events: MapEventMock[] }> } = {}
+) {
+  const game = callAgentGame as jest.MockedFunction<typeof callAgentGame>
+  const player = { ...start }
+  const map = { id: options.initialMapId || 1, name: options.maps?.[options.initialMapId || 1]?.name || '村庄' }
+  const currentEvents = () => options.maps?.[map.id]?.events || (map.id === 1 ? events : [])
+  let message = ''
+  let speaker = ''
+  let storySeq = 0
+  let stateVersion = 0
+  let manualInputEpoch = 0
+  const front = () => ({ x: player.x + ({ 4: -1, 6: 1 }[player.direction] ?? 0), y: player.y + ({ 8: -1, 2: 1 }[player.direction] ?? 0) })
+  game.mockImplementation(async (_id, method, params) => {
+    if (method === 'game.state')
+      return {
+        scene: 'Scene_Map',
+        map: { ...map },
+        player: { ...player },
+        nearbyEvents: currentEvents().map((event) => ({ ...event, distance: Math.abs(event.x - player.x) + Math.abs(event.y - player.y) })),
+        message: { busy: !!message, text: message },
+        controlToken: `step-${stateVersion}`,
+        manualInputEpoch,
+      }
+    if (method === 'game.history') return { entries: storySeq ? [{ seq: storySeq, kind: 'message', text: message || '…', speaker }] : [], lastSeq: storySeq, dropped: 0 }
+    stateVersion++
+    if (method === 'player.moveTo') {
+      const { x, y, stepwise } = params as { x: number; y: number; stepwise?: boolean }
+      if (options.manualAfterMove) manualInputEpoch++
+      if (options.blocked) return { arrived: false }
+      const nextX = stepwise ? player.x + Math.sign(x - player.x) : x
+      const nextY = stepwise && nextX !== player.x ? player.y : stepwise ? player.y + Math.sign(y - player.y) : y
+      const event = currentEvents().find((item) => item.x === nextX && item.y === nextY)
+      if (event && !event.transfer) return { arrived: false }
+      player.x = nextX
+      player.y = nextY
+      if (event?.transfer) {
+        map.id = event.transfer.mapId
+        map.name = event.transfer.name
+        player.x = event.transfer.x ?? player.x
+        player.y = event.transfer.y ?? player.y
+        return { arrived: false, moved: true, transferred: true, triggeredEventId: event.id }
+      }
+      return { arrived: player.x === x && player.y === y, moved: true }
+    }
+    const key = (params as { key: string }).key
+    if (key === 'ok') {
+      const faced = currentEvents().find((event) => event.x === front().x && event.y === front().y)
+      if (message) message = ''
+      else if (faced?.text) {
+        message = faced.text
+        speaker = faced.name
+        storySeq++
+      }
+    } else player.direction = { left: 4, right: 6, up: 8, down: 2 }[key as 'left' | 'right' | 'up' | 'down']
+    return { key }
+  })
+  return game
+}
+
+const pressedKeys = (game: jest.MockedFunction<typeof callAgentGame>) => game.mock.calls.filter((call) => call[1] === 'input.press').map((call) => (call[2] as { key: string }).key)
+const moves = (game: jest.MockedFunction<typeof callAgentGame>) => game.mock.calls.filter((call) => call[1] === 'player.moveTo').map((call) => call[2])
+const resolveTo = (targetEventId: number, skill: 'approach' | 'interact') =>
+  (streamOllamaChat as jest.Mock).mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '目标', scope: 'map', targetEventId, skill, openQuestion: null }) })
+
+test('walks next to the village elder with game pathfinding, faces him and verifies the dialogue ended', async () => {
+  const game = mockMap([{ id: 1, name: '村长', x: 8, y: 4, trigger: 'action', text: '欢迎来到村庄。' }], { x: 11, y: 6, direction: 8 })
+  resolveTo(1, 'interact').mockResolvedValue({ role: 'assistant', content: '{"summary":"村长欢迎旅行者来到村庄。"}' })
+
+  await runManagedTurn({ ...input, prompt: '帮我跟村长对话' }, profile, turn())
+
+  expect(moves(game).at(-1)).toEqual(expect.objectContaining({ x: 8, y: 5, stepwise: true, guard: expect.objectContaining({ allowedEffects: ['navigate'] }) }))
+  expect(pressedKeys(game)).toEqual(['ok', 'ok'])
+  expect(game).toHaveBeenCalledWith(
+    'game-a',
+    'input.press',
+    expect.objectContaining({ key: 'ok', guard: expect.objectContaining({ targetEventId: 1, allowedEffects: expect.arrayContaining(['interact_event']) }) })
+  )
+  expect(emitTurnEvent).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ type: 'turn.completed', reason: 'verified', text: expect.stringContaining('欢迎来到村庄') })
+  )
+})
+
+test('opens a chest from a non-Chinese request via the interact map skill without asking for confirmation', async () => {
+  const game = mockMap([{ id: 1, name: '宝箱', x: 11, y: 5, sprite: '!Chest', trigger: 'action', text: '打开了宝箱。' }], { x: 11, y: 8, direction: 2 })
+  const chat = resolveTo(1, 'interact').mockResolvedValue({ role: 'assistant', content: '{"summary":"打开了宝箱。"}' })
+
+  await runManagedTurn({ ...input, prompt: '보물상자 좀 열어줘' }, profile, turn())
+
+  expect(chat.mock.calls[0][0].format).toMatchObject({ properties: { targetEventId: { enum: [1, null] }, skill: { enum: ['approach', 'interact', null] } } })
+  expect(pressedKeys(game)).toEqual(['up', 'ok', 'ok'])
+  expect(emitTurnEvent).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'approval.required' }))
+  expect(emitTurnEvent).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ type: 'turn.completed', reason: 'verified', text: expect.stringContaining('已与宝箱完成交互') })
+  )
+})
+
+test('enters a door by stepping onto its touch event and treats the transfer as success', async () => {
+  const game = mockMap([{ id: 3, name: '村长家门口', x: 13, y: 3, trigger: 'player_touch', transfer: { mapId: 3, name: '村长的家' } }], { x: 13, y: 10, direction: 8 })
+  resolveTo(3, 'interact')
+
+  await runManagedTurn({ ...input, prompt: '进入村长家门口' }, profile, turn())
+
+  expect(moves(game).at(-1)).toEqual(expect.objectContaining({ x: 13, y: 3, stepwise: true }))
+  expect(pressedKeys(game)).toEqual([])
+  expect(emitTurnEvent).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ type: 'turn.completed', reason: 'verified', text: expect.stringContaining('已进入村长的家') })
+  )
+})
+
+test('returns through the village and keeps acting until the forest chest is opened', async () => {
+  const maps = {
+    1: { name: '村庄', events: [{ id: 2, name: '森林入口', x: 16, y: 6, trigger: 'player_touch', transfer: { mapId: 2, name: '森林', x: 1, y: 6 } }] },
+    2: { name: '森林', events: [{ id: 1, name: '宝箱', x: 11, y: 5, trigger: 'action', hint: '打开了宝箱。', text: '打开了宝箱。' }] },
+    3: { name: '村长的家', events: [{ id: 2, name: '出门', x: 8, y: 12, trigger: 'player_touch', transfer: { mapId: 1, name: '村庄', x: 13, y: 4 } }] },
+  }
+  const game = mockMap([], { x: 8, y: 10, direction: 2 }, { initialMapId: 3, maps })
+  ;(streamOllamaChat as jest.Mock)
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '打开宝箱', scope: 'map_event', targetEventId: 2, skill: 'interact', transit: true }) })
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '打开宝箱', scope: 'map_event', targetEventId: 2, skill: 'interact', transit: true }) })
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '打开宝箱', scope: 'map_event', targetEventId: 1, skill: 'interact', transit: false }) })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"direct":true}' })
+    .mockResolvedValue({ role: 'assistant', content: '{"summary":"打开了宝箱。"}' })
+
+  await runManagedTurn({ ...input, prompt: '打开宝箱' }, profile, turn())
+
+  expect(moves(game).map((move) => (move as { guard: { mapId: number } }).guard.mapId)).toEqual(expect.arrayContaining([3, 1, 2]))
+  expect(pressedKeys(game)).toContain('ok')
+  expect(emitTurnEvent).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ type: 'turn.completed', reason: 'verified', text: expect.stringContaining('已与宝箱完成交互') })
+  )
+  expect((emitTurnEvent as jest.Mock).mock.calls.filter((call) => call[1].type === 'turn.completed')).toHaveLength(1)
+})
+
+test('rejects a different named event as the final target and selects a route instead', async () => {
+  const state = {
+    scene: 'Scene_Map',
+    map: { id: 1, name: '村庄' },
+    nearbyEvents: [
+      { id: 2, name: '森林入口', trigger: 'player_touch' },
+      { id: 3, name: '村长家门口', trigger: 'player_touch' },
+    ],
+  }
+  const chat = streamOllamaChat as jest.Mock
+  chat
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '打开宝箱', scope: 'map_event', targetEventId: 3, skill: 'interact', transit: false }) })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"direct":false}' })
+    .mockResolvedValueOnce({
+      role: 'assistant',
+      content: JSON.stringify({ summary: '经森林入口寻找宝箱', scope: 'map_event', targetEventId: 2, skill: 'interact', transit: true }),
+    })
+
+  const goal = await resolveGoal(profile, { ...input, prompt: '打开宝箱' }, state, new AbortController().signal)
+
+  expect(goal).toMatchObject({ scope: 'map', targetEventId: 2, transit: true })
+  expect(chat.mock.calls[1][0].messages[1].content).toContain('村长家门口')
+})
+
+test('stops after a route returns to an already tried exit', async () => {
+  const maps = {
+    1: { name: '村庄', events: [{ id: 3, name: '村长家门口', x: 13, y: 3, trigger: 'player_touch', transfer: { mapId: 3, name: '村长的家', x: 8, y: 11 } }] },
+    3: { name: '村长的家', events: [{ id: 2, name: '出门', x: 8, y: 12, trigger: 'player_touch', transfer: { mapId: 1, name: '村庄', x: 13, y: 4 } }] },
+  }
+  const game = mockMap([], { x: 13, y: 4, direction: 8 }, { maps })
+  ;(streamOllamaChat as jest.Mock)
+    .mockResolvedValue({ role: 'assistant', content: JSON.stringify({ summary: '找宝箱', scope: 'map_event', targetEventId: 3, skill: 'interact', transit: true }) })
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '找宝箱', scope: 'map_event', targetEventId: 3, skill: 'interact', transit: true }) })
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '找宝箱', scope: 'map_event', targetEventId: 2, skill: 'interact', transit: true }) })
+
+  await runManagedTurn({ ...input, prompt: '打开宝箱' }, profile, turn())
+
+  expect(game.mock.calls.filter((call) => call[1] === 'player.moveTo' && (call[2] as { guard: { mapId: number } }).guard.mapId === 1)).toHaveLength(1)
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('重复绕行') }))
+  expect(emitTurnEvent).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.completed' }))
+})
+
+test('does not claim a touch interaction succeeded when a bump has no effect', async () => {
+  const game = mockMap([{ id: 3, name: '关着的门', x: 8, y: 4, trigger: 'player_touch' }], { x: 8, y: 5, direction: 8 })
+  resolveTo(3, 'interact')
+
+  await runManagedTurn({ ...input, prompt: '进这扇门' }, profile, turn())
+
+  expect(pressedKeys(game)).toEqual(['up'])
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('无法确认完成') }))
+})
+
+test('does not ask when the goal is already bound, even if the model adds a question', async () => {
+  mockMap([{ id: 2, name: '村长夫人', x: 5, y: 6, trigger: 'action', text: '我家老头子又在外面跟人聊天了吧。' }], { x: 5, y: 9, direction: 8 })
+  ;(streamOllamaChat as jest.Mock)
+    .mockResolvedValueOnce({
+      role: 'assistant',
+      content: JSON.stringify({ summary: '与村长夫人聊天', scope: 'map', targetEventId: 2, skill: 'interact', openQuestion: '你是想和村长夫人聊天吗？' }),
+    })
+    .mockResolvedValue({ role: 'assistant', content: '{"summary":"夫人说村长在外面聊天。"}' })
+
+  await runManagedTurn({ ...input, prompt: '找村长夫人聊天' }, profile, turn())
+
+  expect(emitTurnEvent).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'approval.required' }))
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.completed', text: expect.stringContaining('已与村长夫人完成交互') }))
+})
+
+test('treats "talk to X" as a map interaction even when the model picks the on-screen dialogue scope', async () => {
+  const game = mockMap([{ id: 1, name: '村长', x: 8, y: 4, trigger: 'action', text: '欢迎来到村庄。' }], { x: 8, y: 7, direction: 8 })
+  const chat = (streamOllamaChat as jest.Mock)
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '与村长对话', scope: 'visible_dialogue', targetEventId: 1, skill: null, openQuestion: null }) })
+    .mockResolvedValue({ role: 'assistant', content: '{"summary":"村长欢迎旅行者。"}' })
+
+  await runManagedTurn({ ...input, prompt: '帮我跟村长对话' }, profile, turn())
+
+  expect(chat.mock.calls[0][0].format).toMatchObject({ properties: { scope: { enum: ['battle', 'visible_dialogue', 'map_event', 'unclear'] } } })
+  expect(pressedKeys(game)).toEqual(['ok', 'ok'])
+  expect(emitTurnEvent).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'approval.required' }))
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.completed', text: expect.stringContaining('已与村长完成交互') }))
+})
+
+test('does not claim success when an interaction has no observable effect', async () => {
+  const game = mockMap([{ id: 1, name: '村长', x: 8, y: 4, trigger: 'action' }], { x: 8, y: 7, direction: 8 })
+  resolveTo(1, 'interact')
+
+  await runManagedTurn({ ...input, prompt: '跟村长对话' }, profile, turn())
+
+  expect(pressedKeys(game)).toEqual(['ok'])
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('无法确认完成') }))
+})
+
+test('asks the model again when it finds the event but omits the map skill', async () => {
+  const game = mockMap([{ id: 1, name: '村长', x: 8, y: 4, trigger: 'action', text: '你好。' }], { x: 8, y: 7, direction: 8 })
+  const chat = (streamOllamaChat as jest.Mock)
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '找村长', scope: 'map_event', targetEventId: 1, skill: null, openQuestion: null }) })
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '与村长交谈', scope: 'map_event', targetEventId: 1, skill: 'interact', openQuestion: null }) })
+    .mockResolvedValue({ role: 'assistant', content: '{"summary":"村长问好。"}' })
+
+  await runManagedTurn({ ...input, prompt: '找村长聊聊' }, profile, turn())
+
+  expect(chat.mock.calls[1][0].messages[1].content).toContain('缺少动作')
+  expect(chat.mock.calls[1][0].think).toBe(true)
+  expect(pressedKeys(game)).toEqual(['ok', 'ok'])
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.completed', reason: 'verified' }))
+})
+
+test('rechecks an approach decision before treating finding a person as done', async () => {
+  const game = mockMap([{ id: 1, name: '村长', x: 8, y: 4, trigger: 'action', text: '你好。' }], { x: 8, y: 7, direction: 8 })
+  const chat = (streamOllamaChat as jest.Mock)
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '找到村长', scope: 'map', targetEventId: 1, skill: 'approach', openQuestion: null }) })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"stopBeside":false}' })
+    .mockResolvedValue({ role: 'assistant', content: '{"summary":"村长问好。"}' })
+
+  await runManagedTurn({ ...input, prompt: '找村长' }, profile, turn())
+
+  expect(chat.mock.calls[1][0].messages[0].content).toContain('只判断玩家是否明确要求走到目标旁边就停止')
+  expect(pressedKeys(game)).toEqual(['ok', 'ok'])
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.completed', text: expect.stringContaining('已与村长完成交互') }))
+})
+
+test('gives the summarizer speakers and the interaction partner', async () => {
+  mockMap([{ id: 2, name: '村长夫人', x: 5, y: 6, trigger: 'action', text: '我家老头子又在外面跟人聊天了吧。' }], { x: 5, y: 9, direction: 8 })
+  const chat = resolveTo(2, 'interact').mockResolvedValue({ role: 'assistant', content: '{"summary":"村长夫人说村长又在外面聊天。"}' })
+
+  await runManagedTurn({ ...input, prompt: '跟村长夫人互动' }, profile, turn())
+
+  const summaryInput = chat.mock.calls.at(-1)?.[0].messages.at(-1)?.content || ''
+  expect(summaryInput).toContain('与“村长夫人”交互')
+  expect(summaryInput).toContain('村长夫人：我家老头子又在外面跟人聊天了吧。')
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.completed', text: expect.stringContaining('记录到的剧情：村长夫人：') }))
+})
+
+test('re-understands the player reply as the newest instruction instead of failing', async () => {
+  mockMap([{ id: 2, name: '村长夫人', x: 5, y: 6, trigger: 'action', text: '我家老头子又在外面跟人聊天了吧。' }], { x: 5, y: 9, direction: 8 })
+  const chat = (streamOllamaChat as jest.Mock)
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '找人聊天', scope: 'unclear', targetEventId: null, skill: null, openQuestion: '你想找谁？' }) })
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '找人聊天', scope: 'unclear', targetEventId: null, skill: null, openQuestion: '你想找谁？' }) })
+    .mockResolvedValueOnce({ role: 'assistant', content: JSON.stringify({ summary: '与村长夫人互动', scope: 'map', targetEventId: 2, skill: 'interact', openQuestion: null }) })
+    .mockResolvedValue({ role: 'assistant', content: '{"summary":"夫人说村长在外面聊天。"}' })
+  const active = turn()
+  ;(emitTurnEvent as jest.Mock).mockImplementation((_turn, event) => {
+    if (event.type !== 'approval.required') return
+    active.reply = '跟村长夫人互动'
+    active.resume?.()
+  })
+
+  await runManagedTurn({ ...input, prompt: '找她聊天' }, profile, active)
+
+  expect(JSON.parse(chat.mock.calls[2][0].messages[1].content)).toMatchObject({ request: '跟村长夫人互动', earlierRequest: '找她聊天' })
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.completed', text: expect.stringContaining('已与村长夫人完成交互') }))
+})
+
+test('keeps asking up to the clarification limit before giving up', async () => {
+  mockMap([{ id: 2, name: '村长夫人', x: 5, y: 6, trigger: 'action' }], { x: 5, y: 9, direction: 8 })
+  ;(streamOllamaChat as jest.Mock).mockResolvedValue({
+    role: 'assistant',
+    content: JSON.stringify({ summary: '不明确', scope: 'unclear', targetEventId: null, skill: null, openQuestion: '你想做什么？' }),
+  })
+  const active = turn()
+  ;(emitTurnEvent as jest.Mock).mockImplementation((_turn, event) => {
+    if (event.type !== 'approval.required') return
+    active.reply = '随便'
+    active.resume?.()
+  })
+
+  await runManagedTurn({ ...input, prompt: '嗯' }, profile, active)
+
+  expect((emitTurnEvent as jest.Mock).mock.calls.filter((call) => call[1].type === 'approval.required')).toHaveLength(2)
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('多次补充后仍无法确定目标') }))
+})
+
+test('the approach map skill stops next to the event without triggering it', async () => {
+  const game = mockMap([{ id: 1, name: '宝箱', x: 11, y: 5, trigger: 'action', text: '打开了宝箱。' }], { x: 11, y: 9, direction: 8 })
+  resolveTo(1, 'approach').mockResolvedValueOnce({ role: 'assistant', content: '{"stopBeside":true}' })
+
+  await runManagedTurn({ ...input, prompt: '走到宝箱旁边' }, profile, turn())
+
+  expect(moves(game).at(-1)).toEqual(expect.objectContaining({ x: 11, y: 6, stepwise: true }))
+  expect(pressedKeys(game)).toEqual([])
+  expect(emitTurnEvent).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ type: 'turn.completed', reason: 'verified', text: expect.stringContaining('已到达宝箱旁') })
+  )
+})
+
+test('fails with a clear reason when no tile beside the target is reachable', async () => {
+  const game = mockMap([{ id: 1, name: '宝箱', x: 11, y: 5, trigger: 'action' }], { x: 11, y: 9, direction: 8 }, { blocked: true })
+  resolveTo(1, 'interact')
+
+  await runManagedTurn({ ...input, prompt: '打开宝箱' }, profile, turn())
+
+  expect(moves(game)).toHaveLength(4)
+  expect(pressedKeys(game)).toEqual([])
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('无法走到宝箱旁边') }))
+})
+
+test('stops the task as soon as the player operates the game', async () => {
+  const game = mockMap([{ id: 1, name: '宝箱', x: 11, y: 5, trigger: 'action', text: '打开了宝箱。' }], { x: 11, y: 9, direction: 8 }, { manualAfterMove: true })
+  resolveTo(1, 'interact')
+
+  await runManagedTurn({ ...input, prompt: '打开宝箱' }, profile, turn())
+
+  expect(pressedKeys(game)).toEqual([])
+  expect(finishTurn).toHaveBeenCalledWith(expect.anything(), 'stopped')
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.stopped' }))
+  expect(emitTurnEvent).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'approval.required' }))
 })
 
 test('executes one guarded input from a multi-call decision, then reobserves before the next decision', async () => {

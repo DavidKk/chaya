@@ -65,6 +65,7 @@ export async function streamOllamaChat(
     format?: 'json' | Record<string, unknown>
     temperature?: number
     maxTokens?: number
+    think?: boolean
     keepAlive?: string
     token?: string
     signal?: AbortSignal
@@ -80,11 +81,15 @@ export async function streamOllamaChat(
       body: JSON.stringify({
         model: input.model,
         stream: true,
-        think: false,
-        messages: input.messages,
+        think: input.think === true,
+        messages: input.think ? input.messages.map((message) => ({ ...message, content: message.content.replace(/^\/no_think\s*\n/, '') })) : input.messages,
         ...(input.tools?.length ? { tools: input.tools } : {}),
         ...(input.format ? { format: input.format } : {}),
-        options: { temperature: input.temperature ?? 0.2, num_ctx: 16_384, ...(input.maxTokens ? { num_predict: input.maxTokens } : {}) },
+        options: {
+          temperature: input.temperature ?? 0.2,
+          num_ctx: 16_384,
+          ...(input.maxTokens || input.think ? { num_predict: input.think ? Math.max(input.maxTokens || 0, 2048) : input.maxTokens } : {}),
+        },
         keep_alive: input.keepAlive || '10m',
       }),
       signal: input.signal,
@@ -95,6 +100,8 @@ export async function streamOllamaChat(
   }
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
+    if (input.think && response.status === 400 && /think/i.test(detail) && /support|invalid|unknown/i.test(detail))
+      return streamOllamaChat({ ...input, think: false }, onDelta, fetcher)
     throw new Error(detail || `Ollama 请求失败（HTTP ${response.status}）`)
   }
   if (!response.body) throw new Error('Ollama 未返回可读取的响应流')
