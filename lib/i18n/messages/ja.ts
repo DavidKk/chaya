@@ -1,8 +1,11 @@
+import { aboutJa } from '@/lib/i18n/messages/parts/about'
+import { creditsJa } from '@/lib/i18n/messages/parts/credits'
 import { dataJa } from '@/lib/i18n/messages/parts/data.ja'
 import { downloadsJa } from '@/lib/i18n/messages/parts/downloads'
 import { editJa } from '@/lib/i18n/messages/parts/edit.ja'
 import { eventsJa } from '@/lib/i18n/messages/parts/events.ja'
 import { integrationJa } from '@/lib/i18n/messages/parts/integration'
+import { legalJa } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayJa } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { translateJa } from '@/lib/i18n/messages/parts/translate.ja'
 import type { MessageTree } from '@/lib/i18n/messages/types'
@@ -20,6 +23,7 @@ const base = {
     logs: 'ログ',
     integration: '連携',
     settings: '設定',
+    about: '概要',
   },
   common: {
     close: '閉じる',
@@ -291,6 +295,9 @@ export const ja: MessageTree = {
   ...integrationJa,
   ...mcpGatewayJa,
   ...downloadsJa,
+  ...aboutJa,
+  ...creditsJa,
+  ...legalJa,
   ...eventsJa,
   ...dataJa,
 }

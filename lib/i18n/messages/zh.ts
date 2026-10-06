@@ -1,10 +1,13 @@
+import { aboutZh } from '@/lib/i18n/messages/parts/about'
 import { commonZh } from '@/lib/i18n/messages/parts/common'
+import { creditsZh } from '@/lib/i18n/messages/parts/credits'
 import { dashboardZh } from '@/lib/i18n/messages/parts/dashboard'
 import { dataZh } from '@/lib/i18n/messages/parts/data'
 import { downloadsZh } from '@/lib/i18n/messages/parts/downloads'
 import { editZh } from '@/lib/i18n/messages/parts/edit'
 import { eventsZh } from '@/lib/i18n/messages/parts/events'
 import { integrationZh } from '@/lib/i18n/messages/parts/integration'
+import { legalZh } from '@/lib/i18n/messages/parts/legal'
 import { marketingZh } from '@/lib/i18n/messages/parts/marketing'
 import { mcpGatewayZh } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { translateZh } from '@/lib/i18n/messages/parts/translate'
@@ -20,6 +23,9 @@ export const zh = {
   ...integrationZh,
   ...mcpGatewayZh,
   ...downloadsZh,
+  ...aboutZh,
+  ...creditsZh,
+  ...legalZh,
   ...eventsZh,
   ...dataZh,
 } as const satisfies MessageTree

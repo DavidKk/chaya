@@ -1,8 +1,11 @@
+import { aboutKo } from '@/lib/i18n/messages/parts/about'
+import { creditsKo } from '@/lib/i18n/messages/parts/credits'
 import { dataKo } from '@/lib/i18n/messages/parts/data.ko'
 import { downloadsKo } from '@/lib/i18n/messages/parts/downloads'
 import { editKo } from '@/lib/i18n/messages/parts/edit.ko'
 import { eventsKo } from '@/lib/i18n/messages/parts/events.ko'
 import { integrationKo } from '@/lib/i18n/messages/parts/integration'
+import { legalKo } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayKo } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { translateKo } from '@/lib/i18n/messages/parts/translate.ko'
 import type { MessageTree } from '@/lib/i18n/messages/types'
@@ -20,6 +23,7 @@ const base = {
     logs: '로그',
     integration: '연동',
     settings: '설정',
+    about: '정보',
   },
   common: {
     close: '닫기',
@@ -291,6 +295,9 @@ export const ko: MessageTree = {
   ...integrationKo,
   ...mcpGatewayKo,
   ...downloadsKo,
+  ...aboutKo,
+  ...creditsKo,
+  ...legalKo,
   ...eventsKo,
   ...dataKo,
 }

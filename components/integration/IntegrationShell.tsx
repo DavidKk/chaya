@@ -7,7 +7,8 @@ import { LuFileCode2, LuGlobe, LuPlug } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { INTEGRATION_TABS, integrationTabFromPathname } from '@/components/integration/tabs'
-import { pageMainFlush, panelBody, panelShell } from '@/components/layoutClasses'
+import { legalBar, pageMainFlush, panelBody, panelShell } from '@/components/layoutClasses'
+import { LegalNotice } from '@/components/legal/LegalNotice'
 import { SectionSideNav, sectionSideNavItemClass, SectionSideNavItemContent } from '@/components/SectionSideNav'
 import { Tooltip } from '@/components/sk'
 import type { MessageKey } from '@/lib/i18n'
@@ -49,7 +50,10 @@ export function IntegrationShell({ children }: { children: ReactNode }) {
               )
             })}
           </SectionSideNav>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+            <LegalNotice kind="integration" className={legalBar} />
+          </div>
         </div>
       </div>
     </div>

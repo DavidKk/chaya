@@ -3,7 +3,8 @@
 import type { ReactNode } from 'react'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { pageMainFlush, panelBody, panelShell } from '@/components/layoutClasses'
+import { legalBar, pageMainFlush, panelBody, panelShell } from '@/components/layoutClasses'
+import { LegalNotice } from '@/components/legal/LegalNotice'
 import type { TranslateTabId } from '@/components/translate/tabs'
 import { TranslateContentToolbar, TranslateSubNav } from '@/components/translate/TranslateSubNav'
 import { cn } from '@/lib/utils'
@@ -26,6 +27,7 @@ export function TranslateShell({ tab, children, 'aria-label': ariaLabel, bodyCla
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <TranslateContentToolbar tab={tab} />
             <div className={cn('flex min-h-0 flex-1 flex-col bg-paper-2', bodyClassName)}>{children}</div>
+            <LegalNotice kind="translate" className={legalBar} />
           </div>
         </div>
       </div>

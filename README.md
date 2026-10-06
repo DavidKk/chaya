@@ -113,6 +113,23 @@ chaya/
   data/                   local toolkit data (gitignored)
 ```
 
+## Disclaimer
+
+Chaya is a neutral technical tool provided free of charge as open source. It offers only translation, editing and AI-assistance features, runs on the user’s own device (apart from third-party services the user chooses), and is not affiliated with, authorized or endorsed by Gotcha Gotcha Games, KADOKAWA Corporation or any rights holder. “RPG Maker” is a trademark of its owner and is used only to describe compatibility.
+
+- **Lawful use.** Use Chaya only with games you have lawfully obtained and in compliance with applicable law. Where a rights holder expressly prohibits translation, modification or analysis, you shall not use Chaya on that work.
+- **No distribution services.** The developers provide no distribution, hosting, upload, sharing or download service of any kind — including for game files, translation patches, translation caches, translated data files (such as JSON) and modified games. All generated data stays on your device. Any distribution is your own independent act, and you alone bear all resulting liability.
+- **Third-party services.** Cloud translation and AI engines transmit game text to their providers under the providers’ own terms.
+- **Editing.** Editing features may corrupt saves; back up first and do not use them online or on leaderboards.
+- **No circumvention.** Chaya does not and will not decrypt protected assets, crack saves, bypass DRM or unlock paid content.
+- **No warranty; user responsibility.** Chaya is provided “as is”. To the maximum extent permitted by law, the developers are not liable for any loss arising from its use, and you shall indemnify the developers against claims arising from your breach.
+
+The full Disclaimer (EN / 中文 / 日本語 / 한국어) is available on the `/disclaimer` page of the app. Rights holders may contact the developers through GitHub Issues.
+
+## Privacy
+
+Chaya requires no account and the developers collect no personally identifiable information. The local edition has no telemetry and keeps settings, caches and API keys on your device. The online edition reads game folders locally in the browser, sends translation requests straight from your device to the engine you choose, and uses cookie-less Vercel Web Analytics for aggregated page visits. See the `/privacy` page for the full Privacy Policy.
+
 ## License
 
-[MIT](./LICENSE)
+Chaya is an open-source project released under the [MIT License](./LICENSE): free to use, modify and redistribute, provided the copyright and permission notices are kept. The license covers this project only and grants no rights in any game, RPG Maker or third-party service; bundled third-party components keep their own licenses. See the `/license` page for details.

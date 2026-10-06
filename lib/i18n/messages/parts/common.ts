@@ -13,6 +13,7 @@ export const commonZh = {
     logs: '日志',
     integration: '集成',
     settings: '配置',
+    about: '关于',
   },
   common: {
     close: '关闭',

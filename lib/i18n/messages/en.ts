@@ -1,8 +1,11 @@
+import { aboutEn } from '@/lib/i18n/messages/parts/about'
+import { creditsEn } from '@/lib/i18n/messages/parts/credits'
 import { dataEn } from '@/lib/i18n/messages/parts/data.en'
 import { downloadsEn } from '@/lib/i18n/messages/parts/downloads'
 import { editEn } from '@/lib/i18n/messages/parts/edit.en'
 import { eventsEn } from '@/lib/i18n/messages/parts/events.en'
 import { integrationEn } from '@/lib/i18n/messages/parts/integration'
+import { legalEn } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayEn } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { translateEn } from '@/lib/i18n/messages/parts/translate.en'
 import type { MessageTree } from '@/lib/i18n/messages/types'
@@ -20,6 +23,7 @@ const commonEn = {
     logs: 'Logs',
     integration: 'Integrations',
     settings: 'Settings',
+    about: 'About',
   },
   common: {
     close: 'Close',
@@ -299,6 +303,9 @@ export const en: MessageTree = {
   ...integrationEn,
   ...mcpGatewayEn,
   ...downloadsEn,
+  ...aboutEn,
+  ...creditsEn,
+  ...legalEn,
   ...eventsEn,
   ...dataEn,
 }

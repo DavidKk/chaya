@@ -9,13 +9,14 @@ import { DownloadsRuntime } from '@/components/downloads/DownloadsRuntime'
 import { GameAgentAppPanel } from '@/components/game-agent/GameAgentAppPanel'
 import { pageShell } from '@/components/layoutClasses'
 import { Button } from '@/components/sk'
+import { LEGAL_HREFS } from '@/lib/legal'
 
 /** 全局壳：顶栏固定在 layout，路由切换只换下方内容，避免整页重挂 */
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [agentOpen, setAgentOpen] = useState(false)
-  /** Edge 官方首页与 `/sh/*` 脚本页不挂控制台顶栏 */
-  const marketing = pathname === '/' || pathname.startsWith('/sh/')
+  /** Edge 官方首页、条款页与 `/sh/*` 脚本页不挂控制台顶栏 */
+  const marketing = pathname === '/' || LEGAL_HREFS.has(pathname) || pathname.startsWith('/sh/')
 
   return (
     <div className={pageShell}>

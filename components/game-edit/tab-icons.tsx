@@ -5,7 +5,7 @@ import { GiAbdominalArmor, GiAxeSword, GiBackpack, GiBurn, GiDatabase, GiKey, Gi
 import { HiVariable } from 'react-icons/hi'
 import { IoIosSwitch } from 'react-icons/io'
 import { IoListOutline, IoSettingsOutline } from 'react-icons/io5'
-import { LuPlug } from 'react-icons/lu'
+import { LuInfo, LuPlug } from 'react-icons/lu'
 
 import type { TabId } from './tabs'
 
@@ -27,4 +27,5 @@ export const TAB_ICONS: Record<TabId, IconType> = {
   hotkeys: GiKey,
   mcp: LuPlug,
   settings: IoSettingsOutline,
+  about: LuInfo,
 }

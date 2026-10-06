@@ -9,9 +9,11 @@ import { BrandLogo } from '@/components/BrandLogo'
 import { DevTargetSwitch } from '@/components/DevTargetSwitch'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
+import { DISCLAIMER_HREF } from '@/components/legal/LegalNotice'
 import { CopyField } from '@/components/sk'
 import { DEFAULT_SITE_ORIGIN } from '@/constants/brand'
 import { usePageOrigin } from '@/hooks/usePageOrigin'
+import { LEGAL_DOCS } from '@/lib/legal'
 import type { ReleaseDownloads } from '@/lib/release/github-release'
 import { remoteScriptCommand } from '@/lib/remote-scripts/command'
 import { BUILD_TARGET } from '@/lib/service-mode/target'
@@ -202,6 +204,21 @@ export function MarketingHome({ githubUrl, downloads }: { githubUrl: string; dow
           </section>
         </div>
       </main>
+
+      <footer className="shrink-0 px-6 pb-4 text-center text-xs leading-relaxed text-ink-soft sm:px-10">
+        {t('legal.marketing')}{' '}
+        <Link href={DISCLAIMER_HREF} className={subLinkClass}>
+          {t('legal.link')}
+        </Link>
+        <span className="mt-1 flex justify-center gap-3">
+          <Link href={LEGAL_DOCS.privacy.href} className={subLinkClass}>
+            {t('legal.privacy')}
+          </Link>
+          <Link href={LEGAL_DOCS.license.href} className={subLinkClass}>
+            {t('legal.license')}
+          </Link>
+        </span>
+      </footer>
 
       <style>{`
         @keyframes marketing-rise {

@@ -20,6 +20,10 @@ Chaya 是开源免费工具，暂未购买 Apple 开发者证书做签名公证�
   ・macOS 14 及更早：右键 Chaya →「打开」→ 再点「打开」。
   ・macOS 15 及更新：「系统设置 → 隐私与安全性」底部点「仍要打开」。
 
+免责声明：Chaya 为中立的技术工具，不提供任何游戏、译文或分发服务（含翻译后的
+数据文件）。请仅对合法取得、且作品条款未禁止翻译 / 修改的游戏使用；用户自行
+分发译文或数据所产生的一切责任由用户承担。完整条款见应用内「免责声明」页面。
+
 
 [English]
 
@@ -41,3 +45,9 @@ After that Chaya opens normally with a double-click. You only need to do this on
 If macOS says it "cannot verify the developer" instead of "damaged", no Terminal needed:
   - macOS 14 or earlier: right-click Chaya → Open → Open.
   - macOS 15 or later: System Settings → Privacy & Security → "Open Anyway".
+
+Disclaimer: Chaya is a neutral technical tool and provides no games,
+translations or distribution services (including translated data files). Use
+it only with games you lawfully obtained whose terms do not prohibit
+translation or modification. You alone are responsible for any distribution
+of translations or data. See the Disclaimer page in the app for full terms.

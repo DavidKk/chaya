@@ -39,20 +39,21 @@
 
 ## 4. 布局与组件落点
 
-| 结构     | 落点                                                                                                       |
-| -------- | ---------------------------------------------------------------------------------------------------------- |
-| 全页壳   | 页面根用 Tailwind flex 列；顶栏 / 主区 / 底栏分块                                                          |
-| 顶栏     | `AppNav` + 品牌 + `BindingStatusMenu`                                                                      |
-| 游戏库   | 左 `LibraryRail`，右工作台（启动卡 + 设置表单）                                                            |
-| 表       | `ScrollArea` + `DataTable`（可选 `sort` / `onSortCycle`）；表头三态用 `SortableTh` / `cycleThreeStateSort` |
-| 表单     | 标题 / 描述 / 控件；紧凑行左右分栏用 grid/flex                                                             |
-| 滚动     | 一律 `components/sk/ScrollArea`                                                                            |
-| 按钮等   | `components/sk/*`（内部 Tailwind）                                                                         |
-| 有界数字 | `NumberSliderInput`；无界 `NumberInput`                                                                    |
-| 时长     | `DurationInput`（毫秒输入，后缀实时换算「1 分钟 30 秒」）                                                  |
-| Tooltip  | `components/sk/Tooltip`；图标钮用 `tooltip` prop                                                           |
-| 反馈     | `useNotification`                                                                                          |
-| 空/门闸  | `EmptyState` / `ChooseGameGate`                                                                            |
+| 结构     | 落点                                                                                                                                                |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 全页壳   | 页面根用 Tailwind flex 列；顶栏 / 主区 / 底栏分块                                                                                                   |
+| 顶栏     | `AppNav` + 品牌 + `BindingStatusMenu`                                                                                                               |
+| 游戏库   | 左 `LibraryRail`，右工作台（启动卡 + 设置表单）                                                                                                     |
+| 表       | `ScrollArea` + `DataTable`（可选 `sort` / `onSortCycle`）；表头三态用 `SortableTh` / `cycleThreeStateSort`                                          |
+| 表单     | 标题 / 描述 / 控件；紧凑行左右分栏用 grid/flex                                                                                                      |
+| 滚动     | 一律 `components/sk/ScrollArea`                                                                                                                     |
+| 按钮等   | `components/sk/*`（内部 Tailwind）                                                                                                                  |
+| 有界数字 | `NumberSliderInput`；无界 `NumberInput`                                                                                                             |
+| 时长     | `DurationInput`（毫秒输入，后缀实时换算「1 分钟 30 秒」）                                                                                           |
+| Tooltip  | `components/sk/Tooltip`；图标钮用 `tooltip` prop                                                                                                    |
+| 反馈     | `useNotification`                                                                                                                                   |
+| 空/门闸  | `EmptyState` / `ChooseGameGate`                                                                                                                     |
+| 使用须知 | 功能区底部 `LegalNotice` + `legalBar`；全文在 `/disclaimer`、`/privacy`、`/license`（`lib/legal` 的 `LEGAL_DOCS`；局内「关于」复用 `LegalDocBody`） |
 
 页头（`panelShell` → `panelHead`）：**分类 / 二级 tabs 在左**；**搜索 / 筛选 / 状态在右**（`panelHeadEnd`）；主 CTA 在内容区，不塞进页头。
 

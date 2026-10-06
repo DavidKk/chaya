@@ -1,7 +1,10 @@
+import type { AboutMessages } from '@/lib/i18n/messages/about-types'
+import type { CreditsMessages } from '@/lib/i18n/messages/credits-types'
 import type { DataMessages } from '@/lib/i18n/messages/data-types'
 import type { DownloadsMessages } from '@/lib/i18n/messages/downloads-types'
 import type { EventsMessages } from '@/lib/i18n/messages/events-types'
 import type { IntegrationMessages } from '@/lib/i18n/messages/integration-types'
+import type { LegalMessages } from '@/lib/i18n/messages/legal-types'
 import type { McpGatewayMessages } from '@/lib/i18n/messages/mcp-gateway-types'
 
 /** 叶子为 string 的同构文案树 */
@@ -18,6 +21,7 @@ export type MessageTree = {
     logs: string
     integration: string
     settings: string
+    about: string
   }
   common: {
     close: string
@@ -698,6 +702,9 @@ export type MessageTree = {
   integration: IntegrationMessages
   mcpGateway: McpGatewayMessages
   downloads: DownloadsMessages
+  about: AboutMessages
+  credits: CreditsMessages
+  legal: LegalMessages
   events: EventsMessages
   data: DataMessages
 }

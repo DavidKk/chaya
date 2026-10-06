@@ -10,7 +10,8 @@ import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { GameEditRunSettings } from '@/components/GameEditRunSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { editCell, editHeadCell, panelBody, panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
+import { editCell, editHeadCell, legalBar, panelBody, panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
+import { LegalNotice, type LegalNoticeKind } from '@/components/legal/LegalNotice'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
 import { Button, EmptyState, NumberInput, ScrollArea, Spinner, SwitchToggle, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
@@ -50,6 +51,7 @@ const GameEditHotkeysPane = lazy(() => import('./GameEditHotkeysPane').then((m) 
 const GameEditTransPane = lazy(() => import('./GameEditTransPane').then((m) => ({ default: m.GameEditTransPane })))
 const GameEditLogsPane = lazy(() => import('./GameEditLogsPane').then((m) => ({ default: m.GameEditLogsPane })))
 const GameEditIntegrationPane = lazy(() => import('./GameEditIntegrationPane').then((m) => ({ default: m.GameEditIntegrationPane })))
+const GameEditAboutPane = lazy(() => import('./GameEditAboutPane').then((m) => ({ default: m.GameEditAboutPane })))
 const CommonEventsPane = lazy(() => import('./events/CommonEventsPane').then((m) => ({ default: m.CommonEventsPane })))
 const MapPane = lazy(() => import('./events/MapPane').then((m) => ({ default: m.MapPane })))
 const SaveDataPane = lazy(() => import('./save-data/SaveDataPane').then((m) => ({ default: m.SaveDataPane })))
@@ -313,6 +315,8 @@ export function GameEditWorkbench({
   const eventsTab = isEventsTab(tab)
   const eventSourceCount = !events?.data ? 0 : tab === 'map' ? events.data.mapIndex.nodes.length : events.data.events.length
   const activeTab = TABS.find((item) => item.id === tab)
+  const legalKind: LegalNoticeKind | null =
+    tab === 'logs' || tab === 'about' ? null : tab === 'trans' ? 'translate' : tab === 'mcp' ? 'integration' : tab === 'settings' ? 'agent' : 'edit'
   const refreshButton = (
     <Button
       variant="ghost"
@@ -495,6 +499,10 @@ export function GameEditWorkbench({
               <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
                 <GameEditIntegrationPane request={agentRequest} />
               </Suspense>
+            ) : tab === 'about' ? (
+              <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
+                <GameEditAboutPane />
+              </Suspense>
             ) : tab === 'settings' && agentRequest ? (
               <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
                 <GameEditAgentSettingsPane request={agentRequest} />
@@ -671,6 +679,7 @@ export function GameEditWorkbench({
               </ScrollArea>
             )}
           </div>
+          {legalKind ? <LegalNotice kind={legalKind} link={surface === 'page'} className={legalBar} /> : null}
         </div>
       </div>
     </div>

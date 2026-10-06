@@ -93,7 +93,7 @@ export function captureGameEditView() {
   const activeTranslateSection = shadow.querySelector<HTMLElement>('[role="tablist"][aria-label="翻译分区"] [role="tab"][aria-selected="true"]')?.dataset.navId
   viewHost().__chayaGameEditView = {
     ...saved,
-    tab: mainTab === 'trans' || mainTab === 'logs' || mainTab === 'mcp' || mainTab === 'settings' ? mainTab : parseTabId(tab, saved.tab),
+    tab: mainTab === 'trans' || mainTab === 'logs' || mainTab === 'mcp' || mainTab === 'settings' || mainTab === 'about' ? mainTab : parseTabId(tab, saved.tab),
     lastEditTab: isEditTab(parseTabId(tab, saved.lastEditTab)) ? parseTabId(tab, saved.lastEditTab) : saved.lastEditTab,
     translateTab: activeTranslateTab === 'seed' ? 'seed' : activeTranslateTab === 'play' ? 'play' : saved.translateTab,
     translateSection: activeTranslateSection === 'cache' ? 'cache' : activeTranslateSection === 'run' ? 'run' : saved.translateSection,
@@ -111,7 +111,7 @@ function scopeForTab(tab: TabId): LiveSessionScope {
 }
 
 function tabNeedsCatalog(tab: TabId): boolean {
-  return tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings' && tab !== 'data' && !isEventsTab(tab)
+  return tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings' && tab !== 'about' && tab !== 'data' && !isEventsTab(tab)
 }
 
 /** In-game React panel: shared GameEditWorkbench + runtime data */

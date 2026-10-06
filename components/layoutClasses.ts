@@ -52,6 +52,9 @@ export const panelBody = 'flex min-h-0 flex-1 flex-col bg-paper-2'
 export const panelFoot =
   'flex shrink-0 items-center justify-between gap-3 border-t border-line bg-transparent px-4 py-2 text-[0.7rem] text-ink-soft [&_span:first-child]:min-w-0 [&_span:first-child]:truncate'
 
+/** 功能区底部的使用须知条（`LegalNotice`） */
+export const legalBar = 'shrink-0 border-t border-line px-4 py-2'
+
 /** 表单卡片（内缩浅线分隔；子项统一内边距，勿在子组件再叠 py） */
 export const formCard = cn(
   'm-0 flex w-full max-w-none flex-col overflow-hidden rounded-[0.35rem] border border-line bg-panel',
