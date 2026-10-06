@@ -1,4 +1,11 @@
-import { DEFAULT_GAME_AGENT_MODEL, listOllamaModels, pickAvailableModel, pickDefaultModel, streamOllamaChat } from '@/services/game-agent/ollama-client'
+import {
+  DEFAULT_GAME_AGENT_MODEL,
+  listOllamaModels,
+  pickAvailableModel,
+  pickDefaultModel,
+  readOllamaModelCapabilities,
+  streamOllamaChat,
+} from '@/services/game-agent/ollama-client'
 
 function streamed(lines: string[]) {
   const encoder = new TextEncoder()
@@ -38,6 +45,15 @@ describe('game agent Ollama client', () => {
     ])
   })
 
+  it('passes screenshot bytes in the Ollama image field', async () => {
+    const fetcher = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body))
+      expect(body.messages[0]).toEqual({ role: 'user', content: 'Read menu', images: ['base64-jpeg'] })
+      return streamed(['{"message":{"content":"ok"}}\n'])
+    }) as unknown as typeof fetch
+    await streamOllamaChat({ model: 'vision', messages: [{ role: 'user', content: 'Read menu', images: ['base64-jpeg'] }] }, () => {}, fetcher)
+  })
+
   it('reads installed models and prefers the existing repository default', async () => {
     const fetcher = jest.fn(async () =>
       Response.json({
@@ -67,6 +83,15 @@ describe('game agent Ollama client', () => {
     }) as unknown as typeof fetch
 
     await streamOllamaChat({ model: 'demo', messages: [], token: 'private-token' }, () => {}, fetcher)
+  })
+
+  it('reads vision capability from model details', async () => {
+    const fetcher = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({ model: 'gemma4:vision' })
+      return Response.json({ capabilities: ['completion', 'vision'] })
+    }) as unknown as typeof fetch
+    await expect(readOllamaModelCapabilities('gemma4:vision', 'http://ollama.test', fetcher)).resolves.toEqual(['completion', 'vision'])
+    expect(fetcher).toHaveBeenCalledWith('http://ollama.test/api/show', expect.objectContaining({ method: 'POST' }))
   })
 
   it('surfaces invalid NDJSON instead of returning a partial answer', async () => {

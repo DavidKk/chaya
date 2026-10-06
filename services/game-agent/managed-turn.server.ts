@@ -6,6 +6,7 @@ import { readGameAgentToken } from './secrets'
 import { emitTurnEvent, finishTurn } from './session-store'
 import type { GameAgentProfile } from './settings'
 import type { GameAgentMessage, GameAgentTurn, OllamaTool, StartTurnInput } from './types'
+import { battleImageFingerprint, findVisionModel, inspectBattleImage } from './visual-observation.server'
 
 type State = {
   scene?: string | null
@@ -103,7 +104,15 @@ function isOrdinaryBattleMenu(state: State) {
   )
 }
 
-async function decide(profile: GameAgentProfile, input: StartTurnInput, messages: GameAgentMessage[], state: State, scopeKind: ResolvedGoal['scope'], signal: AbortSignal) {
+async function decide(
+  profile: GameAgentProfile,
+  input: StartTurnInput,
+  messages: GameAgentMessage[],
+  state: State,
+  scopeKind: ResolvedGoal['scope'],
+  signal: AbortSignal,
+  visionModel: () => Promise<string | null>
+) {
   const activeDialogue = scopeKind === 'dialogue' && state.message?.busy
   const hasChoices = !!state.message?.choices?.length
   const ordinaryBattleMenu = scopeKind === 'battle' && isOrdinaryBattleMenu(state)
@@ -123,6 +132,41 @@ async function decide(profile: GameAgentProfile, input: StartTurnInput, messages
         },
       ],
     }
+  const activeWindow = Array.isArray(state.windows)
+    ? (state.windows as Array<{ name?: string; active?: boolean; options?: unknown[] }>).find((window) => window?.active)
+    : undefined
+  const imageMenu =
+    scopeKind === 'battle' &&
+    !state.message?.busy &&
+    (activeWindow ? !isOrdinaryBattleMenu(state) || !activeWindow.options?.length : (state.battle as { phase?: string } | null)?.phase === 'input')
+  if (imageMenu) {
+    try {
+      const model = await visionModel()
+      if (model) {
+        const image = await inspectBattleImage(profile, model, input.model, input.gameId, input.prompt, decisionState(state), signal)
+        if (image.safe && image.key)
+          return {
+            role: 'assistant' as const,
+            content: JSON.stringify({ visualText: image.visibleText, selectedText: image.selectedText, targetText: image.targetText, imageFingerprint: image.imageFingerprint }),
+            tool_calls: [{ function: { name: 'task_press_visual', arguments: { key: image.key } } }],
+          }
+        return {
+          role: 'assistant' as const,
+          content: image.visibleText,
+          tool_calls: [
+            { function: { name: 'task_ask_user', arguments: { question: `无法确认图片菜单的安全操作。画面文字：${image.visibleText || '未识别'}。请在游戏里处理后回复继续。` } } },
+          ],
+        }
+      }
+    } catch (error) {
+      if (signal.aborted) throw error
+    }
+    return {
+      role: 'assistant' as const,
+      content: '',
+      tool_calls: [{ function: { name: 'task_ask_user', arguments: { question: '图片菜单需要视觉模型识别，但当前视觉识别不可用。请在游戏里处理后回复继续。' } } }],
+    }
+  }
   const activeMenu = Array.isArray(state.windows) && state.windows.some((window) => window && typeof window === 'object' && (window as { active?: boolean }).active)
   const allowedKeys = ordinaryBattleMenu && activeMenu ? ['ok', 'up', 'down', 'cancel'] : [...KEYS]
   if (ordinaryBattleMenu) {
@@ -277,8 +321,8 @@ function fingerprint(state: State, history: History) {
 }
 
 function decisionState(state: State) {
-  const { scene, map, player, party, battle, qte, lastBattleResult, message, nearbyEvents, windows, screenText, renderedText } = state
-  return { scene, map, player, party, battle, qte, lastBattleResult, message, nearbyEvents, windows, screenText, renderedText }
+  const { scene, map, player, party, inventory, battle, qte, lastBattleResult, message, nearbyEvents, windows, screenText, renderedText } = state
+  return { scene, map, player, party, inventory, battle, qte, lastBattleResult, message, nearbyEvents, windows, screenText, renderedText }
 }
 
 function resultText(state: State, history: History, incomplete: boolean) {
@@ -407,6 +451,9 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
   let scopeKind: ResolvedGoal['scope'] = 'unclear'
   let reactionArmed = false
   let reactionUnavailable = false
+  const visualMoves = new Map<string, number>()
+  let visionModel: Promise<string | null> | undefined
+  const getVisionModel = () => (visionModel ??= findVisionModel(profile, input.model, turn.abort.signal))
   const story: NonNullable<History['entries']> = []
   const remember = (observation: Awaited<ReturnType<typeof observe>>) => {
     const entries = observation.history.entries || []
@@ -541,12 +588,17 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         }),
       })
       feedback = ''
-      const response = await decide(profile, input, messages, state, scopeKind, turn.abort.signal)
+      const response = await decide(profile, input, messages, state, scopeKind, turn.abort.signal, getVisionModel)
       const call = response.tool_calls?.[0]
       if (!call) throw new Error('当前模型未返回工具调用，无法托管游戏')
       messages.push({ ...response, tool_calls: [call] })
       if (call.function.name === 'task_ask_user') {
-        if (scopeKind === 'battle' && state.battle?.instanceId === scope.battleId && isOrdinaryBattleMenu(state)) {
+        if (
+          scopeKind === 'battle' &&
+          state.battle?.instanceId === scope.battleId &&
+          isOrdinaryBattleMenu(state) &&
+          (state.windows as Array<{ active?: boolean; options?: unknown[] }>).some((window) => window?.active && !!window.options?.length)
+        ) {
           feedback = '当前战斗菜单需要选择行动，不需要询问玩家。'
           messages.push({
             role: 'tool',
@@ -590,7 +642,8 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         return
       }
       const key = call.function.arguments.key as AgentInputKey
-      if (call.function.name !== 'task_press' || !KEYS.has(key) || (state.message?.busy && !state.message.choices?.length && key !== 'ok')) {
+      const visualPress = call.function.name === 'task_press_visual' && scopeKind === 'battle' && !!state.battle?.instanceId
+      if ((!visualPress && call.function.name !== 'task_press') || !KEYS.has(key) || (state.message?.busy && !state.message.choices?.length && key !== 'ok')) {
         feedback = '该按键或动作在当前状态不可用。'
         messages.push({ role: 'tool', tool_name: call.function.name, content: JSON.stringify({ ok: false, error: '当前状态不允许该动作；请重新选择。' }) })
         continue
@@ -607,6 +660,24 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         feedback = '玩家要求完成战斗，未授权逃跑。请选择战斗。'
         continue
       }
+      if (visualPress && key !== 'ok') {
+        const visual = JSON.parse(response.content) as { visualText?: string; selectedText?: string; targetText?: string }
+        const battle = state.battle as { instanceId?: string; turn?: number; actor?: { id?: number } } | null
+        const signature = JSON.stringify([battle?.instanceId, battle?.turn, battle?.actor?.id, visual.selectedText, visual.targetText, key])
+        const repeats = (visualMoves.get(signature) || 0) + 1
+        visualMoves.set(signature, repeats)
+        if (repeats >= 2) {
+          const reply = await pauseForPlayer(
+            `图片菜单在“${visual.selectedText || '未知'}”附近反复移动，无法确认目标“${visual.targetText || '未知'}”。请在游戏里处理后回复继续。`,
+            step
+          )
+          messages.push({ role: 'user', content: `Player reply: ${reply}` })
+          visualMoves.clear()
+          last = await observe(input.gameId, cursor)
+          remember(last)
+          continue
+        }
+      }
       if (!state.controlToken) throw new Error('游戏插件未提供操作校验令牌，无法安全托管')
       const before = fingerprint(state, history)
       const callId = `${step}-0`
@@ -619,7 +690,8 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
           frames: 6,
           guard: {
             controlToken: String(state.controlToken || ''),
-            allowedEffects: scopeKind === 'battle' ? ['navigate', 'battle_command', 'spend_resource'] : ['navigate', 'advance_dialogue'],
+            allowedEffects:
+              scopeKind === 'battle' ? ['navigate', 'battle_command', 'spend_resource', ...(visualPress ? ['unknown' as const] : [])] : ['navigate', 'advance_dialogue'],
             battleInstanceId: scope.battleId,
             mapId: scope.mapId,
           },
@@ -663,7 +735,12 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         }
         throw new Error(reason)
       }
-      noProgress = fingerprint(last.state, last.history) === before ? noProgress + 1 : 0
+      const visualChanged = visualPress
+        ? await battleImageFingerprint(input.gameId)
+            .then((hash) => hash !== (JSON.parse(response.content) as { imageFingerprint?: string }).imageFingerprint)
+            .catch(() => false)
+        : false
+      noProgress = fingerprint(last.state, last.history) === before && !visualChanged ? noProgress + 1 : 0
       if (noProgress) feedback = `${key} 没有改变游戏状态，请选择其他按键。`
       if (noProgress >= 3) throw new Error('连续三次操作未观察到进展')
     }

@@ -10,6 +10,19 @@
   let pendingStory = []
   let storyActive = false
   let qteDemo = false
+  let imageMenuDemo = false
+  const menuImages = new Map()
+
+  function menuImage(label, selected) {
+    const key = `${selected}:${label}`
+    if (menuImages.has(key)) return menuImages.get(key)
+    const image = new Image()
+    const safeLabel = String(label).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="28"><rect width="180" height="28" fill="${selected ? '#77613a' : '#263c48'}"/><text x="8" y="21" fill="#f3f7f6" font-family="sans-serif" font-size="17">${safeLabel}</text></svg>`
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+    menuImages.set(key, image)
+    return image
+  }
 
   function showNextLine() {
     const line = pendingStory.shift()
@@ -155,6 +168,9 @@
       this._enemyWindow = command([])
       this._allyWindow = command([])
       this._menus = ['_partyCommandWindow', '_actorCommandWindow', '_skillWindow', '_itemWindow', '_enemyWindow', '_allyWindow']
+      if (imageMenuDemo) {
+        for (const name of this._menus) Object.defineProperty(this, name, { enumerable: false })
+      }
       this.show('_partyCommandWindow')
     }
     show(name) {
@@ -377,8 +393,13 @@
       menu.options.forEach((option, index) => {
         const x = 36 + (index % 4) * 186
         const y = 490 + Math.floor(index / 4) * 28
-        ctx.fillStyle = index === menu.index() ? '#f1c56f' : '#d8e4e7'
-        ctx.fillText(`${index === menu.index() ? '▶ ' : '   '}${option.label}`, x, y)
+        if (imageMenuDemo) {
+          const image = menuImage(option.label, index === menu.index())
+          if (image.complete && image.naturalWidth) ctx.drawImage(image, x, y - 21)
+        } else {
+          ctx.fillStyle = index === menu.index() ? '#f1c56f' : '#d8e4e7'
+          ctx.fillText(`${index === menu.index() ? '▶ ' : '   '}${option.label}`, x, y)
+        }
       })
       ctx.fillStyle = '#c5d6d8'
       ctx.font = '15px system-ui'
@@ -399,8 +420,9 @@
     }
   }
 
-  function startBattle(withQte = false) {
+  function startBattle(withQte = false, withImageMenu = false) {
     qteDemo = withQte
+    imageMenuDemo = withImageMenu
     window.ChayaAgentQteSource.lastResult = null
     storyActive = false
     pendingStory = []
@@ -435,6 +457,7 @@
   window.WalkDemo.AgentScenarios = {
     startBattle,
     startQteBattle: () => startBattle(true),
+    startImageBattle: () => startBattle(false, true),
     startStory,
     update() {
       if (storyActive && SceneManager._scene instanceof Scene_Map && !$gameMessage.isBusy()) showNextLine()

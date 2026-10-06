@@ -1,6 +1,6 @@
 export type GameAgentMode = 'ask' | 'play'
 
-export type OllamaModel = { name: string; size?: number; modifiedAt?: string }
+export type OllamaModel = { name: string; size?: number; modifiedAt?: string; capabilities?: string[] }
 
 export type OllamaToolCall = {
   function: { name: string; arguments: Record<string, unknown> }
@@ -14,6 +14,7 @@ export type OllamaTool = {
 export type GameAgentMessage = {
   role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
+  images?: string[]
   tool_calls?: OllamaToolCall[]
   tool_name?: string
 }

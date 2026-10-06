@@ -6,12 +6,17 @@ import { hookMethod } from '../../helpers/game/method-hook'
 type Translate = (text: unknown) => string
 const ORIGINAL_MESSAGE_LINES = Symbol.for('chaya.originalMessageLines')
 
-export function installEngineHooks(translate: Translate, getMode: () => TranslationPlayMode = () => 'pretranslated') {
+export function installEngineHooks(translate: Translate, getMode: () => TranslationPlayMode = () => 'pretranslated', observe: (text: string) => void = () => {}) {
   const base = Window_Base.prototype
   const preserveDialogue = (win: unknown) =>
     (getMode() === 'subtitle' && typeof Window_Message !== 'undefined' && win instanceof Window_Message) ||
     (getMode() !== 'pretranslated' && typeof Window_ChoiceList !== 'undefined' && win instanceof Window_ChoiceList)
   let preserveBitmap = false
+  function render(text: string): string {
+    const result = translate(text)
+    if (result === text) observe(text)
+    return result
+  }
   function draw<T>(original: () => T): T {
     const previous = preserveBitmap
     preserveBitmap = true
@@ -27,7 +32,7 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
       'convertEscapeCharacters',
       (original) =>
         function (text: string, ...args: unknown[]) {
-          return original.call(this, preserveBitmap || preserveDialogue(this) ? text : translate(text), ...args)
+          return original.call(this, preserveBitmap || preserveDialogue(this) ? text : render(text), ...args)
         }
     ),
     hookMethod(
@@ -35,7 +40,7 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
       'drawText',
       (original) =>
         function (text: string, ...args: unknown[]) {
-          const rendered = preserveBitmap || preserveDialogue(this) ? text : translate(text)
+          const rendered = preserveBitmap || preserveDialogue(this) ? text : render(text)
           return draw(() => original.call(this, rendered, ...args))
         }
     ),
@@ -44,7 +49,7 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
       'drawTextEx',
       (original) =>
         function (text: string, ...args: unknown[]) {
-          const rendered = preserveBitmap || preserveDialogue(this) ? text : translate(text)
+          const rendered = preserveBitmap || preserveDialogue(this) ? text : render(text)
           return draw(() => original.call(this, rendered, ...args))
         }
     ),
@@ -67,13 +72,23 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
         'drawText',
         (original) =>
           function (text: string, ...args: unknown[]) {
-            const rendered = preserveBitmap ? text : translate(text)
+            const rendered = preserveBitmap ? text : render(text)
             return draw(() => original.call(this, rendered, ...args))
           }
       )
     )
   if (typeof CanvasRenderingContext2D !== 'undefined') {
     const canvas = CanvasRenderingContext2D.prototype
+    remove.push(
+      hookMethod(
+        canvas,
+        'measureText',
+        (original) =>
+          function (text: string, ...args: unknown[]) {
+            return original.call(this, preserveBitmap ? text : translate(text), ...args)
+          }
+      )
+    )
     for (const method of ['fillText', 'strokeText']) {
       remove.push(
         hookMethod(
@@ -81,7 +96,7 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
           method,
           (original) =>
             function (text: string, ...args: unknown[]) {
-              return original.call(this, preserveBitmap ? text : translate(text), ...args)
+              return original.call(this, preserveBitmap ? text : render(text), ...args)
             }
         )
       )

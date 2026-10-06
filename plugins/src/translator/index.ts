@@ -12,7 +12,9 @@ import { declarePluginTools } from '../helpers/plugin-tools'
 import { installDialogueSubtitles } from './engine/dialogue-subtitles'
 import { installEngineHooks } from './engine/engine-hooks'
 import { createRealtimeClient } from './engine/realtime-client'
+import { createRenderTranslation } from './engine/render-translation'
 import { installSubtitleOverlay } from './engine/subtitle-overlay'
+import { installSvgImageText } from './engine/svg-image-text'
 import { createLookupEnrichment } from './lookup/lookup-enrich'
 import { createTransCatchUp } from './patch/apply-queue'
 import { patchDatabaseTexts, patchMapTexts } from './patch/db-patch'
@@ -199,6 +201,7 @@ function main() {
   /** After lookup updates, schedule patch apply; chunked in apply-queue so HMR does not scan the whole DB */
   let scheduleCatchUp = () => {}
   let scheduleWindowRefresh = () => {}
+  let refreshSvgImages = () => {}
 
   /** NDJSON append: read only new bytes; later writes overwrite the same key */
   function appendReload(): boolean {
@@ -387,9 +390,21 @@ function main() {
     preserveDialogue: true,
   })
   scheduleCatchUp = catchUp.scheduleCatchUp
-  scheduleWindowRefresh = catchUp.scheduleWindowRefresh
+  scheduleWindowRefresh = () => {
+    catchUp.scheduleWindowRefresh()
+    refreshSvgImages()
+  }
 
-  const removeEngineHooks = installEngineHooks(translate, () => realtime.settings().mode)
+  const rendered = createRenderTranslation({
+    cached: translate,
+    enabled: () => realtime.settings().mode === 'realtime',
+    request: realtime.requestBackground,
+    apply: (src, zh) => applyPair(lookup, src, zh),
+    refresh: scheduleWindowRefresh,
+  })
+  const removeEngineHooks = installEngineHooks(translate, () => realtime.settings().mode, rendered.observe)
+  const svgImages = installSvgImageText({ translate, observe: rendered.observe, subscribe: rendered.subscribe })
+  refreshSvgImages = svgImages.refresh
   const showSubtitle = installSubtitleOverlay()
   installDialogueSubtitles({
     settings: realtime.settings,
@@ -457,12 +472,14 @@ function main() {
     if (reloadTimer) clearTimeout(reloadTimer)
     watcher?.close()
     catchUp.dispose()
+    rendered.dispose()
     realtime.dispose()
     hot.__chayaDialogueCleanup?.()
     hot.__chayaSubtitleCleanup?.()
     delete hot.__chayaDialogueCleanup
     delete hot.__chayaSubtitleCleanup
     removeEngineHooks()
+    svgImages.dispose()
     removeDatabaseLoaded()
     removeOnLoad()
     delete hot.__chayaTransDispose

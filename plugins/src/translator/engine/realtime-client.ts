@@ -12,5 +12,6 @@ export function createRealtimeClient(contentRoot: string) {
     activity: runtime.recordActivity,
     dispose: runtime.dispose,
     request: (texts: string[], signal: AbortSignal) => runtime.translate(texts, { signal, interactive: true }),
+    requestBackground: (texts: string[], signal: AbortSignal) => runtime.translate(texts, { signal }),
   }
 }

@@ -19,14 +19,33 @@ export async function listOllamaModels(endpoint = DEFAULT_OLLAMA_HOST, fetcher: 
     throw new Error(`无法连接 Ollama：${messageFrom(error)}`)
   }
   if (!response.ok) throw new Error(`Ollama 模型列表请求失败（HTTP ${response.status}）`)
-  const body = (await response.json()) as { models?: Array<{ name?: unknown; size?: unknown; modified_at?: unknown }> }
+  const body = (await response.json()) as { models?: Array<{ name?: unknown; size?: unknown; modified_at?: unknown; capabilities?: unknown }> }
   return (body.models ?? [])
     .filter((item) => typeof item.name === 'string' && item.name.trim())
     .map((item) => ({
       name: String(item.name),
       size: typeof item.size === 'number' ? item.size : undefined,
       modifiedAt: typeof item.modified_at === 'string' ? item.modified_at : undefined,
+      capabilities: Array.isArray(item.capabilities) ? item.capabilities.filter((value): value is string => typeof value === 'string') : undefined,
     }))
+}
+
+export async function readOllamaModelCapabilities(
+  model: string,
+  endpoint = DEFAULT_OLLAMA_HOST,
+  fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
+  token?: string
+): Promise<string[]> {
+  const response = await fetcher(`${endpoint.replace(/\/$/, '')}/api/show`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authorizationHeaders(token) },
+    body: JSON.stringify({ model }),
+    signal,
+  })
+  if (!response.ok) throw new Error(`Ollama 模型详情请求失败（HTTP ${response.status}）`)
+  const body = (await response.json()) as { capabilities?: unknown }
+  return Array.isArray(body.capabilities) ? body.capabilities.filter((value): value is string => typeof value === 'string') : []
 }
 
 export function pickDefaultModel(models: OllamaModel[]): string {

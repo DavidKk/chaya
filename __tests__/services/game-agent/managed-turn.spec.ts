@@ -2,12 +2,14 @@ jest.mock('@/services/runtime/agent-bridge', () => ({ listAgentGames: jest.fn(()
 jest.mock('@/services/game-agent/ollama-client', () => ({ streamOllamaChat: jest.fn() }))
 jest.mock('@/services/game-agent/secrets', () => ({ readGameAgentToken: jest.fn(() => '') }))
 jest.mock('@/services/game-agent/session-store', () => ({ emitTurnEvent: jest.fn(), finishTurn: jest.fn() }))
+jest.mock('@/services/game-agent/visual-observation.server', () => ({ findVisionModel: jest.fn(), inspectBattleImage: jest.fn(), battleImageFingerprint: jest.fn() }))
 
 import { classifyGameIntent, runManagedTurn } from '@/services/game-agent/managed-turn.server'
 import { streamOllamaChat } from '@/services/game-agent/ollama-client'
 import { emitTurnEvent, finishTurn } from '@/services/game-agent/session-store'
 import type { GameAgentProfile } from '@/services/game-agent/settings'
 import type { GameAgentTurn, StartTurnInput } from '@/services/game-agent/types'
+import { battleImageFingerprint, findVisionModel, inspectBattleImage } from '@/services/game-agent/visual-observation.server'
 import { callAgentGame } from '@/services/runtime/agent-bridge'
 
 const profile = { id: 'local', endpoint: 'http://localhost:11434', keepAlive: '10m' } as GameAgentProfile
@@ -17,7 +19,13 @@ function turn(): GameAgentTurn {
   return { id: 'turn', sessionId: 'session', gameId: 'game-a', abort: new AbortController(), state: 'running', startedAt: Date.now(), lastSeq: 0, events: [], listeners: new Set() }
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.clearAllMocks()
+  ;(streamOllamaChat as jest.Mock).mockReset()
+  ;(findVisionModel as jest.Mock).mockReset()
+  ;(inspectBattleImage as jest.Mock).mockReset()
+  ;(battleImageFingerprint as jest.Mock).mockReset()
+})
 
 test('routes an explicit battle handoff without relying on model intent classification', async () => {
   await expect(classifyGameIntent(input, profile, new AbortController().signal)).resolves.toEqual({ managed: true, edit: false })
@@ -81,6 +89,74 @@ test('executes one guarded input from a multi-call decision, then reobserves bef
   expect(calls[1][2]).toMatchObject({ guard: { controlToken: 'after', battleInstanceId: 'battle-1' } })
   expect(finishTurn).toHaveBeenCalledWith(expect.anything(), 'completed')
   expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.completed', reason: 'verified' }))
+})
+
+test('uses vision for an image-only battle menu and guards the confirmed action', async () => {
+  const game = callAgentGame as jest.MockedFunction<typeof callAgentGame>
+  const states = [
+    { scene: 'Scene_Battle', map: { id: 1 }, battle: { instanceId: 'battle-1', phase: 'input' }, windows: [], controlToken: 'image-menu' },
+    { scene: 'Scene_Map', map: { id: 1 }, battle: null, lastBattleResult: { id: 'battle-1', result: 'victory' } },
+  ]
+  game.mockImplementation(async (_id, method) => (method === 'game.state' ? states.shift() : method === 'game.history' ? { entries: [], lastSeq: 0, dropped: 0 } : {}))
+  ;(streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>).mockResolvedValueOnce({ role: 'assistant', content: '{"summary":"完成战斗","scope":"battle"}' })
+  ;(findVisionModel as jest.MockedFunction<typeof findVisionModel>).mockResolvedValue('gemma4:vision')
+  ;(inspectBattleImage as jest.MockedFunction<typeof inspectBattleImage>).mockResolvedValue({
+    key: 'ok',
+    visibleText: '攻击',
+    selectedText: '攻击',
+    targetText: '攻击',
+    safe: true,
+    imageFingerprint: 'before',
+  })
+  ;(battleImageFingerprint as jest.MockedFunction<typeof battleImageFingerprint>).mockResolvedValue('after')
+
+  await runManagedTurn(input, profile, turn())
+
+  expect(inspectBattleImage).toHaveBeenCalledWith(
+    profile,
+    'gemma4:vision',
+    'test',
+    'game-a',
+    input.prompt,
+    expect.objectContaining({ scene: 'Scene_Battle' }),
+    expect.any(AbortSignal)
+  )
+  expect(game).toHaveBeenCalledWith(
+    'game-a',
+    'input.press',
+    expect.objectContaining({
+      key: 'ok',
+      guard: expect.objectContaining({ controlToken: 'image-menu', battleInstanceId: 'battle-1', allowedEffects: expect.arrayContaining(['unknown']) }),
+    })
+  )
+  expect(finishTurn).toHaveBeenCalledWith(expect.anything(), 'completed')
+})
+
+test('pauses when an image menu repeats the same navigation decision', async () => {
+  const game = callAgentGame as jest.MockedFunction<typeof callAgentGame>
+  game.mockImplementation(async (_id, method) =>
+    method === 'game.state'
+      ? { scene: 'Scene_Battle', map: { id: 1 }, battle: { instanceId: 'battle-1', turn: 1, phase: 'input', actor: { id: 2 } }, windows: [], controlToken: 'same' }
+      : method === 'game.history'
+        ? { entries: [], lastSeq: 0, dropped: 0 }
+        : {}
+  )
+  ;(streamOllamaChat as jest.Mock).mockResolvedValueOnce({ role: 'assistant', content: '{"summary":"完成战斗","scope":"battle"}' })
+  ;(findVisionModel as jest.Mock).mockResolvedValue('gemma4:vision')
+  ;(inspectBattleImage as jest.Mock).mockResolvedValue({ key: 'up', visibleText: '剑士 术士', selectedText: '术士', targetText: '剑士', safe: true, imageFingerprint: 'before' })
+  ;(battleImageFingerprint as jest.Mock).mockResolvedValue('after')
+  const active = turn()
+  ;(emitTurnEvent as jest.Mock).mockImplementation((_turn, event) => {
+    if (event.type === 'approval.required') {
+      active.abort.abort()
+      active.resume?.()
+    }
+  })
+
+  await runManagedTurn(input, profile, active)
+
+  expect(game.mock.calls.filter((call) => call[1] === 'input.press')).toHaveLength(1)
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'approval.required', question: expect.stringContaining('反复移动') }))
 })
 
 test('selects a non-default enemy before confirming the target', async () => {
@@ -177,7 +253,7 @@ test('stale control token causes a fresh observation before another input', asyn
   expect(calls[1][2]).toMatchObject({ guard: { controlToken: 'fresh' } })
 })
 
-test('allows a player question for an unfamiliar battle menu', async () => {
+test('asks the player when an unfamiliar battle menu has no available vision model', async () => {
   const game = callAgentGame as jest.MockedFunction<typeof callAgentGame>
   game.mockImplementation(async (_id, method) =>
     method === 'game.state'
@@ -197,7 +273,7 @@ test('allows a player question for an unfamiliar battle menu', async () => {
 
   await runManagedTurn(input, profile, active)
 
-  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'approval.required', question: '要使用哪项技能？' }))
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'approval.required', question: expect.stringContaining('视觉识别不可用') }))
   expect(game.mock.calls.some((call) => call[1] === 'input.press')).toBe(false)
 })
 
