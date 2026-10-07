@@ -6,12 +6,13 @@ import { IoChevronDown, IoChevronForward } from 'react-icons/io5'
 import type { SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { padXDense } from '@/components/layoutClasses'
-import { EmptyState, ScrollArea, SegmentedNav, Spinner, TruncateText } from '@/components/sk'
+import { EmptyState, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import { type CommonEventFilter, type CommonEventInfo, filterCommonEventGroups } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
 import { CommonEventDetail } from './CommonEventDetail'
+import { EventsPaneSkeleton, type EventsSkeletonHead } from './EventsSkeleton'
 import { commonEventName } from './labels'
 import type { EventsSlot } from './types'
 
@@ -30,11 +31,12 @@ const listRow = cn(
 const listRowOn = 'bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]'
 
 /** Status pane shared by both events pages: unavailable / failed / loading / empty */
-export function EventsDataState({ slot }: { slot: EventsSlot }) {
+export function EventsDataState({ slot, head }: { slot: EventsSlot; head: EventsSkeletonHead }) {
   const t = useT()
   if (slot.unavailable) return <EmptyState title={t('events.needLink')} message={t('events.needLinkMsg')} />
   if (slot.error && !slot.data) return <EmptyState title={t('events.loadFail')} message={slot.error} />
-  if (!slot.data) return <Spinner size="sm" label={t('events.loading')} />
+  if (!slot.data) return <EventsPaneSkeleton head={head} />
+  if (head === 'troop') return <EmptyState title={t('events.troop.empty')} message={t('events.troop.emptyMsg')} />
   return <EmptyState title={t('events.noData')} message={t('events.noDataMsg')} />
 }
 
@@ -87,7 +89,7 @@ export function CommonEventsPane({ slot, filter, session }: Props) {
   const visibleCount = groups.reduce((n, g) => n + g.events.length, 0)
   const selected = data && slot.commonId != null ? (data.events.find((ev) => ev.id === slot.commonId) ?? null) : null
 
-  if (!data || !data.events.length) return <EventsDataState slot={slot} />
+  if (!data || !data.events.length) return <EventsDataState slot={slot} head="common" />
 
   const triggerItems = [
     { id: 'all' as const, label: t('events.filterAll') },

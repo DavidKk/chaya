@@ -2,14 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { EventsOp, EventsSlot, PlayerSpot } from '@/components/game-edit/events/types'
 import { isEventsTab, type TabId } from '@/components/game-edit/tabs'
+import { battleSignature, type BattleState } from '@/lib/game/battle'
 import type { CommonEventsData, MapDetailData } from '@/lib/game/events'
 import { readViewState, writeViewState } from '@/lib/view-state'
 
+import { addEnemy, readBattleState, transformEnemy } from '../session/live-battle'
 import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from '../session/live-events'
 import { buildLiveMapDetail, playerSpot, runMapEvent, runningCommonEvents, setSelfSwitch, teleportPlayer } from '../session/live-map'
+import { startTroopBattle } from '../session/live-troop'
 import { recentMaps } from '../session/map-history'
 
-type EventsView = { commonId: number | null; mapId: number | null; eventId: number | null; eventPage: number | null }
+type EventsView = { commonId: number | null; mapId: number | null; eventId: number | null; eventPage: number | null; troopId: number | null }
 
 function viewHost() {
   return window as Window & { __chayaEventsView?: EventsView }
@@ -24,15 +27,15 @@ function initialEventsView(): EventsView {
   const eventId = mapId == null ? null : optionalId(saved?.eventId)
   const page = saved?.eventPage
   const eventPage = eventId != null && typeof page === 'number' && Number.isInteger(page) && page >= 0 ? page : null
-  return { commonId: optionalId(saved?.commonId), mapId, eventId, eventPage }
+  return { commonId: optionalId(saved?.commonId), mapId, eventId, eventPage, troopId: optionalId(saved?.troopId) }
 }
 
-type Scene = { onMap: boolean; player: PlayerSpot | null; recent: number[]; running: number[] }
+type Scene = { onMap: boolean; player: PlayerSpot | null; recent: number[]; running: number[]; battle: BattleState | null }
 
 function readScene(): Scene {
   const onMap = isOnMapScene()
   const spot = playerSpot()
-  return { onMap, player: spot.mapId > 0 ? spot : null, recent: recentMaps(), running: runningCommonEvents() }
+  return { onMap, player: spot.mapId > 0 ? spot : null, recent: recentMaps(), running: runningCommonEvents(), battle: readBattleState() }
 }
 
 function sameScene(a: Scene, b: Scene) {
@@ -43,7 +46,8 @@ function sameScene(a: Scene, b: Scene) {
     a.player?.y === b.player?.y &&
     a.player?.direction === b.player?.direction &&
     a.recent.join() === b.recent.join() &&
-    a.running.join() === b.running.join()
+    a.running.join() === b.running.join() &&
+    battleSignature(a.battle) === battleSignature(b.battle)
   )
 }
 
@@ -57,6 +61,12 @@ function applyOp(op: EventsOp) {
       return teleportPlayer(op)
     case 'mapEvent':
       return runMapEvent(op)
+    case 'troop':
+      return startTroopBattle(op)
+    case 'enemyTransform':
+      return transformEnemy(op)
+    case 'enemyAdd':
+      return addEnemy(op)
   }
 }
 
@@ -78,7 +88,7 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
   const [mapDetail, setMapDetail] = useState<MapDetailData | null>(null)
   const [mapLoading, setMapLoading] = useState(false)
   const [mapError, setMapError] = useState('')
-  const [scene, setScene] = useState<Scene>(() => ({ onMap: false, player: null, recent: [], running: [] }))
+  const [scene, setScene] = useState<Scene>(() => ({ onMap: false, player: null, recent: [], running: [], battle: null }))
   const sceneRef = useRef(scene)
   const active = (open && isEventsTab(tab)) || (!open && tab === 'map' && view.mapId != null)
   const mapRef = useRef(view.mapId)
@@ -162,8 +172,8 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
       },
       onAct: async (op) => {
         await applyOp(op)
-        if (op.op === 'teleport') setScene(readScene())
-        if (op.op !== 'commonEvent' && mapRef.current != null) void loadMap(mapRef.current)
+        if (op.op === 'teleport' || op.op === 'enemyTransform' || op.op === 'enemyAdd') setScene((sceneRef.current = readScene()))
+        if ((op.op === 'selfSwitch' || op.op === 'teleport' || op.op === 'mapEvent') && mapRef.current != null) void loadMap(mapRef.current)
       },
       onSwitchChange,
       onVarChange,
@@ -184,6 +194,12 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
       },
       player: scene.player,
       recentMaps: scene.recent,
+      battle: scene.battle,
+      troopId: view.troopId,
+      onSelectTroop: (troopId) => {
+        setView((v) => ({ ...v, troopId }))
+        if (tab !== 'troop') selectTab('troop')
+      },
     }),
     [data, loading, error, scene, view, tab, selectTab, loadMap, onSwitchChange, onVarChange, onClose, mapDetail, mapLoading, mapError]
   )

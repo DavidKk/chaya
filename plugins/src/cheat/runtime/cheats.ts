@@ -242,13 +242,16 @@ export const Cheats = {
     return true
   },
 
-  startTroop(troopId: number) {
+  /** Same as Battle Processing (301): the map stays on the scene stack so the battle returns to it */
+  startTroop(troopId: number, canEscape = true, canLose = false) {
     const tid = Math.floor(Number(troopId) || 0)
     if (tid <= 0 || !$dataTroops || !$dataTroops[tid]) return false
-    if (typeof BattleManager === 'undefined' || typeof SceneManager === 'undefined' || typeof SceneManager.goto !== 'function') return false
-    BattleManager.setup(tid, true, false)
+    if (typeof BattleManager === 'undefined' || typeof SceneManager === 'undefined' || typeof SceneManager.push !== 'function') return false
+    if (typeof Scene_Battle === 'undefined') return false
+    BattleManager.setup(tid, !!canEscape, !!canLose)
     BattleManager.setEventCallback?.(null)
-    SceneManager.goto(Scene_Battle)
+    gamePlayer()?.makeEncounterCount?.()
+    SceneManager.push(Scene_Battle)
     return true
   },
 
@@ -415,6 +418,7 @@ declare const SceneManager: {
   _stopped?: boolean
   _scene?: unknown
   goto?: (scene: unknown) => void
+  push?: (scene: unknown) => void
 }
 declare const Scene_Battle: unknown
 declare const Scene_Map: unknown

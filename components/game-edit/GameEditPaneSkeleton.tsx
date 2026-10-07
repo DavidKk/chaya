@@ -23,7 +23,9 @@ import { TranslateCacheTableSkeleton } from '@/components/translate/TranslateCac
 import { TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { cn } from '@/lib/utils'
 
+import { EventsPaneSkeleton } from './events/EventsSkeleton'
 import { GameEditTabNav } from './GameEditTabNav'
+import { SaveDataPaneSkeleton } from './save-data/SaveDataSkeleton'
 import { editTabHref, parseTabId, type TabId } from './tabs'
 
 /** 从 `/cheat/...` 路径解析当前修改 tab（绑定骨架用） */
@@ -238,6 +240,8 @@ export function GameEditPaneSkeleton({
   if (tab === 'actor') return <GameEditActorSkeleton label={label ?? t('edit.loadActor')} />
   if (tab === 'trans') return <GameEditTransSkeleton section={translateSection} translateTab={translateTab} label={label} />
   if (tab === 'logs') return <GameEditLogsSkeleton label={label ?? t('edit.loadLogs')} />
+  if (tab === 'common' || tab === 'map' || tab === 'troop') return <EventsPaneSkeleton label={label} head={tab} />
+  if (tab === 'data') return <SaveDataPaneSkeleton label={label} />
   return <EditTableSkeleton label={label ?? t('edit.loadCatalog')} />
 }
 

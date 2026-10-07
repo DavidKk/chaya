@@ -1,5 +1,6 @@
 import { collectTexts, countCommands, normalizeCommands, translatedTexts } from './commands'
 import { buildMapIndex, collectEntrances, type MapDetailData, type MapEntrance, type MapLiveState, normalizeMapEvents } from './map-index'
+import { collectTroopEncounters, normalizeEncounters, normalizeTroops } from './troops'
 import type { CommonEventInfo, CommonEventsData, CommonEventTrigger, EventCommand, EventNames, EventRef } from './types'
 
 export { countCommands, normalizeCommands } from './commands'
@@ -13,6 +14,8 @@ export type RawEventSources = {
   armors: unknown[] | null
   actors: unknown[] | null
   troops: unknown[] | null
+  /** `Enemies.json`: names for troop members */
+  enemies?: unknown[] | null
   mapInfos: unknown[] | null
   /** `data/MapXXX.json`; null means maps were not scanned */
   maps: Array<{ id: number; data: unknown }> | null
@@ -82,10 +85,11 @@ class RefTable {
   }
 }
 
-function addListRefs(switches: RefTable, variables: RefTable, list: readonly EventCommand[], ref: EventRef) {
+function addListRefs(switches: RefTable, variables: RefTable, troops: RefTable, list: readonly EventCommand[], ref: EventRef) {
   for (const cmd of list) {
     const p = cmd.parameters
-    if (cmd.code === 111 && num(p[0]) === 0) switches.add(num(p[1]), ref)
+    if (cmd.code === 301 && num(p[0]) === 0) troops.add(num(p[1]), ref)
+    else if (cmd.code === 111 && num(p[0]) === 0) switches.add(num(p[1]), ref)
     else if (cmd.code === 111 && num(p[0]) === 1) {
       variables.add(num(p[1]), ref)
       if (num(p[2]) === 1) variables.add(num(p[3]), ref)
@@ -115,6 +119,7 @@ export function buildCommonEventsData(raw: RawEventSources, tr: Translate, sourc
     maps: namesFromDb(raw.mapInfos, tr),
     commonEvents: namesFromDb(raw.commonEvents, tr),
     troops: namesFromDb(raw.troops, tr),
+    enemies: namesFromDb(raw.enemies ?? null, tr),
   }
 
   const events: CommonEventInfo[] = []
@@ -122,6 +127,7 @@ export function buildCommonEventsData(raw: RawEventSources, tr: Translate, sourc
   const calledBy: Record<number, EventRef[]> = {}
   const switches = new RefTable()
   const variables = new RefTable()
+  const troopRefs = new RefTable()
   const entrances: Record<number, MapEntrance[]> = {}
   for (let id = 1; id < (raw.commonEvents?.length ?? 0); id++) {
     const rec = asRecord(raw.commonEvents![id])
@@ -143,15 +149,17 @@ export function buildCommonEventsData(raw: RawEventSources, tr: Translate, sourc
     const ref: EventRef = { kind: 'common', id, name: names.commonEvents[id] || '' }
     addCalls(calledBy, list, ref)
     if (info.trigger !== 0) switches.add(info.switchId, ref)
-    addListRefs(switches, variables, list, ref)
+    addListRefs(switches, variables, troopRefs, list, ref)
     collectEntrances(entrances, list, ref)
   }
 
-  for (let id = 1; id < (raw.troops?.length ?? 0); id++) {
-    pagesOf(raw.troops![id]).forEach(({ list }, index) => {
-      const ref: EventRef = { kind: 'troop', id, name: names.troops[id] || '', page: index + 1 }
+  const troops = normalizeTroops(raw.troops, raw.enemies, names)
+  for (const troop of troops) {
+    troop.pages.forEach((list, index) => {
+      const ref: EventRef = { kind: 'troop', id: troop.id, name: names.troops[troop.id] || '', page: index + 1 }
       addCalls(calledBy, list, ref)
-      addListRefs(switches, variables, list, ref)
+      addListRefs(switches, variables, troopRefs, list, ref)
+      collectTexts(list, textSources)
     })
   }
 
@@ -169,7 +177,7 @@ export function buildCommonEventsData(raw: RawEventSources, tr: Translate, sourc
         if (conditions?.switch1Valid) switches.add(num(conditions.switch1Id), ref)
         if (conditions?.switch2Valid) switches.add(num(conditions.switch2Id), ref)
         if (conditions?.variableValid) variables.add(num(conditions.variableId), ref)
-        addListRefs(switches, variables, list, ref)
+        addListRefs(switches, variables, troopRefs, list, ref)
         collectEntrances(entrances, list, ref)
       })
     }
@@ -185,6 +193,9 @@ export function buildCommonEventsData(raw: RawEventSources, tr: Translate, sourc
     switchRefs: switches.refs,
     variableRefs: variables.refs,
     mapIndex: buildMapIndex(raw.mapInfos, raw.maps, names.maps, tr, entrances),
+    troops,
+    troopEncounters: collectTroopEncounters(raw.maps),
+    troopRefs: troopRefs.refs,
     mapsScanned: raw.maps != null,
     mapsFailed: raw.mapsFailed ?? 0,
   }
@@ -208,6 +219,7 @@ export function buildMapDetail(mapId: number, rawMap: unknown, mapInfos: unknown
     height: num(rec?.height),
     events,
     texts: translatedTexts(textSources, tr),
+    ...normalizeEncounters(rawMap),
     ...(live ? { live } : {}),
   }
 }

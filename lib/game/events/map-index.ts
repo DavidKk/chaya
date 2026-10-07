@@ -1,4 +1,5 @@
 import { countCommands, normalizeCommands } from './commands'
+import type { MapEncounter } from './troops'
 import type { EventCommand, EventRef } from './types'
 
 type Translate = (text: string) => string
@@ -87,6 +88,10 @@ export type MapDetailData = {
   texts: Record<string, string>
   /** Row-major `0` / `1` per tile, `1` = cannot stand there (terrain); absent when unknown */
   blocked?: string
+  /** Random encounter list (`encounterList`) */
+  encounters: MapEncounter[]
+  /** Average steps between random encounters */
+  encounterStep: number
   live?: MapLiveState
 }
 

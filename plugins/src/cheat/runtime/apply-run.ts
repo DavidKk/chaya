@@ -52,6 +52,7 @@ export function applyRunAction(id: RunActionId) {
     return
   }
   if (id === 'fix:clearPictures') RunCheats.clearPictures()
+  else if (id === 'fix:clearOverlay') RunCheats.clearOverlay()
   else if (id === 'fix:clearEvent') Cheats.clearInterpreter()
   else if (id === 'fix:clearMoveRoute') RunCheats.clearMoveRoute()
   else if (id === 'fix:closeWindows') RunCheats.closeAllWindows()

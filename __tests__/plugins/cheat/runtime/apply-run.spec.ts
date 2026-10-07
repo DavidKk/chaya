@@ -25,6 +25,7 @@ const setFullscreen = jest.fn()
 const popScene = jest.fn()
 const pushScene = jest.fn()
 const clearPictures = jest.fn()
+const clearOverlay = jest.fn()
 const clearMoveRoute = jest.fn()
 const closeAllWindows = jest.fn()
 const gotoTitle = jest.fn()
@@ -62,6 +63,7 @@ jest.mock('@/plugins/src/cheat/runtime/cheats-run', () => ({
     popScene: () => popScene(),
     pushScene: (...a: unknown[]) => pushScene(...(a as [string])),
     clearPictures: () => clearPictures(),
+    clearOverlay: () => clearOverlay(),
     clearMoveRoute: () => clearMoveRoute(),
     closeAllWindows: () => closeAllWindows(),
     gotoTitle: () => gotoTitle(),
@@ -146,6 +148,8 @@ describe('applyRunAction / runActionNeedsClose', () => {
   it('dispatches system / battle actions', () => {
     applyRunAction('fix:clearEvent')
     expect(clearInterpreter).toHaveBeenCalled()
+    applyRunAction('fix:clearOverlay')
+    expect(clearOverlay).toHaveBeenCalled()
     applyRunAction('battle:victory')
     expect(battleVictory).toHaveBeenCalled()
     applyRunAction('battle:enemyHp1')

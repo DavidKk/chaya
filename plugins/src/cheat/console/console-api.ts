@@ -6,6 +6,7 @@ import { getAutoTalk, setAutoTalk } from '../runtime/auto-talk'
 import { Cheats, type LockKind } from '../runtime/cheats'
 import { agentEdit } from '../session/agent-edit'
 import { buildLiveCatalog } from '../session/live-session'
+import { startTroopBattle } from '../session/live-troop'
 import { hideGameEditUi, isGameEditUiOpen, showGameEditUi, toggleGameEditUi } from '../ui/mount'
 import { actorApi } from './actor-api'
 import { findInDb, needParty, setItemLike } from './party-items'
@@ -195,10 +196,15 @@ export function installConsoleApi() {
       log.ok('load #' + n + ' = ' + ok)
       return ok
     },
-    troop(id: number) {
-      const ok = Cheats.startTroop(id)
-      if (ok) log.ok('troop #' + id)
-      return ok
+    troop(id: number, canEscape = true, canLose = false, count?: number) {
+      try {
+        startTroopBattle({ id, canEscape, canLose, count })
+        log.ok('troop #' + id)
+        return true
+      } catch (err) {
+        log.fail('troop #' + id, err)
+        return false
+      }
     },
     skipEvent() {
       return Cheats.skipInterpreter()

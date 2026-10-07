@@ -6,7 +6,7 @@ import { IoAdd, IoCopyOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, EmptyState, Select, Skeleton, Spinner, TextAction, TextInput, TruncateText } from '@/components/sk'
+import { Button, EmptyState, Select, Spinner, TextAction, TextInput, TruncateText } from '@/components/sk'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { allowedTypes, type DataPath, type DataRow, isContainerKind, pathKey, type SearchScope } from '@/lib/game/save-data'
 import { cn } from '@/lib/utils'
@@ -18,6 +18,7 @@ import type { RowMenuItem } from './DataRowView'
 import { DataToolbar } from './DataToolbar'
 import { errorText, rowName, segmentName } from './labels'
 import { PinsEntry, PinsList, WherePath } from './PinsList'
+import { DataListSkeleton } from './SaveDataSkeleton'
 import { draftStore, valueStore } from './store'
 import { StructDialog, type StructRequest } from './StructDialog'
 import type { SaveDataSlot } from './transport'
@@ -218,7 +219,7 @@ export function SaveDataPane({ slot, headSlot }: { slot: SaveDataSlot; headSlot?
       />
     )
   else if (level.error) body = <EmptyState title={t('data.loadFail')} message={errorText(t, level.error.code, level.error.message)} />
-  else if (!meta) body = <Skeleton className="m-3 h-40" />
+  else if (!meta) body = <DataListSkeleton />
   else if (!level.rows.length) body = <EmptyState title={t('data.emptyLevel')} />
   else {
     const more = level.rows.length < meta.total

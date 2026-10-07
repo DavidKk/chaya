@@ -222,6 +222,33 @@ function writeFullscreen(on: boolean): boolean {
   return readFullscreen()
 }
 
+/**
+ * 报错画面（`Graphics.printError`）会给画布加 `opacity: 0.5` + `blur(8px)` 并写错误文字；
+ * 恢复运行不会撤掉，画面就一直蒙着一层。保留 errorPrinter 元素，之后的报错还能显示。
+ */
+function clearErrorScreen(): boolean {
+  if (typeof Graphics === 'undefined') return false
+  let cleared = false
+  try {
+    for (const el of [Graphics._canvas, Graphics._upperCanvas, Graphics._video]) {
+      const style = el?.style
+      if (!style) continue
+      if (style.filter || style.webkitFilter || style.opacity) cleared = true
+      style.filter = ''
+      style.webkitFilter = ''
+      style.opacity = ''
+    }
+    if (Graphics._errorPrinter?.innerHTML) {
+      Graphics._errorPrinter.innerHTML = ''
+      cleared = true
+    }
+    Graphics._errorShowed = false
+  } catch {
+    /* */
+  }
+  return cleared
+}
+
 export const RunCheats = {
   ensureHooks() {
     ensureTouchHook()
@@ -442,22 +469,37 @@ export const RunCheats = {
     return !!gameMessage()
   },
 
-  resumeAfterError() {
-    try {
-      if (typeof Graphics !== 'undefined') {
-        if (Graphics._errorPrinter) {
-          try {
-            Graphics._errorPrinter.remove()
-          } catch {
-            /* */
-          }
-          Graphics._errorPrinter = null
+  /** 清掉盖在画面上的东西：报错残留的模糊 / 半透明、色调、闪烁、淡出、震动、天气；图片另有「清除图片」 */
+  clearOverlay() {
+    let n = clearErrorScreen() ? 1 : 0
+    const screen = gameScreen()
+    if (screen) {
+      const call = (key: string, ...args: unknown[]) => {
+        if (typeof screen[key] !== 'function') return
+        try {
+          screen[key](...args)
+          n++
+        } catch {
+          /* */
         }
-        if (typeof Graphics.eraseErrorPrinter === 'function') Graphics.eraseErrorPrinter()
       }
-    } catch {
-      /* */
+      call('startTint', [0, 0, 0, 0], 0)
+      call('clearFlash')
+      call('clearFade')
+      call('clearShake')
+      call('changeWeather', 'none', 0, 0)
     }
+    const scene = typeof SceneManager !== 'undefined' ? SceneManager._scene : null
+    if (scene?._fadeSprite) {
+      scene._fadeDuration = 0
+      scene._fadeSprite.opacity = 0
+      n++
+    }
+    return n > 0
+  },
+
+  resumeAfterError() {
+    clearErrorScreen()
     try {
       if (typeof SceneManager !== 'undefined') {
         if (typeof SceneManager.resume === 'function') SceneManager.resume()
@@ -510,8 +552,11 @@ declare const Bitmap: {
 }
 declare const Graphics: {
   printLoadingError?: (url: string) => void
-  _errorPrinter?: { remove: () => void } | null
-  eraseErrorPrinter?: () => void
+  _errorPrinter?: { innerHTML: string } | null
+  _errorShowed?: boolean
+  _canvas?: { style?: CSSStyleDeclaration }
+  _upperCanvas?: { style?: CSSStyleDeclaration }
+  _video?: { style?: CSSStyleDeclaration }
   _isFullScreen?: () => boolean
   _requestFullScreen?: () => void
   _cancelFullScreen?: () => void
@@ -522,7 +567,12 @@ declare const SceneManager: {
   goto?: (scene: unknown) => void
   resume?: () => void
   _stopped?: boolean
-  _scene?: { startFadeIn?: (duration: number, white: boolean) => void; _windowLayer?: { children: any[] } }
+  _scene?: {
+    startFadeIn?: (duration: number, white: boolean) => void
+    _windowLayer?: { children: any[] }
+    _fadeDuration?: number
+    _fadeSprite?: { opacity: number }
+  }
 }
 declare const Scene_Status: unknown
 declare const Scene_Equip: unknown

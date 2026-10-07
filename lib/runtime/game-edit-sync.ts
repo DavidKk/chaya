@@ -58,6 +58,12 @@ export function fieldsForEditCmd(cmd: GameEditCmd): string[] {
       return [`action:mapEvent:${cmd.eventId}`]
     case 'teleport':
       return [`action:teleport`]
+    case 'troop':
+      return [`action:troop:${cmd.id}`]
+    case 'enemyTransform':
+      return [`action:enemyTransform:${cmd.index}`]
+    case 'enemyAdd':
+      return ['action:enemyAdd']
     case 'selfSwitch':
       return [`selfSwitch:${cmd.mapId}:${cmd.eventId}:${cmd.letter}`]
     case 'walkRate':
@@ -120,6 +126,9 @@ export function expectForEditCmd(cmd: GameEditCmd): unknown {
     case 'commonEvent':
     case 'mapEvent':
     case 'teleport':
+    case 'troop':
+    case 'enemyTransform':
+    case 'enemyAdd':
       return true
     case 'selfSwitch':
       return cmd.value

@@ -2,8 +2,6 @@
 export type EditMessages = {
   mainNav: string
   tabEdit: string
-  tabTranslate: string
-  tabLogs: string
   category: string
   categoryMenu: string
   search: string
@@ -200,6 +198,7 @@ export type EditMessages = {
   actDebug: string
   actPop: string
   actClearPictures: string
+  actClearOverlay: string
   actClearEvent: string
   actClearMove: string
   actCloseWindows: string
@@ -236,6 +235,7 @@ export type EditMessages = {
   actDebugDesc: string
   actPopDesc: string
   actClearPicturesDesc: string
+  actClearOverlayDesc: string
   actClearEventDesc: string
   actClearMoveDesc: string
   actCloseWindowsDesc: string

@@ -58,6 +58,9 @@ function slot(overrides: Partial<EventsSlot> = {}): EventsSlot {
     mapError: '',
     player: null,
     recentMaps: [],
+    troopId: null,
+    onSelectTroop: jest.fn(),
+    battle: null,
     ...overrides,
   }
 }

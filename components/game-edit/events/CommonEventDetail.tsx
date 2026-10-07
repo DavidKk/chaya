@@ -37,16 +37,13 @@ export function RefList({ refs, data, slot }: { refs: readonly EventRef[]; data:
     <ul className="m-0 list-none px-1 pb-2 pl-1">
       {refs.map((ref, index) => {
         const label = refLabel(ref, data.names, t)
-        const open = ref.kind === 'common' ? () => slot.onSelectCommon(ref.id) : ref.kind === 'map' ? () => slot.onSelectMap(ref.id, ref.eventId ?? null) : null
+        const open =
+          ref.kind === 'common' ? () => slot.onSelectCommon(ref.id) : ref.kind === 'map' ? () => slot.onSelectMap(ref.id, ref.eventId ?? null) : () => slot.onSelectTroop(ref.id)
         return (
           <li key={`${ref.kind}-${ref.id}-${ref.eventId ?? ''}-${ref.page ?? ''}-${index}`}>
-            {open ? (
-              <button type="button" className={refLink} onClick={open}>
-                <TruncateText text={label} />
-              </button>
-            ) : (
-              <TruncateText text={label} className="block px-2 py-1 text-[0.78rem] text-ink-soft" />
-            )}
+            <button type="button" className={refLink} onClick={open}>
+              <TruncateText text={label} />
+            </button>
           </li>
         )
       })}

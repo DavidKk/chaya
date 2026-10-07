@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { IoLockClosed, IoLockOpenOutline } from 'react-icons/io5'
 import { LuInfo } from 'react-icons/lu'
 
@@ -7,7 +8,7 @@ import { RUN_FLAG_HOTKEY_ROWS } from '@/components/game-edit/run-hotkeys'
 import type { RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formCardDense, formControlInline, formDesc, formDescInline, formFieldInlineDense, formTitle, formTitleInline } from '@/components/layoutClasses'
-import { Button, NumberInput, NumberSliderInput, SwitchToggle } from '@/components/sk'
+import { Button, NumberInput, NumberSliderInput, SwitchToggle, TextAction } from '@/components/sk'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import type { MessageKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -45,6 +46,8 @@ type Props = {
   onExpRateChange: (rate: number) => void
   onFlagChange: (key: RunFlagKey, on: boolean) => void
   onAction: (id: RunActionId) => void
+  /** Opens 修改 › 敌群 (current battle block) */
+  onOpenTroops?: () => void
 }
 
 function clampRate(n: number) {
@@ -113,6 +116,7 @@ const FIX_GROUPS: ActionGroup[] = [
     cols: 2,
     items: [
       { id: 'fix:clearPictures', labelKey: 'edit.actClearPictures' },
+      { id: 'fix:clearOverlay', labelKey: 'edit.actClearOverlay' },
       { id: 'fix:clearEvent', labelKey: 'edit.actClearEvent' },
       { id: 'fix:clearMoveRoute', labelKey: 'edit.actClearMove' },
       { id: 'fix:closeWindows', labelKey: 'edit.actCloseWindows' },
@@ -173,6 +177,7 @@ function ActionCard({
   disabled,
   disabledReason,
   onAction,
+  extra,
   t,
 }: {
   title: string
@@ -181,12 +186,17 @@ function ActionCard({
   disabled: boolean
   disabledReason: string
   onAction: (id: RunActionId) => void
+  /** Right of the title */
+  extra?: ReactNode
   t: (key: MessageKey) => string
 }) {
   return (
     <div className={cn(formCardDense, 'm-0')}>
       <div className="flex flex-col gap-1">
-        <span className={formTitle}>{title}</span>
+        <span className="flex items-center gap-2">
+          <span className={cn(formTitle, 'flex-1')}>{title}</span>
+          {extra}
+        </span>
         <span className={formDesc}>{description}</span>
       </div>
       <div className="flex flex-col gap-3">
@@ -226,6 +236,7 @@ export function GameEditRunSettings({
   onExpRateChange,
   onFlagChange,
   onAction,
+  onOpenTroops,
 }: Props) {
   const t = useT()
   const goldLockTip = value.goldLocked ? t('edit.goldUnlockTip') : t('edit.goldLockTip')
@@ -378,6 +389,7 @@ export function GameEditRunSettings({
           disabled={!actionsEnabled}
           disabledReason={battlePreviewDisabled}
           onAction={onAction}
+          extra={onOpenTroops ? <TextAction onClick={onOpenTroops}>{t('events.troop.manageEnemies')}</TextAction> : null}
           t={t}
         />
       </div>

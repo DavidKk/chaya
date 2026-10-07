@@ -1,3 +1,4 @@
+import type { MainNavId } from '@/components/main-nav'
 import { type DataPath, decodePathSegments, encodeSegment, PATH_DEPTH_MAX } from '@/lib/game/save-data'
 import type { MessageKey } from '@/lib/i18n'
 
@@ -12,11 +13,12 @@ export const TABS = [
   { id: 'actor', labelKey: 'edit.actor' },
   { id: 'common', labelKey: 'events.tabCommon' },
   { id: 'map', labelKey: 'events.tabMap' },
+  { id: 'troop', labelKey: 'events.tabTroop' },
   { id: 'data', labelKey: 'data.tab' },
-  { id: 'trans', labelKey: 'edit.tabTranslate' },
-  { id: 'logs', labelKey: 'edit.tabLogs' },
+  { id: 'trans', labelKey: 'nav.translate' },
+  { id: 'settings', labelKey: 'nav.assist' },
+  { id: 'logs', labelKey: 'nav.logs' },
   { id: 'mcp', labelKey: 'nav.integration' },
-  { id: 'settings', labelKey: 'nav.settings' },
   { id: 'about', labelKey: 'nav.about' },
 ] as const satisfies ReadonlyArray<{ id: string; labelKey: MessageKey }>
 
@@ -24,8 +26,28 @@ export type TabId = (typeof TABS)[number]['id']
 
 export type GameEditSurface = 'page' | 'overlay'
 
-/** Overlay-only main pages: not part of the「修改」sub navigation; `settings` 即局内「辅助」 */
-const MAIN_PAGES = new Set<string>(['trans', 'logs', 'mcp', 'settings', 'about'])
+/** 局内浮层一级页 ↔ `MAIN_NAV` 模块；「修改」落到上次的二级页 */
+export const OVERLAY_MAIN_TABS = {
+  translate: 'trans',
+  assist: 'settings',
+  logs: 'logs',
+  integration: 'mcp',
+  about: 'about',
+} as const satisfies Partial<Record<MainNavId, TabId>>
+
+/** Overlay-only main pages: not part of the「修改」sub navigation */
+const MAIN_PAGES = new Set<string>(Object.values(OVERLAY_MAIN_TABS))
+
+/** 浮层点某个一级模块要去的 tab；浮层没有的模块返回 null */
+export function overlayTabFor(id: MainNavId, lastEditTab: TabId): TabId | null {
+  if (id === 'edit') return lastEditTab
+  return id in OVERLAY_MAIN_TABS ? OVERLAY_MAIN_TABS[id as keyof typeof OVERLAY_MAIN_TABS] : null
+}
+
+export function mainNavIdForTab(tab: TabId): MainNavId {
+  const hit = (Object.keys(OVERLAY_MAIN_TABS) as (keyof typeof OVERLAY_MAIN_TABS)[]).find((id) => OVERLAY_MAIN_TABS[id] === tab)
+  return hit ?? 'edit'
+}
 
 export const EDIT_TABS = TABS.filter((tab) => !MAIN_PAGES.has(tab.id))
 
@@ -130,8 +152,14 @@ export function parseDataSegments(segments: readonly string[] | undefined): Data
   return decodePathSegments(segments)
 }
 
-export function isEventsTab(tab: TabId): tab is 'common' | 'map' {
-  return tab === 'common' || tab === 'map'
+/** `/cheat/troop` · `/cheat/troop/12` */
+export function editTroopHref(id: number | null | undefined): string {
+  return id != null && id > 0 ? `/cheat/troop/${id}` : '/cheat/troop'
+}
+
+/** Pages built from the event index (common events, maps, troops) */
+export function isEventsTab(tab: TabId): tab is 'common' | 'map' | 'troop' {
+  return tab === 'common' || tab === 'map' || tab === 'troop'
 }
 
 /** 控制台作弊页路径，如 `/cheat/run`；角色默认进 `/cheat/actor` */

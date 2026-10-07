@@ -217,6 +217,7 @@ const ACTION_HOTKEY_ITEMS: ReadonlyArray<{ id: RunActionId; labelKey: MessageKey
   { id: 'scene:debug', labelKey: 'edit.actDebug', descKey: 'edit.actDebugDesc', groupKey: 'edit.groupScene' },
   { id: 'scene:pop', labelKey: 'edit.actPop', descKey: 'edit.actPopDesc', groupKey: 'edit.groupScene' },
   { id: 'fix:clearPictures', labelKey: 'edit.actClearPictures', descKey: 'edit.actClearPicturesDesc', groupKey: 'edit.groupFix' },
+  { id: 'fix:clearOverlay', labelKey: 'edit.actClearOverlay', descKey: 'edit.actClearOverlayDesc', groupKey: 'edit.groupFix' },
   { id: 'fix:clearEvent', labelKey: 'edit.actClearEvent', descKey: 'edit.actClearEventDesc', groupKey: 'edit.groupFix' },
   { id: 'fix:clearMoveRoute', labelKey: 'edit.actClearMove', descKey: 'edit.actClearMoveDesc', groupKey: 'edit.groupFix' },
   { id: 'fix:closeWindows', labelKey: 'edit.actCloseWindows', descKey: 'edit.actCloseWindowsDesc', groupKey: 'edit.groupFix' },

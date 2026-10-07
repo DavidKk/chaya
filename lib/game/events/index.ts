@@ -23,4 +23,17 @@ export {
   type SelfSwitchLetter,
 } from './map-index'
 export { blockedMask, nearestSpot, type Spot, terrainBlockedMask } from './spot'
+export {
+  collectTroopEncounters,
+  encounterShares,
+  groupTroopMembers,
+  type MapEncounter,
+  matchesTroop,
+  normalizeEncounters,
+  normalizeTroops,
+  type TroopEncounter,
+  type TroopInfo,
+  type TroopMember,
+  type TroopMemberGroup,
+} from './troops'
 export * from './types'

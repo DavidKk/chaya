@@ -52,6 +52,7 @@ export const RUN_ACTION_IDS = [
   'scene:debug',
   'scene:pop',
   'fix:clearPictures',
+  'fix:clearOverlay',
   'fix:clearEvent',
   'fix:clearMoveRoute',
   'fix:closeWindows',

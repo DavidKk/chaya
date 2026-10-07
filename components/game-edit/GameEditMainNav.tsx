@@ -6,13 +6,14 @@ import { IoSparklesOutline } from 'react-icons/io5'
 import { BrandMarkInline } from '@/components/BrandMarkInline'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
+import { mainNavFor } from '@/components/main-nav'
 import { Button } from '@/components/sk'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { PRODUCT_DISPLAY_NAME } from '@/constants/brand'
 import { cn } from '@/lib/utils'
 
 import { panelDragHandlers } from './panel-drag'
-import { isEditTab, type TabId } from './tabs'
+import { mainNavIdForTab, overlayTabFor, type TabId } from './tabs'
 
 type Props = {
   tab: TabId
@@ -23,7 +24,7 @@ type Props = {
 
 export function GameEditMainNav({ tab, lastEditTab, setTab, closeButton }: Props) {
   const t = useT()
-  const showEditNav = isEditTab(tab)
+  const currentId = mainNavIdForTab(tab)
   const drag = panelDragHandlers()
   return (
     <nav
@@ -36,17 +37,10 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, closeButton }: Props
           <BrandMarkInline className="size-7" animated />
         </span>
       </Tooltip>
-      {(
-        [
-          { id: 'edit', labelKey: 'edit.tabEdit' as const, target: lastEditTab },
-          { id: 'trans', labelKey: 'edit.tabTranslate' as const, target: 'trans' as const },
-          { id: 'logs', labelKey: 'edit.tabLogs' as const, target: 'logs' as const },
-          { id: 'mcp', labelKey: 'nav.integration' as const, target: 'mcp' as const },
-          { id: 'settings', labelKey: 'nav.assist' as const, target: 'settings' as const },
-          { id: 'about', labelKey: 'nav.about' as const, target: 'about' as const },
-        ] as const
-      ).map((item) => {
-        const active = item.id === (showEditNav ? 'edit' : tab)
+      {mainNavFor('overlay').map((item) => {
+        const target = overlayTabFor(item.id, lastEditTab)
+        if (!target) return null
+        const active = item.id === currentId
         return (
           <button
             key={item.id}
@@ -58,7 +52,7 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, closeButton }: Props
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent',
               active && 'text-ink'
             )}
-            onClick={() => setTab(item.target)}
+            onClick={() => setTab(target)}
           >
             {t(item.labelKey)}
             {active ? <span aria-hidden className="absolute right-0 bottom-[-1px] left-0 h-0.5 bg-accent" /> : null}

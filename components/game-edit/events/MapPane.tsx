@@ -95,7 +95,7 @@ export function MapPane({ slot, filter, session, headSlot, toolRequest, showMini
     return out
   }, [rows, q, level, parentOf])
 
-  if (!data || !rows.length) return <EventsDataState slot={slot} />
+  if (!data || !rows.length) return <EventsDataState slot={slot} head="map" />
 
   const selected = slot.mapId != null ? (byId.get(slot.mapId) ?? null) : null
   const recent = slot.live ? slot.recentMaps.filter((id) => id !== currentId && data.names.maps[id] != null).slice(0, 5) : []

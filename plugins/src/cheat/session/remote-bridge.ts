@@ -9,9 +9,11 @@ import { sendChunked } from '@/lib/runtime/link-chunks'
 import { applyGameSpeed, applyRunAction, applyRunFlag, applySpeed } from '../runtime/apply-run'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
+import { addEnemy, readBattleState, transformEnemy } from './live-battle'
 import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from './live-events'
 import { buildLiveMapDetail, playerSpot, runMapEvent, runningCommonEvents, setSelfSwitch, teleportPlayer } from './live-map'
 import { buildLiveCatalog, readLiveSession, setItemCount, setPartyGold } from './live-session'
+import { startTroopBattle } from './live-troop'
 import { recentMaps } from './map-history'
 import { handleDataMessage, isDataCmd, runDataCmd, sendSized, stopDataBridge } from './save-data-bridge'
 
@@ -145,6 +147,15 @@ export function applyEditCmd(cmd: GameEditCmd): void {
     case 'mapEvent':
       runMapEvent(cmd)
       return
+    case 'troop':
+      startTroopBattle(cmd)
+      return
+    case 'enemyTransform':
+      transformEnemy(cmd)
+      return
+    case 'enemyAdd':
+      addEnemy(cmd)
+      return
     default:
       return
   }
@@ -159,6 +170,7 @@ export function buildStateMsg(): GameEditStateMsg {
   mirror = readLiveSession(mirror)
   const { hotkeys: _hotkeys, hotkeysGlobal: _hotkeysGlobal, ...session } = mirror
   const spot = playerSpot()
+  const battle = readBattleState()
   return {
     type: 'edit.state',
     ready: true,
@@ -170,6 +182,7 @@ export function buildStateMsg(): GameEditStateMsg {
     playerDir: spot.direction,
     recentMaps: recentMaps(),
     runningCommon: runningCommonEvents(),
+    ...(battle ? { battle } : {}),
   }
 }
 

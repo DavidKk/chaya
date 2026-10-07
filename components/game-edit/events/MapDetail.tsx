@@ -12,13 +12,15 @@ import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Badge, Button, EmptyState, ScrollArea, Spinner, TruncateText } from '@/components/sk'
+import { Badge, Button, EmptyState, ScrollArea, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { type CommonEventsData, estimateActivePage, type MapDetailData, type MapEventInfo, type MapNode } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
 import { type EventState, TYPE_KEY } from './event-meta'
+import { MapEventsTableSkeleton } from './EventsSkeleton'
+import { MapEncounters } from './MapEncounters'
 import { MapEventDetail } from './MapEventDetail'
 import { MapTeleportField } from './MapTeleportField'
 import { MiniMap } from './MiniMap'
@@ -224,9 +226,12 @@ export function MapDetail({
               ) : null}
             </EmptyState>
           ) : (
-            <Spinner size="sm" label={t('events.loading')} />
+            <MapEventsTableSkeleton />
           )
-        ) : !detail.events.length ? (
+        ) : (
+          <MapEncounters detail={detail} data={data} slot={slot} />
+        )}
+        {!detail ? null : !detail.events.length ? (
           <EmptyState title={t('events.map.emptyMap')} />
         ) : (
           <div className="text-[0.8125rem]" style={{ minWidth: '24rem' }} role="table" aria-label={t('events.map.events')}>

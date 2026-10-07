@@ -10,6 +10,7 @@ import {
   editDataHref,
   editMapHref,
   editTabHref,
+  editTroopHref,
   emptySession,
   GameEditWorkbench,
   isEventsTab,
@@ -48,6 +49,7 @@ export function GameEditPage() {
   const mapId = tab === 'map' ? parseActorIdSegment(params.pane?.[0]) : null
   const mapEventId = tab === 'map' && mapId != null ? parseActorIdSegment(params.pane?.[1]) : null
   const mapEventPage = mapEventId != null ? parseActorIdSegment(params.pane?.[2]) : null
+  const troopId = tab === 'troop' ? parseActorIdSegment(params.pane?.[0]) : null
   const events = useEventsData({ enabled: isEventsTab(tab), mapId })
   const filter = searchParams.get('q') ?? ''
   const onlyOwned = parseFlag01(searchParams.get('owned'), false)
@@ -138,6 +140,9 @@ export function GameEditPage() {
     onReloadMap: reloadMap,
     player: linked && scene.mapId > 0 ? { mapId: scene.mapId, x: scene.playerX, y: scene.playerY, direction: scene.playerDir } : null,
     recentMaps: scene.recentMaps,
+    troopId,
+    onSelectTroop: (id) => router.push(hrefWithQuery(editTroopHref(id), eventsQuery)),
+    battle: linked ? scene.battle : null,
   }
 
   const paneKey = tab === 'data' ? (params.pane ?? []).join('/') : ''

@@ -4,6 +4,7 @@ import type { ScriptKey } from '@/lib/game/events/interpret'
 export type EventsMessages = {
   tabCommon: string
   tabMap: string
+  tabTroop: string
   listAria: string
   detailAria: string
   filterAria: string
@@ -87,7 +88,78 @@ export type EventsMessages = {
   scriptEmpty: string
   original: string
   map: EventsMapMessages
+  troop: EventsTroopMessages
   cmd: Record<ScriptKey | 'textBy', string>
+}
+
+export type EventsTroopMessages = {
+  listAria: string
+  selectHint: string
+  showEmpty: string
+  noMembers: string
+  members: string
+  memberHidden: string
+  pages: string
+  summaryMore: string
+  start: string
+  encounterNow: string
+  canEscape: string
+  canLose: string
+  needMap: string
+  notCurrentMap: string
+  confirmTitle: string
+  confirmMembers: string
+  confirmOptions: string
+  yes: string
+  no: string
+  loseWarn: string
+  confirm: string
+  startOk: string
+  startFail: string
+  encounters: string
+  encounterStep: string
+  regions: string
+  weight: string
+  share: string
+  openTroop: string
+  onlyEncounter: string
+  onlyEncounterIncomplete: string
+  appearsIn: string
+  appearsNone: string
+  calledBy: string
+  calledNone: string
+  battleEvents: string
+  battleEventsNone: string
+  pageTab: string
+  pagesAria: string
+  count: string
+  countOriginal: string
+  countHint: string
+  confirmCount: string
+  currentBattle: string
+  enemyHp: string
+  enemyDown: string
+  enemyHidden: string
+  transform: string
+  transformTitle: string
+  transformNote: string
+  add: string
+  addNote: string
+  addFull: string
+  battleEnded: string
+  pickerSearch: string
+  pickerShowUnnamed: string
+  pickerEmpty: string
+  pickerAria: string
+  transformOk: string
+  addOk: string
+  battleFail: string
+  manageEnemies: string
+  empty: string
+  emptyMsg: string
+  detailAria: string
+  listSep: string
+  pickerMore: string
 }
 
 export type EventsMapMessages = {

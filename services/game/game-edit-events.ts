@@ -91,6 +91,7 @@ export function loadCommonEventsData(): CommonEventsData | Failure {
         armors: readArray(dataDir, 'Armors.json'),
         actors: readArray(dataDir, 'Actors.json'),
         troops: readArray(dataDir, 'Troops.json'),
+        enemies: readArray(dataDir, 'Enemies.json'),
         mapInfos,
         maps: mapInfos ? maps : null,
         mapsFailed,

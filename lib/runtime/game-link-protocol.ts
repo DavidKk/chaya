@@ -1,6 +1,7 @@
 /** Web ↔ 游戏 DataChannel 消息（JSON） */
 
 import type { ActorDraft, ActorVitalLockKind, ItemKind, RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
+import type { BattleState } from '@/lib/game/battle'
 import type { CommonEventsData, MapDetailData, SelfSwitchLetter } from '@/lib/game/events'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import type { GameSavesErrorCode, GameSavesOp, GameSavesSnapshot, GameSavesStatus, SaveWaitReason } from '@/lib/game/game-saves'
@@ -70,6 +71,11 @@ export type GameEditCmdOp =
   | { op: 'teleport'; mapId: number; x: number; y: number; direction?: 2 | 4 | 6 | 8; near?: boolean }
   /** Current map only; the game rejects it when `mapId` is not the current map. `page` (0-based) + `from` run that page's list from a command index instead of the active page */
   | { op: 'mapEvent'; mapId: number; eventId: number; page?: number; from?: number }
+  /** Battle against a troop from the map scene (like Battle Processing); `count` resizes the visible members (copies / hides) */
+  | { op: 'troop'; id: number; canEscape: boolean; canLose: boolean; count?: number }
+  /** In battle: `fromEnemyId` guards against the field having changed since the last state push */
+  | { op: 'enemyTransform'; index: number; fromEnemyId: number; enemyId: number }
+  | { op: 'enemyAdd'; enemyId: number }
   | DataOp
 
 /** Web → 游戏：改值指令（cmdId 用于 ack / 去重重试） */
@@ -105,6 +111,8 @@ export type GameEditStateMsg = {
   recentMaps?: number[]
   /** Common events running in parallel / autorun on the current map */
   runningCommon?: number[]
+  /** Enemies on the field; only while the battle scene is active */
+  battle?: BattleState
 }
 
 export type GameEditCatalogMessage = { type: 'edit.catalog'; catalog: GameEditCatalog } | { type: 'edit.catalog.request' }

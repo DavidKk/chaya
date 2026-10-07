@@ -57,6 +57,9 @@ function slot(over: Partial<EventsSlot> = {}): EventsSlot {
     mapError: '',
     player: null,
     recentMaps: [],
+    troopId: null,
+    onSelectTroop: jest.fn(),
+    battle: null,
     ...over,
   }
 }
@@ -168,6 +171,8 @@ const villageDetail: MapDetailData = {
   height: 10,
   events: [{ id: 5, name: '门卫', rawName: '门卫', x: 1, y: 2, type: 'npc', pages: [page('a'), page('b')] }],
   texts: {},
+  encounters: [],
+  encounterStep: 30,
 }
 const pageTab = (index: number) => document.querySelector(`nav[aria-label="事件页"] [data-nav-id="${index}"]`) as HTMLElement
 
@@ -177,6 +182,25 @@ test('event detail shows the page tab from the slot and reports picks', async ()
   expect(pageTab(1).getAttribute('aria-selected')).toBe('true')
   await act(async () => pageTab(0).click())
   expect(s.onSelectEventPage).toHaveBeenCalledWith(0)
+})
+
+test('map detail lists encounters, links troops and only allows encounters on the current map', async () => {
+  const encounters = [
+    { troopId: 7, weight: 30, regionSet: [] },
+    { troopId: 8, weight: 10, regionSet: [] },
+    { troopId: 9, weight: 5, regionSet: [2, 4] },
+  ]
+  const s = slot({ mapId: 2, mapDetail: { ...villageDetail, encounters }, canAct: true, onMap: true, player: { mapId: 3, x: 0, y: 0, direction: 2 } })
+  await render(s)
+  const block = document.querySelector('section[aria-label="遇敌"]') as HTMLElement
+  expect(block.textContent).toContain('75%')
+  expect(block.textContent).toContain('25%')
+  expect(block.textContent).toContain('2、4')
+  const encounterButtons = [...block.querySelectorAll('button')].filter((b) => b.getAttribute('aria-label')?.includes('立即遇敌') || b.textContent?.includes('立即遇敌'))
+  expect(encounterButtons.length).toBe(3)
+  expect(encounterButtons.every((b) => b.disabled)).toBe(true)
+  await act(async () => (block.querySelector('button[aria-label="查看敌群 未命名 #8"]') as HTMLButtonElement).click())
+  expect(s.onSelectTroop).toHaveBeenCalledWith(8)
 })
 
 test('an out-of-range page tab falls back to the first page', async () => {

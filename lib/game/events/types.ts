@@ -1,6 +1,7 @@
 /** RPG Maker MV / MZ event data shared by the disk reader, the web console and the game plugin. */
 
 import type { MapIndex } from './map-index'
+import type { TroopEncounter, TroopInfo } from './troops'
 
 export type EventCommand = { code: number; indent: number; parameters: unknown[] }
 
@@ -46,6 +47,7 @@ export type EventNames = {
   maps: string[]
   commonEvents: string[]
   troops: string[]
+  enemies: string[]
 }
 
 export type CommonEventsData = {
@@ -63,6 +65,11 @@ export type CommonEventsData = {
   variableRefs: Record<number, EventRef[]>
   /** Map tree, per-map event names and transfer destinations; no command lists */
   mapIndex: MapIndex
+  troops: TroopInfo[]
+  /** Troop id → maps whose encounter list includes it */
+  troopEncounters: Record<number, TroopEncounter[]>
+  /** Troop id → locations whose Battle Processing (301) names it directly */
+  troopRefs: Record<number, EventRef[]>
   /** Whether map data was provided (otherwise only common event and troop references) */
   mapsScanned: boolean
   /** Maps that failed to load or parse; references may be incomplete when > 0 */

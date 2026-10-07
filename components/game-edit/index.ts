@@ -51,6 +51,7 @@ export {
   editDataHref,
   editMapHref,
   editTabHref,
+  editTroopHref,
   type GameEditSurface,
   isActorPaneId,
   isEventsTab,

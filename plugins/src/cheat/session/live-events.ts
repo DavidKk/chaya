@@ -80,6 +80,7 @@ export async function buildLiveCommonEventsData(opts?: { force?: boolean }): Pro
       armors: $dataArmors ?? null,
       actors: $dataActors ?? null,
       troops: $dataTroops ?? null,
+      enemies: $dataEnemies ?? null,
       mapInfos: g.$dataMapInfos ?? null,
       maps,
       mapsFailed: failed,

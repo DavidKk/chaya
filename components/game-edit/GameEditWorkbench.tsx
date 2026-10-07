@@ -17,6 +17,7 @@ import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import type { CatalogEntry, GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { cn } from '@/lib/utils'
 
+import { EventsBody } from './events/EventsBody'
 import type { EventsSlot } from './events/types'
 import { GameEditMainNav } from './GameEditMainNav'
 import { GameEditHotkeysSkeleton, GameEditPaneSkeleton } from './GameEditPaneSkeleton'
@@ -50,8 +51,6 @@ const GameEditTransPane = lazy(() => import('./GameEditTransPane').then((m) => (
 const GameEditLogsPane = lazy(() => import('./GameEditLogsPane').then((m) => ({ default: m.GameEditLogsPane })))
 const GameEditIntegrationPane = lazy(() => import('./GameEditIntegrationPane').then((m) => ({ default: m.GameEditIntegrationPane })))
 const GameEditAboutPane = lazy(() => import('./GameEditAboutPane').then((m) => ({ default: m.GameEditAboutPane })))
-const CommonEventsPane = lazy(() => import('./events/CommonEventsPane').then((m) => ({ default: m.CommonEventsPane })))
-const MapPane = lazy(() => import('./events/MapPane').then((m) => ({ default: m.MapPane })))
 const SaveDataPane = lazy(() => import('./save-data/SaveDataPane').then((m) => ({ default: m.SaveDataPane })))
 const GameEditAgentSettingsPane = lazy(() => import('@/components/settings/GameEditAgentSettingsPane').then((m) => ({ default: m.GameEditAgentSettingsPane })))
 
@@ -310,7 +309,7 @@ export function GameEditWorkbench({
   const showEditNav = isEditTab(tab)
   const [paneHead, setPaneHead] = useState<HTMLDivElement | null>(null)
   const eventsTab = isEventsTab(tab)
-  const eventSourceCount = !events?.data ? 0 : tab === 'map' ? events.data.mapIndex.nodes.length : events.data.events.length
+  const eventSourceCount = !events?.data ? 0 : tab === 'map' ? events.data.mapIndex.nodes.length : tab === 'troop' ? (events.data.troops?.length ?? 0) : events.data.events.length
   const activeTab = TABS.find((item) => item.id === tab)
   const legalKind: LegalNoticeKind | null =
     tab === 'logs' || tab === 'about' ? null : tab === 'trans' ? 'translate' : tab === 'mcp' ? 'integration' : tab === 'settings' ? 'agent' : 'edit'
@@ -354,7 +353,7 @@ export function GameEditWorkbench({
               <PanelHeadTitle title={activeTab ? t(activeTab.labelKey) : t('edit.tabEdit')} description={tab === 'data' ? t('data.panelDesc') : t('edit.panelDesc')} />
               <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-8 flex-1 shrink justify-end overflow-hidden')}>
                 {showTableFilters || (eventsTab && eventSourceCount > 0) ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
-                {tab === 'data' || tab === 'map' ? <div ref={setPaneHead} className="flex min-w-0 shrink items-center" /> : null}
+                {tab === 'data' || tab === 'map' || tab === 'troop' ? <div ref={setPaneHead} className="flex min-w-0 shrink items-center" /> : null}
                 {showTableFilters || surface === 'page' ? (
                   <ScrollArea
                     indicator="horizontal"
@@ -439,6 +438,7 @@ export function GameEditWorkbench({
                   onExpRateChange={onExpRateChange}
                   onFlagChange={onRunFlagChange}
                   onAction={onRunAction}
+                  onOpenTroops={events?.battle ? () => setTab('troop') : undefined}
                 />
               </ScrollArea>
             ) : tab === 'trans' ? (
@@ -498,17 +498,9 @@ export function GameEditWorkbench({
                 <EmptyState title={t('data.needLink')} message={t('data.needLinkMsg')} />
               )
             ) : eventsTab ? (
-              !events ? (
-                <EmptyState title={t('events.needLink')} message={t('events.needLinkMsg')} />
-              ) : (
-                <TabSuspense tab={tab}>
-                  {tab === 'common' ? (
-                    <CommonEventsPane slot={events} filter={filter} session={session} />
-                  ) : (
-                    <MapPane slot={events} filter={filter} session={session} headSlot={paneHead} toolRequest={agentRequest} showMiniMap={surface !== 'overlay'} />
-                  )}
-                </TabSuspense>
-              )
+              <TabSuspense tab={tab}>
+                <EventsBody tab={tab} slot={events} filter={filter} session={session} headSlot={paneHead} toolRequest={agentRequest} showMiniMap={surface !== 'overlay'} />
+              </TabSuspense>
             ) : error ? (
               <EmptyState title={t('edit.catalogFailTitle')} message={error} hint={t('edit.catalogFailHint')} />
             ) : loading && !catalog ? (

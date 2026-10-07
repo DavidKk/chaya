@@ -4,6 +4,7 @@
 
 export { ensureLaunchEnvGlobals } from './env/ensure-launch-env'
 export { pinApiBaseFromUrl, resolveApiBase, resolveApiBaseFallbacks, resolveLogUrl } from './env/env'
+export { startCrashLog } from './game/crash-log'
 export { registerGameLinkEditHandlers } from './game/edit-link-bridge'
 export { detectGameIdentity } from './game/game-identity'
 export { gameRoomId, startGameLink } from './game/game-link'

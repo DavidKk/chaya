@@ -41,7 +41,7 @@ export default async function CheatTabPage({ params }: CheatTabPageProps) {
     redirect(editActorHref(null))
   }
 
-  if (tab === 'common') {
+  if (tab === 'common' || tab === 'troop') {
     if (segments.length === 0) return null
     if (segments.length > 1 || parseActorIdSegment(segments[0]) == null) redirect(editTabHref(tab))
     return null

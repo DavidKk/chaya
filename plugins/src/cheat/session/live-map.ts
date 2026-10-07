@@ -141,7 +141,7 @@ function tileStandable(mapId: number, x: number, y: number): boolean {
 }
 
 /** RPG Maker sets `_transferring` until the new map is set up; simple engines may keep a pending `_transfer` */
-function transferPending(): boolean {
+export function transferPending(): boolean {
   const player = gamePlayer() as { isTransferring?: () => boolean; _transferring?: boolean; _transfer?: unknown } | null
   return !!(player?.isTransferring?.() || player?._transferring || player?._transfer)
 }

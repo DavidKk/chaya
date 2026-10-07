@@ -1,3 +1,4 @@
+import type { BattleState } from '@/lib/game/battle'
 import type { CommonEventsData, MapDetailData } from '@/lib/game/events'
 import type { GameEditCmdOp } from '@/lib/runtime/game-link-protocol'
 
@@ -6,7 +7,7 @@ import type { GameEditCmdOp } from '@/lib/runtime/game-link-protocol'
 export type PlayerSpot = { mapId: number; x: number; y: number; direction: number }
 
 /** Map / event operations sent through the same edit command channel */
-export type EventsOp = Extract<GameEditCmdOp, { op: 'commonEvent' | 'selfSwitch' | 'teleport' | 'mapEvent' }>
+export type EventsOp = Extract<GameEditCmdOp, { op: 'commonEvent' | 'selfSwitch' | 'teleport' | 'mapEvent' | 'troop' | 'enemyTransform' | 'enemyAdd' }>
 
 /**
  * Data and actions for 修改 › 公共事件 / 地图, shared by the web page and the in-game overlay.
@@ -47,4 +48,9 @@ export type EventsSlot = {
   onReloadMap?: () => void
   player: PlayerSpot | null
   recentMaps: readonly number[]
+
+  troopId: number | null
+  onSelectTroop: (id: number | null) => void
+  /** Enemies on the field while the game is in battle */
+  battle: BattleState | null
 }

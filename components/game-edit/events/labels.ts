@@ -1,5 +1,5 @@
-import type { EventEffects, EventNames, EventRef } from '@/lib/game/events'
-import { labelOf } from '@/lib/game/events'
+import type { EventEffects, EventNames, EventRef, TroopInfo, TroopMember } from '@/lib/game/events'
+import { groupTroopMembers, labelOf } from '@/lib/game/events'
 import type { MessageKey, MessageParams } from '@/lib/i18n'
 
 type T = (key: MessageKey, params?: MessageParams) => string
@@ -46,4 +46,19 @@ export function refLabel(ref: EventRef, names: EventNames, t: T): string {
 
 export function commonEventName(ev: { id: number; name: string }, t: T): string {
   return ev.name || t('events.unnamed', { id: ev.id })
+}
+
+const MAX_MEMBER_GROUPS = 3
+
+/** "Slime ×2、Bat" (locale separator); more than three kinds end with "等" */
+export function troopMemberSummary(members: readonly TroopMember[], t: T, max = MAX_MEMBER_GROUPS): string {
+  if (!members.length) return t('events.troop.noMembers')
+  const groups = groupTroopMembers(members)
+  const shown = groups.slice(0, max).map((g) => `${g.name || `#${g.enemyId}`}${g.count > 1 ? ` ×${g.count}` : ''}`)
+  const list = shown.join(t('events.troop.listSep'))
+  return groups.length > max ? t('events.troop.summaryMore', { list }) : list
+}
+
+export function troopName(troop: Pick<TroopInfo, 'id' | 'name'> | undefined, id: number, t: T): string {
+  return troop?.name || t('events.unnamed', { id })
 }

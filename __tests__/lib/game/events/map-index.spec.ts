@@ -92,6 +92,25 @@ describe('map index', () => {
     expect(detail.events[2].pages[0].conditions).toEqual({ variable: { id: 9, value: 3 } })
     expect(detail.texts).toEqual({ こんにちは: '你好' })
     expect(detail.live).toBeUndefined()
+    expect(detail).toMatchObject({ encounters: [], encounterStep: 0 })
+  })
+
+  it('includes the encounter list in the map detail', () => {
+    const detail = buildMapDetail(
+      1,
+      {
+        encounterStep: 20,
+        encounterList: [
+          { troopId: 3, weight: 5, regionSet: [2] },
+          { troopId: 0, weight: 1 },
+        ],
+      },
+      null,
+      (t) => t,
+      'live'
+    )
+    expect(detail.encounters).toEqual([{ troopId: 3, weight: 5, regionSet: [2] }])
+    expect(detail.encounterStep).toBe(20)
   })
 })
 

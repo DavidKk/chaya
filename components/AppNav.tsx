@@ -10,6 +10,7 @@ import { EDIT_TABS, editTabHref } from '@/components/game-edit/tabs'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { ASSIST_SECTIONS } from '@/components/input-assistance/assist-sections'
 import { INTEGRATION_TABS } from '@/components/integration/tabs'
+import { mainNavFor, type MainNavId } from '@/components/main-nav'
 import { Button } from '@/components/sk'
 import { TRANSLATE_TABS, translateTabHref } from '@/components/translate/tabs'
 import type { MessageKey } from '@/lib/i18n'
@@ -26,31 +27,23 @@ import { cn } from '@/lib/utils'
  * `/` 暂空，重定向到 `/game`
  */
 type AppNavChild = { href: string; labelKey: MessageKey }
-type AppNavItem = { id: string; href: string; labelKey: MessageKey; children?: ReadonlyArray<AppNavChild> }
+type AppNavItem = { id: MainNavId; href: string; labelKey: MessageKey; children?: ReadonlyArray<AppNavChild> }
+type AppNavRoute = Pick<AppNavItem, 'href' | 'children'>
 
-export const APP_NAV_ITEMS: ReadonlyArray<AppNavItem> = [
-  { id: 'library', href: '/game', labelKey: 'nav.library' },
-  {
-    id: 'edit',
-    href: '/cheat/run',
-    labelKey: 'nav.edit',
-    children: EDIT_TABS.map((item) => ({ href: editTabHref(item.id), labelKey: item.labelKey })),
-  },
-  {
-    id: 'translate',
-    href: '/translate/run',
-    labelKey: 'nav.translate',
-    children: TRANSLATE_TABS.map((item) => ({ href: translateTabHref(item.id), labelKey: item.labelKey })),
-  },
-  {
-    id: 'assist',
-    href: '/assist/hotkeys',
-    labelKey: 'nav.assist',
-    children: ASSIST_SECTIONS.map((section) => ({ href: `/assist/${section.id}`, labelKey: section.labelKey })),
-  },
-  { id: 'logs', href: '/logs', labelKey: 'nav.logs' },
-  { id: 'integration', href: '/integration/skills', labelKey: 'nav.integration', children: INTEGRATION_TABS },
-] as const
+/** 网页端各模块的入口；顺序与名称来自 `MAIN_NAV` */
+const WEB_ROUTES: Partial<Record<MainNavId, AppNavRoute>> = {
+  library: { href: '/game' },
+  edit: { href: '/cheat/run', children: EDIT_TABS.map((item) => ({ href: editTabHref(item.id), labelKey: item.labelKey })) },
+  translate: { href: '/translate/run', children: TRANSLATE_TABS.map((item) => ({ href: translateTabHref(item.id), labelKey: item.labelKey })) },
+  assist: { href: '/assist/hotkeys', children: ASSIST_SECTIONS.map((section) => ({ href: `/assist/${section.id}`, labelKey: section.labelKey })) },
+  logs: { href: '/logs' },
+  integration: { href: '/integration/skills', children: INTEGRATION_TABS },
+}
+
+export const APP_NAV_ITEMS: ReadonlyArray<AppNavItem> = mainNavFor('web').flatMap((item) => {
+  const route = WEB_ROUTES[item.id]
+  return route ? [{ id: item.id, labelKey: item.labelKey, ...route }] : []
+})
 
 export type AppNavPath = '/game' | '/assist' | '/cheat/run' | '/translate/run' | '/logs' | '/integration/skills' | '/cheat' | '/translate' | '/integration' | '/settings'
 

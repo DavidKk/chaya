@@ -12,6 +12,21 @@ describe('game-edit-sync speed ops', () => {
     expect(expectForEditCmd(cmd('gameSpeed', 3))).toBe(3)
   })
 
+  it('troop battles only wait for the ack', () => {
+    const troop: GameEditCmd = { type: 'edit.cmd', cmdId: 't', op: 'troop', id: 4, canEscape: true, canLose: false }
+    expect(fieldsForEditCmd(troop)).toEqual(['action:troop:4'])
+    expect(expectForEditCmd(troop)).toBe(true)
+  })
+
+  it('battle enemy edits only wait for the ack', () => {
+    const transform: GameEditCmd = { type: 'edit.cmd', cmdId: 'a', op: 'enemyTransform', index: 2, fromEnemyId: 1, enemyId: 5 }
+    const add: GameEditCmd = { type: 'edit.cmd', cmdId: 'b', op: 'enemyAdd', enemyId: 5 }
+    expect(fieldsForEditCmd(transform)).toEqual(['action:enemyTransform:2'])
+    expect(fieldsForEditCmd(add)).toEqual(['action:enemyAdd'])
+    expect(expectForEditCmd(transform)).toBe(true)
+    expect(expectForEditCmd(add)).toBe(true)
+  })
+
   it('pending gameSpeed keeps the optimistic value until the remote matches', () => {
     const prev = { ...emptySession(), gameSpeed: 3 }
     const pending: EditPendingMap = new Map([['gameSpeed', { cmdId: 'a', expect: 3, startedAt: 0, sentAt: 0, cmd: cmd('gameSpeed', 3) }]])

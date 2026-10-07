@@ -3,7 +3,18 @@
  * logger/http → one-shot presence → WebRTC / web link
  */
 
-import { chayaFetch, ChayaLog, chayaPostJson, presenceSessionId, resolveApiBase, resolveLogUrl, startGameLink, startGamePresence, startWindowSizePersist } from './helpers'
+import {
+  chayaFetch,
+  ChayaLog,
+  chayaPostJson,
+  presenceSessionId,
+  resolveApiBase,
+  resolveLogUrl,
+  startCrashLog,
+  startGameLink,
+  startGamePresence,
+  startWindowSizePersist,
+} from './helpers'
 
 declare global {
   interface Window {
@@ -29,6 +40,7 @@ window.Chaya = {
   sessionId: presenceSessionId,
 }
 
+startCrashLog()
 startGamePresence()
 startGameLink()
 try {

@@ -13,7 +13,7 @@ import {
   setGameHotkeysCache,
   toolPanelFromHotkeyTarget,
 } from '@/components/game-edit/run-hotkeys'
-import { type ActorPaneId, isActorPaneId, isEditTab, isEventsTab, parseTabId, type TabId } from '@/components/game-edit/tabs'
+import { type ActorPaneId, isActorPaneId, isEditTab, isEventsTab, isTabId, OVERLAY_MAIN_TABS, parseTabId, type TabId } from '@/components/game-edit/tabs'
 import {
   type ActorDraft,
   type ActorVitalLockKind,
@@ -111,9 +111,11 @@ export function captureGameEditView() {
   const mainTab = shadow.querySelector<HTMLElement>('[data-main-nav-id][aria-current="page"]')?.dataset.mainNavId
   const activeTranslateTab = shadow.querySelector<HTMLElement>('[role="tablist"][aria-label="翻译配置"] [role="tab"][aria-selected="true"]')?.dataset.navId
   const activeTranslateSection = shadow.querySelector<HTMLElement>('[role="tablist"][aria-label="翻译分区"] [role="tab"][aria-selected="true"]')?.dataset.navId
+  // 新版写模块 id（translate / assist…），旧版写 tab id（trans / settings…）
+  const mainPage = mainTab && mainTab in OVERLAY_MAIN_TABS ? OVERLAY_MAIN_TABS[mainTab as keyof typeof OVERLAY_MAIN_TABS] : mainTab
   viewHost().__chayaGameEditView = {
     ...saved,
-    tab: mainTab === 'trans' || mainTab === 'logs' || mainTab === 'mcp' || mainTab === 'settings' || mainTab === 'about' ? mainTab : parseTabId(tab, saved.tab),
+    tab: isTabId(mainPage) && !isEditTab(mainPage) ? mainPage : parseTabId(tab, saved.tab),
     lastEditTab: isEditTab(parseTabId(tab, saved.lastEditTab)) ? parseTabId(tab, saved.lastEditTab) : saved.lastEditTab,
     translateTab: activeTranslateTab === 'seed' ? 'seed' : activeTranslateTab === 'play' ? 'play' : saved.translateTab,
     translateSection: activeTranslateSection === 'cache' ? 'cache' : activeTranslateSection === 'run' ? 'run' : saved.translateSection,

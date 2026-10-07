@@ -22,6 +22,7 @@ import {
   type TableRow,
 } from '@/components/game-edit'
 import { useGameLinkContext } from '@/components/GameLinkProvider'
+import { battleSignature, type BattleState } from '@/lib/game/battle'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { EDIT_CMD_GIVE_UP_MS, EDIT_CMD_RETRY_MS, type EditPendingMap, expectForEditCmd, fieldsForEditCmd, mergeRemoteSession, newEditCmdId } from '@/lib/runtime/game-edit-sync'
 import type { GameEditAck, GameEditCmd, GameEditCmdOp, GameEditStateMsg } from '@/lib/runtime/game-link-protocol'
@@ -30,9 +31,18 @@ type SetSession = Dispatch<SetStateAction<SessionState>>
 type AckWaiter = { timer: number; finish: (ack: GameEditAck) => void; reject: (error: Error) => void }
 
 /** Scene / map fields pushed with every `edit.state` */
-export type GameLiveScene = { onMap: boolean; mapId: number; playerX: number; playerY: number; playerDir: number; recentMaps: number[]; runningCommon: number[] }
+export type GameLiveScene = {
+  onMap: boolean
+  mapId: number
+  playerX: number
+  playerY: number
+  playerDir: number
+  recentMaps: number[]
+  runningCommon: number[]
+  battle: BattleState | null
+}
 
-const EMPTY_SCENE: GameLiveScene = { onMap: false, mapId: 0, playerX: 0, playerY: 0, playerDir: 0, recentMaps: [], runningCommon: [] }
+const EMPTY_SCENE: GameLiveScene = { onMap: false, mapId: 0, playerX: 0, playerY: 0, playerDir: 0, recentMaps: [], runningCommon: [], battle: null }
 
 function sameList(a: readonly number[], b: readonly number[]) {
   return a.length === b.length && a.every((v, i) => v === b[i])
@@ -47,6 +57,7 @@ function sceneFrom(msg: GameEditStateMsg, prev: GameLiveScene): GameLiveScene {
     playerDir: msg.playerDir ?? 0,
     recentMaps: msg.recentMaps ?? [],
     runningCommon: msg.runningCommon ?? [],
+    battle: msg.battle ?? null,
   }
   const same =
     next.onMap === prev.onMap &&
@@ -55,7 +66,8 @@ function sceneFrom(msg: GameEditStateMsg, prev: GameLiveScene): GameLiveScene {
     next.playerY === prev.playerY &&
     next.playerDir === prev.playerDir &&
     sameList(next.recentMaps, prev.recentMaps) &&
-    sameList(next.runningCommon, prev.runningCommon)
+    sameList(next.runningCommon, prev.runningCommon) &&
+    battleSignature(next.battle) === battleSignature(prev.battle)
   return same ? prev : next
 }
 

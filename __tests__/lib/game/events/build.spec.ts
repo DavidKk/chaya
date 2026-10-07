@@ -81,6 +81,24 @@ describe('buildCommonEventsData', () => {
     expect(data.texts).toEqual({ はい: '是' })
   })
 
+  it('builds troops with enemy names, direct battle references and encounter maps', () => {
+    const raw = sources({
+      enemies: [null, { name: 'スライム' }],
+      troops: [null, { id: 1, name: 'スライム', members: [{ enemyId: 1 }, { enemyId: 4 }], pages: [{ list: [cmd(301, [0, 1]), cmd(0)] }] }],
+    })
+    raw.commonEvents![2] = { id: 2, name: '', trigger: 0, switchId: 0, list: [cmd(301, [0, 1]), cmd(301, [1, 6]), cmd(301, [2, 0]), cmd(0)] }
+    ;(raw.maps![0].data as Record<string, unknown>).encounterList = [{ troopId: 1, weight: 10, regionSet: [] }]
+    const data = buildCommonEventsData(raw, tr, 'disk')
+    expect(data.names.enemies[1]).toBe('スライム')
+    expect(data.troops).toEqual([expect.objectContaining({ id: 1, members: [{ enemyId: 1, name: 'スライム', rawName: 'スライム', hidden: false }], commandCount: 1 })])
+    expect(data.troopRefs[1]).toEqual([
+      { kind: 'common', id: 2, name: '' },
+      { kind: 'troop', id: 1, name: 'スライム', page: 1 },
+    ])
+    expect(data.troopRefs[6]).toBeUndefined()
+    expect(data.troopEncounters[1]).toEqual([{ mapId: 1, weight: 10, regionSet: [] }])
+  })
+
   it('reports map scan status and failures', () => {
     expect(buildCommonEventsData(sources({ maps: null }), tr, 'live')).toMatchObject({ mapsScanned: false, mapsFailed: 0 })
     expect(buildCommonEventsData(sources({ mapsFailed: 2 }), tr, 'live')).toMatchObject({ mapsScanned: true, mapsFailed: 2 })

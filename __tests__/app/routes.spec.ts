@@ -66,6 +66,13 @@ describe('页面路由契约', () => {
     await expectRedirect(() => CheatTabPage({ params: Promise.resolve({ tab: 'actor', pane: ['states'] }) }), editActorHref(null))
   })
 
+  it('/cheat/troop/12 敌群详情放行，非法 id 回敌群根', async () => {
+    const { editTabHref } = await import('@/components/game-edit/tabs')
+    const { default: CheatTabPage } = await import('@/app/cheat/[tab]/[[...pane]]/page')
+    await expect(CheatTabPage({ params: Promise.resolve({ tab: 'troop', pane: ['12'] }) })).resolves.toBeNull()
+    await expectRedirect(() => CheatTabPage({ params: Promise.resolve({ tab: 'troop', pane: ['x'] }) }), editTabHref('troop'))
+  })
+
   it('/cheat/bag/extra 多余段回 tab 根', async () => {
     const { editTabHref } = await import('@/components/game-edit/tabs')
     const { default: CheatTabPage } = await import('@/app/cheat/[tab]/[[...pane]]/page')
