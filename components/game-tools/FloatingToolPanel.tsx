@@ -184,9 +184,10 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
     window.dispatchEvent(new Event(PANEL_LAYOUT_EVENT))
   }
 
+  // 勿复用 `.pinned`：其中存的是「不透明」，会把面板误锁住
   useEffect(() => {
     try {
-      setPinned(localStorage.getItem(`${storageKey}.pinned`) === 'true')
+      setPinned(localStorage.getItem(`${storageKey}.locked`) === 'true')
     } catch {
       setPinned(false)
     }
@@ -196,7 +197,7 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
     const next = !pinned
     setPinned(next)
     try {
-      localStorage.setItem(`${storageKey}.pinned`, String(next))
+      localStorage.setItem(`${storageKey}.locked`, String(next))
     } catch {
       // The pin still works for this session when storage is unavailable.
     }
@@ -205,7 +206,7 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
   const pinLabel = t(pinned ? 'common.panelUnpin' : 'common.panelPin')
 
   const begin = (event: PointerEvent<HTMLElement>, kind: GestureKind) => {
-    if (event.button !== 0) return
+    if (event.button !== 0 || pinned) return
     const rect = panelRef.current?.getBoundingClientRect()
     if (!rect) return
     event.preventDefault()
@@ -255,7 +256,7 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
 
   const end = (event: PointerEvent<HTMLElement>) => {
     const drag = gesture.current
-    if (drag?.pointerId !== event.pointerId) return
+    if (!drag || drag.pointerId !== event.pointerId) return
     gesture.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
     if (frameRef.current) saveFrame(frameRef.current, drag.kind === 'move')
@@ -264,12 +265,7 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
   return (
     <section
       ref={panelRef}
-      className={cn(
-        'pointer-events-auto fixed z-[60] flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-md bg-panel/95 text-ink shadow-lg',
-        'transition-opacity duration-150',
-        !pinned && 'opacity-40 hover:opacity-100 [&:has(:focus-visible)]:opacity-100 [@media(hover:none)]:focus-within:opacity-100',
-        className
-      )}
+      className={cn('pointer-events-auto fixed z-[60] flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-md bg-panel/95 text-ink shadow-lg', className)}
       data-pinned={pinned}
       style={{
         ...(frame ? { left: frame.x, top: frame.y } : { ...(initialSide === 'left' ? { left: 8 } : { right: 16 }), ...(initialEdge === 'top' ? { top: 16 } : { bottom: 16 }) }),
@@ -279,7 +275,10 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
       aria-label={title}
     >
       <div
-        className="flex h-8 shrink-0 touch-none cursor-grab items-center gap-0.5 bg-panel-2 pr-1.5 pl-2.5 select-none active:cursor-grabbing [@media(hover:none)]:h-11"
+        className={cn(
+          'flex h-8 shrink-0 items-center gap-0.5 bg-panel-2 pr-1.5 pl-2.5 select-none [@media(hover:none)]:h-11',
+          !pinned && 'touch-none cursor-grab active:cursor-grabbing'
+        )}
         onPointerDown={(event) => begin(event, 'move')}
         onPointerMove={move}
         onPointerUp={end}
@@ -338,23 +337,25 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
           ) : (
             <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
           )}
-          {RESIZE_HANDLES.map(({ edge, className: handleClass }) => (
-            <div
-              key={edge}
-              className={cn('absolute z-10 touch-none focus-visible:outline-2 focus-visible:outline-accent', handleClass)}
-              role="separator"
-              tabIndex={0}
-              aria-label={`${title}: resize ${edge}`}
-              onPointerDown={(event) => begin(event, edge)}
-              onPointerMove={move}
-              onPointerUp={end}
-              onPointerCancel={end}
-              onKeyDown={(event) => resizeWithKeyboard(event, edge)}
-              onMouseDown={keepGameFocus}
-            >
-              {edge === 'se' ? <span className="absolute right-1 bottom-1 h-2 w-2 border-r-2 border-b-2 border-ink-soft" aria-hidden /> : null}
-            </div>
-          ))}
+          {pinned
+            ? null
+            : RESIZE_HANDLES.map(({ edge, className: handleClass }) => (
+                <div
+                  key={edge}
+                  className={cn('absolute z-10 touch-none focus-visible:outline-2 focus-visible:outline-accent', handleClass)}
+                  role="separator"
+                  tabIndex={0}
+                  aria-label={`${title}: resize ${edge}`}
+                  onPointerDown={(event) => begin(event, edge)}
+                  onPointerMove={move}
+                  onPointerUp={end}
+                  onPointerCancel={end}
+                  onKeyDown={(event) => resizeWithKeyboard(event, edge)}
+                  onMouseDown={keepGameFocus}
+                >
+                  {edge === 'se' ? <span className="absolute right-1 bottom-1 h-2 w-2 border-r-2 border-b-2 border-ink-soft" aria-hidden /> : null}
+                </div>
+              ))}
         </>
       ) : null}
     </section>

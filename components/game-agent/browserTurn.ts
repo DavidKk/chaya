@@ -46,6 +46,12 @@ export function createBrowserAgentRuntime() {
     return true
   }
 
+  const stopAll = () => {
+    const ids = [...turns.keys()]
+    for (const turnId of ids) stop(turnId)
+    return ids.length
+  }
+
   const start = (input: {
     profile: BrowserAgentProfile
     model: string
@@ -175,5 +181,5 @@ export function createBrowserAgentRuntime() {
     return new Response(stream, { headers: { 'Cache-Control': 'no-cache, no-transform', 'Content-Type': 'text/event-stream; charset=utf-8' } })
   }
 
-  return { start, stop, latestSession: () => (latestSessionId ? sessions.get(latestSessionId) : undefined) }
+  return { start, stop, stopAll, latestSession: () => (latestSessionId ? sessions.get(latestSessionId) : undefined) }
 }

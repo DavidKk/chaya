@@ -83,7 +83,7 @@ PUT 只带改动的字段（`{ patch }`），服务端读当前值合并后保�
   - 关闭全部：`closeAllMiniPanels(update)`，`!anyMiniPanelEnabled(settings)` 时禁用。
   - 切换方向：函数补丁按最新值翻转 `panelDockOrientation`。
 - **提示方向**：`Button` 新增 `tooltipPlacement` 透传给 `Tooltip`；横向 `bottom`、纵向 `right`，放不下时 `Tooltip` 自动翻转。
-- **样式**：`fixed z-[60]`，`rounded-md bg-panel/95 shadow-lg`（与迷你面板一致，不加外边框），未悬停 `opacity-40`，悬停或键盘聚焦、触屏 `focus-within` 时不透明。分隔线横向 `h-4 w-px`、纵向 `h-px w-4`，`bg-line`。
+- **样式**：`fixed z-[60]`，`rounded-md bg-panel/95 shadow-lg`（与迷你面板同底色，不加外边框），未悬停 `opacity-40`，悬停或键盘聚焦、触屏 `focus-within` 时不透明。分隔线横向 `h-4 w-px`、纵向 `h-px w-4`，`bg-line`。
 - 按钮项全部隐藏时只渲染拖动柄与切换方向。
 - 失败处理：`update` 只在成功后写缓存，失败时状态保持保存前，不显示错误。
 

@@ -492,6 +492,8 @@ export type MessageTree = {
     inputAria: string
     placeholder: string
     stop: string
+    clear: string
+    cleared: string
     send: string
     thinking: string
     acting: string

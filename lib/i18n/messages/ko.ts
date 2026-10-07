@@ -68,7 +68,7 @@ const base = {
     durationMin: '{n}분',
     durationHour: '{n}시간',
     chars: '자',
-    panelPin: '항상 불투명하게 고정',
+    panelPin: '이 위치에 고정',
     panelUnpin: '고정 해제',
     panelMinimize: '최소화',
     panelExpand: '펼치기',

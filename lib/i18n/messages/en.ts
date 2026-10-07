@@ -68,7 +68,7 @@ const commonEn = {
     durationMin: '{n} min',
     durationHour: '{n} hr',
     chars: 'chars',
-    panelPin: 'Pin panel opaque',
+    panelPin: 'Pin in place',
     panelUnpin: 'Unpin panel',
     panelMinimize: 'Minimize',
     panelExpand: 'Expand',

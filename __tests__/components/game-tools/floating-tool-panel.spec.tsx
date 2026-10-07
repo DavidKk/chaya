@@ -107,6 +107,35 @@ test('migrates a saved absolute frame into a relative layout', async () => {
   expect(frame('Map').y + frame('Map').height).toBeLessThan(600)
 })
 
+test('pinning locks position and size; the old opaque pin flag is ignored', async () => {
+  Object.assign(HTMLElement.prototype, { setPointerCapture: jest.fn(), hasPointerCapture: jest.fn(() => false), releasePointerCapture: jest.fn() })
+  localStorage.setItem(`${MAP_KEY}.pinned`, 'true')
+  await renderPanels()
+  const section = document.querySelector('section[aria-label="Map"]') as HTMLElement
+  const header = section.firstElementChild as HTMLElement
+  const drag = async (dx: number) => {
+    await act(async () => {
+      header.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }))
+      header.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 100 + dx, clientY: 100 }))
+      header.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 100 + dx, clientY: 100 }))
+    })
+  }
+  expect(section.dataset.pinned).toBe('false')
+  expect(section.querySelectorAll('[role="separator"]')).toHaveLength(8)
+  const before = frame('Map').x
+  await drag(-50)
+  expect(frame('Map').x).toBe(before - 50)
+
+  const pin = section.querySelector('button[aria-pressed]') as HTMLButtonElement
+  await act(async () => pin.click())
+  expect(pin.getAttribute('aria-pressed')).toBe('true')
+  expect(localStorage.getItem(`${MAP_KEY}.locked`)).toBe('true')
+  expect(section.querySelectorAll('[role="separator"]')).toHaveLength(0)
+  await drag(-50)
+  expect(frame('Map').x).toBe(before - 50)
+  expect(section.className).not.toContain('opacity-40')
+})
+
 test('stacks the two panels at screen edges when the viewport is too short', async () => {
   await renderPanels(true)
   await act(async () => {

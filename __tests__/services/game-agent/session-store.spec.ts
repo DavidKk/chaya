@@ -1,4 +1,4 @@
-import { beginTurn, emitTurnEvent, finishTurn, getOrCreateSession, resetGameAgentStore, stopTurn, subscribeTurn } from '@/services/game-agent/session-store'
+import { beginTurn, clearGameTurns, emitTurnEvent, finishTurn, getOrCreateSession, resetGameAgentStore, stopTurn, subscribeTurn } from '@/services/game-agent/session-store'
 
 describe('game agent session store', () => {
   afterEach(resetGameAgentStore)
@@ -41,6 +41,26 @@ describe('game agent session store', () => {
     turn.resume = resume
     stopTurn(turn.id, 'game-a')
     expect(resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears every unfinished turn of a game, including orphans from an older session', () => {
+    const old = getOrCreateSession('game-a', 'profile', 'model')
+    const orphan = beginTurn(old)
+    old.activeTurnId = null
+    const fresh = getOrCreateSession('game-a', 'profile', 'model', undefined, true)
+    expect(() => beginTurn(fresh)).toThrow('AGENT_TURN_RUNNING')
+    const other = beginTurn(getOrCreateSession('game-b', 'profile', 'model'))
+    const listener = jest.fn()
+    subscribeTurn(orphan, listener)
+
+    expect(clearGameTurns('game-a')).toBe(1)
+    expect(orphan.state).toBe('stopped')
+    expect(orphan.abort.signal.aborted).toBe(true)
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ type: 'turn.stopped' }))
+    expect(other.state).toBe('running')
+    expect(() => beginTurn(fresh)).not.toThrow()
+    expect(clearGameTurns('game-a')).toBe(1)
+    expect(clearGameTurns('game-c')).toBe(0)
   })
 
   it('sequences events and replays the retained window to subscribers', () => {

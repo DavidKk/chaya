@@ -82,6 +82,23 @@ export function stopTurn(turnId: string, gameId?: string): GameAgentTurn | null 
   return turn
 }
 
+/**
+ * 一键清理：停掉该游戏所有未结束的 Turn（含旧会话遗留、status 看不到 id 的那种），
+ * 并直接推 turn.stopped，让卡死不再出事件的 SSE 也能收尾。
+ */
+export function clearGameTurns(gameId: string): number {
+  let cleared = 0
+  for (const turn of store().turns.values()) {
+    if (turn.gameId !== gameId || (turn.state !== 'running' && turn.state !== 'waiting_user')) continue
+    stopTurn(turn.id, gameId)
+    emitTurnEvent(turn, { type: 'turn.stopped' })
+    cleared += 1
+  }
+  const session = getSessionForGame(gameId)
+  if (session) session.activeTurnId = null
+  return cleared
+}
+
 export function emitTurnEvent(turn: GameAgentTurn, event: import('./types').GameAgentEvent) {
   const item = { ...event, seq: ++turn.lastSeq }
   turn.events.push(item)

@@ -76,7 +76,9 @@ export function applyRunAction(id: RunActionId) {
   }
 }
 
-/** Scene-change actions cover the panel; caller may close UI first */
+const BATTLE_END_ACTIONS: ReadonlySet<RunActionId> = new Set(['battle:victory', 'battle:escape', 'battle:defeat', 'battle:abort', 'battle:settle'])
+
+/** Scene changes / battle endings: the player wants to watch the game, caller closes UI first */
 export function runActionNeedsClose(id: RunActionId): boolean {
-  return id.startsWith('scene:') || id === 'fix:title' || id === 'fix:map'
+  return id.startsWith('scene:') || id === 'fix:title' || id === 'fix:map' || BATTLE_END_ACTIONS.has(id)
 }

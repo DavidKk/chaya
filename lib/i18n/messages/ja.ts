@@ -68,7 +68,7 @@ const base = {
     durationMin: '{n} 分',
     durationHour: '{n} 時間',
     chars: '字',
-    panelPin: '常に不透明にする',
+    panelPin: 'この位置に固定',
     panelUnpin: '固定を解除',
     panelMinimize: '最小化',
     panelExpand: '展開',

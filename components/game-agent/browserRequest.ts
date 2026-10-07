@@ -280,6 +280,8 @@ export function createBrowserGameAgentRequest(input: { connected: boolean }, run
       }
     }
 
+    if (url.pathname === '/api/game-agent/turn' && method === 'DELETE') return response({ ok: true, cleared: runtime.stopAll() })
+
     const stopMatch = url.pathname.match(/^\/api\/game-agent\/turn\/([^/]+)$/)
     if (stopMatch && method === 'DELETE') return response({ ok: runtime.stop(decodeURIComponent(stopMatch[1])) })
 

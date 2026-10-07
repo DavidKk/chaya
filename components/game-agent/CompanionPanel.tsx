@@ -1,6 +1,6 @@
 'use client'
 
-import { SendHorizontal, Square } from 'lucide-react'
+import { BrushCleaning, SendHorizontal, Square } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
@@ -73,6 +73,8 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
   const [question, setQuestion] = useState('')
   const [progress, setProgress] = useState('')
   const [activeReplyId, setActiveReplyId] = useState('')
+  const [clearing, setClearing] = useState(false)
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const tracker = useRef(new CompanionTracker())
   const listRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef<ChatLine[]>([])
@@ -155,6 +157,7 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
   const consumeTurn = async (response: Response, replyId: string) => {
     if (!response.ok || !response.body) throw new Error(responseError(await response.json().catch(() => null), `HTTP ${response.status}`))
     const reader = response.body.getReader()
+    readerRef.current = reader
     const decoder = new TextDecoder()
     let buffer = ''
     const apply = (item: TurnEvent) => {
@@ -189,20 +192,44 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
         setProgress('')
       }
     }
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const chunks = buffer.split('\n\n')
-      buffer = chunks.pop() || ''
-      for (const chunk of chunks) {
-        const data = chunk
-          .split(/\r?\n/)
-          .find((line) => line.startsWith('data:'))
-          ?.slice(5)
-          .trim()
-        if (data) apply(JSON.parse(data) as TurnEvent)
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const chunks = buffer.split('\n\n')
+        buffer = chunks.pop() || ''
+        for (const chunk of chunks) {
+          const data = chunk
+            .split(/\r?\n/)
+            .find((line) => line.startsWith('data:'))
+            ?.slice(5)
+            .trim()
+          if (data) apply(JSON.parse(data) as TurnEvent)
+        }
       }
+    } finally {
+      if (readerRef.current === reader) readerRef.current = null
+    }
+  }
+
+  /** 一键清理：解除服务端 AGENT_TURN_RUNNING，并断开本地卡住的流 */
+  const clearTasks = async () => {
+    if (clearing) return
+    setClearing(true)
+    try {
+      const response = await request(`/api/game-agent/turn?gameId=${encodeURIComponent(gameId)}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error(responseError(await response.json().catch(() => null), `HTTP ${response.status}`))
+      void readerRef.current?.cancel().catch(() => {})
+      setTurnId('')
+      setQuestion('')
+      setProgress('')
+      messagesRef.current = messagesRef.current.filter((line) => line.role !== 'chaya' || !!line.text)
+      append({ id: crypto.randomUUID(), role: 'chaya', text: t('companion.cleared'), character: settings.companionCharacter })
+    } catch (error) {
+      append({ id: crypto.randomUUID(), role: 'error', text: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setClearing(false)
     }
   }
 
@@ -278,17 +305,30 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
     <FloatingToolPanel
       title={character.name}
       headerTools={
-        <GameAgentRuntimeMenu
-          compact
-          profiles={status?.profiles || []}
-          profileId={profileId}
-          model={model}
-          disabled={busy}
-          onChange={(nextProfile, nextModel) => {
-            setProfileId(nextProfile)
-            setModel(nextModel)
-          }}
-        />
+        <>
+          <Button
+            size="mini"
+            variant="plain"
+            className="[@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
+            aria-label={t('companion.clear')}
+            tooltip={t('companion.clear')}
+            loading={clearing}
+            onClick={() => void clearTasks()}
+          >
+            <BrushCleaning size={13} aria-hidden />
+          </Button>
+          <GameAgentRuntimeMenu
+            compact
+            profiles={status?.profiles || []}
+            profileId={profileId}
+            model={model}
+            disabled={busy}
+            onChange={(nextProfile, nextModel) => {
+              setProfileId(nextProfile)
+              setModel(nextModel)
+            }}
+          />
+        </>
       }
       onClose={panel.dismiss}
       panel="companion"

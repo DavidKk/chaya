@@ -58,6 +58,8 @@ describe('API authorization', () => {
     expect(await mayAccessApi(request('/api/game-agent/status?gameId=room-B', { headers }))).toBe(false)
     expect(await mayAccessApi(request('/api/game-agent/turn', { method: 'POST', headers, body: JSON.stringify({ gameId: 'room-A' }) }))).toBe(true)
     expect(await mayAccessApi(request('/api/game-agent/turn', { method: 'POST', headers, body: JSON.stringify({ gameId: 'room-B' }) }))).toBe(false)
+    expect(await mayAccessApi(request('/api/game-agent/turn?gameId=room-A', { method: 'DELETE', headers }))).toBe(true)
+    expect(await mayAccessApi(request('/api/game-agent/turn?gameId=room-B', { method: 'DELETE', headers }))).toBe(false)
     const turn = beginTurn(getOrCreateSession('room-A', 'profile', 'demo'))
     expect(await mayAccessApi(request('/api/integration/game-agent', { headers }))).toBe(true)
     expect(await mayAccessApi(request(`/api/game-agent/turn/${turn.id}`, { method: 'DELETE', headers }))).toBe(true)

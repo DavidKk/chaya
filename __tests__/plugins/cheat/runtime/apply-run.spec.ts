@@ -164,11 +164,12 @@ describe('applyRunAction / runActionNeedsClose', () => {
     expect(() => applyRunAction('fix:unknown' as RunActionId)).not.toThrow()
   })
 
-  it('runActionNeedsClose: scene and return-to-title/map', () => {
+  it('runActionNeedsClose: scene, return-to-title/map and battle endings', () => {
     expect(runActionNeedsClose('scene:equip')).toBe(true)
     expect(runActionNeedsClose('fix:title')).toBe(true)
     expect(runActionNeedsClose('fix:map')).toBe(true)
-    expect(runActionNeedsClose('battle:victory')).toBe(false)
+    for (const id of ['battle:victory', 'battle:escape', 'battle:defeat', 'battle:abort', 'battle:settle'] as const) expect(runActionNeedsClose(id)).toBe(true)
+    expect(runActionNeedsClose('battle:enemyHp1')).toBe(false)
     expect(runActionNeedsClose('fix:fadeIn')).toBe(false)
   })
 })

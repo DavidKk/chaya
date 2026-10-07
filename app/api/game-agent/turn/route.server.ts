@@ -1,8 +1,8 @@
 import { defineApiRoute } from '@/initializer/controller'
-import { apiError } from '@/initializer/response'
+import { apiError, apiOk } from '@/initializer/response'
 import { normalizeCompanionCharacter } from '@/lib/game-agent/companion'
 import { classifyGameIntent, runManagedTurn } from '@/services/game-agent/managed-turn.server'
-import { beginTurn, emitTurnEvent, finishTurn, getOrCreateSession, subscribeTurn } from '@/services/game-agent/session-store'
+import { beginTurn, clearGameTurns, emitTurnEvent, finishTurn, getOrCreateSession, subscribeTurn } from '@/services/game-agent/session-store'
 import { loadGameAgentSettings, profileById } from '@/services/game-agent/settings'
 import { runAskTurn } from '@/services/game-agent/turn-runner.server'
 import type { GameAgentEvent, StartTurnInput } from '@/services/game-agent/types'
@@ -106,4 +106,11 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
   })
 
   return new Response(stream, { headers: SSE_HEADERS })
+})
+
+/** 一键清理：解除该游戏卡住的 AGENT_TURN_RUNNING */
+export const DELETE = defineApiRoute('delete:/api/game-agent/turn', async ({ request }) => {
+  const gameId = new URL(request.url).searchParams.get('gameId')?.trim() || ''
+  if (!gameId) return apiError(400, 'GAME_ID_REQUIRED', '缺少 gameId')
+  return apiOk({ cleared: clearGameTurns(gameId) })
 })

@@ -45,6 +45,9 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
       .catch(() => null)
     return body?.gameId === (session.libraryId || session.token)
   }
+  if (path === '/api/game-agent/turn' && request.method === 'DELETE') {
+    return url.searchParams.get('gameId') === (session.libraryId || session.token)
+  }
   const stopMatch = path.match(/^\/api\/game-agent\/turn\/([^/]+)$/)
   if (stopMatch && ['DELETE', 'GET'].includes(request.method)) {
     const turn = getTurn(decodeURIComponent(stopMatch[1]))
