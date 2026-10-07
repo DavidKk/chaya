@@ -39,21 +39,22 @@ type PathGrid = {
   avoid(x: number, y: number): boolean
 }
 type PathResult = { steps: Direction[]; end: { x: number; y: number }; reached: boolean }
-function findPath(grid: PathGrid, start: Point, goal: Point, maxExpand?: number): PathResult | null
+type PathLimits = { maxExpand?: number; budgetMs?: number; now?: () => number }
+function findPath(grid: PathGrid, start: Point, goal: Point, limits?: PathLimits): PathResult | null
 ```
 
 - 存储：`Int32Array g / parent`、`Uint8Array closed`，按 `y * width + x` 索引；开放列表为自写的二叉堆（`Int32Array` 节点 + `Float64Array` 键），键为 `f`，同 `f` 时 `h` 小者优先，路线更贴近目标、少走回头路。
 - 启发：曼哈顿距离，循环地图按环绕取短边，与 `$gameMap.distance` 一致；可采纳，结果最短。
-- 走不到：记录已展开节点中 `h` 最小（同 `h` 取 `g` 小）的节点为 `end`，返回到它的路线，`reached = false`。可达区域全部展开，或展开数达到 `maxExpand`（引擎侧 32768，约 180×180）时判定走不到；每格最多查 4 条边，开销主要在引擎的 `isPassable`。
+- 走不到：记录已展开节点中 `h` 最小（同 `h` 取 `g` 小）的节点为 `end`，返回到它的路线，`reached = false`。可达区域全部展开，或展开数达到 `maxExpand`（引擎侧 32768，约 180×180）、耗时超过 `budgetMs`（引擎侧 6 ms，每展开 256 个节点检查一次，防止插件把 `canPass` 改得很慢时一步卡住整帧）时判定走不到；每格最多查 4 条边，开销主要在引擎的 `isPassable`。
 - 目标格本身被 `avoid` 标记时允许进入；`avoid` 只拦截中途的格。
 - 返回 `null`：`width * height > 1 << 20`（非标准地图）、起点越界、坐标不是整数（像素移动类插件），调用方退回原版。
 
 ## 引擎适配
 
-`smart-path.ts` 导出 `installSmartPath(enabled: () => boolean)`，只安装一次（`globalThis` 标记，热重载不重复包装）：
+`smart-path.ts` 导出 `installSmartPath(enabled: () => boolean, log?)`，只包装一次：`globalThis.__chayaSmartPath_v1__` 保存 `{ enabled, log }`，再次调用（插件热替换）只替换这两个字段，钩子读取的是最新开关，不叠加包装。
 
 - 在 `Game_Player.prototype` 上定义自己的 `findDirectionTo`，原函数（可能来自 `Game_Character` 或其他插件）保存为 `fallback`。
-- 以下情况直接调用 `fallback`：`enabled()` 为 false；`isThrough()` / `isDebugThrough()`；`isInVehicle()`；玩家坐标不是整数；地图尺寸超限。
+- 以下情况直接调用 `fallback`：`enabled()` 为 false；原函数源码不含 `searchLimit`（说明已被寻路 / 像素移动插件替换，按函数缓存判断结果，首次写一条 `warn` 日志）；`isThrough()` / `isDebugThrough()`；`isInVehicle()`；玩家坐标不是整数；地图尺寸超限。
 - 网格：
   - `canStep`：逐边调用 `this.canPass(x, y, d)`，其他插件对 `canPass` / `isMapPassable`（含 alias 到 `Game_CharacterBase` 上的）都生效。引擎的 `isCollidedWithCharacters` 每次遍历全部事件，规划期间在玩家实例上临时替换为「`occupied` 中有该格才调用原判定」，`occupied` 是规划开始时事件与载具坐标的集合；`finally` 中还原。
   - `avoid`：未抹除、有当前页、页内容非空（`list().length > 1`）、`isTriggerIn([1, 2])` 且 `!isNormalPriority()` 的事件坐标。普通优先级的接触事件本身会挡路，由 `canStep` 处理。
@@ -61,7 +62,7 @@ function findPath(grid: PathGrid, start: Point, goal: Point, maxExpand?: number)
   1. 路线能到达目标（`reached`），地图、目标与缓存一致，玩家在预期位置，`this.canPass(x, y, nextDir)` 为真，且下一格（非目标）此刻没有会触发的事件：返回下一步，游标前进。
   2. 否则重新规划（换目标、被 NPC 挡住、被事件推开、接触事件走到路线上都走这里）。走不到目标时路线只通往最近可达格，每步都重新规划，NPC 让开通道后即可继续前往（与原版每步重算一致）。
   3. 新路线的第一步按真实 `canPass` 就走不通时（规划用的占位判断只看事件所在格，插件把事件碰撞扩成多格时会不一致）丢弃路线并调用 `fallback`，避免返回 0 让点击失效。
-- 结果处理：有下一步则返回；路线走完时丢弃缓存（再次点击同一格会重新规划），目标在正前方，或隔着柜台（`$gameMap.isCounter`）在前方第二格时返回朝向目标的方向（保留点击 NPC、隔柜台点店员的对话收尾）；其余返回 0，引擎随后清除目的地。
+- 结果处理：有下一步则返回；路线走完时丢弃缓存（再次点击同一格会重新规划），目标在正前方，或隔着柜台（`$gameMap.isCounter`）在前方第二格时返回朝向目标的方向（保留点击 NPC、隔柜台点店员的对话收尾）；目标走不到时，按目标所在的主方向（|dx| ≥ |dy| 取水平）转身：只在那一边走不通时返回该方向（引擎 `moveStraight` 失败只转身），走得通说明那格是要绕开的触发格，返回 0；其余返回 0，引擎随后清除目的地。
 - `findPath` 返回 `null` 时调用 `fallback`。
 
 `Game_Player.moveByInput`、`triggerTouchAction`、目的地标记等都不改。旅伴 / Agent 的 `player.moveTo` 写的是同一个 `$gameTemp` 目的地，逐格模式直接调用 `findDirectionTo`，因此自动生效。
@@ -89,7 +90,7 @@ function findPath(grid: PathGrid, start: Point, goal: Point, maxExpand?: number)
 ## 测试
 
 - `__tests__/plugins/cheat/runtime/pathfinding.spec.ts`：空地直线；墙迫使绕行（原版 12 步限制会失败的距离）；屋子：屋后可达、门为会触发的格时绕开、点门本身可进入；屋顶走不到时停在最近可达格且不经过门；单向通行；循环地图跨边界走短边；走不到时 `reached = false`；256×256 全图展开可完成。
-- `__tests__/plugins/cheat/runtime/smart-path.spec.ts`：用桩 `$gameMap` / `Game_Player` 验证接管后按路线返回方向、缓存命中不重算、下一步被挡或接触事件走上路线时重算、再次点击同一走不到的格会重算、走不到时通道打开后继续前往、新路线首步走不通时交还原函数、相邻 NPC / 隔柜台时返回朝向、穿墙 / 关闭 / 小数坐标时调用原函数、`canPass` 在实例或基类上被改写时仍生效。
+- `__tests__/plugins/cheat/runtime/smart-path.spec.ts`：用桩 `$gameMap` / `Game_Player` 验证接管后按路线返回方向、缓存命中不重算、下一步被挡或接触事件走上路线时重算、再次点击同一走不到的格会重算、走不到时通道打开后继续前往、新路线首步走不通时交还原函数、相邻 NPC / 隔柜台时返回朝向、走不到时只在挡住的一边转身、穿墙 / 调试穿透 / 载具 / 关闭 / 小数坐标时调用原函数、换地图后重新规划、已抹除 / 无当前页 / 空页事件不绕开、规划期间替换的碰撞判定（含实例自有属性、规划抛错时）原样还原、其他插件接管寻路时让出并只提示一次、重复安装时采用新开关、`canPass` 在实例或基类上被改写时仍生效。`pathfinding.spec.ts` 另含时间预算用尽时停止搜索。
 - `__tests__/components/settings/enhance-settings-view.spec.tsx`：默认开启（含旧设置缺字段）、页面开关写入 `smartPathEnabled`。
 - `__tests__/components/settings/game-edit-assist-pane.spec.tsx`：Web 与局内浮层的「辅助」分区一致（含能力增强）。
 - `__tests__/plugins/cheat/runtime/walk-demo-click-move.spec.ts`：jsdom 中加载整个 walk demo（`data.js / objects.js / game.js`，假定时器驱动帧循环），经 `RunCheats.ensureSmartPathHook()` 安装：无会话状态也已安装；行走途中点击新位置立即改道（开 / 关增强寻路）；绕屋途中再改点；点屋后绕路不进门；按住拖动跟随指针、15 帧后才重新瞄准、拖到屋后绕路、松开后移动指针不影响目的地。

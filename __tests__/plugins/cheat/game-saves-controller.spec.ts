@@ -4,6 +4,7 @@ import { tNow } from '@/lib/i18n'
 import type { GameLinkMessage, GameSavesMessage } from '@/lib/runtime/game-link-protocol'
 import { GameSavesController } from '@/plugins/src/cheat/game-saves/controller'
 import type { GameSavesEnv } from '@/plugins/src/cheat/game-saves/env'
+import { GAME_SAVES_CHANGED_EVENT } from '@/plugins/src/cheat/game-saves/events'
 import { createMemoryBackend, type GameSaveEntryStore, gunzipText } from '@/plugins/src/cheat/game-saves/store'
 
 jest.mock('@/plugins/src/helpers/node/node-require', () => ({ tryNodeFsPath: () => null, tryNodeRequire: () => require }))
@@ -325,4 +326,38 @@ it('reports an unreachable app store as offline and refuses to save there', asyn
   expect((await okSnapshot({ op: 'save', target: 'quick', slot: 0 })).index.entries).toHaveLength(1)
   reachable = true
   expect((await okSnapshot({ op: 'snapshot' })).status.offline).toEqual([])
+})
+
+it('refuses saves while a load is waiting in the queue', async () => {
+  const { okSnapshot, send } = setup()
+  await okSnapshot({ op: 'save', target: 'quick', slot: 0 })
+  const first = send({ op: 'save', target: 'quick', slot: 1 })
+  const load = send({ op: 'load', entryId: 'quick-0' })
+  const after = send({ op: 'save', target: 'auto' })
+  expect(await after).toEqual(expect.objectContaining({ ok: false, error: tNow('saves.error.loading') }))
+  expect((await first).ok).toBe(true)
+  expect((await load).ok).toBe(true)
+  expect((await okSnapshot({ op: 'save', target: 'auto' })).index.entries).toHaveLength(3)
+})
+
+it('refreshes instead of overwriting when another window changed the index first', async () => {
+  const first = setup()
+  const env = (first.controller as unknown as { env: GameSavesEnv }).env
+  const second = new GameSavesController({ ...env })
+  await first.controller.whenReady()
+  await second.whenReady()
+  await first.okSnapshot({ op: 'save', target: 'quick', slot: 1 })
+  const changed = jest.fn()
+  window.addEventListener(GAME_SAVES_CHANGED_EVENT, changed)
+  const reply = await new Promise<Reply>((resolve) =>
+    second.request({ type: 'saves.cmd', reqId: 'w2', gameId: 'g1', op: 'save', target: 'quick', slot: 2 } as GameLinkMessage, (message) => {
+      if (message.type === 'saves.reply') resolve(message)
+    })
+  )
+  expect(reply).toEqual(expect.objectContaining({ ok: false, error: tNow('saves.error.indexConflict') }))
+  expect(second.snapshot().index.entries.map((e) => e.id)).toEqual(['quick-1'])
+  expect(changed).toHaveBeenCalled()
+  window.removeEventListener(GAME_SAVES_CHANGED_EVENT, changed)
+  expect([...first.backend.files.keys()]).toEqual(['quick/quick-1'])
+  expect((await first.okSnapshot({ op: 'save', target: 'quick', slot: 3 })).index.entries).toHaveLength(2)
 })

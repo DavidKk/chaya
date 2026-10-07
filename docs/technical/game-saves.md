@@ -62,7 +62,8 @@ chaya/saves/quick/quick-<N>.jpg        快速存档缩略图
 设置里 `autoStorage`、`quickStorage` 分别决定两个列表放在哪：`game`（默认，上面的游戏目录或 IndexedDB）或 `app`（Chaya 本机）。
 
 - 本机位置：本机服务数据目录下 `game-saves/games/<gameId>/`，结构同游戏目录的 `chaya/saves/`（`index.json`、`auto/`、`quick/`）。gameId 取稳定标识：游戏库 id；没有时用游戏目录（`path:<gameRoot>`），浏览器版用页面地址（`url:<origin+pathname>`）。不用启动令牌，因为它每次启动都会变。不符合 `[A-Za-z0-9_-]{1,96}` 时取 sha256 前 32 位。插件经 `POST /api/game-saves/store`（`requireDisk`）读写，`writeIndex` 缺少 `entries` 数组、条目 id 缺失或与列表不符时返回 400，`readEntry` 内容文件不存在时返回 404（`ENTRY_MISSING`，不带路径）；`index.json` 内容损坏时留一份 `.corrupt-<时间>` 副本并按空索引返回，由插件对账补回条目；`op` 为 `readIndex` / `writeIndex` / `writeEntry` / `readEntry` / `readThumb` / `removeEntry` / `listEntries`，内容以 base64 传输；条目 id 用 `isGameSaveEntryId` 校验并要求与列表一致，防止越出目录。
-- `RoutedSaveStore`：每处各有一份索引，控制器看到的是合并视图（自动、快速各取自当前所在位置）。写索引时每处只替换放在该处的列表，未放在该处的条目原样保留，内容未变的位置不写。切换位置不迁移存档：原处的存档保留，切回即可看到。设置副本始终写在游戏侧。
+- `RoutedSaveStore`：每处各有一份索引，控制器看到的是合并视图（自动、快速各取自当前所在位置）。写索引时每处只替换放在该处的列表，未放在该处的条目原样保留，内容未变的位置不写。
+- 多窗口：`writeIndex(index, expectedRevision)` 先核对已存索引的 `revision`（没有索引按 0），不同就抛 `SaveIndexConflictError` 不写（文件 / 本机服务为同步读-比-写，IndexedDB 在同一个读写事务里比较，本机接口返回 409 `INDEX_CONFLICT`）。`commit` 与启动对账都带上读到的版本；冲突时重读该处索引，控制器刷新列表并推送 `saves.changed`，回复「存档列表已被其他窗口更新，已刷新，请重试」；新条目的内容文件按提交失败删除。切换位置不迁移存档：原处的存档保留，切回即可看到。设置副本始终写在游戏侧。
 - 读取失败（本机服务未运行）的位置不写入，对应列表放进 `status.offline`；在该列表上保存、读档报「无法连接 Chaya 本机服务」，另一列表不受影响。页面 `snapshot`（含「重试」）时重读失败的位置。页面该列表显示离线空态与重试，迷你面板显示失败条。
 - 非本机模式（工具设置返回 404）时「存到 Chaya 本机」选项禁用，与迷你面板开关同一判断。
 
@@ -120,7 +121,7 @@ type GameSavesIndex = { version: 1; revision: number; entries: GameSaveEntry[] }
 
 ### 保存流程
 
-保存、读档、删除、清空进入同一个 Promise 队列串行执行。读档进行中拒绝所有保存（快捷键提示「正在读档」）；同一快速槽或定时存档已在排队时，重复请求被拒绝。`configure`（校验 revision、写设置、切换位置、轮换）与 `snapshot` 触发的位置重读也排进队列，不受读档限制，不会与写入交错；并发的两次 `configure` 因此按顺序校验 revision。页面下发 `configure` 遇到版本过期时取一次快照，本地仍较新则按最新版本重发。
+保存、读档、删除、清空进入同一个 Promise 队列串行执行。读档进行中或排队中拒绝所有保存（快捷键提示「正在读档」；定时存档此时等待而不入队，否则读档后会立刻把刚读入的进度存一份）；同一快速槽或定时存档已在排队时，重复请求被拒绝。`configure`（校验 revision、写设置、切换位置、轮换）与 `snapshot` 触发的位置重读也排进队列，不受读档限制，不会与写入交错；并发的两次 `configure` 因此按顺序校验 revision。页面下发 `configure` 遇到版本过期时取一次快照，本地仍较新则按最新版本重发。
 
 1. 安全检查。页面请求不安全时回复 `code: 'unsafe'` 与原因，网页确认后带 `force: true` 重发；快捷键不安全时只在游戏内提示原因，不写入。
 2. 截缩略图：`SceneManager.snap()` 缩放到宽 160 px，导出 JPEG（质量 0.7），在显示提示之前截取。
@@ -133,7 +134,7 @@ type GameSavesIndex = { version: 1; revision: number; entries: GameSaveEntry[] }
 
 1. 找不到条目：快速槽回复「槽 N 为空」。版本不一致（条目 `versionId` 与当前 `$dataSystem.versionId` 不同）：页面确认后带 `allowVersionMismatch: true`；快捷键直接拒绝并提示「存档来自其他版本，请在页面加载」。
 2. 读取并解压内容。此前任何失败都不会改动游戏。
-3. 若已在游戏中，在内存里生成当前进度，仅用于恢复失败时回滚，不写入列表。
+3. 若已在游戏中，在内存里生成当前进度，仅用于恢复失败时回滚，不写入列表。`restoreSave` 先 `JsonEx.parse` 并要求结果是对象，再替换；替换前记下 `$gameTemp` … `$gamePlayer` 等全局对象的引用，`createGameObjects` / `extractSaveContents` 抛错时放回原引用（标题画面没有可序列化的进度，也靠它保持原状）。
 4. `env.beforeLoad()` 关闭浮层（同时恢复游戏循环），然后恢复：`createGameObjects()` → `extractSaveContents()` → `correctDataErrors?.()` → `versionId` 变化时 `reserveTransfer` + `requestMapReload` → 冻结当前场景（`update` 置空、`isBusy` 返回假，避免旧场景用新对象再跑一帧）→ 停止 ME、SE → `SceneManager.goto(Scene_Map)` → `$gameSystem.onAfterLoad()`。
 5. 恢复抛错：用内存中的进度按同样流程恢复，不改列表，回复错误。备份也恢复失败时写 `fail` 日志，提示从游戏存档或列表重新读取。
 6. 成功：`env.afterLoad()`（`markGameEditNeedReapply()` 重新套用修改锁定，键鼠工具 `stopAll()`），按刚完成自动存档处理（`markAutoSaved`：清零计时、清除操作标记、记录进度指纹），读档不写任何条目，下一次自动存档要等满一个间隔且期间有操作或进度变化。旧版本留下的 `preload` 条目照常显示「读档前备份」标签。
@@ -229,12 +230,12 @@ type GameSavesOp =
 ## 测试
 
 - `__tests__/lib/game/game-saves-rules.spec.ts`：设置默认值与校验、非法条目 id、10 个固定槽、轮换（含保护条目、忽略快速存档）。
-- `__tests__/plugins/cheat/game-saves-controller.spec.ts`：用内存存储和桩环境覆盖手动保存与轮换、不安全时的确认与强制、快捷键不安全提示、读档不写条目且读档后等满间隔并有操作才自动存档、读档失败回滚且不留备份、空槽与过期设置、调小上限立即删除、快捷键在未开启时不生效而页面按钮可用、定时存档（到期、等待原因、1 秒稳定、挂机）、失焦不计时（`counting` 为假）、启动对账（移除缺文件的条目，索引外的内容文件补成最小条目并还原保存时间）、新自动存档提交失败删除内容文件、入队后变得不安全时保留已累计时间、覆盖快速存档失败时保留旧档、本机位置离线时定时存档等待而不重试、读档期间的设置修改排队生效。
+- `__tests__/plugins/cheat/game-saves-controller.spec.ts`：用内存存储和桩环境覆盖手动保存与轮换、不安全时的确认与强制、快捷键不安全提示、读档不写条目且读档后等满间隔并有操作才自动存档、读档失败回滚且不留备份、空槽与过期设置、调小上限立即删除、快捷键在未开启时不生效而页面按钮可用、定时存档（到期、等待原因、1 秒稳定、挂机）、失焦不计时（`counting` 为假）、启动对账（移除缺文件的条目，索引外的内容文件补成最小条目并还原保存时间）、新自动存档提交失败删除内容文件、入队后变得不安全时保留已累计时间、覆盖快速存档失败时保留旧档、本机位置离线时定时存档等待而不重试、读档期间的设置修改排队生效、读档排队时拒绝保存、另一窗口先改了索引时刷新而不覆盖。
 - `__tests__/plugins/cheat/game-saves-web-hooks.spec.tsx`：页面 hook 的连接与存读档、设置写本地并带更高版本下发、连接时下发更新的本地设置、游戏侧版本已变时以游戏侧最新设置为底重放改动（两端同版本同内容）。
 - `__tests__/app/game-saves-store-api.spec.ts`：本机存档读写、越界 id 拒绝、坏 id 返回 400、缺内容返回 404 且不带路径、`index.json` 损坏时按空返回并留副本。
 - `__tests__/lib/game/hotkeys-quick-save.spec.ts`：`⌥3`、`Shift+3` 按键位匹配，字母仅 Alt 时按键位，改按键位前保存的旧绑定仍能匹配，20 项快速存档目标，默认绑定及让位。
 - `__tests__/app/game-saves-settings-api.spec.ts`：通用设置默认值、未连接保存、revision 跳跃与冲突、范围校验。
-- `__tests__/app/game-saves-store-api.spec.ts`：本机存档按游戏分目录读写、拒绝越出目录的 id、拒绝缺少 `entries` 的索引。
+- `__tests__/app/game-saves-store-api.spec.ts`：本机存档按游戏分目录读写、拒绝越出目录的 id、拒绝缺少 `entries` 的索引、基于过期版本的索引写入返回 409。
 - `__tests__/plugins/cheat/game-tool-transport.spec.tsx`：局内通道直接调用存档与键鼠运行时、转发状态与变更事件。
 - `__tests__/components/game-tools/tool-panels.spec.tsx`：面板可见性、关闭按钮的本次隐藏、快捷键切换（可见时关闭、隐藏时清除并开启），工具设置新字段的默认值。
 - 引擎相关行为只能在真实游戏里验证，按下方清单手测。

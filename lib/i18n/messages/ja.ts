@@ -72,6 +72,7 @@ const base = {
     panelUnpin: '固定を解除',
     panelMinimize: '最小化',
     panelExpand: '展開',
+    assistTransportMissing: '補助ツールにはゲーム接続またはゲーム内ランタイムが必要です',
   },
   gate: {
     title: 'ゲーム選択',

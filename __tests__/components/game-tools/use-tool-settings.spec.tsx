@@ -55,13 +55,13 @@ it('runs saves one after another so quick clicks keep each other’s changes', a
   let server: Record<string, unknown> = {}
   const request: GameAgentRequest = (_path, init) => {
     if (init?.method !== 'PUT') return Promise.resolve({ ok: true, json: async () => ({ settings: server }) } as Response)
-    const body = JSON.parse(String(init.body)).settings
+    const body = JSON.parse(String(init.body)).patch
     return new Promise((resolve) =>
       puts.push({
         body,
         done: () => {
-          server = body
-          resolve({ ok: true, json: async () => ({ settings: body }) } as Response)
+          server = { ...server, ...body }
+          resolve({ ok: true, json: async () => ({ settings: server }) } as Response)
         },
       })
     )
@@ -78,7 +78,7 @@ it('runs saves one after another so quick clicks keep each other’s changes', a
     puts[0].done()
     await first
   })
-  expect(puts[1].body).toMatchObject({ miniMapEnabled: true, panelDockHiddenItems: ['closeAll'] })
+  expect(puts[1].body).toEqual({ panelDockHiddenItems: ['closeAll'] })
   await act(async () => {
     puts[1].done()
     await second
@@ -92,7 +92,7 @@ it('drops a read that started before a save finished, so it cannot roll the cach
   let gets = 0
   const request: GameAgentRequest = (_path, init) => {
     if (init?.method === 'PUT') {
-      server = JSON.parse(String(init.body)).settings
+      server = { ...server, ...JSON.parse(String(init.body)).patch }
       return Promise.resolve({ ok: true, json: async () => ({ settings: server }) } as Response)
     }
     if (gets++ === 0) return new Promise((done) => (resolveGet = done))
@@ -108,7 +108,7 @@ it('drops a read that started before a save finished, so it cannot roll the cach
 it('merges into the latest server value so another window’s change is kept', async () => {
   let server: Record<string, unknown> = {}
   const request: GameAgentRequest = async (_path, init) => {
-    if (init?.method === 'PUT') server = JSON.parse(String(init.body)).settings
+    if (init?.method === 'PUT') server = { ...server, ...JSON.parse(String(init.body)).patch }
     return { ok: true, json: async () => ({ settings: server }) } as Response
   }
   await act(async () => root.render(<Probe request={request} />))

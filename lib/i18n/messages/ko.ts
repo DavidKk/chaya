@@ -72,6 +72,7 @@ const base = {
     panelUnpin: '고정 해제',
     panelMinimize: '최소화',
     panelExpand: '펼치기',
+    assistTransportMissing: '보조 도구에는 게임 연결이나 게임 내 런타임이 필요합니다',
   },
   gate: {
     title: '게임 선택',

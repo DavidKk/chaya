@@ -122,9 +122,23 @@ describe('findPath', () => {
 
   it('gives up after the expansion budget and heads for the nearest tile found so far', () => {
     const g = grid(['....................'])
-    const r = findPath(g, { x: 0, y: 0 }, { x: 19, y: 0 }, 5)!
+    const r = findPath(g, { x: 0, y: 0 }, { x: 19, y: 0 }, { maxExpand: 5 })!
     expect(r.reached).toBe(false)
     expect(r.steps).toEqual([6, 6, 6, 6])
+  })
+
+  it('stops at the time budget so a slow canPass cannot freeze a frame', () => {
+    const rows = Array.from({ length: 60 }, () => '.'.repeat(60))
+    rows[57] = '.'.repeat(57) + '###'
+    rows[58] = '.'.repeat(57) + '#..'
+    rows[59] = '.'.repeat(57) + '#..'
+    const base = grid(rows)
+    let steps = 0
+    let clock = 0
+    const g = { ...base, canStep: (x: number, y: number, d: Direction) => (steps++, base.canStep(x, y, d)) }
+    const r = findPath(g, { x: 0, y: 0 }, { x: 59, y: 59 }, { budgetMs: 6, now: () => (clock += 10) })!
+    expect(r.reached).toBe(false)
+    expect(steps).toBeLessThan(4 * 300)
   })
 
   it('returns null for oversized maps, a start outside the map or fractional coordinates', () => {

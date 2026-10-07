@@ -25,7 +25,7 @@ let savesActive = 0
 /** 函数形式在轮到执行时才基于最新设置计算，用于依赖当前值的改动 */
 export type ToolSettingsPatch = Partial<ToolSettings> | ((current: ToolSettings) => Partial<ToolSettings>)
 
-/** 整份 PUT：先取服务端最新值再合并，避免另一个窗口（Web 页 / 游戏内）的旧缓存把对方的改动写回去 */
+/** 保存前先取服务端最新值：函数形式的改动基于它计算，只把变化的字段作为 patch 提交，由服务端合并 */
 async function readLatest(request: GameAgentRequest): Promise<ToolSettings> {
   try {
     const response = await request(API, { cache: 'no-store' })
@@ -95,7 +95,8 @@ export function useToolSettings(request: GameAgentRequest = browserRequest, refr
         try {
           const current = await readLatest(request)
           const next = normalizeToolSettings({ ...current, ...(typeof patch === 'function' ? patch(current) : patch) })
-          const response = await request(API, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: next }) })
+          const changed = Object.fromEntries(Object.entries(next).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(current[key as keyof ToolSettings])))
+          const response = await request(API, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patch: changed }) })
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
           const body = (await response.json()) as { settings?: unknown }
           cacheToolSettings(normalizeToolSettings(body.settings))

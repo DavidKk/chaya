@@ -18,6 +18,7 @@ const KEYS = [
   '$gameMessage',
   '$gamePlayer',
   '$gameSystem',
+  '$gameTemp',
   'DataManager',
   'JsonEx',
   'Graphics',
@@ -79,6 +80,8 @@ describe('checkSaveSafety', () => {
   })
 })
 
+const SAVE_B = JSON.stringify({ system: {}, actors: {}, party: {}, map: {}, player: {} })
+
 describe('captureSave / restoreSave', () => {
   beforeEach(() => {
     Object.assign(g, {
@@ -108,10 +111,10 @@ describe('captureSave / restoreSave', () => {
   })
 
   it('restores like Scene_Load and freezes the old scene', () => {
-    restoreSave('{"state":"B"}')
+    restoreSave(SAVE_B)
     const dm = g.DataManager as Record<string, jest.Mock>
     expect(dm.createGameObjects).toHaveBeenCalled()
-    expect(dm.extractSaveContents).toHaveBeenCalledWith({ state: 'B' })
+    expect(dm.extractSaveContents).toHaveBeenCalledWith(JSON.parse(SAVE_B))
     expect(scene.isBusy()).toBe(false)
     expect((g.SceneManager as { goto: jest.Mock }).goto).toHaveBeenCalledWith(Scene_Map)
     expect((g.$gameSystem as { onAfterLoad: jest.Mock }).onAfterLoad).toHaveBeenCalled()
@@ -120,7 +123,7 @@ describe('captureSave / restoreSave', () => {
 
   it('reloads the map when the save comes from another game version', () => {
     ;(g.$dataSystem as { versionId: number }).versionId = 2
-    restoreSave('{"state":"B"}')
+    restoreSave(SAVE_B)
     const player = g.$gamePlayer as { reserveTransfer: jest.Mock; requestMapReload: jest.Mock }
     expect(player.reserveTransfer).toHaveBeenCalledWith(3, 4, 7, 2, 0)
     expect(player.requestMapReload).toHaveBeenCalled()
@@ -128,8 +131,25 @@ describe('captureSave / restoreSave', () => {
 
   it('rejects invalid content before touching the game', () => {
     expect(() => restoreSave('null')).toThrow()
+    expect(() => restoreSave('[]')).toThrow()
     expect((g.DataManager as Record<string, jest.Mock>).createGameObjects).not.toHaveBeenCalled()
     delete g.DataManager
     expect(() => captureSave()).toThrow()
+  })
+
+  it('puts the previous game objects back when extracting fails, even on the title screen', () => {
+    const party = g.$gameParty
+    const dm = g.DataManager as Record<string, jest.Mock>
+    dm.createGameObjects.mockImplementation(() => {
+      g.$gameParty = { replaced: true }
+      g.$gameTemp = { replaced: true }
+    })
+    dm.extractSaveContents.mockImplementation(() => {
+      throw new Error('broken')
+    })
+    expect(() => restoreSave(SAVE_B)).toThrow('broken')
+    expect(g.$gameParty).toBe(party)
+    expect(g.$gameTemp).toBeUndefined()
+    expect((g.SceneManager as { goto: jest.Mock }).goto).not.toHaveBeenCalled()
   })
 })

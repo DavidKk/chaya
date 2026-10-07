@@ -6,6 +6,7 @@ import {
   type GameSaveStorage,
   parseGameSavesIndex,
   recoverOrphanEntry,
+  SaveIndexConflictError,
   saveStorageOf,
 } from '@/lib/game/game-saves'
 import { tNow } from '@/lib/i18n'
@@ -87,8 +88,25 @@ export class RoutedSaveStore {
       writes.push([place, { version: 1, revision: current.revision + 1, entries: [...kept, ...mine] }])
     }
     for (const [place, index] of writes) {
-      await this.stores[place].writeIndex(index)
+      try {
+        await this.stores[place].writeIndex(index, index.revision - 1)
+      } catch (error) {
+        if (!(error instanceof SaveIndexConflictError)) throw error
+        await this.reload(place)
+        throw new SaveIndexConflictError(tNow('saves.error.indexConflict'))
+      }
       this.indices[place] = index
+    }
+  }
+
+  /** 另一个窗口改过该处索引：换成磁盘上的版本；读失败则标为离线，下次 retry 再读 */
+  private async reload(place: GameSaveStorage): Promise<void> {
+    try {
+      this.indices[place] = parseGameSavesIndex(await this.stores[place].readIndex())
+      this.log.warn(`存档索引已被其他窗口更新，已重新读取（${PLACE_LABEL[place]}）`)
+    } catch (error) {
+      delete this.indices[place]
+      this.log.fail(`重新读取存档索引失败（${PLACE_LABEL[place]}）`, error)
     }
   }
 
@@ -117,7 +135,7 @@ export class RoutedSaveStore {
     if (!missing.size && !recovered.length) return
     const entries = [...index.entries.filter((e) => !missing.has(e.id)), ...recovered]
     const next = { ...index, revision: index.revision + 1, entries }
-    await store.writeIndex(next)
+    await store.writeIndex(next, index.revision)
     this.indices[place] = next
     if (missing.size) this.log.warn(`对账移除 ${missing.size} 个缺少内容文件的存档条目（${PLACE_LABEL[place]}）`)
     if (recovered.length) this.log.warn(`对账找回 ${recovered.length} 个不在索引中的存档文件（${PLACE_LABEL[place]}）`)

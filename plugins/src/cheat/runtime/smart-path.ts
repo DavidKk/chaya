@@ -6,6 +6,8 @@ import { gameMap } from './game-globals'
 import { type Direction, findPath, type PathGrid, stepX, stepY } from './pathfinding'
 
 type FindDirection = (this: any, x: number, y: number) => number
+type Log = { warn: (...args: unknown[]) => void }
+type Hook = { enabled: () => boolean; log?: Log }
 
 type Route = {
   mapId: number
@@ -23,6 +25,7 @@ type Route = {
 const INSTALL_KEY = '__chayaSmartPath_v1__'
 /** 单次规划最多展开的格数，约为 180×180 的地图；超出按走不到处理，避免一步卡顿过久 */
 const MAX_EXPAND = 32768
+const BUDGET_MS = 6
 
 let route: Route | null = null
 
@@ -113,16 +116,28 @@ function faceGoal(player: any, map: any, goalX: number, goalY: number): number {
 }
 
 function plan(player: any, map: any, goalX: number, goalY: number): Route | null {
-  const result = withGrid(player, map, (grid) => findPath(grid, { x: player.x, y: player.y }, { x: goalX, y: goalY }, MAX_EXPAND))
+  const result = withGrid(player, map, (grid) => findPath(grid, { x: player.x, y: player.y }, { x: goalX, y: goalY }, { maxExpand: MAX_EXPAND, budgetMs: BUDGET_MS }))
   if (!result) return null
   return { mapId: Number(map.mapId()), goalX, goalY, steps: result.steps, cursor: 0, reached: result.reached, atX: player.x, atY: player.y }
+}
+
+/**
+ * 走不到的目标：停在最近格后朝目标所在的主方向转身，同引擎原版停下时的朝向。
+ * 只在那一边走不通时返回方向（引擎据此只转身不迈步），走得通说明那格是要绕开的触发格，返回 0
+ */
+function turnToward(player: any, map: any, goalX: number, goalY: number): number {
+  const dx = delta(map, 'X', goalX, player.x)
+  const dy = delta(map, 'Y', goalY, player.y)
+  const d = Math.abs(dx) >= Math.abs(dy) ? directionOf(dx, 0) : directionOf(0, dy)
+  return player.canPass(player.x, player.y, d) ? 0 : d
 }
 
 /** 返回下一步方向；路线走完返回朝向或 0 并丢弃路线；下一步走不通返回 null */
 function followRoute(player: any, map: any, r: Route): number | null {
   if (r.cursor >= r.steps.length) {
     route = null
-    return player.x === r.goalX && player.y === r.goalY ? 0 : faceGoal(player, map, r.goalX, r.goalY)
+    if (player.x === r.goalX && player.y === r.goalY) return 0
+    return faceGoal(player, map, r.goalX, r.goalY) || (r.reached ? 0 : turnToward(player, map, r.goalX, r.goalY))
   }
   const d = r.steps[r.cursor]
   const nx = stepX(player.x, d, map.width(), bool(map, 'isLoopHorizontally'))
@@ -154,19 +169,45 @@ function smartDirection(player: any, goalX: number, goalY: number): number | nul
   return d
 }
 
-/** 只安装一次；enabled 为 false、穿墙、载具、坐标非整数或地图超限时走原函数 */
-export function installSmartPath(enabled: () => boolean) {
+const engineChecked = new WeakMap<FindDirection, boolean>()
+
+/** 引擎原版的 findDirectionTo 按 searchLimit 截断；源码里没有它，说明已被寻路 / 像素移动插件替换，交给那个插件 */
+function isEngineFinder(fn: FindDirection | undefined, log: Log | undefined): boolean {
+  if (typeof fn !== 'function') return false
+  let ok = engineChecked.get(fn)
+  if (ok === undefined) {
+    ok = /searchLimit/.test(Function.prototype.toString.call(fn))
+    engineChecked.set(fn, ok)
+    if (!ok) log?.warn('检测到其他插件已接管点击寻路（findDirectionTo），增强寻路不生效，沿用该插件')
+  }
+  return ok
+}
+
+/**
+ * 只装一次钩子；再次调用（插件热替换）只更新开关与日志，不叠加包装。
+ * enabled 为 false、穿墙、载具、坐标非整数、地图超限或寻路已被其他插件接管时走原函数
+ */
+export function installSmartPath(enabled: () => boolean, log?: Log) {
   const g = globalThis as Record<string, any>
   const proto = g.Game_Player?.prototype
-  if (!proto || g[INSTALL_KEY]) return
-  g[INSTALL_KEY] = true
+  if (!proto) return
+  const installed = g[INSTALL_KEY] as Hook | true | undefined
+  if (installed && installed !== true) {
+    installed.enabled = enabled
+    installed.log = log
+    return
+  }
+  if (installed) return
+  const hook: Hook = { enabled, log }
+  g[INSTALL_KEY] = hook
   const own: FindDirection | null = Object.prototype.hasOwnProperty.call(proto, 'findDirectionTo') ? proto.findDirectionTo : null
+  const original = (): FindDirection | undefined => own ?? Object.getPrototypeOf(proto)?.findDirectionTo
   const fallback = function (this: any, x: number, y: number): number {
-    const fn: FindDirection | undefined = own ?? Object.getPrototypeOf(proto)?.findDirectionTo
+    const fn = original()
     return typeof fn === 'function' ? fn.call(this, x, y) : 0
   }
   proto.findDirectionTo = function (this: any, x: number, y: number) {
-    if (!enabled()) return fallback.call(this, x, y)
+    if (!hook.enabled() || !isEngineFinder(original(), hook.log)) return fallback.call(this, x, y)
     let d: number | null = null
     try {
       d = smartDirection(this, Math.floor(x), Math.floor(y))

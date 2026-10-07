@@ -24,6 +24,6 @@ export const GameToolTransportContext = createContext<GameToolTransport | null>(
 
 export function useGameToolTransport(): GameToolTransport {
   const transport = useContext(GameToolTransportContext)
-  if (!transport) throw new Error(tNow('saves.error.transport'))
+  if (!transport) throw new Error(tNow('common.assistTransportMissing'))
   return transport
 }

@@ -1,6 +1,6 @@
 import { defineApiRoute } from '@/initializer/controller'
-import { apiBadRequest, apiNotFound, apiOk } from '@/initializer/response'
-import { type GameSaveList, type GameSavesAppStoreOp, isGameSaveEntryId } from '@/lib/game/game-saves'
+import { apiBadRequest, apiError, apiNotFound, apiOk } from '@/initializer/response'
+import { type GameSaveList, type GameSavesAppStoreOp, isGameSaveEntryId, SAVE_INDEX_CONFLICT, SaveIndexConflictError } from '@/lib/game/game-saves'
 import { requireDisk } from '@/lib/service-mode'
 import { GameSavesAppStore } from '@/services/game-saves/app-store'
 
@@ -22,7 +22,13 @@ export const POST = defineApiRoute('post:/api/game-saves/store', async ({ reques
       return apiOk({ index: store.readIndex() })
     case 'writeIndex':
       if (!Array.isArray((body.index as { entries?: unknown } | null)?.entries)) break
-      store.writeIndex(body.index)
+      if (body.expectedRevision !== undefined && (typeof body.expectedRevision !== 'number' || !Number.isInteger(body.expectedRevision))) break
+      try {
+        store.writeIndex(body.index, body.expectedRevision)
+      } catch (error) {
+        if (error instanceof SaveIndexConflictError) return apiError(409, SAVE_INDEX_CONFLICT, error.message)
+        throw error
+      }
       return apiOk()
     case 'listEntries':
       if (!isList(body.list)) break

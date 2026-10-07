@@ -33,7 +33,7 @@ it('shows the smart pathfinding switch and saves it to tool settings', async () 
   const puts: unknown[] = []
   const request = jest.fn(async (_path: string, init?: RequestInit) => {
     if (init?.method === 'PUT') {
-      stored = (JSON.parse(String(init.body)) as { settings: typeof stored }).settings
+      stored = { ...stored, ...(JSON.parse(String(init.body)) as { patch: Partial<typeof stored> }).patch }
       puts.push(stored.smartPathEnabled)
     }
     const settings = stored

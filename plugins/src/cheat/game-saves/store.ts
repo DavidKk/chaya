@@ -1,5 +1,5 @@
 import { gameContentRelPath, gameSavesRelDir } from '@/lib/game/content-paths'
-import type { GameSaveList, GameSavesIndex } from '@/lib/game/game-saves'
+import { assertIndexRevision, type GameSaveList, type GameSavesIndex, SaveIndexConflictError } from '@/lib/game/game-saves'
 import { tNow } from '@/lib/i18n'
 
 import { detectGameIdentity } from '../../helpers/game/game-identity'
@@ -8,7 +8,8 @@ import { tryNodeFsPath, tryNodeRequire } from '../../helpers/node/node-require'
 /** 一处存放位置：索引、内容（gzip 后的字节）与缩略图（JPEG data URL） */
 export type GameSaveEntryStore = {
   readIndex(): Promise<unknown>
-  writeIndex(index: GameSavesIndex): Promise<void>
+  /** 给了 `expectedRevision` 时，已存的索引版本不同就抛 `SaveIndexConflictError`，不写入 */
+  writeIndex(index: GameSavesIndex, expectedRevision?: number): Promise<void>
   writeEntry(list: GameSaveList, id: string, data: Uint8Array, thumb: string | null): Promise<void>
   readEntry(list: GameSaveList, id: string): Promise<Uint8Array>
   readThumb(list: GameSaveList, id: string): Promise<string | null>
@@ -101,7 +102,10 @@ function createFsBackend(): GameSavesBackend | null {
     readSettings: async () => readJson(settingsFile),
     writeSettings: async (value) => writeAtomic(settingsFile, JSON.stringify(value, null, 2)),
     readIndex: async () => readJson(indexFile),
-    writeIndex: async (index) => writeAtomic(indexFile, JSON.stringify(index)),
+    async writeIndex(index, expectedRevision) {
+      assertIndexRevision(readJson(indexFile), expectedRevision)
+      writeAtomic(indexFile, JSON.stringify(index))
+    },
     async writeEntry(list, id, data, thumb) {
       writeAtomic(path.join(dir(list), id + CONTENT_EXT), data)
       const thumbFile = path.join(dir(list), id + THUMB_EXT)
@@ -165,7 +169,27 @@ function createIdbBackend(roomId: string): GameSavesBackend | null {
     readSettings: () => run(['meta'], 'readonly', (tx) => tx.objectStore('meta').get('settings')),
     writeSettings: (value) => run(['meta'], 'readwrite', (tx) => void tx.objectStore('meta').put(value, 'settings')),
     readIndex: () => run(['meta'], 'readonly', (tx) => tx.objectStore('meta').get('index')),
-    writeIndex: (index) => run(['meta'], 'readwrite', (tx) => void tx.objectStore('meta').put(index, 'index')),
+    async writeIndex(index, expectedRevision) {
+      let conflict = false
+      try {
+        await run(['meta'], 'readwrite', (tx) => {
+          const meta = tx.objectStore('meta')
+          const req = meta.get('index')
+          req.onsuccess = () => {
+            try {
+              assertIndexRevision(req.result, expectedRevision)
+              meta.put(index, 'index')
+            } catch {
+              conflict = true
+              tx.abort()
+            }
+          }
+        })
+      } catch (error) {
+        if (conflict) throw new SaveIndexConflictError('Save index was changed elsewhere')
+        throw error
+      }
+    },
     writeEntry: (list, id, data, thumb) =>
       run(['entries', 'thumbs'], 'readwrite', (tx) => {
         tx.objectStore('entries').put(data, key(list, id))
@@ -204,7 +228,10 @@ export function createMemoryBackend(): GameSavesBackend & { files: Map<string, U
     readSettings: async () => structuredCloneSafe(meta.get('settings')),
     writeSettings: async (value) => void meta.set('settings', structuredCloneSafe(value)),
     readIndex: async () => structuredCloneSafe(meta.get('index')),
-    writeIndex: async (index) => void meta.set('index', structuredCloneSafe(index)),
+    async writeIndex(index, expectedRevision) {
+      assertIndexRevision(meta.get('index'), expectedRevision)
+      meta.set('index', structuredCloneSafe(index))
+    },
     async writeEntry(list, id, data, thumb) {
       files.set(key(list, id), data)
       if (thumb) thumbs.set(key(list, id), thumb)

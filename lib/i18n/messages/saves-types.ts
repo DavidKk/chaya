@@ -139,7 +139,6 @@ export type SavesMessages = {
     maxCountRange: string
     connectFirst: string
     timeout: string
-    transport: string
     notReadySave: string
     notReadyLoad: string
     invalidContent: string
@@ -162,6 +161,7 @@ export type SavesMessages = {
     storageWrite: string
     storageQuota: string
     contentMissing: string
+    indexConflict: string
     runtimeMissing: string
     assistRuntimeMissing: string
     appRejected: string

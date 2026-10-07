@@ -76,7 +76,7 @@ export type GameSavesOp =
 /** 存到 Chaya 本机时，插件经 `POST /api/game-saves/store` 读写；内容为 gzip 字节的 base64 */
 export type GameSavesAppStoreOp = { gameId: string } & (
   | { op: 'readIndex' }
-  | { op: 'writeIndex'; index: GameSavesIndex }
+  | { op: 'writeIndex'; index: GameSavesIndex; expectedRevision?: number }
   | { op: 'writeEntry'; list: GameSaveList; id: string; data: string; thumb: string | null }
   | { op: 'readEntry' | 'readThumb' | 'removeEntry'; list: GameSaveList; id: string }
   | { op: 'listEntries'; list: GameSaveList }

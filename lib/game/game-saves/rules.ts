@@ -179,3 +179,15 @@ export const GAME_SAVES_WARN_BYTES = 1024 ** 3
 export function saveWaitReasonKey(reason: SaveWaitReason) {
   return `saves.wait.${reason}` as const
 }
+
+export const SAVE_INDEX_CONFLICT = 'INDEX_CONFLICT'
+
+/** 写索引时磁盘上的版本已不是读到的那份：另一个窗口 / 进程先写了 */
+export class SaveIndexConflictError extends Error {
+  readonly code = SAVE_INDEX_CONFLICT
+}
+
+/** `expectedRevision` 省略时不核对；磁盘上没有索引按版本 0 算 */
+export function assertIndexRevision(current: unknown, expectedRevision: number | undefined, message = 'Save index was changed elsewhere'): void {
+  if (expectedRevision !== undefined && parseGameSavesIndex(current).revision !== expectedRevision) throw new SaveIndexConflictError(message)
+}

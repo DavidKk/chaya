@@ -19,7 +19,7 @@ function serverRequest(status = 200): GameAgentRequest {
   return async (_path, init) => {
     if (status !== 200) return { ok: false, status } as Response
     if (init?.method === 'PUT') {
-      saved = JSON.parse(String(init.body)).settings
+      saved = { ...saved, ...JSON.parse(String(init.body)).patch }
       puts.push(saved)
     }
     return { ok: true, json: async () => ({ settings: saved }) } as Response

@@ -2,6 +2,7 @@ import type { AboutMessages } from '@/lib/i18n/messages/about-types'
 import type { CreditsMessages } from '@/lib/i18n/messages/credits-types'
 import type { DataMessages } from '@/lib/i18n/messages/data-types'
 import type { DownloadsMessages } from '@/lib/i18n/messages/downloads-types'
+import type { EditMessages } from '@/lib/i18n/messages/edit-types'
 import type { EventsMessages } from '@/lib/i18n/messages/events-types'
 import type { IntegrationMessages } from '@/lib/i18n/messages/integration-types'
 import type { LegalMessages } from '@/lib/i18n/messages/legal-types'
@@ -68,6 +69,7 @@ export type MessageTree = {
     panelUnpin: string
     panelMinimize: string
     panelExpand: string
+    assistTransportMissing: string
   }
   gate: {
     title: string
@@ -446,270 +448,7 @@ export type MessageTree = {
     loadActivity: string
     loadCache: string
   }
-  edit: {
-    mainNav: string
-    tabEdit: string
-    tabTranslate: string
-    tabLogs: string
-    category: string
-    categoryMenu: string
-    search: string
-    searchPh: string
-    searchNameId: string
-    run: string
-    bag: string
-    item: string
-    weapon: string
-    armor: string
-    var: string
-    sw: string
-    actor: string
-    hotkeys: string
-    actorPane: string
-    states: string
-    skills: string
-    panelAria: string
-    panelDesc: string
-    filtersAria: string
-    onlyOwned: string
-    onlyNamed: string
-    resetHotkeys: string
-    resetHotkeysTitle: string
-    resetHotkeysDesc: string
-    resetHotkeysConfirm: string
-    runSettingsAria: string
-    hotkeysAria: string
-    hotkeysDesc: string
-    editTableAria: string
-    catalogFailTitle: string
-    catalogFailHint: string
-    noMatch: string
-    noData: string
-    noMatchMsg: string
-    noDataMsg: string
-    noMatchHint: string
-    colStatus: string
-    colValue: string
-    clearZero: string
-    clearZeroTip: string
-    alreadyZero: string
-    countEdit: string
-    countOf: string
-    countInc: string
-    countMaxTip: string
-    countAtMax: string
-    countAtMaxIs: string
-    varEdit: string
-    varOf: string
-    switchOf: string
-    toggleOn: string
-    toggleOff: string
-    loadPanel: string
-    needSave: string
-    readFailed: string
-    initFailed: string
-    loadRun: string
-    loadHotkeys: string
-    loadActor: string
-    loadLogs: string
-    loadLogsList: string
-    loadTrans: string
-    loadCatalog: string
-    loadEdit: string
-    closeEsc: string
-    unnamed: string
-    unnamedId: string
-    actorFallback: string
-    varFallback: string
-    swFallback: string
-    classFallback: string
-    classOpt: string
-    actorEditAria: string
-    actorListAria: string
-    actorFormAria: string
-    actorPickTitle: string
-    actorPickMsg: string
-    actorNoMatchTitle: string
-    actorNoMatchMsg: string
-    actorNoMatchHint: string
-    searchEllipsis: string
-    searchSkills: string
-    searchStates: string
-    owned: string
-    name: string
-    nickname: string
-    description: string
-    class: string
-    level: string
-    exp: string
-    noMatchItems: string
-    noMatchItemsMsg: string
-    skillsList: string
-    statesList: string
-    skillsTable: string
-    statesTable: string
-    skillOf: string
-    stateOf: string
-    currentOf: string
-    lockOn: string
-    lockOff: string
-    configAria: string
-    toolsAria: string
-    gold: string
-    goldDesc: string
-    goldLock: string
-    goldUnlock: string
-    goldLockTip: string
-    goldUnlockTip: string
-    gameSpeed: string
-    gameSpeedDesc: string
-    moveRate: string
-    moveRateDesc: string
-    expRate: string
-    expRateDesc: string
-    rateSuffix: string
-    sceneTitle: string
-    sceneDesc: string
-    fixTitle: string
-    fixDesc: string
-    battleTitle: string
-    battleDesc: string
-    previewDisabled: string
-    battlePreviewDisabled: string
-    groupCharacter: string
-    groupSystem: string
-    groupOther: string
-    groupCleanup: string
-    groupJump: string
-    groupEndBattle: string
-    groupEnemy: string
-    groupParty: string
-    groupPanel: string
-    groupFlags: string
-    groupScene: string
-    groupFix: string
-    groupQuickSave: string
-    hkQuickSave: string
-    hkQuickSaveDesc: string
-    hkQuickLoad: string
-    hkQuickLoadDesc: string
-    groupMiniPanels: string
-    hkPanelMiniMap: string
-    hkPanelMiniMapDesc: string
-    hkPanelCompanion: string
-    hkPanelCompanionDesc: string
-    hkPanelAutoSaves: string
-    hkPanelAutoSavesDesc: string
-    hkPanelQuickSaves: string
-    hkPanelQuickSavesDesc: string
-    hkPanelDock: string
-    hkPanelDockDesc: string
-    groupBattle: string
-    flagFullscreen: string
-    flagFullscreenDesc: string
-    flagAlwaysDash: string
-    flagAlwaysDashDesc: string
-    flagGod: string
-    flagGodDesc: string
-    flagThrough: string
-    flagThroughDesc: string
-    flagAutotalk: string
-    flagAutotalkDesc: string
-    flagEncounter: string
-    flagEncounterDesc: string
-    flagMenu: string
-    flagMenuDesc: string
-    flagSave: string
-    flagSaveDesc: string
-    flagClickMove: string
-    flagClickMoveDesc: string
-    flagSmartPath: string
-    flagSmartPathDesc: string
-    enhancePage: string
-    flagFollowers: string
-    flagFollowersDesc: string
-    flagClickTeleport: string
-    flagClickTeleportDesc: string
-    flagResourceSkip: string
-    flagResourceSkipDesc: string
-    actStatus: string
-    actEquip: string
-    actSkill: string
-    actItem: string
-    actMenu: string
-    actLoad: string
-    actSave: string
-    actOptions: string
-    actDebug: string
-    actPop: string
-    actClearPictures: string
-    actClearEvent: string
-    actClearMove: string
-    actCloseWindows: string
-    actTitle: string
-    actMap: string
-    actFadeIn: string
-    actResume: string
-    actVictory: string
-    actEscape: string
-    actDefeat: string
-    actAbort: string
-    actEnemyHp1: string
-    actEnemyHpMax: string
-    actPartyHeal: string
-    actPartyHp1: string
-    actPartyHp0: string
-    actVictoryLong: string
-    actEscapeLong: string
-    actDefeatLong: string
-    actAbortLong: string
-    actEnemyHp1Long: string
-    actEnemyHpMaxLong: string
-    actPartyHealLong: string
-    actPartyHp1Long: string
-    actPartyHp0Long: string
-    actStatusDesc: string
-    actEquipDesc: string
-    actSkillDesc: string
-    actItemDesc: string
-    actMenuDesc: string
-    actLoadDesc: string
-    actSaveDesc: string
-    actOptionsDesc: string
-    actDebugDesc: string
-    actPopDesc: string
-    actClearPicturesDesc: string
-    actClearEventDesc: string
-    actClearMoveDesc: string
-    actCloseWindowsDesc: string
-    actTitleDesc: string
-    actMapDesc: string
-    actFadeInDesc: string
-    actResumeDesc: string
-    actVictoryDesc: string
-    actEscapeDesc: string
-    actDefeatDesc: string
-    actAbortDesc: string
-    actEnemyHp1Desc: string
-    actEnemyHpMaxDesc: string
-    actPartyHealDesc: string
-    actPartyHp1Desc: string
-    actPartyHp0Desc: string
-    hkOpenPanel: string
-    hkOpenPanelDesc: string
-    hkOpenConsole: string
-    hkOpenConsoleDesc: string
-    hkScopeGame: string
-    hkScopeGlobal: string
-    hkClearGame: string
-    hkClearGlobal: string
-    hkChordAria: string
-    hkEnable: string
-    hkDisable: string
-    hkEnableAll: string
-    hkDisableAll: string
-    hkPanelAlwaysOn: string
-  }
+  edit: EditMessages
   logs: {
     region: string
     regionDesc: string
@@ -759,6 +498,15 @@ export type MessageTree = {
     observing: string
     verifying: string
     failed: string
+  }
+  tools: {
+    minimapDesc: string
+    minimapPage: string
+    companionDesc: string
+    companionPage: string
+    character: string
+    turnOn: string
+    turnOff: string
   }
   panels: {
     subtitle: string

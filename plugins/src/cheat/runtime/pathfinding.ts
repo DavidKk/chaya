@@ -119,8 +119,20 @@ class MinHeap {
   }
 }
 
-/** 地图超过 MAX_PATH_CELLS、起点越界或不是整数时返回 null；展开 maxExpand 个节点仍未到达时按走不到处理 */
-export function findPath(grid: PathGrid, start: Point, goal: Point, maxExpand = Infinity): PathResult | null {
+export type PathLimits = {
+  maxExpand?: number
+  /** 墙钟预算（毫秒），每展开 256 个节点检查一次；canPass 被插件改得很慢时避免一步卡住整帧 */
+  budgetMs?: number
+  now?: () => number
+}
+
+/** 地图超过 MAX_PATH_CELLS、起点越界或不是整数时返回 null；展开数或时间用完仍未到达时按走不到处理 */
+export function findPath(
+  grid: PathGrid,
+  start: Point,
+  goal: Point,
+  { maxExpand = Infinity, budgetMs = Infinity, now = () => performance.now() }: PathLimits = {}
+): PathResult | null {
   const { width, height, loopX, loopY } = grid
   const cells = width * height
   if (!(width > 0 && height > 0) || cells > MAX_PATH_CELLS) return null
@@ -143,8 +155,10 @@ export function findPath(grid: PathGrid, start: Point, goal: Point, maxExpand = 
   let bestH = heuristic(start.x, start.y)
   open.push(startIndex, bestH, bestH)
 
+  const deadline = Number.isFinite(budgetMs) ? now() + budgetMs : Infinity
   let expanded = 0
   while (open.size > 0 && expanded < maxExpand) {
+    if ((expanded & 255) === 255 && now() > deadline) break
     const current = open.pop()
     if (closed[current]) continue
     closed[current] = 1

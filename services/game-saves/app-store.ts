@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { type GameSaveList, type GameSavesIndex, isGameSaveEntryId, parseGameSavesIndex } from '@/lib/game/game-saves'
+import { assertIndexRevision, type GameSaveList, type GameSavesIndex, isGameSaveEntryId, parseGameSavesIndex } from '@/lib/game/game-saves'
 import { toolkitDataDir } from '@/lib/game/toolkit-data'
 
 const CONTENT_EXT = '.rpgsave.gz'
@@ -52,7 +52,9 @@ export class GameSavesAppStore {
     }
   }
 
-  writeIndex(index: GameSavesIndex): void {
+  /** 同步读-比-写：Node 单线程内不会与另一次请求交错 */
+  writeIndex(index: GameSavesIndex, expectedRevision?: number): void {
+    assertIndexRevision(this.readIndex(), expectedRevision)
     this.writeAtomic(path.join(this.root, 'index.json'), JSON.stringify(parseGameSavesIndex(index)))
   }
 

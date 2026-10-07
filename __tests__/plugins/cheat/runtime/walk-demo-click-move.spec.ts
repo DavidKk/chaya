@@ -55,7 +55,7 @@ function walkThenRetarget() {
 
 describe('walk demo click-to-move', () => {
   it('installs the smart path hook without any session state', () => {
-    expect(g.__chayaSmartPath_v1__).toBe(true)
+    expect(g.__chayaSmartPath_v1__).toMatchObject({ enabled: expect.any(Function) })
   })
 
   it('retargets to a new click while walking (smart path on)', () => {
@@ -129,6 +129,18 @@ describe('walk demo press-and-drag', () => {
     drag(1, 10)
     frames(12 * 30)
     expect(at()).toEqual({ x: 15, y: 9 })
+  })
+})
+
+describe('walk demo dialogue', () => {
+  it('uses the tap that closes a message only to close it, without walking there', () => {
+    g.$gamePlayer.locate(8, 9)
+    g.$gameMessage.add('你好')
+    frames(1)
+    tap(15, 9)
+    frames(60)
+    expect(g.$gameMessage.isBusy()).toBe(false)
+    expect(at()).toEqual({ x: 8, y: 9 })
   })
 })
 

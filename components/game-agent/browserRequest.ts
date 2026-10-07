@@ -227,8 +227,8 @@ export function createBrowserGameAgentRequest(input: { connected: boolean }, run
     if (url.pathname === '/api/integration/game-agent/tools') {
       if (method === 'GET') return response({ ok: true, settings: readCachedToolSettings() })
       if (method === 'PUT') {
-        const body = JSON.parse(String(init?.body || '{}')) as { settings?: unknown }
-        const next = normalizeToolSettings(body.settings)
+        const body = JSON.parse(String(init?.body || '{}')) as { settings?: unknown; patch?: Record<string, unknown> }
+        const next = normalizeToolSettings(body.patch ? { ...readCachedToolSettings(), ...body.patch } : body.settings)
         cacheToolSettings(next)
         return response({ ok: true, settings: next })
       }

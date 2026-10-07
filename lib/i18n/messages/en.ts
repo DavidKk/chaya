@@ -72,6 +72,7 @@ const commonEn = {
     panelUnpin: 'Unpin panel',
     panelMinimize: 'Minimize',
     panelExpand: 'Expand',
+    assistTransportMissing: 'Assist tools need a game connection or the in-game runtime',
   },
   gate: {
     title: 'Choose game',

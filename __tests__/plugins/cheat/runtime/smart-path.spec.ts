@@ -1,4 +1,4 @@
-type Ev = { x: number; y: number; trigger: number; normal: boolean; _erased?: boolean }
+type Ev = { x: number; y: number; trigger: number; normal: boolean; _erased?: boolean; noPage?: boolean; emptyList?: boolean }
 
 const ROWS = [
   '.........', //
@@ -19,10 +19,10 @@ const original = jest.fn(() => 8)
 function makeEvent(e: Ev) {
   return {
     ...e,
-    page: () => ({}),
+    page: () => (e.noPage ? null : {}),
     isTriggerIn: (list: number[]) => list.includes(e.trigger),
     isNormalPriority: () => e.normal,
-    list: () => [{ code: 201 }, { code: 0 }],
+    list: () => (e.emptyList ? [{ code: 0 }] : [{ code: 201 }, { code: 0 }]),
   }
 }
 
@@ -49,8 +49,11 @@ class Game_CharacterBase {
   }
 }
 class Game_Character extends Game_CharacterBase {
+  searchLimit() {
+    return 12
+  }
   findDirectionTo(x: number, y: number): number {
-    return original(x, y)
+    return this.searchLimit() > 0 ? original(x, y) : 0
   }
 }
 class Game_Player extends Game_Character {
@@ -59,7 +62,7 @@ class Game_Player extends Game_Character {
   }
 }
 
-const map = {
+const map: Record<string, any> = {
   width: () => ROWS[0].length,
   height: () => ROWS.length,
   mapId: () => 1,
@@ -69,14 +72,17 @@ const map = {
   deltaY: (a: number, b: number) => a - b,
 }
 
+let installSmartPath: (enabled: () => boolean, log?: { warn: (...args: unknown[]) => void }) => void
+const warn = jest.fn()
+
 function install() {
   const g = globalThis as Record<string, unknown>
   delete g.__chayaSmartPath_v1__
   Object.assign(g, { Game_CharacterBase, Game_Character, Game_Player, $gameMap: map })
   delete (Game_Player.prototype as unknown as Record<string, unknown>).findDirectionTo
   jest.isolateModules(() => {
-    const { installSmartPath } = jest.requireActual('@/plugins/src/cheat/runtime/smart-path')
-    installSmartPath(() => enabled)
+    installSmartPath = jest.requireActual('@/plugins/src/cheat/runtime/smart-path').installSmartPath
+    installSmartPath(() => enabled, { warn })
   })
   const player = new Game_Player()
   player.x = 4
@@ -106,6 +112,8 @@ describe('installSmartPath', () => {
     events = [{ ...DOOR, trigger: 1, normal: false }]
     enabled = true
     original.mockClear()
+    warn.mockClear()
+    map.mapId = () => 1
   })
 
   afterAll(() => {
@@ -202,9 +210,11 @@ describe('installSmartPath', () => {
   it('replans a repeated click on an unreachable tile once the way opens', () => {
     events.push({ x: 4, y: 4, trigger: 0, normal: true }, { x: 3, y: 5, trigger: 0, normal: true }, { x: 5, y: 5, trigger: 0, normal: true })
     const player = install()
-    expect(player.findDirectionTo(0, 5)).toBe(0)
+    expect(player.findDirectionTo(0, 5)).toBe(4)
+    expect(player.canPass(4, 5, 4)).toBe(false)
     events = events.filter((e) => !(e.x === 3 && e.y === 5))
     expect(player.findDirectionTo(0, 5)).toBe(4)
+    expect(player.canPass(4, 5, 4)).toBe(true)
   })
 
   it('keeps replanning toward an unreachable goal so it continues once an NPC clears the way', () => {
@@ -267,5 +277,83 @@ describe('installSmartPath', () => {
     const { visited } = travel(player, { x: 0, y: 5 })
     expect(visited).not.toContainEqual({ x: 3, y: 5 })
     expect({ x: player.x, y: player.y }).toEqual({ x: 0, y: 5 })
+  })
+
+  it('turns toward an unreachable goal from the nearest tile only when that side is blocked', () => {
+    const player = install()
+    const { visited, last } = travel(player, { x: 3, y: 2 })
+    expect(visited).not.toContainEqual(DOOR)
+    expect(last).not.toBe(0)
+    expect(player.canPass(player.x, player.y, last)).toBe(false)
+  })
+
+  it('does not avoid erased events, events without a page, or empty event pages', () => {
+    for (const extra of [{ _erased: true }, { noPage: true }, { emptyList: true }]) {
+      events = [{ x: 5, y: 5, trigger: 1, normal: false, ...extra }]
+      const player = install()
+      expect(player.findDirectionTo(8, 5)).toBe(6)
+    }
+  })
+
+  it('restores the collision check it shadows while planning, even when planning throws', () => {
+    const player = install()
+    const own = jest.fn(() => false)
+    const target = player as unknown as Record<string, unknown>
+    target.isCollidedWithCharacters = own
+    player.findDirectionTo(8, 5)
+    expect(target.isCollidedWithCharacters).toBe(own)
+    delete target.isCollidedWithCharacters
+    target.canPass = () => {
+      throw new Error('plugin bug')
+    }
+    expect(player.findDirectionTo(0, 0)).toBe(8)
+    expect(original).toHaveBeenCalledTimes(1)
+    expect(Object.prototype.hasOwnProperty.call(player, 'isCollidedWithCharacters')).toBe(false)
+  })
+
+  it('hands vehicles and debug walk-through back to the original', () => {
+    const player = install() as Game_Player & { isDebugThrough?: () => boolean }
+    player.isInVehicle = () => true
+    expect(player.findDirectionTo(8, 5)).toBe(8)
+    player.isInVehicle = () => false
+    player.isDebugThrough = () => true
+    expect(player.findDirectionTo(8, 5)).toBe(8)
+    expect(original).toHaveBeenCalledTimes(2)
+  })
+
+  it('plans again after the map changes instead of reusing the old route', () => {
+    const player = install()
+    move(player, player.findDirectionTo(4, 0))
+    const passable = jest.spyOn(Game_CharacterBase.prototype, 'isMapPassable')
+    map.mapId = () => 2
+    player.findDirectionTo(4, 0)
+    expect(passable.mock.calls.length).toBeGreaterThan(1)
+    passable.mockRestore()
+  })
+
+  it('leaves click movement to another pathfinding plugin and says so once', () => {
+    const player = install()
+    const engine = Game_Character.prototype.findDirectionTo
+    Game_Character.prototype.findDirectionTo = function () {
+      return 4
+    }
+    try {
+      expect(player.findDirectionTo(8, 5)).toBe(4)
+      expect(player.findDirectionTo(8, 5)).toBe(4)
+      expect(warn).toHaveBeenCalledTimes(1)
+    } finally {
+      Game_Character.prototype.findDirectionTo = engine
+    }
+  })
+
+  it('takes the new switch on reinstall instead of keeping the old closure', () => {
+    const player = install()
+    installSmartPath(() => false, { warn })
+    expect(player.findDirectionTo(4, 0)).toBe(8)
+    expect(original).toHaveBeenCalledTimes(1)
+    installSmartPath(() => true, { warn })
+    original.mockClear()
+    travel(player, { x: 4, y: 0 })
+    expect(original).not.toHaveBeenCalled()
   })
 })

@@ -70,3 +70,11 @@ test('refuses an index without an entries list instead of wiping the saved one',
   expect((await post({ op: 'writeIndex', index: { version: 1 } })).status).toBe(400)
   expect((await post({ op: 'readIndex' })).json.index).toEqual({ version: 1, revision: 3, entries: [] })
 })
+
+test('refuses an index write based on a revision another window already replaced', async () => {
+  expect((await post({ op: 'writeIndex', index: { version: 1, revision: 1, entries: [] }, expectedRevision: 0 })).status).toBe(200)
+  const stale = await post({ op: 'writeIndex', index: { version: 1, revision: 1, entries: [] }, expectedRevision: 0 })
+  expect(stale.status).toBe(409)
+  expect(stale.json.error.code).toBe('INDEX_CONFLICT')
+  expect((await post({ op: 'writeIndex', index: { version: 1, revision: 2, entries: [] }, expectedRevision: 1 })).status).toBe(200)
+})

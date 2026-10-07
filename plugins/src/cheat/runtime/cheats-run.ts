@@ -4,6 +4,7 @@
 
 import { readCachedToolSettings, TOOL_SETTINGS_EVENT, TOOL_SETTINGS_STORAGE_KEY, type ToolSettings } from '@/lib/game-agent/tool-settings'
 
+import { createLogger } from '../../helpers/net/logger'
 import { gameMap, gameMessage, gamePlayer, gameScreen, gameTroop } from './game-globals'
 import { installSmartPath } from './smart-path'
 
@@ -89,7 +90,7 @@ function smartPathEnabled() {
 }
 
 function ensureSmartPathHook() {
-  installSmartPath(smartPathEnabled)
+  installSmartPath(smartPathEnabled, createLogger('smart-path'))
 }
 
 function ensureExpHook() {

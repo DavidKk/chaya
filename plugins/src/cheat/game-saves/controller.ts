@@ -16,6 +16,7 @@ import {
   parseGameSavesSettings,
   planRotation,
   quickEntryId,
+  SaveIndexConflictError,
   type SaveWaitReason,
   saveWaitReasonKey,
   validateGameSavesSettings,
@@ -63,6 +64,7 @@ export class GameSavesController {
   private replies = new Map<string, Promise<Reply>>()
   private queue: Promise<unknown> = Promise.resolve()
   private pending = new Set<string>()
+  private loadsQueued = 0
   private busy: GameSavesStatus['busy'] = null
   private timer: ReturnType<typeof setInterval> | null = null
   private stopActivity: (() => void) | null = null
@@ -231,16 +233,22 @@ export class GameSavesController {
   }
 
   /**
-   * 串行执行；读档进行中拒绝保存；同一 key 已在排队时拒绝重复请求。
+   * 串行执行；读档进行中或排队中拒绝保存（否则读档后会立刻把刚读入的进度存一份）；同一 key 已在排队时拒绝重复请求。
    * `maintain`（重读位置、改设置）不受读档限制，排在读档之后执行，避免与写入交错。
    */
   private enqueue<T>(key: string | null, kind: 'save' | 'load' | 'maintain', task: () => Promise<T>): Promise<T> {
-    if (kind === 'save' && this.busy?.op === 'load') return Promise.reject(new GameSavesError(tNow('saves.error.loading'), 'busy'))
+    if (kind === 'save' && (this.busy?.op === 'load' || this.loadsQueued > 0)) return Promise.reject(new GameSavesError(tNow('saves.error.loading'), 'busy'))
     if (key && this.pending.has(key)) return Promise.reject(new GameSavesError(tNow('saves.error.savingSlot'), 'busy'))
     if (key) this.pending.add(key)
+    if (kind === 'load') this.loadsQueued++
     const run = this.queue.then(task)
     this.queue = run.catch(() => {})
-    void run.catch(() => {}).finally(() => key && this.pending.delete(key))
+    void run
+      .catch(() => {})
+      .finally(() => {
+        if (key) this.pending.delete(key)
+        if (kind === 'load') this.loadsQueued--
+      })
     return run
   }
 
@@ -278,7 +286,15 @@ export class GameSavesController {
   }
 
   private async commit(entries: GameSaveEntry[]): Promise<void> {
-    await this.store.commit(entries)
+    try {
+      await this.store.commit(entries)
+    } catch (error) {
+      if (error instanceof SaveIndexConflictError) {
+        this.refreshIndex()
+        this.notifyChanged()
+      }
+      throw error
+    }
     this.refreshIndex()
   }
 
@@ -478,7 +494,7 @@ export class GameSavesController {
     }
     if (delta > 0 && delta <= MAX_TICK_FRAMES) this.elapsedFrames += delta
     if (this.elapsedFrames < this.settings.intervalMin * 60 * FPS) return this.setWaiting(null)
-    if (this.busy || this.pending.size) return this.setWaiting('busy')
+    if (this.busy || this.pending.size || this.loadsQueued) return this.setWaiting('busy')
     if (!this.activity && this.env.fingerprint() === this.fingerprintAtSave) {
       this.stableTicks = 0
       return this.setWaiting('idle')

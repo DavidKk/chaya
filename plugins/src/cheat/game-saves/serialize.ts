@@ -79,6 +79,23 @@ export function snapThumbnail(width = 160): string | null {
   }
 }
 
+// createGameObjects / extractSaveContents 只是给这些全局重新赋值；替换失败时放回原引用即可回滚（标题画面没有可序列化的旧进度）
+const GAME_OBJECTS = [
+  '$gameTemp',
+  '$gameSystem',
+  '$gameScreen',
+  '$gameTimer',
+  '$gameMessage',
+  '$gameSwitches',
+  '$gameVariables',
+  '$gameSelfSwitches',
+  '$gameActors',
+  '$gameParty',
+  '$gameTroop',
+  '$gameMap',
+  '$gamePlayer',
+] as const
+
 /**
  * 用存档 JSON 替换当前进度并切回地图，流程同 `Scene_Load`。
  * 切换前冻结当前场景：新对象已替换，旧场景再更新一帧可能访问不匹配的地图数据。
@@ -88,10 +105,16 @@ export function restoreSave(json: string): void {
   const dm = g.DataManager
   if (!dm?.createGameObjects || !dm.extractSaveContents || !g.JsonEx || !g.SceneManager?.goto || !g.Scene_Map) throw new Error(tNow('saves.error.notReadyLoad'))
   const contents = g.JsonEx.parse(json)
-  if (!contents || typeof contents !== 'object') throw new Error(tNow('saves.error.invalidContent'))
-  dm.createGameObjects()
-  dm.extractSaveContents(contents)
-  dm.correctDataErrors?.()
+  if (!contents || typeof contents !== 'object' || Array.isArray(contents)) throw new Error(tNow('saves.error.invalidContent'))
+  const before = GAME_OBJECTS.map((key) => [key, (globalThis as Record<string, unknown>)[key]] as const)
+  try {
+    dm.createGameObjects()
+    dm.extractSaveContents(contents)
+    dm.correctDataErrors?.()
+  } catch (error) {
+    for (const [key, value] of before) (globalThis as Record<string, unknown>)[key] = value
+    throw error
+  }
   const system = g.$gameSystem
   const player = g.$gamePlayer
   if (system?.versionId && player?.reserveTransfer && system.versionId() !== currentVersionId()) {

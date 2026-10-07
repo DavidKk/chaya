@@ -59,6 +59,7 @@ export const commonZh = {
     panelUnpin: '取消固定不透明',
     panelMinimize: '最小化',
     panelExpand: '展开',
+    assistTransportMissing: '辅助工具需要游戏连接或局内运行时',
   },
   gate: {
     title: '选择游戏',
