@@ -117,9 +117,6 @@ declare global {
     _chayaTransCount?: number
     /** ChayaEdit IIFE HMR: tear down React root + hotkeys; returns whether panel was open */
     __chayaGameEditDispose?: { dispose: () => boolean }
-    TranslationManager?: {
-      translateIfNeed: (value: string, cb: (t: string) => void) => void
-    }
   }
 
   /* —— RPG Maker database / scenes —— */

@@ -151,17 +151,9 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
       )
     )
   }
-  let active = true
-  const manager = {
-    translateIfNeed(value: string, cb: (t: string) => void) {
-      cb(active ? translate(value) : value)
-    },
-  }
-  if (window.TranslationManager === undefined) window.TranslationManager = manager
+  // 不要注册 window.TranslationManager 等第三方同名全局：游戏插件见到它会当成完整翻译插件调用其它方法而报错
   return () => {
-    active = false
     for (const dispose of remove.reverse()) dispose()
     if (typeof $gameMessage !== 'undefined') delete ($gameMessage as Record<symbol, string[]>)[ORIGINAL_MESSAGE_LINES]
-    if (window.TranslationManager === manager) delete window.TranslationManager
   }
 }

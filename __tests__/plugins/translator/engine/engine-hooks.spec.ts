@@ -45,6 +45,7 @@ it('keeps dialogue and choices original in subtitle mode while preserving cached
       (text) => `ZH:${text}`,
       () => mode
     )
+    expect(globals.window).not.toHaveProperty('TranslationManager')
     const game = new GameMessage()
     game.add('こんにちは')
     game.setChoices(['はい', 'いいえ'])
