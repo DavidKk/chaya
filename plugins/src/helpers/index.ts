@@ -19,6 +19,7 @@ export {
   clearElement,
   ensureCustomElementHost,
   getPluginErrors,
+  isolateEditableKeys,
   mountUiTemplateShell,
   restorePluginErrors,
   setInnerHTML,

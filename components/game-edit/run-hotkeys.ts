@@ -358,6 +358,45 @@ export function saveGameStoredHotkeys(map: HotkeyMap) {
   }
 }
 
+const DISABLED_STORAGE_KEY = 'chaya.gameEdit.hotkeys.disabled'
+
+let disabledHotkeysCache: ReadonlySet<string> | null = null
+
+/** 唤出键不可暂停：局内暂停后无法再打开面板恢复 */
+export function canDisableHotkey(id: string): boolean {
+  return id !== OPEN_PANEL_HOTKEY_ID
+}
+
+/** 临时暂停的快捷键 id（保留绑定，仅不触发） */
+export function loadDisabledHotkeys(): ReadonlySet<string> {
+  if (disabledHotkeysCache) return disabledHotkeysCache
+  if (typeof window === 'undefined') return new Set()
+  let ids: string[] = []
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(DISABLED_STORAGE_KEY) || '[]') as unknown
+    if (Array.isArray(parsed)) ids = parsed.filter((v): v is string => typeof v === 'string' && canDisableHotkey(v))
+  } catch {
+    /* */
+  }
+  disabledHotkeysCache = new Set(ids)
+  return disabledHotkeysCache
+}
+
+export function saveDisabledHotkeys(ids: Iterable<string>) {
+  const next = new Set([...ids].filter(canDisableHotkey))
+  disabledHotkeysCache = next
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(DISABLED_STORAGE_KEY, JSON.stringify([...next]))
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export function isHotkeyDisabled(id: string): boolean {
+  return loadDisabledHotkeys().has(id)
+}
+
 /** @deprecated 用 loadGlobalHotkeys；保留别名兼容旧调用 */
 export function loadStoredHotkeys(): HotkeyMap {
   return loadGlobalHotkeys()

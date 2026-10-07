@@ -6,10 +6,12 @@ import { IoCloseOutline } from 'react-icons/io5'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formCardDense, formControlInline, formDescInline, formFieldInlineDense, formTitleInline } from '@/components/layoutClasses'
 import { FORM_CONTROL_H, formControlChrome } from '@/components/sk/control'
+import { SwitchToggle } from '@/components/sk/Switch'
 import type { MessageKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 import {
+  canDisableHotkey,
   DEFAULT_OPEN_PANEL_CHORD,
   defaultOpenConsoleChord,
   displayKeyChord,
@@ -17,10 +19,12 @@ import {
   type HotkeyMap,
   type HotkeyTarget,
   isStickyUiHotkeyId,
+  loadDisabledHotkeys,
   OPEN_CONSOLE_HOTKEY_ID,
   OPEN_PANEL_HOTKEY_ID,
   resolveHotkeyChord,
   RUN_HOTKEY_TARGETS,
+  saveDisabledHotkeys,
 } from './run-hotkeys'
 
 export type HotkeyScope = 'game' | 'global'
@@ -36,21 +40,23 @@ type Props = {
 const hotkeyRow = cn(formFieldInlineDense, 'grid-cols-[minmax(12rem,1fr)_auto]')
 const hotkeyDesc = cn(formDescInline, 'whitespace-nowrap')
 /** block + 子元素 absolute，避免 flex 把清除钮挤进文档流 */
-const hotkeyShell = cn(formControlChrome, FORM_CONTROL_H, 'relative block w-[9.5rem] shrink-0 overflow-hidden focus-within:border-accent')
+export const hotkeyShell = cn(formControlChrome, FORM_CONTROL_H, 'relative block w-[9.5rem] shrink-0 overflow-hidden focus-within:border-accent')
 /** leading-8 与 h-8 对齐，文字水平+垂直居中；铺满外壳，不受清除钮影响 */
-const hotkeyInput = cn(
+export const hotkeyInput = cn(
   'absolute inset-0 z-0 m-0 box-border appearance-none rounded-none border-none bg-transparent px-2',
   'text-center font-inherit text-[0.8125rem] leading-8 text-ink tabular-nums outline-none',
   'placeholder:text-ink-soft'
 )
 /** 右侧留边距的清除钮；absolute 不占文档流，文案仍整框居中 */
-const hotkeyClearBtn = cn(
+export const hotkeyClearBtn = cn(
   'absolute top-1 right-1 bottom-1 z-[1] m-0 inline-flex w-[1.35rem] cursor-pointer items-center justify-center',
   'rounded-[0.15rem] border-none bg-transparent p-0 text-ink-soft',
-  'hover:bg-[color-mix(in_oklab,var(--panel-2)_70%,transparent)] hover:text-ink',
-  'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]'
+  'outline-none hover:bg-[color-mix(in_oklab,var(--panel-2)_70%,transparent)] hover:text-ink',
+  'focus-visible:bg-[color-mix(in_oklab,var(--panel-2)_70%,transparent)] focus-visible:text-ink'
 )
 const colHead = 'w-[9.5rem] shrink-0 text-center text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase'
+/** 开关列：无标题，表头放总开关 */
+const switchCol = 'ml-3 inline-flex w-8 shrink-0 items-center justify-center'
 
 function stickyDefault(id: string): string {
   if (id === OPEN_PANEL_HOTKEY_ID) return DEFAULT_OPEN_PANEL_CHORD
@@ -139,6 +145,17 @@ function HotkeyBindCell({ label, scope, chord, placeholder, recording, showReset
 export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGlobalChange }: Props) {
   const t = useT()
   const [recordingKey, setRecordingKey] = useState<string | null>(null)
+  const [disabled, setDisabled] = useState<ReadonlySet<string>>(loadDisabledHotkeys)
+
+  function setEnabled(ids: readonly string[], on: boolean) {
+    const next = new Set(disabled)
+    for (const id of ids) {
+      if (on) next.delete(id)
+      else if (canDisableHotkey(id)) next.add(id)
+    }
+    saveDisabledHotkeys(next)
+    setDisabled(next)
+  }
 
   const groups = useMemo(() => {
     const map = new Map<MessageKey, HotkeyTarget[]>()
@@ -159,13 +176,26 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
     <div className="flex flex-col gap-3 px-4 pt-3 pb-4" role="region" aria-label={t('edit.hotkeysAria')}>
       {groups.map(([groupKey, rows]) => {
         const group = t(groupKey)
+        const toggleIds = rows.map((row) => row.id).filter(canDisableHotkey)
+        const offCount = toggleIds.filter((id) => disabled.has(id)).length
+        const groupChecked = offCount === 0 ? true : offCount === toggleIds.length ? false : 'mixed'
+        const groupTip = groupChecked === true ? t('edit.hkDisableAll', { group }) : t('edit.hkEnableAll', { group })
         return (
           <div key={groupKey} className={cn(formCardDense, 'm-0 w-full max-w-[64rem]')} aria-label={group}>
             <div className="flex items-center gap-3">
               <span className="text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase">{group}</span>
-              <div className="ml-auto flex items-center gap-2" aria-hidden>
-                <span className={colHead}>{t('edit.hkScopeGame')}</span>
-                <span className={colHead}>{t('edit.hkScopeGlobal')}</span>
+              <div className="ml-auto flex items-center gap-2">
+                <span className={colHead} aria-hidden>
+                  {t('edit.hkScopeGame')}
+                </span>
+                <span className={colHead} aria-hidden>
+                  {t('edit.hkScopeGlobal')}
+                </span>
+                <span className={switchCol}>
+                  {toggleIds.length ? (
+                    <SwitchToggle variant="ghost" size="sm" checked={groupChecked} onCheckedChange={(on) => setEnabled(toggleIds, on)} aria-label={groupTip} tooltip={groupTip} />
+                  ) : null}
+                </span>
               </div>
             </div>
             {rows.map((row) => {
@@ -175,10 +205,13 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
               const globalChord = String(globalValue[row.id] ?? '').trim()
               const gameRecording = recordingKey === `game:${row.id}`
               const globalRecording = recordingKey === `global:${row.id}`
+              const toggleable = canDisableHotkey(row.id)
+              const enabled = !disabled.has(row.id)
+              const toggleTip = !toggleable ? t('edit.hkPanelAlwaysOn') : enabled ? t('edit.hkDisable', { name: label }) : t('edit.hkEnable', { name: label })
               return (
                 <div key={row.id} className={hotkeyRow}>
-                  <span className={formTitleInline}>{label}</span>
-                  <span className={hotkeyDesc}>{t(row.descKey)}</span>
+                  <span className={cn(formTitleInline, !enabled && 'opacity-50')}>{label}</span>
+                  <span className={cn(hotkeyDesc, !enabled && 'opacity-50')}>{t(row.descKey)}</span>
                   <div className={cn(formControlInline, 'gap-2')}>
                     <HotkeyBindCell
                       label={label}
@@ -202,6 +235,17 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
                       onBind={(c) => setBinding('global', row.id, c)}
                       t={t}
                     />
+                    <span className={switchCol}>
+                      <SwitchToggle
+                        variant="ghost"
+                        size="sm"
+                        checked={enabled}
+                        disabled={!toggleable}
+                        onCheckedChange={(on) => setEnabled([row.id], on)}
+                        aria-label={toggleTip}
+                        tooltip={toggleTip}
+                      />
+                    </span>
                   </div>
                 </div>
               )

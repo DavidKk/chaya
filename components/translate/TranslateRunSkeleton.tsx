@@ -10,10 +10,14 @@ type TranslateModeTab = 'play' | 'seed'
 function EngineGroupSkeleton({ rows, subtitle, add }: { rows: number; subtitle?: boolean; add?: boolean }) {
   return (
     <section className="flex flex-col">
-      <div className="flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 py-2">
-        <Skeleton className="size-[0.8125rem] shrink-0 rounded-[0.15rem]" />
-        <Skeleton className="h-[0.7rem] w-14" />
-        <Skeleton className="h-[0.7rem] w-2" />
+      <div className="flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-[0.7rem] w-14" />
+            <Skeleton className="h-[0.7rem] w-2" />
+          </div>
+          <Skeleton className="h-[0.65rem] w-36" />
+        </div>
         {add ? <Skeleton className="ml-auto size-5 rounded-[0.2rem]" /> : null}
       </div>
       <div className="flex flex-col gap-2 border-b border-line p-4">

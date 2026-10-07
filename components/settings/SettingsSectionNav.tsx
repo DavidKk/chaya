@@ -44,7 +44,7 @@ export function SettingsSectionNav({ active = 'agents', onSelect }: { active?: S
                 </button>
               ) : (
                 <Link
-                  href={item.id === 'agents' ? '/settings/agents' : `/settings/${item.id}`}
+                  href={`/assist/${item.id}`}
                   aria-label={item.label}
                   aria-current={active === item.id ? 'page' : undefined}
                   className={sectionSideNavItemClass(active === item.id)}

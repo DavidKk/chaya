@@ -382,7 +382,7 @@ export function TranslateRunPane({
             mobileOpen={enginesOpen}
             onMobileOpenChange={setEnginesOpen}
             onChange={onEnginesChange}
-            manageAgentsHref={surface === 'page' ? '/settings/agents' : undefined}
+            manageAgentsHref={surface === 'page' ? '/assist/agents' : undefined}
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-line px-4 py-2">

@@ -167,6 +167,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   const assistantIdRef = useRef('')
   const recentRecoveredRef = useRef(false)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const lastAutoScrollRef = useRef<{ messages: Message[]; phase: string } | null>(null)
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const running = submitting || !!turnId
 
@@ -328,6 +329,8 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   }, [open, status?.session?.activeTurn, status?.session?.recentTurnId, request, gameId, consumeStream, reconnectTick, refresh])
 
   useEffect(() => {
+    if (lastAutoScrollRef.current?.messages === messages && lastAutoScrollRef.current.phase === phase) return
+    lastAutoScrollRef.current = { messages, phase }
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight })
   }, [messages, phase])
 

@@ -28,6 +28,7 @@ export const GAME_CONTENT_RELS = {
   extractStrings: 'translate/extract.strings.json',
   extractCompare: 'translate/extract.compare.json',
   gameEdit: 'config/game-edit.json',
+  inputAssistance: 'config/input-assistance.json',
 } as const
 
 export type GameContentKind = keyof typeof GAME_CONTENT_RELS
@@ -44,6 +45,7 @@ export const LEGACY_FLAT_FILES: Record<GameContentKind, readonly string[]> = {
   extractStrings: [`${CONTENT_FILE_PREFIX}-extract.strings.json`, 'extracted-strings.json'],
   extractCompare: [`${CONTENT_FILE_PREFIX}-extract.compare.json`, 'extracted-compare.json'],
   gameEdit: [`${CONTENT_FILE_PREFIX}-game-edit.json`],
+  inputAssistance: [],
 }
 
 /** 相对内容根：`chaya/translate/cache.ndjson` */

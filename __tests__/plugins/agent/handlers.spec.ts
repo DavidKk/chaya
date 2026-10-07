@@ -58,6 +58,40 @@ describe('ChayaAgent handlers', () => {
     }
   })
 
+  it('waits for the game to process a guarded key release', async () => {
+    jest.useFakeTimers()
+    const originalWindow = g.window
+    const originalDocument = g.document
+    g.window = globalThis
+    g.document = { title: 'Game', body: { innerText: '' } }
+    g.Input = { _currentState: {} }
+    g.SceneManager = { _scene: { constructor: { name: 'Scene_Battle' } } }
+    try {
+      const state = (await runAgentCommand({ id: 'state', method: 'game.state', params: {} })) as { controlToken: string }
+      const done = runAgentCommand({
+        id: 'press',
+        method: 'input.press',
+        params: { key: 'ok', frames: 6, guard: { controlToken: state.controlToken, allowedEffects: ['unknown'] } },
+      })
+      let settled = false
+      void done.then(() => {
+        settled = true
+      })
+      await jest.advanceTimersByTimeAsync(100)
+      expect(settled).toBe(false)
+      expect((g.Input as { _currentState: Record<string, boolean> })._currentState.ok).toBe(false)
+      await jest.advanceTimersByTimeAsync(34)
+      await expect(done).resolves.toMatchObject({ key: 'ok', frames: 6 })
+    } finally {
+      if (originalWindow === undefined) delete g.window
+      else g.window = originalWindow
+      if (originalDocument === undefined) delete g.document
+      else g.document = originalDocument
+      delete g.SceneManager
+      jest.useRealTimers()
+    }
+  })
+
   it('rejects a guarded choice and a stale selection before dispatching input', async () => {
     const originalDocument = g.document
     const scene = {

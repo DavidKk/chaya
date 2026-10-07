@@ -3,7 +3,7 @@
 import { Menu } from '@base-ui/react/menu'
 import Link from 'next/link'
 import { type DragEvent, useEffect, useEffectEvent, useRef, useState } from 'react'
-import { IoAdd, IoChevronForward, IoCloseOutline } from 'react-icons/io5'
+import { IoAdd, IoCloseOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
@@ -42,9 +42,9 @@ const BUILTIN_LABEL_KEY: Record<TranslateBuiltinId, MessageKey> = {
   google: 'translate.engineGoogle',
 }
 
-const GROUPS: Array<{ id: TranslateEngineGroup; labelKey: MessageKey }> = [
-  { id: 'agent', labelKey: 'translate.groupAgent' },
-  { id: 'platform', labelKey: 'translate.groupPlatform' },
+const GROUPS: Array<{ id: TranslateEngineGroup; labelKey: MessageKey; descKey: MessageKey }> = [
+  { id: 'agent', labelKey: 'translate.groupAgent', descKey: 'translate.groupAgentDesc' },
+  { id: 'platform', labelKey: 'translate.groupPlatform', descKey: 'translate.groupPlatformDesc' },
 ]
 
 const groupLabel = 'text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase'
@@ -86,7 +86,6 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
   const [saving, setSaving] = useState(false)
   const [view, setView] = useState<EngineView>(INITIAL)
   const [openEntry, setOpenEntry] = useState<string | null>(null)
-  const [openGroups, setOpenGroups] = useState<ReadonlySet<TranslateEngineGroup>>(() => new Set(['agent', 'platform']))
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [addMenuContainer, setAddMenuContainer] = useState<ShadowRoot>()
   const addAnchorRef = useRef<HTMLDivElement>(null)
@@ -199,15 +198,12 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
     if (locked || view.agents.length >= MAX_TRANSLATE_AGENTS || view.agents.some((a) => a.profileId === profileId)) return
     const entry: TranslateAgentEntry = { id: newEntryId(), profileId, model: '', enabled: true }
     const name = agentProfiles.profiles.find((p) => p.id === profileId)?.label ?? profileId
-    if (await persist({ agents: [...view.agents, entry] }, t('translate.agentAdded', { name }))) {
-      setOpenGroups((cur) => (cur.has('agent') ? cur : new Set(cur).add('agent')))
-      setOpenEntry(entry.id)
-    }
+    if (await persist({ agents: [...view.agents, entry] }, t('translate.agentAdded', { name }))) setOpenEntry(entry.id)
   }
 
   async function updateAgent(entryId: string, patch: Partial<TranslateAgentEntry>) {
     if (locked) return
-    await persist({ agents: view.agents.map((a) => (a.id === entryId ? { ...a, ...patch } : a)) }, t('translate.agentSaved'))
+    if (await persist({ agents: view.agents.map((a) => (a.id === entryId ? { ...a, ...patch } : a)) }, t('translate.agentSaved'))) setOpenEntry(null)
   }
 
   async function removeAgent(entryId: string) {
@@ -330,7 +326,8 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
             agents={agentProfiles}
             takenProfileIds={view.agents.filter((a) => a.id !== entry.id).map((a) => a.profileId)}
             disabled={locked}
-            onChange={(patch) => void updateAgent(entry.id, patch)}
+            onSave={(patch) => void updateAgent(entry.id, patch)}
+            onCancel={() => setOpenEntry(null)}
             onRemove={() => void removeAgent(entry.id)}
           />
         ) : null}
@@ -370,24 +367,14 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
             const ids = view.order.filter((id) => engineGroup(id) === group.id)
             return (
               <section key={group.id} className="flex flex-col" aria-label={t(group.labelKey)}>
-                <div ref={group.id === 'agent' ? addAnchorRef : undefined} className="flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 py-2">
-                  <button
-                    type="button"
-                    aria-expanded={openGroups.has(group.id)}
-                    aria-controls={`translate-engine-group-${group.id}`}
-                    className="flex h-8 min-w-0 flex-1 cursor-pointer items-center gap-2 border-none bg-transparent p-0 text-left"
-                    onClick={() =>
-                      setOpenGroups((cur) => {
-                        const next = new Set(cur)
-                        if (!next.delete(group.id)) next.add(group.id)
-                        return next
-                      })
-                    }
-                  >
-                    <IoChevronForward size={13} aria-hidden className={cn('shrink-0 text-ink-soft transition-transform duration-150', openGroups.has(group.id) && 'rotate-90')} />
-                    <span className={groupLabel}>{t(group.labelKey)}</span>
-                    <span className="text-[0.68rem] tabular-nums text-ink-soft">{ids.length}</span>
-                  </button>
+                <div ref={group.id === 'agent' ? addAnchorRef : undefined} className="flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4">
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className={groupLabel}>{t(group.labelKey)}</span>
+                      <span className="text-[0.68rem] tabular-nums text-ink-soft">{ids.length}</span>
+                    </div>
+                    <span className="truncate text-[0.7rem] leading-snug text-ink-soft/80">{t(group.descKey)}</span>
+                  </div>
                   {group.id === 'agent' ? (
                     <Menu.Root
                       open={addMenuOpen}
@@ -448,18 +435,16 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
                     </Menu.Root>
                   ) : null}
                 </div>
-                {openGroups.has(group.id) ? (
-                  <div id={`translate-engine-group-${group.id}`} className="flex flex-col gap-2 border-b border-line p-4">
-                    {group.id === 'agent' && agentProfiles.error ? (
-                      <p className="m-0 text-[0.72rem] leading-snug text-ink-soft">{t('translate.aiLoadFailed', { message: agentProfiles.error })}</p>
-                    ) : null}
-                    {ids.length ? (
-                      <ul className="m-0 flex list-none flex-col gap-2 p-0">{ids.map(renderRow)}</ul>
-                    ) : (
-                      <p className="m-0 rounded-[0.35rem] border border-dashed border-line px-3 py-3 text-[0.72rem] leading-snug text-ink-soft">{t('translate.agentEmpty')}</p>
-                    )}
-                  </div>
-                ) : null}
+                <div className="flex flex-col gap-2 border-b border-line p-4">
+                  {group.id === 'agent' && agentProfiles.error ? (
+                    <p className="m-0 text-[0.72rem] leading-snug text-ink-soft">{t('translate.aiLoadFailed', { message: agentProfiles.error })}</p>
+                  ) : null}
+                  {ids.length ? (
+                    <ul className="m-0 flex list-none flex-col gap-2 p-0">{ids.map(renderRow)}</ul>
+                  ) : (
+                    <p className="m-0 rounded-[0.35rem] border border-dashed border-line px-3 py-3 text-[0.72rem] leading-snug text-ink-soft">{t('translate.agentEmpty')}</p>
+                  )}
+                </div>
               </section>
             )
           })}

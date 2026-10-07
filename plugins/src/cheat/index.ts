@@ -7,6 +7,7 @@ import { startPluginGameAgentSync } from '../agent-ui/request'
 import { createLogger, registerGameLinkEditHandlers, restorePluginErrors, showPluginError } from '../helpers'
 import { installConsoleApi } from './console/console-api'
 import { startPanelHotkeys } from './console/panel-hotkeys'
+import { InputAssistanceController } from './input-assistance/controller'
 import { Cheats } from './runtime/cheats'
 import { disposeMapHistory, installMapHistory } from './session/map-history'
 import { startGameEditDiskWatcher } from './session/persist'
@@ -29,9 +30,16 @@ const reopenAfterHot = (() => {
 
 installConsoleApi()
 installMapHistory()
+const inputAssistance = new InputAssistanceController()
+;(window as Window & { __chayaInputAssistanceStopAll?: () => void }).__chayaInputAssistanceStopAll = () => inputAssistance.runtime.stopAll()
 const unregisterLink = registerGameLinkEditHandlers({
-  onMessage: handleRemoteEditMessage,
-  onStop: stopRemoteEditBridge,
+  onMessage: (message, send) => {
+    if (!inputAssistance.handle(message, send)) handleRemoteEditMessage(message, send)
+  },
+  onStop: () => {
+    inputAssistance.disconnected()
+    stopRemoteEditBridge()
+  },
 })
 
 const stopHotkeys = startPanelHotkeys()
@@ -66,6 +74,8 @@ function disposeGameEditRuntime(): boolean {
   window.removeEventListener('chaya:game-settings-open', openAgentSettings)
   unmountGameAgentUi()
   unregisterLink()
+  inputAssistance.dispose()
+  delete (window as Window & { __chayaInputAssistanceStopAll?: () => void }).__chayaInputAssistanceStopAll
   stopRemoteEditBridge()
   disposeMapHistory()
   return wasOpen

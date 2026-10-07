@@ -144,3 +144,35 @@ it('translates direct canvas text without translating Bitmap text twice', () => 
     }
   }
 })
+
+it('translates ticker input before a custom plugin draws the text', () => {
+  class Base {
+    convertEscapeCharacters(text: string) {
+      return text
+    }
+    drawText(text: string) {
+      return text
+    }
+    drawTextEx(text: string) {
+      return text
+    }
+  }
+  const ticker = { show: jest.fn((text: string) => text) }
+  const globals = { window: { TickerManager: ticker }, Window_Base: Base }
+  const previous = Object.fromEntries(Object.keys(globals).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  Object.assign(globalThis, globals)
+  try {
+    const observe = jest.fn()
+    const remove = installEngineHooks((text) => (text === 'こんにちは' ? '你好' : text), undefined, observe)
+    expect(ticker.show('こんにちは')).toBe('你好')
+    expect(ticker.show('まだ未訳')).toBe('まだ未訳')
+    expect(observe).toHaveBeenCalledWith('まだ未訳')
+    remove()
+    expect(ticker.show('こんにちは')).toBe('こんにちは')
+  } finally {
+    for (const key of Object.keys(globals)) {
+      if (previous[key]) Object.defineProperty(globalThis, key, previous[key]!)
+      else Reflect.deleteProperty(globalThis, key)
+    }
+  }
+})

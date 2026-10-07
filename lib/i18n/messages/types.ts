@@ -16,6 +16,10 @@ export type MessageTree = {
     openMenu: string
     closeMenu: string
     library: string
+    assist: string
+    keyMouse: string
+    minimap: string
+    companion: string
     edit: string
     translate: string
     logs: string
@@ -351,7 +355,9 @@ export type MessageTree = {
     enginesLoadFailed: string
     enginesSaveFailed: string
     groupAgent: string
+    groupAgentDesc: string
     groupPlatform: string
+    groupPlatformDesc: string
     agentAddAria: string
     agentEdit: string
     agentRemove: string
@@ -465,6 +471,7 @@ export type MessageTree = {
     resetHotkeysConfirm: string
     runSettingsAria: string
     hotkeysAria: string
+    hotkeysDesc: string
     editTableAria: string
     catalogFailTitle: string
     catalogFailHint: string
@@ -670,6 +677,11 @@ export type MessageTree = {
     hkClearGame: string
     hkClearGlobal: string
     hkChordAria: string
+    hkEnable: string
+    hkDisable: string
+    hkEnableAll: string
+    hkDisableAll: string
+    hkPanelAlwaysOn: string
   }
   logs: {
     region: string

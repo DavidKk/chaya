@@ -42,7 +42,8 @@ test('renders edit categories as icon-only accessible buttons', async () => {
 
   const buttons = Array.from(host.querySelectorAll<HTMLButtonElement>('[data-edit-categories] button'))
   expect(host.querySelector('aside')!.className).toContain('hidden')
-  expect(buttons).toHaveLength(12)
+  expect(buttons).toHaveLength(11)
+  expect(buttons.some((button) => button.getAttribute('aria-label') === '快捷键')).toBe(false)
   expect(buttons.every((button) => button.textContent === '' && !!button.getAttribute('aria-label'))).toBe(true)
   expect(buttons[0].getAttribute('aria-current')).toBe('page')
 

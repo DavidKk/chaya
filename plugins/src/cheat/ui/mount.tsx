@@ -1,11 +1,13 @@
 import { createRoot, type Root } from 'react-dom/client'
 
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
+import { GAME_EDIT_PANEL_HIDE_EVENT } from '@/components/sk/NumberSliderInput'
 
 import { clearElement, showPluginError } from '../../helpers'
 import { pauseGame, resumeGame } from '../session/game-pause'
 import { GameEditApp } from './App'
 import { ensureGameEditHost, type GameEditHost } from './host'
+import { InputAssistanceIndicator } from './InputAssistanceIndicator'
 import overlayCss from './overlay.css?inline'
 
 type UiState = {
@@ -25,6 +27,7 @@ function render() {
   state.root.render(
     <LocaleProvider syncDocumentLang={false}>
       <GameEditApp open={state.open} onRequestOpen={showGameEditUi} onRequestClose={hideGameEditUi} />
+      <InputAssistanceIndicator />
     </LocaleProvider>
   )
 }
@@ -107,6 +110,7 @@ export function showGameEditUi() {
 export function hideGameEditUi() {
   state.open = false
   if (state.host) {
+    state.host.shadow.dispatchEvent(new Event(GAME_EDIT_PANEL_HIDE_EVENT))
     const ae = document.activeElement
     if (ae && state.host.containsFocus(ae) && typeof (ae as HTMLElement).blur === 'function') {
       try {

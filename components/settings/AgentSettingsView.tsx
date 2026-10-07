@@ -5,20 +5,19 @@ import { IoAdd, IoArrowBack, IoInfinite, IoTrashOutline } from 'react-icons/io5'
 import { TbPencilCog } from 'react-icons/tb'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
+import { lockIconBtn } from '@/components/game-edit/lock-ui'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formCard, formControlInline, formDescInline, formFieldInline, formTitleInline, panelHead, settingsCardWide } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, DurationInput, EmptyState, NumberSliderInput, Select, Spinner, TextInput, Tooltip, TruncateText } from '@/components/sk'
+import { Button, DurationInput, EmptyState, NumberSliderInput, Select, TextInput, Tooltip, TruncateText } from '@/components/sk'
 import { keepAliveToMs, msToKeepAlive } from '@/lib/game-agent/keep-alive'
 import type { AgentSyncDocument } from '@/lib/game-agent/settings-sync'
 import { cn } from '@/lib/utils'
 
 import { type AgentModel, type AgentProfile, type AgentSettings, type AgentSettingsRequest, createAgentProfile } from './agent-types'
+import { AgentDetailSkeleton, AgentListSkeleton } from './AgentSettingsSkeleton'
 
 const API = '/api/integration/game-agent'
-
-const infinityBtn =
-  'm-0 -mr-1 inline-flex h-full cursor-pointer items-center border-0 border-l border-solid border-line bg-transparent pr-1 pl-2 text-ink-soft hover:text-ink focus-visible:outline-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]'
 
 function apiError(body: unknown, fallback: string) {
   const value = body as { error?: { message?: unknown } }
@@ -219,12 +218,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   if (draft?.defaultModel) modelNames.add(draft.defaultModel)
   const modelOptions = [...modelNames].map((name) => ({ value: name, label: name }))
 
-  if (busy === 'load')
-    return (
-      <div className="grid min-h-48 flex-1 place-items-center">
-        <Spinner />
-      </div>
-    )
+  if (busy === 'load') return editing ? <AgentDetailSkeleton label={t('integration.agentEditTitle')} /> : <AgentListSkeleton label={t('integration.agentProfiles')} />
   if (!settings)
     return (
       <EmptyState title={t('integration.agentSettingsFailed')} message={loadError}>
@@ -369,7 +363,10 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                     <Tooltip content={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}>
                       <button
                         type="button"
-                        className={cn(infinityBtn, keepAliveForever && 'text-accent')}
+                        className={cn(
+                          lockIconBtn,
+                          keepAliveForever && 'text-accent hover:enabled:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] hover:enabled:text-accent'
+                        )}
                         aria-label={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}
                         aria-pressed={keepAliveForever}
                         onClick={() => update({ keepAlive: keepAliveForever ? msToKeepAlive(keepAliveFinite.current) : '-1' })}

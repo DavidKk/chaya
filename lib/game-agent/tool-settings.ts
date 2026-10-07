@@ -6,15 +6,15 @@ export type ToolSettings = {
   companionCharacter: CompanionCharacter
 }
 
-export const DEFAULT_TOOL_SETTINGS: ToolSettings = { companionEnabled: true, miniMapEnabled: true, companionCharacter: 'rin' }
+export const DEFAULT_TOOL_SETTINGS: ToolSettings = { companionEnabled: false, miniMapEnabled: false, companionCharacter: 'rin' }
 export const TOOL_SETTINGS_EVENT = 'chaya:tool-settings-changed'
 const STORAGE_KEY = 'chaya.gameAgent.toolSettings.v1'
 
 export function normalizeToolSettings(value: unknown): ToolSettings {
   const source = value && typeof value === 'object' ? (value as Partial<ToolSettings> & { companionPersona?: string }) : {}
   return {
-    companionEnabled: typeof source.companionEnabled === 'boolean' ? source.companionEnabled : true,
-    miniMapEnabled: typeof source.miniMapEnabled === 'boolean' ? source.miniMapEnabled : true,
+    companionEnabled: typeof source.companionEnabled === 'boolean' ? source.companionEnabled : false,
+    miniMapEnabled: typeof source.miniMapEnabled === 'boolean' ? source.miniMapEnabled : false,
     companionCharacter: normalizeCompanionCharacter(source.companionCharacter ?? source.companionPersona),
   }
 }

@@ -21,7 +21,7 @@ export function GameAgentAppPanel({ open, onClose }: Props) {
       onClose={onClose}
       onConnect={() => {
         onClose()
-        router.push('/settings/agents')
+        router.push('/assist/agents')
       }}
       request={request}
       variant="sidebar"

@@ -132,3 +132,19 @@ test('rejects an OCR menu heading or misspelled actor as a combat target', async
     safe: false,
   })
 })
+
+test('accepts a custom combat command without requiring a built-in attack keyword', async () => {
+  ;(callAgentGame as jest.Mock).mockResolvedValue({ mimeType: 'image/jpeg', data: 'jpeg-base64' })
+  ;(streamOllamaChat as jest.Mock)
+    .mockResolvedValueOnce({
+      role: 'assistant',
+      content:
+        '{"visibleText":"神圣攻击 防御 动作 物品","selectedText":"动作","options":[{"text":"神圣攻击","x":20,"y":20},{"text":"防御","x":20,"y":60},{"text":"动作","x":20,"y":100},{"text":"物品","x":20,"y":140}]}',
+    })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"动作"}' })
+
+  await expect(inspectBattleImage(profile, 'gemma4:vision', 'qwen3:4b', 'game-a', '帮我战斗', {}, new AbortController().signal)).resolves.toMatchObject({
+    key: 'ok',
+    safe: true,
+  })
+})

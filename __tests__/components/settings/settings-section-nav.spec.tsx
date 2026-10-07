@@ -42,7 +42,7 @@ test('uses link navigation on settings pages', async () => {
   const nav = host.querySelector<HTMLElement>('[data-settings-section-nav] nav')!
   expect(nav.closest('aside')!.className).toContain('hidden')
   const link = nav.querySelector<HTMLAnchorElement>('a')!
-  expect(link.getAttribute('href')).toBe('/settings/agents')
+  expect(link.getAttribute('href')).toBe('/assist/agents')
   expect(link.getAttribute('aria-label')).toBe('Agent')
   expect(link.getAttribute('aria-current')).toBe('page')
   expect(link.textContent).toBe('')

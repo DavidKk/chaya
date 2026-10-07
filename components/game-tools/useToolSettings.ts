@@ -11,6 +11,7 @@ const browserRequest: GameAgentRequest = (path, init) => fetch(path, init)
 export function useToolSettings(request: GameAgentRequest = browserRequest, refreshMs?: number) {
   const [settings, setSettings] = useState<ToolSettings>(DEFAULT_TOOL_SETTINGS)
   const [busy, setBusy] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -18,13 +19,15 @@ export function useToolSettings(request: GameAgentRequest = browserRequest, refr
     window.addEventListener(TOOL_SETTINGS_EVENT, onChange)
     onChange()
     const refresh = () =>
-      void request(API, { cache: 'no-store' })
+      void Promise.resolve()
+        .then(() => request(API, { cache: 'no-store' }))
         .then(async (response) => {
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
           const body = (await response.json()) as { settings?: unknown }
           cacheToolSettings(normalizeToolSettings(body.settings))
         })
         .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
+        .finally(() => setLoaded(true))
     refresh()
     const timer = refreshMs ? window.setInterval(refresh, refreshMs) : null
     return () => {
@@ -52,5 +55,13 @@ export function useToolSettings(request: GameAgentRequest = browserRequest, refr
     [request]
   )
 
-  return { settings, busy, error, update }
+  return { settings, busy, loaded, error, update }
+}
+
+export function useToolPanelVisibility(enabled: boolean) {
+  const [dismissed, setDismissed] = useState(false)
+  useEffect(() => {
+    if (!enabled) setDismissed(false)
+  }, [enabled])
+  return { visible: enabled && !dismissed, dismiss: () => setDismissed(true) }
 }

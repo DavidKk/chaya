@@ -49,6 +49,39 @@ describe('plugin text extraction', () => {
     ])
   })
 
+  it('extracts ticker text from move routes without treating script code as dialogue', () => {
+    const events = [
+      {
+        id: 4,
+        pages: [
+          {
+            list: [
+              {
+                code: 205,
+                parameters: [
+                  0,
+                  {
+                    list: [
+                      { code: 45, parameters: [String.raw`TickerManager.show('\\c[16]ぐぅぅ……！');`] },
+                      { code: 45, parameters: ['TickerManager.show($gameVariables.value(999));'] },
+                    ],
+                  },
+                ],
+              },
+              { code: 505, parameters: [{ code: 45, parameters: [String.raw`TickerManager.show('\\c[16]ぐぅぅ……！');`] }] },
+              { code: 355, parameters: [String.raw`TickerManager.show("こんなの好きになってしまうではないか……！");`] },
+              { code: 355, parameters: ["console.log('内部処理')"] },
+            ],
+          },
+        ],
+      },
+    ]
+    expect(extractDialogueFromEvents(events, { src: 'Map010.json' })).toEqual([
+      { src: 'Map010.json', kind: 'p', eid: 4, lines: [String.raw`\c[16]ぐぅぅ……！`] },
+      { src: 'Map010.json', kind: 'p', eid: 4, lines: ['こんなの好きになってしまうではないか……！'] },
+    ])
+  })
+
   it('limits pathological nested or long values', () => {
     expect(extractPluginText('敵'.repeat(1_201))).toEqual([])
     expect(extractPluginText(JSON.stringify({ label: '攻撃', nested: JSON.stringify({ label: '攻撃' }) }))).toEqual(['攻撃'])

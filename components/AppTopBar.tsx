@@ -13,6 +13,7 @@ import { BUILD_TARGET } from '@/lib/service-mode/target'
 import { cn } from '@/lib/utils'
 
 export function appNavPathFromPathname(pathname: string): AppNavPath {
+  if (pathname.startsWith('/assist')) return '/assist'
   if (pathname.startsWith('/cheat') || pathname.startsWith('/edit')) return '/cheat'
   if (pathname.startsWith('/translate') || pathname.startsWith('/cache')) return '/translate'
   if (pathname.startsWith('/logs')) return '/logs'

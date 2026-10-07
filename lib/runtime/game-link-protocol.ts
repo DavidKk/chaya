@@ -3,6 +3,7 @@
 import type { ActorDraft, ActorVitalLockKind, ItemKind, RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
 import type { CommonEventsData, MapDetailData, SelfSwitchLetter } from '@/lib/game/events'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
+import type { InputAssistConfig, InputChord, MacroEvent } from '@/lib/game/input-assistance'
 import type {
   DataCell,
   DataDiff,
@@ -136,8 +137,27 @@ export type GameLinkLogEntry = { id: number; ts: number; level: string; source: 
 /** 游戏 → Web：浏览器模式日志不经服务器，连上后先补发积压再实时推送 */
 export type GameLinkLogBatch = { type: 'log.batch'; entries: GameLinkLogEntry[] }
 
+export type InputAssistMessage =
+  | { type: 'assist.cmd'; reqId: string; gameId: string; op: 'snapshot' | 'stopAll' | 'recordFinish' | 'recordCancel' }
+  | { type: 'assist.cmd'; reqId: string; gameId: string; op: 'configure'; globalConfig: InputAssistConfig; gameConfig: InputAssistConfig }
+  | { type: 'assist.cmd'; reqId: string; gameId: string; op: 'start' | 'stop' | 'test'; ruleId: string }
+  | { type: 'assist.cmd'; reqId: string; gameId: string; op: 'recordStart'; kind: 'binding' | 'macro' }
+  | {
+      type: 'assist.reply'
+      reqId: string
+      ok: boolean
+      error?: string
+      globalConfig?: InputAssistConfig
+      gameConfig?: InputAssistConfig
+      status?: { running: string[]; pending: string[]; counts: Record<string, number>; error?: string; recording: boolean }
+      result?: InputChord | MacroEvent[] | null
+    }
+  | { type: 'assist.recorded'; result: InputChord | MacroEvent[] | null }
+  | { type: 'assist.status'; status: { running: string[]; pending: string[]; counts: Record<string, number>; error?: string; recording: boolean } }
+
 export type GameLinkMessage =
   | TranslationPacket
+  | InputAssistMessage
   | GameLinkLogBatch
   | GameEditCatalogMessage
   | GameEditEventsMessage

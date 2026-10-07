@@ -6,8 +6,8 @@ import { createPortal } from 'react-dom'
 import { computeTooltipPosition, type TooltipPlacement } from '@/components/sk/Tooltip/tooltipPosition'
 
 interface TooltipProps {
-  /** Short hint text; keep concise so it stays in viewport */
-  content: string
+  /** Short hint text; keep concise so it stays in viewport. Structured content (e.g. aligned tables) may pass nodes. */
+  content: React.ReactNode
   placement?: TooltipPlacement
   children: React.ReactElement
   /** 触发器额外 class（如块级条需 `block w-full`） */

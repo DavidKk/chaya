@@ -14,6 +14,7 @@ type CheatTabPageProps = {
 export default async function CheatTabPage({ params }: CheatTabPageProps) {
   const { tab, pane } = await params
   if (!isTabId(tab)) redirect(editTabHref(DEFAULT_TAB))
+  if (tab === 'hotkeys') redirect('/assist/hotkeys')
   if (tab === 'trans' || tab === 'logs') redirect(editTabHref(DEFAULT_TAB))
 
   const segments = pane ?? []

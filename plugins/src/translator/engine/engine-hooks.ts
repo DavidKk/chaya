@@ -77,6 +77,18 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
           }
       )
     )
+  const ticker = (window as Window & { TickerManager?: { show?: (text: string, ...args: unknown[]) => unknown } }).TickerManager
+  if (ticker && typeof ticker.show === 'function')
+    remove.push(
+      hookMethod(
+        ticker,
+        'show',
+        (original) =>
+          function (text: string, ...args: unknown[]) {
+            return draw(() => original.call(this, typeof text === 'string' ? render(text) : text, ...args))
+          }
+      )
+    )
   if (typeof CanvasRenderingContext2D !== 'undefined') {
     const canvas = CanvasRenderingContext2D.prototype
     remove.push(

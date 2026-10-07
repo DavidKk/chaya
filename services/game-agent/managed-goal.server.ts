@@ -52,13 +52,16 @@ export function decisionState(state: ManagedState) {
 export function battleNeedsReasoning(state: ManagedState, choiceCount = 0, menuName = '') {
   if (menuName === 'partyCommandWindow') return false
   const battle = state.battle as { enemies?: Array<{ hp?: number | null; states?: string[] }> } | null | undefined
-  const party = state.party as Array<{ hp?: number | null; mhp?: number | null }> | undefined
+  const party = state.party as Array<{ hp?: number | null; mhp?: number | null; mp?: number | null }> | undefined
+  const emergency =
+    Boolean(battle?.enemies?.some((enemy) => enemy.states?.length)) ||
+    Boolean(party?.some((member) => (member.hp != null && member.mhp && member.hp / member.mhp < 0.4) || member.mp === 0))
+  if (menuName === 'actorCommandWindow') return emergency
   return (
     (['skillWindow', 'itemWindow', 'enemyWindow', 'allyWindow'].includes(menuName) && choiceCount > 1) ||
     (battle?.enemies?.filter((enemy) => enemy.hp == null || enemy.hp > 0).length || 0) > 1 ||
-    Boolean(battle?.enemies?.some((enemy) => enemy.states?.length)) ||
-    (party?.filter((member) => member.hp == null || member.hp > 0).length || 0) > 1 ||
-    Boolean(party?.some((member) => member.hp != null && member.mhp && member.hp / member.mhp < 0.4))
+    emergency ||
+    (party?.filter((member) => member.hp == null || member.hp > 0).length || 0) > 1
   )
 }
 

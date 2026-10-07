@@ -7,7 +7,7 @@ import { IoArrowBack } from 'react-icons/io5'
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { countKey, type SessionState } from '@/components/game-edit/types'
-import { useToolSettings } from '@/components/game-tools/useToolSettings'
+import { useToolPanelVisibility, useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
@@ -141,8 +141,9 @@ export function MapDetail({
   const selectedEvent = detail && slot.eventId != null ? (detail.events.find((ev) => ev.id === slot.eventId) ?? null) : null
   const tp = useTeleport(node, slot, near)
   const toolSettings = useToolSettings(toolRequest)
+  const panel = useToolPanelVisibility(toolSettings.settings.miniMapEnabled)
   const miniMap =
-    showMiniMap && detail && toolSettings.settings.miniMapEnabled ? (
+    showMiniMap && detail && panel.visible ? (
       <MiniMap
         detail={detail}
         player={tp.player}
@@ -153,7 +154,7 @@ export function MapDetail({
         }}
         near={tp.near}
         disabled={!!tp.blocked || tp.busy}
-        onClose={() => void toolSettings.update({ miniMapEnabled: false })}
+        onClose={panel.dismiss}
         onPickCell={(x, y) => void tp.pickCell(x, y)}
         onSelectEvent={(id) => slot.onSelectMap(node.id, id)}
       />

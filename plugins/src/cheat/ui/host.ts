@@ -1,7 +1,7 @@
 /**
  * In-game GameEdit host: plain div + Shadow (style isolation); no customElements.
  */
-import { applyShadowStyles } from '../../helpers'
+import { applyShadowStyles, isolateEditableKeys } from '../../helpers'
 
 export const GAME_EDIT_HOST_ID = 'chaya-game-edit-host'
 export const GAME_EDIT_MOUNT_ID = 'chaya-game-edit-root'
@@ -40,6 +40,7 @@ export function ensureGameEditHost(cssText: string): GameEditHost {
     shadow = host.attachShadow({ mode: 'open' })
     applyShadowStyles(shadow, cssText)
   }
+  isolateEditableKeys(shadow)
 
   let mount = shadow.getElementById(GAME_EDIT_MOUNT_ID) as HTMLElement | null
   if (!mount) {

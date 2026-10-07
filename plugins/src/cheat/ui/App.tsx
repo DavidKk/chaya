@@ -1,7 +1,16 @@
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Activity, lazy, type ReactNode, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
-import { effectiveHotkeys, hotkeyMapsEqual, loadGlobalHotkeys, matchKeyChord, parseHotkeyId, saveGlobalHotkeys, setGameHotkeysCache } from '@/components/game-edit/run-hotkeys'
+import {
+  effectiveHotkeys,
+  hotkeyMapsEqual,
+  isHotkeyDisabled,
+  loadGlobalHotkeys,
+  matchKeyChord,
+  parseHotkeyId,
+  saveGlobalHotkeys,
+  setGameHotkeysCache,
+} from '@/components/game-edit/run-hotkeys'
 import { type ActorPaneId, isActorPaneId, isEditTab, isEventsTab, parseTabId, type TabId } from '@/components/game-edit/tabs'
 import {
   type ActorDraft,
@@ -120,6 +129,10 @@ function tabNeedsCatalog(tab: TabId): boolean {
 /** In-game React panel: shared GameEditWorkbench + runtime data */
 export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   const t = useT()
+  const [hasOpened, setHasOpened] = useState(open)
+  useEffect(() => {
+    if (open) setHasOpened(true)
+  }, [open])
   const toolSettings = useToolSettings(pluginGameAgentRequest, 3000)
   const tRef = useRef(t)
   tRef.current = t
@@ -438,7 +451,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
     onVarChange: onEventsVar,
   })
 
-  const saveDataSlot = useOverlaySaveData(open, tab)
+  const saveDataSlot = useOverlaySaveData(open || hasOpened, tab)
 
   const hotkeyRef = useRef({ session, setRunFlag, runAction })
   hotkeyRef.current = { session, setRunFlag, runAction }
@@ -457,7 +470,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
       const map = effectiveHotkeys(cur.hotkeys, cur.hotkeysGlobal)
       if (!map || !Object.keys(map).length) return
       for (const [id, chord] of Object.entries(map)) {
-        if (!chord || !matchKeyChord(ev, chord)) continue
+        if (!chord || isHotkeyDisabled(id) || !matchKeyChord(ev, chord)) continue
         const parsed = parseHotkeyId(id)
         if (!parsed || parsed.kind === 'ui') continue
         ev.preventDefault()
@@ -493,88 +506,89 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
     <GameEditOverlayProviders open={open}>
       <FloatingMiniMap
         enabled={toolSettings.settings.miniMapEnabled}
-        onClose={() => void toolSettings.update({ miniMapEnabled: false })}
         onSelectEvent={(mapId, eventId) => {
           eventsSlot.onSelectMap(mapId, eventId)
           selectTab('map')
           onRequestOpen()
         }}
       />
-      {open ? (
-        <Suspense fallback={<EditTableSkeleton label={t('edit.loadPanel')} />}>
-          <GameEditWorkbench
-            surface="overlay"
-            agentRequest={pluginGameAgentRequest}
-            tab={tab}
-            setTab={selectTab}
-            lastEditTab={lastEditTab}
-            actorId={actorId}
-            setActorId={setActorId}
-            actorPane={actorPane}
-            setActorPane={setActorPane}
-            filter={filter}
-            setFilter={setFilter}
-            onlyOwned={onlyOwned}
-            setOnlyOwned={setOnlyOwned}
-            onlyNamed={onlyNamed}
-            setOnlyNamed={setOnlyNamed}
-            translateTab={translateTab}
-            setTranslateTab={setTranslateTab}
-            translateSection={translateSection}
-            setTranslateSection={setTranslateSection}
-            loading={bootstrapping}
-            error={error}
-            catalog={catalog}
-            session={session}
-            onRefresh={forceRefresh}
-            onClose={onRequestClose}
-            onGoldChange={setGold}
-            onGoldLockChange={setGoldLock}
-            onMoveRateChange={(rate) => {
-              applySpeed(rate, rate)
-              setSession((prev) => ({ ...prev, walkRate: rate, runRate: rate }))
-            }}
-            onGameSpeedChange={(rate) => {
-              applyGameSpeed(rate)
-              setSession((prev) => ({ ...prev, gameSpeed: rate }))
-            }}
-            onExpRateChange={(rate) => {
-              RunCheats.setExpRate(rate)
-              setSession((prev) => ({ ...prev, expRate: rate }))
-            }}
-            onRunFlagChange={setRunFlag}
-            onRunAction={runAction}
-            onHotkeysChange={(scope, hotkeys) => {
-              if (scope === 'game') {
+      {hasOpened ? (
+        <Activity mode={open ? 'visible' : 'hidden'}>
+          <Suspense fallback={<EditTableSkeleton label={t('edit.loadPanel')} />}>
+            <GameEditWorkbench
+              surface="overlay"
+              agentRequest={pluginGameAgentRequest}
+              tab={tab}
+              setTab={selectTab}
+              lastEditTab={lastEditTab}
+              actorId={actorId}
+              setActorId={setActorId}
+              actorPane={actorPane}
+              setActorPane={setActorPane}
+              filter={filter}
+              setFilter={setFilter}
+              onlyOwned={onlyOwned}
+              setOnlyOwned={setOnlyOwned}
+              onlyNamed={onlyNamed}
+              setOnlyNamed={setOnlyNamed}
+              translateTab={translateTab}
+              setTranslateTab={setTranslateTab}
+              translateSection={translateSection}
+              setTranslateSection={setTranslateSection}
+              loading={bootstrapping}
+              error={error}
+              catalog={catalog}
+              session={session}
+              onRefresh={forceRefresh}
+              onClose={onRequestClose}
+              onGoldChange={setGold}
+              onGoldLockChange={setGoldLock}
+              onMoveRateChange={(rate) => {
+                applySpeed(rate, rate)
+                setSession((prev) => ({ ...prev, walkRate: rate, runRate: rate }))
+              }}
+              onGameSpeedChange={(rate) => {
+                applyGameSpeed(rate)
+                setSession((prev) => ({ ...prev, gameSpeed: rate }))
+              }}
+              onExpRateChange={(rate) => {
+                RunCheats.setExpRate(rate)
+                setSession((prev) => ({ ...prev, expRate: rate }))
+              }}
+              onRunFlagChange={setRunFlag}
+              onRunAction={runAction}
+              onHotkeysChange={(scope, hotkeys) => {
+                if (scope === 'game') {
+                  setGameHotkeysCache(hotkeys)
+                  setSession((prev) => ({ ...prev, hotkeys }))
+                  return
+                }
+                saveGlobalHotkeys(hotkeys)
+                setSession((prev) => ({ ...prev, hotkeysGlobal: hotkeys }))
+              }}
+              onHotkeysReload={() => {
+                const disk = loadGameEditDisk()
+                const hotkeysGlobal = loadGlobalHotkeys()
+                let hotkeys = {} as SessionState['hotkeys']
+                if (disk?.hotkeys && Object.keys(disk.hotkeys).length) {
+                  hotkeys = { ...disk.hotkeys }
+                  if (hotkeyMapsEqual(hotkeys, hotkeysGlobal)) hotkeys = {}
+                }
                 setGameHotkeysCache(hotkeys)
-                setSession((prev) => ({ ...prev, hotkeys }))
-                return
-              }
-              saveGlobalHotkeys(hotkeys)
-              setSession((prev) => ({ ...prev, hotkeysGlobal: hotkeys }))
-            }}
-            onHotkeysReload={() => {
-              const disk = loadGameEditDisk()
-              const hotkeysGlobal = loadGlobalHotkeys()
-              let hotkeys = {} as SessionState['hotkeys']
-              if (disk?.hotkeys && Object.keys(disk.hotkeys).length) {
-                hotkeys = { ...disk.hotkeys }
-                if (hotkeyMapsEqual(hotkeys, hotkeysGlobal)) hotkeys = {}
-              }
-              setGameHotkeysCache(hotkeys)
-              setSession((prev) => ({ ...prev, hotkeys, hotkeysGlobal }))
-            }}
-            onCountChange={setCount}
-            onVarChange={setVar}
-            onSwitchChange={setSwitch}
-            onRowLockChange={setRowLock}
-            onActorChange={setActor}
-            onActorOwnedLockChange={setActorOwnedLock}
-            onActorVitalLockChange={setActorVitalLock}
-            events={eventsSlot}
-            saveData={saveDataSlot}
-          />
-        </Suspense>
+                setSession((prev) => ({ ...prev, hotkeys, hotkeysGlobal }))
+              }}
+              onCountChange={setCount}
+              onVarChange={setVar}
+              onSwitchChange={setSwitch}
+              onRowLockChange={setRowLock}
+              onActorChange={setActor}
+              onActorOwnedLockChange={setActorOwnedLock}
+              onActorVitalLockChange={setActorVitalLock}
+              events={eventsSlot}
+              saveData={saveDataSlot}
+            />
+          </Suspense>
+        </Activity>
       ) : null}
     </GameEditOverlayProviders>
   )

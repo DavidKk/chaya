@@ -26,7 +26,7 @@ export type TabId = (typeof TABS)[number]['id']
 export type GameEditSurface = 'page' | 'overlay'
 
 /** Overlay-only main pages: not part of the「修改」sub navigation */
-const MAIN_PAGES = new Set<string>(['trans', 'logs', 'mcp', 'settings', 'about'])
+const MAIN_PAGES = new Set<string>(['trans', 'logs', 'mcp', 'settings', 'about', 'hotkeys'])
 
 export const EDIT_TABS = TABS.filter((tab) => !MAIN_PAGES.has(tab.id))
 

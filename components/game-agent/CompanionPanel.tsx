@@ -4,7 +4,7 @@ import { SendHorizontal, Square } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
-import { useToolSettings } from '@/components/game-tools/useToolSettings'
+import { useToolPanelVisibility, useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useLocaleCode } from '@/components/i18n/LocaleProvider'
 import { Button, ScrollArea, Spinner } from '@/components/sk'
 import { COMPANION_CHARACTER_PROFILES, type CompanionCharacter, type CompanionCue, type CompanionState, CompanionTracker, companionWords } from '@/lib/game-agent/companion'
@@ -56,7 +56,8 @@ function snapshot(state: CompanionState) {
 
 export function CompanionPanel({ gameId, open, observe, request }: Props) {
   const locale = useLocaleCode()
-  const { settings, update } = useToolSettings(request)
+  const { settings } = useToolSettings(request)
+  const panel = useToolPanelVisibility(settings.companionEnabled)
   const character = COMPANION_CHARACTER_PROFILES[settings.companionCharacter]
   const [messages, setMessages] = useState<ChatLine[]>([])
   const [draft, setDraft] = useState('')
@@ -126,7 +127,7 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
   )
 
   useEffect(() => {
-    if (open || !settings.companionEnabled) return
+    if (open || !panel.visible) return
     const poll = () => {
       try {
         const cue = tracker.current.observe(observe())
@@ -142,7 +143,7 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
     poll()
     const timer = window.setInterval(poll, POLL_MS)
     return () => window.clearInterval(timer)
-  }, [ask, append, locale, observe, open, settings.companionCharacter, settings.companionEnabled])
+  }, [ask, append, locale, observe, open, panel.visible, settings.companionCharacter])
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
@@ -275,7 +276,7 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
     }
   }
 
-  if (open || !settings.companionEnabled) return null
+  if (open || !panel.visible) return null
   return (
     <FloatingToolPanel
       title={character.name}
@@ -292,7 +293,7 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
           }}
         />
       }
-      onClose={() => void update({ companionEnabled: false })}
+      onClose={panel.dismiss}
       storageKey="chaya.companion.frame.v1"
       initialEdge="bottom"
       defaultSize={{ width: 300, height: 260 }}
@@ -321,8 +322,8 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
               {line.text ||
                 (line.id === activeReplyId && busy
                   ? question || (
-                      <span className="inline-flex items-center gap-1 text-ink-soft">
-                        <Spinner size="sm" label={progress || 'Thinking'} />
+                      <span className="text-ink-soft">
+                        <Spinner size="sm" className="mr-1 inline-block align-middle" label={progress || 'Thinking'} />
                         {progress || '…'}
                       </span>
                     )

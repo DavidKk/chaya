@@ -94,3 +94,4 @@ preset/**/_legacy_js/
 # Built-in agent settings written at runtime
 /data/game-agent-settings*.json
 /data/game-agent/
+/data/input-assistance/*.json

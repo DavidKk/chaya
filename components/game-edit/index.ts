@@ -1,7 +1,8 @@
-export { GameEditHotkeysPane } from './GameEditHotkeysPane'
+export { GameEditHotkeysPane, hotkeyClearBtn, hotkeyInput, hotkeyShell } from './GameEditHotkeysPane'
 export { GameEditTransPane } from './GameEditTransPane'
 export { GameEditWorkbench, type GameEditWorkbenchProps } from './GameEditWorkbench'
 export {
+  canDisableHotkey,
   DEFAULT_OPEN_PANEL_CHORD,
   defaultOpenConsoleChord,
   displayKeyChord,
@@ -16,7 +17,9 @@ export {
   type HotkeyKind,
   type HotkeyMap,
   type HotkeyTarget,
+  isHotkeyDisabled,
   isStickyUiHotkeyId,
+  loadDisabledHotkeys,
   loadGameStoredHotkeys,
   loadGlobalHotkeys,
   loadStoredHotkeys,
@@ -32,6 +35,7 @@ export {
   resolveOpenPanelChord,
   RUN_FLAG_HOTKEY_ROWS,
   RUN_HOTKEY_TARGETS,
+  saveDisabledHotkeys,
   saveGameStoredHotkeys,
   saveGlobalHotkeys,
   saveStoredHotkeys,

@@ -1,6 +1,6 @@
-import { AgentSettingsRoute } from '@/components/settings/AgentSettingsRoute'
+import { redirect } from 'next/navigation'
 
 export default async function AgentSettingsDetailPage({ params }: PageProps<'/settings/agents/[id]'>) {
   const { id } = await params
-  return <AgentSettingsRoute agentId={id} />
+  redirect(`/assist/agents/${encodeURIComponent(id)}`)
 }

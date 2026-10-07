@@ -1,5 +1,5 @@
-import { ToolSettingsRoute } from '@/components/settings/ToolSettingsRoute'
+import { redirect } from 'next/navigation'
 
 export default function MiniMapSettingsPage() {
-  return <ToolSettingsRoute page="minimap" />
+  redirect('/assist/minimap')
 }

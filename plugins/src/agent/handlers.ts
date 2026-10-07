@@ -146,6 +146,7 @@ export function readAgentGameState() {
             name: name.replace(/^_/, ''),
             active: Boolean(win.active),
             index: read(win, 'index') ?? win._index ?? null,
+            maxCols: read(win, 'maxCols') ?? 1,
             symbol: read(win, 'currentSymbol') ?? null,
             item: toJsonSafe(read(win, 'item'), 2),
             options: menu?.slice(0, 30).map((entry: Loose) => ({ label: entry.label ?? entry.name ?? null, symbol: entry.symbol ?? null, enabled: entry.enabled ?? true })) ?? null,
@@ -372,6 +373,7 @@ async function pressKey({ key, frames: requested, guard }: AgentParams<'input.pr
   await waitFrames(n)
   if (input?._currentState) input._currentState[key] = false
   dispatchKey('keyup', key)
+  if (guard && n > 2) await waitFrames(2)
   return { key, frames: n }
 }
 
@@ -387,7 +389,7 @@ export function startReactionTracking(): () => void {
         manualInputEpoch,
       }
     },
-    (key) => pressKey({ key, frames: 2 })
+    (key) => withAgentInput(() => pressKey({ key, frames: 2 }))
   )
 }
 
@@ -413,6 +415,18 @@ export type AgentRunOptions = {
   allowEval?: boolean
 }
 
+async function withAgentInput<T>(run: () => Promise<T> | T): Promise<T> {
+  if (typeof window === 'undefined') return run()
+  const host = window as Window & { __chayaInputAssistanceStopAll?: () => void; __chayaAgentInputActive?: number }
+  host.__chayaInputAssistanceStopAll?.()
+  host.__chayaAgentInputActive = (host.__chayaAgentInputActive ?? 0) + 1
+  try {
+    return await run()
+  } finally {
+    host.__chayaAgentInputActive = Math.max(0, (host.__chayaAgentInputActive ?? 1) - 1)
+  }
+}
+
 export async function runAgentCommand(cmd: AgentCommand, { allowEval = false }: AgentRunOptions = {}): Promise<unknown> {
   switch (cmd.method) {
     case 'game.state':
@@ -428,17 +442,17 @@ export async function runAgentCommand(cmd: AgentCommand, { allowEval = false }: 
     case 'plugin.tool':
       return callPluginTool(cmd.params)
     case 'input.press':
-      return pressKey(cmd.params)
+      return withAgentInput(() => pressKey(cmd.params))
     case 'input.reaction.arm':
       return armReaction(cmd.params)
     case 'input.reaction.stop':
       return stopReaction()
     case 'input.sequence':
-      return playSequence(cmd.params)
+      return withAgentInput(() => playSequence(cmd.params))
     case 'input.tap':
-      return tapScreen(cmd.params)
+      return withAgentInput(() => tapScreen(cmd.params))
     case 'player.moveTo':
-      return guardedMove(cmd.params)
+      return withAgentInput(() => guardedMove(cmd.params))
     case 'edit.catalog':
       return editCatalog()
     case 'edit.state':

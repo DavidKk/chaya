@@ -18,11 +18,11 @@ function initialView(): DataView {
   return { path: isValidPath(saved?.path) ? [...saved.path] : [], root: saved?.root === 'all' ? 'all' : 'pins' }
 }
 
-/** Overlay data page: local path state (kept across reopen) + a direct transport while the tab is shown */
-export function useOverlaySaveData(open: boolean, tab: TabId): SaveDataSlot {
+/** Keep the data connection for the selected tab after first open so its list survives panel hiding. */
+export function useOverlaySaveData(mounted: boolean, tab: TabId): SaveDataSlot {
   const [view, setView] = useState<DataView>(initialView)
   const [transport, setTransport] = useState<SaveDataTransport | null>(null)
-  const active = open && tab === 'data'
+  const active = mounted && tab === 'data'
 
   useLayoutEffect(() => {
     viewHost().__chayaDataView = view

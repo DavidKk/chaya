@@ -15,6 +15,7 @@ export { classifyGameIntent } from './managed-goal.server'
 const MAX_STEPS = 80
 const MAX_ACTIONS = 60
 const DEADLINE_MS = 5 * 60_000
+const BATTLE_DEADLINE_MS = 15 * 60_000
 const MAX_CLARIFY_ROUNDS = 2
 const MAX_MAP_REPLANS = 4
 /** An event may open its message a few frames after ok; re-check before calling the interaction silent. */
@@ -41,14 +42,14 @@ function fingerprint(state: State, history: History) {
   return JSON.stringify({ facts, seq: history.lastSeq })
 }
 
-async function waitForPlayer(turn: GameAgentTurn, emit: (event: Parameters<typeof emitTurnEvent>[1]) => void, question: string, step: number): Promise<string> {
+async function waitForPlayer(turn: GameAgentTurn, emit: (event: Parameters<typeof emitTurnEvent>[1]) => void, question: string, step: number, deadlineMs: number): Promise<string> {
   turn.state = 'waiting_user'
   let timer: ReturnType<typeof setInterval> | undefined
   const resumed = new Promise<void>((resolve, reject) => {
     turn.resume = resolve
     if (turn.abort.signal.aborted) resolve()
     timer = setInterval(() => {
-      if (Date.now() - turn.startedAt >= DEADLINE_MS) reject(new Error('任务已达到五分钟上限'))
+      if (Date.now() - turn.startedAt >= deadlineMs) reject(new Error('任务已达到时间上限'))
       else if (!listAgentGames().some((game) => game.gameId === turn.gameId)) reject(new Error('游戏已断开连接'))
     }, 5_000)
   })
@@ -73,12 +74,14 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
   let cursor = 0
   let actions = 0
   let noProgress = 0
+  let preferBattleVision = false
   let feedback = ''
   let incomplete = false
   let last: Awaited<ReturnType<typeof observe>> | null = null
   let scope: { battleId?: string; mapId?: number; scene?: string | null } = {}
   let targetEventId: number | undefined
   let scopeKind: ResolvedGoal['scope'] = 'unclear'
+  let deadlineMs = DEADLINE_MS
   let mapSkill: MapSkill | null = null
   let interactTarget = false
   let transit = false
@@ -115,7 +118,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         battleInstanceId: scope.battleId,
         mapId: scope.mapId,
         allowedKeys: ['ok', 'cancel', 'shift', 'up', 'down', 'left', 'right'],
-        ttlMs: DEADLINE_MS - (Date.now() - started),
+        ttlMs: deadlineMs - (Date.now() - started),
       })
       reactionArmed = true
     } catch {
@@ -130,7 +133,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
     }
     reactionUnavailable = false
     resyncEpoch = true
-    return waitForPlayer(turn, emit, question, step)
+    return waitForPlayer(turn, emit, question, step, deadlineMs)
   }
   const complete = (text: string) => {
     emit({ type: 'assistant.delta', text })
@@ -184,6 +187,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
     }
     input = { ...input, prompt: request }
     scopeKind = resolved.scope
+    if (scopeKind === 'battle') deadlineMs = BATTLE_DEADLINE_MS
     targetEventId = resolved.targetEventId
     mapSkill = scopeKind === 'map' && targetEventId != null ? (resolved.skill ?? 'approach') : null
     interactTarget = mapSkill === 'interact'
@@ -243,7 +247,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       messages.push({ role: 'user', content: JSON.stringify({ goal, currentState: decisionState(last!.state), boundary: { ...scope, targetEventId, transit } }) })
     }
     if (transit && scope.mapId != null && targetEventId != null) visitedRoutes.add(`${scope.mapId}:${targetEventId}`)
-    for (let step = 1; step <= MAX_STEPS && actions < MAX_ACTIONS && Date.now() - started < DEADLINE_MS; step++) {
+    for (let step = 1; step <= MAX_STEPS && actions < MAX_ACTIONS && Date.now() - started < deadlineMs; step++) {
       if (turn.abort.signal.aborted) throw turn.abort.signal.reason
       if (!listAgentGames().some((game) => game.gameId === input.gameId)) throw new Error('游戏已断开连接')
       const { state, history } = last
@@ -373,7 +377,17 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       const mapKey = mapSkill && !targetDialogueStarted ? nextMapTargetKey(state.player, mapTarget) : null
       const response = mapKey
         ? { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'task_press', arguments: { key: mapKey } } }] }
-        : await decide(profile, input, messages, state, interactTarget && targetDialogueStarted ? 'dialogue' : scopeKind, turn.abort.signal, getVisionModel, allowEscape)
+        : await decide(
+            profile,
+            input,
+            messages,
+            state,
+            interactTarget && targetDialogueStarted ? 'dialogue' : scopeKind,
+            turn.abort.signal,
+            getVisionModel,
+            allowEscape,
+            preferBattleVision
+          )
       const call = response.tool_calls?.[0]
       if (!call) throw new Error('当前模型未返回工具调用，无法托管游戏')
       messages.push({ ...response, tool_calls: [call] })
@@ -382,6 +396,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
           scopeKind === 'battle' &&
           state.battle?.instanceId === scope.battleId &&
           isOrdinaryBattleMenu(state) &&
+          !preferBattleVision &&
           (state.windows as Array<{ active?: boolean; options?: unknown[] }>).some((window) => window?.active && !!window.options?.length)
         ) {
           feedback = '当前战斗菜单需要选择行动，不需要询问玩家。'
@@ -447,15 +462,17 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         feedback = '玩家要求完成战斗，未授权逃跑。请选择战斗。'
         continue
       }
-      if (visualPress && key !== 'ok') {
+      if (visualPress) {
         const visual = JSON.parse(response.content) as { visualText?: string; selectedText?: string; targetText?: string }
         const battle = state.battle as { instanceId?: string; turn?: number; actor?: { id?: number } } | null
-        const signature = JSON.stringify([battle?.instanceId, battle?.turn, battle?.actor?.id, visual.selectedText, visual.targetText, key])
+        const signature = JSON.stringify([battle?.instanceId, battle?.turn, battle?.actor?.id, fingerprint(state, history), visual.selectedText, visual.targetText, key])
         const repeats = (visualMoves.get(signature) || 0) + 1
         visualMoves.set(signature, repeats)
         if (repeats >= 2) {
           const reply = await pauseForPlayer(
-            `图片菜单在“${visual.selectedText || '未知'}”附近反复移动，无法确认目标“${visual.targetText || '未知'}”。请在游戏里处理后回复继续。`,
+            key === 'ok'
+              ? `图片菜单确认“${visual.selectedText || '未知'}”后仍未推进。请在游戏里处理后回复继续。`
+              : `图片菜单在“${visual.selectedText || '未知'}”附近反复移动，无法确认目标“${visual.targetText || '未知'}”。请在游戏里处理后回复继续。`,
             step
           )
           messages.push({ role: 'user', content: `Player reply: ${reply}` })
@@ -467,6 +484,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       }
       if (!state.controlToken) throw new Error('游戏插件未提供操作校验令牌，无法安全托管')
       const before = fingerprint(state, history)
+      const battleImageBefore = scopeKind === 'battle' ? await battleImageFingerprint(input.gameId).catch(() => null) : null
       const callId = `${step}-0`
       emit({ type: 'phase', phase: 'acting', step, maxSteps: MAX_STEPS })
       emit({ type: 'tool.started', callId, name: `input.press:${key}` })
@@ -530,16 +548,25 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         }
         throw new Error(reason)
       }
-      const visualChanged = visualPress
-        ? await battleImageFingerprint(input.gameId)
-            .then((hash) => hash !== (JSON.parse(response.content) as { imageFingerprint?: string }).imageFingerprint)
-            .catch(() => false)
-        : false
-      noProgress = fingerprint(last.state, last.history) === before && !visualChanged ? noProgress + 1 : 0
+      const stateChanged = fingerprint(last.state, last.history) !== before
+      const visualChanged =
+        !stateChanged && battleImageBefore
+          ? await battleImageFingerprint(input.gameId)
+              .then((hash) => hash !== battleImageBefore)
+              .catch(() => false)
+          : false
+      if (scopeKind === 'battle' && visualChanged && !visualPress && !isOrdinaryBattleMenu(last.state)) preferBattleVision = true
+      if (scopeKind === 'battle' && stateChanged && isOrdinaryBattleMenu(last.state)) preferBattleVision = false
+      noProgress = stateChanged || (visualChanged && !isOrdinaryBattleMenu(last.state)) ? 0 : noProgress + 1
       if (noProgress) feedback = `${key} 没有改变游戏状态，请选择其他按键。`
-      if (noProgress >= 3) throw new Error('连续三次操作未观察到进展')
+      if (scopeKind === 'battle' && noProgress >= 2 && !preferBattleVision) {
+        preferBattleVision = true
+        noProgress = 0
+        feedback = '战斗按键没有产生可见进展，改用画面识别确认菜单。'
+      } else if (noProgress >= 3) throw new Error(`连续三次操作未观察到进展（最近按键：${key}）`)
     }
-    const text = `已达到本轮操作上限。${last ? resultText(last.state, { entries: story }, incomplete) : ''}`
+    const reason = Date.now() - started >= deadlineMs ? '已达到本轮时间上限。' : '已达到本轮操作上限。'
+    const text = `${reason}${last ? resultText(last.state, { entries: story }, incomplete) : ''}`
     emit({ type: 'assistant.delta', text })
     finishTurn(turn, 'completed')
     emit({ type: 'turn.completed', text, reason: 'limit_reached' })

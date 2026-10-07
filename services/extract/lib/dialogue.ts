@@ -12,6 +12,38 @@ function walkEventList(list: unknown[] | undefined, onCommand: (cmd: any, index:
   })
 }
 
+function tickerLiterals(script: unknown): string[] {
+  if (typeof script !== 'string' || script.length > 5_000) return []
+  const found: string[] = []
+  const calls = /\bTickerManager\s*\.\s*show\s*\(\s*(['"])/g
+  for (const call of script.matchAll(calls)) {
+    const quote = call[1]
+    let value = ''
+    let valid = true
+    for (let i = call.index! + call[0].length; i < script.length; i++) {
+      const char = script[i]
+      if (char === quote) {
+        if (valid && /^\s*[,)]/.test(script.slice(i + 1)) && value.length <= 1_200 && isUseful(value)) found.push(clean(value))
+        break
+      }
+      if (char !== '\\') {
+        value += char
+        continue
+      }
+      const escaped = script[++i]
+      if (escaped === '\\' || escaped === quote) value += escaped
+      else if (escaped === 'n') value += '\n'
+      else if (escaped === 'r') value += '\r'
+      else if (escaped === 't') value += '\t'
+      else {
+        valid = false
+        break
+      }
+    }
+  }
+  return found
+}
+
 export type DialogueLoc = Record<string, unknown>
 
 export function extractDialogueFromEvents(events: any[] | undefined, loc: DialogueLoc) {
@@ -100,6 +132,18 @@ export function extractDialogueFromEvents(events: any[] | undefined, loc: Dialog
         if (cmd.code === 357) {
           flush()
           const lines = extractPluginText(p[3])
+          if (lines.length) ordered.push({ ...base(), kind: 'p', lines })
+          return
+        }
+
+        if (cmd.code === 205 || cmd.code === 355 || cmd.code === 655) {
+          flush()
+          const lines =
+            cmd.code === 205
+              ? ((p[1] as { list?: Array<{ code: number; parameters?: unknown[] }> } | undefined)?.list || []).flatMap((move) =>
+                  move.code === 45 ? tickerLiterals(move.parameters?.[0]) : []
+                )
+              : tickerLiterals(p[0])
           if (lines.length) ordered.push({ ...base(), kind: 'p', lines })
           return
         }

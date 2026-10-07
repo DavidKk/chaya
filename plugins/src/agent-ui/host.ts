@@ -1,4 +1,4 @@
-import { applyShadowStyles } from '../helpers'
+import { applyShadowStyles, isolateEditableKeys } from '../helpers'
 
 const HOST_ID = 'chaya-game-agent-host'
 const MOUNT_ID = 'chaya-game-agent-root'
@@ -12,6 +12,7 @@ export function ensureGameAgentHost(cssText: string) {
   }
   const shadow = host.shadowRoot || host.attachShadow({ mode: 'open' })
   applyShadowStyles(shadow, cssText)
+  isolateEditableKeys(shadow)
   let mount = shadow.getElementById(MOUNT_ID) as HTMLElement | null
   if (!mount) {
     mount = document.createElement('div')

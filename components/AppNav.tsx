@@ -19,9 +19,9 @@ import { cn } from '@/lib/utils'
  * - `/game` 游戏库
  * - `/cheat` 修改（局内 GameEdit）
  * - `/translate/run` 翻译动作；`/translate/cache` 翻译库浏览
+ * - `/assist/hotkeys` 辅助（`/assist` 也重定向到这里）
  * - `/logs` 日志
  * - `/integration/skills` · `/integration/mcp` · `/integration/webmcp` 集成
- * - `/settings/agents` 配置
  * `/` 暂空，重定向到 `/game`
  */
 type AppNavChild = { href: string; labelKey: MessageKey }
@@ -41,17 +41,23 @@ export const APP_NAV_ITEMS: ReadonlyArray<AppNavItem> = [
     labelKey: 'nav.translate',
     children: TRANSLATE_TABS.map((item) => ({ href: translateTabHref(item.id), labelKey: item.labelKey })),
   },
+  {
+    id: 'assist',
+    href: '/assist/hotkeys',
+    labelKey: 'nav.assist',
+    children: [
+      { href: '/assist/hotkeys', labelKey: 'edit.hotkeys' },
+      { href: '/assist/key-mouse', labelKey: 'nav.keyMouse' },
+      { href: '/assist/agents', labelKey: 'integration.agentSettingsTab' },
+      { href: '/assist/minimap', labelKey: 'nav.minimap' },
+      { href: '/assist/companion', labelKey: 'nav.companion' },
+    ],
+  },
   { id: 'logs', href: '/logs', labelKey: 'nav.logs' },
   { id: 'integration', href: '/integration/skills', labelKey: 'nav.integration', children: INTEGRATION_TABS },
-  {
-    id: 'settings',
-    href: '/settings/agents',
-    labelKey: 'nav.settings',
-    children: [{ href: '/settings/agents', labelKey: 'integration.agentSettingsTab' }],
-  },
 ] as const
 
-export type AppNavPath = '/game' | '/cheat/run' | '/translate/run' | '/logs' | '/integration/skills' | '/settings/agents' | '/cheat' | '/translate' | '/integration' | '/settings'
+export type AppNavPath = '/game' | '/assist' | '/cheat/run' | '/translate/run' | '/logs' | '/integration/skills' | '/cheat' | '/translate' | '/integration' | '/settings'
 
 const LINK_SELECTOR = '[data-app-nav-link]'
 
@@ -71,8 +77,8 @@ function navActive(current: AppNavPath, href: string) {
   if (href === '/cheat/run') return current === '/cheat' || current === '/cheat/run' || current.startsWith('/cheat/')
   if (href === '/translate/run') return current === '/translate' || current === '/translate/run' || current.startsWith('/translate/')
   if (href === '/integration/skills') return current === '/integration' || current.startsWith('/integration/')
-  if (href === '/settings/agents') return current === '/settings' || current.startsWith('/settings/')
   if (href === '/game') return current === '/game'
+  if (href === '/assist/hotkeys') return current === '/assist' || current === '/settings'
   return current === href
 }
 

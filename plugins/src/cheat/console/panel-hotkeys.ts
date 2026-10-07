@@ -1,7 +1,7 @@
 /**
  * Panel toggle + DevTools console hotkeys (Chrome-like defaults per OS).
  */
-import { getOpenConsoleChord, getOpenPanelChord, matchKeyChord, matchOpenPanelHotkey } from '@/components/game-edit/run-hotkeys'
+import { getOpenConsoleChord, getOpenPanelChord, isHotkeyDisabled, matchKeyChord, matchOpenPanelHotkey, OPEN_CONSOLE_HOTKEY_ID } from '@/components/game-edit/run-hotkeys'
 
 import { createLogger, showPluginError } from '../../helpers'
 import { getAutoTalkState } from '../runtime/auto-talk'
@@ -14,7 +14,7 @@ function isPanelHotkey(ev: KeyboardEvent) {
 }
 
 function isConsoleHotkey(ev: KeyboardEvent) {
-  return matchKeyChord(ev, getOpenConsoleChord())
+  return !isHotkeyDisabled(OPEN_CONSOLE_HOTKEY_ID) && matchKeyChord(ev, getOpenConsoleChord())
 }
 
 function shouldIgnoreHotkeyInField(ev: KeyboardEvent) {
@@ -26,9 +26,6 @@ function shouldIgnoreHotkeyInField(ev: KeyboardEvent) {
 function blockHotkeyEvent(ev: Event) {
   ev.preventDefault()
   ev.stopPropagation()
-  if (typeof (ev as KeyboardEvent & { stopImmediatePropagation?: () => void }).stopImmediatePropagation === 'function') {
-    ;(ev as KeyboardEvent & { stopImmediatePropagation: () => void }).stopImmediatePropagation()
-  }
 }
 
 function openGameDevTools(): boolean {
@@ -46,6 +43,7 @@ function openGameDevTools(): boolean {
 }
 
 function onHotkeyDown(ev: KeyboardEvent) {
+  if ((ev as KeyboardEvent & { __chayaInputAssistGenerated?: boolean }).__chayaInputAssistGenerated) return
   if (isConsoleHotkey(ev)) {
     if (shouldIgnoreHotkeyInField(ev)) return
     blockHotkeyEvent(ev)
@@ -58,6 +56,7 @@ function onHotkeyDown(ev: KeyboardEvent) {
 }
 
 function onHotkeyUp(ev: KeyboardEvent) {
+  if ((ev as KeyboardEvent & { __chayaInputAssistGenerated?: boolean }).__chayaInputAssistGenerated) return
   if (isConsoleHotkey(ev)) {
     if (shouldIgnoreHotkeyInField(ev)) return
     blockHotkeyEvent(ev)

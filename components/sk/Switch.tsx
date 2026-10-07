@@ -2,7 +2,7 @@
 
 import { type ButtonHTMLAttributes, type ReactNode, useId } from 'react'
 
-import { SWITCH_TRAVEL, switchThumbClass, switchTrackClass } from '@/components/sk/switch-geometry'
+import { SWITCH_SM_TRAVEL, SWITCH_TRAVEL, switchThumbClass, switchTrackClass, switchTrackSmClass } from '@/components/sk/switch-geometry'
 import { Tooltip, withTooltip } from '@/components/sk/Tooltip/Tooltip'
 import { cn } from '@/lib/utils'
 
@@ -12,9 +12,15 @@ export type SwitchToggleProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 't
   onCheckedChange: (checked: boolean) => void
   /** 悬停提示；无文案的裸开关建议必传 */
   tooltip?: string
+  /** `ghost`：弱化配色（无强调色），用于密集列表里不应抢视线的开关 */
+  variant?: 'default' | 'ghost'
+  /** `sm`：迷你尺寸，用于密集表格行内 */
+  size?: 'md' | 'sm'
 }
 
-export function SwitchToggle({ checked, onCheckedChange, className, disabled, id, tooltip, ...rest }: SwitchToggleProps) {
+export function SwitchToggle({ checked, onCheckedChange, className, disabled, id, tooltip, variant = 'default', size = 'md', ...rest }: SwitchToggleProps) {
+  const ghost = variant === 'ghost'
+  const travel = size === 'sm' ? SWITCH_SM_TRAVEL : SWITCH_TRAVEL
   const button = (
     <button
       id={id}
@@ -27,10 +33,14 @@ export function SwitchToggle({ checked, onCheckedChange, className, disabled, id
         'relative inline-flex shrink-0 cursor-pointer items-center rounded-[0.25rem] transition-[background-color,border-color] duration-150 ease-out',
         'box-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]',
         'disabled:cursor-not-allowed',
-        switchTrackClass,
-        checked === true && 'border-[color-mix(in_oklab,var(--accent)_80%,transparent)] bg-accent',
-        checked === 'mixed' && 'border-[color-mix(in_oklab,var(--accent)_60%,transparent)] bg-[color-mix(in_oklab,var(--accent)_35%,var(--inset))]',
-        checked === false && 'border-line bg-[var(--inset)]',
+        size === 'sm' ? switchTrackSmClass : switchTrackClass,
+        !ghost && checked === true && 'border-[color-mix(in_oklab,var(--accent)_80%,transparent)] bg-accent',
+        !ghost && checked === 'mixed' && 'border-[color-mix(in_oklab,var(--accent)_60%,transparent)] bg-[color-mix(in_oklab,var(--accent)_35%,var(--inset))]',
+        !ghost && checked === false && 'border-line bg-[var(--inset)]',
+        ghost && checked === true && 'border-[rgb(230_238_248/0.22)] bg-[rgb(230_238_248/0.1)]',
+        ghost && checked === 'mixed' && 'border-[rgb(230_238_248/0.16)] bg-[rgb(230_238_248/0.05)]',
+        ghost && checked === false && 'border-line bg-transparent',
+        ghost && 'hover:enabled:border-[rgb(230_238_248/0.3)] disabled:opacity-45',
         className
       )}
       {...rest}
@@ -39,10 +49,11 @@ export function SwitchToggle({ checked, onCheckedChange, className, disabled, id
         aria-hidden
         data-slot="switch-thumb"
         className={cn(
-          'pointer-events-none block rounded-[0.15rem] bg-white shadow-[0_1px_2px_rgb(0_0_0/0.35)] transition-transform duration-150 ease-out will-change-transform',
+          'pointer-events-none block rounded-[0.15rem] transition-[transform,background-color] duration-150 ease-out will-change-transform',
+          ghost ? (checked === false ? 'bg-ink-soft/60' : 'bg-ink/85') : 'bg-white shadow-[0_1px_2px_rgb(0_0_0/0.35)]',
           switchThumbClass
         )}
-        style={{ transform: `translateX(${checked === true ? SWITCH_TRAVEL : checked === 'mixed' ? SWITCH_TRAVEL / 2 : 0}px)` }}
+        style={{ transform: `translateX(${checked === true ? travel : checked === 'mixed' ? travel / 2 : 0}px)` }}
       />
     </button>
   )

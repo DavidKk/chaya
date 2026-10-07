@@ -27,6 +27,7 @@ beforeEach(() => {
   ;(findVisionModel as jest.Mock).mockReset()
   ;(inspectBattleImage as jest.Mock).mockReset()
   ;(battleImageFingerprint as jest.Mock).mockReset()
+  ;(battleImageFingerprint as jest.Mock).mockResolvedValue('same-image')
 })
 
 test('routes play requests in any language through the model instead of keyword matching', async () => {
@@ -96,12 +97,14 @@ test('uses thinking for tactical battle choices but not the opening command', as
     { role: 'system' as const, content: 'battle' },
     { role: 'user' as const, content: 'state' },
   ]
-  await decide(profile, input, messages, state, 'battle', new AbortController().signal, async () => null)
-  expect(chat.mock.calls[0][0]).toMatchObject({ think: false, maxTokens: 64 })
+  await expect(decide(profile, input, messages, state, 'battle', new AbortController().signal, async () => null)).resolves.toMatchObject({
+    tool_calls: [{ function: { name: 'task_press', arguments: { key: 'ok' } } }],
+  })
+  expect(chat).not.toHaveBeenCalled()
 
   state.windows[0] = { name: 'enemyWindow', active: true, index: 0, options: [{ symbol: 'enemy' }, { symbol: 'enemy' }] }
   await decide(profile, input, messages, state, 'battle', new AbortController().signal, async () => null)
-  expect(chat.mock.calls[1][0]).toMatchObject({ think: true, maxTokens: 384 })
+  expect(chat.mock.calls[0][0]).toMatchObject({ think: true, maxTokens: 384 })
 })
 
 type MapEventMock = {
@@ -515,7 +518,7 @@ test('executes one guarded input from a multi-call decision, then reobserves bef
   await runManagedTurn(input, profile, turn())
 
   const calls = game.mock.calls.filter((call) => call[1] === 'input.press')
-  expect(chat.mock.calls[1]?.[0].format).toMatchObject({ properties: { index: { enum: [0] } } })
+  expect(chat.mock.calls[1]?.[0].format).toMatchObject({ properties: { index: { enum: [0, 1] } } })
   expect(calls).toHaveLength(2)
   expect(calls[0][2]).toMatchObject({ guard: { controlToken: 'before', battleInstanceId: 'battle-1' } })
   expect(calls[1][2]).toMatchObject({ guard: { controlToken: 'after', battleInstanceId: 'battle-1' } })
@@ -564,7 +567,10 @@ test('uses vision for an image-only battle menu and guards the confirmed action'
   expect(finishTurn).toHaveBeenCalledWith(expect.anything(), 'completed')
 })
 
-test('pauses when an image menu repeats the same navigation decision', async () => {
+test.each([
+  { key: 'up', question: '反复移动' },
+  { key: 'ok', question: '仍未推进' },
+])('pauses when an image menu repeats $key without state progress', async ({ key, question }) => {
   const game = callAgentGame as jest.MockedFunction<typeof callAgentGame>
   game.mockImplementation(async (_id, method) =>
     method === 'game.state'
@@ -575,7 +581,7 @@ test('pauses when an image menu repeats the same navigation decision', async () 
   )
   ;(streamOllamaChat as jest.Mock).mockResolvedValueOnce({ role: 'assistant', content: '{"summary":"完成战斗","scope":"battle"}' })
   ;(findVisionModel as jest.Mock).mockResolvedValue('gemma4:vision')
-  ;(inspectBattleImage as jest.Mock).mockResolvedValue({ key: 'up', visibleText: '剑士 术士', selectedText: '术士', targetText: '剑士', safe: true, imageFingerprint: 'before' })
+  ;(inspectBattleImage as jest.Mock).mockResolvedValue({ key, visibleText: '剑士 术士', selectedText: '术士', targetText: '剑士', safe: true, imageFingerprint: 'before' })
   ;(battleImageFingerprint as jest.Mock).mockResolvedValue('after')
   const active = turn()
   ;(emitTurnEvent as jest.Mock).mockImplementation((_turn, event) => {
@@ -588,7 +594,7 @@ test('pauses when an image menu repeats the same navigation decision', async () 
   await runManagedTurn(input, profile, active)
 
   expect(game.mock.calls.filter((call) => call[1] === 'input.press')).toHaveLength(1)
-  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'approval.required', question: expect.stringContaining('反复移动') }))
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'approval.required', question: expect.stringContaining(question) }))
 })
 
 test('selects a non-default enemy before confirming the target', async () => {

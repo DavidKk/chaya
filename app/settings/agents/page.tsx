@@ -1,5 +1,5 @@
-import { AgentSettingsRoute } from '@/components/settings/AgentSettingsRoute'
+import { redirect } from 'next/navigation'
 
 export default function AgentSettingsPage() {
-  return <AgentSettingsRoute />
+  redirect('/assist/agents')
 }

@@ -55,7 +55,16 @@
 | 空/门闸  | `EmptyState` / `ChooseGameGate`                                                                                                                     |
 | 使用须知 | 功能区底部 `LegalNotice` + `legalBar`；全文在 `/disclaimer`、`/privacy`、`/license`（`lib/legal` 的 `LEGAL_DOCS`；局内「关于」复用 `LegalDocBody`） |
 
-页头（`panelShell` → `panelHead`）：**分类 / 二级 tabs 在左**；**搜索 / 筛选 / 状态在右**（`panelHeadEnd`）；主 CTA 在内容区，不塞进页头。
+页头 / 区块头（`panelHead`、卡片头、分组头）布局（硬）：
+
+```
+[标题 + 描述 | 分类 tabs]（左对齐）            [筛选栏][操作栏]（右对齐，`panelHeadEnd`）
+```
+
+- **左**：标题 + 描述（或分类 / 二级 tabs），只放标识，不放控件。
+- **右侧先筛选栏**：搜索框、筛选下拉、状态切换等**一律放在标题右侧这一行**，**禁止**在内容区顶部另起一行放搜索 / 筛选。
+- **右侧最后操作栏**：新增、连接、导出等操作放**最右**，排在筛选之后。
+- 低频 / 批量 / 危险操作（「全部停止」「清空」等）不进页头，放到对应行或二级菜单里，或者干脆不提供。
 
 - 同页自管壳（日志、GameEdit）：直接在 `panelHead` 里写 `panelHeadEnd` 子控件。
 - layout 持久壳 + 子页内容（翻译）：壳挂 `PanelHeadEndHost`，子页用 `PanelHeadEnd` portal 注入，切 tab 导航不重挂。

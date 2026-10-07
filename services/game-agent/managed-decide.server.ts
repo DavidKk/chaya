@@ -9,6 +9,17 @@ import { inspectBattleImage } from './visual-observation.server'
 
 export const KEYS = new Set<AgentInputKey>(['ok', 'cancel', 'up', 'down', 'left', 'right'])
 
+function menuKey(current: number, desired: number, count: number, maxCols: number): AgentInputKey {
+  if (desired === current) return 'ok'
+  if (maxCols > 1) {
+    const currentRow = Math.floor(current / maxCols)
+    const desiredRow = Math.floor(desired / maxCols)
+    if (currentRow === desiredRow) return desired > current ? 'right' : 'left'
+    return desiredRow > currentRow ? 'down' : 'up'
+  }
+  return (desired - current + count) % count <= (current - desired + count) % count ? 'down' : 'up'
+}
+
 export function isOrdinaryBattleMenu(state: State) {
   return (
     !!state.battle?.instanceId &&
@@ -29,7 +40,8 @@ export async function decide(
   scopeKind: ResolvedGoal['scope'],
   signal: AbortSignal,
   visionModel: () => Promise<string | null>,
-  allowEscape = false
+  allowEscape = false,
+  preferVision = false
 ) {
   const activeDialogue = scopeKind === 'dialogue' && state.message?.busy
   const hasChoices = !!state.message?.choices?.length
@@ -56,7 +68,7 @@ export async function decide(
   const imageMenu =
     scopeKind === 'battle' &&
     !state.message?.busy &&
-    (activeWindow ? !isOrdinaryBattleMenu(state) || !activeWindow.options?.length : (state.battle as { phase?: string } | null)?.phase === 'input')
+    (preferVision || (activeWindow ? !isOrdinaryBattleMenu(state) || !activeWindow.options?.length : (state.battle as { phase?: string } | null)?.phase === 'input'))
   if (imageMenu) {
     try {
       const model = await visionModel()
@@ -86,11 +98,22 @@ export async function decide(
     }
   }
   const activeMenu = Array.isArray(state.windows) && state.windows.some((window) => window && typeof window === 'object' && (window as { active?: boolean }).active)
-  const allowedKeys = ordinaryBattleMenu && activeMenu ? ['ok', 'up', 'down', 'cancel'] : [...KEYS]
+  const allowedKeys = ordinaryBattleMenu && activeMenu ? ['ok', 'up', 'down', 'left', 'right', 'cancel'] : [...KEYS]
   if (ordinaryBattleMenu) {
-    const menu = (state.windows as Array<{ name?: string; active?: boolean; index?: number; options?: Array<{ label?: string; symbol?: string }> }>).find((window) => window.active)
+    const menu = (state.windows as Array<{ name?: string; active?: boolean; index?: number; maxCols?: number; options?: Array<{ label?: string; symbol?: string }> }>).find(
+      (window) => window.active
+    )
     const choices = menu?.options || []
     const think = battleNeedsReasoning(state, choices.length, menu?.name)
+    const maxCols = Math.max(1, Math.floor(menu?.maxCols || 1))
+    if (menu?.name === 'partyCommandWindow') {
+      const desired = choices.findIndex((choice) => choice.symbol === (allowEscape ? 'escape' : 'fight'))
+      if (desired >= 0) {
+        const current = menu.index ?? 0
+        const key = menuKey(current, desired, choices.length, maxCols)
+        return { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'task_press', arguments: { key } } }] }
+      }
+    }
     if (!choices.length && ['skillWindow', 'itemWindow', 'enemyWindow', 'allyWindow'].includes(menu?.name || ''))
       return { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'task_press', arguments: { key: 'cancel' } } }] }
     const escapeIndices = choices.map((_, index) => index).filter((index) => choices[index].symbol === 'escape')
@@ -104,7 +127,7 @@ export async function decide(
           {
             role: 'system',
             content: choices.length
-              ? `/no_think\n你是 RPG 战斗决策者。当前 active 窗口的 options 是可选行动、技能、道具或目标。只输出 JSON {"index":整数}，index 是你真正想选的 options 索引，而不是当前光标索引。${allowEscape ? '玩家要求逃离当前战斗；出现逃跑指令时选择它。' : '先比较队友 HP/MP、物品数量、敌人血量与蓄力状态。血量低时优先治疗，MP 不足时考虑道具，敌人蓄力时考虑防御；选敌时优先消除迫近威胁。不要选择逃跑。'}`
+              ? `${think ? '' : '/no_think\n'}你是 RPG 战斗决策者。当前 active 窗口的 options 是可选行动、技能、道具或目标。只输出 JSON {"index":整数}，index 是你真正想选的 options 索引，而不是当前光标索引。${allowEscape ? '玩家要求逃离当前战斗；出现逃跑指令时选择它。' : '先比较队友 HP/MP、物品数量、敌人血量与蓄力状态。血量低时优先治疗，MP 不足时考虑道具，敌人蓄力时考虑防御；选敌时优先消除迫近威胁。不要选择逃跑。'}`
               : '/no_think\n你正在替玩家操作当前战斗。只输出 JSON {"key":"ok|up|down|cancel"}。根据当前活动窗口、队友和敌人状态选择下一按键。',
           },
           messages[messages.length - 1],
@@ -130,14 +153,7 @@ export async function decide(
       const decision = JSON.parse(choice.content) as { index?: number; key?: AgentInputKey }
       const desired = decision.index
       const current = menu?.index ?? 0
-      const key =
-        choices.length && Number.isInteger(desired) && allowedIndices.includes(desired!)
-          ? desired === current
-            ? 'ok'
-            : (desired! - current + choices.length) % choices.length <= (current - desired! + choices.length) % choices.length
-              ? 'down'
-              : 'up'
-          : decision.key
+      const key = choices.length && Number.isInteger(desired) && allowedIndices.includes(desired!) ? menuKey(current, desired!, choices.length, maxCols) : decision.key
       if (key && allowedKeys.includes(key)) return { role: 'assistant' as const, content: choice.content, tool_calls: [{ function: { name: 'task_press', arguments: { key } } }] }
     } catch {
       // The caller reports an unsupported model response.

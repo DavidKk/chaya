@@ -1,5 +1,5 @@
-import { ToolSettingsRoute } from '@/components/settings/ToolSettingsRoute'
+import { redirect } from 'next/navigation'
 
 export default function CompanionSettingsPage() {
-  return <ToolSettingsRoute page="companion" />
+  redirect('/assist/companion')
 }

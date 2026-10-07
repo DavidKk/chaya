@@ -1,3 +1,4 @@
+import { Activity } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
 import { CompanionPanel } from '@/components/game-agent/CompanionPanel'
@@ -14,6 +15,7 @@ import { pluginGameAgentRequest } from './request'
 let root: Root | null = null
 let host: HTMLElement | null = null
 let open = false
+let hasOpened = false
 const observe = () => readAgentGameState() as CompanionState
 
 function render() {
@@ -21,10 +23,12 @@ function render() {
   root.render(
     <LocaleProvider syncDocumentLang={false}>
       <CompanionPanel gameId={gameRoomId()} open={open} observe={observe} request={pluginGameAgentRequest} />
-      {open ? (
-        <div className="pointer-events-auto absolute inset-y-0 right-0">
-          <GameAgentSidebar gameId={gameRoomId()} open={open} onClose={hideGameAgentUi} request={pluginGameAgentRequest} />
-        </div>
+      {hasOpened ? (
+        <Activity mode={open ? 'visible' : 'hidden'}>
+          <div className="pointer-events-auto absolute inset-y-0 right-0">
+            <GameAgentSidebar gameId={gameRoomId()} onClose={hideGameAgentUi} request={pluginGameAgentRequest} open />
+          </div>
+        </Activity>
       ) : null}
     </LocaleProvider>
   )
@@ -40,6 +44,7 @@ function ensureMounted() {
 export function showGameAgentUi() {
   ensureMounted()
   open = true
+  hasOpened = true
   host?.setAttribute('data-open', '')
   render()
 }
@@ -68,6 +73,7 @@ export function unmountGameAgentUi() {
   host?.remove()
   host = null
   open = false
+  hasOpened = false
 }
 
 export function isGameAgentUiOpen() {

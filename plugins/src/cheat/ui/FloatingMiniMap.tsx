@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { MiniMap } from '@/components/game-edit/events/MiniMap'
 import type { PlayerSpot } from '@/components/game-edit/events/types'
+import { useToolPanelVisibility } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
 import type { MapDetailData } from '@/lib/game/events'
@@ -12,11 +13,10 @@ import { buildLiveMapDetail, currentMapLiveState, playerSpot, teleportPlayer } f
 
 type Props = {
   enabled: boolean
-  onClose: () => void
   onSelectEvent: (mapId: number, eventId: number) => void
 }
 
-export function FloatingMiniMap({ enabled, onClose, onSelectEvent }: Props) {
+export function FloatingMiniMap({ enabled, onSelectEvent }: Props) {
   const t = useT()
   const confirm = useConfirm()
   const notify = useNotification()
@@ -24,9 +24,10 @@ export function FloatingMiniMap({ enabled, onClose, onSelectEvent }: Props) {
   const [detail, setDetail] = useState<MapDetailData | null>(null)
   const [picked, setPicked] = useState<{ mapId: number; x: number; y: number } | null>(null)
   const [busy, setBusy] = useState(false)
+  const panel = useToolPanelVisibility(enabled)
 
   useEffect(() => {
-    if (!enabled) return
+    if (!panel.visible) return
     const tick = () => {
       const spot = isOnMapScene() ? playerSpot() : null
       setPlayer((previous) => (previous?.mapId === spot?.mapId && previous?.x === spot?.x && previous?.y === spot?.y && previous?.direction === spot?.direction ? previous : spot))
@@ -38,10 +39,10 @@ export function FloatingMiniMap({ enabled, onClose, onSelectEvent }: Props) {
     tick()
     const timer = window.setInterval(tick, 1000)
     return () => window.clearInterval(timer)
-  }, [enabled])
+  }, [panel.visible])
 
   useEffect(() => {
-    if (!enabled || !player?.mapId) return
+    if (!panel.visible || !player?.mapId) return
     let cancelled = false
     const mapId = player.mapId
     void buildLiveMapDetail(mapId)
@@ -54,9 +55,9 @@ export function FloatingMiniMap({ enabled, onClose, onSelectEvent }: Props) {
     return () => {
       cancelled = true
     }
-  }, [enabled, player?.mapId])
+  }, [panel.visible, player?.mapId])
 
-  if (!enabled || !player || !detail || detail.mapId !== player.mapId) return null
+  if (!panel.visible || !player || !detail || detail.mapId !== player.mapId) return null
 
   const target = picked?.mapId === detail.mapId ? picked : { x: player.x, y: player.y }
   const pickCell = async (x: number, y: number) => {
@@ -91,7 +92,7 @@ export function FloatingMiniMap({ enabled, onClose, onSelectEvent }: Props) {
       }}
       near
       disabled={busy}
-      onClose={onClose}
+      onClose={panel.dismiss}
       onPickCell={(x, y) => void pickCell(x, y)}
       onSelectEvent={(id) => onSelectEvent(detail.mapId, id)}
     />
