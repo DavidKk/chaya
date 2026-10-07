@@ -27,3 +27,19 @@ test('Edge restores the browser room, starts signaling, and follows selection wi
     localStorage.clear()
   }
 })
+
+test('local server offers as soon as the bound room is known so a reloaded page reconnects to a running game', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = jest.fn().mockResolvedValue({
+    json: async () => ({ canUseDisk: true, ready: true, remote: false, config: { gameRoot: '/games/walk' }, library: [{ id: 'walk', gameRoot: '/games/walk/' }] }),
+  })
+  const root = createRoot(document.createElement('div'))
+  try {
+    await act(async () => root.render(createElement(GameLinkProvider, null)))
+    expect(useGameLink).toHaveBeenLastCalledWith(expect.objectContaining({ roomId: 'walk', enabled: true, autoStart: true }))
+  } finally {
+    await act(async () => root.unmount())
+    globalThis.fetch = originalFetch
+  }
+})

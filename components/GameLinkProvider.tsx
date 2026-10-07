@@ -49,7 +49,8 @@ const GameLinkContext = createContext<GameLinkContextValue | null>(null)
 
 /**
  * 全站共享 Web↔游戏 DataChannel（room = 当前库条目 id）。
- * 本机模式由启动操作发 offer；浏览器模式按持久化选中房间自动握手。
+ * 拿到房间即自动发 offer 后台等游戏：刷新页面后仍在运行的游戏才能重新连上，
+ * 也避免信令板 webConnected 被清掉后「开始游戏」误开第二个进程。
  */
 export function GameLinkProvider({ children }: { children: ReactNode }) {
   const [roomId, setRoomId] = useState<string | null>(null)
@@ -130,7 +131,7 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const link = useGameLink({ roomId, enabled, autoStart: browserMode, onMessage })
+  const link = useGameLink({ roomId, enabled, autoStart: true, onMessage })
   const { connected, send } = link
   const translation = useMemo(() => {
     const rpc = createTranslationRpc((packet) => {

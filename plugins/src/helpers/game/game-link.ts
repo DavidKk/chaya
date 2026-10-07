@@ -21,6 +21,7 @@ const STUN = 'stun:stun.cloudflare.com:3478'
 const POLL_IDLE_MS = 8_000
 /** Connected: only probe whether Web swapped in a new offer */
 const POLL_LINKED_MS = 20_000
+const RECONNECT_POLL_MS = 1_000
 
 type Sdp = { type: RTCSdpType; sdp?: string }
 type WebrtcRoom = { offer?: Sdp | null; answer?: Sdp | null }
@@ -214,6 +215,8 @@ function bindDc(dc: RTCDataChannel) {
     if (activeDc === dc) activeDc = null
     linkOpen = false
     stopGameLinkEditBridge()
+    // Web page reloaded: its fresh offer is already waiting, don't sit out POLL_LINKED_MS
+    schedule(RECONNECT_POLL_MS)
   }
   dc.onmessage = (ev) => {
     try {
