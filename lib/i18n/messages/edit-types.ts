@@ -279,4 +279,5 @@ export type EditMessages = {
   hkEnableAll: string
   hkDisableAll: string
   hkPanelAlwaysOn: string
+  hkAssistConflict: string
 }

@@ -501,7 +501,7 @@ export function GameEditWorkbench({
               </TabSuspense>
             ) : eventsTab ? (
               <TabSuspense tab={tab}>
-                <EventsBody tab={tab} slot={events} filter={filter} session={session} headSlot={paneHead} toolRequest={agentRequest} showMiniMap={surface !== 'overlay'} />
+                <EventsBody tab={tab} slot={events} filter={filter} session={session} headSlot={paneHead} />
               </TabSuspense>
             ) : readOnly && isLiveValueTab(tab) ? (
               <EmptyState title={syncing ? t('edit.syncingTitle') : t('edit.notStartedTitle')} message={syncing ? t('edit.syncingMsg') : t('edit.notStartedMsg')}>

@@ -1,14 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
 import { IoArrowBack } from 'react-icons/io5'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
-import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { countKey, type SessionState } from '@/components/game-edit/types'
-import { useToolPanelVisibility } from '@/components/game-tools/tool-panels'
-import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
@@ -121,58 +117,33 @@ function useTeleport(node: MapNode, slot: EventsSlot, near: boolean) {
 export type Teleport = ReturnType<typeof useTeleport>
 
 /** One map: header with the coordinate teleport, mini map, event table; selecting an event opens its detail in place */
-export function MapDetail({
-  node,
-  data,
-  slot,
-  session,
-  near,
-  toolRequest,
-  showMiniMap = true,
-}: {
-  node: MapNode
-  data: CommonEventsData
-  slot: EventsSlot
-  session: SessionState
-  near: boolean
-  toolRequest?: GameAgentRequest
-  showMiniMap?: boolean
-}) {
+export function MapDetail({ node, data, slot, session, near }: { node: MapNode; data: CommonEventsData; slot: EventsSlot; session: SessionState; near: boolean }) {
   const t = useT()
   const detail = slot.mapDetail?.mapId === node.id ? slot.mapDetail : null
   const isCurrent = slot.live && slot.player?.mapId === node.id
   const selectedEvent = detail && slot.eventId != null ? (detail.events.find((ev) => ev.id === slot.eventId) ?? null) : null
   const tp = useTeleport(node, slot, near)
-  const toolSettings = useToolSettings(toolRequest)
-  const panel = useToolPanelVisibility('miniMap', toolSettings.settings.miniMapEnabled)
-  const miniMap =
-    showMiniMap && detail && panel.visible ? (
-      <MiniMap
-        detail={detail}
-        player={tp.player}
-        target={tp.target}
-        stateOf={(id) => {
-          const ev = detail.events.find((e) => e.id === id)
-          return ev ? eventStateOf(ev, detail, session) : { kind: 'unknown', page: 0, exact: false }
-        }}
-        near={tp.near}
-        disabled={!!tp.blocked || tp.busy}
-        onClose={panel.dismiss}
-        onPickCell={(x, y) => void tp.pickCell(x, y)}
-        onSelectEvent={(id) => slot.onSelectMap(node.id, id)}
-      />
-    ) : null
-  const overlayRoot = typeof document !== 'undefined' ? document.getElementById('chaya-game-edit-host')?.shadowRoot : null
-  const floatingMap = miniMap && overlayRoot ? createPortal(miniMap, overlayRoot) : miniMap
 
   if (selectedEvent && detail) {
-    return (
-      <>
-        {floatingMap}
-        <MapEventDetail key={selectedEvent.id} ev={selectedEvent} node={node} detail={detail} data={data} slot={slot} session={session} tp={tp} />
-      </>
-    )
+    return <MapEventDetail key={selectedEvent.id} ev={selectedEvent} node={node} detail={detail} data={data} slot={slot} session={session} tp={tp} />
   }
+
+  const miniMap = detail ? (
+    <MiniMap
+      inline
+      detail={detail}
+      player={tp.player}
+      target={tp.target}
+      stateOf={(id) => {
+        const ev = detail.events.find((e) => e.id === id)
+        return ev ? eventStateOf(ev, detail, session) : { kind: 'unknown', page: 0, exact: false }
+      }}
+      near={tp.near}
+      disabled={!!tp.blocked || tp.busy}
+      onPickCell={(x, y) => void tp.pickCell(x, y)}
+      onSelectEvent={(id) => slot.onSelectMap(node.id, id)}
+    />
+  ) : null
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -215,7 +186,7 @@ export function MapDetail({
         />
       </header>
       <ScrollArea className="min-h-0 flex-1" indicator="both" reserveGutter={false} scrollProps={{ 'aria-label': t('events.map.events') }}>
-        {floatingMap}
+        {miniMap}
         {!detail ? (
           slot.mapError ? (
             <EmptyState title={t('events.map.loadFail')} message={slot.mapError}>

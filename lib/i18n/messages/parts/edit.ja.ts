@@ -283,6 +283,7 @@ export const editJa = {
     hkEnableAll: 'Enable all {group} hotkeys',
     hkDisableAll: 'Temporarily disable all {group} hotkeys',
     hkPanelAlwaysOn: 'The open-panel hotkey always stays on',
+    hkAssistConflict: 'キーマウスツール {names} と競合し、同時に発動する可能性があります',
   },
   logs: {
     region: 'ログ',

@@ -115,6 +115,25 @@ describe('ChayaAgent handlers', () => {
     }
   })
 
+  it('guards a sequence to arrow keys in the current battle', async () => {
+    const originalDocument = g.document
+    g.document = { title: 'Game', body: { innerText: '' } }
+    g.SceneManager = { _scene: { constructor: { name: 'Scene_Battle' } } }
+    try {
+      const state = (await runAgentCommand({ id: 'state', method: 'game.state', params: {} })) as { controlToken: string; commandInputs: unknown[] }
+      expect(state.commandInputs).toEqual([])
+      const guard = { controlToken: state.controlToken, allowedEffects: ['navigate' as const] }
+      const ok = { id: 'ok', method: 'input.sequence' as const, params: { steps: [{ key: 'up' as const }, { key: 'ok' as const }], guard } }
+      await expect(runAgentCommand(ok)).rejects.toThrow('ACTION_REQUIRES_CONFIRMATION:unknown')
+      const stale = { id: 'stale', method: 'input.sequence' as const, params: { steps: [{ key: 'up' as const }], guard: { ...guard, controlToken: 'old' } } }
+      await expect(runAgentCommand(stale)).rejects.toThrow('STATE_CHANGED')
+    } finally {
+      if (originalDocument === undefined) delete g.document
+      else g.document = originalDocument
+      delete g.SceneManager
+    }
+  })
+
   it('allows interaction only with the bound map event', async () => {
     jest.useFakeTimers()
     const originals = { document: g.document, window: g.window, SceneManager: g.SceneManager, $gameMap: g.$gameMap, $gamePlayer: g.$gamePlayer, $gameMessage: g.$gameMessage }

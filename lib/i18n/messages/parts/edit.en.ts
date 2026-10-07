@@ -283,6 +283,7 @@ export const editEn = {
     hkEnableAll: 'Enable all {group} hotkeys',
     hkDisableAll: 'Temporarily disable all {group} hotkeys',
     hkPanelAlwaysOn: 'The open-panel hotkey always stays on',
+    hkAssistConflict: 'Conflicts with key-mouse tool {names}; both may fire',
   },
   logs: {
     region: 'Plugin logs',

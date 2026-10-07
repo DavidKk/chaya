@@ -1,3 +1,4 @@
+import { hotkeyTokens, inputChordTokens, type ProductBinding, tokensOverlap } from './hotkey-conflicts'
 import {
   type BindingWarning,
   EMPTY_INPUT_ASSIST_CONFIG,
@@ -243,29 +244,37 @@ export function mergeRules(globalRules: readonly InputRule[], gameRules: readonl
   return [...merged.values()]
 }
 
-export function bindingWarnings(rules: readonly InputRule[], productBindings: readonly InputChord[] = []): BindingWarning[] {
-  const bindings = rules
+export type RuleBinding = { ruleId: string; field: 'trigger' | 'stop'; chord: InputChord; name: string }
+
+/** Enabled rules' trigger and separate stop chords: the keys that can fire something */
+export function ruleBindings(rules: readonly InputRule[]): RuleBinding[] {
+  return rules
     .filter((rule) => rule.enabled)
     .flatMap((rule) => {
-      const own: Array<{ ruleId: string; field: 'trigger' | 'stop'; chord: InputChord; name: string }> = [
-        { ruleId: rule.id, field: 'trigger', chord: rule.trigger, name: rule.name },
-      ]
+      const own: RuleBinding[] = [{ ruleId: rule.id, field: 'trigger', chord: rule.trigger, name: rule.name }]
       if (rule.kind === 'macro' && rule.repeat.enabled && rule.stop?.mode === 'separate')
         own.push({ ruleId: rule.id, field: 'stop', chord: rule.stop.binding, name: `${rule.name} 停止键` })
       return own
     })
+    .filter((binding) => validChord(binding.chord))
+}
+
+export function bindingWarnings(rules: readonly InputRule[], productBindings: readonly ProductBinding[] = []): BindingWarning[] {
+  const bindings = ruleBindings(rules)
+  const products = productBindings.map((binding) => ({ ...binding, tokens: hotkeyTokens(binding.chord) }))
   const warnings: BindingWarning[] = []
   for (const binding of bindings) {
-    if (!validChord(binding.chord)) continue
     const own = new Set(binding.chord.map(atomId))
     for (const other of bindings) {
-      if (other === binding || !validChord(other.chord)) continue
+      if (other === binding) continue
       const theirs = new Set(other.chord.map(atomId))
       if ([...own].every((id) => theirs.has(id)) || [...theirs].every((id) => own.has(id)))
         warnings.push({ ruleId: binding.ruleId, field: binding.field, message: `与“${other.name}”的绑定重叠，可能同时触发` })
     }
-    if (productBindings.some((chord) => chordId(chord) === chordId(binding.chord)))
-      warnings.push({ ruleId: binding.ruleId, field: binding.field, message: '与 Chaya 快捷键相同，两个动作可能同时触发' })
+    const tokens = inputChordTokens(binding.chord)
+    for (const product of products) {
+      if (tokensOverlap(tokens, product.tokens)) warnings.push({ ruleId: binding.ruleId, field: binding.field, message: `与 Chaya 快捷键“${product.label}”冲突，可能同时触发` })
+    }
   }
   return warnings
 }

@@ -1,11 +1,40 @@
+import type { AgentCommandInput, AgentDirectionKey } from '@/lib/runtime/agent-protocol'
+
 import { hookMethod } from '../helpers/game/method-hook'
 
-type CanvasText = { text: string; at: number }
+type CanvasText = { text: string; at: number; canvas: number; x: number; y: number }
 
 const CURRENT_MS = 1_000
 const RECENT_MS = 10_000
 const MAX_LINES = 40
 const MAX_TEXT_LENGTH = 160
+const ARROWS: Record<string, AgentDirectionKey> = {
+  '←': 'left',
+  '⇐': 'left',
+  '⬅': 'left',
+  '◀': 'left',
+  '◄': 'left',
+  '→': 'right',
+  '⇒': 'right',
+  '➡': 'right',
+  '▶': 'right',
+  '►': 'right',
+  '↑': 'up',
+  '⇑': 'up',
+  '⬆': 'up',
+  '▲': 'up',
+  '↓': 'down',
+  '⇓': 'down',
+  '⬇': 'down',
+  '▼': 'down',
+}
+const ARROW_LINE = new RegExp(`^[${Object.keys(ARROWS).join('')}\\s]+$`)
+/** Same-row arrows drawn one glyph at a time sit within this vertical drift */
+const ROW_DRIFT = 6
+/** How far below its skill name an arrow row may sit */
+const LABEL_REACH = 72
+const MAX_COMMANDS = 16
+const MAX_COMMAND_KEYS = 12
 
 const current = new Map<string, CanvasText>()
 const recent = new Map<string, CanvasText>()
@@ -36,21 +65,54 @@ function remember(target: Map<string, CanvasText>, canvas: object, value: unknow
     canvasId = ++nextCanvasId
     canvasIds.set(canvas, canvasId)
   }
-  const key = `${canvasId}:${Math.round(Number(x))}:${Math.round(Number(y))}`
-  const at = Date.now()
+  const px = Math.round(Number(x)) || 0
+  const py = Math.round(Number(y)) || 0
+  const key = `${canvasId}:${px}:${py}`
   target.delete(key)
-  target.set(key, { text, at })
+  target.set(key, { text, at: Date.now(), canvas: canvasId, x: px, y: py })
   if (target.size > MAX_LINES) target.delete(target.keys().next().value!)
+}
+
+function fresh(source: Map<string, CanvasText>, lifetime: number) {
+  const now = Date.now()
+  for (const [key, entry] of source) if (now - entry.at > lifetime) source.delete(key)
+  return [...source.values()]
 }
 
 export function readRenderedText() {
   resetForScene()
-  const now = Date.now()
-  const read = (source: Map<string, CanvasText>, lifetime: number) => {
-    for (const [key, entry] of source) if (now - entry.at > lifetime) source.delete(key)
-    return [...source.values()].map((entry) => entry.text)
+  return { visible: fresh(current, CURRENT_MS).map((entry) => entry.text), recentBitmap: fresh(recent, RECENT_MS).map((entry) => entry.text) }
+}
+
+/**
+ * Command-input battle skills (name above, arrow sequence below, e.g. "★セイバー" / "→ ←").
+ * Arrows drawn as icons or images are not text and stay invisible here.
+ */
+export function readCommandInputs(): AgentCommandInput[] {
+  resetForScene()
+  // Window contents are offscreen bitmaps drawn once per refresh, so they live in `recent`
+  const entries = [...fresh(current, CURRENT_MS), ...fresh(recent, RECENT_MS)]
+  const arrows = entries.filter((entry) => ARROW_LINE.test(entry.text)).sort((a, b) => a.canvas - b.canvas || a.y - b.y || a.x - b.x)
+  const rows: CanvasText[][] = []
+  for (const entry of arrows) {
+    const row = rows.find((items) => items[0].canvas === entry.canvas && Math.abs(items[0].y - entry.y) <= ROW_DRIFT)
+    if (row) row.push(entry)
+    else rows.push([entry])
   }
-  return { visible: read(current, CURRENT_MS), recentBitmap: read(recent, RECENT_MS) }
+  const labels = entries.filter((entry) => !ARROW_LINE.test(entry.text) && /\p{L}/u.test(entry.text))
+  const commands: AgentCommandInput[] = []
+  for (const row of rows) {
+    row.sort((a, b) => a.x - b.x)
+    const keys = [...row.map((entry) => entry.text).join('')].map((char) => ARROWS[char]).filter(Boolean)
+    if (!keys.length || keys.length > MAX_COMMAND_KEYS) continue
+    const { canvas, x, y } = row[0]
+    const label = labels
+      .filter((entry) => entry.canvas === canvas && y - entry.y > 0 && y - entry.y <= LABEL_REACH && x - entry.x > -24)
+      .sort((a, b) => y - a.y + Math.abs(x - a.x) / 2 - (y - b.y + Math.abs(x - b.x) / 2))[0]
+    commands.push({ label: label?.text ?? null, keys })
+    if (commands.length >= MAX_COMMANDS) break
+  }
+  return commands
 }
 
 export function startRenderedTextCapture(): () => void {

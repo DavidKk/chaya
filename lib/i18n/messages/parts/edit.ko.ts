@@ -283,6 +283,7 @@ export const editKo = {
     hkEnableAll: 'Enable all {group} hotkeys',
     hkDisableAll: 'Temporarily disable all {group} hotkeys',
     hkPanelAlwaysOn: 'The open-panel hotkey always stays on',
+    hkAssistConflict: '키·마우스 도구 {names}와(과) 충돌하여 함께 실행될 수 있습니다',
   },
   logs: {
     region: '로그',

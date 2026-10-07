@@ -7,6 +7,8 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { formCardDense, formControlInline, formDescInline, formFieldInlineDense, formTitleInline } from '@/components/layoutClasses'
 import { FORM_CONTROL_H, formControlChrome } from '@/components/sk/control'
 import { SwitchToggle } from '@/components/sk/Switch'
+import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
+import { hotkeyTokens, inputChordTokens, type RuleBinding, tokensOverlap } from '@/lib/game/input-assistance'
 import type { MessageKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -34,6 +36,8 @@ type Props = {
   globalValue: HotkeyMap
   onGameChange: (next: HotkeyMap) => void
   onGlobalChange: (next: HotkeyMap) => void
+  /** 键鼠工具的触发键；与生效中的快捷键重叠时标记冲突 */
+  assistBindings?: readonly RuleBinding[]
 }
 
 /** 左列加宽 + 描述不换行；右侧两列绑定框 */
@@ -89,24 +93,26 @@ type CellProps = {
   placeholder: string
   recording: boolean
   showReset: boolean
+  warning?: string
   onRecord: (on: boolean) => void
   onBind: (chord: string) => void
   t: (key: MessageKey, params?: Record<string, string | number>) => string
 }
 
-function HotkeyBindCell({ label, scope, chord, placeholder, recording, showReset, onRecord, onBind, t }: CellProps) {
+function HotkeyBindCell({ label, scope, chord, placeholder, recording, showReset, warning, onRecord, onBind, t }: CellProps) {
   const display = recording ? '…' : displayKeyChord(chord)
   const scopeLabel = scope === 'game' ? t('edit.hkScopeGame') : t('edit.hkScopeGlobal')
   const clearLabel = scope === 'game' ? t('edit.hkClearGame', { name: label }) : t('edit.hkClearGlobal', { name: label })
-  return (
-    <span className={cn(hotkeyShell, recording && 'border-accent')} data-recording={recording || undefined}>
+  const ariaLabel = t('edit.hkChordAria', { name: label, scope: scopeLabel })
+  const cell = (
+    <span className={cn(hotkeyShell, recording && 'border-accent', warning && !recording && 'border-warn')} data-recording={recording || undefined}>
       <input
         type="text"
         readOnly
         className={hotkeyInput}
         value={display}
         placeholder={displayKeyChord(placeholder) || placeholder}
-        aria-label={t('edit.hkChordAria', { name: label, scope: scopeLabel })}
+        aria-label={warning ? `${ariaLabel}，${warning}` : ariaLabel}
         onFocus={() => onRecord(true)}
         onBlur={() => onRecord(false)}
         onKeyDown={(e) => {
@@ -133,10 +139,11 @@ function HotkeyBindCell({ label, scope, chord, placeholder, recording, showReset
       ) : null}
     </span>
   )
+  return warning && !recording ? <Tooltip content={warning}>{cell}</Tooltip> : cell
 }
 
 /** 运行开关 / 触发的快捷键：本游戏覆盖 | 全部游戏默认；未设本游戏则用全局 */
-export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGlobalChange }: Props) {
+export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGlobalChange, assistBindings = [] }: Props) {
   const t = useT()
   const [recordingKey, setRecordingKey] = useState<string | null>(null)
   const [disabled, setDisabled] = useState<ReadonlySet<string>>(loadDisabledHotkeys)
@@ -180,6 +187,15 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
   }, [])
 
   const effective = useMemo(() => effectiveHotkeys(gameValue, globalValue), [gameValue, globalValue])
+  const assistTokens = useMemo(() => assistBindings.map((binding) => ({ name: binding.name, tokens: inputChordTokens(binding.chord) })), [assistBindings])
+  /** 只看实际生效的绑定：被让位或已暂停的不会触发，也就不算冲突 */
+  const assistConflict = (id: string) => {
+    const chord = effective[id]
+    if (!chord || disabled.has(id)) return undefined
+    const tokens = hotkeyTokens(chord)
+    const names = assistTokens.filter((binding) => tokensOverlap(tokens, binding.tokens)).map((binding) => `“${binding.name}”`)
+    return names.length ? t('edit.hkAssistConflict', { names: names.join('、') }) : undefined
+  }
   /** 默认键被别的项占用时已让位，不再提示 */
   const defaultPlaceholder = (id: string) => {
     const chord = defaultHotkeyChord(id)
@@ -234,6 +250,7 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
               const toggleable = canDisableHotkey(row.id)
               const enabled = !disabled.has(row.id)
               const toggleTip = !toggleable ? t('edit.hkPanelAlwaysOn') : enabled ? t('edit.hkDisable', { name: label }) : t('edit.hkEnable', { name: label })
+              const conflict = assistConflict(row.id)
               return (
                 <div key={row.id} className={hotkeyRow}>
                   <span className={cn(formTitleInline, !enabled && 'opacity-50')}>{label}</span>
@@ -246,6 +263,7 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
                       placeholder="—"
                       recording={gameRecording}
                       showReset={Boolean(gameChord)}
+                      warning={gameChord ? conflict : undefined}
                       onRecord={(on) => setRecordingKey(on ? `game:${row.id}` : null)}
                       onBind={(c) => setBinding('game', row.id, c)}
                       t={t}
@@ -257,6 +275,7 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
                       placeholder={defaultPlaceholder(row.id)}
                       recording={globalRecording}
                       showReset={Boolean(globalChord)}
+                      warning={gameChord ? undefined : conflict}
                       onRecord={(on) => setRecordingKey(on ? `global:${row.id}` : null)}
                       onBind={(c) => setBinding('global', row.id, c)}
                       t={t}

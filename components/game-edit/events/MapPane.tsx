@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { IoChevronBack, IoChevronForward } from 'react-icons/io5'
 
-import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import type { SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { padXDense } from '@/components/layoutClasses'
@@ -22,8 +21,6 @@ type Props = {
   session: SessionState
   /** Panel header spot (right of the search box) for the page-wide "nearby" switch */
   headSlot?: HTMLElement | null
-  toolRequest?: GameAgentRequest
-  showMiniMap?: boolean
 }
 
 const treeRow = cn(
@@ -45,7 +42,7 @@ function matchMap(row: MapTreeRow, q: string): { hit: boolean; eventHit?: string
  * 修改 › 地图: one level of the map tree at a time (drill in via ›, back via the breadcrumb),
  * so any depth or width keeps the same layout; search lists matches flat with their path. Map detail on the right.
  */
-export function MapPane({ slot, filter, session, headSlot, toolRequest, showMiniMap = true }: Props) {
+export function MapPane({ slot, filter, session, headSlot }: Props) {
   const t = useT()
   const [near, setNear] = useState(true)
   const data = slot.data
@@ -202,11 +199,7 @@ export function MapPane({ slot, filter, session, headSlot, toolRequest, showMini
           </ScrollArea>
         </aside>
         <div className={cn('min-h-0 min-w-0 flex-1', selected ? 'flex' : 'hidden @4xl:flex')}>
-          {selected ? (
-            <MapDetail key={selected.id} node={selected} data={data} slot={slot} session={session} near={near} toolRequest={toolRequest} showMiniMap={showMiniMap} />
-          ) : (
-            <EmptyState title={t('events.map.selectHint')} />
-          )}
+          {selected ? <MapDetail key={selected.id} node={selected} data={data} slot={slot} session={session} near={near} /> : <EmptyState title={t('events.map.selectHint')} />}
         </div>
       </div>
       {headSlot ? createPortal(<NearToggle near={near} onChange={setNear} />, headSlot) : null}

@@ -282,6 +282,7 @@ export const editZh = {
     hkEnableAll: '启用{group}全部快捷键',
     hkDisableAll: '临时禁用{group}全部快捷键',
     hkPanelAlwaysOn: '唤出键始终生效，避免无法打开面板',
+    hkAssistConflict: '与键鼠工具 {names} 冲突，可能同时触发',
   },
   logs: {
     region: '插件日志',

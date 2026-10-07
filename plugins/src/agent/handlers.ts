@@ -3,7 +3,7 @@
  * No arbitrary plugin method calls: agents only reach preset abilities (see docs/capabilities.md).
  */
 
-import type { AgentCommand, AgentInputEffect, AgentInputGuard, AgentInputKey, AgentInputStep, AgentParams } from '@/lib/runtime/agent-protocol'
+import type { AgentCommand, AgentInputEffect, AgentInputGuard, AgentInputKey, AgentParams } from '@/lib/runtime/agent-protocol'
 import { parseEditAction, parseEditOp } from '@/lib/runtime/edit-ops'
 import { isFirstPartyToolPlugin } from '@/lib/runtime/plugin-tools'
 
@@ -11,7 +11,7 @@ import { findPluginTool, listPluginToolMetas } from '../helpers/plugin-tools'
 import { movePlayer, quitGame, snapScreen, tapScreen } from './game-control'
 import { battleProgress, originalMessageText, readHistory } from './history'
 import { armReaction, currentReactionCue, reactionAvailable, reactionOutcome, reactionResult, startReactionMonitor, stopReaction } from './reaction'
-import { readRenderedText } from './rendered-text'
+import { readCommandInputs, readRenderedText } from './rendered-text'
 
 type Loose = Record<string, unknown>
 type AnyFn = (...args: unknown[]) => unknown
@@ -226,6 +226,7 @@ export function readAgentGameState() {
     windows,
     screenText,
     renderedText: readRenderedText(),
+    commandInputs: (scene?.constructor as { name?: string } | undefined)?.name === 'Scene_Battle' ? readCommandInputs() : [],
     message: message
       ? {
           busy: Boolean(read(message, 'isBusy')),
@@ -393,9 +394,14 @@ export function startReactionTracking(): () => void {
   )
 }
 
-async function playSequence({ steps }: { steps: AgentInputStep[] }): Promise<unknown> {
+async function playSequence({ steps, guard }: AgentParams<'input.sequence'>): Promise<unknown> {
   if (!Array.isArray(steps) || !steps.length) throw new Error('steps 不能为空')
   if (steps.length > MAX_SEQUENCE_STEPS) throw new Error(`steps 最多 ${MAX_SEQUENCE_STEPS} 个`)
+  if (guard) {
+    // Arrows only navigate, so one check up front covers the whole guarded sequence
+    if (!steps.every((step) => ['up', 'down', 'left', 'right'].includes(step?.key))) throw new Error('ACTION_REQUIRES_CONFIRMATION:unknown')
+    checkInputGuard(steps[0].key, guard)
+  }
   const actions = []
   for (const step of steps) {
     if (!step || !DOM_KEYS[step.key]) throw new Error(`无效按键：${String(step?.key)}`)

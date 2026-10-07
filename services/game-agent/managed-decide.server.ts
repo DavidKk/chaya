@@ -1,4 +1,4 @@
-import type { AgentInputKey } from '@/lib/runtime/agent-protocol'
+import type { AgentCommandInput, AgentInputKey } from '@/lib/runtime/agent-protocol'
 
 import { battleNeedsReasoning, decisionState, type ManagedState as State, type ResolvedGoal } from './managed-goal.server'
 import { streamOllamaChat } from './ollama-client'
@@ -32,6 +32,48 @@ export function isOrdinaryBattleMenu(state: State) {
   )
 }
 
+/** Command-input battles cast skills by typing the arrows shown next to them; the host sends the whole sequence at once. */
+async function chooseCommand(profile: GameAgentProfile, input: StartTurnInput, messages: GameAgentMessage[], commands: AgentCommandInput[], signal: AbortSignal) {
+  let index = 0
+  if (commands.length > 1) {
+    const choice = await streamOllamaChat(
+      {
+        endpoint: profile.endpoint,
+        model: input.model,
+        messages: [
+          {
+            role: 'system',
+            content:
+              '/no_think\n你是 RPG 指令输入战斗的决策者。currentState.commandInputs 是画面上的技能，keys 是发动它要依次输入的方向键。技能名旁的数字可能是消耗或冷却。只输出 JSON {"index":整数}。优先能尽快打倒敌人的技能；队友 HP 低时考虑治疗类技能；feedback 表明上次输入没有推进时换一个。',
+          },
+          messages[messages.length - 1],
+        ],
+        format: {
+          type: 'object',
+          properties: { index: { type: 'integer', enum: commands.map((_, i) => i) } },
+          required: ['index'],
+          additionalProperties: false,
+        },
+        temperature: 0,
+        maxTokens: 64,
+        token: readGameAgentToken(profile.id),
+        keepAlive: profile.keepAlive,
+        signal,
+      },
+      () => {}
+    )
+    try {
+      const picked = (JSON.parse(choice.content) as { index?: number }).index
+      if (Number.isInteger(picked) && commands[picked!]) index = picked!
+    } catch {
+      // Fall back to the first listed skill.
+    }
+  }
+  const { label, keys } = commands[index]
+  const args: Record<string, unknown> = { label, keys }
+  return { role: 'assistant' as const, content: JSON.stringify(args), tool_calls: [{ function: { name: 'task_press_combo', arguments: args } }] }
+}
+
 export async function decide(
   profile: GameAgentProfile,
   input: StartTurnInput,
@@ -62,6 +104,8 @@ export async function decide(
         },
       ],
     }
+  const commands = scopeKind === 'battle' && !state.message?.busy && !ordinaryBattleMenu && !preferVision ? state.commandInputs || [] : []
+  if (commands.length) return chooseCommand(profile, input, messages, commands, signal)
   const activeWindow = Array.isArray(state.windows)
     ? (state.windows as Array<{ name?: string; active?: boolean; options?: unknown[] }>).find((window) => window?.active)
     : undefined

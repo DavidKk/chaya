@@ -1,4 +1,4 @@
-import { readRenderedText, startRenderedTextCapture } from '@/plugins/src/agent/rendered-text'
+import { readCommandInputs, readRenderedText, startRenderedTextCapture } from '@/plugins/src/agent/rendered-text'
 
 type TestContext = { canvas: { isConnected: boolean }; fillText: (text: string, x: number, y: number) => void; strokeText: (text: string, x: number, y: number) => void }
 
@@ -57,6 +57,32 @@ describe('rendered canvas text', () => {
       now += 16
     }
     expect(readRenderedText().visible).toEqual(['森林遭遇', '剩余 12 ms'])
+  })
+
+  it('pairs command-input arrow rows with the skill name above them', () => {
+    context.canvas.isConnected = false
+    context.fillText('★セイバー', 30, 90)
+    context.fillText('→ ←', 64, 128)
+    context.fillText('★クロスセイバー', 286, 44)
+    context.fillText('→', 318, 80)
+    context.fillText('↑', 366, 81)
+    context.fillText('←', 412, 80)
+    context.fillText('10', 184, 304)
+    context.fillText('★ホーリー', 30, 300)
+    context.fillText('← →', 64, 336)
+    expect(readCommandInputs()).toEqual([
+      { label: '★クロスセイバー', keys: ['right', 'up', 'left'] },
+      { label: '★セイバー', keys: ['right', 'left'] },
+      { label: '★ホーリー', keys: ['left', 'right'] },
+    ])
+  })
+
+  it('reports no commands for plain menu text or after a scene change', () => {
+    context.fillText('攻撃 → 敵', 10, 20)
+    expect(readCommandInputs()).toEqual([])
+    context.fillText('↑ ↓', 10, 40)
+    globals.SceneManager!._scene = {}
+    expect(readCommandInputs()).toEqual([])
   })
 
   it('restores canvas methods on shutdown', () => {

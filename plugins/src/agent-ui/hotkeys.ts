@@ -1,8 +1,11 @@
+import { isInputRecording } from '@/lib/game/input-assistance/recording'
+
 import { isGameAgentUiOpen, toggleGameAgentUi } from './mount'
 
 export function startGameAgentHotkeys() {
   const toggle = () => toggleGameAgentUi()
   const onKey = (event: KeyboardEvent) => {
+    if (isInputRecording()) return
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'a') {
       event.preventDefault()
       event.stopImmediatePropagation()

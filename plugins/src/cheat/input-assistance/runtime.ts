@@ -1,5 +1,5 @@
 import type { InputAssistConfig, InputAtom, InputChord, InputRule, KeyInput, MacroEvent, MacroRule, TurboRule } from '@/lib/game/input-assistance'
-import { atomId, chordId, macroSteps, MIN_PRESS_MS, parseInputAssistConfig, randomInterval, spaceMacroEvents, validateRule } from '@/lib/game/input-assistance'
+import { atomId, chordId, isInputRecording, macroSteps, MIN_PRESS_MS, parseInputAssistConfig, randomInterval, spaceMacroEvents, validateRule } from '@/lib/game/input-assistance'
 
 export type AssistStatus = { running: string[]; pending: string[]; counts: Record<string, number>; error?: string; recording: boolean }
 export type RecordKind = 'binding' | 'macro'
@@ -10,8 +10,10 @@ type Active = { rule: InputRule; timer: number | null; held: Set<string>; count:
 const GENERATED = '__chayaInputAssistGenerated'
 /** 连发每次点按都会计数，状态广播限频，避免每 30 ms 往网页推一次 */
 const TURBO_STATUS_MS = 500
-function isEditable(target: EventTarget | null): boolean {
-  return target instanceof Element && !!target.closest('input, textarea, select, [contenteditable], [role="textbox"], #chaya-game-edit-host, #chaya-game-agent-host')
+/** Only typing into a field opts out; focus left on a plugin button (floating panels stay open in play) must not swallow hotkeys. */
+function isEditable(event: Event): boolean {
+  const target = event.composedPath?.()[0] ?? event.target
+  return target instanceof Element && !!target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')
 }
 
 function canvas(): HTMLElement | null {
@@ -300,7 +302,7 @@ export class InputAssistanceRuntime {
   }
 
   private onKeyDown = (event: KeyboardEvent): void => {
-    if (isGenerated(event) || !event.isTrusted || isEditable(event.target)) return
+    if (isGenerated(event) || !event.isTrusted || isEditable(event)) return
     if (event.repeat) {
       if (this.replaced.has(atomId(fromKey(event)))) {
         event.preventDefault()
@@ -370,6 +372,7 @@ export class InputAssistanceRuntime {
     const wasPressed = this.pressed.has(id)
     if (phase === 'down') this.pressed.set(id, atom)
     else this.pressed.delete(id)
+    if (!this.recording && isInputRecording()) return
     if (this.recording) {
       event.preventDefault()
       event.stopPropagation()

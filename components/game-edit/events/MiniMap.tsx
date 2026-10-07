@@ -1,9 +1,10 @@
 'use client'
 
-import { type MouseEvent, useId, useMemo, useState } from 'react'
+import { type MouseEvent, type ReactNode, useId, useMemo, useState } from 'react'
 
 import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
 import { useT } from '@/components/i18n/LocaleProvider'
+import { ScrollArea } from '@/components/sk'
 import type { MapDetailData, MapEventType } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
@@ -17,6 +18,8 @@ const TYPE_FILL: Record<MapEventType, string> = {
   trigger: 'fill-[color-mix(in_oklab,var(--fail)_70%,var(--warn))]',
   other: 'fill-ink-soft',
 }
+
+const INLINE_CELL_PX = 10
 
 const LEGEND: MapEventType[] = ['npc', 'transfer', 'chest', 'trigger', 'other']
 
@@ -42,21 +45,7 @@ function blockedPath(mask: string, w: number, h: number): string {
   return d
 }
 
-/**
- * Event positions on a grid the size of the map; clicking a blank tile picks a teleport target,
- * clicking an event opens it.
- */
-export function MiniMap({
-  detail,
-  player,
-  target,
-  stateOf,
-  near,
-  disabled,
-  onClose,
-  onPickCell,
-  onSelectEvent,
-}: {
+type MiniMapProps = {
   detail: MapDetailData
   player: PlayerSpot | null
   target: { x: number; y: number } | null
@@ -64,16 +53,60 @@ export function MiniMap({
   /** "Nearby" mode: impassable tiles can still be picked */
   near: boolean
   disabled?: boolean
-  onClose: () => void
   onPickCell: (x: number, y: number) => void
   onSelectEvent: (id: number) => void
-}) {
+}
+
+/**
+ * Event positions on a grid the size of the map; clicking a blank tile picks a teleport target,
+ * clicking an event opens it. `inline` sits inside the map page; otherwise it is the floating panel.
+ */
+export function MiniMap(props: MiniMapProps & ({ inline: true; onClose?: never } | { inline?: false; onClose: () => void })) {
+  const t = useT()
+  if (props.inline) {
+    return (
+      <section className="flex flex-col border-b border-line px-3 py-2">
+        <MiniMapBody {...props} title={t('events.map.minimap')} cell={INLINE_CELL_PX} />
+      </section>
+    )
+  }
+  return (
+    <FloatingToolPanel title={t('events.map.minimap')} onClose={props.onClose} panel="miniMap">
+      <div className="flex h-full min-h-0 flex-col p-2">
+        <MiniMapBody {...props} />
+      </div>
+    </FloatingToolPanel>
+  )
+}
+
+/** Inline map: fixed tile size, scrolls when the map is larger than the box */
+function MapViewport({ cell, children }: { cell?: number; children: ReactNode }) {
+  if (!cell) return children
+  return (
+    <ScrollArea className="max-h-[24rem] w-fit max-w-full" indicator="both" reserveGutter={false}>
+      {children}
+    </ScrollArea>
+  )
+}
+
+function MiniMapBody({
+  detail,
+  player,
+  target,
+  stateOf,
+  near,
+  disabled,
+  onPickCell,
+  onSelectEvent,
+  cell,
+  title,
+}: MiniMapProps & { /** Fixed px per tile; omitted = scale to fit the panel */ cell?: number; title?: string }) {
   const t = useT()
   const gridId = useId()
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
   const w = Math.max(1, detail.width)
   const h = Math.max(1, detail.height)
-  const showGrid = Math.max(w, h) <= 80
+  const showGrid = !!cell || Math.max(w, h) <= 80
   const onPlayerMap = player?.mapId === detail.mapId
   const mask = detail.blocked && detail.blocked.length === w * h ? detail.blocked : null
   const blockedD = useMemo(() => (mask ? blockedPath(mask, w, h) : ''), [mask, w, h])
@@ -94,20 +127,22 @@ export function MiniMap({
   }
 
   return (
-    <FloatingToolPanel title={t('events.map.minimap')} onClose={onClose} panel="miniMap">
-      <div className="flex h-full min-h-0 flex-col p-2">
-        <div className="flex h-12 shrink-0 items-start justify-end pb-1">
-          <span className={cn('line-clamp-3 text-right font-mono text-[0.7rem] leading-4', hoverBlocked ? 'text-warn' : 'text-ink-soft')}>
-            {!hover
-              ? t('events.map.minimapHint')
-              : !hoverBlocked
-                ? `${hover.x},${hover.y}`
-                : t(near ? 'events.map.minimapBlockedNear' : 'events.map.minimapBlockedAt', { x: hover.x, y: hover.y })}
-          </span>
-        </div>
+    <>
+      <div className={cn('flex shrink-0 justify-end gap-2 pb-1', title ? 'items-baseline justify-between' : 'h-12 items-start')}>
+        {title ? <h3 className="m-0 shrink-0 text-[0.68rem] font-semibold tracking-[0.05em] text-ink-soft uppercase">{title}</h3> : null}
+        <span className={cn('text-right font-mono text-[0.7rem] leading-4', !title && 'line-clamp-3', hoverBlocked ? 'text-warn' : 'text-ink-soft')}>
+          {!hover
+            ? t('events.map.minimapHint')
+            : !hoverBlocked
+              ? `${hover.x},${hover.y}`
+              : t(near ? 'events.map.minimapBlockedNear' : 'events.map.minimapBlockedAt', { x: hover.x, y: hover.y })}
+        </span>
+      </div>
+      <MapViewport cell={cell}>
         <svg
           viewBox={`0 0 ${w} ${h}`}
-          className={cn('block min-h-0 w-full flex-1', disabled || hoverRefused ? 'cursor-not-allowed' : 'cursor-crosshair')}
+          style={cell ? { width: w * cell, height: h * cell } : undefined}
+          className={cn('block shrink-0', !cell && 'min-h-0 w-full flex-1', disabled || hoverRefused ? 'cursor-not-allowed' : 'cursor-crosshair')}
           preserveAspectRatio="xMinYMin meet"
           role="img"
           aria-label={t('events.map.minimap')}
@@ -174,35 +209,35 @@ export function MiniMap({
             </g>
           ) : null}
         </svg>
-        <ul className="m-0 flex shrink-0 list-none flex-wrap gap-x-3 gap-y-1 pt-1.5 pl-0 text-[0.7rem] text-ink-soft">
-          {onPlayerMap ? (
-            <li className="inline-flex items-center gap-1">
-              <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
-                <circle cx="5" cy="5" r="4" fill="none" className="stroke-ink" strokeWidth="1.2" />
-                <path d={FACING_ARROW} transform="translate(5 5) scale(10)" className="fill-ink" />
-              </svg>
-              {t('events.map.minimapPlayer')}
-            </li>
-          ) : null}
-          {mask ? (
-            <li className="inline-flex items-center gap-1">
-              <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
-                <rect width="10" height="10" className="fill-[color-mix(in_oklab,var(--ink-soft)_22%,var(--inset))]" />
-                <path d="M0 10L10 0M-2 4L4 -2M6 12L12 6" className="stroke-[color-mix(in_oklab,var(--ink-soft)_45%,transparent)]" strokeWidth="1.6" />
-              </svg>
-              {t('events.map.minimapBlocked')}
-            </li>
-          ) : null}
-          {LEGEND.map((type) => (
-            <li key={type} className="inline-flex items-center gap-1">
-              <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
-                <circle cx="5" cy="5" r="4" className={TYPE_FILL[type]} />
-              </svg>
-              {t(TYPE_KEY[type])}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </FloatingToolPanel>
+      </MapViewport>
+      <ul className="m-0 flex shrink-0 list-none flex-wrap gap-x-3 gap-y-1 pt-1.5 pl-0 text-[0.7rem] text-ink-soft">
+        {onPlayerMap ? (
+          <li className="inline-flex items-center gap-1">
+            <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
+              <circle cx="5" cy="5" r="4" fill="none" className="stroke-ink" strokeWidth="1.2" />
+              <path d={FACING_ARROW} transform="translate(5 5) scale(10)" className="fill-ink" />
+            </svg>
+            {t('events.map.minimapPlayer')}
+          </li>
+        ) : null}
+        {mask ? (
+          <li className="inline-flex items-center gap-1">
+            <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
+              <rect width="10" height="10" className="fill-[color-mix(in_oklab,var(--ink-soft)_22%,var(--inset))]" />
+              <path d="M0 10L10 0M-2 4L4 -2M6 12L12 6" className="stroke-[color-mix(in_oklab,var(--ink-soft)_45%,transparent)]" strokeWidth="1.6" />
+            </svg>
+            {t('events.map.minimapBlocked')}
+          </li>
+        ) : null}
+        {LEGEND.map((type) => (
+          <li key={type} className="inline-flex items-center gap-1">
+            <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
+              <circle cx="5" cy="5" r="4" className={TYPE_FILL[type]} />
+            </svg>
+            {t(TYPE_KEY[type])}
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }

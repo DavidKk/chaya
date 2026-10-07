@@ -483,6 +483,19 @@ export function saveStoredHotkeys(map: HotkeyMap) {
   saveGlobalHotkeys(map)
 }
 
+/** 局内 Agent 面板开关，固定不可改（见 agent-ui/hotkeys） */
+export const GAME_AGENT_TOGGLE_HOTKEY_ID = 'ui:agent'
+export const GAME_AGENT_TOGGLE_CHORD = 'Ctrl+Shift+A'
+
+/** 当前会触发的 Chaya 快捷键（已暂停的除外）；未传入时局内取本游戏缓存，Web 取本地单槽 */
+export function activeChayaHotkeys(game?: HotkeyMap | null, global?: HotkeyMap | null): Array<{ id: string; chord: string }> {
+  const gameMap = game ?? (Object.keys(gameHotkeysCache).length ? gameHotkeysCache : loadGameStoredHotkeys())
+  const active = Object.entries(effectiveHotkeys(gameMap, global ?? loadGlobalHotkeys()))
+    .filter(([id]) => !isHotkeyDisabled(id))
+    .map(([id, chord]) => ({ id, chord }))
+  return [...active, { id: GAME_AGENT_TOGGLE_HOTKEY_ID, chord: GAME_AGENT_TOGGLE_CHORD }]
+}
+
 /** 局内读取当前唤出键：本游戏 → 全局 → ` */
 export function getOpenPanelChord(): string {
   return resolveHotkeyChord(OPEN_PANEL_HOTKEY_ID, gameHotkeysCache, loadGlobalHotkeys())

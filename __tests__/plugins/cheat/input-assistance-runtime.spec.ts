@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import type { InputRule, KeyInput, TurboRule } from '@/lib/game/input-assistance'
+import { type InputRule, type KeyInput, setInputRecording, type TurboRule } from '@/lib/game/input-assistance'
 import { InputAssistanceRuntime } from '@/plugins/src/cheat/input-assistance/runtime'
 
 const q: KeyInput = { kind: 'key', code: 'KeyQ', key: 'q', keyCode: 81, location: 0 }
@@ -12,13 +12,14 @@ function turbo(patch: Partial<TurboRule> = {}): TurboRule {
 type Physical = { prevented: boolean }
 type Handlers = { onKeyDown: (event: unknown) => void; onKeyUp: (event: unknown) => void }
 
-function physical(runtime: InputAssistanceRuntime, phase: 'down' | 'up', input: KeyInput, repeat = false): Physical {
+function physical(runtime: InputAssistanceRuntime, phase: 'down' | 'up', input: KeyInput, repeat = false, focused: Element = document.body): Physical {
   const result = { prevented: false }
   const event = {
     ...input,
     isTrusted: true,
     repeat,
     target: document.body,
+    composedPath: () => [focused, document.body],
     which: input.keyCode,
     preventDefault: () => (result.prevented = true),
     stopPropagation: () => {},
@@ -70,6 +71,41 @@ it('toggles turbo on the first trigger press and off on the second, never leavin
   expect(emitted).toHaveLength(stoppedAt)
   expect(emitted.filter((item) => item.startsWith('down')).length).toBe(emitted.filter((item) => item.startsWith('up')).length)
   expect(runtime.status().running).toEqual([])
+})
+
+it('fires with focus left on a plugin panel button but not while typing in a field', () => {
+  setRules(turbo())
+  const host = document.createElement('div')
+  host.id = 'chaya-game-edit-host'
+  const shadow = host.attachShadow({ mode: 'open' })
+  const button = document.createElement('button')
+  const field = document.createElement('input')
+  shadow.append(button, field)
+  document.body.append(host)
+  try {
+    expect(physical(runtime, 'down', q, false, field).prevented).toBe(false)
+    physical(runtime, 'up', q, false, field)
+    expect(runtime.status().running).toEqual([])
+    expect(physical(runtime, 'down', q, false, button).prevented).toBe(true)
+    physical(runtime, 'up', q, false, button)
+    expect(runtime.status().running).toEqual(['turbo'])
+  } finally {
+    host.remove()
+  }
+})
+
+it('stays idle while a recorder field owns the input', () => {
+  setRules(turbo())
+  setInputRecording(true)
+  try {
+    expect(physical(runtime, 'down', q).prevented).toBe(false)
+    physical(runtime, 'up', q)
+    jest.advanceTimersByTime(250)
+    expect(emitted).toEqual([])
+    expect(runtime.status().running).toEqual([])
+  } finally {
+    setInputRecording(false)
+  }
 })
 
 it('releases a key that is mid-press when turbo is stopped', () => {

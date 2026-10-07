@@ -37,6 +37,15 @@ async function observe(gameId: string, cursor: number) {
   return { state, history }
 }
 
+/** Hold and gap per arrow; command-input windows read triggers, so each key needs its own press. */
+const COMBO_FRAMES = 4
+const COMBO_KEYS = new Set<AgentInputKey>(['up', 'down', 'left', 'right'])
+
+function comboKeys(value: unknown): AgentInputKey[] | null {
+  if (!Array.isArray(value) || !value.length || value.length > 12 || !value.every((key) => COMBO_KEYS.has(key))) return null
+  return value as AgentInputKey[]
+}
+
 function fingerprint(state: State, history: History) {
   const { controlToken: _token, screenText: _screen, playtime: _playtime, title: _title, manualInputEpoch: _epoch, ...facts } = state
   return JSON.stringify({ facts, seq: history.lastSeq })
@@ -445,7 +454,8 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       const key = call.function.arguments.key as AgentInputKey
       if (mapSkill && !targetDialogueStarted && !mapKey) throw new Error(`无法走到${mapTarget?.name || '目标事件'}，路径可能被挡住或游戏未提供坐标`)
       const visualPress = call.function.name === 'task_press_visual' && scopeKind === 'battle' && !!state.battle?.instanceId
-      if ((!visualPress && call.function.name !== 'task_press') || !KEYS.has(key) || (state.message?.busy && !state.message.choices?.length && key !== 'ok')) {
+      const combo = call.function.name === 'task_press_combo' && scopeKind === 'battle' && !!state.battle?.instanceId ? comboKeys(call.function.arguments.keys) : null
+      if (!combo && ((!visualPress && call.function.name !== 'task_press') || !KEYS.has(key) || (state.message?.busy && !state.message.choices?.length && key !== 'ok'))) {
         feedback = '该按键或动作在当前状态不可用。'
         messages.push({ role: 'tool', tool_name: call.function.name, content: JSON.stringify({ ok: false, error: '当前状态不允许该动作；请重新选择。' }) })
         continue
@@ -487,30 +497,37 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       const battleImageBefore = scopeKind === 'battle' ? await battleImageFingerprint(input.gameId).catch(() => null) : null
       const callId = `${step}-0`
       emit({ type: 'phase', phase: 'acting', step, maxSteps: MAX_STEPS })
-      emit({ type: 'tool.started', callId, name: `input.press:${key}` })
+      const toolName = combo ? `input.sequence:${combo.join(',')}` : `input.press:${key}`
+      emit({ type: 'tool.started', callId, name: toolName })
       let writeError: unknown
       try {
-        await callAgentGame(input.gameId, 'input.press', {
-          key,
-          frames: 6,
-          guard: {
-            controlToken: String(state.controlToken || ''),
-            allowedEffects:
-              scopeKind === 'battle'
-                ? ['navigate', 'battle_command', 'spend_resource', ...(visualPress ? ['unknown' as const] : [])]
-                : ['navigate', 'advance_dialogue', ...(interactTarget ? ['interact_event' as const] : [])],
-            battleInstanceId: scope.battleId,
-            mapId: scope.mapId,
-            targetEventId: interactTarget ? targetEventId : undefined,
-          },
-        })
+        if (combo)
+          await callAgentGame(input.gameId, 'input.sequence', {
+            steps: combo.map((step) => ({ key: step, frames: COMBO_FRAMES, waitFrames: COMBO_FRAMES })),
+            guard: { controlToken: String(state.controlToken || ''), allowedEffects: ['navigate'], battleInstanceId: scope.battleId, mapId: scope.mapId },
+          })
+        else
+          await callAgentGame(input.gameId, 'input.press', {
+            key,
+            frames: 6,
+            guard: {
+              controlToken: String(state.controlToken || ''),
+              allowedEffects:
+                scopeKind === 'battle'
+                  ? ['navigate', 'battle_command', 'spend_resource', ...(visualPress ? ['unknown' as const] : [])]
+                  : ['navigate', 'advance_dialogue', ...(interactTarget ? ['interact_event' as const] : [])],
+              battleInstanceId: scope.battleId,
+              mapId: scope.mapId,
+              targetEventId: interactTarget ? targetEventId : undefined,
+            },
+          })
         actions++
         if (interactTarget && mapKey === 'ok') targetInteractionSent = true
         if (interactTarget && touchNeedsBump && isTouchEvent(mapTarget) && mapKey && mapKey !== 'ok') targetInteractionSent = true
       } catch (error) {
         writeError = error
       }
-      emit({ type: 'tool.completed', callId, name: `input.press:${key}`, ok: !writeError })
+      emit({ type: 'tool.completed', callId, name: toolName, ok: !writeError })
       emit({ type: 'phase', phase: 'verifying', step, maxSteps: MAX_STEPS })
       try {
         last = await observe(input.gameId, cursor)
@@ -519,7 +536,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       }
       messages.push({
         role: 'tool',
-        tool_name: 'task_press',
+        tool_name: combo ? 'task_press_combo' : 'task_press',
         content: JSON.stringify({ ok: !writeError, error: writeError instanceof Error ? writeError.message : undefined, observedState: decisionState(last.state) }),
       })
       remember(last)
@@ -555,15 +572,16 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
               .then((hash) => hash !== battleImageBefore)
               .catch(() => false)
           : false
-      if (scopeKind === 'battle' && visualChanged && !visualPress && !isOrdinaryBattleMenu(last.state)) preferBattleVision = true
+      if (scopeKind === 'battle' && visualChanged && !visualPress && !combo && !isOrdinaryBattleMenu(last.state)) preferBattleVision = true
       if (scopeKind === 'battle' && stateChanged && isOrdinaryBattleMenu(last.state)) preferBattleVision = false
       noProgress = stateChanged || (visualChanged && !isOrdinaryBattleMenu(last.state)) ? 0 : noProgress + 1
-      if (noProgress) feedback = `${key} 没有改变游戏状态，请选择其他按键。`
+      const pressed = combo ? combo.join(',') : key
+      if (noProgress) feedback = `${pressed} 没有改变游戏状态，请选择其他按键。`
       if (scopeKind === 'battle' && noProgress >= 2 && !preferBattleVision) {
         preferBattleVision = true
         noProgress = 0
         feedback = '战斗按键没有产生可见进展，改用画面识别确认菜单。'
-      } else if (noProgress >= 3) throw new Error(`连续三次操作未观察到进展（最近按键：${key}）`)
+      } else if (noProgress >= 3) throw new Error(`连续三次操作未观察到进展（最近按键：${pressed}）`)
     }
     const reason = Date.now() - started >= deadlineMs ? '已达到本轮时间上限。' : '已达到本轮操作上限。'
     const text = `${reason}${last ? resultText(last.state, { entries: story }, incomplete) : ''}`

@@ -38,6 +38,7 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
 import { EditTableSkeleton } from '@/components/sk'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
+import { isInputRecording } from '@/lib/game/input-assistance/recording'
 import { readViewState, writeViewState } from '@/lib/view-state'
 
 import { pluginGameAgentRequest } from '../../agent-ui/request'
@@ -251,7 +252,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   useEffect(() => {
     if (!open) return
     function onKey(ev: KeyboardEvent) {
-      if (ev.key !== 'Escape') return
+      if (ev.key !== 'Escape' || isInputRecording()) return
       // ShadowRoot 会把 event.target 重定向为宿主；沿真实事件路径识别输入框。
       if (ev.composedPath().some((node) => node instanceof HTMLElement && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA'))) return
       ev.preventDefault()
@@ -471,6 +472,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   /** In-game global hotkeys: work with panel open/closed; skip when an input is focused */
   useEffect(() => {
     function onHotkey(ev: KeyboardEvent) {
+      if (isInputRecording()) return
       const target = ev.composedPath()[0]
       if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return
       const { session: cur, setRunFlag: setFlag, runAction: doAction, toolSettings: tools } = hotkeyRef.current

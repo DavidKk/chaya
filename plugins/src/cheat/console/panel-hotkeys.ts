@@ -2,6 +2,7 @@
  * Panel toggle + DevTools console hotkeys (Chrome-like defaults per OS).
  */
 import { getOpenConsoleChord, getOpenPanelChord, isHotkeyDisabled, matchKeyChord, matchOpenPanelHotkey, OPEN_CONSOLE_HOTKEY_ID } from '@/components/game-edit/run-hotkeys'
+import { isInputRecording } from '@/lib/game/input-assistance/recording'
 
 import { createLogger, showPluginError } from '../../helpers'
 import { getAutoTalkState } from '../runtime/auto-talk'
@@ -43,7 +44,7 @@ function openGameDevTools(): boolean {
 }
 
 function onHotkeyDown(ev: KeyboardEvent) {
-  if ((ev as KeyboardEvent & { __chayaInputAssistGenerated?: boolean }).__chayaInputAssistGenerated) return
+  if ((ev as KeyboardEvent & { __chayaInputAssistGenerated?: boolean }).__chayaInputAssistGenerated || isInputRecording()) return
   if (isConsoleHotkey(ev)) {
     if (shouldIgnoreHotkeyInField(ev)) return
     blockHotkeyEvent(ev)
@@ -56,7 +57,7 @@ function onHotkeyDown(ev: KeyboardEvent) {
 }
 
 function onHotkeyUp(ev: KeyboardEvent) {
-  if ((ev as KeyboardEvent & { __chayaInputAssistGenerated?: boolean }).__chayaInputAssistGenerated) return
+  if ((ev as KeyboardEvent & { __chayaInputAssistGenerated?: boolean }).__chayaInputAssistGenerated || isInputRecording()) return
   if (isConsoleHotkey(ev)) {
     if (shouldIgnoreHotkeyInField(ev)) return
     blockHotkeyEvent(ev)

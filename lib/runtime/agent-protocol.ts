@@ -12,6 +12,9 @@ export type AgentInputKey = (typeof AGENT_INPUT_KEYS)[number]
 export type AgentInputStep = { key: AgentInputKey; frames?: number; waitFrames?: number }
 export type AgentInputEffect = 'navigate' | 'advance_dialogue' | 'interact_event' | 'battle_command' | 'spend_resource' | 'choose_branch' | 'save_load' | 'unknown'
 export type AgentInputGuard = { controlToken: string; allowedEffects: AgentInputEffect[]; battleInstanceId?: string; mapId?: number; targetEventId?: number }
+export type AgentDirectionKey = 'up' | 'down' | 'left' | 'right'
+/** A skill cast by typing arrows (command-input battle systems), read from on-screen text */
+export type AgentCommandInput = { label: string | null; keys: AgentDirectionKey[] }
 export type AgentReactionCue = { id: string; key: AgentInputKey; expiresAt: number; startedAt?: number }
 
 export const AGENT_HISTORY_KINDS = ['message', 'choices', 'choice', 'map', 'battle', 'load'] as const
@@ -35,7 +38,7 @@ export type AgentCommand =
   | { id: string; method: 'input.press'; params: { key: AgentInputKey; frames?: number; guard?: AgentInputGuard } }
   | { id: string; method: 'input.reaction.arm'; params: { battleInstanceId: string; mapId?: number; allowedKeys: AgentInputKey[]; ttlMs: number } }
   | { id: string; method: 'input.reaction.stop'; params: Record<string, never> }
-  | { id: string; method: 'input.sequence'; params: { steps: AgentInputStep[] } }
+  | { id: string; method: 'input.sequence'; params: { steps: AgentInputStep[]; guard?: AgentInputGuard } }
   | { id: string; method: 'input.tap'; params: { x: number; y: number; frames?: number } }
   | { id: string; method: 'player.moveTo'; params: { x: number; y: number; timeoutMs?: number; stepwise?: boolean; guard?: AgentInputGuard } }
   | { id: string; method: 'edit.catalog'; params: Record<string, never> }

@@ -19,16 +19,24 @@ function currentStatus(status: Status): Status {
   return { ...status, pending: status.pending ?? [] }
 }
 
-function gameKey(roomId: string | null): string {
+export function gameKey(roomId: string | null): string {
   return `chaya:input-assistance:game:${roomId || 'unselected'}`
 }
 
-function readStored(key: string): InputAssistConfig {
+export function readStored(key: string): InputAssistConfig {
   try {
     return parseInputAssistConfig(JSON.parse(localStorage.getItem(key) || 'null'))
   } catch {
     return emptyConfig()
   }
+}
+
+export async function loadGlobalConfig(localGlobal: boolean): Promise<InputAssistConfig> {
+  if (localGlobal) return readStored(GLOBAL_KEY)
+  const response = await fetch('/api/input-assistance/global')
+  const body = await response.json()
+  if (!response.ok) throw new Error(body.error?.message || '无法读取通用配置')
+  return parseInputAssistConfig(body.config)
 }
 
 async function writeGlobal(next: InputAssistConfig, expectedRevision: number, localGlobal: boolean): Promise<void> {
@@ -101,14 +109,8 @@ export function useInputAssistance() {
     let cancelled = false
     const load = async () => {
       try {
-        if (localGlobal) {
-          if (!cancelled) setGlobal(readStored(GLOBAL_KEY))
-          return
-        }
-        const response = await fetch('/api/input-assistance/global')
-        const body = await response.json()
-        if (!response.ok) throw new Error(body.error?.message || '无法读取通用配置')
-        if (!cancelled) setGlobal(parseInputAssistConfig(body.config))
+        const config = await loadGlobalConfig(localGlobal)
+        if (!cancelled) setGlobal(config)
       } catch (cause) {
         if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause))
       } finally {

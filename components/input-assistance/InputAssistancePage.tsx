@@ -9,6 +9,7 @@ import { Button, ScrollArea, Skeleton, SkeletonRegion, SwitchToggle, TextInput }
 import { bindingWarnings, chordLabel, groupForRule, type InputRule, macroLabel, mergeRules, type RuleGroup } from '@/lib/game/input-assistance'
 import { cn } from '@/lib/utils'
 
+import { useChayaProductBindings } from './hotkey-conflicts'
 import { InputRuleEditor, ruleGridCols, ruleOpsCol, turboGridCols } from './InputRuleEditor'
 import { useInputAssistance } from './useInputAssistance'
 
@@ -81,7 +82,8 @@ export function InputAssistancePage() {
   const [busy, setBusy] = useState(false)
   const reading = !ready
   const allRules = useMemo(() => mergeRules(globalConfig.rules, gameConfig.rules), [globalConfig, gameConfig])
-  const warnings = useMemo(() => bindingWarnings(allRules), [allRules])
+  const products = useChayaProductBindings()
+  const warnings = useMemo(() => bindingWarnings(allRules, products), [allRules, products])
   const filtered = useMemo(
     () =>
       allRules.filter((rule) =>
@@ -263,7 +265,12 @@ export function InputAssistancePage() {
                         <InputRuleEditor
                           key={rule.id}
                           rule={rule}
-                          warning={warnings.find((item) => item.ruleId === rule.id && item.field === 'trigger')?.message}
+                          warning={
+                            warnings
+                              .filter((item) => item.ruleId === rule.id && item.field === 'trigger')
+                              .map((item) => item.message)
+                              .join('；') || undefined
+                          }
                           busy={busy}
                           active={active}
                           pending={pending}

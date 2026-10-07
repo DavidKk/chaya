@@ -19,6 +19,7 @@ import {
   macroSteps,
   MAX_MACRO_EVENTS,
   MAX_MACRO_STEPS,
+  setInputRecording,
   spaceMacroEvents,
 } from '@/lib/game/input-assistance'
 import { cn } from '@/lib/utils'
@@ -160,7 +161,8 @@ export function InputRecorderField({ label, kind, value, onChange, accept, error
     function capture(event: KeyboardEvent | MouseEvent, phase: 'down' | 'up') {
       const state = current.current
       if (!state) return
-      if (event.target instanceof Element && event.target.closest('[data-assist-record-control]')) return
+      // Inside the plugin overlay's ShadowRoot, document listeners see the host as target
+      if (event.composedPath().some((node) => node instanceof Element && node.hasAttribute('data-assist-record-control'))) return
       event.preventDefault()
       event.stopImmediatePropagation()
       if (event instanceof KeyboardEvent && event.repeat) return
@@ -210,6 +212,7 @@ export function InputRecorderField({ label, kind, value, onChange, accept, error
       }
       state.held.clear()
     }
+    setInputRecording(true)
     document.addEventListener('keydown', down, true)
     document.addEventListener('keyup', up, true)
     document.addEventListener('mousedown', mouseDown, true)
@@ -217,6 +220,7 @@ export function InputRecorderField({ label, kind, value, onChange, accept, error
     document.addEventListener('contextmenu', contextMenu, true)
     window.addEventListener('blur', blur)
     return () => {
+      setInputRecording(false)
       document.removeEventListener('keydown', down, true)
       document.removeEventListener('keyup', up, true)
       document.removeEventListener('mousedown', mouseDown, true)

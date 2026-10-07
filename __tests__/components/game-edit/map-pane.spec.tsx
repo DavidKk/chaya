@@ -203,6 +203,22 @@ test('map detail lists encounters, links troops and only allows encounters on th
   expect(s.onSelectTroop).toHaveBeenCalledWith(8)
 })
 
+test('map detail embeds the mini map above the events without the floating panel setting', async () => {
+  const s = slot({ mapId: 2, mapDetail: villageDetail })
+  await render(s)
+  const map = document.querySelector('svg[aria-label="迷你地图"]') as SVGSVGElement
+  expect(map).not.toBeNull()
+  expect(map.closest('[data-pinned]')).toBeNull()
+  expect(map.closest('[aria-label="事件"]')).not.toBeNull()
+  await act(async () => (map.querySelector('circle') as SVGCircleElement).dispatchEvent(new MouseEvent('click', { bubbles: true })))
+  expect(s.onSelectMap).toHaveBeenCalledWith(2, 5)
+})
+
+test('event detail does not show the mini map', async () => {
+  await render(slot({ mapId: 2, eventId: 5, mapDetail: villageDetail, eventPage: 0 }))
+  expect(document.querySelector('svg[aria-label="迷你地图"]')).toBeNull()
+})
+
 test('an out-of-range page tab falls back to the first page', async () => {
   await render(slot({ mapId: 2, eventId: 5, mapDetail: villageDetail, eventPage: 7 }))
   expect(pageTab(0).getAttribute('aria-selected')).toBe('true')

@@ -1,4 +1,4 @@
-import type { AgentInputKey } from '@/lib/runtime/agent-protocol'
+import type { AgentCommandInput, AgentInputKey } from '@/lib/runtime/agent-protocol'
 import { callAgentGame, listAgentGames } from '@/services/runtime/agent-bridge'
 
 import { MAP_SKILL_NAMES, type MapEvent, type MapSkill, mapSkillPrompt } from './map-goal'
@@ -16,6 +16,7 @@ export type ManagedState = {
   lastReaction?: { id: string; latencyMs: number | null } | null
   qteOutcome?: { id: string; result: string } | null
   lastBattleResult?: { id: string; result: string } | null
+  commandInputs?: AgentCommandInput[]
   message?: { busy?: boolean; speaker?: string | null; text?: string | null; choices?: string[] | null } | null
   player?: { x?: number | null; y?: number | null; direction?: number | null } | null
   nearbyEvents?: MapEvent[]
@@ -45,8 +46,8 @@ const SCOPE_ALIASES: Record<string, ResolvedGoal['scope']> = {
 }
 
 export function decisionState(state: ManagedState) {
-  const { scene, map, player, party, inventory, battle, qte, lastBattleResult, message, nearbyEvents, windows, screenText, renderedText } = state
-  return { scene, map, player, party, inventory, battle, qte, lastBattleResult, message, nearbyEvents, windows, screenText, renderedText }
+  const { scene, map, player, party, inventory, battle, qte, lastBattleResult, commandInputs, message, nearbyEvents, windows, screenText, renderedText } = state
+  return { scene, map, player, party, inventory, battle, qte, lastBattleResult, commandInputs, message, nearbyEvents, windows, screenText, renderedText }
 }
 
 export function battleNeedsReasoning(state: ManagedState, choiceCount = 0, menuName = '') {

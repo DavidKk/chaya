@@ -1,6 +1,7 @@
 jest.mock('@/services/game-agent/ollama-client', () => ({ streamOllamaChat: jest.fn() }))
 jest.mock('@/services/game-agent/secrets', () => ({ readGameAgentToken: jest.fn(() => '') }))
 
+import type { AgentCommandInput } from '@/lib/runtime/agent-protocol'
 import { decide } from '@/services/game-agent/managed-decide.server'
 import { streamOllamaChat } from '@/services/game-agent/ollama-client'
 import type { GameAgentProfile } from '@/services/game-agent/settings'
@@ -28,6 +29,35 @@ test('moves across a two-column skill menu before confirming the selected skill'
   expect(chat.mock.calls[0][0]).toMatchObject({ think: true, messages: [expect.objectContaining({ content: expect.not.stringContaining('/no_think') }), expect.anything()] })
   state.windows[0].index = 1
   await expect(decideNext()).resolves.toMatchObject({ tool_calls: [{ function: { arguments: { key: 'ok' } } }] })
+})
+
+test('casts a command-input skill by sending its arrow sequence', async () => {
+  const chat = streamOllamaChat as jest.Mock
+  chat.mockResolvedValue({ role: 'assistant', content: '{"index":1}' })
+  const commandInputs: AgentCommandInput[] = [
+    { label: '★セイバー', keys: ['right', 'left'] },
+    { label: '★クロスセイバー', keys: ['right', 'up', 'left'] },
+  ]
+  const decideNext = (state: object) => decide(profile, input, messages, { battle: { instanceId: 'battle-1' }, ...state }, 'battle', new AbortController().signal, async () => null)
+
+  await expect(decideNext({ commandInputs })).resolves.toMatchObject({
+    tool_calls: [{ function: { name: 'task_press_combo', arguments: { label: '★クロスセイバー', keys: ['right', 'up', 'left'] } } }],
+  })
+  chat.mockClear()
+  await expect(decideNext({ commandInputs: commandInputs.slice(0, 1) })).resolves.toMatchObject({ tool_calls: [{ function: { arguments: { keys: ['right', 'left'] } } }] })
+  expect(chat).not.toHaveBeenCalled()
+  const vision = await decide(
+    profile,
+    input,
+    messages,
+    { battle: { instanceId: 'battle-1' }, commandInputs },
+    'battle',
+    new AbortController().signal,
+    async () => null,
+    false,
+    true
+  )
+  expect(vision.tool_calls?.[0].function.name).not.toBe('task_press_combo')
 })
 
 test('enables reasoning when the acting party has no MP', async () => {

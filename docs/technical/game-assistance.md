@@ -228,6 +228,8 @@ async function runManagedTurn(task, signal) {
 
 当前可读信号由游戏侧适配器提供 `window.ChayaAgentQteSource(): { id, key, startedAt?, expiresAt } | null`。`id` 标识一次提示，`key` 必须属于本轮允许的按键，时间戳使用 `Date.now()` 毫秒；同一 `id` 只响应一次。适配器可在函数的 `lastResult` 属性回报 `{ id, result: 'success' | 'missed' }`，用于区分发键和游戏实际判定。没有该信号的游戏仍走普通托管，不宣称支持其 QTE。仅在画布里绘制文字或图案、无法从游戏状态读取目标键的 QTE，需要另加可靠的视觉识别适配器，并在真实游戏里测识别率、误按率及触发到发键的 P95 延迟。
 
+**指令输入战斗**（技能名下方列出方向键序列，如 `★セイバー` / `→ ←`，输入序列即发动）不是限时单键 QTE。插件从画布文字里找只含箭头的行（同一行逐字绘制的箭头按 y 合并），配对其上方最近的文字作为技能名，在 `Scene_Battle` 下以 `commandInputs: [{ label, keys }]` 放进 `game.state`。战斗范围内若出现 `commandInputs` 且不是普通战斗菜单，Host 让模型只选技能索引，再以带 guard 的 `input.sequence` 一次发出整段方向键（每键按住 4 帧、间隔 4 帧）。带 guard 的序列只允许方向键：方向键的预检后果恒为 `navigate`，因此只在派发前校验一次控制令牌与战斗实例。箭头若以图标或图片绘制，则不会进入 `commandInputs`，仍走视觉识别或暂停。连续两次序列都没有进展时转为画面识别，此后不再走序列分支；序列只带来画面变化不触发这一切换。
+
 ## 7. 权限、暂停与恢复
 
 写工具仍从现有目录与第一方插件声明生成白名单。Host 在调用前再次校验工具名、参数 schema、绑定游戏和危险级别；模型能看到某个工具不等于已获玩家授权。还要对实际输入作语义预检：方向键在菜单中通常只改变选中项，但 `ok`、点击或地图移动可能确认剧情选项、使用道具、存档或触发事件。插件根据当前活动窗口、选中项和目标解析预期后果，返回 `navigate`、`advance_dialogue`、`battle_command`、`spend_resource`、`choose_branch`、`save_load` 等类别；未知窗口或无法确定后果返回 `unknown`。`unknown` 和未授权的有后果类别必须在派发前暂停，不能把 `chaya_live_press` 整体标为安全。插件与 Host 均按同一策略校验，防止预检与执行之间状态变化。
