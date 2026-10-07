@@ -2,6 +2,7 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
+import { type InputAssistTransport, InputAssistTransportContext } from '@/components/input-assistance/transport'
 import { useGameLink } from '@/hooks/useGameLink'
 import { type GameLinkRpc, useGameLinkRpc } from '@/hooks/useGameLinkRpc'
 import { CLOUD_GAME_SELECTION_EVENT, readCloudGameId } from '@/lib/browser/cloud-library'
@@ -172,7 +173,17 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
     [rpc, roomId, browserMode, link.connected, link.negotiating, armRoom, link.restart, link.quit, link.send, subscribeMessages, translation]
   )
 
-  return <GameLinkContext.Provider value={value}>{children}</GameLinkContext.Provider>
+  const { negotiating, restart } = link
+  const inputAssist = useMemo<InputAssistTransport>(
+    () => ({ roomId, connected, negotiating, localGlobal: browserMode, restart: () => void restart(), send, subscribeMessages }),
+    [roomId, connected, negotiating, browserMode, restart, send, subscribeMessages]
+  )
+
+  return (
+    <GameLinkContext.Provider value={value}>
+      <InputAssistTransportContext value={inputAssist}>{children}</InputAssistTransportContext>
+    </GameLinkContext.Provider>
+  )
 }
 
 export function useGameLinkContext(): GameLinkContextValue {

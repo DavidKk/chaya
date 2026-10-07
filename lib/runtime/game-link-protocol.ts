@@ -153,6 +153,7 @@ export type InputAssistMessage =
       result?: InputChord | MacroEvent[] | null
     }
   | { type: 'assist.recorded'; result: InputChord | MacroEvent[] | null }
+  | { type: 'assist.config'; globalConfig: InputAssistConfig; gameConfig: InputAssistConfig }
   | { type: 'assist.status'; status: { running: string[]; pending: string[]; counts: Record<string, number>; error?: string; recording: boolean } }
 
 export type GameLinkMessage =

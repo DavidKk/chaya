@@ -1,7 +1,7 @@
 'use client'
 
 import type { IconType } from 'react-icons'
-import { GiAbdominalArmor, GiAxeSword, GiBackpack, GiBurn, GiDatabase, GiKey, GiNothingToSay, GiScrollUnfurled, GiSettingsKnobs, GiStrong, GiTreasureMap } from 'react-icons/gi'
+import { GiAbdominalArmor, GiAxeSword, GiBackpack, GiBurn, GiDatabase, GiNothingToSay, GiScrollUnfurled, GiSettingsKnobs, GiStrong, GiTreasureMap } from 'react-icons/gi'
 import { HiVariable } from 'react-icons/hi'
 import { IoIosSwitch } from 'react-icons/io'
 import { IoListOutline, IoSettingsOutline } from 'react-icons/io5'
@@ -9,7 +9,7 @@ import { LuInfo, LuPlug } from 'react-icons/lu'
 
 import type { TabId } from './tabs'
 
-/** 修改二级导航图标；快捷键未指定专用图标时用 GiKey */
+/** 修改二级导航图标 */
 export const TAB_ICONS: Record<TabId, IconType> = {
   run: GiSettingsKnobs,
   bag: GiBackpack,
@@ -24,7 +24,6 @@ export const TAB_ICONS: Record<TabId, IconType> = {
   data: GiDatabase,
   trans: GiNothingToSay,
   logs: IoListOutline,
-  hotkeys: GiKey,
   mcp: LuPlug,
   settings: IoSettingsOutline,
   about: LuInfo,

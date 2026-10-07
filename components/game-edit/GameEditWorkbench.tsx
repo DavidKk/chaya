@@ -1,12 +1,10 @@
 'use client'
 
 import { lazy, type ReactNode, Suspense, useMemo, useState } from 'react'
-import { BiReset } from 'react-icons/bi'
 import { IoCloseOutline, IoRefreshOutline } from 'react-icons/io5'
 import { MdExposurePlus1 } from 'react-icons/md'
 import { TbNumber99Small } from 'react-icons/tb'
 
-import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { GameEditRunSettings } from '@/components/GameEditRunSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
@@ -21,7 +19,7 @@ import { cn } from '@/lib/utils'
 
 import type { EventsSlot } from './events/types'
 import { GameEditMainNav } from './GameEditMainNav'
-import { GameEditPaneSkeleton } from './GameEditPaneSkeleton'
+import { GameEditHotkeysSkeleton, GameEditPaneSkeleton } from './GameEditPaneSkeleton'
 import { GameEditSearch } from './GameEditSearch'
 import { GameEditTabNav } from './GameEditTabNav'
 import { LockEndAction, lockIconBtn } from './lock-ui'
@@ -47,7 +45,7 @@ import {
 
 /** 非默认 tab 懒加载，切到才解析对应模块 */
 const ActorEditPane = lazy(() => import('./ActorEditPane').then((m) => ({ default: m.ActorEditPane })))
-const GameEditHotkeysPane = lazy(() => import('./GameEditHotkeysPane').then((m) => ({ default: m.GameEditHotkeysPane })))
+const AssistHotkeysView = lazy(() => import('@/components/input-assistance/AssistHotkeysPage').then((m) => ({ default: m.AssistHotkeysView })))
 const GameEditTransPane = lazy(() => import('./GameEditTransPane').then((m) => ({ default: m.GameEditTransPane })))
 const GameEditLogsPane = lazy(() => import('./GameEditLogsPane').then((m) => ({ default: m.GameEditLogsPane })))
 const GameEditIntegrationPane = lazy(() => import('./GameEditIntegrationPane').then((m) => ({ default: m.GameEditIntegrationPane })))
@@ -228,10 +226,9 @@ export function GameEditWorkbench({
   const t = useT()
   const q = filter.trim().toLowerCase()
   const [transTick, setTransTick] = useState(0)
-  const confirm = useConfirm()
 
   const rows = useMemo((): TableRow[] => {
-    if (!catalog || tab === 'run' || tab === 'hotkeys' || tab === 'trans' || tab === 'actor') return []
+    if (!catalog || tab === 'run' || tab === 'trans' || tab === 'actor') return []
 
     const mapItems = (kind: ItemKind, list: CatalogEntry[], ownedOnly: boolean): TableRow[] => {
       const out: TableRow[] = []
@@ -307,7 +304,7 @@ export function GameEditWorkbench({
   const noMatch = sourceCount > 0 && filtered
   const visible = rows.slice(0, MAX_ROWS)
   const canLock = tab === 'bag' || tab === 'item' || tab === 'weapon' || tab === 'armor' || tab === 'var' || tab === 'sw'
-  const showTableFilters = tab !== 'run' && tab !== 'hotkeys' && isEditTab(tab) && sourceCount > 0
+  const showTableFilters = tab !== 'run' && isEditTab(tab) && sourceCount > 0
   const showOwnedFilter = tab !== 'run' && tab !== 'actor'
   const goldLocked = GOLD_LOCK_KEY in session.locks
   const showEditNav = isEditTab(tab)
@@ -327,7 +324,6 @@ export function GameEditWorkbench({
       onClick={() => {
         setTransTick((n) => n + 1)
         onRefresh()
-        if (tab === 'hotkeys') onHotkeysReload?.()
       }}
     >
       <IoRefreshOutline size={17} aria-hidden />
@@ -359,7 +355,7 @@ export function GameEditWorkbench({
               <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-8 flex-1 shrink justify-end overflow-hidden')}>
                 {showTableFilters || (eventsTab && eventSourceCount > 0) ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
                 {tab === 'data' || tab === 'map' ? <div ref={setPaneHead} className="flex min-w-0 shrink items-center" /> : null}
-                {showTableFilters || tab === 'hotkeys' || surface === 'page' ? (
+                {showTableFilters || surface === 'page' ? (
                   <ScrollArea
                     indicator="horizontal"
                     reserveGutter={false}
@@ -403,29 +399,6 @@ export function GameEditWorkbench({
                           </button>
                         </>
                       ) : null}
-                      {tab === 'hotkeys' ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={t('edit.resetHotkeys')}
-                          tooltip={t('edit.resetHotkeys')}
-                          onClick={() => {
-                            void (async () => {
-                              const ok = await confirm({
-                                title: t('edit.resetHotkeysTitle'),
-                                description: t('edit.resetHotkeysDesc'),
-                                confirmLabel: t('edit.resetHotkeysConfirm'),
-                                confirmVariant: 'fail',
-                              })
-                              if (!ok) return
-                              onHotkeysChange?.('game', {})
-                              onHotkeysChange?.('global', {})
-                            })()
-                          }}
-                        >
-                          <BiReset size={17} aria-hidden />
-                        </Button>
-                      ) : null}
                       {surface === 'page' ? refreshButton : null}
                     </div>
                   </ScrollArea>
@@ -467,17 +440,6 @@ export function GameEditWorkbench({
                   onAction={onRunAction}
                 />
               </ScrollArea>
-            ) : tab === 'hotkeys' ? (
-              <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('edit.hotkeysAria') }}>
-                <TabSuspense tab="hotkeys">
-                  <GameEditHotkeysPane
-                    gameValue={session.hotkeys}
-                    globalValue={session.hotkeysGlobal}
-                    onGameChange={(next) => onHotkeysChange?.('game', next)}
-                    onGlobalChange={(next) => onHotkeysChange?.('global', next)}
-                  />
-                </TabSuspense>
-              </ScrollArea>
             ) : tab === 'trans' ? (
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <TabSuspense tab="trans" translateSection={translateSection} translateTab={translateTab}>
@@ -505,7 +467,26 @@ export function GameEditWorkbench({
               </Suspense>
             ) : tab === 'settings' && agentRequest ? (
               <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
-                <GameEditAgentSettingsPane request={agentRequest} />
+                <GameEditAgentSettingsPane
+                  request={agentRequest}
+                  hotkeys={
+                    <Suspense fallback={<GameEditHotkeysSkeleton />}>
+                      <AssistHotkeysView
+                        gameValue={session.hotkeys}
+                        globalValue={session.hotkeysGlobal}
+                        onGameChange={(next) => onHotkeysChange?.('game', next)}
+                        onGlobalChange={(next) => onHotkeysChange?.('global', next)}
+                        actions={
+                          onHotkeysReload ? (
+                            <Button variant="ghost" size="icon" aria-label={t('common.refresh')} tooltip={t('common.refresh')} onClick={onHotkeysReload}>
+                              <IoRefreshOutline size={17} aria-hidden />
+                            </Button>
+                          ) : null
+                        }
+                      />
+                    </Suspense>
+                  }
+                />
               </Suspense>
             ) : tab === 'data' ? (
               saveData ? (

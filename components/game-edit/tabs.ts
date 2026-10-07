@@ -18,15 +18,14 @@ export const TABS = [
   { id: 'mcp', labelKey: 'nav.integration' },
   { id: 'settings', labelKey: 'nav.settings' },
   { id: 'about', labelKey: 'nav.about' },
-  { id: 'hotkeys', labelKey: 'edit.hotkeys' },
 ] as const satisfies ReadonlyArray<{ id: string; labelKey: MessageKey }>
 
 export type TabId = (typeof TABS)[number]['id']
 
 export type GameEditSurface = 'page' | 'overlay'
 
-/** Overlay-only main pages: not part of the「修改」sub navigation */
-const MAIN_PAGES = new Set<string>(['trans', 'logs', 'mcp', 'settings', 'about', 'hotkeys'])
+/** Overlay-only main pages: not part of the「修改」sub navigation; `settings` 即局内「辅助」 */
+const MAIN_PAGES = new Set<string>(['trans', 'logs', 'mcp', 'settings', 'about'])
 
 export const EDIT_TABS = TABS.filter((tab) => !MAIN_PAGES.has(tab.id))
 

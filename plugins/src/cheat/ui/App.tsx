@@ -33,6 +33,7 @@ import {
 } from '@/components/game-edit/types'
 import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
+import { InputAssistTransportContext } from '@/components/input-assistance/transport'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
 import { EditTableSkeleton } from '@/components/sk'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
@@ -46,6 +47,7 @@ import { buildLiveCatalog, type LiveSessionScope, readLiveSession, setItemCount,
 import { bootstrapGameEditSession, diskStateFromSession, ensureGameEditDiskApplied, loadGameEditDisk, scheduleSaveGameEditDisk } from '../session/persist'
 import { syncRemoteMirror } from '../session/remote-bridge'
 import { FloatingMiniMap } from './FloatingMiniMap'
+import { createPluginInputAssistTransport } from './input-assist-transport'
 import { useOverlayEvents } from './useOverlayEvents'
 import { useOverlaySaveData } from './useOverlaySaveData'
 
@@ -113,7 +115,7 @@ export function captureGameEditView() {
 }
 
 function scopeForTab(tab: TabId): LiveSessionScope {
-  if (tab === 'run' || tab === 'hotkeys' || tab === 'trans') return 'run'
+  if (tab === 'run' || tab === 'trans') return 'run'
   if (tab === 'bag' || tab === 'item' || tab === 'weapon' || tab === 'armor') return 'items'
   if (tab === 'var') return 'vars'
   if (tab === 'sw' || tab === 'common') return 'switches'
@@ -123,7 +125,7 @@ function scopeForTab(tab: TabId): LiveSessionScope {
 }
 
 function tabNeedsCatalog(tab: TabId): boolean {
-  return tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings' && tab !== 'about' && tab !== 'data' && !isEventsTab(tab)
+  return tab !== 'run' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings' && tab !== 'about' && tab !== 'data' && !isEventsTab(tab)
 }
 
 /** In-game React panel: shared GameEditWorkbench + runtime data */
@@ -597,11 +599,14 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
 /** Shadow 内挂弹层 Provider，保证浮层吃到 overlay token */
 function GameEditOverlayProviders({ children, open }: { children: ReactNode; open: boolean }) {
   const [portalHost, setPortalHost] = useState<HTMLDivElement | null>(null)
+  const [inputAssist] = useState(createPluginInputAssistTransport)
   return (
     <div ref={setPortalHost} className="relative flex min-h-0 flex-1 flex-col">
       <NotificationProvider portalContainer={portalHost}>
         <ConfirmProvider portalContainer={portalHost}>
-          <div className={open ? 'flex min-h-0 flex-1 flex-col' : 'contents'}>{children}</div>
+          <InputAssistTransportContext value={inputAssist}>
+            <div className={open ? 'flex min-h-0 flex-1 flex-col' : 'contents'}>{children}</div>
+          </InputAssistTransportContext>
         </ConfirmProvider>
       </NotificationProvider>
     </div>

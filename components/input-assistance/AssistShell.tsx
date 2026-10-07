@@ -3,22 +3,16 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
-import { LuBot, LuGamepad2, LuKeyboard, LuMap, LuMessageCircle } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { legalBar, pageMainFlush, panelBody, panelShell } from '@/components/layoutClasses'
 import { LegalNotice } from '@/components/legal/LegalNotice'
 import { SectionSideNav, sectionSideNavItemClass, SectionSideNavItemContent } from '@/components/SectionSideNav'
 import { Tooltip } from '@/components/sk'
-import type { MessageKey } from '@/lib/i18n'
 
-const sections = [
-  { path: '/assist/hotkeys', labelKey: 'edit.hotkeys', icon: LuKeyboard },
-  { path: '/assist/key-mouse', labelKey: 'nav.keyMouse', icon: LuGamepad2 },
-  { path: '/assist/minimap', labelKey: 'nav.minimap', icon: LuMap },
-  { path: '/assist/agents', labelKey: 'integration.agentSettingsTab', icon: LuBot },
-  { path: '/assist/companion', labelKey: 'nav.companion', icon: LuMessageCircle },
-] as const satisfies ReadonlyArray<{ path: string; labelKey: MessageKey; icon: typeof LuBot }>
+import { ASSIST_SECTIONS } from './assist-sections'
+
+const sections = ASSIST_SECTIONS.map((section) => ({ ...section, path: `/assist/${section.id}` }))
 
 export function AssistShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()

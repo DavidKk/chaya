@@ -32,6 +32,7 @@ installConsoleApi()
 installMapHistory()
 const inputAssistance = new InputAssistanceController()
 ;(window as Window & { __chayaInputAssistanceStopAll?: () => void }).__chayaInputAssistanceStopAll = () => inputAssistance.runtime.stopAll()
+;(window as Window & { __chayaInputAssistance?: InputAssistanceController }).__chayaInputAssistance = inputAssistance
 const unregisterLink = registerGameLinkEditHandlers({
   onMessage: (message, send) => {
     if (!inputAssistance.handle(message, send)) handleRemoteEditMessage(message, send)
@@ -76,6 +77,7 @@ function disposeGameEditRuntime(): boolean {
   unregisterLink()
   inputAssistance.dispose()
   delete (window as Window & { __chayaInputAssistanceStopAll?: () => void }).__chayaInputAssistanceStopAll
+  delete (window as Window & { __chayaInputAssistance?: InputAssistanceController }).__chayaInputAssistance
   stopRemoteEditBridge()
   disposeMapHistory()
   return wasOpen

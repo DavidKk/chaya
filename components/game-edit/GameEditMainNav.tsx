@@ -42,7 +42,7 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, closeButton }: Props
           { id: 'trans', labelKey: 'edit.tabTranslate' as const, target: 'trans' as const },
           { id: 'logs', labelKey: 'edit.tabLogs' as const, target: 'logs' as const },
           { id: 'mcp', labelKey: 'nav.integration' as const, target: 'mcp' as const },
-          { id: 'settings', labelKey: 'nav.settings' as const, target: 'settings' as const },
+          { id: 'settings', labelKey: 'nav.assist' as const, target: 'settings' as const },
           { id: 'about', labelKey: 'nav.about' as const, target: 'about' as const },
         ] as const
       ).map((item) => {

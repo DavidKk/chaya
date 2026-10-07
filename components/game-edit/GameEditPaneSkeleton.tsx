@@ -47,7 +47,7 @@ function FormFieldRowSkeleton({ controlW = '7.25rem' }: { controlW?: string }) {
 
 /** 页头右侧：与真实筛选/刷新轨对齐 */
 function GameEditHeadEndSkeleton({ tab }: { tab: TabId }) {
-  const showTableFilters = tab !== 'run' && tab !== 'hotkeys' && tab !== 'trans'
+  const showTableFilters = tab !== 'run' && tab !== 'trans'
   return (
     <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-0 flex-1 shrink overflow-hidden')} aria-hidden>
       <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-2 pr-0.5 pl-1">
@@ -58,7 +58,6 @@ function GameEditHeadEndSkeleton({ tab }: { tab: TabId }) {
             <Skeleton className="h-8 w-[3.75rem] shrink-0 rounded-[0.2rem]" />
           </>
         ) : null}
-        {tab === 'hotkeys' ? <Skeleton className="size-8 shrink-0 rounded-[0.2rem]" /> : null}
         <Skeleton className="size-8 shrink-0 rounded-[0.2rem]" />
       </div>
     </div>
@@ -236,7 +235,6 @@ export function GameEditPaneSkeleton({
 }) {
   const t = useT()
   if (tab === 'run') return <GameEditRunSkeleton label={label ?? t('edit.loadRun')} />
-  if (tab === 'hotkeys') return <GameEditHotkeysSkeleton label={label ?? t('edit.loadHotkeys')} />
   if (tab === 'actor') return <GameEditActorSkeleton label={label ?? t('edit.loadActor')} />
   if (tab === 'trans') return <GameEditTransSkeleton section={translateSection} translateTab={translateTab} label={label} />
   if (tab === 'logs') return <GameEditLogsSkeleton label={label ?? t('edit.loadLogs')} />

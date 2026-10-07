@@ -79,13 +79,27 @@ export class InputAssistanceController {
     })
   }
 
+  /** Web 端经 GameLink 发来的命令；状态推送与配置变更都回到这条连接 */
   handle(message: GameLinkMessage, send: Send): boolean {
     if (message.type !== 'assist.cmd') return false
     this.send = send
+    this.execute(message, send)
+    return true
+  }
+
+  /** 局内浮层直接调用；不占用 GameLink 的回传通道，配置变更会同步给已连接的 Web 端 */
+  request(message: GameLinkMessage, send: Send): void {
+    if (message.type !== 'assist.cmd') return
+    const changed = message.op === 'configure'
+    this.execute(message, send)
+    if (changed && this.send) this.send({ type: 'assist.config', globalConfig: this.globalConfig, gameConfig: this.gameConfig })
+  }
+
+  private execute(message: Extract<InputAssistMessage, { type: 'assist.cmd' }>, send: Send): void {
     const previous = this.replies.get(message.reqId)
     if (previous) {
       send(previous)
-      return true
+      return
     }
     let reply: InputAssistMessage
     try {
@@ -120,7 +134,7 @@ export class InputAssistanceController {
           this.runtime.stopAll()
           break
         case 'recordStart':
-          void this.runtime.record(message.kind).then((recorded) => this.send?.({ type: 'assist.recorded', result: recorded }))
+          void this.runtime.record(message.kind).then((recorded) => send({ type: 'assist.recorded', result: recorded }))
           break
         case 'recordFinish':
           result = this.runtime.finishRecording()
@@ -136,7 +150,6 @@ export class InputAssistanceController {
     this.replies.set(message.reqId, reply)
     if (this.replies.size > 200) this.replies.delete(this.replies.keys().next().value!)
     send(reply)
-    return true
   }
 
   disconnected(): void {

@@ -2,31 +2,54 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { EMPTY_INPUT_ASSIST_CONFIG, type InputAssistConfig, type InputChord, type MacroEvent, parseInputAssistConfig } from '@/lib/game/input-assistance'
 import type { InputAssistMessage } from '@/lib/runtime/game-link-protocol'
+
+import { useInputAssistTransport } from './transport'
 
 type Reply = Extract<InputAssistMessage, { type: 'assist.reply' }>
 type CommandPayload = InputAssistMessage extends infer Message ? (Message extends { type: 'assist.cmd' } ? Omit<Message, 'type' | 'reqId' | 'gameId'> : never) : never
 type Status = NonNullable<Reply['status']>
 const GLOBAL_KEY = 'chaya:input-assistance:global'
 
+function emptyConfig(): InputAssistConfig {
+  return { ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] }
+}
+
 function currentStatus(status: Status): Status {
   return { ...status, pending: status.pending ?? [] }
 }
 
-function readGlobal(): InputAssistConfig {
+function gameKey(roomId: string | null): string {
+  return `chaya:input-assistance:game:${roomId || 'unselected'}`
+}
+
+function readStored(key: string): InputAssistConfig {
   try {
-    return parseInputAssistConfig(JSON.parse(localStorage.getItem(GLOBAL_KEY) || 'null'))
+    return parseInputAssistConfig(JSON.parse(localStorage.getItem(key) || 'null'))
   } catch {
-    return { ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] }
+    return emptyConfig()
   }
 }
 
+async function writeGlobal(next: InputAssistConfig, expectedRevision: number, localGlobal: boolean): Promise<void> {
+  if (localGlobal) {
+    localStorage.setItem(GLOBAL_KEY, JSON.stringify(next))
+    return
+  }
+  const response = await fetch('/api/input-assistance/global', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config: next, expectedRevision }),
+  })
+  const body = await response.json()
+  if (!response.ok) throw new Error(body.error?.message || '保存通用配置失败')
+}
+
 export function useInputAssistance() {
-  const { roomId, browserMode, connected, negotiating, restart, send, subscribeMessages } = useGameLinkContext()
-  const [globalConfig, setGlobal] = useState<InputAssistConfig>({ ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] })
-  const [gameConfig, setGame] = useState<InputAssistConfig>({ ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] })
+  const { roomId, localGlobal, connected, negotiating, restart, send, subscribeMessages } = useInputAssistTransport()
+  const [globalConfig, setGlobal] = useState<InputAssistConfig>(emptyConfig)
+  const [gameConfig, setGame] = useState<InputAssistConfig>(emptyConfig)
   const [status, setStatus] = useState<Status>({ running: [], pending: [], counts: {}, recording: false })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -35,10 +58,32 @@ export function useInputAssistance() {
   const [syncedRoom, setSyncedRoom] = useState<string | null>(null)
   const pending = useRef(new Map<string, { resolve: (reply: Reply) => void; reject: (error: Error) => void; timer: number }>())
   const recording = useRef<((result: InputChord | MacroEvent[] | null) => void) | null>(null)
+  /** 同一次操作里连续保存两个范围时，后一次必须带上前一次刚保存的配置，不能用渲染闭包里的旧值 */
+  const latest = useRef({ global: globalConfig, game: gameConfig })
+  latest.current = { global: globalConfig, game: gameConfig }
+
+  /** 另一端（Web 控制台 / 局内浮层）改过配置时，采用版本更新的一份并落到本端存储 */
+  const adopt = useCallback(
+    async (remoteGlobal: InputAssistConfig, remoteGame: InputAssistConfig) => {
+      const current = latest.current
+      if (remoteGlobal.revision > current.global.revision) {
+        await writeGlobal(remoteGlobal, current.global.revision, localGlobal)
+        latest.current = { ...latest.current, global: remoteGlobal }
+        setGlobal(remoteGlobal)
+      }
+      if (remoteGame.revision > current.game.revision) {
+        localStorage.setItem(gameKey(roomId), JSON.stringify(remoteGame))
+        latest.current = { ...latest.current, game: remoteGame }
+        setGame(remoteGame)
+      }
+    },
+    [localGlobal, roomId]
+  )
 
   useEffect(() => {
     return subscribeMessages((message) => {
       if (message.type === 'assist.status') setStatus(currentStatus(message.status))
+      if (message.type === 'assist.config') void adopt(message.globalConfig, message.gameConfig).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
       if (message.type === 'assist.recorded') {
         recording.current?.(message.result)
         recording.current = null
@@ -51,14 +96,14 @@ export function useInputAssistance() {
       if (message.ok) request.resolve(message)
       else request.reject(new Error(message.error || '游戏未执行辅助命令'))
     })
-  }, [subscribeMessages])
+  }, [subscribeMessages, adopt])
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       try {
-        if (browserMode) {
-          if (!cancelled) setGlobal(readGlobal())
+        if (localGlobal) {
+          if (!cancelled) setGlobal(readStored(GLOBAL_KEY))
           return
         }
         const response = await fetch('/api/input-assistance/global')
@@ -76,14 +121,10 @@ export function useInputAssistance() {
     return () => {
       cancelled = true
     }
-  }, [browserMode])
+  }, [localGlobal])
 
   useEffect(() => {
-    try {
-      setGame(parseInputAssistConfig(JSON.parse(localStorage.getItem(`chaya:input-assistance:game:${roomId || 'unselected'}`) || 'null')))
-    } catch {
-      setGame({ ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] })
-    }
+    setGame(readStored(gameKey(roomId)))
   }, [roomId])
 
   const command = useCallback(
@@ -121,23 +162,14 @@ export function useInputAssistance() {
     void command({ op: 'snapshot' })
       .then(async (reply) => {
         if (cancelled) return
-        const remoteGlobal = reply.globalConfig ?? { ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] }
-        const chosenGlobal = globalConfig
-        if (remoteGlobal.revision > chosenGlobal.revision) throw new Error('游戏中的通用配置比本机配置更新，请先核对配置来源')
-        let cachedGame: InputAssistConfig
-        try {
-          cachedGame = parseInputAssistConfig(JSON.parse(localStorage.getItem(`chaya:input-assistance:game:${roomId || 'unselected'}`) || 'null'))
-        } catch {
-          cachedGame = { ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] }
-        }
-        const remoteGame = reply.gameConfig ?? { ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] }
-        const chosenGame = cachedGame.revision > remoteGame.revision ? cachedGame : remoteGame
-        setGlobal(chosenGlobal)
-        setGame(chosenGame)
-        if (browserMode) localStorage.setItem(GLOBAL_KEY, JSON.stringify(chosenGlobal))
-        localStorage.setItem(`chaya:input-assistance:game:${roomId || 'unselected'}`, JSON.stringify(chosenGame))
-        if (chosenGlobal.revision > remoteGlobal.revision || chosenGame.revision > remoteGame.revision)
-          await command({ op: 'configure', globalConfig: chosenGlobal, gameConfig: chosenGame })
+        const remoteGlobal = reply.globalConfig ?? emptyConfig()
+        const remoteGame = reply.gameConfig ?? emptyConfig()
+        latest.current = { ...latest.current, game: readStored(gameKey(roomId)) }
+        await adopt(remoteGlobal, remoteGame)
+        const chosen = latest.current
+        setGame(chosen.game)
+        if (chosen.global.revision > remoteGlobal.revision || chosen.game.revision > remoteGame.revision)
+          await command({ op: 'configure', globalConfig: chosen.global, gameConfig: chosen.game })
         if (reply.status) setStatus(currentStatus(reply.status))
       })
       .catch((cause) => {
@@ -151,36 +183,23 @@ export function useInputAssistance() {
     return () => {
       cancelled = true
     }
-  }, [connected, roomId, command, globalReady, globalConfig, browserMode])
-
-  /** 同一次操作里连续保存两个范围时，后一次必须带上前一次刚保存的配置，不能用渲染闭包里的旧值 */
-  const latest = useRef({ global: globalConfig, game: gameConfig })
-  latest.current = { global: globalConfig, game: gameConfig }
+  }, [connected, roomId, command, globalReady, adopt])
 
   const save = useCallback(
     async (scope: 'global' | 'game', next: InputAssistConfig) => {
-      if (scope === 'global' && !browserMode) {
-        const response = await fetch('/api/input-assistance/global', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ config: next, expectedRevision: latest.current.global.revision }),
-        })
-        const body = await response.json()
-        if (!response.ok) throw new Error(body.error?.message || '保存通用配置失败')
-      }
       if (scope === 'global') {
-        if (browserMode) localStorage.setItem(GLOBAL_KEY, JSON.stringify(next))
+        await writeGlobal(next, latest.current.global.revision, localGlobal)
         latest.current = { ...latest.current, global: next }
         setGlobal(next)
       } else {
-        localStorage.setItem(`chaya:input-assistance:game:${roomId || 'unselected'}`, JSON.stringify(next))
+        localStorage.setItem(gameKey(roomId), JSON.stringify(next))
         latest.current = { ...latest.current, game: next }
         setGame(next)
       }
       if (connected) await command({ op: 'configure', globalConfig: latest.current.global, gameConfig: latest.current.game })
       setError('')
     },
-    [browserMode, command, connected, roomId]
+    [localGlobal, command, connected, roomId]
   )
 
   const control = useCallback(
