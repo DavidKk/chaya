@@ -4,38 +4,42 @@ import { Pin } from 'lucide-react'
 import { type KeyboardEvent, type PointerEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { IoCloseOutline, IoExpandOutline, IoRemoveOutline } from 'react-icons/io5'
 
-import { useLocaleCode } from '@/components/i18n/LocaleProvider'
+import { useT } from '@/components/i18n/LocaleProvider'
 import { Button, ScrollArea } from '@/components/sk'
 import { cn } from '@/lib/utils'
 
-type Frame = { x: number; y: number; width: number; height: number }
-type Size = { width: number; height: number }
-type Axis = { mode: 'right' | 'top' | 'bottom' | 'ratio'; value: number }
-type Placement = { version: 2; width: number; height: number; x: Axis; y: Axis }
-type Viewport = { left: number; top: number; width: number; height: number }
+import {
+  clamp,
+  clampPosition,
+  type Frame,
+  GUTTER,
+  type Placement,
+  placementFromFrame,
+  positionFromPlacement,
+  readPlacement,
+  type Size,
+  type Viewport,
+  viewport,
+  writePlacement,
+} from './floating-placement'
+import { keepGameFocus, stopGameKeys } from './game-keys'
+import { type MiniPanelId, TOOL_PANEL_FRAME, TOOL_PANEL_SIZE } from './tool-panels'
+
 type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 type GestureKind = 'move' | ResizeEdge
 const HEADER_HEIGHT = 32
-const GUTTER = 8
-const SNAP_DISTANCE = 48
 const PANEL_LAYOUT_EVENT = 'chaya:floating-panel-layout'
-const mountedPanels = new Map<string, { edge: 'top' | 'bottom'; height: number; offset: number }>()
+type Side = 'left' | 'right'
+const mountedPanels = new Map<string, { side: Side; edge: 'top' | 'bottom'; height: number; offset: number }>()
 type Props = {
   title: string
   children: ReactNode
   headerTools?: ReactNode
   onClose: () => void
-  storageKey: string
-  initialEdge: 'top' | 'bottom'
-  defaultSize: Size
-  minSize: Size
-  maxSize: Size
+  /** 位置、尺寸与存储 key 取自 `TOOL_PANEL_FRAME`；同侧上下两个面板放不下时各占一半高度 */
+  panel: MiniPanelId
   className?: string
   scrollContent?: boolean
-}
-
-function clamp(value: number, low: number, high: number) {
-  return Math.max(low, Math.min(high, value))
 }
 
 function sizeRange(minimum: number, maximum: number, available: number) {
@@ -47,94 +51,33 @@ function headerHeight() {
   return window.matchMedia('(hover: none)').matches ? 44 : HEADER_HEIGHT
 }
 
-function viewport(): Viewport {
-  const visual = window.visualViewport
-  return visual
-    ? { left: visual.offsetLeft, top: visual.offsetTop, width: visual.width, height: visual.height }
-    : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+function defaultPlacement(edge: 'top' | 'bottom', size: Size, side: Side): Placement {
+  return { version: 2, width: size.width, height: size.height, x: side === 'left' ? { mode: 'ratio', value: 0 } : { mode: 'right', value: 16 }, y: { mode: edge, value: 16 } }
 }
 
-function defaultPlacement(edge: 'top' | 'bottom', size: Size): Placement {
-  return { version: 2, width: size.width, height: size.height, x: { mode: 'right', value: 16 }, y: { mode: edge, value: 16 } }
-}
-
-function placementFromFrame(frame: Frame, area: Viewport, edge: 'top' | 'bottom', visibleHeight = frame.height): Placement {
-  const right = area.left + area.width - frame.x - frame.width
-  const top = frame.y - area.top
-  const bottom = area.top + area.height - frame.y - visibleHeight
-  const xTravel = Math.max(1, area.width - frame.width - GUTTER * 2)
-  const yTravel = Math.max(1, area.height - visibleHeight - GUTTER * 2)
-  return {
-    version: 2,
-    width: frame.width,
-    height: frame.height,
-    x: right <= SNAP_DISTANCE ? { mode: 'right', value: Math.max(GUTTER, right) } : { mode: 'ratio', value: clamp((frame.x - area.left - GUTTER) / xTravel, 0, 1) },
-    y:
-      bottom <= SNAP_DISTANCE
-        ? { mode: 'bottom', value: Math.max(GUTTER, bottom) }
-        : top <= SNAP_DISTANCE || (right <= SNAP_DISTANCE && edge === 'top' && top < area.height / 2)
-          ? { mode: 'top', value: Math.max(GUTTER, top) }
-          : { mode: 'ratio', value: clamp((frame.y - area.top - GUTTER) / yTravel, 0, 1) },
-  }
-}
-
-function readPlacement(key: string, edge: 'top' | 'bottom', size: Size): Placement {
-  try {
-    const saved = JSON.parse(localStorage.getItem(key) || 'null') as Placement | Frame | null
-    if (!saved || ![saved.width, saved.height].every(Number.isFinite) || saved.width <= 0 || saved.height <= 0) return defaultPlacement(edge, size)
-    if (
-      'version' in saved &&
-      saved.version === 2 &&
-      saved.x &&
-      saved.y &&
-      Number.isFinite(saved.x.value) &&
-      Number.isFinite(saved.y.value) &&
-      ['right', 'ratio'].includes(saved.x.mode) &&
-      ['top', 'bottom', 'ratio'].includes(saved.y.mode)
-    )
-      return saved
-    if (typeof saved.x === 'number' && typeof saved.y === 'number') return placementFromFrame(saved as Frame, viewport(), edge)
-  } catch {
-    // Saved geometry is optional.
-  }
-  return defaultPlacement(edge, size)
-}
-
-function shouldStack(area: Viewport) {
-  const top = [...mountedPanels.values()].find((panel) => panel.edge === 'top')
-  const bottom = [...mountedPanels.values()].find((panel) => panel.edge === 'bottom')
+function shouldStack(area: Viewport, side: Side) {
+  const panels = [...mountedPanels.values()].filter((panel) => panel.side === side)
+  const top = panels.find((panel) => panel.edge === 'top')
+  const bottom = panels.find((panel) => panel.edge === 'bottom')
   return !!top && !!bottom && area.height < top.offset + top.height + bottom.height + bottom.offset + GUTTER
 }
 
-function panelRegistration(edge: 'top' | 'bottom', placement: Placement, minimized: boolean) {
-  return { edge, height: minimized ? headerHeight() : placement.height, offset: placement.y.mode === edge ? Math.max(GUTTER, placement.y.value) : 16 }
+function panelRegistration(side: Side, edge: 'top' | 'bottom', placement: Placement, minimized: boolean) {
+  return { side, edge, height: minimized ? headerHeight() : placement.height, offset: placement.y.mode === edge ? Math.max(GUTTER, placement.y.value) : 16 }
 }
 
-function layoutFrame(placement: Placement, area: Viewport, edge: 'top' | 'bottom', minimized: boolean, minSize: Size, maxSize: Size): Frame {
-  const stacked = shouldStack(area)
+function layoutFrame(placement: Placement, area: Viewport, side: Side, edge: 'top' | 'bottom', minimized: boolean, minSize: Size, maxSize: Size): Frame {
+  const stacked = shouldStack(area, side)
   const widthRange = sizeRange(minSize.width, maxSize.width, area.width - GUTTER * 2)
   const heightLimit = stacked ? Math.floor((area.height - GUTTER * 3) / 2) : area.height - GUTTER * 2
   const heightRange = sizeRange(minSize.height, maxSize.height, heightLimit)
   const width = clamp(placement.width, widthRange.low, widthRange.high)
   const height = clamp(placement.height, heightRange.low, heightRange.high)
   const visibleHeight = minimized ? Math.min(height, headerHeight()) : height
-  const x =
-    placement.x.mode === 'right' ? area.left + area.width - placement.x.value - width : area.left + GUTTER + placement.x.value * Math.max(0, area.width - width - GUTTER * 2)
-  const y = stacked
-    ? edge === 'top'
-      ? area.top + GUTTER
-      : area.top + area.height - visibleHeight - GUTTER
-    : placement.y.mode === 'top'
-      ? area.top + placement.y.value
-      : placement.y.mode === 'bottom'
-        ? area.top + area.height - placement.y.value - visibleHeight
-        : area.top + GUTTER + placement.y.value * Math.max(0, area.height - visibleHeight - GUTTER * 2)
-  return {
-    x: clamp(x, area.left + GUTTER, Math.max(area.left + GUTTER, area.left + area.width - width - GUTTER)),
-    y: clamp(y, area.top + GUTTER, Math.max(area.top + GUTTER, area.top + area.height - visibleHeight - GUTTER)),
-    width,
-    height,
-  }
+  const size = { width, height: visibleHeight }
+  const position = positionFromPlacement(placement, size, area)
+  const y = stacked ? (edge === 'top' ? area.top + GUTTER : area.top + area.height - visibleHeight - GUTTER) : position.y
+  return { ...clampPosition({ x: position.x, y }, size, area), width, height }
 }
 
 function resizeFrame(frame: Frame, edge: ResizeEdge, dx: number, dy: number, minSize: Size, maxSize: Size, area: Viewport): Frame {
@@ -171,8 +114,10 @@ const RESIZE_HANDLES: Array<{ edge: ResizeEdge; className: string }> = [
   { edge: 'sw', className: 'bottom-0 left-0 h-3 w-3 cursor-nesw-resize' },
 ]
 
-export function FloatingToolPanel({ title, children, headerTools, onClose, storageKey, initialEdge, defaultSize, minSize, maxSize, className, scrollContent = true }: Props) {
-  const locale = useLocaleCode()
+export function FloatingToolPanel({ title, children, headerTools, onClose, panel, className, scrollContent = true }: Props) {
+  const { storageKey, edge: initialEdge, side: initialSide, defaultSize } = TOOL_PANEL_FRAME[panel]
+  const { min: minSize, max: maxSize } = TOOL_PANEL_SIZE
+  const t = useT()
   const [frame, setFrame] = useState<Frame | null>(null)
   const [minimized, setMinimized] = useState(false)
   const [pinned, setPinned] = useState(false)
@@ -190,18 +135,26 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, stora
 
   useEffect(() => {
     if (loadedKeyRef.current !== storageKey) {
-      placementRef.current = readPlacement(storageKey, initialEdge, { width: defaultWidth, height: defaultHeight })
+      placementRef.current = readPlacement(storageKey, defaultPlacement(initialEdge, { width: defaultWidth, height: defaultHeight }, initialSide), initialEdge)
       loadedKeyRef.current = storageKey
     }
-    const placement = placementRef.current ?? defaultPlacement(initialEdge, { width: defaultWidth, height: defaultHeight })
+    const placement = placementRef.current ?? defaultPlacement(initialEdge, { width: defaultWidth, height: defaultHeight }, initialSide)
     placementRef.current = placement
     const relayout = () => {
       if (gesture.current || !placementRef.current) return
-      const next = layoutFrame(placementRef.current, viewport(), initialEdge, minimized, { width: minWidth, height: minHeight }, { width: maxWidth, height: maxHeight })
+      const next = layoutFrame(
+        placementRef.current,
+        viewport(),
+        initialSide,
+        initialEdge,
+        minimized,
+        { width: minWidth, height: minHeight },
+        { width: maxWidth, height: maxHeight }
+      )
       frameRef.current = next
       setFrame(next)
     }
-    mountedPanels.set(storageKey, panelRegistration(initialEdge, placement, minimized))
+    mountedPanels.set(storageKey, panelRegistration(initialSide, initialEdge, placement, minimized))
     window.dispatchEvent(new Event(PANEL_LAYOUT_EVENT))
     window.addEventListener(PANEL_LAYOUT_EVENT, relayout)
     window.addEventListener('resize', relayout)
@@ -216,7 +169,7 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, stora
       window.visualViewport?.removeEventListener('resize', relayout)
       window.visualViewport?.removeEventListener('scroll', relayout)
     }
-  }, [storageKey, initialEdge, defaultWidth, defaultHeight, minWidth, minHeight, maxWidth, maxHeight, minimized])
+  }, [storageKey, initialEdge, initialSide, defaultWidth, defaultHeight, minWidth, minHeight, maxWidth, maxHeight, minimized])
 
   const saveFrame = (next: Frame, preserveSize = false) => {
     const visibleHeight = minimized ? Math.min(next.height, headerHeight()) : next.height
@@ -226,12 +179,8 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, stora
       placement.height = placementRef.current.height
     }
     placementRef.current = placement
-    mountedPanels.set(storageKey, panelRegistration(initialEdge, placement, minimized))
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(placement))
-    } catch {
-      // The current session still uses the new placement.
-    }
+    mountedPanels.set(storageKey, panelRegistration(initialSide, initialEdge, placement, minimized))
+    writePlacement(storageKey, placement)
     window.dispatchEvent(new Event(PANEL_LAYOUT_EVENT))
   }
 
@@ -253,22 +202,7 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, stora
     }
   }
 
-  const pinLabel =
-    locale === 'zh'
-      ? pinned
-        ? '取消固定不透明'
-        : '固定不透明'
-      : locale === 'ja'
-        ? pinned
-          ? '固定を解除'
-          : '常に不透明にする'
-        : locale === 'ko'
-          ? pinned
-            ? '고정 해제'
-            : '항상 불투명하게 고정'
-          : pinned
-            ? 'Unpin panel'
-            : 'Pin panel opaque'
+  const pinLabel = t(pinned ? 'common.panelUnpin' : 'common.panelPin')
 
   const begin = (event: PointerEvent<HTMLElement>, kind: GestureKind) => {
     if (event.button !== 0) return
@@ -309,6 +243,7 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, stora
     const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0
     if ((!dx && !dy) || (dx && !edge.includes('e') && !edge.includes('w')) || (dy && !edge.includes('n') && !edge.includes('s'))) return
     event.preventDefault()
+    event.stopPropagation()
     const rect = panelRef.current?.getBoundingClientRect()
     const current = frameRef.current || (rect ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height } : null)
     if (!current) return
@@ -330,21 +265,21 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, stora
     <section
       ref={panelRef}
       className={cn(
-        'pointer-events-auto fixed z-[60] flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-md border border-line bg-panel/95 text-ink shadow-lg',
+        'pointer-events-auto fixed z-[60] flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-md bg-panel/95 text-ink shadow-lg',
         'transition-opacity duration-150',
         !pinned && 'opacity-40 hover:opacity-100 [&:has(:focus-visible)]:opacity-100 [@media(hover:none)]:focus-within:opacity-100',
         className
       )}
       data-pinned={pinned}
       style={{
-        ...(frame ? { left: frame.x, top: frame.y } : { right: 16, ...(initialEdge === 'top' ? { top: 16 } : { bottom: 16 }) }),
+        ...(frame ? { left: frame.x, top: frame.y } : { ...(initialSide === 'left' ? { left: 8 } : { right: 16 }), ...(initialEdge === 'top' ? { top: 16 } : { bottom: 16 }) }),
         width: frame?.width ?? `min(${defaultSize.width}px, calc(100vw - 16px))`,
         height: minimized ? 'auto' : (frame?.height ?? `min(${defaultSize.height}px, calc(100dvh - 16px))`),
       }}
       aria-label={title}
     >
       <div
-        className="flex h-8 shrink-0 touch-none cursor-grab items-center gap-1 border-b border-line px-2 select-none active:cursor-grabbing [@media(hover:none)]:h-11"
+        className="flex h-8 shrink-0 touch-none cursor-grab items-center gap-0.5 bg-panel-2 pr-1.5 pl-2.5 select-none active:cursor-grabbing [@media(hover:none)]:h-11"
         onPointerDown={(event) => begin(event, 'move')}
         onPointerMove={move}
         onPointerUp={end}
@@ -357,35 +292,41 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, stora
           </div>
         ) : null}
         <Button
-          size="icon"
+          size="mini"
           variant="plain"
-          className={cn('h-7 w-7 [@media(hover:none)]:h-11 [@media(hover:none)]:w-11', pinned && 'bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] text-accent')}
+          className={cn('[@media(hover:none)]:h-11 [@media(hover:none)]:w-11', pinned && 'bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] text-accent')}
           aria-label={pinLabel}
           aria-pressed={pinned}
           onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={keepGameFocus}
+          onKeyDown={stopGameKeys}
           onClick={togglePin}
         >
-          <Pin size={14} fill={pinned ? 'currentColor' : 'none'} aria-hidden />
+          <Pin size={13} fill={pinned ? 'currentColor' : 'none'} aria-hidden />
         </Button>
         <Button
-          size="icon"
+          size="mini"
           variant="plain"
-          className="h-7 w-7 [@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
-          aria-label={minimized ? 'Expand' : 'Minimize'}
+          className="[@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
+          aria-label={t(minimized ? 'common.panelExpand' : 'common.panelMinimize')}
           onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={keepGameFocus}
+          onKeyDown={stopGameKeys}
           onClick={() => setMinimized((value) => !value)}
         >
-          {minimized ? <IoExpandOutline size={15} aria-hidden /> : <IoRemoveOutline size={15} aria-hidden />}
+          {minimized ? <IoExpandOutline size={14} aria-hidden /> : <IoRemoveOutline size={14} aria-hidden />}
         </Button>
         <Button
-          size="icon"
+          size="mini"
           variant="plain"
-          className="h-7 w-7 [@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
-          aria-label="Close"
+          className="[@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
+          aria-label={t('common.close')}
           onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={keepGameFocus}
+          onKeyDown={stopGameKeys}
           onClick={onClose}
         >
-          <IoCloseOutline size={16} aria-hidden />
+          <IoCloseOutline size={15} aria-hidden />
         </Button>
       </div>
       {!minimized ? (
@@ -409,6 +350,7 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, stora
               onPointerUp={end}
               onPointerCancel={end}
               onKeyDown={(event) => resizeWithKeyboard(event, edge)}
+              onMouseDown={keepGameFocus}
             >
               {edge === 'se' ? <span className="absolute right-1 bottom-1 h-2 w-2 border-r-2 border-b-2 border-ink-soft" aria-hidden /> : null}
             </div>

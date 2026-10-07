@@ -12,7 +12,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export const POST = defineApiRoute('post:/api/game-agent/companion', async ({ request }) => {
-  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', '陪玩聊天仅在 Chaya App 或本机服务中可用')
+  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', '旅伴聊天仅在 Chaya App 或本机服务中可用')
   const body = (await request.json().catch(() => null)) as {
     text?: unknown
     cue?: unknown

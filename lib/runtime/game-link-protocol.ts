@@ -3,6 +3,7 @@
 import type { ActorDraft, ActorVitalLockKind, ItemKind, RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
 import type { CommonEventsData, MapDetailData, SelfSwitchLetter } from '@/lib/game/events'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
+import type { GameSavesErrorCode, GameSavesOp, GameSavesSnapshot, GameSavesStatus, SaveWaitReason } from '@/lib/game/game-saves'
 import type { InputAssistConfig, InputChord, MacroEvent } from '@/lib/game/input-assistance'
 import type {
   DataCell,
@@ -156,9 +157,18 @@ export type InputAssistMessage =
   | { type: 'assist.config'; globalConfig: InputAssistConfig; gameConfig: InputAssistConfig }
   | { type: 'assist.status'; status: { running: string[]; pending: string[]; counts: Record<string, number>; error?: string; recording: boolean } }
 
+/** 游戏存档：命令由游戏侧执行；`saves.changed` 在任一端写入后推送 */
+export type GameSavesMessage =
+  | ({ type: 'saves.cmd'; reqId: string; gameId: string } & GameSavesOp)
+  | { type: 'saves.reply'; reqId: string; ok: true; snapshot: GameSavesSnapshot; result?: string | null }
+  | { type: 'saves.reply'; reqId: string; ok: false; error: string; code?: GameSavesErrorCode; reason?: SaveWaitReason }
+  | { type: 'saves.status'; gameId: string; status: GameSavesStatus }
+  | { type: 'saves.changed'; gameId: string; snapshot: GameSavesSnapshot }
+
 export type GameLinkMessage =
   | TranslationPacket
   | InputAssistMessage
+  | GameSavesMessage
   | GameLinkLogBatch
   | GameEditCatalogMessage
   | GameEditEventsMessage

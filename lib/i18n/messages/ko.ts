@@ -1,4 +1,5 @@
 import { aboutKo } from '@/lib/i18n/messages/parts/about'
+import { companionKo } from '@/lib/i18n/messages/parts/companion'
 import { creditsKo } from '@/lib/i18n/messages/parts/credits'
 import { dataKo } from '@/lib/i18n/messages/parts/data.ko'
 import { downloadsKo } from '@/lib/i18n/messages/parts/downloads'
@@ -7,6 +8,8 @@ import { eventsKo } from '@/lib/i18n/messages/parts/events.ko'
 import { integrationKo } from '@/lib/i18n/messages/parts/integration'
 import { legalKo } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayKo } from '@/lib/i18n/messages/parts/mcp-gateway'
+import { panelsKo } from '@/lib/i18n/messages/parts/panels'
+import { savesKo } from '@/lib/i18n/messages/parts/saves.ko'
 import { translateKo } from '@/lib/i18n/messages/parts/translate.ko'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
@@ -20,8 +23,11 @@ const base = {
     library: '보관함',
     assist: '보조',
     keyMouse: '키보드·마우스 도구',
+    gameSaves: '게임 저장',
     minimap: '미니맵',
-    companion: '플레이 동행 AI',
+    companion: '길동무',
+    miniPanels: '미니 패널',
+    enhance: '능력 강화',
     edit: '수정',
     translate: '번역',
     logs: '로그',
@@ -62,6 +68,10 @@ const base = {
     durationMin: '{n}분',
     durationHour: '{n}시간',
     chars: '자',
+    panelPin: '항상 불투명하게 고정',
+    panelUnpin: '고정 해제',
+    panelMinimize: '최소화',
+    panelExpand: '펼치기',
   },
   gate: {
     title: '게임 선택',
@@ -304,4 +314,7 @@ export const ko: MessageTree = {
   ...legalKo,
   ...eventsKo,
   ...dataKo,
+  ...savesKo,
+  ...companionKo,
+  ...panelsKo,
 }

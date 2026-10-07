@@ -2,13 +2,14 @@
 
 import { createContext, useContext } from 'react'
 
+import { tNow } from '@/lib/i18n'
 import type { GameLinkMessage } from '@/lib/runtime/game-link-protocol'
 
 /**
- * 键鼠工具与游戏运行时之间的通道。
+ * 辅助工具（键鼠工具、游戏存档）与游戏运行时之间的通道。
  * Web 控制台由 GameLinkProvider 提供（走 GameLink）；局内浮层直接调用插件里的控制器。
  */
-export type InputAssistTransport = {
+export type GameToolTransport = {
   roomId: string | null
   connected: boolean
   negotiating: boolean
@@ -19,10 +20,10 @@ export type InputAssistTransport = {
   subscribeMessages: (handler: (message: GameLinkMessage) => void) => () => void
 }
 
-export const InputAssistTransportContext = createContext<InputAssistTransport | null>(null)
+export const GameToolTransportContext = createContext<GameToolTransport | null>(null)
 
-export function useInputAssistTransport(): InputAssistTransport {
-  const transport = useContext(InputAssistTransportContext)
-  if (!transport) throw new Error('键鼠工具需要游戏连接或局内运行时')
+export function useGameToolTransport(): GameToolTransport {
+  const transport = useContext(GameToolTransportContext)
+  if (!transport) throw new Error(tNow('saves.error.transport'))
   return transport
 }

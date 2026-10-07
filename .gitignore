@@ -95,3 +95,4 @@ preset/**/_legacy_js/
 /data/game-agent-settings*.json
 /data/game-agent/
 /data/input-assistance/*.json
+/data/game-saves/

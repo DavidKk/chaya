@@ -4,18 +4,21 @@ import { type ButtonHTMLAttributes, forwardRef, type ReactNode } from 'react'
 
 import { Spinner } from '@/components/sk/Spinner'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
+import type { TooltipPlacement } from '@/components/sk/Tooltip/tooltipPosition'
 import { cn } from '@/lib/utils'
 
 /** default：浅底+描边；ghost：透明底+描边；plain：无底无描边；accent/ok/warn/fail：色实心（gate 尺寸仅配合 accent） */
 export type ButtonVariant = 'default' | 'accent' | 'ok' | 'warn' | 'fail' | 'ghost' | 'plain'
-export type ButtonSize = 'md' | 'icon' | 'gate'
+/** icon：32px 图标按钮；mini：24px 图标按钮，用于迷你面板头部与紧凑列表 */
+export type ButtonSize = 'md' | 'icon' | 'mini' | 'gate'
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant
   size?: ButtonSize
   loading?: boolean
-  /** 悬停提示；`size="icon"` 时若未传则回退到 `aria-label` */
+  /** 悬停提示；`size="icon" | "mini"` 时若未传则回退到 `aria-label` */
   tooltip?: string
+  tooltipPlacement?: TooltipPlacement
   children?: ReactNode
 }
 
@@ -28,11 +31,12 @@ const accentSheenBg =
 const gateSheenBg = 'after:bg-[radial-gradient(circle_7rem_at_var(--btn-x,50%)_var(--btn-y,50%),rgb(255_255_255/0.48)_0%,rgb(191_219_254/0.22)_36%,transparent_68%)]'
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'default', size = 'md', loading = false, disabled, className, type = 'button', tooltip, children, 'aria-label': ariaLabel, ...rest },
+  { variant = 'default', size = 'md', loading = false, disabled, className, type = 'button', tooltip, tooltipPlacement, children, 'aria-label': ariaLabel, ...rest },
   ref
 ) {
   const isDisabled = disabled || loading
-  const tip = tooltip ?? (size === 'icon' && typeof ariaLabel === 'string' ? ariaLabel : undefined)
+  const iconOnly = size === 'icon' || size === 'mini'
+  const tip = tooltip ?? (iconOnly && typeof ariaLabel === 'string' ? ariaLabel : undefined)
   const sheen = variant === 'accent' || variant === 'ok' || variant === 'warn' || variant === 'fail' || size === 'gate'
 
   const button = (
@@ -66,6 +70,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         variant === 'plain' &&
           'border-transparent bg-transparent text-ink-soft shadow-none hover:enabled:border-transparent hover:enabled:bg-[rgb(230_238_248/0.06)] hover:enabled:text-ink',
         size === 'icon' && 'w-8 shrink-0 px-0',
+        size === 'mini' && 'h-6 w-6 shrink-0 px-0',
         size === 'gate' &&
           cn(
             'relative mt-3 h-[2.85rem] min-w-[11rem] justify-center gap-0 rounded-[0.3rem] px-6 text-[0.95rem] leading-normal shadow-[0_8px_32px_var(--accent-glow)] motion-safe:animate-[kit-rise_0.4s_0.12s_ease_backwards] hover:enabled:shadow-[0_10px_40px_var(--accent-glow)]',
@@ -86,7 +91,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
             {children}
           </span>
           <span className="absolute inset-0 flex items-center justify-center">
-            <Spinner size={size === 'icon' ? 'sm' : 'md'} />
+            <Spinner size={iconOnly ? 'sm' : 'md'} />
           </span>
         </span>
       ) : (
@@ -99,7 +104,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
   const stretch = typeof className === 'string' && /\bw-full\b/.test(className)
   return (
-    <Tooltip content={tip} triggerClassName={isDisabled && stretch ? 'inline-flex w-full min-w-0' : undefined}>
+    <Tooltip content={tip} placement={tooltipPlacement} triggerClassName={isDisabled && stretch ? 'inline-flex w-full min-w-0' : undefined}>
       {isDisabled ? <span className={cn('inline-flex', stretch && 'w-full min-w-0')}>{button}</span> : button}
     </Tooltip>
   )

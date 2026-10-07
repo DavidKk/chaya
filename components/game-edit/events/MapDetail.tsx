@@ -7,7 +7,8 @@ import { IoArrowBack } from 'react-icons/io5'
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { countKey, type SessionState } from '@/components/game-edit/types'
-import { useToolPanelVisibility, useToolSettings } from '@/components/game-tools/useToolSettings'
+import { useToolPanelVisibility } from '@/components/game-tools/tool-panels'
+import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
@@ -141,7 +142,7 @@ export function MapDetail({
   const selectedEvent = detail && slot.eventId != null ? (detail.events.find((ev) => ev.id === slot.eventId) ?? null) : null
   const tp = useTeleport(node, slot, near)
   const toolSettings = useToolSettings(toolRequest)
-  const panel = useToolPanelVisibility(toolSettings.settings.miniMapEnabled)
+  const panel = useToolPanelVisibility('miniMap', toolSettings.settings.miniMapEnabled)
   const miniMap =
     showMiniMap && detail && panel.visible ? (
       <MiniMap

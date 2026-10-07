@@ -4,8 +4,10 @@ import { SendHorizontal, Square } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
-import { useToolPanelVisibility, useToolSettings } from '@/components/game-tools/useToolSettings'
-import { useLocaleCode } from '@/components/i18n/LocaleProvider'
+import { MiniPanelAlert } from '@/components/game-tools/MiniPanelParts'
+import { useToolPanelVisibility } from '@/components/game-tools/tool-panels'
+import { useToolSettings } from '@/components/game-tools/useToolSettings'
+import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { Button, ScrollArea, Spinner } from '@/components/sk'
 import { COMPANION_CHARACTER_PROFILES, type CompanionCharacter, type CompanionCue, type CompanionState, CompanionTracker, companionWords } from '@/lib/game-agent/companion'
 
@@ -56,8 +58,9 @@ function snapshot(state: CompanionState) {
 
 export function CompanionPanel({ gameId, open, observe, request }: Props) {
   const locale = useLocaleCode()
+  const t = useT()
   const { settings } = useToolSettings(request)
-  const panel = useToolPanelVisibility(settings.companionEnabled)
+  const panel = useToolPanelVisibility('companion', settings.companionEnabled)
   const character = COMPANION_CHARACTER_PROFILES[settings.companionCharacter]
   const [messages, setMessages] = useState<ChatLine[]>([])
   const [draft, setDraft] = useState('')
@@ -168,20 +171,14 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
         setQuestion(item.question || '')
         setProgress('')
       } else if (item.type === 'tool.started') {
-        setProgress(locale === 'zh' ? '操作中…' : locale === 'ja' ? '操作中…' : locale === 'ko' ? '조작 중…' : 'Acting…')
+        setProgress(t('companion.acting'))
       } else if (item.type === 'phase') {
-        const labels = {
-          zh: { observing: '观察中…', thinking: '思考中…', acting: '操作中…', verifying: '确认中…' },
-          ja: { observing: '確認中…', thinking: '考え中…', acting: '操作中…', verifying: '確認中…' },
-          ko: { observing: '살펴보는 중…', thinking: '생각 중…', acting: '조작 중…', verifying: '확인 중…' },
-          en: { observing: 'Looking…', thinking: 'Thinking…', acting: 'Acting…', verifying: 'Checking…' },
-        }
-        const language = locale === 'zh' || locale === 'ja' || locale === 'ko' ? locale : 'en'
-        setProgress(item.phase === 'waiting_user' ? '' : labels[language][item.phase as keyof typeof labels.en] || labels[language].thinking)
+        const phase = { observing: 'companion.observing', thinking: 'companion.thinking', acting: 'companion.acting', verifying: 'companion.verifying' } as const
+        setProgress(item.phase === 'waiting_user' ? '' : t(phase[item.phase as keyof typeof phase] ?? 'companion.thinking'))
       } else if (item.type === 'turn.failed') {
         messagesRef.current = messagesRef.current.filter((line) => line.id !== replyId || !!line.text)
         setMessages(messagesRef.current)
-        append({ id: crypto.randomUUID(), role: 'error', text: item.message || 'Agent failed' })
+        append({ id: crypto.randomUUID(), role: 'error', text: item.message || t('companion.failed') })
       } else if (item.type === 'turn.stopped') {
         messagesRef.current = messagesRef.current.filter((line) => line.id !== replyId || !!line.text)
         setMessages(messagesRef.current)
@@ -233,7 +230,7 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
           body: JSON.stringify({ gameId, reply: text, replyId: crypto.randomUUID() }),
         })
         if (!response.ok) throw new Error(responseError(await response.json().catch(() => null), `HTTP ${response.status}`))
-        setProgress(locale === 'zh' ? '思考中…' : locale === 'ja' ? '考え中…' : locale === 'ko' ? '생각 중…' : 'Thinking…')
+        setProgress(t('companion.thinking'))
       } catch (error) {
         setQuestion(question)
         append({ id: crypto.randomUUID(), role: 'error', text: error instanceof Error ? error.message : String(error) })
@@ -243,7 +240,7 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
     setBusy(true)
     const replyId = crypto.randomUUID()
     setActiveReplyId(replyId)
-    setProgress(locale === 'zh' ? '思考中…' : locale === 'ja' ? '考え中…' : locale === 'ko' ? '생각 중…' : 'Thinking…')
+    setProgress(t('companion.thinking'))
     append({ id: replyId, role: 'chaya', text: '', character: settings.companionCharacter })
     try {
       await consumeTurn(
@@ -294,26 +291,18 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
         />
       }
       onClose={panel.dismiss}
-      storageKey="chaya.companion.frame.v1"
-      initialEdge="bottom"
-      defaultSize={{ width: 300, height: 260 }}
-      minSize={{ width: 220, height: 160 }}
-      maxSize={{ width: 520, height: 640 }}
+      panel="companion"
       scrollContent={false}
     >
       <div className="flex h-full min-h-0 flex-col">
+        <MiniPanelAlert>{status && !status.available ? status.reason || t('companion.unavailable') : null}</MiniPanelAlert>
         <ScrollArea
           className="min-h-0 flex-1"
           scrollRef={listRef}
           scrollClassName="px-2 py-2"
           reserveGutter={false}
-          scrollProps={{ 'aria-label': locale === 'zh' ? '陪玩对话' : 'Companion conversation', 'aria-live': 'polite' }}
+          scrollProps={{ 'aria-label': t('companion.conversationAria'), 'aria-live': 'polite' }}
         >
-          {status && !status.available ? (
-            <p className="m-0 text-[11px] leading-4 text-fail" role="status">
-              {status.reason || (locale === 'zh' ? 'Agent 暂不可用' : 'Agent unavailable')}
-            </p>
-          ) : null}
           {messages.map((line) => (
             <p key={line.id} className="m-0 mb-1 break-words text-[11px] leading-4 text-ink last:mb-0">
               <strong className={line.role === 'error' ? 'text-fail' : line.role === 'player' ? 'text-accent' : 'text-ink'}>
@@ -338,10 +327,8 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
             onKeyDown={(event) => event.stopPropagation()}
             onKeyUp={(event) => event.stopPropagation()}
             maxLength={500}
-            aria-label={locale === 'zh' ? '陪玩对话与任务' : 'Companion chat and tasks'}
-            placeholder={
-              question || (locale === 'zh' ? '聊天或交代任务…' : locale === 'ja' ? '会話やタスクを入力…' : locale === 'ko' ? '대화나 작업 입력…' : 'Chat or give a task…')
-            }
+            aria-label={t('companion.inputAria')}
+            placeholder={question || t('companion.placeholder')}
             className="min-w-0 flex-1 border-0 bg-transparent px-2 text-[11px] text-ink outline-none placeholder:text-ink-soft focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
           />
           {busy && !question ? (
@@ -350,8 +337,8 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
               variant="plain"
               size="icon"
               className="h-8 w-8 shrink-0 [@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
-              aria-label={locale === 'zh' ? '停止任务' : 'Stop task'}
-              tooltip={locale === 'zh' ? '停止任务' : 'Stop task'}
+              aria-label={t('companion.stop')}
+              tooltip={t('companion.stop')}
               disabled={!turnId}
               onClick={() => void stop()}
             >
@@ -363,8 +350,8 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
               variant="accent"
               size="icon"
               className="h-8 w-8 shrink-0 rounded-none [@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
-              aria-label={locale === 'zh' ? '发送' : 'Send'}
-              tooltip={locale === 'zh' ? '发送' : 'Send'}
+              aria-label={t('companion.send')}
+              tooltip={t('companion.send')}
               disabled={!draft.trim() || (!question && (!status?.available || !profileId || !model))}
             >
               <SendHorizontal size={14} aria-hidden />

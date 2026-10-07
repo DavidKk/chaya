@@ -258,7 +258,7 @@ export function Tooltip({ content, placement = 'bottom', children, triggerClassN
         ref={tooltipRef}
         id={tooltipId}
         role="tooltip"
-        className="pointer-events-none z-50 max-w-[min(calc(100vw-16px),18rem)] rounded-[0.25rem] border border-line bg-[var(--panel-2)] px-2 py-2 text-xs font-medium leading-[1.35] break-words whitespace-pre-line text-ink shadow-[0_8px_24px_rgb(0_0_0/0.35)]"
+        className="pointer-events-none z-[90] max-w-[min(calc(100vw-16px),18rem)] rounded-[0.25rem] border border-line bg-[var(--panel-2)] px-2 py-2 text-xs font-medium leading-[1.35] break-words whitespace-pre-line text-ink shadow-[0_8px_24px_rgb(0_0_0/0.35)]"
         style={style}
       >
         {content}

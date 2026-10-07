@@ -29,6 +29,8 @@ export const GAME_CONTENT_RELS = {
   extractCompare: 'translate/extract.compare.json',
   gameEdit: 'config/game-edit.json',
   inputAssistance: 'config/input-assistance.json',
+  gameSaves: 'config/game-saves.json',
+  gameSavesIndex: 'saves/index.json',
 } as const
 
 export type GameContentKind = keyof typeof GAME_CONTENT_RELS
@@ -46,6 +48,8 @@ export const LEGACY_FLAT_FILES: Record<GameContentKind, readonly string[]> = {
   extractCompare: [`${CONTENT_FILE_PREFIX}-extract.compare.json`, 'extracted-compare.json'],
   gameEdit: [`${CONTENT_FILE_PREFIX}-game-edit.json`],
   inputAssistance: [],
+  gameSaves: [],
+  gameSavesIndex: [],
 }
 
 /** 相对内容根：`chaya/translate/cache.ndjson` */
@@ -61,4 +65,9 @@ export function gamePluginsCacheRelDir(): string {
 /** 相对内容根：`chaya/config/plugins-disabled` */
 export function gamePluginsDisabledRelPath(): string {
   return `${GAME_CONTENT_DIR}/${GAME_PLUGINS_DISABLED_REL}`
+}
+
+/** 相对内容根：`chaya/saves/auto`、`chaya/saves/quick` */
+export function gameSavesRelDir(list: 'auto' | 'quick'): string {
+  return `${GAME_CONTENT_DIR}/saves/${list}`
 }

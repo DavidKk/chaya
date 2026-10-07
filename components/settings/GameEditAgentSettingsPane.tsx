@@ -3,6 +3,8 @@
 import { type ReactNode, useEffect } from 'react'
 
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
+import { GameSavesPage } from '@/components/game-saves/GameSavesPage'
+import { MiniPanelsPage } from '@/components/game-tools/MiniPanelsPage'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { ASSIST_SECTIONS, type AssistSection, DEFAULT_ASSIST_SECTION, isAssistSection } from '@/components/input-assistance/assist-sections'
 import { InputAssistancePage } from '@/components/input-assistance/InputAssistancePage'
@@ -11,6 +13,7 @@ import { Tooltip } from '@/components/sk'
 import { useViewState } from '@/lib/view-state'
 
 import { AgentSettingsView } from './AgentSettingsView'
+import { EnhanceSettingsView } from './EnhanceSettingsView'
 import { ToolSettingsView } from './ToolSettingsView'
 
 /** 局内浮层「辅助」：与 Web `/assist/*` 同一组分区与组件，只换外壳 */
@@ -59,6 +62,12 @@ export function GameEditAgentSettingsPane({ request, hotkeys }: { request: GameA
           hotkeys
         ) : section === 'key-mouse' ? (
           <InputAssistancePage />
+        ) : section === 'saves' ? (
+          <GameSavesPage onOpenHotkeys={() => setSection('hotkeys')} request={request} />
+        ) : section === 'panels' ? (
+          <MiniPanelsPage request={request} />
+        ) : section === 'enhance' ? (
+          <EnhanceSettingsView request={request} />
         ) : section === 'agents' ? (
           <AgentSettingsView request={request} agentId={agentId} onNavigate={setAgentId} />
         ) : (

@@ -8,8 +8,10 @@ import {
   loadGlobalHotkeys,
   matchKeyChord,
   parseHotkeyId,
+  parseQuickSaveHotkeyId,
   saveGlobalHotkeys,
   setGameHotkeysCache,
+  toolPanelFromHotkeyTarget,
 } from '@/components/game-edit/run-hotkeys'
 import { type ActorPaneId, isActorPaneId, isEditTab, isEventsTab, parseTabId, type TabId } from '@/components/game-edit/tabs'
 import {
@@ -31,23 +33,27 @@ import {
   type SessionState,
   type TableRow,
 } from '@/components/game-edit/types'
+import { isToolPanelId, toggleToolPanel } from '@/components/game-tools/tool-panels'
+import { GameToolTransportContext } from '@/components/game-tools/transport'
 import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { InputAssistTransportContext } from '@/components/input-assistance/transport'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
 import { EditTableSkeleton } from '@/components/sk'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { readViewState, writeViewState } from '@/lib/view-state'
 
 import { pluginGameAgentRequest } from '../../agent-ui/request'
+import type { GameSavesController } from '../game-saves/controller'
 import { applyGameSpeed, applyRunAction, applyRunFlag, applySpeed, runActionNeedsClose } from '../runtime/apply-run'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
 import { buildLiveCatalog, type LiveSessionScope, readLiveSession, setItemCount, setPartyGold } from '../session/live-session'
 import { bootstrapGameEditSession, diskStateFromSession, ensureGameEditDiskApplied, loadGameEditDisk, scheduleSaveGameEditDisk } from '../session/persist'
 import { syncRemoteMirror } from '../session/remote-bridge'
+import { FloatingGameSaves } from './FloatingGameSaves'
 import { FloatingMiniMap } from './FloatingMiniMap'
-import { createPluginInputAssistTransport } from './input-assist-transport'
+import { FloatingPanelDock } from './FloatingPanelDock'
+import { createPluginGameToolTransport } from './game-tool-transport'
 import { useOverlayEvents } from './useOverlayEvents'
 import { useOverlaySaveData } from './useOverlaySaveData'
 
@@ -455,8 +461,8 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
 
   const saveDataSlot = useOverlaySaveData(open || hasOpened, tab)
 
-  const hotkeyRef = useRef({ session, setRunFlag, runAction })
-  hotkeyRef.current = { session, setRunFlag, runAction }
+  const hotkeyRef = useRef({ session, setRunFlag, runAction, toolSettings })
+  hotkeyRef.current = { session, setRunFlag, runAction, toolSettings }
 
   useEffect(() => {
     setGameHotkeysCache(session.hotkeys)
@@ -465,19 +471,31 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   /** In-game global hotkeys: work with panel open/closed; skip when an input is focused */
   useEffect(() => {
     function onHotkey(ev: KeyboardEvent) {
-      const tag = (ev.target as Element | null)?.tagName || ''
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-      if ((ev.target as HTMLElement | null)?.isContentEditable) return
-      const { session: cur, setRunFlag: setFlag, runAction: doAction } = hotkeyRef.current
+      const target = ev.composedPath()[0]
+      if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return
+      const { session: cur, setRunFlag: setFlag, runAction: doAction, toolSettings: tools } = hotkeyRef.current
       const map = effectiveHotkeys(cur.hotkeys, cur.hotkeysGlobal)
       if (!map || !Object.keys(map).length) return
       for (const [id, chord] of Object.entries(map)) {
         if (!chord || isHotkeyDisabled(id) || !matchKeyChord(ev, chord)) continue
         const parsed = parseHotkeyId(id)
-        if (!parsed || parsed.kind === 'ui') continue
+        if (!parsed) continue
+        if (parsed.kind === 'ui') {
+          const panel = toolPanelFromHotkeyTarget(parsed.target)
+          if (!panel || !isToolPanelId(panel) || !tools.loaded || tools.unavailable) continue
+          ev.preventDefault()
+          ev.stopPropagation()
+          if (!ev.repeat) void toggleToolPanel(panel, tools.settings, tools.update)
+          break
+        }
+        const gameSaves = parsed.kind === 'save' ? (window as Window & { __chayaGameSaves?: GameSavesController }).__chayaGameSaves : undefined
+        if (parsed.kind === 'save' && !gameSaves?.quickHotkeysEnabled()) continue
         ev.preventDefault()
         ev.stopPropagation()
-        if (parsed.kind === 'flag') {
+        if (parsed.kind === 'save') {
+          const quick = parseQuickSaveHotkeyId(parsed.target)
+          if (quick && !ev.repeat) gameSaves?.hotkey(quick.action, quick.slot)
+        } else if (parsed.kind === 'flag') {
           const key = parsed.target as RunFlagKey
           setFlag(key, !cur[key])
         } else {
@@ -514,6 +532,8 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
           onRequestOpen()
         }}
       />
+      <FloatingGameSaves settings={toolSettings.settings} />
+      <FloatingPanelDock tools={toolSettings} />
       {hasOpened ? (
         <Activity mode={open ? 'visible' : 'hidden'}>
           <Suspense fallback={<EditTableSkeleton label={t('edit.loadPanel')} />}>
@@ -599,14 +619,14 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
 /** Shadow 内挂弹层 Provider，保证浮层吃到 overlay token */
 function GameEditOverlayProviders({ children, open }: { children: ReactNode; open: boolean }) {
   const [portalHost, setPortalHost] = useState<HTMLDivElement | null>(null)
-  const [inputAssist] = useState(createPluginInputAssistTransport)
+  const [inputAssist] = useState(createPluginGameToolTransport)
   return (
     <div ref={setPortalHost} className="relative flex min-h-0 flex-1 flex-col">
       <NotificationProvider portalContainer={portalHost}>
         <ConfirmProvider portalContainer={portalHost}>
-          <InputAssistTransportContext value={inputAssist}>
+          <GameToolTransportContext value={inputAssist}>
             <div className={open ? 'flex min-h-0 flex-1 flex-col' : 'contents'}>{children}</div>
-          </InputAssistTransportContext>
+          </GameToolTransportContext>
         </ConfirmProvider>
       </NotificationProvider>
     </div>

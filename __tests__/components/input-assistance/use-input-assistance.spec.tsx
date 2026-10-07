@@ -2,7 +2,7 @@
 import { act, useEffect } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
-import { type InputAssistTransport, InputAssistTransportContext } from '@/components/input-assistance/transport'
+import { type GameToolTransport, GameToolTransportContext } from '@/components/game-tools/transport'
 import { useInputAssistance } from '@/components/input-assistance/useInputAssistance'
 import { EMPTY_INPUT_ASSIST_CONFIG, type InputAssistConfig, type MappingRule } from '@/lib/game/input-assistance'
 import type { GameLinkMessage } from '@/lib/runtime/game-link-protocol'
@@ -40,7 +40,7 @@ function Probe() {
 function fakeGame(remote: { global: InputAssistConfig; game: InputAssistConfig }) {
   const listeners = new Set<(message: GameLinkMessage) => void>()
   const sent: GameLinkMessage[] = []
-  const transport: InputAssistTransport = {
+  const transport: GameToolTransport = {
     roomId: 'room',
     connected: true,
     negotiating: false,
@@ -68,12 +68,12 @@ function fakeGame(remote: { global: InputAssistConfig; game: InputAssistConfig }
   return { transport, sent, push }
 }
 
-async function render(transport: InputAssistTransport) {
+async function render(transport: GameToolTransport) {
   await act(async () =>
     root.render(
-      <InputAssistTransportContext value={transport}>
+      <GameToolTransportContext value={transport}>
         <Probe />
-      </InputAssistTransportContext>
+      </GameToolTransportContext>
     )
   )
   await act(async () => {

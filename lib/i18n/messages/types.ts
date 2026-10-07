@@ -6,6 +6,7 @@ import type { EventsMessages } from '@/lib/i18n/messages/events-types'
 import type { IntegrationMessages } from '@/lib/i18n/messages/integration-types'
 import type { LegalMessages } from '@/lib/i18n/messages/legal-types'
 import type { McpGatewayMessages } from '@/lib/i18n/messages/mcp-gateway-types'
+import type { SavesMessages } from '@/lib/i18n/messages/saves-types'
 
 /** 叶子为 string 的同构文案树 */
 export type MessageTree = {
@@ -18,8 +19,11 @@ export type MessageTree = {
     library: string
     assist: string
     keyMouse: string
+    gameSaves: string
     minimap: string
     companion: string
+    miniPanels: string
+    enhance: string
     edit: string
     translate: string
     logs: string
@@ -60,6 +64,10 @@ export type MessageTree = {
     durationMin: string
     durationHour: string
     chars: string
+    panelPin: string
+    panelUnpin: string
+    panelMinimize: string
+    panelExpand: string
   }
   gate: {
     title: string
@@ -580,6 +588,22 @@ export type MessageTree = {
     groupFlags: string
     groupScene: string
     groupFix: string
+    groupQuickSave: string
+    hkQuickSave: string
+    hkQuickSaveDesc: string
+    hkQuickLoad: string
+    hkQuickLoadDesc: string
+    groupMiniPanels: string
+    hkPanelMiniMap: string
+    hkPanelMiniMapDesc: string
+    hkPanelCompanion: string
+    hkPanelCompanionDesc: string
+    hkPanelAutoSaves: string
+    hkPanelAutoSavesDesc: string
+    hkPanelQuickSaves: string
+    hkPanelQuickSavesDesc: string
+    hkPanelDock: string
+    hkPanelDockDesc: string
     groupBattle: string
     flagFullscreen: string
     flagFullscreenDesc: string
@@ -599,6 +623,9 @@ export type MessageTree = {
     flagSaveDesc: string
     flagClickMove: string
     flagClickMoveDesc: string
+    flagSmartPath: string
+    flagSmartPathDesc: string
+    enhancePage: string
     flagFollowers: string
     flagFollowersDesc: string
     flagClickTeleport: string
@@ -719,4 +746,37 @@ export type MessageTree = {
   legal: LegalMessages
   events: EventsMessages
   data: DataMessages
+  saves: SavesMessages
+  companion: {
+    conversationAria: string
+    unavailable: string
+    inputAria: string
+    placeholder: string
+    stop: string
+    send: string
+    thinking: string
+    acting: string
+    observing: string
+    verifying: string
+    failed: string
+  }
+  panels: {
+    subtitle: string
+    dock: {
+      title: string
+      desc: string
+      enable: string
+      disable: string
+      enabled: string
+      disabled: string
+      orientation: string
+      orientationDesc: string
+      horizontal: string
+      vertical: string
+      unavailable: string
+    }
+    items: { title: string; desc: string; showAll: string; hideAll: string; listAria: string; toggle: string }
+    item: Record<'miniMap' | 'miniMapDesc' | 'companion' | 'companionDesc' | 'autoSaves' | 'autoSavesDesc' | 'quickSaves' | 'quickSavesDesc' | 'closeAll' | 'closeAllDesc', string>
+    bar: { aria: string; drag: string; show: string; hide: string; closeAll: string; toVertical: string; toHorizontal: string }
+  }
 }

@@ -79,6 +79,21 @@
   }
 }
 
+/* 跳转定位后边框闪三次（组件内 animate-[chaya-ring-flash_…]） */
+@keyframes chaya-ring-flash {
+  0%,
+  33%,
+  67%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  17%,
+  50%,
+  83% {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+}
+
 @keyframes chaya-blink {
   0%,
   43%,

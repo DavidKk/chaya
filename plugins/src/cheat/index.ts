@@ -7,13 +7,17 @@ import { startPluginGameAgentSync } from '../agent-ui/request'
 import { createLogger, registerGameLinkEditHandlers, restorePluginErrors, showPluginError } from '../helpers'
 import { installConsoleApi } from './console/console-api'
 import { startPanelHotkeys } from './console/panel-hotkeys'
+import { GameSavesController } from './game-saves/controller'
+import { createDefaultGameSavesEnv } from './game-saves/env'
+import { disposeSaveToast } from './game-saves/toast'
 import { InputAssistanceController } from './input-assistance/controller'
 import { Cheats } from './runtime/cheats'
+import { RunCheats } from './runtime/cheats-run'
 import { disposeMapHistory, installMapHistory } from './session/map-history'
-import { startGameEditDiskWatcher } from './session/persist'
+import { markGameEditNeedReapply, startGameEditDiskWatcher } from './session/persist'
 import { handleRemoteEditMessage, stopRemoteEditBridge } from './session/remote-bridge'
 import { captureGameEditView } from './ui/App'
-import { isGameEditUiOpen, mountGameEditTools, remountGameEditUi, showGameEditUi, unmountGameEditUi } from './ui/mount'
+import { hideGameEditUi, isGameEditUiOpen, mountGameEditTools, remountGameEditUi, showGameEditUi, unmountGameEditUi } from './ui/mount'
 
 const log = createLogger('ChayaEdit')
 
@@ -30,15 +34,31 @@ const reopenAfterHot = (() => {
 
 installConsoleApi()
 installMapHistory()
+RunCheats.ensureSmartPathHook()
 const inputAssistance = new InputAssistanceController()
 ;(window as Window & { __chayaInputAssistanceStopAll?: () => void }).__chayaInputAssistanceStopAll = () => inputAssistance.runtime.stopAll()
 ;(window as Window & { __chayaInputAssistance?: InputAssistanceController }).__chayaInputAssistance = inputAssistance
+const gameSaves = new GameSavesController(
+  createDefaultGameSavesEnv({
+    overlayOpen: isGameEditUiOpen,
+    beforeLoad: () => {
+      if (isGameEditUiOpen()) hideGameEditUi()
+    },
+    afterLoad: () => {
+      markGameEditNeedReapply()
+      inputAssistance.runtime.stopAll()
+    },
+  })
+)
+gameSaves.start()
+;(window as Window & { __chayaGameSaves?: GameSavesController }).__chayaGameSaves = gameSaves
 const unregisterLink = registerGameLinkEditHandlers({
   onMessage: (message, send) => {
-    if (!inputAssistance.handle(message, send)) handleRemoteEditMessage(message, send)
+    if (!inputAssistance.handle(message, send) && !gameSaves.handle(message, send)) handleRemoteEditMessage(message, send)
   },
   onStop: () => {
     inputAssistance.disconnected()
+    gameSaves.disconnected()
     stopRemoteEditBridge()
   },
 })
@@ -78,6 +98,9 @@ function disposeGameEditRuntime(): boolean {
   inputAssistance.dispose()
   delete (window as Window & { __chayaInputAssistanceStopAll?: () => void }).__chayaInputAssistanceStopAll
   delete (window as Window & { __chayaInputAssistance?: InputAssistanceController }).__chayaInputAssistance
+  gameSaves.dispose()
+  disposeSaveToast()
+  delete (window as Window & { __chayaGameSaves?: GameSavesController }).__chayaGameSaves
   stopRemoteEditBridge()
   disposeMapHistory()
   return wasOpen

@@ -1,4 +1,5 @@
 import { aboutEn } from '@/lib/i18n/messages/parts/about'
+import { companionEn } from '@/lib/i18n/messages/parts/companion'
 import { creditsEn } from '@/lib/i18n/messages/parts/credits'
 import { dataEn } from '@/lib/i18n/messages/parts/data.en'
 import { downloadsEn } from '@/lib/i18n/messages/parts/downloads'
@@ -7,6 +8,8 @@ import { eventsEn } from '@/lib/i18n/messages/parts/events.en'
 import { integrationEn } from '@/lib/i18n/messages/parts/integration'
 import { legalEn } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayEn } from '@/lib/i18n/messages/parts/mcp-gateway'
+import { panelsEn } from '@/lib/i18n/messages/parts/panels'
+import { savesEn } from '@/lib/i18n/messages/parts/saves.en'
 import { translateEn } from '@/lib/i18n/messages/parts/translate.en'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
@@ -20,8 +23,11 @@ const commonEn = {
     library: 'Library',
     assist: 'Assist',
     keyMouse: 'Keyboard & mouse tools',
+    gameSaves: 'Game saves',
     minimap: 'Mini map',
-    companion: 'Play companion AI',
+    companion: 'Companion',
+    miniPanels: 'Mini panels',
+    enhance: 'Enhancements',
     edit: 'Edit',
     translate: 'Translate',
     logs: 'Logs',
@@ -62,6 +68,10 @@ const commonEn = {
     durationMin: '{n} min',
     durationHour: '{n} hr',
     chars: 'chars',
+    panelPin: 'Pin panel opaque',
+    panelUnpin: 'Unpin panel',
+    panelMinimize: 'Minimize',
+    panelExpand: 'Expand',
   },
   gate: {
     title: 'Choose game',
@@ -312,4 +322,7 @@ export const en: MessageTree = {
   ...legalEn,
   ...eventsEn,
   ...dataEn,
+  ...savesEn,
+  ...companionEn,
+  ...panelsEn,
 }

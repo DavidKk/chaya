@@ -36,6 +36,9 @@
 
 - `--font-sans`（正文）、`--font-display`（品牌/页头）、`--font-mono`（路径/ID/日志）。
 - 字号用 Tailwind 阶梯（`text-xs` / `text-sm` / `text-[13px]` 等），不要再开 globals 字号类。
+- 浮层 z-index 由低到高：迷你面板 `FloatingToolPanel`、迷你面板管理与通知 `NotificationProvider` `60`（通知在 DOM 后挂载，同层时盖在面板上）→ 移动端侧栏遮罩 `65` → 侧栏 / 下拉 / Popover / Menu `70` → `Modal` `80` → `Tooltip` `90`。提示永远在最上层，新浮层按此插入，不要高于 `Tooltip`。
+- 图标按钮：`Button size="icon"`（32px）用于页面；`size="mini"`（24px）用于迷你面板头部与面板内紧凑列表，配 `variant="plain"`（无边框）。两者都把 `aria-label` 作为悬停提示，不另写文字。迷你面板与迷你面板管理都不加外边框，靠 `shadow-lg` 与画面区分；头部用 `bg-panel-2` 与正文区分，不加分隔线。
+- 迷你面板一律用 `FloatingToolPanel panel={id}`（配置见 `TOOL_PANEL_FRAME`）加 `MiniPanelParts` 里的工具条、提示与失败条，不要另写外壳或局部样式。
 
 ## 4. 布局与组件落点
 
@@ -120,6 +123,7 @@
 - 空列表区分「无数据」vs「无匹配」。
 - 危险操作需确认或明确不可逆。
 - 异步按钮 `disabled` + 进行中态。
+- **成功提示不插入 DOM 节点（全局）**：操作成功后不要在页面里新增提示行、横幅、状态文字等元素来告知结果，避免布局跳动。控件自身状态（开关、按钮、列表内容）已能体现结果时不再额外提示；需要明确告知时用 `useNotification().success`，局内用插件 toast。持续运行状态（倒计时、等待原因）放在已常驻的区域（如列表工具栏摘要）里替换文字，不随操作出现或消失。
 
 ## 7. 检查清单
 
@@ -129,3 +133,4 @@
 - [ ] 窄宽可用
 - [ ] GameEdit 与 Toolkit 同属一套皮
 - [ ] 内容区文字都在卡片内（§4.2）
+- [ ] 成功提示不插入 DOM 节点（§6）

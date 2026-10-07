@@ -2,7 +2,10 @@
  * Runtime page extras: system toggles, scene jumps, battle shortcuts, click teleport, soft-skip asset errors
  */
 
+import { readCachedToolSettings, TOOL_SETTINGS_EVENT, TOOL_SETTINGS_STORAGE_KEY, type ToolSettings } from '@/lib/game-agent/tool-settings'
+
 import { gameMap, gameMessage, gamePlayer, gameScreen, gameTroop } from './game-globals'
+import { installSmartPath } from './smart-path'
 
 export type ScenePushId = 'status' | 'equip' | 'skill' | 'item' | 'menu' | 'load' | 'save' | 'options' | 'debug'
 
@@ -66,6 +69,27 @@ function ensureTouchHook() {
     if (!f.clickMove) return
     return _set.call(this, x, y)
   }
+}
+
+/** 「辅助 › 能力增强」的开关；工具设置同步后经 TOOL_SETTINGS_EVENT 更新 */
+let smartPathOn: boolean | null = null
+
+function smartPathEnabled() {
+  if (smartPathOn === null) {
+    smartPathOn = readCachedToolSettings().smartPathEnabled
+    window.addEventListener(TOOL_SETTINGS_EVENT, (event) => {
+      smartPathOn = (event as CustomEvent<ToolSettings>).detail.smartPathEnabled
+    })
+    // 在线版没有本机服务可轮询，同源的 Web 页写 localStorage 时靠 storage 事件同步
+    window.addEventListener('storage', (event) => {
+      if (event.key === TOOL_SETTINGS_STORAGE_KEY) smartPathOn = readCachedToolSettings().smartPathEnabled
+    })
+  }
+  return smartPathOn
+}
+
+function ensureSmartPathHook() {
+  installSmartPath(smartPathEnabled)
 }
 
 function ensureExpHook() {
@@ -200,9 +224,12 @@ function writeFullscreen(on: boolean): boolean {
 export const RunCheats = {
   ensureHooks() {
     ensureTouchHook()
+    ensureSmartPathHook()
     ensureExpHook()
     ensureResourceSkipHook()
   },
+  /** 增强寻路不依赖会话盘状态，插件启动即安装 */
+  ensureSmartPathHook,
 
   disposeHooks() {
     const f = flags()

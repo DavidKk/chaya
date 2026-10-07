@@ -1,4 +1,5 @@
 import { aboutJa } from '@/lib/i18n/messages/parts/about'
+import { companionJa } from '@/lib/i18n/messages/parts/companion'
 import { creditsJa } from '@/lib/i18n/messages/parts/credits'
 import { dataJa } from '@/lib/i18n/messages/parts/data.ja'
 import { downloadsJa } from '@/lib/i18n/messages/parts/downloads'
@@ -7,6 +8,8 @@ import { eventsJa } from '@/lib/i18n/messages/parts/events.ja'
 import { integrationJa } from '@/lib/i18n/messages/parts/integration'
 import { legalJa } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayJa } from '@/lib/i18n/messages/parts/mcp-gateway'
+import { panelsJa } from '@/lib/i18n/messages/parts/panels'
+import { savesJa } from '@/lib/i18n/messages/parts/saves.ja'
 import { translateJa } from '@/lib/i18n/messages/parts/translate.ja'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
@@ -20,8 +23,11 @@ const base = {
     library: 'ゲーム庫',
     assist: 'アシスト',
     keyMouse: 'キーボード・マウスツール',
+    gameSaves: 'ゲームセーブ',
     minimap: 'ミニマップ',
-    companion: 'プレイ相棒 AI',
+    companion: '旅の仲間',
+    miniPanels: 'ミニパネル',
+    enhance: '能力強化',
     edit: '編集',
     translate: '翻訳',
     logs: 'ログ',
@@ -62,6 +68,10 @@ const base = {
     durationMin: '{n} 分',
     durationHour: '{n} 時間',
     chars: '字',
+    panelPin: '常に不透明にする',
+    panelUnpin: '固定を解除',
+    panelMinimize: '最小化',
+    panelExpand: '展開',
   },
   gate: {
     title: 'ゲーム選択',
@@ -304,4 +314,7 @@ export const ja: MessageTree = {
   ...legalJa,
   ...eventsJa,
   ...dataJa,
+  ...savesJa,
+  ...companionJa,
+  ...panelsJa,
 }

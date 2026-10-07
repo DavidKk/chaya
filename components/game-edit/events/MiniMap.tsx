@@ -94,15 +94,7 @@ export function MiniMap({
   }
 
   return (
-    <FloatingToolPanel
-      title={t('events.map.minimap')}
-      onClose={onClose}
-      storageKey="chaya.minimap.frame.v1"
-      initialEdge="top"
-      defaultSize={{ width: 320, height: 300 }}
-      minSize={{ width: 220, height: 170 }}
-      maxSize={{ width: 640, height: 640 }}
-    >
+    <FloatingToolPanel title={t('events.map.minimap')} onClose={onClose} panel="miniMap">
       <div className="flex h-full min-h-0 flex-col p-2">
         <div className="flex h-12 shrink-0 items-start justify-end pb-1">
           <span className={cn('line-clamp-3 text-right font-mono text-[0.7rem] leading-4', hoverBlocked ? 'text-warn' : 'text-ink-soft')}>

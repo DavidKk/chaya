@@ -107,7 +107,7 @@ export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = fa
           title={compact ? label : undefined}
           className={cn(
             'inline-flex items-center gap-1 overflow-hidden text-xs font-medium text-ink-soft outline-none transition-colors hover:enabled:bg-[rgb(230_238_248/0.06)] hover:enabled:text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-45',
-            compact ? 'h-7 w-7 justify-center rounded-sm [@media(hover:none)]:h-11 [@media(hover:none)]:w-11' : 'h-8 min-w-0 max-w-full rounded-full px-1'
+            compact ? 'h-6 w-6 justify-center rounded-sm [@media(hover:none)]:h-11 [@media(hover:none)]:w-11' : 'h-8 min-w-0 max-w-full rounded-full px-1'
           )}
         >
           {compact ? (

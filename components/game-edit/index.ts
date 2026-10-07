@@ -18,7 +18,6 @@ export {
   type HotkeyMap,
   type HotkeyTarget,
   isHotkeyDisabled,
-  isStickyUiHotkeyId,
   loadDisabledHotkeys,
   loadGameStoredHotkeys,
   loadGlobalHotkeys,

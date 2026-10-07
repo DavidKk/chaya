@@ -1,3 +1,4 @@
+export { tNow } from '@/lib/i18n/current'
 export {
   clearLegacyLocale,
   DEFAULT_LOCALE,

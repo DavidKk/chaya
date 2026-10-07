@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useGameToolTransport } from '@/components/game-tools/transport'
 import { EMPTY_INPUT_ASSIST_CONFIG, type InputAssistConfig, type InputChord, type MacroEvent, parseInputAssistConfig } from '@/lib/game/input-assistance'
 import type { InputAssistMessage } from '@/lib/runtime/game-link-protocol'
-
-import { useInputAssistTransport } from './transport'
 
 type Reply = Extract<InputAssistMessage, { type: 'assist.reply' }>
 type CommandPayload = InputAssistMessage extends infer Message ? (Message extends { type: 'assist.cmd' } ? Omit<Message, 'type' | 'reqId' | 'gameId'> : never) : never
@@ -47,7 +46,7 @@ async function writeGlobal(next: InputAssistConfig, expectedRevision: number, lo
 }
 
 export function useInputAssistance() {
-  const { roomId, localGlobal, connected, negotiating, restart, send, subscribeMessages } = useInputAssistTransport()
+  const { roomId, localGlobal, connected, negotiating, restart, send, subscribeMessages } = useGameToolTransport()
   const [globalConfig, setGlobal] = useState<InputAssistConfig>(emptyConfig)
   const [gameConfig, setGame] = useState<InputAssistConfig>(emptyConfig)
   const [status, setStatus] = useState<Status>({ running: [], pending: [], counts: {}, recording: false })

@@ -8,6 +8,7 @@ import { LuChevronDown, LuMenu, LuX } from 'react-icons/lu'
 
 import { EDIT_TABS, editTabHref } from '@/components/game-edit/tabs'
 import { useT } from '@/components/i18n/LocaleProvider'
+import { ASSIST_SECTIONS } from '@/components/input-assistance/assist-sections'
 import { INTEGRATION_TABS } from '@/components/integration/tabs'
 import { Button } from '@/components/sk'
 import { TRANSLATE_TABS, translateTabHref } from '@/components/translate/tabs'
@@ -45,13 +46,7 @@ export const APP_NAV_ITEMS: ReadonlyArray<AppNavItem> = [
     id: 'assist',
     href: '/assist/hotkeys',
     labelKey: 'nav.assist',
-    children: [
-      { href: '/assist/hotkeys', labelKey: 'edit.hotkeys' },
-      { href: '/assist/key-mouse', labelKey: 'nav.keyMouse' },
-      { href: '/assist/agents', labelKey: 'integration.agentSettingsTab' },
-      { href: '/assist/minimap', labelKey: 'nav.minimap' },
-      { href: '/assist/companion', labelKey: 'nav.companion' },
-    ],
+    children: ASSIST_SECTIONS.map((section) => ({ href: `/assist/${section.id}`, labelKey: section.labelKey })),
   },
   { id: 'logs', href: '/logs', labelKey: 'nav.logs' },
   { id: 'integration', href: '/integration/skills', labelKey: 'nav.integration', children: INTEGRATION_TABS },

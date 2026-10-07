@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { IoCloseOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
@@ -12,19 +12,19 @@ import { cn } from '@/lib/utils'
 
 import {
   canDisableHotkey,
-  DEFAULT_OPEN_PANEL_CHORD,
-  defaultOpenConsoleChord,
+  defaultHotkeyChord,
   displayKeyChord,
+  effectiveHotkeys,
   formatKeyChord,
   type HotkeyMap,
   type HotkeyTarget,
-  isStickyUiHotkeyId,
   loadDisabledHotkeys,
   OPEN_CONSOLE_HOTKEY_ID,
   OPEN_PANEL_HOTKEY_ID,
   resolveHotkeyChord,
   RUN_HOTKEY_TARGETS,
   saveDisabledHotkeys,
+  takeHotkeyGroupFocus,
 } from './run-hotkeys'
 
 export type HotkeyScope = 'game' | 'global'
@@ -57,12 +57,6 @@ export const hotkeyClearBtn = cn(
 const colHead = 'w-[9.5rem] shrink-0 text-center text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase'
 /** 开关列：无标题，表头放总开关 */
 const switchCol = 'ml-3 inline-flex w-8 shrink-0 items-center justify-center'
-
-function stickyDefault(id: string): string {
-  if (id === OPEN_PANEL_HOTKEY_ID) return DEFAULT_OPEN_PANEL_CHORD
-  if (id === OPEN_CONSOLE_HOTKEY_ID) return defaultOpenConsoleChord()
-  return ''
-}
 
 function applyBinding(map: HotkeyMap, id: string, chord: string, scope: HotkeyScope, other: HotkeyMap): HotkeyMap {
   const next = { ...map }
@@ -146,6 +140,24 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
   const t = useT()
   const [recordingKey, setRecordingKey] = useState<string | null>(null)
   const [disabled, setDisabled] = useState<ReadonlySet<string>>(loadDisabledHotkeys)
+  const groupRefs = useRef(new Map<MessageKey, HTMLDivElement>())
+  const [flashGroup, setFlashGroup] = useState<MessageKey | null>(null)
+
+  useEffect(() => {
+    let timer = 0
+    const frame = requestAnimationFrame(() => {
+      const target = takeHotkeyGroupFocus()
+      const el = target && groupRefs.current.get(target)
+      if (!target || !el) return
+      el.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+      setFlashGroup(target)
+      timer = window.setTimeout(() => setFlashGroup(null), 2000)
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [])
 
   function setEnabled(ids: readonly string[], on: boolean) {
     const next = new Set(disabled)
@@ -167,6 +179,13 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
     return [...map.entries()]
   }, [])
 
+  const effective = useMemo(() => effectiveHotkeys(gameValue, globalValue), [gameValue, globalValue])
+  /** 默认键被别的项占用时已让位，不再提示 */
+  const defaultPlaceholder = (id: string) => {
+    const chord = defaultHotkeyChord(id)
+    return chord && (OPEN_PANEL_HOTKEY_ID === id || OPEN_CONSOLE_HOTKEY_ID === id || effective[id]?.toLowerCase() === chord.toLowerCase()) ? chord : '—'
+  }
+
   function setBinding(scope: HotkeyScope, id: string, chord: string) {
     if (scope === 'game') onGameChange(applyBinding(gameValue, id, chord, 'game', globalValue))
     else onGlobalChange(applyBinding(globalValue, id, chord, 'global', gameValue))
@@ -181,7 +200,15 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
         const groupChecked = offCount === 0 ? true : offCount === toggleIds.length ? false : 'mixed'
         const groupTip = groupChecked === true ? t('edit.hkDisableAll', { group }) : t('edit.hkEnableAll', { group })
         return (
-          <div key={groupKey} className={cn(formCardDense, 'm-0 w-full max-w-[64rem]')} aria-label={group}>
+          <div
+            key={groupKey}
+            ref={(el) => {
+              if (el) groupRefs.current.set(groupKey, el)
+              else groupRefs.current.delete(groupKey)
+            }}
+            className={cn(formCardDense, 'm-0 w-full max-w-[64rem] scroll-mt-3', flashGroup === groupKey && 'animate-[chaya-ring-flash_1.5s_ease-in-out_0.3s]')}
+            aria-label={group}
+          >
             <div className="flex items-center gap-3">
               <span className="text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase">{group}</span>
               <div className="ml-auto flex items-center gap-2">
@@ -199,8 +226,7 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
               </div>
             </div>
             {rows.map((row) => {
-              const sticky = isStickyUiHotkeyId(row.id)
-              const label = t(row.labelKey)
+              const label = t(row.labelKey, row.labelParams)
               const gameChord = String(gameValue[row.id] ?? '').trim()
               const globalChord = String(globalValue[row.id] ?? '').trim()
               const gameRecording = recordingKey === `game:${row.id}`
@@ -228,7 +254,7 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
                       label={label}
                       scope="global"
                       chord={globalChord}
-                      placeholder={sticky ? stickyDefault(row.id) : '—'}
+                      placeholder={defaultPlaceholder(row.id)}
                       recording={globalRecording}
                       showReset={Boolean(globalChord)}
                       onRecord={(on) => setRecordingKey(on ? `global:${row.id}` : null)}

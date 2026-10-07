@@ -54,10 +54,29 @@
 
   const TouchInput = {
     _queue: [],
+    _pressed: false,
+    x: 0,
+    y: 0,
     _onTrigger(x, y) {
       this._queue.push({ x, y })
+      this._pressed = true
+      this.x = x
+      this.y = y
     },
-    _onRelease() {},
+    // Like RM TouchInput._onMove: the pointer only counts while the button is held
+    _onMove(x, y) {
+      if (!this._pressed) return
+      this.x = x
+      this.y = y
+    },
+    _onRelease(x, y) {
+      this._pressed = false
+      if (x != null) this.x = x
+      if (y != null) this.y = y
+    },
+    isPressed() {
+      return this._pressed
+    },
     take() {
       return this._queue.shift() || null
     },
@@ -93,6 +112,23 @@
       this._y = data.y
       this._trigger = data.touch ? 1 : 0
       this._starting = false
+      this._erased = false
+    }
+    get x() {
+      return this._x
+    }
+    get y() {
+      return this._y
+    }
+    page() {
+      return this.list() ? {} : null
+    }
+    isTriggerIn(triggers) {
+      return triggers.includes(this._trigger)
+    }
+    /** Doors are below-characters touch events; everything else blocks like a same-as-characters NPC */
+    isNormalPriority() {
+      return !this._data.touch
     }
     eventId() {
       return this._eventId
@@ -131,6 +167,9 @@
     displayName() {
       return MAPS[this._mapId].name
     }
+    isEventRunning() {
+      return interpreter.isRunning()
+    }
     width() {
       return COLS
     }
@@ -145,6 +184,18 @@
     }
     eventAt(x, y) {
       return this._events.find((event) => event._x === x && event._y === y) || null
+    }
+    isValid(x, y) {
+      return x >= 0 && y >= 0 && x < COLS && y < ROWS
+    }
+    deltaX(x1, x2) {
+      return x1 - x2
+    }
+    deltaY(y1, y2) {
+      return y1 - y2
+    }
+    distance(x1, y1, x2, y2) {
+      return Math.abs(x1 - x2) + Math.abs(y1 - y2)
     }
     isPassable(x, y) {
       const row = MAPS[this._mapId].rows[y]
@@ -202,40 +253,92 @@
       const [dx, dy] = DIRS[this._direction]
       return { x: this._x + dx, y: this._y + dy }
     }
+    isThrough() {
+      return this._through
+    }
+    isInVehicle() {
+      return false
+    }
+    isMapPassable(x, y, d) {
+      const [dx, dy] = DIRS[d]
+      return MAPS[$gameMap.mapId()].rows[y + dy]?.[x + dx] === '.'
+    }
+    isCollidedWithCharacters(x, y) {
+      const event = $gameMap.eventAt(x, y)
+      return !!event && event.isNormalPriority()
+    }
+    canPass(x, y, d) {
+      const [dx, dy] = DIRS[d]
+      if (!$gameMap.isValid(x + dx, y + dy)) return false
+      if (this.isThrough()) return true
+      return this.isMapPassable(x, y, d) && !this.isCollidedWithCharacters(x + dx, y + dy)
+    }
     moveStraight(d) {
       this._direction = d
+      if (!this.canPass(this._x, this._y, d)) return false
       const [dx, dy] = DIRS[d]
-      const nx = this._x + dx
-      const ny = this._y + dy
-      if (!this._through && !$gameMap.isPassable(nx, ny)) return false
-      if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) return false
-      this._x = nx
-      this._y = ny
+      this._x += dx
+      this._y += dy
       return true
     }
-    /** Next step toward the destination (BFS over passable tiles), or 0 when unreachable */
-    stepToward(tx, ty) {
-      const key = (x, y) => y * COLS + x
-      const prev = new Map([[key(this._x, this._y), null]])
-      const queue = [[this._x, this._y]]
-      while (queue.length) {
-        const [x, y] = queue.shift()
-        if (x === tx && y === ty) break
+    /** Game_Character.findDirectionTo as shipped with MV/MZ: A* capped at 12 steps, then the closest node by distance */
+    findDirectionTo(goalX, goalY) {
+      const searchLimit = 12
+      const nodeList = []
+      const openList = []
+      const closedList = []
+      const start = { parent: null, x: this.x, y: this.y, g: 0, f: $gameMap.distance(this.x, this.y, goalX, goalY) }
+      let best = start
+      if (this.x === goalX && this.y === goalY) return 0
+      nodeList.push(start)
+      openList.push(start.y * COLS + start.x)
+      while (nodeList.length > 0) {
+        let bestIndex = 0
+        for (let i = 0; i < nodeList.length; i++) if (nodeList[i].f < nodeList[bestIndex].f) bestIndex = i
+        const current = nodeList[bestIndex]
+        const pos1 = current.y * COLS + current.x
+        const g1 = current.g
+        nodeList.splice(bestIndex, 1)
+        openList.splice(openList.indexOf(pos1), 1)
+        closedList.push(pos1)
+        if (current.x === goalX && current.y === goalY) {
+          best = current
+          break
+        }
+        if (g1 >= searchLimit) continue
         for (const d of [2, 4, 6, 8]) {
-          const [dx, dy] = DIRS[d]
-          const nx = x + dx
-          const ny = y + dy
-          if (prev.has(key(nx, ny)) || (!this._through && !$gameMap.isPassable(nx, ny))) continue
-          if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) continue
-          prev.set(key(nx, ny), { x, y, d })
-          queue.push([nx, ny])
+          const x2 = current.x + DIRS[d][0]
+          const y2 = current.y + DIRS[d][1]
+          const pos2 = y2 * COLS + x2
+          if (closedList.includes(pos2) || !this.canPass(current.x, current.y, d)) continue
+          const g2 = g1 + 1
+          const index2 = openList.indexOf(pos2)
+          if (index2 < 0 || g2 < nodeList[index2].g) {
+            let neighbor
+            if (index2 >= 0) neighbor = nodeList[index2]
+            else {
+              neighbor = {}
+              nodeList.push(neighbor)
+              openList.push(pos2)
+            }
+            Object.assign(neighbor, { parent: current, x: x2, y: y2, g: g2, f: g2 + $gameMap.distance(x2, y2, goalX, goalY) })
+            if (!best || neighbor.f - neighbor.g < best.f - best.g) best = neighbor
+          }
         }
       }
-      // Each entry is { x, y: the tile it came from, d: the step out of that tile }
-      let entry = prev.get(key(tx, ty))
-      if (!entry) return 0
-      while (entry.x !== this._x || entry.y !== this._y) entry = prev.get(key(entry.x, entry.y))
-      return entry.d
+      let node = best
+      while (node.parent && node.parent !== start) node = node.parent
+      const deltaX1 = node.x - start.x
+      const deltaY1 = node.y - start.y
+      if (deltaY1 > 0) return 2
+      if (deltaX1 < 0) return 4
+      if (deltaX1 > 0) return 6
+      if (deltaY1 < 0) return 8
+      const deltaX2 = this.x - goalX
+      const deltaY2 = this.y - goalY
+      if (Math.abs(deltaX2) > Math.abs(deltaY2)) return deltaX2 > 0 ? 4 : 6
+      if (deltaY2 !== 0) return deltaY2 > 0 ? 8 : 2
+      return 0
     }
     update() {
       const dash = Input.isPressed('shift') || ConfigManager.alwaysDash

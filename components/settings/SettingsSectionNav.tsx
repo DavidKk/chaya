@@ -15,12 +15,12 @@ export function SettingsSectionNav({ active = 'agents', onSelect }: { active?: S
   const locale = useLocaleCode()
   const labels =
     locale === 'zh'
-      ? { minimap: '迷你地图', companion: '陪玩 AI' }
+      ? { minimap: '迷你地图', companion: '旅伴' }
       : locale === 'ja'
-        ? { minimap: 'ミニマップ', companion: 'プレイ相棒 AI' }
+        ? { minimap: 'ミニマップ', companion: '旅の仲間' }
         : locale === 'ko'
-          ? { minimap: '미니맵', companion: '플레이 동행 AI' }
-          : { minimap: 'Mini map', companion: 'Play companion' }
+          ? { minimap: '미니맵', companion: '길동무' }
+          : { minimap: 'Mini map', companion: 'Companion' }
   const items = [
     { id: 'agents' as const, label: t('integration.agentSettingsTab'), icon: <RiRobot2Line size={17} /> },
     { id: 'minimap' as const, label: labels.minimap, icon: <IoMapOutline size={17} /> },

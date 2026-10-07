@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { MiniMap } from '@/components/game-edit/events/MiniMap'
 import type { PlayerSpot } from '@/components/game-edit/events/types'
-import { useToolPanelVisibility } from '@/components/game-tools/useToolSettings'
+import { useToolPanelVisibility } from '@/components/game-tools/tool-panels'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
 import type { MapDetailData } from '@/lib/game/events'
@@ -24,7 +24,7 @@ export function FloatingMiniMap({ enabled, onSelectEvent }: Props) {
   const [detail, setDetail] = useState<MapDetailData | null>(null)
   const [picked, setPicked] = useState<{ mapId: number; x: number; y: number } | null>(null)
   const [busy, setBusy] = useState(false)
-  const panel = useToolPanelVisibility(enabled)
+  const panel = useToolPanelVisibility('miniMap', enabled)
 
   useEffect(() => {
     if (!panel.visible) return

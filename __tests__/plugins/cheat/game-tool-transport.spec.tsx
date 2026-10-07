@@ -2,11 +2,11 @@
 import { act, useEffect } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
-import { InputAssistTransportContext } from '@/components/input-assistance/transport'
+import { GameToolTransportContext } from '@/components/game-tools/transport'
 import { useInputAssistance } from '@/components/input-assistance/useInputAssistance'
 import { EMPTY_INPUT_ASSIST_CONFIG, type MappingRule } from '@/lib/game/input-assistance'
 import { InputAssistanceController } from '@/plugins/src/cheat/input-assistance/controller'
-import { createPluginInputAssistTransport } from '@/plugins/src/cheat/ui/input-assist-transport'
+import { createPluginGameToolTransport } from '@/plugins/src/cheat/ui/game-tool-transport'
 
 jest.mock('@/plugins/src/helpers/node/node-require', () => ({ tryNodeFsPath: () => null, tryNodeRequire: () => null }))
 
@@ -55,12 +55,12 @@ afterEach(async () => {
 })
 
 it('lets the in-game overlay edit rules straight through the plugin controller', async () => {
-  const transport = createPluginInputAssistTransport()
+  const transport = createPluginGameToolTransport()
   await act(async () =>
     root.render(
-      <InputAssistTransportContext value={transport}>
+      <GameToolTransportContext value={transport}>
         <Probe />
-      </InputAssistTransportContext>
+      </GameToolTransportContext>
     )
   )
   await act(async () => {

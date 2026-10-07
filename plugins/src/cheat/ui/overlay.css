@@ -14,6 +14,8 @@
 @source "../../../../components/integration/**/*.{ts,tsx}";
 @source "../../../../components/game-agent/**/*.{ts,tsx}";
 @source "../../../../components/game-tools/**/*.{ts,tsx}";
+@source "../../../../components/game-saves/**/*.{ts,tsx}";
+@source "../../../../components/input-assistance/**/*.{ts,tsx}";
 @source "../../../../components/settings/**/*.{ts,tsx}";
 @source "../../../../components/layoutClasses.ts";
 @source "../../../../components/SectionSideNav.tsx";
@@ -138,6 +140,21 @@
   }
   44% {
     transform: scaleY(0.08);
+  }
+}
+
+/* 与 app/globals.css 同名关键帧：快捷键分组跳转定位后边框闪三次 */
+@keyframes chaya-ring-flash {
+  0%,
+  33%,
+  67%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  17%,
+  50%,
+  83% {
+    box-shadow: 0 0 0 2px var(--accent);
   }
 }
 

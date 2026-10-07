@@ -280,7 +280,8 @@ let hadParty = false
 let appliedForCurrentParty = false
 let loadHooked = false
 
-function markNeedReapply() {
+/** 读档后重新套用修改锁定；不经过 `DataManager.loadGame` 的读档（游戏存档）需显式调用 */
+export function markGameEditNeedReapply() {
   appliedForCurrentParty = false
 }
 
@@ -292,7 +293,7 @@ function hookLoadGame() {
   const _load = dm.loadGame.bind(dm)
   dm.loadGame = (id: number) => {
     const ok = _load(id)
-    if (ok) markNeedReapply()
+    if (ok) markGameEditNeedReapply()
     return ok
   }
 }

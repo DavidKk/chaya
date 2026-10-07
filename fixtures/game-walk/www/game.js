@@ -111,12 +111,17 @@
       }
       const tap = TouchInput.take()
       interpreter.update()
-      if ($gameMessage.isBusy()) {
+      // The frame that closes a message must not reuse the same OK press to talk again
+      const busyAtStart = $gameMessage.isBusy()
+      if (busyAtStart) {
         $gameTemp.clearDestination()
+        this._touchCount = 0
         if (tap) this._messageWindow.onTap(tap.x, tap.y)
         else this._messageWindow.update()
-      } else if (!interpreter.isRunning() && !$gamePlayer.isMoving()) {
-        if (tap) $gameTemp.setDestination(Math.floor(tap.x / TILE), Math.floor(tap.y / TILE))
+      } else if (!interpreter.isRunning()) {
+        this.processMapTouch(tap)
+      }
+      if (!busyAtStart && !$gameMessage.isBusy() && !interpreter.isRunning() && !$gamePlayer.isMoving()) {
         const d = Input.dir4()
         if (Input.isTriggered('menu')) SceneManager.goto(Scene_Menu)
         else if (Input.isTriggered('ok')) {
@@ -126,12 +131,33 @@
           $gameTemp.clearDestination()
           $gamePlayer.moveStraight(d)
         } else if ($gameTemp.isDestinationValid()) {
-          const step = $gamePlayer.stepToward($gameTemp._destinationX, $gameTemp._destinationY)
-          if (step) $gamePlayer.moveStraight(step)
-          else $gameTemp.clearDestination()
+          const destX = $gameTemp._destinationX
+          const destY = $gameTemp._destinationY
+          const step = $gamePlayer.findDirectionTo(destX, destY)
+          if (!step || !$gamePlayer.moveStraight(step)) {
+            // Like Game_Player.triggerTouchAction: bumping into the clicked tile starts its event
+            const front = $gamePlayer.front()
+            if (step && front.x === destX && front.y === destY) $gameMap.eventAt(front.x, front.y)?.start()
+            $gameTemp.clearDestination()
+          }
         }
       }
       $gamePlayer.update()
+    }
+    // Like Scene_Map.processMapTouch: a tap retargets right away, even mid-step; holding the
+    // button re-aims at the pointer every frame after 15 frames, so press-and-drag steers the walk
+    processMapTouch(tap) {
+      const toMap = (x, y) => $gameTemp.setDestination(Math.floor(Math.min(Math.max(x, 0), W - 1) / TILE), Math.floor(Math.min(Math.max(y, 0), H - 1) / TILE))
+      if (tap) {
+        toMap(tap.x, tap.y)
+        this._touchCount = TouchInput.isPressed() ? 1 : 0
+      } else if (this._touchCount > 0) {
+        if (!TouchInput.isPressed()) this._touchCount = 0
+        else {
+          if (this._touchCount >= 15) toMap(TouchInput.x, TouchInput.y)
+          this._touchCount++
+        }
+      }
     }
   }
 
@@ -177,40 +203,54 @@
     }
   }
 
+  /** RPG Maker save hooks the game-saves plugin calls: makeSaveContents → JsonEx.stringify, createGameObjects → extractSaveContents */
   const DataManager = {
     isDatabaseLoaded: () => true,
     onLoad() {},
-    saveGame(id) {
-      const data = {
+    makeSaveContents() {
+      return {
+        frames: $gameSystem._frames,
         mapId: $gameMap.mapId(),
         x: $gamePlayer.x,
         y: $gamePlayer.y,
         d: $gamePlayer.direction(),
         gold: $gameParty._gold,
-        items: $gameParty._items,
-        variables: $gameVariables._data,
-        switches: $gameSwitches._data,
-        actor: { ...$gameActors.actor(1) },
+        items: { ...$gameParty._items },
+        variables: [...$gameVariables._data],
+        switches: [...$gameSwitches._data],
+        actors: $gameActors._data.map((actor) => (actor ? { ...actor } : null)),
       }
-      localStorage.setItem(SAVE_KEY + id, JSON.stringify(data))
+    },
+    createGameObjects() {
+      window.$gameTemp = new Game_Temp()
+      $gameMessage.clear()
+      $gamePlayer._transfer = null
+      interpreter.clear()
+    },
+    extractSaveContents(data) {
+      if (typeof data.frames === 'number') $gameSystem._frames = data.frames
+      $gameMap.setup(data.mapId)
+      $gamePlayer.locate(data.x, data.y)
+      $gamePlayer._direction = data.d
+      Object.assign($gameParty, { _gold: data.gold, _items: { ...data.items } })
+      $gameVariables._data = [...(data.variables || [])]
+      $gameSwitches._data = [...(data.switches || [])]
+      const actors = data.actors || [null, data.actor]
+      actors.forEach((saved, id) => saved && $gameActors.actor(id) && Object.assign($gameActors.actor(id), saved))
+    },
+    saveGame(id) {
+      localStorage.setItem(SAVE_KEY + id, JsonEx.stringify(this.makeSaveContents()))
       return true
     },
     loadGame(id) {
       const raw = localStorage.getItem(SAVE_KEY + id)
       if (!raw) return false
-      const data = JSON.parse(raw)
-      $gameMap.setup(data.mapId)
-      $gamePlayer.locate(data.x, data.y)
-      $gamePlayer._direction = data.d
-      Object.assign($gameParty, { _gold: data.gold, _items: data.items })
-      $gameVariables._data = data.variables
-      $gameSwitches._data = data.switches
-      Object.assign($gameActors.actor(1), data.actor)
-      $gameMessage.clear()
-      interpreter.clear()
+      this.createGameObjects()
+      this.extractSaveContents(JsonEx.parse(raw))
       return true
     },
   }
+  const JsonEx = { stringify: (value) => JSON.stringify(value), parse: (text) => JSON.parse(text) }
 
   const scene = () => SceneManager._scene
   let canvas
@@ -219,7 +259,7 @@
     _stopped: false,
     goto(SceneClass) {
       Input.clear()
-      this._scene = SceneClass === Scene_Map && mapScene ? mapScene : new SceneClass()
+      this._scene = new SceneClass()
     },
     snap() {
       return { canvas, width: W, height: H }
@@ -234,7 +274,6 @@
       this._stopped = false
     },
   }
-  let mapScene = null
 
   // ---------- drawing ----------
   function panel(ctx, x, y, w, h) {
@@ -367,6 +406,7 @@
     Scene_Menu,
     SceneManager,
     DataManager,
+    JsonEx,
     ConfigManager: { alwaysDash: false },
     PluginManager: { setParameters() {} },
     $dataSystem: {
@@ -390,7 +430,7 @@
 
   window.startWalkDemo = () => {
     canvas = document.getElementById('game')
-    window.Graphics = { width: W, height: H, boxWidth: W, boxHeight: H, _canvas: canvas }
+    window.Graphics = { width: W, height: H, boxWidth: W, boxHeight: H, frameCount: 0, _canvas: canvas }
     Object.assign(window, {
       $gameTemp: new Game_Temp(),
       $gameSystem: new Game_System(),
@@ -405,15 +445,18 @@
     const actors = [null, new Game_Actor(1, '剑士'), new Game_Actor(2, '术士')]
     window.$gameActors = { _data: actors, actor: (id) => actors[id] || null }
     $gameMap.setup(1)
-    mapScene = new Scene_Map()
-    SceneManager._scene = mapScene
-    canvas.addEventListener('mousedown', (event) => {
+    SceneManager._scene = new Scene_Map()
+    const toCanvas = (event) => {
       const rect = canvas.getBoundingClientRect()
-      TouchInput._onTrigger(((event.clientX - rect.left) * W) / rect.width, ((event.clientY - rect.top) * H) / rect.height)
-    })
+      return [((event.clientX - rect.left) * W) / rect.width, ((event.clientY - rect.top) * H) / rect.height]
+    }
+    canvas.addEventListener('mousedown', (event) => TouchInput._onTrigger(...toCanvas(event)))
+    window.addEventListener('mousemove', (event) => TouchInput._onMove(...toCanvas(event)))
+    window.addEventListener('mouseup', (event) => TouchInput._onRelease(...toCanvas(event)))
     setInterval(() => {
       if (SceneManager._stopped) return
       $gameSystem._frames++
+      Graphics.frameCount++
       Input.update()
       scene().update()
       window.WalkDemo.AgentScenarios?.update()

@@ -20,6 +20,6 @@ it('shows the same assist sections in the game overlay as on the web console', (
   )
 
   expect(navLabels(overlay)).toEqual(navLabels(web))
-  expect(navLabels(overlay)).toHaveLength(5)
+  expect(navLabels(overlay)).toHaveLength(8)
   expect(overlay).toContain('hotkeys-slot')
 })

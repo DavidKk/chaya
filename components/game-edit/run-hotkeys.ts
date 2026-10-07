@@ -1,7 +1,8 @@
 import type { RunActionId, RunFlagKey } from '@/components/game-edit/types'
+import type { ToolPanelId } from '@/components/game-tools/tool-panels'
 import type { MessageKey } from '@/lib/i18n'
 
-export type HotkeyKind = 'flag' | 'action' | 'ui'
+export type HotkeyKind = 'flag' | 'action' | 'ui' | 'save'
 
 export type HotkeyTarget = {
   id: string
@@ -9,6 +10,8 @@ export type HotkeyTarget = {
   /** flag key / action id / ui 动作名 */
   target: string
   labelKey: MessageKey
+  /** labelKey 的插值参数（如快速存档槽号） */
+  labelParams?: Record<string, string | number>
   descKey: MessageKey
   groupKey: MessageKey
 }
@@ -93,14 +96,39 @@ export function resolveOpenConsoleChord(map?: HotkeyMap | null): string {
   return v || defaultOpenConsoleChord()
 }
 
-function defaultChordForStickyUi(id: string): string {
-  if (id === OPEN_PANEL_HOTKEY_ID) return DEFAULT_OPEN_PANEL_CHORD
-  if (id === OPEN_CONSOLE_HOTKEY_ID) return defaultOpenConsoleChord()
-  return ''
+/** 快速存档槽 0–9：保存 `save:quick:N` 默认 Ctrl+N，读取 `load:quick:N` 默认 Alt+N */
+export const QUICK_SAVE_SLOTS = 10
+
+export function quickSaveHotkeyId(action: 'save' | 'load', slot: number): string {
+  return `${action}:quick:${slot}`
 }
 
-export function isStickyUiHotkeyId(id: string): boolean {
-  return id === OPEN_PANEL_HOTKEY_ID || id === OPEN_CONSOLE_HOTKEY_ID
+export function parseQuickSaveHotkeyId(id: string): { action: 'save' | 'load'; slot: number } | null {
+  const m = /^(save|load):quick:([0-9])$/.exec(id)
+  return m ? { action: m[1] as 'save' | 'load', slot: Number(m[2]) } : null
+}
+
+let pendingHotkeyGroup: MessageKey | null = null
+
+/** 跳到快捷键页前登记目标分组；Web 路由跳转与局内浮层切分区都在同一页面内，模块状态可跨组件传递 */
+export function requestHotkeyGroupFocus(groupKey: MessageKey): void {
+  pendingHotkeyGroup = groupKey
+}
+
+/** 快捷键页挂载时取出一次性的目标分组 */
+export function takeHotkeyGroupFocus(): MessageKey | null {
+  const groupKey = pendingHotkeyGroup
+  pendingHotkeyGroup = null
+  return groupKey
+}
+
+/** 系统默认绑定：唤出键、控制台、快速存档；其余为空 */
+export function defaultHotkeyChord(id: string): string {
+  if (id === OPEN_PANEL_HOTKEY_ID) return DEFAULT_OPEN_PANEL_CHORD
+  if (id === OPEN_CONSOLE_HOTKEY_ID) return defaultOpenConsoleChord()
+  const quick = parseQuickSaveHotkeyId(id)
+  if (quick) return `${quick.action === 'save' ? 'Ctrl' : 'Alt'}+${quick.slot}`
+  return ''
 }
 
 /**
@@ -111,10 +139,10 @@ export function resolveHotkeyChord(id: string, game?: HotkeyMap | null, global?:
   if (g) return g
   const gl = String(global?.[id] ?? '').trim()
   if (gl) return gl
-  return defaultChordForStickyUi(id)
+  return defaultHotkeyChord(id)
 }
 
-/** 合并后的有效表（匹配用）；本游戏覆盖全局；同一组合键只保留一个 id（本游戏优先） */
+/** 合并后的有效表（匹配用）；本游戏覆盖全局；同一组合键只保留一个 id（本游戏优先）；快速存档默认值优先级最低 */
 export function effectiveHotkeys(game?: HotkeyMap | null, global?: HotkeyMap | null): HotkeyMap {
   const chordOwner = new Map<string, string>()
   const out: HotkeyMap = {}
@@ -129,6 +157,12 @@ export function effectiveHotkeys(game?: HotkeyMap | null, global?: HotkeyMap | n
     chordOwner.set(key, id)
   }
 
+  for (let slot = 0; slot < QUICK_SAVE_SLOTS; slot++) {
+    for (const action of ['save', 'load'] as const) {
+      const id = quickSaveHotkeyId(action, slot)
+      if (!String(game?.[id] ?? '').trim() && !String(global?.[id] ?? '').trim()) place(id, defaultHotkeyChord(id))
+    }
+  }
   for (const [id, chord] of Object.entries(global || {})) place(id, chord)
   for (const [id, chord] of Object.entries(game || {})) place(id, chord)
 
@@ -226,10 +260,38 @@ export const OPEN_CONSOLE_HOTKEY_TARGET: HotkeyTarget = {
   groupKey: 'edit.groupPanel',
 }
 
-/** 快捷键页全部可绑定项（面板 + 开关 + 触发） */
+const TOOL_PANEL_HOTKEY_ITEMS: ReadonlyArray<{ panel: ToolPanelId; labelKey: MessageKey; descKey: MessageKey }> = [
+  { panel: 'miniMap', labelKey: 'edit.hkPanelMiniMap', descKey: 'edit.hkPanelMiniMapDesc' },
+  { panel: 'companion', labelKey: 'edit.hkPanelCompanion', descKey: 'edit.hkPanelCompanionDesc' },
+  { panel: 'autoSaves', labelKey: 'edit.hkPanelAutoSaves', descKey: 'edit.hkPanelAutoSavesDesc' },
+  { panel: 'quickSaves', labelKey: 'edit.hkPanelQuickSaves', descKey: 'edit.hkPanelQuickSavesDesc' },
+  { panel: 'panelDock', labelKey: 'edit.hkPanelDock', descKey: 'edit.hkPanelDockDesc' },
+]
+
+const TOOL_PANEL_TARGET_PREFIX = 'panel:'
+
+/** 迷你面板开关键：`ui:panel:<ToolPanelId>`，默认不绑定 */
+export function toolPanelHotkeyId(panel: ToolPanelId): string {
+  return `ui:${TOOL_PANEL_TARGET_PREFIX}${panel}`
+}
+
+/** `ui` 类目标中的迷你面板 id；唤出键、控制台返回 null */
+export function toolPanelFromHotkeyTarget(target: string): string | null {
+  return target.startsWith(TOOL_PANEL_TARGET_PREFIX) ? target.slice(TOOL_PANEL_TARGET_PREFIX.length) : null
+}
+
+/** 快捷键页全部可绑定项（面板 + 迷你面板 + 开关 + 触发） */
 export const RUN_HOTKEY_TARGETS: readonly HotkeyTarget[] = [
   OPEN_PANEL_HOTKEY_TARGET,
   OPEN_CONSOLE_HOTKEY_TARGET,
+  ...TOOL_PANEL_HOTKEY_ITEMS.map((row) => ({
+    id: toolPanelHotkeyId(row.panel),
+    kind: 'ui' as const,
+    target: `${TOOL_PANEL_TARGET_PREFIX}${row.panel}`,
+    labelKey: row.labelKey,
+    descKey: row.descKey,
+    groupKey: 'edit.groupMiniPanels' as const,
+  })),
   ...RUN_FLAG_HOTKEY_ROWS.map((row) => ({
     id: hotkeyIdForFlag(row.key),
     kind: 'flag' as const,
@@ -246,6 +308,17 @@ export const RUN_HOTKEY_TARGETS: readonly HotkeyTarget[] = [
     descKey: row.descKey,
     groupKey: row.groupKey,
   })),
+  ...(['save', 'load'] as const).flatMap((action) =>
+    Array.from({ length: QUICK_SAVE_SLOTS }, (_, slot) => ({
+      id: quickSaveHotkeyId(action, slot),
+      kind: 'save' as const,
+      target: quickSaveHotkeyId(action, slot),
+      labelKey: action === 'save' ? ('edit.hkQuickSave' as const) : ('edit.hkQuickLoad' as const),
+      labelParams: { slot },
+      descKey: action === 'save' ? ('edit.hkQuickSaveDesc' as const) : ('edit.hkQuickLoadDesc' as const),
+      groupKey: 'edit.groupQuickSave' as const,
+    }))
+  ),
 ]
 
 export function emptyHotkeys(): HotkeyMap {
@@ -419,6 +492,11 @@ export function getOpenConsoleChord(): string {
 
 /** 从 KeyboardEvent 生成绑定串；纯修饰键返回 null */
 export function formatKeyChord(ev: KeyboardEvent): string | null {
+  return chordFromEvent(ev, true)
+}
+
+/** `byCode = false` 是改按物理键位之前的格式，用于匹配已保存的旧绑定 */
+function chordFromEvent(ev: KeyboardEvent, byCode: boolean): string | null {
   if (ev.key === 'Control' || ev.key === 'Alt' || ev.key === 'Shift' || ev.key === 'Meta') return null
   if (ev.key === 'Escape' || ev.key === 'Tab') return null
   const parts: string[] = []
@@ -426,7 +504,11 @@ export function formatKeyChord(ev: KeyboardEvent): string | null {
   if (ev.altKey) parts.push('Alt')
   if (ev.shiftKey) parts.push('Shift')
   let key = ev.key
-  if (key === ' ') key = 'Space'
+  // 主键盘数字按物理键位（macOS ⌥3 的 key 是「£」、Shift+3 是「#」）；字母只在 Alt 时按键位，其余跟随键盘布局
+  const digit = byCode ? /^Digit([0-9])$/.exec(ev.code || '') : null
+  const letter = byCode && ev.altKey ? /^Key([A-Z])$/.exec(ev.code || '') : null
+  if (digit || letter) key = (digit ?? letter)![1]
+  else if (key === ' ') key = 'Space'
   else if (ev.code === 'Backquote' && (key === 'Dead' || key === '`')) key = DEFAULT_OPEN_PANEL_CHORD
   else if (key.length === 1) key = key.toUpperCase()
   parts.push(key)
@@ -435,9 +517,8 @@ export function formatKeyChord(ev: KeyboardEvent): string | null {
 
 export function matchKeyChord(ev: KeyboardEvent, chord: string): boolean {
   if (!chord) return false
-  const formatted = formatKeyChord(ev)
-  if (!formatted) return false
-  return formatted.toLowerCase() === chord.toLowerCase()
+  const wanted = chord.toLowerCase()
+  return [chordFromEvent(ev, true), chordFromEvent(ev, false)].some((formatted) => formatted?.toLowerCase() === wanted)
 }
 
 /**
@@ -456,5 +537,6 @@ export function parseHotkeyId(id: string): { kind: HotkeyKind; target: string } 
   if (id.startsWith('flag:')) return { kind: 'flag', target: id.slice(5) }
   if (id.startsWith('action:')) return { kind: 'action', target: id.slice(7) }
   if (id.startsWith('ui:')) return { kind: 'ui', target: id.slice(3) }
+  if (parseQuickSaveHotkeyId(id)) return { kind: 'save', target: id }
   return null
 }

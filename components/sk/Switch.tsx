@@ -7,7 +7,7 @@ import { Tooltip, withTooltip } from '@/components/sk/Tooltip/Tooltip'
 import { cn } from '@/lib/utils'
 
 export type SwitchToggleProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type' | 'role' | 'onClick'> & {
-  /** `'mixed'`：部分开启（总开关），滑块居中；点击后变为开启 */
+  /** `'mixed'`：部分开启（总开关），滑块居中；点击后变为开启。ARIA 的 switch 不支持 mixed，此时按 checkbox 暴露 */
   checked: boolean | 'mixed'
   onCheckedChange: (checked: boolean) => void
   /** 悬停提示；无文案的裸开关建议必传 */
@@ -25,7 +25,7 @@ export function SwitchToggle({ checked, onCheckedChange, className, disabled, id
     <button
       id={id}
       type="button"
-      role="switch"
+      role={checked === 'mixed' ? 'checkbox' : 'switch'}
       aria-checked={checked}
       disabled={disabled}
       onClick={() => onCheckedChange(checked !== true)}
