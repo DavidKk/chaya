@@ -168,6 +168,8 @@ export type EditMessages = {
   flagThroughDesc: string
   flagAutoWin: string
   flagAutoWinDesc: string
+  flagAutoWinHint: string
+  flagHelp: string
   flagAutotalk: string
   flagAutotalkDesc: string
   flagEncounter: string

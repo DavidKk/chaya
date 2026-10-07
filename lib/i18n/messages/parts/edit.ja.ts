@@ -170,6 +170,9 @@ export const editJa = {
     flagThroughDesc: 'Walk through walls',
     flagAutoWin: '自動勝利',
     flagAutoWinDesc: '戦闘に入るとすぐ勝利します（オフにするまで）。戦闘イベントの終了を待ってから決着します',
+    flagAutoWinHint:
+      '負けイベントの戦闘（勝てないボス、負けて進むストーリー戦）も勝利になり、作者が想定していない分岐に進むことがあります。進行不能、イベントの不具合、ストーリーの見逃しにつながるため、そのような戦闘の前にはオフにしてください。',
+    flagHelp: '{name}について',
     flagAutotalk: '自動会話',
     flagAutotalkDesc: 'Auto-advance dialogue; stop on choices',
     flagEncounter: 'エンカウント',

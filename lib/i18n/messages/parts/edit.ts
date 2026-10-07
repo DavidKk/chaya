@@ -170,6 +170,9 @@ export const editZh = {
     flagThroughDesc: '玩家可穿墙',
     flagAutoWin: '自动胜利',
     flagAutoWinDesc: '遇到敌人立即胜利，直到关闭；战斗剧情播完后再结算',
+    flagAutoWinHint:
+      '剧情里设定为必须战败的战斗（打不过的 Boss、输了才继续的剧情战）也会判为胜利，可能进入作者没预料的分支，出现卡关、事件错乱或错过剧情。遇到这类战斗前请先关闭。',
+    flagHelp: '{name}说明',
     flagAutotalk: '自动对话',
     flagAutotalkDesc: '对话说完后自动继续；有选项时停下',
     flagEncounter: '遇敌',

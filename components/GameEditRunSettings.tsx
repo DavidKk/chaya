@@ -1,6 +1,7 @@
 'use client'
 
 import { IoLockClosed, IoLockOpenOutline } from 'react-icons/io5'
+import { LuInfo } from 'react-icons/lu'
 
 import { RUN_FLAG_HOTKEY_ROWS } from '@/components/game-edit/run-hotkeys'
 import type { RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
@@ -322,6 +323,18 @@ export function GameEditRunSettings({
             <div key={row.key} className={formFieldInlineDense}>
               <span className={cn(formTitleInline, 'cursor-pointer')} onClick={() => onFlagChange(row.key, !checked)}>
                 {label}
+                {row.hintKey ? (
+                  <Tooltip touchBehavior="toggle" content={<span className="block max-w-72 leading-[1.5]">{t(row.hintKey)}</span>}>
+                    <button
+                      type="button"
+                      aria-label={t('edit.flagHelp', { name: label })}
+                      className="ml-1 inline-flex cursor-help border-none bg-transparent p-0 align-[-0.125em] text-ink-soft hover:text-ink"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <LuInfo size={13} aria-hidden />
+                    </button>
+                  </Tooltip>
+                ) : null}
               </span>
               <span className={cn(formDescInline, 'cursor-pointer')} onClick={() => onFlagChange(row.key, !checked)}>
                 {t(row.descKey)}
