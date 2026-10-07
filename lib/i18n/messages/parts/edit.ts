@@ -168,6 +168,8 @@ export const editZh = {
     flagGodDesc: '队伍 HP/MP 维持满血',
     flagThrough: '穿墙',
     flagThroughDesc: '玩家可穿墙',
+    flagAutoWin: '自动胜利',
+    flagAutoWinDesc: '遇到敌人立即胜利，直到关闭；战斗剧情播完后再结算',
     flagAutotalk: '自动对话',
     flagAutotalkDesc: '对话说完后自动继续；有选项时停下',
     flagEncounter: '遇敌',

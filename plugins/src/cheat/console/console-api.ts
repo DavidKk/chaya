@@ -153,6 +153,12 @@ export function installConsoleApi() {
       log.ok('god = ' + v)
       return v
     },
+    autoWin(on?: boolean) {
+      if (arguments.length === 0) return Cheats.getAutoWin()
+      const v = Cheats.setAutoWin(!!on)
+      log.ok('autoWin = ' + v)
+      return v
+    },
     through(on?: boolean) {
       if (arguments.length === 0) return Cheats.getThrough()
       const v = Cheats.setThrough(!!on)

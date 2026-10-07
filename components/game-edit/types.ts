@@ -27,6 +27,7 @@ export const RUN_FLAG_KEYS = [
   'fullscreen',
   'alwaysDash',
   'god',
+  'autoWin',
   'through',
   'autotalk',
   'encounter',
@@ -85,6 +86,8 @@ export type SessionState = {
   fullscreen: boolean
   alwaysDash: boolean
   god: boolean
+  /** 进入战斗即胜利，直到关闭 */
+  autoWin: boolean
   through: boolean
   autotalk: boolean
   encounter: boolean
@@ -194,6 +197,7 @@ export function emptySession(): SessionState {
     fullscreen: false,
     alwaysDash: false,
     god: false,
+    autoWin: false,
     through: false,
     autotalk: false,
     encounter: true,

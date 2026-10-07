@@ -19,6 +19,7 @@ export type GameEditRunSettingsState = Pick<
   | 'fullscreen'
   | 'alwaysDash'
   | 'god'
+  | 'autoWin'
   | 'through'
   | 'autotalk'
   | 'encounter'

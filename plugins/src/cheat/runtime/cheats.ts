@@ -12,6 +12,26 @@ type LockEntry = { kind: LockKind; id: number; value: number }
 const locks = new Map<string, LockEntry>()
 let godMode = false
 let throughWalls = false
+let autoWin = false
+/** 已判胜的战斗场景；胜利结算插件改写 processVictory 后阶段未必变成 battleEnd，按场景实例只判一次，避免重复发奖励 */
+let wonScene: unknown = null
+
+/** 战斗开场提示播完、等待指令或回合进行中才判胜；开场 / 已结束时调用会打乱 BattleManager 的阶段 */
+const AUTO_WIN_PHASES = new Set(['input', 'turn', 'turnEnd', 'action'])
+
+function tryAutoWin() {
+  if (typeof BattleManager === 'undefined' || typeof Scene_Battle !== 'function' || typeof SceneManager === 'undefined') return
+  const scene = SceneManager._scene
+  if (!(scene instanceof (Scene_Battle as new () => object))) {
+    wonScene = null
+    return
+  }
+  if (scene === wonScene || !AUTO_WIN_PHASES.has(String(BattleManager._phase))) return
+  // 战斗事件（剧情对话、强制行动）跑完再判胜，免得截断剧情
+  if (typeof gameTroop()?.isEventRunning === 'function' && gameTroop().isEventRunning()) return
+  wonScene = scene
+  Cheats.battleVictory()
+}
 
 function lockKey(kind: LockKind, id = 0) {
   return `${kind}:${id}`
@@ -84,6 +104,8 @@ function tickLocks() {
     }
   }
 
+  if (autoWin) tryAutoWin()
+
   if (throughWalls && gamePlayer() && typeof gamePlayer().setThrough === 'function') {
     if (!gamePlayer().isThrough || !gamePlayer().isThrough()) gamePlayer().setThrough(true)
   }
@@ -112,6 +134,8 @@ function disposeCheatsHooks() {
   locks.clear()
   godMode = false
   throughWalls = false
+  autoWin = false
+  wonScene = null
   RunCheats.disposeHooks()
 }
 
@@ -168,6 +192,17 @@ export const Cheats = {
     godMode = !!on
     if (godMode) tickLocks()
     return godMode
+  },
+
+  getAutoWin() {
+    return autoWin
+  },
+  /** 开启后每次进入战斗都立即胜利，直到关闭 */
+  setAutoWin(on: boolean) {
+    ensureHooks()
+    autoWin = !!on
+    if (autoWin) tickLocks()
+    return autoWin
   },
 
   getThrough() {
@@ -378,6 +413,7 @@ declare const $gameActors: any
 declare const $gameTemp: any
 declare const SceneManager: {
   _stopped?: boolean
+  _scene?: unknown
   goto?: (scene: unknown) => void
 }
 declare const Scene_Battle: unknown
@@ -386,6 +422,7 @@ declare const BattleManager: {
   setup: (troopId: number, canEscape: boolean, canLose: boolean) => void
   setEventCallback?: (cb: unknown) => void
   isBattle?: () => boolean
+  _phase?: string
   processVictory?: () => void
   processDefeat?: () => void
   processAbort?: () => void

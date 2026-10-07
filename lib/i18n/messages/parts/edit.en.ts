@@ -168,6 +168,8 @@ export const editEn = {
     flagGodDesc: 'Keep party HP/MP full',
     flagThrough: 'Through',
     flagThroughDesc: 'Walk through walls',
+    flagAutoWin: 'Auto win',
+    flagAutoWinDesc: 'Win every battle as soon as it starts until turned off; waits for battle events to finish',
     flagAutotalk: 'Auto talk',
     flagAutotalkDesc: 'Auto-advance dialogue; stop on choices',
     flagEncounter: 'Encounters',

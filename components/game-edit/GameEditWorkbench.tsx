@@ -419,6 +419,7 @@ export function GameEditWorkbench({
                     alwaysDash: session.alwaysDash,
                     fullscreen: session.fullscreen,
                     god: session.god,
+                    autoWin: session.autoWin,
                     through: session.through,
                     autotalk: session.autotalk,
                     encounter: session.encounter,

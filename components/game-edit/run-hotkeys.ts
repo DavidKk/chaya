@@ -193,6 +193,7 @@ export const RUN_FLAG_HOTKEY_ROWS: ReadonlyArray<{ key: RunFlagKey; labelKey: Me
   { key: 'fullscreen', labelKey: 'edit.flagFullscreen', descKey: 'edit.flagFullscreenDesc' },
   { key: 'alwaysDash', labelKey: 'edit.flagAlwaysDash', descKey: 'edit.flagAlwaysDashDesc' },
   { key: 'god', labelKey: 'edit.flagGod', descKey: 'edit.flagGodDesc' },
+  { key: 'autoWin', labelKey: 'edit.flagAutoWin', descKey: 'edit.flagAutoWinDesc' },
   { key: 'through', labelKey: 'edit.flagThrough', descKey: 'edit.flagThroughDesc' },
   { key: 'autotalk', labelKey: 'edit.flagAutotalk', descKey: 'edit.flagAutotalkDesc' },
   { key: 'encounter', labelKey: 'edit.flagEncounter', descKey: 'edit.flagEncounterDesc' },

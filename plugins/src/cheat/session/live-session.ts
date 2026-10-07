@@ -75,6 +75,7 @@ function readRunFields(
   | 'fullscreen'
   | 'alwaysDash'
   | 'god'
+  | 'autoWin'
   | 'through'
   | 'autotalk'
   | 'encounter'
@@ -97,6 +98,7 @@ function readRunFields(
     fullscreen: RunCheats.getFullscreen(),
     alwaysDash: typeof ConfigManager !== 'undefined' ? !!ConfigManager.alwaysDash : prev.alwaysDash,
     god: Cheats.getGod(),
+    autoWin: Cheats.getAutoWin(),
     through: Cheats.getThrough(),
     autotalk: typeof window.ChayaEdit?.autoTalk === 'function' ? !!window.ChayaEdit.autoTalk() : prev.autotalk,
     encounter: RunCheats.getEncounter(),

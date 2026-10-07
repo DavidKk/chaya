@@ -168,6 +168,8 @@ export const editKo = {
     flagGodDesc: 'Keep party HP/MP full',
     flagThrough: '통과',
     flagThroughDesc: 'Walk through walls',
+    flagAutoWin: '자동 승리',
+    flagAutoWinDesc: '전투가 시작되면 즉시 승리합니다(끌 때까지). 전투 이벤트가 끝난 뒤 결산합니다',
     flagAutotalk: '자동 대화',
     flagAutotalkDesc: 'Auto-advance dialogue; stop on choices',
     flagEncounter: '조우',

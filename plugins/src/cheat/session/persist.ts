@@ -25,6 +25,7 @@ export type GameEditDiskRun = {
   fullscreen?: boolean
   alwaysDash?: boolean
   god?: boolean
+  autoWin?: boolean
   through?: boolean
   autotalk?: boolean
   encounter?: boolean
@@ -95,6 +96,7 @@ function normalizeDisk(raw: unknown): GameEditDiskState | null {
       fullscreen: asBool(runIn.fullscreen),
       alwaysDash: asBool(runIn.alwaysDash),
       god: asBool(runIn.god),
+      autoWin: asBool(runIn.autoWin),
       through: asBool(runIn.through),
       autotalk: asBool(runIn.autotalk),
       encounter: asBool(runIn.encounter),
@@ -154,6 +156,7 @@ export function diskStateFromSession(session: SessionState): GameEditDiskState {
       fullscreen: session.fullscreen,
       alwaysDash: session.alwaysDash,
       god: session.god,
+      autoWin: session.autoWin,
       through: session.through,
       autotalk: session.autotalk,
       encounter: session.encounter,
@@ -196,6 +199,7 @@ export function applyGameEditDisk(disk: GameEditDiskState) {
     'fullscreen',
     'alwaysDash',
     'god',
+    'autoWin',
     'through',
     'autotalk',
     'encounter',
@@ -229,6 +233,7 @@ export function mergeDiskIntoSession(prev: SessionState, disk: GameEditDiskState
     fullscreen: run.fullscreen ?? prev.fullscreen,
     alwaysDash: run.alwaysDash ?? prev.alwaysDash,
     god: run.god ?? prev.god,
+    autoWin: run.autoWin ?? prev.autoWin,
     through: run.through ?? prev.through,
     autotalk: run.autotalk ?? prev.autotalk,
     encounter: run.encounter ?? prev.encounter,

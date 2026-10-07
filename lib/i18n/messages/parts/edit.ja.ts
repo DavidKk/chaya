@@ -168,6 +168,8 @@ export const editJa = {
     flagGodDesc: 'Keep party HP/MP full',
     flagThrough: 'すり抜け',
     flagThroughDesc: 'Walk through walls',
+    flagAutoWin: '自動勝利',
+    flagAutoWinDesc: '戦闘に入るとすぐ勝利します（オフにするまで）。戦闘イベントの終了を待ってから決着します',
     flagAutotalk: '自動会話',
     flagAutotalkDesc: 'Auto-advance dialogue; stop on choices',
     flagEncounter: 'エンカウント',
