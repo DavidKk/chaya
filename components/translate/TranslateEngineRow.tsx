@@ -6,6 +6,7 @@ import { LuGripVertical } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { SwitchToggle, TruncateText } from '@/components/sk'
+import { controlDisabled } from '@/components/sk/control'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -74,7 +75,7 @@ export function TranslateEngineRow({
           className={cn(
             'inline-flex h-full w-full cursor-grab appearance-none items-center justify-center border-none bg-transparent p-0 text-ink-soft/70',
             'hover:enabled:text-ink active:cursor-grabbing',
-            'disabled:cursor-not-allowed disabled:opacity-40'
+            controlDisabled
           )}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}

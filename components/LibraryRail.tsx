@@ -8,6 +8,7 @@ import { MdCloudQueue } from 'react-icons/md'
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Button, ScrollArea, Select, TruncateText, withTooltip } from '@/components/sk'
+import { controlDisabled } from '@/components/sk/control'
 import type { LibraryItemView, LibrarySortMode } from '@/lib/game'
 import { parseLibrarySortMode, sortLibraryEntries } from '@/lib/game/library-sort'
 import { cn } from '@/lib/utils'
@@ -188,7 +189,7 @@ export function LibraryRail({ entries, activeRoot, busy = false, canUseDisk = tr
                         type="button"
                         className={cn(
                           'm-0 flex w-full cursor-pointer items-center gap-3 border-none bg-transparent py-0 pr-[1.35rem] pl-0 text-left text-inherit',
-                          'disabled:cursor-not-allowed disabled:opacity-72',
+                          controlDisabled,
                           'focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]'
                         )}
                         disabled={busy || removing || entry.missing}
@@ -236,7 +237,7 @@ export function LibraryRail({ entries, activeRoot, busy = false, canUseDisk = tr
                                 'cursor-pointer text-[color-mix(in_oklab,var(--ink-soft)_55%,transparent)] opacity-0 transition-[opacity,color] duration-100',
                                 'group-hover:opacity-75 group-focus-within:opacity-75',
                                 'hover:text-fail hover:opacity-100 focus-visible:text-fail focus-visible:opacity-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--fail)_45%,transparent)]',
-                                'disabled:cursor-not-allowed disabled:opacity-30'
+                                controlDisabled
                               )}
                               disabled={busy || removing}
                               aria-label={`移除 ${entry.name}`}

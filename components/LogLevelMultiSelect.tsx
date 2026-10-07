@@ -6,6 +6,7 @@ import { IoCheckmark, IoChevronDown } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { logBadgeClass } from '@/components/layoutClasses'
+import { controlDisabled } from '@/components/sk/control'
 import { useFloatingPanel } from '@/components/sk/useFloatingPanel'
 import { LOG_LEVELS, type LogLevel } from '@/lib/log/types'
 import { cn } from '@/lib/utils'
@@ -183,7 +184,7 @@ export function LogLevelMultiSelect({ value, onChange, className, disabled = fal
           'hover:enabled:border-[rgb(230_238_248_/_0.2)]',
           open && 'border-accent',
           'focus-visible:border-accent',
-          'disabled:cursor-not-allowed disabled:opacity-45'
+          controlDisabled
         )}
         aria-label={t('logs.levelAria')}
         aria-expanded={open}

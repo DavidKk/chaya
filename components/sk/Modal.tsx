@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { IoCloseOutline } from 'react-icons/io5'
 
+import { controlDisabled } from '@/components/sk/control'
 import { ScrollArea } from '@/components/sk/ScrollArea'
 import { TruncateText } from '@/components/sk/TruncateText'
 import { cn } from '@/lib/utils'
@@ -161,7 +162,7 @@ export function Modal({
               className={cn(
                 'm-0 inline-flex size-7 shrink-0 cursor-pointer appearance-none items-center justify-center border-none bg-transparent p-0 text-ink-soft outline-none',
                 'hover:enabled:text-ink focus:outline-none focus-visible:outline-none',
-                'disabled:cursor-not-allowed disabled:opacity-45'
+                controlDisabled
               )}
               onClick={onClose}
             >

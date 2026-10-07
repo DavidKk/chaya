@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { IoCheckmark, IoChevronDown } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { FORM_CONTROL_H, formControlChrome, formControlPadX } from '@/components/sk/control'
+import { controlDisabled, controlDisabledShell, FORM_CONTROL_H, formControlChrome, formControlPadX } from '@/components/sk/control'
 import { ScrollArea } from '@/components/sk/ScrollArea'
 import { Spinner } from '@/components/sk/Spinner'
 import { TextInput } from '@/components/sk/TextInput'
@@ -259,7 +259,7 @@ export function Select({
                           panelWidth === 'content' && 'whitespace-nowrap',
                           isSelected && 'text-accent',
                           isHi && 'bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]',
-                          opt.disabled && 'cursor-not-allowed opacity-40'
+                          opt.disabled && controlDisabledShell
                         )}
                         onMouseEnter={() => !opt.disabled && setHighlight(index)}
                         onMouseDown={(e) => e.preventDefault()}
@@ -292,7 +292,8 @@ export function Select({
           FORM_CONTROL_H,
           'inline-flex w-full cursor-pointer items-center justify-between gap-2',
           'hover:enabled:border-[rgb(230_238_248/0.2)]',
-          'focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-45',
+          'focus-visible:border-accent',
+          controlDisabled,
           open && 'border-accent'
         )}
         disabled={disabled}

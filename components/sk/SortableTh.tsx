@@ -2,6 +2,7 @@
 
 import { IoCaretDown, IoCaretUp } from 'react-icons/io5'
 
+import { controlDisabled } from '@/components/sk/control'
 import type { ThreeStateSortDir } from '@/lib/ui/three-state-sort'
 import { cn } from '@/lib/utils'
 
@@ -24,7 +25,8 @@ export function SortableTh({ label, active, order, disabled, onCycle, className 
         type="button"
         className={cn(
           'm-0 inline-flex cursor-pointer items-center gap-0.5 border-none bg-transparent p-0 text-inherit outline-none',
-          'hover:enabled:text-ink focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed',
+          'hover:enabled:text-ink focus:outline-none focus-visible:outline-none',
+          controlDisabled,
           active ? 'text-ink' : 'text-ink-soft'
         )}
         disabled={disabled}

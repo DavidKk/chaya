@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import { hotkeyInput, hotkeyShell } from '@/components/game-edit'
 import { Tooltip } from '@/components/sk'
+import { controlDisabledShell } from '@/components/sk/control'
 import { intervalLabel, MAX_REPEAT_MS, MIN_REPEAT_MS, parseInterval, type TurboRule } from '@/lib/game/input-assistance'
 import { cn } from '@/lib/utils'
 
@@ -31,7 +32,7 @@ export function InputIntervalField({ value, onChange, disabled = false }: Props)
 
   return (
     <Tooltip content={HINT} triggerClassName="block w-full min-w-0">
-      <span className={cn(hotkeyShell, 'w-full', invalid && 'border-fail', disabled && 'opacity-60')}>
+      <span className={cn(hotkeyShell, 'w-full', invalid && 'border-fail', disabled && controlDisabledShell)}>
         <input
           className={cn(hotkeyInput, 'pr-7')}
           value={draft ?? label}

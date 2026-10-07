@@ -27,7 +27,7 @@ type Props = {
 export function EventsBody({ tab, slot, filter, session, headSlot, toolRequest, showMiniMap }: Props) {
   const t = useT()
   if (!slot) return <EmptyState title={t('events.needLink')} message={t('events.needLinkMsg')} />
-  if (tab === 'common') return <CommonEventsPane slot={slot} filter={filter} session={session} />
+  if (tab === 'common') return <CommonEventsPane slot={slot} filter={filter} session={session} headSlot={headSlot} />
   if (tab === 'troop') return <TroopsPane slot={slot} filter={filter} headSlot={headSlot} />
   return <MapPane slot={slot} filter={filter} session={session} headSlot={headSlot} toolRequest={toolRequest} showMiniMap={showMiniMap} />
 }

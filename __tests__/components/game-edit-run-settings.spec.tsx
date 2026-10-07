@@ -33,7 +33,7 @@ beforeAll(() => {
   })
 })
 
-async function render() {
+async function render(readOnly = false) {
   onFlagChange.mockClear()
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -50,6 +50,7 @@ async function render() {
           onGameSpeedChange={noop}
           onExpRateChange={noop}
           onFlagChange={onFlagChange}
+          readOnly={readOnly}
           onAction={noop}
         />
       </LocaleProvider>
@@ -81,4 +82,15 @@ it('opens the explanation on tap without toggling the switch on touch screens', 
   await act(async () => helpButton().click())
   expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(hint())
   expect(onFlagChange).not.toHaveBeenCalled()
+})
+
+it('disables every control in read-only mode', async () => {
+  canHover = true
+  await render(true)
+  const autoWin = document.querySelector('button[role="switch"][aria-label="自动胜利"]') as HTMLButtonElement
+  expect(autoWin.disabled).toBe(true)
+  expect((document.querySelector('input[aria-label="金钱"]') as HTMLInputElement).disabled).toBe(true)
+  await act(async () => (autoWin.closest('div')?.parentElement?.querySelector('span') as HTMLElement).click())
+  expect(onFlagChange).not.toHaveBeenCalled()
+  expect(helpButton().disabled).toBe(false)
 })

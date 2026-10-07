@@ -168,6 +168,18 @@ export type EditMessages = {
   flagAutoWinDesc: string
   flagAutoWinHint: string
   flagHelp: string
+  readOnlyNotice: string
+  notStartedTitle: string
+  notStartedMsg: string
+  openLibrary: string
+  syncingNotice: string
+  syncingTitle: string
+  syncingMsg: string
+  gameLinkedTip: string
+  gameNone: string
+  gameNoneTip: string
+  gameOfflineTip: string
+  gameUnnamed: string
   flagAutotalk: string
   flagAutotalkDesc: string
   flagEncounter: string

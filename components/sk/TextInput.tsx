@@ -3,7 +3,7 @@
 import { forwardRef, type InputHTMLAttributes } from 'react'
 import { IoSearchOutline } from 'react-icons/io5'
 
-import { FORM_CONTROL_H, formControlChrome, formControlPadX } from '@/components/sk/control'
+import { controlDisabled, controlDisabledShell, FORM_CONTROL_H, formControlChrome, formControlPadX } from '@/components/sk/control'
 import { cn } from '@/lib/utils'
 
 export type TextInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & {
@@ -31,7 +31,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function T
               'font-inherit text-[0.8125rem] leading-none text-ink outline-none',
               'disabled:cursor-not-allowed'
             )
-          : cn(formControlChrome, formControlPadX, FORM_CONTROL_H, 'min-w-[5.5rem] focus:border-accent disabled:cursor-not-allowed disabled:opacity-45'),
+          : cn(formControlChrome, formControlPadX, FORM_CONTROL_H, 'min-w-[5.5rem] focus:border-accent', controlDisabled),
         !search && fullWidth && 'w-full min-w-0 flex-1',
         !search && invalid && 'border-fail',
         !search && className
@@ -50,7 +50,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function T
         'inline-flex min-w-[5.5rem] items-center gap-1 pr-2 pl-2 focus-within:border-accent',
         fullWidth && 'w-full min-w-0 flex-1',
         invalid && 'border-fail',
-        disabled && 'cursor-not-allowed opacity-45',
+        disabled && controlDisabledShell,
         className
       )}
       data-disabled={disabled || undefined}

@@ -48,19 +48,30 @@ function FormFieldRowSkeleton({ controlW = '7.25rem' }: { controlW?: string }) {
 }
 
 /** 页头右侧：与真实筛选/刷新轨对齐 */
+/** 内容头部右侧：搜索框 + 各页筛选（与真实头部同序同宽） */
+const HEAD_FILTER_WIDTHS: Partial<Record<TabId, string[]>> = {
+  bag: ['w-[3.75rem]', 'w-[3.75rem]'],
+  item: ['w-[3.75rem]', 'w-[3.75rem]'],
+  weapon: ['w-[3.75rem]', 'w-[3.75rem]'],
+  armor: ['w-[3.75rem]', 'w-[3.75rem]'],
+  var: ['w-[3.75rem]', 'w-[3.75rem]'],
+  sw: ['w-[3.75rem]', 'w-[3.75rem]'],
+  actor: ['w-[3.75rem]'],
+  common: ['w-[5.25rem]', 'w-[5.25rem]'],
+  troop: ['w-[5.25rem]', 'w-[5.25rem]'],
+  map: ['w-[4.5rem]'],
+}
+
 function GameEditHeadEndSkeleton({ tab }: { tab: TabId }) {
-  const showTableFilters = tab !== 'run' && tab !== 'trans'
+  const filters = HEAD_FILTER_WIDTHS[tab]
+  if (!filters) return null
   return (
     <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-0 flex-1 shrink overflow-hidden')} aria-hidden>
       <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-2 pr-0.5 pl-1">
-        {showTableFilters ? (
-          <>
-            <Skeleton className="h-8 w-[11rem] shrink-0 rounded-[0.15rem]" />
-            {tab !== 'actor' ? <Skeleton className="h-8 w-[3.75rem] shrink-0 rounded-[0.2rem]" /> : null}
-            <Skeleton className="h-8 w-[3.75rem] shrink-0 rounded-[0.2rem]" />
-          </>
-        ) : null}
-        <Skeleton className="size-8 shrink-0 rounded-[0.2rem]" />
+        <Skeleton className="h-8 w-[11rem] shrink-0 rounded-[0.15rem]" />
+        {filters.map((w, i) => (
+          <Skeleton key={i} className={cn('h-8 shrink-0 rounded-[0.2rem]', w)} />
+        ))}
       </div>
     </div>
   )

@@ -5,6 +5,7 @@ import { IoAlertCircleOutline, IoArrowUndoOutline, IoCheckmark, IoReturnDownBack
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Select, SwitchToggle, TextInput } from '@/components/sk'
+import { controlDisabled } from '@/components/sk/control'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { allowedTypes, type DataCell, type DataPath, defaultType, draftText, type ExpectType, parseDraft, type ValueType } from '@/lib/game/save-data'
 import { cn } from '@/lib/utils'
@@ -30,7 +31,8 @@ const TYPE_LABEL = { number: 'data.typeNumber', string: 'data.typeString', boole
 
 const nullBtn = cn(
   'h-7 cursor-pointer rounded-[0.2rem] border border-line bg-transparent px-2 font-mono text-[0.75rem] text-ink-soft transition-colors',
-  'hover:border-accent hover:text-ink disabled:cursor-not-allowed disabled:opacity-45'
+  'hover:border-accent hover:text-ink',
+  controlDisabled
 )
 const nullBtnOn = 'border-accent bg-[color-mix(in_oklab,var(--accent)_16%,transparent)] text-ink'
 

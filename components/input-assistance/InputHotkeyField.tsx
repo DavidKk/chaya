@@ -5,6 +5,7 @@ import { IoCloseOutline } from 'react-icons/io5'
 
 import { hotkeyClearBtn, hotkeyInput, hotkeyShell } from '@/components/game-edit'
 import { Tooltip } from '@/components/sk'
+import { controlDisabledShell } from '@/components/sk/control'
 import { atomLabel, type InputChord, type KeyInput } from '@/lib/game/input-assistance'
 import { cn } from '@/lib/utils'
 
@@ -74,7 +75,10 @@ export function InputHotkeyField({ label, value, onChange, warning, compact = fa
   }
 
   const field = (
-    <span className={cn(hotkeyShell, recording && 'border-accent', warning && !recording && 'border-warn', disabled && 'opacity-60')} data-recording={recording || undefined}>
+    <span
+      className={cn(hotkeyShell, recording && 'border-accent', warning && !recording && 'border-warn', disabled && controlDisabledShell)}
+      data-recording={recording || undefined}
+    >
       <input
         ref={inputRef}
         type="text"

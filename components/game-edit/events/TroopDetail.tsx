@@ -40,7 +40,7 @@ export function TroopDetail({ troop, data, slot, onBack }: Props) {
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label={t('events.troop.detailAria')}>
-      <header className="flex min-h-[3rem] shrink-0 items-center gap-2 border-b border-line px-3 py-2">
+      <header className="flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-3">
         <Button variant="ghost" size="icon" className="@4xl:hidden" aria-label={t('events.back')} tooltip={t('events.back')} onClick={onBack}>
           <IoArrowBack size={16} aria-hidden />
         </Button>

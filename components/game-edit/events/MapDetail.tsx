@@ -176,7 +176,7 @@ export function MapDetail({
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <header className="flex min-h-[3rem] shrink-0 items-center gap-2 border-b border-line px-3 py-2">
+      <header className="flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-3">
         <Button variant="ghost" size="icon" className="@4xl:hidden" aria-label={t('events.back')} tooltip={t('events.back')} onClick={() => slot.onSelectMap(null)}>
           <IoArrowBack size={16} aria-hidden />
         </Button>
@@ -235,7 +235,7 @@ export function MapDetail({
           <EmptyState title={t('events.map.emptyMap')} />
         ) : (
           <div className="text-[0.8125rem]" style={{ minWidth: '24rem' }} role="table" aria-label={t('events.map.events')}>
-            <div className="sticky top-0 z-[2] grid items-center border-b border-line bg-paper-2" style={tableCols} role="row">
+            <div className="sticky top-0 z-[2] grid h-9 items-center border-b border-line bg-paper-2" style={tableCols} role="row">
               <div className={editHeadCell} role="columnheader">
                 {t('events.map.colName')}
               </div>
@@ -249,12 +249,12 @@ export function MapDetail({
                 {t('events.map.colState')}
               </div>
             </div>
-            {detail.events.map((ev) => {
+            {detail.events.map((ev, index) => {
               const name = ev.name || `#${ev.id}`
               return (
                 <div
                   key={ev.id}
-                  className="grid items-center border-t border-line first:border-t-0 hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]"
+                  className={cn('grid items-center border-t border-line hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]', index === 0 && 'border-t-0')}
                   style={tableCols}
                   role="row"
                 >

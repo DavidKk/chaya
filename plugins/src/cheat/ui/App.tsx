@@ -3,9 +3,7 @@ import { Activity, lazy, type ReactNode, Suspense, useCallback, useEffect, useLa
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
 import {
   effectiveHotkeys,
-  hotkeyMapsEqual,
   isHotkeyDisabled,
-  loadGlobalHotkeys,
   matchKeyChord,
   parseHotkeyId,
   parseQuickSaveHotkeyId,
@@ -452,7 +450,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   const setVarRef = useRef(setVar)
   setVarRef.current = setVar
   const onEventsVar = useCallback((id: number, value: number) => setVarRef.current(id, value), [])
-  const { slot: eventsSlot, refresh: refreshEvents } = useOverlayEvents({
+  const { slot: eventsSlot } = useOverlayEvents({
     open,
     tab,
     selectTab,
@@ -510,20 +508,6 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
     return () => window.removeEventListener('keydown', onHotkey, true)
   }, [])
 
-  const forceRefresh = useCallback(() => {
-    if (isEventsTab(tabRef.current)) refreshEvents()
-    catalogReadyRef.current = false
-    if (tabNeedsCatalog(tabRef.current)) {
-      try {
-        setCatalog(buildLiveCatalog())
-        catalogReadyRef.current = true
-      } catch {
-        /* refresh() will surface error */
-      }
-    }
-    refresh()
-  }, [refresh, refreshEvents])
-
   return (
     <GameEditOverlayProviders open={open}>
       <FloatingMiniMap
@@ -563,7 +547,6 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
               error={error}
               catalog={catalog}
               session={session}
-              onRefresh={forceRefresh}
               onClose={onRequestClose}
               onGoldChange={setGold}
               onGoldLockChange={setGoldLock}
@@ -589,17 +572,6 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
                 }
                 saveGlobalHotkeys(hotkeys)
                 setSession((prev) => ({ ...prev, hotkeysGlobal: hotkeys }))
-              }}
-              onHotkeysReload={() => {
-                const disk = loadGameEditDisk()
-                const hotkeysGlobal = loadGlobalHotkeys()
-                let hotkeys = {} as SessionState['hotkeys']
-                if (disk?.hotkeys && Object.keys(disk.hotkeys).length) {
-                  hotkeys = { ...disk.hotkeys }
-                  if (hotkeyMapsEqual(hotkeys, hotkeysGlobal)) hotkeys = {}
-                }
-                setGameHotkeysCache(hotkeys)
-                setSession((prev) => ({ ...prev, hotkeys, hotkeysGlobal }))
               }}
               onCountChange={setCount}
               onVarChange={setVar}

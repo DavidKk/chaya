@@ -30,7 +30,6 @@ import { useEventsData } from '@/components/game-edit/events/useEventsData'
 import { useLinkSaveDataTransport } from '@/components/game-edit/save-data/link-transport'
 import type { DataRootView, SaveDataSlot } from '@/components/game-edit/save-data/transport'
 import { pageMainFlush } from '@/components/layoutClasses'
-import { Button, EmptyState } from '@/components/sk'
 import { buildOptimisticHandlers, useGameEditLinkSync } from '@/hooks/useGameEditLinkSync'
 import { readApiErrorMessage } from '@/lib/api-error'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
@@ -208,19 +207,7 @@ export function GameEditPage() {
     router.replace(hrefWithQuery(editActorHref(first.id, actorPane), searchParams.toString()))
   }, [tab, catalog, actorId, actorPane, onlyNamed, router, searchParams])
 
-  const displayError = error || liveError || (!linked ? (connected ? '等待游戏数据同步…' : '尚未连接游戏，请在游戏库点击“连接游戏”') : '')
-
-  if (tab === 'run' && !linked) {
-    return (
-      <div className={pageMainFlush}>
-        <EmptyState title={connected ? '等待游戏数据同步' : '等待游戏连接'} message={liveError || '收到游戏真实状态后显示运行设置，当前不会使用默认数值。'}>
-          <Button className="mt-3" onClick={() => router.push('/game')}>
-            返回游戏库
-          </Button>
-        </EmptyState>
-      </div>
-    )
-  }
+  const displayError = error || (linked ? liveError : '')
 
   return (
     <div className={pageMainFlush}>
@@ -241,10 +228,6 @@ export function GameEditPage() {
         error={displayError}
         catalog={catalog}
         session={session}
-        onRefresh={() => {
-          void refresh()
-          if (isEventsTab(tab)) events.refresh()
-        }}
         onGoldChange={handlers.setGold}
         onGoldLockChange={handlers.setGoldLock}
         onMoveRateChange={handlers.setMoveRate}
@@ -261,13 +244,6 @@ export function GameEditPage() {
           saveGlobalHotkeys(hotkeys)
           setSession((prev) => ({ ...prev, hotkeysGlobal: hotkeys }))
         }}
-        onHotkeysReload={() => {
-          setSession((prev) => ({
-            ...prev,
-            hotkeys: loadGameStoredHotkeys(),
-            hotkeysGlobal: loadGlobalHotkeys(),
-          }))
-        }}
         onCountChange={handlers.setCount}
         onVarChange={handlers.setVar}
         onSwitchChange={handlers.setSwitch}
@@ -277,6 +253,9 @@ export function GameEditPage() {
         onActorVitalLockChange={handlers.setActorVitalLock}
         surface="page"
         linked={linked}
+        readOnly={!linked}
+        syncing={connected && !linked}
+        onOpenLibrary={() => router.push('/game')}
         events={eventsSlot}
         saveData={saveDataSlot}
       />

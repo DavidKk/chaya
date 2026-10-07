@@ -11,7 +11,7 @@ import { panelFoot } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { PanelHeadEnd } from '@/components/PanelHeadEnd'
 import { Badge, Button, DataTable, type DataTableColumn, EmptyState, Modal, ScrollArea, Select, TextInput, TruncateText } from '@/components/sk'
-import { filterToggle, filterToggleOnWarn, formControlChrome, formControlPadX } from '@/components/sk/control'
+import { controlDisabled, filterToggle, filterToggleOnWarn, formControlChrome, formControlPadX } from '@/components/sk/control'
 import { TRANSLATE_CACHE_COLUMN_WIDTHS, TranslateCacheTableSkeleton } from '@/components/translate/TranslateCacheTableSkeleton'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { readApiErrorMessage } from '@/lib/api-error'
@@ -605,11 +605,7 @@ function CacheEditDialog({
       <label className="flex flex-col gap-1">
         <span className="text-[0.7rem] font-medium text-ink-soft">{t('translate.cacheZh')}</span>
         <textarea
-          className={cn(
-            formControlChrome,
-            formControlPadX,
-            'h-auto min-h-[6.5rem] resize-none py-2 leading-snug focus:border-accent disabled:cursor-not-allowed disabled:opacity-45'
-          )}
+          className={cn(formControlChrome, formControlPadX, 'h-auto min-h-[6.5rem] resize-none py-2 leading-snug focus:border-accent', controlDisabled)}
           value={draft}
           disabled={busy}
           aria-label={t('translate.cacheZh')}

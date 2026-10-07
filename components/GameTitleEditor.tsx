@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { TbPencilCog } from 'react-icons/tb'
 
+import { controlDisabled } from '@/components/sk/control'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { cn } from '@/lib/utils'
 
@@ -107,7 +108,7 @@ export function GameTitleEditor({ originalName, remark = '', busy = false, onSav
             className={cn(
               'm-0 inline-flex size-[1.375rem] shrink-0 cursor-pointer appearance-none items-center justify-center border-none bg-transparent p-0 text-ink-soft opacity-45',
               'hover:opacity-100 hover:text-ink focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]',
-              'disabled:cursor-not-allowed disabled:opacity-45'
+              controlDisabled
             )}
             disabled={busy}
             aria-label="编辑备注名称"

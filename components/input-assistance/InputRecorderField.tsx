@@ -6,6 +6,7 @@ import { LuChevronRight, LuCircleDot } from 'react-icons/lu'
 
 import { hotkeyClearBtn, hotkeyShell } from '@/components/game-edit'
 import { Tooltip } from '@/components/sk'
+import { controlDisabledShell } from '@/components/sk/control'
 import {
   atomId,
   chordLabel,
@@ -247,7 +248,7 @@ export function InputRecorderField({ label, kind, value, onChange, accept, error
         triggerClassName="block w-full min-w-0"
       >
         <span
-          className={cn(hotkeyShell, 'w-full', recording ? 'border-accent' : error ? 'border-fail' : warning ? 'border-warn' : '', disabled && !recording && 'opacity-60')}
+          className={cn(hotkeyShell, 'w-full', recording ? 'border-accent' : error ? 'border-fail' : warning ? 'border-warn' : '', disabled && !recording && controlDisabledShell)}
           data-recording={recording || undefined}
         >
           <button

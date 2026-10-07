@@ -2,6 +2,7 @@
 
 import { type ButtonHTMLAttributes, type ReactNode, useId } from 'react'
 
+import { controlDisabled, controlDisabledShell } from '@/components/sk/control'
 import { SWITCH_SM_TRAVEL, SWITCH_TRAVEL, switchThumbClass, switchTrackClass, switchTrackSmClass } from '@/components/sk/switch-geometry'
 import { Tooltip, withTooltip } from '@/components/sk/Tooltip/Tooltip'
 import { cn } from '@/lib/utils'
@@ -32,15 +33,16 @@ export function SwitchToggle({ checked, onCheckedChange, className, disabled, id
       className={cn(
         'relative inline-flex shrink-0 cursor-pointer items-center rounded-[0.25rem] transition-[background-color,border-color] duration-150 ease-out',
         'box-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]',
-        'disabled:cursor-not-allowed',
+        controlDisabled,
         size === 'sm' ? switchTrackSmClass : switchTrackClass,
         !ghost && checked === true && 'border-[color-mix(in_oklab,var(--accent)_80%,transparent)] bg-accent',
         !ghost && checked === 'mixed' && 'border-[color-mix(in_oklab,var(--accent)_60%,transparent)] bg-[color-mix(in_oklab,var(--accent)_35%,var(--inset))]',
         !ghost && checked === false && 'border-line bg-[var(--inset)]',
+        !ghost && checked !== false && 'disabled:border-line disabled:bg-[color-mix(in_oklab,var(--ink-soft)_35%,var(--inset))]',
         ghost && checked === true && 'border-[rgb(230_238_248/0.22)] bg-[rgb(230_238_248/0.1)]',
         ghost && checked === 'mixed' && 'border-[rgb(230_238_248/0.16)] bg-[rgb(230_238_248/0.05)]',
         ghost && checked === false && 'border-line bg-transparent',
-        ghost && 'hover:enabled:border-[rgb(230_238_248/0.3)] disabled:opacity-45',
+        ghost && 'hover:enabled:border-[rgb(230_238_248/0.3)]',
         className
       )}
       {...rest}
@@ -85,7 +87,7 @@ export function Switch({ checked, label, description, toggleTooltip, onCheckedCh
   }
 
   return (
-    <div className={cn('flex items-center justify-between gap-4 text-ink', disabled && 'opacity-45', className)}>
+    <div className={cn('flex items-center justify-between gap-4 text-ink', disabled && controlDisabledShell, className)}>
       {/* 文案区整块可点：左右拉开时不必摸到右侧滑块；内边距由 formCard 等外层统一 */}
       <div className={cn('grid min-w-0 flex-1 cursor-pointer gap-1 rounded-[0.15rem]', disabled && 'pointer-events-none cursor-not-allowed')} onClick={toggle}>
         <span id={labelId} className="text-[0.875rem] font-medium leading-[1.35] text-ink">

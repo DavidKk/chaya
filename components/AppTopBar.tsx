@@ -9,6 +9,7 @@ import { DevTargetSwitch } from '@/components/DevTargetSwitch'
 import { DownloadCenter } from '@/components/downloads/DownloadCenter'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
 import { brand, topBarFrame, topBarNav, topBarRow, topRight } from '@/components/layoutClasses'
+import { LinkedGameBadge } from '@/components/LinkedGameBadge'
 import { BUILD_TARGET } from '@/lib/service-mode/target'
 import { cn } from '@/lib/utils'
 
@@ -48,6 +49,7 @@ export function AppTopBar({ current, end, className }: Props) {
             current={resolved}
             mobileActions={
               <>
+                {resolved === '/cheat' ? <LinkedGameBadge /> : null}
                 {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
                 <DownloadCenter />
                 <LocaleSwitcher />
@@ -57,6 +59,7 @@ export function AppTopBar({ current, end, className }: Props) {
           />
         </div>
         <div className={cn(topRight, 'hidden self-center md:flex')}>
+          {resolved === '/cheat' ? <LinkedGameBadge /> : null}
           {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
           <DownloadCenter />
           <LocaleSwitcher />

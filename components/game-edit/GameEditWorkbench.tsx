@@ -1,7 +1,7 @@
 'use client'
 
 import { lazy, type ReactNode, Suspense, useMemo, useState } from 'react'
-import { IoCloseOutline, IoRefreshOutline } from 'react-icons/io5'
+import { IoCloseOutline } from 'react-icons/io5'
 import { MdExposurePlus1 } from 'react-icons/md'
 import { TbNumber99Small } from 'react-icons/tb'
 
@@ -86,7 +86,6 @@ export type GameEditWorkbenchProps = {
   error: string
   catalog: GameEditCatalog | null
   session: SessionState
-  onRefresh: () => void
   /** 局内浮层关闭；网页侧不传 */
   onClose?: () => void
   onGoldChange: (gold: number) => void
@@ -97,8 +96,6 @@ export type GameEditWorkbenchProps = {
   onRunFlagChange: (key: RunFlagKey, on: boolean) => void
   onRunAction: (id: RunActionId) => void
   onHotkeysChange?: (scope: 'game' | 'global', hotkeys: Record<string, string>) => void
-  /** 快捷键页「刷新」：从存储重载本游戏 + 全部游戏 */
-  onHotkeysReload?: () => void
   onCountChange: (kind: ItemKind, id: number, next: number) => void
   onVarChange: (id: number, next: number) => void
   onSwitchChange: (id: number, next: boolean) => void
@@ -114,12 +111,22 @@ export type GameEditWorkbenchProps = {
   surface?: 'page' | 'overlay'
   /** 网页侧是否已与游戏 DataChannel 连通（影响页脚提示） */
   linked?: boolean
+  /** 未连接游戏：运行页只读、数值页提示游戏未开始 */
+  readOnly?: boolean
+  /** 已连上、等首帧状态同步：只读提示改为同步中 */
+  syncing?: boolean
+  onOpenLibrary?: () => void
   className?: string
   agentRequest?: GameAgentRequest
   /** 公共事件 / 地图 data and actions */
   events?: EventsSlot
   /** 数据页 transport and path */
   saveData?: SaveDataSlot
+}
+
+/** 数值来自运行中的游戏，未连接时没有可展示的内容 */
+function isLiveValueTab(tab: TabId) {
+  return tab === 'bag' || tab === 'item' || tab === 'weapon' || tab === 'armor' || tab === 'var' || tab === 'sw' || tab === 'actor'
 }
 
 function isRowLocked(row: TableRow, locks: SessionState['locks']) {
@@ -197,7 +204,6 @@ export function GameEditWorkbench({
   error,
   catalog,
   session,
-  onRefresh,
   onClose,
   onGoldChange,
   onGoldLockChange,
@@ -207,7 +213,6 @@ export function GameEditWorkbench({
   onRunFlagChange,
   onRunAction,
   onHotkeysChange,
-  onHotkeysReload,
   onCountChange,
   onVarChange,
   onSwitchChange,
@@ -217,6 +222,9 @@ export function GameEditWorkbench({
   onActorVitalLockChange,
   surface = 'page',
   linked = false,
+  readOnly = false,
+  syncing = false,
+  onOpenLibrary,
   className,
   agentRequest,
   events,
@@ -224,7 +232,6 @@ export function GameEditWorkbench({
 }: GameEditWorkbenchProps) {
   const t = useT()
   const q = filter.trim().toLowerCase()
-  const [transTick, setTransTick] = useState(0)
 
   const rows = useMemo((): TableRow[] => {
     if (!catalog || tab === 'run' || tab === 'trans' || tab === 'actor') return []
@@ -313,21 +320,6 @@ export function GameEditWorkbench({
   const activeTab = TABS.find((item) => item.id === tab)
   const legalKind: LegalNoticeKind | null =
     tab === 'logs' || tab === 'about' ? null : tab === 'trans' ? 'translate' : tab === 'mcp' ? 'integration' : tab === 'settings' ? 'agent' : 'edit'
-  const refreshButton = (
-    <Button
-      variant="ghost"
-      size="icon"
-      loading={loading}
-      aria-label={t('common.refresh')}
-      tooltip={t('common.refresh')}
-      onClick={() => {
-        setTransTick((n) => n + 1)
-        onRefresh()
-      }}
-    >
-      <IoRefreshOutline size={17} aria-hidden />
-    </Button>
-  )
   const closeButton = onClose ? (
     <Button variant="ghost" size="icon" aria-label={t('common.close')} tooltip={t('edit.closeEsc')} onClick={onClose}>
       <IoCloseOutline size={17} aria-hidden />
@@ -353,8 +345,8 @@ export function GameEditWorkbench({
               <PanelHeadTitle title={activeTab ? t(activeTab.labelKey) : t('edit.tabEdit')} description={tab === 'data' ? t('data.panelDesc') : t('edit.panelDesc')} />
               <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-8 flex-1 shrink justify-end overflow-hidden')}>
                 {showTableFilters || (eventsTab && eventSourceCount > 0) ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
-                {tab === 'data' || tab === 'map' || tab === 'troop' ? <div ref={setPaneHead} className="flex min-w-0 shrink items-center" /> : null}
-                {showTableFilters || surface === 'page' ? (
+                {tab === 'data' || tab === 'common' || tab === 'map' || tab === 'troop' ? <div ref={setPaneHead} className="flex min-w-0 shrink items-center" /> : null}
+                {showTableFilters ? (
                   <ScrollArea
                     indicator="horizontal"
                     reserveGutter={false}
@@ -372,33 +364,28 @@ export function GameEditWorkbench({
                     }}
                   >
                     <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-2 pr-0.5 pl-1">
-                      {showTableFilters ? (
-                        <>
-                          {showOwnedFilter ? (
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={onlyOwned}
-                              aria-label={t('edit.onlyOwned')}
-                              className={cn(filterToggle, onlyOwned && filterToggleOn)}
-                              onClick={() => setOnlyOwned(!onlyOwned)}
-                            >
-                              {t('edit.onlyOwned')}
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={onlyNamed}
-                            aria-label={t('edit.onlyNamed')}
-                            className={cn(filterToggle, onlyNamed && filterToggleOn)}
-                            onClick={() => setOnlyNamed(!onlyNamed)}
-                          >
-                            {t('edit.onlyNamed')}
-                          </button>
-                        </>
+                      {showOwnedFilter ? (
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={onlyOwned}
+                          aria-label={t('edit.onlyOwned')}
+                          className={cn(filterToggle, onlyOwned && filterToggleOn)}
+                          onClick={() => setOnlyOwned(!onlyOwned)}
+                        >
+                          {t('edit.onlyOwned')}
+                        </button>
                       ) : null}
-                      {surface === 'page' ? refreshButton : null}
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={onlyNamed}
+                        aria-label={t('edit.onlyNamed')}
+                        className={cn(filterToggle, onlyNamed && filterToggleOn)}
+                        onClick={() => setOnlyNamed(!onlyNamed)}
+                      >
+                        {t('edit.onlyNamed')}
+                      </button>
                     </div>
                   </ScrollArea>
                 ) : null}
@@ -409,6 +396,11 @@ export function GameEditWorkbench({
           <div className={isEditTab(tab) ? panelBody : 'flex min-h-0 flex-1 flex-col'}>
             {tab === 'run' ? (
               <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('edit.runSettingsAria') }}>
+                {readOnly ? (
+                  <p role="status" className="m-0 mx-4 mt-3 rounded-[0.25rem] border border-line bg-inset px-3 py-2 text-[0.75rem] text-ink-soft">
+                    {syncing ? t('edit.syncingNotice') : t('edit.readOnlyNotice')}
+                  </p>
+                ) : null}
                 <GameEditRunSettings
                   value={{
                     gold: session.gold,
@@ -431,6 +423,7 @@ export function GameEditWorkbench({
                     expRate: session.expRate,
                   }}
                   actionsEnabled={surface === 'overlay' || linked}
+                  readOnly={readOnly}
                   onGoldChange={onGoldChange}
                   onGoldLockChange={onGoldLockChange}
                   onMoveRateChange={onMoveRateChange}
@@ -444,14 +437,7 @@ export function GameEditWorkbench({
             ) : tab === 'trans' ? (
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <TabSuspense tab="trans" translateSection={translateSection} translateTab={translateTab}>
-                  <GameEditTransPane
-                    surface={surface}
-                    refreshKey={transTick}
-                    tab={translateTab}
-                    onTabChange={setTranslateTab}
-                    section={translateSection}
-                    onSectionChange={setTranslateSection}
-                  />
+                  <GameEditTransPane surface={surface} tab={translateTab} onTabChange={setTranslateTab} section={translateSection} onSectionChange={setTranslateSection} />
                 </TabSuspense>
               </div>
             ) : tab === 'logs' ? (
@@ -477,13 +463,6 @@ export function GameEditWorkbench({
                         globalValue={session.hotkeysGlobal}
                         onGameChange={(next) => onHotkeysChange?.('game', next)}
                         onGlobalChange={(next) => onHotkeysChange?.('global', next)}
-                        actions={
-                          onHotkeysReload ? (
-                            <Button variant="ghost" size="icon" aria-label={t('common.refresh')} tooltip={t('common.refresh')} onClick={onHotkeysReload}>
-                              <IoRefreshOutline size={17} aria-hidden />
-                            </Button>
-                          ) : null
-                        }
                       />
                     </Suspense>
                   }
@@ -501,6 +480,14 @@ export function GameEditWorkbench({
               <TabSuspense tab={tab}>
                 <EventsBody tab={tab} slot={events} filter={filter} session={session} headSlot={paneHead} toolRequest={agentRequest} showMiniMap={surface !== 'overlay'} />
               </TabSuspense>
+            ) : readOnly && isLiveValueTab(tab) ? (
+              <EmptyState title={syncing ? t('edit.syncingTitle') : t('edit.notStartedTitle')} message={syncing ? t('edit.syncingMsg') : t('edit.notStartedMsg')}>
+                {onOpenLibrary && !syncing ? (
+                  <Button className="mt-3" onClick={onOpenLibrary}>
+                    {t('edit.openLibrary')}
+                  </Button>
+                ) : null}
+              </EmptyState>
             ) : error ? (
               <EmptyState title={t('edit.catalogFailTitle')} message={error} hint={t('edit.catalogFailHint')} />
             ) : loading && !catalog ? (

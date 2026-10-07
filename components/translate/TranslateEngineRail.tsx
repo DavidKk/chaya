@@ -8,6 +8,7 @@ import { IoAdd, IoCloseOutline } from 'react-icons/io5'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, ScrollArea, Tooltip } from '@/components/sk'
+import { controlDisabled } from '@/components/sk/control'
 import { dropdownItemClass, dropdownPopupClass, dropdownTriggerClass } from '@/components/sk/dropdownMenu'
 import { TranslateAgentEntryConfig } from '@/components/translate/TranslateAgentEntryConfig'
 import { TranslateEngineRow } from '@/components/translate/TranslateEngineRow'
@@ -388,7 +389,7 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
                         <Menu.Trigger
                           aria-label={t('translate.agentAddAria')}
                           disabled={addDisabled}
-                          className={cn(dropdownTriggerClass, 'size-7 justify-center p-0 disabled:cursor-not-allowed disabled:opacity-50')}
+                          className={cn(dropdownTriggerClass, 'size-7 justify-center p-0', controlDisabled)}
                         >
                           <IoAdd size={15} aria-hidden />
                         </Menu.Trigger>

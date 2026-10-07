@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { IoChevronDown, IoChevronForward } from 'react-icons/io5'
 
 import type { SessionState } from '@/components/game-edit/types'
@@ -22,6 +23,8 @@ type Props = {
   slot: EventsSlot
   filter: string
   session: SessionState
+  /** Panel header spot (right of the search box) for the list filters */
+  headSlot?: HTMLElement | null
 }
 
 const listRow = cn(
@@ -72,7 +75,7 @@ function EventRow({
 }
 
 /** 修改 › 公共事件: grouped list + detail; narrow containers show one at a time */
-export function CommonEventsPane({ slot, filter, session }: Props) {
+export function CommonEventsPane({ slot, filter, session, headSlot }: Props) {
   const switches = session.switches
   const t = useT()
   const [trigger, setTrigger] = useState<TriggerFilter>('all')
@@ -99,6 +102,17 @@ export function CommonEventsPane({ slot, filter, session }: Props) {
   ]
   const uncalledHint = onlyUncalled && (!data.mapsScanned || data.mapsFailed > 0)
 
+  const filters = (
+    <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <button type="button" role="switch" aria-checked={showEmpty} className={cn(filterToggle, showEmpty && filterToggleOn)} onClick={() => setShowEmpty(!showEmpty)}>
+        {t('events.showEmpty')}
+      </button>
+      <button type="button" role="switch" aria-checked={onlyUncalled} className={cn(filterToggle, onlyUncalled && filterToggleOn)} onClick={() => setOnlyUncalled(!onlyUncalled)}>
+        {t('events.onlyUncalled')}
+      </button>
+    </div>
+  )
+
   const toggleGroup = (id: number) =>
     setCollapsed((prev) => {
       const next = new Set(prev)
@@ -116,20 +130,7 @@ export function CommonEventsPane({ slot, filter, session }: Props) {
         >
           <div className="flex shrink-0 flex-col gap-2 border-b border-line px-3 py-2">
             <SegmentedNav items={triggerItems} value={trigger} onChange={setTrigger} aria-label={t('events.filterAria')} />
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" role="switch" aria-checked={showEmpty} className={cn(filterToggle, showEmpty && filterToggleOn)} onClick={() => setShowEmpty(!showEmpty)}>
-                {t('events.showEmpty')}
-              </button>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={onlyUncalled}
-                className={cn(filterToggle, onlyUncalled && filterToggleOn)}
-                onClick={() => setOnlyUncalled(!onlyUncalled)}
-              >
-                {t('events.onlyUncalled')}
-              </button>
-            </div>
+            {headSlot ? null : filters}
             {uncalledHint ? <p className="m-0 text-[0.7rem] leading-[1.45] text-warn">{t('events.uncalledMayOver')}</p> : null}
           </div>
           {visibleCount === 0 ? (
@@ -180,6 +181,7 @@ export function CommonEventsPane({ slot, filter, session }: Props) {
           )}
         </div>
       </div>
+      {headSlot ? createPortal(filters, headSlot) : null}
     </div>
   )
 }

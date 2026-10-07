@@ -2,7 +2,7 @@
 
 import { forwardRef, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 
-import { FORM_CONTROL_H, formControlChrome, formControlPadX } from '@/components/sk/control'
+import { controlDisabled, controlDisabledShell, FORM_CONTROL_H, formControlChrome, formControlPadX } from '@/components/sk/control'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { cn } from '@/lib/utils'
 
@@ -104,7 +104,6 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
   const [focused, setFocused] = useState(false)
   const textRef = useRef(text)
   const affix = suffix != null || endAction != null
-  const inputLocked = !!disabled && endAction != null
 
   useEffect(() => {
     if (!focused) setText(formatCompactNumber(value, allowDecimal))
@@ -175,8 +174,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
         'font-mono',
         affix
           ? 'm-0 h-full min-h-0 min-w-[3.5rem] flex-1 appearance-none rounded-none border-none bg-transparent px-0.5 py-0 font-inherit text-[0.8125rem] leading-none text-ink outline-none disabled:cursor-not-allowed'
-          : cn(formControlChrome, formControlPadX, FORM_CONTROL_H, 'min-w-[5.5rem] focus:border-accent disabled:cursor-not-allowed disabled:opacity-45'),
-        inputLocked && 'cursor-not-allowed opacity-55',
+          : cn(formControlChrome, formControlPadX, FORM_CONTROL_H, 'min-w-[5.5rem] focus:border-accent', controlDisabled),
         !affix && invalid && 'border-fail',
         !affix && className
       )}
@@ -218,7 +216,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
       input
     )
 
-  const shellDisabled = !!disabled && endAction == null
+  const shellDisabled = !!disabled
 
   const control = !affix ? (
     input
@@ -230,7 +228,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
         'inline-flex w-fit min-w-[5.5rem] items-center gap-1 pr-2 pl-2 focus-within:border-accent',
         'group/num',
         invalid && 'border-fail',
-        shellDisabled && 'cursor-not-allowed opacity-45',
+        shellDisabled && controlDisabledShell,
         className
       )}
       data-disabled={shellDisabled || undefined}

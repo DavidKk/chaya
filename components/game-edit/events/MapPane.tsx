@@ -135,7 +135,7 @@ export function MapPane({ slot, filter, session, headSlot, toolRequest, showMini
 
   const crumbBtn = 'm-0 inline-flex min-w-0 shrink cursor-pointer items-center rounded-[0.2rem] border-none bg-transparent px-1 py-0.5 text-[0.72rem] text-ink-soft hover:text-ink'
   const breadcrumb = (
-    <nav className="flex min-w-0 items-center gap-0.5 border-b border-line px-2 py-1.5" aria-label={t('events.map.levelAria')}>
+    <nav className="flex h-9 min-w-0 shrink-0 items-center gap-0.5 border-b border-line px-2" aria-label={t('events.map.levelAria')}>
       {level ? (
         <button type="button" className={cn(crumbBtn, 'shrink-0')} aria-label={t('events.map.levelUp')} title={t('events.map.levelUp')} onClick={() => goTo(parentOf(level))}>
           <IoChevronBack size={12} aria-hidden />
@@ -170,7 +170,7 @@ export function MapPane({ slot, filter, session, headSlot, toolRequest, showMini
           className={cn('min-h-0 w-full flex-col @4xl:w-[17rem] @4xl:shrink-0 @4xl:border-r @4xl:border-line', selected ? 'hidden @4xl:flex' : 'flex')}
           aria-label={t('events.map.treeAria')}
         >
-          <div className="shrink-0 border-b border-line px-3 py-2">
+          <div className="flex h-[3.25rem] shrink-0 items-center border-b border-line px-3">
             <TextInput
               search
               type="search"

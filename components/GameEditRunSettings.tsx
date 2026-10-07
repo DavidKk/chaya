@@ -38,6 +38,8 @@ type Props = {
   value: GameEditRunSettingsState
   /** 局内可执行动作；网页预览可传空操作 */
   actionsEnabled?: boolean
+  /** 未连接游戏：数值为默认值，所有控件只看不改 */
+  readOnly?: boolean
   onGoldChange: (gold: number) => void
   onGoldLockChange: (on: boolean) => void
   /** Sets walk and run together */
@@ -229,6 +231,7 @@ function ActionCard({
 export function GameEditRunSettings({
   value,
   actionsEnabled = true,
+  readOnly = false,
   onGoldChange,
   onGoldLockChange,
   onMoveRateChange,
@@ -242,6 +245,8 @@ export function GameEditRunSettings({
   const goldLockTip = value.goldLocked ? t('edit.goldUnlockTip') : t('edit.goldLockTip')
   const previewDisabled = t('edit.previewDisabled')
   const battlePreviewDisabled = t('edit.battlePreviewDisabled')
+  const readOnlyTip = t('events.runNeedLink')
+  const canAct = actionsEnabled && !readOnly
 
   return (
     <div className="flex flex-wrap items-start gap-2 px-4 pt-3 pb-4" role="region" aria-label={t('edit.runSettingsAria')}>
@@ -254,13 +259,19 @@ export function GameEditRunSettings({
               className="w-[7.25rem] min-w-[7.25rem]"
               value={value.gold}
               min={0}
+              disabled={readOnly}
               aria-label={t('edit.gold')}
               onValueChange={(v) => onGoldChange(Math.max(0, Math.floor(v)))}
               endAction={
-                <Tooltip content={goldLockTip}>
+                <Tooltip content={readOnly ? readOnlyTip : goldLockTip}>
                   <button
                     type="button"
-                    className={cn(lockBtn, value.goldLocked && 'text-accent hover:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] hover:text-accent')}
+                    disabled={readOnly}
+                    className={cn(
+                      lockBtn,
+                      'disabled:cursor-not-allowed',
+                      value.goldLocked && 'text-accent hover:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] hover:text-accent'
+                    )}
                     aria-label={value.goldLocked ? t('edit.goldUnlock') : t('edit.goldLock')}
                     aria-pressed={value.goldLocked}
                     onClick={() => onGoldLockChange(!value.goldLocked)}
@@ -284,6 +295,7 @@ export function GameEditRunSettings({
               max={5}
               step={0.25}
               allowDecimal
+              disabled={readOnly}
               suffix={t('edit.rateSuffix')}
               aria-label={t('edit.gameSpeed')}
               onValueChange={(v) => onGameSpeedChange(clampGameSpeed(v))}
@@ -302,6 +314,7 @@ export function GameEditRunSettings({
               max={8}
               step={0.25}
               allowDecimal
+              disabled={readOnly}
               suffix={t('edit.rateSuffix')}
               aria-label={t('edit.moveRate')}
               onValueChange={(v) => onMoveRateChange(clampRate(v))}
@@ -320,6 +333,7 @@ export function GameEditRunSettings({
               max={99}
               step={0.25}
               allowDecimal
+              disabled={readOnly}
               suffix={t('edit.rateSuffix')}
               aria-label={t('edit.expRate')}
               onValueChange={(v) => onExpRateChange(clampExp(v))}
@@ -330,9 +344,10 @@ export function GameEditRunSettings({
         {RUN_FLAG_HOTKEY_ROWS.map((row) => {
           const checked = !!value[row.key]
           const label = t(row.labelKey)
+          const toggle = readOnly ? undefined : () => onFlagChange(row.key, !checked)
           return (
             <div key={row.key} className={formFieldInlineDense}>
-              <span className={cn(formTitleInline, 'cursor-pointer')} onClick={() => onFlagChange(row.key, !checked)}>
+              <span className={cn(formTitleInline, toggle && 'cursor-pointer')} onClick={toggle}>
                 {label}
                 {row.hintKey ? (
                   <Tooltip touchBehavior="toggle" content={<span className="block max-w-72 leading-[1.5]">{t(row.hintKey)}</span>}>
@@ -347,15 +362,16 @@ export function GameEditRunSettings({
                   </Tooltip>
                 ) : null}
               </span>
-              <span className={cn(formDescInline, 'cursor-pointer')} onClick={() => onFlagChange(row.key, !checked)}>
+              <span className={cn(formDescInline, toggle && 'cursor-pointer')} onClick={toggle}>
                 {t(row.descKey)}
               </span>
               <div className={formControlInline}>
                 <SwitchToggle
                   checked={checked}
+                  disabled={readOnly}
                   onCheckedChange={(on) => onFlagChange(row.key, on)}
                   aria-label={label}
-                  tooltip={checked ? t('edit.toggleOff', { name: label }) : t('edit.toggleOn', { name: label })}
+                  tooltip={readOnly ? readOnlyTip : checked ? t('edit.toggleOff', { name: label }) : t('edit.toggleOn', { name: label })}
                 />
               </div>
             </div>
@@ -368,8 +384,8 @@ export function GameEditRunSettings({
           title={t('edit.sceneTitle')}
           description={t('edit.sceneDesc')}
           groups={SCENE_GROUPS}
-          disabled={!actionsEnabled}
-          disabledReason={previewDisabled}
+          disabled={!canAct}
+          disabledReason={readOnly ? readOnlyTip : previewDisabled}
           onAction={onAction}
           t={t}
         />
@@ -377,8 +393,8 @@ export function GameEditRunSettings({
           title={t('edit.fixTitle')}
           description={t('edit.fixDesc')}
           groups={FIX_GROUPS}
-          disabled={!actionsEnabled}
-          disabledReason={previewDisabled}
+          disabled={!canAct}
+          disabledReason={readOnly ? readOnlyTip : previewDisabled}
           onAction={onAction}
           t={t}
         />
@@ -386,8 +402,8 @@ export function GameEditRunSettings({
           title={t('edit.battleTitle')}
           description={t('edit.battleDesc')}
           groups={BATTLE_GROUPS}
-          disabled={!actionsEnabled}
-          disabledReason={battlePreviewDisabled}
+          disabled={!canAct}
+          disabledReason={readOnly ? readOnlyTip : battlePreviewDisabled}
           onAction={onAction}
           extra={onOpenTroops ? <TextAction onClick={onOpenTroops}>{t('events.troop.manageEnemies')}</TextAction> : null}
           t={t}

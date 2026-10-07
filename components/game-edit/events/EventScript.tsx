@@ -76,7 +76,7 @@ export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRun
 
   return (
     <>
-      <div className="flex items-center gap-2 border-t border-line px-3 py-2">
+      <div className="flex items-center gap-2 border-t border-line px-3 py-2 first:border-t-0">
         <TextInput
           search
           type="search"
@@ -101,7 +101,7 @@ export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRun
           </div>
         </div>
         {shown.length ? (
-          shown.map(({ line, index, args, label }) => {
+          shown.map(({ line, index, args, label }, i) => {
             const openLink = line.link?.kind === 'common' ? onOpenCommon : line.link?.kind === 'map' ? onOpenMap : undefined
             const mark = flow.marks[line.at] ?? 'run'
             const body = flow.bodies[line.at]
@@ -110,7 +110,8 @@ export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRun
                 key={index}
                 style={gridCols}
                 className={cn(
-                  'group grid items-start border-t border-line first:border-t-0 transition-colors hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]',
+                  'group grid items-start border-t border-line transition-colors hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]',
+                  i === 0 && 'border-t-0',
                   line.indent > 0 && MARK_BAR[mark]
                 )}
                 role="row"

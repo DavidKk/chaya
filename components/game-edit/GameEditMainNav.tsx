@@ -1,7 +1,7 @@
 'use client'
 
+import { Bot } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { IoSparklesOutline } from 'react-icons/io5'
 
 import { BrandMarkInline } from '@/components/BrandMarkInline'
 import { useT } from '@/components/i18n/LocaleProvider'
@@ -68,7 +68,7 @@ export function GameEditMainNav({ tab, lastEditTab, setTab, closeButton }: Props
           tooltip="Chaya 助手 (Ctrl/⌘ + Shift + A)"
           onClick={() => window.dispatchEvent(new CustomEvent('chaya:game-agent-toggle'))}
         >
-          <IoSparklesOutline size={17} aria-hidden />
+          <Bot size={15} aria-hidden />
         </Button>
         {closeButton}
       </div>

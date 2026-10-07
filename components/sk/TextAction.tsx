@@ -2,6 +2,7 @@
 
 import { type ButtonHTMLAttributes, forwardRef, type ReactNode } from 'react'
 
+import { controlDisabled } from '@/components/sk/control'
 import { Spinner } from '@/components/sk/Spinner'
 import { cn } from '@/lib/utils'
 
@@ -21,8 +22,7 @@ export const TextAction = forwardRef<HTMLButtonElement, TextActionProps>(functio
       className={cn(
         'm-0 inline-flex appearance-none items-center gap-1 border-none bg-transparent p-[0.2rem_0.15rem] font-inherit text-[0.8125rem] font-medium leading-none text-ink-soft',
         'cursor-pointer hover:enabled:text-ink',
-        loading ? 'disabled:cursor-wait' : 'disabled:cursor-not-allowed',
-        'disabled:opacity-50',
+        loading ? 'disabled:cursor-wait disabled:opacity-45' : controlDisabled,
         'focus-visible:rounded-[0.15rem] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]',
         className
       )}
