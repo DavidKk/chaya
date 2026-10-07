@@ -122,6 +122,7 @@ const buttonByText = (text: string) => [...document.querySelectorAll('button')].
 test('lists troops with member summaries and hides empty troops by default', async () => {
   const s = slot()
   await render(s)
+  await act(async () => buttonByText('只看可遇到')!.click())
   expect(aside().textContent).toContain('Slime ×2')
   expect(aside().textContent).toContain('Bat ×2')
   expect(aside().textContent).not.toContain('Nobody')
@@ -133,6 +134,7 @@ test('lists troops with member summaries and hides empty troops by default', asy
 
 test('searches by enemy name', async () => {
   await render(slot(), 'bat')
+  await act(async () => buttonByText('只看可遇到')!.click())
   expect(aside().textContent).toContain('Bats')
   expect(aside().textContent).not.toContain('Slime*2')
 })
@@ -196,11 +198,13 @@ test('starts with the remembered enemy count and lists it in the confirm', async
 
 const reachable = { ...data, troopEncounters: { 2: [{ mapId: 7, weight: 5, regionSet: [2] }] }, troopRefs: {}, names: { ...data.names, maps: Object.assign([], { 7: 'Cave' }) } }
 
-test('"encounterable only" keeps troops met on a map or called by an event', async () => {
+test('"encounterable only" is on by default and keeps troops met on a map or called by an event', async () => {
   await render(slot({ data: reachable }))
-  await act(async () => buttonByText('只看可遇到')!.click())
+  expect(buttonByText('只看可遇到')!.getAttribute('aria-checked')).toBe('true')
   expect(aside().textContent).toContain('Bats')
   expect(aside().textContent).not.toContain('Slime*2')
+  await act(async () => buttonByText('只看可遇到')!.click())
+  expect(aside().textContent).toContain('Slime*2')
 })
 
 test('detail shows where the troop appears (jumps to the map), callers and battle events', async () => {
@@ -214,44 +218,15 @@ test('detail shows where the troop appears (jumps to the map), callers and battl
   expect(document.body.textContent).toContain('没有战斗事件')
 })
 
-const battle = {
-  ended: false,
-  enemies: [
-    { index: 0, enemyId: 1, name: 'Slime A', hp: 40, mhp: 100, alive: true, appeared: true },
-    { index: 1, enemyId: 1, name: 'Slime B', hp: 0, mhp: 100, alive: false, appeared: true },
-  ],
-}
-const rowButton = (name: string) => [...document.querySelectorAll('li')].find((li) => li.textContent?.includes(name))!.querySelector('button') as HTMLButtonElement
-
-test('current battle: transform an enemy through the picker', async () => {
-  const s = slot({ onMap: false, battle })
-  await render(s)
-  expect(document.body.textContent).toContain('当前战斗')
-  expect(document.body.textContent).toContain('HP 40/100')
-  expect(rowButton('Slime B').disabled).toBe(true)
-  await act(async () => rowButton('Slime A').click())
-  expect(document.body.textContent).toContain('变身后 HP / MP 回满')
-  await act(async () => [...document.querySelectorAll('button')].find((b) => b.textContent?.includes('#2') && b.textContent.includes('Bat'))!.click())
-  expect(s.onAct).toHaveBeenCalledWith({ op: 'enemyTransform', index: 0, fromEnemyId: 1, enemyId: 2 })
-  expect(document.body.textContent).toContain('已变成「Bat」')
-})
-
-test('current battle: add an enemy; disabled when full or ended', async () => {
-  const s = slot({ onMap: false, battle })
-  await render(s)
-  await act(async () => (document.querySelector('button[aria-label="追加敌人"]') as HTMLButtonElement).click())
-  const search = document.querySelector('input[aria-label="搜索敌人名称或编号"]') as HTMLInputElement
-  expect(search).toBeTruthy()
-  await act(async () => [...document.querySelectorAll('button')].find((b) => b.textContent?.includes('#1') && b.textContent.includes('Slime'))!.click())
-  expect(s.onAct).toHaveBeenCalledWith({ op: 'enemyAdd', enemyId: 1 })
-
-  await act(async () => root!.unmount())
-  const full = { ended: false, enemies: Array.from({ length: 8 }, (_, i) => ({ ...battle.enemies[0]!, index: i, name: `Slime ${i}` })) }
-  await render(slot({ onMap: false, battle: full }))
-  expect((document.querySelector('button[aria-label="追加敌人"]') as HTMLButtonElement).disabled).toBe(true)
-
-  await act(async () => root!.unmount())
-  await render(slot({ onMap: false, battle: { ...battle, ended: true } }))
-  expect((document.querySelector('button[aria-label="追加敌人"]') as HTMLButtonElement).disabled).toBe(true)
-  expect(rowButton('Slime A').disabled).toBe(true)
+test('the troop page no longer hosts the current battle', async () => {
+  const battle = {
+    ended: false,
+    enemies: [{ index: 0, enemyId: 1, name: 'Slime A', hp: 40, mhp: 100, alive: true, appeared: true }],
+    party: [],
+    partyIds: [],
+    partyMax: 4,
+    settling: false,
+  }
+  await render(slot({ onMap: false, battle }))
+  expect(document.querySelector('input[aria-label="当前 HP Slime A"]')).toBeNull()
 })

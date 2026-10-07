@@ -25,6 +25,35 @@ describe('game-edit-sync speed ops', () => {
     expect(fieldsForEditCmd(add)).toEqual(['action:enemyAdd'])
     expect(expectForEditCmd(transform)).toBe(true)
     expect(expectForEditCmd(add)).toBe(true)
+    const kill: GameEditCmd = { type: 'edit.cmd', cmdId: 'c', op: 'enemyKill', index: 1, fromEnemyId: 1 }
+    expect(fieldsForEditCmd(kill)).toEqual(['action:enemyKill:1'])
+    expect(expectForEditCmd(kill)).toBe(true)
+    const revive: GameEditCmd = { type: 'edit.cmd', cmdId: 'f', op: 'enemyRevive', index: 1, fromEnemyId: 1 }
+    expect(fieldsForEditCmd(revive)).toEqual(['action:enemyRevive:1'])
+    const recover: GameEditCmd = { type: 'edit.cmd', cmdId: 'r', op: 'enemyRecover', index: 1, fromEnemyId: 1 }
+    expect(fieldsForEditCmd(recover)).toEqual(['action:enemyRecover:1'])
+    expect(expectForEditCmd(recover)).toBe(true)
+    expect(expectForEditCmd(revive)).toBe(true)
+    const hp: GameEditCmd = { type: 'edit.cmd', cmdId: 'd', op: 'enemyHp', index: 0, fromEnemyId: 1, hp: 5 }
+    expect(fieldsForEditCmd(hp)).toEqual(['action:enemyHp:0'])
+    expect(expectForEditCmd(hp)).toBe(true)
+    const mhp: GameEditCmd = { type: 'edit.cmd', cmdId: 'e', op: 'enemyMhp', index: 0, fromEnemyId: 1, mhp: 50 }
+    expect(fieldsForEditCmd(mhp)).toEqual(['action:enemyMhp:0'])
+    expect(expectForEditCmd(mhp)).toBe(true)
+  })
+
+  it('party battle ops are per-actor actions', () => {
+    const vital: GameEditCmd = { type: 'edit.cmd', cmdId: 'f', op: 'actorVital', actorId: 3, key: 'mmp', value: 80 }
+    expect(fieldsForEditCmd(vital)).toEqual(['action:actorVital:3:mmp'])
+    expect(expectForEditCmd(vital)).toBe(true)
+    const revive: GameEditCmd = { type: 'edit.cmd', cmdId: 'g', op: 'actorRevive', actorId: 3 }
+    expect(fieldsForEditCmd(revive)).toEqual(['action:actorRevive:3'])
+    const recover: GameEditCmd = { type: 'edit.cmd', cmdId: 'h', op: 'actorRecover', actorId: 3 }
+    expect(fieldsForEditCmd(recover)).toEqual(['action:actorRecover:3'])
+    const join: GameEditCmd = { type: 'edit.cmd', cmdId: 'j', op: 'actorJoin', actorId: 5 }
+    expect(fieldsForEditCmd(join)).toEqual(['action:actorJoin:5'])
+    expect(expectForEditCmd(join)).toBe(true)
+    expect(expectForEditCmd(recover)).toBe(true)
   })
 
   it('pending gameSpeed keeps the optimistic value until the remote matches', () => {

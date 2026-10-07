@@ -11,7 +11,7 @@ import {
   setGameHotkeysCache,
   toolPanelFromHotkeyTarget,
 } from '@/components/game-edit/run-hotkeys'
-import { type ActorPaneId, isActorPaneId, isEditTab, isEventsTab, isTabId, OVERLAY_MAIN_TABS, parseTabId, type TabId } from '@/components/game-edit/tabs'
+import { type ActorPaneId, isActorPaneId, isEditTab, isTabId, OVERLAY_MAIN_TABS, parseTabId, type TabId, usesEventsSlot } from '@/components/game-edit/tabs'
 import {
   type ActorDraft,
   type ActorVitalLockKind,
@@ -131,7 +131,7 @@ function scopeForTab(tab: TabId): LiveSessionScope {
 }
 
 function tabNeedsCatalog(tab: TabId): boolean {
-  return tab !== 'run' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings' && tab !== 'about' && tab !== 'data' && !isEventsTab(tab)
+  return tab !== 'run' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings' && tab !== 'about' && tab !== 'data' && !usesEventsSlot(tab)
 }
 
 /** In-game React panel: shared GameEditWorkbench + runtime data */

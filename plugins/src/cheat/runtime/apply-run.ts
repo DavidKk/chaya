@@ -3,6 +3,7 @@
  */
 import type { RunActionId, RunFlagKey } from '@/components/game-edit/types'
 
+import { settleBattleEnd } from '../session/live-battle'
 import { Cheats } from './cheats'
 import { RunCheats, type ScenePushId } from './cheats-run'
 
@@ -64,11 +65,15 @@ export function applyRunAction(id: RunActionId) {
   else if (id === 'battle:escape') Cheats.battleEscape()
   else if (id === 'battle:defeat') Cheats.battleDefeat()
   else if (id === 'battle:abort') Cheats.battleAbort()
+  else if (id === 'battle:settle') settleBattleEnd({ force: true })
   else if (id === 'battle:enemyHp1') RunCheats.setEnemyHp('one')
   else if (id === 'battle:enemyHpMax') RunCheats.setEnemyHp('max')
   else if (id === 'battle:partyHeal') Cheats.healParty()
   else if (id === 'battle:partyHp1') RunCheats.setPartyHp('one')
-  else if (id === 'battle:partyHp0') RunCheats.setPartyHp('zero')
+  else if (id === 'battle:partyHp0') {
+    RunCheats.setPartyHp('zero')
+    settleBattleEnd()
+  }
 }
 
 /** Scene-change actions cover the panel; caller may close UI first */

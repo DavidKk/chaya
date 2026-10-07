@@ -5,6 +5,7 @@ export type EventsMessages = {
   tabCommon: string
   tabMap: string
   tabTroop: string
+  tabBattle: string
   listAria: string
   detailAria: string
   filterAria: string
@@ -89,6 +90,7 @@ export type EventsMessages = {
   original: string
   map: EventsMapMessages
   troop: EventsTroopMessages
+  battle: EventsBattleMessages
   cmd: Record<ScriptKey | 'textBy', string>
 }
 
@@ -136,8 +138,6 @@ export type EventsTroopMessages = {
   countOriginal: string
   countHint: string
   confirmCount: string
-  currentBattle: string
-  enemyHp: string
   enemyDown: string
   enemyHidden: string
   transform: string
@@ -154,7 +154,20 @@ export type EventsTroopMessages = {
   transformOk: string
   addOk: string
   battleFail: string
-  manageEnemies: string
+  kill: string
+  killOk: string
+  revive: string
+  reviveOk: string
+  copy: string
+  hpEdit: string
+  hpOk: string
+  mhpEdit: string
+  mhpOk: string
+  colEnemy: string
+  colHp: string
+  colStatus: string
+  colActions: string
+  statusOk: string
   empty: string
   emptyMsg: string
   detailAria: string
@@ -219,4 +232,39 @@ export type EventsMapMessages = {
   emptyMap: string
   notCurrentRunHint: string
   variableRefs: string
+}
+
+export type EventsBattleMessages = {
+  aria: string
+  emptyTitle: string
+  emptyMsg: string
+  goTroop: string
+  flow: string
+  enemies: string
+  party: string
+  colActor: string
+  colMp: string
+  colTp: string
+  tpHint: string
+  mpEdit: string
+  mmpEdit: string
+  tpEdit: string
+  knockOut: string
+  knockOutOk: string
+  recover: string
+  recoverOk: string
+  setOk: string
+  locked: string
+  godOn: string
+  openActor: string
+  openBattle: string
+  runMoved: string
+  dot: string
+  stuck: string
+  join: string
+  joinNote: string
+  joinFull: string
+  joinOk: string
+  joinSearch: string
+  joinEmpty: string
 }

@@ -13,8 +13,12 @@ type Props = {
   open: boolean
   title: string
   note: string
-  /** `names.enemies` (id → translated name) */
+  /** `names.enemies` (id → translated name); also used with `names.actors` */
   enemies: readonly string[]
+  /** Ids left out of the list */
+  exclude?: readonly number[]
+  search?: string
+  empty?: string
   /** Shadow root of the in-game overlay; the page uses document.body */
   portalContainer?: Element | null
   onPick: (enemyId: number) => void
@@ -24,7 +28,7 @@ type Props = {
 const MAX_ROWS = 200
 
 /** Search every enemy by id or name and pick one */
-export function EnemyPicker({ open, title, note, enemies, portalContainer, onPick, onClose }: Props) {
+export function EnemyPicker({ open, title, note, enemies, exclude, search, empty, portalContainer, onPick, onClose }: Props) {
   const t = useT()
   const [query, setQuery] = useState('')
   const [showUnnamed, setShowUnnamed] = useState(false)
@@ -37,6 +41,7 @@ export function EnemyPicker({ open, title, note, enemies, portalContainer, onPic
     const q = query.trim().toLowerCase()
     const out: Array<{ id: number; name: string }> = []
     for (let id = 1; id < enemies.length; id++) {
+      if (exclude?.includes(id)) continue
       const name = enemies[id] ?? ''
       if (!name && !showUnnamed) continue
       if (q && String(id) !== q && !name.toLowerCase().includes(q)) continue
@@ -44,7 +49,7 @@ export function EnemyPicker({ open, title, note, enemies, portalContainer, onPic
       out.push({ id, name })
     }
     return { matches: out, more: false }
-  }, [enemies, query, showUnnamed])
+  }, [enemies, exclude, query, showUnnamed])
 
   return (
     <Modal open={open} title={title} description={note} onClose={onClose} portalContainer={portalContainer} panelClassName="w-[24rem] max-w-full">
@@ -54,8 +59,8 @@ export function EnemyPicker({ open, title, note, enemies, portalContainer, onPic
             search
             className="min-w-0 flex-1"
             value={query}
-            placeholder={t('events.troop.pickerSearch')}
-            aria-label={t('events.troop.pickerSearch')}
+            placeholder={search ?? t('events.troop.pickerSearch')}
+            aria-label={search ?? t('events.troop.pickerSearch')}
             onChange={(event) => setQuery(event.target.value)}
           />
           <button
@@ -83,7 +88,7 @@ export function EnemyPicker({ open, title, note, enemies, portalContainer, onPic
             {more ? <p className="m-0 px-2 py-2 text-[0.7rem] text-ink-soft">{t('events.troop.pickerMore', { max: MAX_ROWS })}</p> : null}
           </ScrollArea>
         ) : (
-          <p className="m-0 py-6 text-center text-xs text-ink-soft">{t('events.troop.pickerEmpty')}</p>
+          <p className="m-0 py-6 text-center text-xs text-ink-soft">{empty ?? t('events.troop.pickerEmpty')}</p>
         )}
       </div>
     </Modal>

@@ -13,7 +13,6 @@ import {
   editTroopHref,
   emptySession,
   GameEditWorkbench,
-  isEventsTab,
   loadGameStoredHotkeys,
   loadGlobalHotkeys,
   parseActorIdSegment,
@@ -24,6 +23,7 @@ import {
   saveGlobalHotkeys,
   type SessionState,
   type TabId,
+  usesEventsSlot,
 } from '@/components/game-edit'
 import type { EventsSlot } from '@/components/game-edit/events/types'
 import { useEventsData } from '@/components/game-edit/events/useEventsData'
@@ -49,7 +49,7 @@ export function GameEditPage() {
   const mapEventId = tab === 'map' && mapId != null ? parseActorIdSegment(params.pane?.[1]) : null
   const mapEventPage = mapEventId != null ? parseActorIdSegment(params.pane?.[2]) : null
   const troopId = tab === 'troop' ? parseActorIdSegment(params.pane?.[0]) : null
-  const events = useEventsData({ enabled: isEventsTab(tab), mapId })
+  const events = useEventsData({ enabled: usesEventsSlot(tab), mapId })
   const filter = searchParams.get('q') ?? ''
   const onlyOwned = parseFlag01(searchParams.get('owned'), false)
   const onlyNamed = parseFlag01(searchParams.get('named'), true)

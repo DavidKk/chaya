@@ -124,9 +124,7 @@ export type EditMessages = {
   fixTitle: string
   fixDesc: string
   battleTitle: string
-  battleDesc: string
   previewDisabled: string
-  battlePreviewDisabled: string
   groupCharacter: string
   groupSystem: string
   groupOther: string
@@ -222,6 +220,7 @@ export type EditMessages = {
   actEscape: string
   actDefeat: string
   actAbort: string
+  actSettle: string
   actEnemyHp1: string
   actEnemyHpMax: string
   actPartyHeal: string
@@ -231,6 +230,7 @@ export type EditMessages = {
   actEscapeLong: string
   actDefeatLong: string
   actAbortLong: string
+  actSettleLong: string
   actEnemyHp1Long: string
   actEnemyHpMaxLong: string
   actPartyHealLong: string
@@ -259,6 +259,7 @@ export type EditMessages = {
   actEscapeDesc: string
   actDefeatDesc: string
   actAbortDesc: string
+  actSettleDesc: string
   actEnemyHp1Desc: string
   actEnemyHpMaxDesc: string
   actPartyHealDesc: string

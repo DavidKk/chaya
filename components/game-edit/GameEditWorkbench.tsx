@@ -46,6 +46,7 @@ import {
 
 /** 非默认 tab 懒加载，切到才解析对应模块 */
 const ActorEditPane = lazy(() => import('./ActorEditPane').then((m) => ({ default: m.ActorEditPane })))
+const BattlePane = lazy(() => import('./battle/BattlePane').then((m) => ({ default: m.BattlePane })))
 const AssistHotkeysView = lazy(() => import('@/components/input-assistance/AssistHotkeysPage').then((m) => ({ default: m.AssistHotkeysView })))
 const GameEditTransPane = lazy(() => import('./GameEditTransPane').then((m) => ({ default: m.GameEditTransPane })))
 const GameEditLogsPane = lazy(() => import('./GameEditLogsPane').then((m) => ({ default: m.GameEditLogsPane })))
@@ -338,14 +339,18 @@ export function GameEditWorkbench({
     >
       {surface === 'overlay' ? <GameEditMainNav tab={tab} lastEditTab={lastEditTab} setTab={setTab} closeButton={closeButton} /> : null}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {surface === 'page' || showEditNav ? <GameEditTabNav tab={tab} setTab={setTab} surface={surface} /> : null}
+        {surface === 'page' || showEditNav ? (
+          <GameEditTabNav tab={tab} setTab={setTab} surface={surface} dots={events?.battle ? { battle: t('events.battle.dot') } : undefined} />
+        ) : null}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {surface === 'page' || showEditNav ? (
             <div className={panelHead}>
               <PanelHeadTitle title={activeTab ? t(activeTab.labelKey) : t('edit.tabEdit')} description={tab === 'data' ? t('data.panelDesc') : t('edit.panelDesc')} />
               <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-8 flex-1 shrink justify-end overflow-hidden')}>
                 {showTableFilters || (eventsTab && eventSourceCount > 0) ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
-                {tab === 'data' || tab === 'common' || tab === 'map' || tab === 'troop' ? <div ref={setPaneHead} className="flex min-w-0 shrink items-center" /> : null}
+                {tab === 'data' || tab === 'common' || tab === 'map' || tab === 'troop' || tab === 'battle' ? (
+                  <div ref={setPaneHead} className="flex min-w-0 shrink items-center" />
+                ) : null}
                 {showTableFilters ? (
                   <ScrollArea
                     indicator="horizontal"
@@ -431,7 +436,7 @@ export function GameEditWorkbench({
                   onExpRateChange={onExpRateChange}
                   onFlagChange={onRunFlagChange}
                   onAction={onRunAction}
-                  onOpenTroops={events?.battle ? () => setTab('troop') : undefined}
+                  onOpenBattle={() => setTab('battle')}
                 />
               </ScrollArea>
             ) : tab === 'trans' ? (
@@ -476,6 +481,24 @@ export function GameEditWorkbench({
               ) : (
                 <EmptyState title={t('data.needLink')} message={t('data.needLinkMsg')} />
               )
+            ) : tab === 'battle' ? (
+              <TabSuspense tab={tab}>
+                <BattlePane
+                  slot={events}
+                  session={session}
+                  onRunAction={onRunAction}
+                  onOpenTroops={() => setTab('troop')}
+                  headSlot={paneHead}
+                  onOpenActor={
+                    setActorId
+                      ? (id) => {
+                          setTab('actor')
+                          setActorId(id)
+                        }
+                      : undefined
+                  }
+                />
+              </TabSuspense>
             ) : eventsTab ? (
               <TabSuspense tab={tab}>
                 <EventsBody tab={tab} slot={events} filter={filter} session={session} headSlot={paneHead} toolRequest={agentRequest} showMiniMap={surface !== 'overlay'} />

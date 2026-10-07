@@ -4,6 +4,7 @@ import type { MessageKey } from '@/lib/i18n'
 
 export const TABS = [
   { id: 'run', labelKey: 'edit.run' },
+  { id: 'battle', labelKey: 'events.tabBattle' },
   { id: 'bag', labelKey: 'edit.bag' },
   { id: 'item', labelKey: 'edit.item' },
   { id: 'weapon', labelKey: 'edit.weapon' },
@@ -160,6 +161,11 @@ export function editTroopHref(id: number | null | undefined): string {
 /** Pages built from the event index (common events, maps, troops) */
 export function isEventsTab(tab: TabId): tab is 'common' | 'map' | 'troop' {
   return tab === 'common' || tab === 'map' || tab === 'troop'
+}
+
+/** Tabs that read the events slot (event index, live scene, battle state) */
+export function usesEventsSlot(tab: TabId): boolean {
+  return isEventsTab(tab) || tab === 'battle'
 }
 
 /** 控制台作弊页路径，如 `/cheat/run`；角色默认进 `/cheat/actor` */

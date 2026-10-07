@@ -48,8 +48,8 @@ type Props = {
   onExpRateChange: (rate: number) => void
   onFlagChange: (key: RunFlagKey, on: boolean) => void
   onAction: (id: RunActionId) => void
-  /** Opens 修改 › 敌群 (current battle block) */
-  onOpenTroops?: () => void
+  /** Opens 修改 › 战斗 */
+  onOpenBattle?: () => void
 }
 
 function clampRate(n: number) {
@@ -136,36 +136,6 @@ const FIX_GROUPS: ActionGroup[] = [
   },
 ]
 
-const BATTLE_GROUPS: ActionGroup[] = [
-  {
-    labelKey: 'edit.groupEndBattle',
-    cols: 4,
-    items: [
-      { id: 'battle:victory', labelKey: 'edit.actVictory', variant: 'ok' },
-      { id: 'battle:escape', labelKey: 'edit.actEscape' },
-      { id: 'battle:defeat', labelKey: 'edit.actDefeat', variant: 'fail' },
-      { id: 'battle:abort', labelKey: 'edit.actAbort' },
-    ],
-  },
-  {
-    labelKey: 'edit.groupEnemy',
-    cols: 2,
-    items: [
-      { id: 'battle:enemyHp1', labelKey: 'edit.actEnemyHp1' },
-      { id: 'battle:enemyHpMax', labelKey: 'edit.actEnemyHpMax' },
-    ],
-  },
-  {
-    labelKey: 'edit.groupParty',
-    cols: 3,
-    items: [
-      { id: 'battle:partyHeal', labelKey: 'edit.actPartyHeal', variant: 'ok' },
-      { id: 'battle:partyHp1', labelKey: 'edit.actPartyHp1' },
-      { id: 'battle:partyHp0', labelKey: 'edit.actPartyHp0', variant: 'fail' },
-    ],
-  },
-]
-
 const gridCols = {
   2: 'grid-cols-2',
   3: 'grid-cols-3',
@@ -201,28 +171,30 @@ function ActionCard({
         </span>
         <span className={formDesc}>{description}</span>
       </div>
-      <div className="flex flex-col gap-3">
-        {groups.map((g) => (
-          <div key={g.labelKey} className="flex flex-col gap-2">
-            <span className="text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase">{t(g.labelKey)}</span>
-            <div className={cn('grid gap-2', gridCols[g.cols ?? 2])}>
-              {g.items.map((a) => (
-                <Button
-                  key={a.id}
-                  className="w-full min-w-0 px-2"
-                  variant={a.variant ?? 'default'}
-                  size="md"
-                  disabled={disabled}
-                  tooltip={disabled ? disabledReason : undefined}
-                  onClick={() => onAction(a.id)}
-                >
-                  {t(a.labelKey)}
-                </Button>
-              ))}
+      {groups.length ? (
+        <div className="flex flex-col gap-3">
+          {groups.map((g) => (
+            <div key={g.labelKey} className="flex flex-col gap-2">
+              <span className="text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase">{t(g.labelKey)}</span>
+              <div className={cn('grid gap-2', gridCols[g.cols ?? 2])}>
+                {g.items.map((a) => (
+                  <Button
+                    key={a.id}
+                    className="w-full min-w-0 px-2"
+                    variant={a.variant ?? 'default'}
+                    size="md"
+                    disabled={disabled}
+                    tooltip={disabled ? disabledReason : undefined}
+                    onClick={() => onAction(a.id)}
+                  >
+                    {t(a.labelKey)}
+                  </Button>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -239,12 +211,11 @@ export function GameEditRunSettings({
   onExpRateChange,
   onFlagChange,
   onAction,
-  onOpenTroops,
+  onOpenBattle,
 }: Props) {
   const t = useT()
   const goldLockTip = value.goldLocked ? t('edit.goldUnlockTip') : t('edit.goldLockTip')
   const previewDisabled = t('edit.previewDisabled')
-  const battlePreviewDisabled = t('edit.battlePreviewDisabled')
   const readOnlyTip = t('events.runNeedLink')
   const canAct = actionsEnabled && !readOnly
 
@@ -400,12 +371,12 @@ export function GameEditRunSettings({
         />
         <ActionCard
           title={t('edit.battleTitle')}
-          description={t('edit.battleDesc')}
-          groups={BATTLE_GROUPS}
+          description={t('events.battle.runMoved')}
+          groups={[]}
           disabled={!canAct}
-          disabledReason={readOnly ? readOnlyTip : battlePreviewDisabled}
+          disabledReason={readOnly ? readOnlyTip : previewDisabled}
           onAction={onAction}
-          extra={onOpenTroops ? <TextAction onClick={onOpenTroops}>{t('events.troop.manageEnemies')}</TextAction> : null}
+          extra={onOpenBattle ? <TextAction onClick={onOpenBattle}>{t('events.battle.openBattle')}</TextAction> : null}
           t={t}
         />
       </div>

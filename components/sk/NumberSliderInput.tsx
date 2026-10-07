@@ -12,8 +12,11 @@ export type NumberSliderInputProps = Omit<NumberInputProps, 'min' | 'max'> & {
   max: number
   /** 滑块与提交时对齐的步长 */
   step?: number
+  /** 拖拽松手（或滑块键盘调整后松键）时回调最终值；只在结束时提交的场景用 */
+  onSlideEnd?: (value: number) => void
 }
 
+const SLIDE_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'])
 const SLIDER_PORTAL_ATTR = 'data-chaya-slider-root'
 export const GAME_EDIT_PANEL_HIDE_EVENT = 'chaya:game-edit-panel-hide'
 
@@ -36,6 +39,11 @@ function resolveSliderPortal(anchor: Element | null): HTMLElement {
   return document.body
 }
 
+/** Parts marked `data-slider-ignore` (e.g. a second input in `endAction`) do not open the slider */
+function sliderIgnored(target: EventTarget | null) {
+  return target instanceof Element && !!target.closest('[data-slider-ignore]')
+}
+
 function snapToStep(value: number, min: number, max: number, step: number) {
   if (!Number.isFinite(value)) return min
   const raw = min + Math.round((value - min) / step) * step
@@ -51,7 +59,7 @@ const rangeThumb =
  * 有界数字：输入框 + 聚焦时上浮 range 滑块（对齐工单 NumberRangeInput 单值用法）。
  * 无限域请用 NumberInput。
  */
-export function NumberSliderInput({ value, onValueChange, min, max, step = 1, disabled, className, ...rest }: NumberSliderInputProps) {
+export function NumberSliderInput({ value, onValueChange, onSlideEnd, min, max, step = 1, disabled, className, ...rest }: NumberSliderInputProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
@@ -61,9 +69,14 @@ export function NumberSliderInput({ value, onValueChange, min, max, step = 1, di
   const safeStep = Number.isFinite(step) && step > 0 ? step : 1
   const span = max - min
 
+  const lastSlid = useRef(value)
+  const slideEnd = useRef(onSlideEnd)
+  slideEnd.current = onSlideEnd
   const commit = useCallback(
     (next: number) => {
-      onValueChange(snapToStep(next, min, max, safeStep))
+      const snapped = snapToStep(next, min, max, safeStep)
+      lastSlid.current = snapped
+      onValueChange(snapped)
     },
     [max, min, onValueChange, safeStep]
   )
@@ -153,6 +166,7 @@ export function NumberSliderInput({ value, onValueChange, min, max, step = 1, di
     if (!dragging) return
     function stop() {
       setDragging(false)
+      slideEnd.current?.(lastSlid.current)
     }
     window.addEventListener('pointerup', stop)
     window.addEventListener('pointercancel', stop)
@@ -200,7 +214,14 @@ export function NumberSliderInput({ value, onValueChange, min, max, step = 1, di
                 aria-label={typeof rest['aria-label'] === 'string' ? `${rest['aria-label']} 滑块` : '数值滑块'}
                 onPointerDown={(e) => {
                   e.currentTarget.focus()
+                  lastSlid.current = sliderValue
                   setDragging(true)
+                }}
+                onKeyDown={(e) => {
+                  if (SLIDE_KEYS.has(e.key)) lastSlid.current = sliderValue
+                }}
+                onKeyUp={(e) => {
+                  if (SLIDE_KEYS.has(e.key)) onSlideEnd?.(lastSlid.current)
                 }}
                 onChange={(e) => commit(Number(e.target.value))}
               />
@@ -214,11 +235,11 @@ export function NumberSliderInput({ value, onValueChange, min, max, step = 1, di
     <div
       ref={rootRef}
       className={cn('inline-flex min-w-0 max-w-full [&>*]:w-full [&>*]:min-w-0', className)}
-      onFocusCapture={() => {
-        if (canSlide) setOpen(true)
+      onFocusCapture={(e) => {
+        if (canSlide) setOpen(!sliderIgnored(e.target))
       }}
-      onPointerDown={() => {
-        if (canSlide) setOpen(true)
+      onPointerDown={(e) => {
+        if (canSlide) setOpen(!sliderIgnored(e.target))
       }}
     >
       <NumberInput

@@ -15,7 +15,9 @@ export function LegalNotice({ kind, link = true, className }: { kind: LegalNotic
   const t = useT()
   return (
     <p role="note" aria-label={t('legal.noticeAria')} className={cn('m-0 flex items-start gap-1.5 text-xs leading-relaxed text-ink-soft', className)}>
-      <Info size={13} aria-hidden className="mt-[0.2rem] shrink-0" />
+      <span aria-hidden className="flex h-[1.625em] shrink-0 items-center">
+        <Info size={13} />
+      </span>
       <span className="min-w-0">
         {t(`legal.${kind}`)}
         {link ? (

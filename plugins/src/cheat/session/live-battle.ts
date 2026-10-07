@@ -4,6 +4,10 @@
  */
 import { type BattleState, ENEMY_SIZE_GUESS, type EnemyRect, MAX_BATTLE_ENEMIES, pickEnemySpot, pickEnemySpots } from '@/lib/game/battle'
 
+import { Cheats } from '../runtime/cheats'
+import { writeMaxParam } from './battle-param'
+import { readParty, readPartyRoster } from './live-party'
+
 type Bitmap = { width: number; height: number; isReady?: () => boolean }
 type Enemy = {
   enemyId: () => number
@@ -20,6 +24,12 @@ type Enemy = {
   transform: (enemyId: number) => void
   setHp?: (hp: number) => void
   setMp?: (mp: number) => void
+  isDead?: () => boolean
+  paramBase?: (paramId: number) => number
+  paramPlus?: (paramId: number) => number
+  addParam?: (paramId: number, value: number) => void
+  param?: (paramId: number) => number
+  performCollapse?: () => void
   onBattleStart?: (advantageous?: boolean) => void
   _screenX?: number
   _screenY?: number
@@ -27,13 +37,31 @@ type Enemy = {
 type EnemySprite = { _battler?: Enemy | null; bitmap?: Bitmap | null; setHome?: (x: number, y: number) => void }
 type Container = { children?: unknown[]; addChild: (child: unknown) => void; removeChild: (child: unknown) => void }
 type Spriteset = { _battleField?: Container; _enemySprites?: EnemySprite[]; update?: () => void }
-type Troop = { _enemies: Enemy[]; _namesCount?: Record<string, number>; members: () => Enemy[]; makeUniqueNames?: () => void; isAllDead?: () => boolean }
+type Troop = {
+  _enemies: Enemy[]
+  _namesCount?: Record<string, number>
+  members: () => Enemy[]
+  makeUniqueNames?: () => void
+  isAllDead?: () => boolean
+  isEventRunning?: () => boolean
+}
+type InputWindow = { active?: boolean; deactivate?: () => void; hide?: () => void }
 
 const g = () =>
   globalThis as unknown as {
-    SceneManager?: { _scene?: { _spriteset?: Spriteset; _enemyWindow?: { active?: boolean; refresh?: () => void } } | null; _nextScene?: unknown }
+    SceneManager?: {
+      _scene?: {
+        _spriteset?: Spriteset
+        _enemyWindow?: InputWindow & { refresh?: () => void }
+        _actorWindow?: InputWindow
+        _skillWindow?: InputWindow
+        _itemWindow?: InputWindow
+      } | null
+      _nextScene?: unknown
+    }
     Scene_Battle?: new () => unknown
-    BattleManager?: { _phase?: string }
+    BattleManager?: { _phase?: string; processVictory?: () => void; processDefeat?: () => void }
+    $gameParty?: { isAllDead?: () => boolean }
     $gameTroop?: Troop
     $dataEnemies?: (object | null)[]
     Game_Enemy?: new (enemyId: number, x: number, y: number) => Enemy
@@ -43,15 +71,22 @@ const g = () =>
 
 const UNSUPPORTED = '该游戏的战斗画面不支持追加敌人'
 
-function battleScene() {
+export function battleScene() {
   const { SceneManager, Scene_Battle } = g()
   const scene = SceneManager?._scene
   return scene && Scene_Battle && scene instanceof Scene_Battle ? scene : null
 }
 
+const ENDING_PHASES = new Set(['battleEnd', 'aborting'])
+
+/** The engine is already wrapping the battle up */
+function battleSettling(): boolean {
+  return ENDING_PHASES.has(String(g().BattleManager?._phase))
+}
+
+/** Settling, or every enemy is down (the engine may not have noticed yet) */
 function battleEnded(): boolean {
-  const phase = g().BattleManager?._phase
-  return phase === 'battleEnd' || phase === 'aborting' || !!g().$gameTroop?.isAllDead?.()
+  return battleSettling() || !!g().$gameTroop?.isAllDead?.()
 }
 
 /** Only while the battle scene is active */
@@ -68,27 +103,113 @@ export function readBattleState(): BattleState | null {
       alive: enemy.isAlive() || enemy.isHidden(),
       appeared: !enemy.isHidden(),
     }))
-    return { enemies, ended: battleEnded() }
+    return { enemies, party: readParty(), ...readPartyRoster(), ended: battleEnded(), settling: battleSettling() }
   } catch {
     return null
   }
 }
 
-function assertBattleEditable(enemyId: number) {
+export function assertBattleEditable(enemyId?: number) {
   if (!battleScene()) throw new Error('只能在战斗中使用')
   if (g().SceneManager?._nextScene) throw new Error('场景切换中，请稍后再试')
   if (battleEnded()) throw new Error('战斗已结束')
   if (!g().$gameTroop) throw new Error('游戏未就绪')
-  if (!(enemyId > 0 && g().$dataEnemies?.[enemyId])) throw new Error(`敌人 ${enemyId} 不存在`)
+  if (enemyId != null && !(enemyId > 0 && g().$dataEnemies?.[enemyId])) throw new Error(`敌人 ${enemyId} 不存在`)
+}
+
+/**
+ * The engine only checks for victory / defeat at turn start, so a side wiped out during command input
+ * would leave the command menu up. Settle it the way `checkBattleEnd` would.
+ * `force` (the 结算胜负 button) runs in any live phase and does not wait for troop events.
+ * Without `force`, invincibility suppresses defeat: it restores the party on its next tick.
+ * Returns whether the battle was ended; outside battle it does nothing.
+ */
+export function settleBattleEnd({ force = false }: { force?: boolean } = {}): boolean {
+  const { BattleManager: bm, $gameTroop: troop, $gameParty: party } = g()
+  if (!bm || !battleScene()) return false
+  if (force ? !bm._phase || ENDING_PHASES.has(bm._phase) : bm._phase !== 'input' || troop?.isEventRunning?.()) return false
+  const defeated = party?.isAllDead?.() && (force || !Cheats.getGod())
+  const result = troop?.isAllDead?.() ? bm.processVictory : defeated ? bm.processDefeat : undefined
+  if (typeof result !== 'function') return false
+  const scene = battleScene()
+  for (const w of [scene?._enemyWindow, scene?._actorWindow, scene?._skillWindow, scene?._itemWindow]) {
+    if (!w?.active) continue
+    w.deactivate?.()
+    w.hide?.()
+  }
+  result.call(bm)
+  return true
+}
+
+/** The enemy at `index`, still the one the page saw, appeared and alive */
+function fieldEnemy(index: number, fromEnemyId: number): Enemy {
+  const enemy = g().$gameTroop!.members()[index]
+  if (!enemy || enemy.enemyId() !== fromEnemyId) throw new Error('场上敌人已变化，请重试')
+  if (enemy.isHidden()) throw new Error('该敌人尚未出现')
+  if (!enemy.isAlive()) throw new Error('该敌人已倒下')
+  return enemy
+}
+
+/** Clamped to 0..mhp. HP 0 adds the death state and plays the collapse like a normal defeat; a wiped troop is settled via `settleBattleEnd` */
+export function writeEnemyHp({ index, fromEnemyId, hp }: { index: number; fromEnemyId: number; hp: number }): void {
+  assertBattleEditable()
+  const enemy = fieldEnemy(index, fromEnemyId)
+  if (typeof enemy.setHp !== 'function') throw new Error('游戏未就绪')
+  if (!Number.isFinite(hp)) throw new Error('HP 无效')
+  const next = Math.max(0, Math.min(Math.floor(hp), enemy.mhp))
+  enemy.setHp(next)
+  if (next === 0 && (enemy.isDead?.() ?? true)) {
+    enemy.performCollapse?.()
+    settleBattleEnd()
+  }
+}
+
+/** Max HP through the additive param bonus (rates / buffs kept), so it survives `refresh`; current HP is clamped by the engine */
+export function writeEnemyMhp({ index, fromEnemyId, mhp }: { index: number; fromEnemyId: number; mhp: number }): void {
+  assertBattleEditable()
+  writeMaxParam(fieldEnemy(index, fromEnemyId), 0, mhp)
+}
+
+export function killEnemy({ index, fromEnemyId }: { index: number; fromEnemyId: number }): void {
+  writeEnemyHp({ index, fromEnemyId, hp: 0 })
+}
+
+/** The enemy at `index`, still the one the page saw and appeared; may be fallen */
+function shownEnemy(index: number, fromEnemyId: number): Enemy {
+  assertBattleEditable()
+  const enemy = g().$gameTroop!.members()[index]
+  if (!enemy || enemy.enemyId() !== fromEnemyId) throw new Error('场上敌人已变化，请重试')
+  if (enemy.isHidden()) throw new Error('该敌人尚未出现')
+  if (typeof enemy.setHp !== 'function') throw new Error('游戏未就绪')
+  return enemy
+}
+
+/** Full HP; for a fallen enemy `refresh` lifts the death state and the sprite replays its appear effect */
+function refill(enemy: Enemy, revived: boolean) {
+  enemy.setHp!(Math.max(1, enemy.mhp))
+  if (revived) {
+    const targets = battleScene()?._enemyWindow
+    if (targets?.active) targets.refresh?.()
+  }
+}
+
+export function reviveEnemy({ index, fromEnemyId }: { index: number; fromEnemyId: number }): void {
+  const enemy = shownEnemy(index, fromEnemyId)
+  if (enemy.isAlive()) throw new Error('该敌人未倒下')
+  refill(enemy, true)
+}
+
+/** Full HP / MP; a fallen enemy is revived */
+export function recoverEnemy({ index, fromEnemyId }: { index: number; fromEnemyId: number }): void {
+  const enemy = shownEnemy(index, fromEnemyId)
+  refill(enemy, !enemy.isAlive())
+  if (enemy.mmp != null) enemy.setMp?.(enemy.mmp)
 }
 
 export function transformEnemy({ index, fromEnemyId, enemyId }: { index: number; fromEnemyId: number; enemyId: number }): void {
   assertBattleEditable(enemyId)
   const troop = g().$gameTroop!
-  const enemy = troop.members()[index]
-  if (!enemy || enemy.enemyId() !== fromEnemyId) throw new Error('场上敌人已变化，请重试')
-  if (enemy.isHidden()) throw new Error('该敌人尚未出现')
-  if (!enemy.isAlive()) throw new Error('该敌人已倒下')
+  const enemy = fieldEnemy(index, fromEnemyId)
   enemy.transform(enemyId)
   // Engine transform only clamps HP / MP to the new maximum
   enemy.setHp?.(enemy.mhp)

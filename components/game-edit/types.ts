@@ -64,6 +64,7 @@ export const RUN_ACTION_IDS = [
   'battle:escape',
   'battle:defeat',
   'battle:abort',
+  'battle:settle',
   'battle:enemyHp1',
   'battle:enemyHpMax',
   'battle:partyHeal',

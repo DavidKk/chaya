@@ -63,6 +63,7 @@ export {
   type TabId,
   TABS,
   tabsForSurface,
+  usesEventsSlot,
 } from './tabs'
 export {
   ACTOR_PARAM_FIELDS,

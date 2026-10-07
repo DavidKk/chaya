@@ -13,9 +13,11 @@ type Props = {
   tab: TabId
   setTab: (tab: TabId) => void
   surface: GameEditSurface
+  /** Tabs with live activity (e.g. a running battle): a dot on the icon, the text joins the label */
+  dots?: Partial<Record<TabId, string>>
 }
 
-export function GameEditTabNav({ tab, setTab, surface }: Props) {
+export function GameEditTabNav({ tab, setTab, surface, dots }: Props) {
   const t = useT()
   const tabs = useMemo(() => tabsForSurface(surface), [surface])
 
@@ -25,7 +27,8 @@ export function GameEditTabNav({ tab, setTab, surface }: Props) {
         {tabs.map((item) => {
           const active = item.id === tab
           const Icon = TAB_ICONS[item.id]
-          const label = t(item.labelKey)
+          const dot = dots?.[item.id]
+          const label = dot ? `${t(item.labelKey)} · ${dot}` : t(item.labelKey)
           return (
             <li key={item.id}>
               <Tooltip content={label} placement="right">
@@ -33,10 +36,11 @@ export function GameEditTabNav({ tab, setTab, surface }: Props) {
                   type="button"
                   aria-label={label}
                   aria-current={active ? 'page' : undefined}
-                  className={`${sectionSideNavItemClass(active)} cursor-pointer`}
+                  className={`${sectionSideNavItemClass(active)} relative cursor-pointer`}
                   onClick={() => setTab(item.id)}
                 >
                   <SectionSideNavItemContent active={active} icon={<Icon size={17} />} />
+                  {dot ? <span className="pointer-events-none absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-accent" aria-hidden /> : null}
                 </button>
               </Tooltip>
             </li>

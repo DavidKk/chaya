@@ -64,6 +64,24 @@ export function fieldsForEditCmd(cmd: GameEditCmd): string[] {
       return [`action:enemyTransform:${cmd.index}`]
     case 'enemyAdd':
       return ['action:enemyAdd']
+    case 'enemyKill':
+      return [`action:enemyKill:${cmd.index}`]
+    case 'enemyRevive':
+      return [`action:enemyRevive:${cmd.index}`]
+    case 'enemyRecover':
+      return [`action:enemyRecover:${cmd.index}`]
+    case 'enemyHp':
+      return [`action:enemyHp:${cmd.index}`]
+    case 'enemyMhp':
+      return [`action:enemyMhp:${cmd.index}`]
+    case 'actorVital':
+      return [`action:actorVital:${cmd.actorId}:${cmd.key}`]
+    case 'actorRevive':
+      return [`action:actorRevive:${cmd.actorId}`]
+    case 'actorRecover':
+      return [`action:actorRecover:${cmd.actorId}`]
+    case 'actorJoin':
+      return [`action:actorJoin:${cmd.actorId}`]
     case 'selfSwitch':
       return [`selfSwitch:${cmd.mapId}:${cmd.eventId}:${cmd.letter}`]
     case 'walkRate':
@@ -129,6 +147,15 @@ export function expectForEditCmd(cmd: GameEditCmd): unknown {
     case 'troop':
     case 'enemyTransform':
     case 'enemyAdd':
+    case 'enemyKill':
+    case 'enemyRevive':
+    case 'enemyRecover':
+    case 'enemyHp':
+    case 'enemyMhp':
+    case 'actorVital':
+    case 'actorRevive':
+    case 'actorRecover':
+    case 'actorJoin':
       return true
     case 'selfSwitch':
       return cmd.value

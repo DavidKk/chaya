@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { EventsOp, EventsSlot, PlayerSpot } from '@/components/game-edit/events/types'
-import { isEventsTab, type TabId } from '@/components/game-edit/tabs'
+import { type TabId, usesEventsSlot } from '@/components/game-edit/tabs'
 import { battleSignature, type BattleState } from '@/lib/game/battle'
 import type { CommonEventsData, MapDetailData } from '@/lib/game/events'
 import { readViewState, writeViewState } from '@/lib/view-state'
 
-import { addEnemy, readBattleState, transformEnemy } from '../session/live-battle'
+import { addEnemy, killEnemy, readBattleState, recoverEnemy, reviveEnemy, transformEnemy, writeEnemyHp, writeEnemyMhp } from '../session/live-battle'
 import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from '../session/live-events'
 import { buildLiveMapDetail, playerSpot, runMapEvent, runningCommonEvents, setSelfSwitch, teleportPlayer } from '../session/live-map'
+import { joinActor, recoverActor, reviveActor, writeActorVital } from '../session/live-party'
 import { startTroopBattle } from '../session/live-troop'
 import { recentMaps } from '../session/map-history'
 
@@ -67,6 +68,24 @@ function applyOp(op: EventsOp) {
       return transformEnemy(op)
     case 'enemyAdd':
       return addEnemy(op)
+    case 'enemyKill':
+      return killEnemy(op)
+    case 'enemyRevive':
+      return reviveEnemy(op)
+    case 'enemyRecover':
+      return recoverEnemy(op)
+    case 'enemyHp':
+      return writeEnemyHp(op)
+    case 'enemyMhp':
+      return writeEnemyMhp(op)
+    case 'actorVital':
+      return writeActorVital(op)
+    case 'actorRevive':
+      return reviveActor(op)
+    case 'actorRecover':
+      return recoverActor(op)
+    case 'actorJoin':
+      return joinActor(op)
   }
 }
 
@@ -90,7 +109,7 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
   const [mapError, setMapError] = useState('')
   const [scene, setScene] = useState<Scene>(() => ({ onMap: false, player: null, recent: [], running: [], battle: null }))
   const sceneRef = useRef(scene)
-  const active = (open && isEventsTab(tab)) || (!open && tab === 'map' && view.mapId != null)
+  const active = (open && usesEventsSlot(tab)) || (!open && tab === 'map' && view.mapId != null)
   const mapRef = useRef(view.mapId)
   mapRef.current = view.mapId
 
@@ -133,8 +152,10 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
     void loadMap(view.mapId)
   }, [active, tab, view.mapId, mapDetail, loadMap])
 
+  /** Any open tab polls the scene so 修改 › 战斗 can flag a running battle */
+  const polling = active || open
   useEffect(() => {
-    if (!active) return
+    if (!polling) return
     const tick = () => {
       const next = readScene()
       const previous = sceneRef.current
@@ -149,7 +170,7 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
     tick()
     const id = window.setInterval(tick, 1000)
     return () => window.clearInterval(id)
-  }, [active, open])
+  }, [polling, open])
 
   const refresh = useCallback(() => {
     void load(true)
@@ -172,7 +193,7 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
       },
       onAct: async (op) => {
         await applyOp(op)
-        if (op.op === 'teleport' || op.op === 'enemyTransform' || op.op === 'enemyAdd') setScene((sceneRef.current = readScene()))
+        if (op.op === 'teleport' || op.op.startsWith('enemy') || op.op.startsWith('actor')) setScene((sceneRef.current = readScene()))
         if ((op.op === 'selfSwitch' || op.op === 'teleport' || op.op === 'mapEvent') && mapRef.current != null) void loadMap(mapRef.current)
       },
       onSwitchChange,

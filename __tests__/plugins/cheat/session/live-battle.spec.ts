@@ -1,7 +1,18 @@
 /**
  * @jest-environment node
  */
-import { addEnemy, readBattleState, resizeTroop, transformEnemy } from '@/plugins/src/cheat/session/live-battle'
+import {
+  addEnemy,
+  killEnemy,
+  readBattleState,
+  recoverEnemy,
+  resizeTroop,
+  reviveEnemy,
+  settleBattleEnd,
+  transformEnemy,
+  writeEnemyHp,
+  writeEnemyMhp,
+} from '@/plugins/src/cheat/session/live-battle'
 
 class SceneBattle {
   _spriteset: unknown
@@ -42,6 +53,17 @@ class FakeEnemy {
   })
   setHp = jest.fn((hp: number) => (this.hp = hp))
   setMp = jest.fn()
+  isDead = () => !this._hidden && this.hp <= 0
+  performCollapse = jest.fn()
+  plus = 0
+  paramBase = () => 100
+  paramPlus = () => this.plus
+  param = () => this.mhp
+  addParam = jest.fn((_id: number, v: number) => {
+    this.plus += v
+    this.mhp = (100 + this.plus) * 2
+    this.hp = Math.min(this.hp, this.mhp)
+  })
   onBattleStart = jest.fn()
 }
 
@@ -57,7 +79,7 @@ describe('cheat/live-battle', () => {
   let scene: SceneBattle
   let field: { children: unknown[]; addChild: jest.Mock; removeChild: jest.Mock }
   let spriteset: { _battleField: typeof field; _enemySprites: FakeSprite[]; update: jest.Mock }
-  let battleManager: { _phase: string }
+  let battleManager: { _phase: string; processVictory: jest.Mock; processDefeat: jest.Mock }
 
   beforeEach(() => {
     jest.useFakeTimers()
@@ -68,7 +90,7 @@ describe('cheat/live-battle', () => {
     field.children.push(...spriteset._enemySprites)
     scene = new SceneBattle()
     scene._spriteset = spriteset
-    battleManager = { _phase: 'input' }
+    battleManager = { _phase: 'input', processVictory: jest.fn(), processDefeat: jest.fn() }
     Object.assign(g, {
       Scene_Battle: SceneBattle,
       Scene_Map: SceneMap,
@@ -98,6 +120,10 @@ describe('cheat/live-battle', () => {
           { index: 1, enemyId: 1, name: 'Slime', hp: 0, mhp: 100, alive: false, appeared: true },
           { index: 2, enemyId: 2, name: 'Bat', hp: 100, mhp: 100, alive: true, appeared: false },
         ],
+        party: [],
+        partyIds: [],
+        partyMax: 4,
+        settling: false,
       })
     })
 
@@ -131,6 +157,135 @@ describe('cheat/live-battle', () => {
     ])('rejects when %s', (_label, arrange, req, message) => {
       arrange()
       expect(() => transformEnemy(req)).toThrow(message)
+    })
+  })
+
+  describe('killEnemy', () => {
+    it('drops HP to 0 and plays the collapse', () => {
+      const enemy = troop._enemies[1]!
+      killEnemy({ index: 1, fromEnemyId: 1 })
+      expect(enemy.hp).toBe(0)
+      expect(enemy.performCollapse).toHaveBeenCalled()
+      expect(troop._enemies[0]!.hp).toBe(100)
+      expect(battleManager.processVictory).not.toHaveBeenCalled()
+    })
+
+    it('settles victory when the last enemy falls during command input', () => {
+      const enemyWindow = Object.assign(scene._enemyWindow, { active: true, deactivate: jest.fn(), hide: jest.fn() })
+      troop._enemies[0]!.hp = 0
+      killEnemy({ index: 1, fromEnemyId: 1 })
+      expect(battleManager.processVictory).toHaveBeenCalledTimes(1)
+      expect(enemyWindow.deactivate).toHaveBeenCalled()
+      expect(enemyWindow.hide).toHaveBeenCalled()
+    })
+
+    it('leaves the end check to the engine outside command input or while a troop event runs', () => {
+      troop._enemies[0]!.hp = 0
+      battleManager._phase = 'turn'
+      killEnemy({ index: 1, fromEnemyId: 1 })
+      expect(battleManager.processVictory).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['field changed', () => {}, { index: 0, fromEnemyId: 2 }, '场上敌人已变化，请重试'],
+      ['fallen', () => (troop._enemies[0]!.hp = 0), { index: 0, fromEnemyId: 1 }, '该敌人已倒下'],
+      ['not appeared', () => troop._enemies[0]!.hide(), { index: 0, fromEnemyId: 1 }, '该敌人尚未出现'],
+      ['battle ended', () => (battleManager._phase = 'battleEnd'), { index: 0, fromEnemyId: 1 }, '战斗已结束'],
+    ])('rejects when %s', (_label, arrange, req, message) => {
+      arrange()
+      expect(() => killEnemy(req)).toThrow(message)
+    })
+  })
+
+  describe('writeEnemyHp', () => {
+    it('sets HP clamped to 0..mhp; 0 plays the collapse', () => {
+      const enemy = troop._enemies[0]!
+      writeEnemyHp({ index: 0, fromEnemyId: 1, hp: 37.8 })
+      expect(enemy.hp).toBe(37)
+      writeEnemyHp({ index: 0, fromEnemyId: 1, hp: 9999 })
+      expect(enemy.hp).toBe(100)
+      expect(enemy.performCollapse).not.toHaveBeenCalled()
+      writeEnemyHp({ index: 0, fromEnemyId: 1, hp: -5 })
+      expect(enemy.hp).toBe(0)
+      expect(enemy.performCollapse).toHaveBeenCalled()
+    })
+
+    it('rejects a fallen enemy or a changed field', () => {
+      expect(() => writeEnemyHp({ index: 0, fromEnemyId: 2, hp: 5 })).toThrow('场上敌人已变化，请重试')
+      troop._enemies[0]!.hp = 0
+      expect(() => writeEnemyHp({ index: 0, fromEnemyId: 1, hp: 5 })).toThrow('该敌人已倒下')
+    })
+  })
+
+  describe('writeEnemyMhp', () => {
+    it('reaches the target through the additive bonus, keeping the rate', () => {
+      const enemy = troop._enemies[0]!
+      enemy.mhp = 200
+      writeEnemyMhp({ index: 0, fromEnemyId: 1, mhp: 600 })
+      expect(enemy.addParam).toHaveBeenCalledWith(0, 200)
+      expect(enemy.mhp).toBe(600)
+      writeEnemyMhp({ index: 0, fromEnemyId: 1, mhp: 50 })
+      expect(enemy.mhp).toBe(50)
+      expect(enemy.hp).toBe(50)
+    })
+  })
+
+  describe('settleBattleEnd', () => {
+    it('force settles a stuck battle in any live phase, and does nothing otherwise', () => {
+      battleManager._phase = 'turn'
+      expect(settleBattleEnd({ force: true })).toBe(false)
+      for (const e of troop._enemies) e.hp = 0
+      expect(settleBattleEnd()).toBe(false)
+      expect(settleBattleEnd({ force: true })).toBe(true)
+      expect(battleManager.processVictory).toHaveBeenCalledTimes(1)
+
+      battleManager._phase = 'battleEnd'
+      expect(settleBattleEnd({ force: true })).toBe(false)
+      battleManager._phase = 'input'
+      ;(g.SceneManager as { _scene: unknown })._scene = new SceneMap()
+      expect(settleBattleEnd({ force: true })).toBe(false)
+      expect(battleManager.processVictory).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('recoverEnemy', () => {
+    it('refills HP / MP and revives a fallen enemy', () => {
+      const [alive, fallen] = troop._enemies
+      alive!.hp = 30
+      recoverEnemy({ index: 0, fromEnemyId: 1 })
+      expect(alive!.hp).toBe(100)
+      expect(alive!.setMp).toHaveBeenCalledWith(20)
+      fallen!.hp = 0
+      scene._enemyWindow.active = true
+      recoverEnemy({ index: 1, fromEnemyId: 1 })
+      expect(fallen!.isAlive()).toBe(true)
+      expect(scene._enemyWindow.refresh).toHaveBeenCalled()
+    })
+
+    it('rejects an enemy that has not appeared', () => {
+      troop._enemies[0]!.hide()
+      expect(() => recoverEnemy({ index: 0, fromEnemyId: 1 })).toThrow('该敌人尚未出现')
+    })
+  })
+
+  describe('reviveEnemy', () => {
+    it('brings a fallen enemy back at full HP and refreshes the target window', () => {
+      const enemy = troop._enemies[1]!
+      enemy.hp = 0
+      scene._enemyWindow.active = true
+      reviveEnemy({ index: 1, fromEnemyId: 1 })
+      expect(enemy.hp).toBe(100)
+      expect(enemy.isAlive()).toBe(true)
+      expect(scene._enemyWindow.refresh).toHaveBeenCalled()
+    })
+
+    it.each([
+      ['alive', () => {}, '该敌人未倒下'],
+      ['not appeared', () => troop._enemies[0]!.hide(), '该敌人尚未出现'],
+      ['battle ended', () => (battleManager._phase = 'battleEnd'), '战斗已结束'],
+    ])('rejects when %s', (_label, arrange, message) => {
+      arrange()
+      expect(() => reviveEnemy({ index: 0, fromEnemyId: 1 })).toThrow(message)
     })
   })
 

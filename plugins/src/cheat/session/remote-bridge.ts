@@ -9,9 +9,10 @@ import { sendChunked } from '@/lib/runtime/link-chunks'
 import { applyGameSpeed, applyRunAction, applyRunFlag, applySpeed } from '../runtime/apply-run'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
-import { addEnemy, readBattleState, transformEnemy } from './live-battle'
+import { addEnemy, killEnemy, readBattleState, recoverEnemy, reviveEnemy, transformEnemy, writeEnemyHp, writeEnemyMhp } from './live-battle'
 import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from './live-events'
 import { buildLiveMapDetail, playerSpot, runMapEvent, runningCommonEvents, setSelfSwitch, teleportPlayer } from './live-map'
+import { joinActor, recoverActor, reviveActor, writeActorVital } from './live-party'
 import { buildLiveCatalog, readLiveSession, setItemCount, setPartyGold } from './live-session'
 import { startTroopBattle } from './live-troop'
 import { recentMaps } from './map-history'
@@ -155,6 +156,33 @@ export function applyEditCmd(cmd: GameEditCmd): void {
       return
     case 'enemyAdd':
       addEnemy(cmd)
+      return
+    case 'enemyKill':
+      killEnemy(cmd)
+      return
+    case 'enemyRecover':
+      recoverEnemy(cmd)
+      return
+    case 'enemyRevive':
+      reviveEnemy(cmd)
+      return
+    case 'enemyHp':
+      writeEnemyHp(cmd)
+      return
+    case 'enemyMhp':
+      writeEnemyMhp(cmd)
+      return
+    case 'actorVital':
+      writeActorVital(cmd)
+      return
+    case 'actorRevive':
+      reviveActor(cmd)
+      return
+    case 'actorRecover':
+      recoverActor(cmd)
+      return
+    case 'actorJoin':
+      joinActor(cmd)
       return
     default:
       return

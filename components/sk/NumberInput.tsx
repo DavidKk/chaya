@@ -235,7 +235,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
     >
       {tippedInput}
       {suffix != null ? (
-        <span className={cn('inline-flex h-[1.35rem] min-w-[1.35rem] shrink-0 items-center justify-center', 'select-none text-[0.7rem] font-medium leading-none text-ink-soft')}>
+        <span className={cn('inline-flex h-[1.35rem] min-w-[1.35rem] shrink-0 items-center justify-center', 'select-none text-[0.8125rem] leading-none text-ink-soft')}>
           {suffix}
         </span>
       ) : null}

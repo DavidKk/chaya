@@ -42,13 +42,25 @@ test('renders edit categories as icon-only accessible buttons', async () => {
 
   const buttons = Array.from(host.querySelectorAll<HTMLButtonElement>('[data-edit-categories] button'))
   expect(host.querySelector('aside')!.className).toContain('hidden')
-  expect(buttons).toHaveLength(12)
+  expect(buttons).toHaveLength(13)
   expect(buttons.some((button) => button.getAttribute('aria-label') === '快捷键')).toBe(false)
   expect(buttons.every((button) => button.textContent === '' && !!button.getAttribute('aria-label'))).toBe(true)
   expect(buttons[0].getAttribute('aria-current')).toBe('page')
 
   await act(async () => buttons[1].click())
-  expect(setTab).toHaveBeenCalledWith('bag')
+  expect(setTab).toHaveBeenCalledWith('battle')
+})
+
+test('marks the battle category while a battle is running', async () => {
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <GameEditTabNav tab="run" setTab={jest.fn()} surface="page" dots={{ battle: '战斗中' }} />
+      </LocaleProvider>
+    )
+  )
+
+  expect(host.querySelector('button[aria-label="战斗 · 战斗中"]')).not.toBeNull()
 })
 
 test('keeps the shared category rail available on small screens in the game overlay', async () => {

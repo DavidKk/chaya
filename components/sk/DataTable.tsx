@@ -11,6 +11,7 @@ export type DataTableColumn<SortKey extends string = string> = {
   key: string
   label: string
   width?: string
+  align?: 'left' | 'right'
   /** 传入则该列表头可三态排序 */
   sortKey?: SortKey
 }
@@ -50,7 +51,11 @@ export function DataTable<SortKey extends string = string>({ columns, children, 
           {columns.map((c) => {
             const sortKey = c.sortKey
             if (!sortable || !sortKey || !sort || !onSortCycle) {
-              return <th key={c.key}>{c.label}</th>
+              return (
+                <th key={c.key} className={c.align === 'right' ? 'text-right' : undefined}>
+                  {c.label}
+                </th>
+              )
             }
             return (
               <SortableTh key={c.key} label={c.label} active={sort.explicit && sort.key === sortKey} order={sort.order} disabled={disabled} onCycle={() => onSortCycle(sortKey)} />

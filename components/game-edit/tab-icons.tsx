@@ -1,7 +1,20 @@
 'use client'
 
 import type { IconType } from 'react-icons'
-import { GiAbdominalArmor, GiAxeSword, GiBackpack, GiBurn, GiDatabase, GiNothingToSay, GiScrollUnfurled, GiSettingsKnobs, GiSlime, GiStrong, GiTreasureMap } from 'react-icons/gi'
+import {
+  GiAbdominalArmor,
+  GiAxeSword,
+  GiBackpack,
+  GiBurn,
+  GiCrossedSwords,
+  GiDatabase,
+  GiNothingToSay,
+  GiScrollUnfurled,
+  GiSettingsKnobs,
+  GiSlime,
+  GiStrong,
+  GiTreasureMap,
+} from 'react-icons/gi'
 import { HiVariable } from 'react-icons/hi'
 import { IoIosSwitch } from 'react-icons/io'
 import { IoListOutline, IoSettingsOutline } from 'react-icons/io5'
@@ -22,6 +35,7 @@ export const TAB_ICONS: Record<TabId, IconType> = {
   common: GiScrollUnfurled,
   map: GiTreasureMap,
   troop: GiSlime,
+  battle: GiCrossedSwords,
   data: GiDatabase,
   trans: GiNothingToSay,
   logs: IoListOutline,

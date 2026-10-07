@@ -1,7 +1,7 @@
 /** Web ↔ 游戏 DataChannel 消息（JSON） */
 
 import type { ActorDraft, ActorVitalLockKind, ItemKind, RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
-import type { BattleState } from '@/lib/game/battle'
+import type { ActorVitalKey, BattleState } from '@/lib/game/battle'
 import type { CommonEventsData, MapDetailData, SelfSwitchLetter } from '@/lib/game/events'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import type { GameSavesErrorCode, GameSavesOp, GameSavesSnapshot, GameSavesStatus, SaveWaitReason } from '@/lib/game/game-saves'
@@ -76,6 +76,16 @@ export type GameEditCmdOp =
   /** In battle: `fromEnemyId` guards against the field having changed since the last state push */
   | { op: 'enemyTransform'; index: number; fromEnemyId: number; enemyId: number }
   | { op: 'enemyAdd'; enemyId: number }
+  | { op: 'enemyKill'; index: number; fromEnemyId: number }
+  | { op: 'enemyRevive'; index: number; fromEnemyId: number }
+  | { op: 'enemyRecover'; index: number; fromEnemyId: number }
+  | { op: 'enemyHp'; index: number; fromEnemyId: number; hp: number }
+  | { op: 'enemyMhp'; index: number; fromEnemyId: number; mhp: number }
+  /** In battle, by actor id */
+  | { op: 'actorVital'; actorId: number; key: ActorVitalKey; value: number }
+  | { op: 'actorRevive'; actorId: number }
+  | { op: 'actorRecover'; actorId: number }
+  | { op: 'actorJoin'; actorId: number }
   | DataOp
 
 /** Web → 游戏：改值指令（cmdId 用于 ack / 去重重试） */

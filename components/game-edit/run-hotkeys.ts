@@ -229,6 +229,7 @@ const ACTION_HOTKEY_ITEMS: ReadonlyArray<{ id: RunActionId; labelKey: MessageKey
   { id: 'battle:escape', labelKey: 'edit.actEscapeLong', descKey: 'edit.actEscapeDesc', groupKey: 'edit.groupBattle' },
   { id: 'battle:defeat', labelKey: 'edit.actDefeatLong', descKey: 'edit.actDefeatDesc', groupKey: 'edit.groupBattle' },
   { id: 'battle:abort', labelKey: 'edit.actAbortLong', descKey: 'edit.actAbortDesc', groupKey: 'edit.groupBattle' },
+  { id: 'battle:settle', labelKey: 'edit.actSettleLong', descKey: 'edit.actSettleDesc', groupKey: 'edit.groupBattle' },
   { id: 'battle:enemyHp1', labelKey: 'edit.actEnemyHp1Long', descKey: 'edit.actEnemyHp1Desc', groupKey: 'edit.groupBattle' },
   { id: 'battle:enemyHpMax', labelKey: 'edit.actEnemyHpMaxLong', descKey: 'edit.actEnemyHpMaxDesc', groupKey: 'edit.groupBattle' },
   { id: 'battle:partyHeal', labelKey: 'edit.actPartyHealLong', descKey: 'edit.actPartyHealDesc', groupKey: 'edit.groupBattle' },

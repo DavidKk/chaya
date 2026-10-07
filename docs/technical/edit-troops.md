@@ -1,6 +1,6 @@
 # 修改：敌群、立即遇敌与战斗中改敌人技术方案
 
-> 状态：第 1–4 期已实现（含开战敌人数量）；兼容性待真实游戏抽查
+> 状态：**已冻结**（2026-10-07）：功能已完成，本文作为现状记录，不再随需求扩写；后续改动另起文档或只做勘误。第 1–4 期已实现（含开战敌人数量）；兼容性待真实游戏抽查
 > 日期：2026-10-07
 > 需求：[`../edit-troops.md`](../edit-troops.md)
 > 关联：[`edit-map-events.md`](./edit-map-events.md)（事件索引、命令通道、地图页）、[`chaya-ui-style-guide.md`](./chaya-ui-style-guide.md)
@@ -9,7 +9,7 @@
 
 - **数据并入事件索引**：敌群列表、敌人名称、遇敌出处都在构建 `CommonEventsData` 的同一遍历里产出（`lib/game/events/`），不新开 `edit.troops` 消息或 API。敌群页与公共事件 / 地图共用 `useEventsData` / `useOverlayEvents` 的加载与缓存。
 - **单图遇敌列表进 `MapDetailData`**：地图页“遇敌”区块只需当前打开的这张图，随 `edit.map` / `GET /api/game-edit/map` 一起下发。
-- **所有操作走现有命令通道**：新增 `troop`、`enemyTransform`、`enemyAdd` 三个 op，经 `edit.cmd` → `remote-bridge` → 插件，`edit.ack` 回传错误；局内浮层直接调用同一函数。
+- **所有操作走现有命令通道**：新增 `troop`、`enemyTransform`、`enemyAdd`、`enemyKill`、`enemyRevive`、`enemyHp`、`enemyMhp` 七个 op，经 `edit.cmd` → `remote-bridge` → 插件，`edit.ack` 回传错误；局内浮层直接调用同一函数。
 - **开战与引擎“战斗处理”（301）一致**：`BattleManager.setup` → `setEventCallback(null)` → `$gamePlayer.makeEncounterCount()` → `SceneManager.push(Scene_Battle)`。不用 `goto`：地图不在场景栈里时，战斗结束 `SceneManager.pop()` 会因栈空调用 `exit()`。
 - **变身沿用引擎“敌人变身”（336）**：`Game_Enemy.transform(enemyId)` + `$gameTroop.makeUniqueNames()`，精灵靠引擎每帧比对图片名自动换图。引擎 `transform` 只把 HP / MP 截到新上限，需求要求回满，所以之后再 `setHp(mhp)` / `setMp(mmp)`。
 - **开战敌人数量在建精灵前调整**：`BattleManager.setup` 之后、`Scene_Battle` 创建前改 `$gameTroop._enemies`（复制 / 隐藏），精灵与战斗插件的附属 UI 都按调整后的成员正常创建，比战斗中追加兼容性好得多。
@@ -161,11 +161,19 @@ type BattleState = { enemies: BattleEnemyState[]; ended: boolean } // ended：Ba
 | { op: 'troop'; id: number; canEscape: boolean; canLose: boolean; count?: number } // 第 1 期；count 见 §5.7
 | { op: 'enemyTransform'; index: number; fromEnemyId: number; enemyId: number } // 第 3 期
 | { op: 'enemyAdd'; enemyId: number } // 第 4 期
+| { op: 'enemyKill'; index: number; fromEnemyId: number }
+| { op: 'enemyRevive'; index: number; fromEnemyId: number }
+| { op: 'enemyHp'; index: number; fromEnemyId: number; hp: number }
+| { op: 'enemyMhp'; index: number; fromEnemyId: number; mhp: number }
 ```
 
-- `fieldsForEditCmd`：`action:troop:<id>`、`action:enemyTransform:<index>`、`action:enemyAdd`；`expectForEditCmd` 均为 `true`（与 `commonEvent` 相同，只等 ack）。
+- `fieldsForEditCmd`：`action:troop:<id>`、`action:enemyTransform:<index>`、`action:enemyAdd`、`action:enemyKill:<index>`、`action:enemyRevive:<index>`、`action:enemyHp:<index>`、`action:enemyMhp:<index>`；`expectForEditCmd` 均为 `true`（与 `commonEvent` 相同，只等 ack）。
 - `remote-bridge.applyEditCmd` 分别调 `startTroopBattle` / `transformEnemy` / `addEnemy`，同步抛错由现有逻辑转成 `ack.error`。
-- `enemyTransform` 带 `fromEnemyId`：状态推送有延迟，插件发现该下标的敌人已不是它时拒绝，避免改错对象。
+- `enemyHp`：`writeEnemyHp` 取整并夹到 0..mhp 后 `setHp`，为 0 时同 `enemyKill`；`enemyKill` 即 `writeEnemyHp(hp: 0)`。
+- `enemyMhp`：`writeEnemyMhp` 用 `addParam(0, δ)` 改加算值，δ 按当前 `mhp / (paramBase + paramPlus)` 折算，保留倍率与 buff，`refresh` 后不回弹；当前 HP 由引擎截断。
+- `enemyRevive`：仅限已出现且倒下的敌人；`setHp(mhp)`，引擎 `refresh` 移除死亡状态，`Sprite_Enemy.setupEffect` 见“未出现且存活”自动播 appear；目标窗口激活时 `refresh()`。UI 在倒下行把“杀死”位换成“复活”。
+- `enemyKill`：`setHp(0)`（`refresh` 加死亡状态）后调 `performCollapse()`；不主动结束战斗，胜利由 `BattleManager` 照常判定（输入阶段要等回合开始）。
+- `enemyTransform` / `enemyKill` 带 `fromEnemyId`：状态推送有延迟，插件发现该下标的敌人已不是它时拒绝，避免改错对象。
 
 ### 5.2 `startTroopBattle`（`live-troop.ts`）
 
@@ -277,7 +285,7 @@ pickEnemySpot(input: {
 
 - 布局照搬 `CommonEventsPane`：宽屏左列表 `w-[17rem]` + 右详情；容器宽度 < 56rem 时列表 → 详情，顶部返回。`slot.battle` 有值时，列表与详情上方整宽显示 `CurrentBattle`（§6.5）。
 - 列表行：译名（无名回退 `#id`）+ 成员摘要（次要色、单行省略）；不单列 ID，搜索可按 ID。
-- 搜索：编号、敌群译名 / 原名、成员敌人译名 / 原名。筛选区开关“显示空敌群”。第 2 期加“只看可遇到”（`troopEncounters` 或 `troopRefs` 非空；`!mapsScanned || mapsFailed > 0` 时旁边提示可能偏少）。
+- 搜索：编号、敌群译名 / 原名、成员敌人译名 / 原名。筛选区开关“显示空敌群”。第 2 期加“只看可遇到”（默认开启；`troopEncounters` 或 `troopRefs` 非空；`!mapsScanned || mapsFailed > 0` 时旁边提示可能偏少）。
 - 详情第 1 期：标题、成员列表（`hidden` 标“中途出现”）、战斗事件页数、开战选项开关 + `TroopBattleButton`。第 2 期：“出现在”（地图名 + 权重 + 区域，可跳地图页）、“被调用”（复用 `refLabel`，可跳转）、战斗事件（`SegmentedNav` 按页 + `EventScript` 只读，不传逐行执行回调）。
 - 公共事件详情“引用关系”的 troop 条目第 2 期改为可点，调 `onSelectTroop`。
 - 空态：无数据 `EmptyState`；筛选无结果“无匹配”。
@@ -300,8 +308,11 @@ pickEnemySpot(input: {
 
 ### 6.5 当前战斗区块（`CurrentBattle` / `EnemyPicker`，第 3、4 期）
 
+> 已迁到战斗页：`CurrentBattle` 拆为 `components/game-edit/battle/BattleEnemies.tsx`，见 [edit-battle.md](./edit-battle.md)。下文保留为敌方规则说明。
+
 - 只在 `slot.battle` 有值时渲染。每行：名称、HP `hp/mhp`、状态 `Badge`（已倒下 / 未出现），右侧“变成…”。
-- “变成…”打开 `EnemyPicker`：`Modal`（局内传浮层的 ShadowRoot 作 portal 容器）内一个搜索框 + 列表，按 id 与译名匹配，最多渲染前 200 条匹配项（敌人数据库通常不足 1000 条，不做虚拟滚动）。顶部说明“变身后 HP / MP 回满”。选中即发 `{ op: 'enemyTransform', index, fromEnemyId, enemyId }`。
+- 每行三个 `mini` 图标按钮（tooltip 说明）：杀死 → `enemyKill`；复制 → `{ op: 'enemyAdd', enemyId: 本行 enemyId }`；替换 → 下述 `EnemyPicker`。名字 / HP / 状态同字号，只用颜色区分。区块用 `DataTable`（敌人 / HP / 状态 / 操作）；HP 列为 `HpInput`：一个 `NumberInput`（当前 HP）的 `endAction` 里嵌无边框 `NumberInput`（上限），同框；仅 blur / 回车且值变化时发 `enemyHp` / `enemyMhp`（方向键步进不逐次发送），Esc 取消。
+- “替换”打开 `EnemyPicker`：`Modal`（局内传浮层的 ShadowRoot 作 portal 容器）内一个搜索框 + 列表，按 id 与译名匹配，最多渲染前 200 条匹配项（敌人数据库通常不足 1000 条，不做虚拟滚动）。顶部说明“变身后 HP / MP 回满”。选中即发 `{ op: 'enemyTransform', index, fromEnemyId, enemyId }`。
 - 区块标题右侧“追加敌人”（第 4 期）：同一个 `EnemyPicker`，选中发 `{ op: 'enemyAdd', enemyId }`；存活敌人 ≥ 8 时禁用并提示上限。
 - 已倒下 / 未出现的行、`battle.ended` 时全部操作禁用，tooltip 说明原因。
 - 不弹确认；成功 toast（“已变成 B” / “已追加 B”），失败 toast 游戏返回的错误。不调用 `afterRun`。

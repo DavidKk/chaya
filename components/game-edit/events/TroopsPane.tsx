@@ -11,7 +11,6 @@ import { matchesTroop, type TroopInfo } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
 import { EventsDataState } from './CommonEventsPane'
-import { CurrentBattle } from './CurrentBattle'
 import { troopMemberSummary, troopName } from './labels'
 import { TroopDetail } from './TroopDetail'
 import type { EventsSlot } from './types'
@@ -44,7 +43,7 @@ function TroopRow({ troop, selected, onSelect }: { troop: TroopInfo; selected: b
 export function TroopsPane({ slot, filter, headSlot }: Props) {
   const t = useT()
   const [showEmpty, setShowEmpty] = useState(false)
-  const [onlyEncounter, setOnlyEncounter] = useState(false)
+  const [onlyEncounter, setOnlyEncounter] = useState(true)
   const data = slot.data
   const troops = data?.troops
   const visible = useMemo(() => {
@@ -75,7 +74,6 @@ export function TroopsPane({ slot, filter, headSlot }: Props) {
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
-      {slot.battle ? <CurrentBattle battle={slot.battle} enemies={data.names.enemies} slot={slot} /> : null}
       {onlyEncounter && incomplete ? <p className="m-0 shrink-0 border-b border-line px-3 py-1 text-[0.7rem] text-warn">{t('events.troop.onlyEncounterIncomplete')}</p> : null}
       <div className="flex min-h-0 flex-1">
         <aside
