@@ -15,7 +15,7 @@ type Props = {
   canUseDisk?: boolean
   /**
    * pick：打开系统选目录（游戏库页）
-   * library：跳转游戏库选已有条目（修改 / 翻译未绑定时）
+   * library：跳转游戏库选已有条目
    */
   chooseIntent?: 'pick' | 'library'
 }

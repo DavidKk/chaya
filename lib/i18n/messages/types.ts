@@ -308,6 +308,12 @@ export type MessageTree = {
     regionCache: string
     regionRunDesc: string
     regionCacheDesc: string
+    needGameTitle: string
+    needGameMsg: string
+    needGameCloudMsg: string
+    needLinkTitle: string
+    needLinkMsg: string
+    openLibrary: string
     configAria: string
     taskAria: string
     playTab: string

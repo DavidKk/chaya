@@ -1,18 +1,18 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-import { ChooseGameGate } from '@/components/ChooseGameGate'
 import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { pageMainFlush } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Skeleton, SkeletonRegion } from '@/components/sk/Skeleton'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { readUnsupportedEngine } from '@/lib/game/unsupported-engine'
 
-type GatePhase = 'loading' | 'cloud' | 'need-game' | 'ready'
+type StatusPhase = 'loading' | 'cloud' | 'need-game' | 'ready'
+
+/** loading：拉取中；need-game：未选游戏；need-link：已选但当前模式要求先连接；ready：可用 */
+export type BoundGameAccess = 'loading' | 'need-game' | 'need-link' | 'ready'
 
 type StatusLite = {
   ready?: boolean
@@ -21,27 +21,30 @@ type StatusLite = {
   library?: unknown[]
 }
 
+export type BoundGameState = {
+  access: BoundGameAccess
+  cloud: boolean
+  busy: boolean
+  /** 本机库为空：直接打开系统选目录并绑定；否则跳转游戏库点选 */
+  onChoose: () => void
+}
+
 /**
- * 翻译：当前游戏已绑定且连接成功才展示功能，否则展示「选择游戏」（修改页不经此门闸，未连接时只读）。
- * - 库为空：直接打开系统选择器并绑定（与游戏库「选择游戏」相同）
- * - 库有条目但未选中：跳转游戏库从左侧点选
- * - `allowLocalOffline`：本机服务 + 本机游戏时不要求游戏在运行（走服务端磁盘接口）
- * 日志页不经此门闸。
- * `loadingFallback`：状态拉取中展示正常数据骨架（勿用居中按钮条）。
+ * 翻译页用的绑定状态（修改页未连接时只读，不经此 hook）。
+ * - `allowLocalOffline`：本机服务 + 本机游戏时选中即可用（走服务端磁盘接口），不要求游戏在运行
+ * - 云端 / 远程游戏：选中后仍须连接
  */
-export function RequireBoundGame({ children, loadingFallback, allowLocalOffline = false }: { children: ReactNode; loadingFallback?: ReactNode; allowLocalOffline?: boolean }) {
+export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?: boolean } = {}): BoundGameState {
   const t = useT()
   const router = useRouter()
   const gameLink = useGameLinkContext()
   const notify = useNotification()
-  const [phase, setPhase] = useState<GatePhase>('loading')
+  const [phase, setPhase] = useState<StatusPhase>('loading')
   const [libraryEmpty, setLibraryEmpty] = useState(true)
   const [remote, setRemote] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  const refreshPhase = useCallback(async () => {
-    const res = await fetch('/api/status')
-    const data = (await res.json()) as StatusLite
+  const applyStatus = useCallback((data: StatusLite) => {
     if (data.canUseDisk === false) {
       setPhase('cloud')
       return
@@ -57,14 +60,7 @@ export function RequireBoundGame({ children, loadingFallback, allowLocalOffline 
       try {
         const res = await fetch('/api/status')
         const data = (await res.json()) as StatusLite
-        if (cancelled) return
-        if (data.canUseDisk === false) {
-          setPhase('cloud')
-          return
-        }
-        setLibraryEmpty(!Array.isArray(data.library) || data.library.length === 0)
-        setRemote(data.remote === true)
-        setPhase(data.ready ? 'ready' : 'need-game')
+        if (!cancelled) applyStatus(data)
       } catch {
         if (!cancelled) setPhase('need-game')
       }
@@ -72,7 +68,7 @@ export function RequireBoundGame({ children, loadingFallback, allowLocalOffline 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [applyStatus])
 
   const pickAndBind = useCallback(async () => {
     setBusy(true)
@@ -106,48 +102,32 @@ export function RequireBoundGame({ children, loadingFallback, allowLocalOffline 
         return
       }
       notify.success(t('notify.addedToLibrary'))
-      await refreshPhase()
+      const res = await fetch('/api/status')
+      applyStatus((await res.json()) as StatusLite)
     } catch {
       notify.error(t('notify.pickerUnavailable'))
     } finally {
       setBusy(false)
     }
-  }, [notify, refreshPhase, t])
+  }, [applyStatus, notify, t])
+
+  const cloud = phase === 'cloud'
+  const chooseIntent = !cloud && libraryEmpty && phase !== 'ready' ? 'pick' : 'library'
 
   const onChoose = useCallback(() => {
-    if (libraryEmpty && phase !== 'ready') {
+    if (chooseIntent === 'pick') {
       void pickAndBind()
       return
     }
     router.push('/game')
-  }, [libraryEmpty, phase, pickAndBind, router])
+  }, [chooseIntent, pickAndBind, router])
 
-  if (phase === 'loading') {
-    if (loadingFallback) return <>{loadingFallback}</>
-    return (
-      <div className={pageMainFlush}>
-        <SkeletonRegion label="加载" className="flex min-h-0 flex-1 items-center justify-center">
-          <Skeleton className="h-8 w-40" />
-        </SkeletonRegion>
-      </div>
-    )
-  }
+  const hasGame = phase === 'ready' || (cloud && !!gameLink.roomId)
+  let access: BoundGameAccess
+  if (phase === 'loading') access = 'loading'
+  else if (!hasGame) access = 'need-game'
+  else if (gameLink.connected || (allowLocalOffline && phase === 'ready' && !remote)) access = 'ready'
+  else access = 'need-link'
 
-  const hasGame = phase === 'ready' || (phase === 'cloud' && !!gameLink.roomId)
-  if (hasGame && gameLink.connected) return children
-  if (allowLocalOffline && phase === 'ready' && !remote) return children
-
-  if (phase === 'cloud') {
-    return (
-      <div className={pageMainFlush}>
-        <ChooseGameGate canUseDisk={false} chooseIntent="library" onChoose={() => router.push('/game')} />
-      </div>
-    )
-  }
-
-  return (
-    <div className={pageMainFlush}>
-      <ChooseGameGate busy={busy} chooseIntent={libraryEmpty && phase !== 'ready' ? 'pick' : 'library'} onChoose={onChoose} />
-    </div>
-  )
+  return { access, cloud, busy, onChoose }
 }

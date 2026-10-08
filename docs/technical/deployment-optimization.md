@@ -118,16 +118,16 @@ export function getCapabilities(mode = getServiceMode()): Capabilities
 
 ### 2.3 迁移
 
-| 现用法                                                                                 | 改为                                                                                   |
-| -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `requireDisk()`（读写游戏文件的接口）                                                  | `requireGameFiles()`，语义不变                                                         |
-| 只写服务端存储的地方（日志落盘、共享译文缓存）                                         | `requireServerStorage()` / `capabilities.serverStorage`                                |
-| `/api/status` 的 `canUseDisk`                                                          | 新增 `capabilities`；`canUseDisk` 保留一个版本作兼容别名（= `gameFiles === 'server'`） |
-| Dashboard `browserMode`                                                                | `capabilities.gameFiles === 'browser'`                                                 |
-| `GameEditPage` / `RequireBoundGame` / `LibraryRail` / `ChooseGameGate` 的 `canUseDisk` | 按语义改为 `gameFiles`                                                                 |
-| `proxy.ts` 管理授权门禁                                                                | `gameFiles === 'server'` 时启用                                                        |
-| `/api/runtime/agent`                                                                   | `gameFiles === 'server'`                                                               |
-| `services/log/file-store.ts` 落盘                                                      | `serverStorage` 为真时才写                                                             |
+| 现用法                                                                             | 改为                                                                                   |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `requireDisk()`（读写游戏文件的接口）                                              | `requireGameFiles()`，语义不变                                                         |
+| 只写服务端存储的地方（日志落盘、共享译文缓存）                                     | `requireServerStorage()` / `capabilities.serverStorage`                                |
+| `/api/status` 的 `canUseDisk`                                                      | 新增 `capabilities`；`canUseDisk` 保留一个版本作兼容别名（= `gameFiles === 'server'`） |
+| Dashboard `browserMode`                                                            | `capabilities.gameFiles === 'browser'`                                                 |
+| `GameEditPage` / `useBoundGame` / `LibraryRail` / `ChooseGameGate` 的 `canUseDisk` | 按语义改为 `gameFiles`                                                                 |
+| `proxy.ts` 管理授权门禁                                                            | `gameFiles === 'server'` 时启用                                                        |
+| `/api/runtime/agent`                                                               | `gameFiles === 'server'`                                                               |
+| `services/log/file-store.ts` 落盘                                                  | `serverStorage` 为真时才写                                                             |
 
 - 用 `rg "canUseDisk|requireDisk|browserMode"` 列全清单，逐处按语义归类；不确定的按 `gameFiles` 处理。
 - `docs/technical/service-modes.md` §3 与 `deployment-platforms.md` §3 同步改为能力表。
