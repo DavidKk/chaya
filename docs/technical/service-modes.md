@@ -1,6 +1,6 @@
 # 服务形态技术设计
 
-> 状态：设计稿（随实现修订）  
+> 状态：设计稿。能力拆分（O2）与未落地门禁 **已冻结**；本波仅配合 O8 改名（[`../capability-supplement.md`](../capability-supplement.md)）
 > 需求真源：[docs/requirements-service-modes.md](../requirements-service-modes.md)  
 > 适用范围：Next 服务端 / API、本机 DiskOps、局内插件连 API；不含 UI 视觉（`chaya-ui-style-guide.md`）  
 > 部署方式 × 操作系统总览（含壳安装、浏览器模式数据、共用组件）：[deployment-platforms.md](deployment-platforms.md)
@@ -42,26 +42,28 @@ UI ──HTTP──► app/api
 ### 3.1 判定（与需求一致）
 
 ```ts
-export type ServiceMode = 'local' | 'vercel' | 'app'
+export type ServiceMode = 'local' | 'remote' | 'app'
 
 export function getServiceMode(): ServiceMode {
-  if (process.env.VERCEL === '1') return 'vercel'
   const v = process.env.CHAYA_SERVICE?.trim().toLowerCase()
-  if (v === 'vercel' || v === 'app' || v === 'local') return v
+  if (v && v !== 'remote' && v !== 'app' && v !== 'local') throw new Error('CHAYA_SERVICE 配置无效')
+  if (process.env.VERCEL === '1') return 'remote'
+  if (v === 'remote' || v === 'app' || v === 'local') return v
   return 'local'
 }
 
 export function canUseDisk(mode = getServiceMode()): boolean {
-  return mode !== 'vercel'
+  return mode !== 'remote'
 }
 ```
 
 | 条件                               | 结果                               |
 | ---------------------------------- | ---------------------------------- |
-| `VERCEL=1`（任意 `CHAYA_SERVICE`） | 强制 `vercel`                      |
-| 非平台 + `CHAYA_SERVICE=vercel`    | `vercel`（**本地模拟云**，测 501） |
+| `VERCEL=1`（任意 `CHAYA_SERVICE`） | 强制 `remote`                      |
+| 非平台 + `CHAYA_SERVICE=remote`    | `remote`（**本地模拟云**，测 501） |
 | 非平台 + `app` / `local`           | 对应形态                           |
-| 未设 / 非法值                      | `local`                            |
+| 未设                               | `local`                            |
+| 非空非法值                         | 配置错误，拒绝启动                 |
 
 ### 3.2 暴露给 UI
 
@@ -82,8 +84,8 @@ assertCanUseDisk() // → HTTP 501, code DISK_UNAVAILABLE
 
 两层并用：
 
-- **构建期剔除**：整条都是 DiskOps 的路由命名为 `route.server.ts`，edge 构建按 `pageExtensions` 不收录（见 §8）。
-- **运行时 501**：混合路由（如 `status` 的 `GET` 可上云、`PUT` 写盘）留在 `route.ts`，写盘分支仍走 `requireDisk()`；`.server` 路由也保留 `requireDisk()`，供 dev 切到 edge 时返回 501。
+- **构建期剔除**：整条都是 DiskOps 的路由命名为 `route.server.ts`，cloud 构建按 `pageExtensions` 不收录（见 §8）。
+- **运行时 501**：混合路由（如 `status` 的 `GET` 可上云、`PUT` 写盘）留在 `route.ts`，写盘分支仍走 `requireDisk()`；`.server` 路由也保留 `requireDisk()`，供 dev 切到 cloud 时返回 501。
 
 ---
 
@@ -129,7 +131,7 @@ assertCanUseDisk() // → HTTP 501, code DISK_UNAVAILABLE
 | Route / 能力                                   | 说明                                                                    |
 | ---------------------------------------------- | ----------------------------------------------------------------------- |
 | `GET /api/status`                              | 带 `serviceMode`；无绑定也可                                            |
-| `GET /api/plugins/:name`                       | 读 **部署包内** `plugins/dist`（含 Loader）；vercel 可供浏览器 FSA 写入 |
+| `GET /api/plugins/:name`                       | 读 **部署包内** `plugins/dist`（含 Loader）；remote 可供浏览器 FSA 写入 |
 | `GET /api/remote/nw-meta`                      | NW 版本元信息 + 官方 CDN 直链（各端自行下载，本站不代理包）             |
 | 静态/对象存储上的 Toolkit、插件包 URL          | RemoteAPI                                                               |
 | 拆分后的无盘 `POST /api/translate`（仅 texts） | §4.4                                                                    |
@@ -147,20 +149,20 @@ assertCanUseDisk() // → HTTP 501, code DISK_UNAVAILABLE
 | 形态        | 行为                                                          |
 | ----------- | ------------------------------------------------------------- |
 | local / app | 维持现状                                                      |
-| vercel      | **整个** `POST /api/translate` → `assertCanUseDisk` → **501** |
+| remote      | **整个** `POST /api/translate` → `assertCanUseDisk` → **501** |
 
 **拆分后（目标）**
 
 1. `translateTextsCore(texts, deps)` — 引擎 + PureLogic
 2. local/app：`DiskCacheAdapter` 包装后走原 `POST /api/translate` 的 texts 路径
-3. vercel：同一 `POST /api/translate`，**仅允许** `{ text|texts }` 且 **不挂** Disk 适配器；`seed` / `job` / `switches` 写盘 mode 仍 501
-4. 以后 `DbCacheAdapter` 可挂在 vercel texts 路径
+3. remote：同一 `POST /api/translate`，**仅允许** `{ text|texts }` 且 **不挂** Disk 适配器；`seed` / `job` / `switches` 写盘 mode 仍 501
+4. 以后 `DbCacheAdapter` 可挂在 remote texts 路径
 
 不另开第二套「无盘专用 path」，避免双路由分叉；用 **mode + 形态** 收窄。
 
 **引擎**
 
-|              | local | app | vercel |
+|              | local | app | remote |
 | ------------ | :---: | :-: | :----: |
 | Ollama       |  ✅   | ✅  |   ❌   |
 | 公网机翻出口 |  ✅   | ✅  | 默认关 |
@@ -184,45 +186,45 @@ assertCanUseDisk() // → HTTP 501, code DISK_UNAVAILABLE
 
 |                   |                           |
 | ----------------- | ------------------------- |
-| `CHAYA_API_BASE`  | local / app / vercel 原点 |
+| `CHAYA_API_BASE`  | local / app / remote 原点 |
 | `tryNodeFsPath()` | 有则读写游戏侧 cache      |
 
-注入只来自 DiskOps（local/app）或 **浏览器 FSA**（vercel + Chrome）；vercel 服务端只提供 **部署包内插件下载**（`GET /api/plugins/:name`）与 NW 代理。
+注入只来自 DiskOps（local/app）或 **浏览器 FSA**（remote + Chrome）；remote 服务端只提供 **部署包内插件下载**（`GET /api/plugins/:name`）与 NW 代理。
 
 ---
 
 ## 7. UI 门禁
 
 - `canUseDisk === false`：隐藏选目录、注入、开游戏、本机 cache 写、seed 补译任务等。
-- vercel：下载、文档；无盘翻译入口仅在里程碑 B 后打开。
-- `/`：edge 为官方介绍页（`MarketingHome`）；local / app 重定向 `/game`。
+- remote：下载、文档；无盘翻译入口仅在里程碑 B 后打开。
+- `/`：cloud 为官方介绍页（`MarketingHome`）；local / app 重定向 `/game`。
 - mode 只信 status（等）服务端字段。
 
 ---
 
 ## 8. 构建
 
-> **edge 是项目内部「云端无盘构建目标」的名称，不等同于 Next.js Edge Runtime**：edge 构建只在构建时剔除 `*.server` / `*.dev` 路由，云端 API 运行在 Node.js runtime（关键 API 显式声明 `export const runtime = 'nodejs'`，其余沿用 Next.js 默认）。三层概念（构建目标 / 服务形态 / 执行运行时）见 [deployment-platforms.md](deployment-platforms.md) §2。
+> **cloud 是项目内部「云端无盘构建目标」的名称，不等同于 Next.js Cloud Runtime**：cloud 构建只在构建时剔除 `*.server` / `*.dev` 路由，云端 API 运行在 Node.js runtime（关键 API 显式声明 `export const runtime = 'nodejs'`，其余沿用 Next.js 默认）。三层概念（构建目标 / 服务形态 / 执行运行时）见 [deployment-platforms.md](deployment-platforms.md) §2。
 
-URL 在所有形态下相同（无 `/app`、`/edge` 前缀）。构建目标只有两个：**edge** 与 **server**；App 是 server 产物的打包变体，不是第三套路由。
+URL 在所有形态下相同（无 `/app`、`/cloud` 前缀）。构建目标只有两个：**cloud** 与 **server**；App 是 server 产物的打包变体，不是第三套路由。
 
-| 命令                        | 构建目标 | 收录路由                    | 说明                                                                                                                   |
-| --------------------------- | -------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                  | dev      | 全部 + `*.server` + `*.dev` | 右上角 dev 切换器（Local / Edge，对应 [run-modes.md](../run-modes.md)）热切换，整个 dev 进程生效、整页刷新，无需重启   |
-| `pnpm build` → `pnpm start` | server   | 全部 + `*.server`           | 本机 Node 服务                                                                                                         |
-| `pnpm build:app` / `dist:*` | server   | 同上                        | 同一产物 + `output: 'standalone'` + Electron；`CHAYA_DATA_DIR` 等由 Electron 运行时注入，不进构建判断                  |
-| `pnpm build:edge` / Vercel  | edge     | 不含 `*.server` / `*.dev`   | `VERCEL=1` 自动视为 edge；自托管须在**构建时**设 `CHAYA_TARGET=edge` 再 `next start`（前提见 deployment-platforms §3） |
-| `pnpm check:edge`           | edge     | —                           | edge 构建后校验 manifest 中没有 `*.server` / `*.dev` 路由                                                              |
+| 命令                        | 构建目标 | 收录路由                    | 说明                                                                                                                     |
+| --------------------------- | -------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm dev`                  | dev      | 全部 + `*.server` + `*.dev` | 右上角 dev 切换器（Local / Cloud，对应 [run-modes.md](../run-modes.md)）热切换，整个 dev 进程生效、整页刷新，无需重启    |
+| `pnpm build` → `pnpm start` | server   | 全部 + `*.server`           | 本机 Node 服务                                                                                                           |
+| `pnpm build:app` / `dist:*` | server   | 同上                        | 同一产物 + `output: 'standalone'` + Electron；`CHAYA_DATA_DIR` 等由 Electron 运行时注入，不进构建判断                    |
+| `pnpm build:cloud` / Vercel | cloud    | 不含 `*.server` / `*.dev`   | `VERCEL=1` 自动视为 cloud；自托管须在**构建时**设 `CHAYA_TARGET=cloud` 再 `next start`（前提见 deployment-platforms §3） |
+| `pnpm check:cloud`          | cloud    | —                           | cloud 构建后校验 manifest 中没有 `*.server` / `*.dev` 路由                                                               |
 
 实现要点：
 
-- `next.config.ts` 按阶段算出目标，设置 `pageExtensions` 并注入 `NEXT_PUBLIC_CHAYA_TARGET`（`dev` / `edge` / `server`）。
-- `lib/service-mode/target.ts` 的 `BUILD_TARGET` 在构建产物里是常量：edge 构建内 `getServiceMode()` 恒为 `vercel`，dev 专用代码（`DevTargetSwitch`、`/api/dev/target`）在生产包中被摇掉。
-- dev 下 `getServiceMode()` 读开关：edge → `vercel`；server → `CHAYA_SERVICE=app` 时 `app`，否则 `local`。启动时设 `CHAYA_SERVICE=vercel` 可让开关以 edge 起步。
+- `next.config.ts` 按阶段算出目标，设置 `pageExtensions` 并注入 `NEXT_PUBLIC_CHAYA_TARGET`（`dev` / `cloud` / `server`）。
+- `lib/service-mode/target.ts` 的 `BUILD_TARGET` 在构建产物里是常量：cloud 构建内 `getServiceMode()` 恒为 `remote`，dev 专用代码（`DevTargetSwitch`、`/api/dev/target`）在生产包中被摇掉。
+- dev 下 `getServiceMode()` 读开关：cloud → `remote`；server → `CHAYA_SERVICE=app` 时 `app`，否则 `local`。启动时设 `CHAYA_SERVICE=remote` 可让开关以 cloud 起步。
 - ESLint `no-restricted-imports`：非 `*.server` / `*.dev` 文件不得引用这两类模块，也不得引用 `app/api/mcp/_tools`（共享常量放 `lib/integration`）。
 - 新增「整条都要本机磁盘」的路由时命名为 `route.server.ts`；Electron App 专属能力放 `electron/` 或 preload 暴露的标记，不新增构建目标。
 
-CI 以 server 全量为准；改动路由归属时跑 `pnpm check:edge`。
+CI 以 server 全量为准；改动路由归属时跑 `pnpm check:cloud`。
 
 ---
 
@@ -236,7 +238,7 @@ CI 以 server 全量为准；改动路由归属时跑 `pnpm check:edge`。
 
 **里程碑 B**
 
-4. 拆 `translateTextsCore` + Disk 适配器；vercel 打开 texts-only 无盘翻译
+4. 拆 `translateTextsCore` + Disk 适配器；remote 打开 texts-only 无盘翻译
 5. App 只配环境（可与 A 并行）
 
 **以后**
@@ -250,11 +252,11 @@ CI 以 server 全量为准；改动路由归属时跑 `pnpm check:edge`。
 | 用例                               | 期望                           |
 | ---------------------------------- | ------------------------------ |
 | 默认                               | `local`，`canUseDisk`          |
-| `VERCEL=1`                         | `vercel`，`!canUseDisk`        |
-| `VERCEL=1` + `CHAYA_SERVICE=local` | 仍 `vercel`                    |
-| 非平台 + `CHAYA_SERVICE=vercel`    | `vercel`（模拟），Disk API 501 |
+| `VERCEL=1`                         | `remote`，`!canUseDisk`        |
+| `VERCEL=1` + `CHAYA_SERVICE=local` | 仍 `remote`                    |
+| 非平台 + `CHAYA_SERVICE=remote`    | `remote`（模拟），Disk API 501 |
 | 非平台 + `app`                     | `app`，`canUseDisk`            |
-| 非法 `CHAYA_SERVICE`               | 回落 `local`                   |
+| 非法 `CHAYA_SERVICE`               | 抛配置错误                     |
 | status 无绑定                      | 仍含 `serviceMode`             |
 | PureLogic                          | 不碰真实用户盘                 |
 
@@ -273,10 +275,10 @@ CI 以 server 全量为准；改动路由归属时跑 `pnpm check:edge`。
 
 ## 12. 修订
 
-| 日期       | 说明                                                                                             |
-| ---------- | ------------------------------------------------------------------------------------------------ |
-| 2026-09-22 | 初稿                                                                                             |
-| 2026-09-22 | CR：强制 vercel、501、清单、迁移、方案 A                                                         |
-| 2026-09-22 | 再 CR：修正 `content-files` 路径、补全 Route、translate 单一路径、里程碑、模拟云、插件 GET 归属  |
-| 2026-10-03 | 构建期剔除落地：`route.server.ts` + `pageExtensions`；edge / server 两个构建目标；dev 热切换开关 |
-| 2026-10-03 | 声明 edge 构建目标 ≠ Next Edge Runtime；补自托管构建时设目标；dev 切换器位置更正为右上角         |
+| 日期       | 说明                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------- |
+| 2026-09-22 | 初稿                                                                                              |
+| 2026-09-22 | CR：强制 remote、501、清单、迁移、方案 A                                                          |
+| 2026-09-22 | 再 CR：修正 `content-files` 路径、补全 Route、translate 单一路径、里程碑、模拟云、插件 GET 归属   |
+| 2026-10-03 | 构建期剔除落地：`route.server.ts` + `pageExtensions`；cloud / server 两个构建目标；dev 热切换开关 |
+| 2026-10-03 | 声明 cloud 构建目标 ≠ Next Cloud Runtime；补自托管构建时设目标；dev 切换器位置更正为右上角        |

@@ -15,7 +15,7 @@ import { LEGAL_HREFS } from '@/lib/legal'
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [agentOpen, setAgentOpen] = useState(false)
-  /** Edge 官方首页、条款页与 `/sh/*` 脚本页不挂控制台顶栏 */
+  /** Cloud 官方首页、条款页与 `/sh/*` 脚本页不挂控制台顶栏 */
   const marketing = pathname === '/' || LEGAL_HREFS.has(pathname) || pathname.startsWith('/sh/')
 
   return (

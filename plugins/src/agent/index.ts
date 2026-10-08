@@ -1,7 +1,7 @@
 /**
  * ChayaAgent — runs MCP / WebMCP commands in-game.
  * Local: Agent → /api/mcp → agent bridge queue → POST /api/runtime/agent (this loop) → ChayaEdit / ChayaBoost / ChayaTrans.
- * Edge: page WebMCP → game DataChannel → `window.ChayaAgent.run`; external agents → fixed-port gateway (`./gateway`). Neither evals.
+ * Cloud: page WebMCP → game DataChannel → `window.ChayaAgent.run`; external agents → fixed-port gateway (`./gateway`). Neither evals.
  */
 
 import { PLUGIN_AGENT_NAME } from '@/constants/brand'
@@ -14,6 +14,7 @@ import { startGameGateway } from './gateway'
 import { runAgentCommand, startManualInputTracking, startReactionTracking } from './handlers'
 import { startHistory } from './history'
 import { startRenderedTextCapture } from './rendered-text'
+import { createGameAgentRuntime } from './runtime/host'
 
 const log = createLogger(PLUGIN_AGENT_NAME)
 
@@ -29,6 +30,12 @@ type AgentGlobal = {
   run: (cmd: AgentCommand) => Promise<unknown>
   /** Unified MCP gateway status / port management for the in-game panel */
   gateway: McpGatewayControl
+  handleTask: (
+    message: import('@/lib/runtime/game-link-protocol').AgentTaskMessage,
+    send: (message: import('@/lib/runtime/game-link-protocol').AgentTaskMessage) => void
+  ) => boolean
+  cancelRemoteAuthorization: () => void
+  taskRequest: (message: Exclude<import('@/lib/runtime/game-link-protocol').AgentTaskMessage, { type: 'agent.task.result' }>, signal?: AbortSignal) => Promise<unknown>
 }
 
 declare global {
@@ -64,6 +71,7 @@ function start(): AgentGlobal {
   const stopInputTracking = startManualInputTracking()
   const stopReactionTracking = startReactionTracking()
   const stopRenderedTextCapture = startRenderedTextCapture()
+  const tasks = createGameAgentRuntime()
 
   void (async () => {
     let pending: AgentResult[] = []
@@ -105,6 +113,7 @@ function start(): AgentGlobal {
       stopInputTracking()
       stopReactionTracking()
       stopRenderedTextCapture()
+      tasks.dispose()
       void gateway.stop()
     },
     status: () => ({ running, roomId: gameRoomId(), handled }),
@@ -113,6 +122,9 @@ function start(): AgentGlobal {
       return runAgentCommand(cmd)
     },
     gateway: gateway.control,
+    handleTask: tasks.handle,
+    taskRequest: tasks.request,
+    cancelRemoteAuthorization: tasks.cancelRemoteAuthorization,
   }
 }
 

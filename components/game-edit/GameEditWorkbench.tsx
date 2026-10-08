@@ -329,11 +329,7 @@ export function GameEditWorkbench({
 
   return (
     <div
-      className={cn(
-        panelShell,
-        surface === 'overlay' && 'rounded-lg border border-line bg-[color-mix(in_oklab,var(--panel)_92%,transparent)] shadow-[0_12px_40px_rgb(0_0_0/0.45)]',
-        className
-      )}
+      className={cn(panelShell, surface === 'overlay' && 'rounded-lg border border-line bg-panel shadow-[0_12px_40px_rgb(0_0_0/0.45)]', className)}
       role="region"
       aria-label={t('edit.panelAria')}
     >

@@ -25,6 +25,8 @@ type Props = {
   entries: LibraryItemView[]
   activeRoot: string
   busy?: boolean
+  addBusy?: boolean
+  addDisabledReason?: string
   /** false 时隐藏添加 / 移除（云端形态） */
   canUseDisk?: boolean
   onSelect: (gameRoot: string) => void
@@ -44,7 +46,19 @@ function readStoredSort(): LibrarySortMode {
   }
 }
 
-export function LibraryRail({ entries, activeRoot, busy = false, canUseDisk = true, onSelect, onAdd, onRemove, mobileOpen = false, onMobileOpenChange }: Props) {
+export function LibraryRail({
+  entries,
+  activeRoot,
+  busy = false,
+  addBusy = false,
+  addDisabledReason,
+  canUseDisk = true,
+  onSelect,
+  onAdd,
+  onRemove,
+  mobileOpen = false,
+  onMobileOpenChange,
+}: Props) {
   const t = useT()
   const active = activeRoot.trim()
   const confirm = useConfirm()
@@ -142,7 +156,15 @@ export function LibraryRail({ entries, activeRoot, busy = false, canUseDisk = tr
               className="min-w-0 max-w-[7.5rem] [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
             />
             {canUseDisk ? (
-              <Button variant="ghost" size="icon" disabled={busy || removing} aria-label={t('library.add')} tooltip={t('library.add')} onClick={onAdd}>
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={busy || addBusy || removing || !!addDisabledReason}
+                loading={addBusy}
+                aria-label={t('library.add')}
+                tooltip={addDisabledReason || t('library.add')}
+                onClick={onAdd}
+              >
                 <IoAddOutline size={18} aria-hidden />
               </Button>
             ) : null}
@@ -151,6 +173,7 @@ export function LibraryRail({ entries, activeRoot, busy = false, canUseDisk = tr
             </Button>
           </div>
         </div>
+        {addDisabledReason ? <p className="m-0 border-b border-line px-4 py-2 text-xs leading-[1.4] text-warn">{addDisabledReason}</p> : null}
         <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('library.listAria') }}>
           {sorted.length === 0 ? (
             <div className="px-4 py-4 text-[0.8125rem] text-ink-soft" role="status">

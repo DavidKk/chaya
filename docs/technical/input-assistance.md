@@ -16,7 +16,7 @@
 
 网页负责录制与编辑；不要求连接游戏。连接后通过 GameLink 同步全局和本游戏配置并接收状态。游戏插件独立安装运行时，负责识别物理输入、执行规则和释放输出，页面卸载不销毁运行时。全局配置在桌面服务中写入 `data/input-assistance/global.json`；浏览器模式使用 localStorage。本游戏配置优先写入游戏内容目录的 `chaya/config/input-assistance.json`，无文件系统时退回游戏 localStorage；网页还缓存本游戏快照。
 
-页面通过 `GameToolTransportContext` 取通道：Web 控制台由 `GameLinkProvider` 提供 GameLink 通道（edge 即浏览器模式，通用配置存 localStorage）；局内浮层由插件提供直连通道，命令直接交给控制器，通用配置存游戏 localStorage。控制器区分 GameLink 客户端与浮层：浮层不占用 GameLink 的状态回传；浮层保存后向已连接的网页推送 `assist.config`。两端连接或收到推送时都按 `revision` 采用较新的一份并写回本端存储，较旧的一端再把自己的新版本下发。
+页面通过 `GameToolTransportContext` 取通道：Web 控制台由 `GameLinkProvider` 提供 GameLink 通道（cloud 即浏览器模式，通用配置存 localStorage）；局内浮层由插件提供直连通道，命令直接交给控制器，通用配置存游戏 localStorage。控制器区分 GameLink 客户端与浮层：浮层不占用 GameLink 的状态回传；浮层保存后向已连接的网页推送 `assist.config`。两端连接或收到推送时都按 `revision` 采用较新的一份并写回本端存储，较旧的一端再把自己的新版本下发。
 
 ## 规则与页面
 

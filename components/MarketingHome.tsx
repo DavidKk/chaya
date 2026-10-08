@@ -81,7 +81,7 @@ const downloadBtnClass = cn(
 )
 
 /**
- * Edge（Vercel）官方首页：介绍 + 下载。
+ * Cloud（Vercel）官方首页：介绍 + 下载。
  * local / app 不会渲染本页（`/` 直接进 `/game`）。
  */
 export function MarketingHome({ githubUrl, downloads }: { githubUrl: string; downloads: ReleaseDownloads }) {

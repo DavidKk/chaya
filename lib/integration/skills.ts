@@ -11,10 +11,10 @@ export const SKILLS = [
     id: 'chaya-setup',
     title: { en: 'Setup and the three modes', zh: '安装与三种形态', ja: 'インストールと 3 つの形態', ko: '설치와 세 가지 형태' },
     summary: {
-      en: 'What Chaya is; how Edge, local dev and the App differ and how to install each.',
-      zh: 'Chaya 是什么；Edge / 本地 dev / App 的区别与安装。',
-      ja: 'Chaya とは何か。Edge / ローカル dev / App の違いとインストール。',
-      ko: 'Chaya란 무엇인지, Edge / 로컬 dev / App의 차이와 설치.',
+      en: 'What Chaya is; how Cloud, local dev and the App differ and how to install each.',
+      zh: 'Chaya 是什么；Cloud / 本地 dev / App 的区别与安装。',
+      ja: 'Chaya とは何か。Cloud / ローカル dev / App の違いとインストール。',
+      ko: 'Chaya란 무엇인지, Cloud / 로컬 dev / App의 차이와 설치.',
     },
   },
   {

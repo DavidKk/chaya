@@ -80,7 +80,7 @@ describe('in-game MCP gateway', () => {
     expect(wrong.result?.isError).toBe(true)
   })
 
-  it('does not bind without the Edge flag but still manages the port', async () => {
+  it('does not bind without the Cloud flag but still manages the port', async () => {
     const port = await freePort()
     writeMcpPortConfig(fs, portEnv(), port)
     const started = startGameGateway({ gameId: () => 'room-1', gameInfo: () => ({}), log })

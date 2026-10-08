@@ -55,7 +55,7 @@ function appendEntries(fresh: LogEntry[]): void {
   emit()
 }
 
-/** Browser-side events such as Edge Agent calls share the same log view as game-link logs. */
+/** Browser-side events such as Cloud Agent calls share the same log view as game-link logs. */
 export function appendBrowserLog(entry: { level: string; source: string; message: string; meta?: unknown }): void {
   appendEntries([
     {

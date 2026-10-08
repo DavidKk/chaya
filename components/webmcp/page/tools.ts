@@ -83,7 +83,7 @@ export function buildPageTools({ navigate, routes, context }: PageToolDeps): Web
   return [
     {
       name: 'page_get_context',
-      description: `Read the current Chaya page context: path, title, service mode (local / app / vercel), bound game and game link, tools per registrar, MCP tools unavailable on Edge with reasons, and open dialogs.${UNTRUSTED_NOTE}`,
+      description: `Read the current Chaya page context: path, title, service mode (local / app / remote), bound game and game link, tools per registrar, MCP tools unavailable on Remote with reasons, and open dialogs.${UNTRUSTED_NOTE}`,
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: () => {

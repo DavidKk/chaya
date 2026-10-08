@@ -25,6 +25,13 @@ export type EventsMessages = {
   loadFail: string
   needLink: string
   needLinkMsg: string
+  directoryPermissionTitle: string
+  directoryPermissionPrompt: string
+  directoryPermissionDenied: string
+  directoryUnreadableTitle: string
+  directoryUnreadable: string
+  directoryAuthorize: string
+  retry: string
   noData: string
   noDataMsg: string
   groupToggle: string
@@ -232,6 +239,15 @@ export type EventsMapMessages = {
   emptyMap: string
   notCurrentRunHint: string
   variableRefs: string
+  batchSelected: string
+  batchSelfOn: string
+  batchSelfOff: string
+  batchDone: string
+  batchSatisfy: string
+  batchSatisfyShort: string
+  batchSummary: string
+  batchAutorun: string
+  batchLimit: string
 }
 
 export type EventsBattleMessages = {

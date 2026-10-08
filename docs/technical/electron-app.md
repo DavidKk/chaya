@@ -18,7 +18,7 @@ pnpm electron:open
 - 主进程：[`electron/main.cjs`](../../electron/main.cjs)
 - 预加载：[`electron/preload.cjs`](../../electron/preload.cjs)（仅暴露 `window.chayaDesktop`）
 
-`pnpm dev` 仍为浏览器（可用右上角 dev 切换器切到 Edge）；**App 形态用 `dev:app`**。
+`pnpm dev` 仍为浏览器（可用右上角 dev 切换器切到 Cloud）；**App 形态用 `dev:app`**。
 
 ## 打包安装包
 

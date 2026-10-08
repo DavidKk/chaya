@@ -21,7 +21,6 @@ export {
   loadDisabledHotkeys,
   loadGameStoredHotkeys,
   loadGlobalHotkeys,
-  loadStoredHotkeys,
   matchKeyChord,
   matchOpenPanelHotkey,
   OPEN_CONSOLE_HOTKEY_ID,
@@ -37,7 +36,6 @@ export {
   saveDisabledHotkeys,
   saveGameStoredHotkeys,
   saveGlobalHotkeys,
-  saveStoredHotkeys,
   setGameHotkeysCache,
 } from './run-hotkeys'
 export {

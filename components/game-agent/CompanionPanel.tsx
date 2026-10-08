@@ -5,7 +5,7 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import { ConfirmProvider, useConfirm } from '@/components/confirm/ConfirmProvider'
 import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
-import { MiniPanelAlert } from '@/components/game-tools/MiniPanelParts'
+import { MiniPanelAlert, MiniPanelBar } from '@/components/game-tools/MiniPanelParts'
 import { useToolPanelVisibility } from '@/components/game-tools/tool-panels'
 import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
@@ -20,8 +20,26 @@ const MAX_MESSAGES = 30
 
 type ChatLine = { id: string; role: 'chaya' | 'player' | 'error'; text: string; character?: CompanionCharacter }
 type AgentProfile = { id: string; label: string; online: boolean; models: { name: string }[]; defaultModel: string }
-type AgentStatus = { available: boolean; profiles: AgentProfile[]; defaultProfileId: string; session: { id: string } | null; reason: string | null }
-type TurnEvent = { type: string; turnId?: string; sessionId?: string; text?: string; message?: string; question?: string; name?: string; phase?: string }
+type AgentStatus = {
+  available: boolean
+  profiles: AgentProfile[]
+  defaultProfileId: string
+  session: { id: string; activeTurnId?: string | null; activeTurn?: { id: string; state: string; goal?: string; phase?: string } | null } | null
+  reason: string | null
+}
+type TurnEvent = {
+  type: string
+  turnId?: string
+  sessionId?: string
+  text?: string
+  message?: string
+  question?: string
+  name?: string
+  phase?: string
+  summary?: string
+  step?: number
+  maxSteps?: number
+}
 type Props = { gameId: string; open: boolean; observe: () => CompanionState; request: GameAgentRequest }
 
 function responseError(body: unknown, fallback: string) {
@@ -91,6 +109,7 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
   const tracker = useRef(new CompanionTracker())
   const listRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef<ChatLine[]>([])
+  const running = busy || !!turnId
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -103,14 +122,25 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
       setProfileId(nextId)
       setModel((current) => (nextProfile?.models.some((item) => item.name === current) ? current : nextProfile?.defaultModel || ''))
       if (!sessionId) setSessionId(body.session?.id || '')
+      const active = body.session?.activeTurn
+      if (active) {
+        setTurnId(active.id)
+        if (!readerRef.current) setProgress(active.phase || t('companion.running'))
+      } else if (!readerRef.current) {
+        setTurnId('')
+        setProgress('')
+      }
     } catch (error) {
       setStatus({ available: false, profiles: [], defaultProfileId: '', session: null, reason: error instanceof Error ? error.message : String(error) })
     }
-  }, [gameId, profileId, request, sessionId])
+  }, [gameId, profileId, request, sessionId, t])
 
   useEffect(() => {
-    if (!open) void refreshStatus()
-  }, [open, refreshStatus])
+    if (open || !panel.visible) return
+    void refreshStatus()
+    const timer = window.setInterval(() => void refreshStatus(), POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [open, panel.visible, refreshStatus])
 
   const append = useCallback((line: ChatLine) => {
     messagesRef.current = [...messagesRef.current, line].slice(-MAX_MESSAGES)
@@ -123,6 +153,7 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          gameId,
           text,
           cue,
           locale,
@@ -141,7 +172,7 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
         setMessages(messagesRef.current)
       } else append({ id: crypto.randomUUID(), role: 'chaya', text: reply, character: settings.companionCharacter })
     },
-    [append, locale, model, observe, profileId, request, settings.companionCharacter]
+    [append, gameId, locale, model, observe, profileId, request, settings.companionCharacter]
   )
 
   useEffect(() => {
@@ -187,10 +218,13 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
         setQuestion(item.question || '')
         setProgress('')
       } else if (item.type === 'tool.started') {
-        setProgress(t('companion.acting'))
+        setProgress(item.name ? `${t('companion.acting')} ${item.name}` : t('companion.acting'))
       } else if (item.type === 'phase') {
         const phase = { observing: 'companion.observing', thinking: 'companion.thinking', acting: 'companion.acting', verifying: 'companion.verifying' } as const
-        setProgress(item.phase === 'waiting_user' ? '' : t(phase[item.phase as keyof typeof phase] ?? 'companion.thinking'))
+        const label = item.phase === 'waiting_user' ? '' : t(phase[item.phase as keyof typeof phase] ?? 'companion.thinking')
+        setProgress(label && item.step && item.maxSteps ? `${label} ${item.step}/${item.maxSteps}` : label)
+      } else if (item.type === 'progress.updated') {
+        setProgress(item.summary || t('companion.running'))
       } else if (item.type === 'turn.failed') {
         messagesRef.current = messagesRef.current.filter((line) => line.id !== replyId || !!line.text)
         setMessages(messagesRef.current)
@@ -259,13 +293,15 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
       await request(`/api/game-agent/turn/${encodeURIComponent(turnId)}?gameId=${encodeURIComponent(gameId)}`, { method: 'DELETE' })
     } catch (error) {
       append({ id: crypto.randomUUID(), role: 'error', text: error instanceof Error ? error.message : String(error) })
+    } finally {
+      void refreshStatus()
     }
   }
 
   const send = async (event: FormEvent) => {
     event.preventDefault()
     const text = draft.trim()
-    if (!text || (busy && !question)) return
+    if (!text || (running && !question)) return
     setDraft('')
     append({ id: crypto.randomUUID(), role: 'player', text })
     if (question && turnId) {
@@ -342,7 +378,7 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
             profiles={status?.profiles || []}
             profileId={profileId}
             model={model}
-            disabled={busy}
+            disabled={running}
             onChange={(nextProfile, nextModel) => {
               setProfileId(nextProfile)
               setModel(nextModel)
@@ -356,6 +392,7 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
     >
       <div className="flex h-full min-h-0 flex-col">
         <MiniPanelAlert>{status && !status.available ? status.reason || t('companion.unavailable') : null}</MiniPanelAlert>
+        {running ? <MiniPanelBar summary={`${t('companion.running')} · ${progress || t('companion.thinking')}`} /> : null}
         <ScrollArea
           className="min-h-0 flex-1"
           scrollRef={listRef}
@@ -369,7 +406,7 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
                 {line.role === 'chaya' ? COMPANION_CHARACTER_PROFILES[line.character || settings.companionCharacter].name : line.role === 'player' ? t('companion.player') : '!'}:
               </strong>{' '}
               {line.text ||
-                (line.id === activeReplyId && busy
+                (line.id === activeReplyId && running
                   ? question || (
                       <span className="text-ink-soft">
                         <Spinner size="sm" className="mr-1 inline-block align-middle" label={progress || t('companion.thinking')} />
@@ -391,7 +428,7 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
             placeholder={question || t('companion.placeholder')}
             className="min-w-0 flex-1 border-0 bg-transparent px-2 text-[11px] text-ink outline-none placeholder:text-ink-soft focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
           />
-          {busy && !question ? (
+          {running && !question ? (
             <Button
               type="button"
               variant="plain"

@@ -11,6 +11,13 @@ import { NotificationProvider } from '@/components/notification/NotificationProv
 import { buildCommonEventsData, type MapDetailData } from '@/lib/game/events'
 import { type MapEventPage, normalizeConditions } from '@/lib/game/events/map-index'
 
+const mockConfirm = jest.fn(async () => true)
+
+jest.mock('@/components/confirm/ConfirmProvider', () => ({
+  ...jest.requireActual('@/components/confirm/ConfirmProvider'),
+  useConfirm: () => mockConfirm,
+}))
+
 // 世界 › 村 › 家, plus a root 城
 const data = buildCommonEventsData(
   {
@@ -106,6 +113,7 @@ afterEach(async () => {
   host?.remove()
   document.body.innerHTML = ''
   root = null
+  mockConfirm.mockClear()
 })
 
 const aside = () => document.querySelector('aside') as HTMLElement
@@ -169,7 +177,18 @@ const villageDetail: MapDetailData = {
   displayName: '',
   width: 10,
   height: 10,
-  events: [{ id: 5, name: '门卫', rawName: '门卫', x: 1, y: 2, type: 'npc', pages: [page('a'), page('b')] }],
+  events: [
+    {
+      id: 5,
+      name: '门卫',
+      rawName: '门卫',
+      x: 1,
+      y: 2,
+      type: 'npc',
+      pages: [page('a'), { ...page('b'), conditions: { switch1: 3, variable: { id: 4, value: 9 }, selfSwitch: 'C' } }],
+    },
+    { id: 6, name: '村长', rawName: '村长', x: 3, y: 4, type: 'npc', pages: [{ ...page('c'), conditions: { switch1: 7 } }] },
+  ],
   texts: {},
   encounters: [],
   encounterStep: 30,
@@ -222,4 +241,54 @@ test('event detail does not show the mini map', async () => {
 test('an out-of-range page tab falls back to the first page', async () => {
   await render(slot({ mapId: 2, eventId: 5, mapDetail: villageDetail, eventPage: 7 }))
   expect(pageTab(0).getAttribute('aria-selected')).toBe('true')
+})
+
+test('batch updates selected event self switches after confirmation', async () => {
+  const onMapChanges = jest.fn().mockResolvedValue({ status: { completed: 2, failed: 0 } })
+  await render(slot({ mapId: 2, mapDetail: villageDetail, canAct: true, onMap: true, onMapChanges }))
+
+  await act(async () => {
+    ;(document.querySelector('input[aria-label="门卫"]') as HTMLInputElement).click()
+    ;(document.querySelector('input[aria-label="村长"]') as HTMLInputElement).click()
+  })
+  await act(async () => (document.querySelector('button[aria-label="开关"]') as HTMLButtonElement).click())
+  const optionB = [...document.querySelectorAll('[role="option"]')].find((option) => option.textContent?.trim() === 'B') as HTMLElement
+  await act(async () => optionB.click())
+  const turnOn = [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === '开') as HTMLButtonElement
+  await act(async () => turnOn.click())
+
+  expect(mockConfirm).toHaveBeenCalledTimes(1)
+  expect(onMapChanges).toHaveBeenCalledWith(
+    [
+      { label: '门卫 (#5)', changes: [{ kind: 'selfSwitch', mapId: 2, eventId: 5, letter: 'B', value: true }] },
+      { label: '村长 (#6)', changes: [{ kind: 'selfSwitch', mapId: 2, eventId: 6, letter: 'B', value: true }] },
+    ],
+    '打开独立开关 B'
+  )
+})
+
+test('batch satisfies the writable conditions of selected events', async () => {
+  const onMapChanges = jest.fn().mockResolvedValue({ status: { completed: 2, failed: 0, skipped: 0 } })
+  await render(slot({ mapId: 2, mapDetail: villageDetail, canAct: true, onMap: true, onMapChanges }))
+  await act(async () => {
+    ;(document.querySelector('input[aria-label="门卫"]') as HTMLInputElement).click()
+    ;(document.querySelector('input[aria-label="村长"]') as HTMLInputElement).click()
+  })
+  const satisfy = [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === '满足条件') as HTMLButtonElement
+  await act(async () => satisfy.click())
+
+  expect(onMapChanges).toHaveBeenCalledWith(
+    [
+      {
+        label: '门卫 (#5)',
+        changes: [
+          { kind: 'switch', id: 3, value: true },
+          { kind: 'variable', id: 4, value: 9 },
+          { kind: 'selfSwitch', mapId: 2, eventId: 5, letter: 'C', value: true },
+        ],
+      },
+      { label: '村长 (#6)', changes: [{ kind: 'switch', id: 7, value: true }] },
+    ],
+    '满足所选事件的出现条件'
+  )
 })

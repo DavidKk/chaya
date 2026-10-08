@@ -1,9 +1,11 @@
 # Chaya 助手与 Agent 配置需求
 
-> 状态：实施中（M1 已完成）  
-> 日期：2026-10-04  
+> 状态：M1 / M2 核心已完成（基线文档）。**本波可恢复性补齐以 [`capability-supplement.md`](./capability-supplement.md) §8 为准**；自主托管策略以 [`game-assistance.md`](./game-assistance.md) 为准。Phase 3 中与本波无关的条目 **冻结**
+> 日期：2026-10-04 · 状态修订：2026-10-08
 > 技术方案：[`technical/game-agent.md`](./technical/game-agent.md)  
-> 关联：[`integration.md`](./integration.md)、[`webmcp.md`](./webmcp.md)、[`game-assistance.md`](./game-assistance.md)
+> 关联：[`integration.md`](./integration.md)、[`webmcp.md`](./webmcp.md)、[`game-assistance.md`](./game-assistance.md)、[`capability-supplement.md`](./capability-supplement.md)
+>
+> **已废弃（勿再按此开发）**：玩家手动选「询问 / 游玩」双入口；把 SSE 断线取消当作托管 Turn 的产品契约；与辅助文档冲突的 Phase 2/3 游玩语义；开放危险修改/脚本工具。
 
 ## 1. 背景
 
@@ -11,7 +13,7 @@ Chaya 已能通过 MCP 读取游戏状态、调用第一方插件、模拟按键
 
 新增“Chaya 助手”右侧聊天面板，使玩家可以输入目标，由用户配置的 Agent 推理，并通过现有 Chaya 工具完成“观察 → 操作 → 验证”的有限循环。Agent 是独立、可重复配置的实体；当前适配器为 Ollama，名称、接入地址、默认模型和参数不写死在聊天面板或游戏插件中。
 
-App、local server、Edge 和游戏插件使用相同的 Chaya 助手与 Agent 配置组件。Edge 的 Agent 配置存于浏览器本地；执行能力按运行形态显示可用状态。
+App、local server、Cloud 和游戏插件使用相同的 Chaya 助手与 Agent 配置组件。Cloud 的 Agent 配置存于浏览器本地；执行能力按运行形态显示可用状态。
 
 ## 2. 目标
 
@@ -30,7 +32,7 @@ App、local server、Edge 和游戏插件使用相同的 Chaya 助手与 Agent �
 
 ## 3. 非目标
 
-- 第一版不支持 Edge / Vercel 直接连接本机 Ollama。
+- 第一版不支持 Cloud / Vercel 直接连接本机 Ollama。
 - 第一版只交付 Ollama 适配器；配置结构按 provider + profile 设计，后续可以增加其它协议适配器。
 - 第一版不让 Agent 使用终端、任意文件系统、任意网络或 `chaya_live_eval`。
 - 第一版不让模型无限后台运行，也不在玩家未发起任务时自行操作。
@@ -136,7 +138,7 @@ Header 保持单行稳定高度，包含：
 - Agent 是多个实体，不设置“默认 Agent”按钮；列表第一项作为默认选择，顺序稳定。
 - 每个 Agent 独立保存名称、平台、服务地址、默认模型、Temperature 和 Keep Alive。
 - Chaya 助手只负责聊天、会话和选择 Agent / 模型；CRUD 统一进入配置页。
-- App、local server、Edge 和游戏插件复用同一套列表、详情与表单组件，仅替换请求和存储适配器。
+- App、local server、Cloud 和游戏插件复用同一套列表、详情与表单组件，仅替换请求和存储适配器。
 
 ### 6.9 插件与服务同步
 
@@ -301,7 +303,7 @@ Agent 使用用户本轮 Prompt 的语言回答；无法判断时使用当前 UI
 - Chaya 助手侧栏、快捷键和焦点处理。
 - 一级“配置”导航与二级“Agent”导航。
 - Agent 列表与新增 / 编辑详情，支持多个 Ollama Agent 的独立名称、endpoint、默认模型和参数。
-- App、local server、Edge 与游戏插件复用 Agent CRUD 组件。
+- App、local server、Cloud 与游戏插件复用 Agent CRUD 组件。
 - 根据所选实例动态探测 Ollama 和读取模型列表；失败或临时空列表时保留已保存模型。
 - Prompt、流式回答、停止和错误状态。
 - 按 `gameId` 建立内存会话。
@@ -339,4 +341,4 @@ Agent 使用用户本轮 Prompt 的语言回答；无法判断时使用当前 UI
 - [ ] 达到步数、时间或无进展上限时正确结束。
 - [ ] 工具参数通过既有 schema 校验，模型输出不能直接执行 JS。
 - [ ] demo 指定选项任务端到端通过。
-- [ ] Edge 明确提示该能力需要 App / local，不发起本机 Ollama 请求。
+- [ ] Cloud 明确提示该能力需要 App / local，不发起本机 Ollama 请求。

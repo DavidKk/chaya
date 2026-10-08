@@ -122,6 +122,13 @@ test('pinning locks position and size; the old opaque pin flag is ignored', asyn
   }
   expect(section.dataset.pinned).toBe('false')
   expect(section.querySelectorAll('[role="separator"]')).toHaveLength(8)
+  expect(section.className.split(' ')).toContain('bg-panel')
+  expect(section.className).not.toMatch(/\bbg-panel\//)
+  expect(section.className).toContain('pointer-events-auto')
+  expect(section.className).toContain('opacity-40')
+  expect(section.className).toContain('hover:opacity-100')
+  expect(section.className).toContain('focus-within:opacity-100')
+  expect(section.className).toContain('[&:has([data-panel-interaction-active])]:opacity-100')
   const before = frame('Map').x
   await drag(-50)
   expect(frame('Map').x).toBe(before - 50)
@@ -133,7 +140,7 @@ test('pinning locks position and size; the old opaque pin flag is ignored', asyn
   expect(section.querySelectorAll('[role="separator"]')).toHaveLength(0)
   await drag(-50)
   expect(frame('Map').x).toBe(before - 50)
-  expect(section.className).not.toContain('opacity-40')
+  expect(section.className).toContain('opacity-40')
 })
 
 test('labels resize handles in the UI language and gives focus back after resizing', async () => {

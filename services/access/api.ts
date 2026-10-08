@@ -8,7 +8,7 @@ import { type LaunchSession, peekLaunchToken } from '@/services/runtime/launch-t
 export async function mayAccessApi(request: Request): Promise<boolean> {
   const url = new URL(request.url)
   const path = url.pathname
-  // Edge：无登录，数据都在浏览器本地；`/api/mcp` 不进 Edge 构建
+  // Cloud：无登录，数据都在浏览器本地；`/api/mcp` 不进 Cloud 构建
   if (!canUseDisk()) return true
   if ((request.method === 'GET' || request.method === 'HEAD') && (path.startsWith('/api/remote/') || /^\/api\/plugins\/[^/]+$/.test(path))) return true
   if (hasManagementAccess(request)) return true
@@ -40,6 +40,7 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
     return url.searchParams.get('gameId') === (session.libraryId || session.token)
   }
   if (path === '/api/integration/game-agent' && ['GET', 'POST', 'PUT'].includes(request.method)) return true
+  if (path === '/api/game-agent/model' && request.method === 'POST') return true
   if (path === '/api/game-agent/turn' && request.method === 'POST') {
     const body = await request
       .clone()
@@ -52,11 +53,23 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
   }
   const stopMatch = path.match(/^\/api\/game-agent\/turn\/([^/]+)$/)
   if (stopMatch && ['DELETE', 'GET'].includes(request.method)) {
+    const requestedGame = url.searchParams.get('gameId')
+    if (requestedGame) return requestedGame === (session.libraryId || session.token)
     const turn = getTurn(decodeURIComponent(stopMatch[1]))
     return !!turn && turn.gameId === (session.libraryId || session.token)
   }
   const turnChild = path.match(/^\/api\/game-agent\/turn\/([^/]+)\/(events|reply)$/)
   if (turnChild && (request.method === 'GET' || request.method === 'POST')) {
+    const requestedGame =
+      request.method === 'GET'
+        ? url.searchParams.get('gameId')
+        : (
+            await request
+              .clone()
+              .json()
+              .catch(() => null)
+          )?.gameId
+    if (requestedGame) return requestedGame === (session.libraryId || session.token)
     const turn = getTurn(decodeURIComponent(turnChild[1]))
     return !!turn && turn.gameId === (session.libraryId || session.token)
   }

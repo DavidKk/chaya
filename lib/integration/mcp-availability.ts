@@ -1,7 +1,7 @@
 /**
  * Which catalog tools each MCP form serves. Pages, the plugin gateway and docs all read this one list.
  * - `server`: local service `/api/mcp`, every tool (eval still needs `CHAYA_MCP_EVAL=1`).
- * - `plugin`: in-game gateway of an Edge-opened game; only what runs inside the game process.
+ * - `plugin`: in-game gateway of an Cloud-opened game; only what runs inside the game process.
  */
 
 import { MCP_TOOLS, type McpToolGroupId, type McpToolMeta } from './mcp-catalog'

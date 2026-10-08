@@ -104,8 +104,8 @@ export const integrationZh = {
     webmcpStep3: '重新打开本页，在控制台执行 document.modelContext.getTools() 应能看到工具列表。',
     webmcpModesTitle: '本页 WebMCP',
     webmcpModeLocal: 'App / 本地 dev：MCP 工具镜像本机 /api/mcp，与外部 Agent 完全一致；页面工具额外提供；局内修改走 MCP 的 chaya_edit_*。',
-    webmcpModeEdge:
-      '网页版（Edge）：MCP 工具在浏览器内实现（游戏库、DataChannel 局内控制、翻译、缓存、日志查询），启动游戏、卸载命令、窗口、eval、批量翻译、清日志不可用；连上游戏后插件工具自动出现。',
+    webmcpModeRemote:
+      '网页版（Remote）：MCP 工具在浏览器内实现（游戏库、DataChannel 局内控制、翻译、缓存、日志查询），启动游戏、卸载命令、窗口、eval、批量翻译、清日志不可用；连上游戏后插件工具自动出现。',
     webmcpRegistered: '已注册工具',
     webmcpEmpty: '暂无已注册工具',
     webmcpGroupPage: '页面',
@@ -220,8 +220,8 @@ export const integrationEn = {
     webmcpModesTitle: 'WebMCP on this page',
     webmcpModeLocal:
       'App / local dev: MCP tools mirror the local /api/mcp exactly as external agents see them; page tools are extra; in-game edits go through the MCP chaya_edit_* tools.',
-    webmcpModeEdge:
-      'Web (Edge): MCP tools run in the browser (library, in-game control over DataChannel, translation, cache, log query). Launch, shell uninstall, window, eval, batch translate and clear logs are unavailable. Plugin tools appear once a game is connected.',
+    webmcpModeRemote:
+      'Web (Remote): MCP tools run in the browser (library, in-game control over DataChannel, translation, cache, log query). Launch, shell uninstall, window, eval, batch translate and clear logs are unavailable. Plugin tools appear once a game is connected.',
     webmcpRegistered: 'Registered tools',
     webmcpEmpty: 'No tools registered',
     webmcpGroupPage: 'Page',
@@ -336,8 +336,8 @@ export const integrationJa = {
     webmcpModesTitle: 'このページの WebMCP',
     webmcpModeLocal:
       'App / ローカル dev：MCP ツールはローカルの /api/mcp をそのままミラーし、外部エージェントと同一です。ページツールは追加分です。ゲーム内の改造は MCP の chaya_edit_* を使います。',
-    webmcpModeEdge:
-      'Web 版（Edge）：MCP ツールはブラウザ内で実装（ライブラリ、DataChannel 経由のゲーム操作、翻訳、キャッシュ、ログ検索）。起動、アンインストールコマンド、ウィンドウ、eval、一括翻訳、ログ消去は使えません。ゲーム接続後にプラグインツールが現れます。',
+    webmcpModeRemote:
+      'Web 版（Remote）：MCP ツールはブラウザ内で実装（ライブラリ、DataChannel 経由のゲーム操作、翻訳、キャッシュ、ログ検索）。起動、アンインストールコマンド、ウィンドウ、eval、一括翻訳、ログ消去は使えません。ゲーム接続後にプラグインツールが現れます。',
     webmcpRegistered: '登録済みツール',
     webmcpEmpty: '登録済みツールはありません',
     webmcpGroupPage: 'ページ',
@@ -452,8 +452,8 @@ export const integrationKo = {
     webmcpModesTitle: '이 페이지의 WebMCP',
     webmcpModeLocal:
       'App / 로컬 dev: MCP 도구는 로컬 /api/mcp를 그대로 미러링하여 외부 에이전트와 같습니다. 페이지 도구는 추가로 제공되며, 게임 내 수정은 MCP의 chaya_edit_*를 사용합니다.',
-    webmcpModeEdge:
-      '웹(Edge): MCP 도구를 브라우저에서 구현합니다(라이브러리, DataChannel 게임 제어, 번역, 캐시, 로그 조회). 실행, 제거 명령, 창, eval, 일괄 번역, 로그 삭제는 사용할 수 없습니다. 게임이 연결되면 플러그인 도구가 나타납니다.',
+    webmcpModeRemote:
+      '웹(Remote): MCP 도구를 브라우저에서 구현합니다(라이브러리, DataChannel 게임 제어, 번역, 캐시, 로그 조회). 실행, 제거 명령, 창, eval, 일괄 번역, 로그 삭제는 사용할 수 없습니다. 게임이 연결되면 플러그인 도구가 나타납니다.',
     webmcpRegistered: '등록된 도구',
     webmcpEmpty: '등록된 도구가 없습니다',
     webmcpGroupPage: '페이지',

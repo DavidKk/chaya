@@ -13,7 +13,7 @@ export function diskUnavailable(): NextResponse {
 
 /**
  * DiskOps Route 入口门禁。无盘时返回 501；有盘返回 null，继续业务。
- * 全仓只用 canUseDisk，勿散落 if (vercel)。
+ * 全仓只用 canUseDisk，勿散落 if (remote)。
  */
 export function requireDisk(): NextResponse | null {
   if (!canUseDisk()) return diskUnavailable()

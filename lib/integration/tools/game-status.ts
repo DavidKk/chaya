@@ -1,4 +1,4 @@
-/** `chaya_game_status` 的统一返回结构：本机 MCP 与网页版（Edge）WebMCP 各自取数，映射到同一形状。 */
+/** `chaya_game_status` 的统一返回结构：本机 MCP 与网页版（Cloud）WebMCP 各自取数，映射到同一形状。 */
 import { formatBytes } from '@/lib/format-bytes'
 import type { GameFingerprintSummary } from '@/lib/game/fingerprint/types'
 import { countReadyPlugins } from '@/lib/game/plugins-status'

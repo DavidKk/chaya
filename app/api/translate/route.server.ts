@@ -42,7 +42,7 @@ export const dynamic = 'force-dynamic'
  * - `{ mode: 'agents' }`：列出可选的 Agent 实例（名称 / 模型，不含端点与 token）
  * - `{ mode: 'ai', text, ai }`：用选定 Agent 实例翻译一段（插件 AI 引擎走这里，token 不出服务端）
  *
- * 迁移期：整路由属 DiskOps（未拆无盘核心前 vercel 一律 501）。
+ * 迁移期：整路由属 DiskOps（未拆无盘核心前 remote 一律 501）。
  */
 export const POST = defineApiRoute('post:/api/translate', async ({ request }) => {
   const denied = requireDisk()

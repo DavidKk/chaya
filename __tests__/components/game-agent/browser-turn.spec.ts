@@ -29,7 +29,7 @@ beforeAll(() => {
 
 beforeEach(() => clearLinkLogs())
 
-test('Edge Agent executes a registered WebMCP tool without a connected game', async () => {
+test('Cloud Agent executes a registered WebMCP tool without a connected game', async () => {
   jest.spyOn(console, 'info').mockImplementation(() => undefined)
   const controller = new AbortController()
   const execute = jest.fn(async () => ({ ok: true, value: 2 }))
@@ -61,7 +61,7 @@ test('Edge Agent executes a registered WebMCP tool without a connected game', as
   controller.abort()
 })
 
-test('Edge Agent does not offer WebMCP tools for a presence check', async () => {
+test('Cloud Agent does not offer WebMCP tools for a presence check', async () => {
   const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
   chat.mockResolvedValueOnce({ role: 'assistant', content: '在，有什么需要？' })
 

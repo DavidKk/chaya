@@ -19,12 +19,12 @@ import { type CloudNwPackage, readCloudNwPackage } from './cloud-window'
 import {
   detectClientArch,
   detectClientOs,
+  type DirectoryCapability,
   dirExists,
   ensurePath,
   fileExists,
-  type FsaSupport,
   getDir,
-  getFsaSupport,
+  getDirectoryCapability,
   pickDirectory,
   readTextFile,
   resolveContentRootHandle,
@@ -33,7 +33,7 @@ import {
 import { ensureCloudLinkToken } from './link-token'
 import { isCompleteMacShell, isCompleteWinShell, looksLikeMacNwApp } from './nw-shell-fsa'
 
-export { type FsaSupport, getFsaSupport }
+export { type DirectoryCapability, getDirectoryCapability }
 
 export type CloudPrepareProgress = {
   phase: 'pick' | 'plugins' | 'shell' | 'done'
@@ -169,7 +169,8 @@ function pageOriginApiBase(override?: string): string {
 
 /** Selection only reads the game; explicit actions own all mutations. */
 export async function selectCloudGame(): Promise<CloudGame> {
-  if (!getFsaSupport().ok) throw new Error('请使用 Chrome 或 Edge，在安全地址中选择游戏目录')
+  const capability = getDirectoryCapability()
+  if (capability.state !== 'available') throw new Error('当前页面无法访问本地目录')
   const picked = await pickDirectory({ mode: 'readwrite', id: 'chaya-cloud-game' })
   const content = await resolveContentRootHandle(picked)
   return inspectCloudGame({ picked, content, os: detectClientOs(), pluginsInstalled: false })

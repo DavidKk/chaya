@@ -14,7 +14,7 @@ function remoteScript(request: NextRequest) {
   return NextResponse.next()
 }
 
-/** 页面一律放行：本机不登录、Edge 登录可选；数据访问由 API 门禁（`defineApiRoute`）把关 */
+/** 页面一律放行：本机不登录、Cloud 登录可选；数据访问由 API 门禁（`defineApiRoute`）把关 */
 export function proxy(request: NextRequest) {
   return remoteScript(request) ?? NextResponse.next()
 }

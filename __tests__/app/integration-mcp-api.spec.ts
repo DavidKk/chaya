@@ -1,8 +1,8 @@
-const mode = { current: 'vercel' as 'local' | 'vercel' | 'app' }
+const mode = { current: 'remote' as 'local' | 'remote' | 'app' }
 
 jest.mock('@/lib/service-mode/mode', () => ({
   getServiceMode: () => mode.current,
-  canUseDisk: (m?: string) => (m ?? mode.current) !== 'vercel',
+  canUseDisk: (m?: string) => (m ?? mode.current) !== 'remote',
 }))
 jest.mock('@/services/access/api', () => ({ mayAccessApi: async () => true }))
 jest.mock('@/services/runtime/launch-token', () => ({ peekLaunchToken: () => ({ token: 'launch', libraryId: 'lib' }) }))
@@ -20,10 +20,10 @@ beforeEach(() => {
   delete process.env.CHAYA_PUBLIC_ORIGIN
 })
 
-test('Edge exposes no connection info', async () => {
-  mode.current = 'vercel'
+test('Cloud exposes no connection info', async () => {
+  mode.current = 'remote'
   const body = await call()
-  expect(body).toEqual({ ok: true, available: false, serviceMode: 'vercel' })
+  expect(body).toEqual({ ok: true, available: false, serviceMode: 'remote' })
 })
 
 test('local mode returns its own /api/mcp endpoint, never secrets', async () => {

@@ -68,6 +68,9 @@ export const commonZh = {
     pickLine1: '打开本地 RPG Maker 游戏',
     pickLine2Disk: '可选 www 目录或 NW.js 包（.app / Game.exe）',
     pickLine2Cloud: '选含 www 或 index.html 的目录',
+    directoryInsecure: '需要 HTTPS 或 localhost 才能访问本地目录。请更换地址，或使用 Chaya App / 本机服务。',
+    directoryUnsupported: '当前浏览器不支持访问本地目录。请使用桌面版 Chrome 或 Microsoft Edge，或改用 Chaya App / 本机服务。',
+    directoryBlocked: '当前页面环境禁止访问本地目录。请在独立标签页直接打开 Chaya。',
   },
   layout: { description: '本机 RPG Maker 翻译与管理' },
   launchHelp: {

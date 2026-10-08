@@ -1,11 +1,13 @@
 # Chaya 助手与 Agent 配置技术方案
 
-> 状态：实施中（M1 已完成，M2 核心工具循环已完成）
-> 日期：2026-10-04  
+> 状态：实施中（M1 已完成，M2 核心工具循环已完成；托管产品化见 [`game-assistance.md`](./game-assistance.md)）
+> 日期：2026-10-04 · 状态修订：2026-10-08
 > 需求：[`../game-agent.md`](../game-agent.md)  
 > 关联：[`integration-mcp.md`](./integration-mcp.md)、[`webmcp.md`](./webmcp.md)、[`chaya-ui-style-guide.md`](./chaya-ui-style-guide.md)、[`game-assistance.md`](./game-assistance.md)
 
 > 本文的 `ask`/`play` 示例、八轮工具循环和 SSE 断线取消描述的是 M1/M2 基线。自然语言自主托管的运行策略、任务范围、完成证据、暂停/续接和停止行为以 [`game-assistance.md`](./game-assistance.md) 为准；两者冲突时使用后者。
+>
+> **已废弃作待办**：M3 里与辅助白名单冲突的「开放危险工具确认」若指修改/脚本捷径——辅助需求明确禁止；截图/视觉可行性已有 `visual-observation.server.ts` 部分落地，勿再按「从零评估」开需求。会话持久化 / 摘要预算仍可做，但不归本文 ask/play 路线。
 
 ## 1. 决策
 
@@ -44,7 +46,7 @@ services/game-agent/
         └─ services/runtime/agent-bridge → 游戏内 ChayaAgent
 ```
 
-Chaya 助手在 App、local server、Edge 和游戏插件中使用同一套 React 工作区，只负责聊天、会话和运行时 Agent / 模型选择。Agent CRUD 属于独立配置区：一级“配置”导航下的二级“Agent”页面展示列表，新增和编辑进入详情。App / local server / 插件通过本机 API 持久化；Edge 使用相同数据结构和浏览器本地存储。
+Chaya 助手在 App、local server、Cloud 和游戏插件中使用同一套 React 工作区，只负责聊天、会话和运行时 Agent / 模型选择。Agent CRUD 属于独立配置区：一级“配置”导航下的二级“Agent”页面展示列表，新增和编辑进入详情。App / local server / 插件通过本机 API 持久化；Cloud 使用相同数据结构和浏览器本地存储。
 
 ### 2.1 插件与服务配置同步
 
@@ -82,8 +84,8 @@ services/game-agent/
 components/game-agent/
   GameAgentWorkspace.tsx      # 各运行形态共用的纯聊天工作区
   GameAgentSidebar.tsx        # 游戏插件侧栏外壳
-  GameAgentAppPanel.tsx       # App / local / Edge 全局右侧面板适配器
-  browserRequest.ts           # Edge 浏览器本地 Profile 适配器
+  GameAgentAppPanel.tsx       # App / local / Cloud 全局右侧面板适配器
+  browserRequest.ts           # Cloud 浏览器本地 Profile 适配器
   GameAgentHeader.tsx
   GameAgentGoalBar.tsx
   GameAgentMessageList.tsx
@@ -216,11 +218,11 @@ Agent session 固定绑定 `gameId`，忽略模型自行指定其它游戏的尝
 
 每次实际执行工具都以 `source=ChayaAgent` 写入现有日志总线。开始与完成分别记录工具名、callId、turnId、gameId、模型、参数摘要、返回状态和耗时；本机模式落盘，可从日志页或 `chaya_logs_query` 随时查询。
 
-Agent 配置工具固定为 `chaya_agent_profiles`、`chaya_agent_profile_create`、`chaya_agent_profile_update` 和 `chaya_agent_profile_delete`。App / local 由服务端工具运行时直接执行，即使没有游戏连接也会提供；Edge 由页面 WebMCP 注册表提供同名工具，读写浏览器本地 Profile。系统 Prompt 将未明确声明为游戏实体的 “Agent” 和平台实例名称解释为“配置 > Agent”中的配置；用户同时给出操作和唯一名称或 id 时直接调用工具，只有缺少目标或工具报告重名时才追问。
+Agent 配置工具固定为 `chaya_agent_profiles`、`chaya_agent_profile_create`、`chaya_agent_profile_update` 和 `chaya_agent_profile_delete`。App / local 由服务端工具运行时直接执行，即使没有游戏连接也会提供；Cloud 由页面 WebMCP 注册表提供同名工具，读写浏览器本地 Profile。系统 Prompt 将未明确声明为游戏实体的 “Agent” 和平台实例名称解释为“配置 > Agent”中的配置；用户同时给出操作和唯一名称或 id 时直接调用工具，只有缺少目标或工具报告重名时才追问。
 
-App / local 的凭证字段为 write-only：工具列表只返回 `hasToken`，不返回明文或密文。凭证不进入 Profile 同步文档，单独使用 AES-256-GCM 保存到本机 `data/game-agent/`，随机密钥文件与密文文件权限为 `0600`；调用 Ollama 时只在服务端解密并写入 Authorization header。Edge 的浏览器 Profile 不提供凭证字段，避免把 token 写入浏览器存储或 WebMCP 日志。
+App / local 的凭证字段为 write-only：工具列表只返回 `hasToken`，不返回明文或密文。凭证不进入 Profile 同步文档，单独使用 AES-256-GCM 保存到本机 `data/game-agent/`，随机密钥文件与密文文件权限为 `0600`；调用 Ollama 时只在服务端解密并写入 Authorization header。Cloud 的浏览器 Profile 不提供凭证字段，避免把 token 写入浏览器存储或 WebMCP 日志。
 
-能力边界：App / local 使用服务端 MCP 实现、Agent 配置工具和已连接游戏的插件工具；Edge 使用当前页面的 WebMCP 注册表，其中包含页面工具、Edge MCP 实现、Agent 配置工具和已连接游戏的插件工具。服务端进程无法直接访问浏览器 DOM，因此 App / local 的 Agent 不提供只存在于页面进程的 DOM WebMCP 工具。
+能力边界：App / local 使用服务端 MCP 实现、Agent 配置工具和已连接游戏的插件工具；Cloud 使用当前页面的 WebMCP 注册表，其中包含页面工具、Cloud MCP 实现、Agent 配置工具和已连接游戏的插件工具。服务端进程无法直接访问浏览器 DOM，因此 App / local 的 Agent 不提供只存在于页面进程的 DOM WebMCP 工具。
 
 ## 6. Prompt 设计
 
@@ -415,7 +417,7 @@ type GameAgentEvent =
 - 用于解除卡住的 `409 AGENT_TURN_RUNNING`：`clearGameTurns(gameId)` 停掉该游戏所有 `running` / `waiting_user` 的 Turn（含旧会话遗留、status 看不到 id 的），逐个 abort 并直接推一条 `turn.stopped`，让已不再出事件的 SSE 也能收尾；最后把该游戏会话的 `activeTurnId` 置空。
 - 鉴权：控制台同源请求照常；游戏插件须带有效的 `X-Chaya-Launch-Token`，且查询参数 `gameId` 必须等于该 token 绑定的游戏（`libraryId`，无则为 token 本身），否则 `401 ACCESS_DENIED`。
 - 会连同侧栏里正常运行的任务一起停掉，旅伴面板的清理按钮先弹确认框（局内 Agent 浮层的 React 根没有确认框，`CompanionPanel` 自带一份 `ConfirmProvider`，挂在同一 Shadow 根内）。
-- Edge 浏览器模式（`browserRequest`）按 `POST` 时提交的 `gameId` 登记 Turn，清理只停该游戏的 Turn；流读完或被取消即注销。
+- Cloud 浏览器模式（`browserRequest`）按 `POST` 时提交的 `gameId` 登记 Turn，清理只停该游戏的 Turn；流读完或被取消即注销。
 
 ## 9. 鉴权与边界
 
@@ -509,13 +511,15 @@ type AgentMessage = UserMessage | AssistantMessage | ToolActivity
 
 ### M3：产品化
 
-- 危险工具确认、暂停 / 恢复。
-- 持久化会话、摘要和上下文预算。
-- 多个真实 RPG Maker MV / MZ 游戏验收。
-- 截图 / 视觉模型可行性验证。
-- 会话落盘与 SSE 短时重连；M1/M2 使用 `globalThis` 进程内 store，在开发 HMR 时保持状态。
+本波只做与 [`../capability-supplement.md`](../capability-supplement.md) §8 对齐的条目；其余冻结或废弃：
 
-不建议将 M1–M3 一次提交。M1 固定流式、取消和 UI 边界；M2 才引入副作用循环；M3 建立在真实游戏失败样本上，避免提前设计错误的恢复策略。
+| 条目                                                                                     | 状态         |
+| ---------------------------------------------------------------------------------------- | ------------ |
+| 暂停 / 恢复、持久化会话、摘要和上下文预算、SSE 短时重连、无进展 / 能力探测 / 工具过程 UI | **本波待做** |
+| 危险工具确认（修改/脚本扩权）                                                            | **废弃**     |
+| 多个真实 MV / MZ 验收、截图/视觉从零评估                                                 | **冻结**     |
+
+不建议将 M1–M3 一次提交。M1 固定流式、取消和 UI 边界；M2 才引入副作用循环；可恢复性补齐见本波需求。
 
 ## 13. 测试
 

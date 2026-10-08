@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Edge 构建产物校验（在 `pnpm build:edge` 之后运行）：
+ * Cloud 构建产物校验（在 `pnpm build:cloud` 之后运行）：
  * `app/**` 下的 `*.server.*` / `*.dev.*` 路由一个都不能出现在 app-paths-manifest 里。
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
@@ -21,7 +21,7 @@ function walk(dir, out = []) {
 }
 
 if (!existsSync(MANIFEST)) {
-  console.error(`缺少 ${relative(ROOT, MANIFEST)}，请先运行 pnpm build:edge`)
+  console.error(`缺少 ${relative(ROOT, MANIFEST)}，请先运行 pnpm build:cloud`)
   process.exit(1)
 }
 
@@ -36,8 +36,8 @@ const leaked = walk(APP_DIR)
   .filter(({ key }) => builtKeys.has(key))
 
 if (leaked.length) {
-  console.error('Edge 构建混入了仅 server / dev 的路由：')
+  console.error('Cloud 构建混入了仅 server / dev 的路由：')
   for (const { file, key } of leaked) console.error(`  ${key}  ← ${file}`)
   process.exit(1)
 }
-console.log(`Edge 构建检查通过（${builtKeys.size} 条路由，无 *.server / *.dev 路由）`)
+console.log(`Cloud 构建检查通过（${builtKeys.size} 条路由，无 *.server / *.dev 路由）`)

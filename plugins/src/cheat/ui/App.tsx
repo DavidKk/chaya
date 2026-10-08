@@ -3,6 +3,7 @@ import { Activity, lazy, type ReactNode, Suspense, useCallback, useEffect, useLa
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
 import {
   effectiveHotkeys,
+  HOTKEY_SYNC_CHANGED_EVENT,
   isHotkeyDisabled,
   matchKeyChord,
   parseHotkeyId,
@@ -48,7 +49,7 @@ import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
 import { buildLiveCatalog, type LiveSessionScope, readLiveSession, setItemCount, setPartyGold } from '../session/live-session'
 import { bootstrapGameEditSession, diskStateFromSession, ensureGameEditDiskApplied, loadGameEditDisk, scheduleSaveGameEditDisk } from '../session/persist'
-import { syncRemoteMirror } from '../session/remote-bridge'
+import { publishRemoteHotkeys, syncRemoteMirror } from '../session/remote-bridge'
 import { FloatingGameSaves } from './FloatingGameSaves'
 import { FloatingMiniMap } from './FloatingMiniMap'
 import { FloatingPanelDock } from './FloatingPanelDock'
@@ -269,10 +270,12 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
 
   useEffect(() => {
     if (!open) return
-    const payload = JSON.stringify(diskStateFromSession(session))
+    const diskState = diskStateFromSession(session)
+    const payload = JSON.stringify(diskState)
     if (payload === lastSavedRef.current) return
     lastSavedRef.current = payload
-    scheduleSaveGameEditDisk(diskStateFromSession(session))
+    scheduleSaveGameEditDisk(diskState)
+    publishRemoteHotkeys(diskState.hotkeys)
   }, [session, open])
 
   const setGold = (n: number) => {
@@ -468,6 +471,20 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   useEffect(() => {
     setGameHotkeysCache(session.hotkeys)
   }, [session.hotkeys])
+
+  useEffect(() => {
+    const update = (event: Event) => {
+      const snapshot = (event as CustomEvent<import('@/lib/game/hotkeys-sync').HotkeySyncSnapshot>).detail
+      if (!snapshot) return
+      setSession((prev) => ({ ...prev, hotkeys: { ...(snapshot.game.bindings || {}) }, hotkeysGlobal: { ...snapshot.global.bindings } }))
+    }
+    window.addEventListener('chaya:game-hotkeys-snapshot', update)
+    window.addEventListener(HOTKEY_SYNC_CHANGED_EVENT, update)
+    return () => {
+      window.removeEventListener('chaya:game-hotkeys-snapshot', update)
+      window.removeEventListener(HOTKEY_SYNC_CHANGED_EVENT, update)
+    }
+  }, [])
 
   /** In-game global hotkeys: work with panel open/closed; skip when an input is focused */
   useEffect(() => {

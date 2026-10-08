@@ -81,6 +81,9 @@ const base = {
     pickLine1: 'ローカル RPG Maker を開く',
     pickLine2Disk: 'www か NW.js（.app / Game.exe）',
     pickLine2Cloud: 'www または index.html のフォルダ',
+    directoryInsecure: 'ローカルフォルダへのアクセスには HTTPS または localhost が必要です。Chaya App またはローカルサービスも利用できます。',
+    directoryUnsupported: 'このブラウザはローカルフォルダに対応していません。デスクトップ版 Chrome / Microsoft Edge、または Chaya App を使用してください。',
+    directoryBlocked: 'このページではローカルフォルダへのアクセスが禁止されています。Chaya を別タブで直接開いてください。',
   },
   marketing: {
     introAria: '紹介',

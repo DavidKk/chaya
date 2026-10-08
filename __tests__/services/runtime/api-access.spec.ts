@@ -40,7 +40,7 @@ describe('API authorization', () => {
     expect(await mayAccessApi(request('/api/shell', { method: 'DELETE', headers }))).toBe(true)
   })
 
-  it('Edge: pages and APIs are public (no login; `/api/mcp` is not in the Edge build)', async () => {
+  it('Cloud: pages and APIs are public (no login; `/api/mcp` is not in the Cloud build)', async () => {
     process.env.VERCEL = '1'
     expect(await mayAccessApi(request('/api/status'))).toBe(true)
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', body: '{}' }))).toBe(true)
@@ -57,12 +57,24 @@ describe('API authorization', () => {
     expect(await mayAccessApi(request('/api/game-agent/status?gameId=room-A', { headers }))).toBe(true)
     expect(await mayAccessApi(request('/api/game-agent/status?gameId=room-B', { headers }))).toBe(false)
     expect(await mayAccessApi(request('/api/game-agent/turn', { method: 'POST', headers, body: JSON.stringify({ gameId: 'room-A' }) }))).toBe(true)
+    expect(await mayAccessApi(request('/api/game-agent/model', { method: 'POST', headers, body: '{}' }))).toBe(true)
     expect(await mayAccessApi(request('/api/game-agent/turn', { method: 'POST', headers, body: JSON.stringify({ gameId: 'room-B' }) }))).toBe(false)
     expect(await mayAccessApi(request('/api/game-agent/turn?gameId=room-A', { method: 'DELETE', headers }))).toBe(true)
     expect(await mayAccessApi(request('/api/game-agent/turn?gameId=room-B', { method: 'DELETE', headers }))).toBe(false)
     const turn = beginTurn(getOrCreateSession('room-A', 'profile', 'demo'))
     expect(await mayAccessApi(request('/api/integration/game-agent', { headers }))).toBe(true)
     expect(await mayAccessApi(request(`/api/game-agent/turn/${turn.id}`, { method: 'DELETE', headers }))).toBe(true)
+    expect(await mayAccessApi(request('/api/game-agent/turn/recovered-task?gameId=room-A', { method: 'DELETE', headers }))).toBe(true)
+    expect(await mayAccessApi(request('/api/game-agent/turn/recovered-task/events?gameId=room-A', { headers }))).toBe(true)
+    expect(
+      await mayAccessApi(
+        request('/api/game-agent/turn/recovered-task/reply', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ gameId: 'room-A', reply: 'continue', replyId: 'reply-1' }),
+        })
+      )
+    ).toBe(true)
     const other = issueLaunchToken({ gameRoot: '/games/B', libraryId: 'room-B' })
     expect(
       await mayAccessApi(

@@ -89,7 +89,7 @@ it('uses enabled platforms for dialogue but always benchmarks the local model', 
   expect(jest.mocked(engineFetch).mock.calls[1][0]).toBe('http://127.0.0.1:11434/api/chat')
 })
 
-it('falls back to local inference when Edge has no shared library and preserves choice conditions', async () => {
+it('falls back to local inference when Cloud has no shared library and preserves choice conditions', async () => {
   jest.mocked(chayaFetch).mockResolvedValue(new Response(JSON.stringify({ available: false, items: [] })))
   jest.mocked(engineFetch).mockResolvedValue(new Response(JSON.stringify({ message: { content: '前往村庄' } })))
   const src = '\\C[2]村へ行くif(s[1])'

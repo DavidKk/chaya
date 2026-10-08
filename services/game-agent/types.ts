@@ -58,6 +58,7 @@ export type GameAgentEvent =
   | { type: 'history.gap'; fromSeq: number }
   | { type: 'tool.started'; callId: string; name: string }
   | { type: 'tool.completed'; callId: string; name: string; ok: boolean }
+  | { type: 'progress.updated'; summary: string; cycle: number; reason?: string; steps?: number; toolCalls?: number }
   | { type: 'assistant.delta'; text: string }
   | { type: 'turn.completed'; text: string; reason: 'answered' | 'verified' | 'limit_reached' }
   | { type: 'turn.stopped' }
@@ -72,6 +73,4 @@ export type StartTurnInput = {
   mode: GameAgentMode
   prompt: string
   locale?: string
-  surface?: 'companion'
-  companionCharacter?: import('@/lib/game-agent/companion').CompanionCharacter
 }

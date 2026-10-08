@@ -1,7 +1,7 @@
 import type { HostShellCapability } from './types'
 
-/** edge 无本机文件管理器 / 壳启动 */
-export class EdgeHostShell implements HostShellCapability {
+/** remote 无本机文件管理器 / 壳启动 */
+export class RemoteHostShell implements HostShellCapability {
   readonly id = 'hostShell' as const
 
   reveal(_targetPath: string): Promise<void> {

@@ -60,6 +60,36 @@ function json(body: unknown) {
   return { ok: true, status: 200, json: async () => body } as Response
 }
 
+function controlledSse() {
+  const queued: Array<{ done: boolean; value?: Uint8Array }> = []
+  const waiting: Array<(value: { done: boolean; value?: Uint8Array }) => void> = []
+  const deliver = (value: { done: boolean; value?: Uint8Array }) => {
+    const resolve = waiting.shift()
+    if (resolve) resolve(value)
+    else queued.push(value)
+  }
+  return {
+    response: {
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: async () => queued.shift() || new Promise<{ done: boolean; value?: Uint8Array }>((resolve) => waiting.push(resolve)),
+        }),
+      },
+    } as unknown as Response,
+    push: (event: unknown) => deliver({ done: false, value: new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`) }),
+    close: () => deliver({ done: true }),
+  }
+}
+
+async function enterPrompt(textarea: HTMLTextAreaElement, value: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, value)
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
 test('keeps completed tool calls visible with the assistant reply', async () => {
   const request = jest.fn(async (path: string) => {
     if (path.startsWith('/api/game-agent/status')) {
@@ -76,6 +106,7 @@ test('keeps completed tool calls visible with the assistant reply', async () => 
       { type: 'turn.started', turnId: 'turn-a', sessionId: 'session-a' },
       { type: 'tool.started', callId: '1-0', name: 'chaya_edit_set' },
       { type: 'tool.completed', callId: '1-0', name: 'chaya_edit_set', ok: true },
+      { type: 'progress.updated', summary: '已修改金币，正在继续观察。', cycle: 1 },
       { type: 'assistant.delta', text: '已完成调用。' },
       { type: 'turn.completed', text: '已完成调用。', reason: 'answered' },
     ])
@@ -101,6 +132,7 @@ test('keeps completed tool calls visible with the assistant reply', async () => 
 
   expect(document.body.textContent).toContain('已调用')
   expect(document.body.textContent).toContain('chaya_edit_set')
+  expect(document.body.textContent).toContain('已修改金币，正在继续观察。')
   expect(document.body.textContent).toContain('已完成调用。')
 })
 
@@ -188,4 +220,62 @@ test('replays the most recent completed turn when the sidebar is reopened', asyn
 
   expect(request.mock.calls.some(([path]) => path.startsWith('/api/game-agent/turn/turn-a/events?'))).toBe(true)
   expect(document.body.textContent).toContain('本场战斗结果：victory。')
+})
+
+test('requires an explicit stop before starting another task and ignores late events', async () => {
+  const first = controlledSse()
+  const second = controlledSse()
+  let postCount = 0
+  const request = jest.fn(async (path: string, init?: RequestInit) => {
+    if (path.startsWith('/api/game-agent/status')) {
+      return json({
+        available: true,
+        gameOnline: true,
+        profiles: [{ id: 'local', label: 'Local Ollama', provider: 'ollama', online: true, models: [{ name: 'gemma' }], defaultModel: 'gemma', reason: null }],
+        defaultProfileId: 'local',
+        session: null,
+        reason: null,
+      })
+    }
+    if (init?.method === 'DELETE') return json({ ok: true })
+    postCount += 1
+    return postCount === 1 ? first.response : second.response
+  }) as unknown as jest.MockedFunction<GameAgentRequest>
+
+  await act(async () => {
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <GameAgentWorkspace gameId="game-a" request={request} />
+      </LocaleProvider>
+    )
+  })
+  await act(async () => {})
+
+  const textarea = document.querySelector<HTMLTextAreaElement>('textarea')!
+  await enterPrompt(textarea, '第一个任务')
+  await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="发送"]')!.click())
+  await act(async () => first.push({ type: 'turn.started', turnId: 'turn-old', sessionId: 'session-a' }))
+  expect(document.body.textContent).toContain('进行中')
+
+  await enterPrompt(textarea, '替换任务')
+  expect(document.querySelector('button[aria-label="停止并开始新任务"]')).toBeNull()
+  const stop = document.querySelector<HTMLButtonElement>('button[aria-label="停止"]')!
+  await act(async () => stop.click())
+  const send = document.querySelector<HTMLButtonElement>('button[aria-label="发送"]')!
+  await act(async () => {
+    send.click()
+    send.click()
+  })
+  await act(async () => second.push({ type: 'turn.started', turnId: 'turn-new', sessionId: 'session-a' }))
+  await act(async () => second.push({ type: 'assistant.delta', text: '新任务结果' }))
+  await act(async () => first.push({ type: 'assistant.delta', text: '旧任务迟到结果' }))
+  await act(async () => first.push({ type: 'turn.completed', reason: 'answered' }))
+
+  const calls = request.mock.calls.map(([path, init]) => `${init?.method || 'GET'} ${path}`)
+  expect(calls.filter((item) => item === 'POST /api/game-agent/turn')).toHaveLength(2)
+  expect(calls.indexOf('DELETE /api/game-agent/turn/turn-old?gameId=game-a')).toBeLessThan(calls.lastIndexOf('POST /api/game-agent/turn'))
+  expect(document.body.textContent).toContain('新任务结果')
+  expect(document.body.textContent).not.toContain('旧任务迟到结果')
+
+  await act(async () => second.close())
 })

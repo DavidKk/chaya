@@ -52,7 +52,7 @@ function gameView(entry: CloudLibraryEntry) {
 }
 
 /** `chaya_library_*` over the browser (IndexedDB) library; adding games needs the user's directory picker. */
-export function makeEdgeLibraryTools({ serviceMode }: { serviceMode: string }): ToolImpls {
+export function makeRemoteLibraryTools({ serviceMode }: { serviceMode: string }): ToolImpls {
   return {
     async chaya_library_list(args) {
       const { entries, active } = await activeCloudEntry()

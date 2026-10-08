@@ -77,7 +77,7 @@ export type MapLiveState = {
 
 export type MapDetailData = {
   ok: true
-  source: 'disk' | 'live'
+  source: 'browser' | 'disk' | 'live'
   mapId: number
   name: string
   displayName: string

@@ -48,7 +48,7 @@ export function localMcpGateway(): McpGateway {
     env: localMcpPortEnv(),
     identity: { chaya: true, role: 'server' },
     handle: forwardToApi,
-    // dev can switch to the edge target at runtime: release the port so a game can take it
+    // dev can switch to the cloud target at runtime: release the port so a game can take it
     listen: () => canUseDisk(),
     // eslint-disable-next-line no-console -- gateway state belongs in the server terminal
     log: { info: (msg) => console.log(`[Chaya] ${msg}`), warn: (msg) => console.warn(`[Chaya] ${msg}`) },

@@ -1,9 +1,9 @@
 # 修改：地图与公共事件
 
 - **日期**：2026-10-05
-- **状态**：已定稿（展示与交互）；按 §6 分期实现。MTool 的「数据修改」（逐字段改存档对象）暂不做
+- **状态**：第 1–2 期完成，第 3 期迷你地图完成。**本波续做**：cloud 授权读盘、撤销、批量 → [`capability-supplement.md`](./capability-supplement.md)。**第 4 期底图已冻结**。MTool「数据修改」**已废弃**（见 [`edit-save-data.md`](./edit-save-data.md)）
 - **技术方案**：[technical/edit-map-events.md](./technical/edit-map-events.md)
-- **关联**：[capabilities.md](./capabilities.md)（修改能力与 Agent 边界）、[technical/chaya-ui-style-guide.md](./technical/chaya-ui-style-guide.md)（视觉与布局）
+- **关联**：[capabilities.md](./capabilities.md)、[technical/chaya-ui-style-guide.md](./technical/chaya-ui-style-guide.md)、[`capability-supplement.md`](./capability-supplement.md)
 
 ---
 
@@ -33,7 +33,7 @@
 | 当前位置                 | —                              | `$gameMap.mapId()`、`$gamePlayer.x/y`                          |
 | 译名                     | 现有翻译库查表（原文悬停可见） | 同左                                                           |
 
-静态数据 local 由服务读盘，edge 由浏览器授权读，游戏内用 XHR 读 `data/*.json`（与引擎加载方式一致，兼容打包游戏）；三处走同一份解析。MZ 无 `www/` 目录，路径按现有游戏根目录解析规则处理。
+静态数据 local 由服务读盘，cloud 由浏览器授权读，游戏内用 XHR 读 `data/*.json`（与引擎加载方式一致，兼容打包游戏）；三处走同一份解析。MZ 无 `www/` 目录，路径按现有游戏根目录解析规则处理。
 
 ### 2.2 事件索引
 
@@ -163,10 +163,10 @@
 
 ## 6. 分期
 
-1. 事件索引、解释器、公共事件页：列表 / 筛选 / 名称搜索、详情、引用关系、手动事件执行、自动执行 / 并行的触发开关切换。内容搜索与「运行中」状态顺延到第 2 期；edge 模式未连接游戏时第 1 期提示「连接游戏后可浏览」，浏览器授权读盘在第 2 期补上。
+1. 事件索引、解释器、公共事件页：列表 / 筛选 / 名称搜索、详情、引用关系、手动事件执行、自动执行 / 并行的触发开关切换。内容搜索与「运行中」状态顺延到第 2 期；cloud 模式未连接游戏时第 1 期提示「连接游戏后可浏览」，浏览器授权读盘在第 2 期补上。
 2. 地图页：地图树（含最近去过）、地图信息、事件表、传送落点（入口 / 指定坐标）、事件详情；公共事件页的地图事件引用改为可跳转。
-3. 迷你地图、快照撤销、批量操作（事件表多选：批量切独立开关 / 满足条件）。
-4. 迷你地图图块 / 截图底图。
+3. 迷你地图、快照撤销、批量操作（事件表多选：批量切独立开关 / 满足条件）。**迷你地图已完成**；撤销与批量见 [`capability-supplement.md`](./capability-supplement.md)。
+4. 迷你地图图块 / 截图底图。**已冻结**（本波不做）。
 
 ## 7. 修订
 

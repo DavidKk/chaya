@@ -3,9 +3,10 @@
  */
 
 import type { HotkeyMap } from '@/components/game-edit/run-hotkeys'
-import { hotkeyMapsEqual, loadGlobalHotkeys, normalizeGameHotkeyMap, setGameHotkeysCache } from '@/components/game-edit/run-hotkeys'
+import { canDisableHotkey, loadDisabledHotkeys, RUN_HOTKEY_TARGETS, saveHotkeySyncSnapshot, setGameHotkeysCache } from '@/components/game-edit/run-hotkeys'
 import { emptySession, type RunFlagKey, type SessionState } from '@/components/game-edit/types'
 import { gameContentRelPath, LEGACY_FLAT_FILES } from '@/lib/game/content-paths'
+import { editHotkeySnapshot, emptyHotkeySnapshot, type HotkeySyncSnapshot, normalizeHotkeySnapshot } from '@/lib/game/hotkeys-sync'
 
 import { detectGameIdentity } from '../../helpers/game/game-identity'
 import { tryNodeFsPath } from '../../helpers/node/node-require'
@@ -41,8 +42,12 @@ export type GameEditDiskState = {
   version: 1
   run: GameEditDiskRun
   locks: Record<string, number>
-  hotkeys: HotkeyMap
+  hotkeys: HotkeySyncSnapshot
 }
+
+const HOTKEY_IDS = new Set(RUN_HOTKEY_TARGETS.map((target) => target.id))
+const gameId = () => String((globalThis as typeof globalThis & { CHAYA_GAME_ID?: string }).CHAYA_GAME_ID || '').trim() || 'default'
+let hotkeySnapshot = emptyHotkeySnapshot(gameId())
 
 export function resolveGameEditDiskPath(): string | null {
   const mods = tryNodeFsPath()
@@ -84,8 +89,8 @@ function normalizeDisk(raw: unknown): GameEditDiskState | null {
     const n = asFiniteNumber(v)
     if (n != null) locks[k] = n
   }
-  const hotkeysRaw = o.hotkeys && typeof o.hotkeys === 'object' && !Array.isArray(o.hotkeys) ? (o.hotkeys as Record<string, unknown>) : {}
-  const hotkeys = normalizeGameHotkeyMap(hotkeysRaw)
+  const hotkeys = normalizeHotkeySnapshot(o.hotkeys, gameId(), (id) => HOTKEY_IDS.has(id), canDisableHotkey)
+  if (!hotkeys) return null
   return {
     version: 1,
     run: {
@@ -135,7 +140,7 @@ export function saveGameEditDisk(state: GameEditDiskState): boolean {
       version: 1,
       run: state.run || {},
       locks: state.locks || {},
-      hotkeys: state.hotkeys || {},
+      hotkeys: state.hotkeys,
     }
     mods.fs.writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
     return true
@@ -146,6 +151,14 @@ export function saveGameEditDisk(state: GameEditDiskState): boolean {
 
 /** Extract disk-persistable fields from the current session */
 export function diskStateFromSession(session: SessionState): GameEditDiskState {
+  const disabled = [...loadDisabledHotkeys()]
+  if (JSON.stringify(hotkeySnapshot.global.bindings) !== JSON.stringify(session.hotkeysGlobal) || JSON.stringify(hotkeySnapshot.global.disabled) !== JSON.stringify(disabled)) {
+    hotkeySnapshot = editHotkeySnapshot(hotkeySnapshot, 'global', { bindings: { ...session.hotkeysGlobal }, disabled })
+  }
+  const gameBindings = Object.keys(session.hotkeys).length ? { ...session.hotkeys } : null
+  if (JSON.stringify(hotkeySnapshot.game.bindings) !== JSON.stringify(gameBindings)) {
+    hotkeySnapshot = editHotkeySnapshot(hotkeySnapshot, 'game', { bindings: gameBindings })
+  }
   return {
     version: 1,
     run: {
@@ -168,7 +181,7 @@ export function diskStateFromSession(session: SessionState): GameEditDiskState {
       resourceSkip: session.resourceSkip,
     },
     locks: { ...session.locks },
-    hotkeys: { ...session.hotkeys },
+    hotkeys: hotkeySnapshot,
   }
 }
 
@@ -245,7 +258,8 @@ export function mergeDiskIntoSession(prev: SessionState, disk: GameEditDiskState
     resourceSkip: run.resourceSkip ?? prev.resourceSkip,
     locks: { ...disk.locks, ...prev.locks },
     // 盘上有 hotkeys 字段则整表替换（含 {} = 已清空本游戏覆盖）
-    hotkeys: { ...(disk.hotkeys || {}) },
+    hotkeys: { ...(disk.hotkeys.game.bindings || {}) },
+    hotkeysGlobal: { ...disk.hotkeys.global.bindings },
   }
 }
 
@@ -267,18 +281,26 @@ export function scheduleSaveGameEditDisk(state: GameEditDiskState) {
 /** Load: 本游戏覆盖来自盘；全局来自 localStorage；本游戏未设则运行时用全局 */
 export function bootstrapGameEditSession(): SessionState {
   const disk = loadGameEditDisk()
-  const hotkeysGlobal = loadGlobalHotkeys()
-  let hotkeys: HotkeyMap = {}
-  if (disk?.hotkeys && Object.keys(disk.hotkeys).length) {
-    hotkeys = { ...disk.hotkeys }
-    // 旧版盘上 hotkeys 常与 LS 整表同步；完全一致则视为无本游戏覆盖
-    if (hotkeyMapsEqual(hotkeys, hotkeysGlobal)) hotkeys = {}
-  }
+  hotkeySnapshot = disk?.hotkeys ?? emptyHotkeySnapshot(gameId())
+  saveHotkeySyncSnapshot(hotkeySnapshot, { notify: false })
+  const hotkeysGlobal = { ...hotkeySnapshot.global.bindings }
+  const hotkeys: HotkeyMap = { ...(hotkeySnapshot.game.bindings || {}) }
   setGameHotkeysCache(hotkeys)
   const base = { ...emptySession(), hotkeys, hotkeysGlobal }
   if (!disk) return base
-  // 用解析后的 hotkeys 覆盖盘上字段，避免 merge 把「去重后的空覆盖」又写回去
-  return mergeDiskIntoSession(base, { ...disk, hotkeys })
+  return mergeDiskIntoSession(base, disk)
+}
+
+export function getGameHotkeySnapshot(): HotkeySyncSnapshot {
+  return hotkeySnapshot
+}
+
+export function replaceGameHotkeySnapshot(snapshot: HotkeySyncSnapshot): void {
+  hotkeySnapshot = snapshot
+  saveHotkeySyncSnapshot(snapshot, { notify: false })
+  setGameHotkeysCache(snapshot.game.bindings)
+  saveGameEditDisk({ ...(loadGameEditDisk() ?? diskStateFromSession(emptySession())), hotkeys: snapshot })
+  window.dispatchEvent(new CustomEvent('chaya:game-hotkeys-snapshot', { detail: snapshot }))
 }
 
 let hadParty = false
@@ -323,7 +345,10 @@ export function ensureGameEditDiskApplied() {
 
 export function startGameEditDiskWatcher() {
   const disk = loadGameEditDisk()
-  if (disk?.hotkeys) setGameHotkeysCache(disk.hotkeys)
+  if (disk?.hotkeys) {
+    hotkeySnapshot = disk.hotkeys
+    setGameHotkeysCache(disk.hotkeys.game.bindings)
+  }
   ensureGameEditDiskApplied()
   const id = window.setInterval(() => {
     try {

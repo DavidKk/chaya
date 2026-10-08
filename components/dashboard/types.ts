@@ -24,7 +24,7 @@ type LibraryItem = LibraryItemView
 export type Status =
   | {
       ready: false
-      serviceMode?: 'local' | 'vercel' | 'app'
+      serviceMode?: 'local' | 'remote' | 'app'
       canUseDisk?: boolean
       error?: string
       config?: { gameRoot: string; shellSource: string; shellSourceValid?: boolean }
@@ -38,7 +38,7 @@ export type Status =
     }
   | {
       ready: true
-      serviceMode?: 'local' | 'vercel' | 'app'
+      serviceMode?: 'local' | 'remote' | 'app'
       canUseDisk?: boolean
       remote?: boolean
       config: { gameRoot: string; shellSource: string; shellSourceValid?: boolean }

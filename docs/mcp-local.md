@@ -6,7 +6,7 @@
 - **状态**：已实现
 - **适用**：本地 dev（`pnpm dev`）与 App（Electron）——即本机服务自身的 MCP
 - **技术设计**：[docs/technical/integration-mcp.md](./technical/integration-mcp.md)
-- **另见**：[插件 MCP](./mcp-plugin.md)、[Edge MCP](./mcp-edge.md)、[集成页](./integration.md)
+- **另见**：[插件 MCP](./mcp-plugin.md)、[Cloud MCP](./mcp-remote.md)、[集成页](./integration.md)
 
 ---
 

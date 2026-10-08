@@ -9,13 +9,13 @@ import { INTEGRATION_TABS } from '@/components/integration/tabs'
 import { TRANSLATE_TABS } from '@/components/translate/tabs'
 import { createPageToolSync, registerPageTools } from '@/initializer/webmcp/register-page-tools'
 import { usePageWebMcp } from '@/initializer/webmcp/usePageWebMcp'
-import { edgeUnavailableTools } from '@/lib/webmcp/mode-matrix'
+import { remoteUnavailableTools } from '@/lib/webmcp/mode-matrix'
 import { AGENT_PROFILES_REGISTRAR_ID, MCP_REGISTRAR_ID, PLUGINS_REGISTRAR_ID } from '@/lib/webmcp/registrars'
 
-import { buildEdgeMcpTools, loadEdgePluginTools } from './edge'
-import type { EdgeLinkDeps } from './edge/link'
 import { buildMirrorTools, fetchMirrorTools } from './mcp-mirror-client'
 import { buildPageTools, PAGE_REGISTRAR_ID, type PageRoute } from './page/tools'
+import { buildRemoteMcpTools, loadRemotePluginTools } from './remote'
+import type { RemoteLinkDeps } from './remote/link'
 
 export { MCP_REGISTRAR_ID, PLUGINS_REGISTRAR_ID } from '@/lib/webmcp/registrars'
 /** Plugin tools follow the agent bridge (not this tab's DataChannel), so poll often; tools/list is local and cheap. */
@@ -23,7 +23,7 @@ const MIRROR_SYNC_MS = 10_000
 /** The agent bridge / ChayaAgent usually report plugin tools a few seconds after the DataChannel opens. */
 const PLUGIN_TOOL_RETRY_MS = [0, 3_000, 10_000, 30_000]
 
-type HostMode = { kind: 'local' | 'edge'; serviceMode: string } | { kind: 'guest' }
+type HostMode = { kind: 'local' | 'remote'; serviceMode: string } | { kind: 'guest' }
 
 const ROUTES: PageRoute[] = [
   { path: '/game', label: 'Game library' },
@@ -39,7 +39,7 @@ async function detectMode(): Promise<HostMode> {
     const res = await fetch('/api/status', { cache: 'no-store' })
     if (res.status === 401 || res.status === 403) return { kind: 'guest' }
     const data = (await res.json()) as { canUseDisk?: boolean; serviceMode?: string }
-    return data.canUseDisk === false ? { kind: 'edge', serviceMode: data.serviceMode || 'vercel' } : { kind: 'local', serviceMode: data.serviceMode || 'local' }
+    return data.canUseDisk === false ? { kind: 'remote', serviceMode: data.serviceMode || 'remote' } : { kind: 'local', serviceMode: data.serviceMode || 'local' }
   } catch {
     return { kind: 'guest' }
   }
@@ -47,8 +47,8 @@ async function detectMode(): Promise<HostMode> {
 
 type LinkRef = { current: ReturnType<typeof useGameLinkContext> }
 
-/** Edge link deps that always read the latest GameLink context. */
-function edgeLinkDeps(ref: LinkRef): EdgeLinkDeps {
+/** Remote link deps that always read the latest GameLink context. */
+function remoteLinkDeps(ref: LinkRef): RemoteLinkDeps {
   return {
     connected: () => ref.current.connected,
     roomId: () => ref.current.roomId,
@@ -86,7 +86,7 @@ export function ChayaWebMcpHost() {
           return {
             serviceMode: current && current.kind !== 'guest' ? current.serviceMode : 'unauthorized',
             game: { roomId, connected },
-            unavailableTools: current?.kind === 'edge' ? edgeUnavailableTools() : [],
+            unavailableTools: current?.kind === 'remote' ? remoteUnavailableTools() : [],
           }
         },
       }),
@@ -109,30 +109,30 @@ export function ChayaWebMcpHost() {
   }, [])
 
   const authed = !!mode && mode.kind !== 'guest'
-  const edge = mode?.kind === 'edge'
+  const remote = mode?.kind === 'remote'
   const serviceMode = mode && mode.kind !== 'guest' ? mode.serviceMode : ''
 
   useEffect(() => {
     if (!authed) return
     const controller = new AbortController()
     const live = () => linkRef.current
-    if (edge) {
-      const edgeTools = buildEdgeMcpTools({
-        ...edgeLinkDeps(linkRef),
+    if (remote) {
+      const remoteTools = buildRemoteMcpTools({
+        ...remoteLinkDeps(linkRef),
         gameOnline: () => live().connected,
         quit: (reason) => live().quit(reason),
         serviceMode,
       })
-      registerPageTools(MCP_REGISTRAR_ID, edgeTools, controller.signal).catch((error: unknown) => logFailure(MCP_REGISTRAR_ID, error))
+      registerPageTools(MCP_REGISTRAR_ID, remoteTools, controller.signal).catch((error: unknown) => logFailure(MCP_REGISTRAR_ID, error))
       registerPageTools(AGENT_PROFILES_REGISTRAR_ID, buildBrowserAgentProfileTools(), controller.signal).catch((error: unknown) => logFailure(AGENT_PROFILES_REGISTRAR_ID, error))
     }
     return () => controller.abort()
-  }, [authed, edge, serviceMode, supported])
+  }, [authed, remote, serviceMode, supported])
 
   const connected = link.connected
   const mirrorRefreshRef = useRef<(() => void) | null>(null)
   useEffect(() => {
-    if (!authed || edge) return
+    if (!authed || remote) return
     const sync = createPageToolSync(MCP_REGISTRAR_ID)
     const controller = new AbortController()
     let latest = 0
@@ -156,7 +156,7 @@ export function ChayaWebMcpHost() {
       document.removeEventListener('visibilitychange', refresh)
       sync.dispose()
     }
-  }, [authed, edge, supported])
+  }, [authed, remote, supported])
 
   useEffect(() => {
     if (!connected) {
@@ -169,12 +169,12 @@ export function ChayaWebMcpHost() {
   }, [connected])
 
   useEffect(() => {
-    if (!authed || !edge) return
+    if (!authed || !remote) return
     const sync = createPageToolSync(PLUGINS_REGISTRAR_ID)
     let cancelled = false
     let timer = 0
     const attempt = (index: number) => {
-      loadEdgePluginTools(edgeLinkDeps(linkRef))
+      loadRemotePluginTools(remoteLinkDeps(linkRef))
         .then((tools) => {
           if (cancelled) return
           if (!tools.length && index + 1 < PLUGIN_TOOL_RETRY_MS.length) schedule(index + 1)
@@ -195,7 +195,7 @@ export function ChayaWebMcpHost() {
       window.clearTimeout(timer)
       sync.dispose()
     }
-  }, [authed, edge, connected, supported])
+  }, [authed, remote, connected, supported])
 
   return null
 }

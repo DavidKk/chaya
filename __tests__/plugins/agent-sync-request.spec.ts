@@ -17,6 +17,7 @@ Object.assign(globalThis, {
     setItem: (key: string, value: string) => store.set(key, value),
   },
 })
+Object.assign(globalThis, { window: globalThis })
 
 const settings = {
   version: 1 as const,
@@ -35,6 +36,10 @@ const settings = {
 }
 
 beforeEach(() => store.clear())
+
+afterEach(() => {
+  ;(globalThis.window as typeof globalThis.window & { ChayaAgent?: unknown }).ChayaAgent = undefined
+})
 
 function syncServer(initial = agentSyncDocumentFromSettings(settings, 'service', 10)) {
   let server = initial
@@ -130,4 +135,34 @@ test('offline plugin edits survive reconnect and merge with service edits', asyn
   const merged = await (await request('/api/integration/game-agent')).json()
   expect(merged.settings.profiles[0]).toMatchObject({ label: 'Offline Plugin', defaultModel: 'service-model' })
   expect(server.read().profiles[0]).toMatchObject({ label: 'Offline Plugin', defaultModel: 'service-model' })
+})
+
+test('in-game agent routes use the same-process task host', async () => {
+  const server = syncServer()
+  const taskRequest = jest.fn(async (message: { type: string }) => {
+    if (message.type === 'agent.task.status') return []
+    if (message.type === 'agent.task.classify') return { capability: 'ask' }
+    if (message.type === 'agent.task.start') return { id: 'task-1', state: 'running' }
+    if (message.type === 'agent.task.events') {
+      return {
+        gap: false,
+        task: { state: 'completed' },
+        events: [{ seq: 1, type: 'assistant.completed', at: 1, data: { text: 'same process' } }],
+      }
+    }
+    throw new Error(`unexpected ${message.type}`)
+  })
+  ;(globalThis.window as typeof globalThis.window & { ChayaAgent?: unknown }).ChayaAgent = { taskRequest }
+  const request = createPluginGameAgentRequest(server.remote)
+
+  const status = await (await request('/api/game-agent/status?gameId=game-1')).json()
+  expect(status).toMatchObject({ available: true, gameOnline: true, profiles: [{ id: 'local' }] })
+
+  const response = await request('/api/game-agent/turn', {
+    method: 'POST',
+    body: JSON.stringify({ gameId: 'game-1', profileId: 'local', model: 'qwen3', prompt: 'hello' }),
+  })
+  expect(await response.text()).toContain('same process')
+  expect(taskRequest).toHaveBeenCalledWith(expect.objectContaining({ type: 'agent.task.start', capability: 'ask' }), undefined)
+  expect(server.remote).not.toHaveBeenCalledWith('/api/game-agent/turn', expect.anything())
 })

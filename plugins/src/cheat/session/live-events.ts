@@ -1,7 +1,7 @@
 /**
  * In-game: common events + call references from the loaded database; map files are fetched like RPG Maker's own DataManager.
  */
-import { buildCommonEventsData, type CommonEventsData } from '@/lib/game/events'
+import { analyzeExecutionSafety, buildCommonEventsData, type CommonEventsData, normalizeCommands } from '@/lib/game/events'
 
 import { tName } from '../console/item-label'
 import { Cheats } from '../runtime/cheats'
@@ -57,6 +57,11 @@ export function loadedMapData(mapId: number): unknown {
   return loadedMaps?.find((m) => m.id === mapId)?.data ?? null
 }
 
+/** Already indexed maps only; map operations use this for bounded autorun safety checks. */
+export function loadedMapEntries(): ReadonlyArray<{ id: number; data: unknown }> {
+  return loadedMaps ?? []
+}
+
 export async function buildLiveCommonEventsData(opts?: { force?: boolean }): Promise<CommonEventsData> {
   const g = globalThis as { $dataMapInfos?: unknown[] }
   if (opts?.force || !cachedMaps) {
@@ -99,6 +104,12 @@ export function isOnMapScene(): boolean {
 /** Common events only start from the map scene (`$gameTemp.reserveCommonEvent`) */
 export function runCommonEventOnMap(id: number, from?: number): void {
   if (!isOnMapScene()) throw new Error('请回到地图场景再执行公共事件')
+  const event = ($dataCommonEvents as unknown[] | null)?.[id] as { list?: unknown } | null | undefined
+  const safety = analyzeExecutionSafety(normalizeCommands(event?.list), (target) => {
+    const called = ($dataCommonEvents as unknown[] | null)?.[target] as { list?: unknown } | null | undefined
+    return called ? normalizeCommands(called.list) : null
+  })
+  if (!safety.safe) throw new Error(safety.message)
   if (from) return startCommonEventAt(id, from)
   assertIdle()
   if (!Cheats.runCommonEvent(id)) throw new Error('游戏未就绪')

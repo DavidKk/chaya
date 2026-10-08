@@ -26,9 +26,13 @@ describe('build target', () => {
     expect(load({}).BUILD_TARGET).toBe('server')
   })
 
-  it('edge builds are always vercel, even with CHAYA_SERVICE=local', () => {
-    const mod = load({ NEXT_PUBLIC_CHAYA_TARGET: 'edge', CHAYA_SERVICE: 'local' })
-    expect(mod.getServiceMode()).toBe('vercel')
+  it('rejects an invalid injected build target', () => {
+    expect(() => load({ NEXT_PUBLIC_CHAYA_TARGET: 'invalid' })).toThrow(/NEXT_PUBLIC_CHAYA_TARGET 配置无效/)
+  })
+
+  it('cloud builds are always remote, even with CHAYA_SERVICE=local', () => {
+    const mod = load({ NEXT_PUBLIC_CHAYA_TARGET: 'cloud', CHAYA_SERVICE: 'local' })
+    expect(mod.getServiceMode()).toBe('remote')
     expect(mod.canUseDisk()).toBe(false)
   })
 
@@ -38,21 +42,25 @@ describe('build target', () => {
 })
 
 describe('dev target switch', () => {
-  it('defaults to server, or edge when started with CHAYA_SERVICE=vercel', () => {
+  it('defaults to server, or cloud when started with CHAYA_SERVICE=remote', () => {
     expect(load({ NEXT_PUBLIC_CHAYA_TARGET: 'dev', CHAYA_SERVICE: 'local' }).getServiceMode()).toBe('local')
-    expect(load({ NEXT_PUBLIC_CHAYA_TARGET: 'dev', CHAYA_SERVICE: 'vercel' }).getServiceMode()).toBe('vercel')
+    expect(load({ NEXT_PUBLIC_CHAYA_TARGET: 'dev', CHAYA_SERVICE: 'remote' }).getServiceMode()).toBe('remote')
   })
 
   it('switches the whole process without reloading modules', () => {
     const mod = load({ NEXT_PUBLIC_CHAYA_TARGET: 'dev', CHAYA_SERVICE: 'app' })
     expect(mod.getServiceMode()).toBe('app')
-    mod.setDevTarget('edge')
-    expect(mod.getServiceMode()).toBe('vercel')
+    mod.setDevTarget('cloud')
+    expect(mod.getServiceMode()).toBe('remote')
     mod.setDevTarget('server')
     expect(mod.getServiceMode()).toBe('app')
   })
 
   it('ignores the dev switch outside dev builds', () => {
-    expect(load({ NEXT_PUBLIC_CHAYA_TARGET: 'server', CHAYA_DEV_TARGET: 'edge' }).getServiceMode()).toBe('local')
+    expect(load({ NEXT_PUBLIC_CHAYA_TARGET: 'server', CHAYA_DEV_TARGET: 'cloud' }).getServiceMode()).toBe('local')
+  })
+
+  it('rejects an invalid dev target in dev builds', () => {
+    expect(() => load({ NEXT_PUBLIC_CHAYA_TARGET: 'dev', CHAYA_DEV_TARGET: 'invalid' }).getServiceMode()).toThrow(/CHAYA_DEV_TARGET 配置无效/)
   })
 })

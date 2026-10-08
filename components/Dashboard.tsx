@@ -52,6 +52,15 @@ export function Dashboard() {
 
   const browserMode = serverStatus?.canUseDisk === false
   const cloud = useCloudLibrary(browserMode, searchParams.get('game'), (id) => replaceQuery({ game: id }))
+  const directoryDisabledReason = browserMode
+    ? cloud.directoryCapability.state === 'insecure'
+      ? t('gate.directoryInsecure')
+      : cloud.directoryCapability.state === 'unsupported'
+        ? t('gate.directoryUnsupported')
+        : cloud.directoryCapability.state === 'blocked'
+          ? t('gate.directoryBlocked')
+          : undefined
+    : undefined
   const status = browserMode ? cloud.status : serverStatus
   const busy = localBusy || (browserMode && cloud.busy)
   const { win, setWin, winSaveTimer, patchWin, patchWinSize } = useWindowSettings(
@@ -455,13 +464,15 @@ export function Dashboard() {
       {loading ? (
         <LibraryPageSkeleton />
       ) : emptyLibrary ? (
-        <ChooseGameGate busy={busy} canUseDisk={diskOk} onChoose={() => void chooseGame()} />
+        <ChooseGameGate busy={browserMode ? cloud.pickerBusy : busy} disabledReason={directoryDisabledReason} canUseDisk={diskOk} onChoose={() => void chooseGame()} />
       ) : (
         <div className="flex min-h-0 flex-1 items-stretch gap-0">
           <LibraryRail
             entries={library}
             activeRoot={ready ? status.config.gameRoot : ''}
             busy={busy}
+            addBusy={browserMode && cloud.pickerBusy}
+            addDisabledReason={directoryDisabledReason}
             canUseDisk={diskOk || browserMode}
             mobileOpen={libraryOpen}
             onMobileOpenChange={setLibraryOpen}
@@ -487,7 +498,13 @@ export function Dashboard() {
               </Button>
             </div>
             {!ready ? (
-              <ChooseGameGate className="min-h-0" busy={busy} canUseDisk={diskOk} onChoose={() => void chooseGame()} />
+              <ChooseGameGate
+                className="min-h-0"
+                busy={browserMode ? cloud.pickerBusy : busy}
+                disabledReason={directoryDisabledReason}
+                canUseDisk={diskOk}
+                onChoose={() => void chooseGame()}
+              />
             ) : (
               <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('dashboard.currentGame') }}>
                 <div className="flex w-full max-w-[48rem] flex-col gap-4">

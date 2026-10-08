@@ -2,7 +2,7 @@ import { clearCloudPlugins, configureCloudConnection, installCloudPlugins, insta
 import * as fsa from '@/lib/browser/fsa'
 
 jest.mock('@/lib/browser/fsa', () => ({
-  getFsaSupport: jest.fn(() => ({ ok: true })),
+  getDirectoryCapability: jest.fn(() => ({ state: 'available' })),
   pickDirectory: jest.fn(),
   resolveContentRootHandle: jest.fn(),
   detectClientOs: jest.fn(() => 'mac'),

@@ -1,7 +1,7 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
-import { normalizeCompanionCharacter } from '@/lib/game-agent/companion'
-import { classifyGameIntent, runManagedTurn } from '@/services/game-agent/managed-turn.server'
+import { callExtTask, listExtTasks, startExtPlayTurn } from '@/services/game-agent/ext-task.server'
+import { classifyGameIntent } from '@/services/game-agent/managed-turn.server'
 import { beginTurn, clearGameTurns, emitTurnEvent, finishTurn, getOrCreateSession, subscribeTurn } from '@/services/game-agent/session-store'
 import { loadGameAgentSettings, profileById } from '@/services/game-agent/settings'
 import { runAskTurn } from '@/services/game-agent/turn-runner.server'
@@ -33,11 +33,11 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
     sessionId: body?.sessionId,
     newSession: body?.newSession === true,
     locale: String(body?.locale || ''),
-    surface: body?.surface === 'companion' ? 'companion' : undefined,
-    companionCharacter: body?.surface === 'companion' ? normalizeCompanionCharacter(body.companionCharacter) : undefined,
   }
   const profile = profileById(loadGameAgentSettings(), profileId)
   if (!profile) return apiError(400, 'AGENT_PROFILE_NOT_FOUND', '接入实例不存在或已删除')
+  const activeExt = (await listExtTasks(gameId).catch(() => [])).find((task) => !['completed', 'stopped', 'failed', 'interrupted'].includes(task.state))
+  if (activeExt) return apiError(409, 'AGENT_TURN_RUNNING', '当前游戏已有 Agent 任务在运行，请先停止')
   const session = getOrCreateSession(gameId, profileId, model, input.sessionId, input.newSession)
   let turn
   try {
@@ -72,7 +72,7 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
       void (async () => {
         try {
           const intent = await classifyGameIntent(input, profile, turn.abort.signal)
-          if (intent.managed) await runManagedTurn(input, profile, turn)
+          if (intent.managed) await startExtPlayTurn(input, turn, emit)
           else await runAskTurn(input, profile, session, turn, emit, !intent.edit)
         } catch (error) {
           if (turn.abort.signal.aborted) {
@@ -112,5 +112,7 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
 export const DELETE = defineApiRoute('delete:/api/game-agent/turn', async ({ request }) => {
   const gameId = new URL(request.url).searchParams.get('gameId')?.trim() || ''
   if (!gameId) return apiError(400, 'GAME_ID_REQUIRED', '缺少 gameId')
-  return apiOk({ cleared: clearGameTurns(gameId) })
+  const local = clearGameTurns(gameId)
+  const remote = (await callExtTask(gameId, { type: 'agent.task.clear', requestId: crypto.randomUUID() }).catch(() => null)) as { cleared?: number } | null
+  return apiOk({ cleared: local + (remote?.cleared || 0) })
 })

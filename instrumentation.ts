@@ -1,7 +1,7 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   const { BUILD_TARGET } = await import('@/lib/service-mode/target')
-  if (BUILD_TARGET === 'edge' || process.env.VERCEL === '1') return
+  if (BUILD_TARGET === 'cloud' || process.env.VERCEL === '1') return
   const { localMcpGateway } = await import('@/services/integration/mcp-gateway')
   // Must not hold up server readiness: the gateway keeps retrying in the background.
   void localMcpGateway()

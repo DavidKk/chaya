@@ -19,6 +19,18 @@ jest.mock('@/services/game-agent/tool-runtime.server', () => ({
       readOnly: false,
       run: jest.fn(),
     },
+    {
+      definition: {
+        type: 'function',
+        function: {
+          name: 'chaya_agent_profile_update',
+          description: 'Update an Agent configuration.',
+          parameters: { type: 'object', properties: { target: { type: 'string' }, token: { type: 'string' } }, required: ['target'] },
+        },
+      },
+      readOnly: false,
+      run: jest.fn(),
+    },
   ]),
   executeGameAgentTool: jest.fn(async () => ({ ok: true, content: '{"ok":true,"verification":{"walkRate":2}}' })),
 }))

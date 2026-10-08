@@ -1,6 +1,6 @@
 /**
  * DataChannel → ChayaAgent: requests on the translation RPC with path `/agent` run agent commands.
- * The channel's signaling is unauthenticated on Edge, so only `AGENT_LINK_METHODS` pass (never eval).
+ * The channel's signaling is unauthenticated on Cloud, so only `AGENT_LINK_METHODS` pass (never eval).
  */
 
 import { AGENT_LINK_METHODS, type AgentCommand } from '@/lib/runtime/agent-protocol'

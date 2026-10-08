@@ -79,6 +79,7 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
         apiBase,
         env,
         launchToken: session.token,
+        launchTokenPersistence: session.persistence,
         plugins,
         nwPackage,
       })
@@ -103,6 +104,7 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
       apiBase,
       env,
       launchToken: session.token,
+      launchTokenPersistence: session.persistence,
       plugins,
       nwPackage,
     })

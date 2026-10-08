@@ -3,7 +3,16 @@ import { NextResponse } from 'next/server'
 import { defineApiRoute } from '@/initializer/controller'
 import { json } from '@/initializer/response'
 import { requireDisk } from '@/lib/service-mode'
-import { clearGameQuitRequest, detectLanApiBases, getGamePresence, preferredPluginApiBase, registerGameFromPlugin, toolkitListenPort, touchGamePresence } from '@/services/runtime'
+import {
+  clearGameQuitRequest,
+  clearLaunchToken,
+  detectLanApiBases,
+  getGamePresence,
+  preferredPluginApiBase,
+  registerGameFromPlugin,
+  toolkitListenPort,
+  touchGamePresence,
+} from '@/services/runtime'
 
 export const runtime = 'nodejs'
 
@@ -84,6 +93,7 @@ export const POST = defineApiRoute('post:/api/runtime/heartbeat', async ({ reque
     }
   } else {
     // 道别心跳：不再 touch；清旗标以便下次本机启动
+    if (launchToken) clearLaunchToken(launchToken)
     clearGameQuitRequest()
     presence = getGamePresence()
   }

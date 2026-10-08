@@ -10,9 +10,9 @@ export function resolveHostOs(platform: NodeJS.Platform | string = process.platf
   return null
 }
 
-/** ServiceMode → RuntimeLane：app/local → local；vercel → edge */
+/** ServiceMode → RuntimeLane：app/local → local；remote → remote */
 export function resolveRuntimeLane(mode: ServiceMode = getServiceMode()): RuntimeLane {
-  return mode === 'vercel' ? 'edge' : 'local'
+  return mode === 'remote' ? 'remote' : 'local'
 }
 
 export function getPlatformContext(opts?: { platform?: NodeJS.Platform | string; serviceMode?: ServiceMode }): PlatformContext {

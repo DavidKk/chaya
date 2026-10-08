@@ -199,7 +199,8 @@ export class InputAssistanceRuntime {
   }
 
   start(ruleId: string, once = false): void {
-    if ((window as Window & { __chayaAgentInputActive?: number }).__chayaAgentInputActive) throw new Error('Agent 正在操作游戏，请稍后再启动辅助')
+    const host = window as Window & { __chayaAgentInputActive?: number; __chayaAgentPlayTaskId?: string }
+    if (host.__chayaAgentInputActive || host.__chayaAgentPlayTaskId) throw new Error('Agent 正在操作游戏，请稍后再启动辅助')
     const rule = this.config.rules.find((item) => item.id === ruleId)
     if (!rule) throw new Error('规则不存在')
     if (!once && !rule.enabled) throw new Error('规则尚未启用')

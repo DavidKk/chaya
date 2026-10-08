@@ -2,7 +2,18 @@
  * In-game map page: single map details with live state, teleport, self switches and map events.
  */
 import type { PlayerSpot } from '@/components/game-edit/events/types'
-import { blockedMask, buildMapDetail, type MapDetailData, type MapLiveState, nearestSpot, SELF_SWITCH_LETTERS, type SelfSwitchLetter, terrainBlockedMask } from '@/lib/game/events'
+import {
+  analyzeExecutionSafety,
+  blockedMask,
+  buildMapDetail,
+  type MapDetailData,
+  type MapLiveState,
+  nearestSpot,
+  normalizeCommands,
+  SELF_SWITCH_LETTERS,
+  type SelfSwitchLetter,
+  terrainBlockedMask,
+} from '@/lib/game/events'
 
 import { tName } from '../console/item-label'
 import { Cheats } from '../runtime/cheats'
@@ -190,6 +201,14 @@ export function runMapEvent({ mapId, eventId, page, from = 0 }: { mapId: number;
   if (currentMapId() !== mapId) throw new Error('只能触发当前地图的事件')
   const ev = gameMap()?.event?.(Math.floor(eventId))
   if (!ev) throw new Error(`当前地图没有事件 ${eventId}`)
+  const rawEvent = (g().$dataMap as { events?: unknown[] } | null)?.events?.[eventId] as { pages?: Array<{ list?: unknown }> } | null | undefined
+  const selectedPage = page ?? Math.floor(Number(ev._pageIndex) || 0)
+  const commands = normalizeCommands(rawEvent?.pages?.[selectedPage]?.list)
+  const safety = analyzeExecutionSafety(commands, (target) => {
+    const called = ($dataCommonEvents as unknown[] | null)?.[target] as { list?: unknown } | null | undefined
+    return called ? normalizeCommands(called.list) : null
+  })
+  if (!safety.safe) throw new Error(safety.message)
   if (page != null) return startMapEventAt(eventId, page, from)
   if (ev._erased || !(Number(ev._pageIndex) >= 0)) throw new Error('该事件当前未出现，无法触发')
   assertIdle()

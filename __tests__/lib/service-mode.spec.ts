@@ -18,17 +18,17 @@ describe('service-mode', () => {
     expect(canUseDisk()).toBe(true)
   })
 
-  it('forces vercel when VERCEL=1 even if CHAYA_SERVICE=local', () => {
+  it('forces remote when VERCEL=1 even if CHAYA_SERVICE=local', () => {
     process.env.VERCEL = '1'
     process.env.CHAYA_SERVICE = 'local'
-    expect(getServiceMode()).toBe('vercel')
+    expect(getServiceMode()).toBe('remote')
     expect(canUseDisk()).toBe(false)
   })
 
-  it('allows CHAYA_SERVICE=vercel off-platform to simulate edge', () => {
+  it('allows CHAYA_SERVICE=remote off-platform to simulate cloud', () => {
     delete process.env.VERCEL
-    process.env.CHAYA_SERVICE = 'vercel'
-    expect(getServiceMode()).toBe('vercel')
+    process.env.CHAYA_SERVICE = 'remote'
+    expect(getServiceMode()).toBe('remote')
     expect(canUseDisk()).toBe(false)
   })
 
@@ -39,13 +39,19 @@ describe('service-mode', () => {
     expect(canUseDisk()).toBe(true)
   })
 
+  it('rejects a non-empty invalid CHAYA_SERVICE', () => {
+    delete process.env.VERCEL
+    process.env.CHAYA_SERVICE = 'invalid'
+    expect(() => getServiceMode()).toThrow(/CHAYA_SERVICE 配置无效/)
+  })
+
   it('requireDisk returns null when disk is allowed', () => {
     delete process.env.VERCEL
     delete process.env.CHAYA_SERVICE
     expect(requireDisk()).toBeNull()
   })
 
-  it('requireDisk returns 501 DISK_UNAVAILABLE on vercel', async () => {
+  it('requireDisk returns 501 DISK_UNAVAILABLE on remote', async () => {
     process.env.VERCEL = '1'
     const res = requireDisk()
     expect(res).not.toBeNull()
@@ -55,9 +61,9 @@ describe('service-mode', () => {
     expect(body.error.code).toBe('DISK_UNAVAILABLE')
   })
 
-  it('requireDisk returns 501 when simulating edge via CHAYA_SERVICE=vercel', async () => {
+  it('requireDisk returns 501 when simulating cloud via CHAYA_SERVICE=remote', async () => {
     delete process.env.VERCEL
-    process.env.CHAYA_SERVICE = 'vercel'
+    process.env.CHAYA_SERVICE = 'remote'
     const res = requireDisk()
     expect(res).not.toBeNull()
     expect(res!.status).toBe(501)

@@ -25,7 +25,7 @@ import {
   type TabId,
   usesEventsSlot,
 } from '@/components/game-edit'
-import type { EventsSlot } from '@/components/game-edit/events/types'
+import { assertMapOperationCompleted, type EventsSlot } from '@/components/game-edit/events/types'
 import { useEventsData } from '@/components/game-edit/events/useEventsData'
 import { useLinkSaveDataTransport } from '@/components/game-edit/save-data/link-transport'
 import type { DataRootView, SaveDataSlot } from '@/components/game-edit/save-data/transport'
@@ -97,7 +97,7 @@ export function GameEditPage() {
     setError('')
     setLoading(false)
   }, [])
-  const { linked, connected, scene, sendCmd, runCmd, requestCatalog } = useGameEditLinkSync(setSession, setLiveError, receiveCatalog)
+  const { linked, connected, scene, sendCmd, runCmd, requestCatalog, mapUndo, runMapChanges, undoMapChange } = useGameEditLinkSync(setSession, setLiveError, receiveCatalog)
 
   const handlers = useMemo(() => buildOptimisticHandlers(setSession, sendCmd, (id) => catalog?.actors.find((a) => a.id === id)?.name), [sendCmd, catalog])
 
@@ -116,6 +116,10 @@ export function GameEditPage() {
     loading: events.loading,
     error: events.error,
     unavailable: events.unavailable,
+    unavailableKind: events.unavailableKind,
+    authorizing: events.authorizing,
+    onAuthorize: events.authorize,
+    onRetry: events.refresh,
     live: linked,
     canAct: linked,
     onMap: scene.onMap,
@@ -123,11 +127,47 @@ export function GameEditPage() {
     commonId,
     onSelectCommon: (id) => router.push(hrefWithQuery(editCommonHref(id), eventsQuery)),
     onAct: async (op) => {
-      await runCmd(op)
-      if (op.op === 'selfSwitch' || op.op === 'mapEvent') reloadMap()
+      if (op.op === 'commonEvent') {
+        assertMapOperationCompleted(await runMapChanges([{ label: `公共事件 #${op.id}`, action: { kind: 'commonEvent', id: op.id, from: op.from } }], `执行公共事件 #${op.id}`))
+      } else if (op.op === 'mapEvent') {
+        assertMapOperationCompleted(
+          await runMapChanges(
+            [{ label: `地图事件 #${op.eventId}`, action: { kind: 'mapEvent', mapId: op.mapId, eventId: op.eventId, page: op.page, from: op.from } }],
+            `执行地图事件 #${op.eventId}`
+          )
+        )
+      } else if (op.op === 'selfSwitch') {
+        assertMapOperationCompleted(
+          await runMapChanges(
+            [{ label: `#${op.eventId}`, changes: [{ kind: 'selfSwitch', mapId: op.mapId, eventId: op.eventId, letter: op.letter, value: op.value }] }],
+            `独立开关 ${op.letter}`
+          )
+        )
+      } else if (op.op === 'teleport') {
+        assertMapOperationCompleted(
+          await runMapChanges(
+            [{ label: `${op.mapId}:${op.x},${op.y}`, changes: [{ kind: 'position', mapId: op.mapId, x: op.x, y: op.y, direction: op.direction ?? 2, near: op.near }] }],
+            `传送到 ${op.mapId}:${op.x},${op.y}`
+          )
+        )
+      } else await runCmd(op)
+      if (op.op === 'selfSwitch' || op.op === 'teleport' || op.op === 'mapEvent') reloadMap()
     },
-    onSwitchChange: handlers.setSwitch,
-    onVarChange: handlers.setVar,
+    onSwitchChange: (id, value) =>
+      void runMapChanges([{ label: `开关 #${id}`, changes: [{ kind: 'switch', id, value }] }], `开关 #${id}`).catch((error) =>
+        setLiveError(error instanceof Error ? error.message : String(error))
+      ),
+    onVarChange: (id, value) =>
+      void runMapChanges([{ label: `变量 #${id}`, changes: [{ kind: 'variable', id, value }] }], `变量 #${id}`).catch((error) =>
+        setLiveError(error instanceof Error ? error.message : String(error))
+      ),
+    mapUndo,
+    onMapChanges: runMapChanges,
+    onMapUndo: async (force) => {
+      const reply = await undoMapChange(force)
+      reloadMap()
+      return reply as { status?: unknown; conflicts?: unknown[] }
+    },
     mapId,
     eventId: mapEventId,
     onSelectMap: (nextMap, nextEvent) => router.push(hrefWithQuery(editMapHref(nextMap, nextEvent), eventsQuery)),

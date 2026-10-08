@@ -12,7 +12,7 @@ Object.assign(globalThis, {
 
 beforeEach(() => localStorage.clear())
 
-test('Edge adapter completes create, edit, delete, and reload with the shared settings shape', async () => {
+test('Cloud adapter completes create, edit, delete, and reload with the shared settings shape', async () => {
   const request = createBrowserGameAgentRequest({ connected: false })
   const initial = await request('/api/integration/game-agent')
   const initialBody = await initial.json()
@@ -25,7 +25,7 @@ test('Edge adapter completes create, edit, delete, and reload with the shared se
   })
   expect((await created.json()).settings.profiles.map((profile: { label: string }) => profile.label)).toEqual(['Local Ollama', 'Office Ollama'])
 
-  const edited = { ...office, label: 'Edge Office', defaultModel: 'qwen3' }
+  const edited = { ...office, label: 'Cloud Office', defaultModel: 'qwen3' }
   await request('/api/integration/game-agent', {
     method: 'PUT',
     body: JSON.stringify({ settings: { ...initialBody.settings, profiles: [initialBody.settings.profiles[0], edited] } }),
@@ -34,7 +34,7 @@ test('Edge adapter completes create, edit, delete, and reload with the shared se
   const reloaded = await request('/api/integration/game-agent')
   expect((await reloaded.json()).settings).toMatchObject({
     defaultProfileId: 'ollama-local',
-    profiles: [{ label: 'Local Ollama' }, { id: 'office', label: 'Edge Office', defaultModel: 'qwen3' }],
+    profiles: [{ label: 'Local Ollama' }, { id: 'office', label: 'Cloud Office', defaultModel: 'qwen3' }],
   })
 
   const removed = await request('/api/integration/game-agent', {
@@ -44,7 +44,7 @@ test('Edge adapter completes create, edit, delete, and reload with the shared se
   expect((await removed.json()).settings.profiles.map((profile: { id: string }) => profile.id)).toEqual(['ollama-local'])
 })
 
-test('Edge Agent tools delete a configuration by display name', async () => {
+test('Cloud Agent tools delete a configuration by display name', async () => {
   const request = createBrowserGameAgentRequest({ connected: false })
   const initial = await request('/api/integration/game-agent')
   const initialSettings = (await initial.json()).settings
@@ -65,14 +65,14 @@ test('Edge Agent tools delete a configuration by display name', async () => {
   expect((await reloaded.json()).settings.profiles.map((profile: { id: string }) => profile.id)).toEqual(['ollama-local'])
 })
 
-test('Edge adapter enables the shared Agent panel from cached models without requiring a game', async () => {
+test('Cloud adapter enables the shared Agent panel from cached models without requiring a game', async () => {
   localStorage.setItem('chaya.gameAgent.models', JSON.stringify({ 'ollama-local': { endpoint: 'http://127.0.0.1:11434', models: [{ name: 'gemma4' }] } }))
   const request = createBrowserGameAgentRequest({ connected: false })
   const status = await request('/api/game-agent/status?gameId=chaya-console')
   expect(await status.json()).toMatchObject({ available: true, gameOnline: false, reason: null, profiles: [{ provider: 'ollama', online: true }] })
 })
 
-test('Edge adapter falls back when the configured model is no longer installed', async () => {
+test('Cloud adapter falls back when the configured model is no longer installed', async () => {
   localStorage.setItem(
     'chaya.gameAgent.settings',
     JSON.stringify({
@@ -97,13 +97,13 @@ test('Edge adapter falls back when the configured model is no longer installed',
   expect((await status.json()).profiles[0].defaultModel).toBe('available-model')
 })
 
-test('Edge adapter reports game state separately from Agent availability', async () => {
+test('Cloud adapter reports game state separately from Agent availability', async () => {
   const request = createBrowserGameAgentRequest({ connected: true })
   const status = await request('/api/game-agent/status?gameId=demo')
   expect(await status.json()).toMatchObject({ available: false, gameOnline: true, profiles: [{ provider: 'ollama' }] })
 })
 
-test('Edge adapter clears only the turns of the requested game', async () => {
+test('Cloud adapter clears only the turns of the requested game', async () => {
   const signals: AbortSignal[] = []
   const runtime = {
     start: jest.fn(({ signal }: { signal: AbortSignal }) => {
@@ -133,7 +133,7 @@ test('Edge adapter clears only the turns of the requested game', async () => {
   expect(missing.status).toBe(400)
 })
 
-test('Edge adapter caches models fetched automatically from an endpoint', async () => {
+test('Cloud adapter caches models fetched automatically from an endpoint', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ models: [{ name: 'gemma4' }] }) }) as Response)
   try {

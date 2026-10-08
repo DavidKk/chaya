@@ -1,6 +1,6 @@
 # 部署方式 × 操作系统：优化方案
 
-> 状态：部分实施（逐项状态见 §0，落地记录见 §11；完成后同步 [deployment-platforms.md](deployment-platforms.md)）
+> 状态：部分实施。本波只做 **O8、O10**（见 [`../capability-supplement.md`](../capability-supplement.md)）；**O2 / O5 / O6 共享存储 / O7 已冻结**，勿再排期。
 >
 > 现状与已定决策以 [deployment-platforms.md](deployment-platforms.md) 为准；本文只写要改什么、怎么改、怎么验收。
 
@@ -8,18 +8,18 @@
 
 ## 0. 总览
 
-| 编号 | 优化项                                        | 优先级 | 状态           | 解决的问题                                             | 依赖          |
-| ---- | --------------------------------------------- | ------ | -------------- | ------------------------------------------------------ | ------------- |
-| O1   | 浏览器模式日志隔离                            | P0     | **已完成**     | 所有访问者共用日志（隐私）、可被任意灌入               | —             |
-| O2   | 能力层：拆分 `canUseDisk`                     | P1     | 待实施         | 一个开关同时管"用户游戏文件"和"服务端存储"             | —             |
-| O3   | 服务端「下载 / 升级 NW.js」改后台任务         | P1     | 已完成         | 确认弹窗一直转圈、期间不能操作、卡住最长约 5 分钟      | O2（可选）    |
-| O4   | 浏览器模式 Windows 装壳不再锁整张卡片         | P1     | 已完成         | 装壳期间整卡 busy                                      | —             |
-| O5   | Windows 装壳增加 PowerShell 命令备选          | P2     | 待实施         | 页面装壳步骤多、无下载进度、非 Chromium 无法装         | —             |
-| O6   | 信令：鉴权 + 共享存储 + 部署门禁              | P0     | **鉴权已完成** | 信令无鉴权可被抢连；Vercel 多实例下连不上游戏          | —             |
-| O7   | Linux 装壳改终端命令                          | P3     | 待实施         | 只有下载链接，用户需自己解压、`chmod`                  | O5 的脚本框架 |
-| O8   | 命名：构建目标 `edge`、形态 `vercel` 改语义名 | P3     | 待实施         | `edge` 被误读为 Next Edge Runtime；自托管也叫 `vercel` | O2、O9        |
-| O9   | 部署文档修正                                  | P0     | **已完成**     | 命名混淆、前置条件缺失、Linux 写成已实现、过度承诺     | —             |
-| O10  | 浏览器模式前置条件检测与提示                  | P1     | 待实施         | 非 HTTPS / 非 Chromium 时选目录失败且无说明            | —             |
+| 编号 | 优化项                                         | 优先级 | 状态                                                                         | 解决的问题                                               | 依赖              |
+| ---- | ---------------------------------------------- | ------ | ---------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------- |
+| O1   | 浏览器模式日志隔离                             | P0     | **已完成**                                                                   | 所有访问者共用日志（隐私）、可被任意灌入                 | —                 |
+| O2   | 能力层：拆分 `canUseDisk`                      | P1     | **冻结**                                                                     | 一个开关同时管"用户游戏文件"和"服务端存储"               | —                 |
+| O3   | 服务端「下载 / 升级 NW.js」改后台任务          | P1     | **已完成 / 并入下载中心**（独立项废弃；勿再按 O3 原文「启动清 `.part`」）    | 确认弹窗一直转圈、期间不能操作、卡住最长约 5 分钟        | O2（可选）        |
+| O4   | 浏览器模式 Windows 装壳不再锁整张卡片          | P1     | **已完成 / 并入下载中心**（独立项废弃）                                      | 装壳期间整卡 busy                                        | —                 |
+| O5   | Windows 装壳增加 PowerShell 命令备选           | P2     | **冻结**                                                                     | 页面装壳步骤多、无下载进度、非 Chromium 无法装           | —                 |
+| O6   | 信令：鉴权 + 共享存储 + 部署门禁               | P0     | **鉴权已完成；共享存储冻结**                                                 | 信令无鉴权可被抢连；Vercel 多实例下连不上游戏            | —                 |
+| O7   | Linux 装壳改终端命令                           | P3     | **冻结**                                                                     | 只有下载链接，用户需自己解压、`chmod`                    | O5 的脚本框架     |
+| O8   | 命名：构建目标 `cloud`、形态 `remote` 改语义名 | P3     | **本波待做**（[`../capability-supplement.md`](../capability-supplement.md)） | `cloud` 被误读为 Next Cloud Runtime；自托管也叫 `remote` | O9（O2 不再阻塞） |
+| O9   | 部署文档修正                                   | P0     | **已完成**                                                                   | 命名混淆、前置条件缺失、Linux 写成已实现、过度承诺       | —                 |
+| O10  | 浏览器模式前置条件检测与提示                   | P1     | **本波待做**（[`../capability-supplement.md`](../capability-supplement.md)） | 非 HTTPS / 非 Chromium 时选目录失败且无说明              | —                 |
 
 建议顺序：O9（纯文档，先做）→ O6 鉴权 + O1 → O6 共享存储 → O2 → O3 / O4 / O10 → O5 → O7 → O8。
 
@@ -55,7 +55,7 @@ O1 与 O6 必须一起看：实施前，日志若含游戏 id（即信令房间�
 3. **页面侧**：
    - `GameLinkProvider` 收 `log.batch`，写入页面内存日志存储；切换游戏时清空，不持久化到 IndexedDB。
    - `LogPanel` 在浏览器模式读页面日志存储，不连 `/api/logs/stream`；清空只清本地，可放开「清空」。
-   - WebMCP `chaya_logs_*` 读页面日志存储；从 `EDGE_UNAVAILABLE_TOOLS` 移除 `chaya_logs_clear`。
+   - WebMCP `chaya_logs_*` 读页面日志存储；从 `REMOTE_UNAVAILABLE_TOOLS` 移除 `chaya_logs_clear`。
 4. **服务端**：浏览器模式下 `/api/logs` 的 `POST` 为兼容旧插件返回 200 但静默丢弃，`GET` 返回空；SSE 只保活、不推日志条目。服务端模式不变。
 
 ### 1.4 备选：服务端按房间隔离（过渡方案）
@@ -69,14 +69,14 @@ O1 与 O6 必须一起看：实施前，日志若含游戏 id（即信令房间�
 
 ### 1.5 涉及文件
 
-`lib/runtime/game-link-protocol.ts`、`components/GameLinkProvider.tsx`、`components/LogPanel.tsx`、`components/webmcp/edge/link.ts`、`components/webmcp/edge/index.ts`（`EDGE_UNAVAILABLE_TOOLS`）、`lib/webmcp/mode-matrix.ts`、`lib/game/plugins-merge.ts`（`buildChayaEnvJs`）、插件 logger（`plugins/src/helpers/...`）、`app/api/logs/route.ts`、`app/api/logs/stream/route.ts`、`services/log/*`。
+`lib/runtime/game-link-protocol.ts`、`components/GameLinkProvider.tsx`、`components/LogPanel.tsx`、`components/webmcp/remote/link.ts`、`components/webmcp/remote/index.ts`（`REMOTE_UNAVAILABLE_TOOLS`）、`lib/webmcp/mode-matrix.ts`、`lib/game/plugins-merge.ts`（`buildChayaEnvJs`）、插件 logger（`plugins/src/helpers/...`）、`app/api/logs/route.ts`、`app/api/logs/stream/route.ts`、`services/log/*`。
 
 ### 1.6 验收
 
 - 两个浏览器各自连接不同游戏：日志互不可见。
 - 浏览器模式下 `curl -X POST /api/logs` 不会出现在任何人的日志面板。
 - 游戏先运行、页面后连接：能看到连接前的积压日志（上限内）。
-- 自托管 edge 构建运行后，服务器上不产生 `logs/plugins/*.ndjson`。
+- 自托管 cloud 构建运行后，服务器上不产生 `logs/plugins/*.ndjson`。
 - 服务端模式日志面板、落盘、清空行为不变。
 - 测试：协议编解码、页面日志存储（环形缓冲 / 按游戏分隔）、`buildChayaEnvJs` 浏览器模式不含日志地址。
 
@@ -86,7 +86,7 @@ O1 与 O6 必须一起看：实施前，日志若含游戏 id（即信令房间�
 
 ### 2.1 现状
 
-`canUseDisk = 形态 !== 'vercel'`，同时被用来判断：能否读写用户游戏文件、能否写服务端自己的存储、能否启动游戏、是否要访问授权、界面走哪套逻辑。O1 的日志写盘问题即由此产生。
+`canUseDisk = 形态 !== 'remote'`，同时被用来判断：能否读写用户游戏文件、能否写服务端自己的存储、能否启动游戏、是否要访问授权、界面走哪套逻辑。O1 的日志写盘问题即由此产生。
 
 ### 2.2 设计
 
@@ -107,12 +107,12 @@ export type Capabilities = {
 export function getCapabilities(mode = getServiceMode()): Capabilities
 ```
 
-| 能力            | local  | app    | vercel（含自托管 edge 构建） |
-| --------------- | ------ | ------ | ---------------------------- |
-| `gameFiles`     | server | server | browser                      |
-| `serverStorage` | true   | true   | false                        |
-| `longTasks`     | true   | true   | false                        |
-| `launch`        | true   | true   | false                        |
+| 能力            | local  | app    | remote（含自托管 cloud 构建） |
+| --------------- | ------ | ------ | ----------------------------- |
+| `gameFiles`     | server | server | browser                       |
+| `serverStorage` | true   | true   | false                         |
+| `longTasks`     | true   | true   | false                         |
+| `launch`        | true   | true   | false                         |
 
 以后若新增 `node` 形态，只在此表加一列（`gameFiles: browser, serverStorage: true, longTasks: true, launch: false`），业务代码不改。
 
@@ -136,7 +136,7 @@ export function getCapabilities(mode = getServiceMode()): Capabilities
 
 - 能力表单测覆盖三种形态（含 dev 切换器、`VERCEL=1` 强制）。
 - 全仓除兼容别名外不再出现 `canUseDisk` 的新用法（可加 ESLint 规则或评审约定）。
-- 现有行为不变：`pnpm ok` 通过，edge / server 构建路由数不变。
+- 现有行为不变：`pnpm ok` 通过，cloud / server 构建路由数不变。
 
 ---
 
@@ -264,17 +264,17 @@ export function getCapabilities(mode = getServiceMode()): Capabilities
 
 ## 8. O8 命名：构建目标与服务形态改语义名（P3）
 
-现在一个词 "edge" 同时被读成三件事：构建目标 `CHAYA_TARGET=edge`、服务形态 `vercel`、Next.js Edge Runtime。实际云端路由全部是 `export const runtime = 'nodejs'`，没有用 Edge Runtime。目标是三层各用各的名字：
+现在一个词 "cloud" 同时被读成三件事：构建目标 `CHAYA_TARGET=cloud`、服务形态 `remote`、Next.js Cloud Runtime。实际云端路由全部是 `export const runtime = 'nodejs'`，没有用 Cloud Runtime。目标是三层各用各的名字：
 
 | 概念       | 现在                       | 改为                       | 含义                                   |
 | ---------- | -------------------------- | -------------------------- | -------------------------------------- |
-| 构建目标   | `server` / `edge` / `dev`  | `server` / `cloud` / `dev` | 是否剔除 `*.server.*` / `*.dev.*` 路由 |
-| 服务形态   | `local` / `app` / `vercel` | `local` / `app` / `remote` | 服务的能力边界（再由 O2 映射成能力）   |
+| 构建目标   | `server` / `cloud` / `dev` | `server` / `cloud` / `dev` | 是否剔除 `*.server.*` / `*.dev.*` 路由 |
+| 服务形态   | `local` / `app` / `remote` | `local` / `app` / `remote` | 服务的能力边界（再由 O2 映射成能力）   |
 | 执行运行时 | Next 路由 `runtime`        | 不变（目前全部 `nodejs`）  | 路由实际在哪种运行时执行               |
 
-- 兼容：`CHAYA_TARGET=edge`、`CHAYA_SERVICE=vercel` 继续接受为别名；`VERCEL=1` 判定不变；`/api/status` 的 `serviceMode` 保留旧值一个版本或同步改前端。
-- 改动面：`next.config.ts`、`lib/service-mode/*`、`package.json`（`build:edge` → `build:cloud`，`check:edge` → `check:cloud`，旧脚本保留为别名）、`scripts/check-edge-build.mjs`、dev 切换器文案（Server / Edge → Server / Cloud）、ESLint 规则说明、文档。
-- 在 O2 之后做：届时业务代码只看能力，改名只影响 `lib/service-mode` 与展示文案。改名前先由 O9 在文档里说明区别。
+- 兼容：`CHAYA_TARGET=cloud`、`CHAYA_SERVICE=remote` 继续接受为别名；`VERCEL=1` 判定不变；`/api/status` 的 `serviceMode` 保留旧值一个版本或同步改前端。
+- 改动面：`next.config.ts`、`lib/service-mode/*`、`package.json`（`build:cloud` → `build:cloud`，`check:cloud` → `check:cloud`，旧脚本保留为别名）、`scripts/check-cloud-build.mjs`、dev 切换器文案（Server / Cloud → Server / Cloud）、ESLint 规则说明、文档。
+- **本波可做，不阻塞于 O2**（O2 已冻结）：改名主要影响 `lib/service-mode`、脚本与展示文案；业务已尽量看能力处保持兼容别名。O9 文档区别说明已完成。需求见 [`../capability-supplement.md`](../capability-supplement.md) §3。
 
 ---
 
@@ -284,7 +284,7 @@ export function getCapabilities(mode = getServiceMode()): Capabilities
 
 ### 9.1 `deployment-platforms.md`
 
-1. **开头声明**：本文的 edge 是项目内部"云端无盘构建目标"的名称，不等同于 Next.js Edge Runtime；云端 API 运行在 Node.js runtime（关键 API 显式声明，其余沿用 Next.js 默认）。§1"不按运行时（Node / Edge）区分"改为"不按部署平台区分"。
+1. **开头声明**：本文的 cloud 是项目内部"云端无盘构建目标"的名称，不等同于 Next.js Cloud Runtime；云端 API 运行在 Node.js runtime（关键 API 显式声明，其余沿用 Next.js 默认）。§1"不按运行时（Node / Cloud）区分"改为"不按部署平台区分"。
 2. **改为四层结构**：
    1. 能力模型：游戏文件归属、`canUseDisk`、服务端 / 浏览器模式；
    2. 构建与运行时模型：构建目标 ≠ 执行运行时（O8 的三层表）；
@@ -292,12 +292,12 @@ export function getCapabilities(mode = getServiceMode()): Capabilities
    4. 实现状态：每项标「已实现并有测试」/「已实现但有部署限制」/「设计方案，未实现」。
 3. **部署表"运行前提"列**：
 
-   | 部署方式    | 运行前提                                                                                                                                      |
-   | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-   | 本地 server | Node ≥ 22.19.0；局域网访问需管理授权                                                                                                          |
-   | App         | 安装包自带运行时                                                                                                                              |
-   | Vercel      | HTTPS（平台自带）；Chromium 桌面浏览器；信令多实例问题未解决前为实验性（O6）                                                                  |
-   | 自托管 Node | **构建时**设 `CHAYA_TARGET=edge`（只在启动时设无效，目标在构建时写成常量）；Node ≥ 22.19.0；**必须 HTTPS**；单进程单副本；Chromium 桌面浏览器 |
+   | 部署方式    | 运行前提                                                                                                                                       |
+   | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+   | 本地 server | Node ≥ 22.19.0；局域网访问需管理授权                                                                                                           |
+   | App         | 安装包自带运行时                                                                                                                               |
+   | Vercel      | HTTPS（平台自带）；Chromium 桌面浏览器；信令多实例问题未解决前为实验性（O6）                                                                   |
+   | 自托管 Node | **构建时**设 `CHAYA_TARGET=cloud`（只在启动时设无效，目标在构建时写成常量）；Node ≥ 22.19.0；**必须 HTTPS**；单进程单副本；Chromium 桌面浏览器 |
 
 4. **浏览器模式前提写进部署矩阵**（不只放在后文）：
    - 选目录要求安全上下文：HTTPS 或 `localhost`；`http://192.168.x.x` 这类局域网 HTTP 页面无法选目录。
@@ -305,7 +305,7 @@ export function getCapabilities(mode = getServiceMode()): Capabilities
    - Safari、Firefox、iOS / Android 浏览器不支持当前实现的浏览器模式。
    - 装壳自动化程度按平台不同：Windows 页面安装，macOS 终端命令，Linux 仅下载链接。
 5. **自托管 Node 的表述**改为：自托管 Node 使用云端构建目标，只提供浏览器模式；它仍运行 Node.js API，但主动剔除本机磁盘路由。推荐单进程、固定实例，必须启用 HTTPS。
-6. **§2.1"远程 Node 与 Edge 能力完全一致"** 改为：两者在"游戏文件由浏览器读写"这一能力边界上相同；运行时稳定性、内存状态、长任务和多实例行为不同（自托管单进程可保留内存状态，Vercel 多实例 / 冷启动不行）。
+6. **§2.1"远程 Node 与 Cloud 能力完全一致"** 改为：两者在"游戏文件由浏览器读写"这一能力边界上相同；运行时稳定性、内存状态、长任务和多实例行为不同（自托管单进程可保留内存状态，Vercel 多实例 / 冷启动不行）。
 7. **信令从"已知问题"提升为部署限制**：写明 Vercel 生产在共享存储完成前为实验性；自托管禁止多副本；同时记录 O6.2 已完成鉴权、浏览器模式日志不再依赖服务端 SSE。
 8. **壳缓存路径**写准确：`data/shell-cache/[sdk-]<版本>-<fileKey>/extract/`，`fileKey` 含系统与架构（如 `win-x64`、`osx-arm64`）；或改写为"按版本、平台、架构、flavor 缓存"。
 
@@ -315,11 +315,11 @@ export function getCapabilities(mode = getServiceMode()): Capabilities
 
 ### 9.3 `service-modes.md`
 
-- 构建目标一节补一句与 9.1 第 1 条相同的声明，避免与 Next Edge Runtime 混淆。
+- 构建目标一节补一句与 9.1 第 1 条相同的声明，避免与 Next Cloud Runtime 混淆。
 
 ### 9.4 验收
 
-- 三份文档中不再出现"edge = Edge Runtime"的暗示；Linux 浏览器模式在所有文档中描述一致。
+- 三份文档中不再出现"cloud = Cloud Runtime"的暗示；Linux 浏览器模式在所有文档中描述一致。
 - 部署表能直接回答：自托管要满足什么、哪些浏览器能用、Vercel 当前是否保证连接。
 
 ---
@@ -335,7 +335,7 @@ export function getCapabilities(mode = getServiceMode()): Capabilities
 - 新增纯函数 `detectBrowserModeSupport()`（`lib/browser/fsa.ts`）：返回 `{ ok, reason?: 'insecure-context' | 'no-fsa' | 'mobile' }`，依据 `window.isSecureContext`、`'showDirectoryPicker' in window`、UA。
 - 浏览器模式首页 / 选游戏入口：不满足时显示空状态说明并给出办法：
   - `insecure-context`：请用 HTTPS 或 `localhost` 打开。
-  - `no-fsa` / `mobile`：请用桌面版 Chrome / Edge 打开。
+  - `no-fsa` / `mobile`：请用桌面版 Chrome / Microsoft Cloud 打开。
 - 信令实验性提示（O6.4）在同一位置展示。
 - 文案进 i18n（zh / en / ja / ko）。
 
@@ -351,7 +351,7 @@ export function getCapabilities(mode = getServiceMode()): Capabilities
 
 | 日期       | 编号    | 说明                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-10-03 | O9      | 完成：`deployment-platforms.md` 重排为四层并补运行前提 / 状态 / 信令部署限制；`cloud-prepare-strategy.md` Linux 改为仅下载链接；`service-modes.md` 补 edge ≠ Edge Runtime 声明                                                                                                                                                                                                                                                            |
+| 2026-10-03 | O9      | 完成：`deployment-platforms.md` 重排为四层并补运行前提 / 状态 / 信令部署限制；`cloud-prepare-strategy.md` Linux 改为仅下载链接；`service-modes.md` 补 cloud ≠ Cloud Runtime 声明                                                                                                                                                                                                                                                          |
 | 2026-10-03 | O6.2    | 完成：房间令牌鉴权（`X-Chaya-Link-Token`，服务端存 SHA-256，首个 Web `reset` / `offer` 绑定，`reset` 保留绑定）；去掉 `'default'` 房间；读取 / 应答不建房；房间上限 5000（503）、同一来源最多 20 个房间（429，取 `x-real-ip`）；插件日志里房间号打码；`SECRET_KEYS` 加 `linkToken`。服务端模式沿用原有的管理授权 + launch token 策略。未做：`Allow-Origin` 收窄                                                                           |
 | 2026-10-03 | O1      | 完成（1.3 方案）：游戏 DataChannel 打开后补发最近 200 条再批量推送 `log.batch`（未单独设 `log.backlog.request`；单条消息截断、按约 6000 字符分批，与翻译 RPC 一样控制在 16 KiB 内）；Env 写 `CHAYA_LOG_TRANSPORT = 'link'` 且不写 `CHAYA_LOG_URL`；页面 `lib/log/link-log-store.ts` 去重 / 清空 / 切游戏重置；`LogPanel`、WebMCP `chaya_logs_query` / `chaya_logs_clear` 读页面存储；服务器在浏览器模式丢弃上报、读取返回空、SSE 不推条目 |
 | 2026-10-03 | O1 / O6 | 行为变化：浏览器模式「连接」会同时刷新插件文件（旧插件不带令牌，否则上线后连不上）。已在用的浏览器模式用户需重新点一次「连接」并重启游戏                                                                                                                                                                                                                                                                                                  |

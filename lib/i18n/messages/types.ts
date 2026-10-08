@@ -78,6 +78,9 @@ export type MessageTree = {
     pickLine1: string
     pickLine2Disk: string
     pickLine2Cloud: string
+    directoryInsecure: string
+    directoryUnsupported: string
+    directoryBlocked: string
   }
   marketing: {
     introAria: string
@@ -505,6 +508,7 @@ export type MessageTree = {
     cleared: string
     send: string
     player: string
+    running: string
     thinking: string
     acting: string
     observing: string

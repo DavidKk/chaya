@@ -37,6 +37,7 @@ export const POST = defineApiRoute('post:/api/plugins', async () => {
       apiBase,
       env,
       launchToken: session.token,
+      launchTokenPersistence: session.persistence,
       ...result,
     })
   } catch (err) {

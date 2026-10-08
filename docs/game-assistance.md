@@ -1,9 +1,11 @@
 # 游戏辅助自主托管需求
 
-> 状态：待实现
-> 日期：2026-10-05
-> 关联：[`game-agent.md`](./game-agent.md)、[`capabilities.md`](./capabilities.md)
+> 状态：实施中（核心托管已落地）。**本波只补可恢复性** → [`capability-supplement.md`](./capability-supplement.md) §8；其余扩权 / 新产品面 **冻结或废弃**
+> 日期：2026-10-05 · 状态修订：2026-10-08
+> 关联：[`game-agent.md`](./game-agent.md)、[`capabilities.md`](./capabilities.md)、[`capability-supplement.md`](./capability-supplement.md)
 > 技术方案：[`technical/game-assistance.md`](./technical/game-assistance.md)
+>
+> **与 [`game-agent.md`](./game-agent.md) 冲突时以本文为准**：不再按 ask/play 双入口、模型正文直接结束、SSE 断线即取消托管等旧契约开发。
 
 ## 1. 背景
 

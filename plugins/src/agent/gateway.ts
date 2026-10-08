@@ -1,5 +1,5 @@
 /**
- * In-game side of the unified MCP gateway (Edge only): this game's plugin-MCP tools (`mcpToolsFor('plugin')`) on the shared 127.0.0.1 port.
+ * In-game side of the unified MCP gateway (Cloud only): this game's plugin-MCP tools (`mcpToolsFor('plugin')`) on the shared 127.0.0.1 port.
  * Local-service games never bind (the server does) but still expose status and port management to the panel.
  */
 

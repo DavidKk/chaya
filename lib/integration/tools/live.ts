@@ -28,7 +28,7 @@ function reqNum(args: Record<string, unknown>, key: string): number {
   return value
 }
 
-/** `chaya_live_*` (game operations + declared plugin tools); the server talks to ChayaAgent over the long-poll bridge, Edge pages over the DataChannel. */
+/** `chaya_live_*` (game operations + declared plugin tools); the server talks to ChayaAgent over the long-poll bridge, Cloud pages over the DataChannel. */
 export function makeLiveTools({ games, call, quit }: LiveDeps): ToolImpls {
   return {
     async chaya_live_games() {

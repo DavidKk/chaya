@@ -8,7 +8,7 @@ import { canUseDisk } from '@/lib/service-mode'
 /**
  * `/`：
  * - local / app（含 Electron）：进游戏库控制台
- * - edge（vercel）：官方介绍 / 下载页
+ * - cloud（remote）：官方介绍 / 下载页
  */
 export default async function Home() {
   if (canUseDisk()) {

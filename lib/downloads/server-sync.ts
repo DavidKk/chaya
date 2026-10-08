@@ -92,9 +92,9 @@ function disconnect(): void {
   source = undefined
 }
 
-/** `BUILD_TARGET !== 'edge'` 且 `/api/status` 报告 `canUseDisk` 才启用 */
+/** `BUILD_TARGET !== 'cloud'` 且 `/api/status` 报告 `canUseDisk` 才启用 */
 export async function serverDownloadsEnabled(): Promise<boolean> {
-  if (BUILD_TARGET === 'edge') return false
+  if (BUILD_TARGET === 'cloud') return false
   try {
     const res = await fetch('/api/status', { cache: 'no-store' })
     const data = (await res.json()) as { canUseDisk?: boolean }

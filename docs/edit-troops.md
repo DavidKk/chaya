@@ -45,7 +45,7 @@ RPG Maker 里“遇到的怪”按**敌群**（Troop，`Troops.json`）配置：
 | 场上敌人               | —                                                      | `$gameTroop.members()`（仅战斗中）              |
 | 译名                   | 现有翻译库查表（原文悬停可见）                         | 同左                                            |
 
-读取方式、缓存与 local / edge 差异沿用 [edit-map-events.md §2.1–2.2](./edit-map-events.md)。
+读取方式、缓存与 local / cloud 差异沿用 [edit-map-events.md §2.1–2.2](./edit-map-events.md)。
 
 ## 5. 开战规则
 

@@ -1,6 +1,6 @@
 {
   "zh": {
-    "page_get_context": "读取当前 Chaya 页面上下文：路径、标题、服务形态（local / app / vercel）、绑定游戏与游戏连接、各注册者的工具、Edge 不可用的 MCP 工具及原因、打开中的对话框。",
+    "page_get_context": "读取当前 Chaya 页面上下文：路径、标题、服务形态（local / app / remote）、绑定游戏与游戏连接、各注册者的工具、Remote 不可用的 MCP 工具及原因、打开中的对话框。",
     "page_list_routes": "列出 Chaya 站内页面入口（名称与路径）。",
     "page_navigate": "站内跳转到路径（如 /logs、/translate/cache）；站外地址会被拒绝。",
     "page_snapshot": "页面结构快照：标题层级与可操作元素（编号 ref、角色、名称、值与状态）。有对话框时默认只列对话框内元素。令牌等敏感内容会被隐藏。",
@@ -17,7 +17,7 @@
     "chaya_plugin_trans_reload": "重新读取翻译缓存并刷新数据库与地图文本（改了共享翻译库后用）。"
   },
   "ja": {
-    "page_get_context": "現在の Chaya ページのコンテキストを読み取ります：パス、タイトル、サービス形態（local / app / vercel）、選択中のゲームと接続、登録元ごとのツール、Edge で使えない MCP ツールと理由、開いているダイアログ。",
+    "page_get_context": "現在の Chaya ページのコンテキストを読み取ります：パス、タイトル、サービス形態（local / app / remote）、選択中のゲームと接続、登録元ごとのツール、Remote で使えない MCP ツールと理由、開いているダイアログ。",
     "page_list_routes": "Chaya 内のページ一覧（名前とパス）を返します。",
     "page_navigate": "アプリ内のパス（例：/logs、/translate/cache）へ移動します。外部 URL は拒否されます。",
     "page_snapshot": "ページ構造のスナップショット：見出し構成と操作可能な要素（ref、ロール、名前、値、状態）。ダイアログが開いているときは既定でその中の要素だけを返します。token などの機密内容は隠されます。",
@@ -34,7 +34,7 @@
     "chaya_plugin_trans_reload": "翻訳キャッシュを読み直し、データベースとマップのテキストを更新します（共有翻訳ライブラリを編集した後に使用）。"
   },
   "ko": {
-    "page_get_context": "현재 Chaya 페이지 컨텍스트를 읽습니다: 경로, 제목, 서비스 형태(local / app / vercel), 선택한 게임과 연결, 등록자별 도구, Edge에서 쓸 수 없는 MCP 도구와 이유, 열린 대화상자.",
+    "page_get_context": "현재 Chaya 페이지 컨텍스트를 읽습니다: 경로, 제목, 서비스 형태(local / app / remote), 선택한 게임과 연결, 등록자별 도구, Remote에서 쓸 수 없는 MCP 도구와 이유, 열린 대화상자.",
     "page_list_routes": "Chaya 앱 안의 페이지 목록(이름과 경로)을 반환합니다.",
     "page_navigate": "앱 안의 경로(예: /logs, /translate/cache)로 이동합니다. 외부 URL은 거부됩니다.",
     "page_snapshot": "페이지 구조 스냅숏: 제목 구조와 조작 가능한 요소(ref, 역할, 이름, 값, 상태). 대화상자가 열려 있으면 기본적으로 그 안의 요소만 반환합니다. token 같은 민감한 내용은 숨겨집니다.",

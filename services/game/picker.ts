@@ -2,7 +2,7 @@
  * 打开系统原生选择器，返回绝对路径。
  *
  * 分发一目了然：见 `services/platform/pick/index.ts` 对照表；
- * 各平台实现：`pick/osx.ts` | `windows.ts` | `linux.ts` | `edge.ts`。
+ * 各平台实现：`pick/osx.ts` | `windows.ts` | `linux.ts` | `cloud.ts`。
  *
  * UX 硬约束见 `docs/technical/game-path-picker.md`。
  */

@@ -19,13 +19,14 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let host: HTMLDivElement
 let root: Root
 let calls: Array<{ path: string; method: string }>
+let agentStatus: unknown
 
 const json = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
 const request: GameAgentRequest = async (path, init) => {
   const method = init?.method || 'GET'
   calls.push({ path, method })
   if (path.startsWith('/api/integration/game-agent/tools')) return json({ settings: { ...DEFAULT_TOOL_SETTINGS, companionEnabled: true } })
-  if (path.startsWith('/api/game-agent/status')) return json({ available: false, profiles: [], defaultProfileId: '', session: null, reason: null })
+  if (path.startsWith('/api/game-agent/status')) return json(agentStatus)
   if (path.startsWith('/api/game-agent/turn') && method === 'DELETE') return json({ ok: true, cleared: 1 })
   return { ok: false, status: 404, json: async () => ({}) } as Response
 }
@@ -47,6 +48,7 @@ beforeAll(() => {
 beforeEach(async () => {
   localStorage.clear()
   calls = []
+  agentStatus = { available: false, profiles: [], defaultProfileId: '', session: null, reason: null }
   confirm.mockReset()
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -80,4 +82,29 @@ it('clears the game turns once confirmed', async () => {
   await act(async () => clearButton().click())
   expect(deletes()).toEqual([{ path: '/api/game-agent/turn?gameId=game-a', method: 'DELETE' }])
   expect(host.textContent).toContain('已清理，可以重新交代任务了')
+})
+
+it('shows and stops the Agent task started from another surface', async () => {
+  await act(async () => root.unmount())
+  agentStatus = {
+    available: true,
+    profiles: [{ id: 'local', label: 'Local', online: true, models: [{ name: 'qwen' }], defaultModel: 'qwen' }],
+    defaultProfileId: 'local',
+    session: { id: 'session-a', activeTurnId: 'turn-a', activeTurn: { id: 'turn-a', state: 'running', goal: '挂机练级' } },
+    reason: null,
+  }
+  root = createRoot(host)
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <CompanionPanel gameId="game-a" open={false} observe={() => ({}) as never} request={request} />
+      </LocaleProvider>
+    )
+  )
+
+  expect(host.textContent).toContain('Agent 进行中')
+  const stop = host.querySelector<HTMLButtonElement>('button[aria-label="停止任务"]')!
+  expect(stop).not.toBeNull()
+  await act(async () => stop.click())
+  expect(deletes()).toContainEqual({ path: '/api/game-agent/turn/turn-a?gameId=game-a', method: 'DELETE' })
 })

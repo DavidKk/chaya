@@ -97,6 +97,16 @@ describe('game agent Ollama client', () => {
     expect(fetcher).toHaveBeenCalledWith('http://ollama.test/api/tags', expect.any(Object))
   })
 
+  it('drops duplicate tags and llama.cpp digest aliases', async () => {
+    const fetcher = jest.fn(async () =>
+      Response.json({
+        models: [{ name: 'gemma4:e2b' }, { name: 'gemma4:e2b' }, { name: `llamacpp:${'6da30939'.repeat(8)}` }, { name: 'qwen3:4b' }],
+      })
+    ) as unknown as typeof fetch
+    const models = await listOllamaModels('http://ollama.test', fetcher)
+    expect(models.map((model) => model.name)).toEqual(['gemma4:e2b', 'qwen3:4b'])
+  })
+
   it('uses a bearer token without placing it in the request body', async () => {
     const fetcher = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer private-token')

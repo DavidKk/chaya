@@ -11,12 +11,23 @@ import {
 } from '@/lib/game-agent/settings-sync'
 
 import { chayaFetch } from '../helpers'
+import { createDirectGameAgentRequest } from './direct-request'
 
 const SYNC_KEY = 'chaya.gameAgent.pluginSync.v1'
 const ACTOR_KEY = 'chaya.gameAgent.pluginActor.v1'
 const LEGACY_SETTINGS_KEY = 'chaya.gameAgent.settings'
 const AUTO_SYNC_MS = 5_000
 const SYNC_EVENT = 'chaya:agent-settings-synced'
+const RUNTIME_CONFIG_KEY = 'chaya.agent.runtimeConfig.v1'
+
+function readRuntimeConfig(): AgentSyncSettings | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(RUNTIME_CONFIG_KEY) || 'null') as AgentSyncSettings | null
+    return value?.version === 1 && Array.isArray(value.profiles) && value.profiles.length ? value : null
+  } catch {
+    return null
+  }
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -70,6 +81,7 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
   const actor = actorId()
   let local = readLocalSync(actor)
   let inFlight: Promise<AgentSyncDocument> | null = null
+  const direct = createDirectGameAgentRequest(() => readRuntimeConfig() || (local ? agentSettingsFromSyncDocument(local) : null))
 
   const sync = async () => {
     if (inFlight) return inFlight
@@ -80,6 +92,7 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sync: candidate }),
+        signal: AbortSignal.timeout(3_000),
       })
       const body = (await response.json().catch(() => null)) as { sync?: AgentSyncDocument }
       if (!response.ok || !body.sync) throw new Error(apiError(body, `HTTP ${response.status}`))
@@ -87,6 +100,7 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
       if (!parsed) throw new Error('服务返回了无效的 Agent 同步数据')
       local = withAgentSyncActor(parsed, actor)
       writeLocalSync(local)
+      localStorage.setItem(RUNTIME_CONFIG_KEY, JSON.stringify(agentSettingsFromSyncDocument(local)))
       if (previous && previous !== JSON.stringify(local)) window.dispatchEvent(new CustomEvent(SYNC_EVENT))
       return local
     })().finally(() => {
@@ -95,9 +109,35 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
     return inFlight
   }
 
+  const initialSync = async () => {
+    if (readRuntimeConfig() || local) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        sync(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Agent 配置同步超时')), 3_000)
+        }),
+      ])
+    } catch {
+      /* The in-game task host remains usable with any config already delivered over GameLink. */
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
   return async (path, init) => {
     const url = new URL(path, location.origin)
     const method = (init?.method || 'GET').toUpperCase()
+    if (
+      url.pathname === '/api/game-agent/status' ||
+      url.pathname === '/api/game-agent/turn' ||
+      url.pathname === '/api/game-agent/companion' ||
+      url.pathname.startsWith('/api/game-agent/turn/')
+    ) {
+      await initialSync()
+      return direct(path, init)
+    }
     if (url.pathname === '/api/integration/game-agent' && method === 'GET') {
       try {
         const document = await sync()
@@ -128,9 +168,6 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
       }
     }
 
-    if (url.pathname === '/api/game-agent/status') {
-      await sync().catch(() => null)
-    }
     return remote(path, init)
   }
 }

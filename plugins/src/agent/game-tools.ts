@@ -1,6 +1,6 @@
 /**
- * Plugin-MCP tools that run inside the game process (Edge-opened games): live comes from `makeLiveTools`,
- * the rest reuse the shared factories over in-game globals, the same way Edge does over the DataChannel.
+ * Plugin-MCP tools that run inside the game process (Cloud-opened games): live comes from `makeLiveTools`,
+ * the rest reuse the shared factories over in-game globals, the same way Cloud does over the DataChannel.
  */
 
 import { readApiErrorMessage } from '@/lib/api-error'

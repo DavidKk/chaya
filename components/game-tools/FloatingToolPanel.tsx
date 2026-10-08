@@ -23,7 +23,7 @@ import {
   writePlacement,
 } from './floating-placement'
 import { keepGameFocus, stopGameKeys } from './game-keys'
-import { type MiniPanelId, TOOL_PANEL_FRAME, TOOL_PANEL_SIZE } from './tool-panels'
+import { MINI_PANEL_VISIBILITY_CLASS, type MiniPanelId, TOOL_PANEL_FRAME, TOOL_PANEL_SIZE } from './tool-panels'
 
 type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 type GestureKind = 'move' | ResizeEdge
@@ -267,7 +267,11 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
   return (
     <section
       ref={panelRef}
-      className={cn('pointer-events-auto fixed z-[60] flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-md bg-panel/95 text-ink shadow-lg', className)}
+      className={cn(
+        'pointer-events-auto fixed z-[60] flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-md bg-panel text-ink shadow-lg',
+        MINI_PANEL_VISIBILITY_CLASS,
+        className
+      )}
       data-pinned={pinned}
       style={{
         ...(frame ? { left: frame.x, top: frame.y } : { ...(initialSide === 'left' ? { left: 8 } : { right: 16 }), ...(initialEdge === 'top' ? { top: 16 } : { bottom: 16 }) }),

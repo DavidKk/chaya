@@ -422,6 +422,8 @@ async function evalCode(code: string): Promise<unknown> {
 export type AgentRunOptions = {
   /** Only the local long-poll bridge (server-gated by CHAYA_MCP_EVAL) may eval */
   allowEval?: boolean
+  /** Internal play task allowed to use input while it owns the game controls. */
+  inputOwner?: string
 }
 
 async function withAgentInput<T>(run: () => Promise<T> | T): Promise<T> {
@@ -436,7 +438,10 @@ async function withAgentInput<T>(run: () => Promise<T> | T): Promise<T> {
   }
 }
 
-export async function runAgentCommand(cmd: AgentCommand, { allowEval = false }: AgentRunOptions = {}): Promise<unknown> {
+export async function runAgentCommand(cmd: AgentCommand, { allowEval = false, inputOwner }: AgentRunOptions = {}): Promise<unknown> {
+  const activeOwner = typeof window === 'undefined' ? undefined : (window as Window & { __chayaAgentPlayTaskId?: string }).__chayaAgentPlayTaskId
+  const inputMethod = cmd.method === 'input.press' || cmd.method === 'input.sequence' || cmd.method === 'input.tap' || cmd.method === 'player.moveTo'
+  if (inputMethod && activeOwner && activeOwner !== inputOwner) throw new Error('Chaya Agent 正在帮玩，暂时不能由其他控制者发送输入')
   switch (cmd.method) {
     case 'game.state':
       return readAgentGameState()
@@ -471,6 +476,11 @@ export async function runAgentCommand(cmd: AgentCommand, { allowEval = false }: 
       return toJsonSafe(await agentEdit().apply(parseEditOp((cmd.params?.op ?? {}) as Record<string, unknown>)))
     case 'edit.action':
       return toJsonSafe(await agentEdit().action(parseEditAction((cmd.params?.action ?? {}) as Record<string, unknown>)))
+    case 'agent.task': {
+      const request = window.ChayaAgent?.taskRequest
+      if (!request) throw new Error('游戏内 Agent 任务宿主未就绪')
+      return toJsonSafe(await request(cmd.params.message), 6)
+    }
     case 'game.eval':
       if (!allowEval) throw new Error('此通道不允许执行 game.eval')
       return evalCode(cmd.params.code)

@@ -100,7 +100,7 @@ export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = fa
   }
 
   return (
-    <span ref={anchorRef} className={compact ? 'inline-flex shrink-0' : 'inline-flex min-w-0 max-w-40 shrink'}>
+    <span ref={anchorRef} data-panel-interaction-active={open ? '' : undefined} className={compact ? 'inline-flex shrink-0' : 'inline-flex min-w-0 max-w-40 shrink'}>
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger
           disabled={disabled || profiles.length === 0}
@@ -126,6 +126,10 @@ export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = fa
             <Popover.Popup
               aria-label={copy.trigger}
               className="w-64 max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border border-line bg-panel-2 shadow-[0_12px_32px_rgb(0_0_0/0.4)] outline-none"
+              onPointerDown={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+              onTouchStart={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
             >
               {view === 'root' ? (
                 <div className="py-1">

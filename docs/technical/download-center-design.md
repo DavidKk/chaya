@@ -276,7 +276,7 @@ startServerDownloadSync(): () => void   // DownloadsRuntime 挂载时调用，�
 startServerShellDownload(): Promise<ServerDownloadJob>   // POST /api/shell { fetchLatest: true }
 ```
 
-- **启用条件**：`BUILD_TARGET !== 'edge'` 且 `/api/status` 返回 `canUseDisk === true`。`DownloadsRuntime` 自己拉一次状态（不复用 `GameLinkProvider` 的 `browserMode`，见需求 §3.2）；dev 切换器切换后整页刷新（`DevTargetSwitch` 调 `location.reload()`），挂载时判断一次即可，不处理运行中切换。
+- **启用条件**：`BUILD_TARGET !== 'cloud'` 且 `/api/status` 返回 `canUseDisk === true`。`DownloadsRuntime` 自己拉一次状态（不复用 `GameLinkProvider` 的 `browserMode`，见需求 §3.2）；dev 切换器切换后整页刷新（`DevTargetSwitch` 调 `location.reload()`），挂载时判断一次即可，不处理运行中切换。
 - `snapshot`：服务端项以快照为准。快照里没有、而本地仍是 `running` 的项转成仅本页的合成 `error` 项（"服务已重启，任务中断，重新下载会接着上次进度"），保留一小时后自动清理；后续快照不重复处理。
 - **结束事件补发**：页面生命周期内第一份快照只建立基线，不触发结束事件。之后的快照 / `job` 帧里，凡是本页记录为 `running`、或本页从未见过的终态项，都触发 `onDownloadFinished`（同一 ID 只触发一次）。这样后台期间由 MCP 发起并完成的任务，回到前台也会提示并让游戏库刷新。
 - `job` → `upsertDownload`；`removed` → `removeDownload`。
@@ -327,7 +327,7 @@ installWindowsShellFsa(...)                         // 保留为组合函数（�
 
 `installCloudShell` 只保留 macOS（抛"用终端"）与 Linux（返回下载链接）分支；Windows 分支改由 `startCloudShellTask` 处理。
 
-### 5.5 WebMCP（`components/webmcp/edge/game.ts`）
+### 5.5 WebMCP（`components/webmcp/remote/game.ts`）
 
 浏览器模式的 `chaya_game_shell_install` 改为调用 `startCloudShellTask`：缓存命中时等待任务完成再返回；未命中时立即返回"已在右上角下载中心创建任务，请用户下载官方压缩包并点「选择已下载的压缩包」"（Agent 调用没有用户手势，弹不出文件框）。目录权限只用 `queryPermission` 检查（`requestPermission` 没有用户手势会失败），未授予时返回错误让用户先在页面上操作一次。
 
@@ -371,7 +371,7 @@ installWindowsShellFsa(...)                         // 保留为组合函数（�
 | 下载中刷新页面 / 开新标签页                        | 新连接的 `snapshot` 带回运行中任务                                    |
 | 服务进程重启                                       | 快照里没有该任务 → 页面标记中断；`.part` 在盘上，重试续传             |
 | 磁盘写满                                           | 任务 `error`，带系统错误；`.part` 保留                                |
-| dev 切到 Edge                                      | 整页刷新，重新按条件判断（浏览器任务随刷新丢失，同普通刷新）          |
+| dev 切到 Cloud                                     | 整页刷新，重新按条件判断（浏览器任务随刷新丢失，同普通刷新）          |
 | 浏览器任务进行中切换游戏                           | 继续写原游戏（持有原句柄）；按游戏 id 禁用对应按钮                    |
 | 浏览器任务中目录授权失效                           | `write` 抛错 → 任务失败，提示重新点击安装（届时重新请求授权）         |
 | 浏览器任务中刷新页面                               | 离开确认；确认离开后任务丢失，已写文件保留                            |
@@ -396,7 +396,7 @@ installWindowsShellFsa(...)                         // 保留为组合函数（�
 | `__tests__/app/launch-api.spec.ts`（新增或并入现有）      | 正式目录缺失、`.old` 存在时，启动先恢复再启动；恢复失败返回错误并保留 `.old`                                                                                                                                                                            |
 | `__tests__/app/downloads-api.spec.ts`                     | GET 列表；SSE 首帧 `snapshot`；`POST /api/shell` 202、`reused`、`wait`；任务运行中 `shellSource` / `DELETE /api/shell` 409                                                                                                                              |
 | `__tests__/lib/downloads/store.spec.ts`                   | upsert / patch / 结束事件：running → 结束触发一次、未见过的终态项触发一次、首次快照不触发、重复帧不重复触发；速度与剩余时间                                                                                                                             |
-| `__tests__/lib/downloads/server-sync.spec.ts`             | 假 EventSource：首次快照不通知、重新挂载重建基线、快照移除服务端已不存在的终态项、保留本地合成中断项、隐藏期间新出现的终态项补发结束、edge / 浏览器模式不连接                                                                                           |
+| `__tests__/lib/downloads/server-sync.spec.ts`             | 假 EventSource：首次快照不通知、重新挂载重建基线、快照移除服务端已不存在的终态项、保留本地合成中断项、隐藏期间新出现的终态项补发结束、cloud / 浏览器模式不连接                                                                                          |
 | `__tests__/lib/downloads/browser-tasks.spec.ts`           | 游戏锁获取后立即返回任务 ID、锁冲突、标签页内读写排队、失败时出队、`pickFile`、错误文件名                                                                                                                                                               |
 | `__tests__/components/downloads/download-center.spec.tsx` | 无运行中任务时隐藏、只读多任务渲染、任务数角标、结束后隐藏、程序化打开不抢焦点                                                                                                                                                                          |
 | 更新现有                                                  | `cloud-prepare-game.spec`、`cloud-library.spec`、`mcp-tools-game.spec`（`wait: true`）、`mcp-catalog.spec`                                                                                                                                              |
@@ -411,7 +411,7 @@ installWindowsShellFsa(...)                         // 保留为组合函数（�
 4. **服务端模式接入**：`useDashboardActions`、Dashboard 禁用与刷新。
 5. **浏览器模式接入**：`nw-shell-fsa` 拆分、`browser-tasks`、`cloud-shell-task`、`useCloudLibrary`、WebMCP。
 6. **文档**：`deployment-platforms.md` §5.1（Windows 浏览器装壳流程、服务端暂存替换）、§8 删除"服务端模式 Linux 装壳 / 启动跑不通"一行，并补修订记录；优化方案 O3 / O4 标记完成并补实施记录；需求文档状态改"已实施"。
-7. **全量检查**：`pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm build:plugins`、`pnpm check:edge`（edge 产物不含 `/api/downloads*`）、`pnpm build`。
+7. **全量检查**：`pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm build:plugins`、`pnpm check:cloud`（cloud 产物不含 `/api/downloads*`）、`pnpm build`。
 
 ## 10. 风险
 

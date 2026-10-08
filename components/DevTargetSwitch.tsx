@@ -10,7 +10,7 @@ import { type DevTarget, isDevTarget } from '@/lib/service-mode/target'
 
 const OPTIONS: readonly { value: DevTarget; label: string }[] = [
   { value: 'server', label: 'Local' },
-  { value: 'edge', label: 'Edge' },
+  { value: 'cloud', label: 'Cloud' },
 ]
 
 /** 仅 dev 构建挂载：切换整个 dev 进程的服务形态后整页刷新，服务端与界面一起换到目标形态 */

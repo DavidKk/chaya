@@ -1,6 +1,6 @@
 /**
  * DiskOps 能力门面：Route 只从这里取本机盘能力（local/app 共用实现）。
- * 入口须先 `requireDisk()`；vercel 不得平行实现一套 DiskOps。
+ * 入口须先 `requireDisk()`；remote 不得平行实现一套 DiskOps。
  *
  * 实现仍在 services/game、translate、extract、log 等域模块，本目录不复制业务。
  */

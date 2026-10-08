@@ -15,6 +15,7 @@ import {
 } from '@/lib/game/game-saves'
 import { type MessageKey, tNow } from '@/lib/i18n'
 import type { GameSavesMessage } from '@/lib/runtime/game-link-protocol'
+import type { OfflineSaveList } from '@/services/game-saves/offline-list'
 
 type Reply = Extract<GameSavesMessage, { type: 'saves.reply' }>
 type OkReply = Extract<Reply, { ok: true }>
@@ -85,6 +86,8 @@ export function useGameSaves() {
   const [statusAt, setStatusAt] = useState(0)
   const [syncedRoom, setSyncedRoom] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [offline, setOffline] = useState<OfflineSaveList | null>(null)
+  const [offlineLoading, setOfflineLoading] = useState(false)
   const pending = useRef(new Map<string, { resolve: (reply: OkReply) => void; reject: (error: Error) => void; timer: number }>())
   const thumbs = useRef(new Map<string, Promise<string | null>>())
 
@@ -145,10 +148,34 @@ export function useGameSaves() {
 
   useEffect(() => {
     setSnapshot(null)
+    setOffline(null)
     setSyncedRoom(null)
     setError('')
     thumbs.current.clear()
   }, [roomId])
+
+  useEffect(() => {
+    if (!roomId || connected || localGlobal) {
+      setOffline(null)
+      setOfflineLoading(false)
+      return
+    }
+    const controller = new AbortController()
+    setOfflineLoading(true)
+    fetch(`/api/game-saves/offline?libraryId=${encodeURIComponent(roomId)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const body = (await response.json()) as { result?: OfflineSaveList; error?: { message?: string } }
+        if (!response.ok || !body.result) throw new Error(body.error?.message || '离线存档读取失败')
+        if (!controller.signal.aborted) setOffline(body.result)
+      })
+      .catch((cause) => {
+        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : String(cause))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setOfflineLoading(false)
+      })
+    return () => controller.abort()
+  }, [roomId, connected, localGlobal])
 
   useEffect(() => {
     let cancelled = false
@@ -234,15 +261,21 @@ export function useGameSaves() {
       const key = `${entry.id}@${entry.savedAt}`
       let cached = thumbs.current.get(key)
       if (!cached) {
-        cached = command({ op: 'thumb', entryId: entry.id }).then(
-          (reply) => reply.result ?? null,
-          () => null
-        )
+        const offlinePlace = (entry as GameSaveEntry & { offlinePlace?: 'game' | 'app' }).offlinePlace
+        cached =
+          !connected && roomId && offlinePlace
+            ? fetch(`/api/game-saves/offline/thumb?libraryId=${encodeURIComponent(roomId)}&place=${offlinePlace}&list=${entry.list}&entryId=${encodeURIComponent(entry.id)}`)
+                .then(async (response) => ((await response.json()) as { thumb?: string | null }).thumb ?? null)
+                .catch(() => null)
+            : command({ op: 'thumb', entryId: entry.id }).then(
+                (reply) => reply.result ?? null,
+                () => null
+              )
         thumbs.current.set(key, cached)
       }
       return cached
     },
-    [command]
+    [command, connected, roomId]
   )
 
   const retry = useCallback(() => {
@@ -252,5 +285,5 @@ export function useGameSaves() {
 
   const ready = !!snapshot && syncedRoom === roomId
 
-  return { roomId, connected, negotiating, ready, snapshot, statusAt, error, setError, command, thumb, retry, settings, settingsReady, saveSettings }
+  return { roomId, connected, negotiating, ready, snapshot, statusAt, error, setError, command, thumb, retry, settings, settingsReady, saveSettings, offline, offlineLoading }
 }

@@ -21,14 +21,18 @@ import {
   type SessionState,
   type TableRow,
 } from '@/components/game-edit'
+import { HOTKEY_SYNC_CHANGED_EVENT, loadHotkeySyncSnapshot, saveHotkeySyncSnapshot } from '@/components/game-edit/run-hotkeys'
 import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { battleSignature, type BattleState } from '@/lib/game/battle'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
+import { type HotkeySyncSnapshot, reconcileHotkeySnapshots } from '@/lib/game/hotkeys-sync'
 import { EDIT_CMD_GIVE_UP_MS, EDIT_CMD_RETRY_MS, type EditPendingMap, expectForEditCmd, fieldsForEditCmd, mergeRemoteSession, newEditCmdId } from '@/lib/runtime/game-edit-sync'
-import type { GameEditAck, GameEditCmd, GameEditCmdOp, GameEditStateMsg } from '@/lib/runtime/game-link-protocol'
+import type { GameEditAck, GameEditCmd, GameEditCmdOp, GameEditStateMsg, MapOperationItem, MapOperationMessage } from '@/lib/runtime/game-link-protocol'
 
 type SetSession = Dispatch<SetStateAction<SessionState>>
 type AckWaiter = { timer: number; finish: (ack: GameEditAck) => void; reject: (error: Error) => void }
+type MapOperationReply = Extract<MapOperationMessage, { type: 'map.operation.reply' }>
+type MapWaiter = { timer: number; finish: (reply: MapOperationReply) => void; reject: (error: Error) => void }
 
 /** Scene / map fields pushed with every `edit.state` */
 export type GameLiveScene = {
@@ -79,11 +83,22 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
   const [synced, setSynced] = useState(false)
   const [scene, setScene] = useState<GameLiveScene>(EMPTY_SCENE)
   const ackWaitersRef = useRef(new Map<string, AckWaiter>())
+  const mapWaitersRef = useRef(new Map<string, MapWaiter>())
+  const [mapUndo, setMapUndo] = useState<{ id: string; summary: string; values: unknown[] } | null>(null)
+  const hotkeyAuthorityRef = useRef<HotkeySyncSnapshot | null>(null)
+  const hotkeyRequestsRef = useRef(new Map<string, { snapshot: HotkeySyncSnapshot; retries: number }>())
   const catalogRef = useRef(onCatalog)
   catalogRef.current = onCatalog
   useEffect(() => {
     setSynced(false)
-    setSession((prev) => ({ ...emptySession(), hotkeys: prev.hotkeys, hotkeysGlobal: prev.hotkeysGlobal }))
+    setSession(() => {
+      const snapshot = roomId ? loadHotkeySyncSnapshot(roomId) : null
+      return {
+        ...emptySession(),
+        hotkeys: { ...(snapshot?.game.bindings || {}) },
+        hotkeysGlobal: { ...(snapshot?.global.bindings || {}) },
+      }
+    })
   }, [roomId, setSession])
   const connectedRef = useRef(connected)
   connectedRef.current = connected
@@ -103,6 +118,44 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
 
   useEffect(() => {
     const unsubscribe = subscribeMessages((msg) => {
+      if (msg.type === 'map.operation.reply') {
+        const waiter = mapWaitersRef.current.get(msg.requestId)
+        if (waiter) {
+          mapWaitersRef.current.delete(msg.requestId)
+          waiter.finish(msg)
+        }
+        if (msg.undo === null || (msg.undo && typeof msg.undo === 'object')) setMapUndo(msg.undo as typeof mapUndo)
+        return
+      }
+      if (msg.type === 'hotkeys.reply') {
+        const pendingHotkeys = hotkeyRequestsRef.current.get(msg.reqId)
+        if (!pendingHotkeys) return
+        hotkeyRequestsRef.current.delete(msg.reqId)
+        hotkeyAuthorityRef.current = msg.snapshot
+        const local = loadHotkeySyncSnapshot(msg.snapshot.game.gameId)
+        const merged = msg.ok ? msg.snapshot : reconcileHotkeySnapshots(local, msg.snapshot)
+        saveHotkeySyncSnapshot(merged, { notify: false })
+        setSession((prev) => ({ ...prev, hotkeys: { ...(merged.game.bindings || {}) }, hotkeysGlobal: { ...merged.global.bindings } }))
+        if (!msg.ok && pendingHotkeys.retries < 1 && JSON.stringify(merged) !== JSON.stringify(msg.snapshot)) {
+          const reqId = `hotkeys:${Date.now()}:${Math.random().toString(36).slice(2)}`
+          hotkeyRequestsRef.current.set(reqId, { snapshot: merged, retries: pendingHotkeys.retries + 1 })
+          sendRef.current({
+            type: 'hotkeys.cmd',
+            reqId,
+            snapshot: merged,
+            expectedGlobalRevision: msg.snapshot.global.revision,
+            expectedGameRevision: msg.snapshot.game.revision,
+          })
+        }
+        return
+      }
+      if (msg.type === 'hotkeys.changed') {
+        hotkeyAuthorityRef.current = msg.snapshot
+        const merged = reconcileHotkeySnapshots(loadHotkeySyncSnapshot(msg.snapshot.game.gameId), msg.snapshot)
+        saveHotkeySyncSnapshot(merged, { notify: false })
+        setSession((prev) => ({ ...prev, hotkeys: { ...(merged.game.bindings || {}) }, hotkeysGlobal: { ...merged.global.bindings } }))
+        return
+      }
       if (msg.type === 'edit.catalog') {
         catalogRef.current?.(msg.catalog)
         return
@@ -130,6 +183,9 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
     const release = connected ? acquireEditSession() : null
     if (!connected) {
       pending.clear()
+      hotkeyAuthorityRef.current = null
+      hotkeyRequestsRef.current.clear()
+      setMapUndo(null)
       setSynced(false)
       setScene(EMPTY_SCENE)
     }
@@ -140,6 +196,29 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
     }
   }, [connected, roomId, subscribeMessages, acquireEditSession, setSession, setLiveError, clearFields])
 
+  const pushHotkeys = useCallback(() => {
+    if (!connectedRef.current || !roomId) return
+    const snapshot = loadHotkeySyncSnapshot(roomId)
+    const authority = hotkeyAuthorityRef.current ?? snapshot
+    const reqId = `hotkeys:${Date.now()}:${Math.random().toString(36).slice(2)}`
+    hotkeyRequestsRef.current.set(reqId, { snapshot, retries: 0 })
+    sendRef.current({
+      type: 'hotkeys.cmd',
+      reqId,
+      snapshot,
+      expectedGlobalRevision: authority.global.revision,
+      expectedGameRevision: authority.game.revision,
+    })
+  }, [roomId])
+
+  useEffect(() => {
+    if (!connected || !roomId) return
+    pushHotkeys()
+    const changed = () => pushHotkeys()
+    window.addEventListener(HOTKEY_SYNC_CHANGED_EVENT, changed)
+    return () => window.removeEventListener(HOTKEY_SYNC_CHANGED_EVENT, changed)
+  }, [connected, roomId, pushHotkeys])
+
   useEffect(
     () => () => {
       const error = new Error('游戏连接已断开')
@@ -148,6 +227,11 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
         waiter.reject(error)
       }
       ackWaitersRef.current.clear()
+      for (const waiter of mapWaitersRef.current.values()) {
+        window.clearTimeout(waiter.timer)
+        waiter.reject(error)
+      }
+      mapWaitersRef.current.clear()
     },
     [connected, roomId]
   )
@@ -216,7 +300,57 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
   )
 
   const requestCatalog = useCallback(() => send({ type: 'edit.catalog.request' }), [send])
-  return { linked: connected && synced, connected, scene, sendCmd, runCmd, requestCatalog }
+  const runMapRequest = useCallback(
+    (message: Exclude<MapOperationMessage, { type: 'map.operation.reply' }>) =>
+      new Promise<MapOperationReply>((resolve, reject) => {
+        if (!connectedRef.current) return reject(new Error('游戏未连接'))
+        const timer = window.setTimeout(() => {
+          mapWaitersRef.current.delete(message.requestId)
+          reject(new Error('地图操作超时，可重新连接后查询状态'))
+        }, 60_000)
+        mapWaitersRef.current.set(message.requestId, {
+          timer,
+          reject,
+          finish: (reply) => {
+            window.clearTimeout(timer)
+            if (reply.ok) resolve(reply)
+            else reject(new Error(reply.error || '地图操作失败'))
+          },
+        })
+        sendRef.current(message)
+      }),
+    []
+  )
+  const runMapChanges = useCallback(
+    (items: MapOperationItem[], summary: string) => {
+      const requestId = `map:${crypto.randomUUID()}`
+      return runMapRequest({ type: 'map.operation.start', requestId, gameId: roomId || '', generation: 0, deadlineAt: Date.now() + 60_000, summary, items })
+    },
+    [roomId, runMapRequest]
+  )
+  const undoMapChange = useCallback(
+    (force = false) => {
+      const requestId = `map-undo:${crypto.randomUUID()}`
+      return runMapRequest({
+        type: 'map.operation.undo',
+        requestId,
+        gameId: roomId || '',
+        generation: 0,
+        deadlineAt: Date.now() + 60_000,
+        ...(mapUndo?.id ? { stepId: mapUndo.id } : {}),
+        force,
+      })
+    },
+    [roomId, mapUndo, runMapRequest]
+  )
+  const refreshMapOperation = useCallback(() => runMapRequest({ type: 'map.operation.status', requestId: `map-status:${crypto.randomUUID()}` }), [runMapRequest])
+  useEffect(() => {
+    if (!connected) return
+    void refreshMapOperation().catch(() => {
+      /* The normal disconnect path already releases local waiters; a later reconnect retries status. */
+    })
+  }, [connected, roomId, refreshMapOperation])
+  return { linked: connected && synced, connected, scene, sendCmd, runCmd, requestCatalog, mapUndo, runMapChanges, undoMapChange, refreshMapOperation }
 }
 
 export function buildOptimisticHandlers(setSession: SetSession, sendCmd: (op: GameEditCmdOp) => void, catalogActorName?: (id: number) => string | undefined) {

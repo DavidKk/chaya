@@ -100,7 +100,7 @@ export type IntegrationMessages = {
   webmcpStep3: string
   webmcpModesTitle: string
   webmcpModeLocal: string
-  webmcpModeEdge: string
+  webmcpModeRemote: string
   webmcpRegistered: string
   webmcpEmpty: string
   webmcpGroupPage: string

@@ -3,10 +3,10 @@
 > 能力总表：[capabilities.md](./capabilities.md)（各环境的工具以它为准）
 
 - **日期**：2026-10-04
-- **状态**：一期已实现（单游戏）；二期（多游戏登记）未开始
-- **适用**：游戏内 ChayaAgent 插件自己提供的 MCP（只用 Edge、不跑本机服务时使用）
+- **状态**：一期已实现（单游戏）；**二期（多游戏登记）已冻结**（见 [`capability-supplement.md`](./capability-supplement.md) §9 / [`backlog-2026-10-08.md`](./backlog-2026-10-08.md)）
+- **适用**：游戏内 ChayaAgent 插件自己提供的 MCP（只用 Cloud、不跑本机服务时使用）
 - **技术设计**：[docs/technical/mcp-gateway.md](./technical/mcp-gateway.md)
-- **另见**：[本地 MCP](./mcp-local.md)、[Edge MCP](./mcp-edge.md)
+- **另见**：[本地 MCP](./mcp-local.md)、[Cloud MCP](./mcp-remote.md)
 
 ---
 
@@ -14,7 +14,7 @@
 
 游戏打开后，ChayaAgent 插件在本机开一个 MCP 网关：`http://127.0.0.1:39271/mcp`（端口可改，见 §3）。Agent 配一次即可，换游戏不用改配置。
 
-- 开启条件：游戏插件由 Edge「安装插件」写入（`ChayaEnv` 带开启标记），且游戏运行在 NW.js（有 Node 上下文）。
+- 开启条件：游戏插件由 Cloud「安装插件」写入（`ChayaEnv` 带开启标记），且游戏运行在 NW.js（有 Node 上下文）。
 - 本机服务运行时由本机服务占用该端口（插件不再开），工具即本地 MCP 的全部工具。
 
 ## 2. 能力
@@ -66,7 +66,7 @@
 
 ## 6. 验收
 
-- 只用 Edge 且游戏已打开：Agent 连 `http://127.0.0.1:39271/mcp` 得到 §2 的工具（无游戏库 / 当前游戏 / `eval` / 批量翻译）；游戏操作、修改、翻译、翻译库、日志可用。
+- 只用 Cloud 且游戏已打开：Agent 连 `http://127.0.0.1:39271/mcp` 得到 §2 的工具（无游戏库 / 当前游戏 / `eval` / 批量翻译）；游戏操作、修改、翻译、翻译库、日志可用。
 - `chaya_live_screenshot` 返回 MCP 图片内容；`chaya_live_move_to` 主角走到目标格；`chaya_edit_set {op:"gold", value:999}` 后游戏内「修改」页同步显示。
 - 游戏内「集成 → MCP」列出的工具与 `tools/list` 一致，试调可直接执行。
 - 游戏内改端口：保存前试监听，被占用不写文件；保存后网关自动换到新端口；使用默认端口时不存在端口配置文件。

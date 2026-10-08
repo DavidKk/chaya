@@ -4,13 +4,13 @@
  * | lane\os | osx                         | windows                         | linux                         |
  * |---------|-----------------------------|---------------------------------|-------------------------------|
  * | local   | ./osx OsxPickPath           | ./windows WindowsPickPath       | ./linux LinuxPickPath         |
- * | edge    | ./edge EdgePickPath（全 OS） | 同左                            | 同左                          |
+ * | remote | ./remote RemotePickPath（全 OS） | 同左                            | 同左                          |
  */
 import { getPlatformContext, type HostOs } from '@/lib/platform'
 
-import { EdgePickPath } from './edge'
 import { LinuxPickPath } from './linux'
 import { OsxPickPath } from './osx'
+import { RemotePickPath } from './remote'
 import type { PickPathCapability } from './types'
 import { WindowsPickPath } from './windows'
 
@@ -22,12 +22,12 @@ const localByOs: Record<HostOs, PickPathCapability> = {
   linux: new LinuxPickPath(),
 }
 
-const edgeImpl: PickPathCapability = new EdgePickPath()
+const remoteImpl: PickPathCapability = new RemotePickPath()
 
 /** 按当前 HostOs × RuntimeLane 取实现（对照表即文档，无全局注册器） */
 export function resolvePickPath(): PickPathCapability {
   const { os, lane } = getPlatformContext()
-  if (lane === 'edge') return edgeImpl
+  if (lane === 'remote') return remoteImpl
   return localByOs[os]
 }
 

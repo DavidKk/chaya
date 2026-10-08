@@ -48,14 +48,34 @@ export function GameSavesPage({ onOpenHotkeys, request }: Props = {}) {
   const saves = useGameSaves()
   const actions = useGameSaveActions(saves)
   const miniPanel = useMiniPanelSwitches(request)
-  const { roomId, connected, ready, snapshot, statusAt, error, retry, thumb, settings, settingsReady } = saves
-  const locked = !!actions.busyKey || !!snapshot?.status.busy
+  const { roomId, connected, ready, snapshot, statusAt, error, retry, thumb, settings, settingsReady, offline, offlineLoading } = saves
+  const offlineEntries = useMemo(() => {
+    if (!offline) return []
+    const entries = new Map<string, (typeof offline.game.entries)[number]>()
+    for (const entry of [...offline.game.entries, ...offline.app.entries]) {
+      const key = `${entry.list}:${entry.id}`
+      const current = entries.get(key)
+      if (!current || entry.savedAt > current.savedAt) entries.set(key, entry)
+    }
+    return [...entries.values()]
+  }, [offline])
+  const offlineSnapshot = offline
+    ? {
+        settings,
+        index: { version: 1 as const, revision: 0, entries: offlineEntries },
+        status: { enabled: false, nextDueInMs: null, counting: false, waiting: 'offline' as const, busy: null, offline: ['auto', 'quick'] as GameSaveList[] },
+        versionId: 0,
+      }
+    : null
+  const locked = !connected || !!actions.busyKey || !!snapshot?.status.busy
   const live = roomId && connected && ready ? snapshot : null
-  const totals = live ? summarizeGameSaves(live.index) : null
+  const display = live ?? offlineSnapshot
+  const totals = display ? summarizeGameSaves(display.index) : null
 
   let placeholder: ReactNode = null
   if (!roomId) placeholder = <EmptyState title={t('saves.page.chooseGameTitle')} message={t('saves.page.chooseGameDesc')} />
-  else if (!connected) placeholder = <EmptyState title={t('saves.page.connectTitle')} message={t('saves.page.connectDesc')} />
+  else if (!connected && offlineLoading) placeholder = <ListSkeleton />
+  else if (!connected && !offline) placeholder = <EmptyState title={t('saves.page.connectTitle')} message={error || t('saves.page.connectDesc')} />
   else if (!live)
     placeholder = error ? (
       <EmptyState title={t('saves.page.loadFailedTitle')} message={error}>
@@ -69,7 +89,7 @@ export function GameSavesPage({ onOpenHotkeys, request }: Props = {}) {
 
   const listPlaceholder = (list: GameSaveList): ReactNode =>
     placeholder ??
-    (live?.status.offline?.includes(list) ? (
+    (connected && live?.status.offline?.includes(list) ? (
       <EmptyState title={t('saves.storage.offlineTitle')} message={t('saves.storage.offlineDesc')}>
         <Button className="mt-3" onClick={retry}>
           {t('common.retry')}
@@ -94,7 +114,7 @@ export function GameSavesPage({ onOpenHotkeys, request }: Props = {}) {
       <AutoSaveCard
         settings={settings}
         settingsReady={settingsReady}
-        snapshot={live}
+        snapshot={display}
         statusAt={statusAt}
         actions={actions}
         thumb={thumb}
@@ -105,7 +125,7 @@ export function GameSavesPage({ onOpenHotkeys, request }: Props = {}) {
       <QuickSaveCard
         settings={settings}
         settingsReady={settingsReady}
-        snapshot={live}
+        snapshot={display}
         actions={actions}
         thumb={thumb}
         locked={locked}

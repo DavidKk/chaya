@@ -36,7 +36,7 @@ type Props = {
   bundled: boolean
   /** 远程会话：路径只读，配置不可改 */
   remote?: boolean
-  /** 浏览器（Edge）模式：拿不到本机绝对路径，只改游戏目录内的 package.json 窗口配置 */
+  /** 浏览器（Cloud）模式：拿不到本机绝对路径，只改游戏目录内的 package.json 窗口配置 */
   browserMode?: boolean
   /** 浏览器模式下尚未获得目录授权、还没读到 package.json */
   windowNeedsAuth?: boolean

@@ -134,6 +134,17 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
 
   const link = useGameLink({ roomId, enabled, autoStart: true, onMessage })
   const { connected, send } = link
+  useEffect(() => {
+    if (!connected || !browserMode) return
+    try {
+      const raw = localStorage.getItem('chaya.gameAgent.settings')
+      if (!raw) return
+      const config = JSON.parse(raw) as unknown
+      send({ type: 'agent.config.put', requestId: `agent-config:${crypto.randomUUID()}`, config })
+    } catch {
+      /* Invalid or unavailable browser config remains local and must not break the game link. */
+    }
+  }, [connected, browserMode, send])
   const translation = useMemo(() => {
     const rpc = createTranslationRpc((packet) => {
       if (!connected) throw new Error('请先连接游戏')

@@ -29,7 +29,7 @@ function CardSection({ divided = true, className, children }: { divided?: boolea
   return <div className={cn(divided && 'border-t border-[var(--line-soft)] pt-4', className)}>{children}</div>
 }
 
-/** 当前游戏卡片（server / Edge 共用）：头部（状态 + 标题 + 信息条）｜操作区｜补充信息 */
+/** 当前游戏卡片（server / Cloud 共用）：头部（状态 + 标题 + 信息条）｜操作区｜补充信息 */
 export function DashboardGameCard({ title, remark, packageName, busy, onRename, binding, meta, actions, notes }: Props) {
   return (
     <div className="flex flex-col items-stretch gap-4 rounded-[0.4rem] border border-line bg-panel p-4">

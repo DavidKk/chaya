@@ -42,6 +42,7 @@ export async function chayaFetch(pathOrUrl: string, init?: RequestInit): Promise
   const body = init?.body == null ? undefined : typeof init.body === 'string' ? init.body : String(init.body)
 
   return new Promise((resolve, reject) => {
+    if (init?.signal?.aborted) return reject(init.signal.reason)
     const req = lib.request(
       {
         hostname: u.hostname,
@@ -67,6 +68,10 @@ export async function chayaFetch(pathOrUrl: string, init?: RequestInit): Promise
         })
       }
     )
+    const abort = () => req.destroy(init?.signal?.reason instanceof Error ? init.signal.reason : new DOMException('已取消', 'AbortError'))
+    const cleanup = () => init?.signal?.removeEventListener('abort', abort)
+    init?.signal?.addEventListener('abort', abort, { once: true })
+    req.once('close', cleanup)
     req.on('error', reject)
     if (body) req.write(body)
     req.end()

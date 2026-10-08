@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { clampPosition, type Placement, placementFromFrame, positionFromPlacement, readPlacement, viewport, writePlacement } from './floating-placement'
 import { keepGameFocus, stopGameKeys } from './game-keys'
 import { PANEL_DOCK_ITEM_META } from './mini-panel-items'
-import { anyMiniPanelEnabled, closeAllMiniPanels, toggleToolPanel, useToolPanelVisibility } from './tool-panels'
+import { anyMiniPanelEnabled, closeAllMiniPanels, MINI_PANEL_VISIBILITY_CLASS, toggleToolPanel, useToolPanelVisibility } from './tool-panels'
 import type { ToolSettingsPatch } from './useToolSettings'
 
 const STORAGE_KEY = 'chaya.panelDock.frame.v1'
@@ -128,8 +128,8 @@ export function MiniPanelDock({ settings, update }: Props) {
       aria-label={t('panels.bar.aria')}
       data-orientation={vertical ? 'vertical' : 'horizontal'}
       className={cn(
-        'pointer-events-auto fixed z-[60] flex items-center gap-0.5 rounded-md bg-panel/95 p-1 text-ink shadow-lg',
-        'opacity-40 transition-opacity duration-150 hover:opacity-100 [&:has(:focus-visible)]:opacity-100 [@media(hover:none)]:focus-within:opacity-100',
+        'pointer-events-auto fixed z-[60] flex items-center gap-0.5 rounded-md bg-panel p-1 text-ink shadow-lg',
+        MINI_PANEL_VISIBILITY_CLASS,
         vertical ? 'flex-col' : 'flex-row'
       )}
       style={position ? { left: position.x, top: position.y } : { left: 0, top: 0, visibility: 'hidden' }}

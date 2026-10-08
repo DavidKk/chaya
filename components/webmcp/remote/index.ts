@@ -4,26 +4,26 @@ import { pluginToolRun } from '@/lib/integration/tools/live'
 import type { ToolImpls } from '@/lib/integration/tools/types'
 import { pluginToolDescription, type PluginToolMeta, pluginToolName, sanitizePluginTools } from '@/lib/runtime/plugin-tools'
 import { functionToolDefinition } from '@/lib/webmcp/mcp-mirror'
-import { EDGE_UNAVAILABLE_TOOLS } from '@/lib/webmcp/mode-matrix'
+import { REMOTE_UNAVAILABLE_TOOLS } from '@/lib/webmcp/mode-matrix'
 
-import { type EdgeGameDeps, makeEdgeGameTools } from './game'
-import { makeEdgeLibraryTools } from './library'
-import { type EdgeLinkDeps, edgeLogsTools, linkAgentCaller, makeEdgeLinkTools } from './link'
+import { makeRemoteGameTools, type RemoteGameDeps } from './game'
+import { makeRemoteLibraryTools } from './library'
+import { linkAgentCaller, makeRemoteLinkTools, type RemoteLinkDeps, remoteLogsTools } from './link'
 
-export type EdgeToolDeps = EdgeLinkDeps & EdgeGameDeps
+export type RemoteToolDeps = RemoteLinkDeps & RemoteGameDeps
 
-export function makeEdgeToolImpls(deps: EdgeToolDeps): ToolImpls {
-  return { ...makeEdgeLinkTools(deps), ...makeEdgeLibraryTools(deps), ...makeEdgeGameTools(deps), ...edgeLogsTools }
+export function makeRemoteToolImpls(deps: RemoteToolDeps): ToolImpls {
+  return { ...makeRemoteLinkTools(deps), ...makeRemoteLibraryTools(deps), ...makeRemoteGameTools(deps), ...remoteLogsTools }
 }
 
-/** Catalog tools available on Edge, with the same names / schemas as the local MCP. */
-export function buildEdgeMcpTools(deps: EdgeToolDeps): WebMcpToolDefinition[] {
-  const impls = makeEdgeToolImpls(deps)
-  return MCP_TOOLS.filter((meta) => !EDGE_UNAVAILABLE_TOOLS[meta.name] && impls[meta.name]).map((meta) => functionToolDefinition(meta, impls[meta.name]))
+/** Catalog tools available on Remote, with the same names / schemas as the local MCP. */
+export function buildRemoteMcpTools(deps: RemoteToolDeps): WebMcpToolDefinition[] {
+  const impls = makeRemoteToolImpls(deps)
+  return MCP_TOOLS.filter((meta) => !REMOTE_UNAVAILABLE_TOOLS[meta.name] && impls[meta.name]).map((meta) => functionToolDefinition(meta, impls[meta.name]))
 }
 
 /** Plugin tools of the linked game (from `plugins.list`), as WebMCP tools. */
-export async function loadEdgePluginTools(deps: EdgeLinkDeps): Promise<WebMcpToolDefinition[]> {
+export async function loadRemotePluginTools(deps: RemoteLinkDeps): Promise<WebMcpToolDefinition[]> {
   const call = linkAgentCaller(deps)
   const plugins = (await call(undefined, 'plugins.list', {})) as Array<{ name?: string; tools?: unknown[] }> | null
   const raw: unknown[] = []

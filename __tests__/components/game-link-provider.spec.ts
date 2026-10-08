@@ -8,7 +8,7 @@ import { selectCloudGameId } from '@/lib/browser/cloud-library'
 
 jest.mock('@/hooks/useGameLink', () => ({ useGameLink: jest.fn(() => ({ connected: false, negotiating: false, restart: jest.fn(), quit: jest.fn(), send: jest.fn() })) }))
 
-test('Edge restores the browser room, starts signaling, and follows selection without server binding', async () => {
+test('Cloud restores the browser room, starts signaling, and follows selection without server binding', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const originalFetch = globalThis.fetch
   globalThis.fetch = jest.fn().mockResolvedValue({ json: async () => ({ canUseDisk: false, ready: false, library: [] }) })

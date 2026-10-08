@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { DATA_DIR } from '@/constants/paths'
 
+import { uniqueOllamaModels } from './ollama-client'
 import type { OllamaModel } from './types'
 
 type ModelCacheEntry = {
@@ -30,7 +31,7 @@ export function loadAgentModelCache(profiles: Array<{ id: string; endpoint: stri
   return Object.fromEntries(
     profiles.flatMap((profile) => {
       const entry = cache[profile.id]
-      return entry?.endpoint === profile.endpoint && Array.isArray(entry.models) ? [[profile.id, entry.models]] : []
+      return entry?.endpoint === profile.endpoint && Array.isArray(entry.models) ? [[profile.id, uniqueOllamaModels(entry.models)]] : []
     })
   )
 }

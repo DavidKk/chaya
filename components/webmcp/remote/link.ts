@@ -13,7 +13,7 @@ import type { AgentMethod, AgentParams } from '@/lib/runtime/agent-protocol'
 import type { TranslationRequestFn } from '@/lib/translate/runtime-api'
 import { webMcpCodedError } from '@/lib/webmcp/mcp-mirror'
 
-export type EdgeLinkDeps = {
+export type RemoteLinkDeps = {
   connected: () => boolean
   roomId: () => string | null
   callAgent: <M extends AgentMethod>(method: M, params: AgentParams<M>) => Promise<unknown>
@@ -21,12 +21,12 @@ export type EdgeLinkDeps = {
   requestCatalog: () => Promise<GameEditCatalog>
 }
 
-export function requireOnline(deps: Pick<EdgeLinkDeps, 'connected'>) {
+export function requireOnline(deps: Pick<RemoteLinkDeps, 'connected'>) {
   if (!deps.connected()) throw webMcpCodedError('game_offline', '游戏未连接：请先在游戏库选择游戏并打开（插件需已安装），连上后再试')
 }
 
 /** Agent caller over the DataChannel; there is exactly one linked game, so `gameId` must match it if given. */
-export function linkAgentCaller(deps: EdgeLinkDeps): AgentCaller {
+export function linkAgentCaller(deps: RemoteLinkDeps): AgentCaller {
   return async (gameId, method, params) => {
     requireOnline(deps)
     const room = deps.roomId()
@@ -36,7 +36,7 @@ export function linkAgentCaller(deps: EdgeLinkDeps): AgentCaller {
 }
 
 /** Translator-runtime invoke: same API paths, executed inside the game. */
-export function linkInvoke(deps: EdgeLinkDeps): ApiInvoke {
+export function linkInvoke(deps: RemoteLinkDeps): ApiInvoke {
   return async ({ method, path, query, body, signal }) => {
     requireOnline(deps)
     const res = await deps.translationRequest({ path: pathWithQuery(path, query), method, body: body as Record<string, unknown> | undefined }, signal)
@@ -46,8 +46,8 @@ export function linkInvoke(deps: EdgeLinkDeps): ApiInvoke {
   }
 }
 
-/** Edge live / edit / translate / cache / catalog tools through the game DataChannel. */
-export function makeEdgeLinkTools(deps: EdgeLinkDeps): ToolImpls {
+/** Remote live / edit / translate / cache / catalog tools through the game DataChannel. */
+export function makeRemoteLinkTools(deps: RemoteLinkDeps): ToolImpls {
   const call = linkAgentCaller(deps)
   const invoke = linkInvoke(deps)
   const { chaya_live_eval: _eval, ...live } = makeLiveTools({
@@ -67,8 +67,8 @@ export function makeEdgeLinkTools(deps: EdgeLinkDeps): ToolImpls {
   }
 }
 
-/** Edge logs: only what the linked game pushed over the DataChannel, kept in this page. */
-export const edgeLogsTools: ToolImpls = {
+/** Remote logs: only what the linked game pushed over the DataChannel, kept in this page. */
+export const remoteLogsTools: ToolImpls = {
   async chaya_logs_query(args) {
     const level = optStr(args, 'level')
     const entries = filterLogEntries(readLinkLogs(), {

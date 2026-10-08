@@ -1,5 +1,6 @@
 export { buildCommonEventsData, buildMapDetail, countCommands, normalizeCommands, type RawEventSources } from './build'
 export { type EventEffects, hasEffects, isRiskyEffects, summarizeEffects } from './effects'
+export { analyzeExecutionSafety, type ExecutionSafety, type ExecutionSafetyIssue } from './execution-safety'
 export { analyzeFlow, type FlowMark, type FlowResult, type FlowState, reachableFrom, variableCandidates } from './flow'
 export { type CommonEventFilter, type CommonEventGroup, filterCommonEventGroups, groupCommonEvents, isSeparatorEvent, matchesCommonEvent, separatorTitle } from './groups'
 export { interpretCommands, labelOf, type ScriptKey, type ScriptLine, type ScriptRef, type ScriptTone } from './interpret'

@@ -106,7 +106,7 @@ function LocalSkillInstall({ id }: { id: SkillId }) {
   )
 }
 
-/** Edge: same buttons; the page cannot write files, so each opens a modal with the curl command */
+/** Cloud: same buttons; the page cannot write files, so each opens a modal with the curl command */
 function CommandSkillInstall({ id }: { id: SkillId }) {
   const t = useT()
   const labelOf = useTargetLabel()
@@ -143,7 +143,7 @@ function CommandSkillInstall({ id }: { id: SkillId }) {
   )
 }
 
-/** 「安装到 Agent」（标题由所在列头提供）：本机一键写入 / 卸载全局 skills 目录，Edge 弹框给 curl 命令 */
+/** 「安装到 Agent」（标题由所在列头提供）：本机一键写入 / 卸载全局 skills 目录，Cloud 弹框给 curl 命令 */
 export function SkillInstall({ id, local }: { id: SkillId; local: boolean }) {
   return local ? <LocalSkillInstall id={id} /> : <CommandSkillInstall id={id} />
 }

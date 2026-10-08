@@ -5,6 +5,7 @@ import type { ActorVitalKey, BattleState } from '@/lib/game/battle'
 import type { CommonEventsData, MapDetailData, SelfSwitchLetter } from '@/lib/game/events'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import type { GameSavesErrorCode, GameSavesOp, GameSavesSnapshot, GameSavesStatus, SaveWaitReason } from '@/lib/game/game-saves'
+import type { HotkeySyncSnapshot } from '@/lib/game/hotkeys-sync'
 import type { InputAssistConfig, InputChord, MacroEvent } from '@/lib/game/input-assistance'
 import type {
   DataCell,
@@ -183,10 +184,73 @@ export type GameSavesMessage =
   | { type: 'saves.status'; gameId: string; status: GameSavesStatus }
   | { type: 'saves.changed'; gameId: string; snapshot: GameSavesSnapshot }
 
+export type HotkeySyncMessage =
+  | {
+      type: 'hotkeys.cmd'
+      reqId: string
+      snapshot: HotkeySyncSnapshot
+      expectedGlobalRevision: number
+      expectedGameRevision: number
+    }
+  | { type: 'hotkeys.reply'; reqId: string; ok: boolean; snapshot: HotkeySyncSnapshot; error?: 'stale' | 'invalid' }
+  | { type: 'hotkeys.changed'; snapshot: HotkeySyncSnapshot }
+
+export type MapOperationValue =
+  | { kind: 'switch'; id: number; value: boolean }
+  | { kind: 'variable'; id: number; value: number }
+  | { kind: 'selfSwitch'; mapId: number; eventId: number; letter: SelfSwitchLetter; value: boolean }
+  | { kind: 'position'; mapId: number; x: number; y: number; direction: number; near?: boolean }
+
+export type MapOperationItem =
+  | { label: string; changes: MapOperationValue[] }
+  | { label: string; action: { kind: 'commonEvent'; id: number; from?: number } | { kind: 'mapEvent'; mapId: number; eventId: number; page?: number; from?: number } }
+
+export type MapOperationMessage =
+  | {
+      type: 'map.operation.start'
+      requestId: string
+      gameId: string
+      generation: number
+      deadlineAt: number
+      summary: string
+      items: MapOperationItem[]
+    }
+  | { type: 'map.operation.undo'; requestId: string; gameId: string; generation: number; deadlineAt: number; stepId?: string; force?: boolean }
+  | { type: 'map.operation.status'; requestId: string; operationId?: string }
+  | { type: 'map.operation.discard-undo'; requestId: string; stepId: string }
+  | { type: 'map.operation.reply'; requestId: string; ok: boolean; status?: unknown; undo?: unknown; error?: string }
+
+export type AgentTaskMessage =
+  | {
+      type: 'agent.task.start'
+      requestId: string
+      deadlineAt: number
+      taskId: string
+      gameId: string
+      conversationId: string
+      capability: 'play' | 'ask' | 'companion'
+      profileId: string
+      model: string
+      locale?: string
+      companionCharacter?: string
+      goal: string
+    }
+  | { type: 'agent.task.classify'; requestId: string; gameId: string; profileId: string; model: string; prompt: string }
+  | { type: 'agent.task.reply'; requestId: string; taskId: string; text: string }
+  | { type: 'agent.task.stop'; requestId: string; taskId: string }
+  | { type: 'agent.task.status'; requestId: string; taskId?: string }
+  | { type: 'agent.task.events'; requestId: string; taskId: string; afterSeq: number }
+  | { type: 'agent.task.clear'; requestId: string; taskId?: string }
+  | { type: 'agent.config.put'; requestId: string; config: unknown }
+  | { type: 'agent.task.result'; requestId: string; ok: boolean; data?: unknown; error?: string }
+
 export type GameLinkMessage =
   | TranslationPacket
   | InputAssistMessage
   | GameSavesMessage
+  | HotkeySyncMessage
+  | MapOperationMessage
+  | AgentTaskMessage
   | GameLinkLogBatch
   | GameEditCatalogMessage
   | GameEditEventsMessage

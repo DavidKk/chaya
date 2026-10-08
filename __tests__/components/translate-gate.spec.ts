@@ -47,7 +47,7 @@ async function renderGate(status: object) {
 }
 
 test.each([
-  ['Edge', { canUseDisk: false, ready: false }, 'translate.needGameTitle|translate.needGameCloudMsg|common.chooseGame'],
+  ['Cloud', { canUseDisk: false, ready: false }, 'translate.needGameTitle|translate.needGameCloudMsg|common.chooseGame'],
   ['local', { canUseDisk: true, ready: false, library: [{ id: 'game' }] }, 'translate.needGameTitle|translate.needGameMsg|common.chooseGame'],
 ])('%s without a selected game shows an empty hint instead of features', async (_mode, status, expected) => {
   mockConnected = true
@@ -71,7 +71,7 @@ test('local selected game opens features without a running game', async () => {
 })
 
 test.each([
-  ['Edge', { canUseDisk: false, ready: false }],
+  ['Cloud', { canUseDisk: false, ready: false }],
   ['remote', { canUseDisk: true, ready: true, remote: true, library: [{ id: 'game' }] }],
 ])('%s selected game needs a connection', async (_mode, status) => {
   mockRoom = 'selected-game'

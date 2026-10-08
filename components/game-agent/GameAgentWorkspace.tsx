@@ -5,130 +5,16 @@ import { IoArrowUp, IoCheckmark, IoCloseCircleOutline, IoCloseOutline, IoStop, I
 
 import { useLocaleCode } from '@/components/i18n/LocaleProvider'
 import { Button, ScrollArea, Spinner, TruncateText } from '@/components/sk'
+import { runRecoverableOperation } from '@/lib/runtime/recoverable-operation'
 import { cn } from '@/lib/utils'
 
 import { GameAgentRuntimeMenu } from './GameAgentRuntimeMenu'
-
-type Model = { name: string }
-type AgentProfile = {
-  id: string
-  label: string
-  provider: string
-  online: boolean
-  models: Model[]
-  defaultModel: string
-  reason: string | null
-}
-type Status = {
-  available: boolean
-  gameOnline: boolean
-  profiles: AgentProfile[]
-  defaultProfileId: string
-  session: {
-    id: string
-    profileId: string
-    activeTurnId: string | null
-    recentTurnId?: string | null
-    activeTurn?: { id: string; state: string; phase?: string; goal?: string; question?: string; lastSeq: number } | null
-  } | null
-  reason: string | null
-}
-type ToolActivity = { id: string; name: string; state: 'running' | 'completed' | 'failed' }
-type Message = { id: string; role: 'user' | 'assistant' | 'error'; text: string; tools?: ToolActivity[] }
-
-type Copy = {
-  title: string
-  placeholder: string
-  empty: string
-  stop: string
-  newSession: string
-  send: string
-  profile: string
-  model: string
-  observing: string
-  thinking: string
-  toolCalling: string
-  toolCalled: string
-  toolFailed: string
-  unavailable: string
-  connect: string
-}
-
-const COPY: Record<string, Copy> = {
-  zh: {
-    title: 'Chaya 助手',
-    placeholder: '输入任务或询问下一步建议…',
-    empty: '我会根据你的要求调用当前可用工具。',
-    stop: '停止',
-    newSession: '新会话',
-    send: '发送',
-    profile: '平台',
-    model: '模型',
-    observing: '正在准备上下文…',
-    thinking: 'Ollama 正在回答…',
-    toolCalling: '正在调用',
-    toolCalled: '已调用',
-    toolFailed: '调用失败',
-    unavailable: 'Agent 暂不可用',
-    connect: '连接',
-  },
-  en: {
-    title: 'Chaya Assistant',
-    placeholder: 'Enter a task or ask for the next step…',
-    empty: 'I will call the currently available tools for your request.',
-    stop: 'Stop',
-    newSession: 'New session',
-    send: 'Send',
-    profile: 'Provider',
-    model: 'Model',
-    observing: 'Preparing context…',
-    thinking: 'Ollama is answering…',
-    toolCalling: 'Calling',
-    toolCalled: 'Called',
-    toolFailed: 'Call failed',
-    unavailable: 'Agent unavailable',
-    connect: 'Connect',
-  },
-  ja: {
-    title: 'Chaya アシスタント',
-    placeholder: 'タスクまたは次の行動を入力…',
-    empty: 'リクエストに応じて現在利用できるツールを呼び出します。',
-    stop: '停止',
-    newSession: '新しい会話',
-    send: '送信',
-    profile: 'プロバイダー',
-    model: 'モデル',
-    observing: 'コンテキストを準備中…',
-    thinking: 'Ollama が回答中…',
-    toolCalling: '呼び出し中',
-    toolCalled: '呼び出し済み',
-    toolFailed: '呼び出し失敗',
-    unavailable: 'Agent を利用できません',
-    connect: '接続',
-  },
-  ko: {
-    title: 'Chaya 어시스턴트',
-    placeholder: '작업을 입력하거나 다음 단계를 질문하세요…',
-    empty: '요청에 따라 현재 사용 가능한 도구를 호출합니다.',
-    stop: '중지',
-    newSession: '새 대화',
-    send: '보내기',
-    profile: '공급자',
-    model: '모델',
-    observing: '컨텍스트 준비 중…',
-    thinking: 'Ollama 응답 중…',
-    toolCalling: '호출 중',
-    toolCalled: '호출됨',
-    toolFailed: '호출 실패',
-    unavailable: 'Agent를 사용할 수 없습니다',
-    connect: '연결',
-  },
-}
-
-function errorMessage(body: unknown, fallback: string) {
-  const value = body as { error?: { message?: unknown } }
-  return typeof value?.error?.message === 'string' ? value.error.message : fallback
-}
+import {
+  type AgentWorkspaceMessage as Message,
+  type AgentWorkspaceStatus as Status,
+  GAME_AGENT_WORKSPACE_COPY as COPY,
+  gameAgentErrorMessage as errorMessage,
+} from './gameAgentWorkspaceModel'
 
 export type GameAgentRequest = (path: string, init?: RequestInit) => Promise<Response>
 
@@ -163,6 +49,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
     return Math.max(320, Math.min(560, saved))
   })
   const abortRef = useRef<AbortController | null>(null)
+  const turnGenerationRef = useRef(0)
   const eventSeqRef = useRef(0)
   const assistantIdRef = useRef('')
   const recentRecoveredRef = useRef(false)
@@ -185,6 +72,9 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
       callId?: string
       name?: string
       ok?: boolean
+      step?: number
+      maxSteps?: number
+      cycle?: number
     }) => {
       if (item.seq && item.seq <= eventSeqRef.current) return
       eventSeqRef.current = Math.max(eventSeqRef.current, item.seq || 0)
@@ -201,7 +91,21 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
       } else if (item.type === 'history.gap') {
         setMessages((current) => [...current, { id: `gap-${Date.now()}`, role: 'error', text: '较早的进度记录已过期，以下是仍可恢复的内容。' }])
       } else if (item.type === 'phase') {
-        setPhase(item.phase === 'observing' ? copy.observing : item.phase === 'waiting_user' ? '等待你的决定' : copy.thinking)
+        const label =
+          item.phase === 'observing'
+            ? copy.observing
+            : item.phase === 'acting'
+              ? copy.acting
+              : item.phase === 'verifying'
+                ? copy.verifying
+                : item.phase === 'waiting_user'
+                  ? '等待你的决定'
+                  : copy.thinking
+        setPhase(item.step && item.maxSteps ? `${label} · ${item.step}/${item.maxSteps}` : label)
+      } else if (item.type === 'progress.updated' && item.summary) {
+        const summary = item.summary
+        setPhase(`${copy.running} · ${summary}`)
+        setMessages((current) => current.map((message) => (message.id === assistantId ? { ...message, progress: [...(message.progress || []), summary].slice(-6) } : message)))
       } else if (item.type === 'tool.started' && item.callId && item.name) {
         setPhase(`${copy.toolCalling} ${item.name}…`)
         const callId = item.callId
@@ -234,14 +138,14 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   )
 
   const consumeStream = useCallback(
-    async (response: Response) => {
+    async (response: Response, generation: number) => {
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
       while (true) {
         const { done, value } = await reader.read()
-        if (done) break
+        if (done || generation !== turnGenerationRef.current) break
         buffer += decoder.decode(value, { stream: true })
         const chunks = buffer.split('\n\n')
         buffer = chunks.pop() || ''
@@ -251,7 +155,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
             .find((line) => line.startsWith('data:'))
             ?.slice(5)
             .trim()
-          if (data) applyEvent(JSON.parse(data))
+          if (data && generation === turnGenerationRef.current) applyEvent(JSON.parse(data))
         }
       }
     },
@@ -293,7 +197,10 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   }, [open, refresh])
 
   useEffect(() => {
-    if (!open) abortRef.current?.abort()
+    if (!open) {
+      turnGenerationRef.current += 1
+      abortRef.current?.abort()
+    }
   }, [open])
 
   useEffect(() => () => abortRef.current?.abort(), [])
@@ -314,13 +221,14 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
       setQuestion(active.question || '')
     }
     const abort = new AbortController()
+    const generation = ++turnGenerationRef.current
     abortRef.current = abort
     void request(`/api/game-agent/turn/${encodeURIComponent(targetId)}/events?gameId=${encodeURIComponent(gameId)}&after=${eventSeqRef.current}`, { signal: abort.signal })
-      .then(consumeStream)
+      .then((response) => consumeStream(response, generation))
       .catch(() => {})
       .finally(() => {
         if (abortRef.current === abort) abortRef.current = null
-        if (!abort.signal.aborted) {
+        if (!abort.signal.aborted && generation === turnGenerationRef.current) {
           void refresh()
           window.setTimeout(() => setReconnectTick((value) => value + 1), 1_000)
         }
@@ -343,18 +251,69 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   }, [prompt])
 
   const stop = useCallback(async () => {
-    abortRef.current?.abort()
-    if (turnId) await request(`/api/game-agent/turn/${encodeURIComponent(turnId)}?gameId=${encodeURIComponent(gameId)}`, { method: 'DELETE' }).catch(() => null)
+    turnGenerationRef.current += 1
+    const abort = abortRef.current
+    const stoppedTurnId = turnId
+    abort?.abort()
+    if (abortRef.current === abort) abortRef.current = null
+    let confirmed = !stoppedTurnId && !submitting
+    if (stoppedTurnId) {
+      try {
+        const response = await runRecoverableOperation({
+          identity: { requestId: crypto.randomUUID(), gameId, generation: turnGenerationRef.current, deadlineAt: Date.now() + 10_000 },
+          hardLimitMs: 10_000,
+          run: (signal) => request(`/api/game-agent/turn/${encodeURIComponent(stoppedTurnId)}?gameId=${encodeURIComponent(gameId)}`, { method: 'DELETE', signal }),
+        })
+        confirmed = response.ok
+      } catch {
+        confirmed = false
+      }
+    }
     setSubmitting(false)
     setTurnId('')
     setPhase('')
-  }, [request, turnId, gameId])
+    setQuestion('')
+    return confirmed
+  }, [request, turnId, gameId, submitting])
 
   useEffect(() => {
     const onStop = () => void stop()
     window.addEventListener('chaya:game-agent-stop', onStop)
     return () => window.removeEventListener('chaya:game-agent-stop', onStop)
   }, [stop])
+
+  const startTurn = async (text: string) => {
+    const generation = ++turnGenerationRef.current
+    const assistantId = `assistant-${Date.now()}`
+    assistantIdRef.current = assistantId
+    eventSeqRef.current = 0
+    setMessages((current) => [...current, { id: `user-${Date.now()}`, role: 'user', text }, { id: assistantId, role: 'assistant', text: '' }])
+    setPrompt('')
+    setPhase(copy.observing)
+    const abort = new AbortController()
+    abortRef.current = abort
+    setSubmitting(true)
+    try {
+      const response = await request('/api/game-agent/turn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId, sessionId: sessionId || undefined, newSession, profileId, model, mode: 'ask', prompt: text, locale }),
+        signal: abort.signal,
+      })
+      if (!response.ok || !response.body) throw new Error(errorMessage(await response.json().catch(() => null), `HTTP ${response.status}`))
+      await consumeStream(response, generation)
+    } catch (error) {
+      if (!abort.signal.aborted && generation === turnGenerationRef.current) {
+        setMessages((current) => [...current, { id: `error-${Date.now()}`, role: 'error', text: error instanceof Error ? error.message : String(error) }])
+      }
+    } finally {
+      if (abortRef.current === abort) abortRef.current = null
+      if (generation === turnGenerationRef.current) {
+        setSubmitting(false)
+        void refresh()
+      }
+    }
+  }
 
   const send = async (event?: FormEvent) => {
     event?.preventDefault()
@@ -376,36 +335,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
       }
       return
     }
-    const assistantId = `assistant-${Date.now()}`
-    assistantIdRef.current = assistantId
-    eventSeqRef.current = 0
-    setMessages((current) => [...current, { id: `user-${Date.now()}`, role: 'user', text }, { id: assistantId, role: 'assistant', text: '' }])
-    setPrompt('')
-    setPhase(copy.observing)
-    const abort = new AbortController()
-    abortRef.current = abort
-    setSubmitting(true)
-    try {
-      const response = await request('/api/game-agent/turn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameId, sessionId: sessionId || undefined, newSession, profileId, model, mode: 'ask', prompt: text, locale }),
-        signal: abort.signal,
-      })
-      if (!response.ok || !response.body) {
-        const body = await response.json().catch(() => null)
-        throw new Error(errorMessage(body, `HTTP ${response.status}`))
-      }
-      await consumeStream(response)
-    } catch (error) {
-      if (!abort.signal.aborted) {
-        setMessages((current) => [...current, { id: `error-${Date.now()}`, role: 'error', text: error instanceof Error ? error.message : String(error) }])
-      }
-    } finally {
-      abortRef.current = null
-      setSubmitting(false)
-      void refresh()
-    }
+    await startTurn(text)
   }
 
   const resize = (event: React.PointerEvent) => {
@@ -440,6 +370,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
         <header className="flex h-13 shrink-0 items-center gap-2 border-b border-line bg-panel-2 px-3">
           <strong className="text-sm text-ink">{copy.title}</strong>
           <span className={cn('h-2 w-2 rounded-full', status?.available ? 'bg-ok' : 'bg-fail')} aria-hidden />
+          {running ? <span className="text-xs font-medium text-accent">{copy.running}</span> : null}
           <div className="min-w-0 flex-1" />
           <Button
             variant="ghost"
@@ -500,6 +431,13 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
                       ))}
                     </div>
                   ) : null}
+                  {message.progress?.length ? (
+                    <div className="mb-2 flex flex-col gap-1 text-xs text-ink-soft" aria-live="polite">
+                      {message.progress.map((item, index) => (
+                        <span key={`${index}-${item}`}>{item}</span>
+                      ))}
+                    </div>
+                  ) : null}
                   {message.text || (running && message.role === 'assistant' && !message.tools?.length ? <Spinner size="sm" /> : null)}
                 </div>
               ))}
@@ -554,7 +492,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
                     </Button>
                   </>
                 ) : running ? (
-                  <Button className="rounded-full" variant="fail" size="icon" aria-label={copy.stop} tooltip={copy.stop} onClick={() => void stop()}>
+                  <Button className="rounded-full" variant="fail" size="icon" type="button" aria-label={copy.stop} tooltip={copy.stop} onClick={() => void stop()}>
                     <IoStop size={17} aria-hidden />
                   </Button>
                 ) : (

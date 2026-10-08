@@ -73,7 +73,7 @@ const portIndex = args.findIndex((a) => a === '-p' || a === '--port')
 const port = portIndex >= 0 ? args[portIndex + 1] : process.env.PORT || 3927
 // The server derives the compat `/api/mcp` URL from PORT (`toolkitListenPort`).
 process.env.PORT = String(port)
-if (process.env.CHAYA_SERVICE !== 'vercel' && process.env.VERCEL !== '1') {
+if (process.env.CHAYA_SERVICE !== 'remote' && process.env.VERCEL !== '1') {
   process.env.CHAYA_AUTH_TOKEN = localAccess.ensureAccessToken()
   console.log(`[Chaya] console: http://localhost:${port}`)
   if (args.includes('0.0.0.0') && lanIp) console.log(`[Chaya] LAN console: http://${lanIp}:${port}`)

@@ -54,8 +54,8 @@ beforeEach(() => {
   setVisibility('visible')
 })
 
-test('启用条件：edge 不连；/api/status 报告 canUseDisk 才启用', async () => {
-  target.value = 'edge'
+test('启用条件：cloud 不连；/api/status 报告 canUseDisk 才启用', async () => {
+  target.value = 'cloud'
   await expect(serverDownloadsEnabled()).resolves.toBe(false)
   expect(fetchMock).not.toHaveBeenCalled()
 

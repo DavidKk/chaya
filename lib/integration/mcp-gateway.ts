@@ -42,7 +42,7 @@ type GatewayFs = McpPortFs & Pick<typeof import('fs'), 'watchFile' | 'unwatchFil
 export type McpGatewayControl = {
   /** Node context present (NW.js); without it nothing below works */
   available: boolean
-  /** This game may bind the port (Edge-installed plugins only) */
+  /** This game may bind the port (Cloud-installed plugins only) */
   enabled: boolean
   status: () => McpGatewayStatus | null
   refresh: () => Promise<McpGatewayStatus | null>

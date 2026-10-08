@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { makeEdgeGameTools } from '@/components/webmcp/edge/game'
+import { makeRemoteGameTools } from '@/components/webmcp/remote/game'
 import { type CloudLibraryEntry, cloudLibraryStorage } from '@/lib/browser/cloud-library'
 import { type CloudGame, inspectCloudGame, installCloudShell } from '@/lib/browser/cloud-prepare-game'
 import { startCloudShellTask } from '@/lib/browser/cloud-shell-task'
@@ -32,14 +32,14 @@ function entry(game: Partial<CloudGame> = {}): CloudLibraryEntry {
   }
 }
 
-const tools = makeEdgeGameTools({ gameOnline: () => false, quit: jest.fn(), serviceMode: 'vercel' })
+const tools = makeRemoteGameTools({ gameOnline: () => false, quit: jest.fn(), serviceMode: 'remote' })
 
 beforeEach(() => jest.clearAllMocks())
 
-describe('edge game tools', () => {
+describe('remote game tools', () => {
   it('status reports an empty library like an unbound local game', async () => {
     jest.mocked(cloudLibraryStorage).mockResolvedValue([])
-    expect(await tools.chaya_game_status({}, ctx)).toEqual({ ready: false, serviceMode: 'vercel', error: expect.any(String), gameRoot: null })
+    expect(await tools.chaya_game_status({}, ctx)).toEqual({ ready: false, serviceMode: 'remote', error: expect.any(String), gameRoot: null })
   })
 
   it('status maps the inspected game onto the shared view', async () => {
@@ -57,7 +57,7 @@ describe('edge game tools', () => {
     })
     expect(await tools.chaya_game_status({}, ctx)).toEqual({
       ready: true,
-      serviceMode: 'vercel',
+      serviceMode: 'remote',
       gameRoot: 'browser:g1',
       name: '备注名',
       title: '标题',

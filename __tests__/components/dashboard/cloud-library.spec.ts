@@ -8,6 +8,10 @@ import { type CloudGame, installCloudPlugins, installCloudShell, selectCloudGame
 
 const mockNotify = { success: jest.fn(), error: jest.fn(), info: jest.fn() }
 jest.mock('@/components/notification/useNotification', () => ({ useNotification: () => mockNotify }))
+jest.mock('@/lib/browser/fsa', () => ({
+  ...jest.requireActual('@/lib/browser/fsa'),
+  getDirectoryCapability: jest.fn(() => ({ state: 'available' })),
+}))
 jest.mock('@/lib/browser/cloud-library', () => ({
   cloudLibraryStorage: jest.fn(),
   requireCloudPermission: jest.fn(),

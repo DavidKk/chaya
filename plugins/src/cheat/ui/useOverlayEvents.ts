@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { EventsOp, EventsSlot, PlayerSpot } from '@/components/game-edit/events/types'
+import { assertMapOperationCompleted, type EventsOp, type EventsSlot, type PlayerSpot } from '@/components/game-edit/events/types'
 import { type TabId, usesEventsSlot } from '@/components/game-edit/tabs'
 import { battleSignature, type BattleState } from '@/lib/game/battle'
 import type { CommonEventsData, MapDetailData } from '@/lib/game/events'
 import { readViewState, writeViewState } from '@/lib/view-state'
 
+import { gameRoomId } from '../../helpers'
 import { addEnemy, killEnemy, readBattleState, recoverEnemy, reviveEnemy, transformEnemy, writeEnemyHp, writeEnemyMhp } from '../session/live-battle'
 import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from '../session/live-events'
 import { buildLiveMapDetail, playerSpot, runMapEvent, runningCommonEvents, setSelfSwitch, teleportPlayer } from '../session/live-map'
 import { joinActor, recoverActor, reviveActor, writeActorVital } from '../session/live-party'
 import { startTroopBattle } from '../session/live-troop'
 import { recentMaps } from '../session/map-history'
+import { latestMapUndo, runLocalMapChanges, undoLocalMapChange } from '../session/map-operations/runtime'
 
 type EventsView = { commonId: number | null; mapId: number | null; eventId: number | null; eventPage: number | null; troopId: number | null }
 
@@ -50,6 +52,10 @@ function sameScene(a: Scene, b: Scene) {
     a.running.join() === b.running.join() &&
     battleSignature(a.battle) === battleSignature(b.battle)
   )
+}
+
+async function completedMapOperation<T>(operation: Promise<T>): Promise<void> {
+  assertMapOperationCompleted(await operation)
 }
 
 function applyOp(op: EventsOp) {
@@ -108,6 +114,7 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
   const [mapLoading, setMapLoading] = useState(false)
   const [mapError, setMapError] = useState('')
   const [scene, setScene] = useState<Scene>(() => ({ onMap: false, player: null, recent: [], running: [], battle: null }))
+  const [mapUndo, setMapUndo] = useState(() => latestMapUndo())
   const sceneRef = useRef(scene)
   const active = (open && usesEventsSlot(tab)) || (!open && tab === 'map' && view.mapId != null)
   const mapRef = useRef(view.mapId)
@@ -192,12 +199,81 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
         if (tab !== 'common') selectTab('common')
       },
       onAct: async (op) => {
-        await applyOp(op)
+        if (op.op === 'commonEvent') {
+          await completedMapOperation(
+            runLocalMapChanges({
+              requestId: crypto.randomUUID(),
+              gameId: gameRoomId(),
+              summary: `执行公共事件 #${op.id}`,
+              items: [{ label: `公共事件 #${op.id}`, action: { kind: 'commonEvent', id: op.id, from: op.from } }],
+            })
+          )
+        } else if (op.op === 'mapEvent') {
+          await completedMapOperation(
+            runLocalMapChanges({
+              requestId: crypto.randomUUID(),
+              gameId: gameRoomId(),
+              summary: `执行地图事件 #${op.eventId}`,
+              items: [{ label: `地图事件 #${op.eventId}`, action: { kind: 'mapEvent', mapId: op.mapId, eventId: op.eventId, page: op.page, from: op.from } }],
+            })
+          )
+        } else if (op.op === 'selfSwitch') {
+          await completedMapOperation(
+            runLocalMapChanges({
+              requestId: crypto.randomUUID(),
+              gameId: gameRoomId(),
+              summary: `独立开关 ${op.letter}`,
+              items: [{ label: `#${op.eventId}`, changes: [{ kind: 'selfSwitch', mapId: op.mapId, eventId: op.eventId, letter: op.letter, value: op.value }] }],
+            })
+          )
+          setMapUndo(latestMapUndo())
+        } else if (op.op === 'teleport') {
+          await completedMapOperation(
+            runLocalMapChanges({
+              requestId: crypto.randomUUID(),
+              gameId: gameRoomId(),
+              summary: `传送到 ${op.mapId}:${op.x},${op.y}`,
+              items: [{ label: `${op.mapId}:${op.x},${op.y}`, changes: [{ kind: 'position', mapId: op.mapId, x: op.x, y: op.y, direction: op.direction ?? 2, near: op.near }] }],
+            })
+          )
+          setMapUndo(latestMapUndo())
+        } else await applyOp(op)
         if (op.op === 'teleport' || op.op.startsWith('enemy') || op.op.startsWith('actor')) setScene((sceneRef.current = readScene()))
         if ((op.op === 'selfSwitch' || op.op === 'teleport' || op.op === 'mapEvent') && mapRef.current != null) void loadMap(mapRef.current)
       },
-      onSwitchChange,
-      onVarChange,
+      onSwitchChange: (id, value) => {
+        void runLocalMapChanges({
+          requestId: crypto.randomUUID(),
+          gameId: gameRoomId(),
+          summary: `开关 #${id}`,
+          items: [{ label: `开关 #${id}`, changes: [{ kind: 'switch', id, value }] }],
+        }).then(() => {
+          onSwitchChange(id, value)
+          setMapUndo(latestMapUndo())
+        })
+      },
+      onVarChange: (id, value) => {
+        void runLocalMapChanges({
+          requestId: crypto.randomUUID(),
+          gameId: gameRoomId(),
+          summary: `变量 #${id}`,
+          items: [{ label: `变量 #${id}`, changes: [{ kind: 'variable', id, value }] }],
+        }).then(() => {
+          onVarChange(id, value)
+          setMapUndo(latestMapUndo())
+        })
+      },
+      mapUndo,
+      onMapChanges: async (items, summary) => {
+        const result = await runLocalMapChanges({ requestId: crypto.randomUUID(), gameId: gameRoomId(), summary, items })
+        setMapUndo(latestMapUndo())
+        return result
+      },
+      onMapUndo: async (force) => {
+        const result = await undoLocalMapChange({ requestId: crypto.randomUUID(), gameId: gameRoomId(), stepId: mapUndo?.id, force })
+        setMapUndo(latestMapUndo())
+        return result
+      },
       afterRun: onClose,
       mapId: view.mapId,
       eventId: view.eventId,
@@ -222,7 +298,7 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
         if (tab !== 'troop') selectTab('troop')
       },
     }),
-    [data, loading, error, scene, view, tab, selectTab, loadMap, onSwitchChange, onVarChange, onClose, mapDetail, mapLoading, mapError]
+    [data, loading, error, scene, view, tab, selectTab, loadMap, onSwitchChange, onVarChange, onClose, mapDetail, mapLoading, mapError, mapUndo]
   )
 
   return { slot, refresh }

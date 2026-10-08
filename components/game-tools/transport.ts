@@ -13,7 +13,7 @@ export type GameToolTransport = {
   roomId: string | null
   connected: boolean
   negotiating: boolean
-  /** 通用配置只存在当前环境的 localStorage（edge / 局内浮层），否则走本机服务磁盘 */
+  /** 通用配置只存在当前环境的 localStorage（remote / 局内浮层），否则走本机服务磁盘 */
   localGlobal: boolean
   restart?: () => void
   send: (message: GameLinkMessage) => void

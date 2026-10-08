@@ -21,7 +21,7 @@ describe('cheat/persist session↔disk', () => {
     expect(disk.run.gameSpeed).toBe(3)
     expect(disk.run.god).toBe(true)
     expect(disk.locks).toEqual({ 'item:1': 3 })
-    expect(disk.hotkeys).toEqual({ 'flag:god': 'KeyG' })
+    expect(disk.hotkeys.game.bindings).toEqual({ 'flag:god': 'KeyG' })
     expect(disk).not.toHaveProperty('gold')
   })
 
@@ -33,7 +33,11 @@ describe('cheat/persist session↔disk', () => {
       version: 1,
       run: { walkRate: 3, gameSpeed: 2, god: true },
       locks: { 'var:1': 10 },
-      hotkeys: {},
+      hotkeys: {
+        version: 1,
+        global: { revision: 0, bindings: {}, disabled: [] },
+        game: { gameId: 'default', revision: 0, bindings: null },
+      },
     })
     expect(merged.walkRate).toBe(3)
     expect(merged.gameSpeed).toBe(2)
@@ -48,19 +52,24 @@ describe('cheat/persist session↔disk', () => {
       version: 1,
       run: {},
       locks: {},
-      hotkeys: { b: '2' },
+      hotkeys: {
+        version: 1,
+        global: { revision: 1, bindings: { 'flag:through': 'KeyT' }, disabled: [] },
+        game: { gameId: 'default', revision: 1, bindings: { 'flag:god': 'KeyG' } },
+      },
     })
-    expect(merged.hotkeys).toEqual({ b: '2' })
+    expect(merged.hotkeys).toEqual({ 'flag:god': 'KeyG' })
+    expect(merged.hotkeysGlobal).toEqual({ 'flag:through': 'KeyT' })
   })
 
-  it('diskStateFromSession does not include hotkeysGlobal', () => {
+  it('diskStateFromSession persists both version domains', () => {
     const session = {
       ...emptySession(),
       hotkeys: { 'flag:god': 'KeyG' },
       hotkeysGlobal: { 'flag:through': 'KeyT', 'ui:toggle': '`' },
     }
     const disk = diskStateFromSession(session)
-    expect(disk.hotkeys).toEqual({ 'flag:god': 'KeyG' })
-    expect(disk).not.toHaveProperty('hotkeysGlobal')
+    expect(disk.hotkeys.game.bindings).toEqual({ 'flag:god': 'KeyG' })
+    expect(disk.hotkeys.global.bindings).toEqual({ 'flag:through': 'KeyT', 'ui:toggle': '`' })
   })
 })

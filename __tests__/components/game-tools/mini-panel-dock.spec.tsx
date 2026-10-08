@@ -72,6 +72,12 @@ it('shows panel buttons, close all, then the orientation toggle, centred at the 
   expect(toolbar().dataset.orientation).toBe('horizontal')
   expect(toolbar().style.visibility).toBe('')
   expect(toolbar().style.top).toBe('8px')
+  expect(toolbar().className.split(' ')).toContain('bg-panel')
+  expect(toolbar().className).not.toMatch(/\bbg-panel\//)
+  expect(toolbar().className).toContain('pointer-events-auto')
+  expect(toolbar().className).toContain('opacity-40')
+  expect(toolbar().className).toContain('hover:opacity-100')
+  expect(toolbar().className).toContain('focus-within:opacity-100')
 })
 
 it('leaves out hidden items and keeps the orientation toggle', async () => {

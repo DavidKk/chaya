@@ -10,7 +10,7 @@ Chaya 是面向 **RPG Maker** 的本机优先工具台：翻译（抽取、补�
 | --------------- | ------------------------------------------------------- | ---------------------------------------------------------- |
 | **Local**       | 本机 Node，贴着游戏目录跑                               | 完整（绑定、装壳、插件、缓存）                             |
 | **Toolkit App** | Electron + Next（`CHAYA_SERVICE=app`）                  | 完整                                                       |
-| **Edge**        | Vercel / 浏览器（`VERCEL=1` 或 `CHAYA_SERVICE=vercel`） | 服务端无盘——在 Chrome 里用 File System Access API 准备游戏 |
+| **Remote**      | Vercel / 浏览器（`VERCEL=1` 或 `CHAYA_SERVICE=remote`） | 服务端无盘——在 Chrome 里用 File System Access API 准备游戏 |
 
 结构对齐 MagickMonkey / [vercel-web-scripts](https://github.com/DavidKk/vercel-web-scripts)：Next.js UI + `plugins/` 游戏脚本。
 
@@ -19,22 +19,22 @@ Chaya 是面向 **RPG Maker** 的本机优先工具台：翻译（抽取、补�
 - **游戏库** — 多作绑定，壳 / 插件 / 窗口状态一目了然。
 - **翻译管线** — 抽取、缺词补译、共享库；游玩时可实时或字幕翻译。
 - **游戏修改** — 金钱道具变量、角色技能、运行开关与快捷键；控制台与局内同步。
-- **数据本机** — local / app 下译文与工具数据留在本机（不落在 Edge 服务器上）。
+- **数据本机** — local / app 下译文与工具数据留在本机（不落在远程服务器上）。
 
-## 部署到 Vercel（Edge）
+## 部署到 Vercel（Cloud）
 
 [![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FDavidKk%2Fchaya)
 
-在 Vercel 上会强制 **edge** 形态（`VERCEL=1`）：云端只提供介绍页 / 控制台 UI；装壳与写入游戏目录发生在**浏览器**（Chromium + 目录授权），而不是服务器磁盘。
+在 Vercel 上会强制 **remote** 形态（`VERCEL=1`）：云端只提供介绍页 / 控制台 UI；装壳与写入游戏目录发生在**浏览器**（Chromium + 目录授权），而不是服务器磁盘。
 
 1. 将 [DavidKk/chaya](https://github.com/DavidKk/chaya) 导入 Vercel（或点上方按钮）。
 2. 框架选 **Next.js**；构建命令：`pnpm build`（先 `build:plugins` 再 `next build`）。
 3. 部署后打开站点：`/` 为产品页，**打开控制台** 进入 `/game`。
-4. 在本机用 Chrome / Edge 授权游戏目录并完成准备。
+4. 在本机用 Chrome / Microsoft Edge 授权游戏目录并完成准备。
 
-本地模拟 edge（无需 Vercel 账号）：`pnpm dev` 后在右上角 dev 切换器选 **Edge**；DiskOps 接口返回 501。
+本地模拟 cloud（无需 Vercel 账号）：`pnpm dev` 后在右上角 dev 切换器选 **Cloud**；DiskOps 接口返回 501。
 
-Edge 没有登录，也没有服务端 MCP。外部 Agent 连接统一地址 `http://127.0.0.1:39271/mcp`，由打开的游戏（或本机服务）提供，见 [docs/mcp-plugin.md](docs/mcp-plugin.md) 与 [docs/mcp-edge.md](docs/mcp-edge.md)。
+Remote 形态没有登录，也没有服务端 MCP。外部 Agent 连接统一地址 `http://127.0.0.1:39271/mcp`，由打开的游戏（或本机服务）提供，见 [docs/mcp-plugin.md](docs/mcp-plugin.md) 与 [docs/mcp-remote.md](docs/mcp-remote.md)。
 
 ## 构建应用
 
@@ -95,7 +95,7 @@ GitHub Actions：[CI](.github/workflows/ci.yml) 在 `main` / PR 跑 `pnpm ok:ci`
 
 常用环境变量：
 
-- `CHAYA_SERVICE` — `local` \| `app` \| `vercel`（存在 `VERCEL=1` 时无效）
+- `CHAYA_SERVICE` — `local` \| `app` \| `remote`（存在 `VERCEL=1` 时无效）
 - `CHAYA_AUTH_TOKEN` — 内部管理令牌，供脚本与 MCP 进程内调用，不能用来登录浏览器（local / app 未设时会写入 `data/access/token`）
 - `CHAYA_PUBLIC_ORIGIN` — 本机 API 额外接受的主机名（如局域网域名）
 - `CHAYA_API_LAN=1` — 向局内插件广播局域网 API 根

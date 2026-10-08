@@ -19,7 +19,7 @@ import type { ToolImpls } from '@/lib/integration/tools/types'
 
 import { activeCloudEntry, ensureDirPermission, requireActiveGame, saveEntries } from './library'
 
-export type EdgeGameDeps = {
+export type RemoteGameDeps = {
   gameOnline: () => boolean
   quit: (reason?: string) => void
   /** `/api/status` 报告的服务形态（与本机 MCP 的 serviceMode 同源） */
@@ -31,8 +31,8 @@ async function refreshEntry(id: string, game: CloudGame) {
   await saveEntries(entries.map((e) => (e.item.id === id ? { ...e, game, item: { ...e.item, hasShell: !!game.existingShell } } : e)))
 }
 
-/** Edge `chaya_game_*`: reads / writes through an already granted directory handle (never prompts). */
-export function makeEdgeGameTools({ gameOnline, quit, serviceMode }: EdgeGameDeps): ToolImpls {
+/** Remote `chaya_game_*`: reads / writes through an already granted directory handle (never prompts). */
+export function makeRemoteGameTools({ gameOnline, quit, serviceMode }: RemoteGameDeps): ToolImpls {
   async function inspectActive(mode: 'read' | 'readwrite') {
     const entry = await requireActiveGame()
     await ensureDirPermission(entry.game, mode)

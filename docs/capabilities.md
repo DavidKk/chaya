@@ -2,7 +2,7 @@
 
 - **日期**：2026-10-04
 - **状态**：已定稿；MCP、WebMCP、插件 MCP、内置 Agent 的能力增减**先改本文**，再改代码与其他文档
-- **关联**：[integration.md](./integration.md)（集成页）、[mcp-local.md](./mcp-local.md)、[mcp-plugin.md](./mcp-plugin.md)、[mcp-edge.md](./mcp-edge.md)、[webmcp.md](./webmcp.md)、[game-agent.md](./game-agent.md)
+- **关联**：[integration.md](./integration.md)（集成页）、[mcp-local.md](./mcp-local.md)、[mcp-plugin.md](./mcp-plugin.md)、[mcp-remote.md](./mcp-remote.md)、[webmcp.md](./webmcp.md)、[game-agent.md](./game-agent.md)
 
 ---
 
@@ -22,10 +22,10 @@
 | 环境   | 入口                                                                     | 到游戏的通道       |
 | ------ | ------------------------------------------------------------------------ | ------------------ |
 | server | 本机 dev / App 的 MCP（`/api/mcp`），以及网页上的 WebMCP（另加页面工具） | ChayaAgent 长轮询  |
-| Edge   | 网页版页面上的 WebMCP（没有服务端 MCP）                                  | 游戏 DataChannel   |
-| 游戏内 | 插件 MCP（Edge 打开的游戏，给外部 Agent，本机网关）                      | 游戏进程内直接调用 |
+| Cloud  | 网页版页面上的 WebMCP（没有服务端 MCP）                                  | 游戏 DataChannel   |
+| 游戏内 | 插件 MCP（Cloud 打开的游戏，给外部 Agent，本机网关）                     | 游戏进程内直接调用 |
 
-内置 Agent 跑在本机服务上（调用本机 Ollama），游戏侧栏只是界面，调用游戏走 server 的长轮询；Edge 不提供内置 Agent。
+内置 Agent 跑在本机服务上（调用本机 Ollama），游戏侧栏只是界面，调用游戏走 server 的长轮询；Cloud 不提供内置 Agent。
 
 ## 3. 工具操作
 
@@ -33,7 +33,7 @@
 
 ### 3.1 游戏外（各环境不同）
 
-| 分组     | 工具                                                                     | server | Edge                          | 游戏内 |
+| 分组     | 工具                                                                     | server | Cloud                         | 游戏内 |
 | -------- | ------------------------------------------------------------------------ | ------ | ----------------------------- | ------ |
 | 游戏库   | `chaya_library_list` / `bind` / `remark` / `remove`                      | ✓      | ◐ `bind` 只切换库里已有的游戏 | ✗      |
 | 当前游戏 | `chaya_game_status`、`chaya_game_shell_check`                            | ✓      | ◐ 需先授权读目录              | ✗      |
@@ -46,7 +46,7 @@
 |          | `chaya_logs_clear`                                                       | ✓      | ✗ 会清掉其他访问者的日志      | ✓      |
 | 页面     | `page_*` 共 10 个（只在 WebMCP）                                         | ✓      | ✓                             | ✗      |
 
-不可用的工具在 `page_get_context.unavailableTools` 中给出原因（Edge），插件 MCP 的说明（`MCP_PLUGIN_INSTRUCTIONS`）按分组概括（游戏内）。分组「当前游戏」的 `chaya_game_*` 是准备游戏目录，不是 §4 的游戏操作。
+不可用的工具在 `page_get_context.unavailableTools` 中给出原因（Cloud），插件 MCP 的说明（`MCP_PLUGIN_INSTRUCTIONS`）按分组概括（游戏内）。分组「当前游戏」的 `chaya_game_*` 是准备游戏目录，不是 §4 的游戏操作。
 
 ### 3.2 修改与插件功能（需游戏在线，各环境一致）
 
@@ -78,7 +78,7 @@ ChayaEdit 不再声明插件工具：`gold` / `item` / `variable` / `switch` / `
 | 看画面   | `chaya_live_screenshot`：当前画面截图，按 MCP 图片内容（`type: 'image'`）返回（默认宽 512、上限 1280）                 | 只在游戏内 WebMCP（`chaya_game_screenshot`） | 各端           |
 | 点击     | `chaya_live_tap`：在画面坐标点击（菜单、对话、按钮）                                                                   | 同上（`chaya_game_tap`）                     | 各端           |
 | 人物行动 | `chaya_live_move_to`：地图上寻路走到格子坐标，等到达或超时（默认 8 秒、上限 12 秒）；途中被传送到别的地图即停          | 同上（`chaya_game_move_to`）                 | 各端           |
-| 退出游戏 | `chaya_live_quit`                                                                                                      | server、Edge（`chaya_game_quit`）            | 各端           |
+| 退出游戏 | `chaya_live_quit`                                                                                                      | server、Cloud（`chaya_game_quit`）           | 各端           |
 | 执行脚本 | `chaya_live_eval`                                                                                                      | server（需开关）                             | 不变，唯一例外 |
 
 - `chaya_game_quit` 直接改名 `chaya_live_quit`（不留别名，skill 与文档同步）。
@@ -94,7 +94,7 @@ ChayaEdit 不再声明插件工具：`gold` / `item` / `variable` / `switch` / `
 ## 6. 各入口的页面展示
 
 - **server 集成页**：MCP 页列出 server 的工具（§3 + §4）；WebMCP 页列出本页登记的工具（同上 + 页面工具）。
-- **Edge 集成页**：MCP 页保持空态，引导到游戏内（见 [mcp-edge.md](./mcp-edge.md)）；WebMCP 页列出 Edge 的工具（§3 Edge 列 + §4 + 页面工具）。
+- **Cloud 集成页**：MCP 页保持空态，引导到游戏内（见 [mcp-remote.md](./mcp-remote.md)）；WebMCP 页列出 Cloud 的工具（§3 Cloud 列 + §4 + 页面工具）。
 - **游戏内「集成」页**：只有 MCP（不再单列游戏内 WebMCP）。
 
 ## 7. 实现约束
@@ -107,7 +107,7 @@ ChayaEdit 不再声明插件工具：`gold` / `item` / `variable` / `switch` / `
   - 收掉 `plugin.call`（任意方法链式调用），只保留 `plugin.tool`（声明的预设工具）。
 - 通道限制：长轮询单次调用超时 15 秒（`AGENT_CALL_TIMEOUT_MS`），所以等待类工具（`move_to`）上限 12 秒；DataChannel 已按 4 KB 分片（上限 32 MB），截图大小不受限。
 - 图片：MCP 协议层（`lib/integration/mcp-protocol.ts`）现在只输出 `text`，需要支持 `image` 内容；WebMCP 镜像（`parseMcpCallResult`）现在只取 `text`，需要透传图片。
-- 安全：Edge 的 DataChannel 信令无鉴权。改值只经预设指令，收掉 `plugin.call` 后攻击面比现在小；截图是新增的读取面，按只读 + 不可信内容标注。
+- 安全：Cloud 的 DataChannel 信令无鉴权。改值只经预设指令，收掉 `plugin.call` 后攻击面比现在小；截图是新增的读取面，按只读 + 不可信内容标注。
 - 内置 Agent（[game-agent.md](./game-agent.md)）调用游戏时使用同一组指令，不另起一套。
 
 ## 8. 修订
@@ -115,7 +115,7 @@ ChayaEdit 不再声明插件工具：`gold` / `item` / `variable` / `switch` / `
 | 日期       | 说明                                                                                                                                                                            |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-10-04 | 初稿：能力分工具操作 / 游戏操作；游戏操作各端一致（截图 / 点击 / 寻路、实时修改并入），eval 为唯一例外                                                                          |
-| 2026-10-04 | 评审修订：内置 Agent 跑在本机服务并按权限策略筛选；Edge 集成页 MCP 为空态；`quit` 改名 `chaya_live_quit`；`move_to` 上限 12 秒；补图片内容、标注与安全约束                      |
+| 2026-10-04 | 评审修订：内置 Agent 跑在本机服务并按权限策略筛选；Cloud 集成页 MCP 为空态；`quit` 改名 `chaya_live_quit`；`move_to` 上限 12 秒；补图片内容、标注与安全约束                     |
 | 2026-10-04 | 修改归入工具操作：Agent 只调「修改」页预设能力（`chaya_edit_state` / `set` / `action`），合并重复的 ChayaEdit 插件工具，收掉 `plugin.call` 任意方法调用；游戏操作只含观察与输入 |
 | 2026-10-04 | 细化：`find` 与 `chaya_edit_catalog` 重复，删除；`chaya_edit_action` 参数定稿；`chaya_live_quit` 不留别名                                                                       |
 | 2026-10-04 | 新增 `chaya_live_history`：记录最近渲染的对话、选项、地图、战斗与读档，供跳过对话后问下一步 / 总结进程                                                                          |

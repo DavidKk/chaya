@@ -1,7 +1,7 @@
 /**
  * 文件管理器 / 壳启动。
  * 分发：`services/platform/host/index.ts` 对照表；
- * 实现：`host/osx.ts` | `windows.ts` | `linux.ts` | `edge.ts`。
+ * 实现：`host/osx.ts` | `windows.ts` | `linux.ts` | `cloud.ts`。
  */
 import { resolveHostShell } from '@/services/platform'
 

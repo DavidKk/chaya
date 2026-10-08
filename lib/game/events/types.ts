@@ -52,7 +52,7 @@ export type EventNames = {
 
 export type CommonEventsData = {
   ok: true
-  source: 'disk' | 'live'
+  source: 'browser' | 'disk' | 'live'
   events: CommonEventInfo[]
   names: EventNames
   /** Dialogue / choice source text → translation (translated entries only) */

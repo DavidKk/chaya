@@ -14,7 +14,7 @@ services/platform/<capability>/
   osx.ts        ← 仅 macOS
   windows.ts
   linux.ts
-  edge.ts       ← vercel / 无盘
+  cloud.ts       ← remote / 无盘
   shared.ts     ← 可选共用小工具
 ```
 
@@ -28,16 +28,16 @@ const localByOs = {
 }
 ```
 
-改 Windows 行为 → 只开 `windows.ts`；改云端不可用文案 → 只开 `edge.ts`。
+改 Windows 行为 → 只开 `windows.ts`；改云端不可用文案 → 只开 `cloud.ts`。
 
 域门面保持薄：[`picker.ts`](../../services/game/picker.ts) / [`finder.ts`](../../services/game/finder.ts) 只调 `resolvePickPath()` / `resolveHostShell()`。
 
 ## 2. 二维环境
 
-| 维              | 取值                        | 来源                                    |
-| --------------- | --------------------------- | --------------------------------------- |
-| **HostOs**      | `windows` / `linux` / `osx` | `process.platform`                      |
-| **RuntimeLane** | `local` / `edge`            | `local`\|`app` → local；`vercel` → edge |
+| 维              | 取值                        | 来源                                      |
+| --------------- | --------------------------- | ----------------------------------------- |
+| **HostOs**      | `windows` / `linux` / `osx` | `process.platform`                        |
+| **RuntimeLane** | `local` / `remote`          | `local`\|`app` → local；`remote` → remote |
 
 判定：[`lib/platform/env.ts`](../../lib/platform/env.ts)。`app` 与 `local` 共用 local 实现。
 
@@ -59,5 +59,5 @@ const localByOs = {
 
 1. 能力确认「做什么」；平台文件确认「怎么做」。
 2. 禁止在域业务里再堆长大的 `process.platform` 分支。
-3. edge 不平行实现 DiskOps；与 `requireDisk` 双保险。
+3. cloud 不平行实现 DiskOps；与 `requireDisk` 双保险。
 4. 怎么接线都行（对照表 / 简单 switch / 注册器），以可读为先。

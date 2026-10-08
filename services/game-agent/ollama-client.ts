@@ -11,6 +11,16 @@ function authorizationHeaders(token?: string) {
   return token ? { Authorization: `Bearer ${token}` } : undefined
 }
 
+/** Ollama 会把 llama.cpp 导入的 blob 以 `llamacpp:<sha256>` 别名列出，同名标签也可能因多份 manifest 重复出现。 */
+export function uniqueOllamaModels<T extends { name: string }>(models: T[]): T[] {
+  const seen = new Set<string>()
+  return models.filter((model) => {
+    if (/^llamacpp:[0-9a-f]{64}$/i.test(model.name) || seen.has(model.name)) return false
+    seen.add(model.name)
+    return true
+  })
+}
+
 export async function listOllamaModels(endpoint = DEFAULT_OLLAMA_HOST, fetcher: typeof fetch = fetch, signal?: AbortSignal, token?: string): Promise<OllamaModel[]> {
   let response: Response
   try {
@@ -20,14 +30,16 @@ export async function listOllamaModels(endpoint = DEFAULT_OLLAMA_HOST, fetcher: 
   }
   if (!response.ok) throw new Error(`Ollama 模型列表请求失败（HTTP ${response.status}）`)
   const body = (await response.json()) as { models?: Array<{ name?: unknown; size?: unknown; modified_at?: unknown; capabilities?: unknown }> }
-  return (body.models ?? [])
-    .filter((item) => typeof item.name === 'string' && item.name.trim())
-    .map((item) => ({
-      name: String(item.name),
-      size: typeof item.size === 'number' ? item.size : undefined,
-      modifiedAt: typeof item.modified_at === 'string' ? item.modified_at : undefined,
-      capabilities: Array.isArray(item.capabilities) ? item.capabilities.filter((value): value is string => typeof value === 'string') : undefined,
-    }))
+  return uniqueOllamaModels(
+    (body.models ?? [])
+      .filter((item) => typeof item.name === 'string' && item.name.trim())
+      .map((item) => ({
+        name: String(item.name),
+        size: typeof item.size === 'number' ? item.size : undefined,
+        modifiedAt: typeof item.modified_at === 'string' ? item.modified_at : undefined,
+        capabilities: Array.isArray(item.capabilities) ? item.capabilities.filter((value): value is string => typeof value === 'string') : undefined,
+      }))
+  )
 }
 
 export async function readOllamaModelCapabilities(

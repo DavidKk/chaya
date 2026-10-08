@@ -91,6 +91,9 @@ preset/**/_legacy_js/
 # Local management pairing credential
 /data/access/
 
+# Local launch sessions (tokens + absolute game paths)
+/data/runtime/
+
 # Built-in agent settings written at runtime
 /data/game-agent-settings*.json
 /data/game-agent/

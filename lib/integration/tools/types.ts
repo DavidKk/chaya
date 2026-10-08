@@ -1,4 +1,4 @@
-/** Shared MCP tool plumbing: implementations get their I/O injected so the server and Edge pages reuse them. */
+/** Shared MCP tool plumbing: implementations get their I/O injected so the server and Cloud pages reuse them. */
 
 export type ToolContext = { signal: AbortSignal }
 export type ToolRun = (args: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>

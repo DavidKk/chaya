@@ -2,6 +2,7 @@
  * In-game: receive Web edit.cmd and apply; after subscribe, push edit.state.
  */
 import { emptySession, lockKeyForActorSkill, lockKeyForActorState, type SessionState } from '@/components/game-edit/types'
+import { applyHotkeyCas } from '@/lib/game/hotkeys-sync'
 import { fieldsForEditCmd } from '@/lib/runtime/game-edit-sync'
 import type { GameEditCmd, GameEditStateMsg, GameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import { sendChunked } from '@/lib/runtime/link-chunks'
@@ -16,6 +17,8 @@ import { joinActor, recoverActor, reviveActor, writeActorVital } from './live-pa
 import { buildLiveCatalog, readLiveSession, setItemCount, setPartyGold } from './live-session'
 import { startTroopBattle } from './live-troop'
 import { recentMaps } from './map-history'
+import { handleMapOperationMessage } from './map-operations/runtime'
+import { getGameHotkeySnapshot, replaceGameHotkeySnapshot } from './persist'
 import { handleDataMessage, isDataCmd, runDataCmd, sendSized, stopDataBridge } from './save-data-bridge'
 
 type SendFn = (msg: GameLinkMessage) => void
@@ -23,6 +26,7 @@ type SendFn = (msg: GameLinkMessage) => void
 let subscribed = false
 let pushTimer: ReturnType<typeof setInterval> | null = null
 let sendFn: SendFn | null = null
+let lastHotkeySnapshot = ''
 /** Local overlay mirror; merge with live before push */
 let mirror: SessionState = emptySession()
 /** Successfully acked cmdIds (bounded; avoid retry double-effects) */
@@ -225,6 +229,27 @@ function pushState() {
 
 export function handleRemoteEditMessage(msg: GameLinkMessage, send: SendFn) {
   sendFn = send
+  if (msg.type.startsWith('agent.')) {
+    const agent = (
+      window as Window & {
+        ChayaAgent?: { handleTask?: (message: Extract<GameLinkMessage, { type: `agent.${string}` }>, send: SendFn) => boolean }
+      }
+    ).ChayaAgent
+    if (agent?.handleTask?.(msg as Extract<GameLinkMessage, { type: `agent.${string}` }>, send)) return
+  }
+  if (msg.type.startsWith('map.operation.') && handleMapOperationMessage(msg as Extract<GameLinkMessage, { type: `map.operation.${string}` }>, send)) return
+  if (msg.type === 'hotkeys.cmd') {
+    const current = getGameHotkeySnapshot()
+    const result = applyHotkeyCas(current, msg.snapshot, msg.expectedGlobalRevision, msg.expectedGameRevision)
+    if (result.ok) {
+      replaceGameHotkeySnapshot(result.snapshot)
+      send({ type: 'hotkeys.reply', reqId: msg.reqId, ok: true, snapshot: result.snapshot })
+      send({ type: 'hotkeys.changed', snapshot: result.snapshot })
+    } else {
+      send({ type: 'hotkeys.reply', reqId: msg.reqId, ok: false, snapshot: result.snapshot, error: result.reason })
+    }
+    return
+  }
   if (handleDataMessage(msg, send)) return
   if (msg.type === 'edit.catalog.request') {
     send({ type: 'edit.catalog', catalog: buildLiveCatalog() })
@@ -294,13 +319,22 @@ export function handleRemoteEditMessage(msg: GameLinkMessage, send: SendFn) {
 export function stopRemoteEditBridge() {
   subscribed = false
   sendFn = null
+  lastHotkeySnapshot = ''
   ackedCmdIds.clear()
   ackResults.clear()
   stopDataBridge()
+  ;(window as Window & { ChayaAgent?: { cancelRemoteAuthorization?: () => void } }).ChayaAgent?.cancelRemoteAuthorization?.()
   if (pushTimer) {
     clearInterval(pushTimer)
     pushTimer = null
   }
+}
+
+export function publishRemoteHotkeys(snapshot: import('@/lib/game/hotkeys-sync').HotkeySyncSnapshot) {
+  const serialized = JSON.stringify(snapshot)
+  if (!sendFn || serialized === lastHotkeySnapshot) return
+  lastHotkeySnapshot = serialized
+  sendFn({ type: 'hotkeys.changed', snapshot })
 }
 
 /** After an agent edit: push the new state to a subscribed edit page right away */

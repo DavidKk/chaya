@@ -5,6 +5,7 @@
 
 import type { EditAction } from './edit-ops'
 import type { GameEditCmdOp } from './game-link-protocol'
+import type { AgentTaskMessage } from './game-link-protocol'
 import { type PluginToolMeta, sanitizePluginTools } from './plugin-tools'
 
 export const AGENT_INPUT_KEYS = ['ok', 'cancel', 'shift', 'menu', 'up', 'down', 'left', 'right', 'pageup', 'pagedown', 'escape'] as const
@@ -45,12 +46,13 @@ export type AgentCommand =
   | { id: string; method: 'edit.state'; params: Record<string, never> }
   | { id: string; method: 'edit.apply'; params: { op: GameEditCmdOp } }
   | { id: string; method: 'edit.action'; params: { action: EditAction } }
+  | { id: string; method: 'agent.task'; params: { message: Exclude<AgentTaskMessage, { type: 'agent.task.result' }> } }
   | { id: string; method: 'game.eval'; params: { code: string } }
 
 export type AgentMethod = AgentCommand['method']
 export type AgentParams<M extends AgentMethod> = Extract<AgentCommand, { method: M }>['params']
 
-/** Commands accepted over the game DataChannel (Edge signaling is unauthenticated, so no eval). */
+/** Commands accepted over the game DataChannel (Cloud signaling is unauthenticated, so no eval). */
 export const AGENT_LINK_METHODS = [
   'game.state',
   'game.history',

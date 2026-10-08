@@ -25,11 +25,11 @@ describe('platform env + capability tables', () => {
     expect(resolveRuntimeLane()).toBe('local')
     process.env.CHAYA_SERVICE = 'app'
     expect(resolveRuntimeLane()).toBe('local')
-    process.env.CHAYA_SERVICE = 'vercel'
-    expect(resolveRuntimeLane()).toBe('edge')
+    process.env.CHAYA_SERVICE = 'remote'
+    expect(resolveRuntimeLane()).toBe('remote')
     process.env.VERCEL = '1'
     process.env.CHAYA_SERVICE = 'local'
-    expect(resolveRuntimeLane()).toBe('edge')
+    expect(resolveRuntimeLane()).toBe('remote')
   })
 
   it('getPlatformContext uses current env', () => {
@@ -40,22 +40,22 @@ describe('platform env + capability tables', () => {
 
   it('optional PlatformRegistry resolves with wildcards', () => {
     const reg = new PlatformRegistry()
-    reg.register('demo', { os: '*', lane: 'edge' }, { via: 'edge-star' })
+    reg.register('demo', { os: '*', lane: 'remote' }, { via: 'remote-star' })
     reg.register('demo', { os: 'osx', lane: 'local' }, { via: 'osx-local' })
     reg.register('demo', { os: 'osx', lane: '*' }, { via: 'osx-any' })
 
     expect(reg.resolve('demo', { os: 'osx', lane: 'local' })).toEqual({ via: 'osx-local' })
-    expect(reg.resolve('demo', { os: 'osx', lane: 'edge' })).toEqual({ via: 'osx-any' })
-    expect(reg.resolve('demo', { os: 'linux', lane: 'edge' })).toEqual({ via: 'edge-star' })
+    expect(reg.resolve('demo', { os: 'osx', lane: 'remote' })).toEqual({ via: 'osx-any' })
+    expect(reg.resolve('demo', { os: 'linux', lane: 'remote' })).toEqual({ via: 'remote-star' })
     expect(reg.tryResolve('demo', { os: 'linux', lane: 'local' })).toBeNull()
   })
 
-  it('edge pickPath returns unavailable via resolvePickPath when lane=edge', async () => {
+  it('remote pickPath returns unavailable via resolvePickPath when lane=remote', async () => {
     delete process.env.VERCEL
-    process.env.CHAYA_SERVICE = 'vercel'
-    // resolvePickPath 读真实 env；用 edge 实现直接测更稳
-    const { EdgePickPath } = await import('@/services/platform/pick/edge')
-    const result = await new EdgePickPath().pick('game')
+    process.env.CHAYA_SERVICE = 'remote'
+    // resolvePickPath 读真实 env；用 remote 实现直接测更稳
+    const { RemotePickPath } = await import('@/services/platform/pick/remote')
+    const result = await new RemotePickPath().pick('game')
     expect(result).toEqual({ ok: false, error: expect.stringContaining('不支持') })
   })
 
@@ -65,9 +65,9 @@ describe('platform env + capability tables', () => {
     expect(resolvePickPath().id).toBe('pickPath')
   })
 
-  it('edge hostShell rejects', async () => {
-    const { EdgeHostShell } = await import('@/services/platform/host/edge')
-    await expect(new EdgeHostShell().reveal('/tmp')).rejects.toThrow(/不支持/)
+  it('remote hostShell rejects', async () => {
+    const { RemoteHostShell } = await import('@/services/platform/host/remote')
+    await expect(new RemoteHostShell().reveal('/tmp')).rejects.toThrow(/不支持/)
   })
 
   it('resolveHostShell returns hostShell on local', () => {

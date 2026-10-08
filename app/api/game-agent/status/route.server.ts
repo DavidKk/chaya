@@ -1,6 +1,7 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
 import { canUseDisk } from '@/lib/service-mode/mode'
+import { listExtTasks } from '@/services/game-agent/ext-task.server'
 import { listOllamaModels, pickAvailableModel } from '@/services/game-agent/ollama-client'
 import { readGameAgentToken } from '@/services/game-agent/secrets'
 import { getSessionForGame, getTurn } from '@/services/game-agent/session-store'
@@ -16,6 +17,9 @@ export const GET = defineApiRoute('get:/api/game-agent/status', async ({ request
   if (!gameId) return apiError(400, 'GAME_ID_REQUIRED', '缺少 gameId')
 
   const game = listAgentGames().find((item) => item.gameId === gameId)
+  const extTasks = game ? await listExtTasks(gameId).catch(() => []) : []
+  const latestExt = extTasks.at(-1)
+  const activeExt = [...extTasks].reverse().find((task) => !['completed', 'stopped', 'failed', 'interrupted'].includes(task.state))
   const settings = loadGameAgentSettings()
   const session = getSessionForGame(gameId)
   const profiles = await Promise.all(
@@ -51,20 +55,30 @@ export const GET = defineApiRoute('get:/api/game-agent/status', async ({ request
     gameOnline: !!game,
     profiles,
     defaultProfileId: defaultProfile?.id || '',
-    session: session
+    session: activeExt
       ? {
-          id: session.id,
-          profileId: session.profileId,
-          activeTurnId: session.activeTurnId,
-          recentTurnId: session.lastTurnId || null,
-          activeTurn: session.activeTurnId
-            ? (() => {
-                const turn = getTurn(session.activeTurnId!)
-                return turn ? { id: turn.id, state: turn.state, phase: turn.phase, goal: turn.goal, question: turn.question, lastSeq: turn.lastSeq } : null
-              })()
-            : null,
+          id: activeExt.conversationId,
+          profileId: session?.profileId || '',
+          activeTurnId: activeExt.id,
+          recentTurnId: activeExt.id,
+          activeTurn: { id: activeExt.id, state: activeExt.state, capability: activeExt.capability, goal: activeExt.goal, lastSeq: activeExt.lastSeq },
         }
-      : null,
+      : latestExt
+        ? { id: latestExt.conversationId, profileId: session?.profileId || '', activeTurnId: null, recentTurnId: latestExt.id, activeTurn: null }
+        : session
+          ? {
+              id: session.id,
+              profileId: session.profileId,
+              activeTurnId: session.activeTurnId,
+              recentTurnId: session.lastTurnId || null,
+              activeTurn: session.activeTurnId
+                ? (() => {
+                    const turn = getTurn(session.activeTurnId!)
+                    return turn ? { id: turn.id, state: turn.state, phase: turn.phase, goal: turn.goal, question: turn.question, lastSeq: turn.lastSeq } : null
+                  })()
+                : null,
+            }
+          : null,
     reason: available ? null : defaultProfile?.reason || '没有可用的 Agent',
   })
 })

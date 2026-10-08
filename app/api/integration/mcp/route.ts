@@ -7,7 +7,7 @@ import { toolkitListenPort } from '@/services/runtime/presence'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/** Integration page: this local server's own `/api/mcp` (local only). Edge renders static gateway docs. */
+/** Integration page: this local server's own `/api/mcp` (local only). Cloud renders static gateway docs. */
 export const GET = defineApiRoute('get:/api/integration/mcp', async () => {
   const serviceMode = getServiceMode()
   if (!canUseDisk(serviceMode)) return apiOk({ available: false, serviceMode })

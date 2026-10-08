@@ -28,6 +28,7 @@ import {
 } from '@/lib/browser/cloud-prepare-game'
 import { startCloudShellTask } from '@/lib/browser/cloud-shell-task'
 import { writeCloudWindow } from '@/lib/browser/cloud-window'
+import { DirectoryAccessBlockedError, type DirectoryCapability, getDirectoryCapability } from '@/lib/browser/fsa'
 import { forgetCloudLinkToken } from '@/lib/browser/link-token'
 import { requestDownloadCenterOpen } from '@/lib/downloads/store'
 import { formatBytes } from '@/lib/format-bytes'
@@ -61,12 +62,26 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
   const [loaded, setLoaded] = useState(false)
   const actionInFlight = useRef(false)
   const [busy, setBusy] = useState(false)
+  const [pickerBusy, setPickerBusy] = useState(false)
+  const [directoryCapability, setDirectoryCapability] = useState<DirectoryCapability>({ state: 'available' })
+  const pickerGeneration = useRef(0)
   const [macDialogOpen, setMacDialogOpen] = useState(false)
   const [downloadUrl, setDownloadUrl] = useState<string>()
   const notify = useNotification()
   const t = useT()
   const selectIdRef = useRef(selectId)
   selectIdRef.current = selectId
+  useEffect(() => {
+    pickerGeneration.current += 1
+    setPickerBusy(false)
+    if (enabled) setDirectoryCapability(getDirectoryCapability())
+  }, [enabled, queryId])
+  useEffect(
+    () => () => {
+      pickerGeneration.current += 1
+    },
+    []
+  )
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
@@ -183,8 +198,12 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
     }
   }
   async function choose() {
-    await run(async () => {
+    if (pickerBusy || directoryCapability.state !== 'available') return
+    const generation = pickerGeneration.current
+    setPickerBusy(true)
+    try {
       const game = await selectCloudGame()
+      if (generation !== pickerGeneration.current) return
       let existing: CloudLibraryEntry | undefined
       for (const entry of entries) {
         if (await entry.game.picked.isSameEntry(game.picked)) {
@@ -209,9 +228,18 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
         },
       }
       await save(existing ? entries.map((e) => (e.item.id === id ? entry : e)) : [...entries, entry])
+      if (generation !== pickerGeneration.current) return
       selectId(id)
       notify.success(t('notify.cloudAddedHint'))
-    })
+    } catch (error) {
+      if (generation !== pickerGeneration.current) return
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      if (error instanceof DirectoryAccessBlockedError) setDirectoryCapability(error.capability)
+      else if (error instanceof UnsupportedEngineError) notify.error(t('notify.unsupportedEngine', { engine: error.engine }))
+      else notify.error(error instanceof Error ? error.message : String(error))
+    } finally {
+      if (generation === pickerGeneration.current) setPickerBusy(false)
+    }
   }
   /** `silent`: never prompt (no click to ask from); skips when the folder is not already authorized */
   async function operate(action: (game: CloudGame) => Promise<void>, opts?: { remeasure?: boolean; silent?: boolean }) {
@@ -296,6 +324,8 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
     status,
     loaded,
     busy,
+    pickerBusy,
+    directoryCapability,
     active,
     choose,
     macDialogOpen,

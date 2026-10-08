@@ -56,7 +56,7 @@ function ServerModeNote() {
   const t = useT()
   const connection = useMcpConnection()
   if (connection.status !== 'ready') return null
-  return <p className="m-0 text-xs leading-relaxed text-ink-soft">{t(connection.connection.available ? 'integration.webmcpModeLocal' : 'integration.webmcpModeEdge')}</p>
+  return <p className="m-0 text-xs leading-relaxed text-ink-soft">{t(connection.connection.available ? 'integration.webmcpModeLocal' : 'integration.webmcpModeRemote')}</p>
 }
 
 /** WebMCP 子页：左半「接入 + 已注册分组」与工具说明，右半浏览器支持状态与启用步骤；分组在网页走 `route` URL */

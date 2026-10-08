@@ -68,7 +68,7 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    // edge 构建按扩展名剔除 *.server / *.dev 路由；普通模块引用它们会把仅本机代码带回 edge 包
+    // cloud 构建按扩展名剔除 *.server / *.dev 路由；普通模块引用它们会把仅本机代码带回 cloud 包
     files: ['**/*.{ts,tsx}'],
     ignores: ['**/*.server.{ts,tsx}', '**/*.dev.{ts,tsx}', 'app/api/mcp/**', '__tests__/**'],
     rules: {

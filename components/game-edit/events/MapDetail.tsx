@@ -1,17 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { IoArrowBack } from 'react-icons/io5'
+import { IoArrowBack, IoArrowUndoOutline } from 'react-icons/io5'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { countKey, type SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Badge, Button, EmptyState, ScrollArea, TruncateText } from '@/components/sk'
+import { Badge, Button, EmptyState, ScrollArea, Select, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
-import { type CommonEventsData, estimateActivePage, type MapDetailData, type MapEventInfo, type MapNode } from '@/lib/game/events'
+import { type CommonEventsData, estimateActivePage, type MapDetailData, type MapEventInfo, type MapNode, type SelfSwitchLetter } from '@/lib/game/events'
+import type { MapOperationItem, MapOperationValue } from '@/lib/runtime/game-link-protocol'
 import { cn } from '@/lib/utils'
 
 import { type EventState, TYPE_KEY } from './event-meta'
@@ -54,7 +55,7 @@ export function StateBadge({ state }: { state: EventState }) {
 }
 
 /** Name · position · type · state */
-const tableCols = { gridTemplateColumns: 'minmax(8rem, 1fr) 4.75rem 4.5rem 6rem' }
+const tableCols = { gridTemplateColumns: '2.25rem minmax(8rem, 1fr) 4.75rem 4.5rem 6rem' }
 
 /** Page-wide "teleport beside the target when it is blocked" switch, shown in the panel header */
 export function NearToggle({ near, onChange }: { near: boolean; onChange: (near: boolean) => void }) {
@@ -116,13 +117,125 @@ function useTeleport(node: MapNode, slot: EventsSlot, near: boolean) {
 
 export type Teleport = ReturnType<typeof useTeleport>
 
+function conditionChanges(event: MapEventInfo, detail: MapDetailData, session: SessionState): MapOperationValue[] {
+  const state = eventStateOf(event, detail, session)
+  const pageIndex = state.page > 0 ? state.page - 1 : event.pages.length - 1
+  const conditions = event.pages[Math.max(0, pageIndex)]?.conditions
+  if (!conditions) return []
+  const changes: MapOperationValue[] = []
+  if (conditions.switch1 && !session.switches[conditions.switch1]) changes.push({ kind: 'switch', id: conditions.switch1, value: true })
+  if (conditions.switch2 && !session.switches[conditions.switch2]) changes.push({ kind: 'switch', id: conditions.switch2, value: true })
+  if (conditions.variable && Number(session.vars[conditions.variable.id] ?? 0) < conditions.variable.value) {
+    changes.push({ kind: 'variable', id: conditions.variable.id, value: conditions.variable.value })
+  }
+  if (conditions.selfSwitch && !detail.live?.selfSwitches[event.id]?.includes(conditions.selfSwitch)) {
+    changes.push({ kind: 'selfSwitch', mapId: detail.mapId, eventId: event.id, letter: conditions.selfSwitch, value: true })
+  }
+  return changes
+}
+
+function targetConditionPage(event: MapEventInfo, detail: MapDetailData, session: SessionState) {
+  const state = eventStateOf(event, detail, session)
+  return event.pages[Math.max(0, state.page > 0 ? state.page - 1 : event.pages.length - 1)]
+}
+
 /** One map: header with the coordinate teleport, mini map, event table; selecting an event opens its detail in place */
 export function MapDetail({ node, data, slot, session, near }: { node: MapNode; data: CommonEventsData; slot: EventsSlot; session: SessionState; near: boolean }) {
   const t = useT()
+  const confirm = useConfirm()
+  const notify = useNotification()
+  const [undoBusy, setUndoBusy] = useState(false)
+  const [selected, setSelected] = useState<Set<number>>(() => new Set())
+  const [batchLetter, setBatchLetter] = useState<SelfSwitchLetter>('A')
+  const [batchBusy, setBatchBusy] = useState(false)
   const detail = slot.mapDetail?.mapId === node.id ? slot.mapDetail : null
   const isCurrent = slot.live && slot.player?.mapId === node.id
   const selectedEvent = detail && slot.eventId != null ? (detail.events.find((ev) => ev.id === slot.eventId) ?? null) : null
   const tp = useTeleport(node, slot, near)
+
+  const toggleSelected = (eventId: number, checked: boolean) => {
+    setSelected((current) => {
+      const next = new Set(current)
+      if (!checked) next.delete(eventId)
+      else if (next.size < 50) next.add(eventId)
+      else notify.error(t('events.map.batchLimit'))
+      return next
+    })
+  }
+
+  const runBatch = async (items: MapOperationItem[], title: string) => {
+    if (!detail || !slot.onMapChanges || !selected.size) return
+    const accepted = await confirm({
+      title,
+      description: items.map((item) => item.label).join('、'),
+      confirmVariant: 'warn',
+    })
+    if (!accepted) return
+    setBatchBusy(true)
+    try {
+      const reply = (await slot.onMapChanges(items, title)) as {
+        status?: { completed?: number; failed?: number; skipped?: number; items?: Array<{ label: string; state: string; error?: string }> }
+      }
+      const completed = reply.status?.completed ?? items.length
+      const failed = reply.status?.failed ?? 0
+      const skipped = reply.status?.skipped ?? 0
+      const problems = reply.status?.items?.filter((item) => item.state !== 'completed').map((item) => `${item.label}: ${item.error || item.state}`) ?? []
+      const summary = t('events.map.batchSummary', { completed, failed, skipped })
+      if (failed || skipped) notify.error(problems.length ? `${summary} · ${problems.join('；')}` : summary)
+      else notify.success(summary)
+      slot.onReloadMap?.()
+    } catch (error) {
+      notify.error(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBatchBusy(false)
+    }
+  }
+
+  const batchSelfSwitch = (value: boolean) => {
+    if (!detail) return
+    const title = t(value ? 'events.map.batchSelfOn' : 'events.map.batchSelfOff', { ch: batchLetter })
+    const items = detail.events
+      .filter((event) => selected.has(event.id))
+      .map((event) => ({
+        label: `${event.name || `#${event.id}`} (#${event.id})${event.pages.some((page) => page.trigger === 3 && page.conditions.selfSwitch === batchLetter) && value ? ` · ${t('events.map.batchAutorun')}` : ''}`,
+        changes: [{ kind: 'selfSwitch' as const, mapId: node.id, eventId: event.id, letter: batchLetter, value }],
+      }))
+    return runBatch(items, title)
+  }
+
+  const satisfyConditions = () => {
+    if (!detail) return
+    const items = detail.events
+      .filter((event) => selected.has(event.id))
+      .map((event) => ({
+        label: `${event.name || `#${event.id}`} (#${event.id})${targetConditionPage(event, detail, session)?.trigger === 3 ? ` · ${t('events.map.batchAutorun')}` : ''}`,
+        changes: conditionChanges(event, detail, session),
+      }))
+    return runBatch(items, t('events.map.batchSatisfy'))
+  }
+
+  const undo = async () => {
+    if (!slot.onMapUndo || !slot.mapUndo) return
+    setUndoBusy(true)
+    try {
+      let result = await slot.onMapUndo(false)
+      if (result.conflicts?.length) {
+        const force = await confirm({
+          title: t('data.undoConflictTitle'),
+          description: t('data.undoConflictDesc'),
+          confirmLabel: t('data.undoForce'),
+          confirmVariant: 'warn',
+        })
+        if (!force) return
+        result = await slot.onMapUndo(true)
+      }
+      notify.success(t('data.undoDone'))
+    } catch (error) {
+      notify.error(error instanceof Error ? error.message : String(error))
+    } finally {
+      setUndoBusy(false)
+    }
+  }
 
   if (selectedEvent && detail) {
     return <MapEventDetail key={selectedEvent.id} ev={selectedEvent} node={node} detail={detail} data={data} slot={slot} session={session} tp={tp} />
@@ -174,6 +287,17 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
             />
           </p>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          loading={undoBusy}
+          disabled={!slot.mapUndo || !slot.onMapUndo}
+          aria-label={slot.mapUndo ? t('data.undoTip', { summary: slot.mapUndo.summary }) : t('data.undoEmpty')}
+          tooltip={slot.mapUndo ? t('data.undoTip', { summary: slot.mapUndo.summary }) : t('data.undoEmpty')}
+          onClick={() => void undo()}
+        >
+          <IoArrowUndoOutline size={16} aria-hidden />
+        </Button>
         <MapTeleportField
           x={tp.target.x}
           y={tp.target.y}
@@ -205,8 +329,37 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
         {!detail ? null : !detail.events.length ? (
           <EmptyState title={t('events.map.emptyMap')} />
         ) : (
-          <div className="text-[0.8125rem]" style={{ minWidth: '24rem' }} role="table" aria-label={t('events.map.events')}>
+          <div className="text-[0.8125rem]" style={{ minWidth: '28rem' }} role="table" aria-label={t('events.map.events')}>
+            {selected.size ? (
+              <div className="sticky top-0 z-[3] flex h-10 items-center gap-2 border-b border-line bg-panel-2 px-2">
+                <span className="mr-auto text-xs text-ink-soft">{t('events.map.batchSelected', { count: selected.size })}</span>
+                <Select
+                  className="w-16"
+                  value={batchLetter}
+                  options={(['A', 'B', 'C', 'D'] as const).map((letter) => ({ value: letter, label: letter }))}
+                  onChange={(letter) => setBatchLetter(letter as SelfSwitchLetter)}
+                  aria-label={t('data.selfSwitchLetter')}
+                />
+                <Button size="mini" loading={batchBusy} disabled={!slot.onMapChanges} onClick={() => void batchSelfSwitch(true)}>
+                  {t('events.stateOn')}
+                </Button>
+                <Button size="mini" loading={batchBusy} disabled={!slot.onMapChanges} onClick={() => void batchSelfSwitch(false)}>
+                  {t('events.stateOff')}
+                </Button>
+                <Button size="mini" loading={batchBusy} disabled={!slot.onMapChanges} onClick={() => void satisfyConditions()}>
+                  {t('events.map.batchSatisfyShort')}
+                </Button>
+              </div>
+            ) : null}
             <div className="sticky top-0 z-[2] grid h-9 items-center border-b border-line bg-paper-2" style={tableCols} role="row">
+              <div className={editHeadCell} role="columnheader">
+                <input
+                  type="checkbox"
+                  checked={selected.size > 0 && selected.size === Math.min(50, detail.events.length)}
+                  aria-label={t('events.map.batchSelected', { count: selected.size })}
+                  onChange={(event) => setSelected(event.target.checked ? new Set(detail.events.slice(0, 50).map((item) => item.id)) : new Set())}
+                />
+              </div>
               <div className={editHeadCell} role="columnheader">
                 {t('events.map.colName')}
               </div>
@@ -229,6 +382,9 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
                   style={tableCols}
                   role="row"
                 >
+                  <div className={editCell} role="cell">
+                    <input type="checkbox" checked={selected.has(ev.id)} aria-label={name} onChange={(event) => toggleSelected(ev.id, event.target.checked)} />
+                  </div>
                   <div className={cn(editCell, 'min-w-0')} role="cell">
                     <button
                       type="button"

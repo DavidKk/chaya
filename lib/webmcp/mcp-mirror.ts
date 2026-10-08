@@ -56,7 +56,7 @@ export function mirrorToolDefinition(tool: McpListedTool, call: (name: string, a
   }
 }
 
-/** Wrap a plain tool function (Edge, edit tools): value → `{ ok, result }`, thrown error → `tool_error`. */
+/** Wrap a plain tool function (Remote, edit tools): value → `{ ok, result }`, thrown error → `tool_error`. */
 export function functionToolDefinition(
   meta: { name: string; description: string; inputSchema: Record<string, unknown>; readOnly?: boolean },
   run: (args: Record<string, unknown>, ctx: { signal: AbortSignal }) => Promise<unknown>

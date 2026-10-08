@@ -207,7 +207,7 @@
 
 ## 5. 安全
 
-这是一条新的任意字段写入通道，而 Edge 的 DataChannel 信令无鉴权（见 [capabilities.md](./capabilities.md)）。以下限制在游戏侧强制执行，网页端的校验只作体验：
+这是一条新的任意字段写入通道，而 Cloud 的 DataChannel 信令无鉴权（见 [capabilities.md](./capabilities.md)）。以下限制在游戏侧强制执行，网页端的校验只作体验：
 
 - 路径只能从 §3 的根字段出发；任一段为 `__proto__`、`constructor`、`prototype` 时拒绝，新增字段的键名同样禁止这些保留名。
 - 只读写对象自身的普通数据属性：不写 getter / setter（`config` 白名单除外）、不写原型链上的属性。
@@ -217,7 +217,7 @@
 
 ## 6. 可用条件与 Agent
 
-- 需要游戏在线：local / edge 网页经 link 访问，局内浮层直接访问；不提供离线读存档文件。
+- 需要游戏在线：local / cloud 网页经 link 访问，局内浮层直接访问；不提供离线读存档文件。
 - 必须在读档或开始新游戏之后（`$gameParty` 存在）。
 - **Agent 不开放**。按 [capabilities.md](./capabilities.md) 第 4 条，Agent 只能调「修改」页的预设能力，不能任意改内部对象；这一页本质是任意字段读写，不进 MCP 工具，也不进 WebMCP 页面工具。
 

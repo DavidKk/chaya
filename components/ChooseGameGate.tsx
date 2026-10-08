@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 
 type Props = {
   busy?: boolean
+  disabledReason?: string
   onChoose: () => void
   className?: string
   /** false 时走云端 Chrome FSA 准备本地游戏 */
@@ -32,7 +33,7 @@ const riseKeyframes = `
 `
 
 /** 未选中游戏时的居中入口：标题 + 说明 + 按钮 */
-export function ChooseGameGate({ busy = false, onChoose, className, canUseDisk = true, chooseIntent = 'pick' }: Props) {
+export function ChooseGameGate({ busy = false, disabledReason, onChoose, className, canUseDisk = true, chooseIntent = 'pick' }: Props) {
   const t = useT()
   const toLibrary = chooseIntent === 'library'
   const Icon = toLibrary ? IoLibraryOutline : IoFolderOpenOutline
@@ -54,9 +55,10 @@ export function ChooseGameGate({ busy = false, onChoose, className, canUseDisk =
           </p>
         </>
       )}
-      <GateButton icon={<Icon size={18} />} loading={busy} onClick={onChoose}>
+      <GateButton icon={<Icon size={18} />} loading={busy} disabled={!!disabledReason} onClick={onChoose}>
         {t('common.chooseGame')}
       </GateButton>
+      {disabledReason ? <p className="m-0 max-w-[28rem] text-xs leading-[1.45] text-warn">{disabledReason}</p> : null}
       <LaunchHelp />
     </div>
   )

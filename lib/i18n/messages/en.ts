@@ -81,6 +81,9 @@ const commonEn = {
     pickLine1: 'Open a local RPG Maker game',
     pickLine2Disk: 'www folder or NW.js package (.app / Game.exe)',
     pickLine2Cloud: 'Folder with www or index.html',
+    directoryInsecure: 'Local folders require HTTPS or localhost. Change the address, or use the Chaya App or local service.',
+    directoryUnsupported: 'This browser cannot access local folders. Use desktop Chrome or Microsoft Edge, or use the Chaya App or local service.',
+    directoryBlocked: 'This page is not allowed to access local folders. Open Chaya directly in a separate tab.',
   },
   layout: { description: 'Local RPG Maker translation toolkit' },
   launchHelp: {

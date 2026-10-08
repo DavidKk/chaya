@@ -1,5 +1,6 @@
 import type { RunActionId, RunFlagKey } from '@/components/game-edit/types'
 import type { ToolPanelId } from '@/components/game-tools/tool-panels'
+import { editHotkeySnapshot, emptyHotkeySnapshot, type HotkeySyncSnapshot, loadStoredHotkeySnapshot, saveStoredHotkeySnapshot } from '@/lib/game/hotkeys-sync'
 import type { MessageKey } from '@/lib/i18n'
 
 export type HotkeyKind = 'flag' | 'action' | 'ui' | 'save'
@@ -80,6 +81,7 @@ export function displayKeyChord(chord: string): string {
 }
 
 export type HotkeyMap = Record<string, string>
+export const HOTKEY_SYNC_CHANGED_EVENT = 'chaya:hotkeys-sync-changed'
 
 /** 读取单表中的唤出键；空或未设时回到 ` */
 export function resolveOpenPanelChord(map?: HotkeyMap | null): string {
@@ -333,9 +335,39 @@ export function emptyGameHotkeys(): HotkeyMap {
   return {}
 }
 
-const LEGACY_STORAGE_KEY = 'chaya.gameEdit.hotkeys'
-const GLOBAL_STORAGE_KEY = 'chaya.gameEdit.hotkeys.global'
-const GAME_STORAGE_KEY = 'chaya.gameEdit.hotkeys.game'
+const GLOBAL_ONLY_GAME_ID = '__global__'
+const HOTKEY_TARGET_IDS = new Set(RUN_HOTKEY_TARGETS.map((target) => target.id))
+
+function activeStoredGameId(gameId?: string | null): string {
+  if (gameId) return gameId
+  if (typeof window === 'undefined') return GLOBAL_ONLY_GAME_ID
+  try {
+    const runtimeId = String((window as Window & { CHAYA_GAME_ID?: string }).CHAYA_GAME_ID || '').trim()
+    return runtimeId || window.localStorage.getItem('chaya.browserActiveGame') || GLOBAL_ONLY_GAME_ID
+  } catch {
+    return GLOBAL_ONLY_GAME_ID
+  }
+}
+
+function validHotkeyTarget(id: string): boolean {
+  return HOTKEY_TARGET_IDS.has(id)
+}
+
+export function loadHotkeySyncSnapshot(gameId: string): HotkeySyncSnapshot {
+  if (typeof window === 'undefined') return emptyHotkeySnapshot(gameId)
+  return loadStoredHotkeySnapshot(window.localStorage, gameId, validHotkeyTarget, canDisableHotkey)
+}
+
+export function saveHotkeySyncSnapshot(snapshot: HotkeySyncSnapshot, options?: { notify?: boolean }): void {
+  if (typeof window === 'undefined') return
+  try {
+    saveStoredHotkeySnapshot(window.localStorage, snapshot)
+    disabledHotkeysCache = new Set(snapshot.global.disabled)
+    if (options?.notify !== false) window.dispatchEvent(new CustomEvent(HOTKEY_SYNC_CHANGED_EVENT, { detail: snapshot }))
+  } catch {
+    /* ignore quota */
+  }
+}
 
 /** 局内运行时本游戏覆盖缓存（供唤出键在 React 外读取） */
 let gameHotkeysCache: HotkeyMap = {}
@@ -346,17 +378,6 @@ export function setGameHotkeysCache(map: HotkeyMap | null | undefined) {
 
 export function getGameHotkeysCache(): HotkeyMap {
   return gameHotkeysCache
-}
-
-function parseHotkeyMapRaw(raw: string | null): Record<string, unknown> | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
-    return parsed as Record<string, unknown>
-  } catch {
-    return null
-  }
 }
 
 /** 全局表：只保留非空绑定；面板/控制台未设时运行时再回落系统默认 */
@@ -382,59 +403,26 @@ export function normalizeGameHotkeyMap(raw: Record<string, unknown>): HotkeyMap 
 
 export function loadGlobalHotkeys(): HotkeyMap {
   if (typeof window === 'undefined') return emptyHotkeys()
-  try {
-    let raw = window.localStorage.getItem(GLOBAL_STORAGE_KEY)
-    if (!raw) {
-      const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY)
-      if (legacy) {
-        raw = legacy
-        try {
-          window.localStorage.setItem(GLOBAL_STORAGE_KEY, legacy)
-        } catch {
-          /* */
-        }
-      }
-    }
-    const parsed = parseHotkeyMapRaw(raw)
-    if (!parsed) return emptyHotkeys()
-    return normalizeGlobalHotkeyMap(parsed)
-  } catch {
-    return emptyHotkeys()
-  }
+  return loadHotkeySyncSnapshot(activeStoredGameId()).global.bindings
 }
 
 export function saveGlobalHotkeys(map: HotkeyMap) {
   if (typeof window === 'undefined') return
-  try {
-    const normalized = normalizeGlobalHotkeyMap(map as unknown as Record<string, unknown>)
-    window.localStorage.setItem(GLOBAL_STORAGE_KEY, JSON.stringify(normalized))
-  } catch {
-    /* ignore quota */
-  }
+  const snapshot = loadHotkeySyncSnapshot(activeStoredGameId())
+  saveHotkeySyncSnapshot(editHotkeySnapshot(snapshot, 'global', { bindings: normalizeGlobalHotkeyMap(map as unknown as Record<string, unknown>) }))
 }
 
-/** Web 侧本游戏覆盖（单槽；局内以游戏盘为准） */
-export function loadGameStoredHotkeys(): HotkeyMap {
+/** Web-side per-game override. */
+export function loadGameStoredHotkeys(gameId?: string | null): HotkeyMap {
   if (typeof window === 'undefined') return emptyGameHotkeys()
-  try {
-    const parsed = parseHotkeyMapRaw(window.localStorage.getItem(GAME_STORAGE_KEY))
-    if (!parsed) return emptyGameHotkeys()
-    return normalizeGameHotkeyMap(parsed)
-  } catch {
-    return emptyGameHotkeys()
-  }
+  return loadHotkeySyncSnapshot(activeStoredGameId(gameId)).game.bindings ?? emptyGameHotkeys()
 }
 
-export function saveGameStoredHotkeys(map: HotkeyMap) {
+export function saveGameStoredHotkeys(map: HotkeyMap, gameId?: string | null) {
   if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(normalizeGameHotkeyMap(map as unknown as Record<string, unknown>)))
-  } catch {
-    /* ignore quota */
-  }
+  const snapshot = loadHotkeySyncSnapshot(activeStoredGameId(gameId))
+  saveHotkeySyncSnapshot(editHotkeySnapshot(snapshot, 'game', { bindings: normalizeGameHotkeyMap(map as unknown as Record<string, unknown>) }))
 }
-
-const DISABLED_STORAGE_KEY = 'chaya.gameEdit.hotkeys.disabled'
 
 let disabledHotkeysCache: ReadonlySet<string> | null = null
 
@@ -447,14 +435,7 @@ export function canDisableHotkey(id: string): boolean {
 export function loadDisabledHotkeys(): ReadonlySet<string> {
   if (disabledHotkeysCache) return disabledHotkeysCache
   if (typeof window === 'undefined') return new Set()
-  let ids: string[] = []
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(DISABLED_STORAGE_KEY) || '[]') as unknown
-    if (Array.isArray(parsed)) ids = parsed.filter((v): v is string => typeof v === 'string' && canDisableHotkey(v))
-  } catch {
-    /* */
-  }
-  disabledHotkeysCache = new Set(ids)
+  disabledHotkeysCache = new Set(loadHotkeySyncSnapshot(activeStoredGameId()).global.disabled)
   return disabledHotkeysCache
 }
 
@@ -462,25 +443,12 @@ export function saveDisabledHotkeys(ids: Iterable<string>) {
   const next = new Set([...ids].filter(canDisableHotkey))
   disabledHotkeysCache = next
   if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(DISABLED_STORAGE_KEY, JSON.stringify([...next]))
-  } catch {
-    /* ignore quota */
-  }
+  const snapshot = loadHotkeySyncSnapshot(activeStoredGameId())
+  saveHotkeySyncSnapshot(editHotkeySnapshot(snapshot, 'global', { disabled: [...next] }))
 }
 
 export function isHotkeyDisabled(id: string): boolean {
   return loadDisabledHotkeys().has(id)
-}
-
-/** @deprecated 用 loadGlobalHotkeys；保留别名兼容旧调用 */
-export function loadStoredHotkeys(): HotkeyMap {
-  return loadGlobalHotkeys()
-}
-
-/** @deprecated 用 saveGlobalHotkeys */
-export function saveStoredHotkeys(map: HotkeyMap) {
-  saveGlobalHotkeys(map)
 }
 
 /** 局内 Agent 面板开关，固定不可改（见 agent-ui/hotkeys） */

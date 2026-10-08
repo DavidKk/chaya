@@ -4,13 +4,13 @@
  * | lane\os | osx                    | windows                      | linux                      |
  * |---------|------------------------|------------------------------|----------------------------|
  * | local   | ./osx OsxHostShell     | ./windows WindowsHostShell   | ./linux LinuxHostShell     |
- * | edge    | ./edge EdgeHostShell（全 OS） | 同左                     | 同左                       |
+ * | remote | ./remote RemoteHostShell（全 OS） | 同左                     | 同左                       |
  */
 import { getPlatformContext, type HostOs } from '@/lib/platform'
 
-import { EdgeHostShell } from './edge'
 import { LinuxHostShell } from './linux'
 import { OsxHostShell } from './osx'
+import { RemoteHostShell } from './remote'
 import type { HostShellCapability } from './types'
 import { WindowsHostShell } from './windows'
 
@@ -22,11 +22,11 @@ const localByOs: Record<HostOs, HostShellCapability> = {
   linux: new LinuxHostShell(),
 }
 
-const edgeImpl: HostShellCapability = new EdgeHostShell()
+const remoteImpl: HostShellCapability = new RemoteHostShell()
 
 export function resolveHostShell(): HostShellCapability {
   const { os, lane } = getPlatformContext()
-  if (lane === 'edge') return edgeImpl
+  if (lane === 'remote') return remoteImpl
   return localByOs[os]
 }
 

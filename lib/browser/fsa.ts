@@ -1,4 +1,4 @@
-/** 浏览器 File System Access：仅 Chromium（Chrome / Edge）+ 安全上下文 */
+/** 浏览器 File System Access：按实际能力检测，不依赖 UA。 */
 
 import { detectUnsupportedEngine, type UnsupportedEngine, UnsupportedEngineError } from '@/lib/game/unsupported-engine'
 
@@ -7,52 +7,45 @@ type DirectoryPickerWindow = Window &
     showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite'; id?: string }) => Promise<FileSystemDirectoryHandle>
   }
 
-export function supportsDirectoryPicker(): boolean {
-  if (typeof window === 'undefined') return false
-  return typeof (window as DirectoryPickerWindow).showDirectoryPicker === 'function'
+export type DirectoryCapability = { state: 'available' } | { state: 'insecure' } | { state: 'unsupported' } | { state: 'blocked'; reason: string }
+
+export function detectDirectoryCapability(input: { secure: boolean; hasPicker: boolean }): DirectoryCapability {
+  if (!input.secure) return { state: 'insecure' }
+  if (!input.hasPicker) return { state: 'unsupported' }
+  return { state: 'available' }
 }
 
-export function isLikelyChromium(): boolean {
-  if (typeof navigator === 'undefined') return false
-  const ua = navigator.userAgent
-  // Chrome / Edge / Opera / Chromium；排除旧 EdgeHTML
-  return (/Chrome|Chromium|Edg\//.test(ua) || /OPR\//.test(ua)) && !/EdgA|EdgiOS/.test(ua)
+export function getDirectoryCapability(): DirectoryCapability {
+  if (typeof window === 'undefined') return { state: 'unsupported' }
+  return detectDirectoryCapability({
+    secure: window.isSecureContext,
+    hasPicker: typeof (window as DirectoryPickerWindow).showDirectoryPicker === 'function',
+  })
 }
 
-/** `http://192.168.x.x` 等局域网明文不是安全上下文，FSA 不可用 */
-export function isSecureContextForFsa(): boolean {
-  if (typeof window === 'undefined') return false
-  if (window.isSecureContext) return true
-  const host = window.location.hostname
-  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]'
-}
+export class DirectoryAccessBlockedError extends Error {
+  readonly capability: DirectoryCapability = { state: 'blocked', reason: '当前页面环境禁止访问本地目录，请在独立标签页直接打开 Chaya' }
 
-export type FsaSupportReason = 'not-chromium' | 'insecure-origin' | 'no-picker'
-
-export type FsaSupport = {
-  ok: boolean
-  reason?: FsaSupportReason
-}
-
-export function getFsaSupport(): FsaSupport {
-  // 先判安全上下文：局域网 http://192.168.x.x 在 Chrome 下也会关掉 FSA
-  if (typeof window !== 'undefined' && !isSecureContextForFsa()) {
-    return { ok: false, reason: 'insecure-origin' }
+  constructor() {
+    super('当前页面环境禁止访问本地目录，请在独立标签页直接打开 Chaya')
+    this.name = 'DirectoryAccessBlockedError'
   }
-  if (!isLikelyChromium()) return { ok: false, reason: 'not-chromium' }
-  if (!supportsDirectoryPicker()) return { ok: false, reason: 'no-picker' }
-  return { ok: true }
 }
 
 export async function pickDirectory(opts?: { mode?: 'read' | 'readwrite'; id?: string }): Promise<FileSystemDirectoryHandle> {
   const w = window as DirectoryPickerWindow
   if (typeof w.showDirectoryPicker !== 'function') {
-    throw new Error('当前环境无法选择本地文件夹（需 Chrome / Edge，且用 https 或 127.0.0.1 打开）')
+    throw new Error('当前环境无法选择本地文件夹（需 Chrome / Microsoft Edge，且用 https 或 127.0.0.1 打开）')
   }
-  return w.showDirectoryPicker({
-    mode: opts?.mode ?? 'readwrite',
-    id: opts?.id,
-  })
+  try {
+    return await w.showDirectoryPicker({
+      mode: opts?.mode ?? 'readwrite',
+      id: opts?.id,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'SecurityError') throw new DirectoryAccessBlockedError()
+    throw error
+  }
 }
 
 export async function getDir(parent: FileSystemDirectoryHandle, name: string, create = false): Promise<FileSystemDirectoryHandle> {
