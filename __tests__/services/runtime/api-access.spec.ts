@@ -84,4 +84,29 @@ describe('API authorization', () => {
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'job', action: 'start' }) }))).toBe(false)
     expect(await mayAccessApi(request('/api/logs', { method: 'DELETE', headers }))).toBe(false)
   })
+
+  it('lets a launched game reach only its own Chaya-local saves', async () => {
+    const library = issueLaunchToken({ gameRoot: '/games/A', libraryId: 'room-A' })
+    const loose = issueLaunchToken({ gameRoot: '/games/B/www', libraryId: '' })
+    const store = (token: string, body: unknown, method = 'POST') =>
+      mayAccessApi(
+        request('/api/game-saves/store', {
+          method,
+          headers: { 'X-Chaya-Launch-Token': token, 'Content-Type': 'application/json', Origin: 'null', 'Sec-Fetch-Site': 'cross-site' },
+          body: JSON.stringify(body),
+        })
+      )
+    expect(await store(library.token, { gameId: 'room-A', op: 'readIndex' })).toBe(true)
+    expect(await store(library.token, { gameId: 'room-B', op: 'readIndex' })).toBe(false)
+    expect(await store(library.token, { gameId: 'path:/games/B', op: 'readIndex' })).toBe(false)
+    expect(await store(library.token, { op: 'readIndex' })).toBe(false)
+    expect(await store(library.token, { gameId: 'room-A' }, 'PUT')).toBe(false)
+    expect(await store(loose.token, { gameId: 'path:/games/B', op: 'readIndex' })).toBe(true)
+    expect(await store(loose.token, { gameId: 'path:/games/B/www/sub', op: 'readIndex' })).toBe(true)
+    expect(await store(loose.token, { gameId: loose.token, op: 'readIndex' })).toBe(true)
+    expect(await store(loose.token, { gameId: 'path:/games', op: 'readIndex' })).toBe(false)
+    expect(await store(loose.token, { gameId: 'path:/games/A', op: 'readIndex' })).toBe(false)
+    expect(await store(loose.token, { gameId: 'path:/games/B/../A', op: 'readIndex' })).toBe(false)
+    expect(await store(loose.token, { gameId: 'room-A', op: 'readIndex' })).toBe(false)
+  })
 })

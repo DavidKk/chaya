@@ -4,7 +4,7 @@
  */
 import type { ActorVitalKey, BattleActorState } from '@/lib/game/battle'
 
-import { writeMaxParam } from './battle-param'
+import { paramCap, writeMaxParam } from './battle-param'
 import { assertBattleEditable, settleBattleEnd } from './live-battle'
 
 type Actor = {
@@ -28,11 +28,21 @@ type Actor = {
   paramPlus?: (paramId: number) => number
   addParam?: (paramId: number, value: number) => void
   param?: (paramId: number) => number
+  paramMax?: (paramId: number) => number
 }
+
+/** MV `Game_Actor.paramMax` for max HP / MP, for games whose actors lack `paramMax` */
+const ACTOR_VITAL_CAP = 9999
 
 const g = () =>
   globalThis as unknown as {
-    $gameParty?: { battleMembers?: () => Actor[]; members?: () => Actor[]; maxBattleMembers?: () => number; addActor?: (actorId: number) => void }
+    $gameParty?: {
+      battleMembers?: () => Actor[]
+      members?: () => Actor[]
+      maxBattleMembers?: () => number
+      addActor?: (actorId: number) => void
+      removeActor?: (actorId: number) => void
+    }
     $dataActors?: (object | null)[]
     BattleManager?: { refreshStatus?: () => void }
   }
@@ -48,6 +58,8 @@ export function readParty(): BattleActorState[] {
     mhp: whole(actor.mhp),
     mp: whole(actor.mp),
     mmp: whole(actor.mmp),
+    mhpCap: paramCap(actor, 0, ACTOR_VITAL_CAP),
+    mmpCap: paramCap(actor, 1, ACTOR_VITAL_CAP),
     tp: whole(actor.tp ?? 0),
     maxTp: whole(actor.maxTp?.() ?? 100),
     alive: actor.isAlive(),
@@ -70,6 +82,11 @@ export function joinActor({ actorId }: { actorId: number }): void {
   if (partyIds.includes(actorId)) throw new Error('该角色已在队伍中')
   if (party.battleMembers().length >= partyMax) throw new Error(`出战人数已满（${partyMax}）`)
   party.addActor(actorId)
+  // Hidden members (some plugins) still take battle slots, so the actor may have landed in reserve
+  if (!party.battleMembers().some((a) => a.actorId() === actorId)) {
+    party.removeActor?.(actorId)
+    throw new Error('出战位已被占满（可能有隐藏成员），无法加入')
+  }
   refreshStatus()
 }
 
@@ -99,9 +116,11 @@ export function writeActorVital({ actorId, key, value }: { actorId: number; key:
   else if (key === 'tp') {
     if (typeof actor.setTp !== 'function') throw new Error('游戏未就绪')
     actor.setTp(Math.max(0, Math.min(n, actor.maxTp?.() ?? 100)))
-  } else {
+  } else if (key === 'hp') {
     actor.setHp(Math.max(0, Math.min(n, actor.mhp)))
     if (actor.isDead?.()) actor.performCollapse?.()
+  } else {
+    throw new Error(`未知属性：${String(key)}`)
   }
   refreshStatus()
   if (key === 'hp' && actor.isDead?.()) settleBattleEnd()

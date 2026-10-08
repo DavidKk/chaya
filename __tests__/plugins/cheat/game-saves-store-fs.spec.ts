@@ -59,6 +59,19 @@ it('treats a missing index as empty but keeps a copy of a corrupt one', async ()
   expect(fs.readdirSync(path.dirname(path.join(root, indexDir))).some((f) => f.startsWith('index.json.corrupt-'))).toBe(true)
 })
 
+it('treats only a missing file as already removed', async () => {
+  const backend = createGameSavesBackend('room')
+  await backend.writeEntry('auto', 'auto-1', await gzipText('x'), null)
+  const content = fs
+    .readdirSync(root, { recursive: true })
+    .map((f) => path.join(root, String(f)))
+    .find((f) => f.endsWith('auto-1.rpgsave.gz'))!
+  await expect(backend.removeEntry('auto', 'auto-2')).resolves.toBeUndefined()
+  fs.rmSync(content)
+  fs.mkdirSync(content)
+  await expect(backend.removeEntry('auto', 'auto-1')).rejects.toThrow()
+})
+
 it('cleans up leftover temp files when listing', async () => {
   const backend = createGameSavesBackend('room')
   await backend.writeEntry('quick', 'quick-1', await gzipText('x'), null)

@@ -259,6 +259,8 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
     if (!drag || drag.pointerId !== event.pointerId) return
     gesture.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    // 调整大小的把手可聚焦且吃方向键；拖完必须交还焦点，Shadow DOM 里无法用 document.activeElement 判断
+    event.currentTarget.blur()
     if (frameRef.current) saveFrame(frameRef.current, drag.kind === 'move')
   }
 
@@ -345,7 +347,7 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
                   className={cn('absolute z-10 touch-none focus-visible:outline-2 focus-visible:outline-accent', handleClass)}
                   role="separator"
                   tabIndex={0}
-                  aria-label={`${title}: resize ${edge}`}
+                  aria-label={t(`panels.resize.${edge}`, { title })}
                   onPointerDown={(event) => begin(event, edge)}
                   onPointerMove={move}
                   onPointerUp={end}

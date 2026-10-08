@@ -10,7 +10,7 @@ import type { StartTurnInput } from './types'
 export type ManagedState = {
   scene?: string | null
   map?: { id?: number; name?: string | null; displayName?: string | null } | null
-  battle?: { instanceId?: string | null } | null
+  battle?: { instanceId?: string | null; phase?: string | null } | null
   reactionAvailable?: boolean
   qte?: { id: string; key: AgentInputKey; expiresAt: number } | null
   lastReaction?: { id: string; latencyMs: number | null } | null

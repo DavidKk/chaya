@@ -58,20 +58,30 @@ export function IconAction({
   )
 }
 
-/** Sends one op at a time with a success / failure toast; `busy` is the key of the running one */
+/** Keys of the ops still running; a slider commit can overlap an icon action */
+export type BattleBusy = ReadonlySet<string>
+
+/** Sends ops with a success / failure toast; `busy` holds the keys of the running ones */
 export function useBattleRun(slot: EventsSlot) {
   const t = useT()
   const notify = useNotification()
-  const [busy, setBusy] = useState<string | null>(null)
+  const counts = useRef(new Map<string, number>())
+  const [busy, setBusy] = useState<BattleBusy>(() => new Set())
+  const track = (key: string, delta: 1 | -1) => {
+    const n = (counts.current.get(key) ?? 0) + delta
+    if (n > 0) counts.current.set(key, n)
+    else counts.current.delete(key)
+    setBusy(new Set(counts.current.keys()))
+  }
   async function run(key: string, op: EventsOp, ok: string) {
-    setBusy(key)
+    track(key, 1)
     try {
       await slot.onAct(op)
       notify.success(ok)
     } catch (err) {
       notify.error(t('events.troop.battleFail', { error: err instanceof Error ? err.message : String(err) }))
     } finally {
-      setBusy(null)
+      track(key, -1)
     }
   }
   return { busy, run }

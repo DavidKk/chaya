@@ -129,7 +129,17 @@ export function parseGameSavesIndex(raw: unknown): GameSavesIndex {
     seen.add(entry.id)
     entries.push(entry)
   }
-  return { version: 1, revision: typeof src.revision === 'number' && src.revision >= 0 ? Math.floor(src.revision) : 0, entries }
+  const removing = Array.isArray(src.removing) ? [...new Set(src.removing.filter((id) => isGameSaveEntryId(id) && !seen.has(id)))] : []
+  return {
+    version: 1,
+    revision: typeof src.revision === 'number' && src.revision >= 0 ? Math.floor(src.revision) : 0,
+    entries,
+    ...(removing.length ? { removing } : {}),
+  }
+}
+
+export function entryListOf(id: string): GameSaveList {
+  return id.startsWith('quick-') ? 'quick' : 'auto'
 }
 
 export function autoEntries(index: GameSavesIndex): GameSaveEntry[] {

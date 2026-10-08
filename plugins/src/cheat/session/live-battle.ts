@@ -5,8 +5,11 @@
 import { type BattleState, ENEMY_SIZE_GUESS, type EnemyRect, MAX_BATTLE_ENEMIES, pickEnemySpot, pickEnemySpots } from '@/lib/game/battle'
 
 import { Cheats } from '../runtime/cheats'
-import { writeMaxParam } from './battle-param'
+import { paramCap, writeMaxParam } from './battle-param'
+import { battleScene, closeBattleInputWindows, refreshEnemyWindow } from './battle-windows'
 import { readParty, readPartyRoster } from './live-party'
+
+export { battleScene }
 
 type Bitmap = { width: number; height: number; isReady?: () => boolean }
 type Enemy = {
@@ -29,10 +32,13 @@ type Enemy = {
   paramPlus?: (paramId: number) => number
   addParam?: (paramId: number, value: number) => void
   param?: (paramId: number) => number
+  paramMax?: (paramId: number) => number
   performCollapse?: () => void
   onBattleStart?: (advantageous?: boolean) => void
   _screenX?: number
   _screenY?: number
+  _letter?: string
+  _plural?: boolean
 }
 type EnemySprite = { _battler?: Enemy | null; bitmap?: Bitmap | null; setHome?: (x: number, y: number) => void }
 type Container = { children?: unknown[]; addChild: (child: unknown) => void; removeChild: (child: unknown) => void }
@@ -45,21 +51,11 @@ type Troop = {
   isAllDead?: () => boolean
   isEventRunning?: () => boolean
 }
-type InputWindow = { active?: boolean; deactivate?: () => void; hide?: () => void }
+type SpritesetScene = { _spriteset?: Spriteset }
 
 const g = () =>
   globalThis as unknown as {
-    SceneManager?: {
-      _scene?: {
-        _spriteset?: Spriteset
-        _enemyWindow?: InputWindow & { refresh?: () => void }
-        _actorWindow?: InputWindow
-        _skillWindow?: InputWindow
-        _itemWindow?: InputWindow
-      } | null
-      _nextScene?: unknown
-    }
-    Scene_Battle?: new () => unknown
+    SceneManager?: { _nextScene?: unknown }
     BattleManager?: { _phase?: string; processVictory?: () => void; processDefeat?: () => void }
     $gameParty?: { isAllDead?: () => boolean }
     $gameTroop?: Troop
@@ -70,12 +66,8 @@ const g = () =>
   }
 
 const UNSUPPORTED = '该游戏的战斗画面不支持追加敌人'
-
-export function battleScene() {
-  const { SceneManager, Scene_Battle } = g()
-  const scene = SceneManager?._scene
-  return scene && Scene_Battle && scene instanceof Scene_Battle ? scene : null
-}
+/** MV `Game_Enemy.paramMax(0)`, for games whose enemies lack `paramMax` */
+const ENEMY_MHP_CAP = 999999
 
 const ENDING_PHASES = new Set(['battleEnd', 'aborting'])
 
@@ -100,6 +92,7 @@ export function readBattleState(): BattleState | null {
       name: String(enemy.name() ?? ''),
       hp: Math.max(0, Math.floor(enemy.hp)),
       mhp: Math.max(0, Math.floor(enemy.mhp)),
+      mhpCap: paramCap(enemy, 0, ENEMY_MHP_CAP),
       alive: enemy.isAlive() || enemy.isHidden(),
       appeared: !enemy.isHidden(),
     }))
@@ -122,23 +115,28 @@ export function assertBattleEditable(enemyId?: number) {
  * would leave the command menu up. Settle it the way `checkBattleEnd` would.
  * `force` (the 结算胜负 button) runs in any live phase and does not wait for troop events.
  * Without `force`, invincibility suppresses defeat: it restores the party on its next tick.
- * Returns whether the battle was ended; outside battle it does nothing.
+ * Defeat is checked before victory, like the engine. Returns whether the battle was ended; outside battle it does nothing.
  */
 export function settleBattleEnd({ force = false }: { force?: boolean } = {}): boolean {
-  const { BattleManager: bm, $gameTroop: troop, $gameParty: party } = g()
-  if (!bm || !battleScene()) return false
-  if (force ? !bm._phase || ENDING_PHASES.has(bm._phase) : bm._phase !== 'input' || troop?.isEventRunning?.()) return false
-  const defeated = party?.isAllDead?.() && (force || !Cheats.getGod())
-  const result = troop?.isAllDead?.() ? bm.processVictory : defeated ? bm.processDefeat : undefined
-  if (typeof result !== 'function') return false
-  const scene = battleScene()
-  for (const w of [scene?._enemyWindow, scene?._actorWindow, scene?._skillWindow, scene?._itemWindow]) {
-    if (!w?.active) continue
-    w.deactivate?.()
-    w.hide?.()
-  }
-  result.call(bm)
+  const result = pendingSettlement(force)
+  if (!result) return false
+  closeBattleInputWindows()
+  result.call(g().BattleManager)
   return true
+}
+
+/** Whether `settleBattleEnd` would end the battle now */
+export function canSettleBattleEnd({ force = false }: { force?: boolean } = {}): boolean {
+  return !!pendingSettlement(force)
+}
+
+function pendingSettlement(force: boolean): (() => void) | undefined {
+  const { BattleManager: bm, $gameTroop: troop, $gameParty: party } = g()
+  if (!bm || !battleScene()) return undefined
+  if (force ? !bm._phase || ENDING_PHASES.has(bm._phase) : bm._phase !== 'input' || troop?.isEventRunning?.()) return undefined
+  const defeated = party?.isAllDead?.() && (force || !Cheats.getGod())
+  const result = defeated ? bm.processDefeat : troop?.isAllDead?.() ? bm.processVictory : undefined
+  return typeof result === 'function' ? result : undefined
 }
 
 /** The enemy at `index`, still the one the page saw, appeared and alive */
@@ -158,6 +156,7 @@ export function writeEnemyHp({ index, fromEnemyId, hp }: { index: number; fromEn
   if (!Number.isFinite(hp)) throw new Error('HP 无效')
   const next = Math.max(0, Math.min(Math.floor(hp), enemy.mhp))
   enemy.setHp(next)
+  refreshEnemyWindow()
   if (next === 0 && (enemy.isDead?.() ?? true)) {
     enemy.performCollapse?.()
     settleBattleEnd()
@@ -187,10 +186,7 @@ function shownEnemy(index: number, fromEnemyId: number): Enemy {
 /** Full HP; for a fallen enemy `refresh` lifts the death state and the sprite replays its appear effect */
 function refill(enemy: Enemy, revived: boolean) {
   enemy.setHp!(Math.max(1, enemy.mhp))
-  if (revived) {
-    const targets = battleScene()?._enemyWindow
-    if (targets?.active) targets.refresh?.()
-  }
+  if (revived) refreshEnemyWindow()
 }
 
 export function reviveEnemy({ index, fromEnemyId }: { index: number; fromEnemyId: number }): void {
@@ -215,6 +211,7 @@ export function transformEnemy({ index, fromEnemyId, enemyId }: { index: number;
   enemy.setHp?.(enemy.mhp)
   if (enemy.mmp != null) enemy.setMp?.(enemy.mmp)
   troop.makeUniqueNames?.()
+  refreshEnemyWindow()
 }
 
 function bounds() {
@@ -257,7 +254,7 @@ function settleSpots(added: readonly Enemy[]) {
   const timer = setInterval(() => {
     if (Date.now() - started > SETTLE_TIMEOUT_MS) return clearInterval(timer)
     const troop = g().$gameTroop
-    const spriteset = battleScene()?._spriteset
+    const spriteset = battleScene<SpritesetScene>()?._spriteset
     if (!troop || !spriteset) return
     const members = troop.members()
     if (!added.every((e) => members.includes(e))) return clearInterval(timer)
@@ -326,8 +323,7 @@ export function addEnemy({ enemyId }: { enemyId: number }): void {
   const troop = g().$gameTroop!
   const members = troop.members()
   if (members.filter((e) => e.isAlive() && !e.isHidden()).length >= MAX_BATTLE_ENEMIES) throw new Error('场上敌人已达上限')
-  const scene = battleScene()!
-  const spriteset = scene._spriteset
+  const spriteset = battleScene<SpritesetScene>()!._spriteset
   const field = spriteset?._battleField
   const sprites = spriteset?._enemySprites
   const { Game_Enemy: GameEnemy, Sprite_Enemy: SpriteEnemy } = g()
@@ -340,6 +336,7 @@ export function addEnemy({ enemyId }: { enemyId: number }): void {
   const spot = pickEnemySpot({ existing: shown.map((e) => rectOf(e, spriteOf(spriteset, e))), size, bounds: bounds(), fallbackY: medianY(members) })
 
   const namesCount = { ...(troop._namesCount ?? {}) }
+  const names = members.map((e) => ({ enemy: e, letter: e._letter, plural: e._plural }))
   let enemy: Enemy | null = null
   let sprite: EnemySprite | null = null
   const rollback = () => {
@@ -357,6 +354,10 @@ export function addEnemy({ enemyId }: { enemyId: number }): void {
       if (at >= 0) troop._enemies.splice(at, 1)
     }
     if (troop._namesCount) troop._namesCount = namesCount
+    for (const { enemy: e, letter, plural } of names) {
+      if (letter !== undefined) e._letter = letter
+      if (plural !== undefined) e._plural = plural
+    }
   }
   try {
     enemy = new GameEnemy(enemyId, spot.x, spot.y)
@@ -379,6 +380,6 @@ export function addEnemy({ enemyId }: { enemyId: number }): void {
       throw new Error(UNSUPPORTED)
     }
   }
-  if (scene._enemyWindow?.active) scene._enemyWindow.refresh?.()
+  refreshEnemyWindow()
   settleSpots([enemy])
 }

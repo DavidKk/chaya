@@ -47,6 +47,7 @@ function acquireShared(
     onConnected?: () => void
     onDisconnected?: () => void
     onMessage?: (msg: GameLinkMessage) => void
+    onIdle?: () => void
   },
   autoStart: boolean
 ): WebGameLink {
@@ -70,7 +71,8 @@ function acquireShared(
   const link = new WebGameLink(roomId, handlers)
   shared = { roomId, link, retain: 1, releaseTimer: null }
   if (autoStart) {
-    void link.start().catch(() => {
+    // Background start must not steal a link another tab is using
+    void link.start({ takeover: false }).catch(() => {
       /* */
     })
   }
@@ -115,6 +117,9 @@ export function useGameLink({ roomId, enabled = true, autoStart = false, onMessa
           }
         },
         onMessage: (msg) => onMessageRef.current?.(msg),
+        onIdle: () => {
+          if (!cancelled) setNegotiating(false)
+        },
       },
       autoStart
     )
@@ -150,6 +155,7 @@ export function useGameLink({ roomId, enabled = true, autoStart = false, onMessa
           setNegotiating(false)
         },
         onMessage: (msg) => onMessageRef.current?.(msg),
+        onIdle: () => setNegotiating(false),
       },
       false
     )

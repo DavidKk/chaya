@@ -27,8 +27,8 @@ import type { GameLinkMessage, GameSavesMessage } from '@/lib/runtime/game-link-
 import type { GameSavesEnv } from './env'
 import { GAME_SAVES_CHANGED_EVENT, GAME_SAVES_STATUS_EVENT } from './events'
 import { RoutedSaveStore } from './routed-store'
-import type { SaveMeta } from './serialize'
-import { gunzipText, gzipText } from './store'
+import { type SaveMeta, SaveRestoreRolledBackError } from './serialize'
+import { type GameSaveEntryStore, gunzipText, gzipText } from './store'
 
 type Send = (message: GameLinkMessage) => void
 type Cmd = Extract<GameSavesMessage, { type: 'saves.cmd' }>
@@ -280,14 +280,17 @@ export class GameSavesController {
     const removed = planRotation(this.index, this.settings.maxCount)
     if (!removed.length) return
     const gone = new Set(removed)
-    await this.commit(this.index.entries.filter((e) => !gone.has(e.id)))
-    for (const id of removed) await this.store.store('auto').removeEntry('auto', id)
+    await this.commit(
+      this.index.entries.filter((e) => !gone.has(e.id)),
+      removed
+    )
+    await this.store.purge('auto', removed)
     this.env.log.info(`轮换删除 ${removed.length} 份最早的自动存档`)
   }
 
-  private async commit(entries: GameSaveEntry[]): Promise<void> {
+  private async commit(entries: GameSaveEntry[], removed: readonly string[] = []): Promise<void> {
     try {
-      await this.store.commit(entries)
+      await this.store.commit(entries, removed)
     } catch (error) {
       if (error instanceof SaveIndexConflictError) {
         this.refreshIndex()
@@ -325,12 +328,29 @@ export class GameSavesController {
       await store.writeEntry(list, id, data, thumb)
       await this.commit([...this.index.entries.filter((e) => e.id !== id), entry])
     } catch (error) {
-      if (restore) await restore()
-      else await store.removeEntry(list, id).catch(() => {})
+      await this.undoWrite(store, list, id, previous, restore)
       throw error
     }
-    if (list === 'auto') await this.rotate()
     return entry
+  }
+
+  /**
+   * 保存失败后撤回内容文件。快速槽可能被其他窗口同时写入：先重读索引，
+   * 槽位仍是保存前那份才写回旧内容，索引里没有该条目才删除新文件
+   */
+  private async undoWrite(store: GameSaveEntryStore, list: GameSaveList, id: string, previous: GameSaveEntry | undefined, restore: (() => Promise<void>) | null): Promise<void> {
+    if (list === 'quick') {
+      await this.store.reread(list)
+      this.refreshIndex()
+    }
+    const current = this.index.entries.find((e) => e.id === id)
+    if (!previous) {
+      if (!current) await store.removeEntry(list, id).catch(() => {})
+    } else if (current?.savedAt !== previous.savedAt) {
+      this.env.log.warn(`${listLabel(previous)}已被其他窗口更新，不再写回旧存档`)
+    } else if (restore) {
+      await restore()
+    }
   }
 
   /** 覆盖快速存档前读出旧内容；索引提交失败时写回，槽位保持保存前的存档 */
@@ -384,6 +404,7 @@ export class GameSavesController {
     )
     this.env.log[unsafe ? 'warn' : 'info'](`已保存${unsafe ? '（非安全时刻）' : ''}：${listLabel(entry)}，${entry.mapName || `地图 ${entry.mapId}`}`)
     this.markAutoSaved()
+    await this.rotate().catch((error) => this.env.log.fail('轮换自动存档失败', error))
     this.notifyChanged()
   }
 
@@ -418,7 +439,7 @@ export class GameSavesController {
       try {
         this.env.restore(json)
       } catch (error) {
-        if (backup) {
+        if (backup && !(error instanceof SaveRestoreRolledBackError)) {
           try {
             this.env.restore(backup)
           } catch (rollbackError) {
@@ -447,8 +468,11 @@ export class GameSavesController {
   private async remove(entryId: string): Promise<void> {
     const entry = this.find(entryId)
     if (!entry) throw new GameSavesError(tNow('saves.error.missing'), 'empty')
-    await this.commit(this.index.entries.filter((e) => e.id !== entry.id))
-    await this.store.store(entry.list).removeEntry(entry.list, entry.id)
+    await this.commit(
+      this.index.entries.filter((e) => e.id !== entry.id),
+      [entry.id]
+    )
+    await this.store.purge(entry.list, [entry.id])
     this.env.log.info(`已删除：${listLabel(entry)}`)
     this.notifyChanged()
   }
@@ -456,8 +480,12 @@ export class GameSavesController {
   private async clear(list: GameSaveList): Promise<void> {
     const removed = this.index.entries.filter((e) => e.list === list)
     if (!removed.length) return
-    await this.commit(this.index.entries.filter((e) => e.list !== list))
-    for (const entry of removed) await this.store.store(list).removeEntry(list, entry.id)
+    const ids = removed.map((e) => e.id)
+    await this.commit(
+      this.index.entries.filter((e) => e.list !== list),
+      ids
+    )
+    await this.store.purge(list, ids)
     this.env.log.info(`已清空${list === 'quick' ? '快速存档' : '自动存档'}：${removed.length} 份`)
     this.notifyChanged()
   }

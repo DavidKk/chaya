@@ -92,8 +92,8 @@ function createFsBackend(): GameSavesBackend | null {
   const removeQuiet = (file: string) => {
     try {
       fs.unlinkSync(file)
-    } catch {
-      /* already gone */
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
   }
 
@@ -133,7 +133,14 @@ function createFsBackend(): GameSavesBackend | null {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
         throw error
       }
-      for (const name of names) if (name.endsWith('.tmp')) removeQuiet(path.join(dir(list), name))
+      for (const name of names) {
+        if (!name.endsWith('.tmp')) continue
+        try {
+          removeQuiet(path.join(dir(list), name))
+        } catch {
+          /* 残留的临时文件不影响列出 */
+        }
+      }
       return names.filter((n) => n.endsWith(CONTENT_EXT)).map((n) => n.slice(0, -CONTENT_EXT.length))
     },
   }

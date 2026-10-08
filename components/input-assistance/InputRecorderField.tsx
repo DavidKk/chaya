@@ -12,6 +12,7 @@ import {
   chordLabel,
   type InputAtom,
   type InputChord,
+  isPlayerInput,
   type KeyInput,
   type MacroEvent,
   macroLabel,
@@ -160,7 +161,7 @@ export function InputRecorderField({ label, kind, value, onChange, accept, error
 
     function capture(event: KeyboardEvent | MouseEvent, phase: 'down' | 'up') {
       const state = current.current
-      if (!state) return
+      if (!state || !isPlayerInput(event)) return
       // Inside the plugin overlay's ShadowRoot, document listeners see the host as target
       if (event.composedPath().some((node) => node instanceof Element && node.hasAttribute('data-assist-record-control'))) return
       event.preventDefault()

@@ -221,7 +221,7 @@ test('detail shows where the troop appears (jumps to the map), callers and battl
 test('the troop page no longer hosts the current battle', async () => {
   const battle = {
     ended: false,
-    enemies: [{ index: 0, enemyId: 1, name: 'Slime A', hp: 40, mhp: 100, alive: true, appeared: true }],
+    enemies: [{ index: 0, enemyId: 1, name: 'Slime A', hp: 40, mhp: 100, mhpCap: 999999, alive: true, appeared: true }],
     party: [],
     partyIds: [],
     partyMax: 4,

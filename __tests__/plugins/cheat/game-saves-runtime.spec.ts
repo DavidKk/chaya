@@ -1,5 +1,5 @@
 import { checkSaveSafety, isInGame, playerFingerprint } from '@/plugins/src/cheat/game-saves/safety'
-import { captureSave, currentEngine, restoreSave } from '@/plugins/src/cheat/game-saves/serialize'
+import { captureSave, currentEngine, restoreSave, SaveRestoreRolledBackError } from '@/plugins/src/cheat/game-saves/serialize'
 
 class Scene_Map {
   update = jest.fn()
@@ -110,6 +110,36 @@ describe('captureSave / restoreSave', () => {
     expect(currentEngine()).toBe('mz')
   })
 
+  it('writes the onBeforeSave fields into the save only, leaving the live system untouched', () => {
+    const system = g.$gameSystem as Record<string, unknown>
+    Object.assign(system, {
+      _framesOnSave: 10,
+      _bgmOnSave: { name: 'old' },
+      _versionId: 0,
+      onBeforeSave() {
+        this._saveCount = (this._saveCount as number) + 1
+        this._framesOnSave = 600
+        this._bgmOnSave = { name: 'now' }
+        this._versionId = 1
+        this._pluginStamp = 'x'
+      },
+    })
+    ;(g.DataManager as { makeSaveContents: () => unknown }).makeSaveContents = () => ({ system: { ...system } })
+    const saved = JSON.parse(captureSave().json).system
+    expect(saved).toMatchObject({ _saveCount: 6, _framesOnSave: 600, _bgmOnSave: { name: 'now' }, _versionId: 1, _pluginStamp: 'x' })
+    expect(system).toMatchObject({ _saveCount: 5, _framesOnSave: 10, _bgmOnSave: { name: 'old' }, _versionId: 0 })
+    expect(system).not.toHaveProperty('_pluginStamp')
+  })
+
+  it('restores the live system even when building the save fails', () => {
+    const system = g.$gameSystem as Record<string, unknown>
+    ;(g.DataManager as { makeSaveContents: () => unknown }).makeSaveContents = () => {
+      throw new Error('broken')
+    }
+    expect(() => captureSave()).toThrow('broken')
+    expect(system._saveCount).toBe(5)
+  })
+
   it('restores like Scene_Load and freezes the old scene', () => {
     restoreSave(SAVE_B)
     const dm = g.DataManager as Record<string, jest.Mock>
@@ -130,8 +160,9 @@ describe('captureSave / restoreSave', () => {
   })
 
   it('rejects invalid content before touching the game', () => {
-    expect(() => restoreSave('null')).toThrow()
-    expect(() => restoreSave('[]')).toThrow()
+    expect(() => restoreSave('null')).toThrow(SaveRestoreRolledBackError)
+    expect(() => restoreSave('[]')).toThrow(SaveRestoreRolledBackError)
+    expect(() => restoreSave('{broken')).toThrow(SaveRestoreRolledBackError)
     expect((g.DataManager as Record<string, jest.Mock>).createGameObjects).not.toHaveBeenCalled()
     delete g.DataManager
     expect(() => captureSave()).toThrow()
@@ -147,7 +178,7 @@ describe('captureSave / restoreSave', () => {
     dm.extractSaveContents.mockImplementation(() => {
       throw new Error('broken')
     })
-    expect(() => restoreSave(SAVE_B)).toThrow('broken')
+    expect(() => restoreSave(SAVE_B)).toThrow(new SaveRestoreRolledBackError('broken'))
     expect(g.$gameParty).toBe(party)
     expect(g.$gameTemp).toBeUndefined()
     expect((g.SceneManager as { goto: jest.Mock }).goto).not.toHaveBeenCalled()

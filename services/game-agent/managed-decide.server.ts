@@ -104,15 +104,20 @@ export async function decide(
         },
       ],
     }
-  const commands = scopeKind === 'battle' && !state.message?.busy && !ordinaryBattleMenu && !preferVision ? state.commandInputs || [] : []
-  if (commands.length) return chooseCommand(profile, input, messages, commands, signal)
   const activeWindow = Array.isArray(state.windows)
     ? (state.windows as Array<{ name?: string; active?: boolean; options?: unknown[] }>).find((window) => window?.active)
     : undefined
+  const awaitingInput = !!activeWindow || state.battle?.phase === 'input'
+  // A lone arrow without a skill name is more likely a cursor glyph than a command
+  const commands =
+    scopeKind === 'battle' && awaitingInput && !state.message?.busy && !ordinaryBattleMenu && !preferVision
+      ? (state.commandInputs || []).filter((command) => command.label || command.keys.length >= 2)
+      : []
+  if (commands.length) return chooseCommand(profile, input, messages, commands, signal)
   const imageMenu =
     scopeKind === 'battle' &&
     !state.message?.busy &&
-    (preferVision || (activeWindow ? !isOrdinaryBattleMenu(state) || !activeWindow.options?.length : (state.battle as { phase?: string } | null)?.phase === 'input'))
+    (preferVision || (activeWindow ? !isOrdinaryBattleMenu(state) || !activeWindow.options?.length : state.battle?.phase === 'input'))
   if (imageMenu) {
     try {
       const model = await visionModel()

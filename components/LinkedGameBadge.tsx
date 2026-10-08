@@ -13,13 +13,17 @@ import { cn } from '@/lib/utils'
 type StatusLite = {
   canUseDisk?: boolean
   ready?: boolean
+  remote?: boolean
   config?: { gameRoot?: string }
   library?: LibraryItemView[]
   nwPackage?: { name?: string; window?: { title?: string } } | null
 }
 
+/** 远程模式：`GameLinkProvider` 不开房间，本页连不上游戏 */
+const REMOTE = Symbol('remote')
+
 /** `null`：未选择游戏；空串：已选但读不到名字 */
-type SelectedGame = string | null
+type SelectedGame = string | null | typeof REMOTE
 
 function rootsEqual(a: string, b: string) {
   return a.replace(/\/$/, '') === b.replace(/\/$/, '')
@@ -33,13 +37,14 @@ async function readSelectedGame(): Promise<SelectedGame> {
     const entry = (await cloudLibraryStorage()).find((e) => e.item.id === id)?.item
     return entry?.remark?.trim() || entry?.name?.trim() || ''
   }
+  if (status.remote) return REMOTE
   if (!status.ready || !status.config?.gameRoot) return null
   const root = status.config.gameRoot
   const entry = status.library?.find((item) => rootsEqual(item.gameRoot, root))
   return entry?.remark?.trim() || status.nwPackage?.window?.title?.trim() || entry?.name?.trim() || status.nwPackage?.name?.trim() || ''
 }
 
-/** 修改页顶栏：未选择（灰）/ 已选未连接（黄）/ 已连接（绿），点击去游戏库 */
+/** 修改页顶栏：未选择（灰）/ 已选未连接（黄）/ 已连接（绿），点击去游戏库；远程模式不显示 */
 export function LinkedGameBadge() {
   const t = useT()
   const { roomId, connected } = useGameLinkContext()
@@ -59,6 +64,7 @@ export function LinkedGameBadge() {
     }
   }, [roomId])
 
+  if (game === REMOTE) return null
   const state = connected ? 'linked' : game === null ? 'none' : 'offline'
   const label = state === 'none' ? t('edit.gameNone') : game || t('edit.gameUnnamed')
   const tip = state === 'linked' ? t('edit.gameLinkedTip') : state === 'offline' ? t('edit.gameOfflineTip') : t('edit.gameNoneTip')

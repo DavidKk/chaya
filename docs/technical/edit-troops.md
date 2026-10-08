@@ -237,7 +237,7 @@ startTroop(troopId: number, canEscape = true, canLose = false) {
 
 1. 存活敌人数 ≥ 8 → “场上敌人已达上限”。
 2. 取战场：`scene._spriteset`、`spriteset._battleField`、`spriteset._enemySprites`、`Sprite_Enemy`、`Game_Enemy` 任一缺失 → “该游戏的战斗画面不支持追加敌人”。
-3. 落点：收集场上敌人的 `screenX()` / `screenY()` 与对应精灵 `bitmap` 宽高（未加载时按 120×120 估），交给 `pickEnemySpot`（§5.6）。新敌人尺寸：场上已有同 `battlerName` 的精灵时用它的尺寸，否则按 120×120；图片加载后实际尺寸不同也不再挪位置。
+3. 落点：收集场上敌人的 `screenX()` / `screenY()` 与对应精灵 `bitmap` 宽高（未加载时按 120×120 估），交给 `pickEnemySpot`（§5.6）。新敌人尺寸：场上已有同 `battlerName` 的精灵时用它的尺寸，否则按 120×120；图片加载后若实际尺寸不同，按真实尺寸重新选位（见下文 `settleSpots`）。
 4. 建对象：`const enemy = new Game_Enemy(enemyId, x, y)`；`enemy.onBattleStart?.(false)`（MV 初始化 TP，MZ 还初始化 TPB 计时，参数为“非先发制人”）。
 5. 建精灵并挂载：`const sprite = new Sprite_Enemy(enemy)`；`battleField.addChild(sprite)`；`enemySprites.push(sprite)`。
 6. 入队：`$gameTroop._enemies.push(enemy)`；`$gameTroop.makeUniqueNames()`。

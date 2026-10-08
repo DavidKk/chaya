@@ -75,16 +75,31 @@ function ensureTouchHook() {
 /** 「辅助 › 能力增强」的开关；工具设置同步后经 TOOL_SETTINGS_EVENT 更新 */
 let smartPathOn: boolean | null = null
 
+/** 热更新会重新执行本模块：监听放在全局，重装前先移除上一份 */
+const SMART_PATH_LISTENERS_KEY = '__chayaSmartPathListeners_v1__'
+type SmartPathListeners = { settings: (event: Event) => void; storage: (event: StorageEvent) => void }
+
 function smartPathEnabled() {
   if (smartPathOn === null) {
     smartPathOn = readCachedToolSettings().smartPathEnabled
-    window.addEventListener(TOOL_SETTINGS_EVENT, (event) => {
-      smartPathOn = (event as CustomEvent<ToolSettings>).detail.smartPathEnabled
-    })
-    // 在线版没有本机服务可轮询，同源的 Web 页写 localStorage 时靠 storage 事件同步
-    window.addEventListener('storage', (event) => {
-      if (event.key === TOOL_SETTINGS_STORAGE_KEY) smartPathOn = readCachedToolSettings().smartPathEnabled
-    })
+    const g = globalThis as typeof globalThis & { [SMART_PATH_LISTENERS_KEY]?: SmartPathListeners }
+    const previous = g[SMART_PATH_LISTENERS_KEY]
+    if (previous) {
+      window.removeEventListener(TOOL_SETTINGS_EVENT, previous.settings)
+      window.removeEventListener('storage', previous.storage)
+    }
+    const listeners: SmartPathListeners = {
+      settings: (event) => {
+        smartPathOn = (event as CustomEvent<ToolSettings>).detail.smartPathEnabled
+      },
+      // 在线版没有本机服务可轮询，同源的 Web 页写 localStorage 时靠 storage 事件同步
+      storage: (event) => {
+        if (event.key === TOOL_SETTINGS_STORAGE_KEY) smartPathOn = readCachedToolSettings().smartPathEnabled
+      },
+    }
+    g[SMART_PATH_LISTENERS_KEY] = listeners
+    window.addEventListener(TOOL_SETTINGS_EVENT, listeners.settings)
+    window.addEventListener('storage', listeners.storage)
   }
   return smartPathOn
 }

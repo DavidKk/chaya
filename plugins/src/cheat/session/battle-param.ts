@@ -3,6 +3,17 @@ type ParamBattler = {
   paramPlus?: (paramId: number) => number
   addParam?: (paramId: number, value: number) => void
   param?: (paramId: number) => number
+  paramMax?: (paramId: number) => number
+}
+
+/** Stands in for MZ's uncapped (`Infinity`) params so the page's number fields stay bounded */
+const UNCAPPED = 9_999_999
+
+/** `paramMax(paramId)`; `fallback` (the MV value) when the battler has none */
+export function paramCap(battler: ParamBattler, paramId: 0 | 1, fallback: number): number {
+  const cap = typeof battler.paramMax === 'function' ? Number(battler.paramMax(paramId)) : fallback
+  if (cap === Infinity) return UNCAPPED
+  return Number.isFinite(cap) && cap > 0 ? Math.floor(cap) : fallback
 }
 
 /**

@@ -3,6 +3,7 @@
 import { BrushCleaning, SendHorizontal, Square } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
+import { ConfirmProvider, useConfirm } from '@/components/confirm/ConfirmProvider'
 import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
 import { MiniPanelAlert } from '@/components/game-tools/MiniPanelParts'
 import { useToolPanelVisibility } from '@/components/game-tools/tool-panels'
@@ -56,9 +57,21 @@ function snapshot(state: CompanionState) {
   }
 }
 
-export function CompanionPanel({ gameId, open, observe, request }: Props) {
+/** 局内 Agent 浮层的 React 根没有确认框，这里自带一份并挂进同一个 Shadow 根 */
+export function CompanionPanel(props: Props) {
+  const [portal, setPortal] = useState<HTMLDivElement | null>(null)
+  return (
+    <ConfirmProvider portalContainer={portal}>
+      <CompanionPanelBody {...props} />
+      <div ref={setPortal} />
+    </ConfirmProvider>
+  )
+}
+
+function CompanionPanelBody({ gameId, open, observe, request }: Props) {
   const locale = useLocaleCode()
   const t = useT()
+  const confirm = useConfirm()
   const { settings } = useToolSettings(request)
   const panel = useToolPanelVisibility('companion', settings.companionEnabled)
   const character = COMPANION_CHARACTER_PROFILES[settings.companionCharacter]
@@ -213,9 +226,16 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
     }
   }
 
-  /** 一键清理：解除服务端 AGENT_TURN_RUNNING，并断开本地卡住的流 */
+  /** 一键清理：解除服务端 AGENT_TURN_RUNNING，并断开本地卡住的流；会连侧栏的任务一起停，先确认 */
   const clearTasks = async () => {
     if (clearing) return
+    const approved = await confirm({
+      title: t('companion.clearConfirmTitle'),
+      description: t('companion.clearConfirmDesc'),
+      confirmLabel: t('companion.clearConfirm'),
+      confirmVariant: 'fail',
+    })
+    if (!approved) return
     setClearing(true)
     try {
       const response = await request(`/api/game-agent/turn?gameId=${encodeURIComponent(gameId)}`, { method: 'DELETE' })
@@ -346,13 +366,13 @@ export function CompanionPanel({ gameId, open, observe, request }: Props) {
           {messages.map((line) => (
             <p key={line.id} className="m-0 mb-1 break-words text-[11px] leading-4 text-ink last:mb-0">
               <strong className={line.role === 'error' ? 'text-fail' : line.role === 'player' ? 'text-accent' : 'text-ink'}>
-                {line.role === 'chaya' ? COMPANION_CHARACTER_PROFILES[line.character || settings.companionCharacter].name : line.role === 'player' ? 'Player' : '!'}:
+                {line.role === 'chaya' ? COMPANION_CHARACTER_PROFILES[line.character || settings.companionCharacter].name : line.role === 'player' ? t('companion.player') : '!'}:
               </strong>{' '}
               {line.text ||
                 (line.id === activeReplyId && busy
                   ? question || (
                       <span className="text-ink-soft">
-                        <Spinner size="sm" className="mr-1 inline-block align-middle" label={progress || 'Thinking'} />
+                        <Spinner size="sm" className="mr-1 inline-block align-middle" label={progress || t('companion.thinking')} />
                         {progress || '…'}
                       </span>
                     )

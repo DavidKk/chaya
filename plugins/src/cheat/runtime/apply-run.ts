@@ -3,7 +3,7 @@
  */
 import type { RunActionId, RunFlagKey } from '@/components/game-edit/types'
 
-import { settleBattleEnd } from '../session/live-battle'
+import { canSettleBattleEnd, settleBattleEnd } from '../session/live-battle'
 import { Cheats } from './cheats'
 import { RunCheats, type ScenePushId } from './cheats-run'
 
@@ -76,9 +76,10 @@ export function applyRunAction(id: RunActionId) {
   }
 }
 
-const BATTLE_END_ACTIONS: ReadonlySet<RunActionId> = new Set(['battle:victory', 'battle:escape', 'battle:defeat', 'battle:abort', 'battle:settle'])
+const BATTLE_END_ACTIONS: ReadonlySet<RunActionId> = new Set(['battle:victory', 'battle:escape', 'battle:defeat', 'battle:abort'])
 
-/** Scene changes / battle endings: the player wants to watch the game, caller closes UI first */
+/** Scene changes / battle endings: the player wants to watch the game, caller closes UI first (before `applyRunAction`) */
 export function runActionNeedsClose(id: RunActionId): boolean {
+  if (id === 'battle:settle') return canSettleBattleEnd({ force: true })
   return id.startsWith('scene:') || id === 'fix:title' || id === 'fix:map' || BATTLE_END_ACTIONS.has(id)
 }

@@ -12,10 +12,7 @@ import { aliveEnemyCount, type BattleEnemyState, type BattleState, MAX_BATTLE_EN
 
 import { EnemyPicker } from '../events/EnemyPicker'
 import type { EventsOp } from '../events/types'
-import { ACTIONS_COL, cardClass, IconAction, portalHost, SectionHead, STATUS_COL, tableClass, VITAL_COL, VitalInput } from './controls'
-
-/** RPG Maker's enemy max HP cap (`Game_Enemy.paramMax`) */
-const MAX_ENEMY_MHP = 999999
+import { ACTIONS_COL, type BattleBusy, cardClass, IconAction, portalHost, SectionHead, STATUS_COL, tableClass, VITAL_COL, VitalInput } from './controls'
 
 type Props = {
   battle: BattleState
@@ -23,7 +20,7 @@ type Props = {
   enemies: readonly string[] | null
   /** Why nothing can be edited ('' when editable) */
   blocked: string
-  busy: string | null
+  busy: BattleBusy
   run: (key: string, op: EventsOp, ok: string) => Promise<void>
   onRunAction: (id: RunActionId) => void
 }
@@ -74,7 +71,7 @@ export function BattleEnemies({ battle, enemies, blocked, busy, run, onRunAction
         <TextAction disabled={!!blocked} onClick={() => onRunAction('battle:enemyHpMax')}>
           {t('edit.actEnemyHpMax')}
         </TextAction>
-        <IconAction label={t('events.troop.add')} reason={addBlocked || pickBlocked} busy={busy === 'add'} disabled={busy != null} onClick={() => setPicking({ mode: 'add' })}>
+        <IconAction label={t('events.troop.add')} reason={addBlocked || pickBlocked} busy={busy.has('add')} disabled={busy.size > 0} onClick={() => setPicking({ mode: 'add' })}>
           <IoAddOutline size={15} aria-hidden />
         </IconAction>
       </SectionHead>
@@ -94,7 +91,7 @@ export function BattleEnemies({ battle, enemies, blocked, busy, run, onRunAction
                 <VitalInput
                   value={enemy.hp}
                   max={enemy.mhp}
-                  maxCap={MAX_ENEMY_MHP}
+                  maxCap={enemy.mhpCap}
                   label={`${t('events.troop.hpEdit')} ${name}`}
                   maxLabel={`${t('events.troop.mhpEdit')} ${name}`}
                   disabled={!!reason}
@@ -110,8 +107,8 @@ export function BattleEnemies({ battle, enemies, blocked, busy, run, onRunAction
                       label={`${t('events.troop.revive')} ${name}`}
                       tip={t('events.troop.revive')}
                       reason={blocked}
-                      busy={busy === `revive:${index}`}
-                      disabled={busy != null}
+                      busy={busy.has(`revive:${index}`)}
+                      disabled={busy.size > 0}
                       onClick={() => void run(`revive:${index}`, { op: 'enemyRevive', index, fromEnemyId }, t('events.troop.reviveOk', { name }))}
                     >
                       <GiHeartPlus size={15} aria-hidden />
@@ -121,8 +118,8 @@ export function BattleEnemies({ battle, enemies, blocked, busy, run, onRunAction
                       label={`${t('events.troop.kill')} ${name}`}
                       tip={t('events.troop.kill')}
                       reason={reason}
-                      busy={busy === `kill:${index}`}
-                      disabled={busy != null}
+                      busy={busy.has(`kill:${index}`)}
+                      disabled={busy.size > 0}
                       onClick={() => void run(`kill:${index}`, { op: 'enemyKill', index, fromEnemyId }, t('events.troop.killOk', { name }))}
                     >
                       <IoSkullOutline size={15} aria-hidden />
@@ -132,8 +129,8 @@ export function BattleEnemies({ battle, enemies, blocked, busy, run, onRunAction
                     label={`${t('events.battle.recover')} ${name}`}
                     tip={t('events.battle.recover')}
                     reason={blocked || (enemy.appeared ? '' : t('events.troop.enemyHidden'))}
-                    busy={busy === `recover:${index}`}
-                    disabled={busy != null}
+                    busy={busy.has(`recover:${index}`)}
+                    disabled={busy.size > 0}
                     onClick={() => void run(`recover:${index}`, { op: 'enemyRecover', index, fromEnemyId }, t('events.battle.recoverOk', { name }))}
                   >
                     <GiHealthIncrease size={15} aria-hidden />
@@ -142,8 +139,8 @@ export function BattleEnemies({ battle, enemies, blocked, busy, run, onRunAction
                     label={`${t('events.troop.copy')} ${name}`}
                     tip={t('events.troop.copy')}
                     reason={addBlocked}
-                    busy={busy === `copy:${index}`}
-                    disabled={busy != null}
+                    busy={busy.has(`copy:${index}`)}
+                    disabled={busy.size > 0}
                     onClick={() => void run(`copy:${index}`, { op: 'enemyAdd', enemyId }, t('events.troop.addOk', { name: enemyName(enemyId) }))}
                   >
                     <GiShadowFollower size={15} aria-hidden />
@@ -152,8 +149,8 @@ export function BattleEnemies({ battle, enemies, blocked, busy, run, onRunAction
                     label={`${t('events.troop.transform')} ${name}`}
                     tip={t('events.troop.transform')}
                     reason={reason || pickBlocked}
-                    busy={busy === `replace:${index}`}
-                    disabled={busy != null}
+                    busy={busy.has(`replace:${index}`)}
+                    disabled={busy.size > 0}
                     onClick={() => setPicking({ mode: 'transform', enemy })}
                   >
                     <RiExchange2Line size={15} aria-hidden />

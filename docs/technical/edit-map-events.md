@@ -210,7 +210,7 @@ type ScriptLine = {
 - 事件表的坐标可点击：按「就近」开关传送到该事件旁（关掉时直接落在事件格），不弹确认。
 - `mapEvent` 只对当前地图开放，插件侧再校验 `$gameMap.mapId()`。
 - 最近去过：`plugins/src/cheat/session/map-history.ts` 挂 `Scene_Map.prototype.start` 记录 mapId（去重、最多 10 条），按游戏存 localStorage，经 `edit.state.recentMaps` 同步；不依赖 ChayaAgent。
-- 迷你地图（`MiniMap.tsx`）：紧接标题栏下方，SVG 按地图宽高画格子（≤ 80 格时画网格线），不可站立格画斜线阴影（`MapDetailData.blocked`，行优先 `0`/`1`）：局内当前图用 `$gameMap.isPassable` 四方向判定，其他图与网页读盘按 RPG Maker 通行规则（图块 flags + 4 层，跳过星号）由 `terrainBlockedMask` 计算，缺图块数据或 flags 时不标；「就近模式」开着时不可通行格照样可选中、传送（落到最近可站格），悬停提示「不可通行，将传送到最近可站立处」；关掉时悬停提示「不可通行，无法传送」，点击不响应；事件按类型着色、未出现的半透明，玩家在本图时画圆环，环内箭头指向角色朝向（`PlayerSpot.direction`，局内读 `$gamePlayer.direction()`，网页端经 `edit.state.playerDir`；未知时画圆点）；悬停显示 `x,y`，点击空白格只设为传送目标（同步到标题栏坐标框、画虚线框），再次点击已选中的格才弹确认并传送（遵循「就近」开关），点击事件打开详情。图块 / 截图底图第 4 期。
+- 迷你地图（`MiniMap.tsx`）：紧接标题栏下方，SVG 按地图宽高画格子；地图页内嵌（`inline`）固定每格 10px、始终画网格线，超出时在 `ScrollArea`（最高 24rem）内滚动；浮动面板随面板缩放，宽高都 ≤ 80 格时才画网格线，不可站立格画斜线阴影（`MapDetailData.blocked`，行优先 `0`/`1`）：局内当前图用 `$gameMap.isPassable` 四方向判定，其他图与网页读盘按 RPG Maker 通行规则（图块 flags + 4 层，跳过星号）由 `terrainBlockedMask` 计算，缺图块数据或 flags 时不标；「就近模式」开着时不可通行格照样可选中、传送（落到最近可站格），悬停提示「不可通行，将传送到最近可站立处」；关掉时悬停提示「不可通行，无法传送」，点击不响应；事件按类型着色、未出现的半透明，玩家在本图时画圆环，环内箭头指向角色朝向（`PlayerSpot.direction`，局内读 `$gamePlayer.direction()`，网页端经 `edit.state.playerDir`；未知时画圆点）；悬停显示 `x,y`，点击空白格只设为传送目标（同步到标题栏坐标框、画虚线框），再次点击已选中的格才弹确认并传送（遵循「就近」开关），点击事件打开详情。图块 / 截图底图第 4 期。
 
 ## 7. 安全与撤销
 

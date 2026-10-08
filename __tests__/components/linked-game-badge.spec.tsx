@@ -60,6 +60,12 @@ it('shows the game name in warn colour when selected but not connected', async (
   expect(badge.getAttribute('aria-label')).toContain('未连接')
 })
 
+it('hides in remote mode, where the page never opens a game link', async () => {
+  link.connected = false
+  mockStatus({ ...selected, remote: true })
+  expect(await render()).toBeNull()
+})
+
 it('shows the game name in ok colour once connected', async () => {
   link.connected = true
   mockStatus(selected)

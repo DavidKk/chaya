@@ -1,5 +1,16 @@
 import type { InputAssistConfig, InputAtom, InputChord, InputRule, KeyInput, MacroEvent, MacroRule, TurboRule } from '@/lib/game/input-assistance'
-import { atomId, chordId, isInputRecording, macroSteps, MIN_PRESS_MS, parseInputAssistConfig, randomInterval, spaceMacroEvents, validateRule } from '@/lib/game/input-assistance'
+import {
+  atomId,
+  chordId,
+  INPUT_RECORDING_EVENT,
+  isInputRecording,
+  macroSteps,
+  MIN_PRESS_MS,
+  parseInputAssistConfig,
+  randomInterval,
+  spaceMacroEvents,
+  validateRule,
+} from '@/lib/game/input-assistance'
 
 export type AssistStatus = { running: string[]; pending: string[]; counts: Record<string, number>; error?: string; recording: boolean }
 export type RecordKind = 'binding' | 'macro'
@@ -109,6 +120,7 @@ export class InputAssistanceRuntime {
     window.addEventListener('blur', this.onBlur)
     window.addEventListener('focus', this.onFocus)
     document.addEventListener('visibilitychange', this.onVisibility)
+    window.addEventListener(INPUT_RECORDING_EVENT, this.onPageRecording)
   }
 
   dispose(): void {
@@ -124,6 +136,7 @@ export class InputAssistanceRuntime {
     window.removeEventListener('blur', this.onBlur)
     window.removeEventListener('focus', this.onFocus)
     document.removeEventListener('visibilitychange', this.onVisibility)
+    window.removeEventListener(INPUT_RECORDING_EVENT, this.onPageRecording)
     this.listeners.clear()
   }
 
@@ -367,12 +380,15 @@ export class InputAssistanceRuntime {
     this.handlePhysical('up', { kind: 'mouse', button: event.button as 0 | 1 | 2 }, event)
   }
 
+  private onPageRecording = (event: Event): void => {
+    if ((event as CustomEvent<boolean>).detail) this.stopAll()
+  }
+
   private handlePhysical(phase: 'down' | 'up', atom: InputAtom, event: Event): void {
     const id = atomId(atom)
     const wasPressed = this.pressed.has(id)
     if (phase === 'down') this.pressed.set(id, atom)
     else this.pressed.delete(id)
-    if (!this.recording && isInputRecording()) return
     if (this.recording) {
       event.preventDefault()
       event.stopPropagation()
@@ -403,7 +419,7 @@ export class InputAssistanceRuntime {
       if (!swallowed && this.outputHolders.has(id) && atom.kind === 'key') queueMicrotask(() => emitKey(atom, 'down'))
       return
     }
-    if (wasPressed) return
+    if (wasPressed || isInputRecording()) return
     if (this.config.rules.some((rule) => this.runnable(rule) && rule.originalInput === 'replace' && rule.trigger.some((input) => atomId(input) === id))) {
       event.preventDefault()
       event.stopPropagation()

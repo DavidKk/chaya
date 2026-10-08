@@ -8,12 +8,12 @@
 ## 1. 决策
 
 - **新二级分类 `battle`，挂在事件通道上**：战斗状态 `battle` 已随事件槽（`EventsSlot`）推送，敌方选择器也要 `data.names.enemies`，所以战斗页与事件类分类共用 `useEventsData` / 局内 `useOverlayEvents`。`usesEventsSlot(tab)`（`isEventsTab(tab) || tab === 'battle'`）统一决定是否加载事件数据与轮询场景。
-- **敌方原样迁移**：`CurrentBattle` 拆成 `BattleEnemies`（表格）+ 共用控件 `controls.tsx`，`EnemyPicker` 不动；op 与 `live-battle.ts` 不变。
+- **敌方原样迁移**：`CurrentBattle` 拆成 `BattleEnemies`（表格）+ 共用控件 `controls.tsx`，`EnemyPicker` 不动；原有敌方 op 不变，`live-battle.ts` 另增击倒 / 复活 / 回满 / 改 HP / 改上限与 `settleBattleEnd`。
 - **我方走事件通道的新 op，不复用 `actor` op**：局内的 `actor` op 走另一条会话路径，改完不会刷新场景快照、也不会重绘战斗状态窗。新增 `actorVital` / `actorRevive` / `actorRecover`，按角色编号定位，队员换位也不会改错人。
 - **倒下 / 复活走引擎 `refresh`**：`setHp(0)` 时 `Game_Battler.refresh` 加死亡状态并播放倒下；复活先 `removeState(deathStateId())`（会调用 `revive()`）再 `setHp(mhp)`。
 - **上限按倍率写**：`battle-param.ts` 的 `writeMaxParam` 用 `目标 / (param / (base + plus))` 算出 `addParam` 增量，保留装备 / 状态倍率与 buff，且不会被 `refresh` 还原。敌我共用。
 - **改完重绘战斗状态窗**：每个我方 op 成功后调用 `BattleManager.refreshStatus?.()`。
-- **全体动作复用运行动作**：`battle:victory / escape / defeat / abort / enemyHp1 / enemyHpMax / partyHeal / partyHp1 / partyHp0` 仍走 `applyRun`，只是按钮在战斗页。
+- **全体动作复用运行动作**：`battle:victory / escape / defeat / abort / settle / enemyHp1 / enemyHpMax / partyHeal / partyHp1 / partyHp0` 仍走 `applyRun`，只是按钮在战斗页。
 - **Agent 不变**：不新增 `chaya_edit_action` 动作。
 
 ## 2. 总体架构
@@ -21,7 +21,7 @@
 ```text
 修改 › 战斗（/cheat/battle）  BattlePane
   ├ 无 slot → 需连接；无 slot.battle → 空状态（去敌群开战）
-  ├ 战斗流程          运行动作 battle:victory | escape | defeat | abort
+  ├ 战斗流程          运行动作 battle:victory | escape | defeat | abort | settle
   ├ BattleEnemies     enemyHp / enemyMhp / enemyKill / enemyRevive / enemyRecover / enemyTransform / enemyAdd
   │   └ EnemyPicker
   └ BattleParty       actorVital{hp,mp,mhp,mmp,tp} / actorRevive / actorRecover；全体 battle:party*
@@ -54,13 +54,26 @@
 ## 4. 数据模型
 
 ```ts
+type BattleEnemyState = {
+  index: number
+  enemyId: number
+  name: string
+  hp: number
+  mhp: number
+  mhpCap: number // paramMax(0)，有限上限
+  alive: boolean
+  appeared: boolean
+}
+
 type BattleActorState = {
   actorId: number
   name: string
   hp: number
   mhp: number
+  mhpCap: number // paramMax(0)
   mp: number
   mmp: number
+  mmpCap: number // paramMax(1)
   tp: number
   maxTp: number // Game_BattlerBase.maxTp()，通常 100
   alive: boolean
@@ -69,7 +82,10 @@ type BattleActorState = {
 type BattleState = {
   enemies: BattleEnemyState[]
   party: BattleActorState[] // $gameParty.battleMembers()，顺序同战斗画面
+  partyIds: number[] // 含候补
+  partyMax: number
   ended: boolean
+  settling: boolean // battleEnd / aborting
 }
 
 type ActorVitalKey = 'hp' | 'mp' | 'mhp' | 'mmp' | 'tp'
@@ -118,7 +134,7 @@ type ActorVitalKey = 'hp' | 'mp' | 'mhp' | 'mmp' | 'tp'
 - `VitalInput`：`NumberInput`（当前）+ `endAction` 内无边框 `NumberInput`（上限）；失焦 / 回车且有变化才提交，Esc 取消。TP 用单个 `PlainInput`。当前值（HP / MP / TP）用 `NumberSliderInput`，聚焦出拖拽条，松手（`onSlideEnd`）才提交；上限部分标 `data-slider-ignore`，不弹滑块。
 - 锁死：输入框 `disabled` + tooltip“已在角色页锁死”；HP 锁死或开着无敌时“倒下”禁用。名字列 `TextAction` 跳角色页（先 `setTab('actor')` 再 `setActorId`）。
 - 运行页：“战斗”卡片只留说明 + “打开战斗页”。
-- 战斗流程：四个图标按钮（胜利 / 逃跑 / 失败 / 中止，tooltip 为完整名称）经 `headSlot` portal 到面板标题栏右侧；无标题栏时退回内容顶部一行。
+- 战斗流程：五个图标按钮（胜利 / 逃跑 / 失败 / 中止 / 结算胜负，tooltip 为完整名称）经 `headSlot` portal 到面板标题栏右侧；无标题栏时退回内容顶部一行。
 
 ## 7. 测试
 

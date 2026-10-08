@@ -71,7 +71,7 @@ function findPath(grid: PathGrid, start: Point, goal: Point, limits?: PathLimits
 
 - 存在工具设置（`ToolSettings.smartPathEnabled`，默认 `true`；旧设置缺字段时按 `true`），与迷你地图、旅伴同一份，本机服务写盘、局内浮层经 `/api/integration/game-agent/tools` 读写。
 - 页面：`ASSIST_SECTIONS` 加 `enhance`（`nav.enhance`，图标 `LuSparkles`），Web 路由 `app/assist/enhance`，局内浮层 `GameEditAgentSettingsPane` 渲染同一个 `EnhanceSettingsView`；开关用 `useToolSettings().update({ smartPathEnabled })`。
-- 插件：`ChayaEdit` 入口启动时调用 `RunCheats.ensureSmartPathHook()` → `installSmartPath(smartPathEnabled)`，不等会话盘状态（`applyGameEditDisk` 只在盘上有状态时才调 `ensureHooks`，新游戏会漏装）；`ensureHooks()` 中的再次调用由全局标记去重。`smartPathEnabled` 首次调用时读 `readCachedToolSettings()`，之后监听 `TOOL_SETTINGS_EVENT` 与 `storage` 事件（key 为 `TOOL_SETTINGS_STORAGE_KEY`，在线版同源 Web 页改开关时同步）更新内存值，寻路每步不读 localStorage。插件的 `startPluginGameAgentSync` 定时拉取工具设置并派发该事件，Web 端改动几秒内生效。
+- 插件：`ChayaEdit` 入口启动时调用 `RunCheats.ensureSmartPathHook()` → `installSmartPath(smartPathEnabled)`，不等会话盘状态（`applyGameEditDisk` 只在盘上有状态时才调 `ensureHooks`，新游戏会漏装）；`ensureHooks()` 中的再次调用由全局标记去重。`smartPathEnabled` 首次调用时读 `readCachedToolSettings()`，之后监听 `TOOL_SETTINGS_EVENT` 与 `storage` 事件（key 为 `TOOL_SETTINGS_STORAGE_KEY`，在线版同源 Web 页改开关时同步）更新内存值，寻路每步不读 localStorage。局内工具浮层的 `useToolSettings` 每 3 秒拉取工具设置（带保存中保护）并派发该事件，Web 端改动几秒内生效。
 - 不看 `clickMove`：点击移动关闭时 `setDestination` 已是空操作，玩家点击不会产生目的地，而 AI 直接写目的地仍应按增强寻路走。
 
 ## walk demo

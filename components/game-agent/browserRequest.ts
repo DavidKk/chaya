@@ -57,6 +57,29 @@ function settings() {
   return { ...value, version: 1 as const, defaultProfileId: value.profiles[0].id }
 }
 
+/** 流读完或被取消时调用 `release`，让按游戏登记的 Turn 只含仍在运行的 */
+function releaseOnEnd(source: Response, release: () => void) {
+  if (!source.body) {
+    release()
+    return source
+  }
+  const reader = source.body.getReader()
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read()
+      if (done) {
+        release()
+        controller.close()
+      } else controller.enqueue(value)
+    },
+    cancel(reason) {
+      release()
+      return reader.cancel(reason)
+    },
+  })
+  return new Response(body, { status: source.status, headers: source.headers })
+}
+
 function saveSettings(value: Settings) {
   const next = { ...value, version: 1 as const, defaultProfileId: value.profiles[0]?.id || '' }
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
@@ -145,6 +168,7 @@ async function testOllama(profile: BrowserAgentProfile): Promise<Model[]> {
 
 /** Edge 没有本机 Node API；同一套 Agent UI 通过浏览器存储维护接入配置。 */
 export function createBrowserGameAgentRequest(input: { connected: boolean }, runtime = createBrowserAgentRuntime()): GameAgentRequest {
+  const gameTurns = new Map<string, Set<AbortController>>()
   return async (path, init) => {
     const url = new URL(path, location.origin)
     const method = (init?.method || 'GET').toUpperCase()
@@ -198,6 +222,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean }, run
 
     if (url.pathname === '/api/game-agent/turn' && method === 'POST') {
       const body = JSON.parse(String(init?.body || '{}')) as {
+        gameId?: string
         profileId?: string
         model?: string
         prompt?: string
@@ -211,17 +236,30 @@ export function createBrowserGameAgentRequest(input: { connected: boolean }, run
       if (!profile || !body.model?.trim() || !body.prompt?.trim()) {
         return response({ error: { code: 'INVALID_AGENT_TURN', message: '平台、模型和消息不能为空' } }, 400)
       }
-      return runtime.start({
-        profile,
-        model: body.model.trim(),
-        prompt: body.prompt.trim(),
-        locale: body.locale || 'zh-CN',
-        sessionId: body.sessionId,
-        newSession: body.newSession,
-        surface: body.surface,
-        companionCharacter: body.surface === 'companion' ? normalizeCompanionCharacter(body.companionCharacter) : undefined,
-        signal: init?.signal,
-      })
+      const gameId = typeof body.gameId === 'string' ? body.gameId.trim() : ''
+      const abort = new AbortController()
+      init?.signal?.addEventListener('abort', () => abort.abort(init.signal?.reason), { once: true })
+      const turns = gameTurns.get(gameId) ?? new Set<AbortController>()
+      gameTurns.set(gameId, turns)
+      turns.add(abort)
+      const release = () => {
+        turns.delete(abort)
+        if (!turns.size && gameTurns.get(gameId) === turns) gameTurns.delete(gameId)
+      }
+      return releaseOnEnd(
+        runtime.start({
+          profile,
+          model: body.model.trim(),
+          prompt: body.prompt.trim(),
+          locale: body.locale || 'zh-CN',
+          sessionId: body.sessionId,
+          newSession: body.newSession,
+          surface: body.surface,
+          companionCharacter: body.surface === 'companion' ? normalizeCompanionCharacter(body.companionCharacter) : undefined,
+          signal: abort.signal,
+        }),
+        release
+      )
     }
 
     if (url.pathname === '/api/integration/game-agent/tools') {
@@ -280,7 +318,14 @@ export function createBrowserGameAgentRequest(input: { connected: boolean }, run
       }
     }
 
-    if (url.pathname === '/api/game-agent/turn' && method === 'DELETE') return response({ ok: true, cleared: runtime.stopAll() })
+    if (url.pathname === '/api/game-agent/turn' && method === 'DELETE') {
+      const gameId = url.searchParams.get('gameId')?.trim() || ''
+      if (!gameId) return response({ error: { code: 'GAME_ID_REQUIRED', message: '缺少 gameId' } }, 400)
+      const turns = [...(gameTurns.get(gameId) ?? [])]
+      gameTurns.delete(gameId)
+      for (const turn of turns) turn.abort(new DOMException('Stopped', 'AbortError'))
+      return response({ ok: true, cleared: turns.length })
+    }
 
     const stopMatch = url.pathname.match(/^\/api\/game-agent\/turn\/([^/]+)$/)
     if (stopMatch && method === 'DELETE') return response({ ok: runtime.stop(decodeURIComponent(stopMatch[1])) })

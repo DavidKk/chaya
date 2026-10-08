@@ -6,6 +6,8 @@ export type BattleEnemyState = {
   name: string
   hp: number
   mhp: number
+  /** `paramMax(0)`, the highest max HP the engine allows (MZ's `Infinity` sent as a large finite number) */
+  mhpCap: number
   alive: boolean
   /** false: joins mid-battle and has not appeared yet */
   appeared: boolean
@@ -19,6 +21,9 @@ export type BattleActorState = {
   mhp: number
   mp: number
   mmp: number
+  /** `paramMax(0)` / `paramMax(1)`, finite like `BattleEnemyState.mhpCap` */
+  mhpCap: number
+  mmpCap: number
   tp: number
   /** `maxTp()`, usually 100 */
   maxTp: number
@@ -46,8 +51,8 @@ export const MAX_BATTLE_ENEMIES = 8
 
 export function battleSignature(state: BattleState | null | undefined): string {
   if (!state) return ''
-  const enemies = state.enemies.map((e) => `${e.index}:${e.enemyId}:${e.hp}:${e.mhp}:${e.alive ? 1 : 0}:${e.appeared ? 1 : 0}`).join(',')
-  const party = state.party.map((a) => `${a.actorId}:${a.hp}:${a.mhp}:${a.mp}:${a.mmp}:${a.tp}:${a.alive ? 1 : 0}`).join(',')
+  const enemies = state.enemies.map((e) => `${e.index}:${e.enemyId}:${e.hp}:${e.mhp}/${e.mhpCap}:${e.alive ? 1 : 0}:${e.appeared ? 1 : 0}`).join(',')
+  const party = state.party.map((a) => `${a.actorId}:${a.hp}:${a.mhp}/${a.mhpCap}:${a.mp}:${a.mmp}/${a.mmpCap}:${a.tp}:${a.alive ? 1 : 0}`).join(',')
   return `${state.ended ? 1 : 0}${state.settling ? 1 : 0}|${enemies}|${party}|${state.partyIds.join(',')}/${state.partyMax}`
 }
 

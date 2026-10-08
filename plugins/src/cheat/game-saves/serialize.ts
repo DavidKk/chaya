@@ -39,14 +39,20 @@ export function currentEngine(): 'mv' | 'mz' {
   return rm().Utils?.RPGMAKER_NAME === 'MZ' ? 'mz' : 'mv'
 }
 
-/** 生成当前进度的存档 JSON；不改变游戏内的存档次数 */
+/** 生成当前进度的存档 JSON；`onBeforeSave` 写入的存档次数、保存时帧数与 BGM 等只进存档，不留在当前进度里 */
 export function captureSave(): { json: string; meta: SaveMeta } {
   const g = rm()
   if (!g.DataManager?.makeSaveContents || !g.JsonEx || !g.$gameSystem) throw new Error(tNow('saves.error.notReadySave'))
-  const saveCount = g.$gameSystem._saveCount
-  g.$gameSystem.onBeforeSave?.()
-  if (typeof saveCount === 'number') g.$gameSystem._saveCount = saveCount
-  const json = g.JsonEx.stringify(g.DataManager.makeSaveContents())
+  const system = g.$gameSystem as Record<string, unknown>
+  const before = { ...system }
+  let json: string
+  try {
+    g.$gameSystem.onBeforeSave?.()
+    json = g.JsonEx.stringify(g.DataManager.makeSaveContents())
+  } finally {
+    for (const key of Object.keys(system)) if (!Object.prototype.hasOwnProperty.call(before, key)) delete system[key]
+    Object.assign(system, before)
+  }
   const meta: SaveMeta = {
     playtimeFrames: g.Graphics?.frameCount ?? 0,
     mapId: g.$gameMap?.mapId?.() ?? 0,
@@ -96,6 +102,11 @@ const GAME_OBJECTS = [
   '$gamePlayer',
 ] as const
 
+/** 读档失败但当前进度未被替换（或已放回原对象），无需再用备份恢复 */
+export class SaveRestoreRolledBackError extends Error {}
+
+const rolledBack = (error: unknown) => new SaveRestoreRolledBackError(error instanceof Error ? error.message : String(error))
+
 /**
  * 用存档 JSON 替换当前进度并切回地图，流程同 `Scene_Load`。
  * 切换前冻结当前场景：新对象已替换，旧场景再更新一帧可能访问不匹配的地图数据。
@@ -103,9 +114,14 @@ const GAME_OBJECTS = [
 export function restoreSave(json: string): void {
   const g = rm()
   const dm = g.DataManager
-  if (!dm?.createGameObjects || !dm.extractSaveContents || !g.JsonEx || !g.SceneManager?.goto || !g.Scene_Map) throw new Error(tNow('saves.error.notReadyLoad'))
-  const contents = g.JsonEx.parse(json)
-  if (!contents || typeof contents !== 'object' || Array.isArray(contents)) throw new Error(tNow('saves.error.invalidContent'))
+  if (!dm?.createGameObjects || !dm.extractSaveContents || !g.JsonEx || !g.SceneManager?.goto || !g.Scene_Map) throw rolledBack(tNow('saves.error.notReadyLoad'))
+  let contents: unknown
+  try {
+    contents = g.JsonEx.parse(json)
+  } catch (error) {
+    throw rolledBack(error)
+  }
+  if (!contents || typeof contents !== 'object' || Array.isArray(contents)) throw rolledBack(tNow('saves.error.invalidContent'))
   const before = GAME_OBJECTS.map((key) => [key, (globalThis as Record<string, unknown>)[key]] as const)
   try {
     dm.createGameObjects()
@@ -113,7 +129,7 @@ export function restoreSave(json: string): void {
     dm.correctDataErrors?.()
   } catch (error) {
     for (const [key, value] of before) (globalThis as Record<string, unknown>)[key] = value
-    throw error
+    throw rolledBack(error)
   }
   const system = g.$gameSystem
   const player = g.$gamePlayer

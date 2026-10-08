@@ -1,4 +1,4 @@
-import { bindingWarnings, hotkeyTokens, inputChordTokens, type KeyInput, type MacroRule, tokensOverlap } from '@/lib/game/input-assistance'
+import { assistFiresOnHotkey, bindingWarnings, hotkeyTokens, inputChordTokens, type KeyInput, type MacroRule, ruleBindings } from '@/lib/game/input-assistance'
 
 const key = (code: string, k: string, keyCode = 0): KeyInput => ({ kind: 'key', code, key: k, keyCode, location: 0 })
 const q = key('KeyQ', 'q', 81)
@@ -18,11 +18,12 @@ it('normalises hotkey-page chords and physical key chords to the same tokens', (
   expect(inputChordTokens([{ kind: 'mouse', button: 0 }])).toEqual(['mouse:0'])
 })
 
-it('treats equal or contained chords as overlapping', () => {
-  expect(tokensOverlap(['q'], ['ctrl', 'q'])).toBe(true)
-  expect(tokensOverlap(['ctrl', 'shift', 'q'], ['ctrl', 'q'])).toBe(true)
-  expect(tokensOverlap(['q'], ['w'])).toBe(false)
-  expect(tokensOverlap([], ['q'])).toBe(false)
+it('flags a hotkey only when pressing it also holds every key of the assist trigger', () => {
+  expect(assistFiresOnHotkey(['q'], ['ctrl', 'q'])).toBe(true)
+  expect(assistFiresOnHotkey(['ctrl', 'q'], ['ctrl', 'q'])).toBe(true)
+  expect(assistFiresOnHotkey(['ctrl', 'shift', 'q'], ['ctrl', 'q'])).toBe(false)
+  expect(assistFiresOnHotkey(['q'], ['w'])).toBe(false)
+  expect(assistFiresOnHotkey([], ['q'])).toBe(false)
 })
 
 it('warns enabled key-mouse triggers that collide with an active Chaya hotkey', () => {
@@ -35,4 +36,19 @@ it('warns enabled key-mouse triggers that collide with an active Chaya hotkey', 
     { ruleId: 'a', field: 'trigger', message: '与 Chaya 快捷键“唤出作弊器（`）”冲突，可能同时触发' },
     { ruleId: 'b', field: 'trigger', message: '与 Chaya 快捷键“无敌（Ctrl+Q）”冲突，可能同时触发' },
   ])
+})
+
+it('leaves draft rules out of the bindings shown on the hotkeys page', () => {
+  const rules = [
+    macro('draft', [q]),
+    {
+      ...macro('ready', [backquote]),
+      events: [
+        { atMs: 0, phase: 'down' as const, input: q },
+        { atMs: 50, phase: 'up' as const, input: q },
+      ],
+    },
+  ]
+  expect(ruleBindings(rules).map((binding) => binding.ruleId)).toEqual(['draft', 'ready'])
+  expect(ruleBindings(rules, { runnableOnly: true }).map((binding) => binding.ruleId)).toEqual(['ready'])
 })

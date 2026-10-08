@@ -30,7 +30,7 @@
 
 设置是一份通用设置，所有游戏共用，`useGameSaves` 负责读写与同步：
 
-- 存放：`localGlobal` 为真（edge、局内浮层）时存 `localStorage` 的 `chaya:game-saves:settings`；否则走 `GET/PUT /api/game-saves/settings`（`app/api/game-saves/settings/route.ts`），文件为本机数据目录下 `game-saves/settings.json`，`requireDisk` 保护，临时文件 + rename。
+- 存放：`localGlobal` 为真（edge、局内浮层）时存 `localStorage` 的 `chaya:game-saves:settings`；否则走 `GET/PUT /api/game-saves/settings`（`app/api/game-saves/settings/route.ts`），文件为本机数据目录下 `game-saves/settings.json`，`requireDisk` 保护，临时文件 + rename；内容损坏时改名为 `settings.json.corrupt-<时间>` 留作副本，按默认值返回。
 - 游戏目录的 `chaya/config/game-saves.json` 是副本，网页关闭后游戏按它运行。
 - revision 只增不减。页面修改时新 revision 取 `max(通用, 游戏副本) + 1`，先写通用设置，已连接再发 `configure`。控制器写入 `max(当前 + 1, 传入 revision)`，所以两份 revision 保持一致；API 的 PUT 要求 `expectedRevision` 等于当前值且新 revision 更大，允许一次跳过多个版本。
 - 连接后取快照：通用较新则 `configure` 下发；游戏副本较新（快照或 `saves.changed` 带来的设置）则写回通用设置。
@@ -51,8 +51,8 @@ chaya/saves/quick/quick-<N>.jpg        快速存档缩略图
 
 - 目录与游戏自带的 `save/` 分开，文件名也不用 `file<N>.rpgsave`，游戏的存档界面不会扫到。条目 id 只允许 `auto-[0-9a-z]` 与 `quick-[0-9]`，直接用作文件名。
 - 内容是 `JsonEx.stringify(DataManager.makeSaveContents())` 再 gzip；不复用引擎的 LZString / pako 编码，MV 与 MZ 共用一种格式。有 Node 时用 `zlib`，否则用 `CompressionStream('gzip')`。
-- 写入顺序：内容写 `*.tmp` 后 `rename`，再写缩略图，最后写 `index.json`（同样先写临时文件）。轮换和删除先改索引再删文件。覆盖快速存档前先读出旧内容与缩略图，写内容或提交索引失败时写回，槽位保持保存前的存档。写入前先确认该列表的位置可用，不可用时不做序列化。
-- 启动对账：索引里有、内容文件缺失的条目移除并写 `warn` 日志；目录里有、索引没有的文件（索引损坏或提交中断）用 `recoverOrphanEntry` 补成最小条目写回索引并写 `warn`：快速槽按 id 还原槽位，自动存档按 id 前段的 base36 时间还原 `savedAt`，其余元数据留空；这样它们重新出现在列表里，快速槽覆盖前也能备份；`*.tmp` 一律删除。
+- 写入顺序：内容写 `*.tmp` 后 `rename`，再写缩略图，最后写 `index.json`（同样先写临时文件）。轮换、删除和清空先改索引再删文件：被删的 id 与索引同一次写入 `removing`（待清理），文件删掉后再从 `removing` 去掉；删不掉（被占用等）只写 `warn`，操作仍算成功，留给启动对账重试。同一 id 重新存入时从 `removing` 去掉。游戏目录删文件只把「文件不存在」当作已删除，其他错误抛出。覆盖快速存档前先读出旧内容与缩略图，写内容或提交索引失败时先重读该处索引：槽位仍是保存前那份（`savedAt` 相同）才写回旧内容，已被其他窗口存过则不写回；没有旧条目时，索引里仍没有该 id 才删除刚写的内容文件。写入前先确认该列表的位置可用，不可用时不做序列化。
+- 启动对账：索引里有、内容文件缺失的条目移除并写 `warn` 日志；`removing` 里的文件直接删除（删不掉的继续留在 `removing`），不当作孤儿找回，避免已删除的存档重新出现；其余目录里有、索引没有的文件（索引损坏或提交中断）用 `recoverOrphanEntry` 补成最小条目写回索引并写 `warn`：快速槽按 id 还原槽位，自动存档按 id 前段的 base36 时间还原 `savedAt`，其余元数据留空；这样它们重新出现在列表里，快速槽覆盖前也能备份；`*.tmp` 一律删除。
 - 读取：只有文件或目录不存在算空；其他读取错误（权限、被占用）抛出，该位置进入 `status.offline`，避免把已有存档当作没有。`index.json` 内容损坏时先复制为 `index.json.corrupt-<时间>` 再按空索引处理。
 - 无文件系统（浏览器版游戏）时改用 IndexedDB 库 `chaya-game-saves:<gameId>`（gameId 与下文本机位置的稳定标识相同；库内游戏即库 id，与旧库名一致），表 `meta`（设置与索引）、`entries`、`thumbs`；两者都没有时退回内存存储（只用于测试）。
 - 设置文件不存在时使用默认值（关闭、5 分钟、30 份、快速存档快捷键关闭、两个列表都存到游戏中）。设置与索引各有 `revision`，分开递增；设置的 revision 与通用设置对齐，见「设置同步」。
@@ -61,7 +61,7 @@ chaya/saves/quick/quick-<N>.jpg        快速存档缩略图
 
 设置里 `autoStorage`、`quickStorage` 分别决定两个列表放在哪：`game`（默认，上面的游戏目录或 IndexedDB）或 `app`（Chaya 本机）。
 
-- 本机位置：本机服务数据目录下 `game-saves/games/<gameId>/`，结构同游戏目录的 `chaya/saves/`（`index.json`、`auto/`、`quick/`）。gameId 取稳定标识：游戏库 id；没有时用游戏目录（`path:<gameRoot>`），浏览器版用页面地址（`url:<origin+pathname>`）。不用启动令牌，因为它每次启动都会变。不符合 `[A-Za-z0-9_-]{1,96}` 时取 sha256 前 32 位。插件经 `POST /api/game-saves/store`（`requireDisk`）读写，`writeIndex` 缺少 `entries` 数组、条目 id 缺失或与列表不符时返回 400，`readEntry` 内容文件不存在时返回 404（`ENTRY_MISSING`，不带路径）；`index.json` 内容损坏时留一份 `.corrupt-<时间>` 副本并按空索引返回，由插件对账补回条目；`op` 为 `readIndex` / `writeIndex` / `writeEntry` / `readEntry` / `readThumb` / `removeEntry` / `listEntries`，内容以 base64 传输；条目 id 用 `isGameSaveEntryId` 校验并要求与列表一致，防止越出目录。
+- 本机位置：本机服务数据目录下 `game-saves/games/<gameId>/`，结构同游戏目录的 `chaya/saves/`（`index.json`、`auto/`、`quick/`）。gameId 取稳定标识：游戏库 id；没有时用游戏目录（`path:<gameRoot>`），浏览器版用页面地址（`url:<origin+pathname>`）。不用启动令牌，因为它每次启动都会变（没有库 id 时启动环境把 `CHAYA_GAME_ID` 设为启动令牌，此时忽略它）。不符合 `[A-Za-z0-9_-]{1,96}` 时取 sha256 前 32 位。插件经 `POST /api/game-saves/store`（`requireDisk`）读写；只带启动令牌（`x-chaya-launch-token`）的游戏可以调用，但 `mayAccessApi` 要求 `gameId` 属于该次启动：等于库 id 或启动令牌，或为 `path:<目录>` 且该目录是启动时游戏目录本身、其内部或其父目录（选了 `www` 时），否则 401。`writeIndex` 缺少 `entries` 数组、条目 id 缺失或与列表不符时返回 400，`readEntry` 内容文件不存在时返回 404（`ENTRY_MISSING`，不带路径）；`index.json` 内容损坏时留一份 `.corrupt-<时间>` 副本并按空索引返回，由插件对账补回条目；`op` 为 `readIndex` / `writeIndex` / `writeEntry` / `readEntry` / `readThumb` / `removeEntry` / `listEntries`，内容以 base64 传输；条目 id 用 `isGameSaveEntryId` 校验并要求与列表一致，防止越出目录。
 - `RoutedSaveStore`：每处各有一份索引，控制器看到的是合并视图（自动、快速各取自当前所在位置）。写索引时每处只替换放在该处的列表，未放在该处的条目原样保留，内容未变的位置不写。
 - 多窗口：`writeIndex(index, expectedRevision)` 先核对已存索引的 `revision`（没有索引按 0），不同就抛 `SaveIndexConflictError` 不写（文件 / 本机服务为同步读-比-写，IndexedDB 在同一个读写事务里比较，本机接口返回 409 `INDEX_CONFLICT`）。`commit` 与启动对账都带上读到的版本；冲突时重读该处索引，控制器刷新列表并推送 `saves.changed`，回复「存档列表已被其他窗口更新，已刷新，请重试」；新条目的内容文件按提交失败删除。切换位置不迁移存档：原处的存档保留，切回即可看到。设置副本始终写在游戏侧。
 - 读取失败（本机服务未运行）的位置不写入，对应列表放进 `status.offline`；在该列表上保存、读档报「无法连接 Chaya 本机服务」，另一列表不受影响。页面 `snapshot`（含「重试」）时重读失败的位置。页面该列表显示离线空态与重试，迷你面板显示失败条。
@@ -121,13 +121,13 @@ type GameSavesIndex = { version: 1; revision: number; entries: GameSaveEntry[] }
 
 ### 保存流程
 
-保存、读档、删除、清空进入同一个 Promise 队列串行执行。读档进行中或排队中拒绝所有保存（快捷键提示「正在读档」；定时存档此时等待而不入队，否则读档后会立刻把刚读入的进度存一份）；同一快速槽或定时存档已在排队时，重复请求被拒绝。`configure`（校验 revision、写设置、切换位置、轮换）与 `snapshot` 触发的位置重读也排进队列，不受读档限制，不会与写入交错；并发的两次 `configure` 因此按顺序校验 revision。页面下发 `configure` 遇到版本过期时取一次快照，本地仍较新则按最新版本重发。
+保存、读档、删除、清空进入同一个 Promise 队列串行执行。读档进行中或排队中拒绝所有保存（快捷键提示「正在读档」；定时存档此时等待而不入队，否则读档后会立刻把刚读入的进度存一份）；同一快速槽或定时存档已在排队时，重复请求被拒绝。`configure`（校验 revision、写设置、切换位置、轮换）与 `snapshot` 触发的位置重读也排进队列，不受读档限制，不会与写入交错；并发的两次 `configure` 因此按顺序校验 revision。页面下发 `configure` 遇到版本过期（`code: 'stale'`）时取一次快照，以游戏侧最新设置为底重放本次改动；其他失败直接抛给调用方，不重放。
 
 1. 安全检查。页面请求不安全时回复 `code: 'unsafe'` 与原因，网页确认后带 `force: true` 重发；快捷键不安全时只在游戏内提示原因，不写入。
 2. 截缩略图：`SceneManager.snap()` 缩放到宽 160 px，导出 JPEG（质量 0.7），在显示提示之前截取。
 3. 显示「存档中」（所有来源都显示）。
-4. 生成内容：记下 `$gameSystem._saveCount`，调用 `$gameSystem.onBeforeSave()`，再把 `_saveCount` 改回原值，然后 `makeSaveContents()` → `JsonEx.stringify` → gzip。
-5. 写内容与缩略图，更新索引；自动列表随后轮换：从最早的开始删。索引提交失败时，覆盖快速槽写回旧内容，新条目删除刚写的内容文件。定时存档失败时从头计时；但若是入队后才变得不可保存（`unsafe`），保留已累计的时间，等安全后再存。
+4. 生成内容：浅拷贝 `$gameSystem` 的自有字段，调用 `$gameSystem.onBeforeSave()`，`makeSaveContents()` → `JsonEx.stringify`，再把字段整体放回（`_saveCount`、`_versionId`、`_framesOnSave`、`_bgmOnSave` 等只进存档；新增的字段删除；生成失败也放回），然后 gzip。
+5. 写内容与缩略图，更新索引；索引提交失败时按「存储」一节撤回内容文件。保存成功（提示、计时清零）之后自动列表再轮换：从最早的开始删；轮换失败只写 `fail` 日志，不影响本次保存的结果。定时存档失败时从头计时；但若是入队后才变得不可保存（`unsafe`），保留已累计的时间，等安全后再存。
 6. 提示结果，写日志（含来源与耗时），推送 `saves.changed`。
 
 ### 读档流程
@@ -136,7 +136,7 @@ type GameSavesIndex = { version: 1; revision: number; entries: GameSaveEntry[] }
 2. 读取并解压内容。此前任何失败都不会改动游戏。
 3. 若已在游戏中，在内存里生成当前进度，仅用于恢复失败时回滚，不写入列表。`restoreSave` 先 `JsonEx.parse` 并要求结果是对象，再替换；替换前记下 `$gameTemp` … `$gamePlayer` 等全局对象的引用，`createGameObjects` / `extractSaveContents` 抛错时放回原引用（标题画面没有可序列化的进度，也靠它保持原状）。
 4. `env.beforeLoad()` 关闭浮层（同时恢复游戏循环），然后恢复：`createGameObjects()` → `extractSaveContents()` → `correctDataErrors?.()` → `versionId` 变化时 `reserveTransfer` + `requestMapReload` → 冻结当前场景（`update` 置空、`isBusy` 返回假，避免旧场景用新对象再跑一帧）→ 停止 ME、SE → `SceneManager.goto(Scene_Map)` → `$gameSystem.onAfterLoad()`。
-5. 恢复抛错：用内存中的进度按同样流程恢复，不改列表，回复错误。备份也恢复失败时写 `fail` 日志，提示从游戏存档或列表重新读取。
+5. 恢复抛错：替换全局对象之前的失败（引擎未就绪、内容解析失败或不是对象）以及已放回原引用的失败抛 `SaveRestoreRolledBackError`，游戏原样未动，不再用备份恢复（否则会多一次切回地图）；之后的失败才用内存中的进度按同样流程恢复。都不改列表，回复错误。备份也恢复失败时写 `fail` 日志，提示从游戏存档或列表重新读取。
 6. 成功：`env.afterLoad()`（`markGameEditNeedReapply()` 重新套用修改锁定，键鼠工具 `stopAll()`），按刚完成自动存档处理（`markAutoSaved`：清零计时、清除操作标记、记录进度指纹），读档不写任何条目，下一次自动存档要等满一个间隔且期间有操作或进度变化。旧版本留下的 `preload` 条目照常显示「读档前备份」标签。
 
 本功能不经过 `DataManager.loadGame`，所以 `persist.ts` 的读档钩子和 `agent/history.ts` 的读档记录都不会触发；前者由 `afterLoad` 显式补上。
@@ -229,12 +229,15 @@ type GameSavesOp =
 
 ## 测试
 
-- `__tests__/lib/game/game-saves-rules.spec.ts`：设置默认值与校验、非法条目 id、10 个固定槽、轮换（含保护条目、忽略快速存档）。
-- `__tests__/plugins/cheat/game-saves-controller.spec.ts`：用内存存储和桩环境覆盖手动保存与轮换、不安全时的确认与强制、快捷键不安全提示、读档不写条目且读档后等满间隔并有操作才自动存档、读档失败回滚且不留备份、空槽与过期设置、调小上限立即删除、快捷键在未开启时不生效而页面按钮可用、定时存档（到期、等待原因、1 秒稳定、挂机）、失焦不计时（`counting` 为假）、启动对账（移除缺文件的条目，索引外的内容文件补成最小条目并还原保存时间）、新自动存档提交失败删除内容文件、入队后变得不安全时保留已累计时间、覆盖快速存档失败时保留旧档、本机位置离线时定时存档等待而不重试、读档期间的设置修改排队生效、读档排队时拒绝保存、另一窗口先改了索引时刷新而不覆盖。
-- `__tests__/plugins/cheat/game-saves-web-hooks.spec.tsx`：页面 hook 的连接与存读档、设置写本地并带更高版本下发、连接时下发更新的本地设置、游戏侧版本已变时以游戏侧最新设置为底重放改动（两端同版本同内容）。
+- `__tests__/lib/game/game-saves-rules.spec.ts`：设置默认值与校验、非法条目 id、待清理 id 的解析、10 个固定槽、轮换（含保护条目、忽略快速存档）。
+- `__tests__/plugins/cheat/game-saves-controller.spec.ts`：用内存存储和桩环境覆盖手动保存与轮换、不安全时的确认与强制、快捷键不安全提示、读档不写条目且读档后等满间隔并有操作才自动存档、读档失败回滚且不留备份、空槽与过期设置、调小上限立即删除、快捷键在未开启时不生效而页面按钮可用、定时存档（到期、等待原因、1 秒稳定、挂机）、失焦不计时（`counting` 为假）、启动对账（移除缺文件的条目，索引外的内容文件补成最小条目并还原保存时间）、新自动存档提交失败删除内容文件、入队后变得不安全时保留已累计时间、覆盖快速存档失败时保留旧档、本机位置离线时定时存档等待而不重试、读档期间的设置修改排队生效、读档排队时拒绝保存、另一窗口先改了索引时刷新而不覆盖、覆盖快速槽冲突时其他窗口已存过则不写回旧档、只有轮换失败时保存仍算成功、删文件失败时已删存档不会被对账找回且下次启动清理、重新存入同一槽清除待清理记录、已回滚的读档不再用备份恢复。
+- `__tests__/plugins/cheat/game-saves-runtime.spec.ts`：安全判定、`captureSave` 不改动当前进度的 `$gameSystem`（含生成失败）、`restoreSave` 的恢复流程与回滚错误。
+- `__tests__/plugins/cheat/game-saves-store-fs.spec.ts`：游戏目录存储读写、索引损坏留副本、删文件只忽略不存在、清理临时文件。
+- `__tests__/services/runtime/api-access.spec.ts`：启动令牌只能访问本次启动游戏的本机存档。
+- `__tests__/plugins/cheat/game-saves-web-hooks.spec.tsx`：页面 hook 的连接与存读档、设置写本地并带更高版本下发、连接时下发更新的本地设置、游戏侧版本已变时以游戏侧最新设置为底重放改动（两端同版本同内容）、其他下发失败不重放。
 - `__tests__/app/game-saves-store-api.spec.ts`：本机存档读写、越界 id 拒绝、坏 id 返回 400、缺内容返回 404 且不带路径、`index.json` 损坏时按空返回并留副本。
 - `__tests__/lib/game/hotkeys-quick-save.spec.ts`：`⌥3`、`Shift+3` 按键位匹配，字母仅 Alt 时按键位，改按键位前保存的旧绑定仍能匹配，20 项快速存档目标，默认绑定及让位。
-- `__tests__/app/game-saves-settings-api.spec.ts`：通用设置默认值、未连接保存、revision 跳跃与冲突、范围校验。
+- `__tests__/app/game-saves-settings-api.spec.ts`：通用设置默认值、未连接保存、revision 跳跃与冲突、范围校验、设置文件损坏时留副本并按默认值返回。
 - `__tests__/app/game-saves-store-api.spec.ts`：本机存档按游戏分目录读写、拒绝越出目录的 id、拒绝缺少 `entries` 的索引、基于过期版本的索引写入返回 409。
 - `__tests__/plugins/cheat/game-tool-transport.spec.tsx`：局内通道直接调用存档与键鼠运行时、转发状态与变更事件。
 - `__tests__/components/game-tools/tool-panels.spec.tsx`：面板可见性、关闭按钮的本次隐藏、快捷键切换（可见时关闭、隐藏时清除并开启），工具设置新字段的默认值。
@@ -242,7 +245,7 @@ type GameSavesOp =
 
 ## 待验证
 
-- `$gameSystem.onBeforeSave()` 在 MV 与 MZ 中写入的字段，以及改回 `_saveCount` 后游戏内存档次数显示是否正确。
+- `$gameSystem.onBeforeSave()` 在 MV 与 MZ 中写入的字段，以及放回原字段后游戏内存档次数、游戏自带存档的 BGM 恢复是否正确。
 - 不经过 `Scene_Load` 直接恢复并 `goto(Scene_Map)` 时，地图、事件、并行处理、天气、画面色调和 BGM 是否完整；冻结当前场景是否在所有场景下安全；MZ 的 `correctDataErrors` 是否必要。
 - 战斗或事件进行中读档时，`BattleManager`、`Scene_Battle.terminate` 对新队伍对象的处理是否有副作用。
 - `$gameMap.isEventRunning()` 能否覆盖常见插件自定义的过场；`_menuCalling`、`isSceneChanging` 在 MZ 中是否同名。

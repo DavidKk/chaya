@@ -33,6 +33,9 @@ const ARROW_LINE = new RegExp(`^[${Object.keys(ARROWS).join('')}\\s]+$`)
 const ROW_DRIFT = 6
 /** How far below its skill name an arrow row may sit */
 const LABEL_REACH = 72
+/** Rough upper bound of one glyph's advance in RPG Maker's default font */
+const GLYPH_WIDTH = 28
+const COLUMN_GAP = 40
 const MAX_COMMANDS = 16
 const MAX_COMMAND_KEYS = 12
 
@@ -73,6 +76,14 @@ function remember(target: Map<string, CanvasText>, canvas: object, value: unknow
   if (target.size > MAX_LINES) target.delete(target.keys().next().value!)
 }
 
+function forget(canvas: number, x: number, y: number, w: number, h: number) {
+  for (const source of [current, recent]) {
+    for (const [key, entry] of source) {
+      if (entry.canvas === canvas && entry.x >= x && entry.x < x + w && entry.y >= y && entry.y <= y + h) source.delete(key)
+    }
+  }
+}
+
 function fresh(source: Map<string, CanvasText>, lifetime: number) {
   const now = Date.now()
   for (const [key, entry] of source) if (now - entry.at > lifetime) source.delete(key)
@@ -93,16 +104,30 @@ export function readCommandInputs(): AgentCommandInput[] {
   // Window contents are offscreen bitmaps drawn once per refresh, so they live in `recent`
   const entries = [...fresh(current, CURRENT_MS), ...fresh(recent, RECENT_MS)]
   const arrows = entries.filter((entry) => ARROW_LINE.test(entry.text)).sort((a, b) => a.canvas - b.canvas || a.y - b.y || a.x - b.x)
-  const rows: CanvasText[][] = []
+  const lines: CanvasText[][] = []
   for (const entry of arrows) {
-    const row = rows.find((items) => items[0].canvas === entry.canvas && Math.abs(items[0].y - entry.y) <= ROW_DRIFT)
-    if (row) row.push(entry)
-    else rows.push([entry])
+    const line = lines.find((items) => items[0].canvas === entry.canvas && Math.abs(items[0].y - entry.y) <= ROW_DRIFT)
+    if (line) line.push(entry)
+    else lines.push([entry])
+  }
+  // Multi-column windows put several skills on one line; a wide horizontal gap starts a new command
+  const rows: CanvasText[][] = []
+  for (const line of lines) {
+    line.sort((a, b) => a.x - b.x)
+    let row: CanvasText[] = []
+    for (const entry of line) {
+      const prev = row[row.length - 1]
+      if (prev && entry.x - (prev.x + [...prev.text].length * GLYPH_WIDTH) > COLUMN_GAP) {
+        rows.push(row)
+        row = []
+      }
+      row.push(entry)
+    }
+    rows.push(row)
   }
   const labels = entries.filter((entry) => !ARROW_LINE.test(entry.text) && /\p{L}/u.test(entry.text))
   const commands: AgentCommandInput[] = []
   for (const row of rows) {
-    row.sort((a, b) => a.x - b.x)
     const keys = [...row.map((entry) => entry.text).join('')].map((char) => ARROWS[char]).filter(Boolean)
     if (!keys.length || keys.length > MAX_COMMAND_KEYS) continue
     const { canvas, x, y } = row[0]
@@ -142,7 +167,19 @@ export function startRenderedTextCapture(): () => void {
         return original.call(this, text, ...args)
       }
   )
+  // Bitmap.clear / clearRect wipe redrawn window contents; drop glyphs drawn there before
+  const stopClear = hookMethod(
+    prototype,
+    'clearRect',
+    (original) =>
+      function (this: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+        const id = this.canvas ? canvasIds.get(this.canvas) : undefined
+        if (id) forget(id, x, y, w, h)
+        return original.call(this, x, y, w, h)
+      }
+  )
   return () => {
+    stopClear()
     stopStroke()
     stopFill()
     current.clear()

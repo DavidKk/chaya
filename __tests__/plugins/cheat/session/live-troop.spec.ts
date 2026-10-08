@@ -32,11 +32,13 @@ describe('cheat/live-troop startTroopBattle', () => {
       $gameMap: { _interpreter: { isRunning: () => interpreterBusy } },
       $gameMessage: { isBusy: () => messageBusy },
       $gamePlayer: { isTransferring: () => transferring, makeEncounterCount },
+      $gameParty: { battleMembers: () => [{}] },
     })
   })
 
   afterEach(() => {
-    for (const key of ['Scene_Map', 'Scene_Battle', 'SceneManager', 'BattleManager', '$dataEnemies', '$dataTroops', '$gameMap', '$gameMessage', '$gamePlayer']) delete g[key]
+    for (const key of ['Scene_Map', 'Scene_Battle', 'SceneManager', 'BattleManager', '$dataEnemies', '$dataTroops', '$gameMap', '$gameMessage', '$gamePlayer', '$gameParty'])
+      delete g[key]
   })
 
   it('starts like Battle Processing: setup, reset steps, push the battle scene', () => {
@@ -89,5 +91,19 @@ describe('cheat/live-troop startTroopBattle', () => {
     expect(() => startTroopBattle({ id: 5 })).toThrow('敌群 5 不存在或没有敌人')
     expect(() => startTroopBattle({ id: 2 })).toThrow('敌群 2 不存在或没有敌人')
     expect(sceneManager.push).not.toHaveBeenCalled()
+  })
+
+  it('rejects a party with no battle members (instant game over)', () => {
+    g.$gameParty = { battleMembers: () => [] }
+    expect(() => startTroopBattle({ id: 1 })).toThrow('队伍中没有可出战的角色')
+    expect(battleManager.setup).not.toHaveBeenCalled()
+  })
+
+  it('rejects a count for a troop whose enemies all appear mid-battle, but starts it without one', () => {
+    ;(g.$dataTroops as unknown[])[3] = { members: [{ enemyId: 1, hidden: true }] }
+    expect(() => startTroopBattle({ id: 3, count: 2 })).toThrow('该敌群的敌人都是中途出现，不能设置数量')
+    expect(battleManager.setup).not.toHaveBeenCalled()
+    startTroopBattle({ id: 3 })
+    expect(battleManager.setup).toHaveBeenCalledWith(3, true, false)
   })
 })

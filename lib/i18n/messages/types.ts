@@ -493,8 +493,12 @@ export type MessageTree = {
     placeholder: string
     stop: string
     clear: string
+    clearConfirmTitle: string
+    clearConfirmDesc: string
+    clearConfirm: string
     cleared: string
     send: string
+    player: string
     thinking: string
     acting: string
     observing: string
@@ -509,6 +513,7 @@ export type MessageTree = {
     character: string
     turnOn: string
     turnOff: string
+    unavailable: string
   }
   panels: {
     subtitle: string
@@ -528,5 +533,6 @@ export type MessageTree = {
     items: { title: string; desc: string; showAll: string; hideAll: string; listAria: string; toggle: string }
     item: Record<'miniMap' | 'miniMapDesc' | 'companion' | 'companionDesc' | 'autoSaves' | 'autoSavesDesc' | 'quickSaves' | 'quickSavesDesc' | 'closeAll' | 'closeAllDesc', string>
     bar: { aria: string; drag: string; show: string; hide: string; closeAll: string; toVertical: string; toHorizontal: string }
+    resize: Record<'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw', string>
   }
 }

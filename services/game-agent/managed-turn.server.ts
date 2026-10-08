@@ -495,6 +495,8 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       if (!state.controlToken) throw new Error('游戏插件未提供操作校验令牌，无法安全托管')
       const before = fingerprint(state, history)
       const battleImageBefore = scopeKind === 'battle' ? await battleImageFingerprint(input.gameId).catch(() => null) : null
+      // The screenshot ignores abort; a turn cleared meanwhile must not press after a new one started
+      if (turn.abort.signal.aborted) throw turn.abort.signal.reason
       const callId = `${step}-0`
       emit({ type: 'phase', phase: 'acting', step, maxSteps: MAX_STEPS })
       const toolName = combo ? `input.sequence:${combo.join(',')}` : `input.press:${key}`

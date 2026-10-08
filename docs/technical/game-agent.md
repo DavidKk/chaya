@@ -27,6 +27,7 @@
 Chaya 助手侧栏（App / Web / GameEdit 共用 React 工作区）
   │ POST /api/game-agent/turn（SSE，带 launch token + gameId）
   │ DELETE /api/game-agent/turn/:turnId
+  │ DELETE /api/game-agent/turn?gameId=（一键清理该游戏全部 Turn）
   ↓
 app/api/game-agent/*
   ↓
@@ -406,6 +407,15 @@ type GameAgentEvent =
 `DELETE /api/game-agent/turn/:turnId`
 
 重复停止保持幂等。已完成 Turn 返回当前终态。
+
+### 8.4 一键清理
+
+`DELETE /api/game-agent/turn?gameId=...` → `{ "ok": true, "cleared": <停掉的 Turn 数> }`；缺 `gameId` 返回 `400 GAME_ID_REQUIRED`。
+
+- 用于解除卡住的 `409 AGENT_TURN_RUNNING`：`clearGameTurns(gameId)` 停掉该游戏所有 `running` / `waiting_user` 的 Turn（含旧会话遗留、status 看不到 id 的），逐个 abort 并直接推一条 `turn.stopped`，让已不再出事件的 SSE 也能收尾；最后把该游戏会话的 `activeTurnId` 置空。
+- 鉴权：控制台同源请求照常；游戏插件须带有效的 `X-Chaya-Launch-Token`，且查询参数 `gameId` 必须等于该 token 绑定的游戏（`libraryId`，无则为 token 本身），否则 `401 ACCESS_DENIED`。
+- 会连同侧栏里正常运行的任务一起停掉，旅伴面板的清理按钮先弹确认框（局内 Agent 浮层的 React 根没有确认框，`CompanionPanel` 自带一份 `ConfirmProvider`，挂在同一 Shadow 根内）。
+- Edge 浏览器模式（`browserRequest`）按 `POST` 时提交的 `gameId` 登记 Turn，清理只停该游戏的 Turn；流读完或被取消即注销。
 
 ## 9. 鉴权与边界
 

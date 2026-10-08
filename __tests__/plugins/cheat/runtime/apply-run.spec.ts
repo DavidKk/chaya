@@ -75,6 +75,13 @@ jest.mock('@/plugins/src/cheat/runtime/cheats-run', () => ({
   },
 }))
 
+const settleBattleEnd = jest.fn(() => false)
+const canSettleBattleEnd = jest.fn(() => false)
+jest.mock('@/plugins/src/cheat/session/live-battle', () => ({
+  settleBattleEnd: (...a: unknown[]) => settleBattleEnd(...(a as [])),
+  canSettleBattleEnd: (...a: unknown[]) => canSettleBattleEnd(...(a as [])),
+}))
+
 import { applyRunAction, applyRunFlag, applySpeed, runActionNeedsClose } from '@/plugins/src/cheat/runtime/apply-run'
 
 describe('applySpeed / applyRunFlag', () => {
@@ -168,8 +175,17 @@ describe('applyRunAction / runActionNeedsClose', () => {
     expect(runActionNeedsClose('scene:equip')).toBe(true)
     expect(runActionNeedsClose('fix:title')).toBe(true)
     expect(runActionNeedsClose('fix:map')).toBe(true)
-    for (const id of ['battle:victory', 'battle:escape', 'battle:defeat', 'battle:abort', 'battle:settle'] as const) expect(runActionNeedsClose(id)).toBe(true)
+    for (const id of ['battle:victory', 'battle:escape', 'battle:defeat', 'battle:abort'] as const) expect(runActionNeedsClose(id)).toBe(true)
     expect(runActionNeedsClose('battle:enemyHp1')).toBe(false)
     expect(runActionNeedsClose('fix:fadeIn')).toBe(false)
+  })
+
+  it('battle:settle closes the overlay only when there is something to settle', () => {
+    expect(runActionNeedsClose('battle:settle')).toBe(false)
+    expect(canSettleBattleEnd).toHaveBeenLastCalledWith({ force: true })
+    canSettleBattleEnd.mockReturnValueOnce(true)
+    expect(runActionNeedsClose('battle:settle')).toBe(true)
+    applyRunAction('battle:settle')
+    expect(settleBattleEnd).toHaveBeenCalledWith({ force: true })
   })
 })

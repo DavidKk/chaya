@@ -398,13 +398,16 @@ async function playSequence({ steps, guard }: AgentParams<'input.sequence'>): Pr
   if (!Array.isArray(steps) || !steps.length) throw new Error('steps 不能为空')
   if (steps.length > MAX_SEQUENCE_STEPS) throw new Error(`steps 最多 ${MAX_SEQUENCE_STEPS} 个`)
   if (guard) {
-    // Arrows only navigate, so one check up front covers the whole guarded sequence
     if (!steps.every((step) => ['up', 'down', 'left', 'right'].includes(step?.key))) throw new Error('ACTION_REQUIRES_CONFIRMATION:unknown')
     checkInputGuard(steps[0].key, guard)
   }
+  const epoch = manualInputEpoch
+  const battle = guard ? readAgentGameState().battle : null
   const actions = []
-  for (const step of steps) {
+  for (const [index, step] of steps.entries()) {
     if (!step || !DOM_KEYS[step.key]) throw new Error(`无效按键：${String(step?.key)}`)
+    // Arrows only navigate, but once the battle ends or the player takes over they would walk the map
+    if (guard && index > 0 && (manualInputEpoch !== epoch || (battle && readAgentGameState().battle?.instanceId !== battle.instanceId))) throw new Error('SCOPE_CHANGED')
     actions.push(await pressKey(step))
     await waitFrames(frames(step.waitFrames, DEFAULT_WAIT_FRAMES))
   }

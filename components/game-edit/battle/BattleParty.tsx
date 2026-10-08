@@ -11,11 +11,7 @@ import type { ActorVitalKey, BattleState } from '@/lib/game/battle'
 
 import { EnemyPicker } from '../events/EnemyPicker'
 import type { EventsOp } from '../events/types'
-import { ACTIONS_COL, cardClass, IconAction, PlainInput, portalHost, SectionHead, STATUS_COL, tableClass, VITAL_COL, VitalInput } from './controls'
-
-/** RPG Maker's actor caps (`Game_Actor.paramMax`) */
-const MAX_ACTOR_MHP = 9999
-const MAX_ACTOR_MMP = 9999
+import { ACTIONS_COL, type BattleBusy, cardClass, IconAction, PlainInput, portalHost, SectionHead, STATUS_COL, tableClass, VITAL_COL, VitalInput } from './controls'
 
 type Props = {
   battle: BattleState
@@ -23,7 +19,7 @@ type Props = {
   actors: readonly string[] | null
   session: Pick<SessionState, 'locks' | 'god'>
   blocked: string
-  busy: string | null
+  busy: BattleBusy
   run: (key: string, op: EventsOp, ok: string) => Promise<void>
   onRunAction: (id: RunActionId) => void
   onOpenActor?: (actorId: number) => void
@@ -55,6 +51,8 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
     { key: 'actions', label: t('events.troop.colActions'), width: ACTIONS_COL, align: 'right' },
   ]
   const locked = (kind: 'hp' | 'mp', actorId: number) => lockKeyForActorVital(kind, actorId) in session.locks
+  /** Invincibility refills HP / MP every tick, so edits would snap back */
+  const vitalHold = (kind: 'hp' | 'mp', actorId: number) => (session.god ? t('events.battle.godOn') : locked(kind, actorId) ? t('events.battle.locked') : '')
 
   return (
     <section ref={rootRef} className={cardClass} aria-label={t('events.battle.party')}>
@@ -68,7 +66,7 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
         <TextAction disabled={!!blocked} onClick={() => onRunAction('battle:partyHp0')}>
           {t('edit.actPartyHp0')}
         </TextAction>
-        <IconAction label={t('events.battle.join')} reason={joinBlocked} busy={busy === 'join'} disabled={busy != null} onClick={() => setPicking(true)}>
+        <IconAction label={t('events.battle.join')} reason={joinBlocked} busy={busy.has('join')} disabled={busy.size > 0} onClick={() => setPicking(true)}>
           <IoAddOutline size={15} aria-hidden />
         </IconAction>
       </SectionHead>
@@ -77,8 +75,8 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
           const { actorId } = actor
           const name = actor.name || t('events.unnamed', { id: actorId })
           const reason = blocked || (actor.alive ? '' : t('events.troop.enemyDown'))
-          const hpLocked = locked('hp', actorId)
-          const mpLocked = locked('mp', actorId)
+          const hpHold = vitalHold('hp', actorId)
+          const mpHold = vitalHold('mp', actorId)
           const set = (key: ActorVitalKey, label: string) => (value: number) =>
             void run(`${key}:${actorId}`, { op: 'actorVital', actorId, key, value }, t('events.battle.setOk', { name, label, value }))
           return (
@@ -96,11 +94,11 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                 <VitalInput
                   value={actor.hp}
                   max={actor.mhp}
-                  maxCap={MAX_ACTOR_MHP}
+                  maxCap={actor.mhpCap}
                   label={`${t('events.troop.hpEdit')} ${name}`}
                   maxLabel={`${t('events.troop.mhpEdit')} ${name}`}
-                  disabled={!!reason || hpLocked}
-                  disabledReason={hpLocked ? t('events.battle.locked') : undefined}
+                  disabled={!!reason || !!hpHold}
+                  disabledReason={hpHold || undefined}
                   onValue={set('hp', 'HP')}
                   onMax={set('mhp', t('events.troop.mhpEdit'))}
                 />
@@ -109,12 +107,12 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                 <VitalInput
                   value={actor.mp}
                   max={actor.mmp}
-                  maxCap={MAX_ACTOR_MMP}
+                  maxCap={actor.mmpCap}
                   minMax={0}
                   label={`${t('events.battle.mpEdit')} ${name}`}
                   maxLabel={`${t('events.battle.mmpEdit')} ${name}`}
-                  disabled={!!reason || mpLocked}
-                  disabledReason={mpLocked ? t('events.battle.locked') : undefined}
+                  disabled={!!reason || !!mpHold}
+                  disabledReason={mpHold || undefined}
                   onValue={set('mp', 'MP')}
                   onMax={set('mmp', t('events.battle.mmpEdit'))}
                 />
@@ -129,9 +127,9 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                     <IconAction
                       label={`${t('events.battle.knockOut')} ${name}`}
                       tip={t('events.battle.knockOut')}
-                      reason={blocked || (session.god ? t('events.battle.godOn') : hpLocked ? t('events.battle.locked') : '')}
-                      busy={busy === `knock:${actorId}`}
-                      disabled={busy != null}
+                      reason={blocked || hpHold}
+                      busy={busy.has(`knock:${actorId}`)}
+                      disabled={busy.size > 0}
                       onClick={() => void run(`knock:${actorId}`, { op: 'actorVital', actorId, key: 'hp', value: 0 }, t('events.battle.knockOutOk', { name }))}
                     >
                       <IoSkullOutline size={15} aria-hidden />
@@ -141,8 +139,8 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                       label={`${t('events.troop.revive')} ${name}`}
                       tip={t('events.troop.revive')}
                       reason={blocked}
-                      busy={busy === `revive:${actorId}`}
-                      disabled={busy != null}
+                      busy={busy.has(`revive:${actorId}`)}
+                      disabled={busy.size > 0}
                       onClick={() => void run(`revive:${actorId}`, { op: 'actorRevive', actorId }, t('events.troop.reviveOk', { name }))}
                     >
                       <GiHeartPlus size={15} aria-hidden />
@@ -152,8 +150,8 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                     label={`${t('events.battle.recover')} ${name}`}
                     tip={t('events.battle.recover')}
                     reason={blocked}
-                    busy={busy === `recover:${actorId}`}
-                    disabled={busy != null}
+                    busy={busy.has(`recover:${actorId}`)}
+                    disabled={busy.size > 0}
                     onClick={() => void run(`recover:${actorId}`, { op: 'actorRecover', actorId }, t('events.battle.recoverOk', { name }))}
                   >
                     <GiHealthIncrease size={15} aria-hidden />

@@ -2,6 +2,7 @@
  * GameEdit high-value cheats: locks / god mode / through / teleport / common events / map events
  */
 
+import { closeBattleInputWindows } from '../session/battle-windows'
 import { RunCheats } from './cheats-run'
 import { gameMap, gamePlayer, gameTroop } from './game-globals'
 
@@ -364,6 +365,7 @@ export const Cheats = {
     if (!this.inBattle() || typeof BattleManager === 'undefined') return false
     this.wipeEnemies()
     if (typeof BattleManager.processVictory === 'function') {
+      closeBattleInputWindows()
       BattleManager.processVictory()
       return true
     }
@@ -379,6 +381,7 @@ export const Cheats = {
       }
     }
     if (typeof BattleManager.processDefeat === 'function') {
+      closeBattleInputWindows()
       BattleManager.processDefeat()
       return true
     }

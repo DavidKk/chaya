@@ -211,7 +211,8 @@ export function useGameSaves() {
       if (!connected || !remote) return
       try {
         await command({ op: 'configure', settings: next, expectedRevision: remote.revision })
-      } catch {
+      } catch (cause) {
+        if (!(cause instanceof GameSavesCommandError && cause.code === 'stale')) throw cause
         // 下发前游戏侧版本已变（另一页面刚改过）：以游戏侧最新设置为底重放本次改动，版本号取更大者 +1，
         // 否则两端可能同一版本号不同内容，而远端同步只认更大的版本号，永远不会自愈
         const fresh = (await command({ op: 'snapshot' })).snapshot.settings

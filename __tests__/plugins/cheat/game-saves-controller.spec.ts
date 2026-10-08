@@ -1,11 +1,12 @@
 /** @jest-environment jsdom */
-import { newAutoEntryId, parseGameSavesSettings, type SaveWaitReason } from '@/lib/game/game-saves'
+import { newAutoEntryId, parseGameSavesIndex, parseGameSavesSettings, type SaveWaitReason } from '@/lib/game/game-saves'
 import { tNow } from '@/lib/i18n'
 import type { GameLinkMessage, GameSavesMessage } from '@/lib/runtime/game-link-protocol'
 import { GameSavesController } from '@/plugins/src/cheat/game-saves/controller'
 import type { GameSavesEnv } from '@/plugins/src/cheat/game-saves/env'
 import { GAME_SAVES_CHANGED_EVENT } from '@/plugins/src/cheat/game-saves/events'
-import { createMemoryBackend, type GameSaveEntryStore, gunzipText } from '@/plugins/src/cheat/game-saves/store'
+import { SaveRestoreRolledBackError } from '@/plugins/src/cheat/game-saves/serialize'
+import { createMemoryBackend, type GameSaveEntryStore, gunzipText, gzipText } from '@/plugins/src/cheat/game-saves/store'
 
 jest.mock('@/plugins/src/helpers/node/node-require', () => ({ tryNodeFsPath: () => null, tryNodeRequire: () => require }))
 
@@ -266,6 +267,91 @@ it('keeps the old quick save when overwriting it fails to commit', async () => {
   expect(await send({ op: 'save', target: 'quick', slot: 0 })).toEqual(expect.objectContaining({ ok: false }))
   backend.writeIndex = writeIndex
   expect(JSON.parse(await gunzipText(await backend.readEntry('quick', 'quick-0')))).toEqual({ state: 'A' })
+})
+
+it('skips the write-back when another window saved the same quick slot during a failed overwrite', async () => {
+  const { okSnapshot, send, backend, game } = setup()
+  await okSnapshot({ op: 'save', target: 'quick', slot: 0 })
+  const writeIndex = backend.writeIndex
+  backend.writeIndex = async (index, expectedRevision) => {
+    backend.writeIndex = writeIndex
+    await backend.writeEntry('quick', 'quick-0', await gzipText(JSON.stringify({ state: 'C' })), null)
+    const current = parseGameSavesIndex(await backend.readIndex())
+    await writeIndex({ ...current, revision: current.revision + 1, entries: current.entries.map((e) => ({ ...e, savedAt: 99_999 })) })
+    return writeIndex(index, expectedRevision)
+  }
+  game.state = 'B'
+  expect(await send({ op: 'save', target: 'quick', slot: 0 })).toEqual(expect.objectContaining({ ok: false, error: tNow('saves.error.indexConflict') }))
+  expect(JSON.parse(await gunzipText(await backend.readEntry('quick', 'quick-0')))).toEqual({ state: 'C' })
+})
+
+it('reports the save as done when only the rotation afterwards fails', async () => {
+  const { okSnapshot, send, backend, toasts } = setup()
+  await okSnapshot({ op: 'configure', settings: { ...parseGameSavesSettings(null), maxCount: 15 }, expectedRevision: 0 })
+  for (let i = 0; i < 15; i++) await okSnapshot({ op: 'save', target: 'auto' })
+  const writeIndex = backend.writeIndex
+  let writes = 0
+  backend.writeIndex = async (index, expectedRevision) => {
+    if (++writes > 1) throw new Error('disk full')
+    return writeIndex(index, expectedRevision)
+  }
+  const reply = await send({ op: 'save', target: 'auto' })
+  expect(reply.ok).toBe(true)
+  expect(toasts.at(-1)).toBe(`✓${tNow('saves.toast.saved')}`)
+  if (reply.ok) expect(reply.snapshot.index.entries).toHaveLength(16)
+})
+
+it('keeps deleted saves deleted when removing their files fails, and cleans them up on the next start', async () => {
+  const first = setup()
+  await first.okSnapshot({ op: 'save', target: 'quick', slot: 1 })
+  await first.okSnapshot({ op: 'save', target: 'quick', slot: 2 })
+  await first.okSnapshot({ op: 'save', target: 'auto' })
+  const removeEntry = first.backend.removeEntry
+  first.backend.removeEntry = async () => {
+    throw new Error('locked')
+  }
+  expect((await first.okSnapshot({ op: 'delete', entryId: 'quick-1' })).index.entries.map((e) => e.id)).not.toContain('quick-1')
+  expect((await first.okSnapshot({ op: 'clear', list: 'auto' })).index.entries.map((e) => e.id)).toEqual(['quick-2'])
+  expect(parseGameSavesIndex(await first.backend.readIndex()).removing).toHaveLength(2)
+  const env = (first.controller as unknown as { env: GameSavesEnv }).env
+
+  const stillLocked = new GameSavesController({ ...env })
+  await stillLocked.whenReady()
+  expect(stillLocked.snapshot().index.entries.map((e) => e.id)).toEqual(['quick-2'])
+
+  first.backend.removeEntry = removeEntry
+  const unlocked = new GameSavesController({ ...env })
+  await unlocked.whenReady()
+  expect(unlocked.snapshot().index.entries.map((e) => e.id)).toEqual(['quick-2'])
+  expect([...first.backend.files.keys()]).toEqual(['quick/quick-2'])
+  expect(parseGameSavesIndex(await first.backend.readIndex()).removing).toBeUndefined()
+})
+
+it('does not let a pending removal delete a slot saved again afterwards', async () => {
+  const { okSnapshot, backend, game } = setup()
+  await okSnapshot({ op: 'save', target: 'quick', slot: 1 })
+  const removeEntry = backend.removeEntry
+  backend.removeEntry = async () => {
+    throw new Error('locked')
+  }
+  await okSnapshot({ op: 'delete', entryId: 'quick-1' })
+  backend.removeEntry = removeEntry
+  game.state = 'B'
+  await okSnapshot({ op: 'save', target: 'quick', slot: 1 })
+  expect(parseGameSavesIndex(await backend.readIndex()).removing).toBeUndefined()
+})
+
+it('does not restore the backup when the load was already rolled back', async () => {
+  const { controller, okSnapshot, send, game } = setup()
+  await okSnapshot({ op: 'save', target: 'quick', slot: 1 })
+  const env = (controller as unknown as { env: GameSavesEnv }).env
+  const restore = jest.fn(() => {
+    throw new SaveRestoreRolledBackError('broken')
+  })
+  env.restore = restore
+  game.state = 'B'
+  expect((await send({ op: 'load', entryId: 'quick-1' })).ok).toBe(false)
+  expect(restore).toHaveBeenCalledTimes(1)
 })
 
 it('waits instead of retrying every second while the auto save location is offline', async () => {

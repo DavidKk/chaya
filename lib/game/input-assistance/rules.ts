@@ -1,4 +1,4 @@
-import { hotkeyTokens, inputChordTokens, type ProductBinding, tokensOverlap } from './hotkey-conflicts'
+import { assistFiresOnHotkey, hotkeyTokens, inputChordTokens, type ProductBinding } from './hotkey-conflicts'
 import {
   type BindingWarning,
   EMPTY_INPUT_ASSIST_CONFIG,
@@ -246,10 +246,10 @@ export function mergeRules(globalRules: readonly InputRule[], gameRules: readonl
 
 export type RuleBinding = { ruleId: string; field: 'trigger' | 'stop'; chord: InputChord; name: string }
 
-/** Enabled rules' trigger and separate stop chords: the keys that can fire something */
-export function ruleBindings(rules: readonly InputRule[]): RuleBinding[] {
+/** Enabled rules' trigger and separate stop chords; `runnableOnly` drops drafts the runtime never starts */
+export function ruleBindings(rules: readonly InputRule[], { runnableOnly = false } = {}): RuleBinding[] {
   return rules
-    .filter((rule) => rule.enabled)
+    .filter((rule) => rule.enabled && (!runnableOnly || !validateRule(rule).length))
     .flatMap((rule) => {
       const own: RuleBinding[] = [{ ruleId: rule.id, field: 'trigger', chord: rule.trigger, name: rule.name }]
       if (rule.kind === 'macro' && rule.repeat.enabled && rule.stop?.mode === 'separate')
@@ -273,7 +273,8 @@ export function bindingWarnings(rules: readonly InputRule[], productBindings: re
     }
     const tokens = inputChordTokens(binding.chord)
     for (const product of products) {
-      if (tokensOverlap(tokens, product.tokens)) warnings.push({ ruleId: binding.ruleId, field: binding.field, message: `与 Chaya 快捷键“${product.label}”冲突，可能同时触发` })
+      if (assistFiresOnHotkey(tokens, product.tokens))
+        warnings.push({ ruleId: binding.ruleId, field: binding.field, message: `与 Chaya 快捷键“${product.label}”冲突，可能同时触发` })
     }
   }
   return warnings

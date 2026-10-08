@@ -97,13 +97,13 @@ export function MiniPanelDock({ settings, update }: Props) {
     dragged.current = moveTo({ x: current.from.x + event.clientX - current.x, y: current.from.y + event.clientY - current.y })
   }
 
-  /** pointercancel 的坐标不可靠，落点用最后一次移动的位置 */
+  /** pointercancel 的坐标不可靠，落点用最后一次移动的位置；Shadow DOM 里 document.activeElement 是宿主，只能直接 blur 把方向键还给游戏 */
   const end = (event: PointerEvent<HTMLElement>) => {
     const current = drag.current
     if (current?.pointerId !== event.pointerId) return
     drag.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-    if (document.activeElement === event.currentTarget) event.currentTarget.blur()
+    event.currentTarget.blur()
     if (dragged.current) save(dragged.current)
   }
 

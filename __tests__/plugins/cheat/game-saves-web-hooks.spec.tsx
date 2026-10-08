@@ -133,6 +133,22 @@ it('replays a settings change on top of a newer game-side revision instead of di
   expect(state.settings).toMatchObject({ enabled: true, intervalMin: 30, revision: 2 })
 })
 
+it('surfaces a non-stale configure failure without replaying the change', async () => {
+  const controller = makeController()
+  await mount(makeTransport(controller))
+  const backend = (controller as unknown as { env: GameSavesEnv }).env.backend
+  backend.writeSettings = async () => {
+    throw new Error('disk full')
+  }
+  let failure: unknown
+  await act(async () => {
+    failure = await state.saveSettings({ enabled: true }).catch((cause) => cause)
+  })
+  expect(failure).toEqual(expect.objectContaining({ code: 'failed' }))
+  expect(state.settings.revision).toBe(1)
+  expect(parseGameSavesSettings(JSON.parse(localStorage.getItem('chaya:game-saves:settings')!)).revision).toBe(1)
+})
+
 it('sends newer local settings to the game when it connects', async () => {
   localStorage.setItem('chaya:game-saves:settings', JSON.stringify({ ...parseGameSavesSettings(null), enabled: true, revision: 4 }))
   const controller = makeController()

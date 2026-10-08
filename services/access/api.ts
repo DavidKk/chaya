@@ -1,7 +1,9 @@
+import nodePath from 'node:path'
+
 import { canUseDisk } from '@/lib/service-mode/mode'
 import { hasManagementAccess } from '@/services/access/management'
 import { getTurn } from '@/services/game-agent/session-store'
-import { peekLaunchToken } from '@/services/runtime/launch-token'
+import { type LaunchSession, peekLaunchToken } from '@/services/runtime/launch-token'
 
 export async function mayAccessApi(request: Request): Promise<boolean> {
   const url = new URL(request.url)
@@ -65,5 +67,30 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
       .catch(() => null)
     return !!body && (body.mode == null || body.mode === 'live' || body.mode === 'realtime' || body.mode === 'lookup' || body.mode === 'ai' || body.mode === 'agents')
   }
+  if (path === '/api/game-saves/store' && request.method === 'POST') {
+    const body = await request
+      .clone()
+      .json()
+      .catch(() => null)
+    return typeof body?.gameId === 'string' && isSessionSavesGameId(body.gameId.trim(), session)
+  }
   return false
+}
+
+const isWithin = (child: string, parent: string) => {
+  const relative = nodePath.relative(parent, child)
+  return !relative.startsWith('..') && !nodePath.isAbsolute(relative)
+}
+
+/**
+ * 插件「存到 Chaya 本机」的游戏 id：库内游戏为库 id，否则为 `path:<游戏目录>`。
+ * 插件探测到的目录可能是启动时所选目录的父目录（选了 www）或其内部（选了 .app），都算同一游戏
+ */
+function isSessionSavesGameId(gameId: string, session: LaunchSession): boolean {
+  if (!gameId) return false
+  if (gameId === session.libraryId || gameId === session.token) return true
+  if (!gameId.startsWith('path:') || !session.gameRoot) return false
+  const detected = nodePath.resolve(gameId.slice(5))
+  const launched = nodePath.resolve(session.gameRoot)
+  return isWithin(detected, launched) || nodePath.dirname(launched) === detected
 }

@@ -2,6 +2,11 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
+jest.mock('@/lib/game/input-assistance', () => ({
+  ...jest.requireActual('@/lib/game/input-assistance'),
+  isPlayerInput: (event: Event) => !(event as Event & { synthetic?: boolean }).synthetic,
+}))
+
 import { InputRecorderField } from '@/components/input-assistance/InputRecorderField'
 import { isInputRecording } from '@/lib/game/input-assistance'
 
@@ -41,6 +46,10 @@ describe('InputRecorderField inside the plugin ShadowRoot', () => {
     fire(document.body, openPanel)
     expect(openPanel.defaultPrevented).toBe(true)
     fire(document.body, new KeyboardEvent('keyup', { key: '`', code: 'Backquote', bubbles: true, composed: true }))
+
+    const turbo = Object.assign(new KeyboardEvent('keydown', { key: 'z', code: 'KeyZ', bubbles: true, cancelable: true }), { synthetic: true })
+    fire(document.body, turbo)
+    expect(turbo.defaultPrevented).toBe(false)
 
     const finish = button('完成触发键录制')
     fire(finish, new MouseEvent('mousedown', { button: 0, bubbles: true, composed: true }))

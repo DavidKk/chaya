@@ -47,6 +47,16 @@ export const panelsZh = {
       toVertical: '改为纵向排列',
       toHorizontal: '改为横向排列',
     },
+    resize: {
+      n: '{title}：拖动上边调整大小',
+      s: '{title}：拖动下边调整大小',
+      e: '{title}：拖动右边调整大小',
+      w: '{title}：拖动左边调整大小',
+      ne: '{title}：拖动右上角调整大小',
+      nw: '{title}：拖动左上角调整大小',
+      se: '{title}：拖动右下角调整大小',
+      sw: '{title}：拖动左下角调整大小',
+    },
   },
 } as const satisfies PanelsPart
 
@@ -94,6 +104,16 @@ export const panelsEn = {
       closeAll: 'Close all mini panels',
       toVertical: 'Switch to vertical',
       toHorizontal: 'Switch to horizontal',
+    },
+    resize: {
+      n: '{title}: resize from the top edge',
+      s: '{title}: resize from the bottom edge',
+      e: '{title}: resize from the right edge',
+      w: '{title}: resize from the left edge',
+      ne: '{title}: resize from the top-right corner',
+      nw: '{title}: resize from the top-left corner',
+      se: '{title}: resize from the bottom-right corner',
+      sw: '{title}: resize from the bottom-left corner',
     },
   },
 } as const satisfies PanelsPart
@@ -143,6 +163,16 @@ export const panelsJa = {
       toVertical: '縦並びにする',
       toHorizontal: '横並びにする',
     },
+    resize: {
+      n: '{title}：上端をドラッグしてサイズ変更',
+      s: '{title}：下端をドラッグしてサイズ変更',
+      e: '{title}：右端をドラッグしてサイズ変更',
+      w: '{title}：左端をドラッグしてサイズ変更',
+      ne: '{title}：右上の角をドラッグしてサイズ変更',
+      nw: '{title}：左上の角をドラッグしてサイズ変更',
+      se: '{title}：右下の角をドラッグしてサイズ変更',
+      sw: '{title}：左下の角をドラッグしてサイズ変更',
+    },
   },
 } as const satisfies PanelsPart
 
@@ -190,6 +220,16 @@ export const panelsKo = {
       closeAll: '미니 패널 모두 닫기',
       toVertical: '세로로 배치',
       toHorizontal: '가로로 배치',
+    },
+    resize: {
+      n: '{title}: 위쪽 가장자리를 끌어 크기 조절',
+      s: '{title}: 아래쪽 가장자리를 끌어 크기 조절',
+      e: '{title}: 오른쪽 가장자리를 끌어 크기 조절',
+      w: '{title}: 왼쪽 가장자리를 끌어 크기 조절',
+      ne: '{title}: 오른쪽 위 모서리를 끌어 크기 조절',
+      nw: '{title}: 왼쪽 위 모서리를 끌어 크기 조절',
+      se: '{title}: 오른쪽 아래 모서리를 끌어 크기 조절',
+      sw: '{title}: 왼쪽 아래 모서리를 끌어 크기 조절',
     },
   },
 } as const satisfies PanelsPart

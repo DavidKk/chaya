@@ -103,6 +103,36 @@ test('Edge adapter reports game state separately from Agent availability', async
   expect(await status.json()).toMatchObject({ available: false, gameOnline: true, profiles: [{ provider: 'ollama' }] })
 })
 
+test('Edge adapter clears only the turns of the requested game', async () => {
+  const signals: AbortSignal[] = []
+  const runtime = {
+    start: jest.fn(({ signal }: { signal: AbortSignal }) => {
+      signals.push(signal)
+      return new Response(new ReadableStream<Uint8Array>({ start: (stream) => signal.addEventListener('abort', () => stream.close()) }))
+    }),
+    stop: jest.fn(),
+    stopAll: jest.fn(),
+    latestSession: () => undefined,
+  }
+  const request = createBrowserGameAgentRequest({ connected: true }, runtime as never)
+  const start = (gameId: string) => request('/api/game-agent/turn', { method: 'POST', body: JSON.stringify({ gameId, profileId: 'ollama-local', model: 'gemma4', prompt: 'hi' }) })
+  const clear = async (gameId: string) => (await request(`/api/game-agent/turn?gameId=${gameId}`, { method: 'DELETE' })).json()
+
+  const first = await start('game-a')
+  const other = await start('game-b')
+  expect(await clear('game-a')).toEqual({ ok: true, cleared: 1 })
+  expect(signals.map((signal) => signal.aborted)).toEqual([true, false])
+  expect(runtime.stopAll).not.toHaveBeenCalled()
+  expect(await first.text()).toBe('')
+
+  await other.body?.cancel()
+  expect(await clear('game-b')).toEqual({ ok: true, cleared: 0 })
+  expect(signals[1].aborted).toBe(false)
+
+  const missing = await request('/api/game-agent/turn', { method: 'DELETE' })
+  expect(missing.status).toBe(400)
+})
+
 test('Edge adapter caches models fetched automatically from an endpoint', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ models: [{ name: 'gemma4' }] }) }) as Response)

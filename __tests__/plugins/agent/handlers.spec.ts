@@ -134,6 +134,34 @@ describe('ChayaAgent handlers', () => {
     }
   })
 
+  it('stops a guarded sequence when the battle ends between keys', async () => {
+    jest.useFakeTimers()
+    const originals = { document: g.document, window: g.window }
+    g.document = { title: 'Game', body: { innerText: '' } }
+    g.window = globalThis
+    const input = { _currentState: {} as Record<string, boolean> }
+    g.Input = input
+    const scene = { constructor: { name: 'Scene_Battle' } }
+    g.SceneManager = { _scene: scene }
+    try {
+      const state = (await runAgentCommand({ id: 'state', method: 'game.state', params: {} })) as { controlToken: string }
+      const guard = { controlToken: state.controlToken, allowedEffects: ['navigate' as const] }
+      const done = runAgentCommand({ id: 'combo', method: 'input.sequence', params: { steps: [{ key: 'right' }, { key: 'right' }], guard } })
+      const failed = expect(done).rejects.toThrow('SCOPE_CHANGED')
+      scene.constructor = { name: 'Scene_Map' }
+      await jest.advanceTimersByTimeAsync(1_000)
+      await failed
+      expect(input._currentState.right).toBe(false)
+    } finally {
+      for (const [name, value] of Object.entries(originals)) {
+        if (value === undefined) delete g[name]
+        else g[name] = value
+      }
+      delete g.SceneManager
+      jest.useRealTimers()
+    }
+  })
+
   it('allows interaction only with the bound map event', async () => {
     jest.useFakeTimers()
     const originals = { document: g.document, window: g.window, SceneManager: g.SceneManager, $gameMap: g.$gameMap, $gamePlayer: g.$gamePlayer, $gameMessage: g.$gameMessage }

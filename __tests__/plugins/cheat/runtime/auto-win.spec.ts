@@ -113,6 +113,23 @@ it('does not retry every tick when processVictory throws', () => {
   expect(g.BattleManager.processVictory).toHaveBeenCalledTimes(1)
 })
 
+it('closes open target / skill / item windows before the victory message', () => {
+  Cheats.setAutoWin(true)
+  startBattle()
+  const open = () => ({ active: true, deactivate: jest.fn(), hide: jest.fn() })
+  const windows = { _enemyWindow: open(), _actorWindow: { active: false, deactivate: jest.fn(), hide: jest.fn() }, _skillWindow: open(), _itemWindow: open() }
+  Object.assign(g.SceneManager._scene, windows)
+  let hiddenFirst = false
+  g.BattleManager.processVictory.mockImplementation(() => {
+    hiddenFirst = windows._skillWindow.hide.mock.calls.length > 0
+  })
+  tick()
+  expect(g.BattleManager.processVictory).toHaveBeenCalledTimes(1)
+  expect(hiddenFirst).toBe(true)
+  for (const w of [windows._enemyWindow, windows._skillWindow, windows._itemWindow]) expect(w.deactivate).toHaveBeenCalled()
+  expect(windows._actorWindow.hide).not.toHaveBeenCalled()
+})
+
 it('reports the switch state', () => {
   expect(Cheats.getAutoWin()).toBe(false)
   expect(Cheats.setAutoWin(true)).toBe(true)

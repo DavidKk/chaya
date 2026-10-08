@@ -30,12 +30,12 @@ const battle: BattleState = {
   ended: false,
   settling: false,
   enemies: [
-    { index: 0, enemyId: 1, name: 'Slime A', hp: 40, mhp: 100, alive: true, appeared: true },
-    { index: 1, enemyId: 1, name: 'Slime B', hp: 0, mhp: 100, alive: false, appeared: true },
+    { index: 0, enemyId: 1, name: 'Slime A', hp: 40, mhp: 100, mhpCap: 999999, alive: true, appeared: true },
+    { index: 1, enemyId: 1, name: 'Slime B', hp: 0, mhp: 100, mhpCap: 999999, alive: false, appeared: true },
   ],
   party: [
-    { actorId: 1, name: 'Harold', hp: 210, mhp: 320, mp: 40, mmp: 60, tp: 12, maxTp: 100, alive: true },
-    { actorId: 2, name: 'Therese', hp: 0, mhp: 280, mp: 30, mmp: 90, tp: 0, maxTp: 100, alive: false },
+    { actorId: 1, name: 'Harold', hp: 210, mhp: 320, mp: 40, mmp: 60, mhpCap: 9999, mmpCap: 9999, tp: 12, maxTp: 100, alive: true },
+    { actorId: 2, name: 'Therese', hp: 0, mhp: 280, mp: 30, mmp: 90, mhpCap: 9999, mmpCap: 9999, tp: 0, maxTp: 100, alive: false },
   ],
   partyIds: [1, 2],
   partyMax: 4,
@@ -288,6 +288,38 @@ test('party: locked HP and invincible mode block the matching controls', async (
 
   await act(async () => root!.unmount())
   await render(slot(), { locks: {}, god: true })
-  expect(input('当前 HP Harold').disabled).toBe(false)
+  expect(input('当前 HP Harold').disabled).toBe(true)
+  expect(input('当前 MP Harold').disabled).toBe(true)
+  expect(input('TP Harold').disabled).toBe(false)
   expect(rowButton('Harold', '倒下')!.disabled).toBe(true)
+})
+
+test("max fields are capped by each battler's own paramMax", async () => {
+  const mz: BattleState = {
+    ...battle,
+    enemies: [{ ...battle.enemies[0]!, mhpCap: 9_999_999 }],
+    party: [{ ...battle.party[0]!, mhpCap: 9999, mmpCap: 9_999_999 }],
+  }
+  const s = slot({ battle: mz })
+  await render(s)
+  await edit('HP 上限 Slime A', '5000000', 'Enter')
+  expect(s.onAct).toHaveBeenLastCalledWith({ op: 'enemyMhp', index: 0, fromEnemyId: 1, mhp: 5000000 })
+  await edit('MP 上限 Harold', '20000', 'Enter')
+  expect(s.onAct).toHaveBeenLastCalledWith({ op: 'actorVital', actorId: 1, key: 'mmp', value: 20000 })
+  await edit('HP 上限 Harold', '20000', 'Enter')
+  expect(s.onAct).toHaveBeenLastCalledWith({ op: 'actorVital', actorId: 1, key: 'mhp', value: 9999 })
+})
+
+test('overlapping ops keep actions disabled until every one has finished', async () => {
+  const pending: Array<() => void> = []
+  const s = slot({ onAct: jest.fn(() => new Promise<void>((resolve) => pending.push(resolve))) })
+  await render(s)
+  await edit('当前 HP Harold', '100', 'Enter')
+  await edit('当前 MP Harold', '10', 'Enter')
+  expect(s.onAct).toHaveBeenCalledTimes(2)
+  expect(rowButton('Slime A', '杀死')!.disabled).toBe(true)
+  await act(async () => pending[0]!())
+  expect(rowButton('Slime A', '杀死')!.disabled).toBe(true)
+  await act(async () => pending[1]!())
+  expect(rowButton('Slime A', '杀死')!.disabled).toBe(false)
 })

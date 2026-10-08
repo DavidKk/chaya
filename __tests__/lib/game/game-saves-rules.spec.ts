@@ -40,6 +40,12 @@ describe('index', () => {
     expect(parsed.entries.map((e) => e.id)).toEqual(['auto-abc123', 'quick-3'])
   })
 
+  it('keeps valid pending removals that are not live entries', () => {
+    const parsed = parseGameSavesIndex({ revision: 1, entries: [auto('auto-abc123', 1)], removing: ['quick-1', 'quick-1', 'auto-abc123', '../evil', 3] })
+    expect(parsed.removing).toEqual(['quick-1'])
+    expect(parseGameSavesIndex({ revision: 1, entries: [], removing: [] })).not.toHaveProperty('removing')
+  })
+
   it('always lays out ten quick slots', () => {
     const slots = quickSlots(index([{ ...auto('quick-2', 1), list: 'quick', slot: 2, tag: 'quick' }]))
     expect(slots).toHaveLength(10)

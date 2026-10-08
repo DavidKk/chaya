@@ -40,7 +40,13 @@ export type GameSaveEntry = {
   hasThumb: boolean
 }
 
-export type GameSavesIndex = { version: 1; revision: number; entries: GameSaveEntry[] }
+export type GameSavesIndex = {
+  version: 1
+  revision: number
+  entries: GameSaveEntry[]
+  /** 已从索引删除、内容文件尚待清理的条目 id；对账时删文件而不是当孤儿找回 */
+  removing?: string[]
+}
 
 export type SaveWaitReason = 'notMap' | 'battle' | 'event' | 'message' | 'transfer' | 'moving' | 'menu' | 'idle' | 'busy' | 'offline'
 

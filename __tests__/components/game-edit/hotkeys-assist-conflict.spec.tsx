@@ -44,3 +44,20 @@ test('marks the effective Chaya hotkey cell that collides with a key-mouse trigg
   expect(conflicted.map((input) => input.getAttribute('aria-label'))).toEqual([expect.stringMatching(/唤出作弊器.*“面板宏”/), expect.stringMatching(/无敌.*本游戏.*“右左”/)])
   expect(conflicted.every((input) => input.parentElement?.className.includes('border-warn'))).toBe(true)
 })
+
+test('a conflicted cell keeps its input mounted and records a new chord on focus', async () => {
+  const onGameChange = jest.fn()
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <GameEditHotkeysPane gameValue={{ 'flag:god': 'Ctrl+Q' }} globalValue={{}} onGameChange={onGameChange} onGlobalChange={() => {}} assistBindings={assist} />
+      </LocaleProvider>
+    )
+  )
+  const cell = [...host.querySelectorAll('input')].find((input) => /无敌.*本游戏.*“右左”/.test(input.getAttribute('aria-label') ?? ''))!
+  await act(async () => cell.focus())
+  expect(cell.isConnected).toBe(true)
+  expect(document.activeElement).toBe(cell)
+  await act(async () => void cell.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', code: 'KeyE', ctrlKey: true, bubbles: true, cancelable: true })))
+  expect(onGameChange).toHaveBeenCalledWith(expect.objectContaining({ 'flag:god': 'Ctrl+E' }))
+})

@@ -1,4 +1,5 @@
 import {
+  entryListOf,
   type GameSaveEntry,
   type GameSaveList,
   type GameSavesIndex,
@@ -71,21 +72,28 @@ export class RoutedSaveStore {
     return this.stores[this.route[list]]
   }
 
-  /** 写入合并后的条目：每处只替换放在该处的列表，未变化的位置不写 */
-  async commit(entries: GameSaveEntry[]): Promise<void> {
+  /**
+   * 写入合并后的条目：每处只替换放在该处的列表，未变化的位置不写。
+   * `removed` 与索引同一次写入记为待清理；内容文件删掉后由 `purge` 去掉记录，删不掉的由对账重试
+   */
+  async commit(entries: GameSaveEntry[], removed: readonly string[] = []): Promise<void> {
     const writes: [GameSaveStorage, GameSavesIndex][] = []
     for (const place of new Set(Object.values(this.route))) {
       const lists = LISTS.filter((list) => this.route[list] === place)
       const current = this.indices[place]
       const mine = entries.filter((e) => lists.includes(e.list))
+      const mineRemoved = removed.filter((id) => lists.includes(entryListOf(id)))
       if (!current) {
-        if (mine.length) this.store(mine[0].list)
+        if (mine.length || mineRemoved.length) this.store(lists[0])
         continue
       }
       const kept = current.entries.filter((e) => !lists.includes(e.list))
       const before = current.entries.filter((e) => lists.includes(e.list))
-      if (JSON.stringify(before) === JSON.stringify(mine)) continue
-      writes.push([place, { version: 1, revision: current.revision + 1, entries: [...kept, ...mine] }])
+      const next = [...kept, ...mine]
+      const live = new Set(next.map((e) => e.id))
+      const removing = [...new Set([...(current.removing ?? []), ...mineRemoved])].filter((id) => !live.has(id))
+      if (JSON.stringify(before) === JSON.stringify(mine) && JSON.stringify(removing) === JSON.stringify(current.removing ?? [])) continue
+      writes.push([place, { version: 1, revision: current.revision + 1, entries: next, ...(removing.length ? { removing } : {}) }])
     }
     for (const [place, index] of writes) {
       try {
@@ -99,11 +107,43 @@ export class RoutedSaveStore {
     }
   }
 
+  /** 删除已在索引中记为待清理的内容文件，删掉的再从记录中去掉；失败的留给下次对账 */
+  async purge(list: GameSaveList, ids: readonly string[]): Promise<void> {
+    const place = this.route[list]
+    const store = this.stores[place]
+    const done = new Set<string>()
+    for (const id of ids) {
+      try {
+        await store.removeEntry(list, id)
+        done.add(id)
+      } catch (error) {
+        this.log.warn(`删除存档文件失败，下次启动时重试（${PLACE_LABEL[place]}）`, error)
+      }
+    }
+    const current = this.indices[place]
+    const removing = current?.removing?.filter((id) => !done.has(id))
+    if (!current || !removing || removing.length === current.removing!.length) return
+    const next: GameSavesIndex = { version: 1, revision: current.revision + 1, entries: current.entries, ...(removing.length ? { removing } : {}) }
+    try {
+      await store.writeIndex(next, current.revision)
+      this.indices[place] = next
+    } catch (error) {
+      this.log.warn(`清除待删除记录失败（${PLACE_LABEL[place]}）`, error)
+    }
+  }
+
+  /** 重读该列表所在位置的索引，确认磁盘上的现状 */
+  async reread(list: GameSaveList): Promise<void> {
+    await this.reload(this.route[list])
+  }
+
   /** 另一个窗口改过该处索引：换成磁盘上的版本；读失败则标为离线，下次 retry 再读 */
   private async reload(place: GameSaveStorage): Promise<void> {
     try {
-      this.indices[place] = parseGameSavesIndex(await this.stores[place].readIndex())
-      this.log.warn(`存档索引已被其他窗口更新，已重新读取（${PLACE_LABEL[place]}）`)
+      const previous = this.indices[place]
+      const next = parseGameSavesIndex(await this.stores[place].readIndex())
+      this.indices[place] = next
+      if (previous?.revision !== next.revision) this.log.warn(`存档索引已被其他窗口更新，已重新读取（${PLACE_LABEL[place]}）`)
     } catch (error) {
       delete this.indices[place]
       this.log.fail(`重新读取存档索引失败（${PLACE_LABEL[place]}）`, error)
@@ -111,14 +151,16 @@ export class RoutedSaveStore {
   }
 
   /**
-   * 索引与内容文件对账：缺文件的条目移除；索引外的文件补成最小条目（索引损坏时那就是全部存档，
-   * 不补回则不会出现在列表里，快速槽覆盖前也找不到旧条目来备份）
+   * 索引与内容文件对账：缺文件的条目移除；待清理的文件删掉；其余索引外的文件补成最小条目
+   * （索引损坏时那就是全部存档，不补回则不会出现在列表里，快速槽覆盖前也找不到旧条目来备份）
    */
   private async reconcile(place: GameSaveStorage): Promise<void> {
     const store = this.stores[place]
     const index = this.indices[place]!
+    const removing = new Set(index.removing ?? [])
     const missing = new Set<string>()
     const recovered: GameSaveEntry[] = []
+    const present = new Set<string>()
     for (const list of LISTS) {
       const files = new Set(await store.listEntries(list))
       const known = new Set<string>()
@@ -128,13 +170,25 @@ export class RoutedSaveStore {
         if (!files.has(entry.id)) missing.add(entry.id)
       }
       for (const id of files) {
-        const entry = known.has(id) ? null : recoverOrphanEntry(list, id)
+        if (known.has(id)) continue
+        if (removing.has(id)) {
+          await store.removeEntry(list, id).then(
+            () => {},
+            (error) => {
+              present.add(id)
+              this.log.warn(`对账删除待清理的存档文件失败（${PLACE_LABEL[place]}）`, error)
+            }
+          )
+          continue
+        }
+        const entry = recoverOrphanEntry(list, id)
         if (entry) recovered.push(entry)
       }
     }
-    if (!missing.size && !recovered.length) return
+    const stillRemoving = [...removing].filter((id) => present.has(id))
+    if (!missing.size && !recovered.length && stillRemoving.length === removing.size) return
     const entries = [...index.entries.filter((e) => !missing.has(e.id)), ...recovered]
-    const next = { ...index, revision: index.revision + 1, entries }
+    const next: GameSavesIndex = { version: 1, revision: index.revision + 1, entries, ...(stillRemoving.length ? { removing: stillRemoving } : {}) }
     await store.writeIndex(next, index.revision)
     this.indices[place] = next
     if (missing.size) this.log.warn(`对账移除 ${missing.size} 个缺少内容文件的存档条目（${PLACE_LABEL[place]}）`)

@@ -37,10 +37,12 @@ export function inputChordTokens(chord: InputChord): string[] {
   ]
 }
 
-/** Pressing one also holds every key of the other (equal, or one contains the other) */
-export function tokensOverlap(a: readonly string[], b: readonly string[]): boolean {
-  if (!a.length || !b.length) return false
-  const left = new Set(a)
-  const right = new Set(b)
-  return a.every((token) => right.has(token)) || b.every((token) => left.has(token))
+/**
+ * Pressing the hotkey also fires the assist rule: assist triggers match any held superset,
+ * while Chaya hotkeys need their exact modifiers, so only assist ⊆ hotkey collides.
+ */
+export function assistFiresOnHotkey(assist: readonly string[], hotkey: readonly string[]): boolean {
+  if (!assist.length || !hotkey.length) return false
+  const held = new Set(hotkey)
+  return assist.every((token) => held.has(token))
 }

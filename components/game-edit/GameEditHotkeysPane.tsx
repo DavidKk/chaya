@@ -8,7 +8,7 @@ import { formCardDense, formControlInline, formDescInline, formFieldInlineDense,
 import { FORM_CONTROL_H, formControlChrome } from '@/components/sk/control'
 import { SwitchToggle } from '@/components/sk/Switch'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
-import { hotkeyTokens, inputChordTokens, type RuleBinding, tokensOverlap } from '@/lib/game/input-assistance'
+import { assistFiresOnHotkey, hotkeyTokens, inputChordTokens, type RuleBinding } from '@/lib/game/input-assistance'
 import type { MessageKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -139,7 +139,11 @@ function HotkeyBindCell({ label, scope, chord, placeholder, recording, showReset
       ) : null}
     </span>
   )
-  return warning && !recording ? <Tooltip content={warning}>{cell}</Tooltip> : cell
+  return (
+    <Tooltip content={warning ?? ''} suppressed={!warning || recording}>
+      {cell}
+    </Tooltip>
+  )
 }
 
 /** 运行开关 / 触发的快捷键：本游戏覆盖 | 全部游戏默认；未设本游戏则用全局 */
@@ -193,7 +197,7 @@ export function GameEditHotkeysPane({ gameValue, globalValue, onGameChange, onGl
     const chord = effective[id]
     if (!chord || disabled.has(id)) return undefined
     const tokens = hotkeyTokens(chord)
-    const names = assistTokens.filter((binding) => tokensOverlap(tokens, binding.tokens)).map((binding) => `“${binding.name}”`)
+    const names = assistTokens.filter((binding) => assistFiresOnHotkey(binding.tokens, tokens)).map((binding) => `“${binding.name}”`)
     return names.length ? t('edit.hkAssistConflict', { names: names.join('、') }) : undefined
   }
   /** 默认键被别的项占用时已让位，不再提示 */

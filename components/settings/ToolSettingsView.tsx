@@ -32,7 +32,7 @@ function ToolSettingsSkeleton({ label, withSelect }: { label: string; withSelect
 export function ToolSettingsView({ page, request }: { page: ToolPage; request: GameAgentRequest }) {
   const t = useT()
   const locale = useLocaleCode()
-  const { settings, busy, loaded, error, update } = useToolSettings(request)
+  const { settings, busy, loaded, error, unavailable, update } = useToolSettings(request)
   const isMap = page === 'minimap'
   const title = isMap ? t('nav.minimap') : t('nav.companion')
   const enabled = isMap ? settings.miniMapEnabled : settings.companionEnabled
@@ -54,8 +54,8 @@ export function ToolSettingsView({ page, request }: { page: ToolPage; request: G
               <Switch
                 checked={enabled}
                 label={title}
-                description={isMap ? t('tools.minimapDesc') : t('tools.companionDesc')}
-                disabled={busy}
+                description={unavailable ? t('tools.unavailable') : isMap ? t('tools.minimapDesc') : t('tools.companionDesc')}
+                disabled={busy || unavailable}
                 toggleTooltip={t(enabled ? 'tools.turnOff' : 'tools.turnOn', { name: title })}
                 onCheckedChange={(next) => void update(isMap ? { miniMapEnabled: next } : { companionEnabled: next })}
               />
@@ -69,12 +69,12 @@ export function ToolSettingsView({ page, request }: { page: ToolPage; request: G
                     className="w-48 max-w-[60%]"
                     value={settings.companionCharacter}
                     options={COMPANION_CHARACTERS.map((character) => ({ value: character, label: companionWords(locale).names[character] }))}
-                    disabled={busy || !enabled}
+                    disabled={busy || unavailable || !enabled}
                     onChange={(character) => void update({ companionCharacter: character as CompanionCharacter })}
                   />
                 </div>
               ) : null}
-              {error ? (
+              {error && !unavailable ? (
                 <p role="alert" className="text-xs text-fail">
                   {error}
                 </p>

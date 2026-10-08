@@ -108,6 +108,23 @@ it('stays idle while a recorder field owns the input', () => {
   }
 })
 
+it('stops running turbo when a recorder starts and still releases the swallowed trigger', () => {
+  setRules(turbo())
+  physical(runtime, 'down', q)
+  jest.advanceTimersByTime(10)
+  setInputRecording(true)
+  try {
+    expect(runtime.status().running).toEqual([])
+    expect(physical(runtime, 'up', q).prevented).toBe(true)
+    const stoppedAt = emitted.length
+    jest.advanceTimersByTime(300)
+    expect(emitted).toHaveLength(stoppedAt)
+    expect(emitted.filter((item) => item.startsWith('down')).length).toBe(emitted.filter((item) => item.startsWith('up')).length)
+  } finally {
+    setInputRecording(false)
+  }
+})
+
 it('releases a key that is mid-press when turbo is stopped', () => {
   setRules(turbo())
   physical(runtime, 'down', q)

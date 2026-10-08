@@ -49,7 +49,10 @@ let appStoreId: string | null = null
 /** 本机存档目录与浏览器 IndexedDB 库名用稳定标识：库内游戏用库 id，否则用游戏目录或页面地址（启动令牌每次启动都会变） */
 function appStoreGameId(): string {
   if (appStoreId) return appStoreId
-  const libraryId = String((window as Window & { CHAYA_GAME_ID?: string }).CHAYA_GAME_ID || '').trim()
+  const w = window as Window & { CHAYA_GAME_ID?: string; CHAYA_LAUNCH_TOKEN?: string }
+  const gameId = String(w.CHAYA_GAME_ID || '').trim()
+  // 无库 id 时启动环境把 CHAYA_GAME_ID 设成启动令牌
+  const libraryId = gameId && gameId !== String(w.CHAYA_LAUNCH_TOKEN || '').trim() ? gameId : ''
   const identity = libraryId ? null : detectGameIdentity()
   appStoreId = libraryId || (identity ? `path:${identity.gameRoot}` : `url:${location.origin}${location.pathname}`)
   return appStoreId

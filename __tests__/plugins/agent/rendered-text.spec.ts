@@ -1,6 +1,11 @@
 import { readCommandInputs, readRenderedText, startRenderedTextCapture } from '@/plugins/src/agent/rendered-text'
 
-type TestContext = { canvas: { isConnected: boolean }; fillText: (text: string, x: number, y: number) => void; strokeText: (text: string, x: number, y: number) => void }
+type TestContext = {
+  canvas: { isConnected: boolean }
+  fillText: (text: string, x: number, y: number) => void
+  strokeText: (text: string, x: number, y: number) => void
+  clearRect: (x: number, y: number, w: number, h: number) => void
+}
 
 describe('rendered canvas text', () => {
   const globals = globalThis as typeof globalThis & { CanvasRenderingContext2D?: { prototype: TestContext }; SceneManager?: { _scene: object } }
@@ -14,7 +19,7 @@ describe('rendered canvas text', () => {
   beforeEach(() => {
     now = 1_000
     jest.spyOn(Date, 'now').mockImplementation(() => now)
-    const prototype = { fillText: jest.fn(), strokeText: jest.fn() } as unknown as TestContext
+    const prototype = { fillText: jest.fn(), strokeText: jest.fn(), clearRect: jest.fn() } as unknown as TestContext
     originalFill = prototype.fillText
     globals.CanvasRenderingContext2D = { prototype }
     globals.SceneManager = { _scene: {} }
@@ -75,6 +80,29 @@ describe('rendered canvas text', () => {
       { label: '★セイバー', keys: ['right', 'left'] },
       { label: '★ホーリー', keys: ['left', 'right'] },
     ])
+  })
+
+  it('splits two skill columns drawn on the same line', () => {
+    context.canvas.isConnected = false
+    context.fillText('★セイバー', 30, 90)
+    context.fillText('→ ←', 64, 128)
+    context.fillText('★ホーリー', 420, 90)
+    context.fillText('↑ ↓', 454, 128)
+    expect(readCommandInputs()).toEqual([
+      { label: '★セイバー', keys: ['right', 'left'] },
+      { label: '★ホーリー', keys: ['up', 'down'] },
+    ])
+  })
+
+  it('forgets glyphs wiped by clearRect before a window redraw', () => {
+    context.canvas.isConnected = false
+    context.fillText('★セイバー', 30, 90)
+    context.fillText('→', 64, 128)
+    context.fillText('←', 100, 128)
+    context.clearRect(0, 0, 400, 200)
+    context.fillText('★セイバー', 30, 90)
+    context.fillText('↑', 64, 128)
+    expect(readCommandInputs()).toEqual([{ label: '★セイバー', keys: ['up'] }])
   })
 
   it('reports no commands for plain menu text or after a scene change', () => {

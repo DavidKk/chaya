@@ -11,19 +11,20 @@ import { assertIdle } from './run-from'
 /** `count`: visible members to fight (copies added / extras hidden); omitted keeps the troop as is */
 export type TroopBattleRequest = { id: number; canEscape?: boolean; canLose?: boolean; count?: number }
 
-type Row = { enemyId?: unknown } | null
+type Row = { enemyId?: unknown; hidden?: unknown } | null
 
 const g = () =>
   globalThis as {
     $dataTroops?: ({ members?: Row[] } | null)[]
     $dataEnemies?: (object | null)[]
+    $gameParty?: { battleMembers?: () => unknown[] }
     SceneManager?: { _nextScene?: unknown }
   }
 
-function hasEnemies(troopId: number): boolean {
-  const troop = g().$dataTroops?.[troopId]
+/** Members `Game_Troop.setup` would create */
+function troopEnemies(troopId: number): Row[] {
   const enemies = g().$dataEnemies
-  return !!troop?.members?.some((m) => {
+  return (g().$dataTroops?.[troopId]?.members ?? []).filter((m) => {
     const id = Math.floor(Number(m?.enemyId) || 0)
     return id > 0 && (!enemies || !!enemies[id])
   })
@@ -37,7 +38,11 @@ export function startTroopBattle({ id, canEscape = true, canLose = false, count 
   if (transferPending()) throw new Error('传送中，请稍后再试')
   assertIdle()
   if (gameMessage()?.isBusy?.()) throw new Error('对话进行中，请稍后再试')
-  if (troopId <= 0 || !hasEnemies(troopId)) throw new Error(`敌群 ${troopId} 不存在或没有敌人`)
+  const members = troopId > 0 ? troopEnemies(troopId) : []
+  if (!members.length) throw new Error(`敌群 ${troopId} 不存在或没有敌人`)
+  // An empty battle party is wiped out on the first turn check: instant game over
+  if (!g().$gameParty?.battleMembers?.()?.length) throw new Error('队伍中没有可出战的角色')
+  if (count != null && count > 0 && members.every((m) => m?.hidden)) throw new Error('该敌群的敌人都是中途出现，不能设置数量')
   if (!Cheats.startTroop(troopId, canEscape, canLose)) throw new Error('游戏未就绪')
   // The battle scene builds enemy sprites when it starts, so members changed now get sprites like the originals
   if (count != null && count > 0) resizeTroop(count)

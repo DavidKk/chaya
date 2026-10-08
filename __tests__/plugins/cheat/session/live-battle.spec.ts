@@ -3,6 +3,7 @@
  */
 import {
   addEnemy,
+  canSettleBattleEnd,
   killEnemy,
   readBattleState,
   recoverEnemy,
@@ -116,15 +117,21 @@ describe('cheat/live-battle', () => {
       expect(readBattleState()).toEqual({
         ended: false,
         enemies: [
-          { index: 0, enemyId: 1, name: 'Slime', hp: 100, mhp: 100, alive: true, appeared: true },
-          { index: 1, enemyId: 1, name: 'Slime', hp: 0, mhp: 100, alive: false, appeared: true },
-          { index: 2, enemyId: 2, name: 'Bat', hp: 100, mhp: 100, alive: true, appeared: false },
+          { index: 0, enemyId: 1, name: 'Slime', hp: 100, mhp: 100, mhpCap: 999999, alive: true, appeared: true },
+          { index: 1, enemyId: 1, name: 'Slime', hp: 0, mhp: 100, mhpCap: 999999, alive: false, appeared: true },
+          { index: 2, enemyId: 2, name: 'Bat', hp: 100, mhp: 100, mhpCap: 999999, alive: true, appeared: false },
         ],
         party: [],
         partyIds: [],
         partyMax: 4,
         settling: false,
       })
+    })
+
+    it("sends the engine's max HP cap, with MZ's Infinity as a finite number", () => {
+      Object.assign(troop._enemies[0]!, { paramMax: () => Infinity })
+      Object.assign(troop._enemies[1]!, { paramMax: () => 500000 })
+      expect(readBattleState()?.enemies.map((e) => e.mhpCap)).toEqual([9_999_999, 500000])
     })
 
     it('is null outside battle and marks a settling battle as ended', () => {
@@ -144,6 +151,12 @@ describe('cheat/live-battle', () => {
       expect(enemy.setHp).toHaveBeenCalledWith(300)
       expect(enemy.setMp).toHaveBeenCalledWith(20)
       expect(troop.makeUniqueNames).toHaveBeenCalled()
+    })
+
+    it('refreshes an open target window so it shows the new name', () => {
+      scene._enemyWindow.active = true
+      transformEnemy({ index: 0, fromEnemyId: 1, enemyId: 3 })
+      expect(scene._enemyWindow.refresh).toHaveBeenCalled()
     })
 
     it.each([
@@ -168,6 +181,12 @@ describe('cheat/live-battle', () => {
       expect(enemy.performCollapse).toHaveBeenCalled()
       expect(troop._enemies[0]!.hp).toBe(100)
       expect(battleManager.processVictory).not.toHaveBeenCalled()
+    })
+
+    it('refreshes an open target window so the fallen enemy drops out', () => {
+      scene._enemyWindow.active = true
+      killEnemy({ index: 1, fromEnemyId: 1 })
+      expect(scene._enemyWindow.refresh).toHaveBeenCalled()
     })
 
     it('settles victory when the last enemy falls during command input', () => {
@@ -245,6 +264,25 @@ describe('cheat/live-battle', () => {
       ;(g.SceneManager as { _scene: unknown })._scene = new SceneMap()
       expect(settleBattleEnd({ force: true })).toBe(false)
       expect(battleManager.processVictory).toHaveBeenCalledTimes(1)
+    })
+
+    it('checks defeat before victory, like the engine', () => {
+      for (const e of troop._enemies) e.hp = 0
+      g.$gameParty = { isAllDead: () => true }
+      try {
+        expect(settleBattleEnd({ force: true })).toBe(true)
+        expect(battleManager.processDefeat).toHaveBeenCalledTimes(1)
+        expect(battleManager.processVictory).not.toHaveBeenCalled()
+      } finally {
+        delete g.$gameParty
+      }
+    })
+
+    it('reports whether there is anything to settle without settling', () => {
+      expect(canSettleBattleEnd({ force: true })).toBe(false)
+      for (const e of troop._enemies) e.hp = 0
+      expect(canSettleBattleEnd({ force: true })).toBe(true)
+      expect(battleManager.processVictory).not.toHaveBeenCalled()
     })
   })
 
@@ -353,6 +391,23 @@ describe('cheat/live-battle', () => {
       expect(troop._enemies).toHaveLength(2)
       expect(spriteset._enemySprites).toHaveLength(2)
       expect(field.children).toHaveLength(2)
+    })
+
+    it('restores the A / B letters makeUniqueNames handed out when rolling back', () => {
+      const [a, b] = troop._enemies as [FakeEnemy & { _plural?: boolean }, FakeEnemy & { _plural?: boolean }]
+      Object.assign(a, { _letter: 'A', _plural: true })
+      Object.assign(b, { _letter: 'B', _plural: true })
+      troop._namesCount = { Slime: 2 }
+      troop.makeUniqueNames.mockImplementation(() => {
+        troop._enemies.forEach((e, i) => Object.assign(e, { _letter: 'XYZ'[i], _plural: i > 0 }))
+        troop._namesCount = { Slime: 2, Bat: 1 }
+      })
+      spriteset.update.mockImplementation(() => {
+        throw new Error('broken')
+      })
+      expect(() => addEnemy({ enemyId: 2 })).toThrow('该游戏的战斗画面不支持追加敌人')
+      expect([a._letter, a._plural, b._letter, b._plural]).toEqual(['A', true, 'B', true])
+      expect(troop._namesCount).toEqual({ Slime: 2 })
     })
   })
 

@@ -33,10 +33,10 @@ export function useAssistRuleBindings(): RuleBinding[] {
   useEffect(() => {
     let cancelled = false
     const game = readStored(gameKey(roomId))
-    setBindings(ruleBindings(game.rules))
+    setBindings(ruleBindings(game.rules, { runnableOnly: true }))
     loadGlobalConfig(localGlobal)
       .then((global) => {
-        if (!cancelled) setBindings(ruleBindings(mergeRules(global.rules, game.rules)))
+        if (!cancelled) setBindings(ruleBindings(mergeRules(global.rules, game.rules), { runnableOnly: true }))
       })
       .catch(() => {})
     return () => {

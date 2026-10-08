@@ -51,6 +51,7 @@ const GameLinkContext = createContext<GameLinkContextValue | null>(null)
  * 全站共享 Web↔游戏 DataChannel（room = 当前库条目 id）。
  * 拿到房间即自动发 offer 后台等游戏：刷新页面后仍在运行的游戏才能重新连上，
  * 也避免信令板 webConnected 被清掉后「开始游戏」误开第二个进程。
+ * 后台发 offer 不抢别的标签页正在用的链路，等 answer 也有时限；`restart()` 才会接管 / 重新等。
  */
 export function GameLinkProvider({ children }: { children: ReactNode }) {
   const [roomId, setRoomId] = useState<string | null>(null)

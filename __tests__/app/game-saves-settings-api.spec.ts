@@ -45,6 +45,16 @@ test('adopts a newer revision from a game in one step but rejects stale writes',
   expect(await stored()).toEqual(expect.objectContaining({ revision: 7, maxCount: 60 }))
 })
 
+test('moves a corrupt settings file aside and serves defaults', async () => {
+  const dir = path.join(dataDir, 'game-saves')
+  fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(dir, 'settings.json'), '{broken')
+  expect(await stored()).toEqual(DEFAULT_GAME_SAVES_SETTINGS)
+  expect(fs.readdirSync(dir).filter((f) => f.startsWith('settings.json.corrupt-'))).toHaveLength(1)
+  expect((await put({ ...DEFAULT_GAME_SAVES_SETTINGS, revision: 1, enabled: true })).status).toBe(200)
+  expect(await stored()).toEqual(expect.objectContaining({ revision: 1, enabled: true }))
+})
+
 test('rejects out-of-range values', async () => {
   expect((await put({ ...DEFAULT_GAME_SAVES_SETTINGS, revision: 1, maxCount: 5 })).status).toBe(400)
   expect(await stored()).toEqual(DEFAULT_GAME_SAVES_SETTINGS)

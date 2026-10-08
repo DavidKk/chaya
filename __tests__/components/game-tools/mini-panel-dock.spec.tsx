@@ -142,6 +142,31 @@ it('keeps focus on the game when clicked with the mouse and keeps game keys insi
   expect(reached).toEqual(['a'])
 })
 
+it('gives focus back to the game after a drag inside a shadow root', async () => {
+  const shadowHost = document.createElement('div')
+  document.body.appendChild(shadowHost)
+  const shadow = shadowHost.attachShadow({ mode: 'open' })
+  const mount = document.createElement('div')
+  shadow.appendChild(mount)
+  const shadowRoot = createRoot(mount)
+  await act(async () => shadowRoot.render(<Harness initial={{ ...DEFAULT_TOOL_SETTINGS, panelDockEnabled: true }} />))
+  const grip = shadow.querySelector('[role="separator"]') as HTMLElement
+  Object.assign(grip, { setPointerCapture: jest.fn(), hasPointerCapture: () => true, releasePointerCapture: jest.fn() })
+  grip.focus()
+  expect(document.activeElement).toBe(shadowHost)
+  expect(shadow.activeElement).toBe(grip)
+  const pointer = (type: string, y: number) => {
+    const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: 600, clientY: y })
+    Object.defineProperty(event, 'pointerId', { value: 1 })
+    grip.dispatchEvent(event)
+  }
+  await act(async () => pointer('pointerdown', 10))
+  await act(async () => pointer('pointermove', 60))
+  await act(async () => pointer('pointerup', 60))
+  expect(shadow.activeElement).toBeNull()
+  await act(async () => shadowRoot.unmount())
+})
+
 it('moves with the arrow keys on the grip and remembers the position', async () => {
   await renderDock()
   const grip = toolbar().querySelector('[role="separator"]') as HTMLElement

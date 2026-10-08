@@ -74,9 +74,20 @@ describe('cheat/live-party', () => {
   it('reads battle members by id', () => {
     members[1]!.dead = true
     expect(readParty()).toEqual([
-      { actorId: 1, name: 'Harold', hp: 200, mhp: 600, mp: 30, mmp: 50, tp: 10, maxTp: 100, alive: true },
-      { actorId: 4, name: 'Lucius', hp: 200, mhp: 600, mp: 30, mmp: 50, tp: 10, maxTp: 100, alive: false },
+      { actorId: 1, name: 'Harold', hp: 200, mhp: 600, mp: 30, mmp: 50, mhpCap: 9999, mmpCap: 9999, tp: 10, maxTp: 100, alive: true },
+      { actorId: 4, name: 'Lucius', hp: 200, mhp: 600, mp: 30, mmp: 50, mhpCap: 9999, mmpCap: 9999, tp: 10, maxTp: 100, alive: false },
     ])
+  })
+
+  it("sends each actor's paramMax caps (MZ: max HP 9999, max MP uncapped)", () => {
+    Object.assign(members[0]!, { paramMax: (id: number) => (id === 0 ? 9999 : Infinity) })
+    const [first] = readParty()
+    expect([first!.mhpCap, first!.mmpCap]).toEqual([9999, 9_999_999])
+  })
+
+  it('rejects an unknown vital key instead of writing HP', () => {
+    expect(() => writeActorVital({ actorId: 1, key: 'atk' as never, value: 5 })).toThrow('未知属性：atk')
+    expect(members[0]!.setHp).not.toHaveBeenCalled()
   })
 
   it('clamps current values, scales caps and redraws the status window', () => {
@@ -133,6 +144,15 @@ describe('cheat/live-party', () => {
     expect(() => joinActor({ actorId: 9 })).toThrow('角色 9 不存在')
     joinActor({ actorId: 3 })
     expect(() => joinActor({ actorId: 6 })).toThrow('出战人数已满（4）')
+  })
+
+  it('takes the actor back out when a hidden member keeps it off the battle line', () => {
+    const party = g.$gameParty as { addActor: jest.Mock; removeActor?: jest.Mock }
+    party.addActor.mockImplementation((id: number) => reserve.push(new FakeActor(id, `A${id}`)))
+    party.removeActor = jest.fn((id: number) => (reserve = reserve.filter((a) => a.id !== id)))
+    expect(() => joinActor({ actorId: 2 })).toThrow('出战位已被占满（可能有隐藏成员），无法加入')
+    expect(party.removeActor).toHaveBeenCalledWith(2)
+    expect(reserve.map((a) => a.id)).toEqual([5])
   })
 
   it.each([

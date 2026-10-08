@@ -14,15 +14,22 @@ function settingsFile(): string {
   return path.join(toolkitDataDir(), 'game-saves', 'settings.json')
 }
 
+/** 只有文件不存在算默认；内容损坏时把它改名留作副本，再按默认处理 */
 function readSettings(): GameSavesSettings {
+  const file = settingsFile()
   let text: string
   try {
-    text = fs.readFileSync(settingsFile(), 'utf8')
+    text = fs.readFileSync(file, 'utf8')
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return DEFAULT_GAME_SAVES_SETTINGS
     throw error
   }
-  return parseGameSavesSettings(JSON.parse(text))
+  try {
+    return parseGameSavesSettings(JSON.parse(text))
+  } catch {
+    fs.renameSync(file, `${file}.corrupt-${Date.now()}`)
+    return DEFAULT_GAME_SAVES_SETTINGS
+  }
 }
 
 export const GET = defineApiRoute('get:/api/game-saves/settings', async () => {

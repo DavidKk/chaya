@@ -136,6 +136,24 @@ test('pinning locks position and size; the old opaque pin flag is ignored', asyn
   expect(section.className).not.toContain('opacity-40')
 })
 
+test('labels resize handles in the UI language and gives focus back after resizing', async () => {
+  Object.assign(HTMLElement.prototype, { setPointerCapture: jest.fn(), hasPointerCapture: jest.fn(() => true), releasePointerCapture: jest.fn() })
+  await renderPanels()
+  const handle = document.querySelector('[role="separator"][aria-label="Map：拖动右下角调整大小"]') as HTMLElement
+  expect(handle).not.toBeNull()
+  expect(document.querySelectorAll('[aria-label*="resize"]')).toHaveLength(0)
+  handle.focus()
+  expect(document.activeElement).toBe(handle)
+  const width = frame('Map').width
+  await act(async () => {
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 500, clientY: 500 }))
+    handle.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 460, clientY: 500 }))
+    handle.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 460, clientY: 500 }))
+  })
+  expect(frame('Map').width).toBe(width - 40)
+  expect(document.activeElement).not.toBe(handle)
+})
+
 test('stacks the two panels at screen edges when the viewport is too short', async () => {
   await renderPanels(true)
   await act(async () => {

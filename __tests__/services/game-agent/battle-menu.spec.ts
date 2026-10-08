@@ -38,7 +38,15 @@ test('casts a command-input skill by sending its arrow sequence', async () => {
     { label: '★セイバー', keys: ['right', 'left'] },
     { label: '★クロスセイバー', keys: ['right', 'up', 'left'] },
   ]
-  const decideNext = (state: object) => decide(profile, input, messages, { battle: { instanceId: 'battle-1' }, ...state }, 'battle', new AbortController().signal, async () => null)
+  const decideNext = (state: object) =>
+    decide(profile, input, messages, { battle: { instanceId: 'battle-1', phase: 'input' }, ...state }, 'battle', new AbortController().signal, async () => null)
+
+  const skipped = await decideNext({ battle: { instanceId: 'battle-1', phase: 'action' }, commandInputs })
+  expect(skipped.tool_calls?.[0]?.function.name).not.toBe('task_press_combo')
+  const cursor = await decideNext({ commandInputs: [{ label: null, keys: ['right'] }] })
+  expect(cursor.tool_calls?.[0]?.function.name).not.toBe('task_press_combo')
+  chat.mockClear()
+  chat.mockResolvedValue({ role: 'assistant', content: '{"index":1}' })
 
   await expect(decideNext({ commandInputs })).resolves.toMatchObject({
     tool_calls: [{ function: { name: 'task_press_combo', arguments: { label: '★クロスセイバー', keys: ['right', 'up', 'left'] } } }],

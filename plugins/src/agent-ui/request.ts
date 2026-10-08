@@ -9,7 +9,6 @@ import {
   parseAgentSyncDocument,
   withAgentSyncActor,
 } from '@/lib/game-agent/settings-sync'
-import { cacheToolSettings, normalizeToolSettings, readCachedToolSettings } from '@/lib/game-agent/tool-settings'
 
 import { chayaFetch } from '../helpers'
 
@@ -138,20 +137,16 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
 
 export const pluginGameAgentRequest = createPluginGameAgentRequest()
 
-/** Keeps an open game converged with service-side edits without touching either side before the first merge. */
+/**
+ * Keeps an open game converged with service-side edits without touching either side before the first merge.
+ * Tool settings are not polled here: the always-mounted GameEdit root polls them through `useToolSettings`,
+ * which drops reads that race a save.
+ */
 export function startPluginGameAgentSync() {
   let stopped = false
   const run = () => {
     if (stopped) return
     void pluginGameAgentRequest('/api/integration/game-agent', { cache: 'no-store' })
-    void pluginGameAgentRequest('/api/integration/game-agent/tools', { cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok || stopped) return
-        const body = (await response.json()) as { settings?: unknown }
-        const next = normalizeToolSettings(body.settings)
-        if (JSON.stringify(next) !== JSON.stringify(readCachedToolSettings())) cacheToolSettings(next)
-      })
-      .catch(() => {})
   }
   const interval = window.setInterval(run, AUTO_SYNC_MS)
   window.addEventListener('focus', run)
