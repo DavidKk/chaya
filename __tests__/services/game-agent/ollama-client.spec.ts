@@ -28,6 +28,13 @@ describe('game agent Ollama client', () => {
     expect(deltas).toEqual(['你好', '！'])
   })
 
+  it('maps provider token counts from the final stream item', async () => {
+    const fetcher = jest.fn(async () =>
+      streamed(['{"message":{"content":"ok"}}\n{"message":{"content":""},"done":true,"prompt_eval_count":12,"eval_count":4}\n'])
+    ) as unknown as typeof fetch
+    await expect(streamOllamaChat({ model: 'demo', messages: [] }, () => {}, fetcher)).resolves.toMatchObject({ usage: { input: 12, output: 4, total: 16 } })
+  })
+
   it('sends tools and parses Gemma tool calls with object or JSON arguments', async () => {
     const fetcher = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body))

@@ -5,9 +5,11 @@ import { IoArrowUp, IoCheckmark, IoCloseCircleOutline, IoCloseOutline, IoStop, I
 
 import { useLocaleCode } from '@/components/i18n/LocaleProvider'
 import { Button, ScrollArea, Spinner, TruncateText } from '@/components/sk'
+import type { AgentActivityEvent } from '@/lib/game-agent/activity'
 import { runRecoverableOperation } from '@/lib/runtime/recoverable-operation'
 import { cn } from '@/lib/utils'
 
+import { AgentActivityTimeline } from './AgentActivityTimeline'
 import { GameAgentRuntimeMenu } from './GameAgentRuntimeMenu'
 import {
   type AgentWorkspaceMessage as Message,
@@ -44,6 +46,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   const [reconnectTick, setReconnectTick] = useState(0)
   const [prompt, setPrompt] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
+  const [activityEvents, setActivityEvents] = useState<AgentActivityEvent[]>([])
   const [width, setWidth] = useState(() => {
     const saved = typeof window === 'undefined' ? 400 : Number(localStorage.getItem('chaya.gameAgent.width')) || 400
     return Math.max(320, Math.min(560, saved))
@@ -79,6 +82,10 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
       if (item.seq && item.seq <= eventSeqRef.current) return
       eventSeqRef.current = Math.max(eventSeqRef.current, item.seq || 0)
       const assistantId = assistantIdRef.current
+      if (['phase', 'thought.updated', 'tool.started', 'tool.completed', 'progress.updated', 'model.completed', 'persistence.degraded'].includes(item.type)) {
+        const { type, seq, ...data } = item
+        setActivityEvents((current) => [...current.filter((event) => event.seq !== (seq || 0)), { seq: seq || current.length + 1, type, data }].slice(-200))
+      }
       if (item.type === 'turn.started') {
         setTurnId(item.turnId || '')
         setSessionId(item.sessionId || '')
@@ -287,6 +294,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
     const assistantId = `assistant-${Date.now()}`
     assistantIdRef.current = assistantId
     eventSeqRef.current = 0
+    setActivityEvents([])
     setMessages((current) => [...current, { id: `user-${Date.now()}`, role: 'user', text }, { id: assistantId, role: 'assistant', text: '' }])
     setPrompt('')
     setPhase(copy.observing)
@@ -412,7 +420,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
                     message.role === 'user' ? 'ml-auto rounded-md bg-accent px-3 py-2 text-accent-ink' : message.role === 'error' ? 'text-fail' : 'text-ink'
                   )}
                 >
-                  {message.tools?.length ? (
+                  {message.tools?.length && !(message.id === assistantIdRef.current && activityEvents.length) ? (
                     <div className="mb-2 flex flex-col gap-1" aria-live="polite">
                       {message.tools.map((tool) => (
                         <div key={tool.id} className={cn('flex min-w-0 items-center gap-2 text-xs', tool.state === 'failed' ? 'text-fail' : 'text-ink-soft')}>
@@ -431,7 +439,15 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
                       ))}
                     </div>
                   ) : null}
-                  {message.progress?.length ? (
+                  {message.id === assistantIdRef.current && activityEvents.length ? (
+                    <details key={`${message.id}-${running ? 'running' : 'done'}`} className="mb-2" open={running || undefined}>
+                      <summary className="cursor-pointer text-xs text-ink-soft">{running ? '思考过程' : '查看思考过程'}</summary>
+                      <div className="mt-2 border-l border-line pl-2">
+                        <AgentActivityTimeline events={activityEvents} compact />
+                      </div>
+                    </details>
+                  ) : null}
+                  {message.progress?.length && !(message.id === assistantIdRef.current && activityEvents.length) ? (
                     <div className="mb-2 flex flex-col gap-1 text-xs text-ink-soft" aria-live="polite">
                       {message.progress.map((item, index) => (
                         <span key={`${index}-${item}`}>{item}</span>

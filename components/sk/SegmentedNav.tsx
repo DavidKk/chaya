@@ -46,7 +46,8 @@ export function SegmentedNav<T extends string>({ items, value, onChange, 'aria-l
   const syncToActive = useCallback(() => {
     const nav = navRef.current
     if (!nav) return
-    const active = nav.querySelector<HTMLElement>(`${LINK_SELECTOR}[data-nav-id="${CSS.escape(value)}"]`)
+    const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(value) : value.replace(/["\\]/g, '\\$&')
+    const active = nav.querySelector<HTMLElement>(`${LINK_SELECTOR}[data-nav-id="${escaped}"]`)
     if (!active) {
       setIndicator((prev) => ({ ...prev, opacity: 0 }))
       return

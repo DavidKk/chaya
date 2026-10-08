@@ -129,12 +129,7 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
   return async (path, init) => {
     const url = new URL(path, location.origin)
     const method = (init?.method || 'GET').toUpperCase()
-    if (
-      url.pathname === '/api/game-agent/status' ||
-      url.pathname === '/api/game-agent/turn' ||
-      url.pathname === '/api/game-agent/companion' ||
-      url.pathname.startsWith('/api/game-agent/turn/')
-    ) {
+    if (url.pathname === '/api/game-agent/status' || url.pathname === '/api/game-agent/turn' || url.pathname.startsWith('/api/game-agent/turn/')) {
       await initialSync()
       return direct(path, init)
     }

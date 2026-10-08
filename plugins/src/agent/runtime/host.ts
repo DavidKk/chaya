@@ -273,6 +273,7 @@ export function createGameAgentRuntime() {
       content:
         'Continuously control the running RPG through observation and ordinary player input tools until the player stops the task. Verify every action, then keep monitoring even when the current goal appears complete. Never edit game data, run scripts, save, or load. Do not expose hidden reasoning; return only a short player-visible progress summary when no action is needed.',
     }
+    controller.emit(task.id, 'prompt.recorded', { role: 'system', content: playSystem.content, source: 'runtime' })
     let cycle = 0
     for (;;) {
       if (signal.aborted) throw signal.reason
@@ -289,6 +290,10 @@ export function createGameAgentRuntime() {
               surface: task.capability === 'companion' ? 'companion' : undefined,
               companionCharacter: task.capability === 'companion' ? normalizeCompanionCharacter(task.companionCharacter) : undefined,
             }).slice(0, -1) as RuntimeMessage[])
+      if (cycle === 0 && task.capability !== 'play') {
+        for (const message of history.filter((item) => item.role === 'system'))
+          controller.emit(task.id, 'prompt.recorded', { role: 'system', content: message.content, source: 'runtime' })
+      }
       const result = await runAgentTurn(
         {
           model: { complete },
@@ -312,6 +317,7 @@ export function createGameAgentRuntime() {
           events: {
             emit: (event) => {
               controller.emit(task.id, event.type, event)
+              if (event.type === 'model.completed' && event.usage) controller.emit(task.id, 'usage.updated', event.usage)
               if (event.type === 'phase' && event.phase === 'thinking') controller.checkpoint(task.id)
             },
           },
@@ -323,7 +329,7 @@ export function createGameAgentRuntime() {
       )
       if (task.capability !== 'play') {
         controller.emit(task.id, 'assistant.completed', { text: result.text, reason: result.reason })
-        if (result.reason !== 'answered') throw new Error(result.text)
+        if (result.reason === 'unsupported') throw new Error(result.text)
         return
       }
       if (result.reason === 'unsupported') throw new Error(result.text)
@@ -334,6 +340,7 @@ export function createGameAgentRuntime() {
         cycle,
         steps: result.steps,
         toolCalls: result.toolCalls,
+        usage: result.usage,
       })
       await waitForNextPlayCycle(signal)
     }

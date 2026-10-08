@@ -39,6 +39,17 @@ describe('shared agent runtime', () => {
     })
     expect(fixture.calls).toEqual(['chaya_logs_list'])
     expect(fixture.events).toContainEqual({ type: 'phase', phase: 'verifying', step: 1, maxSteps: 8 })
+    expect(fixture.events).toContainEqual(expect.objectContaining({ type: 'tool.started', name: 'chaya_logs_list', input: {} }))
+    expect(fixture.events).toContainEqual(expect.objectContaining({ type: 'tool.completed', name: 'chaya_logs_list', output: { ok: true } }))
+  })
+
+  it('records public activity and accumulates usage without exposing hidden reasoning', async () => {
+    const fixture = host([{ role: 'assistant', content: '完成', usage: { input: 8, output: 2, total: 10 } }])
+    await expect(runAgentTurn(fixture.host, capabilityConfig('ask'), { prompt: '检查' }, new AbortController().signal)).resolves.toMatchObject({
+      usage: { input: 8, output: 2, total: 10 },
+    })
+    expect(fixture.events).toContainEqual(expect.objectContaining({ type: 'thought.updated', summary: expect.objectContaining({ plan: expect.any(String) }) }))
+    expect(fixture.events).toContainEqual(expect.objectContaining({ type: 'model.completed', usage: { input: 8, output: 2, total: 10 } }))
   })
 
   it('keeps input tools out of ask and write tools out of play', () => {

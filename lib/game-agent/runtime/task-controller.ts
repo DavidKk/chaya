@@ -1,3 +1,4 @@
+import { addTokenUsage, type AgentThoughtSummary, type AgentTokenUsage, sanitizeAgentActivity, sanitizeAgentText } from '@/lib/game-agent/activity'
 import { IdempotentWriteCache } from '@/lib/runtime/recoverable-operation'
 
 import type { RuntimeMessage } from './types'
@@ -13,6 +14,9 @@ export type AgentTask = {
   model: string
   locale?: string
   companionCharacter?: string
+  surface?: string
+  usage?: AgentTokenUsage
+  latestThought?: AgentThoughtSummary
   state: AgentTaskState
   goal: string
   createdAt: number
@@ -82,6 +86,7 @@ export class AgentTaskController {
     model: string
     locale?: string
     companionCharacter?: string
+    surface?: string
     goal: string
     execute: (task: AgentTask, signal: AbortSignal, controller: AgentTaskController) => Promise<void>
   }): Promise<AgentTask> {
@@ -99,8 +104,9 @@ export class AgentTaskController {
         model: input.model,
         ...(input.locale ? { locale: input.locale } : {}),
         ...(input.companionCharacter ? { companionCharacter: input.companionCharacter } : {}),
+        ...(input.surface ? { surface: input.surface } : {}),
         state: 'running',
-        goal: input.goal,
+        goal: sanitizeAgentText(input.goal),
         createdAt: now,
         updatedAt: now,
         lastSeq: 0,
@@ -109,6 +115,7 @@ export class AgentTaskController {
         persistence: 'durable',
       }
       this.tasks.set(task.id, task)
+      this.emit(task.id, 'prompt.recorded', { role: 'user', content: task.goal, source: input.surface || input.capability })
       const initial = new AbortController()
       const timer = setTimeout(() => initial.abort(new DOMException('初始检查点超时', 'TimeoutError')), 10_000)
       try {
@@ -197,7 +204,7 @@ export class AgentTaskController {
 
   appendMessages(taskId: string, messages: RuntimeMessage[]): void {
     const task = this.need(taskId)
-    task.messages.push(...messages)
+    task.messages.push(...(sanitizeAgentActivity(messages) as RuntimeMessage[]))
     task.messages = task.messages.slice(-40)
     task.updatedAt = this.now()
     void this.persist(task)
@@ -276,7 +283,10 @@ export class AgentTaskController {
 
   emit(taskId: string, type: string, data?: unknown): AgentTaskEvent {
     const task = this.need(taskId)
-    const event = { seq: ++task.lastSeq, type, at: this.now(), ...(data === undefined ? {} : { data }) }
+    const safeData = data === undefined ? undefined : sanitizeAgentActivity(data)
+    if (type === 'usage.updated') task.usage = addTokenUsage(task.usage, safeData as AgentTokenUsage)
+    if (type === 'thought.updated' && safeData && typeof safeData === 'object') task.latestThought = (safeData as { summary?: AgentThoughtSummary }).summary
+    const event = { seq: ++task.lastSeq, type, at: this.now(), ...(safeData === undefined ? {} : { data: safeData }) }
     task.events.push(event)
     if (task.events.length > 200) task.events.shift()
     task.updatedAt = event.at
@@ -309,6 +319,7 @@ export class AgentTaskController {
       await this.store.save(task, controller.signal)
     } catch {
       task.persistence = 'memory'
+      this.emit(task.id, 'persistence.degraded')
     } finally {
       clearTimeout(timer)
     }

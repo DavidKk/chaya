@@ -33,6 +33,8 @@ export async function startExtPlayTurn(input: StartTurnInput, turn: GameAgentTur
     profileId: input.profileId,
     model: input.model,
     locale: input.locale,
+    surface: input.surface || 'sidebar',
+    companionCharacter: input.companionCharacter,
     goal: input.prompt,
   })
   await pumpExtTask(input.gameId, turn.id, turn.abort.signal, 0, (event) => {
@@ -61,8 +63,33 @@ function mappedEvent(event: AgentTaskEvent): GameAgentEvent | null {
     if (!['observing', 'thinking', 'acting', 'verifying'].includes(String(phase))) return null
     return { type: 'phase', phase: phase as 'observing' | 'thinking' | 'acting' | 'verifying', step: Number(data.step) || 0, maxSteps: Number(data.maxSteps) || 80 }
   }
-  if (event.type === 'tool.started') return { type: 'tool.started', callId: String(data.callId || ''), name: String(data.name || '') }
-  if (event.type === 'tool.completed') return { type: 'tool.completed', callId: String(data.callId || ''), name: String(data.name || ''), ok: data.ok !== false }
+  if (event.type === 'prompt.recorded') return { type: 'prompt.recorded', role: data.role === 'system' ? 'system' : 'user', content: String(data.content || '') }
+  if (event.type === 'model.requested') return { type: 'model.requested', messageCount: Number(data.messageCount) || 0 }
+  if (event.type === 'model.completed')
+    return {
+      type: 'model.completed',
+      text: String(data.text || ''),
+      usage: data.usage as import('@/lib/game-agent/activity').AgentTokenUsage,
+      durationMs: Number(data.durationMs) || 0,
+    }
+  if (event.type === 'thought.updated') return { type: 'thought.updated', summary: (data.summary || {}) as import('@/lib/game-agent/activity').AgentThoughtSummary }
+  if (event.type === 'tool.started')
+    return {
+      type: 'tool.started',
+      callId: String(data.callId || ''),
+      name: String(data.name || ''),
+      input: data.input && typeof data.input === 'object' ? (data.input as Record<string, unknown>) : {},
+      startedAt: Number(data.startedAt) || event.at,
+    }
+  if (event.type === 'tool.completed')
+    return {
+      type: 'tool.completed',
+      callId: String(data.callId || ''),
+      name: String(data.name || ''),
+      ok: data.ok !== false,
+      output: data.output,
+      durationMs: Number(data.durationMs) || 0,
+    }
   if (event.type === 'approval.required') return { type: 'approval.required', question: String(data.question || '请确认是否继续') }
   if (event.type === 'state.changed' && data.state === 'waiting_user') return { type: 'phase', phase: 'waiting_user', step: 0, maxSteps: 80 }
   return null

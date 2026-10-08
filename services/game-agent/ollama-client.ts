@@ -1,3 +1,5 @@
+import type { AgentTokenUsage } from '@/lib/game-agent/activity'
+
 import type { GameAgentMessage, OllamaModel, OllamaTool, OllamaToolCall } from './types'
 
 export const DEFAULT_GAME_AGENT_MODEL = 'qwen3:4b'
@@ -123,6 +125,7 @@ export async function streamOllamaChat(
   let buffer = ''
   let full = ''
   const toolCalls: OllamaToolCall[] = []
+  let usage: AgentTokenUsage | undefined
 
   const normalizeToolCall = (raw: unknown): OllamaToolCall | null => {
     const fn = raw && typeof raw === 'object' ? (raw as { function?: unknown }).function : null
@@ -145,7 +148,12 @@ export async function streamOllamaChat(
   const parseLine = (line: string) => {
     const trimmed = line.trim()
     if (!trimmed) return
-    let item: { message?: { content?: unknown; tool_calls?: unknown }; error?: unknown }
+    let item: {
+      message?: { content?: unknown; tool_calls?: unknown }
+      error?: unknown
+      prompt_eval_count?: unknown
+      eval_count?: unknown
+    }
     try {
       item = JSON.parse(trimmed) as typeof item
     } catch {
@@ -163,6 +171,9 @@ export async function streamOllamaChat(
         if (call) toolCalls.push(call)
       }
     }
+    const input = typeof item.prompt_eval_count === 'number' ? item.prompt_eval_count : undefined
+    const output = typeof item.eval_count === 'number' ? item.eval_count : undefined
+    if (input !== undefined || output !== undefined) usage = { input, output, total: (input || 0) + (output || 0) }
   }
 
   while (true) {
@@ -175,5 +186,5 @@ export async function streamOllamaChat(
   }
   buffer += decoder.decode()
   if (buffer.trim()) parseLine(buffer)
-  return { role: 'assistant', content: full, ...(toolCalls.length ? { tool_calls: toolCalls } : {}) }
+  return { role: 'assistant', content: full, ...(toolCalls.length ? { tool_calls: toolCalls } : {}), ...(usage ? { usage } : {}) }
 }

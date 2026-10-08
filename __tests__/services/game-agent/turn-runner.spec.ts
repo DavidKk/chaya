@@ -83,8 +83,8 @@ test('executes Gemma tool calls, returns the tool result, then emits the verifie
 
   expect(executeGameAgentTool).toHaveBeenCalledWith(expect.any(Array), 'chaya_edit_set', { op: 'walkRate', value: 2 }, 'game-a', turn.abort.signal)
   expect(chat.mock.calls[1][0].messages).toContainEqual({ role: 'tool', tool_name: 'chaya_edit_set', content: '{"ok":true,"verification":{"walkRate":2}}' })
-  expect(events).toContainEqual({ type: 'tool.started', callId: '1-0', name: 'chaya_edit_set' })
-  expect(events).toContainEqual({ type: 'tool.completed', callId: '1-0', name: 'chaya_edit_set', ok: true })
+  expect(events).toContainEqual(expect.objectContaining({ type: 'tool.started', callId: '1-0', name: 'chaya_edit_set' }))
+  expect(events).toContainEqual(expect.objectContaining({ type: 'tool.completed', callId: '1-0', name: 'chaya_edit_set', ok: true }))
   expect(appendLog).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', source: 'ChayaAgent', message: 'tool.started chaya_edit_set' }))
   expect(appendLog).toHaveBeenCalledWith(expect.objectContaining({ level: 'ok', source: 'ChayaAgent', message: 'tool.completed chaya_edit_set ok' }))
   expect(events).toContainEqual({ type: 'assistant.delta', text: '移动速度已设置为 2 倍。' })
@@ -163,7 +163,7 @@ test('deletes a named Agent configuration without requiring a connected game', a
   expect(callAgentGame).not.toHaveBeenCalled()
   expect(chat.mock.calls[0][0].tools).toEqual(expect.arrayContaining([expect.objectContaining({ function: expect.objectContaining({ name: 'chaya_agent_profile_delete' }) })]))
   expect(executeGameAgentTool).toHaveBeenCalledWith(expect.any(Array), 'chaya_agent_profile_delete', { target: 'Flow Local' }, undefined, turn.abort.signal)
-  expect(events).toContainEqual({ type: 'tool.completed', callId: '1-0', name: 'chaya_agent_profile_delete', ok: true })
+  expect(events).toContainEqual(expect.objectContaining({ type: 'tool.completed', callId: '1-0', name: 'chaya_agent_profile_delete', ok: true }))
 })
 
 test('answers a presence check without reading game state or offering tools', async () => {

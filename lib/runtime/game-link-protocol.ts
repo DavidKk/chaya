@@ -233,6 +233,7 @@ export type AgentTaskMessage =
       model: string
       locale?: string
       companionCharacter?: string
+      surface?: string
       goal: string
     }
   | { type: 'agent.task.classify'; requestId: string; gameId: string; profileId: string; model: string; prompt: string }

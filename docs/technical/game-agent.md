@@ -4,6 +4,7 @@
 > 日期：2026-10-04 · 状态修订：2026-10-08
 > 需求：[`../game-agent.md`](../game-agent.md)  
 > 关联：[`integration-mcp.md`](./integration-mcp.md)、[`webmcp.md`](./webmcp.md)、[`chaya-ui-style-guide.md`](./chaya-ui-style-guide.md)、[`game-assistance.md`](./game-assistance.md)
+> Agent 活动记录实现：[`agent-activity-log.md`](./agent-activity-log.md)
 
 > 本文的 `ask`/`play` 示例、八轮工具循环和 SSE 断线取消描述的是 M1/M2 基线。自然语言自主托管的运行策略、任务范围、完成证据、暂停/续接和停止行为以 [`game-assistance.md`](./game-assistance.md) 为准；两者冲突时使用后者。
 >

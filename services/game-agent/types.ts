@@ -17,6 +17,7 @@ export type GameAgentMessage = {
   images?: string[]
   tool_calls?: OllamaToolCall[]
   tool_name?: string
+  usage?: import('@/lib/game-agent/activity').AgentTokenUsage
 }
 
 export type GameAgentSession = {
@@ -56,8 +57,12 @@ export type GameAgentEvent =
   | { type: 'goal.updated'; summary: string }
   | { type: 'approval.required'; question: string }
   | { type: 'history.gap'; fromSeq: number }
-  | { type: 'tool.started'; callId: string; name: string }
-  | { type: 'tool.completed'; callId: string; name: string; ok: boolean }
+  | { type: 'prompt.recorded'; role: 'system' | 'user'; content: string }
+  | { type: 'model.requested'; messageCount: number }
+  | { type: 'model.completed'; text: string; usage?: import('@/lib/game-agent/activity').AgentTokenUsage; durationMs: number }
+  | { type: 'thought.updated'; summary: import('@/lib/game-agent/activity').AgentThoughtSummary }
+  | { type: 'tool.started'; callId: string; name: string; input?: Record<string, unknown>; startedAt?: number }
+  | { type: 'tool.completed'; callId: string; name: string; ok: boolean; output?: unknown; durationMs?: number }
   | { type: 'progress.updated'; summary: string; cycle: number; reason?: string; steps?: number; toolCalls?: number }
   | { type: 'assistant.delta'; text: string }
   | { type: 'turn.completed'; text: string; reason: 'answered' | 'verified' | 'limit_reached' }
@@ -73,4 +78,6 @@ export type StartTurnInput = {
   mode: GameAgentMode
   prompt: string
   locale?: string
+  surface?: string
+  companionCharacter?: string
 }

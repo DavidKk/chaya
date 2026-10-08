@@ -1,4 +1,5 @@
 import { executeRegisteredPageTool, listRegisteredPageTools } from '@/initializer/webmcp/register-page-tools'
+import { sanitizeAgentActivity } from '@/lib/game-agent/activity'
 import { capabilityConfig, runAgentTurn, type RuntimeEvent, type RuntimeMessage, type RuntimeTool } from '@/lib/game-agent/runtime'
 import { collectSecretValues, redactSecrets, redactSecretText } from '@/lib/integration/tools/types'
 import { appendBrowserLog } from '@/lib/log/link-log-store'
@@ -127,7 +128,7 @@ export function createBrowserAgentRuntime() {
                   session.messages = session.messages.slice(-12)
                 },
               },
-              events: { emit: (event: RuntimeEvent) => emit(event as GameAgentEvent) },
+              events: { emit: (event: RuntimeEvent) => emit(sanitizeAgentActivity(event, credentials) as GameAgentEvent) },
               clock: { now: Date.now },
             },
             capabilityConfig('ask'),

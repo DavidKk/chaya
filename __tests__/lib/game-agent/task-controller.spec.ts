@@ -118,6 +118,22 @@ describe('agent task controller', () => {
     expect(persistence.save).toHaveBeenCalled()
   })
 
+  it('redacts task text before persistence and reports a later persistence failure', async () => {
+    const persistence = store()
+    ;(persistence.save as jest.Mock).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('disk unavailable'))
+    const controller = new AgentTaskController(persistence)
+    const task = await controller.start({ ...input(async () => new Promise<void>(() => undefined)), goal: 'token=private at /Users/alice/game' })
+    controller.appendMessages(task.id, [{ role: 'assistant', content: 'Bearer hidden at /tmp/output.json' }])
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(controller.get(task.id)).toMatchObject({
+      goal: 'token=[REDACTED] at <local-path>',
+      messages: [{ role: 'assistant', content: 'Bearer [REDACTED] at <local-path>' }],
+      persistence: 'memory',
+    })
+    expect(controller.get(task.id)?.events).toContainEqual(expect.objectContaining({ type: 'persistence.degraded' }))
+  })
+
   it('clears memory state even when durable removal fails', async () => {
     const persistence = { ...store(), remove: jest.fn(async () => Promise.reject(new Error('disk unavailable'))) }
     const controller = new AgentTaskController(persistence)

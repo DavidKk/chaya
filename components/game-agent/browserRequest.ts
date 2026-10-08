@@ -277,6 +277,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
         profileId: body.profileId,
         model: body.model,
         locale: body.locale,
+        surface: 'sidebar',
         goal: body.prompt,
       },
       signal

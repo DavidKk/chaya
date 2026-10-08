@@ -1,3 +1,4 @@
+import { sanitizeAgentActivity } from '@/lib/game-agent/activity'
 import { collectSecretValues, redactSecrets, redactSecretText } from '@/lib/integration/tools/types'
 import { appendLog } from '@/services/log'
 import { callAgentGame, listAgentGames } from '@/services/runtime/agent-bridge'
@@ -107,7 +108,7 @@ export async function runAskTurn(
             session.messages = session.messages.slice(-12)
           },
         },
-        events: { emit: (event: RuntimeEvent) => emit(event as GameAgentEvent) },
+        events: { emit: (event: RuntimeEvent) => emit(sanitizeAgentActivity(event, credentials) as GameAgentEvent) },
         clock: { now: Date.now },
       },
       capabilityConfig('ask'),

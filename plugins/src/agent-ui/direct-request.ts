@@ -133,6 +133,7 @@ async function startTask(
       model: body.model,
       locale: body.locale,
       companionCharacter: body.companionCharacter,
+      surface: body.surface || 'sidebar',
       goal: body.prompt,
     },
     signal || undefined
@@ -181,46 +182,6 @@ export function createDirectGameAgentRequest(readSettings: () => AgentSyncSettin
       if (!body.gameId || !body.profileId || !body.model || !body.prompt?.trim()) return json({ error: { message: 'gameId、profileId、model 和 prompt 不能为空' } }, 400)
       const started = await startTask(call, { ...body, prompt: body.prompt.trim() }, init?.signal)
       return taskStream(call, started.taskId, started.conversationId, init?.signal)
-    }
-
-    if (url.pathname === '/api/game-agent/companion' && method === 'POST') {
-      const body = JSON.parse(String(init?.body || '{}')) as {
-        gameId?: string
-        text?: string
-        cue?: string
-        locale?: string
-        character?: string
-        profileId?: string
-        model?: string
-      }
-      const settings = readSettings()
-      const profile = settings?.profiles.find((item) => item.id === body.profileId) || settings?.profiles[0]
-      const model = body.model || profile?.defaultModel
-      if (!profile || !model) return json({ error: { message: '没有可用的 Agent 模型' } }, 503)
-      const prompt = body.text?.trim() || `根据当前游戏状态，对 ${body.cue || '刚刚发生的变化'} 给玩家一句简短自然的陪伴回应。`
-      const started = await startTask(
-        call,
-        { gameId: body.gameId || location.pathname, profileId: profile.id, model, prompt, locale: body.locale, surface: 'companion', companionCharacter: body.character },
-        init?.signal
-      )
-      let seq = 0
-      try {
-        for (;;) {
-          const result = (await call({ type: 'agent.task.events', requestId: crypto.randomUUID(), taskId: started.taskId, afterSeq: seq }, init?.signal || undefined)) as {
-            task: AgentTask
-            events: AgentTaskEvent[]
-          }
-          for (const event of result.events || []) {
-            seq = Math.max(seq, event.seq)
-            if (event.type === 'assistant.completed') return json({ ok: true, text: String((event.data as { text?: unknown })?.text || '') })
-          }
-          if (terminal(result.task.state)) throw new Error(result.task.error || '旅伴没有返回内容')
-          await wait(300, init?.signal)
-        }
-      } catch (error) {
-        void call({ type: 'agent.task.stop', requestId: crypto.randomUUID(), taskId: started.taskId }).catch(() => undefined)
-        return json({ error: { message: error instanceof Error ? error.message : String(error) } }, 502)
-      }
     }
 
     if (url.pathname === '/api/game-agent/turn' && method === 'DELETE') {

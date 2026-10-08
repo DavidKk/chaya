@@ -33,6 +33,8 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
     sessionId: body?.sessionId,
     newSession: body?.newSession === true,
     locale: String(body?.locale || ''),
+    surface: typeof body?.surface === 'string' ? body.surface : undefined,
+    companionCharacter: typeof body?.companionCharacter === 'string' ? body.companionCharacter : undefined,
   }
   const profile = profileById(loadGameAgentSettings(), profileId)
   if (!profile) return apiError(400, 'AGENT_PROFILE_NOT_FOUND', '接入实例不存在或已删除')
