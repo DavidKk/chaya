@@ -2,6 +2,7 @@
 
 import { LuBot, LuScrollText } from 'react-icons/lu'
 
+import { useT } from '@/components/i18n/LocaleProvider'
 import { pageMainFlush, panelBody } from '@/components/layoutClasses'
 import { LogPanel } from '@/components/LogPanel'
 import { SectionSideNav, sectionSideNavItemClass, SectionSideNavItemContent } from '@/components/SectionSideNav'
@@ -10,19 +11,19 @@ import { useQueryPatch } from '@/lib/url/use-query-patch'
 
 import { AgentActivityLogPanel } from './game-agent/AgentActivityLogPanel'
 
-const VIEWS = [
-  { id: 'runtime' as const, label: '运行日志', icon: LuScrollText },
-  { id: 'agent' as const, label: 'Agent 活动', icon: LuBot },
-]
-
 export function LogsPage() {
+  const t = useT()
   const { searchParams, replaceQuery } = useQueryPatch()
   const view = searchParams.get('view') === 'agent' ? 'agent' : 'runtime'
+  const views = [
+    { id: 'runtime' as const, label: t('logs.runtime'), icon: LuScrollText },
+    { id: 'agent' as const, label: t('logs.agentActivity'), icon: LuBot },
+  ]
   return (
     <div className={pageMainFlush}>
       <div className={`${panelBody} min-h-0 flex-1 flex-col md:flex-row`}>
-        <SectionSideNav label="日志类型" mobile>
-          {VIEWS.map((item) => {
+        <SectionSideNav label={t('nav.logs')}>
+          {views.map((item) => {
             const active = view === item.id
             return (
               <li key={item.id}>

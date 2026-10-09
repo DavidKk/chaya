@@ -459,6 +459,8 @@ export type MessageTree = {
   }
   edit: EditMessages
   logs: {
+    runtime: string
+    agentActivity: string
     region: string
     regionDesc: string
     live: string

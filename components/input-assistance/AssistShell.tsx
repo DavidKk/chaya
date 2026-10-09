@@ -22,7 +22,7 @@ export function AssistShell({ children }: { children: ReactNode }) {
     <div className={pageMainFlush}>
       <div className={panelShell} role="region" aria-label={t('nav.assist')}>
         <div className={`${panelBody} min-h-0 flex-1 flex-col md:flex-row`}>
-          <SectionSideNav label={t('nav.assist')} mobile>
+          <SectionSideNav label={t('nav.assist')}>
             {sections.map(({ path, labelKey, icon: Icon }) => {
               const active = pathname === path || pathname.startsWith(`${path}/`)
               const label = t(labelKey)

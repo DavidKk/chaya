@@ -6,9 +6,11 @@ import { AppNav } from '@/components/AppNav'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 
 let mockPathname = '/integration/mcp'
+let mockSearchParams = new URLSearchParams()
 
 jest.mock('next/navigation', () => ({
   usePathname: () => mockPathname,
+  useSearchParams: () => mockSearchParams,
 }))
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -27,6 +29,7 @@ let root: Root
 
 beforeEach(() => {
   mockPathname = '/integration/mcp'
+  mockSearchParams = new URLSearchParams()
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -73,4 +76,25 @@ test('closes the mobile drawer after navigating', async () => {
   const skillsLink = document.querySelector<HTMLAnchorElement>('#app-mobile-nav-integration a[href="/integration/skills"]')!
   await act(async () => skillsLink.click())
   expect(document.querySelector('[data-app-mobile-nav]')).toBeNull()
+})
+
+test('puts secondary log pages in the drawer and actions in a footer', async () => {
+  mockPathname = '/logs'
+  mockSearchParams = new URLSearchParams('view=agent')
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <AppNav current="/logs" mobileFooter={<span>Local 和语言</span>} mobileEnd={<button type="button">Agent</button>} />
+      </LocaleProvider>
+    )
+  )
+
+  await act(async () => host.querySelector<HTMLButtonElement>('button[aria-controls="app-mobile-nav"]')!.click())
+  const drawer = document.querySelector<HTMLElement>('[data-app-mobile-nav]')!
+  const secondaryLinks = Array.from(drawer.querySelectorAll<HTMLAnchorElement>('#app-mobile-nav-logs a'))
+  const headerButtons = Array.from(drawer.querySelectorAll<HTMLElement>(':scope > div > div:first-child button'))
+  expect(secondaryLinks.map((link) => link.textContent)).toEqual(['运行日志', 'Agent 活动'])
+  expect(secondaryLinks[1].getAttribute('aria-current')).toBe('page')
+  expect(headerButtons.map((button) => button.textContent)).toEqual(['Agent', ''])
+  expect(drawer.querySelector('footer')?.textContent).toBe('Local 和语言')
 })

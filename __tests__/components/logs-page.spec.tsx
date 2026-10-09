@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
+import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { LogsPage } from '@/components/LogsPage'
 
 const replace = jest.fn()
@@ -39,12 +40,20 @@ afterEach(async () => {
   document.body.innerHTML = ''
 })
 
-test('uses the shared section sidebar to navigate log views', async () => {
-  await act(async () => root.render(<LogsPage />))
+test('uses the shared desktop section sidebar to navigate log views', async () => {
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <LogsPage />
+      </LocaleProvider>
+    )
+  )
 
   const aside = host.querySelector<HTMLElement>('[data-section-side-nav]')!
   const buttons = Array.from(aside.querySelectorAll<HTMLButtonElement>('button'))
-  expect(aside.getAttribute('data-mobile-visible')).toBe('true')
+  expect(aside.getAttribute('data-mobile-visible')).toBeNull()
+  expect(aside.className).toContain('hidden')
+  expect(aside.className).toContain('md:block')
   expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['运行日志', 'Agent 活动'])
   expect(buttons[0].getAttribute('aria-current')).toBe('page')
   expect(host.querySelector('[data-testid="runtime-log"]')).not.toBeNull()
@@ -55,7 +64,13 @@ test('uses the shared section sidebar to navigate log views', async () => {
 
 test('selects the Agent activity view from the URL', async () => {
   query = new URLSearchParams('view=agent')
-  await act(async () => root.render(<LogsPage />))
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <LogsPage />
+      </LocaleProvider>
+    )
+  )
 
   const buttons = Array.from(host.querySelectorAll<HTMLButtonElement>('[data-section-side-nav] button'))
   expect(buttons[1].getAttribute('aria-current')).toBe('page')

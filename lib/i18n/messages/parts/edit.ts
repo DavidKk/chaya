@@ -285,6 +285,8 @@ export const editZh = {
     hkAssistConflict: '与键鼠工具 {names} 冲突，可能同时触发',
   },
   logs: {
+    runtime: '运行日志',
+    agentActivity: 'Agent 活动',
     region: '插件日志',
     regionDesc: '实时查看、筛选并管理 Chaya 插件运行日志。',
     live: '实时',

@@ -94,7 +94,7 @@ type AgentTokenUsage = {
 - `AgentActivityTimeline`：渲染阶段、公开摘要、工具、用量、警告与终态；工具详情使用可展开行。
 - `AgentActivityLogPanel`：负责定时加载、任务选择、空态、错误态和详情滚动。
 
-侧栏把当前回复的活动绑定到 task id。运行中展开；终态和正文出现后默认折叠。陪玩面板复用 `AgentActivityPanel`，用现有 Tab/分段导航切换聊天与活动。日志页复用 `SectionSideNav` 展示二级页面入口，通过 `view=runtime|agent` 查询参数切换内容，并保留各自筛选参数；窄屏沿用该组件的横向响应式形态。
+侧栏把当前回复的活动绑定到 task id。运行中展开；终态和正文出现后默认折叠。陪玩面板复用 `AgentActivityPanel`，用现有 Tab/分段导航切换聊天与活动。日志页复用 `SectionSideNav` 展示二级页面入口，通过 `view=runtime|agent` 查询参数切换内容，并保留各自筛选参数；窄屏完全隐藏页面内二级导航，一级与二级入口统一由右上角导航抽屉提供。
 
 所有页面使用现有 `panelShell`、固定 Header/Body/Footer、`ScrollArea`、`EmptyState` 和加载骨架。窄屏 Tab 可横向滚动，工具 JSON 必须换行且不能撑宽面板。
 

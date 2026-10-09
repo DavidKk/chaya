@@ -286,6 +286,8 @@ export const editKo = {
     hkAssistConflict: '키·마우스 도구 {names}와(과) 충돌하여 함께 실행될 수 있습니다',
   },
   logs: {
+    runtime: '실행 로그',
+    agentActivity: 'Agent 활동',
     region: '로그',
     regionDesc: 'Chaya 플러그인 실행 로그를 실시간으로 확인하고 필터링하며 관리합니다.',
     live: '실시간',

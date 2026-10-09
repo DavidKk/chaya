@@ -286,6 +286,8 @@ export const editJa = {
     hkAssistConflict: 'キーマウスツール {names} と競合し、同時に発動する可能性があります',
   },
   logs: {
+    runtime: '実行ログ',
+    agentActivity: 'Agent アクティビティ',
     region: 'ログ',
     regionDesc: 'Chaya プラグインの実行ログをリアルタイムで表示、絞り込み、管理します。',
     live: 'ライブ',

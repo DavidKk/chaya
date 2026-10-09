@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LuChevronDown, LuMenu, LuX } from 'react-icons/lu'
@@ -36,8 +36,14 @@ const WEB_ROUTES: Partial<Record<MainNavId, AppNavRoute>> = {
   edit: { href: '/cheat/run', children: EDIT_TABS.map((item) => ({ href: editTabHref(item.id), labelKey: item.labelKey })) },
   translate: { href: '/translate/run', children: TRANSLATE_TABS.map((item) => ({ href: translateTabHref(item.id), labelKey: item.labelKey })) },
   assist: { href: '/assist/hotkeys', children: ASSIST_SECTIONS.map((section) => ({ href: `/assist/${section.id}`, labelKey: section.labelKey })) },
-  logs: { href: '/logs' },
   integration: { href: '/integration/skills', children: INTEGRATION_TABS },
+  logs: {
+    href: '/logs',
+    children: [
+      { href: '/logs', labelKey: 'logs.runtime' },
+      { href: '/logs?view=agent', labelKey: 'logs.agentActivity' },
+    ],
+  },
 }
 
 export const APP_NAV_ITEMS: ReadonlyArray<AppNavItem> = mainNavFor('web').flatMap((item) => {
@@ -70,17 +76,33 @@ function navActive(current: AppNavPath, href: string) {
   return current === href
 }
 
-function childActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`)
+function childActive(pathname: string, searchParams: { get(name: string): string | null }, href: string) {
+  const target = new URL(href, 'http://chaya.local')
+  if (pathname !== target.pathname && !pathname.startsWith(`${target.pathname}/`)) return false
+  if (target.pathname === '/logs') return (searchParams.get('view') || 'runtime') === (target.searchParams.get('view') || 'runtime')
+  return true
 }
 
 /**
  * 顶栏主导航：经典底线样式。
  * hover 只变字色；滑动指示条贴底，需与 `topBarFrame` 的 border-b 重合（导航勿放进 overflow:hidden）。
  */
-export function AppNav({ current, className, mobileActions, mobileEnd }: { current: AppNavPath; className?: string; mobileActions?: ReactNode; mobileEnd?: ReactNode }) {
+export function AppNav({
+  current,
+  className,
+  mobileActions,
+  mobileFooter,
+  mobileEnd,
+}: {
+  current: AppNavPath
+  className?: string
+  mobileActions?: ReactNode
+  mobileFooter?: ReactNode
+  mobileEnd?: ReactNode
+}) {
   const t = useT()
   const pathname = usePathname() || ''
+  const searchParams = useSearchParams()
   const navRef = useRef<HTMLElement>(null)
   const mobileTriggerRef = useRef<HTMLButtonElement>(null)
   const mobilePanelRef = useRef<HTMLDivElement>(null)
@@ -89,6 +111,11 @@ export function AppNav({ current, className, mobileActions, mobileEnd }: { curre
   const [ready, setReady] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+
+  const closeMobileNav = useCallback(() => {
+    setMobileOpen(false)
+    window.requestAnimationFrame(() => mobileTriggerRef.current?.focus())
+  }, [])
 
   const syncToActive = useCallback(() => {
     const nav = navRef.current
@@ -166,9 +193,26 @@ export function AppNav({ current, className, mobileActions, mobileEnd }: { curre
     setExpandedIds(active?.children?.length ? new Set([active.id]) : new Set())
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      setMobileOpen(false)
+      if (event.key === 'Escape') {
+        if (event.isComposing || event.keyCode === 229) return
+        event.preventDefault()
+        closeMobileNav()
+        return
+      }
+      if (event.key !== 'Tab' || !mobilePanelRef.current?.contains(document.activeElement)) return
+      const focusable = Array.from(
+        mobilePanelRef.current.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])')
+      ).filter((element) => !element.hidden)
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable.at(-1)!
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
 
     const previousOverflow = document.body.style.overflow
@@ -183,12 +227,7 @@ export function AppNav({ current, className, mobileActions, mobileEnd }: { curre
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = previousOverflow
     }
-  }, [current, mobileOpen])
-
-  function closeMobileNav() {
-    setMobileOpen(false)
-    window.requestAnimationFrame(() => mobileTriggerRef.current?.focus())
-  }
+  }, [closeMobileNav, current, mobileOpen])
 
   function toggleSection(id: string) {
     setExpandedIds((currentIds) => {
@@ -205,7 +244,7 @@ export function AppNav({ current, className, mobileActions, mobileEnd }: { curre
         ref={mobileTriggerRef}
         variant="ghost"
         size="icon"
-        className="md:hidden"
+        className="self-center md:hidden"
         aria-label={t('nav.openMenu')}
         aria-expanded={mobileOpen}
         aria-controls="app-mobile-nav"
@@ -259,23 +298,23 @@ export function AppNav({ current, className, mobileActions, mobileEnd }: { curre
                 aria-labelledby={mobileTitleId}
                 className="absolute inset-y-0 right-0 flex w-[min(calc(100vw-3rem),20rem)] flex-col border-l border-line bg-paper-2 shadow-2xl"
               >
-                <div className="flex h-[3.25rem] shrink-0 items-center justify-between gap-2 border-b border-line px-3">
+                <div className="flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-3">
                   <h2 id={mobileTitleId} className="m-0 text-sm font-semibold text-ink">
                     {t('nav.menu')}
                   </h2>
+                  {mobileEnd ? (
+                    <div className="ml-auto flex items-center" onClick={closeMobileNav}>
+                      {mobileEnd}
+                    </div>
+                  ) : (
+                    <span className="ml-auto" />
+                  )}
                   <Button variant="ghost" size="icon" aria-label={t('nav.closeMenu')} tooltip={t('nav.closeMenu')} onClick={closeMobileNav}>
                     <LuX size={18} aria-hidden />
                   </Button>
                 </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line p-3">
-                  {mobileActions}
-                  {mobileEnd ? (
-                    <div className="ml-auto" onClick={closeMobileNav}>
-                      {mobileEnd}
-                    </div>
-                  ) : null}
-                </div>
                 <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2" aria-label={t('nav.main')}>
+                  {mobileActions ? <div className="mb-1 flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-1 pb-2">{mobileActions}</div> : null}
                   {APP_NAV_ITEMS.map((item) => {
                     const active = navActive(current, item.href)
                     if (!item.children?.length) {
@@ -315,7 +354,7 @@ export function AppNav({ current, className, mobileActions, mobileEnd }: { curre
                         {expanded ? (
                           <div id={panelId} className="flex flex-col gap-0.5 pb-1">
                             {item.children.map((child) => {
-                              const activeChild = childActive(pathname, child.href)
+                              const activeChild = childActive(pathname, searchParams, child.href)
                               return (
                                 <Link
                                   key={child.href}
@@ -337,6 +376,11 @@ export function AppNav({ current, className, mobileActions, mobileEnd }: { curre
                     )
                   })}
                 </nav>
+                {mobileFooter ? (
+                  <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                    {mobileFooter}
+                  </footer>
+                ) : null}
               </div>
             </div>,
             document.body

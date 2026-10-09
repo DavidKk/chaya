@@ -286,6 +286,8 @@ export const editEn = {
     hkAssistConflict: 'Conflicts with key-mouse tool {names}; both may fire',
   },
   logs: {
+    runtime: 'Runtime logs',
+    agentActivity: 'Agent activity',
     region: 'Plugin logs',
     regionDesc: 'View, filter, and manage Chaya plugin logs in real time.',
     live: 'Live',

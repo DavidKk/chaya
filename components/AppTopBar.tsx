@@ -44,12 +44,12 @@ export function AppTopBar({ current, end, className }: Props) {
         <div className="flex shrink-0 items-center">
           <BrandLogo href="/" className={brand} />
         </div>
-        <div className={cn(topBarNav, 'max-md:ml-auto')}>
+        <div className={cn(topBarNav, 'max-md:ml-auto max-md:h-full max-md:self-center max-md:items-center')}>
           <AppNav
             current={resolved}
-            mobileActions={
+            mobileActions={resolved === '/cheat' ? <LinkedGameBadge /> : undefined}
+            mobileFooter={
               <>
-                {resolved === '/cheat' ? <LinkedGameBadge /> : null}
                 {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
                 <DownloadCenter />
                 <LocaleSwitcher />
