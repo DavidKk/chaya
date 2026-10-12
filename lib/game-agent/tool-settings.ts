@@ -19,6 +19,8 @@ export type ToolSettings = {
   /** 存隐藏的项：以后新增的迷你面板默认显示 */
   panelDockHiddenItems: PanelDockItem[]
   panelDockOrientation: PanelDockOrientation
+  /** 迷你面板闲置时的透明度，范围 10-100；悬停或聚焦时仍完全显示 */
+  miniPanelOpacity: number
   /** 能力增强：点击移动用整图寻路，绕开会触发的事件格 */
   smartPathEnabled: boolean
 }
@@ -32,6 +34,7 @@ export const DEFAULT_TOOL_SETTINGS: ToolSettings = {
   panelDockEnabled: false,
   panelDockHiddenItems: [],
   panelDockOrientation: 'horizontal',
+  miniPanelOpacity: 40,
   smartPathEnabled: true,
 }
 export const TOOL_SETTINGS_EVENT = 'chaya:tool-settings-changed'
@@ -48,6 +51,8 @@ export function normalizeToolSettings(value: unknown): ToolSettings {
     panelDockEnabled: typeof source.panelDockEnabled === 'boolean' ? source.panelDockEnabled : false,
     panelDockHiddenItems: Array.isArray(source.panelDockHiddenItems) ? PANEL_DOCK_ITEMS.filter((item) => source.panelDockHiddenItems!.includes(item)) : [],
     panelDockOrientation: source.panelDockOrientation === 'vertical' ? 'vertical' : 'horizontal',
+    miniPanelOpacity:
+      typeof source.miniPanelOpacity === 'number' && Number.isFinite(source.miniPanelOpacity) ? Math.min(100, Math.max(10, Math.round(source.miniPanelOpacity))) : 40,
     smartPathEnabled: typeof source.smartPathEnabled === 'boolean' ? source.smartPathEnabled : true,
   }
 }

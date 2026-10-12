@@ -5,6 +5,7 @@
 > 技术方案：[`technical/game-agent.md`](./technical/game-agent.md)  
 > 关联：[`integration.md`](./integration.md)、[`webmcp.md`](./webmcp.md)、[`game-assistance.md`](./game-assistance.md)、[`capability-supplement.md`](./capability-supplement.md)
 > Agent 活动记录与展示：[`agent-activity-log.md`](./agent-activity-log.md)
+> Cursor（本机登录）/ GPT / Claude / Gemini（远程授权）接入（待开发）：[`agent-cli-providers.md`](./agent-cli-providers.md)
 >
 > **已废弃（勿再按此开发）**：玩家手动选「询问 / 游玩」双入口；把 SSE 断线取消当作托管 Turn 的产品契约；与辅助文档冲突的 Phase 2/3 游玩语义；开放危险修改/脚本工具。
 

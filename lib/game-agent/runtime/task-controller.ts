@@ -1,7 +1,8 @@
 import { addTokenUsage, type AgentThoughtSummary, type AgentTokenUsage, sanitizeAgentActivity, sanitizeAgentText } from '@/lib/game-agent/activity'
+import type { PlayerCard } from '@/lib/game-agent/player-card'
 import { IdempotentWriteCache } from '@/lib/runtime/recoverable-operation'
 
-import type { RuntimeMessage } from './types'
+import type { AgentRoutine, RuntimeMessage } from './types'
 
 export type AgentTaskState = 'running' | 'waiting_user' | 'waiting_service' | 'completed' | 'stopped' | 'failed' | 'interrupted'
 export type AgentTaskEvent = { seq: number; type: string; at: number; data?: unknown }
@@ -15,6 +16,8 @@ export type AgentTask = {
   locale?: string
   companionCharacter?: string
   surface?: string
+  thinking?: boolean
+  routine?: AgentRoutine
   usage?: AgentTokenUsage
   latestThought?: AgentThoughtSummary
   state: AgentTaskState
@@ -87,6 +90,8 @@ export class AgentTaskController {
     locale?: string
     companionCharacter?: string
     surface?: string
+    thinking?: boolean
+    routine?: AgentRoutine
     goal: string
     execute: (task: AgentTask, signal: AbortSignal, controller: AgentTaskController) => Promise<void>
   }): Promise<AgentTask> {
@@ -105,6 +110,8 @@ export class AgentTaskController {
         ...(input.locale ? { locale: input.locale } : {}),
         ...(input.companionCharacter ? { companionCharacter: input.companionCharacter } : {}),
         ...(input.surface ? { surface: input.surface } : {}),
+        ...(input.thinking ? { thinking: true } : {}),
+        ...(input.routine ? { routine: input.routine } : {}),
         state: 'running',
         goal: sanitizeAgentText(input.goal),
         createdAt: now,
@@ -182,9 +189,10 @@ export class AgentTaskController {
     return updated
   }
 
-  waitForUser(taskId: string, question: string, signal: AbortSignal): Promise<string> {
+  /** `card` 让界面用小卡片展示问题；玩家点选时回复的是选项 id */
+  waitForUser(taskId: string, question: string, signal: AbortSignal, card?: PlayerCard): Promise<string> {
     if (this.replyWaiters.has(taskId)) throw new Error('任务已在等待玩家回复')
-    this.emit(taskId, 'approval.required', { question: question.slice(0, 2_000) })
+    this.emit(taskId, 'approval.required', { question: question.slice(0, 2_000), ...(card ? { card } : {}) })
     this.setState(taskId, 'waiting_user')
     return new Promise<string>((resolve, reject) => {
       const abort = () => {

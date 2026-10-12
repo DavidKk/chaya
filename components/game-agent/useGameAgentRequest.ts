@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from 'react'
 
 import { useGameLinkContext } from '@/components/GameLinkProvider'
+import { normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
 
 import { createBrowserGameAgentRequest } from './browserRequest'
 import { createBrowserAgentRuntime } from './browserTurn'
@@ -15,8 +16,18 @@ export function useGameAgentRequest() {
   const agentTask = useCallback(
     (message: Exclude<import('@/lib/runtime/game-link-protocol').AgentTaskMessage, { type: 'agent.task.result' }>, signal?: AbortSignal) =>
       new Promise<unknown>((resolve, reject) => {
-        if (!connected) return reject(new Error('帮玩需要先连接游戏'))
-        const timer = window.setTimeout(() => finish(new Error('游戏 10 秒内未响应 Agent 请求')), 10_000)
+        if (!connected) return reject(new Error('托管需要先连接游戏'))
+        let timeoutMs = 15_000
+        try {
+          const raw = localStorage.getItem('chaya.gameAgent.settings')
+          const profiles = raw ? (JSON.parse(raw) as { profiles?: Array<{ id?: string; gameCallTimeoutMs?: number }> }).profiles : undefined
+          const profileId = 'profileId' in message ? message.profileId : undefined
+          const profile = profiles?.find((item) => item.id === profileId)
+          timeoutMs = normalizeAgentTimeouts({ gameCallTimeoutMs: profile?.gameCallTimeoutMs }).gameCallTimeoutMs
+        } catch {
+          /* Use the shared default when local browser settings are unavailable. */
+        }
+        const timer = window.setTimeout(() => finish(new Error(`游戏 ${Math.round(timeoutMs / 1000)} 秒内未响应 Agent 请求`)), timeoutMs)
         const unsubscribe = subscribeMessages((reply) => {
           if (reply.type !== 'agent.task.result' || reply.requestId !== message.requestId) return
           if (reply.ok) finish(null, reply.data)

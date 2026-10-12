@@ -2,6 +2,8 @@ import fs from 'node:fs'
 
 import { GET, POST, PUT } from '@/app/api/integration/game-agent/route.server'
 import { applySettingsToAgentSyncDocument, createEmptyAgentSyncDocument, withAgentSyncActor } from '@/lib/game-agent/settings-sync'
+import { AgentCliError } from '@/services/game-agent/cli/errors'
+import * as cliProbe from '@/services/game-agent/cli/probe.server'
 import { GAME_AGENT_MODEL_CACHE_PATH } from '@/services/game-agent/model-cache'
 import * as ollamaClient from '@/services/game-agent/ollama-client'
 import { GAME_AGENT_SETTINGS_PATH, GAME_AGENT_SYNC_PATH } from '@/services/game-agent/settings'
@@ -176,4 +178,50 @@ test('a service edit made after observing the plugin version wins the same field
 
   const stalePlugin = await PUT(request('PUT', token, { sync: pluginDocument }), ctx)
   expect((await stalePlugin.json()).settings.profiles[0].label).toBe('Service Label')
+})
+
+async function withCodexAgent() {
+  const baseline = await (await GET(request('GET'), ctx)).json()
+  const codex = { id: 'codex-agent', label: 'Codex', provider: 'codex', endpoint: '', defaultModel: '' }
+  const saved = await PUT(request('PUT', undefined, { settings: { ...baseline.settings, profiles: [...baseline.settings.profiles, codex] }, features: ['cli-providers'] }), ctx)
+  return saved.json()
+}
+
+test('readers without the CLI feature neither see nor delete CLI agents', async () => {
+  const created = await withCodexAgent()
+  expect(created.settings.profiles.map((profile: { id: string }) => profile.id)).toEqual(['ollama-local', 'codex-agent'])
+
+  const token = issueLaunchToken({ gameRoot: '/games/demo', libraryId: 'demo-game' }).token
+  const legacySync = await (await PUT(request('PUT', token, { sync: createEmptyAgentSyncDocument('plugin:old') }), ctx)).json()
+  expect(legacySync.settings.profiles.map((profile: { id: string }) => profile.id)).toEqual(['ollama-local'])
+
+  const legacySettings = { ...legacySync.settings, profiles: [{ ...legacySync.settings.profiles[0], label: 'Renamed' }] }
+  await PUT(request('PUT', undefined, { settings: legacySettings }), ctx)
+  const current = await (await GET(request('GET'), ctx)).json()
+  expect(current.settings.profiles.map((profile: { id: string; label: string }) => [profile.id, profile.label])).toEqual([
+    ['ollama-local', 'Renamed'],
+    ['codex-agent', 'Codex'],
+  ])
+})
+
+test('CLI agents test through a CLI session and cache models per profile', async () => {
+  const listModels = jest.spyOn(ollamaClient, 'listOllamaModels')
+  const probe = jest.spyOn(cliProbe, 'probeCliProfile').mockResolvedValue({ models: [{ name: 'gpt-5.5', label: 'GPT-5.5' }], defaultModel: '', model: 'GPT-5.5', latencyMs: 1200 })
+  const response = await POST(request('POST', undefined, { action: 'test', profile: { id: 'codex-agent', provider: 'codex', defaultModel: '' } }), ctx)
+  expect(response.status).toBe(200)
+  expect(await response.json()).toMatchObject({ profileId: 'codex-agent', models: [{ name: 'gpt-5.5', label: 'GPT-5.5' }], model: 'GPT-5.5', latencyMs: 1200 })
+  expect(probe).toHaveBeenCalledWith({ id: 'codex-agent', provider: 'codex', defaultModel: '', proxy: '' }, expect.objectContaining({ prompt: true }))
+  expect(listModels).not.toHaveBeenCalled()
+
+  await POST(request('POST', undefined, { action: 'models', profile: { id: 'codex-agent', provider: 'codex' } }), ctx)
+  expect(probe).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ prompt: false }))
+  const cache = JSON.parse(fs.readFileSync(GAME_AGENT_MODEL_CACHE_PATH, 'utf8'))
+  expect(cache['codex-agent'].endpoint).toBe('codex:codex-agent')
+})
+
+test('CLI test failures keep their error code and status', async () => {
+  jest.spyOn(cliProbe, 'probeCliProfile').mockRejectedValue(new AgentCliError('AGENT_AUTH_REQUIRED', '请先授权'))
+  const response = await POST(request('POST', undefined, { action: 'test', profile: { id: 'codex-agent', provider: 'codex' } }), ctx)
+  expect(response.status).toBe(401)
+  expect((await response.json()).error).toMatchObject({ code: 'AGENT_AUTH_REQUIRED', message: '请先授权' })
 })

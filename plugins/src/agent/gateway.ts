@@ -10,6 +10,8 @@ import { MCP_DOCS_URL, processMcpPortEnv } from '@/lib/integration/mcp-port'
 import { dispatchMcp, type McpServerConfig, type McpTool } from '@/lib/integration/mcp-protocol'
 import { makeEditTools } from '@/lib/integration/tools/edit'
 import { type AgentCaller, makeLiveTools, pluginToolRun } from '@/lib/integration/tools/live'
+import { makeSaveTools } from '@/lib/integration/tools/saves'
+import { makeSkillTools } from '@/lib/integration/tools/skills'
 import type { ToolImpls } from '@/lib/integration/tools/types'
 import type { AgentCommand } from '@/lib/runtime/agent-protocol'
 import { pluginToolDescription, pluginToolName } from '@/lib/runtime/plugin-tools'
@@ -41,7 +43,13 @@ function buildServer(gameId: () => string, gameInfo: () => Record<string, unknow
     commandSeq += 1
     return runAgentCommand({ id: `gw-${commandSeq}`, method, params } as AgentCommand)
   }
-  const impls: ToolImpls = { ...makeLiveTools({ games: () => [{ ...gameInfo(), gameId: gameId() }], call }), ...makeEditTools(call), ...makeGameTools() }
+  const impls: ToolImpls = {
+    ...makeLiveTools({ games: () => [{ ...gameInfo(), gameId: gameId() }], call }),
+    ...makeSaveTools(call),
+    ...makeEditTools(call),
+    ...makeSkillTools(),
+    ...makeGameTools(),
+  }
   const tools: McpTool[] = mcpToolsFor('plugin').map((meta) => ({
     name: meta.name,
     description: meta.description,

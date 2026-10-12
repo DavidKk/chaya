@@ -45,6 +45,8 @@ export default function nextConfig(phase: string): NextConfig {
     allowedDevOrigins: allowedDevHosts(),
     pageExtensions: pageExtensions(target),
     env: { NEXT_PUBLIC_CHAYA_TARGET: target },
+    // Native PTY binding (Gemini / Antigravity login); bundling would drop its prebuilt `.node` files.
+    serverExternalPackages: ['@lydell/node-pty'],
     // Electron installers need standalone; skip for Vercel / plain `next build`
     ...(electron ? { output: 'standalone' as const } : {}),
   }

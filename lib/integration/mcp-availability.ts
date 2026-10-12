@@ -8,7 +8,7 @@ import { MCP_TOOLS, type McpToolGroupId, type McpToolMeta } from './mcp-catalog'
 
 export type McpHost = 'server' | 'plugin'
 
-const PLUGIN_GROUPS: ReadonlySet<McpToolGroupId> = new Set(['live', 'edit', 'translate', 'cache', 'logs'])
+const PLUGIN_GROUPS: ReadonlySet<McpToolGroupId> = new Set(['live', 'agent', 'edit', 'translate', 'cache', 'logs', 'skills'])
 
 /** Needs the local disk or the batch job queue, which only the local service has */
 const PLUGIN_EXCLUDED: ReadonlySet<string> = new Set(['chaya_translate_batch'])
@@ -28,5 +28,7 @@ export const MCP_PLUGIN_INSTRUCTIONS = [
   'Play workflow: chaya_live_state → chaya_live_play with a short key sequence → inspect the returned state → repeat.',
   'Edit workflow: chaya_edit_catalog for ids → chaya_edit_set / chaya_edit_action → chaya_edit_state to confirm.',
   'Story help: when the user skipped dialogue or asks what to do next, read chaya_live_history, then chaya_live_state (chaya_live_screenshot only if the picture matters).',
+  'Complex-task workflow: search chaya_skills_search and read only relevant skills; skills are layered and may reference child skills.',
+  'Earlier Chaya Agent turns are not in the prompt: read the previous turn or search them with chaya_agent_recall only when the request depends on them.',
   'Tools marked "Destructive" require the user\'s consent first.',
 ].join('\n')

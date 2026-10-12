@@ -6,8 +6,9 @@ import { useEffect, useRef, useState } from 'react'
 import { IoCheckmark, IoChevronBack, IoChevronDown, IoRefreshOutline } from 'react-icons/io5'
 
 import { useLocaleCode } from '@/components/i18n/LocaleProvider'
-import { ScrollArea, TextInput, TruncateText } from '@/components/sk'
+import { ScrollArea, SwitchToggle, TextInput, TruncateText } from '@/components/sk'
 import { controlDisabled } from '@/components/sk/control'
+import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { cn } from '@/lib/utils'
 
 type Profile = {
@@ -24,6 +25,8 @@ type Props = {
   model: string
   disabled?: boolean
   compact?: boolean
+  thinkingEnabled?: boolean
+  onThinkingChange?: (enabled: boolean) => void
   onChange: (profileId: string, model: string) => void
 }
 
@@ -32,7 +35,18 @@ type View = 'root' | 'profile' | 'model'
 const SEARCH_THRESHOLD = 10
 
 const COPY = {
-  zh: { trigger: '选择平台与模型', profile: '平台', model: '模型', reset: '恢复默认', back: '返回', search: '搜索模型…', empty: '没有可用模型' },
+  zh: {
+    trigger: '选择平台与模型',
+    profile: '平台',
+    model: '模型',
+    thinking: '思考',
+    thinkingOn: '开启',
+    thinkingOff: '关闭',
+    reset: '恢复默认',
+    back: '返回',
+    search: '搜索模型…',
+    empty: '没有可用模型',
+  },
   en: {
     trigger: 'Choose provider and model',
     profile: 'Provider',
@@ -41,6 +55,9 @@ const COPY = {
     back: 'Back',
     search: 'Search models…',
     empty: 'No models available',
+    thinking: 'Thinking',
+    thinkingOn: 'On',
+    thinkingOff: 'Off',
   },
   ja: {
     trigger: 'プロバイダーとモデルを選択',
@@ -50,11 +67,25 @@ const COPY = {
     back: '戻る',
     search: 'モデルを検索…',
     empty: '利用可能なモデルがありません',
+    thinking: '思考',
+    thinkingOn: 'オン',
+    thinkingOff: 'オフ',
   },
-  ko: { trigger: '공급자 및 모델 선택', profile: '공급자', model: '모델', reset: '기본값 복원', back: '뒤로', search: '모델 검색…', empty: '사용 가능한 모델이 없습니다' },
+  ko: {
+    trigger: '공급자 및 모델 선택',
+    profile: '공급자',
+    model: '모델',
+    thinking: '생각',
+    thinkingOn: '켜짐',
+    thinkingOff: '꺼짐',
+    reset: '기본값 복원',
+    back: '뒤로',
+    search: '모델 검색…',
+    empty: '사용 가능한 모델이 없습니다',
+  },
 } as const
 
-export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = false, compact = false, onChange }: Props) {
+export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = false, compact = false, thinkingEnabled = false, onThinkingChange, onChange }: Props) {
   const locale = useLocaleCode()
   const copy = COPY[locale] || COPY.en
   const anchorRef = useRef<HTMLSpanElement>(null)
@@ -99,28 +130,38 @@ export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = fa
     setOpen(false)
   }
 
+  const triggerDisabled = disabled || profiles.length === 0
+  const trigger = (
+    <Popover.Trigger
+      disabled={triggerDisabled}
+      aria-label={compact ? `${copy.trigger}: ${label}` : copy.trigger}
+      className={cn(
+        'inline-flex items-center gap-1 overflow-hidden text-xs font-medium text-ink-soft outline-none transition-colors hover:enabled:bg-[rgb(230_238_248/0.06)] hover:enabled:text-ink focus-visible:outline-2 focus-visible:outline-accent',
+        controlDisabled,
+        compact ? 'h-6 w-6 justify-center rounded-sm [@media(hover:none)]:h-11 [@media(hover:none)]:w-11' : 'h-8 min-w-0 max-w-full rounded-full px-1'
+      )}
+    >
+      {compact ? (
+        <Bot size={15} aria-hidden />
+      ) : (
+        <>
+          <TruncateText text={label} className="whitespace-nowrap" />
+          <IoChevronDown className={cn('shrink-0 transition-transform', open && 'rotate-180')} size={13} aria-hidden />
+        </>
+      )}
+    </Popover.Trigger>
+  )
+
   return (
     <span ref={anchorRef} data-panel-interaction-active={open ? '' : undefined} className={compact ? 'inline-flex shrink-0' : 'inline-flex min-w-0 max-w-40 shrink'}>
       <Popover.Root open={open} onOpenChange={setOpen}>
-        <Popover.Trigger
-          disabled={disabled || profiles.length === 0}
-          aria-label={compact ? `${copy.trigger}: ${label}` : copy.trigger}
-          title={compact ? label : undefined}
-          className={cn(
-            'inline-flex items-center gap-1 overflow-hidden text-xs font-medium text-ink-soft outline-none transition-colors hover:enabled:bg-[rgb(230_238_248/0.06)] hover:enabled:text-ink focus-visible:outline-2 focus-visible:outline-accent',
-            controlDisabled,
-            compact ? 'h-6 w-6 justify-center rounded-sm [@media(hover:none)]:h-11 [@media(hover:none)]:w-11' : 'h-8 min-w-0 max-w-full rounded-full px-1'
-          )}
-        >
-          {compact ? (
-            <Bot size={15} aria-hidden />
-          ) : (
-            <>
-              <TruncateText text={label} className="whitespace-nowrap" />
-              <IoChevronDown className={cn('shrink-0 transition-transform', open && 'rotate-180')} size={13} aria-hidden />
-            </>
-          )}
-        </Popover.Trigger>
+        {compact ? (
+          <Tooltip content={label === copy.trigger ? copy.trigger : `${copy.trigger}\n${label}`} suppressed={open}>
+            {triggerDisabled ? <span className="inline-flex">{trigger}</span> : trigger}
+          </Tooltip>
+        ) : (
+          trigger
+        )}
         <Popover.Portal container={container}>
           <Popover.Positioner side="top" align="start" sideOffset={6} collisionPadding={8} positionMethod="fixed" className="z-[70]">
             <Popover.Popup
@@ -135,6 +176,12 @@ export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = fa
                 <div className="py-1">
                   <MenuValueRow label={copy.profile} value={profile?.label || copy.trigger} disabled={profiles.length === 0} onClick={() => setView('profile')} />
                   <MenuValueRow label={copy.model} value={model || copy.empty} disabled={!profile?.online || modelOptions.length === 0} onClick={() => setView('model')} />
+                  <MenuSwitchRow
+                    label={copy.thinking}
+                    checked={thinkingEnabled}
+                    ariaLabel={`${copy.thinking}: ${thinkingEnabled ? copy.thinkingOn : copy.thinkingOff}`}
+                    onCheckedChange={(next) => onThinkingChange?.(next)}
+                  />
                   <div className="my-1 border-t border-line-soft" />
                   <button
                     type="button"
@@ -201,6 +248,15 @@ function MenuValueRow({ label, value, disabled, onClick }: { label: string; valu
       <span className="shrink-0 text-ink-soft">{label}</span>
       <TruncateText text={value} className="text-right font-semibold text-ink" />
     </button>
+  )
+}
+
+function MenuSwitchRow({ label, checked, ariaLabel, onCheckedChange }: { label: string; checked: boolean; ariaLabel: string; onCheckedChange: (checked: boolean) => void }) {
+  return (
+    <div className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs text-ink-soft">
+      <span>{label}</span>
+      <SwitchToggle checked={checked} size="sm" aria-label={ariaLabel} onCheckedChange={onCheckedChange} />
+    </div>
   )
 }
 

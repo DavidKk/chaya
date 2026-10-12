@@ -10,6 +10,7 @@ jest.mock('@/services/game-agent/model-cache', () => ({ loadAgentModelCache: () 
 jest.mock('@/services/game-agent/settings', () => ({
   loadGameAgentSettings: jest.fn(),
   profileById: (settings: { profiles: Array<{ id: string }> }, id: string) => settings.profiles.find((p) => p.id === id) || null,
+  ollamaProfiles: (settings: { profiles: Array<{ provider: string }> }) => settings.profiles.filter((p) => p.provider === 'ollama'),
 }))
 
 const profile = (id: string, extra: Record<string, unknown> = {}) => ({

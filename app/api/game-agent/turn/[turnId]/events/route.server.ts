@@ -2,6 +2,7 @@ import { defineApiRoute } from '@/initializer/controller'
 import { apiNotFound } from '@/initializer/response'
 import { getExtTask, pumpExtTask } from '@/services/game-agent/ext-task.server'
 import { getTurn, subscribeTurn } from '@/services/game-agent/session-store'
+import { loadGameAgentSettings, profileById } from '@/services/game-agent/settings'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,17 +16,25 @@ export const GET = defineApiRoute('get:/api/game-agent/turn/:turnId/events', asy
   if (!turn) {
     const ext = await getExtTask(gameId, String(turnId || ''))
     if (!ext) return apiNotFound('Agent Turn 不存在', 'AGENT_TURN_NOT_FOUND')
+    const gameCallTimeoutMs = profileById(loadGameAgentSettings(), ext.profileId)?.gameCallTimeoutMs
     const encoder = new TextEncoder()
     const abort = new AbortController()
     request.signal.addEventListener('abort', () => abort.abort(request.signal.reason), { once: true })
     let sequence = after
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
-        void pumpExtTask(gameId, ext.id, abort.signal, after, (event, sourceSeq) => {
-          sequence = Math.max(sequence + 1, sourceSeq || 0)
-          controller.enqueue(encoder.encode(`id: ${sequence}\nevent: ${event.type}\ndata: ${JSON.stringify({ ...event, seq: sequence })}\n\n`))
-          if (event.type === 'turn.completed' || event.type === 'turn.stopped' || event.type === 'turn.failed') controller.close()
-        }).catch((error) => {
+        void pumpExtTask(
+          gameId,
+          ext.id,
+          abort.signal,
+          after,
+          (event, sourceSeq) => {
+            sequence = Math.max(sequence + 1, sourceSeq || 0)
+            controller.enqueue(encoder.encode(`id: ${sequence}\nevent: ${event.type}\ndata: ${JSON.stringify({ ...event, seq: sequence })}\n\n`))
+            if (event.type === 'turn.completed' || event.type === 'turn.stopped' || event.type === 'turn.failed') controller.close()
+          },
+          gameCallTimeoutMs
+        ).catch((error) => {
           if (!abort.signal.aborted) {
             sequence++
             const event = { type: 'turn.failed', seq: sequence, code: 'AGENT_TURN_FAILED', message: error instanceof Error ? error.message : String(error) }

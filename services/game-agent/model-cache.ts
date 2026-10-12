@@ -26,21 +26,40 @@ function readCache(file = GAME_AGENT_MODEL_CACHE_PATH): ModelCache {
   }
 }
 
-export function loadAgentModelCache(profiles: Array<{ id: string; endpoint: string }>, file = GAME_AGENT_MODEL_CACHE_PATH): Record<string, OllamaModel[]> {
-  const cache = readCache(file)
-  return Object.fromEntries(
-    profiles.flatMap((profile) => {
-      const entry = cache[profile.id]
-      return entry?.endpoint === profile.endpoint && Array.isArray(entry.models) ? [[profile.id, uniqueOllamaModels(entry.models)]] : []
-    })
-  )
+type CacheProfile = { id: string; endpoint: string; provider?: string }
+
+/** Ollama lists depend on the endpoint; CLI lists depend on the account, so they are cleared on auth changes instead. */
+function cacheKey(profile: CacheProfile) {
+  return profile.provider && profile.provider !== 'ollama' ? `${profile.provider}:${profile.id}` : profile.endpoint
 }
 
-export function saveAgentModelCache(profile: { id: string; endpoint: string }, models: OllamaModel[], file = GAME_AGENT_MODEL_CACHE_PATH) {
-  const cache = readCache(file)
-  cache[profile.id] = { endpoint: profile.endpoint, models, updatedAt: Date.now() }
+function writeCache(cache: ModelCache, file: string) {
   fs.mkdirSync(path.dirname(file), { recursive: true })
   const temp = `${file}.${process.pid}.tmp`
   fs.writeFileSync(temp, `${JSON.stringify(cache, null, 2)}\n`, 'utf8')
   fs.renameSync(temp, file)
+}
+
+export function loadAgentModelCache(profiles: CacheProfile[], file = GAME_AGENT_MODEL_CACHE_PATH): Record<string, OllamaModel[]> {
+  const cache = readCache(file)
+  return Object.fromEntries(
+    profiles.flatMap((profile) => {
+      const entry = cache[profile.id]
+      return entry?.endpoint === cacheKey(profile) && Array.isArray(entry.models) ? [[profile.id, uniqueOllamaModels(entry.models)]] : []
+    })
+  )
+}
+
+export function saveAgentModelCache(profile: CacheProfile, models: OllamaModel[], file = GAME_AGENT_MODEL_CACHE_PATH) {
+  const cache = readCache(file)
+  cache[profile.id] = { endpoint: cacheKey(profile), models, updatedAt: Date.now() }
+  writeCache(cache, file)
+}
+
+export function clearAgentModelCache(profileIds: readonly string[], file = GAME_AGENT_MODEL_CACHE_PATH) {
+  const cache = readCache(file)
+  const present = profileIds.filter((id) => id in cache)
+  if (!present.length) return
+  for (const id of present) delete cache[id]
+  writeCache(cache, file)
 }

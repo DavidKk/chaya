@@ -47,6 +47,10 @@ beforeEach(() => {
         defaultModel: 'qwen3',
         temperature: 0.2,
         keepAlive: '10m',
+        modelRequestTimeoutMs: 10_000,
+        modelTimeoutMs: 120_000,
+        gameCallTimeoutMs: 15_000,
+        proxy: '',
       },
       {
         id: 'office',
@@ -56,6 +60,10 @@ beforeEach(() => {
         defaultModel: 'gemma3',
         temperature: 0.2,
         keepAlive: '10m',
+        modelRequestTimeoutMs: 10_000,
+        modelTimeoutMs: 120_000,
+        gameCallTimeoutMs: 15_000,
+        proxy: '',
       },
     ],
   }
@@ -251,6 +259,105 @@ test('shows a plain test result in a toast instead of describing the model refre
   expect(toast.textContent).toContain('测试成功')
   expect(toast.textContent).not.toContain('模型')
   expect(testButton.disabled).toBe(false)
+})
+
+const codexProfile = {
+  id: 'codex',
+  label: 'Work Codex',
+  provider: 'codex' as const,
+  endpoint: '',
+  defaultModel: '',
+  temperature: 0.2,
+  keepAlive: '10m',
+  modelRequestTimeoutMs: 10_000,
+  modelTimeoutMs: 120_000,
+  gameCallTimeoutMs: 15_000,
+  proxy: '',
+}
+
+function fieldTitles() {
+  return [...host.querySelectorAll('[data-agent-detail-card] span')].map((node) => node.textContent)
+}
+
+test('CLI agents show their type in the list, hide Ollama fields and show the authorization state', async () => {
+  settings = { ...settings, profiles: [...settings.profiles, codexProfile] }
+  const request = jest.fn(async (path: string) => {
+    if (path.startsWith('/api/game-agent/auth')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ profiles: { codex: { cli: { found: true, version: '0.146.0' }, auth: { mode: 'remote', state: 'unauthorized' } } } }),
+      } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({ settings }) } as Response
+  })
+
+  await act(async () =>
+    root.render(
+      <Providers>
+        <AgentSettingsView request={request} onNavigate={jest.fn()} />
+      </Providers>
+    )
+  )
+  expect(host.textContent).toContain('GPT（Codex） · 自动')
+
+  await act(async () =>
+    root.render(
+      <Providers>
+        <AgentSettingsView request={request} agentId="codex" onNavigate={jest.fn()} />
+      </Providers>
+    )
+  )
+  const titles = fieldTitles()
+  expect(titles).toContain('单轮总时长')
+  expect(titles).not.toContain('服务地址')
+  expect(titles).not.toContain('Temperature')
+  expect(titles).not.toContain('Keep Alive')
+  expect(titles).not.toContain('模型单次超时')
+  expect(host.querySelector('[data-agent-auth-state]')?.textContent).toBe('未授权')
+  expect([...host.querySelectorAll('button')].some((button) => button.textContent === '授权')).toBe(true)
+})
+
+test('switching a new profile to a CLI type asks to save before authorizing', async () => {
+  const request = jest.fn(async (path: string) => {
+    if (path.startsWith('/api/game-agent/auth')) return { ok: true, status: 200, json: async () => ({ profiles: {} }) } as Response
+    return { ok: true, status: 200, json: async () => ({ settings }) } as Response
+  })
+  await act(async () =>
+    root.render(
+      <Providers>
+        <AgentSettingsView request={request} agentId="new" onNavigate={jest.fn()} />
+      </Providers>
+    )
+  )
+  const providerSelect = [...host.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="listbox"]')].find((button) => button.textContent?.includes('Ollama'))!
+  await act(async () => providerSelect.click())
+  const cursor = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent === 'Cursor')!
+  await act(async () => cursor.click())
+
+  const name = host.querySelector<HTMLInputElement>('input')!
+  expect(name.value).toBe('Cursor')
+  expect(fieldTitles()).not.toContain('服务地址')
+  expect(host.textContent).toContain('保存后即可登录或授权。')
+})
+
+test('Cloud runtimes keep CLI types visible but not selectable', async () => {
+  const request = jest.fn(async (path: string) => {
+    if (path.startsWith('/api/game-agent/auth')) return { ok: false, status: 404, json: async () => ({ error: { code: 'LOCAL_ONLY', message: 'local only' } }) } as Response
+    return { ok: true, status: 200, json: async () => ({ settings }) } as Response
+  })
+  await act(async () =>
+    root.render(
+      <Providers>
+        <AgentSettingsView request={request} agentId="local" onNavigate={jest.fn()} />
+      </Providers>
+    )
+  )
+  const providerSelect = [...host.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="listbox"]')].find((button) => button.textContent?.includes('Ollama'))!
+  await act(async () => providerSelect.click())
+  const options = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+  expect(options.find((option) => option.textContent?.startsWith('Cursor'))?.getAttribute('aria-disabled')).toBe('true')
+  expect(options.find((option) => option.textContent === 'Ollama')?.getAttribute('aria-disabled')).toBeNull()
 })
 
 test('loads cached models immediately and refreshes them automatically from the endpoint', async () => {

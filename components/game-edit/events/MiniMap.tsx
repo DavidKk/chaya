@@ -3,6 +3,7 @@
 import { type MouseEvent, type ReactNode, useId, useMemo, useState } from 'react'
 
 import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
+import type { MiniPanelOpacitySettings } from '@/components/game-tools/MiniPanelOpacityControl'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { ScrollArea } from '@/components/sk'
 import type { MapDetailData, MapEventType } from '@/lib/game/events'
@@ -55,6 +56,7 @@ type MiniMapProps = {
   disabled?: boolean
   onPickCell: (x: number, y: number) => void
   onSelectEvent: (id: number) => void
+  opacity?: MiniPanelOpacitySettings
 }
 
 /**
@@ -71,7 +73,7 @@ export function MiniMap(props: MiniMapProps & ({ inline: true; onClose?: never }
     )
   }
   return (
-    <FloatingToolPanel title={t('events.map.minimap')} onClose={props.onClose} panel="miniMap">
+    <FloatingToolPanel title={t('events.map.minimap')} opacity={props.opacity} onClose={props.onClose} panel="miniMap">
       <div className="flex h-full min-h-0 flex-col p-2">
         <MiniMapBody {...props} />
       </div>

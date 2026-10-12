@@ -46,6 +46,8 @@ export const panelsZh = {
       closeAll: '关闭全部迷你面板',
       toVertical: '改为纵向排列',
       toHorizontal: '改为横向排列',
+      opacity: '迷你面板透明度',
+      opacityValue: '{value}%',
     },
     resize: {
       n: '{title}：拖动上边调整大小',
@@ -104,6 +106,8 @@ export const panelsEn = {
       closeAll: 'Close all mini panels',
       toVertical: 'Switch to vertical',
       toHorizontal: 'Switch to horizontal',
+      opacity: 'Mini panel opacity',
+      opacityValue: '{value}%',
     },
     resize: {
       n: '{title}: resize from the top edge',
@@ -162,6 +166,8 @@ export const panelsJa = {
       closeAll: 'ミニパネルをすべて閉じる',
       toVertical: '縦並びにする',
       toHorizontal: '横並びにする',
+      opacity: 'ミニパネルの透明度',
+      opacityValue: '{value}%',
     },
     resize: {
       n: '{title}：上端をドラッグしてサイズ変更',
@@ -220,6 +226,8 @@ export const panelsKo = {
       closeAll: '미니 패널 모두 닫기',
       toVertical: '세로로 배치',
       toHorizontal: '가로로 배치',
+      opacity: '미니 패널 투명도',
+      opacityValue: '{value}%',
     },
     resize: {
       n: '{title}: 위쪽 가장자리를 끌어 크기 조절',

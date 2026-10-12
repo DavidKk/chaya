@@ -1,5 +1,6 @@
 import { CHAYA_MCP_SERVER } from '@/app/api/mcp/_tools'
 import { gameAgentProfileToolSpecs } from '@/lib/game-agent/profile-tool-specs'
+import { isGameAgentProvider } from '@/lib/game-agent/providers'
 import { MCP_TOOLS } from '@/lib/integration/mcp-catalog'
 import { type AgentCaller, pluginToolRun } from '@/lib/integration/tools/live'
 import { redactSecrets, type ToolRun } from '@/lib/integration/tools/types'
@@ -40,6 +41,10 @@ function profilePatch(args: Record<string, unknown>): GameAgentProfilePatch {
     if (typeof args[key] === 'string') patch[key] = args[key].trim()
   }
   if (typeof args.temperature === 'number') patch.temperature = args.temperature
+  for (const key of ['modelRequestTimeoutMs', 'modelTimeoutMs', 'gameCallTimeoutMs'] as const) {
+    if (typeof args[key] === 'number') patch[key] = args[key]
+  }
+  if (isGameAgentProvider(args.provider)) patch.provider = args.provider
   if (typeof args.token === 'string') patch.token = args.token
   if (typeof args.clearToken === 'boolean') patch.clearToken = args.clearToken
   return patch
@@ -52,7 +57,7 @@ function requiredTarget(args: Record<string, unknown>) {
 }
 
 function agentProfileTools(): AgentTool[] {
-  return gameAgentProfileToolSpecs({ credentials: true }).map((spec): AgentTool => ({
+  return gameAgentProfileToolSpecs({ credentials: true, cliProviders: true }).map((spec): AgentTool => ({
     definition: definition(spec.name, spec.description, spec.inputSchema),
     readOnly: spec.readOnly,
     run: async (args) => {
@@ -64,7 +69,7 @@ function agentProfileTools(): AgentTool[] {
   }))
 }
 
-export function createGameAgentTools(gameId?: string): AgentTool[] {
+export function createGameAgentTools(gameId?: string, gameCallTimeoutMs?: number): AgentTool[] {
   const serverTools = new Map(CHAYA_MCP_SERVER.tools.map((tool) => [tool.name, tool]))
   const staticTools = MCP_TOOLS.filter((meta) => !meta.destructive && !meta.evalOnly && !EXCLUDED_TOOLS.has(meta.name) && serverTools.has(meta.name)).map((meta): AgentTool => ({
     definition: definition(meta.name, meta.description, meta.inputSchema),
@@ -73,7 +78,8 @@ export function createGameAgentTools(gameId?: string): AgentTool[] {
   }))
   const serviceTools = agentProfileTools()
   if (!gameId) return [...serviceTools, ...staticTools]
-  const call: AgentCaller = (_requestedGameId, method, params) => callAgentGame(gameId, method, params)
+  const call: AgentCaller = (_requestedGameId, method, params) =>
+    gameCallTimeoutMs === undefined ? callAgentGame(gameId, method, params) : callAgentGame(gameId, method, params, gameCallTimeoutMs)
   const dynamicTools = listPluginTools()
     .filter((meta) => meta.gameIds.includes(gameId) && !meta.destructive)
     .map((meta): AgentTool => {
@@ -90,10 +96,11 @@ export function createGameAgentTools(gameId?: string): AgentTool[] {
   return [...serviceTools, ...staticTools, ...dynamicTools]
 }
 
-async function verificationFor(toolName: string, gameId: string, _signal: AbortSignal): Promise<unknown> {
+async function verificationFor(toolName: string, gameId: string, _signal: AbortSignal, gameCallTimeoutMs?: number): Promise<unknown> {
   if (toolName === 'chaya_live_play' || toolName.startsWith('chaya_agent_')) return undefined
-  if (toolName.startsWith('chaya_edit_') || toolName.startsWith('chaya_plugin_boost_')) return callAgentGame(gameId, 'edit.state', {})
-  return callAgentGame(gameId, 'game.state', {})
+  if (toolName.startsWith('chaya_edit_') || toolName.startsWith('chaya_plugin_boost_'))
+    return gameCallTimeoutMs === undefined ? callAgentGame(gameId, 'edit.state', {}) : callAgentGame(gameId, 'edit.state', {}, gameCallTimeoutMs)
+  return gameCallTimeoutMs === undefined ? callAgentGame(gameId, 'game.state', {}) : callAgentGame(gameId, 'game.state', {}, gameCallTimeoutMs)
 }
 
 export async function executeGameAgentTool(
@@ -101,7 +108,8 @@ export async function executeGameAgentTool(
   name: string,
   args: Record<string, unknown>,
   gameId: string | undefined,
-  signal: AbortSignal
+  signal: AbortSignal,
+  gameCallTimeoutMs?: number
 ): Promise<GameAgentToolResult> {
   const tool = tools.find((candidate) => candidate.definition.function.name === name)
   if (!tool) return { ok: false, content: clipResult({ ok: false, error: `Tool is not available in this turn: ${name}` }) }
@@ -114,7 +122,7 @@ export async function executeGameAgentTool(
   }
   if (tool.readOnly || !gameId) return { ok: true, content: clipResult({ ok: true, result }) }
   try {
-    const verification = await verificationFor(name, gameId, signal)
+    const verification = await verificationFor(name, gameId, signal, gameCallTimeoutMs)
     return { ok: true, content: clipResult({ ok: true, result, ...(verification === undefined ? {} : { verification }) }) }
   } catch (error) {
     return { ok: true, content: clipResult({ ok: true, result, verificationError: error instanceof Error ? error.message : String(error) }) }

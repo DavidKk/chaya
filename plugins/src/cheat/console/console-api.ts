@@ -186,13 +186,13 @@ export function installConsoleApi() {
       if (ok) log.ok('mapEvent #' + id)
       return ok
     },
-    save(n = 1) {
-      const ok = Cheats.saveGame(n)
+    async save(n = 1) {
+      const ok = await Cheats.saveGame(n)
       log.ok('save #' + n + ' = ' + ok)
       return ok
     },
-    load(n = 1) {
-      const ok = Cheats.loadGame(n)
+    async load(n = 1) {
+      const ok = await Cheats.loadGame(n)
       log.ok('load #' + n + ' = ' + ok)
       return ok
     },

@@ -1,4 +1,5 @@
 import { aboutEn } from '@/lib/i18n/messages/parts/about'
+import { agentAuthEn } from '@/lib/i18n/messages/parts/agent-auth'
 import { companionEn } from '@/lib/i18n/messages/parts/companion'
 import { creditsEn } from '@/lib/i18n/messages/parts/credits'
 import { dataEn } from '@/lib/i18n/messages/parts/data.en'
@@ -322,6 +323,7 @@ export const en: MessageTree = {
   ...mcpGatewayEn,
   ...downloadsEn,
   ...aboutEn,
+  ...agentAuthEn,
   ...creditsEn,
   ...legalEn,
   ...eventsEn,

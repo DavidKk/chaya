@@ -70,3 +70,39 @@ test('more than ten options show search and filter selectable results', async ()
   await act(async () => visible[0].click())
   expect(onChange).toHaveBeenCalledWith('model-11')
 })
+
+test('selects an option from a ShadowRoot without being dismissed as an outside click', async () => {
+  const shadowHost = document.createElement('div')
+  const shadow = shadowHost.attachShadow({ mode: 'open' })
+  document.body.appendChild(shadowHost)
+  const shadowRoot = createRoot(shadow)
+  const onChange = jest.fn()
+
+  await act(async () => {
+    shadowRoot.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <Select
+          value=""
+          options={[
+            { value: 'gemma4:e4b', label: 'gemma4:e4b' },
+            { value: 'qwen3:4b', label: 'qwen3:4b' },
+          ]}
+          onChange={onChange}
+          aria-label="模型"
+        />
+      </LocaleProvider>
+    )
+  })
+
+  const trigger = shadow.querySelector<HTMLButtonElement>('button[aria-label="模型"]')!
+  trigger.getBoundingClientRect = () => ({ left: 10, right: 210, top: 10, bottom: 42, width: 200, height: 32 }) as DOMRect
+  await act(async () => trigger.click())
+  const option = [...shadow.querySelectorAll<HTMLElement>('[role="option"]')].find((item) => item.textContent?.includes('gemma4:e4b'))!
+  await act(async () => {
+    option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }))
+    option.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }))
+  })
+
+  expect(onChange).toHaveBeenCalledWith('gemma4:e4b')
+  await act(async () => shadowRoot.unmount())
+})

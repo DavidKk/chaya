@@ -1,4 +1,5 @@
 import { aboutKo } from '@/lib/i18n/messages/parts/about'
+import { agentAuthKo } from '@/lib/i18n/messages/parts/agent-auth'
 import { companionKo } from '@/lib/i18n/messages/parts/companion'
 import { creditsKo } from '@/lib/i18n/messages/parts/credits'
 import { dataKo } from '@/lib/i18n/messages/parts/data.ko'
@@ -314,6 +315,7 @@ export const ko: MessageTree = {
   ...mcpGatewayKo,
   ...downloadsKo,
   ...aboutKo,
+  ...agentAuthKo,
   ...creditsKo,
   ...legalKo,
   ...eventsKo,

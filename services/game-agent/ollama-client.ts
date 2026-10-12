@@ -81,12 +81,18 @@ export async function streamOllamaChat(
     maxTokens?: number
     think?: boolean
     keepAlive?: string
+    timeoutMs?: number
     token?: string
     signal?: AbortSignal
   },
   onDelta: (text: string) => void,
   fetcher: typeof fetch = fetch
 ): Promise<GameAgentMessage> {
+  const requestSignal = input.timeoutMs
+    ? input.signal
+      ? AbortSignal.any([input.signal, AbortSignal.timeout(input.timeoutMs)])
+      : AbortSignal.timeout(input.timeoutMs)
+    : input.signal
   let response: Response
   try {
     response = await fetcher(`${(input.endpoint || DEFAULT_OLLAMA_HOST).replace(/\/$/, '')}/api/chat`, {
@@ -106,11 +112,11 @@ export async function streamOllamaChat(
         },
         keep_alive: input.keepAlive || '10m',
       }),
-      signal: input.signal,
+      signal: requestSignal,
     })
   } catch (error) {
-    if (input.signal?.aborted) throw input.signal.reason ?? new DOMException('Aborted', 'AbortError')
-    throw new Error(`Ollama 请求失败：${messageFrom(error)}`)
+    if (requestSignal?.aborted) throw requestSignal.reason ?? new DOMException('Aborted', 'AbortError')
+    throw new Error(`无法连接 Ollama（${input.endpoint || DEFAULT_OLLAMA_HOST}），请确认 Ollama 已启动：${messageFrom(error)}`)
   }
   if (!response.ok) {
     const detail = await response.text().catch(() => '')

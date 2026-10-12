@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
+import { parsePlayerCard } from '@/lib/game-agent/player-card'
 import type { AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
 import type { AgentTaskMessage } from '@/lib/runtime/game-link-protocol'
 import { callAgentGame, resolveAgentGame } from '@/services/runtime/agent-bridge'
@@ -13,36 +14,53 @@ export function callExtTask(gameId: string, message: TaskRequest, timeoutMs = 15
   return callAgentGame(resolveAgentGame(gameId), 'agent.task', { message }, timeoutMs)
 }
 
-export async function listExtTasks(gameId: string): Promise<AgentTask[]> {
-  return (await callExtTask(gameId, { type: 'agent.task.status', requestId: randomUUID() })) as AgentTask[]
+export async function listExtTasks(gameId: string, timeoutMs?: number): Promise<AgentTask[]> {
+  return (await callExtTask(gameId, { type: 'agent.task.status', requestId: randomUUID() }, timeoutMs)) as AgentTask[]
 }
 
-export async function getExtTask(gameId: string, taskId: string): Promise<AgentTask | null> {
-  return (await callExtTask(gameId, { type: 'agent.task.status', requestId: randomUUID(), taskId }).catch(() => null)) as AgentTask | null
+export async function getExtTask(gameId: string, taskId: string, timeoutMs?: number): Promise<AgentTask | null> {
+  return (await callExtTask(gameId, { type: 'agent.task.status', requestId: randomUUID(), taskId }, timeoutMs).catch(() => null)) as AgentTask | null
 }
 
-export async function startExtPlayTurn(input: StartTurnInput, turn: GameAgentTurn, emit: (event: GameAgentEvent) => void): Promise<void> {
-  await callExtTask(input.gameId, {
-    type: 'agent.task.start',
-    requestId: randomUUID(),
-    deadlineAt: Date.now() + 60_000,
-    taskId: turn.id,
-    gameId: input.gameId,
-    conversationId: turn.sessionId,
-    capability: 'play',
-    profileId: input.profileId,
-    model: input.model,
-    locale: input.locale,
-    surface: input.surface || 'sidebar',
-    companionCharacter: input.companionCharacter,
-    goal: input.prompt,
-  })
-  await pumpExtTask(input.gameId, turn.id, turn.abort.signal, 0, (event) => {
-    if (event.type === 'turn.completed') finishTurn(turn, 'completed')
-    else if (event.type === 'turn.stopped') finishTurn(turn, 'stopped')
-    else if (event.type === 'turn.failed') finishTurn(turn, 'failed')
-    emit(event)
-  })
+export async function startExtPlayTurn(
+  input: StartTurnInput,
+  turn: GameAgentTurn,
+  emit: (event: GameAgentEvent) => void,
+  gameCallTimeoutMs?: number,
+  modelTimeoutMs = 120_000
+): Promise<void> {
+  await callExtTask(
+    input.gameId,
+    {
+      type: 'agent.task.start',
+      requestId: randomUUID(),
+      deadlineAt: Date.now() + modelTimeoutMs,
+      taskId: turn.id,
+      gameId: input.gameId,
+      conversationId: turn.sessionId,
+      capability: 'play',
+      profileId: input.profileId,
+      model: input.model,
+      locale: input.locale,
+      surface: input.surface || 'sidebar',
+      companionCharacter: input.companionCharacter,
+      goal: input.prompt,
+    },
+    gameCallTimeoutMs
+  )
+  await pumpExtTask(
+    input.gameId,
+    turn.id,
+    turn.abort.signal,
+    0,
+    (event) => {
+      if (event.type === 'turn.completed') finishTurn(turn, 'completed')
+      else if (event.type === 'turn.stopped') finishTurn(turn, 'stopped')
+      else if (event.type === 'turn.failed') finishTurn(turn, 'failed')
+      emit(event)
+    },
+    gameCallTimeoutMs
+  )
 }
 
 function mappedEvent(event: AgentTaskEvent): GameAgentEvent | null {
@@ -64,10 +82,17 @@ function mappedEvent(event: AgentTaskEvent): GameAgentEvent | null {
     return { type: 'phase', phase: phase as 'observing' | 'thinking' | 'acting' | 'verifying', step: Number(data.step) || 0, maxSteps: Number(data.maxSteps) || 80 }
   }
   if (event.type === 'prompt.recorded') return { type: 'prompt.recorded', role: data.role === 'system' ? 'system' : 'user', content: String(data.content || '') }
-  if (event.type === 'model.requested') return { type: 'model.requested', messageCount: Number(data.messageCount) || 0 }
+  if (event.type === 'model.requested')
+    return {
+      type: 'model.requested',
+      model: typeof data.model === 'string' ? data.model : undefined,
+      messageCount: Number(data.messageCount) || 0,
+      contextChars: Number(data.contextChars) || 0,
+    }
   if (event.type === 'model.completed')
     return {
       type: 'model.completed',
+      model: typeof data.model === 'string' ? data.model : undefined,
       text: String(data.text || ''),
       usage: data.usage as import('@/lib/game-agent/activity').AgentTokenUsage,
       durationMs: Number(data.durationMs) || 0,
@@ -90,15 +115,30 @@ function mappedEvent(event: AgentTaskEvent): GameAgentEvent | null {
       output: data.output,
       durationMs: Number(data.durationMs) || 0,
     }
-  if (event.type === 'approval.required') return { type: 'approval.required', question: String(data.question || '请确认是否继续') }
+  if (event.type === 'approval.required') {
+    const card = parsePlayerCard(data.card)
+    return { type: 'approval.required', question: String(data.question || '请确认是否继续'), ...(card ? { card } : {}) }
+  }
+  if (event.type === 'card.shown') {
+    const card = parsePlayerCard(data.card)
+    return card ? { type: 'card.shown', card } : null
+  }
+  if (event.type === 'user.reply') return { type: 'user.replied', text: String(data.text || '').slice(0, 2_000) }
   if (event.type === 'state.changed' && data.state === 'waiting_user') return { type: 'phase', phase: 'waiting_user', step: 0, maxSteps: 80 }
   return null
 }
 
-export async function pumpExtTask(gameId: string, taskId: string, signal: AbortSignal, initialSeq: number, emit: (event: GameAgentEvent, seq?: number) => void): Promise<void> {
+export async function pumpExtTask(
+  gameId: string,
+  taskId: string,
+  signal: AbortSignal,
+  initialSeq: number,
+  emit: (event: GameAgentEvent, seq?: number) => void,
+  gameCallTimeoutMs?: number
+): Promise<void> {
   let seq = initialSeq
   while (!signal.aborted) {
-    const result = (await callExtTask(gameId, { type: 'agent.task.events', requestId: randomUUID(), taskId, afterSeq: seq })) as {
+    const result = (await callExtTask(gameId, { type: 'agent.task.events', requestId: randomUUID(), taskId, afterSeq: seq }, gameCallTimeoutMs)) as {
       gap?: boolean
       task: AgentTask
       events?: AgentTaskEvent[]

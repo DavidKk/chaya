@@ -28,9 +28,23 @@ export const AGENT_SNAP_MAX_WIDTH = 1280
 export const AGENT_MOVE_DEFAULT_MS = 8_000
 /** Below AGENT_CALL_TIMEOUT_MS so the long-poll call does not time out first */
 export const AGENT_MOVE_MAX_MS = 12_000
+/** Walk + dialogue budget of one `player.interact`; below AGENT_CALL_TIMEOUT_MS as well */
+export const AGENT_INTERACT_MAX_MS = 12_000
 
 export type AgentCommand =
   | { id: string; method: 'game.state'; params: Record<string, never> }
+  | { id: string; method: 'game.ui'; params: Record<string, never> }
+  | {
+      id: string
+      method: 'game.saves'
+      params:
+        | { op: 'snapshot' }
+        | { op: 'load'; entryId: string; allowVersionMismatch?: boolean }
+        | { op: 'nativeSnapshot' }
+        | { op: 'nativeSave' | 'nativeLoad'; slot: number }
+        | { op: 'quickSave'; slot: number; force?: boolean }
+        | { op: 'autoSave'; force?: boolean }
+    }
   | { id: string; method: 'game.history'; params: { limit?: number; kinds?: AgentHistoryKind[]; afterSeq?: number } }
   | { id: string; method: 'game.snap'; params: { maxWidth?: number } }
   | { id: string; method: 'game.quit'; params: Record<string, never> }
@@ -42,6 +56,7 @@ export type AgentCommand =
   | { id: string; method: 'input.sequence'; params: { steps: AgentInputStep[]; guard?: AgentInputGuard } }
   | { id: string; method: 'input.tap'; params: { x: number; y: number; frames?: number } }
   | { id: string; method: 'player.moveTo'; params: { x: number; y: number; timeoutMs?: number; stepwise?: boolean; guard?: AgentInputGuard } }
+  | { id: string; method: 'player.interact'; params: { eventId: number } }
   | { id: string; method: 'edit.catalog'; params: Record<string, never> }
   | { id: string; method: 'edit.state'; params: Record<string, never> }
   | { id: string; method: 'edit.apply'; params: { op: GameEditCmdOp } }
@@ -55,6 +70,8 @@ export type AgentParams<M extends AgentMethod> = Extract<AgentCommand, { method:
 /** Commands accepted over the game DataChannel (Cloud signaling is unauthenticated, so no eval). */
 export const AGENT_LINK_METHODS = [
   'game.state',
+  'game.ui',
+  'game.saves',
   'game.history',
   'game.snap',
   'game.quit',
@@ -64,6 +81,7 @@ export const AGENT_LINK_METHODS = [
   'input.sequence',
   'input.tap',
   'player.moveTo',
+  'player.interact',
   'edit.catalog',
   'edit.state',
   'edit.apply',

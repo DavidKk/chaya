@@ -1,5 +1,7 @@
 import type { WebMcpToolDefinition } from '@/initializer/webmcp/model-context'
 import { gameAgentProfileToolSpecs } from '@/lib/game-agent/profile-tool-specs'
+import { isCliProvider } from '@/lib/game-agent/providers'
+import { type AgentTimeoutSettings, normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
 import { cacheToolSettings, normalizeToolSettings, readCachedToolSettings } from '@/lib/game-agent/tool-settings'
 import { functionToolDefinition } from '@/lib/webmcp/mcp-mirror'
 import { pickAvailableModel, streamOllamaChat, uniqueOllamaModels } from '@/services/game-agent/ollama-client'
@@ -7,7 +9,7 @@ import { pickAvailableModel, streamOllamaChat, uniqueOllamaModels } from '@/serv
 import { createBrowserAgentRuntime } from './browserTurn'
 import type { GameAgentRequest } from './GameAgentWorkspace'
 
-export type BrowserAgentProfile = {
+export type BrowserAgentProfile = AgentTimeoutSettings & {
   id: string
   label: string
   provider: 'ollama'
@@ -23,6 +25,7 @@ type ModelCacheEntry = { endpoint: string; models: Model[] }
 
 const SETTINGS_KEY = 'chaya.gameAgent.settings'
 const MODELS_KEY = 'chaya.gameAgent.models'
+const CLI_LOCAL_ONLY = 'Cursor、Codex、Claude、Gemini 类型需要 Chaya App 或本机服务'
 
 function defaultSettings(): Settings {
   const profile: BrowserAgentProfile = {
@@ -33,6 +36,9 @@ function defaultSettings(): Settings {
     defaultModel: '',
     temperature: 0.2,
     keepAlive: '10m',
+    modelRequestTimeoutMs: 10_000,
+    modelTimeoutMs: 120_000,
+    gameCallTimeoutMs: 15_000,
   }
   return { version: 1, defaultProfileId: profile.id, profiles: [profile] }
 }
@@ -53,7 +59,12 @@ function response(body: unknown, status = 200) {
 function settings() {
   const value = readJson<Settings>(SETTINGS_KEY, defaultSettings())
   if (!Array.isArray(value.profiles) || value.profiles.length === 0) return defaultSettings()
-  return { ...value, version: 1 as const, defaultProfileId: value.profiles[0].id }
+  return {
+    ...value,
+    version: 1 as const,
+    defaultProfileId: value.profiles[0].id,
+    profiles: value.profiles.map((profile) => ({ ...profile, ...normalizeAgentTimeouts(profile) })),
+  }
 }
 
 /** 流读完或被取消时调用 `release`，让按游戏登记的 Turn 只含仍在运行的 */
@@ -106,6 +117,9 @@ function profilePatch(args: Record<string, unknown>) {
     if (typeof args[key] === 'string') patch[key] = args[key].trim()
   }
   if (typeof args.temperature === 'number' && Number.isFinite(args.temperature)) patch.temperature = Math.min(2, Math.max(0, args.temperature))
+  for (const key of ['modelRequestTimeoutMs', 'modelTimeoutMs', 'gameCallTimeoutMs'] as const) {
+    if (typeof args[key] === 'number' && Number.isFinite(args[key])) patch[key] = Math.round(args[key])
+  }
   return patch
 }
 
@@ -128,6 +142,9 @@ export function buildBrowserAgentProfileTools(): WebMcpToolDefinition[] {
           defaultModel: patch.defaultModel || '',
           temperature: patch.temperature ?? 0.2,
           keepAlive: patch.keepAlive || '10m',
+          modelRequestTimeoutMs: patch.modelRequestTimeoutMs || 10_000,
+          modelTimeoutMs: patch.modelTimeoutMs || 120_000,
+          gameCallTimeoutMs: patch.gameCallTimeoutMs || 15_000,
         }
         saveSettings({ ...current, profiles: [...current.profiles, profile] })
         return profile
@@ -185,6 +202,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
           endpoint: profile.endpoint,
           model,
           keepAlive: profile.keepAlive,
+          timeoutMs: profile.modelTimeoutMs,
           temperature: 0,
           format: {
             type: 'object',
@@ -262,22 +280,37 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
     )
   }
 
-  const remoteTaskStream = async (body: { gameId: string; prompt: string; sessionId?: string; profileId: string; model: string; locale?: string }, signal?: AbortSignal) => {
+  const remoteTaskStream = async (
+    body: {
+      gameId: string
+      prompt: string
+      sessionId?: string
+      profileId: string
+      model: string
+      locale?: string
+      capability?: 'play' | 'companion'
+      surface?: 'companion'
+      companionCharacter?: string
+    },
+    signal?: AbortSignal
+  ) => {
     const taskId = crypto.randomUUID()
     const sessionId = body.sessionId || crypto.randomUUID()
+    const profile = resolveProfile(settings(), body.profileId)
     await taskCall(
       {
         type: 'agent.task.start',
         requestId: crypto.randomUUID(),
-        deadlineAt: Date.now() + 60_000,
+        deadlineAt: Date.now() + profile.modelTimeoutMs,
         taskId,
         gameId: body.gameId,
         conversationId: sessionId,
-        capability: 'play',
+        capability: body.capability || 'play',
         profileId: body.profileId,
         model: body.model,
         locale: body.locale,
-        surface: 'sidebar',
+        surface: body.surface || 'sidebar',
+        companionCharacter: body.companionCharacter,
         goal: body.prompt,
       },
       signal
@@ -289,12 +322,18 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
     const url = new URL(path, location.origin)
     const method = (init?.method || 'GET').toUpperCase()
 
+    if (url.pathname === '/api/game-agent/auth' || url.pathname.startsWith('/api/game-agent/auth/')) {
+      return response({ error: { code: 'LOCAL_ONLY', message: CLI_LOCAL_ONLY } }, 404)
+    }
     if (url.pathname === '/api/integration/game-agent') {
       if (method === 'GET') {
         const current = settings()
         return response({ ok: true, settings: current, models: cachedModels(current.profiles) })
       }
       const body = JSON.parse(String(init?.body || '{}')) as { action?: string; profile?: BrowserAgentProfile; settings?: Settings }
+      if (body.settings?.profiles?.some((profile) => isCliProvider(profile.provider)) || (body.profile && isCliProvider(body.profile.provider))) {
+        return response({ error: { code: 'LOCAL_ONLY', message: CLI_LOCAL_ONLY } }, 400)
+      }
       if (method === 'PUT' && body.settings?.profiles?.length) {
         const next = saveSettings(body.settings)
         return response({ ok: true, settings: next })
@@ -368,6 +407,8 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
         model?: string
         prompt?: string
         locale?: string
+        surface?: 'companion'
+        companionCharacter?: import('@/lib/game-agent/companion').CompanionCharacter
         sessionId?: string
         newSession?: boolean
       }
@@ -381,10 +422,21 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
           return response({ error: { code: 'AGENT_TURN_RUNNING', message: '当前游戏已有 Agent 任务在运行，请先停止' } }, 409)
         }
       }
-      if (await classifyPlay(profile, body.model.trim(), body.prompt.trim(), init?.signal || undefined)) {
-        if (!input.connected) return response({ error: { code: 'GAME_OFFLINE', message: '帮玩需要先连接游戏' } }, 409)
+      const operate = await classifyPlay(profile, body.model.trim(), body.prompt.trim(), init?.signal || undefined)
+      if (operate || (body.surface === 'companion' && input.connected && input.agentTask)) {
+        if (!input.connected) return response({ error: { code: 'GAME_OFFLINE', message: '托管需要先连接游戏' } }, 409)
         return remoteTaskStream(
-          { gameId: body.gameId || '', prompt: body.prompt.trim(), sessionId: body.sessionId, profileId: profile.id, model: body.model.trim(), locale: body.locale },
+          {
+            gameId: body.gameId || '',
+            prompt: body.prompt.trim(),
+            sessionId: body.sessionId,
+            profileId: profile.id,
+            model: body.model.trim(),
+            locale: body.locale,
+            capability: operate ? 'play' : 'companion',
+            surface: body.surface,
+            companionCharacter: body.companionCharacter,
+          },
           init?.signal || undefined
         )
       }
@@ -401,9 +453,12 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
       return releaseOnEnd(
         runtime.start({
           profile,
+          gameId: input.connected ? body.gameId || '' : '',
           model: body.model.trim(),
           prompt: body.prompt.trim(),
           locale: body.locale || 'zh-CN',
+          surface: body.surface,
+          companionCharacter: body.companionCharacter,
           sessionId: body.sessionId,
           newSession: body.newSession,
           signal: abort.signal,

@@ -1,8 +1,8 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
 import type { RuntimeMessage, RuntimeTool } from '@/lib/game-agent/runtime'
-import { streamOllamaChat } from '@/services/game-agent/ollama-client'
-import { readGameAgentToken } from '@/services/game-agent/secrets'
+import { AgentCliError } from '@/services/game-agent/cli/errors'
+import { completeAgentModel } from '@/services/game-agent/model-complete.server'
 import { loadGameAgentSettings, profileById } from '@/services/game-agent/settings'
 
 export const runtime = 'nodejs'
@@ -14,6 +14,8 @@ export const POST = defineApiRoute('post:/api/game-agent/model', async ({ reques
     model?: unknown
     messages?: unknown
     tools?: unknown
+    think?: unknown
+    format?: unknown
   } | null
   const profileId = typeof body?.profileId === 'string' ? body.profileId.trim() : ''
   const model = typeof body?.model === 'string' ? body.model.trim() : ''
@@ -25,24 +27,19 @@ export const POST = defineApiRoute('post:/api/game-agent/model', async ({ reques
   const messages = body.messages.slice(-100) as RuntimeMessage[]
   const tools = body.tools.slice(0, 64) as RuntimeTool[]
   try {
-    const message = await streamOllamaChat(
-      {
-        endpoint: profile.endpoint,
-        model,
-        messages: messages as import('@/services/game-agent/types').GameAgentMessage[],
-        tools: tools.map((tool) => ({
-          type: 'function' as const,
-          function: { name: tool.name, description: tool.description || '', parameters: tool.inputSchema || { type: 'object', properties: {} } },
-        })),
-        temperature: profile.temperature,
-        keepAlive: profile.keepAlive,
-        token: readGameAgentToken(profile.id),
-        signal: AbortSignal.any([request.signal, AbortSignal.timeout(120_000)]),
-      },
-      () => undefined
-    )
+    const message = await completeAgentModel(profile, {
+      model,
+      messages,
+      tools,
+      think: body.think === true,
+      ...(body.format && typeof body.format === 'object' && !Array.isArray(body.format) ? { format: body.format as Record<string, unknown> } : {}),
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(profile.modelTimeoutMs)]),
+    })
     return apiOk({ message })
   } catch (error) {
+    // Keep AgentCliError status (401 auth, 429 quota, …). Mapping everything to 502 made the in-game
+    // client treat login failures as a model outage and trip the 15s model gate.
+    if (error instanceof AgentCliError) return apiError(error.status, error.code, error.message)
     return apiError(502, 'AGENT_MODEL_FAILED', error instanceof Error ? error.message : String(error))
   }
 })

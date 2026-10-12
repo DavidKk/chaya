@@ -1,6 +1,6 @@
 'use client'
 
-import { Brain, Check, CircleAlert, Hammer, LoaderCircle, MessageSquareText } from 'lucide-react'
+import { Brain, Check, CircleAlert, Hammer, MessageSquareText } from 'lucide-react'
 
 import type { AgentActivityEvent, AgentThoughtSummary, AgentTokenUsage } from '@/lib/game-agent/activity'
 import { cn } from '@/lib/utils'
@@ -26,16 +26,12 @@ function usageText(usage: AgentTokenUsage | undefined) {
 }
 
 export function AgentActivityTimeline({ events, compact = false, showPrompts = false }: { events: readonly AgentActivityEvent[]; compact?: boolean; showPrompts?: boolean }) {
-  const visible = events.filter((event) => showPrompts || event.type !== 'prompt.recorded')
-  if (!visible.length) return <p className="m-0 px-2 py-3 text-xs text-ink-soft">暂无思考过程</p>
+  const visible = events.filter((event) => event.type !== 'phase' && event.type !== 'tool.started' && (showPrompts || event.type !== 'prompt.recorded'))
+  if (!visible.length) return <p className="m-0 flex h-full items-center justify-center px-2 py-3 text-center text-xs text-ink-soft">暂无思考过程</p>
   return (
     <ol className="m-0 flex list-none flex-col gap-2 p-0" aria-label="Agent 思考过程" aria-live="polite">
       {visible.map((event) => {
         const data = event.data && typeof event.data === 'object' ? (event.data as Record<string, unknown>) : {}
-        if (event.type === 'phase') {
-          const labels: Record<string, string> = { observing: '正在观察游戏', thinking: '正在判断下一步', acting: '正在执行操作', verifying: '正在验证结果' }
-          return <ActivityRow key={event.seq} icon={<LoaderCircle className="animate-spin" />} text={labels[String(data.phase)] || '状态更新'} muted />
-        }
         if (event.type === 'thought.updated') {
           const text = thoughtText((data.summary || {}) as AgentThoughtSummary)
           return text ? <ActivityRow key={event.seq} icon={<Brain />} text={text} /> : null
@@ -63,19 +59,28 @@ export function AgentActivityTimeline({ events, compact = false, showPrompts = f
           )
         }
         if (event.type === 'progress.updated') return <ActivityRow key={event.seq} icon={<MessageSquareText />} text={String(data.summary || '继续运行')} />
+        if (event.type === 'model.requested') {
+          const count = Number(data.messageCount) || 0
+          const chars = Number(data.contextChars) || 0
+          const model = typeof data.model === 'string' && data.model ? data.model : '未知模型'
+          return <ActivityRow key={event.seq} icon={<Brain />} text={`${model} · 上下文 ${count} 条消息${chars ? ` · ${chars.toLocaleString()} 字符` : ''}`} muted />
+        }
         if (event.type === 'model.completed') {
           const usage = usageText(data.usage as AgentTokenUsage | undefined)
-          const response = String(data.text || '').trim()
+          const model = typeof data.model === 'string' && data.model ? data.model : '未知模型'
+          const response = [data.thought ? String(data.thought) : '', String(data.text || '')].filter((part) => part.trim()).join('\n\n')
           if (!response) return usage ? <ActivityRow key={event.seq} icon={<Brain />} text={usage} muted /> : null
           return (
             <li key={event.seq} className="min-w-0 text-xs">
               <details>
-                <summary className="flex cursor-pointer list-none items-center gap-2 leading-5 text-ink-soft marker:hidden">
+                <summary className="flex cursor-pointer list-none items-start gap-2 leading-5 text-ink-soft marker:hidden">
                   <span className="inline-flex size-4 shrink-0 items-center justify-center" aria-hidden>
                     <Brain className="size-3.5" />
                   </span>
-                  <span>模型返回</span>
-                  {usage ? <span className="ml-auto shrink-0 tabular-nums">{usage}</span> : null}
+                  <span className="min-w-0 whitespace-normal break-words">
+                    模型返回 · {model}
+                    {usage ? <span className="tabular-nums"> · {usage}</span> : null}
+                  </span>
                 </summary>
                 <pre className="mt-1 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded bg-inset p-2 text-[10px] leading-4 text-ink">{response}</pre>
               </details>

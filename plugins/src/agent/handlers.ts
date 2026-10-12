@@ -7,11 +7,38 @@ import type { AgentCommand, AgentInputEffect, AgentInputGuard, AgentInputKey, Ag
 import { parseEditAction, parseEditOp } from '@/lib/runtime/edit-ops'
 import { isFirstPartyToolPlugin } from '@/lib/runtime/plugin-tools'
 
+import { nativeSavefileId } from '../cheat/runtime/cheats'
 import { findPluginTool, listPluginToolMetas } from '../helpers/plugin-tools'
+import { chestEventOpened, eventFacts, eventHint, eventLook } from './event-facts'
 import { movePlayer, quitGame, snapScreen, tapScreen } from './game-control'
 import { battleProgress, originalMessageText, readHistory } from './history'
+import { interactEvent } from './interact'
 import { armReaction, currentReactionCue, reactionAvailable, reactionOutcome, reactionResult, startReactionMonitor, stopReaction } from './reaction'
 import { readCommandInputs, readRenderedText } from './rendered-text'
+
+type GameSavesAgent = { agentSnapshot: () => Promise<unknown>; agentLoad: (entryId: string, allowVersionMismatch?: boolean) => Promise<unknown> }
+
+function gameSaves(): GameSavesAgent {
+  const controller = (window as Window & { __chayaGameSaves?: GameSavesAgent }).__chayaGameSaves
+  if (!controller) throw new Error('游戏存档运行时未就绪，请重新加载插件')
+  return controller
+}
+
+function nativeSaves() {
+  const data = g().DataManager as Loose | undefined
+  const loaded = data?._globalInfo ?? (typeof data?.loadGlobalInfo === 'function' ? data.loadGlobalInfo() : undefined)
+  const info = (loaded as Array<Loose | null> | undefined) ?? []
+  const firstManualId = nativeSavefileId(1)
+  return info.slice(firstManualId).map((entry, index) => ({
+    source: 'native' as const,
+    slot: index + 1,
+    exists: !!entry,
+    savedAt: entry?.timestamp ?? entry?.saveDate ?? null,
+    playtime: entry?.playtime ?? entry?.playtimeText ?? null,
+    mapName: entry?.mapName ?? null,
+    title: entry?.title ?? null,
+  }))
+}
 
 type Loose = Record<string, unknown>
 type AnyFn = (...args: unknown[]) => unknown
@@ -67,13 +94,6 @@ function read<T = unknown>(obj: unknown, name: string, ...args: unknown[]): T | 
   }
 }
 
-/** First Show Text line of the event's active page; game text, so callers must treat it as untrusted data. */
-function eventHint(event: Loose): string | null {
-  const list = read<Array<{ code?: number; parameters?: unknown[] }>>(event, 'list') ?? []
-  const line = list.find((command) => command?.code === 401)?.parameters?.[0]
-  return typeof line === 'string' && line.trim() ? line.trim().slice(0, 40) : null
-}
-
 /** JSON-safe copy: drops functions, breaks cycles, caps depth / size. */
 export function toJsonSafe(value: unknown, depth = 4, seen = new WeakSet<object>()): unknown {
   if (value == null || typeof value === 'boolean' || typeof value === 'string') return value
@@ -120,6 +140,7 @@ export function readAgentGameState() {
       const y = Number(event._y)
       const px = Number(player?._x)
       const py = Number(player?._y)
+      const hint = eventHint(event)
       return {
         id: read(event, 'eventId') ?? event._eventId ?? null,
         name: (read<Loose>(event, 'event')?.name as string | undefined) ?? null,
@@ -128,8 +149,12 @@ export function readAgentGameState() {
         distance: Number.isFinite(x + y + px + py) ? Math.abs(x - px) + Math.abs(y - py) : null,
         running: Boolean(read(event, 'isStarting')),
         sprite: typeof event._characterName === 'string' && event._characterName ? event._characterName : null,
+        ...eventLook(event),
         trigger: typeof event._trigger === 'number' ? (['action', 'player_touch', 'event_touch', 'autorun', 'parallel'][event._trigger] ?? null) : null,
-        hint: eventHint(event),
+        pageIndex: typeof event._pageIndex === 'number' ? event._pageIndex : null,
+        opened: chestEventOpened(event, mapId ?? 0, Number(read(event, 'eventId') ?? event._eventId ?? 0)),
+        hint,
+        ...eventFacts(event),
       }
     })
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
@@ -182,11 +207,18 @@ export function readAgentGameState() {
     party: members.map((a) => ({
       id: read(a, 'actorId'),
       name: read(a, 'name'),
+      class: (() => {
+        const current = read<Loose>(a, 'currentClass')
+        return current ? { id: current.id ?? null, name: current.name ?? null } : null
+      })(),
       level: a._level ?? null,
       hp: a._hp ?? null,
       mhp: read(a, 'param', 0) ?? null,
       mp: a._mp ?? null,
       mmp: read(a, 'param', 1) ?? null,
+      tp: a._tp ?? null,
+      equipment: (read<Loose[]>(a, 'equips') ?? []).map((item, slot) => ({ slot, id: item?.id ?? null, name: item?.name ?? null })),
+      states: (read<Loose[]>(a, 'states') ?? []).map((state) => ({ id: state.id ?? null, name: state.name ?? null })),
     })),
     playtime: read(w.$gameSystem, 'playtimeText') ?? null,
     inventory: party ? { items: items('items'), weapons: items('weapons'), armors: items('armors') } : null,
@@ -250,6 +282,20 @@ export function readAgentGameState() {
   let hash = 2166136261
   for (let i = 0; i < control.length; i += 1) hash = Math.imul(hash ^ control.charCodeAt(i), 16777619)
   return { ...state, controlToken: (hash >>> 0).toString(36) }
+}
+
+/** Structured menu/window observation for agents; keeps the full state tool unchanged. */
+function readAgentGameUi() {
+  const state = readAgentGameState()
+  const active = state.windows.find((window) => window?.active) ?? null
+  return {
+    scene: state.scene,
+    windows: state.windows,
+    activeWindow: active,
+    message: state.message,
+    choices: state.message?.choices ?? null,
+    renderedText: state.renderedText,
+  }
 }
 
 function inputEffect(key: AgentInputKey, state: ReturnType<typeof readAgentGameState>): AgentInputEffect {
@@ -330,7 +376,7 @@ async function callPluginTool({ plugin, tool, input = {} }: AgentParams<'plugin.
 type AgentEditApi = {
   state: () => unknown
   apply: (op: AgentParams<'edit.apply'>['op']) => unknown
-  action: (action: AgentParams<'edit.action'>['action']) => unknown
+  action: (action: AgentParams<'edit.action'>['action']) => unknown | Promise<unknown>
 }
 
 function agentEdit(): AgentEditApi {
@@ -440,11 +486,27 @@ async function withAgentInput<T>(run: () => Promise<T> | T): Promise<T> {
 
 export async function runAgentCommand(cmd: AgentCommand, { allowEval = false, inputOwner }: AgentRunOptions = {}): Promise<unknown> {
   const activeOwner = typeof window === 'undefined' ? undefined : (window as Window & { __chayaAgentPlayTaskId?: string }).__chayaAgentPlayTaskId
-  const inputMethod = cmd.method === 'input.press' || cmd.method === 'input.sequence' || cmd.method === 'input.tap' || cmd.method === 'player.moveTo'
-  if (inputMethod && activeOwner && activeOwner !== inputOwner) throw new Error('Chaya Agent 正在帮玩，暂时不能由其他控制者发送输入')
+  const inputMethod =
+    cmd.method === 'input.press' || cmd.method === 'input.sequence' || cmd.method === 'input.tap' || cmd.method === 'player.moveTo' || cmd.method === 'player.interact'
+  if (inputMethod && activeOwner && activeOwner !== inputOwner) throw new Error('Chaya Agent 正在托管游戏，暂时不能由其他控制者发送输入')
   switch (cmd.method) {
     case 'game.state':
       return readAgentGameState()
+    case 'game.ui':
+      return readAgentGameUi()
+    case 'game.saves':
+      if (cmd.params.op === 'snapshot')
+        return gameSaves()
+          .agentSnapshot()
+          .then((chaya) => ({ chaya, native: nativeSaves() }))
+      if (cmd.params.op === 'nativeSnapshot') return nativeSaves()
+      if (cmd.params.op === 'nativeSave') return await agentEdit().action({ id: 'save', slot: cmd.params.slot })
+      if (cmd.params.op === 'nativeLoad') return await agentEdit().action({ id: 'load', slot: cmd.params.slot })
+      if (cmd.params.op === 'quickSave')
+        return (gameSaves() as GameSavesAgent & { agentSaveQuick: (slot: number, force?: boolean) => Promise<unknown> }).agentSaveQuick(cmd.params.slot, cmd.params.force)
+      if (cmd.params.op === 'autoSave') return (gameSaves() as GameSavesAgent & { agentSaveAuto: (force?: boolean) => Promise<unknown> }).agentSaveAuto(cmd.params.force)
+      if (cmd.params.op === 'load') return gameSaves().agentLoad(cmd.params.entryId, cmd.params.allowVersionMismatch)
+      throw new Error(`不支持的存档操作：${cmd.params.op}`)
     case 'game.history':
       return readHistory(cmd.params ?? {})
     case 'game.snap':
@@ -467,6 +529,10 @@ export async function runAgentCommand(cmd: AgentCommand, { allowEval = false, in
       return withAgentInput(() => tapScreen(cmd.params))
     case 'player.moveTo':
       return withAgentInput(() => guardedMove(cmd.params))
+    case 'player.interact': {
+      const epoch = manualInputEpoch
+      return withAgentInput(() => interactEvent(cmd.params, { press: (key) => pressKey({ key }), readState: readAgentGameState, interrupted: () => manualInputEpoch !== epoch }))
+    }
     case 'edit.catalog':
       return editCatalog()
     case 'edit.state':

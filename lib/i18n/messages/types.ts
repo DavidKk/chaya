@@ -1,4 +1,5 @@
 import type { AboutMessages } from '@/lib/i18n/messages/about-types'
+import type { AgentAuthMessages } from '@/lib/i18n/messages/agent-auth-types'
 import type { CreditsMessages } from '@/lib/i18n/messages/credits-types'
 import type { DataMessages } from '@/lib/i18n/messages/data-types'
 import type { DownloadsMessages } from '@/lib/i18n/messages/downloads-types'
@@ -489,6 +490,7 @@ export type MessageTree = {
     overlayAria: string
   }
   integration: IntegrationMessages
+  agentAuth: AgentAuthMessages
   mcpGateway: McpGatewayMessages
   downloads: DownloadsMessages
   about: AboutMessages
@@ -515,7 +517,19 @@ export type MessageTree = {
     acting: string
     observing: string
     verifying: string
+    showActivity: string
+    showChat: string
+    scrollToBottom: string
     failed: string
+    chestOffer: string
+    chestAccept: string
+    chestDecline: string
+    chestGoal: string
+    autopilotPlaceholder: string
+    autopilotStop: string
+    cardYes: string
+    cardNo: string
+    cardExpired: string
   }
   tools: {
     minimapDesc: string
@@ -544,7 +558,7 @@ export type MessageTree = {
     }
     items: { title: string; desc: string; showAll: string; hideAll: string; listAria: string; toggle: string }
     item: Record<'miniMap' | 'miniMapDesc' | 'companion' | 'companionDesc' | 'autoSaves' | 'autoSavesDesc' | 'quickSaves' | 'quickSavesDesc' | 'closeAll' | 'closeAllDesc', string>
-    bar: { aria: string; drag: string; show: string; hide: string; closeAll: string; toVertical: string; toHorizontal: string }
+    bar: { aria: string; drag: string; show: string; hide: string; closeAll: string; toVertical: string; toHorizontal: string; opacity: string; opacityValue: string }
     resize: Record<'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw', string>
   }
 }

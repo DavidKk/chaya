@@ -5,6 +5,7 @@ import { LuColumns3, LuGripHorizontal, LuGripVertical, LuRows3 } from 'react-ico
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Button } from '@/components/sk'
+import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { MINI_PANEL_IDS, type MiniPanelId, PANEL_DOCK_ITEMS, type ToolSettings } from '@/lib/game-agent/tool-settings'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +36,7 @@ export function MiniPanelDock({ settings, update }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const drag = useRef<{ pointerId: number; x: number; y: number; from: Position } | null>(null)
   const [position, setPosition] = useState<Position | null>(null)
+  const [dragging, setDragging] = useState(false)
   const dragged = useRef<Position | null>(null)
   const visible: Record<MiniPanelId, boolean> = {
     miniMap: useToolPanelVisibility('miniMap', settings.miniMapEnabled).visible,
@@ -88,6 +90,7 @@ export function MiniPanelDock({ settings, update }: Props) {
     event.preventDefault()
     drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, from: position }
     dragged.current = position
+    setDragging(true)
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
@@ -102,6 +105,7 @@ export function MiniPanelDock({ settings, update }: Props) {
     const current = drag.current
     if (current?.pointerId !== event.pointerId) return
     drag.current = null
+    setDragging(false)
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
     event.currentTarget.blur()
     if (dragged.current) save(dragged.current)
@@ -136,21 +140,22 @@ export function MiniPanelDock({ settings, update }: Props) {
       onKeyDown={stopGameKeys}
       onMouseDown={keepGameFocus}
     >
-      <div
-        role="separator"
-        aria-orientation={vertical ? 'horizontal' : 'vertical'}
-        tabIndex={0}
-        aria-label={t('panels.bar.drag')}
-        title={t('panels.bar.drag')}
-        className={cn('flex shrink-0 touch-none cursor-grab items-center justify-center rounded-sm text-ink-soft active:cursor-grabbing', vertical ? 'h-3 w-6' : 'h-6 w-3')}
-        onPointerDown={begin}
-        onPointerMove={move}
-        onPointerUp={end}
-        onPointerCancel={end}
-        onKeyDown={nudge}
-      >
-        <Grip size={12} aria-hidden />
-      </div>
+      <Tooltip content={t('panels.bar.drag')} placement={tip} touchBehavior="passthrough" suppressed={dragging}>
+        <div
+          role="separator"
+          aria-orientation={vertical ? 'horizontal' : 'vertical'}
+          tabIndex={0}
+          aria-label={t('panels.bar.drag')}
+          className={cn('flex shrink-0 touch-none cursor-grab items-center justify-center rounded-sm text-ink-soft active:cursor-grabbing', vertical ? 'h-3 w-6' : 'h-6 w-3')}
+          onPointerDown={begin}
+          onPointerMove={move}
+          onPointerUp={end}
+          onPointerCancel={end}
+          onKeyDown={nudge}
+        >
+          <Grip size={12} aria-hidden />
+        </div>
+      </Tooltip>
       {panels.map((id) => {
         const { icon: Icon, labelKey } = PANEL_DOCK_ITEM_META[id]
         const name = t(labelKey)

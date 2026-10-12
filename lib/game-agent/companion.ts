@@ -23,10 +23,30 @@ export type CompanionState = {
   map?: { id?: number | null } | null
   battle?: { instanceId?: string | null } | null
   party?: Array<{ id?: number | null; hp?: number | null; mhp?: number | null }>
-  nearbyEvents?: Array<{ id?: number | null; name?: string | null; sprite?: string | null; distance?: number | null }>
+  nearbyEvents?: Array<{
+    id?: number | null
+    sprite?: string | null
+    distance?: number | null
+    x?: number | null
+    y?: number | null
+    opened?: boolean
+    interactive?: boolean
+    effects?: string[]
+  }>
 }
 
+export type CompanionChest = { mapId: number; eventId: number; x: number; y: number }
+
 const MIN_GAP_MS = 12_000
+const REWARD_EFFECTS = ['gold', 'item', 'weapon', 'armor']
+
+/**
+ * A chest is an object event (RPG Maker draws `!` sheets as objects) whose active page gives
+ * gold or items. Event names and sprite file names are never matched against keywords.
+ */
+function isRewardObject(event: NonNullable<CompanionState['nearbyEvents']>[number]): boolean {
+  return !!event.sprite?.startsWith('!') && event.interactive !== false && !!event.effects?.some((effect) => REWARD_EFFECTS.includes(effect))
+}
 
 /** Facts trigger a line; the selected character changes its wording, never the game action. */
 export class CompanionTracker {
@@ -34,6 +54,8 @@ export class CompanionTracker {
   private readonly seenBattles = new Set<string>()
   private readonly seenChests = new Set<string>()
   private readonly warnedMembers = new Set<string>()
+  /** 最近一次 `chest` 线索对应的宝箱；坐标缺失时为 null，只提醒不提供托管 */
+  lastChest: CompanionChest | null = null
 
   observe(state: CompanionState, now = Date.now()): CompanionCue | null {
     const battleId = state.scene === 'Scene_Battle' ? state.battle?.instanceId : null
@@ -61,17 +83,12 @@ export class CompanionTracker {
     if (state.scene !== 'Scene_Map' || state.map?.id == null || now - this.lastSpokeAt < MIN_GAP_MS) return null
     const chest = state.nearbyEvents?.find((event) => {
       const key = `${state.map?.id}:${event.id}`
-      return (
-        event.id != null &&
-        event.distance != null &&
-        event.distance <= 6 &&
-        !this.seenChests.has(key) &&
-        (/chest/i.test(event.sprite || '') || /宝箱|寶箱|chest|treasure|宝物箱|보물상자/i.test(event.name || ''))
-      )
+      return event.id != null && event.distance != null && event.distance <= 6 && event.opened !== true && !this.seenChests.has(key) && isRewardObject(event)
     })
     if (!chest) return null
     this.seenChests.add(`${state.map.id}:${chest.id}`)
     this.lastSpokeAt = now
+    this.lastChest = chest.x != null && chest.y != null ? { mapId: state.map.id, eventId: chest.id!, x: chest.x, y: chest.y } : null
     return 'chest'
   }
 }

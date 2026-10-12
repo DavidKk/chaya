@@ -74,6 +74,7 @@
 | `chaya_live_screenshot` | 当前画面截图（MCP 图片内容）；较占 token，按需调用                                            | `maxWidth?`                     |
 | `chaya_live_tap`        | 在画面坐标点击（菜单、对话、按钮）                                                            | `x`, `y`, `frames?`             |
 | `chaya_live_move_to`    | 地图上寻路走到格子坐标，等到达或超时（上限 12 秒）                                            | `x`, `y`, `timeoutMs?`          |
+| `chaya_live_interact`   | 走到地图事件旁、面向并按确认、推进对话，返回台词与金钱 / 物品变化；路上关闭的门会先打开       | `eventId`                       |
 | `chaya_live_quit`       | 关闭 `gameId` 对应的游戏（ChayaAgent `game.quit`）；没有连着的游戏时请求关闭 Chaya 启动的游戏 | `gameId?`                       |
 | `chaya_live_eval`       | 执行任意 JS（默认关闭，`CHAYA_MCP_EVAL=1` 开启）⚠️                                            | `code`                          |
 

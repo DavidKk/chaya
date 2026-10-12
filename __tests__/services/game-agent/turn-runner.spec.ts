@@ -123,6 +123,45 @@ test('answers through service tools without reading game state when no game is c
   expect(events).toContainEqual({ type: 'assistant.delta', text: '本地服务可用。' })
 })
 
+test('passes the connected game and companion context to the model', async () => {
+  ;(listAgentGames as jest.MockedFunction<typeof listAgentGames>).mockReturnValue([{ gameId: 'game-a', lastSeenMs: 0, toolCount: 0 }])
+  const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
+  chat.mockResolvedValueOnce({ role: 'assistant', content: '我来看看这个宝箱。' })
+  const session: GameAgentSession = { id: 'session', gameId: 'game-a', model: 'gemma', profileId: 'local', messages: [], activeTurnId: 'turn', updatedAt: 0 }
+  const turn: GameAgentTurn = {
+    id: 'turn',
+    sessionId: 'session',
+    gameId: 'game-a',
+    abort: new AbortController(),
+    state: 'running',
+    startedAt: 0,
+    lastSeq: 0,
+    events: [],
+    listeners: new Set(),
+  }
+  const profile = {
+    id: 'local',
+    label: 'Local',
+    provider: 'ollama',
+    endpoint: 'http://127.0.0.1:11434',
+    defaultModel: 'gemma',
+    temperature: 0.2,
+    keepAlive: '10m',
+  } as GameAgentProfile
+
+  await runAskTurn(
+    { gameId: 'game-a', model: 'gemma', profileId: 'local', mode: 'ask', prompt: '帮我开宝箱', surface: 'companion', companionCharacter: 'yui' },
+    profile,
+    session,
+    turn,
+    () => undefined
+  )
+
+  const content = String(chat.mock.calls[0][0].messages[0]?.content)
+  expect(content).toContain('already inside the connected game')
+  expect(chat.mock.calls[0][0].messages.findLast((message) => message.role === 'user')?.content).toContain('Connected game id: game-a')
+})
+
 test('deletes a named Agent configuration without requiring a connected game', async () => {
   ;(listAgentGames as jest.MockedFunction<typeof listAgentGames>).mockReturnValue([])
   const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
@@ -166,7 +205,7 @@ test('deletes a named Agent configuration without requiring a connected game', a
   expect(events).toContainEqual(expect.objectContaining({ type: 'tool.completed', callId: '1-0', name: 'chaya_agent_profile_delete', ok: true }))
 })
 
-test('answers a presence check without reading game state or offering tools', async () => {
+test('offers tools for a presence check and lets the model answer it directly', async () => {
   const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
   chat.mockResolvedValueOnce({ role: 'assistant', content: '在，有什么需要？' })
   const session: GameAgentSession = { id: 'session', gameId: 'game-a', model: 'gemma', profileId: 'local', messages: [], activeTurnId: 'turn', updatedAt: 0 }
@@ -194,9 +233,7 @@ test('answers a presence check without reading game state or offering tools', as
 
   await runAskTurn({ gameId: 'game-a', model: 'gemma', profileId: 'local', mode: 'ask', prompt: '在吗', locale: 'zh-CN' }, profile, session, turn, (event) => events.push(event))
 
-  expect(callAgentGame).not.toHaveBeenCalled()
-  expect(chat.mock.calls[0][0].tools).toEqual([])
-  expect(chat.mock.calls[0][0].messages.at(-1)?.content).not.toContain('Current observed game state')
+  expect(chat.mock.calls[0][0].tools?.length).toBeGreaterThan(0)
   expect(events.some((event) => event.type === 'tool.started')).toBe(false)
   expect(events).toContainEqual({ type: 'assistant.delta', text: '在，有什么需要？' })
 })
@@ -245,4 +282,50 @@ test('removes write-only credentials from logs, answers and saved conversation h
   expect(JSON.stringify(session.messages)).not.toContain('private-token')
   expect(JSON.stringify((appendLog as jest.Mock).mock.calls)).not.toContain('private-token')
   expect(events).toContainEqual({ type: 'assistant.delta', text: '已保存 [credential omitted]。' })
+})
+
+test('sends only the system prompt and the current request, not earlier session turns', async () => {
+  ;(listAgentGames as jest.MockedFunction<typeof listAgentGames>).mockReturnValue([{ gameId: 'game-a' }] as ReturnType<typeof listAgentGames>)
+  const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
+  chat.mockResolvedValueOnce({ role: 'assistant', content: '好的。' })
+  const session: GameAgentSession = {
+    id: 'session',
+    gameId: 'game-a',
+    model: 'gemma',
+    profileId: 'local',
+    messages: [
+      { role: 'user', content: 'EARLIER_REQUEST' },
+      { role: 'assistant', content: 'EARLIER_REPLY' },
+    ],
+    activeTurnId: 'turn',
+    updatedAt: 0,
+  }
+  const turn: GameAgentTurn = {
+    id: 'turn',
+    sessionId: 'session',
+    gameId: 'game-a',
+    abort: new AbortController(),
+    state: 'running',
+    startedAt: 0,
+    lastSeq: 0,
+    events: [],
+    listeners: new Set(),
+  }
+  const profile = {
+    id: 'local',
+    label: 'Local',
+    provider: 'ollama',
+    endpoint: 'http://127.0.0.1:11434',
+    defaultModel: 'gemma',
+    temperature: 0.2,
+    keepAlive: '10m',
+  } as GameAgentProfile
+
+  await runAskTurn({ gameId: 'game-a', model: 'gemma', profileId: 'local', mode: 'ask', prompt: '再来一次', locale: 'zh-CN' }, profile, session, turn, () => {})
+
+  const sent = chat.mock.calls[0][0].messages
+  expect(sent.map((message) => message.role)).toEqual(['system', 'user'])
+  expect(JSON.stringify(sent)).not.toContain('EARLIER_')
+  expect(sent[0].content).toContain('chaya_agent_recall')
+  expect(session.messages.map((message) => message.content)).toEqual(['EARLIER_REQUEST', 'EARLIER_REPLY', '再来一次', '好的。'])
 })

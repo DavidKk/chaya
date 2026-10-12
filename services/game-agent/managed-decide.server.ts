@@ -2,6 +2,7 @@ import type { AgentCommandInput, AgentInputKey } from '@/lib/runtime/agent-proto
 
 import { battleNeedsReasoning, decisionState, type ManagedState as State, type ResolvedGoal } from './managed-goal.server'
 import { streamOllamaChat } from './ollama-client'
+import { ollamaFetch } from './proxy/agent-proxy'
 import { readGameAgentToken } from './secrets'
 import type { GameAgentProfile } from './settings'
 import type { GameAgentMessage, OllamaTool, StartTurnInput } from './types'
@@ -58,9 +59,11 @@ async function chooseCommand(profile: GameAgentProfile, input: StartTurnInput, m
         maxTokens: 64,
         token: readGameAgentToken(profile.id),
         keepAlive: profile.keepAlive,
+        timeoutMs: profile.modelTimeoutMs,
         signal,
       },
-      () => {}
+      () => {},
+      ollamaFetch(profile)
     )
     try {
       const picked = (JSON.parse(choice.content) as { index?: number }).index
@@ -194,9 +197,11 @@ export async function decide(
         think,
         token: readGameAgentToken(profile.id),
         keepAlive: profile.keepAlive,
+        timeoutMs: profile.modelTimeoutMs,
         signal,
       },
-      () => {}
+      () => {},
+      ollamaFetch(profile)
     )
     try {
       const decision = JSON.parse(choice.content) as { index?: number; key?: AgentInputKey }
@@ -250,9 +255,11 @@ export async function decide(
       maxTokens: 256,
       token: readGameAgentToken(profile.id),
       keepAlive: profile.keepAlive,
+      timeoutMs: profile.modelTimeoutMs,
       signal,
     },
-    () => {}
+    () => {},
+    ollamaFetch(profile)
   )
   if (response.tool_calls?.length) return response
   const fallback = await streamOllamaChat(
@@ -283,9 +290,11 @@ export async function decide(
       temperature: 0,
       token: readGameAgentToken(profile.id),
       keepAlive: profile.keepAlive,
+      timeoutMs: profile.modelTimeoutMs,
       signal,
     },
-    () => {}
+    () => {},
+    ollamaFetch(profile)
   )
   try {
     const choice = JSON.parse(fallback.content) as { action?: string; key?: string; question?: string; evidence?: string }

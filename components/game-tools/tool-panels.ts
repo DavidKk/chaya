@@ -38,7 +38,7 @@ export const TOOL_PANEL_SIZE = { min: { width: 220, height: 160 }, max: { width:
 
 /** 局内迷你面板闲置时让出画面；Portal 浮层打开也算正在交互 */
 export const MINI_PANEL_VISIBILITY_CLASS =
-  'opacity-40 transition-opacity duration-150 hover:opacity-100 focus-within:opacity-100 [&:has([data-panel-interaction-active])]:opacity-100'
+  'opacity-[var(--mini-panel-opacity,0.4)] transition-opacity duration-150 hover:opacity-100 focus-within:opacity-100 [&:has([data-panel-interaction-active])]:opacity-100'
 
 /** 首次打开的位置：迷你地图右上、旅伴右下、自动存档左上、快速存档左下 */
 export const TOOL_PANEL_FRAME: Record<MiniPanelId, ToolPanelFrame> = {

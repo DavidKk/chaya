@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
 import { type MiniPanelId, TOOL_PANEL_FRAME } from '@/components/game-tools/tool-panels'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
+import { DEFAULT_TOOL_SETTINGS } from '@/lib/game-agent/tool-settings'
 
 const MAP_KEY = TOOL_PANEL_FRAME.miniMap.storageKey
 let root: Root
@@ -125,7 +126,7 @@ test('pinning locks position and size; the old opaque pin flag is ignored', asyn
   expect(section.className.split(' ')).toContain('bg-panel')
   expect(section.className).not.toMatch(/\bbg-panel\//)
   expect(section.className).toContain('pointer-events-auto')
-  expect(section.className).toContain('opacity-40')
+  expect(section.className).toContain('opacity-[var(--mini-panel-opacity,0.4)]')
   expect(section.className).toContain('hover:opacity-100')
   expect(section.className).toContain('focus-within:opacity-100')
   expect(section.className).toContain('[&:has([data-panel-interaction-active])]:opacity-100')
@@ -140,7 +141,7 @@ test('pinning locks position and size; the old opaque pin flag is ignored', asyn
   expect(section.querySelectorAll('[role="separator"]')).toHaveLength(0)
   await drag(-50)
   expect(frame('Map').x).toBe(before - 50)
-  expect(section.className).toContain('opacity-40')
+  expect(section.className).toContain('opacity-[var(--mini-panel-opacity,0.4)]')
 })
 
 test('labels resize handles in the UI language and gives focus back after resizing', async () => {
@@ -148,6 +149,7 @@ test('labels resize handles in the UI language and gives focus back after resizi
   await renderPanels()
   const handle = document.querySelector('[role="separator"][aria-label="Map：拖动右下角调整大小"]') as HTMLElement
   expect(handle).not.toBeNull()
+  expect(handle.childElementCount).toBe(0)
   expect(document.querySelectorAll('[aria-label*="resize"]')).toHaveLength(0)
   handle.focus()
   expect(document.activeElement).toBe(handle)
@@ -159,6 +161,36 @@ test('labels resize handles in the UI language and gives focus back after resizi
   })
   expect(frame('Map').width).toBe(width - 40)
   expect(document.activeElement).not.toBe(handle)
+})
+
+test('shows the opacity range in the panel header and saves a 10-100 value', async () => {
+  const update = jest.fn(async () => undefined)
+  host = document.createElement('div')
+  document.body.append(host)
+  root = createRoot(host)
+  await act(async () => {
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <FloatingToolPanel title="Map" panel="miniMap" onClose={jest.fn()} scrollContent={false} opacity={{ settings: DEFAULT_TOOL_SETTINGS, update }}>
+          Content
+        </FloatingToolPanel>
+      </LocaleProvider>
+    )
+  })
+  const trigger = document.querySelector('button[aria-label="迷你面板透明度"]') as HTMLButtonElement
+  expect(trigger).not.toBeNull()
+  const labels = [...document.querySelectorAll('section[aria-label="Map"] button')].map((button) => button.getAttribute('aria-label'))
+  expect(labels).toEqual(['钉住（不可移动）', '迷你面板透明度', '最小化', '关闭'])
+  await act(async () => trigger.click())
+  const range = document.querySelector('input[type="range"][aria-label="迷你面板透明度"]') as HTMLInputElement
+  expect(range.min).toBe('10')
+  expect(range.max).toBe('100')
+  await act(async () => {
+    range.value = '65'
+    range.dispatchEvent(new Event('input', { bubbles: true }))
+    range.dispatchEvent(new Event('pointerup', { bubbles: true }))
+  })
+  expect(update).toHaveBeenCalledWith({ miniPanelOpacity: 65 })
 })
 
 test('stacks the two panels at screen edges when the viewport is too short', async () => {

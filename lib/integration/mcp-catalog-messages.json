@@ -13,6 +13,10 @@
         "title": "局内实时",
         "summary": "游戏运行中（需 ChayaAgent 插件）：读状态与最近剧情、看画面、按键、点击、寻路、关闭游戏；调用插件声明的工具。"
       },
+      "agent": {
+        "title": "Agent 对话",
+        "summary": "按需读取游戏内 Chaya Agent 对话的早先轮次。"
+      },
       "edit": {
         "title": "修改",
         "summary": "游戏内修改页的能力：查 id、读实时修改会话、改值 / 锁定、执行运行动作。"
@@ -28,9 +32,35 @@
       "logs": {
         "title": "日志",
         "summary": "查询与清空服务 / 插件日志。"
+      },
+      "skills": {
+        "title": "游戏技能",
+        "summary": "按需发现和读取游戏知识与策略。"
       }
     },
     "tools": {
+      "chaya_skills_list": {
+        "title": "列出游戏技能",
+        "description": "列出可用游戏技能及其层级。只在当前任务相关时读取技能正文。",
+        "params": {
+          "parent": "只列出某技能的直接子技能"
+        }
+      },
+      "chaya_skills_search": {
+        "title": "搜索游戏技能",
+        "description": "按任务、主题或标签搜索技能；复杂战斗、任务、路线或菜单规划前使用。",
+        "params": {
+          "query": "搜索词",
+          "limit": "最多返回数量（默认 10，最多 50）"
+        }
+      },
+      "chaya_skills_read": {
+        "title": "读取游戏技能",
+        "description": "找到技能后按需读取一项技能；技能可能引用子技能。",
+        "params": {
+          "id": "chaya_skill_list 或 chaya_skill_search 返回的技能 id"
+        }
+      },
       "chaya_library_list": {
         "title": "游戏库列表",
         "description": "列出本机游戏库与当前绑定的游戏，可按名称 / 备注 / 路径关键词筛选。",
@@ -110,6 +140,58 @@
           "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略"
         }
       },
+      "chaya_live_ui": {
+        "title": "游戏界面状态",
+        "description": "读取结构化 RPG Maker 场景和窗口数据：活动窗口、选中索引、符号、命令、启用状态、选项和渲染文本。方向键操作前优先使用；无法描述自定义窗口时再截图。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略"
+        }
+      },
+      "chaya_live_open_scene": {
+        "title": "打开游戏场景",
+        "description": "在运行中的游戏打开标准 RPG Maker 场景：状态、装备、技能、物品、菜单、读取、保存、设置、调试或弹出当前场景。切换前会关闭修改浮层。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "scene": "要打开的场景：scene:status、scene:equip、scene:skill、scene:item、scene:menu、scene:load、scene:save、scene:options、scene:debug 或 scene:pop"
+        }
+      },
+      "chaya_live_saves": {
+        "title": "游戏存档",
+        "description": "列出 Chaya 自动存档和快速存档，包括条目 id、保存时间、槽位和地图信息。要加载上一个存档时，取最新条目的 id 交给 chaya_live_saves_load。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略"
+        }
+      },
+      "chaya_live_saves_load": {
+        "title": "读取游戏存档",
+        "description": "按条目 id 读取一份 Chaya 自动存档或快速存档。当前未保存进度会丢失；破坏性操作：调用前必须先征得用户同意。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "entryId": "chaya_live_saves 返回的存档条目 id",
+          "allowVersionMismatch": "允许读取其他游戏版本生成的存档"
+        }
+      },
+      "chaya_live_save": {
+        "title": "保存游戏",
+        "description": "使用指定来源保存：游戏原生槽位、Chaya 快速槽或 Chaya 自动存档。可能覆盖已有槽位；破坏性操作：调用前必须先征得用户同意。",
+        "params": {
+          "gameId": "目标游戏 id",
+          "source": "存档来源：native、quick 或 auto",
+          "slot": "原生槽位（1+）或快速槽位（0-9）",
+          "force": "强制保存非安全时刻"
+        }
+      },
+      "chaya_live_load_save": {
+        "title": "读取游戏存档",
+        "description": "读取游戏原生、快速或自动存档。当前未保存进度会丢失；破坏性操作：调用前必须先征得用户同意。",
+        "params": {
+          "gameId": "目标游戏 id",
+          "source": "存档来源：native、quick 或 auto",
+          "slot": "原生槽位（1+）或快速槽位（0-9）",
+          "entryId": "自动存档条目 id",
+          "allowVersionMismatch": "允许读取其他游戏版本存档"
+        }
+      },
       "chaya_live_history": {
         "title": "最近剧情",
         "description": "最近的剧情记录（旧到新）：渲染过的对话（包括玩家跳过或快进的台词）、出现的选项与所选项、换地图、战斗与读档。用来总结进度或建议下一步；afterSeq 只读更新的条目。",
@@ -118,6 +200,16 @@
           "limit": "最多条数（默认 50，上限 300）",
           "kinds": "只要这些类型",
           "afterSeq": "只要 seq 大于此值的条目（上次读到的 lastSeq）"
+        }
+      },
+      "chaya_agent_recall": {
+        "title": "回忆 Agent 对话",
+        "description": "读取当前 Chaya Agent 对话的早先轮次。提示词不带之前的对话，只有当前请求依赖它们时才调用（如“继续”“刚才那个”“再来一次”）。不传 query 时返回最近的轮次，默认即上一条；传 query 时返回请求或回复包含任一关键词的轮次；用 offset 往更早翻页。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "query": "空格分隔的关键词（任意语言）；省略则读取最近的轮次",
+          "limit": "最多轮数（不传 query 默认 1，传 query 默认 4，上限 8）",
+          "offset": "跳过最新的若干条匹配（默认 0）"
         }
       },
       "chaya_live_screenshot": {
@@ -180,6 +272,14 @@
           "x": "地图格 x",
           "y": "地图格 y",
           "timeoutMs": "等待上限（默认 8000，上限 12000）"
+        }
+      },
+      "chaya_live_interact": {
+        "title": "与事件互动",
+        "description": "像玩家一样与一个地图事件（nearbyEvents 的 id）互动：走到它旁边（在玩家脚下一层的事件则走上去，途中的关门会顺手打开），面向它按确认并推进对话。返回 outcome（done、choice、no_path、no_reaction、nothing_to_run、transferred、scene_changed、timeout）、对话内容、goldChange 和 inventoryChanges。遇到选项时用 chaya_live_press 选择。仅地图场景。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "eventId": "nearbyEvents 里的事件 id"
         }
       },
       "chaya_live_quit": {
@@ -354,6 +454,10 @@
         "title": "ゲーム内リアルタイム",
         "summary": "ゲーム実行中（ChayaAgent プラグインが必要）：状態と最近のストーリーの取得、画面確認、キー・タップ・移動、ゲーム終了、プラグインが宣言したツールの呼び出し。"
       },
+      "agent": {
+        "title": "Agent の会話",
+        "summary": "ゲーム内 Chaya Agent の会話の以前のターンを必要なときに読みます。"
+      },
       "edit": {
         "title": "改造",
         "summary": "ゲーム内の改造ページの機能：id 検索、リアルタイム改造セッションの取得、値の変更 / ロック、実行アクション。"
@@ -369,9 +473,35 @@
       "logs": {
         "title": "ログ",
         "summary": "サーバー / プラグインのログの検索と消去。"
+      },
+      "skills": {
+        "title": "ゲームスキル",
+        "summary": "ゲーム知識と戦略を必要なときだけ検索・取得します。"
       }
     },
     "tools": {
+      "chaya_skills_list": {
+        "title": "ゲームスキル一覧",
+        "description": "利用できるゲームスキルと階層を一覧表示します。必要なタスクのときだけ本文を読みます。",
+        "params": {
+          "parent": "このスキルの直接の子だけを表示"
+        }
+      },
+      "chaya_skills_search": {
+        "title": "ゲームスキルを検索",
+        "description": "タスク、テーマ、タグでスキルを検索します。複雑な戦闘、クエスト、ルート、メニューの計画前に使います。",
+        "params": {
+          "query": "検索語",
+          "limit": "最大結果数（既定 10、最大 50）"
+        }
+      },
+      "chaya_skills_read": {
+        "title": "ゲームスキルを読む",
+        "description": "検索したスキルを必要なときだけ読みます。子スキルを参照する場合があります。",
+        "params": {
+          "id": "chaya_skill_list または chaya_skill_search が返すスキル id"
+        }
+      },
       "chaya_library_list": {
         "title": "ライブラリ一覧",
         "description": "ローカルのゲームライブラリと現在選択中のゲームを一覧表示します。名前 / メモ / パスのキーワードで絞り込めます。",
@@ -451,6 +581,58 @@
           "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可"
         }
       },
+      "chaya_live_ui": {
+        "title": "ゲーム UI 状態",
+        "description": "構造化された RPG Maker のシーンとウィンドウ情報を取得します。方向キー操作の前に優先して使い、説明できないカスタムウィンドウだけスクリーンショットを使います。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可"
+        }
+      },
+      "chaya_live_open_scene": {
+        "title": "ゲームシーンを開く",
+        "description": "実行中のゲームで標準 RPG Maker シーンを開きます：ステータス、装備、スキル、アイテム、メニュー、ロード、セーブ、オプション、デバッグ、現在のシーンを閉じる操作。切り替え前に編集オーバーレイを閉じます。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "scene": "開くシーン：scene:status、scene:equip、scene:skill、scene:item、scene:menu、scene:load、scene:save、scene:options、scene:debug、scene:pop"
+        }
+      },
+      "chaya_live_saves": {
+        "title": "ゲームセーブ",
+        "description": "Chaya の自動セーブとクイックセーブを、エントリ id、保存日時、スロット、マップ情報とともに一覧表示します。直前のセーブをロードするには、最新エントリの id を chaya_live_saves_load に渡します。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可"
+        }
+      },
+      "chaya_live_saves_load": {
+        "title": "ゲームセーブをロード",
+        "description": "エントリ id を指定して Chaya の自動セーブまたはクイックセーブをロードします。現在の未保存の進行は失われます。破壊的な操作：呼び出す前に必ずユーザーの同意を得てください。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "entryId": "chaya_live_saves が返すセーブエントリ id",
+          "allowVersionMismatch": "別バージョンのゲームで作成されたセーブのロードを許可"
+        }
+      },
+      "chaya_live_save": {
+        "title": "ゲームをセーブ",
+        "description": "ゲーム標準スロット、Chaya クイックスロット、Chaya 自動セーブから選んで保存します。上書きする場合があります。破壊的な操作：同意が必要です。",
+        "params": {
+          "gameId": "対象ゲーム id",
+          "source": "保存元：native、quick、auto",
+          "slot": "標準スロット（1+）またはクイックスロット（0-9）",
+          "force": "安全でない時刻でも強制保存"
+        }
+      },
+      "chaya_live_load_save": {
+        "title": "ゲームセーブをロード",
+        "description": "ゲーム標準、クイック、自動セーブをロードします。未保存の進行は失われます。破壊的な操作：同意が必要です。",
+        "params": {
+          "gameId": "対象ゲーム id",
+          "source": "保存元：native、quick、auto",
+          "slot": "標準スロット（1+）またはクイックスロット（0-9）",
+          "entryId": "自動セーブのエントリ id",
+          "allowVersionMismatch": "別バージョンのセーブを許可"
+        }
+      },
       "chaya_live_history": {
         "title": "最近のストーリー",
         "description": "最近のストーリー記録（古い順）：表示された会話（プレイヤーがスキップ・早送りした台詞も含む）、表示された選択肢と選んだもの、マップ移動、戦闘、ロード。進行のまとめや次の行動の助言に使います。afterSeq で新しい分だけ読めます。",
@@ -459,6 +641,16 @@
           "limit": "最大件数（既定 50、上限 300）",
           "kinds": "この種類だけ",
           "afterSeq": "seq がこの値より大きいものだけ（前回の lastSeq）"
+        }
+      },
+      "chaya_agent_recall": {
+        "title": "Agent の会話を振り返る",
+        "description": "現在の Chaya Agent の会話の以前のターンを読みます。プロンプトには以前のターンが含まれないため、今の依頼がそれに依存するとき（「続けて」「さっきのやつ」「もう一回」など）だけ呼びます。query なしでは最新のターン（既定は直前の 1 件）、query ありでは依頼か返答にいずれかの語を含むターンを返します。offset でさらに遡れます。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "query": "空白区切りの検索語（任意の言語）。省略すると最新のターンを読む",
+          "limit": "最大ターン数（query なしは既定 1、ありは既定 4、上限 8）",
+          "offset": "新しい一致をこの数だけ飛ばす（既定 0）"
         }
       },
       "chaya_live_screenshot": {
@@ -521,6 +713,14 @@
           "x": "マップのマス x",
           "y": "マップのマス y",
           "timeoutMs": "待機上限（既定 8000、上限 12000）"
+        }
+      },
+      "chaya_live_interact": {
+        "title": "イベントに話しかける",
+        "description": "プレイヤーと同じようにマップイベント（nearbyEvents の id）1 つに干渉します：隣まで歩き（プレイヤーの下にあるイベントなら上に乗り、途中の閉じた扉は開けて）、向きを合わせて決定を押し、会話を進めます。outcome（done、choice、no_path、no_reaction、nothing_to_run、transferred、scene_changed、timeout）、会話、goldChange、inventoryChanges を返します。選択肢が出たら chaya_live_press で選びます。マップシーンのみ。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "eventId": "nearbyEvents のイベント id"
         }
       },
       "chaya_live_quit": {
@@ -695,6 +895,10 @@
         "title": "게임 내 실시간",
         "summary": "게임 실행 중(ChayaAgent 플러그인 필요): 상태와 최근 스토리 읽기, 화면 보기, 키·탭·이동, 게임 종료, 플러그인이 선언한 도구 호출."
       },
+      "agent": {
+        "title": "Agent 대화",
+        "summary": "게임 내 Chaya Agent 대화의 이전 턴을 필요할 때 읽습니다."
+      },
       "edit": {
         "title": "수정",
         "summary": "게임 내 수정 페이지 기능: id 찾기, 실시간 수정 세션 읽기, 값 변경 / 잠금, 실행 동작."
@@ -710,9 +914,35 @@
       "logs": {
         "title": "로그",
         "summary": "서버 / 플러그인 로그 조회와 지우기."
+      },
+      "skills": {
+        "title": "게임 스킬",
+        "summary": "게임 지식과 전략을 필요할 때만 검색하고 읽습니다."
       }
     },
     "tools": {
+      "chaya_skills_list": {
+        "title": "게임 스킬 목록",
+        "description": "사용 가능한 게임 스킬과 계층을 나열합니다. 현재 작업과 관련될 때만 본문을 읽으세요.",
+        "params": {
+          "parent": "이 스킬의 직접 하위 항목만 나열"
+        }
+      },
+      "chaya_skills_search": {
+        "title": "게임 스킬 검색",
+        "description": "작업, 주제 또는 태그로 스킬을 검색합니다. 복잡한 전투, 퀘스트, 경로 또는 메뉴 계획 전에 사용하세요.",
+        "params": {
+          "query": "검색어",
+          "limit": "최대 결과 수(기본 10, 최대 50)"
+        }
+      },
+      "chaya_skills_read": {
+        "title": "게임 스킬 읽기",
+        "description": "찾은 스킬 하나를 필요할 때 읽습니다. 하위 스킬을 참조할 수 있습니다.",
+        "params": {
+          "id": "chaya_skill_list 또는 chaya_skill_search가 반환한 스킬 id"
+        }
+      },
       "chaya_library_list": {
         "title": "라이브러리 목록",
         "description": "로컬 게임 라이브러리와 현재 선택된 게임을 나열합니다. 이름 / 메모 / 경로 키워드로 거를 수 있습니다.",
@@ -792,6 +1022,58 @@
           "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능"
         }
       },
+      "chaya_live_ui": {
+        "title": "게임 UI 상태",
+        "description": "구조화된 RPG Maker 장면과 창 정보를 읽습니다. 방향키 입력 전에 우선 사용하고, 설명할 수 없는 사용자 지정 창에서만 스크린샷을 사용하세요.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능"
+        }
+      },
+      "chaya_live_open_scene": {
+        "title": "게임 장면 열기",
+        "description": "실행 중인 게임에서 표준 RPG Maker 장면을 엽니다: 상태, 장비, 스킬, 아이템, 메뉴, 불러오기, 저장, 설정, 디버그 또는 현재 장면 닫기. 전환 전에 편집 오버레이를 닫습니다.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "scene": "열 장면: scene:status, scene:equip, scene:skill, scene:item, scene:menu, scene:load, scene:save, scene:options, scene:debug 또는 scene:pop"
+        }
+      },
+      "chaya_live_saves": {
+        "title": "게임 저장",
+        "description": "Chaya 자동 저장과 빠른 저장을 항목 id, 저장 시간, 슬롯, 맵 정보와 함께 나열합니다. 이전 저장을 불러오려면 최신 항목 id를 chaya_live_saves_load에 전달하세요.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능"
+        }
+      },
+      "chaya_live_saves_load": {
+        "title": "게임 저장 불러오기",
+        "description": "항목 id로 Chaya 자동 저장 또는 빠른 저장을 불러옵니다. 현재 저장하지 않은 진행 상황은 사라집니다. 파괴적인 작업: 호출 전에 반드시 사용자 동의를 받으세요.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "entryId": "chaya_live_saves가 반환한 저장 항목 id",
+          "allowVersionMismatch": "다른 게임 버전에서 만든 저장 불러오기 허용"
+        }
+      },
+      "chaya_live_save": {
+        "title": "게임 저장",
+        "description": "게임 기본 슬롯, Chaya 빠른 슬롯 또는 Chaya 자동 저장을 선택해 저장합니다. 기존 슬롯을 덮어쓸 수 있습니다. 파괴적인 작업: 동의가 필요합니다.",
+        "params": {
+          "gameId": "대상 게임 id",
+          "source": "저장 원본: native, quick 또는 auto",
+          "slot": "기본 슬롯(1+) 또는 빠른 슬롯(0-9)",
+          "force": "안전하지 않은 시점에도 강제 저장"
+        }
+      },
+      "chaya_live_load_save": {
+        "title": "게임 저장 불러오기",
+        "description": "게임 기본, 빠른 저장 또는 자동 저장을 불러옵니다. 저장하지 않은 진행은 사라집니다. 파괴적인 작업: 동의가 필요합니다.",
+        "params": {
+          "gameId": "대상 게임 id",
+          "source": "저장 원본: native, quick 또는 auto",
+          "slot": "기본 슬롯(1+) 또는 빠른 슬롯(0-9)",
+          "entryId": "자동 저장 항목 id",
+          "allowVersionMismatch": "다른 버전의 저장 허용"
+        }
+      },
       "chaya_live_history": {
         "title": "최근 스토리",
         "description": "최근 스토리 기록(오래된 순): 표시된 대화(플레이어가 건너뛰거나 빨리 넘긴 대사 포함), 표시된 선택지와 고른 항목, 맵 이동, 전투, 불러오기. 진행 요약이나 다음 행동 조언에 사용합니다. afterSeq로 새 항목만 읽을 수 있습니다.",
@@ -800,6 +1082,16 @@
           "limit": "최대 개수(기본 50, 최대 300)",
           "kinds": "이 종류만",
           "afterSeq": "seq가 이 값보다 큰 항목만(이전 lastSeq)"
+        }
+      },
+      "chaya_agent_recall": {
+        "title": "Agent 대화 회상",
+        "description": "현재 Chaya Agent 대화의 이전 턴을 읽습니다. 프롬프트에는 이전 턴이 들어가지 않으므로 지금 요청이 그것에 의존할 때만 호출합니다(예: \"계속\", \"아까 그거\", \"다시 해 줘\"). query가 없으면 최신 턴(기본은 직전 1개), 있으면 요청이나 답변에 검색어 중 하나라도 포함된 턴을 반환합니다. offset으로 더 이전을 볼 수 있습니다.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "query": "공백으로 구분한 검색어(아무 언어). 생략하면 최신 턴을 읽음",
+          "limit": "최대 턴 수(query 없으면 기본 1, 있으면 기본 4, 최대 8)",
+          "offset": "최신 일치 항목을 이만큼 건너뜀(기본 0)"
         }
       },
       "chaya_live_screenshot": {
@@ -862,6 +1154,14 @@
           "x": "맵 칸 x",
           "y": "맵 칸 y",
           "timeoutMs": "대기 한도(기본 8000, 최대 12000)"
+        }
+      },
+      "chaya_live_interact": {
+        "title": "이벤트와 상호작용",
+        "description": "플레이어처럼 맵 이벤트(nearbyEvents의 id) 하나와 상호작용합니다: 옆까지 걸어가(플레이어 아래 층의 이벤트면 그 위로, 도중의 닫힌 문은 열고) 바라보고 확인을 누른 뒤 대화를 넘깁니다. outcome(done, choice, no_path, no_reaction, nothing_to_run, transferred, scene_changed, timeout), 대화 내용, goldChange, inventoryChanges를 반환합니다. 선택지가 나오면 chaya_live_press로 고릅니다. 맵 장면에서만.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "eventId": "nearbyEvents의 이벤트 id"
         }
       },
       "chaya_live_quit": {

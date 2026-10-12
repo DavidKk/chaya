@@ -40,6 +40,9 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
     return url.searchParams.get('gameId') === (session.libraryId || session.token)
   }
   if (path === '/api/integration/game-agent' && ['GET', 'POST', 'PUT'].includes(request.method)) return true
+  if (path === '/api/game-agent/auth' && ['GET', 'POST', 'DELETE'].includes(request.method)) return true
+  if (/^\/api\/game-agent\/auth\/[^/]+$/.test(path) && ['GET', 'DELETE'].includes(request.method)) return true
+  if (/^\/api\/game-agent\/auth\/[^/]+\/code$/.test(path) && request.method === 'POST') return true
   if (path === '/api/game-agent/model' && request.method === 'POST') return true
   if (path === '/api/game-agent/turn' && request.method === 'POST') {
     const body = await request

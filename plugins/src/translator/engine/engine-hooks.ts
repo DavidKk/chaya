@@ -133,9 +133,14 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
         'add',
         (original) =>
           function (text: string, ...args: unknown[]) {
-            const source = this as Record<symbol, string[]>
-            ;(source[ORIGINAL_MESSAGE_LINES] ??= []).push(text)
-            return original.call(this, getMode() === 'pretranslated' ? translate(text) : text, ...args)
+            const source = this as Record<symbol, string[]> & { _texts?: string[] }
+            const translated = getMode() === 'pretranslated' ? translate(text) : text
+            const before = source._texts?.length ?? 0
+            const result = original.call(this, translated, ...args)
+            // Game plugins wrapped inside this hook (e.g. localization keys → text) shape the real original line.
+            const stored = translated === text ? (source._texts?.slice(before) ?? []) : []
+            ;(source[ORIGINAL_MESSAGE_LINES] ??= []).push(...(stored.length ? stored : [text]))
+            return result
           }
       )
     )

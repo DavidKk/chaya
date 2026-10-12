@@ -1,15 +1,18 @@
 import { sanitizeAgentActivity } from '@/lib/game-agent/activity'
+import { RECALL_TOOL_NAME, recallTurns, turnsFromMessages } from '@/lib/game-agent/recall'
 import { collectSecretValues, redactSecrets, redactSecretText } from '@/lib/integration/tools/types'
 import { appendLog } from '@/services/log'
 import { callAgentGame, listAgentGames } from '@/services/runtime/agent-bridge'
 
-import { streamOllamaChat } from './ollama-client'
-import { buildAskMessages, shouldOfferAgentTools } from './prompt'
-import { readGameAgentToken } from './secrets'
+import { completeAgentModel } from './model-complete.server'
+import { buildAskMessages } from './prompt'
 import { finishTurn } from './session-store'
 import type { GameAgentProfile } from './settings'
 import { createGameAgentTools, executeGameAgentTool } from './tool-runtime.server'
 import type { GameAgentEvent, GameAgentSession, GameAgentTurn, StartTurnInput } from './types'
+
+/** Not sent to the model; kept for chaya_agent_recall. */
+const SESSION_MESSAGE_LIMIT = 200
 
 function logArgs(args: Record<string, unknown>) {
   const safe = redactSecrets(args)
@@ -26,42 +29,31 @@ export async function runAskTurn(
   gameReadOnly = false
 ) {
   try {
-    const token = readGameAgentToken(profile.id)
-    const offerTools = shouldOfferAgentTools(input.prompt)
     const requestedGameId = input.gameId === 'chaya-console' ? '' : input.gameId
     const gameId = requestedGameId && listAgentGames().some((game) => game.gameId === requestedGameId) ? requestedGameId : undefined
-    const state = offerTools && gameId ? await callAgentGame(gameId, 'game.state', {}) : undefined
+    const state = gameId ? await callAgentGame(gameId, 'game.state', {}, profile.gameCallTimeoutMs) : undefined
     if (turn.abort.signal.aborted) throw turn.abort.signal.reason
 
     const messages = buildAskMessages({
-      history: session.messages,
       prompt: input.prompt,
       locale: input.locale || 'zh-CN',
-      gameId: offerTools ? gameId : undefined,
+      gameId,
       state,
+      surface: input.surface === 'companion' ? 'companion' : undefined,
+      companionCharacter: input.companionCharacter as import('@/lib/game-agent/companion').CompanionCharacter | undefined,
     })
-    const gameTools = offerTools ? createGameAgentTools(gameId).filter((tool) => !gameReadOnly || tool.readOnly || tool.definition.function.name.startsWith('chaya_agent_')) : []
+    const gameTools = createGameAgentTools(gameId, profile.gameCallTimeoutMs)
+      .filter((tool) => !gameReadOnly || tool.readOnly || tool.definition.function.name.startsWith('chaya_agent_'))
+      .map((tool) =>
+        tool.definition.function.name === RECALL_TOOL_NAME
+          ? { ...tool, run: async (args: Record<string, unknown>) => recallTurns(turnsFromMessages(session.messages, { id: session.id, at: 0 }), args) }
+          : tool
+      )
     const credentials = new Set<string>()
     const result = await runAgentTurn(
       {
         model: {
-          complete: (runtimeMessages, runtimeTools, signal) =>
-            streamOllamaChat(
-              {
-                endpoint: profile.endpoint,
-                model: input.model,
-                messages: runtimeMessages as import('./types').GameAgentMessage[],
-                tools: runtimeTools.map((tool) => ({
-                  type: 'function' as const,
-                  function: { name: tool.name, description: tool.description || '', parameters: tool.inputSchema || { type: 'object', properties: {} } },
-                })),
-                temperature: profile.temperature,
-                keepAlive: profile.keepAlive,
-                token,
-                signal,
-              },
-              () => undefined
-            ) as Promise<RuntimeMessage>,
+          complete: (runtimeMessages, runtimeTools, signal) => completeAgentModel(profile, { model: input.model, messages: runtimeMessages, tools: runtimeTools, signal }),
         },
         tools: {
           list: () =>
@@ -79,7 +71,10 @@ export async function runAskTurn(
               message: `tool.started ${name}`,
               meta: { event: 'tool.started', tool: name, args: logArgs(args), turnId: turn.id, sessionId: session.id, gameId: gameId || null, model: input.model },
             })
-            const toolResult = await executeGameAgentTool(gameTools, name, args, gameId, signal)
+            const toolResult =
+              profile.gameCallTimeoutMs === undefined
+                ? await executeGameAgentTool(gameTools, name, args, gameId, signal)
+                : await executeGameAgentTool(gameTools, name, args, gameId, signal, profile.gameCallTimeoutMs)
             appendLog({
               level: toolResult.ok ? 'ok' : 'fail',
               source: 'ChayaAgent',
@@ -105,14 +100,20 @@ export async function runAskTurn(
         store: {
           append: (next) => {
             session.messages.push(...(next.map((message) => ({ ...message, content: redactSecretText(message.content, credentials) })) as import('./types').GameAgentMessage[]))
-            session.messages = session.messages.slice(-12)
+            session.messages = session.messages.slice(-SESSION_MESSAGE_LIMIT)
           },
         },
         events: { emit: (event: RuntimeEvent) => emit(sanitizeAgentActivity(event, credentials) as GameAgentEvent) },
         clock: { now: Date.now },
       },
       capabilityConfig('ask'),
-      { prompt: input.prompt, history: messages.slice(0, -1) as RuntimeMessage[] },
+      {
+        model: `${profile.provider}/${input.model}`,
+        prompt: input.prompt,
+        modelPrompt: String(messages.at(-1)?.content || input.prompt),
+        storePrompt: input.prompt,
+        history: messages.slice(0, -1) as RuntimeMessage[],
+      },
       turn.abort.signal
     )
     const answer = redactSecretText(result.text, credentials)

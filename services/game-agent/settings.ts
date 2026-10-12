@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { DATA_DIR } from '@/constants/paths'
+import { type GameAgentProvider, isCliProvider, isGameAgentProvider, PROVIDER_META } from '@/lib/game-agent/providers'
+import { normalizeAgentProxy } from '@/lib/game-agent/proxy'
 import {
   agentSettingsFromSyncDocument,
   type AgentSyncDocument,
@@ -14,12 +16,13 @@ import {
   parseAgentSyncDocument,
   withAgentSyncActor,
 } from '@/lib/game-agent/settings-sync'
+import { type AgentTimeoutSettings, normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
 
 import { DEFAULT_GAME_AGENT_MODEL, DEFAULT_OLLAMA_HOST } from './ollama-client'
 
-export type GameAgentProvider = 'ollama'
+export type { GameAgentProvider }
 
-export type GameAgentProfile = {
+export type GameAgentProfile = AgentTimeoutSettings & {
   id: string
   label: string
   provider: GameAgentProvider
@@ -27,6 +30,8 @@ export type GameAgentProfile = {
   defaultModel: string
   temperature: number
   keepAlive: string
+  /** Empty: no per-agent proxy. */
+  proxy: string
 }
 
 export type GameAgentSettings = {
@@ -48,6 +53,8 @@ export function defaultGameAgentProfile(): GameAgentProfile {
     defaultModel: DEFAULT_GAME_AGENT_MODEL,
     temperature: 0.2,
     keepAlive: '10m',
+    proxy: '',
+    ...normalizeAgentTimeouts({}),
   }
 }
 
@@ -74,7 +81,22 @@ export function normalizeGameAgentEndpoint(value: unknown): string {
 }
 
 export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fallbackId: string = randomUUID()): GameAgentProfile {
-  if (value.provider && value.provider !== 'ollama') throw new Error(`暂不支持接入类型：${String(value.provider)}`)
+  if (value.provider !== undefined && !isGameAgentProvider(value.provider)) throw new Error(`暂不支持接入类型：${String(value.provider)}`)
+  const provider = value.provider || 'ollama'
+  if (isCliProvider(provider)) {
+    // Ollama-only fields keep fixed values so sync records stay comparable; CLI runs ignore them.
+    return {
+      id: text(value.id, fallbackId),
+      label: text(value.label, PROVIDER_META[provider].label),
+      provider,
+      endpoint: '',
+      defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel.trim() : '',
+      temperature: 0.2,
+      keepAlive: '10m',
+      proxy: normalizeAgentProxy(value.proxy),
+      ...normalizeAgentTimeouts(value),
+    }
+  }
   const temperature = Number(value.temperature ?? 0.2)
   if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new Error('Temperature 必须在 0 到 2 之间')
   const keepAlive = text(value.keepAlive, '10m')
@@ -87,6 +109,8 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
     defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel.trim() : '',
     temperature,
     keepAlive,
+    proxy: normalizeAgentProxy(value.proxy),
+    ...normalizeAgentTimeouts(value),
   }
 }
 
@@ -175,4 +199,8 @@ export function mergeGameAgentSyncDocument(incoming: AgentSyncDocument, syncFile
 
 export function profileById(settings: GameAgentSettings, id: string) {
   return settings.profiles.find((profile) => profile.id === id) || null
+}
+
+export function ollamaProfiles(settings: GameAgentSettings) {
+  return settings.profiles.filter((profile) => profile.provider === 'ollama')
 }

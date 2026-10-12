@@ -1,9 +1,11 @@
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
-import type { AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
+import { cliModelChoices, isCliProvider } from '@/lib/game-agent/providers'
+import type { AgentRoutine, AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
 import type { AgentSyncSettings } from '@/lib/game-agent/settings-sync'
 import type { AgentTaskMessage } from '@/lib/runtime/game-link-protocol'
 
 type TaskCall = (message: Exclude<AgentTaskMessage, { type: 'agent.task.result' }>, signal?: AbortSignal) => Promise<unknown>
+type AgentModels = Record<string, Array<{ name: string; label?: string }>>
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -92,34 +94,52 @@ function taskStream(call: TaskCall, taskId: string, sessionId: string, signal?: 
   )
 }
 
-function profileStatus(settings: AgentSyncSettings | null) {
-  return (settings?.profiles || []).map((profile) => ({
-    id: profile.id,
-    label: profile.label,
-    provider: profile.provider,
-    online: Boolean(profile.defaultModel),
-    models: profile.defaultModel ? [{ name: profile.defaultModel }] : [],
-    defaultModel: profile.defaultModel,
-    reason: profile.defaultModel ? null : '尚未选择模型',
-  }))
+function profileStatus(settings: AgentSyncSettings | null, cached: AgentModels = {}) {
+  return (settings?.profiles || []).map((profile) => {
+    if (isCliProvider(profile.provider)) {
+      return { id: profile.id, label: profile.label, provider: profile.provider, online: true, ...cliModelChoices(profile.defaultModel, cached[profile.id]), reason: null }
+    }
+    const models = cached[profile.id]?.length ? cached[profile.id] : profile.defaultModel ? [{ name: profile.defaultModel }] : []
+    const defaultModel = models.some((model) => model.name === profile.defaultModel) ? profile.defaultModel : models[0]?.name || ''
+    return {
+      id: profile.id,
+      label: profile.label,
+      provider: profile.provider,
+      online: models.length > 0,
+      models,
+      defaultModel,
+      reason: models.length ? null : '尚未读取到可用模型',
+    }
+  })
 }
 
-async function startTask(
-  call: TaskCall,
-  body: { gameId: string; profileId: string; model: string; prompt: string; sessionId?: string; locale?: string; surface?: 'companion'; companionCharacter?: string },
-  signal?: AbortSignal | null
-) {
+type TurnBody = {
+  gameId: string
+  profileId: string
+  model: string
+  prompt: string
+  sessionId?: string
+  locale?: string
+  surface?: 'companion'
+  companionCharacter?: string
+  thinking?: boolean
+  routine?: AgentRoutine
+}
+
+/** The model decides whether free text operates the game; only explicit UI routines skip it. */
+async function classify(call: TaskCall, body: TurnBody, signal?: AbortSignal | null) {
+  const classified = (await call(
+    { type: 'agent.task.classify', requestId: crypto.randomUUID(), gameId: body.gameId, profileId: body.profileId, model: body.model, prompt: body.prompt },
+    signal || undefined
+  )) as { capability?: 'play' | 'ask' }
+  return classified.capability === 'play' ? 'play' : body.surface === 'companion' ? 'companion' : 'ask'
+}
+
+async function startTask(call: TaskCall, body: TurnBody, signal?: AbortSignal | null) {
   const taskId = crypto.randomUUID()
   const conversationId = body.sessionId || crypto.randomUUID()
-  const capability =
-    body.surface === 'companion'
-      ? 'companion'
-      : (
-          (await call(
-            { type: 'agent.task.classify', requestId: crypto.randomUUID(), gameId: body.gameId, profileId: body.profileId, model: body.model, prompt: body.prompt },
-            signal || undefined
-          )) as { capability?: 'play' | 'ask' }
-        ).capability || 'ask'
+  const routine = body.routine
+  const capability = routine ? 'play' : await classify(call, body, signal)
   await call(
     {
       type: 'agent.task.start',
@@ -134,6 +154,8 @@ async function startTask(
       locale: body.locale,
       companionCharacter: body.companionCharacter,
       surface: body.surface || 'sidebar',
+      thinking: body.thinking === true,
+      ...(routine ? { routine } : {}),
       goal: body.prompt,
     },
     signal || undefined
@@ -142,7 +164,7 @@ async function startTask(
 }
 
 /** Fetch-shaped adapter used by the in-game React panels. Agent task traffic never leaves the game process. */
-export function createDirectGameAgentRequest(readSettings: () => AgentSyncSettings | null): GameAgentRequest {
+export function createDirectGameAgentRequest(readSettings: () => AgentSyncSettings | null, readModels: () => AgentModels = () => ({})): GameAgentRequest {
   return async (path, init) => {
     const call = taskCall()
     if (!call) return json({ error: { code: 'AGENT_RUNTIME_UNAVAILABLE', message: '游戏内 Agent 任务宿主未就绪' } }, 503)
@@ -154,7 +176,7 @@ export function createDirectGameAgentRequest(readSettings: () => AgentSyncSettin
       const latest = tasks.at(-1)
       const active = [...tasks].reverse().find((task) => !terminal(task.state))
       const settings = readSettings()
-      const profiles = profileStatus(settings)
+      const profiles = profileStatus(settings, readModels())
       const available = profiles.some((profile) => profile.online)
       return json({
         ok: true,
@@ -177,10 +199,19 @@ export function createDirectGameAgentRequest(readSettings: () => AgentSyncSettin
       })
     }
 
+    if (url.pathname === '/api/game-agent/activity' && method === 'GET') {
+      const tasks = (await call({ type: 'agent.task.status', requestId: crypto.randomUUID() }, init?.signal || undefined)) as AgentTask[]
+      return json({ tasks })
+    }
+
     if (url.pathname === '/api/game-agent/turn' && method === 'POST') {
-      const body = JSON.parse(String(init?.body || '{}')) as Parameters<typeof startTask>[1]
-      if (!body.gameId || !body.profileId || !body.model || !body.prompt?.trim()) return json({ error: { message: 'gameId、profileId、model 和 prompt 不能为空' } }, 400)
-      const started = await startTask(call, { ...body, prompt: body.prompt.trim() }, init?.signal)
+      const body = JSON.parse(String(init?.body || '{}')) as TurnBody
+      if (body.routine) {
+        if (!body.gameId || !body.prompt?.trim()) return json({ error: { message: 'gameId 和 prompt 不能为空' } }, 400)
+      } else if (!body.gameId || !body.profileId || !body.model || !body.prompt?.trim()) {
+        return json({ error: { message: 'gameId、profileId、model 和 prompt 不能为空' } }, 400)
+      }
+      const started = await startTask(call, { ...body, profileId: body.profileId || '', model: body.model || '', prompt: body.prompt.trim() }, init?.signal)
       return taskStream(call, started.taskId, started.conversationId, init?.signal)
     }
 

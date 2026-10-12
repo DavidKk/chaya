@@ -128,8 +128,19 @@ function start(): AgentGlobal {
   }
 }
 
-window.__chayaStopAgent?.()
-const agent = start()
+try {
+  window.__chayaStopAgent?.()
+} catch (err) {
+  // A previous build that fails to stop must not block the replacement.
+  log.warn(`旧 Agent 未能正常停止：${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
+}
+let agent: AgentGlobal
+try {
+  agent = start()
+} catch (err) {
+  log.fail(`Agent 桥启动失败：${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
+  throw err
+}
 window.ChayaAgent = agent
 window.__chayaStopAgent = agent.stop
 log.ok('Agent 桥已启动：本机 MCP（/api/mcp）或网页 WebMCP 可控制游戏')

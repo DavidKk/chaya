@@ -9,8 +9,9 @@ import type { AgentTask } from '@/lib/game-agent/runtime'
 import { cn } from '@/lib/utils'
 
 import { AgentActivityTimeline } from './AgentActivityTimeline'
+import type { GameAgentRequest } from './GameAgentWorkspace'
 
-export function AgentActivityLogPanel() {
+export function AgentActivityLogPanel({ request, onBack }: { request?: GameAgentRequest; onBack?: () => void }) {
   const [tasks, setTasks] = useState<AgentTask[]>([])
   const [selected, setSelected] = useState('')
   const [loading, setLoading] = useState(true)
@@ -20,7 +21,7 @@ export function AgentActivityLogPanel() {
     let live = true
     const load = async () => {
       try {
-        const response = await fetch('/api/game-agent/activity', { cache: 'no-store' })
+        const response = request ? await request('/api/game-agent/activity', { method: 'GET' }) : await fetch('/api/game-agent/activity', { cache: 'no-store' })
         const body = (await response.json()) as { tasks?: AgentTask[]; error?: { message?: string } }
         if (!response.ok) throw new Error(body.error?.message || `HTTP ${response.status}`)
         if (!live) return
@@ -39,13 +40,18 @@ export function AgentActivityLogPanel() {
       live = false
       window.clearInterval(timer)
     }
-  }, [])
+  }, [request])
 
   const task = useMemo(() => tasks.find((item) => item.id === selected) || null, [selected, tasks])
   return (
     <div className={panelShell} role="region" aria-label="Agent 活动">
       <div className={panelHead}>
         <PanelHeadTitle title="Agent 活动" description="提示词、公开思考摘要、工具调用与模型用量" />
+        {onBack ? (
+          <Button variant="ghost" size="xs" onClick={onBack}>
+            插件日志
+          </Button>
+        ) : null}
       </div>
       {loading ? (
         <div className="flex min-h-0 flex-1 items-center justify-center">
@@ -72,7 +78,7 @@ export function AgentActivityLogPanel() {
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-xs font-medium">{item.goal}</span>
-                    <span className="block text-[10px] text-ink-soft">
+                    <span className="mt-1 block text-[10px] text-ink-soft">
                       {item.state} · {new Date(item.updatedAt).toLocaleString('zh-CN')}
                     </span>
                   </span>

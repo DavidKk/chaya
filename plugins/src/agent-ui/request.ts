@@ -1,4 +1,5 @@
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
+import { CLI_PROVIDERS_FEATURE } from '@/lib/game-agent/providers'
 import {
   agentSettingsFromSyncDocument,
   type AgentSyncDocument,
@@ -6,10 +7,12 @@ import {
   type AgentSyncSettings,
   applySettingsDiffToAgentSyncDocument,
   createEmptyAgentSyncDocument,
+  mergeAgentSyncDocuments,
   parseAgentSyncDocument,
   withAgentSyncActor,
 } from '@/lib/game-agent/settings-sync'
 
+import { readSharedAgentSync, writeSharedAgentSync } from '../agent/shared-settings'
 import { chayaFetch } from '../helpers'
 import { createDirectGameAgentRequest } from './direct-request'
 
@@ -19,6 +22,8 @@ const LEGACY_SETTINGS_KEY = 'chaya.gameAgent.settings'
 const AUTO_SYNC_MS = 5_000
 const SYNC_EVENT = 'chaya:agent-settings-synced'
 const RUNTIME_CONFIG_KEY = 'chaya.agent.runtimeConfig.v1'
+const RUNTIME_MODELS_KEY = 'chaya.agent.runtimeModels.v1'
+type AgentModels = Record<string, Array<{ name: string; label?: string }>>
 
 function readRuntimeConfig(): AgentSyncSettings | null {
   try {
@@ -26,6 +31,23 @@ function readRuntimeConfig(): AgentSyncSettings | null {
     return value?.version === 1 && Array.isArray(value.profiles) && value.profiles.length ? value : null
   } catch {
     return null
+  }
+}
+
+function readRuntimeModels(): AgentModels {
+  try {
+    const value = JSON.parse(localStorage.getItem(RUNTIME_MODELS_KEY) || '{}') as AgentModels
+    return value && typeof value === 'object' ? value : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeRuntimeModels(models: AgentModels) {
+  try {
+    localStorage.setItem(RUNTIME_MODELS_KEY, JSON.stringify(models))
+  } catch {
+    /* The current synchronized list remains available in memory. */
   }
 }
 
@@ -45,7 +67,7 @@ function actorId() {
   }
 }
 
-function readLocalSync(actor: string): AgentSyncDocument | null {
+function readGameSync(actor: string): AgentSyncDocument | null {
   try {
     const raw = localStorage.getItem(SYNC_KEY)
     const parsed = raw ? parseAgentSyncDocument(JSON.parse(raw)) : null
@@ -60,12 +82,23 @@ function readLocalSync(actor: string): AgentSyncDocument | null {
   }
 }
 
-function writeLocalSync(document: AgentSyncDocument) {
+/** The shared per-user file plus this game's own copy (older plugin versions only wrote the latter). */
+function readLocalSync(actor: string, current: AgentSyncDocument | null = readGameSync(actor)): AgentSyncDocument | null {
+  const shared = readSharedAgentSync()
+  if (!shared) return current
+  return current ? mergeAgentSyncDocuments(current, shared) : withAgentSyncActor(shared, actor)
+}
+
+/** Writes the shared file first; returns the document merged with edits other games saved meanwhile. */
+function writeLocalSync(document: AgentSyncDocument): AgentSyncDocument {
+  const merged = writeSharedAgentSync(document)
   try {
-    localStorage.setItem(SYNC_KEY, JSON.stringify(document))
+    localStorage.setItem(SYNC_KEY, JSON.stringify(merged))
+    localStorage.setItem(RUNTIME_CONFIG_KEY, JSON.stringify(agentSettingsFromSyncDocument(merged)))
   } catch {
     /* A successful server write remains authoritative when plugin storage is unavailable. */
   }
+  return merged
 }
 
 function apiError(body: unknown, fallback: string) {
@@ -80,27 +113,40 @@ function apiError(body: unknown, fallback: string) {
 export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFetch): GameAgentRequest {
   const actor = actorId()
   let local = readLocalSync(actor)
+  let models = readRuntimeModels()
   let inFlight: Promise<AgentSyncDocument> | null = null
-  const direct = createDirectGameAgentRequest(() => readRuntimeConfig() || (local ? agentSettingsFromSyncDocument(local) : null))
+  const direct = createDirectGameAgentRequest(
+    () => readRuntimeConfig() || (local ? agentSettingsFromSyncDocument(local) : null),
+    () => models
+  )
 
   const sync = async () => {
     if (inFlight) return inFlight
     inFlight = (async () => {
-      const previous = local ? JSON.stringify(local) : ''
+      let previous = local ? JSON.stringify(local) : ''
+      const absorbed = readLocalSync(actor, local)
+      if (absorbed && JSON.stringify(absorbed) !== previous) {
+        // Another game edited the shared file; show it here even if the service is offline.
+        local = writeLocalSync(absorbed)
+        if (previous) window.dispatchEvent(new CustomEvent(SYNC_EVENT))
+        previous = JSON.stringify(local)
+      }
       const candidate = local || createEmptyAgentSyncDocument(actor)
       const response = await remote('/api/integration/game-agent', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sync: candidate }),
+        body: JSON.stringify({ sync: candidate, features: [CLI_PROVIDERS_FEATURE] }),
         signal: AbortSignal.timeout(3_000),
       })
-      const body = (await response.json().catch(() => null)) as { sync?: AgentSyncDocument }
+      const body = (await response.json().catch(() => null)) as { sync?: AgentSyncDocument; models?: AgentModels }
       if (!response.ok || !body.sync) throw new Error(apiError(body, `HTTP ${response.status}`))
       const parsed = parseAgentSyncDocument(body.sync)
       if (!parsed) throw new Error('服务返回了无效的 Agent 同步数据')
-      local = withAgentSyncActor(parsed, actor)
-      writeLocalSync(local)
-      localStorage.setItem(RUNTIME_CONFIG_KEY, JSON.stringify(agentSettingsFromSyncDocument(local)))
+      local = writeLocalSync(withAgentSyncActor(parsed, actor))
+      if (body.models) {
+        models = body.models
+        writeRuntimeModels(models)
+      }
       if (previous && previous !== JSON.stringify(local)) window.dispatchEvent(new CustomEvent(SYNC_EVENT))
       return local
     })().finally(() => {
@@ -131,6 +177,7 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
     const method = (init?.method || 'GET').toUpperCase()
     if (url.pathname === '/api/game-agent/status' || url.pathname === '/api/game-agent/turn' || url.pathname.startsWith('/api/game-agent/turn/')) {
       await initialSync()
+      if (url.pathname === '/api/game-agent/status' && Object.keys(models).length === 0) await sync().catch(() => undefined)
       return direct(path, init)
     }
     if (url.pathname === '/api/integration/game-agent' && method === 'GET') {
@@ -153,8 +200,7 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
       }
       const parsedBaseline = body.baseSync ? parseAgentSyncDocument(body.baseSync) : null
       const baseline = parsedBaseline || local!
-      local = applySettingsDiffToAgentSyncDocument(local!, agentSettingsFromSyncDocument(baseline), body.settings)
-      writeLocalSync(local)
+      local = writeLocalSync(applySettingsDiffToAgentSyncDocument(local!, agentSettingsFromSyncDocument(baseline), body.settings))
       try {
         const document = await sync()
         return jsonResponse({ ok: true, settings: agentSettingsFromSyncDocument(document), sync: document })

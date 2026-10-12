@@ -4,6 +4,7 @@ import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { MiniMap } from '@/components/game-edit/events/MiniMap'
 import type { PlayerSpot } from '@/components/game-edit/events/types'
 import { useToolPanelVisibility } from '@/components/game-tools/tool-panels'
+import type { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
 import type { MapDetailData } from '@/lib/game/events'
@@ -16,7 +17,7 @@ type Props = {
   onSelectEvent: (mapId: number, eventId: number) => void
 }
 
-export function FloatingMiniMap({ enabled, onSelectEvent }: Props) {
+export function FloatingMiniMap({ enabled, onSelectEvent, tools }: Props & { tools: ReturnType<typeof useToolSettings> }) {
   const t = useT()
   const confirm = useConfirm()
   const notify = useNotification()
@@ -95,6 +96,7 @@ export function FloatingMiniMap({ enabled, onSelectEvent }: Props) {
       onClose={panel.dismiss}
       onPickCell={(x, y) => void pickCell(x, y)}
       onSelectEvent={(id) => onSelectEvent(detail.mapId, id)}
+      opacity={tools}
     />
   )
 }

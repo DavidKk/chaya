@@ -5,6 +5,7 @@
 > 需求：[`../game-agent.md`](../game-agent.md)  
 > 关联：[`integration-mcp.md`](./integration-mcp.md)、[`webmcp.md`](./webmcp.md)、[`chaya-ui-style-guide.md`](./chaya-ui-style-guide.md)、[`game-assistance.md`](./game-assistance.md)
 > Agent 活动记录实现：[`agent-activity-log.md`](./agent-activity-log.md)
+> Cursor / Codex / Claude / Gemini 实例（待开发）：[`agent-cli-providers.md`](./agent-cli-providers.md)
 
 > 本文的 `ask`/`play` 示例、八轮工具循环和 SSE 断线取消描述的是 M1/M2 基线。自然语言自主托管的运行策略、任务范围、完成证据、暂停/续接和停止行为以 [`game-assistance.md`](./game-assistance.md) 为准；两者冲突时使用后者。
 >
@@ -257,8 +258,7 @@ Rules:
 - 模式和当前循环编号。
 - 用户原始目标。
 - 当前游戏名称与 id。
-- 上轮进度摘要。
-- 最近消息窗口。
+- 精简后的游戏状态（`modelGameState`：附近事件在前，背包与界面文字按条数收窄，不截断 JSON 文本）。
 
 每个 Turn 先由 Host 确定性调用一次 `chaya_live_state` 并裁剪到上下文中。随后所选模型自主选择工具；写工具的返回中由 Host 附带 read-back 验证状态，询问循环最多八轮。自主托管的预算和逐步回读规则见 [`game-assistance.md`](./game-assistance.md)。
 
@@ -266,11 +266,29 @@ Rules:
 
 ### 6.3 历史控制
 
-- 保留本轮完整工具链。
-- 跨轮只保留最近消息和一份可读摘要。
-- 大型工具结果经过确定性裁剪，不能让模型自己决定截断边界。
-- `screenText`、背包和附近事件保留当前判断需要的字段。
-- 达到上下文阈值时先生成阶段摘要，再开启新的 Ollama message 窗口。
+- 每轮只发系统 Prompt 与本次请求，不带之前的轮次，也不生成摘要。需要前文时模型调用 `chaya_agent_recall`（无 `query` 读上一轮，有 `query` 搜索，`offset` 翻页），返回整轮原文。详见 [`agent-cli-providers.md`](./agent-cli-providers.md) §7.12。
+- 本轮工具链超过上下文阈值时整条丢弃最早的工具轮次，至少保留最近 4 轮；系统 Prompt 与本次请求不裁剪。
+- 游戏状态类工具结果先经 `modelGameState` 投影，`screenText`、背包和附近事件保留当前判断需要的字段。
+
+### 6.4 语义判断不用文本匹配
+
+Agent 链路里凡是「理解意思」的判断都交给模型，代码只提供事实与结构化通道。不要为了某个请求或某个游戏补一条关键词正则。
+
+| 判断                                                | 由谁决定                                                                                                                                                                                              | 禁止                                                                                                         |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 问答 / 陪聊 / 托管，是否操作游戏                    | 模型分类：插件 `agent.task.classify`、服务端 `classifyGameIntent`                                                                                                                                     | 按原话动词短路成托管或固定例程                                                                               |
+| 固定例程（存档、读档、打开菜单、宝箱）              | 界面按钮显式传入 `routine`                                                                                                                                                                            | 从原话推出例程                                                                                               |
+| 是否给工具、是否继续调用工具                        | 模型按系统 Prompt；Runtime 只在托管「读完状态未行动」「全程没调用工具」「空回复」时提示继续，行动后的收尾自检只附最新状态、本轮已交互的事件 id 与回复语言                                             | 按原话或回复措辞增减工具、追加催促（如「批量交互」「装备」「选择卡片」）；把「还没交互的事件」列给模型当待办 |
+| 地图事件是 NPC / 怪物 / 宝箱 / 闪光点 / 入口 / 任务 | 模型结合事实判断：`effects`（当前页指令作用）、`trigger`、`look`（引擎 `ImageManager.isObjectCharacter` / 图块 / 无图）、`animated`（`_stepAnime`）、`sprite`、`hint`（本地化后的首句台词）、`opened` | 按事件名、图块文件名、台词关键词分类                                                                         |
+| 旅伴主动提示宝箱                                    | 事实：`!` 物件图且当前页 `effects` 含 gold / item / weapon / armor                                                                                                                                    | 按名字含「宝箱 / chest」判断                                                                                 |
+| 战斗菜单能否确认                                    | 引擎 `symbol`（escape、save、load、continue、toTitle、gameEnd）或决策模型输出 `selectedRisky`                                                                                                         | 按选项文字匹配「逃跑 / save」                                                                                |
+| 聊天里显示什么                                      | 产出方给结构化字段（托管 `turn.completed.brief`）；思考内容走 thinking 通道或 CLI 信封 `reply`                                                                                                        | 解析 `text` 前缀、按「let me / 我需要」过滤句子                                                              |
+
+允许的字符串匹配都不是语义判断：模型自己发起的检索（`chaya_agent_recall` 的 `query`、日志 / 目录关键词筛选），协议与格式解析（RPG Maker 转义 `\V[n]`、翻译占位 `{Map004-22}`、CLI 信封与 `<think>`、URL、版本号、路由路径）、错误码（`STATE_CHANGED`）、引擎与内部标识（窗口名、`symbol`、工具名分组）、凭据脱敏。
+
+新需求看起来「加个关键词就好」时，改为三选一：给模型补事实字段，让模型输出结构化字段，或在界面加显式入口。
+
+防回退：`__tests__/lib/game-agent/no-keyword-intent.spec.ts` 扫描 `lib/game-agent`、`services/game-agent`、`plugins/src/agent`、`plugins/src/agent-ui`、`components/game-agent`、`app/api/game-agent`。出现含中日韩俄文字的正则、`new RegExp` 或 `includes` / `startsWith` 等字符串探测，或对 `prompt`、`goal`、`request`、`reply`、`hint`、`selectedText` 等自由文本调用 `test` / `match`，测试即失败。
 
 ## 7. Turn Runner
 
@@ -337,6 +355,12 @@ async function runTurn(input, signal) {
 - 状态指纹使用场景、地图、坐标、窗口、对话、战斗、关键屏幕文字生成，不比较时间戳。
 - 连续相同指纹不必立即判失败；同一策略连续三次没有变化才停止。
 - 工具报错返回模型一次，允许调整策略；同一错误重复两次结束。
+- 和地图事件交互走 `chaya_live_interact`（游戏侧 `player.interact`，上限 12 秒）：走到事件旁并面向它（下层事件直接站上去），按确认、推进对话，返回台词、`goldChange`、`inventoryChanges` 与结果 `outcome`（`done`、`choice`、`no_path`、`no_reaction`、`nothing_to_run`、`runs_by_itself`、`transferred`、`scene_changed`、`timeout`）。路上挡着关闭的门时，只要门是触碰触发、`effects` 不含 transfer / battle / shop，就先开门再走；有选项时停下，交给模型用 `chaya_live_press` 选。
+- 给模型的状态里，`nearbyEvents` 只列当前页能触发的事件（`interactive !== false`），其余只记数 `inactiveEvents`：灯、用过的闪光点、未激活页对小模型只是干扰。`hint` 遇到本地化占位（`{Map004-22}`）时，用一个临时 `Game_Message.add` 让游戏的本地化插件解析成玩家看到的台词。
+- 玩家要多个目标时，模型先从 `nearbyEvents` 定下整组目标，在同一条回复里对每个目标各发一次 `chaya_live_interact`；Runtime 按顺序执行，某次结果停在选项、传送、换场景、超时或被玩家打断（`outcome` 不是 done / gone / no_path / no_reaction / nothing_to_run / runs_by_itself）时，后面的调用返回 `skipped`，交回模型重新判断。
+- 托管模型行动后准备结束时，Runtime 先补一次 `chaya_live_state`，让模型把目标和最新状态对一遍，并附上本轮已交互过的事件 id 和回复语言，由模型决定继续调用还是回复玩家。不列「还没交互的事件」：实测这份清单会被小模型当成待办，连玩家排除的入口、人物和门也去碰。这里不看原话，也不看回复措辞。
+- 模型返回空回复（无正文、无工具调用）时提示一次继续，连续 3 次结束为 `no_progress`；正文里写成 `name: {...}` / `name({...})` 的工具调用照常解析执行。
+- 托管 Prompt 和收尾自检都带 `Reply language`（任务的 `locale`），最终回复用玩家语言。
 
 ### 7.4 并发与取消
 

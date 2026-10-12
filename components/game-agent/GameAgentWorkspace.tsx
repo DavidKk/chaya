@@ -6,19 +6,26 @@ import { IoArrowUp, IoCheckmark, IoCloseCircleOutline, IoCloseOutline, IoStop, I
 import { useLocaleCode } from '@/components/i18n/LocaleProvider'
 import { Button, ScrollArea, Spinner, TruncateText } from '@/components/sk'
 import type { AgentActivityEvent } from '@/lib/game-agent/activity'
+import { parsePlayerCard } from '@/lib/game-agent/player-card'
 import { runRecoverableOperation } from '@/lib/runtime/recoverable-operation'
 import { cn } from '@/lib/utils'
 
 import { AgentActivityTimeline } from './AgentActivityTimeline'
 import { GameAgentRuntimeMenu } from './GameAgentRuntimeMenu'
 import {
+  type AgentWorkspaceCard,
   type AgentWorkspaceMessage as Message,
   type AgentWorkspaceStatus as Status,
   GAME_AGENT_WORKSPACE_COPY as COPY,
   gameAgentErrorMessage as errorMessage,
 } from './gameAgentWorkspaceModel'
+import { PlayerCardView } from './PlayerCardView'
 
 export type GameAgentRequest = (path: string, init?: RequestInit) => Promise<Response>
+
+function updateCards(messages: Message[], match: (entry: AgentWorkspaceCard) => boolean, patch: Partial<AgentWorkspaceCard>): Message[] {
+  return messages.map((message) => (message.cards?.some(match) ? { ...message, cards: message.cards.map((entry) => (match(entry) ? { ...entry, ...patch } : entry)) } : message))
+}
 
 type Props = {
   gameId: string
@@ -60,6 +67,8 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
   const lastAutoScrollRef = useRef<{ messages: Message[]; phase: string } | null>(null)
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const running = submitting || !!turnId
+  /** 问题已在卡片里，状态栏不再重复 */
+  const waitingCard = messages.some((message) => message.cards?.some((entry) => entry.state === 'pending'))
 
   const applyEvent = useCallback(
     (item: {
@@ -78,13 +87,19 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
       step?: number
       maxSteps?: number
       cycle?: number
+      card?: unknown
     }) => {
       if (item.seq && item.seq <= eventSeqRef.current) return
       eventSeqRef.current = Math.max(eventSeqRef.current, item.seq || 0)
       const assistantId = assistantIdRef.current
-      if (['phase', 'thought.updated', 'tool.started', 'tool.completed', 'progress.updated', 'model.completed', 'persistence.degraded'].includes(item.type)) {
+      if (['thought.updated', 'tool.completed', 'progress.updated', 'model.requested', 'model.completed', 'persistence.degraded'].includes(item.type)) {
         const { type, seq, ...data } = item
         setActivityEvents((current) => [...current.filter((event) => event.seq !== (seq || 0)), { seq: seq || current.length + 1, type, data }].slice(-200))
+      }
+      const card = (item.type === 'approval.required' || item.type === 'card.shown') && parsePlayerCard(item.card)
+      if (card) {
+        const entry = { id: `card-${item.seq || Date.now()}`, card, state: 'pending' as const }
+        setMessages((current) => current.map((message) => (message.id === assistantId ? { ...message, cards: [...(message.cards || []), entry] } : message)))
       }
       if (item.type === 'turn.started') {
         setTurnId(item.turnId || '')
@@ -95,6 +110,9 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
       } else if (item.type === 'approval.required') {
         setQuestion(item.question || '')
         setPhase('等待你的决定')
+      } else if (item.type === 'user.replied') {
+        setMessages((current) => updateCards(current, (entry) => entry.state === 'pending', { state: 'answered', answer: item.text }))
+        setQuestion('')
       } else if (item.type === 'history.gap') {
         setMessages((current) => [...current, { id: `gap-${Date.now()}`, role: 'error', text: '较早的进度记录已过期，以下是仍可恢复的内容。' }])
       } else if (item.type === 'phase') {
@@ -135,6 +153,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
         setMessages((current) => [...current, { id: `error-${Date.now()}`, role: 'error', text: item.message || 'Agent failed' }])
       }
       if (['turn.completed', 'turn.stopped', 'turn.failed'].includes(item.type)) {
+        setMessages((current) => updateCards(current, (entry) => entry.state === 'pending', { state: 'expired' }))
         recentRecoveredRef.current = true
         setTurnId('')
         setPhase('')
@@ -323,26 +342,36 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
     }
   }
 
+  /** 卡片按钮回复选项 id（不另起一条玩家消息），输入框回复原文；待答卡片一并标为已答 */
+  const replyToTurn = async (reply: string, fromCard = false) => {
+    if (!turnId) return
+    const previousQuestion = question
+    const pendingIds = messages.flatMap((message) => message.cards?.filter((entry) => entry.state === 'pending').map((entry) => entry.id) || [])
+    setPrompt((current) => (fromCard ? current : ''))
+    setQuestion('')
+    setMessages((current) => updateCards(current, (entry) => pendingIds.includes(entry.id), { state: 'answered', answer: reply }))
+    try {
+      const response = await request(`/api/game-agent/turn/${encodeURIComponent(turnId)}/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId, reply, replyId: crypto.randomUUID() }),
+      })
+      if (!response.ok) throw new Error(errorMessage(await response.json().catch(() => null), `HTTP ${response.status}`))
+      if (!fromCard) setMessages((current) => [...current, { id: `user-${Date.now()}`, role: 'user', text: reply }])
+    } catch (error) {
+      setQuestion(previousQuestion)
+      setMessages((current) => [
+        ...updateCards(current, (entry) => pendingIds.includes(entry.id), { state: 'pending', answer: undefined }),
+        { id: `error-${Date.now()}`, role: 'error', text: error instanceof Error ? error.message : String(error) },
+      ])
+    }
+  }
+
   const send = async (event?: FormEvent) => {
     event?.preventDefault()
     const text = prompt.trim()
     if (!text || !model || (!question && (running || abortRef.current)) || !status?.available) return
-    if (question && turnId) {
-      setPrompt('')
-      setQuestion('')
-      try {
-        const response = await request(`/api/game-agent/turn/${encodeURIComponent(turnId)}/reply`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ gameId, reply: text, replyId: crypto.randomUUID() }),
-        })
-        if (!response.ok) throw new Error(errorMessage(await response.json().catch(() => null), `HTTP ${response.status}`))
-        setMessages((current) => [...current, { id: `user-${Date.now()}`, role: 'user', text }])
-      } catch (error) {
-        setMessages((current) => [...current, { id: `error-${Date.now()}`, role: 'error', text: error instanceof Error ? error.message : String(error) }])
-      }
-      return
-    }
+    if (question && turnId) return replyToTurn(text)
     await startTurn(text)
   }
 
@@ -454,17 +483,20 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
                       ))}
                     </div>
                   ) : null}
-                  {message.text || (running && message.role === 'assistant' && !message.tools?.length ? <Spinner size="sm" /> : null)}
+                  {message.cards?.map((entry) => (
+                    <PlayerCardView key={entry.id} card={entry.card} state={entry.state} answer={entry.answer} onAnswer={(option) => void replyToTurn(option, true)} />
+                  ))}
+                  {message.text || (running && message.role === 'assistant' && !message.tools?.length && !message.cards?.length ? <Spinner size="sm" /> : null)}
                 </div>
               ))}
             </div>
           )}
         </ScrollArea>
 
-        {goal || phase || question ? (
+        {goal || phase || (question && !waitingCard) ? (
           <div className="shrink-0 border-t border-line-soft px-4 py-2 text-xs text-ink-soft">
             {goal ? <strong className="mr-2 text-ink">{goal}</strong> : null}
-            {question || phase}
+            {(!waitingCard && question) || phase}
           </div>
         ) : null}
         <form className="shrink-0 px-3 pt-1 pb-3" aria-busy={running || undefined} onSubmit={(event) => void send(event)}>

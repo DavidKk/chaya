@@ -103,6 +103,12 @@ function isTouchActionTarget(event: React.MouseEvent<HTMLElement>): boolean {
   return action !== null && trigger.contains(action)
 }
 
+/** cloneElement 传入的 ref 会顶掉子元素自己的 ref（如 Button 的 forwardRef），须一并回写 */
+function assignRef<T>(ref: React.Ref<T> | undefined, node: T) {
+  if (typeof ref === 'function') ref(node)
+  else if (ref) ref.current = node
+}
+
 export function Tooltip({ content, placement = 'bottom', children, triggerClassName = '', touchBehavior = 'auto', suppressed = false }: TooltipProps) {
   const hoverMode = useTooltipHoverMode()
   const tooltipId = React.useId()
@@ -210,9 +216,14 @@ export function Tooltip({ content, placement = 'bottom', children, triggerClassN
     if (suppressed) setOpen(false)
   }, [suppressed])
 
-  const setTriggerNode = React.useCallback((node: HTMLElement | null) => {
-    triggerRef.current = node
-  }, [])
+  const childRef = React.isValidElement(children) ? (children.props as { ref?: React.Ref<HTMLElement> }).ref : undefined
+  const setTriggerNode = React.useCallback(
+    (node: HTMLElement | null) => {
+      triggerRef.current = node
+      assignRef(childRef, node)
+    },
+    [childRef]
+  )
 
   if (!React.isValidElement(children)) {
     return children as React.ReactNode

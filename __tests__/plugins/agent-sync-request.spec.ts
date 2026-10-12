@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import {
   agentSettingsFromSyncDocument,
   type AgentSyncDocument,
@@ -7,6 +11,7 @@ import {
   withAgentSyncActor,
 } from '@/lib/game-agent/settings-sync'
 
+import { sharedAgentSettingsFile } from '../../plugins/src/agent/shared-settings'
 import { createPluginGameAgentRequest } from '../../plugins/src/agent-ui/request'
 
 const store = new Map<string, string>()
@@ -48,7 +53,9 @@ function syncServer(initial = agentSyncDocumentFromSettings(settings, 'service',
     if (!online) throw new Error('offline')
     const body = JSON.parse(String(init?.body)) as { sync: AgentSyncDocument }
     server = withAgentSyncActor(mergeAgentSyncDocuments(server, body.sync), 'service')
-    return new Response(JSON.stringify({ settings: agentSettingsFromSyncDocument(server), sync: server }), { status: 200 })
+    return new Response(JSON.stringify({ settings: agentSettingsFromSyncDocument(server), sync: server, models: { local: [{ name: 'qwen3' }, { name: 'gemma4:e4b' }] } }), {
+      status: 200,
+    })
   })
   return {
     remote,
@@ -76,7 +83,10 @@ test('first plugin sync merges an empty cache without clearing service settings'
   const first = await request('/api/integration/game-agent')
   const firstBody = await first.json()
   expect(received[0].agents).toHaveLength(0)
-  expect(firstBody.settings).toEqual(settings)
+  expect(firstBody.settings).toEqual({
+    ...settings,
+    profiles: settings.profiles.map((profile) => ({ ...profile, modelRequestTimeoutMs: 10_000, modelTimeoutMs: 120_000, gameCallTimeoutMs: 15_000, proxy: '' })),
+  })
   expect(store.get('chaya.gameAgent.pluginSync.v1')).toContain('Local Ollama')
 
   server = applySettingsToAgentSyncDocument(withAgentSyncActor(server, 'service'), {
@@ -137,6 +147,41 @@ test('offline plugin edits survive reconnect and merge with service edits', asyn
   expect(server.read().profiles[0]).toMatchObject({ label: 'Offline Plugin', defaultModel: 'service-model' })
 })
 
+test('games share one per-user settings file, so another game sees edits while the service is offline', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-agent-home-'))
+  const previousXdg = process.env.XDG_CONFIG_HOME
+  const previousAppData = process.env.APPDATA
+  delete process.env.XDG_CONFIG_HOME
+  delete process.env.APPDATA
+  const homedir = jest.spyOn(os, 'homedir').mockReturnValue(home)
+  Object.assign(globalThis, { require })
+  try {
+    expect(sharedAgentSettingsFile()?.startsWith(home)).toBe(true)
+    const server = syncServer()
+    const gameA = createPluginGameAgentRequest(server.remote)
+    const baseline = await (await gameA('/api/integration/game-agent')).json()
+    server.setOnline(false)
+    await gameA('/api/integration/game-agent', {
+      method: 'PUT',
+      body: JSON.stringify({ settings: { ...baseline.settings, profiles: [{ ...baseline.settings.profiles[0], label: 'From Game A' }] }, baseSync: baseline.sync }),
+    })
+
+    const file = sharedAgentSettingsFile()!
+    if (process.platform !== 'win32') expect(fs.statSync(file).mode & 0o777).toBe(0o600)
+
+    store.clear()
+    const gameB = createPluginGameAgentRequest(server.remote)
+    const seen = await (await gameB('/api/integration/game-agent')).json()
+    expect(seen).toMatchObject({ pendingSync: true, settings: { profiles: [{ label: 'From Game A' }] } })
+  } finally {
+    Object.assign(globalThis, { require: undefined })
+    homedir.mockRestore()
+    if (previousXdg !== undefined) process.env.XDG_CONFIG_HOME = previousXdg
+    if (previousAppData !== undefined) process.env.APPDATA = previousAppData
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
 test('in-game agent routes use the same-process task host', async () => {
   const server = syncServer()
   const taskRequest = jest.fn(async (message: { type: string }) => {
@@ -156,7 +201,7 @@ test('in-game agent routes use the same-process task host', async () => {
   const request = createPluginGameAgentRequest(server.remote)
 
   const status = await (await request('/api/game-agent/status?gameId=game-1')).json()
-  expect(status).toMatchObject({ available: true, gameOnline: true, profiles: [{ id: 'local' }] })
+  expect(status).toMatchObject({ available: true, gameOnline: true, profiles: [{ id: 'local', models: [{ name: 'qwen3' }, { name: 'gemma4:e4b' }] }] })
 
   const response = await request('/api/game-agent/turn', {
     method: 'POST',
@@ -165,4 +210,34 @@ test('in-game agent routes use the same-process task host', async () => {
   expect(await response.text()).toContain('same process')
   expect(taskRequest).toHaveBeenCalledWith(expect.objectContaining({ type: 'agent.task.start', capability: 'ask' }), undefined)
   expect(server.remote).not.toHaveBeenCalledWith('/api/game-agent/turn', expect.anything())
+})
+
+test('routes a companion game operation to play instead of plain companion chat', async () => {
+  const server = syncServer()
+  const taskRequest = jest.fn(async (message: { type: string }) => {
+    if (message.type === 'agent.task.status') return []
+    if (message.type === 'agent.task.classify') return { capability: 'play' }
+    if (message.type === 'agent.task.start') return { id: 'task-1', state: 'running' }
+    if (message.type === 'agent.task.events') return { gap: false, task: { state: 'completed' }, events: [] }
+    throw new Error(`unexpected ${message.type}`)
+  })
+  ;(globalThis.window as typeof globalThis.window & { ChayaAgent?: unknown }).ChayaAgent = { taskRequest }
+  const request = createPluginGameAgentRequest(server.remote)
+
+  await (
+    await request('/api/game-agent/turn', {
+      method: 'POST',
+      body: JSON.stringify({
+        gameId: 'game-1',
+        profileId: 'local',
+        model: 'qwen3',
+        prompt: '帮我开宝箱',
+        surface: 'companion',
+        companionCharacter: 'yui',
+      }),
+    })
+  ).text()
+
+  expect(taskRequest).toHaveBeenCalledWith(expect.objectContaining({ type: 'agent.task.classify', prompt: '帮我开宝箱' }), undefined)
+  expect(taskRequest).toHaveBeenCalledWith(expect.objectContaining({ type: 'agent.task.start', capability: 'play', surface: 'companion', companionCharacter: 'yui' }), undefined)
 })

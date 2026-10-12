@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { LuFolderOpen, LuSave } from 'react-icons/lu'
 
 import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
+import type { MiniPanelOpacitySettings } from '@/components/game-tools/MiniPanelOpacityControl'
 import { MiniPanelAlert, MiniPanelBar, miniPanelIconButton, miniPanelIconClass, MiniPanelNotice } from '@/components/game-tools/MiniPanelParts'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Button, ScrollArea } from '@/components/sk'
@@ -21,6 +22,7 @@ type PanelProps = {
   saves: Saves
   actions: Actions
   onClose: () => void
+  opacity?: MiniPanelOpacitySettings
 }
 
 /** 面板正文：快照未就绪时显示读取中或失败原因 */
@@ -59,14 +61,14 @@ function loading(saves: Saves, actions: Actions, entry: GameSaveEntry) {
   return actions.busyKey === `load:${entry.id}` || saves.snapshot?.status.busy?.entryId === entry.id
 }
 
-export function AutoSaveMiniPanel({ saves, actions, onClose }: PanelProps) {
+export function AutoSaveMiniPanel({ saves, actions, onClose, opacity }: PanelProps) {
   const { snapshot, settings, statusAt } = saves
   const now = useNow(true)
   const t = useT()
   const entries = snapshot ? autoEntries(snapshot.index) : []
   const busy = locked(saves, actions)
   return (
-    <FloatingToolPanel title={t('saves.auto.title')} onClose={onClose} panel="autoSaves" scrollContent={false}>
+    <FloatingToolPanel title={t('saves.auto.title')} opacity={opacity} onClose={onClose} panel="autoSaves" scrollContent={false}>
       <div className="flex h-full min-h-0 flex-col">
         <Body saves={saves}>
           {snapshot ? (
@@ -111,14 +113,14 @@ export function AutoSaveMiniPanel({ saves, actions, onClose }: PanelProps) {
   )
 }
 
-export function QuickSaveMiniPanel({ saves, actions, onClose }: PanelProps) {
+export function QuickSaveMiniPanel({ saves, actions, onClose, opacity }: PanelProps) {
   const { snapshot, settings } = saves
   const now = useNow(true)
   const t = useT()
   const slots = snapshot ? quickSlots(snapshot.index) : []
   const busy = locked(saves, actions)
   return (
-    <FloatingToolPanel title={t('saves.quick.title')} onClose={onClose} panel="quickSaves" scrollContent={false}>
+    <FloatingToolPanel title={t('saves.quick.title')} opacity={opacity} onClose={onClose} panel="quickSaves" scrollContent={false}>
       <div className="flex h-full min-h-0 flex-col">
         <Body saves={saves}>
           {!settings.quickEnabled ? <MiniPanelBar summary={t('saves.quick.offNote')} /> : null}

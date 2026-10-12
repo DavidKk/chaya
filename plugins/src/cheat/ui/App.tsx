@@ -1,4 +1,4 @@
-import { Activity, lazy, type ReactNode, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Activity, type CSSProperties, lazy, type ReactNode, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
 import {
@@ -65,6 +65,8 @@ type Props = {
   onRequestOpen: () => void
   onRequestClose: () => void
 }
+
+type MiniPanelStyle = CSSProperties & { '--mini-panel-opacity': string }
 
 type OverlayView = {
   tab: TabId
@@ -528,16 +530,17 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   }, [])
 
   return (
-    <GameEditOverlayProviders open={open}>
+    <GameEditOverlayProviders open={open} miniPanelOpacity={toolSettings.settings.miniPanelOpacity}>
       <FloatingMiniMap
         enabled={toolSettings.settings.miniMapEnabled}
+        tools={toolSettings}
         onSelectEvent={(mapId, eventId) => {
           eventsSlot.onSelectMap(mapId, eventId)
           selectTab('map')
           onRequestOpen()
         }}
       />
-      <FloatingGameSaves settings={toolSettings.settings} />
+      <FloatingGameSaves settings={toolSettings.settings} tools={toolSettings} />
       <FloatingPanelDock tools={toolSettings} />
       {hasOpened ? (
         <Activity mode={open ? 'visible' : 'hidden'}>
@@ -610,11 +613,16 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
 }
 
 /** Shadow 内挂弹层 Provider，保证浮层吃到 overlay token */
-function GameEditOverlayProviders({ children, open }: { children: ReactNode; open: boolean }) {
+function GameEditOverlayProviders({ children, open, miniPanelOpacity }: { children: ReactNode; open: boolean; miniPanelOpacity: number }) {
   const [portalHost, setPortalHost] = useState<HTMLDivElement | null>(null)
   const [inputAssist] = useState(createPluginGameToolTransport)
   return (
-    <div ref={setPortalHost} className="relative flex min-h-0 flex-1 flex-col">
+    <div
+      ref={setPortalHost}
+      data-mini-panel-root=""
+      className="relative flex min-h-0 flex-1 flex-col"
+      style={{ '--mini-panel-opacity': String(miniPanelOpacity / 100) } as MiniPanelStyle}
+    >
       <NotificationProvider portalContainer={portalHost}>
         <ConfirmProvider portalContainer={portalHost}>
           <GameToolTransportContext value={inputAssist}>

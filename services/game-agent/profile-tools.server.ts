@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
+import { isCliProvider } from '@/lib/game-agent/providers'
 import { agentSettingsFromSyncDocument } from '@/lib/game-agent/settings-sync'
 
+import { releaseRemovedAuthorizations } from './cli/auth/attempts.server'
 import { deleteGameAgentToken, type GameAgentSecretFiles, hasGameAgentToken, saveGameAgentToken } from './secrets'
 import {
   defaultGameAgentSettings,
@@ -16,7 +18,9 @@ import {
 } from './settings'
 
 export type GameAgentProfileFiles = GameAgentSecretFiles & { settingsFile?: string; syncFile?: string }
-export type GameAgentProfilePatch = Partial<Omit<GameAgentProfile, 'id' | 'provider'>> & { id?: string; token?: string; clearToken?: boolean }
+export type GameAgentProfilePatch = Partial<Omit<GameAgentProfile, 'id'>> & { id?: string; token?: string; clearToken?: boolean }
+
+const CLI_TOKEN_UNSUPPORTED = '该类型的 Agent 不接受 Token，请在设置中完成授权'
 
 function paths(input: GameAgentProfileFiles = {}) {
   return { settingsFile: input.settingsFile || GAME_AGENT_SETTINGS_PATH, syncFile: input.syncFile || GAME_AGENT_SYNC_PATH }
@@ -55,8 +59,9 @@ export function listGameAgentProfiles(input: GameAgentProfileFiles = {}) {
 export function createGameAgentProfile(patch: GameAgentProfilePatch, input: GameAgentProfileFiles = {}) {
   if (!patch.label?.trim()) throw new Error('创建 Agent 时必须提供名称')
   const settings = current(input)
-  const profile = normalizeGameAgentProfile({ ...patch, id: patch.id || randomUUID(), provider: 'ollama' })
+  const profile = normalizeGameAgentProfile({ ...patch, id: patch.id || randomUUID(), provider: patch.provider || 'ollama' })
   if (settings.profiles.some((item) => item.id === profile.id)) throw new Error(`Agent id 已存在：${profile.id}`)
+  if (isCliProvider(profile.provider) && (patch.token !== undefined || patch.clearToken)) throw new Error(CLI_TOKEN_UNSUPPORTED)
   const saved = save({ ...settings, profiles: [...settings.profiles, profile] }, input)
   if (patch.token !== undefined || patch.clearToken) saveGameAgentToken(profile.id, patch.clearToken ? null : patch.token || null, input)
   return view(
@@ -69,6 +74,7 @@ export function updateGameAgentProfile(target: string, patch: GameAgentProfilePa
   const settings = current(input)
   const existing = resolveProfile(settings, target)
   const profile = normalizeGameAgentProfile({ ...existing, ...patch, id: existing.id, provider: existing.provider }, existing.id)
+  if (isCliProvider(profile.provider) && (patch.token !== undefined || patch.clearToken)) throw new Error(CLI_TOKEN_UNSUPPORTED)
   const saved = save({ ...settings, profiles: settings.profiles.map((item) => (item.id === existing.id ? profile : item)) }, input)
   if (patch.token !== undefined || patch.clearToken) saveGameAgentToken(existing.id, patch.clearToken ? null : patch.token || null, input)
   return view(
@@ -83,5 +89,6 @@ export function deleteGameAgentProfile(target: string, input: GameAgentProfileFi
   if (settings.profiles.length <= 1) throw new Error('至少需要保留一个 Agent')
   const saved = save({ ...settings, profiles: settings.profiles.filter((item) => item.id !== existing.id) }, input)
   deleteGameAgentToken(existing.id, input)
+  releaseRemovedAuthorizations(settings.profiles, saved.profiles)
   return { deleted: { id: existing.id, label: existing.label }, defaultProfileId: saved.profiles[0]?.id || '', count: saved.profiles.length }
 }

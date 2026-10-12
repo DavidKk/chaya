@@ -41,7 +41,18 @@ test('Cloud Agent executes a registered WebMCP tool without a connected game', a
   })
 
   const response = createBrowserAgentRuntime().start({
-    profile: { id: 'local', label: 'Local', provider: 'ollama', endpoint: 'http://127.0.0.1:11434', defaultModel: 'gemma', temperature: 0.2, keepAlive: '10m' },
+    profile: {
+      id: 'local',
+      label: 'Local',
+      provider: 'ollama',
+      endpoint: 'http://127.0.0.1:11434',
+      defaultModel: 'gemma',
+      temperature: 0.2,
+      keepAlive: '10m',
+      modelRequestTimeoutMs: 10_000,
+      modelTimeoutMs: 120_000,
+      gameCallTimeoutMs: 15_000,
+    },
     model: 'gemma',
     prompt: '测试页面工具',
     locale: 'zh-CN',
@@ -61,19 +72,30 @@ test('Cloud Agent executes a registered WebMCP tool without a connected game', a
   controller.abort()
 })
 
-test('Cloud Agent does not offer WebMCP tools for a presence check', async () => {
+test('Cloud Agent offers its tools for a presence check and lets the model answer directly', async () => {
   const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
   chat.mockResolvedValueOnce({ role: 'assistant', content: '在，有什么需要？' })
 
   const response = createBrowserAgentRuntime().start({
-    profile: { id: 'local', label: 'Local', provider: 'ollama', endpoint: 'http://127.0.0.1:11434', defaultModel: 'gemma', temperature: 0.2, keepAlive: '10m' },
+    profile: {
+      id: 'local',
+      label: 'Local',
+      provider: 'ollama',
+      endpoint: 'http://127.0.0.1:11434',
+      defaultModel: 'gemma',
+      temperature: 0.2,
+      keepAlive: '10m',
+      modelRequestTimeoutMs: 10_000,
+      modelTimeoutMs: 120_000,
+      gameCallTimeoutMs: 15_000,
+    },
     model: 'gemma',
     prompt: '在吗',
     locale: 'zh-CN',
   })
   const text = await response.text()
 
-  expect(chat.mock.calls[0][0].tools).toEqual([])
+  expect(chat.mock.calls[0][0].tools).toEqual(expect.arrayContaining([expect.objectContaining({ function: expect.objectContaining({ name: 'chaya_agent_recall' }) })]))
   expect(text).not.toContain('tool.started')
   expect(text).toContain('在，有什么需要？')
 })

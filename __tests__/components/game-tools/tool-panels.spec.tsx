@@ -93,12 +93,15 @@ it('lists the mini panel hotkeys, then the manager, right after the panel group'
 })
 
 it('normalizes the manager settings', () => {
-  expect(normalizeToolSettings({})).toMatchObject({ panelDockEnabled: false, panelDockHiddenItems: [], panelDockOrientation: 'horizontal' })
+  expect(normalizeToolSettings({})).toMatchObject({ panelDockEnabled: false, panelDockHiddenItems: [], panelDockOrientation: 'horizontal', miniPanelOpacity: 40 })
   expect(normalizeToolSettings({ panelDockHiddenItems: ['closeAll', 'nope', 'miniMap', 'miniMap'], panelDockOrientation: 'diagonal' })).toMatchObject({
     panelDockHiddenItems: ['miniMap', 'closeAll'],
     panelDockOrientation: 'horizontal',
   })
   expect(normalizeToolSettings({ panelDockHiddenItems: 'all', panelDockOrientation: 'vertical' })).toMatchObject({ panelDockHiddenItems: [], panelDockOrientation: 'vertical' })
+  expect(normalizeToolSettings({ miniPanelOpacity: 3 }).miniPanelOpacity).toBe(10)
+  expect(normalizeToolSettings({ miniPanelOpacity: 130 }).miniPanelOpacity).toBe(100)
+  expect(normalizeToolSettings({ miniPanelOpacity: 64.6 }).miniPanelOpacity).toBe(65)
 })
 
 it('closes all four mini panels but not the manager, and counts dismissed panels as still on', async () => {

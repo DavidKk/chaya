@@ -54,6 +54,10 @@ export type IntegrationMessages = {
   agentProfilesHint: string
   agentAddProfile: string
   agentProfileLabel: string
+  agentProfileLabelDesc: string
+  agentProxy: string
+  agentProxyDesc: string
+  agentProxyInvalid: string
   agentProvider: string
   agentProviderDesc: string
   agentEndpoint: string
@@ -68,6 +72,12 @@ export type IntegrationMessages = {
   agentKeepAliveForeverOn: string
   agentKeepAliveForeverOff: string
   agentKeepAliveUnload: string
+  agentModelRequestTimeout: string
+  agentModelRequestTimeoutDesc: string
+  agentModelTimeout: string
+  agentModelTimeoutDesc: string
+  agentGameCallTimeout: string
+  agentGameCallTimeoutDesc: string
   agentTest: string
   agentTestDesc: string
   agentTesting: string

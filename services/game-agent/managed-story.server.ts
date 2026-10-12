@@ -1,5 +1,6 @@
 import { type ManagedState as State } from './managed-goal.server'
 import { streamOllamaChat } from './ollama-client'
+import { ollamaFetch } from './proxy/agent-proxy'
 import { readGameAgentToken } from './secrets'
 import type { GameAgentProfile } from './settings'
 import type { StartTurnInput } from './types'
@@ -14,15 +15,24 @@ function storyLine(entry: NonNullable<History['entries']>[number], text: string 
   return text ? `${entry.speaker ? `${entry.speaker}：` : ''}${text}` : ''
 }
 
+export function battleResultLine(state: State) {
+  const result = state.lastBattleResult?.result
+  return result ? `本场战斗结果：${result}。` : ''
+}
+
+/** Companion chat line: the parts are passed in, so callers never parse the full result text. */
+export function briefText(...parts: string[]) {
+  return parts.filter(Boolean).join(' ')
+}
+
 export function resultText(state: State, history: History, incomplete: boolean) {
   const lines = (history.entries || [])
     .filter((entry) => entry.kind === 'message')
     .map((entry) => storyLine(entry, entry.translated || entry.text))
     .filter(Boolean)
-  const result = state.lastBattleResult?.result
   const reaction = state.qteOutcome?.id === state.lastReaction?.id ? state.qteOutcome?.result : null
   return [
-    result ? `本场战斗结果：${result}。` : '',
+    battleResultLine(state),
     reaction ? `限时反应：${reaction === 'success' ? '成功' : '失败'}。` : '',
     lines.length ? `记录到的剧情：${lines.slice(-20).join('；')}` : '',
     incomplete ? '剧情记录不完整，仅总结已记录部分。' : '',
@@ -52,6 +62,7 @@ export async function storySummary(
         model: input.model,
         token: readGameAgentToken(profile.id),
         keepAlive: profile.keepAlive,
+        timeoutMs: profile.modelTimeoutMs,
         signal,
         temperature: 0,
         maxTokens: think ? 384 : 160,
@@ -69,7 +80,8 @@ export async function storySummary(
           },
         ],
       },
-      () => {}
+      () => {},
+      ollamaFetch(profile)
     )
     const value = JSON.parse(response.content) as { summary?: unknown }
     const summary = typeof value.summary === 'string' ? value.summary.trim() : ''

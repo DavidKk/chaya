@@ -1,15 +1,21 @@
 import { executeRegisteredPageTool, listRegisteredPageTools } from '@/initializer/webmcp/register-page-tools'
 import { sanitizeAgentActivity } from '@/lib/game-agent/activity'
+import { RECALL_TOOL_DESCRIPTION, RECALL_TOOL_NAME, RECALL_TOOL_PROPERTIES, recallTurns, turnsFromMessages } from '@/lib/game-agent/recall'
 import { capabilityConfig, runAgentTurn, type RuntimeEvent, type RuntimeMessage, type RuntimeTool } from '@/lib/game-agent/runtime'
 import { collectSecretValues, redactSecrets, redactSecretText } from '@/lib/integration/tools/types'
 import { appendBrowserLog } from '@/lib/log/link-log-store'
 import { streamOllamaChat } from '@/services/game-agent/ollama-client'
-import { buildAskMessages, shouldOfferAgentTools } from '@/services/game-agent/prompt'
+import { buildAskMessages } from '@/services/game-agent/prompt'
 import type { GameAgentEvent, GameAgentMessage } from '@/services/game-agent/types'
 
 import type { BrowserAgentProfile } from './browserRequest'
 
 type BrowserSession = { id: string; messages: GameAgentMessage[] }
+
+/** Not sent to the model; kept for chaya_agent_recall. */
+const SESSION_MESSAGE_LIMIT = 200
+
+const RECALL_TOOL: RuntimeTool = { name: RECALL_TOOL_NAME, description: RECALL_TOOL_DESCRIPTION, inputSchema: { type: 'object', properties: RECALL_TOOL_PROPERTIES } }
 
 function id(prefix: string) {
   return `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`
@@ -46,7 +52,18 @@ export function createBrowserAgentRuntime() {
     return ids.length
   }
 
-  const start = (input: { profile: BrowserAgentProfile; model: string; prompt: string; locale: string; sessionId?: string; newSession?: boolean; signal?: AbortSignal | null }) => {
+  const start = (input: {
+    profile: BrowserAgentProfile
+    gameId?: string
+    model: string
+    prompt: string
+    locale: string
+    surface?: 'companion'
+    companionCharacter?: import('@/lib/game-agent/companion').CompanionCharacter
+    sessionId?: string
+    newSession?: boolean
+    signal?: AbortSignal | null
+  }) => {
     const known = !input.newSession && input.sessionId ? sessions.get(input.sessionId) : undefined
     const session = known || { id: id('session'), messages: [] }
     sessions.set(session.id, session)
@@ -73,12 +90,14 @@ export function createBrowserAgentRuntime() {
         void (async () => {
           emit({ type: 'turn.started', turnId, sessionId: session.id })
           const messages = buildAskMessages({
-            history: session.messages,
             prompt: input.prompt,
             locale: input.locale,
+            gameId: input.gameId || undefined,
+            surface: input.surface,
+            companionCharacter: input.companionCharacter,
           })
           const credentials = new Set<string>()
-          const runtimeTools = shouldOfferAgentTools(input.prompt) ? asTools() : []
+          const runtimeTools = [...asTools(), RECALL_TOOL]
           const result = await runAgentTurn(
             {
               model: {
@@ -94,6 +113,7 @@ export function createBrowserAgentRuntime() {
                       })),
                       temperature: input.profile.temperature,
                       keepAlive: input.profile.keepAlive,
+                      timeoutMs: input.profile.modelTimeoutMs,
                       signal,
                     },
                     () => {}
@@ -111,7 +131,8 @@ export function createBrowserAgentRuntime() {
                     message: `tool.started ${name}`,
                     meta: { event: 'tool.started', callId, tool: name, args: redactSecrets(args), turnId, sessionId: session.id, model: input.model },
                   })
-                  const value = await executeRegisteredPageTool(name, args)
+                  const value =
+                    name === RECALL_TOOL_NAME ? recallTurns(turnsFromMessages(session.messages, { id: session.id, at: 0 }), args) : await executeRegisteredPageTool(name, args)
                   const ok = toolSucceeded(value)
                   appendBrowserLog({
                     level: ok ? 'ok' : 'fail',
@@ -125,14 +146,20 @@ export function createBrowserAgentRuntime() {
               store: {
                 append: (next) => {
                   session.messages.push(...(next.map((message) => ({ ...message, content: redactSecretText(message.content, credentials) })) as GameAgentMessage[]))
-                  session.messages = session.messages.slice(-12)
+                  session.messages = session.messages.slice(-SESSION_MESSAGE_LIMIT)
                 },
               },
               events: { emit: (event: RuntimeEvent) => emit(sanitizeAgentActivity(event, credentials) as GameAgentEvent) },
               clock: { now: Date.now },
             },
             capabilityConfig('ask'),
-            { prompt: input.prompt, history: messages.slice(0, -1) as RuntimeMessage[] },
+            {
+              model: `${input.profile.provider}/${input.model}`,
+              prompt: input.prompt,
+              modelPrompt: String(messages.at(-1)?.content || input.prompt),
+              storePrompt: input.prompt,
+              history: messages.slice(0, -1) as RuntimeMessage[],
+            },
             controller.signal
           )
           let answer = result.text

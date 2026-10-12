@@ -70,16 +70,17 @@ ChayaEdit 不再声明插件工具：`gold` / `item` / `variable` / `switch` / `
 
 统一放在 `live` 分组，名称 `chaya_live_*`。
 
-| 能力     | 工具                                                                                                                   | 现状                                         | 目标           |
-| -------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | -------------- |
-| 发现游戏 | `chaya_live_games`、`chaya_live_state`                                                                                 | 各端已有                                     | 不变           |
-| 按键     | `chaya_live_press`、`chaya_live_play`（按键序列，返回操作后的状态）                                                    | 各端已有                                     | 不变           |
-| 最近剧情 | `chaya_live_history`：最近渲染的对话、选项与所选项、地图切换、战斗开始与结果、读档（按时间顺序，默认 50 条、上限 300） | 无                                           | 各端           |
-| 看画面   | `chaya_live_screenshot`：当前画面截图，按 MCP 图片内容（`type: 'image'`）返回（默认宽 512、上限 1280）                 | 只在游戏内 WebMCP（`chaya_game_screenshot`） | 各端           |
-| 点击     | `chaya_live_tap`：在画面坐标点击（菜单、对话、按钮）                                                                   | 同上（`chaya_game_tap`）                     | 各端           |
-| 人物行动 | `chaya_live_move_to`：地图上寻路走到格子坐标，等到达或超时（默认 8 秒、上限 12 秒）；途中被传送到别的地图即停          | 同上（`chaya_game_move_to`）                 | 各端           |
-| 退出游戏 | `chaya_live_quit`                                                                                                      | server、Cloud（`chaya_game_quit`）           | 各端           |
-| 执行脚本 | `chaya_live_eval`                                                                                                      | server（需开关）                             | 不变，唯一例外 |
+| 能力     | 工具                                                                                                                       | 现状                                         | 目标           |
+| -------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | -------------- |
+| 发现游戏 | `chaya_live_games`、`chaya_live_state`                                                                                     | 各端已有                                     | 不变           |
+| 按键     | `chaya_live_press`、`chaya_live_play`（按键序列，返回操作后的状态）                                                        | 各端已有                                     | 不变           |
+| 最近剧情 | `chaya_live_history`：最近渲染的对话、选项与所选项、地图切换、战斗开始与结果、读档（按时间顺序，默认 50 条、上限 300）     | 无                                           | 各端           |
+| 看画面   | `chaya_live_screenshot`：当前画面截图，按 MCP 图片内容（`type: 'image'`）返回（默认宽 512、上限 1280）                     | 只在游戏内 WebMCP（`chaya_game_screenshot`） | 各端           |
+| 点击     | `chaya_live_tap`：在画面坐标点击（菜单、对话、按钮）                                                                       | 同上（`chaya_game_tap`）                     | 各端           |
+| 人物行动 | `chaya_live_move_to`：地图上寻路走到格子坐标，等到达或超时（默认 8 秒、上限 12 秒）；途中被传送到别的地图即停              | 同上（`chaya_game_move_to`）                 | 各端           |
+| 事件交互 | `chaya_live_interact`：走到地图事件旁、面向并按确认、推进对话，返回台词与金钱 / 物品变化（上限 12 秒）；路上关闭的门先打开 | 无                                           | 各端           |
+| 退出游戏 | `chaya_live_quit`                                                                                                          | server、Cloud（`chaya_game_quit`）           | 各端           |
+| 执行脚本 | `chaya_live_eval`                                                                                                          | server（需开关）                             | 不变，唯一例外 |
 
 - `chaya_game_quit` 直接改名 `chaya_live_quit`（不留别名，skill 与文档同步）。
 - `chaya_live_history` 用于"跳过了对话，问 Agent 如何过关 / 下一步做什么 / 总结最近进程"：先读剧情记录，再结合 `chaya_live_state`（必要时截图）回答；记录只在本机游戏进程内，不上传。记录的是游戏里的对话文本（「预翻译」模式下为译文，其他模式为原文并附已缓存的译文）。

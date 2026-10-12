@@ -138,6 +138,30 @@ export class GameSavesController {
     return { settings: this.settings, index: this.index, status: this.status(), versionId: this.env.versionId() }
   }
 
+  /** Agent bridge access to the same store used by the game-saves page. */
+  async agentSnapshot(): Promise<GameSavesSnapshot> {
+    await this.ready
+    return this.snapshot()
+  }
+
+  async agentLoad(entryId: string, allowVersionMismatch = false): Promise<GameSavesSnapshot> {
+    await this.ready
+    await this.enqueue(null, 'load', () => this.load(entryId, allowVersionMismatch, 'page'))
+    return this.snapshot()
+  }
+
+  async agentSaveQuick(slot: number, force = false): Promise<GameSavesSnapshot> {
+    await this.ready
+    await this.enqueue(`quick-${slot}`, 'save', () => this.saveQuick(slot, force, 'page'))
+    return this.snapshot()
+  }
+
+  async agentSaveAuto(force = false): Promise<GameSavesSnapshot> {
+    await this.ready
+    await this.enqueue(null, 'save', () => this.saveAuto('manual', force, 'page'))
+    return this.snapshot()
+  }
+
   /** Web 端经 GameLink 发来的命令；状态与变更推送都回到这条连接 */
   handle(message: GameLinkMessage, send: Send): boolean {
     if (message.type !== 'saves.cmd') return false

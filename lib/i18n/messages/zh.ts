@@ -1,4 +1,5 @@
 import { aboutZh } from '@/lib/i18n/messages/parts/about'
+import { agentAuthZh } from '@/lib/i18n/messages/parts/agent-auth'
 import { commonZh } from '@/lib/i18n/messages/parts/common'
 import { companionZh } from '@/lib/i18n/messages/parts/companion'
 import { creditsZh } from '@/lib/i18n/messages/parts/credits'
@@ -27,6 +28,7 @@ export const zh = {
   ...mcpGatewayZh,
   ...downloadsZh,
   ...aboutZh,
+  ...agentAuthZh,
   ...creditsZh,
   ...legalZh,
   ...eventsZh,

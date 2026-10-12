@@ -5,6 +5,7 @@
  */
 
 import { RUN_FLAG_KEYS } from '@/components/game-edit/types'
+import { RECALL_TOOL_DESCRIPTION, RECALL_TOOL_NAME, RECALL_TOOL_PROPERTIES } from '@/lib/game-agent/recall'
 import { ASK_FIRST } from '@/lib/integration/ask-first'
 import {
   AGENT_HISTORY_DEFAULT,
@@ -23,7 +24,7 @@ export { MCP_ENDPOINT_PATH, MCP_SERVER_NAME } from '@/lib/integration/mcp-endpoi
 
 export const mcpEvalEnabled = () => process.env.CHAYA_MCP_EVAL === '1'
 
-export type McpToolGroupId = 'library' | 'game' | 'live' | 'edit' | 'translate' | 'cache' | 'logs'
+export type McpToolGroupId = 'library' | 'game' | 'live' | 'agent' | 'edit' | 'translate' | 'cache' | 'logs' | 'skills'
 
 export type McpToolMeta = {
   name: string
@@ -62,10 +63,12 @@ export const MCP_TOOL_GROUPS: readonly { id: McpToolGroupId; title: string; summ
     title: 'Live game',
     summary: 'While the game runs (needs the ChayaAgent plugin): read state and recent story, see the screen, press keys, tap, walk, quit; call declared plugin tools.',
   },
+  { id: 'agent', title: 'Agent conversation', summary: 'Read earlier turns of the in-game Chaya Agent conversation on demand.' },
   { id: 'edit', title: 'Edit', summary: 'The in-game edit page: look up ids, read the live edit session, set / lock values, run actions.' },
   { id: 'translate', title: 'Translation', summary: 'Translate text, extract source text, whole-game fill jobs, engines and in-game translation settings.' },
   { id: 'cache', title: 'Translation library', summary: 'Query, edit, delete and import entries in the local shared translation library.' },
   { id: 'logs', title: 'Logs', summary: 'Query and clear server / plugin logs.' },
+  { id: 'skills', title: 'Game skills', summary: 'Discover and read task-specific game knowledge and strategies on demand.' },
 ]
 
 export { ASK_FIRST }
@@ -84,6 +87,31 @@ export const LOG_LEVEL_VALUES = ['ok', 'warn', 'fail', 'info', 'debug'] as const
 export const TRANSLATE_ENGINE_VALUES = TRANSLATE_ENGINE_IDS
 
 export const MCP_TOOLS: readonly McpToolMeta[] = [
+  // skills
+  {
+    name: 'chaya_skills_list',
+    readOnly: true,
+    group: 'skills',
+    title: 'List game skills',
+    description: 'List available game skills and their hierarchy. Read a skill only when it is relevant to the current task.',
+    inputSchema: obj({ parent: str('Only list direct children of this skill id') }),
+  },
+  {
+    name: 'chaya_skills_search',
+    readOnly: true,
+    group: 'skills',
+    title: 'Search game skills',
+    description: 'Search the skill index by task, topic or tag before complex combat, quest, route or menu planning.',
+    inputSchema: obj({ query: str('Search terms'), limit: num('Maximum results (default 10, up to 50)') }, ['query']),
+  },
+  {
+    name: 'chaya_skills_read',
+    readOnly: true,
+    group: 'skills',
+    title: 'Read game skill',
+    description: 'Read one skill after finding it in the index. Skill content is loaded on demand and may reference child skills.',
+    inputSchema: obj({ id: str('Skill id from chaya_skill_list or chaya_skill_search') }, ['id']),
+  },
   // library
   {
     name: 'chaya_library_list',
@@ -223,6 +251,78 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     inputSchema: obj({ gameId }),
   },
   {
+    name: 'chaya_live_ui',
+    readOnly: true,
+    group: 'live',
+    title: 'Game UI state',
+    description:
+      'Read structured RPG Maker scene and window data: active window, selected index, symbols, commands, enabled states, choices and rendered text. Prefer this before directional input; use a screenshot for custom windows it cannot describe.',
+    inputSchema: obj({ gameId }),
+  },
+  {
+    name: 'chaya_live_open_scene',
+    group: 'live',
+    title: 'Open game scene',
+    description:
+      'Open a standard RPG Maker scene in the running game: status, equipment, skills, items, menu, load, save, options, debug or pop the current scene. The edit overlay closes before switching scenes.',
+    inputSchema: obj(
+      {
+        gameId,
+        scene: str('Scene to open', {
+          enum: ['scene:status', 'scene:equip', 'scene:skill', 'scene:item', 'scene:menu', 'scene:load', 'scene:save', 'scene:options', 'scene:debug', 'scene:pop'],
+        }),
+      },
+      ['scene']
+    ),
+  },
+  {
+    name: 'chaya_live_saves',
+    readOnly: true,
+    group: 'live',
+    title: 'Game saves',
+    description:
+      'List Chaya automatic and quick saves, including entry ids, timestamps, slots and map context. Use the newest entry id with chaya_live_saves_load to load the previous save.',
+    inputSchema: obj({ gameId }),
+  },
+  {
+    name: 'chaya_live_saves_load',
+    destructive: true,
+    group: 'live',
+    title: 'Load game save',
+    description: `Load one Chaya automatic or quick save by entry id. This discards current progress: ${ASK_FIRST}`,
+    inputSchema: obj({ gameId, entryId: str('Save entry id from chaya_live_saves'), allowVersionMismatch: bool('Allow loading a save from another game version') }, ['entryId']),
+  },
+  {
+    name: 'chaya_live_save',
+    destructive: true,
+    group: 'live',
+    title: 'Save game',
+    description: `Save the game. If the player does not name a source, omit source and slot to use the game's native visible file 1. native writes an RPG Maker slot the player loads from the game's own save menu. quick and auto write Chaya's separate save list and must only be used when the player explicitly asks for them. Saving may overwrite an existing slot: ${ASK_FIRST}`,
+    inputSchema: obj({
+      gameId,
+      source: str('Save source; omit for native', { enum: ['native', 'quick', 'auto'] }),
+      slot: num('Native slot (1+, defaults to 1) or quick slot (0-9)'),
+      force: bool('Force an unsafe save'),
+    }),
+  },
+  {
+    name: 'chaya_live_load_save',
+    destructive: true,
+    group: 'live',
+    title: 'Load a game save',
+    description: `Load a native, quick or automatic save. If the player does not name a source, omit source and slot to use the game's native visible file 1. Loading discards current progress: ${ASK_FIRST}`,
+    inputSchema: obj(
+      {
+        gameId,
+        source: str('Save source; omit for native', { enum: ['native', 'quick', 'auto'] }),
+        slot: num('Native slot (1+, defaults to 1) or quick slot (0-9)'),
+        entryId: str('Automatic save entry id from chaya_live_saves'),
+        allowVersionMismatch: bool('Allow loading a save from another game version'),
+      },
+      []
+    ),
+  },
+  {
     name: 'chaya_live_history',
     readOnly: true,
     kind: 'game',
@@ -236,6 +336,14 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
       kinds: { type: 'array', description: 'Only these entry kinds', items: str('Entry kind', { enum: AGENT_HISTORY_KINDS }) },
       afterSeq: num('Only entries with seq greater than this (lastSeq of a previous read)'),
     }),
+  },
+  {
+    name: RECALL_TOOL_NAME,
+    readOnly: true,
+    group: 'agent',
+    title: 'Recall Agent conversation',
+    description: RECALL_TOOL_DESCRIPTION,
+    inputSchema: obj({ gameId, ...RECALL_TOOL_PROPERTIES }),
   },
   {
     name: 'chaya_live_screenshot',
@@ -320,6 +428,15 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     description:
       'Walk the player to map tile (x, y) with the built-in pathfinding and wait until arrival or timeout. Works even when click-to-move is off; blocked paths, events and messages stop it (arrived = false); stepping on a transfer stops it with transferred = true and the new mapId. Map scene only.',
     inputSchema: obj({ gameId, x: num('Map tile x'), y: num('Map tile y'), timeoutMs: num(`Wait limit (default ${AGENT_MOVE_DEFAULT_MS}, max ${AGENT_MOVE_MAX_MS})`) }, ['x', 'y']),
+  },
+  {
+    name: 'chaya_live_interact',
+    kind: 'game',
+    group: 'live',
+    title: 'Interact with event',
+    description:
+      'Interact with one map event (nearbyEvents id) like a player: walk next to it (or onto it when it lies under the player), opening closed doors on the way, face it, press ok and advance its dialogue. Returns outcome (done, choice, no_path, no_reaction, nothing_to_run, transferred, scene_changed, timeout), the dialogue lines, goldChange and inventoryChanges. On choice, pick with chaya_live_press. Map scene only.',
+    inputSchema: obj({ gameId, eventId: num('Event id from nearbyEvents') }, ['eventId']),
   },
   {
     name: 'chaya_live_quit',
@@ -554,6 +671,8 @@ export const MCP_INSTRUCTIONS = [
   'Play workflow: chaya_live_state → chaya_live_play with a short key sequence → inspect the returned state → repeat.',
   'Edit workflow: look up ids with chaya_edit_catalog → chaya_edit_set / chaya_edit_action → chaya_edit_state to confirm.',
   'Story help: when the user skipped dialogue or asks what to do next, read chaya_live_history, then chaya_live_state (chaya_live_screenshot only if the picture matters).',
+  'Complex-task workflow: search chaya_skills_search and read only relevant skills; skills are layered and may reference child skills.',
+  'Earlier Chaya Agent turns are not in the prompt: read the previous turn or search them with chaya_agent_recall only when the request depends on them.',
   'Tools marked "Destructive" require the user\'s consent first.',
   'While a game is online, tools declared by its plugins (chaya_plugin_*) appear in the tool list and come and go with the connection; if the client has not refreshed the list, call them via chaya_live_plugins + the tool argument of chaya_live_call.',
 ].join('\n')

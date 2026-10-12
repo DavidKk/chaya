@@ -234,6 +234,8 @@ export type AgentTaskMessage =
       locale?: string
       companionCharacter?: string
       surface?: string
+      thinking?: boolean
+      routine?: import('@/lib/game-agent/runtime/types').AgentRoutine
       goal: string
     }
   | { type: 'agent.task.classify'; requestId: string; gameId: string; profileId: string; model: string; prompt: string }
@@ -242,6 +244,7 @@ export type AgentTaskMessage =
   | { type: 'agent.task.status'; requestId: string; taskId?: string }
   | { type: 'agent.task.events'; requestId: string; taskId: string; afterSeq: number }
   | { type: 'agent.task.clear'; requestId: string; taskId?: string }
+  | { type: 'agent.task.recall'; requestId: string; conversationId?: string; query?: string; limit?: number; offset?: number }
   | { type: 'agent.config.put'; requestId: string; config: unknown }
   | { type: 'agent.task.result'; requestId: string; ok: boolean; data?: unknown; error?: string }
 

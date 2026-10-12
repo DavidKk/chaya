@@ -74,12 +74,16 @@ export const formField = cn('flex flex-col items-stretch', gapField)
 /** 左右分栏表单项：略宽松，避免数字行与开关行挤在一起 */
 export const formFieldInline = cn('grid min-h-[3.1rem] grid-cols-[minmax(9rem,13rem)_minmax(0,1fr)] items-center gap-y-1', gapInline)
 export const formFieldInlineDense = cn(formFieldInline, 'min-h-[2.35rem]', gapInlineDense)
+/** 说明较长、控件较窄的表单：左栏 20rem（窄屏才收缩）、右栏固定 18rem，两栏分居两端，各行对齐 */
+export const formFieldInlineWideLabel = cn(formFieldInline, 'grid-cols-[minmax(0,20rem)_18rem] justify-between')
 export const formTitle = 'text-[0.8125rem] font-medium leading-[1.3] text-ink'
 export const formTitleInline = cn(formTitle, 'col-start-1 row-start-1')
 export const formDesc = 'text-[0.7rem] leading-[1.35] text-ink-soft'
 export const formDescInline = cn(formDesc, 'col-start-1 row-start-2')
 export const formControl = cn('mt-0.5 flex min-w-0 items-center', gapControl)
 export const formControlInline = cn('col-start-2 row-span-2 row-start-1 mt-0 flex w-full items-center justify-end', gapControl)
+/** 配合 formFieldInlineWideLabel：右栏内容左对齐 */
+export const formControlInlineStart = cn(formControlInline, 'justify-start')
 export const formMonoInput = 'font-mono text-[0.72rem]'
 
 /** 数据表（sticky 表头）；单元格边距对齐 formCardDense / editCell */

@@ -72,8 +72,7 @@ export function GameEditSearch({ value, onChange }: Props) {
           ref={triggerRef}
           variant="ghost"
           size="icon"
-          tooltip=""
-          title={t('edit.search')}
+          tooltipSuppressed={open}
           className={value ? 'text-accent' : undefined}
           aria-label={t('edit.search')}
           aria-haspopup="dialog"

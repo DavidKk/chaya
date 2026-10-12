@@ -7,17 +7,36 @@ import { TbPencilCog } from 'react-icons/tb'
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { lockIconBtn } from '@/components/game-edit/lock-ui'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { formCard, formControlInline, formDescInline, formFieldInline, formTitleInline, panelHead, settingsCardWide } from '@/components/layoutClasses'
+import { formCard, formControlInlineStart, formDescInline, formFieldInlineWideLabel, formTitleInline, panelHead, settingsCardWide } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, DurationInput, EmptyState, NumberSliderInput, Select, TextInput, Tooltip, TruncateText } from '@/components/sk'
 import { keepAliveToMs, msToKeepAlive } from '@/lib/game-agent/keep-alive'
+import {
+  type AgentProviderAvailability,
+  CLI_PROVIDERS_FEATURE,
+  type CliAgentProvider,
+  GAME_AGENT_PROVIDERS,
+  type GameAgentProvider,
+  isCliProvider,
+  isRemoteAuthProvider,
+} from '@/lib/game-agent/providers'
+import { normalizeAgentProxy } from '@/lib/game-agent/proxy'
 import type { AgentSyncDocument } from '@/lib/game-agent/settings-sync'
 import { cn } from '@/lib/utils'
 
-import { type AgentModel, type AgentProfile, type AgentSettings, type AgentSettingsRequest, createAgentProfile } from './agent-types'
+import { type AgentModel, type AgentProfile, type AgentSettings, type AgentSettingsRequest, createAgentProfile, withAgentProvider } from './agent-types'
+import { AgentAuthSection } from './AgentAuthSection'
 import { AgentDetailSkeleton, AgentListSkeleton } from './AgentSettingsSkeleton'
 
 const API = '/api/integration/game-agent'
+
+const PROVIDER_LABEL_KEYS = {
+  ollama: 'agentAuth.providerOllama',
+  cursor: 'agentAuth.providerCursor',
+  codex: 'agentAuth.providerCodex',
+  claude: 'agentAuth.providerClaude',
+  gemini: 'agentAuth.providerGemini',
+} as const satisfies Record<GameAgentProvider, string>
 
 function apiError(body: unknown, fallback: string) {
   const value = body as { error?: { message?: unknown } }
@@ -43,6 +62,10 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   const [busy, setBusy] = useState<'load' | 'test' | 'save' | ''>('load')
   const [deletingId, setDeletingId] = useState('')
   const [loadError, setLoadError] = useState('')
+  /** CLI agent types need the local service; Cloud and browser runtimes answer LOCAL_ONLY. */
+  const [cliAvailable, setCliAvailable] = useState(true)
+  /** Types whose sign-in Chaya does not support yet, or whose CLI is not installed, cannot be picked. */
+  const [providerAvailability, setProviderAvailability] = useState<Partial<Record<CliAgentProvider, AgentProviderAvailability>>>({})
   /** Last finite Keep Alive, restored when ∞ is switched off */
   const keepAliveFinite = useRef(600_000)
   const modelRequestId = useRef(0)
@@ -74,7 +97,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
             onNavigate()
             return
           }
-          setDraft({ ...profile })
+          setDraft({ ...profile, proxy: profile.proxy || '' })
           setModels(body.models?.[profile.id] || [])
         } else setDraft(null)
       } catch (error) {
@@ -94,6 +117,24 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   }, [load])
 
   useEffect(() => {
+    let active = true
+    void request('/api/game-agent/auth?profileId=', { cache: 'no-store' })
+      .then(async (response) => {
+        const body = (await response.json().catch(() => null)) as {
+          error?: { code?: string }
+          providers?: Partial<Record<CliAgentProvider, AgentProviderAvailability>>
+        } | null
+        if (!active) return
+        setCliAvailable(body?.error?.code !== 'LOCAL_ONLY')
+        if (response.ok && body?.providers) setProviderAvailability(body.providers)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [request])
+
+  useEffect(() => {
     if (editing) return
     const refresh = () => void load(true)
     const interval = window.setInterval(refresh, 5_000)
@@ -108,7 +149,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
     const response = await request(API, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ settings: next, ...(baseSync ? { baseSync } : {}) }),
+      body: JSON.stringify({ settings: next, features: [CLI_PROVIDERS_FEATURE], ...(baseSync ? { baseSync } : {}) }),
     })
     const body = (await response.json().catch(() => null)) as { settings?: AgentSettings; sync?: AgentSyncDocument }
     if (!response.ok || !body.settings) throw new Error(apiError(body, `HTTP ${response.status}`))
@@ -119,6 +160,16 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
 
   const save = async () => {
     if (!settings || !draft || !draft.label.trim()) return
+    const previous = creating ? undefined : settings.profiles.find((item) => item.id === draft.id)
+    if (previous && previous.provider !== draft.provider && isRemoteAuthProvider(previous.provider)) {
+      const ok = await confirm({
+        title: t('agentAuth.typeChangeTitle'),
+        description: t('agentAuth.typeChangeDescription'),
+        confirmLabel: t('agentAuth.typeChangeConfirm'),
+        confirmVariant: 'fail',
+      })
+      if (!ok) return
+    }
     setBusy('save')
     try {
       const profiles = creating ? [...settings.profiles, draft] : settings.profiles.map((item) => (item.id === draft.id ? draft : item))
@@ -145,7 +196,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: feedback === 'test' ? 'test' : 'models', profile }),
         })
-        const body = (await response.json().catch(() => null)) as { models?: AgentModel[]; defaultModel?: string }
+        const body = (await response.json().catch(() => null)) as { models?: AgentModel[]; defaultModel?: string; model?: string; latencyMs?: number }
         if (!response.ok) throw new Error(apiError(body, `HTTP ${response.status}`))
         if (requestId !== modelRequestId.current) return
         const nextModels = body.models || []
@@ -155,7 +206,12 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
           const selectedStillExists = nextModels.some((model) => model.name === current.defaultModel)
           return selectedStillExists || !body.defaultModel ? current : { ...current, defaultModel: body.defaultModel }
         })
-        if (feedback === 'test') notify.success(t('integration.agentConnected'))
+        if (feedback === 'test')
+          notify.success(
+            body.model && typeof body.latencyMs === 'number'
+              ? t('agentAuth.testOk', { model: body.model === 'auto' ? t('agentAuth.defaultModelAuto') : body.model, seconds: (body.latencyMs / 1000).toFixed(1) })
+              : t('integration.agentConnected')
+          )
       } catch (error) {
         if (requestId === modelRequestId.current && feedback !== 'none') notify.error(error instanceof Error ? error.message : String(error))
       } finally {
@@ -168,7 +224,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
 
   useEffect(() => {
     const profile = draftRef.current
-    if (!profile?.endpoint.trim()) return
+    if (!profile?.endpoint.trim() || isCliProvider(profile.provider)) return
     autoModelsTimer.current = window.setTimeout(() => {
       autoModelsTimer.current = undefined
       void fetchModels(profile, 'none')
@@ -187,7 +243,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   }
 
   const loadModelsOnOpen = () => {
-    if (!draft?.endpoint.trim() || modelsBusy) return
+    if (!draft || modelsBusy || (!isCliProvider(draft.provider) && !draft.endpoint.trim())) return
     if (autoModelsTimer.current !== undefined) window.clearTimeout(autoModelsTimer.current)
     autoModelsTimer.current = undefined
     void fetchModels({ ...draft }, 'open')
@@ -214,9 +270,13 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
     }
   }
 
-  const modelNames = new Set(models.map((item) => item.name))
-  if (draft?.defaultModel) modelNames.add(draft.defaultModel)
-  const modelOptions = [...modelNames].map((name) => ({ value: name, label: name }))
+  const providerLabel = (provider: GameAgentProvider) => t(PROVIDER_LABEL_KEYS[provider])
+  const modelLabels = new Map(models.map((item) => [item.name, item.label || item.name]))
+  if (draft?.defaultModel && !modelLabels.has(draft.defaultModel)) modelLabels.set(draft.defaultModel, draft.defaultModel)
+  const modelOptions = [
+    ...(draft && isCliProvider(draft.provider) ? [{ value: '', label: t('agentAuth.defaultModelAuto') }] : []),
+    ...[...modelLabels].map(([name, label]) => ({ value: name, label })),
+  ]
 
   if (busy === 'load') return editing ? <AgentDetailSkeleton label={t('integration.agentEditTitle')} /> : <AgentListSkeleton label={t('integration.agentProfiles')} />
   if (!settings)
@@ -249,7 +309,11 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                   <div className="min-w-0 flex-1">
                     <TruncateText text={profile.label} className="block text-sm font-medium text-ink" />
                     <TruncateText
-                      text={`${profile.provider} · ${profile.defaultModel || t('integration.agentNoModels')} · ${profile.endpoint}`}
+                      text={
+                        isCliProvider(profile.provider)
+                          ? `${providerLabel(profile.provider)} · ${profile.defaultModel.replace(/\[[^\]]*\]$/, '') || t('agentAuth.defaultModelAuto')}`
+                          : `${providerLabel(profile.provider)} · ${profile.defaultModel || t('integration.agentNoModels')} · ${profile.endpoint}`
+                      }
                       className="mt-1 block text-xs text-ink-soft"
                     />
                   </div>
@@ -294,6 +358,35 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   const keepAliveMs = keepAliveToMs(draft.keepAlive)
   const keepAliveForever = keepAliveMs < 0
   if (!keepAliveForever) keepAliveFinite.current = keepAliveMs
+  const draftProvider = draft.provider
+  const cli = isCliProvider(draftProvider)
+  const saved = creating ? undefined : settings.profiles.find((item) => item.id === draft.id)
+  const savedProvider = saved?.provider
+  let draftProxy: string | null
+  try {
+    draftProxy = normalizeAgentProxy(draft.proxy)
+  } catch {
+    draftProxy = null
+  }
+  const proxyInvalid = draftProxy === null
+  const providerOptions = GAME_AGENT_PROVIDERS.map((value) => {
+    const reason = !isCliProvider(value)
+      ? null
+      : !cliAvailable
+        ? t('agentAuth.providerLocalOnly')
+        : providerAvailability[value]?.reason === 'unsupported'
+          ? t('agentAuth.providerUnsupported')
+          : providerAvailability[value]?.reason === 'cli_missing'
+            ? t('agentAuth.providerCliMissing')
+            : null
+    return { value, label: reason ? `${providerLabel(value)} · ${reason}` : providerLabel(value), disabled: Boolean(reason) && value !== draftProvider }
+  })
+  const changeProvider = (value: string) => {
+    if (value === draftProvider || !GAME_AGENT_PROVIDERS.includes(value as GameAgentProvider)) return
+    const next = value as GameAgentProvider
+    setModels([])
+    setDraft(withAgentProvider(draft, next, providerLabel(draftProvider), providerLabel(next)))
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -306,30 +399,47 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <div className={settingsCardWide}>
           <section className={formCard} data-agent-detail-card>
-            <label className={formFieldInline}>
+            <label className={formFieldInlineWideLabel}>
+              <span className={formTitleInline}>{t('integration.agentProvider')}</span>
+              <span className={formDescInline}>{t('integration.agentProviderDesc')}</span>
+              <div className={formControlInlineStart}>
+                <Select className="w-full" value={draftProvider} options={providerOptions} onChange={changeProvider} />
+              </div>
+            </label>
+            <label className={formFieldInlineWideLabel}>
               <span className={formTitleInline}>{t('integration.agentProfileLabel')}</span>
-              <div className={formControlInline}>
+              <span className={formDescInline}>{t('integration.agentProfileLabelDesc')}</span>
+              <div className={formControlInlineStart}>
                 <TextInput className="w-full" value={draft.label} onChange={(event) => update({ label: event.target.value })} />
               </div>
             </label>
-            <label className={formFieldInline}>
-              <span className={formTitleInline}>{t('integration.agentProvider')}</span>
-              <span className={formDescInline}>{t('integration.agentProviderDesc')}</span>
-              <div className={formControlInline}>
-                <Select className="w-full" value={draft.provider} options={[{ value: 'ollama', label: 'Ollama' }]} onChange={() => {}} />
+            {cli && savedProvider === draftProvider ? (
+              <AgentAuthSection
+                request={request}
+                profileId={draft.id}
+                provider={draftProvider}
+                name={draft.label}
+                savedProxy={saved?.proxy || ''}
+                proxyPending={(saved?.proxy || '') !== (draftProxy ?? draft.proxy)}
+              />
+            ) : cli ? (
+              <div className={formFieldInlineWideLabel}>
+                <span className={formTitleInline}>{t('agentAuth.section')}</span>
+                <span className={formDescInline}>{t('agentAuth.saveFirst')}</span>
               </div>
-            </label>
-            <label className={formFieldInline}>
-              <span className={formTitleInline}>{t('integration.agentEndpoint')}</span>
-              <span className={formDescInline}>{t('integration.agentEndpointDesc')}</span>
-              <div className={formControlInline}>
-                <TextInput className="w-full" value={draft.endpoint} onChange={(event) => update({ endpoint: event.target.value })} />
-              </div>
-            </label>
-            <div className={formFieldInline}>
+            ) : (
+              <label className={formFieldInlineWideLabel}>
+                <span className={formTitleInline}>{t('integration.agentEndpoint')}</span>
+                <span className={formDescInline}>{t('integration.agentEndpointDesc')}</span>
+                <div className={formControlInlineStart}>
+                  <TextInput className="w-full" value={draft.endpoint} onChange={(event) => update({ endpoint: event.target.value })} />
+                </div>
+              </label>
+            )}
+            <div className={formFieldInlineWideLabel}>
               <span className={formTitleInline}>{t('integration.agentDefaultModel')}</span>
               <span className={formDescInline}>{t('integration.agentDefaultModelDesc')}</span>
-              <div className={formControlInline}>
+              <div className={formControlInlineStart}>
                 <Select
                   className="w-full"
                   value={draft.defaultModel}
@@ -341,41 +451,96 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                 />
               </div>
             </div>
-            <label className={formFieldInline}>
-              <span className={formTitleInline}>{t('integration.agentTemperature')}</span>
-              <span className={formDescInline}>{t('integration.agentTemperatureDesc')}</span>
-              <div className={formControlInline}>
-                <NumberSliderInput className="w-full" value={draft.temperature} min={0} max={2} step={0.1} allowDecimal onValueChange={(temperature) => update({ temperature })} />
+            {cli ? null : (
+              <>
+                <label className={formFieldInlineWideLabel}>
+                  <span className={formTitleInline}>{t('integration.agentTemperature')}</span>
+                  <span className={formDescInline}>{t('integration.agentTemperatureDesc')}</span>
+                  <div className={formControlInlineStart}>
+                    <NumberSliderInput
+                      className="w-full"
+                      value={draft.temperature}
+                      min={0}
+                      max={2}
+                      step={0.1}
+                      allowDecimal
+                      onValueChange={(temperature) => update({ temperature })}
+                    />
+                  </div>
+                </label>
+                <label className={formFieldInlineWideLabel}>
+                  <span className={formTitleInline}>{t('integration.agentKeepAlive')}</span>
+                  <span className={formDescInline}>{t('integration.agentKeepAliveDesc')}</span>
+                  <div className={formControlInlineStart}>
+                    <DurationInput
+                      className="w-full"
+                      value={keepAliveForever ? keepAliveFinite.current : keepAliveMs}
+                      min={0}
+                      disabled={keepAliveForever}
+                      label={keepAliveForever ? t('integration.agentKeepAliveForever') : undefined}
+                      zeroLabel={t('integration.agentKeepAliveUnload')}
+                      endAction={
+                        <Tooltip content={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}>
+                          <button
+                            type="button"
+                            className={cn(
+                              lockIconBtn,
+                              keepAliveForever && 'text-accent hover:enabled:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] hover:enabled:text-accent'
+                            )}
+                            aria-label={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}
+                            aria-pressed={keepAliveForever}
+                            onClick={() => update({ keepAlive: keepAliveForever ? msToKeepAlive(keepAliveFinite.current) : '-1' })}
+                          >
+                            <IoInfinite size={16} aria-hidden />
+                          </button>
+                        </Tooltip>
+                      }
+                      onValueChange={(ms) => update({ keepAlive: msToKeepAlive(ms) })}
+                    />
+                  </div>
+                </label>
+              </>
+            )}
+            {cli ? null : (
+              <label className={formFieldInlineWideLabel}>
+                <span className={formTitleInline}>{t('integration.agentModelRequestTimeout')}</span>
+                <span className={formDescInline}>{t('integration.agentModelRequestTimeoutDesc')}</span>
+                <div className={formControlInlineStart}>
+                  <DurationInput
+                    className="w-full"
+                    value={draft.modelRequestTimeoutMs}
+                    min={1_000}
+                    max={600_000}
+                    onValueChange={(modelRequestTimeoutMs) => update({ modelRequestTimeoutMs })}
+                  />
+                </div>
+              </label>
+            )}
+            <label className={formFieldInlineWideLabel}>
+              <span className={formTitleInline}>{t(cli ? 'agentAuth.roundTimeout' : 'integration.agentModelTimeout')}</span>
+              <span className={formDescInline}>{t(cli ? 'agentAuth.roundTimeoutDesc' : 'integration.agentModelTimeoutDesc')}</span>
+              <div className={formControlInlineStart}>
+                <DurationInput className="w-full" value={draft.modelTimeoutMs} min={1_000} max={600_000} onValueChange={(modelTimeoutMs) => update({ modelTimeoutMs })} />
               </div>
             </label>
-            <label className={formFieldInline}>
-              <span className={formTitleInline}>{t('integration.agentKeepAlive')}</span>
-              <span className={formDescInline}>{t('integration.agentKeepAliveDesc')}</span>
-              <div className={formControlInline}>
-                <DurationInput
+            <label className={formFieldInlineWideLabel}>
+              <span className={formTitleInline}>{t('integration.agentGameCallTimeout')}</span>
+              <span className={formDescInline}>{t('integration.agentGameCallTimeoutDesc')}</span>
+              <div className={formControlInlineStart}>
+                <DurationInput className="w-full" value={draft.gameCallTimeoutMs} min={1_000} max={600_000} onValueChange={(gameCallTimeoutMs) => update({ gameCallTimeoutMs })} />
+              </div>
+            </label>
+            <label className={formFieldInlineWideLabel}>
+              <span className={formTitleInline}>{t('integration.agentProxy')}</span>
+              <span className={cn(formDescInline, proxyInvalid && 'text-fail')}>{t(proxyInvalid ? 'integration.agentProxyInvalid' : 'integration.agentProxyDesc')}</span>
+              <div className={formControlInlineStart}>
+                <TextInput
                   className="w-full"
-                  value={keepAliveForever ? keepAliveFinite.current : keepAliveMs}
-                  min={0}
-                  disabled={keepAliveForever}
-                  label={keepAliveForever ? t('integration.agentKeepAliveForever') : undefined}
-                  zeroLabel={t('integration.agentKeepAliveUnload')}
-                  endAction={
-                    <Tooltip content={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}>
-                      <button
-                        type="button"
-                        className={cn(
-                          lockIconBtn,
-                          keepAliveForever && 'text-accent hover:enabled:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] hover:enabled:text-accent'
-                        )}
-                        aria-label={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}
-                        aria-pressed={keepAliveForever}
-                        onClick={() => update({ keepAlive: keepAliveForever ? msToKeepAlive(keepAliveFinite.current) : '-1' })}
-                      >
-                        <IoInfinite size={16} aria-hidden />
-                      </button>
-                    </Tooltip>
-                  }
-                  onValueChange={(ms) => update({ keepAlive: msToKeepAlive(ms) })}
+                  value={draft.proxy}
+                  placeholder="http://127.0.0.1:7890"
+                  spellCheck={false}
+                  aria-invalid={proxyInvalid || undefined}
+                  onChange={(event) => update({ proxy: event.target.value })}
                 />
               </div>
             </label>
@@ -398,10 +563,10 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                 ) : null}
               </div>
               <div className="flex min-w-0 items-center justify-end gap-2">
-                <Button loading={busy === 'test'} onClick={() => void test()}>
+                <Button loading={busy === 'test'} disabled={proxyInvalid} onClick={() => void test()}>
                   {t('integration.agentTest')}
                 </Button>
-                <Button variant="accent" disabled={!draft.label.trim()} loading={busy === 'save'} onClick={() => void save()}>
+                <Button variant="accent" disabled={!draft.label.trim() || proxyInvalid} loading={busy === 'save'} onClick={() => void save()}>
                   {t('integration.agentSave')}
                 </Button>
               </div>

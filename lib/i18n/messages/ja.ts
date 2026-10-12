@@ -1,4 +1,5 @@
 import { aboutJa } from '@/lib/i18n/messages/parts/about'
+import { agentAuthJa } from '@/lib/i18n/messages/parts/agent-auth'
 import { companionJa } from '@/lib/i18n/messages/parts/companion'
 import { creditsJa } from '@/lib/i18n/messages/parts/credits'
 import { dataJa } from '@/lib/i18n/messages/parts/data.ja'
@@ -314,6 +315,7 @@ export const ja: MessageTree = {
   ...mcpGatewayJa,
   ...downloadsJa,
   ...aboutJa,
+  ...agentAuthJa,
   ...creditsJa,
   ...legalJa,
   ...eventsJa,

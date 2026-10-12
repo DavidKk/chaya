@@ -5,6 +5,8 @@ import { makeCacheTools } from '@/lib/integration/tools/cache'
 import { makeCatalogTools } from '@/lib/integration/tools/catalog'
 import { makeEditTools } from '@/lib/integration/tools/edit'
 import { type AgentCaller, makeLiveTools } from '@/lib/integration/tools/live'
+import { makeSaveTools } from '@/lib/integration/tools/saves'
+import { makeSkillTools } from '@/lib/integration/tools/skills'
 import { makeTranslateTools } from '@/lib/integration/tools/translate'
 import { type ApiInvoke, pathWithQuery, redactSecrets, type ToolImpls } from '@/lib/integration/tools/types'
 import { filterLogEntries, normalizeLogLevel } from '@/lib/log'
@@ -57,6 +59,8 @@ export function makeRemoteLinkTools(deps: RemoteLinkDeps): ToolImpls {
   const { chaya_translate_batch: _batch, ...translate } = makeTranslateTools(invoke)
   return {
     ...live,
+    ...makeSaveTools(call),
+    ...makeSkillTools(),
     ...makeEditTools(call),
     ...translate,
     ...makeCacheTools(invoke),

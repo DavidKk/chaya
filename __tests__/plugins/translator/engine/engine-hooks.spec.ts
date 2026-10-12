@@ -91,6 +91,40 @@ it('keeps dialogue and choices original in subtitle mode while preserving cached
   }
 })
 
+it('records the line a game localization plugin produced as the original when Chaya does not translate it', () => {
+  class Base {
+    convertEscapeCharacters(text: string) {
+      return text
+    }
+  }
+  class GameMessage {
+    _texts: string[] = []
+    add(text: string) {
+      this._texts.push(text === '{Map004-17}' ? 'Boris: Welcome' : text)
+    }
+  }
+  const globals = { window: {}, Window_Base: Base, Game_Message: GameMessage }
+  const previous = Object.fromEntries(Object.keys(globals).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  Object.assign(globalThis, globals)
+  try {
+    const remove = installEngineHooks(
+      (text) => (text === 'こんにちは' ? '你好' : String(text)),
+      () => 'pretranslated'
+    )
+    const game = new GameMessage()
+    game.add('{Map004-17}')
+    game.add('こんにちは')
+    expect(game._texts).toEqual(['Boris: Welcome', '你好'])
+    expect((game as unknown as Record<symbol, string[]>)[Symbol.for('chaya.originalMessageLines')]).toEqual(['Boris: Welcome', 'こんにちは'])
+    remove()
+  } finally {
+    for (const key of Object.keys(globals)) {
+      if (previous[key]) Object.defineProperty(globalThis, key, previous[key]!)
+      else Reflect.deleteProperty(globalThis, key)
+    }
+  }
+})
+
 it('translates direct canvas text without translating Bitmap text twice', () => {
   class CanvasContext {
     fillText(text: string) {

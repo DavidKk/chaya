@@ -12,6 +12,8 @@ import type { PluginToolMeta } from '@/lib/runtime/plugin-tools'
 import { optList, optNum, optObj, optStr, reqStr } from './args'
 import { mcpImage, type ToolImpls, type ToolRun } from './types'
 
+const SCENE_ACTIONS = ['scene:status', 'scene:equip', 'scene:skill', 'scene:item', 'scene:menu', 'scene:load', 'scene:save', 'scene:options', 'scene:debug', 'scene:pop'] as const
+
 /** Runs one ChayaAgent command on a game (`gameId` optional when only one game is reachable). */
 export type AgentCaller = <M extends AgentMethod>(gameId: string | undefined, method: M, params: AgentParams<M>) => Promise<unknown>
 
@@ -37,6 +39,16 @@ export function makeLiveTools({ games, call, quit }: LiveDeps): ToolImpls {
 
     async chaya_live_state(args) {
       return call(optStr(args, 'gameId'), 'game.state', {})
+    },
+
+    async chaya_live_ui(args) {
+      return call(optStr(args, 'gameId'), 'game.ui', {})
+    },
+
+    async chaya_live_open_scene(args) {
+      const scene = reqStr(args, 'scene')
+      if (!(SCENE_ACTIONS as readonly string[]).includes(scene)) throw new Error(`scene 只能是：${SCENE_ACTIONS.join(', ')}`)
+      return call(optStr(args, 'gameId'), 'edit.action', { action: { id: scene as (typeof SCENE_ACTIONS)[number] } })
     },
 
     async chaya_live_history(args) {
@@ -94,6 +106,21 @@ export function makeLiveTools({ games, call, quit }: LiveDeps): ToolImpls {
 
     async chaya_live_move_to(args) {
       return call(optStr(args, 'gameId'), 'player.moveTo', { x: reqNum(args, 'x'), y: reqNum(args, 'y'), timeoutMs: optNum(args, 'timeoutMs') })
+    },
+
+    async chaya_live_interact(args) {
+      return call(optStr(args, 'gameId'), 'player.interact', { eventId: reqNum(args, 'eventId') })
+    },
+
+    async chaya_agent_recall(args) {
+      const message = {
+        type: 'agent.task.recall',
+        requestId: crypto.randomUUID(),
+        query: optStr(args, 'query'),
+        limit: optNum(args, 'limit'),
+        offset: optNum(args, 'offset'),
+      } as const
+      return call(optStr(args, 'gameId'), 'agent.task', { message })
     },
 
     chaya_live_quit: quit ?? (async (args) => call(optStr(args, 'gameId'), 'game.quit', {})),

@@ -443,7 +443,7 @@ export function GameEditWorkbench({
               </div>
             ) : tab === 'logs' ? (
               <TabSuspense tab="logs">
-                <GameEditLogsPane />
+                <GameEditLogsPane agentRequest={agentRequest} />
               </TabSuspense>
             ) : tab === 'mcp' ? (
               <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>

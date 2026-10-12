@@ -22,7 +22,7 @@ function apply(raw: GameEditCmdOp) {
   return { applied: true, fields: fieldsForEditCmd(cmd) }
 }
 
-function action(raw: EditAction) {
+async function action(raw: EditAction) {
   const act = parseEditAction(raw as unknown as Record<string, unknown>)
   switch (act.id) {
     case 'teleport':
@@ -32,9 +32,11 @@ function action(raw: EditAction) {
       if (!Cheats.runCommonEvent(act.eventId)) throw new Error(`公共事件不存在或无法执行：${act.eventId}`)
       return { done: true, ...act }
     case 'save':
-      return { done: Cheats.saveGame(act.slot), ...act }
+      if (!(await Cheats.saveGame(act.slot))) throw new Error(`保存文件 ${act.slot} 失败`)
+      return { ok: true, done: true, ...act }
     case 'load':
-      return { done: Cheats.loadGame(act.slot), ...act }
+      if (!(await Cheats.loadGame(act.slot))) throw new Error(`读取文件 ${act.slot} 失败或文件不存在`)
+      return { ok: true, done: true, ...act }
     default:
       applyEditCmd({ type: 'edit.cmd', op: 'runAction', id: act.id } as GameEditCmd)
       pushRemoteState()

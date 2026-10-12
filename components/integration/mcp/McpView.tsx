@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import type { IconType } from 'react-icons'
-import { LuActivity, LuDatabase, LuGamepad2, LuLanguages, LuLibrary, LuPlug, LuScrollText, LuWrench } from 'react-icons/lu'
+import { LuActivity, LuBrain, LuDatabase, LuGamepad2, LuHistory, LuLanguages, LuLibrary, LuPlug, LuScrollText, LuWrench } from 'react-icons/lu'
 
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { HubLayout, HubNav, HubNavItem, HubNavSection, HubPaneHeader } from '@/components/integration/Hub'
@@ -22,10 +22,12 @@ const GROUP_ICONS: Record<McpToolGroupId, IconType> = {
   library: LuLibrary,
   game: LuGamepad2,
   live: LuActivity,
+  agent: LuHistory,
   edit: LuWrench,
   translate: LuLanguages,
   cache: LuDatabase,
   logs: LuScrollText,
+  skills: LuBrain,
 }
 
 function argsTextFor(name: string): string {

@@ -1,3 +1,6 @@
+import { CLI_PROVIDERS_FEATURE, type GameAgentProvider, isCliProvider, isGameAgentProvider } from '@/lib/game-agent/providers'
+import { normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
+
 export const AGENT_SYNC_VERSION = 1 as const
 
 export type AgentSyncStamp = {
@@ -8,11 +11,15 @@ export type AgentSyncStamp = {
 export type AgentSyncProfile = {
   id: string
   label: string
-  provider: 'ollama'
+  provider: GameAgentProvider
   endpoint: string
   defaultModel: string
   temperature: number
   keepAlive: string
+  modelRequestTimeoutMs: number
+  modelTimeoutMs: number
+  gameCallTimeoutMs: number
+  proxy: string
 }
 
 export type AgentSyncSettings = {
@@ -21,7 +28,18 @@ export type AgentSyncSettings = {
   profiles: AgentSyncProfile[]
 }
 
-export const AGENT_SYNC_FIELDS = ['label', 'provider', 'endpoint', 'defaultModel', 'temperature', 'keepAlive'] as const
+export const AGENT_SYNC_FIELDS = [
+  'label',
+  'provider',
+  'endpoint',
+  'defaultModel',
+  'temperature',
+  'keepAlive',
+  'modelRequestTimeoutMs',
+  'modelTimeoutMs',
+  'gameCallTimeoutMs',
+  'proxy',
+] as const
 export type AgentSyncField = (typeof AGENT_SYNC_FIELDS)[number]
 
 export type AgentSyncRecord = {
@@ -245,19 +263,25 @@ export function parseAgentSyncDocument(value: unknown): AgentSyncDocument | null
   for (const record of document.agents) {
     if (!record || typeof record.id !== 'string' || !record.id || ids.has(record.id) || typeof record.values !== 'object' || typeof record.fieldStamps !== 'object') return null
     ids.add(record.id)
-    const values = record.values
+    // Records written before `proxy` existed (or by older readers) carry no value and a zero stamp, so any real edit wins.
+    const values = { ...record.values, ...normalizeAgentTimeouts(record.values), proxy: typeof record.values.proxy === 'string' ? record.values.proxy : '' }
+    const fieldStamps = Object.fromEntries(
+      AGENT_SYNC_FIELDS.map((field) => [field, validStamp(record.fieldStamps[field]) ? copyStamp(record.fieldStamps[field]) : copyStamp(ZERO_STAMP)])
+    ) as Record<AgentSyncField, AgentSyncStamp>
     if (
       typeof values.label !== 'string' ||
-      values.provider !== 'ollama' ||
+      !isGameAgentProvider(values.provider) ||
       typeof values.endpoint !== 'string' ||
       typeof values.defaultModel !== 'string' ||
       typeof values.temperature !== 'number' ||
       typeof values.keepAlive !== 'string' ||
-      !AGENT_SYNC_FIELDS.every((field) => validStamp(record.fieldStamps[field])) ||
+      typeof values.modelRequestTimeoutMs !== 'number' ||
+      typeof values.modelTimeoutMs !== 'number' ||
+      typeof values.gameCallTimeoutMs !== 'number' ||
       (record.deletedAt !== undefined && !validStamp(record.deletedAt))
     )
       return null
-    agents.push(copyRecord(record))
+    agents.push(copyRecord({ ...record, values, fieldStamps }))
   }
   if (!document.order.ids.every((id) => typeof id === 'string')) return null
   return {
@@ -266,5 +290,21 @@ export function parseAgentSyncDocument(value: unknown): AgentSyncDocument | null
     clock: document.clock,
     agents,
     order: { ids: [...document.order.ids], stamp: copyStamp(document.order.stamp) },
+  }
+}
+
+/**
+ * Readers that predate CLI providers reject the whole document when any record is unknown.
+ * Hide those records (and their order slots) so old plugins keep syncing Ollama agents; merges are
+ * unions and deletes need tombstones, so the hidden records survive whatever the old reader sends back.
+ */
+export function agentSyncDocumentForReader(document: AgentSyncDocument, features: readonly string[] = []): AgentSyncDocument {
+  if (features.includes(CLI_PROVIDERS_FEATURE)) return document
+  const hidden = new Set(document.agents.filter((record) => isCliProvider(record.values.provider)).map((record) => record.id))
+  if (!hidden.size) return document
+  return {
+    ...document,
+    agents: document.agents.filter((record) => !hidden.has(record.id)).map(copyRecord),
+    order: { ids: document.order.ids.filter((id) => !hidden.has(id)), stamp: copyStamp(document.order.stamp) },
   }
 }

@@ -121,7 +121,12 @@ export function Select({
     if (!open) return
     const onDoc = (e: MouseEvent) => {
       const target = e.target as Node
-      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : []
+      const inPath = (node: Node | null) => Boolean(node && (node.contains(target) || path.includes(node)))
+      // Events retargeted across a ShadowRoot point at the host on `target`.
+      // Keep option clicks inside the floating layer so the subsequent click
+      // can commit the selected value.
+      if (inPath(rootRef.current) || inPath(panelRef.current)) return
       close()
     }
     const onKey = (e: globalThis.KeyboardEvent) => {

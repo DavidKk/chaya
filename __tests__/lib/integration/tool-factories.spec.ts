@@ -1,6 +1,8 @@
 import { makeCacheTools } from '@/lib/integration/tools/cache'
 import { makeEditTools } from '@/lib/integration/tools/edit'
 import { type AgentCaller, makeLiveTools, pluginToolRun } from '@/lib/integration/tools/live'
+import { makeSaveTools } from '@/lib/integration/tools/saves'
+import { makeSkillTools } from '@/lib/integration/tools/skills'
 import { makeTranslateTools } from '@/lib/integration/tools/translate'
 import { type ApiInvoke, pathWithQuery, redactSecrets } from '@/lib/integration/tools/types'
 
@@ -61,6 +63,14 @@ describe('shared tool factories', () => {
     await expect(tools.chaya_live_play({ steps: [{ key: 'jump' }] }, ctx)).rejects.toThrow('steps[0].key')
   })
 
+  it('opens the standard game scenes through the edit action bridge', async () => {
+    const call = jest.fn(async () => 'ok') as unknown as jest.MockedFunction<AgentCaller>
+    const tools = makeLiveTools({ games: () => [], call })
+    await tools.chaya_live_open_scene({ gameId: 'g1', scene: 'scene:status' }, ctx)
+    expect(call).toHaveBeenLastCalledWith('g1', 'edit.action', { action: { id: 'scene:status' } })
+    await expect(tools.chaya_live_open_scene({ scene: 'scene:unknown' }, ctx)).rejects.toThrow('scene 只能是')
+  })
+
   it('live game ops map to agent commands; screenshot returns an MCP image', async () => {
     const call = jest.fn(async (_game: string | undefined, method: string) =>
       method === 'game.snap' ? { mimeType: 'image/jpeg', data: 'AAAA', width: 512, height: 384, screen: { width: 816, height: 624 } } : 'ok'
@@ -80,6 +90,8 @@ describe('shared tool factories', () => {
     await expect(tools.chaya_live_tap({ x: 10 }, ctx)).rejects.toThrow('y')
     await tools.chaya_live_move_to({ gameId: 'g1', x: 3, y: 4, timeoutMs: 5000 }, ctx)
     expect(call).toHaveBeenLastCalledWith('g1', 'player.moveTo', { x: 3, y: 4, timeoutMs: 5000 })
+    await tools.chaya_live_interact({ gameId: 'g1', eventId: 7 }, ctx)
+    expect(call).toHaveBeenLastCalledWith('g1', 'player.interact', { eventId: 7 })
     await tools.chaya_live_quit({}, ctx)
     expect(call).toHaveBeenLastCalledWith(undefined, 'game.quit', {})
   })
@@ -104,6 +116,34 @@ describe('shared tool factories', () => {
     await expect(tools.chaya_edit_set({ op: 'nope' }, ctx)).rejects.toThrow()
     await expect(tools.chaya_edit_action({ id: 'teleport', mapId: 1 }, ctx)).rejects.toThrow()
     expect(call).not.toHaveBeenCalled()
+  })
+
+  it('save tools list and load Chaya save entries through the agent', async () => {
+    const call = jest.fn(async () => ({ ok: true })) as unknown as jest.MockedFunction<AgentCaller>
+    const tools = makeSaveTools(call)
+    await tools.chaya_live_saves({ gameId: 'g1' }, ctx)
+    expect(call).toHaveBeenLastCalledWith('g1', 'game.saves', { op: 'snapshot' })
+    await tools.chaya_live_saves_load({ entryId: 'auto-abc', allowVersionMismatch: true }, ctx)
+    expect(call).toHaveBeenLastCalledWith(undefined, 'game.saves', { op: 'load', entryId: 'auto-abc', allowVersionMismatch: true })
+    await expect(tools.chaya_live_saves_load({}, ctx)).rejects.toThrow('entryId')
+  })
+
+  it('defaults omitted save source and slot to the native game file', async () => {
+    const call = jest.fn(async () => ({ ok: true })) as unknown as jest.MockedFunction<AgentCaller>
+    const tools = makeSaveTools(call)
+    await tools.chaya_live_save({ gameId: 'g1' }, ctx)
+    expect(call).toHaveBeenLastCalledWith('g1', 'game.saves', { op: 'nativeSave', slot: 1 })
+    await tools.chaya_live_load_save({ gameId: 'g1' }, ctx)
+    expect(call).toHaveBeenLastCalledWith('g1', 'game.saves', { op: 'nativeLoad', slot: 1 })
+  })
+
+  it('skills are indexed and loaded on demand', async () => {
+    const tools = makeSkillTools()
+    const index = (await tools.chaya_skills_list({}, ctx)) as { skills: Array<{ id: string }> }
+    expect(index.skills.map((skill) => skill.id)).toContain('combat.optimization')
+    const result = (await tools.chaya_skills_search({ query: 'multi path' }, ctx)) as { results: Array<{ id: string }> }
+    expect(result.results.map((skill) => skill.id)).toContain('planning.route-selection')
+    await expect(tools.chaya_skills_read({ id: 'combat.optimization' }, ctx)).resolves.toEqual(expect.objectContaining({ guidance: expect.any(Array) }))
   })
 
   it('plugin tool runs strip gameId from the input', async () => {

@@ -2,12 +2,16 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { IoCheckmark, IoCopyOutline, IoTrashOutline } from 'react-icons/io5'
+import { LuBot, LuFileText } from 'react-icons/lu'
 
+import { AgentActivityLogPanel } from '@/components/game-agent/AgentActivityLogPanel'
+import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelHead, panelHeadEnd } from '@/components/layoutClasses'
 import { LogEntriesView, matchesLogQuery } from '@/components/LogEntriesView'
 import { LogLevelMultiSelect } from '@/components/LogLevelMultiSelect'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
+import { SectionSideNav, sectionSideNavItemClass, SectionSideNavItemContent } from '@/components/SectionSideNav'
 import { Button, TextInput } from '@/components/sk'
 import { LOG_LEVELS, type LogLevel } from '@/lib/log/types'
 
@@ -23,8 +27,9 @@ function formatLog(entry: PluginLogEntry): string {
 }
 
 /** Logs stay in the game process, so this works even without a Web connection. */
-export function GameEditLogsPane() {
+export function GameEditLogsPane({ agentRequest }: { agentRequest?: GameAgentRequest }) {
   const t = useT()
+  const [view, setView] = useState<'logs' | 'agent'>('logs')
   const entries = useSyncExternalStore(subscribeLogs, readLogs, () => EMPTY_LOGS)
   const [levelFilter, setLevelFilter] = useState<ReadonlySet<LogLevel>>(() => new Set(LOG_LEVELS))
   const [query, setQuery] = useState('')
@@ -61,59 +66,99 @@ export function GameEditLogsPane() {
     followRef.current = true
   }
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className={panelHead}>
-        <PanelHeadTitle title={t('logs.region')} description={t('logs.regionDesc')} />
-        <div className={panelHeadEnd}>
-          <TextInput
-            search
-            className="w-52 max-w-full shrink"
-            value={queryInput}
-            placeholder={t('logs.searchPh')}
-            aria-label={t('logs.searchAria')}
-            onChange={(event) => setQueryInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') commitQuery(queryInput)
-            }}
-            onBlur={() => commitQuery(queryInput)}
-          />
-          <LogLevelMultiSelect
-            value={levelFilter}
-            onChange={(next) => {
-              setLevelFilter(next)
-              setCopyKind('idle')
-              followRef.current = true
-            }}
-          />
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={!visibleEntries.length}
-            aria-label={t('logs.copy')}
-            tooltip={copyKind === 'fail' ? t('logs.copyRetry') : copyStatus || t('logs.copy')}
-            onClick={() => void copyVisible()}
-          >
-            {copyKind === 'ok' ? <IoCheckmark size={16} aria-hidden /> : <IoCopyOutline size={16} aria-hidden />}
-          </Button>
-          <Button variant="ghost" size="icon" aria-label={t('logs.clear')} tooltip={t('logs.clear')} disabled={!entries.length} onClick={() => logApi()?.clear()}>
-            <IoTrashOutline size={16} aria-hidden />
-          </Button>
+  const subNav = agentRequest ? (
+    <SectionSideNav label="日志二级导航" mobile>
+      <li>
+        <button
+          type="button"
+          aria-label="插件日志"
+          aria-current={view === 'logs' ? 'page' : undefined}
+          className={sectionSideNavItemClass(view === 'logs')}
+          onClick={() => setView('logs')}
+        >
+          <SectionSideNavItemContent active={view === 'logs'} icon={<LuFileText size={16} />} />
+        </button>
+      </li>
+      <li>
+        <button
+          type="button"
+          aria-label="Agent 活动"
+          aria-current={view === 'agent' ? 'page' : undefined}
+          className={sectionSideNavItemClass(view === 'agent')}
+          onClick={() => setView('agent')}
+        >
+          <SectionSideNavItemContent active={view === 'agent'} icon={<LuBot size={16} />} />
+        </button>
+      </li>
+    </SectionSideNav>
+  ) : null
+
+  if (view === 'agent' && agentRequest)
+    return (
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {subNav}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <AgentActivityLogPanel request={agentRequest} onBack={() => setView('logs')} />
         </div>
       </div>
-      <span role="status" className="sr-only">
-        {copyStatus}
-      </span>
-      <LogEntriesView
-        entries={visibleEntries}
-        total={entries.length}
-        hasFilter={hasFilter}
-        scrollRef={scrollRef}
-        ariaLabel={t('logs.overlayAria')}
-        onScroll={(element) => {
-          followRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 32
-        }}
-      />
+    )
+
+  return (
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+      {subNav}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className={panelHead}>
+          <PanelHeadTitle title={t('logs.region')} description={t('logs.regionDesc')} />
+          <div className={panelHeadEnd}>
+            <TextInput
+              search
+              className="w-52 max-w-full shrink"
+              value={queryInput}
+              placeholder={t('logs.searchPh')}
+              aria-label={t('logs.searchAria')}
+              onChange={(event) => setQueryInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') commitQuery(queryInput)
+              }}
+              onBlur={() => commitQuery(queryInput)}
+            />
+            <LogLevelMultiSelect
+              value={levelFilter}
+              onChange={(next) => {
+                setLevelFilter(next)
+                setCopyKind('idle')
+                followRef.current = true
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={!visibleEntries.length}
+              aria-label={t('logs.copy')}
+              tooltip={copyKind === 'fail' ? t('logs.copyRetry') : copyStatus || t('logs.copy')}
+              onClick={() => void copyVisible()}
+            >
+              {copyKind === 'ok' ? <IoCheckmark size={16} aria-hidden /> : <IoCopyOutline size={16} aria-hidden />}
+            </Button>
+            <Button variant="ghost" size="icon" aria-label={t('logs.clear')} tooltip={t('logs.clear')} disabled={!entries.length} onClick={() => logApi()?.clear()}>
+              <IoTrashOutline size={16} aria-hidden />
+            </Button>
+          </div>
+        </div>
+        <span role="status" className="sr-only">
+          {copyStatus}
+        </span>
+        <LogEntriesView
+          entries={visibleEntries}
+          total={entries.length}
+          hasFilter={hasFilter}
+          scrollRef={scrollRef}
+          ariaLabel={t('logs.overlayAria')}
+          onScroll={(element) => {
+            followRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 32
+          }}
+        />
+      </div>
     </div>
   )
 }

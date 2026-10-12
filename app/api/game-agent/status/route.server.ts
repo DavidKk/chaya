@@ -1,8 +1,12 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
+import { cliModelChoices, isCliProvider } from '@/lib/game-agent/providers'
 import { canUseDisk } from '@/lib/service-mode/mode'
+import { cliProfileStatus, cliUnavailableReason } from '@/services/game-agent/cli/status.server'
 import { listExtTasks } from '@/services/game-agent/ext-task.server'
+import { loadAgentModelCache } from '@/services/game-agent/model-cache'
 import { listOllamaModels, pickAvailableModel } from '@/services/game-agent/ollama-client'
+import { ollamaFetch } from '@/services/game-agent/proxy/agent-proxy'
 import { readGameAgentToken } from '@/services/game-agent/secrets'
 import { getSessionForGame, getTurn } from '@/services/game-agent/session-store'
 import { loadGameAgentSettings } from '@/services/game-agent/settings'
@@ -22,10 +26,24 @@ export const GET = defineApiRoute('get:/api/game-agent/status', async ({ request
   const activeExt = [...extTasks].reverse().find((task) => !['completed', 'stopped', 'failed', 'interrupted'].includes(task.state))
   const settings = loadGameAgentSettings()
   const session = getSessionForGame(gameId)
+  const modelCache = loadAgentModelCache(settings.profiles)
   const profiles = await Promise.all(
     settings.profiles.map(async (profile) => {
+      if (isCliProvider(profile.provider)) {
+        const status = await cliProfileStatus({ id: profile.id, provider: profile.provider, proxy: profile.proxy })
+        const choices = cliModelChoices(session?.profileId === profile.id ? session.model : profile.defaultModel, modelCache[profile.id])
+        return {
+          id: profile.id,
+          label: profile.label,
+          provider: profile.provider,
+          online: !cliUnavailableReason(status),
+          ...choices,
+          reason: cliUnavailableReason(status),
+          ...status,
+        }
+      }
       try {
-        const models = await listOllamaModels(profile.endpoint, fetch, AbortSignal.timeout(3_000), readGameAgentToken(profile.id))
+        const models = await listOllamaModels(profile.endpoint, ollamaFetch(profile), AbortSignal.timeout(3_000), readGameAgentToken(profile.id))
         return {
           id: profile.id,
           label: profile.label,

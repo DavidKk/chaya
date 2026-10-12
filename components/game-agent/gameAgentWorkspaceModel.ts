@@ -1,3 +1,7 @@
+import type { PlayerCard } from '@/lib/game-agent/player-card'
+
+import type { PlayerCardState } from './PlayerCardView'
+
 type Model = { name: string }
 
 export type AgentProfile = {
@@ -26,7 +30,15 @@ export type AgentWorkspaceStatus = {
 }
 
 export type ToolActivity = { id: string; name: string; state: 'running' | 'completed' | 'failed' }
-export type AgentWorkspaceMessage = { id: string; role: 'user' | 'assistant' | 'error'; text: string; tools?: ToolActivity[]; progress?: string[] }
+export type AgentWorkspaceCard = { id: string; card: PlayerCard; state: PlayerCardState; answer?: string }
+export type AgentWorkspaceMessage = {
+  id: string
+  role: 'user' | 'assistant' | 'error'
+  text: string
+  tools?: ToolActivity[]
+  progress?: string[]
+  cards?: AgentWorkspaceCard[]
+}
 
 type Copy = {
   title: string

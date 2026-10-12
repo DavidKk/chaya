@@ -75,6 +75,17 @@ it('appends manual saves to the auto list and rotates the oldest out', async () 
   expect(auto.every((e) => e.tag === 'manual')).toBe(true)
 })
 
+it('exposes snapshot and entry loading to the Agent bridge', async () => {
+  const { controller, okSnapshot, game } = setup()
+  game.state = 'saved'
+  await okSnapshot({ op: 'save', target: 'quick', slot: 2 })
+  game.state = 'changed'
+  expect((await controller.agentSnapshot()).index.entries).toEqual([expect.objectContaining({ id: 'quick-2' })])
+  const loaded = await controller.agentLoad('quick-2')
+  expect(game.state).toBe('saved')
+  expect(loaded.status.busy).toBeNull()
+})
+
 it('refuses an unsafe page save until forced, then marks it', async () => {
   const { send, okSnapshot, game, toasts } = setup()
   game.unsafe = 'battle'

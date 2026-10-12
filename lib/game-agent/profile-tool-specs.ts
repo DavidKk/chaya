@@ -1,3 +1,5 @@
+import { GAME_AGENT_PROVIDERS } from './providers'
+
 export type AgentProfileToolSpec = {
   name: 'chaya_agent_profiles' | 'chaya_agent_profile_create' | 'chaya_agent_profile_update' | 'chaya_agent_profile_delete'
   description: string
@@ -7,13 +9,16 @@ export type AgentProfileToolSpec = {
 
 const stringParam = (description: string) => ({ type: 'string', description })
 
-export function gameAgentProfileToolSpecs(options: { credentials: boolean }): AgentProfileToolSpec[] {
+export function gameAgentProfileToolSpecs(options: { credentials: boolean; cliProviders?: boolean }): AgentProfileToolSpec[] {
   const fields: Record<string, unknown> = {
     label: stringParam('Display name'),
-    endpoint: stringParam('Ollama HTTP or HTTPS service URL'),
-    defaultModel: stringParam('Default Ollama model name'),
+    endpoint: stringParam('Ollama HTTP or HTTPS service URL (Ollama only)'),
+    defaultModel: stringParam('Default model name'),
     temperature: { type: 'number', description: 'Sampling temperature from 0 to 2' },
     keepAlive: stringParam('Ollama keep-alive duration, e.g. 10m or 1h'),
+    modelRequestTimeoutMs: { type: 'number', description: 'Timeout for one model proxy request in milliseconds' },
+    modelTimeoutMs: { type: 'number', description: 'Overall model operation timeout in milliseconds' },
+    gameCallTimeoutMs: { type: 'number', description: 'Game bridge and operation timeout in milliseconds' },
   }
   if (options.credentials) {
     fields.token = stringParam('Write-only bearer token. It is encrypted locally and never returned by tools.')
@@ -28,8 +33,18 @@ export function gameAgentProfileToolSpecs(options: { credentials: boolean }): Ag
     },
     {
       name: 'chaya_agent_profile_create',
-      description: 'Create an Ollama configuration in Chaya Settings > Agents. This creates an Agent configuration, not a game entity.',
-      inputSchema: { type: 'object', properties: { id: stringParam('Optional stable id'), ...fields }, required: ['label'] },
+      description: options.cliProviders
+        ? 'Create an Agent configuration in Chaya Settings > Agents. This creates an Agent configuration, not a game entity. Cursor, Codex, Claude and Gemini configurations still need the user to authorize them in Settings; never ask for or accept their credentials.'
+        : 'Create an Ollama configuration in Chaya Settings > Agents. This creates an Agent configuration, not a game entity.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: stringParam('Optional stable id'),
+          ...(options.cliProviders ? { provider: { type: 'string', enum: [...GAME_AGENT_PROVIDERS], description: 'Agent type, defaults to ollama' } } : {}),
+          ...fields,
+        },
+        required: ['label'],
+      },
       readOnly: false,
     },
     {

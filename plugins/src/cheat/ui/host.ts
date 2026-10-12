@@ -1,7 +1,7 @@
 /**
  * In-game GameEdit host: plain div + Shadow (style isolation); no customElements.
  */
-import { applyShadowStyles, isolateEditableKeys } from '../../helpers'
+import { applyShadowStyles, isolateEditableKeys, isolateGamePointerInput } from '../../helpers'
 
 export const GAME_EDIT_HOST_ID = 'chaya-game-edit-host'
 export const GAME_EDIT_MOUNT_ID = 'chaya-game-edit-root'
@@ -34,6 +34,7 @@ export function ensureGameEditHost(cssText: string): GameEditHost {
     host.id = GAME_EDIT_HOST_ID
     ;(document.documentElement || document.body).appendChild(host)
   }
+  const releasePointerInput = isolateGamePointerInput(host)
 
   let shadow = host.shadowRoot
   if (!shadow) {
@@ -66,6 +67,7 @@ export function ensureGameEditHost(cssText: string): GameEditHost {
       return shadow.contains(node)
     },
     remove() {
+      releasePointerInput()
       try {
         host!.remove()
       } catch {

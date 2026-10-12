@@ -21,6 +21,7 @@ export {
   ensureCustomElementHost,
   getPluginErrors,
   isolateEditableKeys,
+  isolateGamePointerInput,
   mountUiTemplateShell,
   restorePluginErrors,
   setInnerHTML,

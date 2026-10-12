@@ -20,6 +20,23 @@ let wonScene: unknown = null
 /** 战斗开场提示播完、等待指令或回合进行中才判胜；开场 / 已结束时调用会打乱 BattleManager 的阶段 */
 const AUTO_WIN_PHASES = new Set(['input', 'turn', 'turnEnd', 'action'])
 
+/**
+ * YEP_X_Autosave puts its autosave slots before the player-facing files.
+ * Keep the public API in visible file numbers while translating to RPG Maker
+ * savefile ids at the engine boundary.
+ */
+export function nativeSavefileOffset() {
+  const storage = (globalThis as { StorageManager?: { isAutosave?: (id: number) => boolean } }).StorageManager
+  if (typeof storage?.isAutosave !== 'function') return 0
+  let offset = 0
+  for (let id = 1; id <= 100 && storage.isAutosave(id); id += 1) offset += 1
+  return offset
+}
+
+export function nativeSavefileId(visibleSlot: number) {
+  return Math.max(1, Math.floor(Number(visibleSlot) || 1)) + nativeSavefileOffset()
+}
+
 function tryAutoWin() {
   if (typeof BattleManager === 'undefined' || typeof Scene_Battle !== 'function' || typeof SceneManager === 'undefined') return
   const scene = SceneManager._scene
@@ -256,19 +273,24 @@ export const Cheats = {
     return true
   },
 
-  saveGame(savefileId: number) {
+  async saveGame(savefileId: number) {
     if (typeof DataManager === 'undefined' || typeof DataManager.saveGame !== 'function') return false
-    const id = Math.max(1, Math.floor(Number(savefileId) || 1))
-    return !!DataManager.saveGame(id)
+    const visibleSlot = Math.max(1, Math.floor(Number(savefileId) || 1))
+    const id = nativeSavefileId(visibleSlot)
+    const result = await Promise.resolve(DataManager.saveGame(id))
+    if (!result) return false
+    // RPG Maker writes the global save index asynchronously. Do not report success
+    // until the requested native slot is visible to the save menu.
+    const visible = DataManager.isThisGameFile?.(id) || !!DataManager.loadSavefileInfo?.(id)
+    if (!visible) throw new Error(`存档已提交但文件 ${visibleSlot} 尚未出现在存档列表`)
+    return true
   },
 
-  loadGame(savefileId: number) {
+  async loadGame(savefileId: number) {
     if (typeof DataManager === 'undefined' || typeof DataManager.loadGame !== 'function') return false
-    const id = Math.max(1, Math.floor(Number(savefileId) || 1))
-    if (!DataManager.isThisGameFile?.(id) && !DataManager.loadSavefileInfo?.(id)) {
-      // Still try load; loadGame returns false when no save exists
-    }
-    const ok = !!DataManager.loadGame(id)
+    const id = nativeSavefileId(savefileId)
+    if (!DataManager.isThisGameFile?.(id) && !DataManager.loadSavefileInfo?.(id)) return false
+    const ok = !!(await Promise.resolve(DataManager.loadGame(id)))
     if (ok && typeof SceneManager !== 'undefined' && typeof SceneManager.goto === 'function' && typeof Scene_Map !== 'undefined') {
       SceneManager.goto(Scene_Map)
     }
@@ -436,8 +458,8 @@ declare const BattleManager: {
   processEscape?: () => void
 }
 declare const DataManager: {
-  saveGame: (id: number) => boolean
-  loadGame: (id: number) => boolean
+  saveGame: (id: number) => boolean | Promise<boolean>
+  loadGame: (id: number) => boolean | Promise<boolean>
   isThisGameFile?: (id: number) => boolean
   loadSavefileInfo?: (id: number) => unknown
 }

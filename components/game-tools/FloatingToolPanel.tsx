@@ -23,6 +23,7 @@ import {
   writePlacement,
 } from './floating-placement'
 import { keepGameFocus, stopGameKeys } from './game-keys'
+import { MiniPanelOpacityControl, type MiniPanelOpacitySettings } from './MiniPanelOpacityControl'
 import { MINI_PANEL_VISIBILITY_CLASS, type MiniPanelId, TOOL_PANEL_FRAME, TOOL_PANEL_SIZE } from './tool-panels'
 
 type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
@@ -35,6 +36,8 @@ type Props = {
   title: string
   children: ReactNode
   headerTools?: ReactNode
+  /** 传入时在 pin 与最小化之间显示透明度按钮 */
+  opacity?: MiniPanelOpacitySettings
   onClose: () => void
   /** 位置、尺寸与存储 key 取自 `TOOL_PANEL_FRAME`；同侧上下两个面板放不下时各占一半高度 */
   panel: MiniPanelId
@@ -114,7 +117,7 @@ const RESIZE_HANDLES: Array<{ edge: ResizeEdge; className: string }> = [
   { edge: 'sw', className: 'bottom-0 left-0 h-3 w-3 cursor-nesw-resize' },
 ]
 
-export function FloatingToolPanel({ title, children, headerTools, onClose, panel, className, scrollContent = true }: Props) {
+export function FloatingToolPanel({ title, children, headerTools, opacity, onClose, panel, className, scrollContent = true }: Props) {
   const { storageKey, edge: initialEdge, side: initialSide, defaultSize } = TOOL_PANEL_FRAME[panel]
   const { min: minSize, max: maxSize } = TOOL_PANEL_SIZE
   const t = useT()
@@ -296,19 +299,28 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
             {headerTools}
           </div>
         ) : null}
-        <Button
-          size="mini"
-          variant="plain"
-          className={cn('[@media(hover:none)]:h-11 [@media(hover:none)]:w-11', pinned && 'bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] text-accent')}
-          aria-label={pinLabel}
-          aria-pressed={pinned}
+        <span
+          className="relative ml-1 inline-flex h-6 shrink-0 items-center pl-1 before:pointer-events-none before:absolute before:top-1/2 before:left-0 before:h-3 before:-translate-y-1/2 before:border-l before:border-line-soft [@media(hover:none)]:h-11 [@media(hover:none)]:pl-1.5 [@media(hover:none)]:before:h-4"
           onPointerDown={(event) => event.stopPropagation()}
-          onMouseDown={keepGameFocus}
-          onKeyDown={stopGameKeys}
-          onClick={togglePin}
         >
-          <Pin size={13} fill={pinned ? 'currentColor' : 'none'} aria-hidden />
-        </Button>
+          <Button
+            size="mini"
+            variant="plain"
+            className={cn('[@media(hover:none)]:h-11 [@media(hover:none)]:w-11', pinned && 'bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] text-accent')}
+            aria-label={pinLabel}
+            aria-pressed={pinned}
+            onMouseDown={keepGameFocus}
+            onKeyDown={stopGameKeys}
+            onClick={togglePin}
+          >
+            <Pin size={13} fill={pinned ? 'currentColor' : 'none'} aria-hidden />
+          </Button>
+        </span>
+        {opacity ? (
+          <span className="inline-flex shrink-0" onPointerDown={(event) => event.stopPropagation()}>
+            <MiniPanelOpacityControl settings={opacity} />
+          </span>
+        ) : null}
         <Button
           size="mini"
           variant="plain"
@@ -358,9 +370,7 @@ export function FloatingToolPanel({ title, children, headerTools, onClose, panel
                   onPointerCancel={end}
                   onKeyDown={(event) => resizeWithKeyboard(event, edge)}
                   onMouseDown={keepGameFocus}
-                >
-                  {edge === 'se' ? <span className="absolute right-1 bottom-1 h-2 w-2 border-r-2 border-b-2 border-ink-soft" aria-hidden /> : null}
-                </div>
+                />
               ))}
         </>
       ) : null}

@@ -25,7 +25,7 @@ test('sends a fresh game screenshot as an image and returns only a validated key
       role: 'assistant',
       content: '{"visibleText":"攻击 / 防御","selectedText":"攻击","options":[{"text":"攻击","x":40,"y":20},{"text":"防御","x":100,"y":20}]}',
     })
-    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"攻击"}' })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"攻击","selectedRisky":false}' })
   const result = await inspectBattleImage(profile, 'gemma4:vision', 'qwen3:4b', 'game-a', '帮我代打', { scene: 'Scene_Battle' }, new AbortController().signal)
   expect(callAgentGame).toHaveBeenCalledWith('game-a', 'game.snap', { maxWidth: 1024 })
   expect((streamOllamaChat as jest.Mock).mock.calls[0][0].messages[1]).toMatchObject({ images: ['jpeg-base64'] })
@@ -62,7 +62,7 @@ test('stops navigating once the desired image-menu item is selected', async () =
         ],
       }),
     })
-    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"道具"}' })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"道具","selectedRisky":false}' })
     .mockResolvedValueOnce({
       role: 'assistant',
       content: JSON.stringify({
@@ -76,7 +76,7 @@ test('stops navigating once the desired image-menu item is selected', async () =
         ],
       }),
     })
-    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"道具"}' })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"道具","selectedRisky":false}' })
   const state = { inventory: { items: [{ name: '药草' }] } }
   await expect(inspectBattleImage(profile, 'gemma4:vision', 'qwen3:4b', 'game-a', '治疗队友', state, new AbortController().signal)).resolves.toMatchObject({
     key: 'down',
@@ -102,7 +102,7 @@ test('uses horizontal navigation for a multi-column image menu', async () => {
         ],
       }),
     })
-    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"技能"}' })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"技能","selectedRisky":false}' })
   const state = { battle: { actor: { skills: [{ name: '技能' }] } } }
   await expect(inspectBattleImage(profile, 'gemma4:vision', 'qwen3:4b', 'game-a', '使用技能', state, new AbortController().signal)).resolves.toMatchObject({
     key: 'right',
@@ -125,9 +125,39 @@ test('rejects an OCR menu heading or misspelled actor as a combat target', async
         ],
       }),
     })
-    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"木士・选择敌人"}' })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"木士・选择敌人","selectedRisky":false}' })
   const state = { party: [{ name: '剑士' }, { name: '术士' }] }
   await expect(inspectBattleImage(profile, 'gemma4:vision', 'qwen3:4b', 'game-a', '治疗剑士', state, new AbortController().signal)).resolves.toMatchObject({
+    key: null,
+    safe: false,
+  })
+})
+
+test('refuses to confirm an escape by engine symbol or model judgement, never by label keywords', async () => {
+  ;(callAgentGame as jest.Mock).mockResolvedValue({ mimeType: 'image/jpeg', data: 'jpeg-base64' })
+  const menu = '{"visibleText":"Сражаться Бежать","selectedText":"Бежать","options":[{"text":"Сражаться","x":20,"y":20},{"text":"Бежать","x":20,"y":60}]}'
+  const state = {
+    windows: [
+      {
+        active: true,
+        options: [
+          { label: 'Сражаться', symbol: 'fight' },
+          { label: 'Бежать', symbol: 'escape' },
+        ],
+      },
+    ],
+  }
+  ;(streamOllamaChat as jest.Mock)
+    .mockResolvedValueOnce({ role: 'assistant', content: menu })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"Бежать","selectedRisky":false}' })
+  await expect(inspectBattleImage(profile, 'gemma4:vision', 'qwen3:4b', 'game-a', '帮我战斗', state, new AbortController().signal)).resolves.toMatchObject({
+    key: null,
+    safe: false,
+  })
+  ;(streamOllamaChat as jest.Mock)
+    .mockResolvedValueOnce({ role: 'assistant', content: menu })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"Бежать","selectedRisky":true}' })
+  await expect(inspectBattleImage(profile, 'gemma4:vision', 'qwen3:4b', 'game-a', '帮我战斗', {}, new AbortController().signal)).resolves.toMatchObject({
     key: null,
     safe: false,
   })
@@ -141,7 +171,7 @@ test('accepts a custom combat command without requiring a built-in attack keywor
       content:
         '{"visibleText":"神圣攻击 防御 动作 物品","selectedText":"动作","options":[{"text":"神圣攻击","x":20,"y":20},{"text":"防御","x":20,"y":60},{"text":"动作","x":20,"y":100},{"text":"物品","x":20,"y":140}]}',
     })
-    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"动作"}' })
+    .mockResolvedValueOnce({ role: 'assistant', content: '{"targetText":"动作","selectedRisky":false}' })
 
   await expect(inspectBattleImage(profile, 'gemma4:vision', 'qwen3:4b', 'game-a', '帮我战斗', {}, new AbortController().signal)).resolves.toMatchObject({
     key: 'ok',

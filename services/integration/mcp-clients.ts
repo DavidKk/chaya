@@ -78,7 +78,7 @@ function versionBins(root: string, suffix: string[]): string[] {
 }
 
 /** GUI-launched App inherits a minimal PATH (macOS / Linux); add the usual per-user install dirs */
-function searchDirs(): string[] {
+export function cliSearchDirs(): string[] {
   const fromEnv = (process.env.PATH || '').split(path.delimiter).filter(Boolean)
   const h = home()
   if (process.platform === 'win32') {
@@ -94,6 +94,8 @@ function searchDirs(): string[] {
         ...(process.env.NVM_SYMLINK ? [process.env.NVM_SYMLINK] : []),
         path.join(localAppData, 'pnpm'),
         path.join(h, 'scoop', 'shims'),
+        // Antigravity CLI installer
+        path.join(localAppData, 'agy', 'bin'),
       ]),
     ]
   }
@@ -104,6 +106,9 @@ function searchDirs(): string[] {
       path.join(h, '.local', 'bin'),
       path.join(h, '.claude', 'local'),
       '/opt/homebrew/bin',
+      // Homebrew node keeps `npm i -g` binaries here and links only some of them into /opt/homebrew/bin
+      '/opt/homebrew/opt/node/bin',
+      '/usr/local/opt/node/bin',
       '/usr/local/bin',
       '/usr/bin',
       '/snap/bin',
@@ -119,7 +124,7 @@ function searchDirs(): string[] {
   ]
 }
 
-export function findCli(bin: string, dirs = searchDirs()): string | null {
+export function findCli(bin: string, dirs = cliSearchDirs()): string | null {
   const exts = process.platform === 'win32' ? ['.exe', '.cmd', '.bat'] : ['']
   for (const dir of dirs) {
     for (const ext of exts) {
@@ -146,7 +151,7 @@ function runCli(file: string, args: string[]): Promise<void> {
         // `.cmd` shims need a shell on Windows; args are our fixed name + loopback URL
         shell: /\.(cmd|bat)$/i.test(file),
         // npm-installed CLIs are `#!/usr/bin/env node` scripts: node must be on PATH too
-        env: { ...process.env, PATH: [path.dirname(file), ...searchDirs()].join(path.delimiter) },
+        env: { ...process.env, PATH: [path.dirname(file), ...cliSearchDirs()].join(path.delimiter) },
       },
       (error, _stdout, stderr) => {
         if (error)
@@ -164,7 +169,7 @@ function runCli(file: string, args: string[]): Promise<void> {
 }
 
 export function getMcpClientsStatus(): McpClientsStatus {
-  const dirs = searchDirs()
+  const dirs = cliSearchDirs()
   return {
     claude: { installed: installed('claude'), cli: findCli('claude', dirs) !== null },
     codex: { installed: installed('codex'), cli: findCli('codex', dirs) !== null },

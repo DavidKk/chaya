@@ -3,7 +3,7 @@ import { callAgentGame, listAgentGames } from '@/services/runtime/agent-bridge'
 
 import { decide, isOrdinaryBattleMenu, KEYS } from './managed-decide.server'
 import { decisionState, type ManagedState as State, type ResolvedGoal, resolveGoal } from './managed-goal.server'
-import { type History, resultText, storySummary } from './managed-story.server'
+import { battleResultLine, briefText, type History, resultText, storySummary } from './managed-story.server'
 import { adjacentTiles, isTouchEvent, type MapSkill, nextMapTargetKey } from './map-goal'
 import { emitTurnEvent, finishTurn } from './session-store'
 import type { GameAgentProfile } from './settings'
@@ -31,9 +31,11 @@ function unboundQuestion(goal: ResolvedGoal, state: State) {
   return goal.openQuestion || '请说明你希望我在当前画面完成的目标。'
 }
 
-async function observe(gameId: string, cursor: number) {
-  const state = (await callAgentGame(gameId, 'game.state', {})) as State
-  const history = (await callAgentGame(gameId, 'game.history', { afterSeq: cursor, limit: 300 })) as History
+async function observe(gameId: string, cursor: number, timeoutMs?: number) {
+  const state = (await (timeoutMs === undefined ? callAgentGame(gameId, 'game.state', {}) : callAgentGame(gameId, 'game.state', {}, timeoutMs))) as State
+  const history = (await (timeoutMs === undefined
+    ? callAgentGame(gameId, 'game.history', { afterSeq: cursor, limit: 300 })
+    : callAgentGame(gameId, 'game.history', { afterSeq: cursor, limit: 300 }, timeoutMs))) as History
   return { state, history }
 }
 
@@ -109,6 +111,9 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
   const visualMoves = new Map<string, number>()
   let visionModel: Promise<string | null> | undefined
   const getVisionModel = () => (visionModel ??= findVisionModel(profile, input.model, turn.abort.signal))
+  const observeGame = (cursor: number) => observe(input.gameId, cursor, profile.gameCallTimeoutMs)
+  const callGame = (method: Parameters<typeof callAgentGame>[1], params: Record<string, unknown>) =>
+    profile.gameCallTimeoutMs === undefined ? callAgentGame(input.gameId, method, params) : callAgentGame(input.gameId, method, params, profile.gameCallTimeoutMs)
   const story: NonNullable<History['entries']> = []
   const navigationHistory: NonNullable<History['entries']> = []
   const remember = (observation: Awaited<ReturnType<typeof observe>>) => {
@@ -123,7 +128,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
   const armIfAvailable = async (state: State) => {
     if (!scope.battleId || !state.reactionAvailable || reactionArmed || reactionUnavailable) return
     try {
-      await callAgentGame(input.gameId, 'input.reaction.arm', {
+      await callGame('input.reaction.arm', {
         battleInstanceId: scope.battleId,
         mapId: scope.mapId,
         allowedKeys: ['ok', 'cancel', 'shift', 'up', 'down', 'left', 'right'],
@@ -144,10 +149,10 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
     resyncEpoch = true
     return waitForPlayer(turn, emit, question, step, deadlineMs)
   }
-  const complete = (text: string) => {
+  const complete = (text: string, brief: string) => {
     emit({ type: 'assistant.delta', text })
     finishTurn(turn, 'completed')
-    emit({ type: 'turn.completed', text, reason: 'verified' })
+    emit({ type: 'turn.completed', text, brief, reason: 'verified' })
   }
   const walkTo = async (tile: { x: number; y: number }, step: number, touchTargetId?: number) => {
     const callId = `${step}-move-${tile.x}-${tile.y}`
@@ -157,7 +162,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
     let result: { arrived?: boolean; moved?: boolean; transferred?: boolean; interrupted?: boolean; blockedEventId?: number | null; triggeredEventId?: number } = {}
     let moveError: unknown
     try {
-      result = (await callAgentGame(input.gameId, 'player.moveTo', {
+      result = (await callGame('player.moveTo', {
         ...tile,
         stepwise: true,
         guard: { controlToken: String(last?.state.controlToken || ''), allowedEffects: ['navigate'], mapId: scope.mapId, targetEventId: touchTargetId },
@@ -167,7 +172,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       moveError = error
     }
     emit({ type: 'tool.completed', callId, name, ok: !moveError && !!(result.moved || result.arrived || result.transferred) })
-    last = await observe(input.gameId, cursor)
+    last = await observeGame(cursor)
     remember(last)
     if (!moveError) return result
     if (String(moveError instanceof Error ? moveError.message : moveError).includes('STATE_CHANGED')) return null
@@ -175,7 +180,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
   }
   try {
     emit({ type: 'phase', phase: 'observing', step: 0, maxSteps: MAX_STEPS })
-    last = await observe(input.gameId, 0)
+    last = await observeGame(0)
     cursor = last.history.lastSeq || 0
     navigationHistory.push(...(last.history.entries || []).slice(-30))
     if (last.state.message?.busy && last.state.message.text?.trim())
@@ -188,7 +193,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       if (round >= MAX_CLARIFY_ROUNDS) throw new Error('多次补充后仍无法确定目标，请换个说法重新发起任务')
       emit({ type: 'goal.updated', summary: resolved.summary })
       const reply = (await pauseForPlayer(question, 0)).trim()
-      last = await observe(input.gameId, cursor)
+      last = await observeGame(cursor)
       remember(last)
       if (!reply) continue
       resolved = await resolveGoal(profile, { ...input, prompt: reply }, last.state, turn.abort.signal, request, undefined, navigationHistory)
@@ -229,7 +234,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       for (let round = 0; unboundQuestion(next, last!.state); round++) {
         if (round >= MAX_CLARIFY_ROUNDS) throw new Error('无法确认通往目标的下一步，已停止继续探索')
         const reply = (await pauseForPlayer(unboundQuestion(next, last!.state), step)).trim()
-        last = await observe(input.gameId, cursor)
+        last = await observeGame(cursor)
         remember(last)
         if (reply) {
           next = await resolveGoal(profile, { ...input, prompt: reply }, last.state, turn.abort.signal, input.prompt, undefined, navigationHistory)
@@ -262,10 +267,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       const { state, history } = last
       if (scope.battleId && state.battle?.instanceId !== scope.battleId) {
         if (state.lastBattleResult?.id === scope.battleId) {
-          const text = `${resultText(state, { entries: story }, incomplete)}\n已验证本场战斗结束。`.trim()
-          emit({ type: 'assistant.delta', text })
-          finishTurn(turn, 'completed')
-          emit({ type: 'turn.completed', text, reason: 'verified' })
+          complete(`${resultText(state, { entries: story }, incomplete)}\n已验证本场战斗结束。`.trim(), briefText(battleResultLine(state), '已验证本场战斗结束。'))
           return
         }
         throw new Error('战斗实例已改变，无法确认本场结果')
@@ -282,7 +284,8 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       if (!scope.battleId && scope.mapId != null && state.map?.id !== scope.mapId) {
         if (scopeKind !== 'map') throw new Error('已离开开始时的地图，任务暂停')
         if (interactTarget && targetInteractionSent && !transit) {
-          complete(`${resultText(state, { entries: story }, incomplete)}\n已进入${state.map?.displayName || state.map?.name || '新地图'}。`.trim())
+          const entered = `已进入${state.map?.displayName || state.map?.name || '新地图'}。`
+          complete(`${resultText(state, { entries: story }, incomplete)}\n${entered}`.trim(), briefText(battleResultLine(state), entered))
           return
         }
         await replanMap(step)
@@ -303,14 +306,18 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
           continue
         }
         const summary = await storySummary(profile, input, story, incomplete, turn.abort.signal, mapTarget?.name)
-        complete(`${summary ? `剧情摘要：${summary}\n` : ''}${resultText(state, { entries: story }, incomplete)}\n已与${targetName}完成交互。`.trim())
+        const done = `已与${targetName}完成交互。`
+        complete(
+          `${summary ? `剧情摘要：${summary}\n` : ''}${resultText(state, { entries: story }, incomplete)}\n${done}`.trim(),
+          briefText(summary, battleResultLine(state), done)
+        )
         return
       }
       if (interactTarget && targetInteractionSent && !targetDialogueStarted && !state.message?.busy) {
         if (silentChecks < MAX_SILENT_CHECKS && (silentChecks === 0 || mapTarget?.running)) {
           silentChecks++
           await new Promise((resolve) => setTimeout(resolve, SILENT_CHECK_MS))
-          last = await observe(input.gameId, cursor)
+          last = await observeGame(cursor)
           remember(last)
           continue
         }
@@ -319,11 +326,13 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
           await replanMap(step)
           continue
         }
-        complete(`${resultText(state, { entries: story }, incomplete)}\n已与${targetName}交互，游戏没有显示对话。`.trim())
+        const silent = `已与${targetName}交互，游戏没有显示对话。`
+        complete(`${resultText(state, { entries: story }, incomplete)}\n${silent}`.trim(), briefText(battleResultLine(state), silent))
         return
       }
       if (mapSkill === 'approach' && !transit && mapTarget?.distance != null && mapTarget.distance <= 1) {
-        complete(`已到达${mapTarget.name || '目标事件'}旁（距离 ${mapTarget.distance} 格）。`)
+        const arrived = `已到达${mapTarget.name || '目标事件'}旁（距离 ${mapTarget.distance} 格）。`
+        complete(arrived, arrived)
         return
       }
       if (mapSkill && mapTarget && !targetInteractionSent && !targetDialogueStarted) {
@@ -356,15 +365,16 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       await armIfAvailable(state)
       if (scopeKind === 'dialogue' && story.some((entry) => entry.kind === 'message') && !state.message?.busy) {
         const summary = await storySummary(profile, input, story, incomplete, turn.abort.signal)
-        const text = `${summary ? `剧情摘要：${summary}\n` : ''}${resultText(state, { entries: story }, incomplete)}\n已记录当前对话，且对话窗口不再显示。`.trim()
-        emit({ type: 'assistant.delta', text })
-        finishTurn(turn, 'completed')
-        emit({ type: 'turn.completed', text, reason: 'verified' })
+        const recorded = '已记录当前对话，且对话窗口不再显示。'
+        complete(
+          `${summary ? `剧情摘要：${summary}\n` : ''}${resultText(state, { entries: story }, incomplete)}\n${recorded}`.trim(),
+          briefText(summary, battleResultLine(state), recorded)
+        )
         return
       }
       if (reactionArmed && state.qte && state.qte.expiresAt > Date.now()) {
         await new Promise((resolve) => setTimeout(resolve, Math.min(100, state.qte!.expiresAt - Date.now())))
-        last = await observe(input.gameId, cursor)
+        last = await observeGame(cursor)
         remember(last)
         continue
       }
@@ -424,7 +434,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         const reply = await pauseForPlayer(question, step)
         messages.push({ role: 'tool', tool_name: 'task_ask_user', content: JSON.stringify({ reply }) })
         messages.push({ role: 'user', content: `Player reply: ${reply}` })
-        last = await observe(input.gameId, cursor)
+        last = await observeGame(cursor)
         remember(last)
         continue
       }
@@ -445,10 +455,10 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
             ? '已记录当前对话，且对话窗口不再显示。'
             : `已到达${target?.name || '目标事件'}旁（距离 ${target?.distance} 格）。`
         const summary = verifiedStory ? await storySummary(profile, input, story, incomplete, turn.abort.signal) : ''
-        const text = `${summary ? `剧情摘要：${summary}\n` : ''}${resultText(state, { entries: story }, incomplete)}\n${verified}`.trim()
-        emit({ type: 'assistant.delta', text })
-        finishTurn(turn, 'completed')
-        emit({ type: 'turn.completed', text, reason: 'verified' })
+        complete(
+          `${summary ? `剧情摘要：${summary}\n` : ''}${resultText(state, { entries: story }, incomplete)}\n${verified}`.trim(),
+          briefText(summary, verifiedBattle ? '' : battleResultLine(state), verified)
+        )
         return
       }
       const key = call.function.arguments.key as AgentInputKey
@@ -487,14 +497,14 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
           )
           messages.push({ role: 'user', content: `Player reply: ${reply}` })
           visualMoves.clear()
-          last = await observe(input.gameId, cursor)
+          last = await observeGame(cursor)
           remember(last)
           continue
         }
       }
       if (!state.controlToken) throw new Error('游戏插件未提供操作校验令牌，无法安全托管')
       const before = fingerprint(state, history)
-      const battleImageBefore = scopeKind === 'battle' ? await battleImageFingerprint(input.gameId).catch(() => null) : null
+      const battleImageBefore = scopeKind === 'battle' ? await battleImageFingerprint(input.gameId, profile.gameCallTimeoutMs).catch(() => null) : null
       // The screenshot ignores abort; a turn cleared meanwhile must not press after a new one started
       if (turn.abort.signal.aborted) throw turn.abort.signal.reason
       const callId = `${step}-0`
@@ -504,12 +514,12 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       let writeError: unknown
       try {
         if (combo)
-          await callAgentGame(input.gameId, 'input.sequence', {
+          await callGame('input.sequence', {
             steps: combo.map((step) => ({ key: step, frames: COMBO_FRAMES, waitFrames: COMBO_FRAMES })),
             guard: { controlToken: String(state.controlToken || ''), allowedEffects: ['navigate'], battleInstanceId: scope.battleId, mapId: scope.mapId },
           })
         else
-          await callAgentGame(input.gameId, 'input.press', {
+          await callGame('input.press', {
             key,
             frames: 6,
             guard: {
@@ -532,7 +542,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       emit({ type: 'tool.completed', callId, name: toolName, ok: !writeError })
       emit({ type: 'phase', phase: 'verifying', step, maxSteps: MAX_STEPS })
       try {
-        last = await observe(input.gameId, cursor)
+        last = await observeGame(cursor)
       } catch {
         throw new Error('动作后的游戏状态无法回读，动作效果未知')
       }
@@ -561,7 +571,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
           const question = `当前操作需要玩家决定：${reason}。请在游戏里处理后回复继续，或停止任务。`
           const reply = await pauseForPlayer(question, step)
           messages.push({ role: 'user', content: `Player reply: ${reply}` })
-          last = await observe(input.gameId, cursor)
+          last = await observeGame(cursor)
           remember(last)
           continue
         }
@@ -570,7 +580,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       const stateChanged = fingerprint(last.state, last.history) !== before
       const visualChanged =
         !stateChanged && battleImageBefore
-          ? await battleImageFingerprint(input.gameId)
+          ? await battleImageFingerprint(input.gameId, profile.gameCallTimeoutMs)
               .then((hash) => hash !== battleImageBefore)
               .catch(() => false)
           : false

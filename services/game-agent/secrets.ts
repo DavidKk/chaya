@@ -4,8 +4,8 @@ import path from 'node:path'
 
 import { DATA_DIR } from '@/constants/paths'
 
-type CipherText = { iv: string; tag: string; data: string }
-type SecretDocument = { version: 1; tokens: Record<string, CipherText> }
+export type GameAgentCipherText = { iv: string; tag: string; data: string }
+type SecretDocument = { version: 1; tokens: Record<string, GameAgentCipherText> }
 
 export type GameAgentSecretFiles = { secretsFile?: string; keyFile?: string }
 
@@ -54,20 +54,33 @@ function writeDocument(file: string, value: SecretDocument) {
   }
 }
 
-function encrypt(value: string, profileId: string, key: Buffer): CipherText {
+/** Shared key for every Agent secret; callers pick distinct AAD namespaces so ciphertexts cannot be swapped. */
+export function loadGameAgentSecretKey(keyFile = GAME_AGENT_SECRET_KEY_PATH): Buffer {
+  return ensureKey(keyFile)
+}
+
+export function encryptGameAgentSecret(value: string, aad: string, key: Buffer): GameAgentCipherText {
   const iv = randomBytes(12)
   const cipher = createCipheriv('aes-256-gcm', key, iv)
-  cipher.setAAD(Buffer.from(profileId))
+  cipher.setAAD(Buffer.from(aad))
   const data = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()])
   return { iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: data.toString('base64') }
 }
 
-function decrypt(value: CipherText, profileId: string, key: Buffer): string {
+export function decryptGameAgentSecret(value: GameAgentCipherText, aad: string, key: Buffer): string {
+  const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(value.iv, 'base64'))
+  decipher.setAAD(Buffer.from(aad))
+  decipher.setAuthTag(Buffer.from(value.tag, 'base64'))
+  return Buffer.concat([decipher.update(Buffer.from(value.data, 'base64')), decipher.final()]).toString('utf8')
+}
+
+function encrypt(value: string, profileId: string, key: Buffer): GameAgentCipherText {
+  return encryptGameAgentSecret(value, profileId, key)
+}
+
+function decrypt(value: GameAgentCipherText, profileId: string, key: Buffer): string {
   try {
-    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(value.iv, 'base64'))
-    decipher.setAAD(Buffer.from(profileId))
-    decipher.setAuthTag(Buffer.from(value.tag, 'base64'))
-    return Buffer.concat([decipher.update(Buffer.from(value.data, 'base64')), decipher.final()]).toString('utf8')
+    return decryptGameAgentSecret(value, profileId, key)
   } catch {
     throw new Error(`Agent ${profileId} 的凭证无法解密`)
   }
