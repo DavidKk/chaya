@@ -4,7 +4,6 @@ import type { ReactNode } from 'react'
 
 import { type BindingStatusInput, BindingStatusMenu } from '@/components/BindingStatusMenu'
 import { GameTitleEditor } from '@/components/GameTitleEditor'
-import { LegalNotice } from '@/components/legal/LegalNotice'
 import { cn } from '@/lib/utils'
 
 import { DashboardGameMeta, type DashboardGameMetaProps } from './DashboardGameMeta'
@@ -42,7 +41,6 @@ export function DashboardGameCard({ title, remark, packageName, busy, onRename, 
         <DashboardGameMeta {...meta} />
       </CardSection>
       <CardSection>{actions}</CardSection>
-      <LegalNotice kind="library" />
       {notes ? (
         <CardSection divided={false} className="flex flex-col gap-2 text-[0.75rem] leading-relaxed text-ink-soft">
           {notes}

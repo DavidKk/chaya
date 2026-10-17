@@ -6,9 +6,10 @@ import { TranslateGate } from '@/components/translate/TranslateGate'
 
 let mockRoom: string | null = null
 let mockConnected = false
+let mockPathname = '/translate/run'
 const mockNotify = { info: jest.fn(), error: jest.fn(), success: jest.fn() }
 const mockRouter = { push: jest.fn() }
-jest.mock('next/navigation', () => ({ useRouter: () => mockRouter, usePathname: () => '/translate/run' }))
+jest.mock('next/navigation', () => ({ useRouter: () => mockRouter, usePathname: () => mockPathname }))
 jest.mock('@/components/GameLinkProvider', () => ({ useGameLinkContext: () => ({ roomId: mockRoom, connected: mockConnected }) }))
 jest.mock('@/components/notification/useNotification', () => ({ useNotification: () => mockNotify }))
 jest.mock('@/components/i18n/LocaleProvider', () => ({ useT: () => (key: string) => key }))
@@ -26,6 +27,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   mockRoom = null
   mockConnected = false
+  mockPathname = '/translate/run'
   mockRouter.push.mockClear()
 })
 
@@ -56,6 +58,16 @@ test.each([
     expect(gate.host.textContent).toBe(expected)
     await act(async () => gate.host.querySelector('button')?.click())
     expect(mockRouter.push).toHaveBeenCalledWith('/game')
+  } finally {
+    await gate.cleanup()
+  }
+})
+
+test('shared cache opens without a selected game', async () => {
+  mockPathname = '/translate/cache'
+  const gate = await renderGate({ canUseDisk: true, ready: false, library: [] })
+  try {
+    expect(gate.host.textContent).toBe('features')
   } finally {
     await gate.cleanup()
   }

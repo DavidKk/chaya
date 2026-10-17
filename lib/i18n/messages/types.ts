@@ -172,6 +172,7 @@ export type MessageTree = {
     removeDesc: string
     removeConfirm: string
     removeEntry: string
+    relocate: string
     shellReady: string
     remoteTag: string
     localTag: string
@@ -310,8 +311,10 @@ export type MessageTree = {
     tabCache: string
     regionRun: string
     regionCache: string
+    regionCacheDetail: string
     regionRunDesc: string
     regionCacheDesc: string
+    regionCacheDetailDesc: string
     needGameTitle: string
     needGameMsg: string
     needGameCloudMsg: string
@@ -325,6 +328,13 @@ export type MessageTree = {
     extract: string
     updateSource: string
     importFile: string
+    exportAll: string
+    exportUntranslated: string
+    exportUntranslatedEmpty: string
+    exportJson: string
+    exportJsonDone: string
+    exportJsonEmpty: string
+    exportJsonFailed: string
     total: string
     translated: string
     missing: string
@@ -410,6 +420,7 @@ export type MessageTree = {
     importDone: string
     cacheSrc: string
     cacheZh: string
+    cachePair: string
     cacheEngine: string
     cacheHits: string
     cacheUpdated: string
@@ -430,6 +441,31 @@ export type MessageTree = {
     cacheDeleted: string
     cacheDeleteFailed: string
     cacheAllEngines: string
+    cacheKindImport: string
+    cacheKindAgent: string
+    cacheKindGoogle: string
+    cacheKindBing: string
+    cacheLive: string
+    cacheFlagAll: string
+    cacheFlagNsfw: string
+    cacheFlagSafe: string
+    cacheFlagLive: string
+    cacheFlagStored: string
+    cacheMarkNsfw: string
+    cacheClearNsfw: string
+    cacheMarkNsfwTitle: string
+    cacheClearNsfwTitle: string
+    cacheMarkNsfwDesc: string
+    cacheClearNsfwDesc: string
+    cacheNsfwUpdated: string
+    cacheFilterNsfw: string
+    cacheFilterLive: string
+    cacheFilterSrcLang: string
+    cacheFilterTgtLang: string
+    cacheLangJa: string
+    cacheLangEn: string
+    cacheLangZh: string
+    cacheLangKo: string
     cacheSearch: string
     cacheFilterEngine: string
     cacheNsfwOn: string
@@ -451,6 +487,38 @@ export type MessageTree = {
     cacheTranslateFailed: string
     cacheFilled: string
     cacheModify: string
+    cacheDetail: string
+    cacheDetailEditTitle: string
+    cacheDetailEditDesc: string
+    cacheDetailEditDescPlain: string
+    cacheOptimize: string
+    cacheOptimizeBack: string
+    cacheOptimizeWhole: string
+    cacheOptimizeHint: string
+    cacheOptimizeCardDesc: string
+    cacheOptimizeMismatch: string
+    cacheOptimizeSegment: string
+    cacheOptimizeAdd: string
+    cacheOptimizeConfirm: string
+    cacheOptimizeEmpty: string
+    cacheOptimizeFailed: string
+    cacheOptimizeDone: string
+    cacheOptimizeDoneDetail: string
+    cacheOptimizeBreaks: string
+    cacheOptimizeBreakExamples: string
+    cacheOptimizeBreakSoft: string
+    cacheOptimizeBreakHard: string
+    cacheOptimizeBreakUnknown: string
+    cacheOptimizeBreakCycle: string
+    cacheOptimizeBreakPreview: string
+    cacheOptimizePrecheckFail: string
+    cacheOptimizeListAria: string
+    cacheOptimizeNoSplitTitle: string
+    cacheOptimizeNoSplitMsg: string
+    cacheOptimizeSelfHint: string
+    cacheOptimizeMissingTitle: string
+    cacheOptimizeMissingMsg: string
+    cacheOptimizeMissingHint: string
     loadSeed: string
     loadPlay: string
     loadPlaySettings: string
@@ -462,6 +530,35 @@ export type MessageTree = {
   logs: {
     runtime: string
     agentActivity: string
+    cliProcesses: string
+    cliProcessesDesc: string
+    cliRefresh: string
+    cliRefreshed: string
+    cliLoadFailed: string
+    cliEmptyTitle: string
+    cliEmptyMsg: string
+    cliEmptyHint: string
+    cliKindStdio: string
+    cliKindPty: string
+    cliKindOrphan: string
+    cliSourceChaya: string
+    cliSourceSystem: string
+    cliProxyComplete: string
+    cliProxyPartial: string
+    cliProxyNone: string
+    cliProxyUnknown: string
+    cliShowEnv: string
+    cliHideEnv: string
+    cliEnvUnavailable: string
+    cliProxyVars: string
+    cliOtherEnv: string
+    cliMemory: string
+    cliElapsed: string
+    cliCommand: string
+    cliEnv: string
+    cliCopyCommand: string
+    cliKill: string
+    cliKilled: string
     region: string
     regionDesc: string
     live: string

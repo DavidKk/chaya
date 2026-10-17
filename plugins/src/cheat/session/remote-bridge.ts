@@ -131,6 +131,9 @@ export function applyEditCmd(cmd: GameEditCmd): void {
     case 'actorVitalLock':
       Cheats.setLock(cmd.kind, cmd.actorId, cmd.on, cmd.value)
       return
+    case 'battleLock':
+      Cheats.setLock(cmd.side === 'actor' ? cmd.kind : cmd.kind === 'hp' ? 'enemyHp' : 'enemyMhp', cmd.id, cmd.on, cmd.value)
+      return
     case 'actorOwnedLock': {
       const key = cmd.kind === 'skills' ? lockKeyForActorSkill(cmd.actorId, cmd.entryId) : lockKeyForActorState(cmd.actorId, cmd.entryId)
       const locks = { ...mirror.locks }

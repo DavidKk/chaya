@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LuChevronDown, LuMenu, LuX } from 'react-icons/lu'
@@ -10,6 +10,7 @@ import { EDIT_TABS, editTabHref } from '@/components/game-edit/tabs'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { ASSIST_SECTIONS } from '@/components/input-assistance/assist-sections'
 import { INTEGRATION_TABS } from '@/components/integration/tabs'
+import { LOGS_SECTIONS, logsSectionHref } from '@/components/logs/sections'
 import { mainNavFor, type MainNavId } from '@/components/main-nav'
 import { Button } from '@/components/sk'
 import { TRANSLATE_TABS, translateTabHref } from '@/components/translate/tabs'
@@ -22,7 +23,7 @@ import { cn } from '@/lib/utils'
  * - `/cheat` 修改（局内 GameEdit）
  * - `/translate/run` 翻译动作；`/translate/cache` 翻译库浏览
  * - `/assist/hotkeys` 辅助（`/assist` 也重定向到这里）
- * - `/logs` 日志
+ * - `/logs/runtime` · `/logs/agent` · `/logs/cli` 日志（二级一律斜杠）
  * - `/integration/skills` · `/integration/mcp` · `/integration/webmcp` 集成
  * `/` 暂空，重定向到 `/game`
  */
@@ -38,11 +39,8 @@ const WEB_ROUTES: Partial<Record<MainNavId, AppNavRoute>> = {
   assist: { href: '/assist/hotkeys', children: ASSIST_SECTIONS.map((section) => ({ href: `/assist/${section.id}`, labelKey: section.labelKey })) },
   integration: { href: '/integration/skills', children: INTEGRATION_TABS },
   logs: {
-    href: '/logs',
-    children: [
-      { href: '/logs', labelKey: 'logs.runtime' },
-      { href: '/logs?view=agent', labelKey: 'logs.agentActivity' },
-    ],
+    href: logsSectionHref('runtime'),
+    children: LOGS_SECTIONS.map((section) => ({ href: logsSectionHref(section.id), labelKey: section.labelKey })),
   },
 }
 
@@ -51,7 +49,8 @@ export const APP_NAV_ITEMS: ReadonlyArray<AppNavItem> = mainNavFor('web').flatMa
   return route ? [{ id: item.id, labelKey: item.labelKey, ...route }] : []
 })
 
-export type AppNavPath = '/game' | '/assist' | '/cheat/run' | '/translate/run' | '/logs' | '/integration/skills' | '/cheat' | '/translate' | '/integration' | '/settings'
+export type AppNavPath =
+  '/game' | '/assist' | '/cheat/run' | '/translate/run' | '/logs' | '/logs/runtime' | '/integration/skills' | '/cheat' | '/translate' | '/integration' | '/settings'
 
 const LINK_SELECTOR = '[data-app-nav-link]'
 
@@ -73,14 +72,13 @@ function navActive(current: AppNavPath, href: string) {
   if (href === '/integration/skills') return current === '/integration' || current.startsWith('/integration/')
   if (href === '/game') return current === '/game'
   if (href === '/assist/hotkeys') return current === '/assist' || current === '/settings'
+  if (href.startsWith('/logs')) return current === '/logs' || current.startsWith('/logs')
   return current === href
 }
 
-function childActive(pathname: string, searchParams: { get(name: string): string | null }, href: string) {
+function childActive(pathname: string, href: string) {
   const target = new URL(href, 'http://chaya.local')
-  if (pathname !== target.pathname && !pathname.startsWith(`${target.pathname}/`)) return false
-  if (target.pathname === '/logs') return (searchParams.get('view') || 'runtime') === (target.searchParams.get('view') || 'runtime')
-  return true
+  return pathname === target.pathname || pathname.startsWith(`${target.pathname}/`)
 }
 
 /**
@@ -102,7 +100,6 @@ export function AppNav({
 }) {
   const t = useT()
   const pathname = usePathname() || ''
-  const searchParams = useSearchParams()
   const navRef = useRef<HTMLElement>(null)
   const mobileTriggerRef = useRef<HTMLButtonElement>(null)
   const mobilePanelRef = useRef<HTMLDivElement>(null)
@@ -354,7 +351,7 @@ export function AppNav({
                         {expanded ? (
                           <div id={panelId} className="flex flex-col gap-0.5 pb-1">
                             {item.children.map((child) => {
-                              const activeChild = childActive(pathname, searchParams, child.href)
+                              const activeChild = childActive(pathname, child.href)
                               return (
                                 <Link
                                   key={child.href}

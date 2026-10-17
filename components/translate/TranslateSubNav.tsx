@@ -1,17 +1,18 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 import { LuDatabase, LuSlidersHorizontal } from 'react-icons/lu'
 import { RiTranslateAi2 } from 'react-icons/ri'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelHead } from '@/components/layoutClasses'
-import { PanelHeadEndHost } from '@/components/PanelHeadEnd'
+import { PanelHeadEndHost, PanelHeadStartHost } from '@/components/PanelHeadEnd'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
 import { SectionSideNav, sectionSideNavItemClass, SectionSideNavItemContent } from '@/components/SectionSideNav'
 import { Button, Tooltip } from '@/components/sk'
-import { DEFAULT_TRANSLATE_TAB, TRANSLATE_TABS, translateTabHref, type TranslateTabId } from '@/components/translate/tabs'
+import { DEFAULT_TRANSLATE_TAB, isTranslateCacheDetailPath, TRANSLATE_TABS, translateTabHref, type TranslateTabId } from '@/components/translate/tabs'
 import { useTranslateEnginesDrawer } from '@/components/translate/TranslateEnginesDrawerContext'
 
 const TAB_ICON = {
@@ -67,8 +68,12 @@ export function TranslateSubNav({ tab, onSelect }: NavProps) {
 /** 内容工具栏：保留小屏引擎入口和内容页注入的筛选操作。 */
 export function TranslateContentToolbar({ tab }: { tab: TranslateTabId }) {
   const t = useT()
+  const pathname = usePathname() || ''
   const { open, setOpen } = useTranslateEnginesDrawer()
   const showEnginesTrigger = (tab || DEFAULT_TRANSLATE_TAB) === 'run'
+  const cacheDetail = !showEnginesTrigger && isTranslateCacheDetailPath(pathname)
+  const titleKey = showEnginesTrigger ? 'translate.regionRun' : cacheDetail ? 'translate.regionCacheDetail' : 'translate.regionCache'
+  const descKey = showEnginesTrigger ? 'translate.regionRunDesc' : cacheDetail ? 'translate.regionCacheDetailDesc' : 'translate.regionCacheDesc'
 
   useEffect(() => {
     if (!showEnginesTrigger) setOpen(false)
@@ -76,10 +81,8 @@ export function TranslateContentToolbar({ tab }: { tab: TranslateTabId }) {
 
   return (
     <div className={panelHead}>
-      <PanelHeadTitle
-        title={t(showEnginesTrigger ? 'translate.regionRun' : 'translate.regionCache')}
-        description={t(showEnginesTrigger ? 'translate.regionRunDesc' : 'translate.regionCacheDesc')}
-      />
+      <PanelHeadStartHost />
+      <PanelHeadTitle title={t(titleKey)} description={t(descKey)} />
       {showEnginesTrigger ? (
         <Button
           variant="ghost"

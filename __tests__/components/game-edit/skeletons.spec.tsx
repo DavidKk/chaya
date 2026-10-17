@@ -45,23 +45,23 @@ test('日志懒加载使用筛选头、四列表格和页脚骨架', async () =>
 test('局内翻译骨架跟随运行与翻译库分区', async () => {
   await act(async () => renderWithLocale(<GameEditPaneSkeleton tab="trans" translateSection="run" translateTab="seed" />))
   expect(host.querySelector('[aria-label="加载翻译面板"]')).not.toBeNull()
-  expect(host.querySelector('[aria-label="加载 Seed 翻译进度"]')).not.toBeNull()
+  expect(host.querySelector('[aria-label="加载原文翻译进度"]')).not.toBeNull()
   expect(host.querySelector('table')).toBeNull()
 
   await act(async () => renderWithLocale(<GameEditPaneSkeleton tab="trans" translateSection="cache" />))
   expect(host.querySelector('[aria-label="加载本作翻译库"]')).not.toBeNull()
-  const columns = [...host.querySelectorAll<HTMLTableCellElement>('thead th')]
-  expect(columns).toHaveLength(6)
-  expect(columns.map((column) => column.style.width)).toEqual(['34%', '34%', '7rem', '4.5rem', '10rem', '7.5rem'])
+  const grid = host.querySelector<HTMLElement>('[role="presentation"] > .grid')!
+  expect(grid.children).toHaveLength(7)
+  expect(grid.style.gridTemplateColumns).toContain('minmax(10rem,1fr)')
 })
 
 test('游玩与 Seed 使用各自内容骨架', async () => {
   await act(async () => renderWithLocale(<TranslateRunSkeleton tab="play" />))
   expect(host.querySelector('[aria-label="加载游玩翻译设置"]')).not.toBeNull()
   expect(host.querySelector('[aria-label="加载翻译活动日志"]')).not.toBeNull()
-  expect(host.querySelector('[aria-label="加载 Seed 翻译进度"]')).toBeNull()
+  expect(host.querySelector('[aria-label="加载原文翻译进度"]')).toBeNull()
 
   await act(async () => renderWithLocale(<TranslateRunSkeleton tab="seed" />))
-  expect(host.querySelector('[aria-label="加载 Seed 翻译进度"]')).not.toBeNull()
+  expect(host.querySelector('[aria-label="加载原文翻译进度"]')).not.toBeNull()
   expect(host.querySelector('[aria-label="加载游玩翻译设置"]')).toBeNull()
 })

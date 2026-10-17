@@ -28,6 +28,8 @@ const settings = {
       modelTimeoutMs: 120_000,
       gameCallTimeoutMs: 15_000,
       proxy: '',
+      proxyProtocols: {},
+      proxyHeaders: {},
     },
   ],
 }

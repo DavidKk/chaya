@@ -1,11 +1,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { gameContentPath, gameContentReadPath } from '../../../lib/game/content-files'
+import { ensureGameContentDir, gameContentPath, gameContentReadPath } from '../../../lib/game/content-files'
+import { detectSourceLanguage, isSourceText, type SourceLanguageOption } from '../../../lib/translate/source-text'
 import { collectAllStrings, compareWithManual } from './compare'
+import { extractDataFields } from './data-fields'
 import { extractDatabase, loadJson } from './database'
 import { extractDialogueFromEvents } from './dialogue'
 import { extractPluginsJsText } from './plugin-text'
+import { extractTextResource, textResourceFiles } from './text-resources'
 
 export function resolveContentRoot(argv = process.argv.slice(2)) {
   const eq = argv.find((a) => a.startsWith('--root='))
@@ -16,7 +19,7 @@ export function resolveContentRoot(argv = process.argv.slice(2)) {
   return process.cwd()
 }
 
-export function runExtract(contentRoot: string) {
+export function runExtract(contentRoot: string, options?: { sourceLanguage?: SourceLanguageOption }) {
   const DATA = path.join(contentRoot, 'data')
   const MANUAL = gameContentReadPath(contentRoot, 'seed')
   const OUT = gameContentPath(contentRoot, 'extractStrings')
@@ -44,9 +47,29 @@ export function runExtract(contentRoot: string) {
   dialogue.push(...extractDialogueFromEvents(troops || [], { src: 'troop' }))
 
   const db = extractDatabase(DATA)
+  const preferredFields = new Set<string>()
+  const candidates = new Set<string>()
+  for (const file of fs
+    .readdirSync(DATA)
+    .filter((name) => /\.json$/i.test(name))
+    .sort()) {
+    const data = loadJson(path.join(DATA, file))
+    for (const value of extractDataFields(data, { knownOnly: true })) preferredFields.add(value)
+    for (const value of extractDataFields(data)) candidates.add(value)
+  }
+  db.textFields = [...preferredFields]
+  const knownSources = collectAllStrings(dialogue, db)
+  const sourceLanguage =
+    options?.sourceLanguage && options.sourceLanguage !== 'auto'
+      ? options.sourceLanguage
+      : detectSourceLanguage(knownSources.size ? knownSources : collectAllStrings([], { dataFields: [...candidates] }), loadJson(path.join(DATA, 'System.json')).locale)
   const pluginsFile = path.join(contentRoot, 'js', 'plugins.js')
   if (fs.existsSync(pluginsFile)) db.plugins = extractPluginsJsText(fs.readFileSync(pluginsFile, 'utf8'))
-  const allStrings = collectAllStrings(dialogue, db)
+  db.resources = [...new Set([...textResourceFiles(contentRoot, { fs, path })].flatMap((file) => extractTextResource(file, fs.readFileSync(path.join(contentRoot, file), 'utf8'))))]
+  // Unknown fields remain available, after dialogue, database prose and plugin text.
+  db.dataFields = [...candidates]
+  const allStrings = new Set([...collectAllStrings(dialogue, db)].filter((text) => isSourceText(text, sourceLanguage)))
+  const originalStrings = new Set([...collectAllStrings(dialogue, db, { original: true })].filter((text) => isSourceText(text, sourceLanguage)))
   const counts: Record<string, number> = {
     dialogueBlocks: dialogue.length,
     dialogueLines: new Set(dialogue.flatMap((b) => b.lines || [])).size,
@@ -60,23 +83,25 @@ export function runExtract(contentRoot: string) {
   const result = {
     meta: {
       generatedAt: new Date().toISOString(),
-      source: fs.existsSync(pluginsFile) ? 'data/*.json + js/plugins.js' : 'data/*.json',
-      note: '精简抽取：dialogue=游玩顺序；db=数据库字段与插件参数。无 flat / 无引擎调试字段。',
+      sourceLanguage,
+      source: 'data/*.json + js/plugins.js parameters + additional JSON/CSV/TXT',
+      note: 'dialogue=游玩顺序；db=数据库文案、名称、备注正文及插件参数。按原语言过滤，忽略资源标识、配置与脚本。',
       counts,
     },
     dialogue,
     db,
   }
 
-  fs.writeFileSync(OUT, JSON.stringify(result) + '\n')
+  fs.writeFileSync(ensureGameContentDir(contentRoot, 'extractStrings'), JSON.stringify(result) + '\n')
 
   let compare: Record<string, unknown> = { manualExists: false }
   if (MANUAL) {
     compare = compareWithManual(allStrings, dialogue, loadJson(MANUAL))
-    fs.writeFileSync(COMPARE, JSON.stringify(compare, null, 2) + '\n')
   }
 
-  return { OUT, COMPARE, allStrings, dialogue, counts, compare }
+  fs.writeFileSync(ensureGameContentDir(contentRoot, 'extractCompare'), JSON.stringify(compare, null, 2) + '\n')
+
+  return { OUT, COMPARE, allStrings, originalStrings, dialogue, counts, compare }
 }
 
 export function main() {

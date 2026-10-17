@@ -85,7 +85,15 @@ test('first plugin sync merges an empty cache without clearing service settings'
   expect(received[0].agents).toHaveLength(0)
   expect(firstBody.settings).toEqual({
     ...settings,
-    profiles: settings.profiles.map((profile) => ({ ...profile, modelRequestTimeoutMs: 10_000, modelTimeoutMs: 120_000, gameCallTimeoutMs: 15_000, proxy: '' })),
+    profiles: settings.profiles.map((profile) => ({
+      ...profile,
+      modelRequestTimeoutMs: 10_000,
+      modelTimeoutMs: 120_000,
+      gameCallTimeoutMs: 15_000,
+      proxy: '',
+      proxyHeaders: {},
+      proxyProtocols: {},
+    })),
   })
   expect(store.get('chaya.gameAgent.pluginSync.v1')).toContain('Local Ollama')
 

@@ -30,6 +30,8 @@ const profile = (id: string, provider: GameAgentProfile['provider']): GameAgentP
   modelTimeoutMs: 120_000,
   gameCallTimeoutMs: 15_000,
   proxy: '',
+  proxyProtocols: {},
+  proxyHeaders: {},
 })
 
 function fakeAdapter() {

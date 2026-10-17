@@ -4,8 +4,10 @@ import path from 'node:path'
 
 import { cliSearchDirs } from '@/services/integration/mcp-clients'
 
+import { trackLiveAgentProcess } from './live-processes.server'
+
 const PASSTHROUGH = ['HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP', 'SystemRoot', 'ComSpec', 'PATHEXT']
-const PROXY = ['HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'all_proxy']
+const PROXY = ['HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'ALL_PROXY', 'FTP_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'all_proxy', 'ftp_proxy']
 const STDERR_LIMIT = 16 * 1024
 
 const live = new Set<ChildProcess>()
@@ -33,13 +35,28 @@ function installExitHook() {
 
 export function spawnCli(file: string, args: string[], options: { env: NodeJS.ProcessEnv; cwd?: string }): ChildProcess {
   installExitHook()
+  const cwd = options.cwd || os.tmpdir()
   const shim = process.platform === 'win32' && /\.(cmd|bat)$/i.test(file)
   const child = shim
-    ? spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', file, ...args], { env: options.env, cwd: options.cwd || os.tmpdir(), windowsHide: true })
-    : spawn(file, args, { env: options.env, cwd: options.cwd || os.tmpdir(), detached: process.platform !== 'win32', windowsHide: true })
+    ? spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', file, ...args], { env: options.env, cwd, windowsHide: true })
+    : spawn(file, args, { env: options.env, cwd, detached: process.platform !== 'win32', windowsHide: true })
+  const watch = trackLiveAgentProcess({
+    kind: 'stdio',
+    pid: child.pid,
+    file,
+    args,
+    cwd,
+    env: options.env,
+    kill: () => killCliTree(child),
+  })
+  if (child.pid == null) child.once('spawn', () => watch.setPid(child.pid))
   live.add(child)
-  child.once('exit', () => live.delete(child))
-  child.once('error', () => live.delete(child))
+  const forget = () => {
+    live.delete(child)
+    watch.dispose()
+  }
+  child.once('exit', forget)
+  child.once('error', forget)
   return child
 }
 

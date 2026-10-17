@@ -121,6 +121,19 @@ export function upsertLibraryEntry(
   return [...library, next]
 }
 
+/** 重新定位同一库条目；路径变化不改变身份、备注、添加时间和数组位置。 */
+export function relocateLibraryEntry(library: LibraryEntry[], id: string, gameRoot: string): LibraryEntry[] {
+  const previous = library.find((item) => item.id === id)
+  if (!previous || previous.remote) throw new Error('未找到可重新定位的本地游戏记录')
+  const root = String(gameRoot || '').trim()
+  if (!root) throw new Error('请选择新的游戏位置')
+  const nextRoot = path.resolve(root)
+  if (library.some((item) => item.id !== id && (pathEquals(item.gameRoot, nextRoot) || sameGameFamily(item.gameRoot, nextRoot)))) {
+    throw new Error('新位置已在游戏库中，请选择其他位置或先移除重复记录')
+  }
+  return library.map((item) => (item.id === id ? { ...item, gameRoot: nextRoot, lastOpenedAt: Date.now() } : item))
+}
+
 export function removeLibraryEntry(library: LibraryEntry[], gameRoot: string): LibraryEntry[] {
   const target = String(gameRoot || '').trim()
   if (!target) return library

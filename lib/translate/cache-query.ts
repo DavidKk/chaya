@@ -1,4 +1,4 @@
-/** 翻译缓存列表查询参数（无 I/O，可供 Web 客户端与 Node 共用） */
+/** Translation-cache query parameters without I/O, shared by web clients and Node. */
 
 export type SharedCacheSortKey = 'updated' | 'hits'
 export type SharedCacheSortDir = 'asc' | 'desc'

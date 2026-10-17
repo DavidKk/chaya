@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { fs, loadKuromoji, path, rt } from './env'
 import { JAPANESE, KANA_LETTER } from './constants'
-import { isStorableTranslation } from '../text-classify'
+import { isReusableTranslation, isStorableTranslation, shouldTranslate as shouldTranslateSource } from '../text-classify'
 
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -23,11 +23,12 @@ export function loadJson(file, fallback) {
 export function saveJson(file, data, pretty = false) {
   const body = pretty ? JSON.stringify(data, null, 4) + '\n' : JSON.stringify(data)
   const tmp = `${file}.${process.pid}.tmp`
+  fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.writeFileSync(tmp, body)
   fs.renameSync(tmp, file)
 }
 
-/** NDJSON：每行 ["原文","译文"]，追加写入，避免整文件重写。 */
+/** Append source/target pairs as NDJSON rather than rewriting the entire file. */
 export function loadNdjsonCache(file) {
   const out = {}
   if (!fs.existsSync(file)) return out
@@ -37,9 +38,9 @@ export function loadNdjsonCache(file) {
     try {
       const row = JSON.parse(line)
       if (Array.isArray(row) && row.length >= 2 && row[0] && row[1] != null) {
-        if (isStorableTranslation(String(row[0]), String(row[1]))) out[String(row[0])] = String(row[1])
+        if (isReusableTranslation(String(row[0]), String(row[1]))) out[String(row[0])] = String(row[1])
       } else if (row && typeof row === 'object' && row.s && row.t != null) {
-        if (isStorableTranslation(String(row.s), String(row.t))) out[String(row.s)] = String(row.t)
+        if (isReusableTranslation(String(row.s), String(row.t))) out[String(row.s)] = String(row.t)
       }
     } catch {
       // 跳过坏行
@@ -52,6 +53,7 @@ export function appendNdjsonPairs(file, pairs) {
   const valid = pairs.filter(([src, zh]) => isStorableTranslation(src, zh))
   if (!valid.length) return
   const chunk = valid.map(([src, zh]) => JSON.stringify([src, zh])).join('\n') + '\n'
+  fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.appendFileSync(file, chunk)
 }
 
@@ -65,21 +67,10 @@ export function isOnlyPunctuation(text) {
 }
 
 export function shouldTranslate(text) {
-  // 与 services/translate/text-classify.ts 对齐
-  const CONTROL =
-    /\\[A-Za-z]+(?:\[[^\]]*\])?|\\\[[^\]]*\]|\\[^A-Za-z\s]|%[0-9]+|%[sdifSc]|\{[0-9A-Za-z_]+\}|[A-Za-z_][A-Za-z0-9_]*\[\d+\]|_[A-Z][A-Z0-9_]{1,}|[♡♥❤❥💕♪☆★✦✧※]{1,}|(?:\.{3}|…{1,}|・{2,}|･{2,})/g
-  const core = String(text || '')
-    .replace(CONTROL, ' ')
-    .replace(/[\s\u3000]+/g, ' ')
-    .trim()
-  if (!core) return false
-  return hasJapanese(core) && !isOnlyPunctuation(core)
+  return shouldTranslateSource(String(text || ''))
 }
 
-/**
- * 种子表里常见脏前缀/后缀：开头多余引号、末尾脚本残片 `');`
- * 规则翻译时先剥掉，写回时再原样拼上，避免挡住语气/壳句判断。
- */
+/** Seed entries may contain stray leading quotes or trailing script fragments. Remove these before rule-based translation and restore them on writeback to preserve sentence shells. */
 export function peelNoise(text) {
   let s = String(text || '')
   let prefix = ''
@@ -103,9 +94,7 @@ export function wrapNoise(text, prefix, suffix) {
   return `${prefix || ''}${text}${suffix || ''}`
 }
 
-/**
- * 短片假名专名（角色名等）：允许缓存保留原文，避免死循环重译。
- */
+/** Allow short kana proper names to retain their source form in the cache, avoiding endless retranslation. */
 export function isLikelyKeptName(text) {
   const { core } = peelNoise(text)
   const stripped = core.replace(/[「」『』""''“”‘’（）()【】\[\]\s\u3000#＃…・＝♡♥☆★♪～〜]/g, '')
@@ -114,12 +103,7 @@ export function isLikelyKeptName(text) {
   return /^[\u30A0-\u30FFー]+$/.test(stripped)
 }
 
-/**
- * 缓存/入库质检：
- * - 空、编号泄漏、原文→半成品 dump → 不合格
- * - 无假名字母 → 合格
- * - 与原文相同或仍含假名 → 不合格
- */
+/** Cache validation rejects empty values, leaked numbering, partial dumps, unchanged sources and remaining kana; fully translated text without kana is accepted. */
 export function isAcceptableTranslation(src, zh) {
   const t = String(zh ?? '')
   if (!t.trim()) return false
@@ -135,7 +119,7 @@ export function isAcceptableTranslation(src, zh) {
   return han >= 2 && kana / core.length <= 0.35
 }
 
-/** 从 seed 剔除不合格缓存，返回剔除条数。 */
+/** Remove invalid seed-cache entries and return the number removed. */
 export function purgeBadCacheEntries(seed) {
   let purged = 0
   for (const src of Object.keys(seed)) {
@@ -147,7 +131,7 @@ export function purgeBadCacheEntries(seed) {
   return purged
 }
 
-// 常见短 UI / 系统短语（可继续往里加）
+// Common short UI and system phrases; extend as needed.
 const FIXED_PHRASES = {
   はい: '是',
   いいえ: '否',
@@ -177,10 +161,7 @@ const FIXED_PHRASES = {
   売る: '出售',
 }
 
-/**
- * 娇喘/语气声：几乎只有あいうえおんっ + 标点引号（含 ♡）。
- * kuromoji 对这类常标错，用音素规则更快更稳。
- */
+/** Vocalizations composed mostly of kana and punctuation are often mistagged by kuromoji; use a faster phoneme rule instead. */
 export function isVoiceOnlyLine(text) {
   const s = peelNoise(text).core
   const core = s.replace(/[「」『』""''“”‘’（）()【】\[\]\s\u3000♡♥]/g, '')
@@ -191,7 +172,7 @@ export function isVoiceOnlyLine(text) {
   if (!/^[あいうえおアイウエオぁぃぅぇぉァィゥェォっッんンあぁいぃうぅえぇおぉはひふへほハヒフヘホゃゅょャュョー～〜くク]+$/.test(body)) {
     return false
   }
-  // 排除「はい/いいえ」等短实词；需有促音/小假名/拉长/叠音等语气特征
+  // Exclude short meaningful words such as yes/no; require vocalization features such as small kana, prolonged sounds or repetition.
   if (/^(はい|いいえ|ええ|うん|そう|やめろ?|だめ)[!！?？…。．.]*$/u.test(body)) return false
   const vocal = /[っッぁぃぅぇぉァィゥェォー～〜…]/.test(core) || /(.)\1/.test(body) || /[あぁ]{2,}|[うぅウゥ]{2,}|んん|はぁ+|あん|んあ|んぉ|んく|あっ|えっ|おっ|くぅ/.test(body)
   if (!vocal && body.length <= 4) return false
@@ -292,7 +273,7 @@ export function tryFixedPhrase(text) {
 
   if (open === '「' || open === '『') zh = `“${zh}`
   if (close === '」' || close === '』') zh = `${zh}”`
-  // 省略号等在 stem 外的「はい……」：punct 已含 …
+  // The punctuation matcher already includes ellipses outside the stem.
   return wrapNoise(zh, prefix, suffix)
 }
 
@@ -307,8 +288,8 @@ export function loadTokenizer() {
   })
 }
 
-// 只有「名词/感叹词等实词复合 + 可选末尾数字」才当词条。
-// 一旦出现助词、动词、助动词，就当句子，避免误套模板。
+// Treat text as a glossary entry only when it contains content-word compounds and an optional trailing number.
+// Particles, verbs or auxiliary verbs identify a sentence and prevent applying a label template.
 export function classifyTerm(tokenizer, text) {
   const tokens = tokenizer.tokenize(text)
   const parts = tokens.filter((token) => token.pos !== '記号' && String(token.surface_form).trim())
@@ -341,17 +322,14 @@ export function swapTrailingNumber(translated, fromNum, toNum) {
   return translated + toNum
 }
 
-/**
- * 末尾数字族：自警団の団員2 / 3 / 4…
- * kuromoji 因「の」会判成句子，这里用正则再收一刀，避免 2000 字批次里重复送翻。
- */
+/** Infer trailing-number families with a regex even when kuromoji classifies a short possessive name as a sentence, avoiding duplicate requests within a large batch. */
 export function trailingNumberParts(text) {
   const m = String(text || '').match(/^(.*[^\d０-９])([0-9０-９]+)$/)
   if (!m) return null
   const stem = m[1]
   const num = m[2]
   if (!hasJapanese(stem) || stem.length < 2) return null
-  // 排除明显完整句尾
+  // Exclude obvious complete-sentence endings.
   if (/[ただですますねよ]$/u.test(stem)) return null
   if (/[。！？!?]$/.test(stem)) return null
   return { stem, num }

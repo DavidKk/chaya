@@ -48,13 +48,14 @@ export function ensureSwitchesFile() {
   const body = `${JSON.stringify(next, null, 2)}\n`
   const prev = fs.existsSync(rt().SWITCHES_FILE) ? fs.readFileSync(rt().SWITCHES_FILE, 'utf8') : ''
   if (prev !== body) {
+    fs.mkdirSync(path.dirname(rt().SWITCHES_FILE), { recursive: true })
     fs.writeFileSync(rt().SWITCHES_FILE, body)
     if (!prev) console.log(`已创建开关文件 ${path.basename(rt().SWITCHES_FILE)}`)
     else if (Object.keys(cliSwitchOverrides).length) {
       console.log(`已按启动参数更新 ${path.basename(rt().SWITCHES_FILE)}`)
     }
   }
-  // 之后只认文件，便于运行中随时改
+  // Use the file as the source of truth from this point so switches can change during a run.
   for (const key of Object.keys(cliSwitchOverrides)) delete cliSwitchOverrides[key]
   switchesCache = next
   switchesMtimeMs = fs.existsSync(rt().SWITCHES_FILE) ? fs.statSync(rt().SWITCHES_FILE).mtimeMs : -1
@@ -94,11 +95,7 @@ export function enabledEngineNames() {
   return ENGINE_NAMES.filter((name) => isEngineEnabled(name))
 }
 
-/**
- * 按引擎记录「质检/产出失败」。仅统计当前开启的引擎：
- * 开启的引擎都失败过 → 放弃，写入 skipped，不再入队死磕。
- * 未开启的引擎不计入（例如 google 关着时，不算它失败）。
- */
+/** Track quality and output failures per enabled engine. Once all currently enabled engines have failed, mark the item skipped instead of retrying indefinitely; disabled engines do not count. */
 export function createFailLedger() {
   /** @type {Map<string, Record<string, boolean>>} */
   const bySrc = new Map()
@@ -139,6 +136,7 @@ export function createFailLedger() {
     if (!cur[engine]) {
       cur[engine] = true
       bySrc.set(src, cur)
+      fs.mkdirSync(path.dirname(rt().SKIPPED_NDJSON), { recursive: true })
       fs.appendFileSync(rt().SKIPPED_NDJSON, `${JSON.stringify({ s: src, engines: cur, t: Date.now() })}\n`)
     } else {
       bySrc.set(src, cur)

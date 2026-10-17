@@ -57,6 +57,8 @@ shiru-kit.config.json
 # Seed 补译后台任务状态（含本机 contentRoot）
 /data/translate-jobs/*.json
 !/data/translate-jobs/.gitkeep
+# Shared translation settings and local import reports
+/data/translate/*.json
 # 共用 NW.js 壳
 /data/shell/Chaya.app/
 /data/shell/ShiruKit.app/

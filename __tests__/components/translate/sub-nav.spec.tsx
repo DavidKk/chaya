@@ -9,6 +9,12 @@ import { TranslateContentToolbar, TranslateSubNav } from '@/components/translate
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
+let mockPathname = '/translate/cache'
+
+jest.mock('next/navigation', () => ({
+  usePathname: () => mockPathname,
+}))
+
 Object.defineProperty(window, 'matchMedia', {
   configurable: true,
   value: () => ({
@@ -22,6 +28,7 @@ let host: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  mockPathname = '/translate/cache'
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -79,4 +86,22 @@ test('shows the active translation section title and description in the shared c
 
   expect(host.querySelector('h2')?.textContent).toBe('共享翻译库')
   expect(host.textContent).toContain('查看、搜索并维护当前游戏的翻译内容。')
+})
+
+test('shows detail title and description on cache detail paths', async () => {
+  mockPathname = '/translate/cache/detail/42'
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <PanelHeadEndProvider>
+          <TranslateEnginesDrawerProvider>
+            <TranslateContentToolbar tab="cache" />
+          </TranslateEnginesDrawerProvider>
+        </PanelHeadEndProvider>
+      </LocaleProvider>
+    )
+  )
+
+  expect(host.querySelector('h2')?.textContent).toBe('条目详情')
+  expect(host.textContent).toContain('编辑原文换行与译文，并可拆分子项写入共享缓存。')
 })

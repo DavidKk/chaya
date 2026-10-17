@@ -30,6 +30,10 @@ describe('in-game plugin MCP tools', () => {
     expect(clear).toHaveBeenCalled()
   })
 
+  it('directs Cloud Agent activity queries to page WebMCP', async () => {
+    await expect(makeGameTools().chaya_logs_query({ view: 'agent' }, ctx)).rejects.toThrow('WebMCP')
+  })
+
   it('reads the edit catalog from ChayaEdit', async () => {
     g.ChayaEdit = { catalog: () => ({ items: [{ id: 1, name: 'Potion' }], weapons: [], armors: [] }) }
     const result = await makeGameTools().chaya_edit_catalog({ kind: 'items' }, ctx)

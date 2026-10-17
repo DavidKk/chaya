@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { gameContentPath } from '@/lib/game/content-files'
 import { DB_SPECS } from '@/lib/translate/database-fields'
 import { extractPluginSeed } from '@/plugins/src/translator/runtime/extract'
 import { extractDialogueFromEvents } from '@/services/extract/lib/dialogue'
@@ -107,19 +106,65 @@ describe('plugin text extraction', () => {
     }
   })
 
-  it('includes plugin parameters in the offline extract output', () => {
+  it('uses the same dialogue segments in offline and in-game exports', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-offline-text-'))
     try {
       fs.mkdirSync(path.join(root, 'data'))
       fs.mkdirSync(path.join(root, 'js'))
-      fs.mkdirSync(path.dirname(gameContentPath(root, 'extractStrings')), { recursive: true })
       for (const [file] of DB_SPECS) fs.writeFileSync(path.join(root, 'data', file), '[]')
       for (const file of ['CommonEvents.json', 'Troops.json']) fs.writeFileSync(path.join(root, 'data', file), '[]')
       fs.writeFileSync(path.join(root, 'data', 'System.json'), JSON.stringify({ terms: {} }))
-      fs.writeFileSync(path.join(root, 'js', 'plugins.js'), `var $plugins = ${JSON.stringify([{ name: 'BattleHud', status: true, parameters: { title: '敵の攻撃' } }])};`)
+      const template = String.raw`_actorは「\I[_icon]_name」 を\C[14]_num個\C[24]手に入れた！\n\C[6]_desc1`
+      fs.writeFileSync(
+        path.join(root, 'js', 'plugins.js'),
+        `var $plugins = ${JSON.stringify([
+          { name: 'BattleHud', status: true, parameters: { title: '敵の攻撃' } },
+          { name: 'GetInformation', status: true, parameters: { 'Get Item Text Num': template, 'Battle Show List': 'item,gold,exp' } },
+        ])};`
+      )
+      fs.writeFileSync(
+        path.join(root, 'data', 'CommonEvents.json'),
+        JSON.stringify([
+          {
+            id: 1,
+            list: [
+              { code: 101, parameters: [] },
+              { code: 401, parameters: ['「こんにちは、'] },
+              { code: 401, parameters: ['村へ行こう。」'] },
+              { code: 0, parameters: [] },
+            ],
+          },
+        ])
+      )
+      fs.writeFileSync(path.join(root, 'story.txt'), 'これは追加の文章です')
+      fs.writeFileSync(path.join(root, 'choices.csv'), 'id,text\n1,冒険を始める')
+      fs.writeFileSync(path.join(root, 'data', 'extra.json'), JSON.stringify({ label: '村へ戻ります' }))
+      fs.writeFileSync(
+        path.join(root, 'data', 'Map040.json'),
+        JSON.stringify({
+          name: '地下の地図',
+          displayName: '調教部屋',
+          events: [null, { id: 1, name: '地下室へ', pages: [] }, { id: 2, name: '地下室へ', pages: [{ list: [] }] }, { id: 3, name: 'EV003', pages: [] }],
+        })
+      )
       const result = runExtract(root)
       expect(result.allStrings).toContain('敵の攻撃')
-      expect(JSON.parse(fs.readFileSync(result.OUT, 'utf8')).db.plugins).toEqual(['敵の攻撃'])
+      expect(result.allStrings).toContain(template)
+      expect(result.allStrings).not.toContain('_actorは')
+      expect(result.allStrings).not.toContain('item,gold,exp')
+      for (const text of ['地下の地図', '調教部屋', '地下室へ']) expect(result.allStrings).toContain(text)
+      expect([...result.allStrings].filter((text) => text === '地下室へ')).toHaveLength(1)
+      expect(result.allStrings).not.toContain('EV003')
+      for (const text of ['これは追加の文章です', '冒険を始める', '村へ戻ります']) expect(result.allStrings).toContain(text)
+      expect(result.allStrings).toContain('こんにちは、\n村へ行こう')
+      const store = { load: jest.fn(async () => {}), seed: () => ({ '「こんにちは、': '', 古い原文: '旧译文' }), lookup: () => null, writeJson: jest.fn(async () => {}) }
+      const exported = await extractPluginSeed(root, { fs, path }, store as never, undefined, { entries: true })
+      expect(exported.entries).toEqual(Object.fromEntries([...result.originalStrings].map((src) => [src, ''])))
+      expect(exported.entries).toHaveProperty('「こんにちは、\n村へ行こう。」', '')
+      expect(exported.entries).not.toHaveProperty('「こんにちは、')
+      expect(exported.entries).toHaveProperty('地下室へ', '')
+      expect(store.writeJson).toHaveBeenCalledWith('seed', expect.objectContaining({ 古い原文: '旧译文' }))
+      expect(JSON.parse(fs.readFileSync(result.OUT, 'utf8')).db.plugins).toEqual(['敵の攻撃', template])
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }

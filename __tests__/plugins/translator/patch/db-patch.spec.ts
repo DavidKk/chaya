@@ -69,6 +69,16 @@ describe('patchCommand', () => {
 })
 
 describe('patchRow / patchEventList', () => {
+  it('applies a broad cache only to allowed text fields even when resource identifiers have identical values', () => {
+    const row = { name: 'Potion', description: 'Potion', battlerName: 'Potion', characterName: 'Potion', note: 'Potion', meta: { label: 'Potion' }, unknown: 'Potion' }
+    const translate = jest.fn((text: string) => (text === 'Potion' ? '药水' : text))
+    patchRow(row, translate)
+    expect(row).toEqual({ name: '药水', description: '药水', battlerName: 'Potion', characterName: 'Potion', note: 'Potion', meta: { label: 'Potion' }, unknown: 'Potion' })
+    expect(translate).toHaveBeenCalledTimes(2)
+    const script = { code: 355, parameters: ['Potion'] }
+    patchCommand(script, translate)
+    expect(script.parameters).toEqual(['Potion'])
+  })
   it('skips null rows and empty fields; skips write-back when unchanged', () => {
     expect(() => patchRow(null, zh)).not.toThrow()
     const row: Record<string, unknown> = { name: 'x', description: '', nickname: null }
@@ -121,6 +131,8 @@ describe('patchSystem / patchMap / patchDatabase', () => {
     expect(sys.terms.messages.obtainExp).toBe('ZH:%1 EXP')
     expect(sys.terms.messages.empty).toBe('')
     expect(sys.elements[1]).toBe('ZH:炎')
+    expect(sys.switches[1]).toBe('スイッチ')
+    expect(sys.variables[1]).toBe('変数')
     restore()
   })
 

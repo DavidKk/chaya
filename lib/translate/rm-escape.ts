@@ -1,22 +1,14 @@
-/**
- * RPG Maker 消息/描述控制码（MV/MZ 等）：
- * - `\n[1]` / `\N[1]` 角色名
- * - `\c[16]` / `\C[0]` 文字色
- * - `\I[5]` 图标、`\FS[20]` 字号等
- *
- * 送翻时由 text-classify 换成 `__C0__`；本模块做「数字无关」模板，
- * 使 `\n[1]` 与 `\n[3]` 能命中同一条缓存。
- */
+/** RPG Maker message and description controls: actor names, colors, icons and font sizes. text-classify masks these as __C0__; numeric templates let different actor IDs reuse the same cached translation. */
 
-/** `\X[digits]`：反斜杠 + 字母 + 数字方括号（不含 `\C[#rrggbb]` 等） */
+/** Backslash, letters and a numeric bracket argument; excludes hexadecimal color arguments. */
 const RM_DIGIT_CODE_SRC = String.raw`\\[A-Za-z]+\[\d+\]`
 
-/** 每次新建，避免 `/g` 的 lastIndex 串扰 */
+/** Create a fresh expression to avoid sharing the global lastIndex state. */
 function rmDigitCodeRe(): RegExp {
   return new RegExp(RM_DIGIT_CODE_SRC, 'g')
 }
 
-/** 更宽：任意方括号参数，用于切段（与历史 `RM_ESCAPE` 一致） */
+/** Accept arbitrary bracket arguments when splitting controls, matching the legacy RM_ESCAPE behavior. */
 export const RM_ESCAPE_RE = /\\[A-Za-z]+(?:\[[^\]]*\])?/g
 
 export function hasRmDigitCodes(text: string): boolean {
@@ -27,10 +19,7 @@ export function extractRmDigitCodes(text: string): string[] {
   return [...String(text ?? '').matchAll(rmDigitCodeRe())].map((m) => m[0])
 }
 
-/**
- * 数字归一模板：`\n[1]` / `\N[3]` → `\n[#]`（字母小写，便于大小写互通）。
- * 无数字码时原样返回。
- */
+/** Normalize numeric controls to lowercase templates such as actor-name slots with [#]. Return other text unchanged. */
 export function toRmDigitTemplate(text: string): string {
   const src = String(text ?? '')
   if (!hasRmDigitCodes(src)) return src
@@ -40,10 +29,7 @@ export function toRmDigitTemplate(text: string): string {
   })
 }
 
-/**
- * 把模板里的 `\x[#]` 按顺序换回本次原文里的具体码。
- * codes 通常来自 {@link extractRmDigitCodes}(原文)。
- */
+/** Restore numbered control slots in order using codes from {@link extractRmDigitCodes}. */
 export function applyRmDigitCodes(template: string, codes: readonly string[]): string {
   if (!codes.length) return String(template ?? '')
   let i = 0
@@ -53,7 +39,7 @@ export function applyRmDigitCodes(template: string, codes: readonly string[]): s
   })
 }
 
-/** 查表：有数字码时先精确，再试模板键并还原。 */
+/** Try an exact lookup first, then a numeric template and restore the original codes. */
 export function lookupWithRmDigitTemplate(get: (key: string) => string | null | undefined, text: string): string | null {
   const src = String(text ?? '')
   if (!src) return null

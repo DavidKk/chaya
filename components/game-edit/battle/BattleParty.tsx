@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import { GiHealthIncrease, GiHeartPlus } from 'react-icons/gi'
 import { IoAddOutline, IoSkullOutline } from 'react-icons/io5'
 
-import { lockKeyForActorVital, type RunActionId, type SessionState } from '@/components/game-edit/types'
+import { type BattleLockChange, lockKeyForActorVital, type RunActionId, type SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { DataTable, type DataTableColumn, TextAction, TruncateText } from '@/components/sk'
 import type { ActorVitalKey, BattleState } from '@/lib/game/battle'
 
 import { EnemyPicker } from '../events/EnemyPicker'
 import type { EventsOp } from '../events/types'
-import { ACTIONS_COL, type BattleBusy, cardClass, IconAction, PlainInput, portalHost, SectionHead, STATUS_COL, tableClass, VITAL_COL, VitalInput } from './controls'
+import { type BattleBusy, cardClass, IconAction, PARTY_COLS, PlainInput, portalHost, SectionHead, tableClass, VitalInput } from './controls'
 
 type Props = {
   battle: BattleState
@@ -22,11 +22,12 @@ type Props = {
   busy: BattleBusy
   run: (key: string, op: EventsOp, ok: string) => Promise<void>
   onRunAction: (id: RunActionId) => void
+  onLock: (change: BattleLockChange) => void
   onOpenActor?: (actorId: number) => void
 }
 
 /** 战斗 › 我方: HP / MP (current and cap), TP, knock out / revive, full heal, add an ally */
-export function BattleParty({ battle, actors, session, blocked, busy, run, onRunAction, onOpenActor }: Props) {
+export function BattleParty({ battle, actors, session, blocked, busy, run, onRunAction, onLock, onOpenActor }: Props) {
   const t = useT()
   const { party, partyIds, partyMax } = battle
   const rootRef = useRef<HTMLElement>(null)
@@ -43,12 +44,12 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
   }
 
   const columns: DataTableColumn[] = [
-    { key: 'actor', label: t('events.battle.colActor') },
-    { key: 'hp', label: t('events.troop.colHp'), width: VITAL_COL },
-    { key: 'mp', label: t('events.battle.colMp'), width: VITAL_COL },
-    { key: 'tp', label: t('events.battle.colTp'), width: '5.5rem' },
-    { key: 'status', label: t('events.troop.colStatus'), width: STATUS_COL },
-    { key: 'actions', label: t('events.troop.colActions'), width: ACTIONS_COL, align: 'right' },
+    { key: 'actor', label: t('events.battle.colActor'), width: PARTY_COLS.actor },
+    { key: 'hp', label: t('events.troop.colHp'), width: PARTY_COLS.hp },
+    { key: 'mp', label: t('events.battle.colMp'), width: PARTY_COLS.mp },
+    { key: 'tp', label: t('events.battle.colTp'), width: PARTY_COLS.tp },
+    { key: 'status', label: t('events.troop.colStatus'), width: PARTY_COLS.status },
+    { key: 'actions', label: t('events.troop.colActions'), width: PARTY_COLS.actions, align: 'right' },
   ]
   const locked = (kind: 'hp' | 'mp', actorId: number) => lockKeyForActorVital(kind, actorId) in session.locks
   /** Invincibility refills HP / MP every tick, so edits would snap back */
@@ -77,6 +78,12 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
           const reason = blocked || (actor.alive ? '' : t('events.troop.enemyDown'))
           const hpHold = vitalHold('hp', actorId)
           const mpHold = vitalHold('mp', actorId)
+          const lockOf = (kind: 'hp' | 'mhp' | 'mp' | 'mmp' | 'tp', label: string, value: number) => ({
+            locked: lockKeyForActorVital(kind, actorId) in session.locks,
+            name: `${label} ${name}`,
+            disabled: !!blocked,
+            onChange: (on: boolean) => onLock({ side: 'actor', id: actorId, kind, on, value }),
+          })
           const set = (key: ActorVitalKey, label: string) => (value: number) =>
             void run(`${key}:${actorId}`, { op: 'actorVital', actorId, key, value }, t('events.battle.setOk', { name, label, value }))
           return (
@@ -98,7 +105,10 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                   label={`${t('events.troop.hpEdit')} ${name}`}
                   maxLabel={`${t('events.troop.mhpEdit')} ${name}`}
                   disabled={!!reason || !!hpHold}
+                  maxDisabled={!!reason || session.god || lockKeyForActorVital('mhp', actorId) in session.locks}
                   disabledReason={hpHold || undefined}
+                  lock={lockOf('hp', t('events.troop.hpEdit'), actor.hp)}
+                  maxLock={lockOf('mhp', t('events.troop.mhpEdit'), actor.mhp)}
                   onValue={set('hp', 'HP')}
                   onMax={set('mhp', t('events.troop.mhpEdit'))}
                 />
@@ -112,17 +122,29 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                   label={`${t('events.battle.mpEdit')} ${name}`}
                   maxLabel={`${t('events.battle.mmpEdit')} ${name}`}
                   disabled={!!reason || !!mpHold}
+                  maxDisabled={!!reason || session.god || lockKeyForActorVital('mmp', actorId) in session.locks}
                   disabledReason={mpHold || undefined}
+                  lock={lockOf('mp', t('events.battle.mpEdit'), actor.mp)}
+                  maxLock={lockOf('mmp', t('events.battle.mmpEdit'), actor.mmp)}
                   onValue={set('mp', 'MP')}
                   onMax={set('mmp', t('events.battle.mmpEdit'))}
                 />
               </td>
               <td>
-                <PlainInput value={actor.tp} max={actor.maxTp} label={`${t('events.battle.tpEdit')} ${name}`} disabled={!!reason} onValue={set('tp', 'TP')} />
+                <PlainInput
+                  value={actor.tp}
+                  max={actor.maxTp}
+                  label={`${t('events.battle.tpEdit')} ${name}`}
+                  disabled={!!reason || lockKeyForActorVital('tp', actorId) in session.locks}
+                  lock={lockOf('tp', t('events.battle.tpEdit'), actor.tp)}
+                  onValue={set('tp', 'TP')}
+                />
               </td>
-              <td className="whitespace-nowrap text-ink-soft">{actor.alive ? t('events.troop.statusOk') : t('events.troop.enemyDown')}</td>
+              <td className="whitespace-nowrap text-ink-soft">
+                <span className="flex h-8 items-center">{actor.alive ? t('events.troop.statusOk') : t('events.troop.enemyDown')}</span>
+              </td>
               <td>
-                <span className="flex items-center justify-end gap-0.5">
+                <span className="flex h-8 items-center justify-end gap-0.5">
                   {actor.alive ? (
                     <IconAction
                       label={`${t('events.battle.knockOut')} ${name}`}

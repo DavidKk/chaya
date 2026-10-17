@@ -11,6 +11,26 @@ import {
 } from '@/services/translate/text-classify'
 
 describe('text-classify protect / cache core', () => {
+  it('rejects visible untranslated kana inside ruby annotations', () => {
+    const source = String.raw`「これは\RB[認定,オーソライズ]です」`
+    expect(isStorableTranslation(source, String.raw`「这是\RB[认证,授权]哦」`)).toBe(true)
+    expect(isStorableTranslation(source, String.raw`「这是\RB[认证,オーソライズ]哦」`)).toBe(false)
+    const ruby = String.raw`\RB[認定,オーソライズ]`
+    expect(peelControlShell(ruby)).toEqual({ lead: '', core: ruby, trail: '' })
+    expect(protectForTranslate(ruby).core).toBe(ruby)
+  })
+  it('accepts valid Chinese words shared with the Japanese source', () => {
+    expect(isStorableTranslation('お前の想像通り、これは催眠魔法でな。', '正如你所想，这是催眠魔法。')).toBe(true)
+    expect(isStorableTranslation('魔法学校に行こう', '去魔法学校吧')).toBe(true)
+    expect(isStorableTranslation('応接室へ行く', '去応接室')).toBe(false)
+    expect(isStorableTranslation('魔法学校に行こう', '去魔法学校に吧')).toBe(false)
+  })
+  it('excludes leading and trailing choice conditions from translation and restores them verbatim', () => {
+    const source = '\\C[2] en(!s[671]) 様子を観察する if(v[1] > 0)\\C[0]'
+    const guard = protectForTranslate(source)
+    expect(guard.plain).toBe('様子を観察する')
+    expect(restoreForTranslate('暗中观察', guard)).toBe(source.replace('様子を観察する', '暗中观察'))
+  })
   it('peels leading \\c[n] / \\C[n] shells', () => {
     expect(peelProtectShell('\\c[16]次のレベルまで')).toEqual({
       lead: '\\c[16]',
@@ -94,5 +114,15 @@ describe('text-classify protect / cache core', () => {
     expect(guard.core).toBe('エスクード')
     expect(guard.plain).toBe('エスクード')
     expect(restoreForTranslate('护盾', guard)).toBe('!护盾')
+  })
+
+  it('keeps contextual brackets intact and only removes a complete outer wrapper', () => {
+    expect(protectForTranslate('【注意】地下室へ戻れ').plain).toBe('【注意】地下室へ戻れ')
+    expect(protectForTranslate('見る（初回推奨）').plain).toBe('見る（初回推奨）')
+    expect(protectForTranslate('【地下室へ】')).toMatchObject({ lead: '【', core: '地下室へ', trail: '】' })
+    const guard = protectForTranslate('Take <B>this potion</B> now')
+    expect(guard.plain).toBe('Take __C0__this potion__C1__ now')
+    expect(restoreForTranslate('现在拿走__C0__这瓶药水__C1__', guard)).toBe('现在拿走<B>这瓶药水</B>')
+    expect(shouldTranslate('<br>')).toBe(false)
   })
 })

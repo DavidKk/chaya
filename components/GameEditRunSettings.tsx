@@ -22,6 +22,7 @@ export type GameEditRunSettingsState = Pick<
   | 'alwaysDash'
   | 'god'
   | 'autoWin'
+  | 'autoBattle'
   | 'through'
   | 'autotalk'
   | 'encounter'

@@ -67,6 +67,8 @@ export {
   ACTOR_PARAM_FIELDS,
   type ActorDraft,
   type ActorVitalLockKind,
+  type BattleLockChange,
+  battleLockKey,
   countKey,
   defaultActorDraft,
   emptySession,

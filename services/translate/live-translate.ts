@@ -1,27 +1,36 @@
-/**
- * 服务内日→中实时翻译，按引擎开关选用 Google / Bing / Ollama / AI Agent。
- * 供插件 miss 回填与翻译页补齐使用。
- */
+/** Server-side Japanese-to-Chinese live translation using enabled Google, Bing, Ollama or AI agent engines. Used for plugin cache misses and translation-page fill jobs. */
 import fs from 'node:fs'
-import { createRequire } from 'node:module'
 
 import { ensureGameContentDir } from '@/lib/game/content-files'
-import { peelChoiceMetaTrail } from '@/lib/translate/choice-meta'
+import { appendCacheLines, lockCacheFile } from '@/lib/translate/cache-file-lock'
+import { detectCacheLang } from '@/lib/translate/cache-lang'
+import { peelChoiceMetaShell } from '@/lib/translate/choice-meta'
 import { requestGoogle } from '@/lib/translate/engine-http'
 import { engineAcceptsSensitive, engineSourceTag, findAgentEntry, type TranslateAgentEntry, type TranslateRunEngine } from '@/lib/translate/engines'
+import { lookupTranslationRecord } from '@/lib/translate/lookup'
 import { hasRmDigitCodes, toRmDigitTemplate } from '@/lib/translate/rm-escape'
+import { renderSentencePlan, resolveSentenceGaps, type SentencePlan } from '@/lib/translate/sentence-plan'
 import { getResolvedFromConfig } from '@/services/game/binding'
 
 import { agentJaToZh } from './agent-translate'
 import { lookupGameTranslation } from './cache-lookup'
 import { DEFAULT_ENGINE_SWITCHES, getTranslateEngineSwitches, TRANSLATE_ENGINE_IDS } from './engine-switches'
 import { loadGameTranslateLookup, normalizeTranslateKey } from './game-lookup'
+import { loadGameTranslationRecords } from './game-records'
 import { type LocalTranslateOptions, ollamaJaToZh } from './ollama-translate'
 import { isSensitiveForCloud } from './sensitive-text'
 import { openSharedCache } from './shared-cache'
-import { isStorableTranslation, isUsefulTranslation, peelProtectShell, protectForTranslate, restoreForTranslate, shouldTranslate, translationCoreForCache } from './text-classify'
+import {
+  isReusableTranslation,
+  isStorableTranslation,
+  isUsefulTranslation,
+  peelControlShell,
+  protectSentenceForTranslate as protectForTranslate,
+  restoreForTranslate,
+  shouldTranslate,
+  translationCoreForCache,
+} from './text-classify'
 
-const require = createRequire(import.meta.url)
 const MAX_BATCH = 40
 
 export { type LocalTranslateOptions, ollamaJaToZh }
@@ -33,15 +42,17 @@ export async function googleJaToZh(text: string): Promise<string> {
 }
 
 async function bingJaToZh(text: string): Promise<string> {
-  // 可选依赖：用拼接包名避免 bundler 静态解析；未安装时明确报错
+  // Build the optional dependency name dynamically to avoid static bundler resolution; report a clear error if it is missing.
   const pkg = ['bing', 'translate', 'api'].join('-')
   let translate: ((...args: unknown[]) => Promise<{ translation?: string }>) | undefined
   try {
-    translate = require(pkg).translate as (...args: unknown[]) => Promise<{ translation?: string }>
+    const dependency = await import(/* webpackIgnore: true */ pkg)
+    translate = dependency.translate || dependency.default?.translate
   } catch {
     throw new Error('未安装 bing-translate-api（可选依赖），请关闭 Bing 或安装该包')
   }
-  const res = await translate(text, 'ja', 'zh-Hans', false, false)
+  if (!translate) throw new Error('Bing 翻译模块未提供 translate')
+  const res = await translate(text, 'auto-detect', 'zh-Hans', false, false)
   if (!res?.translation) throw new Error('empty translation')
   return res.translation
 }
@@ -55,15 +66,22 @@ async function translateWithEngine(engine: TranslateRunEngine, text: string, opt
   return agentJaToZh(text, entry, { interactive: options?.interactive, signal: options?.signal })
 }
 
-function appendGameNdjson(contentRoot: string, pairs: Array<[string, string]>) {
-  const valid = pairs.filter(([src, zh]) => isStorableTranslation(src, zh))
-  if (!valid.length) return
+/** Append reusable pairs (incl. 原文===译文 labels) to the bound game's cache.ndjson. */
+export function appendGameNdjson(contentRoot: string, pairs: Array<[string, string]>): number {
+  const valid = pairs.filter(([src, zh]) => isReusableTranslation(src, zh))
+  if (!valid.length) return 0
   const file = ensureGameContentDir(contentRoot, 'cacheNdjson')
-  const lines = valid.map(([s, t]) => JSON.stringify([s, t])).join('\n') + '\n'
-  fs.appendFileSync(file, lines, 'utf8')
+  const release = lockCacheFile(fs, file)
+  try {
+    appendCacheLines(fs, file, valid)
+  } finally {
+    release()
+  }
+  return valid.length
 }
 
-function resolveBoundContentRoot(): string | null {
+/** Local bound game content root, or null when unbound / remote. */
+export function resolveBoundContentRoot(): string | null {
   const resolved = getResolvedFromConfig()
   if (!resolved.ok) return null
   if (resolved.remote) return null
@@ -75,12 +93,11 @@ export type LiveTranslateItem = {
   zh: string | null
   error?: string
   engine?: string
+  status?: 'full' | 'partial' | 'miss'
+  plan?: SentencePlan
 }
 
-/** 翻译一批原文；优先复用本作译文，再查共享库，最后按开关启用的引擎翻译并落盘。
- * `force: true` 跳过查表，强制走引擎重译（缓存页「重新翻译」）。
- * `persist: false` 只返回译文，不写入共享库 / 本地（编辑弹窗预览）。
- */
+/** Translate a batch using this game's library first, then the shared cache, then enabled engines and persistence. force skips lookup for retranslation; persist:false returns previews without writing either cache. */
 export async function liveTranslateTexts(
   texts: string[],
   opts?: { contentRoot?: string | null; engine?: string; engines?: TranslateRunEngine[]; force?: boolean; persist?: boolean; local?: LocalTranslateOptions }
@@ -109,22 +126,17 @@ export async function liveTranslateTexts(
     if (!engines.length) engines = state.enabled
   } catch {
     if (!engines.length) {
-      /* 未绑定游戏时走默认开关与顺序 */
+      /* Use default switches and order when no game is bound. */
       engines = TRANSLATE_ENGINE_IDS.filter((id) => DEFAULT_ENGINE_SWITCHES[id])
-    }
-  }
-  if (!engines.length) {
-    return {
-      items: unique.map((src) => ({ src, zh: null, error: '未开启任何翻译平台' })),
-      contentRoot,
-      engines: [],
     }
   }
 
   const cache = openSharedCache()
+  if (contentRoot && opts?.persist !== false) cache.flushBackfill(contentRoot)
+  const localRecords = contentRoot ? loadGameTranslationRecords(contentRoot, (origin) => origin.database === cache.path && cache.current([{ ...origin, src: '', zh: '' }])) : []
   const items: LiveTranslateItem[] = []
   const toWrite: Array<[string, string]> = []
-  /** 本作译文优先；共享库只补本作未收录的文本。 */
+  /** Prefer this game's translations; the shared cache only fills missing entries. */
   const localLookup = contentRoot ? loadGameTranslateLookup(contentRoot) : null
 
   function lookupLocal(src: string): string | null {
@@ -132,10 +144,10 @@ export async function liveTranslateTexts(
     if (Object.prototype.hasOwnProperty.call(localLookup, src)) return localLookup[src] ?? null
     const norm = normalizeTranslateKey(src)
     if (norm !== src && Object.prototype.hasOwnProperty.call(localLookup, norm)) return localLookup[norm] ?? null
-    return null
+    return lookupTranslationRecord(localLookup, src)
   }
 
-  /** 查表时剥 if/en，避免命中「如果/启用」毒化整句；回写仍用完整 src。 */
+  /** Strip choice conditions during lookup to avoid legacy translations of executable keywords; preserve the full source when writing back. */
   function lookupCached(src: string): { zh: string; engine: 'cache:remote' | 'cache:local' } | null {
     return lookupGameTranslation(lookupLocal, (key) => cache.get(key), src)
   }
@@ -146,17 +158,77 @@ export async function liveTranslateTexts(
   try {
     for (const src of unique) {
       opts?.local?.signal?.throwIfAborted()
-      const { core: labelCore } = peelChoiceMetaTrail(src)
+      const { core: labelCore } = peelChoiceMetaShell(src)
       if (!force) {
-        const cached = lookupCached(src)
+        const pair = { from: detectCacheLang(src), to: 'zh' as const }
+        const plan = cache.plan(src, pair, localRecords)
+        if (plan.status === 'full') {
+          items.push({ src, zh: plan.zh, engine: plan.matches.every((m) => m.record.local) ? 'cache:local' : 'cache:remote', status: 'full', plan })
+          if (persist && contentRoot) {
+            const records = plan.matches
+              .filter((m) => !m.record.local && m.kind === 'whole')
+              .map((m) => cache.record(m.record.src, pair))
+              .filter((r) => r != null)
+            cache.queueBackfill(contentRoot, records)
+          }
+          continue
+        }
+        if (plan.status === 'partial') {
+          const translated = new Map<string, string>()
+          const completed: Array<{ src: string; zh: string; engine: string }> = []
+          for (const gap of plan.gaps) {
+            const result = await liveTranslateTexts([gap.text], { ...opts, force: true, persist: false, engines })
+            const item = result.items[0]
+            if (item?.zh && !item.error) {
+              translated.set(gap.id, item.zh)
+              if (item.engine?.startsWith('live:')) completed.push({ src: gap.text, zh: item.zh, engine: item.engine })
+            }
+          }
+          const deps = plan.matches.filter((m) => !m.record.local).map((m) => m.record)
+          const currentLocal = contentRoot
+            ? loadGameTranslationRecords(contentRoot, (origin) => origin.database === cache.path && cache.current([{ ...origin, src: '', zh: '' }]))
+            : []
+          const localChanged = plan.matches.some((m) => m.record.local && !currentLocal.some((r) => r.src === m.record.src && r.zh === m.record.zh && r.engine === m.record.engine))
+          if (!cache.current(deps) || cache.version() !== plan.corpusVersion || localChanged || JSON.stringify(currentLocal) !== JSON.stringify(localRecords)) {
+            // Replan once after an awaited engine call; force would bypass the new human decision.
+            const current = cache.plan(src, pair, currentLocal)
+            items.push({
+              src,
+              zh: current.zh,
+              engine: 'cache:changed',
+              status: current.status,
+              plan: current,
+              error: current.status === 'full' ? undefined : '翻译库已更新，请重试缺口',
+            })
+            continue
+          }
+          if (persist)
+            for (const item of completed) {
+              const written = cache.writeMany([[item.src, item.zh]], item.engine, pair)
+              if (contentRoot) cache.queueBackfill(contentRoot, written.records)
+            }
+          const resolved = resolveSentenceGaps(plan, translated)
+          const full = resolved.status === 'full'
+          items.push({
+            src,
+            zh: resolved.zh ?? renderSentencePlan(resolved),
+            engine: 'cache:partial',
+            status: full ? 'full' : 'partial',
+            plan: resolved,
+            error: full ? undefined : '部分短句未完成翻译',
+          })
+          continue
+        }
+        // Keep specialized RM display/ruby restoration without word-coverage fallback.
+        const cached = /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src) ? lookupCached(src) : null
         if (cached != null) {
           items.push({ src, zh: cached.zh, engine: cached.engine })
-          /* 反哺本游戏本地（完整句 + 标题）；原文=译文跳过 */
-          if (persist) {
-            if (lookupLocal(src) == null && isStorableTranslation(src, cached.zh)) toWrite.push([src, cached.zh])
+          /* Populate the local library with validated cache hits, including explicit unchanged translations. */
+          if (persist && cached.engine === 'cache:local') {
+            if (lookupLocal(src) == null && isReusableTranslation(src, cached.zh)) toWrite.push([src, cached.zh])
             if (labelCore && labelCore !== src) {
-              const labelZh = peelChoiceMetaTrail(cached.zh).core || cached.zh
-              if (lookupLocal(labelCore) == null && isStorableTranslation(labelCore, labelZh)) {
+              const labelZh = peelChoiceMetaShell(cached.zh).core || cached.zh
+              if (lookupLocal(labelCore) == null && isReusableTranslation(labelCore, labelZh)) {
                 toWrite.push([labelCore, labelZh])
               }
             }
@@ -165,7 +237,7 @@ export async function liveTranslateTexts(
         }
       }
       if (!shouldTranslate(labelCore || src)) {
-        /* 纯控制码 / 无假名：原样返回，不入库（原文=译文无意义） */
+        /* Return control-only or untranslated text unchanged without storing an identical cache entry. */
         items.push({ src, zh: src, engine: 'skip' })
         continue
       }
@@ -173,14 +245,14 @@ export async function liveTranslateTexts(
       const guard = protectForTranslate(src)
       const sendText = guard.plain.trim() ? guard.plain : src
       const sensitive = isSensitiveForCloud(sendText)
-      /** 敏感句不送公网平台，只走 Agent 组；未开则本条软跳过，不挡同批其他条 */
+      /** Send sensitive text only to agent engines; skip this item if none are enabled, without blocking the rest of the batch. */
       const tryEngines = sensitive ? engines.filter(engineAcceptsSensitive) : engines
       if (sensitive && !tryEngines.length) {
         items.push({ src, zh: null, engine: 'skip:sensitive', error: '此文本需要开启 Agent 翻译' })
         continue
       }
 
-      /* 3) 远程翻译 → 4) 双写远程 + 本地（只存剥壳正文，壳留给局内切段拼回） */
+      /* Translate remotely, then persist body-only translations to shared and local caches; restore shells for in-game output. */
       const errors: string[] = []
       let done = false
       for (const engine of tryEngines) {
@@ -198,7 +270,7 @@ export async function liveTranslateTexts(
           const pushPair = (key: string, value: string) => {
             if (!isStorableTranslation(key, value)) return
             pairs.push([key, value])
-            /* `\n[1]` 与 `\n[3]` 共用模板键，查表时再还原具体数字码 */
+            /* Different numbered actor controls share a template key; restore the original numeric codes during lookup. */
             if (hasRmDigitCodes(key)) {
               const tplKey = toRmDigitTemplate(key)
               const tplZh = toRmDigitTemplate(value)
@@ -207,15 +279,15 @@ export async function liveTranslateTexts(
               }
             }
           }
-          /* 入库键用剥掉首尾 `\C[n]` 的正文；局内返回值仍带壳，便于当帧精确替换 */
+          /* Store body keys without boundary controls, but return the full shell for immediate in-game replacement. */
           pushPair(guard.core || sendText, zhCore)
           if (labelCore && labelCore !== src && guard.plain.trim()) {
-            const labelKey = peelProtectShell(labelCore).core || labelCore
+            const labelKey = peelControlShell(labelCore).core || labelCore
             pushPair(labelKey, zhCore)
           }
           if (pairs.length && persist) {
-            cache.upsertMany(pairs, tag)
-            toWrite.push(...pairs)
+            const written = cache.writeMany(pairs, tag, { from: detectCacheLang(src), to: 'zh' })
+            if (contentRoot) cache.queueBackfill(contentRoot, written.records)
           }
           items.push({ src, zh, engine: tag })
           done = true
@@ -225,12 +297,16 @@ export async function liveTranslateTexts(
         }
       }
       if (!done) {
-        items.push({ src, zh: null, error: errors.join('；') || '翻译失败' })
+        items.push({ src, zh: null, error: errors.join('；') || (engines.length ? '翻译失败' : '未开启任何翻译平台') })
       }
     }
   } finally {
-    cache.close()
-    // 后续选项超时/取消时，保留本批已经成功翻译的台词。
+    try {
+      if (contentRoot && opts?.persist !== false) cache.flushBackfill(contentRoot)
+    } finally {
+      cache.close()
+    }
+    // Preserve successful translations when a later item times out or is cancelled.
     if (contentRoot && toWrite.length) {
       try {
         appendGameNdjson(contentRoot, toWrite)

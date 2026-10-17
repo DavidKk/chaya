@@ -14,15 +14,36 @@ describe('non-blocking dialogue subtitles', () => {
     return { request, cached, settings, status, show, subtitles: createDialogueSubtitles({ settings: () => settings, request, cached, show, status }) }
   }
 
+  it('requests English dialogue the same way as Japanese', async () => {
+    const { subtitles, request } = setup()
+    request.mockImplementation(async (texts) => texts.map((src) => ({ src, zh: '欢迎来到村庄。' })))
+    subtitles.begin({ _texts: ['Welcome to the village.'], _choices: ['Enter the door'] })
+    expect(request.mock.calls[0][0].join('\n')).toContain('Welcome')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(request.mock.calls.flatMap((call) => call[0]).join('\n')).toContain('Enter the door')
+  })
+
+  it('requests bare speaker and dialogue keys and restores wrappers in the subtitle', async () => {
+    const { subtitles, request, show } = setup()
+    const original = String.raw`\n<ギルドメンバー>「こっちは男子棟だよ」`
+    const translations: Record<string, string> = { ギルドメンバー: '公会成员', こっちは男子棟だよ: '这边是男生宿舍哦' }
+    request.mockImplementation(async (texts) => texts.map((src) => ({ src, zh: translations[src] })))
+    subtitles.begin({ _texts: [original], _choices: [] })
+    expect(request.mock.calls[0][0]).toEqual(['ギルドメンバー', 'こっちは男子棟だよ'])
+    await Promise.resolve()
+    expect(show).toHaveBeenLastCalledWith({ text: String.raw`\n<公会成员>「这边是男生宿舍哦」`, choices: [], badge: 'translated' }, undefined)
+  })
+
   it('starts inference immediately without mutating the visible original, then displays a subtitle', async () => {
     const { subtitles, request, show } = setup()
     const message = { _texts: ['こんにちは', '村へ行こう'], _choices: ['行くif(s[1])', '行かない'] }
     request.mockImplementation(async (texts) =>
-      texts.map((src) => ({ src, zh: ({ 行かない: '不去', こんにちは: '你好', 村へ行こう: '去村子吧', '行くif(s[1])': '去if(s[1])' } as Record<string, string>)[src] }))
+      texts.map((src) => ({ src, zh: ({ 行かない: '不去', 'こんにちは\n村へ行こう': '你好\n去村子吧', '行くif(s[1])': '去if(s[1])' } as Record<string, string>)[src] }))
     )
     subtitles.begin(message)
     expect(request).toHaveBeenCalledTimes(1)
-    expect(request.mock.calls[0][0]).toEqual(['こんにちは', '村へ行こう'])
+    expect(request.mock.calls[0][0]).toEqual(['こんにちは\n村へ行こう'])
     expect(message._texts).toEqual(['こんにちは', '村へ行こう'])
     await Promise.resolve()
     expect(show).toHaveBeenLastCalledWith({ text: '你好\n去村子吧', choices: ['', ''], pending: true }, undefined)
@@ -89,31 +110,31 @@ describe('non-blocking dialogue subtitles', () => {
     expect(show).toHaveBeenLastCalledWith({ text: '', choices: [], replace: true, badge: 'cached' }, undefined)
   })
 
-  it('reuses translated dialogue lines and only requests missing lines', async () => {
+  it('reuses translated dialogue segments and only requests missing segments', async () => {
     const { subtitles, cached, request, show } = setup()
-    cached.mockImplementation((text) => (text === 'こんにちは' ? '你好' : text === '行く' ? '去' : text))
+    cached.mockImplementation((text) => (text === 'こんにちは。' ? '你好。' : text === '行く' ? '去' : text))
     request.mockImplementation(async (texts) => texts.map((src) => ({ src, zh: src === '村へ行こう' ? '去村子吧' : null })))
-    subtitles.begin({ _texts: ['こんにちは', '村へ行こう'], _choices: ['行く', '待つ'] })
-    expect(show).toHaveBeenLastCalledWith({ text: '你好\n村へ行こう', choices: ['去', ''], pending: true }, undefined)
+    subtitles.begin({ _texts: ['こんにちは。', '村へ行こう'], _choices: ['行く', '待つ'] })
+    expect(show).toHaveBeenLastCalledWith({ text: '你好。\n村へ行こう', choices: ['去', ''], pending: true }, undefined)
     expect(request.mock.calls[0][0]).toEqual(['村へ行こう'])
     await Promise.resolve()
-    expect(show).toHaveBeenLastCalledWith({ text: '你好\n去村子吧', choices: ['去', ''], pending: true }, undefined)
+    expect(show).toHaveBeenLastCalledWith({ text: '你好。\n去村子吧', choices: ['去', ''], pending: true }, undefined)
     expect(request.mock.calls[1][0]).toEqual(['待つ'])
   })
 
   it('uses cached realtime text in the original window and overlays only async misses', async () => {
     const { subtitles, settings, cached, request, show } = setup()
     settings.mode = 'realtime'
-    cached.mockImplementation((text) => (text === 'こんにちは' ? '你好' : text))
+    cached.mockImplementation((text) => (text === 'こんにちは。' ? '你好。' : text))
     request.mockImplementation(async (texts) => texts.map((src) => ({ src, zh: '去村子吧' })))
-    subtitles.begin({ _texts: ['こんにちは'], _choices: [] })
-    expect(show).not.toHaveBeenCalledWith(expect.objectContaining({ text: '你好' }), undefined)
+    subtitles.begin({ _texts: ['こんにちは。'], _choices: [] })
+    expect(show).not.toHaveBeenCalledWith(expect.objectContaining({ text: '你好。' }), undefined)
     expect(request).not.toHaveBeenCalled()
 
-    subtitles.begin({ _texts: ['こんにちは', '村へ行こう'], _choices: [] })
-    expect(show).not.toHaveBeenCalledWith(expect.objectContaining({ text: '你好\n村へ行こう' }), undefined)
+    subtitles.begin({ _texts: ['こんにちは。', '村へ行こう'], _choices: [] })
+    expect(show).not.toHaveBeenCalledWith(expect.objectContaining({ text: '你好。\n村へ行こう' }), undefined)
     await Promise.resolve()
-    expect(show).toHaveBeenLastCalledWith({ text: '你好\n去村子吧', choices: [], replace: true, badge: 'translated' }, undefined)
+    expect(show).toHaveBeenLastCalledWith({ text: '你好。\n去村子吧', choices: [], replace: true, badge: 'translated' }, undefined)
   })
 
   it('renders cached choices in place and updates missing choices after inference', async () => {
@@ -175,9 +196,9 @@ describe('non-blocking dialogue subtitles', () => {
     const { subtitles, settings, cached, request, show } = setup()
     settings.mode = 'realtime'
     cached.mockImplementation((text) => (text === 'こんにちは\n村へ行こう' ? '你好\n村へ行こう' : text === 'こんにちは' ? '你好' : text))
-    request.mockResolvedValue([{ src: '村へ行こう', zh: '去村子吧' }])
+    request.mockResolvedValue([{ src: 'こんにちは\n村へ行こう', zh: '你好\n去村子吧' }])
     subtitles.begin({ _texts: ['こんにちは', '村へ行こう'], _choices: [] })
-    expect(request).toHaveBeenCalledWith(['村へ行こう'], expect.any(AbortSignal))
+    expect(request).toHaveBeenCalledWith(['こんにちは\n村へ行こう'], expect.any(AbortSignal))
     expect(show).toHaveBeenLastCalledWith({ text: '', choices: [], replace: true, pending: true }, undefined)
     await Promise.resolve()
     expect(show).toHaveBeenLastCalledWith({ text: '你好\n去村子吧', choices: [], replace: true, badge: 'translated' }, undefined)

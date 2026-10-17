@@ -9,10 +9,19 @@ import {
   type TranslateEngineId,
   type TranslateRunEngine,
 } from '@/lib/translate/engines'
+import { lookupGameTerm } from '@/lib/translate/game-terms'
 import { toRmDigitTemplate } from '@/lib/translate/rm-escape'
+import { planSentenceTranslation, renderSentencePlan, resolveSentenceGaps, type SentencePlan, validateAlignments } from '@/lib/translate/sentence-plan'
 import { scheduleOllama } from '@/services/translate/ollama-queue'
 import { isSensitiveForCloud } from '@/services/translate/sensitive-text'
-import { isStorableTranslation, isUsefulTranslation, protectForTranslate, restoreForTranslate, shouldTranslate, translationCoreForCache } from '@/services/translate/text-classify'
+import {
+  isReusableTranslation,
+  isUsefulTranslation,
+  protectSentenceForTranslate as protectForTranslate,
+  restoreForTranslate,
+  shouldTranslate,
+  translationCoreForCache,
+} from '@/services/translate/text-classify'
 
 import { resolveApiBase } from '../../helpers/env/env'
 import { chayaFetch } from '../../helpers/net/http'
@@ -20,7 +29,7 @@ import { engineFetch } from './engine-fetch'
 import type { TranslationStore } from './store'
 
 export type EngineId = TranslateEngineId
-export type TranslateItem = { src: string; zh: string | null; engine?: string; error?: string }
+export type TranslateItem = { src: string; zh: string | null; engine?: string; error?: string; plan?: SentencePlan; status?: SentencePlan['status'] }
 export type TranslateOptions = {
   signal?: AbortSignal
   model?: string
@@ -50,14 +59,21 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: abort.signal,
-        body: JSON.stringify({ mode: 'lookup', texts }),
+        body: JSON.stringify({ mode: 'lookup', texts, origins: store.references(texts) }),
       })
       if (!response.ok) throw new Error('共享翻译库不可用')
       const data = await response.json()
       if (data.available === false || !Array.isArray(data.items)) throw new Error('共享翻译库暂不可用')
       remoteOnline = true
+      if (Array.isArray(data.invalidOrigins))
+        await store.invalidateOrigins(
+          data.invalidOrigins.filter(
+            (r: { id?: unknown; revision?: unknown; database?: unknown }) => typeof r?.id === 'string' && Number.isInteger(r.revision) && typeof r.database === 'string'
+          )
+        )
       return (data.items as TranslateItem[]).filter(
-        (item) => texts.includes(item.src) && typeof item.zh === 'string' && item.zh.length <= 20_000 && isStorableTranslation(item.src, item.zh)
+        (item) =>
+          texts.includes(item.src) && ((typeof item.zh === 'string' && item.zh.length <= 20_000 && isReusableTranslation(item.src, item.zh)) || item.plan?.status === 'partial')
       )
     } catch {
       remoteOnline = false
@@ -69,7 +85,7 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
     }
   }
 
-  /** Agent 的端点与 token 只在本机服务上，插件经服务端代翻 */
+  /** Agent endpoints and tokens remain in the local service; the plugin requests translation through that service. */
   async function requestAgent(text: string, ai: TranslateAiConfig, interactive: boolean | undefined, signal: AbortSignal) {
     const response = await chayaFetch(`${resolveApiBase()}/api/translate`, {
       method: 'POST',
@@ -83,6 +99,23 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
       throw new Error(message)
     }
     return data.text
+  }
+
+  async function sharedAgents(signal: AbortSignal | undefined, patch?: { agents?: unknown; order?: unknown }) {
+    const writing = patch != null && (patch.agents !== undefined || patch.order !== undefined)
+    try {
+      const response = await chayaFetch(`${resolveApiBase()}/api/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal,
+        body: JSON.stringify({ mode: 'translate-agents', ...(writing ? { agents: patch?.agents, order: patch?.order } : {}) }),
+      })
+      const data = (await response.json().catch(() => null)) as { ok?: boolean; agents?: TranslateAgentEntry[]; order?: TranslateEngineId[]; stored?: boolean } | null
+      if (!response.ok || !data || data.ok === false || !Array.isArray(data.agents)) return null
+      return { agents: data.agents, order: Array.isArray(data.order) ? data.order : [], stored: data.stored !== false }
+    } catch {
+      return null
+    }
   }
 
   async function listAgents(signal?: AbortSignal): Promise<Record<string, unknown>> {
@@ -106,18 +139,92 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
     const unique = [...new Set(texts)]
     if (unique.length > 40 || unique.some((text) => typeof text !== 'string') || unique.join('').length > 20_000) throw new Error('单次翻译最多 40 段、20000 字')
     const missing = unique.filter((src) => options.force || !store.lookup(src))
-    const remote = !options.force && options.remote !== false && missing.length ? await remoteLookup(missing, signal) : []
+    const hasBackfills = store.references(unique).length > 0
+    const remote = !options.force && options.remote !== false && (missing.length || hasBackfills) ? await remoteLookup(hasBackfills ? unique : missing, signal) : []
     const items: TranslateItem[] = []
     for (const src of unique) {
       signal.throwIfAborted()
+      if (!options.force) {
+        const remotePlan = remote.find((item) => item.src === src)?.plan
+        const remoteRecords = (Array.isArray(remotePlan?.matches) ? remotePlan.matches.slice(0, 500) : [])
+          .map((m) => m?.record)
+          .filter(
+            (r) =>
+              typeof r?.id === 'string' &&
+              Number.isInteger(r.revision) &&
+              (r.engine == null || typeof r.engine === 'string') &&
+              typeof r.src === 'string' &&
+              typeof r.zh === 'string' &&
+              r.src.length <= 20_000 &&
+              r.zh.length <= 20_000 &&
+              (!r.alignments || validateAlignments(r, r.alignments))
+          )
+          .map((r) => ({ ...r, local: false }))
+        const plan = remoteRecords.length ? planSentenceTranslation(src, [...store.records(), ...remoteRecords]) : store.plan(src)
+        if (plan.status === 'full') {
+          items.push({ src, zh: plan.zh, engine: plan.matches.every((m) => m.record.local) ? 'cache:local' : 'cache:remote', status: 'full', plan })
+          continue
+        }
+        if (plan.status === 'partial') {
+          const before = JSON.stringify(store.records())
+          const completed: Array<{ src: string; zh: string; engine: string }> = []
+          const gaps = new Map<string, string>()
+          for (const gap of plan.gaps) {
+            const result = (await translate([gap.text], { ...options, force: true, persist: false, remote: false }))[0]
+            if (result?.zh && !result.error) {
+              gaps.set(gap.id, result.zh)
+              if (result.engine?.startsWith('live:')) completed.push({ src: gap.text, zh: result.zh, engine: result.engine })
+            }
+          }
+          await store.load()
+          let freshRemote = remoteRecords
+          let remoteChanged = false
+          if (remoteRecords.length && options.remote !== false) {
+            const refreshed = await remoteLookup([src], signal)
+            if (remoteOnline) {
+              freshRemote = (refreshed.find((r) => r.src === src)?.plan?.matches || []).map((m) => ({ ...m.record, local: false }))
+              remoteChanged = remoteRecords.some((r) => !freshRemote.some((n) => n.id === r.id && n.revision === r.revision && n.zh === r.zh))
+            }
+          }
+          if (JSON.stringify(store.records()) !== before || remoteChanged) {
+            const fresh = freshRemote.length ? planSentenceTranslation(src, [...store.records(), ...freshRemote]) : store.plan(src)
+            items.push({
+              src,
+              zh: fresh.zh ?? renderSentencePlan(fresh),
+              engine: 'cache:changed',
+              status: fresh.status,
+              plan: fresh,
+              error: fresh.status === 'full' ? undefined : '翻译库已更新，请重试缺口',
+            })
+            continue
+          }
+          if (options.persist !== false) for (const item of completed) await store.put([[item.src, item.zh]], item.engine)
+          const resolved = resolveSentenceGaps(plan, gaps)
+          const full = resolved.status === 'full'
+          items.push({
+            src,
+            zh: resolved.zh ?? renderSentencePlan(resolved),
+            engine: 'cache:partial',
+            status: full ? 'full' : 'partial',
+            plan,
+            error: full ? undefined : '部分短句未完成翻译',
+          })
+          continue
+        }
+      }
       const local = !options.force ? store.lookup(src, true) : null
       const shared = remote.find((item) => item.src === src)?.zh
       if (local || shared) {
-        if (!local && shared && options.persist !== false) await store.put([[src, shared]], 'remote')
+        // Remote results remain server-owned; do not persist an unversioned local copy.
         items.push({ src, zh: local || shared || null, engine: local ? 'cache:local' : 'cache:remote' })
         continue
       }
       const guard = protectForTranslate(src)
+      const term = !options.force ? lookupGameTerm(src) : null
+      if (term != null) {
+        items.push({ src, zh: term, engine: 'builtin:terms' })
+        continue
+      }
       if (!shouldTranslate(guard.core)) {
         items.push({ src, zh: src, engine: 'skip' })
         continue
@@ -166,5 +273,5 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
     }
     return items
   }
-  return { translate, listAgents, remoteOnline: () => remoteOnline }
+  return { translate, listAgents, sharedAgents, remoteOnline: () => remoteOnline }
 }

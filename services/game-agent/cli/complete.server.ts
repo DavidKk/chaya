@@ -18,7 +18,13 @@ import { cliEnv } from './process.server'
 import { requireCli, resolveCli } from './resolve-cli.server'
 import { type WarmHandle, withWarmCli } from './warm-pool.server'
 
-export type CliCompleteProfile = { id: string; provider: CliAgentProvider; proxy?: string }
+export type CliCompleteProfile = {
+  id: string
+  provider: CliAgentProvider
+  proxy?: string
+  proxyProtocols?: import('@/lib/game-agent/proxy').AgentProxyProtocols
+  proxyHeaders?: Record<string, string>
+}
 
 export type CliCompleteInput = { model?: string; messages: RuntimeMessage[]; tools: RuntimeTool[]; timeoutMs: number; signal?: AbortSignal }
 
@@ -29,12 +35,16 @@ function joined(input: Prompt) {
 }
 
 function warmKey(profile: CliCompleteProfile) {
-  return { key: `${profile.provider}:${profile.id}:${profile.proxy || ''}`, profileId: profile.id, provider: profile.provider }
+  return {
+    key: `${profile.provider}:${profile.id}:${profile.proxy || ''}:${JSON.stringify(profile.proxyHeaders || {})}`,
+    profileId: profile.id,
+    provider: profile.provider,
+  }
 }
 
 async function startCursor(profile: CliCompleteProfile): Promise<WarmHandle<{ client: AcpClient; cwd: string }>> {
   const file = await requireCli('cursor')
-  const env = cliEnv(file, { ...(await agentProxyEnv(profile.proxy)), ...cursorIsolatedHome(), CURSOR_API_KEY: '' })
+  const env = cliEnv(file, { ...(await agentProxyEnv(profile)), ...cursorIsolatedHome(), CURSOR_API_KEY: '' })
   const cwd = createOnceCwd()
   try {
     const client = await startAcpClient({ file, args: ['acp'], env, cwd: cwd.dir, label: 'Cursor CLI' })
@@ -53,7 +63,7 @@ async function startCursor(profile: CliCompleteProfile): Promise<WarmHandle<{ cl
 }
 
 async function cursorText(profile: CliCompleteProfile, input: Prompt) {
-  const status = await getCursorAuthStatus({ proxy: profile.proxy })
+  const status = await getCursorAuthStatus({ proxy: profile.proxy, proxyHeaders: profile.proxyHeaders })
   if (status.state === 'signed_out') throw new AgentCliError('AGENT_AUTH_REQUIRED', 'Cursor 未登录，请在设置中登录')
   let stderr: (() => string) | undefined
   try {
@@ -76,7 +86,7 @@ async function cursorText(profile: CliCompleteProfile, input: Prompt) {
 async function startCodex(profile: CliCompleteProfile): Promise<WarmHandle<{ server: CodexAppServer; lease: CredentialLease; cwd: string }>> {
   const file = await requireCli('codex')
   const { version } = await resolveCli('codex')
-  const env = await agentProxyEnv(profile.proxy)
+  const env = await agentProxyEnv(profile)
   const lease = await acquireCredentialLease(profile.id, { extraFiles: { 'config.toml': CODEX_CONFIG_TOML } })
   const cwd = createOnceCwd()
   const cleanup = async () => {
@@ -132,7 +142,7 @@ async function codexText(profile: CliCompleteProfile, input: Prompt) {
 
 async function geminiText(profile: CliCompleteProfile, input: Prompt) {
   const file = await requireCli('gemini')
-  const proxyEnv = await agentProxyEnv(profile.proxy)
+  const proxyEnv = await agentProxyEnv(profile)
   const lease = await acquireCredentialLease(profile.id, { extraFiles: { [ANTIGRAVITY_SETTINGS_PATH]: ANTIGRAVITY_SETTINGS } })
   const cwd = createOnceCwd()
   const run = () =>

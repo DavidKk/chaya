@@ -181,6 +181,7 @@ const base = {
     removeDesc: '「{name}」を外す（ファイルは残る）',
     removeConfirm: '外す',
     removeEntry: '{name} を外す',
+    relocate: '場所が見つかりません。クリックして再選択',
     shellReady: 'シェルOK',
     remoteTag: 'リモート',
     localTag: 'ローカル',

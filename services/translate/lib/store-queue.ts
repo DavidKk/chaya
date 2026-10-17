@@ -154,12 +154,12 @@ export function createStore(original, seedCaches, pendingSet, termFamilies, temp
     size() {
       return Object.keys(cache).length
     },
-    /** 只落 NDJSON 追加缓冲，不写 merged。 */
+    /** Flush only the NDJSON append buffer, without writing merged output. */
     async flushCache() {
       lastAppend = 0
       await flushAppend(true)
     },
-    /** 可选：导出 chaya-trans.merged.json（默认不需要） */
+    /** Optionally export chaya-trans.merged.json; normally unnecessary. */
     async writeMerged() {
       await this.flushCache()
       writeMergedOutput(original, cache)
@@ -286,7 +286,7 @@ export function createProgress(totalChunks) {
   }
 }
 
-/** 从 chaya-extract.strings.json 得到「原文 → 游玩顺序」；同一句取最早出现。 */
+/** Derive source-to-play-order positions from chaya-extract.strings.json, using the first occurrence of each string. */
 export function loadDialoguePriorityOrder() {
   const extracted = loadJson(rt().EXTRACTED, null)
   const blocks = extracted && (extracted.dialogue || extracted.dialogueOrdered)
@@ -334,7 +334,7 @@ export function createQueue(items, failLedger) {
           cursor += 1
           if (store.has(text)) continue
           if (failLedger.hasGivenUp(text)) continue
-          // 本引擎已失败过的条目跳过，留给其他仍开启且未失败的引擎
+          // Skip entries already failed by this engine so other enabled engines can attempt them.
           if (engine && failLedger.hasFail(text, engine)) continue
           const extra = chunk.length ? 1 : 0
           if (chunk.length && size + extra + text.length > maxChars) {
@@ -356,7 +356,7 @@ export function createQueue(items, failLedger) {
   }
 }
 
-/** 某引擎对若干条质检/产出失败：记账；若当前开启引擎均已失败则放弃 */
+/** Record engine quality or output failures and abandon entries once every currently enabled engine has failed. */
 export function settleEngineFails(failLedger, store, engine, srcs) {
   const retry = []
   let gaveUp = 0
@@ -414,7 +414,7 @@ export function createPacedGap(tag) {
 }
 
 export function peersDone(state, selfKey) {
-  // 只等「当前开启」的其他引擎；关闭的引擎不挡退出
+  // Wait only for other currently enabled engines; disabled engines must not block completion.
   const pairs = [
     ['bingDone', 'bing'],
     ['googleDone', 'google'],

@@ -63,9 +63,17 @@ test('follows the browser / system language by default and stores nothing', asyn
   expect(document.cookie).not.toContain(LOCALE_STORAGE_KEY)
 })
 
-test('SSR auto locale is corrected to the client system language after mount', async () => {
+test('SSR locale remains stable during hydration when navigator language differs', async () => {
   await render({ initialLocale: 'en', initialPreference: 'auto' })
-  expect(current.locale).toBe('zh')
+  expect(current.locale).toBe('en')
+  expect(container.textContent).toBe('Library')
+})
+
+test('SSR cookie preference wins over stale localStorage during hydration', async () => {
+  window.localStorage.setItem(LOCALE_STORAGE_KEY, 'ko')
+  await render({ initialLocale: 'ja', initialPreference: 'ja' })
+  expect(current.locale).toBe('ja')
+  expect(current.preference).toBe('ja')
 })
 
 test('an explicit choice persists and "auto" goes back to following the system', async () => {

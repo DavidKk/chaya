@@ -5,6 +5,9 @@ export type AgentAuthMessages = {
   providerCodex: string
   providerClaude: string
   providerGemini: string
+  providerCc: string
+  providerCodexApi: string
+  providerGeminiApi: string
   providerLocalOnly: string
   providerCliMissing: string
   providerUnsupported: string

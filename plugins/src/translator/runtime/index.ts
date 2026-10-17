@@ -1,8 +1,8 @@
-import { engineStateFileBody, mergeEngineState, TRANSLATE_ENGINE_IDS, type TranslateEngineSwitches } from '@/lib/translate/engines'
+import { engineStateFileBody, isBuiltinEngineId, mergeEngineState, TRANSLATE_ENGINE_IDS, type TranslateEngineId, type TranslateEngineSwitches } from '@/lib/translate/engines'
 import { normalizePlaySettings, type TranslationPlaySettings } from '@/lib/translate/play-settings'
 import type { TranslationRequest, TranslationRequestFn } from '@/lib/translate/runtime-api'
 import { parseTranslateImportText } from '@/services/translate/import-text'
-import { isStorableTranslation } from '@/services/translate/text-classify'
+import { isReusableTranslation } from '@/services/translate/text-classify'
 
 import { type NodeFsPath, tryNodeFsPath } from '../../helpers/node/node-require'
 import { extractPluginSeed } from './extract'
@@ -12,7 +12,7 @@ import { createPluginTranslator, type TranslateOptions } from './translator'
 
 type Activity = { id: number; at: number; level: 'info' | 'ok' | 'warn' | 'fail'; text: string }
 
-/** 一个游戏一个翻译运行时；局内面板和已连接的 Web/App 调用同一实例。 */
+/** One translation runtime per game, shared by in-game panels and connected Web/App clients. */
 export function createTranslationRuntime(contentRoot: string, options: { mods?: NodeFsPath; onChange?: () => void } = {}) {
   const mods = options.mods || tryNodeFsPath()
   if (!mods) throw new Error('当前游戏无法访问本作翻译库，请使用 NW.js 游戏壳')
@@ -61,12 +61,37 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
   }
   async function engineState(patch?: Record<string, unknown>) {
     const raw = await store.readJson<Record<string, unknown>>('switches', {})
+    const local = mergeEngineState(raw)
+    let shared = await translator.sharedAgents(lifetime.signal)
+    if (shared && !shared.stored && local.agents.length) {
+      const uploaded = await translator.sharedAgents(lifetime.signal, { agents: local.agents, order: local.order })
+      if (uploaded?.stored) {
+        shared = uploaded
+        await store.writeJson('switches', { ...local.switches, order: local.order.filter((id) => isBuiltinEngineId(id)) })
+      }
+    }
+    const agents = shared?.stored ? shared.agents : local.agents
+    const agentOrder = (shared?.stored ? shared.order : local.order).filter((id) => !isBuiltinEngineId(id))
+    const platforms = local.order.filter((id) => isBuiltinEngineId(id))
     const provided = patch?.switches && typeof patch.switches === 'object' ? (patch.switches as Partial<TranslateEngineSwitches>) : undefined
     const switches = provided ? Object.fromEntries(TRANSLATE_ENGINE_IDS.filter((id) => typeof provided[id] === 'boolean').map((id) => [id, provided[id]])) : undefined
-    const agents = Array.isArray(patch?.agents) ? patch.agents : undefined
-    const writing = !!(switches || patch?.order || agents)
-    const state = mergeEngineState(raw, writing ? { switches, order: patch?.order, agents } : undefined)
-    if (writing) await store.writeJson('switches', engineStateFileBody(state))
+    const patchAgents = Array.isArray(patch?.agents) ? patch.agents : undefined
+    const writing = !!(switches || patch?.order || patchAgents)
+    const state = mergeEngineState(
+      { ...local.switches, agents, order: [...agentOrder, ...platforms] },
+      writing ? { switches, order: patch?.order, agents: patchAgents } : undefined
+    )
+    if (writing) {
+      const touchesAgents = patchAgents !== undefined || (Array.isArray(patch?.order) && patch.order.some((id) => typeof id === 'string' && !isBuiltinEngineId(id)))
+      if (!shared) await store.writeJson('switches', engineStateFileBody(state))
+      else {
+        if (touchesAgents || !shared.stored) {
+          const saved = await translator.sharedAgents(lifetime.signal, { agents: state.agents, order: state.order })
+          if (!saved?.stored) throw new Error('无法保存共用 Agent 设置')
+        }
+        await store.writeJson('switches', { ...state.switches, order: state.order.filter((id): id is TranslateEngineId => isBuiltinEngineId(id)) })
+      }
+    }
     return state
   }
   async function translate(texts: string[], opts: TranslateOptions = {}) {
@@ -103,6 +128,7 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
     const url = new URL(input.path, 'http://game.local')
     const body = input.body || {}
     if (url.pathname === '/api/extract' && input.method === 'POST') {
+      if (body.export === true) return (await extractPluginSeed(contentRoot, mods!, store, signal, { entries: true })) as Record<string, unknown>
       if (!extracting)
         extracting = extractPluginSeed(contentRoot, mods!, store, lifetime.signal).finally(() => {
           extracting = null
@@ -115,11 +141,11 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
       if (input.method === 'POST') {
         if (typeof body.text !== 'string' || body.text.length > 16 * 1024 * 1024) throw new Error('翻译库文件无效或超过 16 MB')
         const parsed = parseTranslateImportText(body.text)
-        const entries = Object.entries(parsed.map).filter(([src, zh]) => isStorableTranslation(src, zh))
+        const entries = Object.entries(parsed.map).filter(([src, zh]) => isReusableTranslation(src, zh))
         const pairs = entries.filter(([src]) => body.overwrite === true || !store.lookup(src))
         if (!entries.length) throw new Error('文件中没有有效译文')
-        await store.put(pairs, 'import')
-        return { inserted: pairs.length, total: entries.length, skippedExisting: entries.length - pairs.length, format: parsed.format }
+        const accepted = await store.put(pairs, 'import', parsed.alignments)
+        return { inserted: accepted.length, total: entries.length, skippedExisting: entries.length - pairs.length, format: parsed.format }
       }
       if (typeof body.src !== 'string' || !body.src) throw new Error('缺少原文')
       if (input.method === 'DELETE') {
@@ -127,7 +153,7 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
         return { deleted: true }
       }
       if (input.method === 'PATCH') {
-        if (typeof body.zh !== 'string' || !isStorableTranslation(body.src, body.zh)) throw new Error('译文不能与原文相同，也不能保留日文假名')
+        if (typeof body.zh !== 'string' || !isReusableTranslation(body.src, body.zh)) throw new Error('译文无效或仍保留日文假名')
         await store.put([[body.src, body.zh.trim()]], 'manual')
         return { updated: true }
       }

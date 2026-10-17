@@ -56,7 +56,7 @@ export type AgentCommand =
   | { id: string; method: 'input.sequence'; params: { steps: AgentInputStep[]; guard?: AgentInputGuard } }
   | { id: string; method: 'input.tap'; params: { x: number; y: number; frames?: number } }
   | { id: string; method: 'player.moveTo'; params: { x: number; y: number; timeoutMs?: number; stepwise?: boolean; guard?: AgentInputGuard } }
-  | { id: string; method: 'player.interact'; params: { eventId: number } }
+  | { id: string; method: 'player.interact'; params: { eventId: number; openDoors?: boolean } }
   | { id: string; method: 'edit.catalog'; params: Record<string, never> }
   | { id: string; method: 'edit.state'; params: Record<string, never> }
   | { id: string; method: 'edit.apply'; params: { op: GameEditCmdOp } }

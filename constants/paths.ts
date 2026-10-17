@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url'
 
 import { CONFIG_FILE_NAME, LEGACY_CONFIG_FILE_NAMES, LEGACY_SHELL_APP_NAMES, SHELL_APP_NAME, SHELL_WIN_DIR_NAME } from './brand'
 import {
+  AGENT_ACTIVITY_LOGS_DIR_NAME,
   DATA_DIR_NAME,
+  GAME_ACTIVITY_LOGS_DIR_NAME,
   LOGS_DIR_NAME,
   NODE_MODULES_DIR_NAME,
   PLUGIN_LOGS_DIR_NAME,
@@ -22,7 +24,9 @@ import {
  */
 
 export {
+  AGENT_ACTIVITY_LOGS_DIR_NAME,
   DATA_DIR_NAME,
+  GAME_ACTIVITY_LOGS_DIR_NAME,
   LOGS_DIR_NAME,
   NODE_MODULES_DIR_NAME,
   PLUGIN_LOGS_DIR_NAME,
@@ -78,6 +82,8 @@ export const TRANSLATE_JOBS_DIR = join(DATA_DIR, TRANSLATE_JOBS_DIR_NAME)
 /** Toolkit logs (`logs/plugins/` at repo root; packaged via `CHAYA_LOGS_DIR`) */
 export const LOGS_DIR = process.env.CHAYA_LOGS_DIR ? resolve(process.env.CHAYA_LOGS_DIR) : join(ROOT_PATH, LOGS_DIR_NAME)
 export const PLUGIN_LOGS_DIR = join(LOGS_DIR, PLUGIN_LOGS_DIR_NAME)
+export const AGENT_ACTIVITY_LOGS_DIR = join(LOGS_DIR, AGENT_ACTIVITY_LOGS_DIR_NAME)
+export const GAME_ACTIVITY_LOGS_DIR = join(LOGS_DIR, GAME_ACTIVITY_LOGS_DIR_NAME)
 
 /** In-game plugin sources and build output */
 export const PLUGINS_DIR = join(ROOT_PATH, PLUGINS_DIR_NAME)

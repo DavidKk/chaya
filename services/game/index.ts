@@ -13,6 +13,7 @@ export {
   normalizeRemark,
   pathEquals,
   reconcileLibraryConfig,
+  relocateLibraryEntry,
   removeLibraryEntry,
   sameGameFamily,
   toLibraryItemView,

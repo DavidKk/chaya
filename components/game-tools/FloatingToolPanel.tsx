@@ -77,10 +77,12 @@ function layoutFrame(placement: Placement, area: Viewport, side: Side, edge: 'to
   const width = clamp(placement.width, widthRange.low, widthRange.high)
   const height = clamp(placement.height, heightRange.low, heightRange.high)
   const visibleHeight = minimized ? Math.min(height, headerHeight()) : height
-  const size = { width, height: visibleHeight }
-  const position = positionFromPlacement(placement, size, area)
-  const y = stacked ? (edge === 'top' ? area.top + GUTTER : area.top + area.height - visibleHeight - GUTTER) : position.y
-  return { ...clampPosition({ x: position.x, y }, size, area), width, height }
+  const expandedSize = { width, height }
+  const visibleSize = { width, height: visibleHeight }
+  // 最小化只收起 header 下方的内容；定位仍按展开尺寸计算，避免 header 跳到画面中间或底边。
+  const position = positionFromPlacement(placement, expandedSize, area)
+  const y = stacked ? (edge === 'top' ? area.top + GUTTER : area.top + area.height - height - GUTTER) : position.y
+  return { ...clampPosition({ x: position.x, y }, visibleSize, area), width, height }
 }
 
 function resizeFrame(frame: Frame, edge: ResizeEdge, dx: number, dy: number, minSize: Size, maxSize: Size, area: Viewport): Frame {

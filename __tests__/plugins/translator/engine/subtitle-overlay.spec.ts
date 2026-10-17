@@ -247,7 +247,7 @@ it.each([
     expect(indicator.dataset.kind).toBe('cached')
     expect(indicator.dataset.phase).toBe('icon')
     expect(indicator.mark.textContent).toBe('✓')
-    // 快速切换 A → B 时，A 的完成定时器不能覆盖 B 的状态。
+    // When switching quickly from A to B, A's completion timer must not overwrite B's state.
     show({ text: '', choices: [], replace: true, badge: 'translated' }, message)
     jest.advanceTimersByTime(80)
     now += 80
@@ -260,7 +260,7 @@ it.each([
     expect(indicator.dataset.kind).toBe('skipped')
     expect(indicator.label.textContent).toBe('已跳过')
 
-    // 异步翻译在 spinner 入场前完成，不应展开「翻译中」。
+    // A translation completed before the spinner enters must not expand the pending state.
     show({ text: '', choices: [], replace: true, pending: true }, message)
     jest.advanceTimersByTime(80)
     now += 80
@@ -273,7 +273,7 @@ it.each([
     now += 1
     expect(indicator.dataset.kind).toBe('translated')
     expect(indicator.dataset.phase).toBe('icon')
-    // 翻译中已展开时，完成结果立即替换图标与文字。
+    // Once the pending state is expanded, replace its icon and text immediately on completion.
     show({ text: '', choices: [], replace: true, pending: true }, message)
     jest.advanceTimersByTime(180)
     now += 180

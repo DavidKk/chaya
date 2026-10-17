@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { DATA_DIR } from '@/constants/paths'
 import type { AgentAccountSummary, AgentAuthStatus } from '@/lib/game-agent/providers'
-import { agentProxyEnv } from '@/services/game-agent/proxy/agent-proxy'
+import { agentProxyEnv, type AgentProxyProfile } from '@/services/game-agent/proxy/agent-proxy'
 
 import { accountSummary } from '../account'
 import { AgentCliError } from '../errors'
@@ -25,8 +25,13 @@ export const CURSOR_LOGIN_LOCK = path.join(DATA_DIR, 'game-agent', 'cursor-login
 const cached = new Map<string, { at: number; value: Promise<CursorAuthStatus> }>()
 
 /** Cursor stays on the machine's own login: never an API key, never a Chaya-owned credential directory. */
-async function cursorEnv(file: string, proxy: string | undefined, extra: Record<string, string> = {}) {
+async function cursorEnv(file: string, proxy: AgentProxyProfile | string | undefined, extra: Record<string, string> = {}) {
   return cliEnv(file, { ...(await agentProxyEnv(proxy)), CURSOR_API_KEY: '', ...extra })
+}
+
+function proxyCacheKey(proxy: AgentProxyProfile | string | undefined) {
+  if (typeof proxy === 'string' || proxy == null) return proxy || ''
+  return `${proxy.proxy || ''}\n${JSON.stringify(proxy.proxyHeaders || {})}`
 }
 
 function parseJson(text: string): Record<string, unknown> | null {
@@ -59,7 +64,7 @@ export function extractCursorLoginUrl(text: string): string | null {
   return text.replace(ANSI, '').match(/https:\/\/(?:[\w-]+\.)*cursor\.(?:com|sh)\/[^\s"'<>)\]]+/)?.[0] || null
 }
 
-async function probeStatus(proxy: string): Promise<CursorAuthStatus> {
+async function probeStatus(proxy: AgentProxyProfile | string | undefined): Promise<CursorAuthStatus> {
   let file: string
   try {
     file = await requireCli('cursor')
@@ -78,11 +83,12 @@ async function probeStatus(proxy: string): Promise<CursorAuthStatus> {
   return { mode: 'local_login', state: 'signed_in', account: accountSummary(details.email || parsed.email, details.plan) }
 }
 
-export function getCursorAuthStatus(options: { force?: boolean; proxy?: string } = {}): Promise<CursorAuthStatus> {
-  const key = options.proxy || ''
+export function getCursorAuthStatus(options: { force?: boolean; proxy?: string; proxyHeaders?: Record<string, string> } = {}): Promise<CursorAuthStatus> {
+  const proxy: AgentProxyProfile | string | undefined = options.proxyHeaders ? { proxy: options.proxy, proxyHeaders: options.proxyHeaders } : options.proxy
+  const key = proxyCacheKey(proxy)
   const hit = cached.get(key)
   if (hit && !options.force && Date.now() - hit.at < STATUS_CACHE_MS) return hit.value
-  const value = probeStatus(key)
+  const value = probeStatus(proxy)
   cached.set(key, { at: Date.now(), value })
   value.catch(() => cached.delete(key))
   return value
@@ -93,7 +99,7 @@ export function clearCursorAuthCache() {
 }
 
 /** Same as `agent logout` in a terminal: signs out this machine's Cursor CLI for every profile. */
-export async function logoutCursor(proxy?: string): Promise<void> {
+export async function logoutCursor(proxy?: AgentProxyProfile | string): Promise<void> {
   const file = await requireCli('cursor')
   const result = await runCliOnce(file, ['logout'], { env: await cursorEnv(file, proxy), timeoutMs: LOGOUT_TIMEOUT_MS })
   clearCursorAuthCache()
@@ -105,7 +111,7 @@ export async function logoutCursor(proxy?: string): Promise<void> {
  * Runs `agent login` with browser opening disabled and hands its link to the player. One login per machine;
  * the CLI keeps the previous login until the new one succeeds, so cancelling leaves it untouched.
  */
-export async function startCursorLogin(input: { signal: AbortSignal; lockFile?: string; proxy?: string }): Promise<AuthAttemptHandle> {
+export async function startCursorLogin(input: { signal: AbortSignal; lockFile?: string; proxy?: string; proxyHeaders?: Record<string, string> }): Promise<AuthAttemptHandle> {
   const releaseLock = holdFileLock(input.lockFile || CURSOR_LOGIN_LOCK)
   if (!releaseLock) throw new AgentCliError('AGENT_AUTH_IN_PROGRESS', '另一个 Chaya 正在进行 Cursor 登录')
   let file: string
@@ -113,7 +119,7 @@ export async function startCursorLogin(input: { signal: AbortSignal; lockFile?: 
   try {
     file = await requireCli('cursor')
     await resolveCli('cursor')
-    env = await cursorEnv(file, input.proxy, { NO_OPEN_BROWSER: '1' })
+    env = await cursorEnv(file, { proxy: input.proxy, proxyHeaders: input.proxyHeaders }, { NO_OPEN_BROWSER: '1' })
   } catch (error) {
     releaseLock()
     throw error
@@ -168,7 +174,7 @@ export async function startCursorLogin(input: { signal: AbortSignal; lockFile?: 
     input.signal.removeEventListener('abort', stop)
     if (code !== 0) throw new AgentCliError('AGENT_AUTH_FAILED', 'Cursor 登录未完成')
     clearCursorAuthCache()
-    const status = await getCursorAuthStatus({ force: true, proxy: input.proxy })
+    const status = await getCursorAuthStatus({ force: true, proxy: input.proxy, proxyHeaders: input.proxyHeaders })
     if (status.state !== 'signed_in') throw new AgentCliError('AGENT_AUTH_FAILED', 'Cursor 登录后仍未检测到登录状态')
     return { account: status.account || {} }
   })

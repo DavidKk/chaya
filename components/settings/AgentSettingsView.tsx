@@ -7,9 +7,19 @@ import { TbPencilCog } from 'react-icons/tb'
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { lockIconBtn } from '@/components/game-edit/lock-ui'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { formCard, formControlInlineStart, formDescInline, formFieldInlineWideLabel, formTitleInline, panelHead, settingsCardWide } from '@/components/layoutClasses'
+import {
+  formCard,
+  formControlInlineStart,
+  formDesc,
+  formDescInline,
+  formFieldInlineWideLabel,
+  formTitle,
+  formTitleInline,
+  panelHead,
+  settingsCardWide,
+} from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, DurationInput, EmptyState, NumberSliderInput, Select, TextInput, Tooltip, TruncateText } from '@/components/sk'
+import { ApiKeyInput, Button, DurationInput, EmptyState, NumberSliderInput, resolveApiKeySaveAction, Select, TextInput, Tooltip, TruncateText } from '@/components/sk'
 import { keepAliveToMs, msToKeepAlive } from '@/lib/game-agent/keep-alive'
 import {
   type AgentProviderAvailability,
@@ -17,18 +27,29 @@ import {
   type CliAgentProvider,
   GAME_AGENT_PROVIDERS,
   type GameAgentProvider,
+  isApiKeyProvider,
   isCliProvider,
+  isOpenApiProvider,
   isRemoteAuthProvider,
+  OPENAPI_PROVIDERS_FEATURE,
 } from '@/lib/game-agent/providers'
-import { normalizeAgentProxy } from '@/lib/game-agent/proxy'
+import {
+  AGENT_PROXY_PROTOCOLS,
+  type AgentProxyProtocol,
+  normalizeAgentProxy,
+  normalizeAgentProxyHeaders,
+  normalizeAgentProxyProtocols,
+  resolveAgentProxySlots,
+} from '@/lib/game-agent/proxy'
 import type { AgentSyncDocument } from '@/lib/game-agent/settings-sync'
 import { cn } from '@/lib/utils'
 
-import { type AgentModel, type AgentProfile, type AgentSettings, type AgentSettingsRequest, createAgentProfile, withAgentProvider } from './agent-types'
+import { type AgentModel, type AgentProfile, type AgentSettings, type AgentSettingsRequest, createAgentProfile, proxyHeadersText, withAgentProvider } from './agent-types'
 import { AgentAuthSection } from './AgentAuthSection'
 import { AgentDetailSkeleton, AgentListSkeleton } from './AgentSettingsSkeleton'
 
 const API = '/api/integration/game-agent'
+const AGENT_FEATURES = [CLI_PROVIDERS_FEATURE, OPENAPI_PROVIDERS_FEATURE]
 
 const PROVIDER_LABEL_KEYS = {
   ollama: 'agentAuth.providerOllama',
@@ -36,7 +57,12 @@ const PROVIDER_LABEL_KEYS = {
   codex: 'agentAuth.providerCodex',
   claude: 'agentAuth.providerClaude',
   gemini: 'agentAuth.providerGemini',
+  cc: 'agentAuth.providerCc',
+  'codex-api': 'agentAuth.providerCodexApi',
+  'gemini-api': 'agentAuth.providerGeminiApi',
 } as const satisfies Record<GameAgentProvider, string>
+
+type AgentProfileView = AgentProfile & { hasToken?: boolean }
 
 function apiError(body: unknown, fallback: string) {
   const value = body as { error?: { message?: unknown } }
@@ -62,6 +88,13 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   const [busy, setBusy] = useState<'load' | 'test' | 'save' | ''>('load')
   const [deletingId, setDeletingId] = useState('')
   const [loadError, setLoadError] = useState('')
+  /** Write-only API key draft while unlocked; sealed fields never show the real secret. */
+  const [apiKeyDraft, setApiKeyDraft] = useState('')
+  const [hasToken, setHasToken] = useState(false)
+  /** After save, locked to a fixed mask until the user clicks to clear and re-enter. */
+  const [apiKeyUnlocked, setApiKeyUnlocked] = useState(false)
+  const [proxyHeadersDraft, setProxyHeadersDraft] = useState('')
+  const [proxyProtocolsOpen, setProxyProtocolsOpen] = useState(false)
   /** CLI agent types need the local service; Cloud and browser runtimes answer LOCAL_ONLY. */
   const [cliAvailable, setCliAvailable] = useState(true)
   /** Types whose sign-in Chaya does not support yet, or whose CLI is not installed, cannot be picked. */
@@ -83,12 +116,21 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
       }
       try {
         const response = await request(API, { cache: 'no-store' })
-        const body = (await response.json().catch(() => null)) as { settings?: AgentSettings; sync?: AgentSyncDocument; models?: Record<string, AgentModel[]> }
+        const body = (await response.json().catch(() => null)) as {
+          settings?: AgentSettings & { profiles: AgentProfileView[] }
+          sync?: AgentSyncDocument
+          models?: Record<string, AgentModel[]>
+        }
         if (!response.ok || !body.settings) throw new Error(apiError(body, `HTTP ${response.status}`))
         setSettings(body.settings)
         setBaseSync(body.sync || null)
         if (creating) {
-          setDraft(createAgentProfile())
+          const next = createAgentProfile()
+          setDraft(next)
+          setApiKeyDraft('')
+          setHasToken(false)
+          setApiKeyUnlocked(false)
+          setProxyHeadersDraft('')
           setModels([])
         } else if (agentId) {
           const profile = body.settings.profiles.find((item) => item.id === agentId)
@@ -97,7 +139,17 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
             onNavigate()
             return
           }
-          setDraft({ ...profile, proxy: profile.proxy || '' })
+          setDraft({
+            ...profile,
+            proxy: profile.proxy || '',
+            proxyProtocols: profile.proxyProtocols || {},
+            proxyHeaders: profile.proxyHeaders || {},
+          })
+          setApiKeyDraft('')
+          setHasToken(Boolean(profile.hasToken))
+          setApiKeyUnlocked(false)
+          setProxyHeadersDraft(proxyHeadersText(profile.proxyHeaders))
+          setProxyProtocolsOpen(Boolean(profile.proxyProtocols && Object.keys(profile.proxyProtocols).length))
           setModels(body.models?.[profile.id] || [])
         } else setDraft(null)
       } catch (error) {
@@ -149,9 +201,9 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
     const response = await request(API, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ settings: next, features: [CLI_PROVIDERS_FEATURE], ...(baseSync ? { baseSync } : {}) }),
+      body: JSON.stringify({ settings: next, features: AGENT_FEATURES, ...(baseSync ? { baseSync } : {}) }),
     })
-    const body = (await response.json().catch(() => null)) as { settings?: AgentSettings; sync?: AgentSyncDocument }
+    const body = (await response.json().catch(() => null)) as { settings?: AgentSettings & { profiles: AgentProfileView[] }; sync?: AgentSyncDocument }
     if (!response.ok || !body.settings) throw new Error(apiError(body, `HTTP ${response.status}`))
     setSettings(body.settings)
     setBaseSync(body.sync || null)
@@ -170,11 +222,42 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
       })
       if (!ok) return
     }
+    let proxyHeaders: Record<string, string>
+    let proxyProtocols: AgentProfile['proxyProtocols']
+    try {
+      proxyHeaders = normalizeAgentProxyHeaders(proxyHeadersDraft)
+      proxyProtocols = normalizeAgentProxyProtocols(draft.proxy, draft.proxyProtocols)
+    } catch (error) {
+      notify.error(error instanceof Error ? error.message : String(error))
+      return
+    }
     setBusy('save')
     try {
-      const profiles = creating ? [...settings.profiles, draft] : settings.profiles.map((item) => (item.id === draft.id ? draft : item))
+      const nextDraft = { ...draft, proxyHeaders, proxyProtocols }
+      const profiles = creating ? [...settings.profiles, nextDraft] : settings.profiles.map((item) => (item.id === draft.id ? nextDraft : item))
       const saved = await saveSettings({ ...settings, profiles })
-      setDraft({ ...(saved.profiles.find((item) => item.id === draft.id) || draft) })
+      const savedProfile = (saved.profiles.find((item) => item.id === draft.id) || nextDraft) as AgentProfileView
+      let tokenPresent = Boolean(savedProfile.hasToken)
+      if (isApiKeyProvider(nextDraft.provider)) {
+        const action = resolveApiKeySaveAction({ unlocked: apiKeyUnlocked, value: apiKeyDraft })
+        if (action.kind !== 'keep') {
+          const tokenResponse = await request(API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(
+              action.kind === 'set' ? { action: 'token', profileId: nextDraft.id, token: action.token } : { action: 'token', profileId: nextDraft.id, clearToken: true }
+            ),
+          })
+          const tokenBody = (await tokenResponse.json().catch(() => null)) as { hasToken?: boolean }
+          if (!tokenResponse.ok) throw new Error(apiError(tokenBody, `HTTP ${tokenResponse.status}`))
+          tokenPresent = action.kind === 'set' ? true : Boolean(tokenBody.hasToken)
+        }
+      }
+      setApiKeyDraft('')
+      setApiKeyUnlocked(false)
+      setHasToken(tokenPresent)
+      setDraft({ ...savedProfile, proxyHeaders: savedProfile.proxyHeaders || {}, hasToken: tokenPresent })
+      setProxyHeadersDraft(proxyHeadersText(savedProfile.proxyHeaders))
       notify.success(t('integration.agentSaved'))
       onSaved?.()
       if (creating) onNavigate(draft.id)
@@ -233,7 +316,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
       if (autoModelsTimer.current !== undefined) window.clearTimeout(autoModelsTimer.current)
       autoModelsTimer.current = undefined
     }
-  }, [draft?.endpoint, draft?.id, fetchModels])
+  }, [draft?.endpoint, draft?.id, draft?.provider, fetchModels])
 
   const test = async () => {
     if (!draft) return
@@ -360,15 +443,33 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   if (!keepAliveForever) keepAliveFinite.current = keepAliveMs
   const draftProvider = draft.provider
   const cli = isCliProvider(draftProvider)
+  const openApi = isOpenApiProvider(draftProvider)
+  const httpModel = draftProvider === 'ollama' || openApi
   const saved = creating ? undefined : settings.profiles.find((item) => item.id === draft.id)
   const savedProvider = saved?.provider
   let draftProxy: string | null
+  let draftProxySlots: ReturnType<typeof resolveAgentProxySlots> | null = null
   try {
     draftProxy = normalizeAgentProxy(draft.proxy)
+    const overrides = normalizeAgentProxyProtocols(draft.proxy, draft.proxyProtocols)
+    draftProxySlots = resolveAgentProxySlots(draft.proxy, overrides)
   } catch {
     draftProxy = null
   }
-  const proxyInvalid = draftProxy === null
+  let draftProxyHeaders: Record<string, string> | null
+  try {
+    draftProxyHeaders = normalizeAgentProxyHeaders(proxyHeadersDraft)
+  } catch {
+    draftProxyHeaders = null
+  }
+  const proxyInvalid = draftProxy === null || draftProxyHeaders === null
+
+  const setProxyProtocol = (key: AgentProxyProtocol, value: string) => {
+    const next = { ...(draft.proxyProtocols || {}) }
+    if (!value.trim()) delete next[key]
+    else next[key] = value
+    update({ proxyProtocols: next })
+  }
   const providerOptions = GAME_AGENT_PROVIDERS.map((value) => {
     const reason = !isCliProvider(value)
       ? null
@@ -385,6 +486,9 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
     if (value === draftProvider || !GAME_AGENT_PROVIDERS.includes(value as GameAgentProvider)) return
     const next = value as GameAgentProvider
     setModels([])
+    setApiKeyDraft('')
+    setHasToken(false)
+    setApiKeyUnlocked(false)
     setDraft(withAgentProvider(draft, next, providerLabel(draftProvider), providerLabel(next)))
   }
 
@@ -420,7 +524,11 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                 provider={draftProvider}
                 name={draft.label}
                 savedProxy={saved?.proxy || ''}
-                proxyPending={(saved?.proxy || '') !== (draftProxy ?? draft.proxy)}
+                proxyPending={
+                  (saved?.proxy || '') !== (draftProxy ?? draft.proxy) ||
+                  JSON.stringify(saved?.proxyProtocols || {}) !== JSON.stringify(draft.proxyProtocols || {}) ||
+                  proxyHeadersText(saved?.proxyHeaders) !== proxyHeadersText(draftProxyHeaders || draft.proxyHeaders)
+                }
               />
             ) : cli ? (
               <div className={formFieldInlineWideLabel}>
@@ -428,13 +536,40 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                 <span className={formDescInline}>{t('agentAuth.saveFirst')}</span>
               </div>
             ) : (
-              <label className={formFieldInlineWideLabel}>
-                <span className={formTitleInline}>{t('integration.agentEndpoint')}</span>
-                <span className={formDescInline}>{t('integration.agentEndpointDesc')}</span>
-                <div className={formControlInlineStart}>
-                  <TextInput className="w-full" value={draft.endpoint} onChange={(event) => update({ endpoint: event.target.value })} />
-                </div>
-              </label>
+              <>
+                <label className={formFieldInlineWideLabel}>
+                  <span className={formTitleInline}>
+                    {t(draftProvider === 'gemini-api' ? 'integration.agentGeminiEndpoint' : openApi ? 'integration.agentOpenApiEndpoint' : 'integration.agentEndpoint')}
+                  </span>
+                  <span className={formDescInline}>
+                    {t(draftProvider === 'gemini-api' ? 'integration.agentGeminiEndpointDesc' : openApi ? 'integration.agentOpenApiEndpointDesc' : 'integration.agentEndpointDesc')}
+                  </span>
+                  <div className={formControlInlineStart}>
+                    <TextInput className="w-full" value={draft.endpoint} onChange={(event) => update({ endpoint: event.target.value })} spellCheck={false} />
+                  </div>
+                </label>
+                {isApiKeyProvider(draftProvider) ? (
+                  <label className={formFieldInlineWideLabel}>
+                    <span className={formTitleInline}>{t('integration.agentApiKey')}</span>
+                    <span className={formDescInline}>
+                      {hasToken && !apiKeyUnlocked
+                        ? t('integration.agentApiKeyConfigured')
+                        : t(draftProvider === 'gemini-api' ? 'integration.agentApiKeyGeminiDesc' : openApi ? 'integration.agentApiKeyDesc' : 'integration.agentApiKeyOllamaDesc')}
+                    </span>
+                    <div className={formControlInlineStart}>
+                      <ApiKeyInput
+                        configured={hasToken}
+                        value={apiKeyDraft}
+                        unlocked={apiKeyUnlocked}
+                        onUnlockedChange={setApiKeyUnlocked}
+                        onChange={setApiKeyDraft}
+                        placeholder={t('integration.agentApiKeyPlaceholder')}
+                        disabled={busy === 'save'}
+                      />
+                    </div>
+                  </label>
+                ) : null}
+              </>
             )}
             <div className={formFieldInlineWideLabel}>
               <span className={formTitleInline}>{t('integration.agentDefaultModel')}</span>
@@ -451,7 +586,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                 />
               </div>
             </div>
-            {cli ? null : (
+            {httpModel ? (
               <>
                 <label className={formFieldInlineWideLabel}>
                   <span className={formTitleInline}>{t('integration.agentTemperature')}</span>
@@ -468,40 +603,42 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                     />
                   </div>
                 </label>
-                <label className={formFieldInlineWideLabel}>
-                  <span className={formTitleInline}>{t('integration.agentKeepAlive')}</span>
-                  <span className={formDescInline}>{t('integration.agentKeepAliveDesc')}</span>
-                  <div className={formControlInlineStart}>
-                    <DurationInput
-                      className="w-full"
-                      value={keepAliveForever ? keepAliveFinite.current : keepAliveMs}
-                      min={0}
-                      disabled={keepAliveForever}
-                      label={keepAliveForever ? t('integration.agentKeepAliveForever') : undefined}
-                      zeroLabel={t('integration.agentKeepAliveUnload')}
-                      endAction={
-                        <Tooltip content={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}>
-                          <button
-                            type="button"
-                            className={cn(
-                              lockIconBtn,
-                              keepAliveForever && 'text-accent hover:enabled:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] hover:enabled:text-accent'
-                            )}
-                            aria-label={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}
-                            aria-pressed={keepAliveForever}
-                            onClick={() => update({ keepAlive: keepAliveForever ? msToKeepAlive(keepAliveFinite.current) : '-1' })}
-                          >
-                            <IoInfinite size={16} aria-hidden />
-                          </button>
-                        </Tooltip>
-                      }
-                      onValueChange={(ms) => update({ keepAlive: msToKeepAlive(ms) })}
-                    />
-                  </div>
-                </label>
+                {draftProvider === 'ollama' ? (
+                  <label className={formFieldInlineWideLabel}>
+                    <span className={formTitleInline}>{t('integration.agentKeepAlive')}</span>
+                    <span className={formDescInline}>{t('integration.agentKeepAliveDesc')}</span>
+                    <div className={formControlInlineStart}>
+                      <DurationInput
+                        className="w-full"
+                        value={keepAliveForever ? keepAliveFinite.current : keepAliveMs}
+                        min={0}
+                        disabled={keepAliveForever}
+                        label={keepAliveForever ? t('integration.agentKeepAliveForever') : undefined}
+                        zeroLabel={t('integration.agentKeepAliveUnload')}
+                        endAction={
+                          <Tooltip content={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}>
+                            <button
+                              type="button"
+                              className={cn(
+                                lockIconBtn,
+                                keepAliveForever && 'text-accent hover:enabled:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] hover:enabled:text-accent'
+                              )}
+                              aria-label={t(keepAliveForever ? 'integration.agentKeepAliveForeverOff' : 'integration.agentKeepAliveForeverOn')}
+                              aria-pressed={keepAliveForever}
+                              onClick={() => update({ keepAlive: keepAliveForever ? msToKeepAlive(keepAliveFinite.current) : '-1' })}
+                            >
+                              <IoInfinite size={16} aria-hidden />
+                            </button>
+                          </Tooltip>
+                        }
+                        onValueChange={(ms) => update({ keepAlive: msToKeepAlive(ms) })}
+                      />
+                    </div>
+                  </label>
+                ) : null}
               </>
-            )}
-            {cli ? null : (
+            ) : null}
+            {httpModel ? (
               <label className={formFieldInlineWideLabel}>
                 <span className={formTitleInline}>{t('integration.agentModelRequestTimeout')}</span>
                 <span className={formDescInline}>{t('integration.agentModelRequestTimeoutDesc')}</span>
@@ -515,7 +652,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                   />
                 </div>
               </label>
-            )}
+            ) : null}
             <label className={formFieldInlineWideLabel}>
               <span className={formTitleInline}>{t(cli ? 'agentAuth.roundTimeout' : 'integration.agentModelTimeout')}</span>
               <span className={formDescInline}>{t(cli ? 'agentAuth.roundTimeoutDesc' : 'integration.agentModelTimeoutDesc')}</span>
@@ -530,17 +667,68 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                 <DurationInput className="w-full" value={draft.gameCallTimeoutMs} min={1_000} max={600_000} onValueChange={(gameCallTimeoutMs) => update({ gameCallTimeoutMs })} />
               </div>
             </label>
-            <label className={formFieldInlineWideLabel}>
-              <span className={formTitleInline}>{t('integration.agentProxy')}</span>
-              <span className={cn(formDescInline, proxyInvalid && 'text-fail')}>{t(proxyInvalid ? 'integration.agentProxyInvalid' : 'integration.agentProxyDesc')}</span>
-              <div className={formControlInlineStart}>
+            <div className={cn(formFieldInlineWideLabel, 'items-start')}>
+              <div className="col-start-1 row-start-1 flex min-w-0 flex-col gap-1">
+                <span className={formTitle}>{t('integration.agentProxy')}</span>
+                <span className={cn(formDesc, draftProxy === null && 'text-fail')}>{t(draftProxy === null ? 'integration.agentProxyInvalid' : 'integration.agentProxyDesc')}</span>
+              </div>
+              <div className={cn(formControlInlineStart, 'row-span-1 items-stretch self-start flex-col gap-2')}>
                 <TextInput
                   className="w-full"
                   value={draft.proxy}
-                  placeholder="http://127.0.0.1:7890"
+                  placeholder="127.0.0.1:7890"
                   spellCheck={false}
-                  aria-invalid={proxyInvalid || undefined}
+                  aria-invalid={draftProxy === null || undefined}
                   onChange={(event) => update({ proxy: event.target.value })}
+                />
+                {draftProxySlots && draftProxy ? (
+                  <p className="m-0 text-xs text-ink-soft">
+                    {t('integration.agentProxyAppliesTo', {
+                      value: draftProxy,
+                      slots: 'HTTP / HTTPS / SOCKS5 / ALL / FTP',
+                    })}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  className="self-start text-xs text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  aria-expanded={proxyProtocolsOpen}
+                  onClick={() => setProxyProtocolsOpen((open) => !open)}
+                >
+                  {t(proxyProtocolsOpen ? 'integration.agentProxyProtocolsHide' : 'integration.agentProxyProtocolsShow')}
+                </button>
+                {proxyProtocolsOpen ? (
+                  <div className="flex flex-col gap-2 rounded-md border border-line bg-panel p-2">
+                    <p className="m-0 text-xs text-ink-soft">{t('integration.agentProxyProtocolsHint')}</p>
+                    {AGENT_PROXY_PROTOCOLS.map((key) => (
+                      <label key={key} className="flex min-w-0 items-center gap-2">
+                        <span className="w-14 shrink-0 font-mono text-xs uppercase text-ink-soft">{key}</span>
+                        <TextInput
+                          className="min-w-0 flex-1"
+                          value={draft.proxyProtocols?.[key] || ''}
+                          placeholder={t('integration.agentProxyProtocolInherit')}
+                          spellCheck={false}
+                          onChange={(event) => setProxyProtocol(key, event.target.value)}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <label className={formFieldInlineWideLabel}>
+              <span className={formTitleInline}>{t('integration.agentProxyHeaders')}</span>
+              <span className={cn(formDescInline, draftProxyHeaders === null && 'text-fail')}>
+                {t(draftProxyHeaders === null ? 'integration.agentProxyHeadersInvalid' : 'integration.agentProxyHeadersDesc')}
+              </span>
+              <div className={formControlInlineStart}>
+                <textarea
+                  className="min-h-20 w-full resize-y rounded-md border border-line bg-inset px-2.5 py-1.5 font-mono text-[0.8125rem] text-ink outline-none focus-visible:border-accent"
+                  value={proxyHeadersDraft}
+                  placeholder={'X-Proxy-Token: ***\nUser-Agent: chaya\n\n或\n{"X-Proxy-Token":"***","User-Agent":"chaya"}'}
+                  spellCheck={false}
+                  aria-invalid={draftProxyHeaders === null || undefined}
+                  onChange={(event) => setProxyHeadersDraft(event.target.value)}
                 />
               </div>
             </label>

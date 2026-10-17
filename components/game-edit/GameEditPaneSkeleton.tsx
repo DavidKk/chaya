@@ -205,7 +205,7 @@ export function GameEditLogsSkeleton({ label }: { label?: string }) {
 }
 
 /** 翻译：分区内容头部 + 当前分区对应内容。 */
-export function GameEditTransSkeleton({ section = 'run', translateTab = 'play', label }: { section?: TranslateTabId; translateTab?: 'play' | 'seed'; label?: string }) {
+export function GameEditTransSkeleton({ section = 'run', translateTab = 'seed', label }: { section?: TranslateTabId; translateTab?: 'play' | 'seed'; label?: string }) {
   const t = useT()
   return (
     <SkeletonRegion label={label ?? t('edit.loadTrans')} className="flex min-h-0 flex-1 flex-col">

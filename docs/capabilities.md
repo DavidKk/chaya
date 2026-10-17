@@ -33,18 +33,18 @@
 
 ### 3.1 游戏外（各环境不同）
 
-| 分组     | 工具                                                                     | server | Cloud                         | 游戏内 |
-| -------- | ------------------------------------------------------------------------ | ------ | ----------------------------- | ------ |
-| 游戏库   | `chaya_library_list` / `bind` / `remark` / `remove`                      | ✓      | ◐ `bind` 只切换库里已有的游戏 | ✗      |
-| 当前游戏 | `chaya_game_status`、`chaya_game_shell_check`                            | ✓      | ◐ 需先授权读目录              | ✗      |
-|          | `chaya_game_plugins_install` / `plugins_clear`、`shell_install`          | ✓      | ◐ 需先授权写目录              | ✗      |
-|          | `chaya_game_launch`、`chaya_game_shell_uninstall`、`chaya_game_window`   | ✓      | ✗                             | ✗      |
-| 翻译     | `chaya_translate_text` / `extract` / `job` / `engines` / `play_settings` | ✓      | ✓（游戏内运行时执行）         | ✓      |
-|          | `chaya_translate_batch`                                                  | ✓      | ✗ 用 `job` 代替               | ✗      |
-| 翻译库   | `chaya_cache_query` / `update` / `delete` / `import`                     | ✓      | ✓                             | ✓      |
-| 日志     | `chaya_logs_query`                                                       | ✓      | ◐ 只读，与其他访问者共用      | ✓      |
-|          | `chaya_logs_clear`                                                       | ✓      | ✗ 会清掉其他访问者的日志      | ✓      |
-| 页面     | `page_*` 共 10 个（只在 WebMCP）                                         | ✓      | ✓                             | ✗      |
+| 分组     | 工具                                                                     | server                            | Cloud                                        | 游戏内                 |
+| -------- | ------------------------------------------------------------------------ | --------------------------------- | -------------------------------------------- | ---------------------- |
+| 游戏库   | `chaya_library_list` / `bind` / `remark` / `remove`                      | ✓                                 | ◐ `bind` 只切换库里已有的游戏                | ✗                      |
+| 当前游戏 | `chaya_game_status`、`chaya_game_shell_check`                            | ✓                                 | ◐ 需先授权读目录                             | ✗                      |
+|          | `chaya_game_plugins_install` / `plugins_clear`、`shell_install`          | ✓                                 | ◐ 需先授权写目录                             | ✗                      |
+|          | `chaya_game_launch`、`chaya_game_shell_uninstall`、`chaya_game_window`   | ✓                                 | ✗                                            | ✗                      |
+| 翻译     | `chaya_translate_text` / `extract` / `job` / `engines` / `play_settings` | ✓                                 | ✓（游戏内运行时执行）                        | ✓                      |
+|          | `chaya_translate_batch`                                                  | ✓                                 | ✗ 用 `job` 代替                              | ✗                      |
+| 翻译库   | `chaya_cache_query` / `update` / `delete` / `import`                     | ✓                                 | ✓                                            | ✓                      |
+| 日志     | `chaya_logs_query`                                                       | ✓：运行日志 + 文件归档 Agent 活动 | ◐ 只读：运行日志 + 页面 IndexedDB Agent 活动 | ◐ 只读：仅游戏运行日志 |
+|          | `chaya_logs_clear`                                                       | ✓                                 | ✗ 会清掉其他访问者的日志                     | ✓                      |
+| 页面     | `page_*` 共 10 个（只在 WebMCP）                                         | ✓                                 | ✓                                            | ✗                      |
 
 不可用的工具在 `page_get_context.unavailableTools` 中给出原因（Cloud），插件 MCP 的说明（`MCP_PLUGIN_INSTRUCTIONS`）按分组概括（游戏内）。分组「当前游戏」的 `chaya_game_*` 是准备游戏目录，不是 §4 的游戏操作。
 
@@ -97,6 +97,7 @@ ChayaEdit 不再声明插件工具：`gold` / `item` / `variable` / `switch` / `
 - **server 集成页**：MCP 页列出 server 的工具（§3 + §4）；WebMCP 页列出本页登记的工具（同上 + 页面工具）。
 - **Cloud 集成页**：MCP 页保持空态，引导到游戏内（见 [mcp-remote.md](./mcp-remote.md)）；WebMCP 页列出 Cloud 的工具（§3 Cloud 列 + §4 + 页面工具）。
 - **游戏内「集成」页**：只有 MCP（不再单列游戏内 WebMCP）。
+- `chaya_logs_query` 默认 `view="runtime"`；`view="agent"` 在 server MCP 读本地文件归档，在 Cloud 页面 WebMCP 读 IndexedDB。游戏内固定端口 MCP 网关不能读取页面 IndexedDB，对 Agent 视图返回明确引导，不得降级成普通运行日志。
 
 ## 7. 实现约束
 
@@ -123,3 +124,4 @@ ChayaEdit 不再声明插件工具：`gold` / `item` / `variable` / `switch` / `
 | 2026-10-05 | 行走 demo 实跑：`move_to` 途中踩到传送点换图即停，返回 `transferred`                                                                                                            |
 | 2026-10-05 | 行走 demo 实跑：server 的 `chaya_edit_catalog` 只读当前游戏的数据文件，与按 `gameId` 修改的游戏可能不是同一个；改为带 `gameId` 时经 `edit.catalog` 从游戏内读取                 |
 | 2026-10-05 | 行走 demo 实跑：server 的 `chaya_live_quit` 只走 `DELETE /api/launch`，关不掉没装翻译运行时的游戏、也不分 `gameId`；改为发 `game.quit`，无长轮询游戏时才退回                    |
+| 2026-10-14 | `chaya_logs_query` 新增 `view="agent"`：server MCP 查文件归档，Cloud 页面 WebMCP 查 IndexedDB；游戏内网关不跨进程读页面存储                                                     |

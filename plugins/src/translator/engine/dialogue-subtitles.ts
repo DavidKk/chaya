@@ -1,6 +1,7 @@
-import { peelChoiceMetaTrail } from '@/lib/translate/choice-meta'
+import { peelChoiceMetaShell } from '@/lib/translate/choice-meta'
 import type { TranslationPlaySettings } from '@/lib/translate/play-settings'
-import { containsJapaneseText, isStorableTranslation } from '@/services/translate/text-classify'
+import { mapTranslationSegments, translationSegmentContent, translationSegments, translationSources } from '@/lib/translate/segments'
+import { isStorableTranslation, shouldTranslate } from '@/services/translate/text-classify'
 
 import { hookMethod } from '../../helpers/game/method-hook'
 
@@ -17,7 +18,8 @@ export type DialogueActivity = { level: 'info' | 'ok' | 'warn' | 'fail'; text: s
 type Options = {
   settings: () => TranslationPlaySettings
   cached: (text: string) => string
-  request: (texts: string[], signal: AbortSignal) => Promise<Array<{ src: string; zh: string | null; engine?: string; error?: string }>>
+  complete?: (text: string) => boolean
+  request: (texts: string[], signal: AbortSignal) => Promise<Array<{ src: string; zh: string | null; engine?: string; error?: string; status?: 'full' | 'partial' | 'miss' }>>
   show: (subtitle: Subtitle | null, messageWindow?: InstanceType<typeof Window_Message>) => void
   status: (pending: boolean, error?: string) => void
   activity?: (event: DialogueActivity) => void
@@ -25,7 +27,7 @@ type Options = {
 
 const MAX_LIVE_CHARS = 360
 
-/** 只翻译当前仍在屏幕上的短对话；显示策略由调用方选择。 */
+/** Translate only short dialogue still visible on screen; the caller selects the display policy. */
 export function createDialogueSubtitles(options: Options) {
   let active: { message: Message; key: string; abort: AbortController; timer: ReturnType<typeof setTimeout> } | null = null
   const keyOf = (message: Message) => JSON.stringify([message._texts || [], message._choices || []])
@@ -51,18 +53,36 @@ export function createDialogueSubtitles(options: Options) {
     if (active?.message === message && active.key === key) return
     reset()
 
-    const lines = [...(message._texts || [])]
-    const text = lines.join('\n')
+    const text = (message._texts || []).join('\n')
+    const lines = translationSources(text)
     const choiceHelp = message.isChoiceHelp?.() === true
-    // 悬停说明只翻译当前项，不因整组选项过多而跳过，也不为每次移动重发其它选项。
+    // Translate help for the current item only; do not skip large choice groups or resend other choices on every move.
     const choices = choiceHelp ? [] : [...(message._choices || [])]
-    const wholeHit = options.cached(text)
+    let wholeHit = options.cached(text)
+    if (wholeHit === text) {
+      const originalLines = message._texts || []
+      const legacyHits = originalLines.map((line) => options.cached(line))
+      if (
+        legacyHits.some((hit, i) => hit !== originalLines[i]) &&
+        legacyHits.every((hit, i) => !shouldTranslate(originalLines[i]) || (hit !== originalLines[i] && isStorableTranslation(originalLines[i], hit)))
+      )
+        wholeHit = legacyHits.join('\n')
+    }
     const lineHits = lines.map((line) => {
-      const hit = options.cached(line)
+      let hit = options.cached(line)
+      if (hit === line) {
+        const original = translationSegments(text).find((part) => translationSegmentContent(part).core === line)
+        const legacy = original ? options.cached(original.trim()) : line
+        if (original && legacy !== original.trim()) hit = translationSegmentContent(legacy).core
+      }
       return hit !== line && !isStorableTranslation(line, hit) ? line : hit
     })
-    // 词干/逐行查表可能只替换了部分内容；残留假名时不能宣称整段已命中。
-    const useWholeHit = wholeHit !== text && isStorableTranslation(text, wholeHit) && (wholeHit !== lineHits.join('\n') || lineHits.every((hit, index) => hit === lines[index]))
+    // Stem or line lookup may translate only part of the text; remaining kana means the whole block is not fully translated.
+    const useWholeHit =
+      (!options.complete || options.complete(text)) &&
+      wholeHit !== text &&
+      isStorableTranslation(text, wholeHit) &&
+      (wholeHit !== mapTranslationSegments(text, (part) => lineHits[lines.indexOf(part)] ?? part) || lineHits.every((hit, index) => hit === lines[index]))
     const choiceHits = choices.map((choice) => {
       const hit = options.cached(choice)
       return hit !== choice && !isStorableTranslation(choice, hit) ? choice : hit
@@ -72,17 +92,23 @@ export function createDialogueSubtitles(options: Options) {
       ...(mode === 'realtime' ? { replace: true } : {}),
       ...(choiceHelp ? { choiceHelp: true } : {}),
       text: (() => {
-        const rendered = useWholeHit ? wholeHit : lines.map((line, index) => translated.get(line) || lineHits[index]).join('\n')
+        const rendered = translated.get(text) || (useWholeHit ? wholeHit : mapTranslationSegments(text, (part) => translated.get(part) || lineHits[lines.indexOf(part)] || part))
         return rendered !== text && (mode === 'subtitle' || asyncText) ? rendered : ''
       })(),
       choices: choices.map((choice, index) => {
         const rendered = translated.get(choice) || choiceHits[index]
-        return rendered !== choice ? peelChoiceMetaTrail(rendered).core : ''
+        return rendered !== choice ? peelChoiceMetaShell(rendered).core : ''
       }),
     })
     const hasSubtitle = (value: Subtitle) => Boolean(value.text || value.choices.some(Boolean))
-    const missingLines = useWholeHit ? [] : [...new Set(lines.filter((line, index) => containsJapaneseText(line) && lineHits[index] === line))]
-    const missingChoices = [...new Set(choices.filter((choice, index) => containsJapaneseText(choice) && choiceHits[index] === choice))]
+    const missingLines = options.complete
+      ? shouldTranslate(text) && !options.complete(text)
+        ? [text]
+        : []
+      : useWholeHit
+        ? []
+        : [...new Set(lines.filter((line, index) => shouldTranslate(line) && lineHits[index] === line))]
+    const missingChoices = [...new Set(choices.filter((choice, index) => shouldTranslate(choice) && (options.complete ? !options.complete(choice) : choiceHits[index] === choice)))]
     const initial = subtitle(new Map())
     const publish = (value: Subtitle, pending: boolean, badge?: Subtitle['badge']) => {
       if (hasSubtitle(value) || pending || badge) options.show({ ...value, ...(pending ? { pending: true } : {}), ...(badge ? { badge } : {}) }, messageWindow)
@@ -128,10 +154,11 @@ export function createDialogueSubtitles(options: Options) {
       try {
         for (const group of groups) {
           if (!group.length || abort.signal.aborted) continue
-          const items = await options.request(group, abort.signal)
+          const items: Awaited<ReturnType<Options['request']>> = []
+          for (let offset = 0; offset < group.length; offset += 8) items.push(...(await options.request(group.slice(offset, offset + 8), abort.signal)))
           if (active !== entry || abort.signal.aborted || keyOf(message) !== key || options.settings().mode !== mode) return
           for (const item of items) {
-            if (item.zh && item.zh !== item.src) {
+            if (item.zh && item.zh !== item.src && item.status !== 'partial' && !item.error) {
               translated.set(item.src, item.zh)
               options.activity?.({ level: 'ok', text: `${item.engine || '本机'}：${item.src.slice(0, 45)} → ${item.zh.slice(0, 45)}` })
             } else if (item.error) {
@@ -243,7 +270,7 @@ export function installDialogueSubtitles(options: Options) {
             if (options.settings().mode !== 'realtime') return name
             if (choiceOwner === $gameMessage && sourceChoices[index] === $gameMessage._choices?.[index] && renderedChoices[index]) return renderedChoices[index]
             const cached = options.cached(name)
-            return cached !== name ? peelChoiceMetaTrail(cached).core : name
+            return cached !== name ? peelChoiceMetaShell(cached).core : name
           }
       )
     )

@@ -2,11 +2,12 @@
  * GameEdit high-value cheats: locks / god mode / through / teleport / common events / map events
  */
 
+import { writeMaxParam } from '../session/battle-param'
 import { closeBattleInputWindows } from '../session/battle-windows'
 import { RunCheats } from './cheats-run'
 import { gameMap, gamePlayer, gameTroop } from './game-globals'
 
-export type LockKind = 'item' | 'weapon' | 'armor' | 'var' | 'gold' | 'hp' | 'mp' | 'sw' | 'level' | 'exp'
+export type LockKind = 'item' | 'weapon' | 'armor' | 'var' | 'gold' | 'hp' | 'mp' | 'mhp' | 'mmp' | 'tp' | 'enemyHp' | 'enemyMhp' | 'sw' | 'level' | 'exp'
 
 type LockEntry = { kind: LockKind; id: number; value: number }
 
@@ -14,6 +15,9 @@ const locks = new Map<string, LockEntry>()
 let godMode = false
 let throughWalls = false
 let autoWin = false
+let autoBattle = false
+/** 这一次输入阶段已经替角色出过招，离开 input 后再允许下一回合 */
+let autoBattleScene: object | null = null
 /** 已判胜的战斗场景；胜利结算插件改写 processVictory 后阶段未必变成 battleEnd，按场景实例只判一次，避免重复发奖励 */
 let wonScene: unknown = null
 
@@ -51,8 +55,93 @@ function tryAutoWin() {
   Cheats.battleVictory()
 }
 
+type AutoActor = {
+  canInput?: () => boolean
+  makeAutoBattleActions?: () => void
+  makeActions?: () => void
+}
+
+type CommandWindow = { active?: boolean; deactivate?: () => void; close?: () => void; hide?: () => void }
+
+/** 输入阶段替每个还能行动的角色选一招，然后开始回合。自动胜利优先，敌群事件播完再动。 */
+function tryAutoBattle() {
+  if (!autoBattle || autoWin) return
+  if (typeof BattleManager === 'undefined' || typeof Scene_Battle !== 'function' || typeof SceneManager === 'undefined') return
+  const scene = SceneManager._scene
+  if (!(scene instanceof (Scene_Battle as new () => object))) {
+    autoBattleScene = null
+    return
+  }
+  if (String(BattleManager._phase) !== 'input') {
+    autoBattleScene = null
+    return
+  }
+  if (autoBattleScene === scene) return
+  if (typeof gameTroop()?.isEventRunning === 'function' && gameTroop().isEventRunning()) return
+  const party = $gameParty as { battleMembers?: () => AutoActor[] } | undefined
+  const members = typeof party?.battleMembers === 'function' ? party.battleMembers() : []
+  for (const actor of members) {
+    if (!actor || (typeof actor.canInput === 'function' && !actor.canInput())) continue
+    if (typeof actor.makeAutoBattleActions === 'function') actor.makeAutoBattleActions()
+    else actor.makeActions?.()
+  }
+  closeBattleInputWindows()
+  const windows = scene as { _partyCommandWindow?: CommandWindow; _actorCommandWindow?: CommandWindow }
+  for (const w of [windows._partyCommandWindow, windows._actorCommandWindow]) {
+    if (!w) continue
+    w.deactivate?.()
+    w.close?.()
+    w.hide?.()
+  }
+  const startTurn = (BattleManager as { startTurn?: () => void }).startTurn
+  if (typeof startTurn !== 'function') return
+  startTurn.call(BattleManager)
+  autoBattleScene = scene
+}
+
 function lockKey(kind: LockKind, id = 0) {
   return `${kind}:${id}`
+}
+
+type HoldBattler = {
+  hp: number
+  mp?: number
+  mhp: number
+  mmp?: number
+  tp?: number
+  setHp?: (hp: number) => void
+  setMp?: (mp: number) => void
+  setTp?: (tp: number) => void
+  maxTp?: () => number
+  paramBase?: (paramId: number) => number
+  paramPlus?: (paramId: number) => number
+  addParam?: (paramId: number, value: number) => void
+  param?: (paramId: number) => number
+  paramMax?: (paramId: number) => number
+}
+
+/** 把当前值或上限钉在锁定值上。上限写失败时留到下一拍，不打断其它锁。 */
+function holdBattler(battler: HoldBattler, kind: 'hp' | 'mp' | 'mhp' | 'mmp' | 'tp', value: number) {
+  const target = Math.max(0, Math.floor(value))
+  try {
+    if (kind === 'hp') {
+      const hp = Math.min(target, battler.mhp)
+      if (battler.hp !== hp) battler.setHp?.(hp)
+    } else if (kind === 'mp') {
+      const mp = Math.min(target, battler.mmp ?? target)
+      if ((battler.mp ?? 0) !== mp) battler.setMp?.(mp)
+    } else if (kind === 'tp') {
+      const max = battler.maxTp?.() ?? 100
+      const tp = Math.min(target, max)
+      if ((battler.tp ?? 0) !== tp) battler.setTp?.(tp)
+    } else if (kind === 'mhp' && battler.mhp !== target) {
+      writeMaxParam(battler, 0, Math.max(1, target))
+    } else if (kind === 'mmp' && (battler.mmp ?? 0) !== target) {
+      writeMaxParam(battler, 1, target)
+    }
+  } catch {
+    /* 这一拍写不进，下一拍再试 */
+  }
 }
 
 function dbByKind(kind: 'item' | 'weapon' | 'armor') {
@@ -87,14 +176,13 @@ function tickLocks() {
       $gameSwitches.setValue(entry.id, entry.value !== 0)
     } else if (entry.kind === 'item' || entry.kind === 'weapon' || entry.kind === 'armor') {
       applyItemLock(entry.kind, entry.id, entry.value)
-    } else if (entry.kind === 'hp' || entry.kind === 'mp') {
+    } else if (entry.kind === 'hp' || entry.kind === 'mp' || entry.kind === 'mhp' || entry.kind === 'mmp' || entry.kind === 'tp') {
       const actor = $gameActors && $gameActors.actor(entry.id)
       if (!actor) continue
-      if (entry.kind === 'hp') {
-        if (actor.hp !== entry.value) actor.setHp(entry.value)
-      } else if (actor.mp !== entry.value) {
-        actor.setMp(entry.value)
-      }
+      holdBattler(actor, entry.kind, entry.value)
+    } else if (entry.kind === 'enemyHp' || entry.kind === 'enemyMhp') {
+      const enemy = gameTroop()?.members?.()?.[entry.id]
+      if (enemy) holdBattler(enemy, entry.kind === 'enemyHp' ? 'hp' : 'mhp', entry.value)
     } else if (entry.kind === 'level') {
       const actor = $gameActors && $gameActors.actor(entry.id)
       if (!actor || typeof actor.changeExp !== 'function') continue
@@ -123,6 +211,7 @@ function tickLocks() {
   }
 
   if (autoWin) tryAutoWin()
+  if (autoBattle) tryAutoBattle()
 
   if (throughWalls && gamePlayer() && typeof gamePlayer().setThrough === 'function') {
     if (!gamePlayer().isThrough || !gamePlayer().isThrough()) gamePlayer().setThrough(true)
@@ -153,6 +242,8 @@ function disposeCheatsHooks() {
   godMode = false
   throughWalls = false
   autoWin = false
+  autoBattle = false
+  autoBattleScene = null
   wonScene = null
   RunCheats.disposeHooks()
 }
@@ -163,6 +254,15 @@ export const Cheats = {
 
   isLocked(kind: LockKind, id = 0) {
     return locks.has(lockKey(kind, id))
+  },
+
+  lockValue(kind: LockKind, id = 0): number | null {
+    const entry = locks.get(lockKey(kind, id))
+    return entry ? entry.value : null
+  },
+
+  listLocks(): LockEntry[] {
+    return [...locks.values()]
   },
 
   setLock(kind: LockKind, id: number, on: boolean, value?: number) {
@@ -177,9 +277,12 @@ export const Cheats = {
       if (kind === 'gold') v = $gameParty ? $gameParty.gold() : 0
       else if (kind === 'var') v = $gameVariables ? $gameVariables.value(id) : 0
       else if (kind === 'sw') v = $gameSwitches && $gameSwitches.value(id) ? 1 : 0
-      else if (kind === 'hp' || kind === 'mp') {
+      else if (kind === 'hp' || kind === 'mp' || kind === 'mhp' || kind === 'mmp' || kind === 'tp') {
         const a = $gameActors && $gameActors.actor(id)
-        v = a ? (kind === 'hp' ? a.hp : a.mp) : 0
+        v = !a ? 0 : kind === 'hp' ? a.hp : kind === 'mp' ? a.mp : kind === 'mhp' ? a.mhp : kind === 'mmp' ? a.mmp : (a.tp ?? 0)
+      } else if (kind === 'enemyHp' || kind === 'enemyMhp') {
+        const enemy = gameTroop()?.members?.()?.[id]
+        v = !enemy ? 0 : kind === 'enemyHp' ? enemy.hp : enemy.mhp
       } else if (kind === 'level') {
         const a = $gameActors && $gameActors.actor(id)
         v = a ? a.level : 1
@@ -221,6 +324,18 @@ export const Cheats = {
     autoWin = !!on
     if (autoWin) tickLocks()
     return autoWin
+  },
+
+  getAutoBattle() {
+    return autoBattle
+  },
+  /** 开启后每个输入阶段自动选招并进入回合，直到关闭 */
+  setAutoBattle(on: boolean) {
+    ensureHooks()
+    autoBattle = !!on
+    if (!autoBattle) autoBattleScene = null
+    if (autoBattle) tickLocks()
+    return autoBattle
   },
 
   getThrough() {

@@ -5,6 +5,7 @@ jest.mock('@/app/api/logs/route', () => ({ DELETE: jest.fn() }))
 jest.mock('@/app/api/game-edit/catalog/route.server', () => ({ GET: jest.fn() }))
 jest.mock('@/services/game', () => ({ loadConfig: jest.fn(), saveConfig: jest.fn(), findLibraryEntry: jest.fn(), upsertLibraryEntry: jest.fn() }))
 jest.mock('@/services/log', () => ({ listLogs: jest.fn(() => []) }))
+jest.mock('@/services/game-agent/activity.server', () => ({ listAgentActivityTasks: jest.fn(), readAgentActivityTask: jest.fn() }))
 
 import { filterCatalog } from '@/app/api/mcp/_tools/edit'
 import { libraryTools } from '@/app/api/mcp/_tools/library'
@@ -14,6 +15,7 @@ import { translateTools } from '@/app/api/mcp/_tools/translate'
 import * as StatusRoute from '@/app/api/status/route'
 import * as TranslateRoute from '@/app/api/translate/route.server'
 import * as game from '@/services/game'
+import { listAgentActivityTasks, readAgentActivityTask } from '@/services/game-agent/activity.server'
 import { listLogs } from '@/services/log'
 
 const ctx = { signal: new AbortController().signal }
@@ -117,5 +119,46 @@ describe('edit / logs tools', () => {
     await expect(logsTools.chaya_logs_query({ level: 'loud' }, ctx)).rejects.toThrow('level')
     await logsTools.chaya_logs_query({ q: 'boom', level: 'fail' }, ctx)
     expect(listLogs).toHaveBeenCalledWith(expect.objectContaining({ q: 'boom', level: 'fail', limit: 100 }))
+  })
+
+  it('reads Agent activity summaries and task events through logs_query', async () => {
+    mocked(listAgentActivityTasks).mockResolvedValue([
+      {
+        id: 'task-1',
+        gameId: 'game-1',
+        goal: '打开宝箱',
+        model: 'model',
+        state: 'completed',
+        capability: 'play',
+        eventCount: 2,
+        sizeBytes: 10,
+        createdAt: 1,
+        updatedAt: 2,
+        lastSeq: 2,
+      },
+    ] as never)
+    await expect(logsTools.chaya_logs_query({ view: 'agent', q: '宝箱' }, ctx)).resolves.toMatchObject({ view: 'agent', count: 1, tasks: [{ id: 'task-1' }] })
+
+    mocked(readAgentActivityTask).mockResolvedValue({
+      id: 'task-1',
+      gameId: 'game-1',
+      goal: '打开宝箱',
+      model: 'model',
+      state: 'completed',
+      capability: 'play',
+      createdAt: 1,
+      updatedAt: 2,
+      lastSeq: 2,
+      messages: [],
+      events: [
+        { seq: 1, type: 'tool.started', at: 1 },
+        { seq: 2, type: 'game.dialogue', at: 2, data: { text: '发现宝箱' } },
+      ],
+    } as never)
+    await expect(logsTools.chaya_logs_query({ view: 'agent', taskId: 'task-1', eventType: 'game.dialogue' }, ctx)).resolves.toMatchObject({
+      view: 'agent',
+      count: 1,
+      events: [{ type: 'game.dialogue' }],
+    })
   })
 })

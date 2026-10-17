@@ -88,7 +88,7 @@ beforeAll(() => {
 })
 
 let root: Root | null = null
-const handlers = { onRunAction: jest.fn(), onOpenTroops: jest.fn(), onOpenActor: jest.fn() }
+const handlers = { onFlagChange: jest.fn(), onRunAction: jest.fn(), onOpenTroops: jest.fn(), onOpenActor: jest.fn(), onLock: jest.fn() }
 
 async function render(s: EventsSlot | undefined, session: { locks: Record<string, unknown>; god: boolean } = { locks: {}, god: false }) {
   const host = document.createElement('div')
@@ -280,9 +280,20 @@ test('current values slide and apply on release; the max part does not open the 
   expect(s.onAct).toHaveBeenCalledWith({ op: 'actorVital', actorId: 1, key: 'hp', value: 50 })
 })
 
+test('each battle number can be locked at its current value', async () => {
+  await render(slot())
+  await act(async () => (document.querySelector('button[aria-label="锁死 当前 HP Harold"]') as HTMLButtonElement).click())
+  expect(handlers.onLock).toHaveBeenCalledWith({ side: 'actor', id: 1, kind: 'hp', on: true, value: 210 })
+  await act(async () => (document.querySelector('button[aria-label="锁死 HP 上限 Slime A"]') as HTMLButtonElement).click())
+  expect(handlers.onLock).toHaveBeenCalledWith({ side: 'enemy', id: 0, kind: 'mhp', on: true, value: 100 })
+  await act(async () => (document.querySelector('button[aria-label="锁死 TP Harold"]') as HTMLButtonElement).click())
+  expect(handlers.onLock).toHaveBeenCalledWith({ side: 'actor', id: 1, kind: 'tp', on: true, value: 12 })
+})
+
 test('party: locked HP and invincible mode block the matching controls', async () => {
   await render(slot(), { locks: { 'hp:1': 320 }, god: false })
   expect(input('当前 HP Harold').disabled).toBe(true)
+  expect(input('HP 上限 Harold').disabled).toBe(false)
   expect(input('当前 MP Harold').disabled).toBe(false)
   expect(rowButton('Harold', '倒下')!.disabled).toBe(true)
 

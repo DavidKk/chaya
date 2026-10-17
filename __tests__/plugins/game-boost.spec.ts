@@ -60,6 +60,17 @@ describe('ChayaBoost game speed', () => {
     expect(scene).toHaveBeenCalledTimes(1)
   })
 
+  it('sets follower speed when followers() has no forEach', () => {
+    const follower: { _walkSpeedRate?: number } = {}
+    const g = globalThis as { Game_Player?: { prototype: { moveSpeedRate: () => number } }; $gamePlayer?: { followers: () => { _data: unknown[] } } }
+    g.Game_Player = { prototype: { moveSpeedRate: () => 4 } }
+    g.$gamePlayer = { followers: () => ({ _data: [follower, null] }) }
+    ;(boost as { walkRate: (n: number) => unknown }).walkRate(2)
+    expect(follower._walkSpeedRate).toBe(2)
+    delete g.Game_Player
+    delete g.$gamePlayer
+  })
+
   it('dispose restores the original updateScene', () => {
     boost.speed(2)
     expect(sm.updateScene).not.toBe(scene)

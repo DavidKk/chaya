@@ -1,19 +1,25 @@
-export function collectAllStrings(dialogue: any[], db: Record<string, unknown>) {
+import { translationOriginalSources, translationSources } from '@/lib/translate/segments'
+
+export function collectAllStrings(dialogue: any[], db: Record<string, unknown>, options?: { original?: boolean }) {
   const set = new Set<string>()
+  const add = (text: string) => {
+    for (const part of options?.original ? translationOriginalSources(text) : translationSources(text)) if (part.trim()) set.add(options?.original ? part : part.trim())
+  }
   for (const block of dialogue) {
-    for (const line of block.lines || []) set.add(line)
-    for (const choice of block.choices || []) set.add(choice)
+    if (block.kind === 'd' || block.kind === 's') add((block.lines || []).join('\n'))
+    else for (const line of block.lines || []) add(line)
+    for (const choice of block.choices || []) add(choice)
   }
   for (const entries of Object.values(db)) {
     if (!Array.isArray(entries)) continue
     for (const entry of entries) {
       if (typeof entry === 'string') {
-        set.add(entry)
+        add(entry)
         continue
       }
       for (const [key, value] of Object.entries(entry)) {
         if (key === 'id') continue
-        if (typeof value === 'string') set.add(value)
+        if (typeof value === 'string') add(value)
       }
     }
   }

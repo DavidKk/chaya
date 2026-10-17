@@ -5,6 +5,7 @@
  */
 
 import { RUN_FLAG_KEYS } from '@/components/game-edit/types'
+import { GAME_STATE_SECTIONS } from '@/lib/game-agent/model-state'
 import { RECALL_TOOL_DESCRIPTION, RECALL_TOOL_NAME, RECALL_TOOL_PROPERTIES } from '@/lib/game-agent/recall'
 import { ASK_FIRST } from '@/lib/integration/ask-first'
 import {
@@ -247,8 +248,15 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     group: 'live',
     title: 'Live state',
     description:
-      'Read the current game state: scene, visible screen text and windows, map position and nearby events, inventory, party, battle, dialogue and choices. Use it before and after actions to decide the next move.',
-    inputSchema: obj({ gameId }),
+      'Read selected game state sections. Default: scene and available section names only. map groups location, player position and nearby events; equipment returns equipped slots and bag weapons/armor; party returns stats; inventory returns the bag; ui returns menus/dialogue; battle returns combat; text returns screen text. Request only needed sections. For equipping use ["equipment","ui"], without map or text.',
+    inputSchema: obj({
+      gameId,
+      sections: {
+        type: 'array',
+        items: { type: 'string', enum: GAME_STATE_SECTIONS },
+        description: 'State groups to read. Omit for a minimal scene summary; all is an explicit full snapshot.',
+      },
+    }),
   },
   {
     name: 'chaya_live_ui',
@@ -426,7 +434,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     group: 'live',
     title: 'Walk to tile',
     description:
-      'Walk the player to map tile (x, y) with the built-in pathfinding and wait until arrival or timeout. Works even when click-to-move is off; blocked paths, events and messages stop it (arrived = false); stepping on a transfer stops it with transferred = true and the new mapId. Map scene only.',
+      'Walk to map tile (x, y) one engine step at a time, respecting player movement locks. Stops immediately for dialogue, running or queued events, transfers, a paused or non-updating game loop, and unselected touch events (arrived = false). Map scene only.',
     inputSchema: obj({ gameId, x: num('Map tile x'), y: num('Map tile y'), timeoutMs: num(`Wait limit (default ${AGENT_MOVE_DEFAULT_MS}, max ${AGENT_MOVE_MAX_MS})`) }, ['x', 'y']),
   },
   {
@@ -435,8 +443,15 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     group: 'live',
     title: 'Interact with event',
     description:
-      'Interact with one map event (nearbyEvents id) like a player: walk next to it (or onto it when it lies under the player), opening closed doors on the way, face it, press ok and advance its dialogue. Returns outcome (done, choice, no_path, no_reaction, nothing_to_run, transferred, scene_changed, timeout), the dialogue lines, goldChange and inventoryChanges. On choice, pick with chaya_live_press. Map scene only.',
-    inputSchema: obj({ gameId, eventId: num('Event id from nearbyEvents') }, ['eventId']),
+      'Interact with one map event (nearbyEvents id) like a player: walk next to it (or onto it when it lies under the player), opening closed doors on the way when openDoors is not false, face it, press ok and advance its dialogue. Returns outcome (done, choice, no_path, no_reaction, nothing_to_run, transferred, scene_changed, timeout), the dialogue lines, goldChange and inventoryChanges. On choice, pick with chaya_live_press. Map scene only.',
+    inputSchema: obj(
+      {
+        gameId,
+        eventId: num('Event id from nearbyEvents'),
+        openDoors: bool('Open touch-openable blockers on the path (default true; set false for scoped batch jobs)'),
+      },
+      ['eventId']
+    ),
   },
   {
     name: 'chaya_live_quit',
@@ -645,15 +660,21 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     readOnly: true,
     group: 'logs',
     title: 'Query logs',
-    description: 'Query recent server / plugin logs, filtered by source, level, start time or keyword. Check here first when debugging game or plugin issues.',
+    description:
+      'Query recent server / plugin logs or Agent activity. Default view is runtime logs; use view="agent" to read Agent task summaries and events from the activity timeline.',
     inputSchema: obj({
+      view: str('Log source', { enum: ['runtime', 'agent'], default: 'runtime' }),
       q: str('message / source keyword'),
       source: str('Source, e.g. ChayaEdit, ChayaTrans, ChayaAgent, translate'),
       level: str('Level', { enum: LOG_LEVEL_VALUES }),
       since: num('Start time (ms timestamp)'),
+      taskId: str('Agent task id (only with view="agent")'),
+      gameId: str('Game or library id (only with view="agent")'),
+      runtimeInstanceId: str('Running game instance id (only with view="agent")'),
+      eventType: str('Agent event type, e.g. tool.completed or game.chest_opened (only with view="agent")'),
       limit: num('Max entries (default 100, up to 1000)'),
     }),
-    http: 'GET /api/logs',
+    http: 'GET /api/logs (runtime) · Agent activity via view="agent"',
   },
   {
     name: 'chaya_logs_clear',
@@ -673,6 +694,7 @@ export const MCP_INSTRUCTIONS = [
   'Story help: when the user skipped dialogue or asks what to do next, read chaya_live_history, then chaya_live_state (chaya_live_screenshot only if the picture matters).',
   'Complex-task workflow: search chaya_skills_search and read only relevant skills; skills are layered and may reference child skills.',
   'Earlier Chaya Agent turns are not in the prompt: read the previous turn or search them with chaya_agent_recall only when the request depends on them.',
+  'For diagnostics or gameplay optimization, call chaya_logs_query with view="agent"; list summaries first, then pass taskId to read its structured events.',
   'Tools marked "Destructive" require the user\'s consent first.',
   'While a game is online, tools declared by its plugins (chaya_plugin_*) appear in the tool list and come and go with the connection; if the client has not refreshed the list, call them via chaya_live_plugins + the tool argument of chaya_live_call.',
 ].join('\n')

@@ -1,6 +1,6 @@
 import { createTranslationRuntime } from '../runtime'
 
-/** 实时翻译直接由游戏插件执行；Chaya 服务只可用于共享翻译库查询。 */
+/** The game plugin performs live translation directly; the Chaya service is optional for shared-cache queries. */
 export function createRealtimeClient(contentRoot: string) {
   const host = globalThis as typeof globalThis & { __chayaTranslationRuntime?: ReturnType<typeof createTranslationRuntime> }
   host.__chayaTranslationRuntime?.dispose()

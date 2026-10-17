@@ -6,6 +6,7 @@ import { IoOpenOutline } from 'react-icons/io5'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, CopyField, Modal, Spinner, TextInput } from '@/components/sk'
+import { openExternal } from '@/lib/about'
 import type { AgentAccountSummary, AgentAuthAttemptView } from '@/lib/game-agent/providers'
 
 import type { AgentSettingsRequest } from './agent-types'
@@ -155,15 +156,14 @@ export function AgentAuthDialog({ request, profileId, kind, name, portalContaine
             <CopyField value={challenge.url} label={t('agentAuth.dialogOpenLink')} />
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-ink-soft">{t('agentAuth.dialogOpenLinkAnyDevice')}</span>
-              <a
-                href={challenge.url}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
                 className="inline-flex shrink-0 items-center gap-1 text-xs text-accent no-underline hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                onClick={() => openExternal(challenge.url)}
               >
                 <IoOpenOutline size={14} aria-hidden />
                 {t('agentAuth.dialogOpen')}
-              </a>
+              </button>
             </div>
           </div>
           {challenge.kind === 'device_code' ? (

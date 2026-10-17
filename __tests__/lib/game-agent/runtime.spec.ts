@@ -23,6 +23,57 @@ function host(replies: RuntimeMessage[], tools: RuntimeTool[] = []): { host: Age
 }
 
 describe('shared agent runtime', () => {
+  it('finishes equipping after the model verifies the new equipment without another model round', async () => {
+    const read = { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'chaya_live_state', arguments: { sections: ['equipment', 'ui'] } } }] }
+    const press = { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'chaya_live_press', arguments: { key: 'ok' } } }] }
+    const fixture = host(
+      [read, press, read, { role: 'assistant', content: '已装备。' }],
+      [
+        { name: 'chaya_live_state', groups: ['live'] },
+        { name: 'chaya_live_press', groups: ['live'] },
+      ]
+    )
+    let equipped = false
+    const call = jest.fn(async (name: string) => {
+      if (name === 'chaya_live_press') {
+        equipped = true
+        return { ok: true }
+      }
+      return {
+        scene: 'Scene_Equip',
+        party: [{ equipment: [{ slot: 0, name: equipped ? 'Sword' : null }] }],
+        inventory: { weapons: equipped ? [] : [{ name: 'Sword' }] },
+        windows: [],
+      }
+    })
+    fixture.host.tools.call = call
+    const complete = jest.fn(fixture.host.model.complete)
+    fixture.host.model.complete = complete
+    await expect(runAgentTurn(fixture.host, capabilityConfig('companion'), { prompt: '帮我装备武器' }, new AbortController().signal)).resolves.toMatchObject({
+      reason: 'answered',
+      text: '已装备。',
+      steps: 4,
+    })
+    expect(complete).toHaveBeenCalledTimes(4)
+    expect(call).toHaveBeenCalledTimes(3)
+  })
+
+  it('returns a companion greeting without reading or supplying game state', async () => {
+    const fixture = host([{ role: 'assistant', content: '在呢！' }], [{ name: 'chaya_live_state', groups: ['live'] }])
+    const complete = jest.fn(fixture.host.model.complete)
+    fixture.host.model.complete = complete
+    const readState = jest.fn(async () => ({ scene: 'Scene_Title' }))
+    fixture.host.tools.call = readState
+    await expect(runAgentTurn(fixture.host, capabilityConfig('companion'), { prompt: '在吗' }, new AbortController().signal)).resolves.toMatchObject({
+      text: '在呢！',
+      steps: 1,
+      reason: 'answered',
+    })
+    expect(complete).toHaveBeenCalledTimes(1)
+    expect(readState).not.toHaveBeenCalled()
+    expect(complete.mock.calls[0][0]).toEqual([{ role: 'user', content: '在吗' }])
+  })
+
   it('runs the same loop with host adapters', async () => {
     const fixture = host(
       [
@@ -39,8 +90,8 @@ describe('shared agent runtime', () => {
     })
     expect(fixture.calls).toEqual(['chaya_logs_list'])
     expect(fixture.events).toContainEqual({ type: 'phase', phase: 'verifying', step: 1, maxSteps: 8 })
-    expect(fixture.events).toContainEqual(expect.objectContaining({ type: 'tool.started', name: 'chaya_logs_list', input: {} }))
-    expect(fixture.events).toContainEqual(expect.objectContaining({ type: 'tool.completed', name: 'chaya_logs_list', output: { ok: true } }))
+    expect(fixture.events).toContainEqual(expect.objectContaining({ type: 'tool.started', name: 'chaya_logs_list', stepId: 'step-1', actionId: '1-0', input: {} }))
+    expect(fixture.events).toContainEqual(expect.objectContaining({ type: 'tool.completed', name: 'chaya_logs_list', stepId: 'step-1', actionId: '1-0', output: { ok: true } }))
   })
 
   it('records public activity and accumulates usage without exposing hidden reasoning', async () => {
@@ -79,7 +130,7 @@ describe('shared agent runtime', () => {
 
   it('lets companion requests complete basic play and save flows without exposing edits or quit', () => {
     const companion = capabilityConfig('companion')
-    expect(companion).toMatchObject({ maxSteps: 8, maxToolCalls: 8 })
+    expect(companion).toMatchObject({ maxSteps: 16, maxToolCalls: 16 })
     expect(companion.allowTool({ name: 'chaya_live_ui', groups: ['live'] })).toBe(true)
     expect(companion.allowTool({ name: 'chaya_live_open_scene', groups: ['live'] })).toBe(true)
     expect(companion.allowTool({ name: 'chaya_live_press', groups: ['live'] })).toBe(true)
@@ -155,6 +206,106 @@ describe('shared agent runtime', () => {
     })
   })
 
+  it.each(['play', 'companion'] as const)('rejects finishing after only opening the equip scene (%s)', async (capability) => {
+    const open = {
+      role: 'assistant' as const,
+      content: '',
+      tool_calls: [{ function: { name: 'chaya_live_open_scene', arguments: { scene: 'scene:equip' } } }],
+    }
+    const press = {
+      role: 'assistant' as const,
+      content: '',
+      tool_calls: [{ function: { name: 'chaya_live_press', arguments: { key: 'ok' } } }],
+    }
+    const cancel = {
+      role: 'assistant' as const,
+      content: '',
+      tool_calls: [{ function: { name: 'chaya_live_press', arguments: { key: 'cancel' } } }],
+    }
+    const pop = {
+      role: 'assistant' as const,
+      content: '',
+      tool_calls: [{ function: { name: 'chaya_live_open_scene', arguments: { scene: 'scene:pop' } } }],
+    }
+    // Mirrors the failed companion log: open → ok → ok → cancel → pop → false success.
+    const replies: RuntimeMessage[] = [open, { role: 'assistant', content: '装备窗口已打开。' }, press, press, cancel, pop, { role: 'assistant', content: '武器已装备。' }]
+    const fixture = host(
+      [],
+      [
+        { name: 'chaya_live_state', groups: ['live'] },
+        { name: 'chaya_live_open_scene', groups: ['live'] },
+        { name: 'chaya_live_press', groups: ['live'] },
+      ]
+    )
+    fixture.host.tools.call = async (name) => {
+      fixture.calls.push(name)
+      if (name === 'chaya_live_state') return { scene: 'Scene_Equip', nearbyEvents: [], party: [{ equipment: [{ slot: 0, name: null }] }] }
+      if (name === 'chaya_live_open_scene') return { done: true, id: 'scene:equip' }
+      return { ok: true }
+    }
+    const complete = jest.fn(async (_messages: RuntimeMessage[]): Promise<RuntimeMessage> => replies.shift() ?? { role: 'assistant', content: '武器已装备。' })
+    fixture.host.model.complete = complete
+    await expect(runAgentTurn(fixture.host, capabilityConfig(capability), { prompt: '帮我装备武器' }, new AbortController().signal)).resolves.toMatchObject({
+      reason: 'no_progress',
+      text: expect.stringContaining('装备栏没有变化'),
+      toolCalls: expect.any(Number),
+    })
+    expect(fixture.calls).toContain('chaya_live_press')
+    const nudges = complete.mock.calls.flatMap(([messages]) => messages.filter((message) => message.role === 'user').map((message) => message.content))
+    expect(nudges.some((prompt) => prompt.includes('菜单或场景已打开') || prompt.includes('menu or equip') || prompt.includes('party.equipment has not changed'))).toBe(true)
+  })
+
+  it.each(['play', 'companion'] as const)('allows finishing equip after party.equipment changes (%s)', async (capability) => {
+    const open = {
+      role: 'assistant' as const,
+      content: '',
+      tool_calls: [{ function: { name: 'chaya_live_open_scene', arguments: { scene: 'scene:equip' } } }],
+    }
+    const press = {
+      role: 'assistant' as const,
+      content: '',
+      tool_calls: [{ function: { name: 'chaya_live_press', arguments: { key: 'ok' } } }],
+    }
+    const replies: RuntimeMessage[] = [open, press, press, { role: 'assistant', content: '武器已装备。' }]
+    const fixture = host(
+      [],
+      [
+        { name: 'chaya_live_state', groups: ['live'] },
+        { name: 'chaya_live_open_scene', groups: ['live'] },
+        { name: 'chaya_live_press', groups: ['live'] },
+      ]
+    )
+    let presses = 0
+    fixture.host.tools.call = async (name) => {
+      fixture.calls.push(name)
+      if (name === 'chaya_live_press') {
+        presses += 1
+        return { ok: true }
+      }
+      if (name === 'chaya_live_state') {
+        const equipped = presses >= 2
+        return {
+          scene: equipped ? 'Scene_Map' : 'Scene_Equip',
+          nearbyEvents: [],
+          party: [{ equipment: [{ slot: 0, name: equipped ? '短剑' : null }] }],
+          windows: equipped ? [] : [{ name: 'slotWindow', active: true, index: 0, options: [{ label: '武器: <空>', symbol: 'slot:0', enabled: true, index: 0 }] }],
+        }
+      }
+      if (name === 'chaya_live_open_scene') return { done: true, id: 'scene:equip' }
+      return { ok: true }
+    }
+    const complete = jest.fn(async (_messages: RuntimeMessage[]): Promise<RuntimeMessage> => replies.shift() ?? { role: 'assistant', content: '武器已装备。' })
+    fixture.host.model.complete = complete
+    await expect(runAgentTurn(fixture.host, capabilityConfig(capability), { prompt: '帮我装备武器' }, new AbortController().signal)).resolves.toMatchObject({
+      reason: 'answered',
+      text: '武器已装备。',
+    })
+    // open_scene must auto-refresh state so menu options are visible before the next press.
+    const openAt = fixture.calls.indexOf('chaya_live_open_scene')
+    expect(openAt).toBeGreaterThanOrEqual(0)
+    expect(fixture.calls[openAt + 1]).toBe('chaya_live_state')
+  })
+
   it('never clips the system prompt or the current request for companion turns', async () => {
     const fixture = host([{ role: 'assistant', content: '好的。' }])
     const complete = jest.fn(async (_messages: RuntimeMessage[]) => ({ role: 'assistant' as const, content: '好的。' }))
@@ -187,6 +338,79 @@ describe('shared agent runtime', () => {
     expect(toolText.join('')).not.toContain('xxxx')
   })
 
+  it('replaces repeated ordinary map snapshots while keeping the latest snapshot complete', async () => {
+    const observe = { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'chaya_live_state', arguments: {} } }] }
+    const act = { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'chaya_live_press', arguments: { key: 'ok' } } }] }
+    const replies: RuntimeMessage[] = [observe, observe, observe, act, { role: 'assistant', content: '完成。' }]
+    const fixture = host(
+      [],
+      [
+        { name: 'chaya_live_state', groups: ['live'] },
+        { name: 'chaya_live_press', groups: ['live'] },
+      ]
+    )
+    let snapshot = 0
+    fixture.host.tools.call = async (name) => {
+      if (name !== 'chaya_live_state') return { ok: true }
+      const current = snapshot++
+      return {
+        scene: 'Scene_Map',
+        player: { x: current, y: 2 },
+        nearbyEvents: [{ id: current + 1, interactive: true, label: `event-${current}` }],
+        screenText: `ordinary-${current}-${'x'.repeat(1_000)}`,
+      }
+    }
+    const complete = jest.fn(async (_messages: RuntimeMessage[]): Promise<RuntimeMessage> => replies.shift() ?? { role: 'assistant', content: '完成。' })
+    fixture.host.model.complete = complete
+
+    await runAgentTurn(fixture.host, capabilityConfig('play'), { prompt: '处理附近目标' }, new AbortController().signal)
+
+    const firstRequest = complete.mock.calls[0][0]
+    const laterRequest = complete.mock.calls.at(-1)![0]
+    expect(firstRequest.filter((message) => message.role === 'tool')).toHaveLength(0)
+    expect(laterRequest.filter((message) => message.role === 'tool' && message.content === '{"superseded":true}').length).toBeGreaterThan(0)
+    const latestState = laterRequest.filter((message) => message.role === 'tool' && message.tool_name === 'chaya_live_state').at(-1)?.content
+    expect(latestState).toContain('"x":3')
+    expect(latestState).toContain('"id":4')
+
+    const contextSizes = fixture.events
+      .filter((event): event is { type: 'model.requested'; contextChars?: number } => (event as { type?: string }).type === 'model.requested')
+      .map((event) => event.contextChars ?? 0)
+    expect(contextSizes.length).toBeGreaterThan(1)
+    expect(Math.max(...contextSizes)).toBeLessThan(2_000)
+  })
+
+  it.each([
+    ['battle', { scene: 'Scene_Battle', battle: true, screenText: 'battle-state' }],
+    ['dialogue', { scene: 'Scene_Map', message: { busy: true, text: 'dialogue-state' }, screenText: 'dialogue-state' }],
+    ['choices', { scene: 'Scene_Map', message: { choices: ['A', 'B'] }, screenText: 'choice-state' }],
+  ])('keeps %s snapshots available for complex decisions', async (_name, state) => {
+    const observe = { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'chaya_live_state', arguments: {} } }] }
+    const act = { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'chaya_live_press', arguments: { key: 'ok' } } }] }
+    const replies: RuntimeMessage[] = [observe, observe, act, { role: 'assistant', content: '完成。' }]
+    const fixture = host(
+      [],
+      [
+        { name: 'chaya_live_state', groups: ['live'] },
+        { name: 'chaya_live_press', groups: ['live'] },
+      ]
+    )
+    fixture.host.tools.call = async (name) => (name === 'chaya_live_state' ? state : { ok: true })
+    fixture.host.model.complete = jest.fn(async (_messages: RuntimeMessage[]): Promise<RuntimeMessage> => replies.shift() ?? { role: 'assistant', content: '完成。' })
+
+    await runAgentTurn(fixture.host, capabilityConfig('play'), { prompt: '继续处理当前场景' }, new AbortController().signal)
+
+    const requests = fixture.host.model.complete as jest.Mock
+    const laterRequest = requests.mock.calls.at(-1)![0] as RuntimeMessage[]
+    const toolTexts = laterRequest
+      .filter((message) => message.role === 'tool')
+      .map((message) => message.content)
+      .join('\n')
+    expect(toolTexts).toContain(JSON.stringify(state))
+    expect(toolTexts.split(JSON.stringify(state)).length).toBeGreaterThanOrEqual(3)
+    expect(toolTexts).not.toContain('{"superseded":true}')
+  })
+
   it('re-prompts play models that answer with text before any tool call', async () => {
     const action = { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'chaya_live_press', arguments: { key: 'ok' } } }] }
     const fixture = host([{ role: 'assistant', content: '我来看看。' }, action], [{ name: 'chaya_live_press', groups: ['live'] }])
@@ -214,7 +438,7 @@ describe('shared agent runtime', () => {
 
   it('checks a play reply against fresh state and lists events already interacted with', async () => {
     const interact = (eventId: number) => ({ role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'chaya_live_interact', arguments: { eventId } } }] })
-    const replies: RuntimeMessage[] = [interact(1), { role: 'assistant', content: '好了。' }, interact(2), { role: 'assistant', content: '都完成了。' }]
+    const replies: RuntimeMessage[] = [interact(1), interact(2), { role: 'assistant', content: '都完成了。' }]
     const fixture = host(
       [],
       [
@@ -241,13 +465,15 @@ describe('shared agent runtime', () => {
       reason: 'answered',
       text: '都完成了。',
     })
-    expect(fixture.calls).toEqual(['chaya_live_state', 'chaya_live_interact', 'chaya_live_state', 'chaya_live_interact', 'chaya_live_state'])
-    const first = complete.mock.calls[2][0]
-    expect(first.at(-1)?.content).toContain('already interacted with in this turn: [1].')
-    expect(first.at(-1)?.content).toContain('Reply language: zh-CN')
-    expect(first.at(-2)).toMatchObject({ role: 'tool', content: expect.stringContaining('"inactiveEvents":1') })
-    expect(first.at(-2)?.content).not.toContain('"id":3')
-    expect(complete.mock.calls[4][0].at(-1)?.content).toContain('in this turn: [1,2].')
+    expect(fixture.calls).toEqual(['chaya_live_interact', 'chaya_live_state', 'chaya_live_interact', 'chaya_live_state'])
+    const prompts = complete.mock.calls.flatMap(([messages]) => messages.filter((message) => message.role === 'user').map((message) => message.content))
+    expect(prompts.some((prompt) => prompt.includes('interacted with in this turn: [1].'))).toBe(true)
+    expect(prompts.some((prompt) => prompt.includes('Reply language: zh-CN'))).toBe(true)
+    expect(complete.mock.calls.flatMap(([messages]) => messages.filter((message) => message.role === 'tool').map((message) => message.content)).join('')).toContain(
+      '"inactiveEvents":1'
+    )
+    expect(complete.mock.calls.flatMap(([messages]) => messages.filter((message) => message.role === 'tool').map((message) => message.content)).join('')).not.toContain('"id":3')
+    expect(prompts.some((prompt) => prompt.includes('in this turn: [1,2].'))).toBe(true)
   })
 
   it('skips the rest of a batch once an interaction leaves a choice on screen', async () => {
@@ -272,9 +498,100 @@ describe('shared agent runtime', () => {
     const complete = jest.fn(async (_messages: RuntimeMessage[]): Promise<RuntimeMessage> => replies.shift() ?? { role: 'assistant', content: '选了。' })
     fixture.host.model.complete = complete
     await runAgentTurn(fixture.host, capabilityConfig('play'), { prompt: 'go' }, new AbortController().signal)
-    expect(interacted).toEqual([1, 2])
-    const tools = complete.mock.calls[1][0].filter((message) => message.role === 'tool').slice(-3)
-    expect(tools.map((message) => JSON.parse(message.content))).toEqual([{ outcome: 'done' }, { outcome: 'choice' }, expect.objectContaining({ skipped: true })])
+    expect(interacted).toEqual([1])
+    const tools = complete.mock.calls.flatMap(([messages]) => messages.filter((message) => message.role === 'tool').map((message) => JSON.parse(message.content)))
+    expect(tools).toContainEqual(expect.objectContaining({ skipped: true, reason: expect.stringContaining('fresh game state') }))
+  })
+
+  it('refreshes nearby events after an interaction before choosing the next target', async () => {
+    const interact = (eventId: number) => ({ role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'chaya_live_interact', arguments: { eventId } } }] })
+    const replies: RuntimeMessage[] = [
+      { role: 'assistant', content: '', tool_calls: [{ function: { name: 'chaya_live_state', arguments: {} } }] },
+      interact(1),
+      interact(2),
+      { role: 'assistant', content: '已完成。' },
+    ]
+    const fixture = host(
+      [],
+      [
+        { name: 'chaya_live_state', groups: ['live'] },
+        { name: 'chaya_live_interact', groups: ['live'] },
+      ]
+    )
+    const seen: number[][] = []
+    fixture.host.tools.call = async (name, input) => {
+      fixture.calls.push(name)
+      if (name === 'chaya_live_state') {
+        const events = seen.length ? [{ id: 2, interactive: true }] : [{ id: 1, interactive: true }]
+        seen.push(events.map((event) => event.id))
+        return { scene: 'Scene_Map', nearbyEvents: events }
+      }
+      return { outcome: 'done', eventId: input.eventId }
+    }
+    fixture.host.model.complete = jest.fn(async (): Promise<RuntimeMessage> => replies.shift() ?? { role: 'assistant', content: '已完成。' })
+    await runAgentTurn(fixture.host, capabilityConfig('play'), { prompt: '打开开关后再打开新出现的宝箱' }, new AbortController().signal)
+    expect(fixture.calls).toEqual(['chaya_live_state', 'chaya_live_interact', 'chaya_live_state', 'chaya_live_interact', 'chaya_live_state'])
+    expect(seen).toEqual([[1], [2], [2]])
+  })
+
+  it('rejects text completion while a structured multi-target task still has work', async () => {
+    const interact = { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'chaya_live_interact', arguments: { eventId: 2 } } }] }
+    const replies: RuntimeMessage[] = [
+      { role: 'assistant', content: '', tool_calls: [{ function: { name: 'chaya_live_state', arguments: {} } }] },
+      { role: 'assistant', content: '完成了。' },
+      interact,
+      { role: 'assistant', content: '现在完成了。' },
+    ]
+    const fixture = host(
+      [],
+      [
+        { name: 'chaya_live_state', groups: ['live'] },
+        { name: 'chaya_live_interact', groups: ['live'] },
+      ]
+    )
+    let completed = false
+    fixture.host.tools.call = async (name) => {
+      fixture.calls.push(name)
+      if (name === 'chaya_live_interact') {
+        completed = true
+        return { outcome: 'done', eventId: 2 }
+      }
+      return {
+        scene: 'Scene_Map',
+        nearbyEvents: completed ? [] : [{ id: 2, kind: 'pickup', interactive: true, routeStatus: 'reachable', routeDistance: 2, pageIndex: 0 }],
+      }
+    }
+    fixture.host.model.complete = jest.fn(async (): Promise<RuntimeMessage> => replies.shift() ?? { role: 'assistant', content: '现在完成了。' })
+
+    await expect(runAgentTurn(fixture.host, capabilityConfig('play'), { prompt: '交互所有物品' }, new AbortController().signal)).resolves.toMatchObject({
+      reason: 'answered',
+      text: '现在完成了。',
+    })
+    expect(fixture.calls).toEqual(['chaya_live_state', 'chaya_live_interact', 'chaya_live_state'])
+    const requests = fixture.host.model.complete as jest.Mock
+    expect(requests.mock.calls[2][0]).toContainEqual(expect.objectContaining({ role: 'user', content: expect.stringContaining('canFinish=false') }))
+  })
+
+  it('blocks an excluded model proposal before it reaches the game', async () => {
+    const proposeNpc = { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'chaya_live_interact', arguments: { eventId: 5 } } }] }
+    const fixture = host(
+      [{ role: 'assistant', content: '', tool_calls: [{ function: { name: 'chaya_live_state', arguments: {} } }] }, proposeNpc, { role: 'assistant', content: '没有其他目标。' }],
+      [
+        { name: 'chaya_live_state', groups: ['live'] },
+        { name: 'chaya_live_interact', groups: ['live'] },
+      ]
+    )
+    fixture.host.tools.call = async (name) => {
+      fixture.calls.push(name)
+      return { scene: 'Scene_Map', nearbyEvents: [{ id: 5, kind: 'npc', interactive: true, routeStatus: 'reachable', routeDistance: 1 }] }
+    }
+
+    await runAgentTurn(fixture.host, capabilityConfig('play'), { prompt: '除人物外全部交互' }, new AbortController().signal)
+
+    expect(fixture.calls).toEqual(['chaya_live_state'])
+    expect(fixture.events).toContainEqual(
+      expect.objectContaining({ type: 'tool.completed', name: 'chaya_live_interact', ok: false, output: expect.objectContaining({ policyRejected: true }) })
+    )
   })
 
   it('stops after repeated empty replies', async () => {

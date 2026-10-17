@@ -41,7 +41,7 @@ export async function main() {
 
   const ndjsonCache = loadNdjsonCache(rt().CACHE_NDJSON)
 
-  // 把本作已有缓存导入全局库（已有不覆盖），再加载共享库作为 seed 基底
+  // Import this game's cache into the shared library without overwriting existing entries, then use the shared library as the seed base.
   const imported = rt().SHARED_CACHE.importIgnoreExisting(ndjsonCache, `game:${path.basename(rt().CONTENT_ROOT)}`)
   if (imported.inserted) {
     console.log(`共享库：从本作导入 ${imported.inserted} 条新译文`)
@@ -50,14 +50,14 @@ export async function main() {
   const sharedStats = rt().SHARED_CACHE.stats()
   console.log(`共享库：${sharedStats.entries} 条 → ${path.basename(sharedStats.file)}`)
 
-  // seed：共享库 ∪ 本作缓存（本作覆盖共享，便于单作手改）
+  // Merge shared and per-game caches, preferring per-game translations for game-specific manual edits.
   const seed = Object.assign({}, sharedMap, ndjsonCache)
   const purgedBad = purgeBadCacheEntries(seed)
   if (purgedBad) {
     console.log(`缓存质检：剔除仍含日文/无效译文 ${purgedBad} 条，将重新翻译`)
   }
 
-  // 已译短词条并进词表（如缓存里的「アルマ」），便于「〇〇先生」本地拼接
+  // Add translated short names from the cache to the glossary for local title/name composition.
   glossary.entries = enrichGlossaryFromSeed(glossary.entries, seed, tokenizer)
   for (const entry of glossary.entries) {
     if (!glossary.zh[entry.jp] && seed[entry.jp]) {
@@ -82,7 +82,7 @@ export async function main() {
     allJa.push(src)
   }
 
-  // 共享命中但本作 ndjson 没有：只补本作实际用到的句子，供局内 ChayaTrans
+  // Copy shared hits missing from this game's NDJSON only when the game actually uses them, for in-game ChayaTrans lookup.
   const syncToGame = []
   for (const src of allJa) {
     if (ndjsonCache[src]) continue
@@ -95,7 +95,7 @@ export async function main() {
     console.log(`共享→本作 ndjson：补写 ${syncToGame.length} 条（仅本作用到的）`)
   }
 
-  // 词表里的纯名词：直接用预译文，不再进句子队列
+  // Reuse pretranslated glossary nouns without sending them to the sentence queue.
   for (const src of allJa) {
     if (!glossarySet.has(src)) continue
     const zh = glossary.zh[src] || src
@@ -105,7 +105,7 @@ export async function main() {
     }
   }
 
-  // 固定短 UI / 应答
+  // Fixed short UI phrases and responses.
   let fixedHit = 0
   const fixedPairs = []
   for (const src of allJa) {
@@ -122,7 +122,7 @@ export async function main() {
     console.log(`固定短语直出 ${fixedHit} 条（不耗 API）`)
   }
 
-  // 占位后只剩称呼/标点/口吃：本地拼接，不送 API
+  // If masking leaves only titles, punctuation or stuttering, compose locally without an API request.
   let shellHit = 0
   const shellPairs = []
   for (const src of allJa) {
@@ -139,7 +139,7 @@ export async function main() {
     console.log(`词表壳句本地拼接 ${shellHit} 条（不耗 API）`)
   }
 
-  // 语气/娇喘声：规则音素映射，不走公网/Ollama
+  // Map vocalizations with phoneme rules without using public engines or Ollama.
   let voiceHit = 0
   const voicePairs = []
   for (const src of allJa) {
@@ -178,7 +178,7 @@ export async function main() {
   let derived = 0
   let todo = []
 
-  // 句子里再抽「同前缀+尾数字」族（含助词の的短名也适用）
+  // Group sentence entries sharing a prefix and trailing number, including short possessive names.
   const numberStemGroups = new Map()
   const plainSentences = []
   for (const src of sentences) {
@@ -192,7 +192,7 @@ export async function main() {
     numberStemGroups.get(parts.stem).push({ src, num: parts.num })
   }
 
-  // 若词干本身也在表里，并入同族（含已缓存）
+  // Include the bare stem in the same family when present, including cached entries.
   for (const [stem, members] of numberStemGroups) {
     if (seen.has(stem) && !members.some((m) => m.src === stem)) {
       members.push({ src: stem, num: '' })
@@ -221,7 +221,7 @@ export async function main() {
       }
       return
     }
-    // 只送一条进队列，其余等展开；单条也照常入队
+    // Queue one family representative and expand the result later; single entries are still queued normally.
     todo.push(members[0].src)
   }
 
@@ -257,7 +257,7 @@ export async function main() {
     )
   }
 
-  // 词表占位后，句式相同的只翻一条
+  // Translate only one representative for sentences sharing a glossary-masked template.
   const templateFamilies = new Map()
   const templateGroups = new Map()
   for (const src of todo) {
@@ -307,7 +307,7 @@ export async function main() {
   const store = createStore(original, [seed], pending, termFamilies, templateFamilies)
   let queuedOnly = todo.filter((src) => !store.has(src) && !failLedger.hasGivenUp(src))
 
-  // 按 extract.strings 的对话游玩顺序优先：不必知道「玩家下一句」，事件列表本身有序。
+  // Prioritize dialogue in extraction play order; event lists are already ordered, so the player's next line need not be predicted.
   const dialogueOrder = loadDialoguePriorityOrder()
   if (dialogueOrder.size) {
     const rank = (src) => (dialogueOrder.has(src) ? dialogueOrder.get(src) : 1e12)

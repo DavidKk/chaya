@@ -57,7 +57,8 @@ export function patchSystem(translate: Translate) {
       }
     }
   }
-  for (const key of ['elements', 'skillTypes', 'weaponTypes', 'armorTypes', 'equipTypes', 'switches', 'variables']) {
+  // Switch/variable names are script identifiers, even when their strings were collected as candidates.
+  for (const key of ['elements', 'skillTypes', 'weaponTypes', 'armorTypes', 'equipTypes']) {
     const arr = sys[key]
     if (!arr) continue
     for (let i = 0; i < arr.length; i++) {

@@ -15,6 +15,7 @@ export const dashboardZh = {
     removeDesc: '移除「{name}」，不删文件',
     removeConfirm: '移除',
     removeEntry: '移除 {name}',
+    relocate: '位置失效，点击重新选择',
     shellReady: '壳就绪',
     remoteTag: '远程',
     localTag: '本地',

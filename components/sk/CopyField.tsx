@@ -63,14 +63,14 @@ export function CopyField({ value, label, className }: CopyFieldProps) {
 
   const copyButton = (
     <Button
-      size="icon"
-      variant="ghost"
+      size="mini"
+      variant="plain"
       aria-label={tip}
       disabled={!value}
       onClick={() => void copy()}
-      className={cn(value.includes('\n') ? 'absolute top-1 right-1' : 'h-full rounded-none border-0', state === 'ok' && 'text-ok', state === 'fail' && 'text-fail')}
+      className={cn(value.includes('\n') ? 'absolute top-0.5 right-0.5' : 'self-center', state === 'ok' && 'text-ok', state === 'fail' && 'text-fail')}
     >
-      <Icon aria-hidden className="size-4" />
+      <Icon aria-hidden className="size-3.5" />
     </Button>
   )
   const status = (
@@ -113,7 +113,6 @@ export function CopyField({ value, label, className }: CopyFieldProps) {
         onClick={(event) => event.currentTarget.select()}
         className="m-0 min-w-0 flex-1 appearance-none border-none bg-transparent px-3 font-mono text-xs text-ink outline-none"
       />
-      <span aria-hidden className="my-2 w-px shrink-0 bg-line" />
       {copyButton}
       {status}
     </div>

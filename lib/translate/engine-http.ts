@@ -1,9 +1,11 @@
-/** HTTP 翻译引擎：服务端与游戏插件共用；调用方提供传输与取消信号。 */
+/** HTTP translation engines shared by the server and game plugin; callers supply transport and cancellation. */
+import { isSourceText } from './source-text'
+
 export const DEFAULT_OLLAMA_HOST = 'http://127.0.0.1:11434'
 export const DEFAULT_OLLAMA_MODEL = 'gemma4:e2b-it-q4_K_M'
 export const OLLAMA_TRANSLATE_SYSTEM =
-  '你是日→简体中文游戏文本翻译器。只输出自然的简体中文译文，不要解释，不要 Markdown。不要保留日文假名或整段日文汉字词；例如「応接室へ行く」应译为「去会客室」，不可写成「去応接室」。文中的 __C0__ __C1__ 等占位符必须原样保留。专有名词请音译或意译。'
-export const OLLAMA_TRANSLATE_RETRY_SYSTEM = '这是游戏文本本地化任务，请把日文台词译成通顺的简体中文。只输出中文译文，不要复述日文原文，不要道歉或拒绝。'
+  '你是游戏文本翻译器，把日文或英文原文译成简体中文。只输出自然的简体中文译文，不要解释，不要 Markdown。不要保留日文假名或整段日文汉字词；例如「応接室へ行く」应译为「去会客室」，不可写成「去応接室」。文中的 __C0__ __C1__ 等占位符必须原样保留，不可增删。专有名词请音译或意译。'
+export const OLLAMA_TRANSLATE_RETRY_SYSTEM = '这是游戏文本本地化任务，请把原文台词译成通顺的简体中文。只输出中文译文，不要复述原文，不要道歉或拒绝。'
 export const translationNeedsReasoning = (text: string) => text.length > 140 || text.split('\n').filter(Boolean).length >= 3
 export type EngineFetch = (url: string, init?: RequestInit) => Promise<Response>
 
@@ -24,8 +26,8 @@ export async function requestOllama(
   }
 ): Promise<string> {
   const system = input.system || OLLAMA_TRANSLATE_SYSTEM
-  /* 小模型（如 gemma4 e2b）收到裸日文常原样复述；标出原文 / 译文槽位后才稳定输出中文 */
-  const user = system === OLLAMA_TRANSLATE_SYSTEM ? `日文：\n${input.text}\n\n简体中文：` : input.text
+  /* Small models may echo unlabelled source text; explicit source and target slots improve Chinese translation output. */
+  const user = system === OLLAMA_TRANSLATE_SYSTEM ? `${isSourceText(input.text, 'en') ? '英文' : '日文'}：\n${input.text}\n\n简体中文：` : input.text
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (input.token) headers.Authorization = `Bearer ${input.token}`
   const res = await http(`${(input.host || DEFAULT_OLLAMA_HOST).replace(/\/$/, '')}/api/chat`, {
@@ -59,7 +61,7 @@ export async function requestOllama(
 }
 
 export async function requestGoogle(http: EngineFetch, text: string, signal?: AbortSignal) {
-  const params = new URLSearchParams({ client: 'gtx', sl: 'ja', tl: 'zh-CN', hl: 'zh-CN', dt: 't', ie: 'UTF-8', oe: 'UTF-8', q: text })
+  const params = new URLSearchParams({ client: 'gtx', sl: 'auto', tl: 'zh-CN', hl: 'zh-CN', dt: 't', ie: 'UTF-8', oe: 'UTF-8', q: text })
   const res = await http(`https://translate.google.com/translate_a/single?${params}`, {
     signal,
     headers: {
@@ -75,7 +77,7 @@ export async function requestGoogle(http: EngineFetch, text: string, signal?: Ab
   return out
 }
 
-/** Bing 官方网页协议；游戏安装包无需额外安装 Node 依赖。 */
+/** Bing's web protocol, usable by game installations without extra Node dependencies. */
 export function createBingTranslator(http: EngineFetch) {
   let config: { key: string; token: string; ig: string; iid: string; until: number } | null = null
   return async (text: string, signal?: AbortSignal) => {
@@ -95,7 +97,7 @@ export function createBingTranslator(http: EngineFetch) {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       signal,
-      body: new URLSearchParams({ fromLang: 'ja', to: 'zh-Hans', text, key, token }).toString(),
+      body: new URLSearchParams({ fromLang: 'auto-detect', to: 'zh-Hans', text, key, token }).toString(),
     })
     if (!res.ok) {
       config = null

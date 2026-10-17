@@ -10,11 +10,12 @@ import { isFirstPartyToolPlugin } from '@/lib/runtime/plugin-tools'
 import { nativeSavefileId } from '../cheat/runtime/cheats'
 import { findPluginTool, listPluginToolMetas } from '../helpers/plugin-tools'
 import { chestEventOpened, eventFacts, eventHint, eventLook } from './event-facts'
-import { movePlayer, quitGame, snapScreen, tapScreen } from './game-control'
+import { currentVisibleBounds, movePlayer, planVisibleRoute, quitGame, snapScreen, tapScreen } from './game-control'
 import { battleProgress, originalMessageText, readHistory } from './history'
 import { interactEvent } from './interact'
 import { armReaction, currentReactionCue, reactionAvailable, reactionOutcome, reactionResult, startReactionMonitor, stopReaction } from './reaction'
 import { readCommandInputs, readRenderedText } from './rendered-text'
+import { readSceneWindows } from './window-state'
 
 type GameSavesAgent = { agentSnapshot: () => Promise<unknown>; agentLoad: (entryId: string, allowVersionMismatch?: boolean) => Promise<unknown> }
 
@@ -133,53 +134,106 @@ export function readAgentGameState() {
   const enemies = read<Loose[]>(w.$gameTroop, 'members') ?? []
   const items = (kind: 'items' | 'weapons' | 'armors') =>
     (read<Loose[]>(party, kind) ?? []).slice(0, 100).map((item) => ({ id: item.id ?? null, name: item.name ?? null, count: read(party, 'numItems', item) ?? null }))
+  const visibleBounds = currentVisibleBounds()
   const events = (read<Loose[]>(map, 'events') ?? [])
     .filter((event) => !event._erased)
+    .filter((event) => {
+      if (!visibleBounds) return true
+      const x = Number(event._x)
+      const y = Number(event._y)
+      return x >= visibleBounds.minX && x <= visibleBounds.maxX && y >= visibleBounds.minY && y <= visibleBounds.maxY
+    })
     .map((event) => {
       const x = Number(event._x)
       const y = Number(event._y)
       const px = Number(player?._x)
       const py = Number(player?._y)
       const hint = eventHint(event)
+      const facts = eventFacts(event)
+      const effects = facts.effects
+      const transit = effects.includes('transfer')
+      const pickup = effects.some((effect) => ['gold', 'item', 'weapon', 'armor'].includes(effect))
+      const name = (read<Loose>(event, 'event')?.name as string | undefined) ?? ''
+      const look = eventLook(event)
+      const sprite = typeof event._characterName === 'string' && event._characterName ? event._characterName : ''
+      const width = read<number>(map, 'width')
+      const height = read<number>(map, 'height')
+      const touch = event._trigger === 1 || event._trigger === 2 || read<boolean>(event, 'isNormalPriority') === false
+      const nearMapEdge = (Number.isFinite(width) && (x <= 1 || x >= Number(width) - 2)) || (Number.isFinite(height) && (y <= 1 || y >= Number(height) - 2))
+      const door = look.look === 'object' && /door|gate/i.test(sprite)
+      const boundary =
+        !transit &&
+        touch &&
+        nearMapEdge &&
+        (look.look === 'tile' || look.look === 'none') &&
+        effects.length > 0 &&
+        effects.every((effect) => effect === 'text' || effect === 'common_event')
+      const kind =
+        door || (transit && look.look === 'object')
+          ? 'door'
+          : transit || boundary
+            ? 'exit'
+            : look.look === 'character'
+              ? 'npc'
+              : pickup
+                ? 'pickup'
+                : look.look === 'object'
+                  ? 'object'
+                  : 'unknown'
+      const interactionClass =
+        transit || kind === 'exit'
+          ? 'transit'
+          : kind === 'door'
+            ? 'door'
+            : look.look === 'character'
+              ? 'character'
+              : pickup
+                ? 'reward'
+                : effects.includes('text')
+                  ? 'description'
+                  : Number(event._pageIndex) >= 0 && (look.look === 'object' || look.look === 'tile' || look.look === 'none')
+                    ? 'inspectable'
+                    : 'ambient'
+      const visualCue = Boolean(event._characterName) && Boolean(read(event, 'isDirectionFixed') || read(event, 'hasStepAnime') || look.animated)
+      const id = Number(read(event, 'eventId') ?? event._eventId ?? 0)
+      const interactionPositions = touch
+        ? undefined
+        : [
+            { x, y: y + 1 },
+            { x: x - 1, y },
+            { x: x + 1, y },
+            { x, y: y - 1 },
+          ]
+      const route = Number.isFinite(x + y) && id > 0 ? planVisibleRoute({ x, y }, id, interactionPositions) : null
       return {
-        id: read(event, 'eventId') ?? event._eventId ?? null,
-        name: (read<Loose>(event, 'event')?.name as string | undefined) ?? null,
+        id: id || null,
+        name: name || null,
         x: Number.isFinite(x) ? x : null,
         y: Number.isFinite(y) ? y : null,
         distance: Number.isFinite(x + y + px + py) ? Math.abs(x - px) + Math.abs(y - py) : null,
         running: Boolean(read(event, 'isStarting')),
-        sprite: typeof event._characterName === 'string' && event._characterName ? event._characterName : null,
-        ...eventLook(event),
+        sprite: sprite || null,
+        ...look,
         trigger: typeof event._trigger === 'number' ? (['action', 'player_touch', 'event_touch', 'autorun', 'parallel'][event._trigger] ?? null) : null,
         pageIndex: typeof event._pageIndex === 'number' ? event._pageIndex : null,
         opened: chestEventOpened(event, mapId ?? 0, Number(read(event, 'eventId') ?? event._eventId ?? 0)),
         hint,
-        ...eventFacts(event),
+        ...facts,
+        kind,
+        interactionClass,
+        visualCue,
+        rewardPotential: pickup,
+        descriptionOnly: interactionClass === 'description',
+        transit,
+        routeStatus: route?.status ?? null,
+        routeDistance: route?.distance ?? null,
+        interactionPosition: route?.interactionPosition ?? null,
+        eventBoundaryIds: route?.eventBoundaryIds ?? [],
       }
     })
-    .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+    .sort((a, b) => (a.routeDistance ?? Infinity) - (b.routeDistance ?? Infinity) || (a.distance ?? Infinity) - (b.distance ?? Infinity))
     .slice(0, 50)
-  const windows = scene
-    ? Object.entries(scene)
-        .filter(([name, value]) => name.endsWith('Window') && value && typeof value === 'object')
-        .map(([name, value]) => {
-          const win = value as Loose
-          const visible = win.visible !== false && Number(win.openness ?? 255) > 0
-          if (!visible) return null
-          const menu = Array.isArray(win.options) ? win.options : Array.isArray(win._list) ? win._list : null
-          return {
-            name: name.replace(/^_/, ''),
-            active: Boolean(win.active),
-            index: read(win, 'index') ?? win._index ?? null,
-            maxCols: read(win, 'maxCols') ?? 1,
-            symbol: read(win, 'currentSymbol') ?? null,
-            item: toJsonSafe(read(win, 'item'), 2),
-            options: menu?.slice(0, 30).map((entry: Loose) => ({ label: entry.label ?? entry.name ?? null, symbol: entry.symbol ?? null, enabled: entry.enabled ?? true })) ?? null,
-          }
-        })
-        .filter(Boolean)
-        .slice(0, 30)
-    : []
+  const windows = readSceneWindows(scene, toJsonSafe)
   const screenText =
     typeof document === 'undefined'
       ? null
@@ -201,7 +255,7 @@ export function readAgentGameState() {
   const state = {
     scene: (scene?.constructor as { name?: string } | undefined)?.name ?? null,
     title: (w.$dataSystem as { gameTitle?: string } | undefined)?.gameTitle ?? document.title,
-    map: mapId ? { id: mapId, name: mapInfos?.[mapId]?.name ?? null, displayName: read(map, 'displayName') || null } : null,
+    map: mapId ? { id: mapId, name: mapInfos?.[mapId]?.name ?? null, displayName: read(map, 'displayName') || null, visibleBounds } : null,
     player: player ? { x: player._x ?? null, y: player._y ?? null, direction: read(player, 'direction') ?? null } : null,
     gold: read(party, 'gold') ?? null,
     party: members.map((a) => ({
@@ -411,6 +465,7 @@ function waitFrames(value: number): Promise<void> {
 }
 
 async function pressKey({ key, frames: requested, guard }: AgentParams<'input.press'>): Promise<unknown> {
+  const historyBefore = readHistory({ limit: 1 }).lastSeq
   if (guard) checkInputGuard(key, guard)
   const input = g().Input as { _currentState?: Record<string, boolean> } | undefined
   const n = Math.max(1, frames(requested, DEFAULT_PRESS_FRAMES))
@@ -421,7 +476,8 @@ async function pressKey({ key, frames: requested, guard }: AgentParams<'input.pr
   if (input?._currentState) input._currentState[key] = false
   dispatchKey('keyup', key)
   if (guard && n > 2) await waitFrames(2)
-  return { key, frames: n }
+  const history = readHistory({ afterSeq: historyBefore, limit: 50 })
+  return { key, frames: n, ...(history.entries.length ? { history } : {}) }
 }
 
 export function startReactionTracking(): () => void {

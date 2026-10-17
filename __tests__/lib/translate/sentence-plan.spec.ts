@@ -1,0 +1,93 @@
+import { createSentenceResolver, planSentenceTranslation, renderSentencePlan, type SentenceRecord, validateAlignments } from '@/lib/translate/sentence-plan'
+import { sentenceUnits } from '@/lib/translate/sentence-units'
+
+const record = (src: string, zh: string, extra: Partial<SentenceRecord> = {}): SentenceRecord => ({ id: src, revision: 1, src, zh, ...extra })
+
+describe('short-sentence reuse', () => {
+  it('reuses a consecutive block, keeping its punctuation and a separate gap', () => {
+    const plan = planSentenceTranslation('a,b,c', [record('b,c', '乙，丙')])
+    expect(plan.status).toBe('partial')
+    expect(plan.matches.map((m) => m.text)).toEqual(['乙，丙'])
+    expect(plan.gaps.map((g) => g.text)).toEqual(['a,'])
+    expect(renderSentencePlan(plan, new Map([[plan.gaps[0].id, '甲']]))).toBe('甲,乙，丙')
+  })
+  it('prefers the whole block to independent sentences', () => {
+    const plan = planSentenceTranslation('b,c', [record('b', '乙'), record('c', '丙'), record('b,c', '整块译文')])
+    expect(plan.zh).toBe('整块译文')
+    expect(plan.matches).toHaveLength(1)
+  })
+  it('supports reverse containment only with a verified mapping', () => {
+    const r = record('a,b,c', '甲，乙，丙')
+    expect(planSentenceTranslation('b,c', [r]).status).toBe('miss')
+    const groups = [{ sourceStart: 2, sourceEnd: 5, targetStart: 2, targetEnd: 5, evidence: 'verified' as const }]
+    expect(validateAlignments(r, groups)).toBe(true)
+    expect(planSentenceTranslation('b,c', [{ ...r, alignments: groups }]).zh).toBe('乙，丙')
+    expect(planSentenceTranslation('b,c', [{ ...r, alignments: groups.map((g) => ({ ...g, evidence: 'structural' })) }]).status).toBe('miss')
+    expect(planSentenceTranslation('b', [{ ...r, alignments: groups }]).status).toBe('miss')
+  })
+  it('never matches word fragments or a different tone', () => {
+    expect(planSentenceTranslation('abc', [record('a', '甲'), record('b', '乙'), record('c', '丙')]).status).toBe('miss')
+    expect(planSentenceTranslation('b?', [record('b!', '乙！'), record('b', '乙')]).status).toBe('miss')
+    expect(planSentenceTranslation('b？', [record('b?', '乙？')]).zh).toBe('乙？')
+    expect(planSentenceTranslation('カタカナ！', [record('ｶﾀｶﾅ！', '片假名！')]).zh).toBe('片假名！')
+    expect(planSentenceTranslation('b', [record('「b」?', '「乙」?')]).status).toBe('miss')
+  })
+  it('protects local manual intervals from a longer remote block', () => {
+    const plan = planSentenceTranslation('b,c', [record('b', '人工乙', { local: true, engine: 'manual' }), record('b,c', '机翻乙，丙')])
+    expect(plan.matches.map((m) => m.text)).toEqual(['人工乙'])
+    expect(plan.gaps.map((g) => g.text)).toEqual(['c'])
+  })
+  it('maximizes global coverage without duplicating overlap', () => {
+    const plan = planSentenceTranslation('a,b,c,d', [record('a,b,c', '前三句'), record('a,b', '前两句'), record('c,d', '后两句')])
+    expect(plan.status).toBe('full')
+    expect(plan.matches.map((m) => m.record.src)).toEqual(['a,b', 'c,d'])
+  })
+  it('preserves control parameters, numeric punctuation, titles; mid-phrase newlines do not split', () => {
+    expect(sentenceUnits('価格1,000.5。名前\\n[1]？【a,b】')).toHaveLength(3)
+    expect(sentenceUnits('<span title="a,b">説明</span>')).toHaveLength(1)
+    expect(sentenceUnits('https://example.com/a,b')).toHaveLength(1)
+    expect(planSentenceTranslation('a\nb', [record('a,b', '甲，乙')]).status).toBe('miss')
+    expect(planSentenceTranslation('a\nb', [record('a\nb', '甲\n乙')]).zh).toBe('甲\n乙')
+  })
+
+  it('does not treat soft wraps as independent sentences', () => {
+    const broken = '好きじゃ\n　ないんスよ'
+    const units = sentenceUnits(broken)
+    expect(units).toHaveLength(1)
+    expect(units[0]?.key).toBe(sentenceUnits('好きじゃないんスよ')[0]?.key)
+    // Half on either side of a soft break must not match alone.
+    expect(planSentenceTranslation(broken, [record('好きじゃ', '喜欢'), record('ないんスよ', '啊')]).status).toBe('miss')
+    expect(planSentenceTranslation(broken, [record(broken, '其实不太喜欢啊')]).zh).toBe('其实不太喜欢啊')
+  })
+
+  it('only hard newline annotations create block seams', () => {
+    const text = '前段\n后段'
+    // Mid-phrase letters → inferred soft → single unit.
+    expect(sentenceUnits(text)).toHaveLength(1)
+    const hard = sentenceUnits(text, { newlines: [{ start: 2, end: 3, kind: 'hard' }] })
+    expect(hard).toHaveLength(2)
+    expect(hard[0]?.block).not.toBe(hard[1]?.block)
+    expect(sentenceUnits(text, { newlines: [{ start: 2, end: 3, kind: 'soft' }] })).toHaveLength(1)
+  })
+  it('degrades safely when repeated short sentences exceed the matching budget', () => {
+    const query = 'a,'.repeat(400) + 'c'
+    const plan = planSentenceTranslation(query, [record('a,'.repeat(400) + 'b', '重复译文')])
+    expect(plan.limited).toBe(true)
+    expect(plan.status).toBe('miss')
+  })
+  it('rejects ambiguous unrelated fragments and invalid offsets', () => {
+    const a = record('a,b', '甲，乙')
+    expect(validateAlignments(a, [{ sourceStart: 1, sourceEnd: 3, targetStart: 0, targetEnd: 3, evidence: 'verified' }])).toBe(false)
+  })
+
+  it('matches continuous queries against soft wraps via resolver index (inferred or annotated)', () => {
+    const wrapped = '好きじゃ\n　ないんスよ'
+    const continuous = '好きじゃないんスよ'
+    const nl = wrapped.indexOf('\n')
+    const soft = record(wrapped, '其实不太喜欢啊', { newlines: [{ start: nl, end: nl + 1, kind: 'soft' }] })
+    expect(planSentenceTranslation(continuous, [soft]).zh).toBe('其实不太喜欢啊')
+    expect(createSentenceResolver([soft]).plan(continuous).zh).toBe('其实不太喜欢啊')
+    // Mid-phrase wrap infers soft — continuous hits even without stored annotation.
+    expect(createSentenceResolver([record(wrapped, '其实不太喜欢啊')]).plan(continuous).zh).toBe('其实不太喜欢啊')
+  })
+})

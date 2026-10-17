@@ -58,10 +58,31 @@ export type IntegrationMessages = {
   agentProxy: string
   agentProxyDesc: string
   agentProxyInvalid: string
+  agentProxyAppliesTo: string
+  agentProxyProtocolsShow: string
+  agentProxyProtocolsHide: string
+  agentProxyProtocolsHint: string
+  agentProxyProtocolInherit: string
+  agentProxyHeaders: string
+  agentProxyHeadersDesc: string
+  agentProxyHeadersInvalid: string
   agentProvider: string
   agentProviderDesc: string
   agentEndpoint: string
   agentEndpointDesc: string
+  agentOpenApiEndpoint: string
+  agentOpenApiEndpointDesc: string
+  agentGeminiEndpoint: string
+  agentGeminiEndpointDesc: string
+  agentApiKey: string
+  agentApiKeyDesc: string
+  agentApiKeyGeminiDesc: string
+  agentApiKeyOllamaDesc: string
+  agentApiKeyConfigured: string
+  agentApiKeyKeep: string
+  agentApiKeyPlaceholder: string
+  agentApiKeyClear: string
+  agentApiKeyCleared: string
   agentDefaultModel: string
   agentDefaultModelDesc: string
   agentTemperature: string

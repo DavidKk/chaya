@@ -21,7 +21,20 @@ type SpeedActor = {
   isInVehicle?: () => boolean
   isDashing?: () => boolean
   vehicle?: () => { _driving?: boolean; _moveSpeedRate?: number } | null
-  followers?: () => Array<SpeedActor | null>
+  followers?: () => { forEach?: (cb: (f: SpeedActor | null) => void) => void; _data?: Array<SpeedActor | null> }
+}
+
+function eachFollower(player: SpeedActor, fn: (follower: SpeedActor) => void) {
+  const group = player.followers?.()
+  if (!group) return
+  const visit = (follower: SpeedActor | null) => {
+    if (follower) fn(follower)
+  }
+  if (typeof group.forEach === 'function') {
+    group.forEach(visit)
+    return
+  }
+  if (Array.isArray(group._data)) group._data.forEach(visit)
 }
 
 /** 非标准游戏可能没声明这些引擎全局，裸读会 ReferenceError */
@@ -157,14 +170,11 @@ function applyRates(walk: number, run: number): boolean {
   player._walkSpeedRate = w
   player._runSpeedRate = r
   player._moveSpeedRate = w
-  if (player.followers) {
-    player.followers().forEach((f) => {
-      if (!f) return
-      f._walkSpeedRate = w
-      f._runSpeedRate = r
-      f._moveSpeedRate = w
-    })
-  }
+  eachFollower(player, (follower) => {
+    follower._walkSpeedRate = w
+    follower._runSpeedRate = r
+    follower._moveSpeedRate = w
+  })
   return true
 }
 

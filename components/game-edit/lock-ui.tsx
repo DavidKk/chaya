@@ -14,7 +14,7 @@ export const lockIconBtn = cn(
   controlDisabled
 )
 
-export function LockEndAction({ locked, name, onChange }: { locked: boolean; name: string; onChange: (on: boolean) => void }) {
+export function LockEndAction({ locked, name, disabled, onChange }: { locked: boolean; name: string; disabled?: boolean; onChange: (on: boolean) => void }) {
   const t = useT()
   const tip = locked ? t('edit.lockOff', { name }) : t('edit.lockOn', { name })
   return (
@@ -24,6 +24,7 @@ export function LockEndAction({ locked, name, onChange }: { locked: boolean; nam
         className={cn(lockIconBtn, locked && 'text-accent hover:enabled:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] hover:enabled:text-accent')}
         aria-label={tip}
         aria-pressed={locked}
+        disabled={disabled}
         onClick={() => onChange(!locked)}
       >
         {locked ? <IoLockClosed size={15} aria-hidden /> : <IoLockOpenOutline size={15} aria-hidden />}

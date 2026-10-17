@@ -1,7 +1,7 @@
 import { buildAskMessages } from '@/services/game-agent/prompt'
 
 describe('game agent prompt', () => {
-  it('injects the bound game state and response language rule', () => {
+  it('provides the bound game identity and tools without injecting state', () => {
     const messages = buildAskMessages({ prompt: '我该做什么？', locale: 'zh-CN', gameId: 'game-a', state: { screenText: ['选择道路'] } })
     expect(messages[0]?.content).toContain('Answer in the language used by the user')
     expect(messages[0]?.content).toContain('Call tools only when the latest user request')
@@ -13,7 +13,8 @@ describe('game agent prompt', () => {
     expect(messages[0]?.content).toContain('call the matching tool immediately')
     expect(messages[0]?.content).not.toContain('Do not control or modify the game')
     expect(messages[1]?.content).toContain('Connected game id: game-a')
-    expect(messages[1]?.content).toContain('选择道路')
+    expect(messages[1]?.content).not.toContain('选择道路')
+    expect(messages[0]?.content).toContain('Game state is not supplied automatically')
     expect(messages[1]?.content).toContain('我该做什么？')
   })
 
@@ -23,7 +24,7 @@ describe('game agent prompt', () => {
     expect(messages.at(-1)?.content).toContain('删除 agent 名称叫 Flow Local')
   })
 
-  it('puts the request before a compact game state that keeps nearby events', () => {
+  it('omits nearby events and inventory until the model requests them', () => {
     const state = {
       scene: 'Scene_Map',
       map: { id: 4, name: 'Map004', displayName: 'Подвал Гильдии' },
@@ -35,9 +36,9 @@ describe('game agent prompt', () => {
     const messages = buildAskMessages({ prompt: '帮我跟页面中可交互的物品交互一下', locale: 'zh', gameId: 'game-a', state, surface: 'companion' })
     const user = messages.at(-1)!.content
     expect(user.startsWith('User request:\n帮我跟页面中可交互的物品交互一下')).toBe(true)
-    expect(user).toContain('"nearbyEvents":[{"id":7,"name":"EV007","effects":["gold"],"x":3,"y":4,"distance":2}]')
+    expect(user).not.toContain('nearbyEvents')
     expect(user).not.toContain('xxxx')
-    expect(user.indexOf('nearbyEvents')).toBeLessThan(user.indexOf('inventory'))
+    expect(user).not.toContain('inventory')
     expect(user.length).toBeLessThan(9_000)
     expect(messages[0]!.content).toContain('Decide yourself what each one is')
   })

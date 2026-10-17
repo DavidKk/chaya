@@ -1,5 +1,9 @@
 import { readApiErrorMessage } from '@/lib/api-error'
+import { browserAgentTraceArchive } from '@/lib/browser/agent-trace-store'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
+import { sanitizeAgentActivity } from '@/lib/game-agent/activity'
+import type { AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
+import type { AgentTraceSummary } from '@/lib/game-agent/trace'
 import { optNum, optStr } from '@/lib/integration/tools/args'
 import { makeCacheTools } from '@/lib/integration/tools/cache'
 import { makeCatalogTools } from '@/lib/integration/tools/catalog'
@@ -74,6 +78,27 @@ export function makeRemoteLinkTools(deps: RemoteLinkDeps): ToolImpls {
 /** Remote logs: only what the linked game pushed over the DataChannel, kept in this page. */
 export const remoteLogsTools: ToolImpls = {
   async chaya_logs_query(args) {
+    if (optStr(args, 'view') === 'agent') {
+      const limit = Math.min(1000, Math.max(1, optNum(args, 'limit') ?? 100))
+      const query = optStr(args, 'q')?.toLocaleLowerCase()
+      const taskId = optStr(args, 'taskId')
+      const gameId = optStr(args, 'gameId')
+      const runtimeInstanceId = optStr(args, 'runtimeInstanceId')
+      const eventType = optStr(args, 'eventType')
+      const matches = (value: unknown) => !query || JSON.stringify(value).toLocaleLowerCase().includes(query)
+      if (taskId) {
+        const task = (await browserAgentTraceArchive.read(taskId)) as AgentTask | null
+        if (!task || (gameId && task.gameId !== gameId) || (runtimeInstanceId && task.runtimeInstanceId !== runtimeInstanceId))
+          return { view: 'agent', count: 0, tasks: [], events: [] }
+        const events = task.events.filter((event: AgentTaskEvent) => (!eventType || event.type === eventType) && matches(event)).slice(-limit)
+        const { events: _events, messages: _messages, ...metadata } = task
+        return { view: 'agent', count: events.length, task: sanitizeAgentActivity(metadata), events: events.map((event) => sanitizeAgentActivity(event)) }
+      }
+      const tasks = ((await browserAgentTraceArchive.list()) as AgentTraceSummary[])
+        .filter((task) => (!gameId || task.gameId === gameId) && (!runtimeInstanceId || task.runtimeInstanceId === runtimeInstanceId) && matches(task))
+        .slice(0, limit)
+      return { view: 'agent', count: tasks.length, tasks: tasks.map((task) => sanitizeAgentActivity(task)) }
+    }
     const level = optStr(args, 'level')
     const entries = filterLogEntries(readLinkLogs(), {
       q: optStr(args, 'q'),

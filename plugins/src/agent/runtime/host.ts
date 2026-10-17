@@ -1,10 +1,9 @@
 import { PLUGIN_AGENT_NAME } from '@/constants/brand'
 import { normalizeCompanionCharacter } from '@/lib/game-agent/companion'
-import { parsePlayIntent, PLAY_INTENT_FORMAT, PLAY_INTENT_SYSTEM } from '@/lib/game-agent/intent'
-import { modelGameStateText } from '@/lib/game-agent/model-state'
+import { parsePlayIntentResult, PLAY_INTENT_FORMAT, PLAY_INTENT_SYSTEM } from '@/lib/game-agent/intent'
 import { PLAY_SYSTEM_PROMPT, playModelPrompt } from '@/lib/game-agent/play-prompt'
 import { parsePlayerCard, PLAYER_CARD_TOOL, PLAYER_CARD_TOOL_NAME, playerCardAnswer } from '@/lib/game-agent/player-card'
-import { CLI_AUTO_MODEL, isCliProvider } from '@/lib/game-agent/providers'
+import { CLI_AUTO_MODEL, isCliProvider, isOpenApiProvider } from '@/lib/game-agent/providers'
 import { type RecallTurn, recallTurns, turnsFromMessages } from '@/lib/game-agent/recall'
 import { type AgentTask, AgentTaskController, capabilityConfig, parseAgentRoutine, runAgentTurn, type RuntimeMessage, type RuntimeTool } from '@/lib/game-agent/runtime'
 import { agentSettingsFromSyncDocument, type AgentSyncSettings } from '@/lib/game-agent/settings-sync'
@@ -24,9 +23,13 @@ import { buildAskMessages } from '@/services/game-agent/prompt'
 import { chayaFetch, createLogger, detectGameIdentity, gameRoomId } from '../../helpers'
 import { readAgentGameState, runAgentCommand } from '../handlers'
 import { readSharedAgentSync } from '../shared-settings'
+import { tryRunInteractBatch } from './batch-jobs'
 import { runChestRoutine } from './chest-routine'
+import { createAgentRuntimeIdentity } from './identity'
 import { createModelGate, MODEL_FAILURE_COOLDOWN_MS } from './model-gate'
+import { battleRequiresAgentDecision, createGameWatchManager, formatWatchTrigger, type WatchPhase, type WatchTrigger } from './state-watch'
 import { createGameAgentTaskStore } from './store'
+import { createGameAgentTraceArchive } from './trace-archive'
 
 const log = createLogger(PLUGIN_AGENT_NAME)
 const CONFIG_KEY = 'chaya.agent.runtimeConfig.v1'
@@ -75,7 +78,7 @@ function parseConfig(value: unknown): AgentSyncSettings | null {
   const config = value as AgentSyncSettings
   if (!Array.isArray(config.profiles) || !config.profiles.length) return null
   const valid = (profile: AgentSyncSettings['profiles'][number]) =>
-    !!profile?.id && (profile.provider === 'ollama' ? !!profile.endpoint && !!profile.defaultModel : isCliProvider(profile.provider))
+    !!profile?.id && (profile.provider === 'ollama' || isOpenApiProvider(profile.provider) ? !!profile.endpoint && !!profile.defaultModel : isCliProvider(profile.provider))
   if (!config.profiles.every(valid)) return null
   return { ...config, profiles: config.profiles.map((profile) => ({ ...profile, ...normalizeAgentTimeouts(profile) })) }
 }
@@ -159,7 +162,16 @@ function waitForNextPlayCycle(signal: AbortSignal, delay = 1_000): Promise<void>
 
 export function createGameAgentRuntime() {
   const identity = detectGameIdentity()
-  const controller = new AgentTaskController(createGameAgentTaskStore(identity?.gameRoot), { setInputOwner })
+  const libraryGameId = gameRoomId()
+  const runtime = createAgentRuntimeIdentity(libraryGameId)
+  const traceArchive = createGameAgentTraceArchive(libraryGameId, runtime.identity.runtimeInstanceId)
+  const controller = new AgentTaskController(createGameAgentTaskStore(identity?.gameRoot), {
+    setInputOwner,
+    traceArchive,
+    runtimeIdentity: runtime.identity,
+    producerEpoch: runtime.producerEpoch,
+    executionHost: 'game_plugin',
+  })
   const commands = new IdempotentWriteCache<AgentTask>()
   const ready = controller.restore()
   const modelGate = createModelGate()
@@ -235,9 +247,10 @@ export function createGameAgentRuntime() {
     if (!config) throw new Error('请先在 Chaya 网页连接一次游戏以同步 Agent 配置')
     const profile = profileOf(config, input.profileId)
     const cli = isCliProvider(profile.provider)
+    const openApi = isOpenApiProvider(profile.provider)
     const model = input.model || profile.defaultModel || (cli ? CLI_AUTO_MODEL : '')
     const remote = (window as Window & { CHAYA_MCP_GATEWAY?: unknown }).CHAYA_MCP_GATEWAY === true
-    if (remote && cli) throw Object.assign(new Error('该接入类型需要 Chaya App 或本机服务，远程网关模式下不可用'), { nonRetryable: true })
+    if (remote && (cli || openApi)) throw Object.assign(new Error('该接入类型需要 Chaya App 或本机服务，远程网关模式下不可用'), { nonRetryable: true })
     if (remote) {
       return runRecoverableOperation({
         identity: { requestId: `${input.id}:model:${input.task?.lastSeq ?? 0}`, gameId: input.gameId, generation: 0, deadlineAt: Date.now() + profile.modelTimeoutMs },
@@ -268,8 +281,8 @@ export function createGameAgentRuntime() {
     return modelGate.run(async () => {
       if (outerSignal.aborted) throw outerSignal.reason
       try {
-        // A CLI round starts a process and cannot answer within the short Ollama request budget.
-        const timeouts = cli ? { modelTimeoutMs: profile.modelTimeoutMs, modelRequestTimeoutMs: profile.modelTimeoutMs } : profile
+        // The proxy responds only after generation completes, including for Ollama.
+        const timeouts = { modelTimeoutMs: profile.modelTimeoutMs, modelRequestTimeoutMs: profile.modelTimeoutMs }
         const message = await requestModel(
           input.task,
           { profileId: profile.id, model, messages, tools: definitions, thinking: input.task?.thinking === true, ...(format ? { format } : {}) },
@@ -300,7 +313,7 @@ export function createGameAgentRuntime() {
     const deadline = Date.now() + timeouts.modelTimeoutMs
     while (!outerSignal.aborted && Date.now() < deadline) {
       try {
-        const requestSignal = AbortSignal.any([outerSignal, AbortSignal.timeout(timeouts.modelRequestTimeoutMs)])
+        const requestSignal = AbortSignal.any([outerSignal, AbortSignal.timeout(Math.max(1, deadline - Date.now()))])
         const response = await chayaFetch('/api/game-agent/model', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -320,6 +333,7 @@ export function createGameAgentRuntime() {
         lastError = error
       } catch (error) {
         if (outerSignal.aborted) throw outerSignal.reason
+        if (Date.now() >= deadline) throw new Error('模型生成超时，请调整模型总超时或使用更小的模型')
         if ((error as { nonRetryable?: unknown })?.nonRetryable) throw error
         lastError = error
       }
@@ -398,11 +412,36 @@ export function createGameAgentRuntime() {
     }
     const tools = toolRuntime(task.id, (args) => recallContext(task, args, controller.list()))
     const profile = profileOf(readConfig()!, task.profileId)
-    const complete = (messages: RuntimeMessage[], definitions: RuntimeTool[], outerSignal: AbortSignal) =>
-      completeFor({ id: task.id, gameId: task.gameId, profileId: task.profileId, model: task.model, task }, messages, definitions, outerSignal)
+    const complete = (messages: RuntimeMessage[], definitions: RuntimeTool[], outerSignal: AbortSignal, format?: Record<string, unknown>) =>
+      completeFor({ id: task.id, gameId: task.gameId, profileId: task.profileId, model: task.model, task }, messages, definitions, outerSignal, format)
+    if ((task.capability === 'play' || task.capability === 'companion') && task.shape === 'batch') {
+      const batch = await tryRunInteractBatch(
+        task,
+        (messages, _tools, outerSignal, format) => complete(messages, [], outerSignal, format),
+        (type, data) => controller.emit(task.id, type, data),
+        (question, outerSignal) => controller.waitForUser(task.id, question, outerSignal),
+        signal
+      )
+      if (batch) {
+        controller.emit(task.id, 'assistant.completed', { text: batch.text, reason: batch.reason })
+        return
+      }
+    }
     const playSystem: RuntimeMessage = { role: 'system', content: PLAY_SYSTEM_PROMPT }
     if (task.capability === 'play') controller.emit(task.id, 'prompt.recorded', { role: 'system', content: playSystem.content, source: 'runtime' })
     let cycle = 0
+    const watch = createGameWatchManager()
+    let steeringPrompt = ''
+    let lastWatchPausePhase: WatchPhase | null = null
+    const initialWatchState = readAgentGameState()
+    const initialEvents = Array.isArray(initialWatchState.nearbyEvents) ? initialWatchState.nearbyEvents : []
+    watch.setPlan({
+      targetEventIds: initialEvents
+        .filter((event) => event?.interactive && event.kind !== 'npc')
+        .map((event) => Number(event.id))
+        .filter((id) => Number.isInteger(id) && id > 0),
+    })
+    watch.reset(initialWatchState)
     for (;;) {
       if (signal.aborted) throw signal.reason
       const history =
@@ -412,7 +451,6 @@ export function createGameAgentRuntime() {
               prompt: task.goal,
               locale: task.locale || 'zh-CN',
               gameId: task.gameId,
-              state: readAgentGameState(),
               surface: task.capability === 'companion' ? 'companion' : undefined,
               companionCharacter: task.capability === 'companion' ? normalizeCompanionCharacter(task.companionCharacter) : undefined,
             }) as RuntimeMessage[])
@@ -428,6 +466,14 @@ export function createGameAgentRuntime() {
             call: async (name, args, callSignal) => {
               if (controller.get(task.id)?.state !== 'running') throw new DOMException('任务已停止', 'AbortError')
               if (name === PLAYER_CARD_TOOL_NAME) return showPlayerCard(task.id, args, callSignal)
+              if (task.capability === 'play' && name === 'chaya_live_interact') {
+                const eventId = Number(args.eventId)
+                watch.setPlan({ targetEventIds: Number.isInteger(eventId) && eventId > 0 ? [eventId] : [] }, 'map_interaction')
+              } else if (task.capability === 'play' && name === 'chaya_live_move_to') {
+                const guard = args.guard && typeof args.guard === 'object' ? (args.guard as Record<string, unknown>) : {}
+                const eventId = Number(guard.targetEventId)
+                watch.setPlan({ targetEventIds: Number.isInteger(eventId) && eventId > 0 ? [eventId] : [] }, 'map_navigation')
+              }
               const implementation = tools.implementations[name]
               if (!implementation) throw new Error(`工具不可用：${name}`)
               try {
@@ -456,7 +502,7 @@ export function createGameAgentRuntime() {
           ? {
               model: `${profile.provider}/${task.model || profile.defaultModel}`,
               prompt: task.goal,
-              modelPrompt: playModelPrompt(task.goal, cycle, modelGameStateText(readAgentGameState()), task.locale || 'zh-CN'),
+              modelPrompt: [playModelPrompt(task.goal, cycle, '', task.locale || 'zh-CN'), steeringPrompt].filter(Boolean).join('\n'),
               storePrompt: task.goal,
               history,
               replyLanguage: task.locale || 'zh-CN',
@@ -470,6 +516,7 @@ export function createGameAgentRuntime() {
             },
         signal
       )
+      steeringPrompt = ''
       // Companion requests may use the play capability for deterministic game
       // actions, but they are still one conversational turn. Once the tool
       // loop has produced a verified result, publish the short reply and end
@@ -489,8 +536,47 @@ export function createGameAgentRuntime() {
         toolCalls: result.toolCalls,
         usage: result.usage,
       })
-      // Each CLI round costs a process start and subscription quota.
-      await waitForNextPlayCycle(signal, isCliProvider(profile.provider) ? 5_000 : undefined)
+      if (result.reason === 'limit') {
+        // A bounded tool loop can end while a stable plan still has work left.
+        // Continue it without pretending that the game changed.
+        steeringPrompt = '[GAME_STEERING_EVENT]\n上一执行批次达到步数上限；场景没有新的相关变化，请继续原计划。\n[/GAME_STEERING_EVENT]'
+        await waitForNextPlayCycle(signal, isCliProvider(profile.provider) ? 5_000 : undefined)
+        continue
+      }
+      // The just-finished tool loop already saw and handled its own changes.
+      // Start the watch from the settled state so only later game changes can
+      // wake the model; otherwise the Agent would immediately react to itself.
+      watch.reset(readAgentGameState())
+      const watchPhase = watch.getPhase()
+      if (watchPhase === 'battle' || watchPhase === 'dialogue' || watchPhase === 'choice' || watchPhase === 'menu') {
+        // These phases are intrinsically dynamic. The Agent's normal tool
+        // loop owns observation and action; do not turn every battle HP/turn
+        // update into a Watch-triggered model wakeup.
+        steeringPrompt = ''
+        if (lastWatchPausePhase !== watchPhase) {
+          controller.emit(task.id, 'game.watch.paused', { phase: watchPhase, reason: 'agent_self_observes_dynamic_scene' })
+          lastWatchPausePhase = watchPhase
+        }
+        if (watchPhase === 'battle') {
+          let state = readAgentGameState()
+          while (state.battle && !battleRequiresAgentDecision(state)) {
+            await waitForNextPlayCycle(signal, 100)
+            state = readAgentGameState()
+          }
+        } else {
+          await waitForNextPlayCycle(signal, 200)
+        }
+        continue
+      }
+      lastWatchPausePhase = null
+      controller.emit(task.id, 'game.watch.registered', { phase: watchPhase, cycle, pollMs: 200 })
+      let trigger: WatchTrigger | null = null
+      while (!trigger) {
+        await waitForNextPlayCycle(signal, 200)
+        trigger = watch.update(readAgentGameState())
+      }
+      controller.emit(task.id, 'game.watch.triggered', trigger)
+      steeringPrompt = formatWatchTrigger(trigger)
     }
   }
 
@@ -504,13 +590,18 @@ export function createGameAgentRuntime() {
         { id: `classify:${message.requestId}`, gameId: message.gameId, profileId: message.profileId, model: message.model },
         [
           { role: 'system', content: `/no_think\n${PLAY_INTENT_SYSTEM}` },
-          { role: 'user', content: `{"request":${JSON.stringify(message.prompt)},"state":${modelGameStateText(readAgentGameState())}}` },
+          { role: 'user', content: JSON.stringify({ request: message.prompt }) },
         ],
         [],
         classifySignal,
         PLAY_INTENT_FORMAT as unknown as Record<string, unknown>
       )
-      return { capability: parsePlayIntent(answer.content) ? ('play' as const) : ('ask' as const) }
+      const intent = parsePlayIntentResult(answer.content)
+      return {
+        capability: intent.operate ? ('play' as const) : ('ask' as const),
+        shape: intent.operate ? intent.shape : undefined,
+        action: intent.action,
+      }
     }
     if (message.type === 'agent.task.start') {
       const routine = message.routine === undefined ? undefined : parseAgentRoutine(message.routine)
@@ -519,7 +610,13 @@ export function createGameAgentRuntime() {
         await authorizeRemotePlay(message.deadlineAt)
         remotePlayAuthorized = true
       }
-      return controller.start({ ...message, routine, capability: routine ? 'play' : message.capability, execute })
+      return controller.start({
+        ...message,
+        routine,
+        capability: routine ? 'play' : message.capability,
+        ...(message.shape ? { shape: message.shape } : {}),
+        execute,
+      })
     }
     if (message.type === 'agent.task.reply') {
       return commands.run({ requestId: message.requestId, deadlineAt: Date.now() + 60_000 }, async () => controller.reply(message.taskId, message.text))
@@ -533,6 +630,10 @@ export function createGameAgentRuntime() {
       const tasks = controller.list().filter((task) => !message.conversationId || task.conversationId === message.conversationId)
       return recallTurns(taskTurns(tasks), message)
     }
+    if (message.type === 'agent.trace.list') return traceArchive.list()
+    if (message.type === 'agent.trace.read') return traceArchive.read(message.taskId)
+    if (message.type === 'agent.trace.export') return traceArchive.export(message.taskId)
+    if (message.type === 'agent.trace.remove') return { removed: await traceArchive.remove(message.taskId) }
     return message.type === 'agent.task.status' && message.taskId ? controller.get(message.taskId) : controller.list()
   }
 
@@ -550,6 +651,10 @@ export function createGameAgentRuntime() {
         'agent.task.events',
         'agent.task.clear',
         'agent.task.recall',
+        'agent.trace.list',
+        'agent.trace.read',
+        'agent.trace.export',
+        'agent.trace.remove',
       ].includes(message.type)
     ) {
       send({ type: 'agent.task.result', requestId, ok: false, error: `不支持的 Agent 消息：${message.type}` })

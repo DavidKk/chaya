@@ -291,6 +291,7 @@ export function GameEditPage() {
         onActorChange={handlers.setActor}
         onActorOwnedLockChange={handlers.setActorOwnedLock}
         onActorVitalLockChange={handlers.setActorVitalLock}
+        onBattleLock={handlers.setBattleLock}
         surface="page"
         linked={linked}
         readOnly={!linked}

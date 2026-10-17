@@ -1,11 +1,16 @@
-/**
- * 从游戏 data/ 抽取字符串，并合并写入 *-trans.seed.json（缺 key 补空串，保留已有译文）。
- */
+/** Extract strings from the game's data directory and merge them into *-trans.seed.json, adding empty values for missing keys while retaining translations. */
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { gameContentPath, gameContentReadPath } from '@/lib/game/content-files'
+import { ensureGameContentDir, gameContentReadPath } from '@/lib/game/content-files'
+import { buildTranslationExport } from '@/lib/translate/export'
+import { lookupTranslationRecord } from '@/lib/translate/lookup'
+import { reconcileTranslationSeed } from '@/lib/translate/segments'
+import type { SourceLanguageOption } from '@/lib/translate/source-text'
 import { getResolvedFromConfig } from '@/services/game/binding'
+import { lookupGameTranslation } from '@/services/translate/cache-lookup'
+import { loadGameTranslateLookup } from '@/services/translate/game-lookup'
+import { openSharedCache } from '@/services/translate/shared-cache'
 
 import { runExtract } from './lib/main'
 
@@ -35,27 +40,39 @@ export type EnsureSeedResult = {
   total: number
 }
 
-/** 抽取 + 确保 seed 存在（供 Web「抽取文本」与 fill-missing 前置） */
-export function extractAndEnsureSeed(): EnsureSeedResult {
+/** Extract text and ensure the seed exists before web extraction or fill-missing; entries are used for translation JSON export. */
+export function extractAndEnsureSeed(options?: { entries?: boolean; sourceLanguage?: SourceLanguageOption }): EnsureSeedResult & { entries?: Record<string, string> } {
   const resolved = getResolvedFromConfig()
   if (!resolved.ok) throw new Error('请先在游戏库绑定本地游戏')
   if (resolved.remote) throw new Error('远程游戏请在本机绑定后抽取')
   const contentRoot = resolved.contentRoot
 
-  const { OUT, allStrings } = runExtract(contentRoot)
+  const { OUT, allStrings, originalStrings } = runExtract(contentRoot, options)
   const existing = loadExistingSeed(contentRoot)
-  let added = 0
-  const seed: Record<string, string> = { ...existing }
-  for (const src of allStrings) {
-    if (!src.trim()) continue
-    if (!(src in seed)) {
-      seed[src] = ''
-      added += 1
+  const { seed, entries, added } = reconcileTranslationSeed(allStrings, existing)
+
+  const seedFile = ensureGameContentDir(contentRoot, 'seed')
+  fs.writeFileSync(seedFile, `${JSON.stringify(seed)}\n`, 'utf8')
+
+  let exportEntries = entries
+  if (options?.entries) {
+    const local = loadGameTranslateLookup(contentRoot)
+    const shared = openSharedCache()
+    try {
+      exportEntries = buildTranslationExport(
+        entries,
+        (source) =>
+          lookupGameTranslation(
+            (key) => lookupTranslationRecord(local, key),
+            (key) => shared.get(key),
+            source
+          )?.zh,
+        originalStrings
+      )
+    } finally {
+      shared.close()
     }
   }
-
-  const seedFile = gameContentPath(contentRoot, 'seed')
-  fs.writeFileSync(seedFile, `${JSON.stringify(seed)}\n`, 'utf8')
 
   return {
     contentRoot,
@@ -64,5 +81,6 @@ export function extractAndEnsureSeed(): EnsureSeedResult {
     unique: allStrings.size,
     added,
     total: Object.keys(seed).length,
+    ...(options?.entries ? { entries: exportEntries } : {}),
   }
 }

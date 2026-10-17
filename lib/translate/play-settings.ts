@@ -1,8 +1,8 @@
-/** Web、服务端和游戏插件共用的游玩翻译约定。 */
+/** Play-mode translation settings shared by the web client, server and game plugin. */
 export type TranslationPlayMode = 'pretranslated' | 'realtime' | 'subtitle'
 export type TranslationPlaySettings = {
   mode: TranslationPlayMode
-  /** 空串使用服务端 OLLAMA_MODEL。 */
+  /** An empty value uses the server's OLLAMA_MODEL. */
   model: string
   timeoutMs: number
 }

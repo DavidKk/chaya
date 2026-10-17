@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 
 import { AgentActivityTimeline } from './AgentActivityTimeline'
 import { AUTOPILOT_GLOW_CLASS, AutopilotGlowKeyframes } from './AutopilotGlow'
-import { clearCompanionTranscript, loadCompanionTranscript, saveCompanionTranscript } from './companion-transcript'
+import { clearCompanionTranscript, isPersistedCompanionActivity, loadCompanionTranscript, saveCompanionTranscript } from './companion-transcript'
 import { type ChatLine, CompanionChatLine } from './CompanionChatLine'
 import { GameAgentRuntimeMenu } from './GameAgentRuntimeMenu'
 import type { GameAgentRequest } from './GameAgentWorkspace'
@@ -26,6 +26,7 @@ import { readTurnEvents, type TurnEvent } from './turnStream'
 
 const POLL_MS = 2_000
 const MAX_MESSAGES = 200
+const NEAR_BOTTOM_PX = 48
 const TOUCH_TARGET = '[@media(hover:none)]:h-11 [@media(hover:none)]:w-11'
 type AgentProfile = { id: string; label: string; online: boolean; models: { name: string }[]; defaultModel: string }
 type AgentStatus = {
@@ -140,8 +141,9 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
   const tracker = useRef(new CompanionTracker())
   const listRef = useRef<HTMLDivElement>(null)
   const activityListRef = useRef<HTMLDivElement>(null)
-  const chatNearBottomRef = useRef(true)
-  const activityNearBottomRef = useRef(true)
+  /** Sticky-bottom follow: on until the user scrolls up; re-enabled at bottom or via the jump control. */
+  const chatStickBottomRef = useRef(true)
+  const activityStickBottomRef = useRef(true)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const messagesRef = useRef<ChatLine[]>(messages)
   const running = busy || !!turnId
@@ -151,9 +153,9 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
   const waitingCard = messages.some((line) => line.cardTurnId && line.cardState === 'pending')
 
   const recordActivity = useCallback((item: TurnEvent) => {
-    if (!['thought.updated', 'tool.completed', 'progress.updated', 'model.requested', 'model.completed', 'persistence.degraded'].includes(item.type)) return
+    if (!isPersistedCompanionActivity(item.type)) return
     const { type, seq, ...data } = item
-    setActivityEvents((current) => [...current.filter((event) => event.seq !== (seq || 0)), { seq: seq || current.length + 1, type, data }].slice(-200))
+    setActivityEvents((current) => [...current.filter((event) => event.seq !== (seq || 0)), { seq: seq || current.length + 1, type, at: Date.now(), data }].slice(-200))
   }, [])
 
   const refreshStatus = useCallback(async () => {
@@ -318,37 +320,61 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
     return () => window.clearInterval(timer)
   }, [ask, append, locale, model, observe, offerChest, open, panel.visible, profileId, running, settings.companionCharacter, status?.available])
 
+  const stickRefFor = useCallback((kind: 'chat' | 'activity') => (kind === 'chat' ? chatStickBottomRef : activityStickBottomRef), [])
+
+  const isNearBottom = useCallback((element: HTMLDivElement) => element.scrollHeight - element.clientHeight - element.scrollTop <= NEAR_BOTTOM_PX, [])
+
+  const pinScrollToBottom = useCallback((element: HTMLDivElement) => {
+    element.scrollTop = element.scrollHeight
+  }, [])
+
   const updateScrollPosition = useCallback(
     (element: HTMLDivElement, kind: 'chat' | 'activity') => {
-      const nearBottom = element.scrollHeight - element.clientHeight - element.scrollTop <= 24
-      if (kind === 'chat') chatNearBottomRef.current = nearBottom
-      else activityNearBottomRef.current = nearBottom
+      const nearBottom = isNearBottom(element)
+      stickRefFor(kind).current = nearBottom
       if (kind === tab) setShowScrollToBottom(!nearBottom)
     },
-    [tab]
+    [isNearBottom, stickRefFor, tab]
   )
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const nearBottom = tab === 'chat' ? chatNearBottomRef.current : activityNearBottomRef.current
-      const element = tab === 'chat' ? listRef.current : activityListRef.current
-      if (nearBottom && element) {
-        element.scrollTop = element.scrollHeight
-        element.scrollTo({ top: element.scrollHeight })
+    const kind = tab
+    const element = kind === 'chat' ? listRef.current : activityListRef.current
+    if (!element) return
+
+    const followIfStuck = () => {
+      if (!stickRefFor(kind).current) {
+        setShowScrollToBottom(!isNearBottom(element))
+        return
       }
-      if (element) setShowScrollToBottom(element.scrollHeight - element.clientHeight - element.scrollTop > 24)
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [activityEvents, messages, progress, tab])
+      pinScrollToBottom(element)
+      setShowScrollToBottom(false)
+    }
+
+    followIfStuck()
+    const frame = window.requestAnimationFrame(followIfStuck)
+    const resize = new ResizeObserver(followIfStuck)
+    resize.observe(element)
+    const mutate = new MutationObserver(followIfStuck)
+    mutate.observe(element, { childList: true, subtree: true, characterData: true })
+    return () => {
+      window.cancelAnimationFrame(frame)
+      resize.disconnect()
+      mutate.disconnect()
+    }
+  }, [activityEvents, isNearBottom, messages, pinScrollToBottom, progress, question, stickRefFor, tab])
 
   const scrollToBottom = useCallback(() => {
     const element = tab === 'chat' ? listRef.current : activityListRef.current
     if (!element) return
-    if (tab === 'chat') chatNearBottomRef.current = true
-    else activityNearBottomRef.current = true
-    element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' })
+    stickRefFor(tab).current = true
     setShowScrollToBottom(false)
-  }, [tab])
+    element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' })
+    window.setTimeout(() => {
+      if (!stickRefFor(tab).current) return
+      pinScrollToBottom(element)
+    }, 320)
+  }, [pinScrollToBottom, stickRefFor, tab])
 
   useEffect(() => {
     saveCompanionTranscript(gameId, { messages, activity: activityEvents })
@@ -602,41 +628,37 @@ function CompanionPanelBody({ gameId, open, observe, request }: Props) {
         <>
           {autopilot ? <AutopilotGlowKeyframes /> : null}
           {viewToggle}
-          {!autopilot ? (
-            <>
-              <Button
-                size="mini"
-                variant="plain"
-                className={TOUCH_TARGET}
-                aria-label={t('companion.clear')}
-                tooltip={t('companion.clear')}
-                loading={clearing}
-                onClick={() => void clearTasks()}
-              >
-                <BrushCleaning size={13} aria-hidden />
-              </Button>
-              <GameAgentRuntimeMenu
-                compact
-                profiles={status?.profiles || []}
-                profileId={profileId}
-                model={model}
-                thinkingEnabled={thinkingEnabled}
-                onThinkingChange={(next) => {
-                  setThinkingEnabled(next)
-                  try {
-                    localStorage.setItem(THINKING_KEY, String(next))
-                  } catch {
-                    // The preference still applies for this session when storage is unavailable.
-                  }
-                }}
-                disabled={running}
-                onChange={(nextProfile, nextModel) => {
-                  setProfileId(nextProfile)
-                  setModel(nextModel)
-                }}
-              />
-            </>
-          ) : null}
+          <Button
+            size="mini"
+            variant="plain"
+            className={TOUCH_TARGET}
+            aria-label={t('companion.clear')}
+            tooltip={t('companion.clear')}
+            loading={clearing}
+            onClick={() => void clearTasks()}
+          >
+            <BrushCleaning size={13} aria-hidden />
+          </Button>
+          <GameAgentRuntimeMenu
+            compact
+            profiles={status?.profiles || []}
+            profileId={profileId}
+            model={model}
+            thinkingEnabled={thinkingEnabled}
+            onThinkingChange={(next) => {
+              setThinkingEnabled(next)
+              try {
+                localStorage.setItem(THINKING_KEY, String(next))
+              } catch {
+                // The preference still applies for this session when storage is unavailable.
+              }
+            }}
+            disabled={running}
+            onChange={(nextProfile, nextModel) => {
+              setProfileId(nextProfile)
+              setModel(nextModel)
+            }}
+          />
         </>
       }
       opacity={toolSettings}

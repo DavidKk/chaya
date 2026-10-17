@@ -5,9 +5,9 @@ import { createPortal } from 'react-dom'
 import { GiCheckeredFlag, GiRunningShoe, GiTombstone, GiTrophyCup } from 'react-icons/gi'
 import { IoStopCircleOutline } from 'react-icons/io5'
 
-import type { RunActionId, SessionState } from '@/components/game-edit/types'
+import type { BattleLockChange, RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { Button, EmptyState, ScrollArea } from '@/components/sk'
+import { Button, EmptyState, ScrollArea, SwitchToggle } from '@/components/sk'
 import { cn } from '@/lib/utils'
 
 import type { EventsSlot } from '../events/types'
@@ -17,8 +17,10 @@ import { cardClass, SectionHead, useBattleRun } from './controls'
 
 type Props = {
   slot?: EventsSlot
-  session: Pick<SessionState, 'locks' | 'god'>
+  session: Pick<SessionState, 'locks' | 'god' | 'autoBattle'>
   onRunAction: (id: RunActionId) => void
+  onFlagChange: (key: RunFlagKey, on: boolean) => void
+  onLock: (change: BattleLockChange) => void
   onOpenTroops: () => void
   onOpenActor?: (actorId: number) => void
   /** Panel header slot; the battle flow buttons render there when present */
@@ -39,8 +41,19 @@ const FLOW: {
 ]
 
 /** 修改 › 战斗: the running battle's flow, enemies and party */
-export function BattlePane({ slot, session, onRunAction, onOpenTroops, onOpenActor, headSlot }: Props) {
+function AutoBattleSwitch({ on, disabled, onChange }: { on: boolean; disabled?: boolean; onChange: (on: boolean) => void }) {
   const t = useT()
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="text-[0.75rem] text-ink-soft">{t('edit.flagAutoBattle')}</span>
+      <SwitchToggle size="sm" checked={on} disabled={disabled} aria-label={t('edit.flagAutoBattle')} tooltip={t('edit.flagAutoBattleDesc')} onCheckedChange={onChange} />
+    </span>
+  )
+}
+
+export function BattlePane({ slot, session, onRunAction, onFlagChange, onLock, onOpenTroops, onOpenActor, headSlot }: Props) {
+  const t = useT()
+  const auto = <AutoBattleSwitch on={!!session.autoBattle} disabled={slot ? !slot.canAct : true} onChange={(on) => onFlagChange('autoBattle', on)} />
   if (!slot) return <EmptyState title={t('events.needLink')} message={t('events.needLinkMsg')} />
   if (!slot.battle)
     return (
@@ -50,10 +63,10 @@ export function BattlePane({ slot, session, onRunAction, onOpenTroops, onOpenAct
         </Button>
       </EmptyState>
     )
-  return <BattleBody slot={slot} session={session} onRunAction={onRunAction} onOpenActor={onOpenActor} headSlot={headSlot} />
+  return <BattleBody slot={slot} session={session} onRunAction={onRunAction} onLock={onLock} onOpenActor={onOpenActor} headSlot={headSlot} auto={auto} />
 }
 
-function BattleBody({ slot, session, onRunAction, onOpenActor, headSlot }: Omit<Props, 'onOpenTroops'> & { slot: EventsSlot }) {
+function BattleBody({ slot, session, onRunAction, onLock, onOpenActor, headSlot, auto }: Omit<Props, 'onOpenTroops' | 'onFlagChange'> & { slot: EventsSlot; auto: ReactNode }) {
   const t = useT()
   const { busy, run } = useBattleRun(slot)
   const battle = slot.battle!
@@ -63,6 +76,7 @@ function BattleBody({ slot, session, onRunAction, onOpenActor, headSlot }: Omit<
 
   const flow = (
     <div role="group" aria-label={t('events.battle.flow')} className="flex shrink-0 items-center gap-2">
+      {auto}
       {FLOW.map((a) => {
         const label = t(a.labelKey)
         const nudge = stuck && a.id === 'battle:settle'
@@ -94,7 +108,16 @@ function BattleBody({ slot, session, onRunAction, onOpenActor, headSlot }: Omit<
             <SectionHead title={t('events.battle.flow')}>{flow}</SectionHead>
           </div>
         )}
-        <BattleEnemies battle={battle} enemies={slot.data?.names.enemies ?? null} blocked={blocked} busy={busy} run={run} onRunAction={onRunAction} />
+        <BattleEnemies
+          battle={battle}
+          enemies={slot.data?.names.enemies ?? null}
+          blocked={blocked}
+          locks={session.locks}
+          busy={busy}
+          run={run}
+          onRunAction={onRunAction}
+          onLock={onLock}
+        />
         <BattleParty
           battle={battle}
           actors={slot.data?.names.actors ?? null}
@@ -103,6 +126,7 @@ function BattleBody({ slot, session, onRunAction, onOpenActor, headSlot }: Omit<
           busy={busy}
           run={run}
           onRunAction={onRunAction}
+          onLock={onLock}
           onOpenActor={onOpenActor}
         />
       </div>

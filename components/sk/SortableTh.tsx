@@ -1,5 +1,6 @@
 'use client'
 
+import type { ElementType } from 'react'
 import { IoCaretDown, IoCaretUp } from 'react-icons/io5'
 
 import { controlDisabled } from '@/components/sk/control'
@@ -14,17 +15,23 @@ export type SortableThProps = {
   disabled?: boolean
   onCycle: () => void
   className?: string
+  /**
+   * Native table header vs CSS-grid columnheader.
+   * Default `th` keeps DataTable valid; pass `div` for role=table grids.
+   */
+  as?: 'th' | 'div'
 }
 
 /** 可点表头：未激活 → 升序 → 降序 → 还原（由 onCycle 实现） */
-export function SortableTh({ label, active, order, disabled, onCycle, className }: SortableThProps) {
+export function SortableTh({ label, active, order, disabled, onCycle, className, as = 'th' }: SortableThProps) {
   const tip = !active ? '按升序排列' : order === 'asc' ? '按降序排列' : '还原默认排序'
+  const Comp = as as ElementType
   return (
-    <th className={className} aria-sort={active ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}>
+    <Comp className={className} role={as === 'div' ? 'columnheader' : undefined} aria-sort={active ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button
         type="button"
         className={cn(
-          'm-0 inline-flex cursor-pointer items-center gap-0.5 border-none bg-transparent p-0 text-inherit outline-none',
+          'm-0 inline-flex cursor-pointer items-center gap-0.5 whitespace-nowrap border-none bg-transparent p-0 text-inherit outline-none',
           'hover:enabled:text-ink focus:outline-none focus-visible:outline-none',
           controlDisabled,
           active ? 'text-ink' : 'text-ink-soft'
@@ -40,6 +47,6 @@ export function SortableTh({ label, active, order, disabled, onCycle, className 
           <IoCaretDown size={8} className={cn('-mt-0.5', active && order === 'desc' ? 'opacity-100' : 'opacity-35')} />
         </span>
       </button>
-    </th>
+    </Comp>
   )
 }

@@ -2,6 +2,7 @@
 
 import {
   type ActorDraft,
+  battleLockKey,
   countKey,
   GOLD_LOCK_KEY,
   lockKeyForActorSkill,
@@ -98,6 +99,8 @@ export function fieldsForEditCmd(cmd: GameEditCmd): string[] {
       return [`actor:${cmd.id}`]
     case 'actorVitalLock':
       return [`lock:${lockKeyForActorVital(cmd.kind, cmd.actorId)}`]
+    case 'battleLock':
+      return [`lock:${battleLockKey(cmd)}`]
     case 'actorOwnedLock': {
       const key = cmd.kind === 'skills' ? lockKeyForActorSkill(cmd.actorId, cmd.entryId) : lockKeyForActorState(cmd.actorId, cmd.entryId)
       return [`lock:${key}`]
@@ -135,6 +138,7 @@ export function expectForEditCmd(cmd: GameEditCmd): unknown {
     case 'varLock':
     case 'swLock':
     case 'actorVitalLock':
+    case 'battleLock':
       return cmd.on ? cmd.value : null
     case 'actorOwnedLock':
       return cmd.on ? (cmd.owned ? 1 : 0) : null

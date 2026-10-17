@@ -17,7 +17,7 @@ export async function bingTranslate(text, gap) {
     }
     try {
       const profile = nextClientProfile()
-      const res = await loadBingApi()(text, 'ja', 'zh-Hans', false, false, profile.ua)
+      const res = await loadBingApi()(text, 'auto-detect', 'zh-Hans', false, false, profile.ua)
       if (!res || !res.translation) throw new Error('empty translation')
       return res.translation
     } catch (err) {
@@ -43,7 +43,7 @@ export async function googleTranslateOnce(text, profile) {
   const base = 'https://translate.google.com/translate_a/single'
   const query = {
     client: 'gtx',
-    sl: 'ja',
+    sl: 'auto',
     tl: 'zh-CN',
     hl: 'zh-CN',
     dt: ['at', 'bd', 'ex', 'ld', 'md', 'qca', 'rw', 'rm', 'ss', 't'],
@@ -203,13 +203,13 @@ export async function ollamaOnce(items, store) {
     pairs.push([items[index], store.finishTranslation(items[index], value)])
   })
   store.putMany(pairs, 'ollama')
-  // 解析失败，或质检未通过（仍含日文未入库）都算缺失，交还队列
+  // Treat parse failures and rejected output with remaining Japanese as missing entries and return them to the queue.
   return items.filter((src, index) => !found.has(index) || !store.has(src))
 }
 
 export async function runNetWorker(tag, translateFn, chunkChars, queue, store, state, progress, doneKey, failLedger) {
   const gap = createPacedGap(tag)
-  // 错开启动，避免和另一路公网同一秒打出
+  // Stagger startup to avoid simultaneous public-engine requests.
   if (tag === 'google') await sleep(randomBetween(1200, 2800))
   if (tag === 'bing') await sleep(randomBetween(0, 800))
 
@@ -238,18 +238,18 @@ export async function runNetWorker(tag, translateFn, chunkChars, queue, store, s
     }
     const items = await queue.take(9999, chunkChars, store, tag)
     if (!items.length) {
-      // 队列里只剩本引擎已失败的条目：等其他开启引擎收尾后退出
+      // If the queue contains only this engine's failed entries, wait for other enabled engines to finish and exit.
       if (store.pending() === 0 || peersDone(state, doneKey)) break
       await sleep(500)
       continue
     }
-    // 取到队列后若开关刚关，退回再暂停
+    // If the engine was disabled after taking a batch, return the batch before pausing.
     if (!isEngineEnabled(tag)) {
       await queue.requeue(items)
       continue
     }
 
-    /* 敏感条不送公网：记本引擎失败交给 Ollama；勿混进同片，避免一条拒收拖死整片 */
+    /* Do not send sensitive rows to public engines. Mark this engine's failure and leave them for Ollama; never mix them into a public batch. */
     const safe = []
     const nsfw = []
     for (const src of items) {
@@ -271,7 +271,7 @@ export async function runNetWorker(tag, translateFn, chunkChars, queue, store, s
       const lines = await netChunk(tag, translateFn, safe, gap, store)
       const pairs = safe.map((src, i) => [src, lines[i]])
       const { rejected } = store.putMany(pairs, tag)
-      // 缺行/空译文也算本引擎失败
+      // Missing rows and empty translations count as failures for this engine.
       const missing = safe.filter((src) => !store.has(src))
       const failed = [...new Set([...(rejected || []), ...missing])]
       if (failed.length) {
@@ -286,7 +286,7 @@ export async function runNetWorker(tag, translateFn, chunkChars, queue, store, s
       }
       gap.noteSuccess()
     } catch (err) {
-      // 限流/网络：不记永久失败，仅退回
+      // Return rate-limited or network-failed items without marking permanent failure.
       console.warn(`[${tag}] 分片 ${tagNo} 失败，退回队列: ${err.message || err}`)
       gap.noteBan(err.message || err)
       await queue.requeue(safe.filter((src) => !store.has(src)))

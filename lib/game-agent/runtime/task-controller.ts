@@ -1,16 +1,24 @@
 import { addTokenUsage, type AgentThoughtSummary, type AgentTokenUsage, sanitizeAgentActivity, sanitizeAgentText } from '@/lib/game-agent/activity'
+import { AGENT_AUDIT_SCHEMA_VERSION, type AgentAuditHost, type AgentAuditMetadata, type AgentRuntimeIdentity, classificationForEvent, isGameFactType } from '@/lib/game-agent/audit'
 import type { PlayerCard } from '@/lib/game-agent/player-card'
 import { IdempotentWriteCache } from '@/lib/runtime/recoverable-operation'
 
+import type { AgentTraceArchive } from '../trace'
 import type { AgentRoutine, RuntimeMessage } from './types'
 
 export type AgentTaskState = 'running' | 'waiting_user' | 'waiting_service' | 'completed' | 'stopped' | 'failed' | 'interrupted'
-export type AgentTaskEvent = { seq: number; type: string; at: number; data?: unknown }
+export type AgentTaskEvent = { seq: number; type: string; at: number; data?: unknown } & Partial<AgentAuditMetadata>
 export type AgentTask = {
   id: string
   gameId: string
+  libraryGameId?: string
+  runtimeInstanceId?: string
+  pluginInstanceId?: string
+  connectionId?: string
   conversationId: string
   capability: 'play' | 'ask' | 'companion'
+  /** From classify; see docs/technical/game-agent-jobs.md */
+  shape?: 'single' | 'batch' | 'open'
   profileId: string
   model: string
   locale?: string
@@ -43,6 +51,10 @@ export type AgentTaskControllerOptions = {
   waitingServiceMs?: number
   /** The ext adapter uses this to arbitrate keyboard ownership with macros and external MCP callers. */
   setInputOwner?: (taskId: string | null) => void
+  traceArchive?: AgentTraceArchive
+  runtimeIdentity?: AgentRuntimeIdentity
+  producerEpoch?: number
+  executionHost?: AgentAuditHost
 }
 
 const terminal = (state: AgentTaskState) => ['completed', 'stopped', 'failed', 'interrupted'].includes(state)
@@ -57,6 +69,12 @@ export class AgentTaskController {
   private readonly waitingUserMs: number
   private readonly waitingServiceMs: number
   private readonly setInputOwner: (taskId: string | null) => void
+  private readonly traceArchive?: AgentTraceArchive
+  private readonly runtimeIdentity?: AgentRuntimeIdentity
+  private readonly producerEpoch: number
+  private readonly executionHost: AgentAuditHost
+  private sourceSeq = 0
+  private readonly traceDegraded = new Set<string>()
 
   constructor(
     private readonly store: AgentTaskStore,
@@ -67,6 +85,10 @@ export class AgentTaskController {
     this.waitingUserMs = options.waitingUserMs ?? 30 * 60_000
     this.waitingServiceMs = options.waitingServiceMs ?? 60_000
     this.setInputOwner = options.setInputOwner ?? (() => undefined)
+    this.traceArchive = options.traceArchive
+    this.runtimeIdentity = options.runtimeIdentity
+    this.producerEpoch = options.producerEpoch ?? 1
+    this.executionHost = options.executionHost ?? 'game_plugin'
   }
 
   async restore(): Promise<void> {
@@ -91,18 +113,28 @@ export class AgentTaskController {
     companionCharacter?: string
     surface?: string
     thinking?: boolean
+    shape?: AgentTask['shape']
     routine?: AgentRoutine
     goal: string
     execute: (task: AgentTask, signal: AbortSignal, controller: AgentTaskController) => Promise<void>
   }): Promise<AgentTask> {
     return this.writes.run({ requestId: input.requestId, deadlineAt: input.deadlineAt }, async () => {
-      if ([...this.tasks.values()].some((task) => task.gameId === input.gameId && !terminal(task.state))) {
+      const requestedRuntimeId = this.runtimeIdentity?.runtimeInstanceId
+      if ([...this.tasks.values()].some((task) => !terminal(task.state) && (requestedRuntimeId ? task.runtimeInstanceId === requestedRuntimeId : task.gameId === input.gameId))) {
         throw new Error('当前游戏已有 Agent 任务在运行，请先停止')
       }
       const now = this.now()
       const task: AgentTask = {
         id: input.taskId,
         gameId: input.gameId,
+        ...(this.runtimeIdentity
+          ? {
+              libraryGameId: this.runtimeIdentity.libraryGameId,
+              runtimeInstanceId: this.runtimeIdentity.runtimeInstanceId,
+              pluginInstanceId: this.runtimeIdentity.pluginInstanceId,
+              connectionId: this.runtimeIdentity.connectionId,
+            }
+          : {}),
         conversationId: input.conversationId,
         capability: input.capability,
         profileId: input.profileId,
@@ -111,6 +143,7 @@ export class AgentTaskController {
         ...(input.companionCharacter ? { companionCharacter: input.companionCharacter } : {}),
         ...(input.surface ? { surface: input.surface } : {}),
         ...(input.thinking ? { thinking: true } : {}),
+        ...(input.shape ? { shape: input.shape } : {}),
         ...(input.routine ? { routine: input.routine } : {}),
         state: 'running',
         goal: sanitizeAgentText(input.goal),
@@ -294,11 +327,63 @@ export class AgentTaskController {
     const safeData = data === undefined ? undefined : sanitizeAgentActivity(data)
     if (type === 'usage.updated') task.usage = addTokenUsage(task.usage, safeData as AgentTokenUsage)
     if (type === 'thought.updated' && safeData && typeof safeData === 'object') task.latestThought = (safeData as { summary?: AgentThoughtSummary }).summary
-    const event = { seq: ++task.lastSeq, type, at: this.now(), ...(safeData === undefined ? {} : { data: safeData }) }
+    const taskSeq = ++task.lastSeq
+    const sourceSeq = ++this.sourceSeq
+    const gameFact = isGameFactType(type)
+    const producerId = gameFact ? task.pluginInstanceId || 'game-plugin' : 'agent-coordinator'
+    const event: AgentTaskEvent = {
+      schemaVersion: AGENT_AUDIT_SCHEMA_VERSION,
+      eventId: `${producerId}:${this.producerEpoch}:${sourceSeq}`,
+      seq: taskSeq,
+      taskSeq,
+      type,
+      at: this.now(),
+      producer: { id: producerId, kind: gameFact ? 'game_plugin' : 'agent_coordinator', epoch: this.producerEpoch, sourceSeq },
+      execution: { host: this.executionHost, component: gameFact ? 'game-runtime-observer' : 'agent-task-controller' },
+      classification: classificationForEvent(type),
+      targets: this.targets(task),
+      correlation: {
+        conversationId: task.conversationId,
+        taskId: task.id,
+        ...this.correlation(safeData),
+      },
+      ...(safeData === undefined ? {} : { data: safeData }),
+    }
     task.events.push(event)
     if (task.events.length > 200) task.events.shift()
     task.updatedAt = event.at
+    if (this.traceArchive) {
+      void this.traceArchive.append(task, event).catch(() => {
+        if (type === 'trace.degraded' || this.traceDegraded.has(taskId)) return
+        this.traceDegraded.add(taskId)
+        this.emit(taskId, 'trace.degraded', { reason: '长期轨迹写入失败，本次任务仍会继续。' })
+      })
+    }
     return event
+  }
+
+  private targets(task: AgentTask): AgentAuditMetadata['targets'] {
+    const runtimeInstanceId = task.runtimeInstanceId || task.gameId
+    return [
+      {
+        kind: 'runtime',
+        id: runtimeInstanceId,
+        libraryGameId: task.libraryGameId || task.gameId,
+        runtimeInstanceId,
+        ...(task.pluginInstanceId ? { pluginInstanceId: task.pluginInstanceId } : {}),
+        ...(task.connectionId ? { connectionId: task.connectionId } : {}),
+      },
+    ]
+  }
+
+  private correlation(data: unknown): Pick<AgentAuditMetadata['correlation'], 'actionId' | 'parentActionId' | 'toolCallId'> {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return {}
+    const value = data as Record<string, unknown>
+    return {
+      ...(typeof value.actionId === 'string' ? { actionId: value.actionId } : {}),
+      ...(typeof value.parentActionId === 'string' ? { parentActionId: value.parentActionId } : {}),
+      ...(typeof value.callId === 'string' ? { toolCallId: value.callId } : {}),
+    }
   }
 
   events(taskId: string, afterSeq: number): { gap: boolean; task: AgentTask; events: AgentTaskEvent[] } {

@@ -22,6 +22,8 @@ export type SelectOption = {
   disabled?: boolean
 }
 
+export type SelectSize = 'md' | 'mini'
+
 export type SelectProps = {
   id?: string
   value: string
@@ -32,6 +34,8 @@ export type SelectProps = {
   disabled?: boolean
   className?: string
   'aria-label'?: string
+  /** md：表单默认 h-8；mini：紧凑 h-6（列表 / 行内切换） */
+  size?: SelectSize
   /** anchor：与触发器等宽；content：按选项内容收缩（不撑开锚点） */
   panelWidth?: FloatingPanelWidthMode
   /** 每次展开时触发，用于按需加载选项 */
@@ -50,6 +54,7 @@ export function Select({
   disabled = false,
   className,
   'aria-label': ariaLabel,
+  size = 'md',
   panelWidth = 'anchor',
   onOpen,
   loading = false,
@@ -294,7 +299,7 @@ export function Select({
         className={cn(
           formControlChrome,
           formControlPadX,
-          FORM_CONTROL_H,
+          size === 'mini' ? 'h-6 px-1.5 text-[0.7rem] leading-none' : FORM_CONTROL_H,
           'inline-flex w-full cursor-pointer items-center justify-between gap-2',
           'hover:enabled:border-[rgb(230_238_248/0.2)]',
           'focus-visible:border-accent',
@@ -310,7 +315,7 @@ export function Select({
         onKeyDown={onTriggerKey}
       >
         <TruncateText text={label} className={cn('whitespace-nowrap text-left', !selected && 'text-ink-soft')} />
-        <IoChevronDown className="shrink-0 text-ink-soft" size={14} aria-hidden />
+        <IoChevronDown className="shrink-0 text-ink-soft" size={size === 'mini' ? 12 : 14} aria-hidden />
       </button>
       {panel}
     </div>

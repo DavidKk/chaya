@@ -1,12 +1,11 @@
-/**
- * 翻译引擎开关、补译顺序与 Agent 翻译条目（游戏内容根 `*-trans.switches.json`）。
- * Web 与 CLI 共用；引擎定义见 `lib/translate/engines.ts`。
- */
+/** Translation engine switches and fill order. Store Bing and Google settings in each game's *-trans.switches.json; share agent entries across games in data/translate/agents.json. */
 import fs from 'node:fs'
 
 import { ensureGameContentDir, gameContentPath, gameContentReadPath } from '@/lib/game/content-files'
-import { engineStateFileBody, mergeEngineState, type TranslateEnginePatch, type TranslateEngineState } from '@/lib/translate/engines'
+import { isBuiltinEngineId, mergeEngineState, type TranslateEngineId, type TranslateEnginePatch, type TranslateEngineState } from '@/lib/translate/engines'
 import { getResolvedFromConfig } from '@/services/game/binding'
+
+import { readSharedTranslateAgents, writeSharedTranslateAgents } from './shared-agents'
 
 export {
   DEFAULT_ENGINE_ORDER,
@@ -46,20 +45,45 @@ function readRaw(contentRoot: string): { file: string; raw: unknown } {
   }
 }
 
-/** 读取当前绑定游戏的引擎开关与顺序；无文件时返回默认。 */
+function platformOrder(order: TranslateEngineId[]): TranslateEngineId[] {
+  return order.filter((id) => isBuiltinEngineId(id))
+}
+
+/** Combine per-game platform switches with shared agent entries. Migrate legacy per-game agents only when the shared file does not exist. */
+function combine(contentRoot: string, raw: unknown): TranslateEngineState {
+  const local = mergeEngineState(raw)
+  let shared = readSharedTranslateAgents()
+  if (!shared.stored && local.agents.length) {
+    shared = writeSharedTranslateAgents({ agents: local.agents, order: local.order })
+    writePlatformFile(contentRoot, local)
+  }
+  return mergeEngineState({
+    ...local.switches,
+    agents: shared.agents,
+    order: [...shared.order, ...platformOrder(local.order)],
+  })
+}
+
+function writePlatformFile(contentRoot: string, state: TranslateEngineState) {
+  const file = ensureGameContentDir(contentRoot, 'switches')
+  fs.writeFileSync(file, `${JSON.stringify({ ...state.switches, order: platformOrder(state.order) }, null, 2)}\n`, 'utf8')
+  return file
+}
+
+/** Read engine switches and order for the bound game, using defaults when no file exists. */
 export function getTranslateEngineSwitches(contentRoot = resolveContentRoot()): EngineSwitchesState {
   const { file, raw } = readRaw(contentRoot)
-  return { contentRoot, file, ...mergeEngineState(raw) }
+  return { contentRoot, file, ...combine(contentRoot, raw) }
 }
 
 export type SetEngineSwitchesInput = TranslateEnginePatch
 
-/** 合并写入引擎开关 / 顺序 / Agent 条目；允许全部关闭（补译任务启动时再拦）。 */
+/** Merge engine switches, order and agents; all engines may be disabled, with validation deferred until a fill job starts. */
 export function setTranslateEngineSwitches(input: SetEngineSwitchesInput): EngineSwitchesState {
   const contentRoot = resolveContentRoot()
   const { raw } = readRaw(contentRoot)
-  const state = mergeEngineState(raw, input)
-  const file = ensureGameContentDir(contentRoot, 'switches')
-  fs.writeFileSync(file, `${JSON.stringify(engineStateFileBody(state), null, 2)}\n`, 'utf8')
+  const state = mergeEngineState(combine(contentRoot, raw), input)
+  writeSharedTranslateAgents({ agents: state.agents, order: state.order })
+  const file = writePlatformFile(contentRoot, state)
   return { contentRoot, file, ...state }
 }

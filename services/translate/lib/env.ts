@@ -1,7 +1,4 @@
-/**
- * CLI 运行时环境：路径 + 词表可变状态。
- * kuromoji / undici / bing-translate-api 按需加载（未安装时仅在真正翻译时报错）。
- */
+/** CLI environment: paths and mutable glossary state. Load kuromoji, undici and bing-translate-api on demand; report missing dependencies only when translation needs them. */
 import { createRequire } from 'node:module'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -36,7 +33,7 @@ export function resolveContentRoot(argv = process.argv.slice(2)): string {
 
 export type GlossaryEntry = { jp: string; type: string; token: string }
 
-/** 词表运行时（跨模块可变） */
+/** Mutable glossary runtime shared across modules. */
 export const glossary = {
   entries: [] as GlossaryEntry[],
   zh: {} as Record<string, string>,

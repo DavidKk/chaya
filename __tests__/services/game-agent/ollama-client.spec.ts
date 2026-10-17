@@ -20,6 +20,12 @@ function streamed(lines: string[]) {
 }
 
 describe('game agent Ollama client', () => {
+  it('keeps legacy Qwen reasoning out of assistant content and later conversation context', async () => {
+    const fetcher = jest.fn(async () => streamed(['{"message":{"content":"Reasoning text</think>\\n\\n已装备。"}}\n'])) as unknown as typeof fetch
+    await expect(streamOllamaChat({ model: 'qwen3:4b', think: false, messages: [] }, () => {}, fetcher)).resolves.toMatchObject({ content: '已装备。', thought: 'Reasoning text' })
+    expect(JSON.parse(String((fetcher as jest.Mock).mock.calls[0][1].body)).think).toBe(false)
+  })
+
   it('parses fragmented NDJSON and emits content deltas', async () => {
     const fetcher = jest.fn(async () => streamed(['{"message":{"content":"你', '好"}}\n{"message":{"content":"！"}}\n'])) as unknown as typeof fetch
     const deltas: string[] = []
@@ -28,11 +34,16 @@ describe('game agent Ollama client', () => {
     expect(deltas).toEqual(['你好', '！'])
   })
 
-  it('maps provider token counts from the final stream item', async () => {
+  it('maps provider token counts and nanosecond timings from the final stream item', async () => {
     const fetcher = jest.fn(async () =>
-      streamed(['{"message":{"content":"ok"}}\n{"message":{"content":""},"done":true,"prompt_eval_count":12,"eval_count":4}\n'])
+      streamed([
+        '{"message":{"content":"ok"}}\n{"message":{"content":""},"done":true,"prompt_eval_count":12,"eval_count":4,"load_duration":100,"prompt_eval_duration":200,"eval_duration":300,"total_duration":400}\n',
+      ])
     ) as unknown as typeof fetch
-    await expect(streamOllamaChat({ model: 'demo', messages: [] }, () => {}, fetcher)).resolves.toMatchObject({ usage: { input: 12, output: 4, total: 16 } })
+    await expect(streamOllamaChat({ model: 'demo', messages: [] }, () => {}, fetcher)).resolves.toMatchObject({
+      usage: { input: 12, output: 4, total: 16 },
+      timing: { loadDurationNs: 100, promptEvalDurationNs: 200, evalDurationNs: 300, totalDurationNs: 400 },
+    })
   })
 
   it('sends tools and parses Gemma tool calls with object or JSON arguments', async () => {

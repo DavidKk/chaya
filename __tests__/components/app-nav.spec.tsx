@@ -79,8 +79,8 @@ test('closes the mobile drawer after navigating', async () => {
 })
 
 test('puts secondary log pages in the drawer and actions in a footer', async () => {
-  mockPathname = '/logs'
-  mockSearchParams = new URLSearchParams('view=agent')
+  mockPathname = '/logs/agent'
+  mockSearchParams = new URLSearchParams()
   await act(async () =>
     root.render(
       <LocaleProvider initialLocale="zh" initialPreference="zh">
@@ -93,7 +93,11 @@ test('puts secondary log pages in the drawer and actions in a footer', async () 
   const drawer = document.querySelector<HTMLElement>('[data-app-mobile-nav]')!
   const secondaryLinks = Array.from(drawer.querySelectorAll<HTMLAnchorElement>('#app-mobile-nav-logs a'))
   const headerButtons = Array.from(drawer.querySelectorAll<HTMLElement>(':scope > div > div:first-child button'))
-  expect(secondaryLinks.map((link) => link.textContent)).toEqual(['运行日志', 'Agent 活动'])
+  expect(secondaryLinks.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
+    ['运行日志', '/logs/runtime'],
+    ['Agent 活动', '/logs/agent'],
+    ['Agent 进程', '/logs/cli'],
+  ])
   expect(secondaryLinks[1].getAttribute('aria-current')).toBe('page')
   expect(headerButtons.map((button) => button.textContent)).toEqual(['Agent', ''])
   expect(drawer.querySelector('footer')?.textContent).toBe('Local 和语言')

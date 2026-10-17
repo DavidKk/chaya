@@ -5,14 +5,14 @@ import { GiHealthIncrease, GiHeartPlus, GiShadowFollower } from 'react-icons/gi'
 import { IoAddOutline, IoSkullOutline } from 'react-icons/io5'
 import { RiExchange2Line } from 'react-icons/ri'
 
-import type { RunActionId } from '@/components/game-edit/types'
+import { type BattleLockChange, type RunActionId } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { DataTable, type DataTableColumn, TextAction, TruncateText } from '@/components/sk'
 import { aliveEnemyCount, type BattleEnemyState, type BattleState, MAX_BATTLE_ENEMIES } from '@/lib/game/battle'
 
 import { EnemyPicker } from '../events/EnemyPicker'
 import type { EventsOp } from '../events/types'
-import { ACTIONS_COL, type BattleBusy, cardClass, IconAction, portalHost, SectionHead, STATUS_COL, tableClass, VITAL_COL, VitalInput } from './controls'
+import { type BattleBusy, cardClass, ENEMY_COLS, IconAction, portalHost, SectionHead, tableClass, VitalInput } from './controls'
 
 type Props = {
   battle: BattleState
@@ -20,15 +20,17 @@ type Props = {
   enemies: readonly string[] | null
   /** Why nothing can be edited ('' when editable) */
   blocked: string
+  locks: Record<string, number>
   busy: BattleBusy
   run: (key: string, op: EventsOp, ok: string) => Promise<void>
   onRunAction: (id: RunActionId) => void
+  onLock: (change: BattleLockChange) => void
 }
 
 type Picking = { mode: 'transform'; enemy: BattleEnemyState } | { mode: 'add' } | null
 
 /** 战斗 › 敌方: edit HP, kill / revive, copy, replace, add */
-export function BattleEnemies({ battle, enemies, blocked, busy, run, onRunAction }: Props) {
+export function BattleEnemies({ battle, enemies, blocked, locks, busy, run, onRunAction, onLock }: Props) {
   const t = useT()
   const rootRef = useRef<HTMLElement>(null)
   const [picking, setPicking] = useState<Picking>(null)
@@ -37,10 +39,10 @@ export function BattleEnemies({ battle, enemies, blocked, busy, run, onRunAction
   const pickBlocked = enemies ? '' : t('events.loading')
   const enemyName = (id: number) => enemies?.[id] || t('events.unnamed', { id })
   const columns: DataTableColumn[] = [
-    { key: 'enemy', label: t('events.troop.colEnemy') },
-    { key: 'hp', label: t('events.troop.colHp'), width: VITAL_COL },
-    { key: 'status', label: t('events.troop.colStatus'), width: STATUS_COL },
-    { key: 'actions', label: t('events.troop.colActions'), width: ACTIONS_COL, align: 'right' },
+    { key: 'enemy', label: t('events.troop.colEnemy'), width: ENEMY_COLS.enemy },
+    { key: 'hp', label: t('events.troop.colHp'), width: ENEMY_COLS.hp },
+    { key: 'status', label: t('events.troop.colStatus'), width: ENEMY_COLS.status },
+    { key: 'actions', label: t('events.troop.colActions'), width: ENEMY_COLS.actions, align: 'right' },
   ]
   const reasonFor = (enemy: BattleEnemyState) => blocked || (!enemy.appeared ? t('events.troop.enemyHidden') : !enemy.alive ? t('events.troop.enemyDown') : '')
 
@@ -94,14 +96,29 @@ export function BattleEnemies({ battle, enemies, blocked, busy, run, onRunAction
                   maxCap={enemy.mhpCap}
                   label={`${t('events.troop.hpEdit')} ${name}`}
                   maxLabel={`${t('events.troop.mhpEdit')} ${name}`}
-                  disabled={!!reason}
+                  disabled={!!reason || `enemyHp:${index}` in locks}
+                  maxDisabled={!!reason || `enemyMhp:${index}` in locks}
+                  lock={{
+                    locked: `enemyHp:${index}` in locks,
+                    name: `${t('events.troop.hpEdit')} ${name}`,
+                    disabled: !!blocked,
+                    onChange: (on) => onLock({ side: 'enemy', id: index, kind: 'hp', on, value: enemy.hp }),
+                  }}
+                  maxLock={{
+                    locked: `enemyMhp:${index}` in locks,
+                    name: `${t('events.troop.mhpEdit')} ${name}`,
+                    disabled: !!blocked,
+                    onChange: (on) => onLock({ side: 'enemy', id: index, kind: 'mhp', on, value: enemy.mhp }),
+                  }}
                   onValue={(hp) => void run(`hp:${index}`, { op: 'enemyHp', index, fromEnemyId, hp }, t('events.troop.hpOk', { name, hp }))}
                   onMax={(mhp) => void run(`mhp:${index}`, { op: 'enemyMhp', index, fromEnemyId, mhp }, t('events.troop.mhpOk', { name, mhp }))}
                 />
               </td>
-              <td className="whitespace-nowrap text-ink-soft">{status}</td>
+              <td className="whitespace-nowrap text-ink-soft">
+                <span className="flex h-8 items-center">{status}</span>
+              </td>
               <td>
-                <span className="flex items-center justify-end gap-0.5">
+                <span className="flex h-8 items-center justify-end gap-0.5">
                   {enemy.appeared && !enemy.alive ? (
                     <IconAction
                       label={`${t('events.troop.revive')} ${name}`}

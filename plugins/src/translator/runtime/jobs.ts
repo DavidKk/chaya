@@ -79,7 +79,7 @@ export function createPluginTranslationJob(store: TranslationStore, translate: (
           try {
             const items = await translate([src], abort.signal)
             const item = items[0]
-            if (item?.zh && item.zh !== src) {
+            if (item?.zh && item.zh !== src && !item.error && item.status !== 'partial') {
               job.sessionDone++
               log('ok', `${src.slice(0, 60)} → ${item.zh.slice(0, 60)}`)
             } else log('warn', item?.error || '未得到译文')

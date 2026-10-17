@@ -22,6 +22,7 @@ import {
   readNwPackage,
   readTranslateSwitches,
   recoverOldIfNeeded,
+  relocateLibraryEntry,
   removeLibraryEntry,
   resolveGame,
   saveConfig,
@@ -211,6 +212,7 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
 
   const body = (await request.json().catch(() => ({}))) as {
     gameRoot?: string
+    replaceLibraryId?: string
     path?: string
     shellSource?: string
     remark?: string | null
@@ -218,6 +220,7 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
     bindEpoch?: number
   }
   const input = String(body.gameRoot || body.path || '').trim()
+  const replaceLibraryId = String(body.replaceLibraryId || '').trim()
   const hasRemark = Object.prototype.hasOwnProperty.call(body, 'remark')
   if (!input && body.shellSource === undefined && !hasRemark) {
     return apiBadRequest('缺少 gameRoot、shellSource 或 remark')
@@ -266,7 +269,7 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
 
     const prev = loadConfig()
     const existing = findLibraryEntry(prev.library, input)
-    if (existing?.remote) {
+    if (existing?.remote && !replaceLibraryId) {
       const config = saveConfig({
         gameRoot: existing.gameRoot,
         library: upsertLibraryEntry(prev.library, {
@@ -291,7 +294,7 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
       return apiBadRequest(check.error)
     }
     // 已是当前选中且库路径一致：不写盘（避免 lastOpenedAt 抖动触发控制台重复 PUT）
-    if (existing && pathEquals(prev.gameRoot, check.selected) && pathEquals(existing.gameRoot, check.selected)) {
+    if (existing && (!replaceLibraryId || existing.id === replaceLibraryId) && pathEquals(prev.gameRoot, check.selected) && pathEquals(existing.gameRoot, check.selected)) {
       return apiOk({
         config: prev,
         resolved: check,
@@ -301,14 +304,17 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
       })
     }
     const name = resolveDisplayName(check.contentRoot, input)
+    let library
+    try {
+      library = replaceLibraryId
+        ? relocateLibraryEntry(prev.library, replaceLibraryId, check.selected)
+        : upsertLibraryEntry(prev.library, { gameRoot: check.selected, name, remote: false, remark: existing?.remark ?? null })
+    } catch (error) {
+      return apiBadRequest(error instanceof Error ? error.message : '更新游戏位置失败')
+    }
     const config = saveConfig({
       gameRoot: check.selected,
-      library: upsertLibraryEntry(prev.library, {
-        gameRoot: check.selected,
-        name,
-        remote: false,
-        remark: existing?.remark ?? null,
-      }),
+      library,
       ...(body.shellSource !== undefined ? { shellSource: String(body.shellSource || '').trim() } : {}),
     })
     return apiOk({ config, resolved: check, library: config.library.map(toLibraryItemView), bindEpoch: epochGate.epoch })

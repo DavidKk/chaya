@@ -6,6 +6,14 @@ export type AgentTokenUsage = {
   total?: number
 }
 
+/** Provider-native timings; Ollama reports nanoseconds. UI should convert explicitly. */
+export type AgentModelTiming = {
+  loadDurationNs?: number
+  promptEvalDurationNs?: number
+  evalDurationNs?: number
+  totalDurationNs?: number
+}
+
 export type AgentThoughtSummary = {
   observation?: string
   decision?: string
@@ -14,7 +22,7 @@ export type AgentThoughtSummary = {
   next?: string
 }
 
-export type AgentActivityEvent = { seq: number; type: string; at?: number; data?: unknown }
+export type AgentActivityEvent = { seq: number; type: string; at?: number; data?: unknown; correlation?: { actionId?: string; toolCallId?: string } }
 
 const SECRET_KEY = /authorization|cookie|token|secret|password|api[-_]?key/i
 const SECRET_TEXT = /(bearer\s+)[\w.+\-/=]+|((?:token|secret|password|api[-_]?key)\s*[:=]\s*)[^\s,;]+/gi

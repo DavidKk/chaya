@@ -7,13 +7,21 @@ import { useNotification } from '@/components/notification/useNotification'
 import { Button, NumberInput, NumberSliderInput, Tooltip } from '@/components/sk'
 
 import type { EventsOp, EventsSlot } from '../events/types'
+import { LockEndAction } from '../lock-ui'
 
-export const tableClass = '[&_td]:px-2 [&_td]:py-1 [&_th]:px-2 [&_th]:py-1.5'
-export const VITAL_COL = '12.5rem'
-export const STATUS_COL = '5.5rem'
-export const ACTIONS_COL = '8rem'
+export const tableClass = 'table-fixed [&_td]:px-2 [&_td]:py-1 [&_td]:align-middle [&_th]:px-2 [&_th]:py-1.5'
+/** 百分比列宽，整表留在卡片内，锁和操作图标不再被裁掉 */
+export const PARTY_COLS = { actor: '16%', hp: '26%', mp: '26%', tp: '14%', status: '8%', actions: '10%' } as const
+export const ENEMY_COLS = { enemy: '28%', hp: '34%', status: '14%', actions: '24%' } as const
 /** One card per side so enemies and party read as separate blocks */
 export const cardClass = 'shrink-0 overflow-hidden rounded-[0.35rem] border border-line bg-panel'
+
+type FieldLock = {
+  locked: boolean
+  name: string
+  disabled?: boolean
+  onChange: (on: boolean) => void
+}
 
 /** Shadow root of the in-game overlay, so pickers portal inside it; null on the page */
 export function portalHost(el: HTMLElement | null): Element | null {
@@ -25,8 +33,8 @@ export function portalHost(el: HTMLElement | null): Element | null {
 export function SectionHead({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="flex min-h-9 items-center gap-2 border-b border-line px-3">
-      <h3 className="m-0 flex-1 text-[0.8125rem] leading-[1.3] font-medium text-ink">{title}</h3>
-      {children}
+      <h3 className="m-0 min-w-0 flex-1 text-[0.8125rem] leading-[1.3] font-medium text-ink">{title}</h3>
+      {children ? <span className="inline-flex shrink-0 items-center gap-1">{children}</span> : null}
     </div>
   )
 }
@@ -146,7 +154,10 @@ export function VitalInput({
   label,
   maxLabel,
   disabled,
+  maxDisabled,
   disabledReason,
+  lock,
+  maxLock,
   onValue,
   onMax,
 }: {
@@ -157,60 +168,89 @@ export function VitalInput({
   label: string
   maxLabel: string
   disabled: boolean
+  /** 上限单独禁用；缺省时跟当前值一起禁用 */
+  maxDisabled?: boolean
   disabledReason?: string
+  lock?: FieldLock
+  maxLock?: FieldLock
   onValue: (v: number) => void
   onMax: (v: number) => void
 }) {
   const current = useCommit(value, onValue)
   const cap = useCommit(max, onMax)
+  const currentDisabled = disabled || !!lock?.locked
+  const capDisabled = (maxDisabled ?? disabled) || !!maxLock?.locked
   const field = (
-    <span className="inline-flex" onKeyDownCapture={(e) => (current.onKeyDownCapture(e), cap.onKeyDownCapture(e))}>
+    <span className="inline-flex items-center" onKeyDownCapture={(e) => (current.onKeyDownCapture(e), cap.onKeyDownCapture(e))}>
       <NumberSliderInput
-        className="w-[11rem]"
+        className="w-full min-w-0 max-w-full [&_input]:!min-w-0"
         value={current.value}
         min={0}
         max={max}
-        disabled={disabled}
+        disabled={currentDisabled}
         aria-label={label}
         tooltip=""
         onSlideEnd={current.onSlideEnd}
         endAction={
-          <span className="inline-flex items-center gap-1 text-ink-soft" data-slider-ignore>
+          <span className="inline-flex h-8 items-center gap-0.5 text-ink-soft" data-slider-ignore>
+            {lock ? <LockEndAction locked={lock.locked} name={lock.name} disabled={lock.disabled} onChange={lock.onChange} /> : null}
             <span aria-hidden>/</span>
             <NumberInput
-              className="h-5 w-[4.5rem] min-w-0 rounded-none border-none bg-transparent p-0 text-ink-soft focus:border-none focus:text-ink"
+              className="h-8 w-[2.75rem] min-w-0 rounded-none border-none bg-transparent px-0 text-ink-soft focus:border-none focus:text-ink"
               value={cap.value}
               min={minMax}
               max={maxCap}
-              disabled={disabled}
+              disabled={capDisabled}
               aria-label={maxLabel}
               tooltip=""
               {...cap.input}
             />
+            {maxLock ? <LockEndAction locked={maxLock.locked} name={maxLock.name} disabled={maxLock.disabled} onChange={maxLock.onChange} /> : null}
           </span>
         }
         {...current.input}
       />
     </span>
   )
-  return disabled && disabledReason ? <Tooltip content={disabledReason}>{field}</Tooltip> : field
+  return currentDisabled && disabledReason ? <Tooltip content={disabledReason}>{field}</Tooltip> : field
 }
 
 /** Single committed number with a slider (TP) */
-export function PlainInput({ value, max, label, disabled, onValue }: { value: number; max: number; label: string; disabled: boolean; onValue: (v: number) => void }) {
+export function PlainInput({
+  value,
+  max,
+  label,
+  disabled,
+  lock,
+  onValue,
+}: {
+  value: number
+  max: number
+  label: string
+  disabled: boolean
+  lock?: FieldLock
+  onValue: (v: number) => void
+}) {
   const commit = useCommit(value, onValue)
   return (
-    <span className="inline-flex" onKeyDownCapture={commit.onKeyDownCapture}>
+    <span className="inline-flex items-center" onKeyDownCapture={commit.onKeyDownCapture}>
       <NumberSliderInput
-        className="w-[4.5rem]"
+        className="w-full min-w-0 max-w-full [&_input]:!min-w-0"
         value={commit.value}
         min={0}
         max={max}
-        disabled={disabled}
+        disabled={disabled || !!lock?.locked}
         aria-label={label}
         tooltip=""
         onSlideEnd={commit.onSlideEnd}
         {...commit.input}
+        endAction={
+          lock ? (
+            <span data-slider-ignore>
+              <LockEndAction locked={lock.locked} name={lock.name} disabled={lock.disabled} onChange={lock.onChange} />
+            </span>
+          ) : undefined
+        }
       />
     </span>
   )

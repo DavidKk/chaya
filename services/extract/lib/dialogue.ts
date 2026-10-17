@@ -1,3 +1,5 @@
+import { mvPluginText } from '@/lib/translate/mv-plugin-text'
+
 import { extractPluginText } from './plugin-text'
 import { clean, isUseful } from './text'
 
@@ -78,7 +80,7 @@ export function extractDialogueFromEvents(events: any[] | undefined, loc: Dialog
       walkEventList(page.list, (cmd) => {
         const p = paramsOf(cmd) as any[]
 
-        // MPP_ChoiceEX 将可见的选项说明放在指定注释块中；普通注释不是游戏文案。
+        // MPP_ChoiceEX stores visible choice help in designated comment blocks; ordinary comments are not game copy.
         if (cmd.code === 108) {
           flush()
           choiceHelp = /^(?:ChoiceHelp|<ChoiceHelp>|選択肢ヘルプ|<選択肢ヘルプ>)$/.test(String(p[0] || '').trim())
@@ -112,10 +114,11 @@ export function extractDialogueFromEvents(events: any[] | undefined, loc: Dialog
         }
 
         if (cmd.code === 405) {
-          flush()
+          if (block?.kind !== 's') flush()
           const line = clean(p[0])
-          if (!isUseful(line)) return
-          ordered.push({ ...base(), kind: 's', lines: [line] })
+          if (!line) return
+          if (!block) block = { ...base(), kind: 's', lines: [] }
+          block.lines.push(line)
           return
         }
 
@@ -126,6 +129,14 @@ export function extractDialogueFromEvents(events: any[] | undefined, loc: Dialog
           const row = { ...base(), kind: 'c', choices }
           delete row.face
           ordered.push(row)
+          return
+        }
+
+        if (cmd.code === 356) {
+          flush()
+          const command = mvPluginText(String(p[0] || ''))
+          const texts = command?.texts.map(clean).filter(isUseful) || []
+          if (texts.length) ordered.push({ ...base(), kind: command?.kind === 'choices' ? 'c' : 'p', ...(command?.kind === 'choices' ? { choices: texts } : { lines: texts }) })
           return
         }
 

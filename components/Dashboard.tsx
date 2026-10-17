@@ -8,6 +8,8 @@ import { DashboardSettings } from '@/components/DashboardSettings'
 import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { MacShellDialog } from '@/components/LaunchHelp'
+import { legalBar } from '@/components/layoutClasses'
+import { LegalNotice } from '@/components/legal/LegalNotice'
 import { LibraryPageSkeleton } from '@/components/LibraryPageSkeleton'
 import { LibraryRail } from '@/components/LibraryRail'
 import { useNotification } from '@/components/notification/useNotification'
@@ -216,7 +218,7 @@ export function Dashboard() {
    * 绑定游戏根目录。库内切换不弹 toast；选目录才 announce。
    * 侧栏点选只改 URL，由下方 effect 静默调用。
    */
-  async function bindGame(path: string, opts?: { announce?: string | false; staleRetry?: boolean }) {
+  async function bindGame(path: string, opts?: { announce?: string | false; staleRetry?: boolean; replaceLibraryId?: string }) {
     const next = path.trim().replace(/^['"]+|['"]+$/g, '')
     if (!next) {
       notify.warning(t('notify.needGamePath'))
@@ -236,6 +238,7 @@ export function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           gameRoot: next,
+          replaceLibraryId: opts?.replaceLibraryId,
           shellSource: shellSource || undefined,
           bindEpoch: seq,
         }),
@@ -264,7 +267,7 @@ export function Dashboard() {
         if (!opts?.staleRetry && stillCurrent()) {
           bindingRootRef.current = null
           setBusy(false)
-          await bindGame(next, { announce: false, staleRetry: true })
+          await bindGame(next, { ...opts, announce: false, staleRetry: true })
         }
         return
       }
@@ -377,7 +380,14 @@ export function Dashboard() {
       return
     }
     const entry = (status?.library || []).find((item) => rootsEqual(item.gameRoot, root))
-    if (!entry || entry.missing) return
+    if (!entry) return
+    if (entry.missing) {
+      if (busy || !diskOk) return
+      void pick('game').then((path) => {
+        if (path) return bindGame(path, { replaceLibraryId: entry.id, announce: t('notify.switchedPath') })
+      })
+      return
+    }
     if (searchParams.get('game') === entry.id) {
       const current = status?.ready ? status.config.gameRoot : ''
       if (current && libraryIdForRoot(status?.library || [], current) === entry.id) return
@@ -483,8 +493,8 @@ export function Dashboard() {
             onRemove={(root) => (browserMode ? cloud.remove(root) : removeGame(root))}
           />
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4">
-            <div className="mb-3 flex shrink-0 items-center md:hidden">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="mx-4 mt-4 mb-3 flex shrink-0 items-center md:hidden">
               <Button
                 variant="ghost"
                 size="icon"
@@ -498,16 +508,12 @@ export function Dashboard() {
               </Button>
             </div>
             {!ready ? (
-              <ChooseGameGate
-                className="min-h-0"
-                busy={browserMode ? cloud.pickerBusy : busy}
-                disabledReason={directoryDisabledReason}
-                canUseDisk={diskOk}
-                onChoose={() => void chooseGame()}
-              />
+              <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 md:pt-4">
+                <ChooseGameGate busy={browserMode ? cloud.pickerBusy : busy} disabledReason={directoryDisabledReason} canUseDisk={diskOk} onChoose={() => void chooseGame()} />
+              </div>
             ) : (
               <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('dashboard.currentGame') }}>
-                <div className="flex w-full max-w-[48rem] flex-col gap-4">
+                <div className="mx-4 mb-4 flex max-w-[48rem] flex-col gap-4 md:mt-4">
                   <DashboardGameCard
                     title={gameTitle}
                     remark={gameRemark}
@@ -609,6 +615,7 @@ export function Dashboard() {
                 </div>
               </ScrollArea>
             )}
+            {ready ? <LegalNotice kind="library" className={legalBar} /> : null}
           </div>
         </div>
       )}

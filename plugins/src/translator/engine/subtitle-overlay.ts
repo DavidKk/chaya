@@ -1,7 +1,7 @@
 import { hookMethod } from '../../helpers/game/method-hook'
 import type { Subtitle } from './dialogue-subtitles'
 
-/** 局内字幕直接使用 RPG Maker 的画布，随游戏缩放，不接管键盘或鼠标。 */
+/** Render subtitles on the RPG Maker canvas, following game scaling without intercepting keyboard or mouse input. */
 export function installSubtitleOverlay(): (subtitle: Subtitle | null, messageWindow?: InstanceType<typeof Window_Message>) => void {
   if (typeof Window_Message === 'undefined' || typeof Window_Base === 'undefined') return () => {}
   const host = window as Window & {
@@ -255,7 +255,7 @@ export function installSubtitleOverlay(): (subtitle: Subtitle | null, messageWin
       disposeWindow(win)
       return
     }
-    // MV 默认每侧 18px、MZ 12px；游戏还可覆写 padding，不能用固定总高度代替内容高度。
+    // Default padding differs between MV and MZ and games can override it; use content height rather than a fixed total height.
     const padding = Number.isFinite(win.padding) ? win.padding : Math.max(0, (win.height - win.contents.height) / 2)
     const above = messageWindow.y >= Graphics.boxHeight / 2
     const freeHeight = replacingText ? messageWindow.height : above ? messageWindow.y - 24 : Graphics.boxHeight - messageWindow.y - messageWindow.height - 24

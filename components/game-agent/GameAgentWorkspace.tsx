@@ -11,6 +11,7 @@ import { runRecoverableOperation } from '@/lib/runtime/recoverable-operation'
 import { cn } from '@/lib/utils'
 
 import { AgentActivityTimeline } from './AgentActivityTimeline'
+import { isPersistedCompanionActivity } from './companion-transcript'
 import { GameAgentRuntimeMenu } from './GameAgentRuntimeMenu'
 import {
   type AgentWorkspaceCard,
@@ -92,7 +93,7 @@ export function GameAgentWorkspace({ gameId, open = true, onClose, onConnect, re
       if (item.seq && item.seq <= eventSeqRef.current) return
       eventSeqRef.current = Math.max(eventSeqRef.current, item.seq || 0)
       const assistantId = assistantIdRef.current
-      if (['thought.updated', 'tool.completed', 'progress.updated', 'model.requested', 'model.completed', 'persistence.degraded'].includes(item.type)) {
+      if (isPersistedCompanionActivity(item.type)) {
         const { type, seq, ...data } = item
         setActivityEvents((current) => [...current.filter((event) => event.seq !== (seq || 0)), { seq: seq || current.length + 1, type, data }].slice(-200))
       }

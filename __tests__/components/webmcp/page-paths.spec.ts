@@ -4,7 +4,7 @@ const ORIGIN = 'http://127.0.0.1:3927'
 
 describe('resolveInAppPath', () => {
   it('keeps same-origin page paths with query and hash', () => {
-    expect(resolveInAppPath('/logs?level=fail#top', ORIGIN)).toBe('/logs?level=fail#top')
+    expect(resolveInAppPath('/logs/runtime?level=fail#top', ORIGIN)).toBe('/logs/runtime?level=fail#top')
     expect(resolveInAppPath(`${ORIGIN}/game`, ORIGIN)).toBe('/game')
     expect(resolveInAppPath('translate/cache', ORIGIN)).toBe('/translate/cache')
   })

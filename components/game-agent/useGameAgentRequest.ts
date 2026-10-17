@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from 'react'
 
-import { useGameLinkContext } from '@/components/GameLinkProvider'
+import { useOptionalGameLinkContext } from '@/components/GameLinkProvider'
 import { normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
 
 import { createBrowserGameAgentRequest } from './browserRequest'
@@ -10,13 +10,19 @@ import { createBrowserAgentRuntime } from './browserTurn'
 import type { GameAgentRequest } from './GameAgentWorkspace'
 
 export function useGameAgentRequest() {
-  const { browserMode, connected, roomId, send, subscribeMessages } = useGameLinkContext()
+  const link = useOptionalGameLinkContext()
+  const browserMode = link?.browserMode ?? false
+  const connected = link?.connected ?? false
+  const roomId = link?.roomId ?? ''
+  const send = link?.send
+  const subscribeMessages = link?.subscribeMessages
   const serverRequest = useCallback<GameAgentRequest>((path, init) => fetch(path, init), [])
   const browserRuntime = useMemo(() => createBrowserAgentRuntime(), [])
   const agentTask = useCallback(
     (message: Exclude<import('@/lib/runtime/game-link-protocol').AgentTaskMessage, { type: 'agent.task.result' }>, signal?: AbortSignal) =>
       new Promise<unknown>((resolve, reject) => {
         if (!connected) return reject(new Error('托管需要先连接游戏'))
+        if (!send || !subscribeMessages) return reject(new Error('游戏连接服务不可用'))
         let timeoutMs = 15_000
         try {
           const raw = localStorage.getItem('chaya.gameAgent.settings')

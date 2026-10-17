@@ -1,3 +1,4 @@
+import { GAME_STATE_SECTIONS, type GameStateSection, selectGameState } from '@/lib/game-agent/model-state'
 import {
   AGENT_HISTORY_KINDS,
   AGENT_INPUT_KEYS,
@@ -9,7 +10,7 @@ import {
 } from '@/lib/runtime/agent-protocol'
 import type { PluginToolMeta } from '@/lib/runtime/plugin-tools'
 
-import { optList, optNum, optObj, optStr, reqStr } from './args'
+import { optBool, optList, optNum, optObj, optStr, reqStr } from './args'
 import { mcpImage, type ToolImpls, type ToolRun } from './types'
 
 const SCENE_ACTIONS = ['scene:status', 'scene:equip', 'scene:skill', 'scene:item', 'scene:menu', 'scene:load', 'scene:save', 'scene:options', 'scene:debug', 'scene:pop'] as const
@@ -38,7 +39,9 @@ export function makeLiveTools({ games, call, quit }: LiveDeps): ToolImpls {
     },
 
     async chaya_live_state(args) {
-      return call(optStr(args, 'gameId'), 'game.state', {})
+      const sections = optList(args, 'sections')
+      if (sections.some((section) => !GAME_STATE_SECTIONS.includes(section as GameStateSection))) throw new Error(`sections 只能包含：${GAME_STATE_SECTIONS.join(', ')}`)
+      return selectGameState(await call(optStr(args, 'gameId'), 'game.state', {}), sections as GameStateSection[])
     },
 
     async chaya_live_ui(args) {
@@ -109,7 +112,11 @@ export function makeLiveTools({ games, call, quit }: LiveDeps): ToolImpls {
     },
 
     async chaya_live_interact(args) {
-      return call(optStr(args, 'gameId'), 'player.interact', { eventId: reqNum(args, 'eventId') })
+      const openDoors = optBool(args, 'openDoors')
+      return call(optStr(args, 'gameId'), 'player.interact', {
+        eventId: reqNum(args, 'eventId'),
+        ...(openDoors === undefined ? {} : { openDoors }),
+      })
     },
 
     async chaya_agent_recall(args) {

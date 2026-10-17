@@ -1,5 +1,6 @@
 export type AgentCapability = 'play' | 'ask' | 'companion'
-import type { AgentThoughtSummary, AgentTokenUsage } from '@/lib/game-agent/activity'
+import type { AgentModelTiming, AgentThoughtSummary, AgentTokenUsage } from '@/lib/game-agent/activity'
+import type { GameplayActivityEvent } from '@/lib/game-agent/gameplay-activity'
 
 export type RuntimeMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -9,17 +10,19 @@ export type RuntimeMessage = {
   /** Model reasoning. Shown in the chat log; omitted when this message is sent back to the model. */
   thought?: string
   usage?: AgentTokenUsage
+  timing?: AgentModelTiming
 }
 export type RuntimeToolCall = { id?: string; function: { name: string; arguments: Record<string, unknown> } }
 export type RuntimeTool = { name: string; description?: string; inputSchema?: Record<string, unknown>; groups?: string[] }
 export type RuntimeEvent =
   | { type: 'phase'; phase: 'observing' | 'thinking' | 'acting' | 'verifying'; step: number; maxSteps: number }
   | { type: 'prompt.recorded'; role: 'system' | 'user'; content: string }
-  | { type: 'model.requested'; model?: string; messageCount: number; contextChars?: number }
-  | { type: 'model.completed'; model?: string; text: string; thought?: string; usage?: AgentTokenUsage; durationMs: number }
+  | { type: 'model.requested'; model?: string; messageCount: number; contextChars?: number; startedAt?: number; contextDurationMs?: number }
+  | { type: 'model.completed'; model?: string; text: string; thought?: string; usage?: AgentTokenUsage; timing?: AgentModelTiming; durationMs: number }
   | { type: 'thought.updated'; summary: AgentThoughtSummary }
-  | { type: 'tool.started'; name: string; callId: string; input: Record<string, unknown>; startedAt: number }
-  | { type: 'tool.completed'; name: string; callId: string; ok: boolean; output: unknown; durationMs: number }
+  | { type: 'tool.started'; name: string; callId: string; stepId?: string; actionId?: string; input: Record<string, unknown>; startedAt: number }
+  | { type: 'tool.completed'; name: string; callId: string; stepId?: string; actionId?: string; ok: boolean; output: unknown; durationMs: number }
+  | GameplayActivityEvent
 
 export type AgentHost = {
   model: { complete: (messages: RuntimeMessage[], tools: RuntimeTool[], signal: AbortSignal) => Promise<RuntimeMessage> }

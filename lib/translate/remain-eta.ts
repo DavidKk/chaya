@@ -1,4 +1,4 @@
-/** 翻译任务剩余时间：只按本会话实测吞吐估算，样本不足不编造。 */
+/** Estimate translation time from measured session throughput only; return no estimate when samples are insufficient. */
 
 const ETA_MIN_DONE = 8
 const ETA_MIN_ELAPSED_MS = 12_000

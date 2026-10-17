@@ -1,12 +1,16 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiBadRequest, apiError, apiOk } from '@/initializer/response'
+import { parseCacheLiveFlag, parseCacheNsfwFlag } from '@/lib/translate/cache-engine-kind'
+import { parseCacheLang } from '@/lib/translate/cache-lang'
 import { parseSharedCacheSortDir, parseSharedCacheSortKey } from '@/lib/translate/cache-query'
 import {
   deleteSharedTranslateCache,
+  getSharedTranslateCacheById,
   importSharedTranslateCache,
   parseTranslateImportText,
   querySharedTranslateCache,
   requireDisk,
+  setSharedTranslateCacheNsfw,
   updateSharedTranslateCache,
 } from '@/services/disk-ops'
 import { isIdenticalTranslation } from '@/services/translate/text-classify'
@@ -21,12 +25,27 @@ export const GET = defineApiRoute('get:/api/translate-cache', async ({ request }
   if (denied) return denied
 
   const url = new URL(request.url)
+  const idRaw = url.searchParams.get('id')
+  if (idRaw != null && idRaw !== '') {
+    const id = Math.floor(Number(idRaw) || 0)
+    if (id <= 0) return apiBadRequest('无效的缓存 id', 'CACHE_ID_INVALID')
+    try {
+      const item = getSharedTranslateCacheById(id)
+      if (!item) return apiError(404, 'CACHE_NOT_FOUND', '未找到该缓存条目')
+      return apiOk({ item })
+    } catch (err) {
+      return apiError(500, 'CACHE_QUERY_FAILED', err instanceof Error ? err.message : String(err))
+    }
+  }
+
   const page = Number(url.searchParams.get('page') || '1')
   const pageSize = Number(url.searchParams.get('pageSize') || '50')
   const q = url.searchParams.get('q') || ''
   const engine = url.searchParams.get('engine') || ''
-  const nsfwRaw = url.searchParams.get('nsfw') || ''
-  const nsfw = nsfwRaw === '1' || nsfwRaw === 'true'
+  const nsfwFlag = parseCacheNsfwFlag(url.searchParams.get('nsfw'))
+  const live = parseCacheLiveFlag(url.searchParams.get('live'))
+  const from = parseCacheLang(url.searchParams.get('from'))
+  const to = parseCacheLang(url.searchParams.get('to'))
   const sort = url.searchParams.get('sort') || 'updated'
   const order = url.searchParams.get('order') || 'desc'
 
@@ -36,7 +55,11 @@ export const GET = defineApiRoute('get:/api/translate-cache', async ({ request }
       pageSize,
       q,
       engine,
-      nsfw,
+      nsfw: nsfwFlag === 'nsfw',
+      nsfwFlag,
+      live,
+      from,
+      to,
       sort: parseSharedCacheSortKey(sort),
       order: parseSharedCacheSortDir(order),
     })
@@ -94,6 +117,7 @@ export const POST = defineApiRoute('post:/api/translate-cache', async ({ request
       overwrite,
       format: parsed.format,
       skippedLines: parsed.skipped,
+      alignments: parsed.alignments,
       engine: filename ? `import:${filename}` : 'import',
     })
 
@@ -103,20 +127,40 @@ export const POST = defineApiRoute('post:/api/translate-cache', async ({ request
   }
 })
 
-/** 修改一条缓存译文（原文主键不变） */
+/** 修改一条缓存译文或手动 NSFW 标记（原文主键不变） */
 export const PATCH = defineApiRoute('patch:/api/translate-cache', async ({ request }) => {
   const denied = requireDisk()
   if (denied) return denied
 
   try {
-    const body = (await request.json().catch(() => ({}))) as { src?: string; zh?: string }
+    const body = (await request.json().catch(() => ({}))) as {
+      src?: string
+      zh?: string
+      from?: string
+      to?: string
+      nsfw?: boolean
+    }
     const src = String(body.src ?? '')
     const zh = String(body.zh ?? '').trim()
+    const nsfwProvided = typeof body.nsfw === 'boolean'
+    const pair = { from: body.from, to: body.to }
     if (!src) return apiBadRequest('缺少原文', 'CACHE_SRC_REQUIRED')
-    if (!zh) return apiBadRequest('译文不能为空', 'CACHE_ZH_REQUIRED')
-    if (isIdenticalTranslation(src, zh)) return apiBadRequest('原文与译文相同，无需保存', 'CACHE_IDENTICAL')
 
-    const result = updateSharedTranslateCache(src, zh, 'manual')
+    if (!zh) {
+      if (!nsfwProvided) return apiBadRequest('译文不能为空', 'CACHE_ZH_REQUIRED')
+      const result = setSharedTranslateCacheNsfw(src, body.nsfw as boolean, pair)
+      if (!result.updated) return apiError(404, 'CACHE_NOT_FOUND', '未找到该原文对应的缓存')
+      return apiOk(result)
+    }
+
+    if (isIdenticalTranslation(src, zh)) {
+      if (!nsfwProvided) return apiBadRequest('原文与译文相同，无需保存', 'CACHE_IDENTICAL')
+      const result = setSharedTranslateCacheNsfw(src, body.nsfw as boolean, pair)
+      if (!result.updated) return apiError(404, 'CACHE_NOT_FOUND', '未找到该原文对应的缓存')
+      return apiOk(result)
+    }
+
+    const result = updateSharedTranslateCache(src, zh, 'manual', pair, nsfwProvided ? { nsfw: body.nsfw } : undefined)
     if (!result.updated) return apiError(404, 'CACHE_NOT_FOUND', '未找到该原文对应的缓存')
     return apiOk(result)
   } catch (err) {
@@ -124,17 +168,17 @@ export const PATCH = defineApiRoute('patch:/api/translate-cache', async ({ reque
   }
 })
 
-/** 按原文删除一条缓存 */
+/** 按原文与语言对删除一条缓存 */
 export const DELETE = defineApiRoute('delete:/api/translate-cache', async ({ request }) => {
   const denied = requireDisk()
   if (denied) return denied
 
   try {
-    const body = (await request.json().catch(() => ({}))) as { src?: string }
+    const body = (await request.json().catch(() => ({}))) as { src?: string; from?: string; to?: string }
     const src = String(body.src ?? '')
     if (!src) return apiBadRequest('缺少原文', 'CACHE_SRC_REQUIRED')
 
-    const result = deleteSharedTranslateCache(src)
+    const result = deleteSharedTranslateCache(src, { from: body.from, to: body.to })
     if (!result.deleted) return apiError(404, 'CACHE_NOT_FOUND', '未找到该原文对应的缓存')
     return apiOk(result)
   } catch (err) {

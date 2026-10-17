@@ -12,10 +12,12 @@ import {
   setGameHotkeysCache,
   toolPanelFromHotkeyTarget,
 } from '@/components/game-edit/run-hotkeys'
-import { type ActorPaneId, isActorPaneId, isEditTab, isTabId, OVERLAY_MAIN_TABS, parseTabId, type TabId, usesEventsSlot } from '@/components/game-edit/tabs'
+import { type ActorPaneId, isActorPaneId, isEditTab, isTabId, OVERLAY_MAIN_TABS, parseTabId, type TabId } from '@/components/game-edit/tabs'
 import {
   type ActorDraft,
   type ActorVitalLockKind,
+  type BattleLockChange,
+  battleLockKey,
   countKey,
   defaultActorDraft,
   emptySession,
@@ -47,7 +49,7 @@ import type { GameSavesController } from '../game-saves/controller'
 import { applyGameSpeed, applyRunAction, applyRunFlag, applySpeed, runActionNeedsClose } from '../runtime/apply-run'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
-import { buildLiveCatalog, type LiveSessionScope, readLiveSession, setItemCount, setPartyGold } from '../session/live-session'
+import { buildLiveCatalogSlices, type CatalogSlice, type LiveSessionScope, readLiveSession, setItemCount, setPartyGold } from '../session/live-session'
 import { bootstrapGameEditSession, diskStateFromSession, ensureGameEditDiskApplied, loadGameEditDisk, scheduleSaveGameEditDisk } from '../session/persist'
 import { publishRemoteHotkeys, syncRemoteMirror } from '../session/remote-bridge'
 import { FloatingGameSaves } from './FloatingGameSaves'
@@ -95,7 +97,7 @@ function initialView(): OverlayView {
     filter: typeof saved?.filter === 'string' ? saved.filter : '',
     onlyOwned: saved?.onlyOwned === true,
     onlyNamed: saved?.onlyNamed !== false,
-    translateTab: saved?.translateTab === 'seed' ? 'seed' : 'play',
+    translateTab: saved?.translateTab === 'play' ? 'play' : 'seed',
     translateSection: saved?.translateSection === 'cache' ? 'cache' : 'run',
   }
 }
@@ -111,7 +113,7 @@ export function captureGameEditView() {
   const tab = activeTab || undefined
   // 旧热替换回退：用 data 属性，勿依赖多语言 aria 文案
   const mainTab = shadow.querySelector<HTMLElement>('[data-main-nav-id][aria-current="page"]')?.dataset.mainNavId
-  const activeTranslateTab = shadow.querySelector<HTMLElement>('[role="tablist"][aria-label="翻译配置"] [role="tab"][aria-selected="true"]')?.dataset.navId
+  const activeTranslateTab = shadow.querySelector<HTMLElement>('[data-translate-run-nav] [role="tab"][aria-selected="true"]')?.dataset.navId
   const activeTranslateSection = shadow.querySelector<HTMLElement>('[role="tablist"][aria-label="翻译分区"] [role="tab"][aria-selected="true"]')?.dataset.navId
   // 新版写模块 id（translate / assist…），旧版写 tab id（trans / settings…）
   const mainPage = mainTab && mainTab in OVERLAY_MAIN_TABS ? OVERLAY_MAIN_TABS[mainTab as keyof typeof OVERLAY_MAIN_TABS] : mainTab
@@ -125,17 +127,32 @@ export function captureGameEditView() {
 }
 
 function scopeForTab(tab: TabId): LiveSessionScope {
-  if (tab === 'run' || tab === 'trans') return 'run'
-  if (tab === 'bag' || tab === 'item' || tab === 'weapon' || tab === 'armor') return 'items'
+  if (tab === 'bag') return 'items'
+  if (tab === 'item') return 'item'
+  if (tab === 'weapon') return 'weapon'
+  if (tab === 'armor') return 'armor'
   if (tab === 'var') return 'vars'
-  if (tab === 'sw' || tab === 'common') return 'switches'
+  if (tab === 'sw') return 'switches'
   if (tab === 'actor') return 'actors'
-  if (tab === 'map') return 'full'
+  if (tab === 'map' || tab === 'common') return 'events'
   return 'run'
 }
 
-function tabNeedsCatalog(tab: TabId): boolean {
-  return tab !== 'run' && tab !== 'trans' && tab !== 'mcp' && tab !== 'settings' && tab !== 'about' && tab !== 'data' && !usesEventsSlot(tab)
+/** 当前页真正画出来的目录。角色的技能/状态要切到对应子页才建。 */
+function catalogSlicesFor(tab: TabId, actorPane: ActorPaneId): CatalogSlice[] {
+  if (tab === 'bag') return ['items', 'weapons', 'armors']
+  if (tab === 'item') return ['items']
+  if (tab === 'weapon') return ['weapons']
+  if (tab === 'armor') return ['armors']
+  if (tab === 'var') return ['variables']
+  if (tab === 'sw') return ['switches']
+  if (tab === 'actor') {
+    const slices: CatalogSlice[] = ['actors', 'classes']
+    if (actorPane === 'skills') slices.push('skills')
+    if (actorPane === 'states') slices.push('states')
+    return slices
+  }
+  return []
 }
 
 /** In-game React panel: shared GameEditWorkbench + runtime data */
@@ -178,28 +195,26 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   const [error, setError] = useState('')
   const [bootstrapping, setBootstrapping] = useState(false)
   const lastSavedRef = useRef('')
-  const tabRef = useRef(tab)
-  const catalogReadyRef = useRef(false)
-  tabRef.current = tab
+  const loadedSlicesRef = useRef(new Set<CatalogSlice>())
+  const bootEpochRef = useRef(0)
+  const [bootEpoch, setBootEpoch] = useState(0)
 
-  const refresh = useCallback((explicitTab?: TabId) => {
+  const refresh = useCallback((explicitTab: TabId, explicitPane: ActorPaneId) => {
     try {
       if (!$gameParty) {
         setCatalog(null)
+        loadedSlicesRef.current.clear()
         setError(tRef.current('edit.needSave'))
         return
       }
       ensureGameEditDiskApplied()
-      const t = explicitTab ?? tabRef.current
-      const scope = scopeForTab(t)
-      if (tabNeedsCatalog(t)) {
-        if (!catalogReadyRef.current) {
-          setCatalog(buildLiveCatalog())
-          catalogReadyRef.current = true
-        }
+      const slices = catalogSlicesFor(explicitTab, explicitPane).filter((slice) => !loadedSlicesRef.current.has(slice))
+      if (slices.length) {
+        setCatalog((prev) => buildLiveCatalogSlices(slices, prev))
+        for (const slice of slices) loadedSlicesRef.current.add(slice)
       }
       setSession((prev) => {
-        const live = readLiveSession(prev, scope)
+        const live = readLiveSession(prev, scopeForTab(explicitTab))
         const disk = loadGameEditDisk()
         if (!disk) return live
         return { ...live, locks: { ...disk.locks, ...live.locks } }
@@ -207,15 +222,17 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
       setError('')
     } catch (err) {
       setCatalog(null)
-      catalogReadyRef.current = false
+      loadedSlicesRef.current.clear()
       setError(err instanceof Error ? err.message : tRef.current('edit.readFailed'))
     }
   }, [])
 
-  /** 打开：下一帧再 bootstrap + 轻量 refresh，先让 host 可见 */
+  /** 打开：下一帧再读盘出壳，先让 host 可见。读完才允许按页扫描。 */
   useEffect(() => {
     if (!open) return
     let cancelled = false
+    const epoch = bootEpochRef.current + 1
+    bootEpochRef.current = epoch
     setBootstrapping(true)
     const id = window.requestAnimationFrame(() => {
       window.setTimeout(() => {
@@ -225,7 +242,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
           const boot = bootstrapGameEditSession()
           setSession(boot)
           setGameHotkeysCache(boot.hotkeys)
-          refresh(tabRef.current)
+          setBootEpoch(epoch)
         } catch (err) {
           setError(err instanceof Error ? err.message : tRef.current('edit.initFailed'))
         } finally {
@@ -237,20 +254,13 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
       cancelled = true
       window.cancelAnimationFrame(id)
     }
-  }, [open, refresh])
+  }, [open])
 
-  /** 面板打开时按当前 tab 定时刷新；关面板停表，且只扫当前 scope */
+  /** 当前页打开后再读这一页。已建过的目录块不再扫，关着的页不轮询。 */
   useEffect(() => {
-    if (!open) return
-    const id = window.setInterval(() => refresh(), 2000)
-    return () => window.clearInterval(id)
-  }, [open, refresh])
-
-  /** 切 tab：只拉该页需要的数据；需要目录时才建 catalog */
-  useEffect(() => {
-    if (!open) return
-    refresh(tab)
-  }, [tab, open, refresh])
+    if (!open || bootEpoch === 0 || bootEpoch !== bootEpochRef.current) return
+    refresh(tab, actorPane)
+  }, [tab, actorPane, open, bootEpoch, refresh])
 
   useEffect(() => {
     if (!open) return
@@ -366,6 +376,18 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
       const draft = prev.actors[actorId]
       const owned = kind === 'skills' ? (draft?.skillIds || []).includes(entryId) : (draft?.stateIds || []).includes(entryId)
       locks[key] = owned ? 1 : 0
+      return { ...prev, locks }
+    })
+  }
+
+  const setBattleLock = (change: BattleLockChange) => {
+    const kind = change.side === 'actor' ? change.kind : change.kind === 'hp' ? 'enemyHp' : 'enemyMhp'
+    Cheats.setLock(kind, change.id, change.on, change.value)
+    const key = battleLockKey(change)
+    setSession((prev) => {
+      const locks = { ...prev.locks }
+      if (!change.on) delete locks[key]
+      else locks[key] = change.value
       return { ...prev, locks }
     })
   }
@@ -602,6 +624,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
               onActorChange={setActor}
               onActorOwnedLockChange={setActorOwnedLock}
               onActorVitalLockChange={setActorVitalLock}
+              onBattleLock={setBattleLock}
               events={eventsSlot}
               saveData={saveDataSlot}
             />

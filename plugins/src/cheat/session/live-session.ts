@@ -8,8 +8,10 @@ import { itemLabel, tName } from '../console/item-label'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
 
-/** 按需扫描：局内面板只刷当前 tab 需要的块，避免每 2s 全表扫 */
-export type LiveSessionScope = 'run' | 'items' | 'vars' | 'switches' | 'actors' | 'full'
+/** 局内面板只读当前页。`items` / `events` / `full` 仍扫三类持有数；单页用 `item` / `weapon` / `armor`。 */
+export type LiveSessionScope = 'run' | 'item' | 'weapon' | 'armor' | 'items' | 'vars' | 'switches' | 'actors' | 'events' | 'full'
+
+export type CatalogSlice = 'items' | 'weapons' | 'armors' | 'variables' | 'switches' | 'actors' | 'skills' | 'states' | 'classes'
 
 function catalogFromDb(db: Array<{ id?: number; name?: string; description?: string } | null> | undefined): CatalogEntry[] {
   if (!db) return []
@@ -39,21 +41,42 @@ function namesFromSystem(list: unknown): CatalogEntry[] {
   return out
 }
 
-export function buildLiveCatalog(): GameEditCatalog {
+function emptyLiveCatalog(): GameEditCatalog {
   return {
     ok: true,
     contentRoot: '',
     source: 'disk',
-    items: catalogFromDb($dataItems),
-    weapons: catalogFromDb($dataWeapons),
-    armors: catalogFromDb($dataArmors),
-    variables: namesFromSystem($dataSystem?.variables),
-    switches: namesFromSystem($dataSystem?.switches),
-    actors: catalogFromDb($dataActors),
-    skills: catalogFromDb($dataSkills),
-    states: catalogFromDb($dataStates),
-    classes: catalogFromDb($dataClasses),
+    items: [],
+    weapons: [],
+    armors: [],
+    variables: [],
+    switches: [],
+    actors: [],
+    skills: [],
+    states: [],
+    classes: [],
   }
+}
+
+/** 只建当前页要的目录块，其余沿用已有结果。 */
+export function buildLiveCatalogSlices(slices: readonly CatalogSlice[], prev?: GameEditCatalog | null): GameEditCatalog {
+  const next = prev ? { ...prev } : emptyLiveCatalog()
+  for (const slice of slices) {
+    if (slice === 'items') next.items = catalogFromDb($dataItems)
+    else if (slice === 'weapons') next.weapons = catalogFromDb($dataWeapons)
+    else if (slice === 'armors') next.armors = catalogFromDb($dataArmors)
+    else if (slice === 'variables') next.variables = namesFromSystem($dataSystem?.variables)
+    else if (slice === 'switches') next.switches = namesFromSystem($dataSystem?.switches)
+    else if (slice === 'actors') next.actors = catalogFromDb($dataActors)
+    else if (slice === 'skills') next.skills = catalogFromDb($dataSkills)
+    else if (slice === 'states') next.states = catalogFromDb($dataStates)
+    else next.classes = catalogFromDb($dataClasses)
+  }
+  return next
+}
+
+export function buildLiveCatalog(): GameEditCatalog {
+  return buildLiveCatalogSlices(['items', 'weapons', 'armors', 'variables', 'switches', 'actors', 'skills', 'states', 'classes'])
 }
 
 function syncLocksIntoSession(prev: SessionState): Record<string, number> {
@@ -76,6 +99,7 @@ function readRunFields(
   | 'alwaysDash'
   | 'god'
   | 'autoWin'
+  | 'autoBattle'
   | 'through'
   | 'autotalk'
   | 'encounter'
@@ -99,6 +123,7 @@ function readRunFields(
     alwaysDash: typeof ConfigManager !== 'undefined' ? !!ConfigManager.alwaysDash : prev.alwaysDash,
     god: Cheats.getGod(),
     autoWin: Cheats.getAutoWin(),
+    autoBattle: Cheats.getAutoBattle(),
     through: Cheats.getThrough(),
     autotalk: typeof window.ChayaEdit?.autoTalk === 'function' ? !!window.ChayaEdit.autoTalk() : prev.autotalk,
     encounter: RunCheats.getEncounter(),
@@ -112,7 +137,7 @@ function readRunFields(
   }
 }
 
-function readItemCounts(prev: SessionState): { counts: Record<string, number>; locks: Record<string, number> } {
+function readItemCounts(prev: SessionState, kinds: readonly ItemKind[]): { counts: Record<string, number>; locks: Record<string, number> } {
   const counts: Record<string, number> = { ...prev.counts }
   const locks = syncLocksIntoSession(prev)
   const push = (kind: ItemKind, db: typeof $dataItems) => {
@@ -126,10 +151,18 @@ function readItemCounts(prev: SessionState): { counts: Record<string, number>; l
       else delete locks[key]
     }
   }
-  push('item', $dataItems)
-  push('weapon', $dataWeapons)
-  push('armor', $dataArmors)
+  if (kinds.includes('item')) push('item', $dataItems)
+  if (kinds.includes('weapon')) push('weapon', $dataWeapons)
+  if (kinds.includes('armor')) push('armor', $dataArmors)
   return { counts, locks }
+}
+
+function itemKindsForScope(scope: LiveSessionScope): ItemKind[] | null {
+  if (scope === 'item') return ['item']
+  if (scope === 'weapon') return ['weapon']
+  if (scope === 'armor') return ['armor']
+  if (scope === 'items' || scope === 'events' || scope === 'full') return ['item', 'weapon', 'armor']
+  return null
 }
 
 function readVars(prev: SessionState, locksIn: Record<string, number>): { vars: Record<number, number>; locks: Record<string, number> } {
@@ -216,27 +249,35 @@ function readActors(prev: SessionState, locksIn: Record<string, number>): { acto
       skillIds: Array.isArray(info.skills) ? info.skills.map(Number).filter((n) => n > 0) : [],
       stateIds: Array.isArray(info.states) ? info.states.map(Number).filter((n) => n > 0) : [],
     }
-    for (const kind of ['level', 'exp', 'hp', 'mp'] as const) {
+    for (const kind of ['level', 'exp', 'hp', 'mp', 'mhp', 'mmp', 'tp'] as const) {
       const key = lockKeyForActorVital(kind, i)
-      if (Cheats.isLocked(kind, i)) {
-        const d = actors[i]!
-        locks[key] = kind === 'level' ? d.level : kind === 'exp' ? d.exp : kind === 'hp' ? d.hp : d.mp
-      } else {
-        delete locks[key]
-      }
+      if (Cheats.isLocked(kind, i)) locks[key] = Cheats.lockValue(kind, i) ?? 0
+      else delete locks[key]
     }
   }
   return { actors, locks }
 }
 
 /**
- * 读局内会话。默认 `full`（远程桥）；局内面板传当前 tab 对应 scope，避免未打开页仍全表扫描。
+ * 读局内会话。默认 `full`（远程桥）。局内面板只传当前页的 scope，地图/公共事件用 `events`（条件要用的开关、变量、持有数）。
  */
+/** 敌方锁只在本场战斗有效，不进磁盘；每次读取按 Cheats 里还在的锁重写。 */
+function syncEnemyLocks(locks: Record<string, number>): Record<string, number> {
+  const next = { ...locks }
+  for (const key of Object.keys(next)) {
+    if (key.startsWith('enemyHp:') || key.startsWith('enemyMhp:')) delete next[key]
+  }
+  for (const entry of Cheats.listLocks()) {
+    if (entry.kind === 'enemyHp' || entry.kind === 'enemyMhp') next[`${entry.kind}:${entry.id}`] = entry.value
+  }
+  return next
+}
+
 export function readLiveSession(prev: SessionState, scope: LiveSessionScope = 'full'): SessionState {
   if (!$gameParty) return prev
   const run = readRunFields(prev)
   if (scope === 'run') {
-    return { ...prev, ...run, locks: syncLocksIntoSession(prev) }
+    return { ...prev, ...run, locks: syncEnemyLocks(syncLocksIntoSession(prev)) }
   }
 
   let locks = syncLocksIntoSession(prev)
@@ -245,13 +286,13 @@ export function readLiveSession(prev: SessionState, scope: LiveSessionScope = 'f
   let switches = prev.switches
   let actors = prev.actors
 
-  const wantItems = scope === 'items' || scope === 'full'
-  const wantVars = scope === 'vars' || scope === 'full'
-  const wantSw = scope === 'switches' || scope === 'full'
+  const kinds = itemKindsForScope(scope)
+  const wantVars = scope === 'vars' || scope === 'events' || scope === 'full'
+  const wantSw = scope === 'switches' || scope === 'events' || scope === 'full'
   const wantActors = scope === 'actors' || scope === 'full'
 
-  if (wantItems) {
-    const next = readItemCounts({ ...prev, locks })
+  if (kinds) {
+    const next = readItemCounts({ ...prev, locks }, kinds)
     counts = next.counts
     locks = next.locks
   }
@@ -277,7 +318,7 @@ export function readLiveSession(prev: SessionState, scope: LiveSessionScope = 'f
     counts,
     vars,
     switches,
-    locks,
+    locks: syncEnemyLocks(locks),
     actors,
   }
 }

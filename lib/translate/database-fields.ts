@@ -1,4 +1,4 @@
-/** RPG Maker 数据库可见文本字段，Web 抽取与局内抽取共用。 */
+/** Visible RPG Maker database fields shared by web and in-game extraction. */
 export const DB_SPECS: [string, string[], string][] = [
   ['Actors.json', ['name', 'nickname', 'profile'], 'actors'],
   ['Classes.json', ['name'], 'classes'],

@@ -215,7 +215,7 @@ export function LibraryRail({
                           controlDisabled,
                           'focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]'
                         )}
-                        disabled={busy || removing || entry.missing}
+                        disabled={busy || removing || (entry.missing && !canUseDisk)}
                         aria-current={selected ? 'true' : undefined}
                         title={remote ? `${entry.name}（远程）` : entry.gameRoot}
                         onClick={() => {
@@ -236,6 +236,7 @@ export function LibraryRail({
                           <TruncateText text={entry.remark?.trim() || entry.name} className="block text-[0.9rem] font-semibold tracking-[-0.01em] text-ink" />
                           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.72rem] text-ink-soft">
                             {entry.remark?.trim() ? <TruncateText text={entry.name} /> : null}
+                            {entry.missing ? <span className="text-fail">{t('library.relocate')}</span> : null}
                             {entry.hasShell && !entry.missing ? <span>{t('library.shellReady')}</span> : null}
                             {fingerprint && fingerprint.engine !== 'unknown' ? (
                               <span>{fingerprint.engineVersion ? `${fingerprint.engine} ${fingerprint.engineVersion}` : fingerprint.engine}</span>

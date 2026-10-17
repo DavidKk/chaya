@@ -16,7 +16,7 @@ import { RunCheats } from '../runtime/cheats-run'
 
 const FILE_REL = gameContentRelPath('gameEdit')
 const LEGACY_NAMES = LEGACY_FLAT_FILES.gameEdit
-const CHEAT_LOCK_KINDS = new Set<string>(['item', 'weapon', 'armor', 'var', 'gold', 'hp', 'mp', 'sw', 'level', 'exp'])
+const CHEAT_LOCK_KINDS = new Set<string>(['item', 'weapon', 'armor', 'var', 'gold', 'hp', 'mp', 'mhp', 'mmp', 'tp', 'sw', 'level', 'exp'])
 
 export type GameEditDiskRun = {
   walkRate?: number
@@ -27,6 +27,7 @@ export type GameEditDiskRun = {
   alwaysDash?: boolean
   god?: boolean
   autoWin?: boolean
+  autoBattle?: boolean
   through?: boolean
   autotalk?: boolean
   encounter?: boolean
@@ -102,6 +103,7 @@ function normalizeDisk(raw: unknown): GameEditDiskState | null {
       alwaysDash: asBool(runIn.alwaysDash),
       god: asBool(runIn.god),
       autoWin: asBool(runIn.autoWin),
+      autoBattle: asBool(runIn.autoBattle),
       through: asBool(runIn.through),
       autotalk: asBool(runIn.autotalk),
       encounter: asBool(runIn.encounter),
@@ -170,6 +172,7 @@ export function diskStateFromSession(session: SessionState): GameEditDiskState {
       alwaysDash: session.alwaysDash,
       god: session.god,
       autoWin: session.autoWin,
+      autoBattle: session.autoBattle,
       through: session.through,
       autotalk: session.autotalk,
       encounter: session.encounter,
@@ -213,6 +216,7 @@ export function applyGameEditDisk(disk: GameEditDiskState) {
     'alwaysDash',
     'god',
     'autoWin',
+    'autoBattle',
     'through',
     'autotalk',
     'encounter',
@@ -247,6 +251,7 @@ export function mergeDiskIntoSession(prev: SessionState, disk: GameEditDiskState
     alwaysDash: run.alwaysDash ?? prev.alwaysDash,
     god: run.god ?? prev.god,
     autoWin: run.autoWin ?? prev.autoWin,
+    autoBattle: run.autoBattle ?? prev.autoBattle,
     through: run.through ?? prev.through,
     autotalk: run.autotalk ?? prev.autotalk,
     encounter: run.encounter ?? prev.encounter,

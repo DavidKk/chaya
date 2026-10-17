@@ -1,6 +1,6 @@
 /** Web ↔ 游戏 DataChannel 消息（JSON） */
 
-import type { ActorDraft, ActorVitalLockKind, ItemKind, RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
+import type { ActorDraft, ActorVitalLockKind, BattleLockChange, ItemKind, RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
 import type { ActorVitalKey, BattleState } from '@/lib/game/battle'
 import type { CommonEventsData, MapDetailData, SelfSwitchLetter } from '@/lib/game/events'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
@@ -33,6 +33,10 @@ export type GameLinkHello = {
   name?: string
   contentRoot?: string
   gameRoot?: string
+  libraryGameId?: string
+  runtimeInstanceId?: string
+  pluginInstanceId?: string
+  connectionId?: string
 }
 
 export type GameLinkQuit = { type: 'quit'; reason?: string }
@@ -64,6 +68,7 @@ export type GameEditCmdOp =
   | { op: 'expRate'; value: number }
   | { op: 'actor'; id: number; patch: Partial<ActorDraft> }
   | { op: 'actorVitalLock'; actorId: number; kind: ActorVitalLockKind; on: boolean; value: number }
+  | ({ op: 'battleLock' } & BattleLockChange)
   | { op: 'actorOwnedLock'; actorId: number; kind: 'skills' | 'states'; entryId: number; on: boolean; owned: boolean }
   /** `from`: start at this command index of the list (entering the branch it sits in) */
   | { op: 'commonEvent'; id: number; from?: number }
@@ -235,6 +240,8 @@ export type AgentTaskMessage =
       companionCharacter?: string
       surface?: string
       thinking?: boolean
+      /** From classify; batch triggers the reconcile job path (docs/technical/game-agent-jobs.md). */
+      shape?: 'single' | 'batch' | 'open'
       routine?: import('@/lib/game-agent/runtime/types').AgentRoutine
       goal: string
     }
@@ -245,6 +252,10 @@ export type AgentTaskMessage =
   | { type: 'agent.task.events'; requestId: string; taskId: string; afterSeq: number }
   | { type: 'agent.task.clear'; requestId: string; taskId?: string }
   | { type: 'agent.task.recall'; requestId: string; conversationId?: string; query?: string; limit?: number; offset?: number }
+  | { type: 'agent.trace.list'; requestId: string }
+  | { type: 'agent.trace.read'; requestId: string; taskId: string }
+  | { type: 'agent.trace.export'; requestId: string; taskId: string }
+  | { type: 'agent.trace.remove'; requestId: string; taskId?: string }
   | { type: 'agent.config.put'; requestId: string; config: unknown }
   | { type: 'agent.task.result'; requestId: string; ok: boolean; data?: unknown; error?: string }
 

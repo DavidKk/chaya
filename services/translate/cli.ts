@@ -1,8 +1,5 @@
 #!/usr/bin/env node
-/**
- * Bing / Google / Ollama 合并翻译
- *   pnpm translate -- --root /path/to/www
- */
+/** Translate with Bing, Google and Ollama: pnpm translate -- --root /path/to/www. */
 import { initRuntime } from './lib/env'
 import { main } from './lib/main'
 

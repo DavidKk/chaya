@@ -79,7 +79,7 @@ it('runs the playground through the in-game gateway rpc', async () => {
   await render()
   const run = [...container.querySelectorAll('button')].find((button) => button.textContent?.includes('执行'))
   await act(async () => run?.click())
-  expect(rpc).toHaveBeenCalledWith(expect.objectContaining({ method: 'tools/call', params: expect.objectContaining({ name: 'chaya_live_games' }) }))
+  expect(rpc).toHaveBeenCalledWith(expect.objectContaining({ method: 'tools/call', params: expect.objectContaining({ name: 'chaya_skills_list' }) }))
 })
 
 it('has no WebMCP sub-tab in the game window', async () => {

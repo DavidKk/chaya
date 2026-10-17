@@ -5,12 +5,12 @@ import { KUROMIJI_DICT_PATH, ROOT_PATH, TRANSLATE_CACHE_DB_PATH, TRANSLATE_CACHE
 
 import { gameContentPath, gameContentReadPath } from '../../lib/game/content-files'
 
-/** @deprecated 请用 `@/constants` 的 `ROOT_PATH` */
+/** @deprecated Use ROOT_PATH from @/constants. */
 export function kitRoot() {
   return ROOT_PATH
 }
 
-/** @deprecated 请用 `@/constants` 的 `TRANSLATE_CACHE_DIR` */
+/** @deprecated Use TRANSLATE_CACHE_DIR from @/constants. */
 export function sharedCacheDir() {
   return TRANSLATE_CACHE_DIR
 }

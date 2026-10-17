@@ -1,16 +1,16 @@
 // @ts-nocheck
-/** 翻译管线常量与客户端画像 */
+/** Translation pipeline constants and client profiles. */
 export const ENGINE_NAMES = ['bing', 'google', 'ollama']
 
 export const MODEL = 'gemma4:e2b-it-q4_K_M'
 export const OLLAMA = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434'
 export const JAPANESE = /[\u3040-\u309F\u30A0-\u30FF\u31F0-\u31FF\uFF65-\uFF9F]/
-/** 假名字母（不含 「・」中点等标点，避免中文「・」误判） */
+/** Kana letters only; exclude punctuation such as middle dots to avoid flagging Chinese punctuation as untranslated text. */
 export const KANA_LETTER = /[\u3040-\u309F\u30A1-\u30FA\u30FC-\u30FF\u31F0-\u31FF\uFF66-\uFF9F]/
 
 export const BING_CHUNK_CHARS = 2800
 export const GOOGLE_CHUNK_CHARS = 1600
-// 公网间隔再放宽一档试吞吐；撞限流会走 NET_BAN_GAP_STEPS 自动拉长。
+// Try a longer public-engine interval; NET_BAN_GAP_STEPS increases it automatically after rate limits.
 export const NET_GAP_MIN_MS = 2500
 export const NET_GAP_MAX_MS = 5500
 export const NET_BAN_GAP_STEPS = [
@@ -29,10 +29,10 @@ export const NET_RETRY_RANGES = [
 export const OLLAMA_CHUNK_CHARS = 1500
 export const OLLAMA_CHUNK_LINES = 90
 export const OLLAMA_NUM_CTX = 8192
-// 运行期只追加 NDJSON 缓存；merged 结果等结束再统一生成。
+// Append NDJSON at runtime and generate merged results once processing finishes.
 export const CACHE_APPEND_MS = 5000
 
-// 轮换客户端画像：同一出口 IP 时服务端仍多半按 IP 限流，UA 只能增加多样性，无法真的伪装成 N 台机器。
+// Rotate client profiles for variety; providers may still rate-limit the shared egress IP, so changing user agents does not simulate multiple machines.
 export const CLIENT_PROFILES = [
   {
     id: 'win-chrome',
@@ -90,7 +90,7 @@ export function browserHeaders(profile) {
 }
 
 export const SYSTEM = [
-  '把用户给出的日文逐行翻译成简体中文。',
+  '把用户给出的日文或英文逐行翻译成简体中文。',
   '每一行都以 ⟦数字⟧ 开头。必须原样保留这个编号，不要翻译、不要增删编号。',
   '只翻译编号后面的文字。一行一个编号，不要把多行合成一行，也不要拆成多行。',
   '文中的 __NAME__ / __ITEM__ / __SKILL__ / __WEAPON__ / __ARMOR__ / __STATE__ / __ENEMY__ 是词表占位符，必须原样保留。',

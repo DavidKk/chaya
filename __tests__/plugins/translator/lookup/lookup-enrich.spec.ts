@@ -31,7 +31,7 @@ describe('createLookupEnrichment', () => {
     restore()
   })
 
-  it('skips latin-only names, too-short non-actor names, # prefixes, and duplicates', () => {
+  it('indexes English names and skips too-short non-actor names, # prefixes, and duplicates', () => {
     const restore = installDb({
       $dataActors: [null, { name: 'Alice' }, { name: 'ア' }, { name: 'アリス' }, { name: '#注釈' }, { nickname: 'アリス' }],
       $dataItems: [null, { name: '薬' }, { name: '回復薬' }],
@@ -39,10 +39,10 @@ describe('createLookupEnrichment', () => {
     })
     const enrich = createLookupEnrichment()
     enrich.rebuildGlossary()
-    // Alice has no JP; ア length 1 < minLen 2; 薬 length 1 filtered; アリス deduped via nickname
-    expect(enrich.entryCount).toBeGreaterThanOrEqual(2)
-    const lookup = { アリス: 'Alice', 回復薬: 'Healing Potion', スライム: 'Slime' }
+    expect(enrich.entryCount).toBeGreaterThanOrEqual(3)
+    const lookup = { Alice: '爱丽丝', アリス: 'Alice', 回復薬: 'Healing Potion', スライム: 'Slime' }
     enrich.reindexAll(lookup)
+    expect(enrich.resolve(lookup, 'Alice')).toBe('爱丽丝')
     expect(enrich.resolve(lookup, 'アリス')).toBe('Alice')
     expect(enrich.resolve(lookup, '回復薬')).toBe('Healing Potion')
     restore()

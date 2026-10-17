@@ -130,8 +130,10 @@ export async function streamOllamaChat(
   const decoder = new TextDecoder()
   let buffer = ''
   let full = ''
+  let thought = ''
   const toolCalls: OllamaToolCall[] = []
   let usage: AgentTokenUsage | undefined
+  let timing: import('@/lib/game-agent/activity').AgentModelTiming | undefined
 
   const normalizeToolCall = (raw: unknown): OllamaToolCall | null => {
     const fn = raw && typeof raw === 'object' ? (raw as { function?: unknown }).function : null
@@ -155,10 +157,14 @@ export async function streamOllamaChat(
     const trimmed = line.trim()
     if (!trimmed) return
     let item: {
-      message?: { content?: unknown; tool_calls?: unknown }
+      message?: { content?: unknown; thinking?: unknown; tool_calls?: unknown }
       error?: unknown
       prompt_eval_count?: unknown
       eval_count?: unknown
+      load_duration?: unknown
+      prompt_eval_duration?: unknown
+      eval_duration?: unknown
+      total_duration?: unknown
     }
     try {
       item = JSON.parse(trimmed) as typeof item
@@ -166,6 +172,7 @@ export async function streamOllamaChat(
       throw new Error('Ollama 返回了无效的 NDJSON')
     }
     if (typeof item.error === 'string' && item.error) throw new Error(item.error)
+    if (typeof item.message?.thinking === 'string') thought += item.message.thinking
     const delta = typeof item.message?.content === 'string' ? item.message.content : ''
     if (delta) {
       full += delta
@@ -180,6 +187,14 @@ export async function streamOllamaChat(
     const input = typeof item.prompt_eval_count === 'number' ? item.prompt_eval_count : undefined
     const output = typeof item.eval_count === 'number' ? item.eval_count : undefined
     if (input !== undefined || output !== undefined) usage = { input, output, total: (input || 0) + (output || 0) }
+    const ns = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined)
+    const loadDurationNs = ns(item.load_duration)
+    const promptEvalDurationNs = ns(item.prompt_eval_duration)
+    const evalDurationNs = ns(item.eval_duration)
+    const totalDurationNs = ns(item.total_duration)
+    if (loadDurationNs !== undefined || promptEvalDurationNs !== undefined || evalDurationNs !== undefined || totalDurationNs !== undefined) {
+      timing = { loadDurationNs, promptEvalDurationNs, evalDurationNs, totalDurationNs }
+    }
   }
 
   while (true) {
@@ -192,5 +207,18 @@ export async function streamOllamaChat(
   }
   buffer += decoder.decode()
   if (buffer.trim()) parseLine(buffer)
-  return { role: 'assistant', content: full, ...(toolCalls.length ? { tool_calls: toolCalls } : {}), ...(usage ? { usage } : {}) }
+  // Some Qwen templates put reasoning in content and omit the opening think tag.
+  const thinkEnd = full.indexOf('</think>')
+  if (thinkEnd >= 0 && /^qwen3(?::|$)/i.test(input.model)) {
+    thought += full.slice(0, thinkEnd).replace(/^\s*<think>\s*/, '')
+    full = full.slice(thinkEnd + '</think>'.length).trimStart()
+  }
+  return {
+    role: 'assistant',
+    content: full,
+    ...(thought ? { thought } : {}),
+    ...(toolCalls.length ? { tool_calls: toolCalls } : {}),
+    ...(usage ? { usage } : {}),
+    ...(timing ? { timing } : {}),
+  }
 }

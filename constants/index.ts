@@ -29,6 +29,7 @@ export {
 export { DEFAULT_API_BASE, DEFAULT_LISTEN_PORT, DEFAULT_LOG_URL } from './listen'
 /** 客户端可用的路径名；绝对路径请从 `@/constants/paths`（仅 Node）引入 */
 export {
+  AGENT_ACTIVITY_LOGS_DIR_NAME,
   DATA_DIR_NAME,
   LOGS_DIR_NAME,
   NODE_MODULES_DIR_NAME,

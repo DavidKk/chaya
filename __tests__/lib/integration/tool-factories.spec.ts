@@ -9,6 +9,33 @@ import { type ApiInvoke, pathWithQuery, redactSecrets } from '@/lib/integration/
 const ctx = { signal: new AbortController().signal }
 
 describe('shared tool factories', () => {
+  it('returns only requested state groups and keeps location together with map events', async () => {
+    const state = {
+      scene: 'Scene_Equip',
+      title: 'Game',
+      map: { id: 1 },
+      player: { x: 2 },
+      nearbyEvents: [{ id: 3 }],
+      party: [{ id: 1, name: 'Hero', hp: 100, equipment: [{ slot: 0 }] }],
+      inventory: { items: ['potion'], weapons: ['sword'], armors: [] },
+      windows: [{ active: true }],
+      screenText: 'large',
+    }
+    const call = jest.fn(async () => state) as unknown as jest.MockedFunction<AgentCaller>
+    const tools = makeLiveTools({ games: () => [], call })
+    const summary = await tools.chaya_live_state({}, ctx)
+    expect(summary).toMatchObject({ scene: 'Scene_Equip', availableSections: expect.arrayContaining(['equipment', 'map']) })
+    expect(summary).not.toHaveProperty('map')
+    const equipment = await tools.chaya_live_state({ sections: ['equipment', 'ui'] }, ctx)
+    expect(equipment).toMatchObject({ party: [{ id: 1, equipment: [{ slot: 0 }] }], inventory: { weapons: ['sword'] }, windows: [{ active: true }] })
+    expect(equipment).not.toHaveProperty('map')
+    expect(equipment).not.toHaveProperty('screenText')
+    expect(equipment).not.toHaveProperty('inventory.items')
+    expect((equipment as typeof state).party[0]).not.toHaveProperty('hp')
+    expect(await tools.chaya_live_state({ sections: ['map'] }, ctx)).toMatchObject({ map: state.map, player: state.player, nearbyEvents: state.nearbyEvents })
+    expect(await tools.chaya_live_state({ sections: ['all'] }, ctx)).toEqual(state)
+    await expect(tools.chaya_live_state({ sections: ['unknown'] }, ctx)).rejects.toThrow('sections')
+  })
   it('builds query paths and redacts secrets', () => {
     expect(pathWithQuery('/api/x', { q: 'a b', page: 2, empty: undefined })).toBe('/api/x?q=a+b&page=2')
     expect(pathWithQuery('/api/x', undefined)).toBe('/api/x')
@@ -92,6 +119,8 @@ describe('shared tool factories', () => {
     expect(call).toHaveBeenLastCalledWith('g1', 'player.moveTo', { x: 3, y: 4, timeoutMs: 5000 })
     await tools.chaya_live_interact({ gameId: 'g1', eventId: 7 }, ctx)
     expect(call).toHaveBeenLastCalledWith('g1', 'player.interact', { eventId: 7 })
+    await tools.chaya_live_interact({ gameId: 'g1', eventId: 7, openDoors: false }, ctx)
+    expect(call).toHaveBeenLastCalledWith('g1', 'player.interact', { eventId: 7, openDoors: false })
     await tools.chaya_live_quit({}, ctx)
     expect(call).toHaveBeenLastCalledWith(undefined, 'game.quit', {})
   })

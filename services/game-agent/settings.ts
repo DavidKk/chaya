@@ -3,8 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { DATA_DIR } from '@/constants/paths'
-import { type GameAgentProvider, isCliProvider, isGameAgentProvider, PROVIDER_META } from '@/lib/game-agent/providers'
-import { normalizeAgentProxy } from '@/lib/game-agent/proxy'
+import { type GameAgentProvider, isCliProvider, isGameAgentProvider, isOpenApiProvider, PROVIDER_META } from '@/lib/game-agent/providers'
+import { type AgentProxyProtocols, normalizeAgentProxy, normalizeAgentProxyHeaders, normalizeAgentProxyProtocols } from '@/lib/game-agent/proxy'
 import {
   agentSettingsFromSyncDocument,
   type AgentSyncDocument,
@@ -30,8 +30,15 @@ export type GameAgentProfile = AgentTimeoutSettings & {
   defaultModel: string
   temperature: number
   keepAlive: string
-  /** Empty: no per-agent proxy. */
+  /**
+   * Default proxy (ZeroOmega-style). Empty = no per-agent proxy.
+   * Fills http / https / socks5 / all / ftp unless a slot is overridden.
+   */
   proxy: string
+  /** Per-protocol overrides; empty slots inherit `proxy`. */
+  proxyProtocols: AgentProxyProtocols
+  /** Extra headers sent to the upstream proxy (all providers). */
+  proxyHeaders: Record<string, string>
 }
 
 export type GameAgentSettings = {
@@ -54,6 +61,8 @@ export function defaultGameAgentProfile(): GameAgentProfile {
     temperature: 0.2,
     keepAlive: '10m',
     proxy: '',
+    proxyProtocols: {},
+    proxyHeaders: {},
     ...normalizeAgentTimeouts({}),
   }
 }
@@ -83,8 +92,11 @@ export function normalizeGameAgentEndpoint(value: unknown): string {
 export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fallbackId: string = randomUUID()): GameAgentProfile {
   if (value.provider !== undefined && !isGameAgentProvider(value.provider)) throw new Error(`暂不支持接入类型：${String(value.provider)}`)
   const provider = value.provider || 'ollama'
+  const proxy = normalizeAgentProxy(value.proxy)
+  const proxyProtocols = normalizeAgentProxyProtocols(proxy, value.proxyProtocols)
+  const proxyHeaders = normalizeAgentProxyHeaders(value.proxyHeaders)
   if (isCliProvider(provider)) {
-    // Ollama-only fields keep fixed values so sync records stay comparable; CLI runs ignore them.
+    // HTTP-only fields keep fixed values so sync records stay comparable; CLI runs ignore them.
     return {
       id: text(value.id, fallbackId),
       label: text(value.label, PROVIDER_META[provider].label),
@@ -93,7 +105,9 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
       defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel.trim() : '',
       temperature: 0.2,
       keepAlive: '10m',
-      proxy: normalizeAgentProxy(value.proxy),
+      proxy,
+      proxyProtocols,
+      proxyHeaders,
       ...normalizeAgentTimeouts(value),
     }
   }
@@ -101,6 +115,21 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
   if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new Error('Temperature 必须在 0 到 2 之间')
   const keepAlive = text(value.keepAlive, '10m')
   if (!/^(?:-1|0|\d+(?:\.\d+)?(?:ms|s|m|h))$/.test(keepAlive)) throw new Error('Keep Alive 格式无效，例如 10m、1h、0 或 -1')
+  if (isOpenApiProvider(provider)) {
+    return {
+      id: text(value.id, fallbackId),
+      label: text(value.label, PROVIDER_META[provider].label),
+      provider,
+      endpoint: normalizeGameAgentEndpoint(value.endpoint || PROVIDER_META[provider].defaultEndpoint || ''),
+      defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel.trim() : '',
+      temperature,
+      keepAlive,
+      proxy,
+      proxyProtocols,
+      proxyHeaders,
+      ...normalizeAgentTimeouts(value),
+    }
+  }
   return {
     id: text(value.id, fallbackId),
     label: text(value.label, 'Ollama'),
@@ -109,7 +138,9 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
     defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel.trim() : '',
     temperature,
     keepAlive,
-    proxy: normalizeAgentProxy(value.proxy),
+    proxy,
+    proxyProtocols,
+    proxyHeaders,
     ...normalizeAgentTimeouts(value),
   }
 }

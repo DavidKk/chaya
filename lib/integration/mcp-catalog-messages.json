@@ -135,9 +135,10 @@
       },
       "chaya_live_state": {
         "title": "局内状态",
-        "description": "读取游戏当前状态：场景、屏幕文字与窗口、地图坐标与附近事件、背包、队伍、战斗、对话和选项。操作前后用它判断下一步。",
+        "description": "按需读取游戏状态分组。默认只返回场景；map 包含位置、地图和附近事件；equipment 包含装备栏和背包武器防具；ui 为菜单对话，其余可选 party、inventory、battle、text。装备操作只需 equipment 和 ui。",
         "params": {
-          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略"
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
+          "sections": "需要的状态分组数组：map、party、inventory、equipment、ui、battle、text；all 返回完整状态。省略时只返回场景摘要。"
         }
       },
       "chaya_live_ui": {
@@ -266,7 +267,7 @@
       },
       "chaya_live_move_to": {
         "title": "寻路到格子",
-        "description": "用内置寻路让玩家走到地图格 (x, y)，等到达或超时。关闭点击移动时也能用；路被挡、遇到事件或对话会停下（arrived = false）；途中踩到传送点会停下并返回 transferred = true 和新的 mapId。仅地图场景。",
+        "description": "逐格走到地图格 (x, y)，遵守游戏移动锁。出现对话、运行中或待启动的事件、传送、暂停或未更新的游戏循环、未指定的触碰事件时立即停止（arrived = false）。仅地图场景。",
         "params": {
           "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
           "x": "地图格 x",
@@ -279,7 +280,8 @@
         "description": "像玩家一样与一个地图事件（nearbyEvents 的 id）互动：走到它旁边（在玩家脚下一层的事件则走上去，途中的关门会顺手打开），面向它按确认并推进对话。返回 outcome（done、choice、no_path、no_reaction、nothing_to_run、transferred、scene_changed、timeout）、对话内容、goldChange 和 inventoryChanges。遇到选项时用 chaya_live_press 选择。仅地图场景。",
         "params": {
           "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略",
-          "eventId": "nearbyEvents 里的事件 id"
+          "eventId": "nearbyEvents 里的事件 id",
+          "openDoors": "是否沿途打开关门；默认 true，false 时不打开门"
         }
       },
       "chaya_live_quit": {
@@ -427,10 +429,15 @@
         "title": "查询日志",
         "description": "查询最近的服务 / 插件日志，可按来源、级别、起始时间、关键词筛选。排查游戏或插件问题时先看这里。",
         "params": {
+          "view": "日志类型（runtime 或 agent）",
           "q": "message / source 关键词",
           "source": "来源，如 ChayaEdit、ChayaTrans、ChayaAgent、translate",
           "level": "级别",
           "since": "起始时间（毫秒时间戳）",
+          "taskId": "Agent 任务 ID",
+          "gameId": "游戏或游戏库 ID",
+          "runtimeInstanceId": "游戏运行实例 ID",
+          "eventType": "Agent 事件类型",
           "limit": "最多条数（默认 100，上限 1000）"
         }
       },
@@ -576,9 +583,10 @@
       },
       "chaya_live_state": {
         "title": "ゲーム内の状態",
-        "description": "ゲームの現在状態を取得します：シーン、画面テキストとウィンドウ、マップ座標と周辺イベント、所持品、パーティー、戦闘、会話、選択肢。操作の前後に次の行動を判断できます。",
+        "description": "必要な状態グループだけ取得します。既定はシーンのみ。map は位置と周辺イベント、equipment は装備と所持武器・防具、ui はメニューと会話。装備操作には equipment と ui を指定します。",
         "params": {
-          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可"
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
+          "sections": "取得するグループ：map、party、inventory、equipment、ui、battle、text。all は全状態。省略時はシーン概要のみ。"
         }
       },
       "chaya_live_ui": {
@@ -707,7 +715,7 @@
       },
       "chaya_live_move_to": {
         "title": "マスへ移動",
-        "description": "内蔵の経路探索でプレイヤーをマップのマス (x, y) へ歩かせ、到着かタイムアウトまで待ちます。クリック移動がオフでも動作します。道が塞がれる・イベントやメッセージで止まります（arrived = false）。途中で場所移動を踏むと transferred = true と新しい mapId を返して止まります。マップシーンのみ。",
+        "description": "移動制限を守り、一マスずつ (x, y) へ歩きます。会話、実行中や開始待ちのイベント、転送、停止中や更新されないゲームループ、未指定の接触イベントで直ちに停止します（arrived = false）。マップシーンのみ。",
         "params": {
           "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
           "x": "マップのマス x",
@@ -720,7 +728,8 @@
         "description": "プレイヤーと同じようにマップイベント（nearbyEvents の id）1 つに干渉します：隣まで歩き（プレイヤーの下にあるイベントなら上に乗り、途中の閉じた扉は開けて）、向きを合わせて決定を押し、会話を進めます。outcome（done、choice、no_path、no_reaction、nothing_to_run、transferred、scene_changed、timeout）、会話、goldChange、inventoryChanges を返します。選択肢が出たら chaya_live_press で選びます。マップシーンのみ。",
         "params": {
           "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可",
-          "eventId": "nearbyEvents のイベント id"
+          "eventId": "nearbyEvents のイベント id",
+          "openDoors": "経路上の閉じた扉を開けるか。既定は true、false なら開けません"
         }
       },
       "chaya_live_quit": {
@@ -868,10 +877,15 @@
         "title": "ログを検索",
         "description": "最近のサーバー / プラグインのログを検索します。ソース、レベル、開始時刻、キーワードで絞り込めます。ゲームやプラグインの問題調査はまずここから。",
         "params": {
+          "view": "ログの種類（runtime または agent）",
           "q": "message / source のキーワード",
           "source": "ソース（例：ChayaEdit、ChayaTrans、ChayaAgent、translate）",
           "level": "レベル",
           "since": "開始時刻（ミリ秒タイムスタンプ）",
+          "taskId": "Agent タスク ID",
+          "gameId": "ゲームまたはゲームライブラリ ID",
+          "runtimeInstanceId": "ゲーム実行インスタンス ID",
+          "eventType": "Agent イベント種別",
           "limit": "最大件数（既定 100、上限 1000）"
         }
       },
@@ -1017,9 +1031,10 @@
       },
       "chaya_live_state": {
         "title": "게임 내 상태",
-        "description": "게임의 현재 상태를 읽습니다: 장면, 화면 텍스트와 창, 맵 좌표와 주변 이벤트, 소지품, 파티, 전투, 대화와 선택지. 조작 전후에 다음 행동을 판단할 때 씁니다.",
+        "description": "필요한 상태 그룹만 읽습니다. 기본값은 장면만 반환합니다. map은 위치와 주변 이벤트, equipment는 장비와 보유 무기·방어구, ui는 메뉴와 대화입니다. 장비 조작에는 equipment와 ui를 지정하세요.",
         "params": {
-          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능"
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
+          "sections": "상태 그룹: map, party, inventory, equipment, ui, battle, text. all은 전체 상태이며 생략하면 장면 요약만 반환합니다."
         }
       },
       "chaya_live_ui": {
@@ -1148,7 +1163,7 @@
       },
       "chaya_live_move_to": {
         "title": "칸으로 이동",
-        "description": "내장 길찾기로 플레이어를 맵 칸 (x, y)까지 걷게 하고 도착이나 시간 초과까지 기다립니다. 클릭 이동이 꺼져 있어도 동작하며, 길이 막히거나 이벤트·메시지가 나오면 멈춥니다(arrived = false). 도중에 장소 이동을 밟으면 transferred = true와 새 mapId를 반환하고 멈춥니다. 맵 장면에서만.",
+        "description": "이동 제한을 지키며 맵 칸 (x, y)으로 한 칸씩 걷습니다. 대화, 실행 중이거나 시작 대기 중인 이벤트, 장소 이동, 정지하거나 갱신되지 않는 게임 루프, 지정하지 않은 접촉 이벤트가 있으면 즉시 멈춥니다(arrived = false). 맵 장면에서만.",
         "params": {
           "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
           "x": "맵 칸 x",
@@ -1161,7 +1176,8 @@
         "description": "플레이어처럼 맵 이벤트(nearbyEvents의 id) 하나와 상호작용합니다: 옆까지 걸어가(플레이어 아래 층의 이벤트면 그 위로, 도중의 닫힌 문은 열고) 바라보고 확인을 누른 뒤 대화를 넘깁니다. outcome(done, choice, no_path, no_reaction, nothing_to_run, transferred, scene_changed, timeout), 대화 내용, goldChange, inventoryChanges를 반환합니다. 선택지가 나오면 chaya_live_press로 고릅니다. 맵 장면에서만.",
         "params": {
           "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능",
-          "eventId": "nearbyEvents의 이벤트 id"
+          "eventId": "nearbyEvents의 이벤트 id",
+          "openDoors": "경로의 닫힌 문을 열지 여부. 기본값 true, false이면 열지 않습니다"
         }
       },
       "chaya_live_quit": {
@@ -1309,10 +1325,15 @@
         "title": "로그 조회",
         "description": "최근 서버 / 플러그인 로그를 조회합니다. 출처, 레벨, 시작 시각, 키워드로 거를 수 있습니다. 게임이나 플러그인 문제를 살필 때 먼저 여기를 보세요.",
         "params": {
+          "view": "로그 유형(runtime 또는 agent)",
           "q": "message / source 키워드",
           "source": "출처(예: ChayaEdit, ChayaTrans, ChayaAgent, translate)",
           "level": "레벨",
           "since": "시작 시각(밀리초 타임스탬프)",
+          "taskId": "Agent 작업 ID",
+          "gameId": "게임 또는 게임 라이브러리 ID",
+          "runtimeInstanceId": "게임 실행 인스턴스 ID",
+          "eventType": "Agent 이벤트 유형",
           "limit": "최대 항목 수(기본 100, 최대 1000)"
         }
       },

@@ -1,3 +1,4 @@
+export { API_KEY_SEALED_MASK, ApiKeyInput, type ApiKeyInputProps, type ApiKeySaveAction, resolveApiKeySaveAction } from '@/components/sk/ApiKeyInput'
 export { Badge, type BadgeProps, type BadgeTone } from '@/components/sk/Badge'
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from '@/components/sk/Button'
 export { CopyField, type CopyFieldProps } from '@/components/sk/CopyField'
@@ -8,9 +9,20 @@ export { GateButton, type GateButtonProps } from '@/components/sk/GateButton'
 export { Modal, type ModalProps } from '@/components/sk/Modal'
 export { formatCompactNumber, formatExactNumber, NumberInput, type NumberInputProps } from '@/components/sk/NumberInput'
 export { NumberSliderInput, type NumberSliderInputProps } from '@/components/sk/NumberSliderInput'
+export {
+  pairedPlainTextHeightPx,
+  PLAIN_TEXT_EDITOR_LINE_H,
+  PLAIN_TEXT_EDITOR_MIN_LINES,
+  PlainTextEditor,
+  PlainTextEditorFrame,
+  plainTextEditorGutterClass,
+  plainTextEditorHeightPx,
+  type PlainTextEditorProps,
+  plainTextEditorShellClass,
+} from '@/components/sk/PlainTextEditor'
 export { ScrollArea, type ScrollAreaProps, type ScrollIndicatorAxis } from '@/components/sk/ScrollArea'
 export { SegmentedNav, type SegmentedNavItem, type SegmentedNavProps } from '@/components/sk/SegmentedNav'
-export { Select, type SelectOption, type SelectProps } from '@/components/sk/Select'
+export { Select, type SelectOption, type SelectProps, type SelectSize } from '@/components/sk/Select'
 export { SizeInput, type SizeInputProps } from '@/components/sk/SizeInput'
 export { EditTableSkeleton, Skeleton, SkeletonRegion, TableSkeleton, type TableSkeletonColumn } from '@/components/sk/Skeleton'
 export { SortableTh, type SortableThProps } from '@/components/sk/SortableTh'

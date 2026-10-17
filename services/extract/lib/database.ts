@@ -52,8 +52,8 @@ function extractSystem(dataDir: string) {
   return bucket
 }
 
-function extractMapDisplayNames(dataDir: string) {
-  const maps: { id: number; name: string }[] = []
+function extractMapNames(dataDir: string) {
+  const maps: { id: number; name: string; eventId?: number }[] = []
   const seen = new Set<string>()
   for (const file of fs
     .readdirSync(dataDir)
@@ -61,10 +61,15 @@ function extractMapDisplayNames(dataDir: string) {
     .sort()) {
     const map = loadJson(path.join(dataDir, file))
     const id = Number(file.match(/Map(\d+)/)?.[1])
-    const name = clean(map.displayName)
-    if (!isUseful(name) || seen.has(name)) continue
-    seen.add(name)
-    maps.push({ id, name })
+    const add = (value: unknown, eventId?: number) => {
+      const name = clean(value)
+      if (!isUseful(name) || seen.has(name)) return
+      seen.add(name)
+      maps.push({ id, name, ...(eventId == null ? {} : { eventId }) })
+    }
+    add(map.displayName)
+    add(map.name)
+    for (const event of map.events || []) if (event) add(event.name, event.id)
   }
   return maps
 }
@@ -90,9 +95,9 @@ export function extractDatabase(dataDir: string) {
   }
   db.system = extractSystem(dataDir)
   db.names = extractNames(dataDir)
-  const mapNames = extractMapDisplayNames(dataDir)
+  const mapNames = extractMapNames(dataDir)
   if (mapNames.length) db.maps = mapNames
   return db
 }
 
-export { extractDatabaseArray, extractMapDisplayNames, extractSystem }
+export { extractDatabaseArray, extractMapNames, extractSystem }

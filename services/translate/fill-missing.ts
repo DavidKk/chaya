@@ -1,11 +1,13 @@
-/** Seed 进度与补译；后台任务显式传入内容根，不跟随控制台的选中状态。 */
+/** Seed progress and fill jobs use an explicit content root rather than the console's currently selected game. */
 import fs from 'node:fs'
 
 import { gameContentReadPath } from '@/lib/game/content-files'
+import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { getResolvedFromConfig } from '@/services/game/binding'
 
-import { lookupCachedTranslation, translationLookupKeys } from './cache-lookup'
+import { lookupCachedTranslation } from './cache-lookup'
 import { loadGameTranslateLookup } from './game-lookup'
+import { loadGameTranslationRecords } from './game-records'
 import { liveTranslateTexts } from './live-translate'
 import { openSharedCache } from './shared-cache'
 import { charCount, isIdenticalTranslation, lineCount, shouldTranslate } from './text-classify'
@@ -63,9 +65,15 @@ function scanSeed(contentRoot: string, fresh = false): Scan {
   const local = loadGameTranslateLookup(contentRoot)
   const needed = keys.filter(shouldTranslate)
   const cache = openSharedCache()
-  let shared: Map<string, string>
+  const hits = new Map<string, string>()
   try {
-    shared = cache.getMany(needed.flatMap(translationLookupKeys))
+    const records = loadGameTranslationRecords(contentRoot, (origin) => origin.database === cache.path && cache.current([{ ...origin, src: '', zh: '' }]))
+    for (const key of needed) {
+      const plan = cache.plan(key, { from: detectCacheLang(key), to: 'zh' }, records)
+      const hit =
+        plan.zh ?? (/\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(key) ? lookupCachedTranslation((k) => local[k] ?? cache.get(k, { from: detectCacheLang(key), to: 'zh' }), key) : null)
+      if (hit != null) hits.set(key, hit)
+    }
   } finally {
     cache.close()
   }
@@ -96,7 +104,7 @@ function scanSeed(contentRoot: string, fresh = false): Scan {
     }
     progress.needCount++
     progress.needChars += chars
-    const hit = lookupCachedTranslation((k) => shared.get(k), key) ?? lookupCachedTranslation((k) => local[k], key)
+    const hit = hits.get(key)
     if (hit != null) {
       progress.done++
       progress.doneChars += chars
@@ -117,7 +125,7 @@ export function getSeedTranslateProgress(contentRoot = resolveTranslateContentRo
   return { ...scanSeed(contentRoot, fresh).progress }
 }
 
-/** 失败项只在本次任务中排除，不写入翻译缓存；重新开始可重试。 */
+/** Exclude failures from the current job without persisting them to the cache; a new job can retry them. */
 export async function fillMissingFromSeed(opts?: { contentRoot?: string; limit?: number; exclude?: ReadonlySet<string> }): Promise<FillMissingResult> {
   const contentRoot = opts?.contentRoot ?? resolveTranslateContentRoot()
   const { progress, missingKeys } = scanSeed(contentRoot, true)
@@ -126,7 +134,7 @@ export async function fillMissingFromSeed(opts?: { contentRoot?: string; limit?:
   const batch = missingKeys.filter((key) => !opts?.exclude?.has(key)).slice(0, limit)
   if (!batch.length) return { ...progress, translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] }
   const { items } = await liveTranslateTexts(batch, { contentRoot })
-  const translated = items.filter((item) => item.zh && !isIdenticalTranslation(item.src, item.zh)).length
+  const translated = items.filter((item) => item.zh && item.status !== 'partial' && !item.error && !isIdenticalTranslation(item.src, item.zh)).length
   const next = scanSeed(contentRoot, true)
   const attempted = new Set(batch)
   const unresolved = next.missingKeys.filter((key) => attempted.has(key))

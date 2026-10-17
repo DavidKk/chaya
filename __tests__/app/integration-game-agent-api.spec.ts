@@ -210,7 +210,10 @@ test('CLI agents test through a CLI session and cache models per profile', async
   const response = await POST(request('POST', undefined, { action: 'test', profile: { id: 'codex-agent', provider: 'codex', defaultModel: '' } }), ctx)
   expect(response.status).toBe(200)
   expect(await response.json()).toMatchObject({ profileId: 'codex-agent', models: [{ name: 'gpt-5.5', label: 'GPT-5.5' }], model: 'GPT-5.5', latencyMs: 1200 })
-  expect(probe).toHaveBeenCalledWith({ id: 'codex-agent', provider: 'codex', defaultModel: '', proxy: '' }, expect.objectContaining({ prompt: true }))
+  expect(probe).toHaveBeenCalledWith(
+    { id: 'codex-agent', provider: 'codex', defaultModel: '', proxy: '', proxyProtocols: {}, proxyHeaders: {} },
+    expect.objectContaining({ prompt: true })
+  )
   expect(listModels).not.toHaveBeenCalled()
 
   await POST(request('POST', undefined, { action: 'models', profile: { id: 'codex-agent', provider: 'codex' } }), ctx)

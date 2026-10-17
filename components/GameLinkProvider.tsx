@@ -204,3 +204,7 @@ export function useGameLinkContext(): GameLinkContextValue {
   if (!ctx) throw new Error('useGameLinkContext 需在 GameLinkProvider 内使用')
   return ctx
 }
+
+export function useOptionalGameLinkContext(): GameLinkContextValue | null {
+  return useContext(GameLinkContext)
+}

@@ -1,6 +1,7 @@
 import type { IPty } from '@lydell/node-pty'
 
 import { AgentCliError } from './errors'
+import { trackLiveAgentProcess } from './live-processes.server'
 
 export type PtyProcess = {
   write: (data: string) => void
@@ -43,10 +44,15 @@ export const spawnPty: PtySpawn = async (file, args, options) => {
     })
   }
   const term = pty.spawn(file, args, { name: 'xterm-256color', cols: options.cols ?? 120, rows: options.rows ?? 30, cwd: options.cwd, env: options.env })
+  const kill = () => {
+    if (live.has(term)) killTree(term)
+  }
+  const watch = trackLiveAgentProcess({ kind: 'pty', pid: term.pid, file, args, cwd: options.cwd, env: options.env, kill })
   live.add(term)
   const exited = new Promise<number>((resolve) => {
     term.onExit(({ exitCode }) => {
       live.delete(term)
+      watch.dispose()
       resolve(exitCode)
     })
   })
@@ -57,8 +63,6 @@ export const spawnPty: PtySpawn = async (file, args, options) => {
       return () => subscription.dispose()
     },
     exited,
-    kill: () => {
-      if (live.has(term)) killTree(term)
-    },
+    kill,
   }
 }

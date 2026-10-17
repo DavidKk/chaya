@@ -29,6 +29,7 @@ import { type ActorPaneId, isEditTab, isEventsTab, type TabId, TABS } from './ta
 import {
   type ActorDraft,
   type ActorVitalLockKind,
+  type BattleLockChange,
   countKey,
   GOLD_LOCK_KEY,
   hasCatalogName,
@@ -104,6 +105,7 @@ export type GameEditWorkbenchProps = {
   onActorChange: (id: number, patch: Partial<ActorDraft>) => void
   onActorOwnedLockChange?: (actorId: number, kind: 'skills' | 'states', entryId: number, on: boolean) => void
   onActorVitalLockChange?: (actorId: number, kind: ActorVitalLockKind, on: boolean) => void
+  onBattleLock?: (change: BattleLockChange) => void
   /**
    * 外壳差异（内容组件相同）：
    * - `page`：控制台 `/cheat/[tab]`，flush 无卡片；二级导航隐藏「翻译」（走顶栏）
@@ -221,6 +223,7 @@ export function GameEditWorkbench({
   onActorChange,
   onActorOwnedLockChange,
   onActorVitalLockChange,
+  onBattleLock,
   surface = 'page',
   linked = false,
   readOnly = false,
@@ -412,6 +415,7 @@ export function GameEditWorkbench({
                     fullscreen: session.fullscreen,
                     god: session.god,
                     autoWin: session.autoWin,
+                    autoBattle: session.autoBattle,
                     through: session.through,
                     autotalk: session.autotalk,
                     encounter: session.encounter,
@@ -483,6 +487,8 @@ export function GameEditWorkbench({
                   slot={events}
                   session={session}
                   onRunAction={onRunAction}
+                  onFlagChange={onRunFlagChange}
+                  onLock={onBattleLock ?? (() => undefined)}
                   onOpenTroops={() => setTab('troop')}
                   headSlot={paneHead}
                   onOpenActor={

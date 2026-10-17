@@ -116,7 +116,7 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
   const [scene, setScene] = useState<Scene>(() => ({ onMap: false, player: null, recent: [], running: [], battle: null }))
   const [mapUndo, setMapUndo] = useState(() => latestMapUndo())
   const sceneRef = useRef(scene)
-  const active = (open && usesEventsSlot(tab)) || (!open && tab === 'map' && view.mapId != null)
+  const active = open && usesEventsSlot(tab)
   const mapRef = useRef(view.mapId)
   mapRef.current = view.mapId
 
@@ -159,16 +159,13 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
     void loadMap(view.mapId)
   }, [active, tab, view.mapId, mapDetail, loadMap])
 
-  /** Any open tab polls the scene so 修改 › 战斗 can flag a running battle */
-  const polling = active || open
+  /** 只有事件 / 战斗页开着才跟场景。其它页和关掉的浮层不轮询。 */
+  const polling = open && usesEventsSlot(tab)
   useEffect(() => {
     if (!polling) return
     const tick = () => {
       const next = readScene()
       const previous = sceneRef.current
-      if (!open && previous.player?.mapId === mapRef.current && next.player?.mapId && next.player.mapId !== previous.player.mapId) {
-        setView((current) => ({ ...current, mapId: next.player!.mapId, eventId: null, eventPage: null }))
-      }
       if (!sameScene(previous, next)) {
         sceneRef.current = next
         setScene(next)

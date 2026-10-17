@@ -1,10 +1,12 @@
+import { translationSources } from '@/lib/translate/segments'
 import { isStorableTranslation, shouldTranslate } from '@/services/translate/text-classify'
 
-type Result = { src: string; zh: string | null }
+type Result = { src: string; zh: string | null; status?: 'full' | 'partial' | 'miss'; error?: string }
 
 /** Background fill for text that is actually drawn. Rendering never waits for the model. */
 export function createRenderTranslation(options: {
   cached: (text: string) => string
+  complete?: (text: string) => boolean
   enabled: () => boolean
   request: (texts: string[], signal: AbortSignal) => Promise<Result[]>
   apply: (src: string, zh: string) => void
@@ -24,9 +26,13 @@ export function createRenderTranslation(options: {
       return
     }
     const text = value.trim()
-    if (text.length < 2 || text.length > 160 || !shouldTranslate(text) || options.cached(text) !== text || inFlight.has(text) || (retryAt.get(text) || 0) > Date.now()) return
-    pending.add(text)
-    if (pending.size > 64) pending.delete(pending.values().next().value!)
+    const complete = (source: string) => (options.complete ? options.complete(source) : options.cached(source) !== source)
+    if (text.length > 160 || complete(text)) return
+    for (const source of options.complete ? [text] : translationSources(text)) {
+      if (source.length < 2 || !shouldTranslate(source) || complete(source) || inFlight.has(source) || (retryAt.get(source) || 0) > Date.now()) continue
+      pending.add(source)
+      if (pending.size > 64) pending.delete(pending.values().next().value!)
+    }
     if (!timer && !active) timer = setTimeout(flush, 200)
   }
 
@@ -49,7 +55,7 @@ export function createRenderTranslation(options: {
       const translated = new Set<string>()
       for (const item of items) {
         if (!batch.includes(item.src)) continue
-        if (item.zh && isStorableTranslation(item.src, item.zh)) {
+        if (item.zh && item.status !== 'partial' && !item.error && isStorableTranslation(item.src, item.zh)) {
           options.apply(item.src, item.zh)
           translated.add(item.src)
           changed = true

@@ -187,6 +187,7 @@ const dashboardEn = {
     removeDesc: 'Remove “{name}” — files kept',
     removeConfirm: 'Remove',
     removeEntry: 'Remove {name}',
+    relocate: 'Location unavailable — click to locate',
     shellReady: 'Shell OK',
     remoteTag: 'Remote',
     localTag: 'Local',

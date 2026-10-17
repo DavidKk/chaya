@@ -1,7 +1,16 @@
 import { describe, expect, it } from '@jest/globals'
 
 import { parseLibrarySortMode, sortLibraryEntries } from '@/lib/game/library-sort'
-import { displayNameFromPath, isLibraryEntryId, normalizeLibrary, pathEquals, reconcileLibraryConfig, sameGameFamily, upsertLibraryEntry } from '@/services/game/library'
+import {
+  displayNameFromPath,
+  isLibraryEntryId,
+  normalizeLibrary,
+  pathEquals,
+  reconcileLibraryConfig,
+  relocateLibraryEntry,
+  sameGameFamily,
+  upsertLibraryEntry,
+} from '@/services/game/library'
 
 describe('library path / id', () => {
   it('pathEquals 忽略尾随斜杠', () => {
@@ -83,5 +92,26 @@ describe('unavailable library paths', () => {
     const entry = { id: '11111111-1111-4111-8111-111111111111', gameRoot: root, name: 'Game', remark: 'Keep me', addedAt: 1, lastOpenedAt: 1 }
     const config = { gameRoot: root, shellSource: '', library: [entry] }
     expect(reconcileLibraryConfig(config)).toEqual({ config, changed: false, pruned: [], switchedTo: null })
+  })
+})
+
+describe('library relocation', () => {
+  const first = { id: '11111111-1111-4111-8111-111111111111', gameRoot: '/missing/Game', name: 'Game', remark: 'Keep notes', addedAt: 1, lastOpenedAt: 2 }
+  const other = { id: '22222222-2222-4222-8222-222222222222', gameRoot: '/Games/Other', name: 'Other', addedAt: 3, lastOpenedAt: 4 }
+
+  it('replaces the path in place while keeping the identity and metadata', () => {
+    const next = relocateLibraryEntry([first, other], first.id, '/Moved/Game')
+    expect(next).toHaveLength(2)
+    expect(next[0]).toMatchObject({ ...first, gameRoot: '/Moved/Game', name: first.name, lastOpenedAt: expect.any(Number) })
+    expect(next[1]).toBe(other)
+    expect(first.gameRoot).toBe('/missing/Game')
+  })
+
+  it('rejects unknown, remote and duplicate targets without changing the library', () => {
+    const library = [first, other]
+    expect(() => relocateLibraryEntry(library, 'unknown', '/Moved/Game')).toThrow('未找到')
+    expect(() => relocateLibraryEntry([{ ...first, remote: true }], first.id, '/Moved/Game')).toThrow('本地游戏')
+    expect(() => relocateLibraryEntry(library, first.id, other.gameRoot)).toThrow('已在游戏库')
+    expect(library).toEqual([first, other])
   })
 })

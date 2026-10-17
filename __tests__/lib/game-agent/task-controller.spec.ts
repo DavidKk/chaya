@@ -1,4 +1,5 @@
 import { type AgentTask, AgentTaskController, type AgentTaskStore } from '@/lib/game-agent/runtime'
+import type { AgentTraceArchive } from '@/lib/game-agent/trace'
 
 const input = (execute: (task: AgentTask, signal: AbortSignal, controller: AgentTaskController) => Promise<void>) => ({
   requestId: 'r1',
@@ -24,6 +25,39 @@ describe('agent task controller', () => {
     await expect(controller.start({ ...input(pending), requestId: 'r2', taskId: 't2', capability: 'companion' })).rejects.toThrow('已有 Agent 任务')
     controller.stop('t1')
     await expect(controller.start({ ...input(pending), requestId: 'r3', taskId: 't3' })).resolves.toMatchObject({ id: 't3' })
+  })
+
+  it('writes v2 producer, runtime target, and correlation metadata', async () => {
+    const controller = new AgentTaskController(store(), {
+      runtimeIdentity: {
+        libraryGameId: 'library-1',
+        runtimeInstanceId: 'runtime-1',
+        pluginInstanceId: 'plugin-1',
+        connectionId: 'connection-1',
+      },
+      producerEpoch: 7,
+      executionHost: 'game_plugin',
+    })
+    const task = await controller.start(input(async () => new Promise<void>(() => undefined)))
+    const agentEvent = task.events[0]!
+    const gameEvent = controller.emit(task.id, 'game.dialogue', { actionId: 'action-1', callId: 'call-1', text: 'hello' })
+
+    expect(task).toMatchObject({
+      libraryGameId: 'library-1',
+      runtimeInstanceId: 'runtime-1',
+      pluginInstanceId: 'plugin-1',
+      connectionId: 'connection-1',
+    })
+    expect(agentEvent).toMatchObject({ schemaVersion: 2, taskSeq: 1, producer: { kind: 'agent_coordinator', epoch: 7, sourceSeq: 1 } })
+    expect(gameEvent).toMatchObject({
+      schemaVersion: 2,
+      taskSeq: 2,
+      producer: { id: 'plugin-1', kind: 'game_plugin', epoch: 7, sourceSeq: 2 },
+      execution: { host: 'game_plugin', component: 'game-runtime-observer' },
+      classification: { domain: 'game_runtime', type: 'game.dialogue', effect: 'runtime_change' },
+      targets: [expect.objectContaining({ libraryGameId: 'library-1', runtimeInstanceId: 'runtime-1', pluginInstanceId: 'plugin-1' })],
+      correlation: { taskId: 't1', actionId: 'action-1', toolCallId: 'call-1' },
+    })
   })
 
   it('stop wins over a late executor completion', async () => {
@@ -140,6 +174,43 @@ describe('agent task controller', () => {
     await controller.start(input(async () => new Promise<void>(() => undefined)))
     await expect(controller.clear()).resolves.toBe(1)
     expect(controller.list()).toEqual([])
+  })
+
+  it('archives emitted events without deleting long-term traces when recent tasks are cleared', async () => {
+    const archive: AgentTraceArchive = {
+      append: jest.fn(async () => undefined),
+      list: jest.fn(async () => []),
+      read: jest.fn(async () => null),
+      export: jest.fn(async () => null),
+      remove: jest.fn(async () => 0),
+    }
+    const controller = new AgentTaskController(store(), { traceArchive: archive })
+    await controller.start(input(async () => new Promise<void>(() => undefined)))
+    controller.emit('t1', 'agent.observation', { summary: '看见宝箱' })
+    await Promise.resolve()
+    expect(archive.append).toHaveBeenCalledWith(expect.objectContaining({ id: 't1' }), expect.objectContaining({ type: 'agent.observation' }))
+
+    await controller.clear('t1')
+    expect(archive.remove).not.toHaveBeenCalled()
+  })
+
+  it('reports one archive degradation event without changing task execution', async () => {
+    const archive: AgentTraceArchive = {
+      append: jest.fn(async () => Promise.reject(new Error('archive unavailable'))),
+      list: jest.fn(async () => []),
+      read: jest.fn(async () => null),
+      export: jest.fn(async () => null),
+      remove: jest.fn(async () => 0),
+    }
+    const controller = new AgentTaskController(store(), { traceArchive: archive })
+    await controller.start(input(async () => new Promise<void>(() => undefined)))
+    controller.emit('t1', 'agent.observation')
+    controller.emit('t1', 'agent.decision')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(controller.get('t1')?.state).toBe('running')
+    expect(controller.get('t1')?.events.filter((event) => event.type === 'trace.degraded')).toHaveLength(1)
   })
 
   it('keeps interrupted tasks for recovery when the host shuts down', async () => {

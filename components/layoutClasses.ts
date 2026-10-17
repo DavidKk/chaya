@@ -90,7 +90,7 @@ export const formMonoInput = 'font-mono text-[0.72rem]'
 export const dataTable = cn(
   'w-full border-separate border-spacing-0 text-left text-[0.8125rem]',
   '[&_thead]:relative [&_thead]:z-[3]',
-  '[&_th]:sticky [&_th]:top-0 [&_th]:z-[3] [&_th]:border-b [&_th]:border-line [&_th]:bg-paper-2 [&_th]:px-3 [&_th]:py-2 [&_th]:text-[0.68rem] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-ink-soft',
+  '[&_th]:sticky [&_th]:top-0 [&_th]:z-[3] [&_th]:whitespace-nowrap [&_th]:border-b [&_th]:border-line [&_th]:bg-paper-2 [&_th]:px-2.5 [&_th]:py-2 [&_th]:text-[0.68rem] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-ink-soft',
   '[&_td]:relative [&_td]:z-0 [&_td]:max-w-[18rem] [&_td]:break-words [&_td]:border-t [&_td]:border-line [&_td]:px-3 [&_td]:py-2 [&_td]:align-middle',
   '[&_tbody_tr:first-child_td]:border-t-0',
   '[&_tr:hover_td]:bg-[color-mix(in_oklab,var(--accent)_10%,transparent)]'

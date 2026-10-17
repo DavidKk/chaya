@@ -1,4 +1,4 @@
-/** 服务进程内一次推理；当前对话排在后台补译前，取消后不再占用队列。 */
+/** Run one inference at a time in the service process; prioritize current dialogue over background fill jobs and remove cancelled work from the queue. */
 type Task = { interactive: boolean; signal?: AbortSignal; run: () => Promise<void>; reject: (error: unknown) => void }
 const queue: Task[] = []
 let running = false

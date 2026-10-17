@@ -160,6 +160,12 @@ export function installConsoleApi() {
       log.ok('autoWin = ' + v)
       return v
     },
+    autoBattle(on?: boolean) {
+      if (arguments.length === 0) return Cheats.getAutoBattle()
+      const v = Cheats.setAutoBattle(!!on)
+      log.ok('autoBattle = ' + v)
+      return v
+    },
     through(on?: boolean) {
       if (arguments.length === 0) return Cheats.getThrough()
       const v = Cheats.setThrough(!!on)

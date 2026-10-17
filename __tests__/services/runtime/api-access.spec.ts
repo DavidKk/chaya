@@ -61,6 +61,22 @@ describe('API authorization', () => {
     expect(await mayAccessApi(request('/api/game-agent/turn', { method: 'POST', headers, body: JSON.stringify({ gameId: 'room-B' }) }))).toBe(false)
     expect(await mayAccessApi(request('/api/game-agent/turn?gameId=room-A', { method: 'DELETE', headers }))).toBe(true)
     expect(await mayAccessApi(request('/api/game-agent/turn?gameId=room-B', { method: 'DELETE', headers }))).toBe(false)
+    expect(await mayAccessApi(request('/api/game-agent/activity?gameId=room-A', { headers }))).toBe(true)
+    expect(await mayAccessApi(request('/api/game-agent/activity?gameId=room-B', { headers }))).toBe(false)
+    expect(await mayAccessApi(request('/api/game-agent/activity', { method: 'POST', headers, body: JSON.stringify({ task: { gameId: 'room-A' }, event: { seq: 1 } }) }))).toBe(true)
+    expect(await mayAccessApi(request('/api/game-agent/activity', { method: 'POST', headers, body: JSON.stringify({ task: { gameId: 'room-B' }, event: { seq: 1 } }) }))).toBe(
+      false
+    )
+    expect(await mayAccessApi(request('/api/game-agent/activity?gameId=room-A', { method: 'DELETE', headers }))).toBe(true)
+    for (const [targets, allowed] of [
+      [[{ libraryGameId: 'room-A', runtimeInstanceId: 'runtime-A' }], true],
+      [[{ libraryGameId: 'room-B', runtimeInstanceId: 'runtime-B' }], false],
+      [[{ libraryGameId: 'room-A' }, { libraryGameId: 'room-B' }], false],
+      [[], false],
+      [null, false],
+    ] as const) {
+      expect(await mayAccessApi(request('/api/game-agent/activity', { method: 'POST', headers, body: JSON.stringify({ sourceEvent: { targets } }) }))).toBe(allowed)
+    }
     const turn = beginTurn(getOrCreateSession('room-A', 'profile', 'demo'))
     expect(await mayAccessApi(request('/api/integration/game-agent', { headers }))).toBe(true)
     expect(await mayAccessApi(request(`/api/game-agent/turn/${turn.id}`, { method: 'DELETE', headers }))).toBe(true)
@@ -90,6 +106,7 @@ describe('API authorization', () => {
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'realtime', texts: ['こんにちは'] }) }))).toBe(true)
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'ai', text: 'こんにちは' }) }))).toBe(true)
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'agents' }) }))).toBe(true)
+    expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'translate-agents' }) }))).toBe(true)
     for (const mode of ['play-settings', 'benchmark']) {
       expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode }) }))).toBe(false)
     }

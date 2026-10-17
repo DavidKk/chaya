@@ -104,6 +104,19 @@ describe('页面路由契约', () => {
     expect(generateStaticParams()).toEqual(TRANSLATE_TABS.map((t) => ({ tab: t.id })))
   })
 
+  it('/translate/[tab]/[mode] 覆盖 run；detail 需带 id', async () => {
+    const { TRANSLATE_CACHE_DETAIL_MODE, TRANSLATE_RUN_MODES, translateCacheDetailHref } = await import('@/components/translate/tabs')
+    const { generateStaticParams, default: ModePage } = await import('@/app/translate/[tab]/[mode]/page')
+    expect(generateStaticParams({ params: { tab: 'run' } })).toEqual(TRANSLATE_RUN_MODES.map((mode) => ({ mode })))
+    expect(generateStaticParams({ params: { tab: 'cache' } })).toEqual([])
+    expect(generateStaticParams({ params: { tab: 'nope' } })).toEqual([])
+    expect(translateCacheDetailHref(42)).toBe(`/translate/cache/${TRANSLATE_CACHE_DETAIL_MODE}/42`)
+    const { translatePathTab } = await import('@/components/translate/tabs')
+    expect(translatePathTab('/translate/cache/detail/93230')).toBe('cache')
+    expect(translatePathTab('/translate/run/seed')).toBe('run')
+    await expect(ModePage({ params: Promise.resolve({ tab: 'cache', mode: TRANSLATE_CACHE_DETAIL_MODE }) })).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
   it('/cache → /translate/cache', async () => {
     const { translateTabHref } = await import('@/components/translate/tabs')
     const { default: CacheRedirect } = await import('@/app/cache/page')
@@ -117,9 +130,9 @@ describe('页面路由契约', () => {
     await expectRedirect(() => EditCompat({ params: Promise.resolve({ slug: ['actor', '3', 'skills'] }) }), '/cheat/actor/3/skills')
   })
 
-  it('/logs 导出默认页', async () => {
-    const mod = await import('@/app/logs/page')
-    expect(typeof mod.default).toBe('function')
-    expect(mod.default()).toBeTruthy()
+  it('/logs → /logs/runtime；保留非 view 查询', async () => {
+    const { default: LogsIndex } = await import('@/app/logs/page')
+    await expectRedirect(() => LogsIndex({ searchParams: Promise.resolve({}) }), '/logs/runtime')
+    await expectRedirect(() => LogsIndex({ searchParams: Promise.resolve({ view: 'agent', taskId: 't1' }) }), '/logs/agent?taskId=t1')
   })
 })

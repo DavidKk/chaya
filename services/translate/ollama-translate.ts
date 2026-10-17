@@ -1,4 +1,4 @@
-/** 服务内 Ollama 日→中：默认提示词复述原文 / 空结果时换严格提示词再试一次。 */
+/** Server-side Ollama Japanese-to-Chinese translation; retry with a stricter prompt when the default prompt returns an echo or empty result. */
 import {
   DEFAULT_OLLAMA_HOST,
   DEFAULT_OLLAMA_MODEL,
@@ -42,13 +42,13 @@ export async function ollamaJaToZh(text: string, options?: LocalTranslateOptions
   let last = ''
   let lastErr: Error | null = null
   for (const attempt of attempts) {
-    /* 交互态只在复述原文 / 空结果时补一次，出错（多为超时）不再重试 */
+    /* Interactive requests retry only echoes or empty results, never errors such as timeouts. */
     if (options?.interactive && lastErr) break
     try {
       const out = await ollamaChat(attempt.system, attempt.user, attempt.temperature, attempt.think, options)
       last = out
       if (!out || sameText(out, q)) continue
-      /* 非中文改写（少见）也先返回，交给上层 isUsefulTranslation */
+      /* Return rare non-Chinese rewrites and let isUsefulTranslation reject them upstream. */
       return out
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err))

@@ -1,6 +1,6 @@
 import { tryNodeRequire } from '../../helpers/node/node-require'
 
-/** 引擎由游戏进程直接访问，不受 file:// 页面的跨域限制；不携带 Chaya 授权凭据。 */
+/** Access engines from the game process without file:// cross-origin restrictions; never forward Chaya authorization credentials. */
 export async function engineFetch(url: string, init: RequestInit = {}, redirects = 0): Promise<Response> {
   const require = tryNodeRequire()
   if (!require) return fetch(url, init)

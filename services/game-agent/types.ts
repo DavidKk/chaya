@@ -15,10 +15,12 @@ export type OllamaTool = {
 export type GameAgentMessage = {
   role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
+  thought?: string
   images?: string[]
   tool_calls?: OllamaToolCall[]
   tool_name?: string
   usage?: import('@/lib/game-agent/activity').AgentTokenUsage
+  timing?: import('@/lib/game-agent/activity').AgentModelTiming
 }
 
 export type GameAgentSession = {
@@ -61,11 +63,19 @@ export type GameAgentEvent =
   | { type: 'user.replied'; text: string }
   | { type: 'history.gap'; fromSeq: number }
   | { type: 'prompt.recorded'; role: 'system' | 'user'; content: string }
-  | { type: 'model.requested'; model?: string; messageCount: number; contextChars?: number }
-  | { type: 'model.completed'; model?: string; text: string; usage?: import('@/lib/game-agent/activity').AgentTokenUsage; durationMs: number }
+  | { type: 'model.requested'; model?: string; messageCount: number; contextChars?: number; startedAt?: number; contextDurationMs?: number }
+  | {
+      type: 'model.completed'
+      model?: string
+      text: string
+      usage?: import('@/lib/game-agent/activity').AgentTokenUsage
+      timing?: import('@/lib/game-agent/activity').AgentModelTiming
+      durationMs: number
+    }
   | { type: 'thought.updated'; summary: import('@/lib/game-agent/activity').AgentThoughtSummary }
   | { type: 'tool.started'; callId: string; name: string; input?: Record<string, unknown>; startedAt?: number }
   | { type: 'tool.completed'; callId: string; name: string; ok: boolean; output?: unknown; durationMs?: number }
+  | import('@/lib/game-agent/gameplay-activity').GameplayActivityEvent
   | { type: 'progress.updated'; summary: string; cycle: number; reason?: string; steps?: number; toolCalls?: number }
   | { type: 'assistant.delta'; text: string }
   /** `brief`: one-line result for the companion chat, built from structured parts instead of parsing `text`. */

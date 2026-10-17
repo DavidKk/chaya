@@ -1,8 +1,5 @@
 #!/usr/bin/env node
-/**
- * 把某作内容根的 chaya-trans.cache.ndjson 导入全局 SQLite（已有不覆盖）
- *   pnpm translate:import-cache -- --root /path/to/www
- */
+/** Import a game's chaya-trans.cache.ndjson into global SQLite without overwriting existing entries: pnpm translate:import-cache -- --root /path/to/www. */
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -49,10 +46,11 @@ const before = shared.stats().entries
 const { inserted, total } = shared.importIgnoreExisting(map, `import:${path.basename(root)}`)
 const after = shared.stats()
 
-/** 旧名缓存同步一份到当前品牌文件名，方便后续管线与状态统计 */
+/** Copy legacy cache names to the current brand filename for later pipeline stages and status reporting. */
 if (ndjsonPath) {
   const canonical = P.CACHE_NDJSON
   if (path.resolve(ndjsonPath) !== path.resolve(canonical) && !fs.existsSync(canonical)) {
+    fs.mkdirSync(path.dirname(canonical), { recursive: true })
     fs.writeFileSync(
       canonical,
       Object.entries(map)

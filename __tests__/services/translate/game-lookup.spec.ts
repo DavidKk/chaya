@@ -20,3 +20,17 @@ it('applies deletion rows after seed and earlier library translations', () => {
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
+
+it('loads explicitly preserved Han labels from seed and library files', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-preserved-labels-'))
+  try {
+    const seedFile = path.join(root, gameContentRelPath('seed'))
+    const libraryFile = path.join(root, gameContentRelPath('cacheNdjson'))
+    fs.mkdirSync(path.dirname(seedFile), { recursive: true })
+    fs.writeFileSync(seedFile, JSON.stringify({ 第1部: '第1部', 第3部: '' }))
+    fs.writeFileSync(libraryFile, JSON.stringify(['第2部', '第2部']) + '\n')
+    expect(loadGameTranslateLookup(root)).toEqual({ 第1部: '第1部', 第2部: '第2部' })
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})

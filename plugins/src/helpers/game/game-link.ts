@@ -8,6 +8,7 @@ import { encodeGameLinkMessage, GAME_LINK_TOKEN_HEADER, type GameLinkLogEntry, t
 import { createTranslationRpc, sendTranslationPacket } from '@/lib/runtime/translation-rpc'
 import { installedTranslationRuntime } from '@/lib/translate/runtime-api'
 
+import { currentAgentRuntimeIdentity } from '../../agent/runtime/identity'
 import { ensureLaunchEnvGlobals } from '../env/ensure-launch-env'
 import { resolveApiBase, resolveApiBaseFallbacks } from '../env/env'
 import { chayaFetch } from '../net/http'
@@ -202,6 +203,7 @@ function bindDc(dc: RTCDataChannel) {
       type: 'hello',
       role: 'game',
       gameId: gameRoomId(),
+      ...currentAgentRuntimeIdentity(),
       name: id?.name,
       contentRoot: id?.contentRoot,
       gameRoot: id?.gameRoot,

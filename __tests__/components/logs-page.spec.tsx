@@ -3,19 +3,32 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
-import { LogsPage } from '@/components/LogsPage'
+import { LogsSectionView } from '@/components/logs/LogsSectionView'
+import { LogsShell } from '@/components/logs/LogsShell'
 
 const replace = jest.fn()
+let pathname = '/logs/runtime'
+let params: { section?: string } = { section: 'runtime' }
 let query = new URLSearchParams()
 
 jest.mock('next/navigation', () => ({
-  usePathname: () => '/logs',
+  usePathname: () => pathname,
   useRouter: () => ({ replace }),
   useSearchParams: () => query,
+  useParams: () => params,
 }))
 
 jest.mock('@/components/LogPanel', () => ({ LogPanel: () => <div data-testid="runtime-log">runtime</div> }))
-jest.mock('@/components/game-agent/AgentActivityLogPanel', () => ({ AgentActivityLogPanel: () => <div data-testid="agent-log">agent</div> }))
+jest.mock('@/components/game-agent/AgentActivityLogPanel', () => ({
+  AgentActivityLogPanel: ({ selection, onSelectionChange }: { selection: string; onSelectionChange: (taskId: string) => void }) => (
+    <button type="button" data-testid="agent-log" data-selection={selection} onClick={() => onSelectionChange('task-next')}>
+      agent
+    </button>
+  ),
+}))
+jest.mock('@/components/game-agent/AgentCliProcessesPanel', () => ({
+  AgentCliProcessesPanel: () => <div data-testid="cli-processes">cli</div>,
+}))
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -29,6 +42,8 @@ let root: Root
 
 beforeEach(() => {
   replace.mockClear()
+  pathname = '/logs/runtime'
+  params = { section: 'runtime' }
   query = new URLSearchParams()
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -40,39 +55,67 @@ afterEach(async () => {
   document.body.innerHTML = ''
 })
 
-test('uses the shared desktop section sidebar to navigate log views', async () => {
+test('uses slash secondary links in the section sidebar', async () => {
   await act(async () =>
     root.render(
       <LocaleProvider initialLocale="zh" initialPreference="zh">
-        <LogsPage />
+        <LogsShell>
+          <LogsSectionView />
+        </LogsShell>
       </LocaleProvider>
     )
   )
 
   const aside = host.querySelector<HTMLElement>('[data-section-side-nav]')!
-  const buttons = Array.from(aside.querySelectorAll<HTMLButtonElement>('button'))
+  const links = Array.from(aside.querySelectorAll<HTMLAnchorElement>('a'))
   expect(aside.getAttribute('data-mobile-visible')).toBeNull()
   expect(aside.className).toContain('hidden')
   expect(aside.className).toContain('md:block')
-  expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['运行日志', 'Agent 活动'])
-  expect(buttons[0].getAttribute('aria-current')).toBe('page')
+  expect(links.map((link) => [link.getAttribute('aria-label'), link.getAttribute('href')])).toEqual([
+    ['运行日志', '/logs/runtime'],
+    ['Agent 活动', '/logs/agent'],
+    ['Agent 进程', '/logs/cli'],
+  ])
+  expect(links[0].getAttribute('aria-current')).toBe('page')
   expect(host.querySelector('[data-testid="runtime-log"]')).not.toBeNull()
-
-  await act(async () => buttons[1].click())
-  expect(replace).toHaveBeenCalledWith('/logs?view=agent', { scroll: false })
 })
 
-test('selects the Agent activity view from the URL', async () => {
-  query = new URLSearchParams('view=agent')
+test('selects Agent activity from the path and keeps taskId as query', async () => {
+  pathname = '/logs/agent'
+  params = { section: 'agent' }
+  query = new URLSearchParams('taskId=task-current')
   await act(async () =>
     root.render(
       <LocaleProvider initialLocale="zh" initialPreference="zh">
-        <LogsPage />
+        <LogsShell>
+          <LogsSectionView />
+        </LogsShell>
       </LocaleProvider>
     )
   )
 
-  const buttons = Array.from(host.querySelectorAll<HTMLButtonElement>('[data-section-side-nav] button'))
-  expect(buttons[1].getAttribute('aria-current')).toBe('page')
-  expect(host.querySelector('[data-testid="agent-log"]')).not.toBeNull()
+  const links = Array.from(host.querySelectorAll<HTMLAnchorElement>('[data-section-side-nav] a'))
+  expect(links[1].getAttribute('aria-current')).toBe('page')
+  const agentLog = host.querySelector<HTMLButtonElement>('[data-testid="agent-log"]')!
+  expect(agentLog.dataset.selection).toBe('task-current')
+
+  await act(async () => agentLog.click())
+  expect(replace).toHaveBeenCalledWith('/logs/agent?taskId=task-next', { scroll: false })
+})
+
+test('selects Agent processes from the path', async () => {
+  pathname = '/logs/cli'
+  params = { section: 'cli' }
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <LogsShell>
+          <LogsSectionView />
+        </LogsShell>
+      </LocaleProvider>
+    )
+  )
+  const links = Array.from(host.querySelectorAll<HTMLAnchorElement>('[data-section-side-nav] a'))
+  expect(links[2].getAttribute('aria-current')).toBe('page')
+  expect(host.querySelector('[data-testid="cli-processes"]')).not.toBeNull()
 })

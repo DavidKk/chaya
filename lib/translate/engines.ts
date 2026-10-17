@@ -1,13 +1,8 @@
-/**
- * 翻译引擎定义：服务端、游戏插件与 Web 共用。分两组：
- * - agent：大模型翻译，全部由用户添加 Agent 实例条目（`agent:<id>`）
- * - platform：真正的机器翻译平台（Bing / Google）
- * 补译时先按顺序试 Agent 组，再试平台组。
- */
+/** Translation engine definitions shared by the server, game plugin and web client. User-configured agent instances use agent:<id>; platform engines are Bing and Google. Fill jobs try agents before platform engines. */
 export const TRANSLATE_ENGINE_IDS = ['bing', 'google'] as const
 export type TranslateBuiltinId = (typeof TRANSLATE_ENGINE_IDS)[number]
 export type TranslateEngineId = TranslateBuiltinId | `agent:${string}`
-/** 本机 Ollama 只供游玩测速 / 实时对话内部直连，不出现在引擎列表 */
+/** Local Ollama is used internally for play-mode latency checks and live dialogue, and is excluded from the engine list. */
 export type TranslateRunEngine = TranslateEngineId | 'ollama'
 export type TranslateEngineGroup = 'agent' | 'platform'
 export type TranslateEngineSwitches = Record<TranslateBuiltinId, boolean>
@@ -16,9 +11,9 @@ export const TRANSLATE_GROUP_ORDER: TranslateEngineGroup[] = ['agent', 'platform
 export const DEFAULT_ENGINE_ORDER: TranslateEngineId[] = [...TRANSLATE_ENGINE_IDS]
 export const DEFAULT_ENGINE_SWITCHES: TranslateEngineSwitches = { bing: true, google: true }
 
-/** 一条 Agent 翻译条目：引用 Agent 实例；model 空串表示用实例默认模型 */
+/** An agent translation entry references an instance; an empty model uses its default model. */
 export type TranslateAgentEntry = { id: string; profileId: string; model: string; enabled: boolean }
-/** 单次 Agent 翻译请求用的实例与模型 */
+/** The agent instance and model for a single translation request. */
 export type TranslateAiConfig = { profileId: string; model: string }
 
 export const MAX_TRANSLATE_AGENTS = 20
@@ -37,7 +32,7 @@ export function engineGroup(key: TranslateEngineId): TranslateEngineGroup {
   return isBuiltinEngineId(key) ? 'platform' : 'agent'
 }
 
-/** 公网平台不接收敏感文本；Agent 与本机模型由用户自己配置 */
+/** Public platforms reject sensitive text; users configure their agents and local models. */
 export function engineAcceptsSensitive(key: TranslateRunEngine): boolean {
   return key === 'ollama' || engineGroup(key) === 'agent'
 }
@@ -82,7 +77,7 @@ export function normalizeAgentEntries(raw: unknown): TranslateAgentEntry[] {
   return out
 }
 
-/** 只保留现存 key，缺的补到末尾（内置按默认顺序，Agent 按添加顺序） */
+/** Keep existing keys and append missing ones in default platform order and agent creation order. */
 export function normalizeEngineOrder(raw: unknown, agents: TranslateAgentEntry[] = []): TranslateEngineId[] {
   const valid = new Set<string>([...TRANSLATE_ENGINE_IDS, ...agents.map((a) => agentEngineKey(a.id))])
   const seen = new Set<string>()
@@ -102,14 +97,14 @@ export type TranslateEngineState = {
   switches: TranslateEngineSwitches
   agents: TranslateAgentEntry[]
   order: TranslateEngineId[]
-  /** 实际尝试顺序：先 Agent 组再平台组，组内按 order，只含已开启 */
+  /** Try enabled agents before enabled platforms, preserving each group's configured order. */
   enabled: TranslateEngineId[]
 }
 
 export type TranslateEnginePatch = {
   switches?: Partial<TranslateEngineSwitches>
   order?: unknown
-  /** 整表替换 */
+  /** Replace the entire entry list. */
   agents?: unknown
 }
 
@@ -119,7 +114,7 @@ function isOn(key: TranslateEngineId, switches: TranslateEngineSwitches, agents:
   return !!agents.find((a) => a.id === id)?.enabled
 }
 
-/** 合并磁盘内容与补丁；允许全部关闭（翻译时提示未开启平台） */
+/** Merge saved settings with a patch; all engines may be disabled and translation reports that state. */
 export function mergeEngineState(raw: unknown, patch?: TranslateEnginePatch): TranslateEngineState {
   const src = asRecord(raw)
   const current = normalizeEngineSwitches(src)
@@ -130,7 +125,7 @@ export function mergeEngineState(raw: unknown, patch?: TranslateEnginePatch): Tr
   return { switches, agents, order, enabled }
 }
 
-/** 写盘内容：内置开关平铺 + order + agents（与旧文件兼容） */
+/** Persist flat platform switches with order and agents for compatibility with older files. */
 export function engineStateFileBody(state: TranslateEngineState) {
   return { ...state.switches, order: state.order, agents: state.agents }
 }
@@ -140,7 +135,7 @@ export function findAgentEntry(agents: TranslateAgentEntry[] | undefined, key: T
   return (id && agents?.find((a) => a.id === id)) || null
 }
 
-/** 译文来源标记：Agent 条目记实例 id，便于翻译库按来源筛选 */
+/** Tag agent translations with their instance ID so cache entries can be filtered by source. */
 export function engineSourceTag(key: TranslateRunEngine, agents?: TranslateAgentEntry[]): string {
   const entry = findAgentEntry(agents, key)
   return entry ? `agent:${entry.profileId}` : key

@@ -5,25 +5,23 @@ import type { ReactNode } from 'react'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Button, EmptyState } from '@/components/sk'
-import { parseTranslateTab } from '@/components/translate/tabs'
-import { TranslateCacheTableSkeleton } from '@/components/translate/TranslateCacheTableSkeleton'
+import { translatePathTab } from '@/components/translate/tabs'
 import { TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { useBoundGame } from '@/components/useBoundGame'
 
 /**
  * 翻译内容区门闸：外壳 / 二级 tabs 始终展示；未选游戏或须连接时内容区为空态 + 入口。
- * 本机游戏选中即可用（磁盘接口），云端 / 远程游戏须连接。
+ * 共享翻译库只读本机库，不要求选中游戏。翻译动作仍要本机游戏（磁盘接口）或已连接的云端游戏。
  */
 export function TranslateGate({ children }: { children: ReactNode }) {
   const t = useT()
   const pathname = usePathname() || ''
+  const tab = translatePathTab(pathname)
   const { access, cloud, busy, onChoose } = useBoundGame({ allowLocalOffline: true })
 
-  if (access === 'ready') return children
+  if (tab === 'cache' || access === 'ready') return children
   if (access === 'loading') {
-    const seg = pathname.split('/').filter(Boolean).pop()
-    const tab = parseTranslateTab(seg === 'translate' ? undefined : seg)
-    return tab === 'cache' ? <TranslateCacheTableSkeleton label={t('translate.loadCache')} /> : <TranslateRunSkeleton />
+    return <TranslateRunSkeleton />
   }
   const needGame = access === 'need-game'
   return (

@@ -1,7 +1,4 @@
-/**
- * 词表占位（专名 → __NAME__ 等）：Seed 与局内查表共用。
- * 只替换游戏 DB 里的封闭专名，不做开放式主语抽取。
- */
+/** Glossary placeholders for proper names, shared by seed processing and in-game lookup. Replace only names from the game's database; do not infer arbitrary subjects. */
 
 export const GLOSSARY_TOKEN = {
   name: '__NAME__',
@@ -24,7 +21,7 @@ export type GlossaryEntry = {
 export function maskGlossary(text: string, entries: readonly GlossaryEntry[]): { masked: string; slots: GlossaryEntry[] } {
   let masked = String(text)
   const slots: GlossaryEntry[] = []
-  // 长词优先，避免「ボブ」先吃掉「キャロル」里的误匹配，以及短名抢在长名前面
+  // Match longer names first so shorter names cannot consume part of a longer name.
   const ordered = [...entries].sort((a, b) => b.jp.length - a.jp.length || a.jp.localeCompare(b.jp))
   for (const entry of ordered) {
     if (!entry.jp || !masked.includes(entry.jp)) continue
@@ -45,7 +42,7 @@ export function unmaskGlossary(text: string, slots: readonly GlossaryEntry[], zh
   return out
 }
 
-/** 把已填专名的译文重新打回占位，便于按模板键存储。 */
+/** Mask translated names again so the result can be stored under a template key. */
 export function remaskGlossaryFilled(text: string, slots: readonly GlossaryEntry[], zhMap: Record<string, string>): string {
   let out = String(text ?? '')
   for (const slot of slots) {
@@ -56,7 +53,7 @@ export function remaskGlossaryFilled(text: string, slots: readonly GlossaryEntry
   return out
 }
 
-/** 用模板译文 + 当前句槽位还原；命中则返回译文。 */
+/** Restore a template translation with the current sentence's slot values; return the translation on a match. */
 export function translateByGlossaryTemplate(
   text: string,
   entries: readonly GlossaryEntry[],
@@ -71,7 +68,7 @@ export function translateByGlossaryTemplate(
   return unmaskGlossary(hit, slots, zhMap)
 }
 
-/** 写入缓存时登记模板键。 */
+/** Index template keys when writing cache entries. */
 export function indexGlossaryTemplate(templateZh: Map<string, string>, src: string, zh: string, entries: readonly GlossaryEntry[], zhMap: Record<string, string>) {
   if (!entries.length) return
   const { masked, slots } = maskGlossary(src, entries)

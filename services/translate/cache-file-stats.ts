@@ -7,7 +7,7 @@ type Stats = { entries: number; file: string | null; sizeBytes: number }
 type Entry = { value: Stats; checkedAt: number; fingerprint: string; pending: boolean }
 const stats = new Map<string, Entry>()
 
-/** 轮询返回已有统计，异步按流计数，文件未变时复用结果。 */
+/** Return cached polling statistics and count asynchronously from a stream; reuse results while the file is unchanged. */
 export function gameCacheFileStats(contentRoot: string): Stats {
   let entry = stats.get(contentRoot)
   if (!entry) {

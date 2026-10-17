@@ -51,6 +51,8 @@ beforeEach(() => {
         modelTimeoutMs: 120_000,
         gameCallTimeoutMs: 15_000,
         proxy: '',
+        proxyProtocols: {},
+        proxyHeaders: {},
       },
       {
         id: 'office',
@@ -64,6 +66,8 @@ beforeEach(() => {
         modelTimeoutMs: 120_000,
         gameCallTimeoutMs: 15_000,
         proxy: '',
+        proxyProtocols: {},
+        proxyHeaders: {},
       },
     ],
   }
@@ -273,6 +277,8 @@ const codexProfile = {
   modelTimeoutMs: 120_000,
   gameCallTimeoutMs: 15_000,
   proxy: '',
+  proxyProtocols: {},
+  proxyHeaders: {},
 }
 
 function fieldTitles() {
@@ -299,7 +305,7 @@ test('CLI agents show their type in the list, hide Ollama fields and show the au
       </Providers>
     )
   )
-  expect(host.textContent).toContain('GPT（Codex） · 自动')
+  expect(host.textContent).toContain('GPT（Codex · SDK） · 自动')
 
   await act(async () =>
     root.render(
@@ -332,11 +338,11 @@ test('switching a new profile to a CLI type asks to save before authorizing', as
   )
   const providerSelect = [...host.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="listbox"]')].find((button) => button.textContent?.includes('Ollama'))!
   await act(async () => providerSelect.click())
-  const cursor = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent === 'Cursor')!
+  const cursor = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent === 'Cursor（CLI）')!
   await act(async () => cursor.click())
 
   const name = host.querySelector<HTMLInputElement>('input')!
-  expect(name.value).toBe('Cursor')
+  expect(name.value).toBe('Cursor（CLI）')
   expect(fieldTitles()).not.toContain('服务地址')
   expect(host.textContent).toContain('保存后即可登录或授权。')
 })

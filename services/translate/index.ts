@@ -1,14 +1,18 @@
 export {
   deleteSharedTranslateCache,
   type DeleteSharedTranslateResult,
+  getSharedTranslateCacheById,
   getSharedTranslateCacheStats,
   importSharedTranslateCache,
   type ImportSharedTranslateResult,
   querySharedTranslateCache,
+  setSharedTranslateCacheNsfw,
   type TranslateCacheItem,
   type TranslateCachePage,
   updateSharedTranslateCache,
   type UpdateSharedTranslateResult,
+  upsertSharedTranslateCachePairs,
+  type UpsertSharedTranslatePairsResult,
 } from './cache-api'
 export {
   DEFAULT_ENGINE_ORDER,

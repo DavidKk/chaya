@@ -14,7 +14,7 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
   let preserveBitmap = false
   function render(text: string): string {
     const result = translate(text)
-    if (result === text) observe(text)
+    observe(text)
     return result
   }
   function draw<T>(original: () => T): T {
@@ -156,7 +156,7 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
       )
     )
   }
-  // 不要注册 window.TranslationManager 等第三方同名全局：游戏插件见到它会当成完整翻译插件调用其它方法而报错
+  // Do not register third-party globals such as window.TranslationManager: game plugins may assume a complete API and call missing methods.
   return () => {
     for (const dispose of remove.reverse()) dispose()
     if (typeof $gameMessage !== 'undefined') delete ($gameMessage as Record<symbol, string[]>)[ORIGINAL_MESSAGE_LINES]

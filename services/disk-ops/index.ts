@@ -51,7 +51,16 @@ export {
 export { loadGameEditCatalog } from '@/services/game/game-edit-catalog'
 export { ensureLatestNwShellSource, type NwDownloadResult } from '@/services/game/nw-download'
 export { appendLog, clearLogs, listLogs, logBusStats, type LogLevel } from '@/services/log'
-export { deleteSharedTranslateCache, importSharedTranslateCache, parseTranslateImportText, querySharedTranslateCache, updateSharedTranslateCache } from '@/services/translate'
+export {
+  deleteSharedTranslateCache,
+  getSharedTranslateCacheById,
+  importSharedTranslateCache,
+  parseTranslateImportText,
+  querySharedTranslateCache,
+  setSharedTranslateCacheNsfw,
+  updateSharedTranslateCache,
+  upsertSharedTranslateCachePairs,
+} from '@/services/translate'
 export { getTranslateEngineSwitches, setTranslateEngineSwitches, type TranslateEngineId, type TranslateEngineSwitches } from '@/services/translate/engine-switches'
 export { fillMissingFromSeed } from '@/services/translate/fill-missing'
 export { liveTranslateTexts } from '@/services/translate/live-translate'

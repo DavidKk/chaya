@@ -40,6 +40,7 @@ async function loadCatalog(): Promise<GameEditCatalog> {
 
 const logsTools: ToolImpls = {
   async chaya_logs_query(args) {
+    if (optStr(args, 'view') === 'agent') throw new Error('Cloud Agent 活动保存在控制台页面 IndexedDB，请通过 Cloud 页面 WebMCP 查询')
     const level = optStr(args, 'level')
     const rows = gameLog()
       .history()

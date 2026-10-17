@@ -1,18 +1,12 @@
-/**
- * 疑似敏感台词检测（wordguard + 游戏向补充词）。
- * 命中则公网引擎不送，优先/仅走本机 Ollama，降低封禁风险。
- */
+/** Detect potentially sensitive dialogue with wordguard and game-specific additions. Avoid public engines on a match and prefer local Ollama to reduce provider blocking. */
 
 import { wordguard } from 'wordguard'
 
 import { stripControlNoise } from './text-classify'
 
-/**
- * wordguard 仅内置 ja/en；成人游戏常见词根与中文混排补进 words。
- * 短口语慎加，避免日常对话误伤。
- */
+/** wordguard includes Japanese and English only; add game-specific roots and mixed Chinese terms. Avoid broad short expressions that would flag ordinary dialogue. */
 const EXTRA_WORDS = [
-  /* ja 游戏向 */
+  /* Japanese game-specific terms. */
   'レイプ',
   '強姦',
   '凌辱',
@@ -46,7 +40,7 @@ const EXTRA_WORDS = [
   'オナニ',
   '自慰',
   '全裸',
-  /* zh 混排 / 缓存回写 */
+  /* Mixed Chinese text and cache writes. */
   '强奸',
   '凌辱',
   '轮奸',
@@ -81,7 +75,7 @@ const filter = wordguard({
   words: EXTRA_WORDS,
 })
 
-/** 装饰/口吻信号：心形密度、喘息符等（单独不足判敏感，参与加权） */
+/** Decorative and tone signals, such as heart density and vocalizations, contribute to the score but are insufficient alone. */
 const DECO_SIGNAL = /[♡♥❤💕]|はぁ+|あっ+|んっ+|ぅぅ+|ァ+|ッ+/g
 
 export type SensitiveHit = {
@@ -90,10 +84,7 @@ export type SensitiveHit = {
   reasons: string[]
 }
 
-/**
- * 粗检：是否不宜送公网翻译。
- * wordguard 命中即敏感；仅有装饰信号时 score < 2，不拦。
- */
+/** Check whether text should avoid public translation. wordguard matches are decisive; low decoration-only scores do not block requests. */
 export function inspectSensitiveText(text: string): SensitiveHit {
   const raw = String(text ?? '')
   if (!raw.trim()) return { sensitive: false, score: 0, reasons: [] }
@@ -111,7 +102,7 @@ export function inspectSensitiveText(text: string): SensitiveHit {
     }
   }
 
-  /* 装饰符在 strip 前取，否则 ♡ 会被剥掉 */
+  /* Read decorative signals before stripping removes them. */
   const deco = raw.match(DECO_SIGNAL)
   if (deco && deco.length >= 2 && score > 0) {
     score += 1
@@ -128,22 +119,19 @@ export function isSensitiveForCloud(text: string): boolean {
   return inspectSensitiveText(text).sensitive
 }
 
-/** 引擎 tag 是否标记为 NSFW / 敏感跳过（如 `live:ollama:nsfw`、`skip:sensitive`） */
+/** Determine whether an engine tag marks NSFW content or a sensitive-text skip, such as live:ollama:nsfw or skip:sensitive. */
 export function isNsfwTaggedEngine(engine: string | null | undefined): boolean {
   const e = String(engine || '')
   if (!e) return false
   return e.includes(':nsfw') || e === 'skip:sensitive' || e.endsWith(':sensitive')
 }
 
-/** 缓存行是否 NSFW：引擎 tag 或原文敏感检测 */
+/** Determine whether a cache row is NSFW using its engine tag or source text. */
 export function isNsfwCacheRow(src: string, engine?: string | null): boolean {
   return isNsfwTaggedEngine(engine) || isSensitiveForCloud(src)
 }
 
-/**
- * 公网分片前拆开：敏感条不得混入同片请求（一条拒收会拖死整片）。
- * 返回仍保持原相对顺序。
- */
+/** Separate sensitive rows before public-engine batching so one rejected row cannot fail an entire batch. Preserve relative order. */
 export function partitionCloudSafeTexts(texts: string[]): { safe: string[]; sensitive: string[] } {
   const safe: string[] = []
   const sensitive: string[] = []

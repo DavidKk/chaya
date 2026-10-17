@@ -121,9 +121,9 @@ function SeedProgressSkeleton() {
         </div>
         <Skeleton className="h-2.5 w-full rounded-full" />
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        {Array.from({ length: 3 }, (_, i) => (
-          <Skeleton key={i} className="h-11 w-[8.5rem] rounded-[0.3rem]" />
+      <div className="grid grid-cols-4 gap-2">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-8 w-full rounded-[0.3rem]" />
         ))}
       </div>
     </div>
@@ -131,18 +131,15 @@ function SeedProgressSkeleton() {
 }
 
 /** 翻译运行页加载态：保持引擎轨、配置子导航和当前模式内容的真实拓扑。 */
-export function TranslateRunSkeleton({ tab = 'play' }: { tab?: TranslateModeTab }) {
+export function TranslateRunSkeleton({ tab = 'seed' }: { tab?: TranslateModeTab }) {
   const t = useT()
   return (
     <SkeletonRegion label={tab === 'seed' ? t('translate.loadSeed') : t('translate.loadPlay')} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 items-stretch">
+      <div className="flex min-h-0 flex-1 flex-col items-stretch md:flex-row">
         <EngineRailSkeleton />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-line px-4 py-2" aria-hidden>
-            <div className="flex h-8 items-center gap-0.5 rounded-[0.2rem] border border-line p-0.5">
-              <Skeleton className="h-full w-[3.25rem] rounded-[0.15rem]" />
-              <Skeleton className="h-full w-[3.25rem] rounded-[0.15rem] opacity-50" />
-            </div>
+          <div aria-hidden className="flex min-h-[3.25rem] shrink-0 items-center border-b border-line px-4 py-2">
+            <Skeleton className="h-8 w-28 rounded-[0.2rem]" />
           </div>
           <div className="min-h-0 flex-1 overflow-hidden" aria-hidden>
             <div className="flex items-start justify-start p-4">

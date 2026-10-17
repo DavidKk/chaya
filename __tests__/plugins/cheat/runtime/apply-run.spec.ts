@@ -6,6 +6,7 @@ import type { RunActionId, RunFlagKey } from '@/components/game-edit/types'
 const setGod = jest.fn((on: boolean) => on)
 const setThrough = jest.fn((on: boolean) => on)
 const setAutoWin = jest.fn((on: boolean) => on)
+const setAutoBattle = jest.fn((on: boolean) => on)
 const clearInterpreter = jest.fn()
 const battleVictory = jest.fn()
 const battleEscape = jest.fn()
@@ -40,6 +41,7 @@ jest.mock('@/plugins/src/cheat/runtime/cheats', () => ({
     setGod: (...a: unknown[]) => setGod(...(a as [boolean])),
     setThrough: (...a: unknown[]) => setThrough(...(a as [boolean])),
     setAutoWin: (...a: unknown[]) => setAutoWin(...(a as [boolean])),
+    setAutoBattle: (...a: unknown[]) => setAutoBattle(...(a as [boolean])),
     clearInterpreter: () => clearInterpreter(),
     battleVictory: () => battleVictory(),
     battleEscape: () => battleEscape(),
@@ -124,6 +126,7 @@ describe('applySpeed / applyRunFlag', () => {
       ['fullscreen', () => expect(setFullscreen).toHaveBeenCalledWith(true)],
       ['god', () => expect(setGod).toHaveBeenCalledWith(true)],
       ['autoWin', () => expect(setAutoWin).toHaveBeenCalledWith(true)],
+      ['autoBattle', () => expect(setAutoBattle).toHaveBeenCalledWith(true)],
       ['through', () => expect(setThrough).toHaveBeenCalledWith(false)],
       ['autotalk', () => expect(autoTalk).toHaveBeenCalledWith(true)],
       ['encounter', () => expect(setEncounter).toHaveBeenCalledWith(false)],
@@ -136,7 +139,17 @@ describe('applySpeed / applyRunFlag', () => {
     ]
     for (const [key, assert] of cases) {
       jest.clearAllMocks()
-      applyRunFlag(key, key === 'fullscreen' || key === 'god' || key === 'autoWin' || key === 'autotalk' || key === 'menuEnabled' || key === 'clickMove' || key === 'clickTeleport')
+      applyRunFlag(
+        key,
+        key === 'fullscreen' ||
+          key === 'god' ||
+          key === 'autoWin' ||
+          key === 'autoBattle' ||
+          key === 'autotalk' ||
+          key === 'menuEnabled' ||
+          key === 'clickMove' ||
+          key === 'clickTeleport'
+      )
       assert()
     }
   })

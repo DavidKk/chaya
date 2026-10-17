@@ -14,9 +14,14 @@ export type TurnEvent = {
   maxSteps?: number
   callId?: string
   ok?: boolean
+  startedAt?: number
+  contextDurationMs?: number
   durationMs?: number
   input?: Record<string, unknown>
   output?: unknown
+  details?: unknown
+  stepId?: string
+  actionId?: string
   usage?: unknown
   model?: string
   content?: string

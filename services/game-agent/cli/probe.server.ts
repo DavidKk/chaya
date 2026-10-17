@@ -16,7 +16,14 @@ import { AgentCliError } from './errors'
 import { cliEnv } from './process.server'
 import { requireCli, resolveCli } from './resolve-cli.server'
 
-export type CliProbeProfile = { id: string; provider: CliAgentProvider; defaultModel?: string; proxy?: string }
+export type CliProbeProfile = {
+  id: string
+  provider: CliAgentProvider
+  defaultModel?: string
+  proxy?: string
+  proxyProtocols?: import('@/lib/game-agent/proxy').AgentProxyProtocols
+  proxyHeaders?: Record<string, string>
+}
 
 export type CliProbeResult = {
   models: OllamaModel[]
@@ -61,10 +68,10 @@ async function probeAcp(session: AcpSession, profile: CliProbeProfile, prompt: b
 }
 
 async function probeCursor(profile: CliProbeProfile, prompt: boolean, signal?: AbortSignal): Promise<Probe> {
-  const status = await getCursorAuthStatus({ proxy: profile.proxy })
+  const status = await getCursorAuthStatus({ proxy: profile.proxy, proxyHeaders: profile.proxyHeaders })
   if (status.state === 'signed_out') throw new AgentCliError('AGENT_AUTH_REQUIRED', 'Cursor 未登录，请在设置中登录')
   const file = await requireCli('cursor')
-  const env = cliEnv(file, { ...(await agentProxyEnv(profile.proxy)), ...cursorIsolatedHome(), CURSOR_API_KEY: '' })
+  const env = cliEnv(file, { ...(await agentProxyEnv(profile)), ...cursorIsolatedHome(), CURSOR_API_KEY: '' })
   const cwd = createOnceCwd()
   let session: AcpSession | null = null
   const close = () => session?.close()
@@ -98,7 +105,7 @@ async function codexModels(server: CodexAppServer): Promise<{ models: OllamaMode
 async function probeCodex(profile: CliProbeProfile, prompt: boolean, signal?: AbortSignal): Promise<Probe> {
   const file = await requireCli('codex')
   const { version } = await resolveCli('codex')
-  const env = await agentProxyEnv(profile.proxy)
+  const env = await agentProxyEnv(profile)
   const lease: CredentialLease = await acquireCredentialLease(profile.id, { extraFiles: { 'config.toml': CODEX_CONFIG_TOML } })
   const cwd = createOnceCwd()
   let server: CodexAppServer | null = null
@@ -132,7 +139,7 @@ async function probeCodex(profile: CliProbeProfile, prompt: boolean, signal?: Ab
 
 async function probeGemini(profile: CliProbeProfile, prompt: boolean, signal?: AbortSignal): Promise<Probe> {
   const file = await requireCli('gemini')
-  const proxyEnv = await agentProxyEnv(profile.proxy)
+  const proxyEnv = await agentProxyEnv(profile)
   const lease = await acquireCredentialLease(profile.id, { extraFiles: { [ANTIGRAVITY_SETTINGS_PATH]: ANTIGRAVITY_SETTINGS } })
   const env = antigravityEnv(file, lease.dir, proxyEnv)
   const cwd = createOnceCwd()

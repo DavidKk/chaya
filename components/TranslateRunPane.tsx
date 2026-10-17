@@ -1,21 +1,24 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { IoCloudUploadOutline, IoPauseOutline, IoPlayOutline } from 'react-icons/io5'
 import { LuScanText } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formCardDense } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
+import { Button, ScrollArea, TruncateText } from '@/components/sk'
 import { TranslateActivityLog, type TranslateLogEntry } from '@/components/translate/TranslateActivityLog'
 import { type EngineId, TranslateEngineRail } from '@/components/translate/TranslateEngineRail'
 import { useTranslateEnginesDrawer } from '@/components/translate/TranslateEnginesDrawerContext'
+import { TranslateExportMenu } from '@/components/translate/TranslateExportMenu'
+import { TranslateRunNav } from '@/components/translate/TranslateRunNav'
 import { TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { TranslationPlaySettings } from '@/components/translate/TranslationPlaySettings'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { useAnimatedNumber } from '@/components/translate/useAnimatedNumber'
 import { readApiErrorMessage } from '@/lib/api-error'
+import { filterTranslationExport, type TranslationExportMode } from '@/lib/translate/export'
 import { estimateRemainMs, formatRemainEta } from '@/lib/translate/remain-eta'
 import { cn } from '@/lib/utils'
 
@@ -151,20 +154,13 @@ export function TranslateRunPane({
   surface = 'page',
 }: { tab?: 'play' | 'seed'; onTabChange?: (tab: 'play' | 'seed') => void; surface?: 'page' | 'overlay' } = {}) {
   const t = useT()
+  const panelId = useId()
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
   const fileRef = useRef<HTMLInputElement>(null)
-  const [localTab, setLocalTab] = useState<'play' | 'seed'>('play')
+  const [localTab, setLocalTab] = useState<'play' | 'seed'>('seed')
   const tab = selectedTab ?? localTab
   const setTab = onTabChange ?? setLocalTab
-  const panelId = useId()
-  const tabs = useMemo(
-    () => [
-      { id: 'play' as const, label: t('translate.playTab'), panelId: `${panelId}-play` },
-      { id: 'seed' as const, label: t('translate.seedTab'), panelId: `${panelId}-seed` },
-    ],
-    [panelId, t]
-  )
   const [progress, setProgress] = useState<Progress>(emptyProgress)
   const [job, setJob] = useState<JobState>(emptyJob)
   const [activity, setActivity] = useState<ActivityState>({ logs: [], liveStatus: '', sessionDone: 0 })
@@ -174,12 +170,13 @@ export function TranslateRunPane({
   const [starting, setStarting] = useState(false)
   const [pausing, setPausing] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [enabledEngines, setEnabledEngines] = useState<EngineId[]>(['bing', 'google'])
   const { open: enginesOpen, setOpen: setEnginesOpen } = useTranslateEnginesDrawer()
   const prevStatus = useRef<JobStatus>('idle')
 
   const running = job.status === 'running'
-  const busy = loading || extracting || running || importing || starting || pausing
+  const busy = loading || extracting || running || importing || exporting || starting || pausing
 
   const applySnapshot = useCallback((json: Partial<Progress> & { job?: Partial<JobState>; activity?: Partial<ActivityState> }) => {
     setProgress(readProgress(json))
@@ -316,6 +313,47 @@ export function TranslateRunPane({
     }
   }
 
+  function downloadTranslationJson(entries: Record<string, string>, mode: TranslationExportMode) {
+    const blob = new Blob([`${JSON.stringify(entries, null, 2)}\n`], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = mode === 'all' ? 'translation.json' : 'translation-untranslated.json'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  async function exportJson(mode: TranslationExportMode) {
+    setExporting(true)
+    try {
+      const res = await translationFetch('/api/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ export: true }),
+      })
+      const json = (await res.json()) as { ok?: boolean; total?: number; entries?: Record<string, string>; error?: unknown }
+      if (!res.ok || json.ok === false || !json.entries || typeof json.entries !== 'object') {
+        notify.error(readApiErrorMessage(json, t('translate.exportJsonFailed')))
+        return
+      }
+      const entries = filterTranslationExport(json.entries, mode)
+      const total = Object.keys(entries).length
+      if (!total) {
+        notify.info(t(mode === 'untranslated' ? 'translate.exportUntranslatedEmpty' : 'translate.exportJsonEmpty'))
+        return
+      }
+      downloadTranslationJson(entries, mode)
+      await refresh()
+      notify.success(t('translate.exportJsonDone', { total }))
+    } catch (err) {
+      notify.error(err instanceof Error ? err.message : t('translate.exportJsonFailed'))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   async function importFile(file: File) {
     setImporting(true)
     try {
@@ -376,7 +414,7 @@ export function TranslateRunPane({
         }}
       />
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1 items-stretch">
+        <div className="flex min-h-0 flex-1 flex-col items-stretch md:flex-row">
           <TranslateEngineRail
             disabled={busy}
             mobileOpen={enginesOpen}
@@ -385,17 +423,15 @@ export function TranslateRunPane({
             manageAgentsHref={surface === 'page' ? '/assist/agents' : undefined}
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-line px-4 py-2">
-              <SegmentedNav items={tabs} value={tab} onChange={setTab} aria-label={t('translate.configAria')} />
-            </div>
+            <TranslateRunNav value={tab} onChange={setTab} panelId={panelId} />
             <ScrollArea className="min-h-0 flex-1" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.taskAria') }}>
               <div className="flex items-start justify-start p-4">
                 <div className="flex w-full max-w-[32rem] flex-col gap-3">
-                  <div role="tabpanel" id={`${panelId}-play`} aria-labelledby={`${panelId}-play-tab`} hidden={tab !== 'play'}>
+                  <div role="tabpanel" id={`${panelId}-play`} aria-labelledby={`${panelId}-play-tab`} data-translate-mode="play" hidden={tab !== 'play'}>
                     <TranslationPlaySettings />
                     <TranslateActivityLog className="mt-4 w-full" entries={activity.logs} liveStatus={activity.liveStatus} sessionDone={activity.sessionDone} />
                   </div>
-                  <div role="tabpanel" id={`${panelId}-seed`} aria-labelledby={`${panelId}-seed-tab`} hidden={tab !== 'seed'}>
+                  <div role="tabpanel" id={`${panelId}-seed`} aria-labelledby={`${panelId}-seed-tab`} data-translate-mode="seed" hidden={tab !== 'seed'}>
                     <div className={cn(formCardDense, 'w-full')}>
                       {status ? (
                         <p role="alert" className="text-fail">
@@ -470,30 +506,31 @@ export function TranslateRunPane({
                         </>
                       ) : null}
 
-                      <div className="flex flex-wrap items-center gap-3 [&_button]:min-h-11 [&_button]:min-w-[8.5rem] [&_button]:px-4 [&_button]:py-2 [&_button]:text-[0.9375rem] [&_button]:font-semibold">
+                      <div className="grid grid-flow-col auto-cols-fr items-center gap-1 sm:gap-2 [&_svg]:max-sm:hidden [&_button]:max-sm:text-xs [&_button]:w-full [&_button]:min-w-0 [&_button]:gap-1 [&_button]:px-2 [&_button]:whitespace-nowrap">
                         <Button disabled={busy} loading={importing} onClick={() => fileRef.current?.click()}>
-                          <IoCloudUploadOutline size={18} aria-hidden />
+                          <IoCloudUploadOutline size={16} aria-hidden />
                           {t('translate.importFile')}
                         </Button>
+                        <TranslateExportMenu disabled={busy} loading={exporting} onExport={(mode) => void exportJson(mode)} />
                         {progress.hasSeed ? (
-                          <Button disabled={busy} loading={extracting} onClick={() => void runExtract()}>
-                            <LuScanText size={18} aria-hidden />
+                          <Button variant="accent" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
+                            <LuScanText size={16} aria-hidden />
                             {t('translate.updateSource')}
                           </Button>
                         ) : null}
                         {!progress.hasSeed ? (
                           <Button variant="ok" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
-                            <LuScanText size={18} aria-hidden />
+                            <LuScanText size={16} aria-hidden />
                             {t('translate.extract')}
                           </Button>
                         ) : running ? (
                           <Button variant="fail" disabled={pausing} loading={pausing} onClick={() => void pauseJob()}>
-                            <IoPauseOutline size={19} aria-hidden />
+                            <IoPauseOutline size={16} aria-hidden />
                             {t('common.pause')}
                           </Button>
                         ) : (
                           <Button variant="ok" disabled={busy || !canStart} loading={starting} onClick={() => void startJob()}>
-                            <IoPlayOutline size={19} aria-hidden />
+                            <IoPlayOutline size={16} aria-hidden />
                             {startLabel}
                           </Button>
                         )}

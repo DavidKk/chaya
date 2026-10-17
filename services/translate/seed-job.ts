@@ -1,7 +1,4 @@
-/**
- * Seed 缺词补译：服务端后台任务（刷新页面不中断）。
- * 进程内跑循环；状态落盘到 data/translate-jobs/，HMR / 重启后可恢复 running。
- */
+/** Server-side seed fill jobs survive page refreshes. Run the loop in-process and persist snapshots under data/translate-jobs/ so running jobs resume after HMR or restart. */
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -238,7 +235,7 @@ function ensureLoop(contentRoot: string) {
   void runLoop(contentRoot)
 }
 
-/** 当前绑定游戏的进度 + 任务快照；若盘上为 running 则自动续跑循环 */
+/** Return progress and the job snapshot for the bound game; resume the loop if the persisted state is running. */
 export function getSeedJobSnapshot(): SeedJobSnapshot {
   const contentRoot = resolveBoundRoot()
   const progress = getSeedTranslateProgress(contentRoot)
@@ -252,10 +249,10 @@ export function getSeedJobSnapshot(): SeedJobSnapshot {
   return { ...progress, job: { ...rt.state, logs: [...rt.state.logs] } }
 }
 
-/** 启动或继续补译（服务端循环） */
+/** Start or resume the server-side fill loop. */
 export function startSeedJob(): SeedJobSnapshot {
   const contentRoot = resolveBoundRoot()
-  // 操作入口必须看到刚导入的 seed / 刚清除的缓存，不能复用轮询的旧进度。
+  // Actions must see freshly imported seeds and cleared caches rather than stale polling progress.
   const progress = getSeedTranslateProgress(contentRoot, true)
   if (!progress.hasSeed || !progress.total) {
     throw new Error('未找到 seed（请先抽取文本，或放入 *-trans.seed.json）')
@@ -300,7 +297,7 @@ export function startSeedJob(): SeedJobSnapshot {
   return { ...getSeedTranslateProgress(contentRoot), job: { ...rt.state, logs: [...rt.state.logs] } }
 }
 
-/** 暂停：当前段结束后停下 */
+/** Pause after the current segment finishes. */
 export function pauseSeedJob(): SeedJobSnapshot {
   const contentRoot = resolveBoundRoot()
   const rt = getRuntime(contentRoot)

@@ -1,7 +1,4 @@
-/**
- * AI Agent 翻译：用选定的 Agent 实例（端点 / 模型 / token）做日→中。
- * token 只在服务端读取；游戏插件经 `/api/translate { mode: 'ai' }` 调用。
- */
+/** Translate Japanese to Chinese through the selected agent instance, endpoint, model and token. Read credentials only on the server; plugins call /api/translate with mode:ai. */
 import { OLLAMA_TRANSLATE_RETRY_SYSTEM, requestOllama, translationNeedsReasoning } from '@/lib/translate/engine-http'
 import type { TranslateAiConfig } from '@/lib/translate/engines'
 import { loadAgentModelCache } from '@/services/game-agent/model-cache'
@@ -52,7 +49,7 @@ export type TranslateAgentListing = {
   models: Record<string, Array<{ name: string }>>
 }
 
-/** 供翻译页选择实例：只给名称与模型，不含端点和 token */
+/** Expose instance names and models to the translation page, excluding endpoints and tokens. */
 export function listTranslateAgents(): TranslateAgentListing {
   const profiles = ollamaProfiles(loadGameAgentSettings())
   const cache = loadAgentModelCache(profiles)

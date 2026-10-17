@@ -34,6 +34,7 @@ export function applyRunFlag(key: RunFlagKey, on: boolean) {
     else if (typeof ConfigManager !== 'undefined') ConfigManager.alwaysDash = on
   } else if (key === 'god') Cheats.setGod(on)
   else if (key === 'autoWin') Cheats.setAutoWin(on)
+  else if (key === 'autoBattle') Cheats.setAutoBattle(on)
   else if (key === 'through') Cheats.setThrough(on)
   else if (key === 'autotalk') window.ChayaEdit?.autoTalk?.(on)
   else if (key === 'encounter') RunCheats.setEncounter(on)

@@ -1,6 +1,8 @@
 import type { WebMcpToolDefinition } from '@/initializer/webmcp/model-context'
+import { browserAgentTraceArchive } from '@/lib/browser/agent-trace-store'
 import { gameAgentProfileToolSpecs } from '@/lib/game-agent/profile-tool-specs'
 import { isCliProvider } from '@/lib/game-agent/providers'
+import type { AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
 import { type AgentTimeoutSettings, normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
 import { cacheToolSettings, normalizeToolSettings, readCachedToolSettings } from '@/lib/game-agent/tool-settings'
 import { functionToolDefinition } from '@/lib/webmcp/mcp-mirror'
@@ -195,7 +197,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
   }
 
   const classifyPlay = async (profile: BrowserAgentProfile, model: string, prompt: string, signal?: AbortSignal) => {
-    if (!input.connected) return false
+    if (!input.connected) return { operate: false as const }
     try {
       const answer = await streamOllamaChat(
         {
@@ -206,7 +208,10 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
           temperature: 0,
           format: {
             type: 'object',
-            properties: { operate: { type: 'boolean' } },
+            properties: {
+              operate: { type: 'boolean' },
+              shape: { type: 'string', enum: ['single', 'batch', 'open'] },
+            },
             required: ['operate'],
             additionalProperties: false,
           },
@@ -214,7 +219,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
             {
               role: 'system',
               content:
-                'Return JSON only: {"operate":boolean}. operate=true only when the user asks you to control the running game with ordinary player input, such as moving, interacting, advancing dialogue, or fighting. Questions and game-data edits are false.',
+                'Return JSON only: {"operate":boolean,"shape"?: "single"|"batch"|"open"}. operate=true only when the user asks you to control the running game with ordinary player input, such as moving, interacting, advancing dialogue, or fighting. When operate=true, shape=batch for several or all matching map targets, single for one concrete action, open for story/travel/combat. Questions and game-data edits are false.',
             },
             { role: 'user', content: prompt },
           ],
@@ -222,9 +227,12 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
         },
         () => undefined
       )
-      return JSON.parse(answer.content).operate === true
+      const value = JSON.parse(answer.content) as { operate?: unknown; shape?: unknown }
+      if (value.operate !== true) return { operate: false as const }
+      const shape = value.shape === 'single' || value.shape === 'batch' || value.shape === 'open' ? value.shape : ('open' as const)
+      return { operate: true as const, shape }
     } catch {
-      return false
+      return { operate: false as const }
     }
   }
 
@@ -243,13 +251,19 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
               if (pollingSignal.aborted) throw pollingSignal.reason
               const result = (await taskCall({ type: 'agent.task.events', requestId: crypto.randomUUID(), taskId, afterSeq: seq }, pollingSignal)) as {
                 gap?: boolean
-                task?: { state?: string; error?: string; lastSeq?: number }
-                events?: Array<{ seq: number; type: string; data?: Record<string, unknown> }>
+                task?: AgentTask
+                events?: AgentTaskEvent[]
               }
               if (result.gap) emit({ type: 'history.gap' })
               for (const event of result.events || []) {
                 seq = Math.max(seq, event.seq)
-                if (event.type === 'assistant.completed') emit({ type: 'assistant.delta', seq: event.seq, text: event.data?.text || '' })
+                if (result.task) await browserAgentTraceArchive.append({ ...result.task, events: [], messages: [] }, event)
+                if (event.type === 'assistant.completed')
+                  emit({
+                    type: 'assistant.delta',
+                    seq: event.seq,
+                    text: typeof event.data === 'object' && event.data && 'text' in event.data ? String((event.data as { text?: unknown }).text || '') : '',
+                  })
                 else emit({ type: event.type, seq: event.seq, ...(event.data || {}) })
               }
               const state = result.task?.state
@@ -289,6 +303,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
       model: string
       locale?: string
       capability?: 'play' | 'companion'
+      shape?: 'single' | 'batch' | 'open'
       surface?: 'companion'
       companionCharacter?: string
     },
@@ -311,6 +326,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
         locale: body.locale,
         surface: body.surface || 'sidebar',
         companionCharacter: body.companionCharacter,
+        ...(body.shape ? { shape: body.shape } : {}),
         goal: body.prompt,
       },
       signal
@@ -322,7 +338,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
     const url = new URL(path, location.origin)
     const method = (init?.method || 'GET').toUpperCase()
 
-    if (url.pathname === '/api/game-agent/auth' || url.pathname.startsWith('/api/game-agent/auth/')) {
+    if (url.pathname === '/api/game-agent/auth' || url.pathname.startsWith('/api/game-agent/auth/') || url.pathname === '/api/game-agent/processes') {
       return response({ error: { code: 'LOCAL_ONLY', message: CLI_LOCAL_ONLY } }, 404)
     }
     if (url.pathname === '/api/integration/game-agent') {
@@ -400,6 +416,34 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
       })
     }
 
+    if (url.pathname === '/api/game-agent/activity') {
+      const taskId = url.searchParams.get('taskId')?.trim()
+      const gameId = url.searchParams.get('gameId')?.trim()
+      if (method === 'DELETE') {
+        if (taskId) {
+          const task = await browserAgentTraceArchive.read(taskId)
+          if (!task || (gameId && task.gameId !== gameId)) return response({ removed: 0 })
+        }
+        return response({ removed: await browserAgentTraceArchive.remove(taskId || undefined) })
+      }
+      if (method === 'GET' && !taskId) {
+        const tasks = await browserAgentTraceArchive.list()
+        return response({ tasks: gameId ? tasks.filter((task) => task.gameId === gameId) : tasks })
+      }
+      if (method === 'GET' && taskId) {
+        const task = await browserAgentTraceArchive.read(taskId)
+        if (!task || (gameId && task.gameId !== gameId)) return response({ error: { message: 'Agent 轨迹不存在' } }, 404)
+        if (url.searchParams.get('format') === 'jsonl') {
+          const exported = await browserAgentTraceArchive.export(taskId)
+          return new Response(exported?.content || '', {
+            status: exported ? 200 : 404,
+            headers: exported ? { 'Content-Type': exported.mimeType, 'Content-Disposition': `attachment; filename="${exported.filename}"` } : undefined,
+          })
+        }
+        return response({ task })
+      }
+    }
+
     if (url.pathname === '/api/game-agent/turn' && method === 'POST') {
       const body = JSON.parse(String(init?.body || '{}')) as {
         gameId?: string
@@ -422,8 +466,8 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
           return response({ error: { code: 'AGENT_TURN_RUNNING', message: '当前游戏已有 Agent 任务在运行，请先停止' } }, 409)
         }
       }
-      const operate = await classifyPlay(profile, body.model.trim(), body.prompt.trim(), init?.signal || undefined)
-      if (operate || (body.surface === 'companion' && input.connected && input.agentTask)) {
+      const intent = await classifyPlay(profile, body.model.trim(), body.prompt.trim(), init?.signal || undefined)
+      if (intent.operate || (body.surface === 'companion' && input.connected && input.agentTask)) {
         if (!input.connected) return response({ error: { code: 'GAME_OFFLINE', message: '托管需要先连接游戏' } }, 409)
         return remoteTaskStream(
           {
@@ -433,7 +477,8 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
             profileId: profile.id,
             model: body.model.trim(),
             locale: body.locale,
-            capability: operate ? 'play' : 'companion',
+            capability: intent.operate ? 'play' : 'companion',
+            ...(intent.operate && intent.shape ? { shape: intent.shape as 'single' | 'batch' | 'open' } : {}),
             surface: body.surface,
             companionCharacter: body.companionCharacter,
           },

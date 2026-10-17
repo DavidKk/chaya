@@ -29,16 +29,16 @@
 
 ```text
 Chaya 助手侧栏（App / Web / GameEdit 共用 React 工作区）
-  │ POST /api/game-agent/turn（SSE，带 launch token + gameId）
+  │ POST /api/game-agent/turn（SSE，带 launch token + runtimeInstanceId）
   │ DELETE /api/game-agent/turn/:turnId
-  │ DELETE /api/game-agent/turn?gameId=（一键清理该游戏全部 Turn）
+  │ DELETE /api/game-agent/turn?runtimeInstanceId=（一键清理该运行实例全部 Turn）
   ↓
 app/api/game-agent/*
   ↓
 已保存的 Agent Profile（服务端解析 endpoint，游戏只提交 profileId）
   ↓
 services/game-agent/
-  ├─ session-store       按 gameId 管理会话与活动 Turn
+  ├─ session-store       当前按 gameId 管理；v2 按 runtimeInstanceId 管理会话与活动 Turn
   ├─ ollama-client       /api/tags、/api/show、/api/chat NDJSON
   ├─ prompt              固定 Prompt + 历史 / 摘要 / 本轮目标
   ├─ tool-runtime        工具白名单、执行与写后验证
@@ -212,19 +212,28 @@ type OllamaTool = {
 ```ts
 const live = makeLiveTools({
   games: listAgentGames,
-  call: (gameId, method, params) => callAgentGame(resolveSessionGame(gameId), method, params),
+  call: (runtimeInstanceId, method, params) => callAgentGame(resolveSessionGame(runtimeInstanceId), method, params),
 })
 ```
 
-Agent session 固定绑定 `gameId`，忽略模型自行指定其它游戏的尝试。动态插件工具只从该游戏上报的第一方目录生成。
+Agent session 固定绑定唯一的 `runtimeInstanceId`，并同时保存 `libraryGameId`、`pluginInstanceId` 和 `connectionId`；忽略模型自行指定其它运行实例的尝试。动态插件工具只从该运行实例上报的第一方目录生成。
 
-每次实际执行工具都以 `source=ChayaAgent` 写入现有日志总线。开始与完成分别记录工具名、callId、turnId、gameId、模型、参数摘要、返回状态和耗时；本机模式落盘，可从日志页或 `chaya_logs_query` 随时查询。
+每次实际执行工具都由 Agent 协调服务写入 Agent 任务轨迹。开始与完成分别记录工具名、`toolCallId`、`actionId`、task、运行实例、模型、参数摘要、返回状态和耗时；本机模式落盘，可从日志页或 `chaya_logs_query` 查询。工具结果只说明调用状态，不能由服务转换成对话、奖励、开箱或地图切换等游戏事实。
 
 Agent 配置工具固定为 `chaya_agent_profiles`、`chaya_agent_profile_create`、`chaya_agent_profile_update` 和 `chaya_agent_profile_delete`。App / local 由服务端工具运行时直接执行，即使没有游戏连接也会提供；Cloud 由页面 WebMCP 注册表提供同名工具，读写浏览器本地 Profile。系统 Prompt 将未明确声明为游戏实体的 “Agent” 和平台实例名称解释为“配置 > Agent”中的配置；用户同时给出操作和唯一名称或 id 时直接调用工具，只有缺少目标或工具报告重名时才追问。
 
 App / local 的凭证字段为 write-only：工具列表只返回 `hasToken`，不返回明文或密文。凭证不进入 Profile 同步文档，单独使用 AES-256-GCM 保存到本机 `data/game-agent/`，随机密钥文件与密文文件权限为 `0600`；调用 Ollama 时只在服务端解密并写入 Authorization header。Cloud 的浏览器 Profile 不提供凭证字段，避免把 token 写入浏览器存储或 WebMCP 日志。
 
 能力边界：App / local 使用服务端 MCP 实现、Agent 配置工具和已连接游戏的插件工具；Cloud 使用当前页面的 WebMCP 注册表，其中包含页面工具、Cloud MCP 实现、Agent 配置工具和已连接游戏的插件工具。服务端进程无法直接访问浏览器 DOM，因此 App / local 的 Agent 不提供只存在于页面进程的 DOM WebMCP 工具。
+
+### 5.4 游戏事实写入与实例绑定
+
+- 游戏插件是游戏运行事实的唯一逻辑生产者，负责观察并写入地图、寻路、对话、选项、战斗、奖励和局内状态变化。
+- Agent 协调服务记录“请求插件执行”和工具结果；完成验证必须等待插件观察事件或读取插件权威状态，不能把 `ok=true` 当作游戏目标已完成。
+- 本地服务可接受插件批量事件并代理追加到文件；Cloud 页面可代理写入 IndexedDB。代理层验证 schema、租约和幂等键，但不改写 `producer=game_plugin`。
+- Session 必须从兼容 `gameId` 过渡为 `{ libraryGameId, runtimeInstanceId, pluginInstanceId, connectionId }`。同一库游戏的多个运行实例分别建 session 和互斥锁，不能只按游戏名称选择。
+- 插件事件携带 `taskId`、`actionId`、`parentActionId` 和可选 `toolCallId`。工具调用期间发生但无法可靠归因的事件保留为 `unattributed`，不得丢弃或猜测关联。
+- 插件以 `pluginInstanceId + producerEpoch + producerSeq` 续传；新连接取得 writer lease 后旧连接失效。重复内容幂等，键冲突记录 `GAME_LOG_EVENT_CONFLICT`。
 
 ## 6. Prompt 设计
 
@@ -317,7 +326,7 @@ async function runTurn(input, signal) {
   const messages = buildMessages(input)
 
   if (input.mode === 'play') {
-    const state = await tools.call('chaya_live_state', { gameId: input.gameId })
+    const state = await tools.call('chaya_live_state', { runtimeInstanceId: input.runtimeInstanceId })
     messages.push(toolObservation(state))
     emit({ type: 'state', phase: 'observing', state: summarize(state) })
   }
@@ -335,7 +344,7 @@ async function runTurn(input, signal) {
     for (const call of message.tool_calls) {
       const tool = policy.validate(call)
       emit(toolStarted(tool))
-      const result = await toolExecutor.call(tool, input.gameId, signal)
+      const result = await toolExecutor.call(tool, input.runtimeInstanceId, signal)
       messages.push(toolResult(call, result))
       emit(toolCompleted(tool, summarize(result)))
       updateProgressFingerprint(result)
@@ -364,7 +373,7 @@ async function runTurn(input, signal) {
 
 ### 7.4 并发与取消
 
-- 一个 `gameId` 同时只能有一个 active Turn。
+- 一个 `runtimeInstanceId` 同时只能有一个 active Turn；新 API 使用 `runtimeInstanceId`，旧 `gameId` 仅在解析到唯一运行实例时兼容，存在多个候选时返回 `GAME_INSTANCE_AMBIGUOUS`，不猜测。
 - 新 Turn 到来时返回 `409 AGENT_TURN_RUNNING`，不自动覆盖。
 - `DELETE /api/game-agent/turn/:turnId` 设置 abort 并进入 `stopping`。
 - 停止后不再开始新工具；已经发送给游戏的短按键序列可以完成当前原子操作。
@@ -374,7 +383,7 @@ async function runTurn(input, signal) {
 
 ### 8.1 状态
 
-`GET /api/game-agent/status?gameId=...`
+`GET /api/game-agent/status?runtimeInstanceId=...`（旧 `gameId` 仅在唯一实例时兼容）
 
 ```json
 {
@@ -404,7 +413,7 @@ async function runTurn(input, signal) {
 
 ```json
 {
-  "gameId": "...",
+  "runtimeInstanceId": "...",
   "sessionId": "optional",
   "profileId": "ollama-local",
   "model": "qwen3:8b",
@@ -437,24 +446,24 @@ type GameAgentEvent =
 
 ### 8.4 一键清理
 
-`DELETE /api/game-agent/turn?gameId=...` → `{ "ok": true, "cleared": <停掉的 Turn 数> }`；缺 `gameId` 返回 `400 GAME_ID_REQUIRED`。
+`DELETE /api/game-agent/turn?runtimeInstanceId=...` → `{ "ok": true, "cleared": <停掉的 Turn 数> }`；缺 `runtimeInstanceId` 返回 `400 RUNTIME_INSTANCE_ID_REQUIRED`。旧 `gameId` 仅在唯一实例时兼容。
 
-- 用于解除卡住的 `409 AGENT_TURN_RUNNING`：`clearGameTurns(gameId)` 停掉该游戏所有 `running` / `waiting_user` 的 Turn（含旧会话遗留、status 看不到 id 的），逐个 abort 并直接推一条 `turn.stopped`，让已不再出事件的 SSE 也能收尾；最后把该游戏会话的 `activeTurnId` 置空。
-- 鉴权：控制台同源请求照常；游戏插件须带有效的 `X-Chaya-Launch-Token`，且查询参数 `gameId` 必须等于该 token 绑定的游戏（`libraryId`，无则为 token 本身），否则 `401 ACCESS_DENIED`。
-- 会连同侧栏里正常运行的任务一起停掉，旅伴面板的清理按钮先弹确认框（局内 Agent 浮层的 React 根没有确认框，`CompanionPanel` 自带一份 `ConfirmProvider`，挂在同一 Shadow 根内）。
-- Cloud 浏览器模式（`browserRequest`）按 `POST` 时提交的 `gameId` 登记 Turn，清理只停该游戏的 Turn；流读完或被取消即注销。
+- 用于解除卡住的 `409 AGENT_TURN_RUNNING`：`clearGameTurns(runtimeInstanceId)` 只停掉该运行实例的 `running` / `waiting_user` Turn（含旧会话遗留），逐个 abort 并直接推一条 `turn.stopped`，最后把该实例的 `activeTurnId` 置空。
+- 鉴权：控制台同源请求照常；游戏插件须带有效的 `X-Chaya-Launch-Token`，且查询参数 `runtimeInstanceId` 必须等于该 token 绑定的运行实例，同时校验其 `libraryGameId`，否则 `401 ACCESS_DENIED`。
+- 会连同该运行实例侧栏里正常运行的任务一起停掉，不会影响同库游戏的其它实例；旅伴面板的清理按钮先弹确认框。
+- Cloud 浏览器模式（`browserRequest`）按 POST 时提交的 `runtimeInstanceId` 登记 Turn，清理只停该运行实例的 Turn；流读完或被取消即注销。
 
 ## 9. 鉴权与边界
 
 - 路由只在 `canUseDisk()` 的 App / local 模式开放。
 - 游戏插件使用现有 `X-Chaya-Launch-Token`，新增权限仅覆盖 `/api/game-agent/*`。
-- token 必须绑定当前 `gameId`；请求不能控制其它在线游戏。
+- token 必须绑定当前 `runtimeInstanceId` 和对应的 `libraryGameId`；请求不能控制其它在线实例或游戏。
 - Agent UI 只由游戏插件挂载，不注册控制台页面或普通 GameEdit Tab。
 - 配置 API 接受控制台同源请求与有效的第一方游戏 launch token；两种入口复用 Agent 列表和详情组件，插件在游戏内“配置”页面完成 CRUD。
 - endpoint 只由服务端按已保存 `profileId` 读取，插件不能提交任意 host，避免把 Turn API 变成内网请求代理。
 - Prompt、游戏文字和工具结果均视为不可信内容。
 - 只执行本轮工具白名单；参数 schema 校验后再调用。
-- 日志不记录完整 Prompt、完整游戏文本或会话历史；只记录 turnId、gameId 尾部、模型、阶段、耗时和错误码。
+- 技术运行日志不记录完整 Prompt、完整游戏文本或会话历史，只记录 task、运行实例尾部、模型、阶段、耗时和错误码。经脱敏的 Prompt 属于 Agent 任务轨迹；实际对话与选择属于插件游戏日志，不受本条技术日志裁剪规则替代。
 - token、API Key、密码、Authorization 和 secret 类字段在工具结果与日志参数进入模型前递归移除；`hasToken` 仅表示是否已配置。
 
 ## 10. UI 技术设计
@@ -587,4 +596,4 @@ type AgentMessage = UserMessage | AssistantMessage | ToolActivity
 - 默认快捷键：`Ctrl/Command + Shift + A`。
 - M2 允许 ChayaBoost `status` / `on` / `off`。
 - M1 SSE 断线立即取消 Turn。
-- 会话持久化和重连放到 M3；M1/M2 使用按 `gameId` 隔离的 `globalThis` 内存 store。
+- 会话持久化和重连放到 M3；M1/M2 现状使用按 `gameId` 隔离的 `globalThis` 内存 store，v2 实施后改为按 `runtimeInstanceId` 隔离，并通过兼容解析层接收旧 `gameId`。

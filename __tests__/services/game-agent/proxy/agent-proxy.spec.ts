@@ -57,9 +57,24 @@ test('no proxy leaves the environment alone', async () => {
   await expect(agentProxyEnv('')).resolves.toEqual({})
 })
 
-test('an HTTP proxy is handed to the CLI as-is, with loopback excluded', async () => {
-  const env = await agentProxyEnv('http://127.0.0.1:7890/')
-  expect(env).toMatchObject({ HTTP_PROXY: 'http://127.0.0.1:7890', HTTPS_PROXY: 'http://127.0.0.1:7890', all_proxy: 'http://127.0.0.1:7890', no_proxy: 'localhost,127.0.0.1,::1' })
+test('an HTTP proxy fills http https all and ftp env vars from one default', async () => {
+  const env = await agentProxyEnv('127.0.0.1:7890')
+  expect(env).toMatchObject({
+    HTTP_PROXY: 'http://127.0.0.1:7890',
+    HTTPS_PROXY: 'http://127.0.0.1:7890',
+    ALL_PROXY: 'http://127.0.0.1:7890',
+    FTP_PROXY: 'http://127.0.0.1:7890',
+    all_proxy: 'http://127.0.0.1:7890',
+    ftp_proxy: 'http://127.0.0.1:7890',
+    no_proxy: 'localhost,127.0.0.1,::1',
+  })
+})
+
+test('per-protocol overrides can diverge from the default', async () => {
+  const env = await agentProxyEnv({ proxy: 'http://127.0.0.1:7890', proxyProtocols: { https: 'http://127.0.0.1:7891' } })
+  expect(env.HTTP_PROXY).toBe('http://127.0.0.1:7890')
+  expect(env.HTTPS_PROXY).toBe('http://127.0.0.1:7891')
+  expect(env.FTP_PROXY).toBe('http://127.0.0.1:7890')
 })
 
 test('a SOCKS5 proxy is reached through a password-protected loopback HTTP bridge', async () => {

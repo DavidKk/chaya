@@ -27,7 +27,9 @@ function unboundQuestion(goal: ResolvedGoal, state: State) {
   if (goal.scope === 'battle') return state.battle?.instanceId ? '' : '当前没有可确认的战斗。你希望我处理哪一场？'
   if (goal.scope === 'dialogue') return state.message?.busy ? '' : '当前没有正在显示的剧情。你希望我等待哪一段？'
   if (goal.scope === 'map')
-    return state.nearbyEvents?.some((event) => event.id === goal.targetEventId) && goal.skill ? '' : goal.openQuestion || '未找到唯一的目标事件或动作，请告诉我具体目标与要做的事。'
+    return goal.allVisible || (state.nearbyEvents?.some((event) => event.id === goal.targetEventId) && goal.skill)
+      ? ''
+      : goal.openQuestion || '未找到唯一的目标事件或动作，请告诉我具体目标与要做的事。'
   return goal.openQuestion || '请说明你希望我在当前画面完成的目标。'
 }
 
@@ -91,6 +93,8 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
   let last: Awaited<ReturnType<typeof observe>> | null = null
   let scope: { battleId?: string; mapId?: number; scene?: string | null } = {}
   let targetEventId: number | undefined
+  let allVisible = false
+  const completedVisibleTargets = new Set<number>()
   let scopeKind: ResolvedGoal['scope'] = 'unclear'
   let deadlineMs = DEADLINE_MS
   let mapSkill: MapSkill | null = null
@@ -114,6 +118,18 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
   const observeGame = (cursor: number) => observe(input.gameId, cursor, profile.gameCallTimeoutMs)
   const callGame = (method: Parameters<typeof callAgentGame>[1], params: Record<string, unknown>) =>
     profile.gameCallTimeoutMs === undefined ? callAgentGame(input.gameId, method, params) : callAgentGame(input.gameId, method, params, profile.gameCallTimeoutMs)
+  const nextVisibleTarget = (state: State, exclude?: number) =>
+    (state.nearbyEvents || [])
+      .filter(
+        (event) =>
+          event.id != null &&
+          event.id !== exclude &&
+          !completedVisibleTargets.has(event.id) &&
+          event.interactive &&
+          !event.opened &&
+          (event.routeStatus === 'reachable' || event.routeStatus === 'already_there')
+      )
+      .sort((a, b) => Number(a.transit) - Number(b.transit) || (a.routeDistance ?? Infinity) - (b.routeDistance ?? Infinity))[0]
   const story: NonNullable<History['entries']> = []
   const navigationHistory: NonNullable<History['entries']> = []
   const remember = (observation: Awaited<ReturnType<typeof observe>>) => {
@@ -159,7 +175,15 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
     const name = `player.moveTo:${tile.x},${tile.y}`
     emit({ type: 'phase', phase: 'acting', step, maxSteps: MAX_STEPS })
     emit({ type: 'tool.started', callId, name })
-    let result: { arrived?: boolean; moved?: boolean; transferred?: boolean; interrupted?: boolean; blockedEventId?: number | null; triggeredEventId?: number } = {}
+    let result: {
+      arrived?: boolean
+      moved?: boolean
+      transferred?: boolean
+      interrupted?: boolean
+      blockedEventId?: number | null
+      triggeredEventId?: number
+      navigation?: Record<string, unknown>
+    } = {}
     let moveError: unknown
     try {
       result = (await callGame('player.moveTo', {
@@ -171,7 +195,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
     } catch (error) {
       moveError = error
     }
-    emit({ type: 'tool.completed', callId, name, ok: !moveError && !!(result.moved || result.arrived || result.transferred) })
+    emit({ type: 'tool.completed', callId, name, ok: !moveError && !!(result.moved || result.arrived || result.transferred), output: result })
     last = await observeGame(cursor)
     remember(last)
     if (!moveError) return result
@@ -203,13 +227,26 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
     scopeKind = resolved.scope
     if (scopeKind === 'battle') deadlineMs = BATTLE_DEADLINE_MS
     targetEventId = resolved.targetEventId
-    mapSkill = scopeKind === 'map' && targetEventId != null ? (resolved.skill ?? 'approach') : null
+    allVisible = resolved.allVisible === true
+    if (allVisible) {
+      const first = nextVisibleTarget(last.state)
+      targetEventId = first?.id
+    }
+    mapSkill = scopeKind === 'map' && (targetEventId != null || allVisible) ? (resolved.skill ?? 'approach') : null
     interactTarget = mapSkill === 'interact'
-    transit = resolved.transit === true
+    transit = resolved.transit === true || last.state.nearbyEvents?.find((event) => event.id === targetEventId)?.transit === true
     allowEscape = resolved.allowEscape === true
     scope = { battleId: scopeKind === 'battle' ? last.state.battle?.instanceId || undefined : undefined, mapId: last.state.map?.id, scene: last.state.scene }
     let goal = resolved.summary
     emit({ type: 'goal.updated', summary: goal })
+    if (allVisible && targetEventId == null) {
+      const unavailable = (last.state.nearbyEvents || [])
+        .filter((event) => event.interactive && !event.opened)
+        .map((event) => `${event.name || `事件 #${event.id}`}（${event.routeStatus || '不可达'}）`)
+      const message = unavailable.length ? `当前可视范围内没有可到达的互动目标。未处理：${unavailable.join('、')}。` : '当前可视范围内没有可互动目标。'
+      complete(message, message)
+      return
+    }
     await armIfAvailable(last.state)
     const messages: GameAgentMessage[] = [
       {
@@ -296,6 +333,16 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       const mapTarget = mapSkill ? state.nearbyEvents?.find((event) => event.id === targetEventId) : undefined
       const targetName = mapTarget?.name || '目标'
       if (mapSkill && !mapTarget && !targetInteractionSent) {
+        if (allVisible) {
+          const next = nextVisibleTarget(state)
+          if (next?.id != null) {
+            targetEventId = next.id
+            transit = next.transit === true
+            targetInteractionSent = false
+            targetDialogueStarted = false
+            continue
+          }
+        }
         await replanMap(step)
         continue
       }
@@ -304,6 +351,21 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         if (transit) {
           await replanMap(step)
           continue
+        }
+        if (allVisible) {
+          if (targetEventId != null) completedVisibleTargets.add(targetEventId)
+          last = await observeGame(cursor)
+          remember(last)
+          const next = nextVisibleTarget(last.state, targetEventId)
+          if (next?.id != null) {
+            targetEventId = next.id
+            transit = next.transit === true
+            targetInteractionSent = false
+            targetDialogueStarted = false
+            interactionEvidence = false
+            silentChecks = 0
+            continue
+          }
         }
         const summary = await storySummary(profile, input, story, incomplete, turn.abort.signal, mapTarget?.name)
         const done = `已与${targetName}完成交互。`
@@ -325,6 +387,21 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         if (transit) {
           await replanMap(step)
           continue
+        }
+        if (allVisible) {
+          if (targetEventId != null) completedVisibleTargets.add(targetEventId)
+          last = await observeGame(cursor)
+          remember(last)
+          const next = nextVisibleTarget(last.state, targetEventId)
+          if (next?.id != null) {
+            targetEventId = next.id
+            transit = next.transit === true
+            targetInteractionSent = false
+            targetDialogueStarted = false
+            interactionEvidence = false
+            silentChecks = 0
+            continue
+          }
         }
         const silent = `已与${targetName}交互，游戏没有显示对话。`
         complete(`${resultText(state, { entries: story }, incomplete)}\n${silent}`.trim(), briefText(battleResultLine(state), silent))

@@ -2,6 +2,13 @@ import { buildRemoteMcpTools, loadRemotePluginTools, type RemoteToolDeps } from 
 import { MCP_TOOLS } from '@/lib/integration/mcp-catalog'
 import { REMOTE_UNAVAILABLE_TOOLS } from '@/lib/webmcp/mode-matrix'
 
+jest.mock('@/lib/browser/agent-trace-store', () => ({
+  browserAgentTraceArchive: {
+    list: jest.fn(async () => [{ id: 'task-cloud', gameId: 'game-cloud', goal: '开宝箱', state: 'completed', eventCount: 1, updatedAt: 2 }]),
+    read: jest.fn(async () => ({ id: 'task-cloud', gameId: 'game-cloud', goal: '开宝箱', state: 'completed', events: [{ seq: 1, type: 'game.dialogue', at: 2 }], messages: [] })),
+  },
+}))
+
 function deps(overrides: Partial<RemoteToolDeps> = {}): RemoteToolDeps {
   return {
     connected: () => true,
@@ -40,6 +47,15 @@ describe('Remote WebMCP tools', () => {
   it('rejects a gameId that is not the linked room', async () => {
     const tool = buildRemoteMcpTools(deps()).find((entry) => entry.name === 'chaya_live_state')
     expect(await tool?.execute({ gameId: 'other' })).toMatchObject({ ok: false, error: 'tool_error' })
+  })
+
+  it('reads Agent activity from IndexedDB through chaya_logs_query', async () => {
+    const tool = buildRemoteMcpTools(deps()).find((entry) => entry.name === 'chaya_logs_query')
+    await expect(tool?.execute({ view: 'agent' })).resolves.toMatchObject({ ok: true, result: { view: 'agent', tasks: [{ id: 'task-cloud' }] } })
+    await expect(tool?.execute({ view: 'agent', taskId: 'task-cloud' })).resolves.toMatchObject({
+      ok: true,
+      result: { view: 'agent', events: [{ type: 'game.dialogue' }] },
+    })
   })
 
   it('turns first-party plugin declarations into chaya_plugin_* tools', async () => {

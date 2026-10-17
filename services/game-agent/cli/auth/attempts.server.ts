@@ -50,9 +50,9 @@ type Attempt = {
 export type AuthAttemptDeps = {
   loadProfiles: () => GameAgentProfile[]
   remoteAdapter: (provider: Extract<CliAgentProvider, 'codex' | 'claude' | 'gemini'>) => RemoteAuthAdapter
-  cursorLogin: (input: { signal: AbortSignal; proxy?: string }) => Promise<AuthAttemptHandle>
-  cursorLogout: (proxy?: string) => Promise<void>
-  proxyEnv: (proxy: string | undefined) => Promise<Record<string, string>>
+  cursorLogin: (input: { signal: AbortSignal; proxy?: string; proxyHeaders?: Record<string, string> }) => Promise<AuthAttemptHandle>
+  cursorLogout: (proxy?: string | { proxy?: string; proxyHeaders?: Record<string, string> }) => Promise<void>
+  proxyEnv: (proxy: string | { proxy?: string; proxyHeaders?: Record<string, string> } | undefined) => Promise<Record<string, string>>
   credentialPaths: CredentialPaths
   runtimeRoot?: string
   stagingRoot: string
@@ -222,7 +222,11 @@ export async function startAuthAttempt(profileId: string): Promise<AgentAuthAtte
   let adapter: RemoteAuthAdapter | undefined
   try {
     if (provider === 'cursor') {
-      attempt.handle = await withTimeout(deps.cursorLogin({ signal: attempt.abort.signal, proxy: profile.proxy }), deps.challengeTimeoutMs, () => attempt.abort.abort())
+      attempt.handle = await withTimeout(
+        deps.cursorLogin({ signal: attempt.abort.signal, proxy: profile.proxy, proxyHeaders: profile.proxyHeaders }),
+        deps.challengeTimeoutMs,
+        () => attempt.abort.abort()
+      )
     } else {
       adapter = deps.remoteAdapter(provider)
       const releaseLock = holdFileLock(credentialLockFile(profileId, deps.credentialPaths))
@@ -231,7 +235,7 @@ export async function startAuthAttempt(profileId: string): Promise<AgentAuthAtte
       fs.mkdirSync(deps.stagingRoot, { recursive: true, mode: 0o700 })
       attempt.stagingDir = fs.mkdtempSync(path.join(deps.stagingRoot, 'stage-'))
       fs.chmodSync(attempt.stagingDir, 0o700)
-      const env = await deps.proxyEnv(profile.proxy)
+      const env = await deps.proxyEnv(profile)
       attempt.handle = await withTimeout(adapter.start({ stagingDir: attempt.stagingDir, signal: attempt.abort.signal, env }), deps.challengeTimeoutMs, () => attempt.abort.abort())
     }
   } catch (error) {
@@ -310,7 +314,7 @@ export async function logoutProfile(profileId: string): Promise<void> {
     if (attempt?.state === 'pending') finish(attempt, 'cancelled')
   }
   const meta = readCredentialMeta(profileId, deps.credentialPaths)
-  const proxy = profileOf(profileId)?.proxy
+  const profile = profileOf(profileId)
   invalidateCredentialLease(profileId)
   await notifyAgentAuthChange({ profileId })
   await waitForLeases(profileId)
@@ -321,7 +325,7 @@ export async function logoutProfile(profileId: string): Promise<void> {
         const lease = await acquireCredentialLease(profileId, { ...deps.credentialPaths, runtimeRoot: deps.runtimeRoot, extraFiles: adapter.extraFiles() })
         invalidateCredentialLease(profileId)
         try {
-          await adapter.logout({ runtimeDir: lease.dir, signal: AbortSignal.timeout(10_000), env: await deps.proxyEnv(proxy) })
+          await adapter.logout({ runtimeDir: lease.dir, signal: AbortSignal.timeout(10_000), env: await deps.proxyEnv(profile || undefined) })
         } finally {
           await lease.release()
         }

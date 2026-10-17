@@ -20,7 +20,7 @@ export async function translateDialogue(contentRoot: string, texts: unknown, sig
   return { ...result, elapsedMs: Date.now() - startedAt }
 }
 
-/** 使用固定的普通日文短句测速；不读写游戏或共享翻译缓存中的译文。 */
+/** Measure latency using a fixed ordinary Japanese phrase without reading or writing game or shared translation caches. */
 export async function benchmarkLocalModel(input: unknown, signal?: AbortSignal) {
   const settings = normalizePlaySettings(input)
   const sample = 'この先の森には魔物がいる。夜になる前に村へ戻ろう。準備ができたら、宿屋の前で待っていてくれ。'

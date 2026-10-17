@@ -1,4 +1,4 @@
-/** UI 与游戏插件之间的翻译操作；路径只是操作标识，不是任意文件路径。 */
+/** Translation operations shared by the UI and game plugin; paths identify operations, never arbitrary files. */
 export type TranslationRequest = { path: string; method: string; body?: Record<string, unknown> }
 export type TranslationResponse = { status: number; data: Record<string, unknown> }
 export type TranslationRequestFn = (request: TranslationRequest, signal?: AbortSignal) => Promise<TranslationResponse>
@@ -9,10 +9,7 @@ export function installedTranslationRuntime(): TranslationRuntime | undefined {
   return (globalThis as typeof globalThis & { __chayaTranslationRuntime?: TranslationRuntime }).__chayaTranslationRuntime
 }
 
-/**
- * 本机服务、游戏未运行时：同一组操作直接走服务端磁盘接口（读写同一套游戏内容文件）。
- * 浏览器模式（无盘）不得使用。
- */
+/** When the game is stopped, the local service performs the same operations against the game's content files. Browser mode must not use disk APIs. */
 export const diskTranslationRequest: TranslationRequestFn = async (request, signal) => {
   const res = await fetch(request.path, {
     method: request.method,
@@ -24,7 +21,7 @@ export const diskTranslationRequest: TranslationRequestFn = async (request, sign
   return { status: res.status, data }
 }
 
-/** 保持共享 UI 的响应契约；浏览器模式绝不回退到 Web 服务器的磁盘接口。 */
+/** Preserve the shared UI response contract; browser mode must never fall back to the web server's disk APIs. */
 export function createTranslationFetch(request: TranslationRequestFn) {
   return async (path: string, init?: RequestInit) => {
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined

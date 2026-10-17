@@ -38,7 +38,8 @@ export const dynamic = 'force-dynamic'
  * - `{ mode: 'seed' }`：对当前绑定游戏 seed 缺词补一轮（单批）
  * - `{ mode: 'progress' }`：只读进度 + 后台任务快照
  * - `{ mode: 'job', action: 'start' | 'pause' }`：启停服务端补译循环
- * - `{ mode: 'switches' }`：读引擎开关/顺序/Agent 条目；带 `switches` / `order` / `agents` 则写入
+ * - `{ mode: 'switches' }`：读引擎开关/顺序/Agent 条目；带 `switches` / `order` / `agents` 则写入。Agent 条目全游戏共用
+ * - `{ mode: 'translate-agents' }`：只读写共用 Agent 条目（游戏内插件用；平台开关仍留在该游戏）
  * - `{ mode: 'agents' }`：列出可选的 Agent 实例（名称 / 模型，不含端点与 token）
  * - `{ mode: 'ai', text, ai }`：用选定 Agent 实例翻译一段（插件 AI 引擎走这里，token 不出服务端）
  *
@@ -51,7 +52,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     const body = (await request.json().catch(() => ({}))) as {
       text?: string
       texts?: string[]
-      mode?: 'lookup' | 'live' | 'realtime' | 'ai' | 'agents' | 'play-settings' | 'benchmark' | 'seed' | 'progress' | 'switches' | 'job'
+      mode?: 'lookup' | 'live' | 'realtime' | 'ai' | 'agents' | 'play-settings' | 'benchmark' | 'seed' | 'progress' | 'switches' | 'job' | 'translate-agents'
       settings?: unknown
       contentRoot?: string
       action?: 'start' | 'pause'
@@ -67,15 +68,17 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       /** ai：本次翻译用的实例 / 模型 */
       ai?: unknown
       interactive?: boolean
+      origins?: unknown
     }
 
     // 插件可选共享库查询：不绑定服务端当前游戏，也绝不触发推理或写游戏文件。
     if (body.mode === 'lookup') {
       const texts = body.texts
       if (!Array.isArray(texts) || texts.length > 40 || texts.some((text) => typeof text !== 'string') || texts.join('').length > 20_000) return apiBadLookup()
+      if (body.origins != null && (!Array.isArray(body.origins) || body.origins.length > 500)) return apiBadLookup()
       if (denied) return apiOk({ available: false, items: [] })
-      const { lookupSharedTranslations } = await import('@/services/translate/shared-lookup')
-      return apiOk({ available: true, items: lookupSharedTranslations(texts) })
+      const { lookupSharedTranslationSnapshot } = await import('@/services/translate/shared-lookup')
+      return apiOk({ available: true, ...lookupSharedTranslationSnapshot(texts, body.origins) })
     }
     if (denied) return denied
 
@@ -103,6 +106,12 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         return apiOk(setTranslateEngineSwitches({ switches: body.switches, order: body.order, agents }))
       }
       return apiOk(getTranslateEngineSwitches())
+    }
+
+    if (body.mode === 'translate-agents') {
+      const { readSharedTranslateAgents, writeSharedTranslateAgents } = await import('@/services/translate/shared-agents')
+      if (Array.isArray(body.agents) || Array.isArray(body.order)) return apiOk(writeSharedTranslateAgents({ agents: body.agents, order: body.order }))
+      return apiOk(readSharedTranslateAgents())
     }
 
     if (body.mode === 'agents') {

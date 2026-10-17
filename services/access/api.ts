@@ -44,6 +44,21 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
   if (/^\/api\/game-agent\/auth\/[^/]+$/.test(path) && ['GET', 'DELETE'].includes(request.method)) return true
   if (/^\/api\/game-agent\/auth\/[^/]+\/code$/.test(path) && request.method === 'POST') return true
   if (path === '/api/game-agent/model' && request.method === 'POST') return true
+  if (path === '/api/game-agent/activity') {
+    if (request.method === 'POST') {
+      const body = await request
+        .clone()
+        .json()
+        .catch(() => null)
+      const gameId = session.libraryId || session.token
+      if (body?.sourceEvent) {
+        const targets: unknown = body.sourceEvent.targets
+        return Array.isArray(targets) && targets.length > 0 && targets.every((target) => target?.libraryGameId === gameId)
+      }
+      return body?.task?.gameId === gameId
+    }
+    if (['GET', 'DELETE'].includes(request.method)) return url.searchParams.get('gameId') === (session.libraryId || session.token)
+  }
   if (path === '/api/game-agent/turn' && request.method === 'POST') {
     const body = await request
       .clone()
@@ -81,7 +96,16 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
       .clone()
       .json()
       .catch(() => null)
-    return !!body && (body.mode == null || body.mode === 'live' || body.mode === 'realtime' || body.mode === 'lookup' || body.mode === 'ai' || body.mode === 'agents')
+    return (
+      !!body &&
+      (body.mode == null ||
+        body.mode === 'live' ||
+        body.mode === 'realtime' ||
+        body.mode === 'lookup' ||
+        body.mode === 'ai' ||
+        body.mode === 'agents' ||
+        body.mode === 'translate-agents')
+    )
   }
   if (path === '/api/game-saves/store' && request.method === 'POST') {
     const body = await request

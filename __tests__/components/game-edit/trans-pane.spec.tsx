@@ -103,33 +103,35 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
   try {
     await act(async () => root.render(<Pane />))
     expect(host.querySelector('section[aria-label="游玩翻译模式"]')).not.toBeNull()
-    expect(host.textContent).toMatch(/Seed/)
+    expect(host.textContent).toMatch(/原文/)
     expect(host.querySelector('[aria-label="翻译平台配置"]')).not.toBeNull()
-    const play = host.querySelector<HTMLButtonElement>('[role="tab"][data-nav-id="play"]')!
-    const seed = host.querySelector<HTMLButtonElement>('[role="tab"][data-nav-id="seed"]')!
-    const panels = host.querySelectorAll<HTMLDivElement>('[role="tabpanel"]')
+    const play = host.querySelector<HTMLButtonElement>('[data-translate-run-nav] [role="tab"][data-nav-id="play"]')!
+    const seed = host.querySelector<HTMLButtonElement>('[data-translate-run-nav] [role="tab"][data-nav-id="seed"]')!
+    const panels = host.querySelectorAll<HTMLDivElement>('[data-translate-mode]')
+    const engineRail = host.querySelector('[aria-label="翻译平台配置"]')
     const timeoutInput = host.querySelector('#translation-timeout')
     expect(host.querySelector('#translation-local-model')).toBeNull()
     expect(host.textContent).not.toContain('保存模式')
-    expect(panels[0].hidden).toBe(false)
-    expect(panels[1].hidden).toBe(true)
+    expect(panels[0].hidden).toBe(surface !== 'overlay')
+    expect(panels[1].hidden).toBe(surface === 'overlay')
     expect(panels[0].querySelector('[aria-label="翻译活动日志"]')).not.toBeNull()
     if (surface === 'overlay') expect(panels[0].textContent).toContain('词库命中：応接室へ行く')
     await act(async () => seed.click())
+    expect(host.querySelector('[aria-label="翻译平台配置"]')).toBe(engineRail)
     expect(panels[0].hidden).toBe(true)
     expect(panels[1].hidden).toBe(false)
     expect(host.querySelector('[aria-label="翻译活动日志"]')).not.toBeNull()
-    await act(async () => seed.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })))
+    await act(async () => play.click())
     expect(play.getAttribute('aria-selected')).toBe('true')
-    expect(document.activeElement).toBe(play)
     expect(host.querySelector('#translation-timeout')).toBe(timeoutInput)
 
     await act(async () => seed.click())
     await act(async () => root.render(<Pane refreshKey={1} />))
     expect(host.querySelector('section[aria-label="游玩翻译模式"]')).not.toBeNull()
-    expect(host.textContent).toMatch(/Seed/)
+    expect(host.textContent).toMatch(/原文/)
     expect(host.textContent).not.toContain('对当前游戏 seed 缺词补译')
-    if (surface === 'overlay') expect(host.querySelector<HTMLButtonElement>('[role="tab"][data-nav-id="seed"]')?.getAttribute('aria-selected')).toBe('true')
+    if (surface === 'overlay')
+      expect(host.querySelector<HTMLButtonElement>('[data-translate-run-nav] [role="tab"][data-nav-id="seed"]')?.getAttribute('aria-selected')).toBe('true')
 
     if (surface === 'overlay') {
       const cache = host.querySelector<HTMLButtonElement>('[data-translate-section-nav] button[aria-label="翻译库"]')!

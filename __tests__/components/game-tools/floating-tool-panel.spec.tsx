@@ -94,6 +94,29 @@ test('keeps a manually placed panel at its relative position across viewport cha
   expect(frame('Map').y).toBeCloseTo(142.4)
 })
 
+test('minimizing collapses content upward without moving the panel header', async () => {
+  localStorage.setItem(MAP_KEY, JSON.stringify({ version: 2, width: 320, height: 360, x: { mode: 'ratio', value: 0.25 }, y: { mode: 'ratio', value: 0.6 } }))
+  await renderPanels()
+  const before = frame('Map').y
+  const minimize = document.querySelector('section[aria-label="Map"] button[aria-label="最小化"]') as HTMLButtonElement
+
+  await act(async () => minimize.click())
+  expect(frame('Map').y).toBe(before)
+
+  const expand = document.querySelector('section[aria-label="Map"] button[aria-label="展开"]') as HTMLButtonElement
+  await act(async () => expand.click())
+  expect(frame('Map').y).toBe(before)
+})
+
+test('minimizing a bottom panel keeps the expanded header position', async () => {
+  await renderPanels(true)
+  const before = frame('Companion').y
+  const minimize = document.querySelector('section[aria-label="Companion"] button[aria-label="最小化"]') as HTMLButtonElement
+
+  await act(async () => minimize.click())
+  expect(frame('Companion').y).toBe(before)
+})
+
 test('migrates a saved absolute frame into a relative layout', async () => {
   localStorage.setItem(MAP_KEY, JSON.stringify({ x: 350, y: 200, width: 320, height: 360 }))
   await renderPanels()

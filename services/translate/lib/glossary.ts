@@ -37,7 +37,7 @@ export function loadGlossaryEntries() {
       if (!jp || seen.has(jp)) continue
       if (!hasJapanese(jp) || isOnlyPunctuation(jp)) continue
       if (jp.length < minLen) continue
-      // 太泛的短词不做占位，避免误伤
+      // Do not mask overly generic short terms that could match unrelated text.
       if (jp.length <= 2 && !['name'].includes(type)) continue
       seen.add(jp)
       entries.push({ jp, type, token })
@@ -69,7 +69,7 @@ export function unmaskGlossary(text, slots, zhMap) {
   return out
 }
 
-// 称呼：占位后只剩这些 + 标点/口吃时，可本地拼接，不必再送 API
+// If masking leaves only titles, punctuation or stuttering, compose locally without an API request.
 const HONORIFICS = [
   ['先生', '老师'],
   ['さん', ''],
@@ -81,10 +81,7 @@ const HONORIFICS = [
   ['氏', ''],
 ]
 
-/**
- * 词表占位后，若只剩称呼/标点/短口吃（ア、），本地拼出译文，跳过 API。
- * 例如：ア、アルマ先生……！ → 阿、阿尔玛老师……！
- */
+/** After glossary masking, compose a translation locally when only titles, punctuation or brief stuttering remain, skipping the API. */
 export function tryComposeGlossaryShell(src, entries, zhMap) {
   const { core, prefix, suffix } = peelNoise(src)
   const { masked, slots } = maskGlossary(core, entries)
@@ -100,7 +97,7 @@ export function tryComposeGlossaryShell(src, entries, zhMap) {
 
   const leftover = work.replace(/\0H\0|\0T\0/g, '').replace(/[「」『』""''“”‘’（）()【】\[\]\s\u3000…！!？?、。｡･・～〜ー\-♡♥]/g, '')
 
-  // 允许极短口吃假名（ア、イ、あ…），不允许其它实词残留
+  // Allow very short kana stutters but reject other remaining content words.
   if (leftover && !/^[ぁ-んァ-ン]{1,4}$/u.test(leftover)) return null
 
   let out = masked
@@ -117,9 +114,7 @@ export function tryComposeGlossaryShell(src, entries, zhMap) {
   return wrapNoise(out, prefix, suffix)
 }
 
-/**
- * 把缓存里已译好的短词条并进词表，便于「アルマ先生」这类占位。
- */
+/** Add translated short cache entries to the glossary for name-and-title placeholders. */
 export function enrichGlossaryFromSeed(entries, seed, tokenizer) {
   const seen = new Set(entries.map((e) => e.jp))
   const extra = []
@@ -128,7 +123,7 @@ export function enrichGlossaryFromSeed(entries, seed, tokenizer) {
     if (!hasJapanese(jp) || isOnlyPunctuation(jp)) continue
     if (jp.length < 2 || jp.length > 16) continue
     if (!zh || zh === jp) continue
-    // 只要短词条；有助词的句子不要当人名
+    // Accept short entries only; do not treat sentences with particles as personal names.
     const info = classifyTerm(tokenizer, jp)
     if (info.kind !== 'term') continue
     seen.add(jp)

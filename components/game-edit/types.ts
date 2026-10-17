@@ -28,6 +28,7 @@ export const RUN_FLAG_KEYS = [
   'alwaysDash',
   'god',
   'autoWin',
+  'autoBattle',
   'through',
   'autotalk',
   'encounter',
@@ -90,6 +91,8 @@ export type SessionState = {
   god: boolean
   /** 进入战斗即胜利，直到关闭 */
   autoWin: boolean
+  /** 轮到输入指令时自动选招，直到关闭 */
+  autoBattle: boolean
   through: boolean
   autotalk: boolean
   encounter: boolean
@@ -169,8 +172,19 @@ export function lockKeyForActorState(actorId: number, stateId: number) {
 /** 角色数值锁：等级 / 经验 / HP / MP（与 Cheats LockKind 同形 `kind:actorId`） */
 export type ActorVitalLockKind = 'level' | 'exp' | 'hp' | 'mp'
 
-export function lockKeyForActorVital(kind: ActorVitalLockKind, actorId: number) {
+/** 战斗页还能锁的角色数值；HP / MP 与角色页共用同一把锁 */
+export type BattleActorLockKind = ActorVitalLockKind | 'mhp' | 'mmp' | 'tp'
+
+export function lockKeyForActorVital(kind: BattleActorLockKind, actorId: number) {
   return `${kind}:${actorId}`
+}
+
+export type BattleLockChange =
+  { side: 'actor'; id: number; kind: BattleActorLockKind; on: boolean; value: number } | { side: 'enemy'; id: number; kind: 'hp' | 'mhp'; on: boolean; value: number }
+
+export function battleLockKey(change: Pick<BattleLockChange, 'side' | 'id' | 'kind'>) {
+  if (change.side === 'actor') return lockKeyForActorVital(change.kind, change.id)
+  return change.kind === 'hp' ? `enemyHp:${change.id}` : `enemyMhp:${change.id}`
 }
 
 export const GOLD_LOCK_KEY = 'gold:0'
@@ -200,6 +214,7 @@ export function emptySession(): SessionState {
     alwaysDash: false,
     god: false,
     autoWin: false,
+    autoBattle: false,
     through: false,
     autotalk: false,
     encounter: true,

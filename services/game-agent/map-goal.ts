@@ -9,6 +9,11 @@ export type MapEvent = {
   distance?: number | null
   trigger?: string | null
   running?: boolean
+  interactive?: boolean
+  opened?: boolean
+  transit?: boolean
+  routeStatus?: string | null
+  routeDistance?: number | null
 }
 type Player = { x?: number | null; y?: number | null; direction?: number | null }
 

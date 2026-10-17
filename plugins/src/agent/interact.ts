@@ -6,7 +6,8 @@
 
 import { AGENT_INTERACT_MAX_MS, type AgentParams } from '@/lib/runtime/agent-protocol'
 
-import { movePlayer } from './game-control'
+import { movePlayer, planVisibleRoute } from './game-control'
+import { readHistory } from './history'
 
 type MapEvent = {
   _x: number
@@ -37,7 +38,6 @@ type RmGlobals = {
     x: number
     y: number
     isMoving: () => boolean
-    setDirection?: (d: number) => void
     isCollidedWithCharacters?: (x: number, y: number) => boolean
     isMapPassable?: (x: number, y: number, d: number) => boolean
   }
@@ -53,7 +53,7 @@ type StateView = {
   nearbyEvents?: Array<{ id: unknown; trigger: unknown; effects?: unknown }>
 }
 export type InteractIo = {
-  press: (key: 'ok') => Promise<unknown>
+  press: (key: 'ok' | 'up' | 'down' | 'left' | 'right') => Promise<unknown>
   readState: () => StateView
   interrupted: () => boolean
 }
@@ -105,14 +105,19 @@ function standTiles(event: MapEvent) {
   return SIDES.map(([dx, dy, face]) => ({ x: event._x + dx, y: event._y + dy, face }))
     .filter(({ x, y }) => map.isValid?.(x, y) !== false && [2, 4, 6, 8].some((d) => map.isPassable?.(x, y, d) !== false))
     .filter(({ x, y }) => (player.x === x && player.y === y) || !player.isCollidedWithCharacters?.(x, y))
-    .sort((a, b) => Math.abs(a.x - player.x) + Math.abs(a.y - player.y) - (Math.abs(b.x - player.x) + Math.abs(b.y - player.y)))
 }
 
 /** Events on the shortest tile path that ignores characters: what stands in the way, such as a closed door. */
 function blockers(goals: Array<{ x: number; y: number }>, targetId: number) {
   const { $gameMap: map, $gamePlayer: player } = rm()
-  const width = map?.width?.() ?? 0
-  const height = map?.height?.() ?? 0
+  let width = 0
+  let height = 0
+  try {
+    width = Number(map?.width?.()) || 0
+    height = Number(map?.height?.()) || 0
+  } catch {
+    return []
+  }
   if (!map?.eventsXy || !player?.isMapPassable || !goals.length || width * height > MAX_SCAN_TILES) return []
   const key = (x: number, y: number) => y * width + x
   const wanted = new Set(goals.map(({ x, y }) => key(x, y)))
@@ -166,7 +171,23 @@ function inventoryChanges(before: StateView, after: StateView) {
 }
 
 type Outcome = { outcome: string } & Record<string, unknown>
-type Run = { io: InteractIo; deadline: number; startMap: number; messages: Array<{ speaker: unknown; text: string }> }
+type NavigationAttempt = {
+  target: { x: number; y: number }
+  durationMs: number
+  arrived: boolean
+  transferred: boolean
+  interrupted: boolean
+  blocked: boolean
+  finalPosition?: unknown
+}
+type NavigationTrace = {
+  start: { x: number; y: number }
+  targetEvent: { id: number; x: number; y: number }
+  candidates: Tile[]
+  chosenStand?: Tile
+  attempts: NavigationAttempt[]
+}
+type Run = { io: InteractIo; deadline: number; startMap: number; messages: Array<{ speaker: unknown; text: string }>; navigation: NavigationTrace }
 
 /**
  * A blocker a player would simply walk into: touch-triggered and not leaving the map, fighting or trading
@@ -182,17 +203,39 @@ type Tile = ReturnType<typeof standTiles>[number]
 
 async function approach(run: Run, event: MapEvent, eventId: number): Promise<{ tiles: Tile[]; stand?: Tile; triggered?: boolean; transferred?: boolean; interrupted?: boolean }> {
   const player = rm().$gamePlayer!
-  const tiles = standTiles(event)
+  const candidates = standTiles(event)
+  const plan = planVisibleRoute({ x: event._x, y: event._y }, eventId, candidates)
+  const chosen = plan?.interactionPosition
+  const tiles = chosen ? [...candidates].sort((a, b) => (a.x === chosen.x && a.y === chosen.y ? -1 : b.x === chosen.x && b.y === chosen.y ? 1 : 0)) : candidates
+  run.navigation.candidates = tiles
   for (const tile of tiles) {
     if (run.io.interrupted()) return { interrupted: true, tiles }
     if (running(eventId)) return { triggered: true, tiles }
-    if (player.x === tile.x && player.y === tile.y) return { stand: tile, tiles }
+    if (player.x === tile.x && player.y === tile.y) {
+      run.navigation.chosenStand = tile
+      return { stand: tile, tiles }
+    }
     const budget = (run.deadline - Date.now()) * WALK_SHARE
     if (budget < 500) break
-    const walk = await movePlayer({ x: tile.x, y: tile.y, timeoutMs: budget }, run.io.interrupted)
+    const startedAt = Date.now()
+    const walk = await movePlayer({ x: tile.x, y: tile.y, timeoutMs: budget }, run.io.interrupted, eventId)
+    const walkResult = walk as Record<string, unknown>
+    run.navigation.attempts.push({
+      target: { x: tile.x, y: tile.y },
+      durationMs: Date.now() - startedAt,
+      arrived: walkResult.arrived === true,
+      transferred: walkResult.transferred === true,
+      interrupted: walkResult.interrupted === true,
+      blocked: walkResult.blocked === true || walkResult.blockedEventId != null,
+      finalPosition: walkResult.position,
+    })
     if ('transferred' in walk && walk.transferred) return { transferred: true, tiles }
-    if (running(eventId)) return { triggered: true, tiles }
-    if (walk.arrived) return { stand: tile, tiles }
+    if (running(eventId) || walkResult.triggeredEventId === eventId) return { triggered: true, tiles }
+    if (walkResult.interrupted === true) return { interrupted: true, tiles }
+    if (walk.arrived) {
+      run.navigation.chosenStand = tile
+      return { stand: tile, tiles }
+    }
   }
   return { tiles }
 }
@@ -253,7 +296,12 @@ async function trigger(run: Run, eventId: number, openDoors: boolean): Promise<O
     const now = run.io.readState()
     if (triggered || event._erased || event._pageIndex !== startPage || now.gold !== before.gold || inventoryChanges(before, now).length) return { outcome: 'done' }
     if (presses >= MAX_PRESSES) return { outcome: 'no_reaction', hint: 'Nothing happened; the event may have no action for ok here.' }
-    if (reached.stand?.face) rm().$gamePlayer?.setDirection?.(reached.stand.face)
+    if (reached.stand?.face) {
+      const key = { 2: 'down', 4: 'left', 6: 'right', 8: 'up' } as const
+      await run.io.press(key[reached.stand.face as keyof typeof key])
+      if (run.io.interrupted()) return { outcome: 'interrupted' }
+      if (running(eventId) || run.io.readState().message?.busy) continue
+    }
     presses += 1
     await run.io.press('ok')
     await wait(TICK_MS * 2)
@@ -267,10 +315,27 @@ export async function interactEvent(params: AgentParams<'player.interact'>, io: 
   const event = map.event?.(eventId)
   if (!event || event._erased) throw new Error(`事件 ${eventId} 不在当前地图上`)
   const before = io.readState()
-  const run: Run = { io, deadline: Date.now() + AGENT_INTERACT_MAX_MS, startMap: map.mapId(), messages: [] }
-  const result = await trigger(run, eventId, true)
+  if (before.message?.busy || map.isEventRunning?.())
+    return { eventId, outcome: 'input_required', hint: 'Finish the current dialogue or event before interacting with another target.' }
+  const historyBefore = readHistory({ limit: 1 }).lastSeq
+  const startedAt = Date.now()
+  const run: Run = {
+    io,
+    deadline: startedAt + AGENT_INTERACT_MAX_MS,
+    startMap: map.mapId(),
+    messages: [],
+    navigation: {
+      start: { x: player.x, y: player.y },
+      targetEvent: { id: eventId, x: event._x, y: event._y },
+      candidates: [],
+      attempts: [],
+    },
+  }
+  const openDoors = params.openDoors !== false
+  const result = await trigger(run, eventId, openDoors)
   const after = io.readState()
   const mapId = rm().$gameMap?.mapId() ?? null
+  const historyAfter = readHistory({ afterSeq: historyBefore, limit: 1 })
   return {
     eventId,
     name: event.event?.()?.name ?? null,
@@ -282,5 +347,17 @@ export async function interactEvent(params: AgentParams<'player.interact'>, io: 
     mapId,
     scene: sceneName(),
     position: { x: rm().$gamePlayer?.x ?? null, y: rm().$gamePlayer?.y ?? null },
+    historyRange: { fromSeq: historyAfter.lastSeq > historyBefore ? historyBefore + 1 : null, toSeq: historyAfter.lastSeq },
+    navigation: {
+      ...run.navigation,
+      plannedSteps: run.navigation.chosenStand
+        ? Math.abs(run.navigation.chosenStand.x - run.navigation.start.x) + Math.abs(run.navigation.chosenStand.y - run.navigation.start.y)
+        : null,
+      replanCount: Math.max(0, run.navigation.attempts.length - 1),
+      ...(Array.isArray(result.blockedBy) ? { blockedBy: result.blockedBy } : {}),
+      durationMs: Date.now() - startedAt,
+      finalPosition: { x: rm().$gamePlayer?.x ?? null, y: rm().$gamePlayer?.y ?? null },
+      outcome: run.navigation.chosenStand ? 'arrived' : result.outcome,
+    },
   }
 }

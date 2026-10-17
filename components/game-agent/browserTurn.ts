@@ -1,7 +1,8 @@
 import { executeRegisteredPageTool, listRegisteredPageTools } from '@/initializer/webmcp/register-page-tools'
+import { browserAgentTraceArchive } from '@/lib/browser/agent-trace-store'
 import { sanitizeAgentActivity } from '@/lib/game-agent/activity'
 import { RECALL_TOOL_DESCRIPTION, RECALL_TOOL_NAME, RECALL_TOOL_PROPERTIES, recallTurns, turnsFromMessages } from '@/lib/game-agent/recall'
-import { capabilityConfig, runAgentTurn, type RuntimeEvent, type RuntimeMessage, type RuntimeTool } from '@/lib/game-agent/runtime'
+import { type AgentTask, capabilityConfig, runAgentTurn, type RuntimeEvent, type RuntimeMessage, type RuntimeTool } from '@/lib/game-agent/runtime'
 import { collectSecretValues, redactSecrets, redactSecretText } from '@/lib/integration/tools/types'
 import { appendBrowserLog } from '@/lib/log/link-log-store'
 import { streamOllamaChat } from '@/services/game-agent/ollama-client'
@@ -69,6 +70,24 @@ export function createBrowserAgentRuntime() {
     sessions.set(session.id, session)
     latestSessionId = session.id
     const turnId = id('turn')
+    const traceTask: AgentTask = {
+      id: turnId,
+      gameId: input.gameId || 'cloud-game',
+      conversationId: session.id,
+      capability: 'companion' as const,
+      profileId: input.profile.id,
+      model: input.model,
+      locale: input.locale,
+      surface: input.surface,
+      state: 'running' as const,
+      goal: input.prompt,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      lastSeq: 0,
+      events: [],
+      messages: [],
+      persistence: 'durable' as const,
+    }
     const controller = new AbortController()
     turns.set(turnId, controller)
     input.signal?.addEventListener('abort', () => controller.abort(input.signal?.reason), { once: true })
@@ -79,6 +98,12 @@ export function createBrowserAgentRuntime() {
         let closed = false
         const emit = (event: GameAgentEvent) => {
           if (closed) return
+          const traceEvent = { seq: ++traceTask.lastSeq, type: event.type, at: Date.now(), data: event }
+          traceTask.updatedAt = traceEvent.at
+          if (event.type === 'turn.completed') traceTask.state = 'completed'
+          else if (event.type === 'turn.failed') traceTask.state = 'failed'
+          else if (event.type === 'turn.stopped') traceTask.state = 'stopped'
+          void browserAgentTraceArchive.append(traceTask, traceEvent)
           streamController.enqueue(encoder.encode(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`))
           if (event.type === 'turn.completed' || event.type === 'turn.failed' || event.type === 'turn.stopped') {
             closed = true

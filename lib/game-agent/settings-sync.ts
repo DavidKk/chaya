@@ -1,4 +1,5 @@
-import { CLI_PROVIDERS_FEATURE, type GameAgentProvider, isCliProvider, isGameAgentProvider } from '@/lib/game-agent/providers'
+import { CLI_PROVIDERS_FEATURE, type GameAgentProvider, isCliProvider, isGameAgentProvider, isOpenApiProvider, OPENAPI_PROVIDERS_FEATURE } from '@/lib/game-agent/providers'
+import { AGENT_PROXY_PROTOCOLS, type AgentProxyProtocols } from '@/lib/game-agent/proxy'
 import { normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
 
 export const AGENT_SYNC_VERSION = 1 as const
@@ -20,6 +21,8 @@ export type AgentSyncProfile = {
   modelTimeoutMs: number
   gameCallTimeoutMs: number
   proxy: string
+  proxyProtocols: AgentProxyProtocols
+  proxyHeaders: Record<string, string>
 }
 
 export type AgentSyncSettings = {
@@ -39,6 +42,8 @@ export const AGENT_SYNC_FIELDS = [
   'modelTimeoutMs',
   'gameCallTimeoutMs',
   'proxy',
+  'proxyProtocols',
+  'proxyHeaders',
 ] as const
 export type AgentSyncField = (typeof AGENT_SYNC_FIELDS)[number]
 
@@ -263,8 +268,26 @@ export function parseAgentSyncDocument(value: unknown): AgentSyncDocument | null
   for (const record of document.agents) {
     if (!record || typeof record.id !== 'string' || !record.id || ids.has(record.id) || typeof record.values !== 'object' || typeof record.fieldStamps !== 'object') return null
     ids.add(record.id)
-    // Records written before `proxy` existed (or by older readers) carry no value and a zero stamp, so any real edit wins.
-    const values = { ...record.values, ...normalizeAgentTimeouts(record.values), proxy: typeof record.values.proxy === 'string' ? record.values.proxy : '' }
+    // Records written before proxy fields existed carry no value and a zero stamp, so any real edit wins.
+    const proxyHeaders =
+      record.values.proxyHeaders && typeof record.values.proxyHeaders === 'object' && !Array.isArray(record.values.proxyHeaders)
+        ? Object.fromEntries(Object.entries(record.values.proxyHeaders).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+        : {}
+    const proxyProtocols: AgentProxyProtocols = {}
+    const rawProtocols = record.values.proxyProtocols
+    if (rawProtocols && typeof rawProtocols === 'object' && !Array.isArray(rawProtocols)) {
+      for (const key of AGENT_PROXY_PROTOCOLS) {
+        const value = (rawProtocols as Record<string, unknown>)[key]
+        if (typeof value === 'string' && value.trim()) proxyProtocols[key] = value
+      }
+    }
+    const values = {
+      ...record.values,
+      ...normalizeAgentTimeouts(record.values),
+      proxy: typeof record.values.proxy === 'string' ? record.values.proxy : '',
+      proxyProtocols,
+      proxyHeaders,
+    }
     const fieldStamps = Object.fromEntries(
       AGENT_SYNC_FIELDS.map((field) => [field, validStamp(record.fieldStamps[field]) ? copyStamp(record.fieldStamps[field]) : copyStamp(ZERO_STAMP)])
     ) as Record<AgentSyncField, AgentSyncStamp>
@@ -294,13 +317,17 @@ export function parseAgentSyncDocument(value: unknown): AgentSyncDocument | null
 }
 
 /**
- * Readers that predate CLI providers reject the whole document when any record is unknown.
+ * Readers that predate CLI / OpenAPI providers reject the whole document when any record is unknown.
  * Hide those records (and their order slots) so old plugins keep syncing Ollama agents; merges are
  * unions and deletes need tombstones, so the hidden records survive whatever the old reader sends back.
  */
 export function agentSyncDocumentForReader(document: AgentSyncDocument, features: readonly string[] = []): AgentSyncDocument {
-  if (features.includes(CLI_PROVIDERS_FEATURE)) return document
-  const hidden = new Set(document.agents.filter((record) => isCliProvider(record.values.provider)).map((record) => record.id))
+  const hideCli = !features.includes(CLI_PROVIDERS_FEATURE)
+  const hideOpenApi = !features.includes(OPENAPI_PROVIDERS_FEATURE)
+  if (!hideCli && !hideOpenApi) return document
+  const hidden = new Set(
+    document.agents.filter((record) => (hideCli && isCliProvider(record.values.provider)) || (hideOpenApi && isOpenApiProvider(record.values.provider))).map((record) => record.id)
+  )
   if (!hidden.size) return document
   return {
     ...document,

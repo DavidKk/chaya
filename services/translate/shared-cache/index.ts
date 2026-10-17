@@ -1,20 +1,41 @@
-/**
- * 全游戏共享翻译缓存（SQLite + Drizzle）
- * 默认：`@/constants` 的 `TRANSLATE_CACHE_DB_PATH`
- */
+/** Shared translation cache for all games, backed by SQLite and Drizzle. The default path is TRANSLATE_CACHE_DB_PATH from @/constants. */
 import fs from 'node:fs'
 
-import { and, asc, count, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNotNull, ne, sql } from 'drizzle-orm'
 
+import {
+  CACHE_ENGINE_KINDS,
+  type CacheEngineKind,
+  cacheEngineKind,
+  type CacheLiveFlag,
+  type CacheNsfwFlag,
+  parseCacheLiveFlag,
+  parseCacheNsfwFlag,
+} from '@/lib/translate/cache-engine-kind'
+import {
+  type CacheLang,
+  type CacheLangPair,
+  DEFAULT_CACHE_SRC_LANG,
+  DEFAULT_CACHE_TGT_LANG,
+  normalizeCacheLang,
+  parseCacheLang,
+  resolveCacheLangPair,
+} from '@/lib/translate/cache-lang'
 import { parseSharedCacheSortDir, parseSharedCacheSortKey, type SharedCacheSortDir, type SharedCacheSortKey } from '@/lib/translate/cache-query'
+import { normalizeTranslateKey } from '@/lib/translate/lookup'
 import { isNsfwCacheRow } from '@/services/translate/sensitive-text'
-import { isIdenticalTranslation, isStorableTranslation, peelControlShell } from '@/services/translate/text-classify'
+import { isIdenticalTranslation, isReusableTranslation, isStorableTranslation } from '@/services/translate/text-classify'
 
+import { createGameBackfill } from './backfill'
+import { confirmRecordSegments } from './confirm-segments'
 import { defaultSharedDbPath, openSharedCacheDb } from './db'
+import { createMatchIndex } from './match-index'
 import { translations } from './schema'
+import { writeCachePairs } from './write-pairs'
 
 export { defaultSharedDbPath, defaultSharedDir } from './db'
 export { cacheMeta, sharedCacheSchema, translations } from './schema'
+export type { CacheLang, CacheLangPair } from '@/lib/translate/cache-lang'
 export type { SharedCacheSortDir, SharedCacheSortKey } from '@/lib/translate/cache-query'
 export { parseSharedCacheSortDir, parseSharedCacheSortKey } from '@/lib/translate/cache-query'
 
@@ -22,17 +43,25 @@ export type SharedCacheListOpts = {
   page?: number
   pageSize?: number
   q?: string
-  /** 精确匹配 engine；空 = 全部 */
+  /** Kind (import, agent, google, bing) or an exact stored engine tag. Empty includes every row. */
   engine?: string
-  /** true = 仅 NSFW 行（引擎 tag 或原文敏感） */
+  /** When true, include only NSFW rows. `nsfwFlag` also selects safe rows. */
   nsfw?: boolean
+  /** nsfw or safe. Empty includes every row. */
+  nsfwFlag?: string
+  /** live or stored. Empty includes every row. Combined with the NSFW filter. */
+  live?: string
+  /** Source language filter. Empty includes every row. */
+  from?: string
+  /** Target language filter. Empty includes every row. */
+  to?: string
   sort?: SharedCacheSortKey
   order?: SharedCacheSortDir
 }
 
 export type ScrubDirtyResult = { removed: number; rewritten: number }
 
-/** 每个进程对每个库文件只 scrub 一次，避免每次 API 全表扫描 */
+/** Scrub each database path once per process to avoid a full scan on every API call. */
 const scrubbedDbPaths = new Set<string>()
 
 function nsfwBit(src: string, engine?: string | null): 0 | 1 {
@@ -43,7 +72,27 @@ function escapeLike(q: string) {
   return String(q).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
 }
 
-function listFilter(opts: { q?: string; engine?: string; nsfw?: boolean }) {
+function engineKindSql(kind: CacheEngineKind) {
+  if (kind === 'google') return sql`${translations.engine} LIKE '%google%' ESCAPE '\\'`
+  if (kind === 'bing') return sql`${translations.engine} LIKE '%bing%' ESCAPE '\\'`
+  if (kind === 'import') return sql`${translations.engine} LIKE 'import%' ESCAPE '\\'`
+  return sql`((${translations.engine} LIKE '%agent%' ESCAPE '\\' OR ${translations.engine} LIKE '%ollama%' ESCAPE '\\') AND ${translations.engine} NOT LIKE '%google%' ESCAPE '\\' AND ${translations.engine} NOT LIKE '%bing%' ESCAPE '\\')`
+}
+
+function nsfwFlagSql(flag: CacheNsfwFlag) {
+  return eq(translations.nsfw, flag === 'nsfw' ? 1 : 0)
+}
+
+function liveFlagSql(flag: CacheLiveFlag) {
+  if (flag === 'live') return sql`${translations.engine} LIKE 'live:%' ESCAPE '\\'`
+  return sql`(${translations.engine} IS NULL OR ${translations.engine} NOT LIKE 'live:%' ESCAPE '\\')`
+}
+
+function rowWhere(src: string, from: CacheLang, to: CacheLang) {
+  return and(eq(translations.src, src), eq(translations.srcLang, from), eq(translations.tgtLang, to))
+}
+
+function listFilter(opts: { q?: string; engine?: string; nsfwFlag?: CacheNsfwFlag | ''; live?: CacheLiveFlag | ''; from?: CacheLang | ''; to?: CacheLang | '' }) {
   const parts = []
   const q = String(opts.q || '').trim()
   const engine = String(opts.engine || '').trim()
@@ -51,44 +100,100 @@ function listFilter(opts: { q?: string; engine?: string; nsfw?: boolean }) {
     const like = `%${escapeLike(q)}%`
     parts.push(sql`(${translations.src} LIKE ${like} ESCAPE '\\' OR ${translations.zh} LIKE ${like} ESCAPE '\\')`)
   }
-  if (engine) parts.push(eq(translations.engine, engine))
-  if (opts.nsfw) parts.push(eq(translations.nsfw, 1))
+  const kind = cacheEngineKind(engine)
+  if (kind && (CACHE_ENGINE_KINDS as readonly string[]).includes(engine)) parts.push(engineKindSql(kind))
+  else if (engine) parts.push(eq(translations.engine, engine))
+  if (opts.nsfwFlag) parts.push(nsfwFlagSql(opts.nsfwFlag))
+  if (opts.live) parts.push(liveFlagSql(opts.live))
+  // Language pair is bidirectional: A⇄B matches both A→B and B→A.
+  if (opts.from && opts.to) {
+    parts.push(
+      sql`((${translations.srcLang} = ${opts.from} AND ${translations.tgtLang} = ${opts.to}) OR (${translations.srcLang} = ${opts.to} AND ${translations.tgtLang} = ${opts.from}))`
+    )
+  } else if (opts.from) {
+    parts.push(eq(translations.srcLang, opts.from))
+  } else if (opts.to) {
+    parts.push(eq(translations.tgtLang, opts.to))
+  }
   return parts.length ? and(...parts) : undefined
+}
+
+function defaultPair(opts?: Partial<CacheLangPair>): CacheLangPair {
+  return {
+    from: normalizeCacheLang(opts?.from, DEFAULT_CACHE_SRC_LANG),
+    to: normalizeCacheLang(opts?.to, DEFAULT_CACHE_TGT_LANG),
+  }
+}
+
+/** True when src/zh are the same after NFKC / quote-noise normalize — must not live in shared cache. */
+function isSharedIdenticalPair(src: string, tgt: string): boolean {
+  if (isIdenticalTranslation(src, tgt)) return true
+  const a = normalizeTranslateKey(src)
+  const b = normalizeTranslateKey(tgt)
+  return Boolean(a) && isIdenticalTranslation(a, b)
+}
+
+/**
+ * Shared cache must not store 原文===译文 labels (好感度→好感度); those belong in the game ndjson only.
+ * Chinese targets use storable rules; other targets only need a non-identical pair.
+ */
+function canStorePair(src: string, tgt: string, _engine: string, to: CacheLang): boolean {
+  if (isSharedIdenticalPair(src, tgt)) return false
+  if (to === 'zh') return isStorableTranslation(src, tgt)
+  return Boolean(String(src).trim() && String(tgt).trim())
+}
+
+function rowUsable(src: string, tgt: string, to: CacheLang): boolean {
+  if (to === 'zh') return isReusableTranslation(src, tgt)
+  return Boolean(String(src).trim() && String(tgt).trim())
 }
 
 export function openSharedCache(dbPath = defaultSharedDbPath()) {
   const { db, path: resolved } = openSharedCacheDb(dbPath)
+  const index = createMatchIndex(db.$client)
+  const backfill = createGameBackfill(db.$client, index, resolved)
 
   const cache = {
     path: resolved,
+    plan: index.plan,
+    queueBackfill: backfill.queue,
+    flushBackfill: backfill.flush,
+    record: index.record,
+    current: index.current,
+    version: index.version,
+    setAlignment: index.setAlignment,
+    confirmSegments(parent: { src: string; zh: string }, pairs: Array<[string, string]>, pair: CacheLangPair, opts?: import('./confirm-segments').ConfirmSegmentsOptions) {
+      return confirmRecordSegments(index, parent, pairs, pair, opts)
+    },
+    writeMany(pairs: Array<[string, string]>, engine = 'pipeline', pairOpts?: Partial<CacheLangPair>) {
+      return writeCachePairs(db.$client, index, pairs, engine, pairOpts, canStorePair, nsfwBit)
+    },
 
-    loadAll(): Record<string, string> {
+    loadAll(pairOpts?: Partial<CacheLangPair>): Record<string, string> {
+      const pair = defaultPair(pairOpts)
       const out: Record<string, string> = Object.create(null)
-      for (const row of db.select({ src: translations.src, zh: translations.zh }).from(translations).all()) {
-        if (isStorableTranslation(String(row.src), String(row.zh))) out[String(row.src)] = String(row.zh)
+      for (const row of db
+        .select({ src: translations.src, zh: translations.zh })
+        .from(translations)
+        .where(and(eq(translations.srcLang, pair.from), eq(translations.tgtLang, pair.to)))
+        .all()) {
+        if (rowUsable(String(row.src), String(row.zh), pair.to)) out[String(row.src)] = String(row.zh)
       }
       return out
     },
 
-    get(src: string) {
-      const row = db
-        .select({ zh: translations.zh })
-        .from(translations)
-        .where(eq(translations.src, String(src)))
-        .get()
-      return row && isStorableTranslation(src, String(row.zh)) ? String(row.zh) : null
+    get(src: string, pairOpts?: Partial<CacheLangPair>) {
+      const pair = defaultPair(pairOpts)
+      const row = index.authority(src, pair)
+      // Deliberately no whitespace/coverage fallback in exact getters.
+      return row && rowUsable(src, row.zh, pair.to) && (row.src === src || row.engine === 'manual') ? row.zh : null
     },
 
-    getMany(keys: string[]): Map<string, string> {
+    getMany(keys: string[], pairOpts?: Partial<CacheLangPair>): Map<string, string> {
       const out = new Map<string, string>()
-      const unique = [...new Set(keys)]
-      for (let i = 0; i < unique.length; i += 500) {
-        const rows = db
-          .select({ src: translations.src, zh: translations.zh })
-          .from(translations)
-          .where(inArray(translations.src, unique.slice(i, i + 500)))
-          .all()
-        for (const row of rows) if (isStorableTranslation(row.src, row.zh)) out.set(row.src, row.zh)
+      for (const key of new Set(keys)) {
+        const hit = cache.get(key, pairOpts)
+        if (hit != null) out.set(key, hit)
       }
       return out
     },
@@ -98,20 +203,25 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
       const page = Math.max(1, Number(opts.page) || 1)
       const q = String(opts.q || '').trim()
       const engine = String(opts.engine || '').trim()
-      const nsfwOnly = Boolean(opts.nsfw)
+      const nsfwFlag = parseCacheNsfwFlag(opts.nsfwFlag) || (opts.nsfw ? 'nsfw' : '')
+      const live = parseCacheLiveFlag(opts.live)
+      const from = parseCacheLang(opts.from)
+      const to = parseCacheLang(opts.to)
       const sort = parseSharedCacheSortKey(opts.sort)
       const order = parseSharedCacheSortDir(opts.order)
       const offset = (page - 1) * pageSize
-      const where = listFilter({ q, engine, nsfw: nsfwOnly })
+      const where = listFilter({ q, engine, nsfwFlag, live, from, to })
 
-      const engines = db
+      const present = new Set<CacheEngineKind>()
+      for (const row of db
         .selectDistinct({ engine: translations.engine })
         .from(translations)
         .where(and(isNotNull(translations.engine), ne(translations.engine, '')))
-        .orderBy(sql`${translations.engine} COLLATE NOCASE`)
-        .all()
-        .map((r) => String(r.engine))
-        .filter(Boolean)
+        .all()) {
+        const kind = cacheEngineKind(row.engine)
+        if (kind) present.add(kind)
+      }
+      const engines = CACHE_ENGINE_KINDS.filter((kind) => present.has(kind))
 
       const totalRow = where ? db.select({ n: count() }).from(translations).where(where).get() : db.select({ n: count() }).from(translations).get()
       const total = Number(totalRow?.n || 0)
@@ -125,7 +235,18 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
             ? asc(translations.updatedAt)
             : desc(translations.updatedAt)
 
-      const base = db.select().from(translations)
+      const rowSelect = {
+        id: sql<number>`rowid`.mapWith(Number),
+        src: translations.src,
+        zh: translations.zh,
+        srcLang: translations.srcLang,
+        tgtLang: translations.tgtLang,
+        engine: translations.engine,
+        updatedAt: translations.updatedAt,
+        hitCount: translations.hitCount,
+        nsfw: translations.nsfw,
+      }
+      const base = db.select(rowSelect).from(translations)
       const filtered = where ? base.where(where) : base
       const rows = filtered.orderBy(orderBy, asc(translations.src)).limit(pageSize).offset(offset).all()
 
@@ -136,13 +257,20 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
         totalPages: Math.max(1, Math.ceil(total / pageSize)),
         q,
         engine,
-        nsfw: nsfwOnly,
+        nsfw: nsfwFlag === 'nsfw',
+        nsfwFlag,
+        live,
+        from,
+        to,
         sort,
         order,
         engines,
         items: rows.map((r) => ({
+          id: Number(r.id) || 0,
           src: String(r.src),
           zh: String(r.zh),
+          from: normalizeCacheLang(r.srcLang, DEFAULT_CACHE_SRC_LANG),
+          to: normalizeCacheLang(r.tgtLang, DEFAULT_CACHE_TGT_LANG),
           engine: r.engine == null ? null : String(r.engine),
           updatedAt: Number(r.updatedAt) || 0,
           hitCount: Number(r.hitCount) || 0,
@@ -151,74 +279,133 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
       }
     },
 
-    upsertMany(pairs: Array<[string, string]>, engine = 'pipeline') {
-      if (!pairs.length) return 0
-      const now = Date.now()
-      let n = 0
-      db.transaction((tx) => {
-        for (const [src, zh] of pairs) {
-          if (!src || zh == null || zh === '') continue
-          const s = String(src)
-          const t = String(zh)
-          if (!isStorableTranslation(s, t)) continue
-          tx.insert(translations)
-            .values({ src: s, zh: t, engine, updatedAt: now, hitCount: 0, nsfw: nsfwBit(s, engine) })
-            .onConflictDoUpdate({
-              target: translations.src,
-              set: {
-                zh: sql`excluded.zh`,
-                engine: sql`excluded.engine`,
-                updatedAt: sql`excluded.updated_at`,
-                hitCount: sql`${translations.hitCount} + 1`,
-                nsfw: sql`excluded.nsfw`,
-              },
-            })
-            .run()
-          n += 1
-        }
-      })
-      return n
+    /** SQLite rowid lookup for short optimize URLs. */
+    getById(id: number) {
+      const n = Math.floor(Number(id) || 0)
+      if (n <= 0) return null
+      const row = db
+        .select({
+          id: sql<number>`rowid`.mapWith(Number),
+          src: translations.src,
+          zh: translations.zh,
+          srcLang: translations.srcLang,
+          tgtLang: translations.tgtLang,
+          engine: translations.engine,
+          updatedAt: translations.updatedAt,
+          hitCount: translations.hitCount,
+          nsfw: translations.nsfw,
+        })
+        .from(translations)
+        .where(sql`rowid = ${n}`)
+        .get()
+      if (!row) return null
+      return {
+        id: Number(row.id) || n,
+        src: String(row.src),
+        zh: String(row.zh),
+        from: normalizeCacheLang(row.srcLang, DEFAULT_CACHE_SRC_LANG),
+        to: normalizeCacheLang(row.tgtLang, DEFAULT_CACHE_TGT_LANG),
+        engine: row.engine == null ? null : String(row.engine),
+        updatedAt: Number(row.updatedAt) || 0,
+        hitCount: Number(row.hitCount) || 0,
+        nsfw: Number(row.nsfw) === 1,
+      }
     },
 
-    importIgnoreExisting(map: Record<string, string>, engine = 'import') {
-      const now = Date.now()
-      const entries = Object.entries(map || {})
-      if (!entries.length) return { inserted: 0, total: 0 }
-      let inserted = 0
-      db.transaction((tx) => {
-        for (const [src, zh] of entries) {
-          if (!src || zh == null || zh === '') continue
-          const s = String(src)
-          const t = String(zh)
-          if (!isStorableTranslation(s, t)) continue
-          const result = tx
-            .insert(translations)
-            .values({ src: s, zh: t, engine, updatedAt: now, hitCount: 0, nsfw: nsfwBit(s, engine) })
-            .onConflictDoNothing({ target: translations.src })
-            .run()
-          if (Number(result.changes || 0) > 0) inserted += 1
+    /** Compatibility count; callers needing accepted pairs must use writeMany. */
+    upsertMany(pairs: Array<[string, string]>, engine = 'pipeline', pairOpts?: Partial<CacheLangPair>) {
+      return cache.writeMany(pairs, engine, pairOpts).accepted.length
+    },
+
+    /** Legacy explicit-pair compatibility; the graph UI now confirms parent mappings via confirmSegments. */
+    upsertOptimizeMany(pairs: Array<[string, string]>, engine = 'manual:optimize', pairOpts?: Partial<CacheLangPair>) {
+      const stats = {
+        inserted: 0,
+        identical: 0,
+        conflict: 0,
+        skipped: 0,
+        total: 0,
+        localOnly: [] as Array<[string, string]>,
+      }
+      if (!pairs.length) return stats
+      for (const [src, zh] of pairs) {
+        if (!src || !zh?.trim()) continue
+        stats.total++
+        if (isSharedIdenticalPair(src, zh)) {
+          stats.localOnly.push([src, zh])
+          continue
         }
-      })
+        const pair = resolveCacheLangPair({ ...pairOpts, src })
+        const existing = index.authority(src, pair)
+        if (existing?.zh === zh) {
+          stats.identical++
+          continue
+        }
+        const written = cache.writeMany([[src, zh.trim()]], engine, pair)
+        if (written.accepted.length) stats.inserted++
+        else if (written.rejected[0]?.reason === 'invalid') stats.skipped++
+        else stats.conflict++
+      }
+      return stats
+    },
+
+    importIgnoreExisting(map: Record<string, string>, engine = 'import', pairOpts?: Partial<CacheLangPair>) {
+      const entries = Object.entries(map || {})
+      let inserted = 0
+      for (const [src, zh] of entries) {
+        const pair = resolveCacheLangPair({ ...pairOpts, src })
+        if (index.record(src, pair)) continue
+        inserted += cache.writeMany([[src, zh]], engine, pair).accepted.length
+      }
       return { inserted, total: entries.length }
     },
 
-    update(src: string, zh: string, engine = 'manual'): boolean {
+    update(src: string, zh: string, engine = 'manual', pairOpts?: Partial<CacheLangPair>, opts?: { nsfw?: boolean }): boolean {
       const s = String(src ?? '')
       const t = String(zh ?? '').trim()
-      if (!isStorableTranslation(s, t)) return false
-      if (!db.select({ src: translations.src }).from(translations).where(eq(translations.src, s)).get()) return false
+      const pair = resolveCacheLangPair({ ...pairOpts, src: s })
+      if (!canStorePair(s, t, engine, pair.to)) return false
+      const existing = db
+        .select({ nsfw: translations.nsfw })
+        .from(translations)
+        .where(rowWhere(s, pair.from, pair.to))
+        .get()
+      if (!existing) return false
+      const nsfw = typeof opts?.nsfw === 'boolean' ? (opts.nsfw ? 1 : 0) : Math.max(Number(existing.nsfw) === 1 ? 1 : 0, nsfwBit(s, engine))
+      const result = cache.writeMany([[s, t]], engine, pair)
+      if (result.accepted.length && typeof opts?.nsfw === 'boolean') cache.setNsfw(s, Boolean(nsfw), pair)
+      return result.accepted.length > 0
+    },
+
+    /** Manual NSFW mark; does not change the translation text. */
+    setNsfw(src: string, nsfw: boolean, pairOpts?: Partial<CacheLangPair>): boolean {
+      const s = String(src ?? '')
+      if (!s) return false
+      const pair = defaultPair(pairOpts)
+      if (
+        !db
+          .select({ src: translations.src })
+          .from(translations)
+          .where(rowWhere(s, pair.from, pair.to))
+          .get()
+      )
+        return false
       const result = db
         .update(translations)
-        .set({ zh: t, engine, updatedAt: Date.now(), nsfw: nsfwBit(s, engine) })
-        .where(eq(translations.src, s))
+        .set({ nsfw: nsfw ? 1 : 0, updatedAt: Date.now() })
+        .where(rowWhere(s, pair.from, pair.to))
         .run()
       return Number(result.changes || 0) > 0
     },
 
-    remove(src: string): boolean {
+    remove(src: string, pairOpts?: Partial<CacheLangPair>): boolean {
       const s = String(src ?? '')
       if (!s) return false
-      const result = db.delete(translations).where(eq(translations.src, s)).run()
+      const pair = defaultPair(pairOpts)
+      const result = db
+        .delete(translations)
+        .where(rowWhere(s, pair.from, pair.to))
+        .run()
       return Number(result.changes || 0) > 0
     },
 
@@ -227,83 +414,31 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
       if (!rows.length) return { removed: 0, rewritten: 0 }
 
       let removed = 0
-      let rewritten = 0
-      const now = Date.now()
+      const rewritten = 0
 
       db.transaction((tx) => {
         for (const row of rows) {
           const src = String(row.src)
           const zh = String(row.zh)
+          const from = normalizeCacheLang(row.srcLang, DEFAULT_CACHE_SRC_LANG)
+          const to = normalizeCacheLang(row.tgtLang, DEFAULT_CACHE_TGT_LANG)
           const engine = row.engine == null ? null : String(row.engine)
-          const hits = Number(row.hitCount) || 0
+          const where = rowWhere(src, from, to)
 
           if (engine === 'skip:control' || engine === 'skip:sensitive') {
-            tx.delete(translations).where(eq(translations.src, src)).run()
+            tx.delete(translations).where(where).run()
             removed += 1
             continue
           }
 
-          if (isIdenticalTranslation(src, zh)) {
-            tx.delete(translations).where(eq(translations.src, src)).run()
+          // Shared cache policy: never keep 原文===译文 (incl. quote-noise / NFKC); those belong in per-game ndjson.
+          if (isSharedIdenticalPair(src, zh)) {
+            tx.delete(translations).where(where).run()
             removed += 1
             continue
           }
 
-          const srcShell = peelControlShell(src)
-          const zhShell = peelControlShell(zh)
-          const srcHasShell = Boolean(srcShell.lead || srcShell.trail)
-          const zhHasShell = Boolean(zhShell.lead || zhShell.trail)
-          if (!srcHasShell && !zhHasShell) continue
-
-          const coreKey = (srcHasShell ? srcShell.core : src).trim()
-          const zhCore = (zhShell.core || zh).trim()
-
-          if (!coreKey || !zhCore || isIdenticalTranslation(coreKey, zhCore)) {
-            tx.delete(translations).where(eq(translations.src, src)).run()
-            removed += 1
-            continue
-          }
-
-          if (coreKey === src) {
-            if (zhCore !== zh) {
-              tx.update(translations)
-                .set({ zh: zhCore, engine: engine || 'scrub', updatedAt: now, nsfw: nsfwBit(src, engine) })
-                .where(eq(translations.src, src))
-                .run()
-              rewritten += 1
-            }
-            continue
-          }
-
-          const existing = tx.select({ zh: translations.zh }).from(translations).where(eq(translations.src, coreKey)).get()
-          if (existing) {
-            tx.delete(translations).where(eq(translations.src, src)).run()
-            removed += 1
-            continue
-          }
-
-          tx.insert(translations)
-            .values({
-              src: coreKey,
-              zh: zhCore,
-              engine: engine || 'scrub',
-              updatedAt: now,
-              hitCount: hits,
-              nsfw: nsfwBit(coreKey, engine),
-            })
-            .onConflictDoUpdate({
-              target: translations.src,
-              set: {
-                zh: sql`excluded.zh`,
-                engine: sql`excluded.engine`,
-                updatedAt: sql`excluded.updated_at`,
-                hitCount: sql`MAX(${translations.hitCount}, excluded.hit_count)`,
-                nsfw: sql`excluded.nsfw`,
-              },
-            })
-            .run()
-          tx.delete(translations).where(eq(translations.src, src)).run()
-          rewritten += 1
+          // Preserve original source/translation and punctuation. Aliases belong in match indexes.
         }
       })
 
@@ -340,7 +475,7 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
 
 export type SharedCache = ReturnType<typeof openSharedCache>
 
-/** 测试用：允许再次 scrub 同一路径 */
+/** Allow tests to scrub the same database path again. */
 export function resetSharedCacheScrubGuardForTests() {
   scrubbedDbPaths.clear()
 }

@@ -5,6 +5,8 @@ import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef, use
 import {
   type ActorDraft,
   type ActorVitalLockKind,
+  type BattleLockChange,
+  battleLockKey,
   countKey,
   defaultActorDraft,
   emptySession,
@@ -461,6 +463,17 @@ export function buildOptimisticHandlers(setSession: SetSession, sendCmd: (op: Ga
     })
   }
 
+  const setBattleLock = (change: BattleLockChange) => {
+    sendCmd({ op: 'battleLock', ...change })
+    const key = battleLockKey(change)
+    setSession((prev) => {
+      const locks = { ...prev.locks }
+      if (!change.on) delete locks[key]
+      else locks[key] = change.value
+      return { ...prev, locks }
+    })
+  }
+
   const setActorVitalLock = (actorId: number, kind: ActorVitalLockKind, on: boolean) => {
     const key = lockKeyForActorVital(kind, actorId)
     setSession((prev) => {
@@ -538,6 +551,7 @@ export function buildOptimisticHandlers(setSession: SetSession, sendCmd: (op: Ga
     setRowLock,
     setActorOwnedLock,
     setActorVitalLock,
+    setBattleLock,
     setActor,
     setMoveRate,
     setGameSpeed,

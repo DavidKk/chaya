@@ -1,4 +1,4 @@
-import { requestOllama } from '@/lib/translate/engine-http'
+import { createBingTranslator, requestGoogle, requestOllama } from '@/lib/translate/engine-http'
 
 function reply(content: string) {
   return jest.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ message: { content } }), { status: 200 }))
@@ -12,6 +12,24 @@ it('frames bare source text for the default translate prompt and strips the echo
   const http = reply('简体中文：去会客室')
   await expect(requestOllama(http, { text: '応接室へ行く' })).resolves.toBe('去会客室')
   expect(sentUser(http)).toBe('日文：\n応接室へ行く\n\n简体中文：')
+})
+
+it('frames English game text in English rather than marking it Japanese', async () => {
+  const http = reply('恢复生命值')
+  await expect(requestOllama(http, { text: 'Restores health' })).resolves.toBe('恢复生命值')
+  expect(sentUser(http)).toBe('英文：\nRestores health\n\n简体中文：')
+})
+
+it('lets Google and Bing detect English/Japanese source text', async () => {
+  const google = jest.fn(async () => new Response(JSON.stringify([[['药水', 'Potion']]])))
+  await expect(requestGoogle(google, 'Potion')).resolves.toBe('药水')
+  expect(new URL((google.mock.calls as unknown as string[][])[0][0]).searchParams.get('sl')).toBe('auto')
+  const bing = jest
+    .fn()
+    .mockResolvedValueOnce(new Response('IG:"abc" data-iid="test" params_AbusePreventionHelper = [123,"token",60000]'))
+    .mockResolvedValueOnce(new Response(JSON.stringify([{ translations: [{ text: '药水' }] }])))
+  await expect(createBingTranslator(bing)('Potion')).resolves.toBe('药水')
+  expect(new URLSearchParams(String(bing.mock.calls[1][1].body)).get('fromLang')).toBe('auto-detect')
 })
 
 it('sends text as-is with a custom system prompt', async () => {

@@ -131,15 +131,16 @@ async function classify(call: TaskCall, body: TurnBody, signal?: AbortSignal | n
   const classified = (await call(
     { type: 'agent.task.classify', requestId: crypto.randomUUID(), gameId: body.gameId, profileId: body.profileId, model: body.model, prompt: body.prompt },
     signal || undefined
-  )) as { capability?: 'play' | 'ask' }
-  return classified.capability === 'play' ? 'play' : body.surface === 'companion' ? 'companion' : 'ask'
+  )) as { capability?: 'play' | 'ask'; shape?: 'single' | 'batch' | 'open' }
+  const capability = classified.capability === 'play' ? ('play' as const) : body.surface === 'companion' ? ('companion' as const) : ('ask' as const)
+  return { capability, shape: classified.capability === 'play' ? classified.shape : undefined }
 }
 
 async function startTask(call: TaskCall, body: TurnBody, signal?: AbortSignal | null) {
   const taskId = crypto.randomUUID()
   const conversationId = body.sessionId || crypto.randomUUID()
   const routine = body.routine
-  const capability = routine ? 'play' : await classify(call, body, signal)
+  const classified = routine ? { capability: 'play' as const, shape: undefined } : await classify(call, body, signal)
   await call(
     {
       type: 'agent.task.start',
@@ -148,13 +149,14 @@ async function startTask(call: TaskCall, body: TurnBody, signal?: AbortSignal | 
       taskId,
       gameId: body.gameId,
       conversationId,
-      capability,
+      capability: classified.capability,
       profileId: body.profileId,
       model: body.model,
       locale: body.locale,
       companionCharacter: body.companionCharacter,
       surface: body.surface || 'sidebar',
       thinking: body.thinking === true,
+      ...(classified.shape ? { shape: classified.shape } : {}),
       ...(routine ? { routine } : {}),
       goal: body.prompt,
     },
@@ -200,8 +202,29 @@ export function createDirectGameAgentRequest(readSettings: () => AgentSyncSettin
     }
 
     if (url.pathname === '/api/game-agent/activity' && method === 'GET') {
-      const tasks = (await call({ type: 'agent.task.status', requestId: crypto.randomUUID() }, init?.signal || undefined)) as AgentTask[]
+      const taskId = url.searchParams.get('taskId')?.trim()
+      if (taskId && url.searchParams.get('format') === 'jsonl') {
+        const exported = (await call({ type: 'agent.trace.export', requestId: crypto.randomUUID(), taskId }, init?.signal || undefined)) as {
+          filename: string
+          mimeType: string
+          content: string
+        } | null
+        return exported
+          ? new Response(exported.content, { headers: { 'Content-Type': exported.mimeType, 'Content-Disposition': `attachment; filename="${exported.filename}"` } })
+          : json({ error: { message: 'Agent 轨迹不存在' } }, 404)
+      }
+      if (taskId) {
+        const task = (await call({ type: 'agent.trace.read', requestId: crypto.randomUUID(), taskId }, init?.signal || undefined)) as AgentTask | null
+        return task ? json({ task }) : json({ error: { message: 'Agent 轨迹不存在' } }, 404)
+      }
+      const tasks = await call({ type: 'agent.trace.list', requestId: crypto.randomUUID() }, init?.signal || undefined)
       return json({ tasks })
+    }
+
+    if (url.pathname === '/api/game-agent/activity' && method === 'DELETE') {
+      const taskId = url.searchParams.get('taskId')?.trim()
+      const result = await call({ type: 'agent.trace.remove', requestId: crypto.randomUUID(), taskId: taskId || undefined }, init?.signal || undefined)
+      return json({ ok: true, ...(result as object) })
     }
 
     if (url.pathname === '/api/game-agent/turn' && method === 'POST') {

@@ -2,18 +2,20 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { IoCheckmark, IoCopyOutline, IoTrashOutline } from 'react-icons/io5'
-import { LuBot, LuFileText } from 'react-icons/lu'
 
 import { AgentActivityLogPanel } from '@/components/game-agent/AgentActivityLogPanel'
+import { AgentCliProcessesPanel } from '@/components/game-agent/AgentCliProcessesPanel'
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelHead, panelHeadEnd } from '@/components/layoutClasses'
 import { LogEntriesView, matchesLogQuery } from '@/components/LogEntriesView'
 import { LogLevelMultiSelect } from '@/components/LogLevelMultiSelect'
+import { DEFAULT_LOGS_SECTION, isLogsSection, LOGS_SECTIONS, type LogsSection } from '@/components/logs/sections'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
 import { SectionSideNav, sectionSideNavItemClass, SectionSideNavItemContent } from '@/components/SectionSideNav'
-import { Button, TextInput } from '@/components/sk'
+import { Button, TextInput, Tooltip } from '@/components/sk'
 import { LOG_LEVELS, type LogLevel } from '@/lib/log/types'
+import { useViewState } from '@/lib/view-state'
 
 type PluginLogEntry = { id: number; ts: number; level: 'ok' | 'info' | 'warn' | 'fail' | 'debug'; source: string; message: string; meta?: unknown }
 type LocalLogApi = { history: () => PluginLogEntry[]; subscribe: (listener: () => void) => () => void; clear: () => void }
@@ -29,7 +31,7 @@ function formatLog(entry: PluginLogEntry): string {
 /** Logs stay in the game process, so this works even without a Web connection. */
 export function GameEditLogsPane({ agentRequest }: { agentRequest?: GameAgentRequest }) {
   const t = useT()
-  const [view, setView] = useState<'logs' | 'agent'>('logs')
+  const [section, setSection] = useViewState<LogsSection>('logs.section', DEFAULT_LOGS_SECTION, isLogsSection)
   const entries = useSyncExternalStore(subscribeLogs, readLogs, () => EMPTY_LOGS)
   const [levelFilter, setLevelFilter] = useState<ReadonlySet<LogLevel>>(() => new Set(LOG_LEVELS))
   const [query, setQuery] = useState('')
@@ -43,6 +45,11 @@ export function GameEditLogsPane({ agentRequest }: { agentRequest?: GameAgentReq
   const hasFilter = levelFilter.size !== LOG_LEVELS.length || Boolean(needle)
   const lastId = visibleEntries.at(-1)?.id
   const copyStatus = copyKind === 'ok' ? t('logs.copiedN', { count: copiedCount }) : copyKind === 'fail' ? t('logs.copyFailed') : ''
+  const active = agentRequest ? section : 'runtime'
+
+  useEffect(() => {
+    if (!agentRequest && section !== 'runtime') setSection('runtime')
+  }, [agentRequest, section, setSection])
 
   useEffect(() => {
     if (followRef.current && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -67,41 +74,50 @@ export function GameEditLogsPane({ agentRequest }: { agentRequest?: GameAgentReq
   }
 
   const subNav = agentRequest ? (
-    <SectionSideNav label="日志二级导航" mobile>
-      <li>
-        <button
-          type="button"
-          aria-label="插件日志"
-          aria-current={view === 'logs' ? 'page' : undefined}
-          className={sectionSideNavItemClass(view === 'logs')}
-          onClick={() => setView('logs')}
-        >
-          <SectionSideNavItemContent active={view === 'logs'} icon={<LuFileText size={16} />} />
-        </button>
-      </li>
-      <li>
-        <button
-          type="button"
-          aria-label="Agent 活动"
-          aria-current={view === 'agent' ? 'page' : undefined}
-          className={sectionSideNavItemClass(view === 'agent')}
-          onClick={() => setView('agent')}
-        >
-          <SectionSideNavItemContent active={view === 'agent'} icon={<LuBot size={16} />} />
-        </button>
-      </li>
+    <SectionSideNav label={t('nav.logs')} mobile>
+      {LOGS_SECTIONS.map(({ id, labelKey, icon: Icon }) => {
+        const label = t(labelKey)
+        const selected = active === id
+        return (
+          <li key={id}>
+            <Tooltip content={label} placement="right">
+              <button
+                type="button"
+                aria-label={label}
+                aria-current={selected ? 'page' : undefined}
+                className={`${sectionSideNavItemClass(selected)} cursor-pointer`}
+                onClick={() => setSection(id)}
+              >
+                <SectionSideNavItemContent active={selected} icon={<Icon size={16} />} />
+              </button>
+            </Tooltip>
+          </li>
+        )
+      })}
     </SectionSideNav>
   ) : null
 
-  if (view === 'agent' && agentRequest)
+  if (active === 'agent' && agentRequest) {
     return (
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {subNav}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <AgentActivityLogPanel request={agentRequest} onBack={() => setView('logs')} />
+          <AgentActivityLogPanel request={agentRequest} onBack={() => setSection('runtime')} />
         </div>
       </div>
     )
+  }
+
+  if (active === 'cli' && agentRequest) {
+    return (
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {subNav}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <AgentCliProcessesPanel request={agentRequest} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">

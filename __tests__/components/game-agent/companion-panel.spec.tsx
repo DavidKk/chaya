@@ -80,7 +80,7 @@ it('toggles the thinking process from the toolbar and restores it after reload',
   await act(async () => showActivity.click())
   expect(localStorage.getItem('chaya.companion.view.game-a')).toBe('activity')
   expect(host.querySelector('button[aria-label="显示聊天"]')?.getAttribute('aria-pressed')).toBe('true')
-  expect(host.textContent).toContain('暂无思考过程')
+  expect(host.textContent).toContain('暂无 Agent 过程')
 
   await act(async () => root.unmount())
   root = createRoot(host)
@@ -92,7 +92,7 @@ it('toggles the thinking process from the toolbar and restores it after reload',
     )
   )
   expect(host.querySelector('button[aria-label="显示聊天"]')?.getAttribute('aria-pressed')).toBe('true')
-  expect(host.textContent).toContain('暂无思考过程')
+  expect(host.textContent).toContain('暂无 Agent 过程')
 })
 
 it('offers a smooth return to the bottom after the user scrolls up', async () => {
@@ -325,8 +325,8 @@ it('offers to fetch a nearby chest and hands the walk to 托管 once accepted', 
   expect(stopAutopilot.disabled).toBe(false)
   expect(stopAutopilot.className).not.toContain('chaya-autopilot')
   expect(stopAutopilot.querySelector('svg')?.getAttribute('class')).toContain('chaya-autopilot-firefly')
-  expect(clearButton()).toBeNull()
-  expect(host.querySelector('button[aria-label^="选择平台与模型"]')).toBeNull()
+  expect(clearButton()).not.toBeNull()
+  expect(host.querySelector('button[aria-label^="选择平台与模型"]')).not.toBeNull()
   expect(host.querySelector<HTMLInputElement>('input[placeholder="托管中，可在工具栏停止托管"]')?.disabled).toBe(true)
   await act(async () => stopAutopilot.click())
   expect(deletes()).toContainEqual({ path: '/api/game-agent/turn/turn-chest?gameId=game-a', method: 'DELETE' })

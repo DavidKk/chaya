@@ -1,6 +1,9 @@
 import { interactEvent } from '@/plugins/src/agent/interact'
 
 jest.mock('@/plugins/src/agent/game-control', () => ({
+  planVisibleRoute: (_target: unknown, _eventId: unknown, candidates: Array<{ x: number; y: number }>) => ({
+    interactionPosition: candidates.at(-1),
+  }),
   movePlayer: jest.fn(async ({ x, y }: { x: number; y: number }) => {
     const g = globalThis as unknown as { $gamePlayer: { x: number; y: number } }
     g.$gamePlayer.x = x
@@ -26,7 +29,11 @@ function setup({ normalPriority = true, lines = ['Hello'], choices = null as str
     $gamePlayer: player,
     $gameMessage: {},
   })
-  const press = jest.fn(async () => {
+  const press = jest.fn(async (key: string) => {
+    if (key !== 'ok') {
+      player.direction = ({ down: 2, left: 4, right: 6, up: 8 } as Record<string, number>)[key] ?? player.direction
+      return
+    }
     if (message.busy) {
       const next = queue.shift()
       message = next ? { busy: true, speaker: 'Boris', text: next, choices: null } : { busy: false, speaker: null, text: null, choices: null }
@@ -46,7 +53,23 @@ describe('interactEvent', () => {
     const game = setup({ lines: ['Hello', 'Take this'] })
     const result = await interactEvent({ eventId: 5 }, { press: game.press, readState: game.readState, interrupted: () => false })
     expect(game.player).toMatchObject({ x: 2, y: 3, direction: 6 })
-    expect(result).toMatchObject({ eventId: 5, name: 'Boris', outcome: 'done', goldChange: 10, messages: [{ text: 'Hello' }, { text: 'Take this' }] })
+    expect(game.player.setDirection).not.toHaveBeenCalled()
+    expect(game.press).toHaveBeenCalledWith('right')
+    expect(result).toMatchObject({
+      eventId: 5,
+      name: 'Boris',
+      outcome: 'done',
+      goldChange: 10,
+      messages: [{ text: 'Hello' }, { text: 'Take this' }],
+      navigation: {
+        start: { x: 0, y: 3 },
+        targetEvent: { id: 5, x: 3, y: 3 },
+        chosenStand: { x: 2, y: 3, face: 6 },
+        plannedSteps: 2,
+        outcome: 'arrived',
+        finalPosition: { x: 2, y: 3 },
+      },
+    })
   })
 
   it('stands on events below the player', async () => {
@@ -94,7 +117,11 @@ describe('interactEvent', () => {
       player.y = y
       return { arrived: true }
     })
-    const press = jest.fn(async () => {
+    const press = jest.fn(async (key: string) => {
+      if (key !== 'ok') {
+        player.direction = ({ down: 2, left: 4, right: 6, up: 8 } as Record<string, number>)[key] ?? player.direction
+        return
+      }
       if (player.x === 1 && player.direction === 6) {
         door._pageIndex = 1
         player.x = 3
@@ -118,6 +145,15 @@ describe('interactEvent', () => {
     }
   })
 
+  it('requires finishing an existing dialogue before moving to another target', async () => {
+    const game = setup()
+    const before = game.readState()
+    const readState = () => ({ ...before, message: { busy: true, text: 'Still talking', speaker: null, choices: null } })
+    const result = await interactEvent({ eventId: 5 }, { press: game.press, readState, interrupted: () => false })
+    expect(result).toMatchObject({ outcome: 'input_required' })
+    expect(game.player).toMatchObject({ x: 0, y: 3 })
+    expect(game.press).not.toHaveBeenCalled()
+  })
   it('returns choices to the caller instead of picking one', async () => {
     const game = setup({ lines: ['Enter?'], choices: ['Yes', 'No'] })
     const result = await interactEvent({ eventId: 5 }, { press: game.press, readState: game.readState, interrupted: () => false })

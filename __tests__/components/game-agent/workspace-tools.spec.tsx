@@ -130,7 +130,7 @@ test('keeps completed tool calls visible with the assistant reply', async () => 
   const send = document.querySelector<HTMLButtonElement>('button[aria-label="发送"]')!
   await act(async () => send.click())
 
-  expect(document.body.textContent).toContain('已调用')
+  expect(document.body.textContent).toContain('操作详情')
   expect(document.body.textContent).toContain('chaya_edit_set')
   expect(document.body.textContent).toContain('已修改金币，正在继续观察。')
   expect(document.body.textContent).toContain('已完成调用。')

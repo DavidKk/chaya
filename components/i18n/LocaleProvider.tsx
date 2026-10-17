@@ -46,13 +46,18 @@ export function LocaleProvider({ children, initialLocale, initialPreference = 'a
 
   useEffect(() => {
     clearLegacyLocale()
-    const stored = readStoredLocale()
-    if (stored) setPreference(stored)
-    setSystemLocale(detectBrowserLocale())
+    // Web / App 已由服务端根据 cookie 和 Accept-Language 解析首屏语言。
+    // hydration 时再次读取 localStorage / navigator 会让正确的 SSR 文案闪成另一种语言。
+    // 只有没有 SSR 初值的游戏内插件才需要从浏览器恢复偏好。
+    if (initialLocale === undefined) {
+      const stored = readStoredLocale()
+      if (stored) setPreference(stored)
+      setSystemLocale(detectBrowserLocale())
+    }
     const onLanguageChange = () => setSystemLocale(detectBrowserLocale())
     window.addEventListener('languagechange', onLanguageChange)
     return () => window.removeEventListener('languagechange', onLanguageChange)
-  }, [])
+  }, [initialLocale])
 
   useEffect(() => {
     if (syncDocumentLang) document.documentElement.lang = LOCALE_HTML_LANG[locale]

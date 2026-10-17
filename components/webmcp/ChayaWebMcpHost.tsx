@@ -29,7 +29,7 @@ const ROUTES: PageRoute[] = [
   { path: '/game', label: 'Game library' },
   { path: '/cheat/run', label: 'Cheat' },
   ...TRANSLATE_TABS.map((tab) => ({ path: `/translate/${tab.id}`, label: tab.id === 'cache' ? 'Shared translation library' : 'Translate' })),
-  { path: '/logs', label: 'Logs' },
+  { path: '/logs/runtime', label: 'Logs' },
   ...INTEGRATION_TABS.map((tab) => ({ path: tab.href, label: `Integration · ${tab.id}` })),
 ]
 

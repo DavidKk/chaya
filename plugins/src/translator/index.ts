@@ -3,8 +3,11 @@
  */
 /// <reference types="node" />
 import { gameContentRelPath, LEGACY_FLAT_FILES } from '@/lib/game/content-paths'
-import { peelChoiceMetaTrail } from '@/lib/translate/choice-meta'
-import { isStorableTranslation } from '@/services/translate/text-classify'
+import { applyCacheRow, type CacheRow, parseCacheRow } from '@/lib/translate/cache-row'
+import { peelChoiceMetaShell } from '@/lib/translate/choice-meta'
+import { lookupTranslationRecord } from '@/lib/translate/lookup'
+import { lookupCachedTranslation } from '@/services/translate/cache-lookup'
+import { isReusableTranslation } from '@/services/translate/text-classify'
 
 import { createLogger, detectGameIdentity, tryNodeFsPath } from '../helpers'
 import { hookMethod } from '../helpers/game/method-hook'
@@ -76,34 +79,36 @@ function main() {
   function applyPair(lookup: TransLookup, src: unknown, zh: unknown) {
     const k = String(src)
     const v = String(zh)
-    if (!isStorableTranslation(k, v)) return
+    if (!isReusableTranslation(k, v)) return
     lookup[k] = v
     const nk = normalizeKey(k)
     if (nk) lookup[nk] = v
     enrich.notePair(k, v, lookup)
   }
 
+  const rowProvenance = new WeakMap<TransLookup, Map<string, CacheRow>>()
+
   function parseNdjsonChunk(text: string, lookup: TransLookup): number {
     let added = 0
     for (const line of text.split('\n')) {
       if (!line) continue
       try {
-        const row = JSON.parse(line) as unknown
-        if (Array.isArray(row) && row.length >= 2 && row[0] != null && row[1] != null) {
-          applyPair(lookup, row[0], row[1])
-          added += 1
-        } else if (row && typeof row === 'object' && 's' in row && 't' in row) {
-          const rec = row as { s: unknown; t: unknown }
-          if (typeof rec.s === 'string' && rec.t === null) {
-            delete lookup[rec.s]
-            delete lookup[normalizeKey(rec.s)]
-            enrich.reindexAll(lookup)
-            added += 1
-          } else if (rec.s != null && rec.t != null) {
-            applyPair(lookup, rec.s, rec.t)
-            added += 1
-          }
+        const row = parseCacheRow(JSON.parse(line))
+        if (!row) continue
+        let provenance = rowProvenance.get(lookup)
+        if (!provenance) {
+          provenance = new Map(Object.entries(lookup).map(([s, t]) => [s, { s, t }]))
+          rowProvenance.set(lookup, provenance)
         }
+        applyCacheRow(provenance, row)
+        const active = provenance.get(row.s)
+        if (active?.t != null) applyPair(lookup, active.s, active.t)
+        else {
+          delete lookup[row.s]
+          delete lookup[normalizeKey(row.s)]
+          enrich.reindexAll(lookup)
+        }
+        added++
       } catch {
         // skip bad / incomplete trailing line
       }
@@ -111,7 +116,7 @@ function main() {
     return added
   }
 
-  /** 只消费完整行；兼容历史上没有末尾换行的完整 JSON 行。 */
+  /** Consume complete lines only; also accept a valid legacy JSON row without a trailing newline. */
   function completeNdjsonChunk(text: string): { text: string; bytes: number } {
     const lastNewline = text.lastIndexOf('\n')
     const tail = text.slice(lastNewline + 1)
@@ -141,7 +146,7 @@ function main() {
     }
     const lookup = Object.create(null) as TransLookup
     for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-      if (v == null || !String(v) || String(k) === String(v)) continue
+      if (v == null || !String(v)) continue
       applyPair(lookup, k, v)
     }
     return lookup
@@ -269,11 +274,12 @@ function main() {
   function translate(text: unknown): string {
     if (text == null || text === '') return text as string
     const raw = String(text)
-    const { core: peeled, trail: metaTrail } = peelChoiceMetaTrail(raw)
+    const { lead: metaLead, core: peeled, trail: metaTrail } = peelChoiceMetaShell(raw)
+    if (!peeled && (metaLead || metaTrail)) return raw
     const body = peeled.length ? peeled : raw
 
     function finish(zh: string) {
-      return metaTrail ? zh + metaTrail : zh
+      return metaLead + zh + metaTrail
     }
 
     // Exact + control-code segments + trailing-number family + proper-name templates
@@ -284,12 +290,12 @@ function main() {
       const lines = body.split('\n')
       let any = false
       const out = lines.map((line) => {
-        const { core: lineCore, trail: lineMeta } = peelChoiceMetaTrail(line)
+        const { lead: lineLead, core: lineCore, trail: lineMeta } = peelChoiceMetaShell(line)
         const key = lineCore.length ? lineCore : line
         const zh = enrich.resolve(lookup, key)
         if (zh != null) {
           any = true
-          return lineMeta ? zh + lineMeta : zh
+          return lineLead + zh + lineMeta
         }
         return line
       })
@@ -397,6 +403,7 @@ function main() {
 
   const rendered = createRenderTranslation({
     cached: translate,
+    complete: (text) => lookupCachedTranslation((key) => lookupTranslationRecord(lookup, key), text) != null,
     enabled: () => realtime.settings().mode === 'realtime',
     request: realtime.requestBackground,
     apply: (src, zh) => applyPair(lookup, src, zh),
@@ -409,11 +416,12 @@ function main() {
   installDialogueSubtitles({
     settings: realtime.settings,
     cached: translate,
+    complete: (text) => lookupCachedTranslation((key) => lookupTranslationRecord(lookup, key), text) != null,
     show: showSubtitle,
     request: async (texts, signal) => {
       try {
         const items = await realtime.request(texts, signal)
-        for (const item of items) if (item.zh) applyPair(lookup, item.src, item.zh)
+        for (const item of items) if (item.zh && item.status !== 'partial' && !item.error) applyPair(lookup, item.src, item.zh)
         entryCount = Object.keys(lookup).length
         return items
       } catch (error) {

@@ -2,7 +2,7 @@ import { sanitizeAgentActivity } from '@/lib/game-agent/activity'
 import { RECALL_TOOL_NAME, recallTurns, turnsFromMessages } from '@/lib/game-agent/recall'
 import { collectSecretValues, redactSecrets, redactSecretText } from '@/lib/integration/tools/types'
 import { appendLog } from '@/services/log'
-import { callAgentGame, listAgentGames } from '@/services/runtime/agent-bridge'
+import { listAgentGames } from '@/services/runtime/agent-bridge'
 
 import { completeAgentModel } from './model-complete.server'
 import { buildAskMessages } from './prompt'
@@ -31,14 +31,12 @@ export async function runAskTurn(
   try {
     const requestedGameId = input.gameId === 'chaya-console' ? '' : input.gameId
     const gameId = requestedGameId && listAgentGames().some((game) => game.gameId === requestedGameId) ? requestedGameId : undefined
-    const state = gameId ? await callAgentGame(gameId, 'game.state', {}, profile.gameCallTimeoutMs) : undefined
     if (turn.abort.signal.aborted) throw turn.abort.signal.reason
 
     const messages = buildAskMessages({
       prompt: input.prompt,
       locale: input.locale || 'zh-CN',
       gameId,
-      state,
       surface: input.surface === 'companion' ? 'companion' : undefined,
       companionCharacter: input.companionCharacter as import('@/lib/game-agent/companion').CompanionCharacter | undefined,
     })

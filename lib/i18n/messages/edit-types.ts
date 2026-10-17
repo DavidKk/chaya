@@ -165,6 +165,8 @@ export type EditMessages = {
   flagAutoWin: string
   flagAutoWinDesc: string
   flagAutoWinHint: string
+  flagAutoBattle: string
+  flagAutoBattleDesc: string
   flagHelp: string
   readOnlyNotice: string
   notStartedTitle: string

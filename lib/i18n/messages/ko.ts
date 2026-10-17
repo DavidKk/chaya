@@ -181,6 +181,7 @@ const base = {
     removeDesc: '「{name}」 제거 (파일 유지)',
     removeConfirm: '제거',
     removeEntry: '{name} 제거',
+    relocate: '위치를 찾을 수 없습니다. 눌러 다시 선택',
     shellReady: '셸 OK',
     remoteTag: '원격',
     localTag: '로컬',

@@ -40,7 +40,11 @@ test('routes play requests in any language through the model instead of keyword 
   const chat = streamOllamaChat as jest.MockedFunction<typeof streamOllamaChat>
   chat.mockResolvedValue({ role: 'assistant', content: '{"operate":true,"edit":false}' })
 
-  await expect(classifyGameIntent({ ...input, prompt: '이 전투를 대신 싸워줘' }, profile, new AbortController().signal)).resolves.toEqual({ managed: true, edit: false })
+  await expect(classifyGameIntent({ ...input, prompt: '이 전투를 대신 싸워줘' }, profile, new AbortController().signal)).resolves.toEqual({
+    managed: true,
+    edit: false,
+    shape: 'open',
+  })
   const sent = chat.mock.calls[0][0].messages[1].content
   expect(sent).toContain('이 전투를 대신 싸워줘')
   expect(sent).toContain('"inBattle":true')
@@ -52,7 +56,7 @@ test('retries an invalid intent classification before routing', async () => {
   const chat = streamOllamaChat as jest.Mock
   chat.mockResolvedValueOnce({ role: 'assistant', content: 'not json' }).mockResolvedValueOnce({ role: 'assistant', content: '{"operate":true,"edit":false}' })
 
-  await expect(classifyGameIntent({ ...input, prompt: '找村长聊聊' }, profile, new AbortController().signal)).resolves.toEqual({ managed: true, edit: false })
+  await expect(classifyGameIntent({ ...input, prompt: '找村长聊聊' }, profile, new AbortController().signal)).resolves.toEqual({ managed: true, edit: false, shape: 'open' })
   expect(chat).toHaveBeenCalledTimes(2)
   expect(chat.mock.calls.map((call: unknown[]) => (call[0] as { think?: boolean }).think)).toEqual([false, true])
 })
@@ -64,7 +68,7 @@ test('rechecks a read-only classification before dropping an in-game action', as
     .mockResolvedValueOnce({ role: 'assistant', content: '{"operate":false,"edit":false}' })
     .mockResolvedValueOnce({ role: 'assistant', content: '{"operate":true,"edit":false}' })
 
-  await expect(classifyGameIntent({ ...input, prompt: '打开宝箱' }, profile, new AbortController().signal)).resolves.toEqual({ managed: true, edit: false })
+  await expect(classifyGameIntent({ ...input, prompt: '打开宝箱' }, profile, new AbortController().signal)).resolves.toEqual({ managed: true, edit: false, shape: 'open' })
   expect(chat.mock.calls[1][0].messages[1].content).toContain('不要把操作请求改写成建议')
 })
 
