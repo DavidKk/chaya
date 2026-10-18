@@ -4,6 +4,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
+import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { TranslateListContent } from '@/components/translate/TranslateListContent'
 
 const mockTranslationFetch = jest.fn()
@@ -138,7 +139,11 @@ describe('TranslateListContent', () => {
     })
 
     await act(async () => {
-      root.render(<TranslateListContent />)
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateListContent />
+        </LocaleProvider>
+      )
     })
 
     // Confirm stats label
@@ -189,7 +194,11 @@ describe('TranslateListContent', () => {
     })
 
     await act(async () => {
-      root.render(<TranslateListContent />)
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateListContent />
+        </LocaleProvider>
+      )
     })
 
     const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('保存'))
@@ -232,7 +241,11 @@ describe('TranslateListContent', () => {
     })
 
     await act(async () => {
-      root.render(<TranslateListContent />)
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateListContent />
+        </LocaleProvider>
+      )
     })
 
     expect(container.textContent).toContain('Hello dialogue')
@@ -267,7 +280,11 @@ describe('TranslateListContent', () => {
     })
 
     await act(async () => {
-      root.render(<TranslateListContent />)
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateListContent />
+        </LocaleProvider>
+      )
     })
 
     // Find footer batch save button (last save button)
@@ -321,7 +338,11 @@ describe('TranslateListContent', () => {
     })
 
     await act(async () => {
-      root.render(<TranslateListContent />)
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateListContent />
+        </LocaleProvider>
+      )
     })
 
     // Find footer batch reset button
@@ -363,7 +384,11 @@ describe('TranslateListContent', () => {
     })
 
     await act(async () => {
-      root.render(<TranslateListContent />)
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateListContent />
+        </LocaleProvider>
+      )
     })
 
     // Initially save button for item 1 should be disabled because zh is empty

@@ -4,6 +4,7 @@ import React, { memo, useEffect, useState } from 'react'
 import { LiaMapMarkedAltSolid } from 'react-icons/lia'
 import { LuFileText, LuKey, LuUser } from 'react-icons/lu'
 
+import { useT } from '@/components/i18n/LocaleProvider'
 import { PlainTextEditor, Spinner, Tooltip } from '@/components/sk'
 import { cn } from '@/lib/utils'
 import type { ExtractedTextCategory, ExtractedTranslationItem } from '@/services/extract/lib/extract-items'
@@ -31,6 +32,31 @@ export const CATEGORY_STYLES: Record<ExtractedTextCategory, { label: string; bad
   plugin: { label: '插件参数', badgeClass: 'bg-zinc-500/15 text-zinc-300 border-zinc-500/30' },
   resource: { label: '文本资源', badgeClass: 'bg-zinc-500/15 text-zinc-300 border-zinc-500/30' },
   other: { label: '其他文本', badgeClass: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20' },
+}
+
+const CATEGORY_I18N_KEYS: Partial<Record<ExtractedTextCategory, string>> = {
+  dialogue: 'catDialogue',
+  story: 'catStory',
+  choice: 'catChoice',
+  item: 'catItem',
+  item_desc: 'catItemDesc',
+  weapon: 'catWeapon',
+  weapon_desc: 'catWeaponDesc',
+  armor: 'catArmor',
+  armor_desc: 'catArmorDesc',
+  skill: 'catSkill',
+  skill_desc: 'catSkillDesc',
+  actor: 'catActor',
+  actor_nickname: 'catActorNickname',
+  actor_profile: 'catActorProfile',
+  enemy: 'catEnemy',
+  state: 'catState',
+  state_msg: 'catStateMsg',
+  map: 'catMap',
+  system: 'catSystem',
+  plugin: 'catPlugin',
+  resource: 'catResource',
+  other: 'catOther',
 }
 
 export type AvailableEngine = {
@@ -66,6 +92,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
   onReset,
   onUpdate,
 }: TranslateListItemRowProps) {
+  const t = useT()
   const [currentZh, setCurrentZh] = useState(item.zh)
 
   useEffect(() => {
@@ -73,6 +100,8 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
   }, [item.zh, itemZh])
 
   const catInfo = CATEGORY_STYLES[item.meta.category] || { label: item.meta.label || '文本', badgeClass: 'bg-zinc-500/10 text-zinc-300 border-zinc-500/30' }
+  const catKey = CATEGORY_I18N_KEYS[item.meta.category]
+  const catLabel = catKey ? t(`translate.${catKey}` as any) : item.meta.label || catInfo.label
   const hasSavedVersion = Boolean(item.savedZh && item.savedZh.trim())
   const originalText = item.initialZh ?? item.savedZh ?? ''
   const canReset = Boolean(originalText && (currentZh !== originalText || hasSavedVersion))
@@ -83,11 +112,14 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
       <div className="flex h-9 shrink-0 items-center justify-between gap-2 px-4 border-b border-line bg-surface/20 text-xs">
         {/* Left: Metadata info + Reset button */}
         <div className="flex items-center gap-2 overflow-hidden">
-          <Tooltip content={`条目序号 #${item.id}`} placement="top">
+          <Tooltip content={t('translate.listRowItemIndex', { id: item.id })} placement="top">
             <span className="shrink-0 font-mono text-[0.6875rem] text-ink-soft select-none cursor-default">#{item.id}</span>
           </Tooltip>
           {item.meta.localesKey ? (
-            <Tooltip content={`本地化 Key: ${item.meta.localesKey}${item.meta.localesFile ? `\n所属语言文件: ${item.meta.localesFile}` : ''}`} placement="top">
+            <Tooltip
+              content={`${t('translate.listRowLocalesKey', { key: item.meta.localesKey })}${item.meta.localesFile ? t('translate.listRowLocalesFile', { file: item.meta.localesFile }) : ''}`}
+              placement="top"
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -96,20 +128,18 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
                   }
                 }}
                 className="inline-flex shrink-0 items-center gap-1 rounded-[0.2rem] border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[0.6875rem] font-mono text-accent hover:bg-accent/20 transition-colors cursor-pointer outline-none"
-                title="点击复制 Key"
+                title={t('translate.listRowCopyKeyTitle')}
               >
                 <LuKey size={11} className="shrink-0" />
                 <span className="max-w-[120px] truncate">{item.meta.localesKey}</span>
               </button>
             </Tooltip>
           ) : null}
-          <Tooltip content={`文案性质：${catInfo.label}`} placement="top">
-            <span className={cn('shrink-0 rounded-[0.2rem] border px-1.5 py-0.5 text-[0.6875rem] font-medium leading-none cursor-default', catInfo.badgeClass)}>
-              {catInfo.label}
-            </span>
+          <Tooltip content={t('translate.listRowCategoryTooltip', { category: catLabel })} placement="top">
+            <span className={cn('shrink-0 rounded-[0.2rem] border px-1.5 py-0.5 text-[0.6875rem] font-medium leading-none cursor-default', catInfo.badgeClass)}>{catLabel}</span>
           </Tooltip>
           {item.meta.file ? (
-            <Tooltip content={`来源文件：${item.meta.file}`} placement="top">
+            <Tooltip content={t('translate.listRowFileTooltip', { file: item.meta.file })} placement="top">
               <span className="inline-flex shrink-0 items-center gap-1 rounded-[0.2rem] bg-inset px-1.5 py-0.5 text-[0.6875rem] text-ink-soft select-all cursor-default">
                 <LuFileText size={11} className="shrink-0 text-accent" />
                 <span>{item.meta.file}</span>
@@ -117,7 +147,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
             </Tooltip>
           ) : null}
           {item.meta.speaker ? (
-            <Tooltip content={`说话人：${item.meta.speaker}`} placement="top">
+            <Tooltip content={t('translate.listRowSpeakerTooltip', { speaker: item.meta.speaker })} placement="top">
               <span className="inline-flex shrink-0 items-center gap-1 rounded-[0.2rem] bg-inset px-1.5 py-0.5 text-[0.6875rem] text-ink-soft select-all cursor-default">
                 <LuUser size={11} className="shrink-0 text-accent" />
                 <span>{item.meta.speaker}</span>
@@ -125,7 +155,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
             </Tooltip>
           ) : null}
           {item.meta.context && item.meta.context !== item.meta.file && item.meta.context !== item.src ? (
-            <Tooltip content={`出现场景：${item.meta.context}`} placement="top">
+            <Tooltip content={t('translate.listRowContextTooltip', { context: item.meta.context })} placement="top">
               <span className="inline-flex shrink-0 items-center gap-1 rounded-[0.2rem] bg-inset px-1.5 py-0.5 text-[0.6875rem] text-ink-soft select-all cursor-default">
                 <LiaMapMarkedAltSolid size={12} className="shrink-0 text-accent" />
                 <span>{item.meta.context}</span>
@@ -138,7 +168,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
         <div className="flex items-center gap-1.5 shrink-0">
           {/* Reset Button (placed on right side, reverts to original text without saving) */}
           {canReset ? (
-            <Tooltip content="恢复为原本的初始译文（不会自动保存，需手动点击保存）" placement="top">
+            <Tooltip content={t('translate.listSingleResetTooltip')} placement="top">
               <span className="inline-flex">
                 <button
                   type="button"
@@ -150,14 +180,14 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
                   className="inline-flex h-6 items-center justify-center rounded-[0.2rem] border border-fail/40 bg-fail/10 px-2 text-[0.6875rem] font-medium text-fail hover:bg-fail/20 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isResetting ? <Spinner size="sm" /> : null}
-                  重置
+                  {t('translate.listResetPageBtn')}
                 </button>
               </span>
             </Tooltip>
           ) : null}
 
           {/* Translate Button */}
-          <Tooltip content={isTranslating ? '正在翻译此条目，请稍候…' : `使用「${activeSchemeLabel}」翻译此条目`} placement="top">
+          <Tooltip content={isTranslating ? t('translate.listSingleTransTranslating') : t('translate.listSingleTransTooltip', { scheme: activeSchemeLabel })} placement="top">
             <span className="inline-flex">
               <button
                 type="button"
@@ -166,13 +196,16 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
                 className="inline-flex h-6 items-center justify-center rounded-[0.2rem] bg-accent px-2.5 text-[0.6875rem] font-medium text-white hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
               >
                 {isTranslating ? <Spinner size="sm" /> : null}
-                翻译
+                {t('translate.listSingleTransBtn')}
               </button>
             </span>
           </Tooltip>
 
           {/* Save Button */}
-          <Tooltip content={isSaving ? '正在保存译文至游戏…' : !currentZh || !currentZh.trim() ? '译文为空，请输入或翻译后再保存' : '保存译文至游戏'} placement="top">
+          <Tooltip
+            content={isSaving ? t('translate.listSingleSaving') : !currentZh || !currentZh.trim() ? t('translate.listSingleSaveEmpty') : t('translate.listSingleSaveTooltip')}
+            placement="top"
+          >
             <span className="inline-flex">
               <button
                 type="button"
@@ -181,7 +214,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
                 className="inline-flex h-6 items-center justify-center rounded-[0.2rem] bg-ok px-2 text-[0.6875rem] font-medium text-white hover:bg-ok/90 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
               >
                 {isSaving ? <Spinner size="sm" /> : null}
-                保存
+                {t('translate.listSingleSaveBtn')}
               </button>
             </span>
           </Tooltip>
@@ -199,7 +232,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
             fill
             noScrollbars
             className="h-full rounded-none border-0 border-r border-b border-line bg-black/40 [&_.monaco-editor]:!bg-transparent [&_.monaco-editor-background]:!bg-transparent [&_.margin]:!bg-transparent"
-            aria-label={`条目 #${item.id} 原文`}
+            aria-label={t('translate.listRowItemAriaSrc', { id: item.id })}
           />
         </div>
 
@@ -212,7 +245,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
             fill
             noScrollbars
             className="h-full rounded-none border-0 border-b border-line bg-panel/35 focus-within:border-b-accent focus-within:bg-panel/60 transition-colors [&_.monaco-editor]:!bg-transparent [&_.monaco-editor-background]:!bg-transparent [&_.margin]:!bg-transparent"
-            aria-label={`条目 #${item.id} 译文`}
+            aria-label={t('translate.listRowItemAriaZh', { id: item.id })}
             onChange={(val) => {
               item.zh = val
               setCurrentZh(val)
