@@ -343,4 +343,51 @@ describe('TranslateListContent', () => {
     // Item reverted back to initialZh
     expect(mockItems[0].zh).toBe('原句你好')
   })
+
+  it('enables the save button immediately when typing translation into editor', async () => {
+    const mockItems = [
+      {
+        id: '1',
+        src: '薬草',
+        zh: '',
+        meta: { category: 'item', label: '物品' },
+      },
+    ]
+
+    mockTranslationFetch.mockImplementation(async (_path: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (body.mode === 'extract-items') {
+        return { ok: true, json: async () => ({ ok: true, items: mockItems }) }
+      }
+      return { ok: true, json: async () => ({ ok: true }) }
+    })
+
+    await act(async () => {
+      root.render(<TranslateListContent />)
+    })
+
+    // Initially save button for item 1 should be disabled because zh is empty
+    const saveButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('保存'))
+    const rowSaveBtn = saveButtons[0]
+    expect(rowSaveBtn).toBeDefined()
+    expect(rowSaveBtn.disabled).toBe(true)
+
+    // Find translated editor input and type into it
+    const editorInputs = Array.from(container.querySelectorAll('input'))
+    const zhInput = editorInputs.find((input) => input.closest('[aria-label="条目 #1 译文"]'))
+    expect(zhInput).toBeDefined()
+
+    await act(async () => {
+      const event = new Event('input', { bubbles: true })
+      Object.defineProperty(event, 'target', { value: { value: '药草' } })
+      zhInput?.dispatchEvent(event)
+      // Also trigger change handler directly as mock
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      nativeInputValueSetter?.call(zhInput, '药草')
+      zhInput?.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    // Now save button should be enabled!
+    expect(rowSaveBtn.disabled).toBe(false)
+  })
 })

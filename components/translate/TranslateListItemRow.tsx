@@ -1,6 +1,6 @@
 'use client'
 
-import React, { memo } from 'react'
+import React, { memo, useEffect, useState } from 'react'
 import { LiaMapMarkedAltSolid } from 'react-icons/lia'
 import { LuFileText, LuKey, LuUser } from 'react-icons/lu'
 
@@ -41,6 +41,8 @@ export type AvailableEngine = {
 
 export type TranslateListItemRowProps = {
   item: ExtractedTranslationItem
+  itemZh?: string
+  savedZh?: string
   activeSchemeLabel: string
   isTranslating: boolean
   isSaving: boolean
@@ -53,6 +55,8 @@ export type TranslateListItemRowProps = {
 
 export const TranslateListItemRow = memo(function TranslateListItemRow({
   item,
+  itemZh,
+  savedZh: _savedZh,
   activeSchemeLabel,
   isTranslating,
   isSaving,
@@ -62,10 +66,16 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
   onReset,
   onUpdate,
 }: TranslateListItemRowProps) {
+  const [currentZh, setCurrentZh] = useState(item.zh)
+
+  useEffect(() => {
+    setCurrentZh(item.zh)
+  }, [item.zh, itemZh])
+
   const catInfo = CATEGORY_STYLES[item.meta.category] || { label: item.meta.label || '文本', badgeClass: 'bg-zinc-500/10 text-zinc-300 border-zinc-500/30' }
   const hasSavedVersion = Boolean(item.savedZh && item.savedZh.trim())
   const originalText = item.initialZh ?? item.savedZh ?? ''
-  const canReset = Boolean(originalText && (item.zh !== originalText || hasSavedVersion))
+  const canReset = Boolean(originalText && (currentZh !== originalText || hasSavedVersion))
 
   return (
     <div className="flex h-[150px] flex-col min-w-0">
@@ -133,7 +143,10 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
                 <button
                   type="button"
                   disabled={isResetting}
-                  onClick={() => onReset(item)}
+                  onClick={() => {
+                    onReset(item)
+                    setCurrentZh(item.initialZh ?? item.savedZh ?? '')
+                  }}
                   className="inline-flex h-6 items-center justify-center rounded-[0.2rem] border border-fail/40 bg-fail/10 px-2 text-[0.6875rem] font-medium text-fail hover:bg-fail/20 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isResetting ? <Spinner size="sm" /> : null}
@@ -159,11 +172,11 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
           </Tooltip>
 
           {/* Save Button */}
-          <Tooltip content={isSaving ? '正在保存译文至游戏…' : !item.zh ? '译文为空，请输入或翻译后再保存' : '保存译文至游戏'} placement="top">
+          <Tooltip content={isSaving ? '正在保存译文至游戏…' : !currentZh || !currentZh.trim() ? '译文为空，请输入或翻译后再保存' : '保存译文至游戏'} placement="top">
             <span className="inline-flex">
               <button
                 type="button"
-                disabled={isSaving || !item.zh}
+                disabled={isSaving || !currentZh || !currentZh.trim()}
                 onClick={() => onSave(item)}
                 className="inline-flex h-6 items-center justify-center rounded-[0.2rem] bg-ok px-2 text-[0.6875rem] font-medium text-white hover:bg-ok/90 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
               >
@@ -193,7 +206,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
         {/* Right Column: Translated Editor (Lighter, interactive, bottom border highlights on focus) */}
         <div className="flex flex-col min-w-0 h-full">
           <PlainTextEditor
-            value={item.zh}
+            value={currentZh}
             disabled={isTranslating}
             softWrap
             fill
@@ -202,6 +215,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
             aria-label={`条目 #${item.id} 译文`}
             onChange={(val) => {
               item.zh = val
+              setCurrentZh(val)
               onUpdate()
             }}
           />

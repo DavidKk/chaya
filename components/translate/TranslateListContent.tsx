@@ -591,6 +591,8 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
                 <TranslateListItemRow
                   key={item.id}
                   item={item}
+                  itemZh={item.zh}
+                  savedZh={item.savedZh}
                   activeSchemeLabel={activeSchemeLabel}
                   isTranslating={translatingId === item.id}
                   isSaving={savingId === item.id}
