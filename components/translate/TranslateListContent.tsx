@@ -457,18 +457,12 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
       {/* Top Controls Bar: Search & Filters */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2.5 shrink-0 select-none">
-        {/* Left: Summary hint */}
-        <div className="text-xs text-ink-soft select-none">
-          <span>共 {items.length.toLocaleString()} 条文本</span>
-          {filteredItems.length !== items.length ? <span className="text-[0.6875rem] text-accent ml-1.5">(筛选出 {filteredItems.length.toLocaleString()} 条)</span> : null}
-        </div>
-
-        {/* Right: [Filter Bar] | [Tools Bar] */}
+      <div className="flex flex-wrap items-center justify-end gap-2 border-b border-line px-4 py-2 shrink-0 select-none">
+        {/* [Filter Bar] | [Tools Bar] */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* 1. 筛选条 (放在右侧区域的最左边) */}
+          {/* 1. 筛选条 (位于最左侧) */}
           <TextInput
-            className="w-[20rem]"
+            className="w-[17.5rem]"
             value={qDraft}
             onChange={(e) => setQDraft(e.target.value)}
             onKeyDown={(e) => {
