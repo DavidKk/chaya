@@ -5,7 +5,7 @@ import { FaGithub } from 'react-icons/fa'
 import { BrandLogo } from '@/components/BrandLogo'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
-import { CopyField } from '@/components/sk'
+import { CopyField, ScrollArea } from '@/components/sk'
 import { usePageOrigin } from '@/hooks/usePageOrigin'
 import { REMOTE_SCRIPT_ORIGIN_PLACEHOLDER, REMOTE_SCRIPT_PREFIX, remoteScriptCommand, type RemoteScriptName } from '@/lib/remote-scripts/command'
 
@@ -22,54 +22,55 @@ export function RemoteScriptView({ name, html, lineCount, githubUrl }: { name: R
   const command = origin ? remoteScriptCommand(origin, name, locale) : ''
 
   return (
-    <div className="fixed inset-0 z-[1] overflow-y-auto overscroll-contain text-ink">
-      <div className="mx-auto flex w-full max-w-[60rem] flex-col gap-6 px-6 py-6 sm:px-10 sm:py-8">
-        <header className="flex items-center justify-between gap-4">
-          <BrandLogo href="/" className="text-lg" markClassName="size-7" />
-          <div className="flex items-center gap-3">
-            <LocaleSwitcher compact />
-            <a
-              href={githubUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 text-sm text-ink-soft no-underline transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            >
-              <FaGithub aria-hidden className="size-4" />
-              GitHub
-            </a>
-          </div>
-        </header>
+    <div className="fixed inset-0 z-[1] flex flex-col text-ink">
+      <ScrollArea className="min-h-0 flex-1" restorationKey={`remote-script:${name}`} scrollClassName="overscroll-contain">
+        <div className="mx-auto flex w-full max-w-[60rem] flex-col gap-6 px-6 py-6 sm:px-10 sm:py-8">
+          <header className="flex items-center justify-between gap-4">
+            <BrandLogo href="/" className="text-lg" markClassName="size-7" />
+            <div className="flex items-center gap-3">
+              <LocaleSwitcher compact />
+              <a
+                href={githubUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 text-sm text-ink-soft no-underline transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                <FaGithub aria-hidden className="size-4" />
+                GitHub
+              </a>
+            </div>
+          </header>
 
-        <section className="flex flex-col gap-3" aria-labelledby="script-title">
-          <h1 id="script-title" className="m-0 font-display text-2xl font-semibold">
-            {t(TITLE_KEYS[name])}
-          </h1>
-          <p className="m-0 text-sm text-ink-soft">{t('remoteScript.runHint')}</p>
-          <CopyField value={command} label={t('remoteScript.commandAria')} />
-        </section>
+          <section className="flex flex-col gap-3" aria-labelledby="script-title">
+            <h1 id="script-title" className="m-0 font-display text-2xl font-semibold">
+              {t(TITLE_KEYS[name])}
+            </h1>
+            <p className="m-0 text-sm text-ink-soft">{t('remoteScript.runHint')}</p>
+            <CopyField value={command} label={t('remoteScript.commandAria')} />
+          </section>
 
-        <section className="overflow-hidden rounded-md border border-line bg-panel" aria-label={t('remoteScript.sourceAria')}>
-          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2 text-xs text-ink-soft">
-            <span className="flex items-center gap-2">
-              <span aria-hidden className="flex gap-2">
-                <span className="size-2.5 rounded-full bg-fail/70" />
-                <span className="size-2.5 rounded-full bg-warn/70" />
-                <span className="size-2.5 rounded-full bg-ok/70" />
+          <section className="overflow-hidden rounded-md border border-line bg-panel" aria-label={t('remoteScript.sourceAria')}>
+            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2 text-xs text-ink-soft">
+              <span className="flex items-center gap-2">
+                <span aria-hidden className="flex gap-2">
+                  <span className="size-2.5 rounded-full bg-fail/70" />
+                  <span className="size-2.5 rounded-full bg-warn/70" />
+                  <span className="size-2.5 rounded-full bg-ok/70" />
+                </span>
+                <span className="font-mono text-ink">{name}</span>
+                <span>· {t('remoteScript.lines', { count: lineCount })}</span>
               </span>
-              <span className="font-mono text-ink">{name}</span>
-              <span>· {t('remoteScript.lines', { count: lineCount })}</span>
-            </span>
-            <a href={`${REMOTE_SCRIPT_PREFIX}${name}?raw=1`} className="text-ink-soft underline underline-offset-2 hover:text-ink">
-              {t('remoteScript.viewRaw')}
-            </a>
-          </div>
-          <div
-            className="remote-script-code overflow-x-auto py-3 text-xs leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: origin ? html.replaceAll(REMOTE_SCRIPT_ORIGIN_PLACEHOLDER, origin) : html }}
-          />
-        </section>
-      </div>
-
+              <a href={`${REMOTE_SCRIPT_PREFIX}${name}?raw=1`} className="text-ink-soft underline underline-offset-2 hover:text-ink">
+                {t('remoteScript.viewRaw')}
+              </a>
+            </div>
+            <div
+              className="remote-script-code overflow-x-auto py-3 text-xs leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: origin ? html.replaceAll(REMOTE_SCRIPT_ORIGIN_PLACEHOLDER, origin) : html }}
+            />
+          </section>
+        </div>
+      </ScrollArea>
       <style>{`
         .remote-script-code pre { margin: 0; background: transparent !important; counter-reset: line; }
         .remote-script-code code { display: block; min-width: max-content; font-family: var(--font-mono); }

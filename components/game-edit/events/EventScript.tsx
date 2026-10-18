@@ -88,15 +88,15 @@ export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRun
         />
         {needle ? <span className="shrink-0 text-[0.7rem] tabular-nums text-ink-soft">{`${shown.length} / ${rows.length}`}</span> : null}
       </div>
-      <div className="border-t border-line text-[0.78rem] leading-[1.6]" role="table" aria-label={t('events.script')}>
-        <div className="grid items-center border-b border-line bg-paper-2" style={gridCols} role="row">
-          <div className={editHeadCell} role="columnheader">
+      <div className="border-t border-line text-[0.78rem] leading-[1.6]" role="list" aria-label={t('events.script')}>
+        <div className="grid items-center border-b border-line bg-paper-2" style={gridCols} role="presentation">
+          <div className={editHeadCell} data-list-heading="">
             {t('events.scriptColId')}
           </div>
-          <div className={editHeadCell} role="columnheader">
+          <div className={editHeadCell} data-list-heading="">
             {t('events.scriptColContent')}
           </div>
-          <div className={cn(editHeadCell, 'text-right')} role="columnheader">
+          <div className={cn(editHeadCell, 'text-right')} data-list-heading="">
             {t('events.scriptColActions')}
           </div>
         </div>
@@ -108,21 +108,22 @@ export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRun
             return (
               <div
                 key={index}
+                data-navigation-id={`script:${line.at}`}
                 style={gridCols}
                 className={cn(
                   'group grid items-start border-t border-line transition-colors hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]',
                   i === 0 && 'border-t-0',
                   line.indent > 0 && MARK_BAR[mark]
                 )}
-                role="row"
+                role="listitem"
               >
-                <div className={cn(editCell, 'min-w-0 truncate font-mono text-[0.72rem] tabular-nums text-ink-soft')} title={String(index + 1)} role="cell">
+                <div className={cn(editCell, 'min-w-0 truncate font-mono text-[0.72rem] tabular-nums text-ink-soft')} title={String(index + 1)} data-list-cell="">
                   {index + 1}
                 </div>
-                <div className={cn(editCell, 'min-w-0 transition-opacity group-hover:opacity-100', TONE[line.tone], MARK_ROW[mark])} role="cell">
+                <div className={cn(editCell, 'min-w-0 transition-opacity group-hover:opacity-100', TONE[line.tone], MARK_ROW[mark])} data-list-cell="">
                   <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                     {openLink && line.link ? (
-                      <button type="button" className={cn(linkBtn, TONE[line.tone])} onClick={() => openLink(line.link!.id)}>
+                      <button type="button" className={cn(linkBtn, TONE[line.tone])} data-navigation-trigger="" onClick={() => openLink(line.link!.id)}>
                         {label}
                       </button>
                     ) : (
@@ -138,7 +139,7 @@ export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRun
                   </div>
                   {line.body ? <ScriptBody body={line.body} source={line.source} originalLabel={t('events.original')} /> : null}
                 </div>
-                <div className={cn(editCell, 'flex items-start justify-end gap-2')} role="cell">
+                <div className={cn(editCell, 'flex items-start justify-end gap-2')} data-list-cell="">
                   {line.ref && live ? <ScriptValue target={line.ref} label={String(args.target ?? label)} live={live} list={list} /> : null}
                   {onRunFrom ? (
                     <Button

@@ -19,9 +19,10 @@ export function SectionSideNav({ label, children, mobile = false }: { label: str
   return (
     <aside
       className={cn(
-        'h-full min-h-0 w-11 shrink-0 border-r border-line bg-paper',
+        // 32px button + 8px padding on each side; keep the divider outside that width.
+        'box-content h-full min-h-0 w-12 shrink-0 border-r border-line bg-paper',
         mobile
-          ? 'h-auto w-full overflow-x-auto border-r-0 border-b md:h-full md:w-11 md:overflow-x-visible md:overflow-y-auto md:border-r md:border-b-0'
+          ? 'h-auto w-full overflow-x-auto border-r-0 border-b md:h-full md:w-12 md:overflow-x-visible md:overflow-y-auto md:border-r md:border-b-0'
           : 'hidden overflow-y-auto md:block'
       )}
       data-section-side-nav

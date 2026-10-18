@@ -1,7 +1,22 @@
 'use client'
 
-import { type CSSProperties, forwardRef, type HTMLAttributes, type ReactNode, type Ref, type UIEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  forwardRef,
+  type HTMLAttributes,
+  type ReactNode,
+  type Ref,
+  type UIEvent,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 
+import { NavigationScope } from '@/components/navigation/NavigationScope'
+import { registerScrollRestoration } from '@/lib/ui/navigation-restoration'
 import { cn } from '@/lib/utils'
 
 const INDICATOR_TRACK_PX = 2
@@ -12,6 +27,8 @@ export type ScrollIndicatorAxis = 'vertical' | 'horizontal' | 'both'
 
 export type ScrollAreaProps = {
   children: ReactNode
+  restorationKey?: string
+  restorationAnchorTop?: (id: string) => number | undefined
   className?: string
   style?: CSSProperties
   scrollClassName?: string
@@ -70,7 +87,7 @@ function gutterClass(mode: IndicatorMode, reserve: boolean) {
 
 /** 全站滚动容器：隐藏系统滚动条，使用 2px 非交互位置指示器。 */
 export const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(function ScrollArea(
-  { children, className, style, scrollClassName, scrollRef, scrollProps, indicator = true, reserveGutter = true },
+  { children, className, style, scrollClassName, scrollRef, scrollProps, indicator = true, reserveGutter = true, restorationKey, restorationAnchorTop },
   forwardedRef
 ) {
   const { onScroll: userOnScroll, ...restScrollProps } = scrollProps ?? {}
@@ -88,6 +105,25 @@ export const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(function S
     },
     [scrollRef]
   )
+
+  const navigationScope = useContext(NavigationScope)
+  const restorationLabel = scrollProps?.['aria-label']
+  const virtualRestoration = !!restorationAnchorTop
+  const anchorTopRef = useRef(restorationAnchorTop)
+  anchorTopRef.current = restorationAnchorTop
+  useEffect(() => {
+    const element = innerRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const label = restorationKey || String(restorationLabel || '')
+    const peers = Array.from((element.getRootNode() as Document | ShadowRoot).querySelectorAll<HTMLElement>('[data-scroll-restoration]')).filter(
+      (el) => el.getAttribute('aria-label') === element.getAttribute('aria-label')
+    )
+    return registerScrollRestoration(
+      element,
+      `${navigationScope}:${restorationKey || `${label || 'scroll'}:${peers.indexOf(element)}`}`,
+      virtualRestoration ? (id) => anchorTopRef.current?.(id) : undefined
+    )
+  }, [restorationKey, restorationLabel, virtualRestoration, navigationScope])
 
   const indicatorMode = resolveIndicatorMode(indicator)
   const showVertical = indicatorMode === 'vertical' || indicatorMode === 'both'
@@ -162,13 +198,13 @@ export const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(function S
     const el = innerRef.current
     if (!el) return
 
-    const ro = new ResizeObserver(() => scheduleSyncThumbs())
-    ro.observe(el)
+    const ro = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => scheduleSyncThumbs())
+    ro?.observe(el)
     const mo = new MutationObserver(() => scheduleSyncThumbs())
     mo.observe(el, { childList: true, subtree: true })
 
     return () => {
-      ro.disconnect()
+      ro?.disconnect()
       mo.disconnect()
       if (rafSyncRef.current !== 0) {
         cancelAnimationFrame(rafSyncRef.current)
@@ -192,6 +228,7 @@ export const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(function S
     >
       <div
         ref={setScrollElement}
+        data-scroll-restoration=""
         {...restScrollProps}
         onScroll={handleScroll}
         className={cn(

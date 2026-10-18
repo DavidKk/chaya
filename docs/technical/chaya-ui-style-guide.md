@@ -10,7 +10,7 @@
 2. **样式 = Tailwind 写在组件里**（`cn` / 必要时 `cva`）。**禁止**业务 `.sk-*` 类与往 `globals.css` 堆组件样式。
 3. `globals.css` **只保留**：`:root` / `@theme` 语义 token、全局 reset、`body` 底、必要 `@keyframes`。
 4. 色走 token（`bg-panel`、`text-ink`、`border-line` 等）；局内与 `/edit` 共用 React 组件，不要另造皮肤 / Web Component。
-5. UX 边界走 interaction skills。
+5. UX 边界走 interaction skills。业务列表结构、所有子页面返回恢复与原条目闪烁，统一遵循[列表与返回定位规范](chaya-list-navigation-standard.md)。
 
 ## 2. 色与表面
 
@@ -38,6 +38,7 @@
 - 字号用 Tailwind 阶梯（`text-xs` / `text-sm` / `text-[13px]` 等），不要再开 globals 字号类。
 - 浮层 z-index 由低到高：迷你面板 `FloatingToolPanel`、迷你面板管理与通知 `NotificationProvider` `60`（通知在 DOM 后挂载，同层时盖在面板上）→ 移动端侧栏遮罩 `65` → 侧栏 / 下拉 / Popover / Menu `70` → `Modal` `80` → `Tooltip` `90`。提示永远在最上层，新浮层按此插入，不要高于 `Tooltip`。
 - 图标按钮：`Button size="icon"`（32px）用于页面；`size="mini"`（24px）用于迷你面板头部与面板内紧凑列表，配 `variant="plain"`（无边框）。两者都把 `aria-label` 作为悬停提示，不另写文字。迷你面板与迷你面板管理都不加外边框，靠 `shadow-lg` 与画面区分；头部用 `bg-panel-2` 与正文区分，不加分隔线。
+- 需求中提到“图标按钮”，统一指共享 `Button` + React Icons 图标 + 共享 tooltip，不显示可见按钮文字。提供准确的 `aria-label`，显式 `tooltip` 或使用图标尺寸的默认回退；展开/收起等可切换动作同步更新图标与提示。折叠列表隐藏原生 summary 三角标记，改用 React Icons 箭头表示展开状态，不使用三角字符。
 - 迷你面板一律用 `FloatingToolPanel panel={id}`（配置见 `TOOL_PANEL_FRAME`）加 `MiniPanelParts` 里的工具条、提示与失败条，不要另写外壳或局部样式。
 
 ## 4. 布局与组件落点
@@ -47,7 +48,7 @@
 | 全页壳   | 页面根用 Tailwind flex 列；顶栏 / 主区 / 底栏分块                                                                                                   |
 | 顶栏     | `AppNav` + 品牌 + `BindingStatusMenu`                                                                                                               |
 | 游戏库   | 左 `LibraryRail`，右工作台（启动卡 + 设置表单）                                                                                                     |
-| 表       | `ScrollArea` + `DataTable`（可选 `sort` / `onSortCycle`）；表头三态用 `SortableTh` / `cycleThreeStateSort`                                          |
+| 数据列表 | `ScrollArea` + 统一列表行（list/listitem 语义，Grid/Flex 布局）；禁止 table 与表格角色模拟列表；排序复用 `cycleThreeStateSort`                      |
 | 表单     | 标题 / 描述 / 控件；紧凑行左右分栏用 grid/flex                                                                                                      |
 | 滚动     | 一律 `components/sk/ScrollArea`                                                                                                                     |
 | 按钮等   | `components/sk/*`（内部 Tailwind）                                                                                                                  |
@@ -66,6 +67,7 @@
 
 - **左**：标题 + 描述（或分类 / 二级 tabs），只放标识，不放控件。
 - **右侧先筛选栏**：搜索框、筛选下拉、状态切换等**一律放在标题右侧这一行**，**禁止**在内容区顶部另起一行放搜索 / 筛选。
+- **Filter bar 不显示独立 label**：筛选控件前、上方均不额外显示字段名（如“原文语言 / 译文语言 / 查询范围”）。控件保留当前选项或搜索占位提示，并必须提供准确的 `aria-label`；含义容易混淆时使用共享 `Tooltip` 补充说明。此约定适用于页头与列表筛选栏，正文表单继续保留必要的字段标签。
 - **右侧最后操作栏**：新增、连接、导出等操作放**最右**，排在筛选之后。
 - 低频 / 批量 / 危险操作（「全部停止」「清空」等）不进页头，放到对应行或二级菜单里，或者干脆不提供。
 
@@ -88,17 +90,17 @@
 
 **对齐规则**：容器内边距 = 子块间距 = 分隔线两侧留白（如卡片 `p-4` + `gap-4`，分隔线 `border-t pt-4`），不要外 20 内 16。
 
-| Token                          | 值                         | 用途                                 |
-| ------------------------------ | -------------------------- | ------------------------------------ |
-| `padXDense` / `padYDense`      | `px-3` / `py-2`            | GameEdit 运行/角色表单、编辑表单元格 |
-| `padXComfort` / `padYComfort`  | `px-4` / `py-4`            | 首页设置等宽松表单                   |
-| `formCard` / `formCardDense`   | 子项用上表 comfort / dense | 表单卡片容器                         |
-| `editCell` / `editHeadCell`    | = dense pad                | GameEdit CSS grid 表                 |
-| `dataTable`                    | th/td = dense pad          | 翻译/日志 HTML 表                    |
-| `gapField`                     | `gap-1`                    | 标题↔描述↔控件竖向                   |
-| `gapControl`                   | `gap-1`                    | 同行控件间距                         |
-| `gapInline` / `gapInlineDense` | `gap-x-4` / `gap-x-3`      | 左右分栏列间距                       |
-| `formFieldInline` / `…Dense`   | 分栏行布局                 | 开关/数字行                          |
+| Token                          | 值                         | 用途                                            |
+| ------------------------------ | -------------------------- | ----------------------------------------------- |
+| `padXDense` / `padYDense`      | `px-3` / `py-2`            | GameEdit 运行/角色表单、编辑表单元格            |
+| `padXComfort` / `padYComfort`  | `px-4` / `py-4`            | 首页设置等宽松表单                              |
+| `formCard` / `formCardDense`   | 子项用上表 comfort / dense | 表单卡片容器                                    |
+| `editCell` / `editHeadCell`    | = dense pad                | GameEdit Grid 列表字段                          |
+| `dataList` / `dataTable`       | 共享 Grid 列表样式         | 新代码使用 `dataList`；`dataTable` 仅为兼容别名 |
+| `gapField`                     | `gap-1`                    | 标题↔描述↔控件竖向                              |
+| `gapControl`                   | `gap-1`                    | 同行控件间距                                    |
+| `gapInline` / `gapInlineDense` | `gap-x-4` / `gap-x-3`      | 左右分栏列间距                                  |
+| `formFieldInline` / `…Dense`   | 分栏行布局                 | 开关/数字行                                     |
 
 控件高度另见 `components/sk/control.ts`（`FORM_CONTROL_H` = `h-8`）。
 
@@ -116,7 +118,7 @@
 - `surface="overlay"`：局内浮层，带卡片描边/阴影（原先游戏中的卡片壳）。
 - plugins 用 Vite IIFE + `createRoot` 挂载；无 Web Component。
 - panel-shell：`shell → head → body(ScrollArea) → foot`。
-- modal-focus / data-table / Escape；热键勿与输入框抢键。
+- 浮层焦点 / 列表与返回定位 / Escape；热键勿与输入框抢键。
 
 ## 6. 状态与文案
 

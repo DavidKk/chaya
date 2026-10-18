@@ -48,6 +48,7 @@ export function LogPanel() {
   const [paused, setPaused] = useState(false)
   const [frozenLinkEntries, setFrozenLinkEntries] = useState<readonly LogEntry[]>([])
   const [qInput, setQInput] = useState(q)
+  const followRef = useRef(true)
   const scroller = useRef<HTMLDivElement>(null)
   const pausedRef = useRef(paused)
   pausedRef.current = paused
@@ -87,7 +88,7 @@ export function LogPanel() {
   const connected = browserMode ? link.connected : streamConnected
 
   useEffect(() => {
-    if (paused) return
+    if (paused || !followRef.current) return
     const el = scroller.current
     if (!el) return
     el.scrollTop = el.scrollHeight
@@ -163,6 +164,9 @@ export function LogPanel() {
           total={entries.length}
           hasFilter={hasFilter}
           scrollRef={scroller}
+          onScroll={(element) => {
+            followRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 32
+          }}
           ariaLabel={t('logs.region')}
           status={paused ? t('logs.pausedRecv') : connected ? t('logs.live') : browserMode ? t('logs.waitGame') : t('logs.connecting')}
         />

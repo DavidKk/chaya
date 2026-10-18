@@ -71,6 +71,9 @@ function slot(over: Partial<EventsSlot> = {}): EventsSlot {
   }
 }
 
+let navigationCase = 0
+beforeEach(() => history.pushState({}, '', `/test-view?case=${++navigationCase}`))
+
 beforeAll(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   globalThis.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ settings: {} }) })) as unknown as typeof fetch

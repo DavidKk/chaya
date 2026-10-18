@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { IoChevronDown, IoChevronForward } from 'react-icons/io5'
 
 import type { SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { padXDense } from '@/components/layoutClasses'
+import { useNavigationBooleanState, useNavigationJsonState, useNavigationViewState } from '@/components/navigation/useNavigationViewState'
 import { Button, EmptyState, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import { type CommonEventFilter, type CommonEventInfo, filterCommonEventGroups } from '@/lib/game/events'
@@ -100,7 +101,14 @@ function EventRow({
   const t = useT()
   const name = commonEventName(ev, t)
   return (
-    <button type="button" className={cn(listRow, selected && listRowOn)} aria-current={selected ? 'true' : undefined} onClick={onSelect}>
+    <button
+      data-navigation-trigger=""
+      data-navigation-id={`common:${ev.id}`}
+      type="button"
+      className={cn(listRow, selected && listRowOn)}
+      aria-current={selected ? 'true' : undefined}
+      onClick={onSelect}
+    >
       <TruncateText text={name} className={cn('flex-1', ev.commandCount === 0 ? 'text-ink-soft' : 'text-ink')} />
       {ev.commandCount === 0 ? <span className="shrink-0 text-[0.65rem] text-ink-soft">{t('events.emptyEvent')}</span> : null}
       {ev.trigger !== 0 ? (
@@ -117,10 +125,15 @@ function EventRow({
 export function CommonEventsPane({ slot, filter, session, headSlot }: Props) {
   const switches = session.switches
   const t = useT()
-  const [trigger, setTrigger] = useState<TriggerFilter>('all')
-  const [showEmpty, setShowEmpty] = useState(false)
-  const [onlyUncalled, setOnlyUncalled] = useState(false)
-  const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(() => new Set())
+  const [trigger, setTrigger] = useNavigationViewState<TriggerFilter>('common:trigger', 'all')
+  const [showEmpty, setShowEmpty] = useNavigationBooleanState('common:empty', false)
+  const [onlyUncalled, setOnlyUncalled] = useNavigationBooleanState('common:uncalled', false)
+  const [collapsedIds, setCollapsedIds] = useNavigationJsonState<number[]>(
+    'common:collapsed',
+    [],
+    (value): value is number[] => Array.isArray(value) && value.every(Number.isInteger)
+  )
+  const collapsed = new Set(collapsedIds)
   const data = slot.data
 
   const criteria: CommonEventFilter = useMemo(
@@ -152,13 +165,7 @@ export function CommonEventsPane({ slot, filter, session, headSlot }: Props) {
     </div>
   )
 
-  const toggleGroup = (id: number) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const toggleGroup = (id: number) => setCollapsedIds((previous) => (previous.includes(id) ? previous.filter((entry) => entry !== id) : [...previous, id]))
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
@@ -175,7 +182,12 @@ export function CommonEventsPane({ slot, filter, session, headSlot }: Props) {
           {visibleCount === 0 ? (
             <EmptyState title={t('edit.noMatch')} message={t('edit.noMatchMsg')} />
           ) : (
-            <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('events.listAria') }}>
+            <ScrollArea
+              className="min-h-0 flex-1"
+              indicator="vertical"
+              restorationKey={`common:${filter}:${trigger}:${showEmpty}:${onlyUncalled}`}
+              scrollProps={{ 'aria-label': t('events.listAria') }}
+            >
               {groups.map((group) => {
                 const isCollapsed = collapsed.has(group.id)
                 return (

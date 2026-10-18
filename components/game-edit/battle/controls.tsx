@@ -9,7 +9,7 @@ import { Button, NumberInput, NumberSliderInput, Tooltip } from '@/components/sk
 import type { EventsOp, EventsSlot } from '../events/types'
 import { LockEndAction } from '../lock-ui'
 
-export const tableClass = 'table-fixed [&_td]:px-2 [&_td]:py-1 [&_td]:align-middle [&_th]:px-2 [&_th]:py-1.5'
+export const tableClass = '[&_[data-list-cell]]:px-2 [&_[data-list-cell]]:py-1 [&_[data-list-heading]]:px-2 [&_[data-list-heading]]:py-2'
 /** 百分比列宽，整表留在卡片内，锁和操作图标不再被裁掉 */
 export const PARTY_COLS = { actor: '16%', hp: '26%', mp: '26%', tp: '14%', status: '8%', actions: '10%' } as const
 export const ENEMY_COLS = { enemy: '28%', hp: '34%', status: '14%', actions: '24%' } as const

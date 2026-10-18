@@ -6,7 +6,7 @@ import { IoAddOutline, IoSkullOutline } from 'react-icons/io5'
 
 import { type BattleLockChange, lockKeyForActorVital, type RunActionId, type SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { DataTable, type DataTableColumn, TextAction, TruncateText } from '@/components/sk'
+import { DataList, type DataListColumn, TextAction, TruncateText } from '@/components/sk'
 import type { ActorVitalKey, BattleState } from '@/lib/game/battle'
 
 import { EnemyPicker } from '../events/EnemyPicker'
@@ -43,7 +43,7 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
     void run('join', { op: 'actorJoin', actorId }, t('events.battle.joinOk', { name }))
   }
 
-  const columns: DataTableColumn[] = [
+  const columns: DataListColumn[] = [
     { key: 'actor', label: t('events.battle.colActor'), width: PARTY_COLS.actor },
     { key: 'hp', label: t('events.troop.colHp'), width: PARTY_COLS.hp },
     { key: 'mp', label: t('events.battle.colMp'), width: PARTY_COLS.mp },
@@ -71,7 +71,7 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
           <IoAddOutline size={15} aria-hidden />
         </IconAction>
       </SectionHead>
-      <DataTable columns={columns} className={tableClass}>
+      <DataList columns={columns} className={tableClass}>
         {party.map((actor) => {
           const { actorId } = actor
           const name = actor.name || t('events.unnamed', { id: actorId })
@@ -87,17 +87,22 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
           const set = (key: ActorVitalKey, label: string) => (value: number) =>
             void run(`${key}:${actorId}`, { op: 'actorVital', actorId, key, value }, t('events.battle.setOk', { name, label, value }))
           return (
-            <tr key={actorId}>
-              <td>
+            <div role="listitem" data-list-row="" key={actorId} data-navigation-id={actorId}>
+              <div data-list-cell="">
                 {onOpenActor ? (
-                  <TextAction className="max-w-full min-w-0 font-normal text-ink" aria-label={t('events.battle.openActor', { name })} onClick={() => onOpenActor(actorId)}>
+                  <TextAction
+                    className="max-w-full min-w-0 font-normal text-ink"
+                    aria-label={t('events.battle.openActor', { name })}
+                    data-navigation-trigger=""
+                    onClick={() => onOpenActor(actorId)}
+                  >
                     <TruncateText text={name} className={actor.alive ? 'block text-ink' : 'block text-ink-soft'} />
                   </TextAction>
                 ) : (
                   <TruncateText text={name} className={actor.alive ? 'block text-ink' : 'block text-ink-soft'} />
                 )}
-              </td>
-              <td>
+              </div>
+              <div data-list-cell="">
                 <VitalInput
                   value={actor.hp}
                   max={actor.mhp}
@@ -112,8 +117,8 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                   onValue={set('hp', 'HP')}
                   onMax={set('mhp', t('events.troop.mhpEdit'))}
                 />
-              </td>
-              <td>
+              </div>
+              <div data-list-cell="">
                 <VitalInput
                   value={actor.mp}
                   max={actor.mmp}
@@ -129,8 +134,8 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                   onValue={set('mp', 'MP')}
                   onMax={set('mmp', t('events.battle.mmpEdit'))}
                 />
-              </td>
-              <td>
+              </div>
+              <div data-list-cell="">
                 <PlainInput
                   value={actor.tp}
                   max={actor.maxTp}
@@ -139,11 +144,11 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                   lock={lockOf('tp', t('events.battle.tpEdit'), actor.tp)}
                   onValue={set('tp', 'TP')}
                 />
-              </td>
-              <td className="whitespace-nowrap text-ink-soft">
+              </div>
+              <div data-list-cell="" className="whitespace-nowrap text-ink-soft">
                 <span className="flex h-8 items-center">{actor.alive ? t('events.troop.statusOk') : t('events.troop.enemyDown')}</span>
-              </td>
-              <td>
+              </div>
+              <div data-list-cell="">
                 <span className="flex h-8 items-center justify-end gap-0.5">
                   {actor.alive ? (
                     <IconAction
@@ -179,11 +184,11 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                     <GiHealthIncrease size={15} aria-hidden />
                   </IconAction>
                 </span>
-              </td>
-            </tr>
+              </div>
+            </div>
           )
         })}
-      </DataTable>
+      </DataList>
       <EnemyPicker
         open={picking}
         title={t('events.battle.join')}

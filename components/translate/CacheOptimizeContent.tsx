@@ -4,7 +4,7 @@ import { Menu } from '@base-ui/react/menu'
 import { useMemo, useState } from 'react'
 import { IoAddOutline, IoCheckmark, IoChevronBackOutline, IoChevronDown, IoTrashOutline } from 'react-icons/io5'
 
-import { useT } from '@/components/i18n/LocaleProvider'
+import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { formCard, formDesc, formTitle } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { PanelHeadStart } from '@/components/PanelHeadEnd'
@@ -20,6 +20,7 @@ import {
   PlainTextEditorFrame,
   ScrollArea,
 } from '@/components/sk'
+import { Select } from '@/components/sk'
 import { controlDisabled } from '@/components/sk/control'
 import { dropdownItemClass, dropdownPopupClass } from '@/components/sk/dropdownMenu'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
@@ -28,7 +29,10 @@ import type { MessageKey } from '@/lib/i18n'
 import { type CacheLang, DEFAULT_CACHE_SRC_LANG, DEFAULT_CACHE_TGT_LANG } from '@/lib/translate/cache-lang'
 import { listNewlineSpans, type NewlineAnnotation, type NewlineKind } from '@/lib/translate/logic-text'
 import { buildOptimizeSegmentPairs, hasOptimizeCandidates, type OptimizeSegmentPair } from '@/lib/translate/optimize-segments'
+import { type RecordStructure, scanStructuredText } from '@/lib/translate/structured-segments'
 import { cn } from '@/lib/utils'
+
+import { CACHE_TEST_COPY } from './cache-test-copy'
 
 /** Top edit card: slightly under half-viewport; long text scrolls inside. */
 const EDIT_PANE_MAX_PX = 280
@@ -36,6 +40,8 @@ const EDITOR_MIN_LINES = PLAIN_TEXT_EDITOR_MIN_LINES
 
 export type CacheOptimizeTarget = {
   id?: number
+  revision?: number
+  structure?: RecordStructure
   src: string
   zh: string
   from?: CacheLang
@@ -206,10 +212,13 @@ function SourceBreakEditor({
 
 export function CacheOptimizeContent({ target, onBack, onConfirmed }: Props) {
   const t = useT()
+  const copy = CACHE_TEST_COPY[useLocaleCode()]
+  const [structure, setStructure] = useState<RecordStructure | undefined>(target.structure)
+  const [structureDirty, setStructureDirty] = useState(false)
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
   const derived = useMemo(() => hasOptimizeCandidates(target.src, target.zh), [target.src, target.zh])
-  const built = useMemo(() => buildOptimizeSegmentPairs(target.src, target.zh), [target.src, target.zh])
+  const built = useMemo(() => buildOptimizeSegmentPairs(target.src, target.zh, structure), [target.src, target.zh, structure])
   const initialPairs = useMemo(() => (derived ? built.pairs : []), [built.pairs, derived])
 
   const origSrc = target.src
@@ -237,6 +246,12 @@ export function CacheOptimizeContent({ target, onBack, onConfirmed }: Props) {
     }
     return out
   }, [breaks, breakKinds])
+  function changeStructure(side: 'source' | 'target', mode: string) {
+    const next = { ...structure, [side]: mode === 'auto' ? undefined : { mode: mode as 'accept' | 'disabled' } }
+    setStructure(next)
+    setStructureDirty(true)
+    setPairs(next.source?.mode === 'disabled' || next.target?.mode === 'disabled' ? [] : buildOptimizeSegmentPairs(origSrc, origZh, next).pairs)
+  }
   const canConfirm = Boolean(origSrc.trim() && origZh.trim()) && allFilled && !saving
   const srcLang = target.from || DEFAULT_CACHE_SRC_LANG
   const tgtLang = target.to || DEFAULT_CACHE_TGT_LANG
@@ -279,7 +294,7 @@ export function CacheOptimizeContent({ target, onBack, onConfirmed }: Props) {
         }
       }
 
-      if (!ready.length && !markedNewlines.length) {
+      if (!ready.length && !markedNewlines.length && !structure) {
         notify.success(t('translate.cacheZhUpdated'))
         onConfirmed?.()
         onBack()
@@ -288,7 +303,10 @@ export function CacheOptimizeContent({ target, onBack, onConfirmed }: Props) {
 
       const body = {
         pairs: ready,
-        parent: { src: target.src, zh },
+        parent: { src: target.src, zh: zh !== String(target.zh).trim() ? zh : target.zh },
+        structure,
+        replaceGroups: structureDirty,
+        expectedRevision: zh !== String(target.zh).trim() ? undefined : target.revision,
         from: target.from,
         to: target.to,
         newlines: markedNewlines,
@@ -400,6 +418,35 @@ export function CacheOptimizeContent({ target, onBack, onConfirmed }: Props) {
             </div>
           </section>
 
+          <section className={formCard} aria-label={copy.structure}>
+            <span className={formTitle}>{copy.structure}</span>
+            <span className={formDesc}>{copy.boundaryHelp}</span>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(['source', 'target'] as const).map((side) => (
+                <div key={side} className="flex flex-col gap-2">
+                  <span className={formTitle}>{side === 'source' ? copy.sourceStructure : copy.targetStructure}</span>
+                  <Select
+                    aria-label={side === 'source' ? copy.sourceStructure : copy.targetStructure}
+                    disabled={saving}
+                    value={structure?.[side]?.mode || 'auto'}
+                    onChange={(mode) => changeStructure(side, mode)}
+                    options={[
+                      { value: 'auto', label: copy.auto },
+                      { value: 'accept', label: copy.accept },
+                      { value: 'disabled', label: copy.disabled },
+                    ]}
+                  />
+                  <ul className="m-0 list-none p-0 text-xs text-ink-soft">
+                    {scanStructuredText(side === 'source' ? origSrc : origZh, structure?.[side]).units.map((u) => (
+                      <li key={u.id} className="whitespace-pre-wrap break-words">
+                        {u.state === 'suggested' ? copy.suggested : copy.accepted} · {(side === 'source' ? origSrc : origZh).slice(u.start, u.end)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </section>
           <section className={formCard} aria-label={t('translate.cacheOptimize')}>
             <div className="flex items-start gap-4">
               <div className="flex min-w-0 flex-1 flex-col gap-1">

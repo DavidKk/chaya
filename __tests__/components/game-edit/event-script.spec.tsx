@@ -76,7 +76,7 @@ afterEach(async () => {
   root = null
 })
 
-const rows = () => [...document.querySelectorAll('[role="row"]')].slice(1) as HTMLElement[]
+const rows = () => [...document.querySelectorAll('[role="listitem"]')] as HTMLElement[]
 const runButtons = () => [...document.querySelectorAll('button[aria-label^="从第"]')] as HTMLButtonElement[]
 
 async function search(text: string) {
@@ -90,7 +90,7 @@ async function search(text: string) {
 
 test('numbers flat rows and marks which branch runs', async () => {
   await render({ live: live() })
-  expect(rows().map((r) => r.querySelector('[role="cell"]')?.textContent)).toEqual(['1', '2', '3', '4', '5', '6', '7'])
+  expect(rows().map((r) => r.querySelector('[data-list-cell]')?.textContent)).toEqual(['1', '2', '3', '4', '5', '6', '7'])
   expect(rows()[0].textContent).toContain('会走这里')
   expect(rows()[2].textContent).toContain('不会执行')
   // Variable #5 is set to 3 just before, so "== 2" is decided false

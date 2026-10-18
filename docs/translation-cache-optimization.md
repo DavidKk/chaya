@@ -3,6 +3,7 @@
 - 状态：阶段一～三已接入；阶段四（索引升级 / 插件同规则接入 / 语料回放）进行中。MVP：**不做旧客户端协议兼容层**。
 - 日期：2026-10-17。
 - 技术方案：[语义分段、对齐与安全复用](technical/translation-cache-optimization.md)。
+- 后续扩展：[标签、编号列表与缓存测试方案](translation-structured-segmentation.md)（待实现）。
 - 基础方案：[翻译管线 §14](technical/translation-pipeline.md#14-缓存落地方案核心已接入--扩展状态见-149)（稳定阅读：同文件「## 14」；职责边界见技术方案 §1.1）。
 
 ## 1. 问题与目标

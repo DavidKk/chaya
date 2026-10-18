@@ -9,6 +9,7 @@ import { controlDisabled, controlDisabledShell, FORM_CONTROL_H, formControlChrom
 import { ScrollArea } from '@/components/sk/ScrollArea'
 import { Spinner } from '@/components/sk/Spinner'
 import { TextInput } from '@/components/sk/TextInput'
+import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { TruncateText } from '@/components/sk/TruncateText'
 import { type FloatingPanelWidthMode, useFloatingPanel } from '@/components/sk/useFloatingPanel'
 import { cn } from '@/lib/utils'
@@ -34,6 +35,8 @@ export type SelectProps = {
   disabled?: boolean
   className?: string
   'aria-label'?: string
+  /** Trigger hint; suppressed while its options are open. */
+  tooltip?: string
   /** md：表单默认 h-8；mini：紧凑 h-6（列表 / 行内切换） */
   size?: SelectSize
   /** anchor：与触发器等宽；content：按选项内容收缩（不撑开锚点） */
@@ -54,6 +57,7 @@ export function Select({
   disabled = false,
   className,
   'aria-label': ariaLabel,
+  tooltip,
   size = 'md',
   panelWidth = 'anchor',
   onOpen,
@@ -265,8 +269,8 @@ export function Select({
                         aria-selected={isSelected}
                         aria-disabled={opt.disabled || undefined}
                         className={cn(
-                          'flex cursor-pointer items-center justify-between gap-2 rounded-[0.12rem] px-2 py-2 text-[0.8125rem] text-ink',
-                          panelWidth === 'content' && 'whitespace-nowrap',
+                          'flex cursor-pointer items-center justify-between gap-2 rounded-[0.12rem] px-2 py-2 whitespace-nowrap text-ink',
+                          size === 'mini' ? 'text-[0.7rem]' : 'text-[0.8125rem]',
                           isSelected && 'text-accent',
                           isHi && 'bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]',
                           opt.disabled && controlDisabledShell
@@ -275,10 +279,10 @@ export function Select({
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => pick(index)}
                       >
-                        <span className="min-w-0 truncate" title={opt.label}>
-                          {opt.label}
+                        <span className="min-w-0 truncate">{opt.label}</span>
+                        <span className={cn('inline-flex shrink-0 items-center justify-center', size === 'mini' ? 'size-3' : 'size-[14px]')} aria-hidden>
+                          {isSelected ? <IoCheckmark size={size === 'mini' ? 12 : 14} className="text-accent" /> : null}
                         </span>
-                        {isSelected ? <IoCheckmark size={14} aria-hidden className="shrink-0 text-accent" /> : null}
                       </div>
                     )
                   })
@@ -292,31 +296,39 @@ export function Select({
 
   return (
     <div ref={rootRef} className={cn('relative inline-block min-w-0', className)}>
-      <button
-        ref={triggerRef}
-        id={id}
-        type="button"
-        className={cn(
-          formControlChrome,
-          formControlPadX,
-          size === 'mini' ? 'h-6 px-1.5 text-[0.7rem] leading-none' : FORM_CONTROL_H,
-          'inline-flex w-full cursor-pointer items-center justify-between gap-2',
-          'hover:enabled:border-[rgb(230_238_248/0.2)]',
-          'focus-visible:border-accent',
-          controlDisabled,
-          open && 'border-accent'
-        )}
-        disabled={disabled}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listboxId}
-        aria-label={ariaLabel}
-        onClick={() => (open ? close() : openPanel())}
-        onKeyDown={onTriggerKey}
-      >
-        <TruncateText text={label} className={cn('whitespace-nowrap text-left', !selected && 'text-ink-soft')} />
-        <IoChevronDown className="shrink-0 text-ink-soft" size={size === 'mini' ? 12 : 14} aria-hidden />
-      </button>
+      <Tooltip content={tooltip} suppressed={open}>
+        <span className="inline-flex w-full">
+          <button
+            ref={triggerRef}
+            id={id}
+            type="button"
+            className={cn(
+              formControlChrome,
+              formControlPadX,
+              size === 'mini' ? 'h-6 px-1.5 text-[0.7rem] leading-none' : FORM_CONTROL_H,
+              'inline-flex w-full cursor-pointer items-center justify-between gap-2',
+              'hover:enabled:border-[rgb(230_238_248/0.2)]',
+              'focus-visible:border-accent',
+              controlDisabled,
+              open && 'border-accent'
+            )}
+            disabled={disabled}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-controls={listboxId}
+            aria-label={ariaLabel}
+            onClick={() => (open ? close() : openPanel())}
+            onKeyDown={onTriggerKey}
+          >
+            {open ? (
+              <span className={cn('min-w-0 truncate whitespace-nowrap text-left', !selected && 'text-ink-soft')}>{label}</span>
+            ) : (
+              <TruncateText text={label} className={cn('whitespace-nowrap text-left', !selected && 'text-ink-soft')} />
+            )}
+            <IoChevronDown className="shrink-0 text-ink-soft" size={size === 'mini' ? 12 : 14} aria-hidden />
+          </button>
+        </span>
+      </Tooltip>
       {panel}
     </div>
   )

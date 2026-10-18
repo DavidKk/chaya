@@ -11,6 +11,7 @@ import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
 import { DISCLAIMER_HREF } from '@/components/legal/LegalNotice'
 import { CopyField } from '@/components/sk'
+import { ScrollArea } from '@/components/sk/ScrollArea'
 import { DEFAULT_SITE_ORIGIN } from '@/constants/brand'
 import { usePageOrigin } from '@/hooks/usePageOrigin'
 import { LEGAL_DOCS } from '@/lib/legal'
@@ -108,101 +109,103 @@ export function MarketingHome({ githubUrl, downloads }: { githubUrl: string; dow
         </div>
       </header>
 
-      <main className="mx-auto flex min-h-0 w-full max-w-[72rem] flex-1 items-center overflow-y-auto overscroll-contain px-6 py-8 sm:px-10 sm:py-10">
-        <div className="grid w-full items-start gap-8 lg:grid-cols-2 lg:gap-12 xl:gap-16">
-          <section className="marketing-features order-2 lg:order-1" aria-labelledby="features-title">
-            <h2 id="features-title" className="m-0 font-display text-xl font-semibold text-ink sm:text-2xl">
-              {t('marketing.featuresTitle')}
-            </h2>
-            <p className="mt-2 mb-0 max-w-[28rem] text-sm leading-relaxed text-ink-soft sm:text-[0.9375rem]">{t('marketing.featuresCopy')}</p>
+      <main className="mx-auto flex min-h-0 w-full max-w-[72rem] flex-1 flex-col">
+        <ScrollArea className="min-h-0 flex-1" restorationKey="home" scrollClassName="flex items-center overscroll-contain px-6 py-8 sm:px-10 sm:py-10">
+          <div className="grid w-full items-start gap-8 lg:grid-cols-2 lg:gap-12 xl:gap-16">
+            <section className="marketing-features order-2 lg:order-1" aria-labelledby="features-title">
+              <h2 id="features-title" className="m-0 font-display text-xl font-semibold text-ink sm:text-2xl">
+                {t('marketing.featuresTitle')}
+              </h2>
+              <p className="mt-2 mb-0 max-w-[28rem] text-sm leading-relaxed text-ink-soft sm:text-[0.9375rem]">{t('marketing.featuresCopy')}</p>
 
-            <ul className="m-0 mt-6 grid list-none grid-cols-1 gap-x-8 gap-y-6 p-0 sm:mt-8 sm:grid-cols-2 sm:gap-y-8">
-              {FEATURE_DEFS.map((item, index) => (
-                <li key={item.labelKey} className="marketing-feature flex min-w-0 flex-col gap-3" style={{ animationDelay: `${0.08 + index * 0.05}s` }}>
-                  <span className="inline-flex size-8 items-center justify-center text-accent">
-                    <item.icon aria-hidden className="size-5" strokeWidth={1.7} />
-                  </span>
-                  <div className="min-w-0">
-                    <h3 className="m-0 text-[0.9375rem] font-semibold text-ink">{t(item.labelKey)}</h3>
-                    <p className="mt-2 mb-0 text-sm leading-relaxed text-ink-soft">{t(item.descKey)}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="marketing-hero relative order-1 flex flex-col lg:order-2" aria-labelledby="hero-title">
-            <div
-              aria-hidden
-              className="pointer-events-none absolute left-1/2 top-[38%] h-[18rem] w-[18rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,color-mix(in_oklab,var(--accent)_18%,transparent)_0%,transparent_68%)] blur-2xl lg:left-[42%] lg:h-[22rem] lg:w-[22rem]"
-            />
-
-            <h1 id="hero-title" className="relative m-0">
-              <BrandLogo
-                animated
-                className="gap-4 text-4xl sm:gap-4 sm:text-5xl lg:gap-6 lg:text-6xl"
-                markClassName="size-[3.75rem] sm:size-[4.5rem] lg:size-[5.25rem]"
-                wordmarkClassName="leading-none tracking-tight"
-                priority
-              />
-            </h1>
-
-            <p className="marketing-hero-line relative mt-6 mb-0 max-w-[18em] font-display text-[1.35rem] font-medium leading-snug text-ink sm:mt-8 sm:text-[1.65rem]">
-              {t('marketing.heroLine')}
-            </p>
-            <p className="marketing-hero-copy relative mt-2 mb-0 max-w-[28rem] text-sm leading-relaxed text-ink-soft sm:text-[0.9375rem]">{t('marketing.heroCopy')}</p>
-
-            <div id="download" className="marketing-hero-cta relative mt-6 grid w-full max-w-[28rem] grid-cols-1 gap-3 sm:mt-8 sm:grid-cols-3">
-              {DOWNLOAD_IDS.map((item) => {
-                const isRecommended = recommended === item.id
-                return (
-                  <a
-                    key={item.id}
-                    id={`download-${item.id}`}
-                    href={downloads[item.asset] ?? downloads.pageUrl}
-                    className={cn(downloadBtnClass, item.tone, isRecommended && 'ring-2 ring-accent ring-offset-2 ring-offset-paper')}
-                  >
-                    {isRecommended ? (
-                      <span className="absolute -top-2 right-2 rounded-full bg-accent px-2 py-px text-[0.625rem] font-semibold leading-tight text-accent-ink">
-                        {t('marketing.recommended')}
-                      </span>
-                    ) : null}
-                    <span className="inline-flex items-center gap-2">
-                      <item.icon aria-hidden className="size-4" />
-                      {t(item.labelKey)}
+              <ul className="m-0 mt-6 grid list-none grid-cols-1 gap-x-8 gap-y-6 p-0 sm:mt-8 sm:grid-cols-2 sm:gap-y-8">
+                {FEATURE_DEFS.map((item, index) => (
+                  <li key={item.labelKey} className="marketing-feature flex min-w-0 flex-col gap-3" style={{ animationDelay: `${0.08 + index * 0.05}s` }}>
+                    <span className="inline-flex size-8 items-center justify-center text-accent">
+                      <item.icon aria-hidden className="size-5" strokeWidth={1.7} />
                     </span>
-                    <span className="text-[0.7rem] font-medium opacity-70">{t(item.chipKey)} · .zip</span>
-                  </a>
-                )
-              })}
-            </div>
+                    <div className="min-w-0">
+                      <h3 className="m-0 text-[0.9375rem] font-semibold text-ink">{t(item.labelKey)}</h3>
+                      <p className="mt-2 mb-0 text-sm leading-relaxed text-ink-soft">{t(item.descKey)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
 
-            <div className="marketing-hero-cta relative mt-3 flex w-full max-w-[28rem] flex-col gap-2 text-xs leading-relaxed text-ink-soft">
-              <p className="m-0">
-                <a href={downloads.pageUrl} target="_blank" rel="noreferrer" className={subLinkClass}>
-                  {downloads.version ? `${t('marketing.allReleases')} · ${downloads.version}` : t('marketing.allReleases')}
-                </a>
+            <section className="marketing-hero relative order-1 flex flex-col lg:order-2" aria-labelledby="hero-title">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute left-1/2 top-[38%] h-[18rem] w-[18rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,color-mix(in_oklab,var(--accent)_18%,transparent)_0%,transparent_68%)] blur-2xl lg:left-[42%] lg:h-[22rem] lg:w-[22rem]"
+              />
+
+              <h1 id="hero-title" className="relative m-0">
+                <BrandLogo
+                  animated
+                  className="gap-4 text-4xl sm:gap-4 sm:text-5xl lg:gap-6 lg:text-6xl"
+                  markClassName="size-[3.75rem] sm:size-[4.5rem] lg:size-[5.25rem]"
+                  wordmarkClassName="leading-none tracking-tight"
+                  priority
+                />
+              </h1>
+
+              <p className="marketing-hero-line relative mt-6 mb-0 max-w-[18em] font-display text-[1.35rem] font-medium leading-snug text-ink sm:mt-8 sm:text-[1.65rem]">
+                {t('marketing.heroLine')}
               </p>
-              <p className="m-0">{t('marketing.macFirstLaunch')}</p>
-              <CopyField value={installCommand} label={t('marketing.macInstallAria')} />
-            </div>
+              <p className="marketing-hero-copy relative mt-2 mb-0 max-w-[28rem] text-sm leading-relaxed text-ink-soft sm:text-[0.9375rem]">{t('marketing.heroCopy')}</p>
 
-            <div className="marketing-hero-link relative mt-6 flex w-full max-w-[28rem] flex-col gap-3">
-              <div className="flex w-full items-center gap-3" aria-hidden>
-                <span className="h-px flex-1 bg-line-soft" />
-                <span className="text-xs tracking-wide text-ink-soft">{t('marketing.orTryBrowser')}</span>
-                <span className="h-px flex-1 bg-line-soft" />
+              <div id="download" className="marketing-hero-cta relative mt-6 grid w-full max-w-[28rem] grid-cols-1 gap-3 sm:mt-8 sm:grid-cols-3">
+                {DOWNLOAD_IDS.map((item) => {
+                  const isRecommended = recommended === item.id
+                  return (
+                    <a
+                      key={item.id}
+                      id={`download-${item.id}`}
+                      href={downloads[item.asset] ?? downloads.pageUrl}
+                      className={cn(downloadBtnClass, item.tone, isRecommended && 'ring-2 ring-accent ring-offset-2 ring-offset-paper')}
+                    >
+                      {isRecommended ? (
+                        <span className="absolute -top-2 right-2 rounded-full bg-accent px-2 py-px text-[0.625rem] font-semibold leading-tight text-accent-ink">
+                          {t('marketing.recommended')}
+                        </span>
+                      ) : null}
+                      <span className="inline-flex items-center gap-2">
+                        <item.icon aria-hidden className="size-4" />
+                        {t(item.labelKey)}
+                      </span>
+                      <span className="text-[0.7rem] font-medium opacity-70">{t(item.chipKey)} · .zip</span>
+                    </a>
+                  )
+                })}
               </div>
-              <Link
-                href="/game"
-                className="group inline-flex items-center gap-2 self-start rounded-[0.25rem] text-sm font-medium text-accent no-underline transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]"
-              >
-                {t('marketing.openConsole')}
-                <ArrowRight aria-hidden className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
-              </Link>
-            </div>
-          </section>
-        </div>
+
+              <div className="marketing-hero-cta relative mt-3 flex w-full max-w-[28rem] flex-col gap-2 text-xs leading-relaxed text-ink-soft">
+                <p className="m-0">
+                  <a href={downloads.pageUrl} target="_blank" rel="noreferrer" className={subLinkClass}>
+                    {downloads.version ? `${t('marketing.allReleases')} · ${downloads.version}` : t('marketing.allReleases')}
+                  </a>
+                </p>
+                <p className="m-0">{t('marketing.macFirstLaunch')}</p>
+                <CopyField value={installCommand} label={t('marketing.macInstallAria')} />
+              </div>
+
+              <div className="marketing-hero-link relative mt-6 flex w-full max-w-[28rem] flex-col gap-3">
+                <div className="flex w-full items-center gap-3" aria-hidden>
+                  <span className="h-px flex-1 bg-line-soft" />
+                  <span className="text-xs tracking-wide text-ink-soft">{t('marketing.orTryBrowser')}</span>
+                  <span className="h-px flex-1 bg-line-soft" />
+                </div>
+                <Link
+                  href="/game"
+                  className="group inline-flex items-center gap-2 self-start rounded-[0.25rem] text-sm font-medium text-accent no-underline transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]"
+                >
+                  {t('marketing.openConsole')}
+                  <ArrowRight aria-hidden className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
+                </Link>
+              </div>
+            </section>
+          </div>
+        </ScrollArea>
       </main>
 
       <footer className="shrink-0 px-6 pb-4 text-center text-xs leading-relaxed text-ink-soft sm:px-10">

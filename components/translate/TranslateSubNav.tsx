@@ -73,6 +73,7 @@ export function TranslateContentToolbar({ tab }: { tab: TranslateTabId }) {
   const { open, setOpen } = useTranslateEnginesDrawer()
   const showEnginesTrigger = (tab || DEFAULT_TRANSLATE_TAB) === 'run'
   const cacheDetail = !showEnginesTrigger && isTranslateCacheDetailPath(pathname)
+  const cacheList = tab === 'cache' && !cacheDetail
   const titleKey = tab === 'test' ? 'translate.tabTest' : showEnginesTrigger ? 'translate.regionRun' : cacheDetail ? 'translate.regionCacheDetail' : 'translate.regionCache'
   const descKey = showEnginesTrigger ? 'translate.regionRunDesc' : cacheDetail ? 'translate.regionCacheDetailDesc' : 'translate.regionCacheDesc'
 
@@ -100,7 +101,7 @@ export function TranslateContentToolbar({ tab }: { tab: TranslateTabId }) {
     )
   return (
     <div className={panelHead}>
-      <PanelHeadStartHost />
+      <PanelHeadStartHost className="empty:hidden" />
       <PanelHeadTitle title={t(titleKey)} description={t(descKey)} />
       {showEnginesTrigger ? (
         <Button
@@ -115,7 +116,7 @@ export function TranslateContentToolbar({ tab }: { tab: TranslateTabId }) {
           <LuSlidersHorizontal size={16} aria-hidden />
         </Button>
       ) : null}
-      <PanelHeadEndHost />
+      <PanelHeadEndHost className={cacheList ? 'max-w-[calc(100%_-_6rem)] !shrink' : undefined} />
     </div>
   )
 }

@@ -7,9 +7,13 @@ import { EmptyState } from '@/components/sk'
 import { CacheOptimizeContent, type CacheOptimizeTarget } from '@/components/translate/CacheOptimizeContent'
 import { translateTabHref } from '@/components/translate/tabs'
 import type { CacheLang } from '@/lib/translate/cache-lang'
+import type { RecordStructure } from '@/lib/translate/structured-segments'
+import { returnToNavigationSource } from '@/lib/ui/navigation-restoration'
 
 type InitialRow = {
   id: number
+  revision?: number
+  structure?: RecordStructure
   src: string
   zh: string
   from?: string
@@ -22,7 +26,7 @@ export function TranslateCacheOptimizeView({ id, initial }: { id: number; initia
   const router = useRouter()
 
   function back() {
-    router.push(translateTabHref('cache'))
+    returnToNavigationSource(router, translateTabHref('cache'))
   }
 
   if (!initial) {
@@ -31,6 +35,8 @@ export function TranslateCacheOptimizeView({ id, initial }: { id: number; initia
 
   const target: CacheOptimizeTarget = {
     id: initial.id || id,
+    revision: initial.revision,
+    structure: initial.structure,
     src: initial.src,
     zh: initial.zh,
     from: initial.from as CacheLang | undefined,

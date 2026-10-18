@@ -86,15 +86,17 @@ export const formControlInline = cn('col-start-2 row-span-2 row-start-1 mt-0 fle
 export const formControlInlineStart = cn(formControlInline, 'justify-start')
 export const formMonoInput = 'font-mono text-[0.72rem]'
 
-/** 数据表（sticky 表头）；单元格边距对齐 formCardDense / editCell */
-export const dataTable = cn(
-  'w-full border-separate border-spacing-0 text-left text-[0.8125rem]',
-  '[&_thead]:relative [&_thead]:z-[3]',
-  '[&_th]:sticky [&_th]:top-0 [&_th]:z-[3] [&_th]:whitespace-nowrap [&_th]:border-b [&_th]:border-line [&_th]:bg-paper-2 [&_th]:px-2.5 [&_th]:py-2 [&_th]:text-[0.68rem] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-ink-soft',
-  '[&_td]:relative [&_td]:z-0 [&_td]:max-w-[18rem] [&_td]:break-words [&_td]:border-t [&_td]:border-line [&_td]:px-3 [&_td]:py-2 [&_td]:align-middle',
-  '[&_tbody_tr:first-child_td]:border-t-0',
-  '[&_tr:hover_td]:bg-[color-mix(in_oklab,var(--accent)_10%,transparent)]'
+/** Shared dense multi-column list chrome; Grid provides alignment, list provides semantics. */
+export const dataList = cn(
+  'w-full text-left text-[0.8125rem]',
+  '[&_[data-list-row]]:grid [&_[data-list-row]]:grid-cols-[var(--data-list-columns)] [&_[data-list-row]]:items-center',
+  '[&_[data-list-head]]:sticky [&_[data-list-head]]:top-0 [&_[data-list-head]]:z-[3] [&_[data-list-head]]:bg-paper-2',
+  '[&_[data-list-heading]]:border-b [&_[data-list-heading]]:border-line [&_[data-list-heading]]:px-3 [&_[data-list-heading]]:py-2 [&_[data-list-heading]]:text-xs [&_[data-list-heading]]:font-semibold [&_[data-list-heading]]:text-ink-soft',
+  '[&_[data-list-cell]]:min-w-0 [&_[data-list-cell]]:break-words [&_[data-list-cell]]:border-t [&_[data-list-cell]]:border-line [&_[data-list-cell]]:px-3 [&_[data-list-cell]]:py-2',
+  '[&_[data-list-row]:hover]:bg-accent/10'
 )
+/** @deprecated Compatibility for existing importers; renders list chrome, never a table. */
+export const dataTable = dataList
 
 export const logBadgeBase =
   'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-2 py-1 text-[0.72rem] font-semibold uppercase leading-none tracking-[0.02em]'

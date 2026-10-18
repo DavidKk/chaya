@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { IoAdd, IoCopyOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
+import { useNavigationViewState } from '@/components/navigation/useNavigationViewState'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, EmptyState, Select, Spinner, TextAction, TextInput, TruncateText } from '@/components/sk'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
@@ -45,21 +46,18 @@ export function SaveDataPane({ slot, headSlot }: { slot: SaveDataSlot; headSlot?
   useEffect(() => setPortal(resolvePortalRoot(rootRef.current)), [])
   const [request, setRequest] = useState<StructRequest | null>(null)
 
-  const [query, setQuery] = useState('')
-  const [scope, setScope] = useState<SearchScope>('all')
   const levelKey = pathKey(path)
   const deep = path.length > 0
   const onPins = !deep && (slot.rootView ?? 'pins') === 'pins'
-  useEffect(() => setQuery(''), [levelKey, onPins])
+  const [query, setQuery] = useNavigationViewState<string>(`data-query:${levelKey}:${onPins}`, '')
+  const [scope, setScope] = useNavigationViewState<SearchScope>(`data-scope:${levelKey}:${onPins}`, 'all')
   const open = useCallback(
     (p: DataPath) => {
-      setQuery('')
       onNavigate(p, { root: 'all' })
     },
     [onNavigate]
   )
   const openPins = useCallback(() => {
-    setQuery('')
     onNavigate([], { root: 'pins' })
   }, [onNavigate])
   const { startSearch, stopSearch } = state
@@ -204,7 +202,18 @@ export function SaveDataPane({ slot, headSlot }: { slot: SaveDataSlot; headSlot?
           ? t('data.searchTruncated', { count: search.hits.length })
           : t('data.searchDone', { count: search.hits.length })
         : t('data.searchEmpty')
-    body = <DataList items={searchItems} narrow={narrow} lockedKeys={lockedKeys} canEdit={canEdit} onRange={state.onRange} footer={footer} {...handlers} />
+    body = (
+      <DataList
+        restorationKey={`data-search:${levelKey}:${query}:${scope}`}
+        items={searchItems}
+        narrow={narrow}
+        lockedKeys={lockedKeys}
+        canEdit={canEdit}
+        onRange={state.onRange}
+        footer={footer}
+        {...handlers}
+      />
+    )
   } else if (onPins)
     body = (
       <PinsList
@@ -225,6 +234,7 @@ export function SaveDataPane({ slot, headSlot }: { slot: SaveDataSlot; headSlot?
     const more = level.rows.length < meta.total
     body = (
       <DataList
+        restorationKey={`data-level:${levelKey}`}
         items={levelItems}
         narrow={narrow}
         lockedKeys={lockedKeys}

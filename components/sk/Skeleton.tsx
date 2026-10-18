@@ -46,28 +46,33 @@ type TableSkeletonProps = {
 export function TableSkeleton({ columns, rows = 8, label = '加载中', className, tableClassName }: TableSkeletonProps) {
   return (
     <SkeletonRegion label={label} className={cn('min-h-0 flex-1 overflow-hidden', className)}>
-      <table className={cn(dataTable, tableClassName)} aria-hidden>
-        <thead>
-          <tr>
+      <div
+        role="list"
+        className={cn(dataTable, tableClassName)}
+        style={{ '--data-list-columns': columns.map((c) => c.width || 'minmax(0,1fr)').join(' ') } as CSSProperties}
+        aria-hidden
+      >
+        <div data-list-head="">
+          <div role="presentation" data-list-row="">
             {columns.map((col) => (
-              <th key={col.key} style={col.width ? ({ width: col.width } as CSSProperties) : undefined}>
+              <div data-list-heading="" key={col.key} style={col.width ? ({ width: col.width } as CSSProperties) : undefined}>
                 <Skeleton className="h-[0.55rem] max-w-full w-[3.25rem]" />
-              </th>
+              </div>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </div>
+        </div>
+        <div data-list-body="">
           {Array.from({ length: rows }, (_, row) => (
-            <tr key={row}>
+            <div role="listitem" data-list-row="" key={row}>
               {columns.map((col, colIndex) => (
-                <td key={col.key}>
+                <div data-list-cell="" key={col.key}>
                   <Skeleton className="h-[0.7rem] max-w-full" style={{ width: `${52 + ((row + colIndex) % 5) * 9}%` }} />
-                </td>
+                </div>
               ))}
-            </tr>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      </div>
     </SkeletonRegion>
   )
 }

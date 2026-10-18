@@ -37,23 +37,31 @@ export function McpToolCard({ tool, active = false, onTry }: { tool: McpToolMeta
       <p className="m-0 text-[12.5px] leading-relaxed text-ink">{tool.description}</p>
       {rows.length ? (
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[12px]" aria-label={`${tool.name} ${t('integration.params')}`}>
-            <tbody>
+          <div
+            role="list"
+            className="w-full text-xs [&_[data-list-row]]:grid [&_[data-list-row]]:grid-cols-[minmax(8rem,1fr)_7rem_5rem_minmax(12rem,2fr)]"
+            aria-label={`${tool.name} ${t('integration.params')}`}
+          >
+            <div data-list-body="">
               {rows.map((row) => (
-                <tr key={row.name} className="border-t border-line-soft first:border-t-0">
-                  <td className="py-2 pr-3 align-top whitespace-nowrap">
+                <div role="listitem" data-list-row="" key={row.name} data-navigation-id={row.name} className="border-t border-line-soft first:border-t-0">
+                  <div data-list-cell="" className="py-2 pr-3 align-top whitespace-nowrap">
                     <code className="font-mono text-ink">{row.name}</code>
-                  </td>
-                  <td className="py-2 pr-3 align-top font-mono whitespace-nowrap text-ink-soft">{row.type}</td>
-                  <td className="py-2 pr-3 align-top whitespace-nowrap text-ink-soft">{row.required ? t('integration.required') : t('integration.optional')}</td>
-                  <td className="py-2 align-top text-ink-soft">
+                  </div>
+                  <div data-list-cell="" className="py-2 pr-3 align-top font-mono whitespace-nowrap text-ink-soft">
+                    {row.type}
+                  </div>
+                  <div data-list-cell="" className="py-2 pr-3 align-top whitespace-nowrap text-ink-soft">
+                    {row.required ? t('integration.required') : t('integration.optional')}
+                  </div>
+                  <div data-list-cell="" className="py-2 align-top text-ink-soft">
                     {row.description}
                     {row.enumValues ? <span className="ml-1 font-mono text-[11px]">({row.enumValues.join(' | ')})</span> : null}
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </div>
         </div>
       ) : (
         <p className="m-0 text-xs text-ink-soft">{t('integration.noParams')}</p>

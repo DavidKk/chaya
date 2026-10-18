@@ -117,6 +117,7 @@ export const DataRowView = memo(function DataRowView({ row, rowKey, path, ownerO
           <button
             type="button"
             className="flex max-w-full min-w-0 cursor-pointer border-none bg-transparent p-0 text-left text-[0.8125rem] font-medium text-ink hover:text-accent"
+            data-navigation-trigger=""
             onClick={() => onOpen(path)}
           >
             <TruncateText text={name} />
@@ -161,6 +162,7 @@ export const DataRowView = memo(function DataRowView({ row, rowKey, path, ownerO
       <button
         type="button"
         className={cn('inline-flex cursor-pointer items-center gap-0.5 border-none bg-transparent p-0 font-mono text-[0.75rem] hover:text-accent', cellTone(live))}
+        data-navigation-trigger=""
         onClick={() => onOpen(path)}
         aria-label={t('data.open', { name })}
       >

@@ -7,7 +7,7 @@ import { RiExchange2Line } from 'react-icons/ri'
 
 import { type BattleLockChange, type RunActionId } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { DataTable, type DataTableColumn, TextAction, TruncateText } from '@/components/sk'
+import { DataList, type DataListColumn, TextAction, TruncateText } from '@/components/sk'
 import { aliveEnemyCount, type BattleEnemyState, type BattleState, MAX_BATTLE_ENEMIES } from '@/lib/game/battle'
 
 import { EnemyPicker } from '../events/EnemyPicker'
@@ -38,7 +38,7 @@ export function BattleEnemies({ battle, enemies, blocked, locks, busy, run, onRu
   const addBlocked = blocked || (full ? t('events.troop.addFull', { max: MAX_BATTLE_ENEMIES }) : '')
   const pickBlocked = enemies ? '' : t('events.loading')
   const enemyName = (id: number) => enemies?.[id] || t('events.unnamed', { id })
-  const columns: DataTableColumn[] = [
+  const columns: DataListColumn[] = [
     { key: 'enemy', label: t('events.troop.colEnemy'), width: ENEMY_COLS.enemy },
     { key: 'hp', label: t('events.troop.colHp'), width: ENEMY_COLS.hp },
     { key: 'status', label: t('events.troop.colStatus'), width: ENEMY_COLS.status },
@@ -77,7 +77,7 @@ export function BattleEnemies({ battle, enemies, blocked, locks, busy, run, onRu
           <IoAddOutline size={15} aria-hidden />
         </IconAction>
       </SectionHead>
-      <DataTable columns={columns} className={tableClass}>
+      <DataList columns={columns} className={tableClass}>
         {battle.enemies.map((enemy) => {
           const reason = reasonFor(enemy)
           const name = enemy.name || enemyName(enemy.enemyId)
@@ -85,11 +85,11 @@ export function BattleEnemies({ battle, enemies, blocked, locks, busy, run, onRu
           const { index, enemyId } = enemy
           const fromEnemyId = enemyId
           return (
-            <tr key={`${index}-${enemyId}`}>
-              <td>
+            <div role="listitem" data-list-row="" key={`${index}-${enemyId}`} data-navigation-id={`${index}-${enemyId}`}>
+              <div data-list-cell="">
                 <TruncateText text={name} className={reason ? 'block text-ink-soft' : 'block text-ink'} />
-              </td>
-              <td>
+              </div>
+              <div data-list-cell="">
                 <VitalInput
                   value={enemy.hp}
                   max={enemy.mhp}
@@ -113,11 +113,11 @@ export function BattleEnemies({ battle, enemies, blocked, locks, busy, run, onRu
                   onValue={(hp) => void run(`hp:${index}`, { op: 'enemyHp', index, fromEnemyId, hp }, t('events.troop.hpOk', { name, hp }))}
                   onMax={(mhp) => void run(`mhp:${index}`, { op: 'enemyMhp', index, fromEnemyId, mhp }, t('events.troop.mhpOk', { name, mhp }))}
                 />
-              </td>
-              <td className="whitespace-nowrap text-ink-soft">
+              </div>
+              <div data-list-cell="" className="whitespace-nowrap text-ink-soft">
                 <span className="flex h-8 items-center">{status}</span>
-              </td>
-              <td>
+              </div>
+              <div data-list-cell="">
                 <span className="flex h-8 items-center justify-end gap-0.5">
                   {enemy.appeared && !enemy.alive ? (
                     <IconAction
@@ -173,11 +173,11 @@ export function BattleEnemies({ battle, enemies, blocked, locks, busy, run, onRu
                     <RiExchange2Line size={15} aria-hidden />
                   </IconAction>
                 </span>
-              </td>
-            </tr>
+              </div>
+            </div>
           )
         })}
-      </DataTable>
+      </DataList>
       <EnemyPicker
         open={picking != null && !!enemies}
         title={picking?.mode === 'transform' ? t('events.troop.transformTitle', { name: picking.enemy.name || enemyName(picking.enemy.enemyId) }) : t('events.troop.add')}

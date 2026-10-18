@@ -4,7 +4,7 @@ import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspac
 import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formCard, panelHead, settingsCardNarrow } from '@/components/layoutClasses'
-import { Skeleton, SkeletonRegion, Switch } from '@/components/sk'
+import { ScrollArea, Skeleton, SkeletonRegion, Switch } from '@/components/sk'
 
 /** 辅助 › 能力增强：改进游戏原有操作的开关，存在工具设置里，游戏插件同步后生效 */
 export function EnhanceSettingsView({ request }: { request: GameAgentRequest }) {
@@ -22,7 +22,7 @@ export function EnhanceSettingsView({ request }: { request: GameAgentRequest }) 
           <p className="m-0 truncate text-xs text-ink-soft">{t('edit.enhancePage')}</p>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <ScrollArea className="min-h-0 flex-1" scrollClassName="p-4">
         <div className={settingsCardNarrow}>
           {!loaded ? (
             <SkeletonRegion label={title} className={formCard}>
@@ -52,7 +52,7 @@ export function EnhanceSettingsView({ request }: { request: GameAgentRequest }) 
             </section>
           )}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   )
 }

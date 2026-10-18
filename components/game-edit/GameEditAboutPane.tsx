@@ -10,6 +10,7 @@ import { CreditsList } from '@/components/legal/CreditsList'
 import { LegalDocBody } from '@/components/legal/LegalDocBody'
 import { SectionSideNav, sectionSideNavItemClass, SectionSideNavItemContent } from '@/components/SectionSideNav'
 import { Tooltip } from '@/components/sk'
+import { ScrollArea } from '@/components/sk/ScrollArea'
 import { PRODUCT_DISPLAY_NAME } from '@/constants/brand'
 import { GITHUB_ISSUES_URL, GITHUB_URL, openExternal, PRODUCT_VERSION, SITE_URL } from '@/lib/about'
 import type { MessageKey } from '@/lib/i18n'
@@ -114,7 +115,7 @@ export function GameEditAboutPane() {
           )
         })}
       </SectionSideNav>
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
+      <ScrollArea className="min-h-0 min-w-0 flex-1" restorationKey={`about:${section}`} scrollClassName="overscroll-contain px-5 py-5">
         {section === 'intro' ? (
           <AboutIntro />
         ) : section === 'credits' ? (
@@ -125,7 +126,7 @@ export function GameEditAboutPane() {
         ) : (
           <LegalDocBody id={section} className="max-w-[44rem]" />
         )}
-      </div>
+      </ScrollArea>
     </div>
   )
 }

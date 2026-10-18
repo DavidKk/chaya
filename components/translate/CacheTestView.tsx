@@ -16,6 +16,7 @@ import { normalizeTranslateQuery } from '@/lib/translate/cache-query'
 import { joinSentenceBlock } from '@/lib/translate/sentence-plan'
 import { sentenceQueryViewUnits } from '@/lib/translate/sentence-query'
 import type { StructureAnnotation } from '@/lib/translate/structured-segments'
+import { returnToNavigationSource } from '@/lib/ui/navigation-restoration'
 
 import { CACHE_TEST_COPY } from './cache-test-copy'
 import { CacheMatchTraceView } from './CacheMatchTraceView'
@@ -127,16 +128,23 @@ export function CacheTestView() {
   return (
     <>
       <PanelHeadStart>
-        <Button variant="ghost" size="icon" aria-label={copy.back} tooltip={copy.back} onClick={() => router.push(cacheDebugReturnHref(searchParams.get('returnTo')))}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={copy.back}
+          tooltip={copy.back}
+          onClick={() => returnToNavigationSource(router, cacheDebugReturnHref(searchParams.get('returnTo')))}
+        >
           <IoArrowBackOutline size={16} aria-hidden />
         </Button>
       </PanelHeadStart>
       <PanelHeadEnd>
         <div className="flex flex-nowrap items-center gap-2">
-          <Select className="min-w-[4.5rem]" aria-label={copy.from} value={from} options={langs} onChange={(value) => setFrom(value as CacheLang)} />
-          <Select className="min-w-[4.5rem]" aria-label={copy.to} value={to} options={langs} onChange={(value) => setTo(value as CacheLang)} />
+          <Select className="min-w-[4.5rem]" aria-label={copy.from} tooltip={copy.from} value={from} options={langs} onChange={(value) => setFrom(value as CacheLang)} />
+          <Select className="min-w-[4.5rem]" aria-label={copy.to} tooltip={copy.to} value={to} options={langs} onChange={(value) => setTo(value as CacheLang)} />
           <Select
             aria-label={copy.scope}
+            tooltip={gameAllowed ? copy.scope : `${copy.scope} · ${copy.noGame}`}
             value={scope}
             onChange={(v) => setScope(v as CacheTestScope)}
             options={[

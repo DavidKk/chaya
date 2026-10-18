@@ -59,6 +59,8 @@ const en = {
   useSplit: 'Use structured suggestions',
   trace: {
     title: 'All matching paths',
+    expandAll: 'Expand all',
+    collapseAll: 'Collapse all',
     help: 'Continue inspecting splits even after a whole hit. These are diagnostic alternatives; the adopted result is shown separately.',
     adopted: 'Used by final result',
     alternative: 'Alternative path',
@@ -171,6 +173,8 @@ const zh: Copy = {
   useSplit: '使用结构拆分建议',
   trace: {
     title: '全部匹配路径',
+    expandAll: '展开全部',
+    collapseAll: '收起全部',
     help: '即使整段命中，仍继续检查拆分路径。以下为诊断备选，实际采用结果单独显示。',
     adopted: '实际结果采用',
     alternative: '备选路径',

@@ -20,6 +20,7 @@ import {
 } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { ApiKeyInput, Button, DurationInput, EmptyState, NumberSliderInput, resolveApiKeySaveAction, Select, TextInput, Tooltip, TruncateText } from '@/components/sk'
+import { ScrollArea } from '@/components/sk/ScrollArea'
 import { keepAliveToMs, msToKeepAlive } from '@/lib/game-agent/keep-alive'
 import {
   type AgentProviderAvailability,
@@ -374,7 +375,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   if (!editing) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <ScrollArea className="min-h-0 flex-1" scrollClassName="p-4" restorationKey={editing ? `agent:${agentId}` : 'agents'}>
           <section className="w-full max-w-3xl overflow-hidden rounded-md border border-line bg-panel" data-agent-list-card>
             <div className="flex min-w-0 items-center gap-3 border-b border-line px-4 py-3">
               <div className="min-w-0 flex-1">
@@ -388,7 +389,11 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
             </div>
             <ul className="m-0 flex list-none flex-col divide-y divide-line p-0">
               {settings.profiles.map((profile) => (
-                <li key={profile.id} className="flex items-center gap-3 px-3 py-3 hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]">
+                <li
+                  key={profile.id}
+                  data-navigation-id={`agent:${profile.id}`}
+                  className="flex items-center gap-3 px-3 py-3 hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]"
+                >
                   <div className="min-w-0 flex-1">
                     <TruncateText text={profile.label} className="block text-sm font-medium text-ink" />
                     <TruncateText
@@ -401,7 +406,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                     />
                   </div>
                   <div className="flex shrink-0 items-center gap-px">
-                    <Button variant="plain" size="icon" aria-label={t('integration.agentEdit')} onClick={() => onNavigate(profile.id)}>
+                    <Button variant="plain" size="icon" aria-label={t('integration.agentEdit')} data-navigation-trigger="" onClick={() => onNavigate(profile.id)}>
                       <TbPencilCog size={16} aria-hidden />
                     </Button>
                     <Button
@@ -420,7 +425,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
               ))}
             </ul>
           </section>
-        </div>
+        </ScrollArea>
       </div>
     )
   }
@@ -500,7 +505,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
           <TruncateText text={t('integration.agentDetailHint')} className="block text-xs text-ink-soft" />
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <ScrollArea className="min-h-0 flex-1" scrollClassName="p-4" restorationKey={editing ? `agent:${agentId}` : 'agents'}>
         <div className={settingsCardWide}>
           <section className={formCard} data-agent-detail-card>
             <label className={formFieldInlineWideLabel}>
@@ -761,7 +766,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
             </div>
           </section>
         </div>
-      </div>
+      </ScrollArea>
     </div>
   )
 }

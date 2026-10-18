@@ -27,6 +27,8 @@ export type TranslateCacheItem = {
   updatedAt: number
   hitCount: number
   nsfw: boolean
+  revision?: number
+  structure?: import('@/lib/translate/structured-segments').RecordStructure
 }
 
 export type TranslateCachePage = {
@@ -70,7 +72,10 @@ export function getSharedTranslateCacheStats(): SharedStats {
 export function getSharedTranslateCacheById(id: number): TranslateCacheItem | null {
   const cache = openSharedCache(defaultSharedDbPath())
   try {
-    return cache.getById(id)
+    const item = cache.getById(id)
+    if (!item) return null
+    const record = cache.record(item.src, { from: item.from, to: item.to })
+    return { ...item, revision: record?.revision, structure: record?.structure }
   } finally {
     cache.close()
   }
@@ -243,6 +248,8 @@ export type UpsertSharedTranslatePairsResult = {
 }
 
 export type ConfirmSharedOptimizeOptions = {
+  replaceGroups?: boolean
+  structure?: import('@/lib/translate/structured-segments').RecordStructure
   newlines?: import('@/lib/translate/logic-text').NewlineAnnotation[]
   expectedRevision?: number
   dryRun?: boolean

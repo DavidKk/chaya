@@ -200,7 +200,7 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
 
     listPage(opts: SharedCacheListOpts = {}) {
       const pageSize = Math.min(200, Math.max(1, Number(opts.pageSize) || 50))
-      const page = Math.max(1, Number(opts.page) || 1)
+      const requestedPage = Math.max(1, Math.floor(Number(opts.page) || 1))
       const q = String(opts.q || '').trim()
       const engine = String(opts.engine || '').trim()
       const nsfwFlag = parseCacheNsfwFlag(opts.nsfwFlag) || (opts.nsfw ? 'nsfw' : '')
@@ -209,7 +209,6 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
       const to = parseCacheLang(opts.to)
       const sort = parseSharedCacheSortKey(opts.sort)
       const order = parseSharedCacheSortDir(opts.order)
-      const offset = (page - 1) * pageSize
       const where = listFilter({ q, engine, nsfwFlag, live, from, to })
 
       const present = new Set<CacheEngineKind>()
@@ -225,6 +224,9 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
 
       const totalRow = where ? db.select({ n: count() }).from(translations).where(where).get() : db.select({ n: count() }).from(translations).get()
       const total = Number(totalRow?.n || 0)
+      const totalPages = Math.max(1, Math.ceil(total / pageSize))
+      const page = Math.min(requestedPage, totalPages)
+      const offset = (page - 1) * pageSize
 
       const orderBy =
         sort === 'hits'
@@ -254,7 +256,7 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
         page,
         pageSize,
         total,
-        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+        totalPages,
         q,
         engine,
         nsfw: nsfwFlag === 'nsfw',

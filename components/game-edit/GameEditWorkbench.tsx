@@ -10,6 +10,7 @@ import { GameEditRunSettings } from '@/components/GameEditRunSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell, legalBar, panelBody, panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
 import { LegalNotice, type LegalNoticeKind } from '@/components/legal/LegalNotice'
+import { NavigationScope } from '@/components/navigation/NavigationScope'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
 import { Button, EmptyState, NumberInput, ScrollArea, Spinner, SwitchToggle, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
@@ -331,343 +332,351 @@ export function GameEditWorkbench({
   ) : null
 
   return (
-    <div
-      className={cn(panelShell, surface === 'overlay' && 'rounded-lg border border-line bg-panel shadow-[0_12px_40px_rgb(0_0_0/0.45)]', className)}
-      role="region"
-      aria-label={t('edit.panelAria')}
-    >
-      {surface === 'overlay' ? <GameEditMainNav tab={tab} lastEditTab={lastEditTab} setTab={setTab} closeButton={closeButton} /> : null}
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {surface === 'page' || showEditNav ? (
-          <GameEditTabNav tab={tab} setTab={setTab} surface={surface} dots={events?.battle ? { battle: t('events.battle.dot') } : undefined} />
-        ) : null}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <NavigationScope value={catalog?.contentRoot || ''}>
+      <div
+        className={cn(panelShell, surface === 'overlay' && 'rounded-lg border border-line bg-panel shadow-[0_12px_40px_rgb(0_0_0/0.45)]', className)}
+        role="region"
+        aria-label={t('edit.panelAria')}
+      >
+        {surface === 'overlay' ? <GameEditMainNav tab={tab} lastEditTab={lastEditTab} setTab={setTab} closeButton={closeButton} /> : null}
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           {surface === 'page' || showEditNav ? (
-            <div className={panelHead}>
-              <PanelHeadTitle title={activeTab ? t(activeTab.labelKey) : t('edit.tabEdit')} description={tab === 'data' ? t('data.panelDesc') : t('edit.panelDesc')} />
-              <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-8 flex-1 shrink justify-end overflow-hidden')}>
-                {showTableFilters || (eventsTab && eventSourceCount > 0) ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
-                {tab === 'data' || tab === 'common' || tab === 'map' || tab === 'troop' || tab === 'battle' ? (
-                  <div ref={setPaneHead} className="flex min-w-0 shrink items-center" />
-                ) : null}
-                {showTableFilters ? (
-                  <ScrollArea
-                    indicator="horizontal"
-                    reserveGutter={false}
-                    className="h-8 min-w-0 shrink"
-                    scrollClassName="flex items-center"
-                    scrollProps={{
-                      'aria-label': t('edit.filtersAria'),
-                      onWheel: (e) => {
-                        const el = e.currentTarget
-                        if (el.scrollWidth <= el.clientWidth + 1) return
-                        if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
-                        e.preventDefault()
-                        el.scrollLeft += e.deltaY
-                      },
-                    }}
-                  >
-                    <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-2 pr-0.5 pl-1">
-                      {showOwnedFilter ? (
+            <GameEditTabNav tab={tab} setTab={setTab} surface={surface} dots={events?.battle ? { battle: t('events.battle.dot') } : undefined} />
+          ) : null}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {surface === 'page' || showEditNav ? (
+              <div className={panelHead}>
+                <PanelHeadTitle title={activeTab ? t(activeTab.labelKey) : t('edit.tabEdit')} description={tab === 'data' ? t('data.panelDesc') : t('edit.panelDesc')} />
+                <div className={cn(panelHeadEnd, 'h-8 min-h-0 min-w-8 flex-1 shrink justify-end overflow-hidden')}>
+                  {showTableFilters || (eventsTab && eventSourceCount > 0) ? <GameEditSearch value={filter} onChange={setFilter} /> : null}
+                  {tab === 'data' || tab === 'common' || tab === 'map' || tab === 'troop' || tab === 'battle' ? (
+                    <div ref={setPaneHead} className="flex min-w-0 shrink items-center" />
+                  ) : null}
+                  {showTableFilters ? (
+                    <ScrollArea
+                      indicator="horizontal"
+                      reserveGutter={false}
+                      className="h-8 min-w-0 shrink"
+                      scrollClassName="flex items-center"
+                      scrollProps={{
+                        'aria-label': t('edit.filtersAria'),
+                        onWheel: (e) => {
+                          const el = e.currentTarget
+                          if (el.scrollWidth <= el.clientWidth + 1) return
+                          if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+                          e.preventDefault()
+                          el.scrollLeft += e.deltaY
+                        },
+                      }}
+                    >
+                      <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-2 pr-0.5 pl-1">
+                        {showOwnedFilter ? (
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={onlyOwned}
+                            aria-label={t('edit.onlyOwned')}
+                            className={cn(filterToggle, onlyOwned && filterToggleOn)}
+                            onClick={() => setOnlyOwned(!onlyOwned)}
+                          >
+                            {t('edit.onlyOwned')}
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           role="switch"
-                          aria-checked={onlyOwned}
-                          aria-label={t('edit.onlyOwned')}
-                          className={cn(filterToggle, onlyOwned && filterToggleOn)}
-                          onClick={() => setOnlyOwned(!onlyOwned)}
+                          aria-checked={onlyNamed}
+                          aria-label={t('edit.onlyNamed')}
+                          className={cn(filterToggle, onlyNamed && filterToggleOn)}
+                          onClick={() => setOnlyNamed(!onlyNamed)}
                         >
-                          {t('edit.onlyOwned')}
+                          {t('edit.onlyNamed')}
                         </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={onlyNamed}
-                        aria-label={t('edit.onlyNamed')}
-                        className={cn(filterToggle, onlyNamed && filterToggleOn)}
-                        onClick={() => setOnlyNamed(!onlyNamed)}
-                      >
-                        {t('edit.onlyNamed')}
-                      </button>
-                    </div>
-                  </ScrollArea>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          <div className={isEditTab(tab) ? panelBody : 'flex min-h-0 flex-1 flex-col'}>
-            {tab === 'run' ? (
-              <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('edit.runSettingsAria') }}>
-                {readOnly ? (
-                  <p role="status" className="m-0 mx-4 mt-3 rounded-[0.25rem] border border-line bg-inset px-3 py-2 text-[0.75rem] text-ink-soft">
-                    {syncing ? t('edit.syncingNotice') : t('edit.readOnlyNotice')}
-                  </p>
-                ) : null}
-                <GameEditRunSettings
-                  value={{
-                    gold: session.gold,
-                    goldLocked,
-                    walkRate: session.walkRate,
-                    gameSpeed: session.gameSpeed,
-                    alwaysDash: session.alwaysDash,
-                    fullscreen: session.fullscreen,
-                    god: session.god,
-                    autoWin: session.autoWin,
-                    autoBattle: session.autoBattle,
-                    through: session.through,
-                    autotalk: session.autotalk,
-                    encounter: session.encounter,
-                    menuEnabled: session.menuEnabled,
-                    saveEnabled: session.saveEnabled,
-                    clickMove: session.clickMove,
-                    followers: session.followers,
-                    clickTeleport: session.clickTeleport,
-                    resourceSkip: session.resourceSkip,
-                    expRate: session.expRate,
-                  }}
-                  actionsEnabled={surface === 'overlay' || linked}
-                  readOnly={readOnly}
-                  onGoldChange={onGoldChange}
-                  onGoldLockChange={onGoldLockChange}
-                  onMoveRateChange={onMoveRateChange}
-                  onGameSpeedChange={onGameSpeedChange}
-                  onExpRateChange={onExpRateChange}
-                  onFlagChange={onRunFlagChange}
-                  onAction={onRunAction}
-                  onOpenBattle={() => setTab('battle')}
-                />
-              </ScrollArea>
-            ) : tab === 'trans' ? (
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <TabSuspense tab="trans" translateSection={translateSection} translateTab={translateTab}>
-                  <GameEditTransPane surface={surface} tab={translateTab} onTabChange={setTranslateTab} section={translateSection} onSectionChange={setTranslateSection} />
-                </TabSuspense>
-              </div>
-            ) : tab === 'logs' ? (
-              <TabSuspense tab="logs">
-                <GameEditLogsPane agentRequest={agentRequest} />
-              </TabSuspense>
-            ) : tab === 'mcp' ? (
-              <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
-                <GameEditIntegrationPane request={agentRequest} />
-              </Suspense>
-            ) : tab === 'about' ? (
-              <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
-                <GameEditAboutPane />
-              </Suspense>
-            ) : tab === 'settings' && agentRequest ? (
-              <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
-                <GameEditAgentSettingsPane
-                  request={agentRequest}
-                  hotkeys={
-                    <Suspense fallback={<GameEditHotkeysSkeleton />}>
-                      <AssistHotkeysView
-                        gameValue={session.hotkeys}
-                        globalValue={session.hotkeysGlobal}
-                        onGameChange={(next) => onHotkeysChange?.('game', next)}
-                        onGlobalChange={(next) => onHotkeysChange?.('global', next)}
-                      />
-                    </Suspense>
-                  }
-                />
-              </Suspense>
-            ) : tab === 'data' ? (
-              saveData ? (
-                <TabSuspense tab="data">
-                  <SaveDataPane slot={saveData} headSlot={paneHead} />
-                </TabSuspense>
-              ) : (
-                <EmptyState title={t('data.needLink')} message={t('data.needLinkMsg')} />
-              )
-            ) : tab === 'battle' ? (
-              <TabSuspense tab={tab}>
-                <BattlePane
-                  slot={events}
-                  session={session}
-                  onRunAction={onRunAction}
-                  onFlagChange={onRunFlagChange}
-                  onLock={onBattleLock ?? (() => undefined)}
-                  onOpenTroops={() => setTab('troop')}
-                  headSlot={paneHead}
-                  onOpenActor={
-                    setActorId
-                      ? (id) => {
-                          setTab('actor')
-                          setActorId(id)
-                        }
-                      : undefined
-                  }
-                />
-              </TabSuspense>
-            ) : eventsTab ? (
-              <TabSuspense tab={tab}>
-                <EventsBody tab={tab} slot={events} filter={filter} session={session} headSlot={paneHead} />
-              </TabSuspense>
-            ) : readOnly && isLiveValueTab(tab) ? (
-              <EmptyState title={syncing ? t('edit.syncingTitle') : t('edit.notStartedTitle')} message={syncing ? t('edit.syncingMsg') : t('edit.notStartedMsg')}>
-                {onOpenLibrary && !syncing ? (
-                  <Button className="mt-3" onClick={onOpenLibrary}>
-                    {t('edit.openLibrary')}
-                  </Button>
-                ) : null}
-              </EmptyState>
-            ) : error ? (
-              <EmptyState title={t('edit.catalogFailTitle')} message={error} hint={t('edit.catalogFailHint')} />
-            ) : loading && !catalog ? (
-              <GameEditPaneSkeleton tab={tab} />
-            ) : isEditTab(tab) && sourceCount === 0 ? (
-              <EmptyState title={t('edit.noData')} message={t('edit.noDataMsg')} />
-            ) : tab === 'actor' && catalog ? (
-              <TabSuspense tab="actor">
-                <ActorEditPane
-                  actors={catalog.actors}
-                  skills={catalog.skills || []}
-                  states={catalog.states || []}
-                  classes={catalog.classes || []}
-                  filter={filter}
-                  onlyNamed={onlyNamed}
-                  setOnlyNamed={setOnlyNamed}
-                  drafts={session.actors}
-                  locks={session.locks}
-                  onOwnedLockChange={(kind, entryId, on) => {
-                    if (actorId == null) return
-                    onActorOwnedLockChange?.(actorId, kind, entryId, on)
-                  }}
-                  onVitalLockChange={(kind, on) => {
-                    if (actorId == null) return
-                    onActorVitalLockChange?.(actorId, kind, on)
-                  }}
-                  selectedId={actorId}
-                  onSelectActor={setActorId ?? (() => {})}
-                  pane={actorPane}
-                  onPaneChange={setActorPane ?? (() => {})}
-                  onChange={onActorChange}
-                />
-              </TabSuspense>
-            ) : visible.length === 0 ? (
-              <EmptyState
-                title={noMatch ? t('edit.noMatch') : t('edit.noData')}
-                message={noMatch ? t('edit.noMatchMsg') : t('edit.noDataMsg')}
-                hint={noMatch ? t('edit.noMatchHint') : undefined}
-              />
-            ) : (
-              <ScrollArea className="min-h-0 flex-1" indicator="both" scrollProps={{ 'aria-label': t('edit.editTableAria') }}>
-                <div className="min-w-[36rem] text-[0.8125rem]" role="table" aria-label={t('edit.editTableAria')}>
-                  <div className={cn('sticky top-0 z-[3] grid items-center border-b border-line bg-paper-2', editColsValueOnly)} role="row">
-                    <div className={editHeadCell} role="columnheader">
-                      ID
-                    </div>
-                    <div className={editHeadCell} role="columnheader">
-                      名称
-                    </div>
-                    <div className={cn(editHeadCell, 'text-center')} role="columnheader">
-                      {tab === 'sw' ? t('edit.colStatus') : t('edit.colValue')}
-                    </div>
-                  </div>
-                  {visible.map((row, index) => {
-                    const locked = isRowLocked(row, session.locks)
-                    const lockAction =
-                      canLock && (row.valueType === 'count' || row.valueType === 'var') ? (
-                        <LockEndAction locked={locked} name={row.name} onChange={(on) => onRowLockChange(row, on)} />
-                      ) : undefined
-                    return (
-                      <div
-                        key={`${row.valueType}-${row.kind || 'x'}-${row.id}`}
-                        className={cn(
-                          'grid items-center border-t border-line hover:bg-[color-mix(in_oklab,var(--accent)_10%,transparent)]',
-                          editColsValueOnly,
-                          index === 0 && 'border-t-0'
-                        )}
-                        role="row"
-                      >
-                        <div className={cn(editCell, 'font-mono text-[0.75rem] text-ink-soft')} role="cell">
-                          {row.id}
-                        </div>
-                        <div className={cn(editCell, 'min-w-0')} role="cell">
-                          {row.meta ? (
-                            <div className="flex h-[2.35rem] min-w-0 flex-col justify-center gap-0.5">
-                              <TruncateText text={row.name} className="block font-medium leading-tight text-ink" />
-                              <TruncateText text={row.meta} className="block text-[0.7rem] leading-[1.35] text-ink-soft" />
-                            </div>
-                          ) : (
-                            <div className="flex h-[2.35rem] min-w-0 items-center">
-                              <TruncateText text={row.name} className="block font-medium leading-tight text-ink" />
-                            </div>
-                          )}
-                        </div>
-                        <div className={cn(editCell, 'flex justify-center')} role="cell">
-                          {row.valueType === 'count' && row.kind ? (
-                            <NumberInput
-                              value={row.value as number}
-                              min={0}
-                              max={COUNT_MAX}
-                              tooltip={t('edit.countEdit', { max: COUNT_MAX })}
-                              aria-label={t('edit.countOf', { name: row.name })}
-                              onValueChange={(v) => onCountChange(row.kind!, row.id, clampCount(v))}
-                              endAction={
-                                <span className="inline-flex items-center gap-0.5">
-                                  <InputIconBtn
-                                    tip={t('edit.countInc')}
-                                    disabledTip={t('edit.countAtMax', { max: COUNT_MAX })}
-                                    disabled={(row.value as number) >= COUNT_MAX}
-                                    ariaLabel={t('edit.countInc')}
-                                    onClick={() => onCountChange(row.kind!, row.id, clampCount((row.value as number) + 1))}
-                                  >
-                                    <MdExposurePlus1 size={15} aria-hidden />
-                                  </InputIconBtn>
-                                  <InputIconBtn
-                                    tip={t('edit.countMaxTip', { max: COUNT_MAX })}
-                                    disabledTip={t('edit.countAtMaxIs', { max: COUNT_MAX })}
-                                    disabled={(row.value as number) >= COUNT_MAX}
-                                    ariaLabel={t('edit.countMaxTip', { max: COUNT_MAX })}
-                                    onClick={() => onCountChange(row.kind!, row.id, COUNT_MAX)}
-                                  >
-                                    <TbNumber99Small size={17} aria-hidden />
-                                  </InputIconBtn>
-                                  <ClearIconBtn disabled={(row.value as number) === 0} onClick={() => onCountChange(row.kind!, row.id, 0)} />
-                                  {lockAction}
-                                </span>
-                              }
-                            />
-                          ) : null}
-                          {row.valueType === 'var' ? (
-                            <NumberInput
-                              value={row.value as number}
-                              tooltip={t('edit.varEdit')}
-                              aria-label={t('edit.varOf', { name: row.name })}
-                              onValueChange={(v) => onVarChange(row.id, v)}
-                              endAction={
-                                <span className="inline-flex items-center gap-0.5">
-                                  <ClearIconBtn disabled={(row.value as number) === 0} onClick={() => onVarChange(row.id, 0)} />
-                                  {lockAction}
-                                </span>
-                              }
-                            />
-                          ) : null}
-                          {row.valueType === 'sw' ? (
-                            <span className="inline-flex items-center gap-2">
-                              <SwitchToggle
-                                checked={!!row.value}
-                                aria-label={t('edit.switchOf', { name: row.name })}
-                                tooltip={row.value ? t('edit.toggleOff', { name: row.name }) : t('edit.toggleOn', { name: row.name })}
-                                onCheckedChange={(next) => onSwitchChange(row.id, next)}
-                              />
-                              <LockEndAction locked={locked} name={row.name} onChange={(on) => onRowLockChange(row, on)} />
-                            </span>
-                          ) : null}
-                        </div>
                       </div>
-                    )
-                  })}
+                    </ScrollArea>
+                  ) : null}
                 </div>
-              </ScrollArea>
-            )}
+              </div>
+            ) : null}
+
+            <div className={isEditTab(tab) ? panelBody : 'flex min-h-0 flex-1 flex-col'}>
+              {tab === 'run' ? (
+                <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('edit.runSettingsAria') }}>
+                  {readOnly ? (
+                    <p role="status" className="m-0 mx-4 mt-3 rounded-[0.25rem] border border-line bg-inset px-3 py-2 text-[0.75rem] text-ink-soft">
+                      {syncing ? t('edit.syncingNotice') : t('edit.readOnlyNotice')}
+                    </p>
+                  ) : null}
+                  <GameEditRunSettings
+                    value={{
+                      gold: session.gold,
+                      goldLocked,
+                      walkRate: session.walkRate,
+                      gameSpeed: session.gameSpeed,
+                      alwaysDash: session.alwaysDash,
+                      fullscreen: session.fullscreen,
+                      god: session.god,
+                      autoWin: session.autoWin,
+                      autoBattle: session.autoBattle,
+                      through: session.through,
+                      autotalk: session.autotalk,
+                      encounter: session.encounter,
+                      menuEnabled: session.menuEnabled,
+                      saveEnabled: session.saveEnabled,
+                      clickMove: session.clickMove,
+                      followers: session.followers,
+                      clickTeleport: session.clickTeleport,
+                      resourceSkip: session.resourceSkip,
+                      expRate: session.expRate,
+                    }}
+                    actionsEnabled={surface === 'overlay' || linked}
+                    readOnly={readOnly}
+                    onGoldChange={onGoldChange}
+                    onGoldLockChange={onGoldLockChange}
+                    onMoveRateChange={onMoveRateChange}
+                    onGameSpeedChange={onGameSpeedChange}
+                    onExpRateChange={onExpRateChange}
+                    onFlagChange={onRunFlagChange}
+                    onAction={onRunAction}
+                    onOpenBattle={() => setTab('battle')}
+                  />
+                </ScrollArea>
+              ) : tab === 'trans' ? (
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <TabSuspense tab="trans" translateSection={translateSection} translateTab={translateTab}>
+                    <GameEditTransPane surface={surface} tab={translateTab} onTabChange={setTranslateTab} section={translateSection} onSectionChange={setTranslateSection} />
+                  </TabSuspense>
+                </div>
+              ) : tab === 'logs' ? (
+                <TabSuspense tab="logs">
+                  <GameEditLogsPane agentRequest={agentRequest} />
+                </TabSuspense>
+              ) : tab === 'mcp' ? (
+                <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
+                  <GameEditIntegrationPane request={agentRequest} />
+                </Suspense>
+              ) : tab === 'about' ? (
+                <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
+                  <GameEditAboutPane />
+                </Suspense>
+              ) : tab === 'settings' && agentRequest ? (
+                <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
+                  <GameEditAgentSettingsPane
+                    request={agentRequest}
+                    hotkeys={
+                      <Suspense fallback={<GameEditHotkeysSkeleton />}>
+                        <AssistHotkeysView
+                          gameValue={session.hotkeys}
+                          globalValue={session.hotkeysGlobal}
+                          onGameChange={(next) => onHotkeysChange?.('game', next)}
+                          onGlobalChange={(next) => onHotkeysChange?.('global', next)}
+                        />
+                      </Suspense>
+                    }
+                  />
+                </Suspense>
+              ) : tab === 'data' ? (
+                saveData ? (
+                  <TabSuspense tab="data">
+                    <SaveDataPane slot={saveData} headSlot={paneHead} />
+                  </TabSuspense>
+                ) : (
+                  <EmptyState title={t('data.needLink')} message={t('data.needLinkMsg')} />
+                )
+              ) : tab === 'battle' ? (
+                <TabSuspense tab={tab}>
+                  <BattlePane
+                    slot={events}
+                    session={session}
+                    onRunAction={onRunAction}
+                    onFlagChange={onRunFlagChange}
+                    onLock={onBattleLock ?? (() => undefined)}
+                    onOpenTroops={() => setTab('troop')}
+                    headSlot={paneHead}
+                    onOpenActor={
+                      setActorId
+                        ? (id) => {
+                            setTab('actor')
+                            setActorId(id)
+                          }
+                        : undefined
+                    }
+                  />
+                </TabSuspense>
+              ) : eventsTab ? (
+                <TabSuspense tab={tab}>
+                  <EventsBody tab={tab} slot={events} filter={filter} session={session} headSlot={paneHead} />
+                </TabSuspense>
+              ) : readOnly && isLiveValueTab(tab) ? (
+                <EmptyState title={syncing ? t('edit.syncingTitle') : t('edit.notStartedTitle')} message={syncing ? t('edit.syncingMsg') : t('edit.notStartedMsg')}>
+                  {onOpenLibrary && !syncing ? (
+                    <Button className="mt-3" onClick={onOpenLibrary}>
+                      {t('edit.openLibrary')}
+                    </Button>
+                  ) : null}
+                </EmptyState>
+              ) : error ? (
+                <EmptyState title={t('edit.catalogFailTitle')} message={error} hint={t('edit.catalogFailHint')} />
+              ) : loading && !catalog ? (
+                <GameEditPaneSkeleton tab={tab} />
+              ) : isEditTab(tab) && sourceCount === 0 ? (
+                <EmptyState title={t('edit.noData')} message={t('edit.noDataMsg')} />
+              ) : tab === 'actor' && catalog ? (
+                <TabSuspense tab="actor">
+                  <ActorEditPane
+                    actors={catalog.actors}
+                    skills={catalog.skills || []}
+                    states={catalog.states || []}
+                    classes={catalog.classes || []}
+                    filter={filter}
+                    onlyNamed={onlyNamed}
+                    setOnlyNamed={setOnlyNamed}
+                    drafts={session.actors}
+                    locks={session.locks}
+                    onOwnedLockChange={(kind, entryId, on) => {
+                      if (actorId == null) return
+                      onActorOwnedLockChange?.(actorId, kind, entryId, on)
+                    }}
+                    onVitalLockChange={(kind, on) => {
+                      if (actorId == null) return
+                      onActorVitalLockChange?.(actorId, kind, on)
+                    }}
+                    selectedId={actorId}
+                    onSelectActor={setActorId ?? (() => {})}
+                    pane={actorPane}
+                    onPaneChange={setActorPane ?? (() => {})}
+                    onChange={onActorChange}
+                  />
+                </TabSuspense>
+              ) : visible.length === 0 ? (
+                <EmptyState
+                  title={noMatch ? t('edit.noMatch') : t('edit.noData')}
+                  message={noMatch ? t('edit.noMatchMsg') : t('edit.noDataMsg')}
+                  hint={noMatch ? t('edit.noMatchHint') : undefined}
+                />
+              ) : (
+                <ScrollArea
+                  className="min-h-0 flex-1"
+                  indicator="both"
+                  restorationKey={`catalog:${tab}:${q}:${onlyOwned}:${onlyNamed}`}
+                  scrollProps={{ 'aria-label': t('edit.editTableAria') }}
+                >
+                  <div className="min-w-[36rem] text-[0.8125rem]" role="list" aria-label={t('edit.editTableAria')}>
+                    <div className={cn('sticky top-0 z-[3] grid items-center border-b border-line bg-paper-2', editColsValueOnly)} role="presentation">
+                      <div className={editHeadCell} data-list-heading="">
+                        ID
+                      </div>
+                      <div className={editHeadCell} data-list-heading="">
+                        名称
+                      </div>
+                      <div className={cn(editHeadCell, 'text-center')} data-list-heading="">
+                        {tab === 'sw' ? t('edit.colStatus') : t('edit.colValue')}
+                      </div>
+                    </div>
+                    {visible.map((row, index) => {
+                      const locked = isRowLocked(row, session.locks)
+                      const lockAction =
+                        canLock && (row.valueType === 'count' || row.valueType === 'var') ? (
+                          <LockEndAction locked={locked} name={row.name} onChange={(on) => onRowLockChange(row, on)} />
+                        ) : undefined
+                      return (
+                        <div
+                          key={`${row.valueType}-${row.kind || 'x'}-${row.id}`}
+                          data-navigation-id={`${row.valueType}-${row.kind || 'x'}-${row.id}`}
+                          className={cn(
+                            'grid items-center border-t border-line hover:bg-[color-mix(in_oklab,var(--accent)_10%,transparent)]',
+                            editColsValueOnly,
+                            index === 0 && 'border-t-0'
+                          )}
+                          role="listitem"
+                        >
+                          <div className={cn(editCell, 'font-mono text-[0.75rem] text-ink-soft')} data-list-cell="">
+                            {row.id}
+                          </div>
+                          <div className={cn(editCell, 'min-w-0')} data-list-cell="">
+                            {row.meta ? (
+                              <div className="flex h-[2.35rem] min-w-0 flex-col justify-center gap-0.5">
+                                <TruncateText text={row.name} className="block font-medium leading-tight text-ink" />
+                                <TruncateText text={row.meta} className="block text-[0.7rem] leading-[1.35] text-ink-soft" />
+                              </div>
+                            ) : (
+                              <div className="flex h-[2.35rem] min-w-0 items-center">
+                                <TruncateText text={row.name} className="block font-medium leading-tight text-ink" />
+                              </div>
+                            )}
+                          </div>
+                          <div className={cn(editCell, 'flex justify-center')} data-list-cell="">
+                            {row.valueType === 'count' && row.kind ? (
+                              <NumberInput
+                                value={row.value as number}
+                                min={0}
+                                max={COUNT_MAX}
+                                tooltip={t('edit.countEdit', { max: COUNT_MAX })}
+                                aria-label={t('edit.countOf', { name: row.name })}
+                                onValueChange={(v) => onCountChange(row.kind!, row.id, clampCount(v))}
+                                endAction={
+                                  <span className="inline-flex items-center gap-0.5">
+                                    <InputIconBtn
+                                      tip={t('edit.countInc')}
+                                      disabledTip={t('edit.countAtMax', { max: COUNT_MAX })}
+                                      disabled={(row.value as number) >= COUNT_MAX}
+                                      ariaLabel={t('edit.countInc')}
+                                      onClick={() => onCountChange(row.kind!, row.id, clampCount((row.value as number) + 1))}
+                                    >
+                                      <MdExposurePlus1 size={15} aria-hidden />
+                                    </InputIconBtn>
+                                    <InputIconBtn
+                                      tip={t('edit.countMaxTip', { max: COUNT_MAX })}
+                                      disabledTip={t('edit.countAtMaxIs', { max: COUNT_MAX })}
+                                      disabled={(row.value as number) >= COUNT_MAX}
+                                      ariaLabel={t('edit.countMaxTip', { max: COUNT_MAX })}
+                                      onClick={() => onCountChange(row.kind!, row.id, COUNT_MAX)}
+                                    >
+                                      <TbNumber99Small size={17} aria-hidden />
+                                    </InputIconBtn>
+                                    <ClearIconBtn disabled={(row.value as number) === 0} onClick={() => onCountChange(row.kind!, row.id, 0)} />
+                                    {lockAction}
+                                  </span>
+                                }
+                              />
+                            ) : null}
+                            {row.valueType === 'var' ? (
+                              <NumberInput
+                                value={row.value as number}
+                                tooltip={t('edit.varEdit')}
+                                aria-label={t('edit.varOf', { name: row.name })}
+                                onValueChange={(v) => onVarChange(row.id, v)}
+                                endAction={
+                                  <span className="inline-flex items-center gap-0.5">
+                                    <ClearIconBtn disabled={(row.value as number) === 0} onClick={() => onVarChange(row.id, 0)} />
+                                    {lockAction}
+                                  </span>
+                                }
+                              />
+                            ) : null}
+                            {row.valueType === 'sw' ? (
+                              <span className="inline-flex items-center gap-2">
+                                <SwitchToggle
+                                  checked={!!row.value}
+                                  aria-label={t('edit.switchOf', { name: row.name })}
+                                  tooltip={row.value ? t('edit.toggleOff', { name: row.name }) : t('edit.toggleOn', { name: row.name })}
+                                  onCheckedChange={(next) => onSwitchChange(row.id, next)}
+                                />
+                                <LockEndAction locked={locked} name={row.name} onChange={(on) => onRowLockChange(row, on)} />
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+            {legalKind ? <LegalNotice kind={legalKind} link={surface === 'page'} className={legalBar} /> : null}
           </div>
-          {legalKind ? <LegalNotice kind={legalKind} link={surface === 'page'} className={legalBar} /> : null}
         </div>
       </div>
-    </div>
+    </NavigationScope>
   )
 }

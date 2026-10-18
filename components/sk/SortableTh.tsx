@@ -1,6 +1,5 @@
 'use client'
 
-import type { ElementType } from 'react'
 import { IoCaretDown, IoCaretUp } from 'react-icons/io5'
 
 import { controlDisabled } from '@/components/sk/control'
@@ -15,19 +14,15 @@ export type SortableThProps = {
   disabled?: boolean
   onCycle: () => void
   className?: string
-  /**
-   * Native table header vs CSS-grid columnheader.
-   * Default `th` keeps DataTable valid; pass `div` for role=table grids.
-   */
+  /** @deprecated Layout is always a list heading. */
   as?: 'th' | 'div'
 }
 
 /** 可点表头：未激活 → 升序 → 降序 → 还原（由 onCycle 实现） */
-export function SortableTh({ label, active, order, disabled, onCycle, className, as = 'th' }: SortableThProps) {
+export function SortableTh({ label, active, order, disabled, onCycle, className }: SortableThProps) {
   const tip = !active ? '按升序排列' : order === 'asc' ? '按降序排列' : '还原默认排序'
-  const Comp = as as ElementType
   return (
-    <Comp className={className} role={as === 'div' ? 'columnheader' : undefined} aria-sort={active ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}>
+    <div className={className} data-list-heading="" data-sort={active ? order : 'none'}>
       <button
         type="button"
         className={cn(
@@ -38,7 +33,7 @@ export function SortableTh({ label, active, order, disabled, onCycle, className,
         )}
         disabled={disabled}
         title={tip}
-        aria-label={`${label}：${tip}`}
+        aria-label={`${label}：${active ? (order === 'asc' ? '升序；' : '降序；') : ''}${tip}`}
         onClick={onCycle}
       >
         <span>{label}</span>
@@ -47,6 +42,6 @@ export function SortableTh({ label, active, order, disabled, onCycle, className,
           <IoCaretDown size={8} className={cn('-mt-0.5', active && order === 'desc' ? 'opacity-100' : 'opacity-35')} />
         </span>
       </button>
-    </Comp>
+    </div>
   )
 }

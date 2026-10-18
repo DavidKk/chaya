@@ -29,6 +29,7 @@ export function WherePath({ row, onOpen }: { row: Pick<DataRowAt, 'path' | 'labe
               type="button"
               className="inline-flex min-w-0 max-w-[8rem] cursor-pointer border-none bg-transparent p-0 font-mono text-[0.68rem] text-ink-soft hover:text-accent"
               aria-label={t('data.open', { name: label })}
+              data-navigation-trigger=""
               onClick={() => onOpen(row.path.slice(0, i + 1))}
             >
               <TruncateText text={label} />
@@ -89,6 +90,7 @@ export function PinsList({ rows, userPins, narrow, lockedKeys, canEdit, onUnpin,
     return (
       <div
         key={key}
+        data-navigation-id={`data:${key}`}
         role="listitem"
         className={cn('relative flex', over === key && dragging && 'shadow-[inset_0_2px_0_var(--accent)]')}
         style={{ height }}

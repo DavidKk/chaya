@@ -272,6 +272,25 @@ describe('shared-cache identical skip + scrub', () => {
     cache.close()
   })
 
+  it('returns the nearest legal page after the original last page is deleted', () => {
+    const cache = openSharedCache(dbPath)
+    cache.upsertMany(
+      [
+        ['項目一', '项目一'],
+        ['項目二', '项目二'],
+        ['項目三', '项目三'],
+      ],
+      'manual'
+    )
+    expect(cache.listPage({ page: 3, pageSize: 1 }).page).toBe(3)
+    cache.remove('項目三')
+    const nearest = cache.listPage({ page: 3, pageSize: 1 })
+    expect(nearest.page).toBe(2)
+    expect(nearest.totalPages).toBe(2)
+    expect(nearest.items).toHaveLength(1)
+    cache.close()
+  })
+
   it('listPage nsfw filter uses stored flag (engine tag + sensitive src)', () => {
     const cache = openSharedCache(dbPath)
     cache.upsertMany(

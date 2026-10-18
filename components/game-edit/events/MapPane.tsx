@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { IoChevronBack, IoChevronForward } from 'react-icons/io5'
 
 import type { SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { padXDense } from '@/components/layoutClasses'
+import { useNavigationBooleanState, useNavigationJsonState, useNavigationViewState } from '@/components/navigation/useNavigationViewState'
 import { EmptyState, ScrollArea, TextInput, TruncateText } from '@/components/sk'
 import { flattenMapTree, type MapTreeRow } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
@@ -44,10 +45,10 @@ function matchMap(row: MapTreeRow, q: string): { hit: boolean; eventHit?: string
  */
 export function MapPane({ slot, filter, session, headSlot }: Props) {
   const t = useT()
-  const [near, setNear] = useState(true)
+  const [near, setNear] = useNavigationBooleanState('maps:near', true)
   const data = slot.data
   const rows = useMemo(() => (data ? flattenMapTree(data.mapIndex.nodes) : []), [data])
-  const [treeQuery, setTreeQuery] = useState('')
+  const [treeQuery, setTreeQuery] = useNavigationViewState<string>('maps:query', '')
   const q = (treeQuery.trim() || filter.trim()).toLowerCase()
   const byId = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows])
   const parentOf = useCallback(
@@ -73,7 +74,18 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
   const currentId = slot.live ? (slot.player?.mapId ?? 0) : 0
   const currentAncestors = useMemo(() => new Set(currentId ? ancestorsOf(currentId) : []), [currentId, ancestorsOf])
   /** Level picked by drilling / breadcrumb; dropped once another map gets selected */
-  const [nav, setNav] = useState<{ anchor: number | null; level: number } | null>(null)
+  const [nav, setNav] = useNavigationJsonState<{ anchor: number | null; level: number } | null>(
+    'maps:level',
+    null,
+    (value): value is { anchor: number | null; level: number } | null =>
+      value === null ||
+      (typeof value === 'object' &&
+        value !== null &&
+        'anchor' in value &&
+        'level' in value &&
+        (value.anchor === null || Number.isInteger(value.anchor)) &&
+        Number.isInteger(value.level))
+  )
   const autoLevel = slot.mapId != null ? parentOf(slot.mapId) : currentId ? parentOf(currentId) : 0
   const level = nav && nav.anchor === slot.mapId && (nav.level === 0 || byId.has(nav.level)) ? nav.level : autoLevel
   const goTo = (id: number) => {
@@ -102,8 +114,14 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
     const kids = drill && parents.has(id)
     const path = pathOf(id)
     return (
-      <div key={key ?? id} className={cn('flex items-center', id === selected?.id && treeRowOn)}>
-        <button type="button" className={cn(treeRow, 'min-w-0 flex-1')} aria-current={id === selected?.id ? 'true' : undefined} onClick={() => slot.onSelectMap(id, null)}>
+      <div key={key ?? id} data-navigation-id={`map:${key ?? id}`} className={cn('flex items-center', id === selected?.id && treeRowOn)}>
+        <button
+          type="button"
+          className={cn(treeRow, 'min-w-0 flex-1')}
+          aria-current={id === selected?.id ? 'true' : undefined}
+          data-navigation-trigger=""
+          onClick={() => slot.onSelectMap(id, null)}
+        >
           <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
             <TruncateText text={label} tip={path ? `${path} › ${label}` : label} className="text-ink" />
             {extra ? <TruncateText text={`· ${extra}`} className="text-[0.7rem] text-ink-soft" style={{ flexShrink: 999 }} /> : null}
@@ -121,6 +139,7 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
             style={{ alignSelf: 'stretch' }}
             aria-label={t('events.map.enterChildren', { name: label })}
             title={t('events.map.enterChildren', { name: label })}
+            data-navigation-trigger=""
             onClick={() => goTo(id)}
           >
             <IoChevronForward size={13} aria-hidden />
@@ -152,7 +171,7 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
       {crumbs.slice(-2).map((id) => (
         <span key={id} className="flex min-w-0 items-center gap-0.5">
           <span className="text-[0.7rem] text-ink-soft">›</span>
-          <button type="button" className={cn(crumbBtn, id === level && 'font-semibold text-ink')} onClick={() => goTo(id)}>
+          <button type="button" className={cn(crumbBtn, id === level && 'font-semibold text-ink')} data-navigation-trigger="" onClick={() => goTo(id)}>
             <TruncateText text={nameOf(id)} />
           </button>
         </span>
@@ -179,7 +198,7 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
             />
           </div>
           {q ? null : breadcrumb}
-          <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('events.map.treeAria') }}>
+          <ScrollArea className="min-h-0 flex-1" indicator="vertical" restorationKey={`maps:${q}:${level}`} scrollProps={{ 'aria-label': t('events.map.treeAria') }}>
             {recent.length && !q && !level ? (
               <>
                 <h3 className={sideTitle}>{t('events.map.recent')}</h3>

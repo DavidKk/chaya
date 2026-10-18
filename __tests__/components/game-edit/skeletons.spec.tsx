@@ -34,11 +34,11 @@ function renderWithLocale(node: ReactNode) {
   )
 }
 
-test('日志懒加载使用筛选头、四列表格和页脚骨架', async () => {
+test('日志懒加载使用筛选头、四字段列表和页脚骨架', async () => {
   await act(async () => renderWithLocale(<GameEditPaneSkeleton tab="logs" />))
 
   expect(host.querySelector('[aria-label="加载日志面板"]')).not.toBeNull()
-  expect(host.querySelectorAll('thead th')).toHaveLength(4)
+  expect(host.querySelectorAll('[data-list-heading]')).toHaveLength(4)
   expect(host.querySelector('[class*="border-t"][class*="justify-between"]')).not.toBeNull()
 })
 

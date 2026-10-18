@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell, formCardDense, formControlInline, formDescInline, formFieldInlineDense, formTitleInline, padXDense, padYDense } from '@/components/layoutClasses'
+import { useNavigationBooleanState, useNavigationViewState } from '@/components/navigation/useNavigationViewState'
 import { EmptyState, formatCompactNumber, formatExactNumber, NumberInput, ScrollArea, SegmentedNav, Select, SwitchToggle, TextInput, Tooltip, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import type { CatalogEntry } from '@/lib/game/game-edit-catalog-types'
@@ -168,19 +169,14 @@ export function ActorEditPane({
     return out
   }, [actors, onlyNamed, q])
 
-  const [listFilter, setListFilter] = useState('')
-  const [showOwnedOnly, setShowOwnedOnly] = useState(false)
+  const [listFilter, setListFilter] = useNavigationViewState<string>(`actor:${selectedId}:${pane}:query`, '')
+  const [showOwnedOnly, setShowOwnedOnly] = useNavigationBooleanState(`actor:${selectedId}:${pane}:owned`, false)
 
   useEffect(() => {
     if (actorList.length === 0) return
     if (selectedId != null && actorList.some((a) => a.id === selectedId)) return
     onSelectActor(actorList[0]!.id)
   }, [actorList, selectedId, onSelectActor])
-
-  useEffect(() => {
-    setListFilter('')
-    setShowOwnedOnly(false)
-  }, [pane])
 
   const selected = (selectedId != null ? actorList.find((a) => a.id === selectedId) : null) || null
   const draft = selected ? drafts[selected.id] || defaultActorDraft(selected.id, selected.name) : null
@@ -227,13 +223,19 @@ export function ActorEditPane({
         {actorList.length === 0 ? (
           <EmptyState title={t('edit.actorNoMatchTitle')} message={t('edit.actorNoMatchMsg')} hint={t('edit.actorNoMatchHint')} />
         ) : (
-          <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('edit.actorListAria') }}>
+          <ScrollArea className="min-h-0 flex-1" indicator="vertical" restorationKey={`actors:${q}:${onlyNamed}`} scrollProps={{ 'aria-label': t('edit.actorListAria') }}>
             <ul className="m-0 list-none p-0">
               {actorList.map((entry) => {
                 const on = entry.id === selectedId
                 return (
-                  <li key={entry.id}>
-                    <button type="button" className={cn(listItem, on && listItemOn)} aria-current={on ? 'true' : undefined} onClick={() => onSelectActor(entry.id)}>
+                  <li key={entry.id} data-navigation-id={`actor:${entry.id}`}>
+                    <button
+                      type="button"
+                      className={cn(listItem, on && listItemOn)}
+                      aria-current={on ? 'true' : undefined}
+                      data-navigation-trigger=""
+                      onClick={() => onSelectActor(entry.id)}
+                    >
                       <TruncateText text={entry.name || t('edit.actorFallback', { id: entry.id })} className="font-medium text-ink" />
                     </button>
                   </li>
@@ -414,15 +416,15 @@ export function ActorEditPane({
                   <EmptyState title={t('edit.noMatchItems')} message={t('edit.noMatchItemsMsg')} />
                 ) : (
                   <ScrollArea className="min-h-0 flex-1" indicator="both" scrollProps={{ 'aria-label': pane === 'skills' ? t('edit.skillsList') : t('edit.statesList') }}>
-                    <div className="min-w-[36rem] text-[0.8125rem]" role="table" aria-label={pane === 'skills' ? t('edit.skillsTable') : t('edit.statesTable')}>
-                      <div className={cn('sticky top-0 z-[3] grid items-center border-b border-line bg-paper-2', ownedCols)} role="row">
-                        <div className={editHeadCell} role="columnheader">
+                    <div className="min-w-[36rem] text-[0.8125rem]" role="list" aria-label={pane === 'skills' ? t('edit.skillsTable') : t('edit.statesTable')}>
+                      <div className={cn('sticky top-0 z-[3] grid items-center border-b border-line bg-paper-2', ownedCols)} role="presentation">
+                        <div className={editHeadCell} data-list-heading="">
                           ID
                         </div>
-                        <div className={editHeadCell} role="columnheader">
+                        <div className={editHeadCell} data-list-heading="">
                           名称
                         </div>
-                        <div className={cn(editHeadCell, 'text-center')} role="columnheader">
+                        <div className={cn(editHeadCell, 'text-center')} data-list-heading="">
                           {t('edit.colStatus')}
                         </div>
                       </div>
@@ -440,12 +442,12 @@ export function ActorEditPane({
                               ownedCols,
                               index === 0 && 'border-t-0'
                             )}
-                            role="row"
+                            role="listitem"
                           >
-                            <div className={cn(editCell, 'font-mono text-[0.75rem] text-ink-soft')} role="cell">
+                            <div className={cn(editCell, 'font-mono text-[0.75rem] text-ink-soft')} data-list-cell="">
                               {entry.id}
                             </div>
-                            <div className={cn(editCell, 'min-w-0')} role="cell">
+                            <div className={cn(editCell, 'min-w-0')} data-list-cell="">
                               {entry.description ? (
                                 <div className="flex h-[2.35rem] min-w-0 flex-col justify-center gap-0.5">
                                   <TruncateText text={name} className="block font-medium leading-tight text-ink" />
@@ -457,7 +459,7 @@ export function ActorEditPane({
                                 </div>
                               )}
                             </div>
-                            <div className={cn(editCell, 'flex justify-center')} role="cell">
+                            <div className={cn(editCell, 'flex justify-center')} data-list-cell="">
                               <span className="inline-flex items-center gap-2">
                                 <SwitchToggle
                                   checked={checked}

@@ -8,11 +8,13 @@ import { TbBug, TbPencil, TbRating18Plus } from 'react-icons/tb'
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell, panelFoot } from '@/components/layoutClasses'
+import { useNavigationViewState } from '@/components/navigation/useNavigationViewState'
 import { useNotification } from '@/components/notification/useNotification'
 import { PanelHeadEnd } from '@/components/PanelHeadEnd'
 import { Badge, Button, EmptyState, ScrollArea, Select, SortableTh, TextInput, TruncateText } from '@/components/sk'
 import { CACHE_TEST_COPY } from '@/components/translate/cache-test-copy'
 import { CacheOptimizeContent, type CacheOptimizeTarget } from '@/components/translate/CacheOptimizeContent'
+import { CopyIconButton } from '@/components/translate/CopyIconButton'
 import {
   TRANSLATE_CACHE_COLUMN_WIDTHS,
   TRANSLATE_CACHE_GRID_MIN_WIDTH,
@@ -182,15 +184,11 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
   const sortExplicit = searchParams.has('sort') || searchParams.has('order')
   const sort = parseSharedCacheSortKey(searchParams.get('sort'), DEFAULT_SORT)
   const order = parseSharedCacheSortDir(searchParams.get('order'), DEFAULT_ORDER)
-  const [qInput, setQInput] = useState(q)
+  const [qInput, setQInput] = useNavigationViewState<string>(`cache:search-draft:${q}`, q)
   const [data, setData] = useState<CachePage | null>(null)
   const [error, setError] = useState('')
   const [pending, startTransition] = useTransition()
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setQInput(q)
-  }, [q])
 
   const load = useCallback(
     async (opts: {
@@ -234,8 +232,8 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
   )
 
   useEffect(() => {
-    startTransition(() => {
-      void load({ page, pageSize, q, engine, nsfwFlag, live, srcLang, tgtLang, sort, order })
+    startTransition(async () => {
+      await load({ page, pageSize, q, engine, nsfwFlag, live, srcLang, tgtLang, sort, order })
     })
   }, [load, page, pageSize, q, engine, nsfwFlag, live, srcLang, tgtLang, sort, order])
 
@@ -299,8 +297,8 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
   }
 
   function reload() {
-    startTransition(() => {
-      void load({ page, pageSize, q, engine, nsfwFlag, live, srcLang, tgtLang, sort, order })
+    startTransition(async () => {
+      await load({ page, pageSize, q, engine, nsfwFlag, live, srcLang, tgtLang, sort, order })
     })
   }
 
@@ -364,8 +362,9 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
 
   const total = data?.total ?? 0
   const totalPages = data?.totalPages ?? 1
-  const rangeFrom = total === 0 ? 0 : (page - 1) * pageSize + 1
-  const rangeTo = Math.min(page * pageSize, total)
+  const visiblePage = data?.page ?? page
+  const rangeFrom = total === 0 ? 0 : (visiblePage - 1) * pageSize + 1
+  const rangeTo = Math.min(visiblePage * pageSize, total)
   const loading = pending && !data
   const empty = Boolean(data && data.items.length === 0)
   const busy = pending || saving
@@ -378,64 +377,74 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PanelHeadEnd>
-        <TextInput
-          search
-          className="w-52 max-w-full shrink"
-          placeholder={t('translate.cacheSearch')}
-          value={qInput}
-          disabled={busy}
-          aria-label={t('translate.cacheSearch')}
-          onChange={(e) => setQInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commitQ(qInput)
-          }}
-          onBlur={() => commitQ(qInput)}
-        />
-        <Select
-          className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
-          value={srcLang}
-          options={langOptions}
-          disabled={busy}
-          panelWidth="content"
-          aria-label={t('translate.cacheFilterSrcLang')}
-          onChange={(value) => setFilters({ page: 1, srcLang: parseCacheLang(value) })}
-        />
-        <Select
-          className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
-          value={tgtLang}
-          options={langOptions}
-          disabled={busy}
-          panelWidth="content"
-          aria-label={t('translate.cacheFilterTgtLang')}
-          onChange={(value) => setFilters({ page: 1, tgtLang: parseCacheLang(value) })}
-        />
-        <Select
-          className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
-          value={engine}
-          options={engineOptions}
-          disabled={busy}
-          panelWidth="content"
-          aria-label={t('translate.cacheFilterEngine')}
-          onChange={(v) => setFilters({ page: 1, engine: v })}
-        />
-        <Select
-          className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
-          value={nsfwFlag}
-          options={nsfwOptions}
-          disabled={busy}
-          panelWidth="content"
-          aria-label={t('translate.cacheFilterNsfw')}
-          onChange={(value) => setFilters({ page: 1, nsfwFlag: parseCacheNsfwFlag(value) })}
-        />
-        <Select
-          className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
-          value={live}
-          options={liveOptions}
-          disabled={busy}
-          panelWidth="content"
-          aria-label={t('translate.cacheFilterLive')}
-          onChange={(value) => setFilters({ page: 1, live: parseCacheLiveFlag(value) })}
-        />
+        <ScrollArea
+          indicator="horizontal"
+          reserveGutter={false}
+          className="h-8 min-w-0 flex-1"
+          scrollClassName="flex items-center"
+          scrollProps={{ tabIndex: 0, 'aria-label': t('translate.cacheTitle') }}
+        >
+          <div className="flex w-max items-center gap-2">
+            <TextInput
+              search
+              className="w-52 max-w-full shrink"
+              placeholder={t('translate.cacheSearch')}
+              value={qInput}
+              disabled={busy}
+              aria-label={t('translate.cacheSearch')}
+              onChange={(e) => setQInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitQ(qInput)
+              }}
+              onBlur={() => commitQ(qInput)}
+            />
+            <Select
+              className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
+              value={srcLang}
+              options={langOptions}
+              disabled={busy}
+              panelWidth="content"
+              aria-label={t('translate.cacheFilterSrcLang')}
+              onChange={(value) => setFilters({ page: 1, srcLang: parseCacheLang(value) })}
+            />
+            <Select
+              className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
+              value={tgtLang}
+              options={langOptions}
+              disabled={busy}
+              panelWidth="content"
+              aria-label={t('translate.cacheFilterTgtLang')}
+              onChange={(value) => setFilters({ page: 1, tgtLang: parseCacheLang(value) })}
+            />
+            <Select
+              className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
+              value={engine}
+              options={engineOptions}
+              disabled={busy}
+              panelWidth="content"
+              aria-label={t('translate.cacheFilterEngine')}
+              onChange={(v) => setFilters({ page: 1, engine: v })}
+            />
+            <Select
+              className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
+              value={nsfwFlag}
+              options={nsfwOptions}
+              disabled={busy}
+              panelWidth="content"
+              aria-label={t('translate.cacheFilterNsfw')}
+              onChange={(value) => setFilters({ page: 1, nsfwFlag: parseCacheNsfwFlag(value) })}
+            />
+            <Select
+              className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
+              value={live}
+              options={liveOptions}
+              disabled={busy}
+              panelWidth="content"
+              aria-label={t('translate.cacheFilterLive')}
+              onChange={(value) => setFilters({ page: 1, live: parseCacheLiveFlag(value) })}
+            />
+          </div>
+        </ScrollArea>
         {onOpenDebug ? (
           <Button
             variant="ghost"
@@ -462,9 +471,14 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
             hint={hasFilter ? t('translate.cacheNoMatchHint') : t('translate.cacheEmptyHint')}
           />
         ) : (
-          <ScrollArea className="min-h-0 flex-1" indicator="both" scrollProps={{ 'aria-label': t('translate.cacheTableAria') }}>
-            <div className="w-full text-[0.8125rem]" style={{ minWidth: TRANSLATE_CACHE_GRID_MIN_WIDTH }} role="table" aria-label={t('translate.cacheTableAria')}>
-              <div className="sticky top-0 z-[3] grid w-full items-center border-b border-line bg-paper-2" style={cacheGridStyle} role="row">
+          <ScrollArea
+            className="min-h-0 flex-1"
+            restorationKey={`cache:${searchParams.toString()}`}
+            indicator="both"
+            scrollProps={{ 'aria-label': t('translate.cacheTableAria'), 'aria-busy': pending }}
+          >
+            <div className="w-full text-[0.8125rem]" style={{ minWidth: TRANSLATE_CACHE_GRID_MIN_WIDTH }} role="list" aria-label={t('translate.cacheTableAria')}>
+              <div className="sticky top-0 z-[3] grid w-full items-center border-b border-line bg-paper-2" style={cacheGridStyle} role="presentation">
                 {CACHE_COLUMN_DEFS.map((col) => {
                   const sortKey = col.sortKey
                   if (sortKey) {
@@ -482,7 +496,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
                     )
                   }
                   return (
-                    <div key={col.key} className={cn(editHeadCell, col.align === 'right' && 'text-right')} role="columnheader">
+                    <div key={col.key} className={cn(editHeadCell, col.align === 'right' && 'text-right')} data-list-heading="">
                       {t(col.labelKey)}
                     </div>
                   )
@@ -490,22 +504,29 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
               </div>
               {(data?.items ?? []).map((row, i) => (
                 <div
-                  key={`${row.src}-${row.from || ''}-${row.to || ''}-${i}`}
+                  key={row.id || `${row.src}-${row.from || ''}-${row.to || ''}`}
+                  data-navigation-id={row.id ? `cache:${row.id}` : undefined}
                   className={cn(
                     // Top-align so 原文/译文 share the same first/second line baseline (not vertically centered).
                     'grid w-full items-start border-t border-line hover:bg-[color-mix(in_oklab,var(--accent)_10%,transparent)]',
                     i === 0 && 'border-t-0'
                   )}
                   style={cacheGridStyle}
-                  role="row"
+                  role="listitem"
                 >
-                  <div className={cn(editCell, 'min-w-0 text-left')} role="cell" title={row.src}>
-                    <div className={cellClamp3}>{row.src}</div>
+                  <div className={cn(editCell, 'group/cell relative min-w-0 text-left')} data-list-cell="" title={row.src}>
+                    <div className="absolute top-1 right-1 z-10">
+                      <CopyIconButton text={row.src} />
+                    </div>
+                    <div className={cn(cellClamp3, 'pr-6')}>{row.src}</div>
                   </div>
-                  <div className={cn(editCell, 'min-w-0 text-left')} role="cell" title={row.zh}>
-                    <div className={cellClamp3}>{row.zh}</div>
+                  <div className={cn(editCell, 'group/cell relative min-w-0 text-left')} data-list-cell="" title={row.zh}>
+                    <div className="absolute top-1 right-1 z-10">
+                      <CopyIconButton text={row.zh} />
+                    </div>
+                    <div className={cn(cellClamp3, 'pr-6')}>{row.zh}</div>
                   </div>
-                  <div className={cn(editCell, 'whitespace-nowrap')} role="cell">
+                  <div className={cn(editCell, 'whitespace-nowrap')} data-list-cell="">
                     {row.from && row.to ? (
                       <span
                         className="inline-flex items-center gap-0.5 font-mono text-[0.7rem] tracking-wide text-ink-soft"
@@ -519,7 +540,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
                       '—'
                     )}
                   </div>
-                  <div className={editCell} role="cell">
+                  <div className={editCell} data-list-cell="">
                     <span className="inline-flex max-w-full items-center gap-1">
                       <TruncateText text={cacheEngineLabel(row.engine, t)} className="min-w-0 text-[0.75rem]" />
                       {isLiveCacheEngine(row.engine) ? (
@@ -529,14 +550,28 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
                       ) : null}
                     </span>
                   </div>
-                  <div className={cn(editCell, 'tabular-nums text-[0.75rem]')} role="cell" title={String(row.hitCount)}>
+                  <div className={cn(editCell, 'tabular-nums text-[0.75rem]')} data-list-cell="" title={String(row.hitCount)}>
                     {formatCacheHitCount(row.hitCount)}
                   </div>
-                  <div className={cn(editCell, 'whitespace-nowrap font-mono text-[0.7rem] text-ink-soft')} role="cell" title={fmtTimeFull(row.updatedAt, LOCALE_HTML_LANG[locale])}>
+                  <div
+                    className={cn(editCell, 'whitespace-nowrap font-mono text-[0.7rem] text-ink-soft')}
+                    data-list-cell=""
+                    title={fmtTimeFull(row.updatedAt, LOCALE_HTML_LANG[locale])}
+                  >
                     {formatCacheUpdatedAt(row.updatedAt)}
                   </div>
-                  <div className={cn(editCell, 'text-right')} role="cell">
+                  <div className={cn(editCell, 'text-right')} data-list-cell="">
                     <div className="inline-flex items-center justify-end gap-0">
+                      <Button
+                        variant="plain"
+                        size="mini"
+                        disabled={busy || !onOpenDetail || !row.id}
+                        aria-label={t('translate.cacheDetail')}
+                        data-navigation-trigger=""
+                        onClick={() => onOpenDetail?.({ id: row.id, src: row.src, zh: row.zh, from: row.from, to: row.to })}
+                      >
+                        <TbPencil size={14} aria-hidden />
+                      </Button>
                       <Button
                         variant="plain"
                         size="mini"
@@ -546,15 +581,6 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
                         onClick={() => void askToggleNsfw(row)}
                       >
                         <TbRating18Plus size={14} aria-hidden className={row.nsfw ? 'text-warn' : undefined} />
-                      </Button>
-                      <Button
-                        variant="plain"
-                        size="mini"
-                        disabled={busy || !onOpenDetail || !row.id}
-                        aria-label={t('translate.cacheDetail')}
-                        onClick={() => onOpenDetail?.({ id: row.id, src: row.src, zh: row.zh, from: row.from, to: row.to })}
-                      >
-                        <TbPencil size={14} aria-hidden />
                       </Button>
                       <Button variant="plain" size="mini" disabled={busy} aria-label={t('common.remove')} onClick={() => void askDelete(row)}>
                         <IoTrashOutline size={14} aria-hidden />
@@ -584,18 +610,18 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
             />
           </label>
           <span className="mr-0.5 tabular-nums">
-            {page} / {totalPages}
+            {visiblePage} / {totalPages}
           </span>
-          <Button variant="ghost" size="icon" disabled={busy || page <= 1} aria-label={t('translate.cacheFirst')} onClick={() => go(1)}>
+          <Button variant="ghost" size="icon" disabled={busy || visiblePage <= 1} aria-label={t('translate.cacheFirst')} onClick={() => go(1)}>
             <IoPlaySkipBackOutline size={16} aria-hidden />
           </Button>
-          <Button variant="ghost" size="icon" disabled={busy || page <= 1} aria-label={t('translate.cachePrev')} onClick={() => go(page - 1)}>
+          <Button variant="ghost" size="icon" disabled={busy || visiblePage <= 1} aria-label={t('translate.cachePrev')} onClick={() => go(visiblePage - 1)}>
             <IoChevronBackOutline size={16} aria-hidden />
           </Button>
-          <Button variant="ghost" size="icon" disabled={busy || page >= totalPages} aria-label={t('translate.cacheNext')} onClick={() => go(page + 1)}>
+          <Button variant="ghost" size="icon" disabled={busy || visiblePage >= totalPages} aria-label={t('translate.cacheNext')} onClick={() => go(visiblePage + 1)}>
             <IoChevronForwardOutline size={16} aria-hidden />
           </Button>
-          <Button variant="ghost" size="icon" disabled={busy || page >= totalPages} aria-label={t('translate.cacheLast')} onClick={() => go(totalPages)}>
+          <Button variant="ghost" size="icon" disabled={busy || visiblePage >= totalPages} aria-label={t('translate.cacheLast')} onClick={() => go(totalPages)}>
             <IoPlaySkipForwardOutline size={16} aria-hidden />
           </Button>
         </div>

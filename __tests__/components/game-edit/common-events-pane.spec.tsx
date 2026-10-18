@@ -65,6 +65,9 @@ function slot(overrides: Partial<EventsSlot> = {}): EventsSlot {
   }
 }
 
+let navigationCase = 0
+beforeEach(() => history.pushState({}, '', `/test-view?case=${++navigationCase}`))
+
 beforeAll(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   globalThis.CSS ??= { escape: (value: string) => value } as unknown as typeof CSS

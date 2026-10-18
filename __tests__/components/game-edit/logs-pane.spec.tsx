@@ -63,7 +63,7 @@ test('uses the shared Web level filter and copies only the visible entries', asy
     )
     expect(shadow.textContent).toContain('插件日志')
     expect(shadow.textContent).toContain('实时查看、筛选并管理 Chaya 插件运行日志。')
-    expect(shadow.querySelectorAll('[aria-label="局内插件日志"] tbody tr')).toHaveLength(2)
+    expect(shadow.querySelectorAll('[aria-label="局内插件日志"] [data-list-body] [role="listitem"]')).toHaveLength(2)
     expect(shadow.textContent).not.toContain('实时流')
     expect(shadow.querySelector('[aria-label="暂停"]')).toBeNull()
     expect(shadow.querySelector('[aria-label="搜索日志"]')).not.toBeNull()
@@ -79,7 +79,7 @@ test('uses the shared Web level filter and copies only the visible entries', asy
     for (const option of options) {
       expect(option.querySelector('svg')?.classList.contains('invisible')).toBe(!option.textContent?.includes('warn'))
     }
-    expect(shadow.querySelectorAll('[aria-label="局内插件日志"] tbody tr')).toHaveLength(1)
+    expect(shadow.querySelectorAll('[aria-label="局内插件日志"] [data-list-body] [role="listitem"]')).toHaveLength(1)
     expect(mount.textContent).toContain('retry')
     expect(mount.textContent).not.toContain('ready')
 

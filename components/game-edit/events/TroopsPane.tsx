@@ -1,10 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { createPortal } from 'react-dom'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { padXDense } from '@/components/layoutClasses'
+import { useNavigationBooleanState } from '@/components/navigation/useNavigationViewState'
 import { EmptyState, ScrollArea, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import { matchesTroop, type TroopInfo } from '@/lib/game/events'
@@ -32,7 +33,14 @@ function TroopRow({ troop, selected, onSelect }: { troop: TroopInfo; selected: b
   const t = useT()
   const empty = !troop.members.length
   return (
-    <button type="button" className={cn(listRow, selected && listRowOn)} aria-current={selected ? 'true' : undefined} onClick={onSelect}>
+    <button
+      data-navigation-trigger=""
+      data-navigation-id={`troop:${troop.id}`}
+      type="button"
+      className={cn(listRow, selected && listRowOn)}
+      aria-current={selected ? 'true' : undefined}
+      onClick={onSelect}
+    >
       <TruncateText text={troopName(troop, troop.id, t)} className={empty ? 'text-ink-soft' : 'text-ink'} />
       <TruncateText text={troopMemberSummary(troop.members, t)} className="text-[0.7rem] text-ink-soft" />
     </button>
@@ -42,8 +50,8 @@ function TroopRow({ troop, selected, onSelect }: { troop: TroopInfo; selected: b
 /** 修改 › 敌群: list + detail; narrow containers show one at a time */
 export function TroopsPane({ slot, filter, headSlot }: Props) {
   const t = useT()
-  const [showEmpty, setShowEmpty] = useState(false)
-  const [onlyEncounter, setOnlyEncounter] = useState(true)
+  const [showEmpty, setShowEmpty] = useNavigationBooleanState('troops:empty', false)
+  const [onlyEncounter, setOnlyEncounter] = useNavigationBooleanState('troops:encounter', true)
   const data = slot.data
   const troops = data?.troops
   const visible = useMemo(() => {

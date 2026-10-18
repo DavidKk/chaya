@@ -52,6 +52,7 @@ export function DataListHeader({ narrow, className }: { narrow: boolean; classNa
 
 type Props = RowHandlers & {
   items: ListItem[]
+  restorationKey?: string
   narrow: boolean
   lockedKeys: Set<string>
   canEdit: boolean
@@ -64,7 +65,7 @@ type Props = RowHandlers & {
 }
 
 /** Virtualized field list; only rows near the viewport are mounted (and watched, via `onRange`) */
-export function DataList({ items, narrow, lockedKeys, canEdit, onRange, onEndReached, footer, lead, className, ...handlers }: Props) {
+export function DataList({ items, restorationKey, narrow, lockedKeys, canEdit, onRange, onEndReached, footer, lead, className, ...handlers }: Props) {
   const t = useT()
   const offset = lead ? 1 : 0
   const count = offset + items.length + (footer ? 1 : 0)
@@ -72,6 +73,8 @@ export function DataList({ items, narrow, lockedKeys, canEdit, onRange, onEndRea
   return (
     <VirtualList
       count={count}
+      restorationKey={restorationKey}
+      getRowId={(index) => (items[index - offset] ? `data:${items[index - offset].key}` : undefined)}
       rowHeight={narrow ? ROW_HEIGHT_NARROW : ROW_HEIGHT}
       header={<DataListHeader narrow={narrow} />}
       onRangeChange={onRange ? (start, end) => onRange(clamp(start), clamp(end)) : undefined}

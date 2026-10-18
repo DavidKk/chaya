@@ -186,7 +186,7 @@ export function LibraryRail({
                 const remote = !!entry.remote
                 const fingerprint = entry.missing ? undefined : entry.fingerprint
                 return (
-                  <li key={entry.id}>
+                  <li key={entry.id} data-navigation-id={`library:${entry.id}`}>
                     <div
                       className={cn(
                         'group relative flex flex-col gap-1 rounded-[0.45rem] border border-line bg-panel px-3 pt-3 pb-2',
@@ -218,6 +218,7 @@ export function LibraryRail({
                         disabled={busy || removing || (entry.missing && !canUseDisk)}
                         aria-current={selected ? 'true' : undefined}
                         title={remote ? `${entry.name}（远程）` : entry.gameRoot}
+                        data-navigation-trigger=""
                         onClick={() => {
                           onSelect(entry.gameRoot)
                           closeMobile()

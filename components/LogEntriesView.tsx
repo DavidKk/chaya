@@ -16,14 +16,7 @@ export function matchesLogQuery(entry: LogViewEntry, query: string) {
   return hay.toLowerCase().includes(query)
 }
 
-const logsTable = cn(
-  dataTable,
-  'min-w-[40rem] font-mono text-xs',
-  '[&_th:nth-child(1)]:w-[5.5rem] [&_td:nth-child(1)]:w-[5.5rem]',
-  '[&_th:nth-child(2)]:w-[4.5rem] [&_th:nth-child(2)]:text-center [&_td:nth-child(2)]:w-[4.5rem] [&_td:nth-child(2)]:text-center',
-  '[&_th:nth-child(3)]:w-36 [&_td:nth-child(3)]:w-36',
-  '[&_td]:max-w-none [&_td]:align-middle'
-)
+const logsTable = cn(dataTable, 'min-w-[40rem] font-mono text-xs [--data-list-columns:5.5rem_4.5rem_9rem_minmax(0,1fr)]')
 
 /** Web 与局内日志共用的四列表格加载态。 */
 export function LogEntriesSkeleton({ label }: { label?: string }) {
@@ -77,37 +70,37 @@ export function LogEntriesView({
               onScroll: onScroll ? (event) => onScroll(event.currentTarget) : undefined,
             }}
           >
-            <table className={logsTable}>
-              <thead>
-                <tr>
-                  <th>时间</th>
-                  <th>等级</th>
-                  <th>来源</th>
-                  <th>消息</th>
-                </tr>
-              </thead>
-              <tbody>
+            <div role="list" aria-label={ariaLabel} className={logsTable}>
+              <div data-list-head="">
+                <div role="presentation" data-list-row="">
+                  <div data-list-heading="">时间</div>
+                  <div data-list-heading="">等级</div>
+                  <div data-list-heading="">来源</div>
+                  <div data-list-heading="">消息</div>
+                </div>
+              </div>
+              <div data-list-body="">
                 {entries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td className="whitespace-nowrap text-ink-soft tabular-nums" title={new Date(entry.ts).toISOString()}>
+                  <div role="listitem" data-list-row="" key={entry.id} data-navigation-id={entry.id}>
+                    <div data-list-cell="" className="whitespace-nowrap text-ink-soft tabular-nums" title={new Date(entry.ts).toISOString()}>
                       {new Date(entry.ts).toLocaleTimeString('zh-CN', { hour12: false })}
-                    </td>
-                    <td>
+                    </div>
+                    <div data-list-cell="">
                       <span className={logBadgeClass(entry.level)}>{entry.level}</span>
-                    </td>
-                    <td className="text-ink-soft">
+                    </div>
+                    <div data-list-cell="" className="text-ink-soft">
                       <TruncateText text={entry.source || '—'} className="block" />
-                    </td>
-                    <td>
+                    </div>
+                    <div data-list-cell="">
                       <p className="m-0 whitespace-pre-wrap break-words text-ink">{entry.message}</p>
                       {entry.meta != null ? (
                         <p className="m-0 mt-1 break-all text-[0.7rem] leading-[1.35] text-ink-soft">{typeof entry.meta === 'string' ? entry.meta : JSON.stringify(entry.meta)}</p>
                       ) : null}
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </ScrollArea>
         )}
       </div>

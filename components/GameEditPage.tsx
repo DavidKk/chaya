@@ -33,6 +33,7 @@ import { pageMainFlush } from '@/components/layoutClasses'
 import { buildOptimisticHandlers, useGameEditLinkSync } from '@/hooks/useGameEditLinkSync'
 import { readApiErrorMessage } from '@/lib/api-error'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
+import { returnToNavigationSource } from '@/lib/ui/navigation-restoration'
 import { hrefWithQuery, parseFlag01 } from '@/lib/url/search-params'
 import { useQueryPatch } from '@/lib/url/use-query-patch'
 
@@ -125,7 +126,11 @@ export function GameEditPage() {
     onMap: scene.onMap,
     runningCommon: scene.runningCommon,
     commonId,
-    onSelectCommon: (id) => router.push(hrefWithQuery(editCommonHref(id), eventsQuery)),
+    onSelectCommon: (id) => {
+      const href = hrefWithQuery(editCommonHref(id), eventsQuery)
+      if (id == null && commonId != null) returnToNavigationSource(router, href)
+      else router.push(href)
+    },
     onAct: async (op) => {
       if (op.op === 'commonEvent') {
         assertMapOperationCompleted(await runMapChanges([{ label: `公共事件 #${op.id}`, action: { kind: 'commonEvent', id: op.id, from: op.from } }], `执行公共事件 #${op.id}`))
@@ -170,9 +175,13 @@ export function GameEditPage() {
     },
     mapId,
     eventId: mapEventId,
-    onSelectMap: (nextMap, nextEvent) => router.push(hrefWithQuery(editMapHref(nextMap, nextEvent), eventsQuery)),
+    onSelectMap: (nextMap, nextEvent) => {
+      const href = hrefWithQuery(editMapHref(nextMap, nextEvent), eventsQuery)
+      if ((nextMap == null && mapId != null) || (nextMap === mapId && nextEvent == null && mapEventId != null)) returnToNavigationSource(router, href)
+      else router.push(href)
+    },
     eventPage: mapEventPage != null ? mapEventPage - 1 : null,
-    onSelectEventPage: (page) => router.push(hrefWithQuery(editMapHref(mapId, mapEventId, page + 1), eventsQuery)),
+    onSelectEventPage: (page) => router.replace(hrefWithQuery(editMapHref(mapId, mapEventId, page + 1), eventsQuery)),
     mapDetail: events.mapDetail,
     mapLoading: events.mapLoading,
     mapError: events.mapError,
@@ -180,7 +189,11 @@ export function GameEditPage() {
     player: linked && scene.mapId > 0 ? { mapId: scene.mapId, x: scene.playerX, y: scene.playerY, direction: scene.playerDir } : null,
     recentMaps: scene.recentMaps,
     troopId,
-    onSelectTroop: (id) => router.push(hrefWithQuery(editTroopHref(id), eventsQuery)),
+    onSelectTroop: (id) => {
+      const href = hrefWithQuery(editTroopHref(id), eventsQuery)
+      if (id == null && troopId != null) returnToNavigationSource(router, href)
+      else router.push(href)
+    },
     battle: linked ? scene.battle : null,
   }
 
@@ -195,9 +208,10 @@ export function GameEditPage() {
       else query.delete('list')
       const href = hrefWithQuery(editDataHref(next), query.toString())
       if (opts?.replace) router.replace(href)
+      else if (next.length === dataPath.length - 1 && next.every((part, index) => part === dataPath[index])) returnToNavigationSource(router, href)
       else router.push(href)
     },
-    [router, searchParams]
+    [router, searchParams, dataPath]
   )
   const saveDataSlot: SaveDataSlot = useMemo(
     () => ({ transport: saveDataTransport, path: dataPath, rootView: dataRootView, onNavigate: onDataNavigate, surface: 'page' }),

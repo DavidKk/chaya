@@ -3,6 +3,7 @@ import { apiBadRequest, apiError, apiOk } from '@/initializer/response'
 import { parseCacheLang } from '@/lib/translate/cache-lang'
 import type { NewlineAnnotation } from '@/lib/translate/logic-text'
 import type { AlignmentGroup } from '@/lib/translate/sentence-plan'
+import { type RecordStructure, validRecordStructure } from '@/lib/translate/structured-segments'
 import { requireDisk, upsertSharedTranslateCachePairs } from '@/services/disk-ops'
 
 export const runtime = 'nodejs'
@@ -44,15 +45,20 @@ export const POST = defineApiRoute('post:/api/translate-cache/optimize', async (
       to?: string
       newlines?: unknown
       groups?: unknown
+      structure?: RecordStructure
+      replaceGroups?: boolean
       expectedRevision?: number
       dryRun?: boolean
     }
     if (typeof body.parent?.src !== 'string' || typeof body.parent.zh !== 'string') return apiBadRequest('缺少原始定稿，请刷新优化页面', 'CACHE_OPTIMIZE_PARENT_REQUIRED')
     const raw = Array.isArray(body.pairs) ? body.pairs : []
-    const pairs = raw.map((p) => ({ src: String(p?.src ?? '').trim(), zh: String(p?.zh ?? '').trim() })).filter((p) => p.src && p.zh)
+    if (raw.some((p) => typeof p?.src !== 'string' || typeof p?.zh !== 'string' || !p.src.trim() || !p.zh.trim()))
+      return apiBadRequest('分组不能为空，未写入任何映射', 'CACHE_OPTIMIZE_INVALID')
+    const pairs = raw.map((p) => ({ src: p.src!.trim(), zh: p.zh!.trim() }))
+    if (body.structure !== undefined && !validRecordStructure(body.structure)) return apiBadRequest('结构注解无效', 'CACHE_STRUCTURE_INVALID')
     const newlines = parseNewlines(body.newlines)
     const groups = parseGroups(body.groups)
-    if (!pairs.length && !newlines?.length && !groups?.length) return apiBadRequest('没有可写入的句段', 'CACHE_OPTIMIZE_EMPTY')
+    if (!pairs.length && !newlines?.length && !groups?.length && !body.structure) return apiBadRequest('没有可写入的句段', 'CACHE_OPTIMIZE_EMPTY')
 
     const from = parseCacheLang(body.from) || undefined
     const to = parseCacheLang(body.to) || undefined
@@ -64,13 +70,16 @@ export const POST = defineApiRoute('post:/api/translate-cache/optimize', async (
       {
         newlines,
         groups,
+        structure: body.structure,
+        replaceGroups: body.replaceGroups === true,
         expectedRevision: typeof body.expectedRevision === 'number' ? body.expectedRevision : undefined,
         dryRun: Boolean(body.dryRun),
       }
     )
     if (result.stale) return apiError(409, 'CACHE_CHANGED', '原始定稿已更新，请重新加载')
     if (body.dryRun) return apiOk(result)
-    if (!result.total && !newlines?.length) return apiError(400, 'CACHE_OPTIMIZE_NONE', '没有写入任何句段（可能被校验跳过）')
+    if ((result.conflict || result.skipped) && !body.dryRun) return apiBadRequest('分组校验失败，未写入任何映射', 'CACHE_OPTIMIZE_INVALID')
+    if (!result.total && !newlines?.length && !body.structure) return apiError(400, 'CACHE_OPTIMIZE_NONE', '没有写入任何句段（可能被校验跳过）')
     return apiOk(result)
   } catch (err) {
     return apiError(500, 'CACHE_OPTIMIZE_FAILED', err instanceof Error ? err.message : String(err))

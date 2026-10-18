@@ -329,7 +329,7 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
         {!detail ? null : !detail.events.length ? (
           <EmptyState title={t('events.map.emptyMap')} />
         ) : (
-          <div className="text-[0.8125rem]" style={{ minWidth: '28rem' }} role="table" aria-label={t('events.map.events')}>
+          <div className="text-[0.8125rem]" style={{ minWidth: '28rem' }} role="list" aria-label={t('events.map.events')}>
             {selected.size ? (
               <div className="sticky top-0 z-[3] flex h-10 items-center gap-2 border-b border-line bg-panel-2 px-2">
                 <span className="mr-auto text-xs text-ink-soft">{t('events.map.batchSelected', { count: selected.size })}</span>
@@ -351,8 +351,8 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
                 </Button>
               </div>
             ) : null}
-            <div className="sticky top-0 z-[2] grid h-9 items-center border-b border-line bg-paper-2" style={tableCols} role="row">
-              <div className={editHeadCell} role="columnheader">
+            <div className="sticky top-0 z-[2] grid h-9 items-center border-b border-line bg-paper-2" style={tableCols} role="presentation">
+              <div className={editHeadCell} data-list-heading="">
                 <input
                   type="checkbox"
                   checked={selected.size > 0 && selected.size === Math.min(50, detail.events.length)}
@@ -360,16 +360,16 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
                   onChange={(event) => setSelected(event.target.checked ? new Set(detail.events.slice(0, 50).map((item) => item.id)) : new Set())}
                 />
               </div>
-              <div className={editHeadCell} role="columnheader">
+              <div className={editHeadCell} data-list-heading="">
                 {t('events.map.colName')}
               </div>
-              <div className={editHeadCell} role="columnheader">
+              <div className={editHeadCell} data-list-heading="">
                 {t('events.map.colPos')}
               </div>
-              <div className={editHeadCell} role="columnheader">
+              <div className={editHeadCell} data-list-heading="">
                 {t('events.map.colType')}
               </div>
-              <div className={editHeadCell} role="columnheader">
+              <div className={editHeadCell} data-list-heading="">
                 {t('events.map.colState')}
               </div>
             </div>
@@ -378,24 +378,26 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
               return (
                 <div
                   key={ev.id}
+                  data-navigation-id={`map-event:${node.id}:${ev.id}`}
                   className={cn('grid items-center border-t border-line hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]', index === 0 && 'border-t-0')}
                   style={tableCols}
-                  role="row"
+                  role="listitem"
                 >
-                  <div className={editCell} role="cell">
+                  <div className={editCell} data-list-cell="">
                     <input type="checkbox" checked={selected.has(ev.id)} aria-label={name} onChange={(event) => toggleSelected(ev.id, event.target.checked)} />
                   </div>
-                  <div className={cn(editCell, 'min-w-0')} role="cell">
+                  <div className={cn(editCell, 'min-w-0')} data-list-cell="">
                     <button
                       type="button"
                       className="m-0 flex w-full min-w-0 cursor-pointer border-none bg-transparent p-0 text-left font-medium text-ink underline-offset-2 hover:underline"
                       aria-label={t('events.map.openDetail', { name })}
+                      data-navigation-trigger=""
                       onClick={() => slot.onSelectMap(node.id, ev.id)}
                     >
                       <TruncateText text={name} />
                     </button>
                   </div>
-                  <div className={cn(editCell, 'font-mono text-[0.72rem] text-ink-soft')} role="cell">
+                  <div className={cn(editCell, 'font-mono text-[0.72rem] text-ink-soft')} data-list-cell="">
                     <Tooltip content={tp.blocked || t(tp.near ? 'events.map.teleportBeside' : 'events.map.teleportTo', { name })}>
                       <button
                         type="button"
@@ -408,10 +410,10 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
                       </button>
                     </Tooltip>
                   </div>
-                  <div className={cn(editCell, 'text-[0.75rem] text-ink-soft')} role="cell">
+                  <div className={cn(editCell, 'text-[0.75rem] text-ink-soft')} data-list-cell="">
                     {t(TYPE_KEY[ev.type])}
                   </div>
-                  <div className={editCell} role="cell">
+                  <div className={editCell} data-list-cell="">
                     <StateBadge state={eventStateOf(ev, detail, session)} />
                   </div>
                 </div>

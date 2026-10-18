@@ -2,10 +2,13 @@
 
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
+import { ScrollArea } from '@/components/sk/ScrollArea'
 import { cn } from '@/lib/utils'
 
 export type VirtualListProps = {
   count: number
+  restorationKey?: string
+  getRowId?: (index: number) => string | undefined
   /** Fixed row height in px */
   rowHeight: number
   renderRow: (index: number) => ReactNode
@@ -21,7 +24,19 @@ export type VirtualListProps = {
 }
 
 /** Fixed-height virtual list on a native scroll container; only rows near the viewport are mounted */
-export function VirtualList({ count, rowHeight, renderRow, overscan = 8, onRangeChange, onEndReached, header, className, 'aria-label': ariaLabel }: VirtualListProps) {
+export function VirtualList({
+  count,
+  restorationKey,
+  getRowId,
+  rowHeight,
+  renderRow,
+  overscan = 8,
+  onRangeChange,
+  onEndReached,
+  header,
+  className,
+  'aria-label': ariaLabel,
+}: VirtualListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ top: 0, height: 0, headerHeight: 0 })
@@ -66,14 +81,33 @@ export function VirtualList({ count, rowHeight, renderRow, overscan = 8, onRange
   const rows: ReactNode[] = []
   for (let i = start; i < end; i++) {
     rows.push(
-      <div key={i} role="listitem" className="absolute inset-x-0" style={{ top: i * rowHeight, height: rowHeight }}>
+      <div
+        key={getRowId?.(i) || i}
+        data-navigation-id={getRowId?.(i)}
+        aria-posinset={i + 1}
+        aria-setsize={count}
+        role="listitem"
+        className="absolute inset-x-0"
+        style={{ top: i * rowHeight, height: rowHeight }}
+      >
         {renderRow(i)}
       </div>
     )
   }
 
   return (
-    <div ref={scrollRef} className={cn('min-h-0 flex-1 overflow-auto overscroll-contain', className)} onScroll={measure} role="list" aria-label={ariaLabel}>
+    <ScrollArea
+      scrollRef={scrollRef}
+      restorationKey={restorationKey}
+      indicator="both"
+      className={cn('min-h-0 flex-1', className)}
+      scrollClassName="overscroll-contain"
+      scrollProps={{ onScroll: measure, role: 'list', 'aria-label': ariaLabel, tabIndex: 0 }}
+      restorationAnchorTop={(id) => {
+        for (let i = 0; i < count; i++) if (getRowId?.(i) === id) return (headerRef.current?.offsetHeight || 0) + i * rowHeight
+        return undefined
+      }}
+    >
       {header ? (
         <div ref={headerRef} className="sticky top-0 z-[2]">
           {header}
@@ -82,6 +116,6 @@ export function VirtualList({ count, rowHeight, renderRow, overscan = 8, onRange
       <div className="relative" style={{ height: count * rowHeight }}>
         {rows}
       </div>
-    </div>
+    </ScrollArea>
   )
 }

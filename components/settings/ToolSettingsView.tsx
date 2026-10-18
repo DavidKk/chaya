@@ -4,7 +4,7 @@ import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspac
 import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { formCard, panelHead, settingsCardNarrow } from '@/components/layoutClasses'
-import { Select, Skeleton, SkeletonRegion, Switch } from '@/components/sk'
+import { ScrollArea, Select, Skeleton, SkeletonRegion, Switch } from '@/components/sk'
 import { COMPANION_CHARACTERS, type CompanionCharacter, companionWords } from '@/lib/game-agent/companion'
 
 export type ToolPage = 'minimap' | 'companion'
@@ -45,7 +45,7 @@ export function ToolSettingsView({ page, request }: { page: ToolPage; request: G
           <p className="m-0 truncate text-xs text-ink-soft">{isMap ? t('tools.minimapPage') : t('tools.companionPage')}</p>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <ScrollArea className="min-h-0 flex-1" scrollClassName="p-4">
         <div className={settingsCardNarrow}>
           {!loaded ? (
             <ToolSettingsSkeleton label={title} withSelect={!isMap} />
@@ -82,7 +82,7 @@ export function ToolSettingsView({ page, request }: { page: ToolPage; request: G
             </section>
           )}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   )
 }

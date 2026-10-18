@@ -113,7 +113,9 @@ afterEach(async () => {
 })
 
 const rowButton = (name: string, action: string) =>
-  [...document.querySelectorAll('tr')].find((tr) => tr.textContent?.includes(name))!.querySelector(`button[aria-label*="${action}"]`) as HTMLButtonElement | null
+  [...document.querySelectorAll('[data-list-body] [role="listitem"]')]
+    .find((tr) => tr.textContent?.includes(name))!
+    .querySelector(`button[aria-label*="${action}"]`) as HTMLButtonElement | null
 const input = (label: string) => document.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement
 const flowButton = (label: string) => document.querySelector(`[role="group"] button[aria-label="${label}"]`) as HTMLButtonElement
 const buttonByText = (text: string) => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === text) as HTMLButtonElement
