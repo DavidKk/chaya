@@ -127,10 +127,10 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
                     navigator.clipboard?.writeText(item.meta.localesKey)
                   }
                 }}
-                className="inline-flex shrink-0 items-center gap-1 rounded-[0.2rem] border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[0.6875rem] font-mono text-accent hover:bg-accent/20 transition-colors cursor-pointer outline-none"
+                className="inline-flex shrink-0 items-center gap-1 rounded-[0.2rem] bg-inset px-1.5 py-0.5 text-[0.6875rem] font-mono text-ink-soft hover:text-ink hover:bg-inset/80 transition-colors cursor-pointer outline-none"
                 title={t('translate.listRowCopyKeyTitle')}
               >
-                <LuKey size={11} className="shrink-0" />
+                <LuKey size={11} className="shrink-0 text-accent" />
                 <span className="max-w-[120px] truncate">{item.meta.localesKey}</span>
               </button>
             </Tooltip>
