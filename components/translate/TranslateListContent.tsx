@@ -692,11 +692,11 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
           {/* 批量重置当前页 */}
           <Button
             type="button"
-            variant="fail"
+            variant="ghost"
             disabled={savingPage || resettingPage || pagedItems.length === 0}
             onClick={() => void handleResetPage()}
             tooltip={t('translate.listResetPageTooltip')}
-            className="!h-7 px-2.5 text-xs whitespace-nowrap cursor-pointer"
+            className="!h-7 px-2.5 text-xs whitespace-nowrap cursor-pointer border border-fail/40 bg-fail/10 text-fail hover:enabled:bg-fail/20 hover:enabled:border-fail/60 hover:enabled:text-fail"
           >
             {resettingPage ? <Spinner size="sm" /> : null}
             {t('translate.listResetPageBtn')}
@@ -705,11 +705,11 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
           {/* 批量保存当前页 */}
           <Button
             type="button"
-            variant="ok"
+            variant="ghost"
             disabled={savingPage || resettingPage || pagedItems.length === 0}
             onClick={() => void handleSavePage()}
             tooltip={t('translate.listSavePageTooltip')}
-            className="!h-7 px-2.5 text-xs whitespace-nowrap font-medium cursor-pointer"
+            className="!h-7 px-2.5 text-xs whitespace-nowrap font-medium cursor-pointer border border-ok/40 bg-ok/10 text-ok hover:enabled:bg-ok/20 hover:enabled:border-ok/60 hover:enabled:text-ok"
           >
             {savingPage ? <Spinner size="sm" /> : null}
             {t('translate.listSavePageBtn')}

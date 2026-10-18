@@ -193,7 +193,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
                 type="button"
                 disabled={isTranslating}
                 onClick={() => onTranslate(item)}
-                className="inline-flex h-6 items-center justify-center rounded-[0.2rem] bg-accent px-2.5 text-[0.6875rem] font-medium text-white hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                className="inline-flex h-6 items-center justify-center rounded-[0.2rem] border border-accent/40 bg-accent/10 px-2.5 text-[0.6875rem] font-medium text-accent hover:bg-accent/20 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
               >
                 {isTranslating ? <Spinner size="sm" /> : null}
                 {t('translate.listSingleTransBtn')}
@@ -211,7 +211,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
                 type="button"
                 disabled={isSaving || !currentZh || !currentZh.trim()}
                 onClick={() => onSave(item)}
-                className="inline-flex h-6 items-center justify-center rounded-[0.2rem] bg-ok px-2 text-[0.6875rem] font-medium text-white hover:bg-ok/90 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                className="inline-flex h-6 items-center justify-center rounded-[0.2rem] border border-ok/40 bg-ok/10 px-2 text-[0.6875rem] font-medium text-ok hover:bg-ok/20 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
               >
                 {isSaving ? <Spinner size="sm" /> : null}
                 {t('translate.listSingleSaveBtn')}
