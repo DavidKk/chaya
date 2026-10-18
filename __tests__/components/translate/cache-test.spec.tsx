@@ -19,8 +19,22 @@ jest.mock('@/components/PanelHeadEnd', () => ({
   PanelHeadStart: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
 jest.mock('@/components/sk', () => ({
-  Button: ({ children, onClick, loading, disabled }: { children: ReactNode; onClick: () => void; loading?: boolean; disabled?: boolean }) => (
-    <button onClick={onClick} disabled={loading || disabled}>
+  Button: ({
+    children,
+    onClick,
+    loading,
+    disabled,
+    tooltip,
+    'aria-label': label,
+  }: {
+    children: ReactNode
+    onClick: () => void
+    loading?: boolean
+    disabled?: boolean
+    tooltip?: string
+    'aria-label'?: string
+  }) => (
+    <button onClick={onClick} disabled={loading || disabled} aria-label={label} data-tooltip={tooltip}>
       {children}
     </button>
   ),
@@ -104,6 +118,37 @@ it('renders every path and unused split previews after a full hit', async () => 
   expect(trace.textContent).toContain('备选路径')
   expect(trace.textContent).toContain('第一。第二。')
   expect(trace.textContent).toContain('没有满足条件的完整句原译对齐')
+  const details = [...trace.querySelectorAll('details')]
+  expect(details.every((d) => !d.open)).toBe(true)
+  const expand = trace.querySelector('button[aria-label="展开全部"]') as HTMLButtonElement
+  expect(expand.textContent).toBe('')
+  expect(expand.dataset.tooltip).toBe('展开全部')
+  expect(expand.querySelector('svg')).not.toBeNull()
+  expect([...trace.querySelectorAll('summary')].every((s) => s.querySelector('svg') !== null)).toBe(true)
+  const pathSummary = trace.querySelector('details.group\\/path > summary') as HTMLElement
+  expect(pathSummary.className).toContain('items-center')
+  const pathContent = trace.querySelector('details.group\\/path > div') as HTMLElement
+  expect(pathContent.className).toContain('pl-6')
+  const keysSummary = trace.querySelector('details.group\\/keys > summary') as HTMLElement
+  expect(keysSummary.className).toContain('gap-1.5')
+  const keysPre = trace.querySelector('details.group\\/keys > pre') as HTMLElement
+  expect(keysPre.className).toContain('pl-5')
+  const checksSummary = trace.querySelector('details.group\\/checks > summary') as HTMLElement
+  expect(checksSummary.className).toContain('gap-1.5')
+  const checksUl = trace.querySelector('details.group\\/checks > ul') as HTMLElement
+  expect(checksUl.className).toContain('pl-5')
+  await act(async () => expand.click())
+  expect(details.every((d) => d.open)).toBe(true)
+  expect(trace.querySelector('button[aria-label="收起全部"]')).not.toBeNull()
+  await act(async () => {
+    details[0].open = false
+    details[0].dispatchEvent(new Event('toggle'))
+  })
+  expect(trace.querySelector('button[aria-label="展开全部"]')).not.toBeNull()
+  await act(async () => (trace.querySelector('button[aria-label="展开全部"]') as HTMLButtonElement).click())
+  expect(details.every((d) => d.open)).toBe(true)
+  await act(async () => (trace.querySelector('button[aria-label="收起全部"]') as HTMLButtonElement).click())
+  expect(details.every((d) => !d.open)).toBe(true)
   const structure = host.querySelector('section[aria-label="结构拆分"]')!
   expect(structure.querySelectorAll('ol > li')).toHaveLength(2)
   expect(structure.textContent).toContain('「First.')
