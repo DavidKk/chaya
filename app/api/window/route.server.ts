@@ -13,11 +13,11 @@ export const GET = defineApiRoute('get:/api/window', async () => {
     return apiBadRequest(resolved.error)
   }
   if (resolved.remote) {
-    return apiBadRequest('远程连接的游戏无法读取本机窗口配置', 'REMOTE_READ_ONLY')
+    return apiBadRequest('Remote game cannot read local window configuration', 'REMOTE_READ_ONLY')
   }
   const pkg = readNwPackage(resolved.contentRoot)
   if (!pkg) {
-    return apiNotFound(`内容根缺少 package.json: ${resolved.contentRoot}`)
+    return apiNotFound(`Missing package.json in content root: ${resolved.contentRoot}`)
   }
   return apiOk({ package: pkg })
 })
@@ -31,7 +31,7 @@ export const PUT = defineApiRoute('put:/api/window', async ({ request }) => {
     return apiBadRequest(resolved.error)
   }
   if (resolved.remote) {
-    return apiBadRequest('远程连接的游戏无法修改本机窗口配置', 'REMOTE_READ_ONLY')
+    return apiBadRequest('Remote game cannot modify local window configuration', 'REMOTE_READ_ONLY')
   }
 
   const body = (await request.json().catch(() => ({}))) as {
@@ -39,10 +39,10 @@ export const PUT = defineApiRoute('put:/api/window', async ({ request }) => {
     gameRoot?: string
   }
   if (body.gameRoot && !pathEquals(body.gameRoot, resolved.selected)) {
-    return apiError(409, 'GAME_CHANGED', '选中的游戏已变化，请重新保存')
+    return apiError(409, 'GAME_CHANGED', 'Selected game has changed, please save again')
   }
   if (!body.window || typeof body.window !== 'object') {
-    return apiBadRequest('缺少 window 对象')
+    return apiBadRequest('Missing window object')
   }
 
   try {

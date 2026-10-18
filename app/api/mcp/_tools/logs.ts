@@ -36,7 +36,7 @@ export const logsTools: ToolImpls = {
   async chaya_logs_query(args) {
     if (optStr(args, 'view') === 'agent') return queryAgentActivity(args)
     const level = optStr(args, 'level') as LogLevel | undefined
-    if (level && !LOG_LEVEL_VALUES.includes(level)) throw new Error(`level 只能是：${LOG_LEVEL_VALUES.join(', ')}`)
+    if (level && !LOG_LEVEL_VALUES.includes(level)) throw new Error(`level must be one of: ${LOG_LEVEL_VALUES.join(', ')}`)
     const entries = listLogs({ q: optStr(args, 'q'), source: optStr(args, 'source'), level, since: optNum(args, 'since'), limit: optNum(args, 'limit') ?? DEFAULT_LIMIT })
     return { count: entries.length, entries }
   },

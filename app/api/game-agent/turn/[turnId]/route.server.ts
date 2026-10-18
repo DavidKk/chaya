@@ -16,6 +16,6 @@ export const DELETE = defineApiRoute('delete:/api/game-agent/turn/:turnId', asyn
     return apiOk({ turnId: ext.id, state: (task as { state?: string }).state || 'stopped' })
   }
   const turn = existing && (!gameId || existing.gameId === gameId) ? stopTurn(String(turnId || ''), gameId || undefined) : null
-  if (!turn) return apiNotFound('Agent Turn 不存在', 'AGENT_TURN_NOT_FOUND')
+  if (!turn) return apiNotFound('Agent turn not found', 'AGENT_TURN_NOT_FOUND')
   return apiOk({ turnId: turn.id, state: turn.state })
 })

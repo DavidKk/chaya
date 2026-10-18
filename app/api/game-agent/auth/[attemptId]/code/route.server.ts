@@ -8,10 +8,10 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export const POST = defineApiRoute('post:/api/game-agent/auth/:attemptId/code', async ({ context, request }) => {
-  if (!canUseDisk()) return apiError(404, 'LOCAL_ONLY', 'Agent 授权仅在 Chaya App 或本机服务中可用')
+  if (!canUseDisk()) return apiError(404, 'LOCAL_ONLY', 'Agent authorization is only available in Chaya App or local service')
   const { attemptId } = await context.params
   const body = (await request.json().catch(() => null)) as { code?: unknown } | null
-  if (typeof body?.code !== 'string') return apiError(400, 'INVALID_AGENT_AUTH', '缺少授权码')
+  if (typeof body?.code !== 'string') return apiError(400, 'INVALID_AGENT_AUTH', 'Missing authorization code')
   try {
     return apiOk(await submitAuthCode(String(attemptId || ''), body.code))
   } catch (error) {

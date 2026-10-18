@@ -19,7 +19,7 @@ export function makeCatalogTools(load: (signal: AbortSignal, gameId?: string) =>
   return {
     async chaya_edit_catalog(args, { signal }) {
       const kind = reqStr(args, 'kind') as (typeof CATALOG_KINDS)[number]
-      if (!CATALOG_KINDS.includes(kind)) throw new Error(`kind 只能是：${CATALOG_KINDS.join(', ')}`)
+      if (!CATALOG_KINDS.includes(kind)) throw new Error(`kind must be one of: ${CATALOG_KINDS.join(', ')}`)
       const limit = Math.min(MAX_LIMIT, Math.max(1, Math.round(optNum(args, 'limit') ?? DEFAULT_LIMIT)))
       const catalog = (await load(signal, optStr(args, 'gameId'))) as Record<string, unknown>
       return { kind, ...filterCatalog((catalog[kind] as CatalogEntry[] | undefined) ?? [], optStr(args, 'q'), limit) }

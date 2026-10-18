@@ -23,7 +23,8 @@ function readConfig(): InputAssistConfig {
   }
   const raw = JSON.parse(text)
   const config = parseInputAssistConfig(raw)
-  if (raw?.version !== 1 || !Array.isArray(raw.rules) || config.rules.length !== raw.rules.length) throw new Error('通用辅助配置文件已损坏，请检查原文件')
+  if (raw?.version !== 1 || !Array.isArray(raw.rules) || config.rules.length !== raw.rules.length)
+    throw new Error('Global input assistance configuration file is corrupt, please check source file')
   return config
 }
 
@@ -39,13 +40,14 @@ export const PUT = defineApiRoute('put:/api/input-assistance/global', async ({ r
   const body = await request.json().catch(() => null)
   const raw = body?.config
   const next = parseInputAssistConfig(raw)
-  if (!raw || raw.version !== 1 || !Array.isArray(raw.rules) || raw.rules.length !== next.rules.length) return apiBadRequest('规则配置包含无效数据')
+  if (!raw || raw.version !== 1 || !Array.isArray(raw.rules) || raw.rules.length !== next.rules.length) return apiBadRequest('Rule configuration contains invalid data')
   for (const rule of next.rules) {
     const issue = validateRule(rule, false)[0]
     if (issue) return apiBadRequest(`${rule.name}: ${issue.message}`)
   }
   const current = readConfig()
-  if (body.expectedRevision !== current.revision || next.revision !== current.revision + 1) return apiBadRequest('通用配置已在别处更改，请刷新后重试', 'REVISION_CONFLICT')
+  if (body.expectedRevision !== current.revision || next.revision !== current.revision + 1)
+    return apiBadRequest('Global configuration was modified elsewhere, please refresh and retry', 'REVISION_CONFLICT')
   const file = configFile()
   fs.mkdirSync(path.dirname(file), { recursive: true })
   const temporary = `${file}.${process.pid}.tmp`

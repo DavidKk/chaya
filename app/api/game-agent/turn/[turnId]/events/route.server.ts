@@ -11,11 +11,11 @@ export const GET = defineApiRoute('get:/api/game-agent/turn/:turnId/events', asy
   const { turnId } = await context.params
   const turn = getTurn(String(turnId || ''))
   const gameId = new URL(request.url).searchParams.get('gameId')
-  if (!gameId || (turn && turn.gameId !== gameId)) return apiNotFound('Agent Turn 不存在', 'AGENT_TURN_NOT_FOUND')
+  if (!gameId || (turn && turn.gameId !== gameId)) return apiNotFound('Agent turn not found', 'AGENT_TURN_NOT_FOUND')
   const after = Math.max(0, Number(new URL(request.url).searchParams.get('after')) || 0)
   if (!turn) {
     const ext = await getExtTask(gameId, String(turnId || ''))
-    if (!ext) return apiNotFound('Agent Turn 不存在', 'AGENT_TURN_NOT_FOUND')
+    if (!ext) return apiNotFound('Agent turn not found', 'AGENT_TURN_NOT_FOUND')
     const gameCallTimeoutMs = profileById(loadGameAgentSettings(), ext.profileId)?.gameCallTimeoutMs
     const encoder = new TextEncoder()
     const abort = new AbortController()

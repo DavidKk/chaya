@@ -28,10 +28,10 @@ export const GET = defineApiRoute('get:/api/translate-cache', async ({ request }
   const idRaw = url.searchParams.get('id')
   if (idRaw != null && idRaw !== '') {
     const id = Math.floor(Number(idRaw) || 0)
-    if (id <= 0) return apiBadRequest('无效的缓存 id', 'CACHE_ID_INVALID')
+    if (id <= 0) return apiBadRequest('Invalid cache id', 'CACHE_ID_INVALID')
     try {
       const item = getSharedTranslateCacheById(id)
-      if (!item) return apiError(404, 'CACHE_NOT_FOUND', '未找到该缓存条目')
+      if (!item) return apiError(404, 'CACHE_NOT_FOUND', 'Cache entry not found')
       return apiOk({ item })
     } catch (err) {
       return apiError(500, 'CACHE_QUERY_FAILED', err instanceof Error ? err.message : String(err))
@@ -84,10 +84,10 @@ export const POST = defineApiRoute('post:/api/translate-cache', async ({ request
       const form = await request.formData()
       const file = form.get('file')
       if (!(file instanceof File)) {
-        return apiError(400, 'IMPORT_NO_FILE', '请选择要导入的文件')
+        return apiError(400, 'IMPORT_NO_FILE', 'Please select a file to import')
       }
       if (file.size > MAX_IMPORT_BYTES) {
-        return apiError(400, 'IMPORT_TOO_LARGE', `文件过大（上限 ${MAX_IMPORT_BYTES / 1024 / 1024}MB）`)
+        return apiError(400, 'IMPORT_TOO_LARGE', `File too large (limit: ${MAX_IMPORT_BYTES / 1024 / 1024}MB)`)
       }
       text = await file.text()
       filename = file.name || ''
@@ -99,18 +99,18 @@ export const POST = defineApiRoute('post:/api/translate-cache', async ({ request
       overwrite = Boolean(body.overwrite)
       filename = String(body.filename || '')
       if (Buffer.byteLength(text, 'utf8') > MAX_IMPORT_BYTES) {
-        return apiError(400, 'IMPORT_TOO_LARGE', `内容过大（上限 ${MAX_IMPORT_BYTES / 1024 / 1024}MB）`)
+        return apiError(400, 'IMPORT_TOO_LARGE', `Content too large (limit: ${MAX_IMPORT_BYTES / 1024 / 1024}MB)`)
       }
     }
 
     if (!text.trim()) {
-      return apiError(400, 'IMPORT_EMPTY', '文件为空')
+      return apiError(400, 'IMPORT_EMPTY', 'File is empty')
     }
 
     const parsed = parseTranslateImportText(text)
     const pairCount = Object.keys(parsed.map).length
     if (pairCount === 0) {
-      return apiError(400, 'IMPORT_NO_PAIRS', '未解析到有效译文（需 JSON 键值或 NDJSON）')
+      return apiError(400, 'IMPORT_NO_PAIRS', 'No valid translations parsed (requires JSON key-value or NDJSON)')
     }
 
     const result = importSharedTranslateCache(parsed.map, {
@@ -144,24 +144,24 @@ export const PATCH = defineApiRoute('patch:/api/translate-cache', async ({ reque
     const zh = String(body.zh ?? '').trim()
     const nsfwProvided = typeof body.nsfw === 'boolean'
     const pair = { from: body.from, to: body.to }
-    if (!src) return apiBadRequest('缺少原文', 'CACHE_SRC_REQUIRED')
+    if (!src) return apiBadRequest('Missing source text', 'CACHE_SRC_REQUIRED')
 
     if (!zh) {
-      if (!nsfwProvided) return apiBadRequest('译文不能为空', 'CACHE_ZH_REQUIRED')
+      if (!nsfwProvided) return apiBadRequest('Translation text cannot be empty', 'CACHE_ZH_REQUIRED')
       const result = setSharedTranslateCacheNsfw(src, body.nsfw as boolean, pair)
-      if (!result.updated) return apiError(404, 'CACHE_NOT_FOUND', '未找到该原文对应的缓存')
+      if (!result.updated) return apiError(404, 'CACHE_NOT_FOUND', 'Cache not found for the given source text')
       return apiOk(result)
     }
 
     if (isIdenticalTranslation(src, zh)) {
-      if (!nsfwProvided) return apiBadRequest('原文与译文相同，无需保存', 'CACHE_IDENTICAL')
+      if (!nsfwProvided) return apiBadRequest('Source and translation are identical, skipping save', 'CACHE_IDENTICAL')
       const result = setSharedTranslateCacheNsfw(src, body.nsfw as boolean, pair)
-      if (!result.updated) return apiError(404, 'CACHE_NOT_FOUND', '未找到该原文对应的缓存')
+      if (!result.updated) return apiError(404, 'CACHE_NOT_FOUND', 'Cache not found for the given source text')
       return apiOk(result)
     }
 
     const result = updateSharedTranslateCache(src, zh, 'manual', pair, nsfwProvided ? { nsfw: body.nsfw } : undefined)
-    if (!result.updated) return apiError(404, 'CACHE_NOT_FOUND', '未找到该原文对应的缓存')
+    if (!result.updated) return apiError(404, 'CACHE_NOT_FOUND', 'Cache not found for the given source text')
     return apiOk(result)
   } catch (err) {
     return apiError(500, 'CACHE_UPDATE_FAILED', err instanceof Error ? err.message : String(err))
@@ -176,10 +176,10 @@ export const DELETE = defineApiRoute('delete:/api/translate-cache', async ({ req
   try {
     const body = (await request.json().catch(() => ({}))) as { src?: string; from?: string; to?: string }
     const src = String(body.src ?? '')
-    if (!src) return apiBadRequest('缺少原文', 'CACHE_SRC_REQUIRED')
+    if (!src) return apiBadRequest('Missing source text', 'CACHE_SRC_REQUIRED')
 
     const result = deleteSharedTranslateCache(src, { from: body.from, to: body.to })
-    if (!result.deleted) return apiError(404, 'CACHE_NOT_FOUND', '未找到该原文对应的缓存')
+    if (!result.deleted) return apiError(404, 'CACHE_NOT_FOUND', 'Cache not found for the given source text')
     return apiOk(result)
   } catch (err) {
     return apiError(500, 'CACHE_DELETE_FAILED', err instanceof Error ? err.message : String(err))

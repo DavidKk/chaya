@@ -10,8 +10,8 @@ export function makeTranslateTools(invoke: ApiInvoke): ToolImpls {
   return {
     async chaya_translate_text(args, { signal }) {
       const texts = optList(args, 'texts').filter((t): t is string => typeof t === 'string' && t.trim() !== '')
-      if (!texts.length) throw new Error('texts 不能为空')
-      if (texts.length > MAX_TEXTS) throw new Error(`一次最多 ${MAX_TEXTS} 段`)
+      if (!texts.length) throw new Error('texts cannot be empty')
+      if (texts.length > MAX_TEXTS) throw new Error(`At most ${MAX_TEXTS} texts per request`)
       return translate({ texts, force: optBool(args, 'force') ?? false, persist: optBool(args, 'persist') ?? true }, signal)
     },
 
@@ -23,7 +23,7 @@ export function makeTranslateTools(invoke: ApiInvoke): ToolImpls {
       const action = reqStr(args, 'action')
       if (action === 'status') return translate({ mode: 'progress' }, signal)
       if (action === 'start' || action === 'pause') return translate({ mode: 'job', action }, signal)
-      throw new Error('action 只能是 start、pause、status')
+      throw new Error('action must be start, pause, or status')
     },
 
     async chaya_translate_batch(args, { signal }) {

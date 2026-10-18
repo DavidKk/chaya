@@ -181,7 +181,7 @@ async function swapInShell(shellSourceRoot: string, shellApp: string, contentRoo
     await copyShellSource(shellSourceRoot, staging)
     if (isMacHost()) {
       const resourcesDir = path.join(staging, 'Contents/Resources')
-      if (!fs.existsSync(resourcesDir)) throw new Error(`壳结构异常，缺少 Contents/Resources: ${shellSourceRoot}`)
+      if (!fs.existsSync(resourcesDir)) throw new Error(`Invalid shell structure, missing Contents/Resources: ${shellSourceRoot}`)
       linkContent(path.join(resourcesDir, 'app.nw'), contentRoot)
     }
   } catch (e) {
@@ -262,7 +262,7 @@ async function installShellNow(opts: InstallShellOptions): Promise<ShellInstallR
   if (isMacHost() && contentRoot.includes(`${path.sep}Contents${path.sep}`)) {
     const errBundle = contentRoot.match(/^(.*\.app)(?:\/|$)/i)?.[1]
     if (errBundle && contentRoot.startsWith(path.join(errBundle, 'Contents'))) {
-      throw new Error('当前已是 NW.js 打包应用，壳已就绪。无需再装壳，可直接处理插件与翻译。')
+      throw new Error('Already a packaged NW.js application; shell is ready. No installation needed; proceed to plugins and translation.')
     }
   }
 
@@ -270,14 +270,14 @@ async function installShellNow(opts: InstallShellOptions): Promise<ShellInstallR
   if (err) throw new Error(err)
 
   if (!fs.existsSync(contentRoot) || !fs.statSync(contentRoot).isDirectory()) {
-    throw new Error(`内容根不存在: ${contentRoot}`)
+    throw new Error(`Content root does not exist: ${contentRoot}`)
   }
 
   const shellSourceRoot = resolveShellSourceRoot(opts.shellSource)
   const shellApp = toolkitRoot ? toolkitShellAppPath(toolkitRoot) : toolkitShellAppPath()
 
   if (contentRoot === shellApp || contentRoot.startsWith(shellApp + path.sep)) {
-    throw new Error('内容根不能位于共用壳内部')
+    throw new Error('Content root cannot reside inside the shared shell')
   }
 
   recoverOldIfNeeded(shellApp)
@@ -295,7 +295,7 @@ async function installShellNow(opts: InstallShellOptions): Promise<ShellInstallR
   const resourcesDir = path.join(shellApp, 'Contents/Resources')
   const appNwLink = path.join(resourcesDir, 'app.nw')
   if (!fs.existsSync(resourcesDir)) {
-    throw new Error(`壳结构异常，缺少 Contents/Resources: ${shellApp}`)
+    throw new Error(`Invalid shell structure, missing Contents/Resources: ${shellApp}`)
   }
 
   let relinked = created
@@ -324,7 +324,7 @@ export function ensureShellLinkedToContent(opts: { shellApp: string; contentRoot
   const appNwLink = path.join(shellApp, 'Contents/Resources/app.nw')
   const resourcesDir = path.dirname(appNwLink)
   if (!fs.existsSync(resourcesDir)) {
-    throw new Error(`壳结构异常: ${shellApp}`)
+    throw new Error(`Invalid shell structure: ${shellApp}`)
   }
 
   let currentResolved: string | null = null

@@ -32,7 +32,7 @@ export async function listAnthropicModels(endpoint: string, fetcher: typeof fetc
     url.searchParams.set('limit', '1000')
     if (after) url.searchParams.set('after_id', after)
     const response = await fetcher(url.toString(), { headers: headers(token), signal, cache: 'no-store' })
-    if (!response.ok) throw new Error(`Claude 模型列表请求失败（HTTP ${response.status}）`)
+    if (!response.ok) throw new Error(`Claude model list request failed (HTTP ${response.status})`)
     const body = (await response.json()) as { data?: Array<{ id: string; display_name?: string }>; has_more?: boolean; last_id?: string }
     for (const item of body.data || []) if (typeof item.id === 'string') models.push({ name: item.id, ...(item.display_name ? { label: item.display_name } : {}) })
     if (!body.has_more || !body.last_id || body.last_id === after) break
@@ -98,7 +98,7 @@ export async function completeAnthropicChat(input: Input, fetcher: typeof fetch 
   const toolCalls = (body.content || [])
     .filter((block) => block.type === 'tool_use' && block.name)
     .map((block) => ({ function: { name: block.name!, arguments: block.input || {} } }))
-  if (!content && !toolCalls.length) throw new Error('Claude 返回空响应')
+  if (!content && !toolCalls.length) throw new Error('Claude returned empty response')
   return {
     role: 'assistant',
     content,

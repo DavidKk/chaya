@@ -13,7 +13,7 @@ const prefix = Math.random().toString(36).slice(2)
 /** Yields to the event loop every 8 packets so the channel buffer is not flooded */
 export async function sendChunked(send: (packet: LinkChunkPacket) => void | Promise<void>, message: unknown): Promise<void> {
   const raw = JSON.stringify(message)
-  if (raw.length > MAX_CHARS) throw new Error('数据过大，无法通过游戏连接发送')
+  if (raw.length > MAX_CHARS) throw new Error('Payload too large to send over game connection')
   const id = `${prefix}-${++sequence}`
   const total = Math.max(1, Math.ceil(raw.length / CHUNK))
   for (let index = 0; index < total; index++) {

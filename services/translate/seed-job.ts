@@ -81,8 +81,8 @@ function clip(text: string, max = 72) {
 
 function resolveBoundRoot(): string {
   const resolved = getResolvedFromConfig()
-  if (!resolved.ok) throw new Error('请先在游戏库绑定本地游戏')
-  if (resolved.remote) throw new Error('远程游戏请在本机绑定后翻译')
+  if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
+  if (resolved.remote) throw new Error('Remote games must be bound locally before translating')
   return resolved.contentRoot
 }
 
@@ -255,7 +255,7 @@ export function startSeedJob(): SeedJobSnapshot {
   // Actions must see freshly imported seeds and cleared caches rather than stale polling progress.
   const progress = getSeedTranslateProgress(contentRoot, true)
   if (!progress.hasSeed || !progress.total) {
-    throw new Error('未找到 seed（请先抽取文本，或放入 *-trans.seed.json）')
+    throw new Error('Seed not found (please extract text first or provide *-trans.seed.json)')
   }
   if (!progress.missing) {
     const rt = getRuntime(contentRoot)
@@ -272,7 +272,7 @@ export function startSeedJob(): SeedJobSnapshot {
   } catch {
     engines = []
   }
-  if (!engines.length) throw new Error('未开启任何翻译平台')
+  if (!engines.length) throw new Error('No translation engines are enabled')
 
   const rt = getRuntime(contentRoot)
   if (rt.running) return { ...progress, job: { ...rt.state, logs: [...rt.state.logs] } }

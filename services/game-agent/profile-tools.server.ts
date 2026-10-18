@@ -46,8 +46,8 @@ function resolveProfile(settings: GameAgentSettings, target: string): GameAgentP
   const exactId = settings.profiles.find((profile) => profile.id === target)
   if (exactId) return exactId
   const matches = settings.profiles.filter((profile) => profile.label.localeCompare(target, undefined, { sensitivity: 'accent' }) === 0)
-  if (matches.length > 1) throw new Error(`名称 ${target} 对应多个 Agent，请使用 id`)
-  if (!matches.length) throw new Error(`找不到 Agent：${target}`)
+  if (matches.length > 1) throw new Error(`Name ${target} matches multiple agents, please use id`)
+  if (!matches.length) throw new Error(`Agent not found: ${target}`)
   return matches[0]
 }
 
@@ -61,10 +61,10 @@ export function listGameAgentProfiles(input: GameAgentProfileFiles = {}) {
 }
 
 export function createGameAgentProfile(patch: GameAgentProfilePatch, input: GameAgentProfileFiles = {}) {
-  if (!patch.label?.trim()) throw new Error('创建 Agent 时必须提供名称')
+  if (!patch.label?.trim()) throw new Error('Agent name is required when creating an agent')
   const settings = current(input)
   const profile = normalizeGameAgentProfile({ ...patch, id: patch.id || randomUUID(), provider: patch.provider || 'ollama' })
-  if (settings.profiles.some((item) => item.id === profile.id)) throw new Error(`Agent id 已存在：${profile.id}`)
+  if (settings.profiles.some((item) => item.id === profile.id)) throw new Error(`Agent id already exists: ${profile.id}`)
   if (!acceptsApiKey(profile.provider) && (patch.token !== undefined || patch.clearToken)) throw new Error(CLI_TOKEN_UNSUPPORTED)
   const saved = save({ ...settings, profiles: [...settings.profiles, profile] }, input)
   if (patch.token !== undefined || patch.clearToken) saveGameAgentToken(profile.id, patch.clearToken ? null : patch.token || null, input)
@@ -90,7 +90,7 @@ export function updateGameAgentProfile(target: string, patch: GameAgentProfilePa
 export function deleteGameAgentProfile(target: string, input: GameAgentProfileFiles = {}) {
   const settings = current(input)
   const existing = resolveProfile(settings, target)
-  if (settings.profiles.length <= 1) throw new Error('至少需要保留一个 Agent')
+  if (settings.profiles.length <= 1) throw new Error('At least one agent must be preserved')
   const saved = save({ ...settings, profiles: settings.profiles.filter((item) => item.id !== existing.id) }, input)
   deleteGameAgentToken(existing.id, input)
   releaseRemovedAuthorizations(settings.profiles, saved.profiles)

@@ -58,6 +58,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'lookup'
         | 'live'
         | 'realtime'
+        | 'cache'
         | 'apple'
         | 'ai'
         | 'agents'
@@ -112,7 +113,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
 
     if (body.mode === 'play-settings') {
       const contentRoot = resolveTranslateContentRoot()
-      if (body.settings !== undefined && body.contentRoot !== contentRoot) return apiError(409, 'GAME_CHANGED', '当前游戏已变化，请重新加载设置')
+      if (body.settings !== undefined && body.contentRoot !== contentRoot) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload settings')
       const settings = body.settings === undefined ? getTranslationPlaySettings(contentRoot) : setTranslationPlaySettings(contentRoot, body.settings)
       return apiOk({ contentRoot, settings })
     }
@@ -125,7 +126,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (body.mode === 'job') {
       if (body.action === 'pause') return apiOk(pauseSeedJob())
       if (body.action === 'start') return apiOk(startSeedJob())
-      return apiError(400, 'TRANSLATE_JOB_ACTION', '缺少 action: start | pause')
+      return apiError(400, 'TRANSLATE_JOB_ACTION', 'Missing action: start | pause')
     }
 
     if (body.mode === 'switches') {
@@ -154,7 +155,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
 
     const session = !hasManagementAccess(request) ? peekLaunchToken(request.headers.get('x-chaya-launch-token')) : null
     const game = session ? resolveGame(session.gameRoot) : null
-    if (session && (!game?.ok || game.remote)) return apiError(400, 'GAME_UNAVAILABLE', '游戏路径不可用')
+    if (session && (!game?.ok || game.remote)) return apiError(400, 'GAME_UNAVAILABLE', 'Game path unavailable')
 
     if (body.mode === 'extract-items') {
       const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
@@ -177,7 +178,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
       const text = typeof body.text === 'string' ? body.text : ''
       const zh = typeof body.zh === 'string' ? body.zh : ''
-      if (!text && !body.localesKey) return apiError(400, 'SAVE_ITEM_EMPTY', '缺少原文 text 或 localesKey')
+      if (!text && !body.localesKey) return apiError(400, 'SAVE_ITEM_EMPTY', 'Missing source text or localesKey')
 
       if (typeof body.localesKey === 'string' && body.localesKey) {
         const { saveLocalesItem } = await import('@/services/extract/lib/save-locales-item')
@@ -200,25 +201,63 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (body.mode === 'reset-item') {
       const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
       const text = typeof body.text === 'string' ? body.text : ''
-      if (!text) return apiError(400, 'RESET_ITEM_EMPTY', '缺少原文 text')
+      if (!text) return apiError(400, 'RESET_ITEM_EMPTY', 'Missing source text')
       const { resetExtractedItem } = await import('@/services/extract/lib/save-items')
       return apiOk(resetExtractedItem(root, text))
     }
 
     const texts = Array.isArray(body.texts) ? body.texts : body.text != null ? [body.text] : []
     if (!texts.length) {
-      return apiError(400, 'TRANSLATE_EMPTY', '缺少 text / texts')
+      return apiError(400, 'TRANSLATE_EMPTY', 'Missing text / texts')
     }
 
+    if (body.mode === 'cache') {
+      const text = typeof body.text === 'string' ? body.text : texts[0] || ''
+      if (!text.trim()) return apiError(400, 'TRANSLATE_CACHE_INPUT', 'Missing query text')
+      let root: string | null = null
+      try {
+        root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      } catch {
+        root = null
+      }
+      const { openSharedCache } = await import('@/services/translate/shared-cache')
+      const { loadGameTranslationRecords } = await import('@/services/translate/game-records')
+      const { loadGameTranslateLookup } = await import('@/services/translate/game-lookup')
+      const { lookupGameTranslation } = await import('@/services/translate/cache-lookup')
+      const { detectCacheLang } = await import('@/lib/translate/cache-lang')
+      const cache = openSharedCache()
+      try {
+        const localRecords = root ? loadGameTranslationRecords(root, (origin) => origin.database === cache.path && cache.current([{ ...origin, src: '', zh: '' }])) : []
+        const localLookup = root ? loadGameTranslateLookup(root) : null
+        const pair = { from: detectCacheLang(text), to: 'zh' as const }
+        const plan = cache.plan(text, pair, localRecords)
+        if (plan.status === 'full' && plan.zh) {
+          return apiOk({ items: [{ src: text, zh: plan.zh, engine: 'cache:full' }] })
+        }
+        const cached = root
+          ? lookupGameTranslation(
+              (k: string) => (localLookup ? (localLookup[k] ?? null) : null),
+              (k: string) => cache.get(k),
+              text
+            )
+          : null
+        if (cached?.zh) {
+          return apiOk({ items: [{ src: text, zh: cached.zh, engine: cached.engine }] })
+        }
+        return apiOk({ items: [{ src: text, zh: null, error: '未在缓存中命中翻译' }] })
+      } finally {
+        cache.close()
+      }
+    }
     if (body.mode === 'apple') {
       const text = typeof body.text === 'string' ? body.text : ''
-      if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_APPLE_INPUT', 'Apple 离线翻译需要 1–20000 字的 text')
+      if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_APPLE_INPUT', 'Apple offline translation requires text of 1-20000 characters')
       const { appleTranslate } = await import('@/services/translate/lib/macos-translate')
       return apiOk({ text: await appleTranslate(text, { source: (body.from || body.source || 'ja') as string, target: (body.to || body.target || 'zh-Hans') as string }) })
     }
     if (body.mode === 'ai') {
       const text = typeof body.text === 'string' ? body.text : ''
-      if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_AI_INPUT', 'AI 翻译需要 1–20000 字的 text')
+      if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_AI_INPUT', 'AI translation requires text of 1-20000 characters')
       const { agentJaToZh } = await import('@/services/translate/agent-translate')
       return apiOk({ text: await agentJaToZh(text, normalizeAiConfig(body.ai), { interactive: body.interactive === true, signal: request.signal }) })
     }
@@ -231,6 +270,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       force: Boolean(body.force),
       persist: body.persist !== false,
       engines: Array.isArray(body.engines) ? body.engines : undefined,
+      sourceLang: typeof body.sourceLang === 'string' ? body.sourceLang : typeof body.from === 'string' ? body.from : undefined,
+      targetLang: typeof body.targetLang === 'string' ? body.targetLang : typeof body.to === 'string' ? body.to : undefined,
     })
     const okCount = items.filter((i) => i.zh).length
     return apiOk({ items, translated: okCount, total: items.length, contentRoot, engines }, { headers: { 'Access-Control-Allow-Origin': '*' } })
@@ -242,5 +283,5 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
 export type { TranslateEngineId }
 
 function apiBadLookup() {
-  return apiError(400, 'TRANSLATE_LOOKUP_INPUT', '翻译库查询最多 40 段、20000 字')
+  return apiError(400, 'TRANSLATE_LOOKUP_INPUT', 'Translation lookup supports up to 40 segments and 20000 characters')
 }

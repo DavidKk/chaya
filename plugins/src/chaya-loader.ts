@@ -215,7 +215,7 @@ function tryRunCode(name: string, code: string, from: string): string | null {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     try {
-      console.error(`[ChayaLoader] 执行失败 ${name} ← ${from}`, err)
+      console.error(`[ChayaLoader] Execution failed for ${name} <- ${from}`, err)
     } catch {
       /* */
     }
@@ -270,7 +270,7 @@ function loadOne(name: (typeof LOAD_ORDER)[number]): LoadFail | null {
   }
 
   try {
-    console.warn(`[ChayaLoader] 未能加载 ${name}（api=${resolveApiBase()}）`, errors)
+    console.warn(`[ChayaLoader] Failed to load ${name} (api=${resolveApiBase()})`, errors)
   } catch {
     /* */
   }
@@ -347,7 +347,7 @@ function startHotReload() {
             if (lifetime.signal.aborted) return
             // Preserve the newest event; a transient build/write failure must not lose an update.
             if (!pending.has(name)) pending.set(name, requested)
-            console.warn(`[ChayaLoader] 热替换暂未完成，稍后重试 ${name}`, error)
+            console.warn(`[ChayaLoader] HMR update in progress, will retry ${name}`, error)
             failed = true
             break
           }
@@ -396,7 +396,7 @@ function startHotReload() {
           try {
             const data = JSON.parse(String((ev as MessageEvent).data || '{}'))
             if (Array.isArray(data.plugins)) enqueue(data.plugins)
-            console.info(`[ChayaLoader] 开发热替换 SSE 已连接 ← ${url}`)
+            console.info(`[ChayaLoader] Development HMR SSE connected <- ${url}`)
           } catch {
             /* Ignore invalid events. */
           }
@@ -455,7 +455,7 @@ try {
     } catch (err) {
       failed.push({ name, reason: err instanceof Error ? err.message : String(err) })
       try {
-        console.error(`[ChayaLoader] 加载中断 ${name}`, err)
+        console.error(`[ChayaLoader] Loading interrupted for ${name}`, err)
       } catch {
         /* */
       }
@@ -471,7 +471,7 @@ try {
   restorePluginErrors()
 } catch (err) {
   try {
-    console.error('[ChayaLoader] 启动失败（已隔离，不影响游戏本体）', err)
+    console.error('[ChayaLoader] Failed to start (isolated, game unaffected)', err)
   } catch {
     /* */
   }

@@ -542,6 +542,8 @@ export type MessageTree = {
     listGlobalSchemeAria: string
     listGlobalSchemeTooltip: string
     listSchemeSmart: string
+    listSchemeCache: string
+    listSingleCacheMiss: string
     listPrewarmAria: string
     listPrewarmTooltip: string
     listReloadAria: string
@@ -601,10 +603,17 @@ export type MessageTree = {
     listRowItemIndex: string
     listRowLocalesKey: string
     listRowLocalesFile: string
+    listRowNoKey: string
+    listRowNoKeyTooltip: string
+    listRowMissingSourceBadge: string
+    listRowMissingSourceTooltip: string
     listRowCategoryTooltip: string
     listRowFileTooltip: string
     listRowSpeakerTooltip: string
     listRowContextTooltip: string
+    listContextMap: string
+    listContextCommonEvent: string
+    listContextTroopEvent: string
     catAll: string
     catDialogue: string
     catStory: string

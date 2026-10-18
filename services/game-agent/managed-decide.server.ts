@@ -170,7 +170,7 @@ export async function decide(
       return { role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'task_press', arguments: { key: 'cancel' } } }] }
     const escapeIndices = choices.map((_, index) => index).filter((index) => choices[index].symbol === 'escape')
     const allowedIndices = allowEscape && escapeIndices.length ? escapeIndices : choices.map((_, index) => index).filter((index) => choices[index].symbol !== 'escape')
-    if (choices.length && !allowedIndices.length) throw new Error('当前战斗菜单没有已授权的可选行动')
+    if (choices.length && !allowedIndices.length) throw new Error('No authorized actions available in current battle menu')
     const choice = await streamOllamaChat(
       {
         endpoint: profile.endpoint,
@@ -212,7 +212,7 @@ export async function decide(
     } catch {
       // The caller reports an unsupported model response.
     }
-    throw new Error('当前模型未选择有效的战斗按键')
+    throw new Error('Model did not select a valid battle action key')
   }
   const allowedActions = ordinaryBattleMenu ? ['press'] : ['press', 'ask_user', 'finish']
   const tools: OllamaTool[] = [

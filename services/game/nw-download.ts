@@ -77,7 +77,7 @@ function looksLikeMacAppBundle(appPath: string): boolean {
 /** 在解压目录里找可用壳源（.app / 含 nw.exe 的目录 / 含 nw 的目录） */
 export function findShellSourceInExtract(extractRoot: string): string {
   const root = path.resolve(extractRoot)
-  if (!fs.existsSync(root)) throw new Error(`解压目录不存在: ${root}`)
+  if (!fs.existsSync(root)) throw new Error(`Extraction directory does not exist: ${root}`)
 
   const tryPath = (p: string): string | null => {
     if (!fs.existsSync(p)) return null
@@ -115,7 +115,7 @@ export function findShellSourceInExtract(extractRoot: string): string {
     if (hit) return hit
   }
 
-  throw new Error(`解压后未找到可用 NW.js 壳（.app / nw.exe / nw）: ${root}`)
+  throw new Error(`No usable NW.js shell (.app / nw.exe / nw) found after extraction: ${root}`)
 }
 
 function withTimeout(ms: number, signal?: AbortSignal): AbortSignal {
@@ -124,7 +124,7 @@ function withTimeout(ms: number, signal?: AbortSignal): AbortSignal {
 
 export async function fetchVersionsJson(signal?: AbortSignal): Promise<VersionsJson> {
   const res = await fetch(VERSIONS_URL, { redirect: 'follow', signal: withTimeout(8_000, signal) })
-  if (!res.ok) throw new Error(`拉取 NW.js 版本清单失败 HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`Failed to fetch NW.js version manifest HTTP ${res.status}`)
   return (await res.json()) as VersionsJson
 }
 
@@ -202,12 +202,12 @@ export async function ensureLatestNwShellSource(opts: EnsureLatestNwOpts = {}): 
   const versions = await fetchVersionsJson(opts.signal)
   opts.signal?.throwIfAborted()
   const channelVer = opts.channel === 'latest' ? versions.latest : versions.stable || versions.latest
-  if (!channelVer) throw new Error('versions.json 未提供 stable/latest')
+  if (!channelVer) throw new Error('versions.json does not provide stable/latest release')
   const version = normalizeNwVersion(channelVer)
 
   const meta = versions.versions?.find((v) => normalizeNwVersion(v.version) === version)
   if (meta?.files && !meta.files.includes(fileKey)) {
-    throw new Error(`NW.js ${version} 不提供 ${fileKey} 包（可选: ${meta.files.join(', ')}）`)
+    throw new Error(`NW.js ${version} does not provide package ${fileKey} (available: ${meta.files.join(', ')})`)
   }
 
   const cacheRoot = shellCacheDir(opts.toolkitRoot)
@@ -258,9 +258,9 @@ export async function ensureLatestNwShellSource(opts: EnsureLatestNwOpts = {}): 
       if (opts.signal?.aborted) throw opts.signal.reason instanceof Error ? opts.signal.reason : e
       if (!verified) {
         fs.rmSync(archivePath, { force: true })
-        throw new Error(`解压 ${archiveName} 失败，已删除压缩包，重试会重新下载：${e instanceof Error ? e.message : String(e)}`)
+        throw new Error(`Failed to extract ${archiveName}; archive deleted, retry will re-download: ${e instanceof Error ? e.message : String(e)}`)
       }
-      throw new Error(`解压 ${archiveName} 失败（压缩包校验通过，已保留）：${e instanceof Error ? e.message : String(e)}`)
+      throw new Error(`Failed to extract ${archiveName} (archive checksum verified, preserved): ${e instanceof Error ? e.message : String(e)}`)
     }
     // 解压成功后删掉压缩包省空间
     try {

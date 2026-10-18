@@ -13,7 +13,7 @@ function fail(error: unknown) {
 }
 
 export const GET = defineApiRoute('get:/api/game-agent/auth/:attemptId', async ({ context, request }) => {
-  if (!canUseDisk()) return apiError(404, 'LOCAL_ONLY', 'Agent 授权仅在 Chaya App 或本机服务中可用')
+  if (!canUseDisk()) return apiError(404, 'LOCAL_ONLY', 'Agent authorization is only available in Chaya App or local service')
   const { attemptId } = await context.params
   const waitMs = Number(new URL(request.url).searchParams.get('waitMs') || 0)
   try {
@@ -24,7 +24,7 @@ export const GET = defineApiRoute('get:/api/game-agent/auth/:attemptId', async (
 })
 
 export const DELETE = defineApiRoute('delete:/api/game-agent/auth/:attemptId', async ({ context }) => {
-  if (!canUseDisk()) return apiError(404, 'LOCAL_ONLY', 'Agent 授权仅在 Chaya App 或本机服务中可用')
+  if (!canUseDisk()) return apiError(404, 'LOCAL_ONLY', 'Agent authorization is only available in Chaya App or local service')
   const { attemptId } = await context.params
   try {
     return apiOk(cancelAuthAttempt(String(attemptId || '')))

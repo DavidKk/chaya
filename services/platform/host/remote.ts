@@ -5,14 +5,14 @@ export class RemoteHostShell implements HostShellCapability {
   readonly id = 'hostShell' as const
 
   reveal(_targetPath: string): Promise<void> {
-    return Promise.reject(new Error('当前服务形态不支持本机文件管理器'))
+    return Promise.reject(new Error('Local file manager is not supported in current service mode'))
   }
 
   open(_targetPath: string): Promise<void> {
-    return Promise.reject(new Error('当前服务形态不支持本机打开路径'))
+    return Promise.reject(new Error('Opening local path is not supported in current service mode'))
   }
 
   launchShell(_shellApp: string, _contentRoot: string): Promise<void> {
-    return Promise.reject(new Error('当前服务形态不支持启动游戏壳'))
+    return Promise.reject(new Error('Launching game shell is not supported in current service mode'))
   }
 }

@@ -302,7 +302,10 @@ test('stops after a route returns to an already tried exit', async () => {
   await runManagedTurn({ ...input, prompt: '打开宝箱' }, profile, turn())
 
   expect(game.mock.calls.filter((call) => call[1] === 'player.moveTo' && (call[2] as { guard: { mapId: number } }).guard.mapId === 1)).toHaveLength(1)
-  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('重复绕行') }))
+  expect(emitTurnEvent).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('Route looped back to already visited exit') })
+  )
   expect(emitTurnEvent).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.completed' }))
 })
 
@@ -313,7 +316,10 @@ test('does not claim a touch interaction succeeded when a bump has no effect', a
   await runManagedTurn({ ...input, prompt: '进这扇门' }, profile, turn())
 
   expect(pressedKeys(game)).toEqual(['up'])
-  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('无法确认完成') }))
+  expect(emitTurnEvent).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('no completion evidence received') })
+  )
 })
 
 test('does not ask when the goal is already bound, even if the model adds a question', async () => {
@@ -352,7 +358,10 @@ test('does not claim success when an interaction has no observable effect', asyn
   await runManagedTurn({ ...input, prompt: '跟村长对话' }, profile, turn())
 
   expect(pressedKeys(game)).toEqual(['ok'])
-  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('无法确认完成') }))
+  expect(emitTurnEvent).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('no completion evidence received') })
+  )
 })
 
 test('asks the model again when it finds the event but omits the map skill', async () => {
@@ -432,7 +441,10 @@ test('keeps asking up to the clarification limit before giving up', async () => 
   await runManagedTurn({ ...input, prompt: '嗯' }, profile, active)
 
   expect((emitTurnEvent as jest.Mock).mock.calls.filter((call) => call[1].type === 'approval.required')).toHaveLength(2)
-  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('多次补充后仍无法确定目标') }))
+  expect(emitTurnEvent).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('Target could not be clarified after multiple rounds') })
+  )
 })
 
 test('the approach map skill stops next to the event without triggering it', async () => {
@@ -457,7 +469,7 @@ test('fails with a clear reason when no tile beside the target is reachable', as
 
   expect(moves(game)).toHaveLength(4)
   expect(pressedKeys(game)).toEqual([])
-  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('无法走到宝箱旁边') }))
+  expect(emitTurnEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'turn.failed', message: expect.stringContaining('Cannot walk adjacent to') }))
 })
 
 test('stops the task as soon as the player operates the game', async () => {

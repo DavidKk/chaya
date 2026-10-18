@@ -52,7 +52,7 @@ function aad(profileId: string, provider: RemoteAuthProvider, relPath: string) {
 
 function assertRelPath(relPath: string) {
   if (!relPath || path.isAbsolute(relPath) || relPath.split(/[\\/]/).some((part) => !part || part === '.' || part === '..')) {
-    throw new Error(`凭证文件路径无效：${relPath}`)
+    throw new Error(`Invalid credentials file path: ${relPath}`)
   }
 }
 
@@ -66,7 +66,7 @@ function readDocument(file: string): CredentialDocument | null {
   }
   const value = JSON.parse(raw) as CredentialDocument
   if (value?.version !== 1 || !isRemoteAuthProvider(value.provider) || !Number.isInteger(value.generation) || !value.files || typeof value.files !== 'object') {
-    throw new Error('Agent 授权文件格式无效')
+    throw new Error('Invalid agent authorization file format')
   }
   return value
 }

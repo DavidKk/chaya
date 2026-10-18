@@ -77,7 +77,7 @@ export function resolveShellLaunchTarget(shellRootOrExe: string): string {
   if (exe) return exe
   const linuxBin = findNwLinuxBinary(p)
   if (linuxBin) return linuxBin
-  throw new Error(`未找到可启动的壳：${p}（Windows 需 nw.exe，macOS 需 .app，Linux 需 nw）`)
+  throw new Error(`No launchable shell found: ${p} (Windows requires nw.exe, macOS requires .app, Linux requires nw)`)
 }
 
 /** macOS：`.app/Contents/MacOS` 下的 NW 可执行文件（用于 `nwjs <contentRoot>`） */
@@ -85,7 +85,7 @@ export function findNwMacBinary(shellApp: string): string {
   const app = path.resolve(shellApp)
   const macOs = path.join(app, 'Contents/MacOS')
   if (!fs.existsSync(macOs)) {
-    throw new Error(`壳结构异常，缺少 Contents/MacOS: ${app}`)
+    throw new Error(`Invalid shell structure, missing Contents/MacOS: ${app}`)
   }
   const preferred = ['nwjs', 'node-webkit', 'nw']
   for (const name of preferred) {
@@ -98,29 +98,29 @@ export function findNwMacBinary(shellApp: string): string {
   } catch {
     /* */
   }
-  throw new Error(`壳内未找到 nwjs 可执行文件: ${macOs}`)
+  throw new Error(`nwjs executable not found in shell: ${macOs}`)
 }
 
 /** 用户选的壳源 → 要拷贝的根目录（可为 nw.exe / nw 二进制或其父目录，或 .app） */
 export function resolveShellSourceRoot(shellSource: string): string {
   const p = path.resolve(shellSource)
-  if (!fs.existsSync(/* turbopackIgnore: true */ p)) throw new Error(`壳源路径不存在: ${p}`)
+  if (!fs.existsSync(/* turbopackIgnore: true */ p)) throw new Error(`Shell source path does not exist: ${p}`)
   if (p.toLowerCase().endsWith('.exe')) return path.dirname(p)
   if (fs.statSync(/* turbopackIgnore: true */ p).isFile()) {
     if (isLinuxNwBinaryPath(p)) return path.dirname(p)
-    throw new Error('壳源需为 nw.exe / nw 可执行文件、含壳的目录，或 macOS .app')
+    throw new Error('Shell source must be nw.exe / nw executable, a directory containing the shell, or macOS .app')
   }
   if (fs.statSync(/* turbopackIgnore: true */ p).isDirectory()) {
     if (isWin32()) {
-      if (!findNwExeInDir(p)) throw new Error('壳源目录内未找到 nw.exe / Game.exe')
+      if (!findNwExeInDir(p)) throw new Error('nw.exe or Game.exe not found in shell source directory')
     } else if (p.toLowerCase().endsWith('.app')) {
       /* macOS bundle */
     } else if (!findNwLinuxBinary(p)) {
-      throw new Error('壳源需为 .app（macOS）或含 nw / nwjs 的目录（Linux）')
+      throw new Error('Shell source must be .app (macOS) or directory containing nw / nwjs (Linux)')
     }
     return p
   }
-  throw new Error('壳源路径无效')
+  throw new Error('Invalid shell source path')
 }
 
 export function looksLikeNwShellSource(shellSource: string): boolean {

@@ -44,7 +44,7 @@ export function resolveGeminiRequestAuth(input: { endpoint: string; token?: stri
   const proxy = isGeminiProxyEndpoint(input.endpoint)
   const apiKey = input.token?.trim() || ''
   if (!proxy && !apiKey) {
-    throw new Error('未配置 Gemini API Key。直连官方需要 Key；使用代理网关时可只填代理请求头（Proxy 模式）。')
+    throw new Error('Gemini API Key is not configured. Official API requires a Key; or use proxy headers in Proxy mode.')
   }
   const headers: Record<string, string> = {}
   if (input.contentType) headers['Content-Type'] = input.contentType
@@ -185,9 +185,9 @@ export async function listGeminiModels(
         headers: auth.headers,
       })
     } catch (error) {
-      throw new Error(`无法连接 Gemini 服务：${messageFrom(error)}`)
+      throw new Error(`Failed to connect to Gemini service: ${messageFrom(error)}`)
     }
-    if (!response.ok) throw new Error(`Gemini 模型列表请求失败（HTTP ${response.status}）`)
+    if (!response.ok) throw new Error(`Gemini model list request failed (HTTP ${response.status})`)
     const body = (await response.json()) as {
       models?: Array<{ name?: string; displayName?: string; supportedGenerationMethods?: string[] }>
       nextPageToken?: string
@@ -267,11 +267,11 @@ export async function completeGeminiChat(
     })
   } catch (error) {
     if (requestSignal?.aborted) throw requestSignal.reason ?? new DOMException('Aborted', 'AbortError')
-    throw new Error(`无法连接 Gemini 服务（${input.endpoint}）：${messageFrom(error)}`)
+    throw new Error(`Failed to connect to Gemini service (${input.endpoint}): ${messageFrom(error)}`)
   }
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
-    throw new Error(detail || `Gemini 请求失败（HTTP ${response.status}）`)
+    throw new Error(detail || `Gemini request failed (HTTP ${response.status})`)
   }
   const data = (await response.json()) as {
     candidates?: Array<{ content?: { parts?: GeminiPart[] }; finishReason?: string }>
@@ -301,8 +301,8 @@ export async function completeGeminiChat(
   const content = textParts.join('\n')
   if (!content && !toolCalls.length) {
     const block = data.promptFeedback?.blockReason
-    if (block) throw new Error(`Gemini 拒绝了该请求（${block}）`)
-    throw new Error(`Gemini 返回空响应（finishReason=${data.candidates?.[0]?.finishReason || 'none'}）`)
+    if (block) throw new Error(`Gemini rejected the request (${block})`)
+    throw new Error(`Gemini returned empty response (finishReason=${data.candidates?.[0]?.finishReason || 'none'})`)
   }
   let usage: AgentTokenUsage | undefined
   if (data.usageMetadata) {

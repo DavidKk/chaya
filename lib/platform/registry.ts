@@ -40,7 +40,7 @@ export class PlatformRegistry {
   resolve<T>(capability: CapabilityId, ctx: PlatformContext = getPlatformContext()): T {
     const hit = this.tryResolve<T>(capability, ctx)
     if (hit) return hit
-    throw new Error(`未注册平台能力「${capability}」（os=${ctx.os}, lane=${ctx.lane}）`)
+    throw new Error(`Platform capability not registered: "${capability}" (os=${ctx.os}, lane=${ctx.lane})`)
   }
 
   /** 测试用：清空 */

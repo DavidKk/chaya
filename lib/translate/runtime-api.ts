@@ -25,7 +25,7 @@ export const diskTranslationRequest: TranslationRequestFn = async (request, sign
 export function createTranslationFetch(request: TranslationRequestFn) {
   return async (path: string, init?: RequestInit) => {
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
-    if (init?.body != null && typeof init.body !== 'string') throw new Error('翻译请求需使用 JSON')
+    if (init?.body != null && typeof init.body !== 'string') throw new Error('Translation request must be JSON')
     const result = await request({ path, method: init?.method || 'GET', body }, init?.signal ?? undefined)
     return { ok: result.status >= 200 && result.status < 300, status: result.status, json: async () => result.data }
   }

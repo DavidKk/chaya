@@ -23,11 +23,11 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
   if (denied) return denied
 
   if (findRunningJob('nw-shell') || isShellInstalling()) {
-    return apiError(409, 'SHELL_JOB_RUNNING', '正在下载安装 NW.js，请等下载中心里的任务结束后再启动游戏')
+    return apiError(409, 'SHELL_JOB_RUNNING', 'Downloading and installing NW.js, please wait until the download center task finishes before launching')
   }
 
   if (anyWebConnected()) {
-    return apiBadRequest('游戏已在运行（WebRTC 已连接），请勿重复启动', 'ALREADY_RUNNING')
+    return apiBadRequest('Game is already running (WebRTC connected)', 'ALREADY_RUNNING')
   }
   clearGameQuitRequest()
 
@@ -38,13 +38,13 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
   }
   const resolved = getResolvedFromConfig()
   if (!resolved.ok) {
-    return apiBadRequest(resolved.error || '尚未绑定游戏')
+    return apiBadRequest(resolved.error || 'No game bound yet')
   }
   if (!resolved.hasShell) {
-    return apiBadRequest('尚未安装壳，无法启动')
+    return apiBadRequest('NW.js shell is not installed, cannot launch')
   }
   if (resolved.remote) {
-    return apiBadRequest('远程连接的游戏无法从本机启动', 'REMOTE_READ_ONLY')
+    return apiBadRequest('Remote game cannot be launched locally', 'REMOTE_READ_ONLY')
   }
 
   try {
@@ -61,13 +61,13 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
     const apiBase = preferredPluginApiBase(toolkitListenPort())
     const plugins = injectTrackedPlugins(resolved.contentRoot)
     if (plugins.missingKit.length && plugins.copied.length === 0) {
-      return apiBadRequest(`缺少插件构建产物：${plugins.missingKit.join('、')}（请先 pnpm build:plugins）`, 'PLUGINS_MISSING')
+      return apiBadRequest(`Missing plugin build artifacts: ${plugins.missingKit.join('、')} (run pnpm build:plugins first)`, 'PLUGINS_MISSING')
     }
     if (plugins.pluginsJsMissing) {
-      return apiBadRequest(`内容根缺少 js/plugins.js：${resolved.contentRoot}`)
+      return apiBadRequest(`Missing js/plugins.js in content root: ${resolved.contentRoot}`)
     }
     if (plugins.pluginsJsParseFailed) {
-      return apiError(500, 'PLUGINS_JS_PARSE_FAILED', `无法解析 js/plugins.js（$plugins 数组格式异常）：${resolved.contentRoot}`)
+      return apiError(500, 'PLUGINS_JS_PARSE_FAILED', `Failed to parse js/plugins.js ($plugins array format invalid): ${resolved.contentRoot}`)
     }
     const { env, session } = writeLaunchEnv(resolved, apiBase)
 
@@ -120,7 +120,7 @@ export const DELETE = defineApiRoute('delete:/api/launch', async () => {
 
   if (!anyWebConnected() && !getGamePresence().online) {
     clearGameQuitRequest()
-    return apiBadRequest('当前没有在线的游戏会话', 'NOT_RUNNING')
+    return apiBadRequest('No active game session online', 'NOT_RUNNING')
   }
   const next = requestGameQuit()
   return apiOk({ quit: true, presence: next })

@@ -31,7 +31,7 @@ export function createStore(original, seedCaches, pendingSet, termFamilies, temp
       try {
         rt().SHARED_CACHE.upsertMany(batch, 'pipeline')
       } catch (err) {
-        console.warn(`[shared-cache] 写入失败: ${err.message || err}`)
+        console.warn(`[shared-cache] Write failed: ${err.message || err}`)
       }
     })
     return writing
@@ -111,7 +111,7 @@ export function createStore(original, seedCaches, pendingSet, termFamilies, temp
         return false
       }
       if (!isAcceptableTranslation(src, value)) {
-        console.warn(`  [${source}] 仍含日文，不入库: ${src.length > 36 ? `${src.slice(0, 36)}…` : src}`)
+        console.warn(`  [${source}] Still contains untranslated source text, skipping storage: ${src.length > 36 ? `${src.slice(0, 36)}...` : src}`)
         return false
       }
       remember(src, value)
@@ -143,10 +143,10 @@ export function createStore(original, seedCaches, pendingSet, termFamilies, temp
         extra += expandAll(src, value)
       }
       if (rejected.length) {
-        console.warn(`  [${source}] 本批丢弃仍含日文 ${rejected.length} 条`)
+        console.warn(`  [${source}] Dropped ${rejected.length} items still containing source language`)
       }
       if (added || extra) {
-        console.log(`  [${source}] 本批写入 ${added} 条` + (extra ? `，套用 ${extra}` : '') + `，待译剩余 ${pendingSet.size}`)
+        console.log(`  [${source}] Wrote ${added} items` + (extra ? `, applied ${extra}` : '') + `, remaining pending: ${pendingSet.size}`)
         flushAppend()
       }
       return { added, extra, rejected }
@@ -179,14 +179,14 @@ export async function translateGlossaryFirst(entries) {
     .filter((jp) => !glossaryZh[jp] || glossaryZh[jp] === jp)
 
   if (!pending.length) {
-    console.log(`词表已缓存 ${entries.length} 个，跳过预翻译`)
+    console.log(`Glossary cached ${entries.length} items, skipping pre-translation`)
     for (const entry of entries) {
       if (!glossaryZh[entry.jp]) glossaryZh[entry.jp] = entry.jp
     }
     return glossaryZh
   }
 
-  console.log(`先翻译词表 ${pending.length} 个（人名/物品/技能/装备/状态/敌名）…`)
+  console.log(`Pre-translating ${pending.length} glossary terms (names/items/skills/equips/states/enemies)...`)
   const system = ['把日文游戏名词译成简体中文。', '每一行都以 ⟦数字⟧ 开头，必须原样保留编号。', '人名/敌名偏音译；物品/技能/状态用常见游戏用语。', '只输出译文，不要解释。'].join(
     '\n'
   )
@@ -218,9 +218,9 @@ export async function translateGlossaryFirst(entries) {
         const zh = found.get(index)
         if (isStorableTranslation(jp, zh)) glossaryZh[jp] = zh.trim()
       })
-      console.log(`  词表进度 ${Math.min(i + chunk.length, pending.length)}/${pending.length}`)
+      console.log(`  Glossary progress: ${Math.min(i + chunk.length, pending.length)}/${pending.length}`)
     } catch (err) {
-      console.warn(`  词表批次失败，保留原文: ${err.message || err}`)
+      console.warn(`  Glossary batch failed, keeping original: ${err.message || err}`)
       chunk.forEach((jp) => {
         if (!glossaryZh[jp]) glossaryZh[jp] = jp
       })
@@ -391,14 +391,14 @@ export function createPacedGap(tag) {
     async wait(label = '下一片前') {
       const [min, max] = this.currentRange()
       const wait = randomBetween(min, max)
-      console.log(`[${tag}] ${label}随机等待 ${(wait / 1000).toFixed(1)}s（间隔 ${min / 1000}-${max / 1000}s）…`)
+      console.log(`[${tag}] ${label} random delay ${(wait / 1000).toFixed(1)}s (interval ${min / 1000}-${max / 1000}s)...`)
       await sleep(wait)
     },
     noteBan(reason) {
       banLevel = Math.min(banLevel + 1, NET_BAN_GAP_STEPS.length)
       successStreak = 0
       const [min, max] = this.currentRange()
-      console.warn(`[${tag}] 判定受限（${reason}），之后间隔改为 ${min / 1000}-${max / 1000}s`)
+      console.warn(`[${tag}] Rate limit detected (${reason}), adjusted interval to ${min / 1000}-${max / 1000}s`)
     },
     noteSuccess() {
       if (banLevel <= 0) return
@@ -407,7 +407,7 @@ export function createPacedGap(tag) {
         banLevel -= 1
         successStreak = 0
         const [min, max] = this.currentRange()
-        console.log(`[${tag}] 连续成功，间隔降回 ${min / 1000}-${max / 1000}s`)
+        console.log(`[${tag}] Consecutive successes, reduced interval to ${min / 1000}-${max / 1000}s`)
       }
     },
   }

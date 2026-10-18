@@ -178,7 +178,7 @@ function isEngineFinder(fn: FindDirection | undefined, log: Log | undefined): bo
   if (ok === undefined) {
     ok = /searchLimit/.test(Function.prototype.toString.call(fn))
     engineChecked.set(fn, ok)
-    if (!ok) log?.warn('检测到其他插件已接管点击寻路（findDirectionTo），增强寻路不生效，沿用该插件')
+    if (!ok) log?.warn('Detected another plugin has overridden findDirectionTo; enhanced pathfinding disabled')
   }
   return ok
 }

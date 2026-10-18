@@ -347,5 +347,5 @@ export function applyCache(original, cache) {
 export function writeMergedOutput(original, cache) {
   const out = rt().P.MERGED
   saveJson(out, applyCache(original, cache), false)
-  console.log(`已额外导出 ${path.basename(out)}（可选；游戏请直接用 NDJSON）`)
+  console.log(`Exported ${path.basename(out)} (optional; game uses NDJSON directly)`)
 }

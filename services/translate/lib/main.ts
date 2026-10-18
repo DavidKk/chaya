@@ -27,16 +27,16 @@ export async function main() {
   ensureSwitchesFile()
 
   const original = loadJson(rt().INPUT, null)
-  if (!original) throw new Error(`找不到待译种子表 ${path.basename(rt().INPUT)}`)
+  if (!original) throw new Error(`Cannot find input seed file ${path.basename(rt().INPUT)}`)
 
-  console.log('加载 kuromoji 词典…')
+  console.log('Loading kuromoji dictionary...')
   const tokenizer = await loadTokenizer()
   glossary.entries = loadGlossaryEntries()
   const byType = {}
   for (const entry of glossary.entries) {
     byType[entry.type] = (byType[entry.type] || 0) + 1
   }
-  console.log(`词表 ${glossary.entries.length} 个：`, byType)
+  console.log(`Glossary entries (${glossary.entries.length}):`, byType)
   glossary.zh = await translateGlossaryFirst(glossary.entries)
 
   const ndjsonCache = loadNdjsonCache(rt().CACHE_NDJSON)
@@ -44,17 +44,17 @@ export async function main() {
   // Import this game's cache into the shared library without overwriting existing entries, then use the shared library as the seed base.
   const imported = rt().SHARED_CACHE.importIgnoreExisting(ndjsonCache, `game:${path.basename(rt().CONTENT_ROOT)}`)
   if (imported.inserted) {
-    console.log(`共享库：从本作导入 ${imported.inserted} 条新译文`)
+    console.log(`Shared cache: imported ${imported.inserted} new translations from current game`)
   }
   const sharedMap = rt().SHARED_CACHE.loadAll()
   const sharedStats = rt().SHARED_CACHE.stats()
-  console.log(`共享库：${sharedStats.entries} 条 → ${path.basename(sharedStats.file)}`)
+  console.log(`Shared cache: ${sharedStats.entries} entries -> ${path.basename(sharedStats.file)}`)
 
   // Merge shared and per-game caches, preferring per-game translations for game-specific manual edits.
   const seed = Object.assign({}, sharedMap, ndjsonCache)
   const purgedBad = purgeBadCacheEntries(seed)
   if (purgedBad) {
-    console.log(`缓存质检：剔除仍含日文/无效译文 ${purgedBad} 条，将重新翻译`)
+    console.log(`Cache QA: purged ${purgedBad} invalid translations to re-translate`)
   }
 
   // Add translated short names from the cache to the glossary for local title/name composition.
@@ -92,7 +92,7 @@ export async function main() {
   }
   if (syncToGame.length) {
     appendNdjsonPairs(rt().CACHE_NDJSON, syncToGame)
-    console.log(`共享→本作 ndjson：补写 ${syncToGame.length} 条（仅本作用到的）`)
+    console.log(`Shared -> game ndjson: synced ${syncToGame.length} entries used by current game`)
   }
 
   // Reuse pretranslated glossary nouns without sending them to the sentence queue.
@@ -119,7 +119,7 @@ export async function main() {
   if (fixedPairs.length) {
     appendNdjsonPairs(rt().CACHE_NDJSON, fixedPairs)
     rt().SHARED_CACHE.upsertMany(fixedPairs, 'fixed-phrase')
-    console.log(`固定短语直出 ${fixedHit} 条（不耗 API）`)
+    console.log(`Fixed phrases directly resolved: ${fixedHit} (no API calls)`)
   }
 
   // If masking leaves only titles, punctuation or stuttering, compose locally without an API request.
@@ -136,7 +136,7 @@ export async function main() {
   if (shellPairs.length) {
     appendNdjsonPairs(rt().CACHE_NDJSON, shellPairs)
     rt().SHARED_CACHE.upsertMany(shellPairs, 'glossary-shell')
-    console.log(`词表壳句本地拼接 ${shellHit} 条（不耗 API）`)
+    console.log(`Glossary template sentences resolved locally: ${shellHit} (no API calls)`)
   }
 
   // Map vocalizations with phoneme rules without using public engines or Ollama.
@@ -154,7 +154,7 @@ export async function main() {
   if (voicePairs.length) {
     appendNdjsonPairs(rt().CACHE_NDJSON, voicePairs)
     rt().SHARED_CACHE.upsertMany(voicePairs, 'voice-rule')
-    console.log(`语气声规则直出 ${voiceHit} 条（不耗 API）`)
+    console.log(`Voice/sound effects resolved directly: ${voiceHit} (no API calls)`)
   }
 
   const stemGroups = new Map()
@@ -301,7 +301,7 @@ export async function main() {
     skippedGaveUp += 1
   }
   if (skippedGaveUp) {
-    console.log(`跳过此前已放弃 ${skippedGaveUp} 条（当前开启引擎均已失败，见 ${path.basename(rt().SKIPPED_NDJSON)}）`)
+    console.log(`Skipping previously abandoned ${skippedGaveUp} items (all enabled engines failed, see ${path.basename(rt().SKIPPED_NDJSON)})`)
   }
 
   const store = createStore(original, [seed], pending, termFamilies, templateFamilies)
@@ -314,7 +314,7 @@ export async function main() {
     const before = queuedOnly.length
     queuedOnly = queuedOnly.slice().sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
     const dialogueQueued = queuedOnly.filter((src) => dialogueOrder.has(src)).length
-    console.log(`队列已按对话顺序优先：对话相关 ${dialogueQueued}/${before}，其余靠后`)
+    console.log(`Queue prioritized by dialogue order: dialogue-related ${dialogueQueued}/${before}, others queued after`)
   }
 
   console.log(
@@ -322,11 +322,11 @@ export async function main() {
       `词条 ${termCount} / 句子 ${sentences.length}，队列 ${queuedOnly.length}，待完成 ${pending.size}` +
       (skippedGaveUp ? `，已放弃 ${skippedGaveUp}` : '')
   )
-  console.log(`结果文件：${path.basename(rt().CACHE_NDJSON)}（追加写入；不再生成 merged.json）`)
+  console.log(`Output file: ${path.basename(rt().CACHE_NDJSON)} (append-only)`)
   await store.flushCache()
 
   if (!queuedOnly.length && pending.size === 0) {
-    console.log('没有需要翻译的日文。')
+    console.log('No text requiring translation.')
     return
   }
 
@@ -350,11 +350,11 @@ export async function main() {
   }
 
   const stop = async (signal) => {
-    console.warn(`收到 ${signal}，先落盘 NDJSON 缓存…`)
+    console.warn(`Received ${signal}, flushing NDJSON cache to disk...`)
     try {
       await store.flushCache()
     } catch (err) {
-      console.warn('落盘失败:', err.message || err)
+      console.warn('Failed to flush to disk:', err.message || err)
     }
     process.exit(0)
   }
@@ -367,7 +367,9 @@ export async function main() {
     runOllama(queue, store, workerState, progress, failLedger),
   ])
   await store.flushCache()
-  console.log(`翻译循环结束，仍待译 ${store.pending()}；结果在 ${path.basename(rt().CACHE_NDJSON)}` + `；放弃记录 ${path.basename(rt().SKIPPED_NDJSON)}`)
+  console.log(
+    `Translation loop finished, remaining pending: ${store.pending()}; output in ${path.basename(rt().CACHE_NDJSON)}; abandoned records in ${path.basename(rt().SKIPPED_NDJSON)}`
+  )
   if (process.argv.includes('--write-merged')) {
     await store.writeMerged()
   }

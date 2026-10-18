@@ -121,7 +121,7 @@ export class AgentTaskController {
     return this.writes.run({ requestId: input.requestId, deadlineAt: input.deadlineAt }, async () => {
       const requestedRuntimeId = this.runtimeIdentity?.runtimeInstanceId
       if ([...this.tasks.values()].some((task) => !terminal(task.state) && (requestedRuntimeId ? task.runtimeInstanceId === requestedRuntimeId : task.gameId === input.gameId))) {
-        throw new Error('当前游戏已有 Agent 任务在运行，请先停止')
+        throw new Error('An agent task is already running for this game, please stop it first')
       }
       const now = this.now()
       const task: AgentTask = {
@@ -191,7 +191,7 @@ export class AgentTaskController {
 
   setState(taskId: string, state: 'running' | 'waiting_user' | 'waiting_service'): AgentTask {
     const task = this.need(taskId)
-    if (terminal(task.state)) throw new Error('任务已结束')
+    if (terminal(task.state)) throw new Error('Task has already finished')
     this.clearWaitingTimer(taskId)
     task.state = state
     task.updatedAt = this.now()
@@ -214,7 +214,7 @@ export class AgentTaskController {
 
   reply(taskId: string, text: string): AgentTask {
     const task = this.need(taskId)
-    if (task.state !== 'waiting_user') throw new Error('任务当前不等待玩家回复')
+    if (task.state !== 'waiting_user') throw new Error('Task is not waiting for player reply')
     this.emit(taskId, 'user.reply', { text: text.slice(0, 16_000) })
     const updated = this.setState(taskId, 'running')
     this.replyWaiters.get(taskId)?.resolve(text.slice(0, 16_000))
@@ -224,7 +224,7 @@ export class AgentTaskController {
 
   /** `card` 让界面用小卡片展示问题；玩家点选时回复的是选项 id */
   waitForUser(taskId: string, question: string, signal: AbortSignal, card?: PlayerCard): Promise<string> {
-    if (this.replyWaiters.has(taskId)) throw new Error('任务已在等待玩家回复')
+    if (this.replyWaiters.has(taskId)) throw new Error('Task is already waiting for player reply')
     this.emit(taskId, 'approval.required', { question: question.slice(0, 2_000), ...(card ? { card } : {}) })
     this.setState(taskId, 'waiting_user')
     return new Promise<string>((resolve, reject) => {
@@ -287,7 +287,7 @@ export class AgentTaskController {
     const execution = this.aborts.get(taskId)
     if (execution && !execution.signal.aborted) execution.abort(new DOMException(error || `任务已${state}`, 'AbortError'))
     this.clearWaitingTimer(taskId)
-    this.replyWaiters.get(taskId)?.reject(new DOMException('任务已结束', 'AbortError'))
+    this.replyWaiters.get(taskId)?.reject(new DOMException('Task has already finished', 'AbortError'))
     this.replyWaiters.delete(taskId)
     if (task.capability === 'play') this.setInputOwner(null)
     task.state = state
@@ -394,7 +394,7 @@ export class AgentTaskController {
 
   private need(taskId: string): AgentTask {
     const task = this.tasks.get(taskId)
-    if (!task) throw new Error('任务不存在')
+    if (!task) throw new Error('Task not found')
     return task
   }
 

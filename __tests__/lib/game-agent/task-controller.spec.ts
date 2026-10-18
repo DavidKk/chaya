@@ -22,7 +22,7 @@ describe('agent task controller', () => {
     const pending = async () => new Promise<void>(() => undefined)
     const first = await controller.start(input(pending))
     expect(await controller.start(input(pending))).toBe(first)
-    await expect(controller.start({ ...input(pending), requestId: 'r2', taskId: 't2', capability: 'companion' })).rejects.toThrow('已有 Agent 任务')
+    await expect(controller.start({ ...input(pending), requestId: 'r2', taskId: 't2', capability: 'companion' })).rejects.toThrow('An agent task is already running')
     controller.stop('t1')
     await expect(controller.start({ ...input(pending), requestId: 'r3', taskId: 't3' })).resolves.toMatchObject({ id: 't3' })
   })

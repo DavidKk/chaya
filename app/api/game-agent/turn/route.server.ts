@@ -22,7 +22,7 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
   const model = String(body?.model || '').trim()
   const profileId = String(body?.profileId || '').trim()
   const prompt = String(body?.prompt || '').trim()
-  if (!gameId || !profileId || !model || !prompt) return apiError(400, 'INVALID_AGENT_TURN', 'gameId、profileId、model 和 prompt 不能为空')
+  if (!gameId || !profileId || !model || !prompt) return apiError(400, 'INVALID_AGENT_TURN', 'gameId, profileId, model, and prompt are required')
 
   const input: StartTurnInput = {
     gameId,
@@ -37,15 +37,15 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
     companionCharacter: typeof body?.companionCharacter === 'string' ? body.companionCharacter : undefined,
   }
   const profile = profileById(loadGameAgentSettings(), profileId)
-  if (!profile) return apiError(400, 'AGENT_PROFILE_NOT_FOUND', '接入实例不存在或已删除')
+  if (!profile) return apiError(400, 'AGENT_PROFILE_NOT_FOUND', 'Agent profile not found or deleted')
   const activeExt = (await listExtTasks(gameId, profile.gameCallTimeoutMs).catch(() => [])).find((task) => !['completed', 'stopped', 'failed', 'interrupted'].includes(task.state))
-  if (activeExt) return apiError(409, 'AGENT_TURN_RUNNING', '当前游戏已有 Agent 任务在运行，请先停止')
+  if (activeExt) return apiError(409, 'AGENT_TURN_RUNNING', 'An agent task is already running for this game, please stop it first')
   const session = getOrCreateSession(gameId, profileId, model, input.sessionId, input.newSession)
   let turn
   try {
     turn = beginTurn(session)
   } catch (error) {
-    if (error instanceof Error && error.message === 'AGENT_TURN_RUNNING') return apiError(409, 'AGENT_TURN_RUNNING', '当前游戏已有 Agent 任务在运行')
+    if (error instanceof Error && error.message === 'AGENT_TURN_RUNNING') return apiError(409, 'AGENT_TURN_RUNNING', 'An agent task is already running for this game')
     throw error
   }
 
@@ -113,7 +113,7 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
 /** 一键清理：解除该游戏卡住的 AGENT_TURN_RUNNING */
 export const DELETE = defineApiRoute('delete:/api/game-agent/turn', async ({ request }) => {
   const gameId = new URL(request.url).searchParams.get('gameId')?.trim() || ''
-  if (!gameId) return apiError(400, 'GAME_ID_REQUIRED', '缺少 gameId')
+  if (!gameId) return apiError(400, 'GAME_ID_REQUIRED', 'Missing gameId')
   const local = clearGameTurns(gameId)
   const remote = (await callExtTask(gameId, { type: 'agent.task.clear', requestId: crypto.randomUUID() }).catch(() => null)) as { cleared?: number } | null
   return apiOk({ cleared: local + (remote?.cleared || 0) })

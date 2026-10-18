@@ -11,7 +11,7 @@ export type DevTarget = 'cloud' | 'server'
 function parseBuildTarget(value: string | undefined): BuildTarget {
   const target = value?.trim().toLowerCase() || 'server'
   if (target === 'dev' || target === 'cloud' || target === 'server') return target
-  throw new Error(`NEXT_PUBLIC_CHAYA_TARGET 配置无效：${value}；只支持 dev、cloud、server`)
+  throw new Error(`Invalid NEXT_PUBLIC_CHAYA_TARGET configuration: ${value}; supported values: dev, cloud, server`)
 }
 
 export const BUILD_TARGET = parseBuildTarget(process.env.NEXT_PUBLIC_CHAYA_TARGET)
@@ -28,7 +28,7 @@ export function getDevTarget(): DevTarget {
   const raw = process.env[DEV_TARGET_ENV]
   const explicit = raw?.trim().toLowerCase()
   if (isDevTarget(explicit)) return explicit
-  if (explicit) throw new Error(`CHAYA_DEV_TARGET 配置无效：${raw}；只支持 cloud、server`)
+  if (explicit) throw new Error(`Invalid CHAYA_DEV_TARGET configuration: ${raw}; supported values: cloud, server`)
   return process.env.CHAYA_SERVICE?.trim().toLowerCase() === 'remote' ? 'cloud' : 'server'
 }
 

@@ -14,15 +14,15 @@ export type AgentTranslateOptions = { interactive?: boolean; signal?: AbortSigna
 export async function agentJaToZh(text: string, config: TranslateAiConfig, options: AgentTranslateOptions = {}): Promise<string> {
   const settings = loadGameAgentSettings()
   const profile = (config.profileId && profileById(settings, config.profileId)) || ollamaProfiles(settings)[0]
-  if (!profile) throw new Error('没有可用的 Ollama Agent 实例')
-  if (config.profileId && profile.id !== config.profileId) throw new Error('所选 Agent 实例已不存在，请重新选择')
-  if (profile.provider !== 'ollama') throw new Error('AI 翻译只支持 Ollama 类型的 Agent 实例')
+  if (!profile) throw new Error('No available Ollama agent profile found')
+  if (config.profileId && profile.id !== config.profileId) throw new Error('Selected agent profile no longer exists, please reselect')
+  if (profile.provider !== 'ollama') throw new Error('AI translation only supports Ollama agent profiles')
   const signal = options.signal ?? AbortSignal.timeout(5 * 60 * 1000)
   const token = readGameAgentToken(profile.id)
   const http = ollamaFetch(profile)
   let model = config.model || profile.defaultModel
   if (!model) model = pickAvailableModel(await listOllamaModels(profile.endpoint, http, signal, token))
-  if (!model) throw new Error(`Agent 实例「${profile.label}」没有可用模型`)
+  if (!model) throw new Error(`Agent profile "${profile.label}" has no available models`)
   return scheduleOllama(
     async () => {
       const request = {

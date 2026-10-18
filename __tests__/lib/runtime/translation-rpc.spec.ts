@@ -36,7 +36,7 @@ it('disconnect rejects outstanding requests and cancels game operations', async 
   )
   const web = createTranslationRpc((packet) => game.receive(packet))
   const result = web.request({ path: '/api/translate', method: 'POST' })
-  const rejected = expect(result).rejects.toThrow('游戏连接已断开')
+  const rejected = expect(result).rejects.toThrow('Game connection disconnected')
   web.dispose()
   game.dispose()
   await rejected

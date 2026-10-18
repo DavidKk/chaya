@@ -26,7 +26,7 @@ function ensureKey(file: string): Buffer {
     }
   }
   const key = Buffer.from(fs.readFileSync(file, 'utf8').trim(), 'base64')
-  if (key.length !== 32) throw new Error('Agent 凭证密钥无效')
+  if (key.length !== 32) throw new Error('Invalid agent credentials secret key')
   return key
 }
 
@@ -34,10 +34,10 @@ function readDocument(file: string): SecretDocument {
   try {
     if (!fs.existsSync(file)) return { version: 1, tokens: {} }
     const value = JSON.parse(fs.readFileSync(file, 'utf8')) as SecretDocument
-    if (value?.version !== 1 || !value.tokens || typeof value.tokens !== 'object' || Array.isArray(value.tokens)) throw new Error('Agent 凭证文件格式无效')
+    if (value?.version !== 1 || !value.tokens || typeof value.tokens !== 'object' || Array.isArray(value.tokens)) throw new Error('Invalid agent credentials file format')
     return value
   } catch (error) {
-    if (error instanceof SyntaxError) throw new Error('Agent 凭证文件不是有效的 JSON')
+    if (error instanceof SyntaxError) throw new Error('Agent credentials file is not valid JSON')
     throw error
   }
 }
@@ -82,7 +82,7 @@ function decrypt(value: GameAgentCipherText, profileId: string, key: Buffer): st
   try {
     return decryptGameAgentSecret(value, profileId, key)
   } catch {
-    throw new Error(`Agent ${profileId} 的凭证无法解密`)
+    throw new Error(`Credentials for agent ${profileId} could not be decrypted`)
   }
 }
 

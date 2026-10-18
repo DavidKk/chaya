@@ -132,7 +132,7 @@ export function ensureLaunchEnvGlobals(): boolean {
     runEnvCode(disk)
     if (hasLaunchGlobals()) {
       try {
-        console.info(`[Chaya] 已补跑 ${PLUGIN_ENV_NAME}（此前未注入房间 id）`)
+        console.info(`[Chaya] Reran ${PLUGIN_ENV_NAME} (room id was missing previously)`)
       } catch {
         /* */
       }
@@ -146,7 +146,7 @@ export function ensureLaunchEnvGlobals(): boolean {
     runEnvCode(text)
     if (hasLaunchGlobals()) {
       try {
-        console.info(`[Chaya] 已补跑 ${PLUGIN_ENV_NAME} ← ${u}`)
+        console.info(`[Chaya] Reran ${PLUGIN_ENV_NAME} <- ${u}`)
       } catch {
         /* */
       }

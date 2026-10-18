@@ -1,8 +1,8 @@
 'use client'
 
-import React, { memo, useEffect, useState } from 'react'
+import React, { memo, useCallback, useEffect, useState } from 'react'
 import { LiaMapMarkedAltSolid } from 'react-icons/lia'
-import { LuFileText, LuKey, LuUser } from 'react-icons/lu'
+import { LuFileText, LuKey, LuTriangleAlert, LuUser } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { PlainTextEditor, Spinner, Tooltip } from '@/components/sk'
@@ -99,6 +99,24 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
     setCurrentZh(item.zh)
   }, [item.zh, itemZh])
 
+  const formatContextLabel = useCallback(
+    (contextText?: string) => {
+      if (!contextText) return ''
+      const mapMatch = contextText.match(/^地图\s*(\d+)$/i)
+      if (mapMatch) {
+        return t('translate.listContextMap', { id: mapMatch[1] })
+      }
+      if (contextText === '公共事件') {
+        return t('translate.listContextCommonEvent')
+      }
+      if (contextText === '战斗事件') {
+        return t('translate.listContextTroopEvent')
+      }
+      return contextText
+    },
+    [t]
+  )
+
   const catInfo = CATEGORY_STYLES[item.meta.category] || { label: item.meta.label || '文本', badgeClass: 'bg-zinc-500/10 text-zinc-300 border-zinc-500/30' }
   const catKey = CATEGORY_I18N_KEYS[item.meta.category]
   const catLabel = catKey ? t(`translate.${catKey}` as any) : item.meta.label || catInfo.label
@@ -134,6 +152,21 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
                 <span className="max-w-[120px] truncate">{item.meta.localesKey}</span>
               </button>
             </Tooltip>
+          ) : (
+            <Tooltip content={t('translate.listRowNoKeyTooltip')} placement="top">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-[0.2rem] bg-inset px-1.5 py-0.5 text-[0.6875rem] font-mono text-ink-soft/70 cursor-default select-none">
+                <LuKey size={11} className="shrink-0 text-ink-soft/50" />
+                <span>{t('translate.listRowNoKey')}</span>
+              </span>
+            </Tooltip>
+          )}
+          {item.meta.missingSourceLang ? (
+            <Tooltip content={t('translate.listRowMissingSourceTooltip')} placement="top">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-[0.2rem] border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[0.6875rem] font-medium text-amber-300 cursor-default select-none">
+                <LuTriangleAlert size={11} className="shrink-0 text-amber-400" />
+                <span>{t('translate.listRowMissingSourceBadge')}</span>
+              </span>
+            </Tooltip>
           ) : null}
           <Tooltip content={t('translate.listRowCategoryTooltip', { category: catLabel })} placement="top">
             <span className={cn('shrink-0 rounded-[0.2rem] border px-1.5 py-0.5 text-[0.6875rem] font-medium leading-none cursor-default', catInfo.badgeClass)}>{catLabel}</span>
@@ -154,14 +187,19 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
               </span>
             </Tooltip>
           ) : null}
-          {item.meta.context && item.meta.context !== item.meta.file && item.meta.context !== item.src ? (
-            <Tooltip content={t('translate.listRowContextTooltip', { context: item.meta.context })} placement="top">
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-[0.2rem] bg-inset px-1.5 py-0.5 text-[0.6875rem] text-ink-soft select-all cursor-default">
-                <LiaMapMarkedAltSolid size={12} className="shrink-0 text-accent" />
-                <span>{item.meta.context}</span>
-              </span>
-            </Tooltip>
-          ) : null}
+          {item.meta.context && item.meta.context !== item.meta.file && item.meta.context !== item.src
+            ? (() => {
+                const displayContext = formatContextLabel(item.meta.context)
+                return (
+                  <Tooltip content={t('translate.listRowContextTooltip', { context: displayContext })} placement="top">
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-[0.2rem] bg-inset px-1.5 py-0.5 text-[0.6875rem] text-ink-soft select-all cursor-default">
+                      <LiaMapMarkedAltSolid size={12} className="shrink-0 text-accent" />
+                      <span>{displayContext}</span>
+                    </span>
+                  </Tooltip>
+                )
+              })()
+            : null}
         </div>
 
         {/* Right: Reset (if modified / saved) + Translate with Hover Dropdown + Save */}

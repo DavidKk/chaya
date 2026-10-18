@@ -13,16 +13,16 @@ export const GET = defineApiRoute('get:/api/game/fingerprint', async ({ request 
   let resolved
   if (gameRoot) {
     const entry = findLibraryEntry(loadConfig().library, gameRoot)
-    if (!entry) return apiBadRequest('游戏库中没有该游戏', 'NOT_IN_LIBRARY')
-    if (entry.remote) return apiBadRequest('远程连接的游戏无法读取本机文件', 'REMOTE_READ_ONLY')
+    if (!entry) return apiBadRequest('Game not found in library', 'NOT_IN_LIBRARY')
+    if (entry.remote) return apiBadRequest('Remote game cannot read local files', 'REMOTE_READ_ONLY')
     resolved = resolveGame(entry.gameRoot)
   } else {
     resolved = getResolvedFromConfig()
   }
   if (!resolved.ok) return apiBadRequest(resolved.error)
-  if (resolved.remote) return apiBadRequest('远程连接的游戏无法读取本机文件', 'REMOTE_READ_ONLY')
+  if (resolved.remote) return apiBadRequest('Remote game cannot read local files', 'REMOTE_READ_ONLY')
 
   const fingerprint = getGameFingerprint(resolved)
-  if (!fingerprint) return apiError(500, 'FINGERPRINT_FAILED', '读取游戏信息失败')
+  if (!fingerprint) return apiError(500, 'FINGERPRINT_FAILED', 'Failed to read game metadata')
   return apiOk({ gameRoot: resolved.selected, fingerprint })
 })

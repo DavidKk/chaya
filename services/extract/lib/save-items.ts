@@ -12,7 +12,7 @@ export function saveExtractedItem(contentRoot: string, src: string, zh: string):
       seed[src] = zh
       fs.writeFileSync(seedPath, JSON.stringify(seed) + '\n', 'utf8')
     } catch (e) {
-      console.warn('[save-items] 更新 seed.json 失败:', e)
+      console.warn('[save-items] Failed to update seed.json:', e)
     }
   }
 
@@ -33,7 +33,7 @@ export function resetExtractedItem(contentRoot: string, src: string): { ok: bool
         fs.writeFileSync(seedPath, JSON.stringify(seed) + '\n', 'utf8')
       }
     } catch (e) {
-      console.warn('[save-items] 重置 seed.json 失败:', e)
+      console.warn('[save-items] Failed to reset seed.json:', e)
     }
   }
 
@@ -42,7 +42,7 @@ export function resetExtractedItem(contentRoot: string, src: string): { ok: bool
   try {
     fs.appendFileSync(file, JSON.stringify({ s: src, t: null, at: Date.now(), engine: 'reset' }) + '\n')
   } catch (e) {
-    console.warn('[save-items] 写入 cache.ndjson 重置记录失败:', e)
+    console.warn('[save-items] Failed to write cache.ndjson reset record:', e)
   }
 
   return { ok: true }

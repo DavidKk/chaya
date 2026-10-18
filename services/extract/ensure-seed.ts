@@ -43,8 +43,8 @@ export type EnsureSeedResult = {
 /** Extract text and ensure the seed exists before web extraction or fill-missing; entries are used for translation JSON export. */
 export function extractAndEnsureSeed(options?: { entries?: boolean; sourceLanguage?: SourceLanguageOption }): EnsureSeedResult & { entries?: Record<string, string> } {
   const resolved = getResolvedFromConfig()
-  if (!resolved.ok) throw new Error('请先在游戏库绑定本地游戏')
-  if (resolved.remote) throw new Error('远程游戏请在本机绑定后抽取')
+  if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
+  if (resolved.remote) throw new Error('Remote games must be bound locally before extracting')
   const contentRoot = resolved.contentRoot
 
   const { OUT, allStrings, originalStrings } = runExtract(contentRoot, options)

@@ -9,7 +9,7 @@ export function optStr(args: Args, key: string): string | undefined {
 
 export function reqStr(args: Args, key: string): string {
   const v = optStr(args, key)
-  if (!v) throw new Error(`缺少参数 ${key}`)
+  if (!v) throw new Error(`Missing parameter ${key}`)
   return v
 }
 

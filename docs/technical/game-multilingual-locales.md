@@ -9,6 +9,9 @@
 
 ## 1. 架构与设计原则
 
+0. **全英文 API 与日志规范（详见 [api-and-logs-standard.md](api-and-logs-standard.md)）**：
+   - 所有翻译与本地化提取相关的 HTTP 接口、后台日志、错误抛出信息一律统一使用英文；UI 展示通过前端 i18n 字典按当前语言映射。
+
 1. **零污染与只存文字（Text ↔ Text Only）**：
    - 系统的翻译缓存数据库（`translate-cache.db` / SQLite）与在线缓存只收录真实自然语言。
    - 严禁将 RPG Maker / 插件内部的占位符 Key（如 `Map007-42`、`SystemText-3` 等）当成原文字符串写入数据库。

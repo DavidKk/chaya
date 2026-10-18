@@ -33,5 +33,5 @@ test('creates, updates, lists and deletes profiles without returning credentials
 
 test('keeps at least one Agent configuration', () => {
   const files = tempFiles()
-  expect(() => deleteGameAgentProfile('Local Ollama', files)).toThrow('至少需要保留一个 Agent')
+  expect(() => deleteGameAgentProfile('Local Ollama', files)).toThrow('At least one agent must be preserved')
 })

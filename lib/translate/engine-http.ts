@@ -60,8 +60,10 @@ export async function requestOllama(
     .trim()
 }
 
-export async function requestGoogle(http: EngineFetch, text: string, signal?: AbortSignal) {
-  const params = new URLSearchParams({ client: 'gtx', sl: 'auto', tl: 'zh-CN', hl: 'zh-CN', dt: 't', ie: 'UTF-8', oe: 'UTF-8', q: text })
+export async function requestGoogle(http: EngineFetch, text: string, signal?: AbortSignal, pair?: { from?: string; to?: string }) {
+  const sl = pair?.from === 'zh' || pair?.from === 'ch' ? 'zh-CN' : pair?.from || 'auto'
+  const tl = pair?.to === 'zh' || pair?.to === 'ch' ? 'zh-CN' : pair?.to === 'cht' ? 'zh-TW' : pair?.to || 'zh-CN'
+  const params = new URLSearchParams({ client: 'gtx', sl, tl, hl: tl, dt: 't', ie: 'UTF-8', oe: 'UTF-8', q: text })
   const res = await http(`https://translate.google.com/translate_a/single?${params}`, {
     signal,
     headers: {
@@ -71,9 +73,9 @@ export async function requestGoogle(http: EngineFetch, text: string, signal?: Ab
   })
   if (!res.ok) throw new Error(`Google ${res.status}`)
   const body = await res.json()
-  if (!Array.isArray(body) || !Array.isArray(body[0])) throw new Error('Google 未返回译文')
+  if (!Array.isArray(body) || !Array.isArray(body[0])) throw new Error('Google returned no translation')
   const out = body[0].map((part: unknown) => (Array.isArray(part) && typeof part[0] === 'string' ? part[0] : '')).join('')
-  if (!out) throw new Error('Google 未返回译文')
+  if (!out) throw new Error('Google returned no translation')
   return out
 }
 
@@ -88,7 +90,7 @@ export function createBingTranslator(http: EngineFetch) {
       const ig = html.match(/IG:"([^"]+)"/)?.[1]
       const iid = html.match(/data-iid="([^"]+)"/)?.[1]
       const tokenRaw = html.match(/params_AbusePreventionHelper\s*=\s*(\[[^\]]+\])/)?.[1]
-      if (!ig || !iid || !tokenRaw) throw new Error('Bing 暂不可用')
+      if (!ig || !iid || !tokenRaw) throw new Error('Bing translation temporarily unavailable')
       const [key, token, ttl] = JSON.parse(tokenRaw)
       config = { key: String(key), token: String(token), ig, iid, until: Date.now() + Math.min(Number(ttl) || 60_000, 600_000) }
     }
@@ -107,7 +109,7 @@ export function createBingTranslator(http: EngineFetch) {
     const out = data?.[0]?.translations?.[0]?.text
     if (typeof out !== 'string' || !out.trim()) {
       config = null
-      throw new Error('Bing 未返回译文')
+      throw new Error('Bing returned no translation')
     }
     return out
   }

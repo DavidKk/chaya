@@ -25,8 +25,8 @@ export const TRANSLATE_ENGINE_META = {
 
 function resolveContentRoot(): string {
   const resolved = getResolvedFromConfig()
-  if (!resolved.ok) throw new Error('请先在游戏库绑定本地游戏')
-  if (resolved.remote) throw new Error('远程游戏请在本机绑定后配置翻译引擎')
+  if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
+  if (resolved.remote) throw new Error('Remote games must be bound locally before configuring translation engines')
   return resolved.contentRoot
 }
 

@@ -10,7 +10,7 @@ export const GET = defineApiRoute('get:/api/dev/target', async () => apiOk({ tar
 
 export const PUT = defineApiRoute('put:/api/dev/target', async ({ request }) => {
   const body = (await request.json().catch(() => null)) as { target?: unknown } | null
-  if (!isDevTarget(body?.target)) return apiBadRequest('target 需为 cloud 或 server')
+  if (!isDevTarget(body?.target)) return apiBadRequest('target must be cloud or server')
   setDevTarget(body.target)
   return apiOk({ target: body.target })
 })

@@ -23,7 +23,7 @@ export const POST = defineApiRoute('post:/api/translate-cache/test', async ({ re
     (body.gameId != null && typeof body.gameId !== 'string') ||
     (body.structure != null && !validStructureAnnotation(body.structure))
   )
-    return apiBadRequest('测试参数无效', 'CACHE_TEST_INVALID')
+    return apiBadRequest('Invalid test parameters', 'CACHE_TEST_INVALID')
   try {
     return apiOk(testTranslationCache({ text: body.text, from, to, scope: body.scope as CacheTestScope, gameId: body.gameId, structure: body.structure }))
   } catch (error) {

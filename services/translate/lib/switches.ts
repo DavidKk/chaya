@@ -50,9 +50,9 @@ export function ensureSwitchesFile() {
   if (prev !== body) {
     fs.mkdirSync(path.dirname(rt().SWITCHES_FILE), { recursive: true })
     fs.writeFileSync(rt().SWITCHES_FILE, body)
-    if (!prev) console.log(`已创建开关文件 ${path.basename(rt().SWITCHES_FILE)}`)
+    if (!prev) console.log(`Created switches file ${path.basename(rt().SWITCHES_FILE)}`)
     else if (Object.keys(cliSwitchOverrides).length) {
-      console.log(`已按启动参数更新 ${path.basename(rt().SWITCHES_FILE)}`)
+      console.log(`Updated ${path.basename(rt().SWITCHES_FILE)} according to launch arguments`)
     }
   }
   // Use the file as the source of truth from this point so switches can change during a run.
@@ -81,7 +81,7 @@ export function readSwitches(force = false) {
       ...cliSwitchOverrides,
     }
   } catch (err) {
-    console.warn(`[switches] 读取失败，沿用上次: ${err.message || err}`)
+    console.warn(`[switches] Failed to read, using previous config: ${err.message || err}`)
   }
   return switchesCache
 }

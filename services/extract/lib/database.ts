@@ -10,7 +10,7 @@ export function loadJson(file: string) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'))
   } catch (err) {
-    console.warn(`[extract] 跳过非标准或损坏的 JSON 文件 ${file}:`, err instanceof Error ? err.message : err)
+    console.warn(`[extract] Skipping non-standard or corrupt JSON file ${file}:`, err instanceof Error ? err.message : err)
     return null
   }
 }

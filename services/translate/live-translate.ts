@@ -36,13 +36,17 @@ const MAX_BATCH = 40
 
 export { type LocalTranslateOptions, ollamaJaToZh }
 
-export async function googleJaToZh(text: string): Promise<string> {
+export async function googleTranslateText(text: string, pair?: { from?: string; to?: string }): Promise<string> {
   const q = String(text ?? '')
   if (!q.trim()) return q
-  return requestGoogle(fetch, q, AbortSignal.timeout(30_000))
+  return requestGoogle(fetch, q, AbortSignal.timeout(30_000), pair)
 }
 
-async function bingJaToZh(text: string): Promise<string> {
+export async function googleJaToZh(text: string): Promise<string> {
+  return googleTranslateText(text, { from: 'ja', to: 'zh' })
+}
+
+export async function bingTranslateText(text: string, pair?: { from?: string; to?: string }): Promise<string> {
   // Build the optional dependency name dynamically to avoid static bundler resolution; report a clear error if it is missing.
   const pkg = ['bing', 'translate', 'api'].join('-')
   let translate: ((...args: unknown[]) => Promise<{ translation?: string }>) | undefined
@@ -50,21 +54,29 @@ async function bingJaToZh(text: string): Promise<string> {
     const dependency = await import(/* webpackIgnore: true */ pkg)
     translate = dependency.translate || dependency.default?.translate
   } catch {
-    throw new Error('未安装 bing-translate-api（可选依赖），请关闭 Bing 或安装该包')
+    throw new Error('bing-translate-api is not installed (optional dependency); please disable Bing or install the package')
   }
-  if (!translate) throw new Error('Bing 翻译模块未提供 translate')
-  const res = await translate(text, 'auto-detect', 'zh-Hans', false, false)
+  if (!translate) throw new Error('Bing translation module does not export translate function')
+  const toLang = pair?.to === 'zh' || pair?.to === 'ch' ? 'zh-Hans' : pair?.to === 'cht' ? 'zh-Hant' : pair?.to || 'zh-Hans'
+  const fromLang = pair?.from === 'zh' || pair?.from === 'ch' ? 'zh-Hans' : pair?.from || 'auto-detect'
+  const res = await translate(text, fromLang, toLang, false, false)
   if (!res?.translation) throw new Error('empty translation')
   return res.translation
 }
 
-async function translateWithEngine(engine: TranslateRunEngine, text: string, options: LocalTranslateOptions | undefined, agents: TranslateAgentEntry[]): Promise<string> {
-  if (engine === 'google') return googleJaToZh(text)
-  if (engine === 'bing') return bingJaToZh(text)
-  if (engine === 'apple') return appleTranslate(text, { source: 'ja', target: 'zh-Hans' })
+async function translateWithEngine(
+  engine: TranslateRunEngine,
+  text: string,
+  options: LocalTranslateOptions | undefined,
+  agents: TranslateAgentEntry[],
+  pair?: { from?: string; to?: string }
+): Promise<string> {
+  if (engine === 'google') return googleTranslateText(text, pair)
+  if (engine === 'bing') return bingTranslateText(text, pair)
+  if (engine === 'apple') return appleTranslate(text, { source: pair?.from, target: pair?.to })
   if (engine === 'ollama') return ollamaJaToZh(text, options)
   const entry = findAgentEntry(agents, engine)
-  if (!entry) throw new Error('Agent 翻译条目已移除')
+  if (!entry) throw new Error('Agent translation entry removed')
   return agentJaToZh(text, entry, { interactive: options?.interactive, signal: options?.signal })
 }
 
@@ -102,7 +114,16 @@ export type LiveTranslateItem = {
 /** Translate a batch using this game's library first, then the shared cache, then enabled engines and persistence. force skips lookup for retranslation; persist:false returns previews without writing either cache. */
 export async function liveTranslateTexts(
   texts: string[],
-  opts?: { contentRoot?: string | null; engine?: string; engines?: TranslateRunEngine[]; force?: boolean; persist?: boolean; local?: LocalTranslateOptions }
+  opts?: {
+    contentRoot?: string | null
+    engine?: string
+    engines?: TranslateRunEngine[]
+    force?: boolean
+    persist?: boolean
+    local?: LocalTranslateOptions
+    sourceLang?: string
+    targetLang?: string
+  }
 ): Promise<{
   items: LiveTranslateItem[]
   contentRoot: string | null
@@ -238,7 +259,7 @@ export async function liveTranslateTexts(
           continue
         }
       }
-      if (!shouldTranslate(labelCore || src)) {
+      if (!shouldTranslate(labelCore || src, opts?.sourceLang)) {
         /* Return control-only or untranslated text unchanged without storing an identical cache entry. */
         items.push({ src, zh: src, engine: 'skip' })
         continue
@@ -259,10 +280,11 @@ export async function liveTranslateTexts(
       let done = false
       for (const engine of tryEngines) {
         try {
-          const rawZh = await translateWithEngine(engine, sendText, opts?.local, agents)
+          const langPair = opts?.sourceLang || opts?.targetLang ? { from: opts?.sourceLang, to: opts?.targetLang } : undefined
+          const rawZh = await translateWithEngine(engine, sendText, opts?.local, agents, langPair)
           const zhCore = translationCoreForCache(rawZh, guard)
           const zh = restoreForTranslate(rawZh, guard)
-          if (!isUsefulTranslation(src, sendText, rawZh, zh)) {
+          if (!isUsefulTranslation(src, sendText, rawZh, zh, opts?.targetLang)) {
             errors.push(`${engine}: 未得到译文`)
             continue
           }

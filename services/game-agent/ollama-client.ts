@@ -28,9 +28,9 @@ export async function listOllamaModels(endpoint = DEFAULT_OLLAMA_HOST, fetcher: 
   try {
     response = await fetcher(`${endpoint.replace(/\/$/, '')}/api/tags`, { signal, cache: 'no-store', headers: authorizationHeaders(token) })
   } catch (error) {
-    throw new Error(`无法连接 Ollama：${messageFrom(error)}`)
+    throw new Error(`Failed to connect to Ollama: ${messageFrom(error)}`)
   }
-  if (!response.ok) throw new Error(`Ollama 模型列表请求失败（HTTP ${response.status}）`)
+  if (!response.ok) throw new Error(`Ollama model list request failed (HTTP ${response.status})`)
   const body = (await response.json()) as { models?: Array<{ name?: unknown; size?: unknown; modified_at?: unknown; capabilities?: unknown }> }
   return uniqueOllamaModels(
     (body.models ?? [])
@@ -57,7 +57,7 @@ export async function readOllamaModelCapabilities(
     body: JSON.stringify({ model }),
     signal,
   })
-  if (!response.ok) throw new Error(`Ollama 模型详情请求失败（HTTP ${response.status}）`)
+  if (!response.ok) throw new Error(`Ollama model details request failed (HTTP ${response.status})`)
   const body = (await response.json()) as { capabilities?: unknown }
   return Array.isArray(body.capabilities) ? body.capabilities.filter((value): value is string => typeof value === 'string') : []
 }
@@ -116,15 +116,15 @@ export async function streamOllamaChat(
     })
   } catch (error) {
     if (requestSignal?.aborted) throw requestSignal.reason ?? new DOMException('Aborted', 'AbortError')
-    throw new Error(`无法连接 Ollama（${input.endpoint || DEFAULT_OLLAMA_HOST}），请确认 Ollama 已启动：${messageFrom(error)}`)
+    throw new Error(`Failed to connect to Ollama (${input.endpoint || DEFAULT_OLLAMA_HOST}), please verify Ollama is running: ${messageFrom(error)}`)
   }
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
     if (input.think && response.status === 400 && /think/i.test(detail) && /support|invalid|unknown/i.test(detail))
       return streamOllamaChat({ ...input, think: false }, onDelta, fetcher)
-    throw new Error(detail || `Ollama 请求失败（HTTP ${response.status}）`)
+    throw new Error(detail || `Ollama request failed (HTTP ${response.status})`)
   }
-  if (!response.body) throw new Error('Ollama 未返回可读取的响应流')
+  if (!response.body) throw new Error('Ollama did not return a readable response stream')
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
@@ -169,7 +169,7 @@ export async function streamOllamaChat(
     try {
       item = JSON.parse(trimmed) as typeof item
     } catch {
-      throw new Error('Ollama 返回了无效的 NDJSON')
+      throw new Error('Ollama returned invalid NDJSON')
     }
     if (typeof item.error === 'string' && item.error) throw new Error(item.error)
     if (typeof item.message?.thinking === 'string') thought += item.message.thinking

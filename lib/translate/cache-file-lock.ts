@@ -20,7 +20,7 @@ export function lockCacheFile(fs: LockFs, file: string): () => void {
     } catch {
       /* A lock currently being created is not stale. */
     }
-    if (!stale) throw new Error('翻译缓存正在写入，请稍后重试')
+    if (!stale) throw new Error('Translation cache is being written, please try again later')
     fs.unlinkSync(name)
     fd = fs.openSync(name, 'wx')
   }

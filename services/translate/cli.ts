@@ -6,6 +6,6 @@ import { main } from './lib/main'
 initRuntime()
 main().catch((err: unknown) => {
   const message = err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : err
-  console.error('翻译失败:', message)
+  console.error('Translation failed:', message)
   process.exit(1)
 })

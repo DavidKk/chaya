@@ -243,7 +243,7 @@ export function isIdenticalTranslation(src: string, zh: string): boolean {
 }
 
 /** Store only changed, fully translated text; reject targets with remaining kana and ignore RM controls during validation. */
-export function isStorableTranslation(src: string, zh: string): boolean {
+export function isStorableTranslation(src: string, zh: string, targetLang = 'zh'): boolean {
   if (!validDynamicTranslation(src, zh)) return false
   if (translationRubyChunks(zh).some((part) => part.ruby && JAPANESE.test(part.base! + part.reading!))) return false
   if (!String(src ?? '').trim() || !String(zh ?? '').trim() || isIdenticalTranslation(src, zh)) return false
@@ -252,8 +252,12 @@ export function isStorableTranslation(src: string, zh: string): boolean {
   if (!translatedText || (sourceText && sourceText === translatedText)) return false
   if (JAPANESE.test(translatedText)) return false
   if (retainsJapaneseHanPhrase(sourceText, translatedText)) return false
-  // The target library stores Chinese; an English rewrite of a Han-only source is not a valid translation.
-  return HAN.test(translatedText)
+  const isTargetZh =
+    !targetLang || targetLang === 'zh' || targetLang === 'ch' || targetLang === 'zh-CN' || targetLang === 'zh-Hans' || targetLang === 'zh-TW' || targetLang === 'cht'
+  if (isTargetZh) {
+    return HAN.test(translatedText)
+  }
+  return true
 }
 
 /** Explicit imports may intentionally preserve kana-free labels, names and abbreviations. */
@@ -265,21 +269,28 @@ export function isReusableTranslation(src: string, zh: string): boolean {
 }
 
 /** Validate engine output: reject empty or unchanged results and require Han characters when the source needs Chinese translation. */
-export function isUsefulTranslation(src: string, send: string, raw: string, zh: string): boolean {
+export function isUsefulTranslation(src: string, send: string, raw: string, zh: string, targetLang = 'zh'): boolean {
   if (!String(raw ?? '').trim() || !String(zh ?? '').trim()) return false
-  if (!isStorableTranslation(src, zh)) return false
+  if (!isStorableTranslation(src, zh, targetLang)) return false
   if (normCmp(raw) === normCmp(send)) return false
   const placeholders = send.match(/__C\d+__/g) || []
   if (JSON.stringify([...placeholders].sort()) !== JSON.stringify((raw.match(/__C\d+__/g) || []).sort())) return false
   const srcNeedsZh = JAPANESE.test(src) || HAN.test(stripControlNoise(src))
-  if (srcNeedsZh && !HAN.test(zh)) return false
+  const isTargetZh =
+    !targetLang || targetLang === 'zh' || targetLang === 'ch' || targetLang === 'zh-CN' || targetLang === 'zh-Hans' || targetLang === 'zh-TW' || targetLang === 'cht'
+  if (isTargetZh && srcNeedsZh && !HAN.test(zh)) return false
   return true
 }
 
 /** Determine whether text needs translation after removing shells and placeholders; exclude punctuation-only content. */
-export function shouldTranslate(text: string): boolean {
+export function shouldTranslate(text: string, sourceLang?: string | number): boolean {
+  if (typeof sourceLang === 'number') sourceLang = undefined
   const core = stripControlNoise(text)
   if (!core) return false
+  if (sourceLang && sourceLang !== 'ja' && sourceLang !== 'en') {
+    const compact = core.replace(/[\s\u3000]+/g, '')
+    return compact.length > 0 && !/^[\p{P}\p{S}]+$/u.test(compact)
+  }
   if (!JAPANESE.test(core) && !isSourceText(core, 'en')) return false
   const compact = core.replace(/[\s\u3000]+/g, '')
   return !(compact.length > 0 && /^[\p{P}\p{S}]+$/u.test(compact))

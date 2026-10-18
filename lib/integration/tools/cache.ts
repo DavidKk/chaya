@@ -5,7 +5,7 @@ const PATH = '/api/translate-cache'
 
 function requireSrc(args: Record<string, unknown>): string {
   const src = typeof args.src === 'string' ? args.src : ''
-  if (!src) throw new Error('缺少参数 src')
+  if (!src) throw new Error('Missing parameter src')
   return src
 }
 
@@ -39,7 +39,7 @@ export function makeCacheTools(invoke: ApiInvoke): ToolImpls {
 
     async chaya_cache_import(args, { signal }) {
       const text = typeof args.text === 'string' ? args.text : ''
-      if (!text.trim()) throw new Error('缺少参数 text')
+      if (!text.trim()) throw new Error('Missing parameter text')
       return invoke({ method: 'POST', path: PATH, body: { text, overwrite: optBool(args, 'overwrite') ?? false, filename: 'mcp' }, signal })
     },
   }

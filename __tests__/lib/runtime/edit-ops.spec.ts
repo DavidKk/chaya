@@ -15,20 +15,20 @@ describe('edit-ops', () => {
 
   it('validates actor patches', () => {
     expect(parseEditOp({ op: 'actor', id: 1, patch: { hp: 999, name: 'A', skillIds: [1, 2] } })).toEqual({ op: 'actor', id: 1, patch: { hp: 999, name: 'A', skillIds: [1, 2] } })
-    expect(() => parseEditOp({ op: 'actor', id: 1, patch: {} })).toThrow('没有可修改的字段')
-    expect(() => parseEditOp({ op: 'actor', id: 1, patch: { skillIds: [1.5] } })).toThrow('整数数组')
-    expect(() => parseEditOp({ op: 'actor', id: 1, patch: { name: 3 } })).toThrow('字符串')
+    expect(() => parseEditOp({ op: 'actor', id: 1, patch: {} })).toThrow('patch has no modifiable fields')
+    expect(() => parseEditOp({ op: 'actor', id: 1, patch: { skillIds: [1.5] } })).toThrow('integer array')
+    expect(() => parseEditOp({ op: 'actor', id: 1, patch: { name: 3 } })).toThrow('must be a string')
   })
 
   it('rejects unknown ops and bad values', () => {
-    expect(() => parseEditOp({ op: 'eval' })).toThrow('op 只能是')
-    expect(() => parseEditOp({ op: 'gold', value: 'abc' })).toThrow('value 需为数字')
-    expect(() => parseEditOp({ op: 'sw', id: 1, value: 'yes' })).toThrow('布尔值')
-    expect(() => parseEditOp({ op: 'runFlag', key: 'nope', value: true })).toThrow('key 只能是')
+    expect(() => parseEditOp({ op: 'eval' })).toThrow('op must be one of')
+    expect(() => parseEditOp({ op: 'gold', value: 'abc' })).toThrow('value must be a number')
+    expect(() => parseEditOp({ op: 'sw', id: 1, value: 'yes' })).toThrow('must be a boolean')
+    expect(() => parseEditOp({ op: 'runFlag', key: 'nope', value: true })).toThrow('key must be one of')
   })
 
   it('parses run actions', () => {
-    expect(() => parseRunAction({ id: 'nope' })).toThrow('id 只能是')
+    expect(() => parseRunAction({ id: 'nope' })).toThrow('id must be one of')
   })
 
   it('parses edit actions with their own params', () => {
@@ -39,6 +39,6 @@ describe('edit-ops', () => {
     expect(() => parseEditAction({ id: 'teleport', mapId: 1, x: 1, y: 1, direction: 5 })).toThrow('direction')
     expect(() => parseEditAction({ id: 'save', slot: 0 })).toThrow('slot')
     expect(() => parseEditAction({ id: 'teleport', mapId: 1 })).toThrow()
-    expect(() => parseEditAction({ id: 'eval' })).toThrow('id 只能是')
+    expect(() => parseEditAction({ id: 'eval' })).toThrow('id must be one of')
   })
 })

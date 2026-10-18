@@ -16,9 +16,9 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export const GET = defineApiRoute('get:/api/game-agent/status', async ({ request }) => {
-  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', '游戏内 Agent 需要 Chaya App 或本机服务')
+  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'In-game agent requires Chaya App or local service')
   const gameId = new URL(request.url).searchParams.get('gameId')?.trim() || ''
-  if (!gameId) return apiError(400, 'GAME_ID_REQUIRED', '缺少 gameId')
+  if (!gameId) return apiError(400, 'GAME_ID_REQUIRED', 'Missing gameId')
 
   const game = listAgentGames().find((item) => item.gameId === gameId)
   const extTasks = game ? await listExtTasks(gameId).catch(() => []) : []

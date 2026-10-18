@@ -82,7 +82,7 @@ export const POST = defineApiRoute('post:/api/logs', async ({ request }) => {
   }
 
   if (!body.source || body.message == null) {
-    return json(apiErrorBody('BAD_REQUEST', '需要 source + message'), { status: 400, headers: CORS })
+    return json(apiErrorBody('BAD_REQUEST', 'source and message are required'), { status: 400, headers: CORS })
   }
 
   const entry = appendLog({

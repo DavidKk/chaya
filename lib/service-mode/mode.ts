@@ -10,7 +10,7 @@ function parseExplicitServiceMode(): ServiceMode | undefined {
   const explicit = process.env.CHAYA_SERVICE?.trim().toLowerCase()
   if (!explicit) return undefined
   if (explicit === 'remote' || explicit === 'app' || explicit === 'local') return explicit
-  throw new Error(`CHAYA_SERVICE 配置无效：${process.env.CHAYA_SERVICE}；只支持 local、app、remote`)
+  throw new Error(`Invalid CHAYA_SERVICE configuration: ${process.env.CHAYA_SERVICE}; supported values: local, app, remote`)
 }
 
 /** cloud 构建 / Vercel 平台强制 remote，避免误设 CHAYA_SERVICE=local 打开 DiskOps */

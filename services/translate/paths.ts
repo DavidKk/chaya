@@ -2,8 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { KUROMIJI_DICT_PATH, ROOT_PATH, TRANSLATE_CACHE_DB_PATH, TRANSLATE_CACHE_DIR } from '@/constants/paths'
-
-import { gameContentPath, gameContentReadPath } from '../../lib/game/content-files'
+import { gameContentPath, gameContentReadPath } from '@/lib/game/content-files'
 
 /** @deprecated Use ROOT_PATH from @/constants. */
 export function kitRoot() {

@@ -23,7 +23,7 @@ export async function invokeRoute(handler: ExistingRouteHandler<DefaultRouteCont
   const res = await handler(request, { params: Promise.resolve({}) })
   const data = (await res.json().catch(() => null)) as Record<string, unknown> | null
   if (!res.ok || !data || data.ok === false) {
-    throw new Error(readApiErrorMessage(data, `${input.method} ${input.path} 失败（HTTP ${res.status}）`))
+    throw new Error(readApiErrorMessage(data, `${input.method} ${input.path} failed (HTTP ${res.status})`))
   }
   const { ok: _ok, ...rest } = data
   return redactSecrets(rest)
@@ -41,6 +41,6 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
 /** `ApiInvoke` over the in-process routes used by the shared tool factories. */
 export const invokeLocalApi: ApiInvoke = async (input) => {
   const handler = (await ROUTES[input.path]?.())?.[input.method]
-  if (!handler) throw new Error(`不支持的接口：${input.method} ${input.path}`)
+  if (!handler) throw new Error(`Unsupported endpoint: ${input.method} ${input.path}`)
   return invokeRoute(handler, input)
 }

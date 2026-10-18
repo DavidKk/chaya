@@ -9,7 +9,7 @@ import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelFoot } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select, Spinner, TextInput } from '@/components/sk'
+import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select, type SelectOption, Spinner, TextInput } from '@/components/sk'
 import { TranslateListItemRow } from '@/components/translate/TranslateListItemRow'
 import { TranslateListSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
@@ -262,24 +262,33 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
       const targetScheme = scheme || selectedScheme
       setTranslatingId(item.id)
       try {
-        const enginesToUse = targetScheme === 'all' ? undefined : [targetScheme]
+        const isCache = targetScheme === 'cache'
+        const enginesToUse = targetScheme === 'all' || isCache ? undefined : [targetScheme]
+        const fromLang = sourceLang || localesMeta?.currentSourceLang || 'ja'
+        const toLang = targetLang || localesMeta?.currentTargetLang || 'zh'
+        const payload = isCache
+          ? { mode: 'cache', text: item.src }
+          : {
+              text: item.src,
+              force: true,
+              persist: false,
+              engines: enginesToUse,
+              sourceLang: fromLang,
+              targetLang: toLang,
+            }
         const res = await translationFetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: item.src,
-            force: true,
-            persist: false,
-            engines: enginesToUse,
-          }),
+          body: JSON.stringify(payload),
         })
-        const data = (await res.json()) as { ok?: boolean; items?: Array<{ zh?: string }>; error?: unknown }
+        const data = (await res.json()) as { ok?: boolean; items?: Array<{ zh?: string; error?: string }>; error?: unknown }
         if (data?.ok && Array.isArray(data.items) && data.items[0]?.zh) {
           item.zh = data.items[0].zh
           refreshUI()
           notify.success(t('translate.listSingleTransSuccess', { src: item.src.slice(0, 20), zh: item.zh.slice(0, 20) }))
         } else {
-          notify.error(t('translate.listSingleTransNoResult', { error: readApiErrorMessage(data) }))
+          const errMsg = data?.items?.[0]?.error || readApiErrorMessage(data) || (isCache ? t('translate.listSingleCacheMiss') : '')
+          notify.error(t('translate.listSingleTransNoResult', { error: errMsg }))
         }
       } catch (err) {
         notify.error(t('translate.listSingleTransReqFailed', { error: err instanceof Error ? err.message : String(err) }))
@@ -287,7 +296,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
         setTranslatingId(null)
       }
     },
-    [selectedScheme, translationFetch, refreshUI, notify, t]
+    [selectedScheme, sourceLang, targetLang, localesMeta, translationFetch, refreshUI, notify, t]
   )
 
   // Save single item
@@ -420,19 +429,38 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
 
   const activeSchemeLabel = useMemo(() => {
     if (selectedScheme === 'all') return t('translate.listSchemeSmart')
+    if (selectedScheme === 'cache') return t('translate.listSchemeCache')
     const found = availableEngines.find((e) => e.id === selectedScheme)
     return found ? found.label : t('translate.listSchemeSmart')
   }, [selectedScheme, availableEngines, t])
 
   const schemeOptions = useMemo(() => {
-    const opts = [{ value: 'all', label: t('translate.listSchemeSmart') }]
+    const opts: SelectOption[] = [{ value: 'all', label: t('translate.listSchemeSmart') }]
     const agents = availableEngines.filter((e) => e.group === 'agent')
-    const system = availableEngines.filter((e) => e.group === 'system')
     const platform = availableEngines.filter((e) => e.group === 'platform')
+    const system = availableEngines.filter((e) => e.group === 'system')
 
-    for (const eng of agents) opts.push({ value: eng.id, label: eng.label })
-    for (const eng of system) opts.push({ value: eng.id, label: eng.label })
-    for (const eng of platform) opts.push({ value: eng.id, label: eng.label })
+    // 1. 模型翻译 (Agent)
+    if (agents.length > 0) {
+      agents.forEach((eng, i) => {
+        opts.push({ value: eng.id, label: eng.label, divider: i === 0 })
+      })
+    }
+    // 2. 翻译平台服务 (Bing, Google)
+    if (platform.length > 0) {
+      platform.forEach((eng, i) => {
+        opts.push({ value: eng.id, label: eng.label, divider: i === 0 })
+      })
+    }
+    // 3. 系统原生离线翻译 (Apple 原生)
+    if (system.length > 0) {
+      system.forEach((eng, i) => {
+        opts.push({ value: eng.id, label: eng.label, divider: i === 0 })
+      })
+    }
+    // 4. 缓存翻译（放最后）
+    opts.push({ value: 'cache', label: t('translate.listSchemeCache'), divider: true })
+
     return opts
   }, [availableEngines, t])
 

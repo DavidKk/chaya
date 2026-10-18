@@ -20,10 +20,10 @@ export const POST = defineApiRoute('post:/api/game-agent/model', async ({ reques
   const profileId = typeof body?.profileId === 'string' ? body.profileId.trim() : ''
   const model = typeof body?.model === 'string' ? body.model.trim() : ''
   if (!profileId || !model || !Array.isArray(body?.messages) || !Array.isArray(body?.tools)) {
-    return apiError(400, 'INVALID_AGENT_MODEL_REQUEST', 'profileId、model、messages 和 tools 不能为空')
+    return apiError(400, 'INVALID_AGENT_MODEL_REQUEST', 'profileId, model, messages, and tools are required')
   }
   const profile = profileById(loadGameAgentSettings(), profileId)
-  if (!profile) return apiError(404, 'AGENT_PROFILE_NOT_FOUND', '接入实例不存在或已删除')
+  if (!profile) return apiError(404, 'AGENT_PROFILE_NOT_FOUND', 'Agent profile not found or deleted')
   const messages = body.messages.slice(-100) as RuntimeMessage[]
   const tools = body.tools.slice(0, 64) as RuntimeTool[]
   try {

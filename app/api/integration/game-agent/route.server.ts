@@ -35,7 +35,7 @@ async function testOllamaProfile(value: Partial<GameAgentProfile>) {
 
 async function testOpenApiProfile(value: Partial<GameAgentProfile>) {
   const profile = normalizeGameAgentProfile(value)
-  if (!isOpenApiProvider(profile.provider)) throw new Error('未知的 Agent 类型')
+  if (!isOpenApiProvider(profile.provider)) throw new Error('Unknown agent provider')
   const token = readGameAgentToken(profile.id)
   const fetcher = ollamaFetch(profile)
   const signal = AbortSignal.timeout(8_000)
@@ -52,7 +52,7 @@ async function testOpenApiProfile(value: Partial<GameAgentProfile>) {
 
 async function testCliProfile(value: Partial<GameAgentProfile>, prompt: boolean, signal: AbortSignal) {
   const profile = normalizeGameAgentProfile(value)
-  if (!isCliProvider(profile.provider)) return apiError(400, 'INVALID_AGENT_ACTION', '未知的 Agent 类型')
+  if (!isCliProvider(profile.provider)) return apiError(400, 'INVALID_AGENT_ACTION', 'Unknown agent provider')
   try {
     const result = await probeCliProfile(
       {
@@ -81,7 +81,7 @@ function withTokenFlags(settings: GameAgentSettings) {
 }
 
 export const GET = defineApiRoute('get:/api/integration/game-agent', async () => {
-  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent 配置仅在 Chaya App 或本机服务中可用')
+  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent configuration is only available in Chaya App or local service')
   let sync = loadGameAgentSyncDocument()
   if (agentSettingsFromSyncDocument(sync).profiles.length === 0) sync = updateGameAgentSyncFromSettings({ profiles: [] }).sync
   const settings = agentSettingsFromSyncDocument(sync)
@@ -89,7 +89,7 @@ export const GET = defineApiRoute('get:/api/integration/game-agent', async () =>
 })
 
 export const POST = defineApiRoute('post:/api/integration/game-agent', async ({ request }) => {
-  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent 配置仅在 Chaya App 或本机服务中可用')
+  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent configuration is only available in Chaya App or local service')
   const body = (await request.json().catch(() => null)) as {
     action?: unknown
     profile?: Partial<GameAgentProfile>
@@ -99,14 +99,14 @@ export const POST = defineApiRoute('post:/api/integration/game-agent', async ({ 
   } | null
   if (body?.action === 'token') {
     const profileId = typeof body.profileId === 'string' ? body.profileId.trim() : ''
-    if (!profileId) return apiError(400, 'INVALID_AGENT_ACTION', '缺少 profileId')
+    if (!profileId) return apiError(400, 'INVALID_AGENT_ACTION', 'Missing profileId')
     const profile = agentSettingsFromSyncDocument(loadGameAgentSyncDocument()).profiles.find((item) => item.id === profileId)
-    if (!profile) return apiError(404, 'AGENT_PROFILE_NOT_FOUND', '接入实例不存在或已删除')
-    if (isCliProvider(profile.provider)) return apiError(400, 'INVALID_AGENT_ACTION', '该类型的 Agent 不接受 API Key，请在设置中完成授权')
+    if (!profile) return apiError(404, 'AGENT_PROFILE_NOT_FOUND', 'Agent profile not found or deleted')
+    if (isCliProvider(profile.provider)) return apiError(400, 'INVALID_AGENT_ACTION', 'This agent type does not accept API key, please complete authorization in settings')
     saveGameAgentToken(profileId, body.clearToken ? null : typeof body.token === 'string' ? body.token : null)
     return apiOk({ profileId, hasToken: hasGameAgentToken(profileId) })
   }
-  if ((body?.action !== 'test' && body?.action !== 'models') || !body.profile) return apiError(400, 'INVALID_AGENT_ACTION', '仅支持 test、models 或 token 操作')
+  if ((body?.action !== 'test' && body?.action !== 'models') || !body.profile) return apiError(400, 'INVALID_AGENT_ACTION', 'Only test, models, or token actions are supported')
   if (isCliProvider(body.profile.provider)) return testCliProfile(body.profile, body.action === 'test', request.signal)
   try {
     if (isOpenApiProvider(body.profile.provider)) return apiOk(await testOpenApiProfile(body.profile))
@@ -137,14 +137,14 @@ function keepHiddenProfiles(settings: Partial<GameAgentSettings>, features: stri
 }
 
 export const PUT = defineApiRoute('put:/api/integration/game-agent', async ({ request }) => {
-  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent 配置仅在 Chaya App 或本机服务中可用')
+  if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent configuration is only available in Chaya App or local service')
   const body = (await request.json().catch(() => null)) as {
     settings?: Partial<GameAgentSettings>
     sync?: AgentSyncDocument
     baseSync?: AgentSyncDocument
     features?: unknown
   } | null
-  if (!body?.settings && !body?.sync) return apiError(400, 'INVALID_AGENT_SETTINGS', '缺少 Agent 配置')
+  if (!body?.settings && !body?.sync) return apiError(400, 'INVALID_AGENT_SETTINGS', 'Missing agent configuration')
   const features = Array.isArray(body.features) ? body.features.filter((item): item is string => typeof item === 'string') : []
   try {
     const before = agentSettingsFromSyncDocument(loadGameAgentSyncDocument()).profiles

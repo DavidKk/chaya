@@ -19,10 +19,10 @@ export function createTranslationRpc(send: (packet: TranslationPacket) => void |
 
   async function transmit(id: string, kind: 'request' | 'response', value: unknown, signal?: AbortSignal) {
     const raw = JSON.stringify(value)
-    if (raw.length > MAX_CHARS) throw new Error('翻译数据过大，请分批导入')
+    if (raw.length > MAX_CHARS) throw new Error('Translation payload too large, please import in batches')
     const total = Math.ceil(raw.length / CHUNK)
     for (let index = 0; index < total; index++) {
-      if (disposed || signal?.aborted) throw new Error('游戏连接已断开或请求已取消')
+      if (disposed || signal?.aborted) throw new Error('Game connection disconnected or request cancelled')
       await send({ type: 'translation.rpc', id, kind, index, total, chunk: raw.slice(index * CHUNK, (index + 1) * CHUNK) })
       if (index % 8 === 7) await new Promise((resolve) => setTimeout(resolve, 0))
     }
@@ -30,7 +30,7 @@ export function createTranslationRpc(send: (packet: TranslationPacket) => void |
 
   const request: TranslationRequestFn = (input, signal) =>
     new Promise((resolve, reject) => {
-      if (disposed || signal?.aborted) return reject(new Error('游戏连接已断开或请求已取消'))
+      if (disposed || signal?.aborted) return reject(new Error('Game connection disconnected or request cancelled'))
       if (pending.size >= 32) return reject(new Error('翻译请求过多，请稍后重试'))
       const id = `${prefix}-${++sequence}`
       const finish = () => {
@@ -122,7 +122,7 @@ export function createTranslationRpc(send: (packet: TranslationPacket) => void |
 
   function dispose() {
     disposed = true
-    for (const item of pending.values()) item.reject(new Error('游戏连接已断开'))
+    for (const item of pending.values()) item.reject(new Error('Game connection disconnected'))
     for (const abort of running.values()) abort.abort()
     for (const parts of incoming.values()) clearTimeout(parts.timer)
     incoming.clear()
@@ -133,12 +133,12 @@ export function createTranslationRpc(send: (packet: TranslationPacket) => void |
 
 /** 对大词库导入/导出施加背压，避免把整个文件一次塞进通道缓冲区。 */
 export async function sendTranslationPacket(channel: RTCDataChannel | null, packet: TranslationPacket) {
-  if (!channel || channel.readyState !== 'open') throw new Error('游戏连接已断开')
+  if (!channel || channel.readyState !== 'open') throw new Error('Game connection disconnected')
   const started = Date.now()
   while (channel.bufferedAmount > 256 * 1024) {
-    if (channel.readyState !== 'open' || Date.now() - started > 10_000) throw new Error('游戏连接繁忙，请稍后重试')
+    if (channel.readyState !== 'open' || Date.now() - started > 10_000) throw new Error('Game connection busy, please try again later')
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
-  if (channel.readyState !== 'open') throw new Error('游戏连接已断开')
+  if (channel.readyState !== 'open') throw new Error('Game connection disconnected')
   channel.send(JSON.stringify(packet))
 }

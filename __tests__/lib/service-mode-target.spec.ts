@@ -27,7 +27,7 @@ describe('build target', () => {
   })
 
   it('rejects an invalid injected build target', () => {
-    expect(() => load({ NEXT_PUBLIC_CHAYA_TARGET: 'invalid' })).toThrow(/NEXT_PUBLIC_CHAYA_TARGET 配置无效/)
+    expect(() => load({ NEXT_PUBLIC_CHAYA_TARGET: 'invalid' })).toThrow(/Invalid NEXT_PUBLIC_CHAYA_TARGET configuration/)
   })
 
   it('cloud builds are always remote, even with CHAYA_SERVICE=local', () => {
@@ -61,6 +61,6 @@ describe('dev target switch', () => {
   })
 
   it('rejects an invalid dev target in dev builds', () => {
-    expect(() => load({ NEXT_PUBLIC_CHAYA_TARGET: 'dev', CHAYA_DEV_TARGET: 'invalid' }).getServiceMode()).toThrow(/CHAYA_DEV_TARGET 配置无效/)
+    expect(() => load({ NEXT_PUBLIC_CHAYA_TARGET: 'dev', CHAYA_DEV_TARGET: 'invalid' }).getServiceMode()).toThrow(/Invalid CHAYA_DEV_TARGET configuration/)
   })
 })

@@ -18,7 +18,7 @@ export function resolveRuntimeLane(mode: ServiceMode = getServiceMode()): Runtim
 export function getPlatformContext(opts?: { platform?: NodeJS.Platform | string; serviceMode?: ServiceMode }): PlatformContext {
   const os = resolveHostOs(opts?.platform ?? process.platform)
   if (!os) {
-    throw new Error(`不支持的操作系统平台：${opts?.platform ?? process.platform}`)
+    throw new Error(`Unsupported operating system platform: ${opts?.platform ?? process.platform}`)
   }
   return {
     os,

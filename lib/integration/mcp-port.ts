@@ -98,7 +98,7 @@ export function deleteMcpPortConfig(fs: McpPortFs, env: McpPortEnv): { deleted: 
 
 /** Default port → no file at all; otherwise write via a temp file + rename. Caller checks the port is free first. */
 export function writeMcpPortConfig(fs: McpPortFs, env: McpPortEnv, port: number): McpPortState {
-  if (!isValidMcpPort(port)) throw new Error(`端口需为 ${MCP_PORT_MIN}–${MCP_PORT_MAX} 的整数`)
+  if (!isValidMcpPort(port)) throw new Error(`Port must be an integer between ${MCP_PORT_MIN} and ${MCP_PORT_MAX}`)
   if (port === MCP_GATEWAY_DEFAULT_PORT) {
     deleteMcpPortConfig(fs, env)
     return readMcpPortState(fs, env)

@@ -38,6 +38,8 @@ export type ExtractedItemMeta = {
   file?: string
   localesKey?: string
   localesFile?: string
+  missingSourceLang?: boolean
+  isHardcoded?: boolean
 }
 
 export type ExtractedTranslationItem = {
@@ -283,6 +285,11 @@ export function loadExtractedItemsWithLocales(contentRoot: string, opts?: { sour
           meta.localesFile = foundFile
         }
 
+        const sourceFound = Boolean(currentSourceLang && catalog.dictionaries[currentSourceLang]?.[normKey])
+        if (!sourceFound) {
+          meta.missingSourceLang = true
+        }
+
         // Resolve source natural language text
         const localizedSrc =
           (currentSourceLang && catalog.dictionaries[currentSourceLang]?.[normKey]) ||
@@ -298,6 +305,9 @@ export function loadExtractedItemsWithLocales(contentRoot: string, opts?: { sour
         if (currentTargetLang && catalog.dictionaries[currentTargetLang]?.[normKey]) {
           targetZh = catalog.dictionaries[currentTargetLang][normKey]
         }
+      } else {
+        meta.isHardcoded = true
+        meta.missingSourceLang = true
       }
     }
 

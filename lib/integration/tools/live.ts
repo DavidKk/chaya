@@ -27,7 +27,7 @@ export type LiveDeps = {
 
 function reqNum(args: Record<string, unknown>, key: string): number {
   const value = optNum(args, key)
-  if (value === undefined) throw new Error(`缺少参数 ${key}`)
+  if (value === undefined) throw new Error(`Missing parameter ${key}`)
   return value
 }
 
@@ -40,7 +40,7 @@ export function makeLiveTools({ games, call, quit }: LiveDeps): ToolImpls {
 
     async chaya_live_state(args) {
       const sections = optList(args, 'sections')
-      if (sections.some((section) => !GAME_STATE_SECTIONS.includes(section as GameStateSection))) throw new Error(`sections 只能包含：${GAME_STATE_SECTIONS.join(', ')}`)
+      if (sections.some((section) => !GAME_STATE_SECTIONS.includes(section as GameStateSection))) throw new Error(`sections may only contain: ${GAME_STATE_SECTIONS.join(', ')}`)
       return selectGameState(await call(optStr(args, 'gameId'), 'game.state', {}), sections as GameStateSection[])
     },
 
@@ -50,13 +50,13 @@ export function makeLiveTools({ games, call, quit }: LiveDeps): ToolImpls {
 
     async chaya_live_open_scene(args) {
       const scene = reqStr(args, 'scene')
-      if (!(SCENE_ACTIONS as readonly string[]).includes(scene)) throw new Error(`scene 只能是：${SCENE_ACTIONS.join(', ')}`)
+      if (!(SCENE_ACTIONS as readonly string[]).includes(scene)) throw new Error(`scene must be one of: ${SCENE_ACTIONS.join(', ')}`)
       return call(optStr(args, 'gameId'), 'edit.action', { action: { id: scene as (typeof SCENE_ACTIONS)[number] } })
     },
 
     async chaya_live_history(args) {
       const kinds = optList(args, 'kinds').map((kind) => {
-        if (!AGENT_HISTORY_KINDS.includes(kind as AgentHistoryKind)) throw new Error(`kinds 只能包含：${AGENT_HISTORY_KINDS.join(', ')}`)
+        if (!AGENT_HISTORY_KINDS.includes(kind as AgentHistoryKind)) throw new Error(`kinds may only contain: ${AGENT_HISTORY_KINDS.join(', ')}`)
         return kind as AgentHistoryKind
       })
       return call(optStr(args, 'gameId'), 'game.history', {
@@ -87,19 +87,19 @@ export function makeLiveTools({ games, call, quit }: LiveDeps): ToolImpls {
 
     async chaya_live_press(args) {
       const key = reqStr(args, 'key') as AgentInputKey
-      if (!AGENT_INPUT_KEYS.includes(key)) throw new Error(`key 只能是：${AGENT_INPUT_KEYS.join(', ')}`)
+      if (!AGENT_INPUT_KEYS.includes(key)) throw new Error(`key must be one of: ${AGENT_INPUT_KEYS.join(', ')}`)
       return call(optStr(args, 'gameId'), 'input.press', { key, frames: optNum(args, 'frames') })
     },
 
     async chaya_live_play(args) {
       const steps = optList(args, 'steps').map((step, index): AgentInputStep => {
-        if (!step || typeof step !== 'object' || Array.isArray(step)) throw new Error(`steps[${index}] 必须是对象`)
+        if (!step || typeof step !== 'object' || Array.isArray(step)) throw new Error(`steps[${index}] must be an object`)
         const item = step as Record<string, unknown>
         const key = reqStr(item, 'key') as AgentInputKey
-        if (!AGENT_INPUT_KEYS.includes(key)) throw new Error(`steps[${index}].key 只能是：${AGENT_INPUT_KEYS.join(', ')}`)
+        if (!AGENT_INPUT_KEYS.includes(key)) throw new Error(`steps[${index}].key must be one of: ${AGENT_INPUT_KEYS.join(', ')}`)
         return { key, frames: optNum(item, 'frames'), waitFrames: optNum(item, 'waitFrames') }
       })
-      if (!steps.length) throw new Error('steps 不能为空')
+      if (!steps.length) throw new Error('steps cannot be empty')
       return call(optStr(args, 'gameId'), 'input.sequence', { steps })
     },
 

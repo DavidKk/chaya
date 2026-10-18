@@ -22,5 +22,5 @@ export const POST = defineApiRoute('post:/api/pick', async ({ request }) => {
   if ('cancelled' in result && result.cancelled) {
     return apiCancelled()
   }
-  return apiError(500, 'PICK_FAILED', 'error' in result ? result.error : '选择失败')
+  return apiError(500, 'PICK_FAILED', 'error' in result ? result.error : 'Selection failed')
 })

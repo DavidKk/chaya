@@ -12,16 +12,16 @@ export function makeSkillTools(): ToolImpls {
     },
     async chaya_skills_search(args) {
       const query = optStr(args, 'query')
-      if (!query) throw new Error('缺少参数 query')
+      if (!query) throw new Error('Missing parameter query')
       const limit = Math.min(50, Math.max(1, Math.trunc(optNum(args, 'limit') ?? 10)))
       const results = searchSkills(query).slice(0, limit)
       return { query, results, count: results.length }
     },
     async chaya_skills_read(args) {
       const id = optStr(args, 'id')
-      if (!id) throw new Error('缺少参数 id')
+      if (!id) throw new Error('Missing parameter id')
       const skill = readSkill(id)
-      if (!skill) throw new Error(`技能不存在：${id}`)
+      if (!skill) throw new Error(`Skill not found: ${id}`)
       return skill
     },
   }

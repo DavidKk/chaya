@@ -21,7 +21,7 @@ function walk(dir, out = []) {
 }
 
 if (!existsSync(MANIFEST)) {
-  console.error(`缺少 ${relative(ROOT, MANIFEST)}，请先运行 pnpm build:cloud`)
+  console.error(`Missing ${relative(ROOT, MANIFEST)}, please run pnpm build:cloud first`)
   process.exit(1)
 }
 
@@ -36,8 +36,8 @@ const leaked = walk(APP_DIR)
   .filter(({ key }) => builtKeys.has(key))
 
 if (leaked.length) {
-  console.error('Cloud 构建混入了仅 server / dev 的路由：')
+  console.error('Cloud build includes server/dev routes:')
   for (const { file, key } of leaked) console.error(`  ${key}  ← ${file}`)
   process.exit(1)
 }
-console.log(`Cloud 构建检查通过（${builtKeys.size} 条路由，无 *.server / *.dev 路由）`)
+console.log(`Cloud build verification passed (${builtKeys.size} routes, no *.server / *.dev routes)`)

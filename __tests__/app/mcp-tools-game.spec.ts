@@ -35,7 +35,7 @@ const urlOf = (fn: unknown, call = 0) => new URL((mocked(fn).mock.calls[call][0]
 describe('game tools', () => {
   it('status trims the view and reports unbound games', async () => {
     mocked(StatusRoute.GET).mockResolvedValueOnce(okJson({ ready: false, serviceMode: 'local', config: {} }))
-    expect(await gameTools.chaya_game_status({}, ctx)).toEqual({ ready: false, serviceMode: 'local', error: '尚未绑定游戏', gameRoot: null })
+    expect(await gameTools.chaya_game_status({}, ctx)).toEqual({ ready: false, serviceMode: 'local', error: 'No game bound yet', gameRoot: null })
     mocked(StatusRoute.GET).mockResolvedValueOnce(
       okJson({
         ready: true,

@@ -12,7 +12,7 @@ export async function bingTranslate(text, gap) {
     if (attempt > 0) {
       const [min, max] = NET_RETRY_RANGES[attempt - 1]
       const wait = randomBetween(min, max)
-      console.warn(`[bing] 限流，第 ${attempt} 次退避 ${(wait / 1000).toFixed(1)}s…`)
+      console.warn(`[bing] Rate limited, backing off attempt ${attempt} for ${(wait / 1000).toFixed(1)}s...`)
       await sleep(wait)
     }
     try {
@@ -104,7 +104,7 @@ export async function googleTranslate(text, gap) {
     if (attempt > 0) {
       const [min, max] = NET_RETRY_RANGES[attempt - 1]
       const wait = randomBetween(min, max)
-      console.warn(`[google] 限流，第 ${attempt} 次退避 ${(wait / 1000).toFixed(1)}s…`)
+      console.warn(`[google] Rate limited, backing off attempt ${attempt} for ${(wait / 1000).toFixed(1)}s...`)
       await sleep(wait)
     }
     try {
@@ -130,7 +130,7 @@ export async function netChunk(tag, translateFn, items, gap, store) {
   if (lines.length === items.length) {
     return items.map((src, index) => store.finishTranslation(src, lines[index]))
   }
-  console.warn(`[${tag}] 行数对不上（${lines.length} ≠ ${items.length}），对半再翻`)
+  console.warn(`[${tag}] Line count mismatch (${lines.length} != ${items.length}), retrying in halves`)
   await gap.wait('对半前')
   const mid = Math.ceil(items.length / 2)
   const left = await netChunk(tag, translateFn, items.slice(0, mid), gap, store)
@@ -159,7 +159,7 @@ export async function ollamaChat(text) {
     })
   } catch (err) {
     const cause = err && err.cause && (err.cause.code || err.cause.message)
-    throw new Error(cause ? `连接中断: ${cause}` : err.message || 'fetch failed')
+    throw new Error(cause ? `Connection aborted: ${cause}` : err.message || 'fetch failed')
   }
   if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`)
 
@@ -180,7 +180,7 @@ export async function ollamaChat(text) {
       content += (msg.message && msg.message.content) || ''
     }
   }
-  if (!content) throw new Error('模型没有返回译文')
+  if (!content) throw new Error('Model did not return a translation')
   return content
 }
 
@@ -219,7 +219,7 @@ export async function runNetWorker(tag, translateFn, chunkChars, queue, store, s
       if (!paused) {
         paused = true
         state[doneKey] = true
-        console.log(`[${tag}] 已暂停（开关关闭，改 ${path.basename(rt().SWITCHES_FILE)} 可恢复）`)
+        console.log(`[${tag}] Paused (switch disabled; edit ${path.basename(rt().SWITCHES_FILE)} to resume)`)
       }
       if (store.pending() === 0 || peersDone(state, doneKey)) break
       await sleep(1500)
@@ -228,7 +228,7 @@ export async function runNetWorker(tag, translateFn, chunkChars, queue, store, s
     if (paused) {
       paused = false
       state[doneKey] = false
-      console.log(`[${tag}] 已恢复`)
+      console.log(`[${tag}] Resumed`)
     }
 
     if (queue.remaining() === 0) {
@@ -259,14 +259,16 @@ export async function runNetWorker(tag, translateFn, chunkChars, queue, store, s
     }
     if (nsfw.length) {
       const { retry, gaveUp } = settleEngineFails(failLedger, store, tag, nsfw)
-      console.warn(`[${tag}] 跳过敏感 ${nsfw.length} 条（不送公网）` + (retry.length ? `，${retry.length} 条交其他引擎` : '') + (gaveUp ? `，放弃 ${gaveUp} 条` : ''))
+      console.warn(
+        `[${tag}] Skipped ${nsfw.length} sensitive items` + (retry.length ? `, passing ${retry.length} to other engines` : '') + (gaveUp ? `, gave up on ${gaveUp} items` : '')
+      )
       if (retry.length) await queue.requeue(retry)
     }
     if (!safe.length) continue
 
     const tagNo = await progress.next()
     const started = Date.now()
-    console.log(`[${tag}] 分片 ${tagNo}：${safe.length} 条，${safe.join('\n').length} 字，待译 ${store.pending()}`)
+    console.log(`[${tag}] Chunk ${tagNo}: ${safe.length} items, ${safe.join('\n').length} chars, pending: ${store.pending()}`)
     try {
       const lines = await netChunk(tag, translateFn, safe, gap, store)
       const pairs = safe.map((src, i) => [src, lines[i]])
@@ -277,27 +279,27 @@ export async function runNetWorker(tag, translateFn, chunkChars, queue, store, s
       if (failed.length) {
         const { retry, gaveUp } = settleEngineFails(failLedger, store, tag, failed)
         if (gaveUp) {
-          console.warn(`[${tag}] 分片 ${tagNo}：放弃 ${gaveUp} 条（当前开启引擎均已失败）→ ${path.basename(rt().SKIPPED_NDJSON)}`)
+          console.warn(`[${tag}] Chunk ${tagNo}: gave up on ${gaveUp} items (all enabled engines failed) -> ${path.basename(rt().SKIPPED_NDJSON)}`)
         }
         if (retry.length) {
-          console.warn(`[${tag}] 分片 ${tagNo}：${retry.length} 条交其他引擎`)
+          console.warn(`[${tag}] Chunk ${tagNo}: passing ${retry.length} items to other engines`)
           await queue.requeue(retry)
         }
       }
       gap.noteSuccess()
     } catch (err) {
       // Return rate-limited or network-failed items without marking permanent failure.
-      console.warn(`[${tag}] 分片 ${tagNo} 失败，退回队列: ${err.message || err}`)
+      console.warn(`[${tag}] Chunk ${tagNo} failed, returned to queue: ${err.message || err}`)
       gap.noteBan(err.message || err)
       await queue.requeue(safe.filter((src) => !store.has(src)))
       await gap.wait('失败后')
       continue
     }
-    console.log(`[${tag}] 分片 ${tagNo} 完成，${((Date.now() - started) / 1000).toFixed(1)}s`)
+    console.log(`[${tag}] Chunk ${tagNo} completed in ${((Date.now() - started) / 1000).toFixed(1)}s`)
     if (queue.remaining() > 0) await gap.wait('下一片前')
   }
   state[doneKey] = true
-  console.log(`[${tag}] 结束`)
+  console.log(`[${tag}] Finished`)
 }
 
 export async function runOllama(queue, store, state, progress, failLedger) {
@@ -308,7 +310,7 @@ export async function runOllama(queue, store, state, progress, failLedger) {
       if (!paused) {
         paused = true
         state.ollamaDone = true
-        console.log(`[ollama] 已暂停（开关关闭，改 ${path.basename(rt().SWITCHES_FILE)} 可恢复）`)
+        console.log(`[ollama] Paused (switch disabled; edit ${path.basename(rt().SWITCHES_FILE)} to resume)`)
       }
       if (store.pending() === 0 || peersDone(state, 'ollamaDone')) break
       await sleep(1500)
@@ -317,7 +319,7 @@ export async function runOllama(queue, store, state, progress, failLedger) {
     if (paused) {
       paused = false
       state.ollamaDone = false
-      console.log('[ollama] 已恢复')
+      console.log('[ollama] Resumed')
     }
 
     if (queue.remaining() === 0) {
@@ -337,13 +339,13 @@ export async function runOllama(queue, store, state, progress, failLedger) {
     }
     const tag = await progress.next()
     const started = Date.now()
-    console.log(`[ollama] 分片 ${tag}：${items.length} 条，${items.join('\n').length} 字，待译 ${store.pending()}`)
+    console.log(`[ollama] Chunk ${tag}: ${items.length} items, ${items.join('\n').length} chars, pending: ${store.pending()}`)
     let missing = []
     let transient = false
     try {
       missing = await ollamaOnce(items, store)
     } catch (err) {
-      console.warn(`[ollama] 分片 ${tag} 失败，退回队列: ${err.message || err}`)
+      console.warn(`[ollama] Chunk ${tag} failed, returned to queue: ${err.message || err}`)
       missing = items.filter((src) => !store.has(src))
       transient = true
     }
@@ -352,16 +354,16 @@ export async function runOllama(queue, store, state, progress, failLedger) {
     } else if (missing.length) {
       const { retry, gaveUp } = settleEngineFails(failLedger, store, 'ollama', missing)
       if (gaveUp) {
-        console.warn(`[ollama] 分片 ${tag}：放弃 ${gaveUp} 条（当前开启引擎均已失败）→ ${path.basename(rt().SKIPPED_NDJSON)}`)
+        console.warn(`[ollama] Chunk ${tag}: gave up on ${gaveUp} items (all enabled engines failed) -> ${path.basename(rt().SKIPPED_NDJSON)}`)
       }
       if (retry.length) {
-        console.warn(`[ollama] 分片 ${tag}：${retry.length} 条交其他引擎（本引擎不再重试）`)
+        console.warn(`[ollama] Chunk ${tag}: passing ${retry.length} items to other engines (no further retries here)`)
         await queue.requeue(retry)
       }
     }
-    console.log(`[ollama] 分片 ${tag} 新增 ${items.length - missing.length} 条，${((Date.now() - started) / 1000).toFixed(1)}s`)
+    console.log(`[ollama] Chunk ${tag}: added ${items.length - missing.length} items in ${((Date.now() - started) / 1000).toFixed(1)}s`)
   }
 
   state.ollamaDone = true
-  console.log('[ollama] 结束')
+  console.log('[ollama] Finished')
 }

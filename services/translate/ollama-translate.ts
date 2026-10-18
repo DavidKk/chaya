@@ -55,6 +55,6 @@ export async function ollamaJaToZh(text: string, options?: LocalTranslateOptions
     }
   }
   if (lastErr && !last) throw lastErr
-  if (!last) throw new Error('模型没有返回译文')
+  if (!last) throw new Error('Model did not return a translation')
   return last
 }

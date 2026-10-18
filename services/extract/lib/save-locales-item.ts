@@ -82,7 +82,7 @@ export function saveLocalesItem(params: SaveLocalesItemParams): SaveLocalesItemR
       fs.copyFileSync(targetPath, backupPath)
       backupCreated = true
     } catch (e) {
-      console.warn('[save-locales-item] 备份原始语言文件失败:', e)
+      console.warn('[save-locales-item] Failed to backup original locales file:', e)
     }
   }
 
@@ -120,7 +120,7 @@ export function saveLocalesItem(params: SaveLocalesItemParams): SaveLocalesItemR
         to: targetLang,
       })
     } catch (e) {
-      console.warn('[save-locales-item] 更新翻译缓存库失败:', e)
+      console.warn('[save-locales-item] Failed to update translation cache:', e)
     }
   }
 

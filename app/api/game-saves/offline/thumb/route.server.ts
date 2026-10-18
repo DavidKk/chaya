@@ -9,7 +9,7 @@ export const runtime = 'nodejs'
 export const GET = defineApiRoute('get:/api/game-saves/offline/thumb', async ({ request }) => {
   const denied = requireDisk()
   if (denied) return denied
-  if (request.headers.has('x-chaya-launch-token')) return apiBadRequest('管理会话接口不接受启动令牌', 'ACCESS_DENIED')
+  if (request.headers.has('x-chaya-launch-token')) return apiBadRequest('Management session endpoint does not accept launch token', 'ACCESS_DENIED')
   const query = new URL(request.url).searchParams
   const libraryId = query.get('libraryId')?.trim() || ''
   const place = query.get('place')

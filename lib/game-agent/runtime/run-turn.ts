@@ -427,7 +427,7 @@ export async function runAgentTurn(
         return { text, steps: step, toolCalls, reason: 'limit', ...(usage ? { usage } : {}) }
       }
       const tool = tools.find((candidate) => candidate.name === call.function.name)
-      if (!tool) throw new Error(`工具不在 ${config.capability} 能力白名单中：${call.function.name}`)
+      if (!tool) throw new Error(`Tool is not in capability allowlist for ${config.capability}: ${call.function.name}`)
       if (tool.name === 'chaya_live_open_scene' && call.function.arguments.scene === 'scene:equip') equipGoal = true
       const callId = call.id || `${step}-${index}`
       const stepId = `step-${step}`

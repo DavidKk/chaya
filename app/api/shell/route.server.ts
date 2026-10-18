@@ -18,7 +18,7 @@ export const GET = defineApiRoute('get:/api/shell', async () => {
 })
 
 function shellJobRunning() {
-  return apiError(409, 'SHELL_JOB_RUNNING', '正在下载安装 NW.js，请等下载中心里的任务结束后再操作')
+  return apiError(409, 'SHELL_JOB_RUNNING', 'Downloading and installing NW.js, please wait until the download center task finishes before proceeding')
 }
 
 export const POST = defineApiRoute('post:/api/shell', async ({ request }) => {
@@ -38,7 +38,7 @@ export const POST = defineApiRoute('post:/api/shell', async ({ request }) => {
     return apiBadRequest(resolved.error)
   }
   if (resolved.remote) {
-    return apiBadRequest('远程连接的游戏无法在本机装壳', 'REMOTE_READ_ONLY')
+    return apiBadRequest('Remote game cannot install shell locally', 'REMOTE_READ_ONLY')
   }
 
   try {
@@ -46,14 +46,14 @@ export const POST = defineApiRoute('post:/api/shell', async ({ request }) => {
       const { job, done, reused } = startLatestShellJob(resolved.contentRoot)
       if (!body.wait) return apiOk({ job, reused }, { status: 202 })
       const finished = await done
-      if (finished.status !== 'done') return apiBadRequest(finished.error || '下载已取消')
+      if (finished.status !== 'done') return apiBadRequest(finished.error || 'Download cancelled')
       return apiOk({ ...finished.result, job: finished })
     }
 
     if (findRunningJob('nw-shell')) return shellJobRunning()
     const shellSource = String(body.shellSource || resolved.config.shellSource || '').trim()
     if (!shellSource) {
-      return apiBadRequest('请先填写干净的 NW.js 壳源路径（shellSource），或使用「下载最新壳」')
+      return apiBadRequest('Please provide a valid NW.js shellSource path or use "Download Latest Shell"')
     }
 
     const result = await installShell({
@@ -75,12 +75,12 @@ export const DELETE = defineApiRoute('delete:/api/shell', async () => {
 
   if (findRunningJob('nw-shell') || isShellInstalling()) return shellJobRunning()
   if (!isToolkitShellInstalled()) {
-    return apiBadRequest('没有可卸载的共用壳（工具 data/shell 下未安装）')
+    return apiBadRequest('No shared shell found to uninstall (not installed under data/shell)')
   }
   try {
     const result = uninstallToolkitShell()
     if (result.removed.length === 0) {
-      return apiBadRequest('没有可卸载的共用壳')
+      return apiBadRequest('No shared shell available to uninstall')
     }
     return apiOk(result)
   } catch (err) {

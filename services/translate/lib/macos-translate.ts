@@ -8,6 +8,8 @@ export const CHAYA_TO_APPLE_LANG_MAP: Record<string, string> = {
   zh: 'zh-Hans',
   'zh-CN': 'zh-Hans',
   'zh-TW': 'zh-Hant',
+  ch: 'zh-Hans',
+  cht: 'zh-Hant',
   en: 'en',
   ko: 'ko',
   fr: 'fr',

@@ -42,7 +42,7 @@ describe('service-mode', () => {
   it('rejects a non-empty invalid CHAYA_SERVICE', () => {
     delete process.env.VERCEL
     process.env.CHAYA_SERVICE = 'invalid'
-    expect(() => getServiceMode()).toThrow(/CHAYA_SERVICE 配置无效/)
+    expect(() => getServiceMode()).toThrow(/Invalid CHAYA_SERVICE configuration/)
   })
 
   it('requireDisk returns null when disk is allowed', () => {

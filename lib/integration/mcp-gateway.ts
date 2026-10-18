@@ -127,7 +127,7 @@ function readBody(req: IncomingMessage): Promise<string> {
     req.on('data', (chunk: Buffer) => {
       size += chunk.length
       if (size > MAX_BODY_BYTES) {
-        reject(new Error('请求体过大'))
+        reject(new Error('Request body too large'))
         req.destroy()
         return
       }
@@ -193,7 +193,7 @@ export function createMcpGateway(deps: McpGatewayDeps): McpGateway {
     return new Promise((resolve) => {
       const next = http.createServer((req, res) => void onRequest(req, res))
       next.once('error', (err: NodeJS.ErrnoException) => {
-        if (err.code !== 'EADDRINUSE') log?.warn(`MCP 网关监听失败：${err.message}`)
+        if (err.code !== 'EADDRINUSE') log?.warn(`MCP gateway listen failed: ${err.message}`)
         resolve(false)
       })
       next.listen(port, '127.0.0.1', () => {
@@ -228,7 +228,7 @@ export function createMcpGateway(deps: McpGatewayDeps): McpGateway {
       state = 'off'
       holder = undefined
     } else if (await bind(port)) {
-      if (state !== 'listening') log?.info(`MCP 网关已开启：${mcpGatewayUrl(port)}`)
+      if (state !== 'listening') log?.info(`MCP gateway listening on ${mcpGatewayUrl(port)}`)
       state = 'listening'
       holder = undefined
       return
@@ -288,8 +288,8 @@ export function createMcpGateway(deps: McpGatewayDeps): McpGateway {
       return status()
     },
     async setPort(port) {
-      if (!isValidMcpPort(port)) throw new Error(`端口需为 ${MCP_PORT_MIN}–${MCP_PORT_MAX} 的整数`)
-      if (!(await portFree(port))) throw new Error(`端口 ${port} 已被占用`)
+      if (!isValidMcpPort(port)) throw new Error(`Port must be an integer between ${MCP_PORT_MIN} and ${MCP_PORT_MAX}`)
+      if (!(await portFree(port))) throw new Error(`Port ${port} is already in use`)
       writeMcpPortConfig(fs, env, port)
       await ensure()
       return status()

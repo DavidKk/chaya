@@ -45,22 +45,22 @@ export const GET = defineApiRoute('get:/api/game-agent/activity', async ({ reque
   const gameId = search.get('gameId')?.trim()
   const runtimeInstanceId = search.get('runtimeInstanceId')?.trim()
   if (!taskId) return apiOk({ tasks: await listAgentActivityTasks(gameId, runtimeInstanceId) })
-  if (!gameId) return apiNotFound('缺少游戏标识', 'GAME_ID_REQUIRED')
+  if (!gameId) return apiNotFound('Missing game id', 'GAME_ID_REQUIRED')
   if (search.get('format') === 'jsonl') {
     const exported = await exportAgentActivityTask(gameId, taskId, runtimeInstanceId)
     return exported
       ? new Response(exported.content, { headers: { 'Content-Type': exported.mimeType, 'Content-Disposition': `attachment; filename="${exported.filename}"` } })
-      : apiNotFound('Agent 轨迹不存在', 'AGENT_TASK_NOT_FOUND')
+      : apiNotFound('Agent trace not found', 'AGENT_TASK_NOT_FOUND')
   }
   const task = await readAgentActivityTask(gameId, taskId, runtimeInstanceId)
-  return task ? apiOk({ task }) : apiNotFound('Agent 任务不存在', 'AGENT_TASK_NOT_FOUND')
+  return task ? apiOk({ task }) : apiNotFound('Agent task not found', 'AGENT_TASK_NOT_FOUND')
 })
 
 export const POST = defineApiRoute('post:/api/game-agent/activity', async ({ request }) => {
   const body = (await request.json().catch(() => null)) as { task?: AgentTask; event?: AgentTaskEvent; sourceEvent?: SourceGameEvent } | null
   if (body?.sourceEvent) {
     const source = body.sourceEvent
-    if (!validSourceEvent(source)) return apiBadRequest('游戏来源事件无效', 'GAME_LOG_EVENT_INVALID')
+    if (!validSourceEvent(source)) return apiBadRequest('Invalid game source event', 'GAME_LOG_EVENT_INVALID')
     try {
       assertGameLogWriterLease(source)
       await appendGameActivitySource(source)
@@ -71,12 +71,12 @@ export const POST = defineApiRoute('post:/api/game-agent/activity', async ({ req
       throw error
     }
   }
-  if (!body?.task?.id || !body.task.gameId || !body.event || body.event.seq < 1 || !body.event.type) return apiBadRequest('Agent 轨迹事件无效', 'AGENT_TRACE_INVALID')
-  if (body.task.id.length > 160 || body.task.gameId.length > 500) return apiBadRequest('Agent 轨迹标识过长', 'AGENT_TRACE_INVALID')
+  if (!body?.task?.id || !body.task.gameId || !body.event || body.event.seq < 1 || !body.event.type) return apiBadRequest('Invalid agent trace event', 'AGENT_TRACE_INVALID')
+  if (body.task.id.length > 160 || body.task.gameId.length > 500) return apiBadRequest('Agent trace identifier is too long', 'AGENT_TRACE_INVALID')
   try {
     if (body.event.producer?.kind === 'game_plugin') {
       const source = body.event as unknown as SourceGameEvent
-      if (!validSourceEvent(source)) return apiBadRequest('游戏来源事件无效', 'GAME_LOG_EVENT_INVALID')
+      if (!validSourceEvent(source)) return apiBadRequest('Invalid game source event', 'GAME_LOG_EVENT_INVALID')
       assertGameLogWriterLease(source)
     }
     await appendAgentActivity(body.task, body.event)

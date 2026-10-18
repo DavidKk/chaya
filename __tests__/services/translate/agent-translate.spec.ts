@@ -76,7 +76,7 @@ it('picks an installed model when the instance has no default', async () => {
 
 it('refuses a deleted instance instead of silently switching', async () => {
   jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
-  await expect(agentJaToZh('こんにちは', { profileId: 'gone', model: '' })).rejects.toThrow('所选 Agent 实例已不存在')
+  await expect(agentJaToZh('こんにちは', { profileId: 'gone', model: '' })).rejects.toThrow('Selected agent profile no longer exists')
   expect(fetchMock).not.toHaveBeenCalled()
 })
 

@@ -3,7 +3,7 @@ import fs from 'node:fs'
 
 export function assertPathExists(targetPath: string): void {
   if (!fs.existsSync(targetPath)) {
-    throw new Error(`路径不存在: ${targetPath}`)
+    throw new Error(`Path does not exist: ${targetPath}`)
   }
 }
 

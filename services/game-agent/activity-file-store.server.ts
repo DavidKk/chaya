@@ -38,7 +38,7 @@ export function createAgentTraceFileStore(directory = AGENT_ACTIVITY_LOGS_DIR, g
     path.join(gameActivityDirectory, safe(task.libraryGameId || task.gameId), safe(task.runtimeInstanceId || task.gameId), 'events.jsonl')
   const standaloneSourceFile = (event: SourceGameEvent) => {
     const target = event.targets.find((item) => item.runtimeInstanceId)
-    if (!target?.runtimeInstanceId) throw new Error('游戏来源事件缺少运行实例')
+    if (!target?.runtimeInstanceId) throw new Error('Game source event missing runtime instance')
     return path.join(gameActivityDirectory, safe(target.libraryGameId || target.runtimeInstanceId), safe(target.runtimeInstanceId), 'events.jsonl')
   }
   const readSummary = async (file: string): Promise<AgentTraceSummary | null> => {

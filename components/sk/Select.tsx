@@ -1,6 +1,6 @@
 'use client'
 
-import { type ChangeEvent, type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, Fragment, type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { IoCheckmark, IoChevronDown } from 'react-icons/io5'
 
@@ -21,6 +21,10 @@ export type SelectOption = {
   value: string
   label: string
   disabled?: boolean
+  /** 选项上方渲染分割线 */
+  divider?: boolean
+  /** 选项上方渲染分组标题 */
+  group?: string
 }
 
 export type SelectSize = 'md' | 'mini'
@@ -262,28 +266,36 @@ export function Select({
                   visibleOptions.map((opt, index) => {
                     const isSelected = opt.value === value
                     const isHi = index === highlight
+                    const isSearching = Boolean(searchable && query.trim())
                     return (
-                      <div
-                        key={opt.value}
-                        role="option"
-                        aria-selected={isSelected}
-                        aria-disabled={opt.disabled || undefined}
-                        className={cn(
-                          'flex cursor-pointer items-center justify-between gap-2 rounded-[0.12rem] px-2 py-2 whitespace-nowrap text-ink',
-                          size === 'mini' ? 'text-[0.7rem]' : 'text-[0.8125rem]',
-                          isSelected && 'text-accent',
-                          isHi && 'bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]',
-                          opt.disabled && controlDisabledShell
-                        )}
-                        onMouseEnter={() => !opt.disabled && setHighlight(index)}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => pick(index)}
-                      >
-                        <span className={cn('min-w-0', panelWidth === 'content' ? 'whitespace-nowrap' : 'truncate')}>{opt.label}</span>
-                        <span className={cn('inline-flex shrink-0 items-center justify-center', size === 'mini' ? 'size-3' : 'size-[14px]')} aria-hidden>
-                          {isSelected ? <IoCheckmark size={size === 'mini' ? 12 : 14} className="text-accent" /> : null}
-                        </span>
-                      </div>
+                      <Fragment key={opt.value}>
+                        {opt.divider && !isSearching ? <div className="my-1 h-px bg-line" role="separator" aria-hidden="true" /> : null}
+                        {opt.group && !isSearching ? (
+                          <div className="px-2 py-1 text-[0.6875rem] font-semibold text-ink-soft select-none" role="presentation">
+                            {opt.group}
+                          </div>
+                        ) : null}
+                        <div
+                          role="option"
+                          aria-selected={isSelected}
+                          aria-disabled={opt.disabled || undefined}
+                          className={cn(
+                            'flex cursor-pointer items-center justify-between gap-2 rounded-[0.12rem] px-2 py-2 whitespace-nowrap text-ink',
+                            size === 'mini' ? 'text-[0.7rem]' : 'text-[0.8125rem]',
+                            isSelected && 'text-accent',
+                            isHi && 'bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]',
+                            opt.disabled && controlDisabledShell
+                          )}
+                          onMouseEnter={() => !opt.disabled && setHighlight(index)}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => pick(index)}
+                        >
+                          <span className={cn('min-w-0', panelWidth === 'content' ? 'whitespace-nowrap' : 'truncate')}>{opt.label}</span>
+                          <span className={cn('inline-flex shrink-0 items-center justify-center', size === 'mini' ? 'size-3' : 'size-[14px]')} aria-hidden>
+                            {isSelected ? <IoCheckmark size={size === 'mini' ? 12 : 14} className="text-accent" /> : null}
+                          </span>
+                        </div>
+                      </Fragment>
                     )
                   })
                 )}

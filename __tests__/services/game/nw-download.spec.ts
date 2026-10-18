@@ -54,14 +54,14 @@ test('fetchNwSha256：网络失败降级为 undefined，任务取消继续抛出
 
 test('解压失败且压缩包未校验：删除压缩包', async () => {
   mockFetch({ shasums: null })
-  await expect(ensureLatestNwShellSource({ toolkitRoot: dir })).rejects.toThrow(/已删除压缩包/)
+  await expect(ensureLatestNwShellSource({ toolkitRoot: dir })).rejects.toThrow(/archive deleted/)
   expect(fs.existsSync(path.join(packDir(), archiveName))).toBe(false)
   expect(fs.existsSync(path.join(packDir(), 'extract'))).toBe(false)
 })
 
 test('解压失败但压缩包已校验：保留压缩包', async () => {
   mockFetch({ shasums: `${sha(CORRUPT)}  ${archiveName}\n` })
-  await expect(ensureLatestNwShellSource({ toolkitRoot: dir })).rejects.toThrow(/校验通过，已保留/)
+  await expect(ensureLatestNwShellSource({ toolkitRoot: dir })).rejects.toThrow(/archive checksum verified/)
   expect(fs.existsSync(path.join(packDir(), archiveName))).toBe(true)
   expect(fs.existsSync(path.join(packDir(), 'extract'))).toBe(false)
 })
@@ -70,7 +70,7 @@ test('已有压缩包校验不符：删除后重新下载', async () => {
   mockFetch({ shasums: `${sha(CORRUPT)}  ${archiveName}\n` })
   fs.mkdirSync(packDir(), { recursive: true })
   fs.writeFileSync(path.join(packDir(), archiveName), 'stale')
-  await expect(ensureLatestNwShellSource({ toolkitRoot: dir })).rejects.toThrow(/解压/)
+  await expect(ensureLatestNwShellSource({ toolkitRoot: dir })).rejects.toThrow(/Failed to extract/)
   expect(fs.readFileSync(path.join(packDir(), archiveName))).toEqual(CORRUPT)
 })
 

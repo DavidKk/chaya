@@ -63,7 +63,7 @@ async function waitForPlayer(turn: GameAgentTurn, emit: (event: Parameters<typeo
     if (turn.abort.signal.aborted) resolve()
     timer = setInterval(() => {
       if (Date.now() - turn.startedAt >= deadlineMs) reject(new Error('任务已达到时间上限'))
-      else if (!listAgentGames().some((game) => game.gameId === turn.gameId)) reject(new Error('游戏已断开连接'))
+      else if (!listAgentGames().some((game) => game.gameId === turn.gameId)) reject(new Error('Game connection disconnected'))
     }, 5_000)
   })
   emit({ type: 'approval.required', question })
@@ -214,7 +214,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
     for (let round = 0; ; round++) {
       const question = unboundQuestion(resolved, last.state)
       if (!question) break
-      if (round >= MAX_CLARIFY_ROUNDS) throw new Error('多次补充后仍无法确定目标，请换个说法重新发起任务')
+      if (round >= MAX_CLARIFY_ROUNDS) throw new Error('Target could not be clarified after multiple rounds; please rephrase and start again')
       emit({ type: 'goal.updated', summary: resolved.summary })
       const reply = (await pauseForPlayer(question, 0)).trim()
       last = await observeGame(cursor)
@@ -266,10 +266,10 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       },
     ]
     const replanMap = async (step: number) => {
-      if (++mapReplans > MAX_MAP_REPLANS) throw new Error('多次换路后仍未找到目标，已停止继续探索')
+      if (++mapReplans > MAX_MAP_REPLANS) throw new Error('Target not found after multiple path replans; exploration halted')
       let next = await resolveGoal(profile, input, last!.state, turn.abort.signal, undefined, undefined, navigationHistory)
       for (let round = 0; unboundQuestion(next, last!.state); round++) {
-        if (round >= MAX_CLARIFY_ROUNDS) throw new Error('无法确认通往目标的下一步，已停止继续探索')
+        if (round >= MAX_CLARIFY_ROUNDS) throw new Error('Unable to confirm next step to target; exploration halted')
         const reply = (await pauseForPlayer(unboundQuestion(next, last!.state), step)).trim()
         last = await observeGame(cursor)
         remember(last)
@@ -278,9 +278,9 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
           input = { ...input, prompt: `${input.prompt}\n${reply}` }
         }
       }
-      if (next.scope !== 'map' || next.targetEventId == null || !next.skill) throw new Error('换地图后无法确认目标事件')
+      if (next.scope !== 'map' || next.targetEventId == null || !next.skill) throw new Error('Cannot confirm target event after changing map')
       const route = `${last!.state.map?.id}:${next.targetEventId}`
-      if (next.transit && visitedRoutes.has(route)) throw new Error('路线回到已尝试的出口，已停止重复绕行')
+      if (next.transit && visitedRoutes.has(route)) throw new Error('Route looped back to already visited exit; rerouting halted')
       if (next.transit) visitedRoutes.add(route)
       scope = { mapId: last!.state.map?.id, scene: last!.state.scene }
       targetEventId = next.targetEventId
@@ -300,14 +300,14 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
     if (transit && scope.mapId != null && targetEventId != null) visitedRoutes.add(`${scope.mapId}:${targetEventId}`)
     for (let step = 1; step <= MAX_STEPS && actions < MAX_ACTIONS && Date.now() - started < deadlineMs; step++) {
       if (turn.abort.signal.aborted) throw turn.abort.signal.reason
-      if (!listAgentGames().some((game) => game.gameId === input.gameId)) throw new Error('游戏已断开连接')
+      if (!listAgentGames().some((game) => game.gameId === input.gameId)) throw new Error('Game connection disconnected')
       const { state, history } = last
       if (scope.battleId && state.battle?.instanceId !== scope.battleId) {
         if (state.lastBattleResult?.id === scope.battleId) {
           complete(`${resultText(state, { entries: story }, incomplete)}\n已验证本场战斗结束。`.trim(), briefText(battleResultLine(state), '已验证本场战斗结束。'))
           return
         }
-        throw new Error('战斗实例已改变，无法确认本场结果')
+        throw new Error('Battle instance changed, cannot determine battle outcome')
       }
       if (resyncEpoch) {
         inputEpoch = state.manualInputEpoch || 0
@@ -319,7 +319,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         return
       }
       if (!scope.battleId && scope.mapId != null && state.map?.id !== scope.mapId) {
-        if (scopeKind !== 'map') throw new Error('已离开开始时的地图，任务暂停')
+        if (scopeKind !== 'map') throw new Error('Left initial map; task paused')
         if (interactTarget && targetInteractionSent && !transit) {
           const entered = `已进入${state.map?.displayName || state.map?.name || '新地图'}。`
           complete(`${resultText(state, { entries: story }, incomplete)}\n${entered}`.trim(), briefText(battleResultLine(state), entered))
@@ -328,8 +328,8 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         await replanMap(step)
         continue
       }
-      if (!scope.battleId && state.scene !== scope.scene) throw new Error('场景已改变，任务暂停')
-      if (mapSkill && state.message?.busy && !targetInteractionSent) throw new Error('寻路期间出现其他对话，已暂停当前目标')
+      if (!scope.battleId && state.scene !== scope.scene) throw new Error('Scene changed; task paused')
+      if (mapSkill && state.message?.busy && !targetInteractionSent) throw new Error('Dialogue interrupted pathfinding; current target paused')
       const mapTarget = mapSkill ? state.nearbyEvents?.find((event) => event.id === targetEventId) : undefined
       const targetName = mapTarget?.name || '目标'
       if (mapSkill && !mapTarget && !targetInteractionSent) {
@@ -383,7 +383,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
           remember(last)
           continue
         }
-        if (!interactionEvidence) throw new Error(`已向${targetName}发送交互输入，但游戏没有提供生效证据，无法确认完成`)
+        if (!interactionEvidence) throw new Error(`Interaction sent to ${targetName}, but no completion evidence received from game`)
         if (transit) {
           await replanMap(step)
           continue
@@ -416,7 +416,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         if (interactTarget && isTouchEvent(mapTarget)) {
           if (!touchNeedsBump && mapTarget.x != null && mapTarget.y != null) {
             const result = await walkTo({ x: mapTarget.x, y: mapTarget.y }, step, targetEventId)
-            if (result?.blockedEventId != null) throw new Error(`寻路会触发其他事件（${result.blockedEventId}），已停止`)
+            if (result?.blockedEventId != null) throw new Error(`Pathfinding would trigger another event (${result.blockedEventId}); stopped`)
             if (result?.triggeredEventId === targetEventId) targetInteractionSent = interactionEvidence = true
             if (result && !result.moved && !result.arrived && !result.transferred) touchNeedsBump = true
             continue
@@ -435,7 +435,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
               break
             }
           }
-          if (!progressed) throw new Error(`无法走到${mapTarget.name || '目标事件'}旁边，路径可能被挡住`)
+          if (!progressed) throw new Error(`Cannot walk adjacent to ${mapTarget.name || 'target event'}; path may be blocked`)
           continue
         }
       }
@@ -485,7 +485,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
             preferBattleVision
           )
       const call = response.tool_calls?.[0]
-      if (!call) throw new Error('当前模型未返回工具调用，无法托管游戏')
+      if (!call) throw new Error('Current model did not return a tool call; unable to manage game')
       messages.push({ ...response, tool_calls: [call] })
       if (call.function.name === 'task_ask_user') {
         if (
@@ -539,7 +539,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         return
       }
       const key = call.function.arguments.key as AgentInputKey
-      if (mapSkill && !targetDialogueStarted && !mapKey) throw new Error(`无法走到${mapTarget?.name || '目标事件'}，路径可能被挡住或游戏未提供坐标`)
+      if (mapSkill && !targetDialogueStarted && !mapKey) throw new Error(`Cannot walk to ${mapTarget?.name || 'target event'}; path may be blocked or coordinates unavailable`)
       const visualPress = call.function.name === 'task_press_visual' && scopeKind === 'battle' && !!state.battle?.instanceId
       const combo = call.function.name === 'task_press_combo' && scopeKind === 'battle' && !!state.battle?.instanceId ? comboKeys(call.function.arguments.keys) : null
       if (!combo && ((!visualPress && call.function.name !== 'task_press') || !KEYS.has(key) || (state.message?.busy && !state.message.choices?.length && key !== 'ok'))) {
@@ -579,7 +579,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
           continue
         }
       }
-      if (!state.controlToken) throw new Error('游戏插件未提供操作校验令牌，无法安全托管')
+      if (!state.controlToken) throw new Error('Game plugin did not provide control token; cannot manage safely')
       const before = fingerprint(state, history)
       const battleImageBefore = scopeKind === 'battle' ? await battleImageFingerprint(input.gameId, profile.gameCallTimeoutMs).catch(() => null) : null
       // The screenshot ignores abort; a turn cleared meanwhile must not press after a new one started
@@ -621,7 +621,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
       try {
         last = await observeGame(cursor)
       } catch {
-        throw new Error('动作后的游戏状态无法回读，动作效果未知')
+        throw new Error('Game state could not be read back after action; result unknown')
       }
       messages.push({
         role: 'tool',
@@ -670,7 +670,7 @@ export async function runManagedTurn(input: StartTurnInput, profile: GameAgentPr
         preferBattleVision = true
         noProgress = 0
         feedback = '战斗按键没有产生可见进展，改用画面识别确认菜单。'
-      } else if (noProgress >= 3) throw new Error(`连续三次操作未观察到进展（最近按键：${pressed}）`)
+      } else if (noProgress >= 3) throw new Error(`No progress observed after 3 consecutive actions (last key: ${pressed})`)
     }
     const reason = Date.now() - started >= deadlineMs ? '已达到本轮时间上限。' : '已达到本轮操作上限。'
     const text = `${reason}${last ? resultText(last.state, { entries: story }, incomplete) : ''}`

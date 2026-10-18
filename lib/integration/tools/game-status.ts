@@ -75,7 +75,7 @@ export type GamePluginsClearView = PluginsCounts & { cleared: boolean }
 
 export function pluginsInstallView(plugins: readonly PluginStatus[]): GamePluginsInstallView {
   const view = pluginsView(plugins)
-  return { installed: view.pluginsTotal > 0 && view.pluginsReady === view.pluginsTotal, ...view, hint: '重启游戏后生效' }
+  return { installed: view.pluginsTotal > 0 && view.pluginsReady === view.pluginsTotal, ...view, hint: 'Takes effect after restarting the game' }
 }
 
 export function pluginsClearView(plugins: readonly PluginStatus[]): GamePluginsClearView {

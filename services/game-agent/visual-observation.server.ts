@@ -42,7 +42,7 @@ async function screenshot(gameId: string, timeoutMs?: number) {
     data?: unknown
     mimeType?: unknown
   }
-  if (typeof shot.data !== 'string' || shot.mimeType !== 'image/jpeg') throw new Error('游戏截图不可用')
+  if (typeof shot.data !== 'string' || shot.mimeType !== 'image/jpeg') throw new Error('Game screenshot unavailable')
   return shot.data
 }
 

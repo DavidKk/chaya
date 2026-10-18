@@ -21,7 +21,7 @@ it('pins the game, model and local-only engines independently of background swit
 
 it('does not run realtime requests in pretranslated mode', async () => {
   jest.mocked(getTranslationPlaySettings).mockReturnValue({ mode: 'pretranslated', model: '', timeoutMs: 8_000 })
-  await expect(translateDialogue('/games/A', ['こんにちは'])).rejects.toThrow('未开启')
+  await expect(translateDialogue('/games/A', ['こんにちは'])).rejects.toThrow('Local realtime translation is not enabled')
   expect(liveTranslateTexts).not.toHaveBeenCalled()
 })
 

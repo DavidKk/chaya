@@ -3,7 +3,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { gameContentReadPath } from '../../lib/game/content-files'
+import { gameContentReadPath } from '@/lib/game/content-files'
+
 import { createPaths } from './paths'
 import { openSharedCache } from './shared-cache'
 import { isStorableTranslation } from './text-classify'
@@ -64,6 +65,6 @@ if (ndjsonPath) {
 
 console.log(`[import-cache] contentRoot=${root}`)
 console.log(`[import-cache] file=${ndjsonPath ?? '(none)'} before=${before} inserted=${inserted} total=${total} after=${after.entries}`)
-console.log(`[import-cache] 扫描 ${total} 条，新写入共享库 ${inserted}（库内现 ${after.entries}，此前 ${before}）`)
+console.log(`[import-cache] Scanned ${total} entries, inserted ${inserted} into shared cache (total ${after.entries}, previously ${before})`)
 console.log(`[import-cache] db=${after.file}`)
 shared.close()

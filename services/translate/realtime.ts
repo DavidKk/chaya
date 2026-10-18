@@ -6,10 +6,10 @@ import { isUsefulTranslation } from './text-classify'
 
 export async function translateDialogue(contentRoot: string, texts: unknown, signal?: AbortSignal) {
   if (!Array.isArray(texts) || texts.length > 8 || texts.some((text) => typeof text !== 'string') || texts.join('').length > 2_000) {
-    throw new Error('每次实时翻译仅支持当前对话及选项，最多 8 段、2000 字')
+    throw new Error('Realtime translation supports current dialogue and choices only, up to 8 segments and 2000 characters')
   }
   const settings = getTranslationPlaySettings(contentRoot)
-  if (settings.mode !== 'realtime') throw new Error('当前游戏未开启本地实时翻译')
+  if (settings.mode !== 'realtime') throw new Error('Local realtime translation is not enabled for this game')
   const deadline = AbortSignal.timeout(settings.timeoutMs)
   const startedAt = Date.now()
   const result = await liveTranslateTexts(texts as string[], {
@@ -31,6 +31,6 @@ export async function benchmarkLocalModel(input: unknown, signal?: AbortSignal) 
     interactive: true,
     signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
   })
-  if (!isUsefulTranslation(sample, sample, translation, translation)) throw new Error('本地模型没有返回有效译文')
+  if (!isUsefulTranslation(sample, sample, translation, translation)) throw new Error('Local model did not return a valid translation')
   return { sample, translation, characters: Array.from(sample).length, elapsedMs: Date.now() - startedAt }
 }

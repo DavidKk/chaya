@@ -52,7 +52,7 @@ function profilePatch(args: Record<string, unknown>): GameAgentProfilePatch {
 
 function requiredTarget(args: Record<string, unknown>) {
   const target = typeof args.target === 'string' ? args.target.trim() : ''
-  if (!target) throw new Error('缺少参数 target')
+  if (!target) throw new Error('Missing parameter target')
   return target
 }
 

@@ -76,7 +76,7 @@ export function initRuntime(argv = process.argv.slice(2)): Runtime {
 }
 
 export function rt(): Runtime {
-  if (!current) throw new Error('translate runtime 未初始化；请先 initRuntime()')
+  if (!current) throw new Error('Translate runtime not initialized; please call initRuntime() first')
   return current
 }
 

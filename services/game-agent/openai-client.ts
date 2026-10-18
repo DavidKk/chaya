@@ -57,9 +57,9 @@ export async function listOpenAiModels(
       headers: buildOpenApiFetchHeaders({ token, requestHeaders }),
     })
   } catch (error) {
-    throw new Error(`无法连接 OpenAPI 服务：${messageFrom(error)}`)
+    throw new Error(`Failed to connect to OpenAPI service: ${messageFrom(error)}`)
   }
-  if (!response.ok) throw new Error(`OpenAPI 模型列表请求失败（HTTP ${response.status}）`)
+  if (!response.ok) throw new Error(`OpenAPI model list request failed (HTTP ${response.status})`)
   const body = (await response.json()) as { data?: Array<{ id?: unknown }> }
   const models = (body.data ?? [])
     .map((item) => (typeof item.id === 'string' ? item.id.trim() : ''))
@@ -157,11 +157,11 @@ export async function completeOpenAiChat(
     })
   } catch (error) {
     if (requestSignal?.aborted) throw requestSignal.reason ?? new DOMException('Aborted', 'AbortError')
-    throw new Error(`无法连接 OpenAPI 服务（${input.endpoint}）：${messageFrom(error)}`)
+    throw new Error(`Failed to connect to OpenAPI service (${input.endpoint}): ${messageFrom(error)}`)
   }
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
-    throw new Error(detail || `OpenAPI 请求失败（HTTP ${response.status}）`)
+    throw new Error(detail || `OpenAPI request failed (HTTP ${response.status})`)
   }
   const body = (await response.json()) as {
     choices?: Array<{ message?: { content?: unknown; tool_calls?: OpenAiToolCall[] } }>

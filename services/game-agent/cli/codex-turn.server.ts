@@ -59,7 +59,7 @@ export async function runCodexTurn(
       started?.turn?.status && started.turn.status !== 'inProgress'
         ? started.turn
         : await Promise.race([completed, timeout, aborted, server.exited.then(() => Promise.reject(new AgentCliError('AGENT_CLI_CRASHED', 'Codex CLI 已退出')))])
-    if (turn.status === 'failed') throw new Error(typeof turn.error?.message === 'string' ? turn.error.message : lastError || 'Codex 回合失败')
+    if (turn.status === 'failed') throw new Error(typeof turn.error?.message === 'string' ? turn.error.message : lastError || 'Codex turn failed')
     if (turn.status !== 'completed') throw new AgentCliError('AGENT_CLI_CRASHED', `Codex 回合未完成：${String(turn.status)}`)
     const final = messages.filter((message) => message.final)
     return (final.length ? final : messages).map((message) => message.text).join('\n') || deltas

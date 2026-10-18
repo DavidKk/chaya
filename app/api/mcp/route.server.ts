@@ -9,9 +9,9 @@ export const dynamic = 'force-dynamic'
 
 /** Local MCP endpoint, no authorization needed; the fixed-port gateway forwards here too. */
 export const POST = defineApiRoute('post:/api/mcp', async ({ request }) => {
-  if (!canUseDisk()) return apiError(404, 'LOCAL_ONLY', 'MCP 仅本机模式可用')
+  if (!canUseDisk()) return apiError(404, 'LOCAL_ONLY', 'MCP is only available in local mode')
   return handleMcpPost(CHAYA_MCP_SERVER, request)
 })
 
 /** No server-initiated SSE stream. */
-export const GET = defineApiRoute('get:/api/mcp', async () => apiError(405, 'METHOD_NOT_ALLOWED', '请使用 POST'))
+export const GET = defineApiRoute('get:/api/mcp', async () => apiError(405, 'METHOD_NOT_ALLOWED', 'Please use POST method'))

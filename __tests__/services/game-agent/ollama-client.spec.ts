@@ -146,6 +146,6 @@ describe('game agent Ollama client', () => {
 
   it('surfaces invalid NDJSON instead of returning a partial answer', async () => {
     const fetcher = jest.fn(async () => streamed(['not-json\n'])) as unknown as typeof fetch
-    await expect(streamOllamaChat({ model: 'demo', messages: [] }, () => {}, fetcher)).rejects.toThrow('无效的 NDJSON')
+    await expect(streamOllamaChat({ model: 'demo', messages: [] }, () => {}, fetcher)).rejects.toThrow('Ollama returned invalid NDJSON')
   })
 })

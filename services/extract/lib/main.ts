@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { ensureGameContentDir, gameContentPath, gameContentReadPath } from '../../../lib/game/content-files'
-import { detectSourceLanguage, isSourceText, type SourceLanguageOption } from '../../../lib/translate/source-text'
+import { ensureGameContentDir, gameContentPath, gameContentReadPath } from '@/lib/game/content-files'
+import { detectSourceLanguage, isSourceText, type SourceLanguageOption } from '@/lib/translate/source-text'
+
 import { collectAllStrings, compareWithManual } from './compare'
 import { extractDataFields } from './data-fields'
 import { extractDatabase, loadJson } from './database'
@@ -26,7 +27,7 @@ export function runExtract(contentRoot: string, options?: { sourceLanguage?: Sou
   const COMPARE = gameContentPath(contentRoot, 'extractCompare')
 
   if (!fs.existsSync(DATA)) {
-    throw new Error(`找不到 data/：${DATA}`)
+    throw new Error(`data/ directory not found: ${DATA}`)
   }
 
   const dialogue: any[] = []
@@ -114,10 +115,10 @@ export function main() {
   console.log(`[extract] contentRoot = ${contentRoot}`)
   const { OUT, COMPARE, allStrings, dialogue, counts, compare } = runExtract(contentRoot)
   const sizeKb = (fs.statSync(OUT).size / 1024).toFixed(1)
-  console.log(`写入 ${path.basename(OUT)}（${sizeKb} KB）`)
-  console.log(`唯一字符串 ${allStrings.size}；对话块 ${dialogue.length}；分类：`, counts)
+  console.log(`Wrote ${path.basename(OUT)} (${sizeKb} KB)`)
+  console.log(`Unique strings: ${allStrings.size}; dialogue blocks: ${dialogue.length}; categories:`, counts)
   if (compare.manualExists) {
-    console.log(`对照种子表：命中 ${compare.extractedAlsoInManual}，抽取多出 ${compare.extractedNotInManual}，种子多出 ${compare.manualNotInExtracted}`)
-    console.log(`写入 ${path.basename(COMPARE)}`)
+    console.log(`Seed comparison: matched ${compare.extractedAlsoInManual}, extra in extracted ${compare.extractedNotInManual}, extra in seed ${compare.manualNotInExtracted}`)
+    console.log(`Wrote ${path.basename(COMPARE)}`)
   }
 }

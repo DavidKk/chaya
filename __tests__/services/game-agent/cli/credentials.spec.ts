@@ -37,7 +37,7 @@ test('stores credential files as ciphertext bound to profile, provider and path'
 })
 
 test('rejects credential paths that escape the runtime directory', () => {
-  expect(() => writeCredentials('a', { provider: 'codex', files: { '../auth.json': AUTH } }, paths)).toThrow(/路径无效/)
+  expect(() => writeCredentials('a', { provider: 'codex', files: { '../auth.json': AUTH } }, paths)).toThrow(/Invalid credentials file path/)
 })
 
 test('a write-back from an older generation never overwrites a newer authorization', () => {

@@ -114,7 +114,7 @@ test('从头重试仍返回非法区间时报错，不循环', async () => {
     res.end('abc')
   }
   fs.writeFileSync(part(), Buffer.from('x'.repeat(10)))
-  await expect(downloadToFile(base, dest())).rejects.toThrow(/区间不合法/)
+  await expect(downloadToFile(base, dest())).rejects.toThrow(/invalid byte range/)
   expect(requests).toHaveLength(2)
 })
 
@@ -160,13 +160,13 @@ test('字节不足：报错并保留 .part', async () => {
     res.writeHead(206, { 'Content-Range': `bytes 0-${BODY.length - 1}/${BODY.length + 10}` })
     res.end(BODY)
   }
-  await expect(downloadToFile(base, dest())).rejects.toThrow(/不完整/)
+  await expect(downloadToFile(base, dest())).rejects.toThrow(/incomplete/)
   expect(fs.statSync(part()).size).toBe(BODY.length)
 })
 
 test('SHA-256 不符：删除 .part', async () => {
   handler = rangeServer
-  await expect(downloadToFile(base, dest(), { sha256: '0'.repeat(64) })).rejects.toThrow(/校验失败/)
+  await expect(downloadToFile(base, dest(), { sha256: '0'.repeat(64) })).rejects.toThrow(/checksum failed/)
   expect(fs.existsSync(part())).toBe(false)
   expect(fs.existsSync(dest())).toBe(false)
 })

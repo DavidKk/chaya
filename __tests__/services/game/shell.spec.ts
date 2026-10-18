@@ -127,7 +127,7 @@ describeMac('shell install / uninstall 核心流程', () => {
     fs.mkdirSync(nested, { recursive: true })
     fs.writeFileSync(path.join(nested, 'package.json'), JSON.stringify({ name: 'bundled', main: 'index.html' }))
 
-    await expect(installShell({ shellSource, contentRoot: nested, toolkitRoot })).rejects.toThrow(/已是 NW\.js 打包应用/)
+    await expect(installShell({ shellSource, contentRoot: nested, toolkitRoot })).rejects.toThrow(/Already a packaged NW\.js application/)
   })
 })
 

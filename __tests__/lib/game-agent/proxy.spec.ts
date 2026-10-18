@@ -19,8 +19,8 @@ test('normalizes supported proxy URLs and bare host:port as http default', () =>
 })
 
 test('rejects other schemes and URLs with paths', () => {
-  expect(() => normalizeAgentProxy('ftp://127.0.0.1:21')).toThrow('仅支持')
-  expect(() => normalizeAgentProxy('http://127.0.0.1:7890/pac')).toThrow('路径')
+  expect(() => normalizeAgentProxy('ftp://127.0.0.1:21')).toThrow('Proxy server only supports')
+  expect(() => normalizeAgentProxy('http://127.0.0.1:7890/pac')).toThrow('paths are not supported')
 })
 
 test('declares http, https and socks5 as distinct server kinds', () => {
@@ -60,7 +60,7 @@ test('normalizes proxy headers from lines, JSON text, or maps', () => {
   expect(normalizeAgentProxyHeaders('{"X-Token":"abc","User-Agent":"chaya"}')).toEqual({ 'X-Token': 'abc', 'User-Agent': 'chaya' })
   expect(normalizeAgentProxyHeaders('[{"name":"X-Token","value":"abc"}]')).toEqual({ 'X-Token': 'abc' })
   expect(normalizeAgentProxyHeaders({ 'X-Token': 'abc' })).toEqual({ 'X-Token': 'abc' })
-  expect(() => normalizeAgentProxyHeaders('not-a-header')).toThrow('代理请求头')
+  expect(() => normalizeAgentProxyHeaders('not-a-header')).toThrow('Proxy header')
   expect(() => normalizeAgentProxyHeaders('{bad json')).toThrow('JSON')
   expect(() => normalizeAgentProxyHeaders('Proxy-Authorization: Basic x')).toThrow('Proxy-Authorization')
 })

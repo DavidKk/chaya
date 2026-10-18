@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 export const GET = defineApiRoute('get:/api/game-saves/offline', async ({ request }) => {
   const denied = requireDisk()
   if (denied) return denied
-  if (request.headers.has('x-chaya-launch-token')) return apiBadRequest('管理会话接口不接受启动令牌', 'ACCESS_DENIED')
+  if (request.headers.has('x-chaya-launch-token')) return apiBadRequest('Management session endpoint does not accept launch token', 'ACCESS_DENIED')
   const libraryId = new URL(request.url).searchParams.get('libraryId')?.trim() || ''
   if (!libraryId) return apiBadRequest('Missing libraryId', 'INVALID_REQUEST')
   const result = await readOfflineGameSaves(libraryId)

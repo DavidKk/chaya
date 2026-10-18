@@ -40,7 +40,7 @@ export const libraryTools: ToolImpls = {
     const remark = typeof args.remark === 'string' ? args.remark : null
     const prev = loadConfig()
     const existing = findLibraryEntry(prev.library, gameRoot)
-    if (!existing) throw new Error(`游戏库中未找到：${gameRoot}`)
+    if (!existing) throw new Error(`Not found in game library: ${gameRoot}`)
     const config = saveConfig({
       library: upsertLibraryEntry(prev.library, { gameRoot: existing.gameRoot, name: existing.name, remote: existing.remote, remark, touchOpen: false }),
     })
@@ -54,7 +54,7 @@ export const libraryTools: ToolImpls = {
     const res = await invokeRoute(StatusRoute.DELETE, { method: 'DELETE', path: '/api/status', body: { gameRoot }, signal })
     const config = res.config as { gameRoot?: string; library?: unknown[] } | undefined
     const after = config?.library?.length ?? before
-    if (after === before) throw new Error(`游戏库中未找到：${gameRoot}`)
+    if (after === before) throw new Error(`Not found in game library: ${gameRoot}`)
     return { removed: gameRoot, current: config?.gameRoot || null, total: after }
   },
 }

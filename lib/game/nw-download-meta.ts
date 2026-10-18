@@ -10,16 +10,16 @@ export type NwFlavor = 'normal' | 'sdk'
 /** versions.json 里的 files 项，如 win-x64 / osx-arm64 */
 export function nwFileKey(platform: NwHostPlatform | NodeJS.Platform, arch: string = process.arch): string {
   const os = platform === 'win32' ? 'win' : platform === 'darwin' ? 'osx' : platform === 'linux' ? 'linux' : null
-  if (!os) throw new Error(`不支持的平台: ${platform}`)
+  if (!os) throw new Error(`Unsupported platform: ${platform}`)
 
   let cpu: string
   if (arch === 'arm64') cpu = 'arm64'
   else if (arch === 'x64' || arch === 'x86_64') cpu = 'x64'
   else if (arch === 'ia32' || arch === 'x86') cpu = 'ia32'
-  else throw new Error(`不支持的 CPU 架构: ${arch}`)
+  else throw new Error(`Unsupported CPU architecture: ${arch}`)
 
   if (cpu === 'ia32' && os !== 'win') {
-    throw new Error(`平台 ${os} 不提供 ia32 包`)
+    throw new Error(`Platform ${os} does not provide ia32 package`)
   }
   return `${os}-${cpu}`
 }
@@ -38,6 +38,6 @@ export function nwDownloadUrl(version: string, fileKey: string, flavor: NwFlavor
 
 export function normalizeNwVersion(version: string): string {
   const t = version.trim()
-  if (!t) throw new Error('版本号为空')
+  if (!t) throw new Error('Version string is empty')
   return t.startsWith('v') ? t : `v${t}`
 }

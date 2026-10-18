@@ -77,7 +77,7 @@ async function handle(config: McpServerConfig, req: JsonRpcRequest, ctx: McpCall
     case 'tools/call': {
       const name = String(params.name || '')
       const tool = visible(config).find((candidate) => candidate.name === name)
-      if (!tool) return fail(id, -32602, `未知工具：${name}`)
+      if (!tool) return fail(id, -32602, `Unknown tool: ${name}`)
       const args = params.arguments && typeof params.arguments === 'object' ? (params.arguments as Record<string, unknown>) : {}
       try {
         const result = await tool.run(args, ctx)
@@ -97,19 +97,19 @@ async function handle(config: McpServerConfig, req: JsonRpcRequest, ctx: McpCall
       }
     }
     default:
-      return fail(id, -32601, `不支持的方法：${method ?? '(empty)'}`)
+      return fail(id, -32601, `Method not supported: ${method ?? '(empty)'}`)
   }
 }
 
 /** Parsed POST body → JSON-RPC result. Notifications (no `id`) only → 202 with no body. */
 export async function dispatchMcp(config: McpServerConfig, body: unknown, ctx: McpCallContext = { signal: new AbortController().signal }): Promise<McpHttpResult> {
-  if (!body || typeof body !== 'object') return { status: 400, body: fail(null, -32700, '无法解析 JSON') }
+  if (!body || typeof body !== 'object') return { status: 400, body: fail(null, -32700, 'Parse error: invalid JSON') }
   const batch = (Array.isArray(body) ? body : [body]) as JsonRpcRequest[]
-  if (!batch.length) return { status: 400, body: fail(null, -32600, '空的批量请求') }
+  if (!batch.length) return { status: 400, body: fail(null, -32600, 'Empty batch request') }
   const responses = []
   for (const req of batch) {
     if (!req || typeof req !== 'object' || typeof req.method !== 'string') {
-      responses.push(fail(req && typeof req === 'object' && 'id' in req ? (req.id ?? null) : null, -32600, '无效的 JSON-RPC 请求'))
+      responses.push(fail(req && typeof req === 'object' && 'id' in req ? (req.id ?? null) : null, -32600, 'Invalid JSON-RPC request'))
       continue
     }
     if (req.id === undefined || req.id === null) continue

@@ -45,8 +45,8 @@ const scans = new Map<string, Scan>()
 
 export function resolveTranslateContentRoot(): string {
   const resolved = getResolvedFromConfig()
-  if (!resolved.ok) throw new Error('请先在游戏库绑定本地游戏')
-  if (resolved.remote) throw new Error('远程游戏请在本机绑定后翻译')
+  if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
+  if (resolved.remote) throw new Error('Remote games must be bound locally before translating')
   return resolved.contentRoot
 }
 
@@ -54,7 +54,7 @@ function loadSeedKeys(contentRoot: string): string[] {
   const file = gameContentReadPath(contentRoot, 'seed', { alsoParent: true })
   if (!file || !fs.existsSync(file)) return []
   const raw: unknown = JSON.parse(fs.readFileSync(file, 'utf8'))
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('seed 必须是原文到译文的对象')
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('seed must be an object mapping source text to translation')
   return Object.keys(raw).filter((key) => key.trim())
 }
 
@@ -129,7 +129,7 @@ export function getSeedTranslateProgress(contentRoot = resolveTranslateContentRo
 export async function fillMissingFromSeed(opts?: { contentRoot?: string; limit?: number; exclude?: ReadonlySet<string> }): Promise<FillMissingResult> {
   const contentRoot = opts?.contentRoot ?? resolveTranslateContentRoot()
   const { progress, missingKeys } = scanSeed(contentRoot, true)
-  if (!progress.hasSeed) throw new Error('未找到 seed（请先抽取文本，或放入 *-trans.seed.json）')
+  if (!progress.hasSeed) throw new Error('Seed not found (please extract text first or provide *-trans.seed.json)')
   const limit = Math.min(Math.max(1, Math.floor(opts?.limit || DEFAULT_BATCH)), DEFAULT_BATCH)
   const batch = missingKeys.filter((key) => !opts?.exclude?.has(key)).slice(0, limit)
   if (!batch.length) return { ...progress, translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] }

@@ -48,7 +48,7 @@ export function ensureNwPackageName(contentRoot: string): { file: string; name: 
   try {
     raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>
   } catch {
-    throw new Error(`无法解析 package.json: ${file}`)
+    throw new Error(`Failed to parse package.json: ${file}`)
   }
 
   const current = String(raw.name ?? '').trim()

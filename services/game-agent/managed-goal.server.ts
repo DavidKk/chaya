@@ -347,5 +347,5 @@ export async function classifyGameIntent(input: StartTurnInput, profile: GameAge
       return intent
     }
   }
-  throw new Error('无法判断你是希望我操作游戏还是回答问题，请明确说明本轮目标。')
+  throw new Error('Unable to determine whether to operate the game or answer a question; please specify the goal.')
 }

@@ -7,7 +7,7 @@ export class RemotePickPath implements PickPathCapability {
   async pick(_kind: PickKind, _prompt?: string): Promise<PickResult> {
     return {
       ok: false,
-      error: '当前服务形态不支持本机路径选择',
+      error: 'Local path picker is not supported in current service mode',
     }
   }
 }

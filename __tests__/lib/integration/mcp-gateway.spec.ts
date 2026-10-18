@@ -121,7 +121,7 @@ describe('createMcpGateway', () => {
     servers.push(busy)
     const busyPort = await freePort()
     await new Promise<void>((r) => busy.listen(busyPort, '127.0.0.1', () => r()))
-    await expect(gateway.setPort(busyPort)).rejects.toThrow('已被占用')
+    await expect(gateway.setPort(busyPort)).rejects.toThrow('is already in use')
     await expect(gateway.setPort(80)).rejects.toThrow()
 
     const reset = await gateway.resetPort()

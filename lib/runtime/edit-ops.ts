@@ -37,7 +37,7 @@ type Args = Record<string, unknown>
 function num(args: Args, key: string): number {
   const v = args[key]
   const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN
-  if (!Number.isFinite(n)) throw new Error(`${key} 需为数字`)
+  if (!Number.isFinite(n)) throw new Error(`${key} must be a number`)
   return n
 }
 
@@ -47,33 +47,33 @@ function int(args: Args, key: string): number {
 
 function bool(args: Args, key: string): boolean {
   const v = args[key]
-  if (typeof v !== 'boolean') throw new Error(`${key} 需为布尔值`)
+  if (typeof v !== 'boolean') throw new Error(`${key} must be a boolean`)
   return v
 }
 
 function oneOf<T extends string>(args: Args, key: string, values: readonly T[]): T {
   const v = args[key]
-  if (typeof v !== 'string' || !values.includes(v as T)) throw new Error(`${key} 只能是：${values.join(', ')}`)
+  if (typeof v !== 'string' || !values.includes(v as T)) throw new Error(`${key} must be one of: ${values.join(', ')}`)
   return v as T
 }
 
 function actorPatch(raw: unknown): Partial<ActorDraft> {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('patch 需为对象')
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('patch must be an object')
   const src = raw as Args
   const patch: Partial<ActorDraft> = {}
   for (const key of ACTOR_NUMBER_FIELDS) if (src[key] !== undefined) patch[key] = int(src, key)
   for (const key of ACTOR_TEXT_FIELDS) {
     if (src[key] === undefined) continue
-    if (typeof src[key] !== 'string') throw new Error(`${key} 需为字符串`)
+    if (typeof src[key] !== 'string') throw new Error(`${key} must be a string`)
     patch[key] = src[key] as string
   }
   for (const key of ['skillIds', 'stateIds'] as const) {
     if (src[key] === undefined) continue
     const list = src[key]
-    if (!Array.isArray(list) || list.some((id) => !Number.isInteger(id))) throw new Error(`${key} 需为整数数组`)
+    if (!Array.isArray(list) || list.some((id) => !Number.isInteger(id))) throw new Error(`${key} must be an integer array`)
     patch[key] = list as number[]
   }
-  if (!Object.keys(patch).length) throw new Error('patch 没有可修改的字段')
+  if (!Object.keys(patch).length) throw new Error('patch has no modifiable fields')
   return patch
 }
 
@@ -136,7 +136,7 @@ export function parseEditAction(args: Args): EditAction {
   switch (id) {
     case 'teleport': {
       const direction = args.direction === undefined ? undefined : int(args, 'direction')
-      if (direction !== undefined && !DIRECTIONS.includes(direction)) throw new Error('direction 只能是 2（下）、4（左）、6（右）、8（上）')
+      if (direction !== undefined && !DIRECTIONS.includes(direction)) throw new Error('direction must be 2 (down), 4 (left), 6 (right), or 8 (up)')
       return { id, mapId: int(args, 'mapId'), x: int(args, 'x'), y: int(args, 'y'), ...(direction === undefined ? {} : { direction }) }
     }
     case 'common_event':
@@ -144,7 +144,7 @@ export function parseEditAction(args: Args): EditAction {
     case 'save':
     case 'load': {
       const slot = args.slot === undefined ? 1 : int(args, 'slot')
-      if (slot < 1) throw new Error('slot 需 ≥ 1')
+      if (slot < 1) throw new Error('slot must be >= 1')
       return { id, slot }
     }
     default:

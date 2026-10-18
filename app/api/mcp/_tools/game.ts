@@ -52,7 +52,7 @@ async function readStatus(signal?: AbortSignal): Promise<StatusBody> {
 
 function statusView(s: StatusBody): GameStatusView {
   const serviceMode = s.serviceMode || 'local'
-  if (!s.ready || !s.selected) return { ready: false, serviceMode, error: s.error || '尚未绑定游戏', gameRoot: s.config?.gameRoot || null }
+  if (!s.ready || !s.selected) return { ready: false, serviceMode, error: s.error || 'No game bound yet', gameRoot: s.config?.gameRoot || null }
   const entry = s.library?.find((item) => pathEquals(item.gameRoot, s.selected!))
   return {
     ready: true,
@@ -81,7 +81,14 @@ export const gameTools: ToolImpls = {
 
   async chaya_game_launch(_args, { signal }) {
     const res = await invokeRoute(LaunchRoute.POST, { method: 'POST', path: '/api/launch', signal })
-    return { launched: true, mode: res.mode, path: res.path, apiBase: res.apiBase, plugins: res.plugins, hint: '游戏启动后约数秒 ChayaAgent 会连上，可用 chaya_live_games 确认。' }
+    return {
+      launched: true,
+      mode: res.mode,
+      path: res.path,
+      apiBase: res.apiBase,
+      plugins: res.plugins,
+      hint: 'ChayaAgent will connect a few seconds after game launch; verify with chaya_live_games.',
+    }
   },
 
   async chaya_game_plugins_install(_args, { signal }): Promise<GamePluginsInstallView> {
@@ -99,7 +106,7 @@ export const gameTools: ToolImpls = {
     const body = shellSource ? { shellSource, force: optBool(args, 'force') ?? false } : { fetchLatest: true, wait: true }
     const res = await invokeRoute(ShellRoute.POST, { method: 'POST', path: '/api/shell', body, signal })
     const shellApp = typeof res.shellApp === 'string' ? res.shellApp : null
-    return shellInstallView({ hasShell: true, shellApp, hint: '壳已就绪，可用 chaya_game_launch 启动游戏' })
+    return shellInstallView({ hasShell: true, shellApp, hint: 'Shell is ready; use chaya_game_launch to start the game.' })
   },
 
   async chaya_game_shell_check(_args, { signal }) {
@@ -114,7 +121,7 @@ export const gameTools: ToolImpls = {
     const window = optObj(args, 'window')
     if (!window) return invokeRoute(WindowRoute.GET, { method: 'GET', path: '/api/window', signal })
     const status = await readStatus(signal)
-    if (!status.ready || !status.selected) throw new Error(status.error || '尚未绑定游戏')
+    if (!status.ready || !status.selected) throw new Error(status.error || 'No game bound yet')
     return invokeRoute(WindowRoute.PUT, { method: 'PUT', path: '/api/window', body: { window, gameRoot: status.selected }, signal })
   },
 }

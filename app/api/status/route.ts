@@ -224,18 +224,18 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
   const replaceLibraryId = String(body.replaceLibraryId || '').trim()
   const hasRemark = Object.prototype.hasOwnProperty.call(body, 'remark')
   if (!input && body.shellSource === undefined && !hasRemark) {
-    return apiBadRequest('缺少 gameRoot、shellSource 或 remark')
+    return apiBadRequest('Missing gameRoot, shellSource, or remark')
   }
 
   if (hasRemark) {
     const prev = loadConfig()
     const root = input || prev.gameRoot
     if (!String(root || '').trim()) {
-      return apiBadRequest('尚未绑定游戏，无法写备注')
+      return apiBadRequest('No game bound yet, cannot save remark')
     }
     const existing = findLibraryEntry(prev.library, root)
     if (!existing) {
-      return apiBadRequest('游戏库中未找到该条目')
+      return apiBadRequest('Entry not found in game library')
     }
     const config = saveConfig({
       library: upsertLibraryEntry(prev.library, {
@@ -312,7 +312,7 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
         ? relocateLibraryEntry(prev.library, replaceLibraryId, check.selected)
         : upsertLibraryEntry(prev.library, { gameRoot: check.selected, name, remote: false, remark: existing?.remark ?? null })
     } catch (error) {
-      return apiBadRequest(error instanceof Error ? error.message : '更新游戏位置失败')
+      return apiBadRequest(error instanceof Error ? error.message : 'Failed to update game location')
     }
     const config = saveConfig({
       gameRoot: check.selected,

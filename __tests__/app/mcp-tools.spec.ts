@@ -80,7 +80,7 @@ describe('library tools', () => {
   it('remark rejects unknown games', async () => {
     mocked(game.loadConfig).mockReturnValue({ library: [] })
     mocked(game.findLibraryEntry).mockReturnValue(undefined)
-    await expect(libraryTools.chaya_library_remark({ gameRoot: '/nope' }, ctx)).rejects.toThrow('未找到')
+    await expect(libraryTools.chaya_library_remark({ gameRoot: '/nope' }, ctx)).rejects.toThrow('Not found in game library')
     expect(game.saveConfig).not.toHaveBeenCalled()
   })
 })
@@ -96,7 +96,7 @@ describe('translate tools', () => {
   })
 
   it('validates the text batch', async () => {
-    await expect(translateTools.chaya_translate_text({ texts: [] }, ctx)).rejects.toThrow('不能为空')
+    await expect(translateTools.chaya_translate_text({ texts: [] }, ctx)).rejects.toThrow('texts cannot be empty')
     await expect(translateTools.chaya_translate_text({ texts: Array.from({ length: 201 }, (_, i) => `t${i}`) }, ctx)).rejects.toThrow('200')
   })
 })

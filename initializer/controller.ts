@@ -18,7 +18,7 @@ export function defineApiRoute<TContext = DefaultRouteContext>(_policyId: string
   return async (request, context) => {
     try {
       if (!(await mayAccessApi(request))) {
-        return apiError(401, 'ACCESS_DENIED', '无权访问：本机 API 拒绝跨站请求', {
+        return apiError(401, 'ACCESS_DENIED', 'Access denied: local API rejected cross-site request', {
           headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': `Content-Type, X-Chaya-Launch-Token, ${GAME_LINK_TOKEN_HEADER}` },
         })
       }

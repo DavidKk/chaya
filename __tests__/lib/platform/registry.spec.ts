@@ -56,7 +56,7 @@ describe('platform env + capability tables', () => {
     // resolvePickPath 读真实 env；用 remote 实现直接测更稳
     const { RemotePickPath } = await import('@/services/platform/pick/remote')
     const result = await new RemotePickPath().pick('game')
-    expect(result).toEqual({ ok: false, error: expect.stringContaining('不支持') })
+    expect(result).toEqual({ ok: false, error: expect.stringContaining('not supported') })
   })
 
   it('resolvePickPath returns a pickPath capability on local', () => {
@@ -67,7 +67,7 @@ describe('platform env + capability tables', () => {
 
   it('remote hostShell rejects', async () => {
     const { RemoteHostShell } = await import('@/services/platform/host/remote')
-    await expect(new RemoteHostShell().reveal('/tmp')).rejects.toThrow(/不支持/)
+    await expect(new RemoteHostShell().reveal('/tmp')).rejects.toThrow('Local file manager is not supported in current service mode')
   })
 
   it('resolveHostShell returns hostShell on local', () => {

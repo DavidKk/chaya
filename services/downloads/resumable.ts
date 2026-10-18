@@ -63,7 +63,7 @@ async function verifyOrDiscard(tmp: string, opts: ResumableDownloadOpts, label: 
   const actual = await sha256File(tmp, opts.signal)
   if (actual.toLowerCase() !== opts.sha256.toLowerCase()) {
     fs.rmSync(tmp, { force: true })
-    throw new Error(`${label} 校验失败（SHA-256 不符），已删除已下载部分，请重试`)
+    throw new Error(`${label} checksum failed (SHA-256 mismatch); deleted partial download, please retry`)
   }
 }
 
@@ -106,9 +106,9 @@ export async function downloadToFile(url: string, dest: string, opts: ResumableD
       }
     } else if (res.status !== 200) {
       await res.body?.cancel()
-      throw new Error(`下载 ${label} 失败 HTTP ${res.status}: ${url}`)
+      throw new Error(`Failed to download ${label} HTTP ${res.status}: ${url}`)
     }
-    if (!res.body) throw new Error(`下载 ${label} 失败：响应没有内容`)
+    if (!res.body) throw new Error(`Failed to download ${label}: response body is empty`)
 
     const append = res.status === 206 && existing > 0
     const resumedFrom = append ? existing : 0
@@ -138,7 +138,7 @@ export async function downloadToFile(url: string, dest: string, opts: ResumableD
       try {
         got = await fetchToPart()
       } catch (e2) {
-        if (e2 instanceof RangeMismatch) throw new Error(`下载 ${label} 失败：源站返回的字节区间不合法`)
+        if (e2 instanceof RangeMismatch) throw new Error(`Failed to download ${label}: origin returned invalid byte range`)
         throw e2
       }
     }
@@ -146,7 +146,7 @@ export async function downloadToFile(url: string, dest: string, opts: ResumableD
 
     const size = fileSize(tmp)
     if (got.total != null && size !== got.total) {
-      throw new Error(`下载 ${label} 不完整（${size}/${got.total} 字节），重试会接着下载`)
+      throw new Error(`Download of ${label} incomplete (${size}/${got.total} bytes); will resume on retry`)
     }
     await verifyOrDiscard(tmp, opts, label)
     fs.renameSync(tmp, dest)

@@ -17,7 +17,7 @@ export const MCP_TOOL_IMPLS: ToolImpls = { ...libraryTools, ...gameTools, ...liv
 function toMcpTool(name: string): McpTool {
   const meta = MCP_TOOLS.find((tool) => tool.name === name)
   const run = MCP_TOOL_IMPLS[name]
-  if (!meta || !run) throw new Error(`MCP 工具未对齐：${name}`)
+  if (!meta || !run) throw new Error(`MCP tool not aligned: ${name}`)
   return {
     name,
     description: meta.description,

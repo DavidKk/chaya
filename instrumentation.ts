@@ -7,5 +7,5 @@ export async function register() {
   void localMcpGateway()
     .start()
     // eslint-disable-next-line no-console -- startup failure belongs in the server terminal
-    .catch((err) => console.warn(`[Chaya] MCP 网关启动失败：${err instanceof Error ? err.message : String(err)}`))
+    .catch((err) => console.warn(`[Chaya] MCP gateway failed to start: ${err instanceof Error ? err.message : String(err)}`))
 }

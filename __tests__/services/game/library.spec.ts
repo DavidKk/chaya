@@ -109,9 +109,9 @@ describe('library relocation', () => {
 
   it('rejects unknown, remote and duplicate targets without changing the library', () => {
     const library = [first, other]
-    expect(() => relocateLibraryEntry(library, 'unknown', '/Moved/Game')).toThrow('未找到')
-    expect(() => relocateLibraryEntry([{ ...first, remote: true }], first.id, '/Moved/Game')).toThrow('本地游戏')
-    expect(() => relocateLibraryEntry(library, first.id, other.gameRoot)).toThrow('已在游戏库')
+    expect(() => relocateLibraryEntry(library, 'unknown', '/Moved/Game')).toThrow('No local game record found to relocate')
+    expect(() => relocateLibraryEntry([{ ...first, remote: true }], first.id, '/Moved/Game')).toThrow('No local game record found to relocate')
+    expect(() => relocateLibraryEntry(library, first.id, other.gameRoot)).toThrow('New location is already in the game library')
     expect(library).toEqual([first, other])
   })
 })

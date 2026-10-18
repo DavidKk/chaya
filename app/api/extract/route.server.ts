@@ -17,7 +17,7 @@ export const POST = defineApiRoute('post:/api/extract', async ({ request }) => {
       const body = JSON.parse(raw) as { export?: unknown }
       includeEntries = body.export === true
     } catch {
-      return apiError(400, 'EXTRACT_BODY', '请求体不是 JSON')
+      return apiError(400, 'EXTRACT_BODY', 'Request body must be valid JSON')
     }
   }
 

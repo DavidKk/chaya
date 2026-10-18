@@ -16,6 +16,7 @@ jest.mock('@/services/translate/fill-missing', () => ({ resolveTranslateContentR
 jest.mock('@/services/translate/play-settings', () => ({ getTranslationPlaySettings: jest.fn(), setTranslationPlaySettings: jest.fn() }))
 jest.mock('@/services/translate/realtime', () => ({ translateDialogue: jest.fn(), benchmarkLocalModel: jest.fn() }))
 jest.mock('@/services/translate/agent-translate', () => ({ agentJaToZh: jest.fn(), listTranslateAgents: jest.fn() }))
+jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 
 const post = (body: unknown) =>
   POST(
@@ -73,4 +74,20 @@ it('agents mode lists instances without endpoints or tokens', async () => {
   const response = await post({ mode: 'agents' })
   expect(response.status).toBe(200)
   expect((await response.json()).profiles).toEqual([{ id: 'p1', label: 'GPU', defaultModel: 'qwen' }])
+})
+
+it('cache mode returns cached translation or miss', async () => {
+  jest.mocked(hasManagementAccess).mockReturnValue(true)
+  const response = await post({ mode: 'cache', text: '道具' })
+  const data = await response.json()
+  expect(response.status).toBe(200)
+  expect(data.ok).toBe(true)
+  expect(Array.isArray(data.items)).toBe(true)
+})
+
+it('cache mode rejects empty text', async () => {
+  jest.mocked(hasManagementAccess).mockReturnValue(true)
+  const response = await post({ mode: 'cache', text: '   ' })
+  expect(response.status).toBe(400)
+  expect((await response.json()).error.code).toBe('TRANSLATE_CACHE_INPUT')
 })

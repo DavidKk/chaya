@@ -82,15 +82,15 @@ export function normalizeGameAgentEndpoint(value: unknown): string {
   try {
     url = new URL(raw)
   } catch {
-    throw new Error('服务地址必须是完整的 HTTP 或 HTTPS URL')
+    throw new Error('Service endpoint must be a valid HTTP or HTTPS URL')
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('服务地址仅支持 HTTP 或 HTTPS')
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Service endpoint only supports HTTP or HTTPS')
   url.pathname = url.pathname.replace(/\/+$/, '')
   return url.toString().replace(/\/$/, '')
 }
 
 export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fallbackId: string = randomUUID()): GameAgentProfile {
-  if (value.provider !== undefined && !isGameAgentProvider(value.provider)) throw new Error(`暂不支持接入类型：${String(value.provider)}`)
+  if (value.provider !== undefined && !isGameAgentProvider(value.provider)) throw new Error(`Unsupported agent provider: ${String(value.provider)}`)
   const provider = value.provider || 'ollama'
   const proxy = normalizeAgentProxy(value.proxy)
   const proxyProtocols = normalizeAgentProxyProtocols(proxy, value.proxyProtocols)
@@ -112,9 +112,9 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
     }
   }
   const temperature = Number(value.temperature ?? 0.2)
-  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new Error('Temperature 必须在 0 到 2 之间')
+  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new Error('Temperature must be between 0 and 2')
   const keepAlive = text(value.keepAlive, '10m')
-  if (!/^(?:-1|0|\d+(?:\.\d+)?(?:ms|s|m|h))$/.test(keepAlive)) throw new Error('Keep Alive 格式无效，例如 10m、1h、0 或 -1')
+  if (!/^(?:-1|0|\d+(?:\.\d+)?(?:ms|s|m|h))$/.test(keepAlive)) throw new Error('Invalid Keep Alive format, e.g. 10m, 1h, 0, or -1')
   if (isOpenApiProvider(provider)) {
     return {
       id: text(value.id, fallbackId),
@@ -148,7 +148,7 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
 export function normalizeGameAgentSettings(value: Partial<GameAgentSettings>): GameAgentSettings {
   const source = Array.isArray(value.profiles) && value.profiles.length ? value.profiles : [defaultGameAgentProfile()]
   const profiles = source.map((profile) => normalizeGameAgentProfile(profile))
-  if (new Set(profiles.map((profile) => profile.id)).size !== profiles.length) throw new Error('接入实例 id 不能重复')
+  if (new Set(profiles.map((profile) => profile.id)).size !== profiles.length) throw new Error('Agent profile id must be unique')
   return { version: 1, defaultProfileId: profiles[0].id, profiles }
 }
 
@@ -157,7 +157,7 @@ export function loadGameAgentSettings(file = GAME_AGENT_SETTINGS_PATH): GameAgen
     if (!fs.existsSync(file)) return defaultGameAgentSettings()
     return normalizeGameAgentSettings(JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<GameAgentSettings>)
   } catch (error) {
-    if (error instanceof SyntaxError) throw new Error('Agent 配置文件不是有效的 JSON')
+    if (error instanceof SyntaxError) throw new Error('Agent configuration file is not valid JSON')
     throw error
   }
 }
@@ -181,7 +181,7 @@ function writeJsonAtomic(file: string, value: unknown) {
 export function loadGameAgentSyncDocument(syncFile = GAME_AGENT_SYNC_PATH, settingsFile = GAME_AGENT_SETTINGS_PATH): AgentSyncDocument {
   if (fs.existsSync(syncFile)) {
     const parsed = parseAgentSyncDocument(JSON.parse(fs.readFileSync(syncFile, 'utf8')))
-    if (!parsed) throw new Error('Agent 同步文件格式无效')
+    if (!parsed) throw new Error('Agent sync file format is invalid')
     return withAgentSyncActor(parsed, GAME_AGENT_SERVICE_ACTOR)
   }
   if (!fs.existsSync(settingsFile)) return createEmptyAgentSyncDocument(GAME_AGENT_SERVICE_ACTOR)
@@ -191,7 +191,7 @@ export function loadGameAgentSyncDocument(syncFile = GAME_AGENT_SYNC_PATH, setti
 
 export function saveGameAgentSyncDocument(document: AgentSyncDocument, syncFile = GAME_AGENT_SYNC_PATH, settingsFile = GAME_AGENT_SETTINGS_PATH) {
   const parsed = parseAgentSyncDocument(document)
-  if (!parsed) throw new Error('Agent 同步数据格式无效')
+  if (!parsed) throw new Error('Agent sync data format is invalid')
   let serviceDocument = withAgentSyncActor(parsed, GAME_AGENT_SERVICE_ACTOR)
   const settings = normalizeGameAgentSettings(agentSettingsFromSyncDocument(serviceDocument))
   serviceDocument = applySettingsToAgentSyncDocument(serviceDocument, settings)
@@ -216,7 +216,7 @@ export function updateGameAgentSyncFromSettings(
 
 export function mergeGameAgentSyncDocument(incoming: AgentSyncDocument, syncFile = GAME_AGENT_SYNC_PATH, settingsFile = GAME_AGENT_SETTINGS_PATH) {
   const parsed = parseAgentSyncDocument(incoming)
-  if (!parsed) throw new Error('Agent 同步数据格式无效')
+  if (!parsed) throw new Error('Agent sync data format is invalid')
   const current = loadGameAgentSyncDocument(syncFile, settingsFile)
   let merged = mergeAgentSyncDocuments(current, parsed)
   if (agentSettingsFromSyncDocument(merged).profiles.length === 0) {

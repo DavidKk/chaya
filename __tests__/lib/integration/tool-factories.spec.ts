@@ -69,7 +69,7 @@ describe('shared tool factories', () => {
     await tools.chaya_live_call({ plugin: 'ChayaBoost', tool: 'on', input: { rate: 2 } }, ctx)
     expect(call).toHaveBeenLastCalledWith(undefined, 'plugin.tool', { plugin: 'ChayaBoost', tool: 'on', input: { rate: 2 } })
     await expect(tools.chaya_live_call({ plugin: 'ChayaBoost', method: 'on' }, ctx)).rejects.toThrow('tool')
-    await expect(tools.chaya_live_press({ key: 'f5' }, ctx)).rejects.toThrow('key 只能是')
+    await expect(tools.chaya_live_press({ key: 'f5' }, ctx)).rejects.toThrow('key must be one of')
     await tools.chaya_live_play(
       {
         gameId: 'g1',
@@ -86,7 +86,7 @@ describe('shared tool factories', () => {
         { key: 'ok', frames: undefined, waitFrames: 12 },
       ],
     })
-    await expect(tools.chaya_live_play({ steps: [] }, ctx)).rejects.toThrow('steps 不能为空')
+    await expect(tools.chaya_live_play({ steps: [] }, ctx)).rejects.toThrow('steps cannot be empty')
     await expect(tools.chaya_live_play({ steps: [{ key: 'jump' }] }, ctx)).rejects.toThrow('steps[0].key')
   })
 
@@ -95,7 +95,7 @@ describe('shared tool factories', () => {
     const tools = makeLiveTools({ games: () => [], call })
     await tools.chaya_live_open_scene({ gameId: 'g1', scene: 'scene:status' }, ctx)
     expect(call).toHaveBeenLastCalledWith('g1', 'edit.action', { action: { id: 'scene:status' } })
-    await expect(tools.chaya_live_open_scene({ scene: 'scene:unknown' }, ctx)).rejects.toThrow('scene 只能是')
+    await expect(tools.chaya_live_open_scene({ scene: 'scene:unknown' }, ctx)).rejects.toThrow('scene must be one of')
   })
 
   it('live game ops map to agent commands; screenshot returns an MCP image', async () => {
