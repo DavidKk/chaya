@@ -3,8 +3,9 @@
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 
-import { useT } from '@/components/i18n/LocaleProvider'
+import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { Button, EmptyState } from '@/components/sk'
+import { CACHE_TEST_COPY } from '@/components/translate/cache-test-copy'
 import { translatePathTab } from '@/components/translate/tabs'
 import { TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { useBoundGame } from '@/components/useBoundGame'
@@ -15,11 +16,13 @@ import { useBoundGame } from '@/components/useBoundGame'
  */
 export function TranslateGate({ children }: { children: ReactNode }) {
   const t = useT()
+  const copy = CACHE_TEST_COPY[useLocaleCode()]
   const pathname = usePathname() || ''
   const tab = translatePathTab(pathname)
   const { access, cloud, busy, onChoose } = useBoundGame({ allowLocalOffline: true })
 
-  if (tab === 'cache' || access === 'ready') return children
+  if (tab === 'test' && cloud) return <EmptyState title={copy.intro} message={copy.diskOnly} />
+  if (tab === 'test' || tab === 'cache' || access === 'ready') return children
   if (access === 'loading') {
     return <TranslateRunSkeleton />
   }

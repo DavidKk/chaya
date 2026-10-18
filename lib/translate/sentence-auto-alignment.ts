@@ -4,7 +4,7 @@ import { controlSignature, SENTENCE_TOKEN_SOURCE, type SentenceUnit, sentenceUni
 import { scanStructuredText } from './structured-segments'
 
 type CompleteSentence = { from: number; to: number; start: number; end: number; tone: string; controls: string }
-export type InferredSentenceAlignment = { from: number; to: number; targetStart: number; targetEnd: number }
+export type InferredSentenceAlignment = { from: number; to: number; targetStart: number; targetEnd: number; kind?: 'ellipsis' }
 
 function completeSentences(text: string, units: SentenceUnit[]): CompleteSentence[] | null {
   if (!units.length || text.slice(0, units[0].start).trim() || text.slice(units.at(-1)!.end).trim()) return null
@@ -36,11 +36,35 @@ export function inferSentenceAlignment(record: SentenceRecord, units: SentenceUn
   ]
   if (structures.some((s) => s.units.length || s.diagnostics.length)) return []
   if (hasComplexControls(record.src) || hasComplexControls(record.zh)) return []
+  const targetUnits = sentenceUnits(record.zh, { structure: record.structure?.target })
   const source = completeSentences(record.src, units)
-  if (!source) return []
-  const target = completeSentences(record.zh, sentenceUnits(record.zh, { structure: record.structure?.target }))
-  if (!target || source.length !== target.length || source.some((s, i) => s.tone !== target[i].tone || s.controls !== target[i].controls)) return []
-  return source.map((s, i) => ({ from: s.from, to: s.to, targetStart: target[i].start, targetEnd: target[i].end }))
+  const target = completeSentences(record.zh, targetUnits)
+  const sentences =
+    source && target && source.length === target.length && source.every((s, i) => s.tone === target[i].tone && s.controls === target[i].controls)
+      ? source.map((s, i) => ({ from: s.from, to: s.to, targetStart: target[i].start, targetEnd: target[i].end }))
+      : []
+  return [...sentences, ...inferEllipsisClauses(record, units, targetUnits)]
+}
+
+function inferEllipsisClauses(record: SentenceRecord, source: SentenceUnit[], target: SentenceUnit[]): InferredSentenceAlignment[] {
+  if (source.length < 2 || source.length !== target.length) return []
+  const signature = (text: string, unit: SentenceUnit) => JSON.stringify([unit.controls, text.slice(unit.start, unit.end).match(/%[sdif]/g) || []])
+  // Require the entire parent to align structurally, including stutters and
+  // ellipsis positions. Plain comma counts alone never authorize extraction.
+  if (
+    source.some(
+      (unit, i) =>
+        unit.boundary !== target[i].boundary ||
+        unit.tone !== target[i].tone ||
+        unit.key.includes('...') !== target[i].key.includes('...') ||
+        signature(record.src, unit) !== signature(record.zh, target[i])
+    )
+  )
+    return []
+  const clauses = source.flatMap((unit, i) =>
+    unit.key.endsWith('...') && target[i].key.endsWith('...') ? [{ from: i, to: i + 1, targetStart: target[i].start, targetEnd: target[i].end, kind: 'ellipsis' as const }] : []
+  )
+  return clauses.length >= 2 ? clauses : []
 }
 
 export function inferredSentenceTarget(record: SentenceRecord, groups: InferredSentenceAlignment[], from: number, to: number): string | null {
@@ -48,4 +72,30 @@ export function inferredSentenceTarget(record: SentenceRecord, groups: InferredS
   // hide conflicting translations of one of its constituent sentences.
   const group = groups.find((g) => g.from === from && g.to === to)
   return group ? record.zh.slice(group.targetStart, group.targetEnd) : null
+}
+
+/** Explanations for diagnostic inspection; never authorizes a mapping. */
+export function alignmentRejectionReason(record: SentenceRecord, units: SentenceUnit[], kind: 'sentences' | 'ellipsis'): string {
+  if (record.derived) return 'derived_alias_no_inference'
+  if (record.alignments?.length) return 'explicit_mapping_required'
+  if (record.structure?.source?.mode === 'disabled' || record.structure?.target?.mode === 'disabled') return 'splitting_disabled'
+  if (
+    [
+      scanStructuredText(record.src.replace(new RegExp(SENTENCE_TOKEN_SOURCE, 'g'), ' '), record.structure?.source),
+      scanStructuredText(record.zh.replace(new RegExp(SENTENCE_TOKEN_SOURCE, 'g'), ' '), record.structure?.target),
+    ].some((s) => s.units.length || s.diagnostics.length)
+  )
+    return 'unsupported_structure'
+  if (hasComplexControls(record.src) || hasComplexControls(record.zh)) return 'unsafe_control_scope'
+  const target = sentenceUnits(record.zh, { structure: record.structure?.target })
+  if (kind === 'sentences') {
+    const a = completeSentences(record.src, units),
+      b = completeSentences(record.zh, target)
+    if (!a) return 'source_not_complete_sentences'
+    if (!b) return 'target_not_complete_sentences'
+    if (a.length !== b.length) return 'alignment_count_differs'
+    return a.every((s, i) => s.tone === b[i].tone && s.controls === b[i].controls) ? 'query_boundary_incompatible' : 'alignment_markers_differ'
+  }
+  if (units.length !== target.length) return 'alignment_count_differs'
+  return inferEllipsisClauses(record, units, target).length ? 'query_boundary_incompatible' : 'ellipsis_alignment_rejected'
 }

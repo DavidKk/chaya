@@ -1,6 +1,6 @@
 /** Query-only views shared by SQLite selection, plugin selection and planning. */
 import { buildLogicText, listNewlineSpans } from './logic-text'
-import { sentenceOuterShell, type SentenceUnitOptions, sentenceUnits, wholeSentenceKey } from './sentence-units'
+import { sentenceBodyKey, sentenceOuterShell, type SentenceUnitOptions, sentenceUnits, wholeSentenceKey } from './sentence-units'
 
 export function sentenceQueryViews(src: string, opts?: SentenceUnitOptions) {
   const views = [{ text: src, offset: 0, opts }]
@@ -37,12 +37,29 @@ export function queryLines(src: string) {
   })
 }
 
+/** Split the complete outer dialogue while keeping its visible shell on the edge units.
+ * Stored record units keep their original rules; nested quotations remain protected.
+ */
+export function sentenceQueryViewUnits(src: string, opts?: SentenceUnitOptions) {
+  const body = sentenceQueryViews(src, opts)[1]
+  if (!body) return sentenceUnits(src, opts)
+  const units = sentenceUnits(body.text, body.opts)
+  if (units.length < 2) return sentenceUnits(src, opts)
+  return units.map((unit, i) => ({
+    ...unit,
+    start: i === 0 ? 0 : unit.start + body.offset,
+    end: i === units.length - 1 ? src.length : unit.end + body.offset,
+    key: sentenceBodyKey((i === 0 ? src.slice(0, body.offset).trimStart() : '') + unit.key + (i === units.length - 1 ? src.slice(body.offset + body.text.length).trimEnd() : '')),
+  }))
+}
+
 export function sentenceQueryKeys(src: string, opts?: SentenceUnitOptions): string[] {
   return [
     ...new Set(
       sentenceQueryViews(src, opts).flatMap((view) => [
         wholeSentenceKey(view.text),
         wholeSentenceKey(buildLogicText(view.text, view.opts).logic),
+        ...sentenceQueryViewUnits(view.text, view.opts).map((unit) => wholeSentenceKey(view.text.slice(unit.start, unit.end))),
         ...queryLines(view.text).map((line) => wholeSentenceKey(line.text)),
       ])
     ),
@@ -50,5 +67,16 @@ export function sentenceQueryKeys(src: string, opts?: SentenceUnitOptions): stri
 }
 
 export function sentenceQueryUnits(src: string, opts?: SentenceUnitOptions) {
-  return sentenceQueryViews(src, opts).flatMap((view) => sentenceUnits(view.text, view.opts).map((u) => ({ ...u, start: u.start + view.offset, end: u.end + view.offset })))
+  return sentenceQueryViews(src, opts).flatMap((view) =>
+    sentenceQueryViewUnits(view.text, view.opts).map((u) => ({ ...u, start: u.start + view.offset, end: u.end + view.offset }))
+  )
+}
+
+/** A bounded candidate prefilter; final equality still normalizes actual keys. */
+export function ellipsisQueryGlob(key: string): string | null {
+  if (!key.includes('...')) return null
+  return key
+    .split('...')
+    .map((part) => part.replace(/[?*\[]/g, (c) => (c === '[' ? '[[]' : `[${c}]`)))
+    .join('*')
 }

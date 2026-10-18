@@ -8,6 +8,7 @@ export const translateEn = {
     platformsConfig: 'Engine settings',
     enginesList: 'Engine list',
     tabRun: 'Translate',
+    tabTest: 'Cache translation debug',
     tabCache: 'Cache',
     regionRun: 'Translate',
     regionCache: 'Shared cache',

@@ -1,8 +1,10 @@
 import type { MessageKey } from '@/lib/i18n'
+import { normalizeTranslateQuery } from '@/lib/translate/cache-query'
 
 export const TRANSLATE_TABS = [
   { id: 'run', labelKey: 'translate.tabRun' },
   { id: 'cache', labelKey: 'translate.tabCache' },
+  { id: 'test', labelKey: 'translate.tabTest' },
 ] as const satisfies ReadonlyArray<{ id: string; labelKey: MessageKey }>
 
 export type TranslateTabId = (typeof TRANSLATE_TABS)[number]['id']
@@ -42,4 +44,24 @@ export function translateCacheDetailHref(id: number): string {
 export function isTranslateCacheDetailPath(pathname: string): boolean {
   const parts = pathname.split('/').filter(Boolean)
   return parts[0] === 'translate' && parts[1] === 'cache' && parts[2] === TRANSLATE_CACHE_DETAIL_MODE
+}
+
+/** Keep navigation local to the cache list, including its filters and pagination. */
+export function cacheDebugReturnHref(raw?: string | null): string {
+  if (raw === '/translate/cache' || raw?.startsWith('/translate/cache?')) return raw
+  return '/translate/cache'
+}
+
+export function translateCacheDebugHref(search: Pick<URLSearchParams, 'get' | 'toString'>): string {
+  const query = new URLSearchParams({ returnTo: `/translate/cache${search.toString() ? `?${search.toString()}` : ''}` })
+  for (const side of ['from', 'to']) {
+    const value = search.get(side)
+    if (value && ['ja', 'zh', 'en', 'ko'].includes(value)) query.set(side, value)
+  }
+  const rawQ = search.get('q')
+  if (rawQ) {
+    const q = normalizeTranslateQuery(rawQ)
+    if (q) query.set('q', q)
+  }
+  return `/translate/test?${query.toString()}`
 }

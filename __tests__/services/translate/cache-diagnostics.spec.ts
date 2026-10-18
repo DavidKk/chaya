@@ -50,6 +50,24 @@ it('does not create a missing database or upgrade an old one', () => {
   expect(() => withReadOnlyCache(() => null, file)).toThrow(CacheIndexNotReadyError)
   expect(fs.readFileSync(file)).toEqual(before)
 })
+
+it('returns sentence segmentation independently of cache availability or a whole hit', () => {
+  const text = '「First.\nSecond changed」'
+  const missed = testTranslationCache({ ...pair, text, scope: 'shared' }, file)
+  expect(missed.structure.units).toHaveLength(0)
+  expect(missed.segments?.map((u) => text.slice(u.start, u.end))).toEqual(['「First.', 'Second changed」'])
+  const cache = openSharedCache(file)
+  try {
+    cache.writeMany([[text, '整段译文']], 'manual', pair)
+    const hit = testTranslationCache({ ...pair, text, scope: 'shared' }, file)
+    expect(hit.plan.status).toBe('full')
+    expect(hit.segments).toEqual(missed.segments)
+    const disabled = testTranslationCache({ ...pair, text, scope: 'shared', structure: { mode: 'disabled' } }, file)
+    expect(disabled.segments).toHaveLength(1)
+  } finally {
+    cache.close()
+  }
+})
 it('rejects game changes and unsupported game-cache language pairs', () => {
   jest.mocked(getResolvedFromConfig).mockReturnValue({ ok: false, config: { gameRoot: '', shellSource: '', library: [] }, error: '' })
   expect(() => testTranslationCache({ ...pair, text: 'hello', scope: 'game', gameId: 'old' }, file)).toThrow('当前游戏')
@@ -297,6 +315,93 @@ it('finds independent cache rows behind soft-wrapped lines through existing SQLi
   expect(createSentenceResolver(rows.map(([src]) => cache.record(src, languages)!)).plan(text)).toEqual(result.plan)
   expect(cache.plan(text, languages).matches).toEqual(result.plan.matches)
   expect(cache.listPage(languages)).toEqual(before)
+  expect(cache.version()).toBe(version)
+  cache.close()
+})
+
+it('matches legacy ellipsis keys read-only without reindexing and keeps ellipses before commas', () => {
+  const cache = openSharedCache(file)
+  const languages = { from: 'ja' as const, to: 'zh' as const }
+  const rows: Array<[string, string]> = [
+    ['前……、', '前文……、'],
+    ['後......!', '后文……！'],
+  ]
+  cache.writeMany(rows, 'manual', languages)
+  const db = new DatabaseSync(file)
+  const first = cache.record(rows[0][0], languages)!,
+    second = cache.record(rows[1][0], languages)!
+  // Simulate keys produced before ellipsis normalization: Unicode was kept in
+  // whole keys; ASCII trailing dots disappeared from body keys.
+  db.prepare("UPDATE match_keys SET match_key=? WHERE record_id=? AND kind='canonical'").run('前……、', first.id)
+  db.prepare('UPDATE sentence_positions SET body_key=?,tone=? WHERE record_id=?').run('前......', '', first.id)
+  db.prepare("UPDATE match_keys SET match_key=? WHERE record_id=? AND kind='canonical'").run('後......!', second.id)
+  db.prepare('UPDATE sentence_positions SET body_key=?,tone=? WHERE record_id=?').run('後', '!', second.id)
+  const snapshot = () =>
+    JSON.stringify([
+      db.prepare('SELECT * FROM match_keys ORDER BY record_id,match_key,kind').all(),
+      db.prepare('SELECT * FROM sentence_positions ORDER BY record_id,position').all(),
+      db.prepare('SELECT * FROM cache_meta ORDER BY key').all(),
+    ])
+  const before = snapshot(),
+    version = cache.version(),
+    entries = cache.listPage(languages)
+  const text = '前.........、\n後............!\n変更3'
+  const result = testTranslationCache({ ...languages, text, scope: 'shared' }, file)
+  expect(result.plan).toMatchObject({ status: 'partial', ambiguous: false })
+  expect(result.plan.matches).toHaveLength(2)
+  expect(result.preview).toBe('前文……、\n后文……！\n変更3')
+  expect(testTranslationCache({ ...languages, text: '前.........、', scope: 'shared' }, file).plan.zh).toBe('前文……、')
+  expect(createSentenceResolver(rows.map(([src]) => cache.record(src, languages)!)).plan(text)).toEqual(result.plan)
+  expect(cache.get(rows[0][0], languages)).toBe(rows[0][1])
+  expect(cache.get(rows[1][0], languages)).toBe(rows[1][1])
+  expect(snapshot()).toBe(before)
+  expect(cache.version()).toBe(version)
+  expect(cache.listPage(languages)).toEqual(entries)
+  db.close()
+  cache.close()
+})
+
+it('extracts aligned ellipsis clauses from parent cache records consistently and read-only', () => {
+  const cache = openSharedCache(file)
+  const languages = { from: 'ja' as const, to: 'zh' as const }
+  const src = 'む、無理……、こんなの……、イ、イく……っ！）'
+  cache.writeMany([[src, '不、不行......、这样下去......、要、要高潮了......！）']], 'manual', languages)
+  const before = cache.listPage(languages),
+    version = cache.version(),
+    record = cache.record(src, languages)!
+  const text = '無理......、こんなの......'
+  const result = testTranslationCache({ ...languages, text, scope: 'shared' }, file)
+  expect(result.plan).toMatchObject({ status: 'full', ambiguous: false })
+  expect(result.preview).toBe('不行......、这样下去......')
+  expect(result.plan.matches).toHaveLength(2)
+  expect(result.plan.matches.every((m) => m.alignment === 'inferred' && m.alignmentBasis === 'ellipsis')).toBe(true)
+  expect(createSentenceResolver([record]).plan(text)).toEqual(result.plan)
+  expect(cache.plan(text, languages).matches).toEqual(result.plan.matches)
+  expect(cache.listPage(languages)).toEqual(before)
+  expect(cache.version()).toBe(version)
+  expect(cache.record(src, languages)).toEqual(record)
+  cache.close()
+})
+
+it('returns unused split paths even when the real planner adopts an entire cache record', () => {
+  const cache = openSharedCache(file)
+  const text = '「First.Second.」'
+  cache.writeMany(
+    [
+      [text, '整段译文'],
+      ['First.', '第一。'],
+      ['Second.', '第二。'],
+    ],
+    'manual',
+    pair
+  )
+  const before = cache.listPage(pair),
+    version = cache.version()
+  const result = testTranslationCache({ ...pair, text, scope: 'shared' }, file)
+  expect(result.plan.zh).toBe('整段译文')
+  expect(result.trace?.paths.find((p) => p.id === '0:whole')).toMatchObject({ status: 'full', adopted: true })
+  expect(result.trace?.paths.find((p) => p.id === '1:segments')).toMatchObject({ status: 'full', adopted: false, preview: '第一。第二。' })
+  expect(cache.listPage(pair)).toEqual(before)
   expect(cache.version()).toBe(version)
   cache.close()
 })

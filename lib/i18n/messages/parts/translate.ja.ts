@@ -8,6 +8,7 @@ export const translateJa = {
     platformsConfig: 'エンジン設定',
     enginesList: 'エンジン一覧',
     tabRun: '翻訳',
+    tabTest: 'キャッシュ翻訳デバッグ',
     tabCache: '翻訳庫',
     regionRun: '翻訳',
     regionCache: '共有庫',

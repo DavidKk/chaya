@@ -100,6 +100,7 @@ describe('API authorization', () => {
         })
       )
     ).toBe(false)
+    expect(await mayAccessApi(request('/api/translate-cache/test', { method: 'POST', headers, body: JSON.stringify({ text: 'hello', scope: 'shared' }) }))).toBe(false)
     expect(await mayAccessApi(request('/api/mcp', { method: 'POST', headers, body: '{}' }))).toBe(false)
     expect(await mayAccessApi(request('/api/shell', { method: 'DELETE', headers }))).toBe(false)
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ texts: ['こんにちは'] }) }))).toBe(true)

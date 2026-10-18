@@ -25,7 +25,10 @@ export type SentenceUnitOptions = {
 const PAIRS: Record<string, string> = { '<': '>', '「': '」', '『': '』', '【': '】', '《': '》', '〈': '〉', '（': '）', '(': ')', '[': ']', '{': '}', '“': '”' }
 const WIDTH: Record<string, string> = { '？': '?', '！': '!', '，': ',', '。': '.', '．': '.', '；': ';' }
 export function punctuationKey(text: string): string {
-  return text.replace(/[？！，。．；]/g, (c) => WIDTH[c]).replace(/([!?])\1{2,}/g, '$1$1')
+  return text
+    .replace(/(?:…|[.．]{3,})+/g, '...')
+    .replace(/[？！，。．；]/g, (c) => WIDTH[c])
+    .replace(/([!?])\1{2,}/g, '$1$1')
 }
 export function controlSignature(text: string): string {
   return JSON.stringify(text.match(new RegExp(`${SENTENCE_TOKEN_SOURCE}|%\\d+|\\{[A-Za-z0-9_]+\\}|__[A-Za-z]\\d+__`, 'g')) || [])
@@ -61,6 +64,20 @@ function newlineKindOnLogic(start: number, end: number, annotations: ReadonlyArr
   return 'unknown'
 }
 
+/** Ellipses are content tokens; recognize them before looking for sentence dots. */
+export function ellipsisEndAt(text: string, index: number): number | null {
+  if (!/[.．…]/.test(text[index] || '')) return null
+  const match = text.slice(index).match(/^(?:…|[.．]{3,})+/)
+  return match ? index + match[0].length : null
+}
+
+function sentenceTail(text: string): string {
+  const tail = text.match(/[,.!?;，、。．！？；…\s]+$/u)?.[0] || ''
+  let afterEllipsis = 0
+  for (const match of tail.matchAll(/(?:…|[.．]{3,})+/g)) afterEllipsis = match.index! + match[0].length
+  return tail.slice(afterEllipsis)
+}
+
 /** Shared punctuation boundaries for optimize previews and reusable sentence units. */
 export function sentenceBoundaryAt(text: string, index: number): { end: number; boundary: string } | null {
   const c = text[index]
@@ -69,7 +86,7 @@ export function sentenceBoundaryAt(text: string, index: number): { end: number; 
   // Repeated ASCII/fullwidth periods are an ellipsis, not multiple sentence endings.
   if (/[.．]/.test(c) && (/[.．]/.test(text[index - 1] || '') || /[.．]/.test(text[index + 1] || ''))) return null
   let end = index + 1
-  while (end < text.length && /[,，、。．.!！?？;；]/.test(text[end])) end++
+  while (end < text.length && /[,，、。．.!！?？;；]/.test(text[end]) && !ellipsisEndAt(text, end)) end++
   return { end, boundary: /[,，、]/.test(c) ? ',' : /[;；]/.test(c) ? ';' : 'stop' }
 }
 
@@ -86,7 +103,7 @@ function splitSentenceUnitsOn(text: string, hardOrUnknown: ReadonlyArray<Newline
   let block = 0
   function push(end: number, boundary: string) {
     const raw = text.slice(start, end)
-    const tail = raw.match(/[,.!?;，、。．！？；\s]+$/u)?.[0] || ''
+    const tail = sentenceTail(raw)
     const body = raw.slice(0, raw.length - tail.length).trim()
     const marks = punctuationKey(tail.replace(/\s/g, ''))
     const tone = marks.match(/[!?]+/)?.[0] || (marks.includes('.') ? '.' : '')
@@ -112,6 +129,11 @@ function splitSentenceUnitsOn(text: string, hardOrUnknown: ReadonlyArray<Newline
         block++
       }
       i = end - 1
+      continue
+    }
+    const ellipsis = ellipsisEndAt(text, i)
+    if (ellipsis != null) {
+      i = ellipsis - 1
       continue
     }
     const seam = sentenceBoundaryAt(text, i)
@@ -146,7 +168,7 @@ export function sentenceUnits(text: string, opts?: SentenceUnitOptions): Sentenc
         srcLang: opts?.srcLang,
         newlines: opts?.newlines?.filter((n) => n.start >= unit.start && n.end <= unit.end).map((n) => ({ ...n, start: n.start - unit.start, end: n.end - unit.start })),
       }).logic
-      const tail = logic.match(/[,.!?;，、。．！？；\s]+$/u)?.[0] || ''
+      const tail = sentenceTail(logic)
       const body = logic.slice(0, logic.length - tail.length).trim()
       const marks = punctuationKey(tail.replace(/\s/g, ''))
       return {

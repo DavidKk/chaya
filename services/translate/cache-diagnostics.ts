@@ -4,8 +4,10 @@ import fs from 'node:fs'
 import { gameContentReadPath } from '@/lib/game/content-files'
 import { CACHE_TEST_MAX_CANDIDATES, CACHE_TEST_MAX_LENGTH, type CacheTestInput, type CacheTestResult } from '@/lib/translate/cache-diagnostics'
 import { detectCacheLang } from '@/lib/translate/cache-lang'
+import { traceTranslationCache } from '@/lib/translate/cache-match-trace'
 import { normalizeTranslateQuery } from '@/lib/translate/cache-query'
 import { createSentenceResolver, planSentenceTranslation, renderSentencePlan } from '@/lib/translate/sentence-plan'
+import { sentenceQueryViewUnits } from '@/lib/translate/sentence-query'
 import { SENTENCE_RULE_VERSION } from '@/lib/translate/sentence-units'
 import { scanStructuredText, STRUCTURE_MAX_UNITS } from '@/lib/translate/structured-segments'
 import { getResolvedFromConfig } from '@/services/game/binding'
@@ -77,8 +79,10 @@ export function testTranslationCache(input: CacheTestInput, dbPath?: string): Ca
       ruleVersion: SENTENCE_RULE_VERSION,
       corpusVersion: `${cache?.index.version() || 'empty'}:${before}`,
       structure,
+      segments: sentenceQueryViewUnits(query.text, { structure: query.structure, srcLang: query.from }),
       plan,
       preview: renderSentencePlan(plan),
+      trace: traceTranslationCache(query.text, limited ? [] : records, plan, { structure: query.structure, srcLang: query.from }),
       candidateCount: records.length,
       diagnostics: [
         ...structure.diagnostics.map((d) => d.code),

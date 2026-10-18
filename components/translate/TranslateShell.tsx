@@ -21,7 +21,8 @@ type Props = {
 export function TranslateShell({ tab, children, pathname = '', 'aria-label': ariaLabel, bodyClassName }: Props) {
   const t = useT()
   const cacheDetail = tab === 'cache' && isTranslateCacheDetailPath(pathname)
-  const defaultAria = tab === 'cache' ? t(cacheDetail ? 'translate.regionCacheDetail' : 'translate.regionCache') : t('translate.regionRun')
+  const defaultAria =
+    tab === 'test' ? t('translate.tabTest') : tab === 'cache' ? t(cacheDetail ? 'translate.regionCacheDetail' : 'translate.regionCache') : t('translate.regionRun')
   return (
     <div className={pageMainFlush}>
       <div className={panelShell} role="region" aria-label={ariaLabel ?? defaultAria}>

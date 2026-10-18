@@ -7,7 +7,7 @@ import { buildLogicText, type NewlineAnnotation, validateNewlineAnnotations } fr
 import { sentenceAliases } from '@/lib/translate/sentence-aliases'
 import type { PlanSentenceOptions } from '@/lib/translate/sentence-plan'
 import { type AlignmentGroup, planSentenceTranslation, type SentenceRecord, validateAlignments } from '@/lib/translate/sentence-plan'
-import { sentenceQueryKeys, sentenceQueryUnits } from '@/lib/translate/sentence-query'
+import { ellipsisQueryGlob, sentenceQueryKeys, sentenceQueryUnits } from '@/lib/translate/sentence-query'
 import { SENTENCE_RULE_VERSION, sentenceUnits, wholeSentenceKey } from '@/lib/translate/sentence-units'
 import { type RecordStructure, validRecordStructure } from '@/lib/translate/structured-segments'
 import { isReusableTranslation } from '@/services/translate/text-classify'
@@ -196,7 +196,9 @@ export function ensureMatchIndex(client: DatabaseSync) {
 }
 
 export function createMatchIndex(client: DatabaseSync) {
-  const joined = 'SELECT r.*,t.zh,t.engine FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang'
+  const joined = 'SELECT DISTINCT r.*,t.zh,t.engine FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang'
+  // Connection-local compatibility for existing keys; never rewrites the index.
+  client.function('chaya_query_key', (key) => wholeSentenceKey(String(key)))
 
   function reindexWithNewlines(row: RecordRow, newlines: NewlineAnnotation[] | undefined, structure?: RecordStructure) {
     const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang as 'ja' | 'en' | 'zh' | 'ko' }
@@ -232,10 +234,21 @@ export function createMatchIndex(client: DatabaseSync) {
     return r ? attach(r) : null
   }
   function equivalent(src: string, pair: CacheLangPair): IndexedRecord[] {
+    const key = wholeSentenceKey(src),
+      glob = ellipsisQueryGlob(key)
+    if (glob)
+      return (
+        client
+          .prepare(
+            joined +
+              " JOIN match_keys k ON k.record_id=r.id WHERE k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' AND (k.match_key=? OR (k.match_key GLOB ? AND chaya_query_key(k.match_key)=?)) LIMIT 501"
+          )
+          .all(pair.from, pair.to, key, glob, key) as RecordRow[]
+      ).map(attach)
     return (
       client
         .prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501")
-        .all(wholeSentenceKey(src), pair.from, pair.to) as RecordRow[]
+        .all(key, pair.from, pair.to) as RecordRow[]
     ).map(attach)
   }
   function candidates(src: string, pair: CacheLangPair, opts?: PlanSentenceOptions): { records: IndexedRecord[]; limited: boolean } {
@@ -244,6 +257,13 @@ export function createMatchIndex(client: DatabaseSync) {
     const lookupKeys = sentenceQueryKeys(src, opts)
     for (const key of lookupKeys) {
       for (const r of (keyQuery.all(key, pair.from, pair.to) as RecordRow[]).map(attach)) found.set(r.id, r)
+      const glob = ellipsisQueryGlob(key)
+      if (glob) {
+        const compatible = client
+          .prepare(joined + ' JOIN match_keys k ON k.record_id=r.id WHERE k.src_lang=? AND k.tgt_lang=? AND k.match_key GLOB ? AND chaya_query_key(k.match_key)=? LIMIT 501')
+          .all(pair.from, pair.to, glob, key) as RecordRow[]
+        for (const r of compatible.map(attach)) found.set(r.id, r)
+      }
     }
     const whole = [...found.values()]
     for (const unit of sentenceQueryUnits(src, opts)) {
@@ -255,13 +275,31 @@ export function createMatchIndex(client: DatabaseSync) {
       const rows = client
         .prepare(joined + ' JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501')
         .all(unit.key, unit.tone, pair.from, pair.to) as RecordRow[]
-      if (rows.length > 500 || found.size > 500) return { records: whole.length > 500 ? [] : whole, limited: true }
+      const glob = ellipsisQueryGlob(unit.key)
+      if (glob) {
+        rows.push(
+          ...(client
+            .prepare(
+              joined +
+                ' JOIN sentence_positions p ON p.record_id=r.id WHERE p.src_lang=? AND p.tgt_lang=? AND p.tone=? AND p.body_key GLOB ? AND chaya_query_key(p.body_key)=? LIMIT 501'
+            )
+            .all(pair.from, pair.to, unit.tone, glob, unit.key) as RecordRow[])
+        )
+        // Older ASCII-dot tails were removed from the body and could set tone '.'.
+        if (unit.key.endsWith('...'))
+          rows.push(
+            ...(client
+              .prepare(joined + ' JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501')
+              .all(unit.key.slice(0, -3), unit.tone || '.', pair.from, pair.to) as RecordRow[])
+          )
+      }
+      if (new Set(rows.map((r) => r.id)).size > 500 || found.size > 500) return { records: whole.length > 500 ? [] : whole, limited: true }
       for (const row of rows) {
         const r = attach(row)
         found.set(r.id, r)
       }
     }
-    return { records: [...found.values()], limited: false }
+    return found.size > 500 ? { records: [], limited: true } : { records: [...found.values()], limited: false }
   }
   return {
     record,

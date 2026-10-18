@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { IoChevronBackOutline, IoChevronForwardOutline, IoPlaySkipBackOutline, IoPlaySkipForwardOutline, IoTrashOutline } from 'react-icons/io5'
 import { LiaExchangeAltSolid } from 'react-icons/lia'
-import { TbPencil, TbRating18Plus } from 'react-icons/tb'
+import { TbBug, TbPencil, TbRating18Plus } from 'react-icons/tb'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
@@ -11,6 +11,7 @@ import { editCell, editHeadCell, panelFoot } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { PanelHeadEnd } from '@/components/PanelHeadEnd'
 import { Badge, Button, EmptyState, ScrollArea, Select, SortableTh, TextInput, TruncateText } from '@/components/sk'
+import { CACHE_TEST_COPY } from '@/components/translate/cache-test-copy'
 import { CacheOptimizeContent, type CacheOptimizeTarget } from '@/components/translate/CacheOptimizeContent'
 import {
   TRANSLATE_CACHE_COLUMN_WIDTHS,
@@ -141,6 +142,7 @@ function fmtTimeFull(ts: number, locale: string) {
 const cellClamp3 = 'line-clamp-3 break-words whitespace-pre-line leading-snug'
 
 type QueryState = {
+  onOpenDebug?: (query: URLSearchParams) => void
   searchParams: Pick<URLSearchParams, 'get' | 'has' | 'toString'>
   replaceQuery: (patch: Record<string, string | null | undefined>) => void
   /** Web navigates to `/translate/cache/detail/{id}`; overlay opens an in-panel subview. */
@@ -161,7 +163,7 @@ export function CacheBrowserOverlay() {
 }
 
 /** 本作翻译库内容（外壳 / 二级 tabs 由宿主提供） */
-export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail }: QueryState) {
+export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, onOpenDebug }: QueryState) {
   const t = useT()
   const locale = useLocaleCode()
   const translationFetch = useTranslationFetch()
@@ -434,6 +436,18 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail }
           aria-label={t('translate.cacheFilterLive')}
           onChange={(value) => setFilters({ page: 1, live: parseCacheLiveFlag(value) })}
         />
+        {onOpenDebug ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0"
+            aria-label={CACHE_TEST_COPY[locale].intro}
+            tooltip={CACHE_TEST_COPY[locale].debugTip}
+            onClick={() => onOpenDebug(new URLSearchParams(patchSearchParams(searchParams, { q: qInput.trim() || null, ...(qInput.trim() !== q ? { page: null } : {}) })))}
+          >
+            <TbBug size={16} aria-hidden />
+          </Button>
+        ) : null}
       </PanelHeadEnd>
 
       <div className="flex min-h-0 flex-1 flex-col">

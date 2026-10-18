@@ -8,6 +8,7 @@ export const translateZh = {
     platformsConfig: '翻译平台配置',
     enginesList: '引擎开关列表',
     tabRun: '翻译',
+    tabTest: '缓存翻译调试',
     tabCache: '翻译库',
     regionRun: '翻译',
     regionCache: '共享翻译库',

@@ -18,14 +18,14 @@ type Props = {
   refreshKey?: number
   tab?: 'play' | 'seed'
   onTabChange?: (tab: 'play' | 'seed') => void
-  section?: TranslateTabId
-  onSectionChange?: (section: TranslateTabId) => void
+  section?: Exclude<TranslateTabId, 'test'>
+  onSectionChange?: (section: Exclude<TranslateTabId, 'test'>) => void
 }
 
 /** Web 与局内共用运行设置和翻译库内容；局内只换导航与查询状态。 */
 export function GameEditTransPane({ surface = 'page', refreshKey = 0, tab, onTabChange, section = 'run', onSectionChange }: Props) {
   const [portalHost, setPortalHost] = useState<HTMLDivElement | null>(null)
-  const [localSection, setLocalSection] = useState<TranslateTabId>('run')
+  const [localSection, setLocalSection] = useState<Exclude<TranslateTabId, 'test'>>('run')
   const activeSection = onSectionChange ? section : localSection
   const setSection = onSectionChange ?? setLocalSection
   const pane = <TranslateRunPane key={refreshKey} tab={tab} onTabChange={onTabChange} surface={surface} />
@@ -37,7 +37,12 @@ export function GameEditTransPane({ surface = 'page', refreshKey = 0, tab, onTab
           <TranslateEnginesDrawerProvider>
             <PanelHeadEndProvider>
               <div className={`${panelBody} flex-col md:flex-row`}>
-                <TranslateSubNav tab={activeSection} onSelect={setSection} />
+                <TranslateSubNav
+                  tab={activeSection}
+                  onSelect={(next) => {
+                    if (next !== 'test') setSection(next)
+                  }}
+                />
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                   <TranslateContentToolbar tab={activeSection} />
                   <div className="flex min-h-0 flex-1 flex-col bg-paper-2">{activeSection === 'run' ? pane : <CacheBrowserOverlay />}</div>

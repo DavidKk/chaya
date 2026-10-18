@@ -17,6 +17,32 @@ const wrappers = [
 ]
 const cases = wrappers.flatMap(([lead, trail]) => ['。', '、', '；', '\n'].flatMap((separator) => [0, 1, 2].map((changed) => ({ lead, trail, separator, changed }))))
 
+it.each(cases.filter((c) => c.lead))('reuses shell-bearing edge records across $lead / $separator / edit $changed', ({ lead, trail, separator, changed }) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-shell-matrix-'))
+  const file = path.join(dir, 'cache.sqlite')
+  const cache = openSharedCache(file)
+  try {
+    const mark = separator === '\n' ? '' : separator
+    const source = [lead + '先頭' + mark, '中間' + mark, '末尾' + mark + trail]
+    const target = [lead + '开头' + mark, '中间' + mark, '结尾' + mark + trail]
+    const rows = source.map((s, i) => [s, target[i]] as [string, string])
+    cache.writeMany(rows, 'manual', pair)
+    const parts = source.map((s, i) => (i === changed ? s.replace(['先頭', '中間', '末尾'][i], '変更3') : s))
+    const join = separator === '\n' ? '\n' : ''
+    const text = parts.join(join)
+    const before = cache.listPage(pair)
+    const result = testTranslationCache({ ...pair, text, scope: 'shared' }, file)
+    expect(result.plan).toMatchObject({ status: 'partial', ambiguous: false, limited: false })
+    expect(result.plan.matches).toHaveLength(2)
+    expect(result.preview).toBe(parts.map((s, i) => (i === changed ? s : target[i])).join(join))
+    expect(createSentenceResolver(source.map((s) => cache.record(s, pair)!)).plan(text)).toEqual(result.plan)
+    expect(cache.listPage(pair)).toEqual(before)
+  } finally {
+    cache.close()
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 it.each(cases)('keeps independent unmodified segments across $lead / $separator / edit $changed', ({ lead, trail, separator, changed }) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-matrix-'))
   const file = path.join(dir, 'cache.sqlite')

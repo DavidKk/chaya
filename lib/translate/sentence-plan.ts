@@ -2,7 +2,7 @@ import { cacheEngineRank } from './cache-engine-rank'
 import { buildLogicText, listNewlineSpans } from './logic-text'
 import { sentenceAliases, structuredSentenceAliases } from './sentence-aliases'
 import { inferredSentenceTarget, inferSentenceAlignment } from './sentence-auto-alignment'
-import { queryLines, sentenceQueryKeys, sentenceQueryUnits, sentenceQueryViews } from './sentence-query'
+import { queryLines, sentenceQueryKeys, sentenceQueryUnits, sentenceQueryViews, sentenceQueryViewUnits } from './sentence-query'
 import { type NewlineAnnotation, sameSentence, SENTENCE_TOKEN_SOURCE, type SentenceUnit, type SentenceUnitOptions, sentenceUnits, wholeSentenceKey } from './sentence-units'
 import { type RecordStructure, scanStructuredText } from './structured-segments'
 
@@ -63,6 +63,7 @@ export type SentenceMatch = {
   kind: 'whole' | 'block' | 'extracted' | 'single'
   /** Runtime structural inference, never an explicitly verified mapping. */
   alignment?: 'inferred'
+  alignmentBasis?: 'ellipsis'
 }
 export type SentenceGap = { id: string; start: number; end: number; text: string }
 export type SentencePlan = {
@@ -136,16 +137,25 @@ export function validateAlignments(record: Pick<SentenceRecord, 'src' | 'zh' | '
   return true
 }
 
-function candidates(src: string, records: SentenceRecord[], queryOpts?: PlanSentenceOptions, automaticOnly = false): SentenceMatch[] & { limited?: boolean } {
-  const query = sentenceUnits(src, queryOpts)
+function candidates(
+  src: string,
+  records: SentenceRecord[],
+  queryOpts?: PlanSentenceOptions,
+  automaticOnly = false,
+  budget?: { remaining: number }
+): SentenceMatch[] & { limited?: boolean } {
+  const query = sentenceQueryViewUnits(src, queryOpts)
+  const queryKey = logicAuthorityKey(src, queryOpts)
+  const fragmentKeys = query.map((unit) => wholeSentenceKey(src.slice(unit.start, unit.end)))
   const out: SentenceMatch[] = []
   let work = 0
   for (const record of records) {
     const unitOpts = recordUnitOpts(record)
     const units = sentenceUnits(record.src, unitOpts)
+    const recordKey = logicAuthorityKey(record.src, unitOpts)
     const inferred = automaticOnly ? inferSentenceAlignment(record, units) : []
     if (automaticOnly && !inferred.length) continue
-    if (!automaticOnly && logicAuthorityKey(src, queryOpts) === logicAuthorityKey(record.src, unitOpts) && query.length) {
+    if (!automaticOnly && queryKey === recordKey && query.length) {
       out.push({
         start: 0,
         end: src.length,
@@ -161,11 +171,12 @@ function candidates(src: string, records: SentenceRecord[], queryOpts?: PlanSent
       })
       continue
     }
-    // A complete list item may contain punctuation that splits an independent cache row.
-    // Reuse that row as a whole; never extract a target fragment on this path.
-    for (let q = 0; q < query.length; q++) {
+    // A complete query fragment can retain an outer quote that splits differently
+    // in an independent cache row. Reuse the entire row, never a target substring.
+    for (let q = 0; !automaticOnly && q < query.length; q++) {
+      if (++work > 50_000 || (budget && --budget.remaining < 0)) return Object.assign([], { limited: true })
       const unit = query[q]
-      if (!automaticOnly && unit.boundary === 'structure' && wholeSentenceKey(src.slice(unit.start, unit.end)) === wholeSentenceKey(record.src))
+      if (fragmentKeys[q] === recordKey)
         out.push({
           start: unit.start,
           end: unit.end,
@@ -181,19 +192,19 @@ function candidates(src: string, records: SentenceRecord[], queryOpts?: PlanSent
         })
     }
     for (let q = 0; q < query.length; q++) {
-      if (automaticOnly && q > 0 && query[q - 1].boundary !== 'stop') continue
       for (let r = 0; r < units.length; r++) {
-        if (++work > 50_000) return Object.assign([], { limited: true })
+        if (++work > 50_000 || (budget && --budget.remaining < 0)) return Object.assign([], { limited: true })
         let length = 0
         while (q + length < query.length && r + length < units.length && sameSentence(query[q + length], units[r + length])) {
-          if (++work > 50_000) return Object.assign([], { limited: true })
+          if (++work > 50_000 || (budget && --budget.remaining < 0)) return Object.assign([], { limited: true })
           if (
             length &&
             (query[q + length].block !== query[q].block || units[r + length].block !== units[r].block || query[q + length - 1].boundary !== units[r + length - 1].boundary)
           )
             break
           length++
-          if (automaticOnly && query[q + length - 1].boundary !== 'stop') continue
+          const ellipsis = automaticOnly && inferred.some((g) => g.kind === 'ellipsis' && g.from === r && g.to === r + length)
+          if (automaticOnly && !ellipsis && ((q > 0 && query[q - 1].boundary !== 'stop') || query[q + length - 1].boundary !== 'stop')) continue
           const text = automaticOnly ? inferredSentenceTarget(record, inferred, r, r + length) : target(record, units, r, r + length)
           if (text == null) continue
           out.push({
@@ -203,6 +214,7 @@ function candidates(src: string, records: SentenceRecord[], queryOpts?: PlanSent
             to: q + length,
             text,
             ...(automaticOnly ? { alignment: 'inferred' as const } : {}),
+            ...(ellipsis ? { alignmentBasis: 'ellipsis' as const } : {}),
             queryCoverage: length / query.length,
             recordCoverage: length / units.length,
             record,
@@ -233,13 +245,19 @@ export function joinSentenceBlock(source: string, translated: string, trimCached
 
 export function renderSentencePlan(plan: Pick<SentencePlan, 'src' | 'matches' | 'gaps'>, gaps: ReadonlyMap<string, string> = new Map()): string {
   const pieces = [
-    ...plan.matches.map((m) => ({ start: m.start, end: m.end, text: m.text, trimCachedSeam: /[,，、;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd)) })),
-    ...plan.gaps.map((g) => ({ ...g, text: gaps.get(g.id) ?? g.text, trimCachedSeam: false })),
+    ...plan.matches.map((m) => ({
+      start: m.start,
+      end: m.end,
+      text: m.text,
+      restoreSeam: true,
+      trimCachedSeam: /[,，、;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd)),
+    })),
+    ...plan.gaps.map((g) => ({ ...g, text: gaps.get(g.id) ?? g.text, restoreSeam: gaps.has(g.id), trimCachedSeam: false })),
   ].sort((a, b) => a.start - b.start)
   let at = 0,
     out = ''
   for (const part of pieces) {
-    out += plan.src.slice(at, part.start) + joinSentenceBlock(plan.src.slice(part.start, part.end), part.text, part.trimCachedSeam)
+    out += plan.src.slice(at, part.start) + (part.restoreSeam ? joinSentenceBlock(plan.src.slice(part.start, part.end), part.text, part.trimCachedSeam) : part.text)
     at = part.end
   }
   return out + plan.src.slice(at)
@@ -250,15 +268,15 @@ export function planSentenceTranslation(src: string, records: SentenceRecord[], 
 }
 
 function planSentenceTranslationView(src: string, records: SentenceRecord[], opts: PlanSentenceOptions | undefined, unwrap: boolean): SentencePlan {
-  const units = sentenceUnits(src, opts)
+  const units = sentenceQueryViewUnits(src, opts)
   const expanded = expandRecords(records)
   const normal = candidates(src, expanded, opts)
   const initial = chooseSentencePlan(src, units, normal, normal.limited === true)
   if (initial.status === 'full' || initial.limited || opts?.structure?.mode === 'disabled') return initial
   const views = unwrap ? sentenceQueryViews(src, opts) : []
-  if (views.length > 1 && !initial.matches.length && !initial.ambiguous) {
+  if (views.length > 1 && !initial.ambiguous) {
     let best = initial
-    let covered = 0
+    let covered = initial.matches.reduce((sum, m) => sum + m.end - m.start, 0)
     // Intermediate shells can themselves be exact cache keys. Try each view
     // in order rather than jumping directly to the deepest body.
     for (const body of views.slice(1)) {
@@ -269,6 +287,23 @@ function planSentenceTranslationView(src: string, records: SentenceRecord[], opt
         matches: inner.matches.map((m) => ({ ...m, start: m.start + body.offset, end: m.end + body.offset })),
         gaps: inner.gaps.map((g) => ({ ...g, id: `${g.start + body.offset}:${g.end + body.offset}`, start: g.start + body.offset, end: g.end + body.offset })),
         zh: null,
+      }
+      if (initial.matches.length) {
+        const additions = remapSentenceMatches(
+          shifted.matches.filter((m) => normal.every((hit) => m.end <= hit.start || m.start >= hit.end)),
+          units,
+          src,
+          opts
+        ).filter((m) => m.from >= 0 && m.to > m.from)
+        const merged = chooseSentencePlan(src, units, [...initial.matches, ...additions], !!shifted.limited)
+        merged.ambiguous ||= shifted.ambiguous
+        if (merged.status === 'full' || merged.limited || merged.ambiguous) return merged
+        const chars = merged.matches.reduce((sum, m) => sum + m.end - m.start, 0)
+        if (chars > covered) {
+          best = merged
+          covered = chars
+        }
+        continue
       }
       if (shifted.status === 'full') {
         shifted.zh = renderSentencePlan(shifted)
@@ -281,7 +316,7 @@ function planSentenceTranslationView(src: string, records: SentenceRecord[], opt
         covered = chars
       }
     }
-    return best
+    return applyLineFallback(src, expanded, best, normal, opts)
   }
   const structure = scanStructuredText(src.replace(new RegExp(SENTENCE_TOKEN_SOURCE, 'g'), ' '), opts?.structure)
   const inferred: SentenceMatch[] & { limited?: boolean } = structure.units.length || structure.diagnostics.length ? [] : candidates(src, expanded, opts, true)
@@ -290,6 +325,15 @@ function planSentenceTranslationView(src: string, records: SentenceRecord[], opt
   const result = chooseSentencePlan(src, units, [...initial.matches, ...additions], false)
   result.ambiguous ||= initial.ambiguous
   return applyLineFallback(src, expanded, result, normal, opts)
+}
+
+function remapSentenceMatches(matches: SentenceMatch[], units: SentenceUnit[], src: string, opts?: PlanSentenceOptions): SentenceMatch[] {
+  const bodies = sentenceQueryViews(src, opts).slice(1)
+  return matches.map((m) => ({
+    ...m,
+    from: units.findIndex((u) => u.start === m.start || (u.start === 0 && bodies.some((v) => m.start === v.offset))),
+    to: units.findIndex((u) => u.end === m.end || (u.end === src.length && bodies.some((v) => m.end === v.offset + v.text.length))) + 1,
+  }))
 }
 
 function applyLineFallback(src: string, records: SentenceRecord[], plan: SentencePlan, normal: SentenceMatch[], opts?: PlanSentenceOptions): SentencePlan {
@@ -302,8 +346,8 @@ function applyLineFallback(src: string, records: SentenceRecord[], plan: Sentenc
   const newlines = listNewlineSpans(src).map((br) => ({ ...br, kind: 'hard' as const }))
   // Explicit newline decisions remain authoritative; only inferred soft wraps change.
   const lineOpts = { ...opts, newlines: [...(opts?.newlines || []), ...newlines] }
-  const units = sentenceUnits(src, lineOpts)
-  const previous = plan.matches.map((m) => ({ ...m, from: units.findIndex((u) => u.start === m.start), to: units.findIndex((u) => u.end === m.end) + 1 }))
+  const units = sentenceQueryViewUnits(src, lineOpts)
+  const previous = remapSentenceMatches(plan.matches, units, src, opts)
   if (previous.some((m) => m.from < 0 || m.to <= m.from)) return plan
   const selected = candidates(src, independent, lineOpts)
   if (selected.limited) return { ...plan, limited: true }
@@ -471,4 +515,16 @@ export function resolveSentenceGaps(plan: SentencePlan, values: ReadonlyMap<stri
     if (zh) records.set(`gap:${gap.id}`, { id: `gap:${gap.id}`, revision: 0, src: gap.text, zh, local: true, engine: 'transient:gap' })
   }
   return { ...plan, ...planSentenceTranslation(plan.src, [...records.values()]) }
+}
+
+/** Diagnostic-only exhaustive branch inspection; runtime planning still short-circuits. */
+export function inspectSentenceCandidates(src: string, records: SentenceRecord[], opts: PlanSentenceOptions | undefined, budget: { remaining: number }, infer = true) {
+  const expanded = expandRecords(records)
+  const normal = candidates(src, expanded, opts, false, budget)
+  const inferred = infer && budget.remaining > 0 ? candidates(src, expanded, opts, true, budget) : []
+  return { normal, inferred, limited: normal.limited === true || ('limited' in inferred && inferred.limited === true) || budget.remaining <= 0 }
+}
+
+export function selectSentenceCandidates(src: string, units: SentenceUnit[], matches: SentenceMatch[], limited: boolean): SentencePlan {
+  return chooseSentencePlan(src, units, matches, limited)
 }

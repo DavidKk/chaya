@@ -307,6 +307,7 @@ export type MessageTree = {
     platformsClose: string
     platformsConfig: string
     enginesList: string
+    tabTest: string
     tabRun: string
     tabCache: string
     regionRun: string

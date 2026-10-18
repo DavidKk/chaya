@@ -8,6 +8,7 @@ export const translateKo = {
     platformsConfig: '엔진 설정',
     enginesList: '엔진 목록',
     tabRun: '번역',
+    tabTest: '캐시 번역 디버그',
     tabCache: '보관함',
     regionRun: '번역',
     regionCache: '공유 보관함',

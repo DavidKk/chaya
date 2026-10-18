@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentProps, type ReactNode, useCallback } from 'react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useState } from 'react'
 
 import { MonacoEditor } from '@/components/sk/MonacoEditor'
 import { CHAYA_MONACO_THEME, CHAYA_PLAINTEXT_EDITOR_OPTIONS, setupChayaMonacoTheme } from '@/components/sk/MonacoEditor/chaya-monaco-theme'
@@ -32,6 +32,7 @@ export type PlainTextEditorProps = {
   /** Force height in px (e.g. pair left/right via `pairedPlainTextHeightPx`). Ignored when `fill`. */
   heightPx?: number
   className?: string
+  highlights?: Array<{ start: number; end: number; tone: 'ok' | 'warn'; label: string }>
   'aria-label': string
 }
 
@@ -60,21 +61,47 @@ export function PlainTextEditor({
   fill,
   heightPx,
   className,
+  highlights,
   'aria-label': ariaLabel,
 }: PlainTextEditorProps) {
   const height = fill ? '100%' : (heightPx ?? plainTextEditorHeightPx(value, minLines))
+  const [editor, setEditor] = useState<Parameters<NonNullable<ComponentProps<typeof MonacoEditor>['onMount']>>[0] | null>(null)
+
+  useEffect(() => {
+    const model = editor?.getModel()
+    if (!editor || !model) return
+    const decorations = editor.createDecorationsCollection(
+      (highlights || []).map((span) => {
+        const start = model.getPositionAt(span.start)
+        const end = model.getPositionAt(span.end)
+        return {
+          range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column },
+          options: {
+            // Monaco strips punctuation from decoration classes; apply priority on the shell instead.
+            inlineClassName: span.tone === 'ok' ? 'text-ok' : 'text-warn',
+            hoverMessage: { value: span.label },
+          },
+        }
+      })
+    )
+    return () => decorations.clear()
+  }, [editor, highlights, value])
 
   const handleMount = useCallback(
     (editor: Parameters<NonNullable<ComponentProps<typeof MonacoEditor>['onMount']>>[0], monaco: Parameters<NonNullable<ComponentProps<typeof MonacoEditor>['onMount']>>[1]) => {
       setupChayaMonacoTheme(monaco)
       monaco.editor.setTheme(CHAYA_MONACO_THEME)
       editor.updateOptions({ ariaLabel })
+      setEditor(editor)
     },
     [ariaLabel]
   )
 
   return (
-    <div className={cn(plainTextEditorShellClass, fill && 'min-h-0 flex-1 self-stretch', className)} style={fill ? undefined : { height }}>
+    <div
+      className={cn(plainTextEditorShellClass, fill && 'min-h-0 flex-1 self-stretch', highlights?.length && '[&_.text-ok]:!text-ok [&_.text-warn]:!text-warn', className)}
+      style={fill ? undefined : { height }}
+    >
       <MonacoEditor
         language="plaintext"
         theme={CHAYA_MONACO_THEME}

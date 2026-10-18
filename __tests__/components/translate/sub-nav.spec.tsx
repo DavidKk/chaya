@@ -105,3 +105,16 @@ test('shows detail title and description on cache detail paths', async () => {
   expect(host.querySelector('h2')?.textContent).toBe('条目详情')
   expect(host.textContent).toContain('编辑原文换行与译文，并可拆分子项写入共享缓存。')
 })
+
+test('keeps the cache section selected on the debug page without a duplicate tab', async () => {
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <TranslateSubNav tab="test" />
+      </LocaleProvider>
+    )
+  )
+  const links = [...host.querySelectorAll('a')]
+  expect(links).toHaveLength(2)
+  expect(links.find((a) => a.getAttribute('aria-current') === 'page')?.getAttribute('href')).toBe('/translate/cache')
+})

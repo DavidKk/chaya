@@ -12,7 +12,7 @@ const mockRouter = { push: jest.fn() }
 jest.mock('next/navigation', () => ({ useRouter: () => mockRouter, usePathname: () => mockPathname }))
 jest.mock('@/components/GameLinkProvider', () => ({ useGameLinkContext: () => ({ roomId: mockRoom, connected: mockConnected }) }))
 jest.mock('@/components/notification/useNotification', () => ({ useNotification: () => mockNotify }))
-jest.mock('@/components/i18n/LocaleProvider', () => ({ useT: () => (key: string) => key }))
+jest.mock('@/components/i18n/LocaleProvider', () => ({ useLocaleCode: () => 'zh', useT: () => (key: string) => key }))
 jest.mock('@/components/translate/TranslateRunSkeleton', () => ({ TranslateRunSkeleton: () => 'loading' }))
 jest.mock('@/components/translate/TranslateCacheTableSkeleton', () => ({ TranslateCacheTableSkeleton: () => 'loading' }))
 jest.mock('@/components/sk', () => {
@@ -96,6 +96,20 @@ test.each([
     mockConnected = false
     await gate.render()
     expect(gate.host.textContent).toContain('translate.needLinkTitle')
+  } finally {
+    await gate.cleanup()
+  }
+})
+
+test.each([true, false])('cache test capability follows disk access (%s)', async (canUseDisk) => {
+  mockPathname = '/translate/test'
+  const gate = await renderGate({ canUseDisk, ready: false, library: [] })
+  try {
+    if (canUseDisk) expect(gate.host.textContent).toBe('features')
+    else {
+      expect(gate.host.textContent).toContain('缓存测试需要本机服务或桌面 App')
+      expect(gate.host.textContent).not.toContain('features')
+    }
   } finally {
     await gate.cleanup()
   }

@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 
 import { CacheBrowser } from '@/components/CacheBrowser'
+import { CacheTestView } from '@/components/translate/CacheTestView'
 import { parseTranslateTab, type TranslateRunMode } from '@/components/translate/tabs'
 import { TranslateCacheTableSkeleton } from '@/components/translate/TranslateCacheTableSkeleton'
 import { TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
@@ -18,7 +19,7 @@ export function TranslateTabView({ mode = 'seed' }: { mode?: TranslateRunMode })
 
   return (
     <Suspense fallback={tab === 'cache' ? cacheFallback : <TranslateRunSkeleton tab={activeMode} />}>
-      {tab === 'cache' ? <CacheBrowser /> : <TranslateRunPane tab={activeMode} onTabChange={setActiveMode} />}
+      {tab === 'test' ? <CacheTestView /> : tab === 'cache' ? <CacheBrowser /> : <TranslateRunPane tab={activeMode} onTabChange={setActiveMode} />}
     </Suspense>
   )
 }

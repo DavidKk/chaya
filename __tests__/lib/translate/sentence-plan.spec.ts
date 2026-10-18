@@ -118,7 +118,34 @@ it.each(['「', '『', '“'])('reuses a complete prefix inside an unclosed %s d
   expect(plan.status).toBe('partial')
   expect(plan.matches.map((m) => m.text)).toEqual([translated])
   expect(plan.gaps.map((g) => g.text)).toEqual(['【内側、続き】後半！'])
-  expect(resolver.plan(quote + '前半、後半' + { '「': '」', '『': '』', '“': '”' }[quote])?.status).toBe('miss')
+  expect(resolver.plan(quote + '前半、後半' + { '「': '」', '『': '』', '“': '”' }[quote])?.status).toBe('partial')
+})
+
+it.each(['', '\n', '\\n'])('reuses the first cached sentence before an edited second sentence, separator %j', (separator) => {
+  const first = '「今回は催淫液を濃縮した特別製のスプレーを用意した。'
+  const translated = '「这次准备了浓缩催淫液的特别款喷雾。'
+  const second = '効果はさらに上がっている はずだ」'
+  const src = first + separator + second
+  const plan = createSentenceResolver([record(first, translated), record(first + separator + second.replace('いる はず', 'いるはず'), '整段译文')]).plan(src)
+  expect(plan).toMatchObject({ status: 'partial', ambiguous: false, limited: false })
+  expect(plan.matches).toHaveLength(1)
+  expect(plan.matches[0]).toMatchObject({ start: 0, end: first.length, text: translated })
+  expect(plan.gaps.map((g) => g.text)).toEqual(separator === '\\n' ? ['\\n', second] : [second])
+  expect(renderSentencePlan(plan)).toBe(translated + separator + second)
+})
+
+it('combines a shell-bearing first sentence with an independent body sentence without losing the closing shell', () => {
+  const src = '「First.Middle.Changed」'
+  const plan = createSentenceResolver([record('「First.', '「第一。'), record('Middle.', '中间。')]).plan(src)
+  expect(plan.status).toBe('partial')
+  expect(plan.matches.map((m) => m.text)).toEqual(['「第一。', '中间。'])
+  expect(renderSentencePlan(plan)).toBe('「第一。中间。Changed」')
+})
+
+it('keeps a cached closing dialogue fragment reusable while the prefix changes', () => {
+  const plan = createSentenceResolver([record('Second.」', '第二。」')]).plan('「Changed.Second.」')
+  expect(plan.status).toBe('partial')
+  expect(renderSentencePlan(plan)).toBe('「Changed.第二。」')
 })
 
 it('only removes an open parenthetical when both cached sides share the opening shell', () => {

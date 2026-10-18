@@ -19,7 +19,7 @@ export function TranslateLayoutShell({ children }: { children: ReactNode }) {
   const { translationRequest, connected } = useGameLinkContext()
   const pathname = usePathname() || ''
   const tab = translatePathTab(pathname)
-  const request = tab === 'cache' || !connected ? diskTranslationRequest : translationRequest
+  const request = tab !== 'run' || !connected ? diskTranslationRequest : translationRequest
   return (
     <TranslationRuntimeProvider request={request}>
       <PanelHeadEndProvider>
