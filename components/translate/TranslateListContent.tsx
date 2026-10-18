@@ -337,6 +337,18 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
     return found ? found.label : '智能翻译'
   }, [selectedScheme, availableEngines])
 
+  const schemeOptions = useMemo(() => {
+    const opts = [{ value: 'all', label: '智能翻译' }]
+    const agents = availableEngines.filter((e) => e.group === 'agent')
+    const system = availableEngines.filter((e) => e.group === 'system')
+    const platform = availableEngines.filter((e) => e.group === 'platform')
+
+    for (const eng of agents) opts.push({ value: eng.id, label: eng.label })
+    for (const eng of system) opts.push({ value: eng.id, label: eng.label })
+    for (const eng of platform) opts.push({ value: eng.id, label: eng.label })
+    return opts
+  }, [availableEngines])
+
   if (loading) {
     return <TranslateListSkeleton />
   }
@@ -433,6 +445,16 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
           <div className="mx-0.5 h-4 w-px bg-line shrink-0" aria-hidden="true" />
 
           {/* 2. 功能条 (位于筛选条右侧) */}
+          <Select
+            className="w-36"
+            panelWidth="content"
+            value={selectedScheme}
+            onChange={(val) => setSelectedScheme(val)}
+            options={schemeOptions}
+            aria-label="全局翻译方案"
+            tooltip={`当前翻译方案: ${activeSchemeLabel}（在此切换后，全部条目的翻译统一生效）`}
+          />
+
           {localesMeta?.hasLocales ? (
             <div className="flex items-center gap-1.5">
               <LanguagePairSelect
@@ -477,15 +499,12 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
                   key={item.id}
                   item={item}
                   activeSchemeLabel={activeSchemeLabel}
-                  selectedScheme={selectedScheme}
-                  availableEngines={availableEngines}
                   isTranslating={translatingId === item.id}
                   isSaving={savingId === item.id}
                   isResetting={false}
                   onTranslate={handleTranslate}
                   onSave={handleSave}
                   onReset={handleReset}
-                  onSelectScheme={setSelectedScheme}
                   onUpdate={refreshUI}
                 />
               ))}

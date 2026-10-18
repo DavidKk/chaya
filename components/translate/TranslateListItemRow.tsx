@@ -1,12 +1,10 @@
 'use client'
 
-import { Menu } from '@base-ui/react/menu'
-import React, { memo, useMemo } from 'react'
+import React, { memo } from 'react'
 import { LiaMapMarkedAltSolid } from 'react-icons/lia'
-import { LuCheck, LuChevronDown, LuFileText, LuKey, LuUser } from 'react-icons/lu'
+import { LuFileText, LuKey, LuUser } from 'react-icons/lu'
 
 import { PlainTextEditor, Spinner, Tooltip } from '@/components/sk'
-import { dropdownItemClass, dropdownPopupClass } from '@/components/sk/dropdownMenu'
 import { cn } from '@/lib/utils'
 import type { ExtractedTextCategory, ExtractedTranslationItem } from '@/services/extract/lib/extract-items'
 
@@ -44,48 +42,30 @@ export type AvailableEngine = {
 export type TranslateListItemRowProps = {
   item: ExtractedTranslationItem
   activeSchemeLabel: string
-  selectedScheme: string
-  availableEngines: AvailableEngine[]
   isTranslating: boolean
   isSaving: boolean
   isResetting: boolean
-  onTranslate: (item: ExtractedTranslationItem, scheme?: string) => void
+  onTranslate: (item: ExtractedTranslationItem) => void
   onSave: (item: ExtractedTranslationItem) => void
   onReset: (item: ExtractedTranslationItem) => void
-  onSelectScheme: (scheme: string) => void
   onUpdate: () => void
 }
 
 export const TranslateListItemRow = memo(function TranslateListItemRow({
   item,
   activeSchemeLabel,
-  selectedScheme,
-  availableEngines,
   isTranslating,
   isSaving,
   isResetting,
   onTranslate,
   onSave,
   onReset,
-  onSelectScheme,
   onUpdate,
 }: TranslateListItemRowProps) {
   const catInfo = CATEGORY_STYLES[item.meta.category] || { label: item.meta.label || '文本', badgeClass: 'bg-zinc-500/10 text-zinc-300 border-zinc-500/30' }
   const hasSavedVersion = Boolean(item.savedZh && item.savedZh.trim())
   const originalText = item.initialZh ?? item.savedZh ?? ''
   const canReset = Boolean(originalText && (item.zh !== originalText || hasSavedVersion))
-
-  const engineGroups = useMemo(() => {
-    const agents = availableEngines.filter((e) => e.group === 'agent')
-    const platforms = availableEngines.filter((e) => e.group === 'platform')
-    const systems = availableEngines.filter((e) => e.group === 'system')
-
-    return [
-      { key: 'agent', items: agents },
-      { key: 'platform', items: platforms },
-      { key: 'system', items: systems },
-    ].filter((g) => g.items.length > 0)
-  }, [availableEngines])
 
   return (
     <div className="flex h-[150px] flex-col min-w-0">
@@ -163,67 +143,20 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
             </Tooltip>
           ) : null}
 
-          {/* Translate Button with Hover Menu */}
-          <div className="inline-flex items-center">
-            <Tooltip content={isTranslating ? '正在翻译此条目，请稍候…' : `翻译此条目 (当前方案: ${activeSchemeLabel})`} placement="top">
-              <span className="inline-flex">
-                <button
-                  type="button"
-                  disabled={isTranslating}
-                  onClick={() => onTranslate(item)}
-                  className="inline-flex h-6 items-center justify-center rounded-l-[0.2rem] bg-accent px-2 text-[0.6875rem] font-medium text-white hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-                >
-                  {isTranslating ? <Spinner size="sm" /> : null}
-                  翻译
-                </button>
-              </span>
-            </Tooltip>
-
-            <Menu.Root>
-              <Tooltip content={isTranslating ? '正在翻译中，暂无法切换方案' : `选择翻译方案 (当前: ${activeSchemeLabel})`} placement="top">
-                <span className="inline-flex">
-                  <Menu.Trigger
-                    disabled={isTranslating}
-                    openOnHover
-                    delay={80}
-                    closeDelay={150}
-                    className="inline-flex h-6 items-center justify-center rounded-r-[0.2rem] bg-accent px-1 text-white hover:bg-accent/90 transition-colors border-l border-black/15 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-                    aria-label="选择翻译方案"
-                  >
-                    <LuChevronDown size={11} />
-                  </Menu.Trigger>
-                </span>
-              </Tooltip>
-              <Menu.Portal>
-                <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={8} positionMethod="fixed" className="z-[70]">
-                  <Menu.Popup aria-label="选择翻译方案" className={dropdownPopupClass}>
-                    <Menu.Item
-                      className={cn(dropdownItemClass, 'text-xs py-1.5', selectedScheme === 'all' && 'text-accent font-medium bg-accent/10')}
-                      onClick={() => onSelectScheme('all')}
-                    >
-                      <span>智能翻译</span>
-                      {selectedScheme === 'all' ? <LuCheck size={12} className="text-accent" /> : null}
-                    </Menu.Item>
-                    {engineGroups.map((grp) => (
-                      <React.Fragment key={grp.key}>
-                        <Menu.Separator className="my-1 h-px bg-line" />
-                        {grp.items.map((eng) => (
-                          <Menu.Item
-                            key={eng.id}
-                            className={cn(dropdownItemClass, 'text-xs py-1.5', selectedScheme === eng.id && 'text-accent font-medium bg-accent/10')}
-                            onClick={() => onSelectScheme(eng.id)}
-                          >
-                            <span>{eng.label}</span>
-                            {selectedScheme === eng.id ? <LuCheck size={12} className="text-accent" /> : null}
-                          </Menu.Item>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </Menu.Popup>
-                </Menu.Positioner>
-              </Menu.Portal>
-            </Menu.Root>
-          </div>
+          {/* Translate Button */}
+          <Tooltip content={isTranslating ? '正在翻译此条目，请稍候…' : `使用「${activeSchemeLabel}」翻译此条目`} placement="top">
+            <span className="inline-flex">
+              <button
+                type="button"
+                disabled={isTranslating}
+                onClick={() => onTranslate(item)}
+                className="inline-flex h-6 items-center justify-center rounded-[0.2rem] bg-accent px-2.5 text-[0.6875rem] font-medium text-white hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              >
+                {isTranslating ? <Spinner size="sm" /> : null}
+                翻译
+              </button>
+            </span>
+          </Tooltip>
 
           {/* Save Button */}
           <Tooltip content={isSaving ? '正在保存译文至游戏…' : !item.zh ? '译文为空，请输入或翻译后再保存' : '保存译文至游戏'} placement="top">
