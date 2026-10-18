@@ -57,8 +57,16 @@ export async function bingTranslateText(text: string, pair?: { from?: string; to
     throw new Error('bing-translate-api is not installed (optional dependency); please disable Bing or install the package')
   }
   if (!translate) throw new Error('Bing translation module does not export translate function')
-  const toLang = pair?.to === 'zh' || pair?.to === 'ch' ? 'zh-Hans' : pair?.to === 'cht' ? 'zh-Hant' : pair?.to || 'zh-Hans'
-  const fromLang = pair?.from === 'zh' || pair?.from === 'ch' ? 'zh-Hans' : pair?.from || 'auto-detect'
+  const normalizeBingLang = (code?: string, fallback = 'auto-detect') => {
+    if (!code) return fallback
+    const lower = code.toLowerCase()
+    if (lower === 'zh' || lower === 'ch' || lower === 'zh-cn' || lower === 'zh-hans') return 'zh-Hans'
+    if (lower === 'cht' || lower === 'zh-tw' || lower === 'zh-hant') return 'zh-Hant'
+    if (lower === 'pt-br') return 'pt'
+    return code
+  }
+  const toLang = normalizeBingLang(pair?.to, 'zh-Hans')
+  const fromLang = normalizeBingLang(pair?.from, 'auto-detect')
   const res = await translate(text, fromLang, toLang, false, false)
   if (!res?.translation) throw new Error('empty translation')
   return res.translation

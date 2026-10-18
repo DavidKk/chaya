@@ -6,8 +6,14 @@ import readline from 'node:readline'
 export const CHAYA_TO_APPLE_LANG_MAP: Record<string, string> = {
   ja: 'ja',
   zh: 'zh-Hans',
+  'zh-cn': 'zh-Hans',
   'zh-CN': 'zh-Hans',
+  'zh-tw': 'zh-Hant',
   'zh-TW': 'zh-Hant',
+  'zh-hans': 'zh-Hans',
+  'zh-Hans': 'zh-Hans',
+  'zh-hant': 'zh-Hant',
+  'zh-Hant': 'zh-Hant',
   ch: 'zh-Hans',
   cht: 'zh-Hant',
   en: 'en',
@@ -17,11 +23,18 @@ export const CHAYA_TO_APPLE_LANG_MAP: Record<string, string> = {
   es: 'es',
   ru: 'ru',
   it: 'it',
+  pt: 'pt-BR',
+  'pt-br': 'pt-BR',
+  'pt-BR': 'pt-BR',
 }
 
 export function toAppleLanguage(lang: string | undefined, defaultVal: string): string {
   if (!lang) return defaultVal
-  return CHAYA_TO_APPLE_LANG_MAP[lang] || lang
+  const direct = CHAYA_TO_APPLE_LANG_MAP[lang]
+  if (direct) return direct
+  const lower = CHAYA_TO_APPLE_LANG_MAP[lang.toLowerCase()]
+  if (lower) return lower
+  return lang
 }
 
 interface DaemonRequest {

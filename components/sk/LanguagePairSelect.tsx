@@ -8,7 +8,7 @@ import { LuCheck, LuChevronDown, LuPlus } from 'react-icons/lu'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { dropdownItemClass, dropdownPopupClass } from '@/components/sk/dropdownMenu'
 import { Tooltip } from '@/components/sk/Tooltip'
-import { formatLanguageLabel } from '@/lib/translate/locales-labels'
+import { CORE_TRANSLATION_LANGUAGES, formatLanguageLabel } from '@/lib/translate/locales-labels'
 import { cn } from '@/lib/utils'
 
 export type LanguagePairSelectProps = {
@@ -21,7 +21,7 @@ export type LanguagePairSelectProps = {
   disabled?: boolean
 }
 
-const COMMON_TARGET_LANGS = ['ch', 'cht', 'en', 'ja', 'ko', 'ru', 'es', 'de', 'fr']
+const COMMON_TARGET_LANGS = CORE_TRANSLATION_LANGUAGES.map((l) => l.code)
 
 export function LanguagePairSelect({ sourceLang, targetLang, availableLanguages, onSourceChange, onTargetChange, className, disabled = false }: LanguagePairSelectProps) {
   const t = useT()
