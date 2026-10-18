@@ -333,7 +333,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
       title: t('translate.listResetPageTitle'),
       description: t('translate.listResetPageDesc', { count: pagedItems.length }),
       confirmLabel: t('translate.listResetPageConfirm'),
-      confirmVariant: 'warn',
+      confirmVariant: 'fail',
     })
     if (!ok) return
 
@@ -362,7 +362,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
       title: t('translate.listSavePageTitle'),
       description: t('translate.listSavePageDesc', { count: itemsToSave.length }),
       confirmLabel: t('translate.listSavePageConfirm'),
-      confirmVariant: 'accent',
+      confirmVariant: 'ok',
     })
     if (!ok) return
 
@@ -692,7 +692,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
           {/* 批量重置当前页 */}
           <Button
             type="button"
-            variant="warn"
+            variant="fail"
             disabled={savingPage || resettingPage || pagedItems.length === 0}
             onClick={() => void handleResetPage()}
             tooltip={t('translate.listResetPageTooltip')}
@@ -705,7 +705,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
           {/* 批量保存当前页 */}
           <Button
             type="button"
-            variant="accent"
+            variant="ok"
             disabled={savingPage || resettingPage || pagedItems.length === 0}
             onClick={() => void handleSavePage()}
             tooltip={t('translate.listSavePageTooltip')}
