@@ -1,6 +1,6 @@
 declare module 'node:sqlite' {
   export class DatabaseSync {
-    constructor(path: string)
+    constructor(path: string, options?: { readOnly?: boolean })
     exec(sql: string): void
     function(name: string, callback: (...args: unknown[]) => string | number | null): void
     prepare(sql: string): {

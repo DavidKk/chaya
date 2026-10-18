@@ -119,3 +119,15 @@ it('splits JS string-concat import rows into peeled literal bodies', () => {
   })
   expect(hasOptimizeCandidates(src, zh)).toBe(true)
 })
+
+it('keeps Japanese ellipses with their clause and splits read points like commas', () => {
+  const src = '(学院最強のセリカ様が......、\n 別格の存在、頂点に君臨してるセリカ様が、\n 圧倒的な実力で、大人の相手に'
+  const zh = '（学院最强的赛莉卡大人......、\n超凡脱俗的存在、立于学院顶点的赛莉卡大人，\n以压倒性的实力，面对成年对手'
+  const built = buildOptimizeSegmentPairs(src, zh)
+  expect(built.srcParts).toEqual(['学院最強のセリカ様が......、', '別格の存在、', '頂点に君臨してるセリカ様が、', '圧倒的な実力で、', '大人の相手に'])
+  expect(built.zhParts).toHaveLength(5)
+  expect(built.srcParts.some((s) => /^[、，,]/.test(s))).toBe(false)
+  expect(built.trusted).toBe(false)
+  expect(optimizeSplitSegments('少し......待って、帰ろう。')).toEqual(['少し......待って、', '帰ろう。'])
+  expect(optimizeSplitSegments('価格1,000.5円、https://example.com/a,b を確認。')).toEqual(['価格1,000.5円、', 'https://example.com/a,b を確認。'])
+})

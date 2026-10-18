@@ -2,6 +2,7 @@ import type { CacheLangPair } from '@/lib/translate/cache-lang'
 import { type NewlineAnnotation, validateNewlineAnnotations } from '@/lib/translate/logic-text'
 import { type AlignmentGroup, validateAlignments } from '@/lib/translate/sentence-plan'
 import { sameSentence, sentenceUnits } from '@/lib/translate/sentence-units'
+import { type RecordStructure, type StructureAnnotation, validRecordStructure } from '@/lib/translate/structured-segments'
 
 import type { MatchIndex } from './match-index'
 
@@ -15,6 +16,8 @@ export type ConfirmSegmentDiagnosis = {
 
 export type ConfirmSegmentsOptions = {
   newlines?: NewlineAnnotation[]
+  structure?: RecordStructure
+  replaceGroups?: boolean
   expectedRevision?: number
   /** Validate only; do not bump revision or write. */
   dryRun?: boolean
@@ -22,8 +25,8 @@ export type ConfirmSegmentsOptions = {
   groups?: AlignmentGroup[]
 }
 
-function uniqueSpan(text: string, fragment: string, newlines?: NewlineAnnotation[]) {
-  const units = sentenceUnits(text, { newlines })
+function uniqueSpan(text: string, fragment: string, newlines?: NewlineAnnotation[], structure?: StructureAnnotation) {
+  const units = sentenceUnits(text, { newlines, structure })
   const parts = sentenceUnits(fragment)
   if (!parts.length) return null
   const hits: Array<{ start: number; end: number }> = []
@@ -54,7 +57,7 @@ export function confirmRecordSegments(index: MatchIndex, parent: { src: string; 
   }
   if (!record || record.zh !== parent.zh) return { ...stats, stale: true }
   if (opts?.expectedRevision !== undefined && record.revision !== opts.expectedRevision) return { ...stats, stale: true }
-  if (opts?.newlines && !validateNewlineAnnotations(record.src, opts.newlines)) {
+  if ((opts?.newlines && !validateNewlineAnnotations(record.src, opts.newlines)) || (opts?.structure && !validRecordStructure(opts.structure))) {
     return {
       ...stats,
       conflict: Math.max(1, stats.total),
@@ -63,8 +66,9 @@ export function confirmRecordSegments(index: MatchIndex, parent: { src: string; 
   }
 
   const newlines = opts?.newlines ?? record.newlines
-  const draft = { ...record, newlines }
-  let groups: AlignmentGroup[] = [...(record.alignments || [])]
+  const structure = opts?.structure ?? record.structure
+  const draft = { ...record, newlines, structure }
+  let groups: AlignmentGroup[] = opts?.replaceGroups ? [] : [...(record.alignments || [])]
 
   const tryAdd = (group: AlignmentGroup, index: number, src: string, zh: string) => {
     const dup = groups.some(
@@ -105,8 +109,8 @@ export function confirmRecordSegments(index: MatchIndex, parent: { src: string; 
       diagnostics.push({ index: i, src, zh, ok: false, reason: 'empty' })
       continue
     }
-    const source = uniqueSpan(record.src, src, newlines)
-    const target = uniqueSpan(record.zh, zh)
+    const source = uniqueSpan(record.src, src, newlines, structure?.source)
+    const target = uniqueSpan(record.zh, zh, undefined, structure?.target)
     if (!source || !target) {
       stats.conflict++
       diagnostics.push({ index: i, src, zh, ok: false, reason: 'span' })
@@ -116,10 +120,10 @@ export function confirmRecordSegments(index: MatchIndex, parent: { src: string; 
   }
 
   if (opts?.dryRun) return stats
-  if (stats.conflict > 0 && stats.inserted === 0 && !opts?.newlines) return stats
-  if (!stats.inserted && !opts?.newlines) return stats
+  if (stats.conflict > 0 || stats.skipped > 0) return { ...stats, inserted: 0 }
+  if (!stats.inserted && !opts?.newlines && !opts?.structure) return stats
 
-  const ok = index.setAlignment(record.src, pair, groups, record.revision, { newlines: opts?.newlines })
+  const ok = index.setAlignment(record.src, pair, groups, record.revision, { newlines: opts?.newlines, structure: opts?.structure })
   if (!ok) return { ...stats, inserted: 0, stale: true }
   return stats
 }

@@ -73,12 +73,12 @@ describe('safe sentence aliases (no whitespace erasure or inferred alignment)', 
     expect(lookupTranslationRecord(lookup, '受付係の')).toBeNull()
     expect(translateWithLookup({ ...lookup, '受付係の！': '专用译文！' }, '受付係の！')).toBe('专用译文！')
   })
-  it('preserves exact paragraphs without inferring visual-line mappings', () => {
+  it('reuses paragraphs across indentation without inferring visual-line mappings', () => {
     const source = '「ほう、よくわかったな。\n　お前の想像通り、これは催眠魔法でな。\n　いつからだったか……、おいマキ、覚えてるか？」'
     const target = '「嚯，挺敏锐嘛。\n正如你所想，这是催眠魔法。\n从什么时候开始来着......喂真纪，还记得吗？」'
     const query = source.replace(/\u3000/g, '')
     const lookup = { [source]: target, [query]: '' }
-    expect(lookupTranslationRecord(lookup, query)).toBeNull()
+    expect(lookupTranslationRecord(lookup, query)).toBe(target)
     expect(lookupTranslationRecord(lookup, 'いつからだったか……、おいマキ、覚えてるか')).toBeNull()
     expect(lookupTranslationRecord(lookup, 'お前の想像通り、これは催眠魔法でな')).toBeNull()
     expect(lookupTranslationRecord(lookup, 'おいマキ')).toBeNull()

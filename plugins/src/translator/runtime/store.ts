@@ -129,6 +129,7 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
         engine: r.engine || 'legacy-local',
         local: !r.origin,
         alignments: r.alignments,
+        structure: r.structure,
         newlines: r.newlines,
       })))
   }

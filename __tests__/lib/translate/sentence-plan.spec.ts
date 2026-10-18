@@ -50,13 +50,13 @@ describe('short-sentence reuse', () => {
     expect(planSentenceTranslation('a\nb', [record('a\nb', '甲\n乙')]).zh).toBe('甲\n乙')
   })
 
-  it('does not treat soft wraps as independent sentences', () => {
+  it('keeps soft wraps together first and only reuses exact independent lines as a fallback', () => {
     const broken = '好きじゃ\n　ないんスよ'
     const units = sentenceUnits(broken)
     expect(units).toHaveLength(1)
     expect(units[0]?.key).toBe(sentenceUnits('好きじゃないんスよ')[0]?.key)
-    // Half on either side of a soft break must not match alone.
-    expect(planSentenceTranslation(broken, [record('好きじゃ', '喜欢'), record('ないんスよ', '啊')]).status).toBe('miss')
+    // A soft wrap remains one semantic unit; explicit whole-line caches may answer the later fallback.
+    expect(planSentenceTranslation(broken, [record('好きじゃ', '喜欢'), record('ないんスよ', '啊')]).zh).toBe('喜欢\n　啊')
     expect(planSentenceTranslation(broken, [record(broken, '其实不太喜欢啊')]).zh).toBe('其实不太喜欢啊')
   })
 
@@ -90,4 +90,41 @@ describe('short-sentence reuse', () => {
     // Mid-phrase wrap infers soft — continuous hits even without stored annotation.
     expect(createSentenceResolver([record(wrapped, '其实不太喜欢啊')]).plan(continuous).zh).toBe('其实不太喜欢啊')
   })
+})
+
+it('keeps balanced parentheticals protected and treats open continuation shells as literals', () => {
+  expect(sentenceUnits('（前、後）')).toHaveLength(1)
+  const text = '(前......、\n 後、続き'
+  const units = sentenceUnits(text)
+  expect(units.map((u) => text.slice(u.start, u.end))).toEqual(['前......、', '後、', '続き'])
+  expect(sentenceUnits('( '.repeat(2000) + '前、後')).toHaveLength(2)
+})
+
+it('ignores line-edge indentation without erasing word spacing, controls or hard line boundaries', () => {
+  const src = '「First.\n\t　Second.」'
+  const zh = '「第一。\n第二。」'
+  const resolver = createSentenceResolver([record(src, zh)])
+  expect(resolver.plan('「First.\nSecond.」').zh).toBe(zh)
+  expect(resolver.plan('「First.Second.」').status).toBe('miss')
+  expect(createSentenceResolver([record('「one two.\nthree」', zh)]).plan('「onetwo.\nthree」').status).toBe('miss')
+  expect(createSentenceResolver([record('「First.\n\\n[ 1]Second.」', zh)]).plan('「First.\n\\n[1]Second.」').status).toBe('miss')
+})
+
+it.each(['「', '『', '“'])('reuses a complete prefix inside an unclosed %s dialogue while protecting nested quotes', (quote) => {
+  const prefix = quote + '前半、'
+  const translated = quote + '前文、'
+  const resolver = createSentenceResolver([record(prefix, translated), record('内側、', '内部、')])
+  const plan = resolver.plan(prefix + '【内側、続き】後半！')
+  expect(plan.status).toBe('partial')
+  expect(plan.matches.map((m) => m.text)).toEqual([translated])
+  expect(plan.gaps.map((g) => g.text)).toEqual(['【内側、続き】後半！'])
+  expect(resolver.plan(quote + '前半、後半' + { '「': '」', '『': '』', '“': '”' }[quote])?.status).toBe('miss')
+})
+
+it('only removes an open parenthetical when both cached sides share the opening shell', () => {
+  expect(createSentenceResolver([record('（前半、', '（前文')]).plan('前半、後半').status).toBe('partial')
+  expect(createSentenceResolver([record('(前半、', '（前文')]).plan('前半、後半').status).toBe('partial')
+  expect(createSentenceResolver([record('（前半、', '前文')]).plan('前半、後半').status).toBe('miss')
+  expect(createSentenceResolver([record('（前半、', '（前文）')]).plan('前半、後半').status).toBe('miss')
+  expect(createSentenceResolver([record('（前半、後半', '（前文、后文')]).plan('前半、変更').status).toBe('miss')
 })

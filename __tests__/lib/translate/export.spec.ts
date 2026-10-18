@@ -16,7 +16,7 @@ it('fills empty paragraph variants from saved translations without replacing sou
   const source = '「ほう、よくわかったな。\n　お前の想像通り、これは催眠魔法でな。\n　いつからだったか……、おいマキ、覚えてるか？」'
   const target = '「嚯，挺敏锐嘛。\n正如你所想，这是催眠魔法。\n从什么时候开始来着......喂真纪，还记得吗？」'
   const query = source.replace(/\u3000/g, '')
-  expect(buildTranslationExport({ [source]: target, [query]: '' }, () => null)).toEqual({ [source]: target, [query]: '' })
+  expect(buildTranslationExport({ [source]: target, [query]: '' }, () => null)).toEqual({ [source]: target, [query]: target })
 })
 
 it('uses the latest translation and filters strictly empty values', () => {

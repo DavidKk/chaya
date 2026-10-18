@@ -39,6 +39,7 @@ export function loadGameTranslationRecords(contentRoot: string, current?: (origi
       zh: r.t!,
       engine: r.engine || 'legacy-local',
       alignments: r.alignments,
+      structure: r.structure,
       newlines: r.newlines,
       local: !r.origin,
     }))

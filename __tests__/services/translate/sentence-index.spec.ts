@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
+import { buildOptimizeSegmentPairs } from '@/lib/translate/optimize-segments'
 import { openSharedCache } from '@/services/translate/shared-cache'
 
 const pair = { from: 'en' as const, to: 'zh' as const }
@@ -150,4 +151,57 @@ describe('persistent sentence cache', () => {
     expect(cache.plan('x,a,b,c', pair).matches.map((m) => m.text)).toEqual(['甲，乙，丙'])
     cache.close()
   })
+})
+
+it('confirms and reuses Japanese read-point clauses from an open parenthetical message', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-readpoint-'))
+  const file = path.join(dir, 'cache.sqlite')
+  const pair = { from: 'ja' as const, to: 'zh' as const }
+  const src = '(学院最強の先生が......、\n 別格の存在、頂点に立つ先生が、\n 圧倒的な実力で、挑戦者に'
+  const zh = '（学院最强的老师......、\n超凡脱俗的存在、立于顶点的老师，\n以压倒性的实力，面对挑战者'
+  const built = buildOptimizeSegmentPairs(src, zh)
+  let cache = openSharedCache(file)
+  try {
+    cache.writeMany([[src, zh]], 'manual', pair)
+    expect(
+      cache.confirmSegments(
+        { src, zh },
+        built.pairs.map((p) => [p.src, p.zh]),
+        pair
+      )
+    ).toMatchObject({ conflict: 0, inserted: 5, stale: false })
+    expect(cache.plan('別格の存在', pair).zh).toBe('超凡脱俗的存在')
+    expect(cache.plan(src, pair).zh).toBe(zh)
+    cache.close()
+    cache = openSharedCache(file)
+    expect(cache.plan('頂点に立つ先生が', pair).zh).toBe('立于顶点的老师')
+  } finally {
+    cache.close()
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+it('rebuilds legacy indentation keys on open without changing cached translations', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-indent-migration-'))
+  const file = path.join(dir, 'shared.sqlite')
+  const src = '「前段。\n　後段。」',
+    zh = '「前文。\n后文。」'
+  const languages = { from: 'ja' as const, to: 'zh' as const }
+  try {
+    let cache = openSharedCache(file)
+    cache.writeMany([[src, zh]], 'manual', languages)
+    const before = cache.record(src, languages)
+    cache.close()
+    const db = new DatabaseSync(file)
+    db.prepare("DELETE FROM cache_meta WHERE key='sentence_index_v9_open_parenthetical_alias'").run()
+    db.prepare("UPDATE match_keys SET match_key=? WHERE kind='canonical'").run(src)
+    db.prepare("DELETE FROM match_keys WHERE kind!='canonical'").run()
+    db.close()
+    cache = openSharedCache(file)
+    expect(cache.plan('「前段。\n後段。」', languages).zh).toBe(zh)
+    expect(cache.record(src, languages)).toEqual(before)
+    cache.close()
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })

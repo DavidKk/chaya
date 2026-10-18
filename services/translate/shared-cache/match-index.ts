@@ -5,8 +5,11 @@ import { cacheEngineRank } from '@/lib/translate/cache-engine-rank'
 import type { CacheLangPair } from '@/lib/translate/cache-lang'
 import { buildLogicText, type NewlineAnnotation, validateNewlineAnnotations } from '@/lib/translate/logic-text'
 import { sentenceAliases } from '@/lib/translate/sentence-aliases'
+import type { PlanSentenceOptions } from '@/lib/translate/sentence-plan'
 import { type AlignmentGroup, planSentenceTranslation, type SentenceRecord, validateAlignments } from '@/lib/translate/sentence-plan'
+import { sentenceQueryKeys, sentenceQueryUnits } from '@/lib/translate/sentence-query'
 import { SENTENCE_RULE_VERSION, sentenceUnits, wholeSentenceKey } from '@/lib/translate/sentence-units'
+import { type RecordStructure, validRecordStructure } from '@/lib/translate/structured-segments'
 import { isReusableTranslation } from '@/services/translate/text-classify'
 
 export type IndexedRecord = SentenceRecord & { from: string; to: string }
@@ -34,7 +37,7 @@ function migrateMatchKeysKindColumn(client: DatabaseSync) {
       DROP TABLE match_keys;
       ALTER TABLE match_keys_kind RENAME TO match_keys;
       CREATE INDEX IF NOT EXISTS idx_match_key ON match_keys(src_lang,tgt_lang,match_key);
-      DELETE FROM cache_meta WHERE key='sentence_index_v4_soft_infer';
+      DELETE FROM cache_meta WHERE key='sentence_index_v9_open_parenthetical_alias';
     `)
     client.exec('COMMIT')
   } catch (e) {
@@ -83,6 +86,9 @@ export function ensureMatchIndex(client: DatabaseSync) {
     CREATE TABLE IF NOT EXISTS alignment_groups (
       record_id INTEGER NOT NULL, revision INTEGER NOT NULL, groups_json TEXT NOT NULL, PRIMARY KEY(record_id)
     );
+    CREATE TABLE IF NOT EXISTS structure_annotations (
+      record_id INTEGER NOT NULL, revision INTEGER NOT NULL, annotations_json TEXT NOT NULL, PRIMARY KEY(record_id)
+    );
     CREATE TABLE IF NOT EXISTS newline_annotations (
       record_id INTEGER NOT NULL, revision INTEGER NOT NULL, annotations_json TEXT NOT NULL, PRIMARY KEY(record_id)
     );
@@ -102,6 +108,7 @@ export function ensureMatchIndex(client: DatabaseSync) {
     CREATE TRIGGER match_record_update AFTER UPDATE ON translation_records BEGIN
       DELETE FROM alignment_groups WHERE record_id=NEW.id;
       DELETE FROM newline_annotations WHERE record_id=NEW.id;
+      DELETE FROM structure_annotations WHERE record_id=NEW.id;
       DELETE FROM match_keys WHERE record_id=NEW.id AND kind IN ('alias','logic');
       DELETE FROM sentence_positions WHERE record_id=NEW.id;
       INSERT OR IGNORE INTO match_keys VALUES (NEW.id,chaya_logic_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'logic');
@@ -110,11 +117,13 @@ export function ensureMatchIndex(client: DatabaseSync) {
       INSERT INTO translation_outbox(record_id,revision,kind) VALUES (NEW.id,NEW.revision,'update');
       UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
     END;
-    CREATE TRIGGER IF NOT EXISTS match_record_delete AFTER DELETE ON translation_records BEGIN
+    DROP TRIGGER IF EXISTS match_record_delete;
+    CREATE TRIGGER match_record_delete AFTER DELETE ON translation_records BEGIN
       DELETE FROM match_keys WHERE record_id=OLD.id;
       DELETE FROM sentence_positions WHERE record_id=OLD.id;
       DELETE FROM alignment_groups WHERE record_id=OLD.id;
       DELETE FROM newline_annotations WHERE record_id=OLD.id;
+      DELETE FROM structure_annotations WHERE record_id=OLD.id;
       INSERT INTO translation_outbox(record_id,revision,kind) VALUES (OLD.id,OLD.revision+1,'delete');
       UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
     END;
@@ -141,8 +150,8 @@ export function ensureMatchIndex(client: DatabaseSync) {
       throw e
     }
   }
-  // Rebuild positions + logic keys after mid-phrase soft inference (rule v4).
-  if (!client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v4_soft_infer'").get()) {
+  // Rebuild keys and positions for paired open-parenthetical aliases (rule v9); raw records remain unchanged.
+  if (!client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v9_open_parenthetical_alias'").get()) {
     client.exec('BEGIN IMMEDIATE')
     try {
       const rows = client.prepare('SELECT id, src, src_lang, tgt_lang, revision FROM translation_records').all() as Array<{
@@ -153,19 +162,23 @@ export function ensureMatchIndex(client: DatabaseSync) {
         revision: number
       }>
       const delPos = client.prepare('DELETE FROM sentence_positions WHERE record_id=?')
-      const delKeys = client.prepare("DELETE FROM match_keys WHERE record_id=? AND kind IN ('alias','logic')")
+      const delKeys = client.prepare('DELETE FROM match_keys WHERE record_id=?')
       const insKey = client.prepare('INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)')
       const insPos = client.prepare('INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)')
       const zhOf = client.prepare('SELECT zh FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?')
+      const structureOf = client.prepare('SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?')
       const nlOf = client.prepare('SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?')
       for (const row of rows) {
         const nlRow = nlOf.get(row.id, row.revision) as { annotations_json: string } | undefined
         const newlines = nlRow ? (JSON.parse(nlRow.annotations_json) as NewlineAnnotation[]) : undefined
-        const unitOpts = { newlines, srcLang: row.src_lang as 'ja' | 'en' | 'zh' | 'ko' }
+        const st = structureOf.get(row.id, row.revision) as { annotations_json: string } | undefined
+        const structure = st ? (JSON.parse(st.annotations_json) as RecordStructure) : undefined
+        const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang as 'ja' | 'en' | 'zh' | 'ko' }
         delPos.run(row.id)
         delKeys.run(row.id)
         const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic)
         const canon = wholeSentenceKey(row.src)
+        insKey.run(row.id, canon, row.src_lang, row.tgt_lang, 'canonical')
         if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, 'logic')
         const zh = (zhOf.get(row.src, row.src_lang, row.tgt_lang) as { zh: string } | undefined)?.zh ?? ''
         for (const alias of sentenceAliases(row.src, zh)) {
@@ -173,7 +186,7 @@ export function ensureMatchIndex(client: DatabaseSync) {
         }
         sentenceUnits(row.src, unitOpts).forEach((unit, position) => insPos.run(row.id, position, unit.key, unit.tone, row.src_lang, row.tgt_lang))
       }
-      client.prepare("INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v4_soft_infer','1')").run()
+      client.prepare("INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v9_open_parenthetical_alias','1')").run()
       client.exec('COMMIT')
     } catch (e) {
       client.exec('ROLLBACK')
@@ -185,8 +198,8 @@ export function ensureMatchIndex(client: DatabaseSync) {
 export function createMatchIndex(client: DatabaseSync) {
   const joined = 'SELECT r.*,t.zh,t.engine FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang'
 
-  function reindexWithNewlines(row: RecordRow, newlines: NewlineAnnotation[] | undefined) {
-    const unitOpts = { newlines, srcLang: row.src_lang as 'ja' | 'en' | 'zh' | 'ko' }
+  function reindexWithNewlines(row: RecordRow, newlines: NewlineAnnotation[] | undefined, structure?: RecordStructure) {
+    const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang as 'ja' | 'en' | 'zh' | 'ko' }
     client.prepare('DELETE FROM sentence_positions WHERE record_id=?').run(row.id)
     client.prepare("DELETE FROM match_keys WHERE record_id=? AND kind IN ('alias','logic')").run(row.id)
     const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic)
@@ -209,6 +222,9 @@ export function createMatchIndex(client: DatabaseSync) {
     const newlines = client.prepare('SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?').get(row.id, row.revision) as
       { annotations_json: string } | undefined
     if (newlines) record.newlines = JSON.parse(newlines.annotations_json) as NewlineAnnotation[]
+    const structure = client.prepare('SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?').get(row.id, row.revision) as
+      { annotations_json: string } | undefined
+    if (structure) record.structure = JSON.parse(structure.annotations_json) as RecordStructure
     return record
   }
   function record(src: string, pair: CacheLangPair): IndexedRecord | null {
@@ -222,15 +238,20 @@ export function createMatchIndex(client: DatabaseSync) {
         .all(wholeSentenceKey(src), pair.from, pair.to) as RecordRow[]
     ).map(attach)
   }
-  function candidates(src: string, pair: CacheLangPair): { records: IndexedRecord[]; limited: boolean } {
+  function candidates(src: string, pair: CacheLangPair, opts?: PlanSentenceOptions): { records: IndexedRecord[]; limited: boolean } {
     const found = new Map<string, IndexedRecord>()
     const keyQuery = client.prepare(joined + ' JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? LIMIT 501')
-    const lookupKeys = [...new Set([wholeSentenceKey(src), wholeSentenceKey(buildLogicText(src).logic)])]
+    const lookupKeys = sentenceQueryKeys(src, opts)
     for (const key of lookupKeys) {
       for (const r of (keyQuery.all(key, pair.from, pair.to) as RecordRow[]).map(attach)) found.set(r.id, r)
     }
     const whole = [...found.values()]
-    for (const unit of sentenceUnits(src)) {
+    for (const unit of sentenceQueryUnits(src, opts)) {
+      if (unit.boundary === 'structure') {
+        const exactItems = keyQuery.all(wholeSentenceKey(src.slice(unit.start, unit.end)), pair.from, pair.to) as RecordRow[]
+        if (exactItems.length > 500) return { records: whole.length > 500 ? [] : whole, limited: true }
+        for (const r of exactItems.map(attach)) found.set(r.id, r)
+      }
       const rows = client
         .prepare(joined + ' JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501')
         .all(unit.key, unit.tone, pair.from, pair.to) as RecordRow[]
@@ -252,13 +273,14 @@ export function createMatchIndex(client: DatabaseSync) {
         (r) => Number((client.prepare('SELECT revision FROM translation_records WHERE id=?').get(r.id) as { revision: number } | undefined)?.revision) === r.revision
       )
     },
-    plan(src: string, pair: CacheLangPair, local: SentenceRecord[] = []) {
+    plan(src: string, pair: CacheLangPair, local: SentenceRecord[] = [], opts?: PlanSentenceOptions) {
       client.exec('BEGIN')
       try {
-        const selected = candidates(src, pair)
+        const selected = candidates(src, pair, opts)
         const resolved = planSentenceTranslation(
           src,
-          [...local, ...selected.records].filter((r) => pair.to !== 'zh' || isReusableTranslation(r.src, r.zh))
+          selected.limited ? [] : [...local, ...selected.records].filter((r) => pair.to !== 'zh' || isReusableTranslation(r.src, r.zh)),
+          opts
         )
         const plan = {
           ...resolved,
@@ -274,13 +296,15 @@ export function createMatchIndex(client: DatabaseSync) {
       }
     },
 
-    setAlignment(src: string, pair: CacheLangPair, groups: AlignmentGroup[], expectedRevision?: number, opts?: { newlines?: NewlineAnnotation[] }) {
+    setAlignment(src: string, pair: CacheLangPair, groups: AlignmentGroup[], expectedRevision?: number, opts?: { newlines?: NewlineAnnotation[]; structure?: RecordStructure }) {
       const r = record(src, pair)
       if (!r || (expectedRevision !== undefined && r.revision !== expectedRevision) || groups.length > 1000) return false
       // Trigger clears newline_annotations on revision bump — re-apply caller opts or prior annotations.
+      const structure = opts?.structure ?? r.structure
+      if (structure && !validRecordStructure(structure)) return false
       const nextNewlines = opts?.newlines !== undefined ? opts.newlines : r.newlines
       if (nextNewlines && !validateNewlineAnnotations(src, nextNewlines)) return false
-      const draft = { ...r, newlines: nextNewlines }
+      const draft = { ...r, newlines: nextNewlines, structure }
       if (!validateAlignments(draft, groups)) return false
       // Revision change invalidates outstanding plans as well as previous extraction mappings.
       client.exec('BEGIN IMMEDIATE')
@@ -295,7 +319,8 @@ export function createMatchIndex(client: DatabaseSync) {
           client.prepare('INSERT OR REPLACE INTO newline_annotations VALUES(?,?,?)').run(r.id, nextRevision, JSON.stringify(nextNewlines))
         }
         const row = client.prepare(joined + ' WHERE r.id=?').get(r.id) as RecordRow
-        reindexWithNewlines(row, nextNewlines)
+        if (structure) client.prepare('INSERT OR REPLACE INTO structure_annotations VALUES(?,?,?)').run(r.id, nextRevision, JSON.stringify(structure))
+        reindexWithNewlines(row, nextNewlines, structure)
         client.exec('COMMIT')
         return true
       } catch (e) {

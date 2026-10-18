@@ -17,11 +17,14 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
     CREATE TABLE IF NOT EXISTS game_backfill_tasks(id INTEGER PRIMARY KEY AUTOINCREMENT,root TEXT NOT NULL,src TEXT NOT NULL,record_id INTEGER NOT NULL,revision INTEGER NOT NULL);`)
   const joined =
     'SELECT r.src,t.zh,t.engine,r.revision FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang WHERE r.id=?'
-  function rowMeta(recordId: number, revision: number): Pick<CacheRow, 'alignments' | 'newlines'> {
+  function rowMeta(recordId: number, revision: number): Pick<CacheRow, 'alignments' | 'newlines' | 'structure'> {
     const alignment = client.prepare('SELECT groups_json FROM alignment_groups WHERE record_id=? AND revision=?').get(recordId, revision) as { groups_json: string } | undefined
     const newlines = client.prepare('SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?').get(recordId, revision) as
       { annotations_json: string } | undefined
+    const structure = client.prepare('SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?').get(recordId, revision) as
+      { annotations_json: string } | undefined
     return {
+      ...(structure ? { structure: JSON.parse(structure.annotations_json) } : {}),
       ...(alignment ? { alignments: JSON.parse(alignment.groups_json) } : {}),
       ...(newlines ? { newlines: JSON.parse(newlines.annotations_json) } : {}),
     }

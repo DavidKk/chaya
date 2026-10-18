@@ -1,7 +1,10 @@
 import { cacheEngineRank } from './cache-engine-rank'
-import { buildLogicText } from './logic-text'
-import { sentenceAliases } from './sentence-aliases'
-import { type NewlineAnnotation, sameSentence, type SentenceUnit, type SentenceUnitOptions, sentenceUnits, wholeSentenceKey } from './sentence-units'
+import { buildLogicText, listNewlineSpans } from './logic-text'
+import { sentenceAliases, structuredSentenceAliases } from './sentence-aliases'
+import { inferredSentenceTarget, inferSentenceAlignment } from './sentence-auto-alignment'
+import { queryLines, sentenceQueryKeys, sentenceQueryUnits, sentenceQueryViews } from './sentence-query'
+import { type NewlineAnnotation, sameSentence, SENTENCE_TOKEN_SOURCE, type SentenceUnit, type SentenceUnitOptions, sentenceUnits, wholeSentenceKey } from './sentence-units'
+import { type RecordStructure, scanStructuredText } from './structured-segments'
 
 export type AlignmentGroup = { sourceStart: number; sourceEnd: number; targetStart: number; targetEnd: number; evidence: 'verified' | 'structural' }
 export type SentenceRecord = {
@@ -12,15 +15,35 @@ export type SentenceRecord = {
   engine?: string | null
   local?: boolean
   derived?: boolean
+  structuralAlias?: boolean
+  structureContext?: number
   alignments?: AlignmentGroup[]
   /** Soft/hard newline evidence on `src` (phase 2). */
   newlines?: NewlineAnnotation[]
+  structure?: RecordStructure
 }
 
 export type PlanSentenceOptions = SentenceUnitOptions
 
 function recordUnitOpts(record: SentenceRecord): SentenceUnitOptions {
-  return { newlines: record.newlines }
+  return { newlines: record.newlines, structure: record.structure?.source }
+}
+
+function expandRecords(records: SentenceRecord[]): SentenceRecord[] {
+  return records.flatMap((record) => [
+    record,
+    ...sentenceAliases(record.src, record.zh).map((alias) => ({ ...record, ...alias, derived: true, alignments: undefined, newlines: undefined })),
+    ...structuredSentenceAliases(record.src, record.zh, record.structure).map(({ context, ...alias }) => ({
+      ...record,
+      ...alias,
+      derived: true,
+      structuralAlias: true,
+      structureContext: context,
+      alignments: undefined,
+      newlines: undefined,
+      structure: undefined,
+    })),
+  ])
 }
 
 function logicAuthorityKey(text: string, opts?: SentenceUnitOptions): string {
@@ -38,6 +61,8 @@ export type SentenceMatch = {
   queryCoverage?: number
   recordCoverage?: number
   kind: 'whole' | 'block' | 'extracted' | 'single'
+  /** Runtime structural inference, never an explicitly verified mapping. */
+  alignment?: 'inferred'
 }
 export type SentenceGap = { id: string; start: number; end: number; text: string }
 export type SentencePlan = {
@@ -52,7 +77,7 @@ export type SentencePlan = {
 }
 
 function target(record: SentenceRecord, units: SentenceUnit[], from: number, to: number): string | null {
-  if (from === 0 && to === units.length) return record.zh
+  if (from === 0 && to === units.length && units[0]?.start === 0 && units.at(-1)?.end === record.src.length) return record.zh
   const start = units[from].start
   const end = units[to - 1].end
   const groups = (record.alignments || []).filter((g) => g.evidence === 'verified' && g.sourceStart >= start && g.sourceEnd <= end).sort((a, b) => a.sourceStart - b.sourceStart)
@@ -68,10 +93,10 @@ function cutsSurrogate(text: string, index: number): boolean {
 }
 
 /** Validate explicit mappings; matching punctuation alone never upgrades evidence. */
-export function validateAlignments(record: Pick<SentenceRecord, 'src' | 'zh' | 'newlines'>, groups: AlignmentGroup[]): boolean {
+export function validateAlignments(record: Pick<SentenceRecord, 'src' | 'zh' | 'newlines' | 'structure'>, groups: AlignmentGroup[]): boolean {
   if (!Array.isArray(groups) || groups.length > 1000 || groups.some((g) => !g || typeof g !== 'object' || !['verified', 'structural'].includes(g.evidence))) return false
-  const src = sentenceUnits(record.src, { newlines: record.newlines })
-  const tgt = sentenceUnits(record.zh)
+  const src = sentenceUnits(record.src, { newlines: record.newlines, structure: record.structure?.source })
+  const tgt = sentenceUnits(record.zh, { structure: record.structure?.target })
   const starts = new Set(src.map((s) => s.start)),
     ends = new Set(src.map((s) => s.end))
   const targetStarts = new Set(tgt.map((s) => s.start)),
@@ -111,14 +136,16 @@ export function validateAlignments(record: Pick<SentenceRecord, 'src' | 'zh' | '
   return true
 }
 
-function candidates(src: string, records: SentenceRecord[], queryOpts?: PlanSentenceOptions): SentenceMatch[] & { limited?: boolean } {
+function candidates(src: string, records: SentenceRecord[], queryOpts?: PlanSentenceOptions, automaticOnly = false): SentenceMatch[] & { limited?: boolean } {
   const query = sentenceUnits(src, queryOpts)
   const out: SentenceMatch[] = []
   let work = 0
   for (const record of records) {
     const unitOpts = recordUnitOpts(record)
     const units = sentenceUnits(record.src, unitOpts)
-    if (logicAuthorityKey(src, queryOpts) === logicAuthorityKey(record.src, unitOpts) && query.length) {
+    const inferred = automaticOnly ? inferSentenceAlignment(record, units) : []
+    if (automaticOnly && !inferred.length) continue
+    if (!automaticOnly && logicAuthorityKey(src, queryOpts) === logicAuthorityKey(record.src, unitOpts) && query.length) {
       out.push({
         start: 0,
         end: src.length,
@@ -134,7 +161,27 @@ function candidates(src: string, records: SentenceRecord[], queryOpts?: PlanSent
       })
       continue
     }
-    for (let q = 0; q < query.length; q++)
+    // A complete list item may contain punctuation that splits an independent cache row.
+    // Reuse that row as a whole; never extract a target fragment on this path.
+    for (let q = 0; q < query.length; q++) {
+      const unit = query[q]
+      if (!automaticOnly && unit.boundary === 'structure' && wholeSentenceKey(src.slice(unit.start, unit.end)) === wholeSentenceKey(record.src))
+        out.push({
+          start: unit.start,
+          end: unit.end,
+          from: q,
+          to: q + 1,
+          text: record.zh,
+          record,
+          sourceStart: 0,
+          sourceEnd: record.src.length,
+          kind: 'single',
+          queryCoverage: 1 / query.length,
+          recordCoverage: 1,
+        })
+    }
+    for (let q = 0; q < query.length; q++) {
+      if (automaticOnly && q > 0 && query[q - 1].boundary !== 'stop') continue
       for (let r = 0; r < units.length; r++) {
         if (++work > 50_000) return Object.assign([], { limited: true })
         let length = 0
@@ -146,7 +193,8 @@ function candidates(src: string, records: SentenceRecord[], queryOpts?: PlanSent
           )
             break
           length++
-          const text = target(record, units, r, r + length)
+          if (automaticOnly && query[q + length - 1].boundary !== 'stop') continue
+          const text = automaticOnly ? inferredSentenceTarget(record, inferred, r, r + length) : target(record, units, r, r + length)
           if (text == null) continue
           out.push({
             start: query[q].start,
@@ -154,29 +202,38 @@ function candidates(src: string, records: SentenceRecord[], queryOpts?: PlanSent
             from: q,
             to: q + length,
             text,
+            ...(automaticOnly ? { alignment: 'inferred' as const } : {}),
             queryCoverage: length / query.length,
             recordCoverage: length / units.length,
             record,
             sourceStart: units[r].start,
             sourceEnd: units[r + length - 1].end,
-            kind: r === 0 && length === units.length ? (length === query.length ? 'whole' : length === 1 ? 'single' : 'block') : 'extracted',
+            kind:
+              r === 0 && length === units.length && units[0].start === 0 && units.at(-1)!.end === record.src.length
+                ? length === query.length
+                  ? 'whole'
+                  : length === 1
+                    ? 'single'
+                    : 'block'
+                : 'extracted',
           })
         }
       }
+    }
   }
   return out
 }
 
 /** Preserve a query's outer comma/line seam, but keep the cached block's internal punctuation. */
 export function joinSentenceBlock(source: string, translated: string, trimCachedSeam = false): string {
-  const seam = source.match(/([,，;；]\s*|\r?\n|\\n)$/)?.[0]
-  if (!seam) return trimCachedSeam ? translated.replace(/[,，;；]\s*$/u, '') : translated
-  return translated.replace(/[,，;；\s]+$/u, '') + seam
+  const seam = source.match(/([,，、;；]\s*|\r?\n|\\n)$/)?.[0]
+  if (!seam) return trimCachedSeam ? translated.replace(/[,，、;；]\s*$/u, '') : translated
+  return translated.replace(/[,，、;；\s]+$/u, '') + seam
 }
 
 export function renderSentencePlan(plan: Pick<SentencePlan, 'src' | 'matches' | 'gaps'>, gaps: ReadonlyMap<string, string> = new Map()): string {
   const pieces = [
-    ...plan.matches.map((m) => ({ start: m.start, end: m.end, text: m.text, trimCachedSeam: /[,，;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd)) })),
+    ...plan.matches.map((m) => ({ start: m.start, end: m.end, text: m.text, trimCachedSeam: /[,，、;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd)) })),
     ...plan.gaps.map((g) => ({ ...g, text: gaps.get(g.id) ?? g.text, trimCachedSeam: false })),
   ].sort((a, b) => a.start - b.start)
   let at = 0,
@@ -189,14 +246,80 @@ export function renderSentencePlan(plan: Pick<SentencePlan, 'src' | 'matches' | 
 }
 
 export function planSentenceTranslation(src: string, records: SentenceRecord[], opts?: PlanSentenceOptions): SentencePlan {
+  return planSentenceTranslationView(src, records, opts, true)
+}
+
+function planSentenceTranslationView(src: string, records: SentenceRecord[], opts: PlanSentenceOptions | undefined, unwrap: boolean): SentencePlan {
   const units = sentenceUnits(src, opts)
-  let possible = candidates(
-    src,
-    records.flatMap((r) => [r, ...sentenceAliases(r.src, r.zh).map((a) => ({ ...r, ...a, derived: true, alignments: undefined }))]),
-    opts
+  const expanded = expandRecords(records)
+  const normal = candidates(src, expanded, opts)
+  const initial = chooseSentencePlan(src, units, normal, normal.limited === true)
+  if (initial.status === 'full' || initial.limited || opts?.structure?.mode === 'disabled') return initial
+  const views = unwrap ? sentenceQueryViews(src, opts) : []
+  if (views.length > 1 && !initial.matches.length && !initial.ambiguous) {
+    let best = initial
+    let covered = 0
+    // Intermediate shells can themselves be exact cache keys. Try each view
+    // in order rather than jumping directly to the deepest body.
+    for (const body of views.slice(1)) {
+      const inner = planSentenceTranslationView(body.text, records, body.opts, false)
+      const shifted: SentencePlan = {
+        ...inner,
+        src,
+        matches: inner.matches.map((m) => ({ ...m, start: m.start + body.offset, end: m.end + body.offset })),
+        gaps: inner.gaps.map((g) => ({ ...g, id: `${g.start + body.offset}:${g.end + body.offset}`, start: g.start + body.offset, end: g.end + body.offset })),
+        zh: null,
+      }
+      if (shifted.status === 'full') {
+        shifted.zh = renderSentencePlan(shifted)
+        return shifted
+      }
+      if (shifted.limited || shifted.ambiguous) return shifted
+      const chars = shifted.matches.reduce((sum, m) => sum + m.end - m.start, 0)
+      if (chars > covered) {
+        best = shifted
+        covered = chars
+      }
+    }
+    return best
+  }
+  const structure = scanStructuredText(src.replace(new RegExp(SENTENCE_TOKEN_SOURCE, 'g'), ' '), opts?.structure)
+  const inferred: SentenceMatch[] & { limited?: boolean } = structure.units.length || structure.diagnostics.length ? [] : candidates(src, expanded, opts, true)
+  if (inferred.limited) return { ...initial, limited: true }
+  const additions = inferred.filter((m) => normal.every((hit) => m.end <= hit.start || m.start >= hit.end))
+  const result = chooseSentencePlan(src, units, [...initial.matches, ...additions], false)
+  result.ambiguous ||= initial.ambiguous
+  return applyLineFallback(src, expanded, result, normal, opts)
+}
+
+function applyLineFallback(src: string, records: SentenceRecord[], plan: SentencePlan, normal: SentenceMatch[], opts?: PlanSentenceOptions): SentencePlan {
+  if (plan.status === 'full' || plan.limited) return plan
+  const lines = queryLines(src)
+  if (!lines.length) return plan
+  const keys = new Set(lines.map((line) => wholeSentenceKey(line.text)))
+  const independent = records.filter((r) => keys.has(logicAuthorityKey(r.src, recordUnitOpts(r))))
+  if (!independent.length) return plan
+  const newlines = listNewlineSpans(src).map((br) => ({ ...br, kind: 'hard' as const }))
+  // Explicit newline decisions remain authoritative; only inferred soft wraps change.
+  const lineOpts = { ...opts, newlines: [...(opts?.newlines || []), ...newlines] }
+  const units = sentenceUnits(src, lineOpts)
+  const previous = plan.matches.map((m) => ({ ...m, from: units.findIndex((u) => u.start === m.start), to: units.findIndex((u) => u.end === m.end) + 1 }))
+  if (previous.some((m) => m.from < 0 || m.to <= m.from)) return plan
+  const selected = candidates(src, independent, lineOpts)
+  if (selected.limited) return { ...plan, limited: true }
+  const additions = selected.filter(
+    (m) =>
+      lines.some((line) => line.start === m.start && wholeSentenceKey(src.slice(m.start, m.end)) === wholeSentenceKey(line.text)) &&
+      normal.every((hit) => m.end <= hit.start || m.start >= hit.end) &&
+      plan.matches.every((hit) => m.end <= hit.start || m.start >= hit.end)
   )
-  const limited = possible.limited === true
-  const locked = possible.filter((m) => m.record.local && m.record.engine === 'manual' && !m.record.derived)
+  const result = chooseSentencePlan(src, units, [...previous, ...additions], false)
+  result.ambiguous ||= plan.ambiguous
+  return result
+}
+
+function chooseSentencePlan(src: string, units: SentenceUnit[], possible: SentenceMatch[], limited: boolean): SentencePlan {
+  const locked = possible.filter((m) => m.alignment !== 'inferred' && m.record.local && m.record.engine === 'manual' && !m.record.derived)
   possible = possible.filter((m) =>
     locked.every((lock) => {
       if (m.end <= lock.start || m.start >= lock.end || m === lock) return true
@@ -211,9 +334,27 @@ export function planSentenceTranslation(src: string, records: SentenceRecord[], 
     ranges.set(key, [...(ranges.get(key) || []), m])
   }
   possible = []
+  // Ambiguity concerns the rendered output: cache seams may differ while
+  // restoring the query's punctuation produces exactly the same translation.
+  const output = (m: SentenceMatch) => joinSentenceBlock(src.slice(m.start, m.end), m.text, /[,，、;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd)))
   for (let group of ranges.values()) {
+    const proven = group.filter((m) => m.alignment !== 'inferred')
+    if (proven.length) group = proven
+    else if (new Set(group.map(output)).size > 1) {
+      ambiguous = true
+      continue
+    }
     const locals = group.filter((m) => m.record.local)
     if (locals.length) group = locals
+    const explicit = group.filter((match) => !match.record.structuralAlias)
+    if (explicit.length) group = explicit
+    else {
+      // A dedicated list is more specific than the same list inside a larger message.
+      const context = Math.min(...group.map((match) => match.record.structureContext || 0))
+      group = group.filter((match) => (match.record.structureContext || 0) === context)
+      const rank = Math.max(...group.map((match) => cacheEngineRank(match.record.engine)))
+      group = group.filter((match) => cacheEngineRank(match.record.engine) === rank)
+    }
     const equivalentBeforeExact = group.every((m) => !m.record.derived && wholeSentenceKey(m.record.src) === wholeSentenceKey(group[0].record.src))
     if (equivalentBeforeExact) {
       const rank = Math.max(...group.map((m) => cacheEngineRank(m.record.engine)))
@@ -226,7 +367,7 @@ export function planSentenceTranslation(src: string, records: SentenceRecord[], 
       const rank = Math.max(...group.map((m) => cacheEngineRank(m.record.engine)))
       group = group.filter((m) => cacheEngineRank(m.record.engine) === rank)
     }
-    if (new Set(group.map((m) => m.text)).size > 1) {
+    if (new Set(group.map(output)).size > 1) {
       ambiguous = true
       continue
     }
@@ -273,7 +414,7 @@ export function createSentenceResolver(records: SentenceRecord[]) {
   const addWhole = (k: string, record: SentenceRecord) => {
     whole.set(k, [...(whole.get(k) || []), record])
   }
-  for (const record of records.flatMap((r) => [r, ...sentenceAliases(r.src, r.zh).map((a) => ({ ...r, ...a, derived: true, alignments: undefined, newlines: undefined }))])) {
+  for (const record of expandRecords(records)) {
     const unitOpts = recordUnitOpts(record)
     const raw = wholeSentenceKey(record.src)
     addWhole(raw, record)
@@ -287,20 +428,39 @@ export function createSentenceResolver(records: SentenceRecord[]) {
       inverted.set(k, bucket)
     }
   }
-  function select(src: string): SentenceRecord[] {
+  function select(src: string, opts?: PlanSentenceOptions): SentenceRecord[] & { limited?: boolean } {
     const exact = whole.get(wholeSentenceKey(src)) || []
     const selected = new Set(exact)
-    for (const unit of sentenceUnits(src)) {
-      const bucket = inverted.get(key(unit))
-      if ((bucket?.size || 0) > 500) continue
-      for (const record of bucket || []) {
+    let limited = false
+    for (const lookup of sentenceQueryKeys(src, opts)) {
+      for (const record of whole.get(lookup) || []) {
         selected.add(record)
-        if (selected.size > 500) return exact
+        if (selected.size > 500) return Object.assign([...exact], { limited: true })
       }
     }
-    return [...selected]
+    for (const unit of sentenceQueryUnits(src, opts)) {
+      if (unit.boundary === 'structure') for (const r of whole.get(wholeSentenceKey(src.slice(unit.start, unit.end))) || []) selected.add(r)
+      if (selected.size > 500) return Object.assign([...exact], { limited: true })
+      const bucket = inverted.get(key(unit))
+      if ((bucket?.size || 0) > 500) {
+        limited = true
+        continue
+      }
+      for (const record of bucket || []) {
+        selected.add(record)
+        if (selected.size > 500) return Object.assign([...exact], { limited: true })
+      }
+    }
+    return Object.assign([...selected], { limited })
   }
-  return { select, plan: (src: string) => planSentenceTranslation(src, select(src)) }
+  return {
+    select,
+    plan(src: string) {
+      const selected = select(src)
+      const plan = planSentenceTranslation(src, selected.limited ? [] : selected)
+      return selected.limited ? { ...plan, limited: true } : plan
+    },
+  }
 }
 
 /** Completed gaps become transient matches so status/gaps remain consistent without a new composite final. */

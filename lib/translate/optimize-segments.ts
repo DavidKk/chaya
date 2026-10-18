@@ -1,9 +1,11 @@
 /**
- * Cache-optimize splitter: peel outer shells + edge junk, then cut on sentence-ending
+ * Cache-optimize splitter: peel outer shells + edge junk, then cut on sentence and clause
  * punctuation. Edge junk uses Unicode categories (`\p{S}` / `\p{Po}`) so glyphs like ▼
  * need not be enumerated. Does not change playtime `translationSegments`.
  */
 
+import { SENTENCE_TOKEN_SOURCE, sentenceBoundaryAt } from '@/lib/translate/sentence-units'
+import { scanStructuredText, type StructureAnnotation } from '@/lib/translate/structured-segments'
 import { peelControlShell } from '@/services/translate/text-classify'
 
 const SHELL_CLOSE: Record<string, string> = {
@@ -27,8 +29,6 @@ const PROTECT: Record<string, string> = {
   '{': '}',
   '｛': '｝',
 }
-
-const SENTENCE_END = /[.。．!！?？]/
 
 /**
  * Edge symbols / decorative other-punct (▼ ※ … ：).
@@ -158,11 +158,14 @@ export function extractJsConcatLiterals(text: string): string[] | null {
 }
 
 /**
- * Peel outer shells / edge junk, then split on sentence endings when not inside protective brackets.
+ * Peel outer shells / edge junk, then split on sentence/clause punctuation outside protective brackets.
  * Each part is re-stripped so body keys stay punctuation-light.
  * JS concat import rows are split into quoted literals first, then each literal is peeled.
  */
-export function optimizeSplitSegments(text: string): string[] {
+export function optimizeSplitSegments(text: string, structure?: StructureAnnotation): string[] {
+  if (structure?.mode === 'disabled') return text ? [text] : []
+  const parsed = scanStructuredText(text, structure)
+  if (parsed.units.length) return parsed.units.map((u) => text.slice(u.start, u.end))
   const literals = extractJsConcatLiterals(text)
   if (literals) {
     const parts: string[] = []
@@ -178,10 +181,16 @@ export function optimizeSplitSegments(text: string): string[] {
   if (!body) return []
 
   const stack: string[] = []
+  const tokens = new Map([...body.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, 'g'))].map((m) => [m.index!, m[0]]))
   const parts: string[] = []
   let start = 0
 
   for (let i = 0; i < body.length; i++) {
+    const token = tokens.get(i)
+    if (token) {
+      i += token.length - 1
+      continue
+    }
     const ch = body[i]
     if (PROTECT[ch]) {
       stack.push(PROTECT[ch])
@@ -191,8 +200,10 @@ export function optimizeSplitSegments(text: string): string[] {
       stack.pop()
       continue
     }
-    if (stack.length || !SENTENCE_END.test(ch)) continue
-    while (i + 1 < body.length && SENTENCE_END.test(body[i + 1])) i += 1
+    if (stack.length) continue
+    const seam = sentenceBoundaryAt(body, i)
+    if (!seam) continue
+    i = seam.end - 1
     const part = peelOptimizeShell(trimOptimizeSpace(body.slice(start, i + 1)))
     if (part) parts.push(part)
     start = i + 1
@@ -219,9 +230,9 @@ export type OptimizeSegmentsResult = {
 }
 
 /** Pair source/target optimize splits in order; missing side becomes ''. */
-export function buildOptimizeSegmentPairs(src: string, zh: string): OptimizeSegmentsResult {
-  const srcParts = optimizeSplitSegments(src)
-  const zhParts = optimizeSplitSegments(zh)
+export function buildOptimizeSegmentPairs(src: string, zh: string, structure?: { source?: StructureAnnotation; target?: StructureAnnotation }): OptimizeSegmentsResult {
+  const srcParts = optimizeSplitSegments(src, structure?.source)
+  const zhParts = optimizeSplitSegments(zh, structure?.target)
   const n = Math.max(srcParts.length, zhParts.length)
   const pairs: OptimizeSegmentPair[] = []
   for (let i = 0; i < n; i += 1) {

@@ -1,5 +1,6 @@
 import { type NewlineAnnotation, validateNewlineAnnotations } from './logic-text'
 import { type AlignmentGroup, validateAlignments } from './sentence-plan'
+import { type RecordStructure, validRecordStructure } from './structured-segments'
 /** One append-only event contains its value and provenance; no second metadata file. */
 export type CacheOrigin = { id: string; revision: number; database: string }
 export type CacheRow = {
@@ -10,6 +11,7 @@ export type CacheRow = {
   origin?: CacheOrigin
   event?: string
   alignments?: AlignmentGroup[]
+  structure?: RecordStructure
   /** Soft/hard line-break evidence on `s` (MVP: shared by console + plugin). */
   newlines?: NewlineAnnotation[]
 }
@@ -21,7 +23,9 @@ export function parseCacheRow(value: unknown): CacheRow | null {
   if (typeof r.event !== 'string') r.event = undefined
   if (typeof r.s !== 'string' || (typeof r.t !== 'string' && r.t !== null)) return null
   if (r.origin && (typeof r.origin.id !== 'string' || !Number.isInteger(r.origin.revision) || typeof r.origin.database !== 'string')) return null
-  if (r.alignments && (!r.t || !validateAlignments({ src: r.s, zh: r.t, newlines: r.newlines }, r.alignments))) return { ...r, alignments: undefined } as CacheRow
+  if (r.structure && !validRecordStructure(r.structure)) r.structure = undefined
+  if (r.alignments && (!r.t || !validateAlignments({ src: r.s, zh: r.t, newlines: r.newlines, structure: r.structure }, r.alignments)))
+    return { ...r, alignments: undefined } as CacheRow
   if (r.newlines && !validateNewlineAnnotations(r.s, r.newlines)) return { ...r, newlines: undefined } as CacheRow
   return r as CacheRow
 }

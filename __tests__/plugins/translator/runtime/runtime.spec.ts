@@ -92,8 +92,9 @@ it('imports numbered-prefix and punctuation aliases and reuses them after restar
 it('reuses complete body equivalence and assembled fragments before requesting engine translation', async () => {
   await call('/api/translate-cache', { text: JSON.stringify({ 'こんにちは，村へ行こう。': '你好，去村子吧。', 休もう: '休息吧', 準備を確認する: '确认准备情况' }) })
   const result = await runtime.translate(['「こんにちは\n村へ行こう！」', '「休もう、\n準備を確認する！」'], { interactive: true, remote: false, engines: [] })
-  expect(result.map((item) => item.zh)).toEqual([null, null])
-  expect(result.every((item) => item.zh == null)).toBe(true)
+  expect(result.map((item) => item.zh)).toEqual([null, '「休息吧、\n準備を確認する！」'])
+  expect(result[1]).toMatchObject({ status: 'partial' })
+  expect(result[1].plan?.gaps.map((gap) => gap.text)).toEqual(['準備を確認する！'])
   expect(engineFetch).not.toHaveBeenCalled()
 })
 
@@ -147,7 +148,7 @@ it('reuses valid paragraphs with shared Han words across indentation variants', 
   const target = '「嚯，挺敏锐嘛。\n正如你所想，这是催眠魔法。\n从什么时候开始来着......喂真纪，还记得吗？」'
   await call('/api/translate-cache', { text: JSON.stringify({ [source]: target }) })
   const query = source.replace(/\u3000/g, '')
-  expect((await runtime.translate([query], { interactive: true, remote: false, engines: [] }))[0].zh).toBeNull()
+  expect((await runtime.translate([query], { interactive: true, remote: false, engines: [] }))[0].zh).toBe(target)
   expect((await runtime.translate(['いつからだったか……、おいマキ、覚えてるか？'], { interactive: true, remote: false, engines: [] }))[0].zh).toBeNull()
   expect(engineFetch).not.toHaveBeenCalled()
 })

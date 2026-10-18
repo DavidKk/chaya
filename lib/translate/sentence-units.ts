@@ -4,13 +4,14 @@ import { buildLogicText, mapLogicRangeToOriginal, type NewlineAnnotation, type N
 
 import { RM_ESCAPE_RE } from './rm-escape'
 import { TEXT_MARKUP_RE } from './source-text'
+import { scanStructuredText, type StructureAnnotation } from './structured-segments'
 
 export type { NewlineAnnotation, NewlineKind } from '@/lib/translate/logic-text'
 export { buildLogicText, inferNewlineKind, mapLogicRangeToOriginal, newlineKindAt, usesSpacedSoftBreaks } from '@/lib/translate/logic-text'
 
 export const SENTENCE_TOKEN_SOURCE = `${RM_ESCAPE_RE.source}|${TEXT_MARKUP_RE.source}|https?:\\/\\/[^\\s<>]+`
-/** Bumped for mid-phrase soft inference (no punct → soft match). */
-export const SENTENCE_RULE_VERSION = 4
+/** Bumped for paired opening-parenthesis aliases on message fragments. */
+export const SENTENCE_RULE_VERSION = 9
 export type SentenceUnit = { start: number; end: number; key: string; tone: string; boundary: string; controls: string; block: number }
 
 export type SentenceUnitOptions = {
@@ -18,6 +19,7 @@ export type SentenceUnitOptions = {
   newlines?: ReadonlyArray<NewlineAnnotation>
   /** Affects soft-break space insertion (CJK join vs spaced languages). */
   srcLang?: CacheLang | ''
+  structure?: StructureAnnotation
 }
 
 const PAIRS: Record<string, string> = { '<': '>', '「': '」', '『': '』', '【': '】', '《': '》', '〈': '〉', '（': '）', '(': ')', '[': ']', '{': '}', '“': '”' }
@@ -29,15 +31,16 @@ export function controlSignature(text: string): string {
   return JSON.stringify(text.match(new RegExp(`${SENTENCE_TOKEN_SOURCE}|%\\d+|\\{[A-Za-z0-9_]+\\}|__[A-Za-z]\\d+__`, 'g')) || [])
 }
 export function wholeSentenceKey(text: string): string {
-  // Avoid normalizing control parameters or erasing word spacing / unknown line breaks.
+  // Ignore line-edge indentation, preserving control parameters, word spacing and every newline.
   const normalized = text.trim()
+  const plainKey = (part: string) => punctuationKey(part.replace(/\r\n?/g, '\n').replace(/[\t \u3000]*\n[\t \u3000]*/g, '\n'))
   let out = '',
     at = 0
   for (const match of normalized.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, 'g'))) {
-    out += punctuationKey(normalized.slice(at, match.index).replace(/\r\n?/g, '\n')) + match[0]
+    out += plainKey(normalized.slice(at, match.index)) + match[0]
     at = match.index! + match[0].length
   }
-  return out + punctuationKey(normalized.slice(at).replace(/\r\n?/g, '\n'))
+  return out + plainKey(normalized.slice(at))
 }
 /** Wider body alias, separate from the narrow authority-equivalence key. Controls stay byte-for-byte. */
 export function sentenceBodyKey(text: string): string {
@@ -58,20 +61,36 @@ function newlineKindOnLogic(start: number, end: number, annotations: ReadonlyArr
   return 'unknown'
 }
 
+/** Shared punctuation boundaries for optimize previews and reusable sentence units. */
+export function sentenceBoundaryAt(text: string, index: number): { end: number; boundary: string } | null {
+  const c = text[index]
+  if (!/[,，、。．.!！?？;；]/.test(c || '')) return null
+  if (/[,.，．]/.test(c) && /[0-9０-９]/.test(text[index - 1] || '') && /[0-9０-９]/.test(text[index + 1] || '')) return null
+  // Repeated ASCII/fullwidth periods are an ellipsis, not multiple sentence endings.
+  if (/[.．]/.test(c) && (/[.．]/.test(text[index - 1] || '') || /[.．]/.test(text[index + 1] || ''))) return null
+  let end = index + 1
+  while (end < text.length && /[,，、。．.!！?？;；]/.test(text[end])) end++
+  return { end, boundary: /[,，、]/.test(c) ? ',' : /[;；]/.test(c) ? ';' : 'stop' }
+}
+
 /** Split `text` using only punctuation and hard line annotations (coordinates of `text`). */
 function splitSentenceUnitsOn(text: string, hardOrUnknown: ReadonlyArray<NewlineAnnotation>): SentenceUnit[] {
   const units: SentenceUnit[] = []
   const controls = new Map([...text.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, 'g'))].map((m) => [m.index!, m[0]]))
   const stack: string[] = []
+  // RPG messages may leave the leading dialogue quote open across message boxes.
+  // Keep it in the first unit, but do not let it suppress every punctuation seam.
+  const opening = text.match(/^\s*[「『“]/)?.[0]
+  const openDialogueAt = opening && !text.includes(PAIRS[opening.at(-1)!]) ? opening.length - 1 : -1
   let start = 0
   let block = 0
   function push(end: number, boundary: string) {
     const raw = text.slice(start, end)
-    const tail = raw.match(/[,.!?;，。．！？；\s]+$/u)?.[0] || ''
+    const tail = raw.match(/[,.!?;，、。．！？；\s]+$/u)?.[0] || ''
     const body = raw.slice(0, raw.length - tail.length).trim()
     const marks = punctuationKey(tail.replace(/\s/g, ''))
     const tone = marks.match(/[!?]+/)?.[0] || (marks.includes('.') ? '.' : '')
-    if (body) units.push({ start, end, key: sentenceBodyKey(body), tone, boundary, controls: controlSignature(raw), block })
+    if (body) units.push({ start: start + (raw.match(/^\s*/)?.[0].length || 0), end, key: sentenceBodyKey(body), tone, boundary, controls: controlSignature(raw), block })
     start = end
   }
   for (let i = 0; i < text.length; i++) {
@@ -81,7 +100,7 @@ function splitSentenceUnitsOn(text: string, hardOrUnknown: ReadonlyArray<Newline
       continue
     }
     const c = text[i]!
-    if (PAIRS[c]) stack.push(PAIRS[c])
+    if (PAIRS[c] && i !== openDialogueAt) stack.push(PAIRS[c])
     else if (stack.at(-1) === c) stack.pop()
     if (stack.length) continue
     const literalLine = code && /^\\[nr]$/i.test(code)
@@ -95,10 +114,10 @@ function splitSentenceUnitsOn(text: string, hardOrUnknown: ReadonlyArray<Newline
       i = end - 1
       continue
     }
-    if (!/[,，。．.!！?？;；]/.test(c)) continue
-    if (/[,.，．]/.test(c) && /[0-9０-９]/.test(text[i - 1] || '') && /[0-9０-９]/.test(text[i + 1] || '')) continue
-    while (i + 1 < text.length && /[,，。．.!！?？;；]/.test(text[i + 1])) i++
-    push(i + 1, /[,，]/.test(c) ? ',' : /[;；]/.test(c) ? ';' : 'stop')
+    const seam = sentenceBoundaryAt(text, i)
+    if (!seam) continue
+    push(seam.end, seam.boundary)
+    i = seam.end - 1
   }
   if (start < text.length) push(text.length, 'end')
   return units
@@ -109,6 +128,38 @@ function splitSentenceUnitsOn(text: string, hardOrUnknown: ReadonlyArray<Newline
  * Soft breaks are removed in the logic view first (phase 2); unknown stays and does not split.
  */
 export function sentenceUnits(text: string, opts?: SentenceUnitOptions): SentenceUnit[] {
+  if (opts?.structure?.mode === 'disabled')
+    return text.trim() ? [{ start: 0, end: text.length, key: sentenceBodyKey(text), tone: '', boundary: 'end', controls: controlSignature(text), block: 0 }] : []
+  // Game dialogue can continue in another message with an opening parenthesis only.
+  // Keep that visible shell literal while allowing punctuation inside the continuation.
+  const opening = text.match(/^(?:\s*[(（])+/)?.[0]
+  if (opening && !/[)）]/.test(text)) {
+    const offset = opening.length
+    const innerOpts = { ...opts, newlines: opts?.newlines?.filter((n) => n.start >= offset).map((n) => ({ ...n, start: n.start - offset, end: n.end - offset })) }
+    return sentenceUnits(text.slice(offset), innerOpts).map((u) => ({ ...u, start: u.start + offset, end: u.end + offset }))
+  }
+  const structured = scanStructuredText(text, opts?.structure)
+  if (structured.units.length && structured.units.every((unit) => unit.state === 'accepted')) {
+    return structured.units.map((unit, block) => {
+      const raw = text.slice(unit.start, unit.end)
+      const logic = buildLogicText(raw, {
+        srcLang: opts?.srcLang,
+        newlines: opts?.newlines?.filter((n) => n.start >= unit.start && n.end <= unit.end).map((n) => ({ ...n, start: n.start - unit.start, end: n.end - unit.start })),
+      }).logic
+      const tail = logic.match(/[,.!?;，、。．！？；\s]+$/u)?.[0] || ''
+      const body = logic.slice(0, logic.length - tail.length).trim()
+      const marks = punctuationKey(tail.replace(/\s/g, ''))
+      return {
+        start: unit.start,
+        end: unit.end,
+        key: sentenceBodyKey(body || logic),
+        tone: marks.match(/[!?]+/)?.[0] || (marks.includes('.') ? '.' : ''),
+        boundary: 'structure',
+        controls: controlSignature(raw),
+        block,
+      }
+    })
+  }
   const view = buildLogicText(text, { newlines: opts?.newlines, srcLang: opts?.srcLang })
   const units = splitSentenceUnitsOn(view.logic, view.logicNewlines)
   if (view.logic === text) return units
