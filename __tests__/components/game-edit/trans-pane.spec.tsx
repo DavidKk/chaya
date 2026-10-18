@@ -6,6 +6,7 @@ import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
 import { GameEditTransPane } from '@/components/game-edit/GameEditTransPane'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
+import type { TranslateRunMode } from '@/components/translate/tabs'
 import { TranslateActivityLog } from '@/components/translate/TranslateActivityLog'
 import { TranslationPlaySettings } from '@/components/translate/TranslationPlaySettings'
 import { TranslationRuntimeProvider } from '@/components/translate/TranslationRuntimeContext'
@@ -80,7 +81,7 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
   const gameRpc = createTranslationRpc((packet) => webRpc.receive(packet), runtime.request)
   hostRuntime.__chayaTranslationRuntime = surface === 'overlay' ? runtime : undefined
   function Pane({ refreshKey = 0 }: { refreshKey?: number }) {
-    const [tab, setTab] = useState<'play' | 'seed'>('play')
+    const [tab, setTab] = useState<TranslateRunMode>('play')
     const [section, setSection] = useState<'run' | 'cache'>('run')
     const child = (
       <GameEditTransPane surface={surface} refreshKey={refreshKey} {...(surface === 'overlay' ? { tab, onTabChange: setTab, section, onSectionChange: setSection } : {})} />

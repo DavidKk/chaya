@@ -1,7 +1,7 @@
 import { sourceTextBody } from '@/lib/translate/source-text'
 
 /** Languages stored on shared-cache rows. Catalog filters and pair badges use these. */
-export const CACHE_LANGS = ['ja', 'en', 'zh', 'ko'] as const
+export const CACHE_LANGS = ['ja', 'en', 'zh', 'ko', 'ru'] as const
 export type CacheLang = (typeof CACHE_LANGS)[number]
 
 export const DEFAULT_CACHE_SRC_LANG: CacheLang = 'ja'
@@ -11,6 +11,7 @@ const KANA = /[\u3041-\u3096\u30A1-\u30FA\u31F0-\u31FF\uFF66-\uFF9D]/
 const HAN = /[\u3400-\u9FFF]/
 const LATIN = /[A-Za-z]/
 const HANGUL = /[\uAC00-\uD7A3]/
+const CYRILLIC = /[\u0400-\u04FF]/
 
 export function parseCacheLang(raw: string | null | undefined): CacheLang | '' {
   const value = String(raw || '')
@@ -30,6 +31,7 @@ export function normalizeCacheLang(raw: string | null | undefined, fallback: Cac
 export function detectCacheLang(text: string, fallback: CacheLang = DEFAULT_CACHE_SRC_LANG): CacheLang {
   const body = sourceTextBody(String(text || ''))
   if (!body) return fallback
+  if (CYRILLIC.test(body)) return 'ru'
   if (HANGUL.test(body)) return 'ko'
   if (KANA.test(body)) return 'ja'
   if (LATIN.test(body) && !HAN.test(body) && !KANA.test(body)) return 'en'

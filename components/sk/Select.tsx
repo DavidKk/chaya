@@ -216,7 +216,7 @@ export function Select({
             ref={panelRef}
             className={cn(
               'fixed z-[60] flex flex-col overflow-hidden rounded-[0.2rem] border border-line bg-[var(--panel-2)] shadow-[0_12px_32px_rgb(0_0_0/0.35)]',
-              panelWidth === 'content' && 'w-max'
+              panelWidth === 'content' ? 'w-max min-w-full' : 'w-full'
             )}
             style={{ ...panelStyle, maxHeight: PANEL_MAX_HEIGHT_PX }}
             data-listbox-panel=""
@@ -279,7 +279,7 @@ export function Select({
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => pick(index)}
                       >
-                        <span className="min-w-0 truncate">{opt.label}</span>
+                        <span className={cn('min-w-0', panelWidth === 'content' ? 'whitespace-nowrap' : 'truncate')}>{opt.label}</span>
                         <span className={cn('inline-flex shrink-0 items-center justify-center', size === 'mini' ? 'size-3' : 'size-[14px]')} aria-hidden>
                           {isSelected ? <IoCheckmark size={size === 'mini' ? 12 : 14} className="text-accent" /> : null}
                         </span>

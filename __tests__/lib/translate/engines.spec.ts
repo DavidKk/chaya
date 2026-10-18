@@ -4,15 +4,16 @@ describe('translate engines', () => {
   it('groups agent entries apart from platforms; only agents receive sensitive text', () => {
     expect(engineGroup('agent:x')).toBe('agent')
     expect(engineGroup('google')).toBe('platform')
+    expect(engineGroup('apple')).toBe('system')
     expect(engineAcceptsSensitive('agent:x')).toBe(true)
     expect(engineAcceptsSensitive('bing')).toBe(false)
   })
 
   it('drops the old built-in Ollama engine from legacy files', () => {
     const state = mergeEngineState({ ollama: true, bing: false, google: true, order: ['google', 'ollama', 'bing'] })
-    expect(state.switches).toEqual({ bing: false, google: true })
+    expect(state.switches).toEqual({ bing: false, google: true, apple: false })
     expect(state.agents).toEqual([])
-    expect(state.order).toEqual(['google', 'bing'])
+    expect(state.order).toEqual(['google', 'bing', 'apple'])
     expect(state.enabled).toEqual(['google'])
   })
 
@@ -28,7 +29,7 @@ describe('translate engines', () => {
       { id: 'a1', profileId: 'p1', model: 'qwen', enabled: true },
       { id: 'a3', profileId: 'p3', model: '', enabled: false },
     ])
-    expect(normalizeEngineOrder(['agent:a3', 'agent:gone', 'bing'], agents)).toEqual(['agent:a3', 'bing', 'google', 'agent:a1'])
+    expect(normalizeEngineOrder(['agent:a3', 'agent:gone', 'bing'], agents)).toEqual(['agent:a3', 'bing', 'google', 'apple', 'agent:a1'])
   })
 
   it('replaces the agent list on write and drops removed keys from the order', () => {

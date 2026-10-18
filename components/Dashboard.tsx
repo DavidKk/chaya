@@ -416,13 +416,14 @@ export function Dashboard() {
   const loading = serverStatus === null || (browserMode && !cloud.loaded)
   const library = status?.library || []
   const emptyLibrary = !loading && !ready && library.length === 0
+  const libraryEntry = ready ? (status.library || []).find((item) => rootsEqual(item.gameRoot, status.config.gameRoot)) : undefined
   const gameTitle = !ready
     ? ''
-    : status.nwPackage?.window?.title?.trim() ||
+    : libraryEntry?.name?.trim() ||
+      status.nwPackage?.window?.title?.trim() ||
       status.nwPackage?.name?.trim() ||
       (browserMode && cloud.active ? cloud.active.item.name : status.config.gameRoot.split(/[/\\]/).filter(Boolean).pop()) ||
       (remote ? '远程游戏' : '游戏')
-  const libraryEntry = ready ? (status.library || []).find((item) => rootsEqual(item.gameRoot, status.config.gameRoot)) : undefined
   const gameRemark = libraryEntry?.remark?.trim() || ''
   const gamePackageName = ready && status.nwPackage?.name?.trim() ? status.nwPackage.name.trim() : null
   const layoutLabel = ready

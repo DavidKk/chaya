@@ -7,6 +7,7 @@ export { DataTable, type DataTableColumn, type DataTableProps, type DataTableSor
 export { DurationInput, type DurationInputProps } from '@/components/sk/DurationInput'
 export { EmptyState } from '@/components/sk/EmptyState'
 export { GateButton, type GateButtonProps } from '@/components/sk/GateButton'
+export { LanguagePairSelect, type LanguagePairSelectProps } from '@/components/sk/LanguagePairSelect'
 export { Modal, type ModalProps } from '@/components/sk/Modal'
 export { formatCompactNumber, formatExactNumber, NumberInput, type NumberInputProps } from '@/components/sk/NumberInput'
 export { NumberSliderInput, type NumberSliderInputProps } from '@/components/sk/NumberSliderInput'

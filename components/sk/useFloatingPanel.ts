@@ -52,6 +52,7 @@ export function useFloatingPanel({ open, anchorRef, panelRef, maxHeight = DEFAUL
         setStyle({
           position: 'fixed',
           left,
+          minWidth: rect.width,
           maxWidth: maxRight - left,
           top: openAbove ? rect.top - 4 : rect.bottom + 4,
           transform: openAbove ? 'translateY(-100%)' : undefined,

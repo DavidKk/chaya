@@ -54,7 +54,13 @@ function csvRows(text: string): string[][] {
 
 export function extractTextResource(file: string, raw: string): string[] {
   const text = raw.replace(/^\uFEFF/, '')
-  if (/\.json$/i.test(file)) return extractPluginText(JSON.parse(text))
+  if (/\.json$/i.test(file)) {
+    try {
+      return extractPluginText(JSON.parse(text))
+    } catch {
+      return []
+    }
+  }
   if (/\.csv$/i.test(file)) {
     const rows = csvRows(text)
     const first = rows[0] || []

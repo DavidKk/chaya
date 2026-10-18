@@ -3,9 +3,10 @@
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formCard, formCardDense, formControlInline, formFieldInlineDense } from '@/components/layoutClasses'
 import { Skeleton, SkeletonRegion } from '@/components/sk/Skeleton'
+import type { TranslateRunMode } from '@/components/translate/tabs'
 import { cn } from '@/lib/utils'
 
-type TranslateModeTab = 'play' | 'seed'
+type TranslateModeTab = TranslateRunMode
 
 function EngineGroupSkeleton({ rows, subtitle, add }: { rows: number; subtitle?: boolean; add?: boolean }) {
   return (
@@ -130,11 +131,89 @@ function SeedProgressSkeleton() {
   )
 }
 
+/** 翻译列表页骨架屏：与 TranslateListContent 相同的顶部筛选栏、每项元信息头+双栏编辑器、以及底部翻页条 */
+export function TranslateListSkeleton() {
+  const t = useT()
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col select-none" aria-label={t('translate.loadList')}>
+      {/* 1. Top Controls Bar: Search & Filters */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2.5 shrink-0">
+        {/* Left: Summary hint */}
+        <div className="flex items-center gap-1.5">
+          <Skeleton className="h-4 w-28" />
+        </div>
+
+        {/* Right: Search, Categories, Status, Reload button */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Skeleton className="h-8 w-[20rem] rounded-[0.25rem]" />
+          <Skeleton className="h-8 w-36 rounded-[0.25rem]" />
+          <Skeleton className="h-8 w-28 rounded-[0.25rem]" />
+          <Skeleton className="size-8 rounded-[0.25rem]" />
+        </div>
+      </div>
+
+      {/* 2. Paged items skeleton matching TranslateListItemRow structure */}
+      <div className="flex-1 min-h-0 overflow-hidden divide-y divide-line">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="flex h-[150px] flex-col">
+            {/* Top Toolbar: Badges on left, action buttons on right */}
+            <div className="flex h-9 items-center justify-between gap-2 border-b border-line/60 bg-paper-2 px-3 py-1.5 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <Skeleton className="h-4 w-10 rounded-[0.2rem]" />
+                <Skeleton className="h-4 w-12 rounded-[0.2rem]" />
+                <Skeleton className="h-4 w-28 rounded-[0.2rem]" />
+                <Skeleton className="h-4 w-16 rounded-[0.2rem]" />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Skeleton className="h-6 w-16 rounded-[0.2rem]" />
+                <Skeleton className="h-6 w-14 rounded-[0.2rem]" />
+              </div>
+            </div>
+
+            {/* Content: Left & Right seamless editors */}
+            <div className="grid grid-cols-2 flex-1 min-h-0">
+              {/* Left editor (darker, right-bordered) */}
+              <div className="flex flex-col justify-center border-r border-b border-line bg-black/40 px-3 py-2">
+                <Skeleton className="h-3 w-4/5" />
+                <Skeleton className="mt-2 h-3 w-3/5" />
+              </div>
+              {/* Right editor (lighter, interactive) */}
+              <div className="flex flex-col justify-center border-b border-line bg-panel/35 px-3 py-2">
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="mt-2 h-3 w-2/4" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 3. Bottom Panel Foot: Translation counts on left, Pagination on right */}
+      <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line bg-transparent px-4 py-2 text-[0.7rem] text-ink-soft">
+        {/* Left: Translation counts */}
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-3.5 w-44" />
+        </div>
+
+        {/* Right: Pagination controls */}
+        <div className="inline-flex items-center gap-1.5">
+          <Skeleton className="h-7 w-28 rounded-[0.25rem]" />
+          <Skeleton className="h-4 w-12" />
+          <Skeleton className="size-7 rounded-[0.25rem]" />
+          <Skeleton className="size-7 rounded-[0.25rem]" />
+          <Skeleton className="size-7 rounded-[0.25rem]" />
+          <Skeleton className="size-7 rounded-[0.25rem]" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** 翻译运行页加载态：保持引擎轨、配置子导航和当前模式内容的真实拓扑。 */
 export function TranslateRunSkeleton({ tab = 'seed' }: { tab?: TranslateModeTab }) {
   const t = useT()
+  const label = tab === 'seed' ? t('translate.loadSeed') : tab === 'list' ? t('translate.loadList') : t('translate.loadPlay')
   return (
-    <SkeletonRegion label={tab === 'seed' ? t('translate.loadSeed') : t('translate.loadPlay')} className="flex min-h-0 flex-1 flex-col">
+    <SkeletonRegion label={label} className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col items-stretch md:flex-row">
         <EngineRailSkeleton />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -142,9 +221,13 @@ export function TranslateRunSkeleton({ tab = 'seed' }: { tab?: TranslateModeTab 
             <Skeleton className="h-8 w-28 rounded-[0.2rem]" />
           </div>
           <div className="min-h-0 flex-1 overflow-hidden" aria-hidden>
-            <div className="flex items-start justify-start p-4">
-              <div className="flex w-full max-w-[32rem] flex-col gap-3">{tab === 'seed' ? <SeedProgressSkeleton /> : <PlaySettingsSkeleton />}</div>
-            </div>
+            {tab === 'list' ? (
+              <TranslateListSkeleton />
+            ) : (
+              <div className="flex items-start justify-start p-4">
+                <div className="flex w-full max-w-[32rem] flex-col gap-3">{tab === 'seed' ? <SeedProgressSkeleton /> : <PlaySettingsSkeleton />}</div>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -1,0 +1,3 @@
+# Ignore native compiled binaries
+chaya-apple-translator
+chaya-apple-translator.*

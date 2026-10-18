@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
 import { resolveGame } from '@/lib/game'
+import type { TranslateRunEngine } from '@/lib/translate/engines'
 import { normalizeAiConfig } from '@/lib/translate/engines'
 import { hasManagementAccess } from '@/services/access/management'
 import {
@@ -52,7 +53,25 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     const body = (await request.json().catch(() => ({}))) as {
       text?: string
       texts?: string[]
-      mode?: 'lookup' | 'live' | 'realtime' | 'ai' | 'agents' | 'play-settings' | 'benchmark' | 'seed' | 'progress' | 'switches' | 'job' | 'translate-agents'
+      zh?: string
+      mode?:
+        | 'lookup'
+        | 'live'
+        | 'realtime'
+        | 'apple'
+        | 'ai'
+        | 'agents'
+        | 'play-settings'
+        | 'benchmark'
+        | 'seed'
+        | 'progress'
+        | 'switches'
+        | 'job'
+        | 'translate-agents'
+        | 'extract-items'
+        | 'save-item'
+        | 'reset-item'
+        | 'import-locales-corpus'
       settings?: unknown
       contentRoot?: string
       action?: 'start' | 'pause'
@@ -61,8 +80,17 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       force?: boolean
       /** false：只返回译文不落盘（编辑预览） */
       persist?: boolean
+      sourceLang?: string
+      targetLang?: string
+      source?: string
+      target?: string
+      from?: string
+      to?: string
+      localesKey?: string
+      targetFile?: string
       switches?: Partial<TranslateEngineSwitches>
       order?: TranslateEngineId[]
+      engines?: TranslateRunEngine[]
       /** switches：Agent 翻译条目整表替换 */
       agents?: unknown
       /** ai：本次翻译用的实例 / 模型 */
@@ -124,14 +152,70 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       return apiOk(result)
     }
 
+    const session = !hasManagementAccess(request) ? peekLaunchToken(request.headers.get('x-chaya-launch-token')) : null
+    const game = session ? resolveGame(session.gameRoot) : null
+    if (session && (!game?.ok || game.remote)) return apiError(400, 'GAME_UNAVAILABLE', '游戏路径不可用')
+
+    if (body.mode === 'extract-items') {
+      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const { loadExtractedItemsWithLocales } = await import('@/services/extract/lib/extract-items')
+      const sourceLang = typeof body.sourceLang === 'string' ? body.sourceLang : undefined
+      const targetLang = typeof body.targetLang === 'string' ? body.targetLang : undefined
+      const res = loadExtractedItemsWithLocales(root, { sourceLang, targetLang })
+      return apiOk(res)
+    }
+
+    if (body.mode === 'import-locales-corpus') {
+      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const { importGameLocalesCorpus } = await import('@/services/translate/locales-corpus')
+      const limit = typeof body.limit === 'number' ? body.limit : undefined
+      const result = importGameLocalesCorpus(root, { limit })
+      return apiOk(result)
+    }
+
+    if (body.mode === 'save-item') {
+      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const text = typeof body.text === 'string' ? body.text : ''
+      const zh = typeof body.zh === 'string' ? body.zh : ''
+      if (!text && !body.localesKey) return apiError(400, 'SAVE_ITEM_EMPTY', '缺少原文 text 或 localesKey')
+
+      if (typeof body.localesKey === 'string' && body.localesKey) {
+        const { saveLocalesItem } = await import('@/services/extract/lib/save-locales-item')
+        const result = saveLocalesItem({
+          contentRoot: root,
+          localesKey: body.localesKey,
+          text,
+          zh,
+          sourceLang: typeof body.sourceLang === 'string' ? body.sourceLang : undefined,
+          targetLang: typeof body.targetLang === 'string' ? body.targetLang : undefined,
+          targetFile: typeof body.targetFile === 'string' ? body.targetFile : undefined,
+        })
+        return apiOk(result)
+      }
+
+      const { saveExtractedItem } = await import('@/services/extract/lib/save-items')
+      return apiOk(saveExtractedItem(root, text, zh))
+    }
+
+    if (body.mode === 'reset-item') {
+      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const text = typeof body.text === 'string' ? body.text : ''
+      if (!text) return apiError(400, 'RESET_ITEM_EMPTY', '缺少原文 text')
+      const { resetExtractedItem } = await import('@/services/extract/lib/save-items')
+      return apiOk(resetExtractedItem(root, text))
+    }
+
     const texts = Array.isArray(body.texts) ? body.texts : body.text != null ? [body.text] : []
     if (!texts.length) {
       return apiError(400, 'TRANSLATE_EMPTY', '缺少 text / texts')
     }
 
-    const session = !hasManagementAccess(request) ? peekLaunchToken(request.headers.get('x-chaya-launch-token')) : null
-    const game = session ? resolveGame(session.gameRoot) : null
-    if (session && (!game?.ok || game.remote)) return apiError(400, 'GAME_UNAVAILABLE', '游戏路径不可用')
+    if (body.mode === 'apple') {
+      const text = typeof body.text === 'string' ? body.text : ''
+      if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_APPLE_INPUT', 'Apple 离线翻译需要 1–20000 字的 text')
+      const { appleTranslate } = await import('@/services/translate/lib/macos-translate')
+      return apiOk({ text: await appleTranslate(text, { source: (body.from || body.source || 'ja') as string, target: (body.to || body.target || 'zh-Hans') as string }) })
+    }
     if (body.mode === 'ai') {
       const text = typeof body.text === 'string' ? body.text : ''
       if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_AI_INPUT', 'AI 翻译需要 1–20000 字的 text')
@@ -146,6 +230,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       contentRoot: game?.ok ? game.contentRoot : undefined,
       force: Boolean(body.force),
       persist: body.persist !== false,
+      engines: Array.isArray(body.engines) ? body.engines : undefined,
     })
     const okCount = items.filter((i) => i.zh).length
     return apiOk({ items, translated: okCount, total: items.length, contentRoot, engines }, { headers: { 'Access-Control-Allow-Origin': '*' } })

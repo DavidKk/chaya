@@ -10,7 +10,7 @@ export function generateStaticParams({ params }: { params: { tab: string } }) {
 
 export default async function TranslateNestedPage({ params }: { params: Promise<{ tab: string; mode: string }> }) {
   const { tab, mode } = await params
-  if (tab === 'run' && (mode === 'seed' || mode === 'play')) {
+  if (tab === 'run' && (mode === 'seed' || mode === 'list' || mode === 'play')) {
     return <TranslateTabView mode={mode} />
   }
   // Detail requires `/translate/cache/detail/[id]`

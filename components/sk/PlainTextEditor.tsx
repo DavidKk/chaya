@@ -34,6 +34,10 @@ export type PlainTextEditorProps = {
   className?: string
   highlights?: Array<{ start: number; end: number; tone: 'ok' | 'warn'; label: string }>
   'aria-label': string
+  /** 滚动条模式：'default' 保留默认；'none' 或 'hidden' 完全隐藏且不截获鼠标滚轮事件 */
+  scrollbar?: 'default' | 'none' | 'hidden'
+  /** 是否隐藏所有滚动条并放通滚轮事件给外部容器（等同于 scrollbar="none"） */
+  noScrollbars?: boolean
 }
 
 export function plainTextEditorHeightPx(value: string, minLines = PLAIN_TEXT_EDITOR_MIN_LINES): number {
@@ -63,7 +67,10 @@ export function PlainTextEditor({
   className,
   highlights,
   'aria-label': ariaLabel,
+  scrollbar = 'default',
+  noScrollbars,
 }: PlainTextEditorProps) {
+  const hideScrollbars = Boolean(noScrollbars || scrollbar === 'none' || scrollbar === 'hidden')
   const height = fill ? '100%' : (heightPx ?? plainTextEditorHeightPx(value, minLines))
   const [editor, setEditor] = useState<Parameters<NonNullable<ComponentProps<typeof MonacoEditor>['onMount']>>[0] | null>(null)
 
@@ -87,19 +94,62 @@ export function PlainTextEditor({
     return () => decorations.clear()
   }, [editor, highlights, value])
 
+  useEffect(() => {
+    if (!editor) return
+    editor.updateOptions({
+      scrollbar: hideScrollbars
+        ? {
+            vertical: 'hidden',
+            horizontal: 'hidden',
+            verticalScrollbarSize: 0,
+            horizontalScrollbarSize: 0,
+            alwaysConsumeMouseWheel: false,
+            handleMouseWheel: false,
+          }
+        : CHAYA_PLAINTEXT_EDITOR_OPTIONS.scrollbar,
+    })
+  }, [editor, hideScrollbars])
+
   const handleMount = useCallback(
     (editor: Parameters<NonNullable<ComponentProps<typeof MonacoEditor>['onMount']>>[0], monaco: Parameters<NonNullable<ComponentProps<typeof MonacoEditor>['onMount']>>[1]) => {
       setupChayaMonacoTheme(monaco)
       monaco.editor.setTheme(CHAYA_MONACO_THEME)
-      editor.updateOptions({ ariaLabel })
+      editor.updateOptions({
+        ariaLabel,
+        unicodeHighlight: {
+          ambiguousCharacters: false,
+          invisibleCharacters: false,
+          nonBasicASCII: false,
+          includeComments: false,
+          includeStrings: false,
+        },
+        ...(hideScrollbars
+          ? {
+              scrollbar: {
+                vertical: 'hidden',
+                horizontal: 'hidden',
+                verticalScrollbarSize: 0,
+                horizontalScrollbarSize: 0,
+                alwaysConsumeMouseWheel: false,
+                handleMouseWheel: false,
+              },
+            }
+          : {}),
+      })
       setEditor(editor)
     },
-    [ariaLabel]
+    [ariaLabel, hideScrollbars]
   )
 
   return (
     <div
-      className={cn(plainTextEditorShellClass, fill && 'min-h-0 flex-1 self-stretch', highlights?.length && '[&_.text-ok]:!text-ok [&_.text-warn]:!text-warn', className)}
+      className={cn(
+        plainTextEditorShellClass,
+        fill && 'min-h-0 flex-1 self-stretch',
+        hideScrollbars && '[&_.scrollbar]:!hidden [&_.monaco-scrollable-element>.scrollbar]:!hidden',
+        highlights?.length && '[&_.text-ok]:!text-ok [&_.text-warn]:!text-warn',
+        className
+      )}
       style={fill ? undefined : { height }}
     >
       <MonacoEditor
@@ -112,6 +162,16 @@ export function PlainTextEditor({
           wordWrap: softWrap ? 'on' : 'off',
           readOnly: disabled || !onChange,
           domReadOnly: disabled || !onChange,
+          scrollbar: hideScrollbars
+            ? {
+                vertical: 'hidden',
+                horizontal: 'hidden',
+                verticalScrollbarSize: 0,
+                horizontalScrollbarSize: 0,
+                alwaysConsumeMouseWheel: false,
+                handleMouseWheel: false,
+              }
+            : CHAYA_PLAINTEXT_EDITOR_OPTIONS.scrollbar,
         }}
         onChange={(next) => {
           if (disabled || !onChange) return

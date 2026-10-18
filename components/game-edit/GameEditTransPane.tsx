@@ -7,6 +7,7 @@ import { NotificationProvider } from '@/components/notification/NotificationProv
 import { PanelHeadEndProvider } from '@/components/PanelHeadEnd'
 import { CacheBrowserOverlay } from '@/components/translate/CacheBrowserContent'
 import type { TranslateTabId } from '@/components/translate/tabs'
+import { type TranslateRunMode } from '@/components/translate/tabs'
 import { TranslateEnginesDrawerProvider } from '@/components/translate/TranslateEnginesDrawerContext'
 import { TranslateContentToolbar, TranslateSubNav } from '@/components/translate/TranslateSubNav'
 import { TranslateRunPane } from '@/components/TranslateRunPane'
@@ -16,8 +17,8 @@ type Props = {
   surface?: 'page' | 'overlay'
   /** 父级刷新时递增，强制重挂载以拉最新进度 */
   refreshKey?: number
-  tab?: 'play' | 'seed'
-  onTabChange?: (tab: 'play' | 'seed') => void
+  tab?: TranslateRunMode
+  onTabChange?: (tab: TranslateRunMode) => void
   section?: Exclude<TranslateTabId, 'test'>
   onSectionChange?: (section: Exclude<TranslateTabId, 'test'>) => void
 }
@@ -57,7 +58,9 @@ export function GameEditTransPane({ surface = 'page', refreshKey = 0, tab, onTab
 
   return (
     <TranslateEnginesDrawerProvider>
-      <div className="flex min-h-0 flex-1 flex-col">{pane}</div>
+      <PanelHeadEndProvider>
+        <div className="flex min-h-0 flex-1 flex-col">{pane}</div>
+      </PanelHeadEndProvider>
     </TranslateEnginesDrawerProvider>
   )
 }

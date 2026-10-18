@@ -1,7 +1,7 @@
 import { CACHE_LANG_CODE, formatCacheHitCount, formatCacheUpdatedAt } from '@/lib/translate/cache-format'
 
 it('exposes short language codes for dense cells', () => {
-  expect(CACHE_LANG_CODE).toEqual({ ja: 'JA', en: 'EN', zh: 'ZH', ko: 'KO' })
+  expect(CACHE_LANG_CODE).toEqual({ ja: 'JA', en: 'EN', zh: 'ZH', ko: 'KO', ru: 'RU' })
 })
 
 it('compacts hit counts at 1k / 10k / 1m / 1b thresholds', () => {

@@ -58,6 +58,7 @@ const CACHE_ENGINE_KIND_KEY: Record<CacheEngineKind, MessageKey> = {
   agent: 'translate.cacheKindAgent',
   google: 'translate.cacheKindGoogle',
   bing: 'translate.cacheKindBing',
+  apple: 'translate.cacheKindApple',
 }
 
 const CACHE_LANG_KEY: Record<CacheLang, MessageKey> = {
@@ -65,6 +66,7 @@ const CACHE_LANG_KEY: Record<CacheLang, MessageKey> = {
   en: 'translate.cacheLangEn',
   zh: 'translate.cacheLangZh',
   ko: 'translate.cacheLangKo',
+  ru: 'translate.cacheLangRu',
 }
 
 function cacheEngineLabel(engine: string | null, label: (key: MessageKey) => string): string {

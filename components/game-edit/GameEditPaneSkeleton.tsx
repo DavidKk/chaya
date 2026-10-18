@@ -18,7 +18,7 @@ import {
 } from '@/components/layoutClasses'
 import { LogEntriesSkeleton } from '@/components/LogEntriesView'
 import { EditTableSkeleton, Skeleton, SkeletonRegion } from '@/components/sk/Skeleton'
-import type { TranslateTabId } from '@/components/translate/tabs'
+import type { TranslateRunMode, TranslateTabId } from '@/components/translate/tabs'
 import { TranslateCacheTableSkeleton } from '@/components/translate/TranslateCacheTableSkeleton'
 import { TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { cn } from '@/lib/utils'
@@ -205,7 +205,7 @@ export function GameEditLogsSkeleton({ label }: { label?: string }) {
 }
 
 /** 翻译：分区内容头部 + 当前分区对应内容。 */
-export function GameEditTransSkeleton({ section = 'run', translateTab = 'seed', label }: { section?: TranslateTabId; translateTab?: 'play' | 'seed'; label?: string }) {
+export function GameEditTransSkeleton({ section = 'run', translateTab = 'seed', label }: { section?: TranslateTabId; translateTab?: TranslateRunMode; label?: string }) {
   const t = useT()
   return (
     <SkeletonRegion label={label ?? t('edit.loadTrans')} className="flex min-h-0 flex-1 flex-col">
@@ -244,7 +244,7 @@ export function GameEditPaneSkeleton({
   tab: TabId
   label?: string
   translateSection?: TranslateTabId
-  translateTab?: 'play' | 'seed'
+  translateTab?: TranslateRunMode
 }) {
   const t = useT()
   if (tab === 'run') return <GameEditRunSkeleton label={label ?? t('edit.loadRun')} />

@@ -15,6 +15,7 @@ import { PanelHeadTitle } from '@/components/PanelHeadTitle'
 import { Button, EmptyState, NumberInput, ScrollArea, Spinner, SwitchToggle, TruncateText } from '@/components/sk'
 import { filterToggle, filterToggleOn } from '@/components/sk/control'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
+import type { TranslateRunMode } from '@/components/translate/tabs'
 import type { CatalogEntry, GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { cn } from '@/lib/utils'
 
@@ -57,7 +58,7 @@ const GameEditAboutPane = lazy(() => import('./GameEditAboutPane').then((m) => (
 const SaveDataPane = lazy(() => import('./save-data/SaveDataPane').then((m) => ({ default: m.SaveDataPane })))
 const GameEditAgentSettingsPane = lazy(() => import('@/components/settings/GameEditAgentSettingsPane').then((m) => ({ default: m.GameEditAgentSettingsPane })))
 
-function TabSuspense({ tab, children, translateSection, translateTab }: { tab: TabId; children: ReactNode; translateSection?: 'run' | 'cache'; translateTab?: 'play' | 'seed' }) {
+function TabSuspense({ tab, children, translateSection, translateTab }: { tab: TabId; children: ReactNode; translateSection?: 'run' | 'cache'; translateTab?: TranslateRunMode }) {
   const t = useT()
   return <Suspense fallback={<GameEditPaneSkeleton tab={tab} label={t('edit.loadPanel')} translateSection={translateSection} translateTab={translateTab} />}>{children}</Suspense>
 }
@@ -81,8 +82,8 @@ export type GameEditWorkbenchProps = {
   setOnlyOwned: (onlyOwned: boolean) => void
   onlyNamed: boolean
   setOnlyNamed: (onlyNamed: boolean) => void
-  translateTab?: 'play' | 'seed'
-  setTranslateTab?: (tab: 'play' | 'seed') => void
+  translateTab?: TranslateRunMode
+  setTranslateTab?: (tab: TranslateRunMode) => void
   translateSection?: 'run' | 'cache'
   setTranslateSection?: (section: 'run' | 'cache') => void
   loading: boolean

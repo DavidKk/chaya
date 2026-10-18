@@ -80,10 +80,29 @@ export function sanitizeNwPackageName(raw: string, fallback = 'game'): string {
   return cleaned || fallback
 }
 
-/** 游戏展示名（server / 浏览器同规则）：窗口标题 → 包名 → 目录名（去掉 .app） */
-export function nwGameDisplayName(pkg: { name?: string; window?: { title?: string } } | null | undefined, folder: string): string {
+const GENERIC_PACKAGE_NAMES = new Set(['rmmv-game-data', 'game', 'www', 'app', 'rpgmaker', 'game-data', 'unnamed'])
+
+/**
+ * 游戏展示名（server / 浏览器同规则）：
+ * 1. window.title（若非空）
+ * 2. System.json 的 gameTitle（若有）
+ * 3. package.json 的 name（非 rmmv-game-data / game 等模板占位名）
+ * 4. 目录名 / 兜底
+ */
+export function nwGameDisplayName(pkg: { name?: string; window?: { title?: string } } | null | undefined, folder: string, extra?: { gameTitle?: string | null }): string {
+  const windowTitle = pkg?.window?.title?.trim()
+  if (windowTitle) return windowTitle
+
+  const systemGameTitle = extra?.gameTitle?.trim()
+  if (systemGameTitle) return systemGameTitle
+
+  const pkgName = pkg?.name?.trim()
+  if (pkgName && !GENERIC_PACKAGE_NAMES.has(pkgName.toLowerCase())) {
+    return pkgName
+  }
+
   const base = folder.replace(/\.app$/i, '') || folder
-  return pkg?.window?.title?.trim() || pkg?.name?.trim() || base || '未命名游戏'
+  return base || '未命名游戏'
 }
 
 /** 合并写入 window 并修正 name；保留 package.json 其它字段与键顺序 */

@@ -17,6 +17,7 @@ import { lookupGameTranslation } from './cache-lookup'
 import { DEFAULT_ENGINE_SWITCHES, getTranslateEngineSwitches, TRANSLATE_ENGINE_IDS } from './engine-switches'
 import { loadGameTranslateLookup, normalizeTranslateKey } from './game-lookup'
 import { loadGameTranslationRecords } from './game-records'
+import { appleTranslate } from './lib/macos-translate'
 import { type LocalTranslateOptions, ollamaJaToZh } from './ollama-translate'
 import { isSensitiveForCloud } from './sensitive-text'
 import { openSharedCache } from './shared-cache'
@@ -60,6 +61,7 @@ async function bingJaToZh(text: string): Promise<string> {
 async function translateWithEngine(engine: TranslateRunEngine, text: string, options: LocalTranslateOptions | undefined, agents: TranslateAgentEntry[]): Promise<string> {
   if (engine === 'google') return googleJaToZh(text)
   if (engine === 'bing') return bingJaToZh(text)
+  if (engine === 'apple') return appleTranslate(text, { source: 'ja', target: 'zh-Hans' })
   if (engine === 'ollama') return ollamaJaToZh(text, options)
   const entry = findAgentEntry(agents, engine)
   if (!entry) throw new Error('Agent 翻译条目已移除')

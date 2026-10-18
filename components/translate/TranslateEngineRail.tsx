@@ -41,11 +41,13 @@ export type EngineSwitches = TranslateEngineSwitches
 const BUILTIN_LABEL_KEY: Record<TranslateBuiltinId, MessageKey> = {
   bing: 'translate.engineBing',
   google: 'translate.engineGoogle',
+  apple: 'translate.engineApple',
 }
 
 const GROUPS: Array<{ id: TranslateEngineGroup; labelKey: MessageKey; descKey: MessageKey }> = [
   { id: 'agent', labelKey: 'translate.groupAgent', descKey: 'translate.groupAgentDesc' },
   { id: 'platform', labelKey: 'translate.groupPlatform', descKey: 'translate.groupPlatformDesc' },
+  { id: 'system', labelKey: 'translate.groupSystem', descKey: 'translate.groupSystemDesc' },
 ]
 
 const groupLabel = 'text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase'

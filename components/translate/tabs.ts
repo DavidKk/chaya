@@ -28,8 +28,8 @@ export function translateTabHref(tab: TranslateTabId): string {
   return `/translate/${tab}`
 }
 
-export type TranslateRunMode = 'seed' | 'play'
-export const TRANSLATE_RUN_MODES = ['seed', 'play'] as const
+export type TranslateRunMode = 'seed' | 'list' | 'play'
+export const TRANSLATE_RUN_MODES = ['seed', 'list', 'play'] as const
 export const translateRunHref = (mode: TranslateRunMode) => `/translate/run/${mode}`
 
 /** Deep link: `/translate/cache/detail/{rowid}` — edit + optimize. */

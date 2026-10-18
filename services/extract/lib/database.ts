@@ -7,11 +7,17 @@ export { DB_SPECS } from '@/lib/translate/database-fields'
 import { addUnique, clean, isUseful } from './text'
 
 export function loadJson(file: string) {
-  return JSON.parse(fs.readFileSync(file, 'utf8'))
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'))
+  } catch (err) {
+    console.warn(`[extract] 跳过非标准或损坏的 JSON 文件 ${file}:`, err instanceof Error ? err.message : err)
+    return null
+  }
 }
 
 function extractDatabaseArray(dataDir: string, file: string, fields: string[]) {
-  const rows = loadJson(path.join(dataDir, file)) || []
+  const loaded = loadJson(path.join(dataDir, file))
+  const rows = Array.isArray(loaded) ? loaded : []
   const out: any[] = []
   const seen = new Set<string>()
   rows.forEach((row: any, index: number) => {
@@ -33,6 +39,7 @@ function extractDatabaseArray(dataDir: string, file: string, fields: string[]) {
 function extractSystem(dataDir: string) {
   const sys = loadJson(path.join(dataDir, 'System.json'))
   const bucket: string[] = []
+  if (!sys) return bucket
   const seen = new Set<string>()
   const push = (text: unknown) => addUnique(bucket, seen, text)
 
@@ -60,6 +67,7 @@ function extractMapNames(dataDir: string) {
     .filter((f) => /^Map\d+\.json$/.test(f))
     .sort()) {
     const map = loadJson(path.join(dataDir, file))
+    if (!map) continue
     const id = Number(file.match(/Map(\d+)/)?.[1])
     const add = (value: unknown, eventId?: number) => {
       const name = clean(value)
@@ -76,12 +84,14 @@ function extractMapNames(dataDir: string) {
 
 function extractNames(dataDir: string) {
   const nameSet = new Set<string>()
-  for (const actor of loadJson(path.join(dataDir, 'Actors.json')) || []) {
+  const actors = loadJson(path.join(dataDir, 'Actors.json'))
+  for (const actor of Array.isArray(actors) ? actors : []) {
     if (!actor) continue
     if (isUseful(actor.name)) nameSet.add(clean(actor.name))
     if (isUseful(actor.nickname)) nameSet.add(clean(actor.nickname))
   }
-  for (const enemy of loadJson(path.join(dataDir, 'Enemies.json')) || []) {
+  const enemies = loadJson(path.join(dataDir, 'Enemies.json'))
+  for (const enemy of Array.isArray(enemies) ? enemies : []) {
     const name = clean(enemy && enemy.name)
     if (name.length >= 3 && /^[\u30A0-\u30FFー]+$/.test(name)) nameSet.add(name)
   }

@@ -36,15 +36,16 @@ export function runExtract(contentRoot: string, options?: { sourceLanguage?: Sou
     .sort()
   for (const file of mapFiles) {
     const map = loadJson(path.join(DATA, file))
+    if (!map) continue
     const mapId = Number(file.match(/Map(\d+)/)?.[1])
     dialogue.push(...extractDialogueFromEvents(map.events || [], { map: mapId }))
   }
 
   const common = loadJson(path.join(DATA, 'CommonEvents.json'))
-  dialogue.push(...extractDialogueFromEvents(common || [], { src: 'common' }))
+  dialogue.push(...extractDialogueFromEvents(Array.isArray(common) ? common : [], { src: 'common' }))
 
   const troops = loadJson(path.join(DATA, 'Troops.json'))
-  dialogue.push(...extractDialogueFromEvents(troops || [], { src: 'troop' }))
+  dialogue.push(...extractDialogueFromEvents(Array.isArray(troops) ? troops : [], { src: 'troop' }))
 
   const db = extractDatabase(DATA)
   const preferredFields = new Set<string>()
@@ -54,6 +55,7 @@ export function runExtract(contentRoot: string, options?: { sourceLanguage?: Sou
     .filter((name) => /\.json$/i.test(name))
     .sort()) {
     const data = loadJson(path.join(DATA, file))
+    if (!data) continue
     for (const value of extractDataFields(data, { knownOnly: true })) preferredFields.add(value)
     for (const value of extractDataFields(data)) candidates.add(value)
   }
@@ -62,7 +64,7 @@ export function runExtract(contentRoot: string, options?: { sourceLanguage?: Sou
   const sourceLanguage =
     options?.sourceLanguage && options.sourceLanguage !== 'auto'
       ? options.sourceLanguage
-      : detectSourceLanguage(knownSources.size ? knownSources : collectAllStrings([], { dataFields: [...candidates] }), loadJson(path.join(DATA, 'System.json')).locale)
+      : detectSourceLanguage(knownSources.size ? knownSources : collectAllStrings([], { dataFields: [...candidates] }), loadJson(path.join(DATA, 'System.json'))?.locale)
   const pluginsFile = path.join(contentRoot, 'js', 'plugins.js')
   if (fs.existsSync(pluginsFile)) db.plugins = extractPluginsJsText(fs.readFileSync(pluginsFile, 'utf8'))
   db.resources = [...new Set([...textResourceFiles(contentRoot, { fs, path })].flatMap((file) => extractTextResource(file, fs.readFileSync(path.join(contentRoot, file), 'utf8'))))]
@@ -95,8 +97,11 @@ export function runExtract(contentRoot: string, options?: { sourceLanguage?: Sou
   fs.writeFileSync(ensureGameContentDir(contentRoot, 'extractStrings'), JSON.stringify(result) + '\n')
 
   let compare: Record<string, unknown> = { manualExists: false }
-  if (MANUAL) {
-    compare = compareWithManual(allStrings, dialogue, loadJson(MANUAL))
+  if (MANUAL && fs.existsSync(MANUAL)) {
+    const manualData = loadJson(MANUAL)
+    if (manualData && typeof manualData === 'object') {
+      compare = compareWithManual(allStrings, dialogue, manualData as Record<string, unknown>)
+    }
   }
 
   fs.writeFileSync(ensureGameContentDir(contentRoot, 'extractCompare'), JSON.stringify(compare, null, 2) + '\n')

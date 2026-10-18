@@ -14,6 +14,7 @@ jest.mock('@/services/game', () => ({
   resolveGame: jest.fn(),
   getResolvedFromConfig: jest.fn(),
   readNwPackage: () => null,
+  getGameFingerprint: () => null,
   toLibraryItemView: (entry: unknown) => entry,
 }))
 

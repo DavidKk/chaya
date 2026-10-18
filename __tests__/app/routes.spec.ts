@@ -92,6 +92,11 @@ describe('页面路由契约', () => {
     await expectRedirect(() => TranslateIndex(), translateTabHref(DEFAULT_TRANSLATE_TAB))
   })
 
+  it('/translate/run → 重定向至 /translate/run/seed', async () => {
+    const { default: TranslateTabPage } = await import('@/app/translate/[tab]/page')
+    await expectRedirect(() => TranslateTabPage({ params: Promise.resolve({ tab: 'run' }) }), '/translate/run/seed')
+  })
+
   it('/translate/[tab] 非法 → notFound', async () => {
     const { default: TranslateTabPage } = await import('@/app/translate/[tab]/page')
     await expect(TranslateTabPage({ params: Promise.resolve({ tab: 'nope' }) })).rejects.toThrow('NEXT_NOT_FOUND')

@@ -85,6 +85,21 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
     }
   }
 
+  async function requestApple(text: string, signal: AbortSignal): Promise<string> {
+    const response = await chayaFetch(`${resolveApiBase()}/api/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal,
+      body: JSON.stringify({ mode: 'apple', text }),
+    })
+    const data = (await response.json().catch(() => null)) as { ok?: boolean; text?: unknown; error?: { message?: unknown } } | null
+    if (!response.ok || !data || data.ok === false || typeof data.text !== 'string') {
+      const message = typeof data?.error?.message === 'string' ? data.error.message : `Apple 离线翻译服务不可用（${response.status}）`
+      throw new Error(message)
+    }
+    return data.text
+  }
+
   /** Agent endpoints and tokens remain in the local service; the plugin requests translation through that service. */
   async function requestAgent(text: string, ai: TranslateAiConfig, interactive: boolean | undefined, signal: AbortSignal) {
     const response = await chayaFetch(`${resolveApiBase()}/api/translate`, {
@@ -246,9 +261,11 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
                 )
               : agent
                 ? await requestAgent(guard.plain, agent, options.interactive, signal)
-                : engine === 'google'
-                  ? await requestGoogle(http, guard.plain, signal)
-                  : await bing(guard.plain, signal)
+                : engine === 'apple'
+                  ? await requestApple(guard.plain, signal)
+                  : engine === 'google'
+                    ? await requestGoogle(http, guard.plain, signal)
+                    : await bing(guard.plain, signal)
           signal.throwIfAborted()
           const zh = restoreForTranslate(raw, guard)
           if (!isUsefulTranslation(src, guard.plain, raw, zh) || guard.tokens.some((_, i) => !raw.includes(`__C${i}__`))) throw new Error('引擎未返回有效译文或丢失控制码')

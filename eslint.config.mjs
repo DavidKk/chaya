@@ -84,15 +84,7 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: [
-      'plugins/**/*.{ts,js,mjs}',
-      'scripts/**/*.{js,mjs,cjs}',
-      '**/build.mjs',
-      'services/translate/cli.ts',
-      'services/translate/import-cache.ts',
-      'services/extract/cli.ts',
-      'services/extract/lib/main.ts',
-    ],
+    files: ['plugins/**/*.{ts,js,mjs}', 'scripts/**/*.{js,mjs,cjs}', '**/build.mjs', 'services/translate/cli.ts', 'services/translate/import-cache.ts', 'services/extract/**'],
     rules: {
       'no-console': 'off',
       'prefer-rest-params': 'off',

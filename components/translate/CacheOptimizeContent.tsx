@@ -61,6 +61,7 @@ const LANG_KEY: Record<CacheLang, MessageKey> = {
   en: 'translate.cacheLangEn',
   zh: 'translate.cacheLangZh',
   ko: 'translate.cacheLangKo',
+  ru: 'translate.cacheLangRu',
 }
 
 const paneHeadClass = 'mb-2 shrink-0 text-[0.68rem] font-semibold uppercase tracking-[0.05em]'

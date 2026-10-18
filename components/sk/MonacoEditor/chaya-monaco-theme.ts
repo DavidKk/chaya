@@ -19,6 +19,13 @@ export const CHAYA_PLAINTEXT_EDITOR_OPTIONS = {
   hideCursorInOverviewRuler: true,
   overviewRulerBorder: false,
   contextmenu: true,
+  unicodeHighlight: {
+    ambiguousCharacters: false,
+    invisibleCharacters: false,
+    nonBasicASCII: false,
+    includeComments: false,
+    includeStrings: false,
+  },
   scrollbar: {
     verticalScrollbarSize: 6,
     horizontalScrollbarSize: 6,
@@ -47,6 +54,11 @@ export function setupChayaMonacoTheme(monaco: typeof Monaco) {
       'editorWidget.background': '#172234',
       'editorWidget.border': '#f0f7ff1f',
       'editorCursor.foreground': '#2ad4ff',
+      'editorUnicodeHighlight.border': '#00000000',
+      'editorUnicodeHighlight.background': '#00000000',
+      'editorWarning.border': '#00000000',
+      'editorInfo.border': '#00000000',
+      'editorError.border': '#00000000',
     },
   })
 }

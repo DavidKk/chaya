@@ -14,6 +14,7 @@ import {
   displayNameFromPath,
   findLibraryEntry,
   formatBytes,
+  getGameFingerprint,
   getResolvedFromConfig,
   isToolkitShellInstalled,
   loadConfig,
@@ -59,8 +60,8 @@ function platformPayload() {
   }
 }
 
-function resolveDisplayName(contentRoot: string, gameRoot: string): string {
-  return nwGameDisplayName(readNwPackage(contentRoot), displayNameFromPath(gameRoot))
+function resolveDisplayName(contentRoot: string, gameRoot: string, systemGameTitle?: string | null): string {
+  return nwGameDisplayName(readNwPackage(contentRoot), displayNameFromPath(gameRoot, { skipGeneric: true }), { gameTitle: systemGameTitle })
 }
 
 /** 无盘形态：不下探用户盘 / toolkit data，只回形态字段 */
@@ -303,7 +304,8 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
         unchanged: true,
       })
     }
-    const name = resolveDisplayName(check.contentRoot, input)
+    const fingerprint = getGameFingerprint(check)
+    const name = resolveDisplayName(check.contentRoot, input, fingerprint?.system?.gameTitle)
     let library
     try {
       library = replaceLibraryId

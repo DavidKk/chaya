@@ -20,6 +20,7 @@ export {
 export const TRANSLATE_ENGINE_META = {
   bing: { label: 'Bing', desc: '公网微软翻译（可选依赖）' },
   google: { label: 'Google', desc: '公网 gtx' },
+  apple: { label: 'Apple', desc: 'macOS 系统原生离线神经翻译（需离线语言包）' },
 } as const
 
 function resolveContentRoot(): string {

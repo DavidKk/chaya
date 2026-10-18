@@ -53,8 +53,8 @@ export function PanelHeadEndHost({ className }: { className?: string }) {
 }
 
 /** 内容页把筛选控件注入页头右侧（与日志 / GameEdit 的 head-end 同一视觉位） */
-export function PanelHeadEnd({ children }: { children: ReactNode }) {
+export function PanelHeadEnd({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   const host = useContext(EndNodeContext)
-  if (!host) return null
+  if (!host) return fallback ? <>{fallback}</> : null
   return createPortal(children, host)
 }

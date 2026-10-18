@@ -8,10 +8,12 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { formCardDense } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, ScrollArea, TruncateText } from '@/components/sk'
+import type { TranslateRunMode } from '@/components/translate/tabs'
 import { TranslateActivityLog, type TranslateLogEntry } from '@/components/translate/TranslateActivityLog'
 import { type EngineId, TranslateEngineRail } from '@/components/translate/TranslateEngineRail'
 import { useTranslateEnginesDrawer } from '@/components/translate/TranslateEnginesDrawerContext'
 import { TranslateExportMenu } from '@/components/translate/TranslateExportMenu'
+import { TranslateListContent } from '@/components/translate/TranslateListContent'
 import { TranslateRunNav } from '@/components/translate/TranslateRunNav'
 import { TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { TranslationPlaySettings } from '@/components/translate/TranslationPlaySettings'
@@ -152,13 +154,13 @@ export function TranslateRunPane({
   tab: selectedTab,
   onTabChange,
   surface = 'page',
-}: { tab?: 'play' | 'seed'; onTabChange?: (tab: 'play' | 'seed') => void; surface?: 'page' | 'overlay' } = {}) {
+}: { tab?: TranslateRunMode; onTabChange?: (tab: TranslateRunMode) => void; surface?: 'page' | 'overlay' } = {}) {
   const t = useT()
   const panelId = useId()
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
   const fileRef = useRef<HTMLInputElement>(null)
-  const [localTab, setLocalTab] = useState<'play' | 'seed'>('seed')
+  const [localTab, setLocalTab] = useState<TranslateRunMode>('seed')
   const tab = selectedTab ?? localTab
   const setTab = onTabChange ?? setLocalTab
   const [progress, setProgress] = useState<Progress>(emptyProgress)
@@ -424,124 +426,130 @@ export function TranslateRunPane({
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <TranslateRunNav value={tab} onChange={setTab} panelId={panelId} />
-            <ScrollArea className="min-h-0 flex-1" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.taskAria') }}>
-              <div className="flex items-start justify-start p-4">
-                <div className="flex w-full max-w-[32rem] flex-col gap-3">
-                  <div role="tabpanel" id={`${panelId}-play`} aria-labelledby={`${panelId}-play-tab`} data-translate-mode="play" hidden={tab !== 'play'}>
-                    <TranslationPlaySettings />
-                    <TranslateActivityLog className="mt-4 w-full" entries={activity.logs} liveStatus={activity.liveStatus} sessionDone={activity.sessionDone} />
-                  </div>
-                  <div role="tabpanel" id={`${panelId}-seed`} aria-labelledby={`${panelId}-seed-tab`} data-translate-mode="seed" hidden={tab !== 'seed'}>
-                    <div className={cn(formCardDense, 'w-full')}>
-                      {status ? (
-                        <p role="alert" className="text-fail">
-                          {status}
-                        </p>
-                      ) : null}
-
-                      {!progress.hasSeed ? (
-                        <div>
-                          <ProgressMeter label={t('translate.extract')} pct={extractPct} indeterminate={extracting} />
-                        </div>
-                      ) : null}
-
-                      {progress.hasSeed ? (
-                        <>
-                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                            <StatTile
-                              label={t('translate.total')}
-                              value={progress.total}
-                              hint={t('translate.needSkipHint', {
-                                need: progress.needCount.toLocaleString(),
-                                skip: progress.skipCount.toLocaleString(),
-                              })}
-                            />
-                            <StatTile
-                              label={t('translate.translated')}
-                              value={progress.done}
-                              hint={t('translate.charsHint', { count: progress.doneChars.toLocaleString() })}
-                              tone="ok"
-                            />
-                            <StatTile
-                              label={t('translate.missing')}
-                              value={progress.missing}
-                              hint={t('translate.charsPending', { count: progress.missingChars.toLocaleString() })}
-                              tone="warn"
-                            />
-                            <StatTile
-                              label={t('translate.pendingChars')}
-                              value={progress.missingChars}
-                              hint={t('translate.needCharsHint', { count: progress.needChars.toLocaleString() })}
-                              tone="warn"
-                            />
-                            <StatTile
-                              label={t('translate.skipChars')}
-                              value={progress.skipChars}
-                              hint={t('translate.skipLinesHint', { count: progress.skipCount.toLocaleString() })}
-                            />
-                            <StatTile
-                              label={t('translate.lines')}
-                              value={progress.lines}
-                              hint={
-                                batchesTotal
-                                  ? t('translate.batchHint', { done: batchesDone.toLocaleString(), total: batchesTotal.toLocaleString(), size: progress.batchSize })
-                                  : t('translate.perBatch', { size: progress.batchSize })
-                              }
-                              tone="accent"
-                            />
-                          </div>
-                          <div>
-                            <ProgressMeter
-                              label={t('translate.tabRun')}
-                              pct={translatePct}
-                              hint={
-                                remainEta
-                                  ? t('translate.etaLeft', { eta: remainEta })
-                                  : running && progress.batchesLeft > 0
-                                    ? t('translate.stillMissingNoEta', { count: progress.batchesLeft })
-                                    : undefined
-                              }
-                            />
-                          </div>
-                        </>
-                      ) : null}
-
-                      <div className="grid grid-flow-col auto-cols-fr items-center gap-1 sm:gap-2 [&_svg]:max-sm:hidden [&_button]:max-sm:text-xs [&_button]:w-full [&_button]:min-w-0 [&_button]:gap-1 [&_button]:px-2 [&_button]:whitespace-nowrap">
-                        <Button disabled={busy} loading={importing} onClick={() => fileRef.current?.click()}>
-                          <IoCloudUploadOutline size={16} aria-hidden />
-                          {t('translate.importFile')}
-                        </Button>
-                        <TranslateExportMenu disabled={busy} loading={exporting} onExport={(mode) => void exportJson(mode)} />
-                        {progress.hasSeed ? (
-                          <Button variant="accent" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
-                            <LuScanText size={16} aria-hidden />
-                            {t('translate.updateSource')}
-                          </Button>
-                        ) : null}
-                        {!progress.hasSeed ? (
-                          <Button variant="ok" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
-                            <LuScanText size={16} aria-hidden />
-                            {t('translate.extract')}
-                          </Button>
-                        ) : running ? (
-                          <Button variant="fail" disabled={pausing} loading={pausing} onClick={() => void pauseJob()}>
-                            <IoPauseOutline size={16} aria-hidden />
-                            {t('common.pause')}
-                          </Button>
-                        ) : (
-                          <Button variant="ok" disabled={busy || !canStart} loading={starting} onClick={() => void startJob()}>
-                            <IoPlayOutline size={16} aria-hidden />
-                            {startLabel}
-                          </Button>
-                        )}
-                      </div>
+            {tab === 'list' ? (
+              <div role="tabpanel" id={`${panelId}-list`} aria-labelledby={`${panelId}-list-tab`} data-translate-mode="list" className="flex min-h-0 flex-1 flex-col">
+                <TranslateListContent onExtract={() => setTab('seed')} />
+              </div>
+            ) : (
+              <ScrollArea className="min-h-0 flex-1" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.taskAria') }}>
+                <div className="flex items-start justify-start p-4">
+                  <div className="flex w-full max-w-[32rem] flex-col gap-3">
+                    <div role="tabpanel" id={`${panelId}-play`} aria-labelledby={`${panelId}-play-tab`} data-translate-mode="play" hidden={tab !== 'play'}>
+                      <TranslationPlaySettings />
+                      <TranslateActivityLog className="mt-4 w-full" entries={activity.logs} liveStatus={activity.liveStatus} sessionDone={activity.sessionDone} />
                     </div>
+                    <div role="tabpanel" id={`${panelId}-seed`} aria-labelledby={`${panelId}-seed-tab`} data-translate-mode="seed" hidden={tab !== 'seed'}>
+                      <div className={cn(formCardDense, 'w-full')}>
+                        {status ? (
+                          <p role="alert" className="text-fail">
+                            {status}
+                          </p>
+                        ) : null}
 
-                    {tab === 'seed' ? <TranslateActivityLog className="mt-4 w-full" entries={job.logs} liveStatus={liveStatus} sessionDone={job.sessionDone} /> : null}
+                        {!progress.hasSeed ? (
+                          <div>
+                            <ProgressMeter label={t('translate.extract')} pct={extractPct} indeterminate={extracting} />
+                          </div>
+                        ) : null}
+
+                        {progress.hasSeed ? (
+                          <>
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                              <StatTile
+                                label={t('translate.total')}
+                                value={progress.total}
+                                hint={t('translate.needSkipHint', {
+                                  need: progress.needCount.toLocaleString(),
+                                  skip: progress.skipCount.toLocaleString(),
+                                })}
+                              />
+                              <StatTile
+                                label={t('translate.translated')}
+                                value={progress.done}
+                                hint={t('translate.charsHint', { count: progress.doneChars.toLocaleString() })}
+                                tone="ok"
+                              />
+                              <StatTile
+                                label={t('translate.missing')}
+                                value={progress.missing}
+                                hint={t('translate.charsPending', { count: progress.missingChars.toLocaleString() })}
+                                tone="warn"
+                              />
+                              <StatTile
+                                label={t('translate.pendingChars')}
+                                value={progress.missingChars}
+                                hint={t('translate.needCharsHint', { count: progress.needChars.toLocaleString() })}
+                                tone="warn"
+                              />
+                              <StatTile
+                                label={t('translate.skipChars')}
+                                value={progress.skipChars}
+                                hint={t('translate.skipLinesHint', { count: progress.skipCount.toLocaleString() })}
+                              />
+                              <StatTile
+                                label={t('translate.lines')}
+                                value={progress.lines}
+                                hint={
+                                  batchesTotal
+                                    ? t('translate.batchHint', { done: batchesDone.toLocaleString(), total: batchesTotal.toLocaleString(), size: progress.batchSize })
+                                    : t('translate.perBatch', { size: progress.batchSize })
+                                }
+                                tone="accent"
+                              />
+                            </div>
+                            <div>
+                              <ProgressMeter
+                                label={t('translate.tabRun')}
+                                pct={translatePct}
+                                hint={
+                                  remainEta
+                                    ? t('translate.etaLeft', { eta: remainEta })
+                                    : running && progress.batchesLeft > 0
+                                      ? t('translate.stillMissingNoEta', { count: progress.batchesLeft })
+                                      : undefined
+                                }
+                              />
+                            </div>
+                          </>
+                        ) : null}
+
+                        <div className="grid grid-flow-col auto-cols-fr items-center gap-1 sm:gap-2 [&_svg]:max-sm:hidden [&_button]:max-sm:text-xs [&_button]:w-full [&_button]:min-w-0 [&_button]:gap-1 [&_button]:px-2 [&_button]:whitespace-nowrap">
+                          <Button disabled={busy} loading={importing} onClick={() => fileRef.current?.click()}>
+                            <IoCloudUploadOutline size={16} aria-hidden />
+                            {t('translate.importFile')}
+                          </Button>
+                          <TranslateExportMenu disabled={busy} loading={exporting} onExport={(mode) => void exportJson(mode)} />
+                          {progress.hasSeed ? (
+                            <Button variant="accent" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
+                              <LuScanText size={16} aria-hidden />
+                              {t('translate.updateSource')}
+                            </Button>
+                          ) : null}
+                          {!progress.hasSeed ? (
+                            <Button variant="ok" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
+                              <LuScanText size={16} aria-hidden />
+                              {t('translate.extract')}
+                            </Button>
+                          ) : running ? (
+                            <Button variant="fail" disabled={pausing} loading={pausing} onClick={() => void pauseJob()}>
+                              <IoPauseOutline size={16} aria-hidden />
+                              {t('common.pause')}
+                            </Button>
+                          ) : (
+                            <Button variant="ok" disabled={busy || !canStart} loading={starting} onClick={() => void startJob()}>
+                              <IoPlayOutline size={16} aria-hidden />
+                              {startLabel}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {tab === 'seed' ? <TranslateActivityLog className="mt-4 w-full" entries={job.logs} liveStatus={liveStatus} sessionDone={job.sessionDone} /> : null}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </ScrollArea>
+              </ScrollArea>
+            )}
           </div>
         </div>
       </div>

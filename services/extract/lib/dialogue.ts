@@ -102,6 +102,8 @@ export function extractDialogueFromEvents(events: any[] | undefined, loc: Dialog
           block = { ...base(), lines: [] }
           const face = p[0] || ''
           if (face) block.face = face
+          const speaker = clean(p[4])
+          if (speaker) block.speaker = speaker
           return
         }
 

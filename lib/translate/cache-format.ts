@@ -6,6 +6,7 @@ export const CACHE_LANG_CODE: Record<CacheLang, string> = {
   en: 'EN',
   zh: 'ZH',
   ko: 'KO',
+  ru: 'RU',
 }
 
 /** Compact hit counts: 999 → 999, 1500 → 1k+, 12000 → 10k+, 2.5e6 → 2m+, 1.5e9 → 1b+. */

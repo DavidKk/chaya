@@ -4,8 +4,10 @@ import path from 'node:path'
 import type { ChayaConfig, LibraryEntry, LibraryItemView } from '@/lib/game'
 import { findEnclosingAppBundle, resolveGame } from '@/lib/game'
 import { libraryKindLabel } from '@/lib/game/library-label'
+import { nwGameDisplayName } from '@/lib/game/nw-window'
 
-import { getGameFingerprintSummary } from './fingerprint'
+import { getGameFingerprint, getGameFingerprintSummary } from './fingerprint'
+import { readNwPackage } from './nw-package'
 
 function normalizeRootKey(gameRoot: string): string {
   return String(gameRoot || '')
@@ -40,9 +42,19 @@ function stableLibraryId(existing: string | undefined): string {
   return isLibraryEntryId(id) ? id : libraryEntryId()
 }
 
-export function displayNameFromPath(gameRoot: string): string {
-  const base = path.basename(normalizeRootKey(gameRoot).replace(/\\/g, '/'))
-  return base.replace(/\.app$/i, '') || base || '未命名游戏'
+export function displayNameFromPath(gameRoot: string, opts?: { skipGeneric?: boolean }): string {
+  const normalized = normalizeRootKey(gameRoot).replace(/\\/g, '/')
+  const segments = normalized.split('/').filter(Boolean)
+  if (!segments.length) return '未命名游戏'
+  const lastRaw = segments[segments.length - 1]!
+  const last = lastRaw.replace(/\.app$/i, '')
+  if (opts?.skipGeneric && new Set(['game', 'www', 'app.nw', 'package.nw']).has(last.toLowerCase()) && segments.length > 1) {
+    const parent = segments[segments.length - 2]!.replace(/\.app$/i, '').trim()
+    if (parent && !new Set(['game', 'www', 'app.nw', 'package.nw']).has(parent.toLowerCase())) {
+      return parent
+    }
+  }
+  return last || '未命名游戏'
 }
 
 export function pathEquals(a: string, b: string): boolean {
@@ -221,9 +233,21 @@ export function toLibraryItemView(entry: LibraryEntry): LibraryItemView {
   }
   const resolved = resolveGame(entry.gameRoot)
   const missing = !resolved.ok
-  const fingerprint = resolved.ok ? getGameFingerprintSummary(resolved) : undefined
+  const fullFingerprint = resolved.ok ? getGameFingerprint(resolved) : null
+  const fingerprint = resolved.ok && fullFingerprint ? getGameFingerprintSummary(resolved) : undefined
+  let name = entry.name
+  if (resolved.ok && (!name || name === 'game' || name === displayNameFromPath(entry.gameRoot))) {
+    const nwPkg = readNwPackage(resolved.contentRoot)
+    const resolvedName = nwGameDisplayName(nwPkg, displayNameFromPath(entry.gameRoot, { skipGeneric: true }), {
+      gameTitle: fullFingerprint?.system?.gameTitle,
+    })
+    if (resolvedName && resolvedName !== '未命名游戏') {
+      name = resolvedName
+    }
+  }
   return {
     ...entry,
+    name,
     remote: false,
     missing,
     kindLabel: kindLabelOf(resolved.ok ? resolved.kind : undefined, missing, false),

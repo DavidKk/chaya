@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 
 import { TRANSLATE_TABS } from '@/components/translate/tabs'
 import { TranslateTabView } from '@/components/translate/TranslateTabView'
@@ -12,5 +12,8 @@ export function generateStaticParams() {
 export default async function TranslateTabPage({ params }: Props) {
   const { tab: raw } = await params
   if (!TRANSLATE_TABS.some((t) => t.id === raw)) notFound()
+  if (raw === 'run') {
+    redirect('/translate/run/seed')
+  }
   return <TranslateTabView />
 }

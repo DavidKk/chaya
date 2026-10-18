@@ -39,6 +39,7 @@
 - 浮层 z-index 由低到高：迷你面板 `FloatingToolPanel`、迷你面板管理与通知 `NotificationProvider` `60`（通知在 DOM 后挂载，同层时盖在面板上）→ 移动端侧栏遮罩 `65` → 侧栏 / 下拉 / Popover / Menu `70` → `Modal` `80` → `Tooltip` `90`。提示永远在最上层，新浮层按此插入，不要高于 `Tooltip`。
 - 图标按钮：`Button size="icon"`（32px）用于页面；`size="mini"`（24px）用于迷你面板头部与面板内紧凑列表，配 `variant="plain"`（无边框）。两者都把 `aria-label` 作为悬停提示，不另写文字。迷你面板与迷你面板管理都不加外边框，靠 `shadow-lg` 与画面区分；头部用 `bg-panel-2` 与正文区分，不加分隔线。
 - 需求中提到“图标按钮”，统一指共享 `Button` + React Icons 图标 + 共享 tooltip，不显示可见按钮文字。提供准确的 `aria-label`，显式 `tooltip` 或使用图标尺寸的默认回退；展开/收起等可切换动作同步更新图标与提示。折叠列表隐藏原生 summary 三角标记，改用 React Icons 箭头表示展开状态，不使用三角字符。
+- **图标与 Emoji 规范（硬）：所有图标（icon）、状态指示、分类标记严禁使用 Emoji（例如 🗣️、📍、⚙️、📁 等），必须统一使用 React Icons（如 `react-icons/lu`、`react-icons/io5`）。** Emoji 在各操作系统（macOS、Windows、Linux）与不同浏览器环境中的色彩渲染、字形尺寸与基线高度不一致，破坏整体界面的暗黑科技感与排版对齐；React Icons 具有统一的 SVG 矢量渲染、颜色继承（`currentColor` / 设计 token）与文字基线对齐能力。
 - 迷你面板一律用 `FloatingToolPanel panel={id}`（配置见 `TOOL_PANEL_FRAME`）加 `MiniPanelParts` 里的工具条、提示与失败条，不要另写外壳或局部样式。
 
 ## 4. 布局与组件落点
@@ -125,7 +126,10 @@
 - 空列表区分「无数据」vs「无匹配」。
 - 危险操作需确认或明确不可逆。
 - 异步按钮 `disabled` + 进行中态。
+- **所有输入框与表单组件必须统一使用公共自定义组件（硬）**：严禁直接使用 HTML 原生裸标签（如原生 `<input type="number">`、`<input type="text">`、`<select>`、`<textarea>` 等），避免出现原生浏览器控件怪异默认外观（如原生数字输入框丑陋的上下双三角调节箭头、默认聚焦外边框不同等）；所有输入场景均须使用 `@/components/sk` 导出的公共规范组件（文本使用 `TextInput`、数字/页码使用 `NumberInput`、下拉使用 `Select`、多行/编辑器使用 `PlainTextEditor` 等）。
 - **禁用态统一**：原生控件用 `controlDisabled`（`components/sk/control.ts`，45% 不透明 + 禁止光标），span 外壳等按条件追加 `controlDisabledShell`；不要自写 `disabled:opacity-*`。开关禁用时轨道改中性灰，不保留强调色；外壳已变暗的子按钮只加禁止光标，避免叠加变暗。
+- **禁用态 Tooltip 说明规范（硬）**：所有处于禁用（`disabled`）状态的操作控件（按钮、下拉菜单触发项、输入框等），**必须**通过 Tooltip 明确向用户解释「为什么当前无法点击/操作」以及解除禁用的条件（例如：`"译文为空，请输入或翻译后再保存"`、`"正在翻译中，请稍候…"`），杜绝让用户面对无响应置灰按钮产生困惑；注意在原生 `<button disabled>` 上挂载 Tooltip 时需外包一层 `<span className="inline-flex">`，确保原生禁用控件在浏览器中能正常触发 hover 浮层。
+- **翻译与自然语言编辑器规范（硬）**：翻译页面及游戏文本编辑场景面向自然语言处理（体验看齐 Word 文档编辑），严禁出现面向编程代码的安全/语法方框（如 Monaco 默认对西里尔字母、非 ASCII 混杂字符的 ambiguous/non-basic ASCII 黄色矩形方框）。若编辑器后续需呈现拼写或语法提示，统一使用类似 Word 的柔和波浪下划线（`text-decoration: underline wavy`），禁止使用任何矩形边框框住文字字符。
 - **成功提示不插入 DOM 节点（全局）**：操作成功后不要在页面里新增提示行、横幅、状态文字等元素来告知结果，避免布局跳动。控件自身状态（开关、按钮、列表内容）已能体现结果时不再额外提示；需要明确告知时用 `useNotification().success`，局内用插件 toast。持续运行状态（倒计时、等待原因）放在已常驻的区域（如列表工具栏摘要）里替换文字，不随操作出现或消失。
 
 ## 7. 检查清单
@@ -137,3 +141,5 @@
 - [ ] GameEdit 与 Toolkit 同属一套皮
 - [ ] 内容区文字都在卡片内（§4.2）
 - [ ] 成功提示不插入 DOM 节点（§6）
+- [ ] 禁用态控件皆配有 Tooltip 原因说明（§6）
+- [ ] 翻译自然语言文本无代码级黄色方框警告，若有提示统一为波浪下划线（§6）

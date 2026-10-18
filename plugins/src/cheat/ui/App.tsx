@@ -40,6 +40,7 @@ import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
 import { EditTableSkeleton } from '@/components/sk'
+import type { TranslateRunMode } from '@/components/translate/tabs'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { isInputRecording } from '@/lib/game/input-assistance/recording'
 import { readViewState, writeViewState } from '@/lib/view-state'
@@ -78,7 +79,7 @@ type OverlayView = {
   filter: string
   onlyOwned: boolean
   onlyNamed: boolean
-  translateTab: 'play' | 'seed'
+  translateTab: TranslateRunMode
   translateSection: 'run' | 'cache'
 }
 
@@ -97,7 +98,7 @@ function initialView(): OverlayView {
     filter: typeof saved?.filter === 'string' ? saved.filter : '',
     onlyOwned: saved?.onlyOwned === true,
     onlyNamed: saved?.onlyNamed !== false,
-    translateTab: saved?.translateTab === 'play' ? 'play' : 'seed',
+    translateTab: saved?.translateTab === 'play' || saved?.translateTab === 'list' ? saved.translateTab : 'seed',
     translateSection: saved?.translateSection === 'cache' ? 'cache' : 'run',
   }
 }
@@ -121,7 +122,7 @@ export function captureGameEditView() {
     ...saved,
     tab: isTabId(mainPage) && !isEditTab(mainPage) ? mainPage : parseTabId(tab, saved.tab),
     lastEditTab: isEditTab(parseTabId(tab, saved.lastEditTab)) ? parseTabId(tab, saved.lastEditTab) : saved.lastEditTab,
-    translateTab: activeTranslateTab === 'seed' ? 'seed' : activeTranslateTab === 'play' ? 'play' : saved.translateTab,
+    translateTab: activeTranslateTab === 'seed' || activeTranslateTab === 'play' || activeTranslateTab === 'list' ? activeTranslateTab : saved.translateTab,
     translateSection: activeTranslateSection === 'cache' ? 'cache' : activeTranslateSection === 'run' ? 'run' : saved.translateSection,
   }
 }
@@ -177,7 +178,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   const [filter, setFilter] = useState(initial.filter)
   const [onlyOwned, setOnlyOwned] = useState(initial.onlyOwned)
   const [onlyNamed, setOnlyNamed] = useState(initial.onlyNamed)
-  const [translateTab, setTranslateTab] = useState<'play' | 'seed'>(initial.translateTab)
+  const [translateTab, setTranslateTab] = useState<TranslateRunMode>(initial.translateTab)
   const [translateSection, setTranslateSection] = useState<'run' | 'cache'>(initial.translateSection)
   useEffect(() => {
     const openSettings = () => setTab('settings')

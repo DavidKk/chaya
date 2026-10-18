@@ -325,6 +325,7 @@ export type MessageTree = {
     configAria: string
     taskAria: string
     playTab: string
+    listTab: string
     seedTab: string
     extract: string
     updateSource: string
@@ -389,6 +390,8 @@ export type MessageTree = {
     groupAgentDesc: string
     groupPlatform: string
     groupPlatformDesc: string
+    groupSystem: string
+    groupSystemDesc: string
     agentAddAria: string
     agentEdit: string
     agentRemove: string
@@ -399,6 +402,7 @@ export type MessageTree = {
     agentEmpty: string
     engineBing: string
     engineGoogle: string
+    engineApple: string
     aiProfile: string
     aiModel: string
     aiModelAuto: string
@@ -446,6 +450,7 @@ export type MessageTree = {
     cacheKindAgent: string
     cacheKindGoogle: string
     cacheKindBing: string
+    cacheKindApple: string
     cacheLive: string
     cacheFlagAll: string
     cacheFlagNsfw: string
@@ -467,6 +472,7 @@ export type MessageTree = {
     cacheLangEn: string
     cacheLangZh: string
     cacheLangKo: string
+    cacheLangRu: string
     cacheSearch: string
     cacheFilterEngine: string
     cacheNsfwOn: string
@@ -520,6 +526,7 @@ export type MessageTree = {
     cacheOptimizeMissingTitle: string
     cacheOptimizeMissingMsg: string
     cacheOptimizeMissingHint: string
+    loadList: string
     loadSeed: string
     loadPlay: string
     loadPlaySettings: string

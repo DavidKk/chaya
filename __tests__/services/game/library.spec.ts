@@ -115,3 +115,16 @@ describe('library relocation', () => {
     expect(library).toEqual([first, other])
   })
 })
+
+describe('library display name resolution', () => {
+  it('displayNameFromPath 默认直接返回最后一级', () => {
+    expect(displayNameFromPath('/Games/Kimochi.app')).toBe('Kimochi')
+    expect(displayNameFromPath('/Games/www')).toBe('www')
+  })
+
+  it('displayNameFromPath skipGeneric 可跳过常见泛型文件夹取上层', () => {
+    expect(displayNameFromPath('/Heroines.of.Swords.Spells.2/game', { skipGeneric: true })).toBe('Heroines.of.Swords.Spells.2')
+    expect(displayNameFromPath('/Games/www', { skipGeneric: true })).toBe('Games')
+    expect(displayNameFromPath('/game', { skipGeneric: true })).toBe('game')
+  })
+})

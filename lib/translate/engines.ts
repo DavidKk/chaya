@@ -1,15 +1,19 @@
 /** Translation engine definitions shared by the server, game plugin and web client. User-configured agent instances use agent:<id>; platform engines are Bing and Google. Fill jobs try agents before platform engines. */
-export const TRANSLATE_ENGINE_IDS = ['bing', 'google'] as const
+export const TRANSLATE_ENGINE_IDS = ['bing', 'google', 'apple'] as const
 export type TranslateBuiltinId = (typeof TRANSLATE_ENGINE_IDS)[number]
 export type TranslateEngineId = TranslateBuiltinId | `agent:${string}`
 /** Local Ollama is used internally for play-mode latency checks and live dialogue, and is excluded from the engine list. */
 export type TranslateRunEngine = TranslateEngineId | 'ollama'
-export type TranslateEngineGroup = 'agent' | 'platform'
+export type TranslateEngineGroup = 'agent' | 'platform' | 'system'
 export type TranslateEngineSwitches = Record<TranslateBuiltinId, boolean>
 
-export const TRANSLATE_GROUP_ORDER: TranslateEngineGroup[] = ['agent', 'platform']
+export const TRANSLATE_GROUP_ORDER: TranslateEngineGroup[] = ['agent', 'platform', 'system']
 export const DEFAULT_ENGINE_ORDER: TranslateEngineId[] = [...TRANSLATE_ENGINE_IDS]
-export const DEFAULT_ENGINE_SWITCHES: TranslateEngineSwitches = { bing: true, google: true }
+export const DEFAULT_ENGINE_SWITCHES: TranslateEngineSwitches = {
+  bing: true,
+  google: true,
+  apple: false,
+}
 
 /** An agent translation entry references an instance; an empty model uses its default model. */
 export type TranslateAgentEntry = { id: string; profileId: string; model: string; enabled: boolean }
@@ -29,6 +33,7 @@ export function agentEntryId(key: string): string | null {
 }
 
 export function engineGroup(key: TranslateEngineId): TranslateEngineGroup {
+  if (key === 'apple') return 'system'
   return isBuiltinEngineId(key) ? 'platform' : 'agent'
 }
 
@@ -56,7 +61,11 @@ export function normalizeAiConfig(raw: unknown): TranslateAiConfig {
 
 export function normalizeEngineSwitches(raw: unknown): TranslateEngineSwitches {
   const src = asRecord(raw)
-  return { bing: src.bing !== false, google: src.google !== false }
+  return {
+    bing: src.bing !== false,
+    google: src.google !== false,
+    apple: src.apple === true,
+  }
 }
 
 export function normalizeAgentEntries(raw: unknown): TranslateAgentEntry[] {

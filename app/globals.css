@@ -105,3 +105,14 @@
     transform: scaleY(0.08);
   }
 }
+
+/* 翻译与自然语言编辑器：类似 Word 文本排版，禁用代码级方框 warning 警告框，如有警告使用波浪下划线 */
+.monaco-editor .unicode-highlight,
+.monaco-editor .ced-unicode-highlight,
+.monaco-editor [class*='unicode-highlight'] {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  text-decoration: underline wavy var(--color-warn, #eab308) !important;
+  text-underline-offset: 3px !important;
+}
