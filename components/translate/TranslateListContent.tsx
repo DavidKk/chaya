@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { IoChevronBackOutline, IoChevronForwardOutline, IoPlaySkipBackOutline, IoPlaySkipForwardOutline } from 'react-icons/io5'
 import { LuDatabase, LuRefreshCw } from 'react-icons/lu'
 
+import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { panelFoot } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select, Spinner, TextInput } from '@/components/sk'
@@ -21,7 +22,7 @@ export type AvailableEngine = {
   group: 'agent' | 'platform' | 'system'
 }
 
-const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 200]
 const DEFAULT_PAGE_SIZE = 50
 
 export function TranslateListContent({ onExtract }: { onExtract?: () => void }) {
@@ -31,8 +32,11 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
 
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
+  const confirm = useConfirm()
 
   const [loading, setLoading] = useState(true)
+  const [savingPage, setSavingPage] = useState(false)
+  const [resettingPage, setResettingPage] = useState(false)
   const [items, setItems] = useState<ExtractedTranslationItem[]>([])
   const [localesMeta, setLocalesMeta] = useState<ExtractedLocalesMeta | null>(null)
 
@@ -320,6 +324,87 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
     [sourceLang, targetLang, localesMeta, translationFetch, refreshUI, notify]
   )
 
+  // Reset all items on current page with confirmation (does not auto-save)
+  const handleResetPage = useCallback(async () => {
+    if (pagedItems.length === 0) return
+    const ok = await confirm({
+      title: '确认重置当前页所有译文？',
+      description: `重置后，当前页共 ${pagedItems.length} 条文本的译文将恢复为原本的初始文案，未保存的修改将被撤销。此操作不会自动保存，确认后需手动点击「保存」。`,
+      confirmLabel: '确认重置',
+      confirmVariant: 'warn',
+    })
+    if (!ok) return
+
+    setResettingPage(true)
+    try {
+      for (const item of pagedItems) {
+        const orig = item.initialZh ?? item.savedZh ?? ''
+        item.zh = orig
+      }
+      refreshUI()
+      notify.info(`已重置当前页 ${pagedItems.length} 条文本为初始译文（未自动保存，确认后请点击保存）`)
+    } finally {
+      setResettingPage(false)
+    }
+  }, [confirm, pagedItems, refreshUI, notify])
+
+  // Save all translated items on current page with confirmation
+  const handleSavePage = useCallback(async () => {
+    const itemsToSave = pagedItems.filter((it) => (it.zh && it.zh.trim()) || Boolean(it.savedZh))
+    if (itemsToSave.length === 0) {
+      notify.warning('当前页没有已填写的译文可供保存')
+      return
+    }
+
+    const ok = await confirm({
+      title: '确认保存当前页所有译文？',
+      description: `即将把当前页 ${itemsToSave.length} 条文本保存并写入游戏。是否继续？`,
+      confirmLabel: '确认保存',
+      confirmVariant: 'accent',
+    })
+    if (!ok) return
+
+    setSavingPage(true)
+    let savedCount = 0
+    let failCount = 0
+    try {
+      for (const item of itemsToSave) {
+        try {
+          const res = await translationFetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'save-item',
+              text: item.src,
+              zh: item.zh,
+              localesKey: item.meta.localesKey,
+              targetFile: item.meta.localesFile,
+              sourceLang: sourceLang || localesMeta?.currentSourceLang,
+              targetLang: targetLang || localesMeta?.currentTargetLang,
+            }),
+          })
+          const data = (await res.json()) as { ok?: boolean }
+          if (data?.ok) {
+            item.savedZh = item.zh
+            savedCount++
+          } else {
+            failCount++
+          }
+        } catch {
+          failCount++
+        }
+      }
+      refreshUI()
+      if (failCount === 0) {
+        notify.success(`已成功保存当前页 ${savedCount} 条译文至游戏`)
+      } else {
+        notify.warning(`当前页保存完成：${savedCount} 条成功，${failCount} 条失败`)
+      }
+    } finally {
+      setSavingPage(false)
+    }
+  }, [confirm, pagedItems, translationFetch, sourceLang, targetLang, localesMeta, refreshUI, notify])
+
   // Reset single item (reverts to original text without auto-saving)
   const handleReset = useCallback(
     (item: ExtractedTranslationItem) => {
@@ -582,6 +667,35 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
           </Button>
           <Button variant="ghost" size="icon" disabled={visiblePage >= totalPages} aria-label="最后一页" tooltip="最后一页" onClick={() => go(totalPages)}>
             <IoPlaySkipForwardOutline size={14} aria-hidden />
+          </Button>
+
+          {/* 分割线：隔开翻页与批量操作 */}
+          <div className="mx-1 h-3.5 w-px bg-line shrink-0" aria-hidden="true" />
+
+          {/* 批量重置当前页 */}
+          <Button
+            type="button"
+            variant="warn"
+            disabled={savingPage || resettingPage || pagedItems.length === 0}
+            onClick={() => void handleResetPage()}
+            tooltip="重置当前页所有条目至初始译文（点击需二次确认）"
+            className="!h-7 px-2.5 text-xs whitespace-nowrap cursor-pointer"
+          >
+            {resettingPage ? <Spinner size="sm" /> : null}
+            重置
+          </Button>
+
+          {/* 批量保存当前页 */}
+          <Button
+            type="button"
+            variant="accent"
+            disabled={savingPage || resettingPage || pagedItems.length === 0}
+            onClick={() => void handleSavePage()}
+            tooltip="保存当前页的所有已翻译条目至游戏（点击需二次确认）"
+            className="!h-7 px-2.5 text-xs whitespace-nowrap font-medium cursor-pointer"
+          >
+            {savingPage ? <Spinner size="sm" /> : null}
+            保存
           </Button>
         </div>
       </div>

@@ -8,6 +8,7 @@ import { TranslateListContent } from '@/components/translate/TranslateListConten
 
 const mockTranslationFetch = jest.fn()
 const mockNotify = { success: jest.fn(), error: jest.fn(), warn: jest.fn(), info: jest.fn() }
+const mockConfirm = jest.fn().mockResolvedValue(true)
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
@@ -21,6 +22,10 @@ jest.mock('@/components/translate/TranslationRuntimeContext', () => ({
 
 jest.mock('@/components/notification/useNotification', () => ({
   useNotification: () => mockNotify,
+}))
+
+jest.mock('@/components/confirm/ConfirmProvider', () => ({
+  useConfirm: () => mockConfirm,
 }))
 
 jest.mock('@/components/sk', () => ({
@@ -146,13 +151,13 @@ describe('TranslateListContent', () => {
     expect(container.textContent).toContain('地图 1')
     expect(container.textContent).toContain('Map001.json')
 
-    // Item 1 has savedZh, so reset button should be displayed
+    // Item 1 has savedZh in list, plus batch reset button in footer = 2
     const resetButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('重置'))
-    expect(resetButtons.length).toBe(1)
+    expect(resetButtons.length).toBe(2)
 
-    // Save buttons should be present
+    // 2 save buttons in list, plus batch save button in footer = 3
     const saveButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('保存'))
-    expect(saveButtons.length).toBe(2)
+    expect(saveButtons.length).toBe(3)
 
     // Translate buttons should be present
     const transButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('翻译'))
@@ -232,5 +237,110 @@ describe('TranslateListContent', () => {
 
     expect(container.textContent).toContain('Hello dialogue')
     expect(container.textContent).toContain('Potion item')
+  })
+
+  it('triggers batch save with confirmation when pagination save button is clicked', async () => {
+    const mockItems = [
+      {
+        id: '1',
+        src: 'こんにちは',
+        zh: '你好',
+        meta: { category: 'dialogue', label: '对话' },
+      },
+      {
+        id: '2',
+        src: 'さようなら',
+        zh: '再见',
+        meta: { category: 'dialogue', label: '对话' },
+      },
+    ]
+
+    mockTranslationFetch.mockImplementation(async (_path: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (body.mode === 'extract-items') {
+        return { ok: true, json: async () => ({ ok: true, items: mockItems }) }
+      }
+      if (body.mode === 'save-item') {
+        return { ok: true, json: async () => ({ ok: true }) }
+      }
+      return { ok: true, json: async () => ({ ok: true }) }
+    })
+
+    await act(async () => {
+      root.render(<TranslateListContent />)
+    })
+
+    // Find footer batch save button (last save button)
+    const saveButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('保存'))
+    const footerSaveBtn = saveButtons[saveButtons.length - 1]
+    expect(footerSaveBtn).toBeDefined()
+
+    await act(async () => {
+      footerSaveBtn?.click()
+    })
+
+    // Confirm dialog was triggered
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining('确认保存当前页所有译文'),
+      })
+    )
+
+    // Save calls were made for the items
+    expect(mockTranslationFetch).toHaveBeenCalledWith(
+      '/api/translate',
+      expect.objectContaining({
+        body: expect.stringContaining('"text":"こんにちは"'),
+      })
+    )
+    expect(mockTranslationFetch).toHaveBeenCalledWith(
+      '/api/translate',
+      expect.objectContaining({
+        body: expect.stringContaining('"text":"さようなら"'),
+      })
+    )
+  })
+
+  it('triggers batch reset with confirmation when pagination reset button is clicked', async () => {
+    const mockItems = [
+      {
+        id: '1',
+        src: 'こんにちは',
+        initialZh: '原句你好',
+        zh: '已改你好',
+        meta: { category: 'dialogue', label: '对话' },
+      },
+    ]
+
+    mockTranslationFetch.mockImplementation(async (_path: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (body.mode === 'extract-items') {
+        return { ok: true, json: async () => ({ ok: true, items: mockItems }) }
+      }
+      return { ok: true, json: async () => ({ ok: true }) }
+    })
+
+    await act(async () => {
+      root.render(<TranslateListContent />)
+    })
+
+    // Find footer batch reset button
+    const resetButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('重置'))
+    const footerResetBtn = resetButtons[resetButtons.length - 1]
+    expect(footerResetBtn).toBeDefined()
+
+    await act(async () => {
+      footerResetBtn?.click()
+    })
+
+    // Confirm dialog was triggered
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining('确认重置当前页所有译文'),
+      })
+    )
+
+    // Item reverted back to initialZh
+    expect(mockItems[0].zh).toBe('原句你好')
   })
 })
