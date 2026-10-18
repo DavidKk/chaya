@@ -7,7 +7,7 @@ import { LuDatabase, LuRefreshCw } from 'react-icons/lu'
 
 import { panelFoot } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select, Spinner, TextInput, Tooltip } from '@/components/sk'
+import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select, Spinner, TextInput } from '@/components/sk'
 import { TranslateListItemRow } from '@/components/translate/TranslateListItemRow'
 import { TranslateListSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
@@ -472,11 +472,17 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
                   void loadData(sourceLang || localesMeta.currentSourceLang, l)
                 }}
               />
-              <Tooltip content="将游戏已有高质量多语言全排列对齐导入系统翻译库（零污染、只存文字）" placement="top">
-                <Button size="icon" variant="default" disabled={prewarming} onClick={handlePrewarm} aria-label="预热语料库" className="!h-8 !w-8">
-                  {prewarming ? <Spinner size="sm" /> : <LuDatabase size={14} className="text-accent" />}
-                </Button>
-              </Tooltip>
+              <Button
+                size="icon"
+                variant="default"
+                disabled={prewarming}
+                onClick={handlePrewarm}
+                aria-label="预热语料库"
+                tooltip="将游戏已有高质量多语言全排列对齐导入系统翻译库（零污染、只存文字）"
+                className="!h-8 !w-8"
+              >
+                {prewarming ? <Spinner size="sm" /> : <LuDatabase size={14} className="text-accent" />}
+              </Button>
             </div>
           ) : null}
 
