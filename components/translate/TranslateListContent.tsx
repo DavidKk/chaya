@@ -426,6 +426,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
               { value: 'other', label: '其他文本' },
             ]}
             aria-label="文本分类筛选"
+            tooltip="按文本性质分类筛选（对话、说明、地名、角色等）"
           />
 
           <Select
@@ -439,6 +440,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
               { value: 'translated', label: '仅已翻译' },
             ]}
             aria-label="翻译状态筛选"
+            tooltip="按翻译状态筛选（全部状态、仅未翻译、仅已翻译）"
           />
 
           {/* 分割线：隔开筛选条与功能条 */}
@@ -539,6 +541,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
             <Select
               className="w-[4.75rem]"
               aria-label="每页条数"
+              tooltip="切换每页展示的文本条目数量"
               value={String(pageSize)}
               panelWidth="content"
               options={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
@@ -560,6 +563,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
                 onValueChange={(val) => setJumpPageValue(val)}
                 className="!h-7 w-16 text-xs px-1 text-center font-sans"
                 aria-label="跳转到指定页"
+                tooltip="输入页码并按回车或点击跳转"
               />
               <Button type="submit" variant="default" className="!h-7 px-2.5 text-xs whitespace-nowrap shrink-0" tooltip="跳转到指定页">
                 跳转
