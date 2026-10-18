@@ -13,7 +13,13 @@ export const DISCLAIMER_UPDATED = '2026-10-06'
 
 export const DISCLAIMER: Record<Locale, DisclaimerDoc> = {
   zh: disclaimerZh,
+  cht: disclaimerZh,
   en: disclaimerEn,
   ja: disclaimerJa,
   ko: disclaimerKo,
+  fr: disclaimerEn,
+  de: disclaimerEn,
+  es: disclaimerEn,
+  ru: disclaimerEn,
+  'pt-BR': disclaimerEn,
 }

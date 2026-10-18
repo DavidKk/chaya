@@ -6,4 +6,15 @@ import { privacyKo } from './privacy.ko'
 import { privacyZh } from './privacy.zh'
 import type { LegalDoc } from './types'
 
-export const PRIVACY: Record<Locale, LegalDoc> = { zh: privacyZh, en: privacyEn, ja: privacyJa, ko: privacyKo }
+export const PRIVACY: Record<Locale, LegalDoc> = {
+  zh: privacyZh,
+  cht: privacyZh,
+  en: privacyEn,
+  ja: privacyJa,
+  ko: privacyKo,
+  fr: privacyEn,
+  de: privacyEn,
+  es: privacyEn,
+  ru: privacyEn,
+  'pt-BR': privacyEn,
+}

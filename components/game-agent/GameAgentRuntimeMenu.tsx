@@ -87,7 +87,7 @@ const COPY = {
 
 export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = false, compact = false, thinkingEnabled = false, onThinkingChange, onChange }: Props) {
   const locale = useLocaleCode()
-  const copy = COPY[locale] || COPY.en
+  const copy = (COPY as unknown as Record<string, Record<string, string>>)[locale] || (locale === 'cht' ? COPY.zh : COPY.en)
   const anchorRef = useRef<HTMLSpanElement>(null)
   const [container, setContainer] = useState<ShadowRoot>()
   const [open, setOpen] = useState(false)

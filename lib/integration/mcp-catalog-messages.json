@@ -1342,5 +1342,2747 @@
         "description": "모든 로그를 지웁니다. 파괴적인 작업: 호출 전에 반드시 사용자 동의를 받으세요."
       }
     }
+  },
+  "cht": {
+    "groups": {
+      "library": {
+        "title": "遊戲庫",
+        "summary": "列出、綁定、備註、移除本機遊戲庫項目。"
+      },
+      "game": {
+        "title": "目前遊戲",
+        "summary": "本機磁碟端：狀態、啟動 / 關閉、外掛程式、NW.js 殼層、視窗。"
+      },
+      "live": {
+        "title": "局內即時",
+        "summary": "遊戲執行中（需 ChayaAgent 外掛程式）：讀取狀態與近期劇情、檢視畫面、按鍵、點擊、尋路、關閉遊戲；呼叫外掛程式宣告的工具。"
+      },
+      "agent": {
+        "title": "Agent 對話",
+        "summary": "按需讀取遊戲內 Chaya Agent 對話的早先輪次。"
+      },
+      "edit": {
+        "title": "修改",
+        "summary": "遊戲內修改頁的能力：查 ID、讀取即時修改會話、改值 / 鎖定、執行運作動作。"
+      },
+      "translate": {
+        "title": "翻譯",
+        "summary": "翻譯文字、擷取原文、全作補譯任務、引擎與遊戲內翻譯設定。"
+      },
+      "cache": {
+        "title": "共用翻譯庫",
+        "summary": "本機共用翻譯庫的查詢篩選、修改、刪除與匯入。"
+      },
+      "logs": {
+        "title": "日誌",
+        "summary": "查詢與清空服務 / 外掛程式日誌。"
+      },
+      "skills": {
+        "title": "遊戲技能",
+        "summary": "按需探索與讀取遊戲知識和策略。"
+      }
+    },
+    "tools": {
+      "chaya_skills_list": {
+        "title": "列出遊戲技能",
+        "description": "列出可用遊戲技能及其階層。僅在目前任務相關時讀取技能正文。",
+        "params": {
+          "parent": "僅列出某技能的直接子技能"
+        }
+      },
+      "chaya_skills_search": {
+        "title": "搜尋遊戲技能",
+        "description": "按任務、主題或標籤搜尋技能；複雜戰鬥、任務、路線或選單規劃前使用。",
+        "params": {
+          "query": "搜尋詞",
+          "limit": "最多傳回數量（預設 10，最多 50）"
+        }
+      },
+      "chaya_skills_read": {
+        "title": "讀取遊戲技能",
+        "description": "找到技能後按需讀取一項技能；技能可能引用子技能。",
+        "params": {
+          "id": "chaya_skills_list 或 chaya_skills_search 傳回的技能 ID"
+        }
+      },
+      "chaya_library_list": {
+        "title": "遊戲庫列表",
+        "description": "列出本機遊戲庫與目前綁定的遊戲，可按名稱 / 備註 / 路徑關鍵字篩選。",
+        "params": {
+          "q": "關鍵字（不區分大小寫）"
+        }
+      },
+      "chaya_library_bind": {
+        "title": "綁定遊戲",
+        "description": "將一個遊戲目錄加入遊戲庫並切換為目前遊戲（已在庫中則僅切換）。目錄需為 RPG Maker MV/MZ 遊戲根或其 www。",
+        "params": {
+          "gameRoot": "遊戲目錄絕對路徑"
+        }
+      },
+      "chaya_library_remark": {
+        "title": "修改備註",
+        "description": "為遊戲庫中的遊戲修改備註（僅儲存在本機）。",
+        "params": {
+          "gameRoot": "遊戲目錄絕對路徑",
+          "remark": "新備註，空字串表示清除"
+        }
+      },
+      "chaya_library_remove": {
+        "title": "移除遊戲",
+        "description": "從遊戲庫移除一筆記錄；不會刪除磁碟上的遊戲檔案。",
+        "params": {
+          "gameRoot": "遊戲目錄絕對路徑"
+        }
+      },
+      "chaya_game_status": {
+        "title": "目前遊戲狀態",
+        "description": "磁碟端狀態：是否綁定、目錄、套件資訊、外掛程式安裝情況、NW.js 殼層、是否正在執行。",
+        "params": {}
+      },
+      "chaya_game_launch": {
+        "title": "啟動遊戲",
+        "description": "在背景啟動目前遊戲（本機可執行檔或 NW.js 殼層）。遊戲啟動後需等待幾秒與 ChayaAgent 外掛程式建立連線。",
+        "params": {}
+      },
+      "chaya_game_plugins_install": {
+        "title": "安裝外掛程式",
+        "description": "為目前遊戲安裝 Chaya 外掛程式（注入 plugins.js 與必要外掛檔案）。",
+        "params": {}
+      },
+      "chaya_game_plugins_clear": {
+        "title": "清除外掛程式",
+        "description": "還原 plugins.js 並刪除 Chaya 新增的外掛檔案（卸載前請先關閉遊戲）。",
+        "params": {}
+      },
+      "chaya_game_shell_install": {
+        "title": "安裝 NW.js 殼層",
+        "description": "為目前遊戲安裝或替換為共用 NW.js 執行階段殼層。",
+        "params": {
+          "shellSource": "殼層來源版本或路徑",
+          "force": "是否強制覆蓋已安裝的殼層"
+        }
+      },
+      "chaya_game_shell_check": {
+        "title": "檢查殼層更新",
+        "description": "檢查可用 NW.js 殼層的最新版本與目前版本。",
+        "params": {}
+      },
+      "chaya_game_shell_uninstall": {
+        "title": "卸載共用殼層",
+        "description": "卸載共用 NW.js 殼層並還原為原遊戲可執行檔。",
+        "params": {}
+      },
+      "chaya_game_window": {
+        "title": "遊戲視窗",
+        "description": "聚焦、最小化或還原遊戲視窗。",
+        "params": {
+          "window": "視窗動作：focus、minimize 或 restore"
+        }
+      },
+      "chaya_live_games": {
+        "title": "線上遊戲",
+        "description": "列出目前所有已連線 Chaya 的執行中遊戲實例。",
+        "params": {}
+      },
+      "chaya_live_state": {
+        "title": "局內狀態",
+        "description": "讀取遊戲局內即時狀態（玩家座標、地圖、隊伍、開關、變數等）。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "sections": "要讀取的狀態分區列表（留空傳回主要狀態）"
+        }
+      },
+      "chaya_live_ui": {
+        "title": "遊戲介面狀態",
+        "description": "讀取目前遊戲畫面的 UI、選單與視窗開啟狀態。",
+        "params": {
+          "gameId": "指定遊戲實例 ID"
+        }
+      },
+      "chaya_live_open_scene": {
+        "title": "開啟遊戲場景",
+        "description": "在遊戲內直接開啟指定選單或場景（例如道具、裝備、技能等）。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "scene": "場景名稱（如 Scene_Item, Scene_Skill 等）"
+        }
+      },
+      "chaya_live_saves": {
+        "title": "遊戲存檔",
+        "description": "列出遊戲的存檔欄位資訊與預覽概要。",
+        "params": {
+          "gameId": "指定遊戲實例 ID"
+        }
+      },
+      "chaya_live_saves_load": {
+        "title": "讀取遊戲存檔",
+        "description": "將指定存檔的詳細資料載入記憶體。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "entryId": "存檔條目 ID",
+          "allowVersionMismatch": "是否允許版本不一致"
+        }
+      },
+      "chaya_live_save": {
+        "title": "儲存遊戲",
+        "description": "在指定存檔欄位儲存目前的遊戲進度。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "source": "存檔來源",
+          "slot": "存檔欄位編號",
+          "force": "是否強制覆蓋"
+        }
+      },
+      "chaya_live_load_save": {
+        "title": "讀取遊戲存檔",
+        "description": "在遊戲內讀取並載入指定欄位的存檔。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "source": "存檔來源",
+          "slot": "存檔欄位編號",
+          "entryId": "存檔條目 ID",
+          "allowVersionMismatch": "是否允許版本不一致"
+        }
+      },
+      "chaya_live_history": {
+        "title": "近期劇情",
+        "description": "讀取遊戲近期的對話文字、旁白與事件歷史記錄。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "limit": "傳回數量上限",
+          "kinds": "篩選類型（對話、選擇肢等）",
+          "afterSeq": "僅讀取該序號之後的歷史"
+        }
+      },
+      "chaya_agent_recall": {
+        "title": "回憶 Agent 對話",
+        "description": "搜尋或回溯遊戲內 Chaya Agent 早先輪次的對話與行動。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "query": "搜尋關鍵字",
+          "limit": "傳回數量",
+          "offset": "分頁位移"
+        }
+      },
+      "chaya_live_screenshot": {
+        "title": "截圖",
+        "description": "擷取目前遊戲畫面並傳回縮圖或圖片資料。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "maxWidth": "最大寬度像素（預設 800）"
+        }
+      },
+      "chaya_live_plugins": {
+        "title": "局內外掛程式",
+        "description": "列出遊戲實例目前掛載並啟用的 Chaya 局內外掛程式及其功能工具。",
+        "params": {
+          "gameId": "指定遊戲實例 ID"
+        }
+      },
+      "chaya_live_call": {
+        "title": "呼叫外掛程式工具",
+        "description": "呼叫遊戲內外掛程式宣告的自訂工具。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "plugin": "外掛程式識別碼",
+          "tool": "工具名稱",
+          "input": "工具輸入引數物件"
+        }
+      },
+      "chaya_live_press": {
+        "title": "模擬按鍵",
+        "description": "向遊戲發送按鍵事件（如 ok、cancel、up、down 等）。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "key": "按鍵名稱",
+          "frames": "按住影格數"
+        }
+      },
+      "chaya_live_play": {
+        "title": "執行遊玩操作",
+        "description": "依序執行多個鍵盤操作步驟，操作後自動傳回最新局內狀態。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "steps": "操作步驟陣列"
+        }
+      },
+      "chaya_live_tap": {
+        "title": "點擊螢幕",
+        "description": "在遊戲畫面的指定座標點擊或長按。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "x": "畫面 X 座標",
+          "y": "畫面 Y 座標",
+          "frames": "長按影格數"
+        }
+      },
+      "chaya_live_move_to": {
+        "title": "尋路到格子",
+        "description": "讓玩家角色透過 A* 智慧尋路自動走到地圖指定座標 (X, Y)。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "x": "目標地圖網格 X",
+          "y": "目標地圖網格 Y",
+          "timeoutMs": "尋路逾時毫秒數"
+        }
+      },
+      "chaya_live_interact": {
+        "title": "與事件互動",
+        "description": "走到指定事件旁並觸發對話或互動。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "eventId": "地圖事件 ID",
+          "openDoors": "遇到門是否自動嘗試開門"
+        }
+      },
+      "chaya_live_quit": {
+        "title": "關閉遊戲",
+        "description": "正常終止執行中的遊戲行程。",
+        "params": {
+          "gameId": "指定遊戲實例 ID"
+        }
+      },
+      "chaya_live_eval": {
+        "title": "執行 JS",
+        "description": "在遊戲行程中執行任意 JavaScript 表達式（需在伺服器開啟 CHAYA_MCP_EVAL=1）。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "code": "要評估執行的 JS 程式碼"
+        }
+      },
+      "chaya_edit_catalog": {
+        "title": "查 ID",
+        "description": "查詢資料庫中的道具、武器、防具、技能、開關、變數等 ID 與名稱。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "kind": "查詢類型（items, weapons, armors, skills, switches, variables）",
+          "q": "關鍵字",
+          "limit": "數量上限"
+        }
+      },
+      "chaya_edit_state": {
+        "title": "修改會話",
+        "description": "讀取目前即時修改會話的數值與鎖定項目。",
+        "params": {
+          "gameId": "指定遊戲實例 ID"
+        }
+      },
+      "chaya_edit_set": {
+        "title": "改值",
+        "description": "修改或鎖定遊戲數值（金錢、道具、角色屬性、開關、變數等）。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "op": "操作（set, lock, unlock 等）",
+          "value": "設定值",
+          "on": "開關狀態",
+          "kind": "資料類型",
+          "id": "目標 ID",
+          "key": "屬性鍵名",
+          "patch": "更新補丁",
+          "actorId": "角色 ID",
+          "entryId": "條目 ID",
+          "owned": "是否持有"
+        }
+      },
+      "chaya_edit_action": {
+        "title": "執行動作",
+        "description": "在局內執行即時修改動作（全隊恢復、傳送、遇敵、切換穿牆等）。",
+        "params": {
+          "gameId": "指定遊戲實例 ID",
+          "id": "動作識別碼",
+          "mapId": "目標地圖 ID",
+          "x": "地圖網格 X",
+          "y": "地圖網格 Y",
+          "direction": "角色面向朝向",
+          "eventId": "事件 ID",
+          "slot": "欄位"
+        }
+      },
+      "chaya_translate_text": {
+        "title": "翻譯文字",
+        "description": "使用配置的翻譯引擎翻譯一段文字。",
+        "params": {
+          "texts": "待翻譯文字陣列",
+          "force": "是否強制重新翻譯（忽略快取）",
+          "persist": "是否寫入共用翻譯快取"
+        }
+      },
+      "chaya_translate_extract": {
+        "title": "擷取原文",
+        "description": "掃描目前遊戲所有地圖與資料庫，擷取待翻譯的原始文字詞條。",
+        "params": {}
+      },
+      "chaya_translate_job": {
+        "title": "補譯任務",
+        "description": "控制全遊戲背景批次補譯任務（啟動、暫停、恢復、停止）。",
+        "params": {
+          "action": "動作：start, pause, resume, cancel"
+        }
+      },
+      "chaya_translate_batch": {
+        "title": "補譯一批",
+        "description": "即時翻譯批次待補譯詞條並傳回進度。",
+        "params": {
+          "limit": "批次處理數量"
+        }
+      },
+      "chaya_translate_engines": {
+        "title": "翻譯引擎",
+        "description": "查詢或設定翻譯引擎的啟用開關與調用優先級順序。",
+        "params": {
+          "switches": "各引擎開關物件",
+          "order": "引擎執行優先序陣列"
+        }
+      },
+      "chaya_translate_play_settings": {
+        "title": "遊戲內翻譯設定",
+        "description": "設定遊戲即時翻譯的顯示偏好與替換模式。",
+        "params": {
+          "settings": "設定項目物件"
+        }
+      },
+      "chaya_cache_query": {
+        "title": "查詢翻譯庫",
+        "description": "在共用翻譯快取資料庫中搜尋詞條與對應翻譯。",
+        "params": {
+          "q": "搜尋關鍵字",
+          "engine": "翻譯引擎篩選",
+          "nsfw": "NSFW 標記篩選",
+          "sort": "排序欄位",
+          "order": "排序方向（asc 或 desc）",
+          "page": "頁碼",
+          "pageSize": "每頁數量"
+        }
+      },
+      "chaya_cache_update": {
+        "title": "修改譯文",
+        "description": "手動修改共用快取中的譯文內容。",
+        "params": {
+          "src": "原文文字",
+          "zh": "目標翻譯文字"
+        }
+      },
+      "chaya_cache_delete": {
+        "title": "刪除譯文",
+        "description": "從共用翻譯庫中刪除指定原文的快取記錄。",
+        "params": {
+          "src": "要刪除的原文文字"
+        }
+      },
+      "chaya_cache_import": {
+        "title": "匯入譯文",
+        "description": "批次匯入外部翻譯 JSON 或詞庫檔案。",
+        "params": {
+          "text": "匯入的檔案內容文字",
+          "overwrite": "是否覆蓋已有譯文"
+        }
+      },
+      "chaya_logs_query": {
+        "title": "查詢日誌",
+        "description": "搜尋並過濾 Chaya 系統、Agent 與外掛程式的運作日誌。",
+        "params": {
+          "view": "檢視模式",
+          "q": "搜尋文字",
+          "source": "日誌來源過濾",
+          "level": "最低記錄層級",
+          "since": "開始時間戳記",
+          "taskId": "任務 ID",
+          "gameId": "遊戲 ID",
+          "runtimeInstanceId": "執行個體 ID",
+          "eventType": "事件類型",
+          "limit": "數量上限"
+        }
+      },
+      "chaya_logs_clear": {
+        "title": "清空日誌",
+        "description": "刪除儲存的歷史日誌記錄。",
+        "params": {}
+      }
+    }
+  },
+  "fr": {
+    "groups": {
+      "library": {
+        "title": "Bibliothèque",
+        "summary": "Lister, associer, annoter et retirer des entrées de la bibliothèque locale."
+      },
+      "game": {
+        "title": "Jeu actuel",
+        "summary": "Côté disque local : état, lancement/fermeture, plugins, runtime NW.js, fenêtres."
+      },
+      "live": {
+        "title": "En jeu (Live)",
+        "summary": "Pendant l’exécution (nécessite le plugin ChayaAgent) : état, histoire récente, capture, touches, clics, déplacement, fermeture ; outils de plugins."
+      },
+      "agent": {
+        "title": "Historique Agent",
+        "summary": "Consulter à la demande les tours de conversation antérieurs du Chaya Agent en jeu."
+      },
+      "edit": {
+        "title": "Modification",
+        "summary": "Capacités de modification en jeu : recherche d’ID, lecture de session, modification/verrouillage de valeurs, actions."
+      },
+      "translate": {
+        "title": "Traduction",
+        "summary": "Traduire du texte, extraire le texte source, tâches de traduction complète, moteurs et paramètres en jeu."
+      },
+      "cache": {
+        "title": "Mémoire de traduction",
+        "summary": "Recherche, filtrage, modification, suppression et import dans la mémoire de traduction partagée."
+      },
+      "logs": {
+        "title": "Journaux",
+        "summary": "Consulter et effacer les journaux du service et des plugins."
+      },
+      "skills": {
+        "title": "Compétences de jeu",
+        "summary": "Découvrir et consulter à la demande les connaissances et stratégies de jeu."
+      }
+    },
+    "tools": {
+      "chaya_skills_list": {
+        "title": "Lister les compétences",
+        "description": "Lister les compétences de jeu disponibles et leur hiérarchie. Ne lire le contenu que si pertinent pour la tâche actuelle.",
+        "params": {
+          "parent": "Lister uniquement les compétences enfants directes"
+        }
+      },
+      "chaya_skills_search": {
+        "title": "Rechercher des compétences",
+        "description": "Rechercher par tâche, thème ou mot-clé avant des combats complexes, quêtes ou planification d’itinéraires.",
+        "params": {
+          "query": "Terme de recherche",
+          "limit": "Nombre maximal de résultats (par défaut 10, max 50)"
+        }
+      },
+      "chaya_skills_read": {
+        "title": "Lire une compétence",
+        "description": "Lire une compétence trouvée à la demande ; elle peut référencer des sous-compétences.",
+        "params": {
+          "id": "Identifiant renvoyé par chaya_skills_list ou chaya_skills_search"
+        }
+      },
+      "chaya_library_list": {
+        "title": "Liste de la bibliothèque",
+        "description": "Lister les jeux de la bibliothèque locale et le jeu actuel, avec filtre par nom, remarque ou chemin.",
+        "params": {
+          "q": "Mot-clé (insensible à la casse)"
+        }
+      },
+      "chaya_library_bind": {
+        "title": "Associer un jeu",
+        "description": "Ajouter un dossier de jeu à la bibliothèque et le définir comme jeu actif (ou simplement basculer s’il existe déjà). Doit être la racine d’un jeu RPG Maker MV/MZ ou son dossier www.",
+        "params": {
+          "gameRoot": "Chemin absolu du dossier du jeu"
+        }
+      },
+      "chaya_library_remark": {
+        "title": "Modifier la remarque",
+        "description": "Modifier la remarque d’un jeu dans la bibliothèque locale.",
+        "params": {
+          "gameRoot": "Chemin absolu du dossier du jeu",
+          "remark": "Nouvelle remarque (vide pour effacer)"
+        }
+      },
+      "chaya_library_remove": {
+        "title": "Retirer de la bibliothèque",
+        "description": "Retirer un jeu de la bibliothèque sans supprimer ses fichiers sur le disque.",
+        "params": {
+          "gameRoot": "Chemin absolu du dossier du jeu"
+        }
+      },
+      "chaya_game_status": {
+        "title": "État du jeu actuel",
+        "description": "État sur disque : association, dossier, informations du package, plugins installés, runtime NW.js et exécution.",
+        "params": {}
+      },
+      "chaya_game_launch": {
+        "title": "Lancer le jeu",
+        "description": "Démarrer le jeu actuel en arrière-plan (exécutable local ou runtime NW.js). Patienter quelques secondes pour la connexion avec le plugin ChayaAgent.",
+        "params": {}
+      },
+      "chaya_game_plugins_install": {
+        "title": "Installer les plugins",
+        "description": "Installer les plugins Chaya pour le jeu actuel (injection dans plugins.js et fichiers requis).",
+        "params": {}
+      },
+      "chaya_game_plugins_clear": {
+        "title": "Nettoyer les plugins",
+        "description": "Restaurer plugins.js et supprimer les fichiers de plugin Chaya ajoutés (fermer le jeu au préalable).",
+        "params": {}
+      },
+      "chaya_game_shell_install": {
+        "title": "Installer le runtime NW.js",
+        "description": "Installer ou remplacer le runtime NW.js partagé pour le jeu actuel.",
+        "params": {
+          "shellSource": "Source ou version du runtime",
+          "force": "Forcer le remplacement si déjà installé"
+        }
+      },
+      "chaya_game_shell_check": {
+        "title": "Vérifier les mises à jour du runtime",
+        "description": "Vérifier la dernière version disponible du runtime NW.js comparée à la version installée.",
+        "params": {}
+      },
+      "chaya_game_shell_uninstall": {
+        "title": "Désinstaller le runtime partagé",
+        "description": "Désinstaller le runtime NW.js partagé et restaurer l’exécutable d’origine.",
+        "params": {}
+      },
+      "chaya_game_window": {
+        "title": "Fenêtre du jeu",
+        "description": "Activer, réduire ou restaurer la fenêtre du jeu en cours.",
+        "params": {
+          "window": "Action de fenêtre : focus, minimize ou restore"
+        }
+      },
+      "chaya_live_games": {
+        "title": "Jeux en ligne",
+        "description": "Lister toutes les instances de jeux en cours d’exécution connectées à Chaya.",
+        "params": {}
+      },
+      "chaya_live_state": {
+        "title": "État en jeu",
+        "description": "Lire l’état en direct dans le jeu (position du joueur, carte, équipe, interrupteurs, variables, etc.).",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "sections": "Sections d’état spécifiques à lire (vide pour l’état principal)"
+        }
+      },
+      "chaya_live_ui": {
+        "title": "État de l’interface du jeu",
+        "description": "Lire l’état de l’interface, des menus et des fenêtres actuellement ouvertes dans le jeu.",
+        "params": {
+          "gameId": "ID de l’instance de jeu"
+        }
+      },
+      "chaya_live_open_scene": {
+        "title": "Ouvrir une scène de jeu",
+        "description": "Ouvrir directement un menu ou une scène spécifique dans le jeu (ex. Scene_Item, Scene_Skill).",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "scene": "Nom de la scène (ex. Scene_Item)"
+        }
+      },
+      "chaya_live_saves": {
+        "title": "Sauvegardes du jeu",
+        "description": "Lister les emplacements de sauvegarde du jeu avec aperçu et métadonnées.",
+        "params": {
+          "gameId": "ID de l’instance de jeu"
+        }
+      },
+      "chaya_live_saves_load": {
+        "title": "Charger les données de sauvegarde",
+        "description": "Charger en mémoire les données détaillées d’une sauvegarde.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "entryId": "ID de l’entrée de sauvegarde",
+          "allowVersionMismatch": "Autoriser si la version diffère"
+        }
+      },
+      "chaya_live_save": {
+        "title": "Sauvegarder la partie",
+        "description": "Sauvegarder la progression actuelle dans l’emplacement spécifié.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "source": "Source de sauvegarde",
+          "slot": "Numéro d’emplacement",
+          "force": "Forcer l’écrasement"
+        }
+      },
+      "chaya_live_load_save": {
+        "title": "Charger une sauvegarde",
+        "description": "Charger et appliquer une sauvegarde dans la partie en cours.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "source": "Source de sauvegarde",
+          "slot": "Numéro d’emplacement",
+          "entryId": "ID de l’entrée",
+          "allowVersionMismatch": "Autoriser si la version diffère"
+        }
+      },
+      "chaya_live_history": {
+        "title": "Histoire récente",
+        "description": "Lire les dialogues récents, narrations et historique des événements en jeu.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "limit": "Nombre maximal d’entrées",
+          "kinds": "Types d’événements à filtrer",
+          "afterSeq": "Lire uniquement après ce numéro de séquence"
+        }
+      },
+      "chaya_agent_recall": {
+        "title": "Rappel conversation Agent",
+        "description": "Rechercher ou rappeler les échanges et actions antérieurs de l’agent Chaya dans le jeu.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "query": "Terme de recherche",
+          "limit": "Nombre maximal",
+          "offset": "Décalage de pagination"
+        }
+      },
+      "chaya_live_screenshot": {
+        "title": "Capture d’écran",
+        "description": "Capturer l’écran de jeu actuel et renvoyer une miniature ou des données d’image.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "maxWidth": "Largeur maximale en pixels (800 par défaut)"
+        }
+      },
+      "chaya_live_plugins": {
+        "title": "Plugins en jeu",
+        "description": "Lister les plugins Chaya actuellement chargés dans le jeu et leurs outils disponibles.",
+        "params": {
+          "gameId": "ID de l’instance de jeu"
+        }
+      },
+      "chaya_live_call": {
+        "title": "Appeler un outil de plugin",
+        "description": "Appeler un outil personnalisé exposé par un plugin en cours d’exécution dans le jeu.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "plugin": "Identifiant du plugin",
+          "tool": "Nom de l’outil",
+          "input": "Arguments de l’outil"
+        }
+      },
+      "chaya_live_press": {
+        "title": "Presser une touche",
+        "description": "Simuler l’appui sur une touche de commande du jeu (ex. ok, cancel, up, down).",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "key": "Nom de la touche",
+          "frames": "Nombre de frames de maintien"
+        }
+      },
+      "chaya_live_play": {
+        "title": "Exécuter des actions de jeu",
+        "description": "Exécuter une séquence de commandes de touches et renvoyer le nouvel état de jeu.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "steps": "Tableau des étapes d’action"
+        }
+      },
+      "chaya_live_tap": {
+        "title": "Cliquer sur l’écran",
+        "description": "Effectuer un clic ou appui maintenu aux coordonnées indiquées sur l’écran de jeu.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "x": "Coordonnée X",
+          "y": "Coordonnée Y",
+          "frames": "Durée de maintien en frames"
+        }
+      },
+      "chaya_live_move_to": {
+        "title": "Déplacement sur la grille",
+        "description": "Déplacer automatiquement le personnage vers les coordonnées de grille (X, Y) via l’algorithme A*.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "x": "Grille X cible",
+          "y": "Grille Y cible",
+          "timeoutMs": "Délai maximal en millisecondes"
+        }
+      },
+      "chaya_live_interact": {
+        "title": "Interagir avec un événement",
+        "description": "Déplacer le personnage vers un événement de carte et déclencher l’interaction ou le dialogue.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "eventId": "ID de l’événement sur la carte",
+          "openDoors": "Ouvrir automatiquement les portes rencontrées"
+        }
+      },
+      "chaya_live_quit": {
+        "title": "Quitter le jeu",
+        "description": "Fermer proprement le processus du jeu en cours.",
+        "params": {
+          "gameId": "ID de l’instance de jeu"
+        }
+      },
+      "chaya_live_eval": {
+        "title": "Évaluer du code JS",
+        "description": "Exécuter une expression JavaScript dans le processus du jeu (nécessite CHAYA_MCP_EVAL=1 sur le serveur).",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "code": "Code JavaScript à évaluer"
+        }
+      },
+      "chaya_edit_catalog": {
+        "title": "Rechercher des ID",
+        "description": "Rechercher des identifiants et noms d’objets, armes, armures, compétences, interrupteurs et variables dans la base de données.",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "kind": "Catégorie (items, weapons, armors, skills, switches, variables)",
+          "q": "Mot-clé",
+          "limit": "Nombre maximal"
+        }
+      },
+      "chaya_edit_state": {
+        "title": "Session de modification",
+        "description": "Lire les valeurs actuelles et les éléments verrouillés dans la session de modification en jeu.",
+        "params": {
+          "gameId": "ID de l’instance de jeu"
+        }
+      },
+      "chaya_edit_set": {
+        "title": "Modifier une valeur",
+        "description": "Modifier ou verrouiller une valeur de jeu (or, objets, stats de héros, interrupteurs, variables).",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "op": "Opération (set, lock, unlock, etc.)",
+          "value": "Valeur à appliquer",
+          "on": "État de l’interrupteur",
+          "kind": "Type de données",
+          "id": "ID cible",
+          "key": "Clé d’attribut",
+          "patch": "Patch de mise à jour",
+          "actorId": "ID du héros",
+          "entryId": "ID d’entrée",
+          "owned": "Possédé ou non"
+        }
+      },
+      "chaya_edit_action": {
+        "title": "Exécuter une action",
+        "description": "Exécuter une action de modification instantanée (soin complet, téléportation, combat, traversée des murs).",
+        "params": {
+          "gameId": "ID de l’instance de jeu",
+          "id": "Identifiant de l’action",
+          "mapId": "ID de la carte cible",
+          "x": "Grille X",
+          "y": "Grille Y",
+          "direction": "Direction du personnage",
+          "eventId": "ID de l’événement",
+          "slot": "Emplacement"
+        }
+      },
+      "chaya_translate_text": {
+        "title": "Traduire du texte",
+        "description": "Traduire un fragment de texte via les moteurs configurés.",
+        "params": {
+          "texts": "Tableau de textes à traduire",
+          "force": "Forcer la traduction sans utiliser le cache",
+          "persist": "Enregistrer dans la mémoire de traduction partagée"
+        }
+      },
+      "chaya_translate_extract": {
+        "title": "Extraire le texte source",
+        "description": "Analyser toutes les cartes et bases de données du jeu pour extraire les textes non traduits.",
+        "params": {}
+      },
+      "chaya_translate_job": {
+        "title": "Tâche de traduction",
+        "description": "Contrôler la tâche de traduction globale en arrière-plan (lancer, pause, reprendre, annuler).",
+        "params": {
+          "action": "Action : start, pause, resume, cancel"
+        }
+      },
+      "chaya_translate_batch": {
+        "title": "Traduire un lot",
+        "description": "Traduire un lot de textes en attente et renvoyer la progression.",
+        "params": {
+          "limit": "Taille du lot"
+        }
+      },
+      "chaya_translate_engines": {
+        "title": "Moteurs de traduction",
+        "description": "Consulter ou configurer l’activation des moteurs de traduction et leur ordre de priorité.",
+        "params": {
+          "switches": "État d’activation des moteurs",
+          "order": "Ordre de priorité des moteurs"
+        }
+      },
+      "chaya_translate_play_settings": {
+        "title": "Paramètres de traduction en jeu",
+        "description": "Configurer les préférences d’affichage et le mode de remplacement de la traduction en direct dans le jeu.",
+        "params": {
+          "settings": "Objet des paramètres"
+        }
+      },
+      "chaya_cache_query": {
+        "title": "Consulter la mémoire de traduction",
+        "description": "Rechercher des segments et leurs traductions dans la mémoire de traduction partagée.",
+        "params": {
+          "q": "Mot-clé de recherche",
+          "engine": "Filtre de moteur",
+          "nsfw": "Filtre de contenu sensible",
+          "sort": "Champ de tri",
+          "order": "Ordre (asc ou desc)",
+          "page": "Numéro de page",
+          "pageSize": "Taille de page"
+        }
+      },
+      "chaya_cache_update": {
+        "title": "Modifier une traduction",
+        "description": "Mettre à jour manuellement une traduction dans la mémoire partagée.",
+        "params": {
+          "src": "Texte source",
+          "zh": "Traduction cible"
+        }
+      },
+      "chaya_cache_delete": {
+        "title": "Supprimer une traduction",
+        "description": "Supprimer l’entrée de traduction associée au texte source spécifié.",
+        "params": {
+          "src": "Texte source à supprimer"
+        }
+      },
+      "chaya_cache_import": {
+        "title": "Importer des traductions",
+        "description": "Importer un fichier JSON ou glossaire de traductions par lots.",
+        "params": {
+          "text": "Contenu du fichier à importer",
+          "overwrite": "Écraser les traductions existantes"
+        }
+      },
+      "chaya_logs_query": {
+        "title": "Consulter les journaux",
+        "description": "Rechercher et filtrer les journaux de Chaya, des agents et des plugins.",
+        "params": {
+          "view": "Mode de vue",
+          "q": "Texte recherché",
+          "source": "Source du journal",
+          "level": "Niveau minimal",
+          "since": "Horodatage de début",
+          "taskId": "ID de tâche",
+          "gameId": "ID du jeu",
+          "runtimeInstanceId": "ID d’instance de runtime",
+          "eventType": "Type d’événement",
+          "limit": "Nombre maximal"
+        }
+      },
+      "chaya_logs_clear": {
+        "title": "Effacer les journaux",
+        "description": "Supprimer l’historique des journaux enregistrés.",
+        "params": {}
+      }
+    }
+  },
+  "de": {
+    "groups": {
+      "library": {
+        "title": "Spielebibliothek",
+        "summary": "Einträge in der lokalen Spielebibliothek auflisten, verknüpfen, annotieren und entfernen."
+      },
+      "game": {
+        "title": "Aktuelles Spiel",
+        "summary": "Lokale Festplatte: Status, Starten/Beenden, Plugins, NW.js-Shell, Fenster."
+      },
+      "live": {
+        "title": "Live im Spiel",
+        "summary": "Während das Spiel läuft (erfordert ChayaAgent-Plugin): Status und Story lesen, Screenshots, Tasten, Klicks, Wegfindung, Beenden; Plugin-Tools."
+      },
+      "agent": {
+        "title": "Agent-Verlauf",
+        "summary": "Frühere Gesprächsrunden des Chaya-Agenten im Spiel bei Bedarf abrufen."
+      },
+      "edit": {
+        "title": "Bearbeitung",
+        "summary": "Funktionen der Bearbeitungsseite im Spiel: IDs nachschlagen, Live-Sitzung, Werte ändern/sperren, Aktionen."
+      },
+      "translate": {
+        "title": "Übersetzung",
+        "summary": "Texte übersetzen, Quelltexte extrahieren, vollständige Übersetzungsaufgaben, Engine- und Spieleinstellungen."
+      },
+      "cache": {
+        "title": "Übersetzungsspeicher",
+        "summary": "Abfragen, Filtern, Ändern, Löschen und Importieren im gemeinsamen Übersetzungsspeicher."
+      },
+      "logs": {
+        "title": "Protokolle",
+        "summary": "Dienst- und Plugin-Protokolle abfragen und leeren."
+      },
+      "skills": {
+        "title": "Spielfähigkeiten",
+        "summary": "Spielwissen und -strategien bei Bedarf entdecken und nachschlagen."
+      }
+    },
+    "tools": {
+      "chaya_skills_list": {
+        "title": "Fähigkeiten auflisten",
+        "description": "Verfügbare Spielfähigkeiten und deren Hierarchie auflisten. Inhalt nur lesen, wenn für die Aufgabe relevant.",
+        "params": {
+          "parent": "Nur direkte Unterfähigkeiten auflisten"
+        }
+      },
+      "chaya_skills_search": {
+        "title": "Fähigkeiten suchen",
+        "description": "Nach Aufgabe, Thema oder Tag suchen; vor komplexen Kämpfen, Quests, Routen oder Menüplanungen verwenden.",
+        "params": {
+          "query": "Suchbegriff",
+          "limit": "Maximale Anzahl an Ergebnissen (Standard 10, max 50)"
+        }
+      },
+      "chaya_skills_read": {
+        "title": "Fähigkeit lesen",
+        "description": "Gefundene Fähigkeit bei Bedarf lesen; kann Unterfähigkeiten referenzieren.",
+        "params": {
+          "id": "Fähigkeits-ID aus chaya_skills_list oder chaya_skills_search"
+        }
+      },
+      "chaya_library_list": {
+        "title": "Bibliotheksliste",
+        "description": "Lokale Spielebibliothek und aktuell verknüpftes Spiel auflisten, filterbar nach Name, Notiz oder Pfad.",
+        "params": {
+          "q": "Suchbegriff (ohne Berücksichtigung von Groß-/Kleinschreibung)"
+        }
+      },
+      "chaya_library_bind": {
+        "title": "Spiel verknüpfen",
+        "description": "Spielverzeichnis zur Bibliothek hinzufügen und als aktives Spiel setzen (oder wechseln, falls vorhanden). RPG Maker MV/MZ-Root oder dessen www.",
+        "params": {
+          "gameRoot": "Absoluter Pfad des Spielverzeichnisses"
+        }
+      },
+      "chaya_library_remark": {
+        "title": "Notiz bearbeiten",
+        "description": "Notiz für ein Spiel in der lokalen Bibliothek bearbeiten.",
+        "params": {
+          "gameRoot": "Absoluter Pfad des Spielverzeichnisses",
+          "remark": "Neue Notiz (leer zum Löschen)"
+        }
+      },
+      "chaya_library_remove": {
+        "title": "Spiel entfernen",
+        "description": "Spiel aus der Bibliothek entfernen, ohne Dateien von der Festplatte zu löschen.",
+        "params": {
+          "gameRoot": "Absoluter Pfad des Spielverzeichnisses"
+        }
+      },
+      "chaya_game_status": {
+        "title": "Status des aktuellen Spiels",
+        "description": "Festplattenstatus: Verknüpfung, Ordner, Paketinfo, installierte Plugins, NW.js-Shell und Ausführungsstatus.",
+        "params": {}
+      },
+      "chaya_game_launch": {
+        "title": "Spiel starten",
+        "description": "Aktuelles Spiel im Hintergrund starten (lokale Binärdatei oder NW.js-Shell). Einige Sekunden auf Verbindung mit ChayaAgent-Plugin warten.",
+        "params": {}
+      },
+      "chaya_game_plugins_install": {
+        "title": "Plugins installieren",
+        "description": "Chaya-Plugins für das aktuelle Spiel installieren (Injektion in plugins.js und erforderliche Dateien).",
+        "params": {}
+      },
+      "chaya_game_plugins_clear": {
+        "title": "Plugins entfernen",
+        "description": "plugins.js wiederherstellen und hinzugefügte Chaya-Plugin-Dateien löschen (vorher Spiel beenden).",
+        "params": {}
+      },
+      "chaya_game_shell_install": {
+        "title": "NW.js-Shell installieren",
+        "description": "Gemeinsame NW.js-Laufzeit-Shell für das aktuelle Spiel installieren oder ersetzen.",
+        "params": {
+          "shellSource": "Quelle oder Version der Shell",
+          "force": "Überschreiben erzwingen, falls bereits vorhanden"
+        }
+      },
+      "chaya_game_shell_check": {
+        "title": "Shell-Updates prüfen",
+        "description": "Verfügbare NW.js-Shell-Versionen mit der aktuell installierten Version vergleichen.",
+        "params": {}
+      },
+      "chaya_game_shell_uninstall": {
+        "title": "Gemeinsame Shell deinstallieren",
+        "description": "Gemeinsame NW.js-Shell deinstallieren und ursprüngliche ausführbare Datei wiederherstellen.",
+        "params": {}
+      },
+      "chaya_game_window": {
+        "title": "Spielfenster",
+        "description": "Spielfenster fokussieren, minimieren oder wiederherstellen.",
+        "params": {
+          "window": "Fensteraktion: focus, minimize oder restore"
+        }
+      },
+      "chaya_live_games": {
+        "title": "Online-Spiele",
+        "description": "Alle laufenden und mit Chaya verbundenen Spielinstanzen auflisten.",
+        "params": {}
+      },
+      "chaya_live_state": {
+        "title": "Spielstatus live",
+        "description": "Aktuellen Status im Spiel abfragen (Spielerposition, Karte, Gruppe, Schalter, Variablen usw.).",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "sections": "Bestimmte Statusbereiche abrufen (leer für Hauptstatus)"
+        }
+      },
+      "chaya_live_ui": {
+        "title": "UI-Status des Spiels",
+        "description": "Aktuellen Zustand der Benutzeroberfläche, Menüs und offenen Fenster im Spiel abrufen.",
+        "params": {
+          "gameId": "ID der Spielinstanz"
+        }
+      },
+      "chaya_live_open_scene": {
+        "title": "Szene im Spiel öffnen",
+        "description": "Bestimmtes Menü oder bestimmte Szene im Spiel direkt öffnen (z. B. Scene_Item, Scene_Skill).",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "scene": "Name der Szene (z. B. Scene_Item)"
+        }
+      },
+      "chaya_live_saves": {
+        "title": "Spielstände",
+        "description": "Speicherplätze des Spiels mit Vorschau und Metadaten auflisten.",
+        "params": {
+          "gameId": "ID der Spielinstanz"
+        }
+      },
+      "chaya_live_saves_load": {
+        "title": "Speicherstand-Daten laden",
+        "description": "Detaillierte Daten eines Speicherstands in den Arbeitsspeicher laden.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "entryId": "Eintrags-ID des Speicherstands",
+          "allowVersionMismatch": "Unterschiedliche Versionen erlauben"
+        }
+      },
+      "chaya_live_save": {
+        "title": "Spiel speichern",
+        "description": "Aktuellen Fortschritt im angegebenen Speicherplatz sichern.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "source": "Speicherquelle",
+          "slot": "Platznummer",
+          "force": "Überschreiben erzwingen"
+        }
+      },
+      "chaya_live_load_save": {
+        "title": "Spielstand laden",
+        "description": "Einen Speicherplatz im laufenden Spiel laden.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "source": "Speicherquelle",
+          "slot": "Platznummer",
+          "entryId": "Eintrags-ID",
+          "allowVersionMismatch": "Unterschiedliche Versionen erlauben"
+        }
+      },
+      "chaya_live_history": {
+        "title": "Aktuelle Story",
+        "description": "Kürzliche Dialoge, Narrationen und Ereignisverlauf im Spiel lesen.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "limit": "Maximale Anzahl",
+          "kinds": "Ereignisarten filtern",
+          "afterSeq": "Nur Ereignisse nach dieser Sequenznummer"
+        }
+      },
+      "chaya_agent_recall": {
+        "title": "Agent-Verlauf abrufen",
+        "description": "Frühere Dialogrunden und Aktionen des Chaya-Agenten im Spiel durchsuchen oder abrufen.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "query": "Suchbegriff",
+          "limit": "Maximale Anzahl",
+          "offset": "Seitenversatz"
+        }
+      },
+      "chaya_live_screenshot": {
+        "title": "Screenshot aufnehmen",
+        "description": "Aktuelles Spielbild erfassen und Miniaturansicht oder Bilddaten zurückgeben.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "maxWidth": "Maximale Breite in Pixeln (Standard 800)"
+        }
+      },
+      "chaya_live_plugins": {
+        "title": "Plugins im Spiel",
+        "description": "Aktive Chaya-Plugins und deren bereitgestellte Tools im laufenden Spiel auflisten.",
+        "params": {
+          "gameId": "ID der Spielinstanz"
+        }
+      },
+      "chaya_live_call": {
+        "title": "Plugin-Tool aufrufen",
+        "description": "Ein von einem Spiel-Plugin bereitgestelltes benutzerdefiniertes Tool aufrufen.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "plugin": "Plugin-Kennung",
+          "tool": "Tool-Name",
+          "input": "Eingabeparameter-Objekt"
+        }
+      },
+      "chaya_live_press": {
+        "title": "Taste simulieren",
+        "description": "Einen Tastendruck an das Spiel senden (z. B. ok, cancel, up, down).",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "key": "Tastenname",
+          "frames": "Anzahl der Halte-Frames"
+        }
+      },
+      "chaya_live_play": {
+        "title": "Spielaktionen ausführen",
+        "description": "Eine Folge von Tastenbefehlen ausführen und den aktualisierten Spielstatus zurückgeben.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "steps": "Array der Aktionsschritte"
+        }
+      },
+      "chaya_live_tap": {
+        "title": "Auf Bildschirm tippen",
+        "description": "Auf die angegebenen Koordinaten im Spiel klicken oder getippt halten.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "x": "Bildschirm-X",
+          "y": "Bildschirm-Y",
+          "frames": "Dauer in Frames"
+        }
+      },
+      "chaya_live_move_to": {
+        "title": "Wegfindung zu Gitterfeld",
+        "description": "Spielfigur mithilfe von A*-Wegfindung automatisch zu den Zielkoordinaten (X, Y) bewegen.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "x": "Ziel-Gitter X",
+          "y": "Ziel-Gitter Y",
+          "timeoutMs": "Zeitlimit in Millisekunden"
+        }
+      },
+      "chaya_live_interact": {
+        "title": "Mit Ereignis interagieren",
+        "description": "Zu einem Kartenereignis gehen und Interaktion oder Dialog auslösen.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "eventId": "Kartenereignis-ID",
+          "openDoors": "Automatisch Türen öffnen"
+        }
+      },
+      "chaya_live_quit": {
+        "title": "Spiel beenden",
+        "description": "Laufenden Spielprozess ordnungsgemäß beenden.",
+        "params": {
+          "gameId": "ID der Spielinstanz"
+        }
+      },
+      "chaya_live_eval": {
+        "title": "JS ausführen",
+        "description": "JavaScript-Code im Spielprozess ausführen (erfordert CHAYA_MCP_EVAL=1 auf dem Server).",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "code": "Auszuführender JS-Code"
+        }
+      },
+      "chaya_edit_catalog": {
+        "title": "IDs nachschlagen",
+        "description": "IDs und Namen von Gegenständen, Waffen, Rüstungen, Fähigkeiten, Schaltern und Variablen nachschlagen.",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "kind": "Kategorie (items, weapons, armors, skills, switches, variables)",
+          "q": "Suchbegriff",
+          "limit": "Maximale Anzahl"
+        }
+      },
+      "chaya_edit_state": {
+        "title": "Bearbeitungssitzung",
+        "description": "Aktuelle Werte und gesperrte Einträge in der Bearbeitungssitzung des Spiels abrufen.",
+        "params": {
+          "gameId": "ID der Spielinstanz"
+        }
+      },
+      "chaya_edit_set": {
+        "title": "Wert ändern",
+        "description": "Einen Spielwert ändern oder sperren (Gold, Items, Heldenwerte, Schalter, Variablen).",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "op": "Operation (set, lock, unlock etc.)",
+          "value": "Wert",
+          "on": "Schalterstatus",
+          "kind": "Datentyp",
+          "id": "Ziel-ID",
+          "key": "Attributschlüssel",
+          "patch": "Update-Patch",
+          "actorId": "Helden-ID",
+          "entryId": "Eintrags-ID",
+          "owned": "Im Besitz"
+        }
+      },
+      "chaya_edit_action": {
+        "title": "Aktion ausführen",
+        "description": "Direkte Bearbeitungsaktion im Spiel ausführen (vollständige Heilung, Teleport, Kampf, Kollision ein/aus).",
+        "params": {
+          "gameId": "ID der Spielinstanz",
+          "id": "Aktions-ID",
+          "mapId": "Karten-ID",
+          "x": "Gitter X",
+          "y": "Gitter Y",
+          "direction": "Blickrichtung",
+          "eventId": "Ereignis-ID",
+          "slot": "Platz"
+        }
+      },
+      "chaya_translate_text": {
+        "title": "Text übersetzen",
+        "description": "Textabschnitt mit den konfigurierten Übersetzungs-Engines übersetzen.",
+        "params": {
+          "texts": "Array von Texten",
+          "force": "Übersetzung erzwingen ohne Cache",
+          "persist": "Im gemeinsamen Übersetzungsspeicher sichern"
+        }
+      },
+      "chaya_translate_extract": {
+        "title": "Quelltext extrahieren",
+        "description": "Alle Karten und Datenbanken des Spiels scannen und unübersetzte Texte extrahieren.",
+        "params": {}
+      },
+      "chaya_translate_job": {
+        "title": "Übersetzungsaufgabe",
+        "description": "Vollständige Hintergrundübersetzung steuern (Start, Pause, Fortsetzen, Abbrechen).",
+        "params": {
+          "action": "Aktion: start, pause, resume, cancel"
+        }
+      },
+      "chaya_translate_batch": {
+        "title": "Stapel übersetzen",
+        "description": "Einen Stapel unübersetzter Texte übersetzen und Fortschritt zurückgeben.",
+        "params": {
+          "limit": "Stapelgröße"
+        }
+      },
+      "chaya_translate_engines": {
+        "title": "Übersetzungs-Engines",
+        "description": "Aktivierung und Prioritätsreihenfolge der Übersetzungs-Engines abfragen oder konfigurieren.",
+        "params": {
+          "switches": "Engine-Schalter",
+          "order": "Prioritätsreihenfolge"
+        }
+      },
+      "chaya_translate_play_settings": {
+        "title": "Übersetzungseinstellungen im Spiel",
+        "description": "Anzeigeeinstellungen und Ersetzungsmodus für Live-Übersetzung im Spiel festlegen.",
+        "params": {
+          "settings": "Einstellungsobjekt"
+        }
+      },
+      "chaya_cache_query": {
+        "title": "Übersetzungsspeicher durchsuchen",
+        "description": "Segmente und Übersetzungen im gemeinsamen Speicher durchsuchen.",
+        "params": {
+          "q": "Suchbegriff",
+          "engine": "Engine-Filter",
+          "nsfw": "NSFW-Filter",
+          "sort": "Sortierfeld",
+          "order": "Reihenfolge (asc oder desc)",
+          "page": "Seitennummer",
+          "pageSize": "Seitengröße"
+        }
+      },
+      "chaya_cache_update": {
+        "title": "Übersetzung bearbeiten",
+        "description": "Einen Übersetzungseintrag im gemeinsamen Speicher manuell anpassen.",
+        "params": {
+          "src": "Quelltext",
+          "zh": "Zielübersetzung"
+        }
+      },
+      "chaya_cache_delete": {
+        "title": "Übersetzung löschen",
+        "description": "Einen Übersetzungseintrag für den angegebenen Quelltext aus dem Speicher entfernen.",
+        "params": {
+          "src": "Zu löschender Quelltext"
+        }
+      },
+      "chaya_cache_import": {
+        "title": "Übersetzungen importieren",
+        "description": "Übersetzungs-JSON- oder Glossardateien stapelweise importieren.",
+        "params": {
+          "text": "Dateitext",
+          "overwrite": "Bestehende Übersetzungen überschreiben"
+        }
+      },
+      "chaya_logs_query": {
+        "title": "Protokolle durchsuchen",
+        "description": "Protokolle von Chaya, Agenten und Plugins suchen und filtern.",
+        "params": {
+          "view": "Ansichtsmodus",
+          "q": "Suchtext",
+          "source": "Protokollquelle",
+          "level": "Mindeststufe",
+          "since": "Startzeitstempel",
+          "taskId": "Aufgaben-ID",
+          "gameId": "Spiel-ID",
+          "runtimeInstanceId": "Laufzeitinstanz-ID",
+          "eventType": "Ereignistyp",
+          "limit": "Maximale Anzahl"
+        }
+      },
+      "chaya_logs_clear": {
+        "title": "Protokolle leeren",
+        "description": "Gespeicherte Protokolldateien leeren.",
+        "params": {}
+      }
+    }
+  },
+  "es": {
+    "groups": {
+      "library": {
+        "title": "Biblioteca",
+        "summary": "Listar, vincular, anotar y eliminar entradas de la biblioteca local de juegos."
+      },
+      "game": {
+        "title": "Juego actual",
+        "summary": "Disco local: estado, inicio/cierre, plugins, entorno NW.js, ventanas."
+      },
+      "live": {
+        "title": "En vivo en el juego",
+        "summary": "Con el juego en marcha (requiere plugin ChayaAgent): estado e historia reciente, capturas, teclas, clics, rutas, salir; herramientas de plugins."
+      },
+      "agent": {
+        "title": "Historial del agente",
+        "summary": "Consultar turnos anteriores de conversación del agente Chaya en el juego según sea necesario."
+      },
+      "edit": {
+        "title": "Modificación",
+        "summary": "Funciones de modificación en el juego: consultar IDs, sesión en vivo, modificar/bloquear valores, acciones."
+      },
+      "translate": {
+        "title": "Traducción",
+        "summary": "Traducir texto, extraer textos fuente, tareas de traducción completa, motores y ajustes en juego."
+      },
+      "cache": {
+        "title": "Memoria de traducción",
+        "summary": "Búsqueda, filtrado, modificación, eliminación e importación en la memoria compartida."
+      },
+      "logs": {
+        "title": "Registros",
+        "summary": "Consultar y vaciar registros del servicio y de plugins."
+      },
+      "skills": {
+        "title": "Habilidades de juego",
+        "summary": "Descubrir y consultar conocimientos y estrategias de juego bajo demanda."
+      }
+    },
+    "tools": {
+      "chaya_skills_list": {
+        "title": "Listar habilidades",
+        "description": "Listar habilidades de juego disponibles y su jerarquía. Leer el contenido solo cuando sea relevante para la tarea.",
+        "params": {
+          "parent": "Listar solo subtareas o habilidades secundarias directas"
+        }
+      },
+      "chaya_skills_search": {
+        "title": "Buscar habilidades",
+        "description": "Buscar por tarea, tema o etiqueta antes de combates complejos, misiones, rutas o menús.",
+        "params": {
+          "query": "Término de búsqueda",
+          "limit": "Límite máximo de resultados (por defecto 10, máx 50)"
+        }
+      },
+      "chaya_skills_read": {
+        "title": "Leer habilidad",
+        "description": "Leer una habilidad localizada bajo demanda; puede hacer referencia a subhabilidades.",
+        "params": {
+          "id": "ID devuelto por chaya_skills_list o chaya_skills_search"
+        }
+      },
+      "chaya_library_list": {
+        "title": "Lista de biblioteca",
+        "description": "Listar juegos en la biblioteca local y el juego vinculado actual, con filtro por nombre, nota o ruta.",
+        "params": {
+          "q": "Palabra clave (no distingue mayúsculas de minúsculas)"
+        }
+      },
+      "chaya_library_bind": {
+        "title": "Vincular juego",
+        "description": "Añadir un directorio de juego a la biblioteca y fijarlo como juego actual (o cambiar si ya existe). Debe ser la raíz de RPG Maker MV/MZ o su www.",
+        "params": {
+          "gameRoot": "Ruta absoluta del directorio del juego"
+        }
+      },
+      "chaya_library_remark": {
+        "title": "Modificar nota",
+        "description": "Modificar la nota de un juego en la biblioteca local.",
+        "params": {
+          "gameRoot": "Ruta absoluta del directorio del juego",
+          "remark": "Nueva nota (vacía para borrar)"
+        }
+      },
+      "chaya_library_remove": {
+        "title": "Eliminar de biblioteca",
+        "description": "Eliminar un juego de la biblioteca sin borrar los archivos del disco.",
+        "params": {
+          "gameRoot": "Ruta absoluta del directorio del juego"
+        }
+      },
+      "chaya_game_status": {
+        "title": "Estado del juego actual",
+        "description": "Estado en disco: vinculación, carpeta, información del paquete, plugins instalados, entorno NW.js y ejecución.",
+        "params": {}
+      },
+      "chaya_game_launch": {
+        "title": "Iniciar juego",
+        "description": "Iniciar el juego actual en segundo plano (ejecutable local o entorno NW.js). Esperar unos segundos para conectar con ChayaAgent.",
+        "params": {}
+      },
+      "chaya_game_plugins_install": {
+        "title": "Instalar plugins",
+        "description": "Instalar los plugins de Chaya para el juego actual (inyección en plugins.js y archivos requeridos).",
+        "params": {}
+      },
+      "chaya_game_plugins_clear": {
+        "title": "Limpiar plugins",
+        "description": "Restaurar plugins.js y eliminar los archivos de plugin añadidos por Chaya (cerrar el juego previamente).",
+        "params": {}
+      },
+      "chaya_game_shell_install": {
+        "title": "Instalar entorno NW.js",
+        "description": "Instalar o reemplazar el entorno de ejecución compartido NW.js para el juego actual.",
+        "params": {
+          "shellSource": "Origen o versión del entorno NW.js",
+          "force": "Forzar reemplazo si ya está instalado"
+        }
+      },
+      "chaya_game_shell_check": {
+        "title": "Comprobar actualizaciones de entorno",
+        "description": "Comprobar la última versión disponible del entorno NW.js frente a la versión instalada.",
+        "params": {}
+      },
+      "chaya_game_shell_uninstall": {
+        "title": "Desinstalar entorno compartido",
+        "description": "Desinstalar el entorno compartido NW.js y restaurar el ejecutable original del juego.",
+        "params": {}
+      },
+      "chaya_game_window": {
+        "title": "Ventana del juego",
+        "description": "Enfocar, minimizar o restaurar la ventana del juego en ejecución.",
+        "params": {
+          "window": "Acción de ventana: focus, minimize o restore"
+        }
+      },
+      "chaya_live_games": {
+        "title": "Juegos online",
+        "description": "Listar todas las instancias de juegos en ejecución conectadas a Chaya.",
+        "params": {}
+      },
+      "chaya_live_state": {
+        "title": "Estado en juego",
+        "description": "Leer el estado en directo dentro del juego (posición del jugador, mapa, equipo, interruptores, variables, etc.).",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "sections": "Secciones específicas de estado a leer (vacío para estado principal)"
+        }
+      },
+      "chaya_live_ui": {
+        "title": "Estado de interfaz del juego",
+        "description": "Leer el estado actual de la interfaz, menús y ventanas abiertas en el juego.",
+        "params": {
+          "gameId": "ID de instancia del juego"
+        }
+      },
+      "chaya_live_open_scene": {
+        "title": "Abrir escena en el juego",
+        "description": "Abrir directamente un menú o escena específica en el juego (ej. Scene_Item, Scene_Skill).",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "scene": "Nombre de la escena (ej. Scene_Item)"
+        }
+      },
+      "chaya_live_saves": {
+        "title": "Partidas guardadas",
+        "description": "Listar las ranuras de guardado del juego con vista previa y metadatos.",
+        "params": {
+          "gameId": "ID de instancia del juego"
+        }
+      },
+      "chaya_live_saves_load": {
+        "title": "Cargar datos de guardado",
+        "description": "Cargar en memoria los datos detallados de una partida guardada.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "entryId": "ID de la entrada guardada",
+          "allowVersionMismatch": "Permitir si la versión difiere"
+        }
+      },
+      "chaya_live_save": {
+        "title": "Guardar partida",
+        "description": "Guardar el progreso actual en la ranura especificada.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "source": "Origen del guardado",
+          "slot": "Número de ranura",
+          "force": "Forzar sobreescritura"
+        }
+      },
+      "chaya_live_load_save": {
+        "title": "Cargar partida",
+        "description": "Cargar y aplicar una partida guardada en el juego en curso.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "source": "Origen del guardado",
+          "slot": "Número de ranura",
+          "entryId": "ID de entrada",
+          "allowVersionMismatch": "Permitir si la versión difiere"
+        }
+      },
+      "chaya_live_history": {
+        "title": "Historia reciente",
+        "description": "Leer diálogos recientes, narraciones e historial de eventos en el juego.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "limit": "Límite de registros",
+          "kinds": "Filtrar tipos de eventos",
+          "afterSeq": "Leer solo a partir de este número de secuencia"
+        }
+      },
+      "chaya_agent_recall": {
+        "title": "Recordar turnos del agente",
+        "description": "Buscar o recordar turnos de conversación y acciones anteriores del agente Chaya en el juego.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "query": "Término de búsqueda",
+          "limit": "Cantidad máxima",
+          "offset": "Desplazamiento de página"
+        }
+      },
+      "chaya_live_screenshot": {
+        "title": "Captura de pantalla",
+        "description": "Capturar la pantalla actual del juego y devolver miniatura o datos de imagen.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "maxWidth": "Ancho máximo en píxeles (800 por defecto)"
+        }
+      },
+      "chaya_live_plugins": {
+        "title": "Plugins en el juego",
+        "description": "Listar los plugins de Chaya activos en el juego y sus herramientas disponibles.",
+        "params": {
+          "gameId": "ID de instancia del juego"
+        }
+      },
+      "chaya_live_call": {
+        "title": "Llamar a herramienta de plugin",
+        "description": "Ejecutar una herramienta personalizada declarada por un plugin activo en el juego.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "plugin": "Identificador del plugin",
+          "tool": "Nombre de la herramienta",
+          "input": "Argumentos de entrada"
+        }
+      },
+      "chaya_live_press": {
+        "title": "Simular tecla",
+        "description": "Enviar una pulsación de tecla de control al juego (ej. ok, cancel, up, down).",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "key": "Nombre de tecla",
+          "frames": "Cantidad de fotogramas mantenida"
+        }
+      },
+      "chaya_live_play": {
+        "title": "Ejecutar acciones de juego",
+        "description": "Ejecutar una secuencia de pulsaciones y devolver el estado actualizado del juego.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "steps": "Array de pasos de acción"
+        }
+      },
+      "chaya_live_tap": {
+        "title": "Hacer clic en pantalla",
+        "description": "Hacer clic o pulsar de forma continuada en las coordenadas especificadas de la pantalla.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "x": "Coordenada X",
+          "y": "Coordenada Y",
+          "frames": "Fotogramas de mantenimiento"
+        }
+      },
+      "chaya_live_move_to": {
+        "title": "Navegar a casilla",
+        "description": "Mover automáticamente al personaje a las coordenadas de cuadrícula (X, Y) mediante búsqueda de caminos A*.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "x": "Cuadrícula X objetivo",
+          "y": "Cuadrícula Y objetivo",
+          "timeoutMs": "Tiempo límite en milisegundos"
+        }
+      },
+      "chaya_live_interact": {
+        "title": "Interactuar con evento",
+        "description": "Desplazarse hasta un evento del mapa y activar la interacción o el diálogo.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "eventId": "ID del evento en el mapa",
+          "openDoors": "Abrir puertas automáticamente"
+        }
+      },
+      "chaya_live_quit": {
+        "title": "Cerrar juego",
+        "description": "Terminar limpiamente el proceso del juego en ejecución.",
+        "params": {
+          "gameId": "ID de instancia del juego"
+        }
+      },
+      "chaya_live_eval": {
+        "title": "Ejecutar JS",
+        "description": "Evaluar código JavaScript en el proceso del juego (requiere CHAYA_MCP_EVAL=1 en el servidor).",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "code": "Código JS a evaluar"
+        }
+      },
+      "chaya_edit_catalog": {
+        "title": "Consultar IDs",
+        "description": "Consultar identificadores y nombres de objetos, armas, armaduras, habilidades, interruptores y variables en la base de datos.",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "kind": "Categoría (items, weapons, armors, skills, switches, variables)",
+          "q": "Término de búsqueda",
+          "limit": "Límite máximo"
+        }
+      },
+      "chaya_edit_state": {
+        "title": "Sesión de modificación",
+        "description": "Leer los valores actuales y elementos bloqueados en la sesión de modificación del juego.",
+        "params": {
+          "gameId": "ID de instancia del juego"
+        }
+      },
+      "chaya_edit_set": {
+        "title": "Modificar valor",
+        "description": "Modificar o bloquear un valor de juego (oro, objetos, atributos de personajes, interruptores, variables).",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "op": "Operación (set, lock, unlock, etc.)",
+          "value": "Valor a aplicar",
+          "on": "Estado de interruptor",
+          "kind": "Tipo de datos",
+          "id": "ID objetivo",
+          "key": "Clave de atributo",
+          "patch": "Parche de actualización",
+          "actorId": "ID de personaje",
+          "entryId": "ID de entrada",
+          "owned": "En posesión"
+        }
+      },
+      "chaya_edit_action": {
+        "title": "Ejecutar acción",
+        "description": "Ejecutar una acción directa de modificación en el juego (curación total, teletransporte, combate, atravesar paredes).",
+        "params": {
+          "gameId": "ID de instancia del juego",
+          "id": "ID de la acción",
+          "mapId": "ID de mapa objetivo",
+          "x": "Cuadrícula X",
+          "y": "Cuadrícula Y",
+          "direction": "Orientación del personaje",
+          "eventId": "ID de evento",
+          "slot": "Ranura"
+        }
+      },
+      "chaya_translate_text": {
+        "title": "Traducir texto",
+        "description": "Traducir un fragmento de texto mediante los motores configurados.",
+        "params": {
+          "texts": "Array de textos a traducir",
+          "force": "Forzar traducción sin caché",
+          "persist": "Guardar en memoria de traducción compartida"
+        }
+      },
+      "chaya_translate_extract": {
+        "title": "Extraer texto original",
+        "description": "Escanear todos los mapas y bases de datos del juego para extraer los textos no traducidos.",
+        "params": {}
+      },
+      "chaya_translate_job": {
+        "title": "Tarea de traducción",
+        "description": "Controlar la tarea de traducción en segundo plano (iniciar, pausar, reanudar, cancelar).",
+        "params": {
+          "action": "Acción: start, pause, resume, cancel"
+        }
+      },
+      "chaya_translate_batch": {
+        "title": "Traducir lote",
+        "description": "Traducir un lote de textos pendientes y devolver el progreso.",
+        "params": {
+          "limit": "Tamaño del lote"
+        }
+      },
+      "chaya_translate_engines": {
+        "title": "Motores de traducción",
+        "description": "Consultar o configurar la activación y orden de prioridad de los motores de traducción.",
+        "params": {
+          "switches": "Estado de activación de motores",
+          "order": "Orden de prioridad"
+        }
+      },
+      "chaya_translate_play_settings": {
+        "title": "Ajustes de traducción en el juego",
+        "description": "Configurar preferencias de visualización y modo de reemplazo para la traducción en vivo en el juego.",
+        "params": {
+          "settings": "Objeto de configuración"
+        }
+      },
+      "chaya_cache_query": {
+        "title": "Consultar memoria de traducción",
+        "description": "Buscar segmentos y traducciones en la memoria compartida.",
+        "params": {
+          "q": "Palabra clave de búsqueda",
+          "engine": "Filtro de motor",
+          "nsfw": "Filtro NSFW",
+          "sort": "Campo de ordenación",
+          "order": "Dirección (asc o desc)",
+          "page": "Número de página",
+          "pageSize": "Tamaño de página"
+        }
+      },
+      "chaya_cache_update": {
+        "title": "Modificar traducción",
+        "description": "Actualizar manualmente una traducción en la memoria compartida.",
+        "params": {
+          "src": "Texto original",
+          "zh": "Traducción objetivo"
+        }
+      },
+      "chaya_cache_delete": {
+        "title": "Eliminar traducción",
+        "description": "Eliminar de la memoria compartida la traducción correspondiente al texto fuente.",
+        "params": {
+          "src": "Texto original a eliminar"
+        }
+      },
+      "chaya_cache_import": {
+        "title": "Importar traducciones",
+        "description": "Importar archivos JSON o glosarios de traducciones por lotes.",
+        "params": {
+          "text": "Texto del archivo",
+          "overwrite": "Sobrescribir traducciones existentes"
+        }
+      },
+      "chaya_logs_query": {
+        "title": "Consultar registros",
+        "description": "Buscar y filtrar registros de Chaya, agentes y plugins.",
+        "params": {
+          "view": "Modo de vista",
+          "q": "Texto de búsqueda",
+          "source": "Origen del registro",
+          "level": "Nivel mínimo",
+          "since": "Marca de tiempo inicial",
+          "taskId": "ID de tarea",
+          "gameId": "ID del juego",
+          "runtimeInstanceId": "ID de instancia",
+          "eventType": "Tipo de evento",
+          "limit": "Cantidad máxima"
+        }
+      },
+      "chaya_logs_clear": {
+        "title": "Vaciar registros",
+        "description": "Borrar los archivos de registro almacenados.",
+        "params": {}
+      }
+    }
+  },
+  "ru": {
+    "groups": {
+      "library": {
+        "title": "Библиотека",
+        "summary": "Просмотр, привязка, добавление заметок и удаление записей в локальной библиотеке игр."
+      },
+      "game": {
+        "title": "Текущая игра",
+        "summary": "Файлы на диске: статус, запуск/закрытие, плагины, оболочка NW.js, окна."
+      },
+      "live": {
+        "title": "В игре (Live)",
+        "summary": "Во время работы игры (требуется плагин ChayaAgent): чтение состояния и сюжета, скриншоты, клавиши, клики, поиск пути, выход; инструменты плагинов."
+      },
+      "agent": {
+        "title": "Диалог с агентом",
+        "summary": "Чтение предыдущих реплик диалога Chaya Agent в игре по запросу."
+      },
+      "edit": {
+        "title": "Редактирование",
+        "summary": "Возможности страницы редактирования в игре: поиск ID, чтение сессии, изменение/блокировка значений, запуск действий."
+      },
+      "translate": {
+        "title": "Перевод",
+        "summary": "Перевод текста, извлечение оригинала, задачи полного перевода, настройки движков и перевода в игре."
+      },
+      "cache": {
+        "title": "База переводов",
+        "summary": "Поиск, фильтрация, изменение, удаление и импорт в локальной общей базе переводов."
+      },
+      "logs": {
+        "title": "Журналы",
+        "summary": "Просмотр и очистка журналов службы и плагинов."
+      },
+      "skills": {
+        "title": "Игровые навыки",
+        "summary": "Поиск и чтение игровых знаний и стратегий по мере необходимости."
+      }
+    },
+    "tools": {
+      "chaya_skills_list": {
+        "title": "Список навыков",
+        "description": "Список доступных игровых навыков и их иерархии. Читать содержимое только при необходимости для текущей задачи.",
+        "params": {
+          "parent": "Показать только прямые дочерние навыки"
+        }
+      },
+      "chaya_skills_search": {
+        "title": "Поиск навыков",
+        "description": "Поиск навыков по задаче, теме или тегу перед сложными битвами, квестами или планированием маршрута.",
+        "params": {
+          "query": "Поисковый запрос",
+          "limit": "Максимальное количество результатов (по умолчанию 10, макс. 50)"
+        }
+      },
+      "chaya_skills_read": {
+        "title": "Чтение навыка",
+        "description": "Чтение найденного навыка по мере необходимости; навык может ссылаться на поднавыки.",
+        "params": {
+          "id": "Идентификатор навыка из chaya_skills_list или chaya_skills_search"
+        }
+      },
+      "chaya_library_list": {
+        "title": "Список библиотеки",
+        "description": "Список игр в локальной библиотеке и текущей привязанной игры с фильтрацией по имени, заметке или пути.",
+        "params": {
+          "q": "Ключевое слово (без учёта регистра)"
+        }
+      },
+      "chaya_library_bind": {
+        "title": "Привязать игру",
+        "description": "Добавить папку игры в библиотеку и сделать её текущей игрой (или переключить, если уже есть). Должна быть корневой папкой RPG Maker MV/MZ или её www.",
+        "params": {
+          "gameRoot": "Абсолютный путь к папке игры"
+        }
+      },
+      "chaya_library_remark": {
+        "title": "Изменить заметку",
+        "description": "Изменить заметку к игре в локальной библиотеке.",
+        "params": {
+          "gameRoot": "Абсолютный путь к папке игры",
+          "remark": "Новая заметка (пустая строка для удаления)"
+        }
+      },
+      "chaya_library_remove": {
+        "title": "Удалить из библиотеки",
+        "description": "Удалить игру из библиотеки без удаления файлов с диска.",
+        "params": {
+          "gameRoot": "Абсолютный путь к папке игры"
+        }
+      },
+      "chaya_game_status": {
+        "title": "Статус текущей игры",
+        "description": "Статус на диске: привязка, папка, информация о пакете, установленные плагины, оболочка NW.js и запуск.",
+        "params": {}
+      },
+      "chaya_game_launch": {
+        "title": "Запустить игру",
+        "description": "Запустить текущую игру в фоновом режиме (локальный бинарник или оболочка NW.js). Подождите несколько секунд для подключения ChayaAgent.",
+        "params": {}
+      },
+      "chaya_game_plugins_install": {
+        "title": "Установить плагины",
+        "description": "Установить плагины Chaya для текущей игры (внедрение в plugins.js и необходимые файлы).",
+        "params": {}
+      },
+      "chaya_game_plugins_clear": {
+        "title": "Очистить плагины",
+        "description": "Восстановить plugins.js и удалить добавленные файлы плагинов Chaya (перед этим закройте игру).",
+        "params": {}
+      },
+      "chaya_game_shell_install": {
+        "title": "Установить оболочку NW.js",
+        "description": "Установить или заменить общую среду выполнения NW.js для текущей игры.",
+        "params": {
+          "shellSource": "Источник или версия оболочки",
+          "force": "Принудительно перезаписать, если уже установлена"
+        }
+      },
+      "chaya_game_shell_check": {
+        "title": "Проверить обновления оболочки",
+        "description": "Сравнить последнюю доступную версию оболочки NW.js с установленной.",
+        "params": {}
+      },
+      "chaya_game_shell_uninstall": {
+        "title": "Удалить общую оболочку",
+        "description": "Удалить общую оболочку NW.js и восстановить исходный исполняемый файл игры.",
+        "params": {}
+      },
+      "chaya_game_window": {
+        "title": "Окно игры",
+        "description": "Фокусировать, свернуть или восстановить окно запущенной игры.",
+        "params": {
+          "window": "Действие с окном: focus, minimize или restore"
+        }
+      },
+      "chaya_live_games": {
+        "title": "Игры онлайн",
+        "description": "Список всех запущенных и подключённых к Chaya экземпляров игр.",
+        "params": {}
+      },
+      "chaya_live_state": {
+        "title": "Состояние в игре",
+        "description": "Чтение текущего состояния игры (координаты игрока, карта, отряд, переключатели, переменные и т. д.).",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "sections": "Специфические разделы состояния (пусто для основных данных)"
+        }
+      },
+      "chaya_live_ui": {
+        "title": "Интерфейс игры",
+        "description": "Чтение текущего состояния интерфейса, открытых меню и окон в игре.",
+        "params": {
+          "gameId": "ID экземпляра игры"
+        }
+      },
+      "chaya_live_open_scene": {
+        "title": "Открыть сцену в игре",
+        "description": "Открыть конкретное меню или сцену в игре (например, Scene_Item, Scene_Skill).",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "scene": "Имя сцены (например, Scene_Item)"
+        }
+      },
+      "chaya_live_saves": {
+        "title": "Сохранения игры",
+        "description": "Список слотов сохранений игры с превью и метаданными.",
+        "params": {
+          "gameId": "ID экземпляра игры"
+        }
+      },
+      "chaya_live_saves_load": {
+        "title": "Загрузить данные сохранения",
+        "description": "Загрузить подробные данные сохранения в оперативную память.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "entryId": "ID записи сохранения",
+          "allowVersionMismatch": "Разрешить при несовпадении версий"
+        }
+      },
+      "chaya_live_save": {
+        "title": "Сохранить игру",
+        "description": "Сохранить текущий игровой прогресс в указанный слот.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "source": "Источник сохранения",
+          "slot": "Номер слота",
+          "force": "Принудительно перезаписать"
+        }
+      },
+      "chaya_live_load_save": {
+        "title": "Загрузить сохранение",
+        "description": "Загрузить и применить сохранение в текущей запущенной игре.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "source": "Источник сохранения",
+          "slot": "Номер слота",
+          "entryId": "ID записи",
+          "allowVersionMismatch": "Разрешить при несовпадении версий"
+        }
+      },
+      "chaya_live_history": {
+        "title": "Недавний сюжет",
+        "description": "Чтение недавних диалогов, описаний и истории событий в игре.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "limit": "Максимум записей",
+          "kinds": "Фильтр типов событий",
+          "afterSeq": "Читать только события после этого номера"
+        }
+      },
+      "chaya_agent_recall": {
+        "title": "История диалога агента",
+        "description": "Поиск и восстановление предыдущих реплик и действий Chaya Agent в игре.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "query": "Поисковый запрос",
+          "limit": "Максимальное количество",
+          "offset": "Смещение"
+        }
+      },
+      "chaya_live_screenshot": {
+        "title": "Скриншот экрана",
+        "description": "Сделать снимок экрана игры и получить миниатюру или изображение.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "maxWidth": "Максимальная ширина в пикселях (по умолчанию 800)"
+        }
+      },
+      "chaya_live_plugins": {
+        "title": "Плагины в игре",
+        "description": "Список активных плагинов Chaya в игре и доступных инструментов.",
+        "params": {
+          "gameId": "ID экземпляра игры"
+        }
+      },
+      "chaya_live_call": {
+        "title": "Вызов инструмента плагина",
+        "description": "Вызов пользовательского инструмента, объявленного плагином в игре.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "plugin": "Идентификатор плагина",
+          "tool": "Имя инструмента",
+          "input": "Объект аргументов"
+        }
+      },
+      "chaya_live_press": {
+        "title": "Симуляция клавиши",
+        "description": "Отправка нажатия клавиши управления в игру (например, ok, cancel, up, down).",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "key": "Имя клавиши",
+          "frames": "Количество кадров удержания"
+        }
+      },
+      "chaya_live_play": {
+        "title": "Выполнить цепочку действий",
+        "description": "Выполнение последовательности нажатий клавиш с возвратом обновлённого состояния игры.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "steps": "Массив шагов действий"
+        }
+      },
+      "chaya_live_tap": {
+        "title": "Клик по экрану",
+        "description": "Клик или удержание по указанным координатам игрового экрана.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "x": "Координата X",
+          "y": "Координата Y",
+          "frames": "Длительность в кадрах"
+        }
+      },
+      "chaya_live_move_to": {
+        "title": "Перемещение в клетку",
+        "description": "Автоматическое перемещение персонажа в клетку (X, Y) с помощью алгоритма A*.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "x": "Клетка X назначения",
+          "y": "Клетка Y назначения",
+          "timeoutMs": "Таймаут в миллисекундах"
+        }
+      },
+      "chaya_live_interact": {
+        "title": "Взаимодействие с событием",
+        "description": "Перемещение персонажа к событию на карте и запуск диалога или взаимодействия.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "eventId": "ID события на карте",
+          "openDoors": "Автоматически открывать двери"
+        }
+      },
+      "chaya_live_quit": {
+        "title": "Закрыть игру",
+        "description": "Корректно завершить процесс запущенной игры.",
+        "params": {
+          "gameId": "ID экземпляра игры"
+        }
+      },
+      "chaya_live_eval": {
+        "title": "Выполнить JS-код",
+        "description": "Выполнить JavaScript в процессе игры (требуется флаг CHAYA_MCP_EVAL=1 на сервере).",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "code": "JS-код для выполнения"
+        }
+      },
+      "chaya_edit_catalog": {
+        "title": "Поиск идентификаторов",
+        "description": "Поиск ID и названий предметов, оружия, брони, навыков, переключателей и переменных.",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "kind": "Категория (items, weapons, armors, skills, switches, variables)",
+          "q": "Поисковый запрос",
+          "limit": "Максимальное количество"
+        }
+      },
+      "chaya_edit_state": {
+        "title": "Сессия редактирования",
+        "description": "Чтение текущих значений и заблокированных параметров в сессии редактирования.",
+        "params": {
+          "gameId": "ID экземпляра игры"
+        }
+      },
+      "chaya_edit_set": {
+        "title": "Изменить значение",
+        "description": "Изменить или заблокировать параметр игры (золото, предметы, характеристики героя, переключатели, переменные).",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "op": "Операция (set, lock, unlock и др.)",
+          "value": "Значение",
+          "on": "Состояние переключателя",
+          "kind": "Тип данных",
+          "id": "Целевой ID",
+          "key": "Ключ атрибута",
+          "patch": "Патч изменений",
+          "actorId": "ID героя",
+          "entryId": "ID записи",
+          "owned": "В инвентаре"
+        }
+      },
+      "chaya_edit_action": {
+        "title": "Выполнить действие",
+        "description": "Выполнить мгновенное действие редактирования в игре (полное лечение, телепорт, битва, проход сквозь стены).",
+        "params": {
+          "gameId": "ID экземпляра игры",
+          "id": "ID действия",
+          "mapId": "ID целевой карты",
+          "x": "Клетка X",
+          "y": "Клетка Y",
+          "direction": "Направление взгляда",
+          "eventId": "ID события",
+          "slot": "Слот"
+        }
+      },
+      "chaya_translate_text": {
+        "title": "Перевести текст",
+        "description": "Перевод фрагмента текста с использованием настроенных движков.",
+        "params": {
+          "texts": "Массив текстов для перевода",
+          "force": "Принудительный перевод без кэша",
+          "persist": "Сохранить в общей базе переводов"
+        }
+      },
+      "chaya_translate_extract": {
+        "title": "Извлечь оригинал",
+        "description": "Сканирование всех карт и базы данных игры для извлечения непереведённого текста.",
+        "params": {}
+      },
+      "chaya_translate_job": {
+        "title": "Задача перевода",
+        "description": "Управление фоновой задачей перевода игры (старт, пауза, возобновление, отмена).",
+        "params": {
+          "action": "Действие: start, pause, resume, cancel"
+        }
+      },
+      "chaya_translate_batch": {
+        "title": "Перевести пакет",
+        "description": "Перевести пакет непереведённых строк с возвратом прогресса.",
+        "params": {
+          "limit": "Размер пакета"
+        }
+      },
+      "chaya_translate_engines": {
+        "title": "Движки перевода",
+        "description": "Просмотр и настройка включения и приоритета движков перевода.",
+        "params": {
+          "switches": "Переключатели движков",
+          "order": "Порядок приоритета"
+        }
+      },
+      "chaya_translate_play_settings": {
+        "title": "Настройки перевода в игре",
+        "description": "Настройки отображения и режима подстановки живого перевода в игре.",
+        "params": {
+          "settings": "Объект настроек"
+        }
+      },
+      "chaya_cache_query": {
+        "title": "Поиск в базе переводов",
+        "description": "Поиск сегментов и переводов в общей базе данных.",
+        "params": {
+          "q": "Поисковый запрос",
+          "engine": "Фильтр по движку",
+          "nsfw": "Фильтр NSFW",
+          "sort": "Поле сортировки",
+          "order": "Порядок (asc или desc)",
+          "page": "Номер страницы",
+          "pageSize": "Размер страницы"
+        }
+      },
+      "chaya_cache_update": {
+        "title": "Изменить перевод",
+        "description": "Вручную обновить перевод строки в общей базе данных.",
+        "params": {
+          "src": "Исходный текст",
+          "zh": "Целевой перевод"
+        }
+      },
+      "chaya_cache_delete": {
+        "title": "Удалить перевод",
+        "description": "Удалить перевод для указанной строки из общей базы данных.",
+        "params": {
+          "src": "Исходный текст для удаления"
+        }
+      },
+      "chaya_cache_import": {
+        "title": "Импортировать переводы",
+        "description": "Пакетный импорт файлов JSON или глоссариев переводов.",
+        "params": {
+          "text": "Текст файла импорта",
+          "overwrite": "Перезаписывать существующие переводы"
+        }
+      },
+      "chaya_logs_query": {
+        "title": "Поиск в журналах",
+        "description": "Поиск и фильтрация журналов Chaya, агентов и плагинов.",
+        "params": {
+          "view": "Режим просмотра",
+          "q": "Поисковый текст",
+          "source": "Источник логов",
+          "level": "Минимальный уровень",
+          "since": "Начальная метка времени",
+          "taskId": "ID задачи",
+          "gameId": "ID игры",
+          "runtimeInstanceId": "ID экземпляра рантайма",
+          "eventType": "Тип события",
+          "limit": "Максимум записей"
+        }
+      },
+      "chaya_logs_clear": {
+        "title": "Очистить журналы",
+        "description": "Удалить сохранённую историю журналов.",
+        "params": {}
+      }
+    }
+  },
+  "pt-BR": {
+    "groups": {
+      "library": {
+        "title": "Biblioteca",
+        "summary": "Listar, vincular, anotar e remover itens da biblioteca local de jogos."
+      },
+      "game": {
+        "title": "Jogo atual",
+        "summary": "Disco local: status, iniciar/fechar, plugins, shell NW.js, janelas."
+      },
+      "live": {
+        "title": "Ao vivo no jogo",
+        "summary": "Com o jogo em execução (requer plugin ChayaAgent): status, história recente, tela, teclas, cliques, rotas, fechar; ferramentas de plugins."
+      },
+      "agent": {
+        "title": "Histórico do agente",
+        "summary": "Consultar rodadas anteriores da conversa com o Chaya Agent no jogo quando necessário."
+      },
+      "edit": {
+        "title": "Edição",
+        "summary": "Recursos de edição no jogo: buscar IDs, sessão em tempo real, alterar/bloquear valores, executar ações."
+      },
+      "translate": {
+        "title": "Tradução",
+        "summary": "Traduzir texto, extrair textos originais, tarefas de tradução completa, configurações de motores e tradução no jogo."
+      },
+      "cache": {
+        "title": "Memória de tradução",
+        "summary": "Consulta, filtragem, edição, exclusão e importação na memória de tradução compartilhada local."
+      },
+      "logs": {
+        "title": "Registros",
+        "summary": "Consultar e limpar registros do serviço e de plugins."
+      },
+      "skills": {
+        "title": "Habilidades de jogo",
+        "summary": "Descobrir e ler conhecimentos e estratégias de jogo sob demanda."
+      }
+    },
+    "tools": {
+      "chaya_skills_list": {
+        "title": "Listar habilidades",
+        "description": "Listar habilidades de jogo disponíveis e sua hierarquia. Ler o conteúdo somente quando relevante para a tarefa atual.",
+        "params": {
+          "parent": "Listar apenas habilidades filhas diretas"
+        }
+      },
+      "chaya_skills_search": {
+        "title": "Pesquisar habilidades",
+        "description": "Pesquisar por tarefa, tema ou tag antes de batalhas complexas, missões, rotas ou planejamento de menus.",
+        "params": {
+          "query": "Termo de pesquisa",
+          "limit": "Limite máximo de resultados (padrão 10, máx. 50)"
+        }
+      },
+      "chaya_skills_read": {
+        "title": "Ler habilidade",
+        "description": "Ler uma habilidade encontrada sob demanda; pode conter referências a sub-habilidades.",
+        "params": {
+          "id": "ID retornado por chaya_skills_list ou chaya_skills_search"
+        }
+      },
+      "chaya_library_list": {
+        "title": "Lista da biblioteca",
+        "description": "Listar jogos na biblioteca local e o jogo vinculado atualmente, com filtro por nome, nota ou caminho.",
+        "params": {
+          "q": "Palavra-chave (sem distinção entre maiúsculas e minúsculas)"
+        }
+      },
+      "chaya_library_bind": {
+        "title": "Vincular jogo",
+        "description": "Adicionar pasta de jogo à biblioteca e definir como jogo ativo (ou apenas alternar se já existir). Deve ser a raiz do jogo RPG Maker MV/MZ ou seu www.",
+        "params": {
+          "gameRoot": "Caminho absoluto do diretório do jogo"
+        }
+      },
+      "chaya_library_remark": {
+        "title": "Editar nota",
+        "description": "Editar a nota de um jogo na biblioteca local.",
+        "params": {
+          "gameRoot": "Caminho absoluto do diretório do jogo",
+          "remark": "Nova nota (vazio para limpar)"
+        }
+      },
+      "chaya_library_remove": {
+        "title": "Remover da biblioteca",
+        "description": "Remover um jogo da biblioteca sem apagar os arquivos do disco.",
+        "params": {
+          "gameRoot": "Caminho absoluto do diretório do jogo"
+        }
+      },
+      "chaya_game_status": {
+        "title": "Status do jogo atual",
+        "description": "Status em disco: vínculo, diretório, dados do pacote, plugins instalados, shell NW.js e execução.",
+        "params": {}
+      },
+      "chaya_game_launch": {
+        "title": "Iniciar jogo",
+        "description": "Iniciar o jogo atual em segundo plano (executável local ou shell NW.js). Aguarde alguns segundos para conectar ao plugin ChayaAgent.",
+        "params": {}
+      },
+      "chaya_game_plugins_install": {
+        "title": "Instalar plugins",
+        "description": "Instalar plugins Chaya no jogo atual (injeção em plugins.js e arquivos necessários).",
+        "params": {}
+      },
+      "chaya_game_plugins_clear": {
+        "title": "Limpar plugins",
+        "description": "Restaurar plugins.js e remover arquivos de plugins adicionados pelo Chaya (feche o jogo antes).",
+        "params": {}
+      },
+      "chaya_game_shell_install": {
+        "title": "Instalar shell NW.js",
+        "description": "Instalar ou substituir o shell de execução compartilhado NW.js para o jogo atual.",
+        "params": {
+          "shellSource": "Origem ou versão do shell NW.js",
+          "force": "Forçar substituição se já instalado"
+        }
+      },
+      "chaya_game_shell_check": {
+        "title": "Verificar atualizações do shell",
+        "description": "Verificar a versão mais recente do shell NW.js disponível em relação à instalada.",
+        "params": {}
+      },
+      "chaya_game_shell_uninstall": {
+        "title": "Desinstalar shell compartilhado",
+        "description": "Desinstalar o shell compartilhado NW.js e restaurar o executável original do jogo.",
+        "params": {}
+      },
+      "chaya_game_window": {
+        "title": "Janela do jogo",
+        "description": "Focar, minimizar ou restaurar a janela do jogo em execução.",
+        "params": {
+          "window": "Ação de janela: focus, minimize ou restore"
+        }
+      },
+      "chaya_live_games": {
+        "title": "Jogos online",
+        "description": "Listar todas as instâncias de jogos em execução conectadas ao Chaya.",
+        "params": {}
+      },
+      "chaya_live_state": {
+        "title": "Estado no jogo",
+        "description": "Ler o estado em tempo real no jogo (coordenadas do jogador, mapa, equipe, interruptores, variáveis etc.).",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "sections": "Seções de estado específicas (vazio para o estado principal)"
+        }
+      },
+      "chaya_live_ui": {
+        "title": "Interface do jogo",
+        "description": "Ler o estado atual da interface, menus e janelas abertas no jogo.",
+        "params": {
+          "gameId": "ID da instância do jogo"
+        }
+      },
+      "chaya_live_open_scene": {
+        "title": "Abrir cena no jogo",
+        "description": "Abrir diretamente um menu ou cena específica no jogo (ex. Scene_Item, Scene_Skill).",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "scene": "Nome da cena (ex. Scene_Item)"
+        }
+      },
+      "chaya_live_saves": {
+        "title": "Jogos salvos",
+        "description": "Listar os slots de salvamento do jogo com prévia e metadados.",
+        "params": {
+          "gameId": "ID da instância do jogo"
+        }
+      },
+      "chaya_live_saves_load": {
+        "title": "Carregar dados salvos",
+        "description": "Carregar na memória os dados detalhados de um salvamento.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "entryId": "ID do registro salvo",
+          "allowVersionMismatch": "Permitir divergência de versão"
+        }
+      },
+      "chaya_live_save": {
+        "title": "Salvar jogo",
+        "description": "Salvar o progresso atual no slot especificado.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "source": "Origem do salvamento",
+          "slot": "Número do slot",
+          "force": "Forçar sobrescrita"
+        }
+      },
+      "chaya_live_load_save": {
+        "title": "Carregar jogo salvo",
+        "description": "Carregar e aplicar um salvamento no jogo em andamento.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "source": "Origem do salvamento",
+          "slot": "Número do slot",
+          "entryId": "ID da entrada",
+          "allowVersionMismatch": "Permitir divergência de versão"
+        }
+      },
+      "chaya_live_history": {
+        "title": "História recente",
+        "description": "Ler diálogos recentes, narrações e histórico de eventos no jogo.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "limit": "Limite de registros",
+          "kinds": "Filtrar tipos de eventos",
+          "afterSeq": "Ler apenas eventos após este número de sequência"
+        }
+      },
+      "chaya_agent_recall": {
+        "title": "Recordar conversa do agente",
+        "description": "Pesquisar ou recuperar diálogos e ações anteriores do Chaya Agent no jogo.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "query": "Termo de busca",
+          "limit": "Quantidade máxima",
+          "offset": "Deslocamento"
+        }
+      },
+      "chaya_live_screenshot": {
+        "title": "Captura de tela",
+        "description": "Capturar a tela atual do jogo e retornar miniatura ou imagem.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "maxWidth": "Largura máxima em pixels (padrão 800)"
+        }
+      },
+      "chaya_live_plugins": {
+        "title": "Plugins no jogo",
+        "description": "Listar plugins Chaya ativos no jogo e suas ferramentas disponíveis.",
+        "params": {
+          "gameId": "ID da instância do jogo"
+        }
+      },
+      "chaya_live_call": {
+        "title": "Chamar ferramenta de plugin",
+        "description": "Executar uma ferramenta personalizada declarada por um plugin em execução no jogo.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "plugin": "Identificador do plugin",
+          "tool": "Nome da ferramenta",
+          "input": "Objeto de argumentos"
+        }
+      },
+      "chaya_live_press": {
+        "title": "Simular tecla",
+        "description": "Enviar o pressionamento de uma tecla de controle para o jogo (ex. ok, cancel, up, down).",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "key": "Nome da tecla",
+          "frames": "Quantidade de quadros mantidos"
+        }
+      },
+      "chaya_live_play": {
+        "title": "Executar ações de jogo",
+        "description": "Executar uma sequência de comandos de teclas e retornar o estado atualizado do jogo.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "steps": "Array de passos de ação"
+        }
+      },
+      "chaya_live_tap": {
+        "title": "Tocar na tela",
+        "description": "Tocar ou segurar nas coordenadas especificadas na tela do jogo.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "x": "Coordenada X",
+          "y": "Coordenada Y",
+          "frames": "Quadros de duração"
+        }
+      },
+      "chaya_live_move_to": {
+        "title": "Mover para quadrícula",
+        "description": "Mover automaticamente o personagem para a coordenada (X, Y) do mapa com busca de caminhos A*.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "x": "Quadrícula X de destino",
+          "y": "Quadrícula Y de destino",
+          "timeoutMs": "Tempo limite em milissegundos"
+        }
+      },
+      "chaya_live_interact": {
+        "title": "Interagir com evento",
+        "description": "Mover o personagem até um evento do mapa e acionar a interação ou diálogo.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "eventId": "ID do evento no mapa",
+          "openDoors": "Abrir portas automaticamente"
+        }
+      },
+      "chaya_live_quit": {
+        "title": "Fechar jogo",
+        "description": "Encerrar normalmente o processo do jogo em execução.",
+        "params": {
+          "gameId": "ID da instância do jogo"
+        }
+      },
+      "chaya_live_eval": {
+        "title": "Executar JS",
+        "description": "Executar código JavaScript no processo do jogo (requer CHAYA_MCP_EVAL=1 no servidor).",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "code": "Código JS a avaliar"
+        }
+      },
+      "chaya_edit_catalog": {
+        "title": "Consultar IDs",
+        "description": "Buscar IDs e nomes de itens, armas, armaduras, habilidades, interruptores e variáveis no banco de dados.",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "kind": "Categoria (items, weapons, armors, skills, switches, variables)",
+          "q": "Termo de busca",
+          "limit": "Limite máximo"
+        }
+      },
+      "chaya_edit_state": {
+        "title": "Sessão de edição",
+        "description": "Ler os valores atuais e elementos bloqueados na sessão de edição do jogo.",
+        "params": {
+          "gameId": "ID da instância do jogo"
+        }
+      },
+      "chaya_edit_set": {
+        "title": "Alterar valor",
+        "description": "Alterar ou bloquear um valor de jogo (ouro, itens, atributos de personagens, interruptores, variáveis).",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "op": "Operação (set, lock, unlock etc.)",
+          "value": "Valor",
+          "on": "Estado do interruptor",
+          "kind": "Tipo de dados",
+          "id": "ID de destino",
+          "key": "Chave de atributo",
+          "patch": "Patch de atualização",
+          "actorId": "ID do personagem",
+          "entryId": "ID do registro",
+          "owned": "Possui ou não"
+        }
+      },
+      "chaya_edit_action": {
+        "title": "Executar ação",
+        "description": "Executar uma ação direta de edição no jogo (cura completa, teletransporte, batalha, atravessar paredes).",
+        "params": {
+          "gameId": "ID da instância do jogo",
+          "id": "ID da ação",
+          "mapId": "ID do mapa de destino",
+          "x": "Quadrícula X",
+          "y": "Quadrícula Y",
+          "direction": "Orientação do personagem",
+          "eventId": "ID do evento",
+          "slot": "Slot"
+        }
+      },
+      "chaya_translate_text": {
+        "title": "Traduzir texto",
+        "description": "Traduzir um fragmento de texto usando os motores configurados.",
+        "params": {
+          "texts": "Array de textos para tradução",
+          "force": "Forçar tradução sem cache",
+          "persist": "Salvar na memória compartilhada de tradução"
+        }
+      },
+      "chaya_translate_extract": {
+        "title": "Extrair texto original",
+        "description": "Escanear todos os mapas e bancos de dados do jogo para extrair textos não traduzidos.",
+        "params": {}
+      },
+      "chaya_translate_job": {
+        "title": "Tarefa de tradução",
+        "description": "Controlar a tarefa de tradução completa em segundo plano (iniciar, pausar, retomar, cancelar).",
+        "params": {
+          "action": "Ação: start, pause, resume, cancel"
+        }
+      },
+      "chaya_translate_batch": {
+        "title": "Traduzir lote",
+        "description": "Traduzir um lote de termos pendentes e retornar o progresso.",
+        "params": {
+          "limit": "Tamanho do lote"
+        }
+      },
+      "chaya_translate_engines": {
+        "title": "Motores de tradução",
+        "description": "Consultar ou configurar o status de ativação e a ordem de prioridade dos motores de tradução.",
+        "params": {
+          "switches": "Interruptores de motores",
+          "order": "Ordem de prioridade"
+        }
+      },
+      "chaya_translate_play_settings": {
+        "title": "Configurações de tradução no jogo",
+        "description": "Definir preferências de exibição e modo de substituição para a tradução ao vivo no jogo.",
+        "params": {
+          "settings": "Objeto de configurações"
+        }
+      },
+      "chaya_cache_query": {
+        "title": "Consultar memória de tradução",
+        "description": "Buscar termos e traduções no banco de dados compartilhado.",
+        "params": {
+          "q": "Palavra-chave de busca",
+          "engine": "Filtro de motor",
+          "nsfw": "Filtro NSFW",
+          "sort": "Campo de ordenação",
+          "order": "Ordem (asc ou desc)",
+          "page": "Número da página",
+          "pageSize": "Tamanho da página"
+        }
+      },
+      "chaya_cache_update": {
+        "title": "Editar tradução",
+        "description": "Atualizar manualmente uma tradução na memória compartilhada.",
+        "params": {
+          "src": "Texto de origem",
+          "zh": "Tradução de destino"
+        }
+      },
+      "chaya_cache_delete": {
+        "title": "Excluir tradução",
+        "description": "Remover a tradução do texto de origem indicado na memória compartilhada.",
+        "params": {
+          "src": "Texto de origem a remover"
+        }
+      },
+      "chaya_cache_import": {
+        "title": "Importar traduções",
+        "description": "Importar arquivos JSON ou glossários de traduções em lote.",
+        "params": {
+          "text": "Texto do arquivo",
+          "overwrite": "Sobrescrever traduções existentes"
+        }
+      },
+      "chaya_logs_query": {
+        "title": "Consultar registros",
+        "description": "Buscar e filtrar registros de logs do Chaya, agentes e plugins.",
+        "params": {
+          "view": "Modo de visualização",
+          "q": "Texto de busca",
+          "source": "Origem do log",
+          "level": "Nível mínimo",
+          "since": "Timestamp inicial",
+          "taskId": "ID da tarefa",
+          "gameId": "ID do jogo",
+          "runtimeInstanceId": "ID da instância de runtime",
+          "eventType": "Tipo de evento",
+          "limit": "Quantidade máxima"
+        }
+      },
+      "chaya_logs_clear": {
+        "title": "Limpar registros",
+        "description": "Excluir arquivos de logs históricos armazenados.",
+        "params": {}
+      }
+    }
   }
 }

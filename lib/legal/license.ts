@@ -224,4 +224,15 @@ const licenseKo: LegalDoc = {
   ],
 }
 
-export const LICENSE_DOC: Record<Locale, LegalDoc> = { zh: licenseZh, en: licenseEn, ja: licenseJa, ko: licenseKo }
+export const LICENSE_DOC: Record<Locale, LegalDoc> = {
+  zh: licenseZh,
+  cht: licenseZh,
+  en: licenseEn,
+  ja: licenseJa,
+  ko: licenseKo,
+  fr: licenseEn,
+  de: licenseEn,
+  es: licenseEn,
+  ru: licenseEn,
+  'pt-BR': licenseEn,
+}

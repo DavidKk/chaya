@@ -32,7 +32,7 @@ test('the serving origin is filled in only when it is a plain URL origin', () =>
 test('language packs are served per script and locale', () => {
   expect(getScriptI18nPack('install.zh.json')?.done).toBe(SCRIPT_MESSAGES.install.zh.done)
   expect(getScriptI18nPack('mac-shell.ja.json')?.installed).toBe(SCRIPT_MESSAGES['mac-shell'].ja.installed)
-  expect(getScriptI18nPack('install.fr.json')).toBeNull()
+  expect(getScriptI18nPack('install.it.json')).toBeNull()
   expect(getScriptI18nPack('../package.json')).toBeNull()
 })
 

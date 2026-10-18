@@ -12,5 +12,6 @@ it('resolves nested keys and interpolates params', () => {
 it('parses Accept-Language for SSR defaults', () => {
   expect(localeFromAcceptLanguage('zh-CN,zh;q=0.9,en;q=0.8')).toBe('zh')
   expect(localeFromAcceptLanguage('ja,en-US;q=0.8')).toBe('ja')
-  expect(localeFromAcceptLanguage('fr-FR,fr;q=0.9')).toBe('en')
+  expect(localeFromAcceptLanguage('fr-FR,fr;q=0.9')).toBe('fr')
+  expect(localeFromAcceptLanguage('it-IT,it;q=0.9')).toBe('en')
 })

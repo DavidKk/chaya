@@ -46,5 +46,77 @@
     "quitting": "실행 중인 Chaya를 종료하는 중...",
     "installing": "%s 에 설치하는 중...",
     "done": "완료했습니다. Chaya를 여는 중..."
+  },
+  "cht": {
+    "notMac": "此安裝程式僅支援 macOS。",
+    "badArch": "不支援的晶片架構：%s",
+    "lookingUp": "正在查詢最新的 Chaya 版本（%s）…",
+    "noGithub": "無法連線至 GitHub。",
+    "noBuild": "找不到 macOS %s 的安裝套件，請查閱 %s",
+    "downloading": "正在下載 %s…",
+    "notInDownload": "下載內容中找不到 %s。",
+    "quitting": "正在結束執行中的 Chaya…",
+    "installing": "正在安裝至 %s…",
+    "done": "安裝完成，正在開啟 Chaya…"
+  },
+  "fr": {
+    "notMac": "Cet installateur ne prend en charge que macOS.",
+    "badArch": "Architecture non prise en charge : %s",
+    "lookingUp": "Recherche de la dernière version de Chaya (%s)...",
+    "noGithub": "Impossible de joindre GitHub.",
+    "noBuild": "Aucune version macOS %s trouvée. Voir %s",
+    "downloading": "Téléchargement de %s...",
+    "notInDownload": "%s introuvable dans le téléchargement.",
+    "quitting": "Fermeture de Chaya en cours...",
+    "installing": "Installation dans %s...",
+    "done": "Terminé. Ouverture de Chaya..."
+  },
+  "de": {
+    "notMac": "Dieser Installer unterstützt nur macOS.",
+    "badArch": "Nicht unterstützte Architektur: %s",
+    "lookingUp": "Suche nach der neuesten Chaya-Version (%s)...",
+    "noGithub": "GitHub konnte nicht erreicht werden.",
+    "noBuild": "Kein macOS %s-Build gefunden. Siehe %s",
+    "downloading": "%s wird heruntergeladen...",
+    "notInDownload": "%s nicht im Download gefunden.",
+    "quitting": "Laufendes Chaya wird beendet...",
+    "installing": "Installation in %s...",
+    "done": "Fertig. Chaya wird geöffnet..."
+  },
+  "es": {
+    "notMac": "Este instalador solo es compatible con macOS.",
+    "badArch": "Arquitectura no compatible: %s",
+    "lookingUp": "Buscando la última versión de Chaya (%s)...",
+    "noGithub": "No se pudo conectar con GitHub.",
+    "noBuild": "No se encontró compilación para macOS %s. Ver %s",
+    "downloading": "Descargando %s...",
+    "notInDownload": "No se encontró %s en la descarga.",
+    "quitting": "Cerrando Chaya en ejecución...",
+    "installing": "Instalando en %s...",
+    "done": "Hecho. Abriendo Chaya..."
+  },
+  "ru": {
+    "notMac": "Этот установщик поддерживает только macOS.",
+    "badArch": "Неподдерживаемая архитектура: %s",
+    "lookingUp": "Поиск последней версии Chaya (%s)...",
+    "noGithub": "Не удалось подключиться к GitHub.",
+    "noBuild": "Сборка для macOS %s не найдена. См. %s",
+    "downloading": "Загрузка %s...",
+    "notInDownload": "%s не найден в загруженном файле.",
+    "quitting": "Завершение работы Chaya...",
+    "installing": "Установка в %s...",
+    "done": "Готово. Запуск Chaya..."
+  },
+  "pt-BR": {
+    "notMac": "Este instalador é compatível apenas com o macOS.",
+    "badArch": "Arquitetura não suportada: %s",
+    "lookingUp": "Buscando a versão mais recente do Chaya (%s)...",
+    "noGithub": "Não foi possível conectar ao GitHub.",
+    "noBuild": "Nenhuma versão encontrada para macOS %s. Veja %s",
+    "downloading": "Baixando %s...",
+    "notInDownload": "%s não encontrado no download.",
+    "quitting": "Encerrando o Chaya em execução...",
+    "installing": "Instalando em %s...",
+    "done": "Concluído. Abrindo o Chaya..."
   }
 }

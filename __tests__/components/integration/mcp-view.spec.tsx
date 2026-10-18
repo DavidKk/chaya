@@ -5,8 +5,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { McpView } from '@/components/integration/mcp/McpView'
 import { WebMcpView } from '@/components/integration/webmcp/WebMcpView'
+import type { Locale } from '@/lib/i18n/locales'
 import { mcpToolsFor } from '@/lib/integration/mcp-availability'
 import { MCP_TOOLS } from '@/lib/integration/mcp-catalog'
+import { localizedMcpToolsByGroup, localizedToolDescription, MCP_CATALOG_MESSAGES, WEB_TOOL_MESSAGES } from '@/lib/integration/mcp-catalog-i18n'
 
 let container: HTMLDivElement
 let root: Root
@@ -85,4 +87,26 @@ test('WebMCP overview links to its route on the web page', async () => {
   await render(<WebMcpView route={{ base: '/integration/webmcp', section: 'nope' }} />)
   expect(container.querySelector('nav a')?.getAttribute('href')).toBe('/integration/webmcp')
   expect(container.querySelector('nav a')?.getAttribute('aria-current')).toBe('page')
+})
+
+test('MCP catalog and WebMCP tools are localized across all 9 non-en languages', () => {
+  const locales: Locale[] = ['zh', 'ja', 'ko', 'cht', 'fr', 'de', 'es', 'ru', 'pt-BR']
+
+  for (const loc of locales) {
+    const catPack = MCP_CATALOG_MESSAGES[loc]!
+    expect(catPack).toBeDefined()
+    expect(Object.keys(catPack.groups)).toHaveLength(9)
+    expect(Object.keys(catPack.tools)).toHaveLength(51)
+
+    const groups = localizedMcpToolsByGroup(loc)
+    expect(groups).toHaveLength(9)
+    expect(groups[0].title).not.toBe('Library')
+
+    const webPack = WEB_TOOL_MESSAGES[loc]!
+    expect(webPack).toBeDefined()
+    expect(Object.keys(webPack)).toHaveLength(15)
+
+    const desc = localizedToolDescription('page_navigate', 'fallback', loc)
+    expect(desc).not.toBe('fallback')
+  }
 })

@@ -308,4 +308,15 @@ const ko: Copy = {
   targetStructure: '번역문 구조 경계',
   useSplit: '구조 분할 제안 사용',
 }
-export const CACHE_TEST_COPY: Record<Locale, Copy> = { en, zh, ja, ko }
+export const CACHE_TEST_COPY: Record<Locale, Copy> = {
+  en,
+  zh,
+  cht: zh,
+  ja,
+  ko,
+  fr: en,
+  de: en,
+  es: en,
+  ru: en,
+  'pt-BR': en,
+}

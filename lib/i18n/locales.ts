@@ -1,5 +1,5 @@
-/** 界面语言：英 / 简中 / 日 / 韩（下拉顺序） */
-export const LOCALES = ['en', 'zh', 'ja', 'ko'] as const
+/** 界面语言：英 / 简中 / 繁中 / 日 / 法 / 德 / 西 / 俄 / 葡(巴) / 韩（下拉顺序） */
+export const LOCALES = ['en', 'zh', 'cht', 'ja', 'fr', 'de', 'es', 'ru', 'pt-BR', 'ko'] as const
 
 export type Locale = (typeof LOCALES)[number]
 
@@ -21,15 +21,27 @@ const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 /** 选项展示用母语名（不随界面语言翻译） */
 export const LOCALE_NATIVE_LABEL: Record<Locale, string> = {
   en: 'English',
-  zh: '中文',
+  zh: '简体中文',
+  cht: '繁體中文',
   ja: '日本語',
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español',
+  ru: 'Русский',
+  'pt-BR': 'Português (Brasil)',
   ko: '한국어',
 }
 
 export const LOCALE_HTML_LANG: Record<Locale, string> = {
   en: 'en',
   zh: 'zh-CN',
+  cht: 'zh-TW',
   ja: 'ja',
+  fr: 'fr',
+  de: 'de',
+  es: 'es',
+  ru: 'ru',
+  'pt-BR': 'pt-BR',
   ko: 'ko',
 }
 
@@ -43,9 +55,15 @@ export function localeFromLanguageTags(tags: readonly string[]): Locale {
     const lang = String(raw || '')
       .toLowerCase()
       .replace('_', '-')
+    if (lang === 'zh-tw' || lang === 'zh-hk' || lang === 'zh-hant' || lang === 'cht') return 'cht'
     if (lang.startsWith('zh')) return 'zh'
     if (lang.startsWith('ja')) return 'ja'
     if (lang.startsWith('ko')) return 'ko'
+    if (lang.startsWith('fr')) return 'fr'
+    if (lang.startsWith('de')) return 'de'
+    if (lang.startsWith('es')) return 'es'
+    if (lang.startsWith('ru')) return 'ru'
+    if (lang.startsWith('pt')) return 'pt-BR'
     if (lang.startsWith('en')) return 'en'
   }
   return DEFAULT_LOCALE
