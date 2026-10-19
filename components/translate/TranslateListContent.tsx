@@ -9,11 +9,12 @@ import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelFoot } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select, type SelectOption, Spinner, TextInput } from '@/components/sk'
+import { Button, EmptyState, LanguagePairSelect, Modal, NumberInput, ScrollArea, Select, type SelectOption, Spinner, TextInput } from '@/components/sk'
 import { TranslateListItemRow } from '@/components/translate/TranslateListItemRow'
 import { TranslateListSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { readApiErrorMessage } from '@/lib/api-error'
+import { formatLanguageLabel } from '@/lib/translate/locales-labels'
 import { hrefWithQuery, parsePositiveInt, patchSearchParams } from '@/lib/url/search-params'
 import type { ExtractedLocalesMeta, ExtractedTranslationItem } from '@/services/extract/lib/extract-items'
 
@@ -41,6 +42,11 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
   const [resettingPage, setResettingPage] = useState(false)
   const [items, setItems] = useState<ExtractedTranslationItem[]>([])
   const [localesMeta, setLocalesMeta] = useState<ExtractedLocalesMeta | null>(null)
+  const [appleOfflineModal, setAppleOfflineModal] = useState<{ open: boolean; fromLang: string; toLang: string }>({
+    open: false,
+    fromLang: '',
+    toLang: '',
+  })
 
   // URL query parameters as the single source of truth for all filters
   const filterQuery = searchParams?.get('q') ?? ''
@@ -293,11 +299,11 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
             rawErr.toLowerCase().includes('apple') &&
             (rawErr.includes('not installed') || rawErr.includes('not_installed') || rawErr.includes('Unable to Translate'))
           if (isAppleMissingPack) {
-            void fetch('/api/reveal', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ target: 'translation-settings' }),
-            }).catch(() => {})
+            setAppleOfflineModal({
+              open: true,
+              fromLang: fromLang || localesMeta?.currentSourceLang || 'ja',
+              toLang: toLang || localesMeta?.currentTargetLang || 'zh',
+            })
           }
           const displayErr = isAppleMissingPack ? t('translate.appleOfflinePackMissing') : rawErr
           notify.error(t('translate.listSingleTransNoResult', { error: displayErr }))
@@ -756,6 +762,48 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
           </Button>
         </div>
       </div>
+
+      {/* Apple Offline Language Pack Installation Guide Modal */}
+      <Modal
+        open={appleOfflineModal.open}
+        title={t('translate.appleOfflineModalTitle')}
+        description={t('translate.appleOfflineModalDesc')}
+        onClose={() => setAppleOfflineModal((prev) => ({ ...prev, open: false }))}
+        panelClassName="max-w-[34rem]"
+        footer={
+          <div className="flex justify-end">
+            <Button type="button" variant="accent" onClick={() => setAppleOfflineModal((prev) => ({ ...prev, open: false }))} data-modal-initial="confirm">
+              {t('translate.appleOfflineCloseBtn')}
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-3 py-1 text-xs leading-relaxed text-ink">
+          <div className="rounded-md border border-accent/20 bg-accent/5 p-3 text-ink">
+            <span className="font-semibold text-accent">
+              {t('translate.appleOfflineNeededPacks', {
+                sourceLang: formatLanguageLabel(appleOfflineModal.fromLang),
+                targetLang: formatLanguageLabel(appleOfflineModal.toLang),
+              })}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-md border border-line bg-panel-soft/60 p-3">
+            <div className="flex items-start gap-2">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-line text-[10px] font-bold text-ink-soft">1</span>
+              <span>{t('translate.appleOfflineStep1')}</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-line text-[10px] font-bold text-ink-soft">2</span>
+              <span>{t('translate.appleOfflineStep2')}</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-line text-[10px] font-bold text-ink-soft">3</span>
+              <span>{t('translate.appleOfflineStep3')}</span>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

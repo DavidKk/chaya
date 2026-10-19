@@ -600,6 +600,14 @@ export const es: MessageTree = {
     listSingleTransNoResult: 'Translation returned no valid result: {error}',
     appleOfflinePackMissing:
       'El paquete de idioma sin conexión de Apple no está instalado. Descárguelo en Ajustes del Sistema de macOS -> General -> Idioma y región -> Idiomas de traducción.',
+    appleOfflineModalTitle: 'Paquete de idioma sin conexión de Apple requerido',
+    appleOfflineModalDesc:
+      'La traducción neuronal nativa de macOS se ejecuta completamente en el dispositivo sin latencia de red, pero requiere descargar previamente los paquetes de idiomas en Ajustes del Sistema.',
+    appleOfflineStep1: 'Abra macOS «Ajustes del Sistema» → «General» → «Idioma y región»',
+    appleOfflineStep2: 'Baje hasta el final y pulse en «Idiomas de traducción…», asegúrese de activar el «Modo en el dispositivo»',
+    appleOfflineStep3: 'Descargue los paquetes de idiomas sin conexión necesarios para este par',
+    appleOfflineNeededPacks: 'Idiomas necesarios para esta traducción: {sourceLang} y {targetLang}',
+    appleOfflineCloseBtn: 'Entendido',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',
     listPrewarmFailed: 'Prewarm failed: {error}',

@@ -294,6 +294,14 @@ export const translateJa = {
     listSingleTransNoResult: '翻訳で有効な結果が得られませんでした: {error}',
     appleOfflinePackMissing:
       'Apple オフライン言語パックがインストールされていません。macOS の「システム設定 -> 一般 -> 言語と地域 -> 翻訳言語」からオフライン言語パックをダウンロードしてください',
+    appleOfflineModalTitle: 'Apple オフライン翻訳言語パックのインストールが必要です',
+    appleOfflineModalDesc:
+      'macOS ネイティブ神経翻訳は完全にデバイス上で実行され、ネットワーク不要ですが、事前にシステム設定でオフライン言語パックをダウンロードする必要があります。',
+    appleOfflineStep1: 'macOS の「システム設定」→「一般」→「言語と地域」を開きます',
+    appleOfflineStep2: '一番下までスクロールして「翻訳言語…」をクリックし、「デバイス上のモード」がオンになっていることを確認します',
+    appleOfflineStep3: '今回の翻訳に必要なオフライン言語パックをダウンロードします',
+    appleOfflineNeededPacks: '今回の翻訳に必要な言語：{sourceLang} と {targetLang}',
+    appleOfflineCloseBtn: '了解しました',
     listSingleTransReqFailed: '翻訳リクエスト失敗: {error}',
     listPrewarmSuccess: 'コーパス準備完了: {count} 件の対訳ペアを翻訳庫にインポートしました',
     listPrewarmFailed: 'コーパス準備失敗: {error}',

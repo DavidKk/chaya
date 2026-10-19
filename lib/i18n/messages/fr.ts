@@ -600,6 +600,14 @@ export const fr: MessageTree = {
     listSingleTransNoResult: 'Translation returned no valid result: {error}',
     appleOfflinePackMissing:
       "Le pack linguistique hors ligne d'Apple n'est pas installé. Veuillez le télécharger dans Réglages Système macOS -> Général -> Langue et région -> Langues de traduction.",
+    appleOfflineModalTitle: 'Pack linguistique hors ligne Apple requis',
+    appleOfflineModalDesc:
+      "La traduction neuronale native de macOS fonctionne entièrement sur l'appareil sans latence réseau, mais nécessite le téléchargement préalable des packs linguistiques dans les Réglages Système.",
+    appleOfflineStep1: 'Ouvrez les « Réglages Système » macOS → « Général » → « Langue et région »',
+    appleOfflineStep2: "Faites défiler vers le bas et cliquez sur « Langues de traduction… », activez le « Mode sur l'appareil »",
+    appleOfflineStep3: 'Téléchargez les packs linguistiques hors ligne nécessaires pour cette traduction',
+    appleOfflineNeededPacks: 'Langues requises pour cette traduction : {sourceLang} et {targetLang}',
+    appleOfflineCloseBtn: 'Compris',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',
     listPrewarmFailed: 'Prewarm failed: {error}',

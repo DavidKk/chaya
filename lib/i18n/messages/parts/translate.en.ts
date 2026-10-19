@@ -296,6 +296,14 @@ export const translateEn = {
     listSingleTransNoResult: 'Translation returned no valid result: {error}',
     appleOfflinePackMissing:
       'Apple offline language pack not installed. Please download the language pack in macOS System Settings -> General -> Language & Region -> Translation Languages.',
+    appleOfflineModalTitle: 'Apple Offline Translation Pack Required',
+    appleOfflineModalDesc:
+      'macOS native neural translation runs completely on-device with zero network latency, but requires the offline language pack to be installed in System Settings first.',
+    appleOfflineStep1: 'Open macOS "System Settings" → "General" → "Language & Region"',
+    appleOfflineStep2: 'Scroll to the bottom and click "Translation Languages...", ensure "On-Device Mode" is turned on',
+    appleOfflineStep3: 'Download the required offline language packs for your translation pair',
+    appleOfflineNeededPacks: 'Languages required for this translation: {sourceLang} and {targetLang}',
+    appleOfflineCloseBtn: 'Got it',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',
     listPrewarmFailed: 'Prewarm failed: {error}',

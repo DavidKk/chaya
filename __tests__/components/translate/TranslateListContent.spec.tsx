@@ -31,6 +31,15 @@ jest.mock('@/components/confirm/ConfirmProvider', () => ({
 
 jest.mock('@/components/sk', () => ({
   Badge: ({ children, className }: any) => <span className={className}>{children}</span>,
+  Modal: ({ open, title, description, children, footer }: any) =>
+    open ? (
+      <div data-testid="mock-modal">
+        <div>{title}</div>
+        <div>{description}</div>
+        {children}
+        {footer}
+      </div>
+    ) : null,
   Button: ({ children, onClick, disabled, loading, variant, _size, className }: any) => (
     <button onClick={onClick} disabled={disabled || loading} className={className} data-variant={variant}>
       {children}
@@ -414,5 +423,59 @@ describe('TranslateListContent', () => {
 
     // Now save button should be enabled!
     expect(rowSaveBtn.disabled).toBe(false)
+  })
+  it('opens apple offline pack modal with required languages when apple translation reports not_installed', async () => {
+    const mockItems = [
+      {
+        id: '1',
+        src: 'こんにちは',
+        zh: '',
+        meta: { category: 'dialogue', label: '对话' },
+      },
+    ]
+
+    mockTranslationFetch.mockImplementation(async (_path: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (body.mode === 'extract-items') {
+        return { ok: true, json: async () => ({ ok: true, items: mockItems }) }
+      }
+      if (body.force) {
+        return {
+          ok: false,
+          json: async () => ({
+            ok: false,
+            items: [
+              {
+                error:
+                  'apple: Apple offline language pack not installed. Please download the language pack in macOS System Settings -> General -> Language & Region -> Translation Languages.',
+              },
+            ],
+          }),
+        }
+      }
+      return { ok: true, json: async () => ({ ok: true }) }
+    })
+
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateListContent />
+        </LocaleProvider>
+      )
+    })
+
+    // Find row translate button
+    const transBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('翻译'))
+    expect(transBtn).toBeDefined()
+
+    await act(async () => {
+      transBtn?.click()
+    })
+
+    // Confirm modal popped up
+    const modal = document.querySelector('[data-testid="mock-modal"]')
+    expect(modal).not.toBeNull()
+    expect(modal?.textContent).toContain('需要安装 Apple 离线翻译语言包')
+    expect(modal?.textContent).toContain('本次翻译需要下载的语言：')
   })
 })

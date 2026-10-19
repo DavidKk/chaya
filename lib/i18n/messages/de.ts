@@ -600,6 +600,14 @@ export const de: MessageTree = {
     listSingleTransNoResult: 'Translation returned no valid result: {error}',
     appleOfflinePackMissing:
       'Apple-Offline-Sprachpaket nicht installiert. Bitte laden Sie das Sprachpaket unter macOS-Systemeinstellungen -> Allgemein -> Sprache & Region -> Übersetzungssprachen herunter.',
+    appleOfflineModalTitle: 'Apple-Offline-Sprachpaket erforderlich',
+    appleOfflineModalDesc:
+      'Die native neuronale Übersetzung von macOS läuft vollständig lokal ohne Netzwerklatenz, erfordert jedoch das vorherige Herunterladen der Sprachpakete in den Systemeinstellungen.',
+    appleOfflineStep1: 'Öffnen Sie macOS „Systemeinstellungen“ → „Allgemein“ → „Sprache & Region“',
+    appleOfflineStep2: 'Scrollen Sie nach unten und klicken Sie auf „Übersetzungssprachen…“, aktivieren Sie „Immer auf dem Gerät übersetzen“',
+    appleOfflineStep3: 'Laden Sie die für dieses Sprachpaar erforderlichen Offline-Sprachpakete herunter',
+    appleOfflineNeededPacks: 'Für diese Übersetzung erforderliche Sprachen: {sourceLang} und {targetLang}',
+    appleOfflineCloseBtn: 'Verstanden',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',
     listPrewarmFailed: 'Prewarm failed: {error}',
