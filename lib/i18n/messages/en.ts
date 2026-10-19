@@ -169,6 +169,10 @@ const marketingEn = {
     featureRealtimeDesc: 'Extract seed, fill gaps, shared cache; realtime or subtitle mode while playing',
     featureIngame: 'Game editing',
     featureIngameDesc: 'Gold, items, vars, actors, run flags & hotkeys — console and in-game stay in sync',
+    featureOffline: 'Native offline translation',
+    featureOfflineDesc: 'macOS Apple Translation on-device neural engine with zero network latency and game locales detection',
+    featureMcp: 'AI Agent & MCP protocol',
+    featureMcpDesc: '50+ built-in MCP tools and WebMCP endpoints to inspect game states and automate gameplay with AI agents',
   },
 } as const
 

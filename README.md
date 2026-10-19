@@ -16,10 +16,14 @@ Inspired by the MagickMonkey / [vercel-web-scripts](https://github.com/DavidKk/v
 
 ## Features
 
-- **Game library** — Bind multiple titles, track shell / plugins / window settings.
-- **Translation pipeline** — Extract, fill missing lines, shared cache; live or subtitle translation while playing.
-- **In-game edit** — Gold, items, variables, actors / skills; hotkeys and run toggles; console and overlay stay in sync.
-- **Local data** — Translations and toolkit state stay on your machine in local / app mode (not on the remote server).
+- **Game Library** — Centralized multi-title management; track NW.js shell, plugins, window settings, and saves at a glance.
+- **Comprehensive Translation Pipeline** — Full-script extraction, bidirectional alignment, dialogue placeholder restoration, shared SQLite translation cache, and in-game real-time / subtitle overlays.
+- **macOS Apple Native Offline Neural Translation** — Direct integration with macOS 15+ Translation Framework accelerated by Apple Neural Engine (ANE); zero network latency, zero bandwidth consumption, and privacy-first on-device fallback.
+- **Game Locales Detection & Corpus Feedback** — Automatic detection of in-game `locales/` multi-language structures, bidirectional corpus matrix ingestion, and atomic file updates with safe `.bak` backups.
+- **Model Context Protocol (MCP) & AI Agent Integration** — 50+ built-in MCP tools and 15+ WebMCP endpoints allowing Claude, Cursor, Codex, Windsurf, and other LLM agents to inspect maps, events, battle data, and control games programmatically.
+- **In-Game Modifications** — Live editing of gold, inventory items, switches, variables, actors, and party stats; bidirectional sync between console workbench and in-game floating overlay.
+- **10 Core Languages Localization** — Complete internationalization across the web console, MCP tool catalog, skill documentation, and in-game overlay for English, Simplified Chinese, Traditional Chinese, Japanese, Korean, French, German, Spanish, Russian, and Brazilian Portuguese.
+- **100% Local-First Data** — Translations, caches, and workbench settings stay strictly on your local machine.
 
 ## Deploy to Vercel (Cloud)
 

@@ -161,6 +161,10 @@ export const es: MessageTree = {
     featureRealtimeDesc: 'Extract seed, fill gaps, shared cache; realtime or subtitle mode while playing',
     featureIngame: 'Game editing',
     featureIngameDesc: 'Gold, items, vars, actors, run flags & hotkeys — console and in-game stay in sync',
+    featureOffline: 'Traducción sin conexión nativa',
+    featureOfflineDesc: 'Traducción neuronal nativa de Apple en macOS y detección de paquetes de idiomas del juego sin latencia',
+    featureMcp: 'Agentes IA y protocolo MCP',
+    featureMcpDesc: 'Más de 50 herramientas MCP y WebMCP integradas para inspeccionar y controlar el juego con agentes IA',
   },
   library: {
     title: 'Library',

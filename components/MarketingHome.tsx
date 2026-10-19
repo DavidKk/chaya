@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, Gamepad2, HardDrive, Languages, Wrench } from 'lucide-react'
+import { ArrowRight, Bot, Cpu, Gamepad2, HardDrive, Languages, Wrench } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { FaApple, FaGithub, FaWindows } from 'react-icons/fa'
@@ -71,7 +71,9 @@ const FEATURE_DEFS = [
   { labelKey: 'marketing.featureLocal' as const, descKey: 'marketing.featureLocalDesc' as const, icon: HardDrive },
   { labelKey: 'marketing.featureLibrary' as const, descKey: 'marketing.featureLibraryDesc' as const, icon: Gamepad2 },
   { labelKey: 'marketing.featureRealtime' as const, descKey: 'marketing.featureRealtimeDesc' as const, icon: Languages },
+  { labelKey: 'marketing.featureOffline' as const, descKey: 'marketing.featureOfflineDesc' as const, icon: Cpu },
   { labelKey: 'marketing.featureIngame' as const, descKey: 'marketing.featureIngameDesc' as const, icon: Wrench },
+  { labelKey: 'marketing.featureMcp' as const, descKey: 'marketing.featureMcpDesc' as const, icon: Bot },
 ] as const
 
 const downloadBtnClass = cn(

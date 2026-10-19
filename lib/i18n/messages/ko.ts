@@ -111,6 +111,10 @@ const base = {
     featureRealtimeDesc: 'seed 추출, 빈칸 보강, 공유 보관함. 플레이 중 실시간/자막 번역',
     featureIngame: '게임 수정',
     featureIngameDesc: '골드·아이템·변수·액터·실행 스위치와 핫키. 콘솔과 인게임 동기화',
+    featureOffline: '네이티브 오프라인 번역',
+    featureOfflineDesc: 'macOS Apple 네이티브 신경망 번역 및 게임 다국어 팩 감지 지원. 지연 없는 온디바이스 번역',
+    featureMcp: 'AI Agent 및 MCP 프로토콜',
+    featureMcpDesc: '50개 이상의 내장 MCP 도구와 WebMCP 확장으로 AI 에이전트가 게임 상태를 직접 읽고 조작 가능',
   },
   layout: { description: 'RPG Maker 로컬 번역' },
   launchHelp: {

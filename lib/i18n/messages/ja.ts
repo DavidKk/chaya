@@ -111,6 +111,10 @@ const base = {
     featureRealtimeDesc: 'seed 抽出、欠落補訳、共有庫。プレイ中はリアルタイム／字幕も可',
     featureIngame: 'ゲーム編集',
     featureIngameDesc: '金・道具・変数・アクター・実行スイッチとホットキー。コンソールと局内で同期',
+    featureOffline: 'ネイティブオフライン翻訳',
+    featureOfflineDesc: 'macOS Apple ネイティブ神経翻訳とゲーム多言語パック検出に対応。ゼロ遅延のオフライン支援',
+    featureMcp: 'AI Agent と MCP 連携',
+    featureMcpDesc: '50以上の組み込み MCP ツールと WebMCP に対応。AI エージェントが直接ゲーム状況を読み取って操作',
   },
   layout: { description: 'RPG Maker ローカル翻訳' },
   launchHelp: {

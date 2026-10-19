@@ -161,6 +161,10 @@ export const cht: MessageTree = {
     featureRealtimeDesc: '抽取 seed、缺词补译、共享库；游玩时可实时或字幕翻譯',
     featureIngame: '遊戲修改',
     featureIngameDesc: '金钱道具变量、角色技能、執行开关与快捷键；控制台与局内同步',
+    featureOffline: '原生離線翻譯',
+    featureOfflineDesc: '支援 macOS Apple 原生神經翻譯與遊戲多語言包對照，毫秒級零延遲離線兜底',
+    featureMcp: 'AI Agent & MCP',
+    featureMcpDesc: '內建 50+ 個 MCP 工具與 WebMCP 擴展，支援大模型直接讀取並操作遊戲',
   },
   library: {
     title: '遊戲庫',

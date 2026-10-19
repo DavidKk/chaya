@@ -108,6 +108,10 @@ export type MessageTree = {
     featureRealtimeDesc: string
     featureIngame: string
     featureIngameDesc: string
+    featureOffline: string
+    featureOfflineDesc: string
+    featureMcp: string
+    featureMcpDesc: string
   }
   layout: { description: string }
   launchHelp: {

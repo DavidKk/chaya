@@ -26,5 +26,9 @@ export const marketingZh = {
     featureRealtimeDesc: '抽取 seed、缺词补译、共享库；游玩时可实时或字幕翻译',
     featureIngame: '游戏修改',
     featureIngameDesc: '金钱道具变量、角色技能、运行开关与快捷键；控制台与局内同步',
+    featureOffline: '原生离线翻译',
+    featureOfflineDesc: '支持 macOS Apple 原生神经翻译与游戏多语言包对照，毫秒级零延迟离线兜底',
+    featureMcp: 'AI Agent & MCP',
+    featureMcpDesc: '内置 50+ 个 MCP 工具与 WebMCP 扩展，支持大模型直接读取并操作游戏',
   },
 } as const satisfies Pick<MessageTree, 'marketing'>
