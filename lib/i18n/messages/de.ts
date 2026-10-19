@@ -607,6 +607,8 @@ export const de: MessageTree = {
     appleOfflineStep2: 'Scrollen Sie nach unten und klicken Sie auf „Übersetzungssprachen…“, aktivieren Sie „Immer auf dem Gerät übersetzen“',
     appleOfflineStep3: 'Laden Sie die für dieses Sprachpaar erforderlichen Offline-Sprachpakete herunter',
     appleOfflineNeededPacks: 'Für diese Übersetzung erforderliche Sprachen: {sourceLang} und {targetLang}',
+    appleOfflineVersionNote:
+      'Hinweis: Menüpfade können je nach macOS-Version (z. B. macOS 15+) variieren. Suchen Sie bei Bedarf in den Systemeinstellungen direkt nach „Übersetzung“ oder „Sprache“.',
     appleOfflineCloseBtn: 'Verstanden',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',

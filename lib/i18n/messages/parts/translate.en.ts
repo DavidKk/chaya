@@ -303,6 +303,8 @@ export const translateEn = {
     appleOfflineStep2: 'Scroll to the bottom and click "Translation Languages...", ensure "On-Device Mode" is turned on',
     appleOfflineStep3: 'Download the required offline language packs for your translation pair',
     appleOfflineNeededPacks: 'Languages required for this translation: {sourceLang} and {targetLang}',
+    appleOfflineVersionNote:
+      'Note: Settings paths may vary across macOS versions (e.g., macOS 15+). If not found, search for "Translation" or "Language" directly in System Settings search.',
     appleOfflineCloseBtn: 'Got it',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',

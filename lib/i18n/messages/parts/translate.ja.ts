@@ -301,6 +301,8 @@ export const translateJa = {
     appleOfflineStep2: '一番下までスクロールして「翻訳言語…」をクリックし、「デバイス上のモード」がオンになっていることを確認します',
     appleOfflineStep3: '今回の翻訳に必要なオフライン言語パックをダウンロードします',
     appleOfflineNeededPacks: '今回の翻訳に必要な言語：{sourceLang} と {targetLang}',
+    appleOfflineVersionNote:
+      'ヒント：macOS のバージョン（macOS 15+ など）によって設定画面の項目名や位置が異なる場合があります。見つからない場合はシステム設定の検索バーで「翻訳」または「言語」と検索してください。',
     appleOfflineCloseBtn: '了解しました',
     listSingleTransReqFailed: '翻訳リクエスト失敗: {error}',
     listPrewarmSuccess: 'コーパス準備完了: {count} 件の対訳ペアを翻訳庫にインポートしました',

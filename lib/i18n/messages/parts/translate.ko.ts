@@ -299,6 +299,8 @@ export const translateKo = {
     appleOfflineStep2: '맨 아래로 스크롤하여「번역 언어…」를 클릭하고「온디바이스 모드」가 켜져 있는지 확인합니다',
     appleOfflineStep3: '현재 번역 쌍에 필요한 오프라인 언어 팩을 다운로드합니다',
     appleOfflineNeededPacks: '이번 번역에 필요한 언어: {sourceLang} 및 {targetLang}',
+    appleOfflineVersionNote:
+      '참고: macOS 버전(macOS 15+ 등)에 따라 시스템 설정 메뉴 위치나 명칭이 다를 수 있습니다. 찾기 어려운 경우 시스템 설정 검색창에서 "번역" 또는 "언어"를 검색하세요.',
     appleOfflineCloseBtn: '확인',
     listSingleTransReqFailed: '번역 요청 실패: {error}',
     listPrewarmSuccess: '말뭉치 준비 성공: {count}개 대역 쌍을 번역 보관함에 가져왔습니다',

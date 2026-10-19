@@ -599,6 +599,7 @@ export type MessageTree = {
     appleOfflineStep2: string
     appleOfflineStep3: string
     appleOfflineNeededPacks: string
+    appleOfflineVersionNote: string
     appleOfflineCloseBtn: string
     listSingleTransReqFailed: string
     listPrewarmSuccess: string

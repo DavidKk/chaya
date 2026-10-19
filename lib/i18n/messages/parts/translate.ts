@@ -299,6 +299,7 @@ export const translateZh = {
     appleOfflineStep2: '滑动到底部找到「翻译语言…」，确保开启「在设备端翻译模式」',
     appleOfflineStep3: '下载当前翻译对所需的离线语言包',
     appleOfflineNeededPacks: '本次翻译需要下载的语言：{sourceLang} 和 {targetLang}',
+    appleOfflineVersionNote: '提示：不同 macOS 版本（如 macOS 15+）系统设置菜单布局可能略有不同，若找不到可在系统设置搜索框中直接搜索「翻译」或「语言」。',
     appleOfflineCloseBtn: '我知道了',
     listSingleTransReqFailed: '翻译请求失败: {error}',
     listPrewarmSuccess: '语料库预热成功：已将 {count} 条双向对齐词条导入翻译库',

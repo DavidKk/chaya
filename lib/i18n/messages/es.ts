@@ -607,6 +607,8 @@ export const es: MessageTree = {
     appleOfflineStep2: 'Baje hasta el final y pulse en «Idiomas de traducción…», asegúrese de activar el «Modo en el dispositivo»',
     appleOfflineStep3: 'Descargue los paquetes de idiomas sin conexión necesarios para este par',
     appleOfflineNeededPacks: 'Idiomas necesarios para esta traducción: {sourceLang} y {targetLang}',
+    appleOfflineVersionNote:
+      'Nota: La ruta puede variar según la versión de macOS (p. ej., macOS 15+). Si no la encuentra, busque directamente «Traducción» o «Idioma» en Ajustes del Sistema.',
     appleOfflineCloseBtn: 'Entendido',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',

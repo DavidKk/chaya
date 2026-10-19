@@ -606,6 +606,8 @@ export const ptBR: MessageTree = {
     appleOfflineStep2: 'Role até o final e clique em «Idiomas de Tradução…», certifique-se de ativar o «Modo no Dispositivo»',
     appleOfflineStep3: 'Baixe os pacotes de idiomas offline necessários para este par de tradução',
     appleOfflineNeededPacks: 'Idiomas necessários para esta tradução: {sourceLang} e {targetLang}',
+    appleOfflineVersionNote:
+      'Nota: O caminho pode variar conforme a versão do macOS (ex.: macOS 15+). Se não encontrar, pesquise diretamente por "Tradução" ou "Idioma" nos Ajustes do Sistema.',
     appleOfflineCloseBtn: 'Entendido',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',

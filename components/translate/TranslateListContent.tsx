@@ -802,6 +802,8 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
               <span>{t('translate.appleOfflineStep3')}</span>
             </div>
           </div>
+
+          <div className="text-[11px] text-ink-soft">{t('translate.appleOfflineVersionNote')}</div>
         </div>
       </Modal>
     </div>

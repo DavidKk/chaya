@@ -606,6 +606,8 @@ export const ru: MessageTree = {
     appleOfflineStep2: 'Прокрутите вниз и нажмите «Языки перевода…», включите «Режим на устройстве»',
     appleOfflineStep3: 'Загрузите необходимые автономные языковые пакеты для этой пары языков',
     appleOfflineNeededPacks: 'Языки, необходимые для этого перевода: {sourceLang} и {targetLang}',
+    appleOfflineVersionNote:
+      'Примечание: Путь в настройках может отличаться в зависимости от версии macOS (например, macOS 15+). Если пункт не найден, воспользуйтесь поиском по словам «Перевод» или «Язык» в Системных настройках.',
     appleOfflineCloseBtn: 'Понятно',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',

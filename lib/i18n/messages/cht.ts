@@ -603,6 +603,7 @@ export const cht: MessageTree = {
     appleOfflineStep2: '滑動到底部找到「翻譯語言…」，確保開啟「在裝置端翻譯模式」',
     appleOfflineStep3: '下載當前翻譯對所需的離線語言包',
     appleOfflineNeededPacks: '本次翻譯需要下載的語言：{sourceLang} 和 {targetLang}',
+    appleOfflineVersionNote: '提示：不同 macOS 版本（如 macOS 15+）系統設定選單佈局可能略有差異，若找不到可在系統設定搜尋框中直接搜尋「翻譯」或「語言」。',
     appleOfflineCloseBtn: '我知道了',
     listSingleTransReqFailed: '翻譯請求失敗: {error}',
     listPrewarmSuccess: '语料库预热成功：已将 {count} 条双向对齐词条匯入翻譯库',
