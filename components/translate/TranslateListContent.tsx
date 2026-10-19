@@ -292,6 +292,13 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
             typeof rawErr === 'string' &&
             rawErr.toLowerCase().includes('apple') &&
             (rawErr.includes('not installed') || rawErr.includes('not_installed') || rawErr.includes('Unable to Translate'))
+          if (isAppleMissingPack) {
+            void fetch('/api/reveal', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ target: 'translation-settings' }),
+            }).catch(() => {})
+          }
           const displayErr = isAppleMissingPack ? t('translate.appleOfflinePackMissing') : rawErr
           notify.error(t('translate.listSingleTransNoResult', { error: displayErr }))
         }
