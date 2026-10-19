@@ -106,6 +106,41 @@ export const CHAYA_TO_APPLE_LANG_MAP: Record<string, string> = {
 
 ---
 
+### 3.5 10 种主流语言代码映射与多语言支持
+
+Chaya 现已支持 10 种主流语言互译，在 `CHAYA_TO_APPLE_LANG_MAP` 中规范化映射到 Apple Translation 识别的标准 Locale：
+
+```ts
+export const CHAYA_TO_APPLE_LANG_MAP: Record<string, string> = {
+  ja: 'ja',
+  zh: 'zh-Hans',
+  'zh-cn': 'zh-Hans',
+  'zh-tw': 'zh-Hant',
+  ch: 'zh-Hans',
+  cht: 'zh-Hant',
+  en: 'en',
+  ko: 'ko',
+  fr: 'fr',
+  de: 'de',
+  es: 'es',
+  ru: 'ru',
+  it: 'it',
+  pt: 'pt-BR',
+  'pt-BR': 'pt-BR',
+}
+```
+
+### 3.6 离线语言包状态识别与前端交互
+
+- **异常捕获与解析**：
+  - macOS 底层在缺少语言包时抛出 `TranslationError(cause: notInstalled)`，返回本地化描述 `Unable to Translate`。
+  - Swift daemon 和 Node.js 客户端统一将其收敛为规范的英文错误提示：
+    `Apple offline language pack not installed. Please download the language pack in macOS System Settings -> General -> Language & Region -> Translation Languages.`
+- **前端本地化模态弹窗引导**：
+  - 前端捕获到该错误时不执行静默兜底回退。
+  - 调起全局 `Modal` 组件，结合当前语向通过 `formatLanguageLabel` 计算并展示需要安装的两种语言。
+  - 提供 10 种语言版本的完整分步说明与 macOS 版本差异提示（引导用户搜索「翻译」或「语言」）。
+
 ## 4. 引擎集成与代码改动点
 
 ### 4.1 引擎定义扩展 (`lib/translate/engines.ts`)
