@@ -292,6 +292,7 @@ export const translateKo = {
     listSingleSaveReqFailed: '저장 요청 실패: {error}',
     listSingleTransSuccess: '번역 완료: {src}... → {zh}...',
     listSingleTransNoResult: '번역에서 올바른 결과를 얻지 못했습니다: {error}',
+    appleOfflinePackMissing: 'Apple 오프라인 언어 팩이 설치되어 있지 않습니다. macOS「시스템 설정 -> 일반 -> 언어 및 지역 -> 번역 언어」에서 오프라인 언어 팩을 다운로드하세요.',
     listSingleTransReqFailed: '번역 요청 실패: {error}',
     listPrewarmSuccess: '말뭉치 준비 성공: {count}개 대역 쌍을 번역 보관함에 가져왔습니다',
     listPrewarmFailed: '말뭉치 준비 실패: {error}',

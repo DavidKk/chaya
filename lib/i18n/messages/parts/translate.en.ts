@@ -294,6 +294,8 @@ export const translateEn = {
     listSingleSaveReqFailed: 'Save request failed: {error}',
     listSingleTransSuccess: 'Translation complete: {src}... → {zh}...',
     listSingleTransNoResult: 'Translation returned no valid result: {error}',
+    appleOfflinePackMissing:
+      'Apple offline language pack not installed. Please download the language pack in macOS System Settings -> General -> Language & Region -> Translation Languages.',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',
     listPrewarmFailed: 'Prewarm failed: {error}',

@@ -292,6 +292,7 @@ export const translateZh = {
     listSingleSaveReqFailed: '保存请求失败: {error}',
     listSingleTransSuccess: '翻译完成: {src}... → {zh}...',
     listSingleTransNoResult: '翻译未返回有效结果: {error}',
+    appleOfflinePackMissing: 'Apple 离线语言包未安装。请在 macOS「系统设置 -> 通用 -> 语言与地区 -> 翻译语言」中下载对应离线语言包',
     listSingleTransReqFailed: '翻译请求失败: {error}',
     listPrewarmSuccess: '语料库预热成功：已将 {count} 条双向对齐词条导入翻译库',
     listPrewarmFailed: '预热失败: {error}',

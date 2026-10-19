@@ -598,6 +598,7 @@ export const ru: MessageTree = {
     listSingleSaveReqFailed: 'Save request failed: {error}',
     listSingleTransSuccess: 'Translation complete: {src}... → {zh}...',
     listSingleTransNoResult: 'Translation returned no valid result: {error}',
+    appleOfflinePackMissing: 'Автономный языковой пакет Apple не установлен. Загрузите его в «Системные настройки macOS -> Основные -> Язык и регион -> Языки перевода».',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',
     listPrewarmFailed: 'Prewarm failed: {error}',

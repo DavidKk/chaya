@@ -598,6 +598,8 @@ export const de: MessageTree = {
     listSingleSaveReqFailed: 'Save request failed: {error}',
     listSingleTransSuccess: 'Translation complete: {src}... → {zh}...',
     listSingleTransNoResult: 'Translation returned no valid result: {error}',
+    appleOfflinePackMissing:
+      'Apple-Offline-Sprachpaket nicht installiert. Bitte laden Sie das Sprachpaket unter macOS-Systemeinstellungen -> Allgemein -> Sprache & Region -> Übersetzungssprachen herunter.',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',
     listPrewarmFailed: 'Prewarm failed: {error}',

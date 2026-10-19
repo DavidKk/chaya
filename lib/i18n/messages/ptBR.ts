@@ -598,6 +598,7 @@ export const ptBR: MessageTree = {
     listSingleSaveReqFailed: 'Save request failed: {error}',
     listSingleTransSuccess: 'Translation complete: {src}... → {zh}...',
     listSingleTransNoResult: 'Translation returned no valid result: {error}',
+    appleOfflinePackMissing: 'Pacote de idiomas offline da Apple não instalado. Baixe o pacote em Ajustes do Sistema do macOS -> Geral -> Idioma e Região -> Idiomas de Tradução.',
     listSingleTransReqFailed: 'Translation request failed: {error}',
     listPrewarmSuccess: 'Corpus prewarmed: imported {count} aligned pairs to translation cache',
     listPrewarmFailed: 'Prewarm failed: {error}',

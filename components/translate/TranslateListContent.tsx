@@ -287,8 +287,13 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
           refreshUI()
           notify.success(t('translate.listSingleTransSuccess', { src: item.src.slice(0, 20), zh: item.zh.slice(0, 20) }))
         } else {
-          const errMsg = data?.items?.[0]?.error || readApiErrorMessage(data) || (isCache ? t('translate.listSingleCacheMiss') : '')
-          notify.error(t('translate.listSingleTransNoResult', { error: errMsg }))
+          const rawErr = data?.items?.[0]?.error || readApiErrorMessage(data) || (isCache ? t('translate.listSingleCacheMiss') : '')
+          const isAppleMissingPack =
+            typeof rawErr === 'string' &&
+            rawErr.toLowerCase().includes('apple') &&
+            (rawErr.includes('not installed') || rawErr.includes('not_installed') || rawErr.includes('Unable to Translate'))
+          const displayErr = isAppleMissingPack ? t('translate.appleOfflinePackMissing') : rawErr
+          notify.error(t('translate.listSingleTransNoResult', { error: displayErr }))
         }
       } catch (err) {
         notify.error(t('translate.listSingleTransReqFailed', { error: err instanceof Error ? err.message : String(err) }))

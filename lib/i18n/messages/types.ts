@@ -592,6 +592,7 @@ export type MessageTree = {
     listSingleSaveReqFailed: string
     listSingleTransSuccess: string
     listSingleTransNoResult: string
+    appleOfflinePackMissing: string
     listSingleTransReqFailed: string
     listPrewarmSuccess: string
     listPrewarmFailed: string

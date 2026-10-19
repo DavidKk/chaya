@@ -292,6 +292,8 @@ export const translateJa = {
     listSingleSaveReqFailed: '保存リクエスト失敗: {error}',
     listSingleTransSuccess: '翻訳完了: {src}... → {zh}...',
     listSingleTransNoResult: '翻訳で有効な結果が得られませんでした: {error}',
+    appleOfflinePackMissing:
+      'Apple オフライン言語パックがインストールされていません。macOS の「システム設定 -> 一般 -> 言語と地域 -> 翻訳言語」からオフライン言語パックをダウンロードしてください',
     listSingleTransReqFailed: '翻訳リクエスト失敗: {error}',
     listPrewarmSuccess: 'コーパス準備完了: {count} 件の対訳ペアを翻訳庫にインポートしました',
     listPrewarmFailed: 'コーパス準備失敗: {error}',

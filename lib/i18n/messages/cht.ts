@@ -596,6 +596,7 @@ export const cht: MessageTree = {
     listSingleSaveReqFailed: '儲存請求失敗: {error}',
     listSingleTransSuccess: '翻譯完成: {src}... → {zh}...',
     listSingleTransNoResult: '翻譯未返回有效结果: {error}',
+    appleOfflinePackMissing: 'Apple 離線語言包未安裝。請在 macOS「系統設定 -> 一般 -> 語言與地區 -> 翻譯語言」中下載對應離線語言包',
     listSingleTransReqFailed: '翻譯請求失敗: {error}',
     listPrewarmSuccess: '语料库预热成功：已将 {count} 条双向对齐词条匯入翻譯库',
     listPrewarmFailed: '预热失敗: {error}',
