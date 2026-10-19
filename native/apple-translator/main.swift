@@ -151,8 +151,10 @@ struct TranslatorDaemon {
                 } catch {
                     let errDesc = String(describing: error)
                     var errCode = "translation_error"
+                    var message = error.localizedDescription
                     if errDesc.contains("notInstalled") {
                         errCode = "not_installed"
+                        message = "Apple offline language pack not installed. Please download the language pack in macOS System Settings -> General -> Language & Region -> Translation Languages."
                     }
                     sendResponse(Response(
                         id: req.id,
@@ -160,7 +162,7 @@ struct TranslatorDaemon {
                         result: nil,
                         status: nil,
                         error: errCode,
-                        message: error.localizedDescription
+                        message: message
                     ))
                 }
                 continue
