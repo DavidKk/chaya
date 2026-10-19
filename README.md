@@ -21,9 +21,18 @@ Inspired by the MagickMonkey / [vercel-web-scripts](https://github.com/DavidKk/v
 - **macOS Apple Native Offline Neural Translation** — Direct integration with macOS 15+ Translation Framework accelerated by Apple Neural Engine (ANE); zero network latency, zero bandwidth consumption, and privacy-first on-device fallback.
 - **Game Locales Detection & Corpus Feedback** — Automatic detection of in-game `locales/` multi-language structures, bidirectional corpus matrix ingestion, and atomic file updates with safe `.bak` backups.
 - **Model Context Protocol (MCP) & AI Agent Integration** — 50+ built-in MCP tools and 15+ WebMCP endpoints allowing Claude, Cursor, Codex, Windsurf, and other LLM agents to inspect maps, events, battle data, and control games programmatically.
+- **Cross-Platform AI Translation via CPA & ChatGPT** — Seamlessly leverage your existing [ChatGPT](https://chatgpt.com/) subscription through [CPA (CLIProxyAPI)](https://github.com/router-for-me/CLIProxyAPI) to enable high-quality LLM translation across macOS, Windows, and Linux without per-token API fees.
 - **In-Game Modifications** — Live editing of gold, inventory items, switches, variables, actors, and party stats; bidirectional sync between console workbench and in-game floating overlay.
 - **10 Core Languages Localization** — Complete internationalization across the web console, MCP tool catalog, skill documentation, and in-game overlay for English, Simplified Chinese, Traditional Chinese, Japanese, Korean, French, German, Spanish, Russian, and Brazilian Portuguese.
 - **100% Local-First Data** — Translations, caches, and workbench settings stay strictly on your local machine.
+
+## AI Translation & Ecosystem Integration
+
+Chaya provides a multi-tier translation hierarchy that balances zero-latency local fallback with deep literary context:
+
+- **Offline Native & Tool-level Engines** — Built-in support for macOS Apple Translation Framework (ANE accelerated), Windows WinRT / DirectML, and Linux Bergamot / Argos CLI for instantaneous, private offline fallback.
+- **ChatGPT via CPA Integration** — By pairing Chaya with **[CPA (CLIProxyAPI)](https://github.com/router-for-me/CLIProxyAPI)** ([Official Docs](https://help.router-for-me.com/)), you can bridge your personal or workspace **[ChatGPT](https://chatgpt.com/)** (Plus / Team / Pro / Codex) subscriptions as unified OpenAI-compatible endpoints. This unlocks high-quality script translation and nuance polishing across macOS, Windows, Linux, and remote setups without recurring per-token API costs.
+- **OpenAI & DeepSeek Direct APIs** — Direct support for DeepSeek, OpenAI, Claude, and local Ollama model providers.
 
 ## Deploy to Vercel (Cloud)
 

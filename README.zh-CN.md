@@ -21,9 +21,18 @@ Chaya 是面向 **RPG Maker** 的本机优先工具台：翻译（抽取、补�
 - **macOS Apple 原生离线神经翻译** — 接入系统底层 Translation Framework，由 Apple Neural Engine 硬件加速，零网络延迟、零流量消耗的高速离线兜底。
 - **多语言包自适应与语料反哺** — 智能探测游戏内 `locales/` 多语言包，支持语言两两全排列语料入库与安全 `.bak` 备份回写。
 - **MCP 开放协议与 AI Agent 联动** — 提供 50+ 个标准 MCP 工具与 15+ WebMCP 扩展，支持 Claude、Cursor、Codex 等外部大模型 Agent 直接读取游戏地图、事件数据并操作游玩。
+- **配合 CPA + ChatGPT 跨平台高阶翻译** — 可搭配 **[CPA (CLIProxyAPI)](https://github.com/router-for-me/CLIProxyAPI)** 直接复用已有的 **[ChatGPT](https://chatgpt.com/)** 订阅账号，在 macOS、Windows、Linux 等多平台上获得强大的高阶大模型翻译与剧情润色能力，免除额外独立购买按量 Token API 的负担。
 - **游戏修改与局内增强** — 金钱、道具、变量、开关、角色与队伍属性实时热改；控制台与局内悬浮菜单实时同步。
 - **10 种语言全球化本地化** — 控制台、MCP 目录、技能文档与局内交互全量支持中文（简/繁）、英语、日语、韩语、法语、德语、西班牙语、俄语、葡萄牙语等 10 种语言。
 - **数据完全本地化** — 译文、缓存与工具数据 100% 保存在本机，私密安全。
+
+## AI 大模型翻译与生态集成
+
+Chaya 提供兼顾零延迟本地离线与高阶文学润色的多层分级翻译体系：
+
+- **离线原生/工具级兜底**：系统级接入 macOS Apple 原生神经翻译（ANE 加速）、Windows WinRT/DirectML 以及 Linux Bergamot 纯 CPU 极速引擎，在完全离线或网络故障时稳定兜底。
+- **CPA + ChatGPT 订阅桥接**：通过搭配开源工具 **[CPA (CLIProxyAPI)](https://github.com/router-for-me/CLIProxyAPI)**（[官方文档](https://help.router-for-me.com/)），可直接将您的 **[ChatGPT](https://chatgpt.com/)**（Plus / Team / Pro / Codex）订阅转换为标准 OpenAI 兼容接口，使 Chaya 能够在 macOS、Windows、Linux 及 Web 端直接调用前沿模型进行剧情翻译与多语言对照，无需额外申请并充值昂贵的商业 API Key。
+- **直连与本地大模型**：亦原生支持 DeepSeek、OpenAI 原生 API Key、Claude、以及本地 Ollama 部署的模型服务。
 
 ## 部署到 Vercel（Cloud）
 
