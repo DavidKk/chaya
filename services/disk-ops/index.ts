@@ -65,3 +65,4 @@ export { getTranslateEngineSwitches, setTranslateEngineSwitches, type TranslateE
 export { fillMissingFromSeed } from '@/services/translate/fill-missing'
 export { liveTranslateTexts } from '@/services/translate/live-translate'
 export { getSeedJobSnapshot, pauseSeedJob, startSeedJob } from '@/services/translate/seed-job'
+export { exportSourcesJob, getSourcesJobStatus, importSourcesJob, searchSourcesJob } from '@/services/translate/sources-job'

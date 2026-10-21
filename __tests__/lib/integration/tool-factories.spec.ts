@@ -57,9 +57,13 @@ describe('shared tool factories', () => {
   it('translate tools use the same API paths', async () => {
     const invoke = jest.fn<ReturnType<ApiInvoke>, Parameters<ApiInvoke>>(async () => ({}))
     const tools = makeTranslateTools(invoke)
-    expect(Object.keys(tools)).toEqual(expect.arrayContaining(['chaya_translate_text', 'chaya_translate_extract', 'chaya_translate_job']))
+    expect(Object.keys(tools)).toEqual(expect.arrayContaining(['chaya_translate_text', 'chaya_translate_extract', 'chaya_translate_job', 'chaya_translate_sources']))
     await tools.chaya_translate_extract({}, ctx)
     expect(invoke.mock.calls[0][0].path).toBe('/api/extract')
+    await tools.chaya_translate_sources({ action: 'import', text: '["あ"]' }, ctx)
+    expect(invoke).toHaveBeenLastCalledWith(
+      expect.objectContaining({ method: 'POST', path: '/api/translate', body: expect.objectContaining({ mode: 'sources', action: 'import', text: '["あ"]' }) })
+    )
   })
 
   it('live tools route plugin calls and validated input commands', async () => {

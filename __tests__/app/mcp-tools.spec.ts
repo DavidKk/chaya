@@ -95,6 +95,22 @@ describe('translate tools', () => {
     await expect(translateTools.chaya_translate_job({ action: 'nuke' }, ctx)).rejects.toThrow('action')
   })
 
+  it('maps sources actions onto mode=sources', async () => {
+    mocked(TranslateRoute.POST).mockImplementation(async () => okJson({ jobId: 'abc' }))
+    await translateTools.chaya_translate_sources({ action: 'import', text: '["あ"]', force: true }, ctx)
+    await translateTools.chaya_translate_sources({ action: 'status', jobId: 'abc' }, ctx)
+    await translateTools.chaya_translate_sources({ action: 'export', jobId: 'abc', onlyDone: true }, ctx)
+    const bodies = await Promise.all(mocked(TranslateRoute.POST).mock.calls.map(([request]: [Request]) => request.json()))
+    expect(bodies).toEqual(
+      expect.arrayContaining([
+        { mode: 'sources', action: 'import', text: '["あ"]', force: true },
+        expect.objectContaining({ mode: 'sources', action: 'status', jobId: 'abc' }),
+        expect.objectContaining({ mode: 'sources', action: 'export', jobId: 'abc', onlyDone: true }),
+      ])
+    )
+    await expect(translateTools.chaya_translate_sources({ action: 'nuke' }, ctx)).rejects.toThrow('action')
+  })
+
   it('validates the text batch', async () => {
     await expect(translateTools.chaya_translate_text({ texts: [] }, ctx)).rejects.toThrow('texts cannot be empty')
     await expect(translateTools.chaya_translate_text({ texts: Array.from({ length: 201 }, (_, i) => `t${i}`) }, ctx)).rejects.toThrow('200')

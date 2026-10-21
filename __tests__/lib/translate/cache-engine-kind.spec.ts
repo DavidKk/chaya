@@ -6,6 +6,7 @@ it('groups stored engine tags into import, agent, google and bing', () => {
   expect(cacheEngineKind('live:agent:ollama-local')).toBe('agent')
   expect(cacheEngineKind('live:google')).toBe('google')
   expect(cacheEngineKind('live:bing')).toBe('bing')
+  expect(cacheEngineKind('live:bergamot')).toBe('bergamot')
   expect(cacheEngineKind('manual')).toBeNull()
   expect(isLiveCacheEngine('live:google')).toBe(true)
   expect(isLiveCacheEngine('live:agent:ollama-local:nsfw')).toBe(true)

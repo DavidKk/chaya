@@ -25,7 +25,7 @@
 | ---------- | ------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | 游戏操作   | `chaya_live_games` / `state` / `history` / `press` / `play` / `screenshot` / `tap` / `move_to` / `quit` | `chaya_live_eval`             |
 | 修改       | `chaya_edit_catalog` / `state` / `set` / `action`（与游戏内「修改」页同一套指令）                       | —                             |
-| 翻译       | `chaya_translate_text` / `extract` / `job` / `engines` / `play_settings`（翻译插件运行时）              | `chaya_translate_batch`       |
+| 翻译       | `chaya_translate_text` / `extract` / `job` / `sources` / `engines` / `play_settings`（翻译插件运行时）  | `chaya_translate_batch`       |
 | 共享翻译库 | `chaya_cache_query` / `update` / `delete` / `import`（游戏内翻译运行时）                                | —                             |
 | 日志       | `chaya_logs_query` / `chaya_logs_clear`（本游戏插件日志）                                               | —                             |
 | 插件功能   | `chaya_plugin_*`（`boost` / `trans` 声明的工具）、`chaya_live_plugins` / `call`                         | —                             |

@@ -19,6 +19,7 @@
     "electron": "CHAYA_SERVICE=app node ./node_modules/electron/cli.js .",
     "electron:open": "CHAYA_SERVICE=app CHAYA_ELECTRON_EXTERNAL=1 node ./node_modules/electron/cli.js .",
     "build:native": "sh native/apple-translator/build.sh",
+    "build:bergamot": "sh native/bergamot-translator/build.sh",
     "build": "pnpm build:native && pnpm build:plugins && pnpm build:next",
     "build:next": "next build --webpack",
     "build:cloud": "cross-env CHAYA_TARGET=cloud pnpm build",

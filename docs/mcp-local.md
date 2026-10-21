@@ -93,14 +93,22 @@
 
 ### 4.5 翻译 `translate`
 
-| 工具                            | 作用                                                         | 主要参数                      | 对应接口                                   |
-| ------------------------------- | ------------------------------------------------------------ | ----------------------------- | ------------------------------------------ |
-| `chaya_translate_text`          | 翻译一段或多段文本（默认写入缓存）                           | `texts`, `force?`, `persist?` | `POST /api/translate`                      |
-| `chaya_translate_extract`       | 从游戏 data 抽取原文并生成 seed                              | —                             | `POST /api/extract`                        |
-| `chaya_translate_job`           | 整作补译任务：开始 / 暂停 / 查看进度                         | `action`                      | `POST /api/translate` `mode=job/progress`  |
-| `chaya_translate_batch`         | 只补译一批缺词                                               | `limit?`                      | `POST /api/translate` `mode=seed`          |
-| `chaya_translate_engines`       | 读取或修改引擎开关与顺序（`ollama` / `bing` / `google`）     | `switches?`, `order?`         | `POST /api/translate` `mode=switches`      |
-| `chaya_translate_play_settings` | 读取或修改游戏内翻译方式（预翻译 / 实时 / 字幕）、模型、超时 | `settings?`                   | `POST /api/translate` `mode=play-settings` |
+| 工具                            | 作用                                                              | 主要参数                       | 对应接口                                   |
+| ------------------------------- | ----------------------------------------------------------------- | ------------------------------ | ------------------------------------------ |
+| `chaya_translate_text`          | 翻译一段或多段文本（默认写入缓存）                                | `texts`, `force?`, `persist?`  | `POST /api/translate`                      |
+| `chaya_translate_extract`       | 从游戏 data 抽取原文并生成 seed                                   | —                              | `POST /api/extract`                        |
+| `chaya_translate_job`           | 整作补译任务：开始 / 暂停 / 查看进度                              | `action`                       | `POST /api/translate` `mode=job/progress`  |
+| `chaya_translate_sources`       | 任意源文字符串包：异步导入全部 key、查进度、按 key 搜索、整包导出 | `action`, `text?`, `jobId?`, … | `POST /api/translate` `mode=sources`       |
+| `chaya_translate_batch`         | 只补译一批缺词                                                    | `limit?`                       | `POST /api/translate` `mode=seed`          |
+| `chaya_translate_engines`       | 读取或修改引擎开关与顺序（`ollama` / `bing` / `google`）          | `switches?`, `order?`          | `POST /api/translate` `mode=switches`      |
+| `chaya_translate_play_settings` | 读取或修改游戏内翻译方式（预翻译 / 实时 / 字幕）、模型、超时      | `settings?`                    | `POST /api/translate` `mode=play-settings` |
+
+`chaya_translate_sources` 用法：
+
+1. `action=import` + `text`（JSON：`string[]` / AST `[{id,key,text,line}]` / `{原文:译文}`）→ 立刻返回 `jobId`，后台补译写入共享库
+2. `action=status` + `jobId` → 进度（`running` / `done` / `error`）
+3. `action=search` + `jobId` + `key?` / `q?` → 按业务 key 或关键词查条目
+4. `action=export` + `jobId` → 整包导出（建议 `status=done` 后再要完整译文）
 
 ### 4.6 共享翻译库 `cache`（CRUD + 筛选）
 

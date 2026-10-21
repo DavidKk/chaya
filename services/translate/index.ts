@@ -29,11 +29,22 @@ export {
 } from './engine-switches'
 export { fillMissingFromSeed, type FillMissingResult, getSeedTranslateProgress, type SeedProgress } from './fill-missing'
 export { loadGameTranslateLookup, normalizeTranslateKey, translateWithLookup } from './game-lookup'
+export { exportSourcesPayload, type NormalizedSources, normalizeSourcesInput, type SourcesEntry, type SourcesInputFormat } from './import-sources'
 export { parseTranslateImportText } from './import-text'
 export { googleJaToZh, type LiveTranslateItem, liveTranslateTexts } from './live-translate'
 export { getSeedJobSnapshot, pauseSeedJob, type SeedJobLogEntry, type SeedJobSnapshot, type SeedJobState, type SeedJobStatus, startSeedJob } from './seed-job'
 export { inspectSensitiveText, isNsfwCacheRow, isNsfwTaggedEngine, isSensitiveForCloud, partitionCloudSafeTexts, type SensitiveHit } from './sensitive-text'
 export { defaultSharedDbPath, openSharedCache } from './shared-cache'
+export {
+  exportSourcesJob,
+  getSourcesJobStatus,
+  importSourcesJob,
+  searchSourcesJob,
+  type SourcesExportResult,
+  type SourcesJobSnapshot,
+  type SourcesJobStatus,
+  type SourcesSearchResult,
+} from './sources-job'
 export {
   charCount,
   isIdenticalTranslation,

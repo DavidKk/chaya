@@ -30,7 +30,7 @@ Chaya 是面向 **RPG Maker** 的本机优先工具台：翻译（抽取、补�
 
 Chaya 提供兼顾零延迟本地离线与高阶文学润色的多层分级翻译体系：
 
-- **离线原生/工具级兜底**：系统级接入 macOS Apple 原生神经翻译（ANE 加速）、Windows WinRT/DirectML 以及 Linux Bergamot 纯 CPU 极速引擎，在完全离线或网络故障时稳定兜底。
+- **离线翻译**：支持 macOS Apple 原生翻译，以及 Linux/macOS 可选的 Bergamot 守护进程。Bergamot 需编译原生程序并安装兼容语言包，见[配置说明](docs/technical/linux-offline-translation.md)。
 - **CPA + ChatGPT 订阅桥接**：通过搭配开源工具 **[CPA (CLIProxyAPI)](https://github.com/router-for-me/CLIProxyAPI)**（[官方文档](https://help.router-for-me.com/)），可直接将您的 **[ChatGPT](https://chatgpt.com/)**（Plus / Team / Pro / Codex）订阅转换为标准 OpenAI 兼容接口，使 Chaya 能够在 macOS、Windows、Linux 及 Web 端直接调用前沿模型进行剧情翻译与多语言对照，无需额外申请并充值昂贵的商业 API Key。
 - **直连与本地大模型**：亦原生支持 DeepSeek、OpenAI 原生 API Key、Claude、以及本地 Ollama 部署的模型服务。
 

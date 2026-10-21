@@ -367,6 +367,21 @@
           "action": "动作"
         }
       },
+      "chaya_translate_sources": {
+        "title": "源文字符串包",
+        "description": "异步导入任意源文字符串（string[]、AST [{id,key,text,line}] 或 {原文:译文}）。import 登记全部 key 并立即返回 jobId，后台写入共享翻译库；status 查进度，search 按 key/q 查找，export 整包导出（建议 status=done 后再取完整译文）。",
+        "params": {
+          "action": "动作：import / status / search / export",
+          "text": "import：JSON 内容",
+          "jobId": "status / search / export：导入返回的 jobId",
+          "force": "import：跳过缓存强制重译",
+          "key": "search：精确业务 key 或原文",
+          "q": "search：key / 原文 / 译文子串",
+          "page": "search：页码",
+          "pageSize": "search：每页条数",
+          "onlyDone": "export：只导出已有译文的条目"
+        }
+      },
       "chaya_translate_batch": {
         "title": "补译一批",
         "description": "只对 seed 缺词补译一批（同步返回），适合小步验证。",
@@ -815,6 +830,21 @@
           "action": "操作"
         }
       },
+      "chaya_translate_sources": {
+        "title": "原文文字列パック",
+        "description": "任意の原文文字列を非同期インポート（string[]、AST [{id,key,text,line}]、{原文:訳文}）。import は全 key を登録してすぐ jobId を返し、共有翻訳庫へバックグラウンド書き込み。status で進捗、search で key/q 検索、export で一括出力（完全訳は status=done 後推奨）。",
+        "params": {
+          "action": "操作：import / status / search / export",
+          "text": "import：JSON 本文",
+          "jobId": "status / search / export：import の jobId",
+          "force": "import：キャッシュを飛ばして再翻訳",
+          "key": "search：業務 key または原文の完全一致",
+          "q": "search：key / 原文 / 訳文の部分一致",
+          "page": "search：ページ",
+          "pageSize": "search：ページサイズ",
+          "onlyDone": "export：訳文がある条目のみ"
+        }
+      },
       "chaya_translate_batch": {
         "title": "1 バッチ補完",
         "description": "seed の未翻訳分を 1 バッチだけ補完します（同期で返却）。小さく試すのに向いています。",
@@ -1261,6 +1291,21 @@
         "description": "서버 쪽 게임 전체 보충 번역 작업: start로 시작, pause로 일시 정지, status로 진행 상황 확인.",
         "params": {
           "action": "동작"
+        }
+      },
+      "chaya_translate_sources": {
+        "title": "원문 문자열 팩",
+        "description": "임의 원문 문자열 비동기 가져오기(string[], AST [{id,key,text,line}], {원문:번역}). import는 모든 key를 등록하고 즉시 jobId를 반환하며 공유 번역 라이브러리에 백그라운드 기록. status로 진행, search로 key/q 검색, export로 일괄 내보내기(완전한 번역은 status=done 이후 권장).",
+        "params": {
+          "action": "동작: import / status / search / export",
+          "text": "import: JSON 본문",
+          "jobId": "status / search / export: import의 jobId",
+          "force": "import: 캐시 건너뛰고 재번역",
+          "key": "search: 비즈니스 key 또는 원문 정확 일치",
+          "q": "search: key / 원문 / 번역 부분 일치",
+          "page": "search: 페이지",
+          "pageSize": "search: 페이지 크기",
+          "onlyDone": "export: 번역이 있는 항목만"
         }
       },
       "chaya_translate_batch": {
@@ -1717,6 +1762,21 @@
         "description": "控制全遊戲背景批次補譯任務（啟動、暫停、恢復、停止）。",
         "params": {
           "action": "動作：start, pause, resume, cancel"
+        }
+      },
+      "chaya_translate_sources": {
+        "title": "源文字串包",
+        "description": "非同步匯入任意源文字串（string[]、AST [{id,key,text,line}] 或 {原文:譯文}）。import 登記全部 key 並立即回傳 jobId，背景寫入共享翻譯庫；status 查進度，search 按 key/q 搜尋，export 整包匯出（建議 status=done 後再取完整譯文）。",
+        "params": {
+          "action": "動作：import / status / search / export",
+          "text": "import：JSON 內容",
+          "jobId": "status / search / export：匯入回傳的 jobId",
+          "force": "import：略過快取強制重譯",
+          "key": "search：精確業務 key 或原文",
+          "q": "search：key / 原文 / 譯文子串",
+          "page": "search：頁碼",
+          "pageSize": "search：每頁筆數",
+          "onlyDone": "export：只匯出已有譯文的條目"
         }
       },
       "chaya_translate_batch": {
@@ -2176,6 +2236,21 @@
           "action": "Action : start, pause, resume, cancel"
         }
       },
+      "chaya_translate_sources": {
+        "title": "Paquet de chaînes source",
+        "description": "Import asynchrone de chaînes source (string[], AST [{id,key,text,line}] ou {src:zh}). import enregistre toutes les clés et renvoie jobId immédiatement, écriture en arrière-plan dans le cache partagé ; status pour la progression, search par key/q, export JSON complet (après status=done de préférence).",
+        "params": {
+          "action": "Action : import / status / search / export",
+          "text": "import : contenu JSON",
+          "jobId": "status / search / export : jobId renvoyé par import",
+          "force": "import : ignorer le cache et retraduire",
+          "key": "search : clé métier ou texte source exact",
+          "q": "search : sous-chaîne key / src / zh",
+          "page": "search : page",
+          "pageSize": "search : taille de page",
+          "onlyDone": "export : uniquement les entrées traduites"
+        }
+      },
       "chaya_translate_batch": {
         "title": "Traduire un lot",
         "description": "Traduire un lot de textes en attente et renvoyer la progression.",
@@ -2631,6 +2706,21 @@
         "description": "Vollständige Hintergrundübersetzung steuern (Start, Pause, Fortsetzen, Abbrechen).",
         "params": {
           "action": "Aktion: start, pause, resume, cancel"
+        }
+      },
+      "chaya_translate_sources": {
+        "title": "Quelltext-Paket",
+        "description": "Asynchroner Import von Quellstrings (string[], AST [{id,key,text,line}] oder {src:zh}). import registriert alle Keys und liefert sofort jobId, Hintergrundschreiben in den gemeinsamen Cache; status für Fortschritt, search nach key/q, export als JSON (vollständig nach status=done).",
+        "params": {
+          "action": "Aktion: import / status / search / export",
+          "text": "import: JSON-Inhalt",
+          "jobId": "status / search / export: jobId von import",
+          "force": "import: Cache überspringen und neu übersetzen",
+          "key": "search: Geschäftsschlüssel oder exakter Quelltext",
+          "q": "search: Teilstring in key / src / zh",
+          "page": "search: Seite",
+          "pageSize": "search: Seitengröße",
+          "onlyDone": "export: nur übersetzte Einträge"
         }
       },
       "chaya_translate_batch": {
@@ -3090,6 +3180,21 @@
           "action": "Acción: start, pause, resume, cancel"
         }
       },
+      "chaya_translate_sources": {
+        "title": "Paquete de cadenas fuente",
+        "description": "Importación asíncrona de cadenas fuente (string[], AST [{id,key,text,line}] o {src:zh}). import registra todas las claves y devuelve jobId al instante, escribe en segundo plano en la caché compartida; status para el progreso, search por key/q, export JSON completo (tras status=done).",
+        "params": {
+          "action": "Acción: import / status / search / export",
+          "text": "import: contenido JSON",
+          "jobId": "status / search / export: jobId de import",
+          "force": "import: omitir caché y retraducir",
+          "key": "search: clave de negocio o texto fuente exacto",
+          "q": "search: subcadena en key / src / zh",
+          "page": "search: página",
+          "pageSize": "search: tamaño de página",
+          "onlyDone": "export: solo entradas traducidas"
+        }
+      },
       "chaya_translate_batch": {
         "title": "Traducir lote",
         "description": "Traducir un lote de textos pendientes y devolver el progreso.",
@@ -3547,6 +3652,21 @@
           "action": "Действие: start, pause, resume, cancel"
         }
       },
+      "chaya_translate_sources": {
+        "title": "Пакет исходных строк",
+        "description": "Асинхронный импорт исходных строк (string[], AST [{id,key,text,line}] или {src:zh}). import регистрирует все ключи и сразу возвращает jobId, фоновая запись в общий кэш; status — прогресс, search — по key/q, export — полный JSON (лучше после status=done).",
+        "params": {
+          "action": "Действие: import / status / search / export",
+          "text": "import: JSON",
+          "jobId": "status / search / export: jobId из import",
+          "force": "import: пропустить кэш и перевести заново",
+          "key": "search: бизнес-ключ или точный исходный текст",
+          "q": "search: подстрока в key / src / zh",
+          "page": "search: страница",
+          "pageSize": "search: размер страницы",
+          "onlyDone": "export: только переведённые записи"
+        }
+      },
       "chaya_translate_batch": {
         "title": "Перевести пакет",
         "description": "Перевести пакет непереведённых строк с возвратом прогресса.",
@@ -4002,6 +4122,21 @@
         "description": "Controlar a tarefa de tradução completa em segundo plano (iniciar, pausar, retomar, cancelar).",
         "params": {
           "action": "Ação: start, pause, resume, cancel"
+        }
+      },
+      "chaya_translate_sources": {
+        "title": "Pacote de strings de origem",
+        "description": "Importação assíncrona de strings de origem (string[], AST [{id,key,text,line}] ou {src:zh}). import registra todas as chaves e devolve jobId imediatamente, grava em segundo plano no cache compartilhado; status para progresso, search por key/q, export JSON completo (após status=done).",
+        "params": {
+          "action": "Ação: import / status / search / export",
+          "text": "import: conteúdo JSON",
+          "jobId": "status / search / export: jobId do import",
+          "force": "import: ignorar cache e retraduzir",
+          "key": "search: chave de negócio ou texto de origem exato",
+          "q": "search: substring em key / src / zh",
+          "page": "search: página",
+          "pageSize": "search: tamanho da página",
+          "onlyDone": "export: apenas entradas traduzidas"
         }
       },
       "chaya_translate_batch": {

@@ -60,6 +60,9 @@ if (!existsSync(pluginsDist)) {
 }
 copyDir(pluginsDist, path.join(outRoot, 'plugins', 'dist'))
 
+const nativeBin = path.join(root, 'native', 'bin')
+if (existsSync(nativeBin)) copyDir(nativeBin, path.join(outRoot, 'native', 'bin'))
+
 const manifest = path.join(root, 'plugins', 'manifest.json')
 if (existsSync(manifest)) {
   mkdirSync(path.join(outRoot, 'plugins'), { recursive: true })

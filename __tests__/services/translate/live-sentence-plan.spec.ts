@@ -6,6 +6,7 @@ jest.mock('@/services/translate/engine-switches', () => ({
   DEFAULT_ENGINE_SWITCHES: { google: true },
 }))
 jest.mock('@/lib/translate/engine-http', () => ({ requestGoogle: jest.fn() }))
+jest.mock('@/services/translate/lib/bergamot-translate', () => ({ bergamotTranslate: jest.fn() }))
 let mockDb = ''
 jest.mock('@/services/translate/shared-cache', () => {
   const actual = jest.requireActual('@/services/translate/shared-cache')
@@ -19,6 +20,7 @@ import path from 'node:path'
 import { gameContentPath } from '@/lib/game/content-files'
 import { requestGoogle } from '@/lib/translate/engine-http'
 import { loadGameTranslationRecords } from '@/services/translate/game-records'
+import { bergamotTranslate } from '@/services/translate/lib/bergamot-translate'
 import { liveTranslateTexts } from '@/services/translate/live-translate'
 import { openSharedCache } from '@/services/translate/shared-cache'
 
@@ -32,6 +34,16 @@ describe('live short-sentence integration', () => {
     jest.mocked(requestGoogle).mockReset()
   })
   afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+  it('dispatches to Bergamot and stores its source tag in the shared cache', async () => {
+    jest.mocked(bergamotTranslate).mockResolvedValue('你好')
+    const result = await liveTranslateTexts(['こんにちは'], { contentRoot: root, engines: ['bergamot'], sourceLang: 'ja', targetLang: 'zh' })
+    expect(result.items[0].zh).toBe('你好')
+    expect(bergamotTranslate).toHaveBeenCalledWith('こんにちは', { source: 'ja', target: 'zh' })
+    const cache = openSharedCache()
+    expect(cache.listPage({ engine: 'bergamot' }).items[0]).toMatchObject({ src: 'こんにちは', engine: 'live:bergamot' })
+    cache.close()
+    expect(requestGoogle).not.toHaveBeenCalled()
+  })
   it('sends only the missing block to the engine and never stores the composite as a new final record', async () => {
     const cache = openSharedCache()
     cache.writeMany([['村へ行く,休む', '前往村庄，休息']], 'import')

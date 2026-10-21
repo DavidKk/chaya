@@ -16,6 +16,8 @@
 /.next/
 /out/
 /build
+/native/bin/linux-*/
+/native/bin/macos-*/
 /dist/
 /tmp/
 /.electron-builder/

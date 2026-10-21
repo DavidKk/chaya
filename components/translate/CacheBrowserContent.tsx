@@ -59,6 +59,7 @@ const CACHE_ENGINE_KIND_KEY: Record<CacheEngineKind, MessageKey> = {
   google: 'translate.cacheKindGoogle',
   bing: 'translate.cacheKindBing',
   apple: 'translate.cacheKindApple',
+  bergamot: 'translate.cacheKindBergamot',
 }
 
 const CACHE_LANG_KEY: Record<CacheLang, MessageKey> = {

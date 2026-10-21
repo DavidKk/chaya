@@ -42,6 +42,7 @@ const BUILTIN_LABEL_KEY: Record<TranslateBuiltinId, MessageKey> = {
   bing: 'translate.engineBing',
   google: 'translate.engineGoogle',
   apple: 'translate.engineApple',
+  bergamot: 'translate.engineBergamot',
 }
 
 const GROUPS: Array<{ id: TranslateEngineGroup; labelKey: MessageKey; descKey: MessageKey }> = [

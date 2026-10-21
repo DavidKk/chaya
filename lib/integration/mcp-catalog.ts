@@ -575,6 +575,28 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     http: 'POST /api/translate (mode=job / progress)',
   },
   {
+    name: 'chaya_translate_sources',
+    group: 'translate',
+    title: 'Source string pack',
+    description:
+      'Async import of arbitrary source strings (string[], AST [{id,key,text,line}], or {src:zh}). import registers all keys and returns jobId immediately while translation runs in the background into the shared cache. Use status to poll, search to look up by key/q, and export for the full JSON with translations (prefer after status=done).',
+    inputSchema: obj(
+      {
+        action: str('Action', { enum: ['import', 'status', 'search', 'export'] }),
+        text: str('import: JSON payload (string[] | AST items | {src:zh})'),
+        jobId: str('status / search / export: job id from import'),
+        force: bool('import: skip cache and retranslate'),
+        key: str('search: exact business key or source text'),
+        q: str('search: substring over key / src / zh'),
+        page: num('search: page (default 1)'),
+        pageSize: num('search: page size (default 50, max 500)'),
+        onlyDone: bool('export: only entries with translations (default false)'),
+      },
+      ['action']
+    ),
+    http: 'POST /api/translate (mode=sources)',
+  },
+  {
     name: 'chaya_translate_batch',
     group: 'translate',
     title: 'Fill one batch',

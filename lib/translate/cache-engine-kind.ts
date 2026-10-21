@@ -1,5 +1,5 @@
 /** Coarse source groups for the shared cache. Raw tags such as import files and live:agent stay in storage. */
-export const CACHE_ENGINE_KINDS = ['import', 'agent', 'google', 'bing', 'apple'] as const
+export const CACHE_ENGINE_KINDS = ['import', 'agent', 'google', 'bing', 'apple', 'bergamot'] as const
 export type CacheEngineKind = (typeof CACHE_ENGINE_KINDS)[number]
 
 export function cacheEngineKind(engine: string | null | undefined): CacheEngineKind | null {
@@ -9,6 +9,7 @@ export function cacheEngineKind(engine: string | null | undefined): CacheEngineK
   if (/google/i.test(value)) return 'google'
   if (/bing/i.test(value)) return 'bing'
   if (/apple/i.test(value)) return 'apple'
+  if (/bergamot/i.test(value)) return 'bergamot'
   if (/^import\b/i.test(value)) return 'import'
   if (/agent|ollama/i.test(value)) return 'agent'
   return null

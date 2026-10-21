@@ -4,6 +4,7 @@ import { hasManagementAccess } from '@/services/access/management'
 import { peekLaunchToken } from '@/services/runtime/launch-token'
 import { agentJaToZh, listTranslateAgents } from '@/services/translate/agent-translate'
 import { resolveTranslateContentRoot } from '@/services/translate/fill-missing'
+import { bergamotTranslator } from '@/services/translate/lib/bergamot-translate'
 import { setTranslationPlaySettings } from '@/services/translate/play-settings'
 import { translateDialogue } from '@/services/translate/realtime'
 
@@ -16,6 +17,7 @@ jest.mock('@/services/translate/fill-missing', () => ({ resolveTranslateContentR
 jest.mock('@/services/translate/play-settings', () => ({ getTranslationPlaySettings: jest.fn(), setTranslationPlaySettings: jest.fn() }))
 jest.mock('@/services/translate/realtime', () => ({ translateDialogue: jest.fn(), benchmarkLocalModel: jest.fn() }))
 jest.mock('@/services/translate/agent-translate', () => ({ agentJaToZh: jest.fn(), listTranslateAgents: jest.fn() }))
+jest.mock('@/services/translate/lib/bergamot-translate', () => ({ bergamotTranslator: { translate: jest.fn(), checkStatus: jest.fn() } }))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 
 const post = (body: unknown) =>
@@ -66,6 +68,29 @@ it('ai mode rejects empty text', async () => {
   const response = await post({ mode: 'ai', text: '   ' })
   expect(response.status).toBe(400)
   expect(agentJaToZh).not.toHaveBeenCalled()
+})
+
+it('bergamot mode forwards the text and language pair to the offline daemon', async () => {
+  jest.mocked(bergamotTranslator.translate).mockResolvedValue('你好')
+  const response = await post({ mode: 'bergamot', text: 'Hello', from: 'en', to: 'zh' })
+  expect(response.status).toBe(200)
+  expect((await response.json()).text).toBe('你好')
+  expect(bergamotTranslator.translate).toHaveBeenCalledWith('Hello', { source: 'en', target: 'zh' })
+})
+
+it.each(['', '   ', 'x'.repeat(20001)])('bergamot mode validates text length', async (text) => {
+  const response = await post({ mode: 'bergamot', text })
+  expect(response.status).toBe(400)
+  expect(bergamotTranslator.translate).not.toHaveBeenCalled()
+})
+
+it('bergamot-status reports missing packs without translating', async () => {
+  jest.mocked(bergamotTranslator.checkStatus).mockResolvedValue({ status: 'model_pack_missing', installed: false })
+  const response = await post({ mode: 'bergamot-status', source: 'ja', target: 'zh' })
+  expect(response.status).toBe(200)
+  expect(await response.json()).toMatchObject({ status: 'model_pack_missing', installed: false })
+  expect(bergamotTranslator.checkStatus).toHaveBeenCalledWith('ja', 'zh')
+  expect(bergamotTranslator.translate).not.toHaveBeenCalled()
 })
 
 it('agents mode lists instances without endpoints or tokens', async () => {

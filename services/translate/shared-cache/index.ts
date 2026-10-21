@@ -75,8 +75,10 @@ function escapeLike(q: string) {
 function engineKindSql(kind: CacheEngineKind) {
   if (kind === 'google') return sql`${translations.engine} LIKE '%google%' ESCAPE '\\'`
   if (kind === 'bing') return sql`${translations.engine} LIKE '%bing%' ESCAPE '\\'`
+  if (kind === 'apple') return sql`${translations.engine} LIKE '%apple%' ESCAPE '\\'`
+  if (kind === 'bergamot') return sql`${translations.engine} LIKE '%bergamot%' ESCAPE '\\'`
   if (kind === 'import') return sql`${translations.engine} LIKE 'import%' ESCAPE '\\'`
-  return sql`((${translations.engine} LIKE '%agent%' ESCAPE '\\' OR ${translations.engine} LIKE '%ollama%' ESCAPE '\\') AND ${translations.engine} NOT LIKE '%google%' ESCAPE '\\' AND ${translations.engine} NOT LIKE '%bing%' ESCAPE '\\')`
+  return sql`((${translations.engine} LIKE '%agent%' ESCAPE '\\' OR ${translations.engine} LIKE '%ollama%' ESCAPE '\\') AND ${translations.engine} NOT LIKE '%google%' ESCAPE '\\' AND ${translations.engine} NOT LIKE '%bing%' ESCAPE '\\' AND ${translations.engine} NOT LIKE '%bergamot%' ESCAPE '\\')`
 }
 
 function nsfwFlagSql(flag: CacheNsfwFlag) {

@@ -43,5 +43,31 @@ export function makeTranslateTools(invoke: ApiInvoke): ToolImpls {
       const merged = { ...(current.settings as Record<string, unknown> | undefined), ...settings }
       return translate({ mode: 'play-settings', contentRoot: current.contentRoot, settings: merged }, signal)
     },
+
+    async chaya_translate_sources(args, { signal }) {
+      const action = reqStr(args, 'action')
+      if (action === 'import') {
+        const text = typeof args.text === 'string' ? args.text : ''
+        if (!text.trim()) throw new Error('Missing parameter text')
+        return translate({ mode: 'sources', action: 'import', text, force: optBool(args, 'force') ?? false }, signal)
+      }
+      if (action === 'status' || action === 'search' || action === 'export') {
+        const jobId = reqStr(args, 'jobId')
+        return translate(
+          {
+            mode: 'sources',
+            action,
+            jobId,
+            key: typeof args.key === 'string' ? args.key : undefined,
+            q: typeof args.q === 'string' ? args.q : undefined,
+            page: optNum(args, 'page'),
+            pageSize: optNum(args, 'pageSize'),
+            onlyDone: optBool(args, 'onlyDone') ?? false,
+          },
+          signal
+        )
+      }
+      throw new Error('action must be import, status, search, or export')
+    },
   }
 }

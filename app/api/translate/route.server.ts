@@ -7,12 +7,16 @@ import type { TranslateRunEngine } from '@/lib/translate/engines'
 import { normalizeAiConfig } from '@/lib/translate/engines'
 import { hasManagementAccess } from '@/services/access/management'
 import {
+  exportSourcesJob,
   fillMissingFromSeed,
   getSeedJobSnapshot,
+  getSourcesJobStatus,
   getTranslateEngineSwitches,
+  importSourcesJob,
   liveTranslateTexts,
   pauseSeedJob,
   requireDisk,
+  searchSourcesJob,
   setTranslateEngineSwitches,
   startSeedJob,
   type TranslateEngineId,
@@ -39,6 +43,7 @@ export const dynamic = 'force-dynamic'
  * - `{ mode: 'seed' }`：对当前绑定游戏 seed 缺词补一轮（单批）
  * - `{ mode: 'progress' }`：只读进度 + 后台任务快照
  * - `{ mode: 'job', action: 'start' | 'pause' }`：启停服务端补译循环
+ * - `{ mode: 'sources', action: 'import' | 'status' | 'search' | 'export' }`：异步源文字符串包（登记 key → 后台译 → 搜索/整包导出）
  * - `{ mode: 'switches' }`：读引擎开关/顺序/Agent 条目；带 `switches` / `order` / `agents` 则写入。Agent 条目全游戏共用
  * - `{ mode: 'translate-agents' }`：只读写共用 Agent 条目（游戏内插件用；平台开关仍留在该游戏）
  * - `{ mode: 'agents' }`：列出可选的 Agent 实例（名称 / 模型，不含端点与 token）
@@ -60,6 +65,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'realtime'
         | 'cache'
         | 'apple'
+        | 'bergamot'
+        | 'bergamot-status'
         | 'ai'
         | 'agents'
         | 'play-settings'
@@ -73,9 +80,10 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'save-item'
         | 'reset-item'
         | 'import-locales-corpus'
+        | 'sources'
       settings?: unknown
       contentRoot?: string
-      action?: 'start' | 'pause'
+      action?: 'start' | 'pause' | 'import' | 'status' | 'search' | 'export'
       limit?: number
       /** 跳过缓存强制重译 */
       force?: boolean
@@ -98,6 +106,13 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       ai?: unknown
       interactive?: boolean
       origins?: unknown
+      /** sources job id */
+      jobId?: string
+      key?: string
+      q?: string
+      page?: number
+      pageSize?: number
+      onlyDone?: boolean
     }
 
     // 插件可选共享库查询：不绑定服务端当前游戏，也绝不触发推理或写游戏文件。
@@ -127,6 +142,38 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       if (body.action === 'pause') return apiOk(pauseSeedJob())
       if (body.action === 'start') return apiOk(startSeedJob())
       return apiError(400, 'TRANSLATE_JOB_ACTION', 'Missing action: start | pause')
+    }
+
+    if (body.mode === 'sources') {
+      const action = body.action || 'status'
+      if (action === 'import') {
+        const text = typeof body.text === 'string' ? body.text : ''
+        if (!text.trim()) return apiError(400, 'SOURCES_IMPORT_EMPTY', 'Missing text JSON for sources import')
+        return apiOk(importSourcesJob(text, { force: Boolean(body.force) }))
+      }
+      if (action === 'status') {
+        const jobId = typeof body.jobId === 'string' ? body.jobId : ''
+        if (!jobId.trim()) return apiError(400, 'SOURCES_JOB_ID', 'Missing jobId')
+        return apiOk(getSourcesJobStatus(jobId))
+      }
+      if (action === 'search') {
+        const jobId = typeof body.jobId === 'string' ? body.jobId : ''
+        if (!jobId.trim()) return apiError(400, 'SOURCES_JOB_ID', 'Missing jobId')
+        return apiOk(
+          searchSourcesJob(jobId, {
+            key: typeof body.key === 'string' ? body.key : undefined,
+            q: typeof body.q === 'string' ? body.q : undefined,
+            page: typeof body.page === 'number' ? body.page : undefined,
+            pageSize: typeof body.pageSize === 'number' ? body.pageSize : undefined,
+          })
+        )
+      }
+      if (action === 'export') {
+        const jobId = typeof body.jobId === 'string' ? body.jobId : ''
+        if (!jobId.trim()) return apiError(400, 'SOURCES_JOB_ID', 'Missing jobId')
+        return apiOk(exportSourcesJob(jobId, { onlyDone: Boolean(body.onlyDone) }))
+      }
+      return apiError(400, 'SOURCES_ACTION', 'action must be import | status | search | export')
     }
 
     if (body.mode === 'switches') {
@@ -204,6 +251,16 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       if (!text) return apiError(400, 'RESET_ITEM_EMPTY', 'Missing source text')
       const { resetExtractedItem } = await import('@/services/extract/lib/save-items')
       return apiOk(resetExtractedItem(root, text))
+    }
+
+    if (body.mode === 'bergamot' || body.mode === 'bergamot-status') {
+      const source = typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : undefined
+      const target = typeof (body.to ?? body.target) === 'string' ? (body.to ?? body.target) : undefined
+      const { bergamotTranslator } = await import('@/services/translate/lib/bergamot-translate')
+      if (body.mode === 'bergamot-status') return apiOk(await bergamotTranslator.checkStatus(source, target))
+      const text = typeof body.text === 'string' ? body.text : ''
+      if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_BERGAMOT_INPUT', 'Bergamot offline translation requires text of 1-20000 characters')
+      return apiOk({ text: await bergamotTranslator.translate(text, { source, target }) })
     }
 
     const texts = Array.isArray(body.texts) ? body.texts : body.text != null ? [body.text] : []

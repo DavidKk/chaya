@@ -407,6 +407,7 @@ export type MessageTree = {
     engineBing: string
     engineGoogle: string
     engineApple: string
+    engineBergamot: string
     aiProfile: string
     aiModel: string
     aiModelAuto: string
@@ -455,6 +456,7 @@ export type MessageTree = {
     cacheKindGoogle: string
     cacheKindBing: string
     cacheKindApple: string
+    cacheKindBergamot: string
     cacheLive: string
     cacheFlagAll: string
     cacheFlagNsfw: string

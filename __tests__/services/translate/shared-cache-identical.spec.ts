@@ -325,6 +325,16 @@ describe('shared-cache identical skip + scrub', () => {
     cache.close()
   })
 
+  it('filters offline engine caches independently', () => {
+    const cache = openSharedCache(dbPath)
+    cache.upsertMany([['离线原文', '离线译文']], 'live:bergamot')
+    cache.upsertMany([['系统原文', '系统译文']], 'live:apple')
+    expect(cache.listPage({ engine: 'bergamot' }).items.map((item) => item.src)).toEqual(['离线原文'])
+    expect(cache.listPage({ engine: 'apple' }).items.map((item) => item.src)).toEqual(['系统原文'])
+    expect(cache.listPage({ engine: 'agent' }).total).toBe(0)
+    cache.close()
+  })
+
   it('stores the same source under different language pairs', () => {
     const cache = openSharedCache(dbPath)
     expect(cache.upsertMany([['Hello', '你好']], 'import:en', { from: 'en', to: 'zh' })).toBe(1)

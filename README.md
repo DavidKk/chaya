@@ -30,7 +30,7 @@ Inspired by the MagickMonkey / [vercel-web-scripts](https://github.com/DavidKk/v
 
 Chaya provides a multi-tier translation hierarchy that balances zero-latency local fallback with deep literary context:
 
-- **Offline Native & Tool-level Engines** — Built-in support for macOS Apple Translation Framework (ANE accelerated), Windows WinRT / DirectML, and Linux Bergamot / Argos CLI for instantaneous, private offline fallback.
+- **Offline Translation** — macOS Apple Translation Framework and an optional Bergamot daemon for Linux/macOS. Bergamot requires a native build and a compatible language pack; see the [setup guide](docs/technical/linux-offline-translation.md).
 - **ChatGPT via CPA Integration** — By pairing Chaya with **[CPA (CLIProxyAPI)](https://github.com/router-for-me/CLIProxyAPI)** ([Official Docs](https://help.router-for-me.com/)), you can bridge your personal or workspace **[ChatGPT](https://chatgpt.com/)** (Plus / Team / Pro / Codex) subscriptions as unified OpenAI-compatible endpoints. This unlocks high-quality script translation and nuance polishing across macOS, Windows, Linux, and remote setups without recurring per-token API costs.
 - **OpenAI & DeepSeek Direct APIs** — Direct support for DeepSeek, OpenAI, Claude, and local Ollama model providers.
 

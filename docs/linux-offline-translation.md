@@ -1,7 +1,7 @@
 # Linux 本地离线翻译工具接入需求
 
 - 日期：2026-10-19
-- 状态：需求草案待评审
+- 状态：目标需求；Bergamot 基础接入已实现，安装说明及未实现项见技术文档
 - 适用范围：Linux 版 Chaya（Ubuntu / Debian / Fedora / Arch / Steam Deck 等 x86_64 及 aarch64）
 - 技术设计：[Linux 本地离线翻译接入技术设计](technical/linux-offline-translation.md)
 
@@ -25,9 +25,9 @@
 
 ### 1.2 Linux 平台的生态特征与目标
 
-不同于 macOS（Apple 原生框架）和 Windows 11（WinRT NPU），Linux 平台缺乏单一垄断性商业 OS 厂商的全局翻译 API，但拥有成熟优秀的开源离线机器翻译工具生态（如欧盟 Bergamot / Mozilla Firefox 端侧翻译引擎、Argos Translate / LibreTranslate 引擎、Apertium 等）。
+不同于 macOS（Apple 原生框架）和 Windows 11（WinRT NPU），Linux 平台缺乏单一垄断性商业 OS 厂商的全局翻译 API，但拥有成熟优秀的开源离线机器翻译工具生态（如欧盟 Bergamot / Mozilla Firefox 端侧翻译引擎、Argos Translate / LibreTranslate 引擎、Apertium 等）。Bergamot 是跨平台 C++ 引擎，也可以在 macOS 上使用 Apple Accelerate 编译运行；macOS 版本优先使用 Apple Translation Framework，Bergamot 作为统一的工具级跨平台备用通道。
 
-本需求旨在为 Linux 桌面端及 SteamOS（Steam Deck 掌机环境）提供**纯开箱即用、无环境负担的单文件 CLI / 守护进程工具**。
+本需求旨在为 Linux 桌面端、SteamOS（Steam Deck 掌机环境）及 macOS 提供**纯开箱即用、无环境负担的单文件 CLI / 守护进程工具**。
 
 ---
 
@@ -75,15 +75,15 @@
 
 ### 4.1 运行时环境自动探测与能力就绪检查
 
-Linux 版 Chaya 启动时，自动探测系统环境与离线工具可用性：
+Linux 或 macOS 版 Chaya 启动时，自动探测系统环境与离线工具可用性：
 
-1. **内建静态工具探测**：检查 `native/bin/linux-{arch}/chaya-linux-translator` 是否存在且具备可执行权限。
+1. **内建静态工具探测**：按当前平台检查 `native/bin/{platform}-{arch}/chaya-bergamot-translator` 是否存在且具备可执行权限。
 2. **系统环境包探测**：探测系统 PATH 中是否存在现成可用的开源翻译工具（如 `bergamot-translator`、`argos-translate`）。
 3. **离线语言对包探测**：扫描本地数据目录（如 `~/.local/share/chaya/translation-packs/`）中已安装的语言对词典/权重模型。
 4. **状态上报**：向 Web 控制台及 MCP 接口返回明确的就绪状态：
    - `ready`: 工具二进制已就绪，当前翻译对可用。
    - `model_pack_missing`: 引擎就绪，但该语言对的轻量词库未就绪。
-   - `unavailable`: 仅在非 Linux 系统或 binary 无法执行时返回。
+   - `unavailable`: 仅在不支持的平台或 binary 无法执行时返回。
 
 ### 4.2 离线语言包轻量管理与引导
 

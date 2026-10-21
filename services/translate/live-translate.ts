@@ -17,6 +17,7 @@ import { lookupGameTranslation } from './cache-lookup'
 import { DEFAULT_ENGINE_SWITCHES, getTranslateEngineSwitches, TRANSLATE_ENGINE_IDS } from './engine-switches'
 import { loadGameTranslateLookup, normalizeTranslateKey } from './game-lookup'
 import { loadGameTranslationRecords } from './game-records'
+import { bergamotTranslate } from './lib/bergamot-translate'
 import { appleTranslate } from './lib/macos-translate'
 import { type LocalTranslateOptions, ollamaJaToZh } from './ollama-translate'
 import { isSensitiveForCloud } from './sensitive-text'
@@ -82,6 +83,7 @@ async function translateWithEngine(
   if (engine === 'google') return googleTranslateText(text, pair)
   if (engine === 'bing') return bingTranslateText(text, pair)
   if (engine === 'apple') return appleTranslate(text, { source: pair?.from, target: pair?.to })
+  if (engine === 'bergamot') return bergamotTranslate(text, { source: pair?.from, target: pair?.to })
   if (engine === 'ollama') return ollamaJaToZh(text, options)
   const entry = findAgentEntry(agents, engine)
   if (!entry) throw new Error('Agent translation entry removed')
