@@ -13,6 +13,7 @@ import {
 } from '@/services/disk-ops'
 import { findRunningJob } from '@/services/downloads/jobs'
 import { ensureGameAppIcon, updateSharedMacAppIcon } from '@/services/game/app-icon'
+import { launchRgss, quitRgss } from '@/services/game/rgss-runtime'
 import { anyWebConnected, clearGameQuitRequest, getGamePresence, preferredPluginApiBase, requestGameQuit, toolkitListenPort, writeLaunchEnv } from '@/services/runtime'
 
 export const runtime = 'nodejs'
@@ -21,6 +22,19 @@ export const runtime = 'nodejs'
 export const POST = defineApiRoute('post:/api/launch', async () => {
   const denied = requireDisk()
   if (denied) return denied
+
+  let resolved = getResolvedFromConfig()
+  if (!resolved.ok) return apiBadRequest(resolved.error || 'No game bound yet')
+  if (resolved.remote) return apiBadRequest('Remote game cannot be launched locally', 'REMOTE_READ_ONLY')
+  if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
+    if (findRunningJob('rgss-shell')) return apiError(409, 'SHELL_JOB_RUNNING', 'mkxp-z installation is in progress')
+    if (!resolved.hasShell) return apiBadRequest('Install the native mkxp-z runtime to launch VX / VX Ace on macOS', 'RGSS_RUNTIME_MISSING')
+    try {
+      return apiOk(await launchRgss(resolved))
+    } catch (error) {
+      return apiError(500, 'LAUNCH_FAILED', error instanceof Error ? error.message : String(error))
+    }
+  }
 
   if (findRunningJob('nw-shell') || isShellInstalling()) {
     return apiError(409, 'SHELL_JOB_RUNNING', 'Downloading and installing NW.js, please wait until the download center task finishes before launching')
@@ -36,23 +50,12 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
   } catch (err) {
     return apiError(500, 'SHELL_SWAP_RECOVERY_REQUIRED', err instanceof Error ? err.message : String(err))
   }
-  const resolved = getResolvedFromConfig()
-  if (!resolved.ok) {
-    return apiBadRequest(resolved.error || 'No game bound yet')
-  }
+  // Recovery may restore the shell path; do not keep the pre-recovery snapshot.
+  resolved = getResolvedFromConfig()
+  if (!resolved.ok) return apiBadRequest(resolved.error || 'No game bound yet')
+  if (resolved.remote) return apiBadRequest('Remote game cannot be launched locally', 'REMOTE_READ_ONLY')
   if (!resolved.hasShell) {
     return apiBadRequest('NW.js shell is not installed, cannot launch')
-  }
-  if (resolved.remote) {
-    return apiBadRequest('Remote game cannot be launched locally', 'REMOTE_READ_ONLY')
-  }
-  if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
-    try {
-      await launchShellWithContent(resolved.shellApp, resolved.contentRoot)
-      return apiOk({ path: resolved.shellApp, contentRoot: resolved.contentRoot, mode: 'native-rgss', engine: resolved.engine })
-    } catch (err) {
-      return apiError(500, 'LAUNCH_FAILED', err instanceof Error ? err.message : String(err))
-    }
   }
 
   try {
@@ -125,6 +128,11 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
 export const DELETE = defineApiRoute('delete:/api/launch', async () => {
   const denied = requireDisk()
   if (denied) return denied
+
+  const resolved = getResolvedFromConfig()
+  if (resolved.ok && !resolved.remote && (resolved.engine === 'VX Ace' || resolved.engine === 'VX')) {
+    return quitRgss(resolved.contentRoot) ? apiOk({ quit: true }) : apiBadRequest('No managed RGSS game is running', 'NOT_RUNNING')
+  }
 
   if (!anyWebConnected() && !getGamePresence().online) {
     clearGameQuitRequest()

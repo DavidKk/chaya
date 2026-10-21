@@ -5,6 +5,19 @@ const CORE_FILES: Record<'MZ' | 'MV', readonly string[]> = {
   MV: ['rpg_core.js', 'rpg_managers.js', 'rpg_objects.js', 'rpg_scenes.js', 'rpg_sprites.js', 'rpg_windows.js'],
 }
 
+/** Exact engine versions retained as diagnostic reference points, not support or compatibility gates. */
+export const HISTORICAL_COMMON_ENGINE_VERSIONS = {
+  MV: '1.6.2',
+  MZ: '1.8.1',
+} as const
+
+export type EngineVersionTrack = 'historical-common' | 'other' | 'unknown'
+
+export function classifyEngineVersion(name: EngineName, version: string | null): EngineVersionTrack {
+  if (!version || (name !== 'MV' && name !== 'MZ')) return 'unknown'
+  return version === HISTORICAL_COMMON_ENGINE_VERSIONS[name] ? 'historical-common' : 'other'
+}
+
 /** 优先读来定版本的核心文件 */
 export const ENGINE_CORE_CANDIDATES = ['rmmz_core.js', 'rpg_core.js'] as const
 
@@ -36,7 +49,7 @@ export function parseLibVersion(head: string): string | null {
 export function engineFromFiles(jsFiles: readonly string[]): { name: EngineName; coreFiles: string[] } {
   const lower = new Set(jsFiles.map((file) => file.toLowerCase()))
   for (const name of ['MZ', 'MV'] as const) {
-    const coreFiles = CORE_FILES[name].filter((file) => lower.has(file))
+    const coreFiles = CORE_FILES[name].filter((file) => lower.has(file.toLowerCase()))
     if (coreFiles.length) return { name, coreFiles }
   }
   return { name: 'unknown', coreFiles: [] }

@@ -40,6 +40,7 @@ export {
 } from './toolkit-data'
 export {
   type ChayaConfig,
+  isRgssEngine,
   type LibraryEntry,
   type LibraryItemView,
   type LibrarySortMode,
@@ -49,6 +50,7 @@ export {
   type ResolveError,
   SHELL_APP_NAME,
   type SupportedEngine,
+  supportsNativeRgssRuntime,
   TRACKED_PLUGINS,
   type TrackedPlugin,
 } from './types'

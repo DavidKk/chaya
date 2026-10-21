@@ -59,6 +59,7 @@ if (!existsSync(pluginsDist)) {
   process.exit(1)
 }
 copyDir(pluginsDist, path.join(outRoot, 'plugins', 'dist'))
+copyDir(path.join(root, 'plugins', 'rgss'), path.join(outRoot, 'plugins', 'rgss'))
 
 const nativeBin = path.join(root, 'native', 'bin')
 if (existsSync(nativeBin)) copyDir(nativeBin, path.join(outRoot, 'native', 'bin'))

@@ -73,21 +73,23 @@ function relative(projectRoot: string, target: string): string {
 function collectEngine(contentRoot: string) {
   const jsDir = path.join(contentRoot, 'js')
   const jsFiles = listDir(jsDir)
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.js'))
     .map((entry) => entry.name)
   const libs: EngineLib[] = listDir(path.join(jsDir, 'libs'))
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.js'))
     .map((entry) => ({ name: entry.name, version: parseLibVersion(readHead(path.join(jsDir, 'libs', entry.name), LIB_HEAD_BYTES) ?? '') }))
 
   let coreSource: string | null = null
+  const filesByLowerName = new Map(jsFiles.map((file) => [file.toLowerCase(), file]))
   for (const file of ENGINE_CORE_CANDIDATES) {
-    if (jsFiles.includes(file)) {
-      coreSource = readHead(path.join(jsDir, file), CORE_READ_BYTES)
+    const actual = filesByLowerName.get(file.toLowerCase())
+    if (actual) {
+      coreSource = readHead(path.join(jsDir, actual), CORE_READ_BYTES)
       break
     }
   }
   if (!coreSource) {
-    const probes = jsFiles.filter((file) => file !== 'plugins.js').slice(0, MAX_BUNDLED_SCRIPT_PROBES)
+    const probes = jsFiles.filter((file) => file.toLowerCase() !== 'plugins.js').slice(0, MAX_BUNDLED_SCRIPT_PROBES)
     for (const file of probes) {
       const source = readHead(path.join(jsDir, file), CORE_READ_BYTES)
       if (source && parseCoreScript(source).source !== 'none') {

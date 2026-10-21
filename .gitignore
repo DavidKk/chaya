@@ -68,6 +68,8 @@ shiru-kit.config.json
 # 官方 NW.js 下载解压缓存
 /data/shell-cache/
 !/data/shell-cache/.gitkeep
+# Native RGSS runtime downloads, per-game bundles and launch logs
+/data/rgss-runtime/
 # 旧路径兼容（迁移前曾装在 data 根）
 /data/Chaya.app/
 /data/ShiruKit.app/

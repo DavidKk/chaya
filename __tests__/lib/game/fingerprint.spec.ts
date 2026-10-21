@@ -1,6 +1,7 @@
 import {
   buildPluginInfo,
   chromiumFromFrameworkVersions,
+  classifyEngineVersion,
   detectEngine,
   parseCoreScript,
   parseLibVersion,
@@ -37,6 +38,13 @@ describe('engine detection', () => {
     expect(detectEngine({ jsFiles: ['main.js'], libs: [{ name: 'effekseer.min.js', version: null }] }).name).toBe('MZ')
     expect(detectEngine({ jsFiles: ['main.js'], libs: [{ name: 'pixi.js', version: '4.5.4' }] }).name).toBe('MV')
     expect(detectEngine({ jsFiles: ['game.js'] })).toMatchObject({ name: 'unknown', source: 'none' })
+  })
+
+  test('marks the historical common MV/MZ releases without rejecting other versions', () => {
+    expect(classifyEngineVersion('MV', '1.6.2')).toBe('historical-common')
+    expect(classifyEngineVersion('MZ', '1.8.1')).toBe('historical-common')
+    expect(classifyEngineVersion('MV', '1.0.0')).toBe('other')
+    expect(classifyEngineVersion('MZ', null)).toBe('unknown')
   })
 
   test('reads library versions from file headers', () => {

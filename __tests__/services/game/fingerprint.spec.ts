@@ -90,3 +90,11 @@ test('reuses the cached result until watched files change', () => {
   fs.utimesSync(pluginsJs, later, later)
   expect(getGameFingerprint(resolved())).not.toBe(first)
 })
+
+test('recognizes historical MV/MZ core files with casing preserved by the filesystem', () => {
+  const core = path.join(content, 'js', 'RPG_CORE.JS')
+  fs.renameSync(path.join(content, 'js', 'rmmz_core.js'), core)
+  write(core, '// rpg_core.js v1.6.2\nUtils.RPGMAKER_NAME = "MV";\nUtils.RPGMAKER_VERSION = "1.6.2";')
+  const fingerprint = getGameFingerprint(resolved())!
+  expect(fingerprint.engine).toMatchObject({ name: 'MV', version: '1.6.2', source: 'constant' })
+})

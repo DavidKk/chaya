@@ -60,13 +60,26 @@ export function normalizeAiConfig(raw: unknown): TranslateAiConfig {
   return { profileId: shortString(src.profileId), model: shortString(src.model) }
 }
 
-export function normalizeEngineSwitches(raw: unknown): TranslateEngineSwitches {
+function extractRawSwitches(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const src = raw as Record<string, unknown>
+  if ('switches' in src && src.switches && typeof src.switches === 'object' && !Array.isArray(src.switches)) {
+    return src.switches as Record<string, unknown>
+  }
+  if (TRANSLATE_ENGINE_IDS.some((id) => id in src)) {
+    return src
+  }
+  return null
+}
+
+export function normalizeEngineSwitches(raw: unknown, base?: unknown): TranslateEngineSwitches {
   const src = asRecord(raw)
+  const fallback = base ? normalizeEngineSwitches(base) : DEFAULT_ENGINE_SWITCHES
   return {
-    bing: src.bing !== false,
-    google: src.google !== false,
-    apple: src.apple === true,
-    bergamot: src.bergamot === true,
+    bing: typeof src.bing === 'boolean' ? src.bing : fallback.bing,
+    google: typeof src.google === 'boolean' ? src.google : fallback.google,
+    apple: typeof src.apple === 'boolean' ? src.apple : fallback.apple,
+    bergamot: typeof src.bergamot === 'boolean' ? src.bergamot : fallback.bergamot,
   }
 }
 
@@ -128,8 +141,8 @@ function isOn(key: TranslateEngineId, switches: TranslateEngineSwitches, agents:
 /** Merge saved settings with a patch; all engines may be disabled and translation reports that state. */
 export function mergeEngineState(raw: unknown, patch?: TranslateEnginePatch): TranslateEngineState {
   const src = asRecord(raw)
-  const current = normalizeEngineSwitches(src)
-  const switches = patch?.switches ? normalizeEngineSwitches({ ...current, ...patch.switches }) : current
+  const current = normalizeEngineSwitches(extractRawSwitches(raw))
+  const switches = patch?.switches ? normalizeEngineSwitches(patch.switches, current) : current
   const agents = normalizeAgentEntries(patch?.agents !== undefined ? patch.agents : src.agents)
   const order = normalizeEngineOrder(patch?.order ?? src.order, agents)
   const enabled = TRANSLATE_GROUP_ORDER.flatMap((group) => order.filter((key) => engineGroup(key) === group && isOn(key, switches, agents)))

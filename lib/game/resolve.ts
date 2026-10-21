@@ -4,8 +4,8 @@ import path from 'node:path'
 import { ROOT_PATH } from '@/constants/paths'
 
 import { findEnclosingLinuxBinary, findEnclosingWinExe, isWin32, validShellExists } from './shell-layout'
-import { resolveToolkitShellAppPath } from './toolkit-data'
-import { LEGACY_PROJECT_SHELL_NAMES, type ResolvedGame, type ResolveError, SHELL_APP_NAME } from './types'
+import { isRgssRuntimeInstalled, resolveToolkitShellAppPath, toolkitRgssBinary } from './toolkit-data'
+import { LEGACY_PROJECT_SHELL_NAMES, type ResolvedGame, type ResolveError, SHELL_APP_NAME, supportsNativeRgssRuntime } from './types'
 import { detectRgssEngine, detectUnsupportedEngine, type RgssEngine, type UnsupportedEngine, unsupportedEngineMessage } from './unsupported-engine'
 
 const RGSS_ASSET_DIRS = new Set(['data', 'system', 'graphics', 'audio', 'fonts'])
@@ -234,10 +234,10 @@ export function resolveGame(input: string, toolkitRoot = ROOT_PATH): ResolvedGam
     projectRoot: path.resolve(projectRoot),
     kind: 'rgss',
     engine: engine === 'RPG Maker VX Ace' ? 'VX Ace' : 'VX',
-    shellApp: rgssExecutable(projectRoot) || path.resolve(projectRoot),
-    hasShell: Boolean(rgssExecutable(projectRoot)),
+    shellApp: process.platform === 'darwin' ? toolkitRgssBinary(toolkitRoot) : rgssExecutable(projectRoot) || path.resolve(projectRoot),
+    hasShell: process.platform === 'darwin' ? isRgssRuntimeInstalled(toolkitRoot) : supportsNativeRgssRuntime() && Boolean(rgssExecutable(projectRoot)),
     hasWwwLayout: false,
-    bundled: true,
+    bundled: process.platform === 'win32',
   })
 
   // Windows / Linux：直接选中可执行文件 → 旁挂 www / package.nw

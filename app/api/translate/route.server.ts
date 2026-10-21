@@ -208,6 +208,15 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
 
     if (body.mode === 'extract-items') {
       const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const resolved = resolveGame(root)
+      if (resolved?.ok && (resolved.engine === 'VX Ace' || resolved.engine === 'VX')) {
+        const { loadRgssTranslationItems } = await import('@/services/extract/lib/rgss')
+        try {
+          return apiOk({ items: loadRgssTranslationItems(root), engine: resolved.engine, contentRoot: root })
+        } catch (error) {
+          return apiError(409, 'RGSS_DATA_UNAVAILABLE', error instanceof Error ? error.message : String(error))
+        }
+      }
       const { loadExtractedItemsWithLocales } = await import('@/services/extract/lib/extract-items')
       const sourceLang = typeof body.sourceLang === 'string' ? body.sourceLang : undefined
       const targetLang = typeof body.targetLang === 'string' ? body.targetLang : undefined
@@ -249,14 +258,22 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
 
     if (body.mode === 'rgss-write') {
       const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      if (body.contentRoot !== root) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload the translation list')
       const translations = body.translations && typeof body.translations === 'object' ? body.translations : null
       if (!translations || Array.isArray(translations)) return apiError(400, 'RGSS_WRITE_INPUT', 'Missing translations')
+      if (Object.entries(translations).some(([source, target]) => typeof source !== 'string' || typeof target !== 'string')) {
+        return apiError(400, 'RGSS_WRITE_INPUT', 'translations must contain only string keys and string values')
+      }
       const resolved = resolveGame(root)
       if (!resolved.ok || (resolved.engine !== 'VX Ace' && resolved.engine !== 'VX')) {
         return apiError(400, 'RGSS_WRITE_ENGINE', 'RGSS writeback requires a VX Ace or VX project')
       }
       const { writeRgssTranslations } = await import('@/services/extract/lib/rgss')
-      return apiOk({ engine: resolved.engine, ...writeRgssTranslations(root, translations as Record<string, string>) })
+      try {
+        return apiOk({ engine: resolved.engine, ...writeRgssTranslations(root, translations as Record<string, string>) })
+      } catch (error) {
+        return apiError(409, 'RGSS_WRITE_FAILED', error instanceof Error ? error.message : String(error))
+      }
     }
 
     if (body.mode === 'reset-item') {

@@ -1,6 +1,7 @@
 import { POST } from '@/app/api/translate/route.server'
 import { resolveGame } from '@/lib/game'
 import { hasManagementAccess } from '@/services/access/management'
+import { loadRgssTranslationItems, writeRgssTranslations } from '@/services/extract/lib/rgss'
 import { peekLaunchToken } from '@/services/runtime/launch-token'
 import { agentJaToZh, listTranslateAgents } from '@/services/translate/agent-translate'
 import { resolveTranslateContentRoot } from '@/services/translate/fill-missing'
@@ -12,6 +13,7 @@ jest.mock('@/services/access/api', () => ({ mayAccessApi: jest.fn(async () => tr
 jest.mock('@/services/access/management', () => ({ hasManagementAccess: jest.fn() }))
 jest.mock('@/services/runtime/launch-token', () => ({ peekLaunchToken: jest.fn() }))
 jest.mock('@/lib/game', () => ({ resolveGame: jest.fn() }))
+jest.mock('@/services/extract/lib/rgss', () => ({ loadRgssTranslationItems: jest.fn(), writeRgssTranslations: jest.fn() }))
 jest.mock('@/services/disk-ops', () => ({ requireDisk: () => null }))
 jest.mock('@/services/translate/fill-missing', () => ({ resolveTranslateContentRoot: jest.fn() }))
 jest.mock('@/services/translate/play-settings', () => ({ getTranslationPlaySettings: jest.fn(), setTranslationPlaySettings: jest.fn() }))
@@ -32,6 +34,44 @@ const post = (body: unknown) =>
 
 beforeEach(() => {
   jest.mocked(resolveTranslateContentRoot).mockReturnValue('/games/B')
+})
+
+it('loads RGSS rows with their engine and bound root in the same response', async () => {
+  jest.mocked(hasManagementAccess).mockReturnValue(true)
+  jest.mocked(resolveGame).mockReturnValue({ ok: true, contentRoot: '/games/B', engine: 'VX Ace' } as ReturnType<typeof resolveGame>)
+  jest.mocked(loadRgssTranslationItems).mockReturnValue([])
+  const response = await post({ mode: 'extract-items' })
+  expect(await response.json()).toMatchObject({ ok: true, items: [], engine: 'VX Ace', contentRoot: '/games/B' })
+})
+
+it('rejects RGSS saves from a previously selected game', async () => {
+  jest.mocked(hasManagementAccess).mockReturnValue(true)
+  const response = await post({ mode: 'rgss-write', contentRoot: '/games/A', translations: { Hello: '你好' } })
+  expect(response.status).toBe(409)
+  expect((await response.json()).error.code).toBe('GAME_CHANGED')
+  expect(writeRgssTranslations).not.toHaveBeenCalled()
+})
+
+it('reports unavailable encrypted RGSS data as a recoverable conflict', async () => {
+  jest.mocked(hasManagementAccess).mockReturnValue(true)
+  jest.mocked(resolveGame).mockReturnValue({ ok: true, contentRoot: '/games/B', engine: 'VX Ace' } as ReturnType<typeof resolveGame>)
+  jest.mocked(loadRgssTranslationItems).mockImplementationOnce(() => {
+    throw new Error('Unpack Data first')
+  })
+  const response = await post({ mode: 'extract-items' })
+  expect(response.status).toBe(409)
+  expect((await response.json()).error).toMatchObject({ code: 'RGSS_DATA_UNAVAILABLE', message: 'Unpack Data first' })
+})
+
+it('reports failed RGSS writes instead of acknowledging a save', async () => {
+  jest.mocked(hasManagementAccess).mockReturnValue(true)
+  jest.mocked(resolveGame).mockReturnValue({ ok: true, contentRoot: '/games/B', engine: 'VX' } as ReturnType<typeof resolveGame>)
+  jest.mocked(writeRgssTranslations).mockImplementationOnce(() => {
+    throw new Error('RGSS source not found')
+  })
+  const response = await post({ mode: 'rgss-write', contentRoot: '/games/B', translations: { Hello: '你好' } })
+  expect(response.status).toBe(409)
+  expect((await response.json()).error).toMatchObject({ code: 'RGSS_WRITE_FAILED', message: 'RGSS source not found' })
 })
 
 it('translates the launch credential game even when the console is bound to another game', async () => {

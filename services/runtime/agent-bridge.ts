@@ -133,9 +133,23 @@ export function callAgentGame<M extends AgentMethod>(roomId: string, method: M, 
       reject(new AgentBridgeError(`游戏 ${timeoutMs / 1000}s 内未响应（可能停在加载或已关闭）`))
     }, timeoutMs)
     s.pending.set(id, { resolve, reject, timer })
-    s.queue.push({ id, method, params } as AgentCommand)
+    s.queue.push({ id, method, params, deadline: Date.now() + timeoutMs } as AgentCommand)
     s.wake?.()
   })
+}
+
+/** Test helper */
+export function disconnectAgentGame(roomId: string) {
+  const s = board().get(roomId)
+  if (!s) return
+  board().delete(roomId)
+  s.queue = []
+  for (const p of s.pending.values()) {
+    clearTimeout(p.timer)
+    p.reject(new AgentBridgeError('Game session ended'))
+  }
+  s.pending.clear()
+  s.wake?.()
 }
 
 /** Test helper */

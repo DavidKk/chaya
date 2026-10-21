@@ -14,6 +14,15 @@ import type { UnsupportedEngine } from './unsupported-engine'
 
 export type SupportedEngine = 'MV' | 'MZ' | 'VX Ace' | 'VX'
 
+export function isRgssEngine(engine?: string | null): engine is 'VX Ace' | 'VX' {
+  return engine === 'VX Ace' || engine === 'VX'
+}
+
+/** RGSS's native Game.exe can only be launched directly on Windows. */
+export function supportsNativeRgssRuntime(platform = process.platform): boolean {
+  return platform === 'win32'
+}
+
 export { SHELL_APP_NAME, SHELL_WIN_DIR_NAME }
 
 /** 游戏库条目（本地多游戏列表，当前选中仍用 gameRoot） */
@@ -64,7 +73,7 @@ export type ResolvedGame = {
   /** 游戏项目根（www 的上一级或内容根本身）；bundled 时为包根 / exe 所在目录 */
   projectRoot: string
   kind: 'content-root' | 'www' | 'app.nw' | 'rgss' | 'remote'
-  /** Detected engine family. RGSS games are supported for offline data operations. */
+  /** Detected engine family. RGSS uses Game.exe on Windows / mkxp-z on macOS. */
   engine?: SupportedEngine
   /** 启动用壳：共用 data/shell/…，或 bundled 时为 .app / Game.exe */
   shellApp: string

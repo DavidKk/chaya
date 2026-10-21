@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 type EmptyStateProps = {
+  role?: 'status' | 'alert'
   title: string
   message?: string
   hint?: string
@@ -18,7 +19,7 @@ type EmptyStateProps = {
 }
 
 /** 空态：面板占满居中，或卡片内紧凑（见 `density`）。 */
-export function EmptyState({ title, message, hint, children, density = 'panel', className }: EmptyStateProps) {
+export function EmptyState({ title, message, hint, children, density = 'panel', className, role = 'status' }: EmptyStateProps) {
   const compact = density === 'compact'
   return (
     <div
@@ -28,7 +29,7 @@ export function EmptyState({ title, message, hint, children, density = 'panel', 
         compact ? 'p-0' : 'min-h-48 flex-1 px-6 py-12',
         className
       )}
-      role="status"
+      role={role}
     >
       <div className="max-w-md text-center">
         <p className="m-0 text-xs font-medium text-ink-soft">{title}</p>

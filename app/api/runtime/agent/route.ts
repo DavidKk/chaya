@@ -29,7 +29,8 @@ export const POST = defineApiRoute('post:/api/runtime/agent', async ({ request }
   const commands = await pollAgentCommands(roomId, {
     info: sanitizeAgentGameInfo(body?.info),
     results: Array.isArray(body?.results) ? body.results : [],
-    waitMs: AGENT_POLL_WAIT_MS,
+    // Ruby's network thread cannot be woken by frame-thread results during a long poll.
+    waitMs: body?.info?.plugins?.includes('ChayaRGSS') ? 1_000 : AGENT_POLL_WAIT_MS,
     signal: request.signal,
   })
   return json({ ok: true, commands } satisfies AgentPollResponse, { headers: CORS })

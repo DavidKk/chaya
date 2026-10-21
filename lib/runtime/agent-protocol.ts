@@ -31,7 +31,9 @@ export const AGENT_MOVE_MAX_MS = 12_000
 /** Walk + dialogue budget of one `player.interact`; below AGENT_CALL_TIMEOUT_MS as well */
 export const AGENT_INTERACT_MAX_MS = 12_000
 
-export type AgentCommand =
+export type AgentCommand = AgentCommandBody & { deadline?: number }
+
+type AgentCommandBody =
   | { id: string; method: 'game.state'; params: Record<string, never> }
   | { id: string; method: 'game.ui'; params: Record<string, never> }
   | {

@@ -8,6 +8,8 @@ export const DATA_DIR_NAME = 'data'
 export const SHELL_DIR_NAME = 'shell'
 /** Official NW.js download/extract cache (temp / reuse before shell install) */
 export const SHELL_CACHE_DIR_NAME = 'shell-cache'
+/** Native RGSS runtime, verified downloads and per-game launch directories. */
+export const RGSS_RUNTIME_DIR_NAME = 'rgss-runtime'
 export const TRANSLATE_CACHE_DIR_NAME = 'translate-cache'
 export const TRANSLATE_CACHE_DB_NAME = 'shared.sqlite'
 /** Seed translation background job state directory */

@@ -3,6 +3,8 @@ import { apiBadRequest, apiError, apiOk } from '@/initializer/response'
 import { getResolvedFromConfig, installShell, isShellInstalling, isToolkitShellInstalled, requireDisk, saveConfig, uninstallToolkitShell } from '@/services/disk-ops'
 import { findRunningJob } from '@/services/downloads/jobs'
 import { getNwShellUpdate } from '@/services/game/nw-update'
+import { getRgssShellUpdate, startRgssInstallJob } from '@/services/game/rgss-install'
+import { anyRgssRunning, uninstallRgssRuntime } from '@/services/game/rgss-runtime'
 import { startLatestShellJob } from '@/services/game/shell-job'
 
 export const runtime = 'nodejs'
@@ -13,7 +15,10 @@ export const GET = defineApiRoute('get:/api/shell', async () => {
   const denied = requireDisk()
   if (denied) return denied
   const resolved = getResolvedFromConfig()
-  if (!resolved.ok || resolved.remote || resolved.bundled || !resolved.hasShell) return apiOk({ available: false })
+  if (!resolved.ok || resolved.remote || resolved.bundled || !resolved.hasShell) {
+    return apiOk({ available: false })
+  }
+  if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') return apiOk(await getRgssShellUpdate())
   return apiOk(await getNwShellUpdate(resolved.shellApp))
 })
 
@@ -41,7 +46,14 @@ export const POST = defineApiRoute('post:/api/shell', async ({ request }) => {
     return apiBadRequest('Remote game cannot install shell locally', 'REMOTE_READ_ONLY')
   }
   if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
-    return apiBadRequest('VX Ace / VX games use their native Game.exe and do not need an NW.js shell', 'RGSS_NATIVE_RUNTIME')
+    if (process.platform !== 'darwin') return apiBadRequest('mkxp-z automatic installation currently supports macOS only', 'RGSS_PLATFORM')
+    if (anyRgssRunning()) return apiError(409, 'ALREADY_RUNNING', 'Quit the RGSS game before installing its runtime')
+    if (!body.fetchLatest) return apiBadRequest('Use Download Latest to install the native mkxp-z runtime', 'RGSS_RUNTIME_SOURCE')
+    const { job, done, reused } = startRgssInstallJob()
+    if (!body.wait) return apiOk({ job, reused }, { status: 202 })
+    const finished = await done
+    if (finished.status !== 'done') return apiBadRequest(finished.error || 'Download cancelled')
+    return apiOk({ ...finished.result, job: finished })
   }
 
   try {
@@ -75,6 +87,16 @@ export const POST = defineApiRoute('post:/api/shell', async ({ request }) => {
 export const DELETE = defineApiRoute('delete:/api/shell', async () => {
   const denied = requireDisk()
   if (denied) return denied
+
+  const resolved = getResolvedFromConfig()
+  if (resolved.ok && !resolved.remote && (resolved.engine === 'VX Ace' || resolved.engine === 'VX')) {
+    if (findRunningJob('rgss-shell')) return apiError(409, 'SHELL_JOB_RUNNING', 'mkxp-z installation is in progress')
+    try {
+      return apiOk(uninstallRgssRuntime())
+    } catch (error) {
+      return apiBadRequest(error instanceof Error ? error.message : String(error))
+    }
+  }
 
   if (findRunningJob('nw-shell') || isShellInstalling()) return shellJobRunning()
   if (!isToolkitShellInstalled()) {

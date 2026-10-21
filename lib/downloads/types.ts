@@ -3,7 +3,7 @@
 export type DownloadStatus = 'running' | 'done' | 'error' | 'canceled'
 
 /** 服务端后台下载的种类；前端按种类组装本地化标题 */
-export type ServerDownloadKind = 'nw-shell'
+export type ServerDownloadKind = 'nw-shell' | 'rgss-shell'
 
 /** 服务端阶段：resolve 查版本 → download 下载 → extract 解压 → install 安装 */
 export type ServerDownloadPhase = 'resolve' | 'download' | 'extract' | 'install'

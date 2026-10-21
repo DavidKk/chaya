@@ -55,11 +55,19 @@ export function ShellActionsMenu(props: Props) {
       if (!settled) setShellVersion('checking')
       void fetch('/api/shell', { signal: abort.signal })
         .then(async (response) => {
-          const data = (await response.json()) as { available?: boolean; currentChromium?: string; latestChromium?: string }
+          const data = (await response.json()) as {
+            available?: boolean
+            upToDate?: boolean
+            currentChromium?: string
+            latestChromium?: string
+            currentVersion?: string
+            latestVersion?: string
+          }
           if (abort.signal.aborted) return
           if (!response.ok) settle('unknown')
           else if (data.available === true) settle('outdated')
-          else settle(data.currentChromium && data.latestChromium ? 'latest' : 'unknown')
+          else if (data.upToDate === true || (data.currentChromium && data.latestChromium) || (data.currentVersion && data.latestVersion)) settle('latest')
+          else settle('unknown')
         })
         .catch(() => {
           if (!abort.signal.aborted) settle('unknown')

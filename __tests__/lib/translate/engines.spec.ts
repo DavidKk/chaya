@@ -69,4 +69,18 @@ describe('translate engines', () => {
     })
     expect(state.agents.map((a) => a.id)).toEqual(['a1', 'a3'])
   })
+
+  it('preserves disabled engines when patching other switches or agent list', () => {
+    const state = mergeEngineState({ bing: false, google: false })
+    expect(state.switches).toEqual({ bing: false, google: false, apple: false, bergamot: false })
+
+    const withApple = mergeEngineState(state, { switches: { apple: true } })
+    expect(withApple.switches).toEqual({ bing: false, google: false, apple: true, bergamot: false })
+
+    const withAgent = mergeEngineState(withApple, {
+      agents: [{ id: 'a1', profileId: 'p1', model: '', enabled: true }],
+    })
+    expect(withAgent.switches).toEqual({ bing: false, google: false, apple: true, bergamot: false })
+    expect(withAgent.enabled).toEqual(['agent:a1', 'apple'])
+  })
 })

@@ -3,11 +3,13 @@ import path from 'node:path'
 
 import { ensureGameContentDir, gameContentReadPath } from '@/lib/game/content-files'
 import { detectSourceLanguage, isSourceText, type SourceLanguageOption } from '@/lib/translate/source-text'
+import { loadGameTranslateLookup } from '@/services/translate/game-lookup'
 
-import { collectAllStrings, compareWithManual } from './compare'
+import { compareWithManual } from './compare'
 import { extractDataFields } from './data-fields'
 import { extractDialogueFromEvents } from './dialogue'
-import { parseRubyMarshal, rubyString, rubyToPlain, type RubyValue, writeRubyMarshal } from './rgss/marshal'
+import { parseRubyMarshal, rubyToPlain, type RubyValue } from './rgss/marshal'
+import { loadRgssItems, writeRgssData } from './rgss/writeback'
 import { clean, isUseful } from './text'
 
 const DATABASE_FIELDS: Record<string, { fields: string[]; category: string }> = {
@@ -48,7 +50,8 @@ function extensionFor(dataDir: string): '.rvdata2' | '.rvdata' | null {
 
 function loadRuby(file: string): RubyValue | null {
   try {
-    return parseRubyMarshal(fs.readFileSync(file))
+    const original = `${file}.chaya.bak`
+    return parseRubyMarshal(fs.readFileSync(fs.existsSync(original) ? original : file))
   } catch (error) {
     console.warn(`[extract] Skipping invalid RGSS data ${file}:`, error instanceof Error ? error.message : error)
     return null
@@ -149,13 +152,7 @@ function listDataFiles(dataDir: string, extension: string): string[] {
 
 export function looksLikeRgssProject(contentRoot: string): boolean {
   const dataDir = rgssDataDir(contentRoot)
-  if (!dataDir || !extensionFor(dataDir)) return false
-  try {
-    const root = fs.readdirSync(contentRoot).map((name) => name.toLowerCase())
-    return root.includes('game.exe') || root.includes('game.rgss3a') || root.includes('game.rgss2a')
-  } catch {
-    return false
-  }
+  return Boolean(dataDir && extensionFor(dataDir))
 }
 
 export function runRgssExtract(contentRoot: string, options?: { sourceLanguage?: SourceLanguageOption }) {
@@ -172,10 +169,11 @@ export function runRgssExtract(contentRoot: string, options?: { sourceLanguage?:
     for (const text of extractDataFields(value)) candidates.add(text)
   }
   db.dataFields = [...candidates]
-  const knownSources = collectAllStrings(dialogue, db)
+  // Offline writeback uses whole Marshal string slots, not runtime sentence fragments.
+  const knownSources = new Set(loadRgssItems(dataDir).map((item) => item.src))
   const sourceLanguage = options?.sourceLanguage && options.sourceLanguage !== 'auto' ? options.sourceLanguage : detectSourceLanguage(knownSources, undefined)
   const allStrings = new Set([...knownSources].filter((text) => isSourceText(text, sourceLanguage)))
-  const originalStrings = new Set([...collectAllStrings(dialogue, db, { original: true })].filter((text) => isSourceText(text, sourceLanguage)))
+  const originalStrings = new Set(allStrings)
   const counts: Record<string, number> = {
     dialogueBlocks: dialogue.length,
     dialogueLines: new Set(dialogue.flatMap((block) => block.lines || [])).size,
@@ -212,39 +210,15 @@ export function runRgssExtract(contentRoot: string, options?: { sourceLanguage?:
   return { OUT: out, COMPARE: compareFile, allStrings, originalStrings, dialogue, counts, compare }
 }
 
-function replaceRubyStrings(value: RubyValue, translations: Map<string, string>): number {
-  if (rubyString(value)) {
-    const translated = translations.get(value.value)
-    if (translated != null && translated !== value.value) {
-      value.value = translated
-      return 1
-    }
-    return 0
-  }
-  if (!value || typeof value !== 'object') return 0
-  if (value.kind === 'array') return value.items.reduce<number>((sum, item) => sum + replaceRubyStrings(item, translations), 0)
-  if (value.kind === 'hash') return value.pairs.reduce<number>((sum, pair) => sum + replaceRubyStrings(pair.key, translations) + replaceRubyStrings(pair.value, translations), 0)
-  if (value.kind === 'object') return value.ivars.pairs.reduce<number>((sum, pair) => sum + replaceRubyStrings(pair.value, translations), 0)
-  return 0
+export function writeRgssTranslations(contentRoot: string, translations: Record<string, string>) {
+  const dataDir = rgssDataDir(contentRoot)
+  if (!dataDir) throw new Error('RGSS Data/ directory not found')
+  return writeRgssData(dataDir, translations)
 }
 
-export function writeRgssTranslations(contentRoot: string, translations: Record<string, string>): { files: number; replacements: number } {
+export function loadRgssTranslationItems(contentRoot: string) {
   const dataDir = rgssDataDir(contentRoot)
-  const extension = dataDir && extensionFor(dataDir)
-  if (!dataDir || !extension) throw new Error(`RGSS Data/ directory not found: ${contentRoot}`)
-  const map = new Map(Object.entries(translations).filter(([src, zh]) => src.trim() && zh.trim() && src !== zh))
-  let files = 0
-  let replacements = 0
-  for (const file of listDataFiles(dataDir, extension)) {
-    const parsed = loadRuby(file)
-    if (!parsed) continue
-    const changed = replaceRubyStrings(parsed, map)
-    if (!changed) continue
-    const backup = `${file}.chaya.bak`
-    if (!fs.existsSync(backup)) fs.copyFileSync(file, backup)
-    fs.writeFileSync(file, writeRubyMarshal(parsed))
-    files += 1
-    replacements += changed
-  }
-  return { files, replacements }
+  if (!dataDir) throw new Error('RGSS Data/ directory not found. Unpack the encrypted archive first.')
+  const lookup = loadGameTranslateLookup(contentRoot)
+  return loadRgssItems(dataDir).map((item) => ({ ...item, zh: item.zh || lookup[item.src] || '' }))
 }

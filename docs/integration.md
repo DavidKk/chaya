@@ -54,6 +54,14 @@
 5. 局内修改（`/cheat`）、翻译（`/translate`：抽取 → 补译 → 翻译库）、日志（`/logs`）的入口与典型流程。
 6. Cloud 形态的启动差异：浏览器写好插件与壳后，由用户本机双击启动。
 
+VX Ace / VX 在本机 dev / App 中支持实验性的原生启动：macOS 在游戏操作栏安装 **mkxp-z**，Windows 直接使用 `Game.exe`，不需要 Wine / CrossOver，也不使用 NW.js。mkxp-z 从官方仓库成功的 `dev` push 构建下载并校验 SHA-256，下载、Ruby 兼容预载、每个游戏的 `.app` 和启动日志隔离在 `data/rgss-runtime/`；不改写原始 `Game.ini` 或加密归档。运行状态来自受管理的子进程，关闭游戏不依赖 WebRTC。部分 Windows API、CAMouse 与 tktk_bitmap 调用有原生适配，未实现的 DLL 调用会明确报错；不承诺所有游戏兼容，不支持 MV/MZ 的 JavaScript 插件与局内控制台。
+
+兼容预载会解析松散资源的大小写差异，并在 Windows 字体缺失时优先回退到游戏自带的 VL / Noto / UmePlus 字体，不安装系统字体。已在 Apple Silicon macOS 上直接从外置 HFS+ 游戏目录启动《Rei and the Floating City v1.02》到标题菜单；这不代表已验证完整流程或所有 VX / VX Ace 游戏。进程管理仅在当前 Chaya 服务会话内有效，重启服务前应先退出游戏。
+
+离线数据翻译仍需先将 `Game.rgss3a` / `Game.rgss2a` 解包到游戏的 `Data/`，再打开翻译列表编辑并保存；Chaya 不自动解包游戏资产。
+
+首次写回会在被修改的数据文件旁建立 `.chaya.bak`，后续编辑继续按该备份中的原文定位；相同原文会一起更新。每页批量保存以一次请求处理，失败不会标记为已保存。恢复前先关闭游戏，再用对应备份覆盖数据文件；恢复后重新加载翻译列表。请保留备份，若游戏更新改变数据结构，应先恢复/重新确认基线，不要混用旧备份。
+
 ### 3.3 `chaya-mcp` — Agent 通过 MCP 控制 Chaya
 
 1. 前提：本机 dev / App（本地 MCP，全部工具），或只用 Cloud 且已给游戏「安装插件」并打开游戏（插件 MCP，局内工具）。

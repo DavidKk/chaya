@@ -3,6 +3,7 @@ import path from 'node:path'
 import { defineApiRoute } from '@/initializer/controller'
 import { apiBadRequest, apiOk, json } from '@/initializer/response'
 import { resolveToolkitShellAppPath } from '@/lib/game'
+import { classifyEngineVersion, type EngineVersionTrack } from '@/lib/game/fingerprint'
 import { nwGameDisplayName } from '@/lib/game/nw-window'
 import { countReadyPlugins } from '@/lib/game/plugins-status'
 import { looksLikeNwShellSource } from '@/lib/game/shell-layout'
@@ -32,7 +33,9 @@ import {
   upsertLibraryEntry,
 } from '@/services/game'
 import { acceptGameBindEpoch, peekGameBindEpoch } from '@/services/game/bind-epoch'
+import { rgssRuntimeStatus } from '@/services/game/rgss-runtime'
 import { anyWebConnected, detectLanApiBases, getGamePresence, preferredPluginApiBase, toolkitListenPort } from '@/services/runtime'
+import { hasAnyGameConnected, startBridgeWsServer } from '@/services/runtime/bridge-ws-server'
 import { getSharedTranslateCacheStats } from '@/services/translate'
 import { gameCacheFileStats } from '@/services/translate/cache-file-stats'
 
@@ -42,7 +45,8 @@ function runtimePayload() {
   const port = toolkitListenPort()
   const presence = getGamePresence()
   // 权威在线：WebRTC DataChannel；HTTP presence 仅作兼容/远程入库痕迹
-  const gameOnline = anyWebConnected() || presence.online
+  startBridgeWsServer(3928)
+  const gameOnline = anyWebConnected() || hasAnyGameConnected() || presence.online
   return {
     gameOnline,
     presence,
@@ -161,6 +165,9 @@ export const GET = defineApiRoute('get:/api/status', async () => {
   }
 
   const rgss = resolved.engine === 'VX Ace' || resolved.engine === 'VX'
+  const fingerprint = rgss ? null : getGameFingerprint(resolved)
+  const engineVersion = fingerprint?.engine.version ?? null
+  const engineVersionTrack: EngineVersionTrack = fingerprint ? classifyEngineVersion(fingerprint.engine.name, engineVersion) : 'unknown'
   const switches = rgss ? { file: null, switches: null } : readTranslateSwitches(resolved.contentRoot)
   const nwPackage = rgss ? null : readNwPackage(resolved.contentRoot)
   const contentBytes = measureDirSizeBytes(resolved.contentRoot)
@@ -183,11 +190,13 @@ export const GET = defineApiRoute('get:/api/status', async () => {
     projectRoot: resolved.projectRoot,
     kind: resolved.kind,
     engine: resolved.engine ?? null,
+    engineVersion,
+    engineVersionTrack,
     shellApp: resolved.shellApp,
     hasShell: resolved.hasShell,
     bundled: resolved.bundled,
     /** 工具 data/shell 下是否有用户安装的共用壳（可卸载） */
-    installedShell: rgss ? false : isToolkitShellInstalled(),
+    installedShell: rgss ? process.platform === 'darwin' && resolved.hasShell : isToolkitShellInstalled(),
     /** @deprecated 同 bundled；内容已在 .app 内表示壳就绪，非错误 */
     nestedInApp: resolved.bundled,
     footprint: {
@@ -204,7 +213,7 @@ export const GET = defineApiRoute('get:/api/status', async () => {
     pluginsOutdated: !rgss && pluginsReady >= plugins.length && detectPluginsOutdated(resolved.contentRoot),
     translateSwitches: switches,
     nwPackage,
-    runtime: runtimePayload(),
+    runtime: rgss ? { ...runtimePayload(), gameOnline: rgssRuntimeStatus(resolved.contentRoot).running, native: rgssRuntimeStatus(resolved.contentRoot) } : runtimePayload(),
     host: platformPayload(),
   }
 })
