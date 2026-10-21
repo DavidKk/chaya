@@ -47,6 +47,7 @@ export type Status =
       contentRoot: string
       projectRoot: string
       kind: string
+      engine?: 'MV' | 'MZ' | 'VX Ace' | 'VX' | null
       hasShell: boolean
       bundled: boolean
       /** 工具目录里用户安装的共用壳，可卸载 */

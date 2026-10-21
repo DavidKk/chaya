@@ -1,8 +1,10 @@
-/** Detect game engines Chaya does not support (only RPG Maker MV / MZ); file names only, shared by client and server. */
+/** Detect legacy RPG Maker engines from file names. VX/VX Ace are now supported for offline operations. */
 
 export const UNSUPPORTED_ENGINE_CODE = 'UNSUPPORTED_ENGINE'
 
 export type UnsupportedEngine = 'RPG Maker VX Ace' | 'RPG Maker VX' | 'RPG Maker XP' | 'RPG Maker 2000/2003' | 'Unity'
+
+export type RgssEngine = 'RPG Maker VX Ace' | 'RPG Maker VX'
 
 /** File names under the game root, `Data/` and `System/` */
 export type EngineDirListing = {
@@ -18,6 +20,18 @@ const RGSS_DLL_RE = /^rgss([123])\d*[a-z]?\.dll$/
 const UNITY_FILES = new Set(['unityplayer.dll', 'unitycrashhandler64.exe', 'unitycrashhandler32.exe', 'unityplayer.dylib'])
 
 const lower = (names: readonly string[] | undefined) => (names ?? []).map((name) => name.toLowerCase())
+
+export function detectRgssEngine(listing: EngineDirListing): RgssEngine | null {
+  const root = lower(listing.root)
+  const data = lower(listing.data)
+  if (root.includes('game.rgss3a') || root.some((name) => RGSS_DLL_RE.test(name) && /^rgss3/.test(name)) || data.some((name) => name.endsWith('.rvdata2'))) {
+    return 'RPG Maker VX Ace'
+  }
+  if (root.includes('game.rgss2a') || root.some((name) => RGSS_DLL_RE.test(name) && /^rgss2/.test(name)) || data.some((name) => name.endsWith('.rvdata'))) {
+    return 'RPG Maker VX'
+  }
+  return null
+}
 
 export function detectUnsupportedEngine(listing: EngineDirListing): UnsupportedEngine | null {
   const root = lower(listing.root)
@@ -36,7 +50,7 @@ export function detectUnsupportedEngine(listing: EngineDirListing): UnsupportedE
 }
 
 export function unsupportedEngineMessage(engine: UnsupportedEngine): string {
-  return `不支持该引擎（${engine}），目前只支持 RPG Maker MV / MZ`
+  return `不支持该引擎（${engine}）。目前支持 RPG Maker MV / MZ，以及 VX Ace / VX 的离线数据翻译`
 }
 
 /** Read the unsupported engine name from an API error body */

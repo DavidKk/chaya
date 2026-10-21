@@ -78,6 +78,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'translate-agents'
         | 'extract-items'
         | 'save-item'
+        | 'rgss-write'
         | 'reset-item'
         | 'import-locales-corpus'
         | 'sources'
@@ -93,6 +94,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       targetLang?: string
       source?: string
       target?: string
+      translations?: Record<string, string>
       from?: string
       to?: string
       localesKey?: string
@@ -243,6 +245,18 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
 
       const { saveExtractedItem } = await import('@/services/extract/lib/save-items')
       return apiOk(saveExtractedItem(root, text, zh))
+    }
+
+    if (body.mode === 'rgss-write') {
+      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const translations = body.translations && typeof body.translations === 'object' ? body.translations : null
+      if (!translations || Array.isArray(translations)) return apiError(400, 'RGSS_WRITE_INPUT', 'Missing translations')
+      const resolved = resolveGame(root)
+      if (!resolved.ok || (resolved.engine !== 'VX Ace' && resolved.engine !== 'VX')) {
+        return apiError(400, 'RGSS_WRITE_ENGINE', 'RGSS writeback requires a VX Ace or VX project')
+      }
+      const { writeRgssTranslations } = await import('@/services/extract/lib/rgss')
+      return apiOk({ engine: resolved.engine, ...writeRgssTranslations(root, translations as Record<string, string>) })
     }
 
     if (body.mode === 'reset-item') {

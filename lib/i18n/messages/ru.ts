@@ -122,7 +122,7 @@ export const ru: MessageTree = {
     addedToLibrary: 'Added to library',
     switchedPath: 'Path switched',
     needGamePath: 'Enter game path',
-    unsupportedEngine: 'Unsupported engine ({engine}). Only RPG Maker MV / MZ are supported',
+    unsupportedEngine: 'Unsupported engine ({engine}). Only RPG Maker MV / MZ and offline VX Ace / VX data translation are supported',
     saveFailed: 'Save failed',
     saved: 'Saved',
     loadFailed: 'Load failed',

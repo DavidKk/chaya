@@ -160,14 +160,15 @@ export const GET = defineApiRoute('get:/api/status', async () => {
     }
   }
 
-  const switches = readTranslateSwitches(resolved.contentRoot)
-  const nwPackage = readNwPackage(resolved.contentRoot)
+  const rgss = resolved.engine === 'VX Ace' || resolved.engine === 'VX'
+  const switches = rgss ? { file: null, switches: null } : readTranslateSwitches(resolved.contentRoot)
+  const nwPackage = rgss ? null : readNwPackage(resolved.contentRoot)
   const contentBytes = measureDirSizeBytes(resolved.contentRoot)
   const shellBytes =
     resolved.hasShell && resolved.shellApp !== resolved.contentRoot && !resolved.contentRoot.startsWith(resolved.shellApp + path.sep)
       ? measureDirSizeBytes(resolved.shellApp)
       : null
-  const plugins = detectPlugins(resolved.contentRoot)
+  const plugins = rgss ? [] : detectPlugins(resolved.contentRoot)
   const pluginsReady = countReadyPlugins(plugins)
 
   return {
@@ -181,11 +182,12 @@ export const GET = defineApiRoute('get:/api/status', async () => {
     contentRoot: resolved.contentRoot,
     projectRoot: resolved.projectRoot,
     kind: resolved.kind,
+    engine: resolved.engine ?? null,
     shellApp: resolved.shellApp,
     hasShell: resolved.hasShell,
     bundled: resolved.bundled,
     /** 工具 data/shell 下是否有用户安装的共用壳（可卸载） */
-    installedShell: isToolkitShellInstalled(),
+    installedShell: rgss ? false : isToolkitShellInstalled(),
     /** @deprecated 同 bundled；内容已在 .app 内表示壳就绪，非错误 */
     nestedInApp: resolved.bundled,
     footprint: {
@@ -199,7 +201,7 @@ export const GET = defineApiRoute('get:/api/status', async () => {
     plugins,
     pluginsReady,
     pluginsTotal: plugins.length,
-    pluginsOutdated: pluginsReady >= plugins.length && detectPluginsOutdated(resolved.contentRoot),
+    pluginsOutdated: !rgss && pluginsReady >= plugins.length && detectPluginsOutdated(resolved.contentRoot),
     translateSwitches: switches,
     nwPackage,
     runtime: runtimePayload(),

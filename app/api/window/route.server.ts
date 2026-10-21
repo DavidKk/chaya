@@ -15,6 +15,9 @@ export const GET = defineApiRoute('get:/api/window', async () => {
   if (resolved.remote) {
     return apiBadRequest('Remote game cannot read local window configuration', 'REMOTE_READ_ONLY')
   }
+  if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
+    return apiBadRequest('VX Ace / VX window settings are controlled by the native RGSS game', 'RGSS_NATIVE_RUNTIME')
+  }
   const pkg = readNwPackage(resolved.contentRoot)
   if (!pkg) {
     return apiNotFound(`Missing package.json in content root: ${resolved.contentRoot}`)
@@ -32,6 +35,9 @@ export const PUT = defineApiRoute('put:/api/window', async ({ request }) => {
   }
   if (resolved.remote) {
     return apiBadRequest('Remote game cannot modify local window configuration', 'REMOTE_READ_ONLY')
+  }
+  if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
+    return apiBadRequest('VX Ace / VX window settings are controlled by the native RGSS game', 'RGSS_NATIVE_RUNTIME')
   }
 
   const body = (await request.json().catch(() => ({}))) as {

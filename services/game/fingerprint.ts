@@ -99,6 +99,11 @@ function collectEngine(contentRoot: string) {
   return detectEngine({ jsFiles, coreSource, libs })
 }
 
+function collectRgssEngine(resolved: ResolvedGame) {
+  if (resolved.engine !== 'VX Ace' && resolved.engine !== 'VX') return null
+  return { name: resolved.engine, version: null, source: 'rgss' as const, coreFiles: [], libs: [] }
+}
+
 function collectPlugins(contentRoot: string) {
   let raw: string | null = null
   try {
@@ -187,7 +192,7 @@ function collectShells(resolved: ResolvedGame): ShellInfo[] {
 export function collectGameFingerprint(resolved: ResolvedGame): GameFingerprint {
   const plugins = collectPlugins(resolved.contentRoot)
   return {
-    engine: collectEngine(resolved.contentRoot),
+    engine: collectRgssEngine(resolved) || collectEngine(resolved.contentRoot),
     system: parseSystemJson(readJson(path.join(resolved.contentRoot, 'data', 'System.json'))),
     package: collectPackage(resolved),
     shells: collectShells(resolved),

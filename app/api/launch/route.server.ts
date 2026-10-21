@@ -46,6 +46,14 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
   if (resolved.remote) {
     return apiBadRequest('Remote game cannot be launched locally', 'REMOTE_READ_ONLY')
   }
+  if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
+    try {
+      await launchShellWithContent(resolved.shellApp, resolved.contentRoot)
+      return apiOk({ path: resolved.shellApp, contentRoot: resolved.contentRoot, mode: 'native-rgss', engine: resolved.engine })
+    } catch (err) {
+      return apiError(500, 'LAUNCH_FAILED', err instanceof Error ? err.message : String(err))
+    }
+  }
 
   try {
     // 部分 Windows 发布包 package.json name 为空，NW.js 会直接拒启

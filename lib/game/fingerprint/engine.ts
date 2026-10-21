@@ -1,6 +1,6 @@
 import type { EngineInfo, EngineLib, EngineName, EngineSource } from './types'
 
-const CORE_FILES: Record<Exclude<EngineName, 'unknown'>, readonly string[]> = {
+const CORE_FILES: Record<'MZ' | 'MV', readonly string[]> = {
   MZ: ['rmmz_core.js', 'rmmz_managers.js', 'rmmz_objects.js', 'rmmz_scenes.js', 'rmmz_sprites.js', 'rmmz_windows.js'],
   MV: ['rpg_core.js', 'rpg_managers.js', 'rpg_objects.js', 'rpg_scenes.js', 'rpg_sprites.js', 'rpg_windows.js'],
 }

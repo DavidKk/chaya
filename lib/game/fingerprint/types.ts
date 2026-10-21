@@ -1,9 +1,9 @@
 /** 游戏指纹：从游戏目录静态读出的引擎、插件、壳等信息（不启动游戏）。 */
 
-export type EngineName = 'MZ' | 'MV' | 'unknown'
+export type EngineName = 'MZ' | 'MV' | 'VX Ace' | 'VX' | 'unknown'
 
 /** constant：`Utils.RPGMAKER_VERSION`；header：核心文件头注释；files：只凭文件名判断 */
-export type EngineSource = 'constant' | 'header' | 'files' | 'none'
+export type EngineSource = 'constant' | 'header' | 'files' | 'rgss' | 'none'
 
 export type EngineLib = { name: string; version: string | null }
 

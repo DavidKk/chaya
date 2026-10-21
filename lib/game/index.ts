@@ -48,6 +48,7 @@ export {
   type ResolvedGame,
   type ResolveError,
   SHELL_APP_NAME,
+  type SupportedEngine,
   TRACKED_PLUGINS,
   type TrackedPlugin,
 } from './types'

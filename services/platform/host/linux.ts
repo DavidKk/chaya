@@ -28,6 +28,7 @@ export class LinuxHostShell implements HostShellCapability {
     assertPathExists(shellApp)
     assertPathExists(contentRoot)
     const bin = resolveShellLaunchTarget(shellApp)
+    if (path.basename(bin).toLowerCase() === 'game.exe') return spawnDetached(bin, [], { cwd: path.dirname(bin) })
     return spawnDetached(bin, [path.resolve(contentRoot)], { cwd: path.dirname(bin) })
   }
 }

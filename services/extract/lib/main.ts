@@ -9,6 +9,7 @@ import { extractDataFields } from './data-fields'
 import { extractDatabase, loadJson } from './database'
 import { extractDialogueFromEvents } from './dialogue'
 import { extractPluginsJsText } from './plugin-text'
+import { looksLikeRgssProject, runRgssExtract } from './rgss'
 import { extractTextResource, textResourceFiles } from './text-resources'
 
 export function resolveContentRoot(argv = process.argv.slice(2)) {
@@ -21,6 +22,7 @@ export function resolveContentRoot(argv = process.argv.slice(2)) {
 }
 
 export function runExtract(contentRoot: string, options?: { sourceLanguage?: SourceLanguageOption }) {
+  if (looksLikeRgssProject(contentRoot)) return runRgssExtract(contentRoot, options)
   const DATA = path.join(contentRoot, 'data')
   const MANUAL = gameContentReadPath(contentRoot, 'seed')
   const OUT = gameContentPath(contentRoot, 'extractStrings')

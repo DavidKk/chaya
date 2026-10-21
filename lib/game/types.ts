@@ -12,6 +12,8 @@ import {
 import type { GameFingerprintSummary } from './fingerprint/types'
 import type { UnsupportedEngine } from './unsupported-engine'
 
+export type SupportedEngine = 'MV' | 'MZ' | 'VX Ace' | 'VX'
+
 export { SHELL_APP_NAME, SHELL_WIN_DIR_NAME }
 
 /** 游戏库条目（本地多游戏列表，当前选中仍用 gameRoot） */
@@ -61,7 +63,9 @@ export type ResolvedGame = {
   contentRoot: string
   /** 游戏项目根（www 的上一级或内容根本身）；bundled 时为包根 / exe 所在目录 */
   projectRoot: string
-  kind: 'content-root' | 'www' | 'app.nw' | 'remote'
+  kind: 'content-root' | 'www' | 'app.nw' | 'rgss' | 'remote'
+  /** Detected engine family. RGSS games are supported for offline data operations. */
+  engine?: SupportedEngine
   /** 启动用壳：共用 data/shell/…，或 bundled 时为 .app / Game.exe */
   shellApp: string
   hasShell: boolean
@@ -75,7 +79,7 @@ export type ResolvedGame = {
 export type ResolveError = {
   ok: false
   error: string
-  /** Detected engine other than MV / MZ */
+  /** Detected engine family, including offline RGSS VX/VX Ace projects. */
   engine?: UnsupportedEngine
 }
 

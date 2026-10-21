@@ -26,6 +26,7 @@ export class WindowsHostShell implements HostShellCapability {
     assertPathExists(shellApp)
     assertPathExists(contentRoot)
     const exe = resolveShellLaunchTarget(shellApp)
+    if (path.basename(exe).toLowerCase() === 'game.exe') return spawnDetached(exe, [], { cwd: path.dirname(exe) })
     return spawnDetached(exe, [path.resolve(contentRoot)], { cwd: path.dirname(exe) })
   }
 }

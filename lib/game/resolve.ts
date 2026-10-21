@@ -6,7 +6,7 @@ import { ROOT_PATH } from '@/constants/paths'
 import { findEnclosingLinuxBinary, findEnclosingWinExe, isWin32, validShellExists } from './shell-layout'
 import { resolveToolkitShellAppPath } from './toolkit-data'
 import { LEGACY_PROJECT_SHELL_NAMES, type ResolvedGame, type ResolveError, SHELL_APP_NAME } from './types'
-import { detectUnsupportedEngine, type UnsupportedEngine, unsupportedEngineMessage } from './unsupported-engine'
+import { detectRgssEngine, detectUnsupportedEngine, type RgssEngine, type UnsupportedEngine, unsupportedEngineMessage } from './unsupported-engine'
 
 const RGSS_ASSET_DIRS = new Set(['data', 'system', 'graphics', 'audio', 'fonts'])
 
@@ -27,7 +27,30 @@ function listingEngine(dir: string): UnsupportedEngine | null {
   return detectUnsupportedEngine({ root, data: sub('data'), system: sub('system') })
 }
 
-/** Engine name when the selected game is not MV / MZ (legacy RPG Maker, Unity) */
+function listingRgssEngine(dir: string): RgssEngine | null {
+  const root = readNames(dir)
+  const dataName = root.find((entry) => entry.toLowerCase() === 'data')
+  return detectRgssEngine({ root, data: dataName ? readNames(path.join(dir, dataName)) : [] })
+}
+
+function rgssProjectEngine(dir: string): RgssEngine | null {
+  try {
+    if (!fs.statSync(dir).isDirectory()) return null
+  } catch {
+    return null
+  }
+  const engine = listingRgssEngine(dir)
+  if (!engine) return null
+  const names = readNames(dir).map((name) => name.toLowerCase())
+  return names.includes('game.exe') || names.includes('game.rgss3a') || names.includes('game.rgss2a') || names.includes('data') ? engine : null
+}
+
+function rgssExecutable(dir: string): string | null {
+  const hit = readNames(dir).find((name) => /^game\.exe$/i.test(name))
+  return hit ? path.join(dir, hit) : null
+}
+
+/** Engine name when the selected game is outside the JavaScript MV/MZ runtime. */
 function detectUnsupportedEngineAt(selected: string): UnsupportedEngine | null {
   let dir = selected
   try {
@@ -52,6 +75,10 @@ export function looksLikeContent(dir: string): boolean {
   } catch {
     return false
   }
+}
+
+export function looksLikeRgssContent(dir: string): boolean {
+  return rgssProjectEngine(dir) != null
 }
 
 /**
@@ -200,11 +227,26 @@ export function resolveGame(input: string, toolkitRoot = ROOT_PATH): ResolvedGam
     }
   }
 
+  const finishRgss = (projectRoot: string, selected: string, engine: RgssEngine): ResolvedGame => ({
+    ok: true,
+    selected,
+    contentRoot: path.resolve(projectRoot),
+    projectRoot: path.resolve(projectRoot),
+    kind: 'rgss',
+    engine: engine === 'RPG Maker VX Ace' ? 'VX Ace' : 'VX',
+    shellApp: rgssExecutable(projectRoot) || path.resolve(projectRoot),
+    hasShell: Boolean(rgssExecutable(projectRoot)),
+    hasWwwLayout: false,
+    bundled: true,
+  })
+
   // Windows / Linux：直接选中可执行文件 → 旁挂 www / package.nw
   const baseName = path.basename(p)
   const looksLikeGameBinary = p.toLowerCase().endsWith('.exe') || (!fs.statSync(/* turbopackIgnore: true */ p).isDirectory() && /^(game|nw|nwjs)(\.exe)?$/i.test(baseName))
   if (looksLikeGameBinary && fs.statSync(/* turbopackIgnore: true */ p).isFile()) {
     const dir = path.dirname(p)
+    const rgss = rgssProjectEngine(dir)
+    if (rgss) return finishRgss(dir, p, rgss)
     for (const c of [path.join(dir, 'www'), path.join(dir, 'package.nw'), path.join(dir, 'app.nw'), dir]) {
       if (looksLikeContent(c)) return finish(c, p, path.basename(c).toLowerCase() === 'www' ? 'www' : 'app.nw')
     }
@@ -221,6 +263,15 @@ export function resolveGame(input: string, toolkitRoot = ROOT_PATH): ResolvedGam
 
   if (p.toLowerCase().endsWith('.app')) {
     return resolvePackagedApp(p, p)
+  }
+
+  const rgss = rgssProjectEngine(p)
+  if (rgss) return finishRgss(p, p, rgss)
+  // Users often pick the Data directory from a folder picker. Resolve it
+  // against the containing RGSS project just like a selected Game.exe.
+  if (path.basename(p).toLowerCase() === 'data') {
+    const parentRgss = rgssProjectEngine(path.dirname(p))
+    if (parentRgss) return finishRgss(path.dirname(p), p, parentRgss)
   }
 
   if (looksLikeContent(p)) {

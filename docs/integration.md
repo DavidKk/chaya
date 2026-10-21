@@ -37,7 +37,7 @@
 
 ### 3.1 `chaya-setup` — Chaya 是什么 / 三种形态 / 安装
 
-1. Chaya 是什么：RPG Maker MV/MZ 游戏的本机工具箱（游戏库、NW.js 壳、局内修改、翻译、日志）。
+1. Chaya 是什么：RPG Maker MV/MZ 游戏的本机工具箱，并支持 VX Ace / VX 项目的离线数据翻译（游戏库、翻译、日志）。
 2. 三种形态对比表：Cloud（网页）/ 本地 dev / App——是什么、能做什么、不能做什么、适合谁。
 3. Cloud:打开 `https://chaya-gray.vercel.app`，Chrome / Microsoft Edge 浏览器用目录授权写插件与壳；不启动进程、无共享翻译库；外部 Agent 经插件 MCP 使用局内工具（[mcp-plugin.md](./mcp-plugin.md)）。
 4. 本地 dev：`git clone` → `pnpm i` → `pnpm dev`（`localhost:3000`），打开即可使用，无需登录；`pnpm dev:lan` 局域网；`pnpm dev:app` 带 Electron 窗口。
@@ -47,7 +47,7 @@
 
 ### 3.2 `chaya-launch` — 添加游戏与启动
 
-1. 添加游戏：本机选目录（local / app）或浏览器授权目录（Cloud）；识别 MV / MZ 内容根。
+1. 添加游戏：本机选目录（local / app）或浏览器授权目录（Cloud）；识别 MV / MZ 内容根，或已解包的 VX Ace / VX `Data/*.rvdata2` / `Data/*.rvdata` 项目。
 2. 装壳：下载最新 NW.js 壳或指定壳源；macOS 壳修复命令（`/sh/mac-shell.sh`）。
 3. 注入插件：ChayaLoader 与 ChayaLog / Trans / Boost / Edit / Agent 各自的作用。
 4. 启动 / 关闭游戏，控制台与游戏的连接（WebRTC），在线状态怎么看。

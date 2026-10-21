@@ -57,17 +57,17 @@ describe('resolveGame packaged .app', () => {
     expect(r.error).toMatch(/多个可用 \.app/)
   })
 
-  it('reports VX Ace as an unsupported engine (folder, Data subfolder, Game.exe)', () => {
+  it('resolves VX Ace from a folder, Data subfolder and Game.exe', () => {
     fs.mkdirSync(path.join(root, 'Data'), { recursive: true })
     fs.writeFileSync(path.join(root, 'Data', 'Map001.rvdata2'), '')
     fs.writeFileSync(path.join(root, 'Game.exe'), '')
     fs.writeFileSync(path.join(root, 'Game.ini'), '')
     for (const selected of [root, path.join(root, 'Data'), path.join(root, 'Game.exe')]) {
       const r = resolveGame(selected)
-      expect(r.ok).toBe(false)
-      if (r.ok) return
-      expect(r.engine).toBe('RPG Maker VX Ace')
-      expect(r.error).toMatch(/不支持该引擎/)
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      expect(r.engine).toBe('VX Ace')
+      expect(r.kind).toBe('rgss')
     }
   })
 

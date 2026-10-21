@@ -96,6 +96,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
   const [jumpPageValue, setJumpPageValue] = useState<number>(1)
 
   const [availableEngines, setAvailableEngines] = useState<AvailableEngine[]>([])
+  const [rgssEngine, setRgssEngine] = useState<'VX Ace' | 'VX' | null>(null)
   const [selectedScheme, setSelectedScheme] = useState<string>('all')
 
   const [translatingId, setTranslatingId] = useState<string | null>(null)
@@ -198,6 +199,14 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
   useEffect(() => {
     void loadEngines()
     void loadData()
+    if (typeof fetch === 'function') {
+      void fetch('/api/status', { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((data: { ready?: boolean; engine?: string }) => {
+          setRgssEngine(data.ready && (data.engine === 'VX Ace' || data.engine === 'VX') ? data.engine : null)
+        })
+        .catch(() => setRgssEngine(null))
+    }
   }, [loadEngines, loadData])
 
   // Filter items
@@ -322,13 +331,15 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
     async (item: ExtractedTranslationItem) => {
       setSavingId(item.id)
       try {
+        const writeback = Boolean(rgssEngine)
         const res = await translationFetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            mode: 'save-item',
+            mode: writeback ? 'rgss-write' : 'save-item',
             text: item.src,
             zh: item.zh,
+            translations: writeback ? { [item.src]: item.zh } : undefined,
             localesKey: item.meta.localesKey,
             targetFile: item.meta.localesFile,
             sourceLang: sourceLang || localesMeta?.currentSourceLang,
@@ -350,7 +361,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
         setSavingId(null)
       }
     },
-    [sourceLang, targetLang, localesMeta, translationFetch, refreshUI, notify, t]
+    [rgssEngine, sourceLang, targetLang, localesMeta, translationFetch, refreshUI, notify, t]
   )
 
   // Reset all items on current page with confirmation (does not auto-save)
@@ -402,15 +413,19 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
           const res = await translationFetch('/api/translate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              mode: 'save-item',
-              text: item.src,
-              zh: item.zh,
-              localesKey: item.meta.localesKey,
-              targetFile: item.meta.localesFile,
-              sourceLang: sourceLang || localesMeta?.currentSourceLang,
-              targetLang: targetLang || localesMeta?.currentTargetLang,
-            }),
+            body: JSON.stringify(
+              rgssEngine
+                ? { mode: 'rgss-write', translations: { [item.src]: item.zh } }
+                : {
+                    mode: 'save-item',
+                    text: item.src,
+                    zh: item.zh,
+                    localesKey: item.meta.localesKey,
+                    targetFile: item.meta.localesFile,
+                    sourceLang: sourceLang || localesMeta?.currentSourceLang,
+                    targetLang: targetLang || localesMeta?.currentTargetLang,
+                  }
+            ),
           })
           const data = (await res.json()) as { ok?: boolean }
           if (data?.ok) {
@@ -432,7 +447,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
     } finally {
       setSavingPage(false)
     }
-  }, [confirm, pagedItems, translationFetch, sourceLang, targetLang, localesMeta, refreshUI, notify, t])
+  }, [confirm, pagedItems, rgssEngine, translationFetch, sourceLang, targetLang, localesMeta, refreshUI, notify, t])
 
   // Reset single item (reverts to original text without auto-saving)
   const handleReset = useCallback(
@@ -506,6 +521,11 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
     <div className="flex h-full min-h-0 w-full flex-col">
       {/* Top Controls Bar: Search & Filters */}
       <div className="flex flex-wrap items-center justify-end gap-2 border-b border-line px-4 py-2 shrink-0 select-none">
+        {rgssEngine ? (
+          <div className="mr-auto rounded-md border border-accent/30 bg-accent/5 px-2.5 py-1 text-xs text-accent" role="status">
+            {rgssEngine} · offline translation and data writeback · backup created on first write
+          </div>
+        ) : null}
         {/* [Filter Bar] | [Tools Bar] */}
         <div className="flex flex-wrap items-center gap-2">
           {/* 1. 筛选条 (位于最左侧) */}

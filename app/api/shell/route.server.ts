@@ -40,6 +40,9 @@ export const POST = defineApiRoute('post:/api/shell', async ({ request }) => {
   if (resolved.remote) {
     return apiBadRequest('Remote game cannot install shell locally', 'REMOTE_READ_ONLY')
   }
+  if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
+    return apiBadRequest('VX Ace / VX games use their native Game.exe and do not need an NW.js shell', 'RGSS_NATIVE_RUNTIME')
+  }
 
   try {
     if (body.fetchLatest) {

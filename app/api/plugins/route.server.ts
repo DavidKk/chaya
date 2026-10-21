@@ -18,6 +18,9 @@ export const POST = defineApiRoute('post:/api/plugins', async () => {
   if (resolved.remote) {
     return apiBadRequest('Remote game cannot install loader locally', 'REMOTE_READ_ONLY')
   }
+  if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
+    return apiBadRequest('VX Ace / VX use RGSS scripts instead of JavaScript plugins', 'RGSS_SCRIPT_RUNTIME')
+  }
 
   try {
     const apiBase = preferredPluginApiBase(toolkitListenPort())

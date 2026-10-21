@@ -62,6 +62,7 @@ export {
   type ResolveError,
   resolveGame,
   SHELL_APP_NAME,
+  type SupportedEngine,
   TRACKED_PLUGINS,
   type TrackedPlugin,
 } from '@/lib/game'
