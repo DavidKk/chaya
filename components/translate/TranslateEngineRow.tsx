@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 type Props = {
   label: string
   subtitle?: string
+  badge?: ReactNode
   checked: boolean
   /** 交互锁（加载 / 保存中 / 外部禁用） */
   locked: boolean
@@ -34,6 +35,7 @@ type Props = {
 export function TranslateEngineRow({
   label,
   subtitle,
+  badge,
   checked,
   locked,
   dragging,
@@ -103,6 +105,7 @@ export function TranslateEngineRow({
           )}
           {subtitle ? <TruncateText text={subtitle} className="text-[0.7rem] leading-[1.4] text-ink-soft" /> : null}
         </div>
+        {badge ? <div className="flex shrink-0 items-center">{badge}</div> : null}
         <div className="flex h-full items-center justify-center gap-1">
           {actions}
           <SwitchToggle checked={checked} disabled={locked} aria-label={t('translate.engineToggle', { name: label })} onCheckedChange={onToggle} />

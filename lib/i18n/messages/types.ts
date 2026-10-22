@@ -408,6 +408,9 @@ export type MessageTree = {
     engineGoogle: string
     engineApple: string
     engineBergamot: string
+    tagFree: string
+    tagReady: string
+    tagNotReady: string
     aiProfile: string
     aiModel: string
     aiModelAuto: string

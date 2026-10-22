@@ -7,7 +7,7 @@ import { IoAdd, IoCloseOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, ScrollArea, Tooltip } from '@/components/sk'
+import { Badge, Button, ScrollArea, Tooltip } from '@/components/sk'
 import { controlDisabled } from '@/components/sk/control'
 import { dropdownItemClass, dropdownPopupClass, dropdownTriggerClass } from '@/components/sk/dropdownMenu'
 import { TranslateAgentEntryConfig } from '@/components/translate/TranslateAgentEntryConfig'
@@ -89,6 +89,7 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [view, setView] = useState<EngineView>(INITIAL)
+  const [systemStatus, setSystemStatus] = useState<{ apple?: boolean; bergamot?: boolean }>({})
   const [openEntry, setOpenEntry] = useState<string | null>(null)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [addMenuContainer, setAddMenuContainer] = useState<ShadowRoot>()
@@ -134,6 +135,23 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
         }
         const next = viewFrom(json, INITIAL)
         setView(next)
+        void (async () => {
+          try {
+            const [appleRes, bergRes] = await Promise.allSettled([
+              translationFetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'apple-status' }) }).then((r) =>
+                r.json()
+              ),
+              translationFetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'bergamot-status' }) }).then((r) =>
+                r.json()
+              ),
+            ])
+            const appleInstalled = appleRes.status === 'fulfilled' && (appleRes.value as any)?.installed === true
+            const bergInstalled = bergRes.status === 'fulfilled' && (bergRes.value as any)?.installed === true
+            if (!cancelled) setSystemStatus({ apple: appleInstalled, bergamot: bergInstalled })
+          } catch {
+            /* ignore */
+          }
+        })()
         publishEvent(next)
       } catch (err) {
         if (!cancelled) reportError(err instanceof Error ? err.message : t('translate.enginesLoadFailed'))
@@ -306,11 +324,34 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
   function renderRow(id: EngineId) {
     const entry = findAgentEntry(view.agents, id)
     const open = !!entry && openEntry === entry.id
+    let badge: React.ReactNode = null
+    if (id === 'bing' || id === 'google') {
+      badge = (
+        <Badge size="mini" tone="accent" dot={false}>
+          {t('translate.tagFree')}
+        </Badge>
+      )
+    } else if (id === 'apple') {
+      const ready = systemStatus.apple === true
+      badge = (
+        <Badge size="mini" tone={ready ? 'ok' : 'warn'} dot={true}>
+          {t(ready ? 'translate.tagReady' : 'translate.tagNotReady')}
+        </Badge>
+      )
+    } else if (id === 'bergamot') {
+      const ready = systemStatus.bergamot === true
+      badge = (
+        <Badge size="mini" tone={ready ? 'ok' : 'warn'} dot={true}>
+          {t(ready ? 'translate.tagReady' : 'translate.tagNotReady')}
+        </Badge>
+      )
+    }
     return (
       <TranslateEngineRow
         key={id}
         label={engineLabel(id)}
         subtitle={engineSubtitle(id)}
+        badge={badge}
         checked={isChecked(id)}
         locked={locked}
         dragging={draggingId === id}

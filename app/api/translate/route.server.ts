@@ -65,6 +65,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'realtime'
         | 'cache'
         | 'apple'
+        | 'apple-status'
         | 'bergamot'
         | 'bergamot-status'
         | 'ai'
@@ -337,6 +338,13 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         cache.close()
       }
     }
+    if (body.mode === 'apple-status') {
+      const { appleTranslator } = await import('@/services/translate/lib/macos-translate')
+      const source = typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : 'ja'
+      const target = typeof (body.to ?? body.target) === 'string' ? (body.to ?? body.target) : 'zh-Hans'
+      return apiOk(await appleTranslator.checkStatus(source, target))
+    }
+
     if (body.mode === 'apple') {
       const text = typeof body.text === 'string' ? body.text : ''
       if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_APPLE_INPUT', 'Apple offline translation requires text of 1-20000 characters')
