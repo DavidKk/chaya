@@ -1,15 +1,15 @@
 const chayaFetch = jest.fn()
 
-jest.mock('@/plugins/src/helpers', () => ({
+jest.mock('@/plugins/mv/src/helpers', () => ({
   chayaFetch: (...args: unknown[]) => chayaFetch(...args),
   createLogger: () => ({ info: jest.fn(), ok: jest.fn(), warn: jest.fn(), fail: jest.fn() }),
   detectGameIdentity: () => null,
   gameRoomId: () => 'game-a',
 }))
-jest.mock('@/plugins/src/agent/handlers', () => ({ readAgentGameState: () => ({}), runAgentCommand: jest.fn() }))
-jest.mock('@/plugins/src/agent/runtime/store', () => ({ createGameAgentTaskStore: () => ({ load: async () => [], save: async () => undefined }) }))
+jest.mock('@/plugins/mv/src/agent/handlers', () => ({ readAgentGameState: () => ({}), runAgentCommand: jest.fn() }))
+jest.mock('@/plugins/mv/src/agent/runtime/store', () => ({ createGameAgentTaskStore: () => ({ load: async () => [], save: async () => undefined }) }))
 
-import { createGameAgentRuntime } from '@/plugins/src/agent/runtime/host'
+import { createGameAgentRuntime } from '@/plugins/mv/src/agent/runtime/host'
 
 const values = new Map<string, string>()
 const config = {

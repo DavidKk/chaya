@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 
-import { ensureGameAgentHost } from '@/plugins/src/agent-ui/host'
+import { ensureGameAgentHost } from '@/plugins/mv/src/agent-ui/host'
 
 const TYPES = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'touchstart', 'touchend', 'wheel']
 

@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { clearElement, setInnerHTML } from '@/plugins/src/helpers/ui/dom'
+import { clearElement, setInnerHTML } from '@/plugins/mv/src/helpers/ui/dom'
 
 describe('helpers/ui/dom', () => {
   it('clearElement removes all child nodes', () => {

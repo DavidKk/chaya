@@ -10,8 +10,8 @@ import {
   mergeAgentSyncDocuments,
   withAgentSyncActor,
 } from '@/lib/game-agent/settings-sync'
-import { sharedAgentSettingsFile } from '@/plugins/src/agent/shared-settings'
-import { createPluginGameAgentRequest } from '@/plugins/src/agent-ui/request'
+import { sharedAgentSettingsFile } from '@/plugins/mv/src/agent/shared-settings'
+import { createPluginGameAgentRequest } from '@/plugins/mv/src/agent-ui/request'
 
 const store = new Map<string, string>()
 Object.assign(globalThis, {

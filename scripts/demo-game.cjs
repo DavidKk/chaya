@@ -35,7 +35,7 @@ if (!fs.existsSync(settingsFile)) {
   fs.writeFileSync(settingsFile, JSON.stringify({ mode: 'realtime', model: '', timeoutMs: 8000 }) + '\n')
 }
 for (const name of names) {
-  const from = path.join(root, 'plugins/dist', `${name}.js`)
+  const from = path.join(root, 'plugins/mv/dist', `${name}.js`)
   if (!fs.existsSync(from)) throw new Error(`missing plugin build: ${from}`)
   fs.copyFileSync(from, path.join(plugins, `${name}.js`))
 }

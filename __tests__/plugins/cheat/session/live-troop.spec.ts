@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { startTroopBattle } from '@/plugins/src/cheat/session/live-troop'
+import { startTroopBattle } from '@/plugins/mv/src/cheat/session/live-troop'
 
 class SceneMap {}
 class SceneBattle {}

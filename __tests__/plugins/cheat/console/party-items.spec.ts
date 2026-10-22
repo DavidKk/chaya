@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { equippedCount, findInDb, needParty, partyCount, setItemLike } from '@/plugins/src/cheat/console/party-items'
+import { equippedCount, findInDb, needParty, partyCount, setItemLike } from '@/plugins/mv/src/cheat/console/party-items'
 
 type Item = { id: number; name: string; description?: string }
 

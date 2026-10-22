@@ -1,5 +1,5 @@
-import { Cheats } from '@/plugins/src/cheat/runtime/cheats'
-import { joinActor, readParty, readPartyRoster, recoverActor, reviveActor, writeActorVital } from '@/plugins/src/cheat/session/live-party'
+import { Cheats } from '@/plugins/mv/src/cheat/runtime/cheats'
+import { joinActor, readParty, readPartyRoster, recoverActor, reviveActor, writeActorVital } from '@/plugins/mv/src/cheat/session/live-party'
 
 class FakeActor {
   hp = 200

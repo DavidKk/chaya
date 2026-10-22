@@ -20,7 +20,7 @@ describe('ChayaBoost game speed', () => {
     scene = jest.fn()
     sm = { updateScene: scene, updateInputData: jest.fn() }
     ;(globalThis as { SceneManager?: SceneManagerStub }).SceneManager = sm
-    await import('@/plugins/src/game-boost')
+    await import('@/plugins/mv/src/game-boost')
     boost = (window as Window & { ChayaBoost?: Boost }).ChayaBoost!
   })
 

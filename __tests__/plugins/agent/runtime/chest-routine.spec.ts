@@ -1,4 +1,4 @@
-import { runChestRoutine } from '@/plugins/src/agent/runtime/chest-routine'
+import { runChestRoutine } from '@/plugins/mv/src/agent/runtime/chest-routine'
 
 class Scene_Base {}
 class Scene_Map extends Scene_Base {}

@@ -5,10 +5,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { GameToolTransportContext } from '@/components/game-tools/transport'
 import { useInputAssistance } from '@/components/input-assistance/useInputAssistance'
 import { EMPTY_INPUT_ASSIST_CONFIG, type MappingRule } from '@/lib/game/input-assistance'
-import { InputAssistanceController } from '@/plugins/src/cheat/input-assistance/controller'
-import { createPluginGameToolTransport } from '@/plugins/src/cheat/ui/game-tool-transport'
+import { InputAssistanceController } from '@/plugins/mv/src/cheat/input-assistance/controller'
+import { createPluginGameToolTransport } from '@/plugins/mv/src/cheat/ui/game-tool-transport'
 
-jest.mock('@/plugins/src/helpers/node/node-require', () => ({ tryNodeFsPath: () => null, tryNodeRequire: () => null }))
+jest.mock('@/plugins/mv/src/helpers/node/node-require', () => ({ tryNodeFsPath: () => null, tryNodeRequire: () => null }))
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 if (!globalThis.crypto?.randomUUID) Object.assign(globalThis, { crypto: { randomUUID: () => Math.random().toString(36).slice(2) } })

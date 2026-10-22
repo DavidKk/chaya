@@ -1,4 +1,4 @@
-import { type Direction, findPath, type PathGrid, type Point, stepX, stepY } from '@/plugins/src/cheat/runtime/pathfinding'
+import { type Direction, findPath, type PathGrid, type Point, stepX, stepY } from '@/plugins/mv/src/cheat/runtime/pathfinding'
 
 /** # 墙 · D 会触发的格（可走）· . 空地 */
 function grid(rows: string[], opts: Partial<Pick<PathGrid, 'loopX' | 'loopY' | 'canStep'>> = {}): PathGrid {

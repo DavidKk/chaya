@@ -1,6 +1,6 @@
-import { chestEventOpened } from '@/plugins/src/agent/event-facts'
-import { readAgentGameState, runAgentCommand, toJsonSafe } from '@/plugins/src/agent/handlers'
-import { declarePluginTools } from '@/plugins/src/helpers/plugin-tools'
+import { chestEventOpened } from '@/plugins/mv/src/agent/event-facts'
+import { readAgentGameState, runAgentCommand, toJsonSafe } from '@/plugins/mv/src/agent/handlers'
+import { declarePluginTools } from '@/plugins/mv/src/helpers/plugin-tools'
 
 type Globals = Record<string, unknown>
 

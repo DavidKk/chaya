@@ -1,6 +1,6 @@
 import { mcpToolsFor } from '@/lib/integration/mcp-availability'
-import { makeGameTools } from '@/plugins/src/agent/game-tools'
-import { startGameGateway } from '@/plugins/src/agent/gateway'
+import { makeGameTools } from '@/plugins/mv/src/agent/game-tools'
+import { startGameGateway } from '@/plugins/mv/src/agent/gateway'
 
 type Globals = Record<string, unknown>
 

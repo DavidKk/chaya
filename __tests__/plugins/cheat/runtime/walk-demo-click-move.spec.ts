@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { DEFAULT_TOOL_SETTINGS, TOOL_SETTINGS_EVENT, TOOL_SETTINGS_STORAGE_KEY } from '@/lib/game-agent/tool-settings'
-import { RunCheats } from '@/plugins/src/cheat/runtime/cheats-run'
+import { RunCheats } from '@/plugins/mv/src/cheat/runtime/cheats-run'
 
 const TILE = 48
 const www = path.join(__dirname, '../../../../fixtures/game-walk/www')

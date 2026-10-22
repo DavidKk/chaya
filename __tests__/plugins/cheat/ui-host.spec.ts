@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 
-import { ensureGameEditHost } from '@/plugins/src/cheat/ui/host'
+import { ensureGameEditHost } from '@/plugins/mv/src/cheat/ui/host'
 
 test('stops pointer events at the host boundary before they reach the game document', () => {
   const reached: string[] = []

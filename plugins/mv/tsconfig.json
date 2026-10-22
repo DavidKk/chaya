@@ -12,10 +12,10 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "paths": {
-      "@/*": ["../*"],
-      "@chaya-lib/*": ["../lib/*"]
+      "@/*": ["../../*"],
+      "@chaya-lib/*": ["../../lib/*"]
     }
   },
-  "include": ["./**/*.ts", "./**/*.tsx", "./typings/**/*.d.ts", "../lib/plugin/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "../shared/**/*.ts", "../shared/**/*.tsx", "../../lib/plugin/**/*.ts", "typings/**/*.d.ts", "../shared/vite-env.d.ts"],
   "exclude": ["dist", "node_modules"]
 }

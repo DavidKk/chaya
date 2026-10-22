@@ -64,13 +64,12 @@ async function linkHeldElsewhere(roomId: string): Promise<boolean> {
 }
 
 /**
- * Web 侧：同时支持双通道传输（WebRTC DataChannel 与本地 WebSocket Relay）。
- * 任意一路连上 = 在线；断开 = 离线。
+ * Web 侧：创建 DataChannel + offer，等游戏 answer。
+ * 连上 = 在线；断开 = 离线。
  */
 export class WebGameLink {
   private pc: RTCPeerConnection | null = null
   private dc: RTCDataChannel | null = null
-  private ws: WebSocket | null = null
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private disconnectTimer: ReturnType<typeof setTimeout> | null = null
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null
@@ -93,17 +92,14 @@ export class WebGameLink {
 
   /**
    * Resets the room and posts a fresh offer, then polls for the game's answer for up to `ANSWER_WAIT_MS`.
-   * Also connects to local WebSocket relay concurrently.
+   * `takeover: false` (background auto start) leaves a room alone while another tab holds a live link,
+   * rechecking until it frees up or the wait runs out; an explicit restart takes over.
    */
   async start({ takeover = true }: { takeover?: boolean } = {}) {
     this.stop({ silent: true })
     this.closed = false
     const run = this.run
     const deadline = Date.now() + ANSWER_WAIT_MS
-
-    // Start WebSocket bridge connection in parallel
-    this.startWs(run)
-
     if (!takeover && !(await this.waitUntilFree(run, deadline))) return
     if (!this.live(run)) return
     if (!(await postSignal({ action: 'reset', roomId: this.roomId }))) {
@@ -120,11 +116,10 @@ export class WebGameLink {
       const state = pc.connectionState
       if (state === 'failed' || state === 'closed') {
         this.clearDisconnectTimer()
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-          this.markDisconnected()
-        }
+        this.markDisconnected()
         return
       }
+      // disconnected 常可恢复，给短暂宽限，避免误切回「开始」
       if (state === 'disconnected') {
         this.armDisconnectTimer()
         return
@@ -143,57 +138,13 @@ export class WebGameLink {
     }
     if (!this.live(run)) return
 
+    // 立刻问一次，之后慢轮询；避免亚秒级刷屏
     void this.pollAnswer()
     this.pollTimer = setInterval(() => {
       if (Date.now() < deadline) return void this.pollAnswer()
       this.clearPoll()
       if (!this.connected) this.handlers.onIdle?.()
     }, ANSWER_POLL_MS)
-  }
-
-  private startWs(run: number) {
-    if (typeof window === 'undefined') return
-    try {
-      const wsUrl = `ws://127.0.0.1:3928/?role=web&roomId=${encodeURIComponent(this.roomId)}`
-      const ws = new WebSocket(wsUrl)
-      this.ws = ws
-
-      ws.onopen = () => {
-        if (!this.live(run) || this.ws !== ws) {
-          ws.close()
-          return
-        }
-        this.clearDisconnectTimer()
-        this.connected = true
-        void postSignal({ action: 'connected', roomId: this.roomId, connected: true })
-        this.startConnectedKeepalive()
-        this.send({ type: 'hello', role: 'web', gameId: this.roomId })
-        this.handlers.onConnected?.()
-      }
-
-      ws.onmessage = (ev) => {
-        if (!this.live(run)) return
-        const msg = parseGameLinkMessage(String(ev.data || ''))
-        if (!msg) return
-        if (msg.type === 'ping') this.send({ type: 'pong', t: msg.t })
-        if (msg.type === 'link.chunk') return this.chunks.receive(msg)
-        this.handlers.onMessage?.(msg)
-      }
-
-      ws.onclose = () => {
-        if (!this.live(run) || this.ws !== ws) return
-        this.ws = null
-        if (!this.dc || this.dc.readyState !== 'open') {
-          this.markDisconnected()
-        }
-      }
-
-      ws.onerror = () => {
-        /* Handled by onclose */
-      }
-    } catch {
-      // Ignore WebSocket connection failures on non-loopback or restricted environments
-    }
   }
 
   private live(run: number) {
@@ -248,11 +199,7 @@ export class WebGameLink {
       this.send({ type: 'hello', role: 'web', gameId: this.roomId })
       this.handlers.onConnected?.()
     }
-    dc.onclose = () => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        this.markDisconnected()
-      }
-    }
+    dc.onclose = () => this.markDisconnected()
     dc.onerror = () => {
       /* onclose 会跟进；避免 error 与 close 双触发抖动 */
     }
@@ -306,9 +253,7 @@ export class WebGameLink {
     this.disconnectTimer = setTimeout(() => {
       this.disconnectTimer = null
       if (this.pc?.connectionState === 'disconnected' || this.pc?.connectionState === 'failed') {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-          this.markDisconnected()
-        }
+        this.markDisconnected()
       }
     }, 3_000)
   }
@@ -331,14 +276,7 @@ export class WebGameLink {
 
   send(msg: GameLinkMessage) {
     if (msg.type === 'translation.rpc') return sendTranslationPacket(this.dc, msg)
-    const encoded = encodeGameLinkMessage(msg)
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(encoded)
-      return
-    }
-    if (this.dc?.readyState === 'open') {
-      this.dc.send(encoded)
-    }
+    if (this.dc?.readyState === 'open') this.dc.send(encodeGameLinkMessage(msg))
   }
 
   quit(reason?: string) {
@@ -356,12 +294,6 @@ export class WebGameLink {
       clearTimeout(this.heldTimer)
       this.heldTimer = null
     }
-    try {
-      this.ws?.close()
-    } catch {
-      /* */
-    }
-    this.ws = null
     try {
       this.dc?.close()
     } catch {

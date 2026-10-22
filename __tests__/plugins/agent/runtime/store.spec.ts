@@ -1,5 +1,5 @@
 import type { AgentTask } from '@/lib/game-agent/runtime'
-import { createGameAgentTaskStore, gameAgentStoreLimits } from '@/plugins/src/agent/runtime/store'
+import { createGameAgentTaskStore, gameAgentStoreLimits } from '@/plugins/mv/src/agent/runtime/store'
 
 const task = (id: string, updatedAt = Date.now()): AgentTask => ({
   id,

@@ -53,7 +53,10 @@
     "build:preset": "pnpm build:plugins",
     "build:preset:dev": "pnpm build:plugins:dev",
     "plugins:build": "pnpm build:plugins",
-    "typecheck:plugins": "tsc --noEmit -p plugins/tsconfig.json"
+    "typecheck:plugins": "tsc --noEmit -p plugins/mv/tsconfig.json && tsc --noEmit -p plugins/rgss/tsconfig.json",
+    "build:plugins:mv": "node plugins/mv/build.mjs",
+    "build:plugins:rgss": "node plugins/rgss/build.mjs",
+    "test:rgss:native": "sh plugins/rgss/native/smoke.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

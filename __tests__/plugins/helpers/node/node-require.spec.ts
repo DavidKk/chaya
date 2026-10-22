@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { tryNodeFsPath, tryNodeRequire } from '@/plugins/src/helpers/node/node-require'
+import { tryNodeFsPath, tryNodeRequire } from '@/plugins/mv/src/helpers/node/node-require'
 
 describe('helpers/node-require', () => {
   const prev = (globalThis as { require?: unknown }).require

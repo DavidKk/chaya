@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { emptySession } from '@/components/game-edit/types'
-import { diskStateFromSession, mergeDiskIntoSession } from '@/plugins/src/cheat/session/persist'
+import { diskStateFromSession, mergeDiskIntoSession } from '@/plugins/mv/src/cheat/session/persist'
 
 describe('cheat/persist session↔disk', () => {
   it('diskStateFromSession only extracts persistable fields', () => {

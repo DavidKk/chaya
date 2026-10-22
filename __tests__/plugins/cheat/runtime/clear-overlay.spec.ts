@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { RunCheats } from '@/plugins/src/cheat/runtime/cheats-run'
+import { RunCheats } from '@/plugins/mv/src/cheat/runtime/cheats-run'
 
 describe('RunCheats.clearOverlay / resumeAfterError', () => {
   const g = globalThis as Record<string, unknown>

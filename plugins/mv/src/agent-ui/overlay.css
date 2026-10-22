@@ -1,10 +1,10 @@
 @import 'tailwindcss';
-@import '../../../styles/chaya-palette.css';
+@import '../../../../styles/chaya-palette.css';
 
-@source "../../../components/game-agent/**/*.{ts,tsx}";
-@source "../../../components/game-tools/**/*.{ts,tsx}";
-@source "../../../components/sk/**/*.{ts,tsx}";
-@source "../../../components/i18n/**/*.{ts,tsx}";
+@source "../../../../components/game-agent/**/*.{ts,tsx}";
+@source "../../../../components/game-tools/**/*.{ts,tsx}";
+@source "../../../../components/sk/**/*.{ts,tsx}";
+@source "../../../../components/i18n/**/*.{ts,tsx}";
 
 @theme inline {
   --font-sans: ui-sans-serif, system-ui, sans-serif;

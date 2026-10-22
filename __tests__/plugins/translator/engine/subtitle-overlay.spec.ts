@@ -1,4 +1,4 @@
-import { installSubtitleOverlay } from '@/plugins/src/translator/engine/subtitle-overlay'
+import { installSubtitleOverlay } from '@/plugins/mv/src/translator/engine/subtitle-overlay'
 
 it.each([
   ['MV', 18],

@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import { type InputRule, type KeyInput, setInputRecording, type TurboRule } from '@/lib/game/input-assistance'
-import { InputAssistanceRuntime } from '@/plugins/src/cheat/input-assistance/runtime'
+import { InputAssistanceRuntime } from '@/plugins/mv/src/cheat/input-assistance/runtime'
 
 const q: KeyInput = { kind: 'key', code: 'KeyQ', key: 'q', keyCode: 81, location: 0 }
 const w: KeyInput = { kind: 'key', code: 'KeyW', key: 'w', keyCode: 87, location: 0 }

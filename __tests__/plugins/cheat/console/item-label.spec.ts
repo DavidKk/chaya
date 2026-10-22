@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { itemLabel, tName } from '@/plugins/src/cheat/console/item-label'
+import { itemLabel, tName } from '@/plugins/mv/src/cheat/console/item-label'
 
 describe('tName', () => {
   afterEach(() => {

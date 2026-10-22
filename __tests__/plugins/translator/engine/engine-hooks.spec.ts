@@ -1,4 +1,4 @@
-import { installEngineHooks } from '@/plugins/src/translator/engine/engine-hooks'
+import { installEngineHooks } from '@/plugins/mv/src/translator/engine/engine-hooks'
 
 it('keeps dialogue and choices original in subtitle mode while preserving cached playback', () => {
   class BitmapStub {

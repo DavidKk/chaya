@@ -1,6 +1,6 @@
-import { chayaFetch } from '@/plugins/src/helpers/net/http'
+import { chayaFetch } from '@/plugins/mv/src/helpers/net/http'
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
-jest.mock('@/plugins/src/helpers/net/http', () => ({
+jest.mock('@/plugins/mv/src/helpers/net/http', () => ({
   chayaFetch: jest.fn(async () => {
     throw new Error('offline')
   }),
@@ -10,8 +10,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { createTranslationStore } from '@/plugins/src/translator/runtime/store'
-import { createPluginTranslator } from '@/plugins/src/translator/runtime/translator'
+import { createTranslationStore } from '@/plugins/mv/src/translator/runtime/store'
+import { createPluginTranslator } from '@/plugins/mv/src/translator/runtime/translator'
 
 describe('plugin sentence cache', () => {
   let root: string

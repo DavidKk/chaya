@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { plainText, readHistory, resetHistory, startHistory } from '@/plugins/src/agent/history'
+import { plainText, readHistory, resetHistory, startHistory } from '@/plugins/mv/src/agent/history'
 
 type Globals = Record<string, unknown>
 

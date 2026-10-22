@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
-import { Cheats } from '@/plugins/src/cheat/runtime/cheats'
+import { Cheats } from '@/plugins/mv/src/cheat/runtime/cheats'
 
-jest.mock('@/plugins/src/cheat/runtime/cheats-run', () => ({ RunCheats: { ensureHooks: () => {}, disposeHooks: () => {} } }))
+jest.mock('@/plugins/mv/src/cheat/runtime/cheats-run', () => ({ RunCheats: { ensureHooks: () => {}, disposeHooks: () => {} } }))
 
 class Scene_Battle {}
 class Scene_Map {}

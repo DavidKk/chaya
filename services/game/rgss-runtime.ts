@@ -6,9 +6,10 @@ import path from 'node:path'
 import { ROOT_PATH } from '@/constants/paths'
 import { isRgssRuntimeInstalled, toolkitRgssBinary, toolkitRgssDir } from '@/lib/game/toolkit-data'
 import type { ResolvedGame } from '@/lib/game/types'
-import { disconnectAgentGame, listAgentGames } from '@/services/runtime/agent-bridge'
+import { disconnectAgentGame } from '@/services/runtime/agent-bridge'
 import { clearLaunchToken, issueLaunchToken } from '@/services/runtime/launch-token'
 import { toolkitListenPort } from '@/services/runtime/presence'
+import { getSignalingRoom } from '@/services/runtime/webrtc-signaling'
 
 type Session = { child?: ChildProcess; running: boolean; starting: boolean; logPath: string; error?: string; tail: string; quitting?: boolean; roomId?: string; token?: string }
 const globalSessions = globalThis as typeof globalThis & { __chayaRgssSessions?: Map<string, Session> }
@@ -30,13 +31,14 @@ function stopProcess(session: Session): boolean {
 
 export function rgssRuntimeStatus(contentRoot: string) {
   const session = sessions().get(path.resolve(contentRoot))
+  const room = session?.roomId ? getSignalingRoom(session.roomId) : null
   return {
     name: process.platform === 'win32' ? 'Game.exe' : 'mkxp-z',
     running: !!session?.running,
     starting: !!session?.starting,
     logPath: session?.logPath,
     error: session?.error,
-    bridgeConnected: !!session?.running && listAgentGames().some((game) => game.gameId === session.roomId && game.plugins?.includes('ChayaRGSS')),
+    bridgeConnected: !!session?.running && !!room?.webConnected && Date.now() - room.updatedAt <= 45_000,
     roomId: session?.running ? session.roomId : undefined,
   }
 }
@@ -93,6 +95,9 @@ export async function launchRgss(resolved: ResolvedGame) {
       fs.renameSync(`${binary}.new`, binary)
       const preload = path.join(ROOT_PATH, 'plugins', 'rgss', 'preload.rb')
       if (!fs.existsSync(preload)) throw new Error('Chaya RGSS preload is missing; reinstall Chaya')
+      for (const asset of ['rgss-overlay.html', 'ChayaRGSSOverlay.js', 'libchaya-overlay.dylib']) {
+        if (!fs.existsSync(path.join(ROOT_PATH, 'plugins', 'rgss', 'dist', asset))) throw new Error(`Chaya RGSS overlay asset is missing: ${asset}; rebuild or reinstall Chaya`)
+      }
       fs.writeFileSync(
         path.join(gameDir, 'mkxp.json'),
         JSON.stringify(

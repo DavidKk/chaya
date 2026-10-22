@@ -35,7 +35,6 @@ import {
 import { acceptGameBindEpoch, peekGameBindEpoch } from '@/services/game/bind-epoch'
 import { rgssRuntimeStatus } from '@/services/game/rgss-runtime'
 import { anyWebConnected, detectLanApiBases, getGamePresence, preferredPluginApiBase, toolkitListenPort } from '@/services/runtime'
-import { hasAnyGameConnected, startBridgeWsServer } from '@/services/runtime/bridge-ws-server'
 import { getSharedTranslateCacheStats } from '@/services/translate'
 import { gameCacheFileStats } from '@/services/translate/cache-file-stats'
 
@@ -45,8 +44,7 @@ function runtimePayload() {
   const port = toolkitListenPort()
   const presence = getGamePresence()
   // 权威在线：WebRTC DataChannel；HTTP presence 仅作兼容/远程入库痕迹
-  startBridgeWsServer(3928)
-  const gameOnline = anyWebConnected() || hasAnyGameConnected() || presence.online
+  const gameOnline = anyWebConnected() || presence.online
   return {
     gameOnline,
     presence,

@@ -1,8 +1,8 @@
 /**
  * @jest-environment jsdom
  */
-import { registerGameLinkEditHandlers } from '@/plugins/src/helpers/game/edit-link-bridge'
-import { startGameLink, stopGameLink } from '@/plugins/src/helpers/game/game-link'
+import { registerGameLinkEditHandlers } from '@/plugins/mv/src/helpers/game/edit-link-bridge'
+import { startGameLink, stopGameLink } from '@/plugins/mv/src/helpers/game/game-link'
 
 describe('helpers/game-link register and start/stop', () => {
   afterEach(() => {

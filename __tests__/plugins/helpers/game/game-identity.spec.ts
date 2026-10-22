@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { detectGameIdentity } from '@/plugins/src/helpers/game/game-identity'
+import { detectGameIdentity } from '@/plugins/mv/src/helpers/game/game-identity'
 
 describe('helpers/game-identity', () => {
   let root: string

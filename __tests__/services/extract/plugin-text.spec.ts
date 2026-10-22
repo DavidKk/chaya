@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { DB_SPECS } from '@/lib/translate/database-fields'
-import { extractPluginSeed } from '@/plugins/src/translator/runtime/extract'
+import { extractPluginSeed } from '@/plugins/mv/src/translator/runtime/extract'
 import { extractDialogueFromEvents } from '@/services/extract/lib/dialogue'
 import { runExtract } from '@/services/extract/lib/main'
 import { extractPluginsJsText, extractPluginText } from '@/services/extract/lib/plugin-text'

@@ -53,6 +53,6 @@ export const LOGS_DIR = join(ROOT_PATH, LOGS_DIR_NAME)
 export const PLUGIN_LOGS_DIR = join(LOGS_DIR, PLUGIN_LOGS_DIR_NAME)
 
 export const PLUGINS_DIR = join(ROOT_PATH, PLUGINS_DIR_NAME)
-export const PLUGINS_MANIFEST_PATH = join(PLUGINS_DIR, 'manifest.json')
+export const PLUGINS_MANIFEST_PATH = join(PLUGINS_DIR, 'mv', 'manifest.json')
 export const NODE_MODULES_DIR = join(ROOT_PATH, NODE_MODULES_DIR_NAME)
 export const KUROMIJI_DICT_PATH = join(NODE_MODULES_DIR, 'kuromoji', 'dict')

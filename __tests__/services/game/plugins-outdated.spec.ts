@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { PLUGINS_DIR, PLUGINS_MANIFEST_PATH, ROOT_PATH } from '@/constants/paths'
+import { PLUGINS_MANIFEST_PATH, ROOT_PATH } from '@/constants/paths'
 import { DIGEST_PLUGIN_NAMES } from '@/lib/game/plugin-digest'
 import { detectPluginsOutdated, kitPluginDigests } from '@/services/game/plugins'
 
@@ -16,7 +16,7 @@ describe('detectPluginsOutdated', () => {
   beforeAll(() => {
     fs.mkdirSync(distDir, { recursive: true })
     for (const name of DIGEST_PLUGIN_NAMES) fs.writeFileSync(path.join(distDir, `${name}.js`), `/* ${name} v2 */\n`)
-    fs.mkdirSync(PLUGINS_DIR, { recursive: true })
+    fs.mkdirSync(path.dirname(PLUGINS_MANIFEST_PATH), { recursive: true })
     const plugins = DIGEST_PLUGIN_NAMES.map((name) => ({ name, source: path.join(distRel, `${name}.js`) }))
     fs.writeFileSync(PLUGINS_MANIFEST_PATH, JSON.stringify({ plugins }))
   })

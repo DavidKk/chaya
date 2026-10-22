@@ -36,7 +36,7 @@ const resumeAfterError = jest.fn()
 const setEnemyHp = jest.fn()
 const setPartyHp = jest.fn()
 
-jest.mock('@/plugins/src/cheat/runtime/cheats', () => ({
+jest.mock('@/plugins/mv/src/cheat/runtime/cheats', () => ({
   Cheats: {
     setGod: (...a: unknown[]) => setGod(...(a as [boolean])),
     setThrough: (...a: unknown[]) => setThrough(...(a as [boolean])),
@@ -51,7 +51,7 @@ jest.mock('@/plugins/src/cheat/runtime/cheats', () => ({
   },
 }))
 
-jest.mock('@/plugins/src/cheat/runtime/cheats-run', () => ({
+jest.mock('@/plugins/mv/src/cheat/runtime/cheats-run', () => ({
   RunCheats: {
     ensureHooks: () => ensureHooks(),
     setEncounter: (...a: unknown[]) => setEncounter(...(a as [boolean])),
@@ -79,12 +79,12 @@ jest.mock('@/plugins/src/cheat/runtime/cheats-run', () => ({
 
 const settleBattleEnd = jest.fn(() => false)
 const canSettleBattleEnd = jest.fn(() => false)
-jest.mock('@/plugins/src/cheat/session/live-battle', () => ({
+jest.mock('@/plugins/mv/src/cheat/session/live-battle', () => ({
   settleBattleEnd: (...a: unknown[]) => settleBattleEnd(...(a as [])),
   canSettleBattleEnd: (...a: unknown[]) => canSettleBattleEnd(...(a as [])),
 }))
 
-import { applyRunAction, applyRunFlag, applySpeed, runActionNeedsClose } from '@/plugins/src/cheat/runtime/apply-run'
+import { applyRunAction, applyRunFlag, applySpeed, runActionNeedsClose } from '@/plugins/mv/src/cheat/runtime/apply-run'
 
 describe('applySpeed / applyRunFlag', () => {
   afterEach(() => {

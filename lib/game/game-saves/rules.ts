@@ -105,7 +105,7 @@ function parseEntry(raw: unknown): GameSaveEntry | null {
     mapName: typeof e.mapName === 'string' ? e.mapName : '',
     partyNames: Array.isArray(e.partyNames) ? e.partyNames.filter((n): n is string => typeof n === 'string').slice(0, 4) : [],
     versionId: num(e.versionId),
-    engine: e.engine === 'mz' ? 'mz' : 'mv',
+    engine: e.engine === 'mz' || e.engine === 'vx' || e.engine === 'vx-ace' ? e.engine : 'mv',
     bytes: num(e.bytes),
     hasThumb: e.hasThumb === true,
   }

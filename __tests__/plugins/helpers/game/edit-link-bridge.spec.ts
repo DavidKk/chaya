@@ -1,4 +1,4 @@
-import type * as Bridge from '@/plugins/src/helpers/game/edit-link-bridge'
+import type * as Bridge from '@/plugins/mv/src/helpers/game/edit-link-bridge'
 
 afterEach(() => {
   Reflect.deleteProperty(globalThis, '__chayaEditLinkBridge')
@@ -7,10 +7,10 @@ function separateCopies() {
   let runtime!: typeof Bridge
   let edit!: typeof Bridge
   jest.isolateModules(() => {
-    runtime = jest.requireActual('@/plugins/src/helpers/game/edit-link-bridge')
+    runtime = jest.requireActual('@/plugins/mv/src/helpers/game/edit-link-bridge')
   })
   jest.isolateModules(() => {
-    edit = jest.requireActual('@/plugins/src/helpers/game/edit-link-bridge')
+    edit = jest.requireActual('@/plugins/mv/src/helpers/game/edit-link-bridge')
   })
   return { runtime, edit }
 }

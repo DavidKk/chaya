@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { assertIdle, enclosingBranches, startCommonEventAt, startMapEventAt } from '@/plugins/src/cheat/session/run-from'
+import { assertIdle, enclosingBranches, startCommonEventAt, startMapEventAt } from '@/plugins/mv/src/cheat/session/run-from'
 
 const c = (code: number, indent: number, parameters: unknown[] = []) => ({ code, indent, parameters })
 

@@ -10,13 +10,13 @@ describe('plugin log history', () => {
     const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {})
     const consoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => {})
     try {
-      let first!: typeof import('@/plugins/src/helpers/net/logger')
-      let second!: typeof import('@/plugins/src/helpers/net/logger')
+      let first!: typeof import('@/plugins/mv/src/helpers/net/logger')
+      let second!: typeof import('@/plugins/mv/src/helpers/net/logger')
       await jest.isolateModulesAsync(async () => {
-        first = await import('@/plugins/src/helpers/net/logger')
+        first = await import('@/plugins/mv/src/helpers/net/logger')
       })
       await jest.isolateModulesAsync(async () => {
-        second = await import('@/plugins/src/helpers/net/logger')
+        second = await import('@/plugins/mv/src/helpers/net/logger')
       })
       const changed = jest.fn()
       const unsubscribe = second.subscribeLocalPluginLogs(changed)

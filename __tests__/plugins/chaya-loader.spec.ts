@@ -6,7 +6,7 @@ import { transformSync } from 'esbuild'
 
 import * as brand from '@/constants/brand'
 
-const code = transformSync(fs.readFileSync(path.join(process.cwd(), 'plugins/src/chaya-loader.ts'), 'utf8'), { loader: 'ts', format: 'cjs' }).code
+const code = transformSync(fs.readFileSync(path.join(process.cwd(), 'plugins/mv/src/chaya-loader.ts'), 'utf8'), { loader: 'ts', format: 'cjs' }).code
 const base = 'http://localhost:3927'
 const flush = async () => {
   for (let i = 0; i < 50; i++) await Promise.resolve()

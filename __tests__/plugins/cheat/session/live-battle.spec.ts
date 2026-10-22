@@ -13,7 +13,7 @@ import {
   transformEnemy,
   writeEnemyHp,
   writeEnemyMhp,
-} from '@/plugins/src/cheat/session/live-battle'
+} from '@/plugins/mv/src/cheat/session/live-battle'
 
 class SceneBattle {
   _spriteset: unknown

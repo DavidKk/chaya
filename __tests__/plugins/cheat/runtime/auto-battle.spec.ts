@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { Cheats } from '@/plugins/src/cheat/runtime/cheats'
+import { Cheats } from '@/plugins/mv/src/cheat/runtime/cheats'
 
 class Scene_Battle {}
 

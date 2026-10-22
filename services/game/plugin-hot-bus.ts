@@ -19,7 +19,7 @@ let watchingDir: string | null = null
 let retry: ReturnType<typeof setInterval> | null = null
 
 function pluginDistDir() {
-  return path.join(ROOT_PATH, 'plugins/dist')
+  return path.join(ROOT_PATH, 'plugins/mv/dist')
 }
 
 function etagFor(file: string) {
@@ -101,7 +101,7 @@ function ensureWatch() {
   }
 }
 
-/** 订阅 plugins/dist 变更（Vite watch 写出后推给 SSE / 热替换） */
+/** 订阅 plugins/mv/dist 变更（Vite watch 写出后推给 SSE / 热替换） */
 export function subscribePluginHot(fn: Listener): () => void {
   ensureWatch()
   listeners.add(fn)

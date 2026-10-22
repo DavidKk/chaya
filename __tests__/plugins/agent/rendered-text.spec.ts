@@ -1,4 +1,4 @@
-import { readCommandInputs, readRenderedText, startRenderedTextCapture } from '@/plugins/src/agent/rendered-text'
+import { readCommandInputs, readRenderedText, startRenderedTextCapture } from '@/plugins/mv/src/agent/rendered-text'
 
 type TestContext = {
   canvas: { isConnected: boolean }

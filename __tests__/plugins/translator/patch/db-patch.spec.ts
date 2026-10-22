@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { dbTables, patchCommand, patchDatabaseTexts, patchEventList, patchMapTexts, patchRow, patchSystem } from '@/plugins/src/translator/patch/db-patch'
+import { dbTables, patchCommand, patchDatabaseTexts, patchEventList, patchMapTexts, patchRow, patchSystem } from '@/plugins/mv/src/translator/patch/db-patch'
 
 function installGlobals(partial: Record<string, unknown>) {
   const g = globalThis as Record<string, unknown>

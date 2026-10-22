@@ -1,21 +1,21 @@
 /**
  * @jest-environment jsdom
  */
-jest.mock('@/plugins/src/cheat/session/live-session', () => ({
+jest.mock('@/plugins/mv/src/cheat/session/live-session', () => ({
   buildLiveCatalog: () => ({ ok: true, items: [] }),
   setPartyGold: jest.fn(),
   setItemCount: jest.fn(),
   readLiveSession: (prev: unknown) => prev,
 }))
-jest.mock('@/plugins/src/cheat/runtime/cheats', () => ({
+jest.mock('@/plugins/mv/src/cheat/runtime/cheats', () => ({
   Cheats: { ensureHooks: jest.fn(), setLock: jest.fn(), updateLockValue: jest.fn(), isLocked: () => false },
 }))
-jest.mock('@/plugins/src/cheat/runtime/cheats-run', () => ({ RunCheats: { ensureHooks: jest.fn(), setExpRate: jest.fn() } }))
-jest.mock('@/plugins/src/cheat/runtime/apply-run', () => ({ applyRunFlag: jest.fn(), applyRunAction: jest.fn(), applySpeed: jest.fn() }))
+jest.mock('@/plugins/mv/src/cheat/runtime/cheats-run', () => ({ RunCheats: { ensureHooks: jest.fn(), setExpRate: jest.fn() } }))
+jest.mock('@/plugins/mv/src/cheat/runtime/apply-run', () => ({ applyRunFlag: jest.fn(), applyRunAction: jest.fn(), applySpeed: jest.fn() }))
 
 const runDataCmd = jest.fn()
 const handleDataMessage = jest.fn((..._a: unknown[]) => false)
-jest.mock('@/plugins/src/cheat/session/save-data-bridge', () => ({
+jest.mock('@/plugins/mv/src/cheat/session/save-data-bridge', () => ({
   handleDataMessage: (...a: unknown[]) => handleDataMessage(...a),
   isDataCmd: (cmd: { op: string }) => cmd.op.startsWith('data'),
   runDataCmd: (...a: unknown[]) => runDataCmd(...a),
@@ -23,7 +23,7 @@ jest.mock('@/plugins/src/cheat/session/save-data-bridge', () => ({
   stopDataBridge: jest.fn(),
 }))
 
-import { handleRemoteEditMessage, stopRemoteEditBridge } from '@/plugins/src/cheat/session/remote-bridge'
+import { handleRemoteEditMessage, stopRemoteEditBridge } from '@/plugins/mv/src/cheat/session/remote-bridge'
 
 describe('remote-bridge data ops', () => {
   beforeEach(() => {

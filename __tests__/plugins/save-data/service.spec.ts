@@ -7,12 +7,12 @@ import { installWorld, removeWorld, type World } from './fixture'
 
 const isLocked = jest.fn((..._a: unknown[]) => false)
 const updateLockValue = jest.fn()
-jest.mock('@/plugins/src/cheat/runtime/cheats', () => ({
+jest.mock('@/plugins/mv/src/cheat/runtime/cheats', () => ({
   Cheats: { isLocked: (...a: unknown[]) => isLocked(...a), updateLockValue: (...a: unknown[]) => updateLockValue(...a) },
 }))
-jest.mock('@/plugins/src/cheat/session/live-events', () => ({ loadedMapData: () => null }))
+jest.mock('@/plugins/mv/src/cheat/session/live-events', () => ({ loadedMapData: () => null }))
 
-type Service = typeof import('@/plugins/src/cheat/session/save-data').SaveData
+type Service = typeof import('@/plugins/mv/src/cheat/session/save-data').SaveData
 
 let world: World
 let SaveData: Service
@@ -22,7 +22,7 @@ beforeEach(async () => {
   jest.resetModules()
   isLocked.mockReturnValue(false)
   world = installWorld()
-  SaveData = (await import('@/plugins/src/cheat/session/save-data')).SaveData
+  SaveData = (await import('@/plugins/mv/src/cheat/session/save-data')).SaveData
   SaveData.checkGen()
 })
 

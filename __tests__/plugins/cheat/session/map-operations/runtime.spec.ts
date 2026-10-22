@@ -7,12 +7,12 @@ const mockTeleportPlayer = jest.fn(async (target: { mapId: number; x: number; y:
   return mockPlayerPosition
 })
 
-jest.mock('@/plugins/src/cheat/session/live-events', () => ({
+jest.mock('@/plugins/mv/src/cheat/session/live-events', () => ({
   isOnMapScene: () => true,
   loadedMapEntries: () => mockLoadedMapEntries(),
   runCommonEventOnMap: (...args: unknown[]) => mockRunCommonEvent(...args),
 }))
-jest.mock('@/plugins/src/cheat/session/live-map', () => ({
+jest.mock('@/plugins/mv/src/cheat/session/live-map', () => ({
   transferPending: () => false,
   playerSpot: () => mockPlayerPosition,
   teleportPlayer: (target: { mapId: number; x: number; y: number; direction?: number }) => mockTeleportPlayer(target),
@@ -21,7 +21,7 @@ jest.mock('@/plugins/src/cheat/session/live-map', () => ({
 }))
 
 import type { MapOperationMessage, MapOperationValue } from '@/lib/runtime/game-link-protocol'
-import { handleMapOperationMessage } from '@/plugins/src/cheat/session/map-operations/runtime'
+import { handleMapOperationMessage } from '@/plugins/mv/src/cheat/session/map-operations/runtime'
 
 describe('map operation runtime', () => {
   const switches = new Map<number, boolean>()

@@ -1,4 +1,4 @@
-import { hookMethod } from '@/plugins/src/helpers/game/method-hook'
+import { hookMethod } from '@/plugins/mv/src/helpers/game/method-hook'
 
 test('retires old behavior but retains later plugin wrappers, receiver and arguments', () => {
   const target = {

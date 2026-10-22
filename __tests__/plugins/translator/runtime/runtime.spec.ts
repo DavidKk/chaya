@@ -3,15 +3,15 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { gameContentRelPath } from '@/lib/game/content-paths'
-import { chayaFetch } from '@/plugins/src/helpers/net/http'
-import { createTranslationRuntime } from '@/plugins/src/translator/runtime'
-import { engineFetch } from '@/plugins/src/translator/runtime/engine-fetch'
-import { createTranslationStore } from '@/plugins/src/translator/runtime/store'
+import { chayaFetch } from '@/plugins/mv/src/helpers/net/http'
+import { createTranslationRuntime } from '@/plugins/mv/src/translator/runtime'
+import { engineFetch } from '@/plugins/mv/src/translator/runtime/engine-fetch'
+import { createTranslationStore } from '@/plugins/mv/src/translator/runtime/store'
 
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 
-jest.mock('@/plugins/src/helpers/net/http', () => ({ chayaFetch: jest.fn() }))
-jest.mock('@/plugins/src/translator/runtime/engine-fetch', () => ({ engineFetch: jest.fn() }))
+jest.mock('@/plugins/mv/src/helpers/net/http', () => ({ chayaFetch: jest.fn() }))
+jest.mock('@/plugins/mv/src/translator/runtime/engine-fetch', () => ({ engineFetch: jest.fn() }))
 
 let root: string
 let runtime: ReturnType<typeof createTranslationRuntime>

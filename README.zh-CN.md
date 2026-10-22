@@ -55,7 +55,7 @@ Remote 形态没有登录，也没有服务端 MCP。外部 Agent 连接统一�
 
 ```bash
 pnpm i
-pnpm build          # 插件 → plugins/dist，再 next build
+pnpm build          # 插件 → plugins/mv/dist，再 next build
 pnpm start          # 生产 Next，监听 127.0.0.1:3927
 pnpm electron:open  # 对接该服务打开 Electron（CHAYA_SERVICE=app）
 ```
@@ -121,7 +121,7 @@ GitHub Actions：[CI](.github/workflows/ci.yml) 在 `main` / PR 跑 `pnpm ok:ci`
 chaya/
   app/ components/ lib/   Next UI 与共享辅助
   services/               game / runtime / translate / extract / log
-  plugins/                局内脚本（Vite IIFE → plugins/dist）
+  plugins/                局内脚本（Vite IIFE → plugins/mv/dist）
   electron/               Toolkit App 主进程
   data/                   本机工具数据（不入库）
 ```

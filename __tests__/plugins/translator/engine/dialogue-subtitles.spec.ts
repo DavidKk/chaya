@@ -1,5 +1,5 @@
 import { DEFAULT_PLAY_SETTINGS } from '@/lib/translate/play-settings'
-import { createDialogueSubtitles, installDialogueSubtitles } from '@/plugins/src/translator/engine/dialogue-subtitles'
+import { createDialogueSubtitles, installDialogueSubtitles } from '@/plugins/mv/src/translator/engine/dialogue-subtitles'
 
 describe('non-blocking dialogue subtitles', () => {
   beforeEach(() => jest.useFakeTimers())

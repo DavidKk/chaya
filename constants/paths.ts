@@ -87,7 +87,7 @@ export const GAME_ACTIVITY_LOGS_DIR = join(LOGS_DIR, GAME_ACTIVITY_LOGS_DIR_NAME
 
 /** In-game plugin sources and build output */
 export const PLUGINS_DIR = join(ROOT_PATH, PLUGINS_DIR_NAME)
-export const PLUGINS_MANIFEST_PATH = join(PLUGINS_DIR, 'manifest.json')
+export const PLUGINS_MANIFEST_PATH = join(PLUGINS_DIR, 'mv', 'manifest.json')
 /** @deprecated use PLUGINS_DIR */
 export const PRESET_DIR = PLUGINS_DIR
 /** @deprecated use PLUGINS_MANIFEST_PATH */

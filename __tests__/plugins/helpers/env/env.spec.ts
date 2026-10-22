@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { DEFAULT_CHAYA_API_BASE, pinApiBaseFromUrl, resolveApiBase, resolveApiBaseFallbacks, resolveLogUrl } from '@/plugins/src/helpers/env/env'
+import { DEFAULT_CHAYA_API_BASE, pinApiBaseFromUrl, resolveApiBase, resolveApiBaseFallbacks, resolveLogUrl } from '@/plugins/mv/src/helpers/env/env'
 
 describe('helpers/env', () => {
   const prevEnv = process.env.CHAYA_LOG_URL

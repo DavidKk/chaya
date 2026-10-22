@@ -35,7 +35,7 @@ export type GameSaveEntry = {
   mapName: string
   partyNames: string[]
   versionId: number
-  engine: 'mv' | 'mz'
+  engine: 'mv' | 'mz' | 'vx' | 'vx-ace'
   bytes: number
   hasThumb: boolean
 }

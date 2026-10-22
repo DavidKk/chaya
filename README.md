@@ -55,7 +55,7 @@ Desktop toolkit shell (Electron) + Next in **app** mode:
 
 ```bash
 pnpm i
-pnpm build          # plugins → plugins/dist, then next build
+pnpm build          # plugins → plugins/mv/dist, then next build
 pnpm start          # serve the production Next app on 127.0.0.1:3927
 pnpm electron:open  # open Electron against that server (CHAYA_SERVICE=app)
 ```
@@ -121,7 +121,7 @@ After launch, plugins write `js/plugins/ChayaEnv.js` and heartbeat to `/api/runt
 chaya/
   app/ components/ lib/   Next UI & shared helpers
   services/               game / runtime / translate / extract / log
-  plugins/                in-game scripts (Vite IIFE → plugins/dist)
+  plugins/                in-game scripts (Vite IIFE → plugins/mv/dist)
   electron/               Toolkit App main process
   data/                   local toolkit data (gitignored)
 ```

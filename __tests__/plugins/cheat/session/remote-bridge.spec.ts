@@ -7,7 +7,7 @@ const setPartyGold = jest.fn()
 const setItemCount = jest.fn()
 const readLiveSession = jest.fn((prev: unknown) => prev)
 
-jest.mock('@/plugins/src/cheat/session/live-session', () => ({
+jest.mock('@/plugins/mv/src/cheat/session/live-session', () => ({
   buildLiveCatalog: () => ({ ok: true, items: [{ id: 1, name: 'Potion' }] }),
   setPartyGold: (...a: unknown[]) => setPartyGold(...a),
   setItemCount: (...a: unknown[]) => setItemCount(...a),
@@ -19,7 +19,7 @@ const updateLockValue = jest.fn()
 const isLocked = jest.fn(() => false)
 const ensureHooks = jest.fn()
 
-jest.mock('@/plugins/src/cheat/runtime/cheats', () => ({
+jest.mock('@/plugins/mv/src/cheat/runtime/cheats', () => ({
   Cheats: {
     ensureHooks: () => ensureHooks(),
     setLock: (...a: unknown[]) => setLock(...a),
@@ -31,22 +31,22 @@ jest.mock('@/plugins/src/cheat/runtime/cheats', () => ({
 const runEnsure = jest.fn()
 const setExpRate = jest.fn()
 
-jest.mock('@/plugins/src/cheat/runtime/cheats-run', () => ({
+jest.mock('@/plugins/mv/src/cheat/runtime/cheats-run', () => ({
   RunCheats: {
     ensureHooks: () => runEnsure(),
     setExpRate: (...a: unknown[]) => setExpRate(...(a as [number])),
   },
 }))
 
-jest.mock('@/plugins/src/cheat/runtime/apply-run', () => ({
+jest.mock('@/plugins/mv/src/cheat/runtime/apply-run', () => ({
   applyRunFlag: jest.fn(),
   applyRunAction: jest.fn(),
   applySpeed: jest.fn(),
   applyGameSpeed: jest.fn(),
 }))
 
-import { applyGameSpeed, applyRunAction, applyRunFlag, applySpeed } from '@/plugins/src/cheat/runtime/apply-run'
-import { applyEditCmd, handleRemoteEditMessage, stopRemoteEditBridge, syncRemoteMirror } from '@/plugins/src/cheat/session/remote-bridge'
+import { applyGameSpeed, applyRunAction, applyRunFlag, applySpeed } from '@/plugins/mv/src/cheat/runtime/apply-run'
+import { applyEditCmd, handleRemoteEditMessage, stopRemoteEditBridge, syncRemoteMirror } from '@/plugins/mv/src/cheat/session/remote-bridge'
 
 describe('remote-bridge', () => {
   beforeEach(() => {
@@ -144,13 +144,13 @@ describe('remote-bridge', () => {
 })
 
 it('delivers the live gold and catalog across independent runtime/editor module copies', () => {
-  let runtime!: typeof import('@/plugins/src/helpers/game/edit-link-bridge')
-  let editor!: typeof import('@/plugins/src/helpers/game/edit-link-bridge')
+  let runtime!: typeof import('@/plugins/mv/src/helpers/game/edit-link-bridge')
+  let editor!: typeof import('@/plugins/mv/src/helpers/game/edit-link-bridge')
   jest.isolateModules(() => {
-    runtime = jest.requireActual('@/plugins/src/helpers/game/edit-link-bridge')
+    runtime = jest.requireActual('@/plugins/mv/src/helpers/game/edit-link-bridge')
   })
   jest.isolateModules(() => {
-    editor = jest.requireActual('@/plugins/src/helpers/game/edit-link-bridge')
+    editor = jest.requireActual('@/plugins/mv/src/helpers/game/edit-link-bridge')
   })
   Object.assign(globalThis, { $gameParty: {} })
   readLiveSession.mockImplementation((prev) => ({ ...(prev as object), gold: 99961899 }))

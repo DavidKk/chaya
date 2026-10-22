@@ -1,4 +1,4 @@
-import { createModelGate } from '@/plugins/src/agent/runtime/model-gate'
+import { createModelGate } from '@/plugins/mv/src/agent/runtime/model-gate'
 
 it('runs model requests one at a time', async () => {
   const gate = createModelGate()

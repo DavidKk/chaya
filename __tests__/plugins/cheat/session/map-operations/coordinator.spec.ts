@@ -1,4 +1,4 @@
-import { MapOperationCoordinator } from '@/plugins/src/cheat/session/map-operations/coordinator'
+import { MapOperationCoordinator } from '@/plugins/mv/src/cheat/session/map-operations/coordinator'
 
 const identity = (requestId: string) => ({ requestId, gameId: 'g1', generation: 1, deadlineAt: Date.now() + 60_000 })
 

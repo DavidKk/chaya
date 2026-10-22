@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { chayaFetch, chayaPostJson } from '@/plugins/src/helpers/net/http'
+import { chayaFetch, chayaPostJson } from '@/plugins/mv/src/helpers/net/http'
 
 describe('helpers/http', () => {
   const fetchMock = jest.fn()

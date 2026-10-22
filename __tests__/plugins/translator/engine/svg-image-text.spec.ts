@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { installSvgImageText } from '@/plugins/src/translator/engine/svg-image-text'
+import { installSvgImageText } from '@/plugins/mv/src/translator/engine/svg-image-text'
 
 it('translates SVG image labels from original text and refreshes an existing image', () => {
   const translations = new Map<string, string>()

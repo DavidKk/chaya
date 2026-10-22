@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { createLookupEnrichment } from '@/plugins/src/translator/lookup/lookup-enrich'
+import { createLookupEnrichment } from '@/plugins/mv/src/translator/lookup/lookup-enrich'
 
 function installDb(partial: Record<string, unknown>) {
   const g = globalThis as Record<string, unknown>

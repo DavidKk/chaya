@@ -1,4 +1,4 @@
-import { createLookupEnrichment } from '@/plugins/src/translator/lookup/lookup-enrich'
+import { createLookupEnrichment } from '@/plugins/mv/src/translator/lookup/lookup-enrich'
 
 describe('notification templates through the runtime lookup', () => {
   const game = globalThis as unknown as Record<string, unknown>

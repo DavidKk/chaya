@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { DB_SPECS } from '@/lib/translate/database-fields'
 import { detectSourceLanguage, isSourceText } from '@/lib/translate/source-text'
-import { extractPluginSeed } from '@/plugins/src/translator/runtime/extract'
+import { extractPluginSeed } from '@/plugins/mv/src/translator/runtime/extract'
 import { extractDataFields, extractNoteText } from '@/services/extract/lib/data-fields'
 import { runExtract } from '@/services/extract/lib/main'
 import { extractPluginText } from '@/services/extract/lib/plugin-text'

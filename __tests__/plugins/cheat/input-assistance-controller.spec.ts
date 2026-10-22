@@ -1,9 +1,9 @@
 /** @jest-environment jsdom */
 import { EMPTY_INPUT_ASSIST_CONFIG, type InputAssistConfig, type TurboRule } from '@/lib/game/input-assistance'
 import type { GameLinkMessage } from '@/lib/runtime/game-link-protocol'
-import { InputAssistanceController } from '@/plugins/src/cheat/input-assistance/controller'
+import { InputAssistanceController } from '@/plugins/mv/src/cheat/input-assistance/controller'
 
-jest.mock('@/plugins/src/helpers/node/node-require', () => ({ tryNodeFsPath: () => null, tryNodeRequire: () => null }))
+jest.mock('@/plugins/mv/src/helpers/node/node-require', () => ({ tryNodeFsPath: () => null, tryNodeRequire: () => null }))
 
 const turbo: TurboRule = {
   id: 'turbo',

@@ -6,7 +6,7 @@ import path from 'node:path'
  * decide intent, targets, safety or display by matching natural-language words.
  */
 const ROOT = path.resolve(__dirname, '../../..')
-const DIRS = ['lib/game-agent', 'services/game-agent', 'plugins/src/agent', 'plugins/src/agent-ui', 'components/game-agent', 'app/api/game-agent']
+const DIRS = ['lib/game-agent', 'services/game-agent', 'plugins/mv/src/agent', 'plugins/mv/src/agent-ui', 'components/game-agent', 'app/api/game-agent']
 const NATURAL = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Cyrillic}]/u
 const REGEX_LITERAL = /(?:^|[(=:,!&|?;{}[]|return)\s*(\/(?![/*])(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\[\n])+\/[dgimsuyv]*)/g
 const NEW_REGEXP = /new RegExp\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g

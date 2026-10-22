@@ -5,7 +5,7 @@ import path from 'node:path'
 import { browserAgentTraceArchive } from '@/lib/browser/agent-trace-store'
 import type { AgentTask } from '@/lib/game-agent/runtime'
 import { traceCleanupIds, traceSummary } from '@/lib/game-agent/trace'
-import { createGameAgentTraceArchive } from '@/plugins/src/agent/runtime/trace-archive'
+import { createGameAgentTraceArchive } from '@/plugins/mv/src/agent/runtime/trace-archive'
 import { createAgentTraceFileStore } from '@/services/game-agent/activity-file-store.server'
 
 function task(id = 'task-1'): AgentTask {

@@ -1,4 +1,4 @@
-import { createRenderTranslation } from '@/plugins/src/translator/engine/render-translation'
+import { createRenderTranslation } from '@/plugins/mv/src/translator/engine/render-translation'
 
 describe('render-time translation', () => {
   beforeEach(() => jest.useFakeTimers())

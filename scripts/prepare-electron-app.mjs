@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Assemble Electron extraResources: Next standalone + static/public + plugins/dist
+ * Assemble Electron extraResources: Next standalone + static/public + plugins/mv/dist
  * → `.electron-builder/app-root`
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
@@ -53,21 +53,21 @@ if (existsSync(publicDir)) {
   copyDir(publicDir, path.join(outRoot, 'public'))
 }
 
-const pluginsDist = path.join(root, 'plugins', 'dist')
+const pluginsDist = path.join(root, 'plugins', 'mv', 'dist')
 if (!existsSync(pluginsDist)) {
-  console.error('Missing plugins/dist. Run pnpm build:plugins first.')
+  console.error('Missing plugins/mv/dist. Run pnpm build:plugins first.')
   process.exit(1)
 }
-copyDir(pluginsDist, path.join(outRoot, 'plugins', 'dist'))
+copyDir(pluginsDist, path.join(outRoot, 'plugins', 'mv', 'dist'))
 copyDir(path.join(root, 'plugins', 'rgss'), path.join(outRoot, 'plugins', 'rgss'))
 
 const nativeBin = path.join(root, 'native', 'bin')
 if (existsSync(nativeBin)) copyDir(nativeBin, path.join(outRoot, 'native', 'bin'))
 
-const manifest = path.join(root, 'plugins', 'manifest.json')
+const manifest = path.join(root, 'plugins', 'mv', 'manifest.json')
 if (existsSync(manifest)) {
-  mkdirSync(path.join(outRoot, 'plugins'), { recursive: true })
-  cpSync(manifest, path.join(outRoot, 'plugins', 'manifest.json'))
+  mkdirSync(path.join(outRoot, 'plugins', 'mv'), { recursive: true })
+  cpSync(manifest, path.join(outRoot, 'plugins', 'mv', 'manifest.json'))
 }
 
 console.log('[prepare-electron-app] ok')

@@ -1,59 +1,21 @@
-# plugins
+# 游戏插件子模块
 
-局内游戏插件源码。用 **Vite** 打成自包含 IIFE（`dist/*.js`）。
+MV/MZ 与 RGSS 独立构建、独立输出；根脚本只负责调度，不合并两套运行时。
 
-**加载方式：** 游戏内只落盘 `ChayaEnv` + `ChayaLoader`；Loader 启动时从本机 Chaya
-`GET /api/plugins/:name.js` 拉取跟踪插件，失败则回退 `js/plugins/*.js` 磁盘缓存。
+| 子模块 | 源码与入口                                        | 构建                      | 产物         |
+| ------ | ------------------------------------------------- | ------------------------- | ------------ |
+| MV/MZ  | `mv/src/`，多个既有插件入口                       | `pnpm build:plugins:mv`   | `mv/dist/`   |
+| RGSS   | `rgss/src/entry.tsx`、`rgss/*.rb`、`rgss/native/` | `pnpm build:plugins:rgss` | `rgss/dist/` |
+| 共用   | `shared/`，无引擎状态的 UI、样式和声明            | 由两个子模块各自打包      | 无独立运行时 |
 
-日常开发：`pnpm dev` 会先全量 `build:plugins`，再并联 Next 与 plugins watch；
-改 `plugins/src` 后自动重打 `dist`，**重启游戏**即可吃到新包（不必反复安装 Loader）。
+`pnpm build:plugins` 同时构建两套，`pnpm build:plugins:dev` 同时 watch；可以分别运行两个子模块的 `build.mjs --watch`。
+每套子模块拥有自己的 `vite.config.mjs`、`tsconfig.json` 和 `manifest.json`，互不清理对方的 dist。
+`pnpm typecheck:plugins` 依次检查两个项目；MV 安装、摘要、热更新与 Electron 打包读取 `mv/manifest.json`、`mv/dist/`。
 
-```text
-plugins/
-  src/
-    chaya-loader.ts          → ChayaLoader.js
-    entry.ts                 → ChayaLog.js
-    game-boost.ts            → ChayaBoost.js
-    cheat/                   → ChayaEdit.js
-      index.ts               入口
-      ui/                    面板壳（App / mount / host / css）
-      runtime/               局内作弊与运行开关
-      session/               会话、落盘、远程桥
-      console/               控制台 API / 热键 / 道具标签
-    translator/              → ChayaTrans.js
-      index.ts               入口
-      lookup/                查表增强
-      patch/                 DB / 事件写回与分片队列
-      engine/                RM 绘制挂钩
-    helpers/
-      index.ts               公共 barrel
-      env/                   API·Log URL、ChayaEnv 补注入
-      net/                   http / logger
-      game/                  身份、WebRTC、presence、窗口尺寸
-      node/                  NW fs/path
-      ui/                    Shadow / DOM / 错误条
-  dist/
-  vite.config.mjs
-  build.mjs
-```
+RGSS 前端只通过原生 JSON 桥访问 Ruby，不导入 MV 的游戏全局对象或控制器。外部控制台走 WebRTC；本机启动凭据通过原生初始化脚本注入，Edge 信令请求使用连接令牌。
 
-游戏内容根：
+macOS 构建还会用 Xcode Command Line Tools 编译 WKWebView 宿主动态库；无额外监听端口或网络转发进程。
+当前原生宿主实现为 macOS。Windows WebView2 宿主及 Windows RGSS 注入尚未实现，不应宣称已支持。
+游戏暂时无法启动时，可运行 RGSS 网关 Jest 测试与真实 Ruby 适配器测试；这些测试不替代窗口挂载、输入、全屏等真机验证。
 
-```text
-chaya/translate/   seed · cache · switches …
-chaya/config/      game-edit.json
-```
-
-有服务：远程共享库 → 本游戏本地 → 翻译 → 双写。离线：仅本游戏本地。
-
-ChayaEdit UI：React `createRoot`，与控制台 `/edit` 共用 `components/game-edit` + `components/sk`（无 Next 依赖）。Shadow 宿主仅作样式隔离。
-
-开发（`pnpm dev` / `pnpm dev:app`）：共用插件 watch 和 `/api/plugins/stream` SSE。ChayaLoader 先确认服务处于开发环境，再订阅构建通知，按依赖顺序热替换插件；首次连接及重连会核对版本，断线期间的改动也会补上。游戏先启动、开发服务后启动也会自动连接。生产服务不开放热替换流。
-
-ChayaEdit 会先卸载旧 React 挂载点再挂载，面板开着会自动重开；ChayaTrans 会清理旧钩子、文件监听及翻译请求，不刷新游戏页。旧版 Loader 需要更新安装并在下一次启动游戏时加载一次，此后的普通插件和共用 UI 改动无需重启游戏。Loader 自身不参与热替换。
-
-```bash
-pnpm build:plugins
-pnpm build:plugins:dev   # watch
-pnpm dev                # Next + plugins watch
-```
+`pnpm test:rgss:native` 在 macOS GUI 登录会话中创建临时测试窗口，验证真实 WKWebView 挂载、配置注入、双向 JS 桥、DataChannel 传输与区域 hit-test，不需要安装游戏或启动服务。测试窗口自动关闭。

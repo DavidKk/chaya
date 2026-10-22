@@ -1,16 +1,12 @@
 /**
  * 局内插件 Vite 配置（自包含 IIFE，含 React；不依赖游戏页全局 / Next）。
- * 多入口 IIFE 需串行：`node plugins/build.mjs`（内部调用本配置）。
+ * 供两个独立子模块复用的纯构建配置，不包含任一引擎入口。
  */
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(__dirname, '..')
 
 /**
  * Next client modules (next/link, next/navigation) read these at module init. Browser-hosted games have no `process`,
@@ -33,11 +29,14 @@ const nextEnvDefines = Object.fromEntries(NEXT_ENV_KEYS.map((key) => [`process.e
 /** @param {{ name: string, entry: string, react?: boolean }} entry */
 /** @param {boolean} emptyOutDir */
 /** @param {{ dev?: boolean }} [opts] */
-export function createPluginsViteConfig(entry, emptyOutDir = false, opts = {}) {
+export function createPluginConfig(moduleRoot, entry, emptyOutDir = false, opts = {}) {
+  const __dirname = moduleRoot
+  const repoRoot = path.resolve(moduleRoot, '../..')
   const useReact = entry.react !== false
   const isDev = !!opts.dev
-  const useTailwind = entry.name === 'ChayaEdit'
+  const useTailwind = entry.name === 'ChayaEdit' || entry.name === 'ChayaRGSSOverlay'
   return defineConfig({
+    configFile: false,
     root: __dirname,
     plugins: [...(useReact ? [react()] : []), ...(useTailwind ? [tailwindcss()] : [])],
     resolve: {
@@ -92,6 +91,3 @@ export function createPluginsViteConfig(entry, emptyOutDir = false, opts = {}) {
     logLevel: 'warn',
   })
 }
-
-/** 单入口默认配置（`vite build --config plugins/vite.config.mjs` 时打 ChayaEdit） */
-export default createPluginsViteConfig({ name: 'ChayaEdit', entry: 'src/cheat/index.ts', react: true }, true)

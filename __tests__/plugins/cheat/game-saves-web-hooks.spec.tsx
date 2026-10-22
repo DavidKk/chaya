@@ -6,11 +6,11 @@ import { useGameSaves } from '@/components/game-saves/useGameSaves'
 import { type GameToolTransport, GameToolTransportContext } from '@/components/game-tools/transport'
 import { parseGameSavesSettings } from '@/lib/game/game-saves'
 import type { GameLinkMessage } from '@/lib/runtime/game-link-protocol'
-import { GameSavesController } from '@/plugins/src/cheat/game-saves/controller'
-import type { GameSavesEnv } from '@/plugins/src/cheat/game-saves/env'
-import { createMemoryBackend } from '@/plugins/src/cheat/game-saves/store'
+import { GameSavesController } from '@/plugins/mv/src/cheat/game-saves/controller'
+import type { GameSavesEnv } from '@/plugins/mv/src/cheat/game-saves/env'
+import { createMemoryBackend } from '@/plugins/mv/src/cheat/game-saves/store'
 
-jest.mock('@/plugins/src/helpers/node/node-require', () => ({ tryNodeFsPath: () => null, tryNodeRequire: () => require }))
+jest.mock('@/plugins/mv/src/helpers/node/node-require', () => ({ tryNodeFsPath: () => null, tryNodeRequire: () => require }))
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 if (!globalThis.crypto?.randomUUID) {

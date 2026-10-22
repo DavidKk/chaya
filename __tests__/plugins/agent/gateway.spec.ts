@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { writeMcpPortConfig } from '@/lib/integration/mcp-port'
-import { startGameGateway } from '@/plugins/src/agent/gateway'
+import { startGameGateway } from '@/plugins/mv/src/agent/gateway'
 
 type Globals = Record<string, unknown>
 

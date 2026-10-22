@@ -81,7 +81,7 @@ function install() {
   Object.assign(g, { Game_CharacterBase, Game_Character, Game_Player, $gameMap: map })
   delete (Game_Player.prototype as unknown as Record<string, unknown>).findDirectionTo
   jest.isolateModules(() => {
-    installSmartPath = jest.requireActual('@/plugins/src/cheat/runtime/smart-path').installSmartPath
+    installSmartPath = jest.requireActual('@/plugins/mv/src/cheat/runtime/smart-path').installSmartPath
     installSmartPath(() => enabled, { warn })
   })
   const player = new Game_Player()

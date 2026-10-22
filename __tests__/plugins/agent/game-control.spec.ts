@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { currentVisibleBounds, movePlayer, quitGame, tapScreen } from '@/plugins/src/agent/game-control'
+import { currentVisibleBounds, movePlayer, quitGame, tapScreen } from '@/plugins/mv/src/agent/game-control'
 
 type Globals = Record<string, unknown>
 

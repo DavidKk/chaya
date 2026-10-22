@@ -4,13 +4,13 @@ import path from 'node:path'
 
 let root = ''
 
-jest.mock('@/plugins/src/helpers/node/node-require', () => ({
+jest.mock('@/plugins/mv/src/helpers/node/node-require', () => ({
   tryNodeRequire: () => require,
   tryNodeFsPath: () => ({ fs: jest.requireActual('node:fs'), path: jest.requireActual('node:path') }),
 }))
-jest.mock('@/plugins/src/helpers/game/game-identity', () => ({ detectGameIdentity: () => ({ contentRoot: root }) }))
+jest.mock('@/plugins/mv/src/helpers/game/game-identity', () => ({ detectGameIdentity: () => ({ contentRoot: root }) }))
 
-import { createGameSavesBackend, gunzipText, gzipText } from '@/plugins/src/cheat/game-saves/store'
+import { createGameSavesBackend, gunzipText, gzipText } from '@/plugins/mv/src/cheat/game-saves/store'
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-saves-'))

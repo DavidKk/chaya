@@ -2,13 +2,13 @@
 import { newAutoEntryId, parseGameSavesIndex, parseGameSavesSettings, type SaveWaitReason } from '@/lib/game/game-saves'
 import { tNow } from '@/lib/i18n'
 import type { GameLinkMessage, GameSavesMessage } from '@/lib/runtime/game-link-protocol'
-import { GameSavesController } from '@/plugins/src/cheat/game-saves/controller'
-import type { GameSavesEnv } from '@/plugins/src/cheat/game-saves/env'
-import { GAME_SAVES_CHANGED_EVENT } from '@/plugins/src/cheat/game-saves/events'
-import { SaveRestoreRolledBackError } from '@/plugins/src/cheat/game-saves/serialize'
-import { createMemoryBackend, type GameSaveEntryStore, gunzipText, gzipText } from '@/plugins/src/cheat/game-saves/store'
+import { GameSavesController } from '@/plugins/mv/src/cheat/game-saves/controller'
+import type { GameSavesEnv } from '@/plugins/mv/src/cheat/game-saves/env'
+import { GAME_SAVES_CHANGED_EVENT } from '@/plugins/mv/src/cheat/game-saves/events'
+import { SaveRestoreRolledBackError } from '@/plugins/mv/src/cheat/game-saves/serialize'
+import { createMemoryBackend, type GameSaveEntryStore, gunzipText, gzipText } from '@/plugins/mv/src/cheat/game-saves/store'
 
-jest.mock('@/plugins/src/helpers/node/node-require', () => ({ tryNodeFsPath: () => null, tryNodeRequire: () => require }))
+jest.mock('@/plugins/mv/src/helpers/node/node-require', () => ({ tryNodeFsPath: () => null, tryNodeRequire: () => require }))
 
 type Reply = Extract<GameSavesMessage, { type: 'saves.reply' }>
 

@@ -1,4 +1,4 @@
-import { runLinkAgentRequest } from '@/plugins/src/helpers/game/agent-link'
+import { runLinkAgentRequest } from '@/plugins/mv/src/helpers/game/agent-link'
 
 describe('runLinkAgentRequest', () => {
   it('rejects methods outside the DataChannel whitelist', async () => {

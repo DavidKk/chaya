@@ -1,4 +1,4 @@
-import { armReaction, reactionOutcome, reactionResult, startReactionMonitor, stopReaction } from '@/plugins/src/agent/reaction'
+import { armReaction, reactionOutcome, reactionResult, startReactionMonitor, stopReaction } from '@/plugins/mv/src/agent/reaction'
 
 describe('in-game reaction monitor', () => {
   const g = globalThis as typeof globalThis & { window?: Window; requestAnimationFrame?: typeof requestAnimationFrame; cancelAnimationFrame?: typeof cancelAnimationFrame }

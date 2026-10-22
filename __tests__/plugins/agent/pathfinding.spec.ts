@@ -1,4 +1,4 @@
-import { planRoute, type Point } from '@/plugins/src/agent/pathfinding'
+import { planRoute, type Point } from '@/plugins/mv/src/agent/pathfinding'
 
 const bounds = { minX: 0, minY: 0, maxX: 6, maxY: 6 }
 const blocked = (walls: Point[] = []) => {

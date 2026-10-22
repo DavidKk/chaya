@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { createTransCatchUp } from '@/plugins/src/translator/patch/apply-queue'
+import { createTransCatchUp } from '@/plugins/mv/src/translator/patch/apply-queue'
 
 function installDb(partial: Record<string, unknown>) {
   const g = globalThis as any

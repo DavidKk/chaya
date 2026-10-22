@@ -1,6 +1,6 @@
-import { interactEvent } from '@/plugins/src/agent/interact'
+import { interactEvent } from '@/plugins/mv/src/agent/interact'
 
-jest.mock('@/plugins/src/agent/game-control', () => ({
+jest.mock('@/plugins/mv/src/agent/game-control', () => ({
   planVisibleRoute: (_target: unknown, _eventId: unknown, candidates: Array<{ x: number; y: number }>) => ({
     interactionPosition: candidates.at(-1),
   }),
@@ -109,7 +109,7 @@ describe('interactEvent', () => {
       $gamePlayer: player,
       $gameMessage: {},
     })
-    const { movePlayer } = jest.requireMock('@/plugins/src/agent/game-control') as { movePlayer: jest.Mock }
+    const { movePlayer } = jest.requireMock('@/plugins/mv/src/agent/game-control') as { movePlayer: jest.Mock }
     const original = movePlayer.getMockImplementation()
     movePlayer.mockImplementation(async ({ x, y }: { x: number; y: number }) => {
       if (Math.max(x, player.x) > 2 && Math.min(x, player.x) < 2 && door._pageIndex === 0) return { arrived: false }

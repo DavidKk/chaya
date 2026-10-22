@@ -1,4 +1,4 @@
-import { battleRequiresAgentDecision, createGameWatchManager, diffGameState, formatWatchTrigger } from '@/plugins/src/agent/runtime/state-watch'
+import { battleRequiresAgentDecision, createGameWatchManager, diffGameState, formatWatchTrigger } from '@/plugins/mv/src/agent/runtime/state-watch'
 
 const mapState = (overrides: Record<string, unknown> = {}) => ({
   scene: 'Scene_Map',

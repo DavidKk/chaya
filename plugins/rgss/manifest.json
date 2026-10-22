@@ -1,0 +1,8 @@
+{
+  "id": "ChayaRGSS",
+  "entry": "dist/rgss-overlay.html",
+  "native": {
+    "darwin": "dist/libchaya-overlay.dylib"
+  },
+  "preload": "preload.rb"
+}

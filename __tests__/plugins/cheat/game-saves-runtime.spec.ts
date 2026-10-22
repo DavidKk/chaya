@@ -1,5 +1,5 @@
-import { checkSaveSafety, isInGame, playerFingerprint } from '@/plugins/src/cheat/game-saves/safety'
-import { captureSave, currentEngine, restoreSave, SaveRestoreRolledBackError } from '@/plugins/src/cheat/game-saves/serialize'
+import { checkSaveSafety, isInGame, playerFingerprint } from '@/plugins/mv/src/cheat/game-saves/safety'
+import { captureSave, currentEngine, restoreSave, SaveRestoreRolledBackError } from '@/plugins/mv/src/cheat/game-saves/serialize'
 
 class Scene_Map {
   update = jest.fn()

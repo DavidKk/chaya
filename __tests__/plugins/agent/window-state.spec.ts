@@ -1,4 +1,4 @@
-import { readSceneWindows } from '@/plugins/src/agent/window-state'
+import { readSceneWindows } from '@/plugins/mv/src/agent/window-state'
 
 describe('readSceneWindows', () => {
   it('exposes equip slot labels and empty/current items as options', () => {
