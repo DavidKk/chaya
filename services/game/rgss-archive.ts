@@ -5,7 +5,7 @@ import { inflateSync } from 'node:zlib'
 import { parseRubyMarshal, type RubyArray } from '@/services/extract/lib/rgss/marshal'
 
 /** Read a single VX Ace archive member without unpacking or changing the game. */
-function readAceMember(archive: string, member: string): Buffer | null {
+export function readAceMember(archive: string, member: string): Buffer | null {
   const fd = fs.openSync(archive, 'r')
   let cursor = 0
   const length = fs.fstatSync(fd).size
@@ -65,4 +65,49 @@ export function readRgssScripts(contentRoot: string): Array<{ name: string; sour
       },
     ]
   })
+}
+
+/** Unpack specific or all files from a VX Ace archive into the target directory. */
+export function unpackAceArchive(archive: string, destinationDir: string, filter?: (member: string) => boolean): string[] {
+  const fd = fs.openSync(archive, 'r')
+  let cursor = 0
+  const length = fs.fstatSync(fd).size
+  const read = (size: number, offset = cursor) => {
+    if (size < 0 || offset + size > length) throw new Error('Truncated RGSS archive')
+    const bytes = Buffer.alloc(size)
+    if (fs.readSync(fd, bytes, 0, size, offset) !== size) throw new Error('Truncated RGSS archive')
+    cursor = offset + size
+    return bytes
+  }
+  const extracted: string[] = []
+  try {
+    const header = read(12)
+    if (!header.subarray(0, 8).equals(Buffer.from('RGSSAD\0\x03', 'binary'))) throw new Error('Unsupported RGSS archive version')
+    const key = (Math.imul(header.readUInt32LE(8), 9) + 3) >>> 0
+    for (let count = 0; count < 100_000; count++) {
+      const record = read(16)
+      const offset = (record.readUInt32LE(0) ^ key) >>> 0
+      if (!offset) break
+      const size = (record.readUInt32LE(4) ^ key) >>> 0
+      let fileKey = (record.readUInt32LE(8) ^ key) >>> 0
+      const nameSize = (record.readUInt32LE(12) ^ key) >>> 0
+      if (nameSize > 4096) throw new Error('Invalid RGSS archive filename')
+      const name = read(nameSize)
+      for (let i = 0; i < name.length; i++) name[i] ^= (key >>> ((i % 4) * 8)) & 255
+      const member = name.toString().replaceAll('\\', '/')
+      if (filter && !filter(member)) continue
+      const bytes = read(size, offset)
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] ^= (fileKey >>> ((i % 4) * 8)) & 255
+        if (i % 4 === 3) fileKey = (Math.imul(fileKey, 7) + 3) >>> 0
+      }
+      const outPath = path.join(destinationDir, member)
+      fs.mkdirSync(path.dirname(outPath), { recursive: true })
+      fs.writeFileSync(outPath, bytes)
+      extracted.push(member)
+    }
+  } finally {
+    fs.closeSync(fd)
+  }
+  return extracted
 }

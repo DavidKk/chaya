@@ -23,7 +23,8 @@ export function resolveContentRoot(argv = process.argv.slice(2)) {
 
 export function runExtract(contentRoot: string, options?: { sourceLanguage?: SourceLanguageOption }) {
   if (looksLikeRgssProject(contentRoot)) return runRgssExtract(contentRoot, options)
-  const DATA = path.join(contentRoot, 'data')
+  const dataHit = fs.existsSync(contentRoot) ? fs.readdirSync(contentRoot).find((e) => e.toLowerCase() === 'data') : null
+  const DATA = dataHit ? path.join(contentRoot, dataHit) : path.join(contentRoot, 'data')
   const MANUAL = gameContentReadPath(contentRoot, 'seed')
   const OUT = gameContentPath(contentRoot, 'extractStrings')
   const COMPARE = gameContentPath(contentRoot, 'extractCompare')

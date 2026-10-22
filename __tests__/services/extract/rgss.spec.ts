@@ -218,4 +218,24 @@ describe('RGSS VX/VX Ace support', () => {
     expect(rubyToPlain(parsed)).toBe(0.8)
     expect(Buffer.from(writeRubyMarshal(parsed))).toEqual(bytes)
   })
+  it('identifies RGSS project when Data directory is capitalized', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-rgss-cap-'))
+    try {
+      fs.mkdirSync(path.join(root, 'Data'))
+      fs.writeFileSync(path.join(root, 'Data', 'Actors.rvdata2'), Buffer.from([4, 8, 48]))
+      expect(looksLikeRgssProject(root)).toBe(true)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('identifies RGSS project when only Game.rgss3a archive exists', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-rgss-arc-'))
+    try {
+      fs.writeFileSync(path.join(root, 'Game.rgss3a'), Buffer.from('test'))
+      expect(looksLikeRgssProject(root)).toBe(true)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
 })

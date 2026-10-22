@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { ensureGameContentDir, gameContentReadPath } from '@/lib/game/content-files'
 import { detectSourceLanguage, isSourceText, type SourceLanguageOption } from '@/lib/translate/source-text'
+import { unpackAceArchive } from '@/services/game/rgss-archive'
 import { loadGameTranslateLookup } from '@/services/translate/game-lookup'
 
 import { compareWithManual } from './compare'
@@ -34,6 +35,18 @@ function findChild(dir: string, name: string): string | null {
 
 export function rgssDataDir(contentRoot: string): string | null {
   const dir = findChild(contentRoot, 'data')
+  if (dir && fs.statSync(dir).isDirectory() && extensionFor(dir)) return dir
+  try {
+    const names = fs.readdirSync(contentRoot)
+    const archive = names.find((name) => /^game\.rgss3a$/i.test(name))
+    if (archive) {
+      unpackAceArchive(path.join(contentRoot, archive), contentRoot, (m: string) => m.toLowerCase().startsWith('data/'))
+      const extracted = findChild(contentRoot, 'data')
+      if (extracted && fs.statSync(extracted).isDirectory() && extensionFor(extracted)) return extracted
+    }
+  } catch {
+    /* ignore */
+  }
   return dir && fs.statSync(dir).isDirectory() ? dir : null
 }
 
@@ -152,7 +165,16 @@ function listDataFiles(dataDir: string, extension: string): string[] {
 
 export function looksLikeRgssProject(contentRoot: string): boolean {
   const dataDir = rgssDataDir(contentRoot)
-  return Boolean(dataDir && extensionFor(dataDir))
+  if (dataDir && extensionFor(dataDir)) return true
+  try {
+    const names = fs.readdirSync(contentRoot).map((name) => name.toLowerCase())
+    if (names.some((name) => name === 'game.rgss3a' || name === 'game.rgss2a' || name === 'game.rgssad')) {
+      return true
+    }
+  } catch {
+    /* ignore */
+  }
+  return false
 }
 
 export function runRgssExtract(contentRoot: string, options?: { sourceLanguage?: SourceLanguageOption }) {

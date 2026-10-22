@@ -17,8 +17,34 @@ static void enqueue(NSString *text) {
 
 @interface ChayaWebView : WKWebView
 @property(nonatomic, copy) NSArray<NSValue *> *regions;
++ (NSCursor *)blankCursor;
+- (NSView *)gameView;
 @end
 @implementation ChayaWebView
++ (NSCursor *)blankCursor {
+  static NSCursor *cursor = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    NSImage *img = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
+    cursor = [[NSCursor alloc] initWithImage:img hotSpot:NSZeroPoint];
+  });
+  return cursor;
+}
+- (NSView *)gameView {
+  for (NSView *sub in self.superview.subviews) {
+    if (sub != self) return sub;
+  }
+  return nil;
+}
+- (void)resetCursorRects {
+  [self discardCursorRects];
+  [self addCursorRect:self.bounds cursor:[ChayaWebView blankCursor]];
+  for (NSValue *value in self.regions) {
+    NSRect r = value.rectValue;
+    if (!self.isFlipped) r.origin.y = self.bounds.size.height - (r.origin.y + r.size.height);
+    [self addCursorRect:r cursor:[NSCursor arrowCursor]];
+  }
+}
 - (NSView *)hitTest:(NSPoint)point {
   NSPoint local = [self convertPoint:point fromView:self.superview];
   // DOM coordinates have a top-left origin.
@@ -27,6 +53,19 @@ static void enqueue(NSString *text) {
     if (NSPointInRect(local, value.rectValue)) return [super hitTest:point];
   }
   return nil;
+}
+- (void)mouseUp:(NSEvent *)event {
+  [super mouseUp:event];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSView *game = [self gameView];
+    if (game && self.window.firstResponder != game) {
+      [self evaluateJavaScript:@"Boolean(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA'))" completionHandler:^(id result, NSError *error) {
+        if (![result boolValue]) {
+          [self.window makeFirstResponder:game];
+        }
+      }];
+    }
+  });
 }
 @end
 
@@ -55,6 +94,7 @@ static void enqueue(NSString *text) {
       [regions addObject:[NSValue valueWithRect:NSMakeRect(x.doubleValue, y.doubleValue, w.doubleValue, h.doubleValue)]];
     }
     self.view.regions = regions;
+    [self.view.window resetCursorRects];
     return;
   }
   enqueue(message.body);
@@ -84,9 +124,19 @@ static void enqueue(NSString *text) {
   __weak ChayaHost *weakHost = self;
   self.keyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown handler:^NSEvent *(NSEvent *event) {
     ChayaHost *owner = weakHost;
-    if (owner && event.window == owner.view.window && event.keyCode == 109 && !event.isARepeat) {
+    if (!owner || event.window != owner.view.window) return event;
+    if (event.keyCode == 109 && !event.isARepeat) {
       [owner.view evaluateJavaScript:@"document.dispatchEvent(new Event('chaya:toggle'))" completionHandler:nil];
       return nil;
+    }
+    if (event.keyCode == 53) {
+      [owner.view evaluateJavaScript:@"document.dispatchEvent(new Event('chaya:esc'))" completionHandler:nil];
+      NSView *game = [owner.view gameView];
+      if (game) {
+        [event.window makeFirstResponder:game];
+        [game keyDown:event];
+        return nil;
+      }
     }
     return event;
   }];
