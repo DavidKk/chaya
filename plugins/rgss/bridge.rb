@@ -212,6 +212,7 @@ class << Graphics
     alias_method :chaya_bridge_update, :update
     def update(*args)
       ChayaRGSS::Bridge.pump
+      ChayaRGSS::MouseMovement.update rescue nil
       chaya_bridge_update(*args)
     end
   end
