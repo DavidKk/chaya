@@ -85,9 +85,10 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'reset-item'
         | 'import-locales-corpus'
         | 'sources'
+        | 'optimize'
       settings?: unknown
       contentRoot?: string
-      action?: 'start' | 'pause' | 'import' | 'status' | 'search' | 'export' | 'plan' | 'install' | 'cancel'
+      action?: 'start' | 'pause' | 'import' | 'status' | 'search' | 'export' | 'plan' | 'install' | 'cancel' | 'scan' | 'apply-terms' | 'batch-optimize' | 'idle-status'
       planId?: string
       limit?: number
       /** 跳过缓存强制重译 */
@@ -166,6 +167,34 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       if (body.action === 'pause') return apiOk(pauseSeedJob())
       if (body.action === 'start') return apiOk(startSeedJob())
       return apiError(400, 'TRANSLATE_JOB_ACTION', 'Missing action: start | pause')
+    }
+
+    if (body.mode === 'optimize') {
+      const { scanGameTranslationsForOptimization, applyGameTermFixes, batchOptimizeTranslations, isSystemIdleForOptimization } =
+        await import('@/services/translate/optimize-service')
+
+      const action = body.action || 'scan'
+      if (action === 'scan') {
+        return apiOk(scanGameTranslationsForOptimization(body.contentRoot))
+      }
+      if (action === 'apply-terms') {
+        return apiOk(applyGameTermFixes(body.contentRoot))
+      }
+      if (action === 'batch-optimize') {
+        const engines = Array.isArray(body.engines) ? (body.engines as any) : undefined
+        return apiOk(
+          await batchOptimizeTranslations({
+            contentRoot: body.contentRoot,
+            limit: typeof body.limit === 'number' ? body.limit : undefined,
+            engines,
+            signal: request.signal,
+          })
+        )
+      }
+      if (action === 'idle-status') {
+        return apiOk(isSystemIdleForOptimization())
+      }
+      return apiError(400, 'OPTIMIZE_ACTION', 'action must be scan | apply-terms | batch-optimize | idle-status')
     }
 
     if (body.mode === 'sources') {

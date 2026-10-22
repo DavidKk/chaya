@@ -32,6 +32,19 @@ export { loadGameTranslateLookup, normalizeTranslateKey, translateWithLookup } f
 export { exportSourcesPayload, type NormalizedSources, normalizeSourcesInput, type SourcesEntry, type SourcesInputFormat } from './import-sources'
 export { parseTranslateImportText } from './import-text'
 export { googleJaToZh, type LiveTranslateItem, liveTranslateTexts } from './live-translate'
+export {
+  applyGameTermFixes,
+  type ApplyTermFixesResult,
+  type BatchOptimizeOptions,
+  type BatchOptimizeResult,
+  batchOptimizeTranslations,
+  isMachineTranslationEngine,
+  isSystemIdleForOptimization,
+  scanGameTranslationsForOptimization,
+  type ScanOptimizationResult,
+  type TermFixCandidate,
+  trackLiveTranslateRequest,
+} from './optimize-service'
 export { getSeedJobSnapshot, pauseSeedJob, type SeedJobLogEntry, type SeedJobSnapshot, type SeedJobState, type SeedJobStatus, startSeedJob } from './seed-job'
 export { inspectSensitiveText, isNsfwCacheRow, isNsfwTaggedEngine, isSensitiveForCloud, partitionCloudSafeTexts, type SensitiveHit } from './sensitive-text'
 export { defaultSharedDbPath, openSharedCache } from './shared-cache'

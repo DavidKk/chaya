@@ -127,7 +127,7 @@ it('detects English candidates even when the game has no known text fields', asy
     expect([...offline.allStrings]).toEqual(['Continue', 'Back', 'A'])
     const store = { load: jest.fn(async () => {}), seed: () => ({}), lookup: () => null, writeJson: jest.fn(async () => {}) }
     const plugin = await extractPluginSeed(root, { fs, path }, store as never, undefined, { entries: true })
-    expect(plugin.entries).toEqual({ Continue: '', Back: '', A: '' })
+    expect(plugin.entries).toEqual({ Continue: '继续游戏', Back: '', A: '' })
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
