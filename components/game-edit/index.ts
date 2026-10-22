@@ -38,6 +38,7 @@ export {
   saveGlobalHotkeys,
   setGameHotkeysCache,
 } from './run-hotkeys'
+export { RGSS_SUPPORTED_EDIT_TABS, RGSS_SUPPORTED_RUN_FLAGS } from './supported'
 export {
   ACTOR_PANES,
   type ActorPaneId,

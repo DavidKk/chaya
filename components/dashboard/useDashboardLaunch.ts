@@ -42,7 +42,7 @@ export function useDashboardLaunch({ status, busy, setBusy, pollStatus, queryGam
     setLaunchPending(true)
     setBusy(true)
     try {
-      const id = status && status.ready ? libraryIdForRoot(status.library || [], status.config.gameRoot) : queryGameId
+      const id = (status && status.ready ? libraryIdForRoot(status.library || [], status.config.gameRoot) : null) || (status as any)?.runtime?.native?.roomId || queryGameId
       if (id) gameLink.armRoom(id)
       // 断线后须重新发 offer，并清掉信令板上的 webConnected，否则 POST 会误判 ALREADY_RUNNING
       await gameLink.restart(id || undefined)

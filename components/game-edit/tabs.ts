@@ -60,8 +60,9 @@ export function isEditTab(tab: TabId): boolean {
  * Web 控制台（page）不展示「翻译」——走顶栏 `/translate`；
  * 局内浮层（overlay）和网页共用「修改」的二级分类。
  */
-export function tabsForSurface(_surface: GameEditSurface = 'page'): ReadonlyArray<(typeof TABS)[number]> {
-  return EDIT_TABS
+export function tabsForSurface(_surface: GameEditSurface = 'page', filterTabs?: (tab: TabId) => boolean): ReadonlyArray<(typeof TABS)[number]> {
+  const tabs = EDIT_TABS
+  return filterTabs ? tabs.filter((t) => filterTabs(t.id)) : tabs
 }
 
 export const DEFAULT_TAB: TabId = 'run'

@@ -10,6 +10,8 @@ import { clearLaunchToken, issueLaunchToken } from '@/services/runtime/launch-to
 import { toolkitListenPort } from '@/services/runtime/presence'
 import { getSignalingRoom } from '@/services/runtime/webrtc-signaling'
 
+import { loadConfig } from './config'
+import { findLibraryEntry } from './library'
 import { detectRgssPlugins } from './rgss-plugins'
 
 type Session = { child?: ChildProcess; running: boolean; starting: boolean; logPath: string; error?: string; tail: string; quitting?: boolean; roomId?: string; token?: string }
@@ -130,10 +132,11 @@ export async function launchRgss(resolved: ResolvedGame) {
       )
     }
     fs.writeFileSync(state.logPath, `Chaya native RGSS: ${new Date().toISOString()}\n${root}\n`)
-    if (process.platform === 'darwin') {
-      state.roomId = `rgss-${randomUUID()}`
-      state.token = issueLaunchToken({ gameRoot: root, libraryId: state.roomId }).token
-    }
+    const config = loadConfig()
+    const gameRoot = String(config.gameRoot || resolved.selected || resolved.contentRoot || '').trim()
+    const entry = findLibraryEntry(config.library, gameRoot)
+    state.roomId = entry?.id || `rgss-${randomUUID()}`
+    state.token = issueLaunchToken({ gameRoot: root, libraryId: state.roomId }).token
     const releaseBridge = () => {
       if (state.token) clearLaunchToken(state.token)
       if (state.roomId) disconnectAgentGame(state.roomId)

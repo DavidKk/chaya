@@ -15,11 +15,15 @@ type Props = {
   surface: GameEditSurface
   /** Tabs with live activity (e.g. a running battle): a dot on the icon, the text joins the label */
   dots?: Partial<Record<TabId, string>>
+  supportedTabs?: ReadonlySet<TabId> | ((tab: TabId) => boolean)
 }
 
-export function GameEditTabNav({ tab, setTab, surface, dots }: Props) {
+export function GameEditTabNav({ tab, setTab, surface, dots, supportedTabs }: Props) {
   const t = useT()
-  const tabs = useMemo(() => tabsForSurface(surface), [surface])
+  const tabs = useMemo(() => {
+    const filterFn = typeof supportedTabs === 'function' ? supportedTabs : supportedTabs ? (id: TabId) => supportedTabs.has(id) : undefined
+    return tabsForSurface(surface, filterFn)
+  }, [surface, supportedTabs])
 
   return (
     <div data-edit-categories className="contents">

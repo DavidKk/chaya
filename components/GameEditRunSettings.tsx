@@ -41,6 +41,9 @@ type Props = {
   actionsEnabled?: boolean
   /** 未连接游戏：数值为默认值，所有控件只看不改 */
   readOnly?: boolean
+  supportedFlags?: ReadonlySet<RunFlagKey> | ((key: RunFlagKey) => boolean)
+  hideTools?: boolean
+  hideSpeedSliders?: boolean
   onGoldChange: (gold: number) => void
   onGoldLockChange: (on: boolean) => void
   /** Sets walk and run together */
@@ -205,6 +208,9 @@ export function GameEditRunSettings({
   value,
   actionsEnabled = true,
   readOnly = false,
+  supportedFlags,
+  hideTools = false,
+  hideSpeedSliders = false,
   onGoldChange,
   onGoldLockChange,
   onMoveRateChange,
@@ -219,6 +225,8 @@ export function GameEditRunSettings({
   const previewDisabled = t('edit.previewDisabled')
   const readOnlyTip = t('events.runNeedLink')
   const canAct = actionsEnabled && !readOnly
+  const flagFilter = typeof supportedFlags === 'function' ? supportedFlags : supportedFlags ? (k: RunFlagKey) => supportedFlags.has(k) : () => true
+  const visibleFlagRows = RUN_FLAG_HOTKEY_ROWS.filter((r) => flagFilter(r.key))
 
   return (
     <div className="flex flex-wrap items-start gap-2 px-4 pt-3 pb-4" role="region" aria-label={t('edit.runSettingsAria')}>
@@ -256,64 +264,68 @@ export function GameEditRunSettings({
           </div>
         </div>
 
-        <div className={formFieldInlineDense}>
-          <span className={formTitleInline}>{t('edit.gameSpeed')}</span>
-          <span className={formDescInline}>{t('edit.gameSpeedDesc')}</span>
-          <div className={formControlInline}>
-            <NumberSliderInput
-              className="w-[7.25rem] min-w-[7.25rem]"
-              value={value.gameSpeed}
-              min={1}
-              max={5}
-              step={0.25}
-              allowDecimal
-              disabled={readOnly}
-              suffix={t('edit.rateSuffix')}
-              aria-label={t('edit.gameSpeed')}
-              onValueChange={(v) => onGameSpeedChange(clampGameSpeed(v))}
-            />
-          </div>
-        </div>
+        {!hideSpeedSliders ? (
+          <>
+            <div className={formFieldInlineDense}>
+              <span className={formTitleInline}>{t('edit.gameSpeed')}</span>
+              <span className={formDescInline}>{t('edit.gameSpeedDesc')}</span>
+              <div className={formControlInline}>
+                <NumberSliderInput
+                  className="w-[7.25rem] min-w-[7.25rem]"
+                  value={value.gameSpeed}
+                  min={1}
+                  max={5}
+                  step={0.25}
+                  allowDecimal
+                  disabled={readOnly}
+                  suffix={t('edit.rateSuffix')}
+                  aria-label={t('edit.gameSpeed')}
+                  onValueChange={(v) => onGameSpeedChange(clampGameSpeed(v))}
+                />
+              </div>
+            </div>
 
-        <div className={formFieldInlineDense}>
-          <span className={formTitleInline}>{t('edit.moveRate')}</span>
-          <span className={formDescInline}>{t('edit.moveRateDesc')}</span>
-          <div className={formControlInline}>
-            <NumberSliderInput
-              className="w-[7.25rem] min-w-[7.25rem]"
-              value={value.walkRate}
-              min={0.5}
-              max={8}
-              step={0.25}
-              allowDecimal
-              disabled={readOnly}
-              suffix={t('edit.rateSuffix')}
-              aria-label={t('edit.moveRate')}
-              onValueChange={(v) => onMoveRateChange(clampRate(v))}
-            />
-          </div>
-        </div>
+            <div className={formFieldInlineDense}>
+              <span className={formTitleInline}>{t('edit.moveRate')}</span>
+              <span className={formDescInline}>{t('edit.moveRateDesc')}</span>
+              <div className={formControlInline}>
+                <NumberSliderInput
+                  className="w-[7.25rem] min-w-[7.25rem]"
+                  value={value.walkRate}
+                  min={0.5}
+                  max={8}
+                  step={0.25}
+                  allowDecimal
+                  disabled={readOnly}
+                  suffix={t('edit.rateSuffix')}
+                  aria-label={t('edit.moveRate')}
+                  onValueChange={(v) => onMoveRateChange(clampRate(v))}
+                />
+              </div>
+            </div>
 
-        <div className={formFieldInlineDense}>
-          <span className={formTitleInline}>{t('edit.expRate')}</span>
-          <span className={formDescInline}>{t('edit.expRateDesc')}</span>
-          <div className={formControlInline}>
-            <NumberSliderInput
-              className="w-[7.25rem] min-w-[7.25rem]"
-              value={value.expRate}
-              min={0}
-              max={99}
-              step={0.25}
-              allowDecimal
-              disabled={readOnly}
-              suffix={t('edit.rateSuffix')}
-              aria-label={t('edit.expRate')}
-              onValueChange={(v) => onExpRateChange(clampExp(v))}
-            />
-          </div>
-        </div>
+            <div className={formFieldInlineDense}>
+              <span className={formTitleInline}>{t('edit.expRate')}</span>
+              <span className={formDescInline}>{t('edit.expRateDesc')}</span>
+              <div className={formControlInline}>
+                <NumberSliderInput
+                  className="w-[7.25rem] min-w-[7.25rem]"
+                  value={value.expRate}
+                  min={0}
+                  max={99}
+                  step={0.25}
+                  allowDecimal
+                  disabled={readOnly}
+                  suffix={t('edit.rateSuffix')}
+                  aria-label={t('edit.expRate')}
+                  onValueChange={(v) => onExpRateChange(clampExp(v))}
+                />
+              </div>
+            </div>
+          </>
+        ) : null}
 
-        {RUN_FLAG_HOTKEY_ROWS.map((row) => {
+        {visibleFlagRows.map((row) => {
           const checked = !!value[row.key]
           const label = t(row.labelKey)
           const toggle = readOnly ? undefined : () => onFlagChange(row.key, !checked)
@@ -351,36 +363,38 @@ export function GameEditRunSettings({
         })}
       </div>
 
-      <div className="flex w-full max-w-[26rem] min-w-0 flex-col gap-2" aria-label={t('edit.toolsAria')}>
-        <ActionCard
-          title={t('edit.sceneTitle')}
-          description={t('edit.sceneDesc')}
-          groups={SCENE_GROUPS}
-          disabled={!canAct}
-          disabledReason={readOnly ? readOnlyTip : previewDisabled}
-          onAction={onAction}
-          t={t}
-        />
-        <ActionCard
-          title={t('edit.fixTitle')}
-          description={t('edit.fixDesc')}
-          groups={FIX_GROUPS}
-          disabled={!canAct}
-          disabledReason={readOnly ? readOnlyTip : previewDisabled}
-          onAction={onAction}
-          t={t}
-        />
-        <ActionCard
-          title={t('edit.battleTitle')}
-          description={t('events.battle.runMoved')}
-          groups={[]}
-          disabled={!canAct}
-          disabledReason={readOnly ? readOnlyTip : previewDisabled}
-          onAction={onAction}
-          extra={onOpenBattle ? <TextAction onClick={onOpenBattle}>{t('events.battle.openBattle')}</TextAction> : null}
-          t={t}
-        />
-      </div>
+      {!hideTools ? (
+        <div className="flex w-full max-w-[26rem] min-w-0 flex-col gap-2" aria-label={t('edit.toolsAria')}>
+          <ActionCard
+            title={t('edit.sceneTitle')}
+            description={t('edit.sceneDesc')}
+            groups={SCENE_GROUPS}
+            disabled={!canAct}
+            disabledReason={readOnly ? readOnlyTip : previewDisabled}
+            onAction={onAction}
+            t={t}
+          />
+          <ActionCard
+            title={t('edit.fixTitle')}
+            description={t('edit.fixDesc')}
+            groups={FIX_GROUPS}
+            disabled={!canAct}
+            disabledReason={readOnly ? readOnlyTip : previewDisabled}
+            onAction={onAction}
+            t={t}
+          />
+          <ActionCard
+            title={t('edit.battleTitle')}
+            description={t('events.battle.runMoved')}
+            groups={[]}
+            disabled={!canAct}
+            disabledReason={readOnly ? readOnlyTip : previewDisabled}
+            onAction={onAction}
+            extra={onOpenBattle ? <TextAction onClick={onOpenBattle}>{t('events.battle.openBattle')}</TextAction> : null}
+            t={t}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

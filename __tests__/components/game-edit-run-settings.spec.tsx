@@ -94,3 +94,32 @@ it('disables every control in read-only mode', async () => {
   expect(onFlagChange).not.toHaveBeenCalled()
   expect(helpButton().disabled).toBe(false)
 })
+
+it('hides unsupported flags and tools when props are set', async () => {
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  root = createRoot(host)
+  const noop = () => {}
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <GameEditRunSettings
+          value={{ ...emptySession(), goldLocked: false }}
+          onGoldChange={noop}
+          onGoldLockChange={noop}
+          onMoveRateChange={noop}
+          onGameSpeedChange={noop}
+          onExpRateChange={noop}
+          onFlagChange={noop}
+          supportedFlags={new Set(['through'])}
+          hideTools
+          hideSpeedSliders
+          onAction={noop}
+        />
+      </LocaleProvider>
+    )
+  )
+  expect(document.querySelectorAll('button[role="switch"]')).toHaveLength(1)
+  expect(document.querySelector('button[role="switch"][aria-label="穿墙"]')).not.toBeNull()
+  expect(document.querySelector('div[aria-label="快捷工具箱"]')).toBeNull()
+})

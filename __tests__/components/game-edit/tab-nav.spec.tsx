@@ -63,6 +63,19 @@ test('marks the battle category while a battle is running', async () => {
   expect(host.querySelector('button[aria-label="战斗 · 战斗中"]')).not.toBeNull()
 })
 
+test('filters categories according to supportedTabs prop', async () => {
+  const supported = new Set(['run', 'item', 'bag'] as const)
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <GameEditTabNav tab="run" setTab={jest.fn()} surface="page" supportedTabs={supported} />
+      </LocaleProvider>
+    )
+  )
+  const buttons = Array.from(host.querySelectorAll<HTMLButtonElement>('[data-edit-categories] button'))
+  expect(buttons).toHaveLength(3)
+})
+
 test('keeps the shared category rail available on small screens in the game overlay', async () => {
   await act(async () =>
     root.render(

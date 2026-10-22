@@ -18,6 +18,7 @@ type StatusLite = {
   remote?: boolean
   config?: { gameRoot?: string }
   library?: LibraryItemView[]
+  runtime?: { native?: { roomId?: string }; roomId?: string }
 }
 
 function rootsEqual(a: string, b: string) {
@@ -75,7 +76,7 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
           nextId = readCloudGameId()
           nextEnabled = !!nextId
         } else if (data.ready && !data.remote && data.config?.gameRoot) {
-          nextId = libraryIdForRoot(data.library || [], data.config.gameRoot)
+          nextId = libraryIdForRoot(data.library || [], data.config.gameRoot) || data.runtime?.native?.roomId || data.runtime?.roomId || null
           nextEnabled = !!nextId
         }
         // 值未变不 setState，避免下游无意义重渲染

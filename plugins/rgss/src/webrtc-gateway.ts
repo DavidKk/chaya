@@ -6,7 +6,7 @@
 
 import { encodeGameLinkMessage, GAME_LINK_TOKEN_HEADER, type GameLinkMessage, parseGameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import { createChunkReceiver, sendChunked } from '@/lib/runtime/link-chunks'
-import { normalizeLocalWebRtcDescription, waitForIceGathering } from '@/lib/runtime/webrtc-ice'
+import { defaultPeerConfig, normalizeLocalWebRtcDescription, waitForIceGathering } from '@/lib/runtime/webrtc-ice'
 
 export type GatewayHandlers = {
   onConnected?: () => void
@@ -14,7 +14,6 @@ export type GatewayHandlers = {
   onMessage?: (msg: GameLinkMessage) => void
 }
 
-const STUN = 'stun:stun.cloudflare.com:3478'
 const POLL_IDLE_MS = 6_000
 const POLL_LINKED_MS = 20_000
 const RECONNECT_POLL_MS = 1_000
@@ -31,13 +30,16 @@ export class RgssWebRtcGateway {
   private sendQueue = Promise.resolve()
   private sendingChunk = false
   private chunks = createChunkReceiver((message) => this.handlers.onMessage?.(message as GameLinkMessage))
+  private apiBase: string
 
   constructor(
     readonly roomId: string,
-    private apiBase: string,
+    apiBase: string,
     private handlers: GatewayHandlers = {},
     private credentials: { linkToken?: string; launchToken?: string } = {}
-  ) {}
+  ) {
+    this.apiBase = String(apiBase || '').replace(/\/+$/, '')
+  }
 
   setHandlers(handlers: GatewayHandlers) {
     this.handlers = handlers
@@ -172,7 +174,7 @@ export class RgssWebRtcGateway {
     try {
       this.closePeer()
 
-      const peer = new RTCPeerConnection({ iceServers: [{ urls: STUN }] })
+      const peer = new RTCPeerConnection(defaultPeerConfig())
       this.pc = peer
       this.lastOfferSdp = offer.sdp
 

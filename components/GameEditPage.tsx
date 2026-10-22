@@ -19,6 +19,8 @@ import {
   parseActorPaneSegment,
   parseDataSegments,
   parseTabId,
+  RGSS_SUPPORTED_EDIT_TABS,
+  RGSS_SUPPORTED_RUN_FLAGS,
   saveGameStoredHotkeys,
   saveGlobalHotkeys,
   type SessionState,
@@ -84,6 +86,7 @@ export function GameEditPage() {
   const setOnlyNamed = useCallback((on: boolean) => replaceQuery({ named: on ? null : '0' }), [replaceQuery])
 
   const [catalog, setCatalog] = useState<GameEditCatalog | null>(null)
+  const [isRgss, setIsRgss] = useState(false)
   const [error, setError] = useState('')
   const [liveError, setLiveError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -227,6 +230,11 @@ export function GameEditPage() {
     try {
       const statusResponse = await fetch('/api/status')
       const status = await statusResponse.json()
+      setIsRgss(status.kind === 'rgss')
+      if (status.kind === 'rgss' && !RGSS_SUPPORTED_EDIT_TABS.has(tab)) {
+        router.replace(hrefWithQuery(editTabHref('run'), searchParams.toString()))
+        return
+      }
       if (status.canUseDisk === false) {
         setError('')
         return
@@ -246,7 +254,7 @@ export function GameEditPage() {
     } finally {
       setLoading(false)
     }
-  }, [connected, requestCatalog])
+  }, [connected, requestCatalog, tab, router, searchParams])
 
   useEffect(() => {
     void refresh()
@@ -310,6 +318,10 @@ export function GameEditPage() {
         linked={linked}
         readOnly={!linked}
         syncing={connected && !linked}
+        supportedTabs={isRgss ? RGSS_SUPPORTED_EDIT_TABS : undefined}
+        supportedFlags={isRgss ? RGSS_SUPPORTED_RUN_FLAGS : undefined}
+        hideRunTools={isRgss}
+        hideSpeedSliders={isRgss}
         onOpenLibrary={() => router.push('/game')}
         events={eventsSlot}
         saveData={saveDataSlot}

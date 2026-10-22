@@ -125,7 +125,9 @@ static void enqueue(NSString *text) {
   self.keyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown handler:^NSEvent *(NSEvent *event) {
     ChayaHost *owner = weakHost;
     if (!owner || event.window != owner.view.window) return event;
-    if (event.keyCode == 109 && !event.isARepeat) {
+    NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+    BOOL hasNonShiftModifiers = (mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption)) != 0;
+    if ((event.keyCode == 50 || event.keyCode == 109) && !event.isARepeat && !hasNonShiftModifiers) {
       [owner.view evaluateJavaScript:@"document.dispatchEvent(new Event('chaya:toggle'))" completionHandler:nil];
       return nil;
     }

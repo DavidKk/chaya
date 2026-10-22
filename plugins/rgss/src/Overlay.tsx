@@ -59,7 +59,10 @@ export function RgssOverlayRoot() {
       roomId,
       apiBase,
       {
-        onConnected: () => setGatewayConnected(true),
+        onConnected: () => {
+          setGatewayConnected(true)
+          postToGame({ type: 'edit.subscribe' })
+        },
         onDisconnected: () => setGatewayConnected(false),
         onMessage: (msg: GameLinkMessage) => {
           // Forward WebRTC commands into Ruby host

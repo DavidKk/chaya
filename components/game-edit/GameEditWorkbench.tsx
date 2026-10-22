@@ -127,6 +127,14 @@ export type GameEditWorkbenchProps = {
   events?: EventsSlot
   /** 数据页 transport and path */
   saveData?: SaveDataSlot
+  /** 支持的子页，未指定的隐藏 */
+  supportedTabs?: ReadonlySet<TabId> | ((tab: TabId) => boolean)
+  /** 支持的运行标记开关，未指定的隐藏 */
+  supportedFlags?: ReadonlySet<RunFlagKey> | ((key: RunFlagKey) => boolean)
+  /** 隐藏运行设置右侧快捷工具箱（如 RGSS 下不支持的场面跳转/排错） */
+  hideRunTools?: boolean
+  /** 隐藏倍速/移动速度滑块 */
+  hideSpeedSliders?: boolean
 }
 
 /** 数值来自运行中的游戏，未连接时没有可展示的内容 */
@@ -235,6 +243,10 @@ export function GameEditWorkbench({
   agentRequest,
   events,
   saveData,
+  supportedTabs,
+  supportedFlags,
+  hideRunTools,
+  hideSpeedSliders,
 }: GameEditWorkbenchProps) {
   const t = useT()
   const q = filter.trim().toLowerCase()
@@ -342,7 +354,7 @@ export function GameEditWorkbench({
         {surface === 'overlay' ? <GameEditMainNav tab={tab} lastEditTab={lastEditTab} setTab={setTab} closeButton={closeButton} /> : null}
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           {surface === 'page' || showEditNav ? (
-            <GameEditTabNav tab={tab} setTab={setTab} surface={surface} dots={events?.battle ? { battle: t('events.battle.dot') } : undefined} />
+            <GameEditTabNav tab={tab} setTab={setTab} surface={surface} dots={events?.battle ? { battle: t('events.battle.dot') } : undefined} supportedTabs={supportedTabs} />
           ) : null}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {surface === 'page' || showEditNav ? (
@@ -432,6 +444,9 @@ export function GameEditWorkbench({
                     }}
                     actionsEnabled={surface === 'overlay' || linked}
                     readOnly={readOnly}
+                    supportedFlags={supportedFlags}
+                    hideTools={hideRunTools}
+                    hideSpeedSliders={hideSpeedSliders}
                     onGoldChange={onGoldChange}
                     onGoldLockChange={onGoldLockChange}
                     onMoveRateChange={onMoveRateChange}
