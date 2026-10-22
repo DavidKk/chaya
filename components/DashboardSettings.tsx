@@ -32,6 +32,7 @@ export type DashboardWindowConfig = {
 }
 
 type Props = {
+  nativeRuntime?: boolean
   busy: boolean
   bundled: boolean
   /** 远程会话：路径只读，配置不可改 */
@@ -128,6 +129,7 @@ function PathField({
 
 /** 首页折叠区内的绑定路径与窗口设置。 */
 export function DashboardSettings({
+  nativeRuntime = false,
   busy,
   bundled,
   remote = false,
@@ -210,7 +212,7 @@ export function DashboardSettings({
             : { label: t('settings.copyGamePath'), tooltip: remote ? t('settings.remoteNoPath') : t('settings.copyGamePath'), onClick: () => onCopyPath(gameRoot) }
         }
       />
-      {browserMode ? null : (
+      {browserMode || nativeRuntime ? null : (
         <PathField
           title={t('settings.shellSource')}
           desc={shellDesc}
@@ -253,7 +255,7 @@ export function DashboardSettings({
         </div>
       ) : null}
 
-      {win && !remote ? (
+      {nativeRuntime ? null : win && !remote ? (
         <>
           <div className={formFieldInline}>
             <span className={formTitleInline}>{t('settings.windowSize')}</span>

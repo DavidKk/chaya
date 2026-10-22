@@ -21,3 +21,13 @@ it('validates RGSS A* obstacle navigation', () => {
   const result = execFileSync('ruby', [path.join(process.cwd(), '__tests__/plugins/rgss-test-astar.rb')], { encoding: 'utf8' })
   expect(result.trim()).toContain('A* unit tests passed!')
 })
+
+it('loads saved RGSS translations into dialogue, choices and menus and refreshes cache events', () => {
+  const result = execFileSync('ruby', [path.join(process.cwd(), '__tests__/plugins/rgss-translation.rb')], { encoding: 'utf8' })
+  expect(result.trim()).toBe('RGSS translation assertions passed')
+})
+
+it('loads the stock Windows RGSS entry without JSON, TracePoint or prepend and supports the VX message path', () => {
+  const result = execFileSync('ruby', [path.join(process.cwd(), '__tests__/plugins/rgss-native-translation.rb')], { encoding: 'utf8' })
+  expect(result.trim()).toBe('RGSS native translation assertions passed')
+})

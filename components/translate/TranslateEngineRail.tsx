@@ -2,7 +2,7 @@
 
 import { Menu } from '@base-ui/react/menu'
 import Link from 'next/link'
-import { type DragEvent, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { type DragEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { IoAdd, IoCloseOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
@@ -10,6 +10,8 @@ import { useNotification } from '@/components/notification/useNotification'
 import { Badge, Button, ScrollArea, Tooltip } from '@/components/sk'
 import { controlDisabled } from '@/components/sk/control'
 import { dropdownItemClass, dropdownPopupClass, dropdownTriggerClass } from '@/components/sk/dropdownMenu'
+import { AppleOfflineGuideModal } from '@/components/translate/AppleOfflineGuideModal'
+import { BergamotPackInstaller } from '@/components/translate/BergamotPackInstaller'
 import { TranslateAgentEntryConfig } from '@/components/translate/TranslateAgentEntryConfig'
 import { TranslateEngineRow } from '@/components/translate/TranslateEngineRow'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
@@ -32,6 +34,7 @@ import {
   type TranslateEngineState,
   type TranslateEngineSwitches,
 } from '@/lib/translate/engines'
+import { formatLanguageLabel } from '@/lib/translate/locales-labels'
 import { cn } from '@/lib/utils'
 
 export type EngineId = TranslateEngineId
@@ -53,6 +56,9 @@ const GROUPS: Array<{ id: TranslateEngineGroup; labelKey: MessageKey; descKey: M
 
 const groupLabel = 'text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase'
 
+type OfflineEngine = 'apple' | 'bergamot'
+type OfflineStatus = { installed: boolean; status: string; message?: string; source?: string; target?: string; accessReason?: string; consoleUrl?: string }
+
 type EngineView = Omit<TranslateEngineState, 'enabled'>
 
 const INITIAL: EngineView = { switches: DEFAULT_ENGINE_SWITCHES, agents: [], order: DEFAULT_ENGINE_ORDER }
@@ -71,6 +77,7 @@ function newEntryId() {
 
 type Props = {
   disabled?: boolean
+  languagePair?: { source: string; target: string }
   className?: string
   onChange?: (switches: EngineSwitches, enabled: EngineId[]) => void
   /** 小屏抽屉是否打开（由父级控制） */
@@ -81,7 +88,7 @@ type Props = {
 }
 
 /** 翻译页左侧：Agent 组（用户添加的 Agent 实例）与翻译平台组；组内拖拽排序，先试 Agent 再试平台 */
-export function TranslateEngineRail({ disabled, className, onChange, mobileOpen = false, onMobileOpenChange, manageAgentsHref }: Props) {
+export function TranslateEngineRail({ languagePair, disabled, className, onChange, mobileOpen = false, onMobileOpenChange, manageAgentsHref }: Props) {
   const t = useT()
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
@@ -89,7 +96,10 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [view, setView] = useState<EngineView>(INITIAL)
-  const [systemStatus, setSystemStatus] = useState<{ apple?: boolean; bergamot?: boolean }>({})
+  const [systemStatus, setSystemStatus] = useState<Partial<Record<OfflineEngine, OfflineStatus>>>({})
+  const [guideEngine, setGuideEngine] = useState<OfflineEngine | null>(null)
+  const [appleGuideOpen, setAppleGuideOpen] = useState(false)
+  const statusController = useRef<AbortController | null>(null)
   const [openEntry, setOpenEntry] = useState<string | null>(null)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [addMenuContainer, setAddMenuContainer] = useState<ShadowRoot>()
@@ -106,7 +116,7 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
   }
 
   function publish(next: EngineView) {
-    const enabled = enabledOf(next)
+    const enabled = enabledOf(next).filter((id) => (id !== 'apple' && id !== 'bergamot') || systemStatus[id]?.installed === true)
     if (sameIds(enabledRef.current, enabled)) return
     enabledRef.current = enabled
     onChange?.(next.switches, enabled)
@@ -118,8 +128,32 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
     return { switches: json.switches ?? fallback.switches, agents: json.agents ?? fallback.agents, order: json.order?.length ? json.order : fallback.order }
   }
 
+  const checkSystemStatus = useCallback(
+    async (id: OfflineEngine, signal: AbortSignal) => {
+      setSystemStatus((previous) => ({ ...previous, [id]: undefined }))
+      try {
+        const res = await translationFetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal,
+          body: JSON.stringify({ mode: `${id}-status`, from: languagePair?.source || undefined, to: languagePair?.target || undefined }),
+        })
+        const status = await res.json()
+        if (!res.ok || status.ok === false) throw new Error(readApiErrorMessage(status, t('translate.offlineCheckFailed')))
+        if (!signal.aborted) setSystemStatus((previous) => ({ ...previous, [id]: { ...status, installed: status.installed === true } }))
+      } catch (error) {
+        if (!signal.aborted)
+          setSystemStatus((previous) => ({ ...previous, [id]: { installed: false, status: 'error', message: error instanceof Error ? error.message : undefined } }))
+      }
+    },
+    [translationFetch, t, languagePair?.source, languagePair?.target]
+  )
+
   useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
+    statusController.current = controller
+    setSystemStatus({})
     ;(async () => {
       try {
         const res = await translationFetch('/api/translate', {
@@ -135,23 +169,7 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
         }
         const next = viewFrom(json, INITIAL)
         setView(next)
-        void (async () => {
-          try {
-            const [appleRes, bergRes] = await Promise.allSettled([
-              translationFetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'apple-status' }) }).then((r) =>
-                r.json()
-              ),
-              translationFetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'bergamot-status' }) }).then((r) =>
-                r.json()
-              ),
-            ])
-            const appleInstalled = appleRes.status === 'fulfilled' && (appleRes.value as any)?.installed === true
-            const bergInstalled = bergRes.status === 'fulfilled' && (bergRes.value as any)?.installed === true
-            if (!cancelled) setSystemStatus({ apple: appleInstalled, bergamot: bergInstalled })
-          } catch {
-            /* ignore */
-          }
-        })()
+        for (const id of ['apple', 'bergamot'] as const) void checkSystemStatus(id, controller.signal)
         publishEvent(next)
       } catch (err) {
         if (!cancelled) reportError(err instanceof Error ? err.message : t('translate.enginesLoadFailed'))
@@ -161,8 +179,13 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
     })()
     return () => {
       cancelled = true
+      controller.abort()
     }
-  }, [t, translationFetch])
+  }, [t, translationFetch, checkSystemStatus])
+
+  useEffect(() => {
+    if (!loading) publishEvent(view)
+  }, [systemStatus, view, loading])
 
   async function persist(patch: { switches?: Partial<EngineSwitches>; order?: EngineId[]; agents?: TranslateAgentEntry[] }, okMsg?: string) {
     setSaving(true)
@@ -205,7 +228,7 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
   }
 
   async function toggle(id: EngineId, checked: boolean) {
-    if (locked) return
+    if (locked || (checked && (id === 'apple' || id === 'bergamot') && systemStatus[id]?.installed !== true)) return
     const name = engineLabel(id)
     const msg = t(checked ? 'translate.engineOn' : 'translate.engineOff', { name })
     if (isBuiltinEngineId(id)) {
@@ -331,18 +354,11 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
           {t('translate.tagFree')}
         </Badge>
       )
-    } else if (id === 'apple') {
-      const ready = systemStatus.apple === true
+    } else if (id === 'apple' || id === 'bergamot') {
+      const ready = systemStatus[id]?.installed === true
       badge = (
-        <Badge size="mini" tone={ready ? 'ok' : 'warn'} dot={true}>
-          {t(ready ? 'translate.tagReady' : 'translate.tagNotReady')}
-        </Badge>
-      )
-    } else if (id === 'bergamot') {
-      const ready = systemStatus.bergamot === true
-      badge = (
-        <Badge size="mini" tone={ready ? 'ok' : 'warn'} dot={true}>
-          {t(ready ? 'translate.tagReady' : 'translate.tagNotReady')}
+        <Badge size="mini" tone={ready ? 'ok' : 'warn'} loading={systemStatus[id] === undefined}>
+          {systemStatus[id] === undefined ? t('translate.offlineChecking') : t(ready ? 'translate.tagReady' : 'translate.tagNotReady')}
         </Badge>
       )
     }
@@ -354,6 +370,7 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
         badge={badge}
         checked={isChecked(id)}
         locked={locked}
+        toggleDisabled={(id === 'apple' || id === 'bergamot') && !isChecked(id) && systemStatus[id]?.installed !== true}
         dragging={draggingId === id}
         dropEdge={overId === id && draggingId && draggingId !== id ? overEdge : null}
         onToggle={(v) => void toggle(id, v)}
@@ -364,8 +381,79 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
         onDrop={(e) => void onDrop(id, e)}
         onEdit={entry ? () => setOpenEntry(open ? null : entry.id) : undefined}
         editing={open}
+        actions={
+          (id === 'apple' || id === 'bergamot') && (guideEngine === id || (systemStatus[id] && !systemStatus[id]?.installed)) ? (
+            <Button size="xs" variant="plain" aria-expanded={guideEngine === id} onClick={() => setGuideEngine(guideEngine === id ? null : id)}>
+              {t('translate.offlineGuide')}
+            </Button>
+          ) : undefined
+        }
       >
-        {entry && open ? (
+        {(id === 'apple' || id === 'bergamot') && guideEngine === id ? (
+          <div className="flex flex-col gap-2 text-xs leading-relaxed text-ink-soft">
+            {systemStatus[id]?.source && systemStatus[id]?.target ? (
+              <p className="m-0 font-medium text-ink">
+                {formatLanguageLabel(systemStatus[id]!.source!)} → {formatLanguageLabel(systemStatus[id]!.target!)}
+              </p>
+            ) : null}
+            {id === 'bergamot' && systemStatus[id]?.accessReason === 'management_required' ? (
+              <p className="m-0">
+                {systemStatus[id]?.consoleUrl ? (
+                  <a href={systemStatus[id]!.consoleUrl} target="_blank" rel="noreferrer" className="text-accent underline">
+                    {t('translate.packConsoleRequired')}
+                  </a>
+                ) : (
+                  t('translate.packConsoleRequired')
+                )}
+              </p>
+            ) : id === 'bergamot' && systemStatus[id]?.source && systemStatus[id]?.target ? (
+              <BergamotPackInstaller
+                source={systemStatus[id]!.source!}
+                target={systemStatus[id]!.target!}
+                onInstalled={() => {
+                  if (statusController.current) void checkSystemStatus(id, statusController.current.signal)
+                }}
+              />
+            ) : (
+              <>
+                <p className="m-0">
+                  {t(
+                    systemStatus[id] === undefined
+                      ? 'translate.offlineChecking'
+                      : systemStatus[id]?.installed
+                        ? 'translate.offlineReadyHint'
+                        : systemStatus[id]?.status === 'supported'
+                          ? 'translate.appleOfflinePackMissing'
+                          : systemStatus[id]?.status === 'unsupported'
+                            ? 'translate.offlineUnsupportedPair'
+                            : systemStatus[id]?.status === 'model_pack_missing'
+                              ? 'translate.bergamotPackMissing'
+                              : id === 'bergamot' && systemStatus[id]?.status === 'unavailable'
+                                ? 'translate.bergamotUnavailable'
+                                : 'translate.offlineCheckFailed'
+                  )}
+                </p>
+                {systemStatus[id]?.status === 'error' && systemStatus[id]?.message ? <p className="m-0 break-words text-[11px]">{systemStatus[id]?.message}</p> : null}
+                <div className="flex flex-wrap gap-2">
+                  {id === 'apple' && systemStatus[id]?.status === 'supported' ? (
+                    <Button size="xs" onClick={() => setAppleGuideOpen(true)}>
+                      {t('translate.offlineGuide')}
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="xs"
+                    disabled={systemStatus[id] === undefined}
+                    onClick={() => {
+                      if (statusController.current) void checkSystemStatus(id, statusController.current.signal)
+                    }}
+                  >
+                    {t('translate.offlineRecheck')}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        ) : entry && open ? (
           <TranslateAgentEntryConfig
             entry={entry}
             agents={agentProfiles}
@@ -495,6 +583,12 @@ export function TranslateEngineRail({ disabled, className, onChange, mobileOpen 
           })}
         </ScrollArea>
       </aside>
+      <AppleOfflineGuideModal
+        open={appleGuideOpen}
+        fromLang={systemStatus.apple?.source || 'ja'}
+        toLang={systemStatus.apple?.target || 'zh'}
+        onClose={() => setAppleGuideOpen(false)}
+      />
     </>
   )
 }

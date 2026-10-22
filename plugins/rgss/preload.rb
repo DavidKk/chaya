@@ -112,6 +112,7 @@ load File.join(File.dirname(__FILE__), 'asset_paths.rb')
 load File.join(File.dirname(__FILE__), 'font_fallback.rb')
 load File.join(File.dirname(__FILE__), 'script_patches.rb')
 load File.join(File.dirname(__FILE__), 'mouse_movement.rb')
+load File.join(File.dirname(__FILE__), 'translation.rb')
 System.puts('[Chaya RGSS] Native compatibility preload ready')
 begin
   load File.join(File.dirname(__FILE__), 'bridge.rb')

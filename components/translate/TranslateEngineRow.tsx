@@ -16,6 +16,7 @@ type Props = {
   checked: boolean
   /** 交互锁（加载 / 保存中 / 外部禁用） */
   locked: boolean
+  toggleDisabled?: boolean
   dragging: boolean
   dropEdge: 'before' | 'after' | null
   actions?: ReactNode
@@ -38,6 +39,7 @@ export function TranslateEngineRow({
   badge,
   checked,
   locked,
+  toggleDisabled = false,
   dragging,
   dropEdge,
   actions,
@@ -110,7 +112,7 @@ export function TranslateEngineRow({
         </div>
         <div className="flex h-full items-center justify-center gap-1">
           {actions}
-          <SwitchToggle checked={checked} disabled={locked} aria-label={t('translate.engineToggle', { name: label })} onCheckedChange={onToggle} />
+          <SwitchToggle checked={checked} disabled={locked || toggleDisabled} aria-label={t('translate.engineToggle', { name: label })} onCheckedChange={onToggle} />
         </div>
       </div>
       {children ? <div className="border-t border-line px-3 pt-2 pb-3">{children}</div> : null}

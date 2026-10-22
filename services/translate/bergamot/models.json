@@ -1,0 +1,51 @@
+[
+  {
+    "id": "en-zh",
+    "version": "llmaat-finetune10M-qe8-f2-ByQcSxGXQRqGi-UTxYE43g",
+    "source": "en",
+    "target": "zh",
+    "platforms": ["darwin-arm64"],
+    "files": [
+      {
+        "name": "lex.50.50.enzh.s2t.bin",
+        "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh/llmaat_finetune10M_qe8_f2_ByQcSxGXQRqGi-UTxYE43g/exported/lex.50.50.enzh.s2t.bin.gz",
+        "bytes": 2536039,
+        "sha256": "806f75821c0b838f4a8f4afe5bab3db8289cb7e5187753ba04c3bceadd75687a",
+        "unpackedBytes": 4485184,
+        "unpackedSha256": "8575d8daa10e2dbff316dcdf8e1ce475357bcc2c92bdc63b736a2d5add22f681"
+      },
+      {
+        "name": "model.enzh.intgemm.alphas.bin",
+        "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh/llmaat_finetune10M_qe8_f2_ByQcSxGXQRqGi-UTxYE43g/exported/model.enzh.intgemm.alphas.bin.gz",
+        "bytes": 33375922,
+        "sha256": "7f255403b3bb2502f08ac4d5ca397a8a5a13f899d2f2e987a4934e089d241d16",
+        "unpackedBytes": 43849787,
+        "unpackedSha256": "4e5accc141373565ddc8fa1565bceaa8d0c3482a82cab8131c719ebcc6c2157c"
+      },
+      {
+        "name": "srcvocab.enzh.spm",
+        "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh/llmaat_finetune10M_qe8_f2_ByQcSxGXQRqGi-UTxYE43g/exported/srcvocab.enzh.spm.gz",
+        "bytes": 407784,
+        "sha256": "7846e3c236388390f4e5d321f8413d67f34c1bab5f066165eeb673bfd07607cc",
+        "unpackedBytes": 806952,
+        "unpackedSha256": "bd9b65504acc6d9726dd281f7defc2adb7c2c22d0688fe2f84697de25197c8c5"
+      },
+      {
+        "name": "trgvocab.enzh.spm",
+        "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh/llmaat_finetune10M_qe8_f2_ByQcSxGXQRqGi-UTxYE43g/exported/trgvocab.enzh.spm.gz",
+        "bytes": 425748,
+        "sha256": "4d641ce165b1f8478ee2ffb5149d2d46fab3779dc8fa1e9b97f9af1d2206c091",
+        "unpackedBytes": 772004,
+        "unpackedSha256": "aded6993c36e440284d11cec3f6b8aef9c0e43188a772d80be342a713adf223d"
+      }
+    ],
+    "config": "relative-paths: true\nmodels:\n  - model.enzh.intgemm.alphas.bin\nvocabs:\n  - srcvocab.enzh.spm\n  - trgvocab.enzh.spm\nshortlist:\n  - lex.50.50.enzh.s2t.bin\n  - false\nbeam-size: 1\nnormalize: 1.0\nword-penalty: 0\nmini-batch: 1\nmaxi-batch: 1\nworkspace: 128\nmax-length-break: 128\nskip-cost: true\ncpu-threads: 1\nmini-batch-words: 1024\nssplit-mode: sentence\n",
+    "license": "MPL-2.0",
+    "attribution": "Mozilla Firefox Translations",
+    "sample": {
+      "text": "Hello, world!",
+      "expected": "你好"
+    },
+    "licenseUrl": "https://github.com/mozilla/firefox-translations-models/blob/main/LICENSE"
+  }
+]

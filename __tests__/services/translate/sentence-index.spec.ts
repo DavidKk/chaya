@@ -193,7 +193,7 @@ it('rebuilds legacy indentation keys on open without changing cached translation
     const before = cache.record(src, languages)
     cache.close()
     const db = new DatabaseSync(file)
-    db.prepare("DELETE FROM cache_meta WHERE key='sentence_index_v9_open_parenthetical_alias'").run()
+    db.prepare("DELETE FROM cache_meta WHERE key='sentence_index_v10_exact_keys'").run()
     db.prepare("UPDATE match_keys SET match_key=? WHERE kind='canonical'").run(src)
     db.prepare("DELETE FROM match_keys WHERE kind!='canonical'").run()
     db.close()

@@ -95,3 +95,49 @@ export function createDynamicTemplateIndex() {
     },
   }
 }
+
+const numericLabelParts = (src: string) => src.match(/^([A-Za-z]{2,60} ?)(\d{1,6})$/)
+
+/** Exact family key shared by the persistent index and the in-memory resolver. */
+export function numericLabelFamily(src: string): string | null {
+  return numericLabelParts(src)?.[1] || null
+}
+
+/** Conservative whole-label reuse: require two distinct, agreeing numeric examples.
+ * Never infer arbitrary numeric prose, multiple slots, controls, dates or reordered numbers.
+ */
+export function createNumericLabelIndex(records: ReadonlyArray<{ src: string; zh: string; id?: string }> = []) {
+  const groups = new Map<string, Map<string, { src: string; zh: string; id?: string }>>()
+  const parse = numericLabelParts
+  function note(record: { src: string; zh: string; id?: string }) {
+    const match = parse(record.src)
+    if (!match) return
+    const group = groups.get(match[1]) || new Map()
+    group.set(record.id || record.src, record)
+    groups.set(match[1], group)
+  }
+  records.forEach(note)
+  return {
+    note,
+    resolve(src: string): string | null {
+      const query = parse(src)
+      if (!query) return null
+      const group = groups.get(query[1])
+      if (!group) return null
+      const numbers = new Set<string>()
+      const templates = new Set<string>()
+      for (const record of group.values()) {
+        const number = parse(record.src)![2]
+        const target = record.zh.match(/^([^\d\r\n\\]*)(\d+)([^\d\r\n\\]*)$/)
+        // Do not learn a template from output that changed or omitted its number.
+        if (!target || target[2] !== number || !/[\u3400-\u9FFF]/.test(target[1] + target[3])) return null
+        numbers.add(number)
+        templates.add(JSON.stringify([target[1], target[3]]))
+        if (templates.size > 1) return null
+      }
+      if (numbers.size < 2 || templates.size !== 1) return null
+      const [prefix, suffix] = JSON.parse([...templates][0]) as [string, string]
+      return prefix + query[2] + suffix
+    },
+  }
+}

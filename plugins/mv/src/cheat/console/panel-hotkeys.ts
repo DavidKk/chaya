@@ -38,7 +38,7 @@ function openGameDevTools(): boolean {
       return true
     }
   } catch (err) {
-    log.warn('showDevTools 失败', err)
+    log.warn('Failed to open DevTools', err)
   }
   return false
 }
@@ -90,7 +90,7 @@ function onHotkeyUp(ev: KeyboardEvent) {
       }
       window.ChayaEdit.toggle()
     } catch (err) {
-      log.fail('toggle 失败', err)
+      log.fail('Failed to toggle panel', err)
       showPluginError('无法打开插件控制台', err)
       try {
         hideGameEditUi()

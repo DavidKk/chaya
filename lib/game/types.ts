@@ -101,7 +101,7 @@ export const TRACKED_PLUGINS: readonly TrackedPlugin[] = [PLUGIN_RUNTIME_NAME, P
 export const LEGACY_PROJECT_SHELL_NAMES = LEGACY_SHELL_APP_NAMES
 
 export type PluginStatus = {
-  name: TrackedPlugin
+  name: TrackedPlugin | 'ChayaRGSS'
   registered: boolean
   enabled: boolean
   fileExists: boolean

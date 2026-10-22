@@ -1,9 +1,11 @@
 import { engineStateFileBody, isBuiltinEngineId, mergeEngineState, TRANSLATE_ENGINE_IDS, type TranslateEngineId, type TranslateEngineSwitches } from '@/lib/translate/engines'
 import { normalizePlaySettings, type TranslationPlaySettings } from '@/lib/translate/play-settings'
 import type { TranslationRequest, TranslationRequestFn } from '@/lib/translate/runtime-api'
+import { detectSourceLanguage } from '@/lib/translate/source-text'
 import { parseTranslateImportText } from '@/services/translate/import-text'
 import { isReusableTranslation } from '@/services/translate/text-classify'
 
+import { resolveApiBase } from '../../helpers/env/env'
 import { type NodeFsPath, tryNodeFsPath } from '../../helpers/node/node-require'
 import { extractPluginSeed } from './extract'
 import { createPluginTranslationJob } from './jobs'
@@ -173,6 +175,17 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
       }
       return { settings, contentRoot }
     }
+    if (body.mode === 'apple-status' || body.mode === 'bergamot-status') {
+      await store.load()
+      const status = await translator.systemStatus(
+        body.mode === 'apple-status' ? 'apple' : 'bergamot',
+        typeof body.from === 'string' ? body.from : detectSourceLanguage(Object.keys(store.seed())),
+        signal || lifetime.signal,
+        typeof body.to === 'string' ? body.to : 'zh'
+      )
+      return { ...status, accessReason: 'management_required', consoleUrl: `${resolveApiBase()}/translate` }
+    }
+    if (body.mode === 'bergamot-packs') return { ok: false, error: { message: '请在本机 Chaya 控制台安装语言包 / Open the local Chaya console to install language packs' } }
     if (body.mode === 'switches') return engineState(body)
     if (body.mode === 'agents') return translator.listAgents(signal)
     if (body.mode === 'progress') return { ...(await job.snapshot()), activity: { logs: [...activity], liveStatus: activityStatus, sessionDone: activityDone } }
@@ -194,7 +207,15 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
     }
     const texts = Array.isArray(body.texts) ? body.texts : typeof body.text === 'string' ? [body.text] : []
     if (!texts.length || texts.some((text) => typeof text !== 'string')) throw new Error('缺少有效原文')
-    return { items: await translate(texts as string[], { signal, force: body.force === true, persist: body.persist !== false }) }
+    return {
+      items: await translate(texts as string[], {
+        signal,
+        force: body.force === true,
+        persist: body.persist !== false,
+        sourceLang: typeof body.sourceLang === 'string' ? body.sourceLang : typeof body.from === 'string' ? body.from : undefined,
+        targetLang: typeof body.targetLang === 'string' ? body.targetLang : typeof body.to === 'string' ? body.to : undefined,
+      }),
+    }
   }
   const request: TranslationRequestFn = async (input, signal) => {
     try {

@@ -119,14 +119,14 @@ export function createDialogueSubtitles(options: Options) {
       publish(initial, false, cachedHit ? 'cached' : 'skipped')
       options.activity?.({
         level: cachedHit ? 'ok' : 'info',
-        text: `${cachedHit ? '词库命中' : '无需翻译'}：${(text || choices[0] || '').slice(0, 70)}`,
+        text: `${cachedHit ? 'Cache hit' : 'Translation not required'}: ${(text || choices[0] || '').slice(0, 70)}`,
         status: cachedHit ? '词库命中' : '无需翻译',
       })
       return
     }
     if (text.length + choices.join('').length > MAX_LIVE_CHARS || choices.length > 7) {
       publish(initial, false, 'skipped')
-      options.activity?.({ level: 'warn', text: `内容过长，跳过实时翻译：${(text || choices[0] || '').slice(0, 70)}`, status: '已跳过' })
+      options.activity?.({ level: 'warn', text: `Text too long; skipping realtime translation: ${(text || choices[0] || '').slice(0, 70)}`, status: '已跳过' })
       return
     }
 
@@ -145,7 +145,7 @@ export function createDialogueSubtitles(options: Options) {
     let latest = initial
     publish(initial, true)
     options.status(true)
-    options.activity?.({ level: 'info', text: `翻译中：${(text || choices[0] || '').slice(0, 70)}`, status: '翻译中' })
+    options.activity?.({ level: 'info', text: `Translating: ${(text || choices[0] || '').slice(0, 70)}`, status: '翻译中' })
     void (async () => {
       const translated = new Map<string, string>()
       let asyncText = false
@@ -160,9 +160,9 @@ export function createDialogueSubtitles(options: Options) {
           for (const item of items) {
             if (item.zh && item.zh !== item.src && item.status !== 'partial' && !item.error) {
               translated.set(item.src, item.zh)
-              options.activity?.({ level: 'ok', text: `${item.engine || '本机'}：${item.src.slice(0, 45)} → ${item.zh.slice(0, 45)}` })
+              options.activity?.({ level: 'ok', text: `${item.engine || 'local'}: ${item.src.slice(0, 45)} → ${item.zh.slice(0, 45)}` })
             } else if (item.error) {
-              options.activity?.({ level: 'warn', text: `${item.src.slice(0, 45)}：${item.error}` })
+              options.activity?.({ level: 'warn', text: `${item.src.slice(0, 45)}: ${item.error}` })
             }
           }
           const failed = items.find((item) => !item.zh && item.error)
@@ -185,7 +185,7 @@ export function createDialogueSubtitles(options: Options) {
         options.status(false, error)
         options.activity?.({
           level: badge === 'translated' ? 'ok' : 'warn',
-          text: `${badge === 'translated' ? '翻译完成' : error || '部分或全部未译'}：${(text || choices[0] || '').slice(0, 70)}`,
+          text: `${badge === 'translated' ? 'Translation completed' : error || 'Translation incomplete'}: ${(text || choices[0] || '').slice(0, 70)}`,
           status: badge === 'translated' ? '已译' : badge === 'partial' ? '部分未译' : '未译',
         })
       }

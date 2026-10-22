@@ -104,7 +104,7 @@ export function patchMapTexts(translate: Translate, opts?: { quiet?: boolean; lo
       }
     }
   }
-  if (!opts?.quiet) opts?.log?.ok('地图文本已套用翻译')
+  if (!opts?.quiet) opts?.log?.ok('Map translations applied')
 }
 
 export function patchDatabaseTexts(translate: Translate, opts?: { quiet?: boolean; log?: Log; preserveDialogue?: boolean }) {
@@ -148,5 +148,5 @@ export function patchDatabaseTexts(translate: Translate, opts?: { quiet?: boolea
     }
   }
   patchSystem(translate)
-  if (!opts?.quiet) opts?.log?.ok('数据库文本已套用翻译')
+  if (!opts?.quiet) opts?.log?.ok('Database translations applied')
 }

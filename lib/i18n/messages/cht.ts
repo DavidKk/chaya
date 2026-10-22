@@ -1,7 +1,9 @@
+import { debugCht } from '@/lib/i18n/messages/parts/debug'
 import { mcpGatewayCht } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const cht: MessageTree = {
+  debug: debugCht,
   locale: {
     label: '語言',
     switch: '切換語言',
@@ -368,7 +370,9 @@ export const cht: MessageTree = {
     extractingText: '正在抽取文本…',
     stillMissingNoEta: '仍缺 {count} 段（吞吐不足，暂不估时）',
     sessionDone: '本会话 {count}',
-    etaLeft: '预计剩余 {eta}',
+    etaLeft: '剩餘 {eta}',
+    rateCompact: '{rate} 字/s',
+    cacheCompact: '快取 {ms}ms',
     playModeAria: '游玩翻譯模式',
     playLoadAria: '加载游玩模式',
     realtime: '实时翻譯',
@@ -411,6 +415,20 @@ export const cht: MessageTree = {
     engineBing: 'Bing',
     engineGoogle: 'Google',
     engineApple: 'Apple 原生',
+    offlineChecking: '檢查中',
+    packConsoleRequired: '請在本機 Chaya 控制台安裝語言包。',
+    packInstallHint: '點擊安裝即可下載並驗證語言包，無需手動尋找檔案。',
+    packDownloading: '正在下載',
+    packVerifying: '正在驗證並試譯',
+    packRetryHint: '安裝未完成，可以重試。',
+    packInstall: '安裝語言包',
+    offlineGuide: '設定指引',
+    offlineRecheck: '重新檢查',
+    offlineReadyHint: '已就緒，可以啟用此引擎。',
+    offlineUnsupportedPair: '此引擎不支援目前的語言對。',
+    bergamotPackMissing: '目前語向缺少 Bergamot 離線語言包。語言包應由 Chaya 管理；目前版本尚不支援應用程式內下載，請檢查更新。',
+    bergamotUnavailable: 'Bergamot 翻譯元件無法使用。請重新啟動 Chaya；若問題持續，請更新或重新安裝應用程式。',
+    offlineCheckFailed: '無法檢查離線翻譯環境，請重試；若仍失敗，請檢查應用程式版本與系統支援情況。',
     engineBergamot: 'Bergamot',
     tagFree: '免費',
     tagReady: '就緒',

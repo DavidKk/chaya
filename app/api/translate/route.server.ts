@@ -5,6 +5,7 @@ import { apiError, apiOk } from '@/initializer/response'
 import { resolveGame } from '@/lib/game'
 import type { TranslateRunEngine } from '@/lib/translate/engines'
 import { normalizeAiConfig } from '@/lib/translate/engines'
+import { detectSourceLanguage } from '@/lib/translate/source-text'
 import { hasManagementAccess } from '@/services/access/management'
 import {
   exportSourcesJob,
@@ -68,6 +69,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'apple-status'
         | 'bergamot'
         | 'bergamot-status'
+        | 'bergamot-packs'
         | 'ai'
         | 'agents'
         | 'play-settings'
@@ -85,7 +87,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'sources'
       settings?: unknown
       contentRoot?: string
-      action?: 'start' | 'pause' | 'import' | 'status' | 'search' | 'export'
+      action?: 'start' | 'pause' | 'import' | 'status' | 'search' | 'export' | 'plan' | 'install' | 'cancel'
+      planId?: string
       limit?: number
       /** 跳过缓存强制重译 */
       force?: boolean
@@ -116,6 +119,24 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       page?: number
       pageSize?: number
       onlyDone?: boolean
+    }
+
+    if (body.mode === 'bergamot-packs') {
+      if (denied) return denied
+      if (!hasManagementAccess(request)) return apiError(403, 'MANAGEMENT_REQUIRED', 'Open the local console to manage language packs')
+      if (typeof body.from !== 'string' || typeof body.to !== 'string' || !/^[a-zA-Z-]{2,16}$/.test(body.from) || !/^[a-zA-Z-]{2,16}$/.test(body.to))
+        return apiError(400, 'PACK_INVALID_PAIR', 'Choose a source and target language')
+      const { packManager } = await import('@/services/translate/bergamot/manager')
+      const manager = packManager()
+      try {
+        if (body.action === 'install' && typeof body.planId === 'string') return apiOk(await manager.install(body.from, body.to, body.planId))
+        if (body.action === 'cancel' && typeof body.jobId === 'string') return apiOk(await manager.cancel(body.from, body.to, body.jobId))
+        if (body.action === 'plan' || body.action === 'status') return apiOk(await manager.plan(body.from, body.to))
+        return apiError(400, 'PACK_INVALID_ACTION', 'Invalid language pack action')
+      } catch (error) {
+        const code = error instanceof Error ? error.message : 'PACK_INSTALL_FAILED'
+        return apiError(409, code, code)
+      }
     }
 
     // 插件可选共享库查询：不绑定服务端当前游戏，也绝不触发推理或写游戏文件。
@@ -180,6 +201,19 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'switches') {
+      if (body.switches?.apple === true || body.switches?.bergamot === true) {
+        const current = getTranslateEngineSwitches()
+        const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
+        for (const id of ['apple', 'bergamot'] as const) {
+          if (body.switches[id] !== true || current.switches[id]) continue
+          const translator =
+            id === 'apple'
+              ? (await import('@/services/translate/lib/macos-translate')).appleTranslator
+              : (await import('@/services/translate/lib/bergamot-translate')).bergamotTranslator
+          const status = await translator.checkStatus(getSeedSourceLanguage(), 'zh')
+          if (!status.installed) return apiError(409, 'TRANSLATE_ENGINE_NOT_READY', status.message || `${id} translation is not ready`)
+        }
+      }
       const agents = Array.isArray(body.agents) ? body.agents : undefined
       if ((body.switches && typeof body.switches === 'object') || Array.isArray(body.order) || agents) {
         return apiOk(setTranslateEngineSwitches({ switches: body.switches, order: body.order, agents }))
@@ -220,7 +254,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
             hasLocales: true,
             currentSourceLang: detected,
             currentTargetLang: 'zh',
-            supportedLocales: [detected, 'zh'],
+            availableLanguages: [...new Set([detected, 'zh'])],
           }
           return apiOk({ items, locales, engine: resolved.engine, contentRoot: root })
         } catch (error) {
@@ -294,11 +328,24 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       return apiOk(resetExtractedItem(root, text))
     }
 
+    if (body.mode === 'apple-status') {
+      const { appleTranslator } = await import('@/services/translate/lib/macos-translate')
+      const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
+      const source = typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : getSeedSourceLanguage(game?.ok ? game.contentRoot : undefined)
+      const target = typeof (body.to ?? body.target) === 'string' ? (body.to ?? body.target) : 'zh-Hans'
+      return apiOk({ ...(await appleTranslator.checkStatus(source, target)), source, target })
+    }
+
     if (body.mode === 'bergamot' || body.mode === 'bergamot-status') {
       const source = typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : undefined
       const target = typeof (body.to ?? body.target) === 'string' ? (body.to ?? body.target) : undefined
       const { bergamotTranslator } = await import('@/services/translate/lib/bergamot-translate')
-      if (body.mode === 'bergamot-status') return apiOk(await bergamotTranslator.checkStatus(source, target))
+      if (body.mode === 'bergamot-status') {
+        const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
+        const from = source || getSeedSourceLanguage(game?.ok ? game.contentRoot : undefined)
+        const to = target || 'zh'
+        return apiOk({ ...(await bergamotTranslator.checkStatus(from, to)), source: from, target: to })
+      }
       const text = typeof body.text === 'string' ? body.text : ''
       if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_BERGAMOT_INPUT', 'Bergamot offline translation requires text of 1-20000 characters')
       return apiOk({ text: await bergamotTranslator.translate(text, { source, target }) })
@@ -347,18 +394,14 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         cache.close()
       }
     }
-    if (body.mode === 'apple-status') {
-      const { appleTranslator } = await import('@/services/translate/lib/macos-translate')
-      const source = typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : 'ja'
-      const target = typeof (body.to ?? body.target) === 'string' ? (body.to ?? body.target) : 'zh-Hans'
-      return apiOk(await appleTranslator.checkStatus(source, target))
-    }
 
     if (body.mode === 'apple') {
       const text = typeof body.text === 'string' ? body.text : ''
       if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_APPLE_INPUT', 'Apple offline translation requires text of 1-20000 characters')
       const { appleTranslate } = await import('@/services/translate/lib/macos-translate')
-      return apiOk({ text: await appleTranslate(text, { source: (body.from || body.source || 'ja') as string, target: (body.to || body.target || 'zh-Hans') as string }) })
+      return apiOk({
+        text: await appleTranslate(text, { source: (body.from || body.source || detectSourceLanguage([text])) as string, target: (body.to || body.target || 'zh-Hans') as string }),
+      })
     }
     if (body.mode === 'ai') {
       const text = typeof body.text === 'string' ? body.text : ''

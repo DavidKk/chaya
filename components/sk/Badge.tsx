@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react'
+import { LuLoaderCircle } from 'react-icons/lu'
 
 import { cn } from '@/lib/utils'
 
@@ -10,6 +11,8 @@ export type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
   children: ReactNode
   /** 左侧状态点；默认开启 */
   dot?: boolean
+  /** 加载时使用中性色与徽标尺寸的旋转指示，替代状态点 */
+  loading?: boolean
 }
 
 const TONE: Record<BadgeTone, string> = {
@@ -22,19 +25,24 @@ const TONE: Record<BadgeTone, string> = {
 }
 
 /** 只读状态徽标（非按钮）：与筛选/操作控件视觉区分。 */
-export function Badge({ tone = 'neutral', size = 'md', dot = true, className, children, ...rest }: BadgeProps) {
+export function Badge({ tone = 'neutral', size = 'md', dot = true, loading = false, className, children, ...rest }: BadgeProps) {
   return (
     <span
       className={cn(
         'pointer-events-none inline-flex h-[1.35rem] cursor-default select-none items-center gap-1 whitespace-nowrap rounded-full border-none px-2 pl-2 text-[0.68rem] font-medium leading-none tracking-[0.02em]',
-        TONE[tone],
+        TONE[loading ? 'neutral' : tone],
         size === 'mini' && 'h-4 px-1 text-[0.625rem]',
         className
       )}
       role="status"
+      aria-busy={loading || undefined}
       {...rest}
     >
-      {dot ? <span className={cn('shrink-0 rounded-full bg-current opacity-90', size === 'mini' ? 'size-1' : 'size-[0.35rem]')} aria-hidden /> : null}
+      {loading ? (
+        <LuLoaderCircle aria-hidden className={cn('shrink-0 animate-spin motion-reduce:animate-none', size === 'mini' ? 'size-2' : 'size-3')} />
+      ) : dot ? (
+        <span className={cn('shrink-0 rounded-full bg-current opacity-90', size === 'mini' ? 'size-1' : 'size-[0.35rem]')} aria-hidden />
+      ) : null}
       {children}
     </span>
   )

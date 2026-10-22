@@ -10,7 +10,7 @@ const PARAM_KEYS = ['mhp', 'mmp', 'atk', 'def', 'mat', 'mdf', 'agi', 'luk'] as c
 export function actorApi(actorId: number) {
   const actor = $gameActors && $gameActors.actor(actorId)
   if (!actor) {
-    log.warn('无效角色 ID', actorId)
+    log.warn('Invalid actor ID', actorId)
     return null
   }
   const api: Record<string, unknown> = {
@@ -121,7 +121,7 @@ export function actorApi(actorId: number) {
     param(paramId: number, n?: number) {
       const id = Number(paramId)
       if (id < 0 || id > 7) {
-        log.warn('无效属性 ID', paramId)
+        log.warn('Invalid parameter ID', paramId)
         return null
       }
       if (n != null) {

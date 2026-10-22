@@ -211,6 +211,29 @@ plugins/
 
 已增加 Edge 令牌、answer 发布失败重试、旧异步结果作废、DataChannel 重连、原生桥编码、区域发布、存档面板 transport，以及真实 Ruby 变量/金币/快捷存档往返测试。
 macOS 原生动态库编译通过不等于窗口集成验收通过；游戏已卸载，窗口挂载、渲染和输入未实测。
-Windows 原生宿主、Windows 游戏注入、自动存档计时、app 存储后端和小地图传送仍待实现。当前小地图仅浏览，工作台未适配的命令返回失败，不能伪装成功。
+Windows 原生宿主与实时桥、自动存档计时、app 存储后端和小地图传送仍待实现。当前小地图仅浏览，工作台未适配的命令返回失败，不能伪装成功。
 
 macOS 原生冒烟测试 `pnpm test:rgss:native` 已用临时窗口验证 WKWebView 挂载、配置注入、原生桥、实际 DataChannel 传输和局部点击穿透。这不替代 SDL/mkxp-z 游戏窗口的集成验收。
+
+## 8. RGSS 预译文显示
+
+`preload.rb` 加载独立的 `translation.rb` / `translation_store.rb`。启动器通过 `CHAYA_RGSS_CONTENT_ROOT` 指定游戏目录，读取 `chaya/translate/seed.json` 与 `cache.ndjson`，兼容旧文件名及数组缓存行。此路径只消费已保存译文，不依赖翻译引擎开关，也不改写游戏数据库或存档。
+
+- 游戏脚本加载完成、进入 `SceneManager.run` / `Scene_*.main` 时才安装显示钩子；`Graphics.update` 作为兼容回退。避免 preload 阶段 prepend 与游戏后续 alias 包装产生递归。
+- `Bitmap.draw_text` 与 `text_size` 使用同一译文；`Window_Base.convert_escape_characters` 在逐字绘制与变量、角色名控制符展开前翻译对白和选项。单字绘制只处理字体，不逐字翻译。
+- 查找使用内存哈希中的原文、规范化文本、数字控制符模板和控制符分段；不做模糊查询或任意子串替换。缺失译文保留原文。
+- 首次同步加载，之后每秒在后台检查变更；追加行增量读取，半行等待补齐，截断、替换或 seed 更新触发重建。按缓存 origin 处理删除事件，保护本地手工译文。新快照替换查找索引并使结果记忆失效，新绘制文字使用新缓存；已绘制窗口不强制刷新。
+- macOS 把系统 `STHeiti Light.ttc` 以 `.ttf` 扩展名链接到会话专属 RTP 的 `Fonts` 目录（mkxp-z 的发现规则要求此扩展名）。中文绘制和测量临时选用支持中文的字体，随后恢复游戏字体；不修改游戏的 Fonts 目录。
+- 已运行旧插件的游戏需要保存、退出后从 Chaya 重新启动一次，以加载显示模块和字体资源。之后缓存更新不需重启。
+
+验证包括 Ruby 生产模块的菜单、对白、选项、控制符、缓存追加/删除/截断、手工译文保护、字体恢复和重复加载测试；另用独立 mkxp-z 3.1.3 Ruby 实例读取实际游戏缓存，调用游戏原有的 `Game_Message` / `Window_Base` 方法，验证中文输出并检查原生位图。该验证不等同于完整游戏全场景验收；实时翻译与字幕模式不由此缓存适配器实现。
+
+## 9. 壳与插件独立安装
+
+RGSS 运行时壳与游戏插件各自管理：macOS 的壳是共享 mkxp-z；Windows 使用作品自带 Game.exe。插件安装到每个游戏的 `chaya/plugins/rgss/`，包含独立 Ruby 入口、缓存显示模块及可用的原生浮层产物。状态接口报告 `ChayaRGSS` 的安装和版本状态，复用控制台现有安装、更新、清除按钮。游戏运行期间禁止安装与清除；macOS 启动器只加载该游戏已安装的 preload，不再隐式加载仓库源码。
+
+安装器读取原脚本集合（支持 VX Ace 加密包），生成包含 ChayaRGSS 入口的独立 `Scripts.rvdata2` 副本，将入口放在 Main 之前，并将 Game.ini 的 Scripts 指向这个副本。原 Data/Scripts 与加密包不改写；Game.ini 按原始字节保留标题编码并备份。清除时只还原仍指向插件副本的 Scripts 行，不覆盖用户其它 INI 修改，不清除翻译缓存。VX 加密脚本需先解包到 Data；无法识别 Main 或解析脚本时安装失败，不修改配置。
+
+Windows 原版 Ruby 通过 `native.rb` 加载缓存翻译，使用无外部 JSON 依赖的解析器和旧 Ruby 的 alias 钩子，不加载 mkxp-z 的 Windows API 兼容层或 macOS WebView。VX Ace 在文字控制符展开前替换显示文本；VX 在 Window_Message.start_message 内使用临时显示副本并恢复原数组，保持解释器通过 texts/choices 添加内容的行为。
+
+Windows 的缓存翻译入口已完成契约测试；Windows 原生 WebView / WebRTC 桥仍未实现。验证环境为 macOS：覆盖安装、版本变化、重复更新、卸载恢复、旧 Ruby API 降级及缺失 JSON 的流程，并用安装到隔离目录的实际游戏脚本副本和缓存运行 mkxp-z、验证中文位图。没有 Windows 真机验收，不能据此宣称 Windows 全功能与 MV 对等。

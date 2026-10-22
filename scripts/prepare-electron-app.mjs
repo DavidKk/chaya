@@ -3,11 +3,28 @@
  * Assemble Electron extraResources: Next standalone + static/public + plugins/mv/dist
  * → `.electron-builder/app-root`
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { accessSync, constants, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const catalog = JSON.parse(readFileSync(path.join(root, 'services/translate/bergamot/models.json'), 'utf8'))
+if (catalog.some((pack) => pack.platforms.includes(`${process.platform}-${process.arch}`))) {
+  const platform = process.platform === 'darwin' ? 'macos' : process.platform
+  const binary = path.join(root, `native/bin/${platform}-${process.arch}/chaya-bergamot-translator`)
+  accessSync(binary, constants.X_OK)
+  const probe = spawnSync(binary, [], {
+    input: JSON.stringify({ id: 'packaging', action: 'check', from: 'en', to: 'zh' }) + '\n',
+    encoding: 'utf8',
+    timeout: 15000,
+    maxBuffer: 65536,
+  })
+  const response = JSON.parse(probe.stdout?.trim() || '{}')
+  if (probe.error || response.id !== 'packaging' || response.success !== true || typeof response.installed !== 'boolean')
+    throw new Error('Bergamot native component missing or incompatible; run pnpm build:bergamot before packaging')
+}
+
 const standaloneRoot = path.join(root, '.next', 'standalone')
 const outRoot = path.join(root, '.electron-builder', 'app-root')
 

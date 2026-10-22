@@ -5,6 +5,7 @@ import { companionZh } from '@/lib/i18n/messages/parts/companion'
 import { creditsZh } from '@/lib/i18n/messages/parts/credits'
 import { dashboardZh } from '@/lib/i18n/messages/parts/dashboard'
 import { dataZh } from '@/lib/i18n/messages/parts/data'
+import { debugZh } from '@/lib/i18n/messages/parts/debug'
 import { downloadsZh } from '@/lib/i18n/messages/parts/downloads'
 import { editZh } from '@/lib/i18n/messages/parts/edit'
 import { eventsZh } from '@/lib/i18n/messages/parts/events'
@@ -19,6 +20,7 @@ import type { MessageTree } from '@/lib/i18n/messages/types'
 
 /** 简体中文（结构真源） */
 export const zh = {
+  debug: debugZh,
   ...commonZh,
   ...marketingZh,
   ...dashboardZh,

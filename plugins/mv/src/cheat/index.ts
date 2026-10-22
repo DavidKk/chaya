@@ -121,11 +121,11 @@ if (reopenAfterHot) {
     try {
       remountGameEditUi(true)
     } catch (err) {
-      log.fail('热替换重挂载失败', err)
+      log.fail('Failed to remount after hot reload', err)
       showPluginError('插件控制台热替换重挂载失败', err)
     }
   }, 0)
 }
 
-log.info('已就绪：按反引号打开 React 面板，或 ChayaEdit.ui()')
+log.info('Ready: press backtick to open the panel, or call ChayaEdit.ui()')
 restorePluginErrors()

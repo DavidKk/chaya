@@ -16,6 +16,10 @@ export type DownloadItem = {
   kind: ServerDownloadKind
   status: DownloadStatus
   phase: ServerDownloadPhase | BrowserDownloadPhase
+  /** Local development fixture; excluded from completion notifications. */
+  preview?: boolean
+  source?: string
+  target?: string
   version?: string
   gameId?: string
   gameName?: string

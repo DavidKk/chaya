@@ -3,13 +3,14 @@ import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { ROOT_PATH } from '@/constants/paths'
 import { isRgssRuntimeInstalled, toolkitRgssBinary, toolkitRgssDir } from '@/lib/game/toolkit-data'
 import type { ResolvedGame } from '@/lib/game/types'
 import { disconnectAgentGame } from '@/services/runtime/agent-bridge'
 import { clearLaunchToken, issueLaunchToken } from '@/services/runtime/launch-token'
 import { toolkitListenPort } from '@/services/runtime/presence'
 import { getSignalingRoom } from '@/services/runtime/webrtc-signaling'
+
+import { detectRgssPlugins } from './rgss-plugins'
 
 type Session = { child?: ChildProcess; running: boolean; starting: boolean; logPath: string; error?: string; tail: string; quitting?: boolean; roomId?: string; token?: string }
 const globalSessions = globalThis as typeof globalThis & { __chayaRgssSessions?: Map<string, Session> }
@@ -60,6 +61,7 @@ export async function launchRgss(resolved: ResolvedGame) {
   const root = path.resolve(resolved.contentRoot)
   if (anyRgssRunning()) throw new Error('An RGSS game is already running or starting')
   if (!['darwin', 'win32'].includes(process.platform)) throw new Error('Native RGSS launch is currently supported on macOS and Windows only')
+  if (!detectRgssPlugins(root).every((plugin) => plugin.registered && plugin.fileExists)) throw new Error('Install the RGSS plugin before launching the game')
   const key = createHash('sha256').update(root).digest('hex').slice(0, 24)
   const sessionDir = path.join(toolkitRgssDir(), 'games', key)
   fs.mkdirSync(sessionDir, { recursive: true })
@@ -93,10 +95,20 @@ export async function launchRgss(resolved: ResolvedGame) {
       fs.copyFileSync(installed, `${binary}.new`, fs.constants.COPYFILE_FICLONE)
       fs.chmodSync(`${binary}.new`, 0o755)
       fs.renameSync(`${binary}.new`, binary)
-      const preload = path.join(ROOT_PATH, 'plugins', 'rgss', 'preload.rb')
+      const preload = path.join(root, 'chaya', 'plugins', 'rgss', 'preload.rb')
       if (!fs.existsSync(preload)) throw new Error('Chaya RGSS preload is missing; reinstall Chaya')
       for (const asset of ['rgss-overlay.html', 'ChayaRGSSOverlay.js', 'libchaya-overlay.dylib']) {
-        if (!fs.existsSync(path.join(ROOT_PATH, 'plugins', 'rgss', 'dist', asset))) throw new Error(`Chaya RGSS overlay asset is missing: ${asset}; rebuild or reinstall Chaya`)
+        if (!fs.existsSync(path.join(root, 'chaya', 'plugins', 'rgss', 'dist', asset))) throw new Error(`Chaya RGSS overlay asset is missing: ${asset}; rebuild or reinstall Chaya`)
+      }
+      // Mount a session-only font resource; never modify the game's Fonts folder.
+      const fontResources = path.join(sessionDir, 'resources')
+      const systemFont = '/System/Library/Fonts/STHeiti Light.ttc'
+      if (fs.existsSync(systemFont)) {
+        const fontDir = path.join(fontResources, 'Fonts')
+        fs.mkdirSync(fontDir, { recursive: true })
+        // mkxp-z discovers .ttf files; SDL can read the TTC contents through it.
+        const fontLink = path.join(fontDir, 'ChayaHeiti.ttf')
+        if (!fs.existsSync(fontLink)) fs.symlinkSync(systemFont, fontLink)
       }
       fs.writeFileSync(
         path.join(gameDir, 'mkxp.json'),
@@ -108,6 +120,7 @@ export async function launchRgss(resolved: ResolvedGame) {
             // Upstream dev builds can crash in createPathCache on encrypted RGSS3 archives.
             pathCache: false,
             allowSymlinks: true,
+            RTP: fs.existsSync(systemFont) ? [fontResources] : [],
             rubyLoadpath: [path.join(path.dirname(installed), 'stdlib')],
             preloadScript: [preload],
           },
@@ -132,6 +145,7 @@ export async function launchRgss(resolved: ResolvedGame) {
         MKXPZ_FOLDER_SELECT: '0',
         CHAYA_RGSS_RUNTIME: path.dirname(toolkitRgssBinary()),
         CHAYA_RGSS_SESSION: sessionDir,
+        CHAYA_RGSS_CONTENT_ROOT: root,
         CHAYA_RGSS_API: `http://127.0.0.1:${toolkitListenPort()}`,
         CHAYA_RGSS_ROOM: state.roomId || '',
         CHAYA_RGSS_TOKEN: state.token || '',

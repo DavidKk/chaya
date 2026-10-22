@@ -6,7 +6,7 @@ import { createMatchIndex } from './match-index'
 
 export class CacheIndexNotReadyError extends Error {
   constructor() {
-    super('缓存索引尚未升级，请先打开翻译库完成初始化，再重试测试。')
+    super('Cache index upgrade required; open the translation library to initialize it before retrying.')
   }
 }
 
@@ -16,7 +16,7 @@ export function withReadOnlyCache<T>(run: (cache: { index: ReturnType<typeof cre
   const client = new DatabaseSync(file, { readOnly: true })
   try {
     client.exec('PRAGMA query_only = ON; PRAGMA busy_timeout = 5000; BEGIN')
-    const meta = client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v9_open_parenthetical_alias'").get() as { value: string } | undefined
+    const meta = client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v10_exact_keys'").get() as { value: string } | undefined
     if (!meta) throw new CacheIndexNotReadyError()
     const value = run({ index: createMatchIndex(client), path: file })
     client.exec('COMMIT')

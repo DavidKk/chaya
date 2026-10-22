@@ -108,3 +108,6 @@ preset/**/_legacy_js/
 
 plugins/mv/dist/
 plugins/rgss/dist/
+
+# Standalone translation cache worker
+/native/bin/chaya-cache-worker.mjs

@@ -10,8 +10,8 @@ export type { NewlineAnnotation, NewlineKind } from '@/lib/translate/logic-text'
 export { buildLogicText, inferNewlineKind, mapLogicRangeToOriginal, newlineKindAt, usesSpacedSoftBreaks } from '@/lib/translate/logic-text'
 
 export const SENTENCE_TOKEN_SOURCE = `${RM_ESCAPE_RE.source}|${TEXT_MARKUP_RE.source}|https?:\\/\\/[^\\s<>]+`
-/** Bumped for paired opening-parenthesis aliases on message fragments. */
-export const SENTENCE_RULE_VERSION = 9
+/** Rebuild historical punctuation keys before equality-only cache lookup. */
+export const SENTENCE_RULE_VERSION = 10
 export type SentenceUnit = { start: number; end: number; key: string; tone: string; boundary: string; controls: string; block: number }
 
 export type SentenceUnitOptions = {

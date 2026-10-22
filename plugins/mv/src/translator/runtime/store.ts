@@ -2,6 +2,7 @@ import { type GameContentKind, gameContentRelPath, LEGACY_FLAT_FILES } from '@/l
 import { cacheEngineRank } from '@/lib/translate/cache-engine-rank'
 import { appendCacheLines, lockCacheFile } from '@/lib/translate/cache-file-lock'
 import { applyCacheRow, type CacheOrigin, type CacheRow, parseCacheRow } from '@/lib/translate/cache-row'
+import { createNumericLabelIndex } from '@/lib/translate/dynamic-template'
 import { type AlignmentGroup, createSentenceResolver, type SentenceRecord } from '@/lib/translate/sentence-plan'
 import { wholeSentenceKey } from '@/lib/translate/sentence-units'
 import { lookupCachedTranslation } from '@/services/translate/cache-lookup'
@@ -19,6 +20,7 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
   const sourceRows = new Map<string, CacheRow>()
   let cachedRecords: SentenceRecord[] | null = null
   let resolver: ReturnType<typeof createSentenceResolver> | null = null
+  let numeric: ReturnType<typeof createNumericLabelIndex> | null = null
   let seed: Record<string, string> = Object.create(null)
   let seedStamp = ''
   let libraryStamp = ''
@@ -112,6 +114,7 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
   function syncRows() {
     cachedRecords = null
     resolver = null
+    numeric = null
     const previous = new Map(rows)
     rows.clear()
     for (const row of sourceRows.values()) {
@@ -144,6 +147,8 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
         }
       return planned.zh
     }
+    const numericHit = (numeric ??= createNumericLabelIndex(records())).resolve(src)
+    if (numericHit) return numericHit
     return lookupCachedTranslation((key) => {
       const row = rows.get(key)
       if (row && trackHit) row.hitCount++

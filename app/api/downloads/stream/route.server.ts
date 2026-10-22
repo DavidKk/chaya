@@ -1,6 +1,7 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { requireDisk } from '@/services/disk-ops'
-import { type JobEvent, listDownloadJobs, subscribeDownloadJobs } from '@/services/downloads/jobs'
+import { type JobEvent, subscribeDownloadJobs } from '@/services/downloads/jobs'
+import { downloadSnapshot } from '@/services/downloads/snapshot'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,6 +22,7 @@ export const GET = defineApiRoute('get:/api/downloads/stream', async ({ request 
       const enc = new TextEncoder()
       let closed = false
       let unsub = () => {}
+      let refresh: ReturnType<typeof setInterval> | undefined
       const ping = setInterval(() => send('ping', { ts: Date.now() }), 15000)
       const send = (event: string, data: unknown) => {
         if (closed) return
@@ -31,7 +33,18 @@ export const GET = defineApiRoute('get:/api/downloads/stream', async ({ request 
         }
       }
 
-      send('snapshot', { jobs: listDownloadJobs() })
+      let previous = ''
+      const snapshot = () => {
+        const jobs = downloadSnapshot()
+        const next = JSON.stringify(jobs)
+        if (next !== previous) {
+          previous = next
+          send('snapshot', { jobs })
+        }
+      }
+      snapshot()
+      // Durable snapshots also cover installers running in another server worker.
+      if (!closed) refresh = setInterval(snapshot, 1000)
       if (!closed) {
         unsub = subscribeDownloadJobs((e: JobEvent) => {
           if (e.type === 'job') send('job', e.job)
@@ -43,6 +56,7 @@ export const GET = defineApiRoute('get:/api/downloads/stream', async ({ request 
         if (closed) return
         closed = true
         clearInterval(ping)
+        clearInterval(refresh)
         unsub()
         try {
           controller.close()

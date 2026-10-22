@@ -67,7 +67,7 @@ export function createTransCatchUp(opts: { translate: Translate; log: Log; prese
           }
         }
       } catch (err) {
-        log.warn('窗口刷新失败', err && (err as Error).message ? (err as Error).message : err)
+        log.warn('Failed to refresh window', err && (err as Error).message ? (err as Error).message : err)
       }
     }, 600)
   }
@@ -188,7 +188,7 @@ export function createTransCatchUp(opts: { translate: Translate; log: Log; prese
         if (stepCommands(map.events[ti], true)) used += 1
       }
     } catch (err) {
-      log.warn('分片套用中断', err && (err as Error).message ? (err as Error).message : err)
+      log.warn('Chunk application interrupted', err && (err as Error).message ? (err as Error).message : err)
       phase = 5
     }
     if (phase < 5) {

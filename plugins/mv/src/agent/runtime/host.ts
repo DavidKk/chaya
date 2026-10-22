@@ -346,7 +346,7 @@ export function createGameAgentRuntime() {
         if ((error as { modelFailed?: unknown })?.modelFailed) {
           modelGate.trip(error as Error)
           const source = input.task ? `${input.task.capability} 任务` : input.id.startsWith('classify:') ? '意图分类' : input.id
-          log.warn(`模型调用失败（${source}），${MODEL_FAILURE_COOLDOWN_MS / 1000}s 内不再请求：${(error as Error).message}`)
+          log.warn(`Model request failed (${source} ), ${MODEL_FAILURE_COOLDOWN_MS / 1000}s cooldown: ${(error as Error).message}`)
         }
         throw error
       }

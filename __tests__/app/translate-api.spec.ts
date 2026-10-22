@@ -1,11 +1,13 @@
 import { POST } from '@/app/api/translate/route.server'
 import { resolveGame } from '@/lib/game'
 import { hasManagementAccess } from '@/services/access/management'
+import { getTranslateEngineSwitches, setTranslateEngineSwitches } from '@/services/disk-ops'
 import { loadRgssTranslationItems, writeRgssTranslations } from '@/services/extract/lib/rgss'
 import { peekLaunchToken } from '@/services/runtime/launch-token'
 import { agentJaToZh, listTranslateAgents } from '@/services/translate/agent-translate'
-import { resolveTranslateContentRoot } from '@/services/translate/fill-missing'
+import { getSeedSourceLanguage, resolveTranslateContentRoot } from '@/services/translate/fill-missing'
 import { bergamotTranslator } from '@/services/translate/lib/bergamot-translate'
+import { appleTranslate, appleTranslator } from '@/services/translate/lib/macos-translate'
 import { setTranslationPlaySettings } from '@/services/translate/play-settings'
 import { translateDialogue } from '@/services/translate/realtime'
 
@@ -14,12 +16,13 @@ jest.mock('@/services/access/management', () => ({ hasManagementAccess: jest.fn(
 jest.mock('@/services/runtime/launch-token', () => ({ peekLaunchToken: jest.fn() }))
 jest.mock('@/lib/game', () => ({ resolveGame: jest.fn() }))
 jest.mock('@/services/extract/lib/rgss', () => ({ loadRgssTranslationItems: jest.fn(), writeRgssTranslations: jest.fn() }))
-jest.mock('@/services/disk-ops', () => ({ requireDisk: () => null }))
-jest.mock('@/services/translate/fill-missing', () => ({ resolveTranslateContentRoot: jest.fn() }))
+jest.mock('@/services/disk-ops', () => ({ requireDisk: () => null, getTranslateEngineSwitches: jest.fn(), setTranslateEngineSwitches: jest.fn() }))
+jest.mock('@/services/translate/fill-missing', () => ({ resolveTranslateContentRoot: jest.fn(), getSeedSourceLanguage: jest.fn() }))
 jest.mock('@/services/translate/play-settings', () => ({ getTranslationPlaySettings: jest.fn(), setTranslationPlaySettings: jest.fn() }))
 jest.mock('@/services/translate/realtime', () => ({ translateDialogue: jest.fn(), benchmarkLocalModel: jest.fn() }))
 jest.mock('@/services/translate/agent-translate', () => ({ agentJaToZh: jest.fn(), listTranslateAgents: jest.fn() }))
 jest.mock('@/services/translate/lib/bergamot-translate', () => ({ bergamotTranslator: { translate: jest.fn(), checkStatus: jest.fn() } }))
+jest.mock('@/services/translate/lib/macos-translate', () => ({ appleTranslate: jest.fn(), appleTranslator: { checkStatus: jest.fn() } }))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 
 const post = (body: unknown) =>
@@ -41,7 +44,7 @@ it('loads RGSS rows with their engine and bound root in the same response', asyn
   jest.mocked(resolveGame).mockReturnValue({ ok: true, contentRoot: '/games/B', engine: 'VX Ace' } as ReturnType<typeof resolveGame>)
   jest.mocked(loadRgssTranslationItems).mockReturnValue([])
   const response = await post({ mode: 'extract-items' })
-  expect(await response.json()).toMatchObject({ ok: true, items: [], engine: 'VX Ace', contentRoot: '/games/B' })
+  expect(await response.json()).toMatchObject({ ok: true, items: [], engine: 'VX Ace', contentRoot: '/games/B', locales: { availableLanguages: expect.any(Array) } })
 })
 
 it('rejects RGSS saves from a previously selected game', async () => {
@@ -155,4 +158,37 @@ it('cache mode rejects empty text', async () => {
   const response = await post({ mode: 'cache', text: '   ' })
   expect(response.status).toBe(400)
   expect((await response.json()).error.code).toBe('TRANSLATE_CACHE_INPUT')
+})
+
+it('checks Apple readiness without requiring translation text', async () => {
+  jest.mocked(hasManagementAccess).mockReturnValue(true)
+  jest.mocked(appleTranslator.checkStatus).mockResolvedValue({ status: 'installed', installed: true })
+  const response = await post({ mode: 'apple-status', from: 'en', to: 'zh-Hans' })
+  expect(response.status).toBe(200)
+  expect(await response.json()).toMatchObject({ installed: true })
+  expect(appleTranslator.checkStatus).toHaveBeenCalledWith('en', 'zh-Hans')
+})
+
+it('detects English for native translation when no source language is specified', async () => {
+  jest.mocked(hasManagementAccess).mockReturnValue(true)
+  jest.mocked(appleTranslate).mockResolvedValue('你好')
+  expect((await post({ mode: 'apple', text: 'Hello, welcome to the city.' })).status).toBe(200)
+  expect(appleTranslate).toHaveBeenCalledWith('Hello, welcome to the city.', { source: 'en', target: 'zh-Hans' })
+})
+
+it('rejects enabling an unavailable native engine without changing other switches', async () => {
+  jest.mocked(getTranslateEngineSwitches).mockReturnValue({ switches: { apple: false } } as ReturnType<typeof getTranslateEngineSwitches>)
+  jest.mocked(getSeedSourceLanguage).mockReturnValue('en')
+  jest.mocked(appleTranslator.checkStatus).mockResolvedValue({ installed: false, status: 'supported', message: 'Language pack missing' })
+  const response = await post({ mode: 'switches', switches: { apple: true } })
+  expect(response.status).toBe(409)
+  expect((await response.json()).error.code).toBe('TRANSLATE_ENGINE_NOT_READY')
+  expect(setTranslateEngineSwitches).not.toHaveBeenCalled()
+})
+
+it.each(['plan', 'status', 'install', 'cancel'])('requires management access for Bergamot pack %s', async (action) => {
+  jest.mocked(hasManagementAccess).mockReturnValue(false)
+  const response = await post({ mode: 'bergamot-packs', action, from: 'en', to: 'zh', planId: 'anything', jobId: 'anything' })
+  expect(response.status).toBe(403)
+  expect((await response.json()).error.code).toBe('MANAGEMENT_REQUIRED')
 })

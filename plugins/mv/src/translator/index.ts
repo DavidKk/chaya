@@ -36,7 +36,7 @@ function main() {
   hot.__chayaTransDispose?.()
   const mods = tryNodeFsPath()
   if (!mods) {
-    log.fail('需要 Node fs（NW / Electron）')
+    log.fail('Node fs required (NW / Electron)')
     return
   }
   const { fs, path } = mods
@@ -160,9 +160,9 @@ function main() {
       fs.mkdirSync(path.dirname(createAt), { recursive: true })
       fs.writeFileSync(createAt, '', 'utf8')
       found = { file: createAt, kind: 'ndjson' }
-      log.ok(`已创建本作翻译库 → ${createAt}`)
+      log.ok(`Created game translation cache -> ${createAt}`)
     } catch (err) {
-      log.fail(`无法创建本作翻译库 ${createAt}`, errMsg(err))
+      log.fail(`Failed to create game translation cache ${createAt}`, errMsg(err))
       return
     }
   }
@@ -185,7 +185,7 @@ function main() {
           lookup = loadJsonObject(seedFile)
         } catch (err) {
           seedMtimeMs = 0
-          log.warn('原文表暂不可读，继续加载增量译文', errMsg(err))
+          log.warn('Source text index unavailable; continuing to load incremental translations', errMsg(err))
         }
       }
       const loaded = loadNdjsonFull(cacheFile.file, lookup)
@@ -195,10 +195,10 @@ function main() {
       entryCount = Object.keys(lookup).length
       enrich.reindexAll(lookup)
       publishTransGlobals()
-      log.ok(`${reason || '加载'} 本作翻译库（${entryCount} 条；词干 ${enrich.stemCount} / 模板 ${enrich.templateCount}）`)
+      log.ok(`${reason || 'Loaded'} game translation cache (${entryCount} entries; stems ${enrich.stemCount} / templates ${enrich.templateCount})`)
       return true
     } catch (err) {
-      log.fail('读取失败: ' + cacheFile.file, errMsg(err))
+      log.fail('Read failed: ' + cacheFile.file, errMsg(err))
       return false
     }
   }
@@ -212,7 +212,7 @@ function main() {
   function appendReload(): boolean {
     const currentSeed = seedCandidates.find((file) => fs.existsSync(file))
     if (currentSeed !== seedFile || (currentSeed && fs.statSync(currentSeed).mtimeMs !== seedMtimeMs)) {
-      const loaded = fullReload('原文表更新')
+      const loaded = fullReload('Source index updated:')
       if (loaded) {
         if (typeof DataManager !== 'undefined' && DataManager._chayaTransDbPatched) scheduleCatchUp()
         scheduleWindowRefresh()
@@ -223,11 +223,11 @@ function main() {
     try {
       st = fs.statSync(cacheFile.file)
     } catch (err) {
-      log.warn('热更新失败', errMsg(err))
+      log.warn('Hot reload failed', errMsg(err))
       return false
     }
     if (st.size < fileSize) {
-      return fullReload('文件缩短，全量重载')
+      return fullReload('File truncated; full reload')
     }
     if (st.size === fileSize && st.mtimeMs === fileMtimeMs) return false
 
@@ -250,15 +250,15 @@ function main() {
         fs.closeSync(fd)
       }
     } catch (err) {
-      log.warn('增量读取失败，改为全量', errMsg(err))
-      return fullReload('增量失败后全量')
+      log.warn('Incremental read failed; falling back to full reload', errMsg(err))
+      return fullReload('Full reload after incremental read failure')
     }
 
     fileMtimeMs = st.mtimeMs
     entryCount = Object.keys(lookup).length
     publishTransGlobals()
     if (added) {
-      log.ok(`热更新 +${added} 行写入，当前约 ${entryCount} 条`)
+      log.ok(`Hot reload: +${added} lines, approximately ${entryCount} entries`)
       // Lookup is fresh; draw hooks use it immediately; DB write-back is chunked to avoid blocking the game thread
       if (typeof DataManager !== 'undefined' && DataManager._chayaTransDbPatched) scheduleCatchUp()
       scheduleWindowRefresh()
@@ -266,7 +266,7 @@ function main() {
     return added > 0
   }
 
-  if (!fullReload('已加载')) return
+  if (!fullReload('Loaded')) return
 
   const realtime = createRealtimeClient(contentRoots[0])
   let translating = false
@@ -317,7 +317,7 @@ function main() {
     window._chayaTransSource = cacheFile.file
     window._chayaTransCount = entryCount
     window._chayaTranslate = translate
-    window._chayaTransReload = () => fullReload('手动重载')
+    window._chayaTransReload = () => fullReload('Manual reload')
     window._chayaTransStatus = () => ({
       file: cacheFile.file,
       entries: entryCount,
@@ -328,7 +328,7 @@ function main() {
     })
     window.ChayaTrans = {
       translate,
-      reload: () => fullReload('手动重载'),
+      reload: () => fullReload('Manual reload'),
       status: () => ({
         file: cacheFile.file,
         entries: entryCount,
@@ -371,7 +371,7 @@ function main() {
       try {
         appendReload()
       } catch (err) {
-        log.warn('热更新异常', errMsg(err))
+        log.warn('Hot reload error', errMsg(err))
       }
     }, 400)
   }
@@ -385,9 +385,9 @@ function main() {
     watcher = fs.watch(cacheFile.file, { persistent: false }, () => {
       scheduleReload()
     })
-    log.ok(`已开启热更新（轮询 ${POLL_MS / 1000}s + watch）→ ${cacheFile.file}`)
+    log.ok(`Hot reload enabled (polling ${POLL_MS / 1000}s + watch) -> ${cacheFile.file}`)
   } catch (err) {
-    log.warn('fs.watch 不可用，仅用轮询', errMsg(err))
+    log.warn('fs.watch unavailable; using polling only', errMsg(err))
   }
 
   const catchUp = createTransCatchUp({
@@ -451,9 +451,9 @@ function main() {
           try {
             enrich.reindexAll(lookup)
             patchDatabaseTexts(applyCached, { log, preserveDialogue: true })
-            if (enrich.entryCount) log.ok(`专名词表 ${enrich.entryCount} · 模板 ${enrich.templateCount} · 数字词干 ${enrich.stemCount}`)
+            if (enrich.entryCount) log.ok(`Glossary ${enrich.entryCount}; templates ${enrich.templateCount}; numeric stems ${enrich.stemCount}`)
           } catch (err) {
-            log.warn('数据库套用失败', errMsg(err))
+            log.warn('Failed to apply database translations', errMsg(err))
           }
         }
         return true
@@ -470,7 +470,7 @@ function main() {
           try {
             patchMapTexts(applyCached, { quiet: true, log, preserveDialogue: true })
           } catch (err) {
-            log.warn('地图套用失败', errMsg(err))
+            log.warn('Failed to apply map translations', errMsg(err))
           }
         }
       }

@@ -158,10 +158,12 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
   const cache = {
     path: resolved,
     plan: index.plan,
+    numericRecords: index.numericRecords,
     queueBackfill: backfill.queue,
     flushBackfill: backfill.flush,
     record: index.record,
     current: index.current,
+    authority: index.authority,
     version: index.version,
     setAlignment: index.setAlignment,
     confirmSegments(parent: { src: string; zh: string }, pairs: Array<[string, string]>, pair: CacheLangPair, opts?: import('./confirm-segments').ConfirmSegmentsOptions) {

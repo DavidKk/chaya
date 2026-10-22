@@ -5,7 +5,37 @@ import { ensureGameContentDir } from '@/lib/game/content-files'
 import { appendCacheLines, lockCacheFile } from '@/lib/translate/cache-file-lock'
 import { applyCacheRow, type CacheRow, parseCacheRow } from '@/lib/translate/cache-row'
 
+import { noteGameSharedBackfill } from '../game-cache-context'
+import { gameTranslationFiles } from '../game-records'
 import type { IndexedRecord, MatchIndex } from './match-index'
+
+const fileSnapshots = new Map<string, { stamp: string; rows: Map<string, CacheRow>; seen: Set<string> }>()
+function fileStamp(file: string) {
+  const stat = fs.statSync(file, { throwIfNoEntry: false })
+  return JSON.stringify([stat?.ino, stat?.size, stat?.mtimeMs, stat?.ctimeMs])
+}
+function backfillSnapshot(file: string) {
+  const stamp = fileStamp(file)
+  const previous = fileSnapshots.get(file)
+  if (previous?.stamp === stamp) return previous
+  const rows = new Map<string, CacheRow>(),
+    seen = new Set<string>()
+  for (const line of (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '').split('\n')) {
+    try {
+      const row = parseCacheRow(JSON.parse(line))
+      if (row) {
+        applyCacheRow(rows, row)
+        if (row.event) seen.add(row.event)
+      }
+    } catch {
+      /* Recover incomplete tails during append. */
+    }
+  }
+  const snapshot = { stamp, rows, seen }
+  if (fileSnapshots.size >= 4 && !fileSnapshots.has(file)) fileSnapshots.delete(fileSnapshots.keys().next().value!)
+  fileSnapshots.set(file, snapshot)
+  return snapshot
+}
 
 /** Recover an incomplete append before writing the next complete event. */
 export function appendCacheEvents(file: string, events: CacheRow[]): void {
@@ -31,6 +61,7 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
   }
   return {
     queue(root: string, records: IndexedRecord[]) {
+      if (!records.length) return
       client.exec('BEGIN IMMEDIATE')
       try {
         for (const r of records) {
@@ -44,22 +75,18 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
       }
     },
     flush(root: string) {
+      // Most batch starts have no work. Do not read and parse the whole game file to discover that.
+      const pending = client.prepare('SELECT 1 FROM game_backfill_tasks WHERE root=? LIMIT 1').get(root)
+      const stale = client
+        .prepare('SELECT 1 FROM game_backfills b LEFT JOIN translation_records r ON r.id=b.record_id WHERE b.root=? AND (r.id IS NULL OR r.revision<>b.revision) LIMIT 1')
+        .get(root)
+      if (!pending && !stale) return
       const file = ensureGameContentDir(root, 'cacheNdjson')
       const release = lockCacheFile(fs, file)
       try {
-        const rows = new Map<string, CacheRow>(),
-          seen = new Set<string>()
-        for (const line of (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '').split('\n')) {
-          try {
-            const r = parseCacheRow(JSON.parse(line))
-            if (r) {
-              applyCacheRow(rows, r)
-              if (r.event) seen.add(r.event)
-            }
-          } catch {
-            /* Recover tails during append. */
-          }
-        }
+        const previousStamp = gameTranslationFiles(root).stamp
+        const snapshot = backfillSnapshot(file)
+        const { rows, seen } = snapshot
         const tasks = client.prepare('SELECT * FROM game_backfill_tasks WHERE root=? ORDER BY id').all(root) as Array<{
           id: number
           src: string
@@ -83,12 +110,15 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
             if (!old || old.origin) {
               appendCacheEvents(file, [value])
               applyCacheRow(rows, value)
+              seen.add(event)
             }
           }
           client.prepare('INSERT OR REPLACE INTO game_backfills VALUES(?,?,?,?)').run(root, task.src, task.record_id, task.revision)
           client.prepare('DELETE FROM game_backfill_tasks WHERE id=?').run(task.id)
         }
-        const links = client.prepare('SELECT * FROM game_backfills WHERE root=?').all(root) as Array<{ src: string; record_id: number; revision: number }>
+        const links = client
+          .prepare('SELECT b.* FROM game_backfills b LEFT JOIN translation_records r ON r.id=b.record_id WHERE b.root=? AND (r.id IS NULL OR r.revision<>b.revision)')
+          .all(root) as Array<{ src: string; record_id: number; revision: number }>
         for (const link of links) {
           const old = rows.get(link.src)
           if (!old?.origin || old.origin.database !== database || old.origin.id !== String(link.record_id)) {
@@ -110,6 +140,7 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
           if (!seen.has(value.event!)) {
             appendCacheEvents(file, [value])
             applyCacheRow(rows, value)
+            seen.add(value.event!)
           }
           if (record) client.prepare('UPDATE game_backfills SET revision=? WHERE root=? AND src=?').run(record.revision, root, link.src)
           else client.prepare('DELETE FROM game_backfills WHERE root=? AND src=?').run(root, link.src)
@@ -117,6 +148,8 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
         client.exec(
           'DELETE FROM translation_outbox WHERE NOT EXISTS (SELECT 1 FROM game_backfills l WHERE l.record_id=translation_outbox.record_id AND l.revision<translation_outbox.revision)'
         )
+        snapshot.stamp = fileStamp(file)
+        noteGameSharedBackfill(root, previousStamp)
       } finally {
         release()
       }

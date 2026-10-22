@@ -232,7 +232,7 @@ function loadOne(name: (typeof LOAD_ORDER)[number]): LoadFail | null {
     if (!err) return null
     errors.push(`disk(${disk.from}): ${err}`)
   } else {
-    errors.push('disk: 未找到文件')
+    errors.push('disk: file not found')
   }
 
   for (const url of localPluginUrls(name)) {
@@ -246,7 +246,7 @@ function loadOne(name: (typeof LOAD_ORDER)[number]): LoadFail | null {
     if (/^https?:/i.test(url)) continue
     const code = syncGet(url)
     if (!code) {
-      errors.push(`xhr(${url}): 空响应`)
+      errors.push(`xhr(${url}): empty response`)
       continue
     }
     const err = tryRunCode(name, code, url)
@@ -257,7 +257,7 @@ function loadOne(name: (typeof LOAD_ORDER)[number]): LoadFail | null {
   for (const url of apiUrls(name)) {
     const code = syncGet(url)
     if (!code) {
-      errors.push(`api(${url}): 不可达`)
+      errors.push(`api(${url}): unreachable`)
       continue
     }
     const err = tryRunCode(name, code, url)

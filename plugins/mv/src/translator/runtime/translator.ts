@@ -1,13 +1,16 @@
+import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { createBingTranslator, requestGoogle, requestOllama } from '@/lib/translate/engine-http'
 import {
   DEFAULT_ENGINE_ORDER,
   engineAcceptsSensitive,
   engineSourceTag,
   findAgentEntry,
+  mapTranslationBatch,
   type TranslateAgentEntry,
   type TranslateAiConfig,
   type TranslateEngineId,
   type TranslateRunEngine,
+  translationFallbackOrder,
 } from '@/lib/translate/engines'
 import { lookupGameTerm } from '@/lib/translate/game-terms'
 import { toRmDigitTemplate } from '@/lib/translate/rm-escape'
@@ -37,6 +40,8 @@ export type TranslateOptions = {
   engines?: TranslateRunEngine[]
   force?: boolean
   persist?: boolean
+  sourceLang?: string
+  targetLang?: string
   remote?: boolean
   agents?: TranslateAgentEntry[]
 }
@@ -85,16 +90,28 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
     }
   }
 
-  async function requestApple(text: string, signal: AbortSignal): Promise<string> {
+  async function systemStatus(engine: 'apple' | 'bergamot', source: string, signal: AbortSignal, target = 'zh') {
     const response = await chayaFetch(`${resolveApiBase()}/api/translate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal,
-      body: JSON.stringify({ mode: 'apple', text }),
+      body: JSON.stringify({ mode: `${engine}-status`, from: source, to: target }),
+    })
+    const data = await response.json()
+    if (!response.ok || data.ok === false) throw new Error('Translation readiness check failed')
+    return data as { installed: boolean; status: string; message?: string }
+  }
+
+  async function requestSystem(engine: 'apple' | 'bergamot', text: string, signal: AbortSignal, source?: string, target = 'zh'): Promise<string> {
+    const response = await chayaFetch(`${resolveApiBase()}/api/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal,
+      body: JSON.stringify({ mode: engine, text, from: source || detectCacheLang(text), to: target }),
     })
     const data = (await response.json().catch(() => null)) as { ok?: boolean; text?: unknown; error?: { message?: unknown } } | null
     if (!response.ok || !data || data.ok === false || typeof data.text !== 'string') {
-      const message = typeof data?.error?.message === 'string' ? data.error.message : `Apple 离线翻译服务不可用（${response.status}）`
+      const message = typeof data?.error?.message === 'string' ? data.error.message : `${engine} translation service unavailable (${response.status})`
       throw new Error(message)
     }
     return data.text
@@ -148,6 +165,9 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
   }
 
   async function translate(texts: string[], options: TranslateOptions = {}): Promise<TranslateItem[]> {
+    const target = options.targetLang || 'zh'
+    const chinese = ['zh', 'ch', 'zh-cn', 'zh-hans'].includes(target.toLowerCase())
+    if (!chinese) options = { ...options, force: true, persist: false, remote: false, engines: options.engines?.filter((engine) => engine === 'apple' || engine === 'bergamot') }
     const signal = options.signal || new AbortController().signal
     await store.load()
     signal.throwIfAborted()
@@ -156,8 +176,8 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
     const missing = unique.filter((src) => options.force || !store.lookup(src))
     const hasBackfills = store.references(unique).length > 0
     const remote = !options.force && options.remote !== false && (missing.length || hasBackfills) ? await remoteLookup(hasBackfills ? unique : missing, signal) : []
-    const items: TranslateItem[] = []
-    for (const src of unique) {
+    return mapTranslationBatch(unique, async (src) => {
+      const items: TranslateItem[] = []
       signal.throwIfAborted()
       if (!options.force) {
         const remotePlan = remote.find((item) => item.src === src)?.plan
@@ -178,7 +198,7 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
         const plan = remoteRecords.length ? planSentenceTranslation(src, [...store.records(), ...remoteRecords]) : store.plan(src)
         if (plan.status === 'full') {
           items.push({ src, zh: plan.zh, engine: plan.matches.every((m) => m.record.local) ? 'cache:local' : 'cache:remote', status: 'full', plan })
-          continue
+          return items[0]
         }
         if (plan.status === 'partial') {
           const before = JSON.stringify(store.records())
@@ -211,7 +231,7 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
               plan: fresh,
               error: fresh.status === 'full' ? undefined : '翻译库已更新，请重试缺口',
             })
-            continue
+            return items[0]
           }
           if (options.persist !== false) for (const item of completed) await store.put([[item.src, item.zh]], item.engine)
           const resolved = resolveSentenceGaps(plan, gaps)
@@ -224,7 +244,7 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
             plan,
             error: full ? undefined : '部分短句未完成翻译',
           })
-          continue
+          return items[0]
         }
       }
       const local = !options.force ? store.lookup(src, true) : null
@@ -232,21 +252,22 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
       if (local || shared) {
         // Remote results remain server-owned; do not persist an unversioned local copy.
         items.push({ src, zh: local || shared || null, engine: local ? 'cache:local' : 'cache:remote' })
-        continue
+        return items[0]
       }
       const guard = protectForTranslate(src)
       const term = !options.force ? lookupGameTerm(src) : null
       if (term != null) {
         items.push({ src, zh: term, engine: 'builtin:terms' })
-        continue
+        return items[0]
       }
       if (!shouldTranslate(guard.core)) {
         items.push({ src, zh: src, engine: 'skip' })
-        continue
+        return items[0]
       }
       const sensitive = isSensitiveForCloud(guard.plain)
-      const engines = (options.engines || []).filter((engine) => !sensitive || engineAcceptsSensitive(engine))
+      const engines = translationFallbackOrder((options.engines || []).filter((engine) => !sensitive || engineAcceptsSensitive(engine)))
       let result: TranslateItem = { src, zh: null, error: '未开启可用翻译引擎' }
+      const errors: string[] = []
       for (const engine of engines) {
         signal.throwIfAborted()
         try {
@@ -261,14 +282,14 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
                 )
               : agent
                 ? await requestAgent(guard.plain, agent, options.interactive, signal)
-                : engine === 'apple'
-                  ? await requestApple(guard.plain, signal)
+                : engine === 'apple' || engine === 'bergamot'
+                  ? await requestSystem(engine, guard.plain, signal, options.sourceLang, target)
                   : engine === 'google'
                     ? await requestGoogle(http, guard.plain, signal)
                     : await bing(guard.plain, signal)
           signal.throwIfAborted()
           const zh = restoreForTranslate(raw, guard)
-          if (!isUsefulTranslation(src, guard.plain, raw, zh) || guard.tokens.some((_, i) => !raw.includes(`__C${i}__`))) throw new Error('引擎未返回有效译文或丢失控制码')
+          if (!isUsefulTranslation(src, guard.plain, raw, zh, target) || guard.tokens.some((_, i) => !raw.includes(`__C${i}__`))) throw new Error('引擎未返回有效译文或丢失控制码')
           if (options.persist !== false) {
             const core = translationCoreForCache(raw, guard)
             const pairs: Array<[string, string]> = [
@@ -283,12 +304,13 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
           break
         } catch (error) {
           signal.throwIfAborted()
-          result = { src, zh: null, error: error instanceof Error ? error.message : '翻译失败' }
+          errors.push(`${engine}: ${error instanceof Error ? error.message : String(error)}`)
+          result = { src, zh: null, error: errors.join('; ') }
         }
       }
       items.push(result)
-    }
-    return items
+      return items[0]
+    })
   }
-  return { translate, listAgents, sharedAgents, remoteOnline: () => remoteOnline }
+  return { translate, listAgents, sharedAgents, systemStatus, remoteOnline: () => remoteOnline }
 }

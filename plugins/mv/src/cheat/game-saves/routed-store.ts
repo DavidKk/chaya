@@ -15,7 +15,7 @@ import { tNow } from '@/lib/i18n'
 import type { GameSaveEntryStore } from './store'
 
 const LISTS = ['auto', 'quick'] as const satisfies readonly GameSaveList[]
-const PLACE_LABEL: Record<GameSaveStorage, string> = { game: '游戏中', app: 'Chaya 本机' }
+const PLACE_LABEL: Record<GameSaveStorage, string> = { game: 'game', app: 'local Chaya' }
 
 type Log = { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; fail: (...args: unknown[]) => void }
 
@@ -50,10 +50,10 @@ export class RoutedSaveStore {
         this.indices[place] = parseGameSavesIndex(await this.stores[place].readIndex())
         recovered = true
       } catch (error) {
-        this.log.fail(`读取存档索引失败（${PLACE_LABEL[place]}）`, error)
+        this.log.fail(`Failed to read save index (${PLACE_LABEL[place]})`, error)
         continue
       }
-      await this.reconcile(place).catch((error) => this.log.warn(`存档对账失败（${PLACE_LABEL[place]}）`, error))
+      await this.reconcile(place).catch((error) => this.log.warn(`Save reconciliation failed (${PLACE_LABEL[place]})`, error))
     }
     return recovered
   }
@@ -117,7 +117,7 @@ export class RoutedSaveStore {
         await store.removeEntry(list, id)
         done.add(id)
       } catch (error) {
-        this.log.warn(`删除存档文件失败，下次启动时重试（${PLACE_LABEL[place]}）`, error)
+        this.log.warn(`Failed to delete save file; retrying on next launch (${PLACE_LABEL[place]})`, error)
       }
     }
     const current = this.indices[place]
@@ -128,7 +128,7 @@ export class RoutedSaveStore {
       await store.writeIndex(next, current.revision)
       this.indices[place] = next
     } catch (error) {
-      this.log.warn(`清除待删除记录失败（${PLACE_LABEL[place]}）`, error)
+      this.log.warn(`Failed to clear pending deletion records (${PLACE_LABEL[place]})`, error)
     }
   }
 
@@ -143,10 +143,10 @@ export class RoutedSaveStore {
       const previous = this.indices[place]
       const next = parseGameSavesIndex(await this.stores[place].readIndex())
       this.indices[place] = next
-      if (previous?.revision !== next.revision) this.log.warn(`存档索引已被其他窗口更新，已重新读取（${PLACE_LABEL[place]}）`)
+      if (previous?.revision !== next.revision) this.log.warn(`Save index updated by another window; reloaded (${PLACE_LABEL[place]})`)
     } catch (error) {
       delete this.indices[place]
-      this.log.fail(`重新读取存档索引失败（${PLACE_LABEL[place]}）`, error)
+      this.log.fail(`Failed to reload save index (${PLACE_LABEL[place]})`, error)
     }
   }
 
@@ -176,7 +176,7 @@ export class RoutedSaveStore {
             () => {},
             (error) => {
               present.add(id)
-              this.log.warn(`对账删除待清理的存档文件失败（${PLACE_LABEL[place]}）`, error)
+              this.log.warn(`Failed to delete pending save file during reconciliation (${PLACE_LABEL[place]})`, error)
             }
           )
           continue
@@ -191,7 +191,7 @@ export class RoutedSaveStore {
     const next: GameSavesIndex = { version: 1, revision: index.revision + 1, entries, ...(stillRemoving.length ? { removing: stillRemoving } : {}) }
     await store.writeIndex(next, index.revision)
     this.indices[place] = next
-    if (missing.size) this.log.warn(`对账移除 ${missing.size} 个缺少内容文件的存档条目（${PLACE_LABEL[place]}）`)
-    if (recovered.length) this.log.warn(`对账找回 ${recovered.length} 个不在索引中的存档文件（${PLACE_LABEL[place]}）`)
+    if (missing.size) this.log.warn(`Removed ${missing.size} save entries with missing content files (${PLACE_LABEL[place]})`)
+    if (recovered.length) this.log.warn(`Recovered ${recovered.length} unindexed save files (${PLACE_LABEL[place]})`)
   }
 }

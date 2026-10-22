@@ -318,9 +318,9 @@ export async function main() {
   }
 
   console.log(
-    `合并翻译：跳过 ${skipped}，缓存命中 ${hit}，词表直出 ${glossaryHit}，预套用 ${derived}（模板可省 ${templateSaved}），` +
-      `词条 ${termCount} / 句子 ${sentences.length}，队列 ${queuedOnly.length}，待完成 ${pending.size}` +
-      (skippedGaveUp ? `，已放弃 ${skippedGaveUp}` : '')
+    `Translation merge: skipped ${skipped}, cache hits ${hit}, glossary hits ${glossaryHit}, pre-applied ${derived} (template savings ${templateSaved}), ` +
+      `Terms ${termCount} / sentences ${sentences.length}, queued ${queuedOnly.length}, pending ${pending.size}` +
+      (skippedGaveUp ? `, abandoned ${skippedGaveUp}` : '')
   )
   console.log(`Output file: ${path.basename(rt().CACHE_NDJSON)} (append-only)`)
   await store.flushCache()
@@ -338,14 +338,15 @@ export async function main() {
   const progress = createProgress(estimatedTotal)
   const workerState = { bingDone: false, googleDone: false, ollamaDone: false }
   console.log(
-    `预估总分片约 ${estimatedTotal}（bing ${bingChunks} / google ${googleChunks} / ollama ${ollamaChunks}）；` + `公网间隔 ${NET_GAP_MIN_MS / 1000}-${NET_GAP_MAX_MS / 1000}s`
+    `Estimated chunks: ${estimatedTotal} (bing ${bingChunks} / google ${googleChunks} / ollama ${ollamaChunks}); ` +
+      `Network interval ${NET_GAP_MIN_MS / 1000}-${NET_GAP_MAX_MS / 1000}s`
   )
   {
     const sw = readSwitches(true)
-    const on = enabledEngineNames().join('+') || '无'
+    const on = enabledEngineNames().join('+') || 'none'
     console.log(
-      `引擎开关：bing=${sw.bing ? '开' : '关'} google=${sw.google ? '开' : '关'} ollama=${sw.ollama ? '开' : '关'}` +
-        `（生效：${on}；改 ${path.basename(rt().SWITCHES_FILE)} 可随时切换）`
+      `Engine switches: bing=${sw.bing ? 'on' : 'off'} google=${sw.google ? 'on' : 'off'} ollama=${sw.ollama ? 'on' : 'off'}` +
+        ` (active: ${on}; edit ${path.basename(rt().SWITCHES_FILE)} to toggle at any time)`
     )
   }
 

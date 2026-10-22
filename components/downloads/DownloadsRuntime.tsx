@@ -28,6 +28,12 @@ export function DownloadsRuntime() {
   useEffect(
     () =>
       onDownloadFinished((item) => {
+        if (item.preview) return
+        if (item.kind === 'bergamot-pack') {
+          if (item.status === 'done') notify.success(`Bergamot · ${t('translate.offlineReadyHint')}`)
+          else if (item.status === 'error') notify.error(`Bergamot · ${t('translate.packRetryHint')}`)
+          return
+        }
         if (item.status === 'done') {
           const done = t('downloads.toast.shellDone', { version: item.version ?? '' })
           notify.success(item.channel === 'browser' ? `${done}。${t('downloads.toast.smartScreen')}` : done)

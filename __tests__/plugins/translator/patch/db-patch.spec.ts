@@ -159,8 +159,8 @@ describe('patchSystem / patchMap / patchDatabase', () => {
     expect(map.events[1]!.pages[0].list[0].parameters[0]).toBe('ZH:こんにちは')
     expect(logs).toEqual([])
     patchMapTexts(zh, { log: { ok: (m) => logs.push(m) } })
-    // Must match production Chinese log text
-    expect(logs).toContain('地图文本已套用翻译')
+    // Must match production English log text
+    expect(logs).toContain('Map translations applied')
     restore()
   })
 

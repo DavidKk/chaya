@@ -108,13 +108,13 @@ function ensureSceneHook(): boolean {
 function applyGameSpeed(rate: number): boolean {
   const r = Number(rate)
   if (!isFinite(r)) {
-    log.warn('运行倍速无效', rate)
+    log.warn('Invalid game speed', rate)
     return false
   }
   gameSpeed = Math.min(GAME_SPEED_MAX, Math.max(GAME_SPEED_MIN, r))
   speedCarry = 0
   if (gameSpeed > 1 && !ensureSceneHook()) {
-    log.warn('SceneManager 不存在，运行倍速未生效')
+    log.warn('SceneManager unavailable; game speed was not applied')
     return false
   }
   return true
@@ -157,13 +157,13 @@ function clampRate(rate: number): number | null {
 function applyRates(walk: number, run: number): boolean {
   const player = gamePlayer()
   if (!player) {
-    log.warn('还没进地图，$gamePlayer 不存在')
+    log.warn('Map not ready; $gamePlayer unavailable')
     return false
   }
   const w = clampRate(walk)
   const r = clampRate(run)
   if (w == null || r == null) {
-    log.warn('倍率无效', { walk, run })
+    log.warn('Invalid rate', { walk, run })
     return false
   }
   ensureWalkRunHook()
@@ -181,7 +181,7 @@ function applyRates(walk: number, run: number): boolean {
 function applyMoveRate(rate: number): boolean {
   const r = clampRate(rate)
   if (r == null) {
-    log.warn('倍率无效', rate)
+    log.warn('Invalid rate', rate)
     return false
   }
   return applyRates(r, r)
@@ -212,18 +212,18 @@ const ChayaBoost = {
     const r = rate == null ? BOOST_RATE : rate
     applyMoveRate(r)
     setAlwaysDash(true)
-    log.ok(`开启：移动×${r}，一直疾跑`)
+    log.ok(`Enabled: movement x${r}, always dash enabled`)
     return this.status()
   },
   off() {
     applyRates(DEFAULT_RATE, DEFAULT_RATE)
     setAlwaysDash(false)
-    log.ok(`关闭：行走/跑步×${DEFAULT_RATE}，疾跑关闭`)
+    log.ok(`Disabled: walk/run x${DEFAULT_RATE}, dash disabled`)
     return this.status()
   },
   rate(n: number) {
     applyMoveRate(n)
-    log.ok(`移动倍率 → ${n}`)
+    log.ok(`Movement rate -> ${n}`)
     return this.status()
   },
   /** Walk multiplier (no Shift / not dashing) */
@@ -231,7 +231,7 @@ const ChayaBoost = {
     if (n == null) return currentRates().walk
     const cur = currentRates()
     applyRates(n, cur.run)
-    log.ok(`行走倍率 → ${n}`)
+    log.ok(`Walk rate -> ${n}`)
     return this.status()
   },
   /** Run multiplier (while dashing) */
@@ -239,26 +239,26 @@ const ChayaBoost = {
     if (n == null) return currentRates().run
     const cur = currentRates()
     applyRates(cur.walk, n)
-    log.ok(`跑步倍率 → ${n}`)
+    log.ok(`Run rate -> ${n}`)
     return this.status()
   },
   rates(opts?: { walk?: number; run?: number }) {
     if (!opts) return currentRates()
     const cur = currentRates()
     applyRates(opts.walk != null ? opts.walk : cur.walk, opts.run != null ? opts.run : cur.run)
-    log.ok('倍率', currentRates())
+    log.ok('Rates', currentRates())
     return this.status()
   },
   /** Whole-game update speed (1–5); 1 = normal */
   speed(n?: number) {
     if (n == null) return gameSpeed
     applyGameSpeed(n)
-    log.ok(`运行倍速 → ${gameSpeed}`)
+    log.ok(`Game speed -> ${gameSpeed}`)
     return this.status()
   },
   dash(on?: boolean) {
     setAlwaysDash(on !== false)
-    log.ok(`一直疾跑 → ${alwaysDash()}`)
+    log.ok(`Always dash -> ${alwaysDash()}`)
     return this.status()
   },
   status() {
@@ -283,4 +283,4 @@ declarePluginTools('ChayaBoost', {
   status: () => ChayaBoost.status(),
 })
 
-log.ok(`已注册：${PLUGIN_BOOST_NAME}.on()/off()/walkRate()/runRate()/rates()/speed()`)
+log.ok(`Registered: ${PLUGIN_BOOST_NAME}.on()/off()/walkRate()/runRate()/rates()/speed()`)

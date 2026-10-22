@@ -2,6 +2,8 @@ import { PLUGIN_LOADER_NAME } from '@/constants/brand'
 import { defineApiRoute } from '@/initializer/controller'
 import { apiBadRequest, apiError, apiOk } from '@/initializer/response'
 import { clearTrackedPlugins, getResolvedFromConfig, injectTrackedPlugins, requireDisk } from '@/services/disk-ops'
+import { clearRgssPlugins, installRgssPlugins } from '@/services/game/rgss-plugins'
+import { rgssRuntimeStatus } from '@/services/game/rgss-runtime'
 import { preferredPluginApiBase, toolkitListenPort, writeLaunchEnv } from '@/services/runtime'
 
 export const runtime = 'nodejs'
@@ -19,7 +21,12 @@ export const POST = defineApiRoute('post:/api/plugins', async () => {
     return apiBadRequest('Remote game cannot install loader locally', 'REMOTE_READ_ONLY')
   }
   if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
-    return apiBadRequest('VX Ace / VX use RGSS scripts instead of JavaScript plugins', 'RGSS_SCRIPT_RUNTIME')
+    if (rgssRuntimeStatus(resolved.contentRoot).running) return apiBadRequest('Quit the RGSS game before installing plugins', 'GAME_RUNNING')
+    try {
+      return apiOk(installRgssPlugins(resolved.contentRoot))
+    } catch (error) {
+      return apiError(500, 'PLUGIN_INJECT_FAILED', error instanceof Error ? error.message : String(error))
+    }
   }
 
   try {
@@ -62,7 +69,9 @@ export const DELETE = defineApiRoute('delete:/api/plugins', async () => {
   }
 
   try {
-    const result = clearTrackedPlugins(resolved.contentRoot)
+    const rgss = resolved.engine === 'VX Ace' || resolved.engine === 'VX'
+    if (rgss && rgssRuntimeStatus(resolved.contentRoot).running) return apiBadRequest('Quit the RGSS game before clearing plugins', 'GAME_RUNNING')
+    const result = rgss ? clearRgssPlugins(resolved.contentRoot) : clearTrackedPlugins(resolved.contentRoot)
     return apiOk({
       contentRoot: resolved.contentRoot,
       ...result,

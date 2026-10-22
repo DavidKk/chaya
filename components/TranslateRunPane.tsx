@@ -21,7 +21,7 @@ import { useTranslationFetch } from '@/components/translate/TranslationRuntimeCo
 import { useAnimatedNumber } from '@/components/translate/useAnimatedNumber'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { filterTranslationExport, type TranslationExportMode } from '@/lib/translate/export'
-import { estimateRemainMs, formatRemainEta } from '@/lib/translate/remain-eta'
+import { estimateRemainMs, formatRemainEta, type TranslationPerformance } from '@/lib/translate/remain-eta'
 import { cn } from '@/lib/utils'
 
 type Progress = {
@@ -43,6 +43,7 @@ type Progress = {
 type JobStatus = 'idle' | 'running' | 'paused' | 'done' | 'error'
 
 type JobState = {
+  performance: TranslationPerformance | null
   status: JobStatus
   liveStatus: string
   sessionDone: number
@@ -70,6 +71,7 @@ const emptyProgress: Progress = {
 
 const emptyJob: JobState = {
   status: 'idle',
+  performance: null,
   liveStatus: '',
   sessionDone: 0,
   startedAt: null,
@@ -100,6 +102,7 @@ function readProgress(json: Partial<Progress>): Progress {
 function readJob(json: Partial<JobState> | undefined): JobState {
   if (!json) return emptyJob
   return {
+    performance: json.performance ?? null,
     status: json.status ?? 'idle',
     liveStatus: json.liveStatus ?? '',
     sessionDone: json.sessionDone ?? 0,
@@ -160,6 +163,7 @@ export function TranslateRunPane({
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
   const fileRef = useRef<HTMLInputElement>(null)
+  const [languagePair, setLanguagePair] = useState<{ source: string; target: string }>()
   const [localTab, setLocalTab] = useState<TranslateRunMode>('seed')
   const tab = selectedTab ?? localTab
   const setTab = onTabChange ?? setLocalTab
@@ -188,7 +192,10 @@ export function TranslateRunPane({
     setStatus('')
   }, [])
 
+  const refreshing = useRef(false)
   const refresh = useCallback(async () => {
+    if (refreshing.current) return
+    refreshing.current = true
     try {
       const res = await translationFetch('/api/translate', {
         method: 'POST',
@@ -207,6 +214,8 @@ export function TranslateRunPane({
       setStatus(err instanceof Error ? err.message : t('translate.progressFailed'))
       setProgress(emptyProgress)
       setJob(emptyJob)
+    } finally {
+      refreshing.current = false
     }
   }, [applySnapshot, t, translationFetch])
 
@@ -390,15 +399,12 @@ export function TranslateRunPane({
   const liveStatus = job.liveStatus || (extracting ? t('translate.extractingText') : '')
   const canStart = progress.missing > 0 && enabledEngines.length > 0
   const startLabel = job.status === 'paused' ? t('translate.continue') : progress.missing > 0 ? t('translate.start') : t('translate.completed')
-  const remainMs =
-    running || job.status === 'paused'
-      ? estimateRemainMs({
-          missing: progress.missing,
-          sessionDone: job.sessionDone,
-          startedAt: job.startedAt,
-        })
-      : null
-  const remainEta = remainMs != null ? formatRemainEta(remainMs) : null
+  const perf = running && !pausing && job.performance && job.performance.charsPerSecond > 0 ? job.performance : null
+  const remainMs = estimateRemainMs({ missingChars: progress.missingChars, charsPerSecond: perf?.charsPerSecond, running })
+  const statusHint =
+    [remainMs != null ? t('translate.etaLeft', { eta: formatRemainEta(remainMs) }) : null, perf ? t('translate.rateCompact', { rate: perf.charsPerSecond.toFixed(1) }) : null]
+      .filter(Boolean)
+      .join(' · ') || undefined
   if (loading) return <TranslateRunSkeleton tab={tab} />
 
   return (
@@ -418,6 +424,7 @@ export function TranslateRunPane({
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col items-stretch md:flex-row">
           <TranslateEngineRail
+            languagePair={tab === 'list' ? languagePair : undefined}
             disabled={busy}
             mobileOpen={enginesOpen}
             onMobileOpenChange={setEnginesOpen}
@@ -428,7 +435,7 @@ export function TranslateRunPane({
             <TranslateRunNav value={tab} onChange={setTab} panelId={panelId} />
             {tab === 'list' ? (
               <div role="tabpanel" id={`${panelId}-list`} aria-labelledby={`${panelId}-list-tab`} data-translate-mode="list" className="flex min-h-0 flex-1 flex-col">
-                <TranslateListContent onExtract={() => setTab('seed')} />
+                <TranslateListContent onLanguagePairChange={setLanguagePair} onExtract={() => setTab('seed')} />
               </div>
             ) : (
               <ScrollArea className="min-h-0 flex-1" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.taskAria') }}>
@@ -498,17 +505,7 @@ export function TranslateRunPane({
                               />
                             </div>
                             <div>
-                              <ProgressMeter
-                                label={t('translate.tabRun')}
-                                pct={translatePct}
-                                hint={
-                                  remainEta
-                                    ? t('translate.etaLeft', { eta: remainEta })
-                                    : running && progress.batchesLeft > 0
-                                      ? t('translate.stillMissingNoEta', { count: progress.batchesLeft })
-                                      : undefined
-                                }
-                              />
+                              <ProgressMeter label={t('translate.tabRun')} pct={translatePct} hint={statusHint} />
                             </div>
                           </>
                         ) : null}

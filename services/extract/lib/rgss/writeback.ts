@@ -49,6 +49,8 @@ function strings(value: RubyValue): Map<string, StringSlot> {
         )
       })
     } else if (entry.kind === 'object') {
+      // Audio names are resource identifiers even when nested under System or animations.
+      if (/^RPG::(?:AudioFile|BGM|BGS|ME|SE)$/.test(entry.className)) return
       const command = entry.className === 'RPG::EventCommand'
       const code = command ? rubyObjectField(entry, 'code') : null
       entry.ivars.pairs.forEach((pair, index) => {
@@ -69,7 +71,7 @@ function strings(value: RubyValue): Map<string, StringSlot> {
               code === 102 || code === 402 ? 'choice' : 'dialogue'
             )
         } else {
-          if (name === 'name' && ['RPG::Event', 'RPG::CommonEvent', 'RPG::Troop'].includes(entry.className)) return
+          if (name === 'name' && ['RPG::Event', 'RPG::CommonEvent', 'RPG::Troop', 'RPG::Animation', 'RPG::Tileset'].includes(entry.className)) return
           if (/^(?:character|battler|face|picture|animation\d*|battleback\d*|title\d*|parallax)_name$/i.test(name)) return
           const systemText = /^(?:terms|words|basic|params|etypes|commands|elements|skill_types|weapon_types|armor_types|currency_unit|game_title)$/i.test(name)
           walk(

@@ -3,7 +3,9 @@ import { GET as STREAM } from '@/app/api/downloads/stream/route.server'
 import { DELETE as DEL_SHELL, POST as POST_SHELL } from '@/app/api/shell/route.server'
 import * as diskOps from '@/services/disk-ops'
 import { clearDownloadJobsForTest } from '@/services/downloads/jobs'
+import { listPackDownloadJobs } from '@/services/translate/bergamot/download-jobs'
 
+jest.mock('@/services/translate/bergamot/download-jobs', () => ({ listPackDownloadJobs: jest.fn(() => []) }))
 jest.mock('@/services/access/api', () => ({ mayAccessApi: async () => true }))
 jest.mock('@/services/game/nw-update', () => ({ getNwShellUpdate: jest.fn() }))
 jest.mock('@/services/disk-ops', () => ({
@@ -35,6 +37,7 @@ const postShell = (body: unknown) => POST_SHELL(new Request('http://localhost/ap
 afterEach(() => {
   clearDownloadJobsForTest()
   gates.splice(0)
+  jest.mocked(listPackDownloadJobs).mockReturnValue([])
 })
 
 test('fetchLatest 立即 202，重复发起返回同一任务', async () => {
@@ -93,4 +96,41 @@ test('SSE 首帧为 snapshot，之后推 job', async () => {
   expect(next).toContain('"status":"done"')
   abort.abort()
   await reader.cancel()
+})
+
+test('SSE polls durable pack tasks from other workers and stops on disconnect', async () => {
+  jest.useFakeTimers()
+  const job = {
+    id: 'pack-task',
+    kind: 'bergamot-pack' as const,
+    source: 'en',
+    target: 'zh',
+    status: 'running' as const,
+    phase: 'download' as const,
+    startedAt: 1,
+    receivedBytes: 42,
+    totalBytes: 100,
+  }
+  jest.mocked(listPackDownloadJobs).mockReturnValue([job])
+  const abort = new AbortController()
+  try {
+    const list = await (await LIST(new Request('http://localhost/api/downloads'), ctx)).json()
+    expect(list.jobs).toEqual([job])
+    const res = await STREAM(new Request('http://localhost/api/downloads/stream', { signal: abort.signal }), ctx)
+    const reader = res.body!.getReader()
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain('"receivedBytes":42')
+    jest.mocked(listPackDownloadJobs).mockReturnValue([{ ...job, status: 'done', phase: 'install', receivedBytes: 100, finishedAt: 2 }])
+    jest.advanceTimersByTime(1000)
+    const next = new TextDecoder().decode((await reader.read()).value)
+    expect(next).toContain('event: snapshot')
+    expect(next).toContain('"status":"done"')
+    abort.abort()
+    await reader.cancel()
+    const calls = jest.mocked(listPackDownloadJobs).mock.calls.length
+    jest.advanceTimersByTime(5000)
+    expect(listPackDownloadJobs).toHaveBeenCalledTimes(calls)
+  } finally {
+    abort.abort()
+    jest.useRealTimers()
+  }
 })

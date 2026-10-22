@@ -3,6 +3,7 @@ import { agentAuthKo } from '@/lib/i18n/messages/parts/agent-auth'
 import { companionKo } from '@/lib/i18n/messages/parts/companion'
 import { creditsKo } from '@/lib/i18n/messages/parts/credits'
 import { dataKo } from '@/lib/i18n/messages/parts/data.ko'
+import { debugKo } from '@/lib/i18n/messages/parts/debug'
 import { downloadsKo } from '@/lib/i18n/messages/parts/downloads'
 import { editKo } from '@/lib/i18n/messages/parts/edit.ko'
 import { eventsKo } from '@/lib/i18n/messages/parts/events.ko'
@@ -313,6 +314,7 @@ const base = {
 } as const
 
 export const ko: MessageTree = {
+  debug: debugKo,
   ...base,
   ...translateKo,
   ...editKo,

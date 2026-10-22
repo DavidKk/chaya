@@ -29,14 +29,14 @@ export function installConsoleApi() {
   window.ChayaEdit = {
     ui: () => {
       if (!$gameParty) {
-        log.warn('请先读档进游戏再开面板')
+        log.warn('Load a game before opening the panel')
         showPluginError('无法打开插件控制台', '请先读档进入游戏地图后再试')
         return false
       }
       try {
         return showGameEditUi()
       } catch (err) {
-        log.fail('ui 失败', err)
+        log.fail('Failed to open UI', err)
         showPluginError('无法打开插件控制台', err)
         return false
       }
@@ -44,14 +44,14 @@ export function installConsoleApi() {
     hide: hideGameEditUi,
     toggle: () => {
       if (!$gameParty && !isGameEditUiOpen()) {
-        log.warn('请先读档进游戏再开面板')
+        log.warn('Load a game before opening the panel')
         showPluginError('无法打开插件控制台', '请先读档进入游戏地图后再试')
         return false
       }
       try {
         return toggleGameEditUi()
       } catch (err) {
-        log.fail('toggle 失败', err)
+        log.fail('Failed to toggle panel', err)
         showPluginError('无法打开插件控制台', err)
         try {
           hideGameEditUi()
@@ -76,24 +76,24 @@ export function installConsoleApi() {
 
     item(id: number, count?: number) {
       const info = setItemLike($dataItems, id, count == null ? 99 : count)
-      if (info) log.ok('已设置', info)
+      if (info) log.ok('Updated', info)
       return info
     },
     weapon(id: number, count?: number) {
       const info = setItemLike($dataWeapons, id, count == null ? 1 : count)
-      if (info) log.ok('已设置', info)
+      if (info) log.ok('Updated', info)
       return info
     },
     armor(id: number, count?: number) {
       const info = setItemLike($dataArmors, id, count == null ? 1 : count)
-      if (info) log.ok('已设置', info)
+      if (info) log.ok('Updated', info)
       return info
     },
 
     itemName(keyword: string, count?: number) {
       const hits = findInDb($dataItems, keyword, 5)
       if (!hits.length) {
-        log.warn('未找到物品', keyword)
+        log.warn('Item not found', keyword)
         return null
       }
       if (hits.length > 1) {
@@ -248,10 +248,10 @@ export function installConsoleApi() {
 
     help() {
       console.log(`
-ChayaEdit（React 面板，与控制台共用组件）：
-  按唤出键（默认 \`，可在快捷键页改）或 ChayaEdit.ui() / ge.ui()
+ChayaEdit (React panel sharing console components):
+  Press the panel hotkey (default \`, configurable on the Hotkeys page) or ChayaEdit.ui() / ge.ui()
   ChayaEdit.gold(999999)
-  ChayaEdit.item(12, 99) / itemName('关键词', 10)
+  ChayaEdit.item(12, 99) / itemName('keyword', 10)
   ChayaEdit.var(id, v) / sw(id, true)
   ChayaEdit.actor(1).level(99).hp().mp()
   ChayaEdit.autoTalk(true) / speed(2, 4) / god(true) / through(true)

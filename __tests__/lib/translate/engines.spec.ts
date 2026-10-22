@@ -1,4 +1,14 @@
-import { engineAcceptsSensitive, engineGroup, engineSourceTag, engineStateFileBody, mergeEngineState, normalizeAgentEntries, normalizeEngineOrder } from '@/lib/translate/engines'
+import {
+  engineAcceptsSensitive,
+  engineGroup,
+  engineSourceTag,
+  engineStateFileBody,
+  mapTranslationBatch,
+  mergeEngineState,
+  normalizeAgentEntries,
+  normalizeEngineOrder,
+  translationFallbackOrder,
+} from '@/lib/translate/engines'
 
 describe('translate engines', () => {
   it('groups agent entries apart from platforms; only agents receive sensitive text', () => {
@@ -82,5 +92,70 @@ describe('translate engines', () => {
     })
     expect(withAgent.switches).toEqual({ bing: false, google: false, apple: true, bergamot: false })
     expect(withAgent.enabled).toEqual(['agent:a1', 'apple'])
+  })
+})
+
+describe('translation fallback order', () => {
+  it.each([
+    [
+      ['agent:a', 'apple', 'google', 'agent:b', 'bing', 'bergamot'],
+      ['agent:a', 'agent:b', 'google', 'bing', 'apple', 'bergamot'],
+    ],
+    [
+      ['apple', 'google', 'agent:a', 'bergamot', 'agent:b', 'bing'],
+      ['apple', 'bergamot', 'agent:a', 'agent:b', 'google', 'bing'],
+    ],
+    [
+      ['google', 'apple', 'agent:a', 'bing', 'agent:b', 'bergamot'],
+      ['google', 'bing', 'agent:a', 'agent:b', 'apple', 'bergamot'],
+    ],
+    [
+      ['ollama', 'google', 'agent:a', 'apple'],
+      ['ollama', 'apple', 'agent:a', 'google'],
+    ],
+  ] as const)('groups attempts starting from %j', (engines, expected) => {
+    expect(translationFallbackOrder(engines)).toEqual(expected)
+  })
+  it('does not add disabled engines and never retries the same engine', () => {
+    expect(translationFallbackOrder([])).toEqual([])
+    expect(translationFallbackOrder(['google', 'google'])).toEqual(['google'])
+  })
+})
+
+describe('concurrent translation batches', () => {
+  it('limits concurrent texts to four and returns input order', async () => {
+    const started: number[] = []
+    const finish = new Map<number, (value: number) => void>()
+    const pending = mapTranslationBatch([0, 1, 2, 3, 4], async (text) => {
+      started.push(text)
+      return new Promise<number>((resolve) => {
+        finish.set(text, resolve)
+      })
+    })
+    expect(started).toEqual([0, 1, 2, 3])
+    finish.get(2)!(20)
+    for (let i = 0; i < 4; i++) await Promise.resolve()
+    expect(started).toEqual([0, 1, 2, 3, 4])
+    for (const text of [4, 3, 1, 0]) finish.get(text)!(text * 10)
+    expect(await pending).toEqual([0, 10, 20, 30, 40])
+  })
+  it('drains in-flight work before rejecting so stores can close safely', async () => {
+    let finish!: () => void
+    let settled = false
+    const pending = mapTranslationBatch([0, 1], async (text) => {
+      if (text === 0) throw new Error('Cancelled')
+      await new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      return text
+    })
+    const checked = pending.catch((error) => {
+      settled = true
+      return error.message
+    })
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+    expect(settled).toBe(false)
+    finish()
+    expect(await checked).toBe('Cancelled')
   })
 })

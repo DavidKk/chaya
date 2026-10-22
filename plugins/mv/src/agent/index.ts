@@ -82,7 +82,7 @@ function start(): AgentGlobal {
         const body: AgentPollRequest = { roomId: gameRoomId(), info: gameInfo(), results: pending }
         const res = await chayaPostJson('/api/runtime/agent', body)
         if (res.status === 404) {
-          if (!warned) log.info('网页版无本机 Agent 桥，Agent 能力经游戏连接（WebMCP）提供')
+          if (!warned) log.info('Local Agent bridge unavailable in browser mode; Agent tools are provided through the game connection (WebMCP)')
           warned = true
           await sleep(DISABLED_RETRY_MS)
           continue
@@ -99,7 +99,7 @@ function start(): AgentGlobal {
         }
       } catch (err) {
         if (!running) break
-        log.warn(`Agent 桥连接失败，${Math.round(retry / 1000)}s 后重试：${err instanceof Error ? err.message : String(err)}`)
+        log.warn(`Agent bridge connection failed; retrying in ${Math.round(retry / 1000)}s: ${err instanceof Error ? err.message : String(err)}`)
         await sleep(retry)
         retry = Math.min(retry * 2, RETRY_MAX_MS)
       }
@@ -132,15 +132,15 @@ try {
   window.__chayaStopAgent?.()
 } catch (err) {
   // A previous build that fails to stop must not block the replacement.
-  log.warn(`旧 Agent 未能正常停止：${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
+  log.warn(`Previous Agent failed to stop: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
 }
 let agent: AgentGlobal
 try {
   agent = start()
 } catch (err) {
-  log.fail(`Agent 桥启动失败：${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
+  log.fail(`Agent bridge failed to start: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
   throw err
 }
 window.ChayaAgent = agent
 window.__chayaStopAgent = agent.stop
-log.ok('Agent 桥已启动：本机 MCP（/api/mcp）或网页 WebMCP 可控制游戏')
+log.ok('Agent bridge started: local MCP (/api/mcp) or browser WebMCP can control the game')

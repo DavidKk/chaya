@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { resolveGame } from '@/lib/game/resolve'
 import { runExtract } from '@/services/extract/lib/main'
-import { loadRgssTranslationItems, looksLikeRgssProject, runRgssExtract, writeRgssTranslations } from '@/services/extract/lib/rgss'
+import { filterRgssSeedKeys, loadRgssTranslationItems, looksLikeRgssProject, runRgssExtract, writeRgssTranslations } from '@/services/extract/lib/rgss'
 import { parseRubyMarshal, rubyToPlain, type RubyValue, writeRubyMarshal } from '@/services/extract/lib/rgss/marshal'
 
 function object(className: string, fields: Record<string, RubyValue>): RubyValue {
@@ -52,6 +52,48 @@ function makeProject(ext = '.rvdata2') {
 }
 
 describe('RGSS VX/VX Ace support', () => {
+  it.each(['.rvdata', '.rvdata2'])('excludes resource slots in %s but preserves visible same-name text and old seed eligibility', (ext) => {
+    const root = makeProject(ext)
+    try {
+      writeData(root, 'Actors', array(object('RPG::Actor', { name: str('Thunder5') })), ext)
+      writeData(
+        root,
+        'Animations',
+        array(
+          object('RPG::Animation', {
+            name: str('EditorAnimation9'),
+            timings: array(object('RPG::Animation::Timing', { se: object('RPG::SE', { name: str('Thunder5') }) })),
+          })
+        ),
+        ext
+      )
+      writeData(
+        root,
+        'System',
+        object('RPG::System', {
+          game_title: str('Adventure'),
+          sounds: array(...['AudioFile', 'SE', 'BGM', 'BGS', 'ME'].map((kind) => object(`RPG::${kind}`, { name: str('Thunder10') }))),
+          title1_name: str('Picture7'),
+        }),
+        ext
+      )
+      const resources = ['Animations', 'System'].map((name) => fs.readFileSync(path.join(root, 'Data', name + ext)))
+      const sources = [...runRgssExtract(root).allStrings]
+      expect(sources).toContain('Thunder5')
+      for (const resource of ['Thunder10', 'Picture7', 'EditorAnimation9']) expect(sources).not.toContain(resource)
+      expect(filterRgssSeedKeys(root, ['Thunder5', 'Thunder10', 'Picture7', 'EditorAnimation9'])).toEqual(['Thunder5'])
+      expect(() => writeRgssTranslations(root, { Thunder10: '雷霆10' })).toThrow('RGSS source not found')
+      expect(writeRgssTranslations(root, { Thunder5: '雷霆5' }).replacements).toBe(1)
+      expect(['Animations', 'System'].map((name) => fs.readFileSync(path.join(root, 'Data', name + ext)))).toEqual(resources)
+      expect(filterRgssSeedKeys(root, ['Thunder5', 'Thunder10'])).toEqual(['Thunder5'])
+      writeData(root, 'Actors', array(object('RPG::Actor', { name: str('Thunder10') })), ext)
+      fs.rmSync(path.join(root, 'Data', `Actors${ext}.chaya.bak`))
+      expect(filterRgssSeedKeys(root, ['Thunder5', 'Thunder10'])).toEqual(['Thunder10'])
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('includes system parameter labels but excludes numeric actor params', () => {
     const root = makeProject()
     try {

@@ -33,6 +33,7 @@ import {
   upsertLibraryEntry,
 } from '@/services/game'
 import { acceptGameBindEpoch, peekGameBindEpoch } from '@/services/game/bind-epoch'
+import { detectRgssPlugins, detectRgssPluginsOutdated } from '@/services/game/rgss-plugins'
 import { rgssRuntimeStatus } from '@/services/game/rgss-runtime'
 import { anyWebConnected, detectLanApiBases, getGamePresence, preferredPluginApiBase, toolkitListenPort } from '@/services/runtime'
 import { getSharedTranslateCacheStats } from '@/services/translate'
@@ -173,7 +174,7 @@ export const GET = defineApiRoute('get:/api/status', async () => {
     resolved.hasShell && resolved.shellApp !== resolved.contentRoot && !resolved.contentRoot.startsWith(resolved.shellApp + path.sep)
       ? measureDirSizeBytes(resolved.shellApp)
       : null
-  const plugins = rgss ? [] : detectPlugins(resolved.contentRoot)
+  const plugins = rgss ? detectRgssPlugins(resolved.contentRoot) : detectPlugins(resolved.contentRoot)
   const pluginsReady = countReadyPlugins(plugins)
 
   return {
@@ -208,7 +209,7 @@ export const GET = defineApiRoute('get:/api/status', async () => {
     plugins,
     pluginsReady,
     pluginsTotal: plugins.length,
-    pluginsOutdated: !rgss && pluginsReady >= plugins.length && detectPluginsOutdated(resolved.contentRoot),
+    pluginsOutdated: pluginsReady >= plugins.length && (rgss ? detectRgssPluginsOutdated(resolved.contentRoot) : detectPluginsOutdated(resolved.contentRoot)),
     translateSwitches: switches,
     nwPackage,
     runtime: rgss ? { ...runtimePayload(), gameOnline: rgssRuntimeStatus(resolved.contentRoot).running, native: rgssRuntimeStatus(resolved.contentRoot) } : runtimePayload(),

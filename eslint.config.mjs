@@ -22,6 +22,7 @@ const eslintConfig = defineConfig([
     'plugins/dist/**',
     'plugins/mv/dist/**',
     'plugins/rgss/dist/**',
+    'native/bin/chaya-cache-worker.mjs',
     // 翻译管线 lib 仍为 @ts-nocheck 风格，避免假阳性
     'services/translate/lib/**',
     // local MVP smoke / demo

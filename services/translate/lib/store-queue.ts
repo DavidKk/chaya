@@ -116,7 +116,7 @@ export function createStore(original, seedCaches, pendingSet, termFamilies, temp
       }
       remember(src, value)
       const extra = expandAll(src, value)
-      console.log(`  [${source}] ${src.length > 36 ? `${src.slice(0, 36)}…` : src} -> ${String(value).slice(0, 36)}` + (extra ? `（套用 +${extra}）` : ''))
+      console.log(`  [${source}] ${src.length > 36 ? `${src.slice(0, 36)}…` : src} -> ${String(value).slice(0, 36)}` + (extra ? ` (applied +${extra})` : ''))
       flushAppend()
       return true
     },

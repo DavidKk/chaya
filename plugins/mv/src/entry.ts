@@ -48,4 +48,4 @@ try {
 } catch {
   /* Window-size persist failure must not block the link */
 }
-ChayaLog.ok('ChayaRuntime', `插件运行时已就绪 → ${resolveApiBase()}`)
+ChayaLog.ok('ChayaRuntime', `Plugin runtime ready -> ${resolveApiBase()}`)

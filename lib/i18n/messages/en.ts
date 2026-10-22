@@ -3,6 +3,7 @@ import { agentAuthEn } from '@/lib/i18n/messages/parts/agent-auth'
 import { companionEn } from '@/lib/i18n/messages/parts/companion'
 import { creditsEn } from '@/lib/i18n/messages/parts/credits'
 import { dataEn } from '@/lib/i18n/messages/parts/data.en'
+import { debugEn } from '@/lib/i18n/messages/parts/debug'
 import { downloadsEn } from '@/lib/i18n/messages/parts/downloads'
 import { editEn } from '@/lib/i18n/messages/parts/edit.en'
 import { eventsEn } from '@/lib/i18n/messages/parts/events.en'
@@ -319,6 +320,7 @@ const dashboardEn = {
 } as const
 
 export const en: MessageTree = {
+  debug: debugEn,
   ...commonEn,
   ...marketingEn,
   ...dashboardEn,

@@ -1,8 +1,10 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
 import readline from 'node:readline'
+
+import { bergamotLanguage } from '@/lib/translate/bergamot'
+import { resolveBergamotBinary } from '@/services/translate/bergamot/binary'
+import { verifiedPack } from '@/services/translate/bergamot/readiness'
+import { installedPack } from '@/services/translate/bergamot/store'
 
 type BergamotResponse = {
   id?: string
@@ -29,36 +31,9 @@ export function toBergamotLanguage(value: string | undefined, fallback: string):
   return code
 }
 
-function candidatePaths(): string[] {
-  const platform = process.platform === 'darwin' ? 'macos' : process.platform === 'linux' ? 'linux' : process.platform
-  const arch = process.arch
-  return [
-    ...(process.env.CHAYA_BERGAMOT_BINARY ? [path.resolve(process.env.CHAYA_BERGAMOT_BINARY)] : []),
-    path.resolve(process.cwd(), `native/bin/${platform}-${arch}/chaya-bergamot-translator`),
-    path.resolve(process.cwd(), 'native/bin/chaya-bergamot-translator'),
-    path.join(os.homedir(), '.local', 'bin', 'chaya-bergamot-translator'),
-    ...(process.env.PATH || '')
-      .split(path.delimiter)
-      .filter(Boolean)
-      .map((dir) => path.join(dir, 'chaya-bergamot-translator')),
-  ]
-}
-
-function resolveBinary(): string {
-  if (process.platform !== 'darwin' && process.platform !== 'linux') throw new Error('Bergamot translation is supported on macOS and Linux only')
-  const binary = candidatePaths().find((file) => {
-    try {
-      fs.accessSync(file, fs.constants.X_OK)
-      return fs.statSync(file).isFile()
-    } catch {
-      return false
-    }
-  })
-  if (!binary) throw new Error('Bergamot translator binary not found. Install chaya-bergamot-translator and its language pack first.')
-  return binary
-}
-
 class BergamotTranslatorClient {
+  constructor(private readonly packRoot?: string) {}
+
   private child: ChildProcessWithoutNullStreams | null = null
   private sequence = 0
   private readonly pending = new Map<string, PendingRequest>()
@@ -67,7 +42,10 @@ class BergamotTranslatorClient {
 
   private start(): ChildProcessWithoutNullStreams {
     if (this.child && !this.child.killed && this.child.exitCode === null) return this.child
-    const child = spawn(resolveBinary(), [], { stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn(resolveBergamotBinary(), [], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      ...(this.packRoot ? { env: { ...process.env, CHAYA_BERGAMOT_PACKS_DIR: this.packRoot } } : {}),
+    })
     const lines = readline.createInterface({ input: child.stdout })
     lines.on('line', (line) => {
       if (this.child === child) this.handleLine(line)
@@ -111,6 +89,7 @@ class BergamotTranslatorClient {
     if (this.idleTimer) clearTimeout(this.idleTimer)
     this.idleTimer = null
     child?.kill('SIGKILL')
+    if (this.packRoot && managedClients.get(this.packRoot) === this) managedClients.delete(this.packRoot)
     for (const [id, request] of this.pending) {
       clearTimeout(request.timer)
       request.reject(error)
@@ -128,23 +107,39 @@ class BergamotTranslatorClient {
   }
 
   private async request(action: 'translate' | 'check', options?: { source?: string; target?: string }, text?: string): Promise<BergamotResponse> {
+    if (!this.packRoot) {
+      const root = installedPack(options?.source || 'ja', options?.target || 'zh')?.root
+      if (root) {
+        const verified = await verifiedPack(options?.source || 'ja', options?.target || 'zh')
+        if (!verified) throw new Error('PACK_MODEL_INVALID')
+        return managedClient(verified.root).request(action, options, text)
+      }
+    }
     const child = this.start()
     if (this.idleTimer) clearTimeout(this.idleTimer)
     const id = `bergamot-${++this.sequence}`
     return new Promise<BergamotResponse>((resolve, reject) => {
+      const timeoutMs = this.packRoot ? 30_000 : REQUEST_TIMEOUT_MS
       const timer = setTimeout(() => {
-        if (this.child === child) this.stopDaemon(new Error('Offline translation timeout: bergamot did not respond within 5000ms'))
-      }, REQUEST_TIMEOUT_MS)
+        if (this.child === child) this.stopDaemon(new Error(`Offline translation timeout: bergamot did not respond within ${timeoutMs}ms`))
+      }, timeoutMs)
       this.pending.set(id, { resolve, reject, timer })
-      child.stdin.write(`${JSON.stringify({ id, action, from: toBergamotLanguage(options?.source, 'ja'), to: toBergamotLanguage(options?.target, 'zh'), text })}\n`, (error) => {
-        if (!error) return
-        if (this.child === child) this.stopDaemon(error)
-      })
+      child.stdin.write(
+        `${JSON.stringify({ id, action, from: this.packRoot ? bergamotLanguage(options?.source || 'ja') : toBergamotLanguage(options?.source, 'ja'), to: this.packRoot ? bergamotLanguage(options?.target || 'zh') : toBergamotLanguage(options?.target, 'zh'), text })}\n`,
+        (error) => {
+          if (!error) return
+          if (this.child === child) this.stopDaemon(error)
+        }
+      )
     })
   }
 
   async checkStatus(source = 'ja', target = 'zh'): Promise<{ status: 'ready' | 'model_pack_missing' | 'unavailable'; installed: boolean; message?: string; path?: string }> {
     try {
+      if (installedPack(source, target)) {
+        const verified = await verifiedPack(source, target)
+        return { status: verified ? 'ready' : 'model_pack_missing', installed: !!verified }
+      }
       const response = await this.request('check', { source, target })
       if (response.success !== true) throw new Error(response.message || response.error || 'Bergamot language pack check failed')
       if (typeof response.installed !== 'boolean') throw new Error('Invalid Bergamot language pack response')
@@ -161,6 +156,17 @@ class BergamotTranslatorClient {
     if (response.success !== true || typeof result !== 'string') throw new Error(response.message || response.error || 'Bergamot translation failed')
     return result
   }
+}
+
+const managedClients = new Map<string, BergamotTranslatorClient>()
+function managedClient(root: string) {
+  let client = managedClients.get(root)
+  if (!client) {
+    if (managedClients.size >= 8) throw new Error('BERGAMOT_TOO_MANY_ACTIVE_INSTALLATIONS')
+    client = new BergamotTranslatorClient(root)
+    managedClients.set(root, client)
+  }
+  return client
 }
 
 export const bergamotTranslator = new BergamotTranslatorClient()

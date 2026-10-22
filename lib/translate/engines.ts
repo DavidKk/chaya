@@ -38,6 +38,36 @@ export function engineGroup(key: TranslateEngineId): TranslateEngineGroup {
   return isBuiltinEngineId(key) ? 'platform' : 'agent'
 }
 
+/** Exhaust the starting category, then try remaining categories in Agent/platform/system order.
+ * The input is the eligible engine list; this never enables an engine or adds an unselected one.
+ */
+export function translationFallbackOrder(engines: readonly TranslateRunEngine[]): TranslateRunEngine[] {
+  const unique = [...new Set(engines)]
+  if (!unique.length) return []
+  const groupOf = (engine: TranslateRunEngine): TranslateEngineGroup => (engine === 'ollama' ? 'system' : engineGroup(engine))
+  const first = groupOf(unique[0])
+  const groups = [first, ...TRANSLATE_GROUP_ORDER.filter((group) => group !== first)]
+  return groups.flatMap((group) => unique.filter((engine) => groupOf(engine) === group))
+}
+
+/** Independent texts run concurrently; each callback owns its ordered fallback chain.
+ * Drain every worker before rejecting so callers can safely close their stores in finally.
+ */
+export async function mapTranslationBatch<T, R>(texts: readonly T[], translate: (text: T) => Promise<R>, concurrency = 4): Promise<R[]> {
+  const results: R[] = new Array(texts.length)
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(Math.max(1, Math.min(40, Math.floor(concurrency) || 1)), texts.length) }, async () => {
+    while (cursor < texts.length) {
+      const index = cursor++
+      results[index] = await translate(texts[index])
+    }
+  })
+  const settled = await Promise.allSettled(workers)
+  const failed = settled.find((result) => result.status === 'rejected')
+  if (failed?.status === 'rejected') throw failed.reason
+  return results
+}
+
 /** Public platforms reject sensitive text; users configure their agents and local models. */
 export function engineAcceptsSensitive(key: TranslateRunEngine): boolean {
   return key === 'ollama' || engineGroup(key) === 'agent'

@@ -26,7 +26,7 @@ async function buildAll() {
 }
 
 async function watchAll() {
-  console.log('[plugins] watch 中… 改 src / 共用 React 后自动重打 dist（局内可热替换）')
+  console.log('[plugins] Watching: changes to src / shared React rebuild dist automatically (in-game hot reload supported)')
   // dist 已由 `build:plugins` 填好；并行 watch 不再 emptyOutDir，避免互踩
   await Promise.all(
     entries.map(async (entry) => {

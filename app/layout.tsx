@@ -42,7 +42,8 @@ export default async function RootLayout({ children }: LayoutProps<'/'>) {
   const Analytics = process.env.VERCEL === '1' ? (await import('@vercel/analytics/next')).Analytics : null
 
   return (
-    <html lang={LOCALE_HTML_LANG[locale]} className={`${display.variable} ${body.variable} ${mono.variable} h-full`}>
+    // Extensions may inject root attributes before hydration; keep suppression scoped to html.
+    <html suppressHydrationWarning lang={LOCALE_HTML_LANG[locale]} className={`${display.variable} ${body.variable} ${mono.variable} h-full`}>
       <body className="h-full overflow-hidden">
         <AmbientBackground />
         <ButtonGlow />

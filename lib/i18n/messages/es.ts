@@ -1,7 +1,9 @@
+import { debugEs } from '@/lib/i18n/messages/parts/debug'
 import { mcpGatewayEs } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const es: MessageTree = {
+  debug: debugEs,
   locale: {
     label: 'Idioma',
     switch: 'Cambiar idioma',
@@ -369,6 +371,8 @@ export const es: MessageTree = {
     stillMissingNoEta: '{count} left (no ETA)',
     sessionDone: 'Session {count}',
     etaLeft: 'ETA {eta}',
+    rateCompact: '{rate} car./s',
+    cacheCompact: 'Caché {ms}ms',
     playModeAria: 'Play mode',
     playLoadAria: 'Loading play mode',
     realtime: 'Realtime',
@@ -411,6 +415,21 @@ export const es: MessageTree = {
     engineBing: 'Bing',
     engineGoogle: 'Google',
     engineApple: 'Apple',
+    offlineChecking: 'Comprobando',
+    packConsoleRequired: 'Instala los paquetes desde la consola local de Chaya.',
+    packInstallHint: 'El paquete se descargará y verificará automáticamente.',
+    packDownloading: 'Descargando',
+    packVerifying: 'Verificando y probando traducción',
+    packRetryHint: 'La instalación no terminó. Puedes reintentarlo.',
+    packInstall: 'Instalar paquete',
+    offlineGuide: 'Guía de configuración',
+    offlineRecheck: 'Volver a comprobar',
+    offlineReadyHint: 'Listo. Puede activar este motor.',
+    offlineUnsupportedPair: 'Este motor no admite el par de idiomas actual.',
+    bergamotPackMissing:
+      'Falta el paquete sin conexión de Bergamot para esta dirección. Chaya gestiona los paquetes; la descarga desde la aplicación aún no está disponible. Compruebe si hay actualizaciones.',
+    bergamotUnavailable: 'El componente Bergamot no está disponible. Reinicie Chaya; si el problema persiste, actualice o reinstale la aplicación.',
+    offlineCheckFailed: 'No se pudo comprobar la traducción sin conexión. Reinténtelo y compruebe la versión de la aplicación y la compatibilidad del sistema.',
     engineBergamot: 'Bergamot',
     tagFree: 'Gratis',
     tagReady: 'Listo',

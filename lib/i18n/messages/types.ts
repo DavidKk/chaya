@@ -8,10 +8,12 @@ import type { EventsMessages } from '@/lib/i18n/messages/events-types'
 import type { IntegrationMessages } from '@/lib/i18n/messages/integration-types'
 import type { LegalMessages } from '@/lib/i18n/messages/legal-types'
 import type { McpGatewayMessages } from '@/lib/i18n/messages/mcp-gateway-types'
+import type { DebugMessages } from '@/lib/i18n/messages/parts/debug'
 import type { SavesMessages } from '@/lib/i18n/messages/saves-types'
 
 /** 叶子为 string 的同构文案树 */
 export type MessageTree = {
+  debug: DebugMessages
   locale: { label: string; switch: string; auto: string }
   nav: {
     main: string
@@ -365,6 +367,8 @@ export type MessageTree = {
     stillMissingNoEta: string
     sessionDone: string
     etaLeft: string
+    rateCompact: string
+    cacheCompact: string
     playModeAria: string
     playLoadAria: string
     realtime: string
@@ -407,6 +411,20 @@ export type MessageTree = {
     engineBing: string
     engineGoogle: string
     engineApple: string
+    offlineChecking: string
+    packConsoleRequired: string
+    packInstallHint: string
+    packDownloading: string
+    packVerifying: string
+    packRetryHint: string
+    packInstall: string
+    offlineGuide: string
+    offlineRecheck: string
+    offlineReadyHint: string
+    offlineUnsupportedPair: string
+    bergamotPackMissing: string
+    bergamotUnavailable: string
+    offlineCheckFailed: string
     engineBergamot: string
     tagFree: string
     tagReady: string

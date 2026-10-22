@@ -3,6 +3,7 @@ import { agentAuthJa } from '@/lib/i18n/messages/parts/agent-auth'
 import { companionJa } from '@/lib/i18n/messages/parts/companion'
 import { creditsJa } from '@/lib/i18n/messages/parts/credits'
 import { dataJa } from '@/lib/i18n/messages/parts/data.ja'
+import { debugJa } from '@/lib/i18n/messages/parts/debug'
 import { downloadsJa } from '@/lib/i18n/messages/parts/downloads'
 import { editJa } from '@/lib/i18n/messages/parts/edit.ja'
 import { eventsJa } from '@/lib/i18n/messages/parts/events.ja'
@@ -313,6 +314,7 @@ const base = {
 } as const
 
 export const ja: MessageTree = {
+  debug: debugJa,
   ...base,
   ...translateJa,
   ...editJa,

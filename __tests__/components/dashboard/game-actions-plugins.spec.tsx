@@ -27,8 +27,8 @@ afterEach(() => {
   container.remove()
 })
 
-async function render(state: Props['plugins']['state']) {
-  const plugins = { state, onInstall: jest.fn(async () => {}), onClear: jest.fn(async () => {}) }
+async function render(state: Props['plugins']['state'], locked = false) {
+  const plugins = { state, locked, onInstall: jest.fn(async () => {}), onClear: jest.fn(async () => {}) }
   const props: Props = {
     busy: false,
     launch: { online: false, pending: false, enabled: true, label: 'Start', onStart: async () => {}, onQuit: async () => {} },
@@ -70,4 +70,11 @@ it.each([
 it('hides the plugin button when plugins cannot be installed', async () => {
   await render('unavailable')
   expect(button('plugins')).toBeUndefined()
+})
+
+it('keeps the RGSS install action visible but locked while the native game runs', async () => {
+  const plugins = await render('missing', true)
+  expect(button('Install plugins')?.disabled).toBe(true)
+  await act(async () => button('Install plugins')!.click())
+  expect(plugins.onInstall).not.toHaveBeenCalled()
 })

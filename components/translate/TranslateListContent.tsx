@@ -9,12 +9,13 @@ import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelFoot } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, EmptyState, LanguagePairSelect, Modal, NumberInput, ScrollArea, Select, type SelectOption, Spinner, TextInput } from '@/components/sk'
+import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select, type SelectOption, Spinner, TextInput } from '@/components/sk'
+import { AppleOfflineGuideModal } from '@/components/translate/AppleOfflineGuideModal'
 import { TranslateListItemRow } from '@/components/translate/TranslateListItemRow'
 import { TranslateListSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { readApiErrorMessage } from '@/lib/api-error'
-import { formatLanguageLabel } from '@/lib/translate/locales-labels'
+import { detectSourceLanguage } from '@/lib/translate/source-text'
 import { hrefWithQuery, parsePositiveInt, patchSearchParams } from '@/lib/url/search-params'
 import type { ExtractedLocalesMeta, ExtractedTranslationItem } from '@/services/extract/lib/extract-items'
 
@@ -27,7 +28,7 @@ export type AvailableEngine = {
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 200]
 const DEFAULT_PAGE_SIZE = 50
 
-export function TranslateListContent({ onExtract }: { onExtract?: () => void }) {
+export function TranslateListContent({ onExtract, onLanguagePairChange }: { onExtract?: () => void; onLanguagePairChange?: (pair: { source: string; target: string }) => void }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -61,6 +62,10 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
   const [sourceLang, setSourceLang] = useState<string>(fromLangParam)
   const [targetLang, setTargetLang] = useState<string>(toLangParam)
   const [prewarming, setPrewarming] = useState(false)
+
+  useEffect(() => {
+    onLanguagePairChange?.({ source: sourceLang || localesMeta?.currentSourceLang || '', target: targetLang || localesMeta?.currentTargetLang || '' })
+  }, [sourceLang, targetLang, localesMeta?.currentSourceLang, localesMeta?.currentTargetLang, onLanguagePairChange])
 
   // Search input typing draft
   const [qDraft, setQDraft] = useState(filterQuery)
@@ -163,7 +168,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
             setLocalesMeta(data.locales)
             if (!sourceLang && data.locales.currentSourceLang) setSourceLang(data.locales.currentSourceLang)
             if (!targetLang && data.locales.currentTargetLang) setTargetLang(data.locales.currentTargetLang)
-          }
+          } else if (!sourceLang) setSourceLang(detectSourceLanguage(data.items.map((item) => item.src)))
         } else {
           notify.error(t('translate.listFetchExtractFailed', { error: readApiErrorMessage(data) }))
         }
@@ -784,49 +789,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
         </div>
       </div>
 
-      {/* Apple Offline Language Pack Installation Guide Modal */}
-      <Modal
-        open={appleOfflineModal.open}
-        title={t('translate.appleOfflineModalTitle')}
-        description={t('translate.appleOfflineModalDesc')}
-        onClose={() => setAppleOfflineModal((prev) => ({ ...prev, open: false }))}
-        panelClassName="max-w-[34rem]"
-        footer={
-          <div className="flex justify-end">
-            <Button type="button" variant="accent" onClick={() => setAppleOfflineModal((prev) => ({ ...prev, open: false }))} data-modal-initial="confirm">
-              {t('translate.appleOfflineCloseBtn')}
-            </Button>
-          </div>
-        }
-      >
-        <div className="flex flex-col gap-3 py-1 text-xs leading-relaxed text-ink">
-          <div className="rounded-md border border-accent/20 bg-accent/5 p-3 text-ink">
-            <span className="font-semibold text-accent">
-              {t('translate.appleOfflineNeededPacks', {
-                sourceLang: formatLanguageLabel(appleOfflineModal.fromLang),
-                targetLang: formatLanguageLabel(appleOfflineModal.toLang),
-              })}
-            </span>
-          </div>
-
-          <div className="flex flex-col gap-2 rounded-md border border-line bg-panel-soft/60 p-3">
-            <div className="flex items-start gap-2">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-line text-[10px] font-bold text-ink-soft">1</span>
-              <span>{t('translate.appleOfflineStep1')}</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-line text-[10px] font-bold text-ink-soft">2</span>
-              <span>{t('translate.appleOfflineStep2')}</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-line text-[10px] font-bold text-ink-soft">3</span>
-              <span>{t('translate.appleOfflineStep3')}</span>
-            </div>
-          </div>
-
-          <div className="text-[11px] text-ink-soft">{t('translate.appleOfflineVersionNote')}</div>
-        </div>
-      </Modal>
+      <AppleOfflineGuideModal {...appleOfflineModal} onClose={() => setAppleOfflineModal((prev) => ({ ...prev, open: false }))} />
     </div>
   )
 }

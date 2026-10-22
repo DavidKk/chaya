@@ -164,3 +164,74 @@ test('agent config is a draft: save is disabled until changed and cancel closes 
   expect(agent.querySelector('button[aria-label="保存"]')).toBeNull()
   expect(mockTranslationFetch.mock.calls.length).toBe(calls)
 })
+
+test('unready offline engines cannot be enabled but can be disabled', async () => {
+  const offline = { ...state, switches: { bing: false, google: false, apple: true, bergamot: false }, order: ['apple', 'bergamot'] }
+  serve(offline)
+  const onChange = await render()
+  const apple =
+    host.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Apple 原生翻译 翻译"]') || host.querySelector<HTMLButtonElement>('[role="switch"][aria-checked="true"]')!
+  const bergamot = [...host.querySelectorAll<HTMLButtonElement>('[role="switch"]')].find((el) => el.getAttribute('aria-label')?.includes('Bergamot'))!
+  expect(apple.disabled).toBe(false)
+  expect(bergamot.disabled).toBe(true)
+  expect(onChange.mock.calls.at(-1)?.[1]).not.toContain('apple')
+  await act(async () => apple.click())
+  expect(JSON.parse(mockTranslationFetch.mock.calls.at(-1)![1].body)).toEqual({ mode: 'switches', switches: { apple: false } })
+})
+
+test('offline readiness uses a loading badge, offers guidance and becomes ready after rechecking', async () => {
+  let finishCheck!: (value: unknown) => void
+  let checks = 0
+  mockTranslationFetch.mockImplementation(async (_path: string, init: { body: string }) => {
+    const { mode } = JSON.parse(init.body)
+    if (mode === 'agents') return json(agentsBody)
+    if (mode === 'apple-status') return json({ installed: true, status: 'installed' })
+    if (mode === 'bergamot-status') {
+      checks++
+      if (checks === 1)
+        return new Promise((resolve) => {
+          finishCheck = resolve
+        })
+      return json({ installed: true, status: 'ready' })
+    }
+    return json({ ...state, switches: { ...state.switches, apple: false, bergamot: false }, order: ['apple', 'bergamot', ...state.order] })
+  })
+  await render()
+  const row = [...host.querySelectorAll('li')].find((el) => el.textContent?.includes('Bergamot'))!
+  expect(row.querySelector('[role="status"][aria-busy="true"]')?.textContent).toBe('检测中')
+  expect(row.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled).toBe(true)
+  await act(async () => finishCheck(json({ installed: false, status: 'model_pack_missing' })))
+  const guide = [...row.querySelectorAll('button')].find((el) => el.textContent === '设置指引')!
+  await act(async () => guide.click())
+  expect(row.textContent).toContain('当前语向缺少 Bergamot 离线语言包')
+  expect(row.textContent).not.toContain('build:bergamot')
+  await act(async () => [...row.querySelectorAll('button')].find((el) => el.textContent === '重新检测')!.click())
+  expect(checks).toBe(2)
+  expect(row.textContent).toContain('已就绪，可以开启此引擎')
+  expect(row.querySelector('[aria-busy="true"]')).toBeNull()
+  expect(row.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled).toBe(false)
+  expect(row.querySelector('[role="switch"]')?.getAttribute('aria-checked')).toBe('false')
+})
+
+test('Apple setup guide uses the detected language pair; unsupported pairs do not offer pack installation', async () => {
+  let supported = true
+  mockTranslationFetch.mockImplementation(async (_path: string, init: { body: string }) => {
+    const { mode } = JSON.parse(init.body)
+    if (mode === 'agents') return json(agentsBody)
+    if (mode === 'apple-status') return json({ installed: false, status: supported ? 'supported' : 'unsupported', source: 'en', target: 'fr' })
+    if (mode === 'bergamot-status') return json({ installed: false, status: 'unavailable' })
+    return json({ ...state, switches: { ...state.switches, apple: false, bergamot: false }, order: ['apple', 'bergamot', ...state.order] })
+  })
+  await render()
+  const row = [...host.querySelectorAll('li')].find((el) => el.textContent?.includes('Apple'))!
+  await act(async () => [...row.querySelectorAll('button')].find((el) => el.textContent === '设置指引')!.click())
+  const guideButtons = [...row.querySelectorAll('button')].filter((el) => el.textContent === '设置指引')
+  await act(async () => guideButtons[1].click())
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('English (en)')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Français (fr)')
+  await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+  supported = false
+  await act(async () => [...row.querySelectorAll('button')].find((el) => el.textContent === '重新检测')!.click())
+  expect(row.textContent).toContain('当前语言对不受此引擎支持')
+  expect([...row.querySelectorAll('button')].filter((el) => el.textContent === '设置指引')).toHaveLength(1)
+})

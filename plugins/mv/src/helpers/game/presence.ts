@@ -43,7 +43,7 @@ export async function registerWithToolkitOnce() {
       try {
         const res = await chayaPostJson(`${base}/api/runtime/heartbeat`, body)
         if (!res.ok) continue
-        ChayaLog.ok('ChayaRuntime', `已向服务报到 → ${base}`)
+        ChayaLog.ok('ChayaRuntime', `Registered with service -> ${base}`)
         return
       } catch {
         /* */

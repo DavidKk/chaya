@@ -54,6 +54,22 @@ it('uses a remote hit without inference or an unversioned local copy', async () 
   expect(fs.existsSync(path.join(root, gameContentRelPath('cacheNdjson')))).toBe(false)
 })
 
+it('reuses numeric labels locally and invalidates their dependencies on update and removal', async () => {
+  const store = createTranslationStore(root, { fs, path })
+  await store.put([
+    ['Thunder5', '雷霆5'],
+    ['Thunder10', '雷霆10'],
+  ])
+  expect(store.lookup('Thunder007')).toBe('雷霆007')
+  await store.put([['Thunder5', '闪电5']])
+  expect(store.lookup('Thunder007')).toBeNull()
+  await store.put([
+    ['Thunder5', '雷霆5'],
+    ['Thunder10', null],
+  ])
+  expect(store.lookup('Thunder007')).toBeNull()
+})
+
 it('reuses inferred soft wraps while preserving word spaces and refreshing local values', async () => {
   const store = createTranslationStore(root, { fs, path }, () => {})
   await store.put([['来店\n　する', '走进店铺']])
@@ -335,13 +351,13 @@ it('ignores a historical half-translated kanji phrase and translates it again', 
 })
 
 it('exposes recent in-game dialogue activity to the translation panel', async () => {
-  runtime.recordActivity({ level: 'info', text: '翻译中：応接室へ行く', status: '翻译中' })
+  runtime.recordActivity({ level: 'info', text: 'Translating: 応接室へ行く', status: '翻译中' })
   runtime.recordActivity({ level: 'warn', text: '未得到有效译文：応接室へ行く', status: '未译' })
   const response = await call('/api/translate', { mode: 'progress' })
   expect(response.data.activity).toMatchObject({
     liveStatus: '未译',
     sessionDone: 0,
-    logs: [expect.objectContaining({ text: '翻译中：応接室へ行く' }), expect.objectContaining({ text: '未得到有效译文：応接室へ行く' })],
+    logs: [expect.objectContaining({ text: 'Translating: 応接室へ行く' }), expect.objectContaining({ text: '未得到有效译文：応接室へ行く' })],
   })
 })
 
@@ -403,7 +419,7 @@ it('can remove the last enabled engine', async () => {
 it('surfaces agent service errors per item', async () => {
   await call('/api/translate', { mode: 'switches', switches: { bing: false, google: false }, agents: [{ id: 'a1', profileId: 'p' }] })
   jest.mocked(chayaFetch).mockImplementation(async () => new Response(JSON.stringify({ ok: false, error: { message: '没有可用的 Agent 实例' } }), { status: 500 }))
-  expect((await runtime.translate(['こんにちは'], { remote: false }))[0]).toMatchObject({ zh: null, error: '没有可用的 Agent 实例' })
+  expect((await runtime.translate(['こんにちは'], { remote: false }))[0]).toMatchObject({ zh: null, error: expect.stringContaining('没有可用的 Agent 实例') })
 })
 
 it('lists agent instances through the local service', async () => {
@@ -450,4 +466,82 @@ it('imports raw paragraphs without materializing guessed sentence translations',
   await call('/api/translate-cache', { text: JSON.stringify({ 'こんにちは，休みましょう。': '您好，休息吧。' }) })
   await store.load()
   expect(store.lookup('こんにちは')).toBeNull()
+})
+
+it('checks native readiness using the game language without requiring text', async () => {
+  const file = path.join(root, gameContentRelPath('seed'))
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify({ 'Welcome to the city.': '' }))
+  jest.mocked(chayaFetch).mockResolvedValue(new Response(JSON.stringify({ installed: true, status: 'installed', ok: true })))
+  const result = await call('/api/translate', { mode: 'apple-status' })
+  expect(result).toMatchObject({ status: 200, data: { installed: true } })
+  expect(JSON.parse(String(jest.mocked(chayaFetch).mock.calls.at(-1)?.[1]?.body))).toEqual({ mode: 'apple-status', from: 'en', to: 'zh' })
+})
+
+const fallbackChains = [
+  ['agent:a', 'agent:b', 'google', 'apple', 'bergamot'],
+  ['apple', 'bergamot', 'agent:a', 'agent:b', 'google'],
+  ['google', 'agent:a', 'agent:b', 'apple', 'bergamot'],
+] as const
+const fallbackCases = fallbackChains.flatMap((chain) => chain.map((winner) => ({ chain, winner })))
+it.each(fallbackCases)('plugin follows $chain and stops at $winner', async ({ chain, winner }) => {
+  const calls: string[] = []
+  const attempt = (engine: string) => {
+    calls.push(engine)
+    if (engine !== winner) throw new Error(`${engine} unavailable`)
+    return '有效译文'
+  }
+  jest.mocked(chayaFetch).mockImplementation(async (_url, init) => {
+    const body = JSON.parse(String(init?.body))
+    if (body.mode === 'ai') return new Response(JSON.stringify({ text: attempt(`agent:${body.ai.profileId}`) }))
+    if (body.mode === 'apple' || body.mode === 'bergamot') return new Response(JSON.stringify({ text: attempt(body.mode) }))
+    return new Response(JSON.stringify({ available: true, items: [] }))
+  })
+  jest.mocked(engineFetch).mockImplementation(async () => new Response(JSON.stringify([[[attempt('google')]]])))
+  const opts = {
+    remote: false,
+    engines: [...chain],
+    agents: ['a', 'b'].map((id) => ({ id, profileId: id, model: '', enabled: true })),
+  }
+  const result = await runtime.translate(['こんにちは世界'], opts)
+  expect(result[0]).toMatchObject({ zh: '有效译文', engine: `live:${winner}` })
+  expect(calls).toEqual(chain.slice(0, chain.indexOf(winner) + 1))
+  calls.length = 0
+  expect((await runtime.translate(['こんにちは世界'], opts))[0].zh).toBe('有效译文')
+  expect(calls).toEqual([])
+})
+
+it('plugin reports every failed fallback without persisting a failed translation', async () => {
+  jest.mocked(chayaFetch).mockImplementation(async (_url, init) => {
+    const body = JSON.parse(String(init?.body))
+    if (['ai', 'apple', 'bergamot'].includes(body.mode)) throw new Error(`${body.mode} unavailable`)
+    return new Response(JSON.stringify({ available: true, items: [] }))
+  })
+  jest.mocked(engineFetch).mockRejectedValue(new Error('Google unavailable'))
+  const result = await runtime.translate(['こんにちは世界'], {
+    remote: false,
+    engines: ['agent:a', 'google', 'apple', 'bergamot'],
+    agents: [{ id: 'a', profileId: 'a', model: '', enabled: true }],
+  })
+  expect(result[0].zh).toBeNull()
+  for (const engine of ['agent:a', 'google', 'apple', 'bergamot']) expect(result[0].error).toContain(engine)
+  expect(fs.existsSync(path.join(root, gameContentRelPath('cacheNdjson')))).toBe(false)
+})
+
+it('plugin exhausts the platform category before moving to agents or local engines', async () => {
+  const calls: string[] = []
+  jest.mocked(engineFetch).mockImplementation(async (url) => {
+    const engine = String(url).includes('google') ? 'google' : 'bing'
+    calls.push(engine)
+    if (engine === 'bing') throw new Error('Bing unavailable')
+    return new Response(JSON.stringify([[['有效译文']]]))
+  })
+  const result = await runtime.translate(['こんにちは世界'], {
+    remote: false,
+    persist: false,
+    engines: ['bing', 'apple', 'agent:a', 'google'],
+    agents: [{ id: 'a', profileId: 'a', model: '', enabled: true }],
+  })
+  expect(result[0]).toMatchObject({ zh: '有效译文', engine: 'live:google' })
+  expect(calls).toEqual(['bing', 'google'])
 })

@@ -11,7 +11,7 @@ type Db = Array<DbRow> | undefined
 
 export function needParty(): boolean {
   if (typeof $gameParty === 'undefined' || !$gameParty) {
-    log.warn('请先读档进游戏')
+    log.warn('Load a game first')
     return false
   }
   return true
@@ -57,7 +57,7 @@ export function setItemLike(db: Db, id: number, count: number) {
   const n = Math.max(0, Number(count) || 0)
   const item = db?.[id]
   if (!item) {
-    log.warn('无效 ID', id)
+    log.warn('Invalid ID', id)
     return null
   }
   const inv = $gameParty.numItems(item)

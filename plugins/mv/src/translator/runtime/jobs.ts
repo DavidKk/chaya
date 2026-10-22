@@ -82,10 +82,10 @@ export function createPluginTranslationJob(store: TranslationStore, translate: (
             if (item?.zh && item.zh !== src && !item.error && item.status !== 'partial') {
               job.sessionDone++
               log('ok', `${src.slice(0, 60)} → ${item.zh.slice(0, 60)}`)
-            } else log('warn', item?.error || '未得到译文')
+            } else log('warn', item?.error || 'No translation returned')
           } catch (error) {
             if (!abort.signal.aborted) throw error
-            if (job.status === 'running' && !disposed) log('info', '优先处理当前对话，本条稍后可继续补译')
+            if (job.status === 'running' && !disposed) log('info', 'Current dialogue takes precedence; this item can be retried later')
           } finally {
             abort = null
           }

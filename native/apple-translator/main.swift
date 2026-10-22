@@ -3,10 +3,16 @@ import Translation
 
 struct Request: Codable {
     let id: String
-    let type: String // "translate" | "check" | "ping"
+    let type: String // "translate" | "batch" | "check" | "ping"
     let text: String?
     let source: String?
     let target: String?
+    let items: [BatchItem]?
+}
+
+struct BatchItem: Codable {
+    let id: String
+    let text: String
 }
 
 struct Response: Codable {
@@ -27,9 +33,23 @@ actor TranslationCoordinator {
         return "\(source)->\(target)"
     }
 
+    // Generic English can resolve to US English even when only the UK pack is installed.
+    // Keep status checks and translation sessions on the same installed language pair.
+    private func installedPair(source: String, target: String) async -> (Locale.Language, Locale.Language) {
+        let sources = source == "en" ? ["en", "en-US", "en-GB"] : [source]
+        let targets = target == "en" ? ["en", "en-US", "en-GB"] : [target]
+        for src in sources {
+            for tgt in targets {
+                let s = Locale.Language(identifier: src)
+                let t = Locale.Language(identifier: tgt)
+                if await availability.status(from: s, to: t) == .installed { return (s, t) }
+            }
+        }
+        return (Locale.Language(identifier: source), Locale.Language(identifier: target))
+    }
+
     func checkStatus(source: String, target: String) async -> (status: String, error: String?, message: String?) {
-        let s = Locale.Language(identifier: source)
-        let t = Locale.Language(identifier: target)
+        let (s, t) = await installedPair(source: source, target: target)
         let status = await availability.status(from: s, to: t)
         switch status {
         case .installed:
@@ -43,20 +63,54 @@ actor TranslationCoordinator {
         }
     }
 
-    func getOrCreateSession(source: String, target: String) -> TranslationSession {
+    func getOrCreateSession(source: String, target: String) async -> TranslationSession {
         let key = sessionKey(source: source, target: target)
         if let existing = sessions[key] {
             return existing
         }
-        let s = Locale.Language(identifier: source)
-        let t = Locale.Language(identifier: target)
+        let (s, t) = await installedPair(source: source, target: target)
         let session = TranslationSession(installedSource: s, target: t)
         sessions[key] = session
         return session
     }
 
+    func translateBatch(id: String, items: [BatchItem], source: String, target: String) async {
+        let started = ProcessInfo.processInfo.systemUptime
+        let reused = sessions[sessionKey(source: source, target: target)] != nil
+        func timing(_ stage: String) {
+            guard ProcessInfo.processInfo.environment["CHAYA_TRANSLATE_DEBUG"] == "1" else { return }
+            let ms = Int((ProcessInfo.processInfo.systemUptime - started) * 1000)
+            let message = "[apple-native-timing] id=\(id) stage=\(stage) atMs=\(Int(Date().timeIntervalSince1970 * 1000)) elapsedMs=\(ms) items=\(items.count) sourceChars=\(items.reduce(0) { $0 + $1.text.unicodeScalars.count }) sessionReused=\(reused)\n"
+            FileHandle.standardError.write(Data(message.utf8))
+        }
+        timing("received")
+        let session = await getOrCreateSession(source: source, target: target)
+        timing("session_ready")
+        let requests = items.map { TranslationSession.Request(sourceText: $0.text, clientIdentifier: $0.id) }
+        var pending = Set(items.map { $0.id })
+        do {
+            for try await response in session.translate(batch: requests) {
+                guard let itemId = response.clientIdentifier, pending.remove(itemId) != nil else { continue }
+                if pending.count == items.count - 1 { timing("first_result") }
+                sendResponse(Response(id: itemId, success: true, result: response.targetText,
+                                      status: nil, error: nil, message: nil))
+            }
+        } catch {
+            for itemId in pending {
+                sendResponse(Response(id: itemId, success: false, result: nil, status: nil,
+                                      error: "translation_error", message: error.localizedDescription))
+            }
+            pending.removeAll()
+        }
+        for itemId in pending {
+            sendResponse(Response(id: itemId, success: false, result: nil, status: nil,
+                                  error: "missing_result", message: "No result returned for batch item"))
+        }
+        timing("finished")
+    }
+
     func translate(text: String, source: String, target: String) async throws -> String {
-        let session = getOrCreateSession(source: source, target: target)
+        let session = await getOrCreateSession(source: source, target: target)
         let response = try await session.translate(text)
         return response.targetText
     }
@@ -125,6 +179,19 @@ struct TranslatorDaemon {
                 continue
             }
             
+            if req.type == "batch" {
+                guard let items = req.items, !items.isEmpty, items.count <= 40,
+                      Set(items.map { $0.id }).count == items.count,
+                      items.allSatisfy({ !$0.text.isEmpty && $0.text.count <= 20000 }),
+                      items.reduce(0, { $0 + $1.text.count }) <= 40000 else {
+                    sendResponse(Response(id: req.id, success: false, result: nil, status: nil,
+                                          error: "invalid_batch", message: "Invalid translation batch"))
+                    continue
+                }
+                await coordinator.translateBatch(id: req.id, items: items, source: source, target: target)
+                continue
+            }
+
             if req.type == "translate" {
                 guard let text = req.text, !text.isEmpty else {
                     sendResponse(Response(

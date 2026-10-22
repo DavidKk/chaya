@@ -60,7 +60,7 @@ function writeWindowSize(width: number, height: number): boolean {
     fs.renameSync(tmp, file)
     return true
   } catch (err) {
-    log.warn('写入窗口大小失败', err && (err as Error).message ? (err as Error).message : err)
+    log.warn('Failed to persist window size', err && (err as Error).message ? (err as Error).message : err)
     return false
   }
 }
@@ -92,7 +92,7 @@ export function startWindowSizePersist() {
       const key = `${size.width}x${size.height}`
       if (key !== lastLogged) {
         lastLogged = key
-        log.ok(`已记住窗口 ${key}`)
+        log.ok(`Saved window size ${key}`)
       }
     } catch {
       /* */

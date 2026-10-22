@@ -14,16 +14,30 @@ import { cn } from '@/lib/utils'
 export type LanguagePairSelectProps = {
   sourceLang: string
   targetLang: string
-  availableLanguages: string[]
+  availableLanguages?: readonly string[] | null
   onSourceChange: (lang: string) => void
   onTargetChange: (lang: string) => void
   className?: string
   disabled?: boolean
 }
 
+const EMPTY_LANGUAGES: readonly string[] = []
+
 const COMMON_TARGET_LANGS = CORE_TRANSLATION_LANGUAGES.map((l) => l.code)
 
-export function LanguagePairSelect({ sourceLang, targetLang, availableLanguages, onSourceChange, onTargetChange, className, disabled = false }: LanguagePairSelectProps) {
+export function LanguagePairSelect({
+  sourceLang,
+  targetLang,
+  availableLanguages: rawLanguages,
+  onSourceChange,
+  onTargetChange,
+  className,
+  disabled = false,
+}: LanguagePairSelectProps) {
+  const availableLanguages = useMemo(
+    () => (Array.isArray(rawLanguages) ? [...new Set(rawLanguages.filter((code): code is string => typeof code === 'string' && !!code.trim()))] : EMPTY_LANGUAGES),
+    [rawLanguages]
+  )
   const t = useT()
   const [customLangOpen, setCustomLangOpen] = useState(false)
   const [customLangInput, setCustomLangInput] = useState('')

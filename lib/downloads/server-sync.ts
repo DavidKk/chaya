@@ -28,6 +28,8 @@ function toItem(job: ServerDownloadJob): DownloadItem {
     status: job.status,
     phase: job.phase,
     version: job.version,
+    source: job.source,
+    target: job.target,
     receivedBytes: job.receivedBytes,
     totalBytes: job.totalBytes,
     resumedFrom: job.resumedFrom,

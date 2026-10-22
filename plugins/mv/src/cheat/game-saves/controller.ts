@@ -51,9 +51,9 @@ export class GameSavesError extends Error {
   }
 }
 
-const listLabel = (entry: Pick<GameSaveEntry, 'list' | 'slot'>) => (entry.list === 'quick' ? `槽 ${entry.slot}` : '自动存档')
-const sourceLabel: Record<GameSaveSource, string> = { timer: '定时', page: '页面', hotkey: '快捷键' }
-const placeLabel: Record<GameSaveStorage, string> = { game: '存到游戏中', app: '存到 Chaya 本机' }
+const listLabel = (entry: Pick<GameSaveEntry, 'list' | 'slot'>) => (entry.list === 'quick' ? `Slot ${entry.slot}` : 'Autosave')
+const sourceLabel: Record<GameSaveSource, string> = { timer: 'timer', page: 'page', hotkey: 'hotkey' }
+const placeLabel: Record<GameSaveStorage, string> = { game: 'game', app: 'local Chaya' }
 
 export class GameSavesController {
   private settings: GameSavesSettings = parseGameSavesSettings(null)
@@ -85,7 +85,7 @@ export class GameSavesController {
     try {
       this.settings = parseGameSavesSettings(await this.env.backend.readSettings())
     } catch (error) {
-      this.env.log.fail('读取存档设置失败', error)
+      this.env.log.fail('Failed to read save settings', error)
     }
     await this.store.apply(this.settings)
     this.refreshIndex()
@@ -293,10 +293,10 @@ export class GameSavesController {
     if (next.autoStorage !== prev.autoStorage || next.quickStorage !== prev.quickStorage) {
       await this.store.apply(next)
       this.refreshIndex()
-      this.env.log.info(`存档位置：自动存档${placeLabel[next.autoStorage]}，快速存档${placeLabel[next.quickStorage]}`)
+      this.env.log.info(`Save locations: autosave ${placeLabel[next.autoStorage]}, quick save ${placeLabel[next.quickStorage]}`)
     }
-    if (next.maxCount < prev.maxCount) await this.rotate().catch((error) => this.env.log.fail('调小最多份数后轮换失败', error))
-    this.env.log.info(`更新自动存档设置：${next.enabled ? '开启' : '关闭'}，间隔 ${next.intervalMin} 分钟，最多 ${next.maxCount} 份`)
+    if (next.maxCount < prev.maxCount) await this.rotate().catch((error) => this.env.log.fail('Save rotation failed after reducing the limit', error))
+    this.env.log.info(`Updated autosave settings: ${next.enabled ? 'enabled' : 'disabled'}, interval ${next.intervalMin} min, limit ${next.maxCount}`)
     this.notifyChanged()
   }
 
@@ -309,7 +309,7 @@ export class GameSavesController {
       removed
     )
     await this.store.purge('auto', removed)
-    this.env.log.info(`轮换删除 ${removed.length} 份最早的自动存档`)
+    this.env.log.info(`Rotated out ${removed.length} oldest autosaves`)
   }
 
   private async commit(entries: GameSaveEntry[], removed: readonly string[] = []): Promise<void> {
@@ -371,7 +371,7 @@ export class GameSavesController {
     if (!previous) {
       if (!current) await store.removeEntry(list, id).catch(() => {})
     } else if (current?.savedAt !== previous.savedAt) {
-      this.env.log.warn(`${listLabel(previous)}已被其他窗口更新，不再写回旧存档`)
+      this.env.log.warn(`${listLabel(previous)} was updated by another window; skipping stale save rollback`)
     } else if (restore) {
       await restore()
     }
@@ -383,9 +383,9 @@ export class GameSavesController {
     try {
       const data = await store.readEntry(entry.list, entry.id)
       const thumb = entry.hasThumb ? await store.readThumb(entry.list, entry.id) : null
-      return () => store.writeEntry(entry.list, entry.id, data, thumb).catch((error) => this.env.log.fail(`写回旧存档失败：${listLabel(entry)}`, error))
+      return () => store.writeEntry(entry.list, entry.id, data, thumb).catch((error) => this.env.log.fail(`Failed to restore previous save: ${listLabel(entry)}`, error))
     } catch (error) {
-      this.env.log.warn(`覆盖前读取旧存档失败：${listLabel(entry)}`, error)
+      this.env.log.warn(`Failed to read previous save before overwriting: ${listLabel(entry)}`, error)
       return null
     }
   }
@@ -403,12 +403,12 @@ export class GameSavesController {
       return result
     } catch (error) {
       this.env.toast.result('failure', tNow('saves.toast.saveFailed'))
-      this.env.log.fail(`保存失败（${sourceLabel[opts.source]}）`, error)
+      this.env.log.fail(`Save failed (${sourceLabel[opts.source]})`, error)
       throw error
     } finally {
       this.busy = null
       this.pushStatus()
-      this.env.log.info(`保存结束（${sourceLabel[opts.source]}），耗时 ${this.env.now() - started} ms`)
+      this.env.log.info(`Save finished (${sourceLabel[opts.source]}); duration ${this.env.now() - started} ms`)
     }
   }
 
@@ -426,9 +426,9 @@ export class GameSavesController {
     const entry = await this.saving({ label: tNow(source === 'timer' ? 'saves.toast.autoSaved' : 'saves.toast.saved'), source }, (thumb) =>
       this.write('auto', newAutoEntryId(this.env.now()), tag, { unsafe, thumb })
     )
-    this.env.log[unsafe ? 'warn' : 'info'](`已保存${unsafe ? '（非安全时刻）' : ''}：${listLabel(entry)}，${entry.mapName || `地图 ${entry.mapId}`}`)
+    this.env.log[unsafe ? 'warn' : 'info'](`Saved${unsafe ? ' (unsafe state)' : ''}: ${listLabel(entry)}, ${entry.mapName || `Map ${entry.mapId}`}`)
     this.markAutoSaved()
-    await this.rotate().catch((error) => this.env.log.fail('轮换自动存档失败', error))
+    await this.rotate().catch((error) => this.env.log.fail('Failed to rotate autosaves', error))
     this.notifyChanged()
   }
 
@@ -438,7 +438,7 @@ export class GameSavesController {
     const entry = await this.saving({ label: tNow('saves.toast.savedSlot', { slot }), source }, (thumb) =>
       this.write('quick', quickEntryId(slot), 'quick', { unsafe, slot, thumb })
     )
-    this.env.log[unsafe ? 'warn' : 'info'](`已保存${unsafe ? '（非安全时刻）' : ''}：${listLabel(entry)}，${entry.mapName || `地图 ${entry.mapId}`}`)
+    this.env.log[unsafe ? 'warn' : 'info'](`Saved${unsafe ? ' (unsafe state)' : ''}: ${listLabel(entry)}, ${entry.mapName || `Map ${entry.mapId}`}`)
     this.notifyChanged()
   }
 
@@ -467,7 +467,7 @@ export class GameSavesController {
           try {
             this.env.restore(backup)
           } catch (rollbackError) {
-            this.env.log.fail('读档失败且无法恢复读档前进度，请从游戏存档或存档列表重新读取', rollbackError)
+            this.env.log.fail('Load failed and previous progress could not be restored; reload from a game save or the save list', rollbackError)
           }
         }
         throw error
@@ -475,11 +475,11 @@ export class GameSavesController {
       this.env.afterLoad()
       this.markAutoSaved()
       this.env.toast.result('success', entry.list === 'quick' ? tNow('saves.toast.loadedSlot', { slot: entry.slot ?? 0 }) : tNow('saves.toast.loaded'))
-      this.env.log.info(`已读档（${sourceLabel[source]}）：${listLabel(entry)}，耗时 ${this.env.now() - started} ms`)
+      this.env.log.info(`Loaded (${sourceLabel[source]}): ${listLabel(entry)}; duration ${this.env.now() - started} ms`)
       this.notifyChanged()
     } catch (error) {
       this.env.toast.result('failure', tNow('saves.toast.loadFailed'))
-      this.env.log.fail(`读档失败（${sourceLabel[source]}）：${listLabel(entry)}`, error)
+      this.env.log.fail(`Load failed (${sourceLabel[source]}): ${listLabel(entry)}`, error)
       throw error instanceof GameSavesError
         ? error
         : new GameSavesError(tNow('saves.error.loadFailed', { reason: error instanceof Error ? error.message : String(error) }), 'failed')
@@ -497,7 +497,7 @@ export class GameSavesController {
       [entry.id]
     )
     await this.store.purge(entry.list, [entry.id])
-    this.env.log.info(`已删除：${listLabel(entry)}`)
+    this.env.log.info(`Deleted: ${listLabel(entry)}`)
     this.notifyChanged()
   }
 
@@ -510,7 +510,7 @@ export class GameSavesController {
       ids
     )
     await this.store.purge(list, ids)
-    this.env.log.info(`已清空${list === 'quick' ? '快速存档' : '自动存档'}：${removed.length} 份`)
+    this.env.log.info(`Cleared ${list === 'quick' ? 'quick saves' : 'autosaves'}: ${removed.length} entries`)
     this.notifyChanged()
   }
 
@@ -528,8 +528,8 @@ export class GameSavesController {
 
   private setWaiting(reason: SaveWaitReason | null): void {
     if (reason === this.waiting) return
-    if (reason) this.env.log.info(`自动存档等待中：${translate(MESSAGES.zh, saveWaitReasonKey(reason))}`)
-    else if (this.waiting) this.env.log.info('自动存档等待结束')
+    if (reason) this.env.log.info(`Autosave waiting: ${translate(MESSAGES.en, saveWaitReasonKey(reason))}`)
+    else if (this.waiting) this.env.log.info('Autosave wait ended')
     this.waiting = reason
     this.pushStatus()
   }

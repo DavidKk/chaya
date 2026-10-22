@@ -1,4 +1,4 @@
-import { createDynamicTemplateIndex, validDynamicTranslation } from '@/lib/translate/dynamic-template'
+import { createDynamicTemplateIndex, createNumericLabelIndex, validDynamicTranslation } from '@/lib/translate/dynamic-template'
 import { translationSources } from '@/lib/translate/segments'
 import { isStorableTranslation, isUsefulTranslation, protectForTranslate, restoreForTranslate } from '@/services/translate/text-classify'
 
@@ -76,5 +76,30 @@ describe('GetInformation dynamic templates', () => {
     expect(index.resolve('アリスは2個を得た！', values, translate)).toBe('爱丽丝获得2个！')
     const guard = protectForTranslate(src)
     expect(guard.tokens).toContain('_se[Item3,90]')
+  })
+})
+
+describe('numeric display label reuse', () => {
+  const examples = [
+    { src: 'Thunder5', zh: '雷霆5', id: 'a' },
+    { src: 'Thunder10', zh: '雷霆10', id: 'b' },
+  ]
+  it('requires distinct agreeing examples and preserves the full numeric slot', () => {
+    const index = createNumericLabelIndex(examples.slice(0, 1))
+    expect(index.resolve('Thunder7')).toBeNull()
+    index.note(examples[1])
+    expect(index.resolve('Thunder007')).toBe('雷霆007')
+    for (const src of ['thunder7', 'Thunder-7', 'Thunder7.5', 'Thunder7 and 8', 'Thunder7\\C[1]', '2026-10-22']) expect(index.resolve(src)).toBeNull()
+  })
+  it('disables reuse on changed, omitted, duplicated or conflicting numbers/wording', () => {
+    for (const zh of ['雷霆1', '雷霆', '雷霆10之2', '闪电10', 'Thunder10', '雷霆10\\C', '雷霆10\n']) {
+      expect(createNumericLabelIndex([examples[0], { ...examples[1], zh }]).resolve('Thunder7')).toBeNull()
+    }
+    const index = createNumericLabelIndex(examples)
+    index.note({ ...examples[0], zh: '闪电5' })
+    expect(index.resolve('Thunder7')).toBeNull()
+    // A fresh request rebuilds from authoritative records after removals.
+    expect(createNumericLabelIndex([examples[0]]).resolve('Thunder7')).toBeNull()
+    expect(createNumericLabelIndex([examples[0], { ...examples[0], id: 'duplicate' }]).resolve('Thunder7')).toBeNull()
   })
 })

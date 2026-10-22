@@ -319,8 +319,8 @@ it('finds independent cache rows behind soft-wrapped lines through existing SQLi
   cache.close()
 })
 
-it('matches legacy ellipsis keys read-only without reindexing and keeps ellipses before commas', () => {
-  const cache = openSharedCache(file)
+it('rebuilds legacy ellipsis keys once, then queries read-only by equality and keeps ellipses before commas', () => {
+  let cache = openSharedCache(file)
   const languages = { from: 'ja' as const, to: 'zh' as const }
   const rows: Array<[string, string]> = [
     ['前……、', '前文……、'],
@@ -336,6 +336,10 @@ it('matches legacy ellipsis keys read-only without reindexing and keeps ellipses
   db.prepare('UPDATE sentence_positions SET body_key=?,tone=? WHERE record_id=?').run('前......', '', first.id)
   db.prepare("UPDATE match_keys SET match_key=? WHERE record_id=? AND kind='canonical'").run('後......!', second.id)
   db.prepare('UPDATE sentence_positions SET body_key=?,tone=? WHERE record_id=?').run('後', '!', second.id)
+  db.prepare("DELETE FROM cache_meta WHERE key='sentence_index_v10_exact_keys'").run()
+  expect(() => testTranslationCache({ ...languages, text: '前.........、', scope: 'shared' }, file)).toThrow(CacheIndexNotReadyError)
+  cache.close()
+  cache = openSharedCache(file)
   const snapshot = () =>
     JSON.stringify([
       db.prepare('SELECT * FROM match_keys ORDER BY record_id,match_key,kind').all(),

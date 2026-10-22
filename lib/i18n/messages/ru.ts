@@ -1,7 +1,9 @@
+import { debugRu } from '@/lib/i18n/messages/parts/debug'
 import { mcpGatewayRu } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const ru: MessageTree = {
+  debug: debugRu,
   locale: {
     label: 'Язык',
     switch: 'Сменить язык',
@@ -369,6 +371,8 @@ export const ru: MessageTree = {
     stillMissingNoEta: '{count} left (no ETA)',
     sessionDone: 'Session {count}',
     etaLeft: 'ETA {eta}',
+    rateCompact: '{rate} симв./с',
+    cacheCompact: 'Кэш {ms}ms',
     playModeAria: 'Play mode',
     playLoadAria: 'Loading play mode',
     realtime: 'Realtime',
@@ -411,6 +415,20 @@ export const ru: MessageTree = {
     engineBing: 'Bing',
     engineGoogle: 'Google',
     engineApple: 'Apple',
+    offlineChecking: 'Проверка',
+    packConsoleRequired: 'Установите языковые пакеты в локальной консоли Chaya.',
+    packInstallHint: 'Пакет будет автоматически загружен и проверен.',
+    packDownloading: 'Загрузка',
+    packVerifying: 'Проверка и тест перевода',
+    packRetryHint: 'Установка не завершена. Повторите попытку.',
+    packInstall: 'Установить пакет',
+    offlineGuide: 'Настройка',
+    offlineRecheck: 'Проверить снова',
+    offlineReadyHint: 'Готово. Можно включить этот движок.',
+    offlineUnsupportedPair: 'Этот движок не поддерживает текущую языковую пару.',
+    bergamotPackMissing: 'Нет автономного языкового пакета Bergamot для этого направления. Пакетами управляет Chaya; загрузка из приложения пока недоступна. Проверьте обновления.',
+    bergamotUnavailable: 'Компонент Bergamot недоступен. Перезапустите Chaya; если проблема сохраняется, обновите или переустановите приложение.',
+    offlineCheckFailed: 'Не удалось проверить готовность автономного перевода. Повторите попытку; при повторной ошибке проверьте версию приложения и совместимость системы.',
     engineBergamot: 'Bergamot',
     tagFree: 'Бесплатно',
     tagReady: 'Готово',

@@ -1,7 +1,9 @@
+import { debugPtBR } from '@/lib/i18n/messages/parts/debug'
 import { mcpGatewayPtBR } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const ptBR: MessageTree = {
+  debug: debugPtBR,
   locale: {
     label: 'Idioma',
     switch: 'Mudar idioma',
@@ -369,6 +371,8 @@ export const ptBR: MessageTree = {
     stillMissingNoEta: '{count} left (no ETA)',
     sessionDone: 'Session {count}',
     etaLeft: 'ETA {eta}',
+    rateCompact: '{rate} car./s',
+    cacheCompact: 'Cache {ms}ms',
     playModeAria: 'Play mode',
     playLoadAria: 'Loading play mode',
     realtime: 'Realtime',
@@ -411,6 +415,21 @@ export const ptBR: MessageTree = {
     engineBing: 'Bing',
     engineGoogle: 'Google',
     engineApple: 'Apple',
+    offlineChecking: 'Verificando',
+    packConsoleRequired: 'Instale os pacotes no console local do Chaya.',
+    packInstallHint: 'O pacote será baixado e verificado automaticamente.',
+    packDownloading: 'Baixando',
+    packVerifying: 'Verificando e testando tradução',
+    packRetryHint: 'A instalação não terminou. Tente novamente.',
+    packInstall: 'Instalar pacote',
+    offlineGuide: 'Guia de configuração',
+    offlineRecheck: 'Verificar novamente',
+    offlineReadyHint: 'Pronto. Você pode ativar este mecanismo.',
+    offlineUnsupportedPair: 'Este mecanismo não suporta o par de idiomas atual.',
+    bergamotPackMissing:
+      'O pacote offline do Bergamot para esta direção está ausente. O Chaya gerencia os pacotes; o download pelo aplicativo ainda não está disponível. Verifique as atualizações.',
+    bergamotUnavailable: 'O componente Bergamot está indisponível. Reinicie o Chaya; se o problema persistir, atualize ou reinstale o aplicativo.',
+    offlineCheckFailed: 'Não foi possível verificar a tradução offline. Tente novamente e verifique a versão do aplicativo e a compatibilidade do sistema.',
     engineBergamot: 'Bergamot',
     tagFree: 'Grátis',
     tagReady: 'Pronto',

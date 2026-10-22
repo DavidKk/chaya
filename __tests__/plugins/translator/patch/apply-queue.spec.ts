@@ -168,8 +168,8 @@ describe('createTransCatchUp', () => {
     })
     catchUp.scheduleCatchUp()
     for (let i = 0; i < 20; i++) jest.advanceTimersByTime(16)
-    // Must match production Chinese log text
-    expect(warnings.some((w) => w.includes('分片套用中断'))).toBe(true)
+    // Must match production English log text
+    expect(warnings.some((w) => w.includes('Chunk application interrupted'))).toBe(true)
     restore()
   })
 })

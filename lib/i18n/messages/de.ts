@@ -1,7 +1,9 @@
+import { debugDe } from '@/lib/i18n/messages/parts/debug'
 import { mcpGatewayDe } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const de: MessageTree = {
+  debug: debugDe,
   locale: {
     label: 'Sprache',
     switch: 'Sprache wechseln',
@@ -369,6 +371,8 @@ export const de: MessageTree = {
     stillMissingNoEta: '{count} left (no ETA)',
     sessionDone: 'Session {count}',
     etaLeft: 'ETA {eta}',
+    rateCompact: '{rate} Zeichen/s',
+    cacheCompact: 'Cache {ms}ms',
     playModeAria: 'Play mode',
     playLoadAria: 'Loading play mode',
     realtime: 'Realtime',
@@ -411,6 +415,22 @@ export const de: MessageTree = {
     engineBing: 'Bing',
     engineGoogle: 'Google',
     engineApple: 'Apple',
+    offlineChecking: 'Wird geprüft',
+    packConsoleRequired: 'Sprachpakete in der lokalen Chaya-Konsole installieren.',
+    packInstallHint: 'Das Sprachpaket wird automatisch heruntergeladen und geprüft.',
+    packDownloading: 'Wird heruntergeladen',
+    packVerifying: 'Prüfung und Übersetzungstest',
+    packRetryHint: 'Installation nicht abgeschlossen. Erneut versuchen.',
+    packInstall: 'Sprachpaket installieren',
+    offlineGuide: 'Einrichtung',
+    offlineRecheck: 'Erneut prüfen',
+    offlineReadyHint: 'Bereit. Sie können diese Engine aktivieren.',
+    offlineUnsupportedPair: 'Diese Engine unterstützt das aktuelle Sprachpaar nicht.',
+    bergamotPackMissing:
+      'Das Bergamot-Sprachpaket für diese Übersetzungsrichtung fehlt. Chaya verwaltet die Sprachpakete; Downloads in der App sind noch nicht verfügbar. Bitte prüfen Sie auf App-Updates.',
+    bergamotUnavailable:
+      'Die Bergamot-Komponente ist nicht verfügbar. Starten Sie Chaya neu. Falls das Problem weiterhin besteht, aktualisieren oder installieren Sie die App erneut.',
+    offlineCheckFailed: 'Die Offline-Übersetzung konnte nicht geprüft werden. Versuchen Sie es erneut und prüfen Sie gegebenenfalls App-Version und Systemkompatibilität.',
     engineBergamot: 'Bergamot',
     tagFree: 'Kostenlos',
     tagReady: 'Bereit',

@@ -11,8 +11,13 @@ import type { MessageKey } from '@/lib/i18n'
 export function DownloadItemRow({ item }: { item: DownloadItem }) {
   const { t } = useLocale()
 
-  const title = item.version ? t('downloads.nwShell', { version: item.version }) : t('downloads.nwShellUnknown')
-  const channel = item.channel === 'server' ? t('downloads.channelServer') : t('downloads.channelBrowser')
+  const title =
+    item.kind === 'bergamot-pack'
+      ? `Bergamot · ${item.source ?? ''} → ${item.target ?? ''}`
+      : item.version
+        ? t('downloads.nwShell', { version: item.version })
+        : t('downloads.nwShellUnknown')
+  const channel = item.preview ? t('debug.preview') : item.channel === 'server' ? t('downloads.channelServer') : t('downloads.channelBrowser')
   const percent = itemPercent(item)
 
   const details: string[] = []
@@ -21,9 +26,9 @@ export function DownloadItemRow({ item }: { item: DownloadItem }) {
   } else if (item.receivedBytes != null) {
     const received = formatBytes(item.receivedBytes) ?? '0 B'
     details.push(item.totalBytes ? t('downloads.size', { received, total: formatBytes(item.totalBytes) ?? '' }) : received)
-    if (item.rate) details.push(t('downloads.speed', { speed: formatBytes(Math.round(item.rate)) ?? '' }))
+    if (item.rate && item.phase === 'download') details.push(t('downloads.speed', { speed: formatBytes(Math.round(item.rate)) ?? '' }))
     const eta = etaSeconds(item.receivedBytes, item.totalBytes, item.rate)
-    if (eta != null) details.push(t('downloads.eta', { eta: formatDuration(eta) }))
+    if (eta != null && item.phase === 'download') details.push(t('downloads.eta', { eta: formatDuration(eta) }))
     if (item.resumedFrom) details.push(t('downloads.resumedFrom', { size: formatBytes(item.resumedFrom) ?? '' }))
   }
   const hint = item.phase === 'awaitFile' && item.archiveName ? t('downloads.awaitFileHint', { name: item.archiveName }) : null
@@ -32,7 +37,9 @@ export function DownloadItemRow({ item }: { item: DownloadItem }) {
     <li className="flex flex-col gap-1.5 px-3 py-2.5">
       <div className="flex items-baseline justify-between gap-3">
         <TruncateText text={title} className="text-[0.8125rem] font-medium text-ink" />
-        <span className="shrink-0 text-[0.75rem] text-ink-soft">{t(`downloads.phase.${item.phase}` as MessageKey)}</span>
+        <span className="shrink-0 text-[0.75rem] text-ink-soft">
+          {item.kind === 'bergamot-pack' && item.phase === 'install' ? t('translate.packVerifying') : t(`downloads.phase.${item.phase}` as MessageKey)}
+        </span>
       </div>
       <TruncateText text={item.gameName ? `${channel} · ${item.gameName}` : channel} className="block text-[0.75rem] text-ink-soft" />
       <div

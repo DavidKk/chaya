@@ -92,7 +92,7 @@ export function startGameGateway(opts: { gameId: () => string; gameInfo: () => R
       })
     }
   } catch (err) {
-    opts.log.warn(`MCP 网关不可用：${err instanceof Error ? err.message : String(err)}`)
+    opts.log.warn(`MCP gateway unavailable: ${err instanceof Error ? err.message : String(err)}`)
     gateway = null
   }
   if (gateway && enabled) void gateway.start()

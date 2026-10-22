@@ -151,7 +151,7 @@ async function waitIce(peer: RTCPeerConnection, timeoutMs = 2_500) {
 }
 
 function quitProcess() {
-  ChayaLog.info('ChayaLink', '收到 Web 关闭指令，正在退出…')
+  ChayaLog.info('ChayaLink', 'Received web shutdown command; exiting...')
   stopGameLink()
   try {
     const nw = (globalThis as { nw?: { App?: { quit?: () => void }; Window?: { get?: () => { close: (force?: boolean) => void } } } }).nw
@@ -208,7 +208,7 @@ function bindDc(dc: RTCDataChannel) {
       contentRoot: id?.contentRoot,
       gameRoot: id?.gameRoot,
     })
-    ChayaLog.ok('ChayaLink', 'WebRTC DataChannel 已连接')
+    ChayaLog.ok('ChayaLink', 'WebRTC DataChannel connected')
     startLogForward(dc)
   }
   dc.onclose = () => {
@@ -324,7 +324,7 @@ async function tryAnswer() {
           body: JSON.stringify({ action: 'answer', roomId: id, sdp: answer }),
         })
         if (res.ok) {
-          ChayaLog.ok('ChayaLink', `已应答 Web offer → ${base}`)
+          ChayaLog.ok('ChayaLink', `Answered web offer -> ${base}`)
           return true
         }
       } catch {
@@ -353,12 +353,12 @@ async function loop() {
     if (before === 'default') ensureLaunchEnvGlobals()
     const after = gameRoomId()
     if (before === 'default' && after !== 'default') {
-      ChayaLog.info('ChayaLink', `已读到房间 id，开始协商（room=${maskRoom(after)}, api=${resolveApiBase()}）`)
+      ChayaLog.info('ChayaLink', `Room ID available; negotiating (room=${maskRoom(after)}, api=${resolveApiBase()})`)
     }
     // When connected, only low-frequency probe whether Web has a new offer
     await tryAnswer()
   } catch (err) {
-    ChayaLog.warn('ChayaLink', `协商失败: ${err instanceof Error ? err.message : String(err)}`)
+    ChayaLog.warn('ChayaLink', `Negotiation failed: ${err instanceof Error ? err.message : String(err)}`)
     try {
       pc?.close()
     } catch {
@@ -389,9 +389,9 @@ export function startGameLink() {
     }
     const id = gameRoomId()
     if (id === 'default') {
-      ChayaLog.warn('ChayaLink', '未读到 CHAYA_GAME_ID / LAUNCH_TOKEN，暂不进 default 房间（将持续重试 Env）')
+      ChayaLog.warn('ChayaLink', 'CHAYA_GAME_ID / LAUNCH_TOKEN unavailable; skipping default room and retrying environment')
     } else {
-      ChayaLog.info('ChayaLink', `等待 Web 连接（room=${maskRoom(id)}, api=${resolveApiBase()}）`)
+      ChayaLog.info('ChayaLink', `Waiting for web connection (room=${maskRoom(id)}, api=${resolveApiBase()})`)
     }
     void loop()
   }

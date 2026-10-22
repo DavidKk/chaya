@@ -71,12 +71,3 @@ export function sentenceQueryUnits(src: string, opts?: SentenceUnitOptions) {
     sentenceQueryViewUnits(view.text, view.opts).map((u) => ({ ...u, start: u.start + view.offset, end: u.end + view.offset }))
   )
 }
-
-/** A bounded candidate prefilter; final equality still normalizes actual keys. */
-export function ellipsisQueryGlob(key: string): string | null {
-  if (!key.includes('...')) return null
-  return key
-    .split('...')
-    .map((part) => part.replace(/[?*\[]/g, (c) => (c === '[' ? '[[]' : `[${c}]`)))
-    .join('*')
-}

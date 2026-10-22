@@ -439,12 +439,13 @@ export function Dashboard() {
             ? 'app.nw'
             : t('dashboard.kindRoot')
     : ''
-  const canInstall = browserMode ? ready && !status.hasShell : diskOk && ready && !remote && !status.bundled && !status.hasShell
+  const rgss = ready && (status.engine === 'VX Ace' || status.engine === 'VX')
+  const canInstall = browserMode ? ready && !status.hasShell : diskOk && ready && !remote && !rgss && !status.bundled && !status.hasShell
   /** 仅 Chaya 注入的共用壳可卸；游戏自带 .app / exe 不展示（浏览器只检测 Chaya 壳目录名） */
   const canUninstallShell = browserMode ? ready && status.hasShell : diskOk && ready && !remote && !status.bundled && !!status.installedShell
-  const gameOnline = gameLink.connected
+  const gameOnline = gameLink.connected || (!browserMode && rgss && !!status.runtime?.gameOnline)
   /** 下载到工具共用 data/shell，与当前游戏是否装壳 / 自带壳无关；游戏运行中由菜单置灰 */
-  const canFetchLatestShell = diskOk && ready && !remote
+  const canFetchLatestShell = diskOk && ready && !remote && (!rgss || status.host?.platform === 'darwin')
   const canLaunch = browserMode ? ready && !gameOnline : diskOk && ready && !remote && status.hasShell && !gameOnline && !launchPending
   // 空闲时后台也会协商 offer，勿把 negotiating 当成「正在等人点启动」
   const launchLabel = gameOnline ? t('dashboard.launchPause') : launchPending ? t('dashboard.launchWait') : browserMode ? t('dashboard.launchConnect') : t('dashboard.launchStart')
@@ -540,6 +541,7 @@ export function Dashboard() {
                         <p className="m-0 text-[0.75rem] leading-relaxed text-ink-soft">{t('dashboard.remoteSessionHint')}</p>
                       ) : (
                         <DashboardGameActions
+                          nativeRuntime={rgss}
                           busy={busy}
                           launch={{
                             online: gameOnline,
@@ -559,6 +561,7 @@ export function Dashboard() {
                             onQuit: quitGame,
                           }}
                           plugins={{
+                            locked: rgss && gameOnline,
                             state: pluginsNeedInject ? 'missing' : pluginsInjected ? (status.pluginsOutdated ? 'outdated' : 'ready') : 'unavailable',
                             onInstall: browserMode ? cloud.installPlugins : () => injectPlugins(),
                             onClear: browserMode ? cloud.clearPlugins : clearPlugins,
@@ -589,6 +592,7 @@ export function Dashboard() {
                   />
 
                   <DashboardSettings
+                    nativeRuntime={rgss}
                     busy={busy}
                     bundled={status.bundled}
                     remote={remote}

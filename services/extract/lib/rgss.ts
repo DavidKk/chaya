@@ -244,3 +244,28 @@ export function loadRgssTranslationItems(contentRoot: string) {
   const lookup = loadGameTranslateLookup(contentRoot)
   return loadRgssItems(dataDir).map((item) => ({ ...item, zh: item.zh || lookup[item.src] || '' }))
 }
+
+// Eligibility for old seeds follows the same slots as extraction/writeback. Do not delete
+// cached text globally: a visible label can have the same spelling as an audio file.
+const seedSources = new Map<string, { signature: string; sources: Set<string> }>()
+export function filterRgssSeedKeys(contentRoot: string, keys: string[]): string[] {
+  const dir = findChild(contentRoot, 'data')
+  if (!dir || !extensionFor(dir)) return keys
+  const files = fs
+    .readdirSync(dir)
+    .filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name))
+    .sort()
+  const signature = JSON.stringify(
+    files.map((name) => {
+      const stat = fs.statSync(path.join(dir, name))
+      return [name, stat.size, stat.mtimeMs, stat.ctimeMs]
+    })
+  )
+  let entry = seedSources.get(contentRoot)
+  if (entry?.signature !== signature) {
+    entry = { signature, sources: new Set(loadRgssItems(dir).map((item) => item.src)) }
+    if (seedSources.size >= 20) seedSources.delete(seedSources.keys().next().value!)
+    seedSources.set(contentRoot, entry)
+  }
+  return keys.filter((key) => entry!.sources.has(key))
+}

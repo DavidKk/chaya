@@ -51,19 +51,22 @@ export function AppTopBar({ current, end, className }: Props) {
             mobileFooter={
               <>
                 {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
-                <DownloadCenter />
                 <LocaleSwitcher />
               </>
             }
             mobileEnd={end}
           />
         </div>
-        <div className={cn(topRight, 'hidden self-center md:flex')}>
-          {resolved === '/cheat' ? <LinkedGameBadge /> : null}
-          {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
+        <div className={cn(topRight, 'self-center max-md:ml-0')}>
+          <div className="hidden items-center gap-3 md:flex">
+            {resolved === '/cheat' ? <LinkedGameBadge /> : null}
+            {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
+          </div>
           <DownloadCenter />
-          <LocaleSwitcher />
-          {end}
+          <div className="hidden items-center gap-3 md:flex">
+            <LocaleSwitcher />
+            {end}
+          </div>
         </div>
       </div>
     </header>

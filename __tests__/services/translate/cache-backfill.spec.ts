@@ -35,6 +35,7 @@ describe('versioned game backfill', () => {
     const root = path.join(dir, 'game')
     const result = cache.writeMany([['村へ行く', '前往村庄']], 'import', pair)
     cache.flushBackfill(root)
+    fs.mkdirSync(path.dirname(gameContentPath(root, 'cacheNdjson')), { recursive: true })
     fs.writeFileSync(gameContentPath(root, 'cacheNdjson'), '{"s":"半行')
     cache.queueBackfill(root, result.records)
     cache.flushBackfill(root)
