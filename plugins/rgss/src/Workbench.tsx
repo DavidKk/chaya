@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { GameEditWorkbench } from '@/components/game-edit/GameEditWorkbench'
+import { RGSS_SUPPORTED_EDIT_TABS, RGSS_SUPPORTED_RUN_FLAGS } from '@/components/game-edit/supported'
 import type { TabId } from '@/components/game-edit/tabs'
 import { emptySession } from '@/components/game-edit/types'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
@@ -18,6 +19,11 @@ export function RgssWorkbench() {
   const [session, setSession] = useState(emptySession)
   const [catalog, setCatalog] = useState<GameEditCatalog | null>(null)
   const [ready, setReady] = useState(false)
+  useEffect(() => {
+    if (!RGSS_SUPPORTED_EDIT_TABS.has(tab)) {
+      setTab('run')
+    }
+  }, [tab])
   const [error, setError] = useState('')
   useEffect(
     () =>
@@ -33,14 +39,27 @@ export function RgssWorkbench() {
   )
   useEffect(() => {
     const toggle = () => setOpen((value) => !value)
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+        return
+      }
+      if (event.code === 'Backquote' || event.key === '`') {
+        if (event.ctrlKey || event.metaKey || event.altKey) return
+        const target = event.composedPath()[0]
+        if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        setOpen((value) => !value)
+      }
     }
-    document.addEventListener('keydown', escape)
+    document.addEventListener('keydown', onKey)
     document.addEventListener('chaya:toggle', toggle)
     return () => {
       document.removeEventListener('chaya:toggle', toggle)
-      document.removeEventListener('keydown', escape)
+      document.removeEventListener('keydown', onKey)
     }
   }, [])
   useEffect(() => {
@@ -72,6 +91,10 @@ export function RgssWorkbench() {
         linked={ready}
         readOnly={!ready}
         surface="overlay"
+        supportedTabs={RGSS_SUPPORTED_EDIT_TABS}
+        supportedFlags={RGSS_SUPPORTED_RUN_FLAGS}
+        hideRunTools={true}
+        hideSpeedSliders={true}
         onClose={() => setOpen(false)}
         onGoldChange={(value) => send({ op: 'gold', value })}
         onGoldLockChange={(on) => send({ op: 'goldLock', on, value: session.gold })}

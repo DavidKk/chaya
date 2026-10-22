@@ -23,6 +23,51 @@ module ChayaRGSS
         kind == 'var' ? $data_system.variables : $data_system.switches
       end
 
+      def read_actors_session
+        actors = {}
+        if $game_actors && $data_actors
+          (1...$data_actors.size).each do |id|
+            actor = $game_actors[id] rescue nil
+            next unless actor
+            skill_ids = if actor.respond_to?(:skills)
+                          actor.skills.map { |s| s.is_a?(Numeric) ? s : (s.respond_to?(:id) ? s.id : nil) }.compact
+                        elsif actor.instance_variable_defined?(:@skills)
+                          actor.instance_variable_get(:@skills) || []
+                        else
+                          []
+                        end
+            state_ids = if actor.respond_to?(:states)
+                          actor.states.map { |s| s.is_a?(Numeric) ? s : (s.respond_to?(:id) ? s.id : nil) }.compact
+                        elsif actor.instance_variable_defined?(:@states)
+                          actor.instance_variable_get(:@states) || []
+                        else
+                          []
+                        end
+            raw_name = actor.respond_to?(:name) ? actor.name.to_s : "Actor #{id}"
+            actors[id] = {
+              'name' => t_name(raw_name),
+              'nickname' => actor.respond_to?(:nickname) ? t_name(actor.nickname.to_s) : '',
+              'profile' => actor.respond_to?(:profile) ? t_name(actor.profile.to_s) : '',
+              'level' => actor.respond_to?(:level) ? actor.level : 1,
+              'exp' => actor.respond_to?(:exp) ? (actor.exp.is_a?(Numeric) ? actor.exp : 0) : 0,
+              'hp' => actor.respond_to?(:hp) ? actor.hp : 0,
+              'mp' => actor.respond_to?(:mp) ? actor.mp : 0,
+              'mhp' => actor.respond_to?(:mhp) ? actor.mhp : 1,
+              'mmp' => actor.respond_to?(:mmp) ? actor.mmp : 0,
+              'atk' => actor.respond_to?(:atk) ? actor.atk : 0,
+              'def' => actor.respond_to?(:def) ? actor.def : 0,
+              'mat' => actor.respond_to?(:mat) ? actor.mat : 0,
+              'mdf' => actor.respond_to?(:mdf) ? actor.mdf : 0,
+              'agi' => actor.respond_to?(:agi) ? actor.agi : 0,
+              'luk' => actor.respond_to?(:luk) ? actor.luk : 0,
+              'classId' => actor.respond_to?(:class_id) ? actor.class_id : 1,
+              'skillIds' => skill_ids,
+              'stateIds' => state_ids
+            }
+          end
+        end
+        actors
+      end
       def full_session_state
         ready = !!($data_system && $game_party && $game_variables && $game_switches)
         return { 'ready' => false } unless ready
@@ -54,7 +99,7 @@ module ChayaRGSS
           'vars' => vars,
           'switches' => switches,
           'locks' => {},
-          'actors' => {},
+          'actors' => read_actors_session,
           'walkRate' => 1,
           'runRate' => 1,
           'gameSpeed' => 1,
@@ -81,14 +126,53 @@ module ChayaRGSS
           'playerY' => on_map ? $game_player.y : 0, 'playerDir' => on_map && $game_player.respond_to?(:direction) ? $game_player.direction : 2 }
       end
 
+      def t_name(text)
+        return '' if text.nil?
+        str = text.to_s
+        return '' if str.empty?
+        if defined?(ChayaRGSS::Translation) && ChayaRGSS::Translation.respond_to?(:translate)
+          zh = ChayaRGSS::Translation.translate(str)
+          return zh if zh && !zh.empty?
+        end
+        str
+      end
+
+      def catalog_entry(entry, with_desc = false)
+        raw_name = entry.name.to_s
+        name = t_name(raw_name)
+        res = { 'id' => entry.id, 'name' => name }
+        if with_desc && entry.respond_to?(:description)
+          raw_desc = entry.description.to_s
+          desc = t_name(raw_desc)
+          desc = raw_name if (desc.nil? || desc.empty?) && name != raw_name
+          res['description'] = desc if desc && !desc.empty?
+        elsif name != raw_name
+          res['description'] = raw_name
+        end
+        res
+      end
+
       def catalog
-        data = { 'ok' => true, 'contentRoot' => '', 'source' => 'empty' }
-        { 'items' => $data_items, 'weapons' => $data_weapons, 'armors' => $data_armors,
-          'actors' => $data_actors, 'skills' => $data_skills, 'states' => $data_states, 'classes' => $data_classes }.each do |key, entries|
-          data[key] = (entries || []).compact.map { |entry| { 'id' => entry.id, 'name' => entry.name.to_s } }
+        data = { 'ok' => true, 'contentRoot' => (ENV['CHAYA_RGSS_CONTENT_ROOT'] || ''), 'source' => 'disk' }
+        {
+          'items' => [$data_items, true],
+          'weapons' => [$data_weapons, true],
+          'armors' => [$data_armors, true],
+          'actors' => [$data_actors, false],
+          'skills' => [$data_skills, true],
+          'states' => [$data_states, true],
+          'classes' => [$data_classes, false]
+        }.each do |key, (entries, with_desc)|
+          data[key] = (entries || []).compact.map { |entry| catalog_entry(entry, with_desc) }
         end
         { 'variables' => names('var'), 'switches' => names('sw') }.each do |key, entries|
-          data[key] = entries.each_with_index.map { |name, id| { 'id' => id, 'name' => name.to_s } }.drop(1)
+          data[key] = entries.each_with_index.map do |name, id|
+            raw = name.to_s
+            t_val = t_name(raw)
+            entry = { 'id' => id, 'name' => t_val }
+            entry['description'] = raw if t_val != raw && !raw.empty?
+            entry
+          end.drop(1)
         end
         { 'type' => 'edit.catalog', 'catalog' => data }
       end
@@ -120,6 +204,31 @@ module ChayaRGSS
             $game_party.gain_item(item, diff)
           end
           ["count:#{op['kind']}:#{id}"]
+        when 'actor'
+          id = integer(op['id'], 1, 9999)
+          actor = $game_actors && $game_actors[id] rescue nil
+          if actor && op['patch'].is_a?(Hash)
+            patch = op['patch']
+            actor.name = patch['name'].to_s if patch.key?('name') && actor.respond_to?(:name=)
+            actor.hp = integer(patch['hp'], 0, actor.mhp) if patch.key?('hp') && actor.respond_to?(:hp=)
+            actor.mp = integer(patch['mp'], 0, actor.mmp) if patch.key?('mp') && actor.respond_to?(:mp=)
+            if patch.key?('level') && actor.respond_to?(:change_level)
+              actor.change_level(integer(patch['level'], 1, 99), false)
+            end
+            if patch.key?('skillIds') && patch['skillIds'].is_a?(Array)
+              new_skills = patch['skillIds'].map { |x| x.to_i }
+              cur_skills = actor.respond_to?(:skills) ? actor.skills.map { |s| s.is_a?(Numeric) ? s : s.id } : []
+              (new_skills - cur_skills).each { |sid| actor.learn_skill(sid) if actor.respond_to?(:learn_skill) }
+              (cur_skills - new_skills).each { |sid| actor.forget_skill(sid) if actor.respond_to?(:forget_skill) }
+            end
+            if patch.key?('stateIds') && patch['stateIds'].is_a?(Array)
+              new_states = patch['stateIds'].map { |x| x.to_i }
+              cur_states = actor.respond_to?(:states) ? actor.states.map { |s| s.is_a?(Numeric) ? s : s.id } : []
+              (new_states - cur_states).each { |sid| actor.add_state(sid) if actor.respond_to?(:add_state) }
+              (cur_states - new_states).each { |sid| actor.remove_state(sid) if actor.respond_to?(:remove_state) }
+            end
+          end
+          ["actor:#{id}"]
         else
           raise "Unsupported RGSS operation: #{op['op']}"
         end

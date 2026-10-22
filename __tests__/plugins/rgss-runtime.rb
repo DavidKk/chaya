@@ -6,6 +6,12 @@ module Graphics
   def self.update; end
 end
 module ChayaRGSS
+  module Translation
+    def self.translate(text)
+      mapping = { 'Score' => '得分', 'Herb' => '药草', 'A generic herb.' => '普通药草。' }
+      mapping[text] || text
+    end
+  end
   module NativeWebview
     def self.start; end
     def self.pump; end
@@ -24,7 +30,16 @@ Dir.mktmpdir('chaya-rgss-test') do |directory|
   ENV['CHAYA_RGSS_SESSION'] = directory
   ENV['CHAYA_RGSS_ROOM'] = 'test-room'
   $data_system = OpenStruct.new(:version_id => 7, :variables => ['', 'Score'], :switches => ['', 'Door'])
-  $game_party = OpenStruct.new(:members => [OpenStruct.new(:name => 'Hero')], :gold => 10)
+  $data_items = [nil, OpenStruct.new(:id => 1, :name => 'Herb', :description => 'A generic herb.')]
+  $data_actors = [nil, OpenStruct.new(:id => 1, :name => 'Hero')]
+  hero = OpenStruct.new(:id => 1, :name => 'Hero', :level => 1, :hp => 100, :mhp => 200, :mp => 50, :mmp => 100, :skills => [], :states => [])
+  def hero.change_level(l, _show); self.level = l; end
+  def hero.learn_skill(s); self.skills << s unless self.skills.include?(s); end
+  def hero.forget_skill(s); self.skills.delete(s); end
+  def hero.add_state(s); self.states << s unless self.states.include?(s); end
+  def hero.remove_state(s); self.states.delete(s); end
+  $game_actors = { 1 => hero }
+  $game_party = OpenStruct.new(:members => [hero], :gold => 10)
   def $game_party.gain_gold(delta); self.gold += delta; end
   raw_map = OpenStruct.new(:width => 20, :height => 15, :encounter_step => 30, :display_name => 'Town')
   ev_graphic = OpenStruct.new(:character_name => 'Actor1', :tile_id => 0)
@@ -47,7 +62,18 @@ Dir.mktmpdir('chaya-rgss-test') do |directory|
   bridge.pump
   check($game_party.gold == 50 && $game_variables[1] == 42, 'game edits did not reach real state')
   check(ChayaRGSS::NativeWebview.out.any? { |text| text.include?('edit.map') && text.include?('Town') }, 'edit.map detail response missing')
-  check(ChayaRGSS::NativeWebview.out.any? { |text| text.include?('edit.catalog') && text.include?('Score') }, 'edit.catalog response missing')
+
+  cat_raw = ChayaRGSS::NativeWebview.out.find { |text| text.include?('edit.catalog') }
+  check(cat_raw, 'edit.catalog response missing')
+  prefix = 'window.__chaya_on_game_message && window.__chaya_on_game_message('
+  cat_json = JSON.parse(eval(cat_raw[prefix.length...-1]))
+  check(cat_json['catalog']['variables'][0]['name'] == '得分', 'variable translation missing in catalog')
+  check(cat_json['catalog']['items'][0]['name'] == '药草', 'item translation missing in catalog')
+  check(cat_json['catalog']['items'][0]['description'] == '普通药草。', 'item description missing in catalog')
+
+  bridge.receive_from_webview({ 'type' => 'edit.cmd', 'op' => 'actor', 'id' => 1, 'patch' => { 'hp' => 180, 'level' => 50, 'skillIds' => [10], 'stateIds' => [2] }, 'cmdId' => 'act1' })
+  bridge.pump
+  check($game_actors[1].hp == 180 && $game_actors[1].level == 50 && $game_actors[1].skills == [10] && $game_actors[1].states == [2], 'actor patch did not update actor state')
   check(ChayaRGSS::NativeWebview.out.any? { |text| text.include?('bad1') && text.include?('false') }, 'unsupported commands must return failure')
   saves = ChayaRGSS::Saves
   settings = saves.settings.merge('quickEnabled' => true, 'revision' => 1)
