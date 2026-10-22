@@ -3,7 +3,7 @@ require 'fileutils'
 
 module ChayaRGSS
   module Saves
-    DEFAULTS = { 'version' => 1, 'revision' => 0, 'enabled' => false, 'intervalMin' => 5, 'maxCount' => 30, 'quickEnabled' => false, 'autoStorage' => 'game', 'quickStorage' => 'game' }.freeze
+    DEFAULTS ||= { 'version' => 1, 'revision' => 0, 'enabled' => false, 'intervalMin' => 5, 'maxCount' => 30, 'quickEnabled' => false, 'autoStorage' => 'game', 'quickStorage' => 'game' }.freeze
     class << self
       def root
         File.join(ENV.fetch('CHAYA_RGSS_SESSION'), 'saves')

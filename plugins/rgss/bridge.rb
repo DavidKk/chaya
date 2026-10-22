@@ -7,7 +7,7 @@ require_relative 'map'
 
 module ChayaRGSS
   module Bridge
-    LIMIT = 64
+    LIMIT ||= 64
     class << self
       def log(message, level = 'info')
         @logs << { 'source' => 'ChayaRGSS', 'level' => level, 'message' => message.to_s[0, 500] } if @logs && @logs.size < LIMIT
@@ -127,6 +127,7 @@ module ChayaRGSS
 
       def pump
         return unless @commands && @replies
+        check_auto_reload
         NativeWebview.pump
         drain_replies
         16.times do
@@ -139,6 +140,9 @@ module ChayaRGSS
               rescue StandardError => error
                 dispatch_reply({ 'type' => 'edit.map', 'mapId' => cmd['mapId'], 'data' => { 'ok' => false, 'error' => error.message } })
               end
+            elsif cmd['type'] == 'hotreload' || cmd['type'] == 'edit.reload'
+              reload_plugins
+              dispatch_reply({ 'type' => 'edit.reload.ack', 'ok' => true })
             elsif cmd['type'] == 'saves.cmd'
               dispatch_reply(Saves.handle(cmd))
             elsif cmd['type'] == 'edit.catalog.request'
@@ -194,11 +198,46 @@ module ChayaRGSS
         end
       end
 
+      def reload_plugins
+        root = File.dirname(__FILE__)
+        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb'].each do |file|
+          path = File.join(root, file)
+          load path if File.file?(path)
+        end
+        log('Chaya RGSS plugins reloaded')
+      end
+
+      def check_auto_reload
+        return unless @reload_mtimes
+        now = Time.now.to_f
+        return if @last_reload_check && (now - @last_reload_check < 1.0)
+        @last_reload_check = now
+        root = File.dirname(__FILE__)
+        changed = false
+        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb'].each do |file|
+          path = File.join(root, file)
+          next unless File.file?(path)
+          mtime = File.mtime(path).to_f rescue 0
+          if @reload_mtimes[file] && mtime > @reload_mtimes[file]
+            changed = true
+          end
+          @reload_mtimes[file] = mtime
+        end
+        reload_plugins if changed
+      end
+
       def start
         @room = ENV.fetch('CHAYA_RGSS_ROOM', 'default')
         @commands = Queue.new
         @replies = Queue.new
         @logs = Queue.new
+        @reload_mtimes = {}
+        root = File.dirname(__FILE__)
+        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb'].each do |file|
+          path = File.join(root, file)
+          @reload_mtimes[file] = File.mtime(path).to_f if File.file?(path) rescue 0
+        end
+        @last_reload_check = Time.now.to_f
         @last_state_at = nil
         NativeWebview.start
         log("Chaya RGSS Bridge initialized for room #{@room}")
