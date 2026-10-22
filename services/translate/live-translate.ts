@@ -285,53 +285,47 @@ export async function liveTranslateTexts(
         continue
       }
 
-      /* Translate remotely, then persist body-only translations to shared and local caches; restore shells for in-game output. */
-      const errors: string[] = []
-      let done = false
-      for (const engine of tryEngines) {
-        try {
-          const langPair = opts?.sourceLang || opts?.targetLang ? { from: opts?.sourceLang, to: opts?.targetLang } : undefined
-          const rawZh = await translateWithEngine(engine, sendText, opts?.local, agents, langPair)
-          const zhCore = translationCoreForCache(rawZh, guard)
-          const zh = restoreForTranslate(rawZh, guard)
-          if (!isUsefulTranslation(src, sendText, rawZh, zh, opts?.targetLang)) {
-            errors.push(`${engine}: 未得到译文`)
-            continue
-          }
-          const source = engineSourceTag(engine, agents)
-          const tag = sensitive ? `live:${source}:nsfw` : `live:${source}`
-          const pairs: Array<[string, string]> = []
-          const pushPair = (key: string, value: string) => {
-            if (!isStorableTranslation(key, value)) return
-            pairs.push([key, value])
-            /* Different numbered actor controls share a template key; restore the original numeric codes during lookup. */
-            if (hasRmDigitCodes(key)) {
-              const tplKey = toRmDigitTemplate(key)
-              const tplZh = toRmDigitTemplate(value)
-              if (tplKey !== key && isStorableTranslation(tplKey, tplZh)) {
-                pairs.push([tplKey, tplZh])
-              }
+      /* Translate concurrently across all enabled engines: no priority during translation, first valid result wins. */
+      const langPair = opts?.sourceLang || opts?.targetLang ? { from: opts?.sourceLang, to: opts?.targetLang } : undefined
+      const tasks = tryEngines.map(async (engine) => {
+        const rawZh = await translateWithEngine(engine, sendText, opts?.local, agents, langPair)
+        const zhCore = translationCoreForCache(rawZh, guard)
+        const zh = restoreForTranslate(rawZh, guard)
+        if (!isUsefulTranslation(src, sendText, rawZh, zh, opts?.targetLang)) {
+          throw new Error(`${engine}: 未得到译文`)
+        }
+        return { engine, rawZh, zhCore, zh }
+      })
+
+      try {
+        const winner = await Promise.any(tasks)
+        const source = engineSourceTag(winner.engine, agents)
+        const tag = sensitive ? `live:${source}:nsfw` : `live:${source}`
+        const pairs: Array<[string, string]> = []
+        const pushPair = (key: string, value: string) => {
+          if (!isStorableTranslation(key, value)) return
+          pairs.push([key, value])
+          if (hasRmDigitCodes(key)) {
+            const tplKey = toRmDigitTemplate(key)
+            const tplZh = toRmDigitTemplate(value)
+            if (tplKey !== key && isStorableTranslation(tplKey, tplZh)) {
+              pairs.push([tplKey, tplZh])
             }
           }
-          /* Store body keys without boundary controls, but return the full shell for immediate in-game replacement. */
-          pushPair(guard.core || sendText, zhCore)
-          if (labelCore && labelCore !== src && guard.plain.trim()) {
-            const labelKey = peelControlShell(labelCore).core || labelCore
-            pushPair(labelKey, zhCore)
-          }
-          if (pairs.length && persist) {
-            const written = cache.writeMany(pairs, tag, { from: detectCacheLang(src), to: 'zh' })
-            if (contentRoot) cache.queueBackfill(contentRoot, written.records)
-          }
-          items.push({ src, zh, engine: tag })
-          done = true
-          break
-        } catch (err) {
-          errors.push(`${engine}: ${err instanceof Error ? err.message : String(err)}`)
         }
-      }
-      if (!done) {
-        items.push({ src, zh: null, error: errors.join('；') || (engines.length ? '翻译失败' : '未开启任何翻译平台') })
+        pushPair(guard.core || sendText, winner.zhCore)
+        if (labelCore && labelCore !== src && guard.plain.trim()) {
+          const labelKey = peelControlShell(labelCore).core || labelCore
+          pushPair(labelKey, winner.zhCore)
+        }
+        if (pairs.length && persist) {
+          const written = cache.writeMany(pairs, tag, { from: detectCacheLang(src), to: 'zh' })
+          if (contentRoot) cache.queueBackfill(contentRoot, written.records)
+        }
+        items.push({ src, zh: winner.zh, engine: tag })
+      } catch (aggregateError) {
+        const errs = aggregateError instanceof AggregateError ? aggregateError.errors.map((e) => (e instanceof Error ? e.message : String(e))) : [String(aggregateError)]
+        items.push({ src, zh: null, error: errs.join('；') || (engines.length ? '翻译失败' : '未开启任何翻译平台') })
       }
     }
   } finally {
