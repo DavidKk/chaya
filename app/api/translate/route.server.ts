@@ -212,8 +212,17 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       const resolved = resolveGame(root)
       if (resolved?.ok && (resolved.engine === 'VX Ace' || resolved.engine === 'VX')) {
         const { loadRgssTranslationItems } = await import('@/services/extract/lib/rgss')
+        const { detectSourceLanguage } = await import('@/lib/translate/source-text')
         try {
-          return apiOk({ items: loadRgssTranslationItems(root), engine: resolved.engine, contentRoot: root })
+          const items = loadRgssTranslationItems(root)
+          const detected = detectSourceLanguage(items.map((i) => i.src))
+          const locales = {
+            hasLocales: true,
+            currentSourceLang: detected,
+            currentTargetLang: 'zh',
+            supportedLocales: [detected, 'zh'],
+          }
+          return apiOk({ items, locales, engine: resolved.engine, contentRoot: root })
         } catch (error) {
           return apiError(409, 'RGSS_DATA_UNAVAILABLE', error instanceof Error ? error.message : String(error))
         }

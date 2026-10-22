@@ -26,9 +26,9 @@ module ChayaRGSS
       end
     when 'GetClientRect'
       function do |_handle, buffer|
-        width = @window_width || Graphics.width
-        height = @window_height || Graphics.height
-        buffer.replace([0, 0, width, height].pack('l4'))
+        # Always return Graphics.width/height so UniversalMouse and custom resolution
+        # scripts don't apply secondary aspect scaling to Input.mouse_x / mouse_y.
+        buffer.replace([0, 0, Graphics.width, Graphics.height].pack('l4'))
         1
       end
     when 'GetCursorPos'
