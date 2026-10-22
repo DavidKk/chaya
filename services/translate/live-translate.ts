@@ -150,15 +150,15 @@ export async function liveTranslateTexts(
   }
 
   const contentRoot = opts?.contentRoot === undefined ? resolveBoundContentRoot() : opts.contentRoot
-  const fromOpts = opts?.engines?.filter(Boolean)
-  let engines: TranslateRunEngine[] = fromOpts?.length ? fromOpts : []
+  const explicitEngines = opts?.engines !== undefined
+  let engines: TranslateRunEngine[] = opts?.engines ? opts.engines.filter(Boolean) : []
   let agents: TranslateAgentEntry[] = []
   try {
     const state = getTranslateEngineSwitches(contentRoot || undefined)
     agents = state.agents
-    if (!engines.length) engines = state.enabled
+    if (!explicitEngines) engines = state.enabled
   } catch {
-    if (!engines.length) {
+    if (!explicitEngines) {
       /* Use default switches and order when no game is bound. */
       engines = TRANSLATE_ENGINE_IDS.filter((id) => DEFAULT_ENGINE_SWITCHES[id])
     }
@@ -282,6 +282,10 @@ export async function liveTranslateTexts(
       const tryEngines = sensitive ? engines.filter(engineAcceptsSensitive) : engines
       if (sensitive && !tryEngines.length) {
         items.push({ src, zh: null, engine: 'skip:sensitive', error: '此文本需要开启 Agent 翻译' })
+        continue
+      }
+      if (!tryEngines.length) {
+        items.push({ src, zh: null, error: engines.length ? '未找到可用翻译引擎' : '未开启任何翻译平台' })
         continue
       }
 

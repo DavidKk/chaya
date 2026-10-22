@@ -127,6 +127,7 @@ export function TranslateListContent({ onExtract }: { onExtract?: () => void }) 
         if (data.switches.bing) list.push({ id: 'bing', label: t('translate.engineBing'), group: 'platform' })
         if (data.switches.google) list.push({ id: 'google', label: t('translate.engineGoogle'), group: 'platform' })
         if (data.switches.apple) list.push({ id: 'apple', label: t('translate.engineApple'), group: 'system' })
+        if (data.switches.bergamot) list.push({ id: 'bergamot', label: t('translate.engineBergamot'), group: 'system' })
         setAvailableEngines(list)
       }
     } catch {

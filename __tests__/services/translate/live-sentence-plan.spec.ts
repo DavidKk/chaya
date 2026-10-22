@@ -87,4 +87,31 @@ describe('live short-sentence integration', () => {
     await liveTranslateTexts(['こんにちは'], { contentRoot: root, engines: ['google'], persist: false })
     expect(fs.existsSync(gameContentPath(root, 'cacheNdjson'))).toBe(false)
   })
+  it('translates concurrently across enabled engines and picks the faster valid winner', async () => {
+    jest.mocked(bergamotTranslate).mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+      return '来自 Bergamot'
+    })
+    jest.mocked(requestGoogle).mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 80))
+      return '来自 Google'
+    })
+    const result = await liveTranslateTexts(['こんにちは世界'], { contentRoot: root, engines: ['google', 'bergamot'] })
+    expect(result.items[0]).toMatchObject({ zh: '来自 Bergamot', engine: 'live:bergamot' })
+  })
+
+  it('aggregates errors when all concurrent engines fail', async () => {
+    jest.mocked(bergamotTranslate).mockRejectedValue(new Error('Bergamot 崩溃'))
+    jest.mocked(requestGoogle).mockRejectedValue(new Error('Google 限流'))
+    const result = await liveTranslateTexts(['こんにちは世界'], { contentRoot: root, engines: ['google', 'bergamot'] })
+    expect(result.items[0].zh).toBeNull()
+    expect(result.items[0].error).toContain('Bergamot 崩溃')
+    expect(result.items[0].error).toContain('Google 限流')
+  })
+
+  it('safely handles empty engines without throwing AggregateError', async () => {
+    const result = await liveTranslateTexts(['こんにちは世界'], { contentRoot: root, engines: [] })
+    expect(result.items[0].zh).toBeNull()
+    expect(result.items[0].error).toBe('未开启任何翻译平台')
+  })
 })

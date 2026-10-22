@@ -85,27 +85,29 @@ export function TranslateEngineRow({
           <LuGripVertical size={12} aria-hidden />
         </button>
         <div className="flex min-w-0 flex-col justify-center gap-0.5">
-          {onEdit ? (
-            <button
-              type="button"
-              aria-expanded={editing}
-              aria-label={t('translate.agentEdit', { name: label })}
-              className={cn(
-                'group/edit relative inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1 self-start border-none bg-transparent p-0 text-left text-[0.8125rem] leading-[1.4]',
-                'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0.5 after:h-px after:bg-current after:opacity-0 after:content-[""] hover:after:opacity-100',
-                editing ? 'text-accent' : 'text-ink'
-              )}
-              onClick={onEdit}
-            >
-              <TruncateText text={label} className="font-medium" />
-              <GrFormEdit size={16} aria-hidden className={cn('-mx-1 shrink-0', editing ? 'text-accent' : 'text-ink-soft group-hover/edit:text-ink')} />
-            </button>
-          ) : (
-            <TruncateText text={label} className="text-[0.8125rem] font-medium leading-[1.4] text-ink" />
-          )}
+          <div className="flex min-w-0 items-center gap-1.5">
+            {onEdit ? (
+              <button
+                type="button"
+                aria-expanded={editing}
+                aria-label={t('translate.agentEdit', { name: label })}
+                className={cn(
+                  'group/edit relative inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1 self-start border-none bg-transparent p-0 text-left text-[0.8125rem] leading-[1.4]',
+                  'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0.5 after:h-px after:bg-current after:opacity-0 after:content-[""] hover:after:opacity-100',
+                  editing ? 'text-accent' : 'text-ink'
+                )}
+                onClick={onEdit}
+              >
+                <TruncateText text={label} className="font-medium" />
+                <GrFormEdit size={16} aria-hidden className={cn('-mx-1 shrink-0', editing ? 'text-accent' : 'text-ink-soft group-hover/edit:text-ink')} />
+              </button>
+            ) : (
+              <TruncateText text={label} className="text-[0.8125rem] font-medium leading-[1.4] text-ink" />
+            )}
+            {badge ? <div className="flex shrink-0 items-center">{badge}</div> : null}
+          </div>
           {subtitle ? <TruncateText text={subtitle} className="text-[0.7rem] leading-[1.4] text-ink-soft" /> : null}
         </div>
-        {badge ? <div className="flex shrink-0 items-center">{badge}</div> : null}
         <div className="flex h-full items-center justify-center gap-1">
           {actions}
           <SwitchToggle checked={checked} disabled={locked} aria-label={t('translate.engineToggle', { name: label })} onCheckedChange={onToggle} />
