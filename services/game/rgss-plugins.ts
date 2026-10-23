@@ -20,6 +20,8 @@ const BUNDLE = [
   'translation_store.rb',
   'cache_json.rb',
   'bridge.rb',
+  'edit_runtime.rb',
+  'edit_actors.rb',
   'native_webview.rb',
   'saves.rb',
   'map.rb',

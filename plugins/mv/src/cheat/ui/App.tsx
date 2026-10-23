@@ -40,7 +40,7 @@ import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
 import { EditTableSkeleton } from '@/components/sk'
-import type { TranslateRunMode } from '@/components/translate/tabs'
+import type { TranslateRunMode, TranslateTabId } from '@/components/translate/tabs'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { isInputRecording } from '@/lib/game/input-assistance/recording'
 import { readViewState, writeViewState } from '@/lib/view-state'
@@ -80,7 +80,7 @@ type OverlayView = {
   onlyOwned: boolean
   onlyNamed: boolean
   translateTab: TranslateRunMode
-  translateSection: 'run' | 'cache'
+  translateSection: Exclude<TranslateTabId, 'test'>
 }
 
 function viewHost() {
@@ -99,7 +99,10 @@ function initialView(): OverlayView {
     onlyOwned: saved?.onlyOwned === true,
     onlyNamed: saved?.onlyNamed !== false,
     translateTab: saved?.translateTab === 'play' || saved?.translateTab === 'list' ? saved.translateTab : 'seed',
-    translateSection: saved?.translateSection === 'cache' ? 'cache' : 'run',
+    translateSection:
+      saved?.translateSection === 'cache' || saved?.translateSection === 'engines' || saved?.translateSection === 'list' || saved?.translateSection === 'play'
+        ? saved.translateSection
+        : 'seed',
   }
 }
 
@@ -123,7 +126,10 @@ export function captureGameEditView() {
     tab: isTabId(mainPage) && !isEditTab(mainPage) ? mainPage : parseTabId(tab, saved.tab),
     lastEditTab: isEditTab(parseTabId(tab, saved.lastEditTab)) ? parseTabId(tab, saved.lastEditTab) : saved.lastEditTab,
     translateTab: activeTranslateTab === 'seed' || activeTranslateTab === 'play' || activeTranslateTab === 'list' ? activeTranslateTab : saved.translateTab,
-    translateSection: activeTranslateSection === 'cache' ? 'cache' : activeTranslateSection === 'run' ? 'run' : saved.translateSection,
+    translateSection:
+      activeTranslateSection === 'cache' || activeTranslateSection === 'engines' || activeTranslateSection === 'list' || activeTranslateSection === 'play'
+        ? activeTranslateSection
+        : 'seed',
   }
 }
 
@@ -179,7 +185,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   const [onlyOwned, setOnlyOwned] = useState(initial.onlyOwned)
   const [onlyNamed, setOnlyNamed] = useState(initial.onlyNamed)
   const [translateTab, setTranslateTab] = useState<TranslateRunMode>(initial.translateTab)
-  const [translateSection, setTranslateSection] = useState<'run' | 'cache'>(initial.translateSection)
+  const [translateSection, setTranslateSection] = useState<Exclude<TranslateTabId, 'test'>>(initial.translateSection)
   useEffect(() => {
     const openSettings = () => setTab('settings')
     window.addEventListener('chaya:game-settings-opened', openSettings)

@@ -5,7 +5,7 @@ import { LiaMapMarkedAltSolid } from 'react-icons/lia'
 import { LuFileText, LuKey, LuTriangleAlert, LuUser } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { PlainTextEditor, Spinner, Tooltip } from '@/components/sk'
+import { Button, PlainTextEditor, Tooltip } from '@/components/sk'
 import { cn } from '@/lib/utils'
 import type { ExtractedTextCategory, ExtractedTranslationItem } from '@/services/extract/lib/extract-items'
 
@@ -206,56 +206,49 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
         <div className="flex items-center gap-1.5 shrink-0">
           {/* Reset Button (placed on right side, reverts to original text without saving) */}
           {canReset ? (
-            <Tooltip content={t('translate.listSingleResetTooltip')} placement="top">
-              <span className="inline-flex">
-                <button
-                  type="button"
-                  disabled={isResetting}
-                  onClick={() => {
-                    onReset(item)
-                    setCurrentZh(item.initialZh ?? item.savedZh ?? '')
-                  }}
-                  className="inline-flex h-6 items-center justify-center rounded-[0.2rem] border border-fail/40 bg-fail/10 px-2 text-[0.6875rem] font-medium text-fail hover:bg-fail/20 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-                >
-                  {isResetting ? <Spinner size="sm" /> : null}
-                  {t('translate.listResetPageBtn')}
-                </button>
-              </span>
-            </Tooltip>
+            <Button
+              size="xs"
+              variant="fail"
+              loading={isResetting}
+              disabled={isResetting}
+              tooltip={t('translate.listSingleResetTooltip')}
+              tooltipPlacement="top"
+              className="h-6 px-2 text-[0.6875rem]"
+              onClick={() => {
+                onReset(item)
+                setCurrentZh(item.initialZh ?? item.savedZh ?? '')
+              }}
+            >
+              {t('translate.listResetPageBtn')}
+            </Button>
           ) : null}
 
           {/* Translate Button */}
-          <Tooltip content={isTranslating ? t('translate.listSingleTransTranslating') : t('translate.listSingleTransTooltip', { scheme: activeSchemeLabel })} placement="top">
-            <span className="inline-flex">
-              <button
-                type="button"
-                disabled={isTranslating}
-                onClick={() => onTranslate(item)}
-                className="inline-flex h-6 items-center justify-center rounded-[0.2rem] border border-accent/40 bg-accent/10 px-2.5 text-[0.6875rem] font-medium text-accent hover:bg-accent/20 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-              >
-                {isTranslating ? <Spinner size="sm" /> : null}
-                {t('translate.listSingleTransBtn')}
-              </button>
-            </span>
-          </Tooltip>
+          <Button
+            size="xs"
+            variant="accent"
+            loading={isTranslating}
+            tooltip={isTranslating ? t('translate.listSingleTransTranslating') : t('translate.listSingleTransTooltip', { scheme: activeSchemeLabel })}
+            tooltipPlacement="top"
+            className="h-6 px-2.5 text-[0.6875rem]"
+            onClick={() => onTranslate(item)}
+          >
+            {t('translate.listSingleTransBtn')}
+          </Button>
 
           {/* Save Button */}
-          <Tooltip
-            content={isSaving ? t('translate.listSingleSaving') : !currentZh || !currentZh.trim() ? t('translate.listSingleSaveEmpty') : t('translate.listSingleSaveTooltip')}
-            placement="top"
+          <Button
+            size="xs"
+            variant="ok"
+            loading={isSaving}
+            disabled={!currentZh || !currentZh.trim()}
+            tooltip={isSaving ? t('translate.listSingleSaving') : !currentZh || !currentZh.trim() ? t('translate.listSingleSaveEmpty') : t('translate.listSingleSaveTooltip')}
+            tooltipPlacement="top"
+            className="h-6 px-2 text-[0.6875rem]"
+            onClick={() => onSave(item)}
           >
-            <span className="inline-flex">
-              <button
-                type="button"
-                disabled={isSaving || !currentZh || !currentZh.trim()}
-                onClick={() => onSave(item)}
-                className="inline-flex h-6 items-center justify-center rounded-[0.2rem] border border-ok/40 bg-ok/10 px-2 text-[0.6875rem] font-medium text-ok hover:bg-ok/20 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-              >
-                {isSaving ? <Spinner size="sm" /> : null}
-                {t('translate.listSingleSaveBtn')}
-              </button>
-            </span>
-          </Tooltip>
+            {t('translate.listSingleSaveBtn')}
+          </Button>
         </div>
       </div>
 

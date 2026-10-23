@@ -46,17 +46,18 @@ module ChayaRGSS
       function do |key|
         pressed = false
         if defined?(Input)
+          press_method = Input.respond_to?(:chaya_raw_press?) ? :chaya_raw_press? : :press?
           case key
           when 1 # VK_LBUTTON
-            pressed = Input.press?(Input::MOUSELEFT) if defined?(Input::MOUSELEFT)
+            pressed = Input.public_send(press_method, Input::MOUSELEFT) if defined?(Input::MOUSELEFT)
           when 2 # VK_RBUTTON
-            pressed = Input.press?(Input::MOUSERIGHT) if defined?(Input::MOUSERIGHT)
+            pressed = Input.public_send(press_method, Input::MOUSERIGHT) if defined?(Input::MOUSERIGHT)
           when 4 # VK_MBUTTON
-            pressed = Input.press?(Input::MOUSEMIDDLE) if defined?(Input::MOUSEMIDDLE)
+            pressed = Input.public_send(press_method, Input::MOUSEMIDDLE) if defined?(Input::MOUSEMIDDLE)
           when 5 # VK_XBUTTON1
-            pressed = Input.press?(Input::MOUSEX1) if defined?(Input::MOUSEX1)
+            pressed = Input.public_send(press_method, Input::MOUSEX1) if defined?(Input::MOUSEX1)
           when 6 # VK_XBUTTON2
-            pressed = Input.press?(Input::MOUSEX2) if defined?(Input::MOUSEX2)
+            pressed = Input.public_send(press_method, Input::MOUSEX2) if defined?(Input::MOUSEX2)
           end
         end
         pressed ? 0x8000 : 0

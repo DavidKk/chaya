@@ -52,3 +52,21 @@ it('retries without thinking only when Ollama rejects that option', async () => 
   await expect(requestOllama(http, { text: '原文', think: true })).resolves.toBe('译文')
   expect(JSON.parse(String(http.mock.calls[1][1].body)).think).toBe(false)
 })
+
+it('injects category guidance, speaker, and context into system prompt', async () => {
+  const http = reply('雷鸣之剑')
+  await expect(
+    requestOllama(http, {
+      text: 'Thunder Sword',
+      category: 'weapon',
+      speaker: '铁匠',
+      context: 'Weapons.json#1',
+    })
+  ).resolves.toBe('雷鸣之剑')
+  const body = JSON.parse(String(http.mock.calls[0][1]?.body))
+  const system = body.messages[0].content as string
+  expect(system).toContain('【当前文本类型】：武器装备名称')
+  expect(system).toContain('【说话人】：铁匠')
+  expect(system).toContain('【来源/上下文】：Weapons.json#1')
+  expect(body.messages[1].content).toBe('英文：\nThunder Sword\n\n简体中文：')
+})

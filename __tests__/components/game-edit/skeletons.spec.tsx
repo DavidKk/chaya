@@ -43,7 +43,7 @@ test('日志懒加载使用筛选头、四字段列表和页脚骨架', async ()
 })
 
 test('局内翻译骨架跟随运行与翻译库分区', async () => {
-  await act(async () => renderWithLocale(<GameEditPaneSkeleton tab="trans" translateSection="run" translateTab="seed" />))
+  await act(async () => renderWithLocale(<GameEditPaneSkeleton tab="trans" translateSection="seed" translateTab="seed" />))
   expect(host.querySelector('[aria-label="加载翻译面板"]')).not.toBeNull()
   expect(host.querySelector('[aria-label="加载原文翻译进度"]')).not.toBeNull()
   expect(host.querySelector('table')).toBeNull()

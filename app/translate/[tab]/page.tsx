@@ -11,9 +11,9 @@ export function generateStaticParams() {
 
 export default async function TranslateTabPage({ params }: Props) {
   const { tab: raw } = await params
-  if (!TRANSLATE_TABS.some((t) => t.id === raw)) notFound()
   if (raw === 'run') {
-    redirect('/translate/run/seed')
+    redirect('/translate/seed')
   }
+  if (!TRANSLATE_TABS.some((t) => t.id === raw)) notFound()
   return <TranslateTabView />
 }

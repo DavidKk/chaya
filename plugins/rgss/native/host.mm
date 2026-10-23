@@ -148,7 +148,7 @@ static void enqueue(NSString *text) {
   enqueue(@"{\"type\":\"host.ready\"}");
 }
 - (void)webView:(WKWebView *)view decidePolicyForNavigationAction:(WKNavigationAction *)action decisionHandler:(void (^)(WKNavigationActionPolicy))decision {
-  decision([action.request.URL.path isEqual:self.url.path] ? WKNavigationActionPolicyAllow : WKNavigationActionPolicyCancel);
+  decision([action.request.URL.standardizedURL.path isEqual:self.url.standardizedURL.path] ? WKNavigationActionPolicyAllow : WKNavigationActionPolicyCancel);
 }
 - (void)dispose {
   [self.attachTimer invalidate]; self.attachTimer = nil;

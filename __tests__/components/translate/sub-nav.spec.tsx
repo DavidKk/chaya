@@ -50,9 +50,9 @@ test('renders translate pages as icon-only accessible links', async () => {
 
   const links = Array.from(host.querySelectorAll<HTMLAnchorElement>('[data-translate-section-nav] a'))
   expect(host.querySelector('aside')!.className).toContain('hidden')
-  expect(links.map((link) => link.getAttribute('href'))).toEqual(['/translate/run', '/translate/cache'])
+  expect(links.map((link) => link.getAttribute('href'))).toEqual(['/translate/seed', '/translate/list', '/translate/play', '/translate/engines', '/translate/cache'])
   expect(links.every((link) => link.textContent === '' && !!link.getAttribute('aria-label'))).toBe(true)
-  expect(links[1].getAttribute('aria-current')).toBe('page')
+  expect(links[4].getAttribute('aria-current')).toBe('page')
 })
 
 test('uses the same icon rail inside the game overlay', async () => {
@@ -68,7 +68,7 @@ test('uses the same icon rail inside the game overlay', async () => {
   const button = host.querySelector<HTMLButtonElement>('[data-translate-section-nav] button')!
   expect(host.querySelector('aside')!.getAttribute('data-mobile-visible')).toBe('true')
   await act(async () => button.click())
-  expect(onSelect).toHaveBeenCalledWith('run')
+  expect(onSelect).toHaveBeenCalledWith('seed')
 })
 
 test('shows the active translation section title and description in the shared content header', async () => {
@@ -84,7 +84,7 @@ test('shows the active translation section title and description in the shared c
     )
   )
 
-  expect(host.querySelector('h2')?.textContent).toBe('共享翻译库')
+  expect(host.querySelector('h2')?.textContent).toBe('翻译库')
   expect(host.textContent).toContain('查看、搜索并维护当前游戏的翻译内容。')
 })
 
@@ -115,6 +115,6 @@ test('keeps the cache section selected on the debug page without a duplicate tab
     )
   )
   const links = [...host.querySelectorAll('a')]
-  expect(links).toHaveLength(2)
+  expect(links).toHaveLength(5)
   expect(links.find((a) => a.getAttribute('aria-current') === 'page')?.getAttribute('href')).toBe('/translate/cache')
 })

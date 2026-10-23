@@ -136,19 +136,18 @@ export function TranslateListSkeleton() {
   const t = useT()
   return (
     <div className="flex h-full min-h-0 w-full flex-col select-none" aria-label={t('translate.loadList')}>
-      {/* 1. Top Controls Bar: Search & Filters */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2.5 shrink-0">
-        {/* Left: Summary hint */}
-        <div className="flex items-center gap-1.5">
-          <Skeleton className="h-4 w-28" />
-        </div>
-
-        {/* Right: Search, Categories, Status, Reload button */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Skeleton className="h-8 w-[20rem] rounded-[0.25rem]" />
+      {/* 1. Top Controls Bar: Two rows matching TranslateListContent */}
+      <div className="flex flex-col gap-2 border-b border-line px-4 py-2 shrink-0">
+        {/* Row 1: Filters */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Skeleton className="h-8 w-[17.5rem] rounded-[0.25rem]" />
           <Skeleton className="h-8 w-36 rounded-[0.25rem]" />
           <Skeleton className="h-8 w-28 rounded-[0.25rem]" />
-          <Skeleton className="size-8 rounded-[0.25rem]" />
+          <Skeleton className="h-8 w-44 rounded-[0.25rem]" />
+        </div>
+        {/* Row 2: Tools */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Skeleton className="h-8 w-36 rounded-[0.25rem]" />
         </div>
       </div>
 

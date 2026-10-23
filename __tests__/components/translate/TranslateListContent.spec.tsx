@@ -5,16 +5,18 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
+import { PanelHeadEndHost, PanelHeadEndProvider } from '@/components/PanelHeadEnd'
 import { TranslateListContent } from '@/components/translate/TranslateListContent'
 
 const mockTranslationFetch = jest.fn()
 const mockNotify = { success: jest.fn(), error: jest.fn(), warn: jest.fn(), info: jest.fn() }
 const mockConfirm = jest.fn().mockResolvedValue(true)
 
+let mockSearchParams = new URLSearchParams()
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
   usePathname: () => '/translate/run/list',
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mockSearchParams,
 }))
 
 jest.mock('@/components/translate/TranslationRuntimeContext', () => ({
@@ -68,7 +70,7 @@ jest.mock('@/components/sk', () => ({
   ),
   Spinner: () => <div>Loading...</div>,
   Tooltip: ({ children }: any) => <>{children}</>,
-  TextInput: ({ value, onChange, placeholder }: any) => <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />,
+  TextInput: ({ value, onChange, placeholder, search: _search, ...rest }: any) => <input value={value} onChange={onChange} placeholder={placeholder} {...rest} />,
   NumberInput: ({ value, onValueChange, min, max, className }: any) => (
     <input type="number" value={value} min={min} max={max} className={className} onChange={(e) => onValueChange(Number(e.target.value))} />
   ),
@@ -92,6 +94,7 @@ describe('TranslateListContent', () => {
   let root: Root
 
   beforeEach(() => {
+    mockSearchParams = new URLSearchParams()
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -477,5 +480,65 @@ describe('TranslateListContent', () => {
     expect(modal).not.toBeNull()
     expect(modal?.textContent).toContain('需要安装 Apple 离线翻译语言包')
     expect(modal?.textContent).toContain('本次翻译需要下载的语言：')
+  })
+
+  it('searches items interchangeably by translation, key, or original text', async () => {
+    const mockItems = [
+      {
+        id: 'row_101',
+        src: 'Thunder Sword',
+        zh: '雷鸣之剑',
+        meta: { category: 'weapon', label: '武器', localesKey: 'weapon.thunder_sword' },
+      },
+      {
+        id: 'row_102',
+        src: 'Fire Staff',
+        zh: '烈焰法杖',
+        meta: { category: 'weapon', label: '武器', localesKey: 'weapon.fire_staff' },
+      },
+    ]
+
+    mockTranslationFetch.mockImplementation(async (_path: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (body.mode === 'extract-items') {
+        return { ok: true, json: async () => ({ ok: true, items: mockItems }) }
+      }
+      return { ok: true, json: async () => ({ ok: true }) }
+    })
+
+    // 1. Search by translation (zh)
+    mockSearchParams = new URLSearchParams({ q: '雷鸣' })
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
+        </LocaleProvider>
+      )
+    })
+    await act(async () => {})
+
+    expect(container.textContent).toContain('Thunder Sword')
+    expect(container.querySelector('input[value="雷鸣之剑"]')).not.toBeNull()
+    expect(container.textContent).not.toContain('Fire Staff')
+
+    // 2. Search by key (localesKey)
+    mockSearchParams = new URLSearchParams({ q: 'fire_staff' })
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
+        </LocaleProvider>
+      )
+    })
+    await act(async () => {})
+    expect(container.textContent).toContain('Fire Staff')
+    expect(container.querySelector('input[value="烈焰法杖"]')).not.toBeNull()
+    expect(container.textContent).not.toContain('Thunder Sword')
   })
 })

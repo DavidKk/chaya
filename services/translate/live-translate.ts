@@ -98,7 +98,13 @@ async function translateWithEngine(
   if (engine === 'ollama') return ollamaJaToZh(text, options)
   const entry = findAgentEntry(agents, engine)
   if (!entry) throw new Error('Agent translation entry removed')
-  return agentJaToZh(text, entry, { interactive: options?.interactive, signal: options?.signal })
+  return agentJaToZh(text, entry, {
+    interactive: options?.interactive,
+    signal: options?.signal,
+    category: options?.category,
+    speaker: options?.speaker,
+    context: options?.context,
+  })
 }
 
 /** Append reusable pairs (incl. 原文===译文 labels) to the bound game's cache.ndjson. */
@@ -150,6 +156,9 @@ export async function liveTranslateTexts(
     local?: LocalTranslateOptions
     sourceLang?: string
     targetLang?: string
+    category?: string
+    speaker?: string
+    context?: string
     itemTimeoutMs?: number
     onItem?: (item: LiveTranslateItem) => void
     onTrace?: (message: string) => void
@@ -416,7 +425,13 @@ export async function liveTranslateTexts(
                             trace?.(
                               `Item ${itemId} engine requested: engine=${engine}, sourceChars=${Array.from(sendText).length}, from=${langPair.from}, to=${langPair.to}, pipelineElapsedMs=${Math.round(performance.now() - started)}`
                             )
-                            return translateWithEngine(engine, sendText, { ...opts?.local, signal }, agents, langPair)
+                            return translateWithEngine(
+                              engine,
+                              sendText,
+                              { category: opts?.category, speaker: opts?.speaker, context: opts?.context, ...opts?.local, signal },
+                              agents,
+                              langPair
+                            )
                           },
                           signal
                         ),

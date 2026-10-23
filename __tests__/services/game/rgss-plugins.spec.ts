@@ -32,6 +32,8 @@ afterEach(() => fs.rmSync(root, { recursive: true, force: true }))
 it('installs a portable entry before Main, keeps originals and title encoding, and can uninstall', () => {
   expect(detectRgssPlugins(root)[0]).toMatchObject({ name: 'ChayaRGSS', registered: false, fileExists: false })
   installRgssPlugins(root)
+  expect(fs.existsSync(path.join(root, 'chaya/plugins/rgss/edit_runtime.rb'))).toBe(true)
+  expect(fs.existsSync(path.join(root, 'chaya/plugins/rgss/edit_actors.rb'))).toBe(true)
   expect(detectRgssPlugins(root)[0]).toMatchObject({ registered: true, fileExists: true })
   expect(detectRgssPluginsOutdated(root)).toBe(false)
   expect(fs.readFileSync(path.join(root, 'Data', 'Scripts.rvdata2'))).toEqual(Buffer.from(original))

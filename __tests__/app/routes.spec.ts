@@ -94,7 +94,7 @@ describe('页面路由契约', () => {
 
   it('/translate/run → 重定向至 /translate/run/seed', async () => {
     const { default: TranslateTabPage } = await import('@/app/translate/[tab]/page')
-    await expectRedirect(() => TranslateTabPage({ params: Promise.resolve({ tab: 'run' }) }), '/translate/run/seed')
+    await expectRedirect(() => TranslateTabPage({ params: Promise.resolve({ tab: 'run' }) }), '/translate/seed')
   })
 
   it('/translate/[tab] 非法 → notFound', async () => {
@@ -118,7 +118,7 @@ describe('页面路由契约', () => {
     expect(translateCacheDetailHref(42)).toBe(`/translate/cache/${TRANSLATE_CACHE_DETAIL_MODE}/42`)
     const { translatePathTab } = await import('@/components/translate/tabs')
     expect(translatePathTab('/translate/cache/detail/93230')).toBe('cache')
-    expect(translatePathTab('/translate/run/seed')).toBe('run')
+    expect(translatePathTab('/translate/run/seed')).toBe('seed')
     await expect(ModePage({ params: Promise.resolve({ tab: 'cache', mode: TRANSLATE_CACHE_DETAIL_MODE }) })).rejects.toThrow('NEXT_NOT_FOUND')
   })
 

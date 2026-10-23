@@ -2,25 +2,35 @@ import type { MessageKey } from '@/lib/i18n'
 import { normalizeTranslateQuery } from '@/lib/translate/cache-query'
 
 export const TRANSLATE_TABS = [
-  { id: 'run', labelKey: 'translate.tabRun' },
+  { id: 'seed', labelKey: 'translate.seedTab' },
+  { id: 'list', labelKey: 'translate.listTab' },
+  { id: 'play', labelKey: 'translate.playTab' },
+  { id: 'engines', labelKey: 'translate.enginesTab' },
   { id: 'cache', labelKey: 'translate.tabCache' },
   { id: 'test', labelKey: 'translate.tabTest' },
 ] as const satisfies ReadonlyArray<{ id: string; labelKey: MessageKey }>
 
 export type TranslateTabId = (typeof TRANSLATE_TABS)[number]['id']
 
-export const DEFAULT_TRANSLATE_TAB: TranslateTabId = 'run'
+export const DEFAULT_TRANSLATE_TAB: TranslateTabId = 'seed'
 
 const TAB_IDS = new Set<string>(TRANSLATE_TABS.map((t) => t.id))
 
 export function parseTranslateTab(raw: string | undefined | null): TranslateTabId {
+  if (raw === 'run') return 'seed'
   if (raw && TAB_IDS.has(raw)) return raw as TranslateTabId
   return DEFAULT_TRANSLATE_TAB
 }
 
 /** `/translate/{tab}/…` → tab is the second segment (not the last — detail row ids must not win). */
 export function translatePathTab(pathname: string): TranslateTabId {
-  const seg = pathname.split('/').filter(Boolean)[1]
+  const parts = pathname.split('/').filter(Boolean)
+  const seg = parts[1]
+  if (seg === 'run') {
+    const sub = parts[2]
+    if (sub === 'list' || sub === 'play' || sub === 'seed') return sub
+    return 'seed'
+  }
   return parseTranslateTab(seg === 'translate' ? undefined : seg)
 }
 
@@ -30,7 +40,7 @@ export function translateTabHref(tab: TranslateTabId): string {
 
 export type TranslateRunMode = 'seed' | 'list' | 'play'
 export const TRANSLATE_RUN_MODES = ['seed', 'list', 'play'] as const
-export const translateRunHref = (mode: TranslateRunMode) => `/translate/run/${mode}`
+export const translateRunHref = (mode: TranslateRunMode) => `/translate/${mode}`
 
 /** Deep link: `/translate/cache/detail/{rowid}` — edit + optimize. */
 export const TRANSLATE_CACHE_DETAIL_MODE = 'detail' as const

@@ -1,6 +1,6 @@
 import { peelChoiceMetaShell } from '@/lib/translate/choice-meta'
 import { isDynamicTemplate } from '@/lib/translate/dynamic-template'
-import { RM_ESCAPE_RE } from '@/lib/translate/rm-escape'
+import { isSemanticPlaceholder, RM_ESCAPE_RE } from '@/lib/translate/rm-escape'
 
 const WRAPPERS: Record<string, string> = {
   '「': '」',
@@ -115,13 +115,16 @@ function segmentContent(text: string, keepChoiceMeta: boolean): { lead: string; 
       trail = meta.trail + trail
     }
     core = meta.core
-    const prefix = core.match(/^[\s、，,。．.!！?？…]+/)?.[0] || [...core.matchAll(control)].find((match) => match.index === 0 && !/^\\RB\[/i.test(match[0]))?.[0]
+    const prefix =
+      core.match(/^[\s、，,。．.!！?？…]+/)?.[0] ||
+      [...core.matchAll(control)].find((match) => match.index === 0 && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0]
     if (prefix) {
       lead += prefix
       core = core.slice(prefix.length)
     }
     const suffix =
-      core.match(/[\s、，,。．.!！?？…]+$/)?.[0] || [...core.matchAll(control)].find((match) => match.index! + match[0].length === core.length && !/^\\RB\[/i.test(match[0]))?.[0]
+      core.match(/[\s、，,。．.!！?？…]+$/)?.[0] ||
+      [...core.matchAll(control)].find((match) => match.index! + match[0].length === core.length && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0]
     if (suffix) {
       trail = suffix + trail
       core = core.slice(0, -suffix.length)

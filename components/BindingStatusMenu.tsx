@@ -10,6 +10,7 @@ import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { useFloatingPanel } from '@/components/sk/useFloatingPanel'
 import { SHELL_APP_NAME, SHELL_WIN_DIR_NAME } from '@/constants/brand'
 import { DATA_DIR_NAME, SHELL_DIR_NAME } from '@/constants/path-names'
+import { isRgssEngine } from '@/lib/game/types'
 import type { MessageKey, MessageParams } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -26,6 +27,7 @@ export type BindingStatusInput = {
   bundled: boolean
   plugins: BindingStatusPlugin[]
   hasNwPackage: boolean
+  engine?: string | null
   platform?: string
   /** 壳所在 / 应装到的位置；缺省为工具 data/shell（浏览器模式壳在游戏目录内） */
   shellPath?: string
@@ -69,22 +71,25 @@ export function buildBindingChecks(status: BindingStatusInput, t: TranslateFn): 
     pluginsProblem = t('binding.pluginsUnregistered', { names: unregistered.join('、') })
   }
 
-  return [
+  const checks: BindingCheckItem[] = [
     { id: 'content', ok: true, label: layoutLabel, problem: t('binding.contentMissing') },
     { id: 'shell', ok: shellOk, label: shellLabel, problem: shellProblem },
-    {
+  ]
+  if (!isRgssEngine(status.engine)) {
+    checks.push({
       id: 'window',
       ok: status.hasNwPackage,
       label: t('binding.windowOk'),
       problem: t('binding.windowMissing'),
-    },
-    {
-      id: 'plugins',
-      ok: pluginsOk,
-      label: t('binding.pluginsOk'),
-      problem: pluginsProblem,
-    },
-  ]
+    })
+  }
+  checks.push({
+    id: 'plugins',
+    ok: pluginsOk,
+    label: t('binding.pluginsOk'),
+    problem: pluginsProblem,
+  })
+  return checks
 }
 
 export function BindingStatusMenu({ status }: { status: BindingStatusInput }) {

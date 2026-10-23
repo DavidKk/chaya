@@ -1,9 +1,9 @@
 /** Server-side Ollama Japanese-to-Chinese translation; retry with a stricter prompt when the default prompt returns an echo or empty result. */
 import {
+  buildTranslateSystemPrompt,
   DEFAULT_OLLAMA_HOST,
   DEFAULT_OLLAMA_MODEL,
   OLLAMA_TRANSLATE_RETRY_SYSTEM,
-  OLLAMA_TRANSLATE_SYSTEM,
   requestOllama,
   translationNeedsReasoning,
 } from '@/lib/translate/engine-http'
@@ -12,14 +12,33 @@ import { scheduleOllama } from './ollama-queue'
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST || DEFAULT_OLLAMA_HOST
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || DEFAULT_OLLAMA_MODEL
-export type LocalTranslateOptions = { model?: string; interactive?: boolean; signal?: AbortSignal }
+export type LocalTranslateOptions = {
+  model?: string
+  interactive?: boolean
+  signal?: AbortSignal
+  category?: string
+  speaker?: string
+  context?: string
+}
 
 async function ollamaChat(system: string, user: string, temperature: number, think: boolean, options?: LocalTranslateOptions): Promise<string> {
   return scheduleOllama(
     async () => {
       const signal = options?.signal ?? AbortSignal.timeout(5 * 60 * 1000)
       signal.throwIfAborted()
-      return requestOllama(fetch, { host: OLLAMA_HOST, model: options?.model || OLLAMA_MODEL, text: user, system, temperature, think, interactive: options?.interactive, signal })
+      return requestOllama(fetch, {
+        host: OLLAMA_HOST,
+        model: options?.model || OLLAMA_MODEL,
+        text: user,
+        system,
+        category: options?.category,
+        speaker: options?.speaker,
+        context: options?.context,
+        temperature,
+        think,
+        interactive: options?.interactive,
+        signal,
+      })
     },
     options?.interactive,
     options?.signal
@@ -34,8 +53,9 @@ export async function ollamaJaToZh(text: string, options?: LocalTranslateOptions
   const q = String(text ?? '').trim()
   if (!q) return q
 
+  const defaultSystem = buildTranslateSystemPrompt({ category: options?.category, speaker: options?.speaker, context: options?.context })
   const attempts: Array<{ system: string; user: string; temperature: number; think: boolean }> = [
-    { system: OLLAMA_TRANSLATE_SYSTEM, user: q, temperature: 0.2, think: !options?.interactive && translationNeedsReasoning(q) },
+    { system: defaultSystem, user: q, temperature: 0.2, think: !options?.interactive && translationNeedsReasoning(q) },
     { system: OLLAMA_TRANSLATE_RETRY_SYSTEM, user: `译文：\n${q}`, temperature: 0.35, think: true },
   ]
 

@@ -11,6 +11,24 @@ function rmDigitCodeRe(): RegExp {
 /** Accept arbitrary bracket arguments when splitting controls, matching the legacy RM_ESCAPE behavior. */
 export const RM_ESCAPE_RE = /\\[A-Za-z]+(?:\[[^\]]*\])?/g
 
+/**
+ * Semantic placeholder tokens carry variable content (actor names, variables, formatted values, template slots)
+ * and must remain part of the sentence body rather than being peeled as decorative boundary shells.
+ */
+export function isSemanticPlaceholder(token: string): boolean {
+  if (!token) return false
+  // RPG Maker actor/party/variable/gold: \N[digits], \P[digits], \V[digits], \G
+  if (/^\\[NPV]\[[^\]]*\]$/i.test(token) || /^\\[Gg]$/.test(token)) return true
+  // C-style printf format tokens: %s, %d, %i, %f, %S, %c, %1, %2, etc.
+  if (/^%[0-9]+$/i.test(token) || /^%[sdifSc]$/.test(token)) return true
+  // Braced template parameters: {name}, {0}, etc.
+  if (/^\{[0-9A-Za-z_]+\}$/.test(token)) return true
+  // Script / engine token placeholders: _actor, _name, _class, _num, actor[1], etc.
+  if (/^_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/i.test(token)) return true
+  if (/^[A-Za-z_][A-Za-z0-9_]*\[\d+\]$/.test(token)) return true
+  return false
+}
+
 export function hasRmDigitCodes(text: string): boolean {
   return rmDigitCodeRe().test(String(text ?? ''))
 }

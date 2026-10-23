@@ -1,19 +1,19 @@
 'use client'
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { IoChevronBackOutline, IoChevronForwardOutline, IoPlaySkipBackOutline, IoPlaySkipForwardOutline } from 'react-icons/io5'
-import { LuDatabase, LuRefreshCw } from 'react-icons/lu'
 
-import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelFoot } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select, type SelectOption, Spinner, TextInput } from '@/components/sk'
+import { PanelHeadEnd } from '@/components/PanelHeadEnd'
+import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select, type SelectOption, TextInput } from '@/components/sk'
 import { AppleOfflineGuideModal } from '@/components/translate/AppleOfflineGuideModal'
+import { useSafePathname, useSafeRouter, useSafeSearchParams } from '@/components/translate/safe-navigation'
 import { TranslateListItemRow } from '@/components/translate/TranslateListItemRow'
 import { TranslateListSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
+import { useTranslateListSave } from '@/components/translate/useTranslateListSave'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { detectSourceLanguage } from '@/lib/translate/source-text'
 import { hrefWithQuery, parsePositiveInt, patchSearchParams } from '@/lib/url/search-params'
@@ -29,18 +29,15 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 200]
 const DEFAULT_PAGE_SIZE = 50
 
 export function TranslateListContent({ onExtract, onLanguagePairChange }: { onExtract?: () => void; onLanguagePairChange?: (pair: { source: string; target: string }) => void }) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const router = useSafeRouter()
+  const pathname = useSafePathname()
+  const searchParams = useSafeSearchParams()
 
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
-  const confirm = useConfirm()
   const t = useT()
 
   const [loading, setLoading] = useState(true)
-  const [savingPage, setSavingPage] = useState(false)
-  const [resettingPage, setResettingPage] = useState(false)
   const [items, setItems] = useState<ExtractedTranslationItem[]>([])
   const [localesMeta, setLocalesMeta] = useState<ExtractedLocalesMeta | null>(null)
   const [appleOfflineModal, setAppleOfflineModal] = useState<{ open: boolean; fromLang: string; toLang: string }>({
@@ -51,6 +48,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
 
   // URL query parameters as the single source of truth for all filters
   const filterQuery = searchParams?.get('q') ?? ''
+  const natureFilter = searchParams?.get('nature') ?? 'all'
   const categoryFilter = searchParams?.get('category') ?? 'all'
   const statusFilter = searchParams?.get('status') ?? 'all'
   const fromLangParam = searchParams?.get('from') ?? ''
@@ -61,7 +59,6 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
 
   const [sourceLang, setSourceLang] = useState<string>(fromLangParam)
   const [targetLang, setTargetLang] = useState<string>(toLangParam)
-  const [prewarming, setPrewarming] = useState(false)
 
   useEffect(() => {
     onLanguagePairChange?.({ source: sourceLang || localesMeta?.currentSourceLang || '', target: targetLang || localesMeta?.currentTargetLang || '' })
@@ -102,10 +99,10 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
 
   const [availableEngines, setAvailableEngines] = useState<AvailableEngine[]>([])
   const [rgssEngine, setRgssEngine] = useState<'VX Ace' | 'VX' | null>(null)
+  const [contentRoot, setContentRoot] = useState<string>('')
   const [selectedScheme, setSelectedScheme] = useState<string>('all')
 
   const [translatingId, setTranslatingId] = useState<string | null>(null)
-  const [savingId, setSavingId] = useState<string | null>(null)
 
   // Force re-render token when in-place item edits happen
   const [, setTick] = useState(0)
@@ -160,10 +157,14 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           ok?: boolean
           items?: ExtractedTranslationItem[]
           locales?: ExtractedLocalesMeta
+          engine?: 'VX Ace' | 'VX' | null
+          contentRoot?: string
           error?: unknown
         }
         if (data?.ok && Array.isArray(data.items)) {
           setItems(data.items)
+          if (data.engine) setRgssEngine(data.engine)
+          if (data.contentRoot) setContentRoot(data.contentRoot)
           if (data.locales?.hasLocales) {
             setLocalesMeta(data.locales)
             if (!sourceLang && data.locales.currentSourceLang) setSourceLang(data.locales.currentSourceLang)
@@ -181,35 +182,15 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     [sourceLang, targetLang, fromLangParam, toLangParam, translationFetch, notify, t]
   )
 
-  const handlePrewarm = useCallback(async () => {
-    setPrewarming(true)
-    try {
-      const res = await translationFetch('/api/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'import-locales-corpus' }),
-      })
-      const data = (await res.json()) as { ok?: boolean; inserted?: number; totalPairs?: number; error?: unknown }
-      if (data?.ok) {
-        notify.success(t('translate.listPrewarmSuccess', { count: data.inserted?.toLocaleString() || 0 }))
-      } else {
-        notify.error(t('translate.listPrewarmFailed', { error: readApiErrorMessage(data) }))
-      }
-    } catch (err) {
-      notify.error(t('translate.listPrewarmFailed', { error: err instanceof Error ? err.message : String(err) }))
-    } finally {
-      setPrewarming(false)
-    }
-  }, [translationFetch, notify, t])
-
   useEffect(() => {
     void loadEngines()
     void loadData()
     if (typeof fetch === 'function') {
       void fetch('/api/status', { cache: 'no-store' })
         .then((res) => res.json())
-        .then((data: { ready?: boolean; engine?: string }) => {
-          setRgssEngine(data.ready && (data.engine === 'VX Ace' || data.engine === 'VX') ? data.engine : null)
+        .then((data: { ready?: boolean; engine?: string; contentRoot?: string }) => {
+          setRgssEngine(data.ready && (data.engine === 'VX Ace' || data.engine === 'VX') ? (data.engine as 'VX Ace' | 'VX') : null)
+          if (data.contentRoot) setContentRoot(data.contentRoot)
         })
         .catch(() => setRgssEngine(null))
     }
@@ -218,6 +199,25 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
   // Filter items
   const filteredItems = useMemo(() => {
     let list = items
+    if (natureFilter !== 'all') {
+      if (natureFilter === 'dialogue') {
+        list = list.filter((it) => it.meta.category === 'dialogue')
+      } else if (natureFilter === 'story') {
+        list = list.filter((it) => it.meta.category === 'story')
+      } else if (natureFilter === 'choice') {
+        list = list.filter((it) => it.meta.category === 'choice')
+      } else if (natureFilter === 'name') {
+        list = list.filter((it) => ['item', 'weapon', 'armor', 'skill', 'actor', 'enemy', 'state', 'map'].includes(it.meta.category))
+      } else if (natureFilter === 'desc') {
+        list = list.filter((it) => ['item_desc', 'weapon_desc', 'armor_desc', 'skill_desc', 'actor_profile', 'actor_nickname'].includes(it.meta.category))
+      } else if (natureFilter === 'system') {
+        list = list.filter((it) => ['system', 'state_msg', 'plugin', 'resource'].includes(it.meta.category))
+      } else if (natureFilter === 'hardcoded') {
+        list = list.filter((it) => Boolean(it.meta.isHardcoded || !it.meta.localesKey))
+      } else if (natureFilter === 'locales') {
+        list = list.filter((it) => Boolean(it.meta.localesKey))
+      }
+    }
     if (categoryFilter !== 'all') {
       list = list.filter((it) => it.meta.category === categoryFilter)
     }
@@ -228,12 +228,22 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     }
     if (filterQuery.trim()) {
       const q = filterQuery.trim().toLowerCase()
-      list = list.filter(
-        (it) => it.src.toLowerCase().includes(q) || it.zh.toLowerCase().includes(q) || it.meta.speaker?.toLowerCase().includes(q) || it.meta.context?.toLowerCase().includes(q)
-      )
+      list = list.filter((it) => {
+        const srcMatch = it.src.toLowerCase().includes(q)
+        const zhMatch = it.zh.toLowerCase().includes(q)
+        const savedZhMatch = it.savedZh?.toLowerCase().includes(q)
+        const initialZhMatch = it.initialZh?.toLowerCase().includes(q)
+        const keyMatch = it.meta.localesKey?.toLowerCase().includes(q)
+        const idMatch = it.id.toLowerCase().includes(q)
+        const speakerMatch = it.meta.speaker?.toLowerCase().includes(q)
+        const contextMatch = it.meta.context?.toLowerCase().includes(q)
+        const labelMatch = it.meta.label?.toLowerCase().includes(q)
+        const fileMatch = it.meta.file?.toLowerCase().includes(q) || it.meta.localesFile?.toLowerCase().includes(q)
+        return Boolean(srcMatch || zhMatch || savedZhMatch || initialZhMatch || keyMatch || idMatch || speakerMatch || contextMatch || labelMatch || fileMatch)
+      })
     }
     return list
-  }, [items, categoryFilter, statusFilter, filterQuery])
+  }, [items, natureFilter, categoryFilter, statusFilter, filterQuery])
 
   // Paging calculations
   const totalItems = filteredItems.length
@@ -254,7 +264,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     if (page > totalPages && totalPages >= 1) {
       go(1)
     }
-  }, [filterQuery, categoryFilter, statusFilter, pageSize, totalPages, page, go])
+  }, [filterQuery, natureFilter, categoryFilter, statusFilter, pageSize, totalPages, page, go])
 
   const pagedItems = useMemo(() => {
     const start = (visiblePage - 1) * pageSize
@@ -296,6 +306,9 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
               engines: enginesToUse,
               sourceLang: fromLang,
               targetLang: toLang,
+              category: item.meta.category,
+              speaker: item.meta.speaker,
+              context: item.meta.context || item.meta.label,
             }
         const res = await translationFetch('/api/translate', {
           method: 'POST',
@@ -332,128 +345,16 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     [selectedScheme, sourceLang, targetLang, localesMeta, translationFetch, refreshUI, notify, t]
   )
 
-  // Save single item
-  const handleSave = useCallback(
-    async (item: ExtractedTranslationItem) => {
-      setSavingId(item.id)
-      try {
-        const writeback = Boolean(rgssEngine)
-        const res = await translationFetch('/api/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mode: writeback ? 'rgss-write' : 'save-item',
-            text: item.src,
-            zh: item.zh,
-            translations: writeback ? { [item.src]: item.zh } : undefined,
-            localesKey: item.meta.localesKey,
-            targetFile: item.meta.localesFile,
-            sourceLang: sourceLang || localesMeta?.currentSourceLang,
-            targetLang: targetLang || localesMeta?.currentTargetLang,
-          }),
-        })
-        const data = (await res.json()) as { ok?: boolean; backupCreated?: boolean; error?: unknown }
-        if (data?.ok) {
-          item.savedZh = item.zh
-          refreshUI()
-          const backupMsg = data.backupCreated ? t('translate.listSingleSaveBackup') : ''
-          notify.success(t('translate.listSingleSaveSuccess', { backup: backupMsg }))
-        } else {
-          notify.error(t('translate.listSingleSaveFailed', { error: readApiErrorMessage(data) }))
-        }
-      } catch (err) {
-        notify.error(t('translate.listSingleSaveReqFailed', { error: err instanceof Error ? err.message : String(err) }))
-      } finally {
-        setSavingId(null)
-      }
-    },
-    [rgssEngine, sourceLang, targetLang, localesMeta, translationFetch, refreshUI, notify, t]
-  )
-
-  // Reset all items on current page with confirmation (does not auto-save)
-  const handleResetPage = useCallback(async () => {
-    if (pagedItems.length === 0) return
-    const ok = await confirm({
-      title: t('translate.listResetPageTitle'),
-      description: t('translate.listResetPageDesc', { count: pagedItems.length }),
-      confirmLabel: t('translate.listResetPageConfirm'),
-      confirmVariant: 'fail',
-    })
-    if (!ok) return
-
-    setResettingPage(true)
-    try {
-      for (const item of pagedItems) {
-        const orig = item.initialZh ?? item.savedZh ?? ''
-        item.zh = orig
-      }
-      refreshUI()
-      notify.info(t('translate.listResetPageSuccess', { count: pagedItems.length }))
-    } finally {
-      setResettingPage(false)
-    }
-  }, [confirm, pagedItems, refreshUI, notify, t])
-
-  // Save all translated items on current page with confirmation
-  const handleSavePage = useCallback(async () => {
-    const itemsToSave = pagedItems.filter((it) => (it.zh && it.zh.trim()) || Boolean(it.savedZh))
-    if (itemsToSave.length === 0) {
-      notify.warning(t('translate.listSavePageEmpty'))
-      return
-    }
-
-    const ok = await confirm({
-      title: t('translate.listSavePageTitle'),
-      description: t('translate.listSavePageDesc', { count: itemsToSave.length }),
-      confirmLabel: t('translate.listSavePageConfirm'),
-      confirmVariant: 'ok',
-    })
-    if (!ok) return
-
-    setSavingPage(true)
-    let savedCount = 0
-    let failCount = 0
-    try {
-      for (const item of itemsToSave) {
-        try {
-          const res = await translationFetch('/api/translate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(
-              rgssEngine
-                ? { mode: 'rgss-write', translations: { [item.src]: item.zh } }
-                : {
-                    mode: 'save-item',
-                    text: item.src,
-                    zh: item.zh,
-                    localesKey: item.meta.localesKey,
-                    targetFile: item.meta.localesFile,
-                    sourceLang: sourceLang || localesMeta?.currentSourceLang,
-                    targetLang: targetLang || localesMeta?.currentTargetLang,
-                  }
-            ),
-          })
-          const data = (await res.json()) as { ok?: boolean }
-          if (data?.ok) {
-            item.savedZh = item.zh
-            savedCount++
-          } else {
-            failCount++
-          }
-        } catch {
-          failCount++
-        }
-      }
-      refreshUI()
-      if (failCount === 0) {
-        notify.success(t('translate.listSavePageSuccess', { count: savedCount }))
-      } else {
-        notify.warning(t('translate.listSavePagePartial', { saved: savedCount, failed: failCount }))
-      }
-    } finally {
-      setSavingPage(false)
-    }
-  }, [confirm, pagedItems, rgssEngine, translationFetch, sourceLang, targetLang, localesMeta, refreshUI, notify, t])
+  const { savingId, savingPage, resettingPage, handleSave, handleSavePage, handleResetPage } = useTranslateListSave({
+    rgssEngine,
+    contentRoot,
+    sourceLang,
+    targetLang,
+    localesMeta,
+    pagedItems,
+    translationFetch,
+    refreshUI,
+  })
 
   // Reset single item (reverts to original text without auto-saving)
   const handleReset = useCallback(
@@ -525,18 +426,10 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
-      {/* Top Controls Bar: Search & Filters */}
-      <div className="flex flex-wrap items-center justify-end gap-2 border-b border-line px-4 py-2 shrink-0 select-none">
-        {rgssEngine ? (
-          <div className="mr-auto rounded-md border border-accent/30 bg-accent/5 px-2.5 py-1 text-xs text-accent" role="status">
-            {rgssEngine} · offline translation and data writeback · backup created on first write
-          </div>
-        ) : null}
-        {/* [Filter Bar] | [Tools Bar] */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* 1. 筛选条 (位于最左侧) */}
+      <PanelHeadEnd>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <TextInput
-            className="w-[17.5rem]"
+            className="w-48"
             value={qDraft}
             onChange={(e) => setQDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -550,7 +443,27 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           />
 
           <Select
-            className="w-36"
+            className="w-28"
+            panelWidth="content"
+            value={natureFilter}
+            onChange={(val) => updateQueryParams({ nature: val === 'all' ? null : val, p: null })}
+            options={[
+              { value: 'all', label: t('translate.natureFilterAll') },
+              { value: 'dialogue', label: t('translate.catDialogue') },
+              { value: 'story', label: t('translate.catStory') },
+              { value: 'choice', label: t('translate.catChoice') },
+              { value: 'name', label: t('translate.natureFilterName') },
+              { value: 'desc', label: t('translate.natureFilterDesc') },
+              { value: 'system', label: t('translate.natureFilterSystem') },
+              { value: 'hardcoded', label: t('translate.natureFilterHardcoded') },
+              { value: 'locales', label: t('translate.natureFilterLocales') },
+            ]}
+            aria-label={t('translate.natureFilterAria')}
+            tooltip={t('translate.natureFilterTooltip')}
+          />
+
+          <Select
+            className="w-28"
             panelWidth="content"
             value={categoryFilter}
             onChange={(val) => updateQueryParams({ category: val === 'all' ? null : val, p: null })}
@@ -583,7 +496,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           />
 
           <Select
-            className="w-28"
+            className="w-24"
             panelWidth="content"
             value={statusFilter}
             onChange={(val) => updateQueryParams({ status: val === 'all' ? null : val, p: null })}
@@ -595,57 +508,36 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
             aria-label={t('translate.listStatusFilterAria')}
             tooltip={t('translate.listStatusFilterTooltip')}
           />
-
-          {/* 分割线：隔开筛选条与功能条 */}
-          <div className="mx-0.5 h-4 w-px bg-line shrink-0" aria-hidden="true" />
-
-          {/* 2. 功能条 (位于筛选条右侧) */}
-          <Select
-            className="w-36"
-            panelWidth="content"
-            value={selectedScheme}
-            onChange={(val) => setSelectedScheme(val)}
-            options={schemeOptions}
-            aria-label={t('translate.listGlobalSchemeAria')}
-            tooltip={t('translate.listGlobalSchemeTooltip', { label: activeSchemeLabel })}
-          />
-
-          {localesMeta?.hasLocales ? (
-            <div className="flex items-center gap-1.5">
-              <LanguagePairSelect
-                sourceLang={sourceLang || localesMeta.currentSourceLang}
-                targetLang={targetLang || localesMeta.currentTargetLang}
-                availableLanguages={localesMeta.availableLanguages}
-                onSourceChange={(l) => {
-                  setSourceLang(l)
-                  updateQueryParams({ from: l, p: null })
-                  void loadData(l, targetLang || localesMeta.currentTargetLang)
-                }}
-                onTargetChange={(l) => {
-                  setTargetLang(l)
-                  updateQueryParams({ to: l, p: null })
-                  void loadData(sourceLang || localesMeta.currentSourceLang, l)
-                }}
-              />
-              <Button
-                size="icon"
-                variant="default"
-                disabled={prewarming}
-                onClick={handlePrewarm}
-                aria-label={t('translate.listPrewarmAria')}
-                tooltip={t('translate.listPrewarmTooltip')}
-                className="!h-8 !w-8"
-              >
-                {prewarming ? <Spinner size="sm" /> : <LuDatabase size={14} className="text-accent" />}
-              </Button>
-            </div>
-          ) : null}
-
-          {/* Refresh Icon Button */}
-          <Button size="icon" variant="default" onClick={() => void loadData()} aria-label={t('translate.listReloadAria')} tooltip={t('translate.listReloadAria')}>
-            <LuRefreshCw size={14} />
-          </Button>
         </div>
+      </PanelHeadEnd>
+
+      {/* Top Controls: 翻译工具条（单独一行，整合原文译文下拉框与翻译工具方案） */}
+      <div className="flex flex-wrap items-center justify-end gap-2 border-b border-line px-4 py-2 shrink-0 select-none bg-surface/10">
+        <LanguagePairSelect
+          sourceLang={sourceLang || localesMeta?.currentSourceLang || 'ja'}
+          targetLang={targetLang || localesMeta?.currentTargetLang || 'zh'}
+          availableLanguages={localesMeta?.availableLanguages}
+          onSourceChange={(l) => {
+            setSourceLang(l)
+            updateQueryParams({ from: l, p: null })
+            void loadData(l, targetLang || localesMeta?.currentTargetLang)
+          }}
+          onTargetChange={(l) => {
+            setTargetLang(l)
+            updateQueryParams({ to: l, p: null })
+            void loadData(sourceLang || localesMeta?.currentSourceLang, l)
+          }}
+        />
+
+        <Select
+          className="w-36"
+          panelWidth="content"
+          value={selectedScheme}
+          onChange={(val) => setSelectedScheme(val)}
+          options={schemeOptions}
+          aria-label={t('translate.listGlobalSchemeAria')}
+          tooltip={t('translate.listGlobalSchemeTooltip', { label: activeSchemeLabel })}
+        />
       </div>
 
       {/* Paged List Content */}
@@ -765,12 +657,12 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           <Button
             type="button"
             variant="ghost"
+            loading={resettingPage}
             disabled={savingPage || resettingPage || pagedItems.length === 0}
             onClick={() => void handleResetPage()}
             tooltip={t('translate.listResetPageTooltip')}
             className="!h-7 px-2.5 text-xs whitespace-nowrap cursor-pointer border border-fail/40 bg-fail/10 text-fail hover:enabled:bg-fail/20 hover:enabled:border-fail/60 hover:enabled:text-fail"
           >
-            {resettingPage ? <Spinner size="sm" /> : null}
             {t('translate.listResetPageBtn')}
           </Button>
 
@@ -778,12 +670,12 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           <Button
             type="button"
             variant="ghost"
+            loading={savingPage}
             disabled={savingPage || resettingPage || pagedItems.length === 0}
             onClick={() => void handleSavePage()}
             tooltip={t('translate.listSavePageTooltip')}
             className="!h-7 px-2.5 text-xs whitespace-nowrap font-medium cursor-pointer border border-ok/40 bg-ok/10 text-ok hover:enabled:bg-ok/20 hover:enabled:border-ok/60 hover:enabled:text-ok"
           >
-            {savingPage ? <Spinner size="sm" /> : null}
             {t('translate.listSavePageBtn')}
           </Button>
         </div>

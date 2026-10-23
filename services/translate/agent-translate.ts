@@ -9,7 +9,13 @@ import { loadGameAgentSettings, ollamaProfiles, profileById } from '@/services/g
 
 import { scheduleOllama } from './ollama-queue'
 
-export type AgentTranslateOptions = { interactive?: boolean; signal?: AbortSignal }
+export type AgentTranslateOptions = {
+  interactive?: boolean
+  signal?: AbortSignal
+  category?: string
+  speaker?: string
+  context?: string
+}
 
 export async function agentJaToZh(text: string, config: TranslateAiConfig, options: AgentTranslateOptions = {}): Promise<string> {
   const settings = loadGameAgentSettings()
@@ -29,6 +35,9 @@ export async function agentJaToZh(text: string, config: TranslateAiConfig, optio
         host: profile.endpoint,
         model,
         text,
+        category: options.category,
+        speaker: options.speaker,
+        context: options.context,
         temperature: profile.temperature,
         keepAlive: profile.keepAlive,
         token,

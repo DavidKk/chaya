@@ -55,6 +55,15 @@ it('rejects RGSS saves from a previously selected game', async () => {
   expect(writeRgssTranslations).not.toHaveBeenCalled()
 })
 
+it('accepts RGSS saves when contentRoot matches current game', async () => {
+  jest.mocked(hasManagementAccess).mockReturnValue(true)
+  jest.mocked(resolveGame).mockReturnValue({ ok: true, contentRoot: '/games/B', engine: 'VX Ace' } as ReturnType<typeof resolveGame>)
+  jest.mocked(writeRgssTranslations).mockReturnValue({ count: 1, backupCreated: false } as any)
+  const response = await post({ mode: 'rgss-write', contentRoot: '/games/B', translations: { Hello: '你好' } })
+  expect(response.status).toBe(200)
+  expect(writeRgssTranslations).toHaveBeenCalledWith('/games/B', { Hello: '你好' })
+})
+
 it('reports unavailable encrypted RGSS data as a recoverable conflict', async () => {
   jest.mocked(hasManagementAccess).mockReturnValue(true)
   jest.mocked(resolveGame).mockReturnValue({ ok: true, contentRoot: '/games/B', engine: 'VX Ace' } as ReturnType<typeof resolveGame>)

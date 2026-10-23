@@ -35,7 +35,7 @@ type AppNavRoute = Pick<AppNavItem, 'href' | 'children'>
 const WEB_ROUTES: Partial<Record<MainNavId, AppNavRoute>> = {
   library: { href: '/game' },
   edit: { href: '/cheat/run', children: EDIT_TABS.map((item) => ({ href: editTabHref(item.id), labelKey: item.labelKey })) },
-  translate: { href: '/translate/run', children: TRANSLATE_TABS.map((item) => ({ href: translateTabHref(item.id), labelKey: item.labelKey })) },
+  translate: { href: '/translate/seed', children: TRANSLATE_TABS.map((item) => ({ href: translateTabHref(item.id), labelKey: item.labelKey })) },
   assist: { href: '/assist/hotkeys', children: ASSIST_SECTIONS.map((section) => ({ href: `/assist/${section.id}`, labelKey: section.labelKey })) },
   integration: { href: '/integration/skills', children: INTEGRATION_TABS },
   logs: {
@@ -50,7 +50,18 @@ export const APP_NAV_ITEMS: ReadonlyArray<AppNavItem> = mainNavFor('web').flatMa
 })
 
 export type AppNavPath =
-  '/game' | '/assist' | '/cheat/run' | '/translate/run' | '/logs' | '/logs/runtime' | '/integration/skills' | '/cheat' | '/translate' | '/integration' | '/settings'
+  | '/game'
+  | '/assist'
+  | '/cheat/run'
+  | '/translate/seed'
+  | '/translate/run'
+  | '/logs'
+  | '/logs/runtime'
+  | '/integration/skills'
+  | '/cheat'
+  | '/translate'
+  | '/integration'
+  | '/settings'
 
 const LINK_SELECTOR = '[data-app-nav-link]'
 
@@ -68,7 +79,8 @@ function measureIndicator(nav: HTMLElement, target: HTMLElement): IndicatorState
 
 function navActive(current: AppNavPath, href: string) {
   if (href === '/cheat/run') return current === '/cheat' || current === '/cheat/run' || current.startsWith('/cheat/')
-  if (href === '/translate/run') return current === '/translate' || current === '/translate/run' || current.startsWith('/translate/')
+  if (href === '/translate/seed' || href === '/translate/run')
+    return current === '/translate' || current === '/translate/seed' || current === '/translate/run' || current.startsWith('/translate/')
   if (href === '/integration/skills') return current === '/integration' || current.startsWith('/integration/')
   if (href === '/game') return current === '/game'
   if (href === '/assist/hotkeys') return current === '/assist' || current === '/settings'

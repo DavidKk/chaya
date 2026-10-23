@@ -67,6 +67,14 @@ describe('ensureGameAppIcon', () => {
     expect((await ensureGameAppIcon(root)).source).toBe('chaya')
   })
 
+  it('handles games without package.json such as RGSS games', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-rgss-icon-'))
+    roots.push(root)
+    expect(await ensureGameAppIcon(root)).toEqual({ icon: 'chaya/app-icon.png', source: 'chaya' })
+    expect(fs.existsSync(path.join(root, 'chaya/app-icon.png'))).toBe(true)
+    expect(fs.existsSync(path.join(root, 'package.json'))).toBe(false)
+  })
+
   if (process.platform === 'darwin') {
     it('updates the icon resource used by a shared macOS app bundle', async () => {
       const root = gameRoot()
@@ -78,9 +86,9 @@ describe('ensureGameAppIcon', () => {
         '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleIconFile</key><string>app.icns</string></dict></plist>'
       )
       const icon = await ensureGameAppIcon(root)
-      await updateSharedMacAppIcon(shell, root, icon.icon)
+      await updateSharedMacAppIcon(shell, root, icon.icon, { bundleId: 'app.chaya.rgss.custom', bundleName: 'Custom RGSS' })
       expect(fs.readFileSync(path.join(resources, 'Chaya.icns')).subarray(0, 4).toString()).toBe('icns')
-      expect(fs.readFileSync(path.join(shell, 'Contents/Info.plist'), 'utf8')).toContain('app.chaya.game-shell')
+      expect(fs.readFileSync(path.join(shell, 'Contents/Info.plist'), 'utf8')).toContain('app.chaya.rgss.custom')
     })
   }
 })

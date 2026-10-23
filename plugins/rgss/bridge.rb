@@ -4,6 +4,7 @@ require 'thread'
 require_relative 'native_webview'
 require_relative 'saves'
 require_relative 'map'
+require_relative 'edit_runtime'
 
 module ChayaRGSS
   module Bridge
@@ -24,49 +25,7 @@ module ChayaRGSS
       end
 
       def read_actors_session
-        actors = {}
-        if $game_actors && $data_actors
-          (1...$data_actors.size).each do |id|
-            actor = $game_actors[id] rescue nil
-            next unless actor
-            skill_ids = if actor.respond_to?(:skills)
-                          actor.skills.map { |s| s.is_a?(Numeric) ? s : (s.respond_to?(:id) ? s.id : nil) }.compact
-                        elsif actor.instance_variable_defined?(:@skills)
-                          actor.instance_variable_get(:@skills) || []
-                        else
-                          []
-                        end
-            state_ids = if actor.respond_to?(:states)
-                          actor.states.map { |s| s.is_a?(Numeric) ? s : (s.respond_to?(:id) ? s.id : nil) }.compact
-                        elsif actor.instance_variable_defined?(:@states)
-                          actor.instance_variable_get(:@states) || []
-                        else
-                          []
-                        end
-            raw_name = actor.respond_to?(:name) ? actor.name.to_s : "Actor #{id}"
-            actors[id] = {
-              'name' => t_name(raw_name),
-              'nickname' => actor.respond_to?(:nickname) ? t_name(actor.nickname.to_s) : '',
-              'profile' => actor.respond_to?(:profile) ? t_name(actor.profile.to_s) : '',
-              'level' => actor.respond_to?(:level) ? actor.level : 1,
-              'exp' => actor.respond_to?(:exp) ? (actor.exp.is_a?(Numeric) ? actor.exp : 0) : 0,
-              'hp' => actor.respond_to?(:hp) ? actor.hp : 0,
-              'mp' => actor.respond_to?(:mp) ? actor.mp : 0,
-              'mhp' => actor.respond_to?(:mhp) ? actor.mhp : 1,
-              'mmp' => actor.respond_to?(:mmp) ? actor.mmp : 0,
-              'atk' => actor.respond_to?(:atk) ? actor.atk : 0,
-              'def' => actor.respond_to?(:def) ? actor.def : 0,
-              'mat' => actor.respond_to?(:mat) ? actor.mat : 0,
-              'mdf' => actor.respond_to?(:mdf) ? actor.mdf : 0,
-              'agi' => actor.respond_to?(:agi) ? actor.agi : 0,
-              'luk' => actor.respond_to?(:luk) ? actor.luk : 0,
-              'classId' => actor.respond_to?(:class_id) ? actor.class_id : 1,
-              'skillIds' => skill_ids,
-              'stateIds' => state_ids
-            }
-          end
-        end
-        actors
+        EditActors.snapshot
       end
       def full_session_state
         ready = !!($data_system && $game_party && $game_variables && $game_switches)
@@ -84,21 +43,12 @@ module ChayaRGSS
           switches[id] = !!val
         end
 
-        counts = {}
-        if $game_party.respond_to?(:all_items)
-          $game_party.all_items.each do |item|
-            next unless item
-            kind = item.is_a?(RPG::Item) ? 'item' : item.is_a?(RPG::Weapon) ? 'weapon' : 'armor'
-            counts["#{kind}:#{item.id}"] = $game_party.item_number(item)
-          end
-        end
-
         session = {
           'gold' => $game_party.gold,
-          'counts' => counts,
+          'counts' => EditRuntime.counts,
           'vars' => vars,
           'switches' => switches,
-          'locks' => {},
+          'locks' => EditRuntime.lock_values,
           'actors' => read_actors_session,
           'walkRate' => 1,
           'runRate' => 1,
@@ -118,7 +68,7 @@ module ChayaRGSS
           'clickTeleport' => false,
           'resourceSkip' => false,
           'expRate' => 1
-        }
+        }.merge(EditRuntime.run_flags)
 
         on_map = !!($game_map && $game_player)
         { 'type' => 'edit.state', 'ready' => true, 'session' => session, 'onMap' => on_map,
@@ -178,60 +128,7 @@ module ChayaRGSS
       end
 
       def apply(op)
-        case op['op']
-        when 'gold'
-          target = integer(op['value'], 0, 2_147_483_647)
-          $game_party.gain_gold(target - $game_party.gold)
-          ['gold']
-        when 'var'
-          id = integer(op['id'], 1, names('var').size - 1)
-          $game_variables[id] = integer(op['value'], -2_147_483_648, 2_147_483_647)
-          ["var:#{id}"]
-        when 'sw'
-          id = integer(op['id'], 1, names('sw').size - 1)
-          $game_switches[id] = !!op['value']
-          ["sw:#{id}"]
-        when 'count'
-          id = integer(op['id'], 1, 9999)
-          val = integer(op['value'], 0, 999)
-          item = case op['kind']
-                 when 'item' then $data_items[id]
-                 when 'weapon' then $data_weapons[id]
-                 when 'armor' then $data_armors[id]
-                 end
-          if item
-            diff = val - $game_party.item_number(item)
-            $game_party.gain_item(item, diff)
-          end
-          ["count:#{op['kind']}:#{id}"]
-        when 'actor'
-          id = integer(op['id'], 1, 9999)
-          actor = $game_actors && $game_actors[id] rescue nil
-          if actor && op['patch'].is_a?(Hash)
-            patch = op['patch']
-            actor.name = patch['name'].to_s if patch.key?('name') && actor.respond_to?(:name=)
-            actor.hp = integer(patch['hp'], 0, actor.mhp) if patch.key?('hp') && actor.respond_to?(:hp=)
-            actor.mp = integer(patch['mp'], 0, actor.mmp) if patch.key?('mp') && actor.respond_to?(:mp=)
-            if patch.key?('level') && actor.respond_to?(:change_level)
-              actor.change_level(integer(patch['level'], 1, 99), false)
-            end
-            if patch.key?('skillIds') && patch['skillIds'].is_a?(Array)
-              new_skills = patch['skillIds'].map { |x| x.to_i }
-              cur_skills = actor.respond_to?(:skills) ? actor.skills.map { |s| s.is_a?(Numeric) ? s : s.id } : []
-              (new_skills - cur_skills).each { |sid| actor.learn_skill(sid) if actor.respond_to?(:learn_skill) }
-              (cur_skills - new_skills).each { |sid| actor.forget_skill(sid) if actor.respond_to?(:forget_skill) }
-            end
-            if patch.key?('stateIds') && patch['stateIds'].is_a?(Array)
-              new_states = patch['stateIds'].map { |x| x.to_i }
-              cur_states = actor.respond_to?(:states) ? actor.states.map { |s| s.is_a?(Numeric) ? s : s.id } : []
-              (new_states - cur_states).each { |sid| actor.add_state(sid) if actor.respond_to?(:add_state) }
-              (cur_states - new_states).each { |sid| actor.remove_state(sid) if actor.respond_to?(:remove_state) }
-            end
-          end
-          ["actor:#{id}"]
-        else
-          raise "Unsupported RGSS operation: #{op['op']}"
-        end
+        EditRuntime.apply(op)
       end
 
       def pump
@@ -262,11 +159,14 @@ module ChayaRGSS
             elsif cmd['type'] == 'edit.cmd'
               fields = apply(cmd)
               dispatch_reply({ 'type' => 'edit.ack', 'cmdId' => cmd['cmdId'], 'ok' => true, 'fields' => fields })
+              dispatch_reply(full_session_state)
             end
           rescue StandardError => err
             dispatch_reply({ 'type' => 'edit.ack', 'cmdId' => cmd['cmdId'], 'ok' => false, 'error' => err.message[0, 200], 'fields' => [] })
           end
         end
+
+        EditRuntime.tick
 
         # Periodic state sync (1s interval)
         now = Time.now.to_f
@@ -309,7 +209,7 @@ module ChayaRGSS
 
       def reload_plugins
         root = File.dirname(__FILE__)
-        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'translation_store.rb', 'translation.rb'].each do |file|
+        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'translation.rb'].each do |file|
           path = File.join(root, file)
           load path if File.file?(path)
         end
@@ -323,7 +223,7 @@ module ChayaRGSS
         @last_reload_check = now
         root = File.dirname(__FILE__)
         changed = false
-        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'translation_store.rb', 'translation.rb'].each do |file|
+        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'translation.rb'].each do |file|
           path = File.join(root, file)
           next unless File.file?(path)
           mtime = File.mtime(path).to_f rescue 0
@@ -342,7 +242,7 @@ module ChayaRGSS
         @logs = Queue.new
         @reload_mtimes = {}
         root = File.dirname(__FILE__)
-        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'translation_store.rb', 'translation.rb'].each do |file|
+        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'translation.rb'].each do |file|
           path = File.join(root, file)
           @reload_mtimes[file] = File.mtime(path).to_f if File.file?(path) rescue 0
         end

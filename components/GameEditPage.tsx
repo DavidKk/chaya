@@ -60,7 +60,7 @@ export function GameEditPage() {
   /** Web「修改」不挂翻译；旧链 /cheat/trans → 顶栏翻译 */
   useEffect(() => {
     if (tab !== 'trans') return
-    router.replace(hrefWithQuery('/translate/run', searchParams.toString()))
+    router.replace(hrefWithQuery('/translate/seed', searchParams.toString()))
   }, [tab, router, searchParams])
 
   const setTab = useCallback(
@@ -222,17 +222,18 @@ export function GameEditPage() {
   )
 
   const refresh = useCallback(async () => {
-    if (connected) {
-      requestCatalog()
-      return
-    }
     setLoading(true)
     try {
       const statusResponse = await fetch('/api/status')
       const status = await statusResponse.json()
-      setIsRgss(status.kind === 'rgss')
-      if (status.kind === 'rgss' && !RGSS_SUPPORTED_EDIT_TABS.has(tab)) {
+      const isRgssGame = Boolean(status.kind === 'rgss' || status.engine === 'VX Ace' || status.engine === 'VX')
+      setIsRgss(isRgssGame)
+      if (isRgssGame && !RGSS_SUPPORTED_EDIT_TABS.has(tab)) {
         router.replace(hrefWithQuery(editTabHref('run'), searchParams.toString()))
+        return
+      }
+      if (connected) {
+        requestCatalog()
         return
       }
       if (status.canUseDisk === false) {
@@ -259,6 +260,12 @@ export function GameEditPage() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useEffect(() => {
+    if (isRgss && !RGSS_SUPPORTED_EDIT_TABS.has(tab)) {
+      router.replace(hrefWithQuery(editTabHref('run'), searchParams.toString()))
+    }
+  }, [isRgss, tab, router, searchParams])
 
   /** 进入角色二级后若无人物 id，自动落到第一个可见人物（三级） */
   useEffect(() => {

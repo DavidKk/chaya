@@ -21,6 +21,7 @@ import type { MessageKey } from '@/lib/i18n'
 import {
   agentEngineKey,
   DEFAULT_ENGINE_ORDER,
+  DEFAULT_ENGINE_SETTINGS,
   DEFAULT_ENGINE_SWITCHES,
   engineGroup,
   findAgentEntry,
@@ -61,7 +62,7 @@ type OfflineStatus = { installed: boolean; status: string; message?: string; sou
 
 type EngineView = Omit<TranslateEngineState, 'enabled'>
 
-const INITIAL: EngineView = { switches: DEFAULT_ENGINE_SWITCHES, agents: [], order: DEFAULT_ENGINE_ORDER }
+const INITIAL: EngineView = { switches: DEFAULT_ENGINE_SWITCHES, agents: [], order: DEFAULT_ENGINE_ORDER, configs: DEFAULT_ENGINE_SETTINGS }
 
 function sameIds(a: EngineId[], b: EngineId[]) {
   return a.length === b.length && a.every((id, i) => id === b[i])
@@ -85,10 +86,12 @@ type Props = {
   onMobileOpenChange?: (open: boolean) => void
   /** 控制台里的 Agent 管理页；局内浮层不传 */
   manageAgentsHref?: string
+  /** 是否作为独立整页展示（非侧边栏模式） */
+  fullPage?: boolean
 }
 
 /** 翻译页左侧：Agent 组（用户添加的 Agent 实例）与翻译平台组；组内拖拽排序，先试 Agent 再试平台 */
-export function TranslateEngineRail({ languagePair, disabled, className, onChange, mobileOpen = false, onMobileOpenChange, manageAgentsHref }: Props) {
+export function TranslateEngineRail({ languagePair, disabled, className, onChange, mobileOpen = false, onMobileOpenChange, manageAgentsHref, fullPage = false }: Props) {
   const t = useT()
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
@@ -125,7 +128,12 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
   const reportError = useEffectEvent((message: string) => notify.error(message))
 
   function viewFrom(json: Partial<EngineView>, fallback: EngineView): EngineView {
-    return { switches: json.switches ?? fallback.switches, agents: json.agents ?? fallback.agents, order: json.order?.length ? json.order : fallback.order }
+    return {
+      switches: json.switches ?? fallback.switches,
+      agents: json.agents ?? fallback.agents,
+      order: json.order?.length ? json.order : fallback.order,
+      configs: json.configs ?? fallback.configs,
+    }
   }
 
   const checkSystemStatus = useCallback(
@@ -469,6 +477,108 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
   }
 
   const addDisabled = locked || view.agents.length >= MAX_TRANSLATE_AGENTS
+
+  if (fullPage) {
+    return (
+      <div className={cn('flex flex-1 flex-col min-h-0 bg-paper-2 overflow-hidden', className)} aria-label={t('translate.platformsConfig')}>
+        <ScrollArea className="min-h-0 flex-1" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.enginesList') }}>
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+            {GROUPS.map((group) => {
+              const ids = view.order.filter((id) => engineGroup(id) === group.id)
+              return (
+                <section key={group.id} className="flex flex-col rounded-lg border border-line bg-surface/30 overflow-hidden shadow-sm" aria-label={t(group.labelKey)}>
+                  <div ref={group.id === 'agent' ? addAnchorRef : undefined} className="flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 bg-surface/40">
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className={groupLabel}>{t(group.labelKey)}</span>
+                        <span className="text-[0.68rem] tabular-nums text-ink-soft">{ids.length}</span>
+                      </div>
+                      <span className="truncate text-[0.7rem] leading-snug text-ink-soft/80">{t(group.descKey)}</span>
+                    </div>
+                    {group.id === 'agent' ? (
+                      <Menu.Root
+                        open={addMenuOpen}
+                        onOpenChange={(open) => {
+                          const root = addAnchorRef.current?.getRootNode()
+                          if (open && typeof ShadowRoot !== 'undefined' && root instanceof ShadowRoot) setAddMenuContainer(root)
+                          setAddMenuOpen(open)
+                        }}
+                      >
+                        <Tooltip content={t('translate.agentAddAria')} suppressed={addMenuOpen}>
+                          <Menu.Trigger
+                            aria-label={t('translate.agentAddAria')}
+                            disabled={addDisabled}
+                            className={cn(dropdownTriggerClass, 'size-7 justify-center p-0', controlDisabled)}
+                          >
+                            <IoAdd size={15} aria-hidden />
+                          </Menu.Trigger>
+                        </Tooltip>
+                        <Menu.Portal container={addMenuContainer}>
+                          <Menu.Positioner side="bottom" align="end" sideOffset={6} collisionPadding={8} positionMethod="fixed" className="z-[80]">
+                            <Menu.Popup aria-label={t('translate.agentAddAria')} finalFocus={(type) => type === 'keyboard'} className={cn(dropdownPopupClass, 'max-w-[16rem]')}>
+                              {agentProfiles.loading ? (
+                                <Menu.Item disabled className={cn(dropdownItemClass, 'text-ink-soft')}>
+                                  {t('common.loading')}
+                                </Menu.Item>
+                              ) : null}
+                              {!agentProfiles.loading && !agentProfiles.profiles.length ? (
+                                <Menu.Item disabled className={cn(dropdownItemClass, 'text-ink-soft')}>
+                                  {agentProfiles.error ? t('translate.aiLoadFailed', { message: agentProfiles.error }) : t('translate.aiNoProfiles')}
+                                </Menu.Item>
+                              ) : null}
+                              {agentProfiles.profiles.map((p) => {
+                                const added = view.agents.some((a) => a.profileId === p.id)
+                                return (
+                                  <Menu.Item
+                                    key={p.id}
+                                    closeOnClick
+                                    disabled={added}
+                                    className={cn(dropdownItemClass, added && 'cursor-not-allowed opacity-50')}
+                                    onClick={() => void addAgent(p.id)}
+                                  >
+                                    <span className="min-w-0 truncate">{p.label}</span>
+                                    <span className="min-w-0 truncate text-[0.72rem] text-ink-soft">{added ? t('translate.agentAlreadyAdded') : p.defaultModel}</span>
+                                  </Menu.Item>
+                                )
+                              })}
+                              {manageAgentsHref ? (
+                                <>
+                                  <Menu.Separator className="mx-2 my-1 h-px bg-[rgb(230_238_248/0.08)]" />
+                                  <Menu.Item render={<Link href={manageAgentsHref} />} className={cn(dropdownItemClass, 'text-ink-soft')}>
+                                    {t('translate.aiManage')}
+                                  </Menu.Item>
+                                </>
+                              ) : null}
+                            </Menu.Popup>
+                          </Menu.Positioner>
+                        </Menu.Portal>
+                      </Menu.Root>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-col gap-2 p-4">
+                    {group.id === 'agent' && agentProfiles.error ? (
+                      <p className="m-0 text-[0.72rem] leading-snug text-ink-soft">{t('translate.aiLoadFailed', { message: agentProfiles.error })}</p>
+                    ) : null}
+                    {ids.length ? (
+                      <ul className="m-0 flex list-none flex-col gap-2 p-0">{ids.map(renderRow)}</ul>
+                    ) : (
+                      <p className="m-0 rounded-[0.35rem] border border-dashed border-line px-3 py-3 text-[0.72rem] leading-snug text-ink-soft">{t('translate.agentEmpty')}</p>
+                    )}
+                  </div>
+                </section>
+              )
+            })}
+          </div>
+        </ScrollArea>
+        <AppleOfflineGuideModal
+          open={appleGuideOpen}
+          fromLang={systemStatus.apple?.source || 'ja'}
+          toLang={systemStatus.apple?.target || 'zh'}
+          onClose={() => setAppleGuideOpen(false)}
+        />
+      </div>
+    )
+  }
 
   return (
     <>

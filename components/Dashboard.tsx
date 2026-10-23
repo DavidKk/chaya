@@ -531,6 +531,7 @@ export function Dashboard() {
                             bundled: status.bundled,
                             plugins: status.plugins,
                             hasNwPackage: !!status.nwPackage,
+                            engine: status.engine,
                             platform: status.host?.platform,
                             shellPath: browserMode && cloud.active ? `${cloud.active.game.picked.name}/${cloud.active.game.existingShell ?? ''}` : undefined,
                           }

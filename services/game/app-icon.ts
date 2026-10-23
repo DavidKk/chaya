@@ -13,7 +13,7 @@ const SOURCE_FILE = 'chaya/app-icon-source.json'
 const LEGACY_GENERATED_ICON = '.chaya/app-icon.png'
 const LEGACY_SOURCE_FILE = '.chaya/app-icon-source.json'
 const BRAND_ICON = path.join(ROOT_PATH, 'public/brand/chaya-app-icon.png')
-const COMMON_ICONS = ['icon.png', 'icon.jpg', 'icon.jpeg', 'img/icon.png', 'img/icons/icon.png', 'favicon.png', 'favicon.ico']
+const COMMON_ICONS = ['icon.png', 'icon.jpg', 'icon.jpeg', 'img/icon.png', 'img/icons/icon.png', 'favicon.png', 'favicon.ico', 'Game.ico', 'game.ico', 'icon.ico']
 const ICON_SIZE = 512
 const execFileAsync = promisify(execFile)
 
@@ -61,9 +61,16 @@ function readOriginalSource(contentRoot: string, icon: string): string {
 /** Set the NW window/taskbar icon for the selected game without changing its other manifest fields. */
 export async function ensureGameAppIcon(contentRoot: string): Promise<{ icon: string; source: 'game+chaya' | 'game' | 'chaya' }> {
   const manifest = path.join(contentRoot, 'package.json')
-  const raw = JSON.parse(fs.readFileSync(manifest, 'utf8')) as Record<string, unknown>
-  const window = raw.window && typeof raw.window === 'object' && !Array.isArray(raw.window) ? (raw.window as Record<string, unknown>) : {}
-  const original = readOriginalSource(contentRoot, typeof window.icon === 'string' ? window.icon : '')
+  let raw: Record<string, unknown> | null = null
+  let window: Record<string, unknown> = {}
+  let original = ''
+  if (fs.existsSync(manifest)) {
+    try {
+      raw = JSON.parse(fs.readFileSync(manifest, 'utf8')) as Record<string, unknown>
+      window = raw.window && typeof raw.window === 'object' && !Array.isArray(raw.window) ? (raw.window as Record<string, unknown>) : {}
+      original = readOriginalSource(contentRoot, typeof window.icon === 'string' ? window.icon : '')
+    } catch {}
+  }
   const candidates = [...new Set([original, ...COMMON_ICONS])]
   let gameIcon: string | null = null
   let gameBytes: Buffer | null = null
@@ -87,7 +94,7 @@ export async function ensureGameAppIcon(contentRoot: string): Promise<{ icon: st
   }
 
   if (gameIcon && !gameBytes) {
-    if (window.icon !== gameIcon) {
+    if (raw && window.icon !== gameIcon) {
       window.icon = gameIcon
       raw.window = window
       fs.writeFileSync(manifest, `${JSON.stringify(raw, null, 2)}\n`)
@@ -111,7 +118,7 @@ export async function ensureGameAppIcon(contentRoot: string): Promise<{ icon: st
   fs.mkdirSync(path.dirname(generated), { recursive: true })
   fs.writeFileSync(generated, output)
   fs.writeFileSync(path.join(contentRoot, SOURCE_FILE), `${JSON.stringify({ source: gameIcon || '' })}\n`)
-  if (window.icon !== GENERATED_ICON) {
+  if (raw && window.icon !== GENERATED_ICON) {
     window.icon = GENERATED_ICON
     raw.window = window
     fs.writeFileSync(manifest, `${JSON.stringify(raw, null, 2)}\n`)
@@ -120,7 +127,12 @@ export async function ensureGameAppIcon(contentRoot: string): Promise<{ icon: st
 }
 
 /** macOS gets its Dock/Finder image from the shared .app bundle, not NW's window.icon. */
-export async function updateSharedMacAppIcon(shellApp: string, contentRoot: string, icon: string): Promise<void> {
+export async function updateSharedMacAppIcon(
+  shellApp: string,
+  contentRoot: string,
+  icon: string,
+  options?: { bundleId?: string; bundleName?: string; displayName?: string }
+): Promise<void> {
   if (process.platform !== 'darwin') return
   const source = localIcon(contentRoot, icon)
   if (!source) return
@@ -154,11 +166,12 @@ export async function updateSharedMacAppIcon(shellApp: string, contentRoot: stri
     await sharp(input).resize(1024, 1024, { fit: 'contain', background: '#00000000' }).png().toFile(path.join(iconset, 'icon_512x512@2x.png'))
     const output = path.join(work, 'Chaya.icns')
     await execFileAsync('iconutil', ['-c', 'icns', iconset, '-o', output])
+    fs.mkdirSync(resources, { recursive: true })
     fs.copyFileSync(output, target)
     await execFileAsync('plutil', ['-replace', 'CFBundleIconFile', '-string', 'Chaya.icns', info])
-    await execFileAsync('plutil', ['-replace', 'CFBundleIdentifier', '-string', 'app.chaya.game-shell', info])
-    await execFileAsync('plutil', ['-replace', 'CFBundleDisplayName', '-string', 'Chaya', info])
-    await execFileAsync('plutil', ['-replace', 'CFBundleName', '-string', 'Chaya', info])
+    await execFileAsync('plutil', ['-replace', 'CFBundleIdentifier', '-string', options?.bundleId || 'app.chaya.game-shell', info])
+    await execFileAsync('plutil', ['-replace', 'CFBundleDisplayName', '-string', options?.displayName || 'Chaya', info])
+    await execFileAsync('plutil', ['-replace', 'CFBundleName', '-string', options?.bundleName || 'Chaya', info])
     const now = new Date()
     fs.utimesSync(shellApp, now, now)
     const lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'

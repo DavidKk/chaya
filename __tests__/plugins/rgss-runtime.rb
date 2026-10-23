@@ -41,6 +41,8 @@ Dir.mktmpdir('chaya-rgss-test') do |directory|
   $game_actors = { 1 => hero }
   $game_party = OpenStruct.new(:members => [hero], :gold => 10)
   def $game_party.gain_gold(delta); self.gold += delta; end
+  def $game_party.item_number(item); (@items ||= {})[item.id] || 0; end
+  def $game_party.gain_item(item, delta); (@items ||= {})[item.id] = item_number(item) + delta; end
   raw_map = OpenStruct.new(:width => 20, :height => 15, :encounter_step => 30, :display_name => 'Town')
   ev_graphic = OpenStruct.new(:character_name => 'Actor1', :tile_id => 0)
   ev_page = OpenStruct.new(:trigger => 0, :list => [1, 2], :graphic => ev_graphic)

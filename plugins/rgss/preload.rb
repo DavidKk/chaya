@@ -9,6 +9,13 @@ runtime = ENV.fetch('CHAYA_RGSS_RUNTIME')
 load File.join(runtime, 'scripts/preload/ruby_classic_wrap.rb')
 load File.join(runtime, 'scripts/preload/win32_wrap.rb')
 
+if defined?(Input)
+  class << Input
+    alias_method :chaya_raw_press?, :press? unless method_defined?(:chaya_raw_press?)
+    alias_method :chaya_raw_trigger?, :trigger? unless method_defined?(:chaya_raw_trigger?)
+  end
+end
+
 module ChayaRGSS
   class Function
     def initialize(&block)

@@ -61,6 +61,7 @@ function combine(contentRoot: string, raw: unknown): TranslateEngineState {
   }
   return mergeEngineState({
     ...local.switches,
+    configs: local.configs,
     agents: shared.agents,
     order: [...shared.order, ...platformOrder(local.order)],
   })
@@ -68,7 +69,7 @@ function combine(contentRoot: string, raw: unknown): TranslateEngineState {
 
 function writePlatformFile(contentRoot: string, state: TranslateEngineState) {
   const file = ensureGameContentDir(contentRoot, 'switches')
-  fs.writeFileSync(file, `${JSON.stringify({ ...state.switches, order: platformOrder(state.order) }, null, 2)}\n`, 'utf8')
+  fs.writeFileSync(file, `${JSON.stringify({ ...state.switches, order: platformOrder(state.order), configs: state.configs }, null, 2)}\n`, 'utf8')
   return file
 }
 

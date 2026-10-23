@@ -10,6 +10,7 @@ import { clearLaunchToken, issueLaunchToken } from '@/services/runtime/launch-to
 import { toolkitListenPort } from '@/services/runtime/presence'
 import { getSignalingRoom } from '@/services/runtime/webrtc-signaling'
 
+import { ensureGameAppIcon, updateSharedMacAppIcon } from './app-icon'
 import { loadConfig } from './config'
 import { findLibraryEntry } from './library'
 import { detectRgssPlugins } from './rgss-plugins'
@@ -88,6 +89,7 @@ export async function launchRgss(resolved: ResolvedGame) {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleExecutable</key><string>mkxp-z</string>
+<key>CFBundleIconFile</key><string>Chaya.icns</string>
 <key>CFBundleIdentifier</key><string>app.chaya.rgss.${key}</string>
 <key>CFBundleName</key><string>Chaya RGSS</string>
 <key>CFBundlePackageType</key><string>APPL</string>
@@ -97,6 +99,23 @@ export async function launchRgss(resolved: ResolvedGame) {
       fs.copyFileSync(installed, `${binary}.new`, fs.constants.COPYFILE_FICLONE)
       fs.chmodSync(`${binary}.new`, 0o755)
       fs.renameSync(`${binary}.new`, binary)
+      let gameIcon: string | undefined
+      try {
+        gameIcon = (await ensureGameAppIcon(root)).icon
+      } catch (error) {
+        process.emitWarning(error instanceof Error ? error : String(error), { code: 'CHAYA_GAME_ICON' })
+      }
+      if (gameIcon) {
+        try {
+          await updateSharedMacAppIcon(app, root, gameIcon, {
+            bundleId: `app.chaya.rgss.${key}`,
+            bundleName: 'Chaya RGSS',
+            displayName: 'Chaya RGSS',
+          })
+        } catch (error) {
+          process.emitWarning(error instanceof Error ? error : String(error), { code: 'CHAYA_MAC_APP_ICON' })
+        }
+      }
       const preload = path.join(root, 'chaya', 'plugins', 'rgss', 'preload.rb')
       if (!fs.existsSync(preload)) throw new Error('Chaya RGSS preload is missing; reinstall Chaya')
       for (const asset of ['rgss-overlay.html', 'ChayaRGSSOverlay.js', 'libchaya-overlay.dylib']) {

@@ -29,11 +29,61 @@ function parseQueryParam(key: string, fallback = ''): string {
 }
 
 export function RgssOverlayRoot() {
+  const [open, setOpen] = useState(false)
+  const [hasOpened, setHasOpened] = useState(false)
   const [_session, setSession] = useState<any>(null)
   const [_gatewayConnected, setGatewayConnected] = useState(false)
   const tools = useToolSettings(requestToolSettings)
   const roomId = parseQueryParam('roomId', '')
   const transport = useMemo(() => ({ roomId, connected: true, negotiating: false, localGlobal: true, send: postToGame, subscribeMessages: onGameMessage }), [roomId])
+  const [portalHost, setPortalHost] = useState<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const host = document.getElementById('chaya-rgss-overlay-container')
+    if (host) {
+      if (open) host.setAttribute('data-open', '')
+      else host.removeAttribute('data-open')
+    }
+  }, [open])
+
+  useEffect(() => {
+    const toggle = () => {
+      setOpen((value) => {
+        const next = !value
+        if (next) setHasOpened(true)
+        return next
+      })
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+        return
+      }
+      if (event.code === 'Backquote' || event.key === '`') {
+        if (event.ctrlKey || event.metaKey || event.altKey) return
+        const target = event.composedPath()[0]
+        if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        setOpen((value) => {
+          const next = !value
+          if (next) setHasOpened(true)
+          return next
+        })
+      }
+    }
+    const onEsc = () => setOpen(false)
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('chaya:toggle', toggle)
+    document.addEventListener('chaya:esc', onEsc)
+    return () => {
+      document.removeEventListener('chaya:toggle', toggle)
+      document.removeEventListener('chaya:esc', onEsc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [])
 
   useEffect(() => {
     // 1. Initialize native host postMessage bridge
@@ -86,31 +136,25 @@ export function RgssOverlayRoot() {
   return (
     <LocaleProvider syncDocumentLang={false}>
       <GameToolTransportContext.Provider value={transport}>
-        <NotificationProvider>
-          <ConfirmProvider>
-            <div
-              id="rgss-overlay-root"
-              style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                width: '100vw',
-                height: '100vh',
-                pointerEvents: 'none',
-                overflow: 'hidden',
-                userSelect: 'none',
-              }}
-            >
-              <RgssWorkbench />
+        <div
+          ref={setPortalHost}
+          data-mini-panel-root=""
+          className="relative flex min-h-0 flex-1 flex-col"
+          style={{ '--mini-panel-opacity': String(tools.settings.miniPanelOpacity / 100) } as any}
+        >
+          <NotificationProvider portalContainer={portalHost}>
+            <ConfirmProvider portalContainer={portalHost}>
+              {hasOpened && (
+                <div style={{ display: open ? 'flex' : 'none' }} className="min-h-0 flex-1 flex-col">
+                  <RgssWorkbench open={open} onClose={() => setOpen(false)} />
+                </div>
+              )}
               <RgssMiniMap tools={tools} />
-              {/* Multi-mini panels dock and quick saves */}
-              <div>
-                {tools.settings.panelDockEnabled && <MiniPanelDock settings={tools.settings} update={tools.update} />}
-                {(tools.settings.quickSavePanelEnabled || tools.settings.autoSavePanelEnabled) && <FloatingGameSaves settings={tools.settings} tools={tools} />}
-              </div>
-            </div>
-          </ConfirmProvider>
-        </NotificationProvider>
+              {tools.settings.panelDockEnabled && <MiniPanelDock settings={tools.settings} update={tools.update} />}
+              {(tools.settings.quickSavePanelEnabled || tools.settings.autoSavePanelEnabled) && <FloatingGameSaves settings={tools.settings} tools={tools} />}
+            </ConfirmProvider>
+          </NotificationProvider>
+        </div>
       </GameToolTransportContext.Provider>
     </LocaleProvider>
   )

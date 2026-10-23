@@ -333,6 +333,11 @@ export type MessageTree = {
     playTab: string
     listTab: string
     seedTab: string
+    seedTabDesc: string
+    listTabDesc: string
+    playTabDesc: string
+    enginesTab: string
+    enginesTabDesc: string
     extract: string
     updateSource: string
     importFile: string
@@ -566,6 +571,14 @@ export type MessageTree = {
     listCategoryFilterTooltip: string
     listStatusFilterAria: string
     listStatusFilterTooltip: string
+    natureFilterAll: string
+    natureFilterName: string
+    natureFilterDesc: string
+    natureFilterSystem: string
+    natureFilterHardcoded: string
+    natureFilterLocales: string
+    natureFilterAria: string
+    natureFilterTooltip: string
     listGlobalSchemeAria: string
     listGlobalSchemeTooltip: string
     listSchemeSmart: string

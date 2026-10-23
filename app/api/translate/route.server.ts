@@ -23,6 +23,7 @@ import {
   type TranslateEngineId,
   type TranslateEngineSwitches,
 } from '@/services/disk-ops'
+import { pathEquals } from '@/services/game'
 import { peekLaunchToken } from '@/services/runtime/launch-token'
 import { resolveTranslateContentRoot } from '@/services/translate/fill-missing'
 import { getTranslationPlaySettings, setTranslationPlaySettings } from '@/services/translate/play-settings'
@@ -99,6 +100,9 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       targetLang?: string
       source?: string
       target?: string
+      category?: string
+      speaker?: string
+      context?: string
       translations?: Record<string, string>
       from?: string
       to?: string
@@ -109,6 +113,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       engines?: TranslateRunEngine[]
       /** switches：Agent 翻译条目整表替换 */
       agents?: unknown
+      configs?: Record<string, import('@/lib/translate/engines').TranslateEngineSettings>
       /** ai：本次翻译用的实例 / 模型 */
       ai?: unknown
       interactive?: boolean
@@ -153,7 +158,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
 
     if (body.mode === 'play-settings') {
       const contentRoot = resolveTranslateContentRoot()
-      if (body.settings !== undefined && body.contentRoot !== contentRoot) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload settings')
+      if (body.settings !== undefined && !pathEquals(body.contentRoot || '', contentRoot)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload settings')
       const settings = body.settings === undefined ? getTranslationPlaySettings(contentRoot) : setTranslationPlaySettings(contentRoot, body.settings)
       return apiOk({ contentRoot, settings })
     }
@@ -244,8 +249,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         }
       }
       const agents = Array.isArray(body.agents) ? body.agents : undefined
-      if ((body.switches && typeof body.switches === 'object') || Array.isArray(body.order) || agents) {
-        return apiOk(setTranslateEngineSwitches({ switches: body.switches, order: body.order, agents }))
+      if ((body.switches && typeof body.switches === 'object') || Array.isArray(body.order) || agents || (body.configs && typeof body.configs === 'object')) {
+        return apiOk(setTranslateEngineSwitches({ switches: body.switches, order: body.order, agents, configs: body.configs }))
       }
       return apiOk(getTranslateEngineSwitches())
     }
@@ -331,7 +336,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
 
     if (body.mode === 'rgss-write') {
       const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
-      if (body.contentRoot !== root) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload the translation list')
+      if (body.contentRoot && !pathEquals(body.contentRoot, root)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload the translation list')
       const translations = body.translations && typeof body.translations === 'object' ? body.translations : null
       if (!translations || Array.isArray(translations)) return apiError(400, 'RGSS_WRITE_INPUT', 'Missing translations')
       if (Object.entries(translations).some(([source, target]) => typeof source !== 'string' || typeof target !== 'string')) {
@@ -436,7 +441,15 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       const text = typeof body.text === 'string' ? body.text : ''
       if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_AI_INPUT', 'AI translation requires text of 1-20000 characters')
       const { agentJaToZh } = await import('@/services/translate/agent-translate')
-      return apiOk({ text: await agentJaToZh(text, normalizeAiConfig(body.ai), { interactive: body.interactive === true, signal: request.signal }) })
+      return apiOk({
+        text: await agentJaToZh(text, normalizeAiConfig(body.ai), {
+          interactive: body.interactive === true,
+          signal: request.signal,
+          category: typeof body.category === 'string' ? body.category : undefined,
+          speaker: typeof body.speaker === 'string' ? body.speaker : undefined,
+          context: typeof body.context === 'string' ? body.context : undefined,
+        }),
+      })
     }
     if (body.mode === 'realtime') {
       const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
@@ -449,6 +462,9 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       engines: Array.isArray(body.engines) ? body.engines : undefined,
       sourceLang: typeof body.sourceLang === 'string' ? body.sourceLang : typeof body.from === 'string' ? body.from : undefined,
       targetLang: typeof body.targetLang === 'string' ? body.targetLang : typeof body.to === 'string' ? body.to : undefined,
+      category: typeof body.category === 'string' ? body.category : undefined,
+      speaker: typeof body.speaker === 'string' ? body.speaker : undefined,
+      context: typeof body.context === 'string' ? body.context : undefined,
     })
     const okCount = items.filter((i) => i.zh).length
     return apiOk({ items, translated: okCount, total: items.length, contentRoot, engines }, { headers: { 'Access-Control-Allow-Origin': '*' } })

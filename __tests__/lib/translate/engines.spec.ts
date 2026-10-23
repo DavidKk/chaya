@@ -30,17 +30,36 @@ describe('translate engines', () => {
 
   it('normalizes agent entries and appends new ones to the order', () => {
     const agents = normalizeAgentEntries([
-      { id: 'a1', profileId: 'p1', model: 'qwen' },
+      { id: 'a1', profileId: 'p1', model: 'qwen', allowConcurrency: true, concurrencyLimit: 8, maxConcurrentChars: 5000 },
       { id: 'a1', profileId: 'dup' },
       { id: 'bad id', profileId: 'p2' },
       { id: 'a2', profileId: '' },
       { id: 'a3', profileId: 'p3', enabled: false },
     ])
     expect(agents).toEqual([
-      { id: 'a1', profileId: 'p1', model: 'qwen', enabled: true },
+      { id: 'a1', profileId: 'p1', model: 'qwen', enabled: true, allowConcurrency: true, concurrencyLimit: 8, maxConcurrentChars: 5000 },
       { id: 'a3', profileId: 'p3', model: '', enabled: false },
     ])
     expect(normalizeEngineOrder(['agent:a3', 'agent:gone', 'bing'], agents)).toEqual(['agent:a3', 'bing', 'google', 'apple', 'bergamot', 'agent:a1'])
+  })
+
+  it('manages engine configs for builtin engines and synchronizes enabled state', () => {
+    const state = mergeEngineState(
+      { bing: true, google: false },
+      {
+        configs: {
+          bing: { allowConcurrency: false, concurrencyLimit: 1, maxConcurrentChars: 1500 },
+          google: { enabled: true, concurrencyLimit: 10 },
+        },
+      }
+    )
+    expect(state.switches.google).toBe(true)
+    expect(state.configs.google.enabled).toBe(true)
+    expect(state.configs.google.concurrencyLimit).toBe(10)
+    expect(state.configs.bing.allowConcurrency).toBe(false)
+    expect(state.configs.bing.concurrencyLimit).toBe(1)
+    expect(state.configs.bing.maxConcurrentChars).toBe(1500)
+    expect(state.configs.apple.concurrencyLimit).toBe(40)
   })
 
   it('replaces the agent list on write and drops removed keys from the order', () => {

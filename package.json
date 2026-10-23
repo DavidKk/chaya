@@ -57,6 +57,7 @@
     "build:plugins:mv": "node plugins/mv/build.mjs",
     "build:plugins:rgss": "node plugins/rgss/build.mjs",
     "test:rgss:native": "sh plugins/rgss/native/smoke.sh",
+    "test:rgss:e2e": "sh plugins/rgss/native/e2e.sh",
     "build:translate": "node services/translate/build.mjs",
     "build:translate:dev": "node services/translate/build.mjs --watch"
   },

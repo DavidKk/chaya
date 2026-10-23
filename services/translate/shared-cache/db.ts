@@ -88,6 +88,7 @@ function migrateLangPairTable(db: SharedCacheDb, client: DatabaseSync) {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_updated ON translations(updated_at)`)
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_nsfw ON translations(nsfw)`)
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_langs ON translations(src_lang, tgt_lang)`)
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_zh ON translations(zh)`)
 }
 
 /** One-time repair: early lang-pair migration guessed target from text and marked identical English rows as en→en. */
@@ -147,6 +148,7 @@ function ensureSchema(db: SharedCacheDb, client: DatabaseSync) {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_updated ON translations(updated_at)`)
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_nsfw ON translations(nsfw)`)
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_langs ON translations(src_lang, tgt_lang)`)
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_zh ON translations(zh)`)
 
   const meta = db.select().from(cacheMeta).where(eq(cacheMeta.key, 'nsfw_backfill')).get()
   if (meta?.value === '1') return

@@ -105,6 +105,26 @@ describe('text-classify protect / cache core', () => {
     expect(isUsefulTranslation('だからボクと\\n[1]だけの秘密', guard.plain, '所以和__C0__的秘密', '所以和\\n[1]的秘密')).toBe(true)
   })
 
+  it('preserves leading and multiple \\N[n] actor placeholders without peeling them into lead shells', () => {
+    const source = String.raw`\N[4]'s name (\N[2]'s dad)`
+    const guard = protectForTranslate(source)
+    expect(guard.lead).toBe('')
+    expect(guard.trail).toBe('')
+    expect(guard.core).toBe(source)
+    expect(guard.plain).toBe("__C0__'s name (__C1__'s dad)")
+    expect(guard.tokens).toEqual([String.raw`\N[4]`, String.raw`\N[2]`])
+
+    const translated = '__C0__的名字（__C1__的爸爸）'
+    const restored = restoreForTranslate(translated, guard)
+    expect(restored).toBe(String.raw`\N[4]的名字（\N[2]的爸爸）`)
+    expect(isUsefulTranslation(source, guard.plain, translated, restored)).toBe(true)
+
+    // Clumped output losing modifiers like 's name should be rejected
+    const clumpedRaw = '__C0____C1__的爸爸'
+    const clumpedZh = restoreForTranslate(clumpedRaw, guard)
+    expect(isUsefulTranslation(source, guard.plain, clumpedRaw, clumpedZh)).toBe(false)
+  })
+
   it('peels leading ! / !# skill-name marks then restores after translate', () => {
     expect(peelProtectShell('!#护盾')).toEqual({ lead: '!#', core: '护盾', trail: '' })
     expect(peelProtectShell('!アストラルホーリー')).toEqual({ lead: '!', core: 'アストラルホーリー', trail: '' })

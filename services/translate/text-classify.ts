@@ -1,6 +1,7 @@
 import { peelChoiceMetaShell } from '@/lib/translate/choice-meta'
 /** Translation eligibility and RM/script shell protection. Preserve controls, placeholders, decorations and choice conditions, sending only the body for translation. */
 import { isDynamicTemplate, validDynamicTranslation } from '@/lib/translate/dynamic-template'
+import { isSemanticPlaceholder } from '@/lib/translate/rm-escape'
 import { translationRubyChunks, translationSegmentContent } from '@/lib/translate/segments'
 import { SENTENCE_TOKEN_SOURCE } from '@/lib/translate/sentence-units'
 import { isSourceText, TEXT_MARKUP_RE } from '@/lib/translate/source-text'
@@ -43,6 +44,7 @@ function matchTokenAt(text: string, atEnd: boolean): string | null {
   let hit: string | null = null
   for (const m of text.matchAll(PROTECT_TOKEN)) {
     if (/^\\RB\[/i.test(m[0])) continue
+    if (isSemanticPlaceholder(m[0])) continue
     const i = m.index ?? 0
     if (atEnd) {
       if (i + m[0].length === text.length) hit = m[0]
@@ -110,13 +112,14 @@ const CONTROL_AFFIX = /^(?:\\[A-Za-z]+(?:\[[^\]]*\])?|\\\[[^\]]*\]|\\[^A-Za-z\s]
 function matchControlAffixAt(text: string, atEnd: boolean): string | null {
   if (!atEnd) {
     const m = text.match(CONTROL_AFFIX)
-    return m && !/^\\RB\[/i.test(m[0]) ? m[0] : null
+    return m && !/^\\RB\[/i.test(m[0]) && !isSemanticPlaceholder(m[0]) ? m[0] : null
   }
   /* Find the longest trailing control by scanning all matches ending at the boundary. */
   const re = /\\[A-Za-z]+(?:\[[^\]]*\])?|\\\[[^\]]*\]|\\[^A-Za-z\s]|[A-Za-z_][A-Za-z0-9_]*\[\d+\]/g
   let hit: string | null = null
   for (const m of text.matchAll(re)) {
     if (/^\\RB\[/i.test(m[0])) continue
+    if (isSemanticPlaceholder(m[0])) continue
     const i = m.index ?? 0
     if (i + m[0].length === text.length) hit = m[0]
   }
@@ -275,6 +278,7 @@ export function isUsefulTranslation(src: string, send: string, raw: string, zh: 
   if (normCmp(raw) === normCmp(send)) return false
   const placeholders = send.match(/__C\d+__/g) || []
   if (JSON.stringify([...placeholders].sort()) !== JSON.stringify((raw.match(/__C\d+__/g) || []).sort())) return false
+  if (/__C\d+____C\d+__/.test(raw) && !/__C\d+____C\d+__/.test(send)) return false
   const srcNeedsZh = JAPANESE.test(src) || HAN.test(stripControlNoise(src))
   const isTargetZh =
     !targetLang || targetLang === 'zh' || targetLang === 'ch' || targetLang === 'zh-CN' || targetLang === 'zh-Hans' || targetLang === 'zh-TW' || targetLang === 'cht'

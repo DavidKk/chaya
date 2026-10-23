@@ -12,9 +12,11 @@ export function mountRgssOverlay() {
     document.body.appendChild(container)
   }
   const shadow = container.shadowRoot ?? container.attachShadow({ mode: 'open' })
+  let mount = shadow.querySelector('.mount-root') as HTMLElement | null
+  if (mount) return
   const style = document.createElement('style')
   style.textContent = overlayCss
-  const mount = document.createElement('div')
+  mount = document.createElement('div')
   mount.className = 'mount-root'
   shadow.append(style, mount)
   const root = createRoot(mount)

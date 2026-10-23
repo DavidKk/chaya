@@ -2,22 +2,22 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect } from 'react'
-import { LuDatabase, LuSlidersHorizontal } from 'react-icons/lu'
-import { RiTranslateAi2 } from 'react-icons/ri'
+import { LuDatabase, LuGamepad2, LuList, LuScanText, LuSlidersHorizontal } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelHead } from '@/components/layoutClasses'
 import { PanelHeadEndHost, PanelHeadStartHost } from '@/components/PanelHeadEnd'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
 import { SectionSideNav, sectionSideNavItemClass, SectionSideNavItemContent } from '@/components/SectionSideNav'
-import { Button, ScrollArea, Tooltip } from '@/components/sk'
+import { ScrollArea, Tooltip } from '@/components/sk'
 import { DEFAULT_TRANSLATE_TAB, isTranslateCacheDetailPath, TRANSLATE_TABS, translateTabHref, type TranslateTabId } from '@/components/translate/tabs'
-import { useTranslateEnginesDrawer } from '@/components/translate/TranslateEnginesDrawerContext'
 import { cn } from '@/lib/utils'
 
-const TAB_ICON = {
-  run: RiTranslateAi2,
+const TAB_ICON: Record<Exclude<TranslateTabId, 'test'>, typeof LuScanText> = {
+  seed: LuScanText,
+  list: LuList,
+  play: LuGamepad2,
+  engines: LuSlidersHorizontal,
   cache: LuDatabase,
 } as const
 
@@ -36,7 +36,7 @@ export function TranslateSubNav({ tab, onSelect }: NavProps) {
       <SectionSideNav label={t('translate.section')} mobile={Boolean(onSelect)}>
         {TRANSLATE_TABS.filter((item) => item.id !== 'test').map((item) => {
           const active = item.id === activeTab
-          const Icon = TAB_ICON[item.id]
+          const Icon = TAB_ICON[item.id as Exclude<TranslateTabId, 'test'>]
           const label = t(item.labelKey)
           const content = <SectionSideNavItemContent active={active} icon={<Icon size={17} />} />
           return (
@@ -45,6 +45,7 @@ export function TranslateSubNav({ tab, onSelect }: NavProps) {
                 {onSelect ? (
                   <button
                     type="button"
+                    data-nav-id={item.id}
                     aria-label={label}
                     aria-current={active ? 'page' : undefined}
                     className={`${sectionSideNavItemClass(active)} cursor-pointer`}
@@ -53,7 +54,13 @@ export function TranslateSubNav({ tab, onSelect }: NavProps) {
                     {content}
                   </button>
                 ) : (
-                  <Link href={translateTabHref(item.id)} aria-label={label} aria-current={active ? 'page' : undefined} className={sectionSideNavItemClass(active)}>
+                  <Link
+                    href={translateTabHref(item.id)}
+                    data-nav-id={item.id}
+                    aria-label={label}
+                    aria-current={active ? 'page' : undefined}
+                    className={sectionSideNavItemClass(active)}
+                  >
                     {content}
                   </Link>
                 )}
@@ -70,16 +77,38 @@ export function TranslateSubNav({ tab, onSelect }: NavProps) {
 export function TranslateContentToolbar({ tab }: { tab: TranslateTabId }) {
   const t = useT()
   const pathname = usePathname() || ''
-  const { open, setOpen } = useTranslateEnginesDrawer()
-  const showEnginesTrigger = (tab || DEFAULT_TRANSLATE_TAB) === 'run'
-  const cacheDetail = !showEnginesTrigger && isTranslateCacheDetailPath(pathname)
+  const cacheDetail = tab === 'cache' && isTranslateCacheDetailPath(pathname)
   const cacheList = tab === 'cache' && !cacheDetail
-  const titleKey = tab === 'test' ? 'translate.tabTest' : showEnginesTrigger ? 'translate.regionRun' : cacheDetail ? 'translate.regionCacheDetail' : 'translate.regionCache'
-  const descKey = showEnginesTrigger ? 'translate.regionRunDesc' : cacheDetail ? 'translate.regionCacheDetailDesc' : 'translate.regionCacheDesc'
 
-  useEffect(() => {
-    if (!showEnginesTrigger) setOpen(false)
-  }, [showEnginesTrigger, setOpen])
+  const titleKey =
+    tab === 'test'
+      ? 'translate.tabTest'
+      : tab === 'seed'
+        ? 'translate.seedTab'
+        : tab === 'list'
+          ? 'translate.listTab'
+          : tab === 'play'
+            ? 'translate.playTab'
+            : tab === 'engines'
+              ? 'translate.enginesTab'
+              : cacheDetail
+                ? 'translate.regionCacheDetail'
+                : 'translate.tabCache'
+
+  const descKey =
+    tab === 'test'
+      ? undefined
+      : tab === 'seed'
+        ? 'translate.seedTabDesc'
+        : tab === 'list'
+          ? 'translate.listTabDesc'
+          : tab === 'play'
+            ? 'translate.playTabDesc'
+            : tab === 'engines'
+              ? 'translate.enginesTabDesc'
+              : cacheDetail
+                ? 'translate.regionCacheDetailDesc'
+                : 'translate.regionCacheDesc'
 
   if (tab === 'test')
     return (
@@ -102,20 +131,7 @@ export function TranslateContentToolbar({ tab }: { tab: TranslateTabId }) {
   return (
     <div className={panelHead}>
       <PanelHeadStartHost className="empty:hidden" />
-      <PanelHeadTitle title={t(titleKey)} description={t(descKey)} />
-      {showEnginesTrigger ? (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden"
-          aria-label={t('translate.platforms')}
-          tooltip={t('translate.platforms')}
-          aria-expanded={open}
-          onClick={() => setOpen(true)}
-        >
-          <LuSlidersHorizontal size={16} aria-hidden />
-        </Button>
-      ) : null}
+      <PanelHeadTitle title={t(titleKey as any)} description={descKey ? t(descKey as any) : undefined} />
       <PanelHeadEndHost className={cacheList ? 'max-w-[calc(100%_-_6rem)] !shrink' : undefined} />
     </div>
   )

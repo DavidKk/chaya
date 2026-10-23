@@ -12,6 +12,11 @@ it('validates RGSS mouse movement pathfinding and keyboard interrupt', () => {
   expect(result.trim()).toBe('RGSS mouse movement unit tests passed')
 })
 
+it('round-trips VX and VX Ace edits, run flags and locks through the production bridge', () => {
+  const result = execFileSync('ruby', [path.join(process.cwd(), '__tests__/plugins/rgss-edit-runtime.rb')], { encoding: 'utf8' })
+  expect(result.trim()).toContain('RGSS edit runtime assertions passed')
+})
+
 it('validates RGSS hotreload and user32 screen dimension stability', () => {
   const result = execFileSync('ruby', [path.join(process.cwd(), '__tests__/plugins/rgss-test-hotreload.rb')], { encoding: 'utf8' })
   expect(result.trim()).toBe('RGSS hotreload and user32 tests passed')

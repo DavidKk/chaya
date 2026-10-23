@@ -16,8 +16,30 @@ export const DEFAULT_ENGINE_SWITCHES: TranslateEngineSwitches = {
   bergamot: false,
 }
 
+export type TranslateEngineSettings = {
+  enabled?: boolean
+  allowConcurrency?: boolean
+  concurrencyLimit?: number
+  maxConcurrentChars?: number
+}
+
+export const DEFAULT_ENGINE_SETTINGS: Record<TranslateBuiltinId, Required<TranslateEngineSettings>> = {
+  bing: { enabled: true, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
+  google: { enabled: true, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
+  apple: { enabled: false, allowConcurrency: true, concurrencyLimit: 40, maxConcurrentChars: 40000 },
+  bergamot: { enabled: false, allowConcurrency: false, concurrencyLimit: 1, maxConcurrentChars: 3000 },
+}
+
 /** An agent translation entry references an instance; an empty model uses its default model. */
-export type TranslateAgentEntry = { id: string; profileId: string; model: string; enabled: boolean }
+export type TranslateAgentEntry = {
+  id: string
+  profileId: string
+  model: string
+  enabled: boolean
+  allowConcurrency?: boolean
+  concurrencyLimit?: number
+  maxConcurrentChars?: number
+}
 /** The agent instance and model for a single translation request. */
 export type TranslateAiConfig = { profileId: string; model: string }
 
@@ -125,8 +147,40 @@ export function normalizeAgentEntries(raw: unknown): TranslateAgentEntry[] {
     if (!ENTRY_ID.test(id) || !profileId || seen.has(id) || usedProfiles.has(profileId)) continue
     seen.add(id)
     usedProfiles.add(profileId)
-    out.push({ id, profileId, model: shortString(src.model), enabled: src.enabled !== false })
+    const allowConcurrency = typeof src.allowConcurrency === 'boolean' ? src.allowConcurrency : undefined
+    const concurrencyLimit =
+      typeof src.concurrencyLimit === 'number' && Number.isFinite(src.concurrencyLimit) ? Math.max(1, Math.min(40, Math.floor(src.concurrencyLimit))) : undefined
+    const maxConcurrentChars =
+      typeof src.maxConcurrentChars === 'number' && Number.isFinite(src.maxConcurrentChars) ? Math.max(500, Math.min(20000, Math.floor(src.maxConcurrentChars))) : undefined
+    out.push({
+      id,
+      profileId,
+      model: shortString(src.model),
+      enabled: src.enabled !== false,
+      ...(allowConcurrency !== undefined ? { allowConcurrency } : {}),
+      ...(concurrencyLimit !== undefined ? { concurrencyLimit } : {}),
+      ...(maxConcurrentChars !== undefined ? { maxConcurrentChars } : {}),
+    })
     if (out.length >= MAX_TRANSLATE_AGENTS) break
+  }
+  return out
+}
+
+export function normalizeEngineConfigs(raw: unknown, switches: TranslateEngineSwitches): Record<TranslateBuiltinId, Required<TranslateEngineSettings>> {
+  const src = asRecord(raw)
+  const out = {} as Record<TranslateBuiltinId, Required<TranslateEngineSettings>>
+  for (const id of TRANSLATE_ENGINE_IDS) {
+    const fallback = DEFAULT_ENGINE_SETTINGS[id]
+    const item = asRecord(src[id])
+    const enabled = switches[id] ?? fallback.enabled
+    const allowConcurrency = typeof item.allowConcurrency === 'boolean' ? item.allowConcurrency : fallback.allowConcurrency
+    const concurrencyLimit =
+      typeof item.concurrencyLimit === 'number' && Number.isFinite(item.concurrencyLimit) ? Math.max(1, Math.min(40, Math.floor(item.concurrencyLimit))) : fallback.concurrencyLimit
+    const maxConcurrentChars =
+      typeof item.maxConcurrentChars === 'number' && Number.isFinite(item.maxConcurrentChars)
+        ? Math.max(500, Math.min(40000, Math.floor(item.maxConcurrentChars)))
+        : fallback.maxConcurrentChars
+    out[id] = { enabled, allowConcurrency, concurrencyLimit, maxConcurrentChars }
   }
   return out
 }
@@ -153,6 +207,7 @@ export type TranslateEngineState = {
   order: TranslateEngineId[]
   /** Try enabled agents before enabled platforms, preserving each group's configured order. */
   enabled: TranslateEngineId[]
+  configs: Record<TranslateBuiltinId, Required<TranslateEngineSettings>>
 }
 
 export type TranslateEnginePatch = {
@@ -160,6 +215,7 @@ export type TranslateEnginePatch = {
   order?: unknown
   /** Replace the entire entry list. */
   agents?: unknown
+  configs?: Partial<Record<string, TranslateEngineSettings>>
 }
 
 function isOn(key: TranslateEngineId, switches: TranslateEngineSwitches, agents: TranslateAgentEntry[]): boolean {
@@ -172,16 +228,28 @@ function isOn(key: TranslateEngineId, switches: TranslateEngineSwitches, agents:
 export function mergeEngineState(raw: unknown, patch?: TranslateEnginePatch): TranslateEngineState {
   const src = asRecord(raw)
   const current = normalizeEngineSwitches(extractRawSwitches(raw))
-  const switches = patch?.switches ? normalizeEngineSwitches(patch.switches, current) : current
+  const switchesPatch = { ...(patch?.switches || {}) }
+  if (patch?.configs) {
+    for (const [key, cfg] of Object.entries(patch.configs)) {
+      if (isBuiltinEngineId(key) && typeof cfg?.enabled === 'boolean') {
+        switchesPatch[key] = cfg.enabled
+      }
+    }
+  }
+  const switches = Object.keys(switchesPatch).length > 0 ? normalizeEngineSwitches(switchesPatch, current) : current
   const agents = normalizeAgentEntries(patch?.agents !== undefined ? patch.agents : src.agents)
   const order = normalizeEngineOrder(patch?.order ?? src.order, agents)
+  const configs = normalizeEngineConfigs(patch?.configs ?? src.configs, switches)
+  for (const id of TRANSLATE_ENGINE_IDS) {
+    configs[id].enabled = switches[id]
+  }
   const enabled = TRANSLATE_GROUP_ORDER.flatMap((group) => order.filter((key) => engineGroup(key) === group && isOn(key, switches, agents)))
-  return { switches, agents, order, enabled }
+  return { switches, agents, order, enabled, configs }
 }
 
 /** Persist flat platform switches with order and agents for compatibility with older files. */
 export function engineStateFileBody(state: TranslateEngineState) {
-  return { ...state.switches, order: state.order, agents: state.agents }
+  return { ...state.switches, order: state.order, agents: state.agents, configs: state.configs }
 }
 
 export function findAgentEntry(agents: TranslateAgentEntry[] | undefined, key: TranslateRunEngine): TranslateAgentEntry | null {

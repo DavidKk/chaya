@@ -6,7 +6,7 @@ import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
 import { GameEditTransPane } from '@/components/game-edit/GameEditTransPane'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
-import type { TranslateRunMode } from '@/components/translate/tabs'
+import type { TranslateRunMode, TranslateTabId } from '@/components/translate/tabs'
 import { TranslateActivityLog } from '@/components/translate/TranslateActivityLog'
 import { TranslationPlaySettings } from '@/components/translate/TranslationPlaySettings'
 import { TranslationRuntimeProvider } from '@/components/translate/TranslationRuntimeContext'
@@ -80,12 +80,10 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
   const webRpc = createTranslationRpc((packet) => gameRpc.receive(packet))
   const gameRpc = createTranslationRpc((packet) => webRpc.receive(packet), runtime.request)
   hostRuntime.__chayaTranslationRuntime = surface === 'overlay' ? runtime : undefined
-  function Pane({ refreshKey = 0 }: { refreshKey?: number }) {
-    const [tab, setTab] = useState<TranslateRunMode>('play')
-    const [section, setSection] = useState<'run' | 'cache'>('run')
-    const child = (
-      <GameEditTransPane surface={surface} refreshKey={refreshKey} {...(surface === 'overlay' ? { tab, onTabChange: setTab, section, onSectionChange: setSection } : {})} />
-    )
+  function Pane({ refreshKey = 0, initialMode = 'play' }: { refreshKey?: number; initialMode?: TranslateRunMode }) {
+    const [tab, setTab] = useState<TranslateRunMode>(initialMode)
+    const [section, setSection] = useState<Exclude<TranslateTabId, 'test'>>(initialMode)
+    const child = <GameEditTransPane surface={surface} refreshKey={refreshKey} tab={tab} onTabChange={setTab} section={section} onSectionChange={setSection} />
     return surface === 'overlay' ? (
       <LocaleProvider initialLocale="zh" initialPreference="zh">
         <ConfirmProvider>{child}</ConfirmProvider>
@@ -104,37 +102,40 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
   try {
     await act(async () => root.render(<Pane />))
     expect(host.querySelector('section[aria-label="游玩翻译模式"]')).not.toBeNull()
-    expect(host.textContent).toMatch(/原文/)
-    expect(host.querySelector('[aria-label="翻译平台配置"]')).not.toBeNull()
-    const play = host.querySelector<HTMLButtonElement>('[data-translate-run-nav] [role="tab"][data-nav-id="play"]')!
-    const seed = host.querySelector<HTMLButtonElement>('[data-translate-run-nav] [role="tab"][data-nav-id="seed"]')!
     const panels = host.querySelectorAll<HTMLDivElement>('[data-translate-mode]')
-    const engineRail = host.querySelector('[aria-label="翻译平台配置"]')
-    const timeoutInput = host.querySelector('#translation-timeout')
     expect(host.querySelector('#translation-local-model')).toBeNull()
     expect(host.textContent).not.toContain('保存模式')
-    expect(panels[0].hidden).toBe(surface !== 'overlay')
-    expect(panels[1].hidden).toBe(surface === 'overlay')
+    expect(panels[0].hidden).toBe(false)
+    expect(panels[1].hidden).toBe(true)
     expect(panels[0].querySelector('[aria-label="翻译活动日志"]')).not.toBeNull()
     if (surface === 'overlay') expect(panels[0].textContent).toContain('词库命中：応接室へ行く')
-    await act(async () => seed.click())
-    expect(host.querySelector('[aria-label="翻译平台配置"]')).toBe(engineRail)
-    expect(panels[0].hidden).toBe(true)
-    expect(panels[1].hidden).toBe(false)
-    expect(host.querySelector('[aria-label="翻译活动日志"]')).not.toBeNull()
-    await act(async () => play.click())
-    expect(play.getAttribute('aria-selected')).toBe('true')
-    expect(host.querySelector('#translation-timeout')).toBe(timeoutInput)
-
-    await act(async () => seed.click())
-    await act(async () => root.render(<Pane refreshKey={1} />))
-    expect(host.querySelector('section[aria-label="游玩翻译模式"]')).not.toBeNull()
-    expect(host.textContent).toMatch(/原文/)
-    expect(host.textContent).not.toContain('对当前游戏 seed 缺词补译')
-    if (surface === 'overlay')
-      expect(host.querySelector<HTMLButtonElement>('[data-translate-run-nav] [role="tab"][data-nav-id="seed"]')?.getAttribute('aria-selected')).toBe('true')
 
     if (surface === 'overlay') {
+      const seed = host.querySelector<HTMLButtonElement>('[data-translate-section-nav] button[data-nav-id="seed"]')!
+      await act(async () => seed.click())
+      const updatedPanels = host.querySelectorAll<HTMLDivElement>('[data-translate-mode]')
+      expect(updatedPanels[0].hidden).toBe(true)
+      expect(updatedPanels[1].hidden).toBe(false)
+      expect(host.querySelector('[aria-label="翻译活动日志"]')).not.toBeNull()
+      const play = host.querySelector<HTMLButtonElement>('[data-translate-section-nav] button[data-nav-id="play"]')!
+      await act(async () => play.click())
+      expect(play.getAttribute('aria-current')).toBe('page')
+    } else {
+      await act(async () => root.render(<Pane key="seed" initialMode="seed" />))
+      const updatedPanels = host.querySelectorAll<HTMLDivElement>('[data-translate-mode]')
+      expect(updatedPanels[0].hidden).toBe(true)
+      expect(updatedPanels[1].hidden).toBe(false)
+      expect(host.querySelector('[aria-label="翻译活动日志"]')).not.toBeNull()
+    }
+
+    await act(async () => root.render(<Pane key="refresh-seed" refreshKey={1} initialMode="seed" />))
+    expect(host.textContent).not.toContain('对当前游戏 seed 缺词补译')
+
+    if (surface === 'overlay') {
+      const engines = host.querySelector<HTMLButtonElement>('[data-translate-section-nav] button[aria-label="翻译工具"]')!
+      await act(async () => engines.click())
+      expect(host.querySelector('[aria-label="翻译平台配置"]')).not.toBeNull()
+
       const cache = host.querySelector<HTMLButtonElement>('[data-translate-section-nav] button[aria-label="翻译库"]')!
       await act(async () => cache.click())
       expect(cache.getAttribute('aria-current')).toBe('page')
