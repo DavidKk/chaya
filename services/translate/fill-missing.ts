@@ -1,7 +1,7 @@
 /** Seed progress and fill jobs use an explicit content root rather than the console's currently selected game. */
 import fs from 'node:fs'
 
-import { gameContentReadPath } from '@/lib/game/content-files'
+import { gameContentReadPath, localGameContentFile } from '@/lib/game/content-files'
 import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { createNumericLabelIndex, numericLabelFamily } from '@/lib/translate/dynamic-template'
 import { detectSourceLanguage } from '@/lib/translate/source-text'
@@ -176,20 +176,38 @@ export function getSeedTranslateProgress(contentRoot = resolveTranslateContentRo
   return inventoryOnly ? readSeedInventory(contentRoot).progress : { ...scanSeed(contentRoot, fresh).progress }
 }
 
-/** Exclude failures from the current job without persisting them to the cache; a new job can retry them. */
+/**
+ * One-shot missing-batch fill (MCP / `mode: seed`).
+ * Uses inventory (local fs + exact hits) — not full `scanSeed` shared-cache plans — so HTTP stays closer to job Start.
+ * Batch success is taken from live results (not a second shared-cache coverage scan).
+ */
 export async function fillMissingFromSeed(opts?: { contentRoot?: string; limit?: number; exclude?: ReadonlySet<string> }): Promise<FillMissingResult> {
   const contentRoot = opts?.contentRoot ?? resolveTranslateContentRoot()
-  const { progress, missingKeys } = scanSeed(contentRoot, true)
-  if (!progress.hasSeed) throw new Error('Seed not found (please extract text first or provide *-trans.seed.json)')
+  const inventory = readSeedInventory(contentRoot)
+  if (!inventory.progress.hasSeed) throw new Error('Seed not found (please extract text first or provide *-trans.seed.json)')
   const limit = Math.min(Math.max(1, Math.floor(opts?.limit || DEFAULT_BATCH)), DEFAULT_BATCH)
-  const batch = missingKeys.filter((key) => !opts?.exclude?.has(key)).slice(0, limit)
-  if (!batch.length) return { ...progress, translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] }
+  const batch = inventory.pending.filter((key) => !opts?.exclude?.has(key)).slice(0, limit)
+  if (!batch.length) return { ...inventory.progress, translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] }
   const { items } = await liveTranslateTexts(batch, { contentRoot })
-  const next = scanSeed(contentRoot, true)
-  const attempted = new Set(batch)
-  const unresolved = next.missingKeys.filter((key) => attempted.has(key))
-  const translated = batch.length - unresolved.length
-  return { ...next.progress, translated, failed: unresolved.length, scanned: batch.length, unresolved, items }
+  const bySrc = new Map(items.map((item) => [item.src, item]))
+  const next = readSeedInventory(contentRoot)
+  const stillPending = new Set(next.pending)
+  // Batch-only shared get (not full scanSeed plans) to credit durable shared hits from this round.
+  let cache: ReturnType<typeof openSharedCache> | undefined
+  try {
+    const unresolved = batch.filter((key) => {
+      const item = bySrc.get(key)
+      if (!item?.zh || item.error) return true
+      if (!stillPending.has(key)) return false
+      cache ??= openSharedCache()
+      const hit = cache.get(key, { from: detectCacheLang(key), to: 'zh' })
+      return !(typeof hit === 'string' && hit.trim())
+    })
+    const translated = batch.length - unresolved.length
+    return { ...next.progress, translated, failed: unresolved.length, scanned: batch.length, unresolved, items }
+  } finally {
+    cache?.close()
+  }
 }
 
 export type SeedFillOptions = {
@@ -216,7 +234,7 @@ export function createSeedFillSession(
   let queue = [...scan.missingKeys]
   let cursor = 0
   function seedStamp() {
-    const file = gameContentReadPath(contentRoot, 'seed', { alsoParent: true })
+    const file = localGameContentFile(contentRoot, 'seed')
     const stat = file ? fs.statSync(file, { throwIfNoEntry: false }) : undefined
     return JSON.stringify([file, stat?.mtimeMs, stat?.ctimeMs, stat?.size])
   }

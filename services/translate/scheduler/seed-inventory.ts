@@ -1,11 +1,9 @@
 /** Recover durable game translations without shared sentence coverage or schema preparation. */
 import fs from 'node:fs'
-import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 import { TRANSLATE_CACHE_DB_PATH } from '@/constants/paths'
-import { gameContentReadPath } from '@/lib/game/content-files'
-import { GAME_CONTENT_DIR, GAME_CONTENT_RELS, type GameContentKind, LEGACY_FLAT_FILES } from '@/lib/game/content-paths'
+import { localGameContentFile } from '@/lib/game/content-files'
 import { createNumericLabelIndex } from '@/lib/translate/dynamic-template'
 import { filterRgssSeedKeys } from '@/services/extract/lib/rgss'
 
@@ -14,24 +12,7 @@ import { createGameTranslateLookup } from '../game-lookup'
 import { loadGameTranslationRecords } from '../game-records'
 import { charCount, lineCount, shouldTranslate } from '../text-classify'
 
-/**
- * Resolve game content under the content root without storage IPC.
- * Safe on Next.js poll / extract-items entry — never `publicGameFile` / `Atomics.wait`.
- */
-export function localGameContentFile(contentRoot: string, kind: GameContentKind): string | null {
-  const roots = [path.resolve(contentRoot)]
-  const parent = path.dirname(roots[0])
-  if (parent !== roots[0]) roots.push(parent)
-  for (const root of roots) {
-    const primary = path.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind])
-    if (fs.existsSync(primary)) return primary
-    for (const name of LEGACY_FLAT_FILES[kind]) {
-      const candidate = path.join(root, name)
-      if (fs.existsSync(candidate)) return candidate
-    }
-  }
-  return null
-}
+export { localGameContentFile } from '@/lib/game/content-files'
 
 export function seedFileStamp(contentRoot: string): string {
   const file = localGameContentFile(contentRoot, 'seed')
@@ -40,7 +21,8 @@ export function seedFileStamp(contentRoot: string): string {
 }
 
 export function readSeedInventory(contentRoot: string) {
-  const file = gameContentReadPath(contentRoot, 'seed', { alsoParent: true })
+  // Local fs only — never publicGameFile (Atomics.wait freezes Next on sync fallback / worker prep).
+  const file = localGameContentFile(contentRoot, 'seed')
   const data: unknown = file ? JSON.parse(fs.readFileSync(file, 'utf8')) : {}
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Seed must be an object mapping source text to translation')
   const entries = data as Record<string, unknown>
@@ -72,28 +54,32 @@ export function readSeedInventory(contentRoot: string) {
   const revisions = new Map<string, boolean>()
   let records: ReturnType<typeof loadGameTranslationRecords>
   try {
-    records = loadGameTranslationRecords(contentRoot, (origin) => {
-      if (unavailable || !TRANSLATE_CACHE_DB_PATH || origin.database !== TRANSLATE_CACHE_DB_PATH) return false
-      const key = `${origin.id}:${origin.revision}`
-      if (!revisions.has(key)) {
-        try {
-          if (!client) {
-            if (!fs.existsSync(TRANSLATE_CACHE_DB_PATH)) return false
-            client = new DatabaseSync(TRANSLATE_CACHE_DB_PATH, { readOnly: true })
-            client.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=250; BEGIN')
-            revisionQuery = client.prepare('SELECT revision FROM translation_records WHERE id=?')
+    records = loadGameTranslationRecords(
+      contentRoot,
+      (origin) => {
+        if (unavailable || !TRANSLATE_CACHE_DB_PATH || origin.database !== TRANSLATE_CACHE_DB_PATH) return false
+        const key = `${origin.id}:${origin.revision}`
+        if (!revisions.has(key)) {
+          try {
+            if (!client) {
+              if (!fs.existsSync(TRANSLATE_CACHE_DB_PATH)) return false
+              client = new DatabaseSync(TRANSLATE_CACHE_DB_PATH, { readOnly: true })
+              client.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=250; BEGIN')
+              revisionQuery = client.prepare('SELECT revision FROM translation_records WHERE id=?')
+            }
+            const row = revisionQuery!.get(origin.id) as { revision: number } | undefined
+            revisions.set(key, row?.revision === origin.revision)
+          } catch (error) {
+            unavailable = true
+            // eslint-disable-next-line no-console -- A failed authority check must remain visible without treating stale mirrors as saved progress.
+            console.warn('Saved translation revision check unavailable:', error instanceof Error ? error.message : String(error))
+            return false
           }
-          const row = revisionQuery!.get(origin.id) as { revision: number } | undefined
-          revisions.set(key, row?.revision === origin.revision)
-        } catch (error) {
-          unavailable = true
-          // eslint-disable-next-line no-console -- A failed authority check must remain visible without treating stale mirrors as saved progress.
-          console.warn('Saved translation revision check unavailable:', error instanceof Error ? error.message : String(error))
-          return false
         }
-      }
-      return revisions.get(key)!
-    })
+        return revisions.get(key)!
+      },
+      { localOnly: true }
+    )
   } finally {
     client?.close()
   }

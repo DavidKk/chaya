@@ -666,6 +666,16 @@ export type MessageTree = {
     optimizeNamesScanEmpty: string
     optimizeNamesFailed: string
     optimizeNamesNoBound: string
+    syncNames: string
+    syncNamesTooltip: string
+    syncNamesRunning: string
+    syncNamesConfirmTitle: string
+    syncNamesConfirmDesc: string
+    syncNamesConfirm: string
+    syncNamesDone: string
+    syncNamesPaused: string
+    syncNamesScanEmpty: string
+    syncNamesFailed: string
     listSavePageEmpty: string
     listSavePageTitle: string
     listSavePageDesc: string

@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import { gameContentReadPath } from '@/lib/game/content-files'
+import { gameContentReadPath, localGameContentFile } from '@/lib/game/content-files'
 import { applyCacheRow, type CacheRow, parseCacheRow } from '@/lib/translate/cache-row'
 import type { SentenceRecord } from '@/lib/translate/sentence-plan'
 
@@ -9,12 +9,18 @@ import { isReusableTranslation } from './text-classify'
 type Snapshot = { stamp: string; entries: Array<{ row: CacheRow; record: SentenceRecord }> }
 const snapshots = new Map<string, Snapshot>()
 
+export type GameTranslationFilesOpts = {
+  /** Skip storage mount IPC (`publicGameFile` / Atomics.wait). Required for inventory / poll-safe paths. */
+  localOnly?: boolean
+}
+
 /** File identity participates so an external replacement cannot reuse a stale snapshot. */
-export function gameTranslationFiles(contentRoot: string) {
-  const seed = gameContentReadPath(contentRoot, 'seed', { alsoParent: true })
-  const cache = gameContentReadPath(contentRoot, 'cacheNdjson', { alsoParent: true })
+export function gameTranslationFiles(contentRoot: string, opts?: GameTranslationFilesOpts) {
+  const seed = opts?.localOnly ? localGameContentFile(contentRoot, 'seed') : gameContentReadPath(contentRoot, 'seed', { alsoParent: true })
+  const cache = opts?.localOnly ? localGameContentFile(contentRoot, 'cacheNdjson') : gameContentReadPath(contentRoot, 'cacheNdjson', { alsoParent: true })
   const stamp = JSON.stringify(
-    [seed, cache].map((file) => {
+    [seed, cache, opts?.localOnly ? 1 : 0].map((file) => {
+      if (typeof file === 'number') return file
       const stat = file ? fs.statSync(file, { throwIfNoEntry: false }) : undefined
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]
     })
@@ -23,8 +29,8 @@ export function gameTranslationFiles(contentRoot: string) {
 }
 
 /** Reparse only changed game files; origin validation is evaluated against the caller's current database. */
-export function loadGameTranslationRecords(contentRoot: string, current?: (origin: NonNullable<CacheRow['origin']>) => boolean): SentenceRecord[] {
-  const { seed, cache, stamp } = gameTranslationFiles(contentRoot)
+export function loadGameTranslationRecords(contentRoot: string, current?: (origin: NonNullable<CacheRow['origin']>) => boolean, opts?: GameTranslationFilesOpts): SentenceRecord[] {
+  const { seed, cache, stamp } = gameTranslationFiles(contentRoot, opts)
   let snapshot = snapshots.get(contentRoot)
   if (snapshot?.stamp !== stamp) {
     const rows = new Map<string, CacheRow>()

@@ -872,6 +872,20 @@ function gameContentCandidatePaths(contentRoot, kind, opts) {
 function gameContentReadPath(contentRoot, kind, opts) {
   return gameContentCandidatePaths(contentRoot, kind, opts).find((p) => fs7.existsSync(p)) ?? null;
 }
+function localGameContentFile(contentRoot, kind) {
+  const roots = [path7.resolve(contentRoot)];
+  const parent = path7.dirname(roots[0]);
+  if (parent !== roots[0]) roots.push(parent);
+  for (const root of roots) {
+    const primary = path7.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind]);
+    if (fs7.existsSync(primary)) return primary;
+    for (const name of LEGACY_FLAT_FILES[kind]) {
+      const candidate = path7.join(root, name);
+      if (fs7.existsSync(candidate)) return candidate;
+    }
+  }
+  return null;
+}
 function ensureGameContentDir(contentRoot, kind) {
   const file = gameContentPath(contentRoot, kind);
   fs7.mkdirSync(path7.dirname(file), { recursive: true });
@@ -2046,19 +2060,20 @@ function applyCacheRow(rows, row) {
 
 // services/translate/game-records.ts
 var snapshots = /* @__PURE__ */ new Map();
-function gameTranslationFiles(contentRoot) {
-  const seed = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
-  const cache = gameContentReadPath(contentRoot, "cacheNdjson", { alsoParent: true });
+function gameTranslationFiles(contentRoot, opts) {
+  const seed = opts?.localOnly ? localGameContentFile(contentRoot, "seed") : gameContentReadPath(contentRoot, "seed", { alsoParent: true });
+  const cache = opts?.localOnly ? localGameContentFile(contentRoot, "cacheNdjson") : gameContentReadPath(contentRoot, "cacheNdjson", { alsoParent: true });
   const stamp = JSON.stringify(
-    [seed, cache].map((file) => {
+    [seed, cache, opts?.localOnly ? 1 : 0].map((file) => {
+      if (typeof file === "number") return file;
       const stat = file ? fs9.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   );
   return { seed, cache, stamp };
 }
-function loadGameTranslationRecords(contentRoot, current) {
-  const { seed, cache, stamp } = gameTranslationFiles(contentRoot);
+function loadGameTranslationRecords(contentRoot, current, opts) {
+  const { seed, cache, stamp } = gameTranslationFiles(contentRoot, opts);
   let snapshot = snapshots.get(contentRoot);
   if (snapshot?.stamp !== stamp) {
     const rows = /* @__PURE__ */ new Map();

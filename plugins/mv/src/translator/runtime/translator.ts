@@ -13,8 +13,10 @@ import {
   translationFallbackOrder,
 } from '@/lib/translate/engines'
 import { lookupGameTerm } from '@/lib/translate/game-terms'
+import { nameEntriesFromLookup } from '@/lib/translate/name-glossary'
 import { toRmDigitTemplate } from '@/lib/translate/rm-escape'
 import { planSentenceTranslation, renderSentencePlan, resolveSentenceGaps, type SentencePlan, validateAlignments } from '@/lib/translate/sentence-plan'
+import { planLockedNames, stitchLockedNamePlan } from '@/services/translate/name-lock'
 import { scheduleOllama } from '@/services/translate/ollama-queue'
 import { isSensitiveForCloud } from '@/services/translate/sensitive-text'
 import {
@@ -28,6 +30,7 @@ import {
 
 import { resolveApiBase } from '../../helpers/env/env'
 import { chayaFetch } from '../../helpers/net/http'
+import { collectGameNameSources } from '../lookup/lookup-enrich'
 import { engineFetch } from './engine-fetch'
 import type { TranslationStore } from './store'
 
@@ -177,6 +180,9 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
     const hasBackfills = store.references(unique).length > 0
     const remoteTexts = (hasBackfills ? unique : missing).filter((src) => !store.blocked(src))
     const remote = !options.force && options.remote !== false && remoteTexts.length ? await remoteLookup(remoteTexts, signal) : []
+    const lookup: Record<string, string> = Object.create(null)
+    for (const record of store.records()) lookup[record.src] = record.zh
+    const nameEntries = nameEntriesFromLookup(collectGameNameSources(), lookup, target)
     return mapTranslationBatch(unique, async (src) => {
       const items: TranslateItem[] = []
       signal.throwIfAborted()
@@ -206,7 +212,7 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
           const completed: Array<{ src: string; zh: string; engine: string }> = []
           const gaps = new Map<string, string>()
           for (const gap of plan.gaps) {
-            const result = (await translate([gap.text], { ...options, force: true, persist: false, remote: false }))[0]
+            const result = (await translate([gap.text], { ...options, force: false, persist: false, remote: false }))[0]
             if (result?.zh && !result.error) {
               gaps.set(gap.id, result.zh)
               if (result.engine?.startsWith('live:')) completed.push({ src: gap.text, zh: result.zh, engine: result.engine })
@@ -253,6 +259,34 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
       if (local || shared) {
         // Remote results remain server-owned; do not persist an unversioned local copy.
         items.push({ src, zh: local || shared || null, engine: local ? 'cache:local' : 'cache:remote' })
+        return items[0]
+      }
+      const namePlan = planLockedNames(src, nameEntries, {
+        sourceLang: options.sourceLang,
+        targetLang: target,
+      })
+      if (namePlan) {
+        const gapZh = new Map<string, string>()
+        let remainderEngine = ''
+        if (namePlan.translatable.length) {
+          const remainder = await translate(
+            namePlan.translatable.map((gap) => gap.text),
+            { ...options, force: false, persist: false, remote: false }
+          )
+          for (const gap of namePlan.translatable) {
+            const hit = remainder.find((entry) => entry.src === gap.text)
+            if (!hit?.zh || hit.error) {
+              items.push({ src, zh: null, error: hit?.error || '未译完专名锁定后的剩余文本' })
+              return items[0]
+            }
+            gapZh.set(gap.id, hit.zh)
+            if (hit.engine) remainderEngine = hit.engine
+          }
+        }
+        const zh = stitchLockedNamePlan(src, namePlan, gapZh)
+        const tag = remainderEngine || 'live:optimize:names'
+        if (options.persist !== false) await store.put([[src, zh]], tag)
+        items.push({ src, zh, engine: tag, status: 'full' })
         return items[0]
       }
       const guard = protectForTranslate(src)

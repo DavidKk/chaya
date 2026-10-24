@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { ensureGameContentDir, gameContentReadPath } from '@/lib/game/content-files'
+import { ensureGameContentDir, localGameContentFile } from '@/lib/game/content-files'
 
 export type RgssSourcesIndexFile = {
   signature: string
@@ -28,7 +28,8 @@ export function rgssDataSignature(dataDir: string): string {
 }
 
 function readIndex(contentRoot: string): RgssSourcesIndexFile | null {
-  const file = gameContentReadPath(contentRoot, 'rgssSourcesIndex')
+  // Local path only (rgssSourcesIndex is never storage-mounted; avoid accidental IPC helpers).
+  const file = localGameContentFile(contentRoot, 'rgssSourcesIndex')
   if (!file) return null
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as RgssSourcesIndexFile

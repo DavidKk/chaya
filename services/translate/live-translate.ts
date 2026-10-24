@@ -31,6 +31,8 @@ import { normalizeTranslateKey } from './game-lookup'
 import { bergamotTranslate } from './lib/bergamot-translate'
 import { appleTranslate } from './lib/macos-translate'
 import { trackLiveTranslateRequest } from './live-activity'
+import { loadGameNameEntries } from './name-glossary-game'
+import { planLockedNames, stitchLockedNamePlan } from './name-lock'
 import { type LocalTranslateOptions, ollamaJaToZh } from './ollama-translate'
 import { withEngineCapacity } from './scheduler/engine-capacity'
 import { joinTranslationRequest } from './scheduler/in-flight'
@@ -391,6 +393,53 @@ export async function liveTranslateTexts(
                   return items[0]
                 }
               }
+              const nameEntries = contentRoot ? loadGameNameEntries(contentRoot, opts?.targetLang || 'zh') : []
+              const namePlan = planLockedNames(src, nameEntries, { sourceLang: opts?.sourceLang, targetLang: opts?.targetLang || 'zh' })
+              if (namePlan) {
+                const gapZh = new Map<string, string>()
+                let remainderEngine = ''
+                if (namePlan.translatable.length) {
+                  const remainder = await liveTranslateTexts(
+                    namePlan.translatable.map((gap) => gap.text),
+                    {
+                      ...opts,
+                      onItem: undefined,
+                      preparedPlan: undefined,
+                      onTrace: trace ? (message) => trace(`Item ${itemId} name gaps: ${message}`) : undefined,
+                      local: { ...opts?.local, signal: itemSignal },
+                      force: false,
+                      persist: false,
+                      cacheMode: undefined,
+                      trackLiveActivity: false,
+                    }
+                  )
+                  for (const gap of namePlan.translatable) {
+                    const hit = remainder.items.find((entry) => entry.src === gap.text)
+                    if (!hit?.zh || hit.error) {
+                      items.push({ src, zh: null, error: hit?.error || 'Name-locked remainder could not be translated' })
+                      return items[0]
+                    }
+                    gapZh.set(gap.id, hit.zh)
+                    if (hit.engine) remainderEngine = hit.engine
+                  }
+                }
+                const zh = stitchLockedNamePlan(src, namePlan, gapZh)
+                const tag = remainderEngine || 'live:optimize:names'
+                if (persist && isStorableTranslation(src, zh, opts?.targetLang)) {
+                  const written = timed(`Item ${itemId} name-lock write`, () =>
+                    getCache().writeMany([[src, zh]], tag, { from: detectCacheLang(src), to: 'zh', category: opts?.category })
+                  )
+                  if (contentRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records))
+                  if (written.rejected.length) {
+                    const current = lookupCached(src)
+                    if (current) return { src, zh: current.zh, engine: current.engine, status: 'full' as const }
+                    return { src, zh: null, error: 'Translation result rejected by current authority; review conflicting cache entries' }
+                  }
+                }
+                items.push({ src, zh, engine: tag, status: 'full' })
+                return items[0]
+              }
+
               if (!shouldTranslate(labelCore || src, opts?.sourceLang)) {
                 /* Return control-only or untranslated text unchanged without storing an identical cache entry. */
                 items.push({ src, zh: src, engine: 'skip' })

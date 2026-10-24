@@ -85,6 +85,24 @@ const FIELD_BUCKETS: Array<{ type: GlossaryTokenType; tables: () => Array<Record
   },
 ]
 
+export function collectGameNameSources(): string[] {
+  const names = new Set<string>()
+  for (const bucket of FIELD_BUCKETS) {
+    const table = bucket.tables()
+    if (!table) continue
+    for (const row of table) {
+      if (!row) continue
+      for (const field of bucket.fields) {
+        const value = String(row[field] ?? '')
+          .trim()
+          .replace(/^#/, '')
+        if (value) names.add(value)
+      }
+    }
+  }
+  return [...names]
+}
+
 export function createLookupEnrichment() {
   const dynamic = createDynamicTemplateIndex()
   const stemBase = new Map<string, string>()

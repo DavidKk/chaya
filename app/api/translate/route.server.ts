@@ -107,6 +107,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'apply-terms'
         | 'short-entities'
         | 'batch-optimize'
+        | 'scan-names'
+        | 'apply-names'
         | 'idle-status'
       scope?: 'short-entities' | 'all'
       includeChoices?: boolean
@@ -206,6 +208,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (body.mode === 'optimize') {
       const { scanGameTranslationsForOptimization, applyGameTermFixes, batchOptimizeTranslations, runShortEntityOptimization, isSystemIdleForOptimization } =
         await import('@/services/translate/optimize-service')
+      const { scanNameSentenceSync, applyNameSentenceSync } = await import('@/services/translate/name-sync-service')
 
       const action = body.action || 'scan'
       const scope = body.scope === 'short-entities' || body.scope === 'all' ? body.scope : undefined
@@ -239,10 +242,39 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
           })
         )
       }
+      if (action === 'scan-names') {
+        const names = Array.isArray((body as { names?: unknown }).names)
+          ? (body as { names: unknown[] }).names.filter((name): name is string => typeof name === 'string' && !!name.trim())
+          : undefined
+        return apiOk(
+          scanNameSentenceSync(body.contentRoot, {
+            names,
+            renameFrom: typeof (body as { renameFrom?: unknown }).renameFrom === 'string' ? (body as { renameFrom: string }).renameFrom : undefined,
+            renameTo: typeof (body as { renameTo?: unknown }).renameTo === 'string' ? (body as { renameTo: string }).renameTo : undefined,
+            targetLang: typeof body.targetLang === 'string' ? body.targetLang : undefined,
+          })
+        )
+      }
+      if (action === 'apply-names') {
+        const names = Array.isArray((body as { names?: unknown }).names)
+          ? (body as { names: unknown[] }).names.filter((name): name is string => typeof name === 'string' && !!name.trim())
+          : undefined
+        return apiOk(
+          await applyNameSentenceSync({
+            contentRoot: body.contentRoot,
+            names,
+            renameFrom: typeof (body as { renameFrom?: unknown }).renameFrom === 'string' ? (body as { renameFrom: string }).renameFrom : undefined,
+            renameTo: typeof (body as { renameTo?: unknown }).renameTo === 'string' ? (body as { renameTo: string }).renameTo : undefined,
+            targetLang: typeof body.targetLang === 'string' ? body.targetLang : undefined,
+            limit: typeof body.limit === 'number' ? body.limit : undefined,
+            signal: request.signal,
+          })
+        )
+      }
       if (action === 'idle-status') {
         return apiOk(isSystemIdleForOptimization())
       }
-      return apiError(400, 'OPTIMIZE_ACTION', 'action must be scan | apply-terms | short-entities | batch-optimize | idle-status')
+      return apiError(400, 'OPTIMIZE_ACTION', 'action must be scan | apply-terms | short-entities | batch-optimize | scan-names | apply-names | idle-status')
     }
 
     if (body.mode === 'sources') {

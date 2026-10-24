@@ -57,6 +57,26 @@ export function gameContentReadPath(contentRoot: string, kind: GameContentKind, 
   return gameContentCandidatePaths(contentRoot, kind, opts).find((p) => fs.existsSync(p)) ?? null
 }
 
+/**
+ * Resolve game content under the content root without storage IPC.
+ * Safe on Next.js poll / inventory / stamp — never `publicGameFile` / `Atomics.wait`.
+ * Prefer this over `gameContentReadPath` for any path that must not block the console.
+ */
+export function localGameContentFile(contentRoot: string, kind: GameContentKind): string | null {
+  const roots = [path.resolve(contentRoot)]
+  const parent = path.dirname(roots[0])
+  if (parent !== roots[0]) roots.push(parent)
+  for (const root of roots) {
+    const primary = path.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind])
+    if (fs.existsSync(primary)) return primary
+    for (const name of LEGACY_FLAT_FILES[kind]) {
+      const candidate = path.join(root, name)
+      if (fs.existsSync(candidate)) return candidate
+    }
+  }
+  return null
+}
+
 export function ensureGameContentDir(contentRoot: string, kind: GameContentKind): string {
   const file = gameContentPath(contentRoot, kind)
   fs.mkdirSync(path.dirname(file), { recursive: true })

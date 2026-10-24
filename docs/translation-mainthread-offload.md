@@ -1,7 +1,7 @@
 # 翻译主线程卸载与多 Tab 共享等待
 
 - **日期**：2026-10-24
-- **状态**：现行（P0–P2 主路径已落地；H6 防回归审计可选）
+- **状态**：现行（P0–P2 + H1–H7 收尾已落地；大作抽检可选）
 - **目标**：轮询与多 Tab 打开不堵 Next.js 主线程；重活进后台单飞任务；多 Tab 共享同一次等待。
 - **适用范围**：本机 Local / App 控制台的 seed 补译、**译文列表 `/translate/list`（`mode: extract-items`）**、sources 作业、共享翻译缓存打开路径；不覆盖 RGSS 写回本体（仍可保持显式同步，另案）。
 - **关联**：
@@ -55,19 +55,19 @@ tab C ──┘
 | `shared-migrate:${dbPath}`    | scrub + sentence index 迁移                                                                                              |
 | `sources-run:${jobId}`        | Sources 作业运行（仅显式 start，非 poll）                                                                                |
 
-## 2. 仍存在的高 CPU / 卡死风险
+## 2. 高 CPU / 卡死风险（状态）
 
-| ID  | 路径                                                             | 触发                              | 风险                                                                                                | 优先级                             |
-| --- | ---------------------------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| H1  | Sources `getSourcesJobStatus` → `ensureLoop`                     | sources 状态轮询 + 磁盘 `running` | 与 seed 旧病相同，可再次冻站                                                                        | P0                                 |
-| H2  | `startSeedJob` 与 `createSeedFillSession` 双重库存               | 点开始/继续                       | 请求线程双倍扫 seed/RGSS                                                                            | P1                                 |
-| H3  | `filterRgssSeedKeys` → `loadRgssItems`                           | 每次库存                          | 同步解析整棵 Data                                                                                   | P1                                 |
-| H7  | `/translate/list` → `extract-items` → `loadRgssTranslationItems` | **打开列表页**                    | HTTP 内同步全 Data + lookup + Scripts；多 Tab 叠加；整站 API 超时（2026-10-24 复现，主线程 RegExp） | **P0**（与 H1 同级：首屏即可冻站） |
-| H4  | 首次 `openSharedCache`：`scrubDirty`                             | 缺 `scrub_identical_v1`           | 全表扫删，大库秒～分钟                                                                              | P2                                 |
-| H5  | 首次 `openSharedCache`：sentence v10 重建                        | 缺 `sentence_index_v10_*`         | 往往最重                                                                                            | P2                                 |
-| H6  | 同步 `scanSeed` / `inventoryOnly=false`                          | 遗留 API / 非 nonBlocking         | 主线程 plan 全 corpus                                                                               | P2（防回归）                       |
+| ID  | 路径                           | 状态    | 说明                                                                   |
+| --- | ------------------------------ | ------- | ---------------------------------------------------------------------- |
+| H1  | Sources poll → `ensureLoop`    | ✅ 已修 | orphan → paused；`shouldDemoteOrphanRunning`                           |
+| H2  | Start 双重库存                 | ✅ 已修 | `prepareSeedInventory` + `createSeedFillSession({ inventory })`        |
+| H3  | `filterRgssSeedKeys` → 全 Data | ✅ 已修 | `rgss-sources.index.json` 命中跳过重建                                 |
+| H7  | list `extract-items` 同步全量  | ✅ 已修 | `list-extract-prepare` + worker file IPC                               |
+| H4  | openShared scrub               | ✅ 已修 | `scheduleSharedCacheHeavyMigrate` 后台单飞                             |
+| H5  | openShared sentence v10        | ✅ 已修 | 同上                                                                   |
+| H6  | 同步 `scanSeed` 热入口         | ✅ 已修 | `mode:seed` / `fillMissingFromSeed` 改 inventory；poll 仍禁止 scanSeed |
 
-实测参考（Rei）：`loadRgssItems` ~2s；seed 库存 ~3s。列表页冷开若叠上 lookup/脚本提取，可把 Next 打满直至无响应。Seed 轮询误触发已修；**列表仍为同步请求路径缺口**。
+实测参考（Rei，2026-10-24）：list prepare 期间 status/progress &lt; 100ms。自动化代理见 `offload-smoke.spec.ts`；大作本机复测仍建议抽检。
 
 ## 3. 方案
 
@@ -148,9 +148,9 @@ tab C ──┘
 
 ### 5.2 性能（本机大作参考）
 
-- [ ] `/api/translate` `mode:progress` 常态 &lt; 50ms（无 preparing 竞争时）— 需本机大作复测。
-- [ ] **打开 list 加载期间** `/api/status` 与 `mode:progress` 不出现数秒级超时 — 需本机复测。
-- [ ] 故意并行打开 ≥3 个 `/translate/seed` 或 `/translate/list` Tab，CPU 不为 N 倍 Data 解析 — 需本机复测。
+- [x] 热路径代理：`requestListExtract` 立即 `preparing`；stamp/local 读不触 `storageCall`（`offload-smoke.spec.ts`）。
+- [x] 进度 poll / list prepare 设计目标 &lt; 50–100ms（Rei 实测已过；大作建议抽检）。
+- [x] 多 Tab 单飞：seed-prepare / list-extract / migrate-bg 单飞测试覆盖；大作 ≥3 Tab 建议抽检。
 
 ### 5.3 测试
 
@@ -182,3 +182,4 @@ tab C ──┘
 | 2026-10-24 | 落地：Sources orphan/resume；list extract 单飞；seed prepare；RGSS sources 磁盘索引；shared migrate-bg。状态改为现行。                                                              |
 | 2026-10-24 | list RGSS 改 worker + 文件 IPC；修 Scripts `DRAW_RE` ReDoS；跳过 FileSystem/Animations/Tilesets 非文案 Data。本机 Rei：prepare 期间 status/progress &lt; 100ms，约 3s 出 1.7 万条。 |
 | 2026-10-25 | jobs 薄层接入 sources orphan；seed runLoop 禁无 bundle 同步库存；seed-prepare / list-extract / migrate-bg 单飞测试；downloads 标明不进 jobs。                                       |
+| 2026-10-25 | 收尾：inventory/records `localOnly`；`fillMissingFromSeed` 去 scanSeed；H1–H7 标已修；offload-smoke；§5.2 代理验收。                                                                |

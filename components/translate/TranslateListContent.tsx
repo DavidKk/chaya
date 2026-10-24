@@ -1,15 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  IoArrowUndoOutline,
-  IoChevronBackOutline,
-  IoChevronForwardOutline,
-  IoLanguageOutline,
-  IoPlaySkipBackOutline,
-  IoPlaySkipForwardOutline,
-  IoSaveOutline,
-} from 'react-icons/io5'
+import { IoChevronBackOutline, IoChevronForwardOutline, IoPlaySkipBackOutline, IoPlaySkipForwardOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelFoot } from '@/components/layoutClasses'
@@ -19,8 +11,10 @@ import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select
 import { AppleOfflineGuideModal } from '@/components/translate/AppleOfflineGuideModal'
 import { useSafePathname, useSafeRouter, useSafeSearchParams } from '@/components/translate/safe-navigation'
 import { TranslateListItemRow } from '@/components/translate/TranslateListItemRow'
+import { TranslateListPageActions } from '@/components/translate/TranslateListPageActions'
 import { TranslateListSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
+import { useSyncNames } from '@/components/translate/useSyncNames'
 import { useTranslateListSave } from '@/components/translate/useTranslateListSave'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { filterAndRankTranslationListItems } from '@/lib/translate/list-search'
@@ -382,6 +376,14 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     translationFetch,
     refreshUI,
   })
+  const selectedNameSrcs = useMemo(
+    () =>
+      natureFilter === 'name' || ['actor', 'actor_nickname', 'item', 'weapon', 'armor', 'skill', 'enemy', 'state', 'map'].includes(categoryFilter)
+        ? [...new Set(filteredItems.filter((item) => item.zh && item.zh.trim() && item.zh !== item.src).map((item) => item.src))]
+        : [],
+    [categoryFilter, filteredItems, natureFilter]
+  )
+  const { running: syncingNames, runSyncNames } = useSyncNames({ names: selectedNameSrcs, onDone: refreshUI })
 
   const handleTranslatePage = useCallback(async () => {
     if (pagedItems.length === 0) {
@@ -699,48 +701,20 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
 
             <div className="mx-0.5 h-3.5 w-px shrink-0 bg-line" aria-hidden="true" />
 
-            {/* 工具栏图标与 Select 同档：中性 ghost；色义留给行内文字钮。顺序：重置 → 翻译 → 保存 */}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="shrink-0"
-              loading={resettingPage}
-              disabled={translatingPage || savingPage || resettingPage || pagedItems.length === 0}
-              aria-label={t('translate.listResetPageBtn')}
-              tooltip={t('translate.listResetPageTooltip')}
-              onClick={() => void handleResetPage()}
-            >
-              <IoArrowUndoOutline size={15} aria-hidden />
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="shrink-0"
-              loading={translatingPage}
-              disabled={translatingPage || savingPage || resettingPage || pagedItems.length === 0}
-              aria-label={t('translate.listTranslatePageBtn')}
-              tooltip={translatingPage ? t('translate.listTranslatePageRunning') : t('translate.listTranslatePageTooltip', { scheme: activeSchemeLabel })}
-              onClick={() => void handleTranslatePage()}
-            >
-              <IoLanguageOutline size={15} aria-hidden />
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="shrink-0"
-              loading={savingPage}
-              disabled={translatingPage || savingPage || resettingPage || pagedItems.length === 0}
-              aria-label={t('translate.listSavePageBtn')}
-              tooltip={t('translate.listSavePageTooltip')}
-              onClick={() => void handleSavePage()}
-            >
-              <IoSaveOutline size={15} aria-hidden />
-            </Button>
+            {/* 工具栏图标与 Select 同档：中性 ghost；色义留给行内文字钮。顺序：重置 → 翻译 → 同步 → 保存 */}
+            <TranslateListPageActions
+              resettingPage={resettingPage}
+              translatingPage={translatingPage}
+              savingPage={savingPage}
+              syncingNames={syncingNames}
+              emptyPage={pagedItems.length === 0}
+              schemeLabel={activeSchemeLabel}
+              onReset={() => void handleResetPage()}
+              onTranslate={() => void handleTranslatePage()}
+              onSyncNames={() => void runSyncNames()}
+              onSave={() => void handleSavePage()}
+              syncDisabled={!selectedNameSrcs.length}
+            />
           </div>
         </ScrollArea>
       </div>

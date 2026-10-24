@@ -18,6 +18,7 @@ import { TranslationPlaySettings } from '@/components/translate/TranslationPlayS
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { useAnimatedNumber } from '@/components/translate/useAnimatedNumber'
 import { useOptimizeNames } from '@/components/translate/useOptimizeNames'
+import { useSyncNames } from '@/components/translate/useSyncNames'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { filterTranslationExport, type TranslationExportMode } from '@/lib/translate/export'
 import { estimateRemainMs, formatRemainEta, type TranslationPerformance } from '@/lib/translate/remain-eta'
@@ -163,6 +164,7 @@ export function TranslateRunPane({
   const panelId = useId()
   const translationFetch = useTranslationFetch()
   const { running: optimizingNames, runOptimizeNames } = useOptimizeNames()
+  const { running: syncingNames, runSyncNames } = useSyncNames()
   const notify = useNotification()
   const fileRef = useRef<HTMLInputElement>(null)
   const [localTab, setLocalTab] = useState<TranslateRunMode>('seed')
@@ -520,6 +522,17 @@ export function TranslateRunPane({
                           tooltip={optimizingNames ? t('translate.optimizeNamesRunning') : t('translate.optimizeNamesTooltip')}
                         >
                           {t('translate.optimizeNames')}
+                        </Button>
+                      ) : null}
+                      {progress.hasSeed ? (
+                        <Button
+                          variant="ghost"
+                          disabled={busy || syncingNames}
+                          loading={syncingNames}
+                          onClick={() => void runSyncNames()}
+                          tooltip={syncingNames ? t('translate.syncNamesRunning') : t('translate.syncNamesTooltip')}
+                        >
+                          {t('translate.syncNames')}
                         </Button>
                       ) : null}
                       {progress.hasSeed ? (

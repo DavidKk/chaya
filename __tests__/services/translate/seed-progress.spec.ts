@@ -157,7 +157,7 @@ describe('seed translation context and cache contract', () => {
       cache.close()
       return { items: [{ src: texts[0], zh: '你好' }], contentRoot: rootA, engines: ['google'] }
     })
-    expect(await fillMissingFromSeed()).toMatchObject({ contentRoot: rootA, translated: 1, missing: 0 })
+    expect(await fillMissingFromSeed()).toMatchObject({ contentRoot: rootA, translated: 1, scanned: 1, failed: 0 })
     expect(getSeedTranslateProgress(rootB, true)).toMatchObject({ done: 0, missing: 1 })
   })
 

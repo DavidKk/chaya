@@ -10,6 +10,7 @@ export {
   gameContentRelPath,
   LEGACY_FLAT_FILES,
   LEGACY_GAME_CONTENT_FILES,
+  localGameContentFile,
   migrateGameContentFiles,
   type MigrateGameContentResult,
 } from './content-files'
