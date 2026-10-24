@@ -157,17 +157,15 @@ describe('RGSS VX/VX Ace support', () => {
       expect(fs.readFileSync(path.join(root, 'Data', 'Actors.rvdata2.chaya.bak'))).toEqual(originalBackup)
       expect(loadRgssTranslationItems(root)).toEqual(expect.arrayContaining([expect.objectContaining({ src: 'アリス', zh: '艾莉丝' })]))
 
-      expect(describeRgssPreview(root)).toMatchObject({ isRgss: true, view: 'translated', backups: expect.any(Number) })
-      const original = setRgssPreviewView(root, 'original')
-      expect(original.restored).toBeGreaterThan(0)
+      expect(describeRgssPreview(root)).toMatchObject({ isRgss: true, view: 'translated' })
+      // Preview only flips runtime config — Data stays as last writeback (still translated on disk).
+      const actorsBefore = fs.readFileSync(path.join(root, 'Data', 'Actors.rvdata2'))
+      expect(setRgssPreviewView(root, 'original')).toEqual({ view: 'original' })
       expect(describeRgssPreview(root).view).toBe('original')
-      expect(loadRgssTranslationItems(root)).toEqual(expect.arrayContaining([expect.objectContaining({ src: 'アリス', zh: '' })]))
-      fs.mkdirSync(path.join(root, 'chaya/translate'), { recursive: true })
-      fs.writeFileSync(path.join(root, 'chaya/translate/cache.ndjson'), `${JSON.stringify({ s: 'アリス', t: '爱丽丝' })}\n`)
-      const again = setRgssPreviewView(root, 'translated')
-      expect(again.written).toBeGreaterThan(0)
+      expect(fs.readFileSync(path.join(root, 'Data', 'Actors.rvdata2'))).toEqual(actorsBefore)
+      expect(setRgssPreviewView(root, 'translated')).toEqual({ view: 'translated' })
       expect(describeRgssPreview(root).view).toBe('translated')
-      expect(loadRgssTranslationItems(root)).toEqual(expect.arrayContaining([expect.objectContaining({ src: 'アリス', zh: '爱丽丝' })]))
+      expect(fs.readFileSync(path.join(root, 'Data', 'Actors.rvdata2'))).toEqual(actorsBefore)
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }

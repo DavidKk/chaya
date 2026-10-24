@@ -12,7 +12,8 @@ import { extractDataFields } from './data-fields'
 import { extractDialogueFromEvents } from './dialogue'
 import { parseRubyMarshal, rubyToPlain, type RubyValue } from './rgss/marshal'
 import { loadRgssScriptTranslationItems } from './rgss/script-strings'
-import { loadRgssItems, writeRgssData } from './rgss/writeback'
+import { loadRgssItems, loadRgssItemsAsync, writeRgssData } from './rgss/writeback'
+import { ensureRgssSourcesIndex, rgssDataSignature, writeRgssSourcesIndex } from './rgss-sources-index'
 import { clean, isUseful } from './text'
 
 const DATABASE_FIELDS: Record<string, { fields: string[]; category: string }> = {
@@ -245,22 +246,75 @@ function resolveRgssItemZh(src: string, current: string, lookup: Record<string, 
   return fixKnownBadGameTermTranslation(src, raw) ?? (raw || lookupGameTerm(src) || '')
 }
 
-export function loadRgssTranslationItems(contentRoot: string) {
-  const dataDir = rgssDataDir(contentRoot)
-  if (!dataDir) throw new Error('RGSS Data/ directory not found. Unpack the encrypted archive first.')
+function attachLookup(contentRoot: string, dataItems: ReturnType<typeof loadRgssItems>) {
   const lookup = loadGameTranslateLookup(contentRoot)
-  const dataItems = loadRgssItems(dataDir).map((item) => {
+  const withZh = dataItems.map((item) => {
     const zh = resolveRgssItemZh(item.src, item.zh || '', lookup)
     return { ...item, zh, savedZh: item.savedZh || zh || undefined, initialZh: item.initialZh || zh || undefined }
   })
-  const known = new Set(dataItems.map((item) => item.src))
-  const scriptItems = loadRgssScriptTranslationItems(contentRoot, lookup, dataItems.length + 1)
+  const known = new Set(withZh.map((item) => item.src))
+  const scriptItems = loadRgssScriptTranslationItems(contentRoot, lookup, withZh.length + 1)
     .filter((item) => !known.has(item.src))
     .map((item) => {
       const zh = resolveRgssItemZh(item.src, item.zh || '', lookup)
       return { ...item, zh, savedZh: zh || undefined, initialZh: zh || undefined }
     })
-  return [...dataItems, ...scriptItems]
+  return [...withZh, ...scriptItems]
+}
+
+async function attachLookupAsync(contentRoot: string, dataItems: ReturnType<typeof loadRgssItems>) {
+  await new Promise<void>((r) => setTimeout(r, 0))
+  const lookup = loadGameTranslateLookup(contentRoot)
+  await new Promise<void>((r) => setTimeout(r, 0))
+  const withZh: ReturnType<typeof attachLookup> = []
+  for (let i = 0; i < dataItems.length; i++) {
+    const item = dataItems[i]!
+    const zh = resolveRgssItemZh(item.src, item.zh || '', lookup)
+    withZh.push({ ...item, zh, savedZh: item.savedZh || zh || undefined, initialZh: item.initialZh || zh || undefined })
+    if (i % 200 === 199) await new Promise<void>((r) => setTimeout(r, 0))
+  }
+  await new Promise<void>((r) => setTimeout(r, 0))
+  const known = new Set(withZh.map((item) => item.src))
+  const scriptItems = loadRgssScriptTranslationItems(contentRoot, lookup, withZh.length + 1)
+    .filter((item) => !known.has(item.src))
+    .map((item) => {
+      const zh = resolveRgssItemZh(item.src, item.zh || '', lookup)
+      return { ...item, zh, savedZh: zh || undefined, initialZh: zh || undefined }
+    })
+  return [...withZh, ...scriptItems]
+}
+
+export function loadRgssTranslationItems(contentRoot: string) {
+  const dataDir = rgssDataDir(contentRoot)
+  if (!dataDir) throw new Error('RGSS Data/ directory not found. Unpack the encrypted archive first.')
+  const items = loadRgssItems(dataDir)
+  try {
+    writeRgssSourcesIndex(
+      contentRoot,
+      rgssDataSignature(dataDir),
+      items.map((item) => item.src)
+    )
+  } catch {
+    /* index is best-effort */
+  }
+  return attachLookup(contentRoot, items)
+}
+
+/** Same as loadRgssTranslationItems but yields between Data files so other APIs stay responsive. */
+export async function loadRgssTranslationItemsAsync(contentRoot: string) {
+  const dataDir = rgssDataDir(contentRoot)
+  if (!dataDir) throw new Error('RGSS Data/ directory not found. Unpack the encrypted archive first.')
+  const items = await loadRgssItemsAsync(dataDir)
+  try {
+    writeRgssSourcesIndex(
+      contentRoot,
+      rgssDataSignature(dataDir),
+      items.map((item) => item.src)
+    )
+  } catch {
+    /* index is best-effort */
+  }
+  return attachLookupAsync(contentRoot, items)
 }
 
 // Eligibility for old seeds follows the same slots as extraction/writeback. Do not delete
@@ -269,19 +323,11 @@ const seedSources = new Map<string, { signature: string; sources: Set<string> }>
 export function filterRgssSeedKeys(contentRoot: string, keys: string[]): string[] {
   const dir = findChild(contentRoot, 'data')
   if (!dir || !extensionFor(dir)) return keys
-  const files = fs
-    .readdirSync(dir)
-    .filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name))
-    .sort()
-  const signature = JSON.stringify(
-    files.map((name) => {
-      const stat = fs.statSync(path.join(dir, name))
-      return [name, stat.size, stat.mtimeMs, stat.ctimeMs]
-    })
-  )
+  const signature = rgssDataSignature(dir)
   let entry = seedSources.get(contentRoot)
   if (entry?.signature !== signature) {
-    entry = { signature, sources: new Set(loadRgssItems(dir).map((item) => item.src)) }
+    const sources = ensureRgssSourcesIndex(contentRoot, dir, () => loadRgssItems(dir).map((item) => item.src))
+    entry = { signature, sources }
     if (seedSources.size >= 20) seedSources.delete(seedSources.keys().next().value!)
     seedSources.set(contentRoot, entry)
   }

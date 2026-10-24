@@ -21,7 +21,6 @@ import { useSafePathname, useSafeRouter, useSafeSearchParams } from '@/component
 import { TranslateListItemRow } from '@/components/translate/TranslateListItemRow'
 import { TranslateListSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
-import { useOptimizeNames } from '@/components/translate/useOptimizeNames'
 import { useTranslateListSave } from '@/components/translate/useTranslateListSave'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { filterAndRankTranslationListItems } from '@/lib/translate/list-search'
@@ -124,12 +123,6 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
   // Force re-render token when in-place item edits happen
   const [, setTick] = useState(0)
   const refreshUI = useCallback(() => setTick((t) => t + 1), [])
-  const optimizeEngines = selectedScheme !== 'all' && selectedScheme !== 'cache' ? [selectedScheme] : undefined
-  const { running: optimizingNames, runOptimizeNames } = useOptimizeNames({
-    engines: optimizeEngines,
-    onDone: refreshUI,
-  })
-
   // 1. Load engines
   const loadEngines = useCallback(async () => {
     try {
@@ -159,41 +152,61 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     }
   }, [translationFetch, t])
 
-  // 2. Load extracted items
+  // 2. Load extracted items (server may return preparing — poll until ready; never block other APIs)
   const loadData = useCallback(
     async (customSourceLang?: string, customTargetLang?: string) => {
       setLoading(true)
       const srcL = customSourceLang ?? (sourceLang || fromLangParam)
       const tgtL = customTargetLang ?? (targetLang || toLangParam)
+      const bodyBase = {
+        mode: 'extract-items' as const,
+        sourceLang: srcL || undefined,
+        targetLang: tgtL || undefined,
+      }
       try {
-        const res = await translationFetch('/api/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mode: 'extract-items',
-            sourceLang: srcL || undefined,
-            targetLang: tgtL || undefined,
-          }),
-        })
-        const data = (await res.json()) as {
-          ok?: boolean
-          items?: ExtractedTranslationItem[]
-          locales?: ExtractedLocalesMeta
-          engine?: 'VX Ace' | 'VX' | null
-          contentRoot?: string
-          error?: unknown
-        }
-        if (data?.ok && Array.isArray(data.items)) {
-          setItems(data.items)
-          if (data.engine) setRgssEngine(data.engine)
-          if (data.contentRoot) setContentRoot(data.contentRoot)
-          if (data.locales?.hasLocales) {
-            setLocalesMeta(data.locales)
-            if (!sourceLang && data.locales.currentSourceLang) setSourceLang(data.locales.currentSourceLang)
-            if (!targetLang && data.locales.currentTargetLang) setTargetLang(data.locales.currentTargetLang)
-          } else if (!sourceLang) setSourceLang(detectSourceLanguage(data.items.map((item) => item.src)))
-        } else {
-          notify.error(t('translate.listFetchExtractFailed', { error: readApiErrorMessage(data) }))
+        const deadline = Date.now() + 120_000
+        let poll = false
+        for (;;) {
+          const res = await translationFetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...bodyBase, ...(poll ? { poll: true } : {}) }),
+          })
+          const data = (await res.json()) as {
+            ok?: boolean
+            preparing?: boolean
+            items?: ExtractedTranslationItem[]
+            locales?: ExtractedLocalesMeta
+            engine?: 'VX Ace' | 'VX' | null
+            contentRoot?: string
+            error?: unknown
+          }
+          if (!res.ok || data.ok === false) {
+            notify.error(t('translate.listFetchExtractFailed', { error: readApiErrorMessage(data) }))
+            return
+          }
+          if (data.preparing) {
+            if (Date.now() > deadline) {
+              notify.error(t('translate.listFetchExtractFailed', { error: 'timeout' }))
+              return
+            }
+            poll = true
+            await new Promise((r) => setTimeout(r, 200))
+            continue
+          }
+          if (Array.isArray(data.items)) {
+            setItems(data.items)
+            if (data.engine) setRgssEngine(data.engine)
+            if (data.contentRoot) setContentRoot(data.contentRoot)
+            if (data.locales?.hasLocales) {
+              setLocalesMeta(data.locales)
+              if (!sourceLang && data.locales.currentSourceLang) setSourceLang(data.locales.currentSourceLang)
+              if (!targetLang && data.locales.currentTargetLang) setTargetLang(data.locales.currentTargetLang)
+            } else if (!sourceLang) setSourceLang(detectSourceLanguage(data.items.map((item) => item.src)))
+          } else {
+            notify.error(t('translate.listFetchExtractFailed', { error: readApiErrorMessage(data) }))
+          }
+          return
         }
       } catch (err) {
         notify.error(t('translate.listFetchExtractFailed', { error: err instanceof Error ? err.message : String(err) }))
@@ -727,19 +740,6 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
               onClick={() => void handleSavePage()}
             >
               <IoSaveOutline size={15} aria-hidden />
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              className="shrink-0"
-              loading={optimizingNames}
-              disabled={translatingPage || savingPage || resettingPage || optimizingNames}
-              aria-label={t('translate.optimizeNames')}
-              tooltip={optimizingNames ? t('translate.optimizeNamesRunning') : t('translate.optimizeNamesTooltip')}
-              onClick={() => void runOptimizeNames()}
-            >
-              {t('translate.optimizeNames')}
             </Button>
           </div>
         </ScrollArea>

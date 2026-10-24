@@ -25,9 +25,9 @@ export type TranslateEngineSettings = {
 }
 
 export const DEFAULT_ENGINE_SETTINGS: Record<TranslateBuiltinId, Required<TranslateEngineSettings>> = {
-  bing: { id: '', enabled: true, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
-  google: { id: '', enabled: true, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
-  apple: { id: '', enabled: false, allowConcurrency: true, concurrencyLimit: 40, maxConcurrentChars: 40000 },
+  bing: { id: '', enabled: true, allowConcurrency: true, concurrencyLimit: 1, maxConcurrentChars: 3000 },
+  google: { id: '', enabled: true, allowConcurrency: true, concurrencyLimit: 1, maxConcurrentChars: 3000 },
+  apple: { id: '', enabled: false, allowConcurrency: true, concurrencyLimit: 1, maxConcurrentChars: 40000 },
   bergamot: { id: '', enabled: false, allowConcurrency: false, concurrencyLimit: 1, maxConcurrentChars: 3000 },
 }
 

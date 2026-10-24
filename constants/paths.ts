@@ -4,9 +4,12 @@ import { fileURLToPath } from 'node:url'
 import { CONFIG_FILE_NAME, LEGACY_CONFIG_FILE_NAMES, LEGACY_SHELL_APP_NAMES, SHELL_APP_NAME, SHELL_WIN_DIR_NAME } from './brand'
 import {
   AGENT_ACTIVITY_LOGS_DIR_NAME,
+  COMPANION_MEMORY_DB_NAME,
   COMPANION_MEMORY_DIR_NAME,
   DATA_DIR_NAME,
+  DOWNLOAD_JOBS_FILE_NAME,
   GAME_ACTIVITY_LOGS_DIR_NAME,
+  GAME_AGENT_DIR_NAME,
   LOGS_DIR_NAME,
   NODE_MODULES_DIR_NAME,
   PLUGIN_LOGS_DIR_NAME,
@@ -16,6 +19,7 @@ import {
   TRANSLATE_CACHE_DB_NAME,
   TRANSLATE_CACHE_DIR_NAME,
   TRANSLATE_JOBS_DIR_NAME,
+  TRANSLATION_PACKS_DIR_NAME,
 } from './path-names'
 
 /**
@@ -26,9 +30,12 @@ import {
 
 export {
   AGENT_ACTIVITY_LOGS_DIR_NAME,
+  COMPANION_MEMORY_DB_NAME,
   COMPANION_MEMORY_DIR_NAME,
   DATA_DIR_NAME,
+  DOWNLOAD_JOBS_FILE_NAME,
   GAME_ACTIVITY_LOGS_DIR_NAME,
+  GAME_AGENT_DIR_NAME,
   LOGS_DIR_NAME,
   NODE_MODULES_DIR_NAME,
   PLUGIN_LOGS_DIR_NAME,
@@ -39,6 +46,7 @@ export {
   TRANSLATE_CACHE_DB_NAME,
   TRANSLATE_CACHE_DIR_NAME,
   TRANSLATE_JOBS_DIR_NAME,
+  TRANSLATION_PACKS_DIR_NAME,
 } from './path-names'
 
 /**
@@ -80,6 +88,16 @@ export const TRANSLATE_CACHE_DIR = join(DATA_DIR, TRANSLATE_CACHE_DIR_NAME)
 export const TRANSLATE_CACHE_DB_PATH = join(TRANSLATE_CACHE_DIR, TRANSLATE_CACHE_DB_NAME)
 /** Seed translation background job state */
 export const TRANSLATE_JOBS_DIR = join(DATA_DIR, TRANSLATE_JOBS_DIR_NAME)
+/** Shared-cache scan worker (built by `pnpm build:translate`; gitignored) */
+export const CACHE_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-cache-worker.mjs')
+/** RGSS Data extract worker — keeps Marshal parse off the Next.js main thread */
+export const RGSS_EXTRACT_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-rgss-extract-worker.mjs')
+/** Offline translation packs (Bergamot); override with `CHAYA_BERGAMOT_PACKS_DIR` */
+export const TRANSLATION_PACKS_DIR = join(DATA_DIR, TRANSLATION_PACKS_DIR_NAME)
+/** Download-center job list (survives process restart; mid-flight work is marked interrupted) */
+export const DOWNLOAD_JOBS_PATH = join(DATA_DIR, DOWNLOAD_JOBS_FILE_NAME)
+/** Game Agent settings / secrets / CLI (not at `data/` root) */
+export const GAME_AGENT_DIR = join(DATA_DIR, GAME_AGENT_DIR_NAME)
 
 /** Toolkit logs (`logs/plugins/` at repo root; packaged via `CHAYA_LOGS_DIR`) */
 export const LOGS_DIR = process.env.CHAYA_LOGS_DIR ? resolve(process.env.CHAYA_LOGS_DIR) : join(ROOT_PATH, LOGS_DIR_NAME)
@@ -87,6 +105,7 @@ export const PLUGIN_LOGS_DIR = join(LOGS_DIR, PLUGIN_LOGS_DIR_NAME)
 export const AGENT_ACTIVITY_LOGS_DIR = join(LOGS_DIR, AGENT_ACTIVITY_LOGS_DIR_NAME)
 export const GAME_ACTIVITY_LOGS_DIR = join(LOGS_DIR, GAME_ACTIVITY_LOGS_DIR_NAME)
 export const COMPANION_MEMORY_DIR = join(DATA_DIR, COMPANION_MEMORY_DIR_NAME)
+export const COMPANION_MEMORY_DB_PATH = join(COMPANION_MEMORY_DIR, COMPANION_MEMORY_DB_NAME)
 
 /** In-game plugin sources and build output */
 export const PLUGINS_DIR = join(ROOT_PATH, PLUGINS_DIR_NAME)

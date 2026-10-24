@@ -19,6 +19,13 @@ export const PLUGIN_LOGS_DIR_NAME = 'plugins'
 export const AGENT_ACTIVITY_LOGS_DIR_NAME = 'agent-activity'
 export const GAME_ACTIVITY_LOGS_DIR_NAME = 'game-activity'
 export const COMPANION_MEMORY_DIR_NAME = 'companion-memory'
+export const COMPANION_MEMORY_DB_NAME = 'companion.sqlite'
+/** Game Agent settings, secrets, CLI home (under `data/game-agent/`) */
+export const GAME_AGENT_DIR_NAME = 'game-agent'
+/** Bergamot / offline translation packs (under `data/translation-packs/`) */
+export const TRANSLATION_PACKS_DIR_NAME = 'translation-packs'
+/** Server download-center job snapshots (NW / RGSS; Bergamot has its own jobs/) */
+export const DOWNLOAD_JOBS_FILE_NAME = 'download-jobs.json'
 /** In-game plugin source + build directory at repo root */
 export const PLUGINS_DIR_NAME = 'plugins'
 /** @deprecated use PLUGINS_DIR_NAME */

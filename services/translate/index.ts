@@ -53,13 +53,23 @@ export {
   type TermFixCandidate,
   trackLiveTranslateRequest,
 } from './optimize-service'
-export { getSeedJobSnapshot, pauseSeedJob, type SeedJobLogEntry, type SeedJobSnapshot, type SeedJobState, type SeedJobStatus, startSeedJob } from './seed-job'
+export {
+  getSeedJobSnapshot,
+  pauseSeedJob,
+  refreshSeedJobProgress,
+  type SeedJobLogEntry,
+  type SeedJobSnapshot,
+  type SeedJobState,
+  type SeedJobStatus,
+  startSeedJob,
+} from './seed-job'
 export { inspectSensitiveText, isNsfwCacheRow, isNsfwTaggedEngine, isSensitiveForCloud, partitionCloudSafeTexts, type SensitiveHit } from './sensitive-text'
 export { defaultSharedDbPath, openSharedCache } from './shared-cache'
 export {
   exportSourcesJob,
   getSourcesJobStatus,
   importSourcesJob,
+  resumeSourcesJob,
   searchSourcesJob,
   type SourcesExportResult,
   type SourcesJobSnapshot,

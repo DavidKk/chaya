@@ -346,7 +346,8 @@ type ConversationItem = {
 ```
 
 - 控制台创建的 play 请求把 `conversationId` 传给 ext；ext 将目标、进展和终态写入同一引用。
-- local 控制台记录存 `data/game-agent/conversations/`；remote 控制台记录存 IndexedDB。游戏侧只负责 ext 发起的对话和 play/companion 任务记录。
+- **目标**：local 控制台记录存 `data/game-agent/conversations/`；remote 控制台记录存 IndexedDB。游戏侧只负责 ext 发起的对话和 play/companion 任务记录。
+- **现状**：尚未写入 `conversations/`；控制台侧栏仍以浏览器存储 / 活动日志为主，见 [`data-layout.md`](./data-layout.md) §6。
 - 页面打开后按 `conversationId` 拉取 ext 的 `afterSeq`，以 item id 幂等写入控制台存储。展示可按 `createdAt` 排序，但去重和续读只使用 `origin + originSeq/id`，不依赖两宿主时钟完全一致。
 - ext 侧栏发起的对话先使用游戏侧 conversation；控制台连接后将其作为独立会话展示，不擅自并入另一段对话。
 - 后续 ask 组装上下文时读取已落盘的问答消息和已同步的 play 目标、摘要与终态，不把未同步的临时 UI 文本当作上下文。
@@ -362,7 +363,7 @@ type ConversationItem = {
 
 ### 9.6 持久化、过程事件与预算
 
-ext 会话 v1 存游戏 `chaya/agent/` 或 IndexedDB。最多 20 个、7 天。创建任务先尝试初始检查点，10 秒超时后退化内存并显示不能跨重载恢复。后续写入节流且不阻塞运行。
+ext 会话 v1 **目标**存游戏 `chaya/agent/` 或 IndexedDB（最多 20 个、7 天）。创建任务先尝试初始检查点，10 秒超时后退化内存并显示不能跨重载恢复。后续写入节流且不阻塞运行。**现状**尚未普遍落盘到 `chaya/agent/`，见 [`data-layout.md`](./data-layout.md) §6。
 
 恢复时 running / waiting 状态一律改 `interrupted`，不占任务名额。损坏文件跳过。上下文压缩失败时保留目标、边界与最近 5 次观察，截断更早内容。
 

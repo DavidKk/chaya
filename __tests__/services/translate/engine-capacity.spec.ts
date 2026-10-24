@@ -7,12 +7,13 @@ const tick = async () => {
 it('retains capacity for non-cancellable transport work and removes aborted waiters', async () => {
   const finishes: Array<(value: string) => void> = []
   const work = jest.fn(() => new Promise<string>((resolve) => finishes.push(resolve)))
-  const requests = Array.from({ length: 4 }, () => withEngineCapacity('google', 'test:noncancellable', work))
+  const settings = { concurrencyLimit: 4 }
+  const requests = Array.from({ length: 4 }, () => withEngineCapacity('google', 'test:noncancellable', work, undefined, settings))
   await tick()
   expect(work).toHaveBeenCalledTimes(4)
   const controller = new AbortController()
-  const cancelled = withEngineCapacity('google', 'test:noncancellable', work, controller.signal).catch((error: Error) => error.message)
-  const queued = withEngineCapacity('google', 'test:noncancellable', work)
+  const cancelled = withEngineCapacity('google', 'test:noncancellable', work, controller.signal, settings).catch((error: Error) => error.message)
+  const queued = withEngineCapacity('google', 'test:noncancellable', work, undefined, settings)
   controller.abort(new Error('Cancelled before dispatch'))
   expect(await cancelled).toBe('Cancelled before dispatch')
   await tick()

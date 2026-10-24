@@ -32,7 +32,7 @@
 
 程序探测顺序为 `CHAYA_BERGAMOT_BINARY`、平台架构目录、通用 `native/bin/`、`~/.local/bin/`、PATH。只接受 Chaya JSON-Lines 协议的 `chaya-bergamot-translator`，不能用上游一次性 CLI 替代。
 
-语言包根目录：`CHAYA_BERGAMOT_PACKS_DIR`，否则使用 `${XDG_DATA_HOME:-$HOME/.local/share}/chaya/translation-packs`。现有目录格式为 `<source>_<target>/config.yml`。
+语言包根目录：`CHAYA_BERGAMOT_PACKS_DIR`，否则优先工具箱 `data/translation-packs/`（`TRANSLATION_PACKS_DIR`），便于与其它本机数据一并备份。若新目录不存在而旧路径 `${XDG_DATA_HOME:-$HOME/.local/share}/chaya/translation-packs` 仍有内容，启动时尝试迁入；迁入失败则继续读旧路径。现有目录格式为 `<source>_<target>/config.yml`。
 
 2026-10-20 已在 macOS arm64 完成英语 → 德语的真实模型验证；这不证明最新 Mozilla 中文模型、其它平台或全部语向兼容。2026-10-23 本机检查英语 → 中文返回 `model_pack_missing`，根目录不存在。
 

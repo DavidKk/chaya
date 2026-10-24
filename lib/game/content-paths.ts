@@ -28,6 +28,8 @@ export const GAME_CONTENT_RELS = {
   merged: 'translate/merged.json',
   extractStrings: 'translate/extract.strings.json',
   extractCompare: 'translate/extract.compare.json',
+  /** Data signature + source keys for seed filter / list warm — see translation-mainthread-offload §3.3.5 */
+  rgssSourcesIndex: 'translate/rgss-sources.index.json',
   gameEdit: 'config/game-edit.json',
   inputAssistance: 'config/input-assistance.json',
   gameSaves: 'config/game-saves.json',
@@ -48,6 +50,7 @@ export const LEGACY_FLAT_FILES: Record<GameContentKind, readonly string[]> = {
   merged: [`${CONTENT_FILE_PREFIX}-trans.merged.json`],
   extractStrings: [`${CONTENT_FILE_PREFIX}-extract.strings.json`, 'extracted-strings.json'],
   extractCompare: [`${CONTENT_FILE_PREFIX}-extract.compare.json`, 'extracted-compare.json'],
+  rgssSourcesIndex: [],
   gameEdit: [`${CONTENT_FILE_PREFIX}-game-edit.json`],
   inputAssistance: [],
   gameSaves: [],

@@ -7,8 +7,8 @@ import type { ExtractedTranslationItem } from '../extract-items'
 const ASSIGN_RE = /^\s*(?:[A-Z][\w:]*::)*[A-Z]\w*\s*=\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/
 /** return "Current EXP" / return '…' */
 const RETURN_RE = /^\s*return\s+("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*(?:#.*)?$/
-/** draw_text / draw_text_ex(…, "label") — last string arg is usually UI copy */
-const DRAW_RE = /\bdraw_text(?:_ex)?\s*\((?:[^"'()]*|\([^)]*\)|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')*?("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*\)/
+/** draw_text / draw_text_ex(…, "label") — last string arg is usually UI copy (no nested *? over alternations — that backtracks forever on long lines). */
+const DRAW_RE = /\bdraw_text(?:_ex)?\s*\([^)]*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*\)/
 const PATHISH = /[\\/]|\.(?:rvdata2?|png|jpe?g|ogg|mp3|wav|bmp|json|txt|rb)\b|Graphics\/|Audio\/|Data\//i
 const CODEISH = /&&|\|\||==|!=|\.(?:call|new|size|empty\?)\b|^\s*[\[{]|window\.|SceneManager|DataManager/
 
@@ -33,6 +33,8 @@ export function extractRgssScriptUiStrings(contentRoot: string): RgssScriptUiStr
   for (const script of readRgssScripts(contentRoot)) {
     const name = script.name || 'Scripts'
     for (const line of script.source.split(/\r?\n/)) {
+      // Skip pathological lines — ReDoS risk and not useful UI copy.
+      if (line.length > 400) continue
       consider(ASSIGN_RE.exec(line)?.[1], name, found)
       consider(RETURN_RE.exec(line)?.[1], name, found)
       consider(DRAW_RE.exec(line)?.[1], name, found)

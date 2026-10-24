@@ -1,8 +1,7 @@
-import { statSync } from 'node:fs'
-import path from 'node:path'
+import { existsSync, statSync } from 'node:fs'
 import { Worker } from 'node:worker_threads'
 
-import { ROOT_PATH } from '@/constants/paths'
+import { CACHE_WORKER_PATH, ROOT_PATH } from '@/constants/paths'
 
 import { defaultSharedDbPath } from '../shared-cache/db'
 import type { CacheScanResult } from './cache-scan'
@@ -16,7 +15,7 @@ export function startCacheLane(options: {
   onResult: (result: CacheScanResult) => void
   onError: (error: string) => void
 }): CacheLane {
-  const entry = path.join(ROOT_PATH, 'native/bin/chaya-cache-worker.mjs')
+  const entry = CACHE_WORKER_PATH
   const fileStamp = () => {
     try {
       const stat = statSync(entry, { throwIfNoEntry: false })
@@ -31,7 +30,7 @@ export function startCacheLane(options: {
   let stopping: Promise<void> | undefined
   let watchdog: ReturnType<typeof setTimeout> | undefined
   const retiring = new Set<Promise<number>>()
-  let worker: Worker
+  let worker: Worker | undefined
   const arm = () => {
     if (watchdog) clearTimeout(watchdog)
     watchdog = setTimeout(() => {
@@ -44,6 +43,11 @@ export function startCacheLane(options: {
     void close()
   }
   function spawn() {
+    // Soft-fail: seed session keeps dispatching live engines without the shared-cache lane.
+    if (!existsSync(entry)) {
+      fail('CACHE_WORKER_MISSING')
+      return
+    }
     const own = new Worker(entry, { workerData: { contentRoot: options.contentRoot, file: defaultSharedDbPath() }, env: { ...process.env, CHAYA_ROOT: ROOT_PATH } })
     worker = own
     idle = false
@@ -75,7 +79,7 @@ export function startCacheLane(options: {
     })
   }
   function wake() {
-    if (!idle || closed) return
+    if (!idle || closed || !worker) return
     try {
       const currentStamp = fileStamp()
       if (stamp !== currentStamp) {
@@ -106,7 +110,7 @@ export function startCacheLane(options: {
     if (stopping) return stopping
     closed = true
     if (watchdog) clearTimeout(watchdog)
-    stopping = Promise.allSettled([...retiring, worker.terminate()]).then(() => {})
+    stopping = Promise.allSettled([...retiring, worker?.terminate() ?? Promise.resolve(0)]).then(() => {})
     return stopping
   }
   spawn()

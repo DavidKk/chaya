@@ -16,7 +16,9 @@ import {
   importSourcesJob,
   liveTranslateTexts,
   pauseSeedJob,
+  refreshSeedJobProgress,
   requireDisk,
+  resumeSourcesJob,
   searchSourcesJob,
   setTranslateEngineSwitches,
   startSeedJob,
@@ -98,6 +100,10 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       limit?: number
       /** 跳过缓存强制重译 */
       force?: boolean
+      /** progress：显式重扫 seed 库存（轮询不得带此标记）；extract-items：轮询准备结果 */
+      refresh?: boolean
+      /** extract-items：仅查询单飞准备状态，不额外开新任务语义（与 refresh 等价） */
+      poll?: boolean
       /** false：只返回译文不落盘（编辑预览） */
       persist?: boolean
       sourceLang?: string
@@ -108,7 +114,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       speaker?: string
       context?: string
       translations?: Record<string, string>
-      /** rgss-preview：original = restore .chaya.bak；translated = re-apply seed/cache */
+      /** rgss-preview：只写 translation-preview.json；局内渲染时查表开/关（不动 Data） */
       view?: 'original' | 'translated'
       from?: string
       to?: string
@@ -173,6 +179,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (body.mode === 'benchmark') return apiOk(await benchmarkLocalModel(body.settings, request.signal))
 
     if (body.mode === 'progress') {
+      if (body.refresh === true) return apiOk(refreshSeedJobProgress())
       return apiOk(getSeedJobSnapshot())
     }
 
@@ -236,6 +243,11 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         if (!jobId.trim()) return apiError(400, 'SOURCES_JOB_ID', 'Missing jobId')
         return apiOk(getSourcesJobStatus(jobId))
       }
+      if (action === 'resume') {
+        const jobId = typeof body.jobId === 'string' ? body.jobId : ''
+        if (!jobId.trim()) return apiError(400, 'SOURCES_JOB_ID', 'Missing jobId')
+        return apiOk(resumeSourcesJob(jobId))
+      }
       if (action === 'search') {
         const jobId = typeof body.jobId === 'string' ? body.jobId : ''
         if (!jobId.trim()) return apiError(400, 'SOURCES_JOB_ID', 'Missing jobId')
@@ -253,7 +265,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         if (!jobId.trim()) return apiError(400, 'SOURCES_JOB_ID', 'Missing jobId')
         return apiOk(exportSourcesJob(jobId, { onlyDone: Boolean(body.onlyDone) }))
       }
-      return apiError(400, 'SOURCES_ACTION', 'action must be import | status | search | export')
+      return apiError(400, 'SOURCES_ACTION', 'action must be import | status | resume | search | export')
     }
 
     if (body.mode === 'switches') {
@@ -299,29 +311,27 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
 
     if (body.mode === 'extract-items') {
       const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
-      const resolved = resolveGame(root)
-      if (resolved?.ok && (resolved.engine === 'VX Ace' || resolved.engine === 'VX')) {
-        const { loadRgssTranslationItems } = await import('@/services/extract/lib/rgss')
-        const { detectSourceLanguage } = await import('@/lib/translate/source-text')
-        try {
-          const items = loadRgssTranslationItems(root)
-          const detected = detectSourceLanguage(items.map((i) => i.src))
-          const locales = {
-            hasLocales: true,
-            currentSourceLang: detected,
-            currentTargetLang: 'zh',
-            availableLanguages: [...new Set([detected, 'zh'])],
-          }
-          return apiOk({ items, locales, engine: resolved.engine, contentRoot: root })
-        } catch (error) {
-          return apiError(409, 'RGSS_DATA_UNAVAILABLE', error instanceof Error ? error.message : String(error))
-        }
-      }
-      const { loadExtractedItemsWithLocales } = await import('@/services/extract/lib/extract-items')
       const sourceLang = typeof body.sourceLang === 'string' ? body.sourceLang : undefined
       const targetLang = typeof body.targetLang === 'string' ? body.targetLang : undefined
-      const res = loadExtractedItemsWithLocales(root, { sourceLang, targetLang })
-      return apiOk(res)
+      const { pollListExtract, requestListExtract } = await import('@/services/extract/list-extract-prepare')
+      const poll = body.refresh === true || body.poll === true
+      const snap = poll ? pollListExtract(root, { sourceLang, targetLang }) : requestListExtract(root, { sourceLang, targetLang })
+      if (snap.preparing) return apiOk({ preparing: true, contentRoot: root })
+      if ('error' in snap && snap.error) return apiError(409, 'RGSS_DATA_UNAVAILABLE', snap.error)
+      // Worker wrote the full apiOk JSON — stream bytes without JSON.parse on the main thread.
+      if ('bodyPath' in snap && snap.bodyPath) {
+        const { readFile } = await import('node:fs/promises')
+        const buf = await readFile(snap.bodyPath)
+        return new Response(buf, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8' } })
+      }
+      if (!('items' in snap) || !snap.items) return apiError(409, 'RGSS_DATA_UNAVAILABLE', 'empty extract result')
+      return apiOk({
+        preparing: false,
+        items: snap.items,
+        locales: snap.locales,
+        engine: snap.engine ?? null,
+        contentRoot: snap.contentRoot,
+      })
     }
 
     if (body.mode === 'import-locales-corpus') {

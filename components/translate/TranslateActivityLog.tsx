@@ -1,9 +1,7 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-
-import { formCard, formDesc, formTitle } from '@/components/layoutClasses'
-import { ScrollArea } from '@/components/sk'
+import { formDesc, formTitle } from '@/components/layoutClasses'
+import { FollowScrollLogList } from '@/components/logs/FollowScrollLogList'
 import { useAnimatedNumber } from '@/components/translate/useAnimatedNumber'
 import { cn } from '@/lib/utils'
 
@@ -14,17 +12,6 @@ export type TranslateLogEntry = {
   at: number
   level: TranslateLogLevel
   text: string
-}
-
-function fmtTime(at: number) {
-  return new Date(at).toLocaleTimeString('zh-CN', { hour12: false })
-}
-
-const levelClass: Record<TranslateLogLevel, string> = {
-  info: 'text-ink-soft',
-  ok: 'text-ok',
-  warn: 'text-warn',
-  fail: 'text-fail',
 }
 
 type Props = {
@@ -39,43 +26,29 @@ function AnimatedSessionDone({ value }: { value: number }) {
   return <>{n.toLocaleString()}</>
 }
 
-/** 翻译会话活动日志：当前状态 + 滚动明细 */
+/**
+ * 不用 formCard 子项统一 padding（会把滚动条挤进内侧）。
+ * 标题区自带边距；日志区左右底顶满卡片边，指示条贴右缘。
+ */
 export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, className }: Props) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const latest = entries.at(-1)
-
-  useEffect(() => {
-    const viewport = scrollRef.current
-    if (viewport) viewport.scrollTop = viewport.scrollHeight
-  }, [entries.length, latest?.id, latest?.text, liveStatus])
-
   return (
-    <div className={cn(formCard, '[&>*]:px-4 [&>*]:py-3', className)}>
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className={cn(formTitle, 'm-0 text-[0.8125rem]')}>活动日志</h3>
-        <span className="tabular-nums text-[0.7rem] text-ink-soft">
-          本会话已译 <AnimatedSessionDone value={sessionDone} /> 条
-        </span>
+    <div className={cn('m-0 flex w-full flex-col overflow-hidden rounded-[0.35rem] border border-line bg-panel', className)}>
+      <div className="px-4 pt-3 pb-2">
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className={cn(formTitle, 'm-0 text-[0.8125rem]')}>活动日志</h3>
+          <span className="tabular-nums text-[0.7rem] text-ink-soft">
+            本会话已译 <AnimatedSessionDone value={sessionDone} /> 条
+          </span>
+        </div>
+        {liveStatus ? (
+          <p className={cn(formDesc, 'mt-2 animate-pulse text-[0.75rem] text-accent')}>{liveStatus}</p>
+        ) : (
+          <p className={cn(formDesc, 'mt-2')}>开始翻译后显示每段进度与样例。</p>
+        )}
       </div>
-      {liveStatus ? (
-        <p className={cn(formDesc, 'mt-2 animate-pulse text-[0.75rem] text-accent')}>{liveStatus}</p>
-      ) : (
-        <p className={cn(formDesc, 'mt-2')}>开始翻译后显示每段进度与样例。</p>
-      )}
-      <ScrollArea scrollRef={scrollRef} className="mt-3 h-[11rem]" indicator="vertical" scrollProps={{ 'aria-label': '翻译活动日志', tabIndex: 0 }}>
-        <ul className="m-0 flex list-none flex-col gap-2 p-0 font-mono text-[0.7rem] leading-relaxed">
-          {entries.length === 0 ? (
-            <li className="text-ink-soft">暂无记录</li>
-          ) : (
-            entries.map((entry) => (
-              <li key={entry.id} className="flex gap-2">
-                <span className="shrink-0 tabular-nums text-ink-soft/80">{fmtTime(entry.at)}</span>
-                <span className={cn('min-w-0 break-all', levelClass[entry.level])}>{entry.text}</span>
-              </li>
-            ))
-          )}
-        </ul>
-      </ScrollArea>
+      <div className="relative min-h-0 border-t border-[var(--line-soft)]">
+        <FollowScrollLogList entries={entries} ariaLabel="翻译活动日志" heightClassName="h-[11rem]" />
+      </div>
     </div>
   )
 }

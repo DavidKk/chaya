@@ -64,5 +64,5 @@ export {
 export { getTranslateEngineSwitches, setTranslateEngineSwitches, type TranslateEngineId, type TranslateEngineSwitches } from '@/services/translate/engine-switches'
 export { fillMissingFromSeed } from '@/services/translate/fill-missing'
 export { liveTranslateTexts } from '@/services/translate/live-translate'
-export { getSeedJobSnapshot, pauseSeedJob, startSeedJob } from '@/services/translate/seed-job'
-export { exportSourcesJob, getSourcesJobStatus, importSourcesJob, searchSourcesJob } from '@/services/translate/sources-job'
+export { getSeedJobSnapshot, pauseSeedJob, refreshSeedJobProgress, startSeedJob } from '@/services/translate/seed-job'
+export { exportSourcesJob, getSourcesJobStatus, importSourcesJob, resumeSourcesJob, searchSourcesJob } from '@/services/translate/sources-job'

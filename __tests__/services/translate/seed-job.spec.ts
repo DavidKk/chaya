@@ -12,7 +12,16 @@ jest.mock('@/constants/paths', () => ({
   get TRANSLATE_JOBS_DIR() {
     return mockJobs
   },
+  // Present so scrub/hide logic does not call existsSync(undefined) under the paths mock.
+  CACHE_WORKER_PATH: '/tmp/chaya-cache-worker.mjs',
 }))
+jest.mock('node:fs', () => {
+  const actual = jest.requireActual('node:fs') as typeof import('node:fs')
+  return {
+    ...actual,
+    existsSync: (p: unknown) => (p === '/tmp/chaya-cache-worker.mjs' ? true : actual.existsSync(p as any)),
+  }
+})
 jest.mock('@/services/game/binding', () => ({ getResolvedFromConfig: () => ({ ok: true, contentRoot: mockRoot }) }))
 jest.mock('@/services/translate/fill-missing', () => ({
   createSeedFillSession: (root: string) => ({
@@ -24,8 +33,40 @@ jest.mock('@/services/translate/fill-missing', () => ({
   getSeedTranslateProgress: (...args: unknown[]) => mockProgress(...args),
 }))
 jest.mock('@/services/translate/engine-switches', () => ({ getTranslateEngineSwitches: (...args: unknown[]) => mockSwitches(...(args as [])) }))
+jest.mock('@/services/translate/scheduler/seed-prepare', () => ({
+  peekSeedInventory: () => null,
+  isSeedInventoryPreparing: () => false,
+  prepareSeedInventory: async (root: string) => ({
+    progress: {
+      contentRoot: root,
+      hasSeed: true,
+      total: 2,
+      needCount: 2,
+      done: 0,
+      missing: 2,
+      skipCount: 0,
+      needChars: 0,
+      skipChars: 0,
+      missingChars: 0,
+      doneChars: 0,
+      lines: 0,
+      batchSize: 40,
+      batchesLeft: 1,
+    },
+    pending: ['こんにちは', 'さようなら'],
+    stamp: 'test-stamp',
+  }),
+}))
 
-import { getSeedJobSnapshot, pauseSeedJob, startSeedJob } from '@/services/translate/seed-job'
+import { getSeedJobSnapshot, pauseSeedJob, refreshSeedJobProgress, startSeedJob } from '@/services/translate/seed-job'
+
+/** startSeedJob schedules prepare off the HTTP path; flush so beginSeedLoop attaches the fill session. */
+async function startSeedJobReady() {
+  startSeedJob()
+  await Promise.resolve()
+  await jest.runAllTimersAsync()
+  return getSeedJobSnapshot()
+}
 
 describe('seed job failures', () => {
   let dir: string
@@ -42,10 +83,14 @@ describe('seed job failures', () => {
     fs.rmSync(dir, { recursive: true, force: true })
   })
 
-  it('checkpoints recovered progress and reuses it across unchanged paused polling', () => {
+  it('keeps polls free of inventory scans and only rescans on explicit refresh', () => {
     mockProgress.mockReturnValue({ ...progress(), done: 1, missing: 1 })
-    expect(getSeedJobSnapshot()).toMatchObject({ done: 1, missing: 1 })
-    expect(getSeedJobSnapshot()).toMatchObject({ done: 1, missing: 1 })
+    for (let i = 0; i < 40; i++) expect(getSeedJobSnapshot()).toMatchObject({ stale: true, done: 0 })
+    expect(mockProgress).not.toHaveBeenCalled()
+    expect(refreshSeedJobProgress()).toMatchObject({ done: 1, missing: 1 })
+    expect(mockProgress).toHaveBeenCalledTimes(1)
+    for (let i = 0; i < 40; i++) expect(getSeedJobSnapshot()).toMatchObject({ done: 1, missing: 1 })
+    expect(getSeedJobSnapshot().stale).toBeUndefined()
     expect(mockProgress).toHaveBeenCalledTimes(1)
     const checkpoint = JSON.parse(fs.readFileSync(path.join(mockJobs, fs.readdirSync(mockJobs)[0]), 'utf8'))
     expect(checkpoint.progress).toMatchObject({ done: 1, missing: 1 })
@@ -57,13 +102,12 @@ describe('seed job failures', () => {
       .mockResolvedValueOnce({ ...progress(), translated: 0, failed: 1, scanned: 1, unresolved: ['こんにちは'], items: [{ src: 'こんにちは', zh: null }] })
       .mockResolvedValueOnce({ ...progress(), translated: 1, failed: 0, scanned: 1, unresolved: [], items: [{ src: 'さようなら', zh: '再见' }] })
       .mockResolvedValue({ ...progress(), translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] })
-    startSeedJob()
-    await jest.runAllTimersAsync()
+    await startSeedJobReady()
     expect(mockFill).toHaveBeenCalledTimes(3)
     expect(mockFill.mock.calls[1][0]).toMatchObject({ contentRoot: mockRoot, exclude: new Set(['こんにちは']) })
     expect(getSeedJobSnapshot().job).toMatchObject({ status: 'paused', failedSources: ['こんにちは'] })
     const logs = getSeedJobSnapshot().job.logs
-    expect(logs.some((entry) => entry.text.startsWith('Batch '))).toBe(true)
+    expect(logs.some((entry) => entry.text.startsWith('#'))).toBe(true)
     expect(logs.some((entry) => /Requesting batch| → |additional items omitted/.test(entry.text))).toBe(false)
     const savedDebug = process.env.CHAYA_TRANSLATE_DEBUG
     delete process.env.CHAYA_TRANSLATE_DEBUG
@@ -71,13 +115,12 @@ describe('seed job failures', () => {
       mockFill.mock.calls[0][0].onTrace('Item 1 engine requested: engine=google')
       expect(getSeedJobSnapshot().job.logs).toHaveLength(logs.length)
       mockFill.mock.calls[0][0].onTrace('Cache scan unavailable: Worker timed out')
-      expect(getSeedJobSnapshot().job.logs.at(-1)).toMatchObject({ level: 'warn', text: 'Cache scan unavailable: Worker timed out' })
+      expect(getSeedJobSnapshot().job.logs.at(-1)).toMatchObject({ level: 'warn', text: 'Cache↓ · Worker timed out' })
     } finally {
       if (savedDebug == null) delete process.env.CHAYA_TRANSLATE_DEBUG
       else process.env.CHAYA_TRANSLATE_DEBUG = savedDebug
     }
-    startSeedJob()
-    await jest.runAllTimersAsync()
+    await startSeedJobReady()
     expect(mockFill.mock.calls[3][0].exclude.size).toBe(0)
     expect(mockSwitches).toHaveBeenCalledWith(mockRoot)
   })
@@ -90,7 +133,7 @@ describe('seed job failures', () => {
           finish = resolve
         })
     )
-    startSeedJob()
+    await startSeedJobReady()
     const before = mockProgress.mock.calls.length
     for (let i = 0; i < 5; i++) getSeedJobSnapshot()
     expect(mockProgress).toHaveBeenCalledTimes(before)
@@ -114,7 +157,7 @@ describe('seed job failures', () => {
     )
     const completeBatch = (completedChars: number) =>
       finish({ ...progress(), scanned: 1, translated: 1, failed: 0, unresolved: [], items: [], performance: { completedChars, cacheMs: 3 } })
-    startSeedJob()
+    await startSeedJobReady()
     pauseSeedJob()
     jest.advanceTimersByTime(2000)
     completeBatch(100)
@@ -126,7 +169,7 @@ describe('seed job failures', () => {
       const store = globalThis as typeof globalThis & { __chayaSeedJobs: Map<string, unknown> }
       store.__chayaSeedJobs.delete(mockRoot)
     }
-    const resumed = startSeedJob()
+    const resumed = await startSeedJobReady()
     expect(resumed.job.performance).toBeNull()
     expect(getSeedJobSnapshot().job.performance).toBeNull()
     const persisted = JSON.parse(fs.readFileSync(path.join(mockJobs, fs.readdirSync(mockJobs)[0]), 'utf8'))
@@ -146,7 +189,7 @@ describe('seed job failures', () => {
           finish = resolve
         })
     )
-    startSeedJob()
+    await startSeedJobReady()
     pauseSeedJob()
     jest.advanceTimersByTime(2000)
     jest.setSystemTime(Date.now() + 24 * 60 * 60 * 1000)
@@ -155,7 +198,7 @@ describe('seed job failures', () => {
     expect(getSeedJobSnapshot().job.performance?.charsPerSecond).toBe(50)
   })
 
-  it('hands off a drained legacy worker without requiring page polling', async () => {
+  it('hands off a drained legacy worker without auto-resuming on the main thread', async () => {
     getSeedJobSnapshot()
     const store = globalThis as typeof globalThis & { __chayaSeedJobs: Map<string, { running: boolean; workerVersion: number; stopRequested: boolean; state: { status: string } }> }
     const legacy = store.__chayaSeedJobs.get(mockRoot)!
@@ -171,8 +214,55 @@ describe('seed job failures', () => {
     legacy.state.status = 'paused'
     mockFill.mockResolvedValue({ ...progress(), translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] })
     await jest.runAllTimersAsync()
-    expect(mockFill).toHaveBeenCalledTimes(1)
-    expect(getSeedJobSnapshot().job.logs.some((entry) => entry.text.startsWith('Translation worker updated'))).toBe(true)
+    // Must not ensureLoop / fill here — that sync inventory freezes the console.
+    expect(mockFill).not.toHaveBeenCalled()
+    expect(getSeedJobSnapshot().job).toMatchObject({ status: 'paused' })
+    expect(getSeedJobSnapshot().job.logs.some((entry) => entry.text.includes('Worker↑ · continue'))).toBe(true)
+  })
+
+  it('demotes orphaned running jobs on poll without starting inventory', () => {
+    mockProgress.mockReturnValue({ ...progress(), done: 1, missing: 1 })
+    refreshSeedJobProgress()
+    const store = globalThis as typeof globalThis & {
+      __chayaSeedJobs: Map<string, { running: boolean; inventoryPreparing?: boolean; state: { status: string; progress?: object } }>
+    }
+    const rt = store.__chayaSeedJobs.get(mockRoot)!
+    rt.running = false
+    rt.state.status = 'running'
+    mockProgress.mockClear()
+    expect(getSeedJobSnapshot().job.status).toBe('paused')
+    expect(mockProgress).not.toHaveBeenCalled()
+  })
+
+  it('keeps preparing inventory as running on poll (not orphan demote)', () => {
+    mockProgress.mockReturnValue({ ...progress(), done: 1, missing: 1 })
+    refreshSeedJobProgress()
+    const store = globalThis as typeof globalThis & {
+      __chayaSeedJobs: Map<string, { running: boolean; inventoryPreparing?: boolean; state: { status: string } }>
+    }
+    const rt = store.__chayaSeedJobs.get(mockRoot)!
+    rt.running = false
+    rt.inventoryPreparing = true
+    rt.state.status = 'running'
+    const snap = getSeedJobSnapshot()
+    expect(snap.job.status).toBe('running')
+    expect(snap.preparing).toBe(true)
+  })
+
+  it('scrubs sticky cache-worker module errors from job logs on poll', () => {
+    mockProgress.mockReturnValue({ ...progress(), done: 1, missing: 1 })
+    refreshSeedJobProgress()
+    const store = globalThis as typeof globalThis & {
+      __chayaSeedJobs: Map<string, { state: { logs: Array<{ id: number; at: number; level: string; text: string }> } }>
+    }
+    const rt = store.__chayaSeedJobs.get(mockRoot)!
+    rt.state.logs = [
+      { id: 1, at: Date.now(), level: 'warn', text: "Cache scan unavailable: Cannot find module '/x/native/bin/chaya-cache-worker.mjs'" },
+      { id: 2, at: Date.now(), level: 'ok', text: '#1 · 1/1 · 12c · google' },
+    ]
+    const snap = getSeedJobSnapshot()
+    expect(snap.job.logs.some((e) => /chaya-cache-worker/.test(e.text))).toBe(false)
+    expect(snap.job.logs.some((e) => e.text.startsWith('#'))).toBe(true)
   })
 
   it('honors explicit pause while a legacy handoff is pending', async () => {

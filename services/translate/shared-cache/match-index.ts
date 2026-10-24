@@ -167,51 +167,115 @@ export function ensureMatchIndex(client: DatabaseSync) {
       throw e
     }
   }
-  // Rebuild historical punctuation keys once; all runtime lookups use equality (rule v10).
-  if (!client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v10_exact_keys'").get()) {
-    client.exec('BEGIN IMMEDIATE')
-    try {
-      const rows = client.prepare('SELECT id, src, src_lang, tgt_lang, revision FROM translation_records').all() as Array<{
-        id: number
-        src: string
-        src_lang: string
-        tgt_lang: string
-        revision: number
-      }>
-      client.exec(
-        "DELETE FROM numeric_label_keys; INSERT INTO numeric_label_keys SELECT id,chaya_numeric_family(src),src_lang,tgt_lang FROM translation_records WHERE chaya_numeric_family(src)<>'';"
-      )
-      const delPos = client.prepare('DELETE FROM sentence_positions WHERE record_id=?')
-      const delKeys = client.prepare('DELETE FROM match_keys WHERE record_id=?')
-      const insKey = client.prepare('INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)')
-      const insPos = client.prepare('INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)')
-      const zhOf = client.prepare('SELECT zh FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?')
-      const structureOf = client.prepare('SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?')
-      const nlOf = client.prepare('SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?')
-      for (const row of rows) {
-        const nlRow = nlOf.get(row.id, row.revision) as { annotations_json: string } | undefined
-        const newlines = nlRow ? (JSON.parse(nlRow.annotations_json) as NewlineAnnotation[]) : undefined
-        const st = structureOf.get(row.id, row.revision) as { annotations_json: string } | undefined
-        const structure = st ? (JSON.parse(st.annotations_json) as RecordStructure) : undefined
-        const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang as 'ja' | 'en' | 'zh' | 'ko' }
-        delPos.run(row.id)
-        delKeys.run(row.id)
-        const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic)
-        const canon = wholeSentenceKey(row.src)
-        insKey.run(row.id, canon, row.src_lang, row.tgt_lang, 'canonical')
-        if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, 'logic')
-        const zh = (zhOf.get(row.src, row.src_lang, row.tgt_lang) as { zh: string } | undefined)?.zh ?? ''
-        for (const alias of sentenceAliases(row.src, zh)) {
-          insKey.run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, 'alias')
-        }
-        sentenceUnits(row.src, unitOpts).forEach((unit, position) => insPos.run(row.id, position, unit.key, unit.tone, row.src_lang, row.tgt_lang))
-      }
-      client.prepare("INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v10_exact_keys','1')").run()
-      client.exec('COMMIT')
-    } catch (e) {
-      client.exec('ROLLBACK')
-      throw e
+  // v10 rebuild is heavy — open path uses ensureMatchIndexSchema only; migrate-bg runs this.
+}
+
+/** Lightweight open: tables/triggers + v1 backfill only (no full-table v10 rebuild). */
+export function ensureMatchIndexSchema(client: DatabaseSync) {
+  ensureMatchIndex(client)
+}
+
+export function needsSentenceIndexV10(client: DatabaseSync) {
+  return !client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v10_exact_keys'").get()
+}
+
+type V10Row = { id: number; src: string; src_lang: string; tgt_lang: string; revision: number }
+
+function rebuildSentenceIndexV10Rows(client: DatabaseSync, rows: V10Row[]) {
+  client.exec(
+    "DELETE FROM numeric_label_keys; INSERT INTO numeric_label_keys SELECT id,chaya_numeric_family(src),src_lang,tgt_lang FROM translation_records WHERE chaya_numeric_family(src)<>'';"
+  )
+  const delPos = client.prepare('DELETE FROM sentence_positions WHERE record_id=?')
+  const delKeys = client.prepare('DELETE FROM match_keys WHERE record_id=?')
+  const insKey = client.prepare('INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)')
+  const insPos = client.prepare('INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)')
+  const zhOf = client.prepare('SELECT zh FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?')
+  const structureOf = client.prepare('SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?')
+  const nlOf = client.prepare('SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?')
+  for (const row of rows) {
+    const nlRow = nlOf.get(row.id, row.revision) as { annotations_json: string } | undefined
+    const newlines = nlRow ? (JSON.parse(nlRow.annotations_json) as NewlineAnnotation[]) : undefined
+    const st = structureOf.get(row.id, row.revision) as { annotations_json: string } | undefined
+    const structure = st ? (JSON.parse(st.annotations_json) as RecordStructure) : undefined
+    const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang as 'ja' | 'en' | 'zh' | 'ko' }
+    delPos.run(row.id)
+    delKeys.run(row.id)
+    const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic)
+    const canon = wholeSentenceKey(row.src)
+    insKey.run(row.id, canon, row.src_lang, row.tgt_lang, 'canonical')
+    if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, 'logic')
+    const zh = (zhOf.get(row.src, row.src_lang, row.tgt_lang) as { zh: string } | undefined)?.zh ?? ''
+    for (const alias of sentenceAliases(row.src, zh)) {
+      insKey.run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, 'alias')
     }
+    sentenceUnits(row.src, unitOpts).forEach((unit, position) => insPos.run(row.id, position, unit.key, unit.tone, row.src_lang, row.tgt_lang))
+  }
+}
+
+/** Full-table punctuation-key rebuild (rule v10). Sync — for Jest / small DBs. */
+export function rebuildSentenceIndexV10(client: DatabaseSync) {
+  if (!needsSentenceIndexV10(client)) return
+  client.exec('BEGIN IMMEDIATE')
+  try {
+    const rows = client.prepare('SELECT id, src, src_lang, tgt_lang, revision FROM translation_records').all() as V10Row[]
+    rebuildSentenceIndexV10Rows(client, rows)
+    client.prepare("INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v10_exact_keys','1')").run()
+    client.exec('COMMIT')
+  } catch (e) {
+    client.exec('ROLLBACK')
+    throw e
+  }
+}
+
+/** Chunked v10 rebuild with event-loop yields between batches (production migrate). */
+export async function rebuildSentenceIndexV10Async(client: DatabaseSync, yieldEvery = 80) {
+  if (!needsSentenceIndexV10(client)) return
+  const rows = client.prepare('SELECT id, src, src_lang, tgt_lang, revision FROM translation_records').all() as V10Row[]
+  client.exec('BEGIN IMMEDIATE')
+  try {
+    client.exec(
+      "DELETE FROM numeric_label_keys; INSERT INTO numeric_label_keys SELECT id,chaya_numeric_family(src),src_lang,tgt_lang FROM translation_records WHERE chaya_numeric_family(src)<>'';"
+    )
+    const delPos = client.prepare('DELETE FROM sentence_positions WHERE record_id=?')
+    const delKeys = client.prepare('DELETE FROM match_keys WHERE record_id=?')
+    const insKey = client.prepare('INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)')
+    const insPos = client.prepare('INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)')
+    const zhOf = client.prepare('SELECT zh FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?')
+    const structureOf = client.prepare('SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?')
+    const nlOf = client.prepare('SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?')
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]!
+      const nlRow = nlOf.get(row.id, row.revision) as { annotations_json: string } | undefined
+      const newlines = nlRow ? (JSON.parse(nlRow.annotations_json) as NewlineAnnotation[]) : undefined
+      const st = structureOf.get(row.id, row.revision) as { annotations_json: string } | undefined
+      const structure = st ? (JSON.parse(st.annotations_json) as RecordStructure) : undefined
+      const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang as 'ja' | 'en' | 'zh' | 'ko' }
+      delPos.run(row.id)
+      delKeys.run(row.id)
+      const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic)
+      const canon = wholeSentenceKey(row.src)
+      insKey.run(row.id, canon, row.src_lang, row.tgt_lang, 'canonical')
+      if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, 'logic')
+      const zh = (zhOf.get(row.src, row.src_lang, row.tgt_lang) as { zh: string } | undefined)?.zh ?? ''
+      for (const alias of sentenceAliases(row.src, zh)) {
+        insKey.run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, 'alias')
+      }
+      sentenceUnits(row.src, unitOpts).forEach((unit, position) => insPos.run(row.id, position, unit.key, unit.tone, row.src_lang, row.tgt_lang))
+      if (i > 0 && i % yieldEvery === 0) {
+        client.exec('COMMIT')
+        await new Promise<void>((r) => setTimeout(r, 0))
+        client.exec('BEGIN IMMEDIATE')
+      }
+    }
+    client.prepare("INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v10_exact_keys','1')").run()
+    client.exec('COMMIT')
+  } catch (e) {
+    try {
+      client.exec('ROLLBACK')
+    } catch {
+      /* */
+    }
+    throw e
   }
 }
 

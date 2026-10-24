@@ -54,13 +54,22 @@ Chaya 助手在 App、local server、Cloud 和游戏插件中使用同一套 Rea
 
 ### 2.1 插件与服务配置同步
 
-- 游戏插件保留一份本地 Agent 同步文档，服务保留一份同步元数据并继续物化 `game-agent-settings.json` 供运行时读取。
+- 游戏插件保留一份本地 Agent 同步文档，服务保留一份同步元数据并继续物化 `data/game-agent/settings.json`（旧路径 `data/game-agent-settings.json` 启动时迁入）供运行时读取；CRDT 文档为 `data/game-agent/settings.sync.json`。
+- **三层存储矩阵**（有意分层，不是三份互斥真相；改配置请走设置页 / sync API）：
+
+  | 层       | 路径 / 键                                              | 何时权威          |
+  | -------- | ------------------------------------------------------ | ----------------- |
+  | 本机服务 | `data/game-agent/settings.json` + `settings.sync.json` | local / app       |
+  | OS 共享  | `…/Chaya/game-agent.json`（见插件 `shared-settings`）  | NW 多进程离线共享 |
+  | 浏览器   | `chaya.gameAgent.settings` 等                          | cloud / remote    |
+
 - 初始化先只读插件与服务两边，完成内存合并后才写回；缓存缺失或空数组不表示删除，不能覆盖另一边已有 Agent。
 - Agent 按 `id` 取并集；同一 Agent 的名称、平台、地址、模型、Temperature 与 Keep Alive 分别使用 Lamport stamp 合并，互不相关的字段修改可以同时保留。
 - stamp 按 `counter`、`actorId` 排序，不依赖设备系统时间；插件与服务各有稳定 `actorId`。
 - 删除保存 tombstone，不直接遗忘记录；只有明确删除且删除 stamp 晚于字段修改时才隐藏 Agent，避免离线旧配置复活。
 - 列表顺序单独带 stamp；合并后第一项继续物化为 `defaultProfileId`。
 - 旧服务文件首次迁移为服务端基线；插件没有同步缓存时视为“未知/无数据”，不会生成一份默认配置参与覆盖。
+- 布局总表见 [`data-layout.md`](./data-layout.md)。
 
 ## 3. 模块落点
 

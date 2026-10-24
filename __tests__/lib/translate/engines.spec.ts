@@ -102,7 +102,7 @@ describe('translate engines', () => {
     expect(state.configs.bing.allowConcurrency).toBe(false)
     expect(state.configs.bing.concurrencyLimit).toBe(1)
     expect(state.configs.bing.maxConcurrentChars).toBe(1500)
-    expect(state.configs.apple.concurrencyLimit).toBe(40)
+    expect(state.configs.apple.concurrencyLimit).toBe(1)
     expect(state.configs.bing.id).toBe('')
   })
 

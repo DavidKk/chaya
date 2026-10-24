@@ -7,7 +7,6 @@ import { gameContentReadPath } from '@/lib/game/content-files'
 import { createNumericLabelIndex } from '@/lib/translate/dynamic-template'
 import { filterRgssSeedKeys } from '@/services/extract/lib/rgss'
 
-import { lookupCachedTranslation } from '../cache-lookup'
 import type { SeedProgress } from '../fill-missing'
 import { createGameTranslateLookup } from '../game-lookup'
 import { loadGameTranslationRecords } from '../game-records'
@@ -77,6 +76,10 @@ export function readSeedInventory(contentRoot: string) {
   } finally {
     client?.close()
   }
+  // Exact / normalized local hits only. Do NOT call lookupCachedTranslation here —
+  // recursive segment matching is RegExp-heavy and blocked the Next.js main thread
+  // when inventory ran (poll auto-resume / start). Fuzzy hits still resolve in the
+  // cache-lane worker once the job actually runs.
   const local = createGameTranslateLookup(records)
   const numeric = createNumericLabelIndex(records)
   const pending: string[] = []
@@ -89,7 +92,7 @@ export function readSeedInventory(contentRoot: string) {
     } else {
       progress.needCount++
       progress.needChars += chars
-      if (local[key] != null || lookupCachedTranslation((source) => local[source], key) != null || numeric.resolve(key) != null) {
+      if (local[key] != null || numeric.resolve(key) != null) {
         progress.done++
         progress.doneChars += chars
       } else {
@@ -103,16 +106,17 @@ export function readSeedInventory(contentRoot: string) {
   return { progress, pending, stamp: seedFileStamp(contentRoot) }
 }
 
-/** Cheap invalidation for paused snapshots; no matching, migrations or full corpus scan. */
+/**
+ * Cheap invalidation for paused snapshots; no matching, migrations or full corpus scan.
+ * Only game-local seed/cache files. Do NOT fingerprint the shared SQLite DB or its WAL:
+ * seed jobs (and other games) rewrite the WAL constantly, which used to invalidate this
+ * stamp on every progress poll, force a multi-second `readSeedInventory` on the Next.js
+ * main thread, and freeze `/translate/seed` until restart.
+ */
 export function seedProgressStamp(contentRoot: string): string {
-  const files = [
-    gameContentReadPath(contentRoot, 'seed', { alsoParent: true }),
-    gameContentReadPath(contentRoot, 'cacheNdjson', { alsoParent: true }),
-    TRANSLATE_CACHE_DB_PATH,
-    TRANSLATE_CACHE_DB_PATH ? `${TRANSLATE_CACHE_DB_PATH}-wal` : null,
-  ]
+  const files = [gameContentReadPath(contentRoot, 'seed', { alsoParent: true }), gameContentReadPath(contentRoot, 'cacheNdjson', { alsoParent: true })]
   return JSON.stringify([
-    2,
+    3,
     files.map((file) => {
       const stat = file ? fs.statSync(file, { throwIfNoEntry: false }) : undefined
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]

@@ -267,7 +267,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
       model: '',
       enabled: true,
       allowConcurrency: true,
-      concurrencyLimit: 4,
+      concurrencyLimit: 1,
       maxConcurrentChars: 3000,
     }
     const name = agentProfiles.profiles.find((p) => p.id === profileId)?.label ?? profileId
@@ -493,7 +493,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
                         const entry = findAgentEntry(view.agents, id)
                         const builtin = isBuiltinEngineId(id) ? view.configs[id] : undefined
                         const allowConcurrency = entry ? entry.allowConcurrency !== false : builtin ? builtin.allowConcurrency !== false : true
-                        const limit = entry ? (entry.concurrencyLimit ?? 4) : builtin ? builtin.concurrencyLimit : 4
+                        const limit = entry ? (entry.concurrencyLimit ?? 1) : builtin ? builtin.concurrencyLimit : 1
                         const chars = entry ? (entry.maxConcurrentChars ?? 3000) : builtin ? builtin.maxConcurrentChars : 3000
 
                         const concurrencyBadge = (

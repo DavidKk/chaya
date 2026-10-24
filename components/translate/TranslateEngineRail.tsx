@@ -360,7 +360,7 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
     const entry = findAgentEntry(view.agents, id)
     const builtin = isBuiltinEngineId(id) ? view.configs[id] : undefined
     const allowConcurrency = entry ? entry.allowConcurrency !== false : builtin ? builtin.allowConcurrency !== false : true
-    const limit = entry ? (entry.concurrencyLimit ?? 4) : builtin ? builtin.concurrencyLimit : 4
+    const limit = entry ? (entry.concurrencyLimit ?? 1) : builtin ? builtin.concurrencyLimit : 1
     const chars = entry ? (entry.maxConcurrentChars ?? 3000) : builtin ? builtin.maxConcurrentChars : 3000
     const concurrencyBadge = (
       <Badge size="mini" tone="neutral" dot={false}>

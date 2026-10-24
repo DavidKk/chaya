@@ -1,6 +1,6 @@
 'use client'
 
-import { Brain, ChevronsDown } from 'lucide-react'
+import { Brain } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
@@ -9,6 +9,7 @@ import { MiniPanelNotice } from '@/components/game-tools/MiniPanelParts'
 import { useToolPanelVisibility } from '@/components/game-tools/tool-panels'
 import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
+import { ScrollToLatestCue } from '@/components/logs/ScrollToLatestCue'
 import { Button, ScrollArea } from '@/components/sk'
 import { COMPANION_CHARACTER_PROFILES, type CompanionState } from '@/lib/game-agent/companion'
 import { cn } from '@/lib/utils'
@@ -216,36 +217,7 @@ function CompanionPanelBody({ gameId, open, observe: _observe, request }: Props)
             <AgentActivityTimeline events={session.activityEvents} compact />
           </ScrollArea>
         )}
-        {showScrollToBottom ? (
-          <div
-            role="button"
-            tabIndex={0}
-            className="absolute right-0 bottom-6 left-0 z-[5] h-4 cursor-pointer transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-accent [@media(hover:none)]:bottom-9"
-            aria-label={t('companion.scrollToBottom')}
-            onClick={scrollToBottom}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                scrollToBottom()
-              }
-            }}
-          >
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 bottom-1/2 h-8 bg-[linear-gradient(to_top,color-mix(in_oklab,var(--accent)_48%,transparent),transparent)] opacity-80 blur-sm"
-            />
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[color-mix(in_oklab,var(--accent)_82%,transparent)] shadow-[0_-3px_12px_2px_var(--accent-glow)]"
-            />
-            <ChevronsDown
-              size={18}
-              strokeWidth={2.5}
-              className="absolute top-1/2 left-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 text-accent drop-shadow-[0_0_6px_var(--accent-glow)] motion-safe:animate-pulse motion-reduce:animate-none"
-              aria-hidden
-            />
-          </div>
-        ) : null}
+        {showScrollToBottom ? <ScrollToLatestCue ariaLabel={t('companion.scrollToBottom')} onActivate={scrollToBottom} className="bottom-6 [@media(hover:none)]:bottom-9" /> : null}
         <CompanionComposer
           locale={locale}
           question={session.question}

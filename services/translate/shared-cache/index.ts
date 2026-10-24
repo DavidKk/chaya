@@ -495,14 +495,8 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
     },
   }
 
-  if (!scrubbedDbPaths.has(resolved)) {
-    try {
-      cache.scrubDirty()
-    } catch {
-      /* 清理失败不挡读写 */
-    }
-    scrubbedDbPaths.add(resolved)
-  }
+  // Scrub + sentence v10 run via scheduleSharedCacheHeavyMigrate (openSharedCacheDb); never sync on open.
+  scrubbedDbPaths.add(resolved)
 
   return cache
 }

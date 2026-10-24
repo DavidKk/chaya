@@ -190,31 +190,35 @@ export function TranslateRunPane({
   }, [])
 
   const refreshing = useRef(false)
-  const refresh = useCallback(async () => {
-    if (refreshing.current) return
-    refreshing.current = true
-    try {
-      const res = await translationFetch('/api/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'progress' }),
-      })
-      const json = (await res.json()) as Progress & { ok?: boolean; job?: JobState; activity?: ActivityState; error?: unknown }
-      if (!res.ok || json.ok === false) {
-        setStatus(readApiErrorMessage(json, t('translate.progressFailed')))
+  /** Polls are snapshot-only. Pass `rescan` after extract/import; start path rescans on the server. */
+  const refresh = useCallback(
+    async (opts?: { rescan?: boolean }) => {
+      if (refreshing.current) return
+      refreshing.current = true
+      try {
+        const res = await translationFetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'progress', ...(opts?.rescan ? { refresh: true } : {}) }),
+        })
+        const json = (await res.json()) as Progress & { ok?: boolean; job?: JobState; activity?: ActivityState; error?: unknown }
+        if (!res.ok || json.ok === false) {
+          setStatus(readApiErrorMessage(json, t('translate.progressFailed')))
+          setProgress(emptyProgress)
+          setJob(emptyJob)
+          return
+        }
+        applySnapshot(json)
+      } catch (err) {
+        setStatus(err instanceof Error ? err.message : t('translate.progressFailed'))
         setProgress(emptyProgress)
         setJob(emptyJob)
-        return
+      } finally {
+        refreshing.current = false
       }
-      applySnapshot(json)
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : t('translate.progressFailed'))
-      setProgress(emptyProgress)
-      setJob(emptyJob)
-    } finally {
-      refreshing.current = false
-    }
-  }, [applySnapshot, t, translationFetch])
+    },
+    [applySnapshot, t, translationFetch]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -258,7 +262,7 @@ export function TranslateRunPane({
         notify.error(readApiErrorMessage(json, t('translate.extractFailed')))
         return
       }
-      await refresh()
+      await refresh({ rescan: true })
       notify.success(json.added ? t('translate.extractDoneAdded', { total: json.total ?? 0, added: json.added }) : t('translate.extractUpToDate', { total: json.total ?? 0 }))
     } catch (err) {
       notify.error(err instanceof Error ? err.message : t('translate.extractFailed'))
@@ -376,7 +380,7 @@ export function TranslateRunPane({
         return
       }
       notify.success(t('translate.importDone', { inserted: json.inserted ?? 0, total: json.total ?? 0 }))
-      await refresh()
+      await refresh({ rescan: true })
     } catch (err) {
       notify.error(err instanceof Error ? err.message : t('translate.importFailed'))
     } finally {
@@ -422,7 +426,7 @@ export function TranslateRunPane({
         ) : (
           <ScrollArea className="min-h-0 flex-1" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.taskAria') }}>
             <div className="flex items-start justify-start p-4">
-              <div className="flex w-full max-w-[32rem] flex-col gap-3">
+              <div className="flex w-full max-w-[52rem] flex-col gap-3">
                 <div role="tabpanel" id={`${panelId}-play`} aria-labelledby={`${panelId}-play-tab`} data-translate-mode="play" hidden={tab !== 'play'}>
                   <TranslationPlaySettings />
                   <TranslateActivityLog className="mt-4 w-full" entries={activity.logs} liveStatus={activity.liveStatus} sessionDone={activity.sessionDone} />
@@ -434,7 +438,6 @@ export function TranslateRunPane({
                         {status}
                       </p>
                     ) : null}
-
                     {!progress.hasSeed ? (
                       <div>
                         <ProgressMeter label={t('translate.extract')} pct={extractPct} indeterminate={extracting} />

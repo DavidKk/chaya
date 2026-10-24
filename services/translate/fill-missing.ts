@@ -198,8 +198,12 @@ export type SeedFillOptions = {
 /** A job owns this cursor. Successful items already live in the durable translation cache.
  * Restart/resume builds a fresh cursor; only unfinished sources need inference again.
  */
-export function createSeedFillSession(contentRoot: string, onTrace?: (message: string) => void, opts?: { nonBlocking?: boolean }) {
-  if (opts?.nonBlocking) return createScheduledSeedSession(contentRoot, onTrace)
+export function createSeedFillSession(
+  contentRoot: string,
+  onTrace?: (message: string) => void,
+  opts?: { nonBlocking?: boolean; inventory?: import('./scheduler/seed-prepare').SeedInventoryBundle }
+) {
+  if (opts?.nonBlocking) return createScheduledSeedSession(contentRoot, onTrace, { inventory: opts.inventory })
   const prepareStarted = performance.now()
   let scan = scanSeed(contentRoot)
   onTrace?.(`Session prepared: items=${scan.progress.total}, missing=${scan.progress.missing}, elapsedMs=${Math.round(performance.now() - prepareStarted)}`)

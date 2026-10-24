@@ -10,8 +10,20 @@ jest.mock('@/services/translate/shared-cache/db', () => ({ defaultSharedDbPath: 
 beforeEach(() => {
   jest.useFakeTimers()
   mockWorker = Object.assign(new EventEmitter(), { postMessage: jest.fn(), terminate: jest.fn(async () => 0) })
+  jest.spyOn(fs, 'existsSync').mockReturnValue(true)
 })
-afterEach(() => jest.useRealTimers())
+afterEach(() => {
+  jest.restoreAllMocks()
+  jest.useRealTimers()
+})
+
+it('soft-fails when the built cache worker is missing so engines can continue', async () => {
+  jest.spyOn(fs, 'existsSync').mockReturnValue(false)
+  const onError = jest.fn()
+  const lane = startCacheLane({ contentRoot: '/tmp/game', next: () => [{ id: 0, src: 'Hi' }], onResult: jest.fn(), onError })
+  expect(onError).toHaveBeenCalledWith('CACHE_WORKER_MISSING')
+  await lane.close()
+})
 
 it('gives up a stalled cache lane without blocking translation dispatch', async () => {
   const onError = jest.fn()

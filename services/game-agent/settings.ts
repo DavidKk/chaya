@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { DATA_DIR } from '@/constants/paths'
+import { DATA_DIR, GAME_AGENT_DIR } from '@/constants/paths'
 import { type GameAgentProvider, isCliProvider, isGameAgentProvider, isOpenApiProvider, PROVIDER_META } from '@/lib/game-agent/providers'
 import { type AgentProxyProtocols, normalizeAgentProxy, normalizeAgentProxyHeaders, normalizeAgentProxyProtocols } from '@/lib/game-agent/proxy'
 import {
@@ -47,9 +47,44 @@ export type GameAgentSettings = {
   profiles: GameAgentProfile[]
 }
 
-export const GAME_AGENT_SETTINGS_PATH = path.join(DATA_DIR, 'game-agent-settings.json')
-export const GAME_AGENT_SYNC_PATH = path.join(DATA_DIR, 'game-agent-settings.sync.json')
+/** Canonical paths under `data/game-agent/` (legacy flat names at `data/` root are migrated once). */
+export const GAME_AGENT_SETTINGS_PATH = path.join(GAME_AGENT_DIR, 'settings.json')
+export const GAME_AGENT_SYNC_PATH = path.join(GAME_AGENT_DIR, 'settings.sync.json')
+const LEGACY_GAME_AGENT_SETTINGS_PATH = path.join(DATA_DIR, 'game-agent-settings.json')
+const LEGACY_GAME_AGENT_SYNC_PATH = path.join(DATA_DIR, 'game-agent-settings.sync.json')
 export const GAME_AGENT_SERVICE_ACTOR = 'service:chaya'
+
+function migrateLegacyAgentFile(from: string, to: string) {
+  try {
+    if (!fs.existsSync(from) || fs.existsSync(to)) return
+    fs.mkdirSync(path.dirname(to), { recursive: true })
+    fs.renameSync(from, to)
+  } catch {
+    try {
+      if (!fs.existsSync(from) || fs.existsSync(to)) return
+      fs.mkdirSync(path.dirname(to), { recursive: true })
+      fs.copyFileSync(from, to)
+      fs.rmSync(from, { force: true })
+    } catch {
+      /* keep reading legacy path via resolve below if migrate fails */
+    }
+  }
+}
+
+function resolveAgentSettingsFile(preferred: string, legacy: string): string {
+  migrateLegacyAgentFile(legacy, preferred)
+  if (fs.existsSync(preferred)) return preferred
+  if (fs.existsSync(legacy)) return legacy
+  return preferred
+}
+
+function settingsFilePath(file = GAME_AGENT_SETTINGS_PATH) {
+  return file === GAME_AGENT_SETTINGS_PATH ? resolveAgentSettingsFile(GAME_AGENT_SETTINGS_PATH, LEGACY_GAME_AGENT_SETTINGS_PATH) : file
+}
+
+function syncFilePath(file = GAME_AGENT_SYNC_PATH) {
+  return file === GAME_AGENT_SYNC_PATH ? resolveAgentSettingsFile(GAME_AGENT_SYNC_PATH, LEGACY_GAME_AGENT_SYNC_PATH) : file
+}
 
 export function defaultGameAgentProfile(): GameAgentProfile {
   return {
@@ -153,9 +188,10 @@ export function normalizeGameAgentSettings(value: Partial<GameAgentSettings>): G
 }
 
 export function loadGameAgentSettings(file = GAME_AGENT_SETTINGS_PATH): GameAgentSettings {
+  const resolved = settingsFilePath(file)
   try {
-    if (!fs.existsSync(file)) return defaultGameAgentSettings()
-    return normalizeGameAgentSettings(JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<GameAgentSettings>)
+    if (!fs.existsSync(resolved)) return defaultGameAgentSettings()
+    return normalizeGameAgentSettings(JSON.parse(fs.readFileSync(resolved, 'utf8')) as Partial<GameAgentSettings>)
   } catch (error) {
     if (error instanceof SyntaxError) throw new Error('Agent configuration file is not valid JSON')
     throw error
@@ -164,10 +200,13 @@ export function loadGameAgentSettings(file = GAME_AGENT_SETTINGS_PATH): GameAgen
 
 export function saveGameAgentSettings(value: Partial<GameAgentSettings>, file = GAME_AGENT_SETTINGS_PATH): GameAgentSettings {
   const settings = normalizeGameAgentSettings(value)
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  const temp = `${file}.${process.pid}.tmp`
+  const resolved = file === GAME_AGENT_SETTINGS_PATH ? GAME_AGENT_SETTINGS_PATH : file
+  migrateLegacyAgentFile(LEGACY_GAME_AGENT_SETTINGS_PATH, GAME_AGENT_SETTINGS_PATH)
+  fs.mkdirSync(path.dirname(resolved), { recursive: true })
+  const temp = `${resolved}.${process.pid}.tmp`
   fs.writeFileSync(temp, `${JSON.stringify(settings, null, 2)}\n`, 'utf8')
-  fs.renameSync(temp, file)
+  fs.renameSync(temp, resolved)
+  if (resolved === GAME_AGENT_SETTINGS_PATH) fs.rmSync(LEGACY_GAME_AGENT_SETTINGS_PATH, { force: true })
   return settings
 }
 
@@ -179,13 +218,15 @@ function writeJsonAtomic(file: string, value: unknown) {
 }
 
 export function loadGameAgentSyncDocument(syncFile = GAME_AGENT_SYNC_PATH, settingsFile = GAME_AGENT_SETTINGS_PATH): AgentSyncDocument {
-  if (fs.existsSync(syncFile)) {
-    const parsed = parseAgentSyncDocument(JSON.parse(fs.readFileSync(syncFile, 'utf8')))
+  const resolvedSync = syncFilePath(syncFile)
+  const resolvedSettings = settingsFilePath(settingsFile)
+  if (fs.existsSync(resolvedSync)) {
+    const parsed = parseAgentSyncDocument(JSON.parse(fs.readFileSync(resolvedSync, 'utf8')))
     if (!parsed) throw new Error('Agent sync file format is invalid')
     return withAgentSyncActor(parsed, GAME_AGENT_SERVICE_ACTOR)
   }
-  if (!fs.existsSync(settingsFile)) return createEmptyAgentSyncDocument(GAME_AGENT_SERVICE_ACTOR)
-  const modifiedAt = Math.max(1, Math.floor(fs.statSync(settingsFile).mtimeMs))
+  if (!fs.existsSync(resolvedSettings)) return createEmptyAgentSyncDocument(GAME_AGENT_SERVICE_ACTOR)
+  const modifiedAt = Math.max(1, Math.floor(fs.statSync(resolvedSettings).mtimeMs))
   return agentSyncDocumentFromSettings(loadGameAgentSettings(settingsFile), GAME_AGENT_SERVICE_ACTOR, modifiedAt)
 }
 
@@ -195,7 +236,10 @@ export function saveGameAgentSyncDocument(document: AgentSyncDocument, syncFile 
   let serviceDocument = withAgentSyncActor(parsed, GAME_AGENT_SERVICE_ACTOR)
   const settings = normalizeGameAgentSettings(agentSettingsFromSyncDocument(serviceDocument))
   serviceDocument = applySettingsToAgentSyncDocument(serviceDocument, settings)
-  writeJsonAtomic(syncFile, serviceDocument)
+  const resolvedSync = syncFile === GAME_AGENT_SYNC_PATH ? GAME_AGENT_SYNC_PATH : syncFile
+  migrateLegacyAgentFile(LEGACY_GAME_AGENT_SYNC_PATH, GAME_AGENT_SYNC_PATH)
+  writeJsonAtomic(resolvedSync, serviceDocument)
+  if (resolvedSync === GAME_AGENT_SYNC_PATH) fs.rmSync(LEGACY_GAME_AGENT_SYNC_PATH, { force: true })
   saveGameAgentSettings(settings, settingsFile)
   return { sync: serviceDocument, settings }
 }

@@ -1,14 +1,19 @@
 /**
- * 服务端后台下载任务注册表（进程内）：请求立即返回，页面经 SSE（`/api/downloads/stream`）看进度。
+ * 服务端后台下载任务注册表：请求立即返回，页面经 SSE（`/api/downloads/stream`）看进度。
  * 同种类同时只跑一个；结束的任务保留一段时间供页面展示结果。
+ * 快照写入 `data/download-jobs.json`，进程重启后恢复列表；未完成的任务标为 interrupted。
  */
 import { randomUUID } from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
 
+import { DOWNLOAD_JOBS_PATH } from '@/constants/paths'
 import type { DownloadStatus, ServerDownloadJob, ServerDownloadKind } from '@/lib/downloads/types'
 
 const MAX_FINISHED = 20
 const FINISHED_TTL_MS = 60 * 60 * 1000
 export const JOB_PUSH_THROTTLE_MS = 250
+const INTERRUPTED = 'Interrupted by process restart'
 
 export type JobEvent = { type: 'job'; job: ServerDownloadJob } | { type: 'removed'; id: string }
 
@@ -19,13 +24,20 @@ type Entry = {
   pushTimer?: ReturnType<typeof setTimeout>
 }
 
-type Board = { entries: Map<string, Entry>; listeners: Set<(e: JobEvent) => void> }
+type Board = { entries: Map<string, Entry>; listeners: Set<(e: JobEvent) => void>; hydrated: boolean }
 
 const globalBoard = globalThis as typeof globalThis & { __chayaDownloadJobs?: Board }
 
 function board(): Board {
-  globalBoard.__chayaDownloadJobs ??= { entries: new Map(), listeners: new Set() }
-  return globalBoard.__chayaDownloadJobs
+  if (!globalBoard.__chayaDownloadJobs) {
+    globalBoard.__chayaDownloadJobs = { entries: new Map(), listeners: new Set(), hydrated: false }
+  }
+  const b = globalBoard.__chayaDownloadJobs
+  if (!b.hydrated) {
+    b.hydrated = true
+    hydrate(b)
+  }
+  return b
 }
 
 function emit(e: JobEvent): void {
@@ -42,6 +54,7 @@ function pushNow(entry: Entry): void {
   clearTimeout(entry.pushTimer)
   entry.pushTimer = undefined
   emit({ type: 'job', job: { ...entry.job } })
+  persist()
 }
 
 function pushThrottled(entry: Entry): void {
@@ -49,6 +62,7 @@ function pushThrottled(entry: Entry): void {
   entry.pushTimer = setTimeout(() => {
     entry.pushTimer = undefined
     emit({ type: 'job', job: { ...entry.job } })
+    persist()
   }, JOB_PUSH_THROTTLE_MS)
 }
 
@@ -58,6 +72,7 @@ function removeEntry(id: string): void {
   clearTimeout(entry.pushTimer)
   board().entries.delete(id)
   emit({ type: 'removed', id })
+  persist()
 }
 
 function prune(now = Date.now()): void {
@@ -65,6 +80,51 @@ function prune(now = Date.now()): void {
   finished.forEach((e, i) => {
     if (i >= MAX_FINISHED || now - (e.job.finishedAt ?? now) > FINISHED_TTL_MS) removeEntry(e.job.id)
   })
+}
+
+function jobsFile(): string {
+  return DOWNLOAD_JOBS_PATH
+}
+
+function persist(): void {
+  try {
+    const file = jobsFile()
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    const jobs = [...board().entries.values()].map((e) => e.job)
+    const temp = `${file}.${process.pid}.tmp`
+    fs.writeFileSync(temp, `${JSON.stringify({ version: 1, jobs }, null, 2)}\n`, 'utf8')
+    fs.renameSync(temp, file)
+  } catch {
+    /* disk full / read-only — keep in-memory board */
+  }
+}
+
+function hydrate(b: Board): void {
+  try {
+    const file = jobsFile()
+    if (!fs.existsSync(file)) return
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as { jobs?: ServerDownloadJob[] }
+    if (!Array.isArray(raw.jobs)) return
+    const now = Date.now()
+    for (const job of raw.jobs) {
+      if (!job || typeof job.id !== 'string' || typeof job.kind !== 'string') continue
+      const restored: ServerDownloadJob = { ...job }
+      if (restored.status === 'running') {
+        restored.status = 'error'
+        restored.error = INTERRUPTED
+        restored.finishedAt = restored.finishedAt ?? now
+      }
+      if (restored.status !== 'running' && restored.finishedAt && now - restored.finishedAt > FINISHED_TTL_MS) continue
+      if (b.entries.has(restored.id)) continue
+      const abort = new AbortController()
+      abort.abort()
+      b.entries.set(restored.id, { job: restored, abort, done: Promise.resolve({ ...restored }) })
+    }
+    prune(now)
+    persist()
+  } catch {
+    /* corrupt snapshot — start empty */
+  }
 }
 
 export type DownloadJobPatch = Partial<Pick<ServerDownloadJob, 'phase' | 'version' | 'receivedBytes' | 'totalBytes' | 'resumedFrom'>>
@@ -140,7 +200,23 @@ export function subscribeDownloadJobs(listener: (e: JobEvent) => void): () => vo
 }
 
 export function clearDownloadJobsForTest(): void {
-  for (const e of board().entries.values()) clearTimeout(e.pushTimer)
-  board().entries.clear()
-  board().listeners.clear()
+  if (globalBoard.__chayaDownloadJobs) {
+    for (const e of globalBoard.__chayaDownloadJobs.entries.values()) clearTimeout(e.pushTimer)
+    globalBoard.__chayaDownloadJobs.entries.clear()
+    globalBoard.__chayaDownloadJobs.listeners.clear()
+  }
+  try {
+    fs.rmSync(jobsFile(), { force: true })
+  } catch {
+    /* */
+  }
+  globalBoard.__chayaDownloadJobs = undefined
+}
+
+/** Drop the in-memory board but keep the disk snapshot (simulates process restart). */
+export function resetDownloadJobsBoardForTest(): void {
+  if (globalBoard.__chayaDownloadJobs) {
+    for (const e of globalBoard.__chayaDownloadJobs.entries.values()) clearTimeout(e.pushTimer)
+  }
+  globalBoard.__chayaDownloadJobs = undefined
 }

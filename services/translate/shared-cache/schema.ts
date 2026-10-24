@@ -1,4 +1,4 @@
-import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 /** Shared translation-cache schema; column names match the SQLite database on disk. */
 export const translations = sqliteTable(
@@ -25,4 +25,50 @@ export const cacheMeta = sqliteTable('cache_meta', {
   value: text('value').notNull(),
 })
 
-export const sharedCacheSchema = { translations, cacheMeta }
+/** Game-local translations table with Tombstone (is_deleted) support */
+export const gameTranslations = sqliteTable(
+  'game_translations',
+  {
+    gameId: text('game_id').notNull(),
+    src: text('src').notNull(),
+    srcLang: text('src_lang').notNull().default('ja'),
+    tgtLang: text('tgt_lang').notNull().default('zh'),
+    zh: text('zh'),
+    engine: text('engine').notNull().default('manual'),
+    category: text('category'),
+    isDeleted: integer('is_deleted').notNull().default(0),
+    hitCount: integer('hit_count').notNull().default(0),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.gameId, table.src, table.srcLang, table.tgtLang] }),
+    index('idx_game_trans_lookup').on(table.gameId, table.srcLang, table.tgtLang, table.isDeleted),
+    index('idx_game_trans_updated').on(table.gameId, table.updatedAt),
+  ]
+)
+
+export const gameIdentities = sqliteTable('game_identities', {
+  gameId: text('game_id').primaryKey().notNull(),
+  engine: text('engine').notNull(),
+  title: text('title').notNull(),
+  signatureBaseline: text('signature_baseline').notNull(),
+  signatureVersion: integer('signature_version').notNull().default(1),
+  boundPath: text('bound_path').notNull(),
+  firstBoundAt: integer('first_bound_at').notNull(),
+  lastVerifiedAt: integer('last_verified_at').notNull(),
+})
+
+export const mutationLog = sqliteTable('mutation_log', {
+  idempotencyKey: text('idempotency_key').primaryKey().notNull(),
+  actor: text('actor').notNull(),
+  action: text('action').notNull(),
+  createdAt: integer('created_at').notNull(),
+})
+
+export const sharedCacheSchema = {
+  translations,
+  cacheMeta,
+  gameTranslations,
+  gameIdentities,
+  mutationLog,
+}

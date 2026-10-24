@@ -1,4 +1,4 @@
-/** In-game view: original Data (.chaya.bak) vs applied translations. */
+/** In-game view: runtime lookup on (translated) vs off (original). Config only — no Data write. */
 export type RgssPreviewView = 'original' | 'translated'
 
 export type RgssPreviewSettings = {

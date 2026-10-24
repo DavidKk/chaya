@@ -13,6 +13,7 @@ import { type CacheLane, startCacheLane } from './cache-lane'
 import type { CacheScanResult } from './cache-scan'
 import { engineCapacity } from './engine-capacity'
 import { readSeedInventory, seedFileStamp } from './seed-inventory'
+import type { SeedInventoryBundle } from './seed-prepare'
 
 const UNKNOWN = 0,
   MISS = 1,
@@ -26,8 +27,8 @@ type Attempt = { order: TranslateRunEngine[]; next: number; tried: Set<Translate
 type Active = { engine: TranslateRunEngine; controller: AbortController; work: Promise<void> }
 type Completed = { item: LiveTranslateItem; cacheMs: number }
 
-export function createScheduledSeedSession(contentRoot: string, initialTrace?: (message: string) => void) {
-  let inventory = readSeedInventory(contentRoot)
+export function createScheduledSeedSession(contentRoot: string, initialTrace?: (message: string) => void, opts?: { inventory?: SeedInventoryBundle }) {
+  let inventory: SeedInventoryBundle = opts?.inventory ?? readSeedInventory(contentRoot)
   let progress = { ...inventory.progress }
   let states = new Uint8Array(inventory.pending.length)
   let scanCursor = 0,
@@ -98,7 +99,10 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
 
   function cacheFailed(error: string) {
     cacheAvailable = false
-    trace(`Cache scan unavailable: ${error}`)
+    // Missing worker is expected after a clean checkout until `pnpm build:translate`;
+    // translation continues via enabled engines — do not surface a Node module stack.
+    const soft = error === 'CACHE_WORKER_MISSING' || /chaya-cache-worker|Cache worker missing/i.test(error)
+    trace(soft ? 'Cache scan unavailable: worker not built — continuing with engines only (run pnpm build:translate)' : `Cache scan unavailable: ${error}`)
     for (const [id, item] of waitingCache) finish(id, item)
     notify()
   }

@@ -9,7 +9,8 @@ import { TRANSLATE_CACHE_DB_PATH, TRANSLATE_CACHE_DIR } from '@/constants/paths'
 import { DEFAULT_CACHE_TGT_LANG, detectCacheLang } from '@/lib/translate/cache-lang'
 import { isNsfwCacheRow } from '@/services/translate/sensitive-text'
 
-import { ensureMatchIndex } from './match-index'
+import { ensureMatchIndexSchema } from './match-index'
+import { scheduleSharedCacheHeavyMigrate } from './migrate-bg'
 import { cacheMeta, translations } from './schema'
 
 export type SharedCacheDb = ReturnType<typeof drizzle> & { $client: DatabaseSync }
@@ -138,6 +139,45 @@ function ensureSchema(db: SharedCacheDb, client: DatabaseSync) {
       value TEXT NOT NULL
     )
   `)
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS game_translations (
+      game_id TEXT NOT NULL,
+      src TEXT NOT NULL,
+      src_lang TEXT NOT NULL DEFAULT 'ja',
+      tgt_lang TEXT NOT NULL DEFAULT 'zh',
+      zh TEXT,
+      engine TEXT NOT NULL DEFAULT 'manual',
+      category TEXT,
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      hit_count INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (game_id, src, src_lang, tgt_lang)
+    )
+  `)
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_game_trans_lookup ON game_translations(game_id, src_lang, tgt_lang, is_deleted)`)
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_game_trans_updated ON game_translations(game_id, updated_at)`)
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS game_identities (
+      game_id TEXT PRIMARY KEY NOT NULL,
+      engine TEXT NOT NULL,
+      title TEXT NOT NULL,
+      signature_baseline TEXT NOT NULL,
+      signature_version INTEGER NOT NULL DEFAULT 1,
+      bound_path TEXT NOT NULL,
+      first_bound_at INTEGER NOT NULL,
+      last_verified_at INTEGER NOT NULL
+    )
+  `)
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS mutation_log (
+      idempotency_key TEXT PRIMARY KEY NOT NULL,
+      actor TEXT NOT NULL,
+      action TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `)
 
   migrateLangPairTable(db, client)
   repairLegacyTargetLang(db, client)
@@ -182,6 +222,7 @@ export function openSharedCacheDb(dbPath = defaultSharedDbPath()): { db: SharedC
   client.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000')
   const db = drizzle({ client }) as SharedCacheDb
   ensureSchema(db, client)
-  ensureMatchIndex(client)
+  ensureMatchIndexSchema(client)
+  scheduleSharedCacheHeavyMigrate(resolved)
   return { db, path: resolved }
 }

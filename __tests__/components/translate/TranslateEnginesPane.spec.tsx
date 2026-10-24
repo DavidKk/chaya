@@ -53,9 +53,9 @@ const sampleState = {
   ],
   order: ['agent:agent_1', 'bing', 'google', 'apple', 'bergamot'],
   configs: {
-    bing: { id: 'eng_bing1', enabled: true, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
-    google: { id: 'eng_goog1', enabled: false, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
-    apple: { id: 'eng_appl1', enabled: false, allowConcurrency: true, concurrencyLimit: 40, maxConcurrentChars: 40000 },
+    bing: { id: 'eng_bing1', enabled: true, allowConcurrency: true, concurrencyLimit: 1, maxConcurrentChars: 3000 },
+    google: { id: 'eng_goog1', enabled: false, allowConcurrency: true, concurrencyLimit: 1, maxConcurrentChars: 3000 },
+    apple: { id: 'eng_appl1', enabled: false, allowConcurrency: true, concurrencyLimit: 1, maxConcurrentChars: 40000 },
     bergamot: { id: 'eng_berg1', enabled: false, allowConcurrency: false, concurrencyLimit: 1, maxConcurrentChars: 3000 },
   },
 }

@@ -8,6 +8,7 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
 import { LogEntriesSkeleton, LogEntriesView, matchesLogQuery } from '@/components/LogEntriesView'
 import { LogLevelMultiSelect } from '@/components/LogLevelMultiSelect'
+import { useFollowBottomScroll } from '@/components/logs/useFollowBottomScroll'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
 import { Badge, Button, TextInput } from '@/components/sk'
 import { clearLinkLogs, readLinkLogs, subscribeLinkLogs } from '@/lib/log/link-log-store'
@@ -48,8 +49,6 @@ export function LogPanel() {
   const [paused, setPaused] = useState(false)
   const [frozenLinkEntries, setFrozenLinkEntries] = useState<readonly LogEntry[]>([])
   const [qInput, setQInput] = useState(q)
-  const followRef = useRef(true)
-  const scroller = useRef<HTMLDivElement>(null)
   const pausedRef = useRef(paused)
   pausedRef.current = paused
 
@@ -86,13 +85,8 @@ export function LogPanel() {
 
   const entries = browserMode ? (paused ? frozenLinkEntries : linkEntries.slice(-400)) : streamEntries
   const connected = browserMode ? link.connected : streamConnected
-
-  useEffect(() => {
-    if (paused || !followRef.current) return
-    const el = scroller.current
-    if (!el) return
-    el.scrollTop = el.scrollHeight
-  }, [entries, paused])
+  const followContentKey = `${paused ? 'p' : 'l'}:${entries.length}:${entries.at(-1)?.id ?? ''}`
+  const { scrollRef: scroller, onScroll: onFollowScroll } = useFollowBottomScroll(followContentKey)
 
   async function clearAll() {
     if (browserMode) {
@@ -164,9 +158,7 @@ export function LogPanel() {
           total={entries.length}
           hasFilter={hasFilter}
           scrollRef={scroller}
-          onScroll={(element) => {
-            followRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 32
-          }}
+          onScroll={onFollowScroll}
           ariaLabel={t('logs.region')}
           status={paused ? t('logs.pausedRecv') : connected ? t('logs.live') : browserMode ? t('logs.waitGame') : t('logs.connecting')}
         />

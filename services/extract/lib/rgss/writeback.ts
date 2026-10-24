@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { Worker } from 'node:worker_threads'
 
+import { RGSS_EXTRACT_WORKER_PATH } from '@/constants/paths'
 import { isSourceText } from '@/lib/translate/source-text'
 
 import { isTechnicalField, isTextField } from '../data-fields'
@@ -112,28 +114,49 @@ function fieldCategory(className: string, field: string, fallback: ExtractedText
   return category
 }
 
-function loadFiles(dataDir: string): DataFile[] {
+function loadOneDataFile(dataDir: string, name: string): DataFile {
+  const file = path.join(dataDir, name)
+  // Fail the request before writing anything if any file cannot be decoded.
+  const value = parseRubyMarshal(fs.readFileSync(file))
+  const backup = `${file}.chaya.bak`
+  const original = fs.existsSync(backup) ? parseRubyMarshal(fs.readFileSync(backup)) : value
+  const current = strings(value)
+  const texts: TextLocation[] = []
+  for (const [location, source] of strings(original)) {
+    if (!isSourceText(source.value.value)) continue
+    const target = current.get(location)
+    if (!target) throw new Error(`RGSS data structure changed since backup: ${name}${location}`)
+    texts.push({ source: source.value.value.trim(), current: target, file: name, location })
+  }
+  return { file, value, texts }
+}
+
+/** Custom / binary-heavy Data stems that are not translation sources (Marshal walk can hang). */
+const SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i
+
+function listDataFileNames(dataDir: string): string[] {
   const names = fs
     .readdirSync(dataDir)
-    .filter((name) => /\.rvdata2?$/i.test(name))
+    .filter((name) => /\.rvdata2?$/i.test(name) && !SKIP_DATA_STEMS.test(name))
     .sort()
   if (!names.length) throw new Error('RGSS data is unavailable. Unpack the encrypted archive into Data/ first.')
-  return names.map((name) => {
-    const file = path.join(dataDir, name)
-    // Fail the request before writing anything if any file cannot be decoded.
-    const value = parseRubyMarshal(fs.readFileSync(file))
-    const backup = `${file}.chaya.bak`
-    const original = fs.existsSync(backup) ? parseRubyMarshal(fs.readFileSync(backup)) : value
-    const current = strings(value)
-    const texts: TextLocation[] = []
-    for (const [location, source] of strings(original)) {
-      if (!isSourceText(source.value.value)) continue
-      const target = current.get(location)
-      if (!target) throw new Error(`RGSS data structure changed since backup: ${name}${location}`)
-      texts.push({ source: source.value.value.trim(), current: target, file: name, location })
-    }
-    return { file, value, texts }
-  })
+  return names
+}
+
+function loadFiles(dataDir: string): DataFile[] {
+  return listDataFileNames(dataDir).map((name) => loadOneDataFile(dataDir, name))
+}
+
+/** Yield after every file so HTTP (status/progress) can run between Marshal parses. */
+async function loadFilesAsync(dataDir: string): Promise<DataFile[]> {
+  const names = listDataFileNames(dataDir)
+  const out: DataFile[] = []
+  for (let i = 0; i < names.length; i++) {
+    out.push(loadOneDataFile(dataDir, names[i]!))
+    // Prefer timer yield over setImmediate so pending HTTP callbacks get a turn on large trees.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+  }
+  return out
 }
 
 function atomicWrite(file: string, bytes: Uint8Array) {
@@ -147,9 +170,9 @@ function atomicWrite(file: string, bytes: Uint8Array) {
   }
 }
 
-export function loadRgssItems(dataDir: string): ExtractedTranslationItem[] {
+function itemsFromFiles(files: DataFile[]): ExtractedTranslationItem[] {
   const groups = new Map<string, TextLocation[]>()
-  for (const file of loadFiles(dataDir)) {
+  for (const file of files) {
     for (const text of file.texts) {
       const group = groups.get(text.source) ?? []
       group.push(text)
@@ -168,6 +191,79 @@ export function loadRgssItems(dataDir: string): ExtractedTranslationItem[] {
       meta: { category: locations[0]!.current.category, label: 'RGSS', file: `Data/${locations[0]!.file}` },
     }
   })
+}
+
+export function loadRgssItems(dataDir: string): ExtractedTranslationItem[] {
+  return itemsFromFiles(loadFiles(dataDir))
+}
+
+async function readItemsFileAsync(file: string): Promise<ExtractedTranslationItem[]> {
+  // Read off the sync path; parse in chunks of yield so status/progress stay alive.
+  const raw = await fs.promises.readFile(file, 'utf8')
+  await new Promise<void>((r) => setTimeout(r, 0))
+  const items = JSON.parse(raw) as ExtractedTranslationItem[]
+  await new Promise<void>((r) => setTimeout(r, 0))
+  return items
+}
+
+function loadRgssItemsInWorker(dataDir: string): Promise<ExtractedTranslationItem[]> {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(RGSS_EXTRACT_WORKER_PATH)) {
+      reject(new Error('RGSS_EXTRACT_WORKER_MISSING'))
+      return
+    }
+    let settled = false
+    const worker = new Worker(RGSS_EXTRACT_WORKER_PATH, { workerData: { dataDir } })
+    const finish = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      void worker.terminate()
+      fn()
+    }
+    worker.once('message', (message: { ok: boolean; path?: string; count?: number; error?: string }) => {
+      finish(() => {
+        if (!message?.ok || !message.path) {
+          reject(new Error(message?.error || 'RGSS extract worker failed'))
+          return
+        }
+        const file = message.path
+        void readItemsFileAsync(file)
+          .then((items) => {
+            try {
+              fs.unlinkSync(file)
+            } catch {
+              /* */
+            }
+            resolve(items)
+          })
+          .catch((error) => {
+            try {
+              fs.unlinkSync(file)
+            } catch {
+              /* */
+            }
+            reject(error)
+          })
+      })
+    })
+    worker.once('error', (error) => finish(() => reject(error)))
+    worker.once('exit', (code) => {
+      if (!settled && code !== 0) finish(() => reject(new Error(`RGSS extract worker exited: ${code}`)))
+    })
+  })
+}
+
+/** Prefer worker (off main thread); fall back to yielding sync parse when worker is not built. */
+export async function loadRgssItemsAsync(dataDir: string): Promise<ExtractedTranslationItem[]> {
+  try {
+    return await loadRgssItemsInWorker(dataDir)
+  } catch (error) {
+    if (!(error instanceof Error) || !/RGSS_EXTRACT_WORKER_MISSING|Cannot find module/i.test(error.message)) {
+      // Worker crashed mid-parse — still try yielding path so list can load.
+      console.warn('[extract] RGSS worker failed, falling back to main-thread parse:', error instanceof Error ? error.message : error)
+    }
+    return itemsFromFiles(await loadFilesAsync(dataDir))
+  }
 }
 
 /** Copy every Data/*.rvdata(2).chaya.bak over the live file (no-op when no backup). */

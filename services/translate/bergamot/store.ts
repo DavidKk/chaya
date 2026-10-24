@@ -3,12 +3,34 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { TRANSLATION_PACKS_DIR } from '@/constants/paths'
 import { bergamotLanguage, type BergamotPack, type PackReference } from '@/lib/translate/bergamot'
 
 import { findPack } from './catalog'
 
+/** Legacy XDG layout (pre–DATA_DIR default); still readable until migrated. */
+function legacyPacksRoot(): string {
+  return path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local/share'), 'chaya/translation-packs')
+}
+
+function adoptLegacyPacks(preferred: string, legacy: string) {
+  try {
+    if (fs.existsSync(preferred) || !fs.existsSync(legacy)) return
+    fs.mkdirSync(path.dirname(preferred), { recursive: true })
+    fs.renameSync(legacy, preferred)
+  } catch {
+    /* cross-device rename may fail — packsRoot falls back to legacy */
+  }
+}
+
+/** Packs live under toolkit `data/translation-packs` so backups cover them; override with `CHAYA_BERGAMOT_PACKS_DIR`. */
 export function packsRoot(): string {
-  return path.resolve(process.env.CHAYA_BERGAMOT_PACKS_DIR || path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local/share'), 'chaya/translation-packs'))
+  if (process.env.CHAYA_BERGAMOT_PACKS_DIR) return path.resolve(process.env.CHAYA_BERGAMOT_PACKS_DIR)
+  const preferred = path.resolve(TRANSLATION_PACKS_DIR)
+  const legacy = path.resolve(legacyPacksRoot())
+  adoptLegacyPacks(preferred, legacy)
+  if (!fs.existsSync(preferred) && fs.existsSync(legacy)) return legacy
+  return preferred
 }
 export function safeId(value: string): string {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,159}$/.test(value)) throw new Error('PACK_INVALID_REFERENCE')

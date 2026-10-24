@@ -11,12 +11,11 @@ import type { RgssPreviewView } from '@/lib/translate/rgss-preview'
 
 type PreviewState = {
   view: RgssPreviewView
-  backups: number
   isRgss: boolean
   contentRoot: string
 }
 
-/** Seed: toggle in-game Data + runtime between original (.bak) and translated. */
+/** Seed: toggle in-game runtime lookup (MV-style); does not rewrite Data. */
 export function TranslateRgssPreviewSwitch() {
   const t = useT()
   const translationFetch = useTranslationFetch()
@@ -39,7 +38,6 @@ export function TranslateRgssPreviewSwitch() {
       }
       setState({
         view: data.view === 'original' ? 'original' : 'translated',
-        backups: data.backups ?? 0,
         isRgss: true,
         contentRoot: data.contentRoot || '',
       })
@@ -59,7 +57,7 @@ export function TranslateRgssPreviewSwitch() {
   return (
     <Switch
       label={showTranslated ? t('translate.rgssPreviewTranslated') : t('translate.rgssPreviewOriginal')}
-      description={showTranslated ? t('translate.rgssPreviewTranslatedDesc') : state.backups > 0 ? t('translate.rgssPreviewOriginalDesc') : t('translate.rgssPreviewNoBackupDesc')}
+      description={showTranslated ? t('translate.rgssPreviewTranslatedDesc') : t('translate.rgssPreviewOriginalDesc')}
       checked={showTranslated}
       disabled={pending}
       onCheckedChange={(checked) => {
@@ -72,19 +70,14 @@ export function TranslateRgssPreviewSwitch() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ mode: 'rgss-preview', view, contentRoot: state.contentRoot }),
             })
-            const data = (await res.json()) as PreviewState & { restored?: number; written?: number; error?: unknown }
+            const data = (await res.json()) as PreviewState & { error?: unknown }
             if (!res.ok) throw new Error(readApiErrorMessage(data))
             setState({
               view: data.view === 'original' ? 'original' : 'translated',
-              backups: data.backups ?? state.backups,
               isRgss: true,
               contentRoot: data.contentRoot || state.contentRoot,
             })
-            if (view === 'original') {
-              notify.info(data.restored ? t('translate.rgssPreviewSwitchedOriginal', { count: data.restored }) : t('translate.rgssPreviewSwitchedOriginalEmpty'))
-            } else {
-              notify.info(t('translate.rgssPreviewSwitchedTranslated', { count: data.written ?? 0 }))
-            }
+            notify.info(view === 'original' ? t('translate.rgssPreviewSwitchedOriginal') : t('translate.rgssPreviewSwitchedTranslated'))
           } catch (err) {
             notify.error(err instanceof Error ? err.message : t('notify.saveFailed'))
           } finally {

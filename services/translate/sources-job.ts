@@ -258,6 +258,28 @@ function ensureLoop(jobId: string) {
   void runLoop(jobId)
 }
 
+/** Explicit resume after orphan pause (status poll never auto-starts). */
+export function resumeSourcesJob(jobId: string): SourcesJobSnapshot {
+  const id = String(jobId ?? '').trim()
+  if (!id) throw new Error('Missing jobId')
+  const rt = getRuntime(id)
+  if (!rt) throw new Error(`Unknown sources job: ${id}`)
+  const counts = countStates(rt.disk.entries)
+  if (!counts.pending) {
+    rt.disk.status = 'done'
+    rt.disk.liveStatus = '已全部就绪'
+    rt.disk.updatedAt = Date.now()
+    writeDisk(rt.disk)
+    return toSnapshot(rt.disk)
+  }
+  rt.disk.status = 'running'
+  rt.disk.liveStatus = '继续后台翻译…'
+  rt.disk.updatedAt = Date.now()
+  writeDisk(rt.disk)
+  ensureLoop(id)
+  return toSnapshot(rt.disk)
+}
+
 /** Import sources JSON: register all keys and start background translation. Returns immediately. */
 export function importSourcesJob(text: string, opts?: { force?: boolean }): SourcesJobSnapshot & { jobId: string } {
   const { format, entries } = normalizeSourcesInput(text)
@@ -289,7 +311,13 @@ export function getSourcesJobStatus(jobId: string): SourcesJobSnapshot {
   if (!id) throw new Error('Missing jobId')
   const rt = getRuntime(id)
   if (!rt) throw new Error(`Unknown sources job: ${id}`)
-  if (rt.disk.status === 'running' && !rt.running) ensureLoop(id)
+  // Poll must never ensureLoop — same freeze class as seed progress (docs/translation-mainthread-offload.md H1).
+  if (rt.disk.status === 'running' && !rt.running) {
+    rt.disk.status = 'paused'
+    rt.disk.liveStatus = rt.disk.liveStatus || '已暂停（服务重启）；继续导入以恢复'
+    rt.disk.updatedAt = Date.now()
+    writeDisk(rt.disk)
+  }
   return toSnapshot(rt.disk)
 }
 
@@ -341,7 +369,12 @@ export type SourcesExportResult = {
 export function exportSourcesJob(jobId: string, opts?: { onlyDone?: boolean }): SourcesExportResult {
   const rt = getRuntime(String(jobId ?? '').trim())
   if (!rt) throw new Error(`Unknown sources job: ${jobId}`)
-  if (rt.disk.status === 'running' && !rt.running) ensureLoop(rt.disk.jobId)
+  // Snapshot only — do not resume the translate loop from export.
+  if (rt.disk.status === 'running' && !rt.running) {
+    rt.disk.status = 'paused'
+    rt.disk.updatedAt = Date.now()
+    writeDisk(rt.disk)
+  }
   const c = countStates(rt.disk.entries)
   return {
     jobId: rt.disk.jobId,

@@ -1,5 +1,5 @@
 /** Shared transport limits include abandoned requests until the adapter actually settles. */
-import { type EngineCapacitySettings, engineGroup, type TranslateRunEngine } from '@/lib/translate/engines'
+import { type EngineCapacitySettings, type TranslateRunEngine } from '@/lib/translate/engines'
 
 export type CapacityRequestSettings = EngineCapacitySettings & {
   /** Character weight of this request; used with maxConcurrentChars. */
@@ -15,9 +15,7 @@ export function engineConfiguredCapacity(engine: TranslateRunEngine, customSetti
   if (typeof customSettings?.concurrencyLimit === 'number' && customSettings.concurrencyLimit > 0) {
     return Math.max(1, Math.min(40, Math.floor(customSettings.concurrencyLimit)))
   }
-  if (engine === 'apple') return 40
-  if (engine === 'bergamot' || engine === 'ollama') return 1
-  return engineGroup(engine) === 'agent' ? 2 : 4
+  return 1
 }
 
 type Waiter = { run: () => void; cancel: () => void; chars: number; settings?: CapacityRequestSettings }

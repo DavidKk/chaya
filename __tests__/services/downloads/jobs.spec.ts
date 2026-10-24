@@ -1,4 +1,12 @@
-import { clearDownloadJobsForTest, findRunningJob, type JobEvent, listDownloadJobs, startDownloadJob, subscribeDownloadJobs } from '@/services/downloads/jobs'
+import {
+  clearDownloadJobsForTest,
+  findRunningJob,
+  type JobEvent,
+  listDownloadJobs,
+  resetDownloadJobsBoardForTest,
+  startDownloadJob,
+  subscribeDownloadJobs,
+} from '@/services/downloads/jobs'
 
 function deferred() {
   let resolve!: () => void
@@ -78,4 +86,24 @@ test('超过 20 条结束任务时淘汰最早的并推 removed', async () => {
   }
   expect(listDownloadJobs()).toHaveLength(20)
   expect(removed).toEqual([ids[0]])
+})
+
+test('磁盘快照：重启后恢复已结束任务，运行中标为 interrupted', async () => {
+  const fs = await import('node:fs')
+  const { DOWNLOAD_JOBS_PATH } = await import('@/constants/paths')
+  const finished = startDownloadJob('nw-shell', async () => ({ ok: true }))
+  await finished.done
+  const snapshot = {
+    version: 1,
+    jobs: [...listDownloadJobs(), { id: 'was-running', kind: 'rgss-shell' as const, status: 'running' as const, phase: 'download' as const, startedAt: Date.now() }],
+  }
+  fs.writeFileSync(DOWNLOAD_JOBS_PATH, `${JSON.stringify(snapshot)}\n`)
+  resetDownloadJobsBoardForTest()
+  const restored = listDownloadJobs()
+  expect(restored.find((j) => j.id === finished.job.id)).toMatchObject({ status: 'done', result: { ok: true } })
+  expect(restored.find((j) => j.id === 'was-running')).toMatchObject({
+    status: 'error',
+    error: 'Interrupted by process restart',
+  })
+  expect(findRunningJob('rgss-shell')).toBeUndefined()
 })
