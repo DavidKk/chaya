@@ -41,11 +41,12 @@ export function DashboardGameActions({ nativeRuntime, busy, launch, plugins, she
           {launch.online ? <IoPauseOutline size={19} aria-hidden /> : <IoPlayOutline size={19} aria-hidden />}
           {launch.label}
         </Button>
-        {plugins.state !== 'unavailable' ? (
+        {/* Running games lock plugin writes; hide instead of a disabled twin of Pause. */}
+        {!launch.online && plugins.state !== 'unavailable' ? (
           <Button
             size="lg"
             className={actionButtonClass}
-            variant={plugins.state === 'ready' ? 'fail' : 'accent'}
+            variant={plugins.state === 'ready' ? 'fail' : plugins.state === 'outdated' ? 'warn' : 'accent'}
             disabled={busy || plugins.locked}
             loading={busy}
             onClick={() => void (plugins.state === 'ready' ? plugins.onClear() : plugins.onInstall())}

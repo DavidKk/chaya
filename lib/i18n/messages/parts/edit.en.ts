@@ -168,6 +168,8 @@ export const editEn = {
     flagAutoWinDesc: 'Win every battle as soon as it starts until turned off; waits for battle events to finish',
     flagAutoBattle: 'Auto battle',
     flagAutoBattleDesc: 'When it is time to enter commands, picks an attack or skill for each actor and starts the turn until turned off. Waits until battle events finish',
+    flagSkipBattleResult: 'Fast confirm results',
+    flagSkipBattleResultDesc: 'Auto-confirm battle result screens (rewards are still granted)',
     flagAutoWinHint:
       'Battles the story expects you to lose (unbeatable bosses, scenes that continue only after a defeat) are also won, which can lead into branches the author never planned: soft locks, broken events or missed story. Turn it off before such battles.',
     flagHelp: 'About {name}',

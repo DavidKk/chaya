@@ -100,6 +100,7 @@ function readRunFields(
   | 'god'
   | 'autoWin'
   | 'autoBattle'
+  | 'skipBattleResult'
   | 'through'
   | 'autotalk'
   | 'encounter'
@@ -124,6 +125,7 @@ function readRunFields(
     god: Cheats.getGod(),
     autoWin: Cheats.getAutoWin(),
     autoBattle: Cheats.getAutoBattle(),
+    skipBattleResult: Cheats.getSkipBattleResult(),
     through: Cheats.getThrough(),
     autotalk: typeof window.ChayaEdit?.autoTalk === 'function' ? !!window.ChayaEdit.autoTalk() : prev.autotalk,
     encounter: RunCheats.getEncounter(),

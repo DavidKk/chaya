@@ -15,4 +15,5 @@ export const RGSS_SUPPORTED_RUN_FLAGS: ReadonlySet<RunFlagKey> = new Set<RunFlag
   'autotalk',
   'autoBattle',
   'autoWin',
+  'skipBattleResult',
 ])

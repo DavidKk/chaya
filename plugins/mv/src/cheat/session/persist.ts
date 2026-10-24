@@ -28,6 +28,7 @@ export type GameEditDiskRun = {
   god?: boolean
   autoWin?: boolean
   autoBattle?: boolean
+  skipBattleResult?: boolean
   through?: boolean
   autotalk?: boolean
   encounter?: boolean
@@ -104,6 +105,7 @@ function normalizeDisk(raw: unknown): GameEditDiskState | null {
       god: asBool(runIn.god),
       autoWin: asBool(runIn.autoWin),
       autoBattle: asBool(runIn.autoBattle),
+      skipBattleResult: asBool(runIn.skipBattleResult),
       through: asBool(runIn.through),
       autotalk: asBool(runIn.autotalk),
       encounter: asBool(runIn.encounter),
@@ -173,6 +175,7 @@ export function diskStateFromSession(session: SessionState): GameEditDiskState {
       god: session.god,
       autoWin: session.autoWin,
       autoBattle: session.autoBattle,
+      skipBattleResult: session.skipBattleResult,
       through: session.through,
       autotalk: session.autotalk,
       encounter: session.encounter,
@@ -217,6 +220,7 @@ export function applyGameEditDisk(disk: GameEditDiskState) {
     'god',
     'autoWin',
     'autoBattle',
+    'skipBattleResult',
     'through',
     'autotalk',
     'encounter',
@@ -252,6 +256,7 @@ export function mergeDiskIntoSession(prev: SessionState, disk: GameEditDiskState
     god: run.god ?? prev.god,
     autoWin: run.autoWin ?? prev.autoWin,
     autoBattle: run.autoBattle ?? prev.autoBattle,
+    skipBattleResult: run.skipBattleResult ?? prev.skipBattleResult,
     through: run.through ?? prev.through,
     autotalk: run.autotalk ?? prev.autotalk,
     encounter: run.encounter ?? prev.encounter,

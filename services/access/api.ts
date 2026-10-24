@@ -115,16 +115,28 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
       .clone()
       .json()
       .catch(() => null)
-    return (
-      !!body &&
-      (body.mode == null ||
-        body.mode === 'live' ||
-        body.mode === 'realtime' ||
-        body.mode === 'lookup' ||
-        body.mode === 'ai' ||
-        body.mode === 'agents' ||
-        body.mode === 'translate-agents')
-    )
+    if (!body) return false
+    // Live dialogue / engine probes: any launched game may call (SubtitleOverlay, MV plugin miss).
+    if (
+      body.mode == null ||
+      body.mode === 'live' ||
+      body.mode === 'realtime' ||
+      body.mode === 'lookup' ||
+      body.mode === 'ai' ||
+      body.mode === 'agents' ||
+      body.mode === 'translate-agents'
+    ) {
+      return true
+    }
+    // Overlay translate panel (RGSS has no Node plugin runtime): only the launched game's contentRoot.
+    return isSessionGameContentRoot(body.contentRoot, session)
+  }
+  if (path === '/api/extract' && request.method === 'POST') {
+    const body = await request
+      .clone()
+      .json()
+      .catch(() => null)
+    return isSessionGameContentRoot(body?.contentRoot, session)
   }
   if (path === '/api/game-saves/store' && request.method === 'POST') {
     const body = await request
@@ -141,6 +153,14 @@ const isWithin = (child: string, parent: string) => {
   return !relative.startsWith('..') && !nodePath.isAbsolute(relative)
 }
 
+/** RGSS overlay / plugin calls may only touch the game that received this launch token. */
+function isSessionGameContentRoot(contentRoot: unknown, session: LaunchSession): boolean {
+  if (typeof contentRoot !== 'string' || !contentRoot.trim() || !session.gameRoot) return false
+  const detected = nodePath.resolve(contentRoot.trim())
+  const launched = nodePath.resolve(session.gameRoot)
+  return detected === launched || isWithin(detected, launched) || nodePath.dirname(launched) === detected
+}
+
 /**
  * 插件「存到 Chaya 本机」的游戏 id：库内游戏为库 id，否则为 `path:<游戏目录>`。
  * 插件探测到的目录可能是启动时所选目录的父目录（选了 www）或其内部（选了 .app），都算同一游戏
@@ -149,7 +169,5 @@ function isSessionSavesGameId(gameId: string, session: LaunchSession): boolean {
   if (!gameId) return false
   if (gameId === session.libraryId || gameId === session.token) return true
   if (!gameId.startsWith('path:') || !session.gameRoot) return false
-  const detected = nodePath.resolve(gameId.slice(5))
-  const launched = nodePath.resolve(session.gameRoot)
-  return isWithin(detected, launched) || nodePath.dirname(launched) === detected
+  return isSessionGameContentRoot(gameId.slice(5), session)
 }

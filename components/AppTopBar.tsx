@@ -57,7 +57,8 @@ export function AppTopBar({ current, end, className }: Props) {
             mobileEnd={end}
           />
         </div>
-        <div className={cn(topRight, 'self-center max-md:ml-0')}>
+        {/* Mobile: dissolve wrapper so an empty slot does not add gap-4 after the menu. */}
+        <div className={cn(topRight, 'self-center max-md:contents')}>
           <div className="hidden items-center gap-3 md:flex">
             {resolved === '/cheat' ? <LinkedGameBadge /> : null}
             {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}

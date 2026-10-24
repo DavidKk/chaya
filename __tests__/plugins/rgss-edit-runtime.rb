@@ -16,7 +16,8 @@ class VxEditActor
   def forget_skill(id); @skills -= [id]; end
   def add_state(id); @states |= [id]; end
   def remove_state(id); @states -= [id]; end
-  def auto_battle?; false; end
+  # Match WFRGSS AutoBattle: optional arg, callers use auto_battle?(false).
+  def auto_battle?(action = true); false; end
 end
 
 class VxEditParty
@@ -67,7 +68,7 @@ $game_variables, $game_switches = [nil, 0], [nil, false]
 bridge = ChayaRGSS::Bridge
 runtime = ChayaRGSS::EditRuntime
 
-%w[through encounter menuEnabled saveEnabled clickMove alwaysDash autotalk autoBattle autoWin].each do |key|
+%w[through encounter menuEnabled saveEnabled clickMove alwaysDash autotalk autoBattle autoWin skipBattleResult].each do |key|
   [true, false, true].each do |value|
     fields = bridge.apply({ 'op' => 'runFlag', 'key' => key, 'value' => value })
     check(fields == ["runFlag:#{key}"], "wrong acknowledgement for #{key}")
@@ -83,9 +84,71 @@ check(!$game_player.dash?, 'disabling alwaysDash did not restore default player 
 bridge.apply({ 'op' => 'runFlag', 'key' => 'alwaysDash', 'value' => true })
 
 check($game_actors[1].auto_battle?, 'autoBattle did not make actor auto battle')
+check($game_actors[1].auto_battle?(false), 'autoBattle(false) arity broke under autoBattle flag')
 bridge.apply({ 'op' => 'runFlag', 'key' => 'autoBattle', 'value' => false })
 check(!$game_actors[1].auto_battle?, 'disabling autoBattle did not restore default auto battle')
+check(!$game_actors[1].auto_battle?(false), 'auto_battle?(false) should forward after disable')
 bridge.apply({ 'op' => 'runFlag', 'key' => 'autoBattle', 'value' => true })
+
+class Rect
+  attr_accessor :x, :y, :width, :height
+  def initialize; @x = @y = @width = @height = 0; end
+end
+class Window_Selectable
+  attr_accessor :index
+  def initialize
+    @index = 0
+  end
+  def col_max; 0; end
+  def item_max; 0; end
+  def width; 100; end
+  def standard_padding; 12; end
+  def spacing; 8; end
+  def item_height; 24; end
+  def item_width; (width - standard_padding * 2 + spacing) / col_max - spacing; end
+  def row_max; [(item_max + col_max - 1) / col_max, 1].max; end
+  def row; index / col_max; end
+  def item_rect(index)
+    rect = Rect.new
+    rect.width = item_width
+    rect.height = item_height
+    rect.x = index % col_max * (item_width + spacing)
+    rect.y = index / col_max * item_height
+    rect
+  end
+end
+runtime.install_selectable_hook
+empty = Window_Selectable.new
+check(empty.chaya_safe_col_max == 1, 'safe col_max must coerce empty lists to 1')
+check(empty.row == 0, 'row must not divide by zero when col_max is 0')
+check(empty.row_max == 1, 'row_max must not divide by zero when col_max is 0')
+check(empty.item_width.is_a?(Numeric), 'item_width must not divide by zero when col_max is 0')
+check(empty.item_rect(0).y == 0, 'item_rect must not divide by zero when col_max is 0')
+
+class Scene_Battle
+  attr_accessor :enemy_window
+  def initialize
+    @enemy_window = OpenStruct.new(:enemy => nil)
+  end
+  def on_enemy_ok
+    BattleManager.actor.input.target_index = @enemy_window.enemy.index
+  end
+  def on_enemy_cancel
+    @cancelled = true
+  end
+  def cancelled?; @cancelled; end
+end
+module BattleManager
+  def self.actor; nil; end
+end
+runtime.install_battle_command_guards
+guarded = Scene_Battle.new
+guarded.on_enemy_ok
+check(guarded.cancelled?, 'on_enemy_ok must cancel when enemy/actor is missing')
+check(!runtime.battle_result_context?, 'result mash must stay off outside MOG result flags')
+$game_temp = OpenStruct.new(:battle_end => true, :result => true)
+check(runtime.battle_result_context?, 'result mash must arm when MOG result flags are set')
+$game_temp = OpenStruct.new(:battle_end => false, :result => false)
 
 module BattleManager
   class << self
@@ -97,18 +160,21 @@ class MockEnemy
   attr_accessor :hp
   def initialize; @hp = 50; end
 end
-$game_troop = Struct.new(:members).new([MockEnemy.new])
-BattleManager.instance_variable_set(:@phase, :turn)
-runtime.instance_variable_set(:@hooks_installed, false)
-runtime.ensure_hooks
-check(BattleManager.judge_win_loss == :victory, 'autoWin did not trigger victory')
-check($game_troop.members.first.hp == 0, 'autoWin did not reduce enemy hp to 0')
-
 class Scene_Battle; end
 module SceneManager
   def self.scene; @scene; end
 end
+$game_troop = Struct.new(:members).new([MockEnemy.new])
 SceneManager.instance_variable_set(:@scene, Scene_Battle.new)
+BattleManager.instance_variable_set(:@phase, :init)
+runtime.instance_variable_set(:@hooks_installed, false)
+runtime.instance_variable_set(:@auto_win_scene, nil)
+runtime.ensure_hooks
+check(BattleManager.judge_win_loss == false, 'autoWin must not win during battle init')
+BattleManager.instance_variable_set(:@phase, :turn)
+check(BattleManager.judge_win_loss == :victory, 'autoWin did not trigger victory')
+check($game_troop.members.first.hp == 0, 'autoWin did not reduce enemy hp to 0')
+
 module BattleManager
   class << self
     attr_accessor :victory_calls, :fail_victory
@@ -124,6 +190,9 @@ module BattleManager
   end
 end
 [:tick, :judge].each do |entry|
+  SceneManager.instance_variable_set(:@scene, Scene_Battle.new)
+  runtime.instance_variable_set(:@auto_win_scene, nil)
+  $game_troop.members.first.hp = 50
   BattleManager.victory_calls = 0
   BattleManager.instance_variable_set(:@phase, :turn)
   if entry == :tick
@@ -135,6 +204,9 @@ end
   runtime.tick
   check(BattleManager.victory_calls == 1, 'finished battle settled twice')
 end
+SceneManager.instance_variable_set(:@scene, Scene_Battle.new)
+runtime.instance_variable_set(:@auto_win_scene, nil)
+$game_troop.members.first.hp = 50
 BattleManager.victory_calls = 0
 BattleManager.fail_victory = true
 BattleManager.instance_variable_set(:@phase, :turn)

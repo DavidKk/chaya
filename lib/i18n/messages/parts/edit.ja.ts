@@ -168,6 +168,8 @@ export const editJa = {
     flagAutoWinDesc: '戦闘に入るとすぐ勝利します（オフにするまで）。戦闘イベントの終了を待ってから決着します',
     flagAutoBattle: '自動戦闘',
     flagAutoBattleDesc: 'コマンド入力の番になると、攻撃かスキルを選んでターンを開始します（オフにするまで）。敵グループのイベントが終わってから行動します',
+    flagSkipBattleResult: '結果の連続確定',
+    flagSkipBattleResultDesc: '戦闘結果画面で確定を自動連打（報酬はそのまま取得）',
     flagAutoWinHint:
       '負けイベントの戦闘（勝てないボス、負けて進むストーリー戦）も勝利になり、作者が想定していない分岐に進むことがあります。進行不能、イベントの不具合、ストーリーの見逃しにつながるため、そのような戦闘の前にはオフにしてください。',
     flagHelp: '{name}について',

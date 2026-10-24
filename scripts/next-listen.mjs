@@ -3,8 +3,11 @@ import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import ensureListenPortMod from './ensure-listen-port.cjs'
 import listenAddress from './listen-address.cjs'
 import localAccess from './local-access.cjs'
+
+const { ensureListenPort } = ensureListenPortMod
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
@@ -44,6 +47,9 @@ const portIndex = args.findIndex((a) => a === '-p' || a === '--port')
 const port = portIndex >= 0 ? args[portIndex + 1] : process.env.PORT || 3927
 // The server derives the compat `/api/mcp` URL from PORT (`toolkitListenPort`).
 process.env.PORT = String(port)
+
+await ensureListenPort(port)
+
 if (process.env.CHAYA_SERVICE !== 'remote' && process.env.VERCEL !== '1') {
   process.env.CHAYA_AUTH_TOKEN = localAccess.ensureAccessToken()
   console.log(`[Chaya] console: ${listenAddress.serviceUrl(host, port, lanIp)}`)

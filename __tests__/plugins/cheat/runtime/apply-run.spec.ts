@@ -7,6 +7,7 @@ const setGod = jest.fn((on: boolean) => on)
 const setThrough = jest.fn((on: boolean) => on)
 const setAutoWin = jest.fn((on: boolean) => on)
 const setAutoBattle = jest.fn((on: boolean) => on)
+const setSkipBattleResult = jest.fn((on: boolean) => on)
 const clearInterpreter = jest.fn()
 const battleVictory = jest.fn()
 const battleEscape = jest.fn()
@@ -42,6 +43,7 @@ jest.mock('@/plugins/mv/src/cheat/runtime/cheats', () => ({
     setThrough: (...a: unknown[]) => setThrough(...(a as [boolean])),
     setAutoWin: (...a: unknown[]) => setAutoWin(...(a as [boolean])),
     setAutoBattle: (...a: unknown[]) => setAutoBattle(...(a as [boolean])),
+    setSkipBattleResult: (...a: unknown[]) => setSkipBattleResult(...(a as [boolean])),
     clearInterpreter: () => clearInterpreter(),
     battleVictory: () => battleVictory(),
     battleEscape: () => battleEscape(),
@@ -127,6 +129,7 @@ describe('applySpeed / applyRunFlag', () => {
       ['god', () => expect(setGod).toHaveBeenCalledWith(true)],
       ['autoWin', () => expect(setAutoWin).toHaveBeenCalledWith(true)],
       ['autoBattle', () => expect(setAutoBattle).toHaveBeenCalledWith(true)],
+      ['skipBattleResult', () => expect(setSkipBattleResult).toHaveBeenCalledWith(true)],
       ['through', () => expect(setThrough).toHaveBeenCalledWith(false)],
       ['autotalk', () => expect(autoTalk).toHaveBeenCalledWith(true)],
       ['encounter', () => expect(setEncounter).toHaveBeenCalledWith(false)],
@@ -145,6 +148,7 @@ describe('applySpeed / applyRunFlag', () => {
           key === 'god' ||
           key === 'autoWin' ||
           key === 'autoBattle' ||
+          key === 'skipBattleResult' ||
           key === 'autotalk' ||
           key === 'menuEnabled' ||
           key === 'clickMove' ||

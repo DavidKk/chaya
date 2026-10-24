@@ -108,10 +108,13 @@ describe('API authorization', () => {
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'ai', text: 'こんにちは' }) }))).toBe(true)
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'agents' }) }))).toBe(true)
     expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'translate-agents' }) }))).toBe(true)
-    for (const mode of ['play-settings', 'benchmark']) {
+    for (const mode of ['play-settings', 'benchmark', 'progress', 'job']) {
       expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode }) }))).toBe(false)
+      expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode, contentRoot: '/games/A' }) }))).toBe(true)
+      expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode, contentRoot: '/games/B' }) }))).toBe(false)
     }
-    expect(await mayAccessApi(request('/api/translate', { method: 'POST', headers, body: JSON.stringify({ mode: 'job', action: 'start' }) }))).toBe(false)
+    expect(await mayAccessApi(request('/api/extract', { method: 'POST', headers, body: JSON.stringify({ contentRoot: '/games/A' }) }))).toBe(true)
+    expect(await mayAccessApi(request('/api/extract', { method: 'POST', headers, body: JSON.stringify({ contentRoot: '/games/B' }) }))).toBe(false)
     expect(await mayAccessApi(request('/api/logs', { method: 'DELETE', headers }))).toBe(false)
   })
 

@@ -441,6 +441,7 @@ export function GameEditWorkbench({
                       god: session.god,
                       autoWin: session.autoWin,
                       autoBattle: session.autoBattle,
+                      skipBattleResult: session.skipBattleResult,
                       through: session.through,
                       autotalk: session.autotalk,
                       encounter: session.encounter,

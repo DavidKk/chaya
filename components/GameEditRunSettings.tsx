@@ -23,6 +23,7 @@ export type GameEditRunSettingsState = Pick<
   | 'god'
   | 'autoWin'
   | 'autoBattle'
+  | 'skipBattleResult'
   | 'through'
   | 'autotalk'
   | 'encounter'

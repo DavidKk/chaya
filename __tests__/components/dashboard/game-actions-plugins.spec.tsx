@@ -27,11 +27,18 @@ afterEach(() => {
   container.remove()
 })
 
-async function render(state: Props['plugins']['state'], locked = false) {
-  const plugins = { state, locked, onInstall: jest.fn(async () => {}), onClear: jest.fn(async () => {}) }
+async function render(state: Props['plugins']['state'], opts: { locked?: boolean; online?: boolean } = {}) {
+  const plugins = { state, locked: opts.locked, onInstall: jest.fn(async () => {}), onClear: jest.fn(async () => {}) }
   const props: Props = {
     busy: false,
-    launch: { online: false, pending: false, enabled: true, label: 'Start', onStart: async () => {}, onQuit: async () => {} },
+    launch: {
+      online: opts.online ?? false,
+      pending: false,
+      enabled: true,
+      label: opts.online ? 'Pause' : 'Start',
+      onStart: async () => {},
+      onQuit: async () => {},
+    },
     plugins,
     shell: {
       canInstall: false,
@@ -72,9 +79,15 @@ it('hides the plugin button when plugins cannot be installed', async () => {
   expect(button('plugins')).toBeUndefined()
 })
 
-it('keeps the RGSS install action visible but locked while the native game runs', async () => {
-  const plugins = await render('missing', true)
-  expect(button('Install plugins')?.disabled).toBe(true)
-  await act(async () => button('Install plugins')!.click())
-  expect(plugins.onInstall).not.toHaveBeenCalled()
+it('hides plugin actions while the game is running', async () => {
+  await render('outdated', { online: true, locked: true })
+  expect(button('Update plugins')).toBeUndefined()
+  expect(button('Install plugins')).toBeUndefined()
+  expect(button('Clear plugins')).toBeUndefined()
+  expect(button('Pause')).toBeTruthy()
+})
+
+it('uses warn for update plugins so it does not match Pause accent', async () => {
+  await render('outdated')
+  expect(button('Update plugins')?.getAttribute('data-variant')).toBe('warn')
 })

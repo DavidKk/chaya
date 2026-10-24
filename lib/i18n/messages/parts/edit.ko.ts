@@ -168,6 +168,8 @@ export const editKo = {
     flagAutoWinDesc: '전투가 시작되면 즉시 승리합니다(끌 때까지). 전투 이벤트가 끝난 뒤 결산합니다',
     flagAutoBattle: '자동 전투',
     flagAutoBattleDesc: '명령을 입력할 차례가 되면 공격이나 스킬을 고르고 턴을 시작합니다(끌 때까지). 적 그룹 이벤트가 끝난 뒤 행동합니다',
+    flagSkipBattleResult: '결과 빠른 확인',
+    flagSkipBattleResultDesc: '전투 결과 화면에서 확인을 자동으로 연타합니다(보상은 그대로 지급)',
     flagAutoWinHint:
       '스토리상 져야 하는 전투(이길 수 없는 보스, 패배해야 진행되는 전투)도 승리로 처리되어 제작자가 의도하지 않은 분기로 갈 수 있습니다. 진행 불가, 이벤트 오류, 스토리 누락이 생길 수 있으니 그런 전투 전에는 꺼 두세요.',
     flagHelp: '{name} 설명',

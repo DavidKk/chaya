@@ -170,6 +170,8 @@ export const editZh = {
       '剧情里设定为必须战败的战斗（打不过的 Boss、输了才继续的剧情战）也会判为胜利，可能进入作者没预料的分支，出现卡关、事件错乱或错过剧情。遇到这类战斗前请先关闭。',
     flagAutoBattle: '自动战斗',
     flagAutoBattleDesc: '轮到输入指令时自动选择攻击或技能并进入回合，直到关闭。敌群事件播完后再行动',
+    flagSkipBattleResult: '结算快确',
+    flagSkipBattleResultDesc: '战斗结算界面自动连点确认（经验/金钱照常获得）',
     flagHelp: '{name}说明',
     readOnlyNotice: '未连接游戏，仅可查看',
     notStartedTitle: '游戏未开始',

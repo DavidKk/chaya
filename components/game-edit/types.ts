@@ -29,6 +29,7 @@ export const RUN_FLAG_KEYS = [
   'god',
   'autoWin',
   'autoBattle',
+  'skipBattleResult',
   'through',
   'autotalk',
   'encounter',
@@ -93,6 +94,8 @@ export type SessionState = {
   autoWin: boolean
   /** 轮到输入指令时自动选招，直到关闭 */
   autoBattle: boolean
+  /** 战斗结算界面自动连点确认 */
+  skipBattleResult: boolean
   through: boolean
   autotalk: boolean
   encounter: boolean
@@ -215,6 +218,7 @@ export function emptySession(): SessionState {
     god: false,
     autoWin: false,
     autoBattle: false,
+    skipBattleResult: false,
     through: false,
     autotalk: false,
     encounter: true,

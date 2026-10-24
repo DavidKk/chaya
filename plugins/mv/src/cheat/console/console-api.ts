@@ -166,6 +166,12 @@ export function installConsoleApi() {
       log.ok('autoBattle = ' + v)
       return v
     },
+    skipBattleResult(on?: boolean) {
+      if (arguments.length === 0) return Cheats.getSkipBattleResult()
+      const v = Cheats.setSkipBattleResult(!!on)
+      log.ok('skipBattleResult = ' + v)
+      return v
+    },
     through(on?: boolean) {
       if (arguments.length === 0) return Cheats.getThrough()
       const v = Cheats.setThrough(!!on)

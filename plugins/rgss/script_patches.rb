@@ -25,6 +25,20 @@ $RGSS_SCRIPTS.each do |entry|
     source.sub!('@public_rect != self.bitmap.rect', '(@public_rect.nil? || self.bitmap.nil? || self.bitmap.disposed? || @public_rect.x != self.bitmap.rect.x || @public_rect.y != self.bitmap.rect.y || @public_rect.width != self.bitmap.rect.width || @public_rect.height != self.bitmap.rect.height)')
     System.puts("[Chaya RGSS] Patched Sprite#update_internal Rect comparison: #{entry[1]}") if defined?(System) && System.respond_to?(:puts)
   end
+  # LNX empty party-command lists report col_max == 0; holding confirm divides in row/item_rect.
+  if source.include?('class Window_Selectable') && source.include?('index / col_max') && !source.include?('chaya_safe_col_max')
+    nl = source.include?("\r\n") ? "\r\n" : "\n"
+    patched = false
+    if source.sub!(/def item_width#{nl}\s*\(width - standard_padding \* 2 \+ spacing\) \/ col_max - spacing#{nl}\s*end/,
+                    "def chaya_safe_col_max#{nl}    cols = col_max#{nl}    cols < 1 ? 1 : cols#{nl}  end#{nl}  def item_width#{nl}    (width - standard_padding * 2 + spacing) / chaya_safe_col_max - spacing#{nl}  end")
+      patched = true
+    end
+    patched = true if source.sub!(/\[\(item_max \+ col_max - 1\) \/ col_max, 1\]\.max/, '[(item_max + chaya_safe_col_max - 1) / chaya_safe_col_max, 1].max')
+    patched = true if source.sub!(/def row#{nl}\s*index \/ col_max#{nl}\s*end/, "def row#{nl}    index / chaya_safe_col_max#{nl}  end")
+    patched = true if source.sub!(/rect\.x = index % col_max \* \(item_width \+ spacing\)#{nl}\s*rect\.y = index \/ col_max \* item_height/,
+                                  "rect.x = index % chaya_safe_col_max * (item_width + spacing)#{nl}    rect.y = index / chaya_safe_col_max * item_height")
+    System.puts("[Chaya RGSS] Patched Window_Selectable zero col_max guards: #{entry[1]}") if patched && defined?(System) && System.respond_to?(:puts)
+  end
   next unless source.include?("DL.dlopen('user32')") && source.include?('@@DLLHandle') && source.include?('Graphics::PlaneSpeedUp')
   size = source.match(/SCREEN_SIZE\s*=\s*\[\s*(\d+)\s*,\s*(\d+)\s*\]/)
   next unless size

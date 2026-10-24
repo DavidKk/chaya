@@ -4,8 +4,10 @@
 
 import { writeMaxParam } from '../session/battle-param'
 import { closeBattleInputWindows } from '../session/battle-windows'
+import { ensureAutoBattleActorHook, tryAutoBattle } from './auto-battle'
 import { RunCheats } from './cheats-run'
 import { gameMap, gamePlayer, gameTroop } from './game-globals'
+import { getSkipBattleResult as readSkipBattleResult, setSkipBattleResult as writeSkipBattleResult, trySkipBattleResult } from './skip-battle-result'
 
 export type LockKind = 'item' | 'weapon' | 'armor' | 'var' | 'gold' | 'hp' | 'mp' | 'mhp' | 'mmp' | 'tp' | 'enemyHp' | 'enemyMhp' | 'sw' | 'level' | 'exp'
 
@@ -53,50 +55,6 @@ function tryAutoWin() {
   if (typeof gameTroop()?.isEventRunning === 'function' && gameTroop().isEventRunning()) return
   wonScene = scene
   Cheats.battleVictory()
-}
-
-type AutoActor = {
-  canInput?: () => boolean
-  makeAutoBattleActions?: () => void
-  makeActions?: () => void
-}
-
-type CommandWindow = { active?: boolean; deactivate?: () => void; close?: () => void; hide?: () => void }
-
-/** 输入阶段替每个还能行动的角色选一招，然后开始回合。自动胜利优先，敌群事件播完再动。 */
-function tryAutoBattle() {
-  if (!autoBattle || autoWin) return
-  if (typeof BattleManager === 'undefined' || typeof Scene_Battle !== 'function' || typeof SceneManager === 'undefined') return
-  const scene = SceneManager._scene
-  if (!(scene instanceof (Scene_Battle as new () => object))) {
-    autoBattleScene = null
-    return
-  }
-  if (String(BattleManager._phase) !== 'input') {
-    autoBattleScene = null
-    return
-  }
-  if (autoBattleScene === scene) return
-  if (typeof gameTroop()?.isEventRunning === 'function' && gameTroop().isEventRunning()) return
-  const party = $gameParty as { battleMembers?: () => AutoActor[] } | undefined
-  const members = typeof party?.battleMembers === 'function' ? party.battleMembers() : []
-  for (const actor of members) {
-    if (!actor || (typeof actor.canInput === 'function' && !actor.canInput())) continue
-    if (typeof actor.makeAutoBattleActions === 'function') actor.makeAutoBattleActions()
-    else actor.makeActions?.()
-  }
-  closeBattleInputWindows()
-  const windows = scene as { _partyCommandWindow?: CommandWindow; _actorCommandWindow?: CommandWindow }
-  for (const w of [windows._partyCommandWindow, windows._actorCommandWindow]) {
-    if (!w) continue
-    w.deactivate?.()
-    w.close?.()
-    w.hide?.()
-  }
-  const startTurn = (BattleManager as { startTurn?: () => void }).startTurn
-  if (typeof startTurn !== 'function') return
-  startTurn.call(BattleManager)
-  autoBattleScene = scene
 }
 
 function lockKey(kind: LockKind, id = 0) {
@@ -211,7 +169,8 @@ function tickLocks() {
   }
 
   if (autoWin) tryAutoWin()
-  if (autoBattle) tryAutoBattle()
+  if (autoBattle) autoBattleScene = tryAutoBattle(autoBattle, autoWin, autoBattleScene)
+  trySkipBattleResult()
 
   if (throughWalls && gamePlayer() && typeof gamePlayer().setThrough === 'function') {
     if (!gamePlayer().isThrough || !gamePlayer().isThrough()) gamePlayer().setThrough(true)
@@ -220,6 +179,7 @@ function tickLocks() {
 
 function ensureHooks() {
   const g = globalThis as typeof globalThis & { __chayaCheatsTick?: ReturnType<typeof setInterval> | null }
+  ensureAutoBattleActorHook(() => autoBattle && !autoWin)
   if (g.__chayaCheatsTick) return
   RunCheats.ensureHooks()
   g.__chayaCheatsTick = setInterval(() => {
@@ -245,6 +205,7 @@ function disposeCheatsHooks() {
   autoBattle = false
   autoBattleScene = null
   wonScene = null
+  writeSkipBattleResult(false)
   RunCheats.disposeHooks()
 }
 
@@ -329,13 +290,22 @@ export const Cheats = {
   getAutoBattle() {
     return autoBattle
   },
-  /** 开启后每个输入阶段自动选招并进入回合，直到关闭 */
+  /** 开启后角色按引擎自动战斗特性行动，直到关闭 */
   setAutoBattle(on: boolean) {
     ensureHooks()
     autoBattle = !!on
     if (!autoBattle) autoBattleScene = null
     if (autoBattle) tickLocks()
     return autoBattle
+  },
+
+  getSkipBattleResult() {
+    return readSkipBattleResult()
+  },
+  /** 结算界面自动连点确认，不跳过奖励 */
+  setSkipBattleResult(on: boolean) {
+    ensureHooks()
+    return writeSkipBattleResult(on)
   },
 
   getThrough() {

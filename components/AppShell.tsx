@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { type ReactNode, useState } from 'react'
 
 import { AppTopBar } from '@/components/AppTopBar'
-import { BergamotDebug } from '@/components/debug/BergamotDebug'
+import { BergamotDebug, BergamotDebugProvider } from '@/components/debug/BergamotDebug'
 import { DebugMenuProvider } from '@/components/debug/registry'
 import { DownloadsRuntime } from '@/components/downloads/DownloadsRuntime'
 import { GameAgentAppPanel } from '@/components/game-agent/GameAgentAppPanel'
@@ -22,37 +22,39 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <DebugMenuProvider>
-      <div className={pageShell}>
-        <DownloadsRuntime />
-        {process.env.NODE_ENV === 'development' && !marketing ? <BergamotDebug /> : null}
-        {marketing ? null : (
-          <AppTopBar
-            end={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="aria-expanded:border-[rgb(230_238_248/0.18)] aria-expanded:bg-[rgb(230_238_248/0.06)] aria-expanded:text-ink"
-                aria-label="Chaya 助手"
-                tooltip="Chaya 助手"
-                aria-expanded={agentOpen}
-                onClick={() => setAgentOpen((open) => !open)}
-              >
-                <Bot size={15} aria-hidden />
-              </Button>
-            }
-          />
-        )}
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {children}
+      <BergamotDebugProvider>
+        <div className={pageShell}>
+          <DownloadsRuntime />
+          {process.env.NODE_ENV === 'development' && !marketing ? <BergamotDebug /> : null}
           {marketing ? null : (
-            <div className="pointer-events-none absolute inset-y-0 right-0 z-30 flex justify-end">
-              <div className="pointer-events-auto flex h-full">
-                <GameAgentAppPanel open={agentOpen} onClose={() => setAgentOpen(false)} />
-              </div>
-            </div>
+            <AppTopBar
+              end={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="aria-expanded:border-[rgb(230_238_248/0.18)] aria-expanded:bg-[rgb(230_238_248/0.06)] aria-expanded:text-ink"
+                  aria-label="Chaya 助手"
+                  tooltip="Chaya 助手"
+                  aria-expanded={agentOpen}
+                  onClick={() => setAgentOpen((open) => !open)}
+                >
+                  <Bot size={15} aria-hidden />
+                </Button>
+              }
+            />
           )}
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            {children}
+            {marketing ? null : (
+              <div className="pointer-events-none absolute inset-y-0 right-0 z-30 flex justify-end">
+                <div className="pointer-events-auto flex h-full">
+                  <GameAgentAppPanel open={agentOpen} onClose={() => setAgentOpen(false)} />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </BergamotDebugProvider>
     </DebugMenuProvider>
   )
 }
