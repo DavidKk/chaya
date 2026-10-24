@@ -84,12 +84,12 @@ export function scanNameSentenceSync(
       if (opts?.renameFrom && opts.renameTo) {
         const renamed = renameZh(oldZh, opts.renameFrom, opts.renameTo)
         if (renamed.aligned && renamed.zh !== oldZh) {
-          candidates.push({ src: record.src, oldZh, newZh: renamed.zh, via: 'rename', engine: record.engine })
+          candidates.push({ src: record.src, oldZh, newZh: renamed.zh, via: 'rename', engine: record.engine ?? undefined })
           continue
         }
         if (!renamed.aligned) {
           review++
-          candidates.push({ src: record.src, oldZh, newZh: oldZh, via: 'review', engine: record.engine })
+          candidates.push({ src: record.src, oldZh, newZh: oldZh, via: 'review', engine: record.engine ?? undefined })
           continue
         }
       }
@@ -100,12 +100,12 @@ export function scanNameSentenceSync(
         unchanged++
         continue
       }
-      candidates.push({ src: record.src, oldZh, newZh: preview, via: 'stitch', engine: record.engine })
+      candidates.push({ src: record.src, oldZh, newZh: preview, via: 'stitch', engine: record.engine ?? undefined })
       continue
     }
     const zh = stitchLockedNamePlan(record.src, plan, new Map())
     if (zh === oldZh) unchanged++
-    else candidates.push({ src: record.src, oldZh, newZh: zh, via: 'stitch', engine: record.engine })
+    else candidates.push({ src: record.src, oldZh, newZh: zh, via: 'stitch', engine: record.engine ?? undefined })
   }
   return { totalRecords: records.length, nameCount: entries.length, candidates, skippedProtected, unchanged, review }
 }
