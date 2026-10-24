@@ -38,10 +38,10 @@ export function PanelHeadStartHost({ className }: { className?: string }) {
   return <div ref={setHost} className={cn('inline-flex shrink-0 items-center gap-1', className)} />
 }
 
-/** 内容页把控件注入页头标题左侧 */
-export function PanelHeadStart({ children }: { children: ReactNode }) {
+/** 内容页把控件注入页头标题左侧；SSR 首帧可给 fallback，避免骨架缺块。 */
+export function PanelHeadStart({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   const host = useContext(StartNodeContext)
-  if (!host) return null
+  if (!host) return fallback ? <>{fallback}</> : null
   return createPortal(children, host)
 }
 

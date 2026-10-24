@@ -7,11 +7,11 @@ function easeOutCubic(t: number) {
 }
 
 /**
- * 数字缓动：目标变化时在 durationMs 内从当前值滚到新值（默认 1.5s）。
- * 首帧直接落到目标，避免进页 6+ 个统计格同时从 0 滚动造成卡顿。
+ * 数字缓动：目标变化时在 durationMs 内从当前值滚到新值（默认 400ms）。
+ * 首帧或初始数据填充直接落到目标，避免进页统计格从 0 滚动造成迟钝。
  * 尊重 prefers-reduced-motion。
  */
-export function useAnimatedNumber(target: number, durationMs = 1500): number {
+export function useAnimatedNumber(target: number, durationMs = 400): number {
   const [display, setDisplay] = useState(() => Math.round(target))
   const displayRef = useRef(display)
   const frameRef = useRef(0)
@@ -25,12 +25,12 @@ export function useAnimatedNumber(target: number, durationMs = 1500): number {
     const to = Number.isFinite(target) ? target : 0
     const from = displayRef.current
     if (from === to) {
-      primed.current = true
+      if (to > 0) primed.current = true
       return
     }
 
     const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    // First paint / cold mount: snap. Later deltas (running job) still ease.
+    // First paint / cold mount / initial data fill from 0: snap. Later deltas (running job) still ease.
     if (!primed.current || reduce || durationMs <= 0) {
       primed.current = true
       displayRef.current = Math.round(to)

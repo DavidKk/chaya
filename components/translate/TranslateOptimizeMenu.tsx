@@ -14,7 +14,7 @@ export function TranslateOptimizeMenu(props: { disabled: boolean; optimizingName
 
   return (
     <Menu.Root>
-      <Menu.Trigger disabled={props.disabled} render={<Button variant="ghost" loading={running} aria-label={t('translate.optimizeMenu')} />}>
+      <Menu.Trigger disabled={props.disabled} render={<Button loading={running} aria-label={t('translate.optimizeMenu')} />}>
         <RiSparklingLine size={16} aria-hidden />
         {t('translate.optimizeMenu')}
         <IoChevronDownOutline size={12} aria-hidden />

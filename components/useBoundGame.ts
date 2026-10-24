@@ -21,6 +21,12 @@ type StatusLite = {
   library?: unknown[]
 }
 
+let cachedStatus: StatusLite | null = null
+
+export function setCachedBoundGameStatusForTests(status: StatusLite | null) {
+  cachedStatus = status
+}
+
 export type BoundGameState = {
   access: BoundGameAccess
   cloud: boolean
@@ -39,12 +45,18 @@ export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?
   const router = useRouter()
   const gameLink = useGameLinkContext()
   const notify = useNotification()
-  const [phase, setPhase] = useState<StatusPhase>('loading')
-  const [libraryEmpty, setLibraryEmpty] = useState(true)
-  const [remote, setRemote] = useState(false)
+  const initialData = process.env.NODE_ENV !== 'test' ? cachedStatus : null
+  const [phase, setPhase] = useState<StatusPhase>(() => {
+    if (!initialData) return 'loading'
+    if (initialData.canUseDisk === false) return 'cloud'
+    return initialData.ready ? 'ready' : 'need-game'
+  })
+  const [libraryEmpty, setLibraryEmpty] = useState(() => !Array.isArray(initialData?.library) || initialData.library.length === 0)
+  const [remote, setRemote] = useState(() => initialData?.remote === true)
   const [busy, setBusy] = useState(false)
 
   const applyStatus = useCallback((data: StatusLite) => {
+    cachedStatus = data
     if (data.canUseDisk === false) {
       setPhase('cloud')
       return

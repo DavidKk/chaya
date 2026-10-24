@@ -4,7 +4,11 @@ import { createRoot, type Root } from 'react-dom/client'
 
 import { GameEditPaneSkeleton } from '@/components/game-edit/GameEditPaneSkeleton'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
+import { TranslateCacheOptimizeSkeleton } from '@/components/translate/TranslateCacheOptimizeSkeleton'
+import { TranslateCachePageSkeleton } from '@/components/translate/TranslateCachePageSkeleton'
+import { TranslateEnginesSkeleton } from '@/components/translate/TranslateEnginesSkeleton'
 import { TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
+import { TranslateTestSkeleton } from '@/components/translate/TranslateTestSkeleton'
 
 jest.mock('next/navigation', () => ({
   usePathname: () => '/cheat/run',
@@ -63,5 +67,38 @@ test('游玩与 Seed 使用各自内容骨架', async () => {
 
   await act(async () => renderWithLocale(<TranslateRunSkeleton tab="seed" />))
   expect(host.querySelector('[aria-label="加载原文翻译进度"]')).not.toBeNull()
+  expect(host.querySelector('[aria-label="加载翻译活动日志"]')).not.toBeNull()
   expect(host.querySelector('[aria-label="加载游玩翻译设置"]')).toBeNull()
+})
+
+test('翻译列表骨架保留筛选、条目行与分页页脚', async () => {
+  await act(async () => renderWithLocale(<TranslateRunSkeleton tab="list" />))
+
+  expect(host.querySelector('[aria-label="加载翻译列表"]')).not.toBeNull()
+  expect(host.querySelectorAll('.h-\\[150px\\]')).toHaveLength(4)
+  expect(host.querySelectorAll('.border-b.border-line.bg-surface\\/10')).toHaveLength(1)
+})
+
+test('翻译工具骨架区分三卡总览与单卡详情', async () => {
+  await act(async () => renderWithLocale(<TranslateEnginesSkeleton />))
+  expect(host.querySelector('[aria-label="加载翻译工具"]')).not.toBeNull()
+  expect(host.querySelectorAll('section')).toHaveLength(3)
+
+  await act(async () => renderWithLocale(<TranslateEnginesSkeleton view="detail" />))
+  expect(host.querySelector('[aria-label="加载翻译工具详情"]')).not.toBeNull()
+  expect(host.querySelectorAll('section')).toHaveLength(1)
+})
+
+test('翻译库、缓存详情和缓存测试使用各自页面骨架', async () => {
+  await act(async () => renderWithLocale(<TranslateCachePageSkeleton />))
+  expect(host.querySelector('[aria-label="加载本作翻译库"]')).not.toBeNull()
+  expect(host.querySelectorAll('[role="presentation"] > .grid:first-child > div')).toHaveLength(8)
+
+  await act(async () => renderWithLocale(<TranslateCacheOptimizeSkeleton />))
+  expect(host.querySelector('[aria-label="加载翻译库详情"]')).not.toBeNull()
+  expect(host.querySelectorAll('section')).toHaveLength(3)
+
+  await act(async () => renderWithLocale(<TranslateTestSkeleton />))
+  expect(host.querySelector('[aria-label="加载缓存测试"]')).not.toBeNull()
+  expect(host.querySelectorAll('section')).toHaveLength(2)
 })

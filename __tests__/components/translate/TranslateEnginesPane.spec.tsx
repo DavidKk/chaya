@@ -130,6 +130,35 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     expect(systemCard?.textContent).toContain('就绪')
   })
 
+  it('shows the overview skeleton while engine settings load', async () => {
+    let resolveState: ((value: ReturnType<typeof json>) => void) | undefined
+    mockTranslationFetch.mockImplementation((_path: string, init?: { body: string }) => {
+      const mode = init?.body ? JSON.parse(init.body).mode : undefined
+      if (mode === 'agents') return Promise.resolve(json(agentsBody))
+      if (mode === 'switches') {
+        return new Promise((resolve) => {
+          resolveState = resolve
+        })
+      }
+      return Promise.resolve(json(sampleState))
+    })
+
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateEnginesPane />
+        </LocaleProvider>
+      )
+    })
+
+    expect(host.querySelector('[aria-label="加载翻译工具"]')).not.toBeNull()
+    expect(host.querySelector('section[aria-label="Agent"]')).toBeNull()
+
+    await act(async () => resolveState?.(json(sampleState)))
+    expect(host.querySelector('[aria-label="加载翻译工具"]')).toBeNull()
+    expect(host.querySelector('section[aria-label="Agent"]')).not.toBeNull()
+  })
+
   it.each([
     ['zh', '是否允许并发'],
     ['cht', '允許並行請求'],

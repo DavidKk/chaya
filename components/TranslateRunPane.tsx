@@ -440,7 +440,7 @@ export function TranslateRunPane({
             <div className="flex items-start justify-start p-4">
               <div className="flex w-full max-w-[52rem] flex-col gap-3">
                 <div role="tabpanel" id={`${panelId}-play`} aria-labelledby={`${panelId}-play-tab`} data-translate-mode="play" hidden={tab !== 'play'}>
-                  <TranslationPlaySettings />
+                  {tab === 'play' ? <TranslationPlaySettings /> : null}
                   <TranslateActivityLog className="mt-4 w-full" entries={activity.logs} liveStatus={activity.liveStatus} sessionDone={activity.sessionDone} />
                 </div>
                 <div role="tabpanel" id={`${panelId}-seed`} aria-labelledby={`${panelId}-seed-tab`} data-translate-mode="seed" hidden={tab !== 'seed'}>
@@ -508,43 +508,47 @@ export function TranslateRunPane({
                       </>
                     ) : null}
 
-                    <div className="grid grid-flow-col auto-cols-fr items-center gap-1 sm:gap-2 [&_svg]:max-sm:hidden [&_button]:max-sm:text-xs [&_button]:w-full [&_button]:min-w-0 [&_button]:gap-1 [&_button]:px-2 [&_button]:whitespace-nowrap">
-                      {!progress.hasSeed ? (
-                        <Button variant="ok" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
-                          <LuScanText size={16} aria-hidden />
-                          {t('translate.extract')}
+                    <div className="flex flex-wrap items-center gap-1 sm:gap-2 [&_svg]:max-sm:hidden [&_button]:max-sm:gap-1 [&_button]:max-sm:px-2 [&_button]:max-sm:text-xs [&_button]:whitespace-nowrap">
+                      <div className="flex flex-1 items-center gap-1 sm:gap-2 [&_button]:min-w-0">
+                        {!progress.hasSeed ? (
+                          <Button variant="ok" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
+                            <LuScanText size={16} aria-hidden />
+                            {t('translate.extract')}
+                          </Button>
+                        ) : running ? (
+                          <Button variant="fail" disabled={pausing} loading={pausing} onClick={() => void pauseJob()}>
+                            <IoPauseOutline size={16} aria-hidden />
+                            {t('translate.pause')}
+                          </Button>
+                        ) : (
+                          <Button variant="ok" disabled={busy || !canStart} loading={starting} onClick={() => void startJob()}>
+                            <IoPlayOutline size={16} aria-hidden />
+                            {startLabel}
+                          </Button>
+                        )}
+                        {progress.hasSeed ? (
+                          <Button variant="accent" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
+                            <LuScanText size={16} aria-hidden />
+                            {t('translate.updateSource')}
+                          </Button>
+                        ) : null}
+                      </div>
+                      <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2 [&_button]:min-w-0">
+                        {progress.hasSeed ? (
+                          <TranslateOptimizeMenu
+                            disabled={busy}
+                            optimizingNames={optimizingNames}
+                            syncingNames={syncingNames}
+                            onOptimizeNames={() => void runOptimizeNames()}
+                            onSyncNames={() => void runSyncNames()}
+                          />
+                        ) : null}
+                        <Button disabled={busy} loading={importing} onClick={() => fileRef.current?.click()}>
+                          <IoCloudUploadOutline size={16} aria-hidden />
+                          {t('translate.importFile')}
                         </Button>
-                      ) : running ? (
-                        <Button variant="fail" disabled={pausing} loading={pausing} onClick={() => void pauseJob()}>
-                          <IoPauseOutline size={16} aria-hidden />
-                          {t('common.pause')}
-                        </Button>
-                      ) : (
-                        <Button variant="ok" disabled={busy || !canStart} loading={starting} onClick={() => void startJob()}>
-                          <IoPlayOutline size={16} aria-hidden />
-                          {startLabel}
-                        </Button>
-                      )}
-                      {progress.hasSeed ? (
-                        <Button variant="accent" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
-                          <LuScanText size={16} aria-hidden />
-                          {t('translate.updateSource')}
-                        </Button>
-                      ) : null}
-                      {progress.hasSeed ? (
-                        <TranslateOptimizeMenu
-                          disabled={busy}
-                          optimizingNames={optimizingNames}
-                          syncingNames={syncingNames}
-                          onOptimizeNames={() => void runOptimizeNames()}
-                          onSyncNames={() => void runSyncNames()}
-                        />
-                      ) : null}
-                      <Button disabled={busy} loading={importing} onClick={() => fileRef.current?.click()}>
-                        <IoCloudUploadOutline size={16} aria-hidden />
-                        {t('translate.importFile')}
-                      </Button>
-                      <TranslateExportMenu disabled={busy} loading={exporting} onExport={(mode) => void exportJson(mode)} />
+                        <TranslateExportMenu disabled={busy} loading={exporting} onExport={(mode) => void exportJson(mode)} />
+                      </div>
                     </div>
                   </div>
 

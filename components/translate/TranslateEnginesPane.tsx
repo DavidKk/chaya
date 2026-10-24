@@ -16,6 +16,7 @@ import { useSafePathname, useSafeRouter, useSafeSearchParams } from '@/component
 import { isTranslateEnginesPath, parseTranslateEnginePathId, translateEngineDetailHref, translateTabHref } from '@/components/translate/tabs'
 import { type EngineDetailDraft, TranslateEngineDetailView } from '@/components/translate/TranslateEngineDetailView'
 import { TranslateEngineRow } from '@/components/translate/TranslateEngineRow'
+import { TranslateEnginesSkeleton } from '@/components/translate/TranslateEnginesSkeleton'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { useTranslateAgentProfiles } from '@/components/translate/useTranslateAgentProfiles'
 import { readApiErrorMessage } from '@/lib/api-error'
@@ -321,6 +322,10 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
 
   function isChecked(id: EngineId) {
     return isBuiltinEngineId(id) ? view.switches[id] : !!findAgentEntry(view.agents, id)?.enabled
+  }
+
+  if (loading) {
+    return <TranslateEnginesSkeleton view={pathEntryId || selectedEngineId ? 'detail' : 'overview'} />
   }
 
   // If an engine is selected, render the dedicated Detail View!

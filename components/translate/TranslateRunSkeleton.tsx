@@ -1,55 +1,27 @@
 'use client'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { formCard, formCardDense, formControlInline, formFieldInlineDense } from '@/components/layoutClasses'
+import { formCardDense, formControlInline, formFieldInlineDense, panelFoot } from '@/components/layoutClasses'
+import { PanelHeadEnd } from '@/components/PanelHeadEnd'
 import { Skeleton, SkeletonRegion } from '@/components/sk/Skeleton'
 import type { TranslateRunMode } from '@/components/translate/tabs'
 import { cn } from '@/lib/utils'
 
 type TranslateModeTab = TranslateRunMode
 
-function EngineGroupSkeleton({ rows, subtitle, add }: { rows: number; subtitle?: boolean; add?: boolean }) {
+function ToggleSettingSkeleton() {
   return (
-    <section className="flex flex-col">
-      <div className="flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4">
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-[0.7rem] w-14" />
-            <Skeleton className="h-[0.7rem] w-2" />
-          </div>
-          <Skeleton className="h-[0.65rem] w-36" />
-        </div>
-        {add ? <Skeleton className="ml-auto size-5 rounded-[0.2rem]" /> : null}
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <Skeleton className="h-[0.8125rem] w-24" />
+        <Skeleton className="h-[0.7rem] w-[68%]" />
       </div>
-      <div className="flex flex-col gap-2 border-b border-line p-4">
-        {Array.from({ length: rows }, (_, i) => (
-          <div
-            key={i}
-            className={cn('grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1 rounded-[0.35rem] border border-line bg-panel pr-3 pl-0', subtitle ? 'h-12' : 'h-11')}
-          >
-            <Skeleton className="mx-auto h-3 w-1.5 rounded-[0.15rem]" />
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <Skeleton className="h-[0.8125rem] w-20" />
-              {subtitle ? <Skeleton className="h-[0.65rem] w-28" /> : null}
-            </div>
-            <Skeleton className="h-5 w-9 rounded-full" />
-          </div>
-        ))}
-      </div>
-    </section>
+      <Skeleton className="h-5 w-9 shrink-0 rounded-full" />
+    </div>
   )
 }
 
-function EngineRailSkeleton() {
-  return (
-    <aside className="hidden w-[21rem] shrink-0 flex-col border-r border-line bg-paper-2 md:flex" aria-hidden>
-      <EngineGroupSkeleton rows={1} subtitle add />
-      <EngineGroupSkeleton rows={2} />
-    </aside>
-  )
-}
-
-function InlineSettingSkeleton({ control = 'switch' }: { control?: 'switch' | 'slider' }) {
+function InlineSettingSkeleton({ control = 'switch' }: { control?: 'switch' | 'input' }) {
   return (
     <div className={formFieldInlineDense}>
       <Skeleton className="h-[0.8125rem] w-16" />
@@ -64,18 +36,20 @@ function InlineSettingSkeleton({ control = 'switch' }: { control?: 'switch' | 's
 function ActivityLogSkeleton() {
   const t = useT()
   return (
-    <div className={cn(formCard, 'mt-4 w-full [&>*]:px-4 [&>*]:py-3')} aria-label={t('translate.loadActivity')}>
-      <div className="flex items-center justify-between gap-3">
-        <Skeleton className="h-[0.8125rem] w-16" />
-        <Skeleton className="h-[0.7rem] w-24" />
+    <div className="mt-4 flex w-full flex-col overflow-hidden rounded-[0.35rem] border border-line bg-panel" aria-label={t('translate.loadActivity')}>
+      <div className="px-4 pt-3 pb-2">
+        <div className="flex items-baseline justify-between gap-3">
+          <Skeleton className="h-[0.8125rem] w-20" />
+          <Skeleton className="h-[0.7rem] w-28" />
+        </div>
+        <Skeleton className="mt-2 h-[0.75rem] w-[58%]" />
       </div>
-      <div>
-        <Skeleton className="h-[0.7rem] w-[62%]" />
-        <div className="mt-3 flex h-[28rem] flex-col gap-2">
-          {Array.from({ length: 4 }, (_, i) => (
+      <div className="border-t border-[var(--line-soft)] p-3">
+        <div className="flex h-[28rem] flex-col gap-2.5">
+          {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="flex items-center gap-2">
               <Skeleton className="h-[0.65rem] w-14 shrink-0" />
-              <Skeleton className="h-[0.65rem]" style={{ width: `${48 + i * 9}%` }} />
+              <Skeleton className="h-[0.65rem]" style={{ width: `${42 + ((i * 13) % 48)}%` }} />
             </div>
           ))}
         </div>
@@ -89,12 +63,11 @@ function PlaySettingsSkeleton() {
   return (
     <div aria-label={t('translate.loadPlaySettings')}>
       <div className={cn(formCardDense, 'm-0 w-full')}>
-        <InlineSettingSkeleton />
-        <InlineSettingSkeleton />
-        <InlineSettingSkeleton control="slider" />
+        <ToggleSettingSkeleton />
+        <ToggleSettingSkeleton />
+        <InlineSettingSkeleton control="input" />
         <div className="flex items-center gap-3">
           <Skeleton className="h-8 w-[8.5rem] rounded-[0.25rem]" />
-          <Skeleton className="h-[0.7rem] w-20" />
         </div>
       </div>
       <ActivityLogSkeleton />
@@ -105,82 +78,90 @@ function PlaySettingsSkeleton() {
 function SeedProgressSkeleton() {
   const t = useT()
   return (
-    <div className={cn(formCardDense, 'w-full')} aria-label={t('translate.loadSeedProgress')}>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="rounded-[0.3rem] bg-inset/80 px-4 py-3">
-            <Skeleton className="h-[0.6875rem] w-12" />
-            <Skeleton className="mt-2 h-[1.35rem] w-16" />
-            <Skeleton className="mt-2 h-[0.6875rem]" style={{ width: `${58 + (i % 3) * 11}%` }} />
-          </div>
-        ))}
-      </div>
-      <div>
-        <div className="mb-2 flex justify-between gap-3">
-          <Skeleton className="h-[0.7rem] w-32" />
-          <Skeleton className="h-[0.7rem] w-9" />
+    <div aria-label={t('translate.loadSeedProgress')}>
+      <div className={cn(formCardDense, 'w-full')}>
+        <ToggleSettingSkeleton />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="rounded-[0.3rem] bg-inset/80 px-4 py-3">
+              <Skeleton className="h-[0.6875rem] w-12" />
+              <Skeleton className="mt-2 h-[1.35rem] w-16" />
+              <Skeleton className="mt-2 h-[0.6875rem]" style={{ width: `${58 + (i % 3) * 11}%` }} />
+            </div>
+          ))}
         </div>
-        <Skeleton className="h-2.5 w-full rounded-full" />
+        <div>
+          <div className="mb-2 flex justify-between gap-3">
+            <Skeleton className="h-[0.7rem] w-32" />
+            <Skeleton className="h-[0.7rem] w-9" />
+          </div>
+          <Skeleton className="h-2.5 w-full rounded-full" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-1 items-center gap-2">
+            <Skeleton className="h-8 w-24 rounded-[0.2rem]" />
+            <Skeleton className="h-8 w-24 rounded-[0.2rem]" />
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <Skeleton className="h-8 w-16 rounded-[0.2rem]" />
+            <Skeleton className="h-8 w-16 rounded-[0.2rem]" />
+            <Skeleton className="h-8 w-16 rounded-[0.2rem]" />
+          </div>
+        </div>
       </div>
-      <div className="grid grid-cols-4 gap-2">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-8 w-full rounded-[0.3rem]" />
-        ))}
-      </div>
+      <ActivityLogSkeleton />
     </div>
   )
 }
 
-/** 翻译列表页骨架屏：与 TranslateListContent 相同的顶部筛选栏、每项元信息头+双栏编辑器、以及底部翻页条 */
+/** 翻译列表页骨架屏：页头筛选、语向/批量工具栏、条目行和分页页脚。 */
 export function TranslateListSkeleton() {
   const t = useT()
+  const filters = (
+    <div className="flex flex-nowrap items-center justify-end gap-2" aria-hidden>
+      <Skeleton className="h-8 w-48 shrink-0 rounded-[0.2rem]" />
+      <Skeleton className="h-8 w-28 shrink-0 rounded-[0.2rem]" />
+      <Skeleton className="h-8 w-28 shrink-0 rounded-[0.2rem]" />
+      <Skeleton className="h-8 w-24 shrink-0 rounded-[0.2rem]" />
+    </div>
+  )
   return (
-    <div className="flex h-full min-h-0 w-full flex-col select-none" aria-label={t('translate.loadList')}>
-      {/* 1. Top Controls Bar: Two rows matching TranslateListContent */}
-      <div className="flex flex-col gap-2 border-b border-line px-4 py-2 shrink-0">
-        {/* Row 1: Filters */}
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Skeleton className="h-8 w-[17.5rem] rounded-[0.25rem]" />
-          <Skeleton className="h-8 w-36 rounded-[0.25rem]" />
-          <Skeleton className="h-8 w-28 rounded-[0.25rem]" />
-          <Skeleton className="h-8 w-44 rounded-[0.25rem]" />
-        </div>
-        {/* Row 2: Tools + batch actions */}
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Skeleton className="h-8 w-36 rounded-[0.25rem]" />
-          <Skeleton className="h-8 w-8 rounded-[0.25rem]" />
-          <Skeleton className="h-8 w-8 rounded-[0.25rem]" />
-          <Skeleton className="h-8 w-8 rounded-[0.25rem]" />
+    <SkeletonRegion label={t('translate.loadList')} className="flex h-full min-h-0 w-full flex-col select-none">
+      <PanelHeadEnd fallback={filters}>{filters}</PanelHeadEnd>
+
+      <div className="shrink-0 border-b border-line bg-surface/10">
+        <div className="flex min-w-max flex-nowrap items-center justify-end gap-2 px-4 py-2" aria-hidden>
+          <Skeleton className="h-8 w-[13rem] shrink-0 rounded-[0.25rem]" />
+          <Skeleton className="h-8 w-36 shrink-0 rounded-[0.2rem]" />
+          <div className="mx-0.5 h-3.5 w-px shrink-0 bg-line" />
+          <Skeleton className="size-8 shrink-0 rounded-[0.2rem]" />
+          <Skeleton className="size-8 shrink-0 rounded-[0.2rem]" />
+          <Skeleton className="size-8 shrink-0 rounded-[0.2rem]" />
+          <Skeleton className="size-8 shrink-0 rounded-[0.2rem]" />
         </div>
       </div>
 
-      {/* 2. Paged items skeleton matching TranslateListItemRow structure */}
       <div className="flex-1 min-h-0 overflow-hidden divide-y divide-line">
         {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} className="flex h-[150px] flex-col">
-            {/* Top Toolbar: Badges on left, action buttons on right */}
-            <div className="flex h-9 items-center justify-between gap-2 border-b border-line/60 bg-paper-2 px-4 py-1.5 shrink-0">
-              <div className="flex items-center gap-1.5">
-                <Skeleton className="h-4 w-10 rounded-[0.2rem]" />
-                <Skeleton className="h-4 w-12 rounded-[0.2rem]" />
-                <Skeleton className="h-4 w-28 rounded-[0.2rem]" />
+          <div key={i} className="flex h-[150px] min-w-0 flex-col" aria-hidden>
+            <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-line bg-surface/20 px-4 text-xs">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <Skeleton className="h-4 w-8 rounded-[0.2rem]" />
                 <Skeleton className="h-4 w-16 rounded-[0.2rem]" />
+                <Skeleton className="h-4 w-12 rounded-[0.2rem]" />
+                <Skeleton className="h-4 w-24 rounded-[0.2rem]" />
               </div>
-              <div className="flex items-center gap-1.5">
-                <Skeleton className="h-6 w-16 rounded-[0.2rem]" />
-                <Skeleton className="h-6 w-14 rounded-[0.2rem]" />
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Skeleton className="h-6 w-12 rounded-[0.2rem]" />
+                <Skeleton className="h-6 w-12 rounded-[0.2rem]" />
               </div>
             </div>
-
-            {/* Content: Left & Right seamless editors */}
-            <div className="grid grid-cols-2 flex-1 min-h-0">
-              {/* Left editor (darker, right-bordered) */}
-              <div className="flex flex-col justify-center border-r border-b border-line bg-black/40 px-3 py-2">
+            <div className="grid min-h-0 flex-1 grid-cols-2">
+              <div className="flex min-w-0 flex-col justify-center border-r border-b border-line bg-black/40 px-4 py-3">
                 <Skeleton className="h-3 w-4/5" />
                 <Skeleton className="mt-2 h-3 w-3/5" />
               </div>
-              {/* Right editor (lighter, interactive) */}
-              <div className="flex flex-col justify-center border-b border-line bg-panel/35 px-3 py-2">
+              <div className="flex min-w-0 flex-col justify-center border-b border-line bg-panel/35 px-4 py-3">
                 <Skeleton className="h-3 w-3/4" />
                 <Skeleton className="mt-2 h-3 w-2/4" />
               </div>
@@ -189,49 +170,33 @@ export function TranslateListSkeleton() {
         ))}
       </div>
 
-      {/* 3. Bottom Panel Foot: Translation counts on left, Pagination on right */}
-      <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line bg-transparent px-4 py-2 text-[0.7rem] text-ink-soft">
-        {/* Left: Translation counts */}
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-3.5 w-44" />
+      <div className={cn(panelFoot, 'max-md:justify-center')} aria-hidden>
+        <div className="hidden items-center gap-2 md:flex">
+          <Skeleton className="h-3.5 w-48" />
         </div>
-
-        {/* Right: Pagination controls */}
         <div className="inline-flex items-center gap-1.5">
-          <Skeleton className="h-7 w-28 rounded-[0.25rem]" />
-          <Skeleton className="h-4 w-12" />
-          <Skeleton className="size-7 rounded-[0.25rem]" />
-          <Skeleton className="size-7 rounded-[0.25rem]" />
-          <Skeleton className="size-7 rounded-[0.25rem]" />
-          <Skeleton className="size-7 rounded-[0.25rem]" />
+          <Skeleton className="h-7 w-[4.75rem] rounded-[0.2rem]" />
+          <Skeleton className="h-4 w-10" />
+          <Skeleton className="size-8 rounded-[0.2rem]" />
+          <Skeleton className="size-8 rounded-[0.2rem]" />
+          <Skeleton className="size-8 rounded-[0.2rem]" />
+          <Skeleton className="size-8 rounded-[0.2rem]" />
         </div>
       </div>
-    </div>
+    </SkeletonRegion>
   )
 }
 
-/** 翻译运行页加载态：保持引擎轨、配置子导航和当前模式内容的真实拓扑。 */
+/** 翻译运行页加载态：与 seed/play 的卡片、操作栏和活动日志同构。 */
 export function TranslateRunSkeleton({ tab = 'seed' }: { tab?: TranslateModeTab }) {
   const t = useT()
-  const label = tab === 'seed' ? t('translate.loadSeed') : tab === 'list' ? t('translate.loadList') : t('translate.loadPlay')
+  if (tab === 'list') return <TranslateListSkeleton />
+
+  const label = tab === 'seed' ? t('translate.loadSeed') : t('translate.loadPlay')
   return (
     <SkeletonRegion label={label} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col items-stretch md:flex-row">
-        <EngineRailSkeleton />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div aria-hidden className="flex min-h-[3.25rem] shrink-0 items-center border-b border-line px-4 py-2">
-            <Skeleton className="h-8 w-28 rounded-[0.2rem]" />
-          </div>
-          <div className="min-h-0 flex-1 overflow-hidden" aria-hidden>
-            {tab === 'list' ? (
-              <TranslateListSkeleton />
-            ) : (
-              <div className="flex items-start justify-start p-4">
-                <div className="flex w-full max-w-[32rem] flex-col gap-3">{tab === 'seed' ? <SeedProgressSkeleton /> : <PlaySettingsSkeleton />}</div>
-              </div>
-            )}
-          </div>
-        </div>
+      <div className="flex min-h-0 flex-1 items-start justify-start overflow-hidden p-4">
+        <div className="flex w-full max-w-[52rem] flex-col gap-3">{tab === 'seed' ? <SeedProgressSkeleton /> : <PlaySettingsSkeleton />}</div>
       </div>
     </SkeletonRegion>
   )

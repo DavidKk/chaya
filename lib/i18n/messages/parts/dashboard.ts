@@ -35,7 +35,7 @@ export const dashboardZh = {
     launchStart: '开始游戏',
     launchConnect: '连接游戏',
     launchWait: '等待连接',
-    launchPause: '暂停',
+    launchPause: '暂停游戏',
     tipConnect: '连接本机已打开的游戏',
     tipRemoteNoLaunch: '远程游戏无法本机启动',
     tipQuit: '通知游戏退出',

@@ -378,6 +378,7 @@ export type MessageTree = {
     perBatch: string
     start: string
     continue: string
+    pause: string
     completed: string
     extracting: string
     extractingText: string
@@ -600,6 +601,10 @@ export type MessageTree = {
     loadPlaySettings: string
     loadSeedProgress: string
     loadActivity: string
+    loadEngines: string
+    loadEngineDetail: string
+    loadTest: string
+    loadCacheDetail: string
     activityLogTitle: string
     activityLogSessionDone: string
     activityLogEmpty: string
