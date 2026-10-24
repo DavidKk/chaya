@@ -10,6 +10,7 @@ import { PanelHeadEnd } from '@/components/PanelHeadEnd'
 import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select, type SelectOption, TextInput } from '@/components/sk'
 import { AppleOfflineGuideModal } from '@/components/translate/AppleOfflineGuideModal'
 import { useSafePathname, useSafeRouter, useSafeSearchParams } from '@/components/translate/safe-navigation'
+import { translateRunHref } from '@/components/translate/tabs'
 import { TranslateListItemRow } from '@/components/translate/TranslateListItemRow'
 import { TranslateListPageActions } from '@/components/translate/TranslateListPageActions'
 import { TranslateListSkeleton } from '@/components/translate/TranslateRunSkeleton'
@@ -366,7 +367,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     [selectedScheme, sourceLang, targetLang, localesMeta, translationFetch, refreshUI, notify, t]
   )
 
-  const { savingPage, resettingPage, handleSavePage, handleResetPage } = useTranslateListSave({
+  const { savingId, savingPage, resettingPage, handleSave, handleSavePage, handleResetPage } = useTranslateListSave({
     rgssEngine,
     contentRoot,
     sourceLang,
@@ -384,6 +385,17 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     [categoryFilter, filteredItems, natureFilter]
   )
   const { running: syncingNames, runSyncNames } = useSyncNames({ names: selectedNameSrcs, onDone: refreshUI })
+
+  const handleFindSimilar = useCallback(
+    (item: ExtractedTranslationItem) => {
+      if (!router) {
+        updateQueryParams({ q: item.src, nature: null, category: null, status: null, from: null, to: null, p: null })
+        return
+      }
+      router.push(hrefWithQuery(translateRunHref('list'), new URLSearchParams({ q: item.src }).toString()))
+    },
+    [router, updateQueryParams]
+  )
 
   const handleTranslatePage = useCallback(async () => {
     if (pagedItems.length === 0) {
@@ -724,7 +736,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
         {pagedItems.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-ink-soft">{t('translate.listEmptyFiltered')}</div>
         ) : (
-          <ScrollArea className="h-full" indicator="vertical">
+          <ScrollArea className="h-full" indicator="vertical" reserveGutter={false}>
             <div className="flex flex-col divide-y divide-line">
               {pagedItems.map((item) => (
                 <TranslateListItemRow
@@ -734,8 +746,11 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
                   savedZh={item.savedZh}
                   activeSchemeLabel={activeSchemeLabel}
                   isTranslating={translatingPage || translatingId === item.id}
+                  isSaving={savingId === item.id}
                   isResetting={false}
                   onTranslate={handleTranslate}
+                  onSave={handleSave}
+                  onFindSimilar={handleFindSimilar}
                   onReset={handleReset}
                   onUpdate={refreshUI}
                 />

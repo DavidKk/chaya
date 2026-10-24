@@ -159,7 +159,7 @@ export function TranslateListSkeleton() {
         {Array.from({ length: 4 }, (_, i) => (
           <div key={i} className="flex h-[150px] flex-col">
             {/* Top Toolbar: Badges on left, action buttons on right */}
-            <div className="flex h-9 items-center justify-between gap-2 border-b border-line/60 bg-paper-2 px-3 py-1.5 shrink-0">
+            <div className="flex h-9 items-center justify-between gap-2 border-b border-line/60 bg-paper-2 px-4 py-1.5 shrink-0">
               <div className="flex items-center gap-1.5">
                 <Skeleton className="h-4 w-10 rounded-[0.2rem]" />
                 <Skeleton className="h-4 w-12 rounded-[0.2rem]" />

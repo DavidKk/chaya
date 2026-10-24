@@ -393,8 +393,8 @@ export const translateJa = {
     listSingleSaveBackup: '（元ファイル .bak バックアップを自動生成）',
     listSingleSaveFailed: '保存失敗: {error}',
     listSingleSaveReqFailed: '保存リクエスト失敗: {error}',
-    listFindSimilarBtn: '類似を検索',
-    listFindSimilarTooltip: '「{text}」を含む項目を検索',
+    listFindSimilarBtn: '関連',
+    listFindSimilarTooltip: '「{text}」に関連する項目を検索',
     listSingleTransSuccess: '翻訳完了: {src}... → {zh}...',
     listSingleTransNoResult: '翻訳で有効な結果が得られませんでした: {error}',
     appleOfflinePackMissing:

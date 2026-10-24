@@ -6,6 +6,7 @@ import { LuFileText, LuKey, LuTriangleAlert, LuUser } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Button, PlainTextEditor, Tooltip } from '@/components/sk'
+import { isNameGlossaryCategory } from '@/lib/translate/name-glossary'
 import { cn } from '@/lib/utils'
 import type { ExtractedTextCategory, ExtractedTranslationItem } from '@/services/extract/lib/extract-items'
 
@@ -71,8 +72,11 @@ export type TranslateListItemRowProps = {
   savedZh?: string
   activeSchemeLabel: string
   isTranslating: boolean
+  isSaving: boolean
   isResetting: boolean
   onTranslate: (item: ExtractedTranslationItem) => void
+  onSave: (item: ExtractedTranslationItem) => void
+  onFindSimilar: (item: ExtractedTranslationItem) => void
   onReset: (item: ExtractedTranslationItem) => void
   onUpdate: () => void
 }
@@ -83,8 +87,11 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
   savedZh: _savedZh,
   activeSchemeLabel,
   isTranslating,
+  isSaving,
   isResetting,
   onTranslate,
+  onSave,
+  onFindSimilar,
   onReset,
   onUpdate,
 }: TranslateListItemRowProps) {
@@ -119,10 +126,11 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
   const hasSavedVersion = Boolean(item.savedZh && item.savedZh.trim())
   const originalText = item.initialZh ?? item.savedZh ?? ''
   const canReset = Boolean(originalText && (currentZh !== originalText || hasSavedVersion))
+  const isName = isNameGlossaryCategory(item.meta.category)
 
   return (
     <div className="flex h-[150px] flex-col min-w-0">
-      {/* 1. Header: metadata (left) | Reset + Translate (right); persist via page Save */}
+      {/* 1. Header: metadata (left) | Reset + Translate + Save (right) */}
       <div className="flex h-9 shrink-0 items-center justify-between gap-2 px-4 border-b border-line bg-surface/20 text-xs">
         <div className="flex items-center gap-2 overflow-hidden">
           <Tooltip content={t('translate.listRowItemIndex', { id: item.id })} placement="top">
@@ -198,6 +206,23 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {isName ? (
+            <>
+              <Button
+                size="xs"
+                variant="ghost"
+                tooltip={t('translate.listFindSimilarTooltip', { text: item.src })}
+                tooltipPlacement="top"
+                aria-label={t('translate.listFindSimilarTooltip', { text: item.src })}
+                className="h-6 px-1.5 text-[0.6875rem]"
+                onClick={() => onFindSimilar(item)}
+              >
+                {t('translate.listFindSimilarBtn')}
+              </Button>
+              <div className="h-3.5 w-px shrink-0 bg-line" aria-hidden="true" />
+            </>
+          ) : null}
+
           {canReset ? (
             <Button
               size="xs"
@@ -226,6 +251,20 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
             onClick={() => onTranslate(item)}
           >
             {t('translate.listSingleTransBtn')}
+          </Button>
+
+          <Button
+            size="xs"
+            variant="ghost"
+            loading={isSaving}
+            disabled={isTranslating || isSaving || !currentZh.trim()}
+            tooltip={isSaving ? t('translate.listSingleSaving') : !currentZh.trim() ? t('translate.listSingleSaveEmpty') : t('translate.listSingleSaveTooltip')}
+            tooltipPlacement="top"
+            aria-label={t('translate.listSingleSaveTooltip')}
+            className="h-6 px-2 text-[0.6875rem]"
+            onClick={() => onSave(item)}
+          >
+            {t('translate.listSingleSaveBtn')}
           </Button>
         </div>
       </div>

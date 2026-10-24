@@ -710,8 +710,8 @@ export const de: MessageTree = {
     listSingleSaveBackup: ' (auto-created .bak backup)',
     listSingleSaveFailed: 'Save failed: {error}',
     listSingleSaveReqFailed: 'Save request failed: {error}',
-    listFindSimilarBtn: 'Find similar',
-    listFindSimilarTooltip: 'Search all entries containing "{text}"',
+    listFindSimilarBtn: 'Related',
+    listFindSimilarTooltip: 'Search all entries related to "{text}"',
     listSingleTransSuccess: 'Translation complete: {src}... → {zh}...',
     listSingleTransNoResult: 'Translation returned no valid result: {error}',
     appleOfflinePackMissing:

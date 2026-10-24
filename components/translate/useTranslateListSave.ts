@@ -47,8 +47,40 @@ export function useTranslateListSave({ rgssEngine, contentRoot, sourceLang, targ
   const t = useT()
   const confirm = useConfirm()
   const notify = useNotification()
+  const [savingId, setSavingId] = useState<string | null>(null)
   const [savingPage, setSavingPage] = useState(false)
   const [resettingPage, setResettingPage] = useState(false)
+
+  // Save one item without confirmation; row buttons stay close to the edited text.
+  const handleSave = useCallback(
+    async (item: ExtractedTranslationItem) => {
+      if (!item.zh || !item.zh.trim()) {
+        notify.warning(t('translate.listSingleSaveEmpty'))
+        return
+      }
+
+      setSavingId(item.id)
+      try {
+        const response = await translationFetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(saveItemBody(item, { contentRoot, sourceLang, targetLang, localesMeta, rgssEngine })),
+        })
+        const data = (await response.json()) as { ok?: boolean; backupCreated?: boolean; error?: unknown }
+        if (!response.ok || !data?.ok) throw new Error(readApiErrorMessage(data))
+
+        item.savedZh = item.zh
+        refreshUI()
+        const backup = data.backupCreated ? t('translate.listSingleSaveBackup') : ''
+        notify.success(t('translate.listSingleSaveSuccess', { backup }))
+      } catch (error) {
+        notify.error(t('translate.listSingleSaveFailed', { error: error instanceof Error ? error.message : String(error) }))
+      } finally {
+        setSavingId(null)
+      }
+    },
+    [contentRoot, sourceLang, targetLang, localesMeta, rgssEngine, translationFetch, refreshUI, notify, t]
+  )
 
   // Reset all items on current page with confirmation (does not auto-save)
   const handleResetPage = useCallback(async () => {
@@ -145,5 +177,5 @@ export function useTranslateListSave({ rgssEngine, contentRoot, sourceLang, targ
       setSavingPage(false)
     }
   }, [contentRoot, confirm, pagedItems, rgssEngine, translationFetch, sourceLang, targetLang, localesMeta, refreshUI, notify, t])
-  return { savingPage, resettingPage, handleSavePage, handleResetPage }
+  return { savingId, savingPage, resettingPage, handleSave, handleSavePage, handleResetPage }
 }

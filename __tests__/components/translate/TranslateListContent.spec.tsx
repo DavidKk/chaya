@@ -9,12 +9,13 @@ import { PanelHeadEndHost, PanelHeadEndProvider } from '@/components/PanelHeadEn
 import { TranslateListContent } from '@/components/translate/TranslateListContent'
 
 const mockTranslationFetch = jest.fn()
-const mockNotify = { success: jest.fn(), error: jest.fn(), warn: jest.fn(), info: jest.fn() }
+const mockNotify = { success: jest.fn(), error: jest.fn(), warn: jest.fn(), warning: jest.fn(), info: jest.fn() }
 const mockConfirm = jest.fn().mockResolvedValue(true)
+const mockRouter = { push: jest.fn(), replace: jest.fn() }
 
 let mockSearchParams = new URLSearchParams()
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+  useRouter: () => mockRouter,
   usePathname: () => '/translate/run/list',
   useSearchParams: () => mockSearchParams,
 }))
@@ -176,7 +177,7 @@ describe('TranslateListContent', () => {
     expect(resetButtons.length).toBe(2)
 
     const saveButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('保存') || b.getAttribute('aria-label') === '保存')
-    expect(saveButtons.length).toBe(1)
+    expect(saveButtons.length).toBe(3)
 
     // Translate buttons should be present
     const transButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('翻译'))
@@ -218,7 +219,7 @@ describe('TranslateListContent', () => {
       )
     })
 
-    const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '保存')
+    const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '保存译文至游戏')
     expect(saveBtn).toBeDefined()
 
     await act(async () => {
@@ -231,6 +232,51 @@ describe('TranslateListContent', () => {
         body: expect.stringContaining('"mode":"save-item"'),
       })
     )
+  })
+
+  it('searches similar entries by the source name from a name row', async () => {
+    const mockItems = [
+      {
+        id: '1',
+        src: 'Marie',
+        zh: '玛丽',
+        meta: { category: 'actor', label: '角色名' },
+      },
+      {
+        id: '2',
+        src: 'こんにちは',
+        zh: '你好',
+        meta: { category: 'dialogue', label: '对话' },
+      },
+    ]
+
+    mockTranslationFetch.mockImplementation(async (_path: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (body.mode === 'extract-items') {
+        return { ok: true, json: async () => ({ ok: true, items: mockItems }) }
+      }
+      return { ok: true, json: async () => ({ ok: true }) }
+    })
+
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
+        </LocaleProvider>
+      )
+    })
+
+    const findSimilarButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.trim() === '相关')
+    expect(findSimilarButtons).toHaveLength(1)
+
+    await act(async () => {
+      findSimilarButtons[0]?.click()
+    })
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/translate/list?q=Marie')
   })
 
   it('reads and applies initial filter criteria from URL search parameters', async () => {
@@ -416,8 +462,9 @@ describe('TranslateListContent', () => {
       )
     })
 
-    const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '保存')
+    const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '保存译文至游戏')
     expect(saveBtn).toBeDefined()
+    expect(saveBtn?.disabled).toBe(true)
 
     // Find translated editor input and type into it
     const editorInputs = Array.from(container.querySelectorAll('input'))
@@ -433,6 +480,8 @@ describe('TranslateListContent', () => {
       nativeInputValueSetter?.call(zhInput, '药草')
       zhInput?.dispatchEvent(new Event('change', { bubbles: true }))
     })
+
+    expect(saveBtn?.disabled).toBe(false)
 
     await act(async () => {
       saveBtn?.click()
