@@ -34,7 +34,7 @@ import { trackLiveTranslateRequest } from './live-activity'
 import { loadGameNameEntries } from './name-glossary-game'
 import { planLockedNames, stitchLockedNamePlan } from './name-lock'
 import { type LocalTranslateOptions, ollamaJaToZh } from './ollama-translate'
-import { withEngineCapacity } from './scheduler/engine-capacity'
+import { engineConfiguredCapacity, withEngineCapacity } from './scheduler/engine-capacity'
 import { joinTranslationRequest } from './scheduler/in-flight'
 import { isSensitiveForCloud } from './sensitive-text'
 import { openSharedCache } from './shared-cache'
@@ -103,12 +103,15 @@ async function translateWithEngine(
   if (engine === 'ollama') return ollamaJaToZh(text, options)
   const entry = findAgentEntry(agents, engine)
   if (!entry) throw new Error('Agent translation entry removed')
+  const capacity = resolveEngineCapacitySettings(engine, undefined, agents)
   return agentJaToZh(text, entry, {
     interactive: options?.interactive,
     signal: options?.signal,
     category: options?.category,
     speaker: options?.speaker,
     context: options?.context,
+    concurrency: engineConfiguredCapacity(engine, capacity),
+    lane: `agent:${entry.profileId}`,
   })
 }
 

@@ -129,6 +129,24 @@ describe('independent seed cache and engine scheduling', () => {
     await session.close()
   })
 
+  it('excludes cache hits from the measured completion throughput', async () => {
+    const running = create(1).fill({ limit: 1 })
+    await tick()
+    mockLane.onResult({
+      id: 0,
+      src: 'Text0',
+      stamp: 'game-v1',
+      elapsedMs: 2,
+      plan: { ...planSentenceTranslation('Text0', [{ id: 'cache:0', revision: 1, src: 'Text0', zh: '缓存译文', engine: 'manual' }]), corpusVersion: 'v1' },
+    })
+    pending.get('Text0')!.resolve({ src: 'Text0', zh: '迟到结果' })
+    await tick()
+    const result = await running
+    expect(result.translated).toBe(1)
+    expect(result.performance?.completedChars).toBe(0)
+    await session.close()
+  })
+
   it('accepts engine success without waiting for the cache and ignores a late cache reply', async () => {
     const running = create(1).fill({ limit: 1 })
     await tick()

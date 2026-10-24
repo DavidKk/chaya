@@ -480,7 +480,11 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
         failed: unresolved.length,
         unresolved,
         items,
-        performance: { completedChars: items.filter((item) => !unresolved.includes(item.src)).reduce((sum, item) => sum + charCount(item.src), 0), cacheMs },
+        performance: {
+          // Exclude cache hits so the throughput estimate reflects live engine work, not near-instant lookups.
+          completedChars: items.filter((item) => !unresolved.includes(item.src) && !item.engine?.startsWith('cache:')).reduce((sum, item) => sum + charCount(item.src), 0),
+          cacheMs,
+        },
       }
     },
   }

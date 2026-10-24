@@ -19,6 +19,10 @@ export type LocalTranslateOptions = {
   category?: string
   speaker?: string
   context?: string
+  /** Maximum concurrent inferences for this engine; defaults to 1 (serial). */
+  concurrency?: number
+  /** Concurrency is scoped per lane; distinct endpoints/models should use distinct lanes. */
+  lane?: string
 }
 
 async function ollamaChat(system: string, user: string, temperature: number, think: boolean, options?: LocalTranslateOptions): Promise<string> {
@@ -40,8 +44,7 @@ async function ollamaChat(system: string, user: string, temperature: number, thi
         signal,
       })
     },
-    options?.interactive,
-    options?.signal
+    { interactive: options?.interactive, concurrency: options?.concurrency, lane: options?.lane, signal: options?.signal }
   )
 }
 

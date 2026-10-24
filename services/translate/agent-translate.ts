@@ -15,6 +15,10 @@ export type AgentTranslateOptions = {
   category?: string
   speaker?: string
   context?: string
+  /** Maximum concurrent inferences on this instance's Ollama lane. */
+  concurrency?: number
+  /** Concurrency is scoped per lane; distinct endpoints/models should use distinct lanes. */
+  lane?: string
 }
 
 export async function agentJaToZh(text: string, config: TranslateAiConfig, options: AgentTranslateOptions = {}): Promise<string> {
@@ -26,6 +30,7 @@ export async function agentJaToZh(text: string, config: TranslateAiConfig, optio
   const signal = options.signal ?? AbortSignal.timeout(5 * 60 * 1000)
   const token = readGameAgentToken(profile.id)
   const http = ollamaFetch(profile)
+  const lane = options.lane || `agent:${profile.id}`
   let model = config.model || profile.defaultModel
   if (!model) model = pickAvailableModel(await listOllamaModels(profile.endpoint, http, signal, token))
   if (!model) throw new Error(`Agent profile "${profile.label}" has no available models`)
@@ -48,8 +53,12 @@ export async function agentJaToZh(text: string, config: TranslateAiConfig, optio
       if (translated && translated.normalize('NFKC').trim() !== text.normalize('NFKC').trim()) return translated
       return requestOllama(http, { ...request, text: `译文：\n${text}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true })
     },
-    !!options.interactive,
-    signal
+    {
+      interactive: options.interactive,
+      concurrency: options.concurrency,
+      lane,
+      signal,
+    }
   )
 }
 
