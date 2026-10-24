@@ -1,5 +1,5 @@
 import { peelChoiceMetaShell } from '@/lib/translate/choice-meta'
-import { lookupGameTerm } from '@/lib/translate/game-terms'
+import { fixKnownBadGameTermTranslation, lookupGameTerm } from '@/lib/translate/game-terms'
 import { normalizeTranslateKey } from '@/lib/translate/lookup'
 import { lookupWithRmDigitTemplate, toRmDigitTemplate } from '@/lib/translate/rm-escape'
 import {
@@ -132,9 +132,15 @@ export function lookupGameTranslation(
   src: string
 ): { zh: string; engine: 'cache:local' | 'cache:remote' } | null {
   const local = lookupCachedTranslation(localGet, src)
-  if (local != null) return { zh: local, engine: 'cache:local' }
+  if (local != null) {
+    const fixed = fixKnownBadGameTermTranslation(src, local)
+    return { zh: fixed ?? local, engine: 'cache:local' }
+  }
   const shared = lookupCachedTranslation(sharedGet, src)
-  if (shared != null) return { zh: shared, engine: 'cache:remote' }
+  if (shared != null) {
+    const fixed = fixKnownBadGameTermTranslation(src, shared)
+    return { zh: fixed ?? shared, engine: 'cache:remote' }
+  }
   const term = lookupGameTerm(src)
   return term == null ? null : { zh: term, engine: 'cache:local' }
 }

@@ -99,7 +99,7 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     document.body.innerHTML = ''
   })
 
-  it('renders 3 separate cards with badges only for platform and system engines', async () => {
+  it('renders 3 separate cards with concurrency badges for agent, platform and system engines', async () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
@@ -113,7 +113,7 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     const agentCard = host.querySelector('section[aria-label="Agent"]')
     expect(agentCard).not.toBeNull()
     expect(agentCard?.textContent).toContain('DeepSeek AI')
-    expect(agentCard?.textContent).not.toContain('并发 8 · 5,000字')
+    expect(agentCard?.textContent).toContain('并发 8 · 5,000 字')
 
     // Card 2: Platform
     const platformCard = host.querySelector('section[aria-label="翻译平台"]')

@@ -2,10 +2,11 @@
 
 import { Menu } from '@base-ui/react/menu'
 import Link from 'next/link'
-import { type DragEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { type DragEvent, type ReactNode, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { IoAdd, IoCloseOutline } from 'react-icons/io5'
 
-import { useT } from '@/components/i18n/LocaleProvider'
+import { BergamotDebugGuide, statusFor, useBergamotDebugScenario } from '@/components/debug/BergamotDebug'
+import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { settingsCardColumn } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { Badge, Button, ScrollArea, Tooltip } from '@/components/sk'
@@ -17,6 +18,7 @@ import { useTranslationFetch } from '@/components/translate/TranslationRuntimeCo
 import { useTranslateAgentProfiles } from '@/components/translate/useTranslateAgentProfiles'
 import { readApiErrorMessage } from '@/lib/api-error'
 import type { MessageKey } from '@/lib/i18n'
+import { LOCALE_HTML_LANG } from '@/lib/i18n/locales'
 import {
   agentEngineKey,
   DEFAULT_ENGINE_ORDER,
@@ -89,15 +91,23 @@ type Props = {
 /** 翻译页左侧：Agent 组（用户添加的 Agent 实例）与翻译平台组；组内拖拽排序，先试 Agent 再试平台 */
 export function TranslateEngineRail({ languagePair, disabled, className, onChange, mobileOpen = false, onMobileOpenChange, manageAgentsHref, fullPage = false }: Props) {
   const t = useT()
+  const locale = useLocaleCode()
+  const numberFormat = new Intl.NumberFormat(LOCALE_HTML_LANG[locale])
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
   const agentProfiles = useTranslateAgentProfiles()
+  const bergamotDebug = useBergamotDebugScenario()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [view, setView] = useState<EngineView>(INITIAL)
   const [systemStatus, setSystemStatus] = useState<Partial<Record<OfflineEngine, OfflineStatus>>>({})
   const statusController = useRef<AbortController | null>(null)
   const [selectedEngineId, setSelectedEngineId] = useState<EngineId | null>(null)
+  // Bergamot debug scenarios only paint on the Bergamot detail sub-card — open it when a preview is active.
+  useEffect(() => {
+    if (loading || bergamotDebug?.scenario == null || selectedEngineId === 'bergamot') return
+    setSelectedEngineId('bergamot')
+  }, [bergamotDebug?.scenario, loading, selectedEngineId])
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [addMenuContainer, setAddMenuContainer] = useState<ShadowRoot>()
   const addAnchorRef = useRef<HTMLDivElement>(null)
@@ -347,20 +357,43 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
   }
 
   function renderRow(id: EngineId) {
-    let badge: React.ReactNode = null
+    const entry = findAgentEntry(view.agents, id)
+    const builtin = isBuiltinEngineId(id) ? view.configs[id] : undefined
+    const allowConcurrency = entry ? entry.allowConcurrency !== false : builtin ? builtin.allowConcurrency !== false : true
+    const limit = entry ? (entry.concurrencyLimit ?? 4) : builtin ? builtin.concurrencyLimit : 4
+    const chars = entry ? (entry.maxConcurrentChars ?? 3000) : builtin ? builtin.maxConcurrentChars : 3000
+    const concurrencyBadge = (
+      <Badge size="mini" tone="neutral" dot={false}>
+        {allowConcurrency
+          ? t('translate.concurrencyBadge', { limit: numberFormat.format(limit), chars: numberFormat.format(chars) })
+          : t('translate.sequentialBadge', { chars: numberFormat.format(chars) })}
+      </Badge>
+    )
+    let badge: ReactNode = null
     if (id === 'bing' || id === 'google') {
       badge = (
-        <Badge size="mini" tone="accent" dot={false}>
-          {t('translate.tagFree')}
-        </Badge>
+        <div className="flex items-center gap-1">
+          <Badge size="mini" tone="accent" dot={false}>
+            {t('translate.tagFree')}
+          </Badge>
+          {concurrencyBadge}
+        </div>
       )
     } else if (id === 'apple' || id === 'bergamot') {
-      const ready = systemStatus[id]?.installed === true
+      const status = systemStatus[id]
+      const ready = status?.installed === true
       badge = (
-        <Badge size="mini" tone={ready ? 'ok' : 'warn'} loading={systemStatus[id] === undefined}>
-          {systemStatus[id] === undefined ? t('translate.offlineChecking') : t(ready ? 'translate.tagReady' : 'translate.tagNotReady')}
-        </Badge>
+        <div className="flex items-center gap-1">
+          {status !== undefined ? (
+            <Badge size="mini" tone={ready ? 'ok' : 'warn'}>
+              {t(ready ? 'translate.tagReady' : 'translate.tagNotReady')}
+            </Badge>
+          ) : null}
+          {concurrencyBadge}
+        </div>
       )
+    } else if (entry) {
+      badge = concurrencyBadge
     }
     return (
       <TranslateEngineRow
@@ -396,6 +429,8 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
   if (selectedEngineId) {
     const entry = findAgentEntry(view.agents, selectedEngineId)
     const offline = selectedEngineId === 'apple' || selectedEngineId === 'bergamot' ? selectedEngineId : null
+    const bergamotPreview = selectedEngineId === 'bergamot' ? bergamotDebug?.scenario : null
+    const offlineStatus = bergamotPreview != null ? statusFor(bergamotPreview) : offline ? systemStatus[offline] : undefined
     return (
       <TranslateEngineDetailView
         key={selectedEngineId}
@@ -408,9 +443,17 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
         builtinConfig={isBuiltinEngineId(selectedEngineId) ? view.configs[selectedEngineId] : undefined}
         agentProfiles={agentProfiles}
         takenProfileIds={view.agents.filter((item) => item.id !== entry?.id).map((item) => item.profileId)}
-        systemStatus={offline ? systemStatus[offline] : undefined}
+        systemStatus={offlineStatus}
+        offlineGuide={bergamotPreview != null ? <BergamotDebugGuide scenario={bergamotPreview} /> : undefined}
         onCheckSystemStatus={() => {
-          if (offline && statusController.current) void checkSystemStatus(offline, statusController.current.signal)
+          if (bergamotPreview != null) {
+            bergamotDebug?.setScenario('checking')
+            return
+          }
+          if (offline) {
+            const ctrl = new AbortController()
+            void checkSystemStatus(offline, ctrl.signal)
+          }
         }}
         onRemove={entry ? () => removeAgent(entry.id) : undefined}
         saving={saving}
@@ -457,10 +500,7 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
                 <section key={group.id} className="flex flex-col overflow-hidden rounded-md border border-line bg-panel" aria-label={t(group.labelKey)}>
                   <div ref={group.id === 'agent' ? addAnchorRef : undefined} className="flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 py-3">
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className={groupLabel}>{t(group.labelKey)}</span>
-                        <span className="text-[0.68rem] tabular-nums text-ink-soft">{ids.length}</span>
-                      </div>
+                      <span className={groupLabel}>{t(group.labelKey)}</span>
                       <span className="truncate text-[0.7rem] leading-snug text-ink-soft/80">{t(group.descKey)}</span>
                     </div>
                     {group.id === 'agent' ? (
@@ -574,10 +614,7 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
               <section key={group.id} className="flex flex-col" aria-label={t(group.labelKey)}>
                 <div ref={group.id === 'agent' ? addAnchorRef : undefined} className="flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4">
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className={groupLabel}>{t(group.labelKey)}</span>
-                      <span className="text-[0.68rem] tabular-nums text-ink-soft">{ids.length}</span>
-                    </div>
+                    <span className={groupLabel}>{t(group.labelKey)}</span>
                     <span className="truncate text-[0.7rem] leading-snug text-ink-soft/80">{t(group.descKey)}</span>
                   </div>
                   {group.id === 'agent' ? (

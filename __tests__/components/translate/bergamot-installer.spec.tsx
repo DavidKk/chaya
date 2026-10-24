@@ -79,7 +79,7 @@ it('starts only on click, displays actual progress, and refreshes after publicat
   expect(host.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('25')
   await act(async () => jest.advanceTimersByTime(1000))
   expect(installed).toHaveBeenCalledTimes(1)
-  expect(host.textContent).toContain('已就绪，可以开启此引擎。')
+  expect(host.textContent).toContain('就绪')
   expect(mockFetch.mock.calls.map(([, init]) => JSON.parse(init.body).action)).toEqual(['plan', 'install', 'status'])
 })
 it('ignores an old language response and does not cancel the shared task when unmounted', async () => {

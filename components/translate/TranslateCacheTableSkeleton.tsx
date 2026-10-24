@@ -13,6 +13,7 @@ export const TRANSLATE_CACHE_COLUMN_WIDTHS = {
   pair: '5rem',
   src: 'minmax(10rem,1fr)',
   zh: 'minmax(10rem,1fr)',
+  nature: '4.25rem',
   engine: '5.5rem',
   hits: '3.75rem',
   updated: '6.5rem',
@@ -22,13 +23,13 @@ export const TRANSLATE_CACHE_COLUMN_WIDTHS = {
 /** Shared with list + skeleton so header/rows stay aligned. */
 export function translateCacheGridTemplate(): string {
   const w = TRANSLATE_CACHE_COLUMN_WIDTHS
-  return `${w.src} ${w.zh} ${w.pair} ${w.engine} ${w.hits} ${w.updated} ${w.ops}`
+  return `${w.src} ${w.zh} ${w.pair} ${w.nature} ${w.engine} ${w.hits} ${w.updated} ${w.ops}`
 }
 
 /** Below this width the grid scrolls horizontally instead of crushing text columns. */
-export const TRANSLATE_CACHE_GRID_MIN_WIDTH = '52rem'
+export const TRANSLATE_CACHE_GRID_MIN_WIDTH = '56rem'
 
-const CACHE_SKELETON_COLS = ['src', 'zh', 'pair', 'engine', 'hits', 'updated', 'ops'] as const
+const CACHE_SKELETON_COLS = ['src', 'zh', 'pair', 'nature', 'engine', 'hits', 'updated', 'ops'] as const
 
 /** 本作翻译库加载表；Web、局内和 Suspense 共用当前七列拓扑。 */
 export function TranslateCacheTableSkeleton({ label }: { label?: string }) {

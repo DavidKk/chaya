@@ -42,8 +42,8 @@ jest.mock('@/components/sk', () => ({
         {footer}
       </div>
     ) : null,
-  Button: ({ children, onClick, disabled, loading, variant, _size, className }: any) => (
-    <button onClick={onClick} disabled={disabled || loading} className={className} data-variant={variant}>
+  Button: ({ children, onClick, disabled, loading, variant, size, className, 'aria-label': ariaLabel, tooltip, title }: any) => (
+    <button onClick={onClick} disabled={disabled || loading} className={className} data-variant={variant} data-size={size} aria-label={ariaLabel} title={tooltip || title}>
       {children}
     </button>
   ),
@@ -168,12 +168,12 @@ describe('TranslateListContent', () => {
     expect(container.textContent).toContain('地图 1')
     expect(container.textContent).toContain('Map001.json')
 
-    // Item 1 has savedZh in list, plus batch reset button in footer = 2
-    const resetButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('重置'))
+    // Item 1 has row reset; batch reset is an icon button in the top toolbar
+    const resetButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('重置') || b.getAttribute('aria-label') === '重置')
     expect(resetButtons.length).toBe(2)
 
-    // 2 save buttons in list, plus batch save button in footer = 3
-    const saveButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('保存'))
+    // 2 row save buttons + batch save icon in the top toolbar
+    const saveButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('保存') || b.getAttribute('aria-label') === '保存')
     expect(saveButtons.length).toBe(3)
 
     // Translate buttons should be present
@@ -299,13 +299,11 @@ describe('TranslateListContent', () => {
       )
     })
 
-    // Find footer batch save button (last save button)
-    const saveButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('保存'))
-    const footerSaveBtn = saveButtons[saveButtons.length - 1]
-    expect(footerSaveBtn).toBeDefined()
+    const batchSaveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '保存')
+    expect(batchSaveBtn).toBeDefined()
 
     await act(async () => {
-      footerSaveBtn?.click()
+      batchSaveBtn?.click()
     })
 
     // Confirm dialog was triggered
@@ -330,7 +328,7 @@ describe('TranslateListContent', () => {
     )
   })
 
-  it('triggers batch reset with confirmation when pagination reset button is clicked', async () => {
+  it('triggers batch reset with confirmation when toolbar reset button is clicked', async () => {
     const mockItems = [
       {
         id: '1',
@@ -357,13 +355,11 @@ describe('TranslateListContent', () => {
       )
     })
 
-    // Find footer batch reset button
-    const resetButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('重置'))
-    const footerResetBtn = resetButtons[resetButtons.length - 1]
-    expect(footerResetBtn).toBeDefined()
+    const batchResetBtn = Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '重置')
+    expect(batchResetBtn).toBeDefined()
 
     await act(async () => {
-      footerResetBtn?.click()
+      batchResetBtn?.click()
     })
 
     // Confirm dialog was triggered

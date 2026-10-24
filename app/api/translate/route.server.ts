@@ -83,13 +83,17 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'extract-items'
         | 'save-item'
         | 'rgss-write'
+        | 'rgss-preview'
         | 'reset-item'
         | 'import-locales-corpus'
         | 'sources'
         | 'optimize'
       settings?: unknown
       contentRoot?: string
-      action?: 'start' | 'pause' | 'import' | 'status' | 'search' | 'export' | 'plan' | 'install' | 'cancel' | 'scan' | 'apply-terms' | 'batch-optimize' | 'idle-status'
+      action?:
+        'start' | 'pause' | 'import' | 'status' | 'search' | 'export' | 'plan' | 'install' | 'cancel' | 'scan' | 'apply-terms' | 'short-entities' | 'batch-optimize' | 'idle-status'
+      scope?: 'short-entities' | 'all'
+      includeChoices?: boolean
       planId?: string
       limit?: number
       /** 跳过缓存强制重译 */
@@ -104,6 +108,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       speaker?: string
       context?: string
       translations?: Record<string, string>
+      /** rgss-preview：original = restore .chaya.bak；translated = re-apply seed/cache */
+      view?: 'original' | 'translated'
       from?: string
       to?: string
       localesKey?: string
@@ -160,7 +166,9 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       const contentRoot = resolveTranslateContentRoot()
       if (body.settings !== undefined && !pathEquals(body.contentRoot || '', contentRoot)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload settings')
       const settings = body.settings === undefined ? getTranslationPlaySettings(contentRoot) : setTranslationPlaySettings(contentRoot, body.settings)
-      return apiOk({ contentRoot, settings })
+      const { looksLikeRgssProject } = await import('@/services/extract/lib/rgss')
+      const isRgss = looksLikeRgssProject(contentRoot)
+      return apiOk({ contentRoot, settings, isRgss })
     }
     if (body.mode === 'benchmark') return apiOk(await benchmarkLocalModel(body.settings, request.signal))
 
@@ -175,15 +183,29 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'optimize') {
-      const { scanGameTranslationsForOptimization, applyGameTermFixes, batchOptimizeTranslations, isSystemIdleForOptimization } =
+      const { scanGameTranslationsForOptimization, applyGameTermFixes, batchOptimizeTranslations, runShortEntityOptimization, isSystemIdleForOptimization } =
         await import('@/services/translate/optimize-service')
 
       const action = body.action || 'scan'
+      const scope = body.scope === 'short-entities' || body.scope === 'all' ? body.scope : undefined
+      const includeChoices = body.includeChoices !== false
       if (action === 'scan') {
-        return apiOk(scanGameTranslationsForOptimization(body.contentRoot))
+        return apiOk(scanGameTranslationsForOptimization(body.contentRoot, { scope, includeChoices }))
       }
       if (action === 'apply-terms') {
-        return apiOk(applyGameTermFixes(body.contentRoot))
+        return apiOk(applyGameTermFixes(body.contentRoot, { scope: scope || 'short-entities', includeChoices }))
+      }
+      if (action === 'short-entities') {
+        const engines = Array.isArray(body.engines) ? (body.engines as any) : undefined
+        return apiOk(
+          await runShortEntityOptimization({
+            contentRoot: body.contentRoot,
+            limit: typeof body.limit === 'number' ? body.limit : undefined,
+            engines,
+            includeChoices,
+            signal: request.signal,
+          })
+        )
       }
       if (action === 'batch-optimize') {
         const engines = Array.isArray(body.engines) ? (body.engines as any) : undefined
@@ -199,7 +221,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       if (action === 'idle-status') {
         return apiOk(isSystemIdleForOptimization())
       }
-      return apiError(400, 'OPTIMIZE_ACTION', 'action must be scan | apply-terms | batch-optimize | idle-status')
+      return apiError(400, 'OPTIMIZE_ACTION', 'action must be scan | apply-terms | short-entities | batch-optimize | idle-status')
     }
 
     if (body.mode === 'sources') {
@@ -351,6 +373,23 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         return apiOk({ engine: resolved.engine, ...writeRgssTranslations(root, translations as Record<string, string>) })
       } catch (error) {
         return apiError(409, 'RGSS_WRITE_FAILED', error instanceof Error ? error.message : String(error))
+      }
+    }
+
+    if (body.mode === 'rgss-preview') {
+      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      if (body.contentRoot && !pathEquals(body.contentRoot, root)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload the translation page')
+      const { describeRgssPreview, setRgssPreviewView } = await import('@/services/translate/rgss-preview')
+      if (body.view === undefined) return apiOk({ contentRoot: root, ...describeRgssPreview(root) })
+      if (body.view !== 'original' && body.view !== 'translated') return apiError(400, 'RGSS_PREVIEW_VIEW', 'view must be original or translated')
+      const resolved = resolveGame(root)
+      if (!resolved.ok || (resolved.engine !== 'VX Ace' && resolved.engine !== 'VX')) {
+        return apiError(400, 'RGSS_PREVIEW_ENGINE', 'RGSS preview toggle requires a VX Ace or VX project')
+      }
+      try {
+        return apiOk({ contentRoot: root, engine: resolved.engine, ...setRgssPreviewView(root, body.view) })
+      } catch (error) {
+        return apiError(409, 'RGSS_PREVIEW_FAILED', error instanceof Error ? error.message : String(error))
       }
     }
 

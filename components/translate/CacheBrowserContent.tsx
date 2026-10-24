@@ -39,6 +39,7 @@ import {
 import { CACHE_LANG_CODE, formatCacheHitCount, formatCacheUpdatedAt } from '@/lib/translate/cache-format'
 import { CACHE_LANGS, type CacheLang, parseCacheLang } from '@/lib/translate/cache-lang'
 import { parseSharedCacheSortDir, parseSharedCacheSortKey, type SharedCacheSortDir, type SharedCacheSortKey } from '@/lib/translate/cache-query'
+import { natureOfCategory, parseTextNature, TEXT_NATURES, type TextNature } from '@/lib/translate/text-nature'
 import { cycleThreeStateSort } from '@/lib/ui/three-state-sort'
 import { parsePositiveInt, patchSearchParams } from '@/lib/url/search-params'
 import { cn } from '@/lib/utils'
@@ -70,6 +71,16 @@ const CACHE_LANG_KEY: Record<CacheLang, MessageKey> = {
   ru: 'translate.cacheLangRu',
 }
 
+const CACHE_NATURE_KEY: Record<TextNature, MessageKey> = {
+  dialogue: 'translate.catDialogue',
+  story: 'translate.catStory',
+  choice: 'translate.catChoice',
+  name: 'translate.natureFilterName',
+  desc: 'translate.natureFilterDesc',
+  system: 'translate.natureFilterSystem',
+  other: 'translate.catOther',
+}
+
 function cacheEngineLabel(engine: string | null, label: (key: MessageKey) => string): string {
   const kind = cacheEngineKind(engine)
   return kind ? label(CACHE_ENGINE_KIND_KEY[kind]) : engine || '—'
@@ -90,6 +101,7 @@ type CacheItem = {
   from?: CacheLang
   to?: CacheLang
   engine: string | null
+  category?: string | null
   updatedAt: number
   hitCount: number
   nsfw?: boolean
@@ -119,8 +131,16 @@ const DEFAULT_ORDER: SharedCacheSortDir = 'desc'
 
 /** 固定列宽，避免翻页时随内容长短抖动 */
 const CACHE_COLUMN_DEFS: {
-  key: SharedCacheSortKey | 'ops' | 'pair' | 'src' | 'zh' | 'engine'
-  labelKey: 'translate.cachePair' | 'translate.cacheSrc' | 'translate.cacheZh' | 'translate.cacheEngine' | 'translate.cacheHits' | 'translate.cacheUpdated' | 'translate.cacheOps'
+  key: SharedCacheSortKey | 'ops' | 'pair' | 'src' | 'zh' | 'engine' | 'nature'
+  labelKey:
+    | 'translate.cachePair'
+    | 'translate.cacheSrc'
+    | 'translate.cacheZh'
+    | 'translate.cacheNature'
+    | 'translate.cacheEngine'
+    | 'translate.cacheHits'
+    | 'translate.cacheUpdated'
+    | 'translate.cacheOps'
   width: string
   align?: 'left' | 'right'
   sortKey?: SharedCacheSortKey
@@ -128,6 +148,7 @@ const CACHE_COLUMN_DEFS: {
   { key: 'src', labelKey: 'translate.cacheSrc', width: TRANSLATE_CACHE_COLUMN_WIDTHS.src },
   { key: 'zh', labelKey: 'translate.cacheZh', width: TRANSLATE_CACHE_COLUMN_WIDTHS.zh },
   { key: 'pair', labelKey: 'translate.cachePair', width: TRANSLATE_CACHE_COLUMN_WIDTHS.pair },
+  { key: 'nature', labelKey: 'translate.cacheNature', width: TRANSLATE_CACHE_COLUMN_WIDTHS.nature },
   { key: 'engine', labelKey: 'translate.cacheEngine', width: TRANSLATE_CACHE_COLUMN_WIDTHS.engine },
   { key: 'hits', labelKey: 'translate.cacheHits', width: TRANSLATE_CACHE_COLUMN_WIDTHS.hits, sortKey: 'hits' },
   { key: 'updated', labelKey: 'translate.cacheUpdated', width: TRANSLATE_CACHE_COLUMN_WIDTHS.updated, sortKey: 'updated' },
@@ -183,6 +204,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
   const live = parseCacheLiveFlag(searchParams.get('live'))
   const srcLang = parseCacheLang(searchParams.get('from'))
   const tgtLang = parseCacheLang(searchParams.get('to'))
+  const nature = parseTextNature(searchParams.get('nature'))
   /** URL 显式带了 sort/order = 用户选过；否则为还原态（默认按更新降序，表头不点亮） */
   const sortExplicit = searchParams.has('sort') || searchParams.has('order')
   const sort = parseSharedCacheSortKey(searchParams.get('sort'), DEFAULT_SORT)
@@ -203,6 +225,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
       live: CacheLiveFlag | ''
       srcLang: CacheLang | ''
       tgtLang: CacheLang | ''
+      nature: TextNature | ''
       sort: SharedCacheSortKey
       order: SharedCacheSortDir
     }) => {
@@ -218,6 +241,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
       if (opts.live) params.set('live', opts.live)
       if (opts.srcLang) params.set('from', opts.srcLang)
       if (opts.tgtLang) params.set('to', opts.tgtLang)
+      if (opts.nature) params.set('nature', opts.nature)
       try {
         const res = await translationFetch(`/api/translate-cache?${params}`)
         const json = (await res.json()) as CachePage
@@ -236,9 +260,9 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
 
   useEffect(() => {
     startTransition(async () => {
-      await load({ page, pageSize, q, engine, nsfwFlag, live, srcLang, tgtLang, sort, order })
+      await load({ page, pageSize, q, engine, nsfwFlag, live, srcLang, tgtLang, nature, sort, order })
     })
-  }, [load, page, pageSize, q, engine, nsfwFlag, live, srcLang, tgtLang, sort, order])
+  }, [load, page, pageSize, q, engine, nsfwFlag, live, srcLang, tgtLang, nature, sort, order])
 
   function setFilters(patch: {
     page?: number
@@ -249,6 +273,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
     live?: CacheLiveFlag | ''
     srcLang?: CacheLang | ''
     tgtLang?: CacheLang | ''
+    nature?: TextNature | ''
     sort?: SharedCacheSortKey
     order?: SharedCacheSortDir
     /** true：写入显式排序；false：还原默认并清掉 URL 排序参数 */
@@ -262,6 +287,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
     const nextLive = patch.live ?? live
     const nextSrcLang = patch.srcLang ?? srcLang
     const nextTgtLang = patch.tgtLang ?? tgtLang
+    const nextNature = patch.nature ?? nature
     const nextExplicit = patch.sortExplicit ?? sortExplicit
     const nextSort = patch.sort ?? sort
     const nextOrder = patch.order ?? order
@@ -274,6 +300,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
       live: nextLive || null,
       from: nextSrcLang || null,
       to: nextTgtLang || null,
+      nature: nextNature || null,
       sort: nextExplicit ? nextSort : null,
       order: nextExplicit ? nextOrder : null,
     })
@@ -301,7 +328,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
 
   function reload() {
     startTransition(async () => {
-      await load({ page, pageSize, q, engine, nsfwFlag, live, srcLang, tgtLang, sort, order })
+      await load({ page, pageSize, q, engine, nsfwFlag, live, srcLang, tgtLang, nature, sort, order })
     })
   }
 
@@ -375,91 +402,93 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
   const nsfwOptions = [{ value: '', label: t('translate.cacheFlagAll') }, ...CACHE_NSFW_FLAGS.map((value) => ({ value, label: t(CACHE_NSFW_FLAG_KEY[value]) }))]
   const liveOptions = [{ value: '', label: t('translate.cacheFlagAll') }, ...CACHE_LIVE_FLAGS.map((value) => ({ value, label: t(CACHE_LIVE_FLAG_KEY[value]) }))]
   const langOptions = [{ value: '', label: t('translate.cacheFlagAll') }, ...CACHE_LANGS.map((value) => ({ value, label: t(CACHE_LANG_KEY[value]) }))]
-  const hasFilter = Boolean(q || engine || nsfwFlag || live || srcLang || tgtLang)
+  const natureOptions = [{ value: '', label: t('translate.cacheNatureAll') }, ...TEXT_NATURES.map((value) => ({ value, label: t(CACHE_NATURE_KEY[value]) }))]
+  const hasFilter = Boolean(q || engine || nsfwFlag || live || srcLang || tgtLang || nature)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PanelHeadEnd>
-        <ScrollArea
-          indicator="horizontal"
-          reserveGutter={false}
-          className="h-8 min-w-0 flex-1"
-          scrollClassName="flex items-center"
-          scrollProps={{ tabIndex: 0, 'aria-label': t('translate.cacheTitle') }}
-        >
-          <div className="flex w-max items-center gap-2">
-            <TextInput
-              search
-              className="w-52 max-w-full shrink"
-              placeholder={t('translate.cacheSearch')}
-              value={qInput}
-              disabled={busy}
-              aria-label={t('translate.cacheSearch')}
-              onChange={(e) => setQInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitQ(qInput)
-              }}
-              onBlur={() => commitQ(qInput)}
-            />
-            <Select
-              className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
-              value={srcLang}
-              options={langOptions}
-              disabled={busy}
-              panelWidth="content"
-              aria-label={t('translate.cacheFilterSrcLang')}
-              onChange={(value) => setFilters({ page: 1, srcLang: parseCacheLang(value) })}
-            />
-            <Select
-              className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
-              value={tgtLang}
-              options={langOptions}
-              disabled={busy}
-              panelWidth="content"
-              aria-label={t('translate.cacheFilterTgtLang')}
-              onChange={(value) => setFilters({ page: 1, tgtLang: parseCacheLang(value) })}
-            />
-            <Select
-              className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
-              value={engine}
-              options={engineOptions}
-              disabled={busy}
-              panelWidth="content"
-              aria-label={t('translate.cacheFilterEngine')}
-              onChange={(v) => setFilters({ page: 1, engine: v })}
-            />
-            <Select
-              className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
-              value={nsfwFlag}
-              options={nsfwOptions}
-              disabled={busy}
-              panelWidth="content"
-              aria-label={t('translate.cacheFilterNsfw')}
-              onChange={(value) => setFilters({ page: 1, nsfwFlag: parseCacheNsfwFlag(value) })}
-            />
-            <Select
-              className="min-w-[7rem] max-w-[11rem] shrink [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
-              value={live}
-              options={liveOptions}
-              disabled={busy}
-              panelWidth="content"
-              aria-label={t('translate.cacheFilterLive')}
-              onChange={(value) => setFilters({ page: 1, live: parseCacheLiveFlag(value) })}
-            />
-          </div>
-        </ScrollArea>
-        {onOpenDebug ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            aria-label={CACHE_TEST_COPY[locale].intro}
-            tooltip={CACHE_TEST_COPY[locale].debugTip}
-            onClick={() => onOpenDebug(new URLSearchParams(patchSearchParams(searchParams, { q: qInput.trim() || null, ...(qInput.trim() !== q ? { page: null } : {}) })))}
-          >
-            <TbBug size={16} aria-hidden />
-          </Button>
-        ) : null}
+        <div className="flex flex-nowrap items-center gap-2">
+          <TextInput
+            search
+            className="w-52 shrink-0"
+            placeholder={t('translate.cacheSearch')}
+            value={qInput}
+            disabled={busy}
+            aria-label={t('translate.cacheSearch')}
+            onChange={(e) => setQInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitQ(qInput)
+            }}
+            onBlur={() => commitQ(qInput)}
+          />
+          <Select
+            className="min-w-[7rem] max-w-[11rem] shrink-0 [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
+            value={srcLang}
+            options={langOptions}
+            disabled={busy}
+            panelWidth="content"
+            aria-label={t('translate.cacheFilterSrcLang')}
+            onChange={(value) => setFilters({ page: 1, srcLang: parseCacheLang(value) })}
+          />
+          <Select
+            className="min-w-[7rem] max-w-[11rem] shrink-0 [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
+            value={tgtLang}
+            options={langOptions}
+            disabled={busy}
+            panelWidth="content"
+            aria-label={t('translate.cacheFilterTgtLang')}
+            onChange={(value) => setFilters({ page: 1, tgtLang: parseCacheLang(value) })}
+          />
+          <Select
+            className="min-w-[7rem] max-w-[11rem] shrink-0 [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
+            value={engine}
+            options={engineOptions}
+            disabled={busy}
+            panelWidth="content"
+            aria-label={t('translate.cacheFilterEngine')}
+            onChange={(v) => setFilters({ page: 1, engine: v })}
+          />
+          <Select
+            className="min-w-[7rem] max-w-[11rem] shrink-0 [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
+            value={nature}
+            options={natureOptions}
+            disabled={busy}
+            panelWidth="content"
+            aria-label={t('translate.cacheNature')}
+            onChange={(value) => setFilters({ page: 1, nature: parseTextNature(value) })}
+          />
+          <Select
+            className="min-w-[7rem] max-w-[11rem] shrink-0 [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
+            value={nsfwFlag}
+            options={nsfwOptions}
+            disabled={busy}
+            panelWidth="content"
+            aria-label={t('translate.cacheFilterNsfw')}
+            onChange={(value) => setFilters({ page: 1, nsfwFlag: parseCacheNsfwFlag(value) })}
+          />
+          <Select
+            className="min-w-[7rem] max-w-[11rem] shrink-0 [&_button]:h-8 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-[0.75rem]"
+            value={live}
+            options={liveOptions}
+            disabled={busy}
+            panelWidth="content"
+            aria-label={t('translate.cacheFilterLive')}
+            onChange={(value) => setFilters({ page: 1, live: parseCacheLiveFlag(value) })}
+          />
+          {onOpenDebug ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              aria-label={CACHE_TEST_COPY[locale].intro}
+              tooltip={CACHE_TEST_COPY[locale].debugTip}
+              onClick={() => onOpenDebug(new URLSearchParams(patchSearchParams(searchParams, { q: qInput.trim() || null, ...(qInput.trim() !== q ? { page: null } : {}) })))}
+            >
+              <TbBug size={16} aria-hidden />
+            </Button>
+          ) : null}
+        </div>
       </PanelHeadEnd>
 
       <div className="flex min-h-0 flex-1 flex-col">
@@ -542,6 +571,18 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
                     ) : (
                       '—'
                     )}
+                  </div>
+                  <div className={editCell} data-list-cell="">
+                    {(() => {
+                      const natureKey = natureOfCategory(row.category)
+                      return natureKey ? (
+                        <Badge tone="neutral" dot={false} className="max-w-full px-1 text-[0.65rem]" title={row.category || undefined}>
+                          <TruncateText text={t(CACHE_NATURE_KEY[natureKey])} className="min-w-0" />
+                        </Badge>
+                      ) : (
+                        <span className="text-[0.75rem] text-ink-soft">{t('translate.cacheNatureUnset')}</span>
+                      )
+                    })()}
                   </div>
                   <div className={editCell} data-list-cell="">
                     <span className="inline-flex max-w-full items-center gap-1">

@@ -170,6 +170,22 @@ export function loadRgssItems(dataDir: string): ExtractedTranslationItem[] {
   })
 }
 
+/** Copy every Data/*.rvdata(2).chaya.bak over the live file (no-op when no backup). */
+export function restoreRgssFromBackup(dataDir: string): { restored: number; backups: number } {
+  let restored = 0
+  let backups = 0
+  for (const name of fs.readdirSync(dataDir)) {
+    if (!/\.rvdata2?$/i.test(name)) continue
+    const file = path.join(dataDir, name)
+    const backup = `${file}.chaya.bak`
+    if (!fs.existsSync(backup)) continue
+    backups += 1
+    fs.copyFileSync(backup, file)
+    restored += 1
+  }
+  return { restored, backups }
+}
+
 export function writeRgssData(dataDir: string, translations: Record<string, string>) {
   const entries = Object.entries(translations)
   if (!entries.length || entries.some(([source, target]) => !source.trim() || typeof target !== 'string' || !target.trim())) {

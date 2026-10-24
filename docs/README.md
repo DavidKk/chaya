@@ -23,11 +23,12 @@
 | 当前战斗、敌群 | [战斗](edit-battle.md) / [敌群](edit-troops.md) | [战斗设计](technical/edit-battle.md) / [敌群设计](technical/edit-troops.md) |
 | 存档、键鼠、迷你面板、寻路 | [存档](game-saves.md) / [键鼠](input-assistance.md) / [面板](mini-panels.md) / [寻路](smart-path.md) | 各需求页头链接到对应技术方案，仅选相关功能 |
 | RGSS、内嵌 WebView、WebRTC | [RGSS 重构](rgss-webview-overlay.md) | [宿主与通信](technical/rgss-webview-overlay.md) |
+| RGSS 游玩实时翻译、悬浮字幕 | [游玩翻译](rgss-play-realtime-translation.md) | [实时翻译技术设计](technical/rgss-play-realtime-translation.md) |
 | 翻译调度、并发、重试、限流 | [调度基线](translation-scheduling.md) §9 差距、§13–14 性能与接线 | [管线](technical/translation-pipeline.md) 相关章节 |
 | 缓存匹配、语义分段、索引 | [缓存优化](translation-cache-optimization.md) | [缓存设计](technical/translation-cache-optimization.md)；底层存储才读 [管线](technical/translation-pipeline.md) §14 |
 | 标签、列表、结构化分段编辑 | [结构化分段](translation-structured-segmentation.md) | [分段设计](technical/translation-structured-segmentation.md) |
 | 整句缓存对齐回退 | [整句回退](translation-sentence-fallback.md) | [回退算法](technical/translation-sentence-fallback.md) |
-| 闲时精翻、术语质量 | [质量优化](translation-optimization.md) | [质量设计](technical/translation-optimization.md) |
+| 专名/名称优化、术语纠偏、闲时润色 | [质量优化](translation-optimization.md) UI §3 · 入口 §5 · MVP §6 | [质量设计](technical/translation-optimization.md) 秩 §2 · 候选 §3 · 开工清单 §8 |
 | 引擎独立开关、探活、徽标 | [有效约定](translation-concurrency-and-badges.md) §2.2–2.3、§4 | [探活与徽标](technical/translation-concurrency-and-badges.md)；调度示例为历史 |
 | Apple / Bergamot / Windows 离线翻译 | [Apple](apple-native-translation.md) / [Bergamot](linux-offline-translation.md) / [Windows](windows-native-translation.md) | 仅选相应需求页头的技术方案；实现进度以各页为准 |
 | 游戏语言包、语料回写 | [语言包](game-multilingual-locales.md) | [语言包设计](technical/game-multilingual-locales.md) |

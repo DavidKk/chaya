@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { type DragEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { IoAdd } from 'react-icons/io5'
 
+import { BergamotDebugGuide, statusFor, useBergamotDebugScenario } from '@/components/debug/BergamotDebug'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { settingsCardColumn } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
@@ -82,6 +83,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
   const agentProfiles = useTranslateAgentProfiles()
+  const bergamotDebug = useBergamotDebugScenario()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -116,6 +118,12 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
     },
     [onEnginesRoute, pathEntryId, pathname, router, view.agents, view.configs]
   )
+
+  // Bergamot debug scenarios only paint on the Bergamot detail sub-card — open it when a preview is active.
+  useEffect(() => {
+    if (loading || bergamotDebug?.scenario == null || selectedEngineId === 'bergamot') return
+    selectEngine('bergamot')
+  }, [bergamotDebug?.scenario, loading, selectEngine, selectedEngineId])
 
   useEffect(() => {
     if (!onEnginesRoute || !router || !pathEntryId) return
@@ -320,10 +328,13 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
     const activeGroup = engineGroup(selectedEngineId)
     const activeEntry = findAgentEntry(view.agents, selectedEngineId)
     const activeBuiltin = isBuiltinEngineId(selectedEngineId) ? view.configs[selectedEngineId] : undefined
+    const bergamotPreview = selectedEngineId === 'bergamot' ? bergamotDebug?.scenario : null
+    const offlineStatus =
+      bergamotPreview != null ? statusFor(bergamotPreview) : selectedEngineId === 'apple' || selectedEngineId === 'bergamot' ? systemStatus[selectedEngineId] : undefined
 
     return (
       <TranslateEngineDetailView
-        key={`${selectedEngineId}:${loading}`}
+        key={`${selectedEngineId}:${loading}:${bergamotPreview ?? 'live'}`}
         engineId={selectedEngineId}
         label={engineLabel(selectedEngineId)}
         subtitle={engineSubtitle(selectedEngineId)}
@@ -333,8 +344,13 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
         builtinConfig={activeBuiltin}
         agentProfiles={agentProfiles}
         takenProfileIds={view.agents.filter((a) => agentEngineKey(a.id) !== selectedEngineId).map((a) => a.profileId)}
-        systemStatus={selectedEngineId === 'apple' || selectedEngineId === 'bergamot' ? systemStatus[selectedEngineId] : undefined}
+        systemStatus={offlineStatus}
+        offlineGuide={bergamotPreview != null ? <BergamotDebugGuide scenario={bergamotPreview} /> : undefined}
         onCheckSystemStatus={() => {
+          if (bergamotPreview != null) {
+            bergamotDebug?.setScenario('checking')
+            return
+          }
           if (selectedEngineId === 'apple' || selectedEngineId === 'bergamot') {
             const ctrl = new AbortController()
             void checkSystemStatus(selectedEngineId, ctrl.signal)
@@ -402,10 +418,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
               <section key={group.id} className="flex flex-col overflow-hidden rounded-md border border-line bg-panel" aria-label={t(group.labelKey)}>
                 <div ref={group.id === 'agent' ? addAnchorRef : undefined} className="flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 py-3">
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className={groupLabel}>{t(group.labelKey)}</span>
-                      <span className="text-[0.68rem] tabular-nums text-ink-soft">{ids.length}</span>
-                    </div>
+                    <span className={groupLabel}>{t(group.labelKey)}</span>
                     <span className="truncate text-[0.7rem] leading-snug text-ink-soft/80">{t(group.descKey)}</span>
                   </div>
 
@@ -483,6 +496,13 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
                         const limit = entry ? (entry.concurrencyLimit ?? 4) : builtin ? builtin.concurrencyLimit : 4
                         const chars = entry ? (entry.maxConcurrentChars ?? 3000) : builtin ? builtin.maxConcurrentChars : 3000
 
+                        const concurrencyBadge = (
+                          <Badge size="mini" tone="neutral" dot={false}>
+                            {allowConcurrency
+                              ? t('translate.concurrencyBadge', { limit: numberFormat.format(limit), chars: numberFormat.format(chars) })
+                              : t('translate.sequentialBadge', { chars: numberFormat.format(chars) })}
+                          </Badge>
+                        )
                         let badgeNode: React.ReactNode = null
                         if (id === 'bing' || id === 'google') {
                           badgeNode = (
@@ -490,27 +510,24 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
                               <Badge size="mini" tone="accent" dot={false}>
                                 {t('translate.tagFree')}
                               </Badge>
-                              <Badge size="mini" tone="neutral" dot={false}>
-                                {allowConcurrency
-                                  ? t('translate.concurrencyBadge', { limit: numberFormat.format(limit), chars: numberFormat.format(chars) })
-                                  : t('translate.sequentialBadge')}
-                              </Badge>
+                              {concurrencyBadge}
                             </div>
                           )
                         } else if (id === 'apple' || id === 'bergamot') {
-                          const ready = systemStatus[id]?.installed === true
+                          const status = systemStatus[id]
+                          const ready = status?.installed === true
                           badgeNode = (
                             <div className="flex items-center gap-1">
-                              <Badge size="mini" tone={ready ? 'ok' : 'warn'} loading={systemStatus[id] === undefined}>
-                                {systemStatus[id] === undefined ? t('translate.offlineChecking') : t(ready ? 'translate.tagReady' : 'translate.tagNotReady')}
-                              </Badge>
-                              <Badge size="mini" tone="neutral" dot={false}>
-                                {allowConcurrency
-                                  ? t('translate.concurrencyBadge', { limit: numberFormat.format(limit), chars: numberFormat.format(chars) })
-                                  : t('translate.sequentialBadge')}
-                              </Badge>
+                              {status !== undefined ? (
+                                <Badge size="mini" tone={ready ? 'ok' : 'warn'}>
+                                  {t(ready ? 'translate.tagReady' : 'translate.tagNotReady')}
+                                </Badge>
+                              ) : null}
+                              {concurrencyBadge}
                             </div>
                           )
+                        } else if (entry) {
+                          badgeNode = concurrencyBadge
                         }
 
                         return (

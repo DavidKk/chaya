@@ -334,6 +334,14 @@ export type MessageTree = {
     listTab: string
     seedTab: string
     seedTabDesc: string
+    rgssPreviewTranslated: string
+    rgssPreviewOriginal: string
+    rgssPreviewTranslatedDesc: string
+    rgssPreviewOriginalDesc: string
+    rgssPreviewNoBackupDesc: string
+    rgssPreviewSwitchedOriginal: string
+    rgssPreviewSwitchedOriginalEmpty: string
+    rgssPreviewSwitchedTranslated: string
     listTabDesc: string
     playTabDesc: string
     enginesTab: string
@@ -380,6 +388,7 @@ export type MessageTree = {
     realtimeDesc: string
     subtitle: string
     subtitleDesc: string
+    rgssPlatformNote: string
     timeout: string
     timeoutHint: string
     testLocal: string
@@ -477,6 +486,9 @@ export type MessageTree = {
     cacheZh: string
     cachePair: string
     cacheEngine: string
+    cacheNature: string
+    cacheNatureAll: string
+    cacheNatureUnset: string
     cacheHits: string
     cacheUpdated: string
     cacheOps: string
@@ -630,6 +642,25 @@ export type MessageTree = {
     listResetPageSuccess: string
     listSavePageBtn: string
     listSavePageTooltip: string
+    listTranslatePageBtn: string
+    listTranslatePageTooltip: string
+    listTranslatePageRunning: string
+    listTranslatePageEmpty: string
+    listTranslatePageSuccess: string
+    listTranslatePagePartial: string
+    listTranslatePageFailed: string
+    optimizeNames: string
+    optimizeNamesTooltip: string
+    optimizeNamesRunning: string
+    optimizeNamesConfirmTitle: string
+    optimizeNamesConfirmDesc: string
+    optimizeNamesConfirm: string
+    optimizeNamesDone: string
+    optimizeNamesPaused: string
+    optimizeNamesPausedLive: string
+    optimizeNamesScanEmpty: string
+    optimizeNamesFailed: string
+    optimizeNamesNoBound: string
     listSavePageEmpty: string
     listSavePageTitle: string
     listSavePageDesc: string

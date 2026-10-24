@@ -103,3 +103,20 @@ it('prefers this game library and falls back to shared translations only on a mi
   expect(lookupGameTranslation(fromLocal, fromShared, 'こんにちは')).toEqual({ zh: '本作你好', engine: 'cache:local' })
   expect(lookupGameTranslation(fromLocal, fromShared, 'さようなら')).toEqual({ zh: '再见', engine: 'cache:remote' })
 })
+
+it('corrects known bad game-term cache hits such as Load→供电量', () => {
+  expect(
+    lookupGameTranslation(
+      (key) => (key === 'Load' ? '供电量' : null),
+      () => null,
+      'Load'
+    )
+  ).toEqual({ zh: '读取', engine: 'cache:local' })
+  expect(
+    lookupGameTranslation(
+      () => null,
+      (key) => (key === 'Load' ? '负荷' : null),
+      'Load'
+    )
+  ).toEqual({ zh: '读取', engine: 'cache:remote' })
+})

@@ -32,7 +32,7 @@ export const GAME_TERMS: Readonly<Record<string, Term>> = {
   load: {
     translations: { zh: '读取', en: 'Load', ja: 'ロード', ko: '불러오기' },
     aliases: { en: ['Load Game'], ja: ['ロードする'] },
-    badTranslations: { zh: ['负荷', '装载', '加载', '装入'] },
+    badTranslations: { zh: ['负荷', '供电量', '负载', '装载', '加载', '装入'] },
   },
   new_game: {
     translations: { zh: '新游戏', en: 'New Game', ja: 'ニューゲーム', ko: '새 게임' },

@@ -73,9 +73,14 @@ Dir.mktmpdir('chaya-native-translation') do |root|
     end
     class Window_Message
       attr_reader :rendered, :rendered_choices
+      attr_accessor :text
+      def initialize
+        @text = ""
+      end
       def start_message
         @rendered = $game_message.texts.join("\n")
         @rendered_choices = $game_message.choices.dup
+        @text = @rendered.dup
       end
     end
     translation.install
@@ -111,6 +116,90 @@ Dir.mktmpdir('chaya-native-translation') do |root|
     class << translation
       alias_method :translate, :native_test_translate
     end
+
+    # Play settings, subtitle mode, realtime mode, and limits
+    config_dir = File.join(root, 'chaya', 'config')
+    FileUtils.mkdir_p(config_dir)
+    play_file = File.join(config_dir, 'translation-play.json')
+    File.write(play_file, '{"mode":"subtitle","timeoutMs":5000}')
+    translation.load_play_settings
+    # Without NativeWebview, play_mode must fallback to pretranslated
+    check(translation.play_mode == 'pretranslated', 'fallback to pretranslated when webview is not ready')
+
+    module NativeWebview
+      def self.ready?; true; end
+    end
+    check(translation.play_mode == 'subtitle', 'subtitle mode active when webview ready')
+    check(translation.play_timeout_ms == 5000, 'custom timeout read')
+    check(translation.translate('New Game') == 'New Game', 'subtitle mode leaves on-screen text unchanged')
+
+    # Mock Bridge for dialogue dispatching
+    module ChayaRGSS
+      module Bridge
+        class << self
+          attr_accessor :dispatched
+          def dispatch_reply(msg)
+            (@dispatched ||= []) << msg
+          end
+        end
+      end
+    end
+    ChayaRGSS::Bridge.dispatched = []
+
+    class Window_Message
+      def terminate_message
+        $game_message.texts.clear
+        $game_message.choices.clear
+      end
+    end
+    translation.install
+
+    message.texts.replace(['Hello'])
+    message.choices.replace(['Yes', 'No'])
+    window.start_message
+    check(window.rendered == 'Hello', 'subtitle mode renders raw Japanese')
+    last_msg = ChayaRGSS::Bridge.dispatched.last
+    check(last_msg && last_msg['type'] == 'translation.dialogue', 'subtitle dispatches dialogue event')
+    check(last_msg['mode'] == 'subtitle', 'dispatched mode is subtitle')
+    check(last_msg['texts'] == ['Hello'], 'dispatched texts match')
+    check(last_msg['timeoutMs'] == 5000, 'dispatched timeout matches')
+    current_key = last_msg['key']
+
+    window.terminate_message
+    last_msg = ChayaRGSS::Bridge.dispatched.last
+    check(last_msg && last_msg['type'] == 'translation.dialogue.close', 'close dispatched on terminate_message')
+
+    # Realtime mode
+    File.write(play_file, '{"mode":"realtime","timeoutMs":8000}')
+    translation.load_play_settings
+    check(translation.play_mode == 'realtime', 'realtime mode active')
+
+    ChayaRGSS::Bridge.dispatched.clear
+    message.texts.replace(['Uncached dialogue'])
+    message.choices.clear
+    window.start_message
+    last_msg = ChayaRGSS::Bridge.dispatched.last
+    check(last_msg && last_msg['type'] == 'translation.dialogue', 'realtime dispatches dialogue for uncached text')
+    dialogue_key = last_msg['key']
+
+    # Stale/obsolete result is discarded
+    translation.handle_dialogue_result({ 'type' => 'translation.dialogue.result', 'key' => 'mismatched_key', 'texts' => ['错配译文'] })
+    check(window.instance_variable_get(:@text).nil? || !(window.instance_variable_get(:@text) =~ /错配译文/), 'stale key discarded')
+
+    # Matching result updates display
+    translation.handle_dialogue_result({ 'type' => 'translation.dialogue.result', 'key' => dialogue_key, 'texts' => ['已翻译对白'] })
+    check(window.instance_variable_get(:@text) =~ /已翻译对白/, 'matching key updates display')
+
+    # Overlong or too many choices skip dispatch
+    ChayaRGSS::Bridge.dispatched.clear
+    message.texts.replace(['A' * 361])
+    window.start_message
+    check(ChayaRGSS::Bridge.dispatched.empty?, 'overlong dialogue skipped')
+
+    message.texts.replace(['A'])
+    message.choices.replace((1..8).map(&:to_s))
+    window.start_message
+    check(ChayaRGSS::Bridge.dispatched.empty?, 'excess choices skipped')
 
   end
 end

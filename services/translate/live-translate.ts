@@ -12,7 +12,10 @@ import {
   engineSourceTag,
   findAgentEntry,
   mapTranslationBatch,
+  resolveEngineCapacitySettings,
   type TranslateAgentEntry,
+  type TranslateBuiltinId,
+  type TranslateEngineSettings,
   type TranslateRunEngine,
   translationFallbackOrder,
 } from '@/lib/translate/engines'
@@ -28,6 +31,7 @@ import { getGameCacheContext } from './game-cache-context'
 import { normalizeTranslateKey } from './game-lookup'
 import { bergamotTranslate } from './lib/bergamot-translate'
 import { appleTranslate } from './lib/macos-translate'
+import { trackLiveTranslateRequest } from './live-activity'
 import { type LocalTranslateOptions, ollamaJaToZh } from './ollama-translate'
 import { withEngineCapacity } from './scheduler/engine-capacity'
 import { joinTranslationRequest } from './scheduler/in-flight'
@@ -165,12 +169,17 @@ export async function liveTranslateTexts(
     onCacheMatch?: (elapsedMs: number) => void
     onEngineDispatch?: () => void
     onDuplicateInFlight?: () => void
+    /** When false, skip idle-gate activity tracking (nested / optimize polish calls). Default true. */
+    trackLiveActivity?: boolean
   }
 ): Promise<{
   items: LiveTranslateItem[]
   contentRoot: string | null
   engines: TranslateRunEngine[]
 }> {
+  if (opts?.trackLiveActivity !== false) {
+    return trackLiveTranslateRequest(() => liveTranslateTexts(texts, { ...opts, trackLiveActivity: false }))
+  }
   const started = performance.now()
   const trace = opts?.onTrace
   const timed = <T>(action: string, work: () => T): T => {
@@ -203,9 +212,11 @@ export async function liveTranslateTexts(
   const explicitEngines = opts?.engines !== undefined
   let engines: TranslateRunEngine[] = opts?.engines ? opts.engines.filter(Boolean) : []
   let agents: TranslateAgentEntry[] = []
+  let configs: Partial<Record<TranslateBuiltinId, TranslateEngineSettings>> | undefined
   try {
     const state = getTranslateEngineSwitches(contentRoot || undefined)
     agents = state.agents
+    configs = state.configs
     if (!explicitEngines) engines = state.enabled
   } catch {
     if (!explicitEngines) {
@@ -319,6 +330,7 @@ export async function liveTranslateTexts(
                         force: true,
                         persist,
                         engines,
+                        trackLiveActivity: false,
                       }
                     )
                     for (const gap of gaps) {
@@ -414,6 +426,7 @@ export async function liveTranslateTexts(
                   try {
                     const identity = `${engineSourceTag(engine, agents)}:${findAgentEntry(agents, engine)?.model || ''}`
                     const key = JSON.stringify([contentRoot, identity, langPair, sendText, Boolean(opts?.local?.interactive)])
+                    const sourceChars = Array.from(sendText).length
                     const rawZh = await joinTranslationRequest(
                       key,
                       (signal) =>
@@ -423,7 +436,7 @@ export async function liveTranslateTexts(
                           () => {
                             opts?.onEngineDispatch?.()
                             trace?.(
-                              `Item ${itemId} engine requested: engine=${engine}, sourceChars=${Array.from(sendText).length}, from=${langPair.from}, to=${langPair.to}, pipelineElapsedMs=${Math.round(performance.now() - started)}`
+                              `Item ${itemId} engine requested: engine=${engine}, sourceChars=${sourceChars}, from=${langPair.from}, to=${langPair.to}, pipelineElapsedMs=${Math.round(performance.now() - started)}`
                             )
                             return translateWithEngine(
                               engine,
@@ -433,7 +446,8 @@ export async function liveTranslateTexts(
                               langPair
                             )
                           },
-                          signal
+                          signal,
+                          { ...resolveEngineCapacitySettings(engine, configs, agents), chars: sourceChars }
                         ),
                       itemSignal,
                       () => {
@@ -461,12 +475,13 @@ export async function liveTranslateTexts(
                 const currentAuthority = () => {
                   const local = contentRoot ? getGameCacheContext(contentRoot).lookup : null
                   const pair = resolveCacheLangPair({ ...langPair, src })
+                  const categoryHint = opts?.category
                   const used = new Map<string, NonNullable<ReturnType<ReturnType<typeof openSharedCache>['authority']>>>()
                   const hit = lookupGameTranslation(
                     (key) => local?.[key],
                     (key) => {
-                      const value = getCache().get(key, pair)
-                      const record = value != null ? getCache().authority(key, pair) : null
+                      const value = getCache().get(key, { ...pair, category: categoryHint })
+                      const record = value != null ? getCache().authority(key, pair, { category: categoryHint }) : null
                       if (record) used.set(record.id!, record)
                       return value
                     },
@@ -499,7 +514,9 @@ export async function liveTranslateTexts(
                   pushPair(labelKey, winner.zhCore)
                 }
                 if (pairs.length && persist) {
-                  const written = timed(`Item ${itemId} shared cache write`, () => getCache().writeMany(pairs, tag, { from: detectCacheLang(src), to: 'zh' }))
+                  const written = timed(`Item ${itemId} shared cache write`, () =>
+                    getCache().writeMany(pairs, tag, { from: detectCacheLang(src), to: 'zh', category: opts?.category })
+                  )
                   if (contentRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records))
                   if (written.rejected.length) {
                     const current = currentAuthority()

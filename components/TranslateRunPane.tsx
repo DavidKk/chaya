@@ -12,10 +12,12 @@ import type { TranslateRunMode } from '@/components/translate/tabs'
 import { TranslateActivityLog, type TranslateLogEntry } from '@/components/translate/TranslateActivityLog'
 import { TranslateExportMenu } from '@/components/translate/TranslateExportMenu'
 import { TranslateListContent } from '@/components/translate/TranslateListContent'
+import { TranslateRgssPreviewSwitch } from '@/components/translate/TranslateRgssPreviewSwitch'
 import { TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { TranslationPlaySettings } from '@/components/translate/TranslationPlaySettings'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { useAnimatedNumber } from '@/components/translate/useAnimatedNumber'
+import { useOptimizeNames } from '@/components/translate/useOptimizeNames'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { filterTranslationExport, type TranslationExportMode } from '@/lib/translate/export'
 import { estimateRemainMs, formatRemainEta, type TranslationPerformance } from '@/lib/translate/remain-eta'
@@ -158,6 +160,7 @@ export function TranslateRunPane({
   const t = useT()
   const panelId = useId()
   const translationFetch = useTranslationFetch()
+  const { running: optimizingNames, runOptimizeNames } = useOptimizeNames()
   const notify = useNotification()
   const fileRef = useRef<HTMLInputElement>(null)
   const [localTab, setLocalTab] = useState<TranslateRunMode>('seed')
@@ -440,6 +443,7 @@ export function TranslateRunPane({
 
                     {progress.hasSeed ? (
                       <>
+                        <TranslateRgssPreviewSwitch />
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                           <StatTile
                             label={t('translate.total')}
@@ -495,6 +499,17 @@ export function TranslateRunPane({
                         {t('translate.importFile')}
                       </Button>
                       <TranslateExportMenu disabled={busy} loading={exporting} onExport={(mode) => void exportJson(mode)} />
+                      {progress.hasSeed ? (
+                        <Button
+                          variant="ghost"
+                          disabled={busy || optimizingNames}
+                          loading={optimizingNames}
+                          onClick={() => void runOptimizeNames()}
+                          tooltip={optimizingNames ? t('translate.optimizeNamesRunning') : t('translate.optimizeNamesTooltip')}
+                        >
+                          {t('translate.optimizeNames')}
+                        </Button>
+                      ) : null}
                       {progress.hasSeed ? (
                         <Button variant="accent" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
                           <LuScanText size={16} aria-hidden />

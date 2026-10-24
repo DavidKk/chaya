@@ -14,7 +14,13 @@ module ChayaRGSS
         @poll = Fiddle::Function.new(handle['chaya_overlay_poll'], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT], Fiddle::TYPE_INT)
         @eval = Fiddle::Function.new(handle['chaya_overlay_eval'], [Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOID)
         @dispose = Fiddle::Function.new(handle['chaya_overlay_dispose'], [], Fiddle::TYPE_VOID)
-        config = JSON.generate({ 'roomId' => ENV.fetch('CHAYA_RGSS_ROOM'), 'apiBase' => ENV.fetch('CHAYA_RGSS_API'), 'launchToken' => ENV.fetch('CHAYA_RGSS_TOKEN'), 'linkToken' => ENV.fetch('CHAYA_LINK_TOKEN', '') })
+        config = JSON.generate({
+          'roomId' => ENV.fetch('CHAYA_RGSS_ROOM'),
+          'apiBase' => ENV.fetch('CHAYA_RGSS_API'),
+          'launchToken' => ENV.fetch('CHAYA_RGSS_TOKEN'),
+          'linkToken' => ENV.fetch('CHAYA_LINK_TOKEN', ''),
+          'contentRoot' => ENV.fetch('CHAYA_RGSS_CONTENT_ROOT', '')
+        })
         html = File.join(root, 'dist', 'rgss-overlay.html')
         raise 'Chaya RGSS overlay HTML is missing' unless @create.call(html, config) == 1
         @library = handle # Keep the dylib and callbacks alive for the entire session.

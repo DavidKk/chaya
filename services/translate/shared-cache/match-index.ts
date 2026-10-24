@@ -14,8 +14,17 @@ import { type RecordStructure, validRecordStructure } from '@/lib/translate/stru
 import { isReusableTranslation } from '@/services/translate/text-classify'
 
 export type IndexedRecord = SentenceRecord & { from: string; to: string }
-type RecordRow = { id: number; revision: number; src: string; zh: string; engine: string | null; src_lang: string; tgt_lang: string }
-const toRecord = (r: RecordRow): IndexedRecord => ({ id: String(r.id), revision: r.revision, src: r.src, zh: r.zh, engine: r.engine, from: r.src_lang, to: r.tgt_lang })
+type RecordRow = { id: number; revision: number; src: string; zh: string; engine: string | null; category: string | null; src_lang: string; tgt_lang: string }
+const toRecord = (r: RecordRow): IndexedRecord => ({
+  id: String(r.id),
+  revision: r.revision,
+  src: r.src,
+  zh: r.zh,
+  engine: r.engine,
+  category: r.category || null,
+  from: r.src_lang,
+  to: r.tgt_lang,
+})
 
 /** Older DBs created match_keys without `kind`; CREATE TABLE IF NOT EXISTS will not add it. */
 function migrateMatchKeysKindColumn(client: DatabaseSync) {
@@ -217,7 +226,7 @@ export function createMatchIndex(client: DatabaseSync) {
     }
     return statement
   }
-  const joined = 'SELECT DISTINCT r.*,t.zh,t.engine FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang'
+  const joined = 'SELECT DISTINCT r.*,t.zh,t.engine,t.category FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang'
 
   function reindexWithNewlines(row: RecordRow, newlines: NewlineAnnotation[] | undefined, structure?: RecordStructure) {
     const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang as 'ja' | 'en' | 'zh' | 'ko' }
@@ -362,11 +371,17 @@ export function createMatchIndex(client: DatabaseSync) {
         throw e
       }
     },
-    authority(src: string, pair: CacheLangPair): IndexedRecord | null {
+    authority(src: string, pair: CacheLangPair, opts?: { category?: string | null }): IndexedRecord | null {
       const records = equivalent(src, pair)
       if (!records.length || records.length > 500) return null
       const rank = Math.max(...records.map((r) => cacheEngineRank(r.engine)))
-      const top = records.filter((r) => cacheEngineRank(r.engine) === rank)
+      let top = records.filter((r) => cacheEngineRank(r.engine) === rank)
+      const want = String(opts?.category || '').trim()
+      if (want) {
+        const matched = top.filter((r) => r.category === want)
+        // Content + category beat content-only / mismatched category at the same engine rank.
+        if (matched.length) top = matched
+      }
       if (new Set(top.map((r) => r.zh)).size !== 1) return top.find((r) => r.src === src) || null
       return top[0]
     },

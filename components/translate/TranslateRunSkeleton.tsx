@@ -145,9 +145,12 @@ export function TranslateListSkeleton() {
           <Skeleton className="h-8 w-28 rounded-[0.25rem]" />
           <Skeleton className="h-8 w-44 rounded-[0.25rem]" />
         </div>
-        {/* Row 2: Tools */}
+        {/* Row 2: Tools + batch actions */}
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Skeleton className="h-8 w-36 rounded-[0.25rem]" />
+          <Skeleton className="h-8 w-8 rounded-[0.25rem]" />
+          <Skeleton className="h-8 w-8 rounded-[0.25rem]" />
+          <Skeleton className="h-8 w-8 rounded-[0.25rem]" />
         </div>
       </div>
 

@@ -262,8 +262,29 @@ export type AgentTaskMessage =
   | { type: 'agent.config.put'; requestId: string; config: unknown }
   | { type: 'agent.task.result'; requestId: string; ok: boolean; data?: unknown; error?: string; code?: string; retryable?: boolean }
 
+/** RGSS in-game dialogue live translate / subtitle events */
+export type TranslationDialogueMessage =
+  | {
+      type: 'translation.dialogue'
+      key: string
+      texts: string[]
+      choices?: string[]
+      mode: 'realtime' | 'subtitle'
+      timeoutMs: number
+    }
+  | {
+      type: 'translation.dialogue.result'
+      key: string
+      texts: string[]
+      choices?: string[]
+    }
+  | {
+      type: 'translation.dialogue.close'
+    }
+
 export type GameLinkMessage =
   | TranslationPacket
+  | TranslationDialogueMessage
   | InputAssistMessage
   | GameSavesMessage
   | HotkeySyncMessage

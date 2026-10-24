@@ -8,7 +8,18 @@ import { useTranslationFetch } from '@/components/translate/TranslationRuntimeCo
 import { readApiErrorMessage } from '@/lib/api-error'
 import { isActivePackJob, type PackPlan } from '@/lib/translate/bergamot'
 
-export function BergamotPackInstaller({ source, target, onInstalled }: { source: string; target: string; onInstalled: () => void }) {
+export function BergamotPackInstaller({
+  source,
+  target,
+  embedded = false,
+  onInstalled,
+}: {
+  source: string
+  target: string
+  /** Fold into parent offline-status chrome (no duplicate title/badge/pair). */
+  embedded?: boolean
+  onInstalled: () => void
+}) {
   const t = useT()
   const translationFetch = useTranslationFetch()
   const [plan, setPlan] = useState<PackPlan>()
@@ -93,5 +104,5 @@ export function BergamotPackInstaller({ source, target, onInstalled }: { source:
       if (!signal?.aborted) setBusy(false)
     }
   }
-  return <BergamotPackGuide plan={plan} error={error} busy={busy} onAction={(action) => void act(action)} />
+  return <BergamotPackGuide plan={plan} error={error} busy={busy} embedded={embedded} onAction={(action) => void act(action)} />
 }

@@ -6,7 +6,7 @@ import { LuBug, LuX } from 'react-icons/lu'
 
 import { useDebugMenuEntries } from '@/components/debug/registry'
 import { useT } from '@/components/i18n/LocaleProvider'
-import { Button, ScrollArea } from '@/components/sk'
+import { Button } from '@/components/sk'
 import { dropdownPopupClass, dropdownTriggerClass } from '@/components/sk/dropdownMenu'
 import { cn } from '@/lib/utils'
 
@@ -72,10 +72,20 @@ export function DebugMenu({ children }: { children?: React.ReactNode }) {
               }
             }
             drag.current = null
+            try {
+              event.currentTarget.releasePointerCapture(event.pointerId)
+            } catch {
+              /* Capture may already be released. */
+            }
           }}
-          onPointerCancel={() => {
+          onPointerCancel={(event) => {
             drag.current = null
             suppressClick.current = true
+            try {
+              event.currentTarget.releasePointerCapture(event.pointerId)
+            } catch {
+              /* Capture may already be released. */
+            }
           }}
           onClickCapture={(event) => {
             if (suppressClick.current) {
@@ -89,21 +99,42 @@ export function DebugMenu({ children }: { children?: React.ReactNode }) {
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Positioner side={position.side === 'right' ? 'left' : 'right'} align="end" sideOffset={8} collisionPadding={8} positionMethod="fixed" className="z-[70]">
-            <Popover.Popup aria-label={t('debug.title')} className={cn(dropdownPopupClass, 'flex max-h-[min(42rem,85vh)] w-[23rem] max-w-[calc(100vw-3rem)] flex-col p-0')}>
-              <div className="flex items-center justify-between gap-2 bg-panel-2 px-3 py-2">
+            <Popover.Popup
+              aria-label={t('debug.title')}
+              initialFocus={false}
+              className={cn(dropdownPopupClass, 'flex max-h-[min(42rem,85vh)] w-[23rem] max-w-[calc(100vw-3rem)] flex-col overflow-hidden p-0')}
+            >
+              <div className="flex shrink-0 items-center justify-between gap-2 bg-panel-2 px-3 py-2">
                 <Popover.Title className="text-sm font-semibold text-ink">{t('debug.title')}</Popover.Title>
                 <Button size="mini" variant="plain" aria-label={t('common.close')} onClick={() => setOpen(false)}>
                   <LuX size={15} />
                 </Button>
               </div>
-              <ScrollArea className="min-h-0 flex-1">
-                <div className="flex flex-col gap-3 p-3">
+              {/* Plain overflow — ScrollArea observers remasure every mutation and keep the popup “unstable” for clicks. */}
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
+                <div className="flex flex-col gap-3">
                   {entries.map((entry) => (
                     <section key={entry.id} aria-label={entry.title} className="flex flex-col gap-2">
                       <h3 className="m-0 text-xs font-medium text-ink">{entry.title}</h3>
                       <div className="flex flex-wrap gap-1.5">
                         {entry.actions.map((action) => (
-                          <Button key={action.id} size="xs" disabled={action.disabled} onClick={action.run}>
+                          <Button
+                            key={action.id}
+                            type="button"
+                            size="xs"
+                            variant={action.active ? 'accent' : 'default'}
+                            disabled={action.disabled}
+                            aria-pressed={action.active || undefined}
+                            onMouseDown={(event) => {
+                              // Keep focus in the popup so outside-press dismiss does not eat the click.
+                              if (event.button === 0) event.preventDefault()
+                            }}
+                            onClick={(event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              if (!action.disabled) action.run()
+                            }}
+                          >
                             {action.label}
                           </Button>
                         ))}
@@ -112,7 +143,7 @@ export function DebugMenu({ children }: { children?: React.ReactNode }) {
                   ))}
                   {children}
                 </div>
-              </ScrollArea>
+              </div>
             </Popover.Popup>
           </Popover.Positioner>
         </Popover.Portal>

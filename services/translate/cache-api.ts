@@ -24,6 +24,8 @@ export type TranslateCacheItem = {
   from: CacheLang
   to: CacheLang
   engine: string | null
+  /** Extract/live category when known; imports may omit. */
+  category?: string | null
   updatedAt: number
   hitCount: number
   nsfw: boolean
@@ -43,6 +45,8 @@ export type TranslateCachePage = {
   live: string
   from: string
   to: string
+  nature: string
+  category: string
   sort: SharedCacheSortKey
   order: SharedCacheSortDir
   engines: string[]
@@ -91,6 +95,8 @@ export function querySharedTranslateCache(opts: {
   live?: string
   from?: string
   to?: string
+  nature?: string
+  category?: string
   sort?: SharedCacheSortKey
   order?: SharedCacheSortDir
 }): TranslateCachePage {
@@ -103,6 +109,8 @@ export function querySharedTranslateCache(opts: {
   const live = String(opts.live || '')
   const from = String(opts.from || '')
   const to = String(opts.to || '')
+  const nature = String(opts.nature || '').trim()
+  const category = String(opts.category || '').trim()
   const dbPath = defaultSharedDbPath()
   if (!fs.existsSync(dbPath)) {
     const page = Math.max(1, Number(opts.page) || 1)
@@ -119,6 +127,8 @@ export function querySharedTranslateCache(opts: {
       live,
       from,
       to,
+      nature,
+      category,
       sort,
       order,
       engines: [],
@@ -128,7 +138,7 @@ export function querySharedTranslateCache(opts: {
   }
   const cache = openSharedCache(dbPath)
   try {
-    const page = cache.listPage({ ...opts, q, engine, nsfw, sort, order })
+    const page = cache.listPage({ ...opts, q, engine, nsfw, sort, order, nature, category })
     return { ...page, file: cache.path }
   } finally {
     cache.close()

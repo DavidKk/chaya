@@ -1,7 +1,15 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { IoChevronBackOutline, IoChevronForwardOutline, IoPlaySkipBackOutline, IoPlaySkipForwardOutline } from 'react-icons/io5'
+import {
+  IoArrowUndoOutline,
+  IoChevronBackOutline,
+  IoChevronForwardOutline,
+  IoLanguageOutline,
+  IoPlaySkipBackOutline,
+  IoPlaySkipForwardOutline,
+  IoSaveOutline,
+} from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelFoot } from '@/components/layoutClasses'
@@ -13,8 +21,10 @@ import { useSafePathname, useSafeRouter, useSafeSearchParams } from '@/component
 import { TranslateListItemRow } from '@/components/translate/TranslateListItemRow'
 import { TranslateListSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
+import { useOptimizeNames } from '@/components/translate/useOptimizeNames'
 import { useTranslateListSave } from '@/components/translate/useTranslateListSave'
 import { readApiErrorMessage } from '@/lib/api-error'
+import { filterAndRankTranslationListItems } from '@/lib/translate/list-search'
 import { detectSourceLanguage } from '@/lib/translate/source-text'
 import { hrefWithQuery, parsePositiveInt, patchSearchParams } from '@/lib/url/search-params'
 import type { ExtractedLocalesMeta, ExtractedTranslationItem } from '@/services/extract/lib/extract-items'
@@ -27,6 +37,8 @@ export type AvailableEngine = {
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 200]
 const DEFAULT_PAGE_SIZE = 50
+/** Matches live-translate unique batch cap so page translate does not drop trailing items. */
+const PAGE_TRANSLATE_BATCH = 40
 
 export function TranslateListContent({ onExtract, onLanguagePairChange }: { onExtract?: () => void; onLanguagePairChange?: (pair: { source: string; target: string }) => void }) {
   const router = useSafeRouter()
@@ -85,16 +97,20 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     setQDraft(filterQuery)
   }, [filterQuery])
 
-  // Debounced update for search box typing
-  useEffect(() => {
-    if (qDraft === filterQuery) return
-    const timer = setTimeout(() => {
-      updateQueryParams({ q: qDraft.trim() || null, p: null })
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [qDraft, filterQuery, updateQueryParams])
+  const commitSearch = useCallback(
+    (next: string) => {
+      const trimmed = next.trim()
+      if (trimmed === filterQuery.trim()) {
+        if (next !== trimmed) setQDraft(trimmed)
+        return
+      }
+      setQDraft(trimmed)
+      updateQueryParams({ q: trimmed || null, p: null })
+    },
+    [filterQuery, updateQueryParams]
+  )
 
-  // Jump page input
+  // Jump page input (kept in sync with visible page for narrow mid-pager)
   const [jumpPageValue, setJumpPageValue] = useState<number>(1)
 
   const [availableEngines, setAvailableEngines] = useState<AvailableEngine[]>([])
@@ -103,10 +119,16 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
   const [selectedScheme, setSelectedScheme] = useState<string>('all')
 
   const [translatingId, setTranslatingId] = useState<string | null>(null)
+  const [translatingPage, setTranslatingPage] = useState(false)
 
   // Force re-render token when in-place item edits happen
   const [, setTick] = useState(0)
   const refreshUI = useCallback(() => setTick((t) => t + 1), [])
+  const optimizeEngines = selectedScheme !== 'all' && selectedScheme !== 'cache' ? [selectedScheme] : undefined
+  const { running: optimizingNames, runOptimizeNames } = useOptimizeNames({
+    engines: optimizeEngines,
+    onDone: refreshUI,
+  })
 
   // 1. Load engines
   const loadEngines = useCallback(async () => {
@@ -229,22 +251,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     } else if (statusFilter === 'translated') {
       list = list.filter((it) => Boolean(it.zh && it.zh.trim()))
     }
-    if (filterQuery.trim()) {
-      const q = filterQuery.trim().toLowerCase()
-      list = list.filter((it) => {
-        const srcMatch = it.src.toLowerCase().includes(q)
-        const zhMatch = it.zh.toLowerCase().includes(q)
-        const savedZhMatch = it.savedZh?.toLowerCase().includes(q)
-        const initialZhMatch = it.initialZh?.toLowerCase().includes(q)
-        const keyMatch = it.meta.localesKey?.toLowerCase().includes(q)
-        const idMatch = it.id.toLowerCase().includes(q)
-        const speakerMatch = it.meta.speaker?.toLowerCase().includes(q)
-        const contextMatch = it.meta.context?.toLowerCase().includes(q)
-        const labelMatch = it.meta.label?.toLowerCase().includes(q)
-        const fileMatch = it.meta.file?.toLowerCase().includes(q) || it.meta.localesFile?.toLowerCase().includes(q)
-        return Boolean(srcMatch || zhMatch || savedZhMatch || initialZhMatch || keyMatch || idMatch || speakerMatch || contextMatch || labelMatch || fileMatch)
-      })
-    }
+    if (filterQuery.trim()) list = filterAndRankTranslationListItems(list, filterQuery)
     return list
   }, [items, natureFilter, categoryFilter, statusFilter, filterQuery])
 
@@ -276,6 +283,10 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
 
   const rangeFrom = totalItems === 0 ? 0 : (visiblePage - 1) * pageSize + 1
   const rangeTo = Math.min(visiblePage * pageSize, totalItems)
+
+  useEffect(() => {
+    setJumpPageValue(visiblePage)
+  }, [visiblePage])
 
   // Handle jump to page
   const handleJumpSubmit = (e?: React.FormEvent) => {
@@ -348,7 +359,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     [selectedScheme, sourceLang, targetLang, localesMeta, translationFetch, refreshUI, notify, t]
   )
 
-  const { savingId, savingPage, resettingPage, handleSave, handleSavePage, handleResetPage } = useTranslateListSave({
+  const { savingPage, resettingPage, handleSavePage, handleResetPage } = useTranslateListSave({
     rgssEngine,
     contentRoot,
     sourceLang,
@@ -358,6 +369,126 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     translationFetch,
     refreshUI,
   })
+
+  const handleTranslatePage = useCallback(async () => {
+    if (pagedItems.length === 0) {
+      notify.warning(t('translate.listTranslatePageEmpty'))
+      return
+    }
+    setTranslatingPage(true)
+    const fromLang = sourceLang || localesMeta?.currentSourceLang || 'ja'
+    const toLang = targetLang || localesMeta?.currentTargetLang || 'zh'
+    const isCache = selectedScheme === 'cache'
+    const enginesToUse = selectedScheme === 'all' || isCache ? undefined : [selectedScheme]
+    let okCount = 0
+    let failCount = 0
+    let lastError = ''
+    let sawAppleMissingPack = false
+    try {
+      for (let offset = 0; offset < pagedItems.length; offset += PAGE_TRANSLATE_BATCH) {
+        const chunk = pagedItems.slice(offset, offset + PAGE_TRANSLATE_BATCH)
+        if (isCache) {
+          for (const item of chunk) {
+            try {
+              const res = await translationFetch('/api/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'cache', text: item.src }),
+              })
+              const data = (await res.json()) as { ok?: boolean; items?: Array<{ zh?: string; error?: string }>; error?: unknown }
+              const zh = data?.ok && Array.isArray(data.items) ? data.items[0]?.zh : ''
+              if (zh) {
+                item.zh = zh
+                okCount += 1
+              } else {
+                failCount += 1
+                lastError = data?.items?.[0]?.error || readApiErrorMessage(data) || t('translate.listSingleCacheMiss')
+              }
+            } catch (err) {
+              failCount += 1
+              lastError = err instanceof Error ? err.message : String(err)
+            }
+          }
+          refreshUI()
+          continue
+        }
+        try {
+          const res = await translationFetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              texts: chunk.map((item) => item.src),
+              force: true,
+              persist: false,
+              engines: enginesToUse,
+              sourceLang: fromLang,
+              targetLang: toLang,
+            }),
+          })
+          const data = (await res.json()) as {
+            ok?: boolean
+            items?: Array<{ src?: string; zh?: string; error?: string }>
+            error?: unknown
+          }
+          if (!data?.ok || !Array.isArray(data.items)) {
+            failCount += chunk.length
+            lastError = readApiErrorMessage(data)
+            const rawErr = lastError
+            if (
+              typeof rawErr === 'string' &&
+              rawErr.toLowerCase().includes('apple') &&
+              (rawErr.includes('not installed') || rawErr.includes('not_installed') || rawErr.includes('Unable to Translate'))
+            ) {
+              sawAppleMissingPack = true
+            }
+            continue
+          }
+          const bySrc = new Map<string, { zh?: string; error?: string }>()
+          for (const row of data.items) {
+            if (row?.src) bySrc.set(row.src, row)
+          }
+          for (const item of chunk) {
+            const hit = bySrc.get(item.src)
+            if (hit?.zh) {
+              item.zh = hit.zh
+              okCount += 1
+            } else {
+              failCount += 1
+              const rawErr = hit?.error || ''
+              if (
+                typeof rawErr === 'string' &&
+                rawErr.toLowerCase().includes('apple') &&
+                (rawErr.includes('not installed') || rawErr.includes('not_installed') || rawErr.includes('Unable to Translate'))
+              ) {
+                sawAppleMissingPack = true
+              }
+              if (rawErr) lastError = rawErr
+            }
+          }
+          refreshUI()
+        } catch (err) {
+          failCount += chunk.length
+          lastError = err instanceof Error ? err.message : String(err)
+        }
+      }
+      if (sawAppleMissingPack) {
+        setAppleOfflineModal({ open: true, fromLang, toLang })
+      }
+      if (failCount === 0) {
+        notify.success(t('translate.listTranslatePageSuccess', { count: okCount }))
+      } else if (okCount > 0) {
+        notify.warning(t('translate.listTranslatePagePartial', { ok: okCount, failed: failCount }))
+      } else {
+        notify.error(
+          t('translate.listTranslatePageFailed', {
+            error: sawAppleMissingPack ? t('translate.appleOfflinePackMissing') : lastError || t('translate.listTranslatePagePartial', { ok: 0, failed: failCount }),
+          })
+        )
+      }
+    } finally {
+      setTranslatingPage(false)
+    }
+  }, [pagedItems, selectedScheme, sourceLang, targetLang, localesMeta, translationFetch, refreshUI, notify, t])
 
   // Reset single item (reverts to original text without auto-saving)
   const handleReset = useCallback(
@@ -430,23 +561,25 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
       <PanelHeadEnd>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-nowrap items-center justify-end gap-2">
           <TextInput
-            className="w-48"
+            className="w-48 shrink-0"
             value={qDraft}
             onChange={(e) => setQDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                updateQueryParams({ q: qDraft.trim() || null, p: null })
+                e.preventDefault()
+                commitSearch(qDraft)
               }
             }}
+            onBlur={() => commitSearch(qDraft)}
             placeholder={t('translate.listSearchPlaceholder')}
             search
             aria-label={t('translate.listSearchAria')}
           />
 
           <Select
-            className="w-28"
+            className="w-28 shrink-0"
             panelWidth="content"
             value={natureFilter}
             onChange={(val) => updateQueryParams({ nature: val === 'all' ? null : val, p: null })}
@@ -466,7 +599,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           />
 
           <Select
-            className="w-28"
+            className="w-28 shrink-0"
             panelWidth="content"
             value={categoryFilter}
             onChange={(val) => updateQueryParams({ category: val === 'all' ? null : val, p: null })}
@@ -499,7 +632,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           />
 
           <Select
-            className="w-24"
+            className="w-24 shrink-0"
             panelWidth="content"
             value={statusFilter}
             onChange={(val) => updateQueryParams({ status: val === 'all' ? null : val, p: null })}
@@ -514,33 +647,102 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
         </div>
       </PanelHeadEnd>
 
-      {/* Top Controls: 翻译工具条（单独一行，整合原文译文下拉框与翻译工具方案） */}
-      <div className="flex flex-wrap items-center justify-end gap-2 border-b border-line px-4 py-2 shrink-0 select-none bg-surface/10">
-        <LanguagePairSelect
-          sourceLang={sourceLang || localesMeta?.currentSourceLang || 'ja'}
-          targetLang={targetLang || localesMeta?.currentTargetLang || 'zh'}
-          availableLanguages={localesMeta?.availableLanguages}
-          onSourceChange={(l) => {
-            setSourceLang(l)
-            updateQueryParams({ from: l, p: null })
-            void loadData(l, targetLang || localesMeta?.currentTargetLang)
-          }}
-          onTargetChange={(l) => {
-            setTargetLang(l)
-            updateQueryParams({ to: l, p: null })
-            void loadData(sourceLang || localesMeta?.currentSourceLang, l)
-          }}
-        />
+      {/* Top Controls: 语向 / 方案 + 批量操作（窄屏横滑不换行） */}
+      <div className="shrink-0 border-b border-line bg-surface/10 select-none">
+        <ScrollArea
+          indicator="horizontal"
+          reserveGutter={false}
+          className="min-w-0"
+          scrollClassName="flex w-full items-center justify-end"
+          scrollProps={{ 'aria-label': t('translate.listGlobalSchemeAria'), tabIndex: 0 }}
+        >
+          <div className="flex min-w-max flex-nowrap items-center justify-end gap-2 px-4 py-2">
+            <LanguagePairSelect
+              className="shrink-0"
+              sourceLang={sourceLang || localesMeta?.currentSourceLang || 'ja'}
+              targetLang={targetLang || localesMeta?.currentTargetLang || 'zh'}
+              availableLanguages={localesMeta?.availableLanguages}
+              onSourceChange={(l) => {
+                setSourceLang(l)
+                updateQueryParams({ from: l, p: null })
+                void loadData(l, targetLang || localesMeta?.currentTargetLang)
+              }}
+              onTargetChange={(l) => {
+                setTargetLang(l)
+                updateQueryParams({ to: l, p: null })
+                void loadData(sourceLang || localesMeta?.currentSourceLang, l)
+              }}
+            />
 
-        <Select
-          className="w-36"
-          panelWidth="content"
-          value={selectedScheme}
-          onChange={(val) => setSelectedScheme(val)}
-          options={schemeOptions}
-          aria-label={t('translate.listGlobalSchemeAria')}
-          tooltip={t('translate.listGlobalSchemeTooltip', { label: activeSchemeLabel })}
-        />
+            <Select
+              className="w-36 shrink-0"
+              panelWidth="content"
+              value={selectedScheme}
+              onChange={(val) => setSelectedScheme(val)}
+              options={schemeOptions}
+              aria-label={t('translate.listGlobalSchemeAria')}
+              tooltip={t('translate.listGlobalSchemeTooltip', { label: activeSchemeLabel })}
+            />
+
+            <div className="mx-0.5 h-3.5 w-px shrink-0 bg-line" aria-hidden="true" />
+
+            {/* 工具栏图标与 Select 同档：中性 ghost；色义留给行内文字钮。顺序：重置 → 翻译 → 保存 */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              loading={resettingPage}
+              disabled={translatingPage || savingPage || resettingPage || pagedItems.length === 0}
+              aria-label={t('translate.listResetPageBtn')}
+              tooltip={t('translate.listResetPageTooltip')}
+              onClick={() => void handleResetPage()}
+            >
+              <IoArrowUndoOutline size={15} aria-hidden />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              loading={translatingPage}
+              disabled={translatingPage || savingPage || resettingPage || pagedItems.length === 0}
+              aria-label={t('translate.listTranslatePageBtn')}
+              tooltip={translatingPage ? t('translate.listTranslatePageRunning') : t('translate.listTranslatePageTooltip', { scheme: activeSchemeLabel })}
+              onClick={() => void handleTranslatePage()}
+            >
+              <IoLanguageOutline size={15} aria-hidden />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              loading={savingPage}
+              disabled={translatingPage || savingPage || resettingPage || pagedItems.length === 0}
+              aria-label={t('translate.listSavePageBtn')}
+              tooltip={t('translate.listSavePageTooltip')}
+              onClick={() => void handleSavePage()}
+            >
+              <IoSaveOutline size={15} aria-hidden />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="shrink-0"
+              loading={optimizingNames}
+              disabled={translatingPage || savingPage || resettingPage || optimizingNames}
+              aria-label={t('translate.optimizeNames')}
+              tooltip={optimizingNames ? t('translate.optimizeNamesRunning') : t('translate.optimizeNamesTooltip')}
+              onClick={() => void runOptimizeNames()}
+            >
+              {t('translate.optimizeNames')}
+            </Button>
+          </div>
+        </ScrollArea>
       </div>
 
       {/* Paged List Content */}
@@ -557,11 +759,9 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
                   itemZh={item.zh}
                   savedZh={item.savedZh}
                   activeSchemeLabel={activeSchemeLabel}
-                  isTranslating={translatingId === item.id}
-                  isSaving={savingId === item.id}
+                  isTranslating={translatingPage || translatingId === item.id}
                   isResetting={false}
                   onTranslate={handleTranslate}
-                  onSave={handleSave}
                   onReset={handleReset}
                   onUpdate={refreshUI}
                 />
@@ -571,10 +771,9 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
         )}
       </div>
 
-      {/* Bottom Panel Foot: Stats on Bottom-Left, Pagination on Bottom-Right */}
-      <div className={panelFoot}>
-        {/* Left: Translation counts (翻译数量: 0/100) */}
-        <div className="flex items-center gap-1.5 text-xs select-none">
+      {/* Bottom: desktop = stats + full pager; narrow = first/prev/page/next */}
+      <div className={`${panelFoot} max-md:justify-center`}>
+        <div className="hidden md:flex items-center gap-1.5 text-xs select-none">
           <span className="font-medium text-ink">{t('translate.listStatsCount')}</span>
           <span className="font-mono font-semibold text-accent">{translatedCount.toLocaleString()}</span>
           <span className="font-mono text-ink-soft">/</span>
@@ -582,9 +781,8 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           <span className="text-ink-soft text-[0.6875rem] ml-2">{t('translate.listPageRange', { from: rangeFrom, to: rangeTo, total: totalItems.toLocaleString() })}</span>
         </div>
 
-        {/* Right: Pagination Controls */}
         <div className="inline-flex items-center gap-1.5">
-          <label className="mr-1 inline-flex items-center gap-1 whitespace-nowrap text-[0.7rem] text-ink-soft">
+          <label className="mr-1 hidden md:inline-flex items-center gap-1 whitespace-nowrap text-[0.7rem] text-ink-soft">
             <span>{t('translate.listPageSizeLabel')}</span>
             <Select
               className="w-[4.75rem]"
@@ -597,27 +795,9 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
             />
           </label>
 
-          <span className="mr-1 tabular-nums text-ink">
+          <span className="mr-1 hidden md:inline tabular-nums text-ink">
             {visiblePage} / {totalPages}
           </span>
-
-          {/* Jump to page input: displayed when totalPages > 10 */}
-          {totalPages > 10 ? (
-            <form onSubmit={handleJumpSubmit} className="inline-flex items-center gap-1 mr-1 shrink-0">
-              <NumberInput
-                min={1}
-                max={totalPages}
-                value={jumpPageValue}
-                onValueChange={(val) => setJumpPageValue(val)}
-                className="!h-7 w-16 text-xs px-1 text-center font-sans"
-                aria-label={t('translate.listJumpPageAria')}
-                tooltip={t('translate.listJumpPageTooltip')}
-              />
-              <Button type="submit" variant="default" className="!h-7 px-2.5 text-xs whitespace-nowrap shrink-0" tooltip={t('translate.listJumpPageTooltip')}>
-                {t('translate.listJumpPageBtn')}
-              </Button>
-            </form>
-          ) : null}
 
           <Button variant="ghost" size="icon" disabled={visiblePage <= 1} aria-label={t('translate.listPageFirst')} tooltip={t('translate.listPageFirst')} onClick={() => go(1)}>
             <IoPlaySkipBackOutline size={14} aria-hidden />
@@ -632,6 +812,23 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           >
             <IoChevronBackOutline size={14} aria-hidden />
           </Button>
+
+          {/* Narrow: page in the middle; commit (blur/enter) jumps immediately — no 跳转 button. */}
+          {totalPages > 1 ? (
+            <NumberInput
+              min={1}
+              max={totalPages}
+              value={jumpPageValue}
+              onValueChange={(val) => {
+                setJumpPageValue(val)
+                if (val >= 1 && val <= totalPages) go(val)
+              }}
+              className="!h-7 w-14 text-xs px-1 text-center font-sans md:hidden"
+              aria-label={t('translate.listJumpPageAria')}
+              tooltip={t('translate.listJumpPageTooltip')}
+            />
+          ) : null}
+
           <Button
             variant="ghost"
             size="icon"
@@ -645,6 +842,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           <Button
             variant="ghost"
             size="icon"
+            className="hidden md:inline-flex"
             disabled={visiblePage >= totalPages}
             aria-label={t('translate.listPageLast')}
             tooltip={t('translate.listPageLast')}
@@ -653,34 +851,23 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
             <IoPlaySkipForwardOutline size={14} aria-hidden />
           </Button>
 
-          {/* 分割线：隔开翻页与批量操作 */}
-          <div className="mx-1 h-3.5 w-px bg-line shrink-0" aria-hidden="true" />
-
-          {/* 批量重置当前页 */}
-          <Button
-            type="button"
-            variant="ghost"
-            loading={resettingPage}
-            disabled={savingPage || resettingPage || pagedItems.length === 0}
-            onClick={() => void handleResetPage()}
-            tooltip={t('translate.listResetPageTooltip')}
-            className="!h-7 px-2.5 text-xs whitespace-nowrap cursor-pointer border border-fail/40 bg-fail/10 text-fail hover:enabled:bg-fail/20 hover:enabled:border-fail/60 hover:enabled:text-fail"
-          >
-            {t('translate.listResetPageBtn')}
-          </Button>
-
-          {/* 批量保存当前页 */}
-          <Button
-            type="button"
-            variant="ghost"
-            loading={savingPage}
-            disabled={savingPage || resettingPage || pagedItems.length === 0}
-            onClick={() => void handleSavePage()}
-            tooltip={t('translate.listSavePageTooltip')}
-            className="!h-7 px-2.5 text-xs whitespace-nowrap font-medium cursor-pointer border border-ok/40 bg-ok/10 text-ok hover:enabled:bg-ok/20 hover:enabled:border-ok/60 hover:enabled:text-ok"
-          >
-            {t('translate.listSavePageBtn')}
-          </Button>
+          {/* Desktop: jump form with button when many pages. */}
+          {totalPages > 10 ? (
+            <form onSubmit={handleJumpSubmit} className="hidden md:inline-flex items-center gap-1 shrink-0">
+              <NumberInput
+                min={1}
+                max={totalPages}
+                value={jumpPageValue}
+                onValueChange={(val) => setJumpPageValue(val)}
+                className="!h-7 w-16 text-xs px-1 text-center font-sans"
+                aria-label={t('translate.listJumpPageAria')}
+                tooltip={t('translate.listJumpPageTooltip')}
+              />
+              <Button type="submit" variant="default" className="!h-7 px-2.5 text-xs whitespace-nowrap shrink-0" tooltip={t('translate.listJumpPageTooltip')}>
+                {t('translate.listJumpPageBtn')}
+              </Button>
+            </form>
+          ) : null}
         </div>
       </div>
 

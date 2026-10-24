@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { IoRefreshOutline } from 'react-icons/io5'
+import { type ReactNode, useState } from 'react'
 
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { formCard, formDesc, formTitle, settingsCardWide } from '@/components/layoutClasses'
@@ -33,6 +32,8 @@ type Props = {
   takenProfileIds?: string[]
   systemStatus?: { installed?: boolean; status?: string; message?: string; source?: string; target?: string; accessReason?: string; consoleUrl?: string }
   onCheckSystemStatus?: () => void
+  /** 开发预览可注入安装指引，避免真实请求 */
+  offlineGuide?: ReactNode
   onBack: () => void
   onSave: (patch: EngineDetailDraft) => Promise<boolean>
   onRemove?: () => Promise<boolean>
@@ -54,6 +55,7 @@ export function TranslateEngineDetailView({
   takenProfileIds = [],
   systemStatus,
   onCheckSystemStatus,
+  offlineGuide,
   onBack,
   onSave,
   onRemove,
@@ -64,6 +66,30 @@ export function TranslateEngineDetailView({
   const locale = useLocaleCode()
   const numberFormat = new Intl.NumberFormat(LOCALE_HTML_LANG[locale])
   const [appleGuideOpen, setAppleGuideOpen] = useState(false)
+  const [packEpoch, setPackEpoch] = useState(0)
+  const checking = group === 'system' && (systemStatus === undefined || systemStatus.status === 'checking')
+  const showingBergamotPackUi =
+    Boolean(offlineGuide) || (engineId === 'bergamot' && Boolean(systemStatus?.source && systemStatus?.target) && systemStatus?.accessReason !== 'management_required')
+
+  const offlineBadge =
+    systemStatus === undefined || systemStatus.status === 'checking'
+      ? null
+      : systemStatus.installed
+        ? { tone: 'ok' as const, label: t('translate.tagReady') }
+        : systemStatus.status === 'downloading'
+          ? { tone: 'accent' as const, label: t('translate.packDownloading') }
+          : systemStatus.status === 'verifying'
+            ? { tone: 'accent' as const, label: t('translate.packVerifying') }
+            : systemStatus.status === 'error' || systemStatus.status === 'failed'
+              ? { tone: 'fail' as const, label: t('debug.failed') }
+              : systemStatus.status === 'unsupported'
+                ? { tone: 'warn' as const, label: t('debug.unsupported') }
+                : { tone: 'warn' as const, label: t('translate.tagNotReady') }
+
+  const recheckOffline = () => {
+    if (engineId === 'bergamot') setPackEpoch((n) => n + 1)
+    onCheckSystemStatus?.()
+  }
 
   const initialEnabled = agentEntry ? agentEntry.enabled : Boolean(builtinConfig?.enabled)
   const initialAllowConcurrency = agentEntry
@@ -104,6 +130,26 @@ export function TranslateEngineDetailView({
   if (draft.model && !modelNames.includes(draft.model)) modelNames.unshift(draft.model)
   const modelOptions: SelectOption[] = modelNames.map((name) => ({ value: name, label: name }))
   const modelValue = draft.model || profile?.defaultModel || ''
+
+  const offlineNotReadyHint =
+    systemStatus &&
+    !systemStatus.installed &&
+    !showingBergamotPackUi &&
+    systemStatus.status !== 'checking' &&
+    systemStatus.status !== 'downloading' &&
+    systemStatus.status !== 'verifying'
+      ? t(
+          systemStatus.status === 'supported'
+            ? 'translate.appleOfflinePackMissing'
+            : systemStatus.status === 'unsupported'
+              ? 'translate.offlineUnsupportedPair'
+              : systemStatus.status === 'model_pack_missing'
+                ? 'translate.bergamotPackMissing'
+                : engineId === 'bergamot' && systemStatus.status === 'unavailable'
+                  ? 'translate.bergamotUnavailable'
+                  : 'translate.offlineCheckFailed'
+        )
+      : null
 
   return (
     <div className="flex flex-1 flex-col min-h-0 bg-paper-2 overflow-hidden">
@@ -206,11 +252,12 @@ export function TranslateEngineDetailView({
                 onValueChange={(maxConcurrentChars) => setDraft((c) => ({ ...c, maxConcurrentChars }))}
               />
             </div>
+
             {group === 'system' ? (
-              <div role="group" aria-label={t('translate.offlineSettings')}>
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col gap-0.5">
+              <div>
+                <div role="group" aria-label={t('translate.offlineSettings')} className="flex flex-col gap-3 rounded-[0.35rem] border border-line bg-inset p-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex min-w-0 flex-col gap-0.5">
                       <span className={itemLabel}>{t('translate.offlineStatus')}</span>
                       <span className={itemDesc}>
                         {systemStatus?.source && systemStatus?.target
@@ -218,58 +265,49 @@ export function TranslateEngineDetailView({
                           : t('translate.offlinePairHint')}
                       </span>
                     </div>
-                    <Badge size="mini" tone={systemStatus?.installed ? 'ok' : 'warn'} loading={systemStatus === undefined}>
-                      {systemStatus === undefined ? t('translate.offlineChecking') : systemStatus.installed ? t('translate.tagReady') : t('translate.tagNotReady')}
-                    </Badge>
+                    {offlineBadge ? (
+                      <Badge size="mini" tone={offlineBadge.tone}>
+                        {offlineBadge.label}
+                      </Badge>
+                    ) : null}
                   </div>
 
-                  <p className="m-0 text-xs text-ink-soft">
-                    {t(
-                      systemStatus === undefined
-                        ? 'translate.offlineChecking'
-                        : systemStatus.installed
-                          ? 'translate.offlineReadyHint'
-                          : systemStatus.status === 'supported'
-                            ? 'translate.appleOfflinePackMissing'
-                            : systemStatus.status === 'unsupported'
-                              ? 'translate.offlineUnsupportedPair'
-                              : systemStatus.status === 'model_pack_missing'
-                                ? 'translate.bergamotPackMissing'
-                                : engineId === 'bergamot' && systemStatus.status === 'unavailable'
-                                  ? 'translate.bergamotUnavailable'
-                                  : 'translate.offlineCheckFailed'
-                    )}
-                  </p>
-                  {engineId === 'bergamot' && systemStatus?.accessReason === 'management_required' ? (
-                    <p className="m-0 text-xs text-ink-soft">
-                      {systemStatus.consoleUrl ? (
-                        <a href={systemStatus.consoleUrl} target="_blank" rel="noreferrer" className="text-accent underline">
-                          {t('translate.packConsoleRequired')}
-                        </a>
-                      ) : (
-                        t('translate.packConsoleRequired')
-                      )}
-                    </p>
-                  ) : engineId === 'bergamot' && systemStatus?.source && systemStatus?.target ? (
-                    <BergamotPackInstaller source={systemStatus.source} target={systemStatus.target} onInstalled={() => onCheckSystemStatus?.()} />
-                  ) : null}
+                  {offlineNotReadyHint ? <p className="m-0 text-xs text-ink-soft">{offlineNotReadyHint}</p> : null}
+
+                  {offlineGuide ??
+                    (systemStatus && engineId === 'bergamot' && systemStatus.accessReason === 'management_required' ? (
+                      <p className="m-0 text-xs text-ink-soft">
+                        {systemStatus.consoleUrl ? (
+                          <a href={systemStatus.consoleUrl} target="_blank" rel="noreferrer" className="text-accent underline">
+                            {t('translate.packConsoleRequired')}
+                          </a>
+                        ) : (
+                          t('translate.packConsoleRequired')
+                        )}
+                      </p>
+                    ) : systemStatus && engineId === 'bergamot' && systemStatus.source && systemStatus.target && systemStatus.status !== 'checking' ? (
+                      <BergamotPackInstaller
+                        key={`${systemStatus.source}-${systemStatus.target}-${packEpoch}`}
+                        source={systemStatus.source}
+                        target={systemStatus.target}
+                        embedded
+                        onInstalled={() => onCheckSystemStatus?.()}
+                      />
+                    ) : null)}
 
                   {systemStatus?.message ? <p className="m-0 break-words text-xs text-ink-soft">{systemStatus.message}</p> : null}
 
-                  <div className="flex items-center gap-2 pt-2">
-                    {engineId === 'apple' && systemStatus?.status === 'supported' ? (
+                  {engineId === 'apple' && systemStatus?.status === 'supported' ? (
+                    <div className="flex items-center gap-2">
                       <Button size="xs" onClick={() => setAppleGuideOpen(true)}>
                         {t('translate.offlineGuide')}
                       </Button>
-                    ) : null}
-                    <Button size="xs" variant="plain" onClick={onCheckSystemStatus} disabled={locked || systemStatus === undefined}>
-                      <IoRefreshOutline size={14} aria-hidden />
-                      <span>{t('translate.offlineRecheck')}</span>
-                    </Button>
-                  </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : null}
+
             <div role="toolbar" aria-label={label} className="flex flex-wrap items-center gap-2">
               <Button disabled={saving} aria-label={t('translate.backToEngines')} onClick={onBack}>
                 {t('legal.back')}
@@ -279,9 +317,16 @@ export function TranslateEngineDetailView({
                   {t('integration.agentDelete')}
                 </Button>
               ) : null}
-              <Button className="ml-auto" variant="accent" aria-label={t('common.save')} disabled={locked || !dirty || saving} loading={saving} onClick={() => void onSave(draft)}>
-                {t('common.save')}
-              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                {group === 'system' && onCheckSystemStatus ? (
+                  <Button disabled={locked || saving || checking} loading={checking} aria-label={t('translate.offlineRecheck')} onClick={recheckOffline}>
+                    {t('translate.offlineRecheck')}
+                  </Button>
+                ) : null}
+                <Button variant="accent" aria-label={t('common.save')} disabled={locked || !dirty || saving} loading={saving} onClick={() => void onSave(draft)}>
+                  {t('common.save')}
+                </Button>
+              </div>
             </div>
           </section>
         </div>

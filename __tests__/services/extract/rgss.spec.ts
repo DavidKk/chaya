@@ -1,11 +1,13 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { deflateSync } from 'node:zlib'
 
 import { resolveGame } from '@/lib/game/resolve'
 import { runExtract } from '@/services/extract/lib/main'
 import { filterRgssSeedKeys, loadRgssTranslationItems, looksLikeRgssProject, runRgssExtract, writeRgssTranslations } from '@/services/extract/lib/rgss'
-import { parseRubyMarshal, rubyToPlain, type RubyValue, writeRubyMarshal } from '@/services/extract/lib/rgss/marshal'
+import { parseRubyMarshal, type RubyArray, rubyToPlain, type RubyValue, writeRubyMarshal } from '@/services/extract/lib/rgss/marshal'
+import { describeRgssPreview, setRgssPreviewView } from '@/services/translate/rgss-preview'
 
 function object(className: string, fields: Record<string, RubyValue>): RubyValue {
   return {
@@ -154,6 +156,18 @@ describe('RGSS VX/VX Ace support', () => {
       expect(writeRgssTranslations(root, { アリス: '艾莉丝' })).toMatchObject({ files: 0, replacements: 0, matched: 1 })
       expect(fs.readFileSync(path.join(root, 'Data', 'Actors.rvdata2.chaya.bak'))).toEqual(originalBackup)
       expect(loadRgssTranslationItems(root)).toEqual(expect.arrayContaining([expect.objectContaining({ src: 'アリス', zh: '艾莉丝' })]))
+
+      expect(describeRgssPreview(root)).toMatchObject({ isRgss: true, view: 'translated', backups: expect.any(Number) })
+      const original = setRgssPreviewView(root, 'original')
+      expect(original.restored).toBeGreaterThan(0)
+      expect(describeRgssPreview(root).view).toBe('original')
+      expect(loadRgssTranslationItems(root)).toEqual(expect.arrayContaining([expect.objectContaining({ src: 'アリス', zh: '' })]))
+      fs.mkdirSync(path.join(root, 'chaya/translate'), { recursive: true })
+      fs.writeFileSync(path.join(root, 'chaya/translate/cache.ndjson'), `${JSON.stringify({ s: 'アリス', t: '爱丽丝' })}\n`)
+      const again = setRgssPreviewView(root, 'translated')
+      expect(again.written).toBeGreaterThan(0)
+      expect(describeRgssPreview(root).view).toBe('translated')
+      expect(loadRgssTranslationItems(root)).toEqual(expect.arrayContaining([expect.objectContaining({ src: 'アリス', zh: '爱丽丝' })]))
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }
@@ -276,6 +290,66 @@ describe('RGSS VX/VX Ace support', () => {
     try {
       fs.writeFileSync(path.join(root, 'Game.rgss3a'), Buffer.from('test'))
       expect(looksLikeRgssProject(root)).toBe(true)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('lists UI string constants from Scripts and corrects Load→供电量', () => {
+    const root = makeProject()
+    try {
+      const source = [
+        'module ZiifSaveLayoutA',
+        '  V_LConfirmationYes   = "Load"',
+        '  V_LConfirmationNo    = "Don\'t load"',
+        '  V_SConfirmationYes   = "Save"',
+        '  SkipPath = "Data/Map001.rvdata2"',
+        '  Codey = "window.active && window.open?"',
+        '  def self.exp_total',
+        '    return "Current EXP"',
+        '  end',
+        '  def draw_evade',
+        '    draw_text(rect, "Critical Hit Evade")',
+        '  end',
+        'end',
+      ].join('\n')
+      const packed = deflateSync(source)
+      const scripts: RubyArray = {
+        kind: 'array',
+        items: [
+          {
+            kind: 'array',
+            items: [1, { kind: 'string', value: 'NeoSave' }, { kind: 'string', value: packed.toString('utf8'), bytes: packed }],
+          },
+        ],
+      }
+      fs.writeFileSync(path.join(root, 'Data', 'Scripts.rvdata2'), writeRubyMarshal(scripts))
+      fs.mkdirSync(path.join(root, 'chaya/translate'), { recursive: true })
+      fs.writeFileSync(path.join(root, 'chaya/translate/cache.ndjson'), `${JSON.stringify({ s: 'Load', t: '供电量', engine: 'live:apple' })}\n`)
+      const items = loadRgssTranslationItems(root)
+      expect(items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            src: 'Load',
+            zh: '读取',
+            meta: expect.objectContaining({ category: 'plugin', isHardcoded: true, file: 'Scripts/NeoSave' }),
+          }),
+          expect.objectContaining({
+            src: "Don't load",
+            meta: expect.objectContaining({ category: 'plugin', isHardcoded: true }),
+          }),
+          expect.objectContaining({
+            src: 'Current EXP',
+            meta: expect.objectContaining({ category: 'plugin', isHardcoded: true }),
+          }),
+          expect.objectContaining({
+            src: 'Critical Hit Evade',
+            meta: expect.objectContaining({ category: 'plugin', isHardcoded: true }),
+          }),
+        ])
+      )
+      expect(items.some((item) => item.src === 'Data/Map001.rvdata2')).toBe(false)
+      expect(items.some((item) => item.src.includes('window.active'))).toBe(false)
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }

@@ -31,6 +31,7 @@ export { fillMissingFromSeed, type FillMissingResult, getSeedTranslateProgress, 
 export { loadGameTranslateLookup, normalizeTranslateKey, translateWithLookup } from './game-lookup'
 export { exportSourcesPayload, type NormalizedSources, normalizeSourcesInput, type SourcesEntry, type SourcesInputFormat } from './import-sources'
 export { parseTranslateImportText } from './import-text'
+export { assertOptimizeMayDispatch, recordLiveTranslateActivity } from './live-activity'
 export { googleJaToZh, type LiveTranslateItem, liveTranslateTexts } from './live-translate'
 export {
   applyGameTermFixes,
@@ -38,10 +39,17 @@ export {
   type BatchOptimizeOptions,
   type BatchOptimizeResult,
   batchOptimizeTranslations,
+  isAlreadyOptimizedEngine,
   isMachineTranslationEngine,
+  isShortEntityItem,
   isSystemIdleForOptimization,
+  OPTIMIZE_ENGINE_AGENT,
+  OPTIMIZE_ENGINE_TERMS,
+  runShortEntityOptimization,
   scanGameTranslationsForOptimization,
   type ScanOptimizationResult,
+  type ShortEntityOptimizeOptions,
+  type ShortEntityOptimizeResult,
   type TermFixCandidate,
   trackLiveTranslateRequest,
 } from './optimize-service'

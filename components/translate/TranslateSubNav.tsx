@@ -78,7 +78,6 @@ export function TranslateContentToolbar({ tab }: { tab: TranslateTabId }) {
   const t = useT()
   const pathname = usePathname() || ''
   const cacheDetail = tab === 'cache' && isTranslateCacheDetailPath(pathname)
-  const cacheList = tab === 'cache' && !cacheDetail
 
   const titleKey =
     tab === 'test'
@@ -110,29 +109,21 @@ export function TranslateContentToolbar({ tab }: { tab: TranslateTabId }) {
                 ? 'translate.regionCacheDetailDesc'
                 : 'translate.regionCacheDesc'
 
-  if (tab === 'test')
-    return (
-      <div className={cn(panelHead, 'px-0')}>
-        <ScrollArea
-          indicator="horizontal"
-          reserveGutter={false}
-          className="h-full flex-1"
-          scrollClassName="flex items-center"
-          scrollProps={{ 'aria-label': t('translate.tabTest'), tabIndex: 0 }}
-        >
-          <div className="flex min-w-max flex-1 items-center gap-4 px-4">
-            <PanelHeadStartHost />
-            <PanelHeadTitle title={t(titleKey)} description={undefined} />
-            <PanelHeadEndHost />
-          </div>
-        </ScrollArea>
-      </div>
-    )
   return (
-    <div className={panelHead}>
-      <PanelHeadStartHost className="empty:hidden" />
-      <PanelHeadTitle title={t(titleKey as any)} description={descKey ? t(descKey as any) : undefined} />
-      <PanelHeadEndHost className={cacheList ? 'max-w-[calc(100%_-_6rem)] !shrink' : undefined} />
+    <div className={cn(panelHead, 'px-0')}>
+      <ScrollArea
+        indicator="horizontal"
+        reserveGutter={false}
+        className="h-full min-w-0 flex-1"
+        scrollClassName="flex items-center"
+        scrollProps={{ 'aria-label': t(titleKey as any), tabIndex: 0 }}
+      >
+        <div className="flex min-w-max flex-1 items-center gap-2 px-4">
+          <PanelHeadStartHost className={tab === 'test' ? undefined : 'empty:hidden'} />
+          <PanelHeadTitle title={t(titleKey as any)} description={descKey ? t(descKey as any) : undefined} />
+          <PanelHeadEndHost />
+        </div>
+      </ScrollArea>
     </div>
   )
 }

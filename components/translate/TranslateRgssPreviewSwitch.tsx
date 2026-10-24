@@ -1,0 +1,97 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+
+import { useT } from '@/components/i18n/LocaleProvider'
+import { useNotification } from '@/components/notification/useNotification'
+import { Switch } from '@/components/sk'
+import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
+import { readApiErrorMessage } from '@/lib/api-error'
+import type { RgssPreviewView } from '@/lib/translate/rgss-preview'
+
+type PreviewState = {
+  view: RgssPreviewView
+  backups: number
+  isRgss: boolean
+  contentRoot: string
+}
+
+/** Seed: toggle in-game Data + runtime between original (.bak) and translated. */
+export function TranslateRgssPreviewSwitch() {
+  const t = useT()
+  const translationFetch = useTranslationFetch()
+  const notify = useNotification()
+  const [state, setState] = useState<PreviewState | null>(null)
+  const [pending, setPending] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await translationFetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'rgss-preview' }),
+      })
+      const data = (await res.json()) as PreviewState & { ok?: boolean; error?: unknown }
+      if (!res.ok) throw new Error(readApiErrorMessage(data))
+      if (!data.isRgss) {
+        setState(null)
+        return
+      }
+      setState({
+        view: data.view === 'original' ? 'original' : 'translated',
+        backups: data.backups ?? 0,
+        isRgss: true,
+        contentRoot: data.contentRoot || '',
+      })
+    } catch {
+      setState(null)
+    }
+  }, [translationFetch])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  if (!state?.isRgss) return null
+
+  const showTranslated = state.view === 'translated'
+
+  return (
+    <Switch
+      label={showTranslated ? t('translate.rgssPreviewTranslated') : t('translate.rgssPreviewOriginal')}
+      description={showTranslated ? t('translate.rgssPreviewTranslatedDesc') : state.backups > 0 ? t('translate.rgssPreviewOriginalDesc') : t('translate.rgssPreviewNoBackupDesc')}
+      checked={showTranslated}
+      disabled={pending}
+      onCheckedChange={(checked) => {
+        void (async () => {
+          const view: RgssPreviewView = checked ? 'translated' : 'original'
+          setPending(true)
+          try {
+            const res = await translationFetch('/api/translate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mode: 'rgss-preview', view, contentRoot: state.contentRoot }),
+            })
+            const data = (await res.json()) as PreviewState & { restored?: number; written?: number; error?: unknown }
+            if (!res.ok) throw new Error(readApiErrorMessage(data))
+            setState({
+              view: data.view === 'original' ? 'original' : 'translated',
+              backups: data.backups ?? state.backups,
+              isRgss: true,
+              contentRoot: data.contentRoot || state.contentRoot,
+            })
+            if (view === 'original') {
+              notify.info(data.restored ? t('translate.rgssPreviewSwitchedOriginal', { count: data.restored }) : t('translate.rgssPreviewSwitchedOriginalEmpty'))
+            } else {
+              notify.info(t('translate.rgssPreviewSwitchedTranslated', { count: data.written ?? 0 }))
+            }
+          } catch (err) {
+            notify.error(err instanceof Error ? err.message : t('notify.saveFailed'))
+          } finally {
+            setPending(false)
+          }
+        })()
+      }}
+    />
+  )
+}

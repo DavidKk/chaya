@@ -46,6 +46,8 @@ export const GET = defineApiRoute('get:/api/translate-cache', async ({ request }
   const live = parseCacheLiveFlag(url.searchParams.get('live'))
   const from = parseCacheLang(url.searchParams.get('from'))
   const to = parseCacheLang(url.searchParams.get('to'))
+  const nature = url.searchParams.get('nature') || ''
+  const category = url.searchParams.get('category') || ''
   const sort = url.searchParams.get('sort') || 'updated'
   const order = url.searchParams.get('order') || 'desc'
 
@@ -60,6 +62,8 @@ export const GET = defineApiRoute('get:/api/translate-cache', async ({ request }
       live,
       from,
       to,
+      nature,
+      category,
       sort: parseSharedCacheSortKey(sort),
       order: parseSharedCacheSortDir(order),
     })

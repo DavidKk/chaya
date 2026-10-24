@@ -1,7 +1,7 @@
 /** Shared translation cache for all games, backed by SQLite and Drizzle. The default path is TRANSLATE_CACHE_DB_PATH from @/constants. */
 import fs from 'node:fs'
 
-import { and, asc, count, desc, eq, isNotNull, ne, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm'
 
 import {
   CACHE_ENGINE_KINDS,
@@ -23,6 +23,7 @@ import {
 } from '@/lib/translate/cache-lang'
 import { parseSharedCacheSortDir, parseSharedCacheSortKey, type SharedCacheSortDir, type SharedCacheSortKey } from '@/lib/translate/cache-query'
 import { normalizeTranslateKey } from '@/lib/translate/lookup'
+import { categoriesForNature, normalizeCacheCategory, parseTextNature } from '@/lib/translate/text-nature'
 import { isNsfwCacheRow } from '@/services/translate/sensitive-text'
 import { isIdenticalTranslation, isReusableTranslation, isStorableTranslation } from '@/services/translate/text-classify'
 
@@ -55,6 +56,9 @@ export type SharedCacheListOpts = {
   from?: string
   /** Target language filter. Empty includes every row. */
   to?: string
+  /** Coarse nature (dialogue/name/…) or exact category; empty includes every row. */
+  nature?: string
+  category?: string
   sort?: SharedCacheSortKey
   order?: SharedCacheSortDir
 }
@@ -94,7 +98,16 @@ function rowWhere(src: string, from: CacheLang, to: CacheLang) {
   return and(eq(translations.src, src), eq(translations.srcLang, from), eq(translations.tgtLang, to))
 }
 
-function listFilter(opts: { q?: string; engine?: string; nsfwFlag?: CacheNsfwFlag | ''; live?: CacheLiveFlag | ''; from?: CacheLang | ''; to?: CacheLang | '' }) {
+function listFilter(opts: {
+  q?: string
+  engine?: string
+  nsfwFlag?: CacheNsfwFlag | ''
+  live?: CacheLiveFlag | ''
+  from?: CacheLang | ''
+  to?: CacheLang | ''
+  nature?: string
+  category?: string
+}) {
   const parts = []
   const q = String(opts.q || '').trim()
   const engine = String(opts.engine || '').trim()
@@ -116,6 +129,13 @@ function listFilter(opts: { q?: string; engine?: string; nsfwFlag?: CacheNsfwFla
     parts.push(eq(translations.srcLang, opts.from))
   } else if (opts.to) {
     parts.push(eq(translations.tgtLang, opts.to))
+  }
+  const category = normalizeCacheCategory(opts.category)
+  const nature = parseTextNature(opts.nature)
+  if (category) {
+    parts.push(eq(translations.category, category))
+  } else if (nature) {
+    parts.push(inArray(translations.category, [...categoriesForNature(nature)]))
   }
   return parts.length ? and(...parts) : undefined
 }
@@ -169,7 +189,7 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
     confirmSegments(parent: { src: string; zh: string }, pairs: Array<[string, string]>, pair: CacheLangPair, opts?: import('./confirm-segments').ConfirmSegmentsOptions) {
       return confirmRecordSegments(index, parent, pairs, pair, opts)
     },
-    writeMany(pairs: Array<[string, string]>, engine = 'pipeline', pairOpts?: Partial<CacheLangPair>) {
+    writeMany(pairs: Array<[string, string]>, engine = 'pipeline', pairOpts?: import('./write-pairs').CacheWriteOpts) {
       return writeCachePairs(db.$client, index, pairs, engine, pairOpts, canStorePair, nsfwBit)
     },
 
@@ -186,9 +206,9 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
       return out
     },
 
-    get(src: string, pairOpts?: Partial<CacheLangPair>) {
+    get(src: string, pairOpts?: Partial<CacheLangPair> & { category?: string | null }) {
       const pair = defaultPair(pairOpts)
-      const row = index.authority(src, pair)
+      const row = index.authority(src, pair, { category: pairOpts?.category })
       // Deliberately no whitespace/coverage fallback in exact getters.
       return row && rowUsable(src, row.zh, pair.to) && (row.src === src || row.engine === 'manual') ? row.zh : null
     },
@@ -211,9 +231,11 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
       const live = parseCacheLiveFlag(opts.live)
       const from = parseCacheLang(opts.from)
       const to = parseCacheLang(opts.to)
+      const nature = String(opts.nature || '').trim()
+      const category = String(opts.category || '').trim()
       const sort = parseSharedCacheSortKey(opts.sort)
       const order = parseSharedCacheSortDir(opts.order)
-      const where = listFilter({ q, engine, nsfwFlag, live, from, to })
+      const where = listFilter({ q, engine, nsfwFlag, live, from, to, nature, category })
 
       const present = new Set<CacheEngineKind>()
       for (const row of db
@@ -248,6 +270,7 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
         srcLang: translations.srcLang,
         tgtLang: translations.tgtLang,
         engine: translations.engine,
+        category: translations.category,
         updatedAt: translations.updatedAt,
         hitCount: translations.hitCount,
         nsfw: translations.nsfw,
@@ -268,6 +291,8 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
         live,
         from,
         to,
+        nature,
+        category,
         sort,
         order,
         engines,
@@ -278,6 +303,7 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
           from: normalizeCacheLang(r.srcLang, DEFAULT_CACHE_SRC_LANG),
           to: normalizeCacheLang(r.tgtLang, DEFAULT_CACHE_TGT_LANG),
           engine: r.engine == null ? null : String(r.engine),
+          category: r.category == null || r.category === '' ? null : String(r.category),
           updatedAt: Number(r.updatedAt) || 0,
           hitCount: Number(r.hitCount) || 0,
           nsfw: Number(r.nsfw) === 1,
@@ -297,6 +323,7 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
           srcLang: translations.srcLang,
           tgtLang: translations.tgtLang,
           engine: translations.engine,
+          category: translations.category,
           updatedAt: translations.updatedAt,
           hitCount: translations.hitCount,
           nsfw: translations.nsfw,
@@ -312,6 +339,7 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
         from: normalizeCacheLang(row.srcLang, DEFAULT_CACHE_SRC_LANG),
         to: normalizeCacheLang(row.tgtLang, DEFAULT_CACHE_TGT_LANG),
         engine: row.engine == null ? null : String(row.engine),
+        category: row.category == null || row.category === '' ? null : String(row.category),
         updatedAt: Number(row.updatedAt) || 0,
         hitCount: Number(row.hitCount) || 0,
         nsfw: Number(row.nsfw) === 1,

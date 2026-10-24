@@ -160,6 +160,10 @@ module ChayaRGSS
               fields = apply(cmd)
               dispatch_reply({ 'type' => 'edit.ack', 'cmdId' => cmd['cmdId'], 'ok' => true, 'fields' => fields })
               dispatch_reply(full_session_state)
+            elsif cmd['type'] == 'translation.dialogue.result'
+              if defined?(ChayaRGSS::Translation) && ChayaRGSS::Translation.respond_to?(:handle_dialogue_result)
+                ChayaRGSS::Translation.handle_dialogue_result(cmd)
+              end
             end
           rescue StandardError => err
             dispatch_reply({ 'type' => 'edit.ack', 'cmdId' => cmd['cmdId'], 'ok' => false, 'error' => err.message[0, 200], 'fields' => [] })
@@ -249,6 +253,8 @@ module ChayaRGSS
         @last_reload_check = Time.now.to_f
         @last_state_at = nil
         NativeWebview.start
+        # Install before the first held-confirm frame; tick alone can be a frame late.
+        EditRuntime.ensure_hooks
         log("Chaya RGSS Bridge initialized for room #{@room}")
       end
     end

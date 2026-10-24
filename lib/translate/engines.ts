@@ -176,7 +176,7 @@ export function normalizeAgentEntries(raw: unknown): TranslateAgentEntry[] {
     const concurrencyLimit =
       typeof src.concurrencyLimit === 'number' && Number.isFinite(src.concurrencyLimit) ? Math.max(1, Math.min(40, Math.floor(src.concurrencyLimit))) : undefined
     const maxConcurrentChars =
-      typeof src.maxConcurrentChars === 'number' && Number.isFinite(src.maxConcurrentChars) ? Math.max(500, Math.min(20000, Math.floor(src.maxConcurrentChars))) : undefined
+      typeof src.maxConcurrentChars === 'number' && Number.isFinite(src.maxConcurrentChars) ? Math.max(500, Math.min(40000, Math.floor(src.maxConcurrentChars))) : undefined
     out.push({
       id,
       profileId,
@@ -338,6 +338,36 @@ export function engineStateFileBody(state: TranslateEngineState) {
 export function findAgentEntry(agents: TranslateAgentEntry[] | undefined, key: TranslateRunEngine): TranslateAgentEntry | null {
   const id = agentEntryId(key)
   return (id && agents?.find((a) => a.id === id)) || null
+}
+
+/** Settings that gate in-flight request count / character budget for an engine lane. */
+export type EngineCapacitySettings = {
+  allowConcurrency?: boolean
+  concurrencyLimit?: number
+  maxConcurrentChars?: number
+}
+
+export function resolveEngineCapacitySettings(
+  engine: TranslateRunEngine,
+  configs?: Partial<Record<TranslateBuiltinId, TranslateEngineSettings>>,
+  agents?: TranslateAgentEntry[]
+): EngineCapacitySettings {
+  if (engine === 'ollama') return { allowConcurrency: false, concurrencyLimit: 1 }
+  if (isBuiltinEngineId(engine)) {
+    const cfg = configs?.[engine]
+    return {
+      allowConcurrency: cfg?.allowConcurrency,
+      concurrencyLimit: cfg?.concurrencyLimit,
+      maxConcurrentChars: cfg?.maxConcurrentChars,
+    }
+  }
+  const entry = findAgentEntry(agents, engine)
+  if (!entry) return {}
+  return {
+    allowConcurrency: entry.allowConcurrency,
+    concurrencyLimit: entry.concurrencyLimit,
+    maxConcurrentChars: entry.maxConcurrentChars,
+  }
 }
 
 /** Tag agent translations with their instance ID so cache entries can be filtered by source. */

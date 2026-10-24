@@ -13,6 +13,8 @@ export type SentenceRecord = {
   src: string
   zh: string
   engine?: string | null
+  /** Optional extract/live category; missing on imports. */
+  category?: string | null
   local?: boolean
   derived?: boolean
   structuralAlias?: boolean

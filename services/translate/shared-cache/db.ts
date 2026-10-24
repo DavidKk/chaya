@@ -125,6 +125,7 @@ function ensureSchema(db: SharedCacheDb, client: DatabaseSync) {
       src_lang TEXT NOT NULL DEFAULT 'ja',
       tgt_lang TEXT NOT NULL DEFAULT 'zh',
       engine TEXT,
+      category TEXT,
       updated_at INTEGER NOT NULL,
       hit_count INTEGER NOT NULL DEFAULT 0,
       nsfw INTEGER NOT NULL DEFAULT 0,
@@ -145,10 +146,14 @@ function ensureSchema(db: SharedCacheDb, client: DatabaseSync) {
   if (!cols.some((c) => c.name === 'nsfw')) {
     db.run(sql`ALTER TABLE translations ADD COLUMN nsfw INTEGER NOT NULL DEFAULT 0`)
   }
+  if (!cols.some((c) => c.name === 'category')) {
+    db.run(sql`ALTER TABLE translations ADD COLUMN category TEXT`)
+  }
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_updated ON translations(updated_at)`)
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_nsfw ON translations(nsfw)`)
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_langs ON translations(src_lang, tgt_lang)`)
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_zh ON translations(zh)`)
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_category ON translations(category)`)
 
   const meta = db.select().from(cacheMeta).where(eq(cacheMeta.key, 'nsfw_backfill')).get()
   if (meta?.value === '1') return

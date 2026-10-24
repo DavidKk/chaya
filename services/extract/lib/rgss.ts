@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { ensureGameContentDir, gameContentReadPath } from '@/lib/game/content-files'
+import { fixKnownBadGameTermTranslation, lookupGameTerm } from '@/lib/translate/game-terms'
 import { detectSourceLanguage, isSourceText, type SourceLanguageOption } from '@/lib/translate/source-text'
 import { unpackAceArchive } from '@/services/game/rgss-archive'
 import { loadGameTranslateLookup } from '@/services/translate/game-lookup'
@@ -10,6 +11,7 @@ import { compareWithManual } from './compare'
 import { extractDataFields } from './data-fields'
 import { extractDialogueFromEvents } from './dialogue'
 import { parseRubyMarshal, rubyToPlain, type RubyValue } from './rgss/marshal'
+import { loadRgssScriptTranslationItems } from './rgss/script-strings'
 import { loadRgssItems, writeRgssData } from './rgss/writeback'
 import { clean, isUseful } from './text'
 
@@ -238,11 +240,27 @@ export function writeRgssTranslations(contentRoot: string, translations: Record<
   return writeRgssData(dataDir, translations)
 }
 
+function resolveRgssItemZh(src: string, current: string, lookup: Record<string, string>): string {
+  const raw = current || lookup[src] || ''
+  return fixKnownBadGameTermTranslation(src, raw) ?? (raw || lookupGameTerm(src) || '')
+}
+
 export function loadRgssTranslationItems(contentRoot: string) {
   const dataDir = rgssDataDir(contentRoot)
   if (!dataDir) throw new Error('RGSS Data/ directory not found. Unpack the encrypted archive first.')
   const lookup = loadGameTranslateLookup(contentRoot)
-  return loadRgssItems(dataDir).map((item) => ({ ...item, zh: item.zh || lookup[item.src] || '' }))
+  const dataItems = loadRgssItems(dataDir).map((item) => {
+    const zh = resolveRgssItemZh(item.src, item.zh || '', lookup)
+    return { ...item, zh, savedZh: item.savedZh || zh || undefined, initialZh: item.initialZh || zh || undefined }
+  })
+  const known = new Set(dataItems.map((item) => item.src))
+  const scriptItems = loadRgssScriptTranslationItems(contentRoot, lookup, dataItems.length + 1)
+    .filter((item) => !known.has(item.src))
+    .map((item) => {
+      const zh = resolveRgssItemZh(item.src, item.zh || '', lookup)
+      return { ...item, zh, savedZh: zh || undefined, initialZh: zh || undefined }
+    })
+  return [...dataItems, ...scriptItems]
 }
 
 // Eligibility for old seeds follows the same slots as extraction/writeback. Do not delete

@@ -18,6 +18,7 @@ export function TranslationPlaySettings() {
   const [draft, setDraft] = useState<Settings>(DEFAULT_PLAY_SETTINGS)
   const [saved, setSaved] = useState<Settings | null>(null)
   const [contentRoot, setContentRoot] = useState('')
+  const [isRgss, setIsRgss] = useState(false)
   const [pending, setPending] = useState<'load' | 'save' | 'test' | null>('load')
   const [error, setError] = useState('')
   const [feedback, setFeedback] = useState('')
@@ -41,10 +42,11 @@ export function TranslationPlaySettings() {
         body: JSON.stringify({ mode: 'play-settings' }),
         signal: abort.signal,
       })
-      const data = (await response.json()) as { settings: Settings; contentRoot: string }
+      const data = (await response.json()) as { settings: Settings; contentRoot: string; isRgss?: boolean }
       if (!response.ok) throw new Error(readApiErrorMessage(data, t('translate.loadPlayFailed')))
       if (abort.signal.aborted) return
       setContentRoot(data.contentRoot)
+      setIsRgss(Boolean(data.isRgss))
       setSaved(data.settings)
       setDraft(data.settings)
     } catch (err) {
@@ -135,6 +137,11 @@ export function TranslationPlaySettings() {
             disabled={!!pending}
             onCheckedChange={(checked) => void run('save', { ...draft, mode: checked ? 'subtitle' : 'pretranslated' })}
           />
+          {isRgss && (
+            <div role="note" className="rounded-md border border-ink-border/30 bg-ink-raised/40 px-3 py-2 text-xs text-ink-soft">
+              {t('translate.rgssPlatformNote')}
+            </div>
+          )}
           <div className={formFieldInlineDense}>
             <span className={formTitleInline}>{t('translate.timeout')}</span>
             <span id="translation-timeout-help" className={formDescInline}>

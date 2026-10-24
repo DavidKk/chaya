@@ -6,13 +6,17 @@ import { GameToolTransportContext } from '@/components/game-tools/transport'
 import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
+import { TranslationRuntimeProvider } from '@/components/translate/TranslationRuntimeContext'
 import type { GameLinkMessage } from '@/lib/runtime/game-link-protocol'
+import { createTranslationRpc, type TranslationPacket } from '@/lib/runtime/translation-rpc'
 import { FloatingGameSaves } from '@/plugins/shared/FloatingGameSaves'
 
 import { setupHitTestManager } from './hit-test-manager'
 import { initHostBridge, onGameMessage, postToGame } from './host-bridge'
 import { RgssMiniMap } from './MiniMap'
+import { SubtitleOverlay } from './SubtitleOverlay'
 import { requestToolSettings } from './tool-settings'
+import { createRgssServiceTranslationRequest, installRgssOverlayTranslationRuntime, readRgssOverlayConfig } from './translation-request'
 import { RgssWebRtcGateway } from './webrtc-gateway'
 import { RgssWorkbench } from './Workbench'
 
@@ -34,9 +38,13 @@ export function RgssOverlayRoot() {
   const [_session, setSession] = useState<any>(null)
   const [_gatewayConnected, setGatewayConnected] = useState(false)
   const tools = useToolSettings(requestToolSettings)
+  const overlayConfig = useMemo(() => readRgssOverlayConfig(), [])
+  const translationRequest = useMemo(() => createRgssServiceTranslationRequest(overlayConfig), [overlayConfig])
   const roomId = parseQueryParam('roomId', '')
   const transport = useMemo(() => ({ roomId, connected: true, negotiating: false, localGlobal: true, send: postToGame, subscribeMessages: onGameMessage }), [roomId])
   const [portalHost, setPortalHost] = useState<HTMLDivElement | null>(null)
+
+  useEffect(() => installRgssOverlayTranslationRuntime(overlayConfig), [overlayConfig])
 
   useEffect(() => {
     const host = document.getElementById('chaya-rgss-overlay-container')
@@ -103,8 +111,11 @@ export function RgssOverlayRoot() {
     })
 
     // 3. Connect embedded WebRTC gateway to external console
-    const roomId = parseQueryParam('roomId', '')
-    const apiBase = parseQueryParam('apiBase', window.location.origin)
+    const roomId = overlayConfig.roomId || parseQueryParam('roomId', '')
+    const apiBase = overlayConfig.apiBase || parseQueryParam('apiBase', window.location.origin)
+    const translation = createTranslationRpc((packet: TranslationPacket) => {
+      gatewayInstance?.send(packet)
+    }, createRgssServiceTranslationRequest(overlayConfig))
     const gateway = new RgssWebRtcGateway(
       roomId,
       apiBase,
@@ -115,11 +126,14 @@ export function RgssOverlayRoot() {
         },
         onDisconnected: () => setGatewayConnected(false),
         onMessage: (msg: GameLinkMessage) => {
-          // Forward WebRTC commands into Ruby host
+          if (msg.type === 'translation.rpc') {
+            translation.receive(msg)
+            return
+          }
           postToGame(msg)
         },
       },
-      { linkToken: parseQueryParam('linkToken'), launchToken: parseQueryParam('launchToken') }
+      { linkToken: overlayConfig.linkToken, launchToken: overlayConfig.launchToken }
     )
     gatewayInstance = gateway
     gateway.start()
@@ -128,34 +142,38 @@ export function RgssOverlayRoot() {
       disposeBridge()
       hitTestDispose()
       unsub()
+      translation.dispose()
       gateway.stop()
       gatewayInstance = null
     }
-  }, [])
+  }, [overlayConfig])
 
   return (
     <LocaleProvider syncDocumentLang={false}>
-      <GameToolTransportContext.Provider value={transport}>
-        <div
-          ref={setPortalHost}
-          data-mini-panel-root=""
-          className="relative flex min-h-0 flex-1 flex-col"
-          style={{ '--mini-panel-opacity': String(tools.settings.miniPanelOpacity / 100) } as any}
-        >
-          <NotificationProvider portalContainer={portalHost}>
-            <ConfirmProvider portalContainer={portalHost}>
-              {hasOpened && (
-                <div style={{ display: open ? 'flex' : 'none' }} className="min-h-0 flex-1 flex-col">
-                  <RgssWorkbench open={open} onClose={() => setOpen(false)} />
-                </div>
-              )}
-              <RgssMiniMap tools={tools} />
-              {tools.settings.panelDockEnabled && <MiniPanelDock settings={tools.settings} update={tools.update} />}
-              {(tools.settings.quickSavePanelEnabled || tools.settings.autoSavePanelEnabled) && <FloatingGameSaves settings={tools.settings} tools={tools} />}
-            </ConfirmProvider>
-          </NotificationProvider>
-        </div>
-      </GameToolTransportContext.Provider>
+      <TranslationRuntimeProvider request={translationRequest}>
+        <GameToolTransportContext.Provider value={transport}>
+          <div
+            ref={setPortalHost}
+            data-mini-panel-root=""
+            className="relative flex min-h-0 flex-1 flex-col"
+            style={{ '--mini-panel-opacity': String(tools.settings.miniPanelOpacity / 100) } as any}
+          >
+            <NotificationProvider portalContainer={portalHost}>
+              <ConfirmProvider portalContainer={portalHost}>
+                {hasOpened && (
+                  <div style={{ display: open ? 'flex' : 'none' }} className="min-h-0 flex-1 flex-col">
+                    <RgssWorkbench open={open} onClose={() => setOpen(false)} />
+                  </div>
+                )}
+                <SubtitleOverlay />
+                <RgssMiniMap tools={tools} />
+                {tools.settings.panelDockEnabled && <MiniPanelDock settings={tools.settings} update={tools.update} />}
+                {(tools.settings.quickSavePanelEnabled || tools.settings.autoSavePanelEnabled) && <FloatingGameSaves settings={tools.settings} tools={tools} />}
+              </ConfirmProvider>
+            </NotificationProvider>
+          </div>
+        </GameToolTransportContext.Provider>
+      </TranslationRuntimeProvider>
     </LocaleProvider>
   )
 }

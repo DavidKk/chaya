@@ -182,7 +182,7 @@ test('unready offline engines cannot be enabled but can be disabled', async () =
   expect(JSON.parse(mockTranslationFetch.mock.calls.at(-1)![1].body)).toEqual({ mode: 'switches', switches: { apple: false } })
 })
 
-test('offline readiness uses a loading badge, offers guidance and becomes ready after rechecking', async () => {
+test('offline readiness defers status to the detail 检测 button and becomes ready after rechecking', async () => {
   let finishCheck!: (value: unknown) => void
   let checks = 0
   mockTranslationFetch.mockImplementation(async (_path: string, init: { body: string }) => {
@@ -201,17 +201,23 @@ test('offline readiness uses a loading badge, offers guidance and becomes ready 
   })
   await render()
   const row = [...host.querySelectorAll('li')].find((el) => el.textContent?.includes('Bergamot'))!
-  expect(row.querySelector('[role="status"][aria-busy="true"]')?.textContent).toBe('检测中')
+  expect(row.textContent).not.toContain('检测中')
+  expect(row.querySelector('[role="status"][aria-busy="true"]')).toBeNull()
   expect(row.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled).toBe(true)
   await act(async () => finishCheck(json({ installed: false, status: 'model_pack_missing' })))
   const guide = [...row.querySelectorAll('button')].find((el) => el.textContent === '设置指引')!
   await act(async () => guide.click())
   expect(host.querySelector('section[aria-label="离线机翻"]')).toBeNull()
+  const offlineGroup = host.querySelector('[role="group"][aria-label="离线语言包与状态"]')
+  expect(offlineGroup).not.toBeNull()
+  expect([...offlineGroup!.querySelectorAll('button')].some((el) => el.textContent === '检测')).toBe(false)
   expect(host.textContent).toContain('当前语向缺少 Bergamot 离线语言包')
   expect(host.textContent).not.toContain('build:bergamot')
-  await act(async () => [...host.querySelectorAll('button')].find((el) => el.textContent === '重新检测')!.click())
+  const recheck = [...host.querySelectorAll('button')].find((el) => el.textContent === '检测')!
+  expect(recheck.getAttribute('aria-busy')).not.toBe('true')
+  await act(async () => recheck.click())
   expect(checks).toBe(2)
-  expect(host.textContent).toContain('已就绪，可以开启此引擎')
+  expect(host.textContent).toContain('就绪')
   expect(host.querySelector('[aria-busy="true"]')).toBeNull()
   expect(host.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled).toBe(false)
   expect(host.querySelector('[role="switch"]')?.getAttribute('aria-checked')).toBe('false')
@@ -235,7 +241,7 @@ test('Apple setup guide uses the detected language pair; unsupported pairs do no
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Français (fr)')
   await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
   supported = false
-  await act(async () => [...host.querySelectorAll('button')].find((el) => el.textContent === '重新检测')!.click())
+  await act(async () => [...host.querySelectorAll('button')].find((el) => el.textContent === '检测')!.click())
   expect(host.textContent).toContain('当前语言对不受此引擎支持')
   expect([...host.querySelectorAll('button')].filter((el) => el.textContent === '设置指引')).toHaveLength(0)
 })

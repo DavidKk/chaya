@@ -12,6 +12,7 @@ import {
   mergeEngineState,
   normalizeAgentEntries,
   normalizeEngineOrder,
+  resolveEngineCapacitySettings,
   resolveEngineRouteId,
   translationFallbackOrder,
 } from '@/lib/translate/engines'
@@ -65,12 +66,24 @@ describe('translate engines', () => {
       { id: 'bad id', profileId: 'p2' },
       { id: 'a2', profileId: '' },
       { id: 'a3', profileId: 'p3', enabled: false },
+      { id: 'a4', profileId: 'p4', maxConcurrentChars: 40000 },
     ])
     expect(agents).toEqual([
       { id: 'a1', profileId: 'p1', model: 'qwen', enabled: true, allowConcurrency: true, concurrencyLimit: 8, maxConcurrentChars: 5000 },
       { id: 'a3', profileId: 'p3', model: '', enabled: false },
+      { id: 'a4', profileId: 'p4', model: '', enabled: true, maxConcurrentChars: 40000 },
     ])
-    expect(normalizeEngineOrder(['agent:a3', 'agent:gone', 'bing'], agents)).toEqual(['agent:a3', 'bing', 'google', 'apple', 'bergamot', 'agent:a1'])
+    expect(normalizeEngineOrder(['agent:a3', 'agent:gone', 'bing'], agents)).toEqual(['agent:a3', 'bing', 'google', 'apple', 'bergamot', 'agent:a1', 'agent:a4'])
+    expect(resolveEngineCapacitySettings('bing', { bing: { allowConcurrency: false, concurrencyLimit: 1, maxConcurrentChars: 1500 } })).toEqual({
+      allowConcurrency: false,
+      concurrencyLimit: 1,
+      maxConcurrentChars: 1500,
+    })
+    expect(resolveEngineCapacitySettings('agent:a1', undefined, agents)).toEqual({
+      allowConcurrency: true,
+      concurrencyLimit: 8,
+      maxConcurrentChars: 5000,
+    })
   })
 
   it('manages engine configs for builtin engines and synchronizes enabled state', () => {

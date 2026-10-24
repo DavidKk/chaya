@@ -71,10 +71,8 @@ export type TranslateListItemRowProps = {
   savedZh?: string
   activeSchemeLabel: string
   isTranslating: boolean
-  isSaving: boolean
   isResetting: boolean
   onTranslate: (item: ExtractedTranslationItem) => void
-  onSave: (item: ExtractedTranslationItem) => void
   onReset: (item: ExtractedTranslationItem) => void
   onUpdate: () => void
 }
@@ -85,10 +83,8 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
   savedZh: _savedZh,
   activeSchemeLabel,
   isTranslating,
-  isSaving,
   isResetting,
   onTranslate,
-  onSave,
   onReset,
   onUpdate,
 }: TranslateListItemRowProps) {
@@ -126,9 +122,8 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
 
   return (
     <div className="flex h-[150px] flex-col min-w-0">
-      {/* 1. Header Toolbar: Index, Category Badge, Speaker, Context, Reset (Left) | Translate + Save (Right) */}
+      {/* 1. Header: metadata (left) | Reset + Translate (right); persist via page Save */}
       <div className="flex h-9 shrink-0 items-center justify-between gap-2 px-4 border-b border-line bg-surface/20 text-xs">
-        {/* Left: Metadata info + Reset button */}
         <div className="flex items-center gap-2 overflow-hidden">
           <Tooltip content={t('translate.listRowItemIndex', { id: item.id })} placement="top">
             <span className="shrink-0 font-mono text-[0.6875rem] text-ink-soft select-none cursor-default">#{item.id}</span>
@@ -202,13 +197,11 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
             : null}
         </div>
 
-        {/* Right: Reset (if modified / saved) + Translate with Hover Dropdown + Save */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Reset Button (placed on right side, reverts to original text without saving) */}
           {canReset ? (
             <Button
               size="xs"
-              variant="fail"
+              variant="ghost"
               loading={isResetting}
               disabled={isResetting}
               tooltip={t('translate.listSingleResetTooltip')}
@@ -223,10 +216,9 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
             </Button>
           ) : null}
 
-          {/* Translate Button */}
           <Button
             size="xs"
-            variant="accent"
+            variant="ghost"
             loading={isTranslating}
             tooltip={isTranslating ? t('translate.listSingleTransTranslating') : t('translate.listSingleTransTooltip', { scheme: activeSchemeLabel })}
             tooltipPlacement="top"
@@ -234,20 +226,6 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
             onClick={() => onTranslate(item)}
           >
             {t('translate.listSingleTransBtn')}
-          </Button>
-
-          {/* Save Button */}
-          <Button
-            size="xs"
-            variant="ok"
-            loading={isSaving}
-            disabled={!currentZh || !currentZh.trim()}
-            tooltip={isSaving ? t('translate.listSingleSaving') : !currentZh || !currentZh.trim() ? t('translate.listSingleSaveEmpty') : t('translate.listSingleSaveTooltip')}
-            tooltipPlacement="top"
-            className="h-6 px-2 text-[0.6875rem]"
-            onClick={() => onSave(item)}
-          >
-            {t('translate.listSingleSaveBtn')}
           </Button>
         </div>
       </div>

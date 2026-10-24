@@ -11,6 +11,8 @@ export const translations = sqliteTable(
     /** Target language of `zh` (ja / en / zh / ko). */
     tgtLang: text('tgt_lang').notNull().default('zh'),
     engine: text('engine'),
+    /** Optional extract/live text category (dialogue, item, …); imports may leave null. */
+    category: text('category'),
     updatedAt: integer('updated_at').notNull(),
     hitCount: integer('hit_count').notNull().default(0),
     nsfw: integer('nsfw').notNull().default(0),

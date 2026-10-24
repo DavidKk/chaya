@@ -5,13 +5,22 @@ module ChayaRGSS
   module Translation
     CONTROL ||= /(?:\\|\e)(?:[A-Za-z]+(?:\[[^\]]*\])?|[.!|^><{}$\\])/
     class << self
-      attr_reader :store
+      attr_reader :store, :play_settings
 
       def start(root = ENV['CHAYA_RGSS_CONTENT_ROOT'] || Dir.pwd)
+        @root = root
         @store = TranslationStore.new(root)
         @memo = {}
         @memo_revision = @store.revision
         @last_poll = 0
+        @play_settings = { 'mode' => 'pretranslated', 'timeoutMs' => 8000 }
+        @play_sig = nil
+        @preview_sig = nil
+        @preview_view = 'translated'
+        @play_loaded = false
+        @current_message_key = nil
+        @current_message_window = nil
+        load_play_settings
         arm_startup
         @store.refresh
         @memo_revision = @store.revision
@@ -54,6 +63,7 @@ module ChayaRGSS
         now = Process.respond_to?(:clock_gettime) ? Process.clock_gettime(Process::CLOCK_MONOTONIC) : Time.now.to_f
         return if now - @last_poll < 1.0
         @last_poll = now
+        load_play_settings
         return if @reader && @reader.alive?
         @reader = Thread.new do
           begin
@@ -65,6 +75,7 @@ module ChayaRGSS
       end
 
       def translate(text)
+        return text if play_mode == 'subtitle' || preview_original?
         return text unless @store && text.is_a?(String) && !text.empty? && (!text.respond_to?(:valid_encoding?) || text.valid_encoding?)
         if @memo_revision != @store.revision
           @memo.clear
@@ -75,6 +86,157 @@ module ChayaRGSS
         @memo.clear if @memo.size >= 4096
         @memo[text.dup.freeze] = result
         result
+      end
+
+      def preview_original?
+        @preview_view == 'original'
+      end
+
+      def load_play_settings
+        path = File.join(@root || Dir.pwd, 'chaya', 'config', 'translation-play.json')
+        preview = File.join(@root || Dir.pwd, 'chaya', 'config', 'translation-preview.json')
+        sig = nil
+        preview_sig = nil
+        if File.file?(path)
+          stat = File.stat(path) rescue nil
+          sig = [path, stat.ino, stat.size, stat.mtime.to_f] if stat
+        end
+        if File.file?(preview)
+          pstat = File.stat(preview) rescue nil
+          preview_sig = [preview, pstat.ino, pstat.size, pstat.mtime.to_f] if pstat
+        end
+        return if @play_loaded && sig == @play_sig && preview_sig == @preview_sig
+        @play_loaded = true
+        @play_sig = sig
+        @preview_sig = preview_sig
+        previous_preview = @preview_view
+        @preview_view = 'translated'
+        if preview_sig
+          begin
+            content = File.open(preview, 'rb') { |f| f.read }
+            content = content.respond_to?(:force_encoding) ? content.force_encoding('UTF-8') : content
+            parsed = ChayaRGSS::CacheJSON.parse(content)
+            @preview_view = 'original' if parsed.is_a?(Hash) && parsed['view'].to_s == 'original'
+          rescue StandardError
+            @preview_view = 'translated'
+          end
+        end
+        @memo.clear if @memo && previous_preview != @preview_view
+        unless sig
+          @play_settings = { 'mode' => 'pretranslated', 'timeoutMs' => 8000 }
+          return
+        end
+        begin
+          content = File.open(path, 'rb') { |f| f.read }
+          content = content.respond_to?(:force_encoding) ? content.force_encoding('UTF-8') : content
+          parsed = ChayaRGSS::CacheJSON.parse(content)
+          if parsed.is_a?(Hash)
+            mode = parsed['mode'].to_s
+            mode = 'pretranslated' unless mode == 'realtime' || mode == 'subtitle'
+            timeout = parsed['timeoutMs']
+            timeout = (timeout.is_a?(Numeric) && timeout >= 2000 && timeout <= 30000) ? timeout.to_i : 8000
+            @play_settings = { 'mode' => mode, 'timeoutMs' => timeout }
+          else
+            @play_settings = { 'mode' => 'pretranslated', 'timeoutMs' => 8000 }
+          end
+        rescue StandardError
+          @play_settings = { 'mode' => 'pretranslated', 'timeoutMs' => 8000 }
+        end
+      end
+
+      def native_webview_ready?
+        if defined?(ChayaRGSS::NativeWebview) && ChayaRGSS::NativeWebview.respond_to?(:ready?)
+          ChayaRGSS::NativeWebview.ready?
+        elsif defined?(NativeWebview) && NativeWebview.respond_to?(:ready?)
+          NativeWebview.ready?
+        else
+          false
+        end
+      end
+
+      def play_mode
+        mode = (@play_settings && @play_settings['mode']) || 'pretranslated'
+        return 'pretranslated' if (mode == 'realtime' || mode == 'subtitle') && !native_webview_ready?
+        mode
+      end
+
+      def play_timeout_ms
+        (@play_settings && @play_settings['timeoutMs']) || 8000
+      end
+
+      def on_message_start(texts, choices, window = nil)
+        mode = play_mode
+        return unless mode == 'realtime' || mode == 'subtitle'
+        return unless native_webview_ready?
+        text_list = (texts.is_a?(Array) ? texts : [texts]).compact.map(&:to_s)
+        choice_list = (choices.is_a?(Array) ? choices : [choices]).compact.map(&:to_s)
+        return if text_list.empty? && choice_list.empty?
+
+        total_len = text_list.inject(0) { |sum, t| sum + t.length } + choice_list.inject(0) { |sum, c| sum + c.length }
+        return if total_len > 360 || choice_list.length > 7
+
+        if mode == 'realtime'
+          unhit = text_list.any? { |t| !lookup(t) } || choice_list.any? { |c| !lookup(c) }
+          return unless unhit
+        end
+
+        key = "#{text_list.join("\n")}\x1f#{choice_list.join("\x1f")}"
+        @current_message_key = key
+        @current_message_window = window
+
+        if defined?(ChayaRGSS::Bridge) && ChayaRGSS::Bridge.respond_to?(:dispatch_reply)
+          ChayaRGSS::Bridge.dispatch_reply(
+            'type' => 'translation.dialogue',
+            'key' => key,
+            'texts' => text_list,
+            'choices' => choice_list,
+            'mode' => mode,
+            'timeoutMs' => play_timeout_ms
+          )
+        end
+      end
+
+      def on_message_close(window = nil)
+        had_message = !@current_message_key.nil?
+        @current_message_key = nil
+        @current_message_window = nil
+        if had_message && defined?(ChayaRGSS::Bridge) && ChayaRGSS::Bridge.respond_to?(:dispatch_reply)
+          ChayaRGSS::Bridge.dispatch_reply('type' => 'translation.dialogue.close')
+        end
+      end
+
+      def handle_dialogue_result(msg)
+        key = msg['key']
+        texts = msg['texts']
+        choices = msg['choices']
+        @store.refresh if @store
+        return unless key && key == @current_message_key
+        window = @current_message_window
+        return unless window && (!window.respond_to?(:disposed?) || !window.disposed?) && (!window.respond_to?(:visible) || window.visible)
+        return unless play_mode == 'realtime'
+        update_message_window_display(window, texts, choices)
+      end
+
+      def update_message_window_display(window, texts, choices = nil)
+        lines = texts.is_a?(Array) ? texts : [texts.to_s]
+        if window.respond_to?(:draw_text_ex)
+          window.contents.clear if window.respond_to?(:contents) && window.contents && (!window.contents.respond_to?(:disposed?) || !window.contents.disposed?)
+          x = window.respond_to?(:new_line_x) ? (window.new_line_x rescue 0) : 0
+          window.draw_text_ex(x, 0, lines.join("\n")) rescue nil
+        else
+          if window.respond_to?(:contents) && window.contents && (!window.contents.respond_to?(:disposed?) || !window.contents.disposed?)
+            window.contents.clear
+            line_height = window.respond_to?(:line_height) ? window.line_height : 24
+            y = 0
+            lines.each do |line|
+              window.contents.draw_text(0, y, window.contents.width, line_height, line)
+              y += line_height
+            end
+          end
+          if window.instance_variable_defined?(:@text)
+            window.instance_variable_set(:@text, lines.join("\n") + "\n")
+          end
+        end
       end
 
       def lookup(text)
@@ -171,10 +333,54 @@ module ChayaRGSS
                     message.instance_variable_set(key, value.map { |text| ChayaRGSS::Translation.translate(text) })
                   end
                 end
+                ChayaRGSS::Translation.on_message_start(originals[:@texts] || [], originals[:@choices] || [], self)
                 chaya_translation_start_message(*args)
               ensure
                 originals.each { |key, value| message.instance_variable_set(key, value) }
               end
+            end
+          end
+        end
+        install_message_dialogue_hooks
+      end
+
+      def install_message_dialogue_hooks
+        return unless defined?(Window_Message)
+        if Window_Message.method_defined?(:process_all_text) && !Window_Message.method_defined?(:chaya_translation_process_all_text)
+          Window_Message.class_eval do
+            alias_method :chaya_translation_process_all_text, :process_all_text
+            def process_all_text(*args)
+              texts = $game_message && $game_message.respond_to?(:texts) ? $game_message.texts.dup : []
+              choices = $game_message && $game_message.respond_to?(:choices) ? $game_message.choices.dup : []
+              ChayaRGSS::Translation.on_message_start(texts, choices, self)
+              chaya_translation_process_all_text(*args)
+            end
+          end
+        end
+        if Window_Message.method_defined?(:terminate_message) && !Window_Message.method_defined?(:chaya_translation_terminate_message)
+          Window_Message.class_eval do
+            alias_method :chaya_translation_terminate_message, :terminate_message
+            def terminate_message(*args)
+              ChayaRGSS::Translation.on_message_close(self)
+              chaya_translation_terminate_message(*args)
+            end
+          end
+        end
+        if Window_Message.method_defined?(:close_and_wait) && !Window_Message.method_defined?(:chaya_translation_close_and_wait)
+          Window_Message.class_eval do
+            alias_method :chaya_translation_close_and_wait, :close_and_wait
+            def close_and_wait(*args)
+              ChayaRGSS::Translation.on_message_close(self)
+              chaya_translation_close_and_wait(*args)
+            end
+          end
+        end
+        if Window_Message.method_defined?(:close) && !Window_Message.method_defined?(:chaya_translation_close)
+          Window_Message.class_eval do
+            alias_method :chaya_translation_close, :close
+            def close(*args)
+              ChayaRGSS::Translation.on_message_close(self)
+              chaya_translation_close(*args)
             end
           end
         end
@@ -193,6 +399,7 @@ module ChayaRGSS
           Window_Base.prepend(WindowText)
         end
         install_legacy if defined?(Window_Message) && (!defined?(Window_Base) || !Window_Base.method_defined?(:convert_escape_characters))
+        install_message_dialogue_hooks
       end
     end
 

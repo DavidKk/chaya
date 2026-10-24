@@ -20,51 +20,35 @@ type Props = {
   refreshUI: () => void
 }
 
+/** Scripts UI constants are listable but not in Data/*.rvdata writeback slots. */
+function canRgssWriteback(rgssEngine: Props['rgssEngine'], item: ExtractedTranslationItem): boolean {
+  return Boolean(rgssEngine) && !item.meta.isHardcoded
+}
+
+function saveItemBody(
+  item: ExtractedTranslationItem,
+  opts: { contentRoot: string; sourceLang: string; targetLang: string; localesMeta: ExtractedLocalesMeta | null; rgssEngine: Props['rgssEngine'] }
+) {
+  if (canRgssWriteback(opts.rgssEngine, item)) {
+    return { mode: 'rgss-write' as const, contentRoot: opts.contentRoot, translations: { [item.src]: item.zh } }
+  }
+  return {
+    mode: 'save-item' as const,
+    text: item.src,
+    zh: item.zh,
+    localesKey: item.meta.localesKey,
+    targetFile: item.meta.localesFile,
+    sourceLang: opts.sourceLang || opts.localesMeta?.currentSourceLang,
+    targetLang: opts.targetLang || opts.localesMeta?.currentTargetLang,
+  }
+}
+
 export function useTranslateListSave({ rgssEngine, contentRoot, sourceLang, targetLang, localesMeta, pagedItems, translationFetch, refreshUI }: Props) {
   const t = useT()
   const confirm = useConfirm()
   const notify = useNotification()
-  const [savingId, setSavingId] = useState<string | null>(null)
   const [savingPage, setSavingPage] = useState(false)
   const [resettingPage, setResettingPage] = useState(false)
-  // Save single item
-  const handleSave = useCallback(
-    async (item: ExtractedTranslationItem) => {
-      setSavingId(item.id)
-      try {
-        const writeback = Boolean(rgssEngine)
-        const res = await translationFetch('/api/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mode: writeback ? 'rgss-write' : 'save-item',
-            text: item.src,
-            zh: item.zh,
-            translations: writeback ? { [item.src]: item.zh } : undefined,
-            contentRoot: writeback ? contentRoot : undefined,
-            localesKey: item.meta.localesKey,
-            targetFile: item.meta.localesFile,
-            sourceLang: sourceLang || localesMeta?.currentSourceLang,
-            targetLang: targetLang || localesMeta?.currentTargetLang,
-          }),
-        })
-        const data = (await res.json()) as { ok?: boolean; backupCreated?: boolean; error?: unknown }
-        if (data?.ok) {
-          item.savedZh = item.zh
-          refreshUI()
-          const backupMsg = data.backupCreated ? t('translate.listSingleSaveBackup') : ''
-          notify.success(t('translate.listSingleSaveSuccess', { backup: backupMsg }))
-        } else {
-          notify.error(t('translate.listSingleSaveFailed', { error: readApiErrorMessage(data) }))
-        }
-      } catch (err) {
-        notify.error(t('translate.listSingleSaveReqFailed', { error: err instanceof Error ? err.message : String(err) }))
-      } finally {
-        setSavingId(null)
-      }
-    },
-    [contentRoot, rgssEngine, sourceLang, targetLang, localesMeta, translationFetch, refreshUI, notify, t]
-  )
 
   // Reset all items on current page with confirmation (does not auto-save)
   const handleResetPage = useCallback(async () => {
@@ -110,41 +94,33 @@ export function useTranslateListSave({ rgssEngine, contentRoot, sourceLang, targ
     let savedCount = 0
     let failCount = 0
     try {
-      if (rgssEngine) {
+      const writebackItems = itemsToSave.filter((item) => canRgssWriteback(rgssEngine, item))
+      const cacheItems = itemsToSave.filter((item) => !canRgssWriteback(rgssEngine, item))
+      let writebackError = ''
+      if (writebackItems.length) {
         try {
           const response = await translationFetch('/api/translate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'rgss-write', contentRoot, translations: Object.fromEntries(itemsToSave.map((item) => [item.src, item.zh])) }),
+            body: JSON.stringify({ mode: 'rgss-write', contentRoot, translations: Object.fromEntries(writebackItems.map((item) => [item.src, item.zh])) }),
           })
           const data = await response.json()
           if (!response.ok || !data.ok) throw new Error(readApiErrorMessage(data))
-          for (const item of itemsToSave) item.savedZh = item.zh
-          refreshUI()
-          notify.success(t('translate.listSavePageSuccess', { count: itemsToSave.length }))
+          for (const item of writebackItems) {
+            item.savedZh = item.zh
+            savedCount++
+          }
         } catch (error) {
-          notify.error(t('translate.listSingleSaveFailed', { error: error instanceof Error ? error.message : String(error) }))
+          failCount += writebackItems.length
+          writebackError = error instanceof Error ? error.message : String(error)
         }
-        return
       }
-      for (const item of itemsToSave) {
+      for (const item of cacheItems) {
         try {
           const res = await translationFetch('/api/translate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(
-              rgssEngine
-                ? { mode: 'rgss-write', contentRoot, translations: { [item.src]: item.zh } }
-                : {
-                    mode: 'save-item',
-                    text: item.src,
-                    zh: item.zh,
-                    localesKey: item.meta.localesKey,
-                    targetFile: item.meta.localesFile,
-                    sourceLang: sourceLang || localesMeta?.currentSourceLang,
-                    targetLang: targetLang || localesMeta?.currentTargetLang,
-                  }
-            ),
+            body: JSON.stringify(saveItemBody(item, { contentRoot, sourceLang, targetLang, localesMeta, rgssEngine })),
           })
           const data = (await res.json()) as { ok?: boolean }
           if (data?.ok) {
@@ -160,12 +136,14 @@ export function useTranslateListSave({ rgssEngine, contentRoot, sourceLang, targ
       refreshUI()
       if (failCount === 0) {
         notify.success(t('translate.listSavePageSuccess', { count: savedCount }))
-      } else {
+      } else if (savedCount > 0) {
         notify.warning(t('translate.listSavePagePartial', { saved: savedCount, failed: failCount }))
+      } else {
+        notify.error(t('translate.listSingleSaveFailed', { error: writebackError || t('translate.listSavePagePartial', { saved: 0, failed: failCount }) }))
       }
     } finally {
       setSavingPage(false)
     }
   }, [contentRoot, confirm, pagedItems, rgssEngine, translationFetch, sourceLang, targetLang, localesMeta, refreshUI, notify, t])
-  return { savingId, savingPage, resettingPage, handleSave, handleSavePage, handleResetPage }
+  return { savingPage, resettingPage, handleSavePage, handleResetPage }
 }

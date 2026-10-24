@@ -9,11 +9,14 @@ export function BergamotPackGuide({
   plan,
   error = '',
   busy = false,
+  /** When true, omit title/badge/pair chrome — parent already shows offline status. */
+  embedded = false,
   onAction,
 }: {
   plan?: PackPlan
   error?: string
   busy?: boolean
+  embedded?: boolean
   onAction: (action: 'install' | 'cancel' | 'plan') => void
 }) {
   const t = useT()
@@ -21,34 +24,35 @@ export function BergamotPackGuide({
   const job = plan?.job
   const failed = job?.state === 'failed' || job?.state === 'interrupted'
   const percent = job?.totalDownloadBytes ? Math.min(100, Math.round((job.downloadedBytes / job.totalDownloadBytes) * 100)) : 0
+  const checking = !plan && !error
+  /** Checking state lives on the 检测 button — no separate spinner / badge copy. */
+  const showRecheck = !embedded && !active
+  const showActions = active || !!plan?.canInstall || showRecheck
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-line bg-panel p-3 text-xs leading-relaxed text-ink-soft">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-medium text-ink">Bergamot</span>
-        <Badge size="mini" loading={!plan && !error} tone={plan?.installed ? 'ok' : failed ? 'fail' : active ? 'accent' : 'warn'}>
-          {t(
-            !plan && !error
-              ? 'translate.offlineChecking'
-              : plan?.installed
-                ? 'translate.tagReady'
-                : active
-                  ? job?.phase === 'downloading'
-                    ? 'translate.packDownloading'
-                    : 'translate.packVerifying'
-                  : 'translate.tagNotReady'
-          )}
-        </Badge>
-      </div>
-      {plan ? (
+    <div
+      className={
+        embedded
+          ? 'flex flex-col gap-3 text-xs leading-relaxed text-ink-soft'
+          : 'flex flex-col gap-3 rounded-xl border border-line bg-panel p-3 text-xs leading-relaxed text-ink-soft'
+      }
+      aria-busy={checking || undefined}
+    >
+      {!embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="font-medium text-ink">Bergamot</span>
+          {plan || error ? (
+            <Badge size="mini" tone={plan?.installed ? 'ok' : failed ? 'fail' : active ? 'accent' : 'warn'}>
+              {t(
+                plan?.installed ? 'translate.tagReady' : active ? (job?.phase === 'downloading' ? 'translate.packDownloading' : 'translate.packVerifying') : 'translate.tagNotReady'
+              )}
+            </Badge>
+          ) : null}
+        </div>
+      ) : null}
+      {!embedded && plan ? (
         <div className="font-mono text-[11px] uppercase text-ink-soft">
           {plan.source} → {plan.target}
         </div>
-      ) : null}
-      {!plan && !error ? (
-        <span className="flex items-center gap-2">
-          <Spinner size="sm" />
-          {t('translate.offlineChecking')}
-        </span>
       ) : null}
       {error ? (
         <p className="m-0 break-words text-fail" role="alert">
@@ -57,16 +61,14 @@ export function BergamotPackGuide({
       ) : null}
       {plan ? (
         <>
-          {!active ? (
+          {!active && !plan.installed ? (
             <p className="m-0">
               {t(
-                plan.installed
-                  ? 'translate.offlineReadyHint'
-                  : plan.status === 'component_unavailable'
-                    ? 'translate.bergamotUnavailable'
-                    : plan.status === 'same_language' || plan.status === 'unsupported_pair' || plan.status === 'platform_unsupported'
-                      ? 'translate.offlineUnsupportedPair'
-                      : 'translate.packInstallHint'
+                plan.status === 'component_unavailable'
+                  ? 'translate.bergamotUnavailable'
+                  : plan.status === 'same_language' || plan.status === 'unsupported_pair' || plan.status === 'platform_unsupported'
+                    ? 'translate.offlineUnsupportedPair'
+                    : 'translate.packInstallHint'
               )}
             </p>
           ) : null}
@@ -84,7 +86,7 @@ export function BergamotPackGuide({
             </p>
           ))}
           {active && job ? (
-            <div className="flex flex-col gap-2 rounded-lg bg-inset p-2.5" aria-live="polite">
+            <div className={`flex flex-col gap-2 rounded-lg p-2.5 ${embedded ? 'bg-panel' : 'bg-inset'}`} aria-live="polite">
               <span className="flex items-center gap-2">
                 {job.phase !== 'downloading' ? <Spinner size="sm" label={t('translate.packVerifying')} className="motion-reduce:animate-none" /> : null}
                 {t(job.phase === 'downloading' || job.state === 'queued' ? 'translate.packDownloading' : 'translate.packVerifying')}
@@ -120,22 +122,24 @@ export function BergamotPackGuide({
           ) : null}
         </>
       ) : null}
-      <div className="flex flex-wrap gap-2">
-        {active ? (
-          <Button size="xs" loading={busy} onClick={() => onAction('cancel')}>
-            {t('common.cancel')}
-          </Button>
-        ) : plan?.canInstall ? (
-          <Button size="xs" variant="accent" loading={busy} onClick={() => onAction('install')}>
-            {t('translate.packInstall')}
-          </Button>
-        ) : null}
-        {!active ? (
-          <Button size="xs" loading={busy} onClick={() => onAction('plan')}>
-            {t('translate.offlineRecheck')}
-          </Button>
-        ) : null}
-      </div>
+      {showActions ? (
+        <div className="flex flex-wrap gap-2">
+          {active ? (
+            <Button size="xs" loading={busy} onClick={() => onAction('cancel')}>
+              {t('common.cancel')}
+            </Button>
+          ) : plan?.canInstall ? (
+            <Button size="xs" variant="accent" loading={busy} onClick={() => onAction('install')}>
+              {t('translate.packInstall')}
+            </Button>
+          ) : null}
+          {showRecheck ? (
+            <Button size="xs" loading={busy || checking} disabled={busy || checking} onClick={() => onAction('plan')}>
+              {t('translate.offlineRecheck')}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
