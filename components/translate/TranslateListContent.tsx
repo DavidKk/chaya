@@ -11,6 +11,7 @@ import { Button, EmptyState, LanguagePairSelect, NumberInput, ScrollArea, Select
 import { AppleOfflineGuideModal } from '@/components/translate/AppleOfflineGuideModal'
 import { useSafePathname, useSafeRouter, useSafeSearchParams } from '@/components/translate/safe-navigation'
 import { translateRunHref } from '@/components/translate/tabs'
+import { TranslateListFilters } from '@/components/translate/TranslateListFilters'
 import { TranslateListItemRow } from '@/components/translate/TranslateListItemRow'
 import { TranslateListPageActions } from '@/components/translate/TranslateListPageActions'
 import { TranslateListSkeleton } from '@/components/translate/TranslateRunSkeleton'
@@ -18,7 +19,7 @@ import { useTranslationFetch } from '@/components/translate/TranslationRuntimeCo
 import { useSyncNames } from '@/components/translate/useSyncNames'
 import { useTranslateListSave } from '@/components/translate/useTranslateListSave'
 import { readApiErrorMessage } from '@/lib/api-error'
-import { filterAndRankTranslationListItems } from '@/lib/translate/list-search'
+import { filterTranslationListItems } from '@/lib/translate/list-search'
 import { detectSourceLanguage } from '@/lib/translate/source-text'
 import { hrefWithQuery, parsePositiveInt, patchSearchParams } from '@/lib/url/search-params'
 import type { ExtractedLocalesMeta, ExtractedTranslationItem } from '@/services/extract/lib/extract-items'
@@ -229,39 +230,10 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     }
   }, [loadEngines, loadData])
 
-  // Filter items
-  const filteredItems = useMemo(() => {
-    let list = items
-    if (natureFilter !== 'all') {
-      if (natureFilter === 'dialogue') {
-        list = list.filter((it) => it.meta.category === 'dialogue')
-      } else if (natureFilter === 'story') {
-        list = list.filter((it) => it.meta.category === 'story')
-      } else if (natureFilter === 'choice') {
-        list = list.filter((it) => it.meta.category === 'choice')
-      } else if (natureFilter === 'name') {
-        list = list.filter((it) => ['item', 'weapon', 'armor', 'skill', 'actor', 'enemy', 'state', 'map'].includes(it.meta.category))
-      } else if (natureFilter === 'desc') {
-        list = list.filter((it) => ['item_desc', 'weapon_desc', 'armor_desc', 'skill_desc', 'actor_profile', 'actor_nickname'].includes(it.meta.category))
-      } else if (natureFilter === 'system') {
-        list = list.filter((it) => ['system', 'state_msg', 'plugin', 'resource'].includes(it.meta.category))
-      } else if (natureFilter === 'hardcoded') {
-        list = list.filter((it) => Boolean(it.meta.isHardcoded || !it.meta.localesKey))
-      } else if (natureFilter === 'locales') {
-        list = list.filter((it) => Boolean(it.meta.localesKey))
-      }
-    }
-    if (categoryFilter !== 'all') {
-      list = list.filter((it) => it.meta.category === categoryFilter)
-    }
-    if (statusFilter === 'untranslated') {
-      list = list.filter((it) => !it.zh || !it.zh.trim())
-    } else if (statusFilter === 'translated') {
-      list = list.filter((it) => Boolean(it.zh && it.zh.trim()))
-    }
-    if (filterQuery.trim()) list = filterAndRankTranslationListItems(list, filterQuery)
-    return list
-  }, [items, natureFilter, categoryFilter, statusFilter, filterQuery])
+  const filteredItems = useMemo(
+    () => filterTranslationListItems(items, { nature: natureFilter, category: categoryFilter, status: statusFilter, query: filterQuery }),
+    [items, natureFilter, categoryFilter, statusFilter, filterQuery]
+  )
 
   // Paging calculations
   const totalItems = filteredItems.length
@@ -384,7 +356,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
         : [],
     [categoryFilter, filteredItems, natureFilter]
   )
-  const { running: syncingNames, runSyncNames } = useSyncNames({ names: selectedNameSrcs, onDone: refreshUI })
+  const { running: syncingNames, runSyncNames } = useSyncNames({ names: selectedNameSrcs, sourceLang, targetLang, onDone: loadData })
 
   const handleFindSimilar = useCallback(
     (item: ExtractedTranslationItem) => {
@@ -605,71 +577,13 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
             aria-label={t('translate.listSearchAria')}
           />
 
-          <Select
-            className="w-28 shrink-0"
-            panelWidth="content"
-            value={natureFilter}
-            onChange={(val) => updateQueryParams({ nature: val === 'all' ? null : val, p: null })}
-            options={[
-              { value: 'all', label: t('translate.natureFilterAll') },
-              { value: 'dialogue', label: t('translate.catDialogue') },
-              { value: 'story', label: t('translate.catStory') },
-              { value: 'choice', label: t('translate.catChoice') },
-              { value: 'name', label: t('translate.natureFilterName') },
-              { value: 'desc', label: t('translate.natureFilterDesc') },
-              { value: 'system', label: t('translate.natureFilterSystem') },
-              { value: 'hardcoded', label: t('translate.natureFilterHardcoded') },
-              { value: 'locales', label: t('translate.natureFilterLocales') },
-            ]}
-            aria-label={t('translate.natureFilterAria')}
-            tooltip={t('translate.natureFilterTooltip')}
-          />
-
-          <Select
-            className="w-28 shrink-0"
-            panelWidth="content"
-            value={categoryFilter}
-            onChange={(val) => updateQueryParams({ category: val === 'all' ? null : val, p: null })}
-            options={[
-              { value: 'all', label: t('translate.catAll') },
-              { value: 'dialogue', label: t('translate.catDialogue') },
-              { value: 'story', label: t('translate.catStory') },
-              { value: 'choice', label: t('translate.catChoice') },
-              { value: 'item', label: t('translate.catItem') },
-              { value: 'item_desc', label: t('translate.catItemDesc') },
-              { value: 'weapon', label: t('translate.catWeapon') },
-              { value: 'weapon_desc', label: t('translate.catWeaponDesc') },
-              { value: 'armor', label: t('translate.catArmor') },
-              { value: 'armor_desc', label: t('translate.catArmorDesc') },
-              { value: 'skill', label: t('translate.catSkill') },
-              { value: 'skill_desc', label: t('translate.catSkillDesc') },
-              { value: 'map', label: t('translate.catMap') },
-              { value: 'actor', label: t('translate.catActor') },
-              { value: 'actor_nickname', label: t('translate.catActorNickname') },
-              { value: 'actor_profile', label: t('translate.catActorProfile') },
-              { value: 'enemy', label: t('translate.catEnemy') },
-              { value: 'state', label: t('translate.catState') },
-              { value: 'system', label: t('translate.catSystem') },
-              { value: 'plugin', label: t('translate.catPlugin') },
-              { value: 'resource', label: t('translate.catResource') },
-              { value: 'other', label: t('translate.catOther') },
-            ]}
-            aria-label={t('translate.listCategoryFilterAria')}
-            tooltip={t('translate.listCategoryFilterTooltip')}
-          />
-
-          <Select
-            className="w-24 shrink-0"
-            panelWidth="content"
-            value={statusFilter}
-            onChange={(val) => updateQueryParams({ status: val === 'all' ? null : val, p: null })}
-            options={[
-              { value: 'all', label: t('translate.statusAll') },
-              { value: 'untranslated', label: t('translate.statusUntranslated') },
-              { value: 'translated', label: t('translate.statusTranslated') },
-            ]}
-            aria-label={t('translate.listStatusFilterAria')}
-            tooltip={t('translate.listStatusFilterTooltip')}
+          <TranslateListFilters
+            natureFilter={natureFilter}
+            categoryFilter={categoryFilter}
+            statusFilter={statusFilter}
+            onNature={(val) => updateQueryParams({ nature: val === 'all' ? null : val, p: null })}
+            onCategory={(val) => updateQueryParams({ category: val === 'all' ? null : val, p: null })}
+            onStatus={(val) => updateQueryParams({ status: val === 'all' ? null : val, p: null })}
           />
         </div>
       </PanelHeadEnd>

@@ -1,4 +1,8 @@
 jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
+jest.mock('@/constants/paths', () => ({
+  ...jest.requireActual('@/constants/paths'),
+  RGSS_EXTRACT_WORKER_PATH: jest.requireActual('node:path').join(process.cwd(), 'native/bin/chaya-rgss-extract-worker.mjs'),
+}))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 jest.mock('@/services/game/binding', () => ({ getResolvedFromConfig: () => ({ ok: false }) }))
 jest.mock('@/services/translate/engine-switches', () => ({
@@ -30,6 +34,9 @@ import path from 'node:path'
 import { gameContentPath } from '@/lib/game/content-files'
 import { requestGoogle } from '@/lib/translate/engine-http'
 import type { TranslateRunEngine } from '@/lib/translate/engines'
+import { writeRgssTranslations } from '@/services/extract/lib/rgss'
+import { type RubyValue, writeRubyMarshal } from '@/services/extract/lib/rgss/marshal'
+import { appendPublicGameCache } from '@/services/storage/game-files'
 import { agentJaToZh } from '@/services/translate/agent-translate'
 import { loadGameTranslationRecords } from '@/services/translate/game-records'
 import { bergamotTranslate } from '@/services/translate/lib/bergamot-translate'
@@ -50,6 +57,46 @@ describe('live short-sentence integration', () => {
     jest.mocked(agentJaToZh).mockReset()
   })
   afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+  function rgssNames() {
+    fs.mkdirSync(path.join(root, 'Data'))
+    const fields = { name: 'Rei', description: "Rei's mother." }
+    const actor: RubyValue = {
+      kind: 'object',
+      className: 'RPG::Actor',
+      ivars: { kind: 'hash', pairs: Object.entries(fields).map(([key, value]) => ({ key: { kind: 'symbol', value: `@${key}` }, value: { kind: 'string', value } })) },
+    }
+    fs.writeFileSync(path.join(root, 'Data', 'Actors.rvdata2'), writeRubyMarshal({ kind: 'array', items: [null, actor] }))
+    const seed = gameContentPath(root, 'seed')
+    fs.mkdirSync(path.dirname(seed), { recursive: true })
+    fs.writeFileSync(seed, JSON.stringify({ Rei: '蕾', "Rei's mother.": '丽伊的母亲。' }))
+    writeRgssTranslations(root, { Rei: '蕾' })
+    appendPublicGameCache(root, [{ s: 'Rei', t: '国王', engine: 'live:bing' }])
+  }
+
+  it('loads actual RGSS names and locks them on force while leaving old full cache hits intact', async () => {
+    rgssNames()
+    jest.mocked(requestGoogle).mockResolvedValue('母亲。')
+    const cached = await liveTranslateTexts(["Rei's mother."], { contentRoot: root, engines: ['google'], persist: false, sourceLang: 'en' })
+    expect(cached.items[0].zh).toBe('丽伊的母亲。')
+    expect(requestGoogle).not.toHaveBeenCalled()
+    const fresh = await liveTranslateTexts(["Rei's mother."], { contentRoot: root, engines: ['google'], persist: false, force: true, sourceLang: 'en' })
+    expect(fresh.items[0].zh).toBe('蕾的母亲。')
+    expect(jest.mocked(requestGoogle).mock.calls[0][1]).not.toContain('Rei')
+    expect(loadGameTranslationRecords(root).find((record) => record.src === 'Rei')?.zh).toBe('国王')
+    expect(loadGameTranslationRecords(root).some((record) => record.src.trim() === 'mother.')).toBe(false)
+  })
+
+  it('allows short-name optimization to polish the whole name while normal force still locks it', async () => {
+    rgssNames()
+    jest.mocked(requestGoogle).mockResolvedValue('新译名')
+    const normal = await liveTranslateTexts(['Rei'], { contentRoot: root, engines: ['google'], persist: false, force: true, sourceLang: 'en' })
+    expect(normal.items[0].zh).toBe('蕾')
+    expect(requestGoogle).not.toHaveBeenCalled()
+    const optimized = await liveTranslateTexts(['Rei'], { contentRoot: root, engines: ['google'], persist: false, force: true, sourceLang: 'en', optimizeWholeName: true })
+    expect(optimized.items[0].zh).toBe('新译名')
+    expect(requestGoogle).toHaveBeenCalled()
+  })
+
   it('dispatches bypassed work before opening caches, then preserves a concurrent human edit', async () => {
     const trace = jest.fn()
     jest.mocked(requestGoogle).mockImplementation(async () => {
@@ -162,8 +209,9 @@ describe('live short-sentence integration', () => {
       }
       return text === 'Thunder8' ? '闪电8' : '你好'
     })
-    const result = await liveTranslateTexts(['Thunder007', 'Hello', 'Other', 'Fourth', 'Thunder8'], { contentRoot: root, engines: ['google'] })
-    expect(result.items[0]).toMatchObject({ engine: 'cache:numeric', zh: '雷霆007' })
+    const cached = await liveTranslateTexts(['Thunder007'], { contentRoot: root, engines: ['google'] })
+    expect(cached.items[0]).toMatchObject({ engine: 'cache:numeric', zh: '雷霆007' })
+    const result = await liveTranslateTexts(['Hello', 'Other', 'Fourth', 'Fifth', 'Thunder8'], { contentRoot: root, engines: ['google'] })
     expect(result.items[4]).toMatchObject({ engine: 'live:google', zh: '闪电8' })
   })
   it('keeps successful items when another times out and ignores its late response', async () => {
@@ -264,15 +312,20 @@ describe('live short-sentence integration', () => {
   })
   it('waits for the first engine and never invokes fallback after a valid result', async () => {
     let finish!: (value: string) => void
+    let dispatched!: () => void
+    const started = new Promise<void>((resolve) => {
+      dispatched = resolve
+    })
     jest.mocked(requestGoogle).mockImplementation(
       () =>
         new Promise((resolve) => {
           finish = resolve
+          dispatched()
         })
     )
     jest.mocked(bergamotTranslate).mockResolvedValue('备用译文')
     const pending = liveTranslateTexts(['こんにちは世界'], { contentRoot: root, engines: ['google', 'bergamot'] })
-    await Promise.resolve()
+    await started
     expect(requestGoogle).toHaveBeenCalledTimes(1)
     expect(bergamotTranslate).not.toHaveBeenCalled()
     finish('首选译文')

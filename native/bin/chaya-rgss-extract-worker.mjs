@@ -2136,12 +2136,18 @@ function createGameTranslateLookup(records) {
   }
   return lookup;
 }
-function loadGameTranslateLookup(contentRoot) {
-  try {
-    return createGameTranslateLookup(loadGameTranslationRecords(contentRoot));
-  } catch {
-    return /* @__PURE__ */ Object.create(null);
-  }
+function loadRgssTranslationLookup(contentRoot) {
+  const records = loadGameTranslationRecords(contentRoot);
+  const lookup = createGameTranslateLookup(records);
+  const overrides = createGameTranslateLookup(
+    records.filter(
+      ({ engine }) => engine === "manual" || engine === "import" || engine?.startsWith("import:") || engine === "live:optimize" || engine?.startsWith("live:optimize:")
+    )
+  );
+  return { lookup, overrides };
+}
+function resolveRgssTranslation(src, current, translations) {
+  return translations.overrides[src] || current || translations.lookup[src] || "";
 }
 
 // services/extract/lib/data-fields.ts
@@ -2203,6 +2209,15 @@ function loadRgssScriptTranslationItems(contentRoot, lookup, startId = 1) {
 // services/extract/lib/rgss/writeback.ts
 import fs10 from "node:fs";
 import path9 from "node:path";
+
+// lib/translate/name-glossary.ts
+var NAME_GLOSSARY_CATEGORIES = ["actor", "actor_nickname", "item", "weapon", "armor", "skill", "enemy", "state", "map"];
+var TOKEN_RE2 = new RegExp(SENTENCE_TOKEN_SOURCE, "g");
+function isNameGlossaryCategory(value) {
+  return !!value && NAME_GLOSSARY_CATEGORIES.includes(value);
+}
+
+// services/extract/lib/rgss/writeback.ts
 function strings(value) {
   const result = /* @__PURE__ */ new Map();
   const seen = /* @__PURE__ */ new WeakSet();
@@ -2295,7 +2310,7 @@ function fieldCategory(className, field, fallback) {
     "RPG::System": "system"
   };
   if (className === "RPG::Actor" && field === "nickname") return "actor_nickname";
-  if (className === "RPG::Actor" && field === "profile") return "actor_profile";
+  if (className === "RPG::Actor" && (field === "profile" || field === "description")) return "actor_profile";
   const category = base[className] ?? fallback;
   if (field === "description" && (category === "item" || category === "weapon" || category === "armor" || category === "skill")) return `${category}_desc`;
   if (category === "state" && /^message/.test(field)) return "state_msg";
@@ -2349,6 +2364,10 @@ function itemsFromFiles(files) {
 }
 function loadRgssItems(dataDir) {
   return itemsFromFiles(loadFiles(dataDir));
+}
+function loadRgssNameItems(dataDir) {
+  const files = listDataFileNames(dataDir).filter((name) => /^(?:Actors|Items|Weapons|Armors|Skills|Enemies|States|MapInfos)\.rvdata2?$/i.test(name)).map((name) => loadOneDataFile(dataDir, name));
+  return itemsFromFiles(files).filter((item) => isNameGlossaryCategory(item.meta.category));
 }
 
 // services/extract/lib/rgss-sources-index.ts
@@ -2407,19 +2426,20 @@ function extensionFor(dataDir) {
   }
   return null;
 }
-function resolveRgssItemZh(src, current, lookup) {
-  const raw = current || lookup[src] || "";
+function resolveRgssItemZh(src, current, translations) {
+  const raw = resolveRgssTranslation(src, current, translations);
   return fixKnownBadGameTermTranslation(src, raw) ?? (raw || lookupGameTerm(src) || "");
 }
 function attachLookup(contentRoot, dataItems) {
-  const lookup = loadGameTranslateLookup(contentRoot);
+  const translations = loadRgssTranslationLookup(contentRoot);
+  const { lookup } = translations;
   const withZh = dataItems.map((item) => {
-    const zh = resolveRgssItemZh(item.src, item.zh || "", lookup);
-    return { ...item, zh, savedZh: item.savedZh || zh || void 0, initialZh: item.initialZh || zh || void 0 };
+    const zh = resolveRgssItemZh(item.src, item.zh || "", translations);
+    return { ...item, zh, savedZh: zh || void 0, initialZh: item.initialZh || zh || void 0 };
   });
   const known = new Set(withZh.map((item) => item.src));
   const scriptItems = loadRgssScriptTranslationItems(contentRoot, lookup, withZh.length + 1).filter((item) => !known.has(item.src)).map((item) => {
-    const zh = resolveRgssItemZh(item.src, item.zh || "", lookup);
+    const zh = resolveRgssItemZh(item.src, item.zh || "", translations);
     return { ...item, zh, savedZh: zh || void 0, initialZh: zh || void 0 };
   });
   return [...withZh, ...scriptItems];
@@ -2443,7 +2463,10 @@ function loadRgssTranslationItems(contentRoot) {
 try {
   const contentRoot = String(workerData?.contentRoot || "");
   if (!contentRoot) throw new Error("items-worker: missing contentRoot");
-  const items = loadRgssTranslationItems(contentRoot);
+  const namesOnly = workerData.namesOnly === true;
+  const dataDir = namesOnly ? rgssDataDir(contentRoot) : null;
+  if (namesOnly && !dataDir) throw new Error("RGSS Data/ directory not found");
+  const items = dataDir ? loadRgssNameItems(dataDir) : loadRgssTranslationItems(contentRoot);
   const resolved = resolveGame(contentRoot);
   const engine = resolved?.ok && (resolved.engine === "VX Ace" || resolved.engine === "VX") ? resolved.engine : null;
   const detected = detectSourceLanguage(items.map((i) => i.src));

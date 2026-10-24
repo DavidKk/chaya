@@ -35,3 +35,19 @@ export function loadGameTranslateLookup(contentRoot: string): Record<string, str
     return Object.create(null)
   }
 }
+
+/** Deliberate edits override translated RGSS Data; ordinary machine caches only fill missing values. */
+export function loadRgssTranslationLookup(contentRoot: string) {
+  const records = loadGameTranslationRecords(contentRoot)
+  const lookup = createGameTranslateLookup(records)
+  const overrides = createGameTranslateLookup(
+    records.filter(
+      ({ engine }) => engine === 'manual' || engine === 'import' || engine?.startsWith('import:') || engine === 'live:optimize' || engine?.startsWith('live:optimize:')
+    )
+  )
+  return { lookup, overrides }
+}
+
+export function resolveRgssTranslation(src: string, current: string, translations: ReturnType<typeof loadRgssTranslationLookup>): string {
+  return translations.overrides[src] || current || translations.lookup[src] || ''
+}

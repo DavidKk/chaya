@@ -1,11 +1,11 @@
 /**
  * @jest-environment node
  */
-import { createLookupEnrichment } from '@/plugins/mv/src/translator/lookup/lookup-enrich'
+import { collectGameNameSources, createLookupEnrichment } from '@/plugins/mv/src/translator/lookup/lookup-enrich'
 
 function installDb(partial: Record<string, unknown>) {
   const g = globalThis as Record<string, unknown>
-  const keys = ['$dataActors', '$dataEnemies', '$dataSkills', '$dataItems', '$dataWeapons', '$dataArmors', '$dataStates']
+  const keys = ['$dataActors', '$dataEnemies', '$dataSkills', '$dataItems', '$dataWeapons', '$dataArmors', '$dataStates', '$dataMapInfos']
   const prev: Record<string, unknown> = {}
   for (const key of keys) {
     prev[key] = g[key]
@@ -21,6 +21,14 @@ function installDb(partial: Record<string, unknown>) {
 }
 
 describe('createLookupEnrichment', () => {
+  it('collects map and actor names without collecting actor descriptions', () => {
+    const restore = installDb({ $dataActors: [null, { name: 'Rei', description: "Rei's mother." }], $dataMapInfos: [null, { name: 'Floating City' }] })
+    try {
+      expect(collectGameNameSources()).toEqual(['Rei', 'Floating City'])
+    } finally {
+      restore()
+    }
+  })
   it('with no DB, resolve only uses exact lookup', () => {
     const restore = installDb({})
     const enrich = createLookupEnrichment()

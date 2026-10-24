@@ -52,3 +52,27 @@ export function filterAndRankTranslationListItems(items: ExtractedTranslationIte
   ranked.sort((a, b) => a.rank - b.rank || a.item.src.length - b.item.src.length || a.item.id.localeCompare(b.item.id))
   return ranked.map((entry) => entry.item)
 }
+
+const NAME_CATEGORIES = new Set(['item', 'weapon', 'armor', 'skill', 'actor', 'enemy', 'state', 'map'])
+const DESC_CATEGORIES = new Set(['item_desc', 'weapon_desc', 'armor_desc', 'skill_desc', 'actor_profile', 'actor_nickname'])
+const SYSTEM_CATEGORIES = new Set(['system', 'state_msg', 'plugin', 'resource'])
+
+export function filterTranslationListItems(
+  items: ExtractedTranslationItem[],
+  opts: { nature?: string; category?: string; status?: string; query?: string }
+): ExtractedTranslationItem[] {
+  let list = items
+  const nature = opts.nature || 'all'
+  if (nature !== 'all') {
+    if (nature === 'dialogue' || nature === 'story' || nature === 'choice') list = list.filter((it) => it.meta.category === nature)
+    else if (nature === 'name') list = list.filter((it) => NAME_CATEGORIES.has(it.meta.category))
+    else if (nature === 'desc') list = list.filter((it) => DESC_CATEGORIES.has(it.meta.category))
+    else if (nature === 'system') list = list.filter((it) => SYSTEM_CATEGORIES.has(it.meta.category))
+    else if (nature === 'hardcoded') list = list.filter((it) => Boolean(it.meta.isHardcoded || !it.meta.localesKey))
+    else if (nature === 'locales') list = list.filter((it) => Boolean(it.meta.localesKey))
+  }
+  if (opts.category && opts.category !== 'all') list = list.filter((it) => it.meta.category === opts.category)
+  if (opts.status === 'untranslated') list = list.filter((it) => !it.zh || !it.zh.trim())
+  else if (opts.status === 'translated') list = list.filter((it) => Boolean(it.zh && it.zh.trim()))
+  return filterAndRankTranslationListItems(list, opts.query || '')
+}

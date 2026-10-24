@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { isNameGlossaryCategory } from '@/lib/translate/name-glossary'
 import { isSourceText } from '@/lib/translate/source-text'
 
 import { isTechnicalField, isTextField } from '../data-fields'
@@ -105,7 +106,7 @@ function fieldCategory(className: string, field: string, fallback: ExtractedText
     'RPG::System': 'system',
   }
   if (className === 'RPG::Actor' && field === 'nickname') return 'actor_nickname'
-  if (className === 'RPG::Actor' && field === 'profile') return 'actor_profile'
+  if (className === 'RPG::Actor' && (field === 'profile' || field === 'description')) return 'actor_profile'
   const category = base[className] ?? fallback
   if (field === 'description' && (category === 'item' || category === 'weapon' || category === 'armor' || category === 'skill')) return `${category}_desc`
   if (category === 'state' && /^message/.test(field)) return 'state_msg'
@@ -193,6 +194,14 @@ function itemsFromFiles(files: DataFile[]): ExtractedTranslationItem[] {
 
 export function loadRgssItems(dataDir: string): ExtractedTranslationItem[] {
   return itemsFromFiles(loadFiles(dataDir))
+}
+
+/** Database name fields only; map events and scripts never contribute glossary authority. */
+export function loadRgssNameItems(dataDir: string): ExtractedTranslationItem[] {
+  const files = listDataFileNames(dataDir)
+    .filter((name) => /^(?:Actors|Items|Weapons|Armors|Skills|Enemies|States|MapInfos)\.rvdata2?$/i.test(name))
+    .map((name) => loadOneDataFile(dataDir, name))
+  return itemsFromFiles(files).filter((item) => isNameGlossaryCategory(item.meta.category))
 }
 
 /**

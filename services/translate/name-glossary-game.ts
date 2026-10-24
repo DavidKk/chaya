@@ -1,25 +1,74 @@
+import fs from 'node:fs'
+import { readFile, unlink } from 'node:fs/promises'
+import path from 'node:path'
+
+import { RGSS_EXTRACT_WORKER_PATH } from '@/constants/paths'
 import { entriesFromNamePairs, isNameGlossaryCategory, isUsableNamePair, type NameEntry } from '@/lib/translate/name-glossary'
-import { type ExtractedTextCategory, loadExtractedItems } from '@/services/extract/lib/extract-items'
+import { type ExtractedTranslationItem, loadExtractedItems } from '@/services/extract/lib/extract-items'
+import { runWorkerOnce } from '@/services/jobs'
 import { getGameCacheContext } from '@/services/translate/game-cache-context'
+import { loadGameTranslateLookup, loadRgssTranslationLookup, resolveRgssTranslation } from '@/services/translate/game-lookup'
 
 const tables = new Map<string, { stamp: string; entries: NameEntry[] }>()
+const sources = new Map<string, { stamp: string; items: Promise<ExtractedTranslationItem[]> }>()
 
-function zhForName(src: string, lookup: Record<string, string>, fallback?: string): string {
-  return String(lookup[src] || fallback || '').trim()
+function rgssSourceStamp(root: string): string | null {
+  const dir = fs.readdirSync(root).find((name) => name.toLowerCase() === 'data')
+  if (!dir) return null
+  const dataDir = path.join(root, dir)
+  const names = fs
+    .readdirSync(dataDir)
+    .filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name))
+    .sort()
+  if (!names.length) return null
+  return JSON.stringify(
+    names.map((name) => {
+      const stat = fs.statSync(path.join(dataDir, name))
+      return [name, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs]
+    })
+  )
 }
 
-export function loadGameNameEntries(contentRoot: string, toLang?: string | null): NameEntry[] {
+async function loadNameSources(root: string, stamp: string | null): Promise<ExtractedTranslationItem[]> {
+  if (stamp === null) return loadExtractedItems(root)
+  const cached = sources.get(root)
+  if (cached?.stamp === stamp) return cached.items
+  const items = (async () => {
+    const { path: file } = await runWorkerOnce({ entry: RGSS_EXTRACT_WORKER_PATH, workerData: { contentRoot: root, namesOnly: true } })
+    try {
+      const body = JSON.parse(await readFile(file, 'utf8')) as { items: ExtractedTranslationItem[] }
+      return body.items
+    } finally {
+      await unlink(file).catch(() => {})
+    }
+  })()
+  if (sources.size >= 8 && !sources.has(root)) sources.delete(sources.keys().next().value!)
+  sources.set(root, { stamp, items })
+  try {
+    return await items
+  } catch (error) {
+    if (sources.get(root)?.items === items) sources.delete(root)
+    throw error
+  }
+}
+
+export async function loadGameNameEntries(contentRoot: string, toLang?: string | null): Promise<NameEntry[]> {
   const root = String(contentRoot || '')
   if (!root) return []
-  const stamp = `${getGameCacheContext(root).stamp}:${toLang || 'zh'}`
+  const sourceStamp = rgssSourceStamp(root)
+  const context = getGameCacheContext(root)
+  const stamp = `${context.stamp}:${sourceStamp}:${toLang || 'zh'}`
   const cached = tables.get(root)
   if (cached?.stamp === stamp) return cached.entries
-  const lookup = getGameCacheContext(root).lookup
+  const items = await loadNameSources(root, sourceStamp)
+  const translations = sourceStamp === null ? null : loadRgssTranslationLookup(root)
+  const lookup = translations?.lookup ?? loadGameTranslateLookup(root)
   const pairs: NameEntry[] = []
-  for (const item of loadExtractedItems(root)) {
-    const category = item.meta.category as ExtractedTextCategory
-    if (!isNameGlossaryCategory(category)) continue
-    const zh = zhForName(item.src, lookup, item.zh || item.savedZh)
+  for (const item of items) {
+    const category = item.meta.category
+    if (!isNameGlossaryCategory(category) || context.blocked(item.src)) continue
+    const current = item.zh || item.savedZh || ''
+    const zh = String(translations ? resolveRgssTranslation(item.src, current, translations) : lookup[item.src] || current).trim()
     if (!isUsableNamePair(item.src, zh)) continue
     pairs.push({ src: item.src, zh, category })
   }
@@ -29,17 +78,8 @@ export function loadGameNameEntries(contentRoot: string, toLang?: string | null)
   return entries
 }
 
-export function nameEntriesFromLookup(srcNames: Iterable<string>, lookup: Record<string, string>, toLang?: string | null): NameEntry[] {
-  const pairs: NameEntry[] = []
-  for (const src of srcNames) {
-    const zh = String(lookup[src] || '').trim()
-    if (!isUsableNamePair(src, zh)) continue
-    pairs.push({ src, zh })
-  }
-  return entriesFromNamePairs(pairs, toLang)
-}
-
 /** Test helper: drop memoized tables after mutating extract/records mocks. */
 export function resetGameNameGlossaryTables() {
   tables.clear()
+  sources.clear()
 }

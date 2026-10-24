@@ -7,6 +7,7 @@ import { resolveGame } from '@/lib/game/resolve'
 import { runExtract } from '@/services/extract/lib/main'
 import { filterRgssSeedKeys, loadRgssTranslationItems, looksLikeRgssProject, runRgssExtract, writeRgssTranslations } from '@/services/extract/lib/rgss'
 import { parseRubyMarshal, type RubyArray, rubyToPlain, type RubyValue, writeRubyMarshal } from '@/services/extract/lib/rgss/marshal'
+import { appendPublicGameCache } from '@/services/storage/game-files'
 import { describeRgssPreview, setRgssPreviewView } from '@/services/translate/rgss-preview'
 
 function object(className: string, fields: Record<string, RubyValue>): RubyValue {
@@ -54,6 +55,39 @@ function makeProject(ext = '.rvdata2') {
 }
 
 describe('RGSS VX/VX Ace support', () => {
+  it('keeps Data names over machine cache while exposing saved name-sync and manual overrides', () => {
+    const root = makeProject()
+    try {
+      writeData(root, 'Actors', array(object('RPG::Actor', { name: str('Rei'), description: str("Rei's mother.") })))
+      writeRgssTranslations(root, { Rei: '蕾', "Rei's mother.": '丽的母亲。' })
+      const dataBefore = fs.readFileSync(path.join(root, 'Data', 'Actors.rvdata2'))
+      appendPublicGameCache(root, [{ s: 'Rei', t: '国王', engine: 'live:bing' }])
+      expect(loadRgssTranslationItems(root).find((item) => item.src === 'Rei')?.zh).toBe('蕾')
+      appendPublicGameCache(root, [{ s: "Rei's mother.", t: '蕾的母亲。', engine: 'live:optimize:names' }])
+      expect(loadRgssTranslationItems(root).find((item) => item.src === "Rei's mother.")).toMatchObject({ zh: '蕾的母亲。', savedZh: '蕾的母亲。' })
+      appendPublicGameCache(root, [{ s: 'Rei', t: '蕾伊', engine: 'manual' }])
+      expect(loadRgssTranslationItems(root).find((item) => item.src === 'Rei')?.zh).toBe('蕾伊')
+      expect(fs.readFileSync(path.join(root, 'Data', 'Actors.rvdata2'))).toEqual(dataBefore)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+  it('classifies VX Ace actor descriptions as profiles rather than authoritative names', () => {
+    const root = makeProject()
+    try {
+      writeData(root, 'Actors', array(object('RPG::Actor', { name: str('Rei'), description: str("Rei's mother.") })))
+      const items = loadRgssTranslationItems(root)
+      expect(items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ src: 'Rei', meta: expect.objectContaining({ category: 'actor' }) }),
+          expect.objectContaining({ src: "Rei's mother.", meta: expect.objectContaining({ category: 'actor_profile' }) }),
+        ])
+      )
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it.each(['.rvdata', '.rvdata2'])('excludes resource slots in %s but preserves visible same-name text and old seed eligibility', (ext) => {
     const root = makeProject(ext)
     try {

@@ -100,6 +100,8 @@ export function collectGameNameSources(): string[] {
       }
     }
   }
+  const maps = (globalThis as unknown as { $dataMapInfos?: Array<{ name?: string } | null> }).$dataMapInfos
+  for (const map of maps || []) if (map?.name?.trim()) names.add(map.name.trim())
   return [...names]
 }
 

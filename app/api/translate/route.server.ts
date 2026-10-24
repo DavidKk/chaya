@@ -113,6 +113,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       scope?: 'short-entities' | 'all'
       includeChoices?: boolean
       planId?: string
+      previewId?: string
+      names?: unknown[]
       limit?: number
       /** 跳过缓存强制重译 */
       force?: boolean
@@ -243,30 +245,24 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         )
       }
       if (action === 'scan-names') {
-        const names = Array.isArray((body as { names?: unknown }).names)
-          ? (body as { names: unknown[] }).names.filter((name): name is string => typeof name === 'string' && !!name.trim())
-          : undefined
+        const names = Array.isArray(body.names) ? body.names.filter((name): name is string => typeof name === 'string' && !!name.trim()) : undefined
         return apiOk(
-          scanNameSentenceSync(body.contentRoot, {
+          await scanNameSentenceSync(body.contentRoot, {
             names,
-            renameFrom: typeof (body as { renameFrom?: unknown }).renameFrom === 'string' ? (body as { renameFrom: string }).renameFrom : undefined,
-            renameTo: typeof (body as { renameTo?: unknown }).renameTo === 'string' ? (body as { renameTo: string }).renameTo : undefined,
+            limit: typeof body.limit === 'number' ? body.limit : undefined,
+            signal: request.signal,
+            sourceLang: typeof body.sourceLang === 'string' ? body.sourceLang : undefined,
             targetLang: typeof body.targetLang === 'string' ? body.targetLang : undefined,
           })
         )
       }
       if (action === 'apply-names') {
-        const names = Array.isArray((body as { names?: unknown }).names)
-          ? (body as { names: unknown[] }).names.filter((name): name is string => typeof name === 'string' && !!name.trim())
-          : undefined
+        if (typeof body.previewId !== 'string' || !body.previewId) return apiError(400, 'NAME_PREVIEW_REQUIRED', 'Scan names and confirm the preview before applying')
         return apiOk(
           await applyNameSentenceSync({
             contentRoot: body.contentRoot,
-            names,
-            renameFrom: typeof (body as { renameFrom?: unknown }).renameFrom === 'string' ? (body as { renameFrom: string }).renameFrom : undefined,
-            renameTo: typeof (body as { renameTo?: unknown }).renameTo === 'string' ? (body as { renameTo: string }).renameTo : undefined,
+            previewId: body.previewId,
             targetLang: typeof body.targetLang === 'string' ? body.targetLang : undefined,
-            limit: typeof body.limit === 'number' ? body.limit : undefined,
             signal: request.signal,
           })
         )

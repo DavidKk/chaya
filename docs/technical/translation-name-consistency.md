@@ -1,7 +1,7 @@
 # 翻译专名句内一致性技术设计
 
 - 日期：2026-10-25
-- 状态：草案；未实现。与需求对齐后开工。
+- 有效性：现行；实现进度：live / 插件锁定、RGSS 名称来源、预览快照写回已接入并通过相关回归；实际游戏存量应用仍需用户确认。
 - 需求：[专名一致性](../translation-name-consistency.md)（适用 §3，人名表 §4，锁 span §5，存量 §6）；实现前需求与本文一起读
 - 关联：[质量设计](translation-optimization.md) 秩 §2、[管线](translation-pipeline.md) live 查找序、[引擎秩](../../lib/translate/cache-engine-rank.ts)
 - 按需定位：人名表 §2；锁点与拼接 §3；live / 插件接线 §4；存量 §5；API / UI §6；测试 §7；落点 §8。
@@ -28,21 +28,27 @@ extract-items 名称行 ⋈ 本作当前权威译文
 
 不把专名 lock 伪装成 `SentenceRecord` 塞进 planner：planner 仍按标点切句；lock 是发译前的额外半开区间 `[start,end)`。不改 `SENTENCE_RULE_VERSION`，不新建 SQLite 表。
 
-目标语言一期仅 `zh`。`'s` →「的」只在 `to=zh` 时展开；其它目标语言只锁原词、不发明所有格译文。CJK 名最长精确匹配，不用拉丁词边界。
+目标语言一期仅简体中文 `zh`（兼容 `ch` / `zh-cn` / `zh-hans`）；其它目标语言（含繁体）不启用本作简体译名锁定及存量同步。CJK 名最长精确匹配，不用拉丁词边界。
 
 ## 2. 人名表
 
 ### 2.1 收词
 
-| 项     | 约定                                                                                                                                |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| 源     | `extract-items` 且 `meta.category ∈ {actor, actor_nickname, item, weapon, armor, skill, enemy, state, map}` ⋈ 本作 records / lookup |
-| 权威   | **名称行当前权威译文**（与列表展示一致），不限 `manual` / `live:optimize*`                                                          |
-| 不入表 | zh 空、zh===src、`reset` 作废键、短于 2 字、单字母拉丁名、非名称类、无 category 的裸 ndjson                                         |
-| 匹配   | 更长 `src` 优先；拉丁名单词边界；撇号所有格单独成变体，不用 `\b` 切 `Rei's`                                                         |
-| 变体   | 原词；`to=zh` 时 ASCII `'s` / `’s` → 译文+「的」（译文已以「的」结尾则不加）                                                        |
+| 项     | 约定                                                                                                                                                |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 源     | 与 `extract-items` 一致的字段分类，`meta.category ∈ {actor, actor_nickname, item, weapon, armor, skill, enemy, state, map}` ⋈ 本作 records / lookup |
+| 权威   | **名称行当前权威译文**（与列表展示一致），不限 `manual` / `live:optimize*`                                                                          |
+| 不入表 | zh 空、zh===src、`reset` 作废键、短于 2 字、单字母拉丁名、非名称类、无 category 的裸 ndjson                                                         |
+| 匹配   | 更长 `src` 优先；拉丁名单词边界；撇号所有格单独成变体，不用 `\b` 切 `Rei's`                                                                         |
+| 变体   | 原词；`to=zh` 时 ASCII `'s` / `’s` → 译文+「的」（译文已以「的」结尾则不加）                                                                        |
 
 列表把 `Rei` 机翻成「蕾」即可入表并锁句子；不必先手改或跑「优化名称」。名称行被 `manual` / `import*` / `live:optimize*` 定稿后，只更新表，不改写该名称行。
+
+RGSS 服务端用 `items-worker` 的 `namesOnly` 模式，仅解析 Actors / Items / Weapons / Armors / Skills / Enemies / States / MapInfos 名称库，过滤非名称字段；`description` 与 `profile` 均归角色介绍。名称源按 Data 文件身份缓存，`loadGameNameEntries` 异步装表，reset 键排除。
+
+RGSS 名称表与列表共用 `game-lookup.ts` 的解析规则：显式 `manual` / `import` / `import:*` / `live:optimize` / `live:optimize:*` 优先，其次为 Data 中已有译文，普通机器缓存仅补缺。因此 Data 中 `Rei=蕾` 不会被旧 `live:bing` 的「国王」覆盖；同步结果与人工修改在列表重读后可见，`savedZh` 同步更新为已保存值，不修改游戏 Data 文件。MV/MZ 保持既有 lookup 优先顺序。
+
+基础名存在时，所有格复合标签（如 `Rei's Baby`）不作为整词入表，防止旧标签权威压住 `Rei's=蕾的`；其余多词姓名保留最长匹配。
 
 插件进程内没有 extract-items 时：用 `$dataActors` 等库表字段（现有 `FIELD_BUCKETS`）作 src，zh 取本作 `store` lookup。规则与上表相同，不读其它游戏的 shared 名。
 
@@ -59,7 +65,7 @@ findNameSpans(text, entries): NameSpan[]         // 跳过 SENTENCE_TOKEN_SOURCE
 stitchNameLocks(src, spans, gapZh): string       // 原文空隙保留；只替换 lock 与已译 gap
 ```
 
-服务端装表：`services/translate/name-glossary-game.ts`，挂 `getGameCacheContext` 的 stamp，文件变则重建。插件：`store.put` / 热更新后 `rebuild`。
+服务端装表：`services/translate/name-glossary-game.ts`，挂本作 records stamp 与 Data 名称源签名，文件变则重建；并发首次装表复用名称源 worker Promise。插件：`store.put` / 热更新后 `rebuild`。
 
 ## 3. 锁点与拼接
 
@@ -85,7 +91,7 @@ stitchNameLocks(src, spans, gapZh): string       // 原文空隙保留；只替�
 
 gap 递归 `liveTranslateTexts`：`trackLiveActivity: false`、沿用 engines；**不要**对空隙碎片写独立 cache 权威（` mother.` 不是可复用句）。与 planner 对独立句 gap 的 `force` 不同：这里默认 `persist: false`，只把 stitch 后的整句按原调用 `persist` 写入。
 
-一次改动覆盖：默认 `/api/translate`、seed / `fillMissingFromSeed`、sources、`mode: realtime`。`short-entities` 整词名称等于无 gap，不拦「优化名称」改名。
+一次改动覆盖：默认 `/api/translate`、seed / `fillMissingFromSeed`、sources、`mode: realtime`。`short-entities` 显式传内部 `optimizeWholeName: true`，仅跳过完整名称对自身的锁定，让「优化名称」能改名；默认 `force` 仍锁名，复合标签仍锁其基础名。
 
 ### 4.2 插件 `translator.translate()`
 
@@ -102,25 +108,25 @@ gap 递归 `liveTranslateTexts`：`trackLiveActivity: false`、沿用 engines；
 
 ## 5. 存量 apply-names
 
-不是翻译引擎，是洗库。挂 `mode: optimize`，与 short-entities 同门闩：`assertOptimizeMayDispatch`，实时对白让路。`scan-names` 只读预览，不被门闩挡住。
+这是对已有机翻的显式回填。`scan-names` 先按当前选中名称扫描本作 records，跳过 `manual*` / `import*` / `reset` / `game:locales`，再 lock + 只译 gap（`persist:false`、`trackLiveActivity:false`、沿用 sourceLang）。每个 gap 派发前检查 `assertOptimizeMayDispatch`；暂停即返回 paused，不给出可写预览。
 
-**主路径（不依赖认出「丽」）：** 默认按当前选中名称或名称筛选，禁止无预览扫全库对白。本作 records 原文含该名或其变体 → 跳过 `manual` / `import*` / `reset` → 按 §3 lock + 只译 gap（可命中短句缓存，默认可发译但不 `force` 整句）→ stitch → 与当前 zh 相同则 skip，不同则进预览。预览须展示整句新旧译文：gap 重译可能改写专名以外的用词。已是 `live:optimize*` 但 stitch 仍不同就可改。
+预览是完整最终译文，禁止以「蕾的 mother.」等混合文本代替。与当前 zh 一致则 skip；gap 失败则 `review`，保留旧译文且不写入。一次最多 80 条候选，API 上限 200，`hasMore` 表示尚有未处理条目；一期不提供译文字符串替换快路径。
 
-**快路径：** 名称行刚从 `oldZh` 改成 `newZh` 时，对含该 src 的 live 句做片段替换（单词边界 / 已展开变体）。对不齐 → `needsReview`，不盲写。
+服务端用随机 `previewId` 保存原文、完整新旧译文、原始 record 签名（id/revision/zh/engine）、选中名称表及 contentRoot。预览缓存最多 16 份、有效期 10 分钟，仅存进程内，服务重启后需重扫。
 
-写回 `live:optimize:names`（秩 2，与现有 `live:optimize*` 同档）。shared `writeMany` 拒则整键 skip，避免只写 ndjson。
+`apply-names` 必须带 `previewId`：校验游戏、有效期与词表，认领并消费快照，逐条比较当前 record 签名及保护级别后，写入**已预览**的 `newZh`，不再调用引擎。换游戏/改名/过期返回 paused；句子发生变化则跳过。写回 `live:optimize:names`（秩 2），shared `writeMany` 拒绝则整键 skip；仅 accepted 以 `{ s, t, engine, at }` 事件回填本作 ndjson，保留优化来源。重复或并发提交不能重放预览。完整名称本身不在存量同步中改写。apply 期间再次检查实时门闩，暂停后重新预览。
 
-禁止：译文全局「丽→蕾」；为不一致 `force` 重跑全库对白。
+禁止译文全局「丽→蕾」、未经预览写入、为不一致 `force` 重跑全库对白。
 
 ## 6. API 与 UI
 
-| 面                               | 行为                                                                      |
-| -------------------------------- | ------------------------------------------------------------------------- |
-| `mode: optimize` + `scan-names`  | 预览 `{ src, oldZh, newZh, via }`（via = stitch / rename / review）与计数 |
-| `mode: optimize` + `apply-names` | 确认后写回；`limit` / `signal`；门闩失败返回 paused                       |
-| 列表                             | 次要动作「同步到句子」；名称筛选时可强调。先 scan 再确认。不新开 Tab      |
-| 翻译库「优化」                   | 不改文案、不复用                                                          |
-| i18n                             | `translate.syncNames*`，与 `optimizeNames*` 分开                          |
+| 面                               | 行为                                                                                            |
+| -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `mode: optimize` + `scan-names`  | 异步生成完整 `{ src, oldZh, newZh, via }`（stitch / review）、计数与 `previewId`                |
+| `mode: optimize` + `apply-names` | 凭 `previewId` 写入快照；`signal`；门闩或快照失效返回 paused                                    |
+| 列表                             | 名称筛选下提供「同步到句子」，逐条展示完整新旧译文，确认后刷新 extract-items；`names:[]` 不派发 |
+| 翻译库「优化」                   | 不改文案、不复用                                                                                |
+| i18n                             | `translate.syncNames*`，与 `optimizeNames*` 分开                                                |
 
 错误码把 `scan-names` / `apply-names` 列入 `OPTIMIZE_ACTION` 合法 action；秩跳过进 stats。
 
@@ -131,10 +137,15 @@ gap 递归 `liveTranslateTexts`：`trackLiveActivity: false`、沿用 engines；
 3. cache hit「丽的母亲」不经 lock 改写；只出现在 scan-names 预览。
 4. 插件：plan miss + 直连 google/apple 时只发送 gap。
 5. 秩：apply-names 不盖 manual/import；可升普通 `live:*`。
-6. 门闩：realtime 进行中 apply-names 不新派发。
-7. `mode: ai` 直测全文仍可把 Rei 译成丽。
+6. 门闩：realtime 进行中 scan 的 gap 不新派发，apply 不写回。
+7. RGSS 集成：真实 Marshal 名称源 → live force → gap 引擎入参不含 Rei，stitch 含蕾；角色介绍不入表，复合标签不遮蔽基础名。
+8. 快照：apply 不发引擎、拒绝改名/换游戏/过期、跳过扫描后改动的句子、不可重放；同步后列表重新读取数据。
+9. `mode: ai` 直测全文仍可把 Rei 译成丽。
+10. Data 的「蕾」高于普通机器缓存「国王」；同步与手动事件覆盖旧 Data 展示，刷新后 `savedZh` 一致，Data 字节不变。
 
-## 8. 落点与开工顺序
+2026-10-25 本机验证：当前绑定 RGSS 游戏的 `force:true, persist:false` 实际请求返回 `Rei's mother. → 蕾的妈妈`、`Rei's Baby → 蕾的宝宝`；`scan-names` 小批预览也使用「蕾」，未应用到真实游戏。自动化覆盖 RGSS Marshal 来源、Data/缓存冲突、预览应用与防重放、列表刷新，以及插件 Ollama 直连和 Apple 服务回调的 gap 派发；没有逐一实测全部外部引擎和游戏运行时。
+
+## 8. 实现落点
 
 1. `lib/translate/name-glossary.ts` + 单测（变体 / 边界 / stitch）。
 2. `name-glossary-game.ts` 接入 `getGameCacheContext`。

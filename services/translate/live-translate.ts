@@ -145,6 +145,8 @@ export async function liveTranslateTexts(
     engine?: string
     engines?: TranslateRunEngine[]
     force?: boolean
+    /** Short-name optimization may replace a whole name's own glossary entry. */
+    optimizeWholeName?: boolean
     /** Dispatch without full cache search; validate current authority before accepting the result. */
     cacheMode?: 'bypass'
     /** Internal, dependency-validated plan from the independent cache lane. */
@@ -393,9 +395,9 @@ export async function liveTranslateTexts(
                   return items[0]
                 }
               }
-              const nameEntries = contentRoot ? loadGameNameEntries(contentRoot, opts?.targetLang || 'zh') : []
+              const nameEntries = contentRoot ? await loadGameNameEntries(contentRoot, opts?.targetLang || 'zh') : []
               const namePlan = planLockedNames(src, nameEntries, { sourceLang: opts?.sourceLang, targetLang: opts?.targetLang || 'zh' })
-              if (namePlan) {
+              if (namePlan && (!namePlan.wholeName || !opts?.optimizeWholeName)) {
                 const gapZh = new Map<string, string>()
                 let remainderEngine = ''
                 if (namePlan.translatable.length) {

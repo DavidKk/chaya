@@ -21,7 +21,7 @@ export function isNameGlossaryCategory(value: string | undefined): value is Name
 export function isZhNameTarget(toLang?: string | null): boolean {
   if (!toLang) return true
   const lower = toLang.toLowerCase()
-  return lower === 'zh' || lower === 'ch' || lower === 'zh-cn' || lower === 'zh-hans' || lower === 'cht' || lower === 'zh-tw' || lower === 'zh-hant'
+  return lower === 'zh' || lower === 'ch' || lower === 'zh-cn' || lower === 'zh-hans'
 }
 
 export function isUsableNamePair(src: string, zh: string | null | undefined): boolean {
@@ -56,8 +56,13 @@ export function nameEntriesFromLookup(srcNames: Iterable<string>, lookup: Record
 }
 
 export function entriesFromNamePairs(pairs: Iterable<NameEntry>, toLang?: string | null): NameEntry[] {
+  const usable = [...pairs].filter((pair) => isUsableNamePair(pair.src, pair.zh))
+  const sources = new Set(usable.map((pair) => pair.src))
   const bySrc = new Map<string, NameEntry>()
-  for (const pair of pairs) {
+  for (const pair of usable) {
+    // A relational label must compose from its owner's name, not freeze an older full translation.
+    const owner = pair.src.match(/^(.+?)['\u2019]s\s+\S/u)?.[1]
+    if (owner && sources.has(owner)) continue
     for (const entry of expandNameVariants(pair, toLang)) {
       if (!bySrc.has(entry.src) || entry.src.length > (bySrc.get(entry.src)?.src.length || 0)) bySrc.set(entry.src, entry)
     }
@@ -136,17 +141,22 @@ export function stitchNameLocks(src: string, spans: readonly NameSpan[], gapZh: 
   const ordered = [...spans].sort((a, b) => a.start - b.start)
   let out = ''
   let at = 0
-  for (const span of ordered) {
-    if (span.start > at) {
-      const gap = src.slice(at, span.start)
-      out += padGapTranslation(gap, gapZh.get(`${at}:${span.start}`) ?? gap)
+  function appendGap(end: number, nextName = '') {
+    const gap = src.slice(at, end)
+    const translated = gapZh.get(`${at}:${end}`)
+    let text = padGapTranslation(gap, translated ?? gap)
+    if (translated !== undefined && !isLiteralNameGap(gap)) {
+      // Drop English padding only at translated CJK joins; keep literal and interior spacing.
+      if (/[\u3400-\u9fff]$/u.test(out)) text = text.replace(/^ +(?=[\u3400-\u9fff])/u, '')
+      if (/^[\u3400-\u9fff]/u.test(nextName)) text = text.replace(/([\u3400-\u9fff]) +$/u, '$1')
     }
+    out += text
+  }
+  for (const span of ordered) {
+    if (span.start > at) appendGap(span.start, span.zh)
     out += span.zh
     at = span.end
   }
-  if (at < src.length) {
-    const gap = src.slice(at)
-    out += padGapTranslation(gap, gapZh.get(`${at}:${src.length}`) ?? gap)
-  }
+  if (at < src.length) appendGap(src.length)
   return out
 }

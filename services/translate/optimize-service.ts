@@ -398,6 +398,7 @@ export async function runShortEntityOptimization(options: ShortEntityOptimizeOpt
         contentRoot,
         engines: options.engines,
         force: true,
+        optimizeWholeName: true,
         persist: false,
         category: item.meta.category,
         trackLiveActivity: false,

@@ -11,12 +11,16 @@ import { parentPort, workerData } from 'node:worker_threads'
 import { resolveGame } from '@/lib/game/resolve'
 import { detectSourceLanguage } from '@/lib/translate/source-text'
 
-import { loadRgssTranslationItems } from '../rgss'
+import { loadRgssTranslationItems, rgssDataDir } from '../rgss'
+import { loadRgssNameItems } from './writeback'
 
 try {
   const contentRoot = String((workerData as { contentRoot?: string })?.contentRoot || '')
   if (!contentRoot) throw new Error('items-worker: missing contentRoot')
-  const items = loadRgssTranslationItems(contentRoot)
+  const namesOnly = (workerData as { namesOnly?: boolean }).namesOnly === true
+  const dataDir = namesOnly ? rgssDataDir(contentRoot) : null
+  if (namesOnly && !dataDir) throw new Error('RGSS Data/ directory not found')
+  const items = dataDir ? loadRgssNameItems(dataDir) : loadRgssTranslationItems(contentRoot)
   const resolved = resolveGame(contentRoot)
   const engine = resolved?.ok && (resolved.engine === 'VX Ace' || resolved.engine === 'VX') ? resolved.engine : null
   const detected = detectSourceLanguage(items.map((i) => i.src))

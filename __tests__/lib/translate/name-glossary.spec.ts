@@ -8,7 +8,7 @@ describe('name-glossary', () => {
       ['Rei\u2019s', '蕾的'],
     ])
     expect(expandNameVariants({ src: 'Rei', zh: '蕾' }, 'en')).toEqual([{ src: 'Rei', zh: '蕾' }])
-    expect(expandNameVariants({ src: '蕾', zh: 'Rei' })).toEqual([{ src: '蕾', zh: 'Rei' }])
+    expect(expandNameVariants({ src: '爱丽丝', zh: 'Alice' })).toEqual([{ src: '爱丽丝', zh: 'Alice' }])
     expect(expandNameVariants({ src: 'Rei', zh: '蕾的' }).some((e) => e.zh === '蕾的的')).toBe(false)
   })
 

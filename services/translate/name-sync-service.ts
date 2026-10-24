@@ -1,7 +1,11 @@
-import { findNameSpans, type NameEntry } from '@/lib/translate/name-glossary'
+import { randomUUID } from 'node:crypto'
+
+import { isZhNameTarget, type NameEntry } from '@/lib/translate/name-glossary'
+import type { SentenceRecord } from '@/lib/translate/sentence-plan'
+import { appendPublicGameCache } from '@/services/storage/game-files'
 import { loadGameTranslationRecords } from '@/services/translate/game-records'
 import { assertOptimizeMayDispatch } from '@/services/translate/live-activity'
-import { appendGameNdjson, liveTranslateTexts, resolveBoundContentRoot } from '@/services/translate/live-translate'
+import { liveTranslateTexts, resolveBoundContentRoot } from '@/services/translate/live-translate'
 import { loadGameNameEntries } from '@/services/translate/name-glossary-game'
 import { planLockedNames, stitchLockedNamePlan } from '@/services/translate/name-lock'
 import { openSharedCache } from '@/services/translate/shared-cache'
@@ -12,7 +16,7 @@ export type NameSyncCandidate = {
   src: string
   oldZh: string
   newZh: string
-  via: 'stitch' | 'rename' | 'review'
+  via: 'stitch' | 'review'
   engine?: string
 }
 
@@ -23,6 +27,9 @@ export type ScanNameSyncResult = {
   skippedProtected: number
   unchanged: number
   review: number
+  previewId?: string
+  pausedReason?: string
+  hasMore: boolean
 }
 
 export type ApplyNameSyncResult = {
@@ -35,157 +42,160 @@ export type ApplyNameSyncResult = {
   items: NameSyncCandidate[]
 }
 
+type SyncOptions = {
+  names?: string[]
+  limit?: number
+  signal?: AbortSignal
+  requireIdle?: boolean
+  sourceLang?: string
+  targetLang?: string
+}
+
+type Preview = {
+  root: string
+  expires: number
+  names?: string[]
+  glossary: string
+  scan: ScanNameSyncResult
+  records: Map<string, string>
+}
+
+// Confirmation writes the exact preview, with bounded storage and no engine call during apply.
+const previews = new Map<string, Preview>()
+const PREVIEW_TTL = 10 * 60_000
+
 function isProtectedEngine(engine?: string | null): boolean {
-  if (!engine) return false
-  const lower = engine.toLowerCase()
-  return lower === 'manual' || lower.startsWith('manual:') || lower === 'import' || lower.startsWith('import:') || lower === 'reset'
+  const lower = (engine || '').toLowerCase()
+  return lower === 'manual' || lower.startsWith('manual:') || lower.startsWith('import') || lower === 'reset' || lower === 'game:locales'
 }
 
 function selectedEntries(all: NameEntry[], names?: string[]): NameEntry[] {
   if (names == null) return all
-  if (!names.length) return []
   const allow = new Set(names)
-  return all.filter((entry) => allow.has(entry.src) || names.some((name) => entry.src === name || entry.src.startsWith(`${name}'`) || entry.src.startsWith(`${name}\u2019`)))
+  return all.filter((entry) => allow.has(entry.src) || names.some((name) => entry.src === `${name}'s` || entry.src === `${name}\u2019s`))
 }
 
-function recordHasName(src: string, entries: NameEntry[]): boolean {
-  return findNameSpans(src, entries).length > 0
+function signature(record: SentenceRecord): string {
+  return JSON.stringify([record.id, record.revision, record.zh, record.engine])
 }
 
-function renameZh(oldZh: string, from: string, to: string): { zh: string; aligned: boolean } {
-  if (!from || from === to || !oldZh.includes(from)) return { zh: oldZh, aligned: false }
-  const next = oldZh.split(from).join(to)
-  return { zh: next, aligned: next !== oldZh }
+function pauseReason(opts: SyncOptions): string | undefined {
+  if (opts.requireIdle === false) return undefined
+  const gate = assertOptimizeMayDispatch('short-entities')
+  return gate.ok ? undefined : gate.pausedReason
 }
 
-export function scanNameSentenceSync(
-  contentRoot = resolveBoundContentRoot() || '',
-  opts?: { names?: string[]; renameFrom?: string; renameTo?: string; targetLang?: string }
-): ScanNameSyncResult {
+export async function scanNameSentenceSync(contentRoot = resolveBoundContentRoot() || '', opts: SyncOptions = {}): Promise<ScanNameSyncResult> {
   const root = contentRoot || resolveBoundContentRoot() || ''
-  if (!root) return { totalRecords: 0, nameCount: 0, candidates: [], skippedProtected: 0, unchanged: 0, review: 0 }
-  const entries = selectedEntries(loadGameNameEntries(root, opts?.targetLang || 'zh'), opts?.names)
+  const scan: ScanNameSyncResult = { totalRecords: 0, nameCount: 0, candidates: [], skippedProtected: 0, unchanged: 0, review: 0, hasMore: false }
+  if (!root || !isZhNameTarget(opts.targetLang)) return scan
+  const entries = selectedEntries(await loadGameNameEntries(root, 'zh'), opts.names)
   const records = loadGameTranslationRecords(root)
-  const candidates: NameSyncCandidate[] = []
-  let skippedProtected = 0
-  let unchanged = 0
-  let review = 0
+  scan.totalRecords = records.length
+  scan.nameCount = entries.length
+  if (!entries.length) return scan
+  const limit = Math.max(1, Math.min(opts.limit ?? 80, 200))
+  const snapshots = new Map<string, string>()
   for (const record of records) {
-    if (!recordHasName(record.src, entries)) continue
+    opts.signal?.throwIfAborted()
+    const plan = planLockedNames(record.src, entries, { sourceLang: opts.sourceLang, targetLang: 'zh' })
+    if (!plan || plan.wholeName) continue
     if (isProtectedEngine(record.engine)) {
-      skippedProtected++
+      scan.skippedProtected++
       continue
     }
-    const oldZh = typeof record.zh === 'string' ? record.zh : ''
-    if (!oldZh) continue
-    const plan = planLockedNames(record.src, entries, { targetLang: opts?.targetLang || 'zh' })
-    if (!plan) continue
-    if (plan.translatable.length) {
-      if (opts?.renameFrom && opts.renameTo) {
-        const renamed = renameZh(oldZh, opts.renameFrom, opts.renameTo)
-        if (renamed.aligned && renamed.zh !== oldZh) {
-          candidates.push({ src: record.src, oldZh, newZh: renamed.zh, via: 'rename', engine: record.engine ?? undefined })
-          continue
-        }
-        if (!renamed.aligned) {
-          review++
-          candidates.push({ src: record.src, oldZh, newZh: oldZh, via: 'review', engine: record.engine ?? undefined })
-          continue
-        }
+    if (!record.zh) continue
+    if (scan.candidates.length >= limit) {
+      scan.hasMore = true
+      break
+    }
+    const gapZh = new Map<string, string>()
+    let failed = false
+    for (const gap of plan.translatable) {
+      scan.pausedReason = pauseReason(opts)
+      if (scan.pausedReason) return scan
+      const remainder = await liveTranslateTexts([gap.text], {
+        contentRoot: root,
+        sourceLang: opts.sourceLang,
+        targetLang: 'zh',
+        persist: false,
+        trackLiveActivity: false,
+        local: { signal: opts.signal },
+      })
+      const hit = remainder.items.find((item) => item.src === gap.text)
+      if (!hit?.zh || hit.error) {
+        failed = true
+        break
       }
-      // Stitch preview without translating gaps: keep current remainder so users see name-only change when possible.
-      const gapZh = new Map<string, string>()
-      const preview = stitchLockedNamePlan(record.src, plan, gapZh)
-      if (preview === oldZh) {
-        unchanged++
-        continue
-      }
-      candidates.push({ src: record.src, oldZh, newZh: preview, via: 'stitch', engine: record.engine ?? undefined })
+      gapZh.set(gap.id, hit.zh)
+    }
+    const newZh = failed ? record.zh : stitchLockedNamePlan(record.src, plan, gapZh)
+    if (!failed && newZh === record.zh) {
+      scan.unchanged++
       continue
     }
-    const zh = stitchLockedNamePlan(record.src, plan, new Map())
-    if (zh === oldZh) unchanged++
-    else candidates.push({ src: record.src, oldZh, newZh: zh, via: 'stitch', engine: record.engine ?? undefined })
+    scan.candidates.push({ src: record.src, oldZh: record.zh, newZh, via: failed ? 'review' : 'stitch', engine: record.engine ?? undefined })
+    snapshots.set(record.src, signature(record))
+    if (failed) scan.review++
   }
-  return { totalRecords: records.length, nameCount: entries.length, candidates, skippedProtected, unchanged, review }
+  opts.signal?.throwIfAborted()
+  for (const [id, preview] of previews) if (preview.expires < Date.now()) previews.delete(id)
+  if (previews.size >= 16) previews.delete(previews.keys().next().value!)
+  const previewId = randomUUID()
+  previews.set(previewId, {
+    root,
+    names: opts.names ? [...opts.names] : undefined,
+    glossary: JSON.stringify(entries),
+    expires: Date.now() + PREVIEW_TTL,
+    scan: { ...scan, candidates: scan.candidates.map((item) => ({ ...item })) },
+    records: snapshots,
+  })
+  return { ...scan, previewId }
 }
 
-export async function applyNameSentenceSync(options: {
-  contentRoot?: string
-  names?: string[]
-  renameFrom?: string
-  renameTo?: string
-  limit?: number
-  signal?: AbortSignal
-  requireIdle?: boolean
-  targetLang?: string
-}): Promise<ApplyNameSyncResult> {
-  if (options.requireIdle !== false) {
-    const gate = assertOptimizeMayDispatch('short-entities')
-    if (!gate.ok) return { totalProcessed: 0, applied: 0, skippedCount: 0, skippedRank: 0, review: 0, pausedReason: gate.pausedReason, items: [] }
+export async function applyNameSentenceSync(options: SyncOptions & { contentRoot?: string; previewId: string }): Promise<ApplyNameSyncResult> {
+  const result: ApplyNameSyncResult = { totalProcessed: 0, applied: 0, skippedCount: 0, skippedRank: 0, review: 0, items: [] }
+  const root = options.contentRoot || resolveBoundContentRoot() || ''
+  const preview = previews.get(options.previewId)
+  if (!preview || preview.root !== root || preview.expires < Date.now() || !isZhNameTarget(options.targetLang)) {
+    return { ...result, pausedReason: 'Preview expired or game changed; scan again' }
   }
-  const contentRoot = options.contentRoot || resolveBoundContentRoot() || ''
-  if (!contentRoot) return { totalProcessed: 0, applied: 0, skippedCount: 0, skippedRank: 0, review: 0, items: [] }
-  const scan = scanNameSentenceSync(contentRoot, options)
-  const slice = scan.candidates.filter((item) => item.via !== 'review').slice(0, Math.min(options.limit || 80, 200))
-  const items: NameSyncCandidate[] = []
-  let applied = 0
-  let skippedCount = 0
-  let skippedRank = 0
+  const entries = selectedEntries(await loadGameNameEntries(root, 'zh'), preview.names)
+  if (JSON.stringify(entries) !== preview.glossary) return { ...result, pausedReason: 'Name translations changed; scan again' }
+  result.pausedReason = pauseReason(options)
+  if (result.pausedReason) return result
+  if (previews.get(options.previewId) !== preview || preview.expires < Date.now()) return { ...result, pausedReason: 'Preview expired or already applied; scan again' }
+  // Claim once before any writes so duplicate confirmation requests cannot replay the batch.
+  previews.delete(options.previewId)
+  result.review = preview.scan.review
+  const current = new Map(loadGameTranslationRecords(root).map((record) => [record.src, record]))
   const cache = openSharedCache()
   try {
-    for (const candidate of slice) {
+    for (const candidate of preview.scan.candidates) {
       options.signal?.throwIfAborted()
-      if (options.requireIdle !== false) {
-        const gate = assertOptimizeMayDispatch('short-entities')
-        if (!gate.ok) return { totalProcessed: items.length + skippedCount, applied, skippedCount, skippedRank, review: scan.review, pausedReason: gate.pausedReason, items }
-      }
-      let nextZh = candidate.newZh
-      if (candidate.via === 'stitch') {
-        const entries = selectedEntries(loadGameNameEntries(contentRoot, options.targetLang || 'zh'), options.names)
-        const plan = planLockedNames(candidate.src, entries, { targetLang: options.targetLang || 'zh' })
-        if (!plan) {
-          skippedCount++
-          continue
-        }
-        const gapZh = new Map<string, string>()
-        if (plan.translatable.length) {
-          const remainder = await liveTranslateTexts(
-            plan.translatable.map((gap) => gap.text),
-            { contentRoot, persist: false, trackLiveActivity: false, targetLang: options.targetLang || 'zh' }
-          )
-          let failed = false
-          for (const gap of plan.translatable) {
-            const hit = remainder.items.find((entry) => entry.src === gap.text)
-            if (!hit?.zh || hit.error) {
-              failed = true
-              break
-            }
-            gapZh.set(gap.id, hit.zh)
-          }
-          if (failed) {
-            skippedCount++
-            continue
-          }
-        }
-        nextZh = stitchLockedNamePlan(candidate.src, plan, gapZh)
-      }
-      if (!nextZh || nextZh === candidate.oldZh) {
-        skippedCount++
+      result.pausedReason = pauseReason(options)
+      if (result.pausedReason) break
+      result.totalProcessed++
+      const record = current.get(candidate.src)
+      if (candidate.via === 'review' || !record || isProtectedEngine(record.engine) || signature(record) !== preview.records.get(candidate.src)) {
+        result.skippedCount++
         continue
       }
-      const written = cache.writeMany([[candidate.src, nextZh]], OPTIMIZE_ENGINE_NAMES, { to: 'zh' })
+      const written = cache.writeMany([[candidate.src, candidate.newZh]], OPTIMIZE_ENGINE_NAMES, { to: 'zh' })
       if (written.accepted.length) {
-        appendGameNdjson(contentRoot, written.accepted)
-        applied++
-        items.push({ ...candidate, newZh: nextZh, via: candidate.via })
+        appendPublicGameCache(
+          root,
+          written.accepted.map(([s, t]) => ({ s, t, engine: OPTIMIZE_ENGINE_NAMES, at: Date.now() }))
+        )
+        result.applied++
+        result.items.push(candidate)
       } else {
-        skippedRank += written.rejected.filter((row) => row.reason === 'rank' || row.reason === 'conflict').length
-        skippedCount++
+        result.skippedRank += written.rejected.filter((row) => row.reason === 'rank' || row.reason === 'conflict').length
+        result.skippedCount++
       }
     }
   } finally {
     cache.close()
   }
-  return { totalProcessed: slice.length, applied, skippedCount, skippedRank, review: scan.review, items }
+  return result
 }

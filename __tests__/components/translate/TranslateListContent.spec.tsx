@@ -107,6 +107,50 @@ describe('TranslateListContent', () => {
     container.remove()
   })
 
+  it('applies the confirmed name preview and reloads the list', async () => {
+    mockSearchParams = new URLSearchParams('q=Rei&nature=name&category=actor')
+    let applied = false
+    mockTranslationFetch.mockImplementation(async (_path: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body || '{}'))
+      let data: Record<string, unknown> = { ok: true }
+      if (body.mode === 'extract-items') {
+        data.items = [
+          { id: '1', src: 'Rei', zh: '蕾', savedZh: '蕾', meta: { category: 'actor' } },
+          { id: '2', src: "Rei's Baby", zh: applied ? '蕾的宝宝' : '丽的宝贝', meta: { category: 'actor' } },
+        ]
+      } else if (body.action === 'scan-names') {
+        data = { ok: true, previewId: 'preview-1', candidates: [{ src: "Rei's Baby", oldZh: '丽的宝贝', newZh: '蕾的宝宝', via: 'stitch' }] }
+      } else if (body.action === 'apply-names') {
+        applied = true
+        data.applied = 1
+      }
+      return { ok: true, json: async () => data }
+    })
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
+        </LocaleProvider>
+      )
+    })
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="同步到句子"]')!
+    expect(button.disabled).toBe(false)
+    await act(async () => {
+      button.click()
+    })
+    const requests = mockTranslationFetch.mock.calls.map(([, init]) => JSON.parse(String(init?.body || '{}')))
+    expect(requests.find((body) => body.action === 'scan-names')).toMatchObject({ names: ['Rei', "Rei's Baby"] })
+    expect(requests.find((body) => body.action === 'apply-names')).toMatchObject({ previewId: 'preview-1' })
+    expect(requests.filter((body) => body.mode === 'extract-items')).toHaveLength(2)
+    expect(mockConfirm).toHaveBeenCalledTimes(1)
+    expect(mockNotify.success).toHaveBeenCalled()
+    expect(mockNotify.error).not.toHaveBeenCalled()
+    expect(container.querySelector<HTMLInputElement>('input[value="蕾的宝宝"]')).not.toBeNull()
+  })
+
   it('loads items and renders list with categories, save and reset buttons', async () => {
     const mockItems = [
       {

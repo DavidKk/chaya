@@ -3,12 +3,11 @@ import { createRequire as __createRequire } from 'node:module'; const require = 
 // services/translate/scheduler/seed-inventory-worker.ts
 import fs10 from "node:fs";
 import os2 from "node:os";
-import path9 from "node:path";
+import path8 from "node:path";
 import { parentPort, workerData } from "node:worker_threads";
 
 // services/translate/scheduler/seed-inventory.ts
 import fs9 from "node:fs";
-import path8 from "node:path";
 import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
 
 // constants/paths.ts
@@ -350,6 +349,20 @@ function gameContentCandidatePaths(contentRoot, kind, opts) {
 }
 function gameContentReadPath(contentRoot, kind, opts) {
   return gameContentCandidatePaths(contentRoot, kind, opts).find((p) => fs4.existsSync(p)) ?? null;
+}
+function localGameContentFile(contentRoot, kind) {
+  const roots = [path4.resolve(contentRoot)];
+  const parent = path4.dirname(roots[0]);
+  if (parent !== roots[0]) roots.push(parent);
+  for (const root of roots) {
+    const primary = path4.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind]);
+    if (fs4.existsSync(primary)) return primary;
+    for (const name of LEGACY_FLAT_FILES[kind]) {
+      const candidate = path4.join(root, name);
+      if (fs4.existsSync(candidate)) return candidate;
+    }
+  }
+  return null;
 }
 function ensureGameContentDir(contentRoot, kind) {
   const file = gameContentPath(contentRoot, kind);
@@ -1344,19 +1357,20 @@ function applyCacheRow(rows, row) {
 
 // services/translate/game-records.ts
 var snapshots = /* @__PURE__ */ new Map();
-function gameTranslationFiles(contentRoot) {
-  const seed = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
-  const cache = gameContentReadPath(contentRoot, "cacheNdjson", { alsoParent: true });
+function gameTranslationFiles(contentRoot, opts) {
+  const seed = opts?.localOnly ? localGameContentFile(contentRoot, "seed") : gameContentReadPath(contentRoot, "seed", { alsoParent: true });
+  const cache = opts?.localOnly ? localGameContentFile(contentRoot, "cacheNdjson") : gameContentReadPath(contentRoot, "cacheNdjson", { alsoParent: true });
   const stamp = JSON.stringify(
-    [seed, cache].map((file) => {
+    [seed, cache, opts?.localOnly ? 1 : 0].map((file) => {
+      if (typeof file === "number") return file;
       const stat = file ? fs5.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   );
   return { seed, cache, stamp };
 }
-function loadGameTranslationRecords(contentRoot, current) {
-  const { seed, cache, stamp } = gameTranslationFiles(contentRoot);
+function loadGameTranslationRecords(contentRoot, current, opts) {
+  const { seed, cache, stamp } = gameTranslationFiles(contentRoot, opts);
   let snapshot = snapshots.get(contentRoot);
   if (snapshot?.stamp !== stamp) {
     const rows = /* @__PURE__ */ new Map();
@@ -1429,6 +1443,11 @@ var isTechnicalField = (field) => TECH_FIELD.test(field);
 // services/extract/lib/rgss/writeback.ts
 import fs6 from "node:fs";
 import path5 from "node:path";
+
+// lib/translate/name-glossary.ts
+var TOKEN_RE2 = new RegExp(SENTENCE_TOKEN_SOURCE, "g");
+
+// services/extract/lib/rgss/writeback.ts
 function strings(value) {
   const result = /* @__PURE__ */ new Map();
   const seen = /* @__PURE__ */ new WeakSet();
@@ -1521,7 +1540,7 @@ function fieldCategory(className, field, fallback) {
     "RPG::System": "system"
   };
   if (className === "RPG::Actor" && field === "nickname") return "actor_nickname";
-  if (className === "RPG::Actor" && field === "profile") return "actor_profile";
+  if (className === "RPG::Actor" && (field === "profile" || field === "description")) return "actor_profile";
   const category = base[className] ?? fallback;
   if (field === "description" && (category === "item" || category === "weapon" || category === "armor" || category === "skill")) return `${category}_desc`;
   if (category === "state" && /^message/.test(field)) return "state_msg";
@@ -1590,7 +1609,7 @@ function rgssDataSignature(dataDir) {
   );
 }
 function readIndex(contentRoot) {
-  const file = gameContentReadPath(contentRoot, "rgssSourcesIndex");
+  const file = localGameContentFile(contentRoot, "rgssSourcesIndex");
   if (!file) return null;
   try {
     const raw = JSON.parse(fs7.readFileSync(file, "utf8"));
@@ -1653,27 +1672,13 @@ function filterRgssSeedKeys(contentRoot, keys) {
 }
 
 // services/translate/scheduler/seed-inventory.ts
-function localGameContentFile(contentRoot, kind) {
-  const roots = [path8.resolve(contentRoot)];
-  const parent = path8.dirname(roots[0]);
-  if (parent !== roots[0]) roots.push(parent);
-  for (const root of roots) {
-    const primary = path8.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind]);
-    if (fs9.existsSync(primary)) return primary;
-    for (const name of LEGACY_FLAT_FILES[kind]) {
-      const candidate = path8.join(root, name);
-      if (fs9.existsSync(candidate)) return candidate;
-    }
-  }
-  return null;
-}
 function seedFileStamp(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
   const stat = file ? fs9.statSync(file, { throwIfNoEntry: false }) : void 0;
   return JSON.stringify([file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
 }
 function readSeedInventory(contentRoot) {
-  const file = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
+  const file = localGameContentFile(contentRoot, "seed");
   const data = file ? JSON.parse(fs9.readFileSync(file, "utf8")) : {};
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Seed must be an object mapping source text to translation");
   const entries = data;
@@ -1703,27 +1708,31 @@ function readSeedInventory(contentRoot) {
   const revisions = /* @__PURE__ */ new Map();
   let records;
   try {
-    records = loadGameTranslationRecords(contentRoot, (origin) => {
-      if (unavailable || !TRANSLATE_CACHE_DB_PATH || origin.database !== TRANSLATE_CACHE_DB_PATH) return false;
-      const key2 = `${origin.id}:${origin.revision}`;
-      if (!revisions.has(key2)) {
-        try {
-          if (!client) {
-            if (!fs9.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
-            client = new DatabaseSync2(TRANSLATE_CACHE_DB_PATH, { readOnly: true });
-            client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250; BEGIN");
-            revisionQuery = client.prepare("SELECT revision FROM translation_records WHERE id=?");
+    records = loadGameTranslationRecords(
+      contentRoot,
+      (origin) => {
+        if (unavailable || !TRANSLATE_CACHE_DB_PATH || origin.database !== TRANSLATE_CACHE_DB_PATH) return false;
+        const key2 = `${origin.id}:${origin.revision}`;
+        if (!revisions.has(key2)) {
+          try {
+            if (!client) {
+              if (!fs9.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
+              client = new DatabaseSync2(TRANSLATE_CACHE_DB_PATH, { readOnly: true });
+              client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250; BEGIN");
+              revisionQuery = client.prepare("SELECT revision FROM translation_records WHERE id=?");
+            }
+            const row = revisionQuery.get(origin.id);
+            revisions.set(key2, row?.revision === origin.revision);
+          } catch (error) {
+            unavailable = true;
+            console.warn("Saved translation revision check unavailable:", error instanceof Error ? error.message : String(error));
+            return false;
           }
-          const row = revisionQuery.get(origin.id);
-          revisions.set(key2, row?.revision === origin.revision);
-        } catch (error) {
-          unavailable = true;
-          console.warn("Saved translation revision check unavailable:", error instanceof Error ? error.message : String(error));
-          return false;
         }
-      }
-      return revisions.get(key2);
-    });
+        return revisions.get(key2);
+      },
+      { localOnly: true }
+    );
   } finally {
     client?.close();
   }
@@ -1758,7 +1767,7 @@ try {
   const contentRoot = String(workerData?.contentRoot || "");
   if (!contentRoot) throw new Error("seed-inventory-worker: missing contentRoot");
   const inv = readSeedInventory(contentRoot);
-  const out = path9.join(os2.tmpdir(), `chaya-seed-inv-${process.pid}-${Date.now()}.json`);
+  const out = path8.join(os2.tmpdir(), `chaya-seed-inv-${process.pid}-${Date.now()}.json`);
   fs10.writeFileSync(out, JSON.stringify(inv));
   parentPort?.postMessage({ ok: true, path: out, pending: inv.pending.length, total: inv.progress.total });
 } catch (error) {
