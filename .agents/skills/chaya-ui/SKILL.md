@@ -23,7 +23,7 @@ description: >-
 | 需要什么                      | 打开                                                                                        |
 | ----------------------------- | ------------------------------------------------------------------------------------------- |
 | 色 / 字 / 布局 / Tailwind     | [`docs/technical/chaya-ui-style-guide.md`](../../../docs/technical/chaya-ui-style-guide.md) |
-| 交互（焦点、表、空态、浮层…） | 先 baseline，再按 [`references/ux-routing.md`](references/ux-routing.md) **点名**加载       |
+| 交互（焦点、表、空态、浮层…） | 按 [`references/ux-routing.md`](references/ux-routing.md) **单选至多 1 项**加载，勿连读     |
 | 仅改文案 / 已有样式微调       | 跟邻近组件即可，不必开上表                                                                  |
 
 ## 原则（短）

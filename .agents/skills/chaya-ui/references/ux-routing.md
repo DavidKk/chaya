@@ -21,16 +21,19 @@
 | z-index / 多层浮层                                    | `z-index-layering`        | `../../cloud-skills/ui-interaction-skills/skills/z-index-layering/SKILL.md`        |
 | 触控 / 窄屏                                           | `mobile-touch`            | `../../cloud-skills/ui-interaction-skills/skills/mobile-touch/SKILL.md`            |
 
-## 本仓常见组合
+## 复合表面单项选型（禁止打包连读）
 
-| 表面                                 | 建议加载                                                                                                                        |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| GameEdit 浮层（开关、表、Tab、搜索） | baseline + `modal-focus` + `panel-shell` + `data-table` + `empty-error-state` + `search-command`                                |
-| Toolkit Dashboard / 日志 / 缓存页    | baseline + `panel-shell` + `scroll-overflow` +（有表则）`data-table` +（有空错）`empty-error-state` +（有提示）`floating-layer` |
-| 破坏性按钮（清空解释器、灭敌、读档） | 再加 `destructive-action`                                                                                                       |
+即使是复合表面，也**严禁**全量连读多个 skill（会导致上下文膨胀超千行）。**每次仅按当前具体交互痛点单选至多 1 项**：
+
+| 表面                                 | 典型交互痛点与单选落点                                                                                   |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| GameEdit 浮层（开关、表、Tab、搜索） | 焦点锁/Esc → `modal-focus`；表布局 → `data-table`；搜索栏 → `search-command`；空态 → `empty-error-state` |
+| Toolkit Dashboard / 日志 / 缓存页    | 滚动高度 → `scroll-overflow`；日志表 → `data-table`；浮层提示 → `floating-layer`                         |
+| 破坏性按钮（清空解释器、灭敌、读档） | 仅二次确认交互 → `destructive-action`                                                                    |
 
 ## 禁止
 
+- 严禁一次性连环加载多个专项 skill；单任务最多查阅 1 个命中的交互文件。
 - 不要加载 `skill-authoring`（维护 `ui-interaction-skills` 仓库专用）。
 - 不要把专项 skill 全文复制进本仓；只引用路径。
 - 视觉 token / 字号 / 颜色以本仓 `docs/technical/chaya-ui-style-guide.md` 为准。
