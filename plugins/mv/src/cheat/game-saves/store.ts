@@ -1,9 +1,10 @@
 import { gameContentRelPath, gameSavesRelDir } from '@/lib/game/content-paths'
-import { assertIndexRevision, type GameSaveList, type GameSavesIndex, SaveIndexConflictError } from '@/lib/game/game-saves'
+import { assertIndexRevision, type GameSaveList, type GameSavesIndex } from '@/lib/game/game-saves'
 import { tNow } from '@/lib/i18n'
 
 import { detectGameIdentity } from '../../helpers/game/game-identity'
 import { tryNodeFsPath, tryNodeRequire } from '../../helpers/node/node-require'
+import { pluginStorageCall } from '../../helpers/storage/client'
 
 /** 一处存放位置：索引、内容（gzip 后的字节）与缩略图（JPEG data URL） */
 export type GameSaveEntryStore = {
@@ -63,7 +64,6 @@ function createFsBackend(): GameSavesBackend | null {
   if (!modules || !identity) return null
   const { fs, path } = modules
   const root = identity.contentRoot
-  const settingsFile = path.join(root, gameContentRelPath('gameSaves'))
   const indexFile = path.join(root, gameContentRelPath('gameSavesIndex'))
   const dir = (list: GameSaveList) => path.join(root, gameSavesRelDir(list))
 
@@ -99,8 +99,10 @@ function createFsBackend(): GameSavesBackend | null {
 
   return {
     kind: 'fs',
-    readSettings: async () => readJson(settingsFile),
-    writeSettings: async (value) => writeAtomic(settingsFile, JSON.stringify(value, null, 2)),
+    readSettings: async () => pluginStorageCall('game.read', [root, 'gameSaves']),
+    writeSettings: async (value) => {
+      await pluginStorageCall('game.write', [root, 'gameSaves', value])
+    },
     readIndex: async () => readJson(indexFile),
     async writeIndex(index, expectedRevision) {
       assertIndexRevision(readJson(indexFile), expectedRevision)
@@ -146,84 +148,6 @@ function createFsBackend(): GameSavesBackend | null {
   }
 }
 
-const IDB_STORES = ['meta', 'entries', 'thumbs'] as const
-
-function createIdbBackend(roomId: string): GameSavesBackend | null {
-  if (typeof indexedDB === 'undefined') return null
-  let opening: Promise<IDBDatabase> | null = null
-  const open = () =>
-    (opening ??= new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open(`chaya-game-saves:${roomId}`, 1)
-      req.onupgradeneeded = () => {
-        for (const name of IDB_STORES) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name)
-      }
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error ?? new Error(tNow('saves.error.storageOpen')))
-    }))
-  const run = async <T>(stores: (typeof IDB_STORES)[number][], mode: IDBTransactionMode, body: (tx: IDBTransaction) => IDBRequest<T> | void): Promise<T> => {
-    const db = await open()
-    return new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(stores, mode)
-      const req = body(tx)
-      tx.oncomplete = () => resolve((req ? req.result : undefined) as T)
-      tx.onerror = () => reject(tx.error ?? new Error(tNow('saves.error.storageWrite')))
-      tx.onabort = () => reject(tx.error ?? new Error(tNow('saves.error.storageQuota')))
-    })
-  }
-  const key = (list: GameSaveList, id: string) => `${list}/${id}`
-  return {
-    kind: 'idb',
-    readSettings: () => run(['meta'], 'readonly', (tx) => tx.objectStore('meta').get('settings')),
-    writeSettings: (value) => run(['meta'], 'readwrite', (tx) => void tx.objectStore('meta').put(value, 'settings')),
-    readIndex: () => run(['meta'], 'readonly', (tx) => tx.objectStore('meta').get('index')),
-    async writeIndex(index, expectedRevision) {
-      let conflict = false
-      try {
-        await run(['meta'], 'readwrite', (tx) => {
-          const meta = tx.objectStore('meta')
-          const req = meta.get('index')
-          req.onsuccess = () => {
-            try {
-              assertIndexRevision(req.result, expectedRevision)
-              meta.put(index, 'index')
-            } catch {
-              conflict = true
-              tx.abort()
-            }
-          }
-        })
-      } catch (error) {
-        if (conflict) throw new SaveIndexConflictError('Save index was changed elsewhere')
-        throw error
-      }
-    },
-    writeEntry: (list, id, data, thumb) =>
-      run(['entries', 'thumbs'], 'readwrite', (tx) => {
-        tx.objectStore('entries').put(data, key(list, id))
-        if (thumb) tx.objectStore('thumbs').put(thumb, key(list, id))
-        else tx.objectStore('thumbs').delete(key(list, id))
-      }),
-    async readEntry(list, id) {
-      const data = await run<Uint8Array | undefined>(['entries'], 'readonly', (tx) => tx.objectStore('entries').get(key(list, id)))
-      if (!data) throw new Error(tNow('saves.error.contentMissing'))
-      return data
-    },
-    readThumb: async (list, id) => (await run<string | undefined>(['thumbs'], 'readonly', (tx) => tx.objectStore('thumbs').get(key(list, id)))) ?? null,
-    removeEntry: (list, id) =>
-      run(['entries', 'thumbs'], 'readwrite', (tx) => {
-        tx.objectStore('entries').delete(key(list, id))
-        tx.objectStore('thumbs').delete(key(list, id))
-      }),
-    async listEntries(list) {
-      const keys = await run<IDBValidKey[]>(['entries'], 'readonly', (tx) => tx.objectStore('entries').getAllKeys())
-      return keys
-        .map(String)
-        .filter((k) => k.startsWith(`${list}/`))
-        .map((k) => k.slice(list.length + 1))
-    },
-  }
-}
-
 export function createMemoryBackend(): GameSavesBackend & { files: Map<string, Uint8Array> } {
   const meta = new Map<string, unknown>()
   const files = new Map<string, Uint8Array>()
@@ -262,6 +186,8 @@ function structuredCloneSafe<T>(value: T): T {
   return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T)
 }
 
-export function createGameSavesBackend(roomId: string): GameSavesBackend {
-  return createFsBackend() ?? createIdbBackend(roomId) ?? createMemoryBackend()
+export function createGameSavesBackend(_roomId: string): GameSavesBackend {
+  const backend = createFsBackend()
+  if (!backend) throw new Error('游戏存档需要本机文件宿主；浏览器不能作为存档真源')
+  return backend
 }

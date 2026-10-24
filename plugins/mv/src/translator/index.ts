@@ -2,7 +2,7 @@
  * ChayaTrans — cached translations plus optional local-model dialogue translation.
  */
 /// <reference types="node" />
-import { gameContentRelPath, LEGACY_FLAT_FILES } from '@/lib/game/content-paths'
+import { GAME_CONTENT_RELS } from '@/lib/game/content-paths'
 import { applyCacheRow, type CacheRow, parseCacheRow } from '@/lib/translate/cache-row'
 import { peelChoiceMetaShell } from '@/lib/translate/choice-meta'
 import { lookupTranslationRecord } from '@/lib/translate/lookup'
@@ -12,6 +12,7 @@ import { isReusableTranslation } from '@/services/translate/text-classify'
 import { createLogger, detectGameIdentity, tryNodeFsPath } from '../helpers'
 import { hookMethod } from '../helpers/game/method-hook'
 import { declarePluginTools } from '../helpers/plugin-tools'
+import { pluginStorageCall } from '../helpers/storage/client'
 import { installDialogueSubtitles } from './engine/dialogue-subtitles'
 import { installEngineHooks } from './engine/engine-hooks'
 import { createRealtimeClient } from './engine/realtime-client'
@@ -31,7 +32,7 @@ function errMsg(err: unknown): unknown {
   return err instanceof Error ? err.message : err
 }
 
-function main() {
+async function main() {
   const hot = window as Window & { __chayaTransDispose?: () => void; __chayaDialogueCleanup?: () => void; __chayaSubtitleCleanup?: () => void }
   hot.__chayaTransDispose?.()
   const mods = tryNodeFsPath()
@@ -42,23 +43,19 @@ function main() {
   const { fs, path } = mods
 
   const identity = detectGameIdentity()
-  const contentRoots = identity?.contentRoot ? [identity.contentRoot] : [process.cwd(), path.join(process.cwd(), 'www')].filter(Boolean)
+  if (!identity) throw new Error('Cannot identify the game content root; refusing to create a cache in the process working directory')
+  const state = await pluginStorageCall<{ directory: string }>('game.mount', [identity.contentRoot])
+  const contentRoots = [state.directory]
 
   const POLL_MS = 2000
-  const cacheRel = gameContentRelPath('cacheNdjson')
-  const seedRel = gameContentRelPath('seed')
+  const cacheRel = GAME_CONTENT_RELS.cacheNdjson
+  const seedRel = GAME_CONTENT_RELS.seed
 
   const candidates: CacheCandidate[] = []
   const seedCandidates: string[] = []
   for (const root of contentRoots) {
     candidates.push({ file: path.join(root, cacheRel), kind: 'ndjson' })
     seedCandidates.push(path.join(root, seedRel))
-    for (const name of LEGACY_FLAT_FILES.cacheNdjson) {
-      candidates.push({ file: path.join(root, name), kind: 'ndjson' })
-    }
-    for (const name of LEGACY_FLAT_FILES.seed) {
-      seedCandidates.push(path.join(root, name))
-    }
   }
 
   function normalizeKey(text: unknown): string {
@@ -152,25 +149,17 @@ function main() {
     return lookup
   }
 
-  let found: CacheCandidate | undefined = candidates.find((item) => fs.existsSync(item.file))
+  const found: CacheCandidate | undefined = candidates.find((item) => fs.existsSync(item.file))
   if (!found) {
-    const root = contentRoots[0] || process.cwd()
-    const createAt = path.join(root, cacheRel)
-    try {
-      fs.mkdirSync(path.dirname(createAt), { recursive: true })
-      fs.writeFileSync(createAt, '', 'utf8')
-      found = { file: createAt, kind: 'ndjson' }
-      log.ok(`Created game translation cache -> ${createAt}`)
-    } catch (err) {
-      log.fail(`Failed to create game translation cache ${createAt}`, errMsg(err))
-      return
-    }
+    log.fail('Public translation snapshot is missing; reconnect the storage service')
+    return
   }
   const cacheFile = found
 
   let lookup = Object.create(null) as TransLookup
   let fileSize = 0
   let fileMtimeMs = 0
+  let fileInode = 0
   let seedFile: string | undefined
   let seedMtimeMs = 0
   let entryCount = 0
@@ -191,7 +180,9 @@ function main() {
       const loaded = loadNdjsonFull(cacheFile.file, lookup)
       lookup = loaded.lookup
       fileSize = loaded.bytes
-      fileMtimeMs = fs.statSync(cacheFile.file).mtimeMs
+      const stat = fs.statSync(cacheFile.file)
+      fileMtimeMs = stat.mtimeMs
+      fileInode = stat.ino
       entryCount = Object.keys(lookup).length
       enrich.reindexAll(lookup)
       publishTransGlobals()
@@ -225,6 +216,14 @@ function main() {
     } catch (err) {
       log.warn('Hot reload failed', errMsg(err))
       return false
+    }
+    if (st.ino !== fileInode || st.mtimeMs !== fileMtimeMs) {
+      const loaded = fullReload('Public translation snapshot updated:')
+      if (loaded) {
+        if (typeof DataManager !== 'undefined' && DataManager._chayaTransDbPatched) scheduleCatchUp()
+        scheduleWindowRefresh()
+      }
+      return loaded
     }
     if (st.size < fileSize) {
       return fullReload('File truncated; full reload')
@@ -494,4 +493,4 @@ function main() {
   }
 }
 
-main()
+void main().catch((error: unknown) => log.fail('Translation storage unavailable', errMsg(error)))

@@ -3,6 +3,7 @@ import { resolveGame } from '@/lib/game'
 import { hasManagementAccess } from '@/services/access/management'
 import { getTranslateEngineSwitches, setTranslateEngineSwitches } from '@/services/disk-ops'
 import { loadRgssTranslationItems, writeRgssTranslations } from '@/services/extract/lib/rgss'
+import { resetListExtractForTests } from '@/services/extract/list-extract-prepare'
 import { peekLaunchToken } from '@/services/runtime/launch-token'
 import { agentJaToZh, listTranslateAgents } from '@/services/translate/agent-translate'
 import { getSeedSourceLanguage, resolveTranslateContentRoot } from '@/services/translate/fill-missing'
@@ -36,6 +37,7 @@ const post = (body: unknown) =>
   )
 
 beforeEach(() => {
+  resetListExtractForTests()
   jest.mocked(resolveTranslateContentRoot).mockReturnValue('/games/B')
 })
 

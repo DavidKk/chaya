@@ -1,7 +1,10 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 
 export type StorageDaemonMeta = {
+  instanceId: string
   pid: number
   startedAt: number
   port: number
@@ -12,6 +15,7 @@ export type StorageDaemonMeta = {
 
 export type StorageDaemonLockHandle = {
   meta: StorageDaemonMeta
+  publishPort(port: number): void
   release(): void
 }
 
@@ -24,7 +28,7 @@ export function isPidAlive(pid: number): boolean {
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
     // EPERM means process exists but we lack permission to send signals
-    return code === 'EPERM'
+    return code !== 'ESRCH'
   }
 }
 
@@ -49,11 +53,13 @@ function readMetaSafe(file: string): StorageDaemonMeta | null {
 }
 
 /** Read active daemon metadata if lock holder is alive */
-export function readStorageDaemonMeta(dataDir: string): StorageDaemonMeta | null {
-  const metaFile = path.join(dataDir, 'runtime', 'storage-daemon.json')
-  const lockFile = path.join(dataDir, 'runtime', 'storage-daemon.lock')
-  const meta = readMetaSafe(metaFile) || readMetaSafe(lockFile)
-  if (!meta) return null
+export function readStorageDaemonMeta(dataDir?: string): StorageDaemonMeta | null {
+  const resolvedDir = typeof dataDir === 'string' && dataDir ? dataDir : path.join(process.cwd(), 'data')
+  const metaFile = path.join(resolvedDir, 'runtime', 'storage-daemon.json')
+  const lockFile = path.join(resolvedDir, 'runtime', 'storage-daemon.lock')
+  const meta = readMetaSafe(metaFile)
+  const owner = readMetaSafe(lockFile)
+  if (!meta || !owner || !meta.instanceId || meta.instanceId !== owner.instanceId) return null
   if (!isPidAlive(meta.pid)) return null
   return meta
 }
@@ -63,7 +69,8 @@ export function readStorageDaemonMeta(dataDir: string): StorageDaemonMeta | null
  * Prevents multiple daemons from opening SQLite and writing simultaneously.
  */
 export function acquireStorageDaemonLock(options: { dataDir: string; port: number; authToken: string; protocolVersion?: number; pid?: number }): StorageDaemonLockHandle | null {
-  const resolvedDataDir = path.resolve(options.dataDir)
+  fs.mkdirSync(options.dataDir, { recursive: true, mode: 0o700 })
+  const resolvedDataDir = fs.realpathSync(options.dataDir)
   const runtimeDir = path.join(resolvedDataDir, 'runtime')
   fs.mkdirSync(runtimeDir, { recursive: true, mode: 0o700 })
 
@@ -71,6 +78,7 @@ export function acquireStorageDaemonLock(options: { dataDir: string; port: numbe
   const metaFile = path.join(runtimeDir, 'storage-daemon.json')
   const currentPid = options.pid ?? process.pid
   const meta: StorageDaemonMeta = {
+    instanceId: randomUUID(),
     pid: currentPid,
     startedAt: Date.now(),
     port: options.port,
@@ -79,47 +87,59 @@ export function acquireStorageDaemonLock(options: { dataDir: string; port: numbe
     dataDir: resolvedDataDir,
   }
 
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      fs.writeFileSync(lockFile, JSON.stringify(meta, null, 2), {
-        flag: 'wx',
-        mode: 0o600,
-      })
-      fs.writeFileSync(metaFile, JSON.stringify(meta, null, 2), {
-        mode: 0o600,
-      })
-      break
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-      const existing = readMetaSafe(lockFile)
-      if (existing && isPidAlive(existing.pid)) {
-        // Another live daemon owns the lock
-        return null
-      }
-      // Stale or dead lock; clean up and retry once
+  // SQLite's OS-backed lock is released on process death. Never unlink this
+  // guard: replacing its inode would let two processes lock different files.
+  const guard = new DatabaseSync(path.join(runtimeDir, 'storage-daemon.guard.sqlite'))
+  try {
+    guard.exec('PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE')
+  } catch (error) {
+    guard.close()
+    if (/locked|busy/i.test((error as Error).message)) return null
+    throw error
+  }
+
+  const publish = () => {
+    for (const file of [lockFile, metaFile]) {
+      const temp = `${file}.${meta.instanceId}.tmp`
       try {
-        fs.rmSync(lockFile, { force: true })
-        fs.rmSync(metaFile, { force: true })
-      } catch {
-        return null
+        fs.writeFileSync(temp, JSON.stringify(meta), { mode: 0o600, flag: 'wx' })
+        fs.renameSync(temp, file)
+      } finally {
+        fs.rmSync(temp, { force: true })
       }
     }
   }
-
+  try {
+    const existing = readMetaSafe(lockFile)
+    // Respect a daemon from the previous O_EXCL protocol during transition.
+    if (existing && !existing.instanceId && isPidAlive(existing.pid)) {
+      guard.close()
+      return null
+    }
+    publish()
+  } catch (error) {
+    guard.close()
+    throw error
+  }
   let released = false
   return {
     meta,
+    publishPort(port) {
+      if (released) throw new Error('Storage daemon lock has been released')
+      meta.port = port
+      publish()
+    },
     release() {
       if (released) return
       released = true
       try {
         const owner = readMetaSafe(lockFile)
-        if (owner?.pid === currentPid) {
+        if (owner?.instanceId === meta.instanceId) {
           fs.rmSync(lockFile, { force: true })
           fs.rmSync(metaFile, { force: true })
         }
-      } catch {
-        /* ignore */
+      } finally {
+        guard.close()
       }
     },
   }

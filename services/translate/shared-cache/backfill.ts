@@ -4,6 +4,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { ensureGameContentDir } from '@/lib/game/content-files'
 import { appendCacheLines, lockCacheFile } from '@/lib/translate/cache-file-lock'
 import { applyCacheRow, type CacheRow, parseCacheRow } from '@/lib/translate/cache-row'
+import { appendPublicCacheFile } from '@/services/storage/game-files'
 
 import { noteGameSharedBackfill } from '../game-cache-context'
 import { gameTranslationFiles } from '../game-records'
@@ -39,6 +40,7 @@ function backfillSnapshot(file: string) {
 
 /** Recover an incomplete append before writing the next complete event. */
 export function appendCacheEvents(file: string, events: CacheRow[]): void {
+  if (appendPublicCacheFile(file, events)) return
   appendCacheLines(fs, file, events)
 }
 
@@ -86,7 +88,10 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
       try {
         const previousStamp = gameTranslationFiles(root).stamp
         const snapshot = backfillSnapshot(file)
-        const { rows, seen } = snapshot
+        const rows = new Map(snapshot.rows),
+          seen = new Set(snapshot.seen)
+        const events: CacheRow[] = []
+        const acknowledgements: Array<() => void> = []
         const tasks = client.prepare('SELECT * FROM game_backfill_tasks WHERE root=? ORDER BY id').all(root) as Array<{
           id: number
           src: string
@@ -108,13 +113,15 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
             }
             const old = rows.get(task.src)
             if (!old || old.origin) {
-              appendCacheEvents(file, [value])
+              events.push(value)
               applyCacheRow(rows, value)
               seen.add(event)
             }
           }
-          client.prepare('INSERT OR REPLACE INTO game_backfills VALUES(?,?,?,?)').run(root, task.src, task.record_id, task.revision)
-          client.prepare('DELETE FROM game_backfill_tasks WHERE id=?').run(task.id)
+          acknowledgements.push(() => {
+            client.prepare('INSERT OR REPLACE INTO game_backfills VALUES(?,?,?,?)').run(root, task.src, task.record_id, task.revision)
+            client.prepare('DELETE FROM game_backfill_tasks WHERE id=?').run(task.id)
+          })
         }
         const links = client
           .prepare('SELECT b.* FROM game_backfills b LEFT JOIN translation_records r ON r.id=b.record_id WHERE b.root=? AND (r.id IS NULL OR r.revision<>b.revision)')
@@ -122,7 +129,9 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
         for (const link of links) {
           const old = rows.get(link.src)
           if (!old?.origin || old.origin.database !== database || old.origin.id !== String(link.record_id)) {
-            client.prepare('DELETE FROM game_backfills WHERE root=? AND src=?').run(root, link.src)
+            acknowledgements.push(() => {
+              client.prepare('DELETE FROM game_backfills WHERE root=? AND src=? AND record_id=?').run(root, link.src, link.record_id)
+            })
             continue
           }
           const record = client.prepare(joined).get(link.record_id) as { zh: string; engine: string; revision: number } | undefined
@@ -138,17 +147,23 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
             ...meta,
           }
           if (!seen.has(value.event!)) {
-            appendCacheEvents(file, [value])
+            events.push(value)
             applyCacheRow(rows, value)
             seen.add(value.event!)
           }
-          if (record) client.prepare('UPDATE game_backfills SET revision=? WHERE root=? AND src=?').run(record.revision, root, link.src)
-          else client.prepare('DELETE FROM game_backfills WHERE root=? AND src=?').run(root, link.src)
+          acknowledgements.push(() => {
+            if (record) client.prepare('UPDATE game_backfills SET revision=? WHERE root=? AND src=? AND record_id=?').run(record.revision, root, link.src, link.record_id)
+            else client.prepare('DELETE FROM game_backfills WHERE root=? AND src=? AND record_id=?').run(root, link.src, link.record_id)
+          })
         }
+        for (let offset = 0; offset < events.length; offset += 500) appendCacheEvents(file, events.slice(offset, offset + 500))
+        for (const acknowledge of acknowledgements) acknowledge()
         client.exec(
           'DELETE FROM translation_outbox WHERE NOT EXISTS (SELECT 1 FROM game_backfills l WHERE l.record_id=translation_outbox.record_id AND l.revision<translation_outbox.revision)'
         )
         snapshot.stamp = fileStamp(file)
+        snapshot.rows = rows
+        snapshot.seen = seen
         noteGameSharedBackfill(root, previousStamp)
       } finally {
         release()

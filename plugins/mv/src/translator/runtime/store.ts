@@ -1,6 +1,5 @@
-import { type GameContentKind, gameContentRelPath, LEGACY_FLAT_FILES } from '@/lib/game/content-paths'
+import { GAME_CONTENT_RELS, type GameContentKind, gameContentRelPath } from '@/lib/game/content-paths'
 import { cacheEngineRank } from '@/lib/translate/cache-engine-rank'
-import { appendCacheLines, lockCacheFile } from '@/lib/translate/cache-file-lock'
 import { applyCacheRow, type CacheOrigin, type CacheRow, parseCacheRow } from '@/lib/translate/cache-row'
 import { createNumericLabelIndex } from '@/lib/translate/dynamic-template'
 import { type AlignmentGroup, createSentenceResolver, type SentenceRecord } from '@/lib/translate/sentence-plan'
@@ -10,6 +9,8 @@ import { isNsfwCacheRow } from '@/services/translate/sensitive-text'
 import { isReusableTranslation } from '@/services/translate/text-classify'
 
 import type { NodeFsPath } from '../../helpers/node/node-require'
+import { pluginStorageCall } from '../../helpers/storage/client'
+import { flushPendingStorage, queueStorageMutation } from '../../helpers/storage/pending'
 
 export type TranslationRow = { src: string; zh: string; engine: string; updatedAt: number; hitCount: number }
 
@@ -18,6 +19,14 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
   const { fs, path } = mods
   const rows = new Map<string, TranslationRow>()
   const sourceRows = new Map<string, CacheRow>()
+  const deleted = new Set<string>()
+  function apply(row: CacheRow) {
+    applyCacheRow(sourceRows, row)
+    if (!row.origin) {
+      if (row.t === null) deleted.add(row.s)
+      else deleted.delete(row.s)
+    }
+  }
   let cachedRecords: SentenceRecord[] | null = null
   let resolver: ReturnType<typeof createSentenceResolver> | null = null
   let numeric: ReturnType<typeof createNumericLabelIndex> | null = null
@@ -26,12 +35,27 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
   let libraryStamp = ''
   let loadedBytes = 0
   let writes = Promise.resolve()
-  const fileFor = (kind: GameContentKind) => path.join(contentRoot, gameContentRelPath(kind))
-  const readPath = (kind: GameContentKind) =>
-    [fileFor(kind), ...LEGACY_FLAT_FILES[kind].map((name) => path.join(contentRoot, name))].find((file) => fs.existsSync(file)) || fileFor(kind)
-  const libraryFile = readPath('cacheNdjson')
+  let directory = ''
+  let libraryFile = ''
+  let mounting: Promise<void> | null = null
+  const fileFor = (kind: GameContentKind) => path.join(directory || contentRoot, directory ? GAME_CONTENT_RELS[kind] : gameContentRelPath(kind))
+  const readPath = fileFor
+  async function mount() {
+    if (directory) return
+    if (!mounting)
+      mounting = pluginStorageCall<{ directory: string }>('game.mount', [contentRoot])
+        .then((state) => {
+          directory = state.directory
+          libraryFile = fileFor('cacheNdjson')
+        })
+        .finally(() => {
+          mounting = null
+        })
+    await mounting
+  }
 
   async function readJson<T>(kind: GameContentKind, fallback: T): Promise<T> {
+    await mount()
     try {
       return JSON.parse(await fs.promises.readFile(readPath(kind), 'utf8')) as T
     } catch (error) {
@@ -49,33 +73,33 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
   }
   async function writeJson(kind: GameContentKind, value: unknown) {
     return serial(async () => {
-      const file = fileFor(kind)
-      await fs.promises.mkdir(path.dirname(file), { recursive: true })
-      const tmp = `${file}.tmp`
-      await fs.promises.writeFile(tmp, JSON.stringify(value) + '\n', 'utf8')
-      await fs.promises.rename(tmp, file)
+      await mount()
+      await pluginStorageCall('game.write', [contentRoot, kind, value])
       if (kind === 'seed') seedStamp = ''
     })
   }
   async function stamp(file: string) {
     try {
       const value = await fs.promises.stat(file)
-      return { key: `${file}:${value.mtimeMs}:${value.size}`, size: value.size }
+      return { key: `${file}:${value.ino}:${value.mtimeMs}:${value.size}`, size: value.size }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { key: `${file}:missing`, size: 0 }
       throw error
     }
   }
   async function load() {
+    await mount()
+    await flushPendingStorage(contentRoot)
     return serial(async () => {
       const [seedInfo, libraryInfo] = await Promise.all([stamp(readPath('seed')), stamp(libraryFile)])
       if (seedStamp === seedInfo.key && libraryStamp === libraryInfo.key) return
-      const full = seedStamp !== seedInfo.key || libraryInfo.size < loadedBytes || (libraryInfo.size === loadedBytes && libraryStamp !== libraryInfo.key)
+      const full = seedStamp !== seedInfo.key || libraryStamp !== libraryInfo.key
       if (full) {
         const nextSeed = await readJson<Record<string, string>>('seed', Object.create(null))
         if (!nextSeed || typeof nextSeed !== 'object' || Array.isArray(nextSeed)) throw new Error('本作原文表格式不正确')
         rows.clear()
         sourceRows.clear()
+        deleted.clear()
         seed = nextSeed
         loadedBytes = 0
         for (const [src, zh] of Object.entries(seed)) {
@@ -96,7 +120,7 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
             if (!lines[index].trim()) continue
             try {
               const item = parseCacheRow(JSON.parse(lines[index]))
-              if (item && (item.t === null || isReusableTranslation(item.s, item.t))) applyCacheRow(sourceRows, item)
+              if (item && (item.t === null || isReusableTranslation(item.s, item.t))) apply(item)
             } catch {
               /* 历史坏行不影响其它译文 */
             }
@@ -136,8 +160,9 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
         newlines: r.newlines,
       })))
   }
-  const plan = (src: string) => (resolver ??= createSentenceResolver(records())).plan(src)
+  const plan = (src: string) => (deleted.has(src) ? createSentenceResolver([]).plan(src) : (resolver ??= createSentenceResolver(records())).plan(src))
   function lookup(src: string, trackHit = false): string | null {
+    if (deleted.has(src)) return null
     const planned = plan(src)
     if (planned.status === 'full') {
       if (trackHit)
@@ -158,7 +183,6 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
   async function put(pairs: Array<[string, string | null]>, engine = 'manual', alignments?: Array<{ src: string; groups: AlignmentGroup[] }>) {
     await load()
     return serial(async () => {
-      await fs.promises.mkdir(path.dirname(libraryFile), { recursive: true })
       const at = Date.now()
       const accepted: Array<[string, string | null]> = []
       const events: CacheRow[] = []
@@ -183,13 +207,8 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
         byKey.set(key, next)
       }
       if (events.length) {
-        const release = lockCacheFile(fs, libraryFile)
-        try {
-          appendCacheLines(fs, libraryFile, events)
-        } finally {
-          release()
-        }
-        for (const event of events) applyCacheRow(sourceRows, event)
+        await queueStorageMutation(contentRoot, 'game.append', [contentRoot, events])
+        for (const event of events) apply(event)
         syncRows()
         onChange()
       }
@@ -208,13 +227,8 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
         if (row.origin && origins.some((o) => o.database === row.origin!.database && o.id === row.origin!.id && o.revision === row.origin!.revision))
           events.push({ s: row.s, t: null, origin: row.origin })
       if (!events.length) return
-      const release = lockCacheFile(fs, libraryFile)
-      try {
-        appendCacheLines(fs, libraryFile, events)
-      } finally {
-        release()
-      }
-      for (const event of events) applyCacheRow(sourceRows, event)
+      await queueStorageMutation(contentRoot, 'game.append', [contentRoot, events])
+      for (const event of events) apply(event)
       syncRows()
       onChange()
     })
@@ -243,6 +257,21 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
       file: libraryFile,
     }
   }
-  return { load, lookup, put, query, readJson, writeJson, fileFor, seed: () => seed, rows, records, plan, references, invalidateOrigins }
+  return {
+    load,
+    lookup,
+    put,
+    query,
+    readJson,
+    writeJson,
+    fileFor,
+    seed: () => seed,
+    rows,
+    records,
+    plan,
+    references,
+    invalidateOrigins,
+    blocked: (src: string) => deleted.has(src),
+  }
 }
 export type TranslationStore = ReturnType<typeof createTranslationStore>

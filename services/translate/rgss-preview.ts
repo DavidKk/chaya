@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 
-import { ensureGameContentDir, gameContentReadPath } from '@/lib/game/content-files'
+import { gameContentReadPath } from '@/lib/game/content-files'
 import { DEFAULT_RGSS_PREVIEW, normalizeRgssPreview, type RgssPreviewSettings, type RgssPreviewView } from '@/lib/translate/rgss-preview'
 import { rgssDataDir } from '@/services/extract/lib/rgss'
+import { writePublicGameDocument } from '@/services/storage/game-files'
 
 /**
  * Seed 页「游戏内：原文/译文」：只写 `chaya/config/translation-preview.json`。
@@ -20,10 +21,7 @@ export function getRgssPreviewSettings(contentRoot: string): RgssPreviewSettings
 
 function writePreviewSettings(contentRoot: string, settings: RgssPreviewSettings): RgssPreviewSettings {
   const normalized = normalizeRgssPreview(settings)
-  const file = ensureGameContentDir(contentRoot, 'translationPreview')
-  const tmp = `${file}.${process.pid}.tmp`
-  fs.writeFileSync(tmp, `${JSON.stringify(normalized)}\n`, 'utf8')
-  fs.renameSync(tmp, file)
+  writePublicGameDocument(contentRoot, 'translationPreview', normalized)
   return normalized
 }
 

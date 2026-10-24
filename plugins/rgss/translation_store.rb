@@ -69,6 +69,11 @@ module ChayaRGSS
     end
 
     def path_for(name, legacy)
+      public_root = ENV['CHAYA_PUBLIC_GAME_DIR']
+      if public_root && !public_root.empty?
+        file = File.join(public_root, 'translate', name)
+        return file if File.file?(file)
+      end
       ([File.join(@root, 'chaya', 'translate', name)] + legacy.map { |file| File.join(@root, file) }).find { |file| File.file?(file) }
     end
 

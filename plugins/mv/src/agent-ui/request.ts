@@ -14,6 +14,8 @@ import {
 
 import { readSharedAgentSync, writeSharedAgentSync } from '../agent/shared-settings'
 import { chayaFetch } from '../helpers'
+import { detectGameIdentity } from '../helpers/game/game-identity'
+import { pluginStorageCall } from '../helpers/storage/client'
 import { createDirectGameAgentRequest } from './direct-request'
 
 const SYNC_KEY = 'chaya.gameAgent.pluginSync.v1'
@@ -132,14 +134,23 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
         previous = JSON.stringify(local)
       }
       const candidate = local || createEmptyAgentSyncDocument(actor)
-      const response = await remote('/api/integration/game-agent', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sync: candidate, features: [CLI_PROVIDERS_FEATURE] }),
-        signal: AbortSignal.timeout(3_000),
-      })
-      const body = (await response.json().catch(() => null)) as { sync?: AgentSyncDocument; models?: AgentModels }
-      if (!response.ok || !body.sync) throw new Error(apiError(body, `HTTP ${response.status}`))
+      let body: { sync?: AgentSyncDocument; models?: AgentModels } | null = null
+      try {
+        const response = await remote('/api/integration/game-agent', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sync: candidate, features: [CLI_PROVIDERS_FEATURE] }),
+          signal: AbortSignal.timeout(3_000),
+        })
+        body = (await response.json().catch(() => null)) as { sync?: AgentSyncDocument; models?: AgentModels }
+        if (!response.ok || !body?.sync) throw new Error(apiError(body, `HTTP ${response.status}`))
+      } catch (err) {
+        try {
+          const canonical = await pluginStorageCall<AgentSyncDocument>('settings.load')
+          if (canonical) body = { sync: canonical }
+        } catch {}
+        if (!body?.sync) throw err
+      }
       const parsed = parseAgentSyncDocument(body.sync)
       if (!parsed) throw new Error('服务返回了无效的 Agent 同步数据')
       local = writeLocalSync(withAgentSyncActor(parsed, actor))
@@ -175,6 +186,19 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
   return async (path, init) => {
     const url = new URL(path, location.origin)
     const method = (init?.method || 'GET').toUpperCase()
+    if (url.pathname === '/api/game-agent/transcript') {
+      try {
+        const identity = detectGameIdentity()
+        if (!identity) throw new Error('Game identity unavailable')
+        if (method === 'PUT') {
+          const body = JSON.parse(String(init?.body || '{}')) as { transcript: unknown }
+          await pluginStorageCall('game.write', [identity.contentRoot, 'companionTranscript', body.transcript])
+        }
+        return jsonResponse({ transcript: await pluginStorageCall('game.read', [identity.contentRoot, 'companionTranscript']) })
+      } catch (error) {
+        return jsonResponse({ error: { message: error instanceof Error ? error.message : String(error) } }, 503)
+      }
+    }
     if (url.pathname === '/api/game-agent/status' || url.pathname === '/api/game-agent/turn' || url.pathname.startsWith('/api/game-agent/turn/')) {
       await initialSync()
       if (url.pathname === '/api/game-agent/status' && Object.keys(models).length === 0) await sync().catch(() => undefined)
@@ -203,8 +227,15 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
       local = writeLocalSync(applySettingsDiffToAgentSyncDocument(local!, agentSettingsFromSyncDocument(baseline), body.settings))
       try {
         const document = await sync()
+        try {
+          await pluginStorageCall('settings.merge', [document])
+        } catch {}
         return jsonResponse({ ok: true, settings: agentSettingsFromSyncDocument(document), sync: document })
       } catch {
+        try {
+          const saved = await pluginStorageCall<AgentSyncDocument>('settings.merge', [local])
+          if (saved) local = writeLocalSync(withAgentSyncActor(saved, actor))
+        } catch {}
         return jsonResponse({ ok: true, settings: agentSettingsFromSyncDocument(local), sync: local, pendingSync: true })
       }
     }
@@ -215,11 +246,6 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
 
 export const pluginGameAgentRequest = createPluginGameAgentRequest()
 
-/**
- * Keeps an open game converged with service-side edits without touching either side before the first merge.
- * Tool settings are not polled here: the always-mounted GameEdit root polls them through `useToolSettings`,
- * which drops reads that race a save.
- */
 export function startPluginGameAgentSync() {
   let stopped = false
   const run = () => {

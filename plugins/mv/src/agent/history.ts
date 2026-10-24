@@ -7,6 +7,7 @@ import { AGENT_HISTORY_DEFAULT, AGENT_HISTORY_KINDS, AGENT_HISTORY_MAX, type Age
 
 import { detectGameIdentity } from '../helpers'
 import { hookMethod } from '../helpers/game/method-hook'
+import { pluginStorageCall } from '../helpers/storage/client'
 
 export type HistoryEntry = {
   seq: number
@@ -32,10 +33,6 @@ type AnyFn = (...args: unknown[]) => unknown
 const TEXT_MAX = 1000
 const PERSIST_MS = 5_000
 const STORAGE_PREFIX = 'chaya.agent.history:'
-/** Prefer IndexedDB (quota); localStorage kept only as legacy migrate source / IDB fallback. */
-const HISTORY_DB = 'chaya-agent-history'
-const HISTORY_STORE = 'rings'
-const HISTORY_DB_VERSION = 1
 const ORIGINAL_MESSAGE_LINES = Symbol.for('chaya.originalMessageLines')
 
 type HistoryBlob = { seq: number; droppedSeq: number; entries: HistoryEntry[] }
@@ -47,7 +44,6 @@ let dirty = false
 let battleEpoch = 0
 let activeBattleId: string | null = null
 let lastBattleResult: { id: string; result: string } | null = null
-let idbReady: Promise<IDBDatabase | null> | null = null
 
 const g = () => globalThis as unknown as Loose
 
@@ -83,35 +79,17 @@ export function originalMessageText(message: unknown): string {
   return plainText(Array.isArray(source) && source.length ? source.join('\n') : call(message, 'allText'))
 }
 
-function storageKey(): string {
-  const title = (g().$dataSystem as { gameTitle?: string } | undefined)?.gameTitle || document.title
-  return STORAGE_PREFIX + `${title}|${detectGameIdentity()?.gameRoot || location.pathname}`
-}
-
-function openHistoryDb(): Promise<IDBDatabase | null> {
-  if (typeof indexedDB === 'undefined') return Promise.resolve(null)
-  idbReady ??= new Promise((resolve) => {
-    try {
-      const req = indexedDB.open(HISTORY_DB, HISTORY_DB_VERSION)
-      req.onupgradeneeded = () => {
-        const db = req.result
-        if (!db.objectStoreNames.contains(HISTORY_STORE)) db.createObjectStore(HISTORY_STORE)
-      }
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => resolve(null)
-    } catch {
-      resolve(null)
-    }
-  })
-  return idbReady
-}
-
 function applyBlob(saved: HistoryBlob | null | undefined) {
   if (!saved || !Array.isArray(saved.entries)) return false
   entries = saved.entries.filter((e) => e && typeof e.seq === 'number' && AGENT_HISTORY_KINDS.includes(e.kind)).slice(-AGENT_HISTORY_MAX)
   seq = Math.max(Number(saved.seq) || 0, entries[entries.length - 1]?.seq ?? 0)
   droppedSeq = Math.max(0, Number(saved.droppedSeq) || 0)
   return true
+}
+
+function storageKey(): string {
+  const title = (g().$dataSystem as { gameTitle?: string } | undefined)?.gameTitle || document.title
+  return STORAGE_PREFIX + `${title}|${detectGameIdentity()?.gameRoot || location.pathname}`
 }
 
 function readLocalStorageBlob(): HistoryBlob | null {
@@ -126,48 +104,7 @@ function readLocalStorageBlob(): HistoryBlob | null {
 function writeLocalStorageBlob(blob: HistoryBlob) {
   try {
     localStorage.setItem(storageKey(), JSON.stringify(blob))
-  } catch {
-    /* quota / private mode */
-  }
-}
-
-function clearLocalStorageBlob() {
-  try {
-    localStorage.removeItem(storageKey())
-  } catch {
-    /* */
-  }
-}
-
-async function idbGet(key: string): Promise<HistoryBlob | null> {
-  const db = await openHistoryDb()
-  if (!db) return null
-  return new Promise((resolve) => {
-    try {
-      const tx = db.transaction(HISTORY_STORE, 'readonly')
-      const req = tx.objectStore(HISTORY_STORE).get(key)
-      req.onsuccess = () => resolve((req.result as HistoryBlob | undefined) ?? null)
-      req.onerror = () => resolve(null)
-    } catch {
-      resolve(null)
-    }
-  })
-}
-
-async function idbPut(key: string, blob: HistoryBlob): Promise<boolean> {
-  const db = await openHistoryDb()
-  if (!db) return false
-  return new Promise((resolve) => {
-    try {
-      const tx = db.transaction(HISTORY_STORE, 'readwrite')
-      tx.objectStore(HISTORY_STORE).put(blob, key)
-      tx.oncomplete = () => resolve(true)
-      tx.onerror = () => resolve(false)
-      tx.onabort = () => resolve(false)
-    } catch {
-      resolve(false)
-    }
-  })
+  } catch {}
 }
 
 function push(entry: Omit<HistoryEntry, 'seq' | 'at' | 'playtime'>) {
@@ -189,31 +126,36 @@ function push(entry: Omit<HistoryEntry, 'seq' | 'at' | 'playtime'>) {
 }
 
 function restore() {
-  const key = storageKey()
   const legacy = readLocalStorageBlob()
   if (legacy) applyBlob(legacy)
-  void (async () => {
-    const fromIdb = await idbGet(key)
-    if (fromIdb && (fromIdb.seq || 0) >= seq) {
-      applyBlob(fromIdb)
-      clearLocalStorageBlob()
-      return
-    }
-    if (legacy && (await idbPut(key, { seq, droppedSeq, entries }))) clearLocalStorageBlob()
-  })()
+  const root = detectGameIdentity()?.contentRoot
+  if (!root) return
+  void pluginStorageCall<HistoryBlob | null>('game.read', [root, 'agentHistory'])
+    .then((saved) => {
+      if (saved && saved.seq >= seq) applyBlob(saved)
+    })
+    .catch(() => {
+      /* Keep the current session ring when the local service is unavailable. */
+    })
 }
 
 function persist() {
   if (!dirty) return
-  dirty = false
-  const key = storageKey()
-  const blob: HistoryBlob = { seq, droppedSeq, entries }
-  // Sync LS first so stop()/reload never lose the ring; clear LS once IDB confirms.
+  const blob: HistoryBlob = { seq, droppedSeq, entries: entries.slice() }
   writeLocalStorageBlob(blob)
-  if (typeof indexedDB === 'undefined') return
-  void idbPut(key, blob).then((ok) => {
-    if (ok) clearLocalStorageBlob()
-  })
+  const root = detectGameIdentity()?.contentRoot
+  if (!root) {
+    dirty = false
+    return
+  }
+  const persistedSeq = seq
+  void pluginStorageCall('game.write', [root, 'agentHistory', blob])
+    .then(() => {
+      if (seq === persistedSeq) dirty = false
+    })
+    .catch(() => {
+      /* Retry the unchanged ring on the next persistence tick. */
+    })
 }
 
 function mapName(mapId: number): string | undefined {

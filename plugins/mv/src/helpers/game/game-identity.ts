@@ -93,7 +93,7 @@ function collectStartCandidates(path: NodePath): string[] {
     if (typeof location !== 'undefined' && location.protocol === 'file:' && location.pathname) {
       let p = decodeURIComponent(location.pathname)
       if (/^\/[A-Za-z]:\//.test(p)) p = p.slice(1)
-      out.push(path.dirname(p))
+      out.unshift(path.dirname(p))
     }
   } catch {
     /* ignore */

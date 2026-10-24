@@ -1,5 +1,5 @@
 # Generated / runtime — skip formatters
-native/bin/chaya-cache-worker.mjs
+native/bin/*.mjs
 next-env.d.ts
 data/
 logs/

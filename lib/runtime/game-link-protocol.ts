@@ -256,10 +256,13 @@ export type AgentTaskMessage =
   | { type: 'agent.task.clear'; requestId: string; taskId?: string }
   | { type: 'agent.task.recall'; requestId: string; conversationId?: string; query?: string; limit?: number; offset?: number }
   | { type: 'agent.trace.list'; requestId: string }
+  | { type: 'agent.trace.append'; requestId: string; task: import('@/lib/game-agent/runtime').AgentTask; event: import('@/lib/game-agent/runtime').AgentTaskEvent }
   | { type: 'agent.trace.read'; requestId: string; taskId: string }
   | { type: 'agent.trace.export'; requestId: string; taskId: string }
   | { type: 'agent.trace.remove'; requestId: string; taskId?: string }
   | { type: 'agent.config.put'; requestId: string; config: unknown }
+  | { type: 'agent.settings.request'; requestId: string; settings?: unknown }
+  | { type: 'agent.transcript.request'; requestId: string; transcript?: unknown }
   | { type: 'agent.task.result'; requestId: string; ok: boolean; data?: unknown; error?: string; code?: string; retryable?: boolean }
 
 /** RGSS in-game dialogue live translate / subtitle events */

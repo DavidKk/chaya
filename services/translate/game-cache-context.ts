@@ -1,4 +1,7 @@
 /** Reuse local authority indexes; shared-origin mirrors are queried through SQLite, never scanned twice. */
+import fs from 'node:fs'
+
+import { parseCacheRow } from '@/lib/translate/cache-row'
 import { numericLabelFamily } from '@/lib/translate/dynamic-template'
 import type { SentenceRecord } from '@/lib/translate/sentence-plan'
 import { createSentenceResolver } from '@/lib/translate/sentence-plan'
@@ -9,6 +12,17 @@ import { gameTranslationFiles, loadGameTranslationRecords } from './game-records
 const contexts = new Map<string, ReturnType<typeof buildContext> & { stamp: string }>()
 function buildContext(contentRoot: string) {
   const records = loadGameTranslationRecords(contentRoot, () => false)
+  const blocked = new Set<string>()
+  const file = gameTranslationFiles(contentRoot).cache
+  if (file)
+    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+      if (!line.trim()) continue
+      const row = parseCacheRow(JSON.parse(line))
+      if (!row?.origin) {
+        if (row?.t === null) blocked.add(row.s)
+        else if (row) blocked.delete(row.s)
+      }
+    }
   const numeric = new Map<string, SentenceRecord[]>()
   for (const record of records) {
     const family = numericLabelFamily(record.src)
@@ -16,6 +30,7 @@ function buildContext(contentRoot: string) {
   }
   return {
     records,
+    blocked: (src: string) => blocked.has(src),
     resolver: createSentenceResolver(records),
     lookup: createGameTranslateLookup(records),
     numericRecords: (src: string) => numeric.get(numericLabelFamily(src) || '') || [],

@@ -1,9 +1,7 @@
 /**
  * Persistence factory for companion memory.
- * Browser → IndexedDB adapter; local/app plugin → HTTP service adapter.
+ * Browser → local service adapter; Node-only callers use temporary memory.
  */
-
-import { createBrowserCompanionMemoryBackend } from '@/lib/browser/companion-memory-store'
 
 import { applyWriteBatch, emptyMemorySnapshot } from './memory-durable'
 import { createGameplayMemoryStore } from './memory-store'
@@ -13,10 +11,6 @@ export type CompanionMemoryPersistence = MemoryBackend & {
   kind: 'browser' | 'service' | 'memory'
   gameId: string
   runtimeInstanceId?: string
-}
-
-function cloudRuntime() {
-  return typeof window !== 'undefined' && Boolean((window as Window & { CHAYA_LINK_TOKEN?: string }).CHAYA_LINK_TOKEN)
 }
 
 function serviceBase(gameId: string, runtimeInstanceId?: string) {
@@ -105,15 +99,11 @@ function createMemoryOnlyBackend(gameId?: string): MemoryBackend {
 
 /**
  * Create the host persistence adapter for a game runtime.
- * - Cloud / linked browser games: IndexedDB
+ * - Linked browser games use their injected local transport; no asset IndexedDB.
  * - Locally launched games in a page: existing local service HTTP endpoint
  * - Pure Node callers without window: in-memory fallback (tests / temporary)
  */
 export function createCompanionMemoryPersistence(gameId: string, runtimeInstanceId?: string, options?: { cloud?: boolean; fetchImpl?: typeof fetch }): CompanionMemoryPersistence {
-  const useCloud = options?.cloud ?? cloudRuntime()
-  if (typeof indexedDB !== 'undefined' && useCloud) {
-    return { kind: 'browser', gameId, runtimeInstanceId, ...createBrowserCompanionMemoryBackend(gameId) }
-  }
   if (typeof window !== 'undefined') {
     const fetchImpl = options?.fetchImpl || fetch.bind(globalThis)
     return { kind: 'service', gameId, runtimeInstanceId, ...createServiceBackend(gameId, runtimeInstanceId, fetchImpl) }

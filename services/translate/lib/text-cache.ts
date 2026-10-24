@@ -2,6 +2,7 @@
 import { fs, loadKuromoji, path, rt } from './env'
 import { JAPANESE, KANA_LETTER } from './constants'
 import { isReusableTranslation, isStorableTranslation, shouldTranslate as shouldTranslateSource } from '../text-classify'
+import { appendPublicGameCache, writePublicGameDocument } from '@/services/storage/game-files'
 
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -21,6 +22,7 @@ export function loadJson(file, fallback) {
 }
 
 export function saveJson(file, data, pretty = false) {
+  if (file === rt().INPUT) return writePublicGameDocument(rt().CONTENT_ROOT, 'seed', data)
   const body = pretty ? JSON.stringify(data, null, 4) + '\n' : JSON.stringify(data)
   const tmp = `${file}.${process.pid}.tmp`
   fs.mkdirSync(path.dirname(file), { recursive: true })
@@ -52,6 +54,7 @@ export function loadNdjsonCache(file) {
 export function appendNdjsonPairs(file, pairs) {
   const valid = pairs.filter(([src, zh]) => isStorableTranslation(src, zh))
   if (!valid.length) return
+  if (file === rt().CACHE_NDJSON) return appendPublicGameCache(rt().CONTENT_ROOT, valid)
   const chunk = valid.map(([src, zh]) => JSON.stringify([src, zh])).join('\n') + '\n'
   fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.appendFileSync(file, chunk)

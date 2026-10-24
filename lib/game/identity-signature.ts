@@ -1,5 +1,18 @@
 import type { SupportedEngine } from './types'
 
+export const GENERIC_DEFAULT_TITLES = new Set([
+  '',
+  'game',
+  'rpg',
+  'untitled',
+  'rpg maker mz game',
+  'rpg maker mv game',
+  'rpg vx ace',
+  'rpg vx',
+  'made with rpg maker',
+  '未命名游戏',
+])
+
 export const IDENTITY_SIGNATURE_VERSION = 1 as const
 
 export type GameIdentityBaseline = {
@@ -45,6 +58,16 @@ export function verifyIdentity(baseline: GameIdentityBaseline | null | undefined
     }
   }
 
+  if (baseline.engine !== current.engine || baseline.signatureVersion !== current.signatureVersion) {
+    return {
+      status: 'MISMATCH',
+      gameId: baseline.gameId,
+      currentTitle: current.title,
+      currentSignature: current.signature,
+      details: 'Engine or signature algorithm changed; explicit re-verification is required.',
+    }
+  }
+
   if (baseline.signatureBaseline === current.signature) {
     return {
       status: 'MATCH',
@@ -61,6 +84,17 @@ export function verifyIdentity(baseline: GameIdentityBaseline | null | undefined
   const sameTitle = baselineTitleNorm.length > 0 && baselineTitleNorm === currentTitleNorm
 
   if (sameTitle) {
+    if (GENERIC_DEFAULT_TITLES.has(baselineTitleNorm)) {
+      return {
+        status: 'MISMATCH',
+        gameId: baseline.gameId,
+        baselineTitle: baseline.title,
+        currentTitle: current.title,
+        baselineSignature: baseline.signatureBaseline,
+        currentSignature: current.signature,
+        details: 'Game title uses generic default name ("' + baseline.title + '") and content signature differs. Blocked from accidental drift binding.',
+      }
+    }
     return {
       status: 'DRIFT',
       gameId: baseline.gameId,

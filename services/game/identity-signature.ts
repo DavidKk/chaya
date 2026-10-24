@@ -32,6 +32,18 @@ function readHeadBytes(file: string, bytes: number): Buffer | null {
   }
 }
 
+function readTailBytes(file: string, bytes: number): Buffer {
+  const fd = fs.openSync(file, 'r')
+  try {
+    const size = fs.fstatSync(fd).size
+    const buffer = Buffer.alloc(Math.min(size, bytes))
+    fs.readSync(fd, buffer, 0, buffer.length, Math.max(0, size - buffer.length))
+    return buffer
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
 function readJsonSafe<T>(file: string): T | null {
   try {
     if (!fs.existsSync(file)) return null
@@ -65,7 +77,11 @@ function computeMvMzSignature(contentRoot: string, projectRoot: string): { title
       startX?: number
       startY?: number
       editDigest?: string
-    }>(path.join(contentRoot, 'data', 'System.json')) || {}
+    }>(path.join(contentRoot, 'data', 'System.json')) ||
+    readJsonSafe<{ gameTitle?: string; versionId?: number; startMapId?: number; startX?: number; startY?: number; editDigest?: string }>(
+      path.join(contentRoot, 'Data', 'System.json')
+    )
+  if (!system || !Object.keys(system).length) throw new Error('Game identity cannot be verified: System.json is missing or unreadable')
 
   const rawActors = readJsonSafe<Array<{ id?: number; name?: string; profile?: string }>>(path.join(contentRoot, 'data', 'Actors.json')) || []
   const actors = rawActors
@@ -118,11 +134,45 @@ function computeRgssSignature(contentRoot: string, projectRoot: string): { title
     }
   }
 
-  const systemBuf =
-    readHeadBytes(path.join(contentRoot, 'Data', 'System.rvdata2'), 16 * 1024) || readHeadBytes(path.join(contentRoot, 'Data', 'System.rvdata'), 16 * 1024) || Buffer.alloc(0)
+  let systemBuf =
+    readHeadBytes(path.join(contentRoot, 'Data', 'System.rvdata2'), 16 * 1024) ||
+    readHeadBytes(path.join(contentRoot, 'Data', 'System.rvdata'), 16 * 1024) ||
+    readHeadBytes(path.join(contentRoot, 'data', 'System.rvdata2'), 16 * 1024) ||
+    readHeadBytes(path.join(contentRoot, 'data', 'System.rvdata'), 16 * 1024) ||
+    Buffer.alloc(0)
 
-  const actorsBuf =
-    readHeadBytes(path.join(contentRoot, 'Data', 'Actors.rvdata2'), 8 * 1024) || readHeadBytes(path.join(contentRoot, 'Data', 'Actors.rvdata'), 8 * 1024) || Buffer.alloc(0)
+  let actorsBuf =
+    readHeadBytes(path.join(contentRoot, 'Data', 'Actors.rvdata2'), 8 * 1024) ||
+    readHeadBytes(path.join(contentRoot, 'Data', 'Actors.rvdata'), 8 * 1024) ||
+    readHeadBytes(path.join(contentRoot, 'data', 'Actors.rvdata2'), 8 * 1024) ||
+    readHeadBytes(path.join(contentRoot, 'data', 'Actors.rvdata'), 8 * 1024) ||
+    Buffer.alloc(0)
+
+  if (systemBuf.length === 0 && actorsBuf.length === 0) {
+    const archiveCandidates = [
+      path.join(contentRoot, 'Game.rgss3a'),
+      path.join(contentRoot, 'Game.rgss2a'),
+      path.join(contentRoot, 'Game.rgssad'),
+      path.join(projectRoot, 'Game.rgss3a'),
+      path.join(projectRoot, 'Game.rgss2a'),
+      path.join(projectRoot, 'Game.rgssad'),
+    ]
+    for (const archivePath of archiveCandidates) {
+      if (fs.existsSync(archivePath)) {
+        try {
+          const stat = fs.statSync(archivePath)
+          const headBuf = readHeadBytes(archivePath, 16 * 1024)
+          if (!headBuf?.length) continue
+          systemBuf = headBuf
+          actorsBuf = Buffer.concat([Buffer.from(`archive:${stat.size}:`), readTailBytes(archivePath, 16 * 1024)])
+          break
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+  if (!systemBuf.length && !actorsBuf.length) throw new Error('Game identity cannot be verified: no RGSS data or readable archive')
 
   const title = (iniTitle || path.basename(projectRoot) || path.basename(contentRoot)).trim()
 

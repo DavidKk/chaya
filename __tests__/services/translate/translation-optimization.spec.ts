@@ -1,3 +1,4 @@
+jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 jest.mock('@/services/runtime/presence', () => ({
   getGamePresence: jest.fn(() => ({ online: false })),

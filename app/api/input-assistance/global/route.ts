@@ -1,31 +1,13 @@
-import fs from 'node:fs'
-import path from 'node:path'
-
 import { defineApiRoute } from '@/initializer/controller'
 import { apiBadRequest, apiOk } from '@/initializer/response'
-import { EMPTY_INPUT_ASSIST_CONFIG, type InputAssistConfig, parseInputAssistConfig, validateRule } from '@/lib/game/input-assistance'
-import { toolkitDataDir } from '@/lib/game/toolkit-data'
+import { type InputAssistConfig, parseInputAssistConfig, validateRule } from '@/lib/game/input-assistance'
 import { requireDisk } from '@/lib/service-mode'
+import { storageCall } from '@/services/storage/client'
 
 export const runtime = 'nodejs'
 
-function configFile(): string {
-  return path.join(toolkitDataDir(), 'input-assistance', 'global.json')
-}
-
 function readConfig(): InputAssistConfig {
-  let text: string
-  try {
-    text = fs.readFileSync(configFile(), 'utf8')
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] }
-    throw error
-  }
-  const raw = JSON.parse(text)
-  const config = parseInputAssistConfig(raw)
-  if (raw?.version !== 1 || !Array.isArray(raw.rules) || config.rules.length !== raw.rules.length)
-    throw new Error('Global input assistance configuration file is corrupt, please check source file')
-  return config
+  return parseInputAssistConfig(storageCall('config.get', ['inputAssistance']))
 }
 
 export const GET = defineApiRoute('get:/api/input-assistance/global', async () => {
@@ -48,10 +30,12 @@ export const PUT = defineApiRoute('put:/api/input-assistance/global', async ({ r
   const current = readConfig()
   if (body.expectedRevision !== current.revision || next.revision !== current.revision + 1)
     return apiBadRequest('Global configuration was modified elsewhere, please refresh and retry', 'REVISION_CONFLICT')
-  const file = configFile()
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  const temporary = `${file}.${process.pid}.tmp`
-  fs.writeFileSync(temporary, JSON.stringify(next, null, 2))
-  fs.renameSync(temporary, file)
+  try {
+    storageCall('config.set', ['inputAssistance', next, body.expectedRevision])
+  } catch (error) {
+    if (error instanceof Error && error.message === 'REVISION_CONFLICT')
+      return apiBadRequest('Global configuration was modified elsewhere, please refresh and retry', 'REVISION_CONFLICT')
+    throw error
+  }
   return apiOk({ config: next })
 })

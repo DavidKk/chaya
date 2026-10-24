@@ -10,7 +10,7 @@ import { exportSourcesPayload, normalizeSourcesInput, type SourcesEntry, type So
 import { liveTranslateTexts } from './live-translate'
 import { openSharedCache } from './shared-cache'
 
-export type SourcesJobStatus = 'idle' | 'running' | 'done' | 'error'
+export type SourcesJobStatus = 'idle' | 'running' | 'paused' | 'done' | 'error'
 
 export type SourcesJobSnapshot = {
   jobId: string

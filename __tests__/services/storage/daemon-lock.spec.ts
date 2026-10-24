@@ -92,4 +92,19 @@ describe('daemon-lock', () => {
     expect(handle?.meta.pid).toBe(process.pid)
     handle?.release()
   })
+
+  it('keeps the guard exclusive when metadata is corrupt and the data directory is aliased', () => {
+    const owner = acquireStorageDaemonLock({ dataDir: tmpDir, port: 3900, authToken: 'owner' })!
+    const alias = `${tmpDir}-alias`
+    try {
+      fs.symlinkSync(tmpDir, alias, 'dir')
+      fs.writeFileSync(path.join(tmpDir, 'runtime/storage-daemon.lock'), '{')
+      expect(acquireStorageDaemonLock({ dataDir: alias, port: 3901, authToken: 'other' })).toBeNull()
+      owner.publishPort(3902)
+      expect(readStorageDaemonMeta(alias)?.port).toBe(3902)
+    } finally {
+      owner.release()
+      fs.unlinkSync(alias)
+    }
+  })
 })

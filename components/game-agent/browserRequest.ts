@@ -1,5 +1,5 @@
 import type { WebMcpToolDefinition } from '@/initializer/webmcp/model-context'
-import { browserAgentTraceArchive } from '@/lib/browser/agent-trace-store'
+import { browserAgentTraceArchive, setBrowserAgentTraceArchive } from '@/lib/browser/agent-trace-store'
 import { gameAgentProfileToolSpecs } from '@/lib/game-agent/profile-tool-specs'
 import { isCliProvider } from '@/lib/game-agent/providers'
 import type { AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
@@ -47,13 +47,37 @@ function defaultSettings(): Settings {
   return { version: 1, defaultProfileId: profile.id, profiles: [profile] }
 }
 
+let settingsView = defaultSettings()
+let modelsView: Record<string, ModelCacheEntry> = {}
+let persistSettings: ((value: Settings) => Promise<Settings>) | null = null
 function readJson<T>(key: string, fallback: T): T {
-  try {
-    const value = localStorage.getItem(key)
-    return value ? (JSON.parse(value) as T) : fallback
-  } catch {
-    return fallback
+  if (key === SETTINGS_KEY) {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const value = localStorage.getItem(key)
+        if (value) return JSON.parse(value) as T
+      } catch {}
+    }
+    return (settingsView || fallback) as T
   }
+  if (key === MODELS_KEY) {
+    if (modelsView && Object.keys(modelsView).length) return modelsView as T
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const value = localStorage.getItem(key)
+        if (value) return JSON.parse(value) as T
+      } catch {}
+    }
+    return (modelsView || fallback) as T
+  }
+  return fallback
+}
+export function currentBrowserAgentSettings() {
+  return settingsView
+}
+export function resetBrowserAgentSettingsForTests() {
+  settingsView = defaultSettings()
+  modelsView = {}
 }
 
 function response(body: unknown, status = 200) {
@@ -94,10 +118,17 @@ function releaseOnEnd(source: Response, release: () => void) {
   return new Response(body, { status: source.status, headers: source.headers })
 }
 
-function saveSettings(value: Settings) {
+async function saveSettings(value: Settings): Promise<Settings> {
   const next = { ...value, version: 1 as const, defaultProfileId: value.profiles[0]?.id || '' }
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
-  return next
+  if (persistSettings) {
+    settingsView = await persistSettings(next)
+  } else {
+    settingsView = next
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
+    } catch {}
+  }
+  return settingsView
 }
 
 function target(args: Record<string, unknown>) {
@@ -150,20 +181,20 @@ export function buildBrowserAgentProfileTools(): WebMcpToolDefinition[] {
           modelTimeoutMs: patch.modelTimeoutMs || 120_000,
           gameCallTimeoutMs: patch.gameCallTimeoutMs || 15_000,
         }
-        saveSettings({ ...current, profiles: [...current.profiles, profile] })
+        await saveSettings({ ...current, profiles: [...current.profiles, profile] })
         return profile
       }
       const existing = resolveProfile(current, target(args))
       if (spec.name === 'chaya_agent_profile_update') {
         const updated = { ...existing, ...profilePatch(args), id: existing.id, provider: 'ollama' as const }
-        saveSettings({ ...current, profiles: current.profiles.map((profile) => (profile.id === existing.id ? updated : profile)) })
+        await saveSettings({ ...current, profiles: current.profiles.map((profile) => (profile.id === existing.id ? updated : profile)) })
         return updated
       }
       if (current.profiles.length <= 1) throw new Error('至少需要保留一个 Agent')
-      const saved = saveSettings({ ...current, profiles: current.profiles.filter((profile) => profile.id !== existing.id) })
+      const saved = await saveSettings({ ...current, profiles: current.profiles.filter((profile) => profile.id !== existing.id) })
       const cache = modelCache()
       delete cache[existing.id]
-      localStorage.setItem(MODELS_KEY, JSON.stringify(cache))
+      modelsView = cache
       return { deleted: { id: existing.id, label: existing.label }, defaultProfileId: saved.defaultProfileId, count: saved.profiles.length }
     })
   )
@@ -197,6 +228,36 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
   const taskCall = (message: Parameters<AgentTaskCall>[0], signal?: AbortSignal) => {
     if (!input.agentTask) return Promise.reject(new Error('当前环境没有 Agent 游戏通道'))
     return input.agentTask(message, signal)
+  }
+  setBrowserAgentTraceArchive(
+    input.connected && input.agentTask
+      ? {
+          async append(task, event) {
+            await taskCall({ type: 'agent.trace.append', requestId: crypto.randomUUID(), task, event })
+          },
+          list: async () => (await taskCall({ type: 'agent.trace.list', requestId: crypto.randomUUID() })) as import('@/lib/game-agent/trace').AgentTraceSummary[],
+          read: async (taskId) => (await taskCall({ type: 'agent.trace.read', requestId: crypto.randomUUID(), taskId })) as AgentTask | null,
+          export: async (taskId) =>
+            (await taskCall({ type: 'agent.trace.export', requestId: crypto.randomUUID(), taskId })) as import('@/lib/game-agent/trace').AgentTraceExport | null,
+          remove: async (taskId) => ((await taskCall({ type: 'agent.trace.remove', requestId: crypto.randomUUID(), taskId })) as { removed: number }).removed,
+        }
+      : null
+  )
+
+  persistSettings =
+    input.connected && input.agentTask
+      ? async (value) => {
+          const result = (await taskCall({ type: 'agent.settings.request', requestId: crypto.randomUUID(), settings: value })) as { settings: Settings }
+          return result.settings
+        }
+      : null
+  let refreshedAt = 0
+  async function refreshSettings() {
+    if (!input.connected || !input.agentTask) return
+    if (Date.now() - refreshedAt < 1000) return
+    const result = (await taskCall({ type: 'agent.settings.request', requestId: crypto.randomUUID() })) as { settings: Settings }
+    settingsView = result.settings
+    refreshedAt = Date.now()
   }
 
   const classifyPlay = async (profile: BrowserAgentProfile, model: string, prompt: string, signal?: AbortSignal) => {
@@ -344,6 +405,27 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
   return async (path, init) => {
     const url = new URL(path, location.origin)
     const method = (init?.method || 'GET').toUpperCase()
+    if (url.pathname === '/api/game-agent/transcript') {
+      try {
+        if (!input.connected) throw new Error('Game is disconnected')
+        const body = method === 'PUT' ? (JSON.parse(String(init?.body || '{}')) as { transcript: unknown }) : undefined
+        return response(await taskCall({ type: 'agent.transcript.request', requestId: crypto.randomUUID(), transcript: body?.transcript }))
+      } catch (error) {
+        return response({ error: { message: error instanceof Error ? error.message : String(error) } }, 503)
+      }
+    }
+    if (
+      url.pathname === '/api/integration/game-agent' ||
+      url.pathname === '/api/game-agent/status' ||
+      url.pathname === '/api/game-agent/turn' ||
+      url.pathname === '/api/game-agent/companion'
+    ) {
+      try {
+        await refreshSettings()
+      } catch (error) {
+        return response({ error: { code: 'LOCAL_STORAGE_UNAVAILABLE', message: error instanceof Error ? error.message : String(error) } }, 503)
+      }
+    }
 
     if (url.pathname === '/api/game-agent/companion' && method === 'POST') {
       if (!input.connected || !input.agentTask) return response({ error: { code: 'NOT_READY', message: '游戏未连接或插件不支持旅伴协议' } }, 503)
@@ -377,7 +459,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
         return response({ error: { code: 'LOCAL_ONLY', message: CLI_LOCAL_ONLY } }, 400)
       }
       if (method === 'PUT' && body.settings?.profiles?.length) {
-        const next = saveSettings(body.settings)
+        const next = await saveSettings(body.settings)
         return response({ ok: true, settings: next })
       }
       if (method === 'POST' && (body.action === 'test' || body.action === 'models') && body.profile) {
@@ -385,7 +467,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
           const models = await testOllama(body.profile)
           const cached = modelCache()
           cached[body.profile.id] = { endpoint: body.profile.endpoint, models }
-          localStorage.setItem(MODELS_KEY, JSON.stringify(cached))
+          modelsView = cached
           const defaultModel = models.some((model) => model.name === body.profile!.defaultModel) ? body.profile.defaultModel : models[0]?.name || ''
           return response({ ok: true, profileId: body.profile.id, models, defaultModel })
         } catch (error) {

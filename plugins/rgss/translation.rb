@@ -93,8 +93,12 @@ module ChayaRGSS
       end
 
       def load_play_settings
-        path = File.join(@root || Dir.pwd, 'chaya', 'config', 'translation-play.json')
-        preview = File.join(@root || Dir.pwd, 'chaya', 'config', 'translation-preview.json')
+        public_root = ENV['CHAYA_PUBLIC_GAME_DIR']
+        base = (public_root && !public_root.empty?) ? public_root : (@root || Dir.pwd)
+        path = File.join(base, 'config', 'translation-play.json')
+        path = File.join(base, 'chaya', 'config', 'translation-play.json') unless File.file?(path)
+        preview = File.join(base, 'config', 'translation-preview.json')
+        preview = File.join(base, 'chaya', 'config', 'translation-preview.json') unless File.file?(preview)
         sig = nil
         preview_sig = nil
         if File.file?(path)

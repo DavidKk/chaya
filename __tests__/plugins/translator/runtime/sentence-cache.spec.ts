@@ -1,3 +1,5 @@
+jest.mock('@/plugins/mv/src/helpers/storage/client', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
+jest.mock('@/plugins/mv/src/helpers/storage/pending', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 import { chayaFetch } from '@/plugins/mv/src/helpers/net/http'
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 jest.mock('@/plugins/mv/src/helpers/net/http', () => ({

@@ -10,7 +10,15 @@ import {
   MEMORY_STATE_IDS_MAX,
   MEMORY_STRING_FIELD_MAX,
 } from './memory-limits'
-import { MEMORY_SCHEMA_VERSION, type MemoryEpisodeRecord, type MemoryEvidenceRecord, type MemoryPreferenceRecord, type MemorySaveLink, type MemoryWriteBatch } from './memory-types'
+import {
+  MEMORY_SCHEMA_VERSION,
+  type MemoryEpisodeRecord,
+  type MemoryEvidenceRecord,
+  type MemoryPreferenceRecord,
+  type MemoryProjectionStats,
+  type MemorySaveLink,
+  type MemoryWriteBatch,
+} from './memory-types'
 import type { ActionEvidence, RuntimeScope } from './types'
 
 export class MemorySchemaError extends Error {
@@ -276,6 +284,25 @@ export function validateSaveLink(value: unknown): MemorySaveLink {
   }
 }
 
+function validateProjection(value: unknown): MemoryProjectionStats {
+  if (!isObject(value) || !isObject(value.key)) throw new MemorySchemaError('Invalid projection')
+  return {
+    key: {
+      libraryGameId: requireString(value.key.libraryGameId, 'projection.key.libraryGameId', MEMORY_ID_FIELD_MAX),
+      dataRevision: requireString(value.key.dataRevision, 'projection.key.dataRevision', MEMORY_ID_FIELD_MAX),
+      playthroughId: requireString(value.key.playthroughId, 'projection.key.playthroughId', MEMORY_ID_FIELD_MAX),
+      ...(value.key.enemyId === undefined ? {} : { enemyId: requireInt(value.key.enemyId, 'projection.key.enemyId', 0) }),
+      ...(value.key.skillId === undefined ? {} : { skillId: requireInt(value.key.skillId, 'projection.key.skillId', 0) }),
+    },
+    encounters: requireInt(value.encounters, 'projection.encounters', 0),
+    defeats: requireInt(value.defeats, 'projection.defeats', 0),
+    knockouts: requireInt(value.knockouts, 'projection.knockouts', 0),
+    victories: requireInt(value.victories, 'projection.victories', 0),
+    memoryEpoch: requireInt(value.memoryEpoch, 'projection.memoryEpoch', 1),
+    updatedAt: requireInt(value.updatedAt, 'projection.updatedAt', 0),
+  }
+}
+
 export function validateWriteBatch(value: unknown): MemoryWriteBatch {
   if (!isObject(value)) throw new MemorySchemaError('Invalid write batch')
   const schemaVersion = requireInt(value.schemaVersion, 'batch.schemaVersion', 1)
@@ -290,6 +317,7 @@ export function validateWriteBatch(value: unknown): MemoryWriteBatch {
     evidence: Array.isArray(value.evidence) ? value.evidence.map(validateEvidenceRecord) : undefined,
     saveLinks: Array.isArray(value.saveLinks) ? value.saveLinks.map(validateSaveLink) : undefined,
     preferences: Array.isArray(value.preferences) ? value.preferences.map(validatePreference) : undefined,
+    projections: Array.isArray(value.projections) ? value.projections.map(validateProjection) : undefined,
     clear: isObject(value.clear)
       ? {
           libraryGameId: optionalString(value.clear.libraryGameId, 'batch.clear.libraryGameId', MEMORY_ID_FIELD_MAX),

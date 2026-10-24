@@ -5,17 +5,16 @@
 import type { HotkeyMap } from '@/components/game-edit/run-hotkeys'
 import { canDisableHotkey, loadDisabledHotkeys, RUN_HOTKEY_TARGETS, saveHotkeySyncSnapshot, setGameHotkeysCache } from '@/components/game-edit/run-hotkeys'
 import { emptySession, type RunFlagKey, type SessionState } from '@/components/game-edit/types'
-import { gameContentRelPath, LEGACY_FLAT_FILES } from '@/lib/game/content-paths'
+import { GAME_CONTENT_RELS } from '@/lib/game/content-paths'
 import { editHotkeySnapshot, emptyHotkeySnapshot, type HotkeySyncSnapshot, normalizeHotkeySnapshot } from '@/lib/game/hotkeys-sync'
 
 import { detectGameIdentity } from '../../helpers/game/game-identity'
 import { tryNodeFsPath } from '../../helpers/node/node-require'
+import { pluginPublicGameDirectory, pluginStorageCall } from '../../helpers/storage/client'
 import { applyGameSpeed, applyRunFlag, applySpeed } from '../runtime/apply-run'
 import { Cheats, type LockKind } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
 
-const FILE_REL = gameContentRelPath('gameEdit')
-const LEGACY_NAMES = LEGACY_FLAT_FILES.gameEdit
 const CHEAT_LOCK_KINDS = new Set<string>(['item', 'weapon', 'armor', 'var', 'gold', 'hp', 'mp', 'mhp', 'mmp', 'tp', 'sw', 'level', 'exp'])
 
 export type GameEditDiskRun = {
@@ -55,20 +54,12 @@ export function resolveGameEditDiskPath(): string | null {
   const mods = tryNodeFsPath()
   const id = detectGameIdentity()
   if (!mods || !id?.contentRoot) return null
-  return mods.path.join(id.contentRoot, FILE_REL)
+  const directory = pluginPublicGameDirectory(id.contentRoot)
+  return directory ? mods.path.join(directory, GAME_CONTENT_RELS.gameEdit) : null
 }
 
 function resolveGameEditReadPath(): string | null {
-  const mods = tryNodeFsPath()
-  const id = detectGameIdentity()
-  if (!mods || !id?.contentRoot) return null
-  const primary = mods.path.join(id.contentRoot, FILE_REL)
-  if (mods.fs.existsSync(primary)) return primary
-  for (const name of LEGACY_NAMES) {
-    const p = mods.path.join(id.contentRoot, name)
-    if (mods.fs.existsSync(p)) return p
-  }
-  return null
+  return resolveGameEditDiskPath()
 }
 
 function asFiniteNumber(v: unknown): number | undefined {
@@ -134,19 +125,12 @@ export function loadGameEditDisk(): GameEditDiskState | null {
   }
 }
 
-export function saveGameEditDisk(state: GameEditDiskState): boolean {
-  const mods = tryNodeFsPath()
-  const file = resolveGameEditDiskPath()
-  if (!mods || !file) return false
+export async function saveGameEditDisk(state: GameEditDiskState): Promise<boolean> {
+  const id = detectGameIdentity()
+  if (!id) return false
   try {
-    mods.fs.mkdirSync(mods.path.dirname(file), { recursive: true })
-    const payload: GameEditDiskState = {
-      version: 1,
-      run: state.run || {},
-      locks: state.locks || {},
-      hotkeys: state.hotkeys,
-    }
-    mods.fs.writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
+    const payload: GameEditDiskState = { version: 1, run: state.run || {}, locks: state.locks || {}, hotkeys: state.hotkeys }
+    await pluginStorageCall('game.write', [id.contentRoot, 'gameEdit', payload])
     return true
   } catch {
     return false
@@ -337,6 +321,8 @@ function hookLoadGame() {
 
 /** Apply disk settings after entering / loading a save */
 export function ensureGameEditDiskApplied() {
+  const identity = detectGameIdentity()
+  if (!identity || !pluginPublicGameDirectory(identity.contentRoot)) return
   hookLoadGame()
   if (!$gameParty) {
     hadParty = false
@@ -349,7 +335,11 @@ export function ensureGameEditDiskApplied() {
   }
   if (appliedForCurrentParty) return
   const disk = loadGameEditDisk()
-  if (disk) applyGameEditDisk(disk)
+  if (disk) {
+    hotkeySnapshot = disk.hotkeys
+    setGameHotkeysCache(disk.hotkeys.game.bindings)
+    applyGameEditDisk(disk)
+  }
   appliedForCurrentParty = true
 }
 

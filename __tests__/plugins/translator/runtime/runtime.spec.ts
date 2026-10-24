@@ -1,3 +1,5 @@
+jest.mock('@/plugins/mv/src/helpers/storage/client', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
+jest.mock('@/plugins/mv/src/helpers/storage/pending', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'

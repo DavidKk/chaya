@@ -1,3 +1,4 @@
+jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'

@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { GET, PUT } from '@/app/api/input-assistance/global/route'
+import { DATA_DIR } from '@/constants/paths'
 import type { InputAssistConfig, TurboRule } from '@/lib/game/input-assistance'
 
 let dataDir = ''
@@ -29,10 +30,12 @@ async function stored(): Promise<InputAssistConfig> {
 
 beforeEach(() => {
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-input-assist-'))
+  fs.rmSync(path.join(DATA_DIR, 'input-assistance'), { recursive: true, force: true })
 })
 
 afterEach(() => {
   fs.rmSync(dataDir, { recursive: true, force: true })
+  fs.rmSync(path.join(DATA_DIR, 'input-assistance'), { recursive: true, force: true })
 })
 
 test('starts empty and saves an enabled rule that is not configured yet', async () => {

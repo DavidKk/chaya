@@ -1,3 +1,4 @@
+jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 jest.mock('@/services/game/binding', () => ({ getResolvedFromConfig: () => ({ ok: false }) }))
 jest.mock('@/services/translate/engine-switches', () => ({
@@ -10,7 +11,7 @@ let mockDb = ''
 jest.mock('@/constants/paths', () => Object.defineProperty({ ...jest.requireActual('@/constants/paths') }, 'TRANSLATE_CACHE_DB_PATH', { get: () => mockDb }))
 jest.mock('@/services/translate/shared-cache', () => {
   const actual = jest.requireActual('@/services/translate/shared-cache')
-  return { ...actual, openSharedCache: () => actual.openSharedCache(mockDb) }
+  return { ...actual, openSharedCache: () => actual.openOwnedSharedCache(mockDb) }
 })
 jest.mock('@/services/translate/shared-cache/db', () => {
   const actual = jest.requireActual('@/services/translate/shared-cache/db')

@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 
-import { ensureGameContentDir, gameContentReadPath } from '@/lib/game/content-files'
+import { gameContentReadPath } from '@/lib/game/content-files'
 import { normalizePlaySettings, type TranslationPlaySettings } from '@/lib/translate/play-settings'
+import { writePublicGameDocument } from '@/services/storage/game-files'
 
 export function getTranslationPlaySettings(contentRoot: string): TranslationPlaySettings {
   const file = gameContentReadPath(contentRoot, 'translationPlay')
@@ -11,9 +12,6 @@ export function getTranslationPlaySettings(contentRoot: string): TranslationPlay
 
 export function setTranslationPlaySettings(contentRoot: string, input: unknown): TranslationPlaySettings {
   const settings = normalizePlaySettings(input)
-  const file = ensureGameContentDir(contentRoot, 'translationPlay')
-  const tmp = `${file}.${process.pid}.tmp`
-  fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n', 'utf8')
-  fs.renameSync(tmp, file)
+  writePublicGameDocument(contentRoot, 'translationPlay', settings)
   return settings
 }

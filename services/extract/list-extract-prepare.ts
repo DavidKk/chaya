@@ -8,8 +8,8 @@ import path from 'node:path'
 import { Worker } from 'node:worker_threads'
 
 import { RGSS_EXTRACT_WORKER_PATH } from '@/constants/paths'
+import { resolveGame } from '@/lib/game'
 import { gameContentReadPath } from '@/lib/game/content-files'
-import { resolveGame } from '@/lib/game/resolve'
 import { seedProgressStamp } from '@/services/translate/scheduler/seed-inventory'
 import { singleFlight } from '@/services/translate/scheduler/single-flight'
 
@@ -85,6 +85,7 @@ async function buildPayload(contentRoot: string, opts?: { sourceLang?: string; t
           contentRoot,
           locales: {
             hasLocales: true,
+            primaryLanguage: detected,
             currentSourceLang: detected,
             currentTargetLang: 'zh',
             availableLanguages: [...new Set([detected, 'zh'])],
@@ -170,4 +171,9 @@ export function resetListExtractForTests() {
   }
   flights.clear()
   ready.clear()
+}
+
+export function getListExtractFlightForTests(contentRoot: string, opts?: { sourceLang?: string; targetLang?: string }) {
+  const key = cacheKey(contentRoot, opts?.sourceLang, opts?.targetLang)
+  return flights.get(key)
 }

@@ -37,6 +37,8 @@ describe('identity-signature', () => {
       engine: 'MZ',
       shellApp: '',
       hasShell: false,
+      hasWwwLayout: false,
+      bundled: false,
     }
 
     const sig1 = computeGameSignature(resolved)
@@ -116,10 +118,59 @@ describe('identity-signature', () => {
       engine: 'VX Ace',
       shellApp: '',
       hasShell: false,
+      hasWwwLayout: false,
+      bundled: false,
     }
 
     const sig = computeGameSignature(resolved)
     expect(sig.title).toBe('Dragon Tale')
+    expect(sig.signature).toMatch(/^[0-9a-f]{64}$/)
+  })
+  it('blocks generic default titles from triggering false DRIFT', () => {
+    const baseline = {
+      gameId: 'game-default',
+      engine: 'MZ' as const,
+      title: 'Game',
+      signatureBaseline: '1111111111111111111111111111111111111111111111111111111111111111',
+      signatureVersion: 1,
+      boundPath: '/path/1',
+      firstBoundAt: Date.now() - 1000,
+      lastVerifiedAt: Date.now() - 1000,
+    }
+
+    const current = {
+      engine: 'MZ' as const,
+      title: 'Game',
+      signature: '2222222222222222222222222222222222222222222222222222222222222222',
+      signatureVersion: 1,
+      contentRoot: '/path/2',
+      sampledAt: Date.now(),
+    }
+
+    const res = verifyIdentity(baseline, current)
+    expect(res.status).toBe('MISMATCH')
+    expect(res.details).toContain('generic default name')
+  })
+
+  it('computes RGSS signature from encrypted archive when loose Data is absent', () => {
+    fs.writeFileSync(path.join(tmpDir, 'Game.ini'), '[Game]\r\nTitle=Commercial RPG\r\nScripts=Data\\Scripts.rvdata2\r\n')
+    fs.writeFileSync(path.join(tmpDir, 'Game.rgss3a'), Buffer.from('encrypted-rgss3a-archive-payload-bytes'))
+
+    const resolved: ResolvedGame = {
+      ok: true,
+      selected: tmpDir,
+      contentRoot: tmpDir,
+      projectRoot: tmpDir,
+      kind: 'rgss',
+      engine: 'VX Ace',
+      shellApp: '',
+      hasShell: false,
+      hasWwwLayout: false,
+      bundled: false,
+    }
+
+    const sig = computeGameSignature(resolved)
+    expect(sig.title).toBe('Commercial RPG')
     expect(sig.signature).toMatch(/^[0-9a-f]{64}$/)
   })
 })

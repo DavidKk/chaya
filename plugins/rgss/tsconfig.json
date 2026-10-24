@@ -16,6 +16,6 @@
       "@chaya-lib/*": ["../../lib/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "../shared/**/*.ts", "../shared/**/*.tsx", "../../lib/plugin/**/*.ts", "../shared/vite-env.d.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "../shared/**/*.ts", "../shared/**/*.tsx", "../../lib/plugin/**/*.ts", "../shared/vite-env.d.ts", "../../typings/node-sqlite.d.ts"],
   "exclude": ["dist", "node_modules"]
 }

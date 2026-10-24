@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -53,7 +54,18 @@ export {
  * Repo / toolkit root (based on this file by default; not cwd).
  * Packaged apps may set `CHAYA_ROOT` to extraResources app-root.
  */
-export const ROOT_PATH = process.env.CHAYA_ROOT ? resolve(process.env.CHAYA_ROOT) : resolve(dirname(fileURLToPath(import.meta.url)), '..')
+function findRepoRoot(startDir: string): string {
+  let curr = startDir
+  for (let i = 0; i < 5; i++) {
+    if (fs.existsSync(join(curr, 'package.json'))) return curr
+    const parent = dirname(curr)
+    if (parent === curr) break
+    curr = parent
+  }
+  return resolve(startDir, '..')
+}
+
+export const ROOT_PATH = process.env.CHAYA_ROOT ? resolve(process.env.CHAYA_ROOT) : findRepoRoot(dirname(fileURLToPath(import.meta.url)))
 
 /**
  * Local data and shared shell.

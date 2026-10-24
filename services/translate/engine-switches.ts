@@ -14,6 +14,7 @@ import {
   type TranslateEngineState,
 } from '@/lib/translate/engines'
 import { getResolvedFromConfig } from '@/services/game/binding'
+import { writePublicGameDocument } from '@/services/storage/game-files'
 
 import { readSharedTranslateAgents, writeSharedTranslateAgents } from './shared-agents'
 
@@ -98,7 +99,7 @@ function combine(contentRoot: string, raw: unknown): TranslateEngineState {
 
 function writePlatformFile(contentRoot: string, state: TranslateEngineState) {
   const file = ensureGameContentDir(contentRoot, 'switches')
-  fs.writeFileSync(file, `${JSON.stringify({ ...state.switches, order: platformOrder(state.order), configs: state.configs }, null, 2)}\n`, 'utf8')
+  writePublicGameDocument(contentRoot, 'switches', { ...state.switches, order: platformOrder(state.order), configs: state.configs })
   return file
 }
 

@@ -12,6 +12,7 @@ import {
   gamePluginsDisabledRelPath,
   LEGACY_FLAT_FILES,
 } from '@/lib/game/content-paths'
+import { publicGameFile } from '@/services/storage/game-files'
 
 export type { GameContentKind }
 export {
@@ -32,10 +33,14 @@ export const GAME_CONTENT_FILES = GAME_CONTENT_RELS
 export const LEGACY_GAME_CONTENT_FILES = LEGACY_FLAT_FILES
 
 export function gameContentPath(contentRoot: string, kind: GameContentKind): string {
+  if (['seed', 'cacheNdjson', 'switches', 'translationPlay', 'translationPreview', 'gameEdit', 'inputAssistance', 'gameSaves'].includes(kind))
+    return publicGameFile(contentRoot, kind)
   return path.join(path.resolve(contentRoot), gameContentRelPath(kind))
 }
 
 export function gameContentCandidatePaths(contentRoot: string, kind: GameContentKind, opts?: { alsoParent?: boolean }): string[] {
+  if (['seed', 'cacheNdjson', 'switches', 'translationPlay', 'translationPreview', 'gameEdit', 'inputAssistance', 'gameSaves'].includes(kind))
+    return [publicGameFile(contentRoot, kind)]
   const root = path.resolve(contentRoot)
   const dirs = opts?.alsoParent ? [root, path.dirname(root)] : [root]
   const out: string[] = []
@@ -114,6 +119,10 @@ export function migrateGameContentFiles(contentRoot: string): MigrateGameContent
   const skipped: MigrateGameContentResult['skipped'] = []
 
   for (const kind of Object.keys(GAME_CONTENT_RELS) as GameContentKind[]) {
+    if (['seed', 'cacheNdjson', 'switches', 'translationPlay', 'translationPreview', 'gameEdit', 'inputAssistance', 'gameSaves'].includes(kind)) {
+      skipped.push({ kind, reason: 'storage-daemon-imports-and-retains-source' })
+      continue
+    }
     const dest = gameContentPath(root, kind)
     if (fs.existsSync(dest)) {
       skipped.push({ kind, reason: 'target-exists', path: dest })

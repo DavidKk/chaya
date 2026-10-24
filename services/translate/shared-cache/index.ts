@@ -1,5 +1,6 @@
 /** Shared translation cache for all games, backed by SQLite and Drizzle. The default path is TRANSLATE_CACHE_DB_PATH from @/constants. */
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { and, asc, count, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm'
 
@@ -24,6 +25,7 @@ import {
 import { parseSharedCacheSortDir, parseSharedCacheSortKey, type SharedCacheSortDir, type SharedCacheSortKey } from '@/lib/translate/cache-query'
 import { normalizeTranslateKey } from '@/lib/translate/lookup'
 import { categoriesForNature, normalizeCacheCategory, parseTextNature } from '@/lib/translate/text-nature'
+import { storageCall } from '@/services/storage/client'
 import { isNsfwCacheRow } from '@/services/translate/sensitive-text'
 import { isIdenticalTranslation, isReusableTranslation, isStorableTranslation } from '@/services/translate/text-classify'
 
@@ -170,7 +172,7 @@ function rowUsable(src: string, tgt: string, to: CacheLang): boolean {
   return Boolean(String(src).trim() && String(tgt).trim())
 }
 
-export function openSharedCache(dbPath = defaultSharedDbPath()) {
+export function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
   const { db, path: resolved } = openSharedCacheDb(dbPath)
   const index = createMatchIndex(db.$client)
   const backfill = createGameBackfill(db.$client, index, resolved)
@@ -501,7 +503,28 @@ export function openSharedCache(dbPath = defaultSharedDbPath()) {
   return cache
 }
 
-export type SharedCache = ReturnType<typeof openSharedCache>
+export function openSharedCache(dbPath = defaultSharedDbPath()): ReturnType<typeof openOwnedSharedCache> {
+  // Explicit fixture databases remain independent. Production clients share the one owner.
+  if (process.env.NODE_ENV === 'test' || path.resolve(dbPath) !== path.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === '1')
+    return openOwnedSharedCache(dbPath)
+  return new Proxy({ path: dbPath } as ReturnType<typeof openOwnedSharedCache>, {
+    get(target, name) {
+      if (name === 'path') return target.path
+      if (name === 'close') return () => {}
+      if (typeof name !== 'string' || name === 'then') return undefined
+      return (...args: unknown[]) => {
+        const value = storageCall(`shared.${name}`, args)
+        if (name === 'numericRecords') {
+          const result = value as { items: unknown[]; limited: boolean }
+          return Object.assign(result.items, { limited: result.limited })
+        }
+        return value
+      }
+    },
+  })
+}
+
+export type SharedCache = ReturnType<typeof openOwnedSharedCache>
 
 /** Allow tests to scrub the same database path again. */
 export function resetSharedCacheScrubGuardForTests() {

@@ -28,6 +28,7 @@ try {
     contentRoot,
     locales: {
       hasLocales: true,
+      primaryLanguage: detected,
       currentSourceLang: detected,
       currentTargetLang: 'zh',
       availableLanguages: [...new Set([detected, 'zh'])],

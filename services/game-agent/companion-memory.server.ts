@@ -1,6 +1,7 @@
 import { bindWriteBatchToGame } from '@/lib/game-agent/companion/memory-durable'
 import type { MemoryBackend, MemoryStoreSnapshot, MemoryWriteBatch } from '@/lib/game-agent/companion/memory-types'
-import { createCompanionMemoryFileBackend } from '@/services/game-agent/companion-memory-file-store.server'
+import { MEMORY_SCHEMA_VERSION } from '@/lib/game-agent/companion/memory-types'
+import { storageCall } from '@/services/storage/client'
 
 /** One durable backend per library game. runtimeInstanceId is writer identity only. */
 const backends = new Map<string, MemoryBackend>()
@@ -8,7 +9,28 @@ const backends = new Map<string, MemoryBackend>()
 function backendFor(gameId: string): MemoryBackend {
   const existing = backends.get(gameId)
   if (existing) return existing
-  const created = createCompanionMemoryFileBackend({ libraryGameId: gameId })
+  const created: MemoryBackend = {
+    async ready() {
+      storageCall('companion.load', [gameId])
+    },
+    async flush() {},
+    async loadSnapshot() {
+      return storageCall<MemoryStoreSnapshot>('companion.load', [gameId])
+    },
+    async commitBatch(batch) {
+      storageCall('companion.commit', [gameId, bindWriteBatchToGame(batch, gameId)])
+    },
+    async clearQueueBarrier(memoryEpoch, recordingRevision, clear) {
+      await this.commitBatch({
+        schemaVersion: MEMORY_SCHEMA_VERSION,
+        batchId: `barrier-${memoryEpoch}-${recordingRevision}`,
+        memoryEpoch,
+        recordingRevision,
+        at: Date.now(),
+        clear: { libraryGameId: clear?.libraryGameId || gameId, preferences: clear?.preferences === true, episodes: clear?.episodes !== false },
+      })
+    },
+  }
   backends.set(gameId, created)
   return created
 }

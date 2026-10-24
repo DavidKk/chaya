@@ -56,6 +56,8 @@ shiru-kit.config.json
 /data/translate-cache/*.sqlite
 /data/translate-cache/*.sqlite-*
 !/data/translate-cache/.gitkeep
+/data/translate-cache/games/
+/data/companion-memory/
 # Seed 补译后台任务状态（含本机 contentRoot）
 /data/translate-jobs/*.json
 !/data/translate-jobs/.gitkeep
@@ -113,3 +115,8 @@ plugins/rgss/dist/
 
 # Standalone translation cache worker
 /native/bin/chaya-cache-worker.mjs
+
+# Standalone storage daemon and transport worker
+/native/bin/chaya-storage-daemon.mjs
+/native/bin/chaya-storage-client.mjs
+/native/bin/chaya-rgss-extract-worker.mjs

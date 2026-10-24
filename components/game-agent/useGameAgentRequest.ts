@@ -5,7 +5,7 @@ import { useCallback, useMemo } from 'react'
 import { useOptionalGameLinkContext } from '@/components/GameLinkProvider'
 import { normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
 
-import { createBrowserGameAgentRequest } from './browserRequest'
+import { createBrowserGameAgentRequest, currentBrowserAgentSettings } from './browserRequest'
 import { createBrowserAgentRuntime } from './browserTurn'
 import type { GameAgentRequest } from './GameAgentWorkspace'
 
@@ -25,8 +25,7 @@ export function useGameAgentRequest() {
         if (!send || !subscribeMessages) return reject(new Error('游戏连接服务不可用'))
         let timeoutMs = 15_000
         try {
-          const raw = localStorage.getItem('chaya.gameAgent.settings')
-          const profiles = raw ? (JSON.parse(raw) as { profiles?: Array<{ id?: string; gameCallTimeoutMs?: number }> }).profiles : undefined
+          const profiles = currentBrowserAgentSettings().profiles
           const profileId = 'profileId' in message ? message.profileId : undefined
           const profile = profiles?.find((item) => item.id === profileId)
           timeoutMs = normalizeAgentTimeouts({ gameCallTimeoutMs: profile?.gameCallTimeoutMs }).gameCallTimeoutMs

@@ -8,7 +8,9 @@ import { lookupTranslationRecord } from '@/lib/translate/lookup'
 import { reconcileTranslationSeed } from '@/lib/translate/segments'
 import type { SourceLanguageOption } from '@/lib/translate/source-text'
 import { getResolvedFromConfig } from '@/services/game/binding'
+import { writePublicGameDocument } from '@/services/storage/game-files'
 import { lookupGameTranslation } from '@/services/translate/cache-lookup'
+import { getGameCacheContext } from '@/services/translate/game-cache-context'
 import { loadGameTranslateLookup } from '@/services/translate/game-lookup'
 import { openSharedCache } from '@/services/translate/shared-cache'
 
@@ -52,7 +54,7 @@ export function extractAndEnsureSeed(options?: { entries?: boolean; sourceLangua
   const { seed, entries, added } = reconcileTranslationSeed(allStrings, existing)
 
   const seedFile = ensureGameContentDir(contentRoot, 'seed')
-  fs.writeFileSync(seedFile, `${JSON.stringify(seed)}\n`, 'utf8')
+  writePublicGameDocument(contentRoot, 'seed', seed)
 
   let exportEntries = entries
   if (options?.entries) {
@@ -62,11 +64,13 @@ export function extractAndEnsureSeed(options?: { entries?: boolean; sourceLangua
       exportEntries = buildTranslationExport(
         entries,
         (source) =>
-          lookupGameTranslation(
-            (key) => lookupTranslationRecord(local, key),
-            (key) => shared.get(key),
-            source
-          )?.zh,
+          getGameCacheContext(contentRoot).blocked(source)
+            ? undefined
+            : lookupGameTranslation(
+                (key) => lookupTranslationRecord(local, key),
+                (key) => shared.get(key),
+                source
+              )?.zh,
         originalStrings
       )
     } finally {

@@ -93,7 +93,21 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       settings?: unknown
       contentRoot?: string
       action?:
-        'start' | 'pause' | 'import' | 'status' | 'search' | 'export' | 'plan' | 'install' | 'cancel' | 'scan' | 'apply-terms' | 'short-entities' | 'batch-optimize' | 'idle-status'
+        | 'start'
+        | 'pause'
+        | 'resume'
+        | 'import'
+        | 'status'
+        | 'search'
+        | 'export'
+        | 'plan'
+        | 'install'
+        | 'cancel'
+        | 'scan'
+        | 'apply-terms'
+        | 'short-entities'
+        | 'batch-optimize'
+        | 'idle-status'
       scope?: 'short-entities' | 'all'
       includeChoices?: boolean
       planId?: string
@@ -315,7 +329,15 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       const targetLang = typeof body.targetLang === 'string' ? body.targetLang : undefined
       const { pollListExtract, requestListExtract } = await import('@/services/extract/list-extract-prepare')
       const poll = body.refresh === true || body.poll === true
-      const snap = poll ? pollListExtract(root, { sourceLang, targetLang }) : requestListExtract(root, { sourceLang, targetLang })
+      let snap = poll ? pollListExtract(root, { sourceLang, targetLang }) : requestListExtract(root, { sourceLang, targetLang })
+      if (snap.preparing && process.env.NODE_ENV === 'test') {
+        const { getListExtractFlightForTests } = await import('@/services/extract/list-extract-prepare')
+        const flight = getListExtractFlightForTests(root, { sourceLang, targetLang })
+        if (flight) {
+          await flight
+          snap = pollListExtract(root, { sourceLang, targetLang })
+        }
+      }
       if (snap.preparing) return apiOk({ preparing: true, contentRoot: root })
       if ('error' in snap && snap.error) return apiError(409, 'RGSS_DATA_UNAVAILABLE', snap.error)
       // Worker wrote the full apiOk JSON — stream bytes without JSON.parse on the main thread.

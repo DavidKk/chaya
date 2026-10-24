@@ -55,7 +55,6 @@ import { createGameAgentTaskStore } from './store'
 import { createGameAgentTraceArchive } from './trace-archive'
 
 const log = createLogger(PLUGIN_AGENT_NAME)
-const CONFIG_KEY = 'chaya.agent.runtimeConfig.v1'
 const SERVICE_RETRY_MIN_MS = 2_000
 const SERVICE_RETRY_MAX_MS = 30_000
 type Send = (message: AgentTaskMessage) => void
@@ -70,25 +69,29 @@ function parseConfig(value: unknown): AgentSyncSettings | null {
   return { ...config, profiles: config.profiles.map((profile) => ({ ...profile, ...normalizeAgentTimeouts(profile) })) }
 }
 
+let runtimeConfig: AgentSyncSettings | null = null
 function readConfig(): AgentSyncSettings | null {
-  try {
-    const stored = localStorage.getItem(CONFIG_KEY)
-    if (stored) return parseConfig(JSON.parse(stored))
-  } catch {
-    return null
-  }
+  if (runtimeConfig) return runtimeConfig
   const shared = readSharedAgentSync()
-  return shared ? parseConfig(agentSettingsFromSyncDocument(shared)) : null
+  if (shared) return parseConfig(agentSettingsFromSyncDocument(shared))
+  try {
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('chaya.agent.runtimeConfig.v1') : null
+    if (stored) return parseConfig(JSON.parse(stored))
+  } catch {}
+  return null
 }
-
 function saveConfig(value: unknown): AgentSyncSettings {
   const config = parseConfig(value)
   if (!config) throw new Error('Agent 配置无效')
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(config))
+  runtimeConfig = config
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('chaya.agent.runtimeConfig.v1', JSON.stringify(config))
+  } catch {}
   return config
 }
 
-function profileOf(config: AgentSyncSettings, profileId?: string) {
+function profileOf(config: AgentSyncSettings | null | undefined, profileId?: string) {
+  if (!config) throw new Error('请先在 Chaya 网页连接一次游戏以同步 Agent 配置')
   return config.profiles.find((profile) => profile.id === profileId) ?? config.profiles.find((profile) => profile.id === config.defaultProfileId) ?? config.profiles[0]
 }
 
@@ -159,9 +162,8 @@ function waitForNextPlayCycle(signal: AbortSignal, delay = 1_000): Promise<void>
   })
 }
 
-export function createGameAgentRuntime() {
+export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
   const identity = detectGameIdentity()
-  const libraryGameId = gameRoomId()
   const runtime = createAgentRuntimeIdentity(libraryGameId)
   const traceArchive = createGameAgentTraceArchive(libraryGameId, runtime.identity.runtimeInstanceId)
   const controller = new AgentTaskController(createGameAgentTaskStore(identity?.gameRoot), {
@@ -572,6 +574,22 @@ export function createGameAgentRuntime() {
         if (!isCompanionHostRequest(message)) throw Object.assign(new Error('Invalid companion request'), { code: 'REQUEST_CONFLICT' })
         return await companion.dispatch(message, remote, tracked?.signal ?? signal)
       }
+      if (message.type === 'agent.transcript.request') {
+        const { pluginStorageCall } = await import('../../helpers/storage/client')
+        if (!identity) throw new Error('Game identity unavailable')
+        if (message.transcript !== undefined) await pluginStorageCall('game.write', [identity.contentRoot, 'companionTranscript', message.transcript])
+        return { transcript: await pluginStorageCall('game.read', [identity.contentRoot, 'companionTranscript']) }
+      }
+      if (message.type === 'agent.settings.request') {
+        const { pluginStorageCall } = await import('../../helpers/storage/client')
+        const sync =
+          message.settings === undefined
+            ? await pluginStorageCall<import('@/lib/game-agent/settings-sync').AgentSyncDocument>('settings.load')
+            : (await pluginStorageCall<{ sync: import('@/lib/game-agent/settings-sync').AgentSyncDocument }>('settings.update', [message.settings, `game:${libraryGameId}`])).sync
+        const { writeSharedAgentSync } = await import('../shared-settings')
+        writeSharedAgentSync(sync)
+        return { ok: true, settings: agentSettingsFromSyncDocument(sync), sync }
+      }
       if (message.type === 'agent.config.put') return saveConfig(message.config)
       if (message.type === 'agent.task.classify') {
         const profile = profileOf(readConfig()!, message.profileId)
@@ -637,6 +655,11 @@ ${PLAY_INTENT_SYSTEM}`,
         return recallTurns(taskTurns(tasks), message)
       }
       if (message.type === 'agent.trace.list') return traceArchive.list()
+      if (message.type === 'agent.trace.append') {
+        if (message.task.gameId !== libraryGameId) throw new Error('Trace game identity does not match the connected game')
+        await traceArchive.append(message.task, message.event)
+        return { stored: true }
+      }
       if (message.type === 'agent.trace.read') return traceArchive.read(message.taskId)
       if (message.type === 'agent.trace.export') return traceArchive.export(message.taskId)
       if (message.type === 'agent.trace.remove') return { removed: await traceArchive.remove(message.taskId) }
@@ -652,6 +675,8 @@ ${PLAY_INTENT_SYSTEM}`,
     if (
       ![
         'agent.config.put',
+        'agent.settings.request',
+        'agent.transcript.request',
         'agent.task.classify',
         'agent.task.start',
         'agent.task.reply',
@@ -661,6 +686,7 @@ ${PLAY_INTENT_SYSTEM}`,
         'agent.task.clear',
         'agent.task.recall',
         'agent.trace.list',
+        'agent.trace.append',
         'agent.trace.read',
         'agent.trace.export',
         'agent.trace.remove',

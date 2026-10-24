@@ -17,11 +17,12 @@ import {
 
 import { applyControlTurnEvent, controlEventKey, rememberControlEvent } from './companion-control-events'
 import { applyCompanionMessageEvent, formatCompanionError } from './companion-event-apply'
-import { clearCompanionTranscript, isPersistedCompanionActivity, loadCompanionTranscript, saveCompanionTranscript } from './companion-transcript'
+import { clearCompanionTranscript, isPersistedCompanionActivity, loadCompanionTranscript } from './companion-transcript'
 import type { ChatLine } from './CompanionChatLine'
 import type { GameAgentRequest } from './GameAgentWorkspace'
 import { readTurnEvents, type TurnEvent } from './turnStream'
 import { isCapabilityUnsupported, isCompanionAbortError, toCompanionClientError, useCompanionClient } from './useCompanionClient'
+import { useCompanionTranscriptPersistence } from './useCompanionTranscriptPersistence'
 
 const EVENTS_MS = 180
 const STATUS_MS = 2_000
@@ -491,9 +492,11 @@ export function useCompanionSession(input: {
     clearCompanionTranscript(gameId)
   }, [beginConversation, cancelChat, gameId])
 
-  useEffect(() => {
-    saveCompanionTranscript(gameId, { messages, activity: activityEvents })
-  }, [activityEvents, gameId, messages])
+  useCompanionTranscriptPersistence(gameId, request, { messages, activity: activityEvents }, (loaded) => {
+    messagesRef.current = loaded.messages
+    setMessages(loaded.messages)
+    setActivityEvents(loaded.activity)
+  })
 
   const identityKey = `${character}:${locale}`
   const identityRef = useRef(identityKey)

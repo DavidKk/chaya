@@ -1,8 +1,10 @@
+jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 jest.mock('@/services/game/binding', () => ({ getResolvedFromConfig: () => ({ ok: false }) }))
 jest.mock('@/services/translate/engine-switches', () => ({
   getTranslateEngineSwitches: () => ({
     enabled: ['google'],
+    configs: { google: { concurrencyLimit: 4, allowConcurrency: true } },
     agents: [
       { id: 'a', profileId: 'a', model: '', enabled: true },
       { id: 'b', profileId: 'b', model: '', enabled: true },

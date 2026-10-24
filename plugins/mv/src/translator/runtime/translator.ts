@@ -175,7 +175,8 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
     if (unique.length > 40 || unique.some((text) => typeof text !== 'string') || unique.join('').length > 20_000) throw new Error('单次翻译最多 40 段、20000 字')
     const missing = unique.filter((src) => options.force || !store.lookup(src))
     const hasBackfills = store.references(unique).length > 0
-    const remote = !options.force && options.remote !== false && (missing.length || hasBackfills) ? await remoteLookup(hasBackfills ? unique : missing, signal) : []
+    const remoteTexts = (hasBackfills ? unique : missing).filter((src) => !store.blocked(src))
+    const remote = !options.force && options.remote !== false && remoteTexts.length ? await remoteLookup(remoteTexts, signal) : []
     return mapTranslationBatch(unique, async (src) => {
       const items: TranslateItem[] = []
       signal.throwIfAborted()

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { glossary, path, rt } from './env'
+import { getGameCacheContext } from '@/services/translate/game-cache-context'
 import { BING_CHUNK_CHARS, GOOGLE_CHUNK_CHARS, NET_GAP_MAX_MS, NET_GAP_MIN_MS, OLLAMA_CHUNK_CHARS, OLLAMA_CHUNK_LINES } from './constants'
 import { bingTranslate, googleTranslate, runNetWorker, runOllama } from './engines'
 import { enrichGlossaryFromSeed, loadGlossaryEntries, maskGlossary, remaskGlossaryFilled, tryComposeGlossaryShell, unmaskGlossary } from './glossary'
@@ -46,7 +47,12 @@ export async function main() {
   if (imported.inserted) {
     console.log(`Shared cache: imported ${imported.inserted} new translations from current game`)
   }
-  const sharedMap = rt().SHARED_CACHE.loadAll()
+  const context = getGameCacheContext(rt().CONTENT_ROOT)
+  const keys = [
+    ...new Set([...Object.keys(original), ...Object.values(original).map((value) => String(value ?? '').replace(/[\r\n]+/g, ' ')), ...glossary.entries.map((entry) => entry.jp)]),
+  ].filter((key) => !context.blocked(key))
+  const sharedMap = Object.create(null)
+  for (let offset = 0; offset < keys.length; offset += 500) for (const [src, zh] of rt().SHARED_CACHE.getMany(keys.slice(offset, offset + 500))) sharedMap[src] = zh
   const sharedStats = rt().SHARED_CACHE.stats()
   console.log(`Shared cache: ${sharedStats.entries} entries -> ${path.basename(sharedStats.file)}`)
 

@@ -5,6 +5,7 @@ import type { ChayaConfig, LibraryEntry, LibraryItemView } from '@/lib/game'
 import { findEnclosingAppBundle, resolveGame } from '@/lib/game'
 import { libraryKindLabel } from '@/lib/game/library-label'
 import { nwGameDisplayName } from '@/lib/game/nw-window'
+import { publicGameFiles } from '@/services/storage/game-files'
 
 import { getGameFingerprint, getGameFingerprintSummary } from './fingerprint'
 import { readNwPackage } from './nw-package'
@@ -113,7 +114,7 @@ export function upsertLibraryEntry(
   if (!raw) return library
   const gameRoot = remote ? raw : path.resolve(raw)
   const prev = library.find((item) => pathEquals(item.gameRoot, gameRoot))
-  const id = stableLibraryId(prev?.id)
+  const id = !remote && !isLibraryEntryId(prev?.id || '') && resolveGame(gameRoot).ok ? publicGameFiles(gameRoot).gameId : stableLibraryId(prev?.id)
   const name = (entry.name || '').trim() || prev?.name || displayNameFromPath(gameRoot)
   const remark = entry.remark !== undefined ? normalizeRemark(entry.remark) : normalizeRemark(prev?.remark)
   const now = Date.now()

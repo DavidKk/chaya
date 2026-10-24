@@ -125,8 +125,13 @@ export function openCompanionMemoryDb(dbPath = COMPANION_MEMORY_DB_PATH): { db: 
   const resolved = path.resolve(dbPath)
   fs.mkdirSync(path.dirname(resolved), { recursive: true })
   const client = new DatabaseSync(resolved)
-  client.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000')
+  client.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON')
   const db = drizzle({ client }) as CompanionDb
-  ensureCompanionMemorySchema(db, client)
+  try {
+    ensureCompanionMemorySchema(db, client)
+  } catch (error) {
+    client.close()
+    throw error
+  }
   return { db, path: resolved }
 }

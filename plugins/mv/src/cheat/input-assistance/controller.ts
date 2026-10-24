@@ -1,40 +1,12 @@
-import { gameContentRelPath } from '@/lib/game/content-paths'
 import { EMPTY_INPUT_ASSIST_CONFIG, type InputAssistConfig, type InputChord, type MacroEvent, mergeRules, parseInputAssistConfig, validateRule } from '@/lib/game/input-assistance'
 import type { GameLinkMessage, InputAssistMessage } from '@/lib/runtime/game-link-protocol'
 
 import { detectGameIdentity } from '../../helpers/game/game-identity'
 import { gameRoomId } from '../../helpers/game/game-link'
-import { tryNodeFsPath } from '../../helpers/node/node-require'
+import { pluginStorageCall } from '../../helpers/storage/client'
 import { InputAssistanceRuntime } from './runtime'
 
 type Send = (message: GameLinkMessage) => void
-const GLOBAL_CACHE_KEY = 'chaya:input-assistance:global-snapshot'
-const GAME_CACHE_KEY = 'chaya:input-assistance:game'
-
-function diskFile(): { fs: typeof import('fs'); path: typeof import('path'); file: string } | null {
-  const modules = tryNodeFsPath()
-  const identity = detectGameIdentity()
-  if (!modules || !identity) return null
-  return { ...modules, file: modules.path.join(identity.contentRoot, gameContentRelPath('inputAssistance')) }
-}
-
-function readConfig(key: string, fromDisk = false): InputAssistConfig {
-  try {
-    const disk = fromDisk ? diskFile() : null
-    const raw = disk ? disk.fs.readFileSync(disk.file, 'utf8') : localStorage.getItem(key)
-    return raw ? parseInputAssistConfig(JSON.parse(raw)) : { ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] }
-  } catch {
-    return { ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] }
-  }
-}
-
-function writeConfig(key: string, config: InputAssistConfig, toDisk = false): void {
-  const disk = toDisk ? diskFile() : null
-  if (disk) {
-    disk.fs.mkdirSync(disk.path.dirname(disk.file), { recursive: true })
-    disk.fs.writeFileSync(disk.file, JSON.stringify(config, null, 2))
-  } else localStorage.setItem(key, JSON.stringify(config))
-}
 
 function checkedConfig(raw: unknown): InputAssistConfig {
   const parsed = parseInputAssistConfig(raw)
@@ -49,14 +21,19 @@ function checkedConfig(raw: unknown): InputAssistConfig {
 
 export class InputAssistanceController {
   readonly runtime = new InputAssistanceRuntime()
-  private globalConfig = readConfig(GLOBAL_CACHE_KEY)
-  private gameConfig = readConfig(GAME_CACHE_KEY, true)
+  private globalConfig = { ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] } as InputAssistConfig
+  private gameConfig = { ...EMPTY_INPUT_ASSIST_CONFIG, rules: [] } as InputAssistConfig
+  private loaded = false
   private send: Send | null = null
   private unsubscribe: () => void
   private replies = new Map<string, InputAssistMessage>()
 
   constructor() {
+    this.fallbackLoad()
     this.apply()
+    void this.load().catch(() => {
+      // A command retries the load and reports connection failures to its caller.
+    })
     this.unsubscribe = this.runtime.subscribe((status) => {
       ;(window as Window & { __chayaInputAssistanceStatus?: typeof status }).__chayaInputAssistanceStatus = status
       window.dispatchEvent(new CustomEvent('chaya:input-assistance-status', { detail: status }))
@@ -77,6 +54,36 @@ export class InputAssistanceController {
       revision: Math.max(this.globalConfig.revision, this.gameConfig.revision),
       rules: mergeRules(this.globalConfig.rules, this.gameConfig.rules),
     })
+  }
+  private async load(): Promise<void> {
+    if (this.loaded) return
+    const root = detectGameIdentity()?.contentRoot
+    if (!root) {
+      this.fallbackLoad()
+      this.loaded = true
+      this.apply()
+      return
+    }
+    try {
+      const [global, game] = await Promise.all([pluginStorageCall('config.get', ['inputAssistance']), pluginStorageCall('game.read', [root, 'inputAssistance'])])
+      if (global) this.globalConfig = parseInputAssistConfig(global)
+      if (game) this.gameConfig = parseInputAssistConfig(game)
+    } catch {
+      this.fallbackLoad()
+    }
+    this.loaded = true
+    this.apply()
+  }
+
+  private fallbackLoad(): void {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const g = localStorage.getItem('chaya:input-assistance:global-snapshot')
+        if (g) this.globalConfig = parseInputAssistConfig(JSON.parse(g))
+        const m = localStorage.getItem('chaya:input-assistance:game')
+        if (m) this.gameConfig = parseInputAssistConfig(JSON.parse(m))
+      }
+    } catch {}
   }
 
   /** Web 端经 GameLink 发来的命令；状态推送与配置变更都回到这条连接 */
@@ -112,8 +119,21 @@ export class InputAssistanceController {
           const globalConfig = checkedConfig(message.globalConfig)
           const gameConfig = checkedConfig(message.gameConfig)
           if (globalConfig.revision < this.globalConfig.revision || gameConfig.revision < this.gameConfig.revision) throw new Error('配置版本过旧，请刷新后重试')
-          writeConfig(GLOBAL_CACHE_KEY, globalConfig)
-          writeConfig(GAME_CACHE_KEY, gameConfig, true)
+          const root = detectGameIdentity()?.contentRoot
+          if (root) {
+            void Promise.all([
+              globalConfig.revision !== this.globalConfig.revision
+                ? pluginStorageCall('config.set', ['inputAssistance', globalConfig, this.globalConfig.revision]).catch(() => undefined)
+                : Promise.resolve(),
+              pluginStorageCall('game.write', [root, 'inputAssistance', gameConfig]).catch(() => undefined),
+            ])
+          }
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('chaya:input-assistance:global-snapshot', JSON.stringify(globalConfig))
+              localStorage.setItem('chaya:input-assistance:game', JSON.stringify(gameConfig))
+            }
+          } catch {}
           this.globalConfig = globalConfig
           this.gameConfig = gameConfig
           this.apply()

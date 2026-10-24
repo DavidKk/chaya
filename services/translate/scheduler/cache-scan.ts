@@ -1,14 +1,12 @@
 /** Cache search runs off the service event loop. The writer still validates authority on commit. */
-import { DatabaseSync } from 'node:sqlite'
-
 import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { createNumericLabelIndex, numericLabelFamily } from '@/lib/translate/dynamic-template'
-import type { SentencePlan } from '@/lib/translate/sentence-plan'
+import { createSentenceResolver, type SentencePlan } from '@/lib/translate/sentence-plan'
 
 import { lookupCachedTranslation } from '../cache-lookup'
 import { getGameCacheContext } from '../game-cache-context'
 import { openSharedCache } from '../shared-cache'
-import { createMatchIndex, type IndexedRecord } from '../shared-cache/match-index'
+import type { IndexedRecord } from '../shared-cache/match-index'
 
 export type CacheScanResult = {
   id: number
@@ -21,16 +19,21 @@ export type CacheScanResult = {
 
 export function createCacheScanner(contentRoot: string, file: string) {
   // Initialization/migrations belong on this worker too, never in front of dispatch.
-  const prepared = openSharedCache(file)
-  prepared.close()
-  const client = new DatabaseSync(file, { readOnly: true })
-  client.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=250')
-  const index = createMatchIndex(client)
+  const index = openSharedCache(file)
   return {
-    close: () => client.close(),
+    close: () => index.close(),
     scan(id: number, src: string): CacheScanResult {
       const started = performance.now()
       const context = getGameCacheContext(contentRoot)
+      if (context.blocked(src))
+        return {
+          id,
+          src,
+          plan: { ...createSentenceResolver([]).plan(src), corpusVersion: index.version() },
+          records: [],
+          stamp: context.stamp,
+          elapsedMs: performance.now() - started,
+        }
       const pair = { from: detectCacheLang(src), to: 'zh' as const }
       let records: IndexedRecord[] = []
       let plan: CacheScanResult['plan'] = index.plan(src, pair, context.resolver.select(src))

@@ -26,6 +26,9 @@ export function isSharedCacheMigrating(dbPath: string) {
   return migrating.has(path.resolve(dbPath))
 }
 
+export function waitSharedCacheHeavyMigrate(dbPath: string) {
+  return flights.get(`shared-migrate:${path.resolve(dbPath)}`) || Promise.resolve()
+}
 /** Sync migrate for Jest (open path stays sync in tests). Production uses scheduleSharedCacheHeavyMigrate. */
 export function runSharedCacheHeavyMigrateSync(dbPath: string) {
   const resolved = path.resolve(dbPath)
@@ -77,6 +80,8 @@ export function scheduleSharedCacheHeavyMigrate(dbPath: string) {
     } finally {
       migrating.delete(resolved)
     }
+  }).catch(() => {
+    // The daemon awaits the same flight before publishing readiness.
   })
 }
 

@@ -9,6 +9,7 @@ import { disconnectAgentGame } from '@/services/runtime/agent-bridge'
 import { clearLaunchToken, issueLaunchToken } from '@/services/runtime/launch-token'
 import { toolkitListenPort } from '@/services/runtime/presence'
 import { getSignalingRoom } from '@/services/runtime/webrtc-signaling'
+import { publicGameFiles } from '@/services/storage/game-files'
 
 import { ensureGameAppIcon, updateSharedMacAppIcon } from './app-icon'
 import { loadConfig } from './config'
@@ -168,6 +169,7 @@ export async function launchRgss(resolved: ResolvedGame) {
         CHAYA_RGSS_RUNTIME: path.dirname(toolkitRgssBinary()),
         CHAYA_RGSS_SESSION: sessionDir,
         CHAYA_RGSS_CONTENT_ROOT: root,
+        CHAYA_PUBLIC_GAME_DIR: publicGameFiles(root).directory,
         CHAYA_RGSS_API: `http://127.0.0.1:${toolkitListenPort()}`,
         CHAYA_RGSS_ROOM: state.roomId || '',
         CHAYA_RGSS_TOKEN: state.token || '',

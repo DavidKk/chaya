@@ -1,8 +1,5 @@
 /** Server-side Japanese-to-Chinese live translation using enabled Google, Bing, Ollama or AI agent engines. Used for plugin cache misses and translation-page fill jobs. */
-import fs from 'node:fs'
 
-import { ensureGameContentDir } from '@/lib/game/content-files'
-import { appendCacheLines, lockCacheFile } from '@/lib/translate/cache-file-lock'
 import { detectCacheLang, resolveCacheLangPair } from '@/lib/translate/cache-lang'
 import { peelChoiceMetaShell } from '@/lib/translate/choice-meta'
 import { createNumericLabelIndex, numericLabelFamily } from '@/lib/translate/dynamic-template'
@@ -22,7 +19,9 @@ import {
 import { lookupTranslationRecord } from '@/lib/translate/lookup'
 import { hasRmDigitCodes, toRmDigitTemplate } from '@/lib/translate/rm-escape'
 import { renderSentencePlan, resolveSentenceGaps, type SentencePlan } from '@/lib/translate/sentence-plan'
+import { createSentenceResolver } from '@/lib/translate/sentence-plan'
 import { getResolvedFromConfig } from '@/services/game/binding'
+import { appendPublicGameCache } from '@/services/storage/game-files'
 
 import { agentJaToZh } from './agent-translate'
 import { lookupGameTranslation } from './cache-lookup'
@@ -115,13 +114,7 @@ async function translateWithEngine(
 export function appendGameNdjson(contentRoot: string, pairs: Array<[string, string]>): number {
   const valid = pairs.filter(([src, zh]) => isReusableTranslation(src, zh))
   if (!valid.length) return 0
-  const file = ensureGameContentDir(contentRoot, 'cacheNdjson')
-  const release = lockCacheFile(fs, file)
-  try {
-    appendCacheLines(fs, file, valid)
-  } finally {
-    release()
-  }
+  appendPublicGameCache(contentRoot, valid)
   return valid.length
 }
 
@@ -272,6 +265,7 @@ export async function liveTranslateTexts(
 
   /** Strip choice conditions during lookup to avoid legacy translations of executable keywords; preserve the full source when writing back. */
   function lookupCached(src: string): { zh: string; engine: 'cache:remote' | 'cache:local' } | null {
+    if (gameContext?.blocked(src)) return null
     return lookupGameTranslation(lookupLocal, (key) => getCache().get(key), src)
   }
 
@@ -295,8 +289,9 @@ export async function liveTranslateTexts(
               const { core: labelCore } = peelChoiceMetaShell(src)
               if (!force) {
                 const pair = { from: detectCacheLang(src), to: 'zh' as const }
-                const plan =
-                  opts?.preparedPlan && unique.length === 1
+                const plan = gameContext?.blocked(src)
+                  ? createSentenceResolver([]).plan(src)
+                  : opts?.preparedPlan && unique.length === 1
                     ? opts.preparedPlan
                     : timed(`Item ${itemId} cache plan`, () => matchCache(() => getCache().plan(src, pair, gameContext?.resolver.select(src) || [])))
                 trace?.(`Item ${itemId} cache result: status=${plan.status}, gaps=${plan.gaps.length}`)
@@ -375,7 +370,7 @@ export async function liveTranslateTexts(
                   return items[0]
                 }
                 const numeric =
-                  (!opts?.targetLang || opts.targetLang === 'zh') && /[0-9]$/.test(src)
+                  !gameContext?.blocked(src) && (!opts?.targetLang || opts.targetLang === 'zh') && /[0-9]$/.test(src)
                     ? timed(`Item ${itemId} numeric lookup`, () => matchCache(() => numericIndex(src)?.resolve(src)))
                     : null
                 if (numeric) return { src, zh: numeric, engine: 'cache:numeric', status: 'full' as const }

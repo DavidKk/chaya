@@ -37,6 +37,7 @@ export const gameTranslations = sqliteTable(
     engine: text('engine').notNull().default('manual'),
     category: text('category'),
     isDeleted: integer('is_deleted').notNull().default(0),
+    recordJson: text('record_json'),
     hitCount: integer('hit_count').notNull().default(0),
     updatedAt: integer('updated_at').notNull(),
   },
@@ -62,6 +63,8 @@ export const mutationLog = sqliteTable('mutation_log', {
   idempotencyKey: text('idempotency_key').primaryKey().notNull(),
   actor: text('actor').notNull(),
   action: text('action').notNull(),
+  requestHash: text('request_hash').notNull().default(''),
+  resultJson: text('result_json').notNull().default('{}'),
   createdAt: integer('created_at').notNull(),
 })
 

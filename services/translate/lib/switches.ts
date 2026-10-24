@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { fs, path, rt } from './env'
+import { writePublicGameDocument } from '@/services/storage/game-files'
 import { ENGINE_NAMES } from './constants'
 
 const DEFAULT_SWITCHES = { bing: true, google: true, ollama: true }
@@ -49,7 +50,7 @@ export function ensureSwitchesFile() {
   const prev = fs.existsSync(rt().SWITCHES_FILE) ? fs.readFileSync(rt().SWITCHES_FILE, 'utf8') : ''
   if (prev !== body) {
     fs.mkdirSync(path.dirname(rt().SWITCHES_FILE), { recursive: true })
-    fs.writeFileSync(rt().SWITCHES_FILE, body)
+    writePublicGameDocument(rt().CONTENT_ROOT, 'switches', next)
     if (!prev) console.log(`Created switches file ${path.basename(rt().SWITCHES_FILE)}`)
     else if (Object.keys(cliSwitchOverrides).length) {
       console.log(`Updated ${path.basename(rt().SWITCHES_FILE)} according to launch arguments`)

@@ -149,11 +149,14 @@ function ensureSchema(db: SharedCacheDb, client: DatabaseSync) {
       engine TEXT NOT NULL DEFAULT 'manual',
       category TEXT,
       is_deleted INTEGER NOT NULL DEFAULT 0,
+      record_json TEXT,
       hit_count INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (game_id, src, src_lang, tgt_lang)
     )
   `)
+  const gameCols = client.prepare('PRAGMA table_info(game_translations)').all() as TableCol[]
+  if (!gameCols.some((c) => c.name === 'record_json')) client.exec('ALTER TABLE game_translations ADD COLUMN record_json TEXT')
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_game_trans_lookup ON game_translations(game_id, src_lang, tgt_lang, is_deleted)`)
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_game_trans_updated ON game_translations(game_id, updated_at)`)
 
@@ -175,9 +178,15 @@ function ensureSchema(db: SharedCacheDb, client: DatabaseSync) {
       idempotency_key TEXT PRIMARY KEY NOT NULL,
       actor TEXT NOT NULL,
       action TEXT NOT NULL,
+      request_hash TEXT NOT NULL DEFAULT '',
+      result_json TEXT NOT NULL DEFAULT '{}',
       created_at INTEGER NOT NULL
     )
   `)
+
+  const mutationCols = client.prepare('PRAGMA table_info(mutation_log)').all() as TableCol[]
+  if (!mutationCols.some((c) => c.name === 'request_hash')) client.exec("ALTER TABLE mutation_log ADD COLUMN request_hash TEXT NOT NULL DEFAULT ''")
+  if (!mutationCols.some((c) => c.name === 'result_json')) client.exec("ALTER TABLE mutation_log ADD COLUMN result_json TEXT NOT NULL DEFAULT '{}'")
 
   migrateLangPairTable(db, client)
   repairLegacyTargetLang(db, client)
@@ -219,7 +228,7 @@ export function openSharedCacheDb(dbPath = defaultSharedDbPath()): { db: SharedC
   const resolved = path.resolve(dbPath)
   fs.mkdirSync(path.dirname(resolved), { recursive: true })
   const client = new DatabaseSync(resolved)
-  client.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000')
+  client.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON')
   const db = drizzle({ client }) as SharedCacheDb
   ensureSchema(db, client)
   ensureMatchIndexSchema(client)

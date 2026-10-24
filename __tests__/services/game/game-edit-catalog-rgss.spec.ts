@@ -1,3 +1,4 @@
+jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 import path from 'node:path'
 
 import * as gameService from '@/services/game'

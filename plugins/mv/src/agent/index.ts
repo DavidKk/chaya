@@ -10,6 +10,7 @@ import type { AgentCommand, AgentGameInfo, AgentPollRequest, AgentPollResponse, 
 
 import { chayaPostJson, createLogger, detectGameIdentity, gameRoomId } from '../helpers'
 import { listPluginToolMetas } from '../helpers/plugin-tools'
+import { pluginStorageCall } from '../helpers/storage/client'
 import { startGameGateway } from './gateway'
 import { runAgentCommand, startManualInputTracking, startReactionTracking } from './handlers'
 import { startHistory } from './history'
@@ -64,7 +65,10 @@ async function execute(cmd: AgentCommand): Promise<AgentResult> {
   }
 }
 
-function start(): AgentGlobal {
+async function start(): Promise<AgentGlobal> {
+  const identity = detectGameIdentity()
+  if (!identity) throw new Error('Agent requires a verified local game')
+  const storage = await pluginStorageCall<{ gameId: string }>('game.mount', [identity.contentRoot])
   let running = true
   let handled = 0
   const gateway = startGameGateway({ gameId: gameRoomId, gameInfo: () => ({ ...gameInfo(), tools: undefined }), log })
@@ -72,7 +76,7 @@ function start(): AgentGlobal {
   const stopInputTracking = startManualInputTracking()
   const stopReactionTracking = startReactionTracking()
   const stopRenderedTextCapture = startRenderedTextCapture()
-  const tasks = createGameAgentRuntime()
+  const tasks = createGameAgentRuntime(storage.gameId)
 
   void (async () => {
     let pending: AgentResult[] = []
@@ -135,13 +139,20 @@ try {
   // A previous build that fails to stop must not block the replacement.
   log.warn(`Previous Agent failed to stop: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
 }
-let agent: AgentGlobal
-try {
-  agent = start()
-} catch (err) {
-  log.fail(`Agent bridge failed to start: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
-  throw err
+let cancelled = false
+window.__chayaStopAgent = () => {
+  cancelled = true
 }
-window.ChayaAgent = agent
-window.__chayaStopAgent = agent.stop
-log.ok('Agent bridge started: local MCP (/api/mcp) or browser WebMCP can control the game')
+void start()
+  .then((agent) => {
+    if (cancelled) {
+      agent.stop()
+      return
+    }
+    window.ChayaAgent = agent
+    window.__chayaStopAgent = agent.stop
+    log.ok('Agent bridge started: local MCP (/api/mcp) or browser WebMCP can control the game')
+  })
+  .catch((err: unknown) => {
+    log.fail(`Agent bridge failed to start: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
+  })

@@ -114,7 +114,7 @@ function hydrate(b: Board): void {
         restored.error = INTERRUPTED
         restored.finishedAt = restored.finishedAt ?? now
       }
-      if (restored.status !== 'running' && restored.finishedAt && now - restored.finishedAt > FINISHED_TTL_MS) continue
+      if (restored.finishedAt && now - restored.finishedAt > FINISHED_TTL_MS) continue
       if (b.entries.has(restored.id)) continue
       const abort = new AbortController()
       abort.abort()
