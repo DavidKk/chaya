@@ -1,64 +1,33 @@
 #!/usr/bin/env node
-/**
- * Wrap `next dev|start`: mint the management token, print the console URL, and rewrite listen logs to
- *   Local:   http://localhost:PORT
- *   Network: http://<lan-ip>:PORT
- * (Next defaults Local to localhost and Network to 0.0.0.0.)
- */
 import { spawn } from 'node:child_process'
-import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import listenAddress from './listen-address.cjs'
 import localAccess from './local-access.cjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
 const nextBin = path.join(root, 'node_modules', 'next', 'dist', 'bin', 'next')
 
-function detectLanIpv4() {
-  const candidates = []
-  for (const [name, addrs] of Object.entries(os.networkInterfaces())) {
-    for (const a of addrs || []) {
-      const v4 = a.family === 'IPv4' || a.family === 4
-      if (v4 && !a.internal) candidates.push({ name, address: a.address })
-    }
-  }
-  const score = (c) => {
-    let s = 0
-    if (/^en\d+$/i.test(c.name) || /^eth\d+$/i.test(c.name) || /^wlan/i.test(c.name) || /^wi-?fi/i.test(c.name)) s += 100
-    if (/^192\.168\./.test(c.address)) s += 50
-    else if (/^10\./.test(c.address)) s += 40
-    else if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(c.address)) s += 30
-    if (/^(bridge|feth|veth|docker|vmnet|vbox|utun)/i.test(c.name)) s -= 80
-    return s
-  }
-  candidates.sort((a, b) => score(b) - score(a))
-  return candidates[0]?.address || null
+function rewriteListenLine(line, host, lanIp) {
+  return line.replace(/(- (?:Local|Network):\s+)https?:\/\/([^\s:]+|\[[^\]]+\]):(\d+)/, (_match, prefix, _hostname, port) => {
+    return `${prefix}${listenAddress.serviceUrl(host, port, lanIp)}`
+  })
 }
 
-function rewriteListenLine(line, lanIp) {
-  // Next: `- Local:         http://127.0.0.1:3000` — show localhost, the canonical console host
-  let out = line.replace(/(- Local:\s+)https?:\/\/127\.0\.0\.1(:\d+)/, '$1http://localhost$2')
-  // Next: `- Network:       http://0.0.0.0:3927` (when -H 0.0.0.0)
-  if (lanIp) {
-    out = out.replace(/(- Network:\s+)https?:\/\/(?:0\.0\.0\.0|\[::\])(:\d+)/, `$1http://${lanIp}$2`)
-  }
-  return out
-}
-
-function pipeRewrite(stream, write, lanIp) {
+function pipeRewrite(stream, write, host, lanIp) {
   let buf = ''
   stream.on('data', (chunk) => {
     buf += chunk.toString('utf8')
     const parts = buf.split(/\r?\n/)
     buf = parts.pop() ?? ''
     for (const line of parts) {
-      write(rewriteListenLine(line, lanIp) + '\n')
+      write(rewriteListenLine(line, host, lanIp) + '\n')
     }
   })
   stream.on('end', () => {
-    if (buf) write(rewriteListenLine(buf, lanIp))
+    if (buf) write(rewriteListenLine(buf, host, lanIp))
   })
 }
 
@@ -68,15 +37,16 @@ if (args.length === 0) {
   process.exit(1)
 }
 
-const lanIp = detectLanIpv4()
+const lanIp = listenAddress.detectLanIpv4()
+const hostIndex = args.findIndex((argument) => argument === '-H' || argument === '--hostname')
+const host = hostIndex >= 0 ? args[hostIndex + 1] : '0.0.0.0'
 const portIndex = args.findIndex((a) => a === '-p' || a === '--port')
 const port = portIndex >= 0 ? args[portIndex + 1] : process.env.PORT || 3927
 // The server derives the compat `/api/mcp` URL from PORT (`toolkitListenPort`).
 process.env.PORT = String(port)
 if (process.env.CHAYA_SERVICE !== 'remote' && process.env.VERCEL !== '1') {
   process.env.CHAYA_AUTH_TOKEN = localAccess.ensureAccessToken()
-  console.log(`[Chaya] console: http://localhost:${port}`)
-  if (args.includes('0.0.0.0') && lanIp) console.log(`[Chaya] LAN console: http://${lanIp}:${port}`)
+  console.log(`[Chaya] console: ${listenAddress.serviceUrl(host, port, lanIp)}`)
 }
 const child = spawn(process.execPath, [nextBin, ...args], {
   cwd: root,
@@ -84,8 +54,8 @@ const child = spawn(process.execPath, [nextBin, ...args], {
   stdio: ['inherit', 'pipe', 'pipe'],
 })
 
-pipeRewrite(child.stdout, (s) => process.stdout.write(s), lanIp)
-pipeRewrite(child.stderr, (s) => process.stderr.write(s), lanIp)
+pipeRewrite(child.stdout, (s) => process.stdout.write(s), host, lanIp)
+pipeRewrite(child.stderr, (s) => process.stderr.write(s), host, lanIp)
 
 child.on('exit', (code, signal) => {
   if (signal) process.kill(process.pid, signal)

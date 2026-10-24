@@ -17,6 +17,7 @@ export const DEFAULT_ENGINE_SWITCHES: TranslateEngineSwitches = {
 }
 
 export type TranslateEngineSettings = {
+  id?: string
   enabled?: boolean
   allowConcurrency?: boolean
   concurrencyLimit?: number
@@ -24,10 +25,10 @@ export type TranslateEngineSettings = {
 }
 
 export const DEFAULT_ENGINE_SETTINGS: Record<TranslateBuiltinId, Required<TranslateEngineSettings>> = {
-  bing: { enabled: true, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
-  google: { enabled: true, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
-  apple: { enabled: false, allowConcurrency: true, concurrencyLimit: 40, maxConcurrentChars: 40000 },
-  bergamot: { enabled: false, allowConcurrency: false, concurrencyLimit: 1, maxConcurrentChars: 3000 },
+  bing: { id: '', enabled: true, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
+  google: { id: '', enabled: true, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
+  apple: { id: '', enabled: false, allowConcurrency: true, concurrencyLimit: 40, maxConcurrentChars: 40000 },
+  bergamot: { id: '', enabled: false, allowConcurrency: false, concurrencyLimit: 1, maxConcurrentChars: 3000 },
 }
 
 /** An agent translation entry references an instance; an empty model uses its default model. */
@@ -46,6 +47,23 @@ export type TranslateAiConfig = { profileId: string; model: string }
 export const MAX_TRANSLATE_AGENTS = 20
 const AGENT_PREFIX = 'agent:'
 const ENTRY_ID = /^[a-z0-9_-]{1,40}$/i
+
+export function newEngineEntryId(): string {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+}
+
+export function isEngineEntryId(v: unknown): v is string {
+  return typeof v === 'string' && ENTRY_ID.test(v)
+}
+
+export function parseEngineEntryId(raw: string): string | null {
+  try {
+    raw = decodeURIComponent(raw)
+  } catch {
+    /* keep raw */
+  }
+  return isEngineEntryId(raw) ? raw : null
+}
 
 export function agentEngineKey(entryId: string): TranslateEngineId {
   return `${AGENT_PREFIX}${entryId}`
@@ -97,6 +115,13 @@ export function engineAcceptsSensitive(key: TranslateRunEngine): boolean {
 
 export function isBuiltinEngineId(v: unknown): v is TranslateBuiltinId {
   return typeof v === 'string' && (TRANSLATE_ENGINE_IDS as readonly string[]).includes(v)
+}
+
+export function isTranslateEngineId(v: unknown): v is TranslateEngineId {
+  if (isBuiltinEngineId(v)) return true
+  if (typeof v !== 'string') return false
+  const id = agentEntryId(v)
+  return !!id && ENTRY_ID.test(id)
 }
 
 function shortString(v: unknown): string {
@@ -169,6 +194,7 @@ export function normalizeAgentEntries(raw: unknown): TranslateAgentEntry[] {
 export function normalizeEngineConfigs(raw: unknown, switches: TranslateEngineSwitches): Record<TranslateBuiltinId, Required<TranslateEngineSettings>> {
   const src = asRecord(raw)
   const out = {} as Record<TranslateBuiltinId, Required<TranslateEngineSettings>>
+  const used = new Set<string>()
   for (const id of TRANSLATE_ENGINE_IDS) {
     const fallback = DEFAULT_ENGINE_SETTINGS[id]
     const item = asRecord(src[id])
@@ -180,9 +206,63 @@ export function normalizeEngineConfigs(raw: unknown, switches: TranslateEngineSw
       typeof item.maxConcurrentChars === 'number' && Number.isFinite(item.maxConcurrentChars)
         ? Math.max(500, Math.min(40000, Math.floor(item.maxConcurrentChars)))
         : fallback.maxConcurrentChars
-    out[id] = { enabled, allowConcurrency, concurrencyLimit, maxConcurrentChars }
+    let entryId = shortString(item.id)
+    if (!ENTRY_ID.test(entryId) || used.has(entryId) || isBuiltinEngineId(entryId)) entryId = ''
+    if (entryId) used.add(entryId)
+    out[id] = { id: entryId, enabled, allowConcurrency, concurrencyLimit, maxConcurrentChars }
   }
   return out
+}
+
+export function assignMissingEngineEntryIds(configs: Record<TranslateBuiltinId, Required<TranslateEngineSettings>>): {
+  configs: Record<TranslateBuiltinId, Required<TranslateEngineSettings>>
+  changed: boolean
+} {
+  const used = new Set(TRANSLATE_ENGINE_IDS.map((id) => configs[id].id).filter((id) => isEngineEntryId(id) && !isBuiltinEngineId(id)))
+  let changed = false
+  const next = { ...configs }
+  for (const id of TRANSLATE_ENGINE_IDS) {
+    const current = configs[id].id
+    if (isEngineEntryId(current) && !isBuiltinEngineId(current)) continue
+    let entryId = ''
+    do {
+      entryId = newEngineEntryId()
+    } while (used.has(entryId) || isBuiltinEngineId(entryId))
+    used.add(entryId)
+    next[id] = { ...configs[id], id: entryId }
+    changed = true
+  }
+  return { configs: next, changed }
+}
+
+export function builtinEngineByEntryId(configs: Record<TranslateBuiltinId, TranslateEngineSettings> | undefined, entryId: string): TranslateBuiltinId | null {
+  if (!configs) return null
+  for (const id of TRANSLATE_ENGINE_IDS) {
+    if (configs[id]?.id === entryId) return id
+  }
+  return isBuiltinEngineId(entryId) ? entryId : null
+}
+
+export function engineRouteId(key: TranslateEngineId, configs?: Record<TranslateBuiltinId, TranslateEngineSettings>, agents?: TranslateAgentEntry[]): string {
+  if (isBuiltinEngineId(key)) {
+    const id = configs?.[key]?.id
+    return id && isEngineEntryId(id) && !isBuiltinEngineId(id) ? id : ''
+  }
+  return agentEntryId(key) || findAgentEntry(agents, key)?.id || ''
+}
+
+export function resolveEngineRouteId(raw: string, configs?: Record<TranslateBuiltinId, TranslateEngineSettings>, agents?: TranslateAgentEntry[]): TranslateEngineId | null {
+  try {
+    raw = decodeURIComponent(raw)
+  } catch {
+    /* keep raw */
+  }
+  if (isTranslateEngineId(raw)) return raw
+  if (!isEngineEntryId(raw)) return null
+  const builtin = builtinEngineByEntryId(configs, raw)
+  if (builtin) return builtin
+  if (agents?.some((a) => a.id === raw)) return agentEngineKey(raw)
+  return null
 }
 
 /** Keep existing keys and append missing ones in default platform order and agent creation order. */
@@ -239,7 +319,10 @@ export function mergeEngineState(raw: unknown, patch?: TranslateEnginePatch): Tr
   const switches = Object.keys(switchesPatch).length > 0 ? normalizeEngineSwitches(switchesPatch, current) : current
   const agents = normalizeAgentEntries(patch?.agents !== undefined ? patch.agents : src.agents)
   const order = normalizeEngineOrder(patch?.order ?? src.order, agents)
-  const configs = normalizeEngineConfigs(patch?.configs ?? src.configs, switches)
+  const configSrc = patch?.configs
+    ? Object.fromEntries(TRANSLATE_ENGINE_IDS.map((id) => [id, { ...asRecord(asRecord(src.configs)[id]), ...asRecord(asRecord(patch.configs)[id]) }]))
+    : src.configs
+  const configs = normalizeEngineConfigs(configSrc, switches)
   for (const id of TRANSLATE_ENGINE_IDS) {
     configs[id].enabled = switches[id]
   }

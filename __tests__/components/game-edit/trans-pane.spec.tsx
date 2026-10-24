@@ -135,6 +135,16 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
       const engines = host.querySelector<HTMLButtonElement>('[data-translate-section-nav] button[aria-label="翻译工具"]')!
       await act(async () => engines.click())
       expect(host.querySelector('[aria-label="翻译平台配置"]')).not.toBeNull()
+      await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="编辑 Google"]')!.click())
+      expect(host.querySelector('[aria-label="是否允许并发"]')).not.toBeNull()
+      expect(host.querySelector('button[aria-label="保存"]')?.getAttribute('data-variant')).toBe('accent')
+      expect(host.querySelector('button[aria-label="保存"]')?.textContent).toBe('保存')
+      expect(host.querySelectorAll('section')).toHaveLength(1)
+      expect(host.querySelector('section')?.lastElementChild?.getAttribute('role')).toBe('toolbar')
+      expect(host.querySelector('button[aria-label="取消"]')).toBeNull()
+      await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="返回翻译工具列表"]')!.click())
+      expect(host.querySelector('button[aria-label="编辑 Google"]')).not.toBeNull()
+      expect(host.querySelector('[role="toolbar"]')).toBeNull()
 
       const cache = host.querySelector<HTMLButtonElement>('[data-translate-section-nav] button[aria-label="翻译库"]')!
       await act(async () => cache.click())

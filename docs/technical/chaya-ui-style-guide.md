@@ -105,6 +105,16 @@
 
 控件高度另见 `components/sk/control.ts`（`FORM_CONTROL_H` = `h-8`）。
 
+#### 设置列表与详情的正文布局（硬）
+
+- 设置列表、工具配置和配置详情的正文一律从内容区左侧开始排列，与相邻设置页保持相同左边界。默认使用 `ScrollArea` 的 `scrollClassName="p-4"` 承担页面留白，内部卡片列不再叠加页面 padding。
+- 卡片列复用 `components/layoutClasses.ts` 的 `settingsCardColumn`（全宽、`gap-4`）、`settingsCardNarrow`（`max-w-xl`）或 `settingsCardWide`（`max-w-2xl`）。较宽的设置列表可在 `settingsCardColumn` 上追加 `max-w-3xl`，参考 `components/settings/AgentSettingsView.tsx`。
+- **限宽只控制阅读宽度，不表示居中。** 设置正文禁止使用 `mx-auto`、`items-center` 或 `justify-center` 将整列卡片居中；卡片内部的控件对齐不受此限制。只有需求明确指定的空态、营销页或浮层定位可居中，游戏浮层的位置要求不延伸到控制台配置页。
+- 详情表单复用 `formCard` / `formCardDense` 和 `formTitle` / `formDesc`。表单行直接作为卡片子项，由共享样式提供内边距和分隔线，不另外堆叠 `p-5`、`p-6`、`gap-6`、独立阴影或另一套卡片表面。
+- 内容区不在卡片外重复展示名称、介绍或状态标签；必要的说明收进对应卡片。Agent 列表只显示识别与操作所需信息，并发、字数等配置参数留在详情页，不堆叠成名称旁的标签。
+- 配置编辑统一进入详情页，禁止在列表行下展开编辑表单。翻译工具详情使用一张表单卡片承载全部配置，底部在卡片内提供返回、删除（仅可删除的实例）、保存文字按钮。保存用 `accent`，其余使用带背景的默认按钮；页头不重复放置操作，不提供取消按钮。可见文字与无障碍名称均使用多语言文案。
+- 列表进入详情后保持相同的左边界；窄屏使用 `w-full` 随可用宽度收缩，不引入固定最小宽度或横向滚动。
+
 ### 4.2 文字只在卡片内（全局）
 
 - 内容区的**说明文字、提示、空态文案都必须放在卡片里**（`hubBlock` / `integrationCard` / `formCard` / `EmptyState` 等容器），卡片外不放裸段落、列表或提示行。
@@ -143,6 +153,7 @@
 - [ ] 只用 token / `@theme`
 - [ ] 表/列表不横溢；长路径 truncate
 - [ ] 窄宽可用
+- [ ] 新增设置列表与详情已与现有设置页做真实渲染截图对照：正文左边界、卡片间距、表单密度一致；限宽卡片列没有居中（§4.1）
 - [ ] GameEdit 与 Toolkit 同属一套皮
 - [ ] 内容区文字都在卡片内（§4.2）
 - [ ] 成功提示不插入 DOM 节点（§6）

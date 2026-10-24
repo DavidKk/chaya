@@ -11,8 +11,10 @@ jest.mock('@/lib/game/toolkit-data', () => ({
   toolkitDataDir: () => dirs.data,
 }))
 
+const mockGetResolvedFromConfig = jest.fn((): { ok: boolean; remote?: boolean; contentRoot?: string; error?: string } => ({ ok: true, remote: false, contentRoot: dirs.gameA }))
+
 jest.mock('@/services/game/binding', () => ({
-  getResolvedFromConfig: () => ({ ok: true, remote: false, contentRoot: dirs.gameA }),
+  getResolvedFromConfig: () => mockGetResolvedFromConfig(),
 }))
 
 beforeEach(() => {
@@ -22,6 +24,7 @@ beforeEach(() => {
   dirs.gameB = path.join(root, 'game-b')
   fs.mkdirSync(dirs.gameA, { recursive: true })
   fs.mkdirSync(dirs.gameB, { recursive: true })
+  mockGetResolvedFromConfig.mockReturnValue({ ok: true, remote: false, contentRoot: dirs.gameA })
 })
 
 it('keeps agent entries for every game and leaves platform switches per game', () => {
@@ -36,9 +39,13 @@ it('keeps agent entries for every game and leaves platform switches per game', (
 
   const shared = JSON.parse(fs.readFileSync(path.join(dirs.data, 'translate', 'agents.json'), 'utf8')) as { agents: unknown[] }
   expect(shared.agents).toHaveLength(1)
-  const gameFile = JSON.parse(fs.readFileSync(gameContentPath(dirs.gameA, 'switches'), 'utf8')) as { agents?: unknown; bing?: boolean }
+  const gameFile = JSON.parse(fs.readFileSync(gameContentPath(dirs.gameA, 'switches'), 'utf8')) as { agents?: unknown; bing?: boolean; configs?: { bing?: { id?: string } } }
   expect(gameFile.agents).toBeUndefined()
   expect(gameFile.bing).toBe(false)
+  const bingId = gameFile.configs?.bing?.id
+  expect(typeof bingId).toBe('string')
+  expect(bingId).not.toBe('bing')
+  expect(bingId).toBe(getTranslateEngineSwitches(dirs.gameA).configs.bing.id)
 })
 
 it('adopts an existing per-game agent list into the shared file once', () => {
@@ -51,4 +58,21 @@ it('adopts an existing per-game agent list into the shared file once', () => {
   expect(getTranslateEngineSwitches(dirs.gameB).agents.map((a) => a.profileId)).toEqual(['gpu'])
   const migrated = JSON.parse(fs.readFileSync(gameContentPath(dirs.gameA, 'switches'), 'utf8')) as { agents?: unknown }
   expect(migrated.agents).toBeUndefined()
+})
+
+it('falls back to shared agents and default platform switches when no game is bound', () => {
+  mockGetResolvedFromConfig.mockReturnValue({ ok: false, error: 'no game' })
+  const initial = getTranslateEngineSwitches()
+  expect(initial.contentRoot).toBe('')
+  expect(initial.switches.bing).toBe(true)
+  expect(initial.agents).toEqual([])
+  expect(initial.configs.bing.id).toBeTruthy()
+
+  const saved = setTranslateEngineSwitches({
+    agents: [{ id: 'agent_free', profileId: 'deepseek', model: 'v3', enabled: true }],
+  })
+  expect(saved.contentRoot).toBe('')
+  expect(saved.agents).toHaveLength(1)
+  expect(saved.agents[0].id).toBe('agent_free')
+  expect(getTranslateEngineSwitches().agents).toEqual(saved.agents)
 })

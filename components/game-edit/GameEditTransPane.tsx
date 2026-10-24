@@ -29,6 +29,7 @@ type Props = {
 export function GameEditTransPane({ surface = 'page', refreshKey = 0, tab, onTabChange, section = 'seed', onSectionChange }: Props) {
   const [portalHost, setPortalHost] = useState<HTMLDivElement | null>(null)
   const [localSection, setLocalSection] = useState<Exclude<TranslateTabId, 'test'>>('seed')
+  const [enginesRevision, setEnginesRevision] = useState(0)
   const activeSection = onSectionChange ? section : localSection
   const setSection = onSectionChange ?? setLocalSection
   const pane = <TranslateRunPane key={refreshKey} tab={tab} onTabChange={onTabChange} surface={surface} />
@@ -36,7 +37,7 @@ export function GameEditTransPane({ surface = 'page', refreshKey = 0, tab, onTab
   if (surface === 'overlay') {
     const renderOverlayContent = () => {
       if (activeSection === 'cache') return <CacheBrowserOverlay />
-      if (activeSection === 'engines') return <TranslateEnginesPane />
+      if (activeSection === 'engines') return <TranslateEnginesPane key={enginesRevision} />
       if (activeSection === 'list') return <TranslateListContent />
       if (activeSection === 'play') return <TranslateRunPane key={refreshKey} tab="play" surface={surface} />
       return <TranslateRunPane key={refreshKey} tab="seed" surface={surface} />
@@ -51,6 +52,7 @@ export function GameEditTransPane({ surface = 'page', refreshKey = 0, tab, onTab
                 <TranslateSubNav
                   tab={activeSection}
                   onSelect={(next) => {
+                    if (next === 'engines' && activeSection === 'engines') setEnginesRevision((revision) => revision + 1)
                     if (next !== 'test') setSection(next)
                   }}
                 />

@@ -3,17 +3,28 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
+import { PanelHeadEndHost, PanelHeadEndProvider } from '@/components/PanelHeadEnd'
 import { TranslateEnginesPane } from '@/components/translate/TranslateEnginesPane'
+import { MESSAGES } from '@/lib/i18n/messages'
+import { translate } from '@/lib/i18n/t'
 
 const mockTranslationFetch = jest.fn()
 const mockNotify = { success: jest.fn(), error: jest.fn(), warning: jest.fn() }
 jest.mock('@/components/translate/TranslationRuntimeContext', () => ({ useTranslationFetch: () => mockTranslationFetch }))
 jest.mock('@/components/notification/useNotification', () => ({ useNotification: () => mockNotify }))
 
+let mockPathname = '/translate/engines'
 let mockSearchParams = new URLSearchParams()
+const applyHref = (href: string) => {
+  const url = new URL(href, 'http://localhost')
+  mockPathname = url.pathname
+  mockSearchParams = url.searchParams
+}
+const mockPush = jest.fn(applyHref)
+const mockReplace = jest.fn(applyHref)
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
-  usePathname: () => '/translate/engines',
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  usePathname: () => mockPathname,
   useSearchParams: () => mockSearchParams,
 }))
 
@@ -42,10 +53,10 @@ const sampleState = {
   ],
   order: ['agent:agent_1', 'bing', 'google', 'apple', 'bergamot'],
   configs: {
-    bing: { enabled: true, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
-    google: { enabled: false, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
-    apple: { enabled: false, allowConcurrency: true, concurrencyLimit: 40, maxConcurrentChars: 40000 },
-    bergamot: { enabled: false, allowConcurrency: false, concurrencyLimit: 1, maxConcurrentChars: 3000 },
+    bing: { id: 'eng_bing1', enabled: true, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
+    google: { id: 'eng_goog1', enabled: false, allowConcurrency: true, concurrencyLimit: 4, maxConcurrentChars: 3000 },
+    apple: { id: 'eng_appl1', enabled: false, allowConcurrency: true, concurrencyLimit: 40, maxConcurrentChars: 40000 },
+    bergamot: { id: 'eng_berg1', enabled: false, allowConcurrency: false, concurrencyLimit: 1, maxConcurrentChars: 3000 },
   },
 }
 
@@ -65,7 +76,10 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
 
   beforeEach(() => {
     mockTranslationFetch.mockReset()
+    mockPathname = '/translate/engines'
     mockSearchParams = new URLSearchParams()
+    mockPush.mockClear()
+    mockReplace.mockClear()
     Object.values(mockNotify).forEach((fn) => fn.mockReset())
     host = document.createElement('div')
     document.body.appendChild(host)
@@ -85,7 +99,7 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     document.body.innerHTML = ''
   })
 
-  it('renders 3 separate cards for agent, platform, and system engines with badges', async () => {
+  it('renders 3 separate cards with badges only for platform and system engines', async () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
@@ -99,7 +113,7 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     const agentCard = host.querySelector('section[aria-label="Agent"]')
     expect(agentCard).not.toBeNull()
     expect(agentCard?.textContent).toContain('DeepSeek AI')
-    expect(agentCard?.textContent).toContain('并发 8 · 5,000字')
+    expect(agentCard?.textContent).not.toContain('并发 8 · 5,000字')
 
     // Card 2: Platform
     const platformCard = host.querySelector('section[aria-label="翻译平台"]')
@@ -116,7 +130,47 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     expect(systemCard?.textContent).toContain('就绪')
   })
 
-  it('navigates to detail view when clicking "配置" on an engine', async () => {
+  it.each([
+    ['zh', '是否允许并发'],
+    ['cht', '允許並行請求'],
+    ['en', 'Allow concurrent requests'],
+    ['ja', '並列リクエストを許可'],
+    ['ko', '동시 요청 허용'],
+    ['fr', 'Autoriser les requêtes simultanées'],
+    ['de', 'Parallele Anfragen zulassen'],
+    ['es', 'Permitir solicitudes simultáneas'],
+    ['ru', 'Разрешить параллельные запросы'],
+    ['pt-BR', 'Permitir solicitações simultâneas'],
+  ] as const)('localizes tool descriptions, edit actions and detail fields in %s', async (locale, concurrencyLabel) => {
+    const copy = (key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]) => translate(MESSAGES[locale], key, params)
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale={locale} initialPreference={locale}>
+          <TranslateEnginesPane />
+        </LocaleProvider>
+      )
+    })
+    expect(host.textContent).toContain(copy('translate.engineBingDesc'))
+    expect(host.textContent).toContain(copy('translate.engineAppleDesc'))
+    expect(host.textContent).not.toContain('translate.concurrencyBadge')
+    const editLabel = copy('translate.agentEdit', { name: 'Google' })
+    const edit = [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.getAttribute('aria-label') === editLabel)
+    expect(edit).toBeDefined()
+    await act(async () => edit!.click())
+    expect(host.querySelector(`button[aria-label="${concurrencyLabel}"]`)).not.toBeNull()
+    expect(host.textContent).toContain(copy('translate.maxConcurrentChars'))
+    const save = host.querySelector(`button[aria-label="${copy('common.save')}"]`)
+    expect(save).not.toBeNull()
+    expect(save?.textContent).toBe(copy('common.save'))
+    expect(save?.getAttribute('data-variant')).toBe('accent')
+    expect(host.querySelector('[role="toolbar"]')?.textContent).not.toContain(copy('common.cancel'))
+    const backLabel = copy('translate.backToEngines')
+    expect([...host.querySelectorAll('button')].some((button) => button.getAttribute('aria-label') === backLabel)).toBe(true)
+    expect(host.querySelectorAll('section')).toHaveLength(1)
+    if (locale === 'en') expect(host.textContent).not.toMatch(/[\p{Script=Han}]/u)
+  })
+
+  it('navigates to detail view when clicking the engine title', async () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
@@ -126,30 +180,29 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     })
     await act(async () => {})
 
-    const configButtons = Array.from(host.querySelectorAll('button')).filter((b) => b.textContent?.includes('配置'))
-    expect(configButtons.length).toBeGreaterThanOrEqual(3)
-
-    // Click configure on Bing
-    const bingConfigBtn = host.querySelector<HTMLButtonElement>('button[aria-label="配置 Bing"]')
-    expect(bingConfigBtn).not.toBeNull()
+    const bingTitle = host.querySelector<HTMLButtonElement>('button[aria-label="编辑 Bing"]')
+    expect(bingTitle).not.toBeNull()
 
     await act(async () => {
-      bingConfigBtn?.click()
+      bingTitle?.click()
     })
     await act(async () => {})
 
+    expect(mockPush).toHaveBeenCalledWith('/translate/engines/eng_bing1')
+
     // Now in Detail View
-    expect(host.textContent).toContain('返回翻译工具列表')
+    expect(host.querySelector('button[aria-label="返回翻译工具列表"]')?.textContent).toBe('返回')
     expect(host.textContent).toContain('是否允许并发')
     expect(host.textContent).toContain('并发请求数上限')
     expect(host.textContent).toContain('并发最多多少个字符')
 
-    // Click Back to return to 3 cards
-    const backBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('返回翻译工具列表'))
-    expect(backBtn).toBeDefined()
-
     await act(async () => {
-      backBtn?.click()
+      host.querySelector<HTMLButtonElement>('button[aria-label="返回翻译工具列表"]')!.click()
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateEnginesPane />
+        </LocaleProvider>
+      )
     })
     await act(async () => {})
 
@@ -169,7 +222,7 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     await act(async () => {})
 
     // Open DeepSeek agent detail view
-    const agentConfigBtn = host.querySelector<HTMLButtonElement>('button[aria-label="配置 DeepSeek AI"]')
+    const agentConfigBtn = host.querySelector<HTMLButtonElement>('button[aria-label="编辑 DeepSeek AI"]')
     await act(async () => {
       agentConfigBtn?.click()
     })
@@ -187,8 +240,8 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
       }
     })
 
-    const saveBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('保存'))
-    expect(saveBtn).toBeDefined()
+    const saveBtn = host.querySelector<HTMLButtonElement>('button[aria-label="保存"]')
+    expect(saveBtn).not.toBeNull()
 
     await act(async () => {
       saveBtn?.click()
@@ -200,5 +253,49 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
         body: expect.stringContaining('"maxConcurrentChars":8000'),
       })
     )
+  })
+
+  it('places text actions at the bottom of the single detail card and returns to the list', async () => {
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <PanelHeadEndProvider>
+            <header>
+              <PanelHeadEndHost />
+            </header>
+            <TranslateEnginesPane />
+          </PanelHeadEndProvider>
+        </LocaleProvider>
+      )
+    })
+    await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="编辑 DeepSeek AI"]')!.click())
+    const header = host.querySelector('header')!
+    expect(header.querySelector('[role="toolbar"]')).toBeNull()
+    const card = host.querySelector('section')!
+    expect(host.querySelectorAll('section')).toHaveLength(1)
+    expect(card.lastElementChild?.getAttribute('role')).toBe('toolbar')
+    expect(card.querySelector('button[aria-label="保存"]')?.textContent).toBe('保存')
+    expect(header.textContent).toBe('')
+    const remove = card.querySelector('[aria-label="移除"]')
+    expect(remove).not.toBeNull()
+    expect(remove?.textContent).toBe('删除')
+    expect(remove?.getAttribute('data-variant')).not.toBe('plain')
+    expect(card.querySelector('button[aria-label="返回翻译工具列表"]')?.textContent).toBe('返回')
+    expect(header.querySelector('button[aria-label="返回翻译工具列表"]')).toBeNull()
+    await act(async () => {
+      card.querySelector<HTMLButtonElement>('button[aria-label="返回翻译工具列表"]')!.click()
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <PanelHeadEndProvider>
+            <header>
+              <PanelHeadEndHost />
+            </header>
+            <TranslateEnginesPane />
+          </PanelHeadEndProvider>
+        </LocaleProvider>
+      )
+    })
+    expect(header.querySelector('[role="toolbar"]')).toBeNull()
+    expect(host.querySelector('section[aria-label="Agent"]')).not.toBeNull()
   })
 })

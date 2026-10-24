@@ -22,7 +22,7 @@ export function TranslateGate({ children }: { children: ReactNode }) {
   const { access, cloud, busy, onChoose } = useBoundGame({ allowLocalOffline: true })
 
   if (tab === 'test' && cloud) return <EmptyState title={copy.intro} message={copy.diskOnly} />
-  if (tab === 'test' || tab === 'cache' || access === 'ready') return children
+  if (tab === 'test' || tab === 'cache' || tab === 'engines' || access === 'ready') return children
   if (access === 'loading') {
     return <TranslateRunSkeleton />
   }

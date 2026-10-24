@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { IoChevronBackOutline, IoChevronForwardOutline, IoPlaySkipBackOutline, IoPlaySkipForwardOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
@@ -182,7 +182,10 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     [sourceLang, targetLang, fromLangParam, toLangParam, translationFetch, notify, t]
   )
 
+  const initialLoadedRef = useRef(false)
   useEffect(() => {
+    if (initialLoadedRef.current) return
+    initialLoadedRef.current = true
     void loadEngines()
     void loadData()
     if (typeof fetch === 'function') {

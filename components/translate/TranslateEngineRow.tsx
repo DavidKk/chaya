@@ -20,10 +20,8 @@ type Props = {
   dragging: boolean
   dropEdge: 'before' | 'after' | null
   actions?: ReactNode
-  /** 有值时标题可点（后接编辑图标），点击展开 / 收起配置 */
+  /** 有值时标题可点（后接编辑图标），进入工具详情 */
   onEdit?: () => void
-  editing?: boolean
-  children?: ReactNode
   onToggle: (checked: boolean) => void
   onDragStart: (e: DragEvent<HTMLButtonElement>) => void
   onDragEnd: () => void
@@ -32,7 +30,7 @@ type Props = {
   onDrop: (e: DragEvent<HTMLLIElement>) => void
 }
 
-/** 翻译引擎栏一行：拖拽柄 + 名称 + 操作 + 开关；children 为展开的配置区 */
+/** 翻译引擎栏一行：拖拽柄 + 名称 + 操作 + 开关 */
 export function TranslateEngineRow({
   label,
   subtitle,
@@ -44,8 +42,6 @@ export function TranslateEngineRow({
   dropEdge,
   actions,
   onEdit,
-  editing = false,
-  children,
   onToggle,
   onDragStart,
   onDragEnd,
@@ -91,17 +87,15 @@ export function TranslateEngineRow({
             {onEdit ? (
               <button
                 type="button"
-                aria-expanded={editing}
                 aria-label={t('translate.agentEdit', { name: label })}
                 className={cn(
                   'group/edit relative inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1 self-start border-none bg-transparent p-0 text-left text-[0.8125rem] leading-[1.4]',
-                  'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0.5 after:h-px after:bg-current after:opacity-0 after:content-[""] hover:after:opacity-100',
-                  editing ? 'text-accent' : 'text-ink'
+                  'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0.5 after:h-px after:bg-current after:opacity-0 after:content-[""] hover:after:opacity-100 text-ink'
                 )}
                 onClick={onEdit}
               >
                 <TruncateText text={label} className="font-medium" />
-                <GrFormEdit size={16} aria-hidden className={cn('-mx-1 shrink-0', editing ? 'text-accent' : 'text-ink-soft group-hover/edit:text-ink')} />
+                <GrFormEdit size={16} aria-hidden className="-mx-1 shrink-0 text-ink-soft group-hover/edit:text-ink" />
               </button>
             ) : (
               <TruncateText text={label} className="text-[0.8125rem] font-medium leading-[1.4] text-ink" />
@@ -115,7 +109,6 @@ export function TranslateEngineRow({
           <SwitchToggle checked={checked} disabled={locked || toggleDisabled} aria-label={t('translate.engineToggle', { name: label })} onCheckedChange={onToggle} />
         </div>
       </div>
-      {children ? <div className="border-t border-line px-3 pt-2 pb-3">{children}</div> : null}
     </li>
   )
 }

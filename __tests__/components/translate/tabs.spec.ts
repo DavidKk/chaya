@@ -1,6 +1,17 @@
 import { describe, expect, it } from '@jest/globals'
 
-import { cacheDebugReturnHref, DEFAULT_TRANSLATE_TAB, parseTranslateTab, TRANSLATE_TABS, translateCacheDebugHref, translateTabHref } from '@/components/translate/tabs'
+import {
+  cacheDebugReturnHref,
+  DEFAULT_TRANSLATE_TAB,
+  isTranslateEngineDetailPath,
+  parseTranslateEnginePathId,
+  parseTranslateTab,
+  TRANSLATE_TABS,
+  translateCacheDebugHref,
+  translateEngineDetailHref,
+  translatePathTab,
+  translateTabHref,
+} from '@/components/translate/tabs'
 
 describe('translate tabs 路径', () => {
   it('默认 seed，静态 tab 完整', () => {
@@ -13,6 +24,17 @@ describe('translate tabs 路径', () => {
     expect(parseTranslateTab('nope')).toBe('seed')
     expect(translateTabHref('seed')).toBe('/translate/seed')
     expect(translateTabHref('cache')).toBe('/translate/cache')
+  })
+
+  it('engine detail uses /translate/engines/{entryId}', () => {
+    expect(translateEngineDetailHref('m8k2ab1x9q')).toBe('/translate/engines/m8k2ab1x9q')
+    expect(translateEngineDetailHref('agent_1')).toBe('/translate/engines/agent_1')
+    expect(parseTranslateEnginePathId('/translate/engines')).toBeNull()
+    expect(parseTranslateEnginePathId('/translate/engines/m8k2ab1x9q')).toBe('m8k2ab1x9q')
+    expect(parseTranslateEnginePathId('/translate/engines/agent:agent_1')).toBeNull()
+    expect(parseTranslateEnginePathId('/translate/engines/nope!')).toBeNull()
+    expect(isTranslateEngineDetailPath('/translate/engines/m8k2ab1x9q')).toBe(true)
+    expect(translatePathTab('/translate/engines/m8k2ab1x9q')).toBe('engines')
   })
 })
 

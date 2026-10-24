@@ -1,5 +1,6 @@
 import type { MessageKey } from '@/lib/i18n'
 import { normalizeTranslateQuery } from '@/lib/translate/cache-query'
+import { isEngineEntryId, parseEngineEntryId } from '@/lib/translate/engines'
 
 export const TRANSLATE_TABS = [
   { id: 'seed', labelKey: 'translate.seedTab' },
@@ -36,6 +37,38 @@ export function translatePathTab(pathname: string): TranslateTabId {
 
 export function translateTabHref(tab: TranslateTabId): string {
   return `/translate/${tab}`
+}
+
+/** Deep link: `/translate/engines/{entryId}` — engine settings. */
+export function translateEngineDetailHref(id: string): string {
+  return `/translate/engines/${id}`
+}
+
+export function isTranslateEnginesPath(pathname: string): boolean {
+  const parts = pathname.split('/').filter(Boolean)
+  return parts[0] === 'translate' && parts[1] === 'engines'
+}
+
+function decodeEnginePathId(raw: string): string {
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
+export function parseTranslateEnginePathId(pathname: string): string | null {
+  const parts = pathname.split('/').filter(Boolean)
+  if (parts[0] !== 'translate' || parts[1] !== 'engines' || !parts[2]) return null
+  return parseEngineEntryId(parts[2])
+}
+
+export function isTranslateEnginePathId(raw: string): boolean {
+  return isEngineEntryId(decodeEnginePathId(raw))
+}
+
+export function isTranslateEngineDetailPath(pathname: string): boolean {
+  return parseTranslateEnginePathId(pathname) != null
 }
 
 export type TranslateRunMode = 'seed' | 'list' | 'play'

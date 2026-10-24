@@ -56,7 +56,7 @@ Desktop toolkit shell (Electron) + Next in **app** mode:
 ```bash
 pnpm i
 pnpm build          # plugins → plugins/mv/dist, then next build
-pnpm start          # serve the production Next app on 127.0.0.1:3927
+pnpm start          # serve on 0.0.0.0:3927; startup logs print the LAN URL
 pnpm electron:open  # open Electron against that server (CHAYA_SERVICE=app)
 ```
 
@@ -92,17 +92,18 @@ Requires **Node.js ≥ 22.19** (uses `node:sqlite`) and **pnpm**.
 
 ```bash
 pnpm i
-pnpm dev            # local mode on localhost:3000 + plugin watch
+pnpm dev            # local mode on LAN :3000 + plugin watch
 ```
 
-Open `http://localhost:3000`. Local / App mode has no sign-in; the API only accepts same-origin requests from localhost, LAN IPs or `CHAYA_PUBLIC_ORIGIN`, and MCP needs no authorization: agents use `http://127.0.0.1:39271/mcp` (or the server's own `http://127.0.0.1:3000/api/mcp`, shown on **Integration → MCP**; the gateway port can be changed in-game).
+Open the `http://<LAN-IP>:3000` URL printed at startup. Local / App mode has no sign-in; the API only accepts same-origin requests from localhost, LAN IPs or `CHAYA_PUBLIC_ORIGIN`, and MCP needs no authorization: agents use `http://127.0.0.1:39271/mcp` (or the server's own `http://<LAN-IP>:3000/api/mcp`, shown on **Integration → MCP**; the gateway port can be changed in-game).
 
-| Command        | Purpose                                          |
-| -------------- | ------------------------------------------------ |
-| `pnpm dev`     | Local console (loopback only)                    |
-| `pnpm dev:lan` | Same, listen on LAN for other devices / VMs      |
-| `pnpm dev:app` | Toolkit App (Next + Electron)                    |
-| `pnpm ok:ci`   | Format check, lint, typecheck, tests, full build |
+| Command             | Purpose                                          |
+| ------------------- | ------------------------------------------------ |
+| `pnpm dev`          | Listen on LAN for other devices / VMs by default |
+| `pnpm dev:lan`      | Alias for `pnpm dev`                             |
+| `pnpm dev:loopback` | Explicit loopback-only development               |
+| `pnpm dev:app`      | Toolkit App (Next + Electron)                    |
+| `pnpm ok:ci`        | Format check, lint, typecheck, tests, full build |
 
 GitHub Actions: [CI](.github/workflows/ci.yml) runs `pnpm ok:ci` on `main` / PRs. [Build App](.github/workflows/build-app.yml) builds installers on `v*` tags (or manual dispatch) and publishes a [GitHub Release](https://github.com/DavidKk/chaya/releases) with `.dmg` / `.exe` attached.
 

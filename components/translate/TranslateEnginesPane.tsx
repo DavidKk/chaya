@@ -3,30 +3,37 @@
 import { Menu } from '@base-ui/react/menu'
 import Link from 'next/link'
 import { type DragEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
-import { IoAdd, IoSettingsOutline } from 'react-icons/io5'
+import { IoAdd } from 'react-icons/io5'
 
-import { useT } from '@/components/i18n/LocaleProvider'
+import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
+import { settingsCardColumn } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Badge, Button, ScrollArea, Tooltip } from '@/components/sk'
+import { Badge, ScrollArea, Tooltip } from '@/components/sk'
 import { controlDisabled } from '@/components/sk/control'
 import { dropdownItemClass, dropdownPopupClass, dropdownTriggerClass } from '@/components/sk/dropdownMenu'
 import { useSafePathname, useSafeRouter, useSafeSearchParams } from '@/components/translate/safe-navigation'
+import { isTranslateEnginesPath, parseTranslateEnginePathId, translateEngineDetailHref, translateTabHref } from '@/components/translate/tabs'
 import { type EngineDetailDraft, TranslateEngineDetailView } from '@/components/translate/TranslateEngineDetailView'
 import { TranslateEngineRow } from '@/components/translate/TranslateEngineRow'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { useTranslateAgentProfiles } from '@/components/translate/useTranslateAgentProfiles'
 import { readApiErrorMessage } from '@/lib/api-error'
 import type { MessageKey } from '@/lib/i18n'
+import { LOCALE_HTML_LANG } from '@/lib/i18n/locales'
 import {
   agentEngineKey,
   DEFAULT_ENGINE_ORDER,
   DEFAULT_ENGINE_SETTINGS,
   DEFAULT_ENGINE_SWITCHES,
   engineGroup,
+  engineRouteId,
   findAgentEntry,
   isBuiltinEngineId,
+  isTranslateEngineId,
   MAX_TRANSLATE_AGENTS,
   mergeEngineState,
+  newEngineEntryId,
+  resolveEngineRouteId,
   type TranslateAgentEntry,
   type TranslateBuiltinId,
   type TranslateEngineGroup,
@@ -35,7 +42,6 @@ import {
   type TranslateEngineState,
   type TranslateEngineSwitches,
 } from '@/lib/translate/engines'
-import { patchSearchParams } from '@/lib/url/search-params'
 import { cn } from '@/lib/utils'
 
 type EngineId = TranslateEngineId
@@ -66,12 +72,10 @@ const BUILTIN_LABEL_KEY: Record<TranslateBuiltinId, MessageKey> = {
 
 const groupLabel = 'text-[0.72rem] font-semibold tracking-[0.04em] text-ink-soft uppercase'
 
-function newEntryId() {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
-}
-
 export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { manageAgentsHref?: string }) {
   const t = useT()
+  const locale = useLocaleCode()
+  const numberFormat = new Intl.NumberFormat(LOCALE_HTML_LANG[locale])
   const router = useSafeRouter()
   const pathname = useSafePathname()
   const searchParams = useSafeSearchParams()
@@ -94,21 +98,43 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
   const [overEdge, setOverEdge] = useState<'before' | 'after'>('before')
   const dragGhostRef = useRef<HTMLElement | null>(null)
 
-  // Active selected engine for Detail View
-  const engineParam = searchParams?.get('engine') as EngineId | null
+  // Web console uses `/translate/engines/{entryId}`; GameEdit overlay stays on local state.
+  const onEnginesRoute = isTranslateEnginesPath(pathname || '')
+  const pathEntryId = onEnginesRoute ? parseTranslateEnginePathId(pathname || '') : null
   const [localEngineId, setLocalEngineId] = useState<EngineId | null>(null)
-  const selectedEngineId = localEngineId ?? (engineParam || null)
+  const selectedEngineId = onEnginesRoute ? resolveEngineRouteId(pathEntryId || '', view.configs, view.agents) : localEngineId
 
   const selectEngine = useCallback(
     (id: EngineId | null) => {
       setLocalEngineId(id)
-      if (pathname && router) {
-        const next = patchSearchParams(searchParams || new URLSearchParams(), { engine: id })
-        router.replace(`${pathname}${next ? `?${next}` : ''}`)
-      }
+      if (!onEnginesRoute || !router) return
+      const entryId = id ? engineRouteId(id, view.configs, view.agents) : ''
+      const href = entryId ? translateEngineDetailHref(entryId) : translateTabHref('engines')
+      if (id ? pathEntryId === entryId : (pathname || '') === href) return
+      if (id && !entryId) return
+      router.push(href)
     },
-    [pathname, router, searchParams]
+    [onEnginesRoute, pathEntryId, pathname, router, view.agents, view.configs]
   )
+
+  useEffect(() => {
+    if (!onEnginesRoute || !router || !pathEntryId) return
+    if (isTranslateEngineId(pathEntryId)) {
+      const entryId = engineRouteId(pathEntryId, view.configs, view.agents)
+      if (entryId) router.replace(translateEngineDetailHref(entryId))
+      return
+    }
+    if (!loading && !resolveEngineRouteId(pathEntryId, view.configs, view.agents)) router.replace(translateTabHref('engines'))
+  }, [loading, onEnginesRoute, pathEntryId, router, view.agents, view.configs])
+
+  useEffect(() => {
+    if (!onEnginesRoute || !router || pathEntryId) return
+    const legacy = searchParams?.get('engine')
+    if (!legacy) return
+    const key = isTranslateEngineId(legacy) ? legacy : resolveEngineRouteId(legacy, view.configs, view.agents)
+    const entryId = key ? engineRouteId(key, view.configs, view.agents) : ''
+    if (entryId) router.replace(translateEngineDetailHref(entryId))
+  }, [onEnginesRoute, pathEntryId, router, searchParams, view.agents, view.configs])
 
   const checkSystemStatus = useCallback(
     async (id: OfflineEngine, signal: AbortSignal) => {
@@ -203,10 +229,10 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
   }
 
   function engineSubtitle(id: EngineId): string | undefined {
-    if (id === 'bing') return '公网微软翻译（可选依赖）'
-    if (id === 'google') return '公网 gtx 免费翻译'
-    if (id === 'apple') return 'macOS 系统原生离线神经翻译（需离线语言包）'
-    if (id === 'bergamot') return '跨平台本地离线工具翻译（需安装语言包）'
+    if (id === 'bing') return t('translate.engineBingDesc')
+    if (id === 'google') return t('translate.engineGoogleDesc')
+    if (id === 'apple') return t('translate.engineAppleDesc')
+    if (id === 'bergamot') return t('translate.engineBergamotDesc')
     const entry = findAgentEntry(view.agents, id)
     if (!entry) return undefined
     const p = agentProfiles.profiles.find((item) => item.id === entry.profileId)
@@ -228,7 +254,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
   async function addAgent(profileId: string) {
     if (loading || saving || view.agents.length >= MAX_TRANSLATE_AGENTS || view.agents.some((a) => a.profileId === profileId)) return
     const entry: TranslateAgentEntry = {
-      id: newEntryId(),
+      id: newEngineEntryId(),
       profileId,
       model: '',
       enabled: true,
@@ -297,10 +323,12 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
 
     return (
       <TranslateEngineDetailView
+        key={`${selectedEngineId}:${loading}`}
         engineId={selectedEngineId}
         label={engineLabel(selectedEngineId)}
         subtitle={engineSubtitle(selectedEngineId)}
         group={activeGroup}
+        onBack={() => selectEngine(null)}
         agentEntry={activeEntry}
         builtinConfig={activeBuiltin}
         agentProfiles={agentProfiles}
@@ -312,7 +340,6 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
             void checkSystemStatus(selectedEngineId, ctrl.signal)
           }
         }}
-        onBack={() => selectEngine(null)}
         saving={saving}
         locked={loading || saving}
         onSave={async (draft: EngineDetailDraft) => {
@@ -329,7 +356,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
                   },
                 },
               },
-              t('translate.agentSaved')
+              t('translate.engineSettingsSaved')
             )
           }
           if (activeEntry) {
@@ -346,7 +373,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
                   }
                 : a
             )
-            return persist({ agents: updated }, t('translate.agentSaved'))
+            return persist({ agents: updated }, t('translate.engineSettingsSaved'))
           }
           return false
         }}
@@ -367,13 +394,13 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
   // Render the 3 Cards Overview View
   return (
     <div className="flex flex-1 flex-col min-h-0 bg-paper-2 overflow-hidden" aria-label={t('translate.platformsConfig')}>
-      <ScrollArea className="min-h-0 flex-1" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.enginesList') }}>
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+      <ScrollArea className="min-h-0 flex-1" scrollClassName="p-4" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.enginesList') }}>
+        <div className={cn(settingsCardColumn, 'max-w-3xl')}>
           {GROUPS.map((group) => {
             const ids = view.order.filter((id) => engineGroup(id) === group.id)
             return (
-              <section key={group.id} className="flex flex-col rounded-lg border border-line bg-surface/30 overflow-hidden shadow-sm" aria-label={t(group.labelKey)}>
-                <div ref={group.id === 'agent' ? addAnchorRef : undefined} className="flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 bg-surface/40">
+              <section key={group.id} className="flex flex-col overflow-hidden rounded-md border border-line bg-panel" aria-label={t(group.labelKey)}>
+                <div ref={group.id === 'agent' ? addAnchorRef : undefined} className="flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 py-3">
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <div className="flex items-center gap-2">
                       <span className={groupLabel}>{t(group.labelKey)}</span>
@@ -464,7 +491,9 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
                                 {t('translate.tagFree')}
                               </Badge>
                               <Badge size="mini" tone="neutral" dot={false}>
-                                {allowConcurrency ? `并发 ${limit} · ${chars.toLocaleString()}字` : '单线程'}
+                                {allowConcurrency
+                                  ? t('translate.concurrencyBadge', { limit: numberFormat.format(limit), chars: numberFormat.format(chars) })
+                                  : t('translate.sequentialBadge')}
                               </Badge>
                             </div>
                           )
@@ -476,15 +505,11 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
                                 {systemStatus[id] === undefined ? t('translate.offlineChecking') : t(ready ? 'translate.tagReady' : 'translate.tagNotReady')}
                               </Badge>
                               <Badge size="mini" tone="neutral" dot={false}>
-                                {allowConcurrency ? `并发 ${limit} · ${chars.toLocaleString()}字` : '单线程'}
+                                {allowConcurrency
+                                  ? t('translate.concurrencyBadge', { limit: numberFormat.format(limit), chars: numberFormat.format(chars) })
+                                  : t('translate.sequentialBadge')}
                               </Badge>
                             </div>
-                          )
-                        } else {
-                          badgeNode = (
-                            <Badge size="mini" tone="accent" dot={false}>
-                              {allowConcurrency ? `并发 ${limit} · ${chars.toLocaleString()}字` : '单线程'}
-                            </Badge>
                           )
                         }
 
@@ -506,19 +531,6 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
                             onDragLeave={() => overId === id && setOverId(null)}
                             onDrop={(e) => void onDrop(id, e)}
                             onEdit={() => selectEngine(id)}
-                            actions={
-                              <Button
-                                size="xs"
-                                variant="plain"
-                                aria-label={`配置 ${engineLabel(id)}`}
-                                title="配置详情"
-                                className="text-ink-soft hover:text-ink flex items-center gap-1"
-                                onClick={() => selectEngine(id)}
-                              >
-                                <IoSettingsOutline size={13} aria-hidden />
-                                <span>配置</span>
-                              </Button>
-                            }
                           />
                         )
                       })}

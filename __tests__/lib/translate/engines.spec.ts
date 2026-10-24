@@ -1,12 +1,18 @@
 import {
+  assignMissingEngineEntryIds,
+  builtinEngineByEntryId,
   engineAcceptsSensitive,
   engineGroup,
+  engineRouteId,
   engineSourceTag,
   engineStateFileBody,
+  isEngineEntryId,
+  isTranslateEngineId,
   mapTranslationBatch,
   mergeEngineState,
   normalizeAgentEntries,
   normalizeEngineOrder,
+  resolveEngineRouteId,
   translationFallbackOrder,
 } from '@/lib/translate/engines'
 
@@ -18,6 +24,30 @@ describe('translate engines', () => {
     expect(engineGroup('bergamot')).toBe('system')
     expect(engineAcceptsSensitive('agent:x')).toBe(true)
     expect(engineAcceptsSensitive('bing')).toBe(false)
+    expect(isTranslateEngineId('bing')).toBe(true)
+    expect(isTranslateEngineId('agent:a1')).toBe(true)
+    expect(isTranslateEngineId('agent:bad id')).toBe(false)
+    expect(isTranslateEngineId('nope')).toBe(false)
+    expect(isEngineEntryId('m8k2ab1x9q')).toBe(true)
+    expect(isEngineEntryId('bing')).toBe(true)
+    expect(isEngineEntryId('agent:a1')).toBe(false)
+  })
+
+  it('assigns persistent entry ids for builtin engines and resolves route ids', () => {
+    const state = mergeEngineState({ bing: true, configs: { bing: { id: 'm8k2ab1x9q' } } })
+    expect(state.configs.bing.id).toBe('m8k2ab1x9q')
+    expect(state.configs.google.id).toBe('')
+    const assigned = assignMissingEngineEntryIds(state.configs)
+    expect(assigned.changed).toBe(true)
+    expect(assigned.configs.bing.id).toBe('m8k2ab1x9q')
+    expect(isEngineEntryId(assigned.configs.google.id)).toBe(true)
+    expect(assigned.configs.google.id).not.toBe('google')
+    expect(engineRouteId('bing', assigned.configs)).toBe('m8k2ab1x9q')
+    expect(resolveEngineRouteId('m8k2ab1x9q', assigned.configs)).toBe('bing')
+    expect(resolveEngineRouteId('bing', assigned.configs)).toBe('bing')
+    expect(builtinEngineByEntryId(assigned.configs, 'm8k2ab1x9q')).toBe('bing')
+    expect(resolveEngineRouteId('agent:a1', assigned.configs, [{ id: 'a1', profileId: 'p', model: '', enabled: true }])).toBe('agent:a1')
+    expect(engineRouteId('agent:a1')).toBe('a1')
   })
 
   it('drops the old built-in Ollama engine from legacy files', () => {
@@ -60,6 +90,7 @@ describe('translate engines', () => {
     expect(state.configs.bing.concurrencyLimit).toBe(1)
     expect(state.configs.bing.maxConcurrentChars).toBe(1500)
     expect(state.configs.apple.concurrencyLimit).toBe(40)
+    expect(state.configs.bing.id).toBe('')
   })
 
   it('replaces the agent list on write and drops removed keys from the order', () => {

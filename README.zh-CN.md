@@ -56,7 +56,7 @@ Cloud 没有登录，也没有服务端 MCP。外部 Agent 连接统一地址 `h
 ```bash
 pnpm i
 pnpm build          # 插件 → plugins/mv/dist，再 next build
-pnpm start          # 生产 Next，监听 127.0.0.1:3927
+pnpm start          # 生产 Next，监听 0.0.0.0:3927，启动日志输出内网访问地址
 pnpm electron:open  # 对接该服务打开 Electron（CHAYA_SERVICE=app）
 ```
 
@@ -92,17 +92,18 @@ Windows：若 SmartScreen 拦截安装包，选 **更多信息 → 仍要运行*
 
 ```bash
 pnpm i
-pnpm dev            # local 形态，localhost:3000 + 插件 watch
+pnpm dev            # local 形态，局域网 :3000 + 插件 watch
 ```
 
-打开 `http://localhost:3000` 即可使用。local / App 形态没有登录：API 只接受来自 localhost、局域网 IP 或 `CHAYA_PUBLIC_ORIGIN` 的同源请求；MCP 也无需授权，Agent 连接 `http://127.0.0.1:39271/mcp`（也可直连本机服务自身的 `http://127.0.0.1:3000/api/mcp`，见「集成 → MCP」；网关端口在游戏内修改）。
+打开启动日志输出的 `http://<内网IP>:3000` 即可使用。local / App 形态没有登录：API 只接受来自 localhost、局域网 IP 或 `CHAYA_PUBLIC_ORIGIN` 的同源请求；MCP 也无需授权，Agent 连接 `http://127.0.0.1:39271/mcp`（也可直连本机服务自身的 `http://<内网IP>:3000/api/mcp`，见「集成 → MCP」；网关端口在游戏内修改）。
 
-| 命令           | 用途                                 |
-| -------------- | ------------------------------------ |
-| `pnpm dev`     | 本机控制台（仅回环）                 |
-| `pnpm dev:lan` | 开放局域网，供其他设备 / VM          |
-| `pnpm dev:app` | Toolkit App（Next + Electron）       |
-| `pnpm ok:ci`   | 格式检查、lint、类型、测试、完整构建 |
+| 命令                | 用途                                 |
+| ------------------- | ------------------------------------ |
+| `pnpm dev`          | 默认开放局域网，供其他设备 / VM      |
+| `pnpm dev:lan`      | 同 `pnpm dev`                        |
+| `pnpm dev:loopback` | 仅回环，供明确需要限制本机访问时使用 |
+| `pnpm dev:app`      | Toolkit App（Next + Electron）       |
+| `pnpm ok:ci`        | 格式检查、lint、类型、测试、完整构建 |
 
 GitHub Actions：[CI](.github/workflows/ci.yml) 在 `main` / PR 跑 `pnpm ok:ci`。[Build App](.github/workflows/build-app.yml) 在 `v*` 标签（或手动触发）打安装包，并发布 [GitHub Release](https://github.com/DavidKk/chaya/releases)（附带 `.dmg` / `.exe`）。
 

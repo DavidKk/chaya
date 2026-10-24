@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 
-import { TRANSLATE_CACHE_DETAIL_MODE, TRANSLATE_RUN_MODES } from '@/components/translate/tabs'
+import { isTranslateEnginePathId, TRANSLATE_CACHE_DETAIL_MODE, TRANSLATE_RUN_MODES } from '@/components/translate/tabs'
+import { TranslateTabView } from '@/components/translate/TranslateTabView'
 
 export function generateStaticParams({ params }: { params: { tab: string } }) {
   if (params.tab === 'run') return TRANSLATE_RUN_MODES.map((mode) => ({ mode }))
@@ -11,6 +12,9 @@ export default async function TranslateNestedPage({ params }: { params: Promise<
   const { tab, mode } = await params
   if (tab === 'run' && (mode === 'seed' || mode === 'list' || mode === 'play')) {
     redirect(`/translate/${mode}`)
+  }
+  if (tab === 'engines' && isTranslateEnginePathId(mode)) {
+    return <TranslateTabView />
   }
   // Detail requires `/translate/cache/detail/[id]`
   if (tab === 'cache' && mode === TRANSLATE_CACHE_DETAIL_MODE) notFound()

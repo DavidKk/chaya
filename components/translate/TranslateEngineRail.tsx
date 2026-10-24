@@ -6,13 +6,12 @@ import { type DragEvent, useCallback, useEffect, useEffectEvent, useRef, useStat
 import { IoAdd, IoCloseOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
+import { settingsCardColumn } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { Badge, Button, ScrollArea, Tooltip } from '@/components/sk'
 import { controlDisabled } from '@/components/sk/control'
 import { dropdownItemClass, dropdownPopupClass, dropdownTriggerClass } from '@/components/sk/dropdownMenu'
-import { AppleOfflineGuideModal } from '@/components/translate/AppleOfflineGuideModal'
-import { BergamotPackInstaller } from '@/components/translate/BergamotPackInstaller'
-import { TranslateAgentEntryConfig } from '@/components/translate/TranslateAgentEntryConfig'
+import { type EngineDetailDraft, TranslateEngineDetailView } from '@/components/translate/TranslateEngineDetailView'
 import { TranslateEngineRow } from '@/components/translate/TranslateEngineRow'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { useTranslateAgentProfiles } from '@/components/translate/useTranslateAgentProfiles'
@@ -28,14 +27,15 @@ import {
   isBuiltinEngineId,
   MAX_TRANSLATE_AGENTS,
   mergeEngineState,
+  newEngineEntryId,
   type TranslateAgentEntry,
   type TranslateBuiltinId,
   type TranslateEngineGroup,
   type TranslateEngineId,
+  type TranslateEngineSettings,
   type TranslateEngineState,
   type TranslateEngineSwitches,
 } from '@/lib/translate/engines'
-import { formatLanguageLabel } from '@/lib/translate/locales-labels'
 import { cn } from '@/lib/utils'
 
 export type EngineId = TranslateEngineId
@@ -72,10 +72,6 @@ function enabledOf(view: EngineView): EngineId[] {
   return mergeEngineState({ ...view.switches, order: view.order, agents: view.agents }).enabled
 }
 
-function newEntryId() {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
-}
-
 type Props = {
   disabled?: boolean
   languagePair?: { source: string; target: string }
@@ -100,10 +96,8 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
   const [saving, setSaving] = useState(false)
   const [view, setView] = useState<EngineView>(INITIAL)
   const [systemStatus, setSystemStatus] = useState<Partial<Record<OfflineEngine, OfflineStatus>>>({})
-  const [guideEngine, setGuideEngine] = useState<OfflineEngine | null>(null)
-  const [appleGuideOpen, setAppleGuideOpen] = useState(false)
   const statusController = useRef<AbortController | null>(null)
-  const [openEntry, setOpenEntry] = useState<string | null>(null)
+  const [selectedEngineId, setSelectedEngineId] = useState<EngineId | null>(null)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [addMenuContainer, setAddMenuContainer] = useState<ShadowRoot>()
   const addAnchorRef = useRef<HTMLDivElement>(null)
@@ -195,7 +189,10 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
     if (!loading) publishEvent(view)
   }, [systemStatus, view, loading])
 
-  async function persist(patch: { switches?: Partial<EngineSwitches>; order?: EngineId[]; agents?: TranslateAgentEntry[] }, okMsg?: string) {
+  async function persist(
+    patch: { switches?: Partial<EngineSwitches>; order?: EngineId[]; agents?: TranslateAgentEntry[]; configs?: Partial<Record<string, TranslateEngineSettings>> },
+    okMsg?: string
+  ) {
     setSaving(true)
     try {
       const res = await translationFetch('/api/translate', {
@@ -249,21 +246,18 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
 
   async function addAgent(profileId: string) {
     if (locked || view.agents.length >= MAX_TRANSLATE_AGENTS || view.agents.some((a) => a.profileId === profileId)) return
-    const entry: TranslateAgentEntry = { id: newEntryId(), profileId, model: '', enabled: true }
+    const entry: TranslateAgentEntry = { id: newEngineEntryId(), profileId, model: '', enabled: true }
     const name = agentProfiles.profiles.find((p) => p.id === profileId)?.label ?? profileId
-    if (await persist({ agents: [...view.agents, entry] }, t('translate.agentAdded', { name }))) setOpenEntry(entry.id)
-  }
-
-  async function updateAgent(entryId: string, patch: Partial<TranslateAgentEntry>) {
-    if (locked) return
-    if (await persist({ agents: view.agents.map((a) => (a.id === entryId ? { ...a, ...patch } : a)) }, t('translate.agentSaved'))) setOpenEntry(null)
+    if (await persist({ agents: [...view.agents, entry] }, t('translate.agentAdded', { name }))) setSelectedEngineId(agentEngineKey(entry.id))
   }
 
   async function removeAgent(entryId: string) {
-    if (locked) return
+    if (locked) return false
     const name = engineLabel(agentEngineKey(entryId))
     const agents = view.agents.filter((a) => a.id !== entryId)
-    if (await persist({ agents }, t('translate.agentRemoved', { name }))) setOpenEntry(null)
+    const ok = await persist({ agents }, t('translate.agentRemoved', { name }))
+    if (ok) setSelectedEngineId(null)
+    return ok
   }
 
   function clearDrag() {
@@ -353,8 +347,6 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
   }
 
   function renderRow(id: EngineId) {
-    const entry = findAgentEntry(view.agents, id)
-    const open = !!entry && openEntry === entry.id
     let badge: React.ReactNode = null
     if (id === 'bing' || id === 'google') {
       badge = (
@@ -387,107 +379,83 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
         onDragOver={(e) => onDragOver(id, e)}
         onDragLeave={() => overId === id && setOverId(null)}
         onDrop={(e) => void onDrop(id, e)}
-        onEdit={entry ? () => setOpenEntry(open ? null : entry.id) : undefined}
-        editing={open}
+        onEdit={() => setSelectedEngineId(id)}
         actions={
-          (id === 'apple' || id === 'bergamot') && (guideEngine === id || (systemStatus[id] && !systemStatus[id]?.installed)) ? (
-            <Button size="xs" variant="plain" aria-expanded={guideEngine === id} onClick={() => setGuideEngine(guideEngine === id ? null : id)}>
+          (id === 'apple' || id === 'bergamot') && systemStatus[id] && !systemStatus[id]?.installed ? (
+            <Button size="xs" variant="plain" onClick={() => setSelectedEngineId(id)}>
               {t('translate.offlineGuide')}
             </Button>
           ) : undefined
         }
-      >
-        {(id === 'apple' || id === 'bergamot') && guideEngine === id ? (
-          <div className="flex flex-col gap-2 text-xs leading-relaxed text-ink-soft">
-            {systemStatus[id]?.source && systemStatus[id]?.target ? (
-              <p className="m-0 font-medium text-ink">
-                {formatLanguageLabel(systemStatus[id]!.source!)} → {formatLanguageLabel(systemStatus[id]!.target!)}
-              </p>
-            ) : null}
-            {id === 'bergamot' && systemStatus[id]?.accessReason === 'management_required' ? (
-              <p className="m-0">
-                {systemStatus[id]?.consoleUrl ? (
-                  <a href={systemStatus[id]!.consoleUrl} target="_blank" rel="noreferrer" className="text-accent underline">
-                    {t('translate.packConsoleRequired')}
-                  </a>
-                ) : (
-                  t('translate.packConsoleRequired')
-                )}
-              </p>
-            ) : id === 'bergamot' && systemStatus[id]?.source && systemStatus[id]?.target ? (
-              <BergamotPackInstaller
-                source={systemStatus[id]!.source!}
-                target={systemStatus[id]!.target!}
-                onInstalled={() => {
-                  if (statusController.current) void checkSystemStatus(id, statusController.current.signal)
-                }}
-              />
-            ) : (
-              <>
-                <p className="m-0">
-                  {t(
-                    systemStatus[id] === undefined
-                      ? 'translate.offlineChecking'
-                      : systemStatus[id]?.installed
-                        ? 'translate.offlineReadyHint'
-                        : systemStatus[id]?.status === 'supported'
-                          ? 'translate.appleOfflinePackMissing'
-                          : systemStatus[id]?.status === 'unsupported'
-                            ? 'translate.offlineUnsupportedPair'
-                            : systemStatus[id]?.status === 'model_pack_missing'
-                              ? 'translate.bergamotPackMissing'
-                              : id === 'bergamot' && systemStatus[id]?.status === 'unavailable'
-                                ? 'translate.bergamotUnavailable'
-                                : 'translate.offlineCheckFailed'
-                  )}
-                </p>
-                {systemStatus[id]?.status === 'error' && systemStatus[id]?.message ? <p className="m-0 break-words text-[11px]">{systemStatus[id]?.message}</p> : null}
-                <div className="flex flex-wrap gap-2">
-                  {id === 'apple' && systemStatus[id]?.status === 'supported' ? (
-                    <Button size="xs" onClick={() => setAppleGuideOpen(true)}>
-                      {t('translate.offlineGuide')}
-                    </Button>
-                  ) : null}
-                  <Button
-                    size="xs"
-                    disabled={systemStatus[id] === undefined}
-                    onClick={() => {
-                      if (statusController.current) void checkSystemStatus(id, statusController.current.signal)
-                    }}
-                  >
-                    {t('translate.offlineRecheck')}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        ) : entry && open ? (
-          <TranslateAgentEntryConfig
-            entry={entry}
-            agents={agentProfiles}
-            takenProfileIds={view.agents.filter((a) => a.id !== entry.id).map((a) => a.profileId)}
-            disabled={locked}
-            onSave={(patch) => void updateAgent(entry.id, patch)}
-            onCancel={() => setOpenEntry(null)}
-            onRemove={() => void removeAgent(entry.id)}
-          />
-        ) : null}
-      </TranslateEngineRow>
+      />
     )
   }
 
   const addDisabled = locked || view.agents.length >= MAX_TRANSLATE_AGENTS
 
+  if (selectedEngineId) {
+    const entry = findAgentEntry(view.agents, selectedEngineId)
+    const offline = selectedEngineId === 'apple' || selectedEngineId === 'bergamot' ? selectedEngineId : null
+    return (
+      <TranslateEngineDetailView
+        key={selectedEngineId}
+        engineId={selectedEngineId}
+        label={engineLabel(selectedEngineId)}
+        subtitle={engineSubtitle(selectedEngineId)}
+        group={engineGroup(selectedEngineId)}
+        onBack={() => setSelectedEngineId(null)}
+        agentEntry={entry}
+        builtinConfig={isBuiltinEngineId(selectedEngineId) ? view.configs[selectedEngineId] : undefined}
+        agentProfiles={agentProfiles}
+        takenProfileIds={view.agents.filter((item) => item.id !== entry?.id).map((item) => item.profileId)}
+        systemStatus={offline ? systemStatus[offline] : undefined}
+        onCheckSystemStatus={() => {
+          if (offline && statusController.current) void checkSystemStatus(offline, statusController.current.signal)
+        }}
+        onRemove={entry ? () => removeAgent(entry.id) : undefined}
+        saving={saving}
+        locked={locked}
+        onSave={(draft: EngineDetailDraft) => {
+          if (locked) return Promise.resolve(false)
+          if (isBuiltinEngineId(selectedEngineId)) {
+            return persist(
+              {
+                switches: { [selectedEngineId]: draft.enabled },
+                configs: {
+                  [selectedEngineId]: {
+                    enabled: draft.enabled,
+                    allowConcurrency: draft.allowConcurrency,
+                    concurrencyLimit: draft.concurrencyLimit,
+                    maxConcurrentChars: draft.maxConcurrentChars,
+                  },
+                },
+              },
+              t('translate.engineSettingsSaved')
+            )
+          }
+          return persist(
+            {
+              agents: view.agents.map((item) =>
+                item.id === entry?.id ? { ...item, ...draft, profileId: draft.profileId || item.profileId, model: draft.model ?? item.model } : item
+              ),
+            },
+            t('translate.engineSettingsSaved')
+          )
+        }}
+      />
+    )
+  }
+
   if (fullPage) {
     return (
       <div className={cn('flex flex-1 flex-col min-h-0 bg-paper-2 overflow-hidden', className)} aria-label={t('translate.platformsConfig')}>
-        <ScrollArea className="min-h-0 flex-1" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.enginesList') }}>
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+        <ScrollArea className="min-h-0 flex-1" scrollClassName="p-4" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.enginesList') }}>
+          <div className={cn(settingsCardColumn, 'max-w-3xl')}>
             {GROUPS.map((group) => {
               const ids = view.order.filter((id) => engineGroup(id) === group.id)
               return (
-                <section key={group.id} className="flex flex-col rounded-lg border border-line bg-surface/30 overflow-hidden shadow-sm" aria-label={t(group.labelKey)}>
-                  <div ref={group.id === 'agent' ? addAnchorRef : undefined} className="flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 bg-surface/40">
+                <section key={group.id} className="flex flex-col overflow-hidden rounded-md border border-line bg-panel" aria-label={t(group.labelKey)}>
+                  <div ref={group.id === 'agent' ? addAnchorRef : undefined} className="flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-line px-4 py-3">
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <div className="flex items-center gap-2">
                         <span className={groupLabel}>{t(group.labelKey)}</span>
@@ -570,12 +538,6 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
             })}
           </div>
         </ScrollArea>
-        <AppleOfflineGuideModal
-          open={appleGuideOpen}
-          fromLang={systemStatus.apple?.source || 'ja'}
-          toLang={systemStatus.apple?.target || 'zh'}
-          onClose={() => setAppleGuideOpen(false)}
-        />
       </div>
     )
   }
@@ -693,12 +655,6 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
           })}
         </ScrollArea>
       </aside>
-      <AppleOfflineGuideModal
-        open={appleGuideOpen}
-        fromLang={systemStatus.apple?.source || 'ja'}
-        toLang={systemStatus.apple?.target || 'zh'}
-        onClose={() => setAppleGuideOpen(false)}
-      />
     </>
   )
 }

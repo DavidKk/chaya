@@ -399,6 +399,25 @@ export type MessageTree = {
     engineOff: string
     enginesLoadFailed: string
     enginesSaveFailed: string
+    backToEngines: string
+    engineConfigName: string
+    engineSettingsSaved: string
+    engineBingDesc: string
+    engineGoogleDesc: string
+    engineAppleDesc: string
+    engineBergamotDesc: string
+    concurrencySettings: string
+    allowConcurrency: string
+    allowConcurrencyDesc: string
+    concurrencyLimit: string
+    concurrencyLimitDesc: string
+    maxConcurrentChars: string
+    maxConcurrentCharsDesc: string
+    concurrencyBadge: string
+    sequentialBadge: string
+    offlineSettings: string
+    offlineStatus: string
+    offlinePairHint: string
     groupAgent: string
     groupAgentDesc: string
     groupPlatform: string

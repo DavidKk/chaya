@@ -2,7 +2,17 @@
 import fs from 'node:fs'
 
 import { ensureGameContentDir, gameContentPath, gameContentReadPath } from '@/lib/game/content-files'
-import { isBuiltinEngineId, mergeEngineState, type TranslateEngineId, type TranslateEnginePatch, type TranslateEngineState } from '@/lib/translate/engines'
+import {
+  assignMissingEngineEntryIds,
+  DEFAULT_ENGINE_ORDER,
+  DEFAULT_ENGINE_SETTINGS,
+  DEFAULT_ENGINE_SWITCHES,
+  isBuiltinEngineId,
+  mergeEngineState,
+  type TranslateEngineId,
+  type TranslateEnginePatch,
+  type TranslateEngineState,
+} from '@/lib/translate/engines'
 import { getResolvedFromConfig } from '@/services/game/binding'
 
 import { readSharedTranslateAgents, writeSharedTranslateAgents } from './shared-agents'
@@ -24,11 +34,22 @@ export const TRANSLATE_ENGINE_META = {
   bergamot: { label: 'Bergamot', desc: '跨平台本地离线工具翻译（需安装语言包）' },
 } as const
 
-function resolveContentRoot(): string {
-  const resolved = getResolvedFromConfig()
-  if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
-  if (resolved.remote) throw new Error('Remote games must be bound locally before configuring translation engines')
-  return resolved.contentRoot
+function resolveContentRoot(required = true): string {
+  try {
+    const resolved = getResolvedFromConfig()
+    if (!resolved.ok) {
+      if (!required) return ''
+      throw new Error('Please bind a local game in the game library first')
+    }
+    if (resolved.remote) {
+      if (!required) return ''
+      throw new Error('Remote games must be bound locally before configuring translation engines')
+    }
+    return resolved.contentRoot
+  } catch (err) {
+    if (!required) return ''
+    throw err
+  }
 }
 
 export type EngineSwitchesState = TranslateEngineState & {
@@ -52,6 +73,13 @@ function platformOrder(order: TranslateEngineId[]): TranslateEngineId[] {
 }
 
 /** Combine per-game platform switches with shared agent entries. Migrate legacy per-game agents only when the shared file does not exist. */
+function withEntryIds(contentRoot: string, state: TranslateEngineState): TranslateEngineState {
+  const assigned = assignMissingEngineEntryIds(state.configs)
+  const next = assigned.changed ? { ...state, configs: assigned.configs } : state
+  if (assigned.changed && contentRoot) writePlatformFile(contentRoot, next)
+  return next
+}
+
 function combine(contentRoot: string, raw: unknown): TranslateEngineState {
   const local = mergeEngineState(raw)
   let shared = readSharedTranslateAgents()
@@ -59,12 +87,13 @@ function combine(contentRoot: string, raw: unknown): TranslateEngineState {
     shared = writeSharedTranslateAgents({ agents: local.agents, order: local.order })
     writePlatformFile(contentRoot, local)
   }
-  return mergeEngineState({
+  const combined = mergeEngineState({
     ...local.switches,
     configs: local.configs,
     agents: shared.agents,
     order: [...shared.order, ...platformOrder(local.order)],
   })
+  return withEntryIds(contentRoot, combined)
 }
 
 function writePlatformFile(contentRoot: string, state: TranslateEngineState) {
@@ -74,18 +103,46 @@ function writePlatformFile(contentRoot: string, state: TranslateEngineState) {
 }
 
 /** Read engine switches and order for the bound game, using defaults when no file exists. */
-export function getTranslateEngineSwitches(contentRoot = resolveContentRoot()): EngineSwitchesState {
-  const { file, raw } = readRaw(contentRoot)
-  return { contentRoot, file, ...combine(contentRoot, raw) }
+export function getTranslateEngineSwitches(contentRoot = resolveContentRoot(false)): EngineSwitchesState {
+  if (!contentRoot) {
+    const shared = readSharedTranslateAgents() || { agents: [], order: [] }
+    const combined = mergeEngineState({
+      ...DEFAULT_ENGINE_SWITCHES,
+      configs: DEFAULT_ENGINE_SETTINGS,
+      agents: shared.agents,
+      order: [...shared.order, ...DEFAULT_ENGINE_ORDER],
+    })
+    const assigned = assignMissingEngineEntryIds(combined.configs)
+    return { contentRoot: '', file: '', ...combined, configs: assigned.configs }
+  }
+  const { raw } = readRaw(contentRoot)
+  const state = combine(contentRoot, raw)
+  return { contentRoot, file: gameContentPath(contentRoot, 'switches'), ...state }
 }
 
 export type SetEngineSwitchesInput = TranslateEnginePatch
 
-/** Merge engine switches, order and agents; all engines may be disabled, with validation deferred until a fill job starts. */
 export function setTranslateEngineSwitches(input: SetEngineSwitchesInput): EngineSwitchesState {
-  const contentRoot = resolveContentRoot()
+  const contentRoot = resolveContentRoot(false)
+  if (!contentRoot) {
+    const shared = readSharedTranslateAgents() || { agents: [], order: [] }
+    const state = withEntryIds(
+      '',
+      mergeEngineState(
+        {
+          ...DEFAULT_ENGINE_SWITCHES,
+          configs: DEFAULT_ENGINE_SETTINGS,
+          agents: shared.agents,
+          order: [...shared.order, ...DEFAULT_ENGINE_ORDER],
+        },
+        input
+      )
+    )
+    writeSharedTranslateAgents({ agents: state.agents, order: state.order })
+    return { contentRoot: '', file: '', ...state }
+  }
   const { raw } = readRaw(contentRoot)
-  const state = mergeEngineState(combine(contentRoot, raw), input)
+  const state = withEntryIds(contentRoot, mergeEngineState(combine(contentRoot, raw), input))
   writeSharedTranslateAgents({ agents: state.agents, order: state.order })
   const file = writePlatformFile(contentRoot, state)
   return { contentRoot, file, ...state }

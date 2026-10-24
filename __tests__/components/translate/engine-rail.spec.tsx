@@ -52,11 +52,11 @@ afterEach(async () => {
   document.body.innerHTML = ''
 })
 
-async function render(onChange = jest.fn()) {
+async function render(onChange = jest.fn(), revision = 0) {
   await act(async () =>
     root.render(
       <LocaleProvider initialLocale="zh" initialPreference="zh">
-        <TranslateEngineRail onChange={onChange} />
+        <TranslateEngineRail key={revision} onChange={onChange} />
       </LocaleProvider>
     )
   )
@@ -137,32 +137,35 @@ test('in-game shadow root: the add menu portals inside the shadow root; added in
   }
 })
 
-test('clicking an agent title toggles its config; there is no separate settings button', async () => {
+test('clicking an agent title opens a detail page instead of expanding the row', async () => {
   serve(state)
   await render()
   const agent = section('Agent')
   expect(agent.querySelector('[aria-label="Agent 设置"]')).toBeNull()
   const title = agent.querySelector<HTMLButtonElement>('button[aria-label="编辑 Remote GPU"]')!
-  expect(title.getAttribute('aria-expanded')).toBe('false')
+  expect(title.hasAttribute('aria-expanded')).toBe(false)
   expect(title.querySelector('svg')).not.toBeNull()
   await act(async () => title.click())
-  expect(title.getAttribute('aria-expanded')).toBe('true')
-  expect(agent.querySelector('[aria-label="移除"]')).not.toBeNull()
-  await act(async () => title.click())
-  expect(agent.querySelector('[aria-label="移除"]')).toBeNull()
+  expect(host.querySelector('section[aria-label="Agent"]')).toBeNull()
+  expect(host.querySelector('[role="toolbar"] [aria-label="移除"]')).not.toBeNull()
+  expect(host.textContent).toContain('并发请求数上限')
+  await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="返回翻译工具列表"]')!.click())
+  expect(section('Agent').textContent).toContain('Remote GPU')
 })
 
-test('agent config is a draft: save is disabled until changed and cancel closes without saving', async () => {
+test('agent config is a draft: leaving detail does not save changes', async () => {
   serve(state)
   await render()
   const agent = section('Agent')
   await act(async () => agent.querySelector<HTMLButtonElement>('button[aria-label="编辑 Remote GPU"]')!.click())
-  const save = agent.querySelector<HTMLButtonElement>('button[aria-label="保存"]')!
+  const save = host.querySelector<HTMLButtonElement>('button[aria-label="保存"]')!
   expect(save.disabled).toBe(true)
-  const calls = mockTranslationFetch.mock.calls.length
-  await act(async () => agent.querySelector<HTMLButtonElement>('button[aria-label="取消"]')!.click())
-  expect(agent.querySelector('button[aria-label="保存"]')).toBeNull()
-  expect(mockTranslationFetch.mock.calls.length).toBe(calls)
+  await act(async () => host.querySelector<HTMLButtonElement>('[role="switch"][aria-label="是否允许并发"]')!.click())
+  expect(host.querySelector<HTMLButtonElement>('button[aria-label="保存"]')!.disabled).toBe(false)
+  await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="返回翻译工具列表"]')!.click())
+  expect(host.querySelector('[role="toolbar"]')).toBeNull()
+  expect(section('Agent').textContent).toContain('Remote GPU')
+  expect(mockTranslationFetch.mock.calls.map(([, init]) => JSON.parse(init.body)).filter((body) => body.mode === 'switches' && body.agents)).toEqual([])
 })
 
 test('unready offline engines cannot be enabled but can be disabled', async () => {
@@ -203,14 +206,15 @@ test('offline readiness uses a loading badge, offers guidance and becomes ready 
   await act(async () => finishCheck(json({ installed: false, status: 'model_pack_missing' })))
   const guide = [...row.querySelectorAll('button')].find((el) => el.textContent === '设置指引')!
   await act(async () => guide.click())
-  expect(row.textContent).toContain('当前语向缺少 Bergamot 离线语言包')
-  expect(row.textContent).not.toContain('build:bergamot')
-  await act(async () => [...row.querySelectorAll('button')].find((el) => el.textContent === '重新检测')!.click())
+  expect(host.querySelector('section[aria-label="离线机翻"]')).toBeNull()
+  expect(host.textContent).toContain('当前语向缺少 Bergamot 离线语言包')
+  expect(host.textContent).not.toContain('build:bergamot')
+  await act(async () => [...host.querySelectorAll('button')].find((el) => el.textContent === '重新检测')!.click())
   expect(checks).toBe(2)
-  expect(row.textContent).toContain('已就绪，可以开启此引擎')
-  expect(row.querySelector('[aria-busy="true"]')).toBeNull()
-  expect(row.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled).toBe(false)
-  expect(row.querySelector('[role="switch"]')?.getAttribute('aria-checked')).toBe('false')
+  expect(host.textContent).toContain('已就绪，可以开启此引擎')
+  expect(host.querySelector('[aria-busy="true"]')).toBeNull()
+  expect(host.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled).toBe(false)
+  expect(host.querySelector('[role="switch"]')?.getAttribute('aria-checked')).toBe('false')
 })
 
 test('Apple setup guide uses the detected language pair; unsupported pairs do not offer pack installation', async () => {
@@ -225,13 +229,13 @@ test('Apple setup guide uses the detected language pair; unsupported pairs do no
   await render()
   const row = [...host.querySelectorAll('li')].find((el) => el.textContent?.includes('Apple'))!
   await act(async () => [...row.querySelectorAll('button')].find((el) => el.textContent === '设置指引')!.click())
-  const guideButtons = [...row.querySelectorAll('button')].filter((el) => el.textContent === '设置指引')
-  await act(async () => guideButtons[1].click())
+  const guide = [...host.querySelectorAll('button')].find((el) => el.textContent === '设置指引')!
+  await act(async () => guide.click())
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain('English (en)')
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Français (fr)')
   await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
   supported = false
-  await act(async () => [...row.querySelectorAll('button')].find((el) => el.textContent === '重新检测')!.click())
-  expect(row.textContent).toContain('当前语言对不受此引擎支持')
-  expect([...row.querySelectorAll('button')].filter((el) => el.textContent === '设置指引')).toHaveLength(1)
+  await act(async () => [...host.querySelectorAll('button')].find((el) => el.textContent === '重新检测')!.click())
+  expect(host.textContent).toContain('当前语言对不受此引擎支持')
+  expect([...host.querySelectorAll('button')].filter((el) => el.textContent === '设置指引')).toHaveLength(0)
 })
