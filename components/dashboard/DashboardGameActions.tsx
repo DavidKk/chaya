@@ -46,7 +46,7 @@ export function DashboardGameActions({ nativeRuntime, busy, launch, plugins, she
           <Button
             size="lg"
             className={actionButtonClass}
-            variant={plugins.state === 'ready' ? 'fail' : plugins.state === 'outdated' ? 'warn' : 'accent'}
+            variant={plugins.state === 'ready' ? 'fail' : 'accent'}
             disabled={busy || plugins.locked}
             loading={busy}
             onClick={() => void (plugins.state === 'ready' ? plugins.onClear() : plugins.onInstall())}

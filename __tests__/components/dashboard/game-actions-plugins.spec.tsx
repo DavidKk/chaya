@@ -87,7 +87,7 @@ it('hides plugin actions while the game is running', async () => {
   expect(button('Pause')).toBeTruthy()
 })
 
-it('uses warn for update plugins so it does not match Pause accent', async () => {
+it('uses accent for update plugins', async () => {
   await render('outdated')
-  expect(button('Update plugins')?.getAttribute('data-variant')).toBe('warn')
+  expect(button('Update plugins')?.getAttribute('data-variant')).toBe('accent')
 })
