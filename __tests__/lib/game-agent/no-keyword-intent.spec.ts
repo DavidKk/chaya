@@ -38,7 +38,12 @@ function findings(file: string): string[] {
 }
 
 /** Transitional: regex goal compile in interaction-target; batch jobs replace it (docs/technical/game-agent-jobs.md). */
-const ALLOWED = new Set(['lib/game-agent/interaction-target.ts'])
+const ALLOWED = new Set([
+  'lib/game-agent/interaction-target.ts',
+  // Companion reflex lines cite stored episodes; they do not route Agent intent.
+  'lib/game-agent/companion/advice.ts',
+  'lib/game-agent/companion/speech-lines.ts',
+])
 
 test('the Agent pipeline never routes or judges by natural-language keyword matching', () => {
   const found = DIRS.flatMap((dir) => sources(path.join(ROOT, dir)))

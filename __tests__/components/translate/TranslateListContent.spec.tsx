@@ -153,7 +153,10 @@ describe('TranslateListContent', () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
-          <TranslateListContent />
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
         </LocaleProvider>
       )
     })
@@ -168,13 +171,12 @@ describe('TranslateListContent', () => {
     expect(container.textContent).toContain('地图 1')
     expect(container.textContent).toContain('Map001.json')
 
-    // Item 1 has row reset; batch reset is an icon button in the top toolbar
+    // Item 1 has row reset; batch reset/save are icon buttons in the top toolbar.
     const resetButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('重置') || b.getAttribute('aria-label') === '重置')
     expect(resetButtons.length).toBe(2)
 
-    // 2 row save buttons + batch save icon in the top toolbar
     const saveButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('保存') || b.getAttribute('aria-label') === '保存')
-    expect(saveButtons.length).toBe(3)
+    expect(saveButtons.length).toBe(1)
 
     // Translate buttons should be present
     const transButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('翻译'))
@@ -208,12 +210,15 @@ describe('TranslateListContent', () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
-          <TranslateListContent />
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
         </LocaleProvider>
       )
     })
 
-    const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('保存'))
+    const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '保存')
     expect(saveBtn).toBeDefined()
 
     await act(async () => {
@@ -255,7 +260,10 @@ describe('TranslateListContent', () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
-          <TranslateListContent />
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
         </LocaleProvider>
       )
     })
@@ -294,7 +302,10 @@ describe('TranslateListContent', () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
-          <TranslateListContent />
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
         </LocaleProvider>
       )
     })
@@ -350,7 +361,10 @@ describe('TranslateListContent', () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
-          <TranslateListContent />
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
         </LocaleProvider>
       )
     })
@@ -394,16 +408,16 @@ describe('TranslateListContent', () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
-          <TranslateListContent />
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
         </LocaleProvider>
       )
     })
 
-    // Initially save button for item 1 should be disabled because zh is empty
-    const saveButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent?.includes('保存'))
-    const rowSaveBtn = saveButtons[0]
-    expect(rowSaveBtn).toBeDefined()
-    expect(rowSaveBtn.disabled).toBe(true)
+    const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '保存')
+    expect(saveBtn).toBeDefined()
 
     // Find translated editor input and type into it
     const editorInputs = Array.from(container.querySelectorAll('input'))
@@ -420,8 +434,15 @@ describe('TranslateListContent', () => {
       zhInput?.dispatchEvent(new Event('change', { bubbles: true }))
     })
 
-    // Now save button should be enabled!
-    expect(rowSaveBtn.disabled).toBe(false)
+    await act(async () => {
+      saveBtn?.click()
+    })
+    expect(mockTranslationFetch).toHaveBeenCalledWith(
+      '/api/translate',
+      expect.objectContaining({
+        body: expect.stringContaining('"mode":"save-item"'),
+      })
+    )
   })
   it('opens apple offline pack modal with required languages when apple translation reports not_installed', async () => {
     const mockItems = [
@@ -458,7 +479,10 @@ describe('TranslateListContent', () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
-          <TranslateListContent />
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
         </LocaleProvider>
       )
     })

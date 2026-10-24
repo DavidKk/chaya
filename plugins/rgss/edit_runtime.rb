@@ -360,7 +360,7 @@ module ChayaRGSS
       end
 
       # Wait until command/turn phases; winning during :init disposes windows mid-setup.
-      AUTO_WIN_PHASES = [:input, :turn, :turn_end, :action].freeze
+      AUTO_WIN_PHASES ||= [:input, :turn, :turn_end, :action].freeze
 
       def sync_wfrgss_auto_battle(value)
         return unless defined?(AutoBattle) && AutoBattle.respond_to?(:auto_set=)

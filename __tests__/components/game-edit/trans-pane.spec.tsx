@@ -90,9 +90,11 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
       </LocaleProvider>
     ) : (
       <LocaleProvider initialLocale="zh" initialPreference="zh">
-        <NotificationProvider>
-          <TranslationRuntimeProvider request={webRpc.request}>{child}</TranslationRuntimeProvider>
-        </NotificationProvider>
+        <ConfirmProvider>
+          <NotificationProvider>
+            <TranslationRuntimeProvider request={webRpc.request}>{child}</TranslationRuntimeProvider>
+          </NotificationProvider>
+        </ConfirmProvider>
       </LocaleProvider>
     )
   }

@@ -286,6 +286,8 @@ export function useCompanionSession(input: {
     const taskId = controlTaskId
     abortControlLocal('stop')
     if (!taskId) {
+      abortChat('stop')
+      setControlStarting(false)
       setControlProgress('')
       return
     }
@@ -300,7 +302,7 @@ export function useCompanionSession(input: {
     } finally {
       void refreshAgentStatus()
     }
-  }, [abortControlLocal, append, controlTaskId, gameId, refreshAgentStatus, request])
+  }, [abortChat, abortControlLocal, append, controlTaskId, gameId, refreshAgentStatus, request])
 
   const watchControlTask = useCallback(
     async (task: Pick<AgentTask, 'id'> & { goal?: string }) => {

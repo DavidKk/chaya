@@ -23,6 +23,7 @@ const modelQueue: unknown[] = []
 function installFetchRouter() {
   chayaFetch.mockImplementation(async (url: string) => {
     if (String(url).includes('/api/game-agent/activity')) return new Response(JSON.stringify({ ok: true }), { status: 200 })
+    if (String(url).includes('/api/game-agent/memory')) return new Response(JSON.stringify({ snapshot: null }), { status: 200 })
     if (String(url).includes('/api/game-agent/model')) {
       const next = modelQueue.shift()
       if (next instanceof Error) throw next
@@ -49,6 +50,9 @@ beforeAll(() => {
     window: globalThis,
     localStorage: { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value) },
   })
+  const host = globalThis as typeof globalThis & { addEventListener?: unknown; removeEventListener?: unknown }
+  if (typeof host.addEventListener !== 'function') host.addEventListener = () => {}
+  if (typeof host.removeEventListener !== 'function') host.removeEventListener = () => {}
 })
 
 beforeEach(() => {
@@ -66,6 +70,7 @@ it('classifies with a structured schema so the model names the action before dec
   await expect(createGameAgentRuntime().request({ ...classify, prompt: '帮我跟页面中可交互的物品交互一下' })).resolves.toEqual({
     capability: 'play',
     shape: 'open',
+    lifetime: 'goal',
     action: 'interact',
   })
   const body = JSON.parse(String(modelCalls()[0][1]?.body))
@@ -110,6 +115,7 @@ it('sends only one model request when several callers hit a failing model at onc
   jest.useFakeTimers()
   chayaFetch.mockImplementation(async (url: string) => {
     if (String(url).includes('/api/game-agent/activity')) return new Response(JSON.stringify({ ok: true }), { status: 200 })
+    if (String(url).includes('/api/game-agent/memory')) return new Response(JSON.stringify({ snapshot: null }), { status: 200 })
     return new Response(JSON.stringify({ error: { code: 'AGENT_MODEL_FAILED', message: '无法连接 Ollama' } }), { status: 502 })
   })
   const runtime = createGameAgentRuntime()
@@ -139,7 +145,7 @@ describe('chaya_player_card tool', () => {
   it('waits for the player to pick on a confirm card and hands the choice back to the model', async () => {
     enqueueModel(cardCall({ kind: 'confirm', text: '要我帮你去拿宝箱吗？' }), { role: 'assistant', content: '那我们走吧' })
     const runtime = createGameAgentRuntime()
-    await runtime.request({ ...start, taskId: 'task-confirm', capability: 'companion', goal: '附近有宝箱' })
+    await runtime.request({ ...start, taskId: 'task-confirm', capability: 'play', goal: '附近有宝箱' })
     await waitFor(() => runtime.controller.get('task-confirm')?.state === 'waiting_user')
     const approval = runtime.controller.get('task-confirm')!.events.find((event) => event.type === 'approval.required')
     expect(approval?.data).toEqual({
@@ -178,7 +184,7 @@ it('keeps earlier turns out of the prompt and serves them through chaya_agent_re
     conversationId: 'c1',
     profileId: 'local',
     model: 'qwen',
-    capability: 'companion' as const,
+    capability: 'ask' as const,
   }
   const sent = (index: number) => (JSON.parse(String(modelCalls()[index][1]?.body)) as { messages: { role: string; content: string }[] }).messages
   const waitDone = async (runtime: ReturnType<typeof createGameAgentRuntime>, taskId: string) => {
@@ -212,6 +218,7 @@ it('backs off between retries while the Chaya service is unreachable', async () 
   let modelAttempts = 0
   chayaFetch.mockImplementation(async (url: string) => {
     if (String(url).includes('/api/game-agent/activity')) return new Response(JSON.stringify({ ok: true }), { status: 200 })
+    if (String(url).includes('/api/game-agent/memory')) return new Response(JSON.stringify({ snapshot: null }), { status: 200 })
     modelAttempts += 1
     if (modelAttempts < 3) throw new Error('ECONNREFUSED')
     return new Response(JSON.stringify({ message: { role: 'assistant', content: '{"operate":false}' } }), { status: 200 })

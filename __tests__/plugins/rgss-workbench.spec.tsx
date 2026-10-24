@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
+import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
 import { defaultActorDraft, emptySession } from '@/components/game-edit/types'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
@@ -68,7 +69,9 @@ beforeEach(async () => {
   await act(async () =>
     root.render(
       <LocaleProvider initialLocale="zh" initialPreference="zh" syncDocumentLang={false}>
-        <RgssWorkbench />
+        <ConfirmProvider>
+          <RgssWorkbench />
+        </ConfirmProvider>
       </LocaleProvider>
     )
   )

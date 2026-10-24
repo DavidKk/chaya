@@ -51,7 +51,7 @@ test('局内翻译骨架跟随运行与翻译库分区', async () => {
   await act(async () => renderWithLocale(<GameEditPaneSkeleton tab="trans" translateSection="cache" />))
   expect(host.querySelector('[aria-label="加载本作翻译库"]')).not.toBeNull()
   const grid = host.querySelector<HTMLElement>('[role="presentation"] > .grid')!
-  expect(grid.children).toHaveLength(7)
+  expect(grid.children).toHaveLength(8)
   expect(grid.style.gridTemplateColumns).toContain('minmax(10rem,1fr)')
 })
 

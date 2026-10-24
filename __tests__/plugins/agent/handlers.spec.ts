@@ -85,7 +85,7 @@ describe('ChayaAgent handlers', () => {
         native: expect.any(Array),
       })
       await expect(runAgentCommand({ id: 's2', method: 'game.saves', params: { op: 'load', entryId: 'quick-1' } })).resolves.toEqual({ loaded: true })
-      expect(saves.agentLoad).toHaveBeenCalledWith('quick-1', undefined)
+      expect(saves.agentLoad).toHaveBeenCalledWith('quick-1', undefined, undefined)
     } finally {
       if (originalWindow === undefined) delete g.window
       else g.window = originalWindow
