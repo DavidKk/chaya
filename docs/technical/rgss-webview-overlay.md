@@ -20,7 +20,7 @@
 ┌────────────────────────────────────────────────────────────────────────┐
 │ 外部控制端                                                              │
 │  - Local 控制台 (http://127.0.0.1:3000)                                │
-│  - Cloud Edge 远程控制台 (https://chaya.app，零中继流量)                │
+│  - Cloud 远程控制台 (https://chaya.app，零中继流量)                │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
                                     │  WebRTC DataChannel 纯 P2P 直连
@@ -58,7 +58,7 @@
 1. **零第三方网络服务编译**：
    不引入 Go、Rust 或 Node 外部伴生子进程。WebRTC 标准协议栈直接跑在系统原生 WebView 内部，不额外编译 WebRTC 协议栈；仍需编译平台 WebView 宿主适配动态库，并在实际系统版本验证 DataChannel 可用性。
 2. **零服务器中继流量（Edge 友好）**：
-   外部 Cloud Edge 网页与游戏内 WebView 通过信令服务交换 SDP 并周期轮询房间状态；游戏业务数据走 DataChannel，不走业务服务器中继。信令仍有请求和带宽成本。不配置 TURN 时，受限 NAT / 防火墙可能无法建连，不能保证所有网络可达。
+   外部 Cloud 网页与游戏内 WebView 通过信令服务交换 SDP 并周期轮询房间状态；游戏业务数据走 DataChannel，不走业务服务器中继。信令仍有请求和带宽成本。不配置 TURN 时，受限 NAT / 防火墙可能无法建连，不能保证所有网络可达。
 3. **零端口监听、零防火墙拦截**：
    游戏与内嵌 WebView 之间完全依赖 OS 内存级调用（`evaluateJavaScript` / `WKScriptMessageHandler` / `WebMessageReceived`），本地不监听任何 TCP 端口（彻底废弃 `ws://127.0.0.1:3928`），免去防火墙拦截弹窗与端口冲突隐患。
 4. **多迷你屏统一图层调度**：
@@ -104,7 +104,7 @@ Windows 的 WebView2 窗口挂载与穿透仍待实现，不能用 CSS `pointer-
 
 ## 4. 双向通信协议设计（Ruby ↔ WebView ↔ 外部控制台）
 
-通信协议完全复用项目现有的 `GameLinkProtocol` 标准 JSON 格式（定义于 [lib/runtime/game-link-protocol.ts](../../lib/runtime/game-link-protocol.ts:1)）。
+通信协议完全复用项目现有的 `GameLinkProtocol` 标准 JSON 格式（定义于 [`lib/runtime/game-link-protocol.ts`](../../lib/runtime/game-link-protocol.ts)）。
 
 ### 4.1 数据通道路由与分发时序
 

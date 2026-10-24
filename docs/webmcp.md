@@ -47,26 +47,30 @@
 
 ### 4.2 Cloud 工具矩阵
 
-| 分组       | 工具                                                                                         | Cloud | 实现 / 不可用原因                                                           |
-| ---------- | -------------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------------------------- |
-| 游戏库     | `list` / `bind` / `remark` / `remove`                                                        | ✓     | 浏览器游戏库；`bind` 只切换已在库中的游戏（添加需用户选目录）               |
-| 当前游戏   | `status`、`shell_check`                                                                      | ✓     | 读游戏目录（需已授权读取）                                                  |
-|            | `plugins_install` / `plugins_clear`、`shell_install`                                         | ✓     | 经目录授权写入；未授权返回 `permission_required`（授权需用户在页面点击）    |
-|            | `launch`                                                                                     | ✗     | 网页不能启动本机进程                                                        |
-|            | `shell_uninstall`                                                                            | ✗     | 共用壳目录只存在于本机服务                                                  |
-|            | `window`                                                                                     | ✗     | 网页版未实现 package.json 窗口配置                                          |
-| 游戏操作   | `games` / `state` / `history` / `press` / `play` / `screenshot` / `tap` / `move_to` / `quit` | ✓     | 经 DataChannel 交给游戏内 ChayaAgent（`quit` 走链路退出消息）               |
-|            | `eval`                                                                                       | ✗     | 网页版无服务端开关，游戏侧拒绝来自 DataChannel 的 eval                      |
-| 修改       | `catalog`                                                                                    | ✓     | 经 DataChannel 向游戏请求                                                   |
-|            | `state` / `set` / `action`                                                                   | ✓     | 经 DataChannel 交给 ChayaAgent，转 ChayaEdit 执行（与「修改」页同一套指令） |
-| 插件功能   | `live_plugins` / `live_call`、`chaya_plugin_*`                                               | ✓     | 经 DataChannel 交给游戏内 ChayaAgent                                        |
-| 翻译       | `text` / `extract` / `job` / `engines` / `play_settings`                                     | ✓     | 经 DataChannel 由游戏内翻译运行时执行（游戏需在线）                         |
-|            | `batch`                                                                                      | ✗     | 游戏内运行时没有单批补译，用 `job` 代替                                     |
-| 共享翻译库 | `query` / `update` / `delete` / `import`                                                     | ✓     | 经 DataChannel 由游戏内翻译运行时执行                                       |
-| 日志       | `query`                                                                                      | ✓     | 网页版内存日志（与其他访问者共用，结果视为不可信）                          |
-|            | `clear`                                                                                      | ✗     | 会清掉其他访问者的日志                                                      |
+| 分组       | 工具                                                                                                                                                              | Cloud | 实现 / 不可用原因                                                           |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------------------------- |
+| 游戏库     | `list` / `bind` / `remark` / `remove`                                                                                                                             | ✓     | 浏览器游戏库；`bind` 只切换已在库中的游戏（添加需用户选目录）               |
+| 当前游戏   | `status`、`shell_check`                                                                                                                                           | ✓     | 读游戏目录（需已授权读取）                                                  |
+|            | `plugins_install` / `plugins_clear`、`shell_install`                                                                                                              | ✓     | 经目录授权写入；未授权返回 `permission_required`（授权需用户在页面点击）    |
+|            | `launch`                                                                                                                                                          | ✗     | 网页不能启动本机进程                                                        |
+|            | `shell_uninstall`                                                                                                                                                 | ✗     | 共用壳目录只存在于本机服务                                                  |
+|            | `window`                                                                                                                                                          | ✓     | 经目录授权读写 `package.json` 窗口配置                                      |
+| 游戏技能   | `list` / `search` / `read`                                                                                                                                        | ✓     | 读本页打包的游戏技能                                                        |
+| 游戏操作   | `games` / `state` / `ui` / `open_scene` / `history` / `press` / `play` / `screenshot` / `tap` / `move_to` / `interact` / `saves*` / `save` / `load_save` / `quit` | ✓     | 经 DataChannel 交给游戏内 ChayaAgent                                        |
+| 会话回忆   | `chaya_agent_recall`                                                                                                                                              | ✓     | 读本页 IndexedDB 中的助手对话                                               |
+|            | `eval`                                                                                                                                                            | ✗     | 网页版无服务端开关，游戏侧拒绝来自 DataChannel 的 eval                      |
+| 修改       | `catalog`                                                                                                                                                         | ✓     | 经 DataChannel 向游戏请求                                                   |
+|            | `state` / `set` / `action`                                                                                                                                        | ✓     | 经 DataChannel 交给 ChayaAgent，转 ChayaEdit 执行（与「修改」页同一套指令） |
+| 插件功能   | `live_plugins` / `live_call`、`chaya_plugin_*`                                                                                                                    | ✓     | 经 DataChannel 交给游戏内 ChayaAgent                                        |
+| 翻译       | `text` / `extract` / `job` / `engines` / `play_settings`                                                                                                          | ✓     | 经 DataChannel 由游戏内翻译运行时执行（游戏需在线）                         |
+|            | `sources`                                                                                                                                                         | ✓     | 同上                                                                        |
+|            | `batch`                                                                                                                                                           | ✗     | 游戏内运行时没有单批补译，用 `job` 代替                                     |
+| 共享翻译库 | `query` / `update` / `delete` / `import`                                                                                                                          | ✓     | 经 DataChannel 由游戏内翻译运行时执行                                       |
+| 日志       | `query`                                                                                                                                                           | ✓     | 网页版内存日志（与其他访问者共用，结果视为不可信）                          |
+|            | `clear`                                                                                                                                                           | ✓     | 只清本页从 DataChannel 收到的日志                                           |
 
 `page_get_context` 返回 `unavailableTools: [{ name, reason }]`，Agent 能知道缺什么、为什么。
+`unavailableTools` 以 `lib/webmcp/mode-matrix.ts` 为准，当前 4 项：`launch` / `shell_uninstall` / `eval` / `batch`。
 
 ### 4.3 页面工具（WebMCP 独有，三种形态）
 
@@ -98,7 +102,7 @@
 
 1. 本机 dev + 开启 WebMCP 的 Chrome 打开任一页面：`getTools()` 包含本机 MCP `tools/list` 全部工具 + 10 个页面工具，无重名；切页不重复注册。
 2. 镜像工具结果与 `/api/mcp` 直调一致（抽查 `chaya_library_list`、`chaya_logs_query`、`chaya_cache_query`）。
-3. Cloud（`pnpm dev` 切到 Cloud）：注册 4.2 中 ✓ 的工具与 4.3 全部页面工具；`chaya_library_list` 返回浏览器游戏库；`page_get_context.unavailableTools` 列出 6 个 ✗ 工具。
+3. Cloud（`pnpm dev` 切到 Cloud）：注册 4.2 中 ✓ 的工具与 4.3 全部页面工具；`chaya_library_list` 返回浏览器游戏库；`page_get_context.unavailableTools` 列出 `mode-matrix.ts` 中的 4 个 ✗ 工具。
 4. 游戏连上后插件工具出现在本机 MCP `tools/list` 与 WebMCP，`chaya_plugin_boost_status` 可调用；断开后消失。
 5. `page_snapshot` 不返回标记为敏感的内容；确认框按钮 `page_click` 被拒绝。
 6. 集成页 WebMCP 子页显示支持状态与工具清单；不支持的浏览器显示开启方法且无报错。
@@ -109,3 +113,4 @@
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-10-04 | 按 [capabilities.md](./capabilities.md)：`chaya_web_edit_*` 改为各端一致的 `chaya_edit_*`；新增截图 / 点击 / 寻路；ChayaEdit 不再声明插件工具；`chaya_live_call` 只调声明的工具；游戏内不注册 WebMCP |
 | 2026-10-04 | Cloud 矩阵增加 `chaya_live_history`                                                                                                                                                                  |
+| 2026-10-24 | 与代码对齐：`window` 与本页 `logs_clear` 已落地；补 skills / agent_recall / live_ui / open_scene / interact / save* / sources；unavailable 收窄为 4 项                                               |

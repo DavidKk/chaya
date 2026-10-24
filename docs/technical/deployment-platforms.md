@@ -76,7 +76,7 @@
 ### 3.1 浏览器模式的前提（Vercel 与自托管都适用）
 
 - **安全上下文**：选目录（`showDirectoryPicker`）要求 HTTPS 或 `localhost`；`http://192.168.x.x` 这类局域网 HTTP 页面无法选目录。
-- **浏览器**：仅 Chromium 系桌面浏览器（Chrome / Microsoft Cloud）。Safari、Firefox、iOS / Android 浏览器不在当前浏览器模式的支持范围内。
+- **浏览器**：仅 Chromium 系桌面浏览器（Chrome / Microsoft Edge）。Safari、Firefox、iOS / Android 浏览器不在当前浏览器模式的支持范围内。
 - **路径**：只能拿到目录句柄与目录名，拿不到绝对路径。
 - **装壳自动化程度按平台不同**：Windows 页面安装（需用户选中下载好的 zip），macOS 终端命令，Linux 仅下载链接（§5）。
 - 不满足前提时目前没有专门提示（优化方案 O10）。

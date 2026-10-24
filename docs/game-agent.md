@@ -1,6 +1,7 @@
 # Chaya 助手与 Agent 配置需求
 
-> 状态：M1 / M2 核心已完成（基线文档）。**本波可恢复性补齐以 [`capability-supplement.md`](./capability-supplement.md) §8 为准**；自主托管策略以 [`game-assistance.md`](./game-assistance.md) 为准。Phase 3 中与本波无关的条目 **冻结**
+> 有效性：现行基线；托管策略以[自主托管](./game-assistance.md)为准，可恢复性以[补齐需求](./capability-supplement.md) §8 为准，冲突的旧章节不再实施。
+> 实现进度：M1 / M2 核心完成；Phase 3 中与本波无关的条目冻结。当前工具权限见 §9 的实现入口。
 > 日期：2026-10-04 · 状态修订：2026-10-08
 > 技术方案：[`technical/game-agent.md`](./technical/game-agent.md)  
 > 关联：[`integration.md`](./integration.md)、[`webmcp.md`](./webmcp.md)、[`game-assistance.md`](./game-assistance.md)、[`capability-supplement.md`](./capability-supplement.md)
@@ -250,6 +251,8 @@ Agent 使用用户本轮 Prompt 的语言回答；无法判断时使用当前 UI
 | 同一游戏并行任务    | 1 个                     |
 
 ## 9. 工具权限
+
+第一版清单如下。**当前实现以 `lib/game-agent/runtime/capabilities.ts` 为准**（play 已含 `chaya_live_ui` / `open_scene` / `history` / `screenshot` / `tap` / `move_to` / `interact` / `save*` / `chaya_agent_recall`）。扩权或收权先改代码与 [capabilities.md](./capabilities.md)，再回写本节。
 
 ### 默认允许
 

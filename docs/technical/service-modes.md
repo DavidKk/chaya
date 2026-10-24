@@ -1,6 +1,7 @@
 # 服务形态技术设计
 
-> 状态：设计稿。能力拆分（O2）与未落地门禁 **已冻结**；本波仅配合 O8 改名（[`../capability-supplement.md`](../capability-supplement.md)）
+> 有效性 / 进度：实现形态设计参考；O2 能力拆分与未落地门禁冻结，O8 命名见[补齐需求](../capability-supplement.md)。本文代码示例不表示冻结项已实现。
+> 术语：产品 local 对应下文 `local / app`，cloud 对应 `remote`；定义见[运行模式](../run-modes.md)。
 > 需求真源：[docs/requirements-service-modes.md](../requirements-service-modes.md)  
 > 适用范围：Next 服务端 / API、本机 DiskOps、局内插件连 API；不含 UI 视觉（`chaya-ui-style-guide.md`）  
 > 部署方式 × 操作系统总览（含壳安装、浏览器模式数据、共用组件）：[deployment-platforms.md](deployment-platforms.md)

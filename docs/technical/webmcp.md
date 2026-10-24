@@ -171,7 +171,7 @@ game-boost.ts、translator/index.ts 内提供插件工具实现
 - `chaya_game_status`：与本机共用 `GameStatusView`（`lib/integration/tools/game-status.ts`）。库为空返回 `ready: false`；`serviceMode` 取 `/api/status`；网页版恒 `remote: false`、`bundled: false`、`sharedCache: null`，`translateCache.file / sizeBytes` 为 null，`contentRoot` 为相对所选目录的显示路径。
 - `chaya_live_quit`：GameLink `quit`（注入 `makeLiveTools`）。
 - 游戏操作 / 修改 / 翻译 / 共享翻译库 / 修改目录：`makeLiveTools` / `makeEditTools` / `makeTranslateTools` / `makeCacheTools` 注入 `callAgent` 与 `translationRequest`；未连接返回 `game_offline`。
-- 日志：`GET /api/logs`（内存，跨访问者共享，`untrustedContentHint`）；不注册 `clear`。
+- 日志：本页从 DataChannel 收到的运行日志（`untrustedContentHint`）；`chaya_logs_clear` 只清本页缓存，见 `components/webmcp/remote/link.ts`。不可用清单以 `lib/webmcp/mode-matrix.ts` 为准（`launch` / `shell_uninstall` / `eval` / `batch`）。
 
 ### 6.4 修改
 

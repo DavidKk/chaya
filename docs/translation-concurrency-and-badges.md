@@ -1,6 +1,7 @@
 # 翻译引擎并发调度与引擎属性状态徽标优化需求
 
-- 状态：历史方案。调度目标已由[翻译调度优化基线](translation-scheduling.md)替代；本文的全引擎立即竞速描述仅保留作历史记录，开关独立与徽标需求仍适用。
+- 有效性：混合文档。§2.1、§3 的全引擎竞速场景为历史，以[调度基线](translation-scheduling.md)为准；§2.2–2.3、§4 的独立开关与徽标约定仍有效。
+- 实现进度：不能据历史调度方案判断已交付；现行调度差距见调度基线 §9。
 - 日期：2026-10-22。
 - 技术方案：[翻译引擎全并发调度、状态探活与徽标渲染技术方案](technical/translation-concurrency-and-badges.md)。
 - 关联文档：[翻译管线规范](technical/translation-pipeline.md)、[macOS 原生神经翻译方案](apple-native-translation.md)、[Linux 离线翻译方案](linux-offline-translation.md)。

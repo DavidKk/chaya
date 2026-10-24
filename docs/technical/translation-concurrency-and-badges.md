@@ -1,6 +1,6 @@
 # 翻译引擎全并发调度、状态探活与徽标渲染技术方案
 
-- 状态：历史方案。调度设计与代码示例已由[翻译调度优化基线](../translation-scheduling.md)替代，不代表当前实现；状态探活与徽标约定仍按实际代码维护。
+- 有效性 / 进度：混合技术参考；§1 调度设计及竞速示例为历史，以[调度基线](../translation-scheduling.md)为准，不代表当前实现。§2–3 开关、探活与徽标仍有效；§4 测试矩阵按主题区分。
 - 日期：2026-10-22。
 - 需求文档：[翻译引擎并发调度与引擎属性状态徽标优化需求](../translation-concurrency-and-badges.md)。
 - 关联方案：[翻译管线核心设计](translation-pipeline.md)、[macOS 原生神经翻译技术方案](apple-native-translation.md)。

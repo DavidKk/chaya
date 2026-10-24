@@ -2,7 +2,7 @@
 
 - **日期**：2026-10-03
 - **状态**：已定稿，首版实现
-- **能力总表**：[capabilities.md](./capabilities.md)（各环境能用哪些工具，增减能力先改它）
+- **能力总表**：[capabilities.md](./capabilities.md)（当前能力快照；工具变更按目录与可用性实现同步）
 - **MCP 分三份**：[本地 MCP](./mcp-local.md)（dev / App 自身）、[插件 MCP](./mcp-plugin.md)（游戏内 ChayaAgent）、[Cloud MCP](./mcp-remote.md)（网页版只说明如何装插件 MCP）
 - **技术设计**：[docs/technical/integration-mcp.md](./technical/integration-mcp.md)、[docs/technical/mcp-gateway.md](./technical/mcp-gateway.md)
 - **参考**：工单服务 `/integration/skill`、`/integration/mcp`
@@ -78,7 +78,7 @@ VX Ace / VX 在本机 dev / App 中支持实验性的原生启动：macOS 在游
 
 ## 4. MCP 页面
 
-- 本机：见 [mcp-local.md](./mcp-local.md) §5（地址、安装、七个分组、试调）。
+- 本机：见 [mcp-local.md](./mcp-local.md) §5（地址、安装、九个分组、试调）。
 - Cloud:见 [mcp-remote.md](./mcp-remote.md) §2（插件 MCP 安装说明，不列工具、不试调）。
 - 游戏内：局内面板顶栏「集成」，子页 MCP / WebMCP，复用本机同一套视图，内容见 [mcp-plugin.md](./mcp-plugin.md) §4；不含 Skills。
 - WebMCP 页同理只描述当前形态。
@@ -104,3 +104,4 @@ VX Ace / VX 在本机 dev / App 中支持实验性的原生启动：macOS 在游
 | 2026-10-04 | 本机「集成 → MCP」只介绍本机服务自身的 `/api/mcp`；网关端口只在游戏内管理                                               |
 | 2026-10-04 | MCP 拆成本地 / 插件 / Cloud 三份文档；各形态只描述自身；页面文字只在卡片内                                              |
 | 2026-10-04 | Skills 一键安装 / 卸载（本机写文件，Cloud 弹框给命令）；Cloud MCP 改整页空态；游戏内「MCP」改为「集成」（MCP / WebMCP） |
+| 2026-10-24 | 本机 MCP 目录改为九个分组（补 skills / agent）                                                                          |

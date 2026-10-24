@@ -11,6 +11,8 @@
 >
 > **已废弃作待办**：M3 里与辅助白名单冲突的「开放危险工具确认」若指修改/脚本捷径——辅助需求明确禁止；截图/视觉可行性已有 `visual-observation.server.ts` 部分落地，勿再按「从零评估」开需求。会话持久化 / 摘要预算仍可做，但不归本文 ask/play 路线。
 
+按需定位：[工具执行](#read-1) · [上下文](#read-2) · [运行循环](#read-3) · [API](#read-4) · [恢复](#read-5)。只读相关章节，不顺链加载。
+
 ## 1. 决策
 
 第一版使用 provider adapter 架构并交付 Ollama 原生 `POST /api/chat` 适配器，不引入 OpenAI SDK、Vercel AI SDK 或完整 ACP Runtime。产品层实体统一称为 Agent：同一个 `provider: ollama` 可以创建多个 Agent，每个 Agent 独立保存名称、endpoint、默认模型和参数。现有持久化字段 `profiles` 暂时保留用于兼容，UI 与路由语义使用 Agent。
@@ -170,6 +172,8 @@ type GameAgentProfile = {
 - 每个工具结果使用 Ollama 的 `role: "tool"` message 继续下一次请求。
 - 不支持工具调用的模型在询问模式仍可用；游玩模式仅在原生工具调用缺失时尝试 JSON Schema 约束的单步动作决策，不解析任意自由文本为操作。
 
+<a id="read-1"></a>
+
 ## 5. 工具定义与执行
 
 ### 5.1 单一真源
@@ -235,6 +239,8 @@ App / local 的凭证字段为 write-only：工具列表只返回 `hasToken`，�
 - 插件事件携带 `taskId`、`actionId`、`parentActionId` 和可选 `toolCallId`。工具调用期间发生但无法可靠归因的事件保留为 `unattributed`，不得丢弃或猜测关联。
 - 插件以 `pluginInstanceId + producerEpoch + producerSeq` 续传；新连接取得 writer lease 后旧连接失效。重复内容幂等，键冲突记录 `GAME_LOG_EVENT_CONFLICT`。
 
+<a id="read-2"></a>
+
 ## 6. Prompt 设计
 
 ### 6.1 固定系统 Prompt
@@ -298,6 +304,8 @@ Agent 链路里凡是「理解意思」的判断都交给模型，代码只提�
 新需求看起来「加个关键词就好」时，改为三选一：给模型补事实字段，让模型输出结构化字段，或在界面加显式入口。
 
 防回退：`__tests__/lib/game-agent/no-keyword-intent.spec.ts` 扫描 `lib/game-agent`、`services/game-agent`、`plugins/src/agent`、`plugins/src/agent-ui`、`components/game-agent`、`app/api/game-agent`。出现含中日韩俄文字的正则、`new RegExp` 或 `includes` / `startsWith` 等字符串探测，或对 `prompt`、`goal`、`request`、`reply`、`hint`、`selectedText` 等自由文本调用 `test` / `match`，测试即失败。
+
+<a id="read-3"></a>
 
 ## 7. Turn Runner
 
@@ -378,6 +386,8 @@ async function runTurn(input, signal) {
 - `DELETE /api/game-agent/turn/:turnId` 设置 abort 并进入 `stopping`。
 - 停止后不再开始新工具；已经发送给游戏的短按键序列可以完成当前原子操作。
 - 游戏离线、切换或退出时主动取消其 Turn。
+
+<a id="read-4"></a>
 
 ## 8. API 与事件
 
@@ -509,6 +519,8 @@ type AgentMessage = UserMessage | AssistantMessage | ToolActivity
 ```
 
 工具事件按 `callId` 原位更新，避免每个增量新增一行。流式正文批量刷新，避免每个 token 触发完整消息树重渲染。
+
+<a id="read-5"></a>
 
 ## 11. 错误与恢复
 

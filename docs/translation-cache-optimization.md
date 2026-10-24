@@ -4,7 +4,7 @@
 - 日期：2026-10-17。
 - 搜索流程补充：2026-10-22；§3.6、§6 为已确认需求；索引等值查询与快照复用首版已接入，规模验收仍需继续。
 - 技术方案：[语义分段、对齐与安全复用](technical/translation-cache-optimization.md)。
-- 后续扩展：[标签、编号列表与缓存测试方案](translation-structured-segmentation.md)（待实现）。
+- 后续扩展：[标签、编号列表与缓存测试方案](translation-structured-segmentation.md)（首期已实现；任意边界拖拽与嵌套编辑待后续）。
 - 基础方案：[翻译管线 §14](technical/translation-pipeline.md#14-缓存落地方案核心已接入--扩展状态见-149)（稳定阅读：同文件「## 14」；职责边界见技术方案 §1.1）。
 
 ## 1. 问题与目标

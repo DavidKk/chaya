@@ -1,10 +1,11 @@
 # Chaya 服务形态与能力边界（需求）
 
 - **日期**：2026-09-22
-- **状态**：已确认方向。**本波仅做命名对齐（O8 → `remote` / `cloud`）**，见 [`capability-supplement.md`](./capability-supplement.md)；O2 能力拆分与未验收矩阵项 **已冻结**
+- **有效性 / 进度**：现行能力边界与实现形态映射；O8 命名对齐见 [`capability-supplement.md`](./capability-supplement.md)，O2 能力拆分与未验收矩阵项冻结，不按目标矩阵继续扩权。
+- **用语**：产品模式以 [run-modes.md](./run-modes.md) 为准；下文 `local / app` 同属产品 local，`remote` 对应 cloud，plugin 是游戏内层。矩阵区分现有能力与迁移目标。
 - **相关**：
-  - `docs/方案定稿-2026-09-19.md`（本机 MVP；**多服务形态以本文为准**，定稿中「仅本机」扩展为本方案）
-  - `docs/technical/service-modes.md`（技术设计：模块、门禁、迁移）
+  - [方案定稿](./方案定稿-2026-09-19.md)（历史本机 MVP；多服务形态以本文为准）
+  - [service-modes.md](./technical/service-modes.md)（实现映射与门禁；未落地设计仍受冻结范围约束）
 
 ---
 
@@ -18,7 +19,7 @@
 - MTool 兼容
 - Toolkit App 打包流水线细节（只约定：App ≈ 包装后的本机服务）
 
-**已采纳（浏览器改盘）**：remote 站点可在 **Chrome / Microsoft Cloud** 用 File System Access 由**用户浏览器**写入本机游戏目录（服务端仍不碰用户盘）。非 Chromium 提示换浏览器。
+**已采纳（浏览器改盘）**：remote 站点可在 **Chrome / Microsoft Edge** 用 File System Access 由**用户浏览器**写入本机游戏目录（服务端仍不碰用户盘）。非 Chromium 提示换浏览器。
 
 ---
 
@@ -82,7 +83,7 @@ DiskOps API 失败：**HTTP 501** + `code: DISK_UNAVAILABLE`（能力不具备�
 | 能力                                                    | local |           remote            | app |
 | ------------------------------------------------------- | :---: | :-------------------------: | :-: |
 | 本机选游戏目录（Node DiskOps）                          |  ✅   |             ❌              | ✅  |
-| 浏览器 FSA 选目录并写插件（Chrome / Microsoft Cloud）   |   —   |             ✅              |  —  |
+| 浏览器 FSA 选目录并写插件（Chrome / Microsoft Edge）    |   —   |             ✅              |  —  |
 | 浏览器写入 NW 壳（Windows 解压写入；mac 给 zip 自解压） |   —   |             ✅              |  —  |
 | 注入 Loader / 插件到游戏目录（服务端）                  |  ✅   |             ❌              | ✅  |
 | 启动 / 附着游戏 NW 壳                                   |  ✅   |             ❌              | ✅  |

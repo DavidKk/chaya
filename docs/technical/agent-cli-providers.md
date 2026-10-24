@@ -6,6 +6,8 @@
 > 基线：[`game-agent.md`](./game-agent.md)（Agent 配置、Turn Runner、事件）、[`game-assistance.md`](./game-assistance.md)（托管运行策略）、[`integration-mcp.md`](./integration-mcp.md)（本机 MCP）
 > 参考实现：工单系统 `~/Develop/sl-ai/ticket-janitor`（文件位置见需求 §11）
 
+按需定位：[授权](#read-1) · [工具与运行](#read-2) · [错误](#read-3) · [验证](#read-4)。只读相关章节，不顺链加载。
+
 ## 1. 决策
 
 1. **CLI 跑完整一轮，工具走 MCP**。四个 CLI 都是自带工具循环的 Agent，不提供单步补全接口；本机服务为每个 CLI 会话挂一个会话专用的 Chaya MCP 端点。
@@ -279,6 +281,8 @@ const { events } = await thread.runStreamed(input, { signal })
   - 子进程 pid 写进 `DATA_DIR/game-agent/cli-pids.json`，Chaya 启动时结束其中仍存活且命令行匹配的进程（应对 App 被强杀）；
   - 启动时清理 `os.tmpdir()/chaya-agent/` 下 pid 已不存在的目录。
 
+<a id="read-1"></a>
+
 ## 6. 授权
 
 ### 6.1 接口
@@ -444,6 +448,8 @@ Claude Code 在 macOS 上把凭证写进钥匙串，服务名按配置目录区�
 - 取凭证租约时，用 `O_EXCL` 创建 `credentials/<profileId>.lock`，内容为 `pid` 与启动时间；最后一个租约释放时删除。
 - 锁文件存在且 pid 仍存活：返回 `409 AGENT_CREDENTIAL_LOCKED`（「该实例正在另一个 Chaya 中使用」）。pid 已死：视为残留，接管。
 - 授权尝试与凭证写入用同一把文件锁；Cursor 登录的全机锁同样落成 `game-agent/cursor-login.lock`。
+
+<a id="read-2"></a>
 
 ## 7. 运行
 
@@ -679,6 +685,8 @@ if (isCliProvider(profile.provider)) return executeCliTask({ task, signal, contr
 - 新类型在游戏内配置页同样可用（授权接口不依赖流式响应）。
 - UI 细节按 `$chaya-ui` 与 `docs/technical/chaya-ui-style-guide.md` 实施。
 
+<a id="read-3"></a>
+
 ## 9. 错误码
 
 | 代码                            | HTTP | 场景                              | 文案方向                           |
@@ -749,6 +757,8 @@ if (isCliProvider(profile.provider)) return executeCliTask({ task, signal, contr
 假 CLI：`__tests__/fixtures/fake-acp-agent.mjs`（实现 ACP 的最小子集：会话、prompt、按脚本调用 MCP 工具、权限请求、取消）与 `fake-codex` 事件流，用于不依赖真实账号的集成测试。
 
 手动验收按需求 §10 各 Phase 与 §13 清单，用真实账号逐个类型执行；Claude / Gemini 额外验收一次 token 刷新后的回写。
+
+<a id="read-4"></a>
 
 ## 13. 实施前验证项
 

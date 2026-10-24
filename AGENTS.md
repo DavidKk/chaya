@@ -11,10 +11,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 # Agent notes
 
 - Agent 约定只放 `.agents/` 与本文件；**不要**使用 `.cursor/`（rules / skills 等）。
-- **改需求 / 修功能默认不要改 skill 或本文件**；仅当研发明确要求改 Agent 约定时才动。产品细节写代码与 `docs/`。
-- 按需技能（**只读入口 SKILL；references / 风格 / UX 按入口表点名再开，勿一次全读**）：
+- 功能改动不改 Agent 约定；仅明确要求时修改本文件 / skill。产品细节进代码与 `docs/`。
+- 按需 skill：先入口；references / 风格 / UX 仅按表命中时读，勿全读。
   - UI / 交互 `$chaya-ui`。**非 UI 任务不要读取。**
   - 目录落点 / 拆文件 `$chaya-structure`。定落点或将超 **600–800 行** 时读取；勿预读 `docs/` 定结构。
-- UI 视觉真源：`docs/technical/chaya-ui-style-guide.md`（由 UI skill 按需打开）；UX 见 skill 内 `references/ux-routing.md`。
-- 基建：`pnpm format` / `lint` / `typecheck`；husky。本地一键：`pnpm ok`（含 `build`）；全量：`pnpm ok:full`；CI：`pnpm ok:ci`（只检查 + `build:plugins`，不写盘 format/lint）。
+- 需查需求 / 开发文档时按 `docs/README.md` 定位；路径明确则直读。先看页头有效范围，再读相关章节；勿顺链全读。
+- 校验：format / lint / typecheck；husky。`pnpm ok`（同 `ok:full`）写盘检查并构建；`pnpm ok:ci` 检查 + 测试 + build，不写盘 format/lint。按改动选检查。
 - 手写源目标 ≤600 行、硬上限 800 行；超出按 `$chaya-structure` 拆。生成物 / `node_modules` / 数据 JSON 不计入。

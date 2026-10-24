@@ -335,7 +335,7 @@ export function getCapabilities(mode = getServiceMode()): Capabilities
 - 新增纯函数 `detectBrowserModeSupport()`（`lib/browser/fsa.ts`）：返回 `{ ok, reason?: 'insecure-context' | 'no-fsa' | 'mobile' }`，依据 `window.isSecureContext`、`'showDirectoryPicker' in window`、UA。
 - 浏览器模式首页 / 选游戏入口：不满足时显示空状态说明并给出办法：
   - `insecure-context`：请用 HTTPS 或 `localhost` 打开。
-  - `no-fsa` / `mobile`：请用桌面版 Chrome / Microsoft Cloud 打开。
+  - `no-fsa` / `mobile`：请用桌面版 Chrome / Microsoft Edge 打开。
 - 信令实验性提示（O6.4）在同一位置展示。
 - 文案进 i18n（zh / en / ja / ko）。
 

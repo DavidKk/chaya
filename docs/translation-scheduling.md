@@ -5,6 +5,7 @@
 - 目标：先尽快获得有效译文，再按需改善准确度。
 - 适用范围：原文批量翻译、缓存缺口补译、游戏内实时翻译；Web 控制台与 MV、VX/VX Ace 插件保持相同行为，入口和运行环境仍各自独立。
 - 关联：[翻译管线与缓存规范](technical/translation-pipeline.md)、[历史并发与徽标需求](translation-concurrency-and-badges.md)、[历史并发技术方案](technical/translation-concurrency-and-badges.md)。
+- 按需定位：调度差距 §9，性能 §13，非阻塞缓存接线 §14；缓存匹配另见[缓存需求](translation-cache-optimization.md)，不重读整套管线。
 
 **本文件作为后续翻译调度优化的统一入口。** 调整调度、并发、失败转移、重试或质量提升策略时，先更新本文中的规则、场景和验收项，再同步实现与测试。历史文档中“所有引擎立即竞速”的描述不再作为目标；缓存匹配、开关独立和就绪检测仍沿用各自规范。
 

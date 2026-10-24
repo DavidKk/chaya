@@ -3,6 +3,7 @@
 > 状态：Phase 1 已实现；Phase 2–3 待开发
 > 日期：2026-10-12 · 方案修订：2026-10-13
 > 依赖：[`agent-activity-log.md`](./agent-activity-log.md)、[`game-agent.md`](./game-agent.md)、[`smart-path.md`](./smart-path.md)
+> 技术关联：日志信封与持久化见[活动记录设计](technical/agent-activity-log.md)；执行分层见[任务设计](technical/game-agent-jobs.md)。两者仅覆盖相关部分，不代表 Phase 2–3 已完成，无需为同名配对另起方案。
 
 ## 1. 背景
 

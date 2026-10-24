@@ -3,11 +3,13 @@
 - **状态**：§1–13 记录接口、存储与兼容路径；**§14 为原始定稿 + 可重建匹配索引 + 连续短句区间复用方案**。核心已接入服务端与插件，实际接线及后续扩展见 §14.9；目标规则不等于所有扩展都已完成。
 - **范围**：抽取 → 入库 / 导入 → 查找命中 → 实时补译 → 局内渲染；以及共享翻译库图鉴。
 - **主要代码**：`services/translate/`、`lib/translate/`、`plugins/src/translator/`、`app/api/translate*`、`components/translate/`。
-- **待实施补充**：[语义分段优化需求](../translation-cache-optimization.md)与[技术方案](translation-cache-optimization.md)。针对真实对白修正“换行即独立短句”的假设，并统一优化预览与运行时边界；涉及换行和可信分段的后续目标以补充方案为准。
+- **分段补充**：[语义分段需求](../translation-cache-optimization.md)与[技术方案](translation-cache-optimization.md)；阶段一～三已接入，阶段四进行中。换行与可信分段规则、后续扩展按补充方案，不把整篇视为待实现。
 
 - **调度优化统一入口**：[翻译调度优化基线](../translation-scheduling.md)。独立引擎队列、失败入队、有限竞速和精翻补全的后续目标以该文档为准；当前实现与目标差距也在那里维护。
 
 ---
+
+按需定位：[存储](#read-1) · [匹配](#read-2) · [补译](#read-3) · [代码入口](#read-4) · [缓存演进](#read-5)。只读相关章节，不顺链加载。
 
 ## 1. 一句话
 
@@ -51,6 +53,8 @@
 定义：`lib/translate/play-settings.ts`。插件入口：`plugins/src/translator/`（`dialogue-subtitles` / `realtime-client` / `db-patch`）。
 
 ---
+
+<a id="read-1"></a>
 
 ## 4. 两套存储
 
@@ -104,6 +108,8 @@ flowchart TB
 ```
 
 ---
+
+<a id="read-2"></a>
 
 ## 6. 查找管线（命中复用核心）
 
@@ -336,6 +342,8 @@ flowchart TD
 
 ---
 
+<a id="read-3"></a>
+
 ## 7. 实时补译（miss → 引擎 → 双写）
 
 下图概述 accepted 双写；部分命中先按 §14.6 补缺口，只有引擎新译块进入定稿，组合结果保持派生。
@@ -452,6 +460,8 @@ flowchart LR
 
 ---
 
+<a id="read-4"></a>
+
 ## 11. 关键代码索引
 
 | 主题                 | 位置                                                                   |
@@ -537,6 +547,8 @@ flowchart LR
 - 历史定稿：`docs/方案定稿-2026-09-19.md`（形态过时处勿扩需求）
 
 ---
+
+<a id="read-5"></a>
 
 ## 14. 缓存落地方案（核心已接入 · 扩展状态见 §14.9）
 

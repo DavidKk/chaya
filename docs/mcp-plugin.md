@@ -21,16 +21,18 @@
 
 插件 MCP 的工具是本地 MCP 的子集，只保留能在游戏进程内完成的部分。各环境能力以 [capabilities.md](./capabilities.md) 为准，代码里的矩阵为 `lib/integration/mcp-availability.ts`：
 
-| 分组       | 插件 MCP 提供                                                                                           | 不提供（需本机服务）          |
-| ---------- | ------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| 游戏操作   | `chaya_live_games` / `state` / `history` / `press` / `play` / `screenshot` / `tap` / `move_to` / `quit` | `chaya_live_eval`             |
-| 修改       | `chaya_edit_catalog` / `state` / `set` / `action`（与游戏内「修改」页同一套指令）                       | —                             |
-| 翻译       | `chaya_translate_text` / `extract` / `job` / `sources` / `engines` / `play_settings`（翻译插件运行时）  | `chaya_translate_batch`       |
-| 共享翻译库 | `chaya_cache_query` / `update` / `delete` / `import`（游戏内翻译运行时）                                | —                             |
-| 日志       | `chaya_logs_query` / `chaya_logs_clear`（本游戏插件日志）                                               | —                             |
-| 插件功能   | `chaya_plugin_*`（`boost` / `trans` 声明的工具）、`chaya_live_plugins` / `call`                         | —                             |
-| 游戏库     | —                                                                                                       | 全部（列表 / 导入 / 删除…）   |
-| 当前游戏   | —                                                                                                       | 全部（启动 / 装插件 / 装壳…） |
+| 分组       | 插件 MCP 提供                                                                                                                                                                | 不提供（需本机服务）          |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| 游戏技能   | `chaya_skills_list` / `search` / `read`                                                                                                                                      | —                             |
+| 游戏操作   | `chaya_live_games` / `state` / `ui` / `open_scene` / `history` / `press` / `play` / `screenshot` / `tap` / `move_to` / `interact` / `saves*` / `save` / `load_save` / `quit` | `chaya_live_eval`             |
+| 会话回忆   | `chaya_agent_recall`                                                                                                                                                         | —                             |
+| 修改       | `chaya_edit_catalog` / `state` / `set` / `action`（与游戏内「修改」页同一套指令）                                                                                            | —                             |
+| 翻译       | `chaya_translate_text` / `extract` / `job` / `sources` / `engines` / `play_settings`（翻译插件运行时）                                                                       | `chaya_translate_batch`       |
+| 共享翻译库 | `chaya_cache_query` / `update` / `delete` / `import`（游戏内翻译运行时）                                                                                                     | —                             |
+| 日志       | `chaya_logs_query` / `chaya_logs_clear`（本游戏插件日志）                                                                                                                    | —                             |
+| 插件功能   | `chaya_plugin_*`（`boost` / `trans` 声明的工具）、`chaya_live_plugins` / `call`                                                                                              | —                             |
+| 游戏库     | —                                                                                                                                                                            | 全部（列表 / 导入 / 删除…）   |
+| 当前游戏   | —                                                                                                                                                                            | 全部（启动 / 装插件 / 装壳…） |
 
 - 修改依赖修改插件、翻译与翻译库依赖翻译插件；对应插件未装或未就绪时，工具返回明确提示而不是静默失败。
 - 不开放 `eval`；`gameId` 可省略，填了必须是本游戏。
@@ -81,3 +83,4 @@
 | 2026-10-04 | 增加修改目录 / 翻译 / 翻译库 / 日志；局内顶栏「MCP」改为「集成」（MCP / WebMCP）                                                       |
 | 2026-10-04 | 按 [capabilities.md](./capabilities.md)：新增截图 / 点击 / 寻路 / 退出与修改工具；ChayaEdit 不再声明插件工具；游戏内「集成」只保留 MCP |
 | 2026-10-04 | 游戏操作增加 `chaya_live_history`（最近剧情）                                                                                          |
+| 2026-10-24 | 与能力总表对齐：补 skills / agent_recall / live_ui / open_scene / interact / save*                                                     |

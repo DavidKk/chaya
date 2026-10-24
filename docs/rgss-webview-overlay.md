@@ -11,7 +11,7 @@
 
 ### 1.1 现状与痛点
 
-在现有架构中，MV/MZ 系列游戏依托 Chromium / NW.js 的完整 Web 能力，通过原生 DOM 挂载局内插件 UI（GameEdit 面板与 MiniPanels），并借助浏览器自带的 WebRTC DataChannel 与外部控制台（Local 本地服务或 Cloud Edge 线上网页）建立零服务器流量的 P2P 直连。
+在现有架构中，MV/MZ 系列游戏依托 Chromium / NW.js 的完整 Web 能力，通过原生 DOM 挂载局内插件 UI（GameEdit 面板与 MiniPanels），并借助浏览器自带的 WebRTC DataChannel 与外部控制台（Local 本地服务或 Cloud 线上网页）建立零服务器流量的 P2P 直连。
 
 然而，对于 RGSS（VX/VX Ace/XP）游戏，原先临时搭建了本地 Node WebSocket 桥接方案（`ws://127.0.0.1:3928` + Ruby `ws_client.rb`）。该方案暴露出以下关键限制：
 
@@ -29,7 +29,7 @@
 ## 2. 核心架构与业务定位
 
 ```text
-[ 外部控制端: Local 网页 或 Cloud Edge 网页 ]
+[ 外部控制端: Local 网页 或 Cloud 网页 ]
                       │
                       │  WebRTC DataChannel 纯 P2P 直连 (零云端服务器流量)
                       ▼
@@ -56,7 +56,7 @@
 ```
 
 1. **零外部网络服务**：无需编译、下发额外的外部伴生网络服务进程，仍需分发平台 WebView 宿主适配动态库。
-2. **零服务器中继流量**：外部 Cloud Edge 网页与内嵌 WebView 建立纯点对点（P2P）WebRTC 通信，业务数据不经服务器中继；信令交换和周期轮询仍有少量请求成本。未配置 TURN 时不能保证受限网络下建连。
+2. **零服务器中继流量**：外部 Cloud 网页与内嵌 WebView 建立纯点对点（P2P）WebRTC 通信，业务数据不经服务器中继；信令交换和周期轮询仍有少量请求成本。未配置 TURN 时不能保证受限网络下建连。
 3. **不新增本地监听端口**：游戏与内嵌 WebView 走操作系统内存级原生桥（`postMessage`），本地彻底不监听任何 TCP 端口，不承诺绕过操作系统或网络策略。
 4. **多端状态实时对称**：游戏内内嵌浮层（GameEdit / 迷你屏）与外部控制台对等双控，任何一端修改，另一端实时呈现。
 

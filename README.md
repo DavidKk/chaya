@@ -4,13 +4,13 @@
 
 Chaya is a local-first toolkit for **RPG Maker** games: translation (extract, seed, live / subtitle), in-game edits (gold, items, variables, actors), and a shared NW.js shell for launch — with the same console and in-game plugins.
 
-It runs in three modes:
+Console editions (the in-game layer is **plugin**):
 
 | Mode            | How                                                     | Disk access                                                             |
 | --------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- |
 | **Local**       | Node next to your game folders                          | Full (bind, shell, plugins, cache)                                      |
 | **Toolkit App** | Electron + Next (`CHAYA_SERVICE=app`)                   | Full                                                                    |
-| **Remote**      | Vercel / browser (`VERCEL=1` or `CHAYA_SERVICE=remote`) | No server disk — prepare games in Chrome via the File System Access API |
+| **Cloud**       | Vercel / browser (`VERCEL=1` or `CHAYA_SERVICE=remote`) | No server disk — prepare games in Chrome via the File System Access API |
 
 Inspired by the MagickMonkey / [vercel-web-scripts](https://github.com/DavidKk/vercel-web-scripts) layout: Next.js UI + `plugins/` game scripts.
 
@@ -38,16 +38,16 @@ Chaya provides a multi-tier translation hierarchy that balances zero-latency loc
 
 [![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FDavidKk%2Fchaya)
 
-On Vercel, `VERCEL=1` forces **remote** mode: the marketing / console UI is served from the cloud; installing shells and writing into game trees happens in the **browser** (Chromium + directory picker), not on the server.
+On Vercel, `VERCEL=1` uses Cloud (`CHAYA_SERVICE=remote`): the marketing / console UI is served from the cloud; installing shells and writing into game trees happens in the **browser** (Chromium + directory picker), not on the server.
 
 1. Import [DavidKk/chaya](https://github.com/DavidKk/chaya) into Vercel (or use the button above).
 2. Framework preset: **Next.js**. Build command: `pnpm build` (runs `build:plugins` then `next build`).
 3. Deploy. Open the deployment URL — `/` shows the product page; **Open console** goes to `/game`.
 4. Use Chrome / Microsoft Edge on the client machine to grant folder access and prepare games.
 
-Optional local simulation of cloud (no Vercel account): run `pnpm dev` and pick **Remote** in the dev switcher (top right); DiskOps APIs return 501.
+Optional local simulation of cloud (no Vercel account): run `pnpm dev` and pick **Cloud** in the dev switcher (top right); DiskOps APIs return 501.
 
-Remote mode has no sign-in and no server-side MCP. External agents connect to the unified MCP address `http://127.0.0.1:39271/mcp`, served by the open game (or the local server) — see [docs/mcp-plugin.md](docs/mcp-plugin.md) and [docs/mcp-remote.md](docs/mcp-remote.md).
+Cloud has no sign-in and no server-side MCP. External agents connect to the unified MCP address `http://127.0.0.1:39271/mcp`, served by the open game (or the local server) — see [docs/mcp-plugin.md](docs/mcp-plugin.md) and [docs/mcp-remote.md](docs/mcp-remote.md).
 
 ## Build the app
 
@@ -114,6 +114,8 @@ Useful env vars:
 - `CHAYA_API_LAN=1` — advertise LAN API base for in-game plugins
 
 After launch, plugins write `js/plugins/ChayaEnv.js` and heartbeat to `/api/runtime/heartbeat`. Restart the game from the console after upgrading plugins.
+
+Development docs: [task index](docs/README.md), read only when relevant.
 
 ## Project layout
 

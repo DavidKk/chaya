@@ -4,13 +4,13 @@
 
 Chaya 是面向 **RPG Maker** 的本机优先工具台：翻译（抽取、补译、实时 / 字幕）、局内修改（金钱、道具、变量、角色），以及共用 NW.js 壳启停——控制台与局内插件同一套。
 
-三种运行形态：
+控制台形态（游戏内层称 **plugin**）：
 
 | 形态            | 方式                                                    | 磁盘能力                                                   |
 | --------------- | ------------------------------------------------------- | ---------------------------------------------------------- |
 | **Local**       | 本机 Node，贴着游戏目录跑                               | 完整（绑定、装壳、插件、缓存）                             |
 | **Toolkit App** | Electron + Next（`CHAYA_SERVICE=app`）                  | 完整                                                       |
-| **Remote**      | Vercel / 浏览器（`VERCEL=1` 或 `CHAYA_SERVICE=remote`） | 服务端无盘——在 Chrome 里用 File System Access API 准备游戏 |
+| **Cloud**       | Vercel / 浏览器（`VERCEL=1` 或 `CHAYA_SERVICE=remote`） | 服务端无盘——在 Chrome 里用 File System Access API 准备游戏 |
 
 结构对齐 MagickMonkey / [vercel-web-scripts](https://github.com/DavidKk/vercel-web-scripts)：Next.js UI + `plugins/` 游戏脚本。
 
@@ -38,7 +38,7 @@ Chaya 提供兼顾零延迟本地离线与高阶文学润色的多层分级翻�
 
 [![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FDavidKk%2Fchaya)
 
-在 Vercel 上会强制 **remote** 形态（`VERCEL=1`）：云端只提供介绍页 / 控制台 UI；装壳与写入游戏目录发生在**浏览器**（Chromium + 目录授权），而不是服务器磁盘。
+在 Vercel 上会使用 Cloud（实现值 `CHAYA_SERVICE=remote`）（`VERCEL=1`）：云端只提供介绍页 / 控制台 UI；装壳与写入游戏目录发生在**浏览器**（Chromium + 目录授权），而不是服务器磁盘。
 
 1. 将 [DavidKk/chaya](https://github.com/DavidKk/chaya) 导入 Vercel（或点上方按钮）。
 2. 框架选 **Next.js**；构建命令：`pnpm build`（先 `build:plugins` 再 `next build`）。
@@ -47,7 +47,7 @@ Chaya 提供兼顾零延迟本地离线与高阶文学润色的多层分级翻�
 
 本地模拟 cloud（无需 Vercel 账号）：`pnpm dev` 后在右上角 dev 切换器选 **Cloud**；DiskOps 接口返回 501。
 
-Remote 形态没有登录，也没有服务端 MCP。外部 Agent 连接统一地址 `http://127.0.0.1:39271/mcp`，由打开的游戏（或本机服务）提供，见 [docs/mcp-plugin.md](docs/mcp-plugin.md) 与 [docs/mcp-remote.md](docs/mcp-remote.md)。
+Cloud 没有登录，也没有服务端 MCP。外部 Agent 连接统一地址 `http://127.0.0.1:39271/mcp`，由打开的游戏（或本机服务）提供，见 [docs/mcp-plugin.md](docs/mcp-plugin.md) 与 [docs/mcp-remote.md](docs/mcp-remote.md)。
 
 ## 构建应用
 
@@ -114,6 +114,8 @@ GitHub Actions：[CI](.github/workflows/ci.yml) 在 `main` / PR 跑 `pnpm ok:ci`
 - `CHAYA_API_LAN=1` — 向局内插件广播局域网 API 根
 
 开局会写入 `js/plugins/ChayaEnv.js`，并向 `/api/runtime/heartbeat` 心跳。升级插件后请从控制台重新开局。
+
+开发文档：[按任务索引](docs/README.md)，仅需要时读取。
 
 ## 目录结构
 
