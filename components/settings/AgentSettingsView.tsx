@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { IoAdd, IoArrowBack, IoInfinite, IoTrashOutline } from 'react-icons/io5'
 import { TbPencilCog } from 'react-icons/tb'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
+import { useUnsavedChanges } from '@/components/confirm/UnsavedChangesProvider'
 import { lockIconBtn } from '@/components/game-edit/lock-ui'
 import { useT } from '@/components/i18n/LocaleProvider'
 import {
@@ -108,6 +109,37 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   draftRef.current = draft
   const editing = agentId != null
   const creating = agentId === 'new'
+  const saved = creating || !settings ? undefined : settings.profiles.find((item) => item.id === draft?.id)
+  const isDirty = useMemo(() => {
+    if (!draft) return false
+    if (creating) {
+      return Boolean(draft.label.trim() || apiKeyDraft.trim() || draft.endpoint || draft.proxy || proxyHeadersDraft.trim())
+    }
+    if (!saved) return false
+    return (
+      draft.label !== saved.label ||
+      draft.provider !== saved.provider ||
+      draft.defaultModel !== saved.defaultModel ||
+      draft.endpoint !== saved.endpoint ||
+      draft.proxy ||
+      ') !== (saved.proxy || ' ||
+      JSON.stringify(draft.proxyProtocols || {}) !== JSON.stringify(saved.proxyProtocols || {}) ||
+      proxyHeadersText(saved.proxyHeaders) !== proxyHeadersDraft ||
+      draft.keepAlive !== saved.keepAlive ||
+      Boolean(apiKeyDraft.trim())
+    )
+  }, [creating, draft, saved, apiKeyDraft, proxyHeadersDraft])
+
+  const { confirmIfDirty } = useUnsavedChanges(Boolean(editing && isDirty))
+
+  const handleNavigate = useCallback(
+    async (targetId?: string) => {
+      if (await confirmIfDirty()) {
+        onNavigate(targetId)
+      }
+    },
+    [confirmIfDirty, onNavigate]
+  )
 
   const load = useCallback(
     async (silent = false) => {
@@ -382,7 +414,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                 <strong className="block text-sm text-ink">{t('integration.agentProfiles')}</strong>
                 <span className="mt-1 block text-xs leading-[1.35] text-ink-soft">{t('integration.agentProfilesHint')}</span>
               </div>
-              <Button className="shrink-0" variant="accent" onClick={() => onNavigate('new')}>
+              <Button className="shrink-0" variant="accent" onClick={() => void handleNavigate('new')}>
                 <IoAdd size={16} />
                 {t('integration.agentAddProfile')}
               </Button>
@@ -406,7 +438,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                     />
                   </div>
                   <div className="flex shrink-0 items-center gap-px">
-                    <Button variant="plain" size="icon" aria-label={t('integration.agentEdit')} data-navigation-trigger="" onClick={() => onNavigate(profile.id)}>
+                    <Button variant="plain" size="icon" aria-label={t('integration.agentEdit')} data-navigation-trigger="" onClick={() => void handleNavigate(profile.id)}>
                       <TbPencilCog size={16} aria-hidden />
                     </Button>
                     <Button
@@ -433,7 +465,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   if (!draft)
     return (
       <EmptyState title={t('integration.agentNotFound')}>
-        <Button className="mt-3" onClick={() => onNavigate()}>
+        <Button className="mt-3" onClick={() => void handleNavigate()}>
           {t('integration.agentBack')}
         </Button>
       </EmptyState>
@@ -450,7 +482,6 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   const cli = isCliProvider(draftProvider)
   const openApi = isOpenApiProvider(draftProvider)
   const httpModel = draftProvider === 'ollama' || openApi
-  const saved = creating ? undefined : settings.profiles.find((item) => item.id === draft.id)
   const savedProvider = saved?.provider
   let draftProxy: string | null
   let draftProxySlots: ReturnType<typeof resolveAgentProxySlots> | null = null
@@ -739,7 +770,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
             </label>
             <div className="flex min-w-0 items-center justify-between gap-3" data-agent-detail-toolbar>
               <div className="flex min-w-0 items-center justify-start gap-2">
-                <Button variant="ghost" onClick={() => onNavigate()}>
+                <Button variant="ghost" onClick={() => void handleNavigate()}>
                   <IoArrowBack size={15} />
                   {t('integration.agentBack')}
                 </Button>

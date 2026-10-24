@@ -1,6 +1,6 @@
 import os from 'node:os'
 
-import listenAddress from '../../scripts/listen-address.cjs'
+import listenAddress from '../../scripts/server/listen-address.cjs'
 
 function ipv4(address: string, internal = false): os.NetworkInterfaceInfo {
   return { address, family: 'IPv4', internal, netmask: '255.255.255.0', mac: '00:00:00:00:00:00', cidr: `${address}/24` }

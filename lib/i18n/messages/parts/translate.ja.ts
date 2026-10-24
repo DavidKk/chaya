@@ -71,6 +71,7 @@ export const translateJa = {
     completed: '完了',
     extracting: '抽出中…',
     extractingText: 'テキスト抽出中…',
+    preparingInventory: '原文インベントリを準備中…',
     stillMissingNoEta: '残り {count}（目安なし）',
     sessionDone: '今回 {count}',
     etaLeft: '残り目安 {eta}',

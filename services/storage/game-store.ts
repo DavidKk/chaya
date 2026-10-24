@@ -158,13 +158,13 @@ export function createPublicGameStore(db: SharedCacheDb, dataDir: string) {
         } as GameIdentityBaseline,
         signature
       )
-      if (verification.status !== 'MATCH') throw new Error(`Game identity ${verification.status}; confirm the changed game before reusing its data`)
+      if (verification.status === 'MISMATCH') throw new Error(`Game identity MISMATCH; ${verification.details || 'confirm the changed game before reusing its data'}`)
     }
     const gameId = baseline ? String(baseline.game_id) : libraryId || randomUUID()
     client
       .prepare(
         `INSERT INTO game_identities(game_id,engine,title,signature_baseline,signature_version,bound_path,first_bound_at,last_verified_at)
-      VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(game_id) DO UPDATE SET bound_path=excluded.bound_path,last_verified_at=excluded.last_verified_at`
+      VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(game_id) DO UPDATE SET bound_path=excluded.bound_path,last_verified_at=excluded.last_verified_at,signature_baseline=excluded.signature_baseline,title=excluded.title`
       )
       .run(gameId, signature.engine, signature.title, signature.signature, signature.signatureVersion, canonicalRoot, Date.now(), Date.now())
     await migrateGameTranslations(db, { gameId, contentRoot: canonicalRoot })

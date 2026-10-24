@@ -1,7 +1,10 @@
 /**
  * 服务端后台下载任务注册表：请求立即返回，页面经 SSE（`/api/downloads/stream`）看进度。
  * 同种类同时只跑一个；结束的任务保留一段时间供页面展示结果。
- * 快照写入 `data/download-jobs.json`，进程重启后恢复列表；未完成的任务标为 interrupted。
+ * 快照写入 `data/download-jobs.json`，进程重启后恢复列表；未完成的 running → error（不可续跑）。
+ *
+ * 有意不进 `services/jobs`：这是下载注册表 + SSE，不是 one-shot worker / paused 孤儿语义
+ *（seed/sources 用 `shouldDemoteOrphanRunning` → paused + 显式继续）。
  */
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
@@ -109,6 +112,7 @@ function hydrate(b: Board): void {
     for (const job of raw.jobs) {
       if (!job || typeof job.id !== 'string' || typeof job.kind !== 'string') continue
       const restored: ServerDownloadJob = { ...job }
+      // Restart orphan: downloads cannot resume mid-stream → terminal error (not paused).
       if (restored.status === 'running') {
         restored.status = 'error'
         restored.error = INTERRUPTED

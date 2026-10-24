@@ -155,9 +155,10 @@ tab C ──┘
 ### 5.3 测试
 
 - [x] Sources / seed-job：poll 不 inventory；stamp 不含 WAL（既有用例）。
-- [ ] Seed prepare 单飞：并发两次 prepare 只跑一次 inventory（可补）。
-- [ ] Shared migrate 单飞：并发 open 不双跑 scrub/v10（可补）。
-- [x] 回归：seed-job poll 仍不 inventory。
+- [x] Seed prepare 单飞：并发两次 prepare 只跑一次 inventory（`seed-prepare.spec.ts`）。
+- [x] List extract 单飞：request + poll 共享 flight（`list-extract-prepare.spec.ts`）。
+- [x] Shared migrate 单飞：并发 `scheduleSharedCacheHeavyMigrate` 同一 Promise（`migrate-bg.spec.ts`；Jest 默认同步路径另测）。
+- [x] 回归：seed-job poll 仍不 inventory；sources orphan → paused。
 
 ## 6. 实现落点（预留，开工时再钉）
 
@@ -180,3 +181,4 @@ tab C ──┘
 | 2026-10-24 | 补 H7 / §3.2：`/translate/list`→`extract-items`→`loadRgssTranslationItems` 纳入范围与 P0；开工顺序加 1b。                                                                           |
 | 2026-10-24 | 落地：Sources orphan/resume；list extract 单飞；seed prepare；RGSS sources 磁盘索引；shared migrate-bg。状态改为现行。                                                              |
 | 2026-10-24 | list RGSS 改 worker + 文件 IPC；修 Scripts `DRAW_RE` ReDoS；跳过 FileSystem/Animations/Tilesets 非文案 Data。本机 Rei：prepare 期间 status/progress &lt; 100ms，约 3s 出 1.7 万条。 |
+| 2026-10-25 | jobs 薄层接入 sources orphan；seed runLoop 禁无 bundle 同步库存；seed-prepare / list-extract / migrate-bg 单飞测试；downloads 标明不进 jobs。                                       |

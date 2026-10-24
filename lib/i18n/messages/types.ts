@@ -68,6 +68,10 @@ export type MessageTree = {
     durationMin: string
     durationHour: string
     chars: string
+    unsavedChangesTitle: string
+    unsavedChangesDesc: string
+    discardAndLeave: string
+    stayAndEdit: string
     panelPin: string
     panelUnpin: string
     panelMinimize: string
@@ -377,6 +381,7 @@ export type MessageTree = {
     completed: string
     extracting: string
     extractingText: string
+    preparingInventory: string
     stillMissingNoEta: string
     sessionDone: string
     etaLeft: string

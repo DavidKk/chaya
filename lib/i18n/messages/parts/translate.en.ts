@@ -71,6 +71,7 @@ export const translateEn = {
     completed: 'Done',
     extracting: 'Extracting…',
     extractingText: 'Extracting text…',
+    preparingInventory: 'Preparing source inventory…',
     stillMissingNoEta: '{count} left (no ETA)',
     sessionDone: 'Session {count}',
     etaLeft: 'ETA {eta}',

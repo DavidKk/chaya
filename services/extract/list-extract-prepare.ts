@@ -5,13 +5,11 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { Worker } from 'node:worker_threads'
 
 import { RGSS_EXTRACT_WORKER_PATH } from '@/constants/paths'
 import { resolveGame } from '@/lib/game'
-import { gameContentReadPath } from '@/lib/game/content-files'
-import { seedProgressStamp } from '@/services/translate/scheduler/seed-inventory'
-import { singleFlight } from '@/services/translate/scheduler/single-flight'
+import { runWorkerOnce, singleFlight, yieldEventLoop } from '@/services/jobs'
+import { localGameContentFile, seedProgressStamp } from '@/services/translate/scheduler/seed-inventory'
 
 import { type ExtractedItemsResult, type ExtractedLocalesMeta, type ExtractedTranslationItem, loadExtractedItemsWithLocales } from './lib/extract-items'
 
@@ -27,40 +25,24 @@ type Ready = { ok: true; payload?: ListExtractPayload; bodyPath?: string; stamp:
 const flights = new Map<string, Promise<Ready>>()
 const ready = new Map<string, Ready>()
 
+/** Local fs only — never storage mount on the HTTP entry/poll path. */
 function listStamp(contentRoot: string) {
-  const extract = gameContentReadPath(contentRoot, 'extractStrings', { alsoParent: true })
-  return JSON.stringify([path.resolve(contentRoot), seedProgressStamp(contentRoot), extract])
+  const extract = localGameContentFile(contentRoot, 'extractStrings')
+  const extractStat = extract ? fs.statSync(extract, { throwIfNoEntry: false }) : undefined
+  return JSON.stringify([path.resolve(contentRoot), seedProgressStamp(contentRoot), extract, extractStat?.mtimeMs, extractStat?.size])
 }
 
 function cacheKey(contentRoot: string, sourceLang?: string, targetLang?: string) {
   return `${path.resolve(contentRoot)}::${sourceLang || ''}::${targetLang || ''}`
 }
 
-function runRgssExtractWorker(contentRoot: string): Promise<{ bodyPath: string }> {
-  return new Promise((resolve, reject) => {
-    if (!fs.existsSync(RGSS_EXTRACT_WORKER_PATH)) {
-      reject(new Error('RGSS_EXTRACT_WORKER_MISSING'))
-      return
-    }
-    let settled = false
-    const worker = new Worker(RGSS_EXTRACT_WORKER_PATH, { workerData: { contentRoot } })
-    const finish = (fn: () => void) => {
-      if (settled) return
-      settled = true
-      void worker.terminate()
-      fn()
-    }
-    worker.once('message', (message: { ok: boolean; path?: string; error?: string }) => {
-      finish(() => {
-        if (message?.ok && message.path) resolve({ bodyPath: message.path })
-        else reject(new Error(message?.error || 'RGSS extract worker failed'))
-      })
-    })
-    worker.once('error', (error) => finish(() => reject(error)))
-    worker.once('exit', (code) => {
-      if (!settled && code !== 0) finish(() => reject(new Error(`RGSS extract worker exited: ${code}`)))
-    })
+async function runRgssExtractWorker(contentRoot: string): Promise<{ bodyPath: string }> {
+  const { path: bodyPath } = await runWorkerOnce({
+    entry: RGSS_EXTRACT_WORKER_PATH,
+    workerData: { contentRoot },
+    missingError: 'RGSS_EXTRACT_WORKER_MISSING',
   })
+  return { bodyPath }
 }
 
 async function buildPayload(contentRoot: string, opts?: { sourceLang?: string; targetLang?: string }): Promise<Ready> {
@@ -94,7 +76,7 @@ async function buildPayload(contentRoot: string, opts?: { sourceLang?: string; t
       }
     }
   }
-  await new Promise<void>((r) => setImmediate(r))
+  await yieldEventLoop()
   const res: ExtractedItemsResult = loadExtractedItemsWithLocales(contentRoot, opts)
   return { ok: true, stamp, payload: { items: res.items, locales: res.locales, engine: null, contentRoot } }
 }

@@ -27,7 +27,26 @@ jest.mock('@/constants/paths', () => {
   return { TRANSLATE_JOBS_DIR: dir }
 })
 
-import { exportSourcesJob, getSourcesJobStatus, importSourcesJob, resetSourcesJobsForTests, searchSourcesJob } from '@/services/translate/sources-job'
+import { TRANSLATE_JOBS_DIR } from '@/constants/paths'
+import { exportSourcesJob, getSourcesJobStatus, importSourcesJob, resetSourcesJobsForTests, resumeSourcesJob, searchSourcesJob } from '@/services/translate/sources-job'
+
+function writeOrphanSourcesJob(jobId: string, entries: Array<{ key: string; src: string; zh: string; state: string }>) {
+  const disk = {
+    jobId,
+    status: 'running',
+    format: 'array',
+    force: false,
+    entries,
+    liveStatus: '后台翻译中…',
+    error: null,
+    startedAt: Date.now(),
+    updatedAt: Date.now(),
+    sessionTranslated: 0,
+    failedSrcs: [] as string[],
+  }
+  fs.mkdirSync(TRANSLATE_JOBS_DIR, { recursive: true })
+  fs.writeFileSync(path.join(TRANSLATE_JOBS_DIR, `sources-${jobId}.json`), `${JSON.stringify(disk, null, 2)}\n`)
+}
 
 function waitFor(predicate: () => boolean, ms = 2000) {
   const start = Date.now()
@@ -108,5 +127,47 @@ describe('search and export', () => {
     const exported = exportSourcesJob(snap.jobId)
     expect(exported.format).toBe('ast')
     expect(exported.payload).toEqual([expect.objectContaining({ id: 'main_001', key: 'message', text: '私は白雨。', zh: '我是白雨。', line: 22 })])
+  })
+})
+
+describe('orphan demote', () => {
+  it('demotes disk running to paused on poll without starting the loop', () => {
+    const jobId = 'aabbccddeeff0011'
+    writeOrphanSourcesJob(jobId, [{ key: '0', src: 'あ', zh: '', state: 'pending' }])
+    mockLive.mockClear()
+
+    const status = getSourcesJobStatus(jobId)
+    expect(status.status).toBe('paused')
+    expect(status.liveStatus).toBe('后台翻译中…')
+    expect(status.pending).toBe(1)
+    expect(mockLive).not.toHaveBeenCalled()
+  })
+
+  it('fills restart liveStatus when orphan disk had none', () => {
+    const jobId = 'aabbccddeeff0033'
+    writeOrphanSourcesJob(jobId, [{ key: '0', src: 'あ', zh: '', state: 'pending' }])
+    const file = path.join(TRANSLATE_JOBS_DIR, `sources-${jobId}.json`)
+    const disk = JSON.parse(fs.readFileSync(file, 'utf8')) as { liveStatus: string }
+    disk.liveStatus = ''
+    fs.writeFileSync(file, `${JSON.stringify(disk, null, 2)}\n`)
+
+    expect(getSourcesJobStatus(jobId).liveStatus).toMatch(/服务重启/)
+  })
+
+  it('export demotes orphan running without resuming; resumeSourcesJob restarts', async () => {
+    const jobId = 'aabbccddeeff0022'
+    writeOrphanSourcesJob(jobId, [{ key: '0', src: 'あ', zh: '', state: 'pending' }])
+    mockLive.mockClear()
+
+    const exported = exportSourcesJob(jobId)
+    expect(exported.status).toBe('paused')
+    expect(mockLive).not.toHaveBeenCalled()
+
+    mockLive.mockResolvedValue({ items: [{ src: 'あ', zh: '啊' }], contentRoot: null, engines: [] })
+    const resumed = resumeSourcesJob(jobId)
+    expect(resumed.status).toBe('running')
+    expect(mockLive).toHaveBeenCalled()
+    await waitFor(() => getSourcesJobStatus(jobId).status === 'done')
+    expect(getSourcesJobStatus(jobId).done).toBe(1)
   })
 })

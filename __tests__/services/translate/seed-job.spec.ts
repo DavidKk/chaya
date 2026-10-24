@@ -33,29 +33,30 @@ jest.mock('@/services/translate/fill-missing', () => ({
   getSeedTranslateProgress: (...args: unknown[]) => mockProgress(...args),
 }))
 jest.mock('@/services/translate/engine-switches', () => ({ getTranslateEngineSwitches: (...args: unknown[]) => mockSwitches(...(args as [])) }))
+const mockPrepare = jest.fn(async (root: string) => ({
+  progress: {
+    contentRoot: root,
+    hasSeed: true,
+    total: 2,
+    needCount: 2,
+    done: 0,
+    missing: 2,
+    skipCount: 0,
+    needChars: 0,
+    skipChars: 0,
+    missingChars: 0,
+    doneChars: 0,
+    lines: 0,
+    batchSize: 40,
+    batchesLeft: 1,
+  },
+  pending: ['こんにちは', 'さようなら'],
+  stamp: 'test-stamp',
+}))
 jest.mock('@/services/translate/scheduler/seed-prepare', () => ({
   peekSeedInventory: () => null,
   isSeedInventoryPreparing: () => false,
-  prepareSeedInventory: async (root: string) => ({
-    progress: {
-      contentRoot: root,
-      hasSeed: true,
-      total: 2,
-      needCount: 2,
-      done: 0,
-      missing: 2,
-      skipCount: 0,
-      needChars: 0,
-      skipChars: 0,
-      missingChars: 0,
-      doneChars: 0,
-      lines: 0,
-      batchSize: 40,
-      batchesLeft: 1,
-    },
-    pending: ['こんにちは', 'さようなら'],
-    stamp: 'test-stamp',
-  }),
+  prepareSeedInventory: (...args: unknown[]) => mockPrepare(...(args as [string])),
 }))
 
 import { getSeedJobSnapshot, pauseSeedJob, refreshSeedJobProgress, startSeedJob } from '@/services/translate/seed-job'
@@ -77,21 +78,47 @@ describe('seed job failures', () => {
     mockRoot = path.join(dir, 'A')
     mockFill.mockReset()
     mockProgress.mockReset().mockImplementation(progress)
+    mockPrepare.mockReset().mockImplementation(async (root: string) => ({
+      progress: {
+        contentRoot: root,
+        hasSeed: true,
+        total: 2,
+        needCount: 2,
+        done: 0,
+        missing: 2,
+        skipCount: 0,
+        needChars: 0,
+        skipChars: 0,
+        missingChars: 0,
+        doneChars: 0,
+        lines: 0,
+        batchSize: 40,
+        batchesLeft: 1,
+      },
+      pending: ['こんにちは', 'さようなら'],
+      stamp: 'test-stamp',
+    }))
   })
   afterEach(() => {
     jest.useRealTimers()
     fs.rmSync(dir, { recursive: true, force: true })
   })
 
-  it('keeps polls free of inventory scans and only rescans on explicit refresh', () => {
-    mockProgress.mockReturnValue({ ...progress(), done: 1, missing: 1 })
+  it('keeps polls free of inventory scans and only rescans on explicit refresh', async () => {
+    mockPrepare.mockResolvedValueOnce({
+      progress: { ...progress(), done: 1, missing: 1, skipCount: 0, needChars: 0, skipChars: 0, missingChars: 0, doneChars: 0, lines: 0, batchSize: 40, batchesLeft: 1 },
+      pending: ['さようなら'],
+      stamp: 'test-stamp',
+    })
     for (let i = 0; i < 40; i++) expect(getSeedJobSnapshot()).toMatchObject({ stale: true, done: 0 })
-    expect(mockProgress).not.toHaveBeenCalled()
-    expect(refreshSeedJobProgress()).toMatchObject({ done: 1, missing: 1 })
-    expect(mockProgress).toHaveBeenCalledTimes(1)
+    expect(mockPrepare).not.toHaveBeenCalled()
+    expect(refreshSeedJobProgress()).toMatchObject({ preparing: true })
+    expect(mockPrepare).toHaveBeenCalledTimes(1)
+    await Promise.resolve()
+    await jest.runAllTimersAsync()
     for (let i = 0; i < 40; i++) expect(getSeedJobSnapshot()).toMatchObject({ done: 1, missing: 1 })
-    expect(getSeedJobSnapshot().stale).toBeUndefined()
-    expect(mockProgress).toHaveBeenCalledTimes(1)
+    expect(getSeedJobSnapshot().preparing).toBeUndefined()
+    expect(mockPrepare).toHaveBeenCalledTimes(1)
     const checkpoint = JSON.parse(fs.readFileSync(path.join(mockJobs, fs.readdirSync(mockJobs)[0]), 'utf8'))
     expect(checkpoint.progress).toMatchObject({ done: 1, missing: 1 })
     expect(checkpoint.progressStamp).toBeTruthy()
@@ -220,22 +247,23 @@ describe('seed job failures', () => {
     expect(getSeedJobSnapshot().job.logs.some((entry) => entry.text.includes('Worker↑ · continue'))).toBe(true)
   })
 
-  it('demotes orphaned running jobs on poll without starting inventory', () => {
-    mockProgress.mockReturnValue({ ...progress(), done: 1, missing: 1 })
+  it('demotes orphaned running jobs on poll without starting inventory', async () => {
     refreshSeedJobProgress()
+    await Promise.resolve()
+    await jest.runAllTimersAsync()
     const store = globalThis as typeof globalThis & {
       __chayaSeedJobs: Map<string, { running: boolean; inventoryPreparing?: boolean; state: { status: string; progress?: object } }>
     }
     const rt = store.__chayaSeedJobs.get(mockRoot)!
     rt.running = false
+    rt.inventoryPreparing = false
     rt.state.status = 'running'
-    mockProgress.mockClear()
+    mockPrepare.mockClear()
     expect(getSeedJobSnapshot().job.status).toBe('paused')
-    expect(mockProgress).not.toHaveBeenCalled()
+    expect(mockPrepare).not.toHaveBeenCalled()
   })
 
   it('keeps preparing inventory as running on poll (not orphan demote)', () => {
-    mockProgress.mockReturnValue({ ...progress(), done: 1, missing: 1 })
     refreshSeedJobProgress()
     const store = globalThis as typeof globalThis & {
       __chayaSeedJobs: Map<string, { running: boolean; inventoryPreparing?: boolean; state: { status: string } }>
@@ -249,9 +277,10 @@ describe('seed job failures', () => {
     expect(snap.preparing).toBe(true)
   })
 
-  it('scrubs sticky cache-worker module errors from job logs on poll', () => {
-    mockProgress.mockReturnValue({ ...progress(), done: 1, missing: 1 })
+  it('scrubs sticky cache-worker module errors from job logs on poll', async () => {
     refreshSeedJobProgress()
+    await Promise.resolve()
+    await jest.runAllTimersAsync()
     const store = globalThis as typeof globalThis & {
       __chayaSeedJobs: Map<string, { state: { logs: Array<{ id: number; at: number; level: string; text: string }> } }>
     }

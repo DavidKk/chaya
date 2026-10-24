@@ -6,6 +6,8 @@ import { GAME_CONTENT_RELS, type GameContentKind } from '@/lib/game/content-path
 import { storageCall } from './client'
 
 const ownerDirectories = new Map<string, { gameId: string; directory: string }>()
+/** Next.js process cache of daemon mounts — avoids Atomics.wait IPC on every stamp/poll. */
+const mountedDirectories = new Map<string, { gameId: string; directory: string }>()
 const ownerWriters = new Map<string, (rows: unknown[], key?: string) => unknown>()
 export function registerPublicGameWriter(directory: string, append: (rows: unknown[], key?: string) => unknown) {
   ownerWriters.set(path.join(directory, GAME_CONTENT_RELS.cacheNdjson), append)
@@ -17,18 +19,23 @@ export function appendPublicCacheFile(file: string, rows: unknown[]): boolean {
   return true
 }
 export function registerPublicGameDirectory(root: string, state: { gameId: string; directory: string }) {
-  ownerDirectories.set(path.resolve(root), state)
+  const key = path.resolve(root)
+  ownerDirectories.set(key, state)
+  mountedDirectories.set(key, state)
 }
 
 export function publicGameFiles(contentRoot: string) {
-  const local = ownerDirectories.get(path.resolve(contentRoot))
+  const key = path.resolve(contentRoot)
+  const local = ownerDirectories.get(key) ?? mountedDirectories.get(key)
   if (local) return local
   if (process.env.CHAYA_STORAGE_OWNER === '1') {
-    const mounted = ownerDirectories.get(path.resolve(contentRoot))
+    const mounted = ownerDirectories.get(key)
     if (!mounted) throw new Error('Game storage must be mounted before accessing its read views')
     return mounted
   }
-  return storageCall<{ gameId: string; directory: string }>('game.mount', [contentRoot])
+  const remote = storageCall<{ gameId: string; directory: string }>('game.mount', [contentRoot])
+  mountedDirectories.set(key, remote)
+  return remote
 }
 
 export function publicGameFile(contentRoot: string, kind: GameContentKind) {

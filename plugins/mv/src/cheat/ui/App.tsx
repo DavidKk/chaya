@@ -1,6 +1,7 @@
 import { Activity, type CSSProperties, lazy, type ReactNode, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
+import { UnsavedChangesProvider } from '@/components/confirm/UnsavedChangesProvider'
 import {
   effectiveHotkeys,
   HOTKEY_SYNC_CHANGED_EVENT,
@@ -655,9 +656,11 @@ function GameEditOverlayProviders({ children, open, miniPanelOpacity }: { childr
     >
       <NotificationProvider portalContainer={portalHost}>
         <ConfirmProvider portalContainer={portalHost}>
-          <GameToolTransportContext value={inputAssist}>
-            <div className={open ? 'flex min-h-0 flex-1 flex-col' : 'contents'}>{children}</div>
-          </GameToolTransportContext>
+          <UnsavedChangesProvider>
+            <GameToolTransportContext value={inputAssist}>
+              <div className={open ? 'flex min-h-0 flex-1 flex-col' : 'contents'}>{children}</div>
+            </GameToolTransportContext>
+          </UnsavedChangesProvider>
         </ConfirmProvider>
       </NotificationProvider>
     </div>

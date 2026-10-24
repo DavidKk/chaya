@@ -11,7 +11,7 @@ directories:
 files:
   - package.json
   - electron/**/*
-  - scripts/local-access.cjs
+  - scripts/server/local-access.cjs
   # Next runs from extraResources/app-root; keep production deps out of asar
   - '!**/node_modules/**'
   - '!**/.next/**'
@@ -25,7 +25,7 @@ extraResources:
   - from: .electron-builder/app-root
     to: app-root
 # Ad-hoc sign after pack when identity is null; with a real cert, skip if already valid
-afterPack: scripts/electron-after-pack.cjs
+afterPack: scripts/build/electron-after-pack.cjs
 mac:
   category: public.app-category.utilities
   icon: electron/assets/icon.icns

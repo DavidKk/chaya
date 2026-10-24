@@ -8,7 +8,11 @@ import type { CacheScanResult } from './cache-scan'
 
 export type CacheLane = { close: () => Promise<void>; wake: () => void }
 
-/** Bounded IPC, independent full-job scanning, and worker upgrades at a drained chunk boundary. */
+/**
+ * Long-lived shared-cache scan lane (not `runWorkerOnce`).
+ * Soft-fail: missing/exited worker → onError + close; seed keeps dispatching live engines.
+ * Do not fold into services/jobs — lifecycle is wake/idle/retire, not one-shot file IPC.
+ */
 export function startCacheLane(options: {
   contentRoot: string
   next: () => Array<{ id: number; src: string }> | null

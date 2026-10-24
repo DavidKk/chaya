@@ -78,6 +78,9 @@ const lockBtn = cn(
   'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]'
 )
 
+/** 运行页：标题/说明占满左栏，右侧控件按内容宽 */
+const runField = cn(formFieldInlineDense, 'grid-cols-[minmax(12rem,1fr)_auto]')
+
 type ActionItem = {
   id: RunActionId
   labelKey: MessageKey
@@ -231,8 +234,8 @@ export function GameEditRunSettings({
 
   return (
     <div className="flex flex-wrap items-start gap-2 px-4 pt-3 pb-4" role="region" aria-label={t('edit.runSettingsAria')}>
-      <div className={cn(formCardDense, 'm-0 w-full max-w-[36rem]')} aria-label={t('edit.configAria')}>
-        <div className={formFieldInlineDense}>
+      <div className={cn(formCardDense, 'm-0 w-full max-w-[42rem]')} aria-label={t('edit.configAria')}>
+        <div className={runField}>
           <span className={formTitleInline}>{t('edit.gold')}</span>
           <span className={formDescInline}>{t('edit.goldDesc')}</span>
           <div className={formControlInline}>
@@ -267,7 +270,7 @@ export function GameEditRunSettings({
 
         {!hideSpeedSliders ? (
           <>
-            <div className={formFieldInlineDense}>
+            <div className={runField}>
               <span className={formTitleInline}>{t('edit.gameSpeed')}</span>
               <span className={formDescInline}>{t('edit.gameSpeedDesc')}</span>
               <div className={formControlInline}>
@@ -286,7 +289,7 @@ export function GameEditRunSettings({
               </div>
             </div>
 
-            <div className={formFieldInlineDense}>
+            <div className={runField}>
               <span className={formTitleInline}>{t('edit.moveRate')}</span>
               <span className={formDescInline}>{t('edit.moveRateDesc')}</span>
               <div className={formControlInline}>
@@ -305,7 +308,7 @@ export function GameEditRunSettings({
               </div>
             </div>
 
-            <div className={formFieldInlineDense}>
+            <div className={runField}>
               <span className={formTitleInline}>{t('edit.expRate')}</span>
               <span className={formDescInline}>{t('edit.expRateDesc')}</span>
               <div className={formControlInline}>
@@ -331,7 +334,7 @@ export function GameEditRunSettings({
           const label = t(row.labelKey)
           const toggle = readOnly ? undefined : () => onFlagChange(row.key, !checked)
           return (
-            <div key={row.key} className={formFieldInlineDense}>
+            <div key={row.key} className={runField}>
               <span className={cn(formTitleInline, toggle && 'cursor-pointer')} onClick={toggle}>
                 {label}
                 {row.hintKey ? (

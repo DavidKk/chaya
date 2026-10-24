@@ -30,7 +30,7 @@ function applyPackagedEnv() {
 
 applyPackagedEnv()
 
-const { ensureAccessToken } = require('../scripts/local-access.cjs')
+const { ensureAccessToken } = require('../scripts/server/local-access.cjs')
 process.env.CHAYA_AUTH_TOKEN = ensureAccessToken()
 
 /** @type {import('node:child_process').ChildProcess | null} */
@@ -98,7 +98,7 @@ function startNextDev() {
     CHAYA_API_LAN: HOST === '127.0.0.1' ? '0' : process.env.CHAYA_API_LAN,
     FORCE_COLOR: process.env.FORCE_COLOR || '1',
   }
-  const args = [path.join(REPO_ROOT, 'scripts/next-listen.mjs'), 'dev', '-p', String(PORT), '-H', HOST]
+  const args = [path.join(REPO_ROOT, 'scripts/server/next-listen.mjs'), 'dev', '-p', String(PORT), '-H', HOST]
   spawnNext(args, { cwd: REPO_ROOT, env })
 }
 

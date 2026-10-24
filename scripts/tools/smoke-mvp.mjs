@@ -13,7 +13,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const root = path.join(__dirname, '..')
+const root = path.join(__dirname, '../..')
 
 /** Prefer installed tsx/next for TS; otherwise keep a self-contained inline path. */
 async function loadLibs() {

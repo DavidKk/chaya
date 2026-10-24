@@ -8,7 +8,7 @@ import { accessSync, constants, cpSync, existsSync, mkdirSync, readdirSync, read
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const catalog = JSON.parse(readFileSync(path.join(root, 'services/translate/bergamot/models.json'), 'utf8'))
 if (catalog.some((pack) => pack.platforms.includes(`${process.platform}-${process.arch}`))) {
   const platform = process.platform === 'darwin' ? 'macos' : process.platform

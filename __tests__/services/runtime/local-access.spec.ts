@@ -5,7 +5,7 @@ import vm from 'node:vm'
 
 it('shares one complete management token when two first-time starters overlap', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-access-'))
-  const source = fs.readFileSync(path.resolve('scripts/local-access.cjs'), 'utf8')
+  const source = fs.readFileSync(path.resolve('scripts/server/local-access.cjs'), 'utf8')
   const exports = { ensureAccessToken: (): string => '' }
   const moduleRef = { exports }
   let competingToken = ''
@@ -25,7 +25,7 @@ it('shares one complete management token when two first-time starters overlap', 
   try {
     vm.runInNewContext(source, {
       module: moduleRef,
-      __dirname: path.join(dir, 'scripts'),
+      __dirname: path.join(dir, 'scripts/server'),
       process: { env: {}, pid: process.pid },
       require: (name: string) => (name === 'node:fs' ? competingFs : jest.requireActual(name)),
     })

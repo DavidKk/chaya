@@ -5,7 +5,7 @@ const path = require('node:path')
 const vm = require('node:vm')
 const { spawn } = require('node:child_process')
 
-const root = path.resolve(__dirname, '..')
+const root = path.resolve(__dirname, '../..')
 /** `node scripts/demo-game.cjs [translate|walk]`: fixture → demos/<dir>/www with the freshly built plugins */
 const DEMOS = {
   translate: { fixture: 'fixtures/game-demo/www', dir: 'demos/simple-game/www', files: ['index.html', 'game.js', 'package.json'] },

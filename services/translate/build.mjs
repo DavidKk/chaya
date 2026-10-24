@@ -20,6 +20,7 @@ const targets = [
   { entryPoints: ['services/storage/client-worker.ts'], outfile: 'native/bin/chaya-storage-client.mjs' },
   { entryPoints: ['services/translate/scheduler/cache-worker.ts'], outfile: 'native/bin/chaya-cache-worker.mjs' },
   { entryPoints: ['services/extract/lib/rgss/items-worker.ts'], outfile: 'native/bin/chaya-rgss-extract-worker.mjs' },
+  { entryPoints: ['services/translate/scheduler/seed-inventory-worker.ts'], outfile: 'native/bin/chaya-seed-inventory-worker.mjs' },
 ]
 
 async function run() {

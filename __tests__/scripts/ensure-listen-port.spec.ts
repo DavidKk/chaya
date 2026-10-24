@@ -1,4 +1,4 @@
-import { killCommandForPort, parseLsofListeners } from '../../scripts/ensure-listen-port.cjs'
+import { killCommandForPort, parseLsofListeners } from '../../scripts/server/ensure-listen-port.cjs'
 
 describe('ensure-listen-port', () => {
   it('parses lsof -Fpc listeners and skips self/parent pids', () => {

@@ -71,6 +71,7 @@ export const translateZh = {
     completed: '已完成',
     extracting: '正在抽取…',
     extractingText: '正在抽取文本…',
+    preparingInventory: '正在准备原文库存…',
     stillMissingNoEta: '仍缺 {count} 段（吞吐不足，暂不估时）',
     sessionDone: '本会话 {count}',
     etaLeft: '剩余 {eta}',

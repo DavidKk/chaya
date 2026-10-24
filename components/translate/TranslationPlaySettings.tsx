@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useUnsavedChanges } from '@/components/confirm/UnsavedChangesProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formCardDense, formControlInline, formDescInline, formFieldInlineDense, formTitleInline } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
@@ -103,6 +104,7 @@ export function TranslationPlaySettings() {
   }
 
   const dirty = saved != null && JSON.stringify(draft) !== JSON.stringify(saved)
+  useUnsavedChanges(Boolean(dirty))
   const saveTimeout = (timeoutMs: number) => {
     if (!saved) return
     const next = { ...draft, timeoutMs }

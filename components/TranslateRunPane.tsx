@@ -37,6 +37,7 @@ type Progress = {
   lines: number
   batchSize: number
   batchesLeft: number
+  preparing?: boolean
 }
 
 type JobStatus = 'idle' | 'running' | 'paused' | 'done' | 'error'
@@ -80,7 +81,7 @@ const emptyJob: JobState = {
 
 const POLL_MS = 1200
 
-function readProgress(json: Partial<Progress>): Progress {
+function readProgress(json: Partial<Progress> & { preparing?: boolean }): Progress {
   return {
     hasSeed: !!json.hasSeed,
     total: json.total ?? 0,
@@ -95,6 +96,7 @@ function readProgress(json: Partial<Progress>): Progress {
     lines: json.lines ?? 0,
     batchSize: json.batchSize ?? 40,
     batchesLeft: json.batchesLeft ?? 0,
+    preparing: json.preparing === true ? true : undefined,
   }
 }
 
@@ -179,9 +181,10 @@ export function TranslateRunPane({
   const prevStatus = useRef<JobStatus>('idle')
 
   const running = job.status === 'running'
-  const busy = loading || extracting || running || importing || exporting || starting || pausing
+  const preparing = progress.preparing === true
+  const busy = loading || extracting || running || importing || exporting || starting || pausing || preparing
 
-  const applySnapshot = useCallback((json: Partial<Progress> & { job?: Partial<JobState>; activity?: Partial<ActivityState> }) => {
+  const applySnapshot = useCallback((json: Partial<Progress> & { job?: Partial<JobState>; activity?: Partial<ActivityState>; preparing?: boolean }) => {
     setProgress(readProgress(json))
     setJob(readJob(json.job))
     if (json.activity)
@@ -232,14 +235,14 @@ export function TranslateRunPane({
     }
   }, [refresh])
 
-  /** 游戏任务 running 时轮询；离开本页轮询停，任务仍继续 */
+  /** Poll while running or preparing; polling stops when leaving this view, while the task continues in background */
   useEffect(() => {
-    if (!running && !(surface === 'overlay' && tab === 'play')) return
+    if (!running && !preparing && !(surface === 'overlay' && tab === 'play')) return
     const timer = window.setInterval(() => {
       void refresh()
     }, POLL_MS)
     return () => window.clearInterval(timer)
-  }, [running, refresh, surface, tab])
+  }, [running, preparing, refresh, surface, tab])
 
   useEffect(() => {
     const prev = prevStatus.current
@@ -393,16 +396,22 @@ export function TranslateRunPane({
   const translatePct = progress.needCount > 0 ? Math.min(100, Math.round((progress.done / progress.needCount) * 100)) : progress.hasSeed ? 100 : 0
   const batchesTotal = progress.needCount > 0 ? Math.ceil(progress.needCount / (progress.batchSize || 40)) : 0
   const batchesDone = Math.max(0, batchesTotal - progress.batchesLeft)
-  const liveStatus = job.liveStatus || (extracting ? t('translate.extractingText') : '')
-  const canStart = progress.missing > 0
+  const liveStatus = job.liveStatus || (extracting ? t('translate.extractingText') : preparing ? t('translate.preparingInventory') : '')
+  const canStart = progress.missing > 0 && !preparing
   const startLabel = job.status === 'paused' ? t('translate.continue') : progress.missing > 0 ? t('translate.start') : t('translate.completed')
   const perf = running && !pausing && job.performance && job.performance.charsPerSecond > 0 ? job.performance : null
   const remainMs = estimateRemainMs({ missingChars: progress.missingChars, charsPerSecond: perf?.charsPerSecond, running })
   const statusHint =
-    [remainMs != null ? t('translate.etaLeft', { eta: formatRemainEta(remainMs) }) : null, perf ? t('translate.rateCompact', { rate: perf.charsPerSecond.toFixed(1) }) : null]
+    [
+      preparing ? t('translate.preparingInventory') : null,
+      remainMs != null ? t('translate.etaLeft', { eta: formatRemainEta(remainMs) }) : null,
+      perf ? t('translate.rateCompact', { rate: perf.charsPerSecond.toFixed(1) }) : null,
+    ]
       .filter(Boolean)
       .join(' · ') || undefined
-  if (loading) return <TranslateRunSkeleton tab={tab} />
+  // First paint: show shell skeleton only when we have nothing to show yet.
+  // Once a checkpoint exists, keep the page interactive while polls/prepare finish.
+  if (loading && !progress.hasSeed && job.status === 'idle') return <TranslateRunSkeleton tab={tab} />
 
   return (
     <>
@@ -538,7 +547,7 @@ export function TranslateRunPane({
                     </div>
                   </div>
 
-                  {tab === 'seed' ? <TranslateActivityLog className="mt-4 w-full" entries={job.logs} liveStatus={liveStatus} sessionDone={job.sessionDone} /> : null}
+                  <TranslateActivityLog className="mt-4 w-full" entries={job.logs} liveStatus={liveStatus} sessionDone={job.sessionDone} />
                 </div>
               </div>
             </div>

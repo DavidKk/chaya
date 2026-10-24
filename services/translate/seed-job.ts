@@ -5,13 +5,13 @@ import path from 'node:path'
 
 import { CACHE_WORKER_PATH, TRANSLATE_JOBS_DIR } from '@/constants/paths'
 import { formatCompactCount } from '@/lib/format-compact-count'
-import { gameContentReadPath } from '@/lib/game/content-files'
 import { type TranslationPerformance, translationPerformance, type TranslationSample } from '@/lib/translate/remain-eta'
 import { getResolvedFromConfig } from '@/services/game/binding'
+import { shouldDemoteOrphanRunning } from '@/services/jobs'
 
 import { getTranslateEngineSwitches } from './engine-switches'
-import { createSeedFillSession, getSeedTranslateProgress, type SeedProgress } from './fill-missing'
-import { seedFileStamp, seedProgressStamp } from './scheduler/seed-inventory'
+import { createSeedFillSession, type SeedProgress } from './fill-missing'
+import { localGameContentFile, seedFileStamp, seedProgressStamp } from './scheduler/seed-inventory'
 import { isSeedInventoryPreparing, peekSeedInventory, prepareSeedInventory } from './scheduler/seed-prepare'
 import { createSeedBatchBudget } from './seed-batch'
 
@@ -226,9 +226,9 @@ function getRuntime(contentRoot: string): Runtime {
   return rt
 }
 
-/** Cheap existence check — never parse seed JSON or walk RGSS Data. */
+/** Cheap existence check — local contentRoot only (no storage IPC / Atomics.wait). */
 function peekHasSeed(contentRoot: string): boolean {
-  const file = gameContentReadPath(contentRoot, 'seed', { alsoParent: true })
+  const file = localGameContentFile(contentRoot, 'seed')
   if (!file) return false
   const stat = fs.statSync(file, { throwIfNoEntry: false })
   return !!stat && stat.size > 2
@@ -343,7 +343,19 @@ async function runLoop(contentRoot: string) {
     console.info(text)
   }
   try {
-    rt.session ??= createSeedFillSession(contentRoot, trace, { nonBlocking: true })
+    // Never invent inventory on the main thread — beginSeedLoop always passes a bundle;
+    // if session was cleared (HMR) without a peek cache, pause for explicit Start/Continue.
+    if (!rt.session) {
+      const peeked = peekSeedInventory(contentRoot)
+      if (!peeked) {
+        rt.state.status = 'paused'
+        rt.state.liveStatus = rt.state.liveStatus || `已暂停 · 本会话已译 ${rt.state.sessionDone} 条`
+        pushLog(rt, 'warn', 'Session↑ · need inventory')
+        persist(rt)
+        return
+      }
+      rt.session = createSeedFillSession(contentRoot, trace, { nonBlocking: true, inventory: peeked })
+    }
     rt.progress = rt.session.progress
     let measuredAt = performance.now()
     while (!rt.stopRequested) {
@@ -465,9 +477,10 @@ function ensureLoop(contentRoot: string) {
 
 /**
  * Progress poll: memory/disk snapshot only.
- * Never inventory-scan, never ensureLoop / createSeedFillSession — those block
- * the Next.js event loop (RGSS walk + seed parse) and freeze the whole console.
+ * Never inventory-scan, never ensureLoop / createSeedFillSession, never storage mount —
+ * those block the Next.js event loop and freeze the whole console.
  * Orphaned disk `running` (process bounce) demotes to paused; startSeedJob resumes.
+ * Stamp drift is not probed here (docs: no stale UX; Start/refresh recompute in a worker).
  */
 export function getSeedJobSnapshot(): SeedJobSnapshot {
   const contentRoot = resolveBoundRoot()
@@ -487,7 +500,7 @@ export function getSeedJobSnapshot(): SeedJobSnapshot {
   const preparingInventory = Boolean(rt.inventoryPreparing) || isSeedInventoryPreparing(contentRoot)
   // Process restarted while a job was marked running: keep counts, do not auto-resume.
   // Skip while Start/Continue is still building inventory off-thread (status=running, !rt.running).
-  if (rt.state.status === 'running' && !rt.running && !preparingInventory) {
+  if (shouldDemoteOrphanRunning(rt.state.status, { running: rt.running, preparing: preparingInventory })) {
     rt.state.status = 'paused'
     if (!rt.state.liveStatus) rt.state.liveStatus = `已暂停 · 本会话已译 ${rt.state.sessionDone} 条`
     try {
@@ -497,8 +510,6 @@ export function getSeedJobSnapshot(): SeedJobSnapshot {
     }
   }
   const progress = rt.progress ?? rt.state.progress
-  const stampFresh = !rt.running && progress ? rt.state.progressStamp === seedProgressStamp(contentRoot) : true
-  const stale = !rt.running && !preparingInventory && (!progress || !stampFresh)
   if (!progress) {
     return {
       ...emptyProgress(contentRoot),
@@ -511,21 +522,16 @@ export function getSeedJobSnapshot(): SeedJobSnapshot {
   return {
     ...progress,
     job: visibleJobState(rt.state),
-    ...(stale ? { stale: true } : {}),
     ...(preparingInventory ? { preparing: true } : {}),
   }
 }
 
-/** Explicit full inventory (button / start path). Polls must not call this. */
-export function refreshSeedJobProgress(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
-  const rt = getRuntime(contentRoot)
-  if (rt.running) return getSeedJobSnapshot()
-  const progress = getSeedTranslateProgress(contentRoot, true, true)
+function applyInventoryBundle(rt: Runtime, bundle: import('./scheduler/seed-prepare').SeedInventoryBundle) {
+  const progress = bundle.progress
   rt.progress = progress
   rt.state.progress = progress
-  rt.state.progressStamp = seedProgressStamp(contentRoot)
-  rt.state.seedStamp = seedFileStamp(contentRoot)
+  rt.state.progressStamp = seedProgressStamp(rt.state.contentRoot)
+  rt.state.seedStamp = seedFileStamp(rt.state.contentRoot)
   if (!progress.hasSeed || !progress.total) {
     rt.state.status = 'idle'
     rt.state.liveStatus = ''
@@ -535,7 +541,45 @@ export function refreshSeedJobProgress(): SeedJobSnapshot {
     rt.state.error = null
   }
   persist(rt)
-  return { ...progress, job: visibleJobState(rt.state) }
+}
+
+/** Explicit full inventory (button). Starts a worker; polls see `preparing` until ready. */
+export function refreshSeedJobProgress(): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot()
+  const rt = getRuntime(contentRoot)
+  if (rt.running) return getSeedJobSnapshot()
+
+  const peeked = peekSeedInventory(contentRoot)
+  const seedStampNow = seedFileStamp(contentRoot)
+  if (peeked && peeked.stamp === seedStampNow) {
+    applyInventoryBundle(rt, peeked)
+    return { ...peeked.progress, job: visibleJobState(rt.state) }
+  }
+
+  rt.inventoryPreparing = true
+  if (!rt.state.liveStatus) rt.state.liveStatus = '正在准备原文库存…'
+  persist(rt)
+
+  void prepareSeedInventory(contentRoot)
+    .then((bundle) => {
+      const live = getRuntime(contentRoot)
+      live.inventoryPreparing = false
+      applyInventoryBundle(live, bundle)
+    })
+    .catch((error) => {
+      const live = getRuntime(contentRoot)
+      live.inventoryPreparing = false
+      live.state.status = 'error'
+      live.state.error = error instanceof Error ? error.message : String(error)
+      live.state.liveStatus = ''
+      persist(live)
+    })
+
+  return {
+    ...(rt.progress ?? rt.state.progress ?? emptyProgress(contentRoot)),
+    preparing: true,
+    job: visibleJobState(rt.state),
+  }
 }
 
 function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-prepare').SeedInventoryBundle) {

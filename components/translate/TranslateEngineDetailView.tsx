@@ -1,7 +1,8 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useCallback, useState } from 'react'
 
+import { useUnsavedChanges } from '@/components/confirm/UnsavedChangesProvider'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { formCard, formDesc, formTitle, settingsCardWide } from '@/components/layoutClasses'
 import { Badge, Button, NumberSliderInput, ScrollArea, Select, type SelectOption, SwitchToggle, TextInput } from '@/components/sk'
@@ -115,6 +116,14 @@ export function TranslateEngineDetailView({
     draft.concurrencyLimit !== initialLimit ||
     draft.maxConcurrentChars !== initialChars ||
     (agentEntry && (draft.profileId !== agentEntry.profileId || draft.model !== agentEntry.model))
+
+  const { confirmIfDirty } = useUnsavedChanges(Boolean(dirty))
+
+  const handleBack = useCallback(async () => {
+    if (await confirmIfDirty()) {
+      onBack()
+    }
+  }, [confirmIfDirty, onBack])
 
   const profile = agentProfiles.profiles.find((p) => p.id === draft.profileId)
   const profileOptions: SelectOption[] = agentProfiles.profiles.map((p) => {
@@ -309,7 +318,7 @@ export function TranslateEngineDetailView({
             ) : null}
 
             <div role="toolbar" aria-label={label} className="flex flex-wrap items-center gap-2">
-              <Button disabled={saving} aria-label={t('translate.backToEngines')} onClick={onBack}>
+              <Button disabled={saving} aria-label={t('translate.backToEngines')} onClick={() => void handleBack()}>
                 {t('legal.back')}
               </Button>
               {group === 'agent' && onRemove ? (

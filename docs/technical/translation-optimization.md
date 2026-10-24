@@ -27,7 +27,7 @@
    shared writeMany(秩) + appendGameNdjson
 ```
 
-全库 `batch-optimize` 与句子 mask 为二期；同一 OptimizeScheduler 队列内专名优先于 polish。
+全库 `batch-optimize` 仍为二期；句子级名称行专名锁定已拆为 [专名一致性需求](../translation-name-consistency.md)。同一 OptimizeScheduler 队列内专名优先于 polish。
 
 ## 2. 引擎标记与守秩
 
@@ -173,4 +173,4 @@ assertOptimizeMayDispatch('short-entities' | 'polish')
 
 ## 9. 非目标（一期）
 
-- SQLite schema 迁移、全库闲时自动 polish、句子 mask 全路径、插件 live 心跳、engines 页入口、新 Tab。
+- SQLite schema 迁移、全库闲时自动 polish、插件 live 心跳、engines 页入口、新 Tab。句子 mask 全路径见 [专名一致性](../translation-name-consistency.md)。

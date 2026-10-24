@@ -7,7 +7,7 @@ import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 import { normalizeTranslateKey } from '@/lib/translate/lookup'
-import { singleFlight, yieldEventLoop } from '@/services/translate/scheduler/single-flight'
+import { singleFlight, yieldEventLoop } from '@/services/jobs'
 import { isIdenticalTranslation } from '@/services/translate/text-classify'
 
 import { ensureMatchIndex, needsSentenceIndexV10, rebuildSentenceIndexV10, rebuildSentenceIndexV10Async } from './match-index'
@@ -29,6 +29,13 @@ export function isSharedCacheMigrating(dbPath: string) {
 export function waitSharedCacheHeavyMigrate(dbPath: string) {
   return flights.get(`shared-migrate:${path.resolve(dbPath)}`) || Promise.resolve()
 }
+
+/** Test helper: drop in-flight / migrating flags (does not touch the DB file). */
+export function resetSharedCacheMigrateForTests() {
+  flights.clear()
+  migrating.clear()
+}
+
 /** Sync migrate for Jest (open path stays sync in tests). Production uses scheduleSharedCacheHeavyMigrate. */
 export function runSharedCacheHeavyMigrateSync(dbPath: string) {
   const resolved = path.resolve(dbPath)

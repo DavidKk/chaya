@@ -1,9 +1,11 @@
 /** Recover durable game translations without shared sentence coverage or schema preparation. */
 import fs from 'node:fs'
+import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 import { TRANSLATE_CACHE_DB_PATH } from '@/constants/paths'
 import { gameContentReadPath } from '@/lib/game/content-files'
+import { GAME_CONTENT_DIR, GAME_CONTENT_RELS, type GameContentKind, LEGACY_FLAT_FILES } from '@/lib/game/content-paths'
 import { createNumericLabelIndex } from '@/lib/translate/dynamic-template'
 import { filterRgssSeedKeys } from '@/services/extract/lib/rgss'
 
@@ -12,8 +14,27 @@ import { createGameTranslateLookup } from '../game-lookup'
 import { loadGameTranslationRecords } from '../game-records'
 import { charCount, lineCount, shouldTranslate } from '../text-classify'
 
+/**
+ * Resolve game content under the content root without storage IPC.
+ * Safe on Next.js poll / extract-items entry — never `publicGameFile` / `Atomics.wait`.
+ */
+export function localGameContentFile(contentRoot: string, kind: GameContentKind): string | null {
+  const roots = [path.resolve(contentRoot)]
+  const parent = path.dirname(roots[0])
+  if (parent !== roots[0]) roots.push(parent)
+  for (const root of roots) {
+    const primary = path.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind])
+    if (fs.existsSync(primary)) return primary
+    for (const name of LEGACY_FLAT_FILES[kind]) {
+      const candidate = path.join(root, name)
+      if (fs.existsSync(candidate)) return candidate
+    }
+  }
+  return null
+}
+
 export function seedFileStamp(contentRoot: string): string {
-  const file = gameContentReadPath(contentRoot, 'seed', { alsoParent: true })
+  const file = localGameContentFile(contentRoot, 'seed')
   const stat = file ? fs.statSync(file, { throwIfNoEntry: false }) : undefined
   return JSON.stringify([file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size])
 }
@@ -108,15 +129,14 @@ export function readSeedInventory(contentRoot: string) {
 
 /**
  * Cheap invalidation for paused snapshots; no matching, migrations or full corpus scan.
- * Only game-local seed/cache files. Do NOT fingerprint the shared SQLite DB or its WAL:
- * seed jobs (and other games) rewrite the WAL constantly, which used to invalidate this
- * stamp on every progress poll, force a multi-second `readSeedInventory` on the Next.js
- * main thread, and freeze `/translate/seed` until restart.
+ * Only game-local seed/cache files under contentRoot (no storage mount / Atomics.wait).
+ * Do NOT fingerprint the shared SQLite DB or its WAL: seed jobs rewrite the WAL constantly,
+ * which used to invalidate this stamp on every progress poll and freeze `/translate/seed`.
  */
 export function seedProgressStamp(contentRoot: string): string {
-  const files = [gameContentReadPath(contentRoot, 'seed', { alsoParent: true }), gameContentReadPath(contentRoot, 'cacheNdjson', { alsoParent: true })]
+  const files = [localGameContentFile(contentRoot, 'seed'), localGameContentFile(contentRoot, 'cacheNdjson')]
   return JSON.stringify([
-    3,
+    4,
     files.map((file) => {
       const stat = file ? fs.statSync(file, { throwIfNoEntry: false }) : undefined
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]

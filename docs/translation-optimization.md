@@ -28,7 +28,7 @@
   - 一期**不含**：`dialogue` / `story`、长 `*_desc` / `actor_profile`；`actor_nickname` 可并入名称类短文本（单行且短）
   - 长度：逻辑文本建议 ≤40 字且单行（实现可调常量）
 - **候选来源**：必须 **`extract-items`（带 `meta.category`）⋈ 本作译文记录**；禁止只扫无 category 的 ndjson/shared。
-- **漏斗**：L1 术语表 → L2 短文本作业（本地 Agent + category prompt 优先）→ 句子路径仅 mask/unmask 已确认专名（二期可做，一期可先不做 mask）。
+- **漏斗**：L1 术语表 → L2 短文本作业（本地 Agent + category prompt 优先）→ 句子路径锁定名称行当前专名（已拆为 [专名一致性](translation-name-consistency.md)，不在本页一期）。
 - **产品拆分**：「优化名称」≠「优化已译 / 闲时润色」≠ 翻译库「分段优化」。
 
 ### 2.3 守秩与引擎标记（硬约束，修正旧表述）
@@ -151,7 +151,7 @@
 **不做（二期）：**
 
 - 全库 `batch-optimize` 产品化、闲时自动跑。
-- 句子 mask/unmask 全路径。
+- 句子 mask/unmask 全路径（见 [专名一致性](translation-name-consistency.md)）。
 - 插件→服务端 live 心跳统一 idle。
 - 新顶栏 Tab、engines 页入口。
 

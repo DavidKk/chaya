@@ -3,6 +3,7 @@
 import { type ReactNode, Suspense } from 'react'
 
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
+import { UnsavedChangesProvider } from '@/components/confirm/UnsavedChangesProvider'
 import { GameLinkProvider } from '@/components/GameLinkProvider'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { NavigationRestoration } from '@/components/navigation/NavigationRestoration'
@@ -15,13 +16,15 @@ export function AppProviders({ children, locale, preference }: { children: React
     <LocaleProvider initialLocale={locale} initialPreference={preference}>
       <NotificationProvider>
         <ConfirmProvider>
-          <GameLinkProvider>
-            <ChayaWebMcpHost />
-            <Suspense fallback={null}>
-              <NavigationRestoration />
-            </Suspense>
-            {children}
-          </GameLinkProvider>
+          <UnsavedChangesProvider>
+            <GameLinkProvider>
+              <ChayaWebMcpHost />
+              <Suspense fallback={null}>
+                <NavigationRestoration />
+              </Suspense>
+              {children}
+            </GameLinkProvider>
+          </UnsavedChangesProvider>
         </ConfirmProvider>
       </NotificationProvider>
     </LocaleProvider>

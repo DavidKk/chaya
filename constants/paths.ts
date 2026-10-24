@@ -71,7 +71,15 @@ export const ROOT_PATH = process.env.CHAYA_ROOT ? resolve(process.env.CHAYA_ROOT
  * Local data and shared shell.
  * Packaged apps set `CHAYA_DATA_DIR` to `userData/data` (Resources are read-only).
  */
-export const DATA_DIR = process.env.CHAYA_DATA_DIR ? resolve(process.env.CHAYA_DATA_DIR) : join(ROOT_PATH, DATA_DIR_NAME)
+function defaultDataDir(): string {
+  if (process.env.CHAYA_DATA_DIR) return resolve(process.env.CHAYA_DATA_DIR)
+  if (process.platform === 'darwin' && process.env.HOME) {
+    return join(process.env.HOME, 'Library', 'Application Support', 'Chaya', 'data')
+  }
+  return join(ROOT_PATH, DATA_DIR_NAME)
+}
+
+export const DATA_DIR = defaultDataDir()
 
 /**
  * Toolkit config: repo root in development; under `CHAYA_DATA_DIR` when packaged
@@ -104,6 +112,8 @@ export const TRANSLATE_JOBS_DIR = join(DATA_DIR, TRANSLATE_JOBS_DIR_NAME)
 export const CACHE_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-cache-worker.mjs')
 /** RGSS Data extract worker — keeps Marshal parse off the Next.js main thread */
 export const RGSS_EXTRACT_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-rgss-extract-worker.mjs')
+/** Seed inventory worker — keeps seed/RGSS filter + lookup off the Next.js main thread */
+export const SEED_INVENTORY_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-seed-inventory-worker.mjs')
 /** Offline translation packs (Bergamot); override with `CHAYA_BERGAMOT_PACKS_DIR` */
 export const TRANSLATION_PACKS_DIR = join(DATA_DIR, TRANSLATION_PACKS_DIR_NAME)
 /** Download-center job list (survives process restart; mid-flight work is marked interrupted) */

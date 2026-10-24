@@ -69,7 +69,14 @@ function findRepoRoot(startDir) {
   return resolve(startDir, "..");
 }
 var ROOT_PATH = process.env.CHAYA_ROOT ? resolve(process.env.CHAYA_ROOT) : findRepoRoot(dirname(fileURLToPath(import.meta.url)));
-var DATA_DIR = process.env.CHAYA_DATA_DIR ? resolve(process.env.CHAYA_DATA_DIR) : join(ROOT_PATH, DATA_DIR_NAME);
+function defaultDataDir() {
+  if (process.env.CHAYA_DATA_DIR) return resolve(process.env.CHAYA_DATA_DIR);
+  if (process.platform === "darwin" && process.env.HOME) {
+    return join(process.env.HOME, "Library", "Application Support", "Chaya", "data");
+  }
+  return join(ROOT_PATH, DATA_DIR_NAME);
+}
+var DATA_DIR = defaultDataDir();
 var CONFIG_FILE_PATH = process.env.CHAYA_DATA_DIR ? join(DATA_DIR, CONFIG_FILE_NAME) : join(ROOT_PATH, CONFIG_FILE_NAME);
 var LEGACY_CONFIG_FILE_PATHS = [
   ...LEGACY_CONFIG_FILE_NAMES.map((name) => join(ROOT_PATH, name)),
@@ -88,6 +95,7 @@ var TRANSLATE_CACHE_DB_PATH = join(TRANSLATE_CACHE_DIR, TRANSLATE_CACHE_DB_NAME)
 var TRANSLATE_JOBS_DIR = join(DATA_DIR, TRANSLATE_JOBS_DIR_NAME);
 var CACHE_WORKER_PATH = join(ROOT_PATH, "native", "bin", "chaya-cache-worker.mjs");
 var RGSS_EXTRACT_WORKER_PATH = join(ROOT_PATH, "native", "bin", "chaya-rgss-extract-worker.mjs");
+var SEED_INVENTORY_WORKER_PATH = join(ROOT_PATH, "native", "bin", "chaya-seed-inventory-worker.mjs");
 var TRANSLATION_PACKS_DIR = join(DATA_DIR, TRANSLATION_PACKS_DIR_NAME);
 var DOWNLOAD_JOBS_PATH = join(DATA_DIR, DOWNLOAD_JOBS_FILE_NAME);
 var GAME_AGENT_DIR = join(DATA_DIR, GAME_AGENT_DIR_NAME);
@@ -823,15 +831,19 @@ function storageCall(method, args = []) {
 
 // services/storage/game-files.ts
 var ownerDirectories = /* @__PURE__ */ new Map();
+var mountedDirectories = /* @__PURE__ */ new Map();
 function publicGameFiles(contentRoot) {
-  const local = ownerDirectories.get(path6.resolve(contentRoot));
+  const key2 = path6.resolve(contentRoot);
+  const local = ownerDirectories.get(key2) ?? mountedDirectories.get(key2);
   if (local) return local;
   if (process.env.CHAYA_STORAGE_OWNER === "1") {
-    const mounted = ownerDirectories.get(path6.resolve(contentRoot));
+    const mounted = ownerDirectories.get(key2);
     if (!mounted) throw new Error("Game storage must be mounted before accessing its read views");
     return mounted;
   }
-  return storageCall("game.mount", [contentRoot]);
+  const remote = storageCall("game.mount", [contentRoot]);
+  mountedDirectories.set(key2, remote);
+  return remote;
 }
 function publicGameFile(contentRoot, kind) {
   return path6.join(publicGameFiles(contentRoot).directory, GAME_CONTENT_RELS[kind]);

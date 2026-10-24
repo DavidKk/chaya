@@ -37,7 +37,7 @@ export function parseGameEditTabFromPath(pathname: string): TabId {
 
 function FormFieldRowSkeleton({ controlW = '7.25rem' }: { controlW?: string }) {
   return (
-    <div className={formFieldInlineDense} aria-hidden>
+    <div className={cn(formFieldInlineDense, 'grid-cols-[minmax(12rem,1fr)_auto]')} aria-hidden>
       <Skeleton className="h-[0.8125rem] w-14" />
       <Skeleton className="h-[0.7rem] w-[55%]" />
       <div className={formControlInline}>
@@ -92,7 +92,7 @@ export function GameEditRunSkeleton({ label }: { label?: string }) {
   return (
     <SkeletonRegion label={label ?? t('edit.loadRun')} className="min-h-0 flex-1 overflow-hidden">
       <div className="flex flex-wrap items-start gap-2 px-4 pt-3 pb-4" aria-hidden>
-        <div className={cn(formCardDense, 'm-0 w-full max-w-[36rem]')}>
+        <div className={cn(formCardDense, 'm-0 w-full max-w-[42rem]')}>
           {Array.from({ length: 4 }, (_, i) => (
             <FormFieldRowSkeleton key={`cfg-${i}`} controlW={i === 0 ? '7.25rem' : '11rem'} />
           ))}
@@ -100,7 +100,7 @@ export function GameEditRunSkeleton({ label }: { label?: string }) {
             <FormFieldRowSkeleton key={`sw-${i}`} controlW="2.75rem" />
           ))}
         </div>
-        <div className={cn(formCardDense, 'm-0 w-full max-w-[36rem]')}>
+        <div className={cn(formCardDense, 'm-0 w-full max-w-[26rem]')}>
           <Skeleton className="h-4 w-16" />
           <Skeleton className="mt-2 h-3 w-[70%]" />
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">

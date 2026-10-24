@@ -167,6 +167,11 @@ function scanSeed(contentRoot: string, fresh = false): Scan {
   }
 }
 
+/**
+ * Sync progress helper for tests / explicit tools.
+ * Console poll must use `getSeedJobSnapshot` (never this) — full `scanSeed` blocks Next.
+ * Prefer `inventoryOnly: true` or `prepareSeedInventory` when a fresh inventory is needed.
+ */
 export function getSeedTranslateProgress(contentRoot = resolveTranslateContentRoot(), fresh = false, inventoryOnly = false): SeedProgress {
   return inventoryOnly ? readSeedInventory(contentRoot).progress : { ...scanSeed(contentRoot, fresh).progress }
 }

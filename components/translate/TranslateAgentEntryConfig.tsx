@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { IoCheckmark, IoCloseOutline, IoTrashOutline } from 'react-icons/io5'
 
+import { useUnsavedChanges } from '@/components/confirm/UnsavedChangesProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Button, Select, type SelectOption } from '@/components/sk'
 import type { TranslateAgentProfiles } from '@/components/translate/useTranslateAgentProfiles'
@@ -30,6 +31,13 @@ export function TranslateAgentEntryConfig({ entry, agents, takenProfileIds = [],
   const t = useT()
   const [draft, setDraft] = useState<EntryDraft>({ profileId: entry.profileId, model: entry.model })
   const dirty = draft.profileId !== entry.profileId || draft.model !== entry.model
+  const { confirmIfDirty } = useUnsavedChanges(Boolean(dirty))
+
+  const handleCancel = useCallback(async () => {
+    if (await confirmIfDirty()) {
+      onCancel()
+    }
+  }, [confirmIfDirty, onCancel])
   const profile = agents.profiles.find((p) => p.id === draft.profileId)
   const profileOptions: SelectOption[] = agents.profiles.map((p) => {
     const taken = takenProfileIds.includes(p.id)
@@ -80,7 +88,7 @@ export function TranslateAgentEntryConfig({ entry, agents, takenProfileIds = [],
           <IoTrashOutline size={13} aria-hidden />
         </Button>
         <span className="flex-1" />
-        <Button variant="plain" size="icon" className={miniIcon} aria-label={t('common.cancel')} disabled={disabled} onClick={onCancel}>
+        <Button variant="plain" size="icon" className={miniIcon} aria-label={t('common.cancel')} disabled={disabled} onClick={() => void handleCancel()}>
           <IoCloseOutline size={15} aria-hidden />
         </Button>
         <Button

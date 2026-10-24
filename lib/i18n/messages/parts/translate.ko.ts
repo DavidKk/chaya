@@ -71,6 +71,7 @@ export const translateKo = {
     completed: '완료',
     extracting: '추출 중…',
     extractingText: '텍스트 추출 중…',
+    preparingInventory: '원문 목록 준비 중…',
     stillMissingNoEta: '{count} 남음(예상 없음)',
     sessionDone: '이번 {count}',
     etaLeft: '남은 예상 {eta}',

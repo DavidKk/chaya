@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { TRANSLATE_JOBS_DIR } from '@/constants/paths'
+import { shouldDemoteOrphanRunning } from '@/services/jobs'
 
 import { importSharedTranslateCache } from './cache-api'
 import { exportSourcesPayload, normalizeSourcesInput, type SourcesEntry, type SourcesEntryState, type SourcesInputFormat } from './import-sources'
@@ -258,6 +259,15 @@ function ensureLoop(jobId: string) {
   void runLoop(jobId)
 }
 
+/** Poll/export: disk says running but loop is dead → paused (never auto-resume). */
+function demoteOrphanIfNeeded(rt: Runtime, liveStatusFallback?: string) {
+  if (!shouldDemoteOrphanRunning(rt.disk.status, { running: rt.running })) return
+  rt.disk.status = 'paused'
+  if (liveStatusFallback) rt.disk.liveStatus = rt.disk.liveStatus || liveStatusFallback
+  rt.disk.updatedAt = Date.now()
+  writeDisk(rt.disk)
+}
+
 /** Explicit resume after orphan pause (status poll never auto-starts). */
 export function resumeSourcesJob(jobId: string): SourcesJobSnapshot {
   const id = String(jobId ?? '').trim()
@@ -312,12 +322,7 @@ export function getSourcesJobStatus(jobId: string): SourcesJobSnapshot {
   const rt = getRuntime(id)
   if (!rt) throw new Error(`Unknown sources job: ${id}`)
   // Poll must never ensureLoop — same freeze class as seed progress (docs/translation-mainthread-offload.md H1).
-  if (rt.disk.status === 'running' && !rt.running) {
-    rt.disk.status = 'paused'
-    rt.disk.liveStatus = rt.disk.liveStatus || '已暂停（服务重启）；继续导入以恢复'
-    rt.disk.updatedAt = Date.now()
-    writeDisk(rt.disk)
-  }
+  demoteOrphanIfNeeded(rt, '已暂停（服务重启）；继续导入以恢复')
   return toSnapshot(rt.disk)
 }
 
@@ -370,11 +375,7 @@ export function exportSourcesJob(jobId: string, opts?: { onlyDone?: boolean }): 
   const rt = getRuntime(String(jobId ?? '').trim())
   if (!rt) throw new Error(`Unknown sources job: ${jobId}`)
   // Snapshot only — do not resume the translate loop from export.
-  if (rt.disk.status === 'running' && !rt.running) {
-    rt.disk.status = 'paused'
-    rt.disk.updatedAt = Date.now()
-    writeDisk(rt.disk)
-  }
+  demoteOrphanIfNeeded(rt)
   const c = countStates(rt.disk.entries)
   return {
     jobId: rt.disk.jobId,

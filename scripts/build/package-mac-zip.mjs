@@ -12,9 +12,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const releaseDir = path.join(root, 'release')
-const readme = path.join(root, 'scripts', 'mac-readme-first.txt')
+const readme = path.join(path.dirname(fileURLToPath(import.meta.url)), 'mac-readme-first.txt')
 const { version } = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'))
 const productName = 'Chaya'
 

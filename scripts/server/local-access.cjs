@@ -6,7 +6,10 @@ const path = require('node:path')
 
 function accessDir() {
   if (process.env.CHAYA_DATA_DIR) return path.join(path.resolve(process.env.CHAYA_DATA_DIR), 'access')
-  return path.resolve(__dirname, '../data/access')
+  if (process.platform === 'darwin' && process.env.HOME) {
+    return path.join(process.env.HOME, 'Library', 'Application Support', 'Chaya', 'data', 'access')
+  }
+  return path.resolve(__dirname, '../../data/access')
 }
 
 function ensureAccessToken() {

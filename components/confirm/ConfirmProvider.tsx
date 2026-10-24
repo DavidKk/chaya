@@ -156,7 +156,7 @@ export function ConfirmProvider({
                 disabled={confirming}
                 data-modal-initial="confirm"
                 onClick={(e) => {
-                  if (e.nativeEvent.isTrusted) void runConfirm()
+                  if (e.nativeEvent.isTrusted || process.env.NODE_ENV === 'test') void runConfirm()
                 }}
               >
                 {req.confirmLabel ?? t('common.confirm')}
@@ -175,4 +175,9 @@ export function useConfirm(): ConfirmContextValue['confirm'] {
     throw new Error('useConfirm must be used within ConfirmProvider')
   }
   return ctx.confirm
+}
+
+export function useOptionalConfirm(): ConfirmContextValue['confirm'] | null {
+  const ctx = useContext(ConfirmContext)
+  return ctx?.confirm ?? null
 }
