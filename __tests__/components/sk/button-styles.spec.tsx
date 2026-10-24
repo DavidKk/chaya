@@ -59,6 +59,8 @@ describe('Button styles and sizes', () => {
     expect(btnAccent?.className).toContain('linear-gradient')
     expect(btnAccent?.className).toContain('text-accent-ink')
     expect(btnAccent?.getAttribute('data-sheen')).toBe('true')
+    expect(btnAccent?.className).toContain('inset_0_0_0_1px')
+    expect(btnAccent?.className).not.toMatch(/(?:^|[,\s])0_0_0_1px/)
 
     expect(btnWarn?.className).toContain('linear-gradient')
     expect(btnWarn?.className).toContain('text-white')
