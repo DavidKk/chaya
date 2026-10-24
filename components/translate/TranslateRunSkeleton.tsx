@@ -71,7 +71,7 @@ function ActivityLogSkeleton() {
       </div>
       <div>
         <Skeleton className="h-[0.7rem] w-[62%]" />
-        <div className="mt-3 flex h-[11rem] flex-col gap-2">
+        <div className="mt-3 flex h-[28rem] flex-col gap-2">
           {Array.from({ length: 4 }, (_, i) => (
             <div key={i} className="flex items-center gap-2">
               <Skeleton className="h-[0.65rem] w-14 shrink-0" />

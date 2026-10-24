@@ -348,6 +348,7 @@ export const translateEn = {
     listTranslatePageSuccess: 'Page translation done: {count} items',
     listTranslatePagePartial: 'Page translation finished: {ok} ok, {failed} failed',
     listTranslatePageFailed: 'Page translation failed: {error}',
+    optimizeMenu: 'Refine translations',
     optimizeNames: 'Optimize names',
     optimizeNamesTooltip: 'Scan and fix short name/item machine-translation flaws (skips manual and import)',
     optimizeNamesRunning: 'Optimizing names…',
@@ -365,7 +366,7 @@ export const translateEn = {
     syncNamesRunning: 'Syncing names into sentences…',
     syncNamesConfirmTitle: 'Sync names into sentences?',
     syncNamesConfirmDesc:
-      'About {total} machine-translated sentences will change (example: {sample}). {review} need review only. Unlocked remnants are retranslated after confirm.',
+      '{total} complete translations are ready; {review} need review and will not be saved. Check every change below. Confirm saves this exact preview; unlocked wording may also change.',
     syncNamesConfirm: 'Sync',
     syncNamesDone: 'Synced {applied}, skipped {skipped}, review {review}',
     syncNamesPaused: 'Sync paused: {reason} (processed {done})',

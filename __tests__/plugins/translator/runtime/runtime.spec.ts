@@ -33,6 +33,32 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true })
 })
 
+it.each(['ollama', 'apple'] as const)('locks names before %s dispatch and persists only the complete sentence', async (engine) => {
+  const game = globalThis as Record<string, unknown>
+  const previous = game.$dataActors
+  game.$dataActors = [null, { name: 'Rei' }, { name: "Rei's Baby" }]
+  try {
+    await call('/api/translate-cache', { text: JSON.stringify({ Rei: '蕾', "Rei's Baby": '丽的宝贝' }) })
+    jest.mocked(engineFetch).mockResolvedValue(new Response(JSON.stringify({ message: { content: '母亲。' } })))
+    jest.mocked(chayaFetch).mockImplementation(async () => new Response(JSON.stringify({ ok: true, text: '母亲。' })))
+    const result = await runtime.translate(["Rei's mother."], { engines: [engine], remote: false, sourceLang: 'en' })
+    expect(result[0]).toMatchObject({ zh: '蕾的母亲。', status: 'full' })
+    const dispatched = engine === 'ollama' ? jest.mocked(engineFetch).mock.calls : jest.mocked(chayaFetch).mock.calls
+    expect(dispatched.length).toBeGreaterThan(0)
+    expect(dispatched.every(([, init]) => !String(init?.body).includes('Rei'))).toBe(true)
+    const cache = fs.readFileSync(path.join(root, gameContentRelPath('cacheNdjson')), 'utf8')
+    const rows = cache
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(rows.some((row) => row.s === "Rei's mother." && row.t === '蕾的母亲。')).toBe(true)
+    expect(rows.some((row) => String(row.s || '').trim() === 'mother.')).toBe(false)
+  } finally {
+    if (previous === undefined) delete game.$dataActors
+    else game.$dataActors = previous
+  }
+})
+
 it('saves local settings, translates directly and preserves its library across restarts without a Chaya server', async () => {
   const saved = await call('/api/translate', { mode: 'play-settings', contentRoot: root, settings: { mode: 'realtime', model: 'mini-test', timeoutMs: 5000 } })
   expect(saved.status).toBe(200)
@@ -353,13 +379,16 @@ it('ignores a historical half-translated kanji phrase and translates it again', 
 })
 
 it('exposes recent in-game dialogue activity to the translation panel', async () => {
-  runtime.recordActivity({ level: 'info', text: 'Translating: 応接室へ行く', status: '翻译中' })
-  runtime.recordActivity({ level: 'warn', text: '未得到有效译文：応接室へ行く', status: '未译' })
+  runtime.recordActivity({ level: 'info', text: 'Translating in real time: 応接室へ行く', status: '翻译中' })
+  runtime.recordActivity({ level: 'warn', text: 'Realtime translation failed: 応接室へ行く (no valid translation returned)', status: '未译' })
   const response = await call('/api/translate', { mode: 'progress' })
   expect(response.data.activity).toMatchObject({
     liveStatus: '未译',
     sessionDone: 0,
-    logs: [expect.objectContaining({ text: 'Translating: 応接室へ行く' }), expect.objectContaining({ text: '未得到有效译文：応接室へ行く' })],
+    logs: [
+      expect.objectContaining({ text: 'Translating in real time: 応接室へ行く' }),
+      expect.objectContaining({ text: 'Realtime translation failed: 応接室へ行く (no valid translation returned)' }),
+    ],
   })
 })
 

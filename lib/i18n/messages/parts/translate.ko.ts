@@ -344,6 +344,7 @@ export const translateKo = {
     listTranslatePageSuccess: '페이지 번역 완료: {count}개',
     listTranslatePagePartial: '페이지 번역 종료: 성공 {ok}, 실패 {failed}',
     listTranslatePageFailed: '페이지 번역 실패: {error}',
+    optimizeMenu: '번역 최적화',
     optimizeNames: '이름 최적화',
     optimizeNamesTooltip: '짧은 고유명/아이템명 등 기계 번역 오류 수정(수동/가져오기 건너뜀)',
     optimizeNamesRunning: '이름 최적화 중…',
@@ -360,7 +361,8 @@ export const translateKo = {
     syncNamesTooltip: '번역된 고유명이 들어간 기계번역 문장을 수정합니다(수동/가져오기 건너뜀, 미리보기 후 적용)',
     syncNamesRunning: '고유명을 문장에 동기화 중…',
     syncNamesConfirmTitle: '고유명을 문장에 동기화할까요?',
-    syncNamesConfirmDesc: '기계번역 문장 약 {total}개를 바꿉니다(예: {sample}). 검토 {review}건. 확인 후 잠금되지 않은 나머지를 다시 번역합니다.',
+    syncNamesConfirmDesc:
+      '{total}개 번역을 준비했습니다. 검토가 필요한 {review}개는 저장하지 않습니다. 아래 모든 변경 전후를 확인하세요. 확인 후 이 미리보기만 저장하며 잠기지 않은 부분의 표현도 달라질 수 있습니다。',
     syncNamesConfirm: '동기화',
     syncNamesDone: '동기화 {applied}, 건너뜀 {skipped}, 검토 {review}',
     syncNamesPaused: '동기화 일시 중지: {reason} (처리 {done})',

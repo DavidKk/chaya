@@ -109,7 +109,7 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
     expect(host.textContent).not.toContain('保存模式')
     expect(panels[0].hidden).toBe(false)
     expect(panels[1].hidden).toBe(true)
-    expect(panels[0].querySelector('[aria-label="翻译活动日志"]')).not.toBeNull()
+    expect(panels[0].querySelector('[aria-label="Translation activity log"]')).not.toBeNull()
     if (surface === 'overlay') expect(panels[0].textContent).toContain('词库命中：応接室へ行く')
 
     if (surface === 'overlay') {
@@ -118,7 +118,7 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
       const updatedPanels = host.querySelectorAll<HTMLDivElement>('[data-translate-mode]')
       expect(updatedPanels[0].hidden).toBe(true)
       expect(updatedPanels[1].hidden).toBe(false)
-      expect(host.querySelector('[aria-label="翻译活动日志"]')).not.toBeNull()
+      expect(host.querySelector('[aria-label="Translation activity log"]')).not.toBeNull()
       const play = host.querySelector<HTMLButtonElement>('[data-translate-section-nav] button[data-nav-id="play"]')!
       await act(async () => play.click())
       expect(play.getAttribute('aria-current')).toBe('page')
@@ -127,7 +127,7 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
       const updatedPanels = host.querySelectorAll<HTMLDivElement>('[data-translate-mode]')
       expect(updatedPanels[0].hidden).toBe(true)
       expect(updatedPanels[1].hidden).toBe(false)
-      expect(host.querySelector('[aria-label="翻译活动日志"]')).not.toBeNull()
+      expect(host.querySelector('[aria-label="Translation activity log"]')).not.toBeNull()
     }
 
     await act(async () => root.render(<Pane key="refresh-seed" refreshKey={1} initialMode="seed" />))
@@ -175,7 +175,7 @@ test('new log entries scroll only the log viewport even when the retained log co
   const renderLog = (id: number) => <TranslateActivityLog entries={[{ id, at: 0, level: 'ok', text: `译文 ${id}` }]} />
   try {
     await act(async () => root.render(renderLog(1)))
-    const viewport = host.querySelector<HTMLDivElement>('[aria-label="翻译活动日志"]')!
+    const viewport = host.querySelector<HTMLDivElement>('[aria-label="Translation activity log"]')!
     Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 900 })
     host.scrollTop = 45
     host.focus()

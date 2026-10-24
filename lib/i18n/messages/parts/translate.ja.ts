@@ -345,6 +345,7 @@ export const translateJa = {
     listTranslatePageSuccess: 'ページ翻訳完了: {count} 件',
     listTranslatePagePartial: 'ページ翻訳終了: 成功 {ok}、失敗 {failed}',
     listTranslatePageFailed: 'ページ翻訳失敗: {error}',
+    optimizeMenu: '訳文を最適化',
     optimizeNames: '名称を最適化',
     optimizeNamesTooltip: '短い固有名・アイテム名などの機械翻訳ミスを修正（手動/インポートはスキップ）',
     optimizeNamesRunning: '名称を最適化中…',
@@ -361,7 +362,8 @@ export const translateJa = {
     syncNamesTooltip: '翻訳済み固有名を含む機械翻訳文を書き換える（手動/インポートはスキップ、先にプレビュー）',
     syncNamesRunning: '固有名を文に同期中…',
     syncNamesConfirmTitle: '固有名を文に同期しますか？',
-    syncNamesConfirmDesc: '約 {total} 件の機械翻訳文を変更します（例：{sample}）。要確認 {review} 件。確定後、未ロック部分を再翻訳します。',
+    syncNamesConfirmDesc:
+      '{total} 件の訳文を準備しました。要確認 {review} 件は保存されません。以下の変更前後をすべて確認してください。確定後はこのプレビューのみ保存します。未ロック部分の表現も変わる場合があります。',
     syncNamesConfirm: '同期',
     syncNamesDone: '同期 {applied}、スキップ {skipped}、要確認 {review}',
     syncNamesPaused: '同期を一時停止：{reason}（処理済み {done}）',

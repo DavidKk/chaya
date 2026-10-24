@@ -81,11 +81,11 @@ export function createPluginTranslationJob(store: TranslationStore, translate: (
             const item = items[0]
             if (item?.zh && item.zh !== src && !item.error && item.status !== 'partial') {
               job.sessionDone++
-              log('ok', `${src.slice(0, 60)} → ${item.zh.slice(0, 60)}`)
-            } else log('warn', item?.error || 'No translation returned')
+              log('ok', `Translation complete: ${src} → ${item.zh}`)
+            } else log('warn', `Translation failed: ${src} (${item?.error || 'no translation returned'})`)
           } catch (error) {
             if (!abort.signal.aborted) throw error
-            if (job.status === 'running' && !disposed) log('info', 'Current dialogue takes precedence; this item can be retried later')
+            if (job.status === 'running' && !disposed) log('info', `Current dialogue takes precedence; retry this item later: ${src}`)
           } finally {
             abort = null
           }
@@ -98,7 +98,7 @@ export function createPluginTranslationJob(store: TranslationStore, translate: (
         job.status = 'error'
         job.error = error instanceof Error ? error.message : '翻译失败'
         job.liveStatus = ''
-        log('fail', job.error)
+        log('fail', `Translation stopped: ${job.error}`)
       } finally {
         loop = null
       }

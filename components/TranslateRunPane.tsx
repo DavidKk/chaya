@@ -12,6 +12,7 @@ import type { TranslateRunMode } from '@/components/translate/tabs'
 import { TranslateActivityLog, type TranslateLogEntry } from '@/components/translate/TranslateActivityLog'
 import { TranslateExportMenu } from '@/components/translate/TranslateExportMenu'
 import { TranslateListContent } from '@/components/translate/TranslateListContent'
+import { TranslateOptimizeMenu } from '@/components/translate/TranslateOptimizeMenu'
 import { TranslateRgssPreviewSwitch } from '@/components/translate/TranslateRgssPreviewSwitch'
 import { TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { TranslationPlaySettings } from '@/components/translate/TranslationPlaySettings'
@@ -508,39 +509,6 @@ export function TranslateRunPane({
                     ) : null}
 
                     <div className="grid grid-flow-col auto-cols-fr items-center gap-1 sm:gap-2 [&_svg]:max-sm:hidden [&_button]:max-sm:text-xs [&_button]:w-full [&_button]:min-w-0 [&_button]:gap-1 [&_button]:px-2 [&_button]:whitespace-nowrap">
-                      <Button disabled={busy} loading={importing} onClick={() => fileRef.current?.click()}>
-                        <IoCloudUploadOutline size={16} aria-hidden />
-                        {t('translate.importFile')}
-                      </Button>
-                      <TranslateExportMenu disabled={busy} loading={exporting} onExport={(mode) => void exportJson(mode)} />
-                      {progress.hasSeed ? (
-                        <Button
-                          variant="ghost"
-                          disabled={busy || optimizingNames}
-                          loading={optimizingNames}
-                          onClick={() => void runOptimizeNames()}
-                          tooltip={optimizingNames ? t('translate.optimizeNamesRunning') : t('translate.optimizeNamesTooltip')}
-                        >
-                          {t('translate.optimizeNames')}
-                        </Button>
-                      ) : null}
-                      {progress.hasSeed ? (
-                        <Button
-                          variant="ghost"
-                          disabled={busy || syncingNames}
-                          loading={syncingNames}
-                          onClick={() => void runSyncNames()}
-                          tooltip={syncingNames ? t('translate.syncNamesRunning') : t('translate.syncNamesTooltip')}
-                        >
-                          {t('translate.syncNames')}
-                        </Button>
-                      ) : null}
-                      {progress.hasSeed ? (
-                        <Button variant="accent" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
-                          <LuScanText size={16} aria-hidden />
-                          {t('translate.updateSource')}
-                        </Button>
-                      ) : null}
                       {!progress.hasSeed ? (
                         <Button variant="ok" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
                           <LuScanText size={16} aria-hidden />
@@ -557,6 +525,26 @@ export function TranslateRunPane({
                           {startLabel}
                         </Button>
                       )}
+                      {progress.hasSeed ? (
+                        <Button variant="accent" disabled={busy} loading={extracting} onClick={() => void runExtract()}>
+                          <LuScanText size={16} aria-hidden />
+                          {t('translate.updateSource')}
+                        </Button>
+                      ) : null}
+                      {progress.hasSeed ? (
+                        <TranslateOptimizeMenu
+                          disabled={busy}
+                          optimizingNames={optimizingNames}
+                          syncingNames={syncingNames}
+                          onOptimizeNames={() => void runOptimizeNames()}
+                          onSyncNames={() => void runSyncNames()}
+                        />
+                      ) : null}
+                      <Button disabled={busy} loading={importing} onClick={() => fileRef.current?.click()}>
+                        <IoCloudUploadOutline size={16} aria-hidden />
+                        {t('translate.importFile')}
+                      </Button>
+                      <TranslateExportMenu disabled={busy} loading={exporting} onExport={(mode) => void exportJson(mode)} />
                     </div>
                   </div>
 

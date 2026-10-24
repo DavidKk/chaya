@@ -134,7 +134,7 @@ describe('seed job failures', () => {
     expect(mockFill.mock.calls[1][0]).toMatchObject({ contentRoot: mockRoot, exclude: new Set(['こんにちは']) })
     expect(getSeedJobSnapshot().job).toMatchObject({ status: 'paused', failedSources: ['こんにちは'] })
     const logs = getSeedJobSnapshot().job.logs
-    expect(logs.some((entry) => entry.text.startsWith('#'))).toBe(true)
+    expect(logs.some((entry) => entry.text.startsWith('Segment ') && entry.text.includes('complete:'))).toBe(true)
     expect(logs.some((entry) => /Requesting batch| → |additional items omitted/.test(entry.text))).toBe(false)
     const savedDebug = process.env.CHAYA_TRANSLATE_DEBUG
     delete process.env.CHAYA_TRANSLATE_DEBUG
@@ -142,7 +142,7 @@ describe('seed job failures', () => {
       mockFill.mock.calls[0][0].onTrace('Item 1 engine requested: engine=google')
       expect(getSeedJobSnapshot().job.logs).toHaveLength(logs.length)
       mockFill.mock.calls[0][0].onTrace('Cache scan unavailable: Worker timed out')
-      expect(getSeedJobSnapshot().job.logs.at(-1)).toMatchObject({ level: 'warn', text: 'Cache↓ · Worker timed out' })
+      expect(getSeedJobSnapshot().job.logs.at(-1)).toMatchObject({ level: 'warn', text: 'Cache scan failed: Worker timed out' })
     } finally {
       if (savedDebug == null) delete process.env.CHAYA_TRANSLATE_DEBUG
       else process.env.CHAYA_TRANSLATE_DEBUG = savedDebug
@@ -244,7 +244,7 @@ describe('seed job failures', () => {
     // Must not ensureLoop / fill here — that sync inventory freezes the console.
     expect(mockFill).not.toHaveBeenCalled()
     expect(getSeedJobSnapshot().job).toMatchObject({ status: 'paused' })
-    expect(getSeedJobSnapshot().job.logs.some((entry) => entry.text.includes('Worker↑ · continue'))).toBe(true)
+    expect(getSeedJobSnapshot().job.logs.some((entry) => entry.text.includes('Translation worker updated; job remains paused'))).toBe(true)
   })
 
   it('demotes orphaned running jobs on poll without starting inventory', async () => {
@@ -287,11 +287,11 @@ describe('seed job failures', () => {
     const rt = store.__chayaSeedJobs.get(mockRoot)!
     rt.state.logs = [
       { id: 1, at: Date.now(), level: 'warn', text: "Cache scan unavailable: Cannot find module '/x/native/bin/chaya-cache-worker.mjs'" },
-      { id: 2, at: Date.now(), level: 'ok', text: '#1 · 1/1 · 12c · google' },
+      { id: 2, at: Date.now(), level: 'ok', text: 'Segment 1 complete: scanned 1, translated 1 · 12 chars · engines google' },
     ]
     const snap = getSeedJobSnapshot()
     expect(snap.job.logs.some((e) => /chaya-cache-worker/.test(e.text))).toBe(false)
-    expect(snap.job.logs.some((e) => e.text.startsWith('#'))).toBe(true)
+    expect(snap.job.logs.some((e) => e.text.startsWith('Segment '))).toBe(true)
   })
 
   it('honors explicit pause while a legacy handoff is pending', async () => {

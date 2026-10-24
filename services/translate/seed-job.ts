@@ -149,7 +149,7 @@ function scheduleHandoff(rt: Runtime) {
     if (rt.state.status !== 'paused' && rt.state.status !== 'running') return
     try {
       rt.state.status = 'paused'
-      pushLog(rt, 'info', 'Worker↑ · continue')
+      pushLog(rt, 'info', 'Translation worker updated; job remains paused. Continue translation to resume.')
       persist(rt)
     } catch (error) {
       rt.state.status = 'error'
@@ -166,14 +166,6 @@ function jobKey(contentRoot: string) {
 
 function jobFile(contentRoot: string) {
   return path.join(TRANSLATE_JOBS_DIR, `${jobKey(contentRoot)}.json`)
-}
-
-function clip(text: string, max = 72) {
-  const s = String(text ?? '')
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (s.length <= max) return s
-  return `${s.slice(0, max - 1)}…`
 }
 
 function resolveBoundRoot(): string {
@@ -248,7 +240,7 @@ function shortEngine(name: string): string {
   return raw.length > 10 ? `${raw.slice(0, 9)}…` : raw
 }
 
-/** One-line batch summary: `#5.8k 1/1 · 48c google · ↓1k` (omit zero fails). */
+/** Readable batch summary; omit zero failures and missing counts. */
 function formatSeedBatchLog(
   round: number,
   result: {
@@ -276,15 +268,14 @@ function formatSeedBatchLog(
           .join('+')
       : fallbackEngines.map(shortEngine).slice(0, 2).join('+') || '—'
   const chars = result.performance?.completedChars ?? 0
-  const parts = [
-    `#${formatCompactCount(round)}`,
-    `${formatCompactCount(result.translated)}/${formatCompactCount(result.scanned)}`,
-    chars > 0 ? `${formatCompactCount(chars)}c` : null,
-    via || null,
-    result.failed > 0 ? `!${formatCompactCount(result.failed)}` : null,
-    result.missing > 0 ? `↓${formatCompactCount(result.missing)}` : null,
-  ]
-  return parts.filter(Boolean).join(' · ')
+  const details = [
+    `scanned ${formatCompactCount(result.scanned)}, translated ${formatCompactCount(result.translated)}`,
+    chars > 0 ? `${formatCompactCount(chars)} chars` : null,
+    via ? `engines ${via}` : null,
+    result.failed > 0 ? `failed ${formatCompactCount(result.failed)}` : null,
+    result.missing > 0 ? `${formatCompactCount(result.missing)} still missing` : null,
+  ].filter(Boolean)
+  return `Segment ${formatCompactCount(round)} complete: ${details.join(' · ')}`
 }
 
 function visibleJobState(state: SeedJobState): SeedJobState {
@@ -334,7 +325,11 @@ async function runLoop(contentRoot: string) {
   const budget = createSeedBatchBudget(rt.state.engines.length === 1 && rt.state.engines[0] === 'apple' ? 12 : 4)
   const trace = (message: string) => {
     if (message.startsWith('Cache scan unavailable:')) {
-      pushLog(rt, 'warn', message.includes('worker not built') ? 'Cache↓ · no worker' : `Cache↓ · ${clip(message.replace(/^Cache scan unavailable:\s*/i, ''), 48)}`)
+      pushLog(
+        rt,
+        'warn',
+        message.includes('worker not built') ? 'Cache scan failed: cache worker is not built.' : `Cache scan failed: ${message.replace(/^Cache scan unavailable:\s*/i, '')}`
+      )
     }
     if (process.env.CHAYA_TRANSLATE_DEBUG !== '1') return
     const text = `[translation-timing] batch=${rt.state.rounds + 1} ${message}`
@@ -350,7 +345,7 @@ async function runLoop(contentRoot: string) {
       if (!peeked) {
         rt.state.status = 'paused'
         rt.state.liveStatus = rt.state.liveStatus || `已暂停 · 本会话已译 ${rt.state.sessionDone} 条`
-        pushLog(rt, 'warn', 'Session↑ · need inventory')
+        pushLog(rt, 'warn', 'Source inventory missing; job paused. Continue translation to prepare it again.')
         persist(rt)
         return
       }
@@ -397,7 +392,7 @@ async function runLoop(contentRoot: string) {
         rt.state.status = 'error'
         rt.state.error = msg
         rt.state.liveStatus = ''
-        pushLog(rt, 'fail', msg)
+        pushLog(rt, 'fail', `Translation stopped: ${msg}`)
         persist(rt)
         return
       }
@@ -407,12 +402,12 @@ async function runLoop(contentRoot: string) {
       rt.state.error = null
       pushLog(rt, result.translated ? 'ok' : result.failed ? 'warn' : 'info', formatSeedBatchLog(rt.state.rounds, result, rt.state.engines))
       const failures = result.items.filter((item) => item.error || item.zh == null).slice(0, 1)
-      for (const item of failures) pushLog(rt, 'warn', `${clip(item.src, 32)} · ${item.error || 'empty'}`)
+      for (const item of failures) pushLog(rt, 'warn', `Translation failed: ${item.src} (${item.error || 'no translation returned'})`)
 
       if (!result.missing && !result.pendingResults) {
         rt.state.status = 'done'
         rt.state.liveStatus = `已完成 · 本会话已译 ${rt.state.sessionDone} 条`
-        pushLog(rt, 'ok', `Done · ${formatCompactCount(result.needCount)}`)
+        pushLog(rt, 'ok', `Translation complete: all source text processed; translated ${formatCompactCount(rt.state.sessionDone)} items this session.`)
         persist(rt)
         return
       }
@@ -422,7 +417,7 @@ async function runLoop(contentRoot: string) {
       if (!result.scanned || (!failed.length && !result.translated)) {
         rt.state.status = 'paused'
         rt.state.liveStatus = `本轮结束 · 仍缺 ${result.missing} 条，继续可重试`
-        pushLog(rt, 'warn', `Stuck · ↓${formatCompactCount(result.missing)}`)
+        pushLog(rt, 'warn', `No progress this round: ${formatCompactCount(result.missing)} items still missing; retry to continue.`)
         persist(rt)
         return
       }
@@ -437,7 +432,7 @@ async function runLoop(contentRoot: string) {
     if (rt.stopRequested) {
       rt.state.status = 'paused'
       rt.state.liveStatus = `已暂停 · 本会话已译 ${rt.state.sessionDone} 条`
-      pushLog(rt, 'warn', `Paused · ${formatCompactCount(rt.state.sessionDone)}`)
+      pushLog(rt, 'warn', `Translation paused: ${formatCompactCount(rt.state.sessionDone)} items translated this session.`)
       persist(rt)
     }
   } catch (err) {
@@ -489,7 +484,7 @@ export function getSeedJobSnapshot(): SeedJobSnapshot {
     rt.handoffPending = false
     if (rt.state.status === 'running') {
       rt.state.status = 'paused'
-      pushLog(rt, 'info', 'Worker↑ · continue')
+      pushLog(rt, 'info', 'Translation worker updated; job remains paused. Continue translation to resume.')
     }
   }
   if (rt.state.contentRoot !== contentRoot) {
@@ -632,7 +627,7 @@ function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-
     rt.state.logs = []
     rt.logSeq = 0
   }
-  pushLog(rt, 'info', `${resume ? 'Resume' : 'Start'} · ${engines.map(shortEngine).join('+')}`)
+  pushLog(rt, 'info', `${resume ? 'Resume' : 'Start'} translation · engines ${engines.map(shortEngine).join('+')}`)
   persist(rt)
   rt.session = createSeedFillSession(contentRoot, undefined, { nonBlocking: true, inventory })
   rt.progress = rt.session.progress
@@ -710,7 +705,7 @@ export function pauseSeedJob(): SeedJobSnapshot {
   rt.stopRequested = true
   rt.session?.pause?.()
   rt.state.liveStatus = '正在暂停…'
-  pushLog(rt, 'warn', 'Pause…')
+  pushLog(rt, 'warn', 'Pausing: will stop after the current batch.')
   persist(rt)
   return { ...(rt.progress ?? rt.state.progress ?? emptyProgress(contentRoot)), job: visibleJobState(rt.state) }
 }

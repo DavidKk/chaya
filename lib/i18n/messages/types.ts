@@ -654,6 +654,7 @@ export type MessageTree = {
     listTranslatePageSuccess: string
     listTranslatePagePartial: string
     listTranslatePageFailed: string
+    optimizeMenu: string
     optimizeNames: string
     optimizeNamesTooltip: string
     optimizeNamesRunning: string

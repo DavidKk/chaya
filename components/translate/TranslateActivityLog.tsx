@@ -35,19 +35,19 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
     <div className={cn('m-0 flex w-full flex-col overflow-hidden rounded-[0.35rem] border border-line bg-panel', className)}>
       <div className="px-4 pt-3 pb-2">
         <div className="flex items-baseline justify-between gap-3">
-          <h3 className={cn(formTitle, 'm-0 text-[0.8125rem]')}>活动日志</h3>
+          <h3 className={cn(formTitle, 'm-0 text-[0.8125rem]')}>Activity log</h3>
           <span className="tabular-nums text-[0.7rem] text-ink-soft">
-            本会话已译 <AnimatedSessionDone value={sessionDone} /> 条
+            Translated this session: <AnimatedSessionDone value={sessionDone} />
           </span>
         </div>
         {liveStatus ? (
           <p className={cn(formDesc, 'mt-2 animate-pulse text-[0.75rem] text-accent')}>{liveStatus}</p>
         ) : (
-          <p className={cn(formDesc, 'mt-2')}>开始翻译后显示每段进度与样例。</p>
+          <p className={cn(formDesc, 'mt-2')}>Start translation to see progress and sample entries.</p>
         )}
       </div>
       <div className="relative min-h-0 border-t border-[var(--line-soft)]">
-        <FollowScrollLogList entries={entries} ariaLabel="翻译活动日志" heightClassName="h-[11rem]" />
+        <FollowScrollLogList entries={entries} ariaLabel="Translation activity log" emptyText="No activity yet" jumpLabel="Jump to latest" heightClassName="h-[28rem]" />
       </div>
     </div>
   )

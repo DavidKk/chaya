@@ -65,14 +65,14 @@ export function FollowScrollLogList({
           onScroll: (event) => onScroll(event.currentTarget),
         }}
       >
-        <ul className="m-0 flex list-none flex-col gap-1.5 p-0 font-mono text-[0.7rem] leading-snug">
+        <ul className="m-0 flex list-none flex-col gap-2 p-0 font-mono text-[0.72rem] leading-relaxed">
           {entries.length === 0 ? (
             <li className="text-ink-soft">{emptyText}</li>
           ) : (
             entries.map((entry) => (
-              <li key={entry.id} className="flex gap-2 whitespace-nowrap">
-                <span className="shrink-0 tabular-nums text-ink-soft/80">{fmtTime(entry.at)}</span>
-                <span className={cn('min-w-0 truncate', levelClass[entry.level] || levelClass.info)} title={entry.text}>
+              <li key={entry.id} className="flex items-start gap-2">
+                <span className="shrink-0 pt-px tabular-nums text-ink-soft/80">{fmtTime(entry.at)}</span>
+                <span className={cn('min-w-0 flex-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere]', levelClass[entry.level] || levelClass.info)}>
                   {entry.text}
                 </span>
               </li>
