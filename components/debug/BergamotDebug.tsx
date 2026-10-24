@@ -2,7 +2,6 @@
 
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react'
 
-import { DebugMenu } from '@/components/debug/DebugMenu'
 import { useDebugMenuRegistration } from '@/components/debug/registry'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { BergamotPackGuide } from '@/components/translate/BergamotPackGuide'
@@ -168,5 +167,5 @@ export function BergamotDebug() {
   useEffect(() => {
     if (scenario !== 'downloading' && scenario !== 'verifying') setInCenter(false)
   }, [scenario])
-  return <DebugMenu />
+  return null
 }

@@ -5,6 +5,8 @@ import { IoListOutline } from 'react-icons/io5'
 
 import { ChooseGameGate } from '@/components/ChooseGameGate'
 import { DashboardSettings } from '@/components/DashboardSettings'
+import { useGameUiDebugState } from '@/components/debug/game-ui-debug'
+import { GameDebug } from '@/components/debug/GameDebug'
 import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { MacShellDialog } from '@/components/LaunchHelp'
@@ -440,38 +442,65 @@ export function Dashboard() {
             : t('dashboard.kindRoot')
     : ''
   const rgss = ready && (status.engine === 'VX Ace' || status.engine === 'VX')
-  const canInstall = browserMode ? ready && !status.hasShell : diskOk && ready && !remote && !rgss && !status.bundled && !status.hasShell
-  /** 仅 Chaya 注入的共用壳可卸；游戏自带 .app / exe 不展示（浏览器只检测 Chaya 壳目录名） */
-  const canUninstallShell = browserMode ? ready && status.hasShell : diskOk && ready && !remote && !status.bundled && !!status.installedShell
   const gameOnline = gameLink.connected || (!browserMode && rgss && !!status.runtime?.gameOnline)
+  const uiDebug = useGameUiDebugState()
+  const uiRemote = uiDebug ? uiDebug.mode === 'remote' : remote
+  const uiRgss = uiDebug ? uiDebug.rgss : rgss
+  const uiGameOnline = uiDebug ? uiDebug.online : gameOnline
+  const uiLaunchPending = uiDebug ? uiDebug.pending : launchPending
+  const canInstall = uiDebug
+    ? ready && uiDebug.canInstallShell
+    : browserMode
+      ? ready && !status.hasShell
+      : diskOk && ready && !remote && !rgss && !status.bundled && !status.hasShell
+  /** 仅 Chaya 注入的共用壳可卸；游戏自带 .app / exe 不展示（浏览器只检测 Chaya 壳目录名） */
+  const canUninstallShell = uiDebug
+    ? ready && uiDebug.canUninstallShell
+    : browserMode
+      ? ready && status.hasShell
+      : diskOk && ready && !remote && !status.bundled && !!status.installedShell
   /** 下载到工具共用 data/shell，与当前游戏是否装壳 / 自带壳无关；游戏运行中由菜单置灰 */
-  const canFetchLatestShell = diskOk && ready && !remote && (!rgss || status.host?.platform === 'darwin')
-  const canLaunch = browserMode ? ready && !gameOnline : diskOk && ready && !remote && status.hasShell && !gameOnline && !launchPending
+  const canFetchLatestShell = uiDebug ? diskOk && ready && !uiRemote && !uiRgss : diskOk && ready && !remote && (!rgss || status.host?.platform === 'darwin')
+  const canLaunch = uiDebug
+    ? ready && uiDebug.hasShell && !uiGameOnline && !uiLaunchPending
+    : browserMode
+      ? ready && !gameOnline
+      : diskOk && ready && !remote && status.hasShell && !gameOnline && !launchPending
   // 空闲时后台也会协商 offer，勿把 negotiating 当成「正在等人点启动」
-  const launchLabel = gameOnline ? t('dashboard.launchPause') : launchPending ? t('dashboard.launchWait') : browserMode ? t('dashboard.launchConnect') : t('dashboard.launchStart')
+  const launchLabel = uiGameOnline
+    ? t('dashboard.launchPause')
+    : uiLaunchPending
+      ? t('dashboard.launchWait')
+      : browserMode
+        ? t('dashboard.launchConnect')
+        : t('dashboard.launchStart')
   const launchTooltip = !diskOk
     ? t('dashboard.tipConnect')
-    : remote
+    : uiRemote
       ? t('dashboard.tipRemoteNoLaunch')
-      : gameOnline
+      : uiGameOnline
         ? t('dashboard.tipQuit')
-        : launchPending
+        : uiLaunchPending
           ? t('dashboard.tipWaiting')
           : undefined
-  const pluginsNeedInject = (diskOk || browserMode) && ready && !remote && typeof status.pluginsTotal === 'number' && (status.pluginsReady ?? 0) < status.pluginsTotal
-  const pluginsInjected =
-    (diskOk || browserMode) && ready && !remote && typeof status.pluginsTotal === 'number' && status.pluginsTotal > 0 && (status.pluginsReady ?? 0) >= status.pluginsTotal
+  const pluginsNeedInject = uiDebug
+    ? ready && uiDebug.plugins === 'missing'
+    : (diskOk || browserMode) && ready && !remote && typeof status.pluginsTotal === 'number' && (status.pluginsReady ?? 0) < status.pluginsTotal
+  const pluginsInjected = uiDebug
+    ? ready && (uiDebug.plugins === 'ready' || uiDebug.plugins === 'outdated')
+    : (diskOk || browserMode) && ready && !remote && typeof status.pluginsTotal === 'number' && status.pluginsTotal > 0 && (status.pluginsReady ?? 0) >= status.pluginsTotal
   const autoUpdate = useAutoUpdatePlugins({
-    supported: browserMode ? cloud.canAutoUpdatePlugins : diskOk && !remote,
-    outdated: pluginsInjected && !!status?.pluginsOutdated,
+    supported: browserMode ? cloud.canAutoUpdatePlugins : diskOk && !uiRemote,
+    outdated: pluginsInjected && (uiDebug ? uiDebug.plugins === 'outdated' : !!(status && status.ready && status.pluginsOutdated)),
     gameKey: ready ? status.config.gameRoot : '',
     busy,
-    gameOnline,
+    gameOnline: uiGameOnline,
     update: browserMode ? cloud.autoUpdatePlugins : () => injectPlugins({ quiet: true }),
   })
 
   return (
     <>
+      <GameDebug />
       <MacShellDialog open={cloud.macDialogOpen} onClose={cloud.closeMacDialog} gameName={cloud.active?.game.picked.name} />
       {loading ? (
         <LibraryPageSkeleton />
@@ -523,30 +552,30 @@ export function Dashboard() {
                     busy={busy}
                     onRename={(next) => void (browserMode ? cloud.rename(next) : saveGameRemark(next))}
                     binding={
-                      remote
+                      uiRemote
                         ? undefined
                         : {
                             kind: status.kind,
-                            hasShell: status.hasShell,
-                            bundled: status.bundled,
-                            plugins: status.plugins,
-                            hasNwPackage: !!status.nwPackage,
+                            hasShell: uiDebug ? uiDebug.hasShell : status.hasShell,
+                            bundled: uiDebug ? uiDebug.bundled : status.bundled,
+                            plugins: uiDebug && uiDebug.plugins === 'missing' ? [{ name: 'mv', registered: false, enabled: true, fileExists: false }] : status.plugins,
+                            hasNwPackage: uiDebug ? true : !!status.nwPackage,
                             engine: status.engine,
                             platform: status.host?.platform,
                             shellPath: browserMode && cloud.active ? `${cloud.active.game.picked.name}/${cloud.active.game.existingShell ?? ''}` : undefined,
                           }
                     }
-                    meta={{ status, remote, layoutLabel, win, online: gameOnline, pending: launchPending }}
+                    meta={{ status, remote: uiRemote, layoutLabel, win, online: uiGameOnline, pending: uiLaunchPending }}
                     actions={
-                      remote ? (
+                      uiRemote ? (
                         <p className="m-0 text-[0.75rem] leading-relaxed text-ink-soft">{t('dashboard.remoteSessionHint')}</p>
                       ) : (
                         <DashboardGameActions
-                          nativeRuntime={rgss}
+                          nativeRuntime={uiRgss}
                           busy={busy}
                           launch={{
-                            online: gameOnline,
-                            pending: launchPending,
+                            online: uiGameOnline,
+                            pending: uiLaunchPending,
                             enabled: canLaunch && !(browserMode && browserShellWriting),
                             label: launchLabel,
                             tooltip: launchTooltip,
@@ -562,8 +591,14 @@ export function Dashboard() {
                             onQuit: quitGame,
                           }}
                           plugins={{
-                            locked: rgss && gameOnline,
-                            state: pluginsNeedInject ? 'missing' : pluginsInjected ? (status.pluginsOutdated ? 'outdated' : 'ready') : 'unavailable',
+                            locked: uiRgss && uiGameOnline,
+                            state: pluginsNeedInject
+                              ? 'missing'
+                              : pluginsInjected
+                                ? (uiDebug ? uiDebug.plugins === 'outdated' : !!status.pluginsOutdated)
+                                  ? 'outdated'
+                                  : 'ready'
+                                : 'unavailable',
                             onInstall: browserMode ? cloud.installPlugins : () => injectPlugins(),
                             onClear: browserMode ? cloud.clearPlugins : clearPlugins,
                           }}
@@ -593,10 +628,10 @@ export function Dashboard() {
                   />
 
                   <DashboardSettings
-                    nativeRuntime={rgss}
+                    nativeRuntime={uiRgss}
                     busy={busy}
-                    bundled={status.bundled}
-                    remote={remote}
+                    bundled={uiDebug ? uiDebug.bundled : status.bundled}
+                    remote={uiRemote}
                     browserMode={browserMode}
                     windowNeedsAuth={browserMode && cloud.active?.game.nwPackage === undefined}
                     onAuthorizeWindow={() => void cloud.reinspect()}

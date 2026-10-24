@@ -6,6 +6,17 @@ export type DebugMessages = {
   live: string
   failed: string
   unsupported: string
+  gameUiTitle: string
+  gameUiLive: string
+  gameUiOverridden: string
+  gameUiNoShell: string
+  gameUiBundled: string
+  gameUiRemote: string
+  gameUiRgss: string
+  gameUiConnecting: string
+  gameUiOnline: string
+  gameUiPluginsReady: string
+  gameUiPluginsOutdated: string
 }
 export const debugZh: DebugMessages = {
   title: '调试菜单',
@@ -15,6 +26,17 @@ export const debugZh: DebugMessages = {
   live: '实况数据',
   failed: '安装失败',
   unsupported: '不支持的语言对',
+  gameUiTitle: 'UI 调试',
+  gameUiLive: '实况数据',
+  gameUiOverridden: '已覆盖',
+  gameUiNoShell: '未装壳',
+  gameUiBundled: '已打包壳',
+  gameUiRemote: '远程会话',
+  gameUiRgss: 'RGSS 原生',
+  gameUiConnecting: '连接中',
+  gameUiOnline: '运行中',
+  gameUiPluginsReady: '插件就绪',
+  gameUiPluginsOutdated: '插件待更新',
 }
 export const debugEn: DebugMessages = {
   title: 'Debug menu',
@@ -24,6 +46,17 @@ export const debugEn: DebugMessages = {
   live: 'Live data',
   failed: 'Install failed',
   unsupported: 'Unsupported pair',
+  gameUiTitle: 'UI Debug',
+  gameUiLive: 'Live data',
+  gameUiOverridden: 'Overridden',
+  gameUiNoShell: 'No shell',
+  gameUiBundled: 'Bundled shell',
+  gameUiRemote: 'Remote session',
+  gameUiRgss: 'RGSS native',
+  gameUiConnecting: 'Connecting',
+  gameUiOnline: 'Online',
+  gameUiPluginsReady: 'Plugins ready',
+  gameUiPluginsOutdated: 'Plugins outdated',
 }
 export const debugJa: DebugMessages = {
   title: 'デバッグメニュー',
@@ -33,6 +66,17 @@ export const debugJa: DebugMessages = {
   live: '実データ',
   failed: 'インストール失敗',
   unsupported: '未対応の言語ペア',
+  gameUiTitle: 'UI デバッグ',
+  gameUiLive: '実データ',
+  gameUiOverridden: '上書き済み',
+  gameUiNoShell: '殻なし',
+  gameUiBundled: '同梱殻',
+  gameUiRemote: 'リモート',
+  gameUiRgss: 'RGSS ネイティブ',
+  gameUiConnecting: '接続中',
+  gameUiOnline: 'オンライン',
+  gameUiPluginsReady: 'プラグイン準備完了',
+  gameUiPluginsOutdated: 'プラグイン更新あり',
 }
 export const debugKo: DebugMessages = {
   title: '디버그 메뉴',
@@ -42,6 +86,17 @@ export const debugKo: DebugMessages = {
   live: '실제 데이터',
   failed: '설치 실패',
   unsupported: '지원하지 않는 언어 쌍',
+  gameUiTitle: 'UI 디버그',
+  gameUiLive: '실제 데이터',
+  gameUiOverridden: '재정의됨',
+  gameUiNoShell: '셸 없음',
+  gameUiBundled: '번들 셸',
+  gameUiRemote: '원격 세션',
+  gameUiRgss: 'RGSS 네이티브',
+  gameUiConnecting: '연결 중',
+  gameUiOnline: '온라인',
+  gameUiPluginsReady: '플러그인 준비',
+  gameUiPluginsOutdated: '플러그인 업데이트',
 }
 export const debugCht: DebugMessages = {
   title: '除錯選單',
@@ -51,6 +106,17 @@ export const debugCht: DebugMessages = {
   live: '實況資料',
   failed: '安裝失敗',
   unsupported: '不支援的語言組合',
+  gameUiTitle: 'UI 除錯',
+  gameUiLive: '實況資料',
+  gameUiOverridden: '已覆蓋',
+  gameUiNoShell: '未裝殼',
+  gameUiBundled: '已打包殼',
+  gameUiRemote: '遠端工作階段',
+  gameUiRgss: 'RGSS 原生',
+  gameUiConnecting: '連線中',
+  gameUiOnline: '執行中',
+  gameUiPluginsReady: '外掛就緒',
+  gameUiPluginsOutdated: '外掛待更新',
 }
 export const debugDe: DebugMessages = {
   title: 'Debug-Menü',
@@ -60,6 +126,17 @@ export const debugDe: DebugMessages = {
   live: 'Livedaten',
   failed: 'Installation fehlgeschlagen',
   unsupported: 'Nicht unterstütztes Sprachpaar',
+  gameUiTitle: 'UI-Debug',
+  gameUiLive: 'Livedaten',
+  gameUiOverridden: 'Überschrieben',
+  gameUiNoShell: 'Keine Shell',
+  gameUiBundled: 'Gebündelte Shell',
+  gameUiRemote: 'Remote-Sitzung',
+  gameUiRgss: 'RGSS nativ',
+  gameUiConnecting: 'Verbinde',
+  gameUiOnline: 'Online',
+  gameUiPluginsReady: 'Plugins bereit',
+  gameUiPluginsOutdated: 'Plugins veraltet',
 }
 export const debugEs: DebugMessages = {
   title: 'Menú de depuración',
@@ -69,6 +146,17 @@ export const debugEs: DebugMessages = {
   live: 'Datos reales',
   failed: 'Error de instalación',
   unsupported: 'Par de idiomas no compatible',
+  gameUiTitle: 'Depuración UI',
+  gameUiLive: 'Datos reales',
+  gameUiOverridden: 'Anulado',
+  gameUiNoShell: 'Sin shell',
+  gameUiBundled: 'Shell integrada',
+  gameUiRemote: 'Sesión remota',
+  gameUiRgss: 'RGSS nativo',
+  gameUiConnecting: 'Conectando',
+  gameUiOnline: 'En línea',
+  gameUiPluginsReady: 'Plugins listos',
+  gameUiPluginsOutdated: 'Plugins desactualizados',
 }
 export const debugFr: DebugMessages = {
   title: 'Menu de débogage',
@@ -78,6 +166,17 @@ export const debugFr: DebugMessages = {
   live: 'Données réelles',
   failed: 'Échec de l’installation',
   unsupported: 'Paire de langues non prise en charge',
+  gameUiTitle: 'Débogage UI',
+  gameUiLive: 'Données réelles',
+  gameUiOverridden: 'Remplacé',
+  gameUiNoShell: 'Sans shell',
+  gameUiBundled: 'Shell intégré',
+  gameUiRemote: 'Session distante',
+  gameUiRgss: 'RGSS natif',
+  gameUiConnecting: 'Connexion…',
+  gameUiOnline: 'En ligne',
+  gameUiPluginsReady: 'Plugins prêts',
+  gameUiPluginsOutdated: 'Plugins obsolètes',
 }
 export const debugRu: DebugMessages = {
   title: 'Меню отладки',
@@ -87,6 +186,17 @@ export const debugRu: DebugMessages = {
   live: 'Живые данные',
   failed: 'Ошибка установки',
   unsupported: 'Неподдерживаемая языковая пара',
+  gameUiTitle: 'Отладка UI',
+  gameUiLive: 'Живые данные',
+  gameUiOverridden: 'Переопределено',
+  gameUiNoShell: 'Без оболочки',
+  gameUiBundled: 'Встроенная оболочка',
+  gameUiRemote: 'Удалённый сеанс',
+  gameUiRgss: 'RGSS нативно',
+  gameUiConnecting: 'Подключение…',
+  gameUiOnline: 'В сети',
+  gameUiPluginsReady: 'Плагины готовы',
+  gameUiPluginsOutdated: 'Плагины устарели',
 }
 export const debugPtBR: DebugMessages = {
   title: 'Menu de depuração',
@@ -96,4 +206,15 @@ export const debugPtBR: DebugMessages = {
   live: 'Dados reais',
   failed: 'Falha na instalação',
   unsupported: 'Par de idiomas não compatível',
+  gameUiTitle: 'Depuração UI',
+  gameUiLive: 'Dados reais',
+  gameUiOverridden: 'Substituído',
+  gameUiNoShell: 'Sem shell',
+  gameUiBundled: 'Shell integrado',
+  gameUiRemote: 'Sessão remota',
+  gameUiRgss: 'RGSS nativo',
+  gameUiConnecting: 'Conectando',
+  gameUiOnline: 'Online',
+  gameUiPluginsReady: 'Plugins prontos',
+  gameUiPluginsOutdated: 'Plugins desatualizados',
 }

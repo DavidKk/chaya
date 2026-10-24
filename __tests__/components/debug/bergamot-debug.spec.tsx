@@ -3,6 +3,7 @@ import { act, useMemo } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
 import { BergamotDebug, BergamotDebugProvider, previewPlan } from '@/components/debug/BergamotDebug'
+import { DebugMenu } from '@/components/debug/DebugMenu'
 import { DebugMenuProvider, useDebugMenuEntries, useDebugMenuRegistration } from '@/components/debug/registry'
 import { DownloadItemRow } from '@/components/downloads/DownloadItemRow'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
@@ -88,6 +89,7 @@ it('debug menu only switches states and does not embed the engines detail previe
           <DebugMenuProvider>
             <BergamotDebugProvider>
               <BergamotDebug />
+              <DebugMenu />
             </BergamotDebugProvider>
           </DebugMenuProvider>
         </LocaleProvider>
@@ -130,4 +132,47 @@ it('labels Bergamot downloads separately from shell downloads', async () => {
   expect(host.textContent).toContain('Bergamot · en → zh')
   expect(host.textContent).not.toContain('NW.js')
   expect(host.querySelector('[role="progressbar"]')?.hasAttribute('aria-valuenow')).toBe(false)
+})
+
+it('hides debug menu when no entries are registered, and displays it once registered', async () => {
+  const previous = process.env.NODE_ENV
+  ;(process.env as Record<string, string | undefined>).NODE_ENV = 'development'
+  try {
+    await act(async () =>
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <DebugMenuProvider>
+            <DebugMenu />
+          </DebugMenuProvider>
+        </LocaleProvider>
+      )
+    )
+    expect(document.querySelector('[aria-label="调试菜单"]')).toBeNull()
+
+    await act(async () =>
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <DebugMenuProvider>
+            <Registration label="测试条目" />
+            <DebugMenu />
+          </DebugMenuProvider>
+        </LocaleProvider>
+      )
+    )
+    expect(document.querySelector('[aria-label="调试菜单"]')).not.toBeNull()
+
+    // Unmount registration
+    await act(async () =>
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <DebugMenuProvider>
+            <DebugMenu />
+          </DebugMenuProvider>
+        </LocaleProvider>
+      )
+    )
+    expect(document.querySelector('[aria-label="调试菜单"]')).toBeNull()
+  } finally {
+    ;(process.env as Record<string, string | undefined>).NODE_ENV = previous
+  }
 })

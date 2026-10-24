@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { type DragEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { IoAdd } from 'react-icons/io5'
 
-import { BergamotDebugGuide, statusFor, useBergamotDebugScenario } from '@/components/debug/BergamotDebug'
+import { BergamotDebug, BergamotDebugGuide, statusFor, useBergamotDebugScenario } from '@/components/debug/BergamotDebug'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { settingsCardColumn } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
@@ -333,83 +333,87 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
       bergamotPreview != null ? statusFor(bergamotPreview) : selectedEngineId === 'apple' || selectedEngineId === 'bergamot' ? systemStatus[selectedEngineId] : undefined
 
     return (
-      <TranslateEngineDetailView
-        key={`${selectedEngineId}:${loading}:${bergamotPreview ?? 'live'}`}
-        engineId={selectedEngineId}
-        label={engineLabel(selectedEngineId)}
-        subtitle={engineSubtitle(selectedEngineId)}
-        group={activeGroup}
-        onBack={() => selectEngine(null)}
-        agentEntry={activeEntry}
-        builtinConfig={activeBuiltin}
-        agentProfiles={agentProfiles}
-        takenProfileIds={view.agents.filter((a) => agentEngineKey(a.id) !== selectedEngineId).map((a) => a.profileId)}
-        systemStatus={offlineStatus}
-        offlineGuide={bergamotPreview != null ? <BergamotDebugGuide scenario={bergamotPreview} /> : undefined}
-        onCheckSystemStatus={() => {
-          if (bergamotPreview != null) {
-            bergamotDebug?.setScenario('checking')
-            return
-          }
-          if (selectedEngineId === 'apple' || selectedEngineId === 'bergamot') {
-            const ctrl = new AbortController()
-            void checkSystemStatus(selectedEngineId, ctrl.signal)
-          }
-        }}
-        saving={saving}
-        locked={loading || saving}
-        onSave={async (draft: EngineDetailDraft) => {
-          if (isBuiltinEngineId(selectedEngineId)) {
-            return persist(
-              {
-                switches: { [selectedEngineId]: draft.enabled },
-                configs: {
-                  [selectedEngineId]: {
-                    enabled: draft.enabled,
-                    allowConcurrency: draft.allowConcurrency,
-                    concurrencyLimit: draft.concurrencyLimit,
-                    maxConcurrentChars: draft.maxConcurrentChars,
+      <>
+        {process.env.NODE_ENV === 'development' ? <BergamotDebug /> : null}
+        <TranslateEngineDetailView
+          key={`${selectedEngineId}:${loading}:${bergamotPreview ?? 'live'}`}
+          engineId={selectedEngineId}
+          label={engineLabel(selectedEngineId)}
+          subtitle={engineSubtitle(selectedEngineId)}
+          group={activeGroup}
+          onBack={() => selectEngine(null)}
+          agentEntry={activeEntry}
+          builtinConfig={activeBuiltin}
+          agentProfiles={agentProfiles}
+          takenProfileIds={view.agents.filter((a) => agentEngineKey(a.id) !== selectedEngineId).map((a) => a.profileId)}
+          systemStatus={offlineStatus}
+          offlineGuide={bergamotPreview != null ? <BergamotDebugGuide scenario={bergamotPreview} /> : undefined}
+          onCheckSystemStatus={() => {
+            if (bergamotPreview != null) {
+              bergamotDebug?.setScenario('checking')
+              return
+            }
+            if (selectedEngineId === 'apple' || selectedEngineId === 'bergamot') {
+              const ctrl = new AbortController()
+              void checkSystemStatus(selectedEngineId, ctrl.signal)
+            }
+          }}
+          saving={saving}
+          locked={loading || saving}
+          onSave={async (draft: EngineDetailDraft) => {
+            if (isBuiltinEngineId(selectedEngineId)) {
+              return persist(
+                {
+                  switches: { [selectedEngineId]: draft.enabled },
+                  configs: {
+                    [selectedEngineId]: {
+                      enabled: draft.enabled,
+                      allowConcurrency: draft.allowConcurrency,
+                      concurrencyLimit: draft.concurrencyLimit,
+                      maxConcurrentChars: draft.maxConcurrentChars,
+                    },
                   },
                 },
-              },
-              t('translate.engineSettingsSaved')
-            )
+                t('translate.engineSettingsSaved')
+              )
+            }
+            if (activeEntry) {
+              const updated = view.agents.map((a) =>
+                a.id === activeEntry.id
+                  ? {
+                      ...a,
+                      enabled: draft.enabled,
+                      allowConcurrency: draft.allowConcurrency,
+                      concurrencyLimit: draft.concurrencyLimit,
+                      maxConcurrentChars: draft.maxConcurrentChars,
+                      profileId: draft.profileId || a.profileId,
+                      model: draft.model !== undefined ? draft.model : a.model,
+                    }
+                  : a
+              )
+              return persist({ agents: updated }, t('translate.engineSettingsSaved'))
+            }
+            return false
+          }}
+          onRemove={
+            activeEntry
+              ? async () => {
+                  const nextAgents = view.agents.filter((a) => a.id !== activeEntry.id)
+                  const ok = await persist({ agents: nextAgents }, t('translate.agentRemoved', { name: engineLabel(selectedEngineId) }))
+                  if (ok) selectEngine(null)
+                  return ok
+                }
+              : undefined
           }
-          if (activeEntry) {
-            const updated = view.agents.map((a) =>
-              a.id === activeEntry.id
-                ? {
-                    ...a,
-                    enabled: draft.enabled,
-                    allowConcurrency: draft.allowConcurrency,
-                    concurrencyLimit: draft.concurrencyLimit,
-                    maxConcurrentChars: draft.maxConcurrentChars,
-                    profileId: draft.profileId || a.profileId,
-                    model: draft.model !== undefined ? draft.model : a.model,
-                  }
-                : a
-            )
-            return persist({ agents: updated }, t('translate.engineSettingsSaved'))
-          }
-          return false
-        }}
-        onRemove={
-          activeEntry
-            ? async () => {
-                const nextAgents = view.agents.filter((a) => a.id !== activeEntry.id)
-                const ok = await persist({ agents: nextAgents }, t('translate.agentRemoved', { name: engineLabel(selectedEngineId) }))
-                if (ok) selectEngine(null)
-                return ok
-              }
-            : undefined
-        }
-      />
+        />
+      </>
     )
   }
 
   // Render the 3 Cards Overview View
   return (
     <div className="flex flex-1 flex-col min-h-0 bg-paper-2 overflow-hidden" aria-label={t('translate.platformsConfig')}>
+      {process.env.NODE_ENV === 'development' ? <BergamotDebug /> : null}
       <ScrollArea className="min-h-0 flex-1" scrollClassName="p-4" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.enginesList') }}>
         <div className={cn(settingsCardColumn, 'max-w-3xl')}>
           {GROUPS.map((group) => {

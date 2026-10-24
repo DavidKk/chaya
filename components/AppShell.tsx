@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation'
 import { type ReactNode, useState } from 'react'
 
 import { AppTopBar } from '@/components/AppTopBar'
-import { BergamotDebug, BergamotDebugProvider } from '@/components/debug/BergamotDebug'
+import { BergamotDebugProvider } from '@/components/debug/BergamotDebug'
+import { DebugMenu } from '@/components/debug/DebugMenu'
 import { DebugMenuProvider } from '@/components/debug/registry'
 import { DownloadsRuntime } from '@/components/downloads/DownloadsRuntime'
 import { GameAgentAppPanel } from '@/components/game-agent/GameAgentAppPanel'
@@ -25,7 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <BergamotDebugProvider>
         <div className={pageShell}>
           <DownloadsRuntime />
-          {process.env.NODE_ENV === 'development' && !marketing ? <BergamotDebug /> : null}
+          {process.env.NODE_ENV === 'development' && !marketing ? <DebugMenu /> : null}
           {marketing ? null : (
             <AppTopBar
               end={

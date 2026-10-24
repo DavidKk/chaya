@@ -23,6 +23,7 @@ export function DebugMenu({ children }: { children?: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const drag = useRef<{ x: number; y: number; top: number; moved: boolean } | null>(null)
   const suppressClick = useRef(false)
+
   useEffect(() => {
     let saved: Position = { side: 'right', top: window.innerHeight - 96 }
     try {
@@ -36,7 +37,14 @@ export function DebugMenu({ children }: { children?: React.ReactNode }) {
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
   }, [])
+
+  useEffect(() => {
+    if (entries.length === 0) setOpen(false)
+  }, [entries.length])
+
   if (process.env.NODE_ENV !== 'development') return null
+  if (entries.length === 0 && !children) return null
+
   return (
     <div className="fixed z-[70]" style={{ top: position.top, [position.side]: 4 }}>
       <Popover.Root open={open} onOpenChange={setOpen}>
@@ -115,30 +123,36 @@ export function DebugMenu({ children }: { children?: React.ReactNode }) {
                 <div className="flex flex-col gap-3">
                   {entries.map((entry) => (
                     <section key={entry.id} aria-label={entry.title} className="flex flex-col gap-2">
-                      <h3 className="m-0 text-xs font-medium text-ink">{entry.title}</h3>
-                      <div className="flex flex-wrap gap-1.5">
-                        {entry.actions.map((action) => (
-                          <Button
-                            key={action.id}
-                            type="button"
-                            size="xs"
-                            variant={action.active ? 'accent' : 'default'}
-                            disabled={action.disabled}
-                            aria-pressed={action.active || undefined}
-                            onMouseDown={(event) => {
-                              // Keep focus in the popup so outside-press dismiss does not eat the click.
-                              if (event.button === 0) event.preventDefault()
-                            }}
-                            onClick={(event) => {
-                              event.preventDefault()
-                              event.stopPropagation()
-                              if (!action.disabled) action.run()
-                            }}
-                          >
-                            {action.label}
-                          </Button>
-                        ))}
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="m-0 text-xs font-medium text-ink">{entry.title}</h3>
+                        {entry.description ? <span className="text-[11px] text-ink-muted">{entry.description}</span> : null}
                       </div>
+                      {entry.custom}
+                      {entry.actions.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {entry.actions.map((action) => (
+                            <Button
+                              key={action.id}
+                              type="button"
+                              size="xs"
+                              variant={action.active ? 'accent' : 'default'}
+                              disabled={action.disabled}
+                              aria-pressed={action.active || undefined}
+                              onMouseDown={(event) => {
+                                // Keep focus in the popup so outside-press dismiss does not eat the click.
+                                if (event.button === 0) event.preventDefault()
+                              }}
+                              onClick={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                if (!action.disabled) action.run()
+                              }}
+                            >
+                              {action.label}
+                            </Button>
+                          ))}
+                        </div>
+                      ) : null}
                     </section>
                   ))}
                   {children}
