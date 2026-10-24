@@ -14,7 +14,7 @@ export default async function TranslateNestedPage({ params }: { params: Promise<
     redirect(`/translate/${mode}`)
   }
   if (tab === 'engines' && isTranslateEnginePathId(mode)) {
-    return <TranslateTabView />
+    return <TranslateTabView tab="engines" />
   }
   // Detail requires `/translate/cache/detail/[id]`
   if (tab === 'cache' && mode === TRANSLATE_CACHE_DETAIL_MODE) notFound()

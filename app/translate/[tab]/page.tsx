@@ -14,6 +14,7 @@ export default async function TranslateTabPage({ params }: Props) {
   if (raw === 'run') {
     redirect('/translate/seed')
   }
-  if (!TRANSLATE_TABS.some((t) => t.id === raw)) notFound()
-  return <TranslateTabView />
+  const tab = TRANSLATE_TABS.find((item) => item.id === raw)?.id
+  if (!tab) notFound()
+  return <TranslateTabView tab={tab} />
 }

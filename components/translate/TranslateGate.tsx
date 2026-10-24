@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { Button, EmptyState } from '@/components/sk'
 import { CACHE_TEST_COPY } from '@/components/translate/cache-test-copy'
-import { translatePathTab } from '@/components/translate/tabs'
+import { translatePathTab, type TranslateRunMode } from '@/components/translate/tabs'
 import { TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { useBoundGame } from '@/components/useBoundGame'
 
@@ -24,7 +24,8 @@ export function TranslateGate({ children }: { children: ReactNode }) {
   if (tab === 'test' && cloud) return <EmptyState title={copy.intro} message={copy.diskOnly} />
   if (tab === 'test' || tab === 'cache' || tab === 'engines' || access === 'ready') return children
   if (access === 'loading') {
-    return <TranslateRunSkeleton />
+    const runMode: TranslateRunMode = tab === 'list' || tab === 'play' ? tab : 'seed'
+    return <TranslateRunSkeleton tab={runMode} />
   }
   const needGame = access === 'need-game'
   return (

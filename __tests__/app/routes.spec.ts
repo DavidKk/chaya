@@ -103,6 +103,12 @@ describe('页面路由契约', () => {
     expect(notFound).toHaveBeenCalled()
   })
 
+  it('/translate/[tab] 把服务端 tab 传给内容视图，避免首屏骨架回退 seed', async () => {
+    const { default: TranslateTabPage } = await import('@/app/translate/[tab]/page')
+    const page = await TranslateTabPage({ params: Promise.resolve({ tab: 'list' }) })
+    expect(page.props.tab).toBe('list')
+  })
+
   it('/translate/[tab] generateStaticParams 覆盖全部 tab', async () => {
     const { TRANSLATE_TABS } = await import('@/components/translate/tabs')
     const { generateStaticParams } = await import('@/app/translate/[tab]/page')

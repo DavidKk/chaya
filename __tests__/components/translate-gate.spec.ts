@@ -13,7 +13,8 @@ jest.mock('next/navigation', () => ({ useRouter: () => mockRouter, usePathname: 
 jest.mock('@/components/GameLinkProvider', () => ({ useGameLinkContext: () => ({ roomId: mockRoom, connected: mockConnected }) }))
 jest.mock('@/components/notification/useNotification', () => ({ useNotification: () => mockNotify }))
 jest.mock('@/components/i18n/LocaleProvider', () => ({ useLocaleCode: () => 'zh', useT: () => (key: string) => key }))
-jest.mock('@/components/translate/TranslateRunSkeleton', () => ({ TranslateRunSkeleton: () => 'loading' }))
+const mockSkeleton = jest.fn(({ tab }: { tab?: string }) => `loading:${tab}`)
+jest.mock('@/components/translate/TranslateRunSkeleton', () => ({ TranslateRunSkeleton: (props: { tab?: string }) => mockSkeleton(props) }))
 jest.mock('@/components/translate/TranslateCacheTableSkeleton', () => ({ TranslateCacheTableSkeleton: () => 'loading' }))
 jest.mock('@/components/sk', () => {
   const { createElement: h } = jest.requireActual('react')
@@ -79,6 +80,25 @@ test('local selected game opens features without a running game', async () => {
     expect(gate.host.textContent).toBe('features')
   } finally {
     await gate.cleanup()
+  }
+})
+
+test.each([
+  ['/translate/list', 'list'],
+  ['/translate/play', 'play'],
+  ['/translate/seed', 'seed'],
+])('gate loading skeleton follows %s', async (pathname) => {
+  mockPathname = pathname
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = jest.fn(() => new Promise(() => {}))
+  const host = document.createElement('div')
+  const root = createRoot(host)
+  try {
+    await act(async () => root.render(createElement(TranslateGate, null, 'features')))
+    expect(mockSkeleton).toHaveBeenCalledWith({ tab: pathname.split('/').at(-1) })
+  } finally {
+    await act(async () => root.unmount())
+    globalThis.fetch = originalFetch
   }
 })
 
