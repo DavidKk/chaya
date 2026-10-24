@@ -22,7 +22,7 @@ import { useOptimizeNames } from '@/components/translate/useOptimizeNames'
 import { useSyncNames } from '@/components/translate/useSyncNames'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { filterTranslationExport, type TranslationExportMode } from '@/lib/translate/export'
-import { estimateRemainMs, formatRemainEta, type TranslationPerformance } from '@/lib/translate/remain-eta'
+import { estimateRemainMs, formatRemainEta, projectRemainingChars, smoothTranslationPerformance, type TranslationPerformance } from '@/lib/translate/remain-eta'
 import { cn } from '@/lib/utils'
 
 type Progress = {
@@ -50,6 +50,7 @@ type JobState = {
   liveStatus: string
   sessionDone: number
   startedAt: number | null
+  updatedAt: number
   error: string | null
   logs: TranslateLogEntry[]
 }
@@ -77,11 +78,12 @@ const emptyJob: JobState = {
   liveStatus: '',
   sessionDone: 0,
   startedAt: null,
+  updatedAt: 0,
   error: null,
   logs: [],
 }
 
-const POLL_MS = 1200
+const POLL_MS = 750
 
 function readProgress(json: Partial<Progress> & { preparing?: boolean }): Progress {
   return {
@@ -110,13 +112,14 @@ function readJob(json: Partial<JobState> | undefined): JobState {
     liveStatus: json.liveStatus ?? '',
     sessionDone: json.sessionDone ?? 0,
     startedAt: typeof json.startedAt === 'number' ? json.startedAt : null,
+    updatedAt: typeof json.updatedAt === 'number' ? json.updatedAt : 0,
     error: json.error ?? null,
     logs: Array.isArray(json.logs) ? json.logs : [],
   }
 }
 
 function ProgressMeter({ label, pct, hint, indeterminate = false }: { label: string; pct: number; hint?: string; indeterminate?: boolean }) {
-  const animatedPct = useAnimatedNumber(pct, 1500)
+  const animatedPct = useAnimatedNumber(pct, 650)
   const clamped = Math.min(100, Math.max(0, animatedPct))
   return (
     <div role="progressbar" aria-valuenow={indeterminate ? undefined : clamped} aria-valuemin={0} aria-valuemax={100} aria-busy={indeterminate || undefined} aria-label={label}>
@@ -143,7 +146,7 @@ function ProgressMeter({ label, pct, hint, indeterminate = false }: { label: str
 }
 
 function StatTile({ label, value, hint, tone = 'ink' }: { label: string; value: number; hint?: ReactNode; tone?: 'ink' | 'ok' | 'warn' | 'accent' }) {
-  const animated = useAnimatedNumber(value, 1500)
+  const animated = useAnimatedNumber(value, 650)
   const valueTone = tone === 'ok' ? 'text-ok' : tone === 'warn' ? 'text-warn' : tone === 'accent' ? 'text-accent' : 'text-ink'
 
   return (
@@ -181,6 +184,9 @@ export function TranslateRunPane({
   const [pausing, setPausing] = useState(false)
   const [importing, setImporting] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [displayPerformance, setDisplayPerformance] = useState<TranslationPerformance | null>(null)
+  const [clock, setClock] = useState(0)
+  const [playSettingsMounted, setPlaySettingsMounted] = useState(tab === 'play')
   const prevStatus = useRef<JobStatus>('idle')
 
   const running = job.status === 'running'
@@ -246,6 +252,25 @@ export function TranslateRunPane({
     }, POLL_MS)
     return () => window.clearInterval(timer)
   }, [running, preparing, refresh, surface, tab])
+
+  useEffect(() => {
+    if (!running) {
+      setDisplayPerformance(null)
+      return
+    }
+    setDisplayPerformance((previous) => smoothTranslationPerformance(previous, job.performance))
+  }, [running, job.performance])
+
+  useEffect(() => {
+    if (!running) return
+    setClock(Date.now())
+    const timer = window.setInterval(() => setClock(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [running])
+
+  useEffect(() => {
+    if (tab === 'play') setPlaySettingsMounted(true)
+  }, [tab])
 
   useEffect(() => {
     const prev = prevStatus.current
@@ -402,8 +427,10 @@ export function TranslateRunPane({
   const liveStatus = job.liveStatus || (extracting ? t('translate.extractingText') : preparing ? t('translate.preparingInventory') : '')
   const canStart = progress.missing > 0 && !preparing
   const startLabel = job.status === 'paused' ? t('translate.continue') : progress.missing > 0 ? t('translate.start') : t('translate.completed')
-  const perf = running && !pausing && job.performance && job.performance.charsPerSecond > 0 ? job.performance : null
-  const remainMs = estimateRemainMs({ missingChars: progress.missingChars, charsPerSecond: perf?.charsPerSecond, running })
+  const perf = running && !pausing && displayPerformance && displayPerformance.charsPerSecond > 0 ? displayPerformance : null
+  const elapsedSinceCheckpoint = clock > 0 && job.updatedAt > 0 ? clock - job.updatedAt : 0
+  const remainingChars = projectRemainingChars({ missingChars: progress.missingChars, charsPerSecond: perf?.charsPerSecond, elapsedMs: elapsedSinceCheckpoint })
+  const remainMs = estimateRemainMs({ missingChars: remainingChars, charsPerSecond: perf?.charsPerSecond, running })
   const statusHint =
     [
       preparing ? t('translate.preparingInventory') : null,
@@ -440,7 +467,7 @@ export function TranslateRunPane({
             <div className="flex items-start justify-start p-4">
               <div className="flex w-full max-w-[52rem] flex-col gap-3">
                 <div role="tabpanel" id={`${panelId}-play`} aria-labelledby={`${panelId}-play-tab`} data-translate-mode="play" hidden={tab !== 'play'}>
-                  {tab === 'play' ? <TranslationPlaySettings /> : null}
+                  {playSettingsMounted ? <TranslationPlaySettings /> : null}
                   <TranslateActivityLog className="mt-4 w-full" entries={activity.logs} liveStatus={activity.liveStatus} sessionDone={activity.sessionDone} />
                 </div>
                 <div role="tabpanel" id={`${panelId}-seed`} aria-labelledby={`${panelId}-seed-tab`} data-translate-mode="seed" hidden={tab !== 'seed'}>

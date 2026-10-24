@@ -21,6 +21,7 @@ const targets = [
   { entryPoints: ['services/translate/scheduler/cache-worker.ts'], outfile: 'native/bin/chaya-cache-worker.mjs' },
   { entryPoints: ['services/extract/lib/rgss/items-worker.ts'], outfile: 'native/bin/chaya-rgss-extract-worker.mjs' },
   { entryPoints: ['services/translate/scheduler/seed-inventory-worker.ts'], outfile: 'native/bin/chaya-seed-inventory-worker.mjs' },
+  { entryPoints: ['services/translate/seed-job-worker.ts'], outfile: 'native/bin/chaya-seed-job-worker.mjs' },
 ]
 
 async function run() {

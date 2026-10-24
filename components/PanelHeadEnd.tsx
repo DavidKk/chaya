@@ -38,10 +38,13 @@ export function PanelHeadStartHost({ className }: { className?: string }) {
   return <div ref={setHost} className={cn('inline-flex shrink-0 items-center gap-1', className)} />
 }
 
-/** 内容页把控件注入页头标题左侧；SSR 首帧可给 fallback，避免骨架缺块。 */
-export function PanelHeadStart({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
+/**
+ * 内容页把控件注入页头标题左侧。Host 是客户端 ref，SSR 时没有可 portal 的节点；
+ * 不在内容区渲染 fallback，避免 hydrate 后控件跨区域移动造成布局跳变。
+ */
+export function PanelHeadStart({ children }: { children: ReactNode }) {
   const host = useContext(StartNodeContext)
-  if (!host) return fallback ? <>{fallback}</> : null
+  if (!host) return null
   return createPortal(children, host)
 }
 
@@ -52,9 +55,9 @@ export function PanelHeadEndHost({ className }: { className?: string }) {
   return <div ref={setHost} className={cn(panelHeadEnd, className)} />
 }
 
-/** 内容页把筛选控件注入页头右侧（与日志 / GameEdit 的 head-end 同一视觉位） */
-export function PanelHeadEnd({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
+/** 内容页把筛选控件注入页头右侧（与日志 / GameEdit 的 head-end 同一视觉位）。 */
+export function PanelHeadEnd({ children }: { children: ReactNode }) {
   const host = useContext(EndNodeContext)
-  if (!host) return fallback ? <>{fallback}</> : null
+  if (!host) return null
   return createPortal(children, host)
 }

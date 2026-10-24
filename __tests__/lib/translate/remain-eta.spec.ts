@@ -1,6 +1,13 @@
 import { describe, expect, it } from '@jest/globals'
 
-import { estimateRemainMs, formatRemainEta, translationPerformance } from '@/lib/translate/remain-eta'
+import {
+  estimateRemainMs,
+  formatRemainEta,
+  projectRemainingChars,
+  rollingTranslationPerformance,
+  smoothTranslationPerformance,
+  translationPerformance,
+} from '@/lib/translate/remain-eta'
 
 describe('estimateRemainMs', () => {
   it('uses remaining characters rather than the total or historical wall time', () => {
@@ -65,5 +72,66 @@ describe('recent translation performance', () => {
     expect(formatRemainEta(3599999)).toBe('01:00:00')
     expect(formatRemainEta(25 * 3600000 + 33000)).toBe('25:00:33')
     expect(formatRemainEta(0)).toBe('00:00')
+  })
+})
+
+describe('rolling translation performance', () => {
+  it('uses only samples inside the recent wall-clock window', () => {
+    expect(
+      rollingTranslationPerformance(
+        [
+          { at: 1_000, chars: 100 },
+          { at: 2_000, chars: 20 },
+          { at: 3_000, chars: 30 },
+          { at: 4_000, chars: 40 },
+        ],
+        { now: 4_000, windowMs: 2_000 }
+      )
+    ).toEqual({ charsPerSecond: 45, cacheMs: 0 })
+  })
+
+  it('needs enough samples and elapsed time before reporting a rate', () => {
+    expect(rollingTranslationPerformance([{ at: 1000, chars: 100 }], { now: 2000 })).toBeNull()
+    expect(
+      rollingTranslationPerformance(
+        [
+          { at: 1000, chars: 100 },
+          { at: 1100, chars: 100 },
+        ],
+        { now: 1200, minElapsedMs: 400 }
+      )
+    ).toBeNull()
+  })
+
+  it('ignores future and invalid character samples without letting them hide elapsed time', () => {
+    expect(
+      rollingTranslationPerformance(
+        [
+          { at: 1000, chars: 20 },
+          { at: 1500, chars: Number.NaN },
+          { at: 2000, chars: 30 },
+          { at: 3000, chars: 50 },
+        ],
+        { now: 2000, cacheMs: 7 }
+      )
+    ).toEqual({ charsPerSecond: 50, cacheMs: 7 })
+  })
+})
+
+describe('display ETA helpers', () => {
+  it('smooths short-window spikes but adopts the first sample immediately', () => {
+    expect(smoothTranslationPerformance(null, { charsPerSecond: 100, cacheMs: 3 })).toEqual({ charsPerSecond: 100, cacheMs: 3 })
+    expect(smoothTranslationPerformance({ charsPerSecond: 100, cacheMs: 3 }, { charsPerSecond: 200, cacheMs: 4 })).toEqual({
+      charsPerSecond: 120,
+      cacheMs: 4,
+    })
+    expect(smoothTranslationPerformance({ charsPerSecond: 100, cacheMs: 3 }, null)).toEqual({ charsPerSecond: 100, cacheMs: 3 })
+  })
+
+  it('projects only a bounded amount between worker checkpoints', () => {
+    expect(projectRemainingChars({ missingChars: 1000, charsPerSecond: 100, elapsedMs: 1000 })).toBe(900)
+    expect(projectRemainingChars({ missingChars: 1000, charsPerSecond: 100, elapsedMs: 60_000, maxElapsedMs: 2000 })).toBe(800)
+    expect(projectRemainingChars({ missingChars: 1000, charsPerSecond: 0, elapsedMs: 1000 })).toBe(1000)
+    expect(projectRemainingChars({ missingChars: 1000, charsPerSecond: 100, elapsedMs: -1 })).toBe(1000)
   })
 })

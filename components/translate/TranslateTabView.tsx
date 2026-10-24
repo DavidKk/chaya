@@ -10,7 +10,6 @@ import { TranslateCachePageSkeleton } from '@/components/translate/TranslateCach
 import { TranslateEnginesSkeleton } from '@/components/translate/TranslateEnginesSkeleton'
 import { TranslateListSkeleton, TranslateRunSkeleton } from '@/components/translate/TranslateRunSkeleton'
 import { TranslateTestSkeleton } from '@/components/translate/TranslateTestSkeleton'
-import { TranslateRunPane } from '@/components/TranslateRunPane'
 
 const CacheTestView = dynamic(() => import('@/components/translate/CacheTestView').then((m) => m.CacheTestView), {
   loading: () => <TranslateTestSkeleton />,
@@ -21,6 +20,7 @@ const CacheBrowser = dynamic(() => import('@/components/CacheBrowser').then((m) 
 const TranslateEnginesPane = dynamic(() => import('@/components/translate/TranslateEnginesPane').then((m) => m.TranslateEnginesPane), {
   loading: () => <TranslateEnginesRouteSkeleton />,
 })
+const TranslateRunPane = dynamic(() => import('@/components/TranslateRunPane').then((m) => m.TranslateRunPane))
 const TranslateListContent = dynamic(() => import('@/components/translate/TranslateListContent').then((m) => m.TranslateListContent), {
   loading: () => <TranslateListSkeleton />,
 })

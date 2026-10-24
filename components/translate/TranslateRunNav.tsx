@@ -22,5 +22,5 @@ export function TranslateRunNav({ value, onChange, panelId }: { value: Translate
       />
     </div>
   )
-  return <PanelHeadEnd fallback={content}>{content}</PanelHeadEnd>
+  return <PanelHeadEnd>{content}</PanelHeadEnd>
 }

@@ -127,7 +127,7 @@ export function TranslateListSkeleton() {
   )
   return (
     <SkeletonRegion label={t('translate.loadList')} className="flex h-full min-h-0 w-full flex-col select-none">
-      <PanelHeadEnd fallback={filters}>{filters}</PanelHeadEnd>
+      <PanelHeadEnd>{filters}</PanelHeadEnd>
 
       <div className="shrink-0 border-b border-line bg-surface/10">
         <div className="flex min-w-max flex-nowrap items-center justify-end gap-2 px-4 py-2" aria-hidden>

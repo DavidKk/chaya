@@ -20,7 +20,7 @@ export function TranslateCacheOptimizeSkeleton() {
   const back = <Skeleton className="size-8 rounded-[0.2rem]" />
   return (
     <SkeletonRegion label={t('translate.loadCacheDetail')} className="flex min-h-0 flex-1 flex-col">
-      <PanelHeadStart fallback={back}>{back}</PanelHeadStart>
+      <PanelHeadStart>{back}</PanelHeadStart>
 
       <div className="min-h-0 flex-1 overflow-hidden p-4" aria-hidden>
         <div className="flex w-full flex-col gap-4">

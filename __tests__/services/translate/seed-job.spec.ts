@@ -59,7 +59,7 @@ jest.mock('@/services/translate/scheduler/seed-prepare', () => ({
   prepareSeedInventory: (...args: unknown[]) => mockPrepare(...(args as [string])),
 }))
 
-import { getSeedJobSnapshot, pauseSeedJob, refreshSeedJobProgress, startSeedJob } from '@/services/translate/seed-job'
+import { getSeedJobSnapshot, pauseSeedJob, refreshSeedJobProgress, startSeedJob } from '@/services/translate/seed-job-runtime'
 
 /** startSeedJob schedules prepare off the HTTP path; flush so beginSeedLoop attaches the fill session. */
 async function startSeedJobReady() {
@@ -233,7 +233,7 @@ describe('seed job failures', () => {
     legacy.workerVersion = 0
     legacy.state.status = 'running'
     jest.isolateModules(() => {
-      jest.requireActual('@/services/translate/seed-job')
+      jest.requireActual('@/services/translate/seed-job-runtime')
     })
     expect(legacy.stopRequested).toBe(true)
     legacy.running = false
@@ -302,7 +302,7 @@ describe('seed job failures', () => {
     legacy.workerVersion = 0
     legacy.state.status = 'running'
     jest.isolateModules(() => {
-      jest.requireActual('@/services/translate/seed-job')
+      jest.requireActual('@/services/translate/seed-job-runtime')
     })
     legacy.running = false
     legacy.state.status = 'paused'

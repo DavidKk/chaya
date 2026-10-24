@@ -20,8 +20,8 @@ export function TranslateTestSkeleton() {
   )
   return (
     <SkeletonRegion label={t('translate.loadTest')} className="flex min-h-0 flex-1 flex-col">
-      <PanelHeadStart fallback={back}>{back}</PanelHeadStart>
-      <PanelHeadEnd fallback={actions}>{actions}</PanelHeadEnd>
+      <PanelHeadStart>{back}</PanelHeadStart>
+      <PanelHeadEnd>{actions}</PanelHeadEnd>
 
       <div className="min-h-0 flex-1 overflow-hidden p-4" aria-hidden>
         <div className="flex min-w-0 flex-col gap-4">

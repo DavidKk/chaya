@@ -27,6 +27,7 @@ const eslintConfig = defineConfig([
     'native/bin/chaya-storage-client.mjs',
     'native/bin/chaya-rgss-extract-worker.mjs',
     'native/bin/chaya-seed-inventory-worker.mjs',
+    'native/bin/chaya-seed-job-worker.mjs',
     // 翻译管线 lib 仍为 @ts-nocheck 风格，避免假阳性
     'services/translate/lib/**',
     // local MVP smoke / demo

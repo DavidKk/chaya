@@ -114,6 +114,8 @@ export const CACHE_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-cache-w
 export const RGSS_EXTRACT_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-rgss-extract-worker.mjs')
 /** Seed inventory worker — keeps seed/RGSS filter + lookup off the Next.js main thread */
 export const SEED_INVENTORY_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-seed-inventory-worker.mjs')
+/** Seed translation job worker — owns the fill loop, SQLite writes and game-file writes */
+export const SEED_JOB_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-seed-job-worker.mjs')
 /** Offline translation packs (Bergamot); override with `CHAYA_BERGAMOT_PACKS_DIR` */
 export const TRANSLATION_PACKS_DIR = join(DATA_DIR, TRANSLATION_PACKS_DIR_NAME)
 /** Download-center job list (survives process restart; mid-flight work is marked interrupted) */

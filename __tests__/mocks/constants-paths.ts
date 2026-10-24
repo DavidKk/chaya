@@ -65,6 +65,8 @@ export const DOWNLOAD_JOBS_PATH = join(DATA_DIR, DOWNLOAD_JOBS_FILE_NAME)
 export const GAME_AGENT_DIR = join(DATA_DIR, GAME_AGENT_DIR_NAME)
 export const CACHE_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-cache-worker.mjs')
 export const RGSS_EXTRACT_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-rgss-extract-worker.mjs')
+export const SEED_INVENTORY_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-seed-inventory-worker.mjs')
+export const SEED_JOB_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-seed-job-worker.mjs')
 
 export const LOGS_DIR = join(ROOT_PATH, LOGS_DIR_NAME)
 export const PLUGIN_LOGS_DIR = join(LOGS_DIR, PLUGIN_LOGS_DIR_NAME)

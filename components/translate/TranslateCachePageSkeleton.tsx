@@ -23,7 +23,7 @@ export function TranslateCachePageSkeleton() {
   )
   return (
     <SkeletonRegion label={t('translate.loadCache')} className="flex min-h-0 flex-1 flex-col">
-      <PanelHeadEnd fallback={filters}>{filters}</PanelHeadEnd>
+      <PanelHeadEnd>{filters}</PanelHeadEnd>
 
       <div className="flex min-h-0 flex-1 flex-col">
         <TranslateCacheTableSkeleton />
