@@ -109,7 +109,7 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
     expect(host.textContent).not.toContain('保存模式')
     expect(panels[0].hidden).toBe(false)
     expect(panels[1].hidden).toBe(true)
-    expect(panels[0].querySelector('[aria-label="Translation activity log"]')).not.toBeNull()
+    expect(panels[0].querySelector('[aria-label="加载翻译活动日志"]')).not.toBeNull()
     if (surface === 'overlay') expect(panels[0].textContent).toContain('词库命中：応接室へ行く')
 
     if (surface === 'overlay') {
@@ -118,7 +118,7 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
       const updatedPanels = host.querySelectorAll<HTMLDivElement>('[data-translate-mode]')
       expect(updatedPanels[0].hidden).toBe(true)
       expect(updatedPanels[1].hidden).toBe(false)
-      expect(host.querySelector('[aria-label="Translation activity log"]')).not.toBeNull()
+      expect(host.querySelector('[aria-label="加载翻译活动日志"]')).not.toBeNull()
       const play = host.querySelector<HTMLButtonElement>('[data-translate-section-nav] button[data-nav-id="play"]')!
       await act(async () => play.click())
       expect(play.getAttribute('aria-current')).toBe('page')
@@ -127,7 +127,7 @@ test.each(['overlay', 'page'] as const)('%s translation mounts and refreshes wit
       const updatedPanels = host.querySelectorAll<HTMLDivElement>('[data-translate-mode]')
       expect(updatedPanels[0].hidden).toBe(true)
       expect(updatedPanels[1].hidden).toBe(false)
-      expect(host.querySelector('[aria-label="Translation activity log"]')).not.toBeNull()
+      expect(host.querySelector('[aria-label="加载翻译活动日志"]')).not.toBeNull()
     }
 
     await act(async () => root.render(<Pane key="refresh-seed" refreshKey={1} initialMode="seed" />))
@@ -172,10 +172,17 @@ test('new log entries scroll only the log viewport even when the retained log co
   const host = document.createElement('div')
   document.body.append(host)
   const root = createRoot(host)
-  const renderLog = (id: number) => <TranslateActivityLog entries={[{ id, at: 0, level: 'ok', text: `译文 ${id}` }]} />
+  const renderLog = (id: number) => (
+    <LocaleProvider initialLocale="zh" initialPreference="zh">
+      <TranslateActivityLog entries={[{ id, at: 0, level: 'ok', text: `译文 ${id}` }]} />
+    </LocaleProvider>
+  )
   try {
     await act(async () => root.render(renderLog(1)))
-    const viewport = host.querySelector<HTMLDivElement>('[aria-label="Translation activity log"]')!
+    const viewport = host.querySelector<HTMLDivElement>('[aria-label="加载翻译活动日志"]')!
+    expect(host.textContent).toContain('活动日志')
+    expect(host.textContent).toContain('本会话已译 0 条')
+    expect(host.textContent).toContain('译文 1')
     Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 900 })
     host.scrollTop = 45
     host.focus()

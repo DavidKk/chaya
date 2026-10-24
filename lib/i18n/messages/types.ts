@@ -600,6 +600,11 @@ export type MessageTree = {
     loadPlaySettings: string
     loadSeedProgress: string
     loadActivity: string
+    activityLogTitle: string
+    activityLogSessionDone: string
+    activityLogEmpty: string
+    activityLogHint: string
+    activityLogJumpLatest: string
     loadCache: string
     listSearchPlaceholder: string
     listSearchAria: string
@@ -696,6 +701,8 @@ export type MessageTree = {
     listSingleSaveBackup: string
     listSingleSaveFailed: string
     listSingleSaveReqFailed: string
+    listFindSimilarBtn: string
+    listFindSimilarTooltip: string
     listSingleTransSuccess: string
     listSingleTransNoResult: string
     appleOfflinePackMissing: string
