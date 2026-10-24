@@ -93,7 +93,7 @@ export function ShellActionsMenu(props: Props) {
   )
   return (
     <Menu.Root open={open} onOpenChange={setOpen}>
-      <Menu.Trigger disabled={props.busy} render={<Button className={props.buttonClassName} variant="ghost" />}>
+      <Menu.Trigger disabled={props.busy} render={<Button size="lg" className={props.buttonClassName} variant="ghost" />}>
         <IoEllipsisHorizontal size={18} aria-hidden />
         {t('common.more')}
       </Menu.Trigger>

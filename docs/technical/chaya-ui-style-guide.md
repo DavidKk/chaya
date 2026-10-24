@@ -32,6 +32,9 @@
 
 **实心色钮字色：** `accent` / `ok` / `warn` / `fail` 统一近白字。`--accent` 与 Switch 开态同色即可；`--accent-ink` 为近白，不要改回深色墨。
 
+- **渐变色实心钮（主操作）**：`variant="accent" | "ok" | "warn" | "fail"`，采用实心渐变底色、近白字、发光阴影与跟随光泽；所有大按钮（`size="gate"` 与 `size="lg"`，如卡片主操作「开始游戏」、「清除插件」）统一使用渐变色实心钮。
+- **彩色描边次级色钮**：`variant="outline-accent" | "outline-ok" | "outline-warn" | "outline-fail"`（或普通尺寸配合 `outline` prop），采用淡底色 + 彩色描边 + 彩色字，与主操作实心渐变色钮保持明确区分，为两种独立不同的样式。
+
 ## 3. 字体与层级
 
 - `--font-sans`（正文）、`--font-display`（品牌/页头）、`--font-mono`（路径/ID/日志）。

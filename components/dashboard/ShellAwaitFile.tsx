@@ -32,12 +32,12 @@ export function ShellAwaitFile({ gameId, buttonClassName }: { gameId?: string; b
     <div className="flex flex-col gap-2">
       {item.archiveName ? <p className="m-0 text-[0.8125rem] text-ink-soft">{t('downloads.awaitFileCard', { name: item.archiveName })}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
-        <Button className={buttonClassName} variant="accent" loading={picking} onClick={() => void pick()}>
+        <Button size="lg" className={buttonClassName} variant="accent" loading={picking} onClick={() => void pick()}>
           <LuFolderOpen size={17} aria-hidden />
           {t('downloads.action.pickFile')}
         </Button>
         {actions.openDownload ? (
-          <Button className={buttonClassName} variant="ghost" disabled={picking} onClick={() => void actions.openDownload?.()}>
+          <Button size="lg" className={buttonClassName} variant="ghost" disabled={picking} onClick={() => void actions.openDownload?.()}>
             <LuSquareArrowOutUpRight size={16} aria-hidden />
             {t('downloads.action.openDownload')}
           </Button>

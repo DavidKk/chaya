@@ -30,6 +30,7 @@ export function DashboardGameActions({ nativeRuntime, busy, launch, plugins, she
     <div className="flex flex-col items-start gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <Button
+          size="lg"
           className={actionButtonClass}
           variant={launch.online ? 'accent' : 'ok'}
           disabled={busy || (!launch.online && !launch.enabled)}
@@ -42,6 +43,7 @@ export function DashboardGameActions({ nativeRuntime, busy, launch, plugins, she
         </Button>
         {plugins.state !== 'unavailable' ? (
           <Button
+            size="lg"
             className={actionButtonClass}
             variant={plugins.state === 'ready' ? 'fail' : 'accent'}
             disabled={busy || plugins.locked}

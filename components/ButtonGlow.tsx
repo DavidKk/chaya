@@ -2,14 +2,16 @@
 
 import { useEffect } from 'react'
 
-/** 主按钮（accent / ok）内跟随光 */
+/** 主按钮与渐变色按钮（accent / ok / warn / fail / gate / lg）内跟随光 */
 export function ButtonGlow() {
   useEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)')
     if (reduce.matches) return
 
     const onMove = (e: PointerEvent) => {
-      const el = (e.target as Element | null)?.closest?.('[data-variant="accent"], [data-variant="ok"]')
+      const el = (e.target as Element | null)?.closest?.(
+        '[data-sheen="true"], [data-variant="accent"], [data-variant="ok"], [data-variant="warn"], [data-variant="fail"], [data-size="gate"], [data-size="lg"]'
+      )
       if (!(el instanceof HTMLElement)) return
       const rect = el.getBoundingClientRect()
       el.style.setProperty('--btn-x', `${e.clientX - rect.left}px`)
