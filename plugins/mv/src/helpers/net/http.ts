@@ -43,6 +43,15 @@ export async function chayaFetch(pathOrUrl: string, init?: RequestInit): Promise
 
   return new Promise((resolve, reject) => {
     if (init?.signal?.aborted) return reject(init.signal.reason)
+    let stream: ReadableStreamDefaultController<Uint8Array> | undefined
+    let ended = false
+    const fail = (error: Error) => {
+      if (!ended) {
+        ended = true
+        if (stream) stream.error(error)
+        else reject(error)
+      }
+    }
     const req = lib.request(
       {
         hostname: u.hostname,
@@ -55,24 +64,50 @@ export async function chayaFetch(pathOrUrl: string, init?: RequestInit): Promise
         },
       },
       (res) => {
-        const chunks: Buffer[] = []
-        res.on('data', (c: Buffer) => chunks.push(c))
-        res.on('end', () => {
-          const text = Buffer.concat(chunks).toString('utf8')
-          resolve(
-            new Response(text, {
-              status: res.statusCode || 0,
-              statusText: res.statusMessage || '',
+        const headers = new Headers()
+        for (let i = 0; i < res.rawHeaders.length; i += 2) headers.append(res.rawHeaders[i], res.rawHeaders[i + 1])
+        const noBody = method === 'HEAD' || [204, 205, 304].includes(res.statusCode || 0)
+        const source = noBody
+          ? null
+          : new ReadableStream<Uint8Array>({
+              start(controller) {
+                stream = controller
+                res.on('data', (chunk: Buffer) => {
+                  if (!ended) {
+                    controller.enqueue(new Uint8Array(chunk))
+                    if ((controller.desiredSize ?? 0) <= 0) res.pause()
+                  }
+                })
+              },
+              pull() {
+                res.resume()
+              },
+              cancel(reason) {
+                ended = true
+                res.destroy(reason instanceof Error ? reason : undefined)
+                req.destroy()
+              },
             })
-          )
+        res.on('error', fail)
+        res.on('aborted', () => fail(new Error('chayaFetch: response interrupted')))
+        res.on('end', () => {
+          if (!ended) {
+            ended = true
+            stream?.close()
+          }
         })
+        res.once('close', cleanup)
+        if (noBody) res.resume()
+        resolve(new Response(source, { status: res.statusCode || 200, statusText: res.statusMessage || '', headers }))
       }
     )
     const abort = () => req.destroy(init?.signal?.reason instanceof Error ? init.signal.reason : new DOMException('已取消', 'AbortError'))
     const cleanup = () => init?.signal?.removeEventListener('abort', abort)
     init?.signal?.addEventListener('abort', abort, { once: true })
-    req.once('close', cleanup)
-    req.on('error', reject)
+    req.on('error', (error) => {
+      cleanup()
+      fail(error)
+    })
     if (body) req.write(body)
     req.end()
   })

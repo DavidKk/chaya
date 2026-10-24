@@ -44,6 +44,7 @@ export async function startExtPlayTurn(
       locale: input.locale,
       surface: input.surface || 'sidebar',
       companionCharacter: input.companionCharacter,
+      ...(input.lifetime ? { lifetime: input.lifetime } : {}),
       goal: input.prompt,
     },
     gameCallTimeoutMs

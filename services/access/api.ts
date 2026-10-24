@@ -44,6 +44,25 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
   if (/^\/api\/game-agent\/auth\/[^/]+$/.test(path) && ['GET', 'DELETE'].includes(request.method)) return true
   if (/^\/api\/game-agent\/auth\/[^/]+\/code$/.test(path) && request.method === 'POST') return true
   if (path === '/api/game-agent/model' && request.method === 'POST') return true
+  if (path === '/api/game-agent/companion-model' && request.method === 'POST') return true
+  if (path === '/api/game-agent/companion' && request.method === 'POST') {
+    const body = await request
+      .clone()
+      .json()
+      .catch(() => null)
+    return body?.gameId === (session.libraryId || session.token)
+  }
+  if (path === '/api/game-agent/memory') {
+    if (request.method === 'POST') {
+      const body = await request
+        .clone()
+        .json()
+        .catch(() => null)
+      const gameId = session.libraryId || session.token
+      return (body?.gameId || new URL(request.url).searchParams.get('gameId')) === gameId
+    }
+    if (request.method === 'GET') return url.searchParams.get('gameId') === (session.libraryId || session.token)
+  }
   if (path === '/api/game-agent/activity') {
     if (request.method === 'POST') {
       const body = await request

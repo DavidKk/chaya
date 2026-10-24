@@ -21,6 +21,7 @@ import type {
   SearchScope,
   WatchEntry,
 } from '@/lib/game/save-data/types'
+import type { CompanionHostRequest } from '@/lib/runtime/companion-protocol'
 import type { LinkChunkPacket } from '@/lib/runtime/link-chunks'
 import type { TranslationPacket } from '@/lib/runtime/translation-rpc'
 
@@ -226,6 +227,7 @@ export type MapOperationMessage =
   | { type: 'map.operation.reply'; requestId: string; ok: boolean; status?: unknown; undo?: unknown; error?: string }
 
 export type AgentTaskMessage =
+  | CompanionHostRequest
   | {
       type: 'agent.task.start'
       requestId: string
@@ -242,6 +244,7 @@ export type AgentTaskMessage =
       thinking?: boolean
       /** From classify; batch triggers the reconcile job path (docs/technical/game-agent-jobs.md). */
       shape?: 'single' | 'batch' | 'open'
+      lifetime?: 'goal' | 'until_stopped'
       routine?: import('@/lib/game-agent/runtime/types').AgentRoutine
       goal: string
     }
@@ -257,7 +260,7 @@ export type AgentTaskMessage =
   | { type: 'agent.trace.export'; requestId: string; taskId: string }
   | { type: 'agent.trace.remove'; requestId: string; taskId?: string }
   | { type: 'agent.config.put'; requestId: string; config: unknown }
-  | { type: 'agent.task.result'; requestId: string; ok: boolean; data?: unknown; error?: string }
+  | { type: 'agent.task.result'; requestId: string; ok: boolean; data?: unknown; error?: string; code?: string; retryable?: boolean }
 
 export type GameLinkMessage =
   | TranslationPacket

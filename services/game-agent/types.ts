@@ -94,4 +94,5 @@ export type StartTurnInput = {
   locale?: string
   surface?: string
   companionCharacter?: string
+  lifetime?: 'goal' | 'until_stopped'
 }

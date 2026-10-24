@@ -4,6 +4,7 @@
 > 日期：2026-10-06 · 状态修订：2026-10-08
 > 需求：[`../game-assistance.md`](../game-assistance.md)、[`../capability-supplement.md`](../capability-supplement.md)
 > 关联：[`game-agent.md`](./game-agent.md)、[`webmcp.md`](./webmcp.md)
+> 2026-10-24 旅伴集成的目标架构以 [`companion.md`](./companion.md) 为准：单活动任务约束继续用于操作任务，陪聊有独立只读请求；任务按 runtimeInstanceId 隔离，shape 与 lifetime 分开，入口不决定持续性。本文步骤 / 预算的历史差异不作为此次重做执行循环的要求，输入守卫、停止和验证仍复用。
 
 ## 1. 决策
 

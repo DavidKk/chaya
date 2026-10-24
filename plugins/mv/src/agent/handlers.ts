@@ -15,9 +15,10 @@ import { battleProgress, originalMessageText, readHistory } from './history'
 import { interactEvent } from './interact'
 import { armReaction, currentReactionCue, reactionAvailable, reactionOutcome, reactionResult, startReactionMonitor, stopReaction } from './reaction'
 import { readCommandInputs, readRenderedText } from './rendered-text'
+import { withCompanionLoadOwner } from './runtime/companion-load-context'
 import { readSceneWindows } from './window-state'
 
-type GameSavesAgent = { agentSnapshot: () => Promise<unknown>; agentLoad: (entryId: string, allowVersionMismatch?: boolean) => Promise<unknown> }
+type GameSavesAgent = { agentSnapshot: () => Promise<unknown>; agentLoad: (entryId: string, allowVersionMismatch?: boolean, initiatorTaskId?: string) => Promise<unknown> }
 
 function gameSaves(): GameSavesAgent {
   const controller = (window as Window & { __chayaGameSaves?: GameSavesAgent }).__chayaGameSaves
@@ -49,6 +50,7 @@ const DEFAULT_WAIT_FRAMES = 6
 const MAX_PRESS_FRAMES = 600
 const MAX_SEQUENCE_STEPS = 64
 let manualInputEpoch = 0
+export const AGENT_MANUAL_INPUT_EVENT = 'chaya:agent-manual-input'
 
 export function startManualInputTracking(): () => void {
   const onInput = (event: Event) => {
@@ -58,6 +60,7 @@ export function startManualInputTracking(): () => void {
     if (event.type === 'pointerdown' && target?.tagName !== 'CANVAS') return
     if (event.composedPath().some((node) => node instanceof Element && node.id === 'chaya-game-agent-host')) return
     manualInputEpoch += 1
+    window.dispatchEvent(new Event(AGENT_MANUAL_INPUT_EVENT))
   }
   document.addEventListener('keydown', onInput, true)
   document.addEventListener('pointerdown', onInput, true)
@@ -557,11 +560,14 @@ export async function runAgentCommand(cmd: AgentCommand, { allowEval = false, in
           .then((chaya) => ({ chaya, native: nativeSaves() }))
       if (cmd.params.op === 'nativeSnapshot') return nativeSaves()
       if (cmd.params.op === 'nativeSave') return await agentEdit().action({ id: 'save', slot: cmd.params.slot })
-      if (cmd.params.op === 'nativeLoad') return await agentEdit().action({ id: 'load', slot: cmd.params.slot })
+      if (cmd.params.op === 'nativeLoad') {
+        const slot = cmd.params.slot
+        return await withCompanionLoadOwner(inputOwner, () => agentEdit().action({ id: 'load', slot }))
+      }
       if (cmd.params.op === 'quickSave')
         return (gameSaves() as GameSavesAgent & { agentSaveQuick: (slot: number, force?: boolean) => Promise<unknown> }).agentSaveQuick(cmd.params.slot, cmd.params.force)
       if (cmd.params.op === 'autoSave') return (gameSaves() as GameSavesAgent & { agentSaveAuto: (force?: boolean) => Promise<unknown> }).agentSaveAuto(cmd.params.force)
-      if (cmd.params.op === 'load') return gameSaves().agentLoad(cmd.params.entryId, cmd.params.allowVersionMismatch)
+      if (cmd.params.op === 'load') return gameSaves().agentLoad(cmd.params.entryId, cmd.params.allowVersionMismatch, inputOwner)
       throw new Error(`不支持的存档操作：${cmd.params.op}`)
     case 'game.history':
       return readHistory(cmd.params ?? {})
@@ -601,7 +607,8 @@ export async function runAgentCommand(cmd: AgentCommand, { allowEval = false, in
     case 'agent.task': {
       const request = window.ChayaAgent?.taskRequest
       if (!request) throw new Error('游戏内 Agent 任务宿主未就绪')
-      return toJsonSafe(await request(cmd.params.message), 6)
+      const companion = cmd.params.message.type.startsWith('agent.companion.') || cmd.params.message.type.startsWith('agent.memory.')
+      return toJsonSafe(await request(cmd.params.message), companion ? 16 : 6)
     }
     case 'game.eval':
       if (!allowEval) throw new Error('此通道不允许执行 game.eval')

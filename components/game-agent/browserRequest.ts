@@ -5,6 +5,8 @@ import { isCliProvider } from '@/lib/game-agent/providers'
 import type { AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
 import { type AgentTimeoutSettings, normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
 import { cacheToolSettings, normalizeToolSettings, readCachedToolSettings } from '@/lib/game-agent/tool-settings'
+import type { CompanionHostRequest } from '@/lib/runtime/companion-protocol'
+import { isCompanionHostRequest } from '@/lib/runtime/companion-validation'
 import { functionToolDefinition } from '@/lib/webmcp/mcp-mirror'
 import { pickAvailableModel, streamOllamaChat, uniqueOllamaModels } from '@/services/game-agent/ollama-client'
 
@@ -190,6 +192,7 @@ type AgentTaskCall = (message: Exclude<import('@/lib/runtime/game-link-protocol'
 export function createBrowserGameAgentRequest(input: { connected: boolean; agentTask?: AgentTaskCall }, runtime = createBrowserAgentRuntime()): GameAgentRequest {
   const gameTurns = new Map<string, Set<AbortController>>()
   const remoteTurns = new Map<string, { taskId: string; sessionId: string; gameId: string }>()
+  let companionConfig = ''
 
   const taskCall = (message: Parameters<AgentTaskCall>[0], signal?: AbortSignal) => {
     if (!input.agentTask) return Promise.reject(new Error('当前环境没有 Agent 游戏通道'))
@@ -211,6 +214,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
             properties: {
               operate: { type: 'boolean' },
               shape: { type: 'string', enum: ['single', 'batch', 'open'] },
+              lifetime: { type: 'string', enum: ['goal', 'until_stopped'] },
             },
             required: ['operate'],
             additionalProperties: false,
@@ -219,7 +223,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
             {
               role: 'system',
               content:
-                'Return JSON only: {"operate":boolean,"shape"?: "single"|"batch"|"open"}. operate=true only when the user asks you to control the running game with ordinary player input, such as moving, interacting, advancing dialogue, or fighting. When operate=true, shape=batch for several or all matching map targets, single for one concrete action, open for story/travel/combat. Questions and game-data edits are false.',
+                'Return JSON only: {"operate":boolean,"shape"?: "single"|"batch"|"open","lifetime"?: "goal"|"until_stopped"}. operate=true only when the user asks you to control the running game with ordinary player input, such as moving, interacting, advancing dialogue, or fighting. When operate=true, shape=batch for several or all matching map targets, single for one concrete action, open for story/travel/combat. lifetime=goal for a finite verified objective; until_stopped only when the player clearly authorizes continuous control until they stop. Never infer until_stopped from the chat surface. Questions and game-data edits are false.',
             },
             { role: 'user', content: prompt },
           ],
@@ -227,10 +231,11 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
         },
         () => undefined
       )
-      const value = JSON.parse(answer.content) as { operate?: unknown; shape?: unknown }
+      const value = JSON.parse(answer.content) as { operate?: unknown; shape?: unknown; lifetime?: unknown }
       if (value.operate !== true) return { operate: false as const }
       const shape = value.shape === 'single' || value.shape === 'batch' || value.shape === 'open' ? value.shape : ('open' as const)
-      return { operate: true as const, shape }
+      const lifetime = value.lifetime === 'until_stopped' ? ('until_stopped' as const) : ('goal' as const)
+      return { operate: true as const, shape, lifetime }
     } catch {
       return { operate: false as const }
     }
@@ -304,6 +309,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
       locale?: string
       capability?: 'play' | 'companion'
       shape?: 'single' | 'batch' | 'open'
+      lifetime?: 'goal' | 'until_stopped'
       surface?: 'companion'
       companionCharacter?: string
     },
@@ -327,6 +333,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
         surface: body.surface || 'sidebar',
         companionCharacter: body.companionCharacter,
         ...(body.shape ? { shape: body.shape } : {}),
+        ...(body.lifetime ? { lifetime: body.lifetime } : {}),
         goal: body.prompt,
       },
       signal
@@ -337,6 +344,25 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
   return async (path, init) => {
     const url = new URL(path, location.origin)
     const method = (init?.method || 'GET').toUpperCase()
+
+    if (url.pathname === '/api/game-agent/companion' && method === 'POST') {
+      if (!input.connected || !input.agentTask) return response({ error: { code: 'NOT_READY', message: '游戏未连接或插件不支持旅伴协议' } }, 503)
+      const body = JSON.parse(String(init?.body || '{}')) as { message?: CompanionHostRequest }
+      if (!isCompanionHostRequest(body.message)) return response({ error: { code: 'INVALID_COMPANION_REQUEST', message: '无效的旅伴请求' } }, 400)
+      try {
+        // Profiles stay in the existing settings channel; only the authoritative game runs the request.
+        const config = settings()
+        const signature = JSON.stringify(config)
+        if (signature !== companionConfig) {
+          await taskCall({ type: 'agent.config.put', requestId: crypto.randomUUID(), config }, init?.signal || undefined)
+          companionConfig = signature
+        }
+        return response({ result: await taskCall(body.message, init?.signal || undefined) })
+      } catch (error) {
+        const failure = error as Error & { code?: string }
+        return response({ error: { code: failure.code || 'COMPANION_REQUEST_FAILED', message: failure.message || String(error) } }, 409)
+      }
+    }
 
     if (url.pathname === '/api/game-agent/auth' || url.pathname.startsWith('/api/game-agent/auth/') || url.pathname === '/api/game-agent/processes') {
       return response({ error: { code: 'LOCAL_ONLY', message: CLI_LOCAL_ONLY } }, 404)
@@ -479,6 +505,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
             locale: body.locale,
             capability: intent.operate ? 'play' : 'companion',
             ...(intent.operate && intent.shape ? { shape: intent.shape as 'single' | 'batch' | 'open' } : {}),
+            ...(intent.operate && intent.lifetime ? { lifetime: intent.lifetime } : {}),
             surface: body.surface,
             companionCharacter: body.companionCharacter,
           },

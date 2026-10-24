@@ -78,7 +78,7 @@ function deliver(s: GameSlot, results: AgentResult[]) {
     s.pending.delete(result.id)
     clearTimeout(pending.timer)
     if (result.ok) pending.resolve(result.data)
-    else pending.reject(new Error(result.error || '游戏端执行失败'))
+    else pending.reject(Object.assign(new Error(result.error || '游戏端执行失败'), { code: result.code, retryable: result.retryable }))
   }
 }
 

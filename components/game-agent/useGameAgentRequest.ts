@@ -37,7 +37,7 @@ export function useGameAgentRequest() {
         const unsubscribe = subscribeMessages((reply) => {
           if (reply.type !== 'agent.task.result' || reply.requestId !== message.requestId) return
           if (reply.ok) finish(null, reply.data)
-          else finish(new Error(reply.error || 'Agent 请求失败'))
+          else finish(Object.assign(new Error(reply.error || 'Agent 请求失败'), { code: reply.code, retryable: reply.retryable }))
         })
         const abort = () => finish(signal?.reason instanceof Error ? signal.reason : new DOMException('已取消', 'AbortError'))
         const finish = (error: Error | null, value?: unknown) => {

@@ -7,6 +7,7 @@ type Input = {
   tools?: OllamaTool[]
   token?: string
   timeoutMs?: number
+  maxTokens?: number
   signal?: AbortSignal
   requestHeaders?: Record<string, string>
 }
@@ -78,7 +79,7 @@ export async function completeAnthropicChat(input: Input, fetcher: typeof fetch 
     signal,
     body: JSON.stringify({
       model: input.model,
-      max_tokens: 8192,
+      max_tokens: input.maxTokens ?? 8192,
       messages,
       ...(system.length ? { system: system.join('\n\n') } : {}),
       ...(input.tools?.length

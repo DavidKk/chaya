@@ -4,6 +4,7 @@ import type { PlayerCard } from '@/lib/game-agent/player-card'
 import { IdempotentWriteCache } from '@/lib/runtime/recoverable-operation'
 
 import type { AgentTraceArchive } from '../trace'
+import { type ControlLifetime, normalizeControlLifetime } from './control-lifecycle'
 import type { AgentRoutine, RuntimeMessage } from './types'
 
 export type AgentTaskState = 'running' | 'waiting_user' | 'waiting_service' | 'completed' | 'stopped' | 'failed' | 'interrupted'
@@ -19,6 +20,8 @@ export type AgentTask = {
   capability: 'play' | 'ask' | 'companion'
   /** From classify; see docs/technical/game-agent-jobs.md */
   shape?: 'single' | 'batch' | 'open'
+  /** goal (default) ends on verified completion; until_stopped keeps the watch loop. */
+  lifetime?: ControlLifetime
   profileId: string
   model: string
   locale?: string
@@ -94,7 +97,8 @@ export class AgentTaskController {
   async restore(): Promise<void> {
     const restored = await this.store.load()
     for (const raw of restored.slice(-20)) {
-      const task = terminal(raw.state) ? raw : { ...raw, state: 'interrupted' as const, updatedAt: this.now(), error: '宿主已重载，任务已中断' }
+      const withLifetime = { ...raw, lifetime: normalizeControlLifetime(raw.lifetime) }
+      const task = terminal(withLifetime.state) ? withLifetime : { ...withLifetime, state: 'interrupted' as const, updatedAt: this.now(), error: '宿主已重载，任务已中断' }
       this.tasks.set(task.id, task)
       if (!terminal(raw.state)) await this.persist(task)
     }
@@ -114,6 +118,7 @@ export class AgentTaskController {
     surface?: string
     thinking?: boolean
     shape?: AgentTask['shape']
+    lifetime?: AgentTask['lifetime']
     routine?: AgentRoutine
     goal: string
     execute: (task: AgentTask, signal: AbortSignal, controller: AgentTaskController) => Promise<void>
@@ -121,7 +126,7 @@ export class AgentTaskController {
     return this.writes.run({ requestId: input.requestId, deadlineAt: input.deadlineAt }, async () => {
       const requestedRuntimeId = this.runtimeIdentity?.runtimeInstanceId
       if ([...this.tasks.values()].some((task) => !terminal(task.state) && (requestedRuntimeId ? task.runtimeInstanceId === requestedRuntimeId : task.gameId === input.gameId))) {
-        throw new Error('An agent task is already running for this game, please stop it first')
+        throw Object.assign(new Error('An agent task is already running for this game, please stop it first'), { code: 'CONTROL_BUSY', retryable: true })
       }
       const now = this.now()
       const task: AgentTask = {
@@ -144,6 +149,7 @@ export class AgentTaskController {
         ...(input.surface ? { surface: input.surface } : {}),
         ...(input.thinking ? { thinking: true } : {}),
         ...(input.shape ? { shape: input.shape } : {}),
+        lifetime: normalizeControlLifetime(input.lifetime),
         ...(input.routine ? { routine: input.routine } : {}),
         state: 'running',
         goal: sanitizeAgentText(input.goal),

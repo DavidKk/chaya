@@ -218,6 +218,7 @@ export async function completeGeminiChat(
     messages: GameAgentMessage[]
     tools?: OllamaTool[]
     temperature?: number
+    maxTokens?: number
     timeoutMs?: number
     token?: string
     proxyHeaders?: Record<string, string>
@@ -242,7 +243,7 @@ export async function completeGeminiChat(
     contents: toGeminiContents(input.messages),
     generationConfig: {
       temperature: input.temperature ?? 0.2,
-      maxOutputTokens: 16384,
+      maxOutputTokens: input.maxTokens ?? 16384,
     },
   }
   if (input.tools?.length) {

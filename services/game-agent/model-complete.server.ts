@@ -3,6 +3,7 @@ import type { RuntimeMessage, RuntimeTool } from '@/lib/game-agent/runtime'
 
 import { completeAnthropicChat, usesAnthropicApi } from './anthropic-client'
 import { completeWithCli } from './cli/complete.server'
+import { companionResourceKey, scheduleCompanionResource } from './companion-resource.server'
 import { completeGeminiChat, usesGeminiOpenAiCompat } from './gemini-client'
 import { streamOllamaChat } from './ollama-client'
 import { completeOpenAiChat, openApiGatewayRequestHeaders } from './openai-client'
@@ -18,8 +19,8 @@ function asTools(tools: RuntimeTool[]) {
   }))
 }
 
-/** One model round for any agent type; `runAgentTurn` hosts call this instead of talking to Ollama directly. */
-export function completeAgentModel(
+/** Upstream call without the shared companion/control resource queue. */
+export function rawCompleteAgentModel(
   profile: GameAgentProfile,
   input: { model: string; messages: RuntimeMessage[]; tools: RuntimeTool[]; think?: boolean; format?: Record<string, unknown>; signal: AbortSignal }
 ): Promise<RuntimeMessage> {
@@ -70,4 +71,43 @@ export function completeAgentModel(
     () => undefined,
     ollamaFetch(profile)
   ) as Promise<RuntimeMessage>
+}
+
+let managedRequestSeq = 0
+
+/**
+ * One model round for managed / ask turns.
+ * Shares the companion resource queue (control priority) so chat and control cannot bypass each other.
+ * Callers that already hold a companion queue slot must use `rawCompleteAgentModel` instead.
+ */
+export function completeAgentModel(
+  profile: GameAgentProfile,
+  input: {
+    model: string
+    messages: RuntimeMessage[]
+    tools: RuntimeTool[]
+    think?: boolean
+    format?: Record<string, unknown>
+    signal: AbortSignal
+    requestId?: string
+  }
+): Promise<RuntimeMessage> {
+  const requestId = input.requestId || `managed:${profile.id}:${++managedRequestSeq}`
+  const resourceKey = companionResourceKey(profile, input.model)
+  return scheduleCompanionResource({
+    resourceKey,
+    requestId,
+    priority: 'control',
+    signal: input.signal,
+    totalTimeoutMs: profile.modelTimeoutMs,
+    run: (slotSignal) =>
+      rawCompleteAgentModel(profile, {
+        model: input.model,
+        messages: input.messages,
+        tools: input.tools,
+        think: input.think,
+        format: input.format,
+        signal: slotSignal,
+      }),
+  })
 }

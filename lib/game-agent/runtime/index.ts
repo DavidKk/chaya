@@ -1,4 +1,6 @@
 export * from './capabilities'
+export * from './control-lifecycle'
+export * from './control-memory'
 export * from './run-turn'
 export * from './task-controller'
 export * from './types'

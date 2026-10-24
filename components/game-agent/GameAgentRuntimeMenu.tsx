@@ -27,6 +27,7 @@ type Props = {
   compact?: boolean
   thinkingEnabled?: boolean
   onThinkingChange?: (enabled: boolean) => void
+  showThinking?: boolean
   onChange: (profileId: string, model: string) => void
 }
 
@@ -85,7 +86,17 @@ const COPY = {
   },
 } as const
 
-export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = false, compact = false, thinkingEnabled = false, onThinkingChange, onChange }: Props) {
+export function GameAgentRuntimeMenu({
+  profiles,
+  profileId,
+  model,
+  disabled = false,
+  compact = false,
+  thinkingEnabled = false,
+  onThinkingChange,
+  showThinking = true,
+  onChange,
+}: Props) {
   const locale = useLocaleCode()
   const copy = (COPY as unknown as Record<string, Record<string, string>>)[locale] || (locale === 'cht' ? COPY.zh : COPY.en)
   const anchorRef = useRef<HTMLSpanElement>(null)
@@ -176,12 +187,14 @@ export function GameAgentRuntimeMenu({ profiles, profileId, model, disabled = fa
                 <div className="py-1">
                   <MenuValueRow label={copy.profile} value={profile?.label || copy.trigger} disabled={profiles.length === 0} onClick={() => setView('profile')} />
                   <MenuValueRow label={copy.model} value={model || copy.empty} disabled={!profile?.online || modelOptions.length === 0} onClick={() => setView('model')} />
-                  <MenuSwitchRow
-                    label={copy.thinking}
-                    checked={thinkingEnabled}
-                    ariaLabel={`${copy.thinking}: ${thinkingEnabled ? copy.thinkingOn : copy.thinkingOff}`}
-                    onCheckedChange={(next) => onThinkingChange?.(next)}
-                  />
+                  {showThinking ? (
+                    <MenuSwitchRow
+                      label={copy.thinking}
+                      checked={thinkingEnabled}
+                      ariaLabel={`${copy.thinking}: ${thinkingEnabled ? copy.thinkingOn : copy.thinkingOff}`}
+                      onCheckedChange={(next) => onThinkingChange?.(next)}
+                    />
+                  ) : null}
                   <div className="my-1 border-t border-line-soft" />
                   <button
                     type="button"

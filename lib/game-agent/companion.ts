@@ -37,7 +37,8 @@ export type CompanionState = {
 
 export type CompanionChest = { mapId: number; eventId: number; x: number; y: number }
 
-const MIN_GAP_MS = 12_000
+const ORDINARY_KIND_GAP_MS = 12_000
+const ORDINARY_TOTAL_GAP_MS = 4_000
 const REWARD_EFFECTS = ['gold', 'item', 'weapon', 'armor']
 
 /**
@@ -50,12 +51,25 @@ function isRewardObject(event: NonNullable<CompanionState['nearbyEvents']>[numbe
 
 /** Facts trigger a line; the selected character changes its wording, never the game action. */
 export class CompanionTracker {
-  private lastSpokeAt = -Infinity
+  private lastOrdinaryAt = -Infinity
+  private readonly lastKindAt = new Map<CompanionCue, number>()
   private readonly seenBattles = new Set<string>()
   private readonly seenChests = new Set<string>()
   private readonly warnedMembers = new Set<string>()
   /** 最近一次 `chest` 线索对应的宝箱；坐标缺失时为 null，只提醒不提供托管 */
   lastChest: CompanionChest | null = null
+
+  private canSpeakOrdinary(kind: Exclude<CompanionCue, 'danger'>, now: number): boolean {
+    const lastKind = this.lastKindAt.get(kind) ?? -Infinity
+    if (now - lastKind < ORDINARY_KIND_GAP_MS) return false
+    if (now - this.lastOrdinaryAt < ORDINARY_TOTAL_GAP_MS) return false
+    return true
+  }
+
+  private markOrdinary(kind: Exclude<CompanionCue, 'danger'>, now: number): void {
+    this.lastKindAt.set(kind, now)
+    this.lastOrdinaryAt = now
+  }
 
   observe(state: CompanionState, now = Date.now()): CompanionCue | null {
     const battleId = state.scene === 'Scene_Battle' ? state.battle?.instanceId : null
@@ -65,29 +79,30 @@ export class CompanionTracker {
         if (member.hp != null && member.mhp && member.hp / member.mhp >= 0.55) this.warnedMembers.delete(key)
         return member.hp != null && member.hp > 0 && member.mhp && member.hp / member.mhp <= 0.35 && !this.warnedMembers.has(key)
       })
-      if (danger && now - this.lastSpokeAt >= MIN_GAP_MS) {
+      // Danger bypasses ordinary kind/total gaps; per-member warned set provides merge/dedup.
+      if (danger) {
         state.party?.forEach((member, index) => {
           if (member.hp != null && member.hp > 0 && member.mhp && member.hp / member.mhp <= 0.35) this.warnedMembers.add(`${battleId}:${member.id ?? index}`)
         })
         this.seenBattles.add(battleId)
-        this.lastSpokeAt = now
+        this.lastKindAt.set('danger', now)
         return 'danger'
       }
-      if (!this.seenBattles.has(battleId) && now - this.lastSpokeAt >= MIN_GAP_MS) {
+      if (!this.seenBattles.has(battleId) && this.canSpeakOrdinary('battle', now)) {
         this.seenBattles.add(battleId)
-        this.lastSpokeAt = now
+        this.markOrdinary('battle', now)
         return 'battle'
       }
       return null
     }
-    if (state.scene !== 'Scene_Map' || state.map?.id == null || now - this.lastSpokeAt < MIN_GAP_MS) return null
+    if (state.scene !== 'Scene_Map' || state.map?.id == null || !this.canSpeakOrdinary('chest', now)) return null
     const chest = state.nearbyEvents?.find((event) => {
       const key = `${state.map?.id}:${event.id}`
       return event.id != null && event.distance != null && event.distance <= 6 && event.opened !== true && !this.seenChests.has(key) && isRewardObject(event)
     })
     if (!chest) return null
     this.seenChests.add(`${state.map.id}:${chest.id}`)
-    this.lastSpokeAt = now
+    this.markOrdinary('chest', now)
     this.lastChest = chest.x != null && chest.y != null ? { mapId: state.map.id, eventId: chest.id!, x: chest.x, y: chest.y } : null
     return 'chest'
   }

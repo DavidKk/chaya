@@ -59,7 +59,8 @@ async function execute(cmd: AgentCommand): Promise<AgentResult> {
   try {
     return { id: cmd.id, ok: true, data: await runAgentCommand(cmd, { allowEval: true }) }
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) }
+    const failure = err as { code?: string; retryable?: boolean } | null
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err), code: failure?.code, retryable: failure?.retryable }
   }
 }
 

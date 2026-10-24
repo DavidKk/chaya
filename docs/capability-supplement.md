@@ -4,6 +4,7 @@
 - **有效性 / 进度**：现行需求，开发中；A–H 与可恢复性共同交付。§9 为冻结 / 废弃范围，不能把整篇视为已完成。
 - **任务单**：[`backlog-2026-10-08.md`](./backlog-2026-10-08.md)（T0–T4，排期索引；冻结 / 废弃清单以本文 §9 为准）
 - **技术方案**：[`technical/capability-supplement.md`](./technical/capability-supplement.md)
+- **旅伴后续方案（2026-10-24，已落地，实机验收未做）**：[`companion.md`](./companion.md) 与其技术方案替代本页 H 中「陪玩走共享工具循环」「play / ask / companion 全部共享一个任务名额」及相关旅伴验收；改为三模块、单操作任务与独立只读陪聊，保留输入权限和其它 ask 边界。仅此新增范围采用新方案的版本迁移与生命周期规则，不把本页整份 v1 重新开发；历史修复列表不再独立排旅伴任务。
 - **版本前提**：本文定义 v1 首版行为，**不存在历史数据兼容范围**。代码只实现本文规定的环境变量值、脚本名、接口字段值与存储格式；不识别旧值，不保留别名，不编写迁移或回填逻辑。唯一硬约束是**不阻塞本版其他流程**，各章「不阻塞约束」逐条列出。
 - **关联旧文**（本波只续写下列缺口，不重开整份需求）：
   - 部署命名 / 前置提示：[`technical/deployment-optimization.md`](./technical/deployment-optimization.md) O8、O10；现状 [`technical/deployment-platforms.md`](./technical/deployment-platforms.md)、[`technical/service-modes.md`](./technical/service-modes.md)

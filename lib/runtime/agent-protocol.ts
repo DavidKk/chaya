@@ -92,7 +92,7 @@ export const AGENT_LINK_METHODS = [
 /** Translation RPC path that routes to ChayaAgent instead of the translator runtime */
 export const AGENT_LINK_PATH = '/agent'
 
-export type AgentResult = { id: string; ok: true; data: unknown } | { id: string; ok: false; error: string }
+export type AgentResult = { id: string; ok: true; data: unknown } | { id: string; ok: false; error: string; code?: string; retryable?: boolean }
 
 export type AgentGameInfo = { name?: string; gameRoot?: string; contentRoot?: string; plugins?: string[]; tools?: PluginToolMeta[] }
 

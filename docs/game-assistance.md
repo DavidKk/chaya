@@ -6,6 +6,8 @@
 > 技术方案：[`technical/game-assistance.md`](./technical/game-assistance.md)
 >
 > **与 [`game-agent.md`](./game-agent.md) 冲突时以本文为准**：不再按 ask/play 双入口、模型正文直接结束、SSE 断线即取消托管等旧契约开发。
+>
+> **2026-10-24 旅伴集成目标另见 [`companion.md`](./companion.md)**：记忆 / 陪玩 / 托管三模块、托管中只读陪聊、按运行实例隔离、切换展示游戏不停止后台托管、手动接管终止托管，以及 shape / lifetime 分离，以新方案为准。该集成已落地，实机验收未做；本文其它托管算法与权限仍有效，不重开已冻结能力。
 
 ## 1. 背景
 

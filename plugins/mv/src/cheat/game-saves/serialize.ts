@@ -1,6 +1,9 @@
 import type { GameSaveEntry } from '@/lib/game/game-saves'
 import { tNow } from '@/lib/i18n'
 
+import { currentCompanionFacts } from '../../agent/runtime/companion-facts'
+import { companionLoadOwner } from '../../agent/runtime/companion-load-context'
+
 type RmSaveGlobals = {
   DataManager?: {
     makeSaveContents?: () => unknown
@@ -40,7 +43,12 @@ export function currentEngine(): 'mv' | 'mz' {
 }
 
 /** 生成当前进度的存档 JSON；`onBeforeSave` 写入的存档次数、保存时帧数与 BGM 等只进存档，不留在当前进度里 */
-export function captureSave(): { json: string; meta: SaveMeta } {
+export type CaptureSaveOptions = {
+  saveKind?: 'native' | 'quick' | 'auto' | 'unknown'
+  saveSlot?: number | string
+}
+
+export function captureSave(_options?: CaptureSaveOptions): { json: string; meta: SaveMeta } {
   const g = rm()
   if (!g.DataManager?.makeSaveContents || !g.JsonEx || !g.$gameSystem) throw new Error(tNow('saves.error.notReadySave'))
   const system = g.$gameSystem as Record<string, unknown>
@@ -48,7 +56,21 @@ export function captureSave(): { json: string; meta: SaveMeta } {
   let json: string
   try {
     g.$gameSystem.onBeforeSave?.()
-    json = g.JsonEx.stringify(g.DataManager.makeSaveContents())
+    const contents = g.DataManager.makeSaveContents() as Record<string, unknown>
+    const facts = currentCompanionFacts()
+    const currentStamp = facts?.stamp()
+    if (contents && typeof contents === 'object' && currentStamp) {
+      contents._chayaCompanion = {
+        schemaVersion: 1,
+        libraryGameId: currentStamp.scope.libraryGameId,
+        dataRevision: currentStamp.scope.dataRevision,
+        playthroughId: currentStamp.scope.playthroughId,
+        segmentId: currentStamp.scope.segmentId,
+        contextEpoch: currentStamp.contextEpoch,
+        savedAt: Date.now(),
+      }
+    }
+    json = g.JsonEx.stringify(contents)
   } finally {
     for (const key of Object.keys(system)) if (!Object.prototype.hasOwnProperty.call(before, key)) delete system[key]
     Object.assign(system, before)
@@ -111,7 +133,13 @@ const rolledBack = (error: unknown) => new SaveRestoreRolledBackError(error inst
  * 用存档 JSON 替换当前进度并切回地图，流程同 `Scene_Load`。
  * 切换前冻结当前场景：新对象已替换，旧场景再更新一帧可能访问不匹配的地图数据。
  */
-export function restoreSave(json: string): void {
+export type RestoreSaveOrigin = {
+  kind?: 'native' | 'quick' | 'auto' | 'unknown'
+  slot?: number | string
+  initiatorTaskId?: string
+}
+
+export function restoreSave(json: string, origin?: RestoreSaveOrigin): void {
   const g = rm()
   const dm = g.DataManager
   if (!dm?.createGameObjects || !dm.extractSaveContents || !g.JsonEx || !g.SceneManager?.goto || !g.Scene_Map) throw rolledBack(tNow('saves.error.notReadyLoad'))
@@ -122,6 +150,48 @@ export function restoreSave(json: string): void {
     throw rolledBack(error)
   }
   if (!contents || typeof contents !== 'object' || Array.isArray(contents)) throw rolledBack(tNow('saves.error.invalidContent'))
+
+  const saveKind = origin?.kind ?? 'unknown'
+  const saveSlot = origin?.slot
+  const facts = currentCompanionFacts()
+  const opId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? `restore-load-${crypto.randomUUID()}` : `restore-load-${Date.now()}`
+  const fromStamp = facts?.stamp()
+  const fromSeg = fromStamp?.scope.segmentId ?? 'unknown'
+  const fromScp = fromStamp?.scope
+
+  // Inspect _chayaCompanion metadata inside contents
+  const metaObj = (contents as Record<string, unknown>)._chayaCompanion as Record<string, unknown> | undefined
+
+  const isMetaValid = Boolean(
+    metaObj &&
+    metaObj.schemaVersion === 1 &&
+    typeof metaObj.libraryGameId === 'string' &&
+    metaObj.libraryGameId.trim().length > 0 &&
+    metaObj.libraryGameId.length <= 128 &&
+    typeof metaObj.playthroughId === 'string' &&
+    metaObj.playthroughId.trim().length > 0 &&
+    metaObj.playthroughId.length <= 128 &&
+    typeof metaObj.segmentId === 'string' &&
+    metaObj.segmentId.trim().length > 0 &&
+    (!fromScp || metaObj.libraryGameId === fromScp.libraryGameId) &&
+    (!fromScp || metaObj.dataRevision === fromScp.dataRevision)
+  )
+
+  const initiatorTaskId = origin?.initiatorTaskId ?? companionLoadOwner()
+
+  // 1. Begin load phase: freeze and invalidate current context before replacing globals
+  facts?.onLoadLifecycle({
+    kind: 'load',
+    operationId: opId,
+    phase: 'begin',
+    saveKind,
+    saveSlot,
+    fromSegmentId: fromSeg,
+    fromScope: fromScp,
+    initiatorTaskId,
+    at: Date.now(),
+  })
+
   const before = GAME_OBJECTS.map((key) => [key, (globalThis as Record<string, unknown>)[key]] as const)
   try {
     dm.createGameObjects()
@@ -129,8 +199,47 @@ export function restoreSave(json: string): void {
     dm.correctDataErrors?.()
   } catch (error) {
     for (const [key, value] of before) (globalThis as Record<string, unknown>)[key] = value
+    facts?.onLoadLifecycle({
+      kind: 'load',
+      operationId: opId,
+      phase: 'rollback',
+      saveKind,
+      saveSlot,
+      fromSegmentId: fromSeg,
+      fromScope: fromScp,
+      initiatorTaskId,
+      at: Date.now(),
+    })
     throw rolledBack(error)
   }
+
+  // 2. Commit load phase: establish new segment and link load metadata
+  const toSeg = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? `seg-${crypto.randomUUID()}` : `seg-${Date.now()}`
+
+  const resolvedPlaythroughId = isMetaValid && typeof metaObj?.playthroughId === 'string' ? (metaObj.playthroughId as string) : `unknown:${fromSeg}`
+
+  const toScp = fromScp
+    ? {
+        ...fromScp,
+        segmentId: toSeg,
+        playthroughId: resolvedPlaythroughId,
+      }
+    : undefined
+
+  facts?.onLoadLifecycle({
+    kind: 'load',
+    operationId: opId,
+    phase: 'commit',
+    saveKind,
+    saveSlot,
+    fromSegmentId: fromSeg,
+    toSegmentId: toSeg,
+    fromScope: fromScp,
+    toScope: toScp,
+    initiatorTaskId,
+    origin: isMetaValid ? 'verified_metadata' : 'linked_load_context',
+    at: Date.now(),
+  })
   const system = g.$gameSystem
   const player = g.$gamePlayer
   if (system?.versionId && player?.reserveTransfer && system.versionId() !== currentVersionId()) {

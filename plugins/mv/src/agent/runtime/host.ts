@@ -1,11 +1,26 @@
 import { PLUGIN_AGENT_NAME } from '@/constants/brand'
 import { normalizeCompanionCharacter } from '@/lib/game-agent/companion'
+import type { GameplayMemoryStore } from '@/lib/game-agent/companion/memory-store'
+import type { FactView } from '@/lib/game-agent/companion/types'
 import { parsePlayIntentResult, PLAY_INTENT_FORMAT, PLAY_INTENT_SYSTEM } from '@/lib/game-agent/intent'
-import { PLAY_SYSTEM_PROMPT, playModelPrompt } from '@/lib/game-agent/play-prompt'
+import { playModelPrompt, playSystemPrompt } from '@/lib/game-agent/play-prompt'
 import { parsePlayerCard, PLAYER_CARD_TOOL, PLAYER_CARD_TOOL_NAME, playerCardAnswer } from '@/lib/game-agent/player-card'
 import { CLI_AUTO_MODEL, isCliProvider, isOpenApiProvider } from '@/lib/game-agent/providers'
 import { type RecallTurn, recallTurns, turnsFromMessages } from '@/lib/game-agent/recall'
-import { type AgentTask, AgentTaskController, capabilityConfig, parseAgentRoutine, runAgentTurn, type RuntimeMessage, type RuntimeTool } from '@/lib/game-agent/runtime'
+import {
+  type AgentTask,
+  AgentTaskController,
+  capabilityConfig,
+  controlMemoryQueryFilter,
+  formatControlMemoryContext,
+  normalizeControlLifetime,
+  parseAgentRoutine,
+  resolveControlLifetime,
+  runAgentTurn,
+  type RuntimeMessage,
+  type RuntimeTool,
+  shouldContinueControlCycle,
+} from '@/lib/game-agent/runtime'
 import { agentSettingsFromSyncDocument, type AgentSyncSettings } from '@/lib/game-agent/settings-sync'
 import { normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
 import { mcpToolsFor } from '@/lib/integration/mcp-availability'
@@ -15,17 +30,25 @@ import { makeSaveTools } from '@/lib/integration/tools/saves'
 import { makeSkillTools } from '@/lib/integration/tools/skills'
 import type { ToolImpls } from '@/lib/integration/tools/types'
 import type { AgentCommand } from '@/lib/runtime/agent-protocol'
+import { COMPANION_REQUEST_TYPES } from '@/lib/runtime/companion-protocol'
+import { isCompanionHostRequest } from '@/lib/runtime/companion-validation'
 import type { AgentTaskMessage } from '@/lib/runtime/game-link-protocol'
-import { IdempotentWriteCache, runRecoverableOperation } from '@/lib/runtime/recoverable-operation'
-import { streamOllamaChat } from '@/services/game-agent/ollama-client'
+import { IdempotentWriteCache } from '@/lib/runtime/recoverable-operation'
 import { buildAskMessages } from '@/services/game-agent/prompt'
 
 import { chayaFetch, createLogger, detectGameIdentity, gameRoomId } from '../../helpers'
-import { readAgentGameState, runAgentCommand } from '../handlers'
+import { AGENT_MANUAL_INPUT_EVENT, readAgentGameState, runAgentCommand } from '../handlers'
 import { readSharedAgentSync } from '../shared-settings'
 import { tryRunInteractBatch } from './batch-jobs'
 import { runChestRoutine } from './chest-routine'
+import { assertControlStartLive, controlStartCancelled, createCompanionControlGate } from './companion-control-gate'
+import { createCompanionFacts } from './companion-facts'
+import { installCompanionMilestones } from './companion-facts-milestones'
+import { createCompanionHost } from './companion-host'
+import { collectCompanionMemory } from './companion-memory-collector'
+import { completeRemoteOllama, createCompanionModel } from './companion-model'
 import { createAgentRuntimeIdentity } from './identity'
+import { createCompanionMemoryRuntime } from './memory-persistence'
 import { createModelGate, MODEL_FAILURE_COOLDOWN_MS } from './model-gate'
 import { battleRequiresAgentDecision, createGameWatchManager, formatWatchTrigger, type WatchPhase, type WatchTrigger } from './state-watch'
 import { createGameAgentTaskStore } from './store'
@@ -36,93 +59,6 @@ const CONFIG_KEY = 'chaya.agent.runtimeConfig.v1'
 const SERVICE_RETRY_MIN_MS = 2_000
 const SERVICE_RETRY_MAX_MS = 30_000
 type Send = (message: AgentTaskMessage) => void
-
-const AUTH_COPY = {
-  zh: {
-    aria: '允许网页控制 Agent',
-    title: '允许此 Chaya 网页控制 Agent？',
-    description: '网页将能让 Agent 使用普通按键和移动托管游戏。本次游戏进程内只确认一次。',
-    deny: '拒绝',
-    allow: '允许',
-  },
-  cht: {
-    aria: '允許網頁控制 Agent',
-    title: '允許此 Chaya 網頁控制 Agent？',
-    description: '網頁將能讓 Agent 使用普通按鍵和移動託管遊戲。本次遊戲處理程序內只確認一次。',
-    deny: '拒絕',
-    allow: '允許',
-  },
-  en: {
-    aria: 'Allow web Agent control',
-    title: 'Allow this Chaya page to control the Agent?',
-    description: 'The page can let the Agent use ordinary movement and input controls. This is asked once for this game process.',
-    deny: 'Deny',
-    allow: 'Allow',
-  },
-  ja: {
-    aria: 'Web からの Agent 操作を許可',
-    title: 'この Chaya ページによる Agent 操作を許可しますか？',
-    description: 'Agent が通常の移動やキー入力でゲームを操作できるようになります。このゲームプロセスでは一度だけ確認します。',
-    deny: '拒否',
-    allow: '許可',
-  },
-  ko: {
-    aria: '웹 Agent 제어 허용',
-    title: '이 Chaya 페이지의 Agent 제어를 허용할까요?',
-    description: 'Agent가 일반 이동과 키 입력으로 게임을 조작할 수 있습니다. 이 게임 프로세스에서는 한 번만 확인합니다。',
-    deny: '거부',
-    allow: '허용',
-  },
-  fr: {
-    aria: 'Autoriser le contrôle de l\x27Agent via le Web',
-    title: 'Autoriser cette page Chaya à contrôler l\x27Agent ?',
-    description: 'La page permettra à l\x27Agent d\x27utiliser les touches et mouvements habituels pour piloter le jeu. Confirmation unique par session de jeu.',
-    deny: 'Refuser',
-    allow: 'Autoriser',
-  },
-  de: {
-    aria: 'Web-Agenten-Steuerung erlauben',
-    title: 'Dieser Chaya-Webseite die Steuerung des Agenten erlauben?',
-    description: 'Die Webseite erlaubt dem Agenten, das Spiel mit normalen Tasten und Bewegungen zu steuern. Wird pro Spielsitzung nur einmal abgefragt.',
-    deny: 'Ablehnen',
-    allow: 'Erlauben',
-  },
-  es: {
-    aria: 'Permitir control del agente web',
-    title: '¿Permitir que esta página de Chaya controle el agente?',
-    description: 'La página permitirá al agente usar controles de movimiento y teclas habituales para el juego. Se solicita una sola vez por sesión.',
-    deny: 'Denegar',
-    allow: 'Permitir',
-  },
-  ru: {
-    aria: 'Разрешить управление агентом через веб',
-    title: 'Разрешить этой странице Chaya управлять агентом?',
-    description: 'Страница позволит агенту использовать обычные клавиши и перемещения для игры. Запрашивается один раз за сеанс игры.',
-    deny: 'Отклонить',
-    allow: 'Разрешить',
-  },
-  'pt-BR': {
-    aria: 'Permitir controle do Agent via web',
-    title: 'Permitir que esta página do Chaya controle o Agent?',
-    description: 'A página permitirá que o Agent use teclas e movimentos habituais para gerenciar o jogo. Solicitado apenas uma vez por processo de jogo.',
-    deny: 'Recusar',
-    allow: 'Permitir',
-  },
-} as const
-
-function authorizationCopy() {
-  const locale = String(document.documentElement.lang || navigator.language || 'zh').toLowerCase()
-  if (locale === 'zh-tw' || locale === 'zh-hk' || locale === 'zh-hant' || locale === 'cht') return AUTH_COPY.cht
-  if (locale.startsWith('ja')) return AUTH_COPY.ja
-  if (locale.startsWith('ko')) return AUTH_COPY.ko
-  if (locale.startsWith('fr')) return AUTH_COPY.fr
-  if (locale.startsWith('de')) return AUTH_COPY.de
-  if (locale.startsWith('es')) return AUTH_COPY.es
-  if (locale.startsWith('ru')) return AUTH_COPY.ru
-  if (locale.startsWith('pt')) return AUTH_COPY['pt-BR']
-  if (locale.startsWith('en')) return AUTH_COPY.en
-  return AUTH_COPY.zh
-}
 
 function parseConfig(value: unknown): AgentSyncSettings | null {
   if (!value || typeof value !== 'object' || (value as { version?: unknown }).version !== 1) return null
@@ -188,6 +124,18 @@ function recallContext(task: AgentTask, args: Record<string, unknown>, tasks: Ag
   return recallTurns(taskTurns(tasks.filter((candidate) => candidate.gameId === task.gameId && candidate.conversationId === task.conversationId)), args)
 }
 
+/** Read-only, facts-scope memory for one play cycle. Evidence only, never authorization. */
+function playMemoryEvidence(facts: { current(): FactView }, memory: Pick<GameplayMemoryStore, 'queryDetailed'>) {
+  try {
+    const view = facts.current()
+    const enemyIds = (view.current.enemies.value ?? []).map((enemy) => enemy.enemyId)
+    const recalled = memory.queryDetailed(view.stamp.scope, controlMemoryQueryFilter(enemyIds))
+    return formatControlMemoryContext(recalled.episodes, undefined, recalled.origin).text
+  } catch {
+    return formatControlMemoryContext([]).text
+  }
+}
+
 function setInputOwner(taskId: string | null) {
   const host = window as Window & { __chayaAgentPlayTaskId?: string }
   if (taskId) host.__chayaAgentPlayTaskId = taskId
@@ -225,67 +173,27 @@ export function createGameAgentRuntime() {
   })
   const commands = new IdempotentWriteCache<AgentTask>()
   const ready = controller.restore()
-  const modelGate = createModelGate()
-  let remotePlayAuthorized = false
-  let cancelAuthorization: (() => void) | null = null
-  let authorizationPromise: Promise<void> | null = null
-
-  const authorizeRemotePlay = (deadlineAt: number) => {
-    if (authorizationPromise) return authorizationPromise
-    authorizationPromise = new Promise<void>((resolve, reject) => {
-      const copy = authorizationCopy()
-      const dialog = document.createElement('dialog')
-      dialog.setAttribute('aria-label', copy.aria)
-      dialog.style.cssText =
-        'max-width:28rem;border:1px solid var(--line,#4b5563);border-radius:6px;background:var(--panel,#17191d);color:var(--ink,#f5f5f5);padding:20px;box-shadow:0 20px 60px rgb(0 0 0 / .55)'
-      const title = document.createElement('h2')
-      title.textContent = copy.title
-      title.style.cssText = 'margin:0 0 8px;font-size:16px'
-      const description = document.createElement('p')
-      description.textContent = copy.description
-      description.style.cssText = 'margin:0 0 16px;font-size:13px;line-height:1.6;color:var(--ink-soft,#b5bac3)'
-      const actions = document.createElement('div')
-      actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px'
-      const deny = document.createElement('button')
-      deny.type = 'button'
-      deny.textContent = copy.deny
-      const allow = document.createElement('button')
-      allow.type = 'button'
-      allow.textContent = copy.allow
-      for (const button of [deny, allow]) {
-        button.style.cssText = 'min-width:72px;height:34px;border:1px solid var(--line,#4b5563);border-radius:4px;background:var(--paper-2,#25282e);color:inherit;cursor:pointer'
+  const facts = createCompanionFacts(runtime.identity, runtime.producerEpoch)
+  const stopMilestones = installCompanionMilestones((event) => facts.onMilestone(event))
+  const memory = createCompanionMemoryRuntime(libraryGameId, runtime.identity.runtimeInstanceId)
+  const collector = collectCompanionMemory(facts, memory.store, (message) => log.warn(message))
+  const gate = createCompanionControlGate()
+  const stopLoadTracking = facts.subscribe((event) => {
+    if (event.kind === 'load' && event.phase === 'begin') {
+      gate.abortPending(controlStartCancelled('游戏读档，未开始的控制请求已取消'))
+      for (const task of controller.list()) {
+        if (!['running', 'waiting_user', 'waiting_service'].includes(task.state) || task.id === event.initiatorTaskId) continue
+        controller.stop(task.id)
       }
-      allow.style.background = 'var(--accent,#22c55e)'
-      allow.style.color = '#fff'
-      actions.append(deny, allow)
-      dialog.append(title, description, actions)
-      document.body.append(dialog)
-      let settled = false
-      const finish = (error?: Error) => {
-        if (settled) return
-        settled = true
-        window.clearTimeout(timer)
-        cancelAuthorization = null
-        dialog.close()
-        dialog.remove()
-        if (error) reject(error)
-        else resolve()
-      }
-      const timer = window.setTimeout(() => finish(new Error('等待游戏内确认超时')), Math.max(0, Math.min(60_000, deadlineAt - Date.now())))
-      deny.addEventListener('click', () => finish(new Error('玩家未允许网页控制 Agent')))
-      allow.addEventListener('click', () => finish())
-      dialog.addEventListener('cancel', (event) => {
-        event.preventDefault()
-        finish(new Error('玩家取消了 Agent 控制确认'))
-      })
-      cancelAuthorization = () => finish(new Error('网页连接已断开'))
-      dialog.showModal()
-    })
-    authorizationPromise = authorizationPromise.finally(() => {
-      authorizationPromise = null
-    })
-    return authorizationPromise
+    }
+  })
+  const manualTakeover = () => {
+    for (const task of controller.list()) {
+      if (task.capability === 'play' && ['running', 'waiting_user', 'waiting_service'].includes(task.state)) controller.stop(task.id)
+    }
   }
+  window.addEventListener(AGENT_MANUAL_INPUT_EVENT, manualTakeover)
+  const modelGate = createModelGate()
 
   const completeFor = async (
     input: { id: string; gameId: string; profileId: string; model: string; task?: AgentTask },
@@ -303,29 +211,18 @@ export function createGameAgentRuntime() {
     const remote = (window as Window & { CHAYA_MCP_GATEWAY?: unknown }).CHAYA_MCP_GATEWAY === true
     if (remote && (cli || openApi)) throw Object.assign(new Error('该接入类型需要 Chaya App 或本机服务，远程网关模式下不可用'), { nonRetryable: true })
     if (remote) {
-      return runRecoverableOperation({
-        identity: { requestId: `${input.id}:model:${input.task?.lastSeq ?? 0}`, gameId: input.gameId, generation: 0, deadlineAt: Date.now() + profile.modelTimeoutMs },
-        hardLimitMs: profile.modelTimeoutMs,
+      return completeRemoteOllama({
+        endpoint: profile.endpoint,
+        model,
+        messages,
+        tools: definitions,
+        temperature: profile.temperature,
+        keepAlive: profile.keepAlive,
+        timeoutMs: profile.modelTimeoutMs,
+        think: input.task?.thinking === true,
+        ...(format ? { format } : {}),
         signal: outerSignal,
-        run: (modelSignal) =>
-          streamOllamaChat(
-            {
-              endpoint: profile.endpoint,
-              model,
-              messages: messages as import('@/services/game-agent/types').GameAgentMessage[],
-              tools: definitions.map((tool) => ({
-                type: 'function' as const,
-                function: { name: tool.name, description: tool.description || '', parameters: tool.inputSchema || { type: 'object', properties: {} } },
-              })),
-              temperature: profile.temperature,
-              keepAlive: profile.keepAlive,
-              timeoutMs: profile.modelTimeoutMs,
-              think: input.task?.thinking === true,
-              ...(format ? { format } : {}),
-              signal: modelSignal,
-            },
-            () => undefined
-          ) as Promise<RuntimeMessage>,
+        priority: input.task ? 'control' : 'foreground',
       })
     }
 
@@ -478,7 +375,8 @@ export function createGameAgentRuntime() {
         return
       }
     }
-    const playSystem: RuntimeMessage = { role: 'system', content: PLAY_SYSTEM_PROMPT }
+    const lifetime = normalizeControlLifetime(task.lifetime)
+    const playSystem: RuntimeMessage = { role: 'system', content: playSystemPrompt(lifetime) }
     if (task.capability === 'play') controller.emit(task.id, 'prompt.recorded', { role: 'system', content: playSystem.content, source: 'runtime' })
     let cycle = 0
     const watch = createGameWatchManager()
@@ -553,7 +451,9 @@ export function createGameAgentRuntime() {
           ? {
               model: `${profile.provider}/${task.model || profile.defaultModel}`,
               prompt: task.goal,
-              modelPrompt: [playModelPrompt(task.goal, cycle, '', task.locale || 'zh-CN'), steeringPrompt].filter(Boolean).join('\n'),
+              modelPrompt: [playModelPrompt(task.goal, cycle, '', task.locale || 'zh-CN', lifetime), playMemoryEvidence(facts, memory.store), steeringPrompt]
+                .filter(Boolean)
+                .join('\n'),
               storePrompt: task.goal,
               history,
               replyLanguage: task.locale || 'zh-CN',
@@ -568,16 +468,19 @@ export function createGameAgentRuntime() {
         signal
       )
       steeringPrompt = ''
-      // Companion requests may use the play capability for deterministic game
-      // actions, but they are still one conversational turn. Once the tool
-      // loop has produced a verified result, publish the short reply and end
-      // this turn instead of entering the continuous autopilot cycle.
-      if (task.capability !== 'play' || task.surface === 'companion') {
+      // Ask turns stay single-shot. Play tasks continue only by lifetime:
+      // goal ends on verified/answered completion; until_stopped keeps the
+      // existing watch / input guards. limit / no_progress never fake success.
+      if (task.capability !== 'play') {
         controller.emit(task.id, 'assistant.completed', { text: result.text, reason: result.reason })
         if (result.reason === 'unsupported') throw new Error(result.text)
         return
       }
       if (result.reason === 'unsupported') throw new Error(result.text)
+      if (!shouldContinueControlCycle({ lifetime, reason: result.reason })) {
+        controller.emit(task.id, 'assistant.completed', { text: result.text, reason: result.reason })
+        return
+      }
       cycle += 1
       controller.emit(task.id, 'progress.updated', {
         summary: result.text.slice(0, 2_000),
@@ -587,10 +490,13 @@ export function createGameAgentRuntime() {
         toolCalls: result.toolCalls,
         usage: result.usage,
       })
-      if (result.reason === 'limit') {
+      if (result.reason === 'limit' || result.reason === 'no_progress') {
         // A bounded tool loop can end while a stable plan still has work left.
-        // Continue it without pretending that the game changed.
-        steeringPrompt = '[GAME_STEERING_EVENT]\n上一执行批次达到步数上限；场景没有新的相关变化，请继续原计划。\n[/GAME_STEERING_EVENT]'
+        // Continue without pretending the goal is already done.
+        steeringPrompt =
+          result.reason === 'limit'
+            ? '[GAME_STEERING_EVENT]\n上一执行批次达到步数上限；场景没有新的相关变化，请继续原计划。\n[/GAME_STEERING_EVENT]'
+            : '[GAME_STEERING_EVENT]\n上一执行批次没有可验证进展；不要把失败当成目标已完成，也不要重复已经完成的步骤。请重新观察后继续原授权目标。\n[/GAME_STEERING_EVENT]'
         await waitForNextPlayCycle(signal, isCliProvider(profile.provider) ? 5_000 : undefined)
         continue
       }
@@ -631,61 +537,113 @@ export function createGameAgentRuntime() {
     }
   }
 
-  const dispatch = async (message: Exclude<AgentTaskMessage, { type: 'agent.task.result' }>, remote: boolean, signal?: AbortSignal) => {
-    await ready
-    if (message.type === 'agent.config.put') return saveConfig(message.config)
-    if (message.type === 'agent.task.classify') {
-      const profile = profileOf(readConfig()!, message.profileId)
-      const classifySignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(profile.modelTimeoutMs)]) : AbortSignal.timeout(profile.modelTimeoutMs)
-      const answer = await completeFor(
-        { id: `classify:${message.requestId}`, gameId: message.gameId, profileId: message.profileId, model: message.model },
-        [
-          { role: 'system', content: `/no_think\n${PLAY_INTENT_SYSTEM}` },
-          { role: 'user', content: JSON.stringify({ request: message.prompt }) },
-        ],
-        [],
-        classifySignal,
-        PLAY_INTENT_FORMAT as unknown as Record<string, unknown>
-      )
-      const intent = parsePlayIntentResult(answer.content)
-      return {
-        capability: intent.operate ? ('play' as const) : ('ask' as const),
-        shape: intent.operate ? intent.shape : undefined,
-        action: intent.action,
+  const companion = createCompanionHost({
+    facts,
+    memory: memory.store,
+    libraryGameId,
+    complete: createCompanionModel(readConfig),
+    stopExternalControl: () => controller.interruptAll(),
+    startControl: async (input, remote, signal) => {
+      assertControlStartLive(signal)
+      return dispatch(
+        {
+          ...input,
+          type: 'agent.task.start',
+          deadlineAt: Date.now() + 60_000,
+          taskId: crypto.randomUUID(),
+          gameId: libraryGameId,
+          capability: 'play',
+          surface: 'companion',
+        },
+        remote,
+        signal
+      ) as Promise<AgentTask>
+    },
+  })
+
+  const dispatch = async (message: Exclude<AgentTaskMessage, { type: 'agent.task.result' }>, remote: boolean, signal?: AbortSignal): Promise<unknown> => {
+    const tracked =
+      message.type === 'agent.task.start' ? gate.trackStart(signal, message.deadlineAt) : message.type === 'agent.companion.control.start' ? gate.trackStart(signal) : null
+    try {
+      if (tracked) assertControlStartLive(tracked, message.type === 'agent.task.start' ? message.deadlineAt : undefined, gate.epoch)
+      await ready
+      if (tracked) assertControlStartLive(tracked, message.type === 'agent.task.start' ? message.deadlineAt : undefined, gate.epoch)
+      if (COMPANION_REQUEST_TYPES.has(message.type)) {
+        if (!isCompanionHostRequest(message)) throw Object.assign(new Error('Invalid companion request'), { code: 'REQUEST_CONFLICT' })
+        return await companion.dispatch(message, remote, tracked?.signal ?? signal)
       }
-    }
-    if (message.type === 'agent.task.start') {
-      const routine = message.routine === undefined ? undefined : parseAgentRoutine(message.routine)
-      if (routine === null) throw new Error('托管目标无效')
-      if (remote && message.capability === 'play' && !remotePlayAuthorized) {
-        await authorizeRemotePlay(message.deadlineAt)
-        remotePlayAuthorized = true
+      if (message.type === 'agent.config.put') return saveConfig(message.config)
+      if (message.type === 'agent.task.classify') {
+        const profile = profileOf(readConfig()!, message.profileId)
+        const classifySignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(profile.modelTimeoutMs)]) : AbortSignal.timeout(profile.modelTimeoutMs)
+        const answer = await completeFor(
+          { id: `classify:${message.requestId}`, gameId: message.gameId, profileId: message.profileId, model: message.model },
+          [
+            {
+              role: 'system',
+              content: `/no_think
+${PLAY_INTENT_SYSTEM}`,
+            },
+            { role: 'user', content: JSON.stringify({ request: message.prompt }) },
+          ],
+          [],
+          classifySignal,
+          PLAY_INTENT_FORMAT as unknown as Record<string, unknown>
+        )
+        const intent = parsePlayIntentResult(answer.content)
+        return {
+          capability: intent.operate ? ('play' as const) : ('ask' as const),
+          shape: intent.operate ? intent.shape : undefined,
+          lifetime: intent.operate ? intent.lifetime : undefined,
+          action: intent.action,
+        }
       }
-      return controller.start({
-        ...message,
-        routine,
-        capability: routine ? 'play' : message.capability,
-        ...(message.shape ? { shape: message.shape } : {}),
-        execute,
-      })
+      if (message.type === 'agent.task.start') {
+        const routine = message.routine === undefined ? undefined : parseAgentRoutine(message.routine)
+        if (routine === null) throw new Error('托管目标无效')
+        if (!routine && message.capability === 'companion') {
+          throw Object.assign(new Error('旧自动陪聊工具循环已停用，请使用独立陪聊通道；历史任务仍可只读查看'), {
+            code: 'CAPABILITY_UNSUPPORTED',
+            retryable: false,
+          })
+        }
+        if (remote && message.capability === 'play') {
+          await gate.authorize(message.deadlineAt, tracked ?? undefined)
+        }
+        assertControlStartLive(tracked ?? undefined, message.deadlineAt, gate.epoch)
+        const lifetime = resolveControlLifetime({
+          lifetime: 'lifetime' in message ? message.lifetime : undefined,
+          surface: message.surface,
+        })
+        return controller.start({
+          ...message,
+          routine,
+          capability: routine ? 'play' : message.capability,
+          ...(message.shape ? { shape: message.shape } : {}),
+          lifetime,
+          execute,
+        })
+      }
+      if (message.type === 'agent.task.reply') {
+        return commands.run({ requestId: message.requestId, deadlineAt: Date.now() + 60_000 }, async () => controller.reply(message.taskId, message.text))
+      }
+      if (message.type === 'agent.task.stop') {
+        return commands.run({ requestId: message.requestId, deadlineAt: Date.now() + 60_000 }, async () => controller.stop(message.taskId))
+      }
+      if (message.type === 'agent.task.events') return controller.events(message.taskId, message.afterSeq)
+      if (message.type === 'agent.task.clear') return { cleared: await controller.clear(message.taskId) }
+      if (message.type === 'agent.task.recall') {
+        const tasks = controller.list().filter((task) => !message.conversationId || task.conversationId === message.conversationId)
+        return recallTurns(taskTurns(tasks), message)
+      }
+      if (message.type === 'agent.trace.list') return traceArchive.list()
+      if (message.type === 'agent.trace.read') return traceArchive.read(message.taskId)
+      if (message.type === 'agent.trace.export') return traceArchive.export(message.taskId)
+      if (message.type === 'agent.trace.remove') return { removed: await traceArchive.remove(message.taskId) }
+      return message.type === 'agent.task.status' && message.taskId ? controller.get(message.taskId) : controller.list()
+    } finally {
+      tracked?.release()
     }
-    if (message.type === 'agent.task.reply') {
-      return commands.run({ requestId: message.requestId, deadlineAt: Date.now() + 60_000 }, async () => controller.reply(message.taskId, message.text))
-    }
-    if (message.type === 'agent.task.stop') {
-      return commands.run({ requestId: message.requestId, deadlineAt: Date.now() + 60_000 }, async () => controller.stop(message.taskId))
-    }
-    if (message.type === 'agent.task.events') return controller.events(message.taskId, message.afterSeq)
-    if (message.type === 'agent.task.clear') return { cleared: await controller.clear(message.taskId) }
-    if (message.type === 'agent.task.recall') {
-      const tasks = controller.list().filter((task) => !message.conversationId || task.conversationId === message.conversationId)
-      return recallTurns(taskTurns(tasks), message)
-    }
-    if (message.type === 'agent.trace.list') return traceArchive.list()
-    if (message.type === 'agent.trace.read') return traceArchive.read(message.taskId)
-    if (message.type === 'agent.trace.export') return traceArchive.export(message.taskId)
-    if (message.type === 'agent.trace.remove') return { removed: await traceArchive.remove(message.taskId) }
-    return message.type === 'agent.task.status' && message.taskId ? controller.get(message.taskId) : controller.list()
   }
 
   const handle = (message: AgentTaskMessage, send: Send): boolean => {
@@ -706,14 +664,16 @@ export function createGameAgentRuntime() {
         'agent.trace.read',
         'agent.trace.export',
         'agent.trace.remove',
-      ].includes(message.type)
+      ].includes(message.type) &&
+      !COMPANION_REQUEST_TYPES.has(message.type)
     ) {
       send({ type: 'agent.task.result', requestId, ok: false, error: `不支持的 Agent 消息：${message.type}` })
       return true
     }
     void dispatch(message, true).then(
       (data) => send({ type: 'agent.task.result', requestId, ok: true, data }),
-      (error) => send({ type: 'agent.task.result', requestId, ok: false, error: error instanceof Error ? error.message : String(error) })
+      (error) =>
+        send({ type: 'agent.task.result', requestId, ok: false, error: error instanceof Error ? error.message : String(error), code: error?.code, retryable: error?.retryable })
     )
     return true
   }
@@ -722,9 +682,18 @@ export function createGameAgentRuntime() {
     controller,
     handle,
     request: (message: Exclude<AgentTaskMessage, { type: 'agent.task.result' }>, signal?: AbortSignal) => dispatch(message, false, signal),
-    cancelRemoteAuthorization: () => cancelAuthorization?.(),
+    cancelRemoteAuthorization: () => gate.cancelDialog(),
     dispose: () => {
-      cancelAuthorization?.()
+      gate.dispose()
+      stopLoadTracking()
+      stopMilestones()
+      window.removeEventListener(AGENT_MANUAL_INPUT_EVENT, manualTakeover)
+      companion.dispose()
+      facts.dispose()
+      void collector
+        .close()
+        .then(() => memory.close())
+        .catch((error) => log.warn(`Gameplay memory shutdown degraded: ${String(error)}`))
       controller.interruptAll()
     },
   }

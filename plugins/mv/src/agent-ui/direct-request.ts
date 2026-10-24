@@ -2,6 +2,8 @@ import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspac
 import { cliModelChoices, isCliProvider } from '@/lib/game-agent/providers'
 import type { AgentRoutine, AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
 import type { AgentSyncSettings } from '@/lib/game-agent/settings-sync'
+import type { CompanionHostRequest } from '@/lib/runtime/companion-protocol'
+import { isCompanionHostRequest } from '@/lib/runtime/companion-validation'
 import type { AgentTaskMessage } from '@/lib/runtime/game-link-protocol'
 
 type TaskCall = (message: Exclude<AgentTaskMessage, { type: 'agent.task.result' }>, signal?: AbortSignal) => Promise<unknown>
@@ -131,16 +133,18 @@ async function classify(call: TaskCall, body: TurnBody, signal?: AbortSignal | n
   const classified = (await call(
     { type: 'agent.task.classify', requestId: crypto.randomUUID(), gameId: body.gameId, profileId: body.profileId, model: body.model, prompt: body.prompt },
     signal || undefined
-  )) as { capability?: 'play' | 'ask'; shape?: 'single' | 'batch' | 'open' }
+  )) as { capability?: 'play' | 'ask'; shape?: 'single' | 'batch' | 'open'; lifetime?: 'goal' | 'until_stopped' }
   const capability = classified.capability === 'play' ? ('play' as const) : body.surface === 'companion' ? ('companion' as const) : ('ask' as const)
-  return { capability, shape: classified.capability === 'play' ? classified.shape : undefined }
+  const lifetime =
+    classified.capability === 'play' && classified.lifetime === 'until_stopped' ? ('until_stopped' as const) : classified.capability === 'play' ? ('goal' as const) : undefined
+  return { capability, shape: classified.capability === 'play' ? classified.shape : undefined, lifetime }
 }
 
 async function startTask(call: TaskCall, body: TurnBody, signal?: AbortSignal | null) {
   const taskId = crypto.randomUUID()
   const conversationId = body.sessionId || crypto.randomUUID()
   const routine = body.routine
-  const classified = routine ? { capability: 'play' as const, shape: undefined } : await classify(call, body, signal)
+  const classified = routine ? { capability: 'play' as const, shape: undefined, lifetime: 'goal' as const } : await classify(call, body, signal)
   await call(
     {
       type: 'agent.task.start',
@@ -157,6 +161,7 @@ async function startTask(call: TaskCall, body: TurnBody, signal?: AbortSignal | 
       surface: body.surface || 'sidebar',
       thinking: body.thinking === true,
       ...(classified.shape ? { shape: classified.shape } : {}),
+      ...(classified.lifetime ? { lifetime: classified.lifetime } : {}),
       ...(routine ? { routine } : {}),
       goal: body.prompt,
     },
@@ -172,6 +177,18 @@ export function createDirectGameAgentRequest(readSettings: () => AgentSyncSettin
     if (!call) return json({ error: { code: 'AGENT_RUNTIME_UNAVAILABLE', message: '游戏内 Agent 任务宿主未就绪' } }, 503)
     const url = new URL(path, location.origin)
     const method = (init?.method || 'GET').toUpperCase()
+
+    if (url.pathname === '/api/game-agent/companion' && method === 'POST') {
+      const body = JSON.parse(String(init?.body || '{}')) as { message?: CompanionHostRequest }
+      if (!isCompanionHostRequest(body.message)) return json({ error: { code: 'INVALID_COMPANION_REQUEST', message: '无效的旅伴请求' } }, 400)
+      try {
+        const result = await call(body.message, init?.signal || undefined)
+        return json({ result })
+      } catch (error) {
+        const failure = error as Error & { code?: string }
+        return json({ error: { code: failure.code || 'COMPANION_REQUEST_FAILED', message: failure.message || String(error) } }, 409)
+      }
+    }
 
     if (url.pathname === '/api/game-agent/status') {
       const tasks = (await call({ type: 'agent.task.status', requestId: crypto.randomUUID() }, init?.signal || undefined)) as AgentTask[]

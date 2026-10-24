@@ -24,6 +24,8 @@ import {
 import { MESSAGES, tNow, translate } from '@/lib/i18n'
 import type { GameLinkMessage, GameSavesMessage } from '@/lib/runtime/game-link-protocol'
 
+import { withCompanionLoadOwner } from '../../agent/runtime/companion-load-context'
+import { withCompanionSave } from './companion-events'
 import type { GameSavesEnv } from './env'
 import { GAME_SAVES_CHANGED_EVENT, GAME_SAVES_STATUS_EVENT } from './events'
 import { RoutedSaveStore } from './routed-store'
@@ -144,9 +146,9 @@ export class GameSavesController {
     return this.snapshot()
   }
 
-  async agentLoad(entryId: string, allowVersionMismatch = false): Promise<GameSavesSnapshot> {
+  async agentLoad(entryId: string, allowVersionMismatch = false, initiatorTaskId?: string): Promise<GameSavesSnapshot> {
     await this.ready
-    await this.enqueue(null, 'load', () => this.load(entryId, allowVersionMismatch, 'page'))
+    await this.enqueue(null, 'load', () => this.load(entryId, allowVersionMismatch, 'page', initiatorTaskId))
     return this.snapshot()
   }
 
@@ -331,31 +333,33 @@ export class GameSavesController {
     tag: GameSaveTag,
     opts: { unsafe: boolean; slot?: number; captured?: { json: string; meta: SaveMeta }; thumb?: string | null }
   ): Promise<GameSaveEntry> {
-    const store = this.store.store(list)
-    const thumb = opts.thumb !== undefined ? opts.thumb : this.env.thumb()
-    const { json, meta } = opts.captured ?? this.env.capture()
-    const data = await gzipText(json)
-    const previous = this.index.entries.find((e) => e.id === id)
-    const restore = previous ? await this.backupEntry(previous) : null
-    const entry: GameSaveEntry = {
-      id,
-      list,
-      ...(list === 'quick' ? { slot: opts.slot } : {}),
-      tag,
-      unsafe: opts.unsafe,
-      savedAt: this.env.now(),
-      ...meta,
-      bytes: data.byteLength,
-      hasThumb: !!thumb,
-    }
-    try {
-      await store.writeEntry(list, id, data, thumb)
-      await this.commit([...this.index.entries.filter((e) => e.id !== id), entry])
-    } catch (error) {
-      await this.undoWrite(store, list, id, previous, restore)
-      throw error
-    }
-    return entry
+    return withCompanionSave(list, opts.slot ?? id, async () => {
+      const store = this.store.store(list)
+      const thumb = opts.thumb !== undefined ? opts.thumb : this.env.thumb()
+      const { json, meta } = opts.captured ?? this.env.capture()
+      const data = await gzipText(json)
+      const previous = this.index.entries.find((e) => e.id === id)
+      const restore = previous ? await this.backupEntry(previous) : null
+      const entry: GameSaveEntry = {
+        id,
+        list,
+        ...(list === 'quick' ? { slot: opts.slot } : {}),
+        tag,
+        unsafe: opts.unsafe,
+        savedAt: this.env.now(),
+        ...meta,
+        bytes: data.byteLength,
+        hasThumb: !!thumb,
+      }
+      try {
+        await store.writeEntry(list, id, data, thumb)
+        await this.commit([...this.index.entries.filter((e) => e.id !== id), entry])
+      } catch (error) {
+        await this.undoWrite(store, list, id, previous, restore)
+        throw error
+      }
+      return entry
+    })
   }
 
   /**
@@ -442,7 +446,7 @@ export class GameSavesController {
     this.notifyChanged()
   }
 
-  private async load(entryId: string, allowVersionMismatch: boolean, source: GameSaveSource): Promise<void> {
+  private async load(entryId: string, allowVersionMismatch: boolean, source: GameSaveSource, initiatorTaskId?: string): Promise<void> {
     const entry = this.find(entryId)
     const failure = (message: string, code: GameSavesErrorCode) => {
       if (source === 'hotkey') this.env.toast.result('failure', message)
@@ -461,11 +465,11 @@ export class GameSavesController {
       const backup = this.env.inGame() ? this.env.capture().json : null
       this.env.beforeLoad()
       try {
-        this.env.restore(json)
+        withCompanionLoadOwner(initiatorTaskId, () => this.env.restore(json, { kind: entry.list, slot: entry.slot ?? entry.id }))
       } catch (error) {
         if (backup && !(error instanceof SaveRestoreRolledBackError)) {
           try {
-            this.env.restore(backup)
+            withCompanionLoadOwner(initiatorTaskId, () => this.env.restore(backup, { kind: 'unknown' }))
           } catch (rollbackError) {
             this.env.log.fail('Load failed and previous progress could not be restored; reload from a game save or the save list', rollbackError)
           }

@@ -23,7 +23,7 @@ export type GameSavesEnv = {
   fingerprint: () => string
   versionId: () => number
   capture: () => { json: string; meta: SaveMeta }
-  restore: (json: string) => void
+  restore: (json: string, origin?: { kind: 'quick' | 'auto' | 'unknown'; slot?: number | string }) => void
   thumb: () => string | null
   toast: {
     pending: (label: string) => void

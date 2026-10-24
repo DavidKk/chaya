@@ -119,6 +119,7 @@ export async function completeOpenAiChat(
     messages: GameAgentMessage[]
     tools?: OllamaTool[]
     temperature?: number
+    maxTokens?: number
     timeoutMs?: number
     token?: string
     requestHeaders?: Record<string, string>
@@ -143,6 +144,7 @@ export async function completeOpenAiChat(
       body: JSON.stringify({
         model: input.model,
         temperature: input.temperature ?? 0.2,
+        ...(input.maxTokens ? { max_completion_tokens: input.maxTokens } : {}),
         messages: toOpenAiMessages(input.messages),
         ...(input.tools?.length
           ? {

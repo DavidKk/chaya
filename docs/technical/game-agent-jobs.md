@@ -4,6 +4,7 @@
 > 日期：2026-10-14；文档复核：2026-10-15；开工：2026-10-15
 > 关联：[`game-agent.md`](./game-agent.md)（§6.3 历史控制、§6.4 语义判断）、[`game-assistance.md`](./game-assistance.md)（托管循环）、[`../agent-gameplay-trace.md`](../agent-gameplay-trace.md)（操作轨迹）
 > 现有实现：`lib/game-agent/runtime/run-turn.ts`、`lib/game-agent/interaction-target.ts`、`plugins/src/agent/interact.ts`、`plugins/src/agent/runtime/host.ts`
+> 2026-10-24 旅伴整体集成见 [`companion.md`](./companion.md)：陪玩聊天使用独立只读生成，不再复用本文背景中的工具循环；single / batch / open 保持执行分层，另以 lifetime 表达有限目标或明确持续托管，不按入口猜生命周期。本文 batch 硬边界与输入守卫不变；该接线已落地，实机验收未做。
 
 ## 1. 背景
 

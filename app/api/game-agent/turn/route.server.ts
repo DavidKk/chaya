@@ -35,6 +35,7 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
     locale: String(body?.locale || ''),
     surface: typeof body?.surface === 'string' ? body.surface : undefined,
     companionCharacter: typeof body?.companionCharacter === 'string' ? body.companionCharacter : undefined,
+    lifetime: body?.lifetime === 'until_stopped' || body?.lifetime === 'goal' ? body.lifetime : undefined,
   }
   const profile = profileById(loadGameAgentSettings(), profileId)
   if (!profile) return apiError(400, 'AGENT_PROFILE_NOT_FOUND', 'Agent profile not found or deleted')
@@ -74,7 +75,7 @@ export const POST = defineApiRoute('post:/api/game-agent/turn', async ({ request
       void (async () => {
         try {
           const intent = await classifyGameIntent(input, profile, turn.abort.signal)
-          if (intent.managed) await startExtPlayTurn(input, turn, emit, profile.gameCallTimeoutMs, profile.modelTimeoutMs)
+          if (intent.managed) await startExtPlayTurn({ ...input, lifetime: intent.lifetime ?? input.lifetime }, turn, emit, profile.gameCallTimeoutMs, profile.modelTimeoutMs)
           else await runAskTurn(input, profile, session, turn, emit, !intent.edit)
         } catch (error) {
           if (turn.abort.signal.aborted) {
