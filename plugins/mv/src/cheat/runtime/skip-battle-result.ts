@@ -15,6 +15,7 @@ type BattleGlobals = {
   Scene_Battle?: new () => object
   Input?: {
     isTriggered?: (key: string) => boolean
+    isPressed?: (key: string) => boolean
     __chayaSkipBattleResult?: boolean
   }
   $gameMessage?: { isBusy?: () => boolean; numChoices?: () => number }
@@ -23,9 +24,19 @@ type BattleGlobals = {
 
 const g = () => globalThis as unknown as BattleGlobals
 
-let skipBattleResult = false
-/** Earliest time for the next synthetic OK. */
-let nextConfirmAt = 0
+const STATE_KEY = '__chayaSkipBattleResultState_v1__'
+type SkipBattleResultState = {
+  enabled: boolean
+  /** Earliest time for the next synthetic OK. */
+  nextConfirmAt: number
+}
+const stateHost = globalThis as typeof globalThis & { [STATE_KEY]?: SkipBattleResultState }
+
+function state(): SkipBattleResultState {
+  if (!stateHost[STATE_KEY]) stateHost[STATE_KEY] = { enabled: false, nextConfirmAt: 0 }
+  return stateHost[STATE_KEY]
+}
+
 const CONFIRM_GAP_MS = 100
 
 const RESULT_SCENE = /victory|battleresult|battle[_]?end|battle[_]?result|aftermath/i
@@ -82,37 +93,50 @@ export function isBattleResultContext() {
 function ensureInputHook() {
   const Input = g().Input
   if (!Input || Input.__chayaSkipBattleResult) return
-  Input.__chayaSkipBattleResult = true
-  const origTriggered = Input.isTriggered?.bind(Input)
+  const origTriggered = Input.isTriggered
+  const origPressed = Input.isPressed
   if (!origTriggered) return
+  Input.__chayaSkipBattleResult = true
+  const shouldConfirm = (key: string) => {
+    const current = state()
+    if (!current.enabled || key !== 'ok' || !isBattleResultContext()) return false
+    const now = Date.now()
+    if (now < current.nextConfirmAt) return false
+    current.nextConfirmAt = now + CONFIRM_GAP_MS
+    return true
+  }
   Input.isTriggered = function (key: string) {
-    if (skipBattleResult && key === 'ok' && isBattleResultContext()) {
-      const now = Date.now()
-      if (now >= nextConfirmAt) {
-        nextConfirmAt = now + CONFIRM_GAP_MS
-        return true
-      }
+    if (shouldConfirm(key)) return true
+    return origTriggered.call(this, key)
+  }
+  if (origPressed) {
+    Input.isPressed = function (key: string) {
+      if (state().enabled && key === 'ok' && isBattleResultContext()) return true
+      return origPressed.call(this, key)
     }
-    return origTriggered(key)
   }
 }
 
 export function getSkipBattleResult() {
-  return skipBattleResult
+  return state().enabled
 }
 
 export function setSkipBattleResult(on: boolean) {
-  skipBattleResult = !!on
-  if (skipBattleResult) {
+  const current = state()
+  current.enabled = !!on
+  current.nextConfirmAt = 0
+  const Input = g().Input
+  if (Input) Input.__chayaSkipBattleResult = false
+  if (current.enabled) {
     ensureInputHook()
     ensureBattleManagerHook()
   }
-  return skipBattleResult
+  return current.enabled
 }
 
 /** Tick: keep hooks alive; Input hook performs confirms. */
 export function trySkipBattleResult() {
-  if (!skipBattleResult) {
+  if (!state().enabled) {
     clearBattleResultMarkIfIdle()
     return
   }

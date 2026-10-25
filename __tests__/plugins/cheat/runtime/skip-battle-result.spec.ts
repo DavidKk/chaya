@@ -13,10 +13,11 @@ afterEach(() => {
 it('synthesizes OK while a victory scene is active', () => {
   class Scene_Victory {}
   const isTriggered = jest.fn(() => false)
+  const isPressed = jest.fn(() => false)
   Object.assign(globalThis, {
     Scene_Victory,
     SceneManager: { _scene: new Scene_Victory() },
-    Input: { isTriggered },
+    Input: { isTriggered, isPressed },
     $gameTemp: {},
   })
 
@@ -24,6 +25,7 @@ it('synthesizes OK while a victory scene is active', () => {
   expect(getSkipBattleResult()).toBe(true)
   expect(isBattleResultContext()).toBe(true)
   expect(Input.isTriggered!('ok')).toBe(true)
+  expect(Input.isPressed!('ok')).toBe(true)
   // Within the confirm gap, fall through to the real input (still false).
   expect(Input.isTriggered!('ok')).toBe(false)
   expect(isTriggered).toHaveBeenCalled()
@@ -44,4 +46,39 @@ it('does not mash OK on the map', () => {
   expect(isBattleResultContext()).toBe(false)
   expect(Input.isTriggered!('ok')).toBe(true)
   expect(isTriggered).toHaveBeenCalledWith('ok')
+})
+
+it('keeps working after the module is hot-reloaded', async () => {
+  class Scene_Victory {}
+  const isTriggered = jest.fn(() => false)
+  Object.assign(globalThis, {
+    Scene_Victory,
+    SceneManager: { _scene: new Scene_Victory() },
+    Input: { isTriggered },
+    $gameTemp: {},
+  })
+
+  setSkipBattleResult(true)
+
+  jest.resetModules()
+  const reloaded = await import('@/plugins/mv/src/cheat/runtime/skip-battle-result')
+  expect(reloaded.getSkipBattleResult()).toBe(true)
+  expect(Input.isTriggered!('ok')).toBe(true)
+})
+
+it('reinstalls the input hook after the game replaces Input', () => {
+  class Scene_Victory {}
+  Object.assign(globalThis, {
+    Scene_Victory,
+    SceneManager: { _scene: new Scene_Victory() },
+    Input: { isTriggered: jest.fn(() => false) },
+    $gameTemp: {},
+  })
+
+  setSkipBattleResult(true)
+  expect(globalThis.Input!.isTriggered!('ok')).toBe(true)
+
+  Object.assign(globalThis, { Input: { isTriggered: jest.fn(() => false) } })
+  setSkipBattleResult(true)
+  expect(globalThis.Input!.isTriggered!('ok')).toBe(true)
 })
