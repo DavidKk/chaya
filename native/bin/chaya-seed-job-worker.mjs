@@ -30512,6 +30512,11 @@ function smoothTranslationPerformance(previous, next, alpha = 0.2) {
 import fs4 from "node:fs";
 import path4 from "node:path";
 
+// constants/paths.ts
+import fs from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 // constants/brand.ts
 var PRODUCT_DISPLAY_NAME = "Chaya";
 var PRODUCT_SLUG = "chaya";
@@ -30533,63 +30538,6 @@ var PLUGIN_EDIT_NAME = `${PRODUCT_DISPLAY_NAME}Edit`;
 var PLUGIN_BOOST_NAME = `${PRODUCT_DISPLAY_NAME}Boost`;
 var PLUGIN_AGENT_NAME = `${PRODUCT_DISPLAY_NAME}Agent`;
 var CONTENT_FILE_PREFIX = PRODUCT_SLUG;
-
-// lib/game/content-paths.ts
-var GAME_CONTENT_DIR = CONTENT_FILE_PREFIX;
-var GAME_CONTENT_RELS = {
-  seed: "translate/seed.json",
-  cacheNdjson: "translate/cache.ndjson",
-  switches: "translate/switches.json",
-  translationPlay: "config/translation-play.json",
-  translationPreview: "config/translation-preview.json",
-  glossaryCache: "translate/glossary.cache.json",
-  skippedNdjson: "translate/skipped.ndjson",
-  merged: "translate/merged.json",
-  extractStrings: "translate/extract.strings.json",
-  extractCompare: "translate/extract.compare.json",
-  /** Data signature + source keys for seed filter / list warm — see translation-mainthread-offload §3.3.5 */
-  rgssSourcesIndex: "translate/rgss-sources.index.json",
-  gameEdit: "config/game-edit.json",
-  inputAssistance: "config/input-assistance.json",
-  gameSaves: "config/game-saves.json",
-  gameSavesIndex: "saves/index.json"
-};
-var LEGACY_FLAT_FILES = {
-  seed: [`${CONTENT_FILE_PREFIX}-trans.seed.json`, "shiru-trans.seed.json", "translate-both.seed.json"],
-  cacheNdjson: [`${CONTENT_FILE_PREFIX}-trans.cache.ndjson`, "shiru-trans.cache.ndjson", "translate-both.cache.ndjson"],
-  switches: [`${CONTENT_FILE_PREFIX}-trans.switches.json`, "shiru-trans.switches.json", "translate-switches.json", "translate-both.switches.json"],
-  translationPlay: [],
-  translationPreview: [],
-  glossaryCache: [`${CONTENT_FILE_PREFIX}-glossary.cache.json`, "translate-glossary.cache.json"],
-  skippedNdjson: [`${CONTENT_FILE_PREFIX}-trans.skipped.ndjson`, "translate-both.skipped.ndjson"],
-  merged: [`${CONTENT_FILE_PREFIX}-trans.merged.json`],
-  extractStrings: [`${CONTENT_FILE_PREFIX}-extract.strings.json`, "extracted-strings.json"],
-  extractCompare: [`${CONTENT_FILE_PREFIX}-extract.compare.json`, "extracted-compare.json"],
-  rgssSourcesIndex: [],
-  gameEdit: [`${CONTENT_FILE_PREFIX}-game-edit.json`],
-  inputAssistance: [],
-  gameSaves: [],
-  gameSavesIndex: []
-};
-function gameContentRelPath(kind) {
-  return `${GAME_CONTENT_DIR}/${GAME_CONTENT_RELS[kind]}`;
-}
-
-// services/storage/game-files.ts
-import { randomUUID } from "node:crypto";
-import path3 from "node:path";
-
-// services/storage/client.ts
-import { spawn } from "node:child_process";
-import fs3 from "node:fs";
-import os from "node:os";
-import path2 from "node:path";
-import { Worker } from "node:worker_threads";
-
-// constants/paths.ts
-import fs from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 // constants/path-names.ts
 var DATA_DIR_NAME = "data";
@@ -30664,6 +30612,58 @@ var PLUGINS_DIR = join(ROOT_PATH, PLUGINS_DIR_NAME);
 var PLUGINS_MANIFEST_PATH = join(PLUGINS_DIR, "mv", "manifest.json");
 var NODE_MODULES_DIR = join(ROOT_PATH, NODE_MODULES_DIR_NAME);
 var KUROMIJI_DICT_PATH = join(NODE_MODULES_DIR, "kuromoji", "dict");
+
+// lib/game/content-paths.ts
+var GAME_CONTENT_DIR = CONTENT_FILE_PREFIX;
+var GAME_CONTENT_RELS = {
+  seed: "translate/seed.json",
+  cacheNdjson: "translate/cache.ndjson",
+  switches: "translate/switches.json",
+  translationPlay: "config/translation-play.json",
+  translationPreview: "config/translation-preview.json",
+  glossaryCache: "translate/glossary.cache.json",
+  skippedNdjson: "translate/skipped.ndjson",
+  merged: "translate/merged.json",
+  extractStrings: "translate/extract.strings.json",
+  extractCompare: "translate/extract.compare.json",
+  /** Data signature + source keys for seed filter / list warm — see translation-mainthread-offload §3.3.5 */
+  rgssSourcesIndex: "translate/rgss-sources.index.json",
+  gameEdit: "config/game-edit.json",
+  inputAssistance: "config/input-assistance.json",
+  gameSaves: "config/game-saves.json",
+  gameSavesIndex: "saves/index.json"
+};
+var LEGACY_FLAT_FILES = {
+  seed: [`${CONTENT_FILE_PREFIX}-trans.seed.json`, "shiru-trans.seed.json", "translate-both.seed.json"],
+  cacheNdjson: [`${CONTENT_FILE_PREFIX}-trans.cache.ndjson`, "shiru-trans.cache.ndjson", "translate-both.cache.ndjson"],
+  switches: [`${CONTENT_FILE_PREFIX}-trans.switches.json`, "shiru-trans.switches.json", "translate-switches.json", "translate-both.switches.json"],
+  translationPlay: [],
+  translationPreview: [],
+  glossaryCache: [`${CONTENT_FILE_PREFIX}-glossary.cache.json`, "translate-glossary.cache.json"],
+  skippedNdjson: [`${CONTENT_FILE_PREFIX}-trans.skipped.ndjson`, "translate-both.skipped.ndjson"],
+  merged: [`${CONTENT_FILE_PREFIX}-trans.merged.json`],
+  extractStrings: [`${CONTENT_FILE_PREFIX}-extract.strings.json`, "extracted-strings.json"],
+  extractCompare: [`${CONTENT_FILE_PREFIX}-extract.compare.json`, "extracted-compare.json"],
+  rgssSourcesIndex: [],
+  gameEdit: [`${CONTENT_FILE_PREFIX}-game-edit.json`],
+  inputAssistance: [],
+  gameSaves: [],
+  gameSavesIndex: []
+};
+function gameContentRelPath(kind) {
+  return `${GAME_CONTENT_DIR}/${GAME_CONTENT_RELS[kind]}`;
+}
+
+// services/storage/game-files.ts
+import { randomUUID } from "node:crypto";
+import path3 from "node:path";
+
+// services/storage/client.ts
+import { spawn } from "node:child_process";
+import fs3 from "node:fs";
+import os from "node:os";
+import path2 from "node:path";
+import { Worker } from "node:worker_threads";
 
 // lib/integration/mcp-port.ts
 function joinPath(platform, ...parts) {
@@ -30843,14 +30843,70 @@ function writePublicGameDocument(contentRoot, kind, value) {
 }
 
 // lib/game/content-files.ts
+var STORAGE_DOCUMENT_KINDS = /* @__PURE__ */ new Set([
+  "seed",
+  "cacheNdjson",
+  "switches",
+  "translationPlay",
+  "translationPreview",
+  "gameEdit",
+  "inputAssistance",
+  "gameSaves"
+]);
+var registryCache = null;
+function storageDirectoryRegistry() {
+  if (typeof DATA_DIR !== "string" || !DATA_DIR) return null;
+  const file = path4.join(DATA_DIR, "runtime", "game-directories.json");
+  let mtimeMs = 0;
+  try {
+    mtimeMs = fs4.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0;
+  } catch {
+    mtimeMs = 0;
+  }
+  if (!mtimeMs) {
+    registryCache = null;
+    return null;
+  }
+  if (registryCache && registryCache.file === file && registryCache.mtimeMs === mtimeMs) return registryCache;
+  const byRoot = /* @__PURE__ */ new Map();
+  try {
+    const raw = JSON.parse(fs4.readFileSync(file, "utf8"));
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      for (const [root, state] of Object.entries(raw)) {
+        if (!state || typeof state !== "object") continue;
+        const directory = state.directory;
+        if (typeof directory === "string" && directory) byRoot.set(path4.resolve(root), path4.resolve(directory));
+      }
+    }
+  } catch {
+  }
+  registryCache = { file, mtimeMs, byRoot };
+  return registryCache;
+}
+function storageGameDirectory(contentRoot) {
+  const registry = storageDirectoryRegistry();
+  if (!registry) return null;
+  const key2 = path4.resolve(contentRoot);
+  const direct = registry.byRoot.get(key2);
+  if (direct) return direct;
+  try {
+    const real2 = fs4.realpathSync(contentRoot);
+    for (const [root, directory] of registry.byRoot) {
+      try {
+        if (fs4.realpathSync(root) === real2) return directory;
+      } catch {
+      }
+    }
+  } catch {
+  }
+  return null;
+}
 function gameContentPath(contentRoot, kind) {
-  if (["seed", "cacheNdjson", "switches", "translationPlay", "translationPreview", "gameEdit", "inputAssistance", "gameSaves"].includes(kind))
-    return publicGameFile(contentRoot, kind);
+  if (STORAGE_DOCUMENT_KINDS.has(kind)) return publicGameFile(contentRoot, kind);
   return path4.join(path4.resolve(contentRoot), gameContentRelPath(kind));
 }
 function gameContentCandidatePaths(contentRoot, kind, opts) {
-  if (["seed", "cacheNdjson", "switches", "translationPlay", "translationPreview", "gameEdit", "inputAssistance", "gameSaves"].includes(kind))
-    return [publicGameFile(contentRoot, kind)];
+  if (STORAGE_DOCUMENT_KINDS.has(kind)) return [publicGameFile(contentRoot, kind)];
   const root = path4.resolve(contentRoot);
   const dirs = opts?.alsoParent ? [root, path4.dirname(root)] : [root];
   const out = [];
@@ -30866,6 +30922,13 @@ function gameContentReadPath(contentRoot, kind, opts) {
   return gameContentCandidatePaths(contentRoot, kind, opts).find((p) => fs4.existsSync(p)) ?? null;
 }
 function localGameContentFile(contentRoot, kind) {
+  if (STORAGE_DOCUMENT_KINDS.has(kind)) {
+    const directory = storageGameDirectory(contentRoot);
+    if (directory) {
+      const canonical = path4.join(directory, GAME_CONTENT_RELS[kind]);
+      if (fs4.existsSync(canonical)) return canonical;
+    }
+  }
   const roots = [path4.resolve(contentRoot)];
   const parent = path4.dirname(roots[0]);
   if (parent !== roots[0]) roots.push(parent);

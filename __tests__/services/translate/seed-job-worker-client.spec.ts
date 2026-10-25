@@ -38,7 +38,7 @@ describe('seed job worker client', () => {
     const command = commandSeedJobWorker('snapshot')
     const rejected = expect(command).rejects.toThrow('did not become ready in 10000ms')
 
-    await jest.advanceTimersByTimeAsync(10_000)
+    await jest.runOnlyPendingTimersAsync()
     await rejected
     expect(mockWorker.terminate).toHaveBeenCalled()
   })

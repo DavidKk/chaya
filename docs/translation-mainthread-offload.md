@@ -1,14 +1,14 @@
 # 翻译主线程卸载与多 Tab 共享等待
 
 - **日期**：2026-10-24
-- **状态**：现行（P0–P2 + H1–H7 收尾已落地；大作抽检可选）
+- **状态**：现行（P0–P2 + H1–H8 收尾已落地；大作抽检可选）
 - **目标**：轮询与多 Tab 打开不堵 Next.js 主线程；重活进后台单飞任务；多 Tab 共享同一次等待。
 - **适用范围**：本机 Local / App 控制台的 seed 补译、**译文列表 `/translate/list`（`mode: extract-items`）**、sources 作业、共享翻译缓存打开路径；不覆盖 RGSS 写回本体（仍可保持显式同步，另案）。
 - **关联**：
   - 调度基线：[translation-scheduling.md](translation-scheduling.md) §13–14
   - 缓存：[translation-cache-optimization.md](translation-cache-optimization.md)
   - 管线：[technical/translation-pipeline.md](technical/translation-pipeline.md)
-  - 实现入口：`services/translate/seed-job.ts`、`sources-job.ts`、`scheduler/seed-prepare.ts`、`scheduler/seed-inventory.ts`、`shared-cache/migrate-bg.ts`、`services/extract/list-extract-prepare.ts`、`services/extract/lib/rgss-sources-index.ts`、`app/api/translate`（`extract-items`）
+  - 实现入口：`services/translate/seed-job.ts`（主进程 facade）、`seed-job-runtime.ts` / `seed-job-worker.ts`（独立 worker）、`sources-job.ts`、`scheduler/seed-prepare.ts`、`scheduler/seed-inventory.ts`、`shared-cache/migrate-bg.ts`、`services/extract/list-extract-prepare.ts`、`services/extract/lib/rgss-sources-index.ts`、`app/api/translate`（`extract-items`）
 - **按需定位**：热路径与已修项 §2；方案 §3（含 §3.2 列表）；分期与验收 §4–5。
 
 ## 1. 背景与原则
@@ -66,8 +66,11 @@ tab C ──┘
 | H4  | openShared scrub               | ✅ 已修 | `scheduleSharedCacheHeavyMigrate` 后台单飞                             |
 | H5  | openShared sentence v10        | ✅ 已修 | 同上                                                                   |
 | H6  | 同步 `scanSeed` 热入口         | ✅ 已修 | `mode:seed` / `fillMissingFromSeed` 改 inventory；poll 仍禁止 scanSeed |
+| H8  | Seed 翻译循环占用主线程        | ✅ 已修 | 翻译、SQLite 与游戏文件写入迁入 `chaya-seed-job-worker.mjs`            |
 
 实测参考（Rei，2026-10-24）：list prepare 期间 status/progress &lt; 100ms。自动化代理见 `offload-smoke.spec.ts`；大作本机复测仍建议抽检。
+
+实测参考（2026-10-25，seed 翻译任务运行中）：`mode:progress` 约 64ms，`/api/status` 约 43ms；改造前同一路径约 5.56–7.60s / 6–8s。
 
 ## 3. 方案
 
@@ -121,6 +124,13 @@ tab C ──┘
 - RGSS 写回/预览不强制本波后台化（可另开需求）。
 - 不在本文扩大翻译调度算法（仍以 [translation-scheduling.md](translation-scheduling.md) 为准）。
 
+### 3.6 Seed 翻译执行与进度显示
+
+1. **执行隔离**：`seed-job-runtime` 只在 `chaya-seed-job-worker.mjs` 中运行；翻译请求、SQLite 写入、seed/cache 与游戏文件写入均不回到 Next.js 事件循环。主进程只保留轻量 facade，负责读取磁盘快照、发送 `start` / `pause` / `refresh` 命令和处理孤儿任务降级。
+2. **轮询边界**：`mode:progress` 继续只读磁盘快照，不 inventory、不唤醒 loop；worker 每 250ms 及每段结束时原子写快照。
+3. **启动与失败**：worker 10s 未 ready 会超时并 terminate；worker 退出、崩溃或仅存活但未执行本进程任务时，磁盘 `running` 按孤儿规则降为 `paused`，并清理 `inventoryPreparing`。
+4. **前端刷新**：运行中每 750ms 拉取快照，数字动画 650ms；吞吐按最近 10s 字符样本计算并平滑。快照间最多按当前速率外推 2s，避免长批次让 ETA 冻结或停顿时持续下掉。
+
 ## 4. 分期与开工顺序
 
 | 步     | 内容                                                              | 依赖                                   |
@@ -150,6 +160,7 @@ tab C ──┘
 
 - [x] 热路径代理：`requestListExtract` 立即 `preparing`；stamp/local 读不触 `storageCall`（`offload-smoke.spec.ts`）。
 - [x] 进度 poll / list prepare 设计目标 &lt; 50–100ms（Rei 实测已过；大作建议抽检）。
+- [x] Seed 翻译运行中 poll / status 保持毫秒级（2026-10-25 实测 64ms / 43ms）。
 - [x] 多 Tab 单飞：seed-prepare / list-extract / migrate-bg 单飞测试覆盖；大作 ≥3 Tab 建议抽检。
 
 ### 5.3 测试
@@ -159,6 +170,7 @@ tab C ──┘
 - [x] List extract 单飞：request + poll 共享 flight（`list-extract-prepare.spec.ts`）。
 - [x] Shared migrate 单飞：并发 `scheduleSharedCacheHeavyMigrate` 同一 Promise（`migrate-bg.spec.ts`；Jest 默认同步路径另测）。
 - [x] 回归：seed-job poll 仍不 inventory；sources orphan → paused。
+- [x] Seed worker：ready 超时会 terminate；崩溃/孤儿降级 paused；facade start/refresh 完成后清除 `preparing`。
 
 ## 6. 实现落点（预留，开工时再钉）
 
@@ -183,3 +195,4 @@ tab C ──┘
 | 2026-10-24 | list RGSS 改 worker + 文件 IPC；修 Scripts `DRAW_RE` ReDoS；跳过 FileSystem/Animations/Tilesets 非文案 Data。本机 Rei：prepare 期间 status/progress &lt; 100ms，约 3s 出 1.7 万条。 |
 | 2026-10-25 | jobs 薄层接入 sources orphan；seed runLoop 禁无 bundle 同步库存；seed-prepare / list-extract / migrate-bg 单飞测试；downloads 标明不进 jobs。                                       |
 | 2026-10-25 | 收尾：inventory/records `localOnly`；`fillMissingFromSeed` 去 scanSeed；H1–H7 标已修；offload-smoke；§5.2 代理验收。                                                                |
+| 2026-10-25 | 补 H8：seed 翻译循环、SQLite 与游戏文件写入迁入独立 worker；主进程仅读快照/发命令；补平滑吞吐与有界 ETA 外推。实测 progress 64ms、status 43ms。                                     |

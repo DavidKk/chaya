@@ -851,14 +851,70 @@ function publicGameFile(contentRoot, kind) {
 }
 
 // lib/game/content-files.ts
+var STORAGE_DOCUMENT_KINDS = /* @__PURE__ */ new Set([
+  "seed",
+  "cacheNdjson",
+  "switches",
+  "translationPlay",
+  "translationPreview",
+  "gameEdit",
+  "inputAssistance",
+  "gameSaves"
+]);
+var registryCache = null;
+function storageDirectoryRegistry() {
+  if (typeof DATA_DIR !== "string" || !DATA_DIR) return null;
+  const file = path7.join(DATA_DIR, "runtime", "game-directories.json");
+  let mtimeMs = 0;
+  try {
+    mtimeMs = fs7.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0;
+  } catch {
+    mtimeMs = 0;
+  }
+  if (!mtimeMs) {
+    registryCache = null;
+    return null;
+  }
+  if (registryCache && registryCache.file === file && registryCache.mtimeMs === mtimeMs) return registryCache;
+  const byRoot = /* @__PURE__ */ new Map();
+  try {
+    const raw = JSON.parse(fs7.readFileSync(file, "utf8"));
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      for (const [root, state] of Object.entries(raw)) {
+        if (!state || typeof state !== "object") continue;
+        const directory = state.directory;
+        if (typeof directory === "string" && directory) byRoot.set(path7.resolve(root), path7.resolve(directory));
+      }
+    }
+  } catch {
+  }
+  registryCache = { file, mtimeMs, byRoot };
+  return registryCache;
+}
+function storageGameDirectory(contentRoot) {
+  const registry = storageDirectoryRegistry();
+  if (!registry) return null;
+  const key2 = path7.resolve(contentRoot);
+  const direct = registry.byRoot.get(key2);
+  if (direct) return direct;
+  try {
+    const real = fs7.realpathSync(contentRoot);
+    for (const [root, directory] of registry.byRoot) {
+      try {
+        if (fs7.realpathSync(root) === real) return directory;
+      } catch {
+      }
+    }
+  } catch {
+  }
+  return null;
+}
 function gameContentPath(contentRoot, kind) {
-  if (["seed", "cacheNdjson", "switches", "translationPlay", "translationPreview", "gameEdit", "inputAssistance", "gameSaves"].includes(kind))
-    return publicGameFile(contentRoot, kind);
+  if (STORAGE_DOCUMENT_KINDS.has(kind)) return publicGameFile(contentRoot, kind);
   return path7.join(path7.resolve(contentRoot), gameContentRelPath(kind));
 }
 function gameContentCandidatePaths(contentRoot, kind, opts) {
-  if (["seed", "cacheNdjson", "switches", "translationPlay", "translationPreview", "gameEdit", "inputAssistance", "gameSaves"].includes(kind))
-    return [publicGameFile(contentRoot, kind)];
+  if (STORAGE_DOCUMENT_KINDS.has(kind)) return [publicGameFile(contentRoot, kind)];
   const root = path7.resolve(contentRoot);
   const dirs = opts?.alsoParent ? [root, path7.dirname(root)] : [root];
   const out = [];
@@ -874,6 +930,13 @@ function gameContentReadPath(contentRoot, kind, opts) {
   return gameContentCandidatePaths(contentRoot, kind, opts).find((p) => fs7.existsSync(p)) ?? null;
 }
 function localGameContentFile(contentRoot, kind) {
+  if (STORAGE_DOCUMENT_KINDS.has(kind)) {
+    const directory = storageGameDirectory(contentRoot);
+    if (directory) {
+      const canonical = path7.join(directory, GAME_CONTENT_RELS[kind]);
+      if (fs7.existsSync(canonical)) return canonical;
+    }
+  }
   const roots = [path7.resolve(contentRoot)];
   const parent = path7.dirname(roots[0]);
   if (parent !== roots[0]) roots.push(parent);
