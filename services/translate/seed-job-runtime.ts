@@ -3,6 +3,7 @@ import fs from 'node:fs'
 
 import { formatCompactCount } from '@/lib/format-compact-count'
 import { type LiveTranslationSample, rollingTranslationPerformance, smoothTranslationPerformance, translationPerformance, type TranslationSample } from '@/lib/translate/remain-eta'
+import type { BatchExecutionSource, TranslationBatchLog } from '@/lib/translate/runtime-api'
 import { getResolvedFromConfig } from '@/services/game/binding'
 import { shouldDemoteOrphanRunning } from '@/services/jobs'
 
@@ -125,56 +126,47 @@ function peekHasSeed(contentRoot: string): boolean {
   return !!stat && stat.size > 2
 }
 
-function pushLog(rt: Runtime, level: SeedJobLogLevel, text: string) {
+function pushLog(rt: Runtime, level: SeedJobLogLevel, text: string, batch?: SeedJobLogEntry['batch']) {
   rt.logSeq += 1
-  rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text }].slice(-MAX_SEED_JOB_LOGS)
+  rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text, ...(batch ? { batch } : {}) }].slice(-MAX_SEED_JOB_LOGS)
 }
 
 /** Short engine tag for one-line logs. */
 function shortEngine(name: string): string {
-  const raw = name.trim()
+  const raw = name.trim().replace(/^live:/, '')
   if (!raw) return 'eng'
   if (raw.startsWith('agent:')) return 'agent'
   if (raw.startsWith('cache')) return 'cache'
   return raw.length > 10 ? `${raw.slice(0, 9)}…` : raw
 }
 
-/** Readable batch summary; omit zero failures and missing counts. */
-function formatSeedBatchLog(
-  round: number,
-  result: {
-    scanned: number
-    translated: number
-    failed: number
-    missing: number
-    performance?: { completedChars: number; cacheMs: number }
-    items: Array<{ zh: string | null; engine?: string }>
-  },
-  fallbackEngines: string[]
-) {
-  const counts = new Map<string, number>()
-  for (const item of result.items) {
-    if (!item.zh) continue
-    const engine = shortEngine(item.engine || 'eng')
-    counts.set(engine, (counts.get(engine) || 0) + 1)
-  }
-  const via =
-    counts.size > 0
-      ? [...counts.entries()]
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 2)
-          .map(([engine, n]) => (n > 1 ? `${engine}×${formatCompactCount(n)}` : engine))
-          .join('+')
-      : fallbackEngines.map(shortEngine).slice(0, 2).join('+') || '—'
-  const chars = result.performance?.completedChars ?? 0
-  const details = [
-    `scanned ${formatCompactCount(result.scanned)}, translated ${formatCompactCount(result.translated)}`,
-    chars > 0 ? `${formatCompactCount(chars)} chars` : null,
-    via ? `engines ${via}` : null,
-    result.failed > 0 ? `failed ${formatCompactCount(result.failed)}` : null,
-    result.missing > 0 ? `${formatCompactCount(result.missing)} still missing` : null,
-  ].filter(Boolean)
-  return `Segment ${formatCompactCount(round)} complete: ${details.join(' · ')}`
+function batchSource(name: string | undefined): BatchExecutionSource {
+  const raw = (name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^live:/, '')
+  if (raw === 'cache' || raw.startsWith('cache:')) return 'cache'
+  if (raw === 'apple' || raw.startsWith('apple:')) return 'apple'
+  if (raw === 'agent' || raw.startsWith('agent:')) return 'agent'
+  if (raw === 'bergamot' || raw.startsWith('bergamot:')) return 'bergamot'
+  if (raw === 'ollama' || raw.startsWith('ollama:')) return 'ollama'
+  if (raw === 'platform' || raw.startsWith('google') || raw.startsWith('bing') || raw.startsWith('platform:')) return 'platform'
+  return 'unknown'
+}
+
+function batchSources(items: Array<{ engine?: string }>): BatchExecutionSource[] {
+  const order: BatchExecutionSource[] = ['apple', 'agent', 'platform', 'bergamot', 'ollama', 'unknown', 'cache']
+  const present = new Set(items.map((item) => batchSource(item.engine)))
+  return order.filter((source) => present.has(source))
+}
+
+function batchLabel(batch: TranslationBatchLog): string {
+  const sources = batchSources(batch.submittedSources.map((engine) => ({ engine })))
+  const final = batchSources(batch.finalSources.map((engine) => ({ engine })))
+  const labels = [...sources, ...(batch.cacheUnavailable ? ['cache:unavailable'] : []), ...final.filter((source) => source === 'cache' || !sources.includes(source))].map(
+    (source) => (source === 'cache:unavailable' ? 'Cache unavailable' : shortEngine(source))
+  )
+  return [...new Set(labels)].join('+') || '—'
 }
 
 function persist(rt: Runtime) {
@@ -281,7 +273,30 @@ async function runLoop(contentRoot: string) {
       rt.state.rounds += 1
       rt.state.sessionDone = rt.session.processed == null ? rt.state.sessionDone + result.translated : initialSessionDone + rt.session.processed
       rt.state.error = null
-      pushLog(rt, result.translated ? 'ok' : result.failed ? 'warn' : 'info', formatSeedBatchLog(rt.state.rounds, result, rt.state.engines))
+      if (result.scanned > 0) {
+        const submittedSources = batchSources((result.submittedEngines || []).map((engine) => ({ engine })))
+        const accepted = result.items.filter((item) => item.zh != null && !item.error && !result.unresolved.includes(item.src))
+        const finalSources = batchSources(accepted)
+        const batch = {
+          batch: rt.state.rounds,
+          success: result.translated,
+          total: result.scanned,
+          failed: result.failed,
+          chars: result.items.reduce((sum, item) => sum + charCount(item.src), 0),
+          cacheHits: accepted.filter((item) => item.engine?.startsWith('cache')).length,
+          submittedSources,
+          finalSources,
+          cacheUnavailable: result.cacheUnavailable === true,
+        }
+        const prefix = `[${batchLabel(batch)}] #${batch.batch}`
+        const text =
+          batch.failed === 0
+            ? `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) complete (${batch.cacheHits} cache hits)`
+            : batch.success === 0
+              ? `${prefix}: All failed (${batch.total} items / ${batch.chars} chars)`
+              : `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) succeeded, ${batch.failed} failed${batch.cacheHits > 0 ? ` (${batch.cacheHits} cache hits)` : ''}`
+        pushLog(rt, batch.failed === 0 ? 'ok' : batch.success === 0 ? 'fail' : 'warn', text, batch)
+      }
       const failures = result.items.filter((item) => item.error || item.zh == null).slice(0, 1)
       for (const item of failures) pushLog(rt, 'warn', `Translation failed: ${item.src} (${item.error || 'no translation returned'})`)
 

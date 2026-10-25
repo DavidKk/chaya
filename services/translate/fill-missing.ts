@@ -41,6 +41,10 @@ export type FillMissingResult = SeedProgress & {
   scanned: number
   pendingResults?: number
   performance?: { completedChars: number; cacheMs: number }
+  /** Actual real-engine submissions in this result window; cache scans are not submissions. */
+  submittedEngines?: string[]
+  /** Cache lane was unavailable during this result window. */
+  cacheUnavailable?: boolean
   unresolved: string[]
   items: Array<{ src: string; zh: string | null; error?: string; engine?: string }>
 }

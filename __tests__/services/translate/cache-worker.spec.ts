@@ -50,7 +50,8 @@ it('runs the production bundle off-thread and reuses current shared, local and n
     })
     expect(results.map((result) => result.plan.zh)).toEqual(['本作你好', '欢迎', '雷霆7', null])
     expect(results.map((result) => result.id)).toEqual([0, 1, 2, 3])
-    expect(results.every((result) => result.elapsedMs >= 0 && result.stamp && result.plan.corpusVersion)).toBe(true)
+    expect(results.every((result) => result.elapsedMs >= 0 && result.stamp && result.authorityVersion && result.plan.corpusVersion)).toBe(true)
+    expect(new Set(results.map((result) => result.authorityVersion)).size).toBe(1)
   } finally {
     await worker.terminate()
     fs.rmSync(dir, { recursive: true, force: true })

@@ -10,15 +10,14 @@ import { noteGameSharedBackfill } from '../game-cache-context'
 import { gameTranslationFiles } from '../game-records'
 import type { IndexedRecord, MatchIndex } from './match-index'
 
-const fileSnapshots = new Map<string, { stamp: string; rows: Map<string, CacheRow>; seen: Set<string> }>()
+type BackfillSnapshot = { stamp: string; rows: Map<string, CacheRow>; seen: Set<string> }
+const fileSnapshots = new Map<string, BackfillSnapshot>()
 function fileStamp(file: string) {
   const stat = fs.statSync(file, { throwIfNoEntry: false })
   return JSON.stringify([stat?.ino, stat?.size, stat?.mtimeMs, stat?.ctimeMs])
 }
-function backfillSnapshot(file: string) {
+function readBackfillSnapshot(file: string): BackfillSnapshot {
   const stamp = fileStamp(file)
-  const previous = fileSnapshots.get(file)
-  if (previous?.stamp === stamp) return previous
   const rows = new Map<string, CacheRow>(),
     seen = new Set<string>()
   for (const line of (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '').split('\n')) {
@@ -32,10 +31,49 @@ function backfillSnapshot(file: string) {
       /* Recover incomplete tails during append. */
     }
   }
-  const snapshot = { stamp, rows, seen }
+  return { stamp, rows, seen }
+}
+function backfillSnapshot(file: string) {
+  const stamp = fileStamp(file)
+  const previous = fileSnapshots.get(file)
+  if (previous?.stamp === stamp) return previous
+  const snapshot = readBackfillSnapshot(file)
   if (fileSnapshots.size >= 4 && !fileSnapshots.has(file)) fileSnapshots.delete(fileSnapshots.keys().next().value!)
   fileSnapshots.set(file, snapshot)
   return snapshot
+}
+
+/** A flush is owned only when every changed row and every new event came from this batch. */
+function ownedSharedAppend(file: string, before: BackfillSnapshot, events: CacheRow[]): boolean {
+  if (!events.length) return false
+  // The snapshot may be stale after another writer appended under the same mtime
+  // tick. Re-read it instead of accepting a cached snapshot by stamp alone.
+  const after = readBackfillSnapshot(file)
+  const expected = new Map(events.map((event) => [event.s, event]))
+  const changed = new Set<string>()
+  for (const src of new Set([...before.rows.keys(), ...after.rows.keys()])) {
+    if (JSON.stringify(before.rows.get(src)) !== JSON.stringify(after.rows.get(src))) changed.add(src)
+  }
+  if (changed.size !== expected.size || [...expected.keys()].some((src) => !changed.has(src))) return false
+  for (const [src, event] of expected) {
+    if (!changed.has(src)) return false
+    const row = after.rows.get(src)
+    if (
+      !row ||
+      row.s !== event.s ||
+      row.t !== event.t ||
+      row.engine !== event.engine ||
+      row.event !== event.event ||
+      row.origin?.id !== event.origin?.id ||
+      row.origin?.revision !== event.origin?.revision ||
+      row.origin?.database !== event.origin?.database
+    )
+      return false
+  }
+  const expectedEvents = new Set(events.map((event) => event.event))
+  for (const event of after.seen) if (!before.seen.has(event) && !expectedEvents.has(event)) return false
+  fileSnapshots.set(file, after)
+  return true
 }
 
 /** Recover an incomplete append before writing the next complete event. */
@@ -68,7 +106,14 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
       try {
         for (const r of records) {
           if (!index.current([r])) continue
-          client.prepare('INSERT INTO game_backfill_tasks(root,src,record_id,revision) VALUES(?,?,?,?)').run(root, r.src, r.id, r.revision)
+          client
+            .prepare(
+              `INSERT INTO game_backfill_tasks(root,src,record_id,revision)
+               SELECT ?,?,?,? WHERE NOT EXISTS (
+                 SELECT 1 FROM game_backfill_tasks WHERE root=? AND src=? AND record_id=? AND revision=?
+               )`
+            )
+            .run(root, r.src, r.id, r.revision, root, r.src, r.id, r.revision)
         }
         client.exec('COMMIT')
       } catch (e) {
@@ -76,17 +121,18 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
         throw e
       }
     },
-    flush(root: string) {
+    flush(root: string): { sharedOnly: boolean } {
       // Most batch starts have no work. Do not read and parse the whole game file to discover that.
       const pending = client.prepare('SELECT 1 FROM game_backfill_tasks WHERE root=? LIMIT 1').get(root)
       const stale = client
         .prepare('SELECT 1 FROM game_backfills b LEFT JOIN translation_records r ON r.id=b.record_id WHERE b.root=? AND (r.id IS NULL OR r.revision<>b.revision) LIMIT 1')
         .get(root)
-      if (!pending && !stale) return
+      if (!pending && !stale) return { sharedOnly: false }
       const file = ensureGameContentDir(root, 'cacheNdjson')
       const release = lockCacheFile(fs, file)
       try {
-        const previousStamp = gameTranslationFiles(root).stamp
+        const filesBefore = gameTranslationFiles(root)
+        const previousStamp = filesBefore.stamp
         const snapshot = backfillSnapshot(file)
         const rows = new Map(snapshot.rows),
           seen = new Set(snapshot.seen)
@@ -161,10 +207,10 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
         client.exec(
           'DELETE FROM translation_outbox WHERE NOT EXISTS (SELECT 1 FROM game_backfills l WHERE l.record_id=translation_outbox.record_id AND l.revision<translation_outbox.revision)'
         )
-        snapshot.stamp = fileStamp(file)
-        snapshot.rows = rows
-        snapshot.seen = seen
-        noteGameSharedBackfill(root, previousStamp)
+        const filesAfter = gameTranslationFiles(root)
+        const sameSeedAndFallback = JSON.stringify(filesBefore.seed) === JSON.stringify(filesAfter.seed) && (filesBefore.cache == null || filesBefore.cache === filesAfter.cache)
+        const sharedOnly = sameSeedAndFallback && ownedSharedAppend(file, snapshot, events) && noteGameSharedBackfill(root, previousStamp)
+        return { sharedOnly }
       } finally {
         release()
       }

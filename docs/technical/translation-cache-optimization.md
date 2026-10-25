@@ -3,6 +3,7 @@
 - 状态：阶段一～三已接入；阶段四（索引升级 / 插件同规则接入 / 语料回放）进行中。本文件仍是目标设计真源。
 - 日期：2026-10-17。
 - 搜索流程补充：2026-10-22；§10 的索引等值查询与快照复用首版已接入；在线影子重建及完整规模验收仍为后续目标。
+- 批次性能补充：2026-10-25；§11 的 P0–P1 已实施，P2 指标待补充，需求见 [缓存批处理性能](../translation-cache-batch-performance.md)。
 - 需求：[翻译缓存语义分段与优化需求](../translation-cache-optimization.md)。
 - 后续扩展：[结构化分段与缓存测试设计](translation-structured-segmentation.md)（待实现）。
 - 基础：[翻译管线 §14](translation-pipeline.md#14-缓存落地方案核心已接入--扩展状态见-149)（稳定锚：同文件「## 14」）。
@@ -266,3 +267,192 @@
 5. 缓存同步 SQLite 查询及匹配在 worker 线程运行；提交、权威核验和回填仍有同步短操作。直接单次补译、CLI 和实时入口尚未迁移独立缓存线路。详细容量、暂停与超时边界见调度方案 §14.3。
 
 当前热缓存实测 40 条约 7–16ms，流水线收益上限主要受这部分占比限制。优先衡量引擎首条 / 完成时间、持久化和回填耗时，再决定实施顺序；不能承诺该调度本身将端到端速度翻倍。
+
+## 11. 缓存批次快照、回填与用户日志（2026-10-25）
+
+状态：P0–P1 已接入；性能基准与 P2 诊断指标待补充。对应需求 [缓存批处理性能 §5–8](../translation-cache-batch-performance.md#5-优化需求)；调度容量与线路边界仍以 [调度基线 §14](../translation-scheduling.md#14-非阻塞缓存扫描与翻译派发2026-10-23) 为准。
+
+### 11.1 快照版本链与失效判定
+
+现有 `CacheScanResult.stamp` 是扫描当时的 seed / cache 文件身份，主线程只比较当前 stamp。共享回填追加本作 `cache.ndjson` 后 stamp 必然变化，因此后续预扫描命中会被拒绝；但仅放宽 stamp 又会掩盖同期人工修改。
+
+目标设计把“文件发生变化”和“本作权威发生变化”分开：
+
+| 版本                   | 归属              | 变化条件                                                                 | 用途                          |
+| ---------------------- | ----------------- | ------------------------------------------------------------------------ | ----------------------------- |
+| `fileStamp`            | seed + cache 文件 | 路径、inode、mtime、ctime、size 任一变化                                 | 检测是否有任何文件写入        |
+| `authorityVersion`     | 本作缓存上下文    | seed / fallback 身份、非共享来源本作记录或人工屏蔽变化                   | 证明本作有效权威是否变化      |
+| `corpusVersion`        | 共享 SQLite       | 共享语料规则 / 索引版本变化                                              | 证明候选规划基于当前共享语料  |
+| `recordRevisions`      | 共享 SQLite       | 扫描使用的共享记录 revision 变化或删除                                   | 证明每条命中依赖仍然有效      |
+| `ownedFileTransitions` | 当前 seed 会话    | 本任务成功回填前后的一对 `fileStamp`，并绑定追加事件 ID 和受影响记录集合 | 证明 stamp 变化来自可识别回填 |
+
+`authorityVersion` 是每个 `contentRoot` 的内容寻址版本，不写进译文正文。它由 seed / fallback 路径、非共享本作记录和人工屏蔽集合计算哈希；缓存 worker 与主线程分别运行，不能使用各自进程内的单调计数器直接比较。`getGameCacheContext` 因上述权威内容变化而重建时产生新版本；`noteGameSharedBackfill` 只推进文件 stamp，不改变 `authorityVersion`。这样共享镜像追加不会伪装成本作权威变化，人工修改仍会使版本变化。
+
+每次成功回填在持有现有缓存文件锁后执行：
+
+1. 写前读取 `beforeStamp`，并记录本次待追加事件 ID、记录 ID / revision 和根路径。
+2. 追加并完成现有 fsync / 幂等确认。
+3. 写后读取 `afterStamp`。
+4. 仅当写前、写后都能确认 seed 与 fallback 路径未变，且写入前后的行差集、新增事件集合都恰好等于本批共享来源镜像时，向当前会话登记 `ownedFileTransitions[beforeStamp] = afterStamp`。
+5. 无法确认来源或登记失败时不建立豁免；宁可让扫描结果重新校验，也不能放宽人工保护。
+
+扫描结果携带 `{ fileStamp, authorityVersion, corpusVersion, recordRevisions }`。接受缓存结果时按以下顺序判定：
+
+1. `corpusVersion` 必须等于当前共享版本。
+2. 使用的共享记录必须通过 `current()` revision 校验。
+3. 当前 `fileStamp` 等于扫描 stamp，或从扫描 stamp 到当前 stamp 存在完整、连续、未分叉的 `ownedFileTransitions` 链。
+4. 当前 `authorityVersion` 必须等于扫描时的 `authorityVersion`。
+5. 任一 stamp 变化不在 owned 链中、版本链存在分叉、登记表溢出或无法确认写入来源，均判定为过期。
+
+版本链仅用于当前 seed 会话；进程重启后 worker 和结果缓冲都会重建，不依赖该链恢复正确性。登记表必须有界，超过容量时淘汰旧项并使对应结果保守失效，不能无限增长。
+
+`authorityVersion` 必须由上下文快照统一提供，不能只在回填后修改一个布尔标记。共享记录 revision、人工译文保护、来源优先级和写入秩仍按 §7、§10.4 校验，版本链不能替代这些检查。
+
+### 11.2 批次分层与调度状态
+
+缓存扫描、结果消费和用户日志是三套不同节奏，不能共用 Agent / Apple 的自适应批量：
+
+| 层级           | 首期预算                                                 | 反压 / 边界                                      |
+| -------------- | -------------------------------------------------------- | ------------------------------------------------ |
+| 扫描 IPC 分片  | 每片最多 32 项，只保留一个在途分片                       | 结果缓冲 64 项；缓冲满时停止领取新分片           |
+| partial 计划   | 最多 128 项                                              | 只保存可交给引擎补缺口的计划，不保存完整译文快照 |
+| 纯缓存结果批次 | 最多 40 项、10,000 字符                                  | 独立于引擎初始 4 项和 3,000 字符预算             |
+| 用户日志窗口   | 以已完成结果聚合；首批最多等待 250ms，避免为凑批无限延迟 | 不反向限制扫描；普通日志保持短小                 |
+
+现有 5 秒批次目标继续只控制引擎派发和返回窗口，不控制纯缓存结果消费。纯缓存结果已就绪时，结果消费者可以一次取走至多 40 项 / 10,000 字符；没有更多就绪项时立即提交已有结果，不为凑满 40 项等待。混合窗口可以同时包含缓存和引擎结果，但两类预算分别计算。
+
+调度状态至少区分：
+
+| 状态                | 含义                                      | 是否允许引擎领取         |
+| ------------------- | ----------------------------------------- | ------------------------ |
+| `UNKNOWN`           | 尚未扫描，不能冒充 miss                   | 允许，按既有非阻塞竞速   |
+| `WAIT_CACHE`        | 已明确等待缓存线路，用于有界兜底          | 不领取，直到结果或超时   |
+| `FULL`              | 已得到完整缓存命中                        | 不领取，提交前做版本校验 |
+| `PARTIAL`           | 有安全缺口计划                            | 允许，按缺口计划派发     |
+| `MISS`              | 缓存明确未命中，或重新扫描后确认 miss     | 允许                     |
+| `RECHECK`           | 曾完整命中但快照过期，等待重新校验 / 扫描 | 不允许直接当 `UNKNOWN`   |
+| `CACHE_UNAVAILABLE` | 缓存 worker 或权威检查不可用              | 允许，按现有软失败降级   |
+
+`RECHECK` 的转换规则：
+
+1. 先尝试用当前 stamp、owned 链、`authorityVersion` 和共享 revision 做轻量校验。
+2. 无法证明有效时，只重新扫描该项或受影响的小范围，不立即把整项转成 `MISS`。
+3. 重新扫描明确得到 `MISS` 后才进入引擎队列。
+4. 缓存线路不可用或重试超时，转 `CACHE_UNAVAILABLE` 后按既有软失败策略允许引擎继续；不能把它记录成“缓存未命中”。
+
+`RECHECK` 使用有界重扫队列，同一任务最多重试 2 次。重试耗尽后转 `MISS` 并允许引擎继续；缓存线路故障则立即释放队列，避免条目永久停在不可领取状态。
+
+同一扫描窗口内按 `src + 源语言 + 目标语言 + category + 保护签名` 去重。相同键只执行一次缓存查询和一次回填；若对应多个任务条目，查询结果可以 fan-out 到各任务 ID，但完成状态、日志 `total/success/failed/chars` 仍按任务条目计数，缓存查询次数按去重键计数。去重只发生在结果消费层，不改变原文清单和持久化条目的唯一性。
+
+### 11.3 批次日志来源与 i18n
+
+用户日志不能从最终 `item.engine` 反推实际执行路径。批次日志扩展为结构化来源，至少包含：
+
+```ts
+type BatchExecutionSource = 'cache' | 'apple' | 'agent' | 'platform' | 'bergamot' | 'ollama' | 'unknown'
+
+type TranslationBatchLog = {
+  batch: number
+  success: number
+  total: number
+  failed: number
+  chars: number
+  cacheHits: number
+  submittedSources: BatchExecutionSource[]
+  finalSources: BatchExecutionSource[]
+  cacheUnavailable: boolean
+}
+```
+
+字段语义：
+
+- `submittedSources`：本窗口实际提交过请求的真实翻译来源；缓存扫描、缓存重校验和缓存回填不得加入。
+- `finalSources`：最终被接受结果的实际来源；采用共享 / 本作缓存时包含 `cache`。
+- `cacheHits`：最终采用缓存权威译文的条目数，不等同于 `submittedSources` 是否为空。
+- `cacheUnavailable`：当前会话缓存线路不可用；与是否有真实引擎结果分别统计。该标记跨结果窗口保留，直到 seed 清单重建或会话重建，避免后续窗口误显示为健康缓存。
+
+`success`、`failed` 只按任务最终结果计数，不按缓存线路健康状态计数。缓存不可用时，有真实引擎结果的条目按结果成功 / 失败；没有真实引擎且未完成的条目计入 `failed`。`cacheUnavailable` 只影响标签和诊断，不得把未完成条目伪装成缓存 miss 或成功。
+
+用户标签由结构化字段投影，不解析英文日志正文：
+
+| 条件                                      | 标签                 |
+| ----------------------------------------- | -------------------- |
+| `submittedSources` 为空且 `cacheHits > 0` | `[缓存]`             |
+| 仅提交 Apple，最终非缓存                  | `[Apple]`            |
+| 仅提交 Agent，最终非缓存                  | `[agent]`            |
+| 提交 Apple，最终采用缓存                  | `[Apple+缓存]`       |
+| 提交 Agent，最终采用缓存                  | `[agent+缓存]`       |
+| 多个真实来源后采用缓存                    | `[来源1+来源2+缓存]` |
+| `cacheUnavailable` 且有真实来源           | `[来源1+缓存不可用]` |
+| `cacheUnavailable` 且无真实来源、存在失败 | `[缓存不可用]`       |
+
+真实来源按固定顺序投影：`apple`、`agent`、`platform`、`bergamot`、`ollama`、其他已知来源，最后才是 `cache`；不按完成时间排序。未知来源保留短名称，不能静默归并到缓存。后端持久化的 `text` 可继续使用英文诊断摘要，但 UI 必须优先使用 `TranslationBatchLog` 和 i18n 键生成用户文案；缺少结构化字段时才回退到 `text`。
+
+i18n 至少提供缓存、缓存不可用、Apple、Agent 和组合连接符的独立键。组合标签中的真实引擎名按现有产品名称本地化，不能用固定中文标点拼出无法换行的长串；容器必须允许自然换行，不能用截断隐藏实际来源。
+
+### 11.4 回填、持久化与去重
+
+回填继续先保存共享 SQLite，再追加本作镜像；本作追加失败不能回滚已确认的共享译文。
+
+- `queueBackfill` 在进入 `game_backfill_tasks` 前按 `(root, src, record_id, revision)` 去重，避免同一批重复扫描生成重复任务。
+- 同一 `src` 对应多个任务条目时，共享记录回填一次；完成计数仍按任务条目分别递增。
+- 正常暂停、批次结束和正常退出必须执行 `flushBackfill`；flush 成功后才确认任务完成。
+- 异常退出时，未确认任务保留在持久化队列，恢复后可重试；不得把“已排队”报告为“已回填”。
+- 空队列且没有 revision 失效项时直接返回，不读取或解析整个 `cache.ndjson`。
+- 已登记 owned transition 只允许推进文件 stamp，不允许跳过共享 revision 检查；回填后 `authorityVersion` 不变。
+- 若回填写入和人工修改并发发生，版本链无法形成完整的 owned 链，后续缓存结果必须重新校验。
+- 回填 flush 返回 `{ sharedOnly }`；只有写入内容差集、事件集合、seed / fallback 身份和上下文版本全部可证明时才为 `true`。
+
+### 11.5 指标与验收边界
+
+调试指标按阶段记录，默认不进入用户日志：
+
+| 指标                       | 说明                                                 |
+| -------------------------- | ---------------------------------------------------- |
+| `cacheScanMs`              | worker 单条 / 分片扫描耗时，不含启动和迁移           |
+| `cacheRecheckMs`           | 过期结果重新校验或重新扫描耗时                       |
+| `cacheResultCommitMs`      | 主线程领取、校验并提交纯缓存结果的时间               |
+| `backfillQueueMs`          | 回填入队耗时                                         |
+| `backfillFlushMs`          | 回填追加、fsync 和确认耗时                           |
+| `persistMs`                | 作业状态持久化耗时                                   |
+| `engineQueueMs`            | 引擎排队时间                                         |
+| `engineRunMs`              | 真实引擎执行时间                                     |
+| `fileReadCount`            | seed / cache 完整读取次数                            |
+| `contextBuildCount`        | 本作上下文和 resolver 重建次数                       |
+| `engineSubmissionCount`    | 真实引擎提交次数                                     |
+| `staleRecheckCount`        | 过期结果进入 `RECHECK` 的次数                        |
+| `selfBackfillRejectCount`  | 已登记自身回填仍被拒绝的次数，目标为 0               |
+| `engineAfterCacheHitCount` | 最终采用缓存但仍提交真实引擎的次数，用于发现错误竞速 |
+
+性能测量口径：
+
+- 50ms 目标只覆盖 40 条 / 10,000 字符的热态查询、候选筛选、安全校验和必要的 revision 检查。
+- 300ms 目标覆盖纯缓存结果从主线程领取到可提交，包含轻量校验和结果组装，不包含首次 worker 启动、索引迁移、真实引擎、回填 flush、作业状态写盘和 UI 重绘。
+- 回填、持久化和日志回调分别计时并报告；不得把它们隐藏在缓存查询时间之外后仍宣称端到端达标。
+- 连续 10 个热态批次中，初始加载后 `fileReadCount` 和 `contextBuildCount` 不随批次数量线性增长；自身回填只允许推进版本，不允许重建完整 resolver。
+- 性能样本必须记录共享语料规模、本作记录数、批次条数、字符数、冷 / 热状态、硬件和 p50 / p95 / max。
+
+正确性验收至少覆盖：
+
+1. 首批回填改变 stamp 后，后续已扫描完整命中仍为 `cache:scan`，真实引擎提交数为 0。
+2. 自身回填与人工 seed / cache 修改并发时，owned 链不成立，旧结果被拒绝。
+3. owned transition 链分叉、登记表淘汰或写入来源不明时，结果保守失效。
+4. 完整命中过期进入 `RECHECK`，只有明确 miss 后才进入引擎。
+5. 缓存 worker 不可用时进入 `CACHE_UNAVAILABLE`，引擎可继续但日志不标记纯缓存。
+6. 40 条纯缓存结果不受引擎 4 条初始批量限制，但受 10,000 字符和 64 项结果缓冲约束。
+7. 同一去重键只查询 / 回填一次，日志仍按任务条目计数。
+8. 实际提交 Apple / Agent 后采用缓存，日志投影为 `[Apple+缓存]` / `[agent+缓存]`，不会显示纯 `[缓存]`。
+9. 正常结束、暂停和异常退出分别满足 flush、待重试和不谎报完成的语义。
+
+### 11.6 实施落点
+
+| 位置                                                                                                                 | 目标改动                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `scheduler/cache-scan.ts` / `scheduler/seed-session.ts`                                                              | 扫描结果携带完整快照；增加 `authorityVersion`、owned 链和 `RECHECK` 状态                  |
+| `game-cache-context.ts` / `game-records.ts`                                                                          | 提供跨 worker 可比较的本作权威指纹；自身共享回填只推进文件 stamp，人工 / 外部变化更新指纹 |
+| `shared-cache/backfill.ts`                                                                                           | 登记有界 owned transition；回填任务去重；保留现有锁、fsync、幂等和异常恢复语义            |
+| `scheduler/seed-batch.ts` / `seed-job-runtime.ts`                                                                    | 分离引擎派发预算与纯缓存结果消费；日志窗口按完成结果聚合，不反向限制扫描                  |
+| `lib/translate/runtime-api.ts` / `TranslateActivityLog.tsx` / `lib/i18n/messages`                                    | 用结构化 `submittedSources` / `finalSources` 投影标签并补齐多语言键                       |
+| `__tests__/services/translate/seed-scheduler.spec.ts` / `cache-index-performance.spec.ts` / `cache-backfill.spec.ts` | 覆盖 §11.5 的并发版本、回填、批次和日志回归                                               |
+
+实施顺序按需求 P0 → P1 → P2：先修 owned 链和 `RECHECK`，再拆纯缓存结果批次，最后接结构化日志和完整指标。任何阶段都不得通过跳过人工保护、共享 revision 或回填持久化来换取性能数字。

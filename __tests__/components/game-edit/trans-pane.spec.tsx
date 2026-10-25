@@ -198,6 +198,80 @@ test('new log entries scroll only the log viewport even when the retained log co
   }
 })
 
+test.each([
+  ['zh', 4, 0, 2, '[缓存] #8400：4/4 条（80 字符）完成（2 条命中缓存）', 'text-ok'],
+  ['zh', 3, 1, 2, '[缓存] #8400：3/4 条（80 字符）成功，1 条失败（2 条命中缓存）', 'text-warn'],
+  ['zh', 3, 1, 0, '[缓存] #8400：3/4 条（80 字符）成功，1 条失败', 'text-warn'],
+  ['zh', 0, 4, 0, '[缓存] #8400：全部失败（共 4 条 / 80 字符）', 'text-fail'],
+  ['en', 4, 0, 2, '[Cache] #8400: 4/4 items (80 chars) complete (2 cache hits)', 'text-ok'],
+  ['en', 3, 1, 2, '[Cache] #8400: 3/4 items (80 chars) succeeded, 1 failed (2 cache hits)', 'text-warn'],
+  ['en', 3, 1, 0, '[Cache] #8400: 3/4 items (80 chars) succeeded, 1 failed', 'text-warn'],
+  ['en', 0, 4, 0, '[Cache] #8400: All failed (4 items / 80 chars)', 'text-fail'],
+] as const)('batch logs localize %s success=%i failed=%i cache=%i with wrapping and status color', async (locale, success, failed, cache, expected, color) => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const host = document.createElement('div')
+  document.body.append(host)
+  const root = createRoot(host)
+  try {
+    await act(async () =>
+      root.render(
+        <LocaleProvider initialLocale={locale} initialPreference={locale}>
+          <TranslateActivityLog
+            entries={[
+              {
+                id: 1,
+                at: 0,
+                level: 'info',
+                text: 'English fallback',
+                batch: { batch: 8400, total: 4, success, failed, chars: 80, cacheHits: cache, submittedSources: [], finalSources: cache ? ['cache'] : [], cacheUnavailable: false },
+              },
+            ]}
+          />
+        </LocaleProvider>
+      )
+    )
+    const text = [...host.querySelectorAll('li span')].find((span) => span.textContent === expected)
+    expect(text).toBeDefined()
+    expect(text?.classList.contains(color)).toBe(true)
+    expect(text?.classList.contains('whitespace-pre-wrap')).toBe(true)
+    expect(text?.classList.contains('[overflow-wrap:anywhere]')).toBe(true)
+    expect(host.textContent).not.toContain('English fallback')
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
+})
+
+test('batch log shows a real engine submission even when the accepted result came from cache', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const host = document.createElement('div')
+  document.body.append(host)
+  const root = createRoot(host)
+  try {
+    await act(async () =>
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateActivityLog
+            entries={[
+              {
+                id: 1,
+                at: 0,
+                level: 'info',
+                text: 'English fallback',
+                batch: { batch: 8401, total: 2, success: 2, failed: 0, chars: 40, cacheHits: 2, submittedSources: ['apple'], finalSources: ['cache'], cacheUnavailable: false },
+              },
+            ]}
+          />
+        </LocaleProvider>
+      )
+    )
+    expect(host.textContent).toContain('[Apple+缓存] #8401')
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
+})
+
 test('timeout changes save automatically, retain a failed edit and allow retry without a save button', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   let settings = { ...DEFAULT_PLAY_SETTINGS }

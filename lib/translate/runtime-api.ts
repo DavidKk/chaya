@@ -5,6 +5,20 @@ export type TranslationRequestFn = (request: TranslationRequest, signal?: AbortS
 
 export type TranslationRuntime = { request: TranslationRequestFn; dispose: () => void }
 
+export type BatchExecutionSource = 'cache' | 'apple' | 'agent' | 'platform' | 'bergamot' | 'ollama' | 'unknown'
+
+export type TranslationBatchLog = {
+  batch: number
+  success: number
+  total: number
+  failed: number
+  chars: number
+  cacheHits: number
+  submittedSources: BatchExecutionSource[]
+  finalSources: BatchExecutionSource[]
+  cacheUnavailable: boolean
+}
+
 export function installedTranslationRuntime(): TranslationRuntime | undefined {
   return (globalThis as typeof globalThis & { __chayaTranslationRuntime?: TranslationRuntime }).__chayaTranslationRuntime
 }

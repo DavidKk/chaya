@@ -1,6 +1,7 @@
 jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -8,7 +9,7 @@ import { DatabaseSync } from 'node:sqlite'
 
 import { gameContentPath } from '@/lib/game/content-files'
 import { getGameCacheContext, noteGameSharedBackfill } from '@/services/translate/game-cache-context'
-import { loadGameTranslationRecords } from '@/services/translate/game-records'
+import { gameTranslationFiles, loadGameTranslationRecords } from '@/services/translate/game-records'
 import { openSharedCache } from '@/services/translate/shared-cache'
 import { createMatchIndex } from '@/services/translate/shared-cache/match-index'
 
@@ -72,7 +73,16 @@ describe('indexed cache query contract', () => {
     cache.queueBackfill(root, write.records)
     cache.flushBackfill(root)
     expect(getGameCacheContext(root)).toBe(context)
+    expect(getGameCacheContext(root).authorityVersion).toBe(context.authorityVersion)
     expect(context.records.map((r) => r.src)).toEqual(['Hello'])
+
+    // An off-thread worker builds context from scratch after cache.ndjson is created.
+    // Creation of cache.ndjson via shared backfill must produce the exact same authorityVersion.
+    const recomputedAuthority = createHash('sha256')
+      .update(JSON.stringify([gameTranslationFiles(root).seed, loadGameTranslationRecords(root, () => false).filter((r) => r.local), []]))
+      .digest('hex')
+    expect(context.authorityVersion).toBe(recomputedAuthority)
+
     expect(cache.plan('Welcome', pair, context.resolver.select('Welcome')).zh).toBe('欢迎')
     const reads = jest.spyOn(fs, 'readFileSync')
     cache.flushBackfill(root)
@@ -89,6 +99,7 @@ describe('indexed cache query contract', () => {
     fs.appendFileSync(gameContentPath(root, 'cacheNdjson'), JSON.stringify({ s: 'Welcome', t: '本作人工', engine: 'manual' }) + '\n')
     const edited = getGameCacheContext(root)
     expect(edited).not.toBe(context)
+    expect(edited.authorityVersion).not.toBe(context.authorityVersion)
     expect(cache.plan('Welcome', pair, edited.resolver.select('Welcome')).zh).toBe('本作人工')
     cache.remove('Welcome', pair)
     cache.flushBackfill(root)

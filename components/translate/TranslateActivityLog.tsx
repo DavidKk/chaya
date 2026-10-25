@@ -3,6 +3,7 @@
 import { useT } from '@/components/i18n/LocaleProvider'
 import { formDesc, formTitle } from '@/components/layoutClasses'
 import { FollowScrollLogList } from '@/components/logs/FollowScrollLogList'
+import type { BatchExecutionSource, TranslationBatchLog } from '@/lib/translate/runtime-api'
 import { cn } from '@/lib/utils'
 
 export type TranslateLogLevel = 'info' | 'ok' | 'warn' | 'fail'
@@ -12,6 +13,7 @@ export type TranslateLogEntry = {
   at: number
   level: TranslateLogLevel
   text: string
+  batch?: TranslationBatchLog
 }
 
 type Props = {
@@ -19,6 +21,16 @@ type Props = {
   liveStatus?: string
   sessionDone?: number
   className?: string
+}
+
+function sourceLabel(source: BatchExecutionSource, t: ReturnType<typeof useT>): string {
+  if (source === 'cache') return t('translate.batchLogCache')
+  if (source === 'apple') return t('translate.batchLogApple')
+  if (source === 'agent') return t('translate.batchLogAgent')
+  if (source === 'platform') return t('translate.batchLogPlatform')
+  if (source === 'bergamot') return 'Bergamot'
+  if (source === 'ollama') return 'Ollama'
+  return t('translate.batchLogUnknown')
 }
 
 /**
@@ -43,7 +55,29 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
       </div>
       <div className="relative min-h-0 border-t border-[var(--line-soft)]">
         <FollowScrollLogList
-          entries={entries}
+          entries={entries.map((entry) => {
+            if (!entry.batch) return entry
+            const batch = entry.batch
+            const key = batch.failed === 0 ? 'translate.batchLogComplete' : batch.success === 0 ? 'translate.batchLogFailed' : 'translate.batchLogPartial'
+            const sources = [...batch.submittedSources, ...(batch.cacheUnavailable ? (['cache:unavailable'] as const) : []), ...batch.finalSources]
+            const engine =
+              [...new Set(sources)].map((source) => (source === 'cache:unavailable' ? t('translate.batchLogCacheUnavailable') : sourceLabel(source, t))).join('+') ||
+              t('translate.batchLogCache')
+            return {
+              ...entry,
+              level: batch.failed === 0 ? 'ok' : batch.success === 0 ? 'fail' : 'warn',
+              text: t(key, {
+                batch: batch.batch,
+                success: batch.success,
+                total: batch.total,
+                failed: batch.failed,
+                chars: batch.chars,
+                cache: batch.cacheHits,
+                cache_info: batch.cacheHits > 0 ? t('translate.batchLogCacheInfo', { cache: batch.cacheHits }) : '',
+                engine,
+              }),
+            }
+          })}
           ariaLabel={t('translate.loadActivity')}
           emptyText={t('translate.activityLogEmpty')}
           jumpLabel={t('translate.activityLogJumpLatest')}

@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { CACHE_WORKER_PATH, TRANSLATE_JOBS_DIR } from '@/constants/paths'
+import type { TranslationBatchLog } from '@/lib/translate/runtime-api'
 
 import type { SeedProgress } from './fill-missing'
 
@@ -15,6 +16,7 @@ export type SeedJobLogEntry = {
   at: number
   level: SeedJobLogLevel
   text: string
+  batch?: TranslationBatchLog
 }
 
 export type SeedJobState = {

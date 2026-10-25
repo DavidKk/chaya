@@ -13,6 +13,7 @@ export type CacheScanResult = {
   src: string
   plan: SentencePlan & { corpusVersion: string }
   stamp: string
+  authorityVersion: string
   records?: IndexedRecord[]
   elapsedMs: number
 }
@@ -32,6 +33,7 @@ export function createCacheScanner(contentRoot: string, file: string) {
           plan: { ...createSentenceResolver([]).plan(src), corpusVersion: index.version() },
           records: [],
           stamp: context.stamp,
+          authorityVersion: context.authorityVersion,
           elapsedMs: performance.now() - started,
         }
       const pair = { from: detectCacheLang(src), to: 'zh' as const }
@@ -60,7 +62,7 @@ export function createCacheScanner(contentRoot: string, file: string) {
           .filter((match) => !match.record.local)
           .map((match) => index.record(match.record.src, pair))
           .filter((record): record is IndexedRecord => record != null)
-      return { id, src, plan, records, stamp: context.stamp, elapsedMs: performance.now() - started }
+      return { id, src, plan, records, stamp: context.stamp, authorityVersion: context.authorityVersion, elapsedMs: performance.now() - started }
     },
   }
 }

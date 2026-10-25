@@ -27,6 +27,7 @@
 | 翻译调度、并发、重试、限流 | [调度基线](translation-scheduling.md) §9 差距、§13–14 性能与接线 | [管线](technical/translation-pipeline.md) 相关章节 |
 | 翻译主线程卡死、多 Tab、list/seed 库存与 shared 后台化 | [主线程卸载](translation-mainthread-offload.md) | 现行（P0–P2 已落地）；技术方案未立页前以需求文为准 |
 | 缓存匹配、语义分段、索引 | [缓存优化](translation-cache-optimization.md) | [缓存设计](technical/translation-cache-optimization.md)；底层存储才读 [管线](technical/translation-pipeline.md) §14 |
+| 缓存批次慢、命中后仍跑引擎、回填假过期 | [缓存批处理性能](translation-cache-batch-performance.md) | [缓存批次设计](technical/translation-cache-optimization.md) §11；调度边界见 [调度基线](translation-scheduling.md) §14 |
 | 标签、列表、结构化分段编辑 | [结构化分段](translation-structured-segmentation.md) | [分段设计](technical/translation-structured-segmentation.md) |
 | 整句缓存对齐回退 | [整句回退](translation-sentence-fallback.md) | [回退算法](technical/translation-sentence-fallback.md) |
 | 专名/名称优化、术语纠偏、闲时润色 | [质量优化](translation-optimization.md) UI §3 · 入口 §5 · MVP §6 | [质量设计](technical/translation-optimization.md) 秩 §2 · 候选 §3 · 开工清单 §8 |

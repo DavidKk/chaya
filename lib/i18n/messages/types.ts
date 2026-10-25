@@ -610,6 +610,16 @@ export type MessageTree = {
     activityLogEmpty: string
     activityLogHint: string
     activityLogJumpLatest: string
+    batchLogComplete: string
+    batchLogPartial: string
+    batchLogFailed: string
+    batchLogCache: string
+    batchLogCacheInfo: string
+    batchLogCacheUnavailable: string
+    batchLogApple: string
+    batchLogAgent: string
+    batchLogPlatform: string
+    batchLogUnknown: string
     loadCache: string
     listSearchPlaceholder: string
     listSearchAria: string

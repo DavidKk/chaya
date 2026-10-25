@@ -4,6 +4,7 @@ import type { SentencePlan } from '@/lib/translate/sentence-plan'
 
 import { getTranslateEngineSwitches } from '../engine-switches'
 import type { FillMissingResult, SeedFillOptions } from '../fill-missing'
+import { getGameCacheContext } from '../game-cache-context'
 import { gameTranslationFiles } from '../game-records'
 import { type LiveTranslateItem, liveTranslateTexts } from '../live-translate'
 import { isSensitiveForCloud } from '../sensitive-text'
@@ -20,12 +21,30 @@ const UNKNOWN = 0,
   RUNNING = 2,
   DONE = 3,
   FAILED = 4,
-  WAIT_CACHE = 5
+  WAIT_CACHE = 5,
+  RECHECK = 6
 const MAX_BUFFER = 64
+const CACHE_RESULT_LIMIT = 40
+const CACHE_RESULT_MAX_CHARS = 10_000
+const MAX_RECHECKS = 2
 
 type Attempt = { order: TranslateRunEngine[]; next: number; tried: Set<TranslateRunEngine>; errors: string[] }
 type Active = { engine: TranslateRunEngine; controller: AbortController; work: Promise<void> }
 type Completed = { item: LiveTranslateItem; cacheMs: number }
+
+/** A stamp change may only be ignored when every edge came from this session's own append. */
+export function followsOwnedStampChain(from: string, to: string, transitions: ReadonlyMap<string, string>): boolean {
+  let current = from
+  const seen = new Set<string>()
+  while (current !== to) {
+    if (seen.has(current)) return false
+    seen.add(current)
+    const next = transitions.get(current)
+    if (!next) return false
+    current = next
+  }
+  return true
+}
 
 export function createScheduledSeedSession(contentRoot: string, initialTrace?: (message: string) => void, opts?: { inventory?: SeedInventoryBundle }) {
   let inventory: SeedInventoryBundle = opts?.inventory ?? readSeedInventory(contentRoot)
@@ -41,6 +60,8 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
   let pendingCount = states.length
   let pendingCacheMs = 0
   let processed = 0
+  let submittedEngines = new Set<TranslateRunEngine>()
+  let cacheUnavailable = false
   const misses: number[] = []
   const freshCursors = new Map<TranslateRunEngine, number>()
   const deferred = new Map<TranslateRunEngine, Set<number>>()
@@ -58,7 +79,20 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
   const retries = new Map<number, Attempt>()
   const ready = new Map<number, CacheScanResult>()
   const completed: Completed[] = []
-  const counters = { cacheHit: 0, cacheMiss: 0, cachePartial: 0, cacheBypassed: 0, cacheCancelled: 0, engineSubmitted: 0, duplicateInFlight: 0 }
+  const ownedFileTransitions = new Map<string, string>()
+  const recheckQueue: number[] = []
+  let recheckAttempts = new Uint8Array(states.length)
+  const counters = {
+    cacheHit: 0,
+    cacheMiss: 0,
+    cachePartial: 0,
+    cacheBypassed: 0,
+    cacheCancelled: 0,
+    cacheRecheck: 0,
+    cacheRecheckMiss: 0,
+    engineSubmitted: 0,
+    duplicateInFlight: 0,
+  }
   const trace = (message: string) => (options.onTrace || initialTrace)?.(message)
   const cache = () => (store ??= openSharedCache())
   const notify = () => resolveWait?.()
@@ -97,19 +131,33 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
     } else finish(id, item)
   }
 
+  function releaseRechecks() {
+    for (let id = 0; id < states.length; id++) {
+      if (states[id] === RECHECK) {
+        states[id] = MISS
+        if (!misses.includes(id)) misses.push(id)
+      }
+    }
+    recheckQueue.length = 0
+  }
+
   function cacheFailed(error: string) {
     cacheAvailable = false
+    cacheUnavailable = true
     // Missing worker is expected after a clean checkout until `pnpm build:translate`;
     // translation continues via enabled engines — do not surface a Node module stack.
     const soft = error === 'CACHE_WORKER_MISSING' || /chaya-cache-worker|Cache worker missing/i.test(error)
     trace(soft ? 'Cache scan unavailable: worker not built — continuing with engines only (run pnpm build:translate)' : `Cache scan unavailable: ${error}`)
     for (const [id, item] of waitingCache) finish(id, item)
+    releaseRechecks()
     notify()
   }
 
   function valid(result: CacheScanResult): boolean {
     try {
-      if (gameTranslationFiles(contentRoot).stamp !== result.stamp) return false
+      const currentStamp = gameTranslationFiles(contentRoot).stamp
+      if (currentStamp !== result.stamp && !followsOwnedStampChain(result.stamp, currentStamp, ownedFileTransitions)) return false
+      if (getGameCacheContext(contentRoot).authorityVersion !== result.authorityVersion) return false
       const shared = cache()
       return shared.version() === result.plan.corpusVersion && shared.current(result.plan.matches.filter((m) => !m.record.local).map((m) => m.record))
     } catch (error) {
@@ -118,23 +166,74 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
     }
   }
 
+  function rememberOwnedTransition(before: string, after: string) {
+    if (before === after) return
+    // An evicted source deliberately falls back to a full recheck.
+    if (ownedFileTransitions.size >= 256) ownedFileTransitions.delete(ownedFileTransitions.keys().next().value!)
+    ownedFileTransitions.set(before, after)
+  }
+
+  function flushBackfill() {
+    if (!store) return
+    const before = gameTranslationFiles(contentRoot).stamp
+    let flushed: { sharedOnly: boolean }
+    try {
+      flushed = store.flushBackfill(contentRoot)
+    } catch (error) {
+      trace(`Cache backfill flush failed: ${error instanceof Error ? error.message : String(error)}`)
+      return
+    }
+    const after = gameTranslationFiles(contentRoot).stamp
+    if (flushed.sharedOnly) rememberOwnedTransition(before, after)
+  }
+
   function onCache(result: CacheScanResult) {
     pendingCacheMs += result.elapsedMs
     const id = result.id
     if (paused || closed || result.src !== inventory.pending[id] || states[id] === DONE || states[id] === FAILED) return
     cacheSeen[id] = 1
-    if (result.plan.status === 'full' && result.plan.zh != null && valid(result)) {
-      counters.cacheHit++
-      if (result.records?.length) cache().queueBackfill(contentRoot, result.records)
-      finish(id, { src: result.src, zh: result.plan.zh, status: 'full', engine: 'cache:scan', plan: result.plan }, result.elapsedMs)
-      if (active.has(id)) {
-        counters.cacheCancelled++
-        active.get(id)!.controller.abort(new Error('A valid cache result completed this translation task'))
+    if (result.plan.status === 'full' && result.plan.zh != null) {
+      if (valid(result)) {
+        counters.cacheHit++
+        if (result.records?.length) cache().queueBackfill(contentRoot, result.records)
+        finish(id, { src: result.src, zh: result.plan.zh, status: 'full', engine: 'cache:scan', plan: result.plan }, result.elapsedMs)
+        if (active.has(id)) {
+          counters.cacheCancelled++
+          active.get(id)!.controller.abort(new Error('A valid cache result completed this translation task'))
+        }
+      } else {
+        // A stale full hit is not a miss. Keep it out of engine dispatch until
+        // the cache lane has revalidated this item.
+        counters.cacheRecheck++
+        if (states[id] !== DONE && states[id] !== FAILED) {
+          waitingCache.delete(id)
+          ready.delete(id)
+          retries.delete(id)
+          states[id] = RECHECK
+          if (recheckAttempts[id] < MAX_RECHECKS && !recheckQueue.includes(id)) {
+            recheckAttempts[id]++
+            recheckQueue.push(id)
+          } else if (!recheckQueue.includes(id)) {
+            // Bound repeated stale scans. The next engine pass is preferable to
+            // leaving the item permanently outside both cache and engine work.
+            retries.delete(id)
+            states[id] = MISS
+            if (!misses.includes(id)) misses.push(id)
+          }
+        }
+        if (active.has(id)) active.get(id)!.controller.abort(new Error('Cache snapshot expired; rechecking before engine dispatch'))
       }
     } else if (waitingCache.has(id)) {
       finish(id, waitingCache.get(id)!)
     } else if (states[id] !== RUNNING) {
+      if (states[id] === RECHECK && result.plan.status === 'miss') {
+        counters.cacheRecheckMiss++
+        const index = recheckQueue.indexOf(id)
+        if (index >= 0) recheckQueue.splice(index, 1)
+      }
       if (result.plan.status === 'miss' || result.plan.status === 'partial') {
+        const index = recheckQueue.indexOf(id)
+        if (index >= 0) recheckQueue.splice(index, 1)
         states[id] = MISS
         if (result.plan.status === 'partial') counters.cachePartial++
         else if (!result.plan.limited) counters.cacheMiss++
@@ -264,12 +363,13 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
           onTrace: trace,
           onEngineDispatch: () => {
             counters.engineSubmitted++
+            submittedEngines.add(engine)
           },
           onDuplicateInFlight: () => {
             counters.duplicateInFlight++
           },
         })
-        if (closed || ownGeneration !== generation || states[id] === DONE) return
+        if (closed || ownGeneration !== generation || states[id] === DONE || states[id] === RECHECK) return
         const item = result.items[0] || { src, zh: null, error: 'No translation result returned' }
         if (item.zh != null && !item.error && item.status !== 'partial') finish(id, item)
         else {
@@ -282,7 +382,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
           else failOrWait(id, { src, zh: null, error: attempt.errors.join('; ') })
         }
       } catch (error) {
-        if (!closed && ownGeneration === generation && states[id] !== DONE) {
+        if (!closed && ownGeneration === generation && states[id] !== DONE && states[id] !== RECHECK) {
           attempt.errors.push(error instanceof Error ? error.message : String(error))
           attempt.tried.add(engine)
           refreshAttempt(attempt, id)
@@ -341,35 +441,47 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
   }
 
   function start() {
+    paused = false
     if (started) return
     started = true
+    for (let id = 0; id < states.length; id++) {
+      if (states[id] === RECHECK && !recheckQueue.includes(id)) recheckQueue.push(id)
+    }
     engines = getTranslateEngineSwitches(contentRoot).enabled
-    try {
-      cacheLane = startCacheLane({
-        contentRoot,
-        onResult: onCache,
-        onError: cacheFailed,
-        next: () => {
-          if (paused || closed) return []
-          if (completed.length >= MAX_BUFFER) return null
-          const tasks: Array<{ id: number; src: string }> = []
-          while (scanCursor < states.length && tasks.length < 32) {
-            const id = scanCursor++
-            if (states[id] !== DONE && states[id] !== FAILED) tasks.push({ id, src: inventory.pending[id] })
-          }
-          return tasks
-        },
-      })
-    } catch (error) {
-      cacheFailed(error instanceof Error ? error.message : String(error))
+    if (cacheAvailable) {
+      try {
+        cacheLane = startCacheLane({
+          contentRoot,
+          onResult: onCache,
+          onError: cacheFailed,
+          next: () => {
+            if (paused || closed) return []
+            if (completed.length >= MAX_BUFFER) return null
+            const tasks: Array<{ id: number; src: string }> = []
+            while (recheckQueue.length && tasks.length < 32) {
+              const id = recheckQueue.shift()!
+              if (states[id] === RECHECK) tasks.push({ id, src: inventory.pending[id] })
+            }
+            while (scanCursor < states.length && tasks.length < 32) {
+              const id = scanCursor++
+              if (states[id] !== DONE && states[id] !== FAILED && states[id] !== RECHECK) tasks.push({ id, src: inventory.pending[id] })
+            }
+            return tasks
+          },
+        })
+      } catch (error) {
+        cacheFailed(error instanceof Error ? error.message : String(error))
+      }
     }
     pump()
   }
 
   async function drain() {
     paused = true
+    started = false
     for (const [id, item] of waitingCache) finish(id, item)
     await cacheLane?.close()
+    cacheLane = undefined
     await Promise.allSettled([...active.values()].map((entry) => entry.work))
     if (flushTimer) clearTimeout(flushTimer)
     if (pumpTimer) clearImmediate(pumpTimer)
@@ -386,8 +498,10 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
     },
     pause() {
       paused = true
+      started = false
       for (const [id, item] of waitingCache) finish(id, item)
       void cacheLane?.close()
+      cacheLane = undefined
       notify()
     },
     async close() {
@@ -395,7 +509,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
       closed = true
       generation++
       try {
-        store?.flushBackfill(contentRoot)
+        flushBackfill()
       } finally {
         store?.close()
         store = undefined
@@ -415,7 +529,11 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
         sensitiveFlags = new Uint8Array(states.length)
         pendingCount = states.length
         cacheSeen = new Uint8Array(states.length)
+        ownedFileTransitions.clear()
+        recheckQueue.length = 0
+        recheckAttempts = new Uint8Array(states.length)
         cacheAvailable = true
+        cacheUnavailable = false
         dispatchedSinceYield = 0
         waitingCache.clear()
         pendingCacheMs = 0
@@ -440,33 +558,52 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
       const elapsed = performance.now()
       start()
       const selected: Completed[] = []
-      while (selected.length < cap()) {
-        while (completed.length && selected.length < cap()) {
+      let selectedChars = 0
+      let selectedCache = 0
+      const windowLimit = () => (selectedCache === selected.length ? CACHE_RESULT_LIMIT : cap())
+      const canSelect = () => {
+        if (!selected.length) return true
+        if (selectedCache === selected.length) return selected.length < CACHE_RESULT_LIMIT
+        return selected.length < cap()
+      }
+      const selectReady = () => {
+        while (completed.length && canSelect()) {
           const entry = completed.shift()!
+          const chars = charCount(entry.item.src)
+          const isCache = entry.item.engine?.startsWith('cache:') === true
+          if (selected.length && isCache && selectedCache === selected.length && selectedChars + chars > CACHE_RESULT_MAX_CHARS) {
+            completed.unshift(entry)
+            break
+          }
           selected.push(entry)
+          selectedChars += chars
+          if (isCache) selectedCache++
           opts.onItem?.(entry.item)
         }
+      }
+      while (true) {
+        selectReady()
         cacheLane?.wake()
         pump()
-        if (selected.length >= cap() || (!active.size && (paused || !hasPending())) || (selected.length && performance.now() - elapsed >= 5000)) break
+        selectReady()
+        if (selected.length >= windowLimit() || (!active.size && (paused || !hasPending())) || (selected.length && performance.now() - elapsed >= 5000)) break
         await new Promise<void>((resolve) => {
           resolveWait = resolve
         })
         resolveWait = undefined
         if (selected.length || completed.length) {
-          while (completed.length && selected.length < cap()) {
-            const entry = completed.shift()!
-            selected.push(entry)
-            opts.onItem?.(entry.item)
-          }
+          selectReady()
           break
         }
       }
       const items = selected.map((entry) => entry.item)
       const unresolved = items.filter((item) => item.zh == null || item.error || item.status === 'partial').map((item) => item.src)
-      store?.flushBackfill(contentRoot)
+      flushBackfill()
       const cacheMs = pendingCacheMs
       pendingCacheMs = 0
+      const submitted = [...submittedEngines]
+      submittedEngines = new Set()
+      const unavailable = cacheUnavailable
       trace(
         `Scheduler progress: ${Object.entries(counters)
           .map(([key, value]) => `${key}=${value}`)
@@ -480,6 +617,8 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
         failed: unresolved.length,
         unresolved,
         items,
+        submittedEngines: submitted,
+        cacheUnavailable: unavailable,
         performance: {
           // Exclude cache hits so the throughput estimate reflects live engine work, not near-instant lookups.
           completedChars: items.filter((item) => !unresolved.includes(item.src) && !item.engine?.startsWith('cache:')).reduce((sum, item) => sum + charCount(item.src), 0),

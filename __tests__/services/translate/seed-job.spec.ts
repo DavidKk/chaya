@@ -127,14 +127,19 @@ describe('seed job failures', () => {
   it('processes later items once, then pauses; manual resume retries failures', async () => {
     mockFill
       .mockResolvedValueOnce({ ...progress(), translated: 0, failed: 1, scanned: 1, unresolved: ['こんにちは'], items: [{ src: 'こんにちは', zh: null }] })
-      .mockResolvedValueOnce({ ...progress(), translated: 1, failed: 0, scanned: 1, unresolved: [], items: [{ src: 'さようなら', zh: '再见' }] })
+      .mockResolvedValueOnce({ ...progress(), translated: 1, failed: 0, scanned: 1, unresolved: [], items: [{ src: 'さようなら', zh: '再见', engine: 'cache:shared' }] })
       .mockResolvedValue({ ...progress(), translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] })
     await startSeedJobReady()
     expect(mockFill).toHaveBeenCalledTimes(3)
     expect(mockFill.mock.calls[1][0]).toMatchObject({ contentRoot: mockRoot, exclude: new Set(['こんにちは']) })
     expect(getSeedJobSnapshot().job).toMatchObject({ status: 'paused', failedSources: ['こんにちは'] })
     const logs = getSeedJobSnapshot().job.logs
-    expect(logs.some((entry) => entry.text.startsWith('Segment ') && entry.text.includes('complete:'))).toBe(true)
+    expect(logs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ level: 'fail', batch: expect.objectContaining({ batch: 1, success: 0, total: 1, failed: 1, chars: 5, cacheHits: 0 }) }),
+        expect.objectContaining({ level: 'ok', batch: expect.objectContaining({ batch: 2, success: 1, total: 1, failed: 0, chars: 5, cacheHits: 1, finalSources: ['cache'] }) }),
+      ])
+    )
     expect(logs.some((entry) => /Requesting batch| → |additional items omitted/.test(entry.text))).toBe(false)
     const savedDebug = process.env.CHAYA_TRANSLATE_DEBUG
     delete process.env.CHAYA_TRANSLATE_DEBUG
@@ -150,6 +155,25 @@ describe('seed job failures', () => {
     await startSeedJobReady()
     expect(mockFill.mock.calls[3][0].exclude.size).toBe(0)
     expect(mockSwitches).toHaveBeenCalledWith(mockRoot)
+  })
+
+  it('keeps structured cache unavailability separate from real engine submissions', async () => {
+    mockFill
+      .mockResolvedValueOnce({
+        ...progress(),
+        translated: 1,
+        failed: 0,
+        scanned: 1,
+        unresolved: [],
+        items: [{ src: 'こんにちは', zh: '你好', engine: 'live:google' }],
+        submittedEngines: ['google'],
+        cacheUnavailable: true,
+      })
+      .mockResolvedValue({ ...progress(), translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] })
+    await startSeedJobReady()
+    const batch = getSeedJobSnapshot().job.logs.find((entry) => entry.batch)?.batch
+    expect(batch).toMatchObject({ submittedSources: ['platform'], finalSources: ['platform'], cacheUnavailable: true })
+    expect(getSeedJobSnapshot().job.logs.find((entry) => entry.batch)?.text).toContain('[platform+Cache unavailable]')
   })
 
   it('polls snapshots without rescanning while a batch is in flight and pauses at its boundary', async () => {

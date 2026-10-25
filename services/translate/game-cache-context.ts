@@ -1,4 +1,5 @@
 /** Reuse local authority indexes; shared-origin mirrors are queried through SQLite, never scanned twice. */
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 
 import { parseCacheRow } from '@/lib/translate/cache-row'
@@ -14,7 +15,7 @@ function buildContext(contentRoot: string) {
   const records = loadGameTranslationRecords(contentRoot, () => false)
   const blocked = new Set<string>()
   const file = gameTranslationFiles(contentRoot).cache
-  if (file)
+  if (file && fs.existsSync(file))
     for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
       if (!line.trim()) continue
       const row = parseCacheRow(JSON.parse(line))
@@ -28,12 +29,20 @@ function buildContext(contentRoot: string) {
     const family = numericLabelFamily(record.src)
     if (family) numeric.set(family, [...(numeric.get(family) || []), record])
   }
+  // The cache worker and the main process are separate workers. A process-local
+  // counter cannot be compared across them, so use a content-addressed version.
+  // Shared-origin mirrors are validated by shared revision, not by local authority.
+  const { seed } = gameTranslationFiles(contentRoot)
+  const authorityVersion = createHash('sha256')
+    .update(JSON.stringify([seed, records.filter((record) => record.local), [...blocked].sort()]))
+    .digest('hex')
   return {
     records,
     blocked: (src: string) => blocked.has(src),
     resolver: createSentenceResolver(records),
     lookup: createGameTranslateLookup(records),
     numericRecords: (src: string) => numeric.get(numericLabelFamily(src) || '') || [],
+    authorityVersion,
   }
 }
 
@@ -49,14 +58,18 @@ export function getGameCacheContext(contentRoot: string) {
 }
 
 /** A successful shared-only append cannot change local authority. External changes still rebuild. */
-export function noteGameSharedBackfill(contentRoot: string, previousStamp: string) {
+export function noteGameSharedBackfill(contentRoot: string, previousStamp: string): boolean {
   const context = contexts.get(contentRoot)
-  if (context?.stamp !== previousStamp) return
+  // No cached authority exists to preserve; the next context build will observe
+  // the append and any concurrent external change through its own stamp.
+  if (!context) return true
+  if (context?.stamp !== previousStamp) return false
   const stamp = gameTranslationFiles(contentRoot).stamp
   const before = JSON.parse(previousStamp) as unknown[][]
   const after = JSON.parse(stamp) as unknown[][]
   // A seed edit or a different fallback file is not part of the owned shared append.
-  if (JSON.stringify(before[0]) !== JSON.stringify(after[0])) return
-  if (before[1][0] != null && before[1][0] !== after[1][0]) return
+  if (JSON.stringify(before[0]) !== JSON.stringify(after[0])) return false
+  if (before[1][0] != null && before[1][0] !== after[1][0]) return false
   context.stamp = stamp
+  return true
 }

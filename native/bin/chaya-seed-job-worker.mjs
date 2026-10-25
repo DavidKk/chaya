@@ -34646,13 +34646,14 @@ function lookupGameTranslation(localGet, sharedGet, src) {
 }
 
 // services/translate/game-cache-context.ts
+import { createHash } from "node:crypto";
 import fs16 from "node:fs";
 var contexts = /* @__PURE__ */ new Map();
 function buildContext(contentRoot) {
   const records = loadGameTranslationRecords(contentRoot, () => false);
   const blocked = /* @__PURE__ */ new Set();
   const file = gameTranslationFiles(contentRoot).cache;
-  if (file)
+  if (file && fs16.existsSync(file))
     for (const line of fs16.readFileSync(file, "utf8").split("\n")) {
       if (!line.trim()) continue;
       const row = parseCacheRow(JSON.parse(line));
@@ -34666,12 +34667,15 @@ function buildContext(contentRoot) {
     const family = numericLabelFamily(record.src);
     if (family) numeric2.set(family, [...numeric2.get(family) || [], record]);
   }
+  const { seed } = gameTranslationFiles(contentRoot);
+  const authorityVersion = createHash("sha256").update(JSON.stringify([seed, records.filter((record) => record.local), [...blocked].sort()])).digest("hex");
   return {
     records,
     blocked: (src) => blocked.has(src),
     resolver: createSentenceResolver(records),
     lookup: createGameTranslateLookup(records),
-    numericRecords: (src) => numeric2.get(numericLabelFamily(src) || "") || []
+    numericRecords: (src) => numeric2.get(numericLabelFamily(src) || "") || [],
+    authorityVersion
   };
 }
 function getGameCacheContext(contentRoot) {
@@ -34686,13 +34690,15 @@ function getGameCacheContext(contentRoot) {
 }
 function noteGameSharedBackfill(contentRoot, previousStamp) {
   const context = contexts.get(contentRoot);
-  if (context?.stamp !== previousStamp) return;
+  if (!context) return true;
+  if (context?.stamp !== previousStamp) return false;
   const stamp = gameTranslationFiles(contentRoot).stamp;
   const before = JSON.parse(previousStamp);
   const after = JSON.parse(stamp);
-  if (JSON.stringify(before[0]) !== JSON.stringify(after[0])) return;
-  if (before[1][0] != null && before[1][0] !== after[1][0]) return;
+  if (JSON.stringify(before[0]) !== JSON.stringify(after[0])) return false;
+  if (before[1][0] != null && before[1][0] !== after[1][0]) return false;
   context.stamp = stamp;
+  return true;
 }
 
 // lib/translate/engine-http.ts
@@ -35651,10 +35657,10 @@ function findPack(source, target2) {
 }
 
 // services/translate/bergamot/download.ts
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 async function hashFile(file) {
-  const hash = createHash("sha256");
+  const hash = createHash2("sha256");
   for await (const chunk of createReadStream(file)) hash.update(chunk);
   return hash.digest("hex");
 }
@@ -35704,7 +35710,7 @@ function validateBergamotPack(root, source, target2, sample, signal) {
 }
 
 // services/translate/bergamot/store.ts
-import { createHash as createHash2, randomUUID as randomUUID4 } from "node:crypto";
+import { createHash as createHash3, randomUUID as randomUUID4 } from "node:crypto";
 import fs20 from "node:fs";
 import os3 from "node:os";
 import path18 from "node:path";
@@ -35750,7 +35756,7 @@ function installedPack(source, target2) {
     if (!pack || ref.version !== pack.version || manifest.files.length !== pack.files.length + 1) return;
     const expected = new Map([
       ...pack.files.map((file) => [file.name, file.unpackedSha256]),
-      ["config.yml", createHash2("sha256").update(pack.config).digest("hex")]
+      ["config.yml", createHash3("sha256").update(pack.config).digest("hex")]
     ]);
     const folder = path18.join(root, pairFolder(source, target2));
     if (fs20.lstatSync(folder).isSymbolicLink() || fs20.realpathSync(folder) !== path18.join(fs20.realpathSync(root), pairFolder(source, target2))) return;
@@ -35769,7 +35775,7 @@ function installedPack(source, target2) {
   }
 }
 function contentId(value) {
-  return createHash2("sha256").update(JSON.stringify(value)).digest("hex");
+  return createHash3("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 // services/translate/bergamot/readiness.ts
@@ -39403,10 +39409,8 @@ function fileStamp(file) {
   const stat = fs25.statSync(file, { throwIfNoEntry: false });
   return JSON.stringify([stat?.ino, stat?.size, stat?.mtimeMs, stat?.ctimeMs]);
 }
-function backfillSnapshot(file) {
+function readBackfillSnapshot(file) {
   const stamp = fileStamp(file);
-  const previous = fileSnapshots.get(file);
-  if (previous?.stamp === stamp) return previous;
   const rows = /* @__PURE__ */ new Map(), seen = /* @__PURE__ */ new Set();
   for (const line of (fs25.existsSync(file) ? fs25.readFileSync(file, "utf8") : "").split("\n")) {
     try {
@@ -39418,10 +39422,36 @@ function backfillSnapshot(file) {
     } catch {
     }
   }
-  const snapshot = { stamp, rows, seen };
+  return { stamp, rows, seen };
+}
+function backfillSnapshot(file) {
+  const stamp = fileStamp(file);
+  const previous = fileSnapshots.get(file);
+  if (previous?.stamp === stamp) return previous;
+  const snapshot = readBackfillSnapshot(file);
   if (fileSnapshots.size >= 4 && !fileSnapshots.has(file)) fileSnapshots.delete(fileSnapshots.keys().next().value);
   fileSnapshots.set(file, snapshot);
   return snapshot;
+}
+function ownedSharedAppend(file, before, events) {
+  if (!events.length) return false;
+  const after = readBackfillSnapshot(file);
+  const expected = new Map(events.map((event) => [event.s, event]));
+  const changed = /* @__PURE__ */ new Set();
+  for (const src of /* @__PURE__ */ new Set([...before.rows.keys(), ...after.rows.keys()])) {
+    if (JSON.stringify(before.rows.get(src)) !== JSON.stringify(after.rows.get(src))) changed.add(src);
+  }
+  if (changed.size !== expected.size || [...expected.keys()].some((src) => !changed.has(src))) return false;
+  for (const [src, event] of expected) {
+    if (!changed.has(src)) return false;
+    const row = after.rows.get(src);
+    if (!row || row.s !== event.s || row.t !== event.t || row.engine !== event.engine || row.event !== event.event || row.origin?.id !== event.origin?.id || row.origin?.revision !== event.origin?.revision || row.origin?.database !== event.origin?.database)
+      return false;
+  }
+  const expectedEvents = new Set(events.map((event) => event.event));
+  for (const event of after.seen) if (!before.seen.has(event) && !expectedEvents.has(event)) return false;
+  fileSnapshots.set(file, after);
+  return true;
 }
 function appendCacheEvents(file, events) {
   if (appendPublicCacheFile(file, events)) return;
@@ -39448,7 +39478,12 @@ function createGameBackfill(client, index2, database) {
       try {
         for (const r of records) {
           if (!index2.current([r])) continue;
-          client.prepare("INSERT INTO game_backfill_tasks(root,src,record_id,revision) VALUES(?,?,?,?)").run(root, r.src, r.id, r.revision);
+          client.prepare(
+            `INSERT INTO game_backfill_tasks(root,src,record_id,revision)
+               SELECT ?,?,?,? WHERE NOT EXISTS (
+                 SELECT 1 FROM game_backfill_tasks WHERE root=? AND src=? AND record_id=? AND revision=?
+               )`
+          ).run(root, r.src, r.id, r.revision, root, r.src, r.id, r.revision);
         }
         client.exec("COMMIT");
       } catch (e) {
@@ -39459,11 +39494,12 @@ function createGameBackfill(client, index2, database) {
     flush(root) {
       const pending = client.prepare("SELECT 1 FROM game_backfill_tasks WHERE root=? LIMIT 1").get(root);
       const stale = client.prepare("SELECT 1 FROM game_backfills b LEFT JOIN translation_records r ON r.id=b.record_id WHERE b.root=? AND (r.id IS NULL OR r.revision<>b.revision) LIMIT 1").get(root);
-      if (!pending && !stale) return;
+      if (!pending && !stale) return { sharedOnly: false };
       const file = ensureGameContentDir(root, "cacheNdjson");
       const release = lockCacheFile(fs25, file);
       try {
-        const previousStamp = gameTranslationFiles(root).stamp;
+        const filesBefore = gameTranslationFiles(root);
+        const previousStamp = filesBefore.stamp;
         const snapshot = backfillSnapshot(file);
         const rows = new Map(snapshot.rows), seen = new Set(snapshot.seen);
         const events = [];
@@ -39530,10 +39566,10 @@ function createGameBackfill(client, index2, database) {
         client.exec(
           "DELETE FROM translation_outbox WHERE NOT EXISTS (SELECT 1 FROM game_backfills l WHERE l.record_id=translation_outbox.record_id AND l.revision<translation_outbox.revision)"
         );
-        snapshot.stamp = fileStamp(file);
-        snapshot.rows = rows;
-        snapshot.seen = seen;
-        noteGameSharedBackfill(root, previousStamp);
+        const filesAfter = gameTranslationFiles(root);
+        const sameSeedAndFallback = JSON.stringify(filesBefore.seed) === JSON.stringify(filesAfter.seed) && (filesBefore.cache == null || filesBefore.cache === filesAfter.cache);
+        const sharedOnly = sameSeedAndFallback && ownedSharedAppend(file, snapshot, events) && noteGameSharedBackfill(root, previousStamp);
+        return { sharedOnly };
       } finally {
         release();
       }
@@ -44472,7 +44508,23 @@ var RUNNING = 2;
 var DONE = 3;
 var FAILED = 4;
 var WAIT_CACHE = 5;
+var RECHECK = 6;
 var MAX_BUFFER = 64;
+var CACHE_RESULT_LIMIT = 40;
+var CACHE_RESULT_MAX_CHARS = 1e4;
+var MAX_RECHECKS = 2;
+function followsOwnedStampChain(from, to, transitions) {
+  let current = from;
+  const seen = /* @__PURE__ */ new Set();
+  while (current !== to) {
+    if (seen.has(current)) return false;
+    seen.add(current);
+    const next = transitions.get(current);
+    if (!next) return false;
+    current = next;
+  }
+  return true;
+}
 function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   let inventory = opts?.inventory ?? readSeedInventory(contentRoot);
   let progress = { ...inventory.progress };
@@ -44486,6 +44538,8 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   let pendingCount = states.length;
   let pendingCacheMs = 0;
   let processed = 0;
+  let submittedEngines = /* @__PURE__ */ new Set();
+  let cacheUnavailable = false;
   const misses = [];
   const freshCursors = /* @__PURE__ */ new Map();
   const deferred = /* @__PURE__ */ new Map();
@@ -44501,7 +44555,20 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   const retries = /* @__PURE__ */ new Map();
   const ready = /* @__PURE__ */ new Map();
   const completed = [];
-  const counters = { cacheHit: 0, cacheMiss: 0, cachePartial: 0, cacheBypassed: 0, cacheCancelled: 0, engineSubmitted: 0, duplicateInFlight: 0 };
+  const ownedFileTransitions = /* @__PURE__ */ new Map();
+  const recheckQueue = [];
+  let recheckAttempts = new Uint8Array(states.length);
+  const counters = {
+    cacheHit: 0,
+    cacheMiss: 0,
+    cachePartial: 0,
+    cacheBypassed: 0,
+    cacheCancelled: 0,
+    cacheRecheck: 0,
+    cacheRecheckMiss: 0,
+    engineSubmitted: 0,
+    duplicateInFlight: 0
+  };
   const trace = (message) => (options.onTrace || initialTrace)?.(message);
   const cache2 = () => store2 ??= openSharedCache();
   const notify = () => resolveWait?.();
@@ -44537,16 +44604,29 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       waitingCache.set(id, item);
     } else finish(id, item);
   }
+  function releaseRechecks() {
+    for (let id = 0; id < states.length; id++) {
+      if (states[id] === RECHECK) {
+        states[id] = MISS;
+        if (!misses.includes(id)) misses.push(id);
+      }
+    }
+    recheckQueue.length = 0;
+  }
   function cacheFailed(error) {
     cacheAvailable = false;
+    cacheUnavailable = true;
     const soft = error === "CACHE_WORKER_MISSING" || /chaya-cache-worker|Cache worker missing/i.test(error);
     trace(soft ? "Cache scan unavailable: worker not built \u2014 continuing with engines only (run pnpm build:translate)" : `Cache scan unavailable: ${error}`);
     for (const [id, item] of waitingCache) finish(id, item);
+    releaseRechecks();
     notify();
   }
   function valid(result) {
     try {
-      if (gameTranslationFiles(contentRoot).stamp !== result.stamp) return false;
+      const currentStamp = gameTranslationFiles(contentRoot).stamp;
+      if (currentStamp !== result.stamp && !followsOwnedStampChain(result.stamp, currentStamp, ownedFileTransitions)) return false;
+      if (getGameCacheContext(contentRoot).authorityVersion !== result.authorityVersion) return false;
       const shared = cache2();
       return shared.version() === result.plan.corpusVersion && shared.current(result.plan.matches.filter((m) => !m.record.local).map((m) => m.record));
     } catch (error) {
@@ -44554,23 +44634,67 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       return false;
     }
   }
+  function rememberOwnedTransition(before, after) {
+    if (before === after) return;
+    if (ownedFileTransitions.size >= 256) ownedFileTransitions.delete(ownedFileTransitions.keys().next().value);
+    ownedFileTransitions.set(before, after);
+  }
+  function flushBackfill() {
+    if (!store2) return;
+    const before = gameTranslationFiles(contentRoot).stamp;
+    let flushed;
+    try {
+      flushed = store2.flushBackfill(contentRoot);
+    } catch (error) {
+      trace(`Cache backfill flush failed: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
+    const after = gameTranslationFiles(contentRoot).stamp;
+    if (flushed.sharedOnly) rememberOwnedTransition(before, after);
+  }
   function onCache(result) {
     pendingCacheMs += result.elapsedMs;
     const id = result.id;
     if (paused || closed || result.src !== inventory.pending[id] || states[id] === DONE || states[id] === FAILED) return;
     cacheSeen[id] = 1;
-    if (result.plan.status === "full" && result.plan.zh != null && valid(result)) {
-      counters.cacheHit++;
-      if (result.records?.length) cache2().queueBackfill(contentRoot, result.records);
-      finish(id, { src: result.src, zh: result.plan.zh, status: "full", engine: "cache:scan", plan: result.plan }, result.elapsedMs);
-      if (active2.has(id)) {
-        counters.cacheCancelled++;
-        active2.get(id).controller.abort(new Error("A valid cache result completed this translation task"));
+    if (result.plan.status === "full" && result.plan.zh != null) {
+      if (valid(result)) {
+        counters.cacheHit++;
+        if (result.records?.length) cache2().queueBackfill(contentRoot, result.records);
+        finish(id, { src: result.src, zh: result.plan.zh, status: "full", engine: "cache:scan", plan: result.plan }, result.elapsedMs);
+        if (active2.has(id)) {
+          counters.cacheCancelled++;
+          active2.get(id).controller.abort(new Error("A valid cache result completed this translation task"));
+        }
+      } else {
+        counters.cacheRecheck++;
+        if (states[id] !== DONE && states[id] !== FAILED) {
+          waitingCache.delete(id);
+          ready.delete(id);
+          retries.delete(id);
+          states[id] = RECHECK;
+          if (recheckAttempts[id] < MAX_RECHECKS && !recheckQueue.includes(id)) {
+            recheckAttempts[id]++;
+            recheckQueue.push(id);
+          } else if (!recheckQueue.includes(id)) {
+            retries.delete(id);
+            states[id] = MISS;
+            if (!misses.includes(id)) misses.push(id);
+          }
+        }
+        if (active2.has(id)) active2.get(id).controller.abort(new Error("Cache snapshot expired; rechecking before engine dispatch"));
       }
     } else if (waitingCache.has(id)) {
       finish(id, waitingCache.get(id));
     } else if (states[id] !== RUNNING) {
+      if (states[id] === RECHECK && result.plan.status === "miss") {
+        counters.cacheRecheckMiss++;
+        const index2 = recheckQueue.indexOf(id);
+        if (index2 >= 0) recheckQueue.splice(index2, 1);
+      }
       if (result.plan.status === "miss" || result.plan.status === "partial") {
+        const index2 = recheckQueue.indexOf(id);
+        if (index2 >= 0) recheckQueue.splice(index2, 1);
         states[id] = MISS;
         if (result.plan.status === "partial") counters.cachePartial++;
         else if (!result.plan.limited) counters.cacheMiss++;
@@ -44693,12 +44817,13 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
           onTrace: trace,
           onEngineDispatch: () => {
             counters.engineSubmitted++;
+            submittedEngines.add(engine);
           },
           onDuplicateInFlight: () => {
             counters.duplicateInFlight++;
           }
         });
-        if (closed || ownGeneration !== generation || states[id] === DONE) return;
+        if (closed || ownGeneration !== generation || states[id] === DONE || states[id] === RECHECK) return;
         const item = result.items[0] || { src, zh: null, error: "No translation result returned" };
         if (item.zh != null && !item.error && item.status !== "partial") finish(id, item);
         else {
@@ -44711,7 +44836,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
           else failOrWait(id, { src, zh: null, error: attempt.errors.join("; ") });
         }
       } catch (error) {
-        if (!closed && ownGeneration === generation && states[id] !== DONE) {
+        if (!closed && ownGeneration === generation && states[id] !== DONE && states[id] !== RECHECK) {
           attempt.errors.push(error instanceof Error ? error.message : String(error));
           attempt.tried.add(engine);
           refreshAttempt(attempt, id);
@@ -44763,34 +44888,46 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     }
   }
   function start() {
+    paused = false;
     if (started) return;
     started = true;
+    for (let id = 0; id < states.length; id++) {
+      if (states[id] === RECHECK && !recheckQueue.includes(id)) recheckQueue.push(id);
+    }
     engines = getTranslateEngineSwitches(contentRoot).enabled;
-    try {
-      cacheLane = startCacheLane({
-        contentRoot,
-        onResult: onCache,
-        onError: cacheFailed,
-        next: () => {
-          if (paused || closed) return [];
-          if (completed.length >= MAX_BUFFER) return null;
-          const tasks = [];
-          while (scanCursor < states.length && tasks.length < 32) {
-            const id = scanCursor++;
-            if (states[id] !== DONE && states[id] !== FAILED) tasks.push({ id, src: inventory.pending[id] });
+    if (cacheAvailable) {
+      try {
+        cacheLane = startCacheLane({
+          contentRoot,
+          onResult: onCache,
+          onError: cacheFailed,
+          next: () => {
+            if (paused || closed) return [];
+            if (completed.length >= MAX_BUFFER) return null;
+            const tasks = [];
+            while (recheckQueue.length && tasks.length < 32) {
+              const id = recheckQueue.shift();
+              if (states[id] === RECHECK) tasks.push({ id, src: inventory.pending[id] });
+            }
+            while (scanCursor < states.length && tasks.length < 32) {
+              const id = scanCursor++;
+              if (states[id] !== DONE && states[id] !== FAILED && states[id] !== RECHECK) tasks.push({ id, src: inventory.pending[id] });
+            }
+            return tasks;
           }
-          return tasks;
-        }
-      });
-    } catch (error) {
-      cacheFailed(error instanceof Error ? error.message : String(error));
+        });
+      } catch (error) {
+        cacheFailed(error instanceof Error ? error.message : String(error));
+      }
     }
     pump();
   }
   async function drain2() {
     paused = true;
+    started = false;
     for (const [id, item] of waitingCache) finish(id, item);
     await cacheLane?.close();
+    cacheLane = void 0;
     await Promise.allSettled([...active2.values()].map((entry) => entry.work));
     if (flushTimer) clearTimeout(flushTimer);
     if (pumpTimer) clearImmediate(pumpTimer);
@@ -44806,8 +44943,10 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     },
     pause() {
       paused = true;
+      started = false;
       for (const [id, item] of waitingCache) finish(id, item);
       void cacheLane?.close();
+      cacheLane = void 0;
       notify();
     },
     async close() {
@@ -44815,7 +44954,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       closed = true;
       generation++;
       try {
-        store2?.flushBackfill(contentRoot);
+        flushBackfill();
       } finally {
         store2?.close();
         store2 = void 0;
@@ -44835,7 +44974,11 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         sensitiveFlags = new Uint8Array(states.length);
         pendingCount = states.length;
         cacheSeen = new Uint8Array(states.length);
+        ownedFileTransitions.clear();
+        recheckQueue.length = 0;
+        recheckAttempts = new Uint8Array(states.length);
         cacheAvailable = true;
+        cacheUnavailable = false;
         dispatchedSinceYield = 0;
         waitingCache.clear();
         pendingCacheMs = 0;
@@ -44860,33 +45003,52 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       const elapsed = performance.now();
       start();
       const selected = [];
-      while (selected.length < cap()) {
-        while (completed.length && selected.length < cap()) {
+      let selectedChars = 0;
+      let selectedCache = 0;
+      const windowLimit = () => selectedCache === selected.length ? CACHE_RESULT_LIMIT : cap();
+      const canSelect = () => {
+        if (!selected.length) return true;
+        if (selectedCache === selected.length) return selected.length < CACHE_RESULT_LIMIT;
+        return selected.length < cap();
+      };
+      const selectReady = () => {
+        while (completed.length && canSelect()) {
           const entry = completed.shift();
+          const chars = charCount(entry.item.src);
+          const isCache = entry.item.engine?.startsWith("cache:") === true;
+          if (selected.length && isCache && selectedCache === selected.length && selectedChars + chars > CACHE_RESULT_MAX_CHARS) {
+            completed.unshift(entry);
+            break;
+          }
           selected.push(entry);
+          selectedChars += chars;
+          if (isCache) selectedCache++;
           opts2.onItem?.(entry.item);
         }
+      };
+      while (true) {
+        selectReady();
         cacheLane?.wake();
         pump();
-        if (selected.length >= cap() || !active2.size && (paused || !hasPending()) || selected.length && performance.now() - elapsed >= 5e3) break;
+        selectReady();
+        if (selected.length >= windowLimit() || !active2.size && (paused || !hasPending()) || selected.length && performance.now() - elapsed >= 5e3) break;
         await new Promise((resolve3) => {
           resolveWait = resolve3;
         });
         resolveWait = void 0;
         if (selected.length || completed.length) {
-          while (completed.length && selected.length < cap()) {
-            const entry = completed.shift();
-            selected.push(entry);
-            opts2.onItem?.(entry.item);
-          }
+          selectReady();
           break;
         }
       }
       const items = selected.map((entry) => entry.item);
       const unresolved = items.filter((item) => item.zh == null || item.error || item.status === "partial").map((item) => item.src);
-      store2?.flushBackfill(contentRoot);
+      flushBackfill();
       const cacheMs = pendingCacheMs;
       pendingCacheMs = 0;
+      const submitted = [...submittedEngines];
+      submittedEngines = /* @__PURE__ */ new Set();
+      const unavailable = cacheUnavailable;
       trace(
         `Scheduler progress: ${Object.entries(counters).map(([key2, value]) => `${key2}=${value}`).join(", ")}, active=${active2.size}`
       );
@@ -44898,6 +45060,8 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         failed: unresolved.length,
         unresolved,
         items,
+        submittedEngines: submitted,
+        cacheUnavailable: unavailable,
         performance: {
           // Exclude cache hits so the throughput estimate reflects live engine work, not near-instant lookups.
           completedChars: items.filter((item) => !unresolved.includes(item.src) && !item.engine?.startsWith("cache:")).reduce((sum2, item) => sum2 + charCount(item.src), 0),
@@ -45200,7 +45364,7 @@ function createSeedBatchBudget(initialLimit = 12) {
 }
 
 // services/translate/seed-job-state.ts
-import { createHash as createHash3 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 import fs32 from "node:fs";
 import path26 from "node:path";
 var MAX_SEED_JOB_LOGS = 120;
@@ -45240,7 +45404,7 @@ function emptySeedProgress(contentRoot) {
   };
 }
 function seedJobKey(contentRoot) {
-  return createHash3("sha1").update(path26.resolve(contentRoot)).digest("hex").slice(0, 16);
+  return createHash4("sha1").update(path26.resolve(contentRoot)).digest("hex").slice(0, 16);
 }
 function seedJobFile(contentRoot) {
   return path26.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
@@ -45354,34 +45518,39 @@ function peekHasSeed(contentRoot) {
   const stat = fs33.statSync(file, { throwIfNoEntry: false });
   return !!stat && stat.size > 2;
 }
-function pushLog(rt, level, text3) {
+function pushLog(rt, level, text3, batch) {
   rt.logSeq += 1;
-  rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text: text3 }].slice(-MAX_SEED_JOB_LOGS);
+  rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text: text3, ...batch ? { batch } : {} }].slice(-MAX_SEED_JOB_LOGS);
 }
 function shortEngine(name2) {
-  const raw = name2.trim();
+  const raw = name2.trim().replace(/^live:/, "");
   if (!raw) return "eng";
   if (raw.startsWith("agent:")) return "agent";
   if (raw.startsWith("cache")) return "cache";
   return raw.length > 10 ? `${raw.slice(0, 9)}\u2026` : raw;
 }
-function formatSeedBatchLog(round, result, fallbackEngines) {
-  const counts = /* @__PURE__ */ new Map();
-  for (const item of result.items) {
-    if (!item.zh) continue;
-    const engine = shortEngine(item.engine || "eng");
-    counts.set(engine, (counts.get(engine) || 0) + 1);
-  }
-  const via = counts.size > 0 ? [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([engine, n]) => n > 1 ? `${engine}\xD7${formatCompactCount(n)}` : engine).join("+") : fallbackEngines.map(shortEngine).slice(0, 2).join("+") || "\u2014";
-  const chars = result.performance?.completedChars ?? 0;
-  const details = [
-    `scanned ${formatCompactCount(result.scanned)}, translated ${formatCompactCount(result.translated)}`,
-    chars > 0 ? `${formatCompactCount(chars)} chars` : null,
-    via ? `engines ${via}` : null,
-    result.failed > 0 ? `failed ${formatCompactCount(result.failed)}` : null,
-    result.missing > 0 ? `${formatCompactCount(result.missing)} still missing` : null
-  ].filter(Boolean);
-  return `Segment ${formatCompactCount(round)} complete: ${details.join(" \xB7 ")}`;
+function batchSource(name2) {
+  const raw = (name2 || "").trim().toLowerCase().replace(/^live:/, "");
+  if (raw === "cache" || raw.startsWith("cache:")) return "cache";
+  if (raw === "apple" || raw.startsWith("apple:")) return "apple";
+  if (raw === "agent" || raw.startsWith("agent:")) return "agent";
+  if (raw === "bergamot" || raw.startsWith("bergamot:")) return "bergamot";
+  if (raw === "ollama" || raw.startsWith("ollama:")) return "ollama";
+  if (raw === "platform" || raw.startsWith("google") || raw.startsWith("bing") || raw.startsWith("platform:")) return "platform";
+  return "unknown";
+}
+function batchSources(items) {
+  const order = ["apple", "agent", "platform", "bergamot", "ollama", "unknown", "cache"];
+  const present = new Set(items.map((item) => batchSource(item.engine)));
+  return order.filter((source) => present.has(source));
+}
+function batchLabel(batch) {
+  const sources2 = batchSources(batch.submittedSources.map((engine) => ({ engine })));
+  const final = batchSources(batch.finalSources.map((engine) => ({ engine })));
+  const labels = [...sources2, ...batch.cacheUnavailable ? ["cache:unavailable"] : [], ...final.filter((source) => source === "cache" || !sources2.includes(source))].map(
+    (source) => source === "cache:unavailable" ? "Cache unavailable" : shortEngine(source)
+  );
+  return [...new Set(labels)].join("+") || "\u2014";
 }
 function persist(rt) {
   if (rt.progress) {
@@ -45481,7 +45650,25 @@ async function runLoop(contentRoot) {
       rt.state.rounds += 1;
       rt.state.sessionDone = rt.session.processed == null ? rt.state.sessionDone + result.translated : initialSessionDone + rt.session.processed;
       rt.state.error = null;
-      pushLog(rt, result.translated ? "ok" : result.failed ? "warn" : "info", formatSeedBatchLog(rt.state.rounds, result, rt.state.engines));
+      if (result.scanned > 0) {
+        const submittedSources = batchSources((result.submittedEngines || []).map((engine) => ({ engine })));
+        const accepted = result.items.filter((item) => item.zh != null && !item.error && !result.unresolved.includes(item.src));
+        const finalSources = batchSources(accepted);
+        const batch = {
+          batch: rt.state.rounds,
+          success: result.translated,
+          total: result.scanned,
+          failed: result.failed,
+          chars: result.items.reduce((sum2, item) => sum2 + charCount(item.src), 0),
+          cacheHits: accepted.filter((item) => item.engine?.startsWith("cache")).length,
+          submittedSources,
+          finalSources,
+          cacheUnavailable: result.cacheUnavailable === true
+        };
+        const prefix = `[${batchLabel(batch)}] #${batch.batch}`;
+        const text3 = batch.failed === 0 ? `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) complete (${batch.cacheHits} cache hits)` : batch.success === 0 ? `${prefix}: All failed (${batch.total} items / ${batch.chars} chars)` : `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) succeeded, ${batch.failed} failed${batch.cacheHits > 0 ? ` (${batch.cacheHits} cache hits)` : ""}`;
+        pushLog(rt, batch.failed === 0 ? "ok" : batch.success === 0 ? "fail" : "warn", text3, batch);
+      }
       const failures = result.items.filter((item) => item.error || item.zh == null).slice(0, 1);
       for (const item of failures) pushLog(rt, "warn", `Translation failed: ${item.src} (${item.error || "no translation returned"})`);
       if (!result.missing && !result.pendingResults) {
