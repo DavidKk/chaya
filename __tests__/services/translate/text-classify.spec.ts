@@ -64,9 +64,12 @@ describe('text-classify protect / cache core', () => {
     expect(restoreForTranslate(rawZh, guard)).toBe('\\c[16]更上一层楼')
   })
 
-  it('shouldTranslate skips han-only / control-only shells', () => {
-    expect(shouldTranslate('値')).toBe(false)
-    expect(shouldTranslate('現')).toBe(false)
+  it('includes Han-only Japanese labels while skipping control-only shells', () => {
+    expect(shouldTranslate('値')).toBe(true)
+    expect(shouldTranslate('現')).toBe(true)
+    expect(shouldTranslate('武器入手！')).toBe(true)
+    expect(shouldTranslate('応接室', 'ja')).toBe(true)
+    expect(shouldTranslate('応接室', 'en')).toBe(false)
     expect(shouldTranslate('\\c[16]')).toBe(false)
     expect(shouldTranslate('次のレベルまで')).toBe(true)
   })

@@ -5,14 +5,17 @@ import { ensureGameContentDir, gameContentReadPath } from '@/lib/game/content-fi
 import { fixKnownBadGameTermTranslation, lookupGameTerm } from '@/lib/translate/game-terms'
 import { detectSourceLanguage, isSourceText, type SourceLanguageOption } from '@/lib/translate/source-text'
 import { unpackAceArchive } from '@/services/game/rgss-archive'
+import { getGameCacheContext } from '@/services/translate/game-cache-context'
+import { createGameCoverage } from '@/services/translate/game-coverage'
 import { loadRgssTranslationLookup, resolveRgssTranslationWithEngine } from '@/services/translate/game-lookup'
+import { loadGameTranslationRecords } from '@/services/translate/game-records'
 import { attachSeedFailures, writeSeedFailure } from '@/services/translate/seed-failures'
 
 import { compareWithManual } from './compare'
 import { extractDataFields } from './data-fields'
 import { extractDialogueFromEvents } from './dialogue'
 import { parseRubyMarshal, rubyToPlain, type RubyValue } from './rgss/marshal'
-import { loadRgssScriptTranslationItems } from './rgss/script-strings'
+import { extractRgssScriptUiStrings, loadRgssScriptTranslationItems } from './rgss/script-strings'
 import { loadRgssItems, loadRgssItemsAsync, writeRgssData } from './rgss/writeback'
 import { ensureRgssSourcesIndex, rgssDataSignature, writeRgssSourcesIndex } from './rgss-sources-index'
 import { clean, isUseful } from './text'
@@ -196,9 +199,9 @@ export function runRgssExtract(contentRoot: string, options?: { sourceLanguage?:
   }
   db.dataFields = [...candidates]
   // Offline writeback uses whole Marshal string slots, not runtime sentence fragments.
-  const knownSources = new Set(loadRgssItems(dataDir).map((item) => item.src))
+  const knownSources = new Set([...loadRgssItems(dataDir).map((item) => item.src), ...extractRgssScriptUiStrings(contentRoot).map((item) => item.src)])
   const sourceLanguage = options?.sourceLanguage && options.sourceLanguage !== 'auto' ? options.sourceLanguage : detectSourceLanguage(knownSources, undefined)
-  const allStrings = new Set([...knownSources].filter((text) => isSourceText(text, sourceLanguage)))
+  const allStrings = new Set([...knownSources].filter((text) => isSourceText(text, options?.sourceLanguage === 'auto' || !options?.sourceLanguage ? 'all' : sourceLanguage)))
   const originalStrings = new Set(allStrings)
   const counts: Record<string, number> = {
     dialogueBlocks: dialogue.length,
@@ -270,7 +273,7 @@ function attachLookup(contentRoot: string, dataItems: ReturnType<typeof loadRgss
       const res = resolveRgssItemZh(item.src, item.zh || '', translations)
       return { ...item, zh: res.zh, engine: res.engine, savedZh: res.zh || undefined, initialZh: res.zh || undefined }
     })
-  return attachSeedFailures(contentRoot, [...withZh, ...scriptItems])
+  return attachCoverage(contentRoot, [...withZh, ...scriptItems])
 }
 
 async function attachLookupAsync(contentRoot: string, dataItems: ReturnType<typeof loadRgssItems>) {
@@ -293,7 +296,23 @@ async function attachLookupAsync(contentRoot: string, dataItems: ReturnType<type
       const res = resolveRgssItemZh(item.src, item.zh || '', translations)
       return { ...item, zh: res.zh, engine: res.engine, savedZh: res.zh || undefined, initialZh: res.zh || undefined }
     })
-  return attachSeedFailures(contentRoot, [...withZh, ...scriptItems])
+  return attachCoverage(contentRoot, [...withZh, ...scriptItems])
+}
+
+function attachCoverage(contentRoot: string, items: ReturnType<typeof loadRgssItems>) {
+  const coverage = createGameCoverage(loadGameTranslationRecords(contentRoot), { blocked: getGameCacheContext(contentRoot).blocked })
+  try {
+    return attachSeedFailures(
+      contentRoot,
+      items.map((item) => {
+        if (item.zh) return item
+        const zh = coverage.resolve(item.src)
+        return zh == null ? item : { ...item, zh, savedZh: zh, initialZh: zh, engine: 'cache' }
+      })
+    )
+  } finally {
+    coverage.close()
+  }
 }
 
 export function loadRgssTranslationItems(contentRoot: string) {
@@ -343,5 +362,6 @@ export function filterRgssSeedKeys(contentRoot: string, keys: string[]): string[
     if (seedSources.size >= 20) seedSources.delete(seedSources.keys().next().value!)
     seedSources.set(contentRoot, entry)
   }
-  return keys.filter((key) => entry!.sources.has(key))
+  const scripts = new Set(extractRgssScriptUiStrings(contentRoot).map((item) => item.src))
+  return keys.filter((key) => entry!.sources.has(key) || scripts.has(key))
 }

@@ -1,4 +1,5 @@
 jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
+jest.mock('@/constants/paths', () => ({ ...jest.requireActual('@/constants/paths'), TRANSLATE_CACHE_DB_PATH: '' }))
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'

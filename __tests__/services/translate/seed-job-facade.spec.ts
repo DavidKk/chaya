@@ -75,6 +75,13 @@ describe('seed job facade', () => {
     expect(mockCommand).not.toHaveBeenCalled()
   })
 
+  it('reopens an old completed checkpoint when its inventory still contains pending text', () => {
+    writeSeedJobState(snapshotState({ status: 'done', liveStatus: '已完成' }))
+    expect(getSeedJobSnapshot()).toMatchObject({ done: 1, missing: 1, job: { status: 'paused', liveStatus: '' } })
+    expect(JSON.parse(fs.readFileSync(seedJobFile(mockRoot), 'utf8')).status).toBe('paused')
+    expect(mockCommand).not.toHaveBeenCalled()
+  })
+
   it('clears preparing as soon as the start command is accepted', async () => {
     writeSeedJobState(snapshotState())
     expect(startSeedJob()).toMatchObject({ preparing: true })

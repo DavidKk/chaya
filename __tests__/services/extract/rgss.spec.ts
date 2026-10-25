@@ -1,3 +1,4 @@
+jest.mock('@/constants/paths', () => ({ ...jest.requireActual('@/constants/paths'), TRANSLATE_CACHE_DB_PATH: '' }))
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -63,6 +64,18 @@ function makeProject(ext = '.rvdata2') {
 }
 
 describe('RGSS VX/VX Ace support', () => {
+  it('includes mixed language sources by default while respecting an explicit source language', () => {
+    const root = makeProject()
+    try {
+      writeData(root, 'Actors', array(object('RPG::Actor', { name: str('Rei') })))
+      expect(runRgssExtract(root).allStrings.has('Rei')).toBe(true)
+      expect(runRgssExtract(root).allStrings.has('こんにちは、勇者！')).toBe(true)
+      expect(runRgssExtract(root, { sourceLanguage: 'en' }).allStrings.has('こんにちは、勇者！')).toBe(false)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('includes terminal failures in both list loaders and clears them only after successful writeback', async () => {
     const root = makeProject()
     try {
@@ -408,6 +421,10 @@ describe('RGSS VX/VX Ace support', () => {
       )
       expect(items.some((item) => item.src === 'Data/Map001.rvdata2')).toBe(false)
       expect(items.some((item) => item.src.includes('window.active'))).toBe(false)
+      const extracted = runRgssExtract(root)
+      expect(extracted.allStrings.has('Current EXP')).toBe(true)
+      expect(extracted.allStrings.has('Critical Hit Evade')).toBe(true)
+      expect(filterRgssSeedKeys(root, ['Current EXP', 'Critical Hit Evade', 'Data/Map001.rvdata2'])).toEqual(['Current EXP', 'Critical Hit Evade'])
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }

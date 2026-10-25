@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { POST } from '@/app/api/translate/route.server'
 import { resolveGame } from '@/lib/game'
 import { hasManagementAccess } from '@/services/access/management'
@@ -25,6 +29,8 @@ jest.mock('@/services/translate/agent-translate', () => ({ agentJaToZh: jest.fn(
 jest.mock('@/services/translate/lib/bergamot-translate', () => ({ bergamotTranslator: { translate: jest.fn(), checkStatus: jest.fn() } }))
 jest.mock('@/services/translate/lib/macos-translate', () => ({ appleTranslate: jest.fn(), appleTranslator: { checkStatus: jest.fn() } }))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
+let mockCacheFile = ''
+jest.mock('@/constants/paths', () => Object.defineProperty({ ...jest.requireActual('@/constants/paths') }, 'TRANSLATE_CACHE_DB_PATH', { get: () => mockCacheFile }))
 
 const post = (body: unknown) =>
   POST(
@@ -37,9 +43,12 @@ const post = (body: unknown) =>
   )
 
 beforeEach(() => {
+  mockCacheFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-translate-api-')), 'shared.sqlite')
   resetListExtractForTests()
   jest.mocked(resolveTranslateContentRoot).mockReturnValue('/games/B')
 })
+
+afterEach(() => fs.rmSync(path.dirname(mockCacheFile), { recursive: true, force: true }))
 
 it('loads RGSS rows with their engine and bound root in the same response', async () => {
   jest.mocked(hasManagementAccess).mockReturnValue(true)
@@ -159,7 +168,7 @@ it('cache mode returns cached translation or miss', async () => {
   jest.mocked(hasManagementAccess).mockReturnValue(true)
   const response = await post({ mode: 'cache', text: '道具' })
   const data = await response.json()
-  expect(response.status).toBe(200)
+  expect({ status: response.status, error: data.error }).toEqual({ status: 200, error: undefined })
   expect(data.ok).toBe(true)
   expect(Array.isArray(data.items)).toBe(true)
 })

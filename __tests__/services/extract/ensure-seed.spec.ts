@@ -6,6 +6,7 @@ import path from 'node:path'
 import { gameContentPath } from '@/lib/game/content-files'
 import { DB_SPECS } from '@/lib/translate/database-fields'
 import { extractAndEnsureSeed } from '@/services/extract/ensure-seed'
+import { readSeedFailures, seedFailureFile, writeSeedFailure } from '@/services/translate/seed-failures'
 
 let mockRoot = ''
 const mockShared = new Map<string, string>()
@@ -52,6 +53,28 @@ it('exports the latest local and shared translations instead of empty seed place
   mockShared.set('こんにちは', '共享你好')
   mockShared.set('さようなら', '再见')
   expect(extractAndEnsureSeed({ entries: true }).entries).toEqual({ こんにちは: '你好', さようなら: '再见', 待って: '' })
+})
+
+it('preserves completed translations and terminal failures when new sources are extracted', () => {
+  extractAndEnsureSeed()
+  const seed = gameContentPath(mockRoot, 'seed')
+  const cache = gameContentPath(mockRoot, 'cacheNdjson')
+  fs.writeFileSync(seed, JSON.stringify({ こんにちは: '你好' }))
+  const cacheText = JSON.stringify(['こんにちは', '你好']) + '\n'
+  fs.writeFileSync(cache, cacheText)
+  writeSeedFailure(mockRoot, 'さようなら', 'All engines failed')
+  const failuresBefore = fs.readFileSync(seedFailureFile(mockRoot), 'utf8')
+  try {
+    fs.writeFileSync(path.join(mockRoot, 'data/CommonEvents.json'), JSON.stringify([{ id: 1, list: [{ code: 102, parameters: [['こんにちは', 'さようなら', '待って']] }] }]))
+    extractAndEnsureSeed()
+    extractAndEnsureSeed()
+    expect(JSON.parse(fs.readFileSync(seed, 'utf8'))).toEqual({ こんにちは: '你好', さようなら: '', 待って: '' })
+    expect(fs.readFileSync(cache, 'utf8')).toBe(cacheText)
+    expect(fs.readFileSync(seedFailureFile(mockRoot), 'utf8')).toBe(failuresBefore)
+    expect(readSeedFailures(mockRoot).get('さようなら')).toBe('All engines failed')
+  } finally {
+    fs.rmSync(seedFailureFile(mockRoot), { force: true })
+  }
 })
 
 it('preserves punctuation in export keys while the internal seed and cache use body keys', () => {

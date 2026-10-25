@@ -313,7 +313,7 @@ export async function liveTranslateTexts(
                   items.push({ src, zh: plan.zh, engine: plan.matches.every((m) => m.record.local) ? 'cache:local' : 'cache:remote', status: 'full', plan })
                   if (persist && contentRoot) {
                     const records = plan.matches
-                      .filter((m) => !m.record.local && m.kind === 'whole')
+                      .filter((m) => !m.record.local)
                       .map((m) => getCache().record(m.record.src, pair))
                       .filter((r) => r != null)
                     getCache().queueBackfill(contentRoot, records)

@@ -425,7 +425,12 @@ export function TranslateRunPane({
   }
 
   const extractPct = progress.hasSeed ? 100 : 0
-  const translatePct = progress.needCount > 0 ? Math.min(100, Math.round(((progress.done + (progress.failedCount ?? 0)) / progress.needCount) * 100)) : progress.hasSeed ? 100 : 0
+  const translatePct =
+    progress.needCount > 0
+      ? Math.min(progress.missing > 0 ? 99 : 100, Math.round(((progress.done + (progress.failedCount ?? 0)) / progress.needCount) * 100))
+      : progress.hasSeed
+        ? 100
+        : 0
   const batchesTotal = progress.needCount > 0 ? Math.ceil(progress.needCount / (progress.batchSize || 40)) : 0
   const batchesDone = Math.max(0, batchesTotal - progress.batchesLeft)
   const liveStatus = job.liveStatus || (extracting ? t('translate.extractingText') : preparing ? t('translate.preparingInventory') : '')

@@ -1,4 +1,6 @@
 jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
+let mockDb = ''
+jest.mock('@/constants/paths', () => Object.defineProperty({ ...jest.requireActual('@/constants/paths') }, 'TRANSLATE_CACHE_DB_PATH', { get: () => mockDb }))
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -13,6 +15,7 @@ describe('seedProgressStamp', () => {
   let dir: string
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-seed-stamp-'))
+    mockDb = path.join(dir, 'cache.sqlite')
     fs.mkdirSync(path.dirname(gameContentPath(dir, 'seed')), { recursive: true })
     fs.writeFileSync(gameContentPath(dir, 'seed'), JSON.stringify({ こんにちは: '' }))
     fs.writeFileSync(gameContentPath(dir, 'cacheNdjson'), '')

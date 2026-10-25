@@ -1,14 +1,14 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // services/translate/scheduler/seed-inventory-worker.ts
-import fs12 from "node:fs";
+import fs15 from "node:fs";
 import os2 from "node:os";
-import path9 from "node:path";
+import path10 from "node:path";
 import { parentPort, workerData } from "node:worker_threads";
 
 // services/translate/scheduler/seed-inventory.ts
-import fs11 from "node:fs";
-import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
+import fs14 from "node:fs";
+import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
 
 // constants/paths.ts
 import fs from "node:fs";
@@ -434,6 +434,64 @@ function ensureGameContentDir(contentRoot, kind) {
   return file;
 }
 
+// services/extract/lib/rgss.ts
+import fs13 from "node:fs";
+import path9 from "node:path";
+
+// lib/translate/choice-meta.ts
+function callEnd(text, start) {
+  const name = /^(?:if|en)\s*\(/i.exec(text.slice(start));
+  if (!name) return null;
+  let depth = 1;
+  let quote = "";
+  for (let i = start + name[0].length; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === "\\") i++;
+      else if (ch === quote) quote = "";
+    } else if (ch === '"' || ch === "'" || ch === "`") quote = ch;
+    else if (ch === "(") depth++;
+    else if (ch === ")" && --depth === 0) return i + 1;
+  }
+  return null;
+}
+function peelChoiceMetaTrail(text) {
+  let core = String(text ?? "");
+  let trail = "";
+  for (; ; ) {
+    const end = core.trimEnd().length;
+    let start = null;
+    for (const match of core.matchAll(/(?:if|en)\s*\(/gi)) {
+      const at = match.index;
+      if (at > 0 && /[A-Za-z0-9_]/.test(core[at - 1])) continue;
+      if (callEnd(core, at) === end) {
+        start = at;
+        break;
+      }
+    }
+    if (start == null) break;
+    start = core.slice(0, start).trimEnd().length;
+    trail = core.slice(start) + trail;
+    core = core.slice(0, start);
+  }
+  return { core, trail };
+}
+function peelChoiceMetaShell(text) {
+  const trailing = peelChoiceMetaTrail(text);
+  let core = trailing.core;
+  const trail = trailing.trail;
+  let lead = "";
+  for (; ; ) {
+    const start = core.length - core.trimStart().length;
+    const end = callEnd(core, start);
+    if (end == null) break;
+    const next = end + (core.slice(end).match(/^\s*/)?.[0].length || 0);
+    lead += core.slice(0, next);
+    core = core.slice(next);
+  }
+  return { lead, core, trail };
+}
+
 // lib/translate/dynamic-template.ts
 var DYNAMIC_VARIABLE = /_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/g;
 function isDynamicTemplate(text) {
@@ -443,15 +501,18 @@ function sortedTokens(text, re) {
   return JSON.stringify((text.match(re) || []).sort());
 }
 var CONTROLS = /\\[A-Za-z]+(?:\[[^\]]*\])?|\\[^A-Za-z\s]|_se\[[^\]]*\]/g;
-function validDynamicTranslation(source, target) {
+function validDynamicTranslation(source, target2) {
   if (!isDynamicTemplate(source)) return true;
   const lines = source.split(/\\n|\r?\n/);
-  const translated = target.split(/\\n|\r?\n/);
+  const translated = target2.split(/\\n|\r?\n/);
   return lines.length === translated.length && lines.every(
     (line, i) => sortedTokens(line, /_[A-Za-z][A-Za-z0-9_]*/g) === sortedTokens(translated[i], /_[A-Za-z][A-Za-z0-9_]*/g) && sortedTokens(line, DYNAMIC_VARIABLE) === sortedTokens(translated[i], DYNAMIC_VARIABLE) && sortedTokens(line, CONTROLS) === sortedTokens(translated[i], CONTROLS)
   );
 }
 var numericLabelParts = (src) => src.match(/^([A-Za-z]{2,60} ?)(\d{1,6})$/);
+function numericLabelFamily(src) {
+  return numericLabelParts(src)?.[1] || null;
+}
 function createNumericLabelIndex(records = []) {
   const groups = /* @__PURE__ */ new Map();
   const parse = numericLabelParts;
@@ -474,10 +535,10 @@ function createNumericLabelIndex(records = []) {
       const templates = /* @__PURE__ */ new Set();
       for (const record of group.values()) {
         const number = parse(record.src)[2];
-        const target = record.zh.match(/^([^\d\r\n\\]*)(\d+)([^\d\r\n\\]*)$/);
-        if (!target || target[2] !== number || !/[\u3400-\u9FFF]/.test(target[1] + target[3])) return null;
+        const target2 = record.zh.match(/^([^\d\r\n\\]*)(\d+)([^\d\r\n\\]*)$/);
+        if (!target2 || target2[2] !== number || !/[\u3400-\u9FFF]/.test(target2[1] + target2[3])) return null;
         numbers.add(number);
-        templates.add(JSON.stringify([target[1], target[3]]));
+        templates.add(JSON.stringify([target2[1], target2[3]]));
         if (templates.size > 1) return null;
       }
       if (numbers.size < 2 || templates.size !== 1) return null;
@@ -487,15 +548,191 @@ function createNumericLabelIndex(records = []) {
   };
 }
 
-// services/extract/lib/rgss.ts
-import fs10 from "node:fs";
-import path8 from "node:path";
-
 // lib/translate/rm-escape.ts
 var RM_DIGIT_CODE_SRC = String.raw`\\[A-Za-z]+\[\d+\]`;
+function rmDigitCodeRe() {
+  return new RegExp(RM_DIGIT_CODE_SRC, "g");
+}
 var RM_ESCAPE_RE = /\\[A-Za-z]+(?:\[[^\]]*\])?/g;
+function isSemanticPlaceholder(token) {
+  if (!token) return false;
+  if (/^\\[NPV]\[[^\]]*\]$/i.test(token) || /^\\[Gg]$/.test(token)) return true;
+  if (/^%[0-9]+$/i.test(token) || /^%[sdifSc]$/.test(token)) return true;
+  if (/^\{[0-9A-Za-z_]+\}$/.test(token)) return true;
+  if (/^_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/i.test(token)) return true;
+  if (/^[A-Za-z_][A-Za-z0-9_]*\[\d+\]$/.test(token)) return true;
+  return false;
+}
+function hasRmDigitCodes(text) {
+  return rmDigitCodeRe().test(String(text ?? ""));
+}
+function extractRmDigitCodes(text) {
+  return [...String(text ?? "").matchAll(rmDigitCodeRe())].map((m) => m[0]);
+}
+function toRmDigitTemplate(text) {
+  const src = String(text ?? "");
+  if (!hasRmDigitCodes(src)) return src;
+  return src.replace(rmDigitCodeRe(), (m) => {
+    const letter = m.match(/^\\([A-Za-z]+)/)?.[1] ?? "";
+    return `\\${letter.toLowerCase()}[#]`;
+  });
+}
+function applyRmDigitCodes(template, codes) {
+  if (!codes.length) return String(template ?? "");
+  let i = 0;
+  return String(template ?? "").replace(/\\[A-Za-z]+\[#\]/g, (slot) => {
+    const code = codes[i++];
+    return code != null ? code : slot;
+  });
+}
+function lookupWithRmDigitTemplate(get, text) {
+  const src = String(text ?? "");
+  if (!src) return null;
+  const direct = get(src);
+  if (direct != null && direct !== "") return direct;
+  const codes = extractRmDigitCodes(src);
+  if (!codes.length) return null;
+  const tpl = toRmDigitTemplate(src);
+  if (tpl === src) return null;
+  const hit = get(tpl);
+  if (hit == null || hit === "") return null;
+  return applyRmDigitCodes(hit, codes);
+}
 
 // lib/translate/segments.ts
+var WRAPPERS = {
+  "\u300C": "\u300D",
+  "\u300E": "\u300F",
+  "(": ")",
+  "\uFF08": "\uFF09",
+  "<": ">",
+  "\uFF1C": "\uFF1E",
+  "\u3010": "\u3011",
+  "\u300A": "\u300B",
+  "\u3008": "\u3009",
+  "[": "]",
+  "\uFF3B": "\uFF3D",
+  "{": "}",
+  "\uFF5B": "\uFF5D",
+  "\u201C": "\u201D",
+  "\u2018": "\u2019"
+};
+var SEPARATE_WRAPPERS = /* @__PURE__ */ new Set(["\u300C", "\u300E", "<", "\uFF1C"]);
+var FRAGMENT_QUOTES = { "\u300C": "\u300D", "\u300E": "\u300F", "\u201C": "\u201D", "\u2018": "\u2019" };
+function isOuterWrapper(text) {
+  if (text.length < 2 || WRAPPERS[text[0]] !== text[text.length - 1]) return false;
+  if (/^\{[A-Za-z0-9_]+\}$/.test(text) || /^<\/?(?:br|span|div|p|b|i|img|ruby|rt)(?:\s[^>]*)?\s*\/?>$/i.test(text)) return false;
+  const stack = [];
+  const controls = new Map([...text.matchAll(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"))].map((match) => [match.index, match[0].length]));
+  for (let i = 0; i < text.length; i++) {
+    const length = controls.get(i);
+    if (length) {
+      i += length - 1;
+      continue;
+    }
+    if (WRAPPERS[text[i]]) stack.push(WRAPPERS[text[i]]);
+    else if (stack[stack.length - 1] === text[i]) {
+      stack.pop();
+      if (!stack.length) return i === text.length - 1;
+    }
+  }
+  return false;
+}
+function splitSegments(text, splitOrphanQuotes) {
+  if (isDynamicTemplate(text)) return [text];
+  const choice = peelChoiceMetaShell(text);
+  if (choice.lead || choice.trail) {
+    const parts2 = splitSegments(choice.core, splitOrphanQuotes);
+    if (!parts2.length) return [choice.lead + choice.trail];
+    parts2[0] = choice.lead + parts2[0];
+    parts2[parts2.length - 1] += choice.trail;
+    return parts2;
+  }
+  const controls = new Map([...text.matchAll(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"))].map((match) => [match.index, match[0].length]));
+  const stack = [];
+  const parts = [];
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const controlLength = controls.get(i);
+    if (controlLength) {
+      i += controlLength - 1;
+      continue;
+    }
+    const char = text[i];
+    if (/[.．,，]/.test(char) && /[0-9０-９]/.test(text[i - 1] || "") && /[0-9０-９]/.test(text[i + 1] || "")) continue;
+    let closed = false;
+    if (WRAPPERS[char]) {
+      const separate = SEPARATE_WRAPPERS.has(char);
+      if (separate && !stack.length && i > start && translationSegmentContent(text.slice(start, i)).core.trim()) {
+        parts.push(text.slice(start, i));
+        start = i;
+      }
+      stack.push({ close: WRAPPERS[char], separate });
+    } else if (stack[stack.length - 1]?.close === char) {
+      const wrapper = stack.pop();
+      closed = stack.length === 0 && wrapper.separate;
+    } else if (splitOrphanQuotes && !stack.length && /[」』]/.test(char)) {
+      closed = true;
+    }
+    if (stack.length || !closed && !/[，,。．.!！?？]/.test(char)) continue;
+    while (i + 1 < text.length && /[，,。．.!！?？]/.test(text[i + 1])) i++;
+    parts.push(text.slice(start, i + 1));
+    start = i + 1;
+  }
+  if (start < text.length) parts.push(text.slice(start));
+  return parts;
+}
+function translationSegments(text) {
+  return splitSegments(text, false);
+}
+function segmentContent(text, keepChoiceMeta) {
+  if (isDynamicTemplate(text)) return { lead: "", core: text, trail: "" };
+  const control = new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g");
+  const choice = peelChoiceMetaShell(text);
+  let core = choice.core;
+  let lead = keepChoiceMeta ? choice.lead : "";
+  let trail = keepChoiceMeta ? choice.trail : "";
+  for (; ; ) {
+    const before = core;
+    const meta = peelChoiceMetaShell(core);
+    if (keepChoiceMeta) {
+      lead += meta.lead;
+      trail = meta.trail + trail;
+    }
+    core = meta.core;
+    const prefix = core.match(/^[\s、，,。．.!！?？…]+/)?.[0] || [...core.matchAll(control)].find((match) => match.index === 0 && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0];
+    if (prefix) {
+      lead += prefix;
+      core = core.slice(prefix.length);
+    }
+    const suffix = core.match(/[\s、，,。．.!！?？…]+$/)?.[0] || [...core.matchAll(control)].find((match) => match.index + match[0].length === core.length && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0];
+    if (suffix) {
+      trail = suffix + trail;
+      core = core.slice(0, -suffix.length);
+    }
+    if (isOuterWrapper(core)) {
+      lead += core[0];
+      trail = core[core.length - 1] + trail;
+      core = core.slice(1, -1);
+    } else {
+      const close = FRAGMENT_QUOTES[core[0]];
+      if (close && !core.includes(close)) {
+        lead += core[0];
+        core = core.slice(1);
+      }
+      const open = Object.keys(FRAGMENT_QUOTES).find((key2) => FRAGMENT_QUOTES[key2] === core[core.length - 1]);
+      if (open && !core.includes(open)) {
+        trail = core[core.length - 1] + trail;
+        core = core.slice(0, -1);
+      }
+    }
+    if (core === before) break;
+  }
+  return { lead, core, trail };
+}
+function translationSegmentContent(text) {
+  return segmentContent(text, true);
+}
 function translationRubyChunks(text) {
   if (isDynamicTemplate(text)) return [{ text, ruby: false }];
   const chunks = [];
@@ -518,6 +755,118 @@ function translationRubyChunks(text) {
   }
   if (start < text.length) chunks.push({ text: text.slice(start), ruby: false });
   return chunks;
+}
+function matchingTranslationRubyPairs(source, target2) {
+  const left = translationRubyChunks(source);
+  const right = translationRubyChunks(target2);
+  if (!left.some((chunk) => chunk.ruby) && !right.some((chunk) => chunk.ruby)) return null;
+  if (left.length !== right.length || left.some((chunk, index) => chunk.ruby !== right[index].ruby)) return [];
+  return left.flatMap((chunk, index) => {
+    const other = right[index];
+    if (chunk.ruby)
+      return [
+        { source: chunk.base, target: other.base },
+        { source: chunk.reading, target: other.reading }
+      ];
+    if (!/[\p{L}\p{N}]/u.test(chunk.text) && !/[\p{L}\p{N}]/u.test(other.text)) return [];
+    return [{ source: chunk.text, target: other.text }];
+  });
+}
+function mapTranslationRubySegments(text, translate) {
+  const chunks = translationRubyChunks(text);
+  if (!chunks.some((part) => part.ruby)) return null;
+  let result = "";
+  let changed = false;
+  for (const part of chunks) {
+    if (!part.ruby) {
+      const hit = translate(part.text);
+      if (hit == null) {
+        if (/[\p{L}]/u.test(translationSegmentContent(part.text).core)) return null;
+        result += part.text;
+        continue;
+      }
+      changed = true;
+      result += hit;
+      continue;
+    }
+    const base = translate(part.base);
+    const reading = translate(part.reading);
+    if (base == null || reading == null) {
+      result += part.text;
+      continue;
+    }
+    if (/[,\[\]\r\n]/.test(base + reading)) return null;
+    changed = true;
+    result += part.paren ? `${part.prefix}[${base}](${reading})` : `${part.prefix}[${base},${reading}]`;
+  }
+  return changed ? result : null;
+}
+function translationNumberedPrefixPair(source, target2) {
+  const prefix = source.match(/^(?:[A-Za-z]+\d+_)+/)?.[0];
+  if (!prefix || !target2.startsWith(prefix)) return null;
+  const src = source.slice(prefix.length);
+  const zh = target2.slice(prefix.length);
+  if (/[_/\\]/.test(src) || /[_/\\]/.test(zh)) return null;
+  if (!/[\p{L}\p{N}]/u.test(src) || !/[\p{L}\p{N}]/u.test(zh)) return null;
+  return { source: src, target: zh };
+}
+function translationCacheLines(text) {
+  if (isDynamicTemplate(text)) return [text];
+  const { lead, core, trail } = translationSegmentContent(text);
+  const controls = [...core.matchAll(RM_ESCAPE_RE)].filter((match) => match[0] !== "\\n");
+  const lines = [];
+  let start = 0;
+  for (const match of core.matchAll(/\r\n|[\r\n]|\\n(?![A-Za-z]|\[)/g)) {
+    const at = match.index;
+    if (controls.some((control) => at >= control.index && at < control.index + control[0].length)) continue;
+    const end = at + match[0].length;
+    lines.push(core.slice(start, end));
+    start = end;
+  }
+  if (!lines.length) return [text];
+  lines.push(core.slice(start));
+  lines[0] = lead + lines[0];
+  lines[lines.length - 1] += trail;
+  return lines;
+}
+function translationDisplayChunks(text) {
+  if (isDynamicTemplate(text)) return [{ text, display: false }];
+  const chunks = [];
+  const controls = [...text.matchAll(new RegExp(RM_ESCAPE_RE.source, "g"))];
+  let start = 0;
+  for (const match of text.matchAll(/\\(?:RC\[(?:\d+|#[0-9a-f]+)\]|C\[(?:\d+|#[0-9a-f]+)\]|FS\[\d+\]|CL|FB|DF|G)(?![A-Za-z])/gi)) {
+    const at = match.index;
+    if (controls.some((control) => control.index < at && control.index + control[0].length > at)) continue;
+    if (at > start) chunks.push({ text: text.slice(start, at), display: false });
+    chunks.push({ text: match[0], display: true });
+    start = at + match[0].length;
+  }
+  if (start < text.length) chunks.push({ text: text.slice(start), display: false });
+  return chunks;
+}
+function mapTranslationDisplaySegments(text, translate) {
+  const choice = peelChoiceMetaShell(text);
+  const chunks = translationDisplayChunks(choice.core);
+  if (!chunks.some((chunk) => chunk.display)) return text;
+  return choice.lead + chunks.map((chunk) => chunk.display ? chunk.text : translate(chunk.text)).join("") + choice.trail;
+}
+function translationExportText(text) {
+  if (isDynamicTemplate(text)) return text;
+  const { lead, core, trail } = translationSegmentContent(text);
+  const strip = (shell) => shell.replace(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"), (code) => /^\\(?:[nbr]|C\[(?:\d+|#[0-9a-f]+)\]|FS\[\d+\]|[.!|><^{}$])$/i.test(code) ? "" : code);
+  return strip(lead) + core + strip(trail);
+}
+function mapTranslationSegments(text, translate) {
+  return mapSegments(translationSegments(text), translate);
+}
+function mapTranslationCacheLines(text, translate) {
+  return mapSegments(translationCacheLines(text), translate);
+}
+function mapSegments(parts, translate) {
+  return parts.map((part) => {
+    const { lead, core, trail } = translationSegmentContent(part);
+    return core ? lead + translate(core, part) + trail : part;
+  }).join("");
 }
 
 // lib/translate/game-terms.ts
@@ -637,6 +986,11 @@ function isSourceText(value, language = "all") {
   if (language === "en") return latin && !kana && !han;
   return kana || han || latin;
 }
+
+// services/game/rgss-archive.ts
+import fs5 from "node:fs";
+import path5 from "node:path";
+import { inflateSync } from "node:zlib";
 
 // services/extract/lib/rgss/marshal.ts
 var HEADER_MAJOR = 4;
@@ -857,6 +1211,72 @@ function rubyObjectField(value, field) {
   return pair?.value;
 }
 
+// services/game/rgss-archive.ts
+function readAceMember(archive, member) {
+  const fd = fs5.openSync(archive, "r");
+  let cursor = 0;
+  const length = fs5.fstatSync(fd).size;
+  const read = (size, offset = cursor) => {
+    if (size < 0 || offset + size > length) throw new Error("Truncated RGSS archive");
+    const bytes = Buffer.alloc(size);
+    if (fs5.readSync(fd, bytes, 0, size, offset) !== size) throw new Error("Truncated RGSS archive");
+    cursor = offset + size;
+    return bytes;
+  };
+  try {
+    const header = read(12);
+    if (!header.subarray(0, 8).equals(Buffer.from("RGSSAD\0", "binary"))) throw new Error("Unsupported RGSS archive version");
+    const key2 = Math.imul(header.readUInt32LE(8), 9) + 3 >>> 0;
+    for (let count = 0; count < 1e5; count++) {
+      const record = read(16);
+      const offset = (record.readUInt32LE(0) ^ key2) >>> 0;
+      if (!offset) return null;
+      const size = (record.readUInt32LE(4) ^ key2) >>> 0;
+      let fileKey = (record.readUInt32LE(8) ^ key2) >>> 0;
+      const nameSize = (record.readUInt32LE(12) ^ key2) >>> 0;
+      if (nameSize > 4096) throw new Error("Invalid RGSS archive filename");
+      const name = read(nameSize);
+      for (let i = 0; i < name.length; i++) name[i] ^= key2 >>> i % 4 * 8 & 255;
+      if (name.toString().replaceAll("\\", "/").toLowerCase() !== member.toLowerCase()) continue;
+      if (size > 32 * 1024 * 1024) throw new Error("RGSS script archive exceeds 32 MiB");
+      const bytes = read(size, offset);
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] ^= fileKey >>> i % 4 * 8 & 255;
+        if (i % 4 === 3) fileKey = Math.imul(fileKey, 7) + 3 >>> 0;
+      }
+      return bytes;
+    }
+    throw new Error("RGSS archive has too many members");
+  } finally {
+    fs5.closeSync(fd);
+  }
+}
+function readRgssScripts(contentRoot) {
+  const names = fs5.readdirSync(contentRoot);
+  const data = names.find((name) => name.toLowerCase() === "data");
+  const script = data && fs5.readdirSync(path5.join(contentRoot, data)).find((name) => /^scripts\.rvdata2?$/i.test(name));
+  const archive = names.find((name) => name.toLowerCase() === "game.rgss3a");
+  const bytes = script ? fs5.readFileSync(path5.join(contentRoot, data, script)) : archive ? readAceMember(path5.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
+  if (!bytes) return [];
+  const value = parseRubyMarshal(bytes);
+  if (!value || typeof value !== "object" || value.kind !== "array") return [];
+  return value.items.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || entry.kind !== "array") return [];
+    const [, name, packed] = entry.items;
+    if (!packed || typeof packed !== "object" || packed.kind !== "string" || !packed.bytes) return [];
+    return [
+      {
+        name: name && typeof name === "object" && name.kind === "string" ? name.value : "",
+        source: inflateSync(packed.bytes, { maxOutputLength: 8 * 1024 * 1024 }).toString("utf8")
+      }
+    ];
+  });
+}
+
+// services/translate/game-cache-context.ts
+import { createHash } from "node:crypto";
+import fs7 from "node:fs";
+
 // lib/translate/cache-lang.ts
 var DEFAULT_CACHE_SRC_LANG = "ja";
 var KANA2 = /[\u3041-\u3096\u30A1-\u30FA\u31F0-\u31FF\uFF66-\uFF9D]/;
@@ -1011,6 +1431,15 @@ function mapLogicRangeToOriginal(view, logicStart, logicEnd) {
   return { start, end };
 }
 
+// lib/translate/cache-engine-rank.ts
+function cacheEngineRank(engine) {
+  if (engine === "manual") return 4;
+  if (engine === "import" || engine?.startsWith("import:")) return 3;
+  if (engine === "live:optimize" || engine?.startsWith("live:optimize:") || engine?.startsWith("live:agent")) return 2;
+  if (engine === "manual:optimize") return 0;
+  return 1;
+}
+
 // lib/translate/structured-segments.ts
 var STRUCTURE_MAX_UNITS = 200;
 var CIRCLED = "\u2460\u2461\u2462\u2463\u2464\u2465\u2466\u2467\u2468\u2469\u246A\u246B\u246C\u246D\u246E\u246F\u2470\u2471\u2472\u2473";
@@ -1146,6 +1575,7 @@ function scanStructuredText(text, annotation) {
 
 // lib/translate/sentence-units.ts
 var SENTENCE_TOKEN_SOURCE = `${RM_ESCAPE_RE.source}|${TEXT_MARKUP_RE.source}|https?:\\/\\/[^\\s<>]+`;
+var SENTENCE_RULE_VERSION = 10;
 var PAIRS2 = { "<": ">", "\u300C": "\u300D", "\u300E": "\u300F", "\u3010": "\u3011", "\u300A": "\u300B", "\u3008": "\u3009", "\uFF08": "\uFF09", "(": ")", "[": "]", "{": "}", "\u201C": "\u201D" };
 var WIDTH = { "\uFF1F": "?", "\uFF01": "!", "\uFF0C": ",", "\u3002": ".", "\uFF0E": ".", "\uFF1B": ";" };
 function punctuationKey(text) {
@@ -1153,6 +1583,16 @@ function punctuationKey(text) {
 }
 function controlSignature(text) {
   return JSON.stringify(text.match(new RegExp(`${SENTENCE_TOKEN_SOURCE}|%\\d+|\\{[A-Za-z0-9_]+\\}|__[A-Za-z]\\d+__`, "g")) || []);
+}
+function wholeSentenceKey(text) {
+  const normalized = text.trim();
+  const plainKey = (part) => punctuationKey(part.replace(/\r\n?/g, "\n").replace(/[\t \u3000]*\n[\t \u3000]*/g, "\n"));
+  let out = "", at = 0;
+  for (const match of normalized.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))) {
+    out += plainKey(normalized.slice(at, match.index)) + match[0];
+    at = match.index + match[0].length;
+  }
+  return out + plainKey(normalized.slice(at));
 }
 function sentenceBodyKey(text) {
   let out = "", at = 0;
@@ -1279,8 +1719,206 @@ function sentenceUnits(text, opts) {
     return { ...unit, start: span.start, end: span.end };
   });
 }
+function sameSentence(a, b) {
+  return a.key === b.key && a.tone === b.tone && a.controls === b.controls;
+}
+function sentenceOuterShell(text) {
+  const visible = text.trim();
+  const trimmed = visible.replace(/[,，。．.!！?？;；]+$/, "");
+  const suffix = visible.slice(trimmed.length);
+  if (!trimmed || PAIRS2[trimmed[0]] !== trimmed.at(-1)) return { lead: "", core: text, trail: "" };
+  const stack = [];
+  for (let i = 0; i < trimmed.length; i++) {
+    if (PAIRS2[trimmed[i]]) stack.push(PAIRS2[trimmed[i]]);
+    else if (stack.at(-1) === trimmed[i]) {
+      stack.pop();
+      if (!stack.length && i !== trimmed.length - 1) return { lead: "", core: text, trail: "" };
+    }
+  }
+  const space = text.indexOf(trimmed);
+  return { lead: text.slice(0, space) + trimmed[0], core: trimmed.slice(1, -1), trail: trimmed.at(-1) + suffix + text.slice(space + visible.length) };
+}
+
+// lib/translate/sentence-aliases.ts
+function sentenceAliases(src, zh) {
+  const aliases = [];
+  const a = peelChoiceMetaShell(src), b = peelChoiceMetaShell(zh);
+  if ((a.lead || a.trail) && (!b.lead && !b.trail || a.lead === b.lead && a.trail === b.trail) && !/(?:如果|启用|禁用)\s*[(（]/.test(b.core))
+    aliases.push({ src: a.core, zh: b.core });
+  const sourceOpening = src.match(/^(?:\s*[(（])+/)?.[0];
+  const targetOpening = zh.match(/^(?:\s*[(（])+/)?.[0];
+  if (sourceOpening && targetOpening && sourceOpening.normalize("NFKC").trim() === targetOpening.normalize("NFKC").trim() && !/[)）]/.test(src) && !/[)）]/.test(zh))
+    aliases.push({ src: src.slice(sourceOpening.length), zh: zh.slice(targetOpening.length) });
+  const numbered = translationNumberedPrefixPair(src, zh);
+  if (numbered) aliases.push({ src: numbered.source, zh: numbered.target });
+  const source = sentenceOuterShell(src), target2 = sentenceOuterShell(zh);
+  if (source.core !== src && target2.core !== zh && !/[!?！？]/.test(source.trail)) aliases.push({ src: source.core, zh: target2.core });
+  for (const pair of matchingTranslationRubyPairs(src, zh) || []) aliases.push({ src: pair.source, zh: pair.target });
+  return aliases.filter((pair) => pair.src && pair.zh);
+}
+function structuredSentenceAliases(src, zh, structure) {
+  const source = scanStructuredText(src, structure?.source);
+  const target2 = scanStructuredText(zh, structure?.target);
+  if (source.diagnostics.length || target2.diagnostics.length || [...source.units, ...target2.units].some((unit) => unit.state !== "accepted")) return [];
+  const a = source.units.filter((unit) => unit.kind === "item");
+  const b = target2.units.filter((unit) => unit.kind === "item");
+  if (a.length < 2 || a.length !== b.length || a.some((unit, i) => unit.ordinal === void 0 || unit.ordinal !== b[i].ordinal)) return [];
+  const pairs = a.map((unit, i) => ({ source: unit, target: b[i] }));
+  const label = source.units.find((unit) => unit.kind === "label");
+  const translatedLabel = target2.units.find((unit) => unit.kind === "label");
+  if (label && translatedLabel) pairs.unshift({ source: label, target: translatedLabel });
+  const context = source.units.filter((unit) => unit.kind === "text").reduce((length, unit) => length + unit.end - unit.start, 0);
+  return pairs.flatMap((pair) => {
+    const from = src.slice(pair.source.start, pair.source.end);
+    let to = zh.slice(pair.target.start, pair.target.end);
+    if (/[①-⑳][\t ]*$/u.test(zh.slice(0, pair.target.start))) to = to.replace(/^[.．][\t ]*/u, "");
+    return from && to ? [{ src: from, zh: to, context }] : [];
+  });
+}
+
+// lib/translate/sentence-auto-alignment.ts
+function completeSentences(text, units) {
+  if (!units.length || text.slice(0, units[0].start).trim() || text.slice(units.at(-1).end).trim()) return null;
+  const out = [];
+  let from = 0;
+  for (let i = 0; i < units.length; i++) {
+    const unit = units[i];
+    if (unit.boundary === "structure") return null;
+    if (unit.boundary !== "stop") continue;
+    const start = units[from].start, end = unit.end;
+    out.push({ from, to: i + 1, start, end, tone: unit.tone, controls: JSON.stringify([controlSignature(text.slice(start, end)), text.slice(start, end).match(/%[sdif]/g) || []]) });
+    from = i + 1;
+  }
+  return from === units.length && out.length >= 2 ? out : null;
+}
+function hasComplexControls(text) {
+  return [...text.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))].some((match) => !/^\\(?:[VNP]\[\d+\]|G)$/i.test(match[0]));
+}
+function inferSentenceAlignment(record, units) {
+  if (record.derived || record.alignments?.length || record.structure?.source?.mode === "disabled" || record.structure?.target?.mode === "disabled") return [];
+  const structures = [
+    scanStructuredText(record.src.replace(new RegExp(SENTENCE_TOKEN_SOURCE, "g"), " "), record.structure?.source),
+    scanStructuredText(record.zh.replace(new RegExp(SENTENCE_TOKEN_SOURCE, "g"), " "), record.structure?.target)
+  ];
+  if (structures.some((s) => s.units.length || s.diagnostics.length)) return [];
+  if (hasComplexControls(record.src) || hasComplexControls(record.zh)) return [];
+  const targetUnits = sentenceUnits(record.zh, { structure: record.structure?.target });
+  const source = completeSentences(record.src, units);
+  const target2 = completeSentences(record.zh, targetUnits);
+  const sentences = source && target2 && source.length === target2.length && source.every((s, i) => s.tone === target2[i].tone && s.controls === target2[i].controls) ? source.map((s, i) => ({ from: s.from, to: s.to, targetStart: target2[i].start, targetEnd: target2[i].end })) : [];
+  return [...sentences, ...inferEllipsisClauses(record, units, targetUnits)];
+}
+function inferEllipsisClauses(record, source, target2) {
+  if (source.length < 2 || source.length !== target2.length) return [];
+  const signature = (text, unit) => JSON.stringify([unit.controls, text.slice(unit.start, unit.end).match(/%[sdif]/g) || []]);
+  if (source.some(
+    (unit, i) => unit.boundary !== target2[i].boundary || unit.tone !== target2[i].tone || unit.key.includes("...") !== target2[i].key.includes("...") || signature(record.src, unit) !== signature(record.zh, target2[i])
+  ))
+    return [];
+  const clauses = source.flatMap(
+    (unit, i) => unit.key.endsWith("...") && target2[i].key.endsWith("...") ? [{ from: i, to: i + 1, targetStart: target2[i].start, targetEnd: target2[i].end, kind: "ellipsis" }] : []
+  );
+  return clauses.length >= 2 ? clauses : [];
+}
+function inferredSentenceTarget(record, groups, from, to) {
+  const group = groups.find((g) => g.from === from && g.to === to);
+  return group ? record.zh.slice(group.targetStart, group.targetEnd) : null;
+}
+
+// lib/translate/sentence-query.ts
+function sentenceQueryViews(src, opts) {
+  const views = [{ text: src, offset: 0, opts }];
+  if (opts?.structure?.mode === "disabled") return views;
+  for (let depth = 0; depth < 8; depth++) {
+    const view = views.at(-1);
+    if (!/^\s*[「『“（(]/.test(view.text)) break;
+    const shell = sentenceOuterShell(view.text);
+    if (!shell.lead || !shell.core || shell.core === view.text || /[!?！？]/.test(shell.trail)) break;
+    const offset = shell.lead.length;
+    views.push({
+      text: shell.core,
+      offset: view.offset + offset,
+      opts: {
+        ...view.opts,
+        newlines: view.opts?.newlines?.filter((n) => n.start >= offset && n.end <= offset + shell.core.length).map((n) => ({ ...n, start: n.start - offset, end: n.end - offset }))
+      }
+    });
+  }
+  return views;
+}
+function queryLines(src) {
+  const breaks = listNewlineSpans(src);
+  if (!breaks.length || breaks.length > 200) return [];
+  let start = 0;
+  return [...breaks, { start: src.length, end: src.length }].flatMap((br) => {
+    const raw = src.slice(start, br.start);
+    const at = start + (raw.match(/^\s*/)?.[0].length || 0);
+    start = br.end;
+    return raw.trim() ? [{ start: at, text: raw.trim() }] : [];
+  });
+}
+function sentenceQueryViewUnits(src, opts) {
+  const body = sentenceQueryViews(src, opts)[1];
+  if (!body) return sentenceUnits(src, opts);
+  const units = sentenceUnits(body.text, body.opts);
+  if (units.length < 2) return sentenceUnits(src, opts);
+  return units.map((unit, i) => ({
+    ...unit,
+    start: i === 0 ? 0 : unit.start + body.offset,
+    end: i === units.length - 1 ? src.length : unit.end + body.offset,
+    key: sentenceBodyKey((i === 0 ? src.slice(0, body.offset).trimStart() : "") + unit.key + (i === units.length - 1 ? src.slice(body.offset + body.text.length).trimEnd() : ""))
+  }));
+}
+function sentenceQueryKeys(src, opts) {
+  return [
+    ...new Set(
+      sentenceQueryViews(src, opts).flatMap((view) => [
+        wholeSentenceKey(view.text),
+        wholeSentenceKey(buildLogicText(view.text, view.opts).logic),
+        ...sentenceQueryViewUnits(view.text, view.opts).map((unit) => wholeSentenceKey(view.text.slice(unit.start, unit.end))),
+        ...queryLines(view.text).map((line) => wholeSentenceKey(line.text))
+      ])
+    )
+  ];
+}
+function sentenceQueryUnits(src, opts) {
+  return sentenceQueryViews(src, opts).flatMap(
+    (view) => sentenceQueryViewUnits(view.text, view.opts).map((u) => ({ ...u, start: u.start + view.offset, end: u.end + view.offset }))
+  );
+}
 
 // lib/translate/sentence-plan.ts
+function recordUnitOpts(record) {
+  return { newlines: record.newlines, structure: record.structure?.source };
+}
+function expandRecords(records) {
+  return records.flatMap((record) => [
+    record,
+    ...sentenceAliases(record.src, record.zh).map((alias) => ({ ...record, ...alias, derived: true, alignments: void 0, newlines: void 0 })),
+    ...structuredSentenceAliases(record.src, record.zh, record.structure).map(({ context, ...alias }) => ({
+      ...record,
+      ...alias,
+      derived: true,
+      structuralAlias: true,
+      structureContext: context,
+      alignments: void 0,
+      newlines: void 0,
+      structure: void 0
+    }))
+  ]);
+}
+function logicAuthorityKey(text, opts) {
+  return wholeSentenceKey(buildLogicText(text, { newlines: opts?.newlines, srcLang: opts?.srcLang }).logic);
+}
+function target(record, units, from, to) {
+  if (from === 0 && to === units.length && units[0]?.start === 0 && units.at(-1)?.end === record.src.length) return record.zh;
+  const start = units[from].start;
+  const end = units[to - 1].end;
+  const groups = (record.alignments || []).filter((g) => g.evidence === "verified" && g.sourceStart >= start && g.sourceEnd <= end).sort((a, b) => a.sourceStart - b.sourceStart);
+  if (!groups.length || groups[0].sourceStart !== start || groups.at(-1).sourceEnd !== end) return null;
+  for (let i = 1; i < groups.length; i++) if (groups[i - 1].sourceEnd !== groups[i].sourceStart || groups[i - 1].targetEnd !== groups[i].targetStart) return null;
+  return record.zh.slice(groups[0].targetStart, groups.at(-1).targetEnd);
+}
 function cutsSurrogate(text, index) {
   if (index <= 0 || index >= text.length) return false;
   const c = text.charCodeAt(index);
@@ -1316,6 +1954,356 @@ function validateAlignments(record, groups) {
   }
   return true;
 }
+function candidates(src, records, queryOpts, automaticOnly = false, budget) {
+  const query = sentenceQueryViewUnits(src, queryOpts);
+  const queryKey = logicAuthorityKey(src, queryOpts);
+  const fragmentKeys = query.map((unit) => wholeSentenceKey(src.slice(unit.start, unit.end)));
+  const out = [];
+  let work = 0;
+  for (const record of records) {
+    const unitOpts = recordUnitOpts(record);
+    const units = sentenceUnits(record.src, unitOpts);
+    const recordKey = logicAuthorityKey(record.src, unitOpts);
+    const inferred = automaticOnly ? inferSentenceAlignment(record, units) : [];
+    if (automaticOnly && !inferred.length) continue;
+    if (!automaticOnly && queryKey === recordKey && query.length) {
+      out.push({
+        start: 0,
+        end: src.length,
+        from: 0,
+        to: query.length,
+        text: record.zh,
+        record,
+        sourceStart: 0,
+        sourceEnd: record.src.length,
+        kind: "whole",
+        queryCoverage: 1,
+        recordCoverage: 1
+      });
+      continue;
+    }
+    for (let q = 0; !automaticOnly && q < query.length; q++) {
+      if (++work > 5e4 || budget && --budget.remaining < 0) return Object.assign([], { limited: true });
+      const unit = query[q];
+      if (fragmentKeys[q] === recordKey)
+        out.push({
+          start: unit.start,
+          end: unit.end,
+          from: q,
+          to: q + 1,
+          text: record.zh,
+          record,
+          sourceStart: 0,
+          sourceEnd: record.src.length,
+          kind: "single",
+          queryCoverage: 1 / query.length,
+          recordCoverage: 1
+        });
+    }
+    for (let q = 0; q < query.length; q++) {
+      for (let r = 0; r < units.length; r++) {
+        if (++work > 5e4 || budget && --budget.remaining < 0) return Object.assign([], { limited: true });
+        let length = 0;
+        while (q + length < query.length && r + length < units.length && sameSentence(query[q + length], units[r + length])) {
+          if (++work > 5e4 || budget && --budget.remaining < 0) return Object.assign([], { limited: true });
+          if (length && (query[q + length].block !== query[q].block || units[r + length].block !== units[r].block || query[q + length - 1].boundary !== units[r + length - 1].boundary))
+            break;
+          length++;
+          const ellipsis = automaticOnly && inferred.some((g) => g.kind === "ellipsis" && g.from === r && g.to === r + length);
+          if (automaticOnly && !ellipsis && (q > 0 && query[q - 1].boundary !== "stop" || query[q + length - 1].boundary !== "stop")) continue;
+          const text = automaticOnly ? inferredSentenceTarget(record, inferred, r, r + length) : target(record, units, r, r + length);
+          if (text == null) continue;
+          out.push({
+            start: query[q].start,
+            end: query[q + length - 1].end,
+            from: q,
+            to: q + length,
+            text,
+            ...automaticOnly ? { alignment: "inferred" } : {},
+            ...ellipsis ? { alignmentBasis: "ellipsis" } : {},
+            queryCoverage: length / query.length,
+            recordCoverage: length / units.length,
+            record,
+            sourceStart: units[r].start,
+            sourceEnd: units[r + length - 1].end,
+            kind: r === 0 && length === units.length && units[0].start === 0 && units.at(-1).end === record.src.length ? length === query.length ? "whole" : length === 1 ? "single" : "block" : "extracted"
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+function joinSentenceBlock(source, translated, trimCachedSeam = false) {
+  const seam = source.match(/([,，、;；]\s*|\r?\n|\\n)$/)?.[0];
+  if (!seam) return trimCachedSeam ? translated.replace(/[,，、;；]\s*$/u, "") : translated;
+  return translated.replace(/[,，、;；\s]+$/u, "") + seam;
+}
+function renderSentencePlan(plan, gaps = /* @__PURE__ */ new Map()) {
+  const pieces = [
+    ...plan.matches.map((m) => ({
+      start: m.start,
+      end: m.end,
+      text: m.text,
+      restoreSeam: true,
+      trimCachedSeam: /[,，、;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd))
+    })),
+    ...plan.gaps.map((g) => ({ ...g, text: gaps.get(g.id) ?? g.text, restoreSeam: gaps.has(g.id), trimCachedSeam: false }))
+  ].sort((a, b) => a.start - b.start);
+  let at = 0, out = "";
+  for (const part of pieces) {
+    out += plan.src.slice(at, part.start) + (part.restoreSeam ? joinSentenceBlock(plan.src.slice(part.start, part.end), part.text, part.trimCachedSeam) : part.text);
+    at = part.end;
+  }
+  return out + plan.src.slice(at);
+}
+function planSentenceTranslation(src, records, opts) {
+  return planSentenceTranslationView(src, records, opts, true);
+}
+function planSentenceTranslationView(src, records, opts, unwrap) {
+  const units = sentenceQueryViewUnits(src, opts);
+  const expanded = expandRecords(records);
+  const normal = candidates(src, expanded, opts);
+  const initial = chooseSentencePlan(src, units, normal, normal.limited === true, opts?.category);
+  if (initial.status === "full" || initial.limited || opts?.structure?.mode === "disabled") return initial;
+  const views = unwrap ? sentenceQueryViews(src, opts) : [];
+  if (views.length > 1 && !initial.ambiguous) {
+    let best = initial;
+    let covered = initial.matches.reduce((sum, m) => sum + m.end - m.start, 0);
+    for (const body of views.slice(1)) {
+      const inner = planSentenceTranslationView(body.text, records, body.opts, false);
+      const shifted = {
+        ...inner,
+        src,
+        matches: inner.matches.map((m) => ({ ...m, start: m.start + body.offset, end: m.end + body.offset })),
+        gaps: inner.gaps.map((g) => ({ ...g, id: `${g.start + body.offset}:${g.end + body.offset}`, start: g.start + body.offset, end: g.end + body.offset })),
+        zh: null
+      };
+      if (initial.matches.length) {
+        const additions2 = remapSentenceMatches(
+          shifted.matches.filter((m) => normal.every((hit) => m.end <= hit.start || m.start >= hit.end)),
+          units,
+          src,
+          opts
+        ).filter((m) => m.from >= 0 && m.to > m.from);
+        const merged = chooseSentencePlan(src, units, [...initial.matches, ...additions2], !!shifted.limited, opts?.category);
+        merged.ambiguous ||= shifted.ambiguous;
+        if (merged.status === "full" || merged.limited || merged.ambiguous) return merged;
+        const chars2 = merged.matches.reduce((sum, m) => sum + m.end - m.start, 0);
+        if (chars2 > covered) {
+          best = merged;
+          covered = chars2;
+        }
+        continue;
+      }
+      if (shifted.status === "full") {
+        shifted.zh = renderSentencePlan(shifted);
+        return shifted;
+      }
+      if (shifted.limited || shifted.ambiguous) return shifted;
+      const chars = shifted.matches.reduce((sum, m) => sum + m.end - m.start, 0);
+      if (chars > covered) {
+        best = shifted;
+        covered = chars;
+      }
+    }
+    return applyLineFallback(src, expanded, best, normal, opts);
+  }
+  const structure = scanStructuredText(src.replace(new RegExp(SENTENCE_TOKEN_SOURCE, "g"), " "), opts?.structure);
+  const inferred = structure.units.length || structure.diagnostics.length ? [] : candidates(src, expanded, opts, true);
+  if (inferred.limited) return { ...initial, limited: true };
+  const additions = inferred.filter((m) => normal.every((hit) => m.end <= hit.start || m.start >= hit.end));
+  const result = chooseSentencePlan(src, units, [...initial.matches, ...additions], false, opts?.category);
+  result.ambiguous ||= initial.ambiguous;
+  return applyLineFallback(src, expanded, result, normal, opts);
+}
+function remapSentenceMatches(matches, units, src, opts) {
+  const bodies = sentenceQueryViews(src, opts).slice(1);
+  return matches.map((m) => ({
+    ...m,
+    from: units.findIndex((u) => u.start === m.start || u.start === 0 && bodies.some((v) => m.start === v.offset)),
+    to: units.findIndex((u) => u.end === m.end || u.end === src.length && bodies.some((v) => m.end === v.offset + v.text.length)) + 1
+  }));
+}
+function applyLineFallback(src, records, plan, normal, opts) {
+  if (plan.status === "full" || plan.limited) return plan;
+  const lines = queryLines(src);
+  if (!lines.length) return plan;
+  const keys = new Set(lines.map((line) => wholeSentenceKey(line.text)));
+  const independent = records.filter((r) => keys.has(logicAuthorityKey(r.src, recordUnitOpts(r))));
+  if (!independent.length) return plan;
+  const newlines = listNewlineSpans(src).map((br) => ({ ...br, kind: "hard" }));
+  const lineOpts = { ...opts, newlines: [...opts?.newlines || [], ...newlines] };
+  const units = sentenceQueryViewUnits(src, lineOpts);
+  const previous = remapSentenceMatches(plan.matches, units, src, opts);
+  if (previous.some((m) => m.from < 0 || m.to <= m.from)) return plan;
+  const selected = candidates(src, independent, lineOpts);
+  if (selected.limited) return { ...plan, limited: true };
+  const additions = selected.filter(
+    (m) => lines.some((line) => line.start === m.start && wholeSentenceKey(src.slice(m.start, m.end)) === wholeSentenceKey(line.text)) && normal.every((hit) => m.end <= hit.start || m.start >= hit.end) && plan.matches.every((hit) => m.end <= hit.start || m.start >= hit.end)
+  );
+  const result = chooseSentencePlan(src, units, [...previous, ...additions], false, opts?.category);
+  result.ambiguous ||= plan.ambiguous;
+  return result;
+}
+function chooseSentencePlan(src, units, possible, limited, category) {
+  const locked = possible.filter((m) => m.alignment !== "inferred" && m.record.local && m.record.engine === "manual" && !m.record.derived);
+  possible = possible.filter(
+    (m) => locked.every((lock) => {
+      if (m.end <= lock.start || m.start >= lock.end || m === lock) return true;
+      return m.start === lock.start && m.end === lock.end && m.text === lock.text;
+    })
+  );
+  let ambiguous = false;
+  const ranges = /* @__PURE__ */ new Map();
+  for (const m of possible) {
+    const key2 = `${m.from}:${m.to}`;
+    ranges.set(key2, [...ranges.get(key2) || [], m]);
+  }
+  possible = [];
+  for (const group of ranges.values()) {
+    const chosen = chooseAuthorityMatch(group, src, category);
+    if (chosen.ambiguous) {
+      ambiguous = true;
+      continue;
+    }
+    possible.push(chosen.match);
+  }
+  const best = Array.from({ length: units.length + 1 }, () => ({ matches: [], covered: 0, chars: 0 }));
+  for (let i2 = units.length - 1; i2 >= 0; i2--) {
+    best[i2] = best[i2 + 1];
+    for (const m of possible.filter((m2) => m2.from === i2)) {
+      const rest = best[m.to];
+      const next = { matches: [m, ...rest.matches], covered: m.to - m.from + rest.covered, chars: m.end - m.start + rest.chars };
+      const old = best[i2];
+      if (next.covered > old.covered || next.covered === old.covered && (next.chars > old.chars || next.chars === old.chars && next.matches.length < old.matches.length))
+        best[i2] = next;
+    }
+  }
+  const matches = best[0].matches;
+  const gaps = [];
+  let i = 0;
+  while (i < units.length) {
+    const hit = matches.find((m) => m.from === i);
+    if (hit) {
+      i = hit.to;
+      continue;
+    }
+    const first = i++;
+    while (i < units.length && units[i].block === units[first].block && !matches.some((m) => m.from === i)) i++;
+    const start = units[first].start, end = units[i - 1].end;
+    gaps.push({ id: `${start}:${end}`, start, end, text: src.slice(start, end) });
+  }
+  const status = matches.length ? gaps.length ? "partial" : "full" : "miss";
+  const plan = { src, status, matches, gaps, zh: null, coverage: units.length ? best[0].covered / units.length : 0, ambiguous, limited };
+  if (status === "full") plan.zh = renderSentencePlan(plan);
+  return plan;
+}
+function chooseAuthorityMatch(group, src, category) {
+  const output = (m) => joinSentenceBlock(src.slice(m.start, m.end), m.text, /[,，、;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd)));
+  const proven = group.filter((m) => m.alignment !== "inferred");
+  let pool = proven.length ? proven : group;
+  if (!proven.length && new Set(pool.map(output)).size > 1) return { ambiguous: true };
+  const explicit = pool.filter((m) => !m.record.structuralAlias);
+  if (explicit.length) pool = explicit;
+  else {
+    const context = Math.min(...pool.map((m) => m.record.structureContext || 0));
+    pool = pool.filter((m) => (m.record.structureContext || 0) === context);
+  }
+  const rank = Math.max(...pool.map((m) => cacheEngineRank(m.record.engine)));
+  pool = pool.filter((m) => cacheEngineRank(m.record.engine) === rank);
+  const exact = pool.filter((m) => !m.record.derived && m.record.src === src && m.start === 0 && m.end === src.length);
+  if (exact.length) pool = exact;
+  const want = String(category || "").trim();
+  if (want) {
+    const matched = pool.filter((m) => m.record.category === want);
+    if (matched.length) pool = matched;
+  }
+  if (new Set(pool.map(output)).size === 1) {
+    const ordered = [...pool].sort(
+      (a, b) => (a.record.local ? 0 : 1) - (b.record.local ? 0 : 1) || (a.kind === "extracted" ? 1 : 0) - (b.kind === "extracted" ? 1 : 0) || a.record.id.localeCompare(b.record.id)
+    );
+    return { match: ordered[0], ambiguous: false };
+  }
+  return { ambiguous: true };
+}
+function createSentenceResolver(records) {
+  const inverted = /* @__PURE__ */ new Map();
+  const whole = /* @__PURE__ */ new Map();
+  const key2 = (s) => JSON.stringify([s.key, s.tone, s.controls]);
+  const addWhole = (k, record) => {
+    whole.set(k, [...whole.get(k) || [], record]);
+  };
+  for (const record of expandRecords(records)) {
+    const unitOpts = recordUnitOpts(record);
+    const raw = wholeSentenceKey(record.src);
+    addWhole(raw, record);
+    const logic = logicAuthorityKey(record.src, unitOpts);
+    if (logic !== raw) addWhole(logic, record);
+    for (const unit of sentenceUnits(record.src, unitOpts)) {
+      const k = key2(unit), bucket = inverted.get(k) || /* @__PURE__ */ new Set();
+      bucket.add(record);
+      inverted.set(k, bucket);
+    }
+  }
+  function select(src, opts) {
+    const exact = whole.get(wholeSentenceKey(src)) || [];
+    const selected = new Set(exact);
+    let limited = false;
+    for (const lookup of sentenceQueryKeys(src, opts)) {
+      for (const record of whole.get(lookup) || []) {
+        selected.add(record);
+        if (selected.size > 500) return Object.assign([...exact], { limited: true });
+      }
+    }
+    for (const unit of sentenceQueryUnits(src, opts)) {
+      if (unit.boundary === "structure") for (const r of whole.get(wholeSentenceKey(src.slice(unit.start, unit.end))) || []) selected.add(r);
+      if (selected.size > 500) return Object.assign([...exact], { limited: true });
+      const bucket = inverted.get(key2(unit));
+      if ((bucket?.size || 0) > 500) {
+        limited = true;
+        continue;
+      }
+      for (const record of bucket || []) {
+        selected.add(record);
+        if (selected.size > 500) return Object.assign([...exact], { limited: true });
+      }
+    }
+    return Object.assign([...selected], { limited });
+  }
+  return {
+    select,
+    plan(src) {
+      const selected = select(src);
+      const plan = planSentenceTranslation(src, selected.limited ? [] : selected);
+      return selected.limited ? { ...plan, limited: true } : plan;
+    }
+  };
+}
+
+// lib/translate/cache-row.ts
+function parseCacheRow(value) {
+  if (Array.isArray(value)) return typeof value[0] === "string" && (typeof value[1] === "string" || value[1] === null) ? { s: value[0], t: value[1] } : null;
+  if (!value || typeof value !== "object") return null;
+  const r = { ...value };
+  if (typeof r.engine !== "string") r.engine = void 0;
+  if (typeof r.event !== "string") r.event = void 0;
+  if (typeof r.s !== "string" || typeof r.t !== "string" && r.t !== null) return null;
+  if (r.origin && (typeof r.origin.id !== "string" || !Number.isInteger(r.origin.revision) || typeof r.origin.database !== "string")) return null;
+  if (r.structure && !validRecordStructure(r.structure)) r.structure = void 0;
+  if (r.alignments && (!r.t || !validateAlignments({ src: r.s, zh: r.t, newlines: r.newlines, structure: r.structure }, r.alignments)))
+    return { ...r, alignments: void 0 };
+  if (r.newlines && !validateNewlineAnnotations(r.s, r.newlines)) return { ...r, newlines: void 0 };
+  return r;
+}
+function applyCacheRow(rows, row) {
+  const previous = rows.get(row.s);
+  if (row.t === null) {
+    if (!row.origin || previous?.origin?.database === row.origin.database && previous.origin.id === row.origin.id) rows.delete(row.s);
+  } else if (row.origin && previous && !previous.origin) {
+    return;
+  } else rows.set(row.s, row);
+}
 
 // lib/translate/lookup.ts
 function normalizeTranslateKey(text) {
@@ -1344,8 +2332,65 @@ var PROTECT_TOKEN = new RegExp(`${TEXT_MARKUP_RE.source}|${ENGINE_TOKEN.source}`
 function normCmp(s) {
   return s.normalize("NFKC").replace(/\s+/g, " ").trim();
 }
+var CONTROL_AFFIX = /^(?:\\[A-Za-z]+(?:\[[^\]]*\])?|\\\[[^\]]*\]|\\[^A-Za-z\s]|[A-Za-z_][A-Za-z0-9_]*\[\d+\])/;
+function matchControlAffixAt(text, atEnd) {
+  if (!atEnd) {
+    const m = text.match(CONTROL_AFFIX);
+    return m && !/^\\RB\[/i.test(m[0]) && !isSemanticPlaceholder(m[0]) ? m[0] : null;
+  }
+  const re = /\\[A-Za-z]+(?:\[[^\]]*\])?|\\\[[^\]]*\]|\\[^A-Za-z\s]|[A-Za-z_][A-Za-z0-9_]*\[\d+\]/g;
+  let hit = null;
+  for (const m of text.matchAll(re)) {
+    if (/^\\RB\[/i.test(m[0])) continue;
+    if (isSemanticPlaceholder(m[0])) continue;
+    const i = m.index ?? 0;
+    if (i + m[0].length === text.length) hit = m[0];
+  }
+  return hit;
+}
+function peelControlShell(text) {
+  let rest = String(text ?? "");
+  let lead = "";
+  let trail = "";
+  for (; ; ) {
+    const space = rest.match(/^[\s\u3000]+/);
+    if (space) {
+      lead += space[0];
+      rest = rest.slice(space[0].length);
+      continue;
+    }
+    const tok = matchControlAffixAt(rest, false);
+    if (!tok) break;
+    lead += tok;
+    rest = rest.slice(tok.length);
+  }
+  for (; ; ) {
+    const space = rest.match(/[\s\u3000]+$/);
+    if (space) {
+      trail = space[0] + trail;
+      rest = rest.slice(0, -space[0].length);
+      continue;
+    }
+    const tok = matchControlAffixAt(rest, true);
+    if (!tok) break;
+    trail = tok + trail;
+    rest = rest.slice(0, -tok.length);
+  }
+  return { lead, core: rest, trail };
+}
 function stripControlNoise(text) {
   return String(text ?? "").replace(PROTECT_TOKEN, " ").replace(/[\s\u3000]+/g, " ").trim();
+}
+function protectSentenceForTranslate(text) {
+  const choice = peelChoiceMetaShell(text);
+  const shell = peelControlShell(choice.core);
+  const tokens = [];
+  const plain = shell.core.replace(new RegExp(`${SENTENCE_TOKEN_SOURCE}|${PROTECT_TOKEN.source}`, "g"), (token) => {
+    const id = tokens.length;
+    tokens.push(token);
+    return `__C${id}__`;
+  });
+  return { core: shell.core, lead: choice.lead + shell.lead, trail: shell.trail + choice.trail, plain, tokens };
 }
 function isIdenticalTranslation(src, zh) {
   return normCmp(src) === normCmp(zh);
@@ -1379,7 +2424,7 @@ function shouldTranslate(text, sourceLang) {
     const compact2 = core.replace(/[\s\u3000]+/g, "");
     return compact2.length > 0 && !/^[\p{P}\p{S}]+$/u.test(compact2);
   }
-  if (!JAPANESE.test(core) && !isSourceText(core, "en")) return false;
+  if (!JAPANESE.test(core) && !isSourceText(core, sourceLang === "en" ? "en" : "all")) return false;
   const compact = core.replace(/[\s\u3000]+/g, "");
   return !(compact.length > 0 && /^[\p{P}\p{S}]+$/u.test(compact));
 }
@@ -1393,33 +2438,7 @@ function lineCount(text) {
 }
 
 // services/translate/game-records.ts
-import fs5 from "node:fs";
-
-// lib/translate/cache-row.ts
-function parseCacheRow(value) {
-  if (Array.isArray(value)) return typeof value[0] === "string" && (typeof value[1] === "string" || value[1] === null) ? { s: value[0], t: value[1] } : null;
-  if (!value || typeof value !== "object") return null;
-  const r = { ...value };
-  if (typeof r.engine !== "string") r.engine = void 0;
-  if (typeof r.event !== "string") r.event = void 0;
-  if (typeof r.s !== "string" || typeof r.t !== "string" && r.t !== null) return null;
-  if (r.origin && (typeof r.origin.id !== "string" || !Number.isInteger(r.origin.revision) || typeof r.origin.database !== "string")) return null;
-  if (r.structure && !validRecordStructure(r.structure)) r.structure = void 0;
-  if (r.alignments && (!r.t || !validateAlignments({ src: r.s, zh: r.t, newlines: r.newlines, structure: r.structure }, r.alignments)))
-    return { ...r, alignments: void 0 };
-  if (r.newlines && !validateNewlineAnnotations(r.s, r.newlines)) return { ...r, newlines: void 0 };
-  return r;
-}
-function applyCacheRow(rows, row) {
-  const previous = rows.get(row.s);
-  if (row.t === null) {
-    if (!row.origin || previous?.origin?.database === row.origin.database && previous.origin.id === row.origin.id) rows.delete(row.s);
-  } else if (row.origin && previous && !previous.origin) {
-    return;
-  } else rows.set(row.s, row);
-}
-
-// services/translate/game-records.ts
+import fs6 from "node:fs";
 var snapshots = /* @__PURE__ */ new Map();
 function gameTranslationFiles(contentRoot, opts) {
   const seed = opts?.localOnly ? localGameContentFile(contentRoot, "seed") : gameContentReadPath(contentRoot, "seed", { alsoParent: true });
@@ -1427,7 +2446,7 @@ function gameTranslationFiles(contentRoot, opts) {
   const stamp = JSON.stringify(
     [seed, cache, opts?.localOnly ? 1 : 0].map((file) => {
       if (typeof file === "number") return file;
-      const stat = file ? fs5.statSync(file, { throwIfNoEntry: false }) : void 0;
+      const stat = file ? fs6.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   );
@@ -1441,7 +2460,7 @@ function loadGameTranslationRecords(contentRoot, current, opts) {
     if (seed) {
       let data;
       try {
-        data = JSON.parse(fs5.readFileSync(seed, "utf8"));
+        data = JSON.parse(fs6.readFileSync(seed, "utf8"));
       } catch {
         data = null;
       }
@@ -1450,7 +2469,7 @@ function loadGameTranslationRecords(contentRoot, current, opts) {
       }
     }
     if (cache)
-      for (const line of fs5.readFileSync(cache, "utf8").split("\n")) {
+      for (const line of fs6.readFileSync(cache, "utf8").split("\n")) {
         if (!line.trim()) continue;
         try {
           const row = parseCacheRow(JSON.parse(line));
@@ -1498,13 +2517,351 @@ function createGameTranslateLookup(records) {
   return lookup;
 }
 
+// services/translate/game-cache-context.ts
+var contexts = /* @__PURE__ */ new Map();
+function buildContext(contentRoot) {
+  const records = loadGameTranslationRecords(contentRoot, () => false);
+  const blocked = /* @__PURE__ */ new Set();
+  const file = gameTranslationFiles(contentRoot).cache;
+  if (file && fs7.existsSync(file))
+    for (const line of fs7.readFileSync(file, "utf8").split("\n")) {
+      if (!line.trim()) continue;
+      const row = parseCacheRow(JSON.parse(line));
+      if (!row?.origin) {
+        if (row?.t === null) blocked.add(row.s);
+        else if (row) blocked.delete(row.s);
+      }
+    }
+  const numeric = /* @__PURE__ */ new Map();
+  for (const record of records) {
+    const family = numericLabelFamily(record.src);
+    if (family) numeric.set(family, [...numeric.get(family) || [], record]);
+  }
+  const { seed } = gameTranslationFiles(contentRoot);
+  const authorityVersion = createHash("sha256").update(JSON.stringify([seed, records.filter((record) => record.local), [...blocked].sort()])).digest("hex");
+  return {
+    records,
+    blocked: (src) => blocked.has(src),
+    resolver: createSentenceResolver(records),
+    lookup: createGameTranslateLookup(records),
+    numericRecords: (src) => numeric.get(numericLabelFamily(src) || "") || [],
+    authorityVersion
+  };
+}
+function getGameCacheContext(contentRoot) {
+  const { stamp } = gameTranslationFiles(contentRoot);
+  let context = contexts.get(contentRoot);
+  if (context?.stamp !== stamp) {
+    context = { ...buildContext(contentRoot), stamp };
+    if (contexts.size >= 8 && !contexts.has(contentRoot)) contexts.delete(contexts.keys().next().value);
+    contexts.set(contentRoot, context);
+  }
+  return context;
+}
+
+// services/translate/game-coverage.ts
+import fs8 from "node:fs";
+import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
+
+// services/translate/cache-lookup.ts
+function lookupCandidates(src) {
+  const choice = peelChoiceMetaShell(src);
+  const key2 = choice.core || src;
+  const guard = protectSentenceForTranslate(src);
+  const display = translationExportText(key2);
+  const shell = sentenceOuterShell(key2);
+  const displayShell = translationSegmentContent(key2);
+  const leadSpace = key2.match(/^\s*/)?.[0] ?? "";
+  const trailSpace = key2.match(/\s*$/)?.[0] ?? "";
+  const trimmed = key2.slice(leadSpace.length, key2.length - trailSpace.length);
+  const description = key2.match(/^<SG説明:/);
+  return [
+    { key: key2, lead: choice.lead, trail: choice.trail },
+    { key: normalizeTranslateKey(key2), lead: choice.lead, trail: choice.trail },
+    ...trimmed && trimmed !== key2 ? [{ key: trimmed, lead: choice.lead + leadSpace, trail: trailSpace + choice.trail }] : [],
+    ...description ? [{ key: key2.slice(description[0].length), lead: choice.lead + description[0], trail: choice.trail }] : [],
+    ...display === key2 ? [] : [display, normalizeTranslateKey(display)].map((candidate) => ({
+      key: candidate,
+      lead: choice.lead + displayShell.lead,
+      trail: displayShell.trail + choice.trail,
+      displayOnly: true
+    })),
+    ...shell.core !== key2 && !/[!?！？]/.test(shell.trail) ? [{ key: shell.core, lead: choice.lead + shell.lead, trail: shell.trail + choice.trail, bodyOnly: true }] : [],
+    { key: guard.core, lead: guard.lead, trail: guard.trail },
+    { key: normalizeTranslateKey(guard.core), lead: guard.lead, trail: guard.trail }
+  ];
+}
+function lookupWholeTranslation(get, src) {
+  for (const { key: key2, lead, trail, bodyOnly, displayOnly } of lookupCandidates(src)) {
+    if (!key2) continue;
+    const hit = lookupWithRmDigitTemplate((k) => {
+      const value = get(k);
+      return value && isReusableTranslation(k, value) ? value : null;
+    }, key2);
+    if (hit != null) {
+      const restored = lead + (displayOnly ? translationSegmentContent(hit).core : bodyOnly ? sentenceOuterShell(hit).core : hit) + trail;
+      if (isReusableTranslation(src, restored)) return restored;
+    }
+  }
+  return null;
+}
+function lookupCachedTranslation(get, src) {
+  const whole = lookupWholeTranslation(get, src);
+  if (whole != null) return whole;
+  if (/\\(?:RB\[|ruby\[)/i.test(src)) return lookupDisplayParts(get, src) ?? mapTranslationRubySegments(src, (part) => lookupCachedTranslation(get, part));
+  return lookupDisplayParts(get, src) ?? mapTranslationRubySegments(src, (part) => lookupCachedTranslation(get, part)) ?? lookupParts(get, src, mapTranslationSegments) ?? lookupParts(get, src, mapTranslationCacheLines);
+}
+function lookupDisplayParts(get, src) {
+  let complete = true;
+  let resolved = false;
+  const result = mapTranslationDisplaySegments(src, (part) => {
+    const hit = lookupCachedTranslation(get, part);
+    if (hit != null) {
+      resolved = true;
+      return hit;
+    }
+    if (/\\(?:RB\[|ruby\[)/i.test(part) || /[\p{L}]/u.test(translationSegmentContent(part).core)) complete = false;
+    return part;
+  });
+  return complete && resolved ? result : null;
+}
+function lookupParts(get, src, map) {
+  let complete = true;
+  let changed = false;
+  const result = map(src, (part, original) => {
+    const legacy = lookupWholeTranslation(get, original);
+    const semantic = /[!?！？。．.]/.test(translationSegmentContent(original).trail);
+    const hit = (semantic ? null : lookupWholeTranslation(get, part)) ?? (legacy == null ? null : translationSegmentContent(legacy).core);
+    if (hit != null) {
+      changed = true;
+      return hit;
+    }
+    if (shouldTranslate(part)) complete = false;
+    return part;
+  });
+  return complete && changed ? result : null;
+}
+
+// services/translate/shared-cache/match-index.ts
+var toRecord = (r) => ({
+  id: String(r.id),
+  revision: r.revision,
+  src: r.src,
+  zh: r.zh,
+  engine: r.engine,
+  category: r.category || null,
+  from: r.src_lang,
+  to: r.tgt_lang
+});
+function createMatchIndex(client) {
+  const statements = /* @__PURE__ */ new Map();
+  function prepare(sql) {
+    let statement = statements.get(sql);
+    if (!statement) {
+      statement = client.prepare(sql);
+      statements.set(sql, statement);
+    }
+    return statement;
+  }
+  const joined = "SELECT DISTINCT r.*,t.zh,t.engine,t.category FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang";
+  function reindexWithNewlines(row, newlines, structure) {
+    const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang };
+    prepare("DELETE FROM sentence_positions WHERE record_id=?").run(row.id);
+    prepare("DELETE FROM match_keys WHERE record_id=? AND kind IN ('alias','logic')").run(row.id);
+    const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic);
+    const canon = wholeSentenceKey(row.src);
+    if (logicKey !== canon) {
+      prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)").run(row.id, logicKey, row.src_lang, row.tgt_lang, "logic");
+    }
+    for (const alias of sentenceAliases(row.src, row.zh)) {
+      prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)").run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, "alias");
+    }
+    const units = sentenceUnits(row.src, unitOpts);
+    const insertPos = prepare("INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)");
+    units.forEach((unit, position) => insertPos.run(row.id, position, unit.key, unit.tone, row.src_lang, row.tgt_lang));
+  }
+  function attach(row) {
+    const record2 = toRecord(row);
+    const alignment = prepare("SELECT groups_json FROM alignment_groups WHERE record_id=? AND revision=?").get(row.id, row.revision);
+    if (alignment) record2.alignments = JSON.parse(alignment.groups_json);
+    const newlines = prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?").get(row.id, row.revision);
+    if (newlines) record2.newlines = JSON.parse(newlines.annotations_json);
+    const structure = prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?").get(row.id, row.revision);
+    if (structure) record2.structure = JSON.parse(structure.annotations_json);
+    return record2;
+  }
+  function record(src, pair) {
+    const r = prepare(joined + " WHERE r.src=? AND r.src_lang=? AND r.tgt_lang=?").get(src, pair.from, pair.to);
+    return r ? attach(r) : null;
+  }
+  function equivalent(src, pair) {
+    const key2 = wholeSentenceKey(src);
+    return client.prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(key2, pair.from, pair.to).map(attach);
+  }
+  function candidates2(src, pair, opts) {
+    const found = /* @__PURE__ */ new Map();
+    const keyQuery = prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? LIMIT 501");
+    const lookupKeys = sentenceQueryKeys(src, opts);
+    for (const key2 of lookupKeys) {
+      for (const row of keyQuery.all(key2, pair.from, pair.to)) {
+        if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
+        if (found.size > 500) return { records: [], limited: true };
+      }
+    }
+    const whole = [...found.values()];
+    for (const unit of sentenceQueryUnits(src, opts)) {
+      if (unit.boundary === "structure") {
+        const exactItems = keyQuery.all(wholeSentenceKey(src.slice(unit.start, unit.end)), pair.from, pair.to);
+        if (exactItems.length > 500) return { records: whole.length > 500 ? [] : whole, limited: true };
+        for (const row of exactItems) {
+          if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
+          if (found.size > 500) return { records: [], limited: true };
+        }
+      }
+      const rows = client.prepare(joined + " JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501").all(unit.key, unit.tone, pair.from, pair.to);
+      if (new Set(rows.map((r) => r.id)).size > 500 || found.size > 500) return { records: whole.length > 500 ? [] : whole, limited: true };
+      for (const row of rows) {
+        if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
+        if (found.size > 500) return { records: [], limited: true };
+      }
+    }
+    return found.size > 500 ? { records: [], limited: true } : { records: [...found.values()], limited: false };
+  }
+  return {
+    record,
+    equivalent,
+    candidates: candidates2,
+    numericRecords(pair, src) {
+      const family = numericLabelFamily(src);
+      const rows = family ? prepare(joined + " JOIN numeric_label_keys n ON n.record_id=r.id WHERE n.src_lang=? AND n.tgt_lang=? AND n.family=? LIMIT 501").all(
+        pair.from,
+        pair.to,
+        family
+      ) : [];
+      return Object.assign(rows.map(attach), { limited: rows.length > 500 });
+    },
+    version: () => String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value),
+    current(records) {
+      return records.every((r) => Number(prepare("SELECT revision FROM translation_records WHERE id=?").get(r.id)?.revision) === r.revision);
+    },
+    plan(src, pair, local = [], opts) {
+      client.exec("BEGIN");
+      try {
+        const selected = candidates2(src, pair, opts);
+        const limited = selected.limited || local.limited === true;
+        const resolved = planSentenceTranslation(src, limited ? [] : [...local, ...selected.records].filter((r) => pair.to !== "zh" || isReusableTranslation(r.src, r.zh)), opts);
+        const plan = {
+          ...resolved,
+          limited: limited || resolved.limited,
+          ruleVersion: SENTENCE_RULE_VERSION,
+          corpusVersion: String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value)
+        };
+        client.exec("COMMIT");
+        return plan;
+      } catch (e) {
+        client.exec("ROLLBACK");
+        throw e;
+      }
+    },
+    setAlignment(src, pair, groups, expectedRevision, opts) {
+      const r = record(src, pair);
+      if (!r || expectedRevision !== void 0 && r.revision !== expectedRevision || groups.length > 1e3) return false;
+      const structure = opts?.structure ?? r.structure;
+      if (structure && !validRecordStructure(structure)) return false;
+      const nextNewlines = opts?.newlines !== void 0 ? opts.newlines : r.newlines;
+      if (nextNewlines && !validateNewlineAnnotations(src, nextNewlines)) return false;
+      const draft = { ...r, newlines: nextNewlines, structure };
+      if (!validateAlignments(draft, groups)) return false;
+      client.exec("BEGIN IMMEDIATE");
+      try {
+        if (!prepare("UPDATE translation_records SET revision=revision+1 WHERE id=? AND revision=?").run(r.id, r.revision).changes) {
+          client.exec("ROLLBACK");
+          return false;
+        }
+        const nextRevision = r.revision + 1;
+        prepare("INSERT OR REPLACE INTO alignment_groups VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(groups));
+        if (nextNewlines?.length) {
+          prepare("INSERT OR REPLACE INTO newline_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(nextNewlines));
+        }
+        const row = prepare(joined + " WHERE r.id=?").get(r.id);
+        if (structure) prepare("INSERT OR REPLACE INTO structure_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(structure));
+        reindexWithNewlines(row, nextNewlines, structure);
+        client.exec("COMMIT");
+        return true;
+      } catch (e) {
+        client.exec("ROLLBACK");
+        throw e;
+      }
+    },
+    authority(src, pair, opts) {
+      const records = equivalent(src, pair);
+      if (!records.length || records.length > 500) return null;
+      const rank = Math.max(...records.map((r) => cacheEngineRank(r.engine)));
+      let top = records.filter((r) => cacheEngineRank(r.engine) === rank);
+      const want = String(opts?.category || "").trim();
+      if (want) {
+        const matched = top.filter((r) => r.category === want);
+        if (matched.length) top = matched;
+      }
+      if (new Set(top.map((r) => r.zh)).size !== 1) return top.find((r) => r.src === src) || null;
+      return top[0];
+    }
+  };
+}
+
+// services/translate/game-coverage.ts
+function createGameCoverage(records, opts) {
+  const lookup = createGameTranslateLookup(records);
+  const resolver = createSentenceResolver(records);
+  const numeric = createNumericLabelIndex(records);
+  let client;
+  let shared;
+  let opened = false;
+  const resolved = /* @__PURE__ */ new Map();
+  return {
+    resolve(src) {
+      if (resolved.has(src)) return resolved.get(src);
+      if (opts?.blocked?.(src)) return null;
+      let hit = lookup[src] ?? numeric.resolve(src);
+      if (hit == null) {
+        if (!opened) {
+          opened = true;
+          const database = opts?.database ?? TRANSLATE_CACHE_DB_PATH;
+          if (database && fs8.existsSync(database)) {
+            client = new DatabaseSync2(database, { readOnly: true });
+            client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250");
+            if (client.prepare("SELECT 1 FROM sqlite_master WHERE name='match_keys'").get()) shared = createMatchIndex(client);
+          }
+        }
+        const pair = { from: detectCacheLang(src), to: "zh" };
+        const plan = shared ? shared.plan(src, pair, resolver.select(src)) : resolver.plan(src);
+        if (!plan.limited) {
+          hit = plan.status === "full" ? plan.zh : null;
+          if (hit == null && shared && numericLabelFamily(src)) {
+            const rows = shared.numericRecords(pair, src);
+            if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records]).resolve(src);
+          }
+          if (hit == null && /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src)) {
+            hit = lookupCachedTranslation((key2) => lookup[key2] ?? shared?.record(key2, pair)?.zh, src);
+          }
+        }
+      }
+      resolved.set(src, hit ?? null);
+      return hit ?? null;
+    },
+    close() {
+      client?.close();
+    }
+  };
+}
+
 // services/translate/seed-failures.ts
-import fs7 from "node:fs";
+import fs10 from "node:fs";
 
 // services/translate/seed-job-state.ts
-import { createHash } from "node:crypto";
-import fs6 from "node:fs";
-import path5 from "node:path";
+import { createHash as createHash2 } from "node:crypto";
+import fs9 from "node:fs";
+import path6 from "node:path";
 var MAX_SEED_JOB_LOGS = 120;
 function idleSeedJob(contentRoot = "") {
   return {
@@ -1524,16 +2881,16 @@ function idleSeedJob(contentRoot = "") {
   };
 }
 function seedJobKey(contentRoot) {
-  return createHash("sha1").update(path5.resolve(contentRoot)).digest("hex").slice(0, 16);
+  return createHash2("sha1").update(path6.resolve(contentRoot)).digest("hex").slice(0, 16);
 }
 function seedJobFile(contentRoot) {
-  return path5.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
+  return path6.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
 }
 function readSeedJobState(contentRoot) {
   const file = seedJobFile(contentRoot);
-  if (!fs6.existsSync(file)) return null;
+  if (!fs9.existsSync(file)) return null;
   try {
-    const raw = JSON.parse(fs6.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs9.readFileSync(file, "utf8"));
     if (!raw || typeof raw !== "object") return null;
     return {
       ...idleSeedJob(contentRoot),
@@ -1556,7 +2913,7 @@ function readSeedFailures(contentRoot) {
   const file = seedFailureFile(contentRoot);
   let text;
   try {
-    text = fs7.readFileSync(file, "utf8");
+    text = fs10.readFileSync(file, "utf8");
   } catch (error) {
     if (error.code === "ENOENT") return failures;
     throw error;
@@ -1579,9 +2936,40 @@ var TECH_FIELD = /^(?:.*(?:path|url|script|formula|texture)|file(?:name)?|code|e
 var isTextField = (field) => TEXT_FIELD.test(field);
 var isTechnicalField = (field) => TECH_FIELD.test(field);
 
+// services/extract/lib/rgss/script-strings.ts
+var ASSIGN_RE = /^\s*(?:[A-Z][\w:]*::)*[A-Z]\w*\s*=\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/;
+var RETURN_RE = /^\s*return\s+("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*(?:#.*)?$/;
+var DRAW_RE = /\bdraw_text(?:_ex)?\s*\([^)]*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*\)/;
+var PATHISH = /[\\/]|\.(?:rvdata2?|png|jpe?g|ogg|mp3|wav|bmp|json|txt|rb)\b|Graphics\/|Audio\/|Data\//i;
+var CODEISH = /&&|\|\||==|!=|\.(?:call|new|size|empty\?)\b|^\s*[\[{]|window\.|SceneManager|DataManager/;
+function unescapeRubyLiteral(raw) {
+  return raw.slice(1, -1).replace(/\\n/g, "\n").replace(/\\t/g, "	").replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\\\\/g, "\\");
+}
+function consider(raw, script, found) {
+  if (!raw) return;
+  const text = unescapeRubyLiteral(raw).trim();
+  if (!text || text.length < 2 || text.length > 200) return;
+  if (PATHISH.test(text) || CODEISH.test(text)) return;
+  if (!isSourceText(text)) return;
+  if (!found.has(text)) found.set(text, script);
+}
+function extractRgssScriptUiStrings(contentRoot) {
+  const found = /* @__PURE__ */ new Map();
+  for (const script of readRgssScripts(contentRoot)) {
+    const name = script.name || "Scripts";
+    for (const line of script.source.split(/\r?\n/)) {
+      if (line.length > 400) continue;
+      consider(ASSIGN_RE.exec(line)?.[1], name, found);
+      consider(RETURN_RE.exec(line)?.[1], name, found);
+      consider(DRAW_RE.exec(line)?.[1], name, found);
+    }
+  }
+  return [...found].map(([src, script]) => ({ src, script }));
+}
+
 // services/extract/lib/rgss/writeback.ts
-import fs8 from "node:fs";
-import path6 from "node:path";
+import fs11 from "node:fs";
+import path7 from "node:path";
 
 // lib/translate/name-glossary.ts
 var TOKEN_RE2 = new RegExp(SENTENCE_TOKEN_SOURCE, "g");
@@ -1686,23 +3074,23 @@ function fieldCategory(className, field, fallback) {
   return category;
 }
 function loadOneDataFile(dataDir, name) {
-  const file = path6.join(dataDir, name);
-  const value = parseRubyMarshal(fs8.readFileSync(file));
+  const file = path7.join(dataDir, name);
+  const value = parseRubyMarshal(fs11.readFileSync(file));
   const backup = `${file}.chaya.bak`;
-  const original = fs8.existsSync(backup) ? parseRubyMarshal(fs8.readFileSync(backup)) : value;
+  const original = fs11.existsSync(backup) ? parseRubyMarshal(fs11.readFileSync(backup)) : value;
   const current = strings(value);
   const texts = [];
   for (const [location, source] of strings(original)) {
     if (!isSourceText(source.value.value)) continue;
-    const target = current.get(location);
-    if (!target) throw new Error(`RGSS data structure changed since backup: ${name}${location}`);
-    texts.push({ source: source.value.value.trim(), current: target, file: name, location });
+    const target2 = current.get(location);
+    if (!target2) throw new Error(`RGSS data structure changed since backup: ${name}${location}`);
+    texts.push({ source: source.value.value.trim(), current: target2, file: name, location });
   }
   return { file, value, texts };
 }
 var SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i;
 function listDataFileNames(dataDir) {
-  const names = fs8.readdirSync(dataDir).filter((name) => /\.rvdata2?$/i.test(name) && !SKIP_DATA_STEMS.test(name)).sort();
+  const names = fs11.readdirSync(dataDir).filter((name) => /\.rvdata2?$/i.test(name) && !SKIP_DATA_STEMS.test(name)).sort();
   if (!names.length) throw new Error("RGSS data is unavailable. Unpack the encrypted archive into Data/ first.");
   return names;
 }
@@ -1736,13 +3124,13 @@ function loadRgssItems(dataDir) {
 }
 
 // services/extract/lib/rgss-sources-index.ts
-import fs9 from "node:fs";
-import path7 from "node:path";
+import fs12 from "node:fs";
+import path8 from "node:path";
 function rgssDataSignature(dataDir) {
-  const files = fs9.readdirSync(dataDir).filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name)).sort();
+  const files = fs12.readdirSync(dataDir).filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name)).sort();
   return JSON.stringify(
     files.map((name) => {
-      const stat = fs9.statSync(path7.join(dataDir, name));
+      const stat = fs12.statSync(path8.join(dataDir, name));
       return [name, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   );
@@ -1751,7 +3139,7 @@ function readIndex(contentRoot) {
   const file = localGameContentFile(contentRoot, "rgssSourcesIndex");
   if (!file) return null;
   try {
-    const raw = JSON.parse(fs9.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs12.readFileSync(file, "utf8"));
     if (!raw || typeof raw.signature !== "string" || !Array.isArray(raw.sources)) return null;
     return raw;
   } catch {
@@ -1765,7 +3153,7 @@ function writeRgssSourcesIndex(contentRoot, signature, sources) {
     sources: [...sources],
     updatedAt: Date.now()
   };
-  fs9.writeFileSync(file, `${JSON.stringify(payload)}
+  fs12.writeFileSync(file, `${JSON.stringify(payload)}
 `);
 }
 function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
@@ -1780,15 +3168,15 @@ function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
 // services/extract/lib/rgss.ts
 function findChild(dir, name) {
   try {
-    const hit = fs10.readdirSync(dir).find((entry) => entry.toLowerCase() === name.toLowerCase());
-    return hit ? path8.join(dir, hit) : null;
+    const hit = fs13.readdirSync(dir).find((entry) => entry.toLowerCase() === name.toLowerCase());
+    return hit ? path9.join(dir, hit) : null;
   } catch {
     return null;
   }
 }
 function extensionFor(dataDir) {
   try {
-    const names = fs10.readdirSync(dataDir).map((name) => name.toLowerCase());
+    const names = fs13.readdirSync(dataDir).map((name) => name.toLowerCase());
     if (names.some((name) => name.endsWith(".rvdata2"))) return ".rvdata2";
     if (names.some((name) => name.endsWith(".rvdata"))) return ".rvdata";
   } catch {
@@ -1807,20 +3195,21 @@ function filterRgssSeedKeys(contentRoot, keys) {
     if (seedSources.size >= 20) seedSources.delete(seedSources.keys().next().value);
     seedSources.set(contentRoot, entry);
   }
-  return keys.filter((key2) => entry.sources.has(key2));
+  const scripts = new Set(extractRgssScriptUiStrings(contentRoot).map((item) => item.src));
+  return keys.filter((key2) => entry.sources.has(key2) || scripts.has(key2));
 }
 
 // services/translate/scheduler/seed-inventory.ts
 function seedFileStamp(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
-  const stat = file ? fs11.statSync(file, { throwIfNoEntry: false }) : void 0;
+  const stat = file ? fs14.statSync(file, { throwIfNoEntry: false }) : void 0;
   return JSON.stringify([file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
 }
 function readSeedInventory(contentRoot) {
   const stamp = seedFileStamp(contentRoot);
   const progressStamp = seedProgressStamp(contentRoot);
   const file = localGameContentFile(contentRoot, "seed");
-  const data = file ? JSON.parse(fs11.readFileSync(file, "utf8")) : {};
+  const data = file ? JSON.parse(fs14.readFileSync(file, "utf8")) : {};
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Seed must be an object mapping source text to translation");
   const entries = data;
   const keys = filterRgssSeedKeys(
@@ -1857,8 +3246,8 @@ function readSeedInventory(contentRoot) {
         if (!revisions.has(key2)) {
           try {
             if (!client) {
-              if (!fs11.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
-              client = new DatabaseSync2(TRANSLATE_CACHE_DB_PATH, { readOnly: true });
+              if (!fs14.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
+              client = new DatabaseSync3(TRANSLATE_CACHE_DB_PATH, { readOnly: true });
               client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250; BEGIN");
               revisionQuery = client.prepare("SELECT revision FROM translation_records WHERE id=?");
             }
@@ -1877,31 +3266,34 @@ function readSeedInventory(contentRoot) {
   } finally {
     client?.close();
   }
-  const local = createGameTranslateLookup(records);
-  const numeric = createNumericLabelIndex(records);
+  const coverage = createGameCoverage(records, { blocked: getGameCacheContext(contentRoot).blocked });
   const pending = [];
   const failures = readSeedFailures(contentRoot);
-  for (const key2 of keys) {
-    const chars = charCount(key2);
-    progress.lines += lineCount(key2);
-    if (!shouldTranslate(key2)) {
-      progress.skipCount++;
-      progress.skipChars += chars;
-    } else {
-      progress.needCount++;
-      progress.needChars += chars;
-      if (local[key2] != null || numeric.resolve(key2) != null) {
-        progress.done++;
-        progress.doneChars += chars;
-      } else if (failures.has(key2)) {
-        progress.failedCount = (progress.failedCount ?? 0) + 1;
-        progress.failedChars = (progress.failedChars ?? 0) + chars;
+  try {
+    for (const key2 of keys) {
+      const chars = charCount(key2);
+      progress.lines += lineCount(key2);
+      if (!shouldTranslate(key2)) {
+        progress.skipCount++;
+        progress.skipChars += chars;
       } else {
-        progress.missing++;
-        progress.missingChars += chars;
-        pending.push(key2);
+        progress.needCount++;
+        progress.needChars += chars;
+        if (coverage.resolve(key2) != null) {
+          progress.done++;
+          progress.doneChars += chars;
+        } else if (failures.has(key2)) {
+          progress.failedCount = (progress.failedCount ?? 0) + 1;
+          progress.failedChars = (progress.failedChars ?? 0) + chars;
+        } else {
+          progress.missing++;
+          progress.missingChars += chars;
+          pending.push(key2);
+        }
       }
     }
+  } finally {
+    coverage.close();
   }
   progress.batchesLeft = Math.ceil(progress.missing / 40);
   return { progress, pending, stamp, progressStamp };
@@ -1909,9 +3301,9 @@ function readSeedInventory(contentRoot) {
 function seedProgressStamp(contentRoot) {
   const files = [localGameContentFile(contentRoot, "seed"), localGameContentFile(contentRoot, "cacheNdjson"), seedFailureFile(contentRoot)];
   return JSON.stringify([
-    5,
+    6,
     files.map((file) => {
-      const stat = file ? fs11.statSync(file, { throwIfNoEntry: false }) : void 0;
+      const stat = file ? fs14.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   ]);
@@ -1922,8 +3314,8 @@ try {
   const contentRoot = String(workerData?.contentRoot || "");
   if (!contentRoot) throw new Error("seed-inventory-worker: missing contentRoot");
   const inv = readSeedInventory(contentRoot);
-  const out = path9.join(os2.tmpdir(), `chaya-seed-inv-${process.pid}-${Date.now()}.json`);
-  fs12.writeFileSync(out, JSON.stringify(inv));
+  const out = path10.join(os2.tmpdir(), `chaya-seed-inv-${process.pid}-${Date.now()}.json`);
+  fs15.writeFileSync(out, JSON.stringify(inv));
   parentPort?.postMessage({ ok: true, path: out, pending: inv.pending.length, total: inv.progress.total });
 } catch (error) {
   parentPort?.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });

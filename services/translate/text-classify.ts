@@ -295,7 +295,8 @@ export function shouldTranslate(text: string, sourceLang?: string | number): boo
     const compact = core.replace(/[\s\u3000]+/g, '')
     return compact.length > 0 && !/^[\p{P}\p{S}]+$/u.test(compact)
   }
-  if (!JAPANESE.test(core) && !isSourceText(core, 'en')) return false
+  // Japanese map names and UI labels may contain only Han characters.
+  if (!JAPANESE.test(core) && !isSourceText(core, sourceLang === 'en' ? 'en' : 'all')) return false
   const compact = core.replace(/[\s\u3000]+/g, '')
   return !(compact.length > 0 && /^[\p{P}\p{S}]+$/u.test(compact))
 }

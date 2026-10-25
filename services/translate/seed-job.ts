@@ -90,6 +90,11 @@ function diskSnapshot(contentRoot: string): SeedJobSnapshot {
   if (pending && (state.status === 'error' || Date.now() - pending.at > 30_000)) pendingCommands.delete(contentRoot)
   const workerRunning = seedJobWorkerStarted()
   const preparing = pendingCommands.has(contentRoot) || (seedJobWorkerAlive() && Boolean(state.inventoryPreparing))
+  if (state.status === 'done' && (state.progress?.missing ?? 0) > 0) {
+    state.status = 'paused'
+    state.liveStatus = ''
+    writeSeedJobState(state)
+  }
   if (shouldDemoteOrphanRunning(state.status, { running: workerRunning, preparing })) {
     state.status = 'paused'
     state.inventoryPreparing = false

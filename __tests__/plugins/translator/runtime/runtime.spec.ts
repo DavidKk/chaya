@@ -153,8 +153,9 @@ it('reuses orphan title boundaries and translated ruby fields from the imported 
   await call('/api/translate-cache', {
     text: JSON.stringify({ '品評会」開催当日': '品评会」举办当日', '「これは': '「这是', 認定: '认证', オーソライズ: '授权', 'です」': '哦」' }),
   })
-  const items = await runtime.translate(['開催当日', String.raw`「これは\RB[認定,オーソライズ]です」`], { remote: false })
-  expect(items.map((item) => item.zh)).toEqual(['開催当日', String.raw`「这是\RB[认证,授权]哦」`])
+  const items = await runtime.translate(['開催当日', String.raw`「これは\RB[認定,オーソライズ]です」`], { remote: false, engines: [] })
+  expect(items.map((item) => item.zh)).toEqual([null, String.raw`「这是\RB[认证,授权]哦」`])
+  expect(items[0].plan?.status).not.toBe('full')
   expect(items.slice(1).every((item) => item.engine === 'cache:local')).toBe(true)
   expect(engineFetch).not.toHaveBeenCalled()
 })

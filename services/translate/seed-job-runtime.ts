@@ -416,6 +416,9 @@ function applyInventoryBundle(rt: Runtime, bundle: import('./scheduler/seed-prep
     rt.state.status = 'done'
     rt.state.liveStatus = '已完成'
     rt.state.error = null
+  } else if (progress.missing && rt.state.status === 'done') {
+    rt.state.status = 'paused'
+    rt.state.liveStatus = ''
   }
   persist(rt)
 }

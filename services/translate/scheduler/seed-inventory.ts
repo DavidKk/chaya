@@ -1,14 +1,14 @@
-/** Recover durable game translations without shared sentence coverage or schema preparation. */
+/** Prepare game inventory with the same cached sentence coverage as translation jobs. */
 import fs from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 
 import { TRANSLATE_CACHE_DB_PATH } from '@/constants/paths'
 import { localGameContentFile } from '@/lib/game/content-files'
-import { createNumericLabelIndex } from '@/lib/translate/dynamic-template'
 import { filterRgssSeedKeys } from '@/services/extract/lib/rgss'
 
 import type { SeedProgress } from '../fill-missing'
-import { createGameTranslateLookup } from '../game-lookup'
+import { getGameCacheContext } from '../game-cache-context'
+import { createGameCoverage } from '../game-coverage'
 import { loadGameTranslationRecords } from '../game-records'
 import { readSeedFailures, seedFailureFile } from '../seed-failures'
 import { charCount, lineCount, shouldTranslate } from '../text-classify'
@@ -50,8 +50,7 @@ export function readSeedInventory(contentRoot: string) {
     batchSize: 40,
     batchesLeft: 0,
   }
-  // Durable game mirrors are part of progress too. Reading indexed origin revisions is
-  // enough here; do not migrate the shared DB or run sentence coverage before dispatch.
+  // Validate durable mirrors against indexed revisions without migrating the shared DB.
   let client: DatabaseSync | undefined
   let revisionQuery: ReturnType<DatabaseSync['prepare']> | undefined
   let unavailable = false
@@ -87,35 +86,35 @@ export function readSeedInventory(contentRoot: string) {
   } finally {
     client?.close()
   }
-  // Exact / normalized local hits only. Do NOT call lookupCachedTranslation here —
-  // recursive segment matching is RegExp-heavy and blocked the Next.js main thread
-  // when inventory ran (poll auto-resume / start). Fuzzy hits still resolve in the
-  // cache-lane worker once the job actually runs.
-  const local = createGameTranslateLookup(records)
-  const numeric = createNumericLabelIndex(records)
+  // Explicit preparation runs in a worker; polling still reads checkpoints only.
+  const coverage = createGameCoverage(records, { blocked: getGameCacheContext(contentRoot).blocked })
   const pending: string[] = []
   const failures = readSeedFailures(contentRoot)
-  for (const key of keys) {
-    const chars = charCount(key)
-    progress.lines += lineCount(key)
-    if (!shouldTranslate(key)) {
-      progress.skipCount++
-      progress.skipChars += chars
-    } else {
-      progress.needCount++
-      progress.needChars += chars
-      if (local[key] != null || numeric.resolve(key) != null) {
-        progress.done++
-        progress.doneChars += chars
-      } else if (failures.has(key)) {
-        progress.failedCount = (progress.failedCount ?? 0) + 1
-        progress.failedChars = (progress.failedChars ?? 0) + chars
+  try {
+    for (const key of keys) {
+      const chars = charCount(key)
+      progress.lines += lineCount(key)
+      if (!shouldTranslate(key)) {
+        progress.skipCount++
+        progress.skipChars += chars
       } else {
-        progress.missing++
-        progress.missingChars += chars
-        pending.push(key)
+        progress.needCount++
+        progress.needChars += chars
+        if (coverage.resolve(key) != null) {
+          progress.done++
+          progress.doneChars += chars
+        } else if (failures.has(key)) {
+          progress.failedCount = (progress.failedCount ?? 0) + 1
+          progress.failedChars = (progress.failedChars ?? 0) + chars
+        } else {
+          progress.missing++
+          progress.missingChars += chars
+          pending.push(key)
+        }
       }
     }
+  } finally {
+    coverage.close()
   }
   progress.batchesLeft = Math.ceil(progress.missing / 40)
   return { progress, pending, stamp, progressStamp }
@@ -130,7 +129,7 @@ export function readSeedInventory(contentRoot: string) {
 export function seedProgressStamp(contentRoot: string): string {
   const files = [localGameContentFile(contentRoot, 'seed'), localGameContentFile(contentRoot, 'cacheNdjson'), seedFailureFile(contentRoot)]
   return JSON.stringify([
-    5,
+    6,
     files.map((file) => {
       const stat = file ? fs.statSync(file, { throwIfNoEntry: false }) : undefined
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]

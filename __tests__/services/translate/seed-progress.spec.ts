@@ -5,11 +5,14 @@ import path from 'node:path'
 
 import { gameContentPath } from '@/lib/game/content-files'
 import { createSeedFillSession, fillMissingFromSeed, getSeedTranslateProgress } from '@/services/translate/fill-missing'
+import { createGameCoverage } from '@/services/translate/game-coverage'
 import { liveTranslateTexts } from '@/services/translate/live-translate'
+import { readSeedInventory } from '@/services/translate/scheduler/seed-inventory'
 import { openSharedCache } from '@/services/translate/shared-cache'
 
 let mockRoot = ''
 let mockDb = ''
+jest.mock('@/constants/paths', () => Object.defineProperty({ ...jest.requireActual('@/constants/paths') }, 'TRANSLATE_CACHE_DB_PATH', { get: () => mockDb }))
 jest.mock('@/services/game/binding', () => ({ getResolvedFromConfig: () => ({ ok: true, contentRoot: mockRoot }) }))
 jest.mock('@/services/translate/live-translate', () => ({ liveTranslateTexts: jest.fn() }))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
@@ -33,6 +36,36 @@ describe('seed translation context and cache contract', () => {
     jest.mocked(liveTranslateTexts).mockReset()
   })
   afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+
+  it('counts fully composed local sentences in prepared inventory but leaves partial sentences pending', () => {
+    seed(mockRoot, { Hello: '你好', Welcome: '欢迎', 'Hello,Welcome': '', 'Hello,Goodbye': '' })
+    expect(readSeedInventory(mockRoot)).toMatchObject({
+      progress: { total: 4, done: 3, missing: 1 },
+      pending: ['Hello,Goodbye'],
+    })
+  })
+
+  it('shares composed cache coverage with inventory and list and respects edits and deletions', () => {
+    const cache = openSharedCache()
+    cache.writeMany([['Welcome', '欢迎']], 'manual', { from: 'en', to: 'zh' })
+    const records = [{ id: 'local', revision: 1, src: 'Hello', zh: '你好', local: true }]
+    const coverage = createGameCoverage(records, { database: mockDb })
+    expect(coverage.resolve('Hello,Welcome')).toBe('你好,欢迎')
+    expect(coverage.resolve('Hello,Goodbye')).toBeNull()
+    coverage.close()
+    cache.writeMany([['Welcome', '欢迎回来']], 'manual', { from: 'en', to: 'zh' })
+    const edited = createGameCoverage(records, { database: mockDb })
+    expect(edited.resolve('Hello,Welcome')).toBe('你好,欢迎回来')
+    edited.close()
+    cache.remove('Welcome', { from: 'en', to: 'zh' })
+    cache.close()
+    const deleted = createGameCoverage(records, { database: mockDb })
+    expect(deleted.resolve('Hello,Welcome')).toBeNull()
+    deleted.close()
+    const blocked = createGameCoverage(records, { database: mockDb, blocked: (src) => src === 'Hello' })
+    expect(blocked.resolve('Hello')).toBeNull()
+    blocked.close()
+  })
 
   it('recovers numeric coverage from durable game examples and invalidates conflicting edits', () => {
     seed(mockRoot, { Thunder5: '雷霆5', Thunder10: '雷霆10', Thunder7: '' })
