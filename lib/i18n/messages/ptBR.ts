@@ -617,7 +617,7 @@ export const ptBR: MessageTree = {
     activityLogEmpty: 'Nenhuma atividade ainda',
     activityLogHint: 'Inicie a tradução para ver o progresso e exemplos.',
     activityLogJumpLatest: 'Ir para o mais recente',
-    batchLogComplete: '[{engine}] #{batch}: {success}/{total} itens ({chars} caracteres) concluídos ({cache} em cache)',
+    batchLogComplete: '[{engine}] #{batch}: {success}/{total} itens ({chars} caracteres) concluídos{cache_info}',
     batchLogPartial: '[{engine}] #{batch}: {success}/{total} itens ({chars} caracteres) com sucesso, {failed} falharam{cache_info}',
     batchLogFailed: '[{engine}] #{batch}: Todos falharam ({total} itens / {chars} caracteres)',
     batchLogCache: 'Cache',

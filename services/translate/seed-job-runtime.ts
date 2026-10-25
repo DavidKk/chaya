@@ -161,10 +161,11 @@ function batchSources(items: Array<{ engine?: string }>): BatchExecutionSource[]
 }
 
 function batchLabel(batch: TranslationBatchLog): string {
-  const sources = batchSources(batch.submittedSources.map((engine) => ({ engine })))
   const final = batchSources(batch.finalSources.map((engine) => ({ engine })))
-  const labels = [...sources, ...(batch.cacheUnavailable ? ['cache:unavailable'] : []), ...final.filter((source) => source === 'cache' || !sources.includes(source))].map(
-    (source) => (source === 'cache:unavailable' ? 'Cache unavailable' : shortEngine(source))
+  const submitted = batchSources(batch.submittedSources.map((engine) => ({ engine })))
+  const sources = final.length ? final : submitted
+  const labels = [...sources, ...(batch.cacheUnavailable && !final.length ? ['cache:unavailable'] : [])].map((source) =>
+    source === 'cache:unavailable' ? 'Cache unavailable' : shortEngine(source)
   )
   return [...new Set(labels)].join('+') || '—'
 }
@@ -291,7 +292,7 @@ async function runLoop(contentRoot: string) {
         const prefix = `[${batchLabel(batch)}] #${batch.batch}`
         const text =
           batch.failed === 0
-            ? `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) complete (${batch.cacheHits} cache hits)`
+            ? `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) complete${batch.cacheHits > 0 && batch.cacheHits !== batch.success ? ` (${batch.cacheHits} cache hits)` : ''}`
             : batch.success === 0
               ? `${prefix}: All failed (${batch.total} items / ${batch.chars} chars)`
               : `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) succeeded, ${batch.failed} failed${batch.cacheHits > 0 ? ` (${batch.cacheHits} cache hits)` : ''}`

@@ -71,10 +71,14 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
                   ? (batch as unknown as { cache: number }).cache
                   : 0
             const key = batch.failed === 0 ? 'translate.batchLogComplete' : batch.success === 0 ? 'translate.batchLogFailed' : 'translate.batchLogPartial'
-            const sources = [...submitted, ...(batch.cacheUnavailable ? (['cache:unavailable'] as const) : []), ...final]
+            // The user-facing label follows the tool that actually produced the accepted result.
+            // Submitted engines are diagnostic data only; failed batches fall back to attempts.
+            const sources = [...(final.length ? final : submitted), ...(batch.cacheUnavailable && !final.length ? (['cache:unavailable'] as const) : [])]
             const engine =
               [...new Set(sources)].map((source) => (source === 'cache:unavailable' ? t('translate.batchLogCacheUnavailable') : sourceLabel(source, t))).join('+') ||
               t('translate.batchLogCache')
+            // A pure-cache label already conveys that every accepted item came from cache.
+            const cacheInfo = cacheHits > 0 && cacheHits !== batch.success ? t('translate.batchLogCacheInfo', { cache: cacheHits }) : ''
             return {
               ...entry,
               level: batch.failed === 0 ? 'ok' : batch.success === 0 ? 'fail' : 'warn',
@@ -85,7 +89,7 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
                 failed: batch.failed,
                 chars: batch.chars,
                 cache: cacheHits,
-                cache_info: cacheHits > 0 ? t('translate.batchLogCacheInfo', { cache: cacheHits }) : '',
+                cache_info: cacheInfo,
                 engine,
               }),
             }

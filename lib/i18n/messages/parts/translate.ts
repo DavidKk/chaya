@@ -300,7 +300,7 @@ export const translateZh = {
     activityLogEmpty: '暂无记录',
     activityLogHint: '开始翻译后显示每段进度与样例。',
     activityLogJumpLatest: '滚到最新',
-    batchLogComplete: '[{engine}] #{batch}：{success}/{total} 条（{chars} 字符）完成（{cache} 条命中缓存）',
+    batchLogComplete: '[{engine}] #{batch}：{success}/{total} 条（{chars} 字符）完成{cache_info}',
     batchLogPartial: '[{engine}] #{batch}：{success}/{total} 条（{chars} 字符）成功，{failed} 条失败{cache_info}',
     batchLogFailed: '[{engine}] #{batch}：全部失败（共 {total} 条 / {chars} 字符）',
     batchLogCache: '缓存',

@@ -173,7 +173,8 @@ describe('seed job failures', () => {
     await startSeedJobReady()
     const batch = getSeedJobSnapshot().job.logs.find((entry) => entry.batch)?.batch
     expect(batch).toMatchObject({ submittedSources: ['platform'], finalSources: ['platform'], cacheUnavailable: true })
-    expect(getSeedJobSnapshot().job.logs.find((entry) => entry.batch)?.text).toContain('[platform+Cache unavailable]')
+    expect(getSeedJobSnapshot().job.logs.find((entry) => entry.batch)?.text).toContain('[platform]')
+    expect(getSeedJobSnapshot().job.logs.find((entry) => entry.batch)?.text).not.toContain('Cache unavailable')
   })
 
   it('polls snapshots without rescanning while a batch is in flight and pauses at its boundary', async () => {

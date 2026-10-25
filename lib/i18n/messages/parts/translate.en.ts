@@ -304,7 +304,7 @@ export const translateEn = {
     activityLogEmpty: 'No activity yet',
     activityLogHint: 'Start translation to see progress and sample entries.',
     activityLogJumpLatest: 'Jump to latest',
-    batchLogComplete: '[{engine}] #{batch}: {success}/{total} items ({chars} chars) complete ({cache} cache hits)',
+    batchLogComplete: '[{engine}] #{batch}: {success}/{total} items ({chars} chars) complete{cache_info}',
     batchLogPartial: '[{engine}] #{batch}: {success}/{total} items ({chars} chars) succeeded, {failed} failed{cache_info}',
     batchLogFailed: '[{engine}] #{batch}: All failed ({total} items / {chars} chars)',
     batchLogCache: 'Cache',

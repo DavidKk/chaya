@@ -614,7 +614,7 @@ export const cht: MessageTree = {
     activityLogEmpty: '暫無記錄',
     activityLogHint: '開始翻譯後顯示每段進度與範例。',
     activityLogJumpLatest: '捲到最新',
-    batchLogComplete: '[{engine}] #{batch}：{success}/{total} 條（{chars} 字元）完成（{cache} 條命中快取）',
+    batchLogComplete: '[{engine}] #{batch}：{success}/{total} 條（{chars} 字元）完成{cache_info}',
     batchLogPartial: '[{engine}] #{batch}：{success}/{total} 條（{chars} 字元）成功，{failed} 條失敗{cache_info}',
     batchLogFailed: '[{engine}] #{batch}：全部失敗（共 {total} 條 / {chars} 字元）',
     batchLogCache: '快取',

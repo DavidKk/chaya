@@ -618,7 +618,7 @@ export const es: MessageTree = {
     activityLogEmpty: 'Aún no hay actividad',
     activityLogHint: 'Inicia la traducción para ver el progreso y ejemplos.',
     activityLogJumpLatest: 'Ir a lo más reciente',
-    batchLogComplete: '[{engine}] #{batch}: {success}/{total} entradas ({chars} caracteres) completadas ({cache} en caché)',
+    batchLogComplete: '[{engine}] #{batch}: {success}/{total} entradas ({chars} caracteres) completadas{cache_info}',
     batchLogPartial: '[{engine}] #{batch}: {success}/{total} entradas ({chars} caracteres) correctas, {failed} fallidas{cache_info}',
     batchLogFailed: '[{engine}] #{batch}: Todas fallidas ({total} entradas / {chars} caracteres)',
     batchLogCache: 'Caché',

@@ -618,7 +618,7 @@ export const fr: MessageTree = {
     activityLogEmpty: 'Aucune activité pour le moment',
     activityLogHint: 'Lancez la traduction pour voir la progression et des exemples.',
     activityLogJumpLatest: 'Aller au plus récent',
-    batchLogComplete: '[{engine}] #{batch}: {success}/{total} éléments ({chars} caractères) terminés ({cache} en cache)',
+    batchLogComplete: '[{engine}] #{batch}: {success}/{total} éléments ({chars} caractères) terminés{cache_info}',
     batchLogPartial: '[{engine}] #{batch}: {success}/{total} éléments ({chars} caractères) réussis, {failed} échecs{cache_info}',
     batchLogFailed: '[{engine}] #{batch}: Tous échoués ({total} éléments / {chars} caractères)',
     batchLogCache: 'Cache',

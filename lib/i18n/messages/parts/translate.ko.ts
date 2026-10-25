@@ -300,7 +300,7 @@ export const translateKo = {
     activityLogEmpty: '기록이 없습니다',
     activityLogHint: '번역을 시작하면 각 배치의 진행 상황과 예시가 표시됩니다.',
     activityLogJumpLatest: '최신으로 이동',
-    batchLogComplete: '[{engine}] #{batch}: {success}/{total}건 ({chars}자) 완료 (캐시 {cache}건)',
+    batchLogComplete: '[{engine}] #{batch}: {success}/{total}건 ({chars}자) 완료{cache_info}',
     batchLogPartial: '[{engine}] #{batch}: {success}/{total}건 ({chars}자) 성공, {failed}건 실패{cache_info}',
     batchLogFailed: '[{engine}] #{batch}: 전체 실패 (총 {total}건 / {chars}자)',
     batchLogCache: '캐시',

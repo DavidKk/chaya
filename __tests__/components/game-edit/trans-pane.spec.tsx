@@ -242,7 +242,7 @@ test.each([
   }
 })
 
-test('batch log shows a real engine submission even when the accepted result came from cache', async () => {
+test('batch log shows the accepted tool instead of every attempted engine', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const host = document.createElement('div')
   document.body.append(host)
@@ -265,7 +265,9 @@ test('batch log shows a real engine submission even when the accepted result cam
         </LocaleProvider>
       )
     )
-    expect(host.textContent).toContain('[Apple+缓存] #8401')
+    expect(host.textContent).toContain('[缓存] #8401')
+    expect(host.textContent).not.toContain('命中缓存')
+    expect(host.textContent).not.toContain('Apple')
   } finally {
     await act(async () => root.unmount())
     host.remove()

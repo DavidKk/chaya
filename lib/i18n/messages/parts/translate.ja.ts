@@ -301,7 +301,7 @@ export const translateJa = {
     activityLogEmpty: '記録はまだありません',
     activityLogHint: '翻訳を開始すると、各バッチの進捗と例が表示されます。',
     activityLogJumpLatest: '最新へ移動',
-    batchLogComplete: '[{engine}] #{batch}: {success}/{total} 件（{chars} 文字）完了（キャッシュ {cache} 件）',
+    batchLogComplete: '[{engine}] #{batch}: {success}/{total} 件（{chars} 文字）完了{cache_info}',
     batchLogPartial: '[{engine}] #{batch}: {success}/{total} 件（{chars} 文字）成功、{failed} 件失敗{cache_info}',
     batchLogFailed: '[{engine}] #{batch}: すべて失敗（全 {total} 件 / {chars} 文字）',
     batchLogCache: 'キャッシュ',

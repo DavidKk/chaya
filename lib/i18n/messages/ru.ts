@@ -616,7 +616,7 @@ export const ru: MessageTree = {
     activityLogEmpty: 'Активности пока нет',
     activityLogHint: 'Запустите перевод, чтобы увидеть прогресс и примеры.',
     activityLogJumpLatest: 'Перейти к последнему',
-    batchLogComplete: '[{engine}] #{batch}: {success}/{total} записей ({chars} символов) готово ({cache} из кэша)',
+    batchLogComplete: '[{engine}] #{batch}: {success}/{total} записей ({chars} символов) готово{cache_info}',
     batchLogPartial: '[{engine}] #{batch}: {success}/{total} записей ({chars} символов) успешно, ошибок: {failed}{cache_info}',
     batchLogFailed: '[{engine}] #{batch}: Все неудачно ({total} записей / {chars} символов)',
     batchLogCache: 'Кэш',
