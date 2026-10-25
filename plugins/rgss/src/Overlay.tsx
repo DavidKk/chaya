@@ -52,6 +52,19 @@ export function RgssOverlayRoot() {
       if (open) host.setAttribute('data-open', '')
       else host.removeAttribute('data-open')
     }
+    const nativeHost = window as Window & {
+      webkit?: { messageHandlers?: { chaya?: { postMessage: (json: string) => void } } }
+      chrome?: { webview?: { postMessage: (json: string) => void } }
+    }
+    const channel = nativeHost.webkit?.messageHandlers?.chaya ?? nativeHost.chrome?.webview
+    if (channel) {
+      channel.postMessage(JSON.stringify({ type: 'host.overlay', open }))
+      try {
+        postToGame({ type: 'overlay.open', open })
+      } catch {
+        /* ignore in environments without game bridge */
+      }
+    }
   }, [open])
 
   useEffect(() => {

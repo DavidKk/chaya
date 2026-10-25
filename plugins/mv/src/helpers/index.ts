@@ -22,6 +22,7 @@ export {
   getPluginErrors,
   isolateEditableKeys,
   isolateGamePointerInput,
+  isolateHostKeyboard,
   mountUiTemplateShell,
   restorePluginErrors,
   setInnerHTML,

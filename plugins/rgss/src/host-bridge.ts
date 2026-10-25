@@ -1,5 +1,7 @@
 import { encodeGameLinkMessage, type GameLinkMessage, parseGameLinkMessage } from '@/lib/runtime/game-link-protocol'
 
+import { createRgssServiceTranslationRequest } from './translation-request'
+
 type NativeWindow = Window & {
   webkit?: { messageHandlers?: { chaya?: { postMessage: (json: string) => void } } }
   chrome?: { webview?: { postMessage: (json: string) => void } }
@@ -24,9 +26,17 @@ export function onGameMessage(handler: (message: GameLinkMessage) => void): () =
 export function initHostBridge(): () => void {
   const host = window as NativeWindow
   const previous = host.__chaya_on_game_message
+  const request = createRgssServiceTranslationRequest()
   const receive = (raw: unknown) => {
     const message = parseGameLinkMessage(typeof raw === 'string' ? raw : JSON.stringify(raw))
     if (!message) return
+    if (message.type === 'log.batch') {
+      void request({ path: '/api/logs', method: 'POST', body: { entries: message.entries } })
+        .then((result) => {
+          if (result.status >= 400) console.warn('[ChayaRGSS] Plugin log upload failed:', result.status)
+        })
+        .catch((error) => console.warn('[ChayaRGSS] Plugin log upload failed:', error))
+    }
     for (const listener of listeners) listener(message)
   }
   host.__chaya_on_game_message = receive

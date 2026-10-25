@@ -289,6 +289,11 @@ module ChayaRGSS
           update_destination_sprite
           return
         end
+        if defined?(ChayaRGSS) && ChayaRGSS.respond_to?(:overlay_active?) && ChayaRGSS.overlay_active?
+          reset
+          update_destination_sprite
+          return
+        end
 
         raw_press = Input.respond_to?(:chaya_raw_press?) ? :chaya_raw_press? : :press?
         raw_trigger = Input.respond_to?(:chaya_raw_trigger?) ? :chaya_raw_trigger? : :trigger?

@@ -37,6 +37,14 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function T
         !search && className
       )}
       {...rest}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        rest.onKeyDown?.(e)
+      }}
+      onKeyUp={(e) => {
+        e.stopPropagation()
+        rest.onKeyUp?.(e)
+      }}
     />
   )
 

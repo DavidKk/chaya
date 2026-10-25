@@ -277,6 +277,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
       // ShadowRoot 会把 event.target 重定向为宿主；沿真实事件路径识别输入框。
       if (ev.composedPath().some((node) => node instanceof HTMLElement && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA'))) return
       ev.preventDefault()
+      ev.stopPropagation()
       onRequestClose()
     }
     window.addEventListener('keydown', onKey, true)
@@ -522,8 +523,20 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   useEffect(() => {
     function onHotkey(ev: KeyboardEvent) {
       if (isInputRecording()) return
-      const target = ev.composedPath()[0]
+      const path = ev.composedPath()
+      const target = path[0]
       if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return
+      const inPlugin = path.some((node) => {
+        if (!(node instanceof HTMLElement)) return false
+        return (
+          node.id === 'chaya-game-edit-host' ||
+          node.id === 'chaya-game-agent-host' ||
+          node.id === 'chaya-error-banner' ||
+          node.hasAttribute('data-mini-panel-root') ||
+          node.hasAttribute('data-listbox-panel') ||
+          node.closest?.('[data-mini-panel-root]') != null
+        )
+      })
       const { session: cur, setRunFlag: setFlag, runAction: doAction, toolSettings: tools } = hotkeyRef.current
       const map = effectiveHotkeys(cur.hotkeys, cur.hotkeysGlobal)
       if (!map || !Object.keys(map).length) return
@@ -539,6 +552,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
           if (!ev.repeat) void toggleToolPanel(panel, tools.settings, tools.update)
           break
         }
+        if (inPlugin || open) continue
         const gameSaves = parsed.kind === 'save' ? (window as Window & { __chayaGameSaves?: GameSavesController }).__chayaGameSaves : undefined
         if (parsed.kind === 'save' && !gameSaves?.quickHotkeysEnabled()) continue
         ev.preventDefault()
@@ -557,7 +571,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
     }
     window.addEventListener('keydown', onHotkey, true)
     return () => window.removeEventListener('keydown', onHotkey, true)
-  }, [])
+  }, [open])
 
   return (
     <GameEditOverlayProviders open={open} miniPanelOpacity={toolSettings.settings.miniPanelOpacity}>

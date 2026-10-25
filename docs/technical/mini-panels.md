@@ -77,7 +77,7 @@ PUT 只带改动的字段（`{ patch }`），服务端读当前值合并后保�
 - **位置**：存储 key `chaya.panelDock.frame.v1`，格式同 `Placement`；默认 `x: ratio 0.5`、`y: top 8`。每次布局量 DOM 尺寸（`offsetWidth/offsetHeight`），用 `positionFromPlacement` 得到坐标。首帧量出尺寸前 `visibility: hidden`。`ResizeObserver`（存在时）在按钮项或方向变化后重新布局，另监听 `resize` 与 `visualViewport`。切换方向不改 placement，锚点由 `placementFromFrame` 决定（靠右 / 靠下保持边距，否则按比例），与需求 §4.3 一致。
 - **拖动**：拖动柄 `pointerdown` + pointer capture；结束（含 `pointercancel`）时保存最后一次移动后的位置（`placementFromFrame` 后 `writePlacement`），不用结束事件的坐标。拖动柄聚焦时方向键移动 10 px（Shift 30 px）；拖动柄为 `role="separator"`（可聚焦、无激活动作），鼠标拖完后失焦。
 - **语义**：容器 `role="group"` + `aria-label`（不用 `toolbar`，因为没有方向键漫游且方向键给了拖动柄）。面板按钮 `aria-label` 固定为面板名，状态由 `aria-pressed` 表达，「显示 / 隐藏 {name}」只放在提示里。
-- **焦点与按键**（`game-keys.ts`，迷你面板头部按钮与缩放把手共用）：容器 `mousedown` 时 `preventDefault`，鼠标点按钮不转移焦点，之后的方向键 / 回车 / 空格仍交给游戏；键盘 Tab 进入时照常聚焦，这几个键在 React 层 `stopPropagation`，不再传到游戏的 document 监听。迷你面板只对自己的按钮和把手做隔离，不拦整块内容，以免面板里的下拉框（document 上监听方向键）失灵。
+- **焦点与按键**（`game-keys.ts`，迷你面板与宿主共用隔离）：鼠标点击迷你面板正常获取焦点，不再向游戏保留焦点；面板容器统一拦截所有键盘事件冒泡（`stopPropagation`），输入、回车、删除、快捷键等均不穿透到游戏引擎；关闭面板时恢复游戏焦点。
 - **按钮**：
   - 迷你面板：四个 id 各调用一次 `useToolPanelVisibility(id, settings[field])` 取 `visible`（同时订阅「本次隐藏」），`aria-pressed={visible}`，选中加强调色底；点击 `toggleToolPanel(id, settings, update)`（函数补丁，连点同一按钮每次都按最新值翻转）。
   - 关闭全部：`closeAllMiniPanels(update)`，`!anyMiniPanelEnabled(settings)` 时禁用。

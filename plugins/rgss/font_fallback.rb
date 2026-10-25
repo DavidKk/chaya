@@ -1,18 +1,55 @@
 # mkxp-z discovers fonts bundled with the game, not Windows system fonts.
 # Keep any available requested face; only substitute a wholly missing family.
 module ChayaRGSS
-  @fallback_font = ['VL PGothic', 'VL Gothic', 'Noto Sans CJK JP', 'Noto Sans JP', 'UmePlus Gothic'].find { |name| Font.exist?(name) }
+  CHINESE_FONTS = [
+    'Hiragino Sans GB',
+    'HiraginoSansGB',
+    'Hiragino Sans GB W3',
+    'ChayaHeiti',
+    'Heiti SC',
+    'STHeiti Medium',
+    'STHeitiMedium',
+    'Arial Unicode MS',
+    'ArialUnicodeMS',
+    'Songti SC',
+    'Songti',
+    'Noto Sans CJK SC',
+    'Microsoft YaHei',
+    'SimHei',
+    'Heiti TC',
+    'VL PGothic',
+    'VL Gothic',
+    'Noto Sans CJK JP',
+    'Noto Sans JP',
+    'UmePlus Gothic'
+  ].freeze
+
+  @fallback_font = CHINESE_FONTS.find { |name| Font.exist?(name) }
   @missing_fonts = {}
 
+  def self.fallback_font
+    @fallback_font ||= CHINESE_FONTS.find { |name| Font.exist?(name) }
+  end
+
   def self.font_name(name)
-    return name unless @fallback_font && name
-    names = name.is_a?(Array) ? name : [name]
-    return name if names.any? { |family| family.is_a?(String) && Font.exist?(family) }
-    unless @missing_fonts[name]
-      System.puts("[Chaya RGSS] Missing font #{name.inspect}; using #{@fallback_font}")
-      @missing_fonts[name] = true
+    fb = fallback_font
+    return name unless fb && name
+    names = name.is_a?(Array) ? name.dup : [name]
+    has_chinese_font = names.any? { |family| family.is_a?(String) && Font.exist?(family) && CHINESE_FONTS[0..14].include?(family) }
+    has_valid_font = names.any? { |family| family.is_a?(String) && Font.exist?(family) }
+
+    unless has_valid_font
+      unless @missing_fonts[name]
+        System.puts("[Chaya RGSS] Missing font #{name.inspect}; using #{fb}")
+        @missing_fonts[name] = true
+      end
+      return fb
     end
-    @fallback_font
+
+    if fb && !has_chinese_font && !names.include?(fb)
+      names << fb
+    end
+    names.length == 1 ? names.first : names
   end
 end
 

@@ -5,7 +5,16 @@ import path from 'node:path'
 import { deflateSync, inflateSync } from 'node:zlib'
 
 import { parseRubyMarshal, type RubyArray, type RubyString, writeRubyMarshal } from '@/services/extract/lib/rgss/marshal'
-import { clearRgssPlugins, detectRgssPlugins, detectRgssPluginsOutdated, installRgssPlugins } from '@/services/game/rgss-plugins'
+import {
+  clearRgssPlugins,
+  detectRgssPlugins,
+  detectRgssPluginsOutdated,
+  installRgssPlugins,
+  listRgssPluginOutdatedFiles,
+  RGSS_ASSET_FILES,
+  RGSS_HOT_RELOAD_FILES,
+  syncRgssHotReloadFiles,
+} from '@/services/game/rgss-plugins'
 
 jest.mock('@/constants/paths', () => ({ ...jest.requireActual('@/constants/paths'), ROOT_PATH: process.cwd() }))
 
@@ -84,4 +93,34 @@ it('uninstall leaves externally changed Scripts settings intact', () => {
   fs.writeFileSync(path.join(root, 'Game.ini'), Buffer.from('[Game]\nScripts=Data\\Other.rvdata2\n'))
   clearRgssPlugins(root)
   expect(fs.readFileSync(path.join(root, 'Game.ini'), 'utf8')).toContain('Scripts=Data\\Other.rvdata2')
+})
+
+it('hot-syncs only bridge-reloadable Ruby without touching the entry script or overlay assets', () => {
+  installRgssPlugins(root)
+  const installed = path.join(root, 'chaya/plugins/rgss')
+  const scripts = fs.readFileSync(path.join(installed, 'Scripts.rvdata2'))
+  const assets = Object.fromEntries(RGSS_ASSET_FILES.map((name) => [name, fs.readFileSync(path.join(installed, 'dist', name))]))
+  const reloadable = RGSS_HOT_RELOAD_FILES.find((name) => name === 'translation.rb')!
+  fs.writeFileSync(path.join(installed, reloadable), 'stale')
+  fs.writeFileSync(path.join(installed, 'preload.rb'), 'stale')
+  expect(listRgssPluginOutdatedFiles(root)).toEqual(['preload.rb', reloadable])
+
+  expect(syncRgssHotReloadFiles(root).copied).toEqual([reloadable])
+  expect(fs.readFileSync(path.join(installed, reloadable), 'utf8')).toBe(fs.readFileSync(path.join('plugins/rgss', reloadable), 'utf8'))
+  expect(fs.readFileSync(path.join(installed, 'preload.rb'), 'utf8')).toBe('stale')
+  expect(fs.readFileSync(path.join(installed, 'Scripts.rvdata2'))).toEqual(scripts)
+  for (const [name, bytes] of Object.entries(assets)) expect(fs.readFileSync(path.join(installed, 'dist', name))).toEqual(bytes)
+  expect(listRgssPluginOutdatedFiles(root)).toEqual(['preload.rb'])
+  expect(detectRgssPluginsOutdated(root)).toBe(true)
+  installRgssPlugins(root)
+  expect(detectRgssPluginsOutdated(root)).toBe(false)
+})
+
+it('hot-syncs a newly added Ruby dependency before translation.rb', () => {
+  installRgssPlugins(root)
+  const installed = path.join(root, 'chaya/plugins/rgss')
+  fs.unlinkSync(path.join(installed, 'data_translation.rb'))
+  fs.writeFileSync(path.join(installed, 'translation.rb'), 'stale')
+  expect(syncRgssHotReloadFiles(root).copied).toEqual(['data_translation.rb', 'translation.rb'])
+  expect(fs.readFileSync(path.join(installed, 'data_translation.rb'), 'utf8')).toBe(fs.readFileSync(path.join('plugins/rgss/data_translation.rb'), 'utf8'))
 })

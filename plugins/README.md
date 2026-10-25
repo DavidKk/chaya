@@ -12,6 +12,8 @@ MV/MZ 与 RGSS 独立构建、独立输出；根脚本只负责调度，不合�
 每套子模块拥有自己的 `vite.config.mjs`、`tsconfig.json` 和 `manifest.json`，互不清理对方的 dist。
 `pnpm typecheck:plugins` 依次检查两个项目；MV 安装、摘要、热更新与 Electron 打包读取 `mv/manifest.json`、`mv/dist/`。
 
+`pnpm dev` 会同时启动 `rgss-sync`：RGSS Ruby 与 `rgss/dist/` 变化后自动同步到当前安装的游戏，无需手动重装。游戏未运行时执行完整安装；游戏运行且 bridge 已连接时，只同步 `bridge.rb` 可重新 `load` 的 Ruby，由游戏内循环自动重载。`Scripts.rvdata2`、overlay/native 资源及其他非热重载 Ruby 不会覆盖运行中的文件，而是在游戏退出后自动完整安装。
+
 RGSS 前端只通过原生 JSON 桥访问 Ruby，不导入 MV 的游戏全局对象或控制器。外部控制台走 WebRTC；本机启动凭据通过原生初始化脚本注入，Edge 信令请求使用连接令牌。
 
 macOS 构建还会用 Xcode Command Line Tools 编译 WKWebView 宿主动态库；无额外监听端口或网络转发进程。

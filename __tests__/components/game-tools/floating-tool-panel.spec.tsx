@@ -236,3 +236,25 @@ test('stacks the two panels at screen edges when the viewport is too short', asy
   expect(frame('Companion').height).toBe(TOOL_PANEL_FRAME.companion.defaultSize.height)
   expect(frame('Companion').y).toBe(900 - 16 - TOOL_PANEL_FRAME.companion.defaultSize.height)
 })
+
+test('stops all keyboard events from bubbling to document when focused on the panel or its controls', async () => {
+  await renderPanels()
+  const section = document.querySelector('section[aria-label="Map"]') as HTMLElement
+  const button = section.querySelector('button[aria-label="关闭"]') as HTMLButtonElement
+
+  const reached: string[] = []
+  const onKey = (event: KeyboardEvent) => reached.push(event.key)
+  document.addEventListener('keydown', onKey)
+  document.addEventListener('keyup', onKey)
+
+  for (const target of [section, button]) {
+    for (const key of ['Enter', 'Backspace', 'Delete', 'ArrowLeft', ' ', 'a', 'z']) {
+      target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+      target.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }))
+    }
+  }
+
+  document.removeEventListener('keydown', onKey)
+  document.removeEventListener('keyup', onKey)
+  expect(reached).toEqual([])
+})

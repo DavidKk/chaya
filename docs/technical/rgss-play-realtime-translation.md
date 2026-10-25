@@ -12,6 +12,10 @@
 
 沿用现有「Ruby 查表 + 原生 WebView 浮层」，不新开翻译通道。WebRTC 仍只转发控制台编辑/信令，不传对白。
 
+缓存显示新增 `data_translation.rb`：在 `load_data` 返回解码对象前，替换地图、公共事件、战斗事件中的对白和选项文本。仅修改内存中的显示字段，不重写数据文件，不遍历替换脚本、注释、资源标识或存档。保留 `\N[n]` 等控制符，角色名称仍在显示阶段解析并查译文。
+
+适配器保留当前地图及公共/战斗事件字段的原文；缓存版本或原文预览状态变化后，在主线程轮询时更新这些字段。游戏自行改写的字段不再由适配器覆盖。已经复制进消息窗口的文本继续由现有消息/渲染钩子处理。`[Translation][data_load]` 日志可确认加载拦截及字段数量。
+
 ```text
 RGSS 宿主 (SDL2 / mkxp-z)
   Ruby: plugins/rgss/translation.rb + translation_store.rb
@@ -75,6 +79,7 @@ Windows 无 `libchaya-overlay` / WebView2 时：Ruby 只跑 TranslationStore + �
 改动：
 
 - `pretranslated` / `realtime`：钩子保持。realtime 的未命中回包不得在后台线程改实例变量。
+- 控制符展开后的运行时别名只用于整句反查；译文内控制符优先取角色名/变量/货币自身的缓存译文，再回退运行时原文。
 - `subtitle`：`translate` 直接返回原文（lookup 仍可供工作台目录名等 `Bridge.t_name` 选用；字幕请求自己查 store）。已打开的消息窗不强制重绘。
 - 从 subtitle 切回其他模式：下一句恢复替换；不重刷已画 Bitmap。
 

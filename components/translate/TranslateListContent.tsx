@@ -583,10 +583,14 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
             value={qDraft}
             onChange={(e) => setQDraft(e.target.value)}
             onKeyDown={(e) => {
+              e.stopPropagation()
               if (e.key === 'Enter') {
                 e.preventDefault()
                 commitSearch(qDraft)
               }
+            }}
+            onKeyUp={(e) => {
+              e.stopPropagation()
             }}
             onBlur={() => commitSearch(qDraft)}
             placeholder={t('translate.listSearchPlaceholder')}

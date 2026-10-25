@@ -784,4 +784,49 @@ describe('TranslateListContent', () => {
     expect(transCalls).toHaveLength(0)
     expect(mockNotify.info).toHaveBeenCalledWith(expect.stringContaining('手动翻译（权重最高），已受保护跳过'))
   })
+  it('stops keydown and keyup propagation in search input on Enter', async () => {
+    let parentKeyDownTriggered = false
+    let parentKeyUpTriggered = false
+    const onParentKeyDown = () => {
+      parentKeyDownTriggered = true
+    }
+    const onParentKeyUp = () => {
+      parentKeyUpTriggered = true
+    }
+
+    mockTranslationFetch.mockImplementation(async (_path: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body || '{}'))
+      if (body.mode === 'extract-items') {
+        return { ok: true, json: async () => ({ ok: true, items: [{ id: '1', src: 'Test', zh: '测试', meta: { category: 'actor' } }] }) }
+      }
+      return { ok: true, json: async () => ({ ok: true }) }
+    })
+
+    await act(async () => {
+      root.render(
+        <div onKeyDown={onParentKeyDown} onKeyUp={onParentKeyUp}>
+          <LocaleProvider initialLocale="zh" initialPreference="zh">
+            <PanelHeadEndProvider>
+              <PanelHeadEndHost />
+              <TranslateListContent />
+            </PanelHeadEndProvider>
+          </LocaleProvider>
+        </div>
+      )
+    })
+
+    const searchInput = container.querySelector<HTMLInputElement>('input[aria-label="搜索文本"]')
+    expect(searchInput).not.toBeNull()
+
+    const downEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    const upEvent = new KeyboardEvent('keyup', { key: 'Enter', bubbles: true, cancelable: true })
+
+    await act(async () => {
+      searchInput?.dispatchEvent(downEvent)
+      searchInput?.dispatchEvent(upEvent)
+    })
+
+    expect(parentKeyDownTriggered).toBe(false)
+    expect(parentKeyUpTriggered).toBe(false)
+  })
 })

@@ -1,17 +1,42 @@
 # Cached translation display adapter, independent from the MV plugin entry.
 load File.join(File.dirname(__FILE__), 'translation_store.rb') unless defined?(ChayaRGSS::TranslationStore)
+load File.join(File.dirname(__FILE__), 'data_translation.rb') unless defined?(ChayaRGSS::DataTranslation)
 
 module ChayaRGSS
   module Translation
     CONTROL ||= /(?:\\|\e)(?:[A-Za-z]+(?:\[[^\]]*\])?|[.!|^><{}$\\])/
+    RUNTIME_CONTROL ||= /(?:\\|\e)([NPV])\[(\d+)\]/i
+    RUNTIME_CURRENCY ||= /(?:\\|\e)G/i
+    EXPANDABLE_CONTROL ||= /(?:\\|\e)(?:[NPV]\[\d+\]|G)/i
     class << self
       attr_reader :store, :play_settings
 
+      def debug_enabled?
+        return true if ENV['CHAYA_RGSS_TRANSLATION_DEBUG'] == '1'
+        root = @root || ENV['CHAYA_RGSS_CONTENT_ROOT']
+        return false if root.nil? || root.empty?
+        flag = @debug_flag_path || File.join(root.to_s, 'chaya', 'config', 'translation-debug.flag')
+        File.file?(flag)
+      end
+
+      def debug(kind, before, after = nil)
+        return unless debug_enabled?
+        return unless defined?(ChayaRGSS::Bridge) && ChayaRGSS::Bridge.respond_to?(:log)
+        message = "[Translation][#{kind}] input=#{before.inspect}"
+        message += " output=#{after.inspect}" unless after.nil?
+        ChayaRGSS::Bridge.log(message, 'debug')
+      rescue StandardError
+        nil
+      end
+
       def start(root = ENV['CHAYA_RGSS_CONTENT_ROOT'] || Dir.pwd)
         @root = root
+        @debug_flag_path = File.join(root.to_s, 'chaya', 'config', 'translation-debug.flag')
         @store = TranslationStore.new(root)
         @memo = {}
         @memo_revision = @store.revision
+        DataTranslation.reset
+        DataTranslation.install
         @last_poll = 0
         @play_settings = { 'mode' => 'pretranslated', 'timeoutMs' => 8000 }
         @play_sig = nil
@@ -20,6 +45,11 @@ module ChayaRGSS
         @play_loaded = false
         @current_message_key = nil
         @current_message_window = nil
+        @runtime_index = nil
+        @runtime_index_revision = nil
+        @runtime_index_signature = nil
+        @runtime_control_refs = nil
+        @runtime_control_refs_revision = nil
         load_play_settings
         arm_startup
         @store.refresh
@@ -64,6 +94,8 @@ module ChayaRGSS
         return if now - @last_poll < 1.0
         @last_poll = now
         load_play_settings
+        refresh_runtime_index
+        DataTranslation.refresh
         return if @reader && @reader.alive?
         @reader = Thread.new do
           begin
@@ -83,6 +115,7 @@ module ChayaRGSS
         end
         return @memo[text] if @memo.key?(text)
         result = resolve(text)
+        debug('translate', text, result) if text != result
         @memo.clear if @memo.size >= 4096
         @memo[text.dup.freeze] = result
         result
@@ -246,12 +279,189 @@ module ChayaRGSS
       def lookup(text)
         hit = @store.get(text)
         return hit if hit
+        hit = runtime_lookup(text)
+        return hit if hit
         codes = text.scan(/\\[A-Za-z]+\[\d+\]/)
         return nil if codes.empty?
         key = text.gsub(/\\([A-Za-z]+)\[\d+\]/) { "\\#{$1.downcase}[#]" }
         hit = @store.get(key)
         return nil unless hit && hit.scan(/\\[A-Za-z]+\[\#\]/).length == codes.length
         hit.gsub(/\\[A-Za-z]+\[\#\]/) { codes.shift }
+      end
+
+      def runtime_lookup(text)
+        return nil unless @store
+        # The cache revision is not enough here: actor names and variables can
+        # change without touching the translation files.
+        refresh_runtime_index
+        return nil unless @runtime_index
+        @runtime_index[@store.normalize(text)]
+      end
+
+      # RGSS may hand rendering code text after \N, \P, \V and \G have already
+      # been expanded. Build aliases from the current game state so those
+      # expanded strings still hit the same in-memory translation row.
+      def refresh_runtime_index
+        return unless @store
+        refs = runtime_control_refs
+        signature = runtime_signature(refs)
+        return if @runtime_index && @runtime_index_revision == @store.revision && @runtime_index_signature == signature
+        index = {}
+        conflicts = {}
+        @store.rows.each do |source, row|
+          target = row['t']
+          next unless source.is_a?(String) && target.is_a?(String) && !target.empty?
+          next unless source =~ EXPANDABLE_CONTROL
+          expanded_source, source_complete = expand_runtime_controls(source)
+          next unless source_complete && expanded_source != source
+          expanded_target, target_complete = expand_runtime_controls(target, @store)
+          next unless target_complete
+          key = @store.normalize(expanded_source)
+          next if conflicts[key]
+          existing = index[key]
+          if existing && existing != expanded_target
+            conflicts[key] = true
+            index.delete(key)
+          else
+            index[key] = expanded_target
+          end
+        end
+        @runtime_index = index
+        @runtime_index_revision = @store.revision
+        @runtime_index_signature = signature
+        @memo.clear if @memo
+      end
+
+      def runtime_control_refs
+        revision = @store.revision
+        if @runtime_control_refs && @runtime_control_refs_revision == revision
+          return @runtime_control_refs
+        end
+        refs = { 'actors' => {}, 'party' => {}, 'variables' => {} }
+        @store.rows.each do |source, row|
+          target = row['t']
+          next unless source.is_a?(String) && target.is_a?(String) && !target.empty?
+          next unless source =~ EXPANDABLE_CONTROL
+          collect_runtime_control_refs(source, refs)
+          collect_runtime_control_refs(target, refs)
+        end
+        @runtime_control_refs = refs
+        @runtime_control_refs_revision = revision
+        refs
+      end
+
+      def collect_runtime_control_refs(text, refs)
+        text.scan(RUNTIME_CONTROL).each do |match|
+          code = match[0].upcase
+          id = match[1].to_i
+          key = code == 'N' ? 'actors' : (code == 'P' ? 'party' : 'variables')
+          refs[key][id] = true
+        end
+      end
+
+      def runtime_signature(refs)
+        parts = [@store.revision.to_s]
+        refs['actors'].keys.sort.each do |id|
+          value = runtime_actor_name(id)
+          parts << "n#{id}:#{value.nil? ? '-' : value}"
+        end
+        refs['party'].keys.sort.each do |id|
+          value = runtime_party_member_name(id)
+          parts << "p#{id}:#{value.nil? ? '-' : value}"
+        end
+        refs['variables'].keys.sort.each do |id|
+          value = runtime_variable_value(id)
+          parts << "v#{id}:#{value.nil? ? '-' : value}"
+        end
+        currency = runtime_currency_unit
+        parts << "g:#{currency.nil? ? '-' : currency}"
+        parts.join("\x1f")
+      end
+
+      def expand_runtime_controls(text, store = nil)
+        complete = true
+        result = text.gsub(RUNTIME_CONTROL) do
+          match = $&
+          code = $1.upcase
+          id = $2.to_i
+          value = if code == 'N'
+            runtime_actor_name(id)
+          elsif code == 'P'
+            runtime_party_member_name(id)
+          else
+            runtime_variable_value(id)
+          end
+          if value.nil?
+            complete = false
+            match
+          else
+            translated_runtime_value(value, store)
+          end
+        end
+        result = result.gsub(RUNTIME_CURRENCY) do
+          match = $&
+          value = runtime_currency_unit
+          if value.nil?
+            complete = false
+            match
+          else
+            translated_runtime_value(value, store)
+          end
+        end
+        [result, complete]
+      end
+
+      def translated_runtime_value(value, store)
+        text = value.to_s
+        hit = store && !text.empty? ? store.get(text) : nil
+        hit.nil? || hit.empty? ? text : hit
+      end
+
+      def translate_name_controls(text)
+        return text unless @store && text.is_a?(String)
+        text.gsub(/\\\\|(?:\\|\e)([NP])\[(\d+)\]/i) do |match|
+          code, id = $1, $2
+          next match unless code
+          name = code.upcase == 'N' ? runtime_actor_name(id.to_i) : runtime_party_member_name(id.to_i)
+          hit = name && @store.get(name)
+          debug('name_control', { 'control' => match, 'name' => name }, hit || match)
+          hit && !hit.empty? ? hit : match
+        end
+      end
+
+      def runtime_actor_name(id)
+        return nil unless defined?($game_actors) && $game_actors
+        actor = $game_actors[id]
+        return nil unless actor && actor.respond_to?(:name)
+        name = actor.name
+        name.is_a?(String) && !name.empty? ? name : nil
+      rescue StandardError
+        nil
+      end
+
+      def runtime_party_member_name(id)
+        return nil unless defined?($game_party) && $game_party && $game_party.respond_to?(:members)
+        member = $game_party.members[id - 1]
+        return nil unless member && member.respond_to?(:name)
+        name = member.name
+        name.is_a?(String) && !name.empty? ? name : nil
+      rescue StandardError
+        nil
+      end
+
+      def runtime_variable_value(id)
+        return nil unless defined?($game_variables) && $game_variables
+        value = $game_variables[id]
+        value.nil? ? nil : value
+      rescue StandardError
+        nil
+      end
+
+      def runtime_currency_unit
+        return nil unless defined?(Vocab) && Vocab.respond_to?(:currency_unit)
+        Vocab.currency_unit
+      rescue StandardError
+        nil
       end
 
       def resolve(text)
@@ -262,6 +472,19 @@ module ChayaRGSS
         lead, core, trail = text.match(/\A(\s*)(.*?)(\s*)\z/m).captures
         hit = lookup(core)
         return lead + hit + trail if hit
+        # Some scripts prefix dialogue with a talker/voice line, then put the
+        # sentence on its own line. Look each line up whole first so an inline
+        # \N[n] stays attached to its sentence instead of being split off.
+        if text.include?("\n") || text.include?("\r")
+          lines = text.split(/(\r\n|[\r\n])/)
+          return lines.map do |part|
+            if part =~ /\A[\r\n]+\z/
+              part
+            else
+              lookup(part) || translate(part)
+            end
+          end.join if lines.any? { |part| !(part =~ /\A[\r\n]+\z/) && lookup(part) }
+        end
         if (text =~ CONTROL) || text.include?("\n") || text.include?("\r")
           return text.split(/(#{CONTROL}|\r\n|[\r\n])/).map do |part|
             (part =~ /\A#{CONTROL}\z/) || (part =~ /\A[\r\n]+\z/) ? part : translate(part)
@@ -275,7 +498,26 @@ module ChayaRGSS
       def with_font(bitmap, text)
         previous = nil
         if defined?(Font) && bitmap.respond_to?(:font) && text.is_a?(String) && cjk?(text)
-          @display_font ||= ['Noto Sans CJK SC', 'Noto Sans CJK JP', 'Arial Unicode MS', 'Heiti TC', 'Microsoft YaHei', 'SimHei'].find { |name| Font.exist?(name) }
+          @display_font ||= [
+            'Hiragino Sans GB',
+            'HiraginoSansGB',
+            'Hiragino Sans GB W3',
+            'ChayaHeiti',
+            'Heiti SC',
+            'STHeiti Medium',
+            'STHeitiMedium',
+            'Arial Unicode MS',
+            'ArialUnicodeMS',
+            'Songti SC',
+            'Songti',
+            'Noto Sans CJK SC',
+            'Microsoft YaHei',
+            'SimHei',
+            'Heiti TC',
+            'VL PGothic',
+            'VL Gothic',
+            'Noto Sans CJK JP'
+          ].find { |name| Font.exist?(name) }
           if @display_font
             previous = bitmap.font.name
             bitmap.font.name = @display_font
@@ -288,10 +530,10 @@ module ChayaRGSS
 
       def cjk?(text)
         if text.respond_to?(:encoding)
-          @cjk_pattern ||= Regexp.new('[\\p{Han}\\p{Hiragana}\\p{Katakana}]')
+          @cjk_pattern ||= Regexp.new('[\\p{Han}\\p{Hiragana}\\p{Katakana}\\u3000-\\u303F\\uFF01-\\uFF60\\uFFE0-\\uFFE6\\u2010-\\u2027\\u2030-\\u205E\\u25A0-\\u25FF\\u00B7]')
           !!(text =~ @cjk_pattern)
         else
-          !!(text =~ /[\xe3-\xe9][\x80-\xbf]{2}/n)
+          !!(text =~ /(?:[\xc2-\xdf][\x80-\xbf]|[\xe2-\xef][\x80-\xbf]{2})/n)
         end
       end
 
@@ -317,7 +559,8 @@ module ChayaRGSS
             Window_Base.class_eval do
               alias_method :chaya_translation_convert, :convert_escape_characters
               def convert_escape_characters(text)
-                chaya_translation_convert(ChayaRGSS::Translation.translate(text))
+                translated = ChayaRGSS::Translation.translate(text)
+                chaya_translation_convert(ChayaRGSS::Translation.translate_name_controls(translated))
               end
             end
           end
@@ -356,6 +599,7 @@ module ChayaRGSS
             def process_all_text(*args)
               texts = $game_message && $game_message.respond_to?(:texts) ? $game_message.texts.dup : []
               choices = $game_message && $game_message.respond_to?(:choices) ? $game_message.choices.dup : []
+              ChayaRGSS::Translation.debug('process_all_text', ($game_message.all_text rescue '')) if $game_message && $game_message.respond_to?(:all_text)
               ChayaRGSS::Translation.on_message_start(texts, choices, self)
               chaya_translation_process_all_text(*args)
             end
@@ -392,6 +636,7 @@ module ChayaRGSS
 
       def install
         @installed = true
+        DataTranslation.install
         unless Module.method_defined?(:prepend)
           install_legacy
           return
@@ -412,19 +657,30 @@ module ChayaRGSS
         index = args.length <= 3 ? 1 : 4
         text = args[index]
         # Character-by-character message drawing must keep its original glyph.
-        args[index] = Translation.translate(text) if text.is_a?(String) && text.length > 1
+        if text.is_a?(String) && text.length > 1
+          translated = Translation.translate(text)
+          Translation.debug('draw_text', text, translated) if translated != text
+          args[index] = translated
+        end
         Translation.with_font(self, args[index]) { super(*args) }
       end
 
       def text_size(text)
-        text = Translation.translate(text) if text.is_a?(String) && text.length > 1
+        if text.is_a?(String) && text.length > 1
+          translated = Translation.translate(text)
+          Translation.debug('text_size', text, translated) if translated != text
+          text = translated
+        end
         Translation.with_font(self, text) { super(text) }
       end
     end
 
     module WindowText
       def convert_escape_characters(text)
-        super(Translation.translate(text))
+        raw = text
+        translated = Translation.translate_name_controls(Translation.translate(text))
+        Translation.debug('convert_escape', raw, translated) if translated != raw
+        super(translated)
       end
     end
   end

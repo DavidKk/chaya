@@ -1,4 +1,4 @@
-import { applyShadowStyles, isolateEditableKeys, isolateGamePointerInput } from '../helpers'
+import { applyShadowStyles, isolateGamePointerInput, isolateHostKeyboard } from '../helpers'
 
 const HOST_ID = 'chaya-game-agent-host'
 const MOUNT_ID = 'chaya-game-agent-root'
@@ -8,12 +8,14 @@ export function ensureGameAgentHost(cssText: string) {
   if (!host) {
     host = document.createElement('div')
     host.id = HOST_ID
+    host.tabIndex = -1
     ;(document.documentElement || document.body).appendChild(host)
   }
   isolateGamePointerInput(host)
+  isolateHostKeyboard(host)
   const shadow = host.shadowRoot || host.attachShadow({ mode: 'open' })
   applyShadowStyles(shadow, cssText)
-  isolateEditableKeys(shadow)
+  isolateHostKeyboard(shadow)
   let mount = shadow.getElementById(MOUNT_ID) as HTMLElement | null
   if (!mount) {
     mount = document.createElement('div')

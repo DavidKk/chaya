@@ -53,6 +53,25 @@ describe('RGSS Host Bridge', () => {
     })
   })
 
+  it('uploads native log batches to the plugin log service', async () => {
+    const previousFetch = global.fetch
+    const fetchMock = jest.fn().mockResolvedValue({ status: 200, json: async () => ({ ok: true }) })
+    global.fetch = fetchMock
+    const dispose = initHostBridge()
+    const entries = [{ id: 1, ts: 123, source: 'ChayaRGSS', level: 'debug', message: '[Translation][name_control] Luno -> 卢诺' }]
+    try {
+      ;(window as any).__chaya_on_game_message({ type: 'log.batch', entries })
+      await Promise.resolve()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const [url, options] = fetchMock.mock.calls[0]
+      expect(url).toBe(`${window.location.origin}/api/logs`)
+      expect(JSON.parse(options.body).entries).toEqual(entries)
+    } finally {
+      dispose()
+      global.fetch = previousFetch
+    }
+  })
+
   it('posts message to Windows WebView2', () => {
     const postMessageMock = jest.fn()
     ;(window as any).chrome = {

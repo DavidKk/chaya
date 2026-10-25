@@ -62,6 +62,7 @@ Dir.mktmpdir('chaya-rgss-test') do |directory|
   bridge.receive_from_webview({ 'type' => 'edit.map.request', 'mapId' => 1 })
   bridge.receive_from_webview({ 'type' => 'edit.catalog.request' })
   bridge.pump
+  check(ChayaRGSS::NativeWebview.out.any? { |text| text.include?('log.batch') && text.include?('Bridge initialized') }, 'plugin logs must be dispatched to the overlay')
   check($game_party.gold == 50 && $game_variables[1] == 42, 'game edits did not reach real state')
   check(ChayaRGSS::NativeWebview.out.any? { |text| text.include?('edit.map') && text.include?('Town') }, 'edit.map detail response missing')
 

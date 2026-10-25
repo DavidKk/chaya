@@ -38,7 +38,15 @@ Dir.mktmpdir('chaya-rgss-translation') do |root|
     { 's' => 'Manual', 't' => '错误', 'origin' => origin },
     { 's' => 'ＡＢＣ', 't' => '字母' },
     { 's' => 'Thunder5', 't' => '雷霆5' },
-    { 's' => 'Thunder10', 't' => '雷霆10' }
+    { 's' => 'Thunder10', 't' => '雷霆10' },
+    { 's' => 'Monquis', 't' => '蒙基斯' },
+    { 's' => 'Luno', 't' => '卢诺' },
+    { 's' => "Don't worry. \\N[8] is waiting.", 't' => "别担心。\\N[8]在等你。" },
+    { 's' => '\\P[1] joins.', 't' => '\\P[1]加入。' },
+    { 's' => 'Value: \\V[3]', 't' => '数值：\\V[3]' },
+    { 's' => 'Price: \\G', 't' => '价格：\\G' },
+    { 's' => 'Ambiguous \\N[8]', 't' => '别名甲' },
+    { 's' => 'Ambiguous \\P[1]', 't' => '别名乙' }
   ]
   File.write(cache, rows.map { |r| JSON.generate(r) }.join("\n") + "\n")
   translation = ChayaRGSS::Translation
@@ -71,6 +79,25 @@ Dir.mktmpdir('chaya-rgss-translation') do |root|
   check(translation.translate('Uncached English') == 'Uncached English', 'missing source unchanged')
   check(translation.translate('\\N[8] joins.') == '\\N[8]加入。', 'numeric control template restores original actor id')
   check(translation.translate('YesNo') == 'YesNo', 'no arbitrary substring translation')
+
+  Actor = Struct.new(:name) unless defined?(Actor)
+  Party = Struct.new(:members) unless defined?(Party)
+  module Vocab
+    def self.currency_unit; 'G'; end
+  end
+  $game_actors = { 8 => Actor.new('Monquis') }
+  $game_party = Party.new([$game_actors[8]])
+  $game_variables = { 3 => 42 }
+  check(translation.translate("Don't worry. \\N[8] is waiting.") == "别担心。\\N[8]在等你。", 'control source keeps the control in its target')
+  check(translation.translate("Don't worry. Monquis is waiting.") == '别担心。蒙基斯在等你。', 'expanded actor control matches runtime alias and translated name')
+  check(translation.translate('Monquis joins.') == '蒙基斯加入。', 'expanded party control matches runtime alias and translated name')
+  check(translation.translate('Value: 42') == '数值：42', 'expanded variable control matches runtime alias')
+  check(translation.translate('Price: G') == '价格：G', 'expanded currency control matches runtime alias')
+  check(translation.translate('Ambiguous Monquis') == 'Ambiguous Monquis', 'conflicting expanded aliases are not guessed')
+  $game_actors[8].name = 'New Name'
+  check(translation.translate("Don't worry. New Name is waiting.") == '别担心。New Name在等你。', 'runtime alias index rebuilds after actor rename without an explicit refresh')
+  check(translation.translate("Don't worry. Monquis is waiting.") == "Don't worry. Monquis is waiting.", 'stale actor alias is removed after rename')
+
   bitmap = Bitmap.new
   bitmap.draw_text(0, 0, 100, 20, 'Continue', 1)
   check(bitmap.drawn[4] == '继续' && bitmap.drawn[5] == 1, 'menu bitmap draw overload')
@@ -81,12 +108,23 @@ Dir.mktmpdir('chaya-rgss-translation') do |root|
   check(bitmap.font.name == 'Game Latin', 'font selection must not mutate the game font')
   bitmap.draw_text(0, 0, 100, 20, '中')
   check(bitmap.draw_font == 'Heiti TC', 'character-by-character drawing supports Chinese glyphs')
+  bitmap.draw_text(0, 0, 100, 20, '“')
+  check(bitmap.draw_font == 'Heiti TC', 'character-by-character drawing supports Chinese opening quotes')
+  bitmap.draw_text(0, 0, 100, 20, '……')
+  check(bitmap.draw_font == 'Heiti TC', 'Chinese punctuation uses Chinese font')
+  bitmap.draw_text(0, 0, 100, 20, '——')
+  check(bitmap.draw_font == 'Heiti TC', 'Chinese em-dash uses Chinese font')
   bitmap.draw_text(0, 0, 100, 20, 123)
   check(bitmap.drawn[4] == 123, 'numeric draw arguments preserved')
 
   # Game script classes do not exist at preload time.
   class Window_Base
-    def convert_escape_characters(text); text.gsub('\\', "\e"); end
+    def actor_name(id); $game_actors[id].name; end
+    def party_member_name(id); $game_party.members[id - 1].name; end
+    def convert_escape_characters(text)
+      text.gsub('\\', "\e").gsub(/\eN\[(\d+)\]/i) { actor_name($1.to_i) }
+        .gsub(/\eP\[(\d+)\]/i) { party_member_name($1.to_i) }
+    end
   end
   class Game_Message
     attr_accessor :texts, :choices
@@ -94,6 +132,17 @@ Dir.mktmpdir('chaya-rgss-translation') do |root|
   end
   Graphics.update
   window = Window_Base.new
+  $game_actors[5] = Actor.new('Luno')
+  $game_party.members << $game_actors[5]
+  check(window.convert_escape_characters('你好，\\N[5]。') == '你好，卢诺。', 'actor control expands to translated name')
+  check(window.convert_escape_characters('你好，\\P[2]。') == '你好，卢诺。', 'party control expands to translated name')
+  check($game_actors[5].name == 'Luno', 'rendering must not mutate actor names')
+  $game_actors[5].name = 'Uncached Name'
+  check(window.convert_escape_characters('\\N[5]') == 'Uncached Name', 'uncached renamed actor remains unchanged')
+  $game_actors[5].name = 'Luno'
+  check(translation.translate_name_controls('你好，\\N[5]。') == '你好，卢诺。', 'names translate before delegated escape conversion')
+  check(translation.translate_name_controls('\\\\N[5]') == '\\\\N[5]', 'escaped literal actor controls stay literal')
+  check(translation.translate_name_controls('\\C[2]\\N[999]\\V[3]') == '\\C[2]\\N[999]\\V[3]', 'unresolved names and other controls stay intact')
   check(window.convert_escape_characters(source) == "\eC[2]你好，蕾！\eC[0]", 'translate before escape expansion')
   message = Game_Message.new
   message.texts = ['Hello, Rei!', 'Yes']

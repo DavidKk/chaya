@@ -34,7 +34,7 @@ end
 Dir.mktmpdir('chaya-native-translation') do |root|
   destination = File.join(root, 'chaya', 'plugins', 'rgss')
   FileUtils.mkdir_p(destination)
-  ['native.rb', 'translation.rb', 'translation_store.rb', 'cache_json.rb'].each do |name|
+  ['native.rb', 'translation.rb', 'translation_store.rb', 'data_translation.rb', 'cache_json.rb'].each do |name|
     FileUtils.cp(File.expand_path('../../plugins/rgss/' + name, __dir__), destination)
   end
   FileUtils.mkdir_p(File.join(root, 'chaya', 'translate'))

@@ -1,7 +1,7 @@
 /**
  * In-game GameEdit host: plain div + Shadow (style isolation); no customElements.
  */
-import { applyShadowStyles, isolateEditableKeys, isolateGamePointerInput } from '../../helpers'
+import { applyShadowStyles, isolateGamePointerInput, isolateHostKeyboard } from '../../helpers'
 
 export const GAME_EDIT_HOST_ID = 'chaya-game-edit-host'
 export const GAME_EDIT_MOUNT_ID = 'chaya-game-edit-root'
@@ -32,16 +32,18 @@ export function ensureGameEditHost(cssText: string): GameEditHost {
   if (!host) {
     host = document.createElement('div')
     host.id = GAME_EDIT_HOST_ID
+    host.tabIndex = -1
     ;(document.documentElement || document.body).appendChild(host)
   }
   const releasePointerInput = isolateGamePointerInput(host)
+  const releaseHostKeyboard = isolateHostKeyboard(host)
 
   let shadow = host.shadowRoot
   if (!shadow) {
     shadow = host.attachShadow({ mode: 'open' })
     applyShadowStyles(shadow, cssText)
   }
-  isolateEditableKeys(shadow)
+  isolateHostKeyboard(shadow)
 
   let mount = shadow.getElementById(GAME_EDIT_MOUNT_ID) as HTMLElement | null
   if (!mount) {
@@ -63,11 +65,16 @@ export function ensureGameEditHost(cssText: string): GameEditHost {
       return host!.hasAttribute('data-open')
     },
     containsFocus(node: Node | null) {
-      if (!node || !shadow) return false
-      return shadow.contains(node)
+      if (!node || !shadow || !host) return false
+      if (node === host || host.contains(node)) return true
+      if (node === shadow || shadow.contains(node)) return true
+      const active = shadow.activeElement
+      if (active && (active === node || active.contains(node))) return true
+      return false
     },
     remove() {
       releasePointerInput()
+      releaseHostKeyboard()
       try {
         host!.remove()
       } catch {

@@ -4,6 +4,8 @@
  */
 
 import { clearElement } from './dom'
+import { isolateHostKeyboard } from './keyboard-isolation'
+import { isolateGamePointerInput } from './pointer-isolation'
 
 const HOST_ID = 'chaya-error-banner'
 const STORAGE_KEY = 'chaya-error-log-v1'
@@ -244,6 +246,8 @@ function ensureHost(): HTMLElement {
   const root = document.documentElement
   if (root) root.appendChild(host)
   else document.body.appendChild(host)
+  isolateGamePointerInput(host)
+  isolateHostKeyboard(host)
   return host
 }
 

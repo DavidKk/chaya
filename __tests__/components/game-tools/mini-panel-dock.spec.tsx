@@ -135,20 +135,22 @@ it('keeps the last moved position when the drag is cancelled', async () => {
   expect(saved.y.value).toBeCloseTo(100 / 884)
 })
 
-it('keeps focus on the game when clicked with the mouse and keeps game keys inside', async () => {
+it('focuses the panel on click and prevents all keyboard events from bubbling to document', async () => {
   await renderDock()
   const mouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
   button('迷你地图').dispatchEvent(mouseDown)
-  expect(mouseDown.defaultPrevented).toBe(true)
+  expect(mouseDown.defaultPrevented).toBe(false)
   const reached: string[] = []
   const onKey = (event: KeyboardEvent) => reached.push(event.key)
   document.addEventListener('keydown', onKey)
-  for (const key of ['Enter', ' ', 'ArrowLeft', 'a']) button('迷你地图').dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+  for (const key of ['Enter', ' ', 'ArrowLeft', 'a', 'Backspace', 'Escape']) {
+    button('迷你地图').dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+  }
   document.removeEventListener('keydown', onKey)
-  expect(reached).toEqual(['a'])
+  expect(reached).toEqual([])
 })
 
-it('gives focus back to the game after a drag inside a shadow root', async () => {
+it('retains focus on the grip after a drag inside a shadow root instead of forcing game focus', async () => {
   const shadowHost = document.createElement('div')
   document.body.appendChild(shadowHost)
   const shadow = shadowHost.attachShadow({ mode: 'open' })
@@ -169,7 +171,7 @@ it('gives focus back to the game after a drag inside a shadow root', async () =>
   await act(async () => pointer('pointerdown', 10))
   await act(async () => pointer('pointermove', 60))
   await act(async () => pointer('pointerup', 60))
-  expect(shadow.activeElement).toBeNull()
+  expect(shadow.activeElement).toBe(grip)
   await act(async () => shadowRoot.unmount())
 })
 

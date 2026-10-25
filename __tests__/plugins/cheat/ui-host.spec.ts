@@ -43,3 +43,37 @@ test('keeps controls interactive while the host isolates their pointer events', 
   document.removeEventListener('mousedown', reached)
   host.remove()
 })
+
+test('stops all keyboard events inside the overlay from bubbling to the game document', () => {
+  const reachedKeys: string[] = []
+  const gameKeyDown = (event: KeyboardEvent) => reachedKeys.push(`down:${event.key}`)
+  const gameKeyUp = (event: KeyboardEvent) => reachedKeys.push(`up:${event.key}`)
+  document.addEventListener('keydown', gameKeyDown)
+  document.addEventListener('keyup', gameKeyUp)
+
+  const host = ensureGameEditHost('')
+  const input = document.createElement('input')
+  const button = document.createElement('button')
+  const panel = document.createElement('div')
+  host.mount.appendChild(input)
+  host.mount.appendChild(button)
+  host.mount.appendChild(panel)
+
+  const testKeys = ['Enter', 'Backspace', 'Delete', 'ArrowUp', ' ', 'a', 'z', 'Escape']
+  for (const target of [input, button, panel]) {
+    for (const key of testKeys) {
+      target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, composed: true }))
+      target.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true, composed: true }))
+    }
+  }
+
+  expect(reachedKeys).toEqual([])
+
+  // Keys outside the host must still reach the game document
+  document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  expect(reachedKeys).toEqual(['down:Enter'])
+
+  document.removeEventListener('keydown', gameKeyDown)
+  document.removeEventListener('keyup', gameKeyUp)
+  host.remove()
+})

@@ -56,16 +56,6 @@ static void enqueue(NSString *text) {
 }
 - (void)mouseUp:(NSEvent *)event {
   [super mouseUp:event];
-  dispatch_async(dispatch_get_main_queue(), ^{
-    NSView *game = [self gameView];
-    if (game && self.window.firstResponder != game) {
-      [self evaluateJavaScript:@"Boolean(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA'))" completionHandler:^(id result, NSError *error) {
-        if (![result boolValue]) {
-          [self.window makeFirstResponder:game];
-        }
-      }];
-    }
-  });
 }
 @end
 
@@ -75,6 +65,7 @@ static void enqueue(NSString *text) {
 @property(nonatomic, strong) NSURL *url;
 @property(nonatomic, strong) id keyMonitor;
 @property(nonatomic, copy) NSString *configuration;
+@property(nonatomic, assign) BOOL overlayOpen;
 @end
 @implementation ChayaHost
 - (void)userContentController:(WKUserContentController *)controller didReceiveScriptMessage:(WKScriptMessage *)message {
@@ -95,6 +86,17 @@ static void enqueue(NSString *text) {
     }
     self.view.regions = regions;
     [self.view.window resetCursorRects];
+    return;
+  }
+  if ([packet[@"type"] isEqual:@"host.overlay"]) {
+    BOOL nextOpen = [packet[@"open"] boolValue];
+    self.overlayOpen = nextOpen;
+    if (nextOpen) {
+      [self.view.window makeFirstResponder:self.view];
+    } else {
+      NSView *game = [self.view gameView];
+      if (game) [self.view.window makeFirstResponder:game];
+    }
     return;
   }
   enqueue(message.body);
@@ -122,23 +124,29 @@ static void enqueue(NSString *text) {
   [self.view setValue:@NO forKey:@"drawsBackground"];
   [window.contentView addSubview:self.view];
   __weak ChayaHost *weakHost = self;
-  self.keyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown handler:^NSEvent *(NSEvent *event) {
+  self.keyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:(NSEventMaskKeyDown | NSEventMaskKeyUp) handler:^NSEvent *(NSEvent *event) {
     ChayaHost *owner = weakHost;
     if (!owner || event.window != owner.view.window) return event;
-    NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
-    BOOL hasNonShiftModifiers = (mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption)) != 0;
-    if ((event.keyCode == 50 || event.keyCode == 109) && !event.isARepeat && !hasNonShiftModifiers) {
-      [owner.view evaluateJavaScript:@"document.dispatchEvent(new Event('chaya:toggle'))" completionHandler:nil];
-      return nil;
-    }
-    if (event.keyCode == 53) {
-      [owner.view evaluateJavaScript:@"document.dispatchEvent(new Event('chaya:esc'))" completionHandler:nil];
-      NSView *game = [owner.view gameView];
-      if (game) {
-        [event.window makeFirstResponder:game];
-        [game keyDown:event];
+    if (event.type == NSEventTypeKeyDown) {
+      NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+      BOOL hasNonShiftModifiers = (mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption)) != 0;
+      if ((event.keyCode == 50 || event.keyCode == 109) && !event.isARepeat && !hasNonShiftModifiers) {
+        [owner.view evaluateJavaScript:@"document.dispatchEvent(new Event('chaya:toggle'))" completionHandler:nil];
         return nil;
       }
+      if (event.keyCode == 53) {
+        [owner.view evaluateJavaScript:@"document.dispatchEvent(new Event('chaya:esc'))" completionHandler:nil];
+        return nil;
+      }
+    }
+    NSResponder *firstResponder = event.window.firstResponder;
+    BOOL focusedInWeb = [firstResponder isKindOfClass:[NSView class]] && [(NSView *)firstResponder isDescendantOf:owner.view];
+    if (owner.overlayOpen || focusedInWeb) {
+      if (!focusedInWeb) {
+        if (event.type == NSEventTypeKeyDown) [event.window makeFirstResponder:owner.view];
+        return nil;
+      }
+      return event;
     }
     return event;
   }];

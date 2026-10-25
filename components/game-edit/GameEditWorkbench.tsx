@@ -6,6 +6,7 @@ import { MdExposurePlus1 } from 'react-icons/md'
 import { TbNumber99Small } from 'react-icons/tb'
 
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
+import { stopGameKeys } from '@/components/game-tools/game-keys'
 import { GameEditRunSettings } from '@/components/GameEditRunSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell, legalBar, panelBody, panelHead, panelHeadEnd, panelShell } from '@/components/layoutClasses'
@@ -356,6 +357,9 @@ export function GameEditWorkbench({
   return (
     <NavigationScope value={catalog?.contentRoot || ''}>
       <div
+        tabIndex={-1}
+        onKeyDown={stopGameKeys}
+        onKeyUp={stopGameKeys}
         className={cn(panelShell, surface === 'overlay' && 'rounded-lg border border-line bg-panel shadow-[0_12px_40px_rgb(0_0_0/0.45)]', className)}
         role="region"
         aria-label={t('edit.panelAria')}

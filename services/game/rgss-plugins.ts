@@ -13,11 +13,12 @@ const SOURCE = path.join(ROOT_PATH, 'plugins', 'rgss')
 const NAME = 'ChayaRGSS'
 const SCRIPT_PATH = 'chaya/plugins/rgss/Scripts.rvdata2'
 const BOOTSTRAP = "load File.join(Dir.pwd, 'chaya', 'plugins', 'rgss', 'native.rb')\n"
-const BUNDLE = [
+export const RGSS_BUNDLE_FILES = [
   'preload.rb',
   'native.rb',
   'translation.rb',
   'translation_store.rb',
+  'data_translation.rb',
   'cache_json.rb',
   'bridge.rb',
   'edit_runtime.rb',
@@ -31,8 +32,21 @@ const BUNDLE = [
   'font_fallback.rb',
   'script_patches.rb',
   'mouse_movement.rb',
-]
-const ASSETS = ['rgss-overlay.html', 'ChayaRGSSOverlay.js', 'libchaya-overlay.dylib']
+] as const
+export const RGSS_ASSET_FILES = ['rgss-overlay.html', 'ChayaRGSSOverlay.js', 'libchaya-overlay.dylib'] as const
+/** Files loaded again by bridge.rb's in-process hot reload loop. */
+export const RGSS_HOT_RELOAD_FILES = [
+  'user32.rb',
+  'tktk_bitmap.rb',
+  'mouse_movement.rb',
+  'map.rb',
+  'saves.rb',
+  'edit_actors.rb',
+  'edit_runtime.rb',
+  'translation_store.rb',
+  'data_translation.rb',
+  'translation.rb',
+] as const
 const folder = (root: string) => path.join(root, 'chaya', 'plugins', 'rgss')
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
 
@@ -128,26 +142,35 @@ function registered(root: string) {
 export function detectRgssPlugins(root: string): PluginStatus[] {
   const installed = state(root)
   const files =
-    BUNDLE.every((name) => fs.existsSync(path.join(folder(root), name))) &&
-    (process.platform !== 'darwin' || ASSETS.every((name) => fs.existsSync(path.join(folder(root), 'dist', name))))
+    RGSS_BUNDLE_FILES.every((name) => fs.existsSync(path.join(folder(root), name))) &&
+    (process.platform !== 'darwin' || RGSS_ASSET_FILES.every((name) => fs.existsSync(path.join(folder(root), 'dist', name))))
   const enabled = !!installed && registered(root)
   return [{ name: NAME, registered: enabled, enabled, fileExists: files, kitSource: SOURCE }]
 }
 
 export function detectRgssPluginsOutdated(root: string): boolean {
-  if (!state(root) || !registered(root)) return false
-  return (
-    BUNDLE.some((name) => {
-      const source = path.join(SOURCE, name)
-      const target = path.join(folder(root), name)
-      return !fs.existsSync(source) || !fs.existsSync(target) || digest(fs.readFileSync(source)) !== digest(fs.readFileSync(target))
-    }) ||
-    ASSETS.some((name) => {
-      const source = path.join(SOURCE, 'dist', name)
-      const target = path.join(folder(root), 'dist', name)
-      return fs.existsSync(source) && (!fs.existsSync(target) || digest(fs.readFileSync(source)) !== digest(fs.readFileSync(target)))
-    })
-  )
+  return listRgssPluginOutdatedFiles(root).length > 0
+}
+
+/** Names relative to the installed RGSS plugin folder that differ from the kit sources. */
+export function listRgssPluginOutdatedFiles(root: string): string[] {
+  if (!state(root) || !registered(root)) return []
+  const outdated: string[] = []
+  for (const name of RGSS_BUNDLE_FILES) {
+    const source = path.join(SOURCE, name)
+    const target = path.join(folder(root), name)
+    if (!fs.existsSync(source) || !fs.existsSync(target) || digest(fs.readFileSync(source)) !== digest(fs.readFileSync(target))) {
+      outdated.push(name)
+    }
+  }
+  for (const name of RGSS_ASSET_FILES) {
+    const source = path.join(SOURCE, 'dist', name)
+    const target = path.join(folder(root), 'dist', name)
+    if (fs.existsSync(source) && (!fs.existsSync(target) || digest(fs.readFileSync(source)) !== digest(fs.readFileSync(target)))) {
+      outdated.push(`dist/${name}`)
+    }
+  }
+  return outdated
 }
 
 export function installRgssPlugins(root: string) {
@@ -164,8 +187,8 @@ export function installRgssPlugins(root: string) {
   const packed = deflateSync(BOOTSTRAP)
   scripts.items.splice(main, 0, { kind: 'array', items: [19773101, { kind: 'string', value: NAME }, { kind: 'string', value: packed.toString('utf8'), bytes: packed }] })
   // Validate all required sources before changing the game's configuration.
-  const sources = BUNDLE.map((name) => ({ name, bytes: fs.readFileSync(path.join(SOURCE, name)) }))
-  for (const name of ASSETS) {
+  const sources: Array<{ name: string; bytes: Uint8Array }> = RGSS_BUNDLE_FILES.map((name) => ({ name, bytes: fs.readFileSync(path.join(SOURCE, name)) }))
+  for (const name of RGSS_ASSET_FILES) {
     const file = path.join(SOURCE, 'dist', name)
     if (process.platform === 'darwin' || fs.existsSync(file)) sources.push({ name: `dist/${name}`, bytes: fs.readFileSync(file) })
   }
@@ -184,13 +207,37 @@ export function installRgssPlugins(root: string) {
   return { copied: sources.map(({ name }) => name), pluginsJsUpdated: ini.script !== SCRIPT_PATH, contentRoot: root }
 }
 
+/**
+ * Refresh only Ruby files that bridge.rb reloads in-process. Used by the dev
+ * watcher while an RGSS game is running; Scripts.rvdata2 and overlay assets
+ * must not be replaced under a live game.
+ */
+export function syncRgssHotReloadFiles(root: string) {
+  const previous = state(root)
+  if (!previous) throw new Error('RGSS plugin install metadata is missing')
+  const files = { ...previous.files }
+  const copied: string[] = []
+  for (const name of RGSS_HOT_RELOAD_FILES) {
+    const source = path.join(SOURCE, name)
+    const target = path.join(folder(root), name)
+    if (!fs.existsSync(source)) continue
+    const bytes = fs.readFileSync(source)
+    if (fs.existsSync(target) && digest(bytes) === digest(fs.readFileSync(target))) continue
+    atomicWrite(path.join(folder(root), name), bytes)
+    files[name] = digest(bytes)
+    copied.push(name)
+  }
+  if (copied.length) atomicWrite(path.join(folder(root), 'installed.json'), JSON.stringify({ ...previous, files } satisfies InstallState))
+  return { copied }
+}
+
 export function clearRgssPlugins(root: string) {
   const installed = state(root)
   if (!installed) return { removedFiles: [], pluginsJsUpdated: false }
   const ini = iniScripts(root)
   if (ini.script === SCRIPT_PATH) setScripts(ini, installed.originalLine)
   const removedFiles: string[] = []
-  for (const name of [...BUNDLE, ...ASSETS.map((name) => `dist/${name}`), 'installed.json', 'Scripts.rvdata2']) {
+  for (const name of [...RGSS_BUNDLE_FILES, ...RGSS_ASSET_FILES.map((name) => `dist/${name}`), 'installed.json', 'Scripts.rvdata2']) {
     const file = path.join(folder(root), name)
     if (fs.existsSync(file)) {
       fs.unlinkSync(file)

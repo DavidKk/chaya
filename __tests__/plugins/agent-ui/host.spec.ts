@@ -25,3 +25,28 @@ test('keeps clicks on the companion panel from reaching the game touch input', (
 
   for (const type of TYPES) document.removeEventListener(type, gameListener)
 })
+
+test('stops companion panel keyboard events from bubbling to the game document', () => {
+  const reachedKeys: string[] = []
+  const gameKeyDown = (event: KeyboardEvent) => reachedKeys.push(`down:${event.key}`)
+  const gameKeyUp = (event: KeyboardEvent) => reachedKeys.push(`up:${event.key}`)
+  document.addEventListener('keydown', gameKeyDown)
+  document.addEventListener('keyup', gameKeyUp)
+
+  const { mount } = ensureGameAgentHost('')
+  const input = document.createElement('input')
+  const button = document.createElement('button')
+  mount.appendChild(input)
+  mount.appendChild(button)
+
+  for (const key of ['Enter', 'Backspace', 'ArrowDown', ' ', 'a']) {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, composed: true }))
+    input.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true, composed: true }))
+    button.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, composed: true }))
+    button.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true, composed: true }))
+  }
+
+  expect(reachedKeys).toEqual([])
+  document.removeEventListener('keydown', gameKeyDown)
+  document.removeEventListener('keyup', gameKeyUp)
+})

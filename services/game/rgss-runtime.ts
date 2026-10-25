@@ -122,15 +122,47 @@ export async function launchRgss(resolved: ResolvedGame) {
       for (const asset of ['rgss-overlay.html', 'ChayaRGSSOverlay.js', 'libchaya-overlay.dylib']) {
         if (!fs.existsSync(path.join(root, 'chaya', 'plugins', 'rgss', 'dist', asset))) throw new Error(`Chaya RGSS overlay asset is missing: ${asset}; rebuild or reinstall Chaya`)
       }
-      // Mount a session-only font resource; never modify the game's Fonts folder.
+      // Mount session-only font resources; never modify the game's Fonts folder.
       const fontResources = path.join(sessionDir, 'resources')
-      const systemFont = '/System/Library/Fonts/STHeiti Light.ttc'
-      if (fs.existsSync(systemFont)) {
-        const fontDir = path.join(fontResources, 'Fonts')
-        fs.mkdirSync(fontDir, { recursive: true })
-        // mkxp-z discovers .ttf files; SDL can read the TTC contents through it.
-        const fontLink = path.join(fontDir, 'ChayaHeiti.ttf')
-        if (!fs.existsSync(fontLink)) fs.symlinkSync(systemFont, fontLink)
+      const fontDir = path.join(fontResources, 'Fonts')
+      fs.mkdirSync(fontDir, { recursive: true })
+      const candidateFonts: Array<{ file: string; links: string[] }> = [
+        {
+          file: '/System/Library/Fonts/Hiragino Sans GB.ttc',
+          links: ['Hiragino Sans GB.ttf', 'HiraginoSansGB.ttf', 'Hiragino Sans GB W3.ttf'],
+        },
+        {
+          file: '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+          links: ['Arial Unicode MS.ttf', 'ArialUnicodeMS.ttf'],
+        },
+        {
+          file: '/System/Library/Fonts/STHeiti Medium.ttc',
+          links: ['STHeiti Medium.ttf', 'STHeitiMedium.ttf', 'Heiti SC.ttf'],
+        },
+        {
+          file: '/System/Library/Fonts/STHeiti Light.ttc',
+          links: ['ChayaHeiti.ttf'],
+        },
+        {
+          file: '/System/Library/Fonts/Supplemental/Songti.ttc',
+          links: ['Songti SC.ttf', 'Songti.ttf'],
+        },
+      ]
+      let hasMountedFont = false
+      for (const { file, links } of candidateFonts) {
+        if (fs.existsSync(file)) {
+          for (const link of links) {
+            const fontLink = path.join(fontDir, link)
+            if (!fs.existsSync(fontLink)) {
+              try {
+                fs.symlinkSync(file, fontLink)
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+          hasMountedFont = true
+        }
       }
       fs.writeFileSync(
         path.join(gameDir, 'mkxp.json'),
@@ -142,7 +174,7 @@ export async function launchRgss(resolved: ResolvedGame) {
             // Upstream dev builds can crash in createPathCache on encrypted RGSS3 archives.
             pathCache: false,
             allowSymlinks: true,
-            RTP: fs.existsSync(systemFont) ? [fontResources] : [],
+            RTP: hasMountedFont ? [fontResources] : [],
             rubyLoadpath: [path.join(path.dirname(installed), 'stdlib')],
             preloadScript: [preload],
           },
@@ -173,6 +205,7 @@ export async function launchRgss(resolved: ResolvedGame) {
         CHAYA_RGSS_API: `http://127.0.0.1:${toolkitListenPort()}`,
         CHAYA_RGSS_ROOM: state.roomId || '',
         CHAYA_RGSS_TOKEN: state.token || '',
+        CHAYA_RGSS_TRANSLATION_DEBUG: '1',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })

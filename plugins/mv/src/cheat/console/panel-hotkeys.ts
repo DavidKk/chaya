@@ -6,7 +6,7 @@ import { isInputRecording } from '@/lib/game/input-assistance/recording'
 
 import { createLogger, showPluginError } from '../../helpers'
 import { getAutoTalkState } from '../runtime/auto-talk'
-import { hideGameEditUi, isGameEditUiOpen } from '../ui/mount'
+import { hideGameEditUi } from '../ui/mount'
 
 const log = createLogger('ChayaEdit')
 
@@ -19,9 +19,12 @@ function isConsoleHotkey(ev: KeyboardEvent) {
 }
 
 function shouldIgnoreHotkeyInField(ev: KeyboardEvent) {
-  const tag = (ev.target && (ev.target as Element).tagName) || ''
-  const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (ev.target as HTMLElement)?.isContentEditable
-  return isGameEditUiOpen() && inField
+  const path = ev.composedPath()
+  return path.some((node) => {
+    if (!(node instanceof HTMLElement)) return false
+    const tag = node.tagName
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || node.isContentEditable
+  })
 }
 
 function blockHotkeyEvent(ev: Event) {

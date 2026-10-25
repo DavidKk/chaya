@@ -83,6 +83,47 @@ describe('createLookupEnrichment', () => {
     restore()
   })
 
+  it('matches text after runtime actor, party, variable and currency controls are expanded', () => {
+    const game = globalThis as Record<string, unknown>
+    const keys = ['$gameActors', '$gameParty', '$gameVariables', '$dataSystem', 'TextManager']
+    const previous = Object.fromEntries(keys.map((key) => [key, game[key]]))
+    const actor = (name: string) => ({ name: () => name })
+    Object.assign(game, {
+      $gameActors: { actor: (id: number) => (id === 8 ? actor('Monquis') : null) },
+      $gameParty: { members: () => [actor('Rei'), actor('Monquis')] },
+      $gameVariables: { value: (id: number) => (id === 3 ? 42 : 0) },
+      $dataSystem: { currencyUnit: 'G' },
+    })
+    try {
+      const enrich = createLookupEnrichment()
+      const lookup = {
+        Monquis: '蒙基斯',
+        '\\N[8] is waiting.': '\\N[8]在等你。',
+        '\\P[2] joins.': '\\P[2]加入。',
+        'Value: \\V[3]': '数值：\\V[3]',
+        'Price: \\G': '价格：\\G',
+        'Ambiguous \\N[8]': '别名甲',
+        'Ambiguous \\P[2]': '别名乙',
+      }
+      enrich.reindexAll(lookup)
+      expect(enrich.resolve(lookup, '\\N[8] is waiting.')).toBe('\\N[8]在等你。')
+      expect(enrich.resolve(lookup, 'Monquis is waiting.')).toBe('蒙基斯在等你。')
+      expect(enrich.resolve(lookup, 'Monquis joins.')).toBe('蒙基斯加入。')
+      expect(enrich.resolve(lookup, 'Value: 42')).toBe('数值：42')
+      expect(enrich.resolve(lookup, 'Price: G')).toBe('价格：G')
+      expect(enrich.resolve(lookup, 'Ambiguous Monquis')).toBeNull()
+      game.$gameActors = { actor: () => actor('New Name') }
+      expect(enrich.resolve(lookup, 'New Name is waiting.')).toBe('New Name在等你。')
+      expect(enrich.resolve(lookup, 'Monquis is waiting.')).toBeNull()
+      expect(enrich.runtimeAliasCount).toBeGreaterThan(0)
+    } finally {
+      for (const key of keys) {
+        if (previous[key] === undefined) delete game[key]
+        else game[key] = previous[key]
+      }
+    }
+  })
+
   it('reindexAll skips empty keys; notePair without glossary only records stems', () => {
     const restore = installDb({})
     const enrich = createLookupEnrichment()

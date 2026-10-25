@@ -1,20 +1,27 @@
-const isolatedRoots = new WeakSet<ShadowRoot>()
+const isolatedRoots = new WeakSet<ShadowRoot | HTMLElement>()
 
-/** Keep game-level keyboard listeners from cancelling text editing inside plugin overlays. */
-export function isolateEditableKeys(shadow: ShadowRoot): void {
-  if (isolatedRoots.has(shadow)) return
-  isolatedRoots.add(shadow)
+/**
+ * 拦截宿主与浮层内的一切键盘事件，防止输入内容、回车、删除、快捷键等冒泡穿透到游戏引擎。
+ */
+export function isolateHostKeyboard(target: ShadowRoot | HTMLElement): () => void {
+  if (isolatedRoots.has(target)) return () => {}
+  isolatedRoots.add(target)
 
-  const stopEditableKey = (event: Event) => {
-    const editable = event
-      .composedPath()
-      .some(
-        (node) =>
-          node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement || (node instanceof HTMLElement && node.isContentEditable)
-      )
-    if (editable) event.stopPropagation()
+  const stopKeyboard = (event: Event) => {
+    event.stopPropagation()
   }
 
-  shadow.addEventListener('keydown', stopEditableKey)
-  shadow.addEventListener('keyup', stopEditableKey)
+  target.addEventListener('keydown', stopKeyboard)
+  target.addEventListener('keyup', stopKeyboard)
+
+  return () => {
+    target.removeEventListener('keydown', stopKeyboard)
+    target.removeEventListener('keyup', stopKeyboard)
+    isolatedRoots.delete(target)
+  }
+}
+
+/** 兼容旧接口：隔离宿主内一切键盘事件 */
+export function isolateEditableKeys(shadow: ShadowRoot): void {
+  isolateHostKeyboard(shadow)
 }

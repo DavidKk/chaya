@@ -42,6 +42,12 @@ const commands = [
     name: 'plugins',
     prefixColor: 'magenta',
   },
+  {
+    command: 'node scripts/server/rgss-dev-sync.mjs',
+    name: 'rgss-sync',
+    prefixColor: 'cyan',
+    env: { CHAYA_PORT: String(port) },
+  },
 ]
 
 if (isApp) {

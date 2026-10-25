@@ -124,6 +124,21 @@ export function hideGameEditUi() {
     render()
   }
   resumeGame()
+  restoreGameFocus()
+}
+
+export function restoreGameFocus(): void {
+  try {
+    const graphics = (window as Window & { Graphics?: { _canvas?: HTMLElement } }).Graphics
+    const el = graphics?._canvas ?? document.querySelector<HTMLElement>('canvas')
+    if (el && typeof el.focus === 'function') {
+      el.focus()
+      return
+    }
+    document.body?.focus?.()
+  } catch {
+    /* */
+  }
 }
 
 export function toggleGameEditUi() {

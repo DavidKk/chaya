@@ -308,6 +308,7 @@ export type GameLinkMessage =
   | GameEditCmd
   | GameEditAck
   | GameEditStateMsg
+  | { type: 'overlay.open'; open: boolean }
 
 export const GAME_LINK_CHANNEL = 'chaya'
 /** 浏览器模式信令鉴权头：页面生成令牌并写入游戏 Env（`CHAYA_LINK_TOKEN`），双方请求信令时携带 */

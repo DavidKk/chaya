@@ -22,7 +22,7 @@ import {
   viewport,
   writePlacement,
 } from './floating-placement'
-import { keepGameFocus, stopGameKeys } from './game-keys'
+import { stopGameKeys } from './game-keys'
 import { MiniPanelOpacityControl, type MiniPanelOpacitySettings } from './MiniPanelOpacityControl'
 import { MINI_PANEL_VISIBILITY_CLASS, type MiniPanelId, TOOL_PANEL_FRAME, TOOL_PANEL_SIZE } from './tool-panels'
 
@@ -264,7 +264,6 @@ export function FloatingToolPanel({ title, children, headerTools, opacity, onClo
     if (!drag || drag.pointerId !== event.pointerId) return
     gesture.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-    // 调整大小的把手可聚焦且吃方向键；拖完必须交还焦点，Shadow DOM 里无法用 document.activeElement 判断
     event.currentTarget.blur()
     if (frameRef.current) saveFrame(frameRef.current, drag.kind === 'move')
   }
@@ -272,6 +271,9 @@ export function FloatingToolPanel({ title, children, headerTools, opacity, onClo
   return (
     <section
       ref={panelRef}
+      tabIndex={-1}
+      onKeyDown={stopGameKeys}
+      onKeyUp={stopGameKeys}
       className={cn(
         'pointer-events-auto fixed z-[60] flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-md bg-panel text-ink shadow-lg',
         MINI_PANEL_VISIBILITY_CLASS,
@@ -311,8 +313,6 @@ export function FloatingToolPanel({ title, children, headerTools, opacity, onClo
             className={cn('[@media(hover:none)]:h-11 [@media(hover:none)]:w-11', pinned && 'bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] text-accent')}
             aria-label={pinLabel}
             aria-pressed={pinned}
-            onMouseDown={keepGameFocus}
-            onKeyDown={stopGameKeys}
             onClick={togglePin}
           >
             <Pin size={13} fill={pinned ? 'currentColor' : 'none'} aria-hidden />
@@ -329,8 +329,6 @@ export function FloatingToolPanel({ title, children, headerTools, opacity, onClo
           className="[@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
           aria-label={t(minimized ? 'common.panelExpand' : 'common.panelMinimize')}
           onPointerDown={(event) => event.stopPropagation()}
-          onMouseDown={keepGameFocus}
-          onKeyDown={stopGameKeys}
           onClick={() => setMinimized((value) => !value)}
         >
           {minimized ? <IoExpandOutline size={14} aria-hidden /> : <IoRemoveOutline size={14} aria-hidden />}
@@ -341,8 +339,6 @@ export function FloatingToolPanel({ title, children, headerTools, opacity, onClo
           className="[@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
           aria-label={t('common.close')}
           onPointerDown={(event) => event.stopPropagation()}
-          onMouseDown={keepGameFocus}
-          onKeyDown={stopGameKeys}
           onClick={onClose}
         >
           <IoCloseOutline size={15} aria-hidden />
@@ -371,7 +367,6 @@ export function FloatingToolPanel({ title, children, headerTools, opacity, onClo
                   onPointerUp={end}
                   onPointerCancel={end}
                   onKeyDown={(event) => resizeWithKeyboard(event, edge)}
-                  onMouseDown={keepGameFocus}
                 />
               ))}
         </>

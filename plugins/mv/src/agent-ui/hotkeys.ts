@@ -16,6 +16,7 @@ export function startGameAgentHotkeys() {
       const path = event.composedPath()
       if (path.some((node) => node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement)) return
       event.preventDefault()
+      event.stopPropagation()
       toggleGameAgentUi()
     }
   }

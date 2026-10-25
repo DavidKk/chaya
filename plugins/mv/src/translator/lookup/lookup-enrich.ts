@@ -8,6 +8,17 @@ import { shouldTranslate } from '@/services/translate/text-classify'
 
 type Lookup = Record<string, string>
 
+type RuntimeControlRefs = {
+  actors: Set<number>
+  party: Set<number>
+  variables: Set<number>
+  currency: boolean
+}
+
+const RUNTIME_CONTROL_RE = /(?:\\|\x1b)([NPV])\[(\d+)\]/gi
+const RUNTIME_CURRENCY_RE = /(?:\\|\x1b)G/gi
+const RUNTIME_EXPANDABLE_RE = /(?:\\|\x1b)(?:[NPV]\[\d+\]|G)/i
+
 function dynamicValues(): DynamicValues {
   const values: Record<string, Set<string>> = Object.fromEntries(['_actor', '_name', '_class', '_desc1', '_desc2'].map((key) => [key, new Set<string>()]))
   values._desc1.add('')
@@ -38,6 +49,112 @@ function dynamicValues(): DynamicValues {
   const system = game.$dataSystem as { terms?: { params?: string[]; basic?: string[] } } | undefined
   for (const name of [...(system?.terms?.params || []), ...(system?.terms?.basic || [])]) values._name.add(name)
   return values
+}
+
+function runtimeActorName(id: number): string | null {
+  try {
+    const game = globalThis as unknown as Record<string, unknown>
+    const actors = game.$gameActors as { actor?: (id: number) => unknown; _data?: Array<{ name?: (() => unknown) | string } | null>; [key: number]: unknown } | undefined
+    const actor = typeof actors?.actor === 'function' ? actors.actor(id) : (actors?._data?.[id] ?? actors?.[id])
+    const value =
+      typeof (actor as { name?: unknown } | null | undefined)?.name === 'function'
+        ? (actor as { name: () => unknown }).name()
+        : (actor as { name?: unknown } | null | undefined)?.name
+    return typeof value === 'string' && value ? value : null
+  } catch {
+    return null
+  }
+}
+
+function runtimePartyMemberName(id: number): string | null {
+  try {
+    const game = globalThis as unknown as Record<string, unknown>
+    const party = game.$gameParty as { members?: (() => unknown) | unknown } | undefined
+    const members = typeof party?.members === 'function' ? party.members() : party?.members
+    const member = Array.isArray(members) ? members[id - 1] : null
+    const value =
+      typeof (member as { name?: unknown } | null | undefined)?.name === 'function'
+        ? (member as { name: () => unknown }).name()
+        : (member as { name?: unknown } | null | undefined)?.name
+    return typeof value === 'string' && value ? value : null
+  } catch {
+    return null
+  }
+}
+
+function runtimeVariableValue(id: number): string | null {
+  try {
+    const game = globalThis as unknown as Record<string, unknown>
+    const variables = game.$gameVariables as { value?: (id: number) => unknown; [key: number]: unknown } | undefined
+    const value = typeof variables?.value === 'function' ? variables.value(id) : variables?.[id]
+    return value == null ? null : String(value)
+  } catch {
+    return null
+  }
+}
+
+function runtimeCurrencyUnit(): string | null {
+  try {
+    const game = globalThis as unknown as Record<string, unknown>
+    const text = game.TextManager as { currencyUnit?: unknown } | undefined
+    if (typeof text?.currencyUnit === 'string') return text.currencyUnit
+    const system = game.$dataSystem as { currencyUnit?: unknown } | undefined
+    return typeof system?.currencyUnit === 'string' ? system.currencyUnit : null
+  } catch {
+    return null
+  }
+}
+
+function collectRuntimeControlRefs(text: string, refs: RuntimeControlRefs) {
+  for (const match of text.matchAll(RUNTIME_CONTROL_RE)) {
+    const code = match[1].toUpperCase()
+    const id = Number(match[2])
+    if (code === 'N') refs.actors.add(id)
+    else if (code === 'P') refs.party.add(id)
+    else refs.variables.add(id)
+  }
+  if (RUNTIME_CURRENCY_RE.test(text)) refs.currency = true
+  RUNTIME_CURRENCY_RE.lastIndex = 0
+}
+
+function expandRuntimeControls(text: string, lookup?: Lookup): { text: string; complete: boolean; changed: boolean } {
+  let complete = true
+  let changed = false
+  let result = text.replace(RUNTIME_CONTROL_RE, (match, code: string, idText: string) => {
+    const id = Number(idText)
+    const upper = code.toUpperCase()
+    const value = upper === 'N' ? runtimeActorName(id) : upper === 'P' ? runtimePartyMemberName(id) : runtimeVariableValue(id)
+    if (value == null) {
+      complete = false
+      return match
+    }
+    changed = true
+    return translatedRuntimeValue(value, lookup)
+  })
+  result = result.replace(RUNTIME_CURRENCY_RE, (match) => {
+    const value = runtimeCurrencyUnit()
+    if (value == null) {
+      complete = false
+      return match
+    }
+    changed = true
+    return translatedRuntimeValue(value, lookup)
+  })
+  return { text: result, complete, changed }
+}
+
+function translatedRuntimeValue(value: string, lookup?: Lookup): string {
+  if (!lookup || !value) return value
+  return translatePlain(lookup, value)
+}
+
+function runtimeSignature(refs: RuntimeControlRefs): string {
+  const parts: string[] = []
+  for (const id of [...refs.actors].sort((a, b) => a - b)) parts.push(`n${id}:${runtimeActorName(id) ?? '-'}`)
+  for (const id of [...refs.party].sort((a, b) => a - b)) parts.push(`p${id}:${runtimePartyMemberName(id) ?? '-'}`)
+  for (const id of [...refs.variables].sort((a, b) => a - b)) parts.push(`v${id}:${runtimeVariableValue(id) ?? '-'}`)
+  if (refs.currency) parts.push(`g:${runtimeCurrencyUnit() ?? '-'}`)
+  return parts.join('\x1f')
 }
 
 const FIELD_BUCKETS: Array<{ type: GlossaryTokenType; tables: () => Array<Record<string, unknown> | null> | null; fields: string[]; minLen: number }> = [
@@ -111,6 +228,10 @@ export function createLookupEnrichment() {
   const templateZh = new Map<string, string>()
   let entries: GlossaryEntry[] = []
   let allowedValues = dynamicValues()
+  let runtimeRefs: RuntimeControlRefs = { actors: new Set(), party: new Set(), variables: new Set(), currency: false }
+  let runtimeAliases = new Map<string, string>()
+  let runtimeAliasesReady = false
+  let runtimeAliasesSignature = ''
 
   function rebuildGlossary() {
     allowedValues = dynamicValues()
@@ -157,6 +278,9 @@ export function createLookupEnrichment() {
     dynamic.notePair(src, zh)
     indexTrailingStem(stemBase, src, zh)
     if (entries.length) indexGlossaryTemplate(templateZh, src, zh, entries, zhMapFrom(lookup))
+    collectRuntimeControlRefs(src, runtimeRefs)
+    collectRuntimeControlRefs(zh, runtimeRefs)
+    runtimeAliasesReady = false
   }
 
   /** Rebuild template index after full/incremental writes (glossary changes or first DB ready). */
@@ -166,18 +290,56 @@ export function createLookupEnrichment() {
     stemBase.clear()
     templateZh.clear()
     dynamic.clear()
+    runtimeRefs = { actors: new Set(), party: new Set(), variables: new Set(), currency: false }
     for (const [src, zh] of Object.entries(lookup)) {
       if (!src || zh == null) continue
+      collectRuntimeControlRefs(src, runtimeRefs)
+      collectRuntimeControlRefs(zh, runtimeRefs)
       dynamic.notePair(src, zh)
       // Skip normalize duplicates: same translation as the original key; re-index is harmless
       indexTrailingStem(stemBase, src, zh)
       if (entries.length) indexGlossaryTemplate(templateZh, src, zh, entries, zhMapFrom(lookup))
     }
+    runtimeAliasesReady = false
+  }
+
+  function refreshRuntimeAliases(lookup: Lookup) {
+    const signature = runtimeSignature(runtimeRefs)
+    if (runtimeAliasesReady && signature === runtimeAliasesSignature) return
+    const aliases = new Map<string, string>()
+    const conflicts = new Set<string>()
+    for (const [src, zh] of Object.entries(lookup)) {
+      if (!src || !zh || !RUNTIME_EXPANDABLE_RE.test(src)) continue
+      const source = expandRuntimeControls(src)
+      if (!source.complete || !source.changed) continue
+      const target = expandRuntimeControls(zh, lookup)
+      if (!target.complete) continue
+      const key = normalizeTranslateKey(source.text)
+      if (conflicts.has(key)) continue
+      const previous = aliases.get(key)
+      if (previous != null && previous !== target.text) {
+        aliases.delete(key)
+        conflicts.add(key)
+      } else {
+        aliases.set(key, target.text)
+      }
+    }
+    runtimeAliases = aliases
+    runtimeAliasesSignature = signature
+    runtimeAliasesReady = true
+  }
+
+  function resolveRuntimeAlias(lookup: Lookup, text: string): string | null {
+    if (!runtimeRefs.actors.size && !runtimeRefs.party.size && !runtimeRefs.variables.size && !runtimeRefs.currency) return null
+    refreshRuntimeAliases(lookup)
+    return runtimeAliases.get(normalizeTranslateKey(text)) ?? null
   }
 
   function resolve(lookup: Lookup, text: string): string | null {
     const exact = translatePlain(lookup, text)
     if (exact !== text) return exact
+    const runtime = resolveRuntimeAlias(lookup, text)
+    if (runtime != null) return runtime
     if (dynamic.size) {
       const notification = dynamic.resolve(
         text,
@@ -210,6 +372,9 @@ export function createLookupEnrichment() {
     },
     get templateCount() {
       return templateZh.size
+    },
+    get runtimeAliasCount() {
+      return runtimeAliases.size
     },
   }
 }

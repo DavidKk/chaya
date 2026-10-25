@@ -10,7 +10,7 @@ import { MINI_PANEL_IDS, type MiniPanelId, PANEL_DOCK_ITEMS, type ToolSettings }
 import { cn } from '@/lib/utils'
 
 import { clampPosition, type Placement, placementFromFrame, positionFromPlacement, readPlacement, viewport, writePlacement } from './floating-placement'
-import { keepGameFocus, stopGameKeys } from './game-keys'
+import { stopGameKeys } from './game-keys'
 import { PANEL_DOCK_ITEM_META } from './mini-panel-items'
 import { anyMiniPanelEnabled, closeAllMiniPanels, MINI_PANEL_VISIBILITY_CLASS, toggleToolPanel, useToolPanelVisibility } from './tool-panels'
 import type { ToolSettingsPatch } from './useToolSettings'
@@ -107,7 +107,6 @@ export function MiniPanelDock({ settings, update }: Props) {
     drag.current = null
     setDragging(false)
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-    event.currentTarget.blur()
     if (dragged.current) save(dragged.current)
   }
 
@@ -128,6 +127,7 @@ export function MiniPanelDock({ settings, update }: Props) {
   return (
     <div
       ref={ref}
+      tabIndex={-1}
       role="group"
       aria-label={t('panels.bar.aria')}
       data-orientation={vertical ? 'vertical' : 'horizontal'}
@@ -138,7 +138,7 @@ export function MiniPanelDock({ settings, update }: Props) {
       )}
       style={position ? { left: position.x, top: position.y } : { left: 0, top: 0, visibility: 'hidden' }}
       onKeyDown={stopGameKeys}
-      onMouseDown={keepGameFocus}
+      onKeyUp={stopGameKeys}
     >
       <Tooltip content={t('panels.bar.drag')} placement={tip} touchBehavior="passthrough" suppressed={dragging}>
         <div

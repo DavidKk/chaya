@@ -11,7 +11,9 @@ module ChayaRGSS
     LIMIT ||= 64
     class << self
       def log(message, level = 'info')
-        @logs << { 'source' => 'ChayaRGSS', 'level' => level, 'message' => message.to_s[0, 500] } if @logs && @logs.size < LIMIT
+        return unless @logs && @logs.size < LIMIT
+        @log_seq = (@log_seq || 0) + 1
+        @logs << { 'id' => @log_seq, 'ts' => (Time.now.to_f * 1000).to_i, 'source' => 'ChayaRGSS', 'level' => level, 'message' => message.to_s[0, 8000] }
       end
 
       def integer(value, min, max)
@@ -136,6 +138,15 @@ module ChayaRGSS
         check_auto_reload
         NativeWebview.pump
         drain_replies
+        if NativeWebview.ready? && @logs && !@logs.empty?
+          entries = []
+          LIMIT.times do
+            entry = @logs.pop(true) rescue nil
+            break unless entry
+            entries << entry
+          end
+          dispatch_reply({ 'type' => 'log.batch', 'entries' => entries }) unless entries.empty?
+        end
         16.times do
           cmd = @commands.pop(true) rescue nil
           break unless cmd
@@ -160,6 +171,8 @@ module ChayaRGSS
               fields = apply(cmd)
               dispatch_reply({ 'type' => 'edit.ack', 'cmdId' => cmd['cmdId'], 'ok' => true, 'fields' => fields })
               dispatch_reply(full_session_state)
+            elsif cmd['type'] == 'overlay.open'
+              ChayaRGSS.overlay_active = !!cmd['open'] if defined?(ChayaRGSS) && ChayaRGSS.respond_to?(:overlay_active=)
             elsif cmd['type'] == 'translation.dialogue.result'
               if defined?(ChayaRGSS::Translation) && ChayaRGSS::Translation.respond_to?(:handle_dialogue_result)
                 ChayaRGSS::Translation.handle_dialogue_result(cmd)
@@ -213,7 +226,7 @@ module ChayaRGSS
 
       def reload_plugins
         root = File.dirname(__FILE__)
-        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'translation.rb'].each do |file|
+        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'data_translation.rb', 'translation.rb'].each do |file|
           path = File.join(root, file)
           load path if File.file?(path)
         end
@@ -227,7 +240,7 @@ module ChayaRGSS
         @last_reload_check = now
         root = File.dirname(__FILE__)
         changed = false
-        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'translation.rb'].each do |file|
+        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'data_translation.rb', 'translation.rb'].each do |file|
           path = File.join(root, file)
           next unless File.file?(path)
           mtime = File.mtime(path).to_f rescue 0
@@ -246,7 +259,7 @@ module ChayaRGSS
         @logs = Queue.new
         @reload_mtimes = {}
         root = File.dirname(__FILE__)
-        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'translation.rb'].each do |file|
+        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'data_translation.rb', 'translation.rb'].each do |file|
           path = File.join(root, file)
           @reload_mtimes[file] = File.mtime(path).to_f if File.file?(path) rescue 0
         end
