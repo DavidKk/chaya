@@ -176,7 +176,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
   function flushBackfill() {
     if (!store) return
     const before = gameTranslationFiles(contentRoot).stamp
-    let flushed: { sharedOnly: boolean }
+    let flushed: { sharedOnly?: boolean } | undefined
     try {
       flushed = store.flushBackfill(contentRoot)
     } catch (error) {
@@ -184,7 +184,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
       return
     }
     const after = gameTranslationFiles(contentRoot).stamp
-    if (flushed.sharedOnly) rememberOwnedTransition(before, after)
+    if (flushed?.sharedOnly) rememberOwnedTransition(before, after)
   }
 
   function onCache(result: CacheScanResult) {

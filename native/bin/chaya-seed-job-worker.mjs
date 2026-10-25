@@ -44650,7 +44650,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       return;
     }
     const after = gameTranslationFiles(contentRoot).stamp;
-    if (flushed.sharedOnly) rememberOwnedTransition(before, after);
+    if (flushed?.sharedOnly) rememberOwnedTransition(before, after);
   }
   function onCache(result) {
     pendingCacheMs += result.elapsedMs;

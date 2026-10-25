@@ -58,8 +58,20 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
           entries={entries.map((entry) => {
             if (!entry.batch) return entry
             const batch = entry.batch
+            const submitted = Array.isArray(batch.submittedSources) ? batch.submittedSources : []
+            const final = Array.isArray(batch.finalSources)
+              ? batch.finalSources
+              : Array.isArray((batch as unknown as { engines?: string[] }).engines)
+                ? (batch as unknown as { engines: string[] }).engines.map((e) => (e.startsWith('cache') ? ('cache' as const) : ('unknown' as const)))
+                : []
+            const cacheHits =
+              typeof batch.cacheHits === 'number'
+                ? batch.cacheHits
+                : typeof (batch as unknown as { cache?: number }).cache === 'number'
+                  ? (batch as unknown as { cache: number }).cache
+                  : 0
             const key = batch.failed === 0 ? 'translate.batchLogComplete' : batch.success === 0 ? 'translate.batchLogFailed' : 'translate.batchLogPartial'
-            const sources = [...batch.submittedSources, ...(batch.cacheUnavailable ? (['cache:unavailable'] as const) : []), ...batch.finalSources]
+            const sources = [...submitted, ...(batch.cacheUnavailable ? (['cache:unavailable'] as const) : []), ...final]
             const engine =
               [...new Set(sources)].map((source) => (source === 'cache:unavailable' ? t('translate.batchLogCacheUnavailable') : sourceLabel(source, t))).join('+') ||
               t('translate.batchLogCache')
@@ -72,8 +84,8 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
                 total: batch.total,
                 failed: batch.failed,
                 chars: batch.chars,
-                cache: batch.cacheHits,
-                cache_info: batch.cacheHits > 0 ? t('translate.batchLogCacheInfo', { cache: batch.cacheHits }) : '',
+                cache: cacheHits,
+                cache_info: cacheHits > 0 ? t('translate.batchLogCacheInfo', { cache: cacheHits }) : '',
                 engine,
               }),
             }
