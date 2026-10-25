@@ -1,8 +1,9 @@
 'use client'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { formDesc, formTitle } from '@/components/layoutClasses'
+import { formTitle } from '@/components/layoutClasses'
 import { FollowScrollLogList } from '@/components/logs/FollowScrollLogList'
+import { TruncateText } from '@/components/sk'
 import type { BatchExecutionSource, TranslationBatchLog } from '@/lib/translate/runtime-api'
 import { cn } from '@/lib/utils'
 
@@ -42,16 +43,12 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
 
   return (
     <div className={cn('m-0 flex w-full flex-col overflow-hidden rounded-[0.35rem] border border-line bg-panel', className)}>
-      <div className="px-4 pt-3 pb-2">
-        <div className="flex items-baseline justify-between gap-3">
-          <h3 className={cn(formTitle, 'm-0 text-[0.8125rem]')}>{t('translate.activityLogTitle')}</h3>
-          <span className="tabular-nums text-[0.7rem] text-ink-soft">{t('translate.activityLogSessionDone', { count: sessionDone.toLocaleString() })}</span>
-        </div>
-        {liveStatus ? (
-          <p className={cn(formDesc, 'mt-2 animate-pulse text-[0.75rem] text-accent')}>{liveStatus}</p>
-        ) : (
-          <p className={cn(formDesc, 'mt-2')}>{t('translate.activityLogHint')}</p>
-        )}
+      <div className="flex min-w-0 items-baseline justify-between gap-3 px-4 py-2">
+        <h3 className={cn(formTitle, 'm-0 shrink-0 text-[0.8125rem]')}>{t('translate.activityLogTitle')}</h3>
+        <TruncateText
+          text={liveStatus || t('translate.activityLogSessionDone', { count: sessionDone.toLocaleString() })}
+          className={cn('text-right text-[0.7rem] tabular-nums', liveStatus ? 'animate-pulse text-[0.75rem] text-accent' : 'text-ink-soft')}
+        />
       </div>
       <div className="relative min-h-0 border-t border-[var(--line-soft)]">
         <FollowScrollLogList

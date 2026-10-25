@@ -25,7 +25,7 @@ export type SentenceRecord = {
   structure?: RecordStructure
 }
 
-export type PlanSentenceOptions = SentenceUnitOptions
+export type PlanSentenceOptions = SentenceUnitOptions & { category?: string | null }
 
 function recordUnitOpts(record: SentenceRecord): SentenceUnitOptions {
   return { newlines: record.newlines, structure: record.structure?.source }
@@ -273,7 +273,7 @@ function planSentenceTranslationView(src: string, records: SentenceRecord[], opt
   const units = sentenceQueryViewUnits(src, opts)
   const expanded = expandRecords(records)
   const normal = candidates(src, expanded, opts)
-  const initial = chooseSentencePlan(src, units, normal, normal.limited === true)
+  const initial = chooseSentencePlan(src, units, normal, normal.limited === true, opts?.category)
   if (initial.status === 'full' || initial.limited || opts?.structure?.mode === 'disabled') return initial
   const views = unwrap ? sentenceQueryViews(src, opts) : []
   if (views.length > 1 && !initial.ambiguous) {
@@ -297,7 +297,7 @@ function planSentenceTranslationView(src: string, records: SentenceRecord[], opt
           src,
           opts
         ).filter((m) => m.from >= 0 && m.to > m.from)
-        const merged = chooseSentencePlan(src, units, [...initial.matches, ...additions], !!shifted.limited)
+        const merged = chooseSentencePlan(src, units, [...initial.matches, ...additions], !!shifted.limited, opts?.category)
         merged.ambiguous ||= shifted.ambiguous
         if (merged.status === 'full' || merged.limited || merged.ambiguous) return merged
         const chars = merged.matches.reduce((sum, m) => sum + m.end - m.start, 0)
@@ -324,7 +324,7 @@ function planSentenceTranslationView(src: string, records: SentenceRecord[], opt
   const inferred: SentenceMatch[] & { limited?: boolean } = structure.units.length || structure.diagnostics.length ? [] : candidates(src, expanded, opts, true)
   if (inferred.limited) return { ...initial, limited: true }
   const additions = inferred.filter((m) => normal.every((hit) => m.end <= hit.start || m.start >= hit.end))
-  const result = chooseSentencePlan(src, units, [...initial.matches, ...additions], false)
+  const result = chooseSentencePlan(src, units, [...initial.matches, ...additions], false, opts?.category)
   result.ambiguous ||= initial.ambiguous
   return applyLineFallback(src, expanded, result, normal, opts)
 }
@@ -359,12 +359,12 @@ function applyLineFallback(src: string, records: SentenceRecord[], plan: Sentenc
       normal.every((hit) => m.end <= hit.start || m.start >= hit.end) &&
       plan.matches.every((hit) => m.end <= hit.start || m.start >= hit.end)
   )
-  const result = chooseSentencePlan(src, units, [...previous, ...additions], false)
+  const result = chooseSentencePlan(src, units, [...previous, ...additions], false, opts?.category)
   result.ambiguous ||= plan.ambiguous
   return result
 }
 
-function chooseSentencePlan(src: string, units: SentenceUnit[], possible: SentenceMatch[], limited: boolean): SentencePlan {
+function chooseSentencePlan(src: string, units: SentenceUnit[], possible: SentenceMatch[], limited: boolean, category?: string | null): SentencePlan {
   const locked = possible.filter((m) => m.alignment !== 'inferred' && m.record.local && m.record.engine === 'manual' && !m.record.derived)
   possible = possible.filter((m) =>
     locked.every((lock) => {
@@ -372,7 +372,9 @@ function chooseSentencePlan(src: string, units: SentenceUnit[], possible: Senten
       return m.start === lock.start && m.end === lock.end && m.text === lock.text
     })
   )
-  // Prefer local authority for the same range; never resolve unrelated alias collisions by timestamp.
+  // Authority must not depend on completion time, cache hit time, batch order or
+  // which lookup path happened to run first. Compare local and shared records in
+  // one candidate set: rank -> exact src -> category -> local -> stable id.
   let ambiguous = false
   const ranges = new Map<string, SentenceMatch[]>()
   for (const m of possible) {
@@ -380,44 +382,13 @@ function chooseSentencePlan(src: string, units: SentenceUnit[], possible: Senten
     ranges.set(key, [...(ranges.get(key) || []), m])
   }
   possible = []
-  // Ambiguity concerns the rendered output: cache seams may differ while
-  // restoring the query's punctuation produces exactly the same translation.
-  const output = (m: SentenceMatch) => joinSentenceBlock(src.slice(m.start, m.end), m.text, /[,，、;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd)))
-  for (let group of ranges.values()) {
-    const proven = group.filter((m) => m.alignment !== 'inferred')
-    if (proven.length) group = proven
-    else if (new Set(group.map(output)).size > 1) {
+  for (const group of ranges.values()) {
+    const chosen = chooseAuthorityMatch(group, src, category)
+    if (chosen.ambiguous) {
       ambiguous = true
       continue
     }
-    const locals = group.filter((m) => m.record.local)
-    if (locals.length) group = locals
-    const explicit = group.filter((match) => !match.record.structuralAlias)
-    if (explicit.length) group = explicit
-    else {
-      // A dedicated list is more specific than the same list inside a larger message.
-      const context = Math.min(...group.map((match) => match.record.structureContext || 0))
-      group = group.filter((match) => (match.record.structureContext || 0) === context)
-      const rank = Math.max(...group.map((match) => cacheEngineRank(match.record.engine)))
-      group = group.filter((match) => cacheEngineRank(match.record.engine) === rank)
-    }
-    const equivalentBeforeExact = group.every((m) => !m.record.derived && wholeSentenceKey(m.record.src) === wholeSentenceKey(group[0].record.src))
-    if (equivalentBeforeExact) {
-      const rank = Math.max(...group.map((m) => cacheEngineRank(m.record.engine)))
-      group = group.filter((m) => cacheEngineRank(m.record.engine) === rank)
-    }
-    const exact = group.filter((m) => !m.record.derived && m.record.src === src && m.start === 0 && m.end === src.length)
-    if (exact.length) group = exact
-    const equivalent = group.every((m) => !m.record.derived && wholeSentenceKey(m.record.src) === wholeSentenceKey(group[0].record.src))
-    if (equivalent) {
-      const rank = Math.max(...group.map((m) => cacheEngineRank(m.record.engine)))
-      group = group.filter((m) => cacheEngineRank(m.record.engine) === rank)
-    }
-    if (new Set(group.map(output)).size > 1) {
-      ambiguous = true
-      continue
-    }
-    possible.push(group.sort((a, b) => (a.kind === 'extracted' ? 1 : 0) - (b.kind === 'extracted' ? 1 : 0) || a.record.id.localeCompare(b.record.id))[0])
+    possible.push(chosen.match!)
   }
   type Choice = { matches: SentenceMatch[]; covered: number; chars: number }
   const best: Choice[] = Array.from({ length: units.length + 1 }, () => ({ matches: [], covered: 0, chars: 0 }))
@@ -450,6 +421,55 @@ function chooseSentencePlan(src: string, units: SentenceUnit[], possible: Senten
   const plan: SentencePlan = { src, status, matches, gaps, zh: null, coverage: units.length ? best[0].covered / units.length : 0, ambiguous, limited }
   if (status === 'full') plan.zh = renderSentencePlan(plan)
   return plan
+}
+
+/**
+ * Pick one authority for a range. Order: rank -> exact src -> local -> stable id.
+ * Local-first must not run before rank/exact-src, otherwise a low-rank local
+ * mirror would beat a higher-rank shared translation (the bug fixed here).
+ */
+function chooseAuthorityMatch(group: SentenceMatch[], src: string, category?: string | null): { match?: SentenceMatch; ambiguous: boolean } {
+  const output = (m: SentenceMatch) => joinSentenceBlock(src.slice(m.start, m.end), m.text, /[,，、;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd)))
+
+  // Explicitly proven spans beat automatically inferred alignment.
+  const proven = group.filter((m) => m.alignment !== 'inferred')
+  let pool = proven.length ? proven : group
+  if (!proven.length && new Set(pool.map(output)).size > 1) return { ambiguous: true }
+
+  // A dedicated record is more specific than a structural alias inside a larger message.
+  const explicit = pool.filter((m) => !m.record.structuralAlias)
+  if (explicit.length) pool = explicit
+  else {
+    const context = Math.min(...pool.map((m) => m.record.structureContext || 0))
+    pool = pool.filter((m) => (m.record.structureContext || 0) === context)
+  }
+
+  // Highest authority rank first, independent of completion/update time.
+  const rank = Math.max(...pool.map((m) => cacheEngineRank(m.record.engine)))
+  pool = pool.filter((m) => cacheEngineRank(m.record.engine) === rank)
+
+  // Exact source beats an equivalent alias within the same rank.
+  const exact = pool.filter((m) => !m.record.derived && m.record.src === src && m.start === 0 && m.end === src.length)
+  if (exact.length) pool = exact
+
+  // Same rank + exact-src class: a query-side category hint beats content-only
+  // records. Without a hint, never narrow merely because a record has a category.
+  const want = String(category || '').trim()
+  if (want) {
+    const matched = pool.filter((m) => m.record.category === want)
+    if (matched.length) pool = matched
+  }
+
+  // Identical translation -> deterministic order (local before shared, then id).
+  if (new Set(pool.map(output)).size === 1) {
+    const ordered = [...pool].sort(
+      (a, b) => (a.record.local ? 0 : 1) - (b.record.local ? 0 : 1) || (a.kind === 'extracted' ? 1 : 0) - (b.kind === 'extracted' ? 1 : 0) || a.record.id.localeCompare(b.record.id)
+    )
+    return { match: ordered[0], ambiguous: false }
+  }
+
+  // Still conflicting translations -> do not silently pick one.
+  return { ambiguous: true }
 }
 
 /** Compile once per corpus revision; high-frequency units never trigger an unbounded candidate scan. */

@@ -106,14 +106,21 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
       try {
         for (const r of records) {
           if (!index.current([r])) continue
+          // Skip origins already mirrored at the same revision, and revisions whose
+          // outbox entry is already queued. This keeps replay idempotent without
+          // minting a new task for a revision that was deleted and later recreated.
           client
             .prepare(
               `INSERT INTO game_backfill_tasks(root,src,record_id,revision)
                SELECT ?,?,?,? WHERE NOT EXISTS (
                  SELECT 1 FROM game_backfill_tasks WHERE root=? AND src=? AND record_id=? AND revision=?
+               ) AND NOT EXISTS (
+                 SELECT 1 FROM game_backfills WHERE root=? AND src=? AND record_id=? AND revision=?
+               ) AND NOT EXISTS (
+                 SELECT 1 FROM translation_outbox WHERE record_id=? AND revision=?
                )`
             )
-            .run(root, r.src, r.id, r.revision, root, r.src, r.id, r.revision)
+            .run(root, r.src, r.id, r.revision, root, r.src, r.id, r.revision, root, r.src, r.id, r.revision, r.id, r.revision)
         }
         client.exec('COMMIT')
       } catch (e) {
@@ -125,7 +132,11 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
       // Most batch starts have no work. Do not read and parse the whole game file to discover that.
       const pending = client.prepare('SELECT 1 FROM game_backfill_tasks WHERE root=? LIMIT 1').get(root)
       const stale = client
-        .prepare('SELECT 1 FROM game_backfills b LEFT JOIN translation_records r ON r.id=b.record_id WHERE b.root=? AND (r.id IS NULL OR r.revision<>b.revision) LIMIT 1')
+        .prepare(
+          `SELECT 1 FROM game_backfills b WHERE b.root=? AND NOT EXISTS (
+             SELECT 1 FROM translation_records r WHERE r.id=b.record_id AND r.revision=b.revision
+           ) LIMIT 1`
+        )
         .get(root)
       if (!pending && !stale) return { sharedOnly: false }
       const file = ensureGameContentDir(root, 'cacheNdjson')
@@ -145,7 +156,10 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
           revision: number
         }>
         for (const task of tasks) {
-          const event = `${database}:fill:${task.id}`
+          // Event identity is the origin (database, recordId, revision), not the
+          // auto-increment task id. Reusing the task id would mint a different event
+          // for the same origin and defeat `seen` dedupe after a task row is removed.
+          const event = `${database}:fill:${task.record_id}:${task.revision}`
           const record = client.prepare(joined).get(task.record_id) as { src: string; zh: string; engine: string; revision: number } | undefined
           if (!seen.has(event) && record?.revision === task.revision) {
             const meta = rowMeta(task.record_id, task.revision)
@@ -170,7 +184,11 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
           })
         }
         const links = client
-          .prepare('SELECT b.* FROM game_backfills b LEFT JOIN translation_records r ON r.id=b.record_id WHERE b.root=? AND (r.id IS NULL OR r.revision<>b.revision)')
+          .prepare(
+            `SELECT b.* FROM game_backfills b WHERE b.root=? AND NOT EXISTS (
+               SELECT 1 FROM translation_records r WHERE r.id=b.record_id AND r.revision=b.revision
+             )`
+          )
           .all(root) as Array<{ src: string; record_id: number; revision: number }>
         for (const link of links) {
           const old = rows.get(link.src)

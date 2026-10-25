@@ -81,6 +81,7 @@ describe('live short-sentence integration', () => {
     expect(requestGoogle).not.toHaveBeenCalled()
     const fresh = await liveTranslateTexts(["Rei's mother."], { contentRoot: root, engines: ['google'], persist: false, force: true, sourceLang: 'en' })
     expect(fresh.items[0].zh).toBe('蕾的母亲。')
+    expect(fresh.items[0]).toMatchObject({ resultSources: ['cache', 'live:google'], engineWork: true })
     expect(jest.mocked(requestGoogle).mock.calls[0][1]).not.toContain('Rei')
     expect(loadGameTranslationRecords(root).find((record) => record.src === 'Rei')?.zh).toBe('国王')
     expect(loadGameTranslationRecords(root).some((record) => record.src.trim() === 'mother.')).toBe(false)
@@ -107,7 +108,7 @@ describe('live short-sentence integration', () => {
       return '机器结果'
     })
     const result = await liveTranslateTexts(['Hello'], { contentRoot: root, engines: ['google'], cacheMode: 'bypass', onTrace: trace })
-    expect(result.items[0]).toMatchObject({ zh: '人工定稿', engine: 'cache:remote' })
+    expect(result.items[0]).toMatchObject({ zh: '人工定稿', engine: 'cache:remote', resultSources: ['cache:remote'], engineWork: true })
     const cache = openSharedCache()
     expect(cache.get('Hello', { from: 'en', to: 'zh' })).toBe('人工定稿')
     cache.close()
@@ -273,7 +274,7 @@ describe('live short-sentence integration', () => {
     cache.close()
     jest.mocked(requestGoogle).mockResolvedValue('准备吧，')
     const result = await liveTranslateTexts(['準備する,村へ行く,休む'], { contentRoot: root, engines: ['google'] })
-    expect(result.items[0]).toMatchObject({ zh: '准备吧,前往村庄，休息', status: 'full' })
+    expect(result.items[0]).toMatchObject({ zh: '准备吧,前往村庄，休息', status: 'full', resultSources: expect.arrayContaining(['cache', 'live:google']), engineWork: true })
     expect(requestGoogle).toHaveBeenCalledTimes(1)
     expect(jest.mocked(requestGoogle).mock.calls[0][1]).toBe('準備する,')
     const after = openSharedCache()
@@ -303,7 +304,13 @@ describe('live short-sentence integration', () => {
       return '机器准备，'
     })
     const result = await liveTranslateTexts(['準備する,村へ行く,休む'], { contentRoot: root, engines: ['google'] })
-    expect(result.items[0]).toMatchObject({ zh: '人工准备,前往村庄，休息', engine: 'cache:changed', status: 'full' })
+    expect(result.items[0]).toMatchObject({
+      zh: '人工准备,前往村庄，休息',
+      engine: 'cache:changed',
+      status: 'full',
+      resultSources: ['cache'],
+      engineWork: true,
+    })
   })
   it('persist false does not append cache files', async () => {
     jest.mocked(requestGoogle).mockResolvedValue('你好')
@@ -364,8 +371,10 @@ describe('live short-sentence integration', () => {
     jest.mocked(requestGoogle).mockImplementation(() => attempt('google'))
     jest.mocked(appleTranslate).mockImplementation(() => attempt('apple'))
     jest.mocked(bergamotTranslate).mockImplementation(() => attempt('bergamot'))
-    const result = await liveTranslateTexts(['こんにちは世界'], { contentRoot: root, engines: chain })
+    const dispatch = jest.fn()
+    const result = await liveTranslateTexts(['こんにちは世界'], { contentRoot: root, engines: chain, onEngineDispatch: dispatch })
     expect(calls).toEqual(chain.slice(0, chain.indexOf(winner) + 1))
+    expect(dispatch.mock.calls.map(([engine]) => engine)).toEqual(calls)
     expect(result.items[0]).toMatchObject({ zh: '有效译文', engine: `live:${winner}` })
     const cache = openSharedCache()
     expect(cache.get('こんにちは世界')).toBe('有效译文')
@@ -389,12 +398,46 @@ describe('live short-sentence integration', () => {
     cache.close()
     jest.mocked(agentJaToZh).mockRejectedValue(new Error('Agent unavailable'))
     jest.mocked(requestGoogle).mockResolvedValue('准备吧，')
-    expect((await liveTranslateTexts(['準備する,村へ行く,休む'], { contentRoot: root, engines: ['agent:a', 'google'] })).items[0]).toMatchObject({
+    const dispatch = jest.fn()
+    expect((await liveTranslateTexts(['準備する,村へ行く,休む'], { contentRoot: root, engines: ['agent:a', 'google'], onEngineDispatch: dispatch })).items[0]).toMatchObject({
       status: 'full',
       zh: '准备吧,前往村庄，休息',
+      resultSources: expect.arrayContaining(['cache', 'live:google']),
+      engineWork: true,
     })
+    expect(dispatch.mock.calls.map(([engine]) => engine)).toEqual(['agent:a', 'google'])
     expect(agentJaToZh).toHaveBeenCalledTimes(1)
     expect(jest.mocked(requestGoogle).mock.calls[0][1]).toBe('準備する,')
+  })
+
+  it('keeps a cache-only item separate from a concurrent partial-cache Apple completion', async () => {
+    const cache = openSharedCache()
+    cache.writeMany([['村へ行く,休む', '前往村庄，休息']], 'import')
+    cache.close()
+    jest.mocked(appleTranslate).mockResolvedValue('准备吧，')
+    const result = await liveTranslateTexts(['準備する,村へ行く,休む', '村へ行く,休む'], { contentRoot: root, engines: ['apple'], persist: false })
+    expect(result.items[0]).toMatchObject({ resultSources: ['cache', 'live:apple'], engineWork: true })
+    expect(result.items[1]).toMatchObject({ resultSources: ['cache:remote'], engineWork: false })
+    expect(appleTranslate).toHaveBeenCalledTimes(1)
+  })
+
+  it('retains both accepted gap engines after reading their new cache records back', async () => {
+    const cache = openSharedCache()
+    cache.writeMany([['村へ行く,休む', '前往村庄，休息']], 'import')
+    cache.close()
+    jest.mocked(requestGoogle).mockImplementation(async (_fetch, text) => {
+      if (text.includes('準備する')) return '准备吧，'
+      throw new Error('Google unavailable')
+    })
+    jest.mocked(appleTranslate).mockResolvedValue('出发吧')
+    const result = await liveTranslateTexts(['準備する,村へ行く,休む,出発する'], { contentRoot: root, engines: ['google', 'apple'] })
+    expect(result.items[0]).toMatchObject({
+      status: 'full',
+      resultSources: expect.arrayContaining(['cache', 'live:google', 'live:apple']),
+      engineWork: true,
+    })
+    expect(result.items[0].resultSources).toHaveLength(3)
+    expect(appleTranslate).toHaveBeenCalledTimes(1)
   })
 
   it('does not fall back or persist after cancellation', async () => {

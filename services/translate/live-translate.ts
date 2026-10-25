@@ -17,8 +17,9 @@ import {
   translationFallbackOrder,
 } from '@/lib/translate/engines'
 import { lookupTranslationRecord } from '@/lib/translate/lookup'
+import { replannedResultSources, resultSources, type ResultWrite, type TranslationProvenance } from '@/lib/translate/result-sources'
 import { hasRmDigitCodes, toRmDigitTemplate } from '@/lib/translate/rm-escape'
-import { renderSentencePlan, resolveSentenceGaps, type SentencePlan } from '@/lib/translate/sentence-plan'
+import { renderSentencePlan, resolveSentenceGaps, type SentencePlan, type SentenceRecord } from '@/lib/translate/sentence-plan'
 import { createSentenceResolver } from '@/lib/translate/sentence-plan'
 import { getResolvedFromConfig } from '@/services/game/binding'
 import { appendPublicGameCache } from '@/services/storage/game-files'
@@ -131,11 +132,10 @@ export function resolveBoundContentRoot(): string | null {
   return resolved.contentRoot || null
 }
 
-export type LiveTranslateItem = {
+export type LiveTranslateItem = TranslationProvenance & {
   src: string
   zh: string | null
   error?: string
-  engine?: string
   status?: 'full' | 'partial' | 'miss'
   plan?: SentencePlan
 }
@@ -167,7 +167,9 @@ export async function liveTranslateTexts(
     onItem?: (item: LiveTranslateItem) => void
     onTrace?: (message: string) => void
     onCacheMatch?: (elapsedMs: number) => void
-    onEngineDispatch?: () => void
+    onEngineDispatch?: (engine: TranslateRunEngine) => void
+    /** Internal provenance for records a nested call may immediately read back. */
+    onCacheWrite?: (records: SentenceRecord[], sources: string[]) => void
     onDuplicateInFlight?: () => void
     /** When false, skip idle-gate activity tracking (nested / optimize polish calls). Default true. */
     trackLiveActivity?: boolean
@@ -288,6 +290,11 @@ export async function liveTranslateTexts(
           const itemStarted = performance.now()
           const parentSignal = opts?.local?.signal
           const itemSignal = opts?.itemTimeoutMs ? AbortSignal.any([AbortSignal.timeout(opts.itemTimeoutMs), ...(parentSignal ? [parentSignal] : [])]) : parentSignal
+          let engineWork = false
+          const onEngineDispatch = (engine: TranslateRunEngine) => {
+            engineWork = true
+            opts?.onEngineDispatch?.(engine)
+          }
           let item: LiveTranslateItem
           try {
             item = await (async () => {
@@ -318,6 +325,8 @@ export async function liveTranslateTexts(
                 }
                 if (plan.status === 'partial') {
                   const translated = new Map<string, string>()
+                  const sources = new Set<string>(['cache'])
+                  const writes: ResultWrite[] = []
                   // Submit independent gaps together so native adapters can batch them.
                   for (let offset = 0; offset < plan.gaps.length; offset += MAX_BATCH) {
                     const gaps = plan.gaps.slice(offset, offset + MAX_BATCH)
@@ -325,6 +334,11 @@ export async function liveTranslateTexts(
                       gaps.map((gap) => gap.text),
                       {
                         ...opts,
+                        onEngineDispatch,
+                        onCacheWrite: (records, sources) => {
+                          writes.push(...records.map((record) => ({ record, sources })))
+                          opts?.onCacheWrite?.(records, sources)
+                        },
                         onItem: undefined,
                         preparedPlan: undefined,
                         onTrace: trace ? (message) => trace(`Item ${itemId} gaps: ${message}`) : undefined,
@@ -335,10 +349,12 @@ export async function liveTranslateTexts(
                         trackLiveActivity: false,
                       }
                     )
+                    engineWork ||= result.items.some((entry) => entry.engineWork)
                     for (const gap of gaps) {
                       const item = result.items.find((entry) => entry.src === gap.text)
                       if (item?.zh && !item.error) {
                         translated.set(gap.id, item.zh)
+                        if (item.engine !== 'skip') for (const source of resultSources(item)) sources.add(source)
                       }
                     }
                   }
@@ -358,6 +374,7 @@ export async function liveTranslateTexts(
                       src,
                       zh: current.zh,
                       engine: 'cache:changed',
+                      resultSources: replannedResultSources(current, writes),
                       status: current.status,
                       plan: current,
                       error: current.status === 'full' ? undefined : 'Translation library changed; retry missing segments',
@@ -370,6 +387,7 @@ export async function liveTranslateTexts(
                     src,
                     zh: resolved.zh ?? renderSentencePlan(resolved),
                     engine: 'cache:partial',
+                    resultSources: [...sources],
                     status: full ? 'full' : 'partial',
                     plan: resolved,
                     error: full ? undefined : 'Some text segments could not be translated',
@@ -402,12 +420,14 @@ export async function liveTranslateTexts(
               const namePlan = planLockedNames(src, nameEntries, { sourceLang: opts?.sourceLang, targetLang: opts?.targetLang || 'zh' })
               if (namePlan && (!namePlan.wholeName || !opts?.optimizeWholeName)) {
                 const gapZh = new Map<string, string>()
+                const sources = new Set<string>(['cache'])
                 let remainderEngine = ''
                 if (namePlan.translatable.length) {
                   const remainder = await liveTranslateTexts(
                     namePlan.translatable.map((gap) => gap.text),
                     {
                       ...opts,
+                      onEngineDispatch,
                       onItem: undefined,
                       preparedPlan: undefined,
                       onTrace: trace ? (message) => trace(`Item ${itemId} name gaps: ${message}`) : undefined,
@@ -418,6 +438,7 @@ export async function liveTranslateTexts(
                       trackLiveActivity: false,
                     }
                   )
+                  engineWork ||= remainder.items.some((entry) => entry.engineWork)
                   for (const gap of namePlan.translatable) {
                     const hit = remainder.items.find((entry) => entry.src === gap.text)
                     if (!hit?.zh || hit.error) {
@@ -426,6 +447,7 @@ export async function liveTranslateTexts(
                     }
                     gapZh.set(gap.id, hit.zh)
                     if (hit.engine) remainderEngine = hit.engine
+                    if (hit.engine !== 'skip') for (const source of resultSources(hit)) sources.add(source)
                   }
                 }
                 const zh = stitchLockedNamePlan(src, namePlan, gapZh)
@@ -434,6 +456,7 @@ export async function liveTranslateTexts(
                   const written = timed(`Item ${itemId} name-lock write`, () =>
                     getCache().writeMany([[src, zh]], tag, { from: detectCacheLang(src), to: 'zh', category: opts?.category })
                   )
+                  opts?.onCacheWrite?.(written.records, [...sources])
                   if (contentRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records))
                   if (written.rejected.length) {
                     const current = lookupCached(src)
@@ -441,7 +464,7 @@ export async function liveTranslateTexts(
                     return { src, zh: null, error: 'Translation result rejected by current authority; review conflicting cache entries' }
                   }
                 }
-                items.push({ src, zh, engine: tag, status: 'full' })
+                items.push({ src, zh, engine: tag, resultSources: [...sources], status: 'full' })
                 return items[0]
               }
 
@@ -476,6 +499,7 @@ export async function liveTranslateTexts(
                     const identity = `${engineSourceTag(engine, agents)}:${findAgentEntry(agents, engine)?.model || ''}`
                     const key = JSON.stringify([contentRoot, identity, langPair, sendText, Boolean(opts?.local?.interactive)])
                     const sourceChars = Array.from(sendText).length
+                    engineWork = true
                     const rawZh = await joinTranslationRequest(
                       key,
                       (signal) =>
@@ -483,7 +507,7 @@ export async function liveTranslateTexts(
                           engine,
                           identity,
                           () => {
-                            opts?.onEngineDispatch?.()
+                            onEngineDispatch(engine)
                             trace?.(
                               `Item ${itemId} engine requested: engine=${engine}, sourceChars=${sourceChars}, from=${langPair.from}, to=${langPair.to}, pipelineElapsedMs=${Math.round(performance.now() - started)}`
                             )
@@ -566,6 +590,7 @@ export async function liveTranslateTexts(
                   const written = timed(`Item ${itemId} shared cache write`, () =>
                     getCache().writeMany(pairs, tag, { from: detectCacheLang(src), to: 'zh', category: opts?.category })
                   )
+                  opts?.onCacheWrite?.(written.records, [tag])
                   if (contentRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records))
                   if (written.rejected.length) {
                     const current = currentAuthority()
@@ -586,6 +611,7 @@ export async function liveTranslateTexts(
             if (!itemSignal?.aborted) throw error
             item = { src, zh: null, error: 'Translation item deadline exceeded; saved results are retained' }
           }
+          item = { ...item, resultSources: resultSources(item), engineWork }
           timed(`Item ${itemId} progress checkpoint`, () => opts?.onItem?.(item))
           trace?.(`Item ${itemId} finished: engine=${item.engine || 'none'}, success=${item.zh != null && !item.error}, elapsedMs=${Math.round(performance.now() - itemStarted)}`)
           return item

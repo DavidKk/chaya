@@ -776,7 +776,24 @@ export type MessageTree = {
     catOther: string
     statusAll: string
     statusUntranslated: string
+    statusFailed: string
+    failureHint: string
+    failedSummary: string
+    processedLabel: string
     statusTranslated: string
+    sourceManual: string
+    sourceAgent: string
+    sourcePlatform: string
+    sourceOffline: string
+    sourceCache: string
+    sourceManualTooltip: string
+    sourceAgentTooltip: string
+    sourcePlatformTooltip: string
+    sourceOfflineTooltip: string
+    sourceCacheTooltip: string
+    listTranslatePageAllManual: string
+    listTranslatePageSuccessWithSkipped: string
+    statusManual: string
     langSelectSourceTooltip: string
     langSelectSourceAria: string
     langSelectSourceHeader: string
@@ -828,6 +845,8 @@ export type MessageTree = {
     region: string
     regionDesc: string
     live: string
+    liveEnable: string
+    liveDisable: string
     streamDown: string
     searchPh: string
     searchAria: string

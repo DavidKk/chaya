@@ -57,6 +57,18 @@ export function getGameCacheContext(contentRoot: string) {
   return context
 }
 
+/**
+ * Advance a worker's cached context stamp without rebuilding its resolver after a
+ * coordinator-verified owned backfill. Returns false when the worker's current
+ * stamp already diverged (concurrent external edit), so it must rebuild instead.
+ */
+export function advanceGameCacheStamp(contentRoot: string, beforeStamp: string, afterStamp: string): boolean {
+  const context = contexts.get(contentRoot)
+  if (!context || context.stamp !== beforeStamp) return false
+  context.stamp = afterStamp
+  return true
+}
+
 /** A successful shared-only append cannot change local authority. External changes still rebuild. */
 export function noteGameSharedBackfill(contentRoot: string, previousStamp: string): boolean {
   const context = contexts.get(contentRoot)

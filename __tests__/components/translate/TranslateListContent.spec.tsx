@@ -654,4 +654,134 @@ describe('TranslateListContent', () => {
     expect(container.querySelector('input[value="烈焰法杖"]')).not.toBeNull()
     expect(container.textContent).not.toContain('Thunder Sword')
   })
+  it('renders translation source badges and protects manual translations during page translate', async () => {
+    const mockItems = [
+      {
+        id: '1',
+        src: 'Hello manual',
+        zh: '你好手动',
+        engine: 'manual',
+        meta: { category: 'dialogue', label: '对话' },
+      },
+      {
+        id: '2',
+        src: 'Hello machine',
+        zh: '你好机器',
+        engine: 'google',
+        meta: { category: 'dialogue', label: '对话' },
+      },
+      {
+        id: '3',
+        src: 'Untranslated item',
+        zh: '',
+        meta: { category: 'item', label: '物品' },
+      },
+    ]
+
+    mockTranslationFetch.mockImplementation(async (_path: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (body.mode === 'extract-items') {
+        return { ok: true, json: async () => ({ ok: true, items: mockItems }) }
+      }
+      if (body.texts) {
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            items: body.texts.map((src: string) => ({ src, zh: `译文:${src}` })),
+          }),
+        }
+      }
+      return { ok: true, json: async () => ({ ok: true }) }
+    })
+
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
+        </LocaleProvider>
+      )
+    })
+
+    // 1. Verify badges rendered
+    expect(container.textContent).toContain('手动')
+    expect(container.textContent).toContain('平台')
+
+    // 2. Trigger page translate
+    const pageTransBtn = Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '翻译本页')
+    expect(pageTransBtn).toBeDefined()
+
+    await act(async () => {
+      pageTransBtn?.click()
+    })
+
+    // 3. Verify manual translation was NOT sent to API
+    const transCalls = mockTranslationFetch.mock.calls.map(([, init]) => (init?.body ? JSON.parse(String(init.body)) : null)).filter((b) => b && Array.isArray(b.texts))
+
+    expect(transCalls.length).toBeGreaterThan(0)
+    const allSentTexts = transCalls.flatMap((b) => b.texts)
+
+    expect(allSentTexts).not.toContain('Hello manual')
+    expect(allSentTexts).toContain('Hello machine')
+    expect(allSentTexts).toContain('Untranslated item')
+
+    // Manual item remained intact
+    expect(mockItems[0].zh).toBe('你好手动')
+    expect(mockNotify.success).toHaveBeenCalledWith(expect.stringContaining('已跳过 1 条手动翻译'))
+  })
+
+  it('notifies and skips API calls when all items on page are manual translations', async () => {
+    const mockItems = [
+      {
+        id: '1',
+        src: 'Item 1',
+        zh: '人工条目1',
+        engine: 'manual',
+        meta: { category: 'dialogue', label: '对话' },
+      },
+      {
+        id: '2',
+        src: 'Item 2',
+        zh: '人工条目2',
+        engine: 'manual',
+        meta: { category: 'dialogue', label: '对话' },
+      },
+    ]
+
+    mockTranslationFetch.mockImplementation(async (_path: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (body.mode === 'extract-items') {
+        return { ok: true, json: async () => ({ ok: true, items: mockItems }) }
+      }
+      return { ok: true, json: async () => ({ ok: true }) }
+    })
+
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <PanelHeadEndProvider>
+            <PanelHeadEndHost />
+            <TranslateListContent />
+          </PanelHeadEndProvider>
+        </LocaleProvider>
+      )
+    })
+
+    const pageTransBtn = Array.from(container.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '翻译本页')
+    expect(pageTransBtn).toBeDefined()
+
+    await act(async () => {
+      pageTransBtn?.click()
+    })
+
+    const transCalls = mockTranslationFetch.mock.calls
+      .map(([, init]) => (init?.body ? JSON.parse(String(init.body)) : null))
+      .filter((b) => b && (Array.isArray(b.texts) || b.mode === 'cache'))
+
+    expect(transCalls).toHaveLength(0)
+    expect(mockNotify.info).toHaveBeenCalledWith(expect.stringContaining('手动翻译（权重最高），已受保护跳过'))
+  })
 })

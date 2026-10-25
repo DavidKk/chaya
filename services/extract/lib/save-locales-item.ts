@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { updateSharedTranslateCache } from '@/services/translate/cache-api'
 import { appendGameNdjson } from '@/services/translate/live-translate'
+import { isSeedTarget, writeSeedFailure } from '@/services/translate/seed-failures'
 
 import { findLocalesDirectory, loadGameLocalesCatalog, normalizeLocalesKey } from './game-locales'
 
@@ -128,6 +129,7 @@ export function saveLocalesItem(params: SaveLocalesItemParams): SaveLocalesItemR
   if (text && zh) {
     appendGameNdjson(contentRoot, [[text, zh]])
   }
+  if (text && zh.trim() && isSeedTarget(targetLang)) writeSeedFailure(contentRoot, text, null)
 
   return {
     ok: true,

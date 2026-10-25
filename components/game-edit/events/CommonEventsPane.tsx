@@ -8,8 +8,7 @@ import type { SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { padXDense } from '@/components/layoutClasses'
 import { useNavigationBooleanState, useNavigationJsonState, useNavigationViewState } from '@/components/navigation/useNavigationViewState'
-import { Button, EmptyState, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
-import { filterToggle, filterToggleOn } from '@/components/sk/control'
+import { Button, EmptyState, FilterToggle, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
 import { type CommonEventFilter, type CommonEventInfo, filterCommonEventGroups } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
@@ -156,12 +155,12 @@ export function CommonEventsPane({ slot, filter, session, headSlot }: Props) {
 
   const filters = (
     <div className="flex shrink-0 flex-wrap items-center gap-2">
-      <button type="button" role="switch" aria-checked={showEmpty} className={cn(filterToggle, showEmpty && filterToggleOn)} onClick={() => setShowEmpty(!showEmpty)}>
+      <FilterToggle pressed={showEmpty} onPressedChange={setShowEmpty}>
         {t('events.showEmpty')}
-      </button>
-      <button type="button" role="switch" aria-checked={onlyUncalled} className={cn(filterToggle, onlyUncalled && filterToggleOn)} onClick={() => setOnlyUncalled(!onlyUncalled)}>
+      </FilterToggle>
+      <FilterToggle pressed={onlyUncalled} onPressedChange={setOnlyUncalled}>
         {t('events.onlyUncalled')}
-      </button>
+      </FilterToggle>
     </div>
   )
 

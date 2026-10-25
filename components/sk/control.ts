@@ -15,25 +15,3 @@ export const controlDisabled = 'disabled:cursor-not-allowed disabled:opacity-45'
 
 /** 同上，给 span 外壳等非原生控件按条件追加 */
 export const controlDisabledShell = 'cursor-not-allowed opacity-45'
-
-/** 工具条筛选开关（仅有名 / NSFW 等）：未开描边弱字，开态底边短横（居中、不随文宽） */
-export const filterToggle = cn(
-  'relative inline-flex h-8 shrink-0 cursor-pointer items-center rounded-[0.2rem] border border-line bg-inset px-3 text-[0.75rem] text-ink-soft transition-colors',
-  'hover:enabled:text-ink',
-  controlDisabled
-)
-
-const filterToggleBar = 'after:absolute after:bottom-0 after:left-1/2 after:h-0.5 after:w-3 after:-translate-x-1/2 after:rounded-full'
-
-export const filterToggleOn = cn(
-  'border-[color-mix(in_oklab,var(--accent)_55%,var(--line))] bg-[color-mix(in_oklab,var(--accent)_12%,var(--panel))] text-accent',
-  filterToggleBar,
-  'after:bg-accent'
-)
-
-/** NSFW 等：开态用 warn（黄）描边与底边短横 */
-export const filterToggleOnWarn = cn(
-  'border-[color-mix(in_oklab,var(--warn)_55%,var(--line))] bg-[color-mix(in_oklab,var(--warn)_12%,var(--panel))] text-warn',
-  filterToggleBar,
-  'after:bg-warn'
-)

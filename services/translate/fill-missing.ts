@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import { gameContentReadPath, localGameContentFile } from '@/lib/game/content-files'
 import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { createNumericLabelIndex, numericLabelFamily } from '@/lib/translate/dynamic-template'
+import type { SeedProgress } from '@/lib/translate/runtime-api'
 import { detectSourceLanguage } from '@/lib/translate/source-text'
 import { filterRgssSeedKeys } from '@/services/extract/lib/rgss'
 import { getResolvedFromConfig } from '@/services/game/binding'
@@ -13,27 +14,13 @@ import { getGameCacheContext } from './game-cache-context'
 import { liveTranslateTexts } from './live-translate'
 import { readSeedInventory } from './scheduler/seed-inventory'
 import { createScheduledSeedSession } from './scheduler/seed-session'
+import { readSeedFailures, recordSeedFailure, seedFailureFile, writeSeedFailure } from './seed-failures'
 import { openSharedCache } from './shared-cache'
 import { charCount, lineCount, shouldTranslate } from './text-classify'
 
 const DEFAULT_BATCH = 40
 
-export type SeedProgress = {
-  contentRoot: string
-  hasSeed: boolean
-  total: number
-  done: number
-  missing: number
-  needCount: number
-  skipCount: number
-  needChars: number
-  skipChars: number
-  missingChars: number
-  doneChars: number
-  lines: number
-  batchSize: number
-  batchesLeft: number
-}
+export type { SeedProgress } from '@/lib/translate/runtime-api'
 
 export type FillMissingResult = SeedProgress & {
   translated: number
@@ -113,6 +100,8 @@ function scanSeed(contentRoot: string, fresh = false): Scan {
       cache.path,
       cache.version(),
       keys,
+      fs.statSync(seedFailureFile(contentRoot), { throwIfNoEntry: false })?.mtimeMs,
+      [...readSeedFailures(contentRoot).keys()],
       ...(['seed', 'cacheNdjson'] as const).map((kind) => {
         const file = gameContentReadPath(contentRoot, kind, { alsoParent: true })
         const stat = file ? fs.statSync(file, { throwIfNoEntry: false }) : undefined
@@ -141,6 +130,7 @@ function scanSeed(contentRoot: string, fresh = false): Scan {
       batchesLeft: 0,
     }
     const missingKeys: string[] = []
+    const failures = readSeedFailures(contentRoot)
     for (const key of keys) {
       const chars = charCount(key)
       progress.lines += lineCount(key)
@@ -155,6 +145,9 @@ function scanSeed(contentRoot: string, fresh = false): Scan {
       if (hit != null) {
         progress.done++
         progress.doneChars += chars
+      } else if (failures.has(key)) {
+        progress.failedCount = (progress.failedCount ?? 0) + 1
+        progress.failedChars = (progress.failedChars ?? 0) + chars
       } else {
         progress.missing++
         progress.missingChars += chars
@@ -193,6 +186,9 @@ export async function fillMissingFromSeed(opts?: { contentRoot?: string; limit?:
   const batch = inventory.pending.filter((key) => !opts?.exclude?.has(key)).slice(0, limit)
   if (!batch.length) return { ...inventory.progress, translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] }
   const { items } = await liveTranslateTexts(batch, { contentRoot })
+  for (const item of items) {
+    if (item.engineWork && (item.zh == null || item.error || item.status === 'partial')) writeSeedFailure(contentRoot, item.src, item.error || 'No valid translation returned')
+  }
   const bySrc = new Map(items.map((item) => [item.src, item]))
   const next = readSeedInventory(contentRoot)
   const stillPending = new Set(next.pending)
@@ -295,6 +291,7 @@ export function createSeedFillSession(
       const translateStarted = performance.now()
       const deadline = AbortSignal.timeout(15_000)
       let items: FillMissingResult['items'] = []
+      const terminalFailures = new Map<string, { src: string; error?: string }>()
       try {
         const result = await liveTranslateTexts(batch, {
           contentRoot,
@@ -310,6 +307,11 @@ export function createSeedFillSession(
           },
         })
         items = result.items
+        for (const item of result.items) {
+          if (item.engineWork && (item.zh == null || item.error || item.status === 'partial') && !deadline.aborted) {
+            terminalFailures.set(item.src, item)
+          }
+        }
       } catch (error) {
         if (!deadline.aborted) throw error
         const received = new Set(items.map((item) => item.src))
@@ -331,6 +333,10 @@ export function createSeedFillSession(
         progress.batchesLeft = Math.ceil(progress.missing / limit)
         progress.batchSize = limit
         const unresolved = batch.filter((key) => !hits.has(key))
+        for (const key of unresolved) {
+          const item = terminalFailures.get(key)
+          if (item) recordSeedFailure(contentRoot, item, progress)
+        }
         trace?.(`Batch coverage verified: elapsedMs=${Math.round(performance.now() - verifyStarted)}, covered=${hits.size}, unresolved=${unresolved.length}`)
         if (!progress.missing) {
           const reconcileStarted = performance.now()

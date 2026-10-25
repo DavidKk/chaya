@@ -3,9 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { CACHE_WORKER_PATH, TRANSLATE_JOBS_DIR } from '@/constants/paths'
-import type { TranslationBatchLog } from '@/lib/translate/runtime-api'
-
-import type { SeedProgress } from './fill-missing'
+import type { SeedProgress, TranslationBatchLog } from '@/lib/translate/runtime-api'
 
 export type SeedJobStatus = 'idle' | 'running' | 'paused' | 'done' | 'error'
 

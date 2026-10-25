@@ -6,6 +6,7 @@ export { DataList, type DataListColumn, type DataListProps, type DataListSortSta
 export { DataTable, type DataTableColumn, type DataTableProps, type DataTableSortState } from '@/components/sk/DataTable'
 export { DurationInput, type DurationInputProps } from '@/components/sk/DurationInput'
 export { EmptyState } from '@/components/sk/EmptyState'
+export { FilterToggle, type FilterToggleProps, type FilterToggleTone } from '@/components/sk/FilterToggle'
 export { GateButton, type GateButtonProps } from '@/components/sk/GateButton'
 export { LanguagePairSelect, type LanguagePairSelectProps } from '@/components/sk/LanguagePairSelect'
 export { Modal, type ModalProps } from '@/components/sk/Modal'

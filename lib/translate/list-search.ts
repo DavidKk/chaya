@@ -1,10 +1,12 @@
+import { normalizeSearchText, tokenizeSearchText } from '@/lib/translate/text-segmenter'
+import { isManualTranslation, resolveItemSourceKind } from '@/lib/translate/translation-source'
 import type { ExtractedTranslationItem } from '@/services/extract/lib/extract-items'
 
 type SearchField = { text: string; weight: number }
 
-/** Lower is better. Exact src beats startsWith beats includes; src beats zh beats meta. */
+/** Lower is better. Exact src beats exact token beats prefix beats includes; src beats zh beats meta. */
 export function translationListMatchRank(item: ExtractedTranslationItem, query: string): number | null {
-  const q = query.trim().toLowerCase()
+  const q = normalizeSearchText(query).trim()
   if (!q) return 0
   const fields: SearchField[] = [
     { text: item.src, weight: 0 },
@@ -22,21 +24,64 @@ export function translationListMatchRank(item: ExtractedTranslationItem, query: 
   let best: number | null = null
   for (const { text, weight } of fields) {
     if (!text) continue
-    const value = text.toLowerCase()
+    const norm = normalizeSearchText(text)
+    if (!norm) continue
+
     let tier: number | null = null
-    if (value === q) tier = 0
-    else if (value.startsWith(q)) tier = 10
-    else if (new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRegExp(q)}(?=$|[^\\p{L}\\p{N}])`, 'u').test(value)) tier = 20
-    else if (value.includes(q)) tier = 30
+    let penalty = 0
+
+    if (norm === q) {
+      tier = 0
+    } else {
+      const pos = norm.indexOf(q)
+      if (pos >= 0) {
+        if (q.includes(' ')) {
+          if (pos === 0) {
+            tier = 10
+          } else {
+            const charBefore = norm[pos - 1]
+            const isBoundary = /[^\p{L}\p{N}]/u.test(charBefore)
+            tier = isBoundary ? 20 : 30
+            penalty += Math.min(pos * 0.005, 0.5)
+          }
+        } else {
+          const tokens = tokenizeSearchText(norm)
+          let exactToken = false
+          let minPrefixDiff: number | null = null
+
+          for (const token of tokens) {
+            if (token === q) {
+              exactToken = true
+              break
+            }
+            if (token.startsWith(q)) {
+              const diff = token.length - q.length
+              if (minPrefixDiff == null || diff < minPrefixDiff) minPrefixDiff = diff
+            }
+          }
+
+          if (exactToken) {
+            tier = 10
+            if (pos > 0) penalty += Math.min(pos * 0.005, 0.5)
+          } else if (minPrefixDiff != null) {
+            tier = 20
+            penalty += Math.min(minPrefixDiff * 0.1, 5)
+            if (pos > 0) penalty += Math.min(pos * 0.005, 0.5)
+          } else if (norm.startsWith(q)) {
+            tier = 20
+            penalty += Math.min((norm.length - q.length) * 0.05, 5)
+          } else {
+            tier = 30
+            if (pos > 0) penalty += Math.min(pos * 0.005, 0.5)
+          }
+        }
+      }
+    }
     if (tier == null) continue
-    const score = tier + weight
+    const score = tier + weight + penalty
     if (best == null || score < best) best = score
   }
   return best
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /** Filter to matches and sort by match quality, then shorter src, then id. */
@@ -72,7 +117,10 @@ export function filterTranslationListItems(
     else if (nature === 'locales') list = list.filter((it) => Boolean(it.meta.localesKey))
   }
   if (opts.category && opts.category !== 'all') list = list.filter((it) => it.meta.category === opts.category)
-  if (opts.status === 'untranslated') list = list.filter((it) => !it.zh || !it.zh.trim())
+  if (opts.status === 'failed') list = list.filter((it) => Boolean(it.translationFailure))
+  else if (opts.status === 'untranslated') list = list.filter((it) => (!it.zh || !it.zh.trim()) && !it.translationFailure)
   else if (opts.status === 'translated') list = list.filter((it) => Boolean(it.zh && it.zh.trim()))
+  else if (opts.status === 'manual') list = list.filter((it) => isManualTranslation(it))
+  else if (opts.status && opts.status !== 'all') list = list.filter((it) => resolveItemSourceKind(it) === opts.status)
   return filterAndRankTranslationListItems(list, opts.query || '')
 }

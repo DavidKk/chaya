@@ -36,6 +36,22 @@ export function loadGameTranslateLookup(contentRoot: string): Record<string, str
   }
 }
 
+export function createGameTranslateEngines(records: SentenceRecord[]): Record<string, string> {
+  const engines: Record<string, string> = Object.create(null)
+  try {
+    for (const record of records) {
+      if (record.src && record.engine) {
+        engines[record.src] = record.engine
+        const nk = normalizeTranslateKey(record.src)
+        if (nk && nk !== record.src && !engines[nk]) engines[nk] = record.engine
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return engines
+}
+
 /** Deliberate edits override translated RGSS Data; ordinary machine caches only fill missing values. */
 export function loadRgssTranslationLookup(contentRoot: string) {
   const records = loadGameTranslationRecords(contentRoot)
@@ -45,9 +61,23 @@ export function loadRgssTranslationLookup(contentRoot: string) {
       ({ engine }) => engine === 'manual' || engine === 'import' || engine?.startsWith('import:') || engine === 'live:optimize' || engine?.startsWith('live:optimize:')
     )
   )
-  return { lookup, overrides }
+  const engines = createGameTranslateEngines(records)
+  return { lookup, overrides, engines }
 }
 
 export function resolveRgssTranslation(src: string, current: string, translations: ReturnType<typeof loadRgssTranslationLookup>): string {
   return translations.overrides[src] || current || translations.lookup[src] || ''
+}
+
+export function resolveRgssTranslationWithEngine(src: string, current: string, translations: ReturnType<typeof loadRgssTranslationLookup>): { zh: string; engine?: string } {
+  if (translations.overrides[src]) {
+    return { zh: translations.overrides[src]!, engine: translations.engines?.[src] || 'manual' }
+  }
+  if (current) {
+    return { zh: current, engine: 'manual' }
+  }
+  if (translations.lookup[src]) {
+    return { zh: translations.lookup[src]!, engine: translations.engines?.[src] || 'cache' }
+  }
+  return { zh: '', engine: undefined }
 }

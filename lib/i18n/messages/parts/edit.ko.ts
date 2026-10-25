@@ -324,6 +324,8 @@ export const editKo = {
     region: '로그',
     regionDesc: 'Chaya 플러그인 실행 로그를 실시간으로 확인하고 필터링하며 관리합니다.',
     live: '실시간',
+    liveEnable: '실시간 켜기',
+    liveDisable: '실시간 끄기',
     streamDown: '끊김',
     searchPh: '출처 / 메시지…',
     searchAria: '로그 검색',

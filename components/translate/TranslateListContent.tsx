@@ -21,6 +21,7 @@ import { useTranslateListSave } from '@/components/translate/useTranslateListSav
 import { readApiErrorMessage } from '@/lib/api-error'
 import { filterTranslationListItems } from '@/lib/translate/list-search'
 import { detectSourceLanguage } from '@/lib/translate/source-text'
+import { isManualTranslation } from '@/lib/translate/translation-source'
 import { hrefWithQuery, parsePositiveInt, patchSearchParams } from '@/lib/url/search-params'
 import type { ExtractedLocalesMeta, ExtractedTranslationItem } from '@/services/extract/lib/extract-items'
 
@@ -116,9 +117,8 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
   const [translatingId, setTranslatingId] = useState<string | null>(null)
   const [translatingPage, setTranslatingPage] = useState(false)
 
-  // Force re-render token when in-place item edits happen
-  const [, setTick] = useState(0)
-  const refreshUI = useCallback(() => setTick((t) => t + 1), [])
+  // Invalidate derived filters and counts after in-place item edits.
+  const refreshUI = useCallback(() => setItems((current) => [...current]), [])
   // 1. Load engines
   const loadEngines = useCallback(async () => {
     try {
@@ -312,6 +312,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
         const data = (await res.json()) as { ok?: boolean; items?: Array<{ zh?: string; error?: string }>; error?: unknown }
         if (data?.ok && Array.isArray(data.items) && data.items[0]?.zh) {
           item.zh = data.items[0].zh
+          item.engine = targetScheme === 'all' ? 'platform' : targetScheme
           refreshUI()
           notify.success(t('translate.listSingleTransSuccess', { src: item.src.slice(0, 20), zh: item.zh.slice(0, 20) }))
         } else {
@@ -374,6 +375,16 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
       notify.warning(t('translate.listTranslatePageEmpty'))
       return
     }
+
+    // 手动翻译权重最高，一键全页翻译必须受保护跳过，严禁触发或覆盖！
+    const candidates = pagedItems.filter((item) => !isManualTranslation(item))
+    const skippedManualCount = pagedItems.length - candidates.length
+
+    if (candidates.length === 0) {
+      notify.info(t('translate.listTranslatePageAllManual'))
+      return
+    }
+
     setTranslatingPage(true)
     const fromLang = sourceLang || localesMeta?.currentSourceLang || 'ja'
     const toLang = targetLang || localesMeta?.currentTargetLang || 'zh'
@@ -384,8 +395,8 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     let lastError = ''
     let sawAppleMissingPack = false
     try {
-      for (let offset = 0; offset < pagedItems.length; offset += PAGE_TRANSLATE_BATCH) {
-        const chunk = pagedItems.slice(offset, offset + PAGE_TRANSLATE_BATCH)
+      for (let offset = 0; offset < candidates.length; offset += PAGE_TRANSLATE_BATCH) {
+        const chunk = candidates.slice(offset, offset + PAGE_TRANSLATE_BATCH)
         if (isCache) {
           for (const item of chunk) {
             try {
@@ -398,6 +409,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
               const zh = data?.ok && Array.isArray(data.items) ? data.items[0]?.zh : ''
               if (zh) {
                 item.zh = zh
+                item.engine = 'cache'
                 okCount += 1
               } else {
                 failCount += 1
@@ -450,6 +462,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
             const hit = bySrc.get(item.src)
             if (hit?.zh) {
               item.zh = hit.zh
+              item.engine = selectedScheme === 'all' ? 'platform' : selectedScheme
               okCount += 1
             } else {
               failCount += 1
@@ -474,7 +487,11 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
         setAppleOfflineModal({ open: true, fromLang, toLang })
       }
       if (failCount === 0) {
-        notify.success(t('translate.listTranslatePageSuccess', { count: okCount }))
+        if (skippedManualCount > 0) {
+          notify.success(t('translate.listTranslatePageSuccessWithSkipped', { ok: okCount, skipped: skippedManualCount }))
+        } else {
+          notify.success(t('translate.listTranslatePageSuccess', { count: okCount }))
+        }
       } else if (okCount > 0) {
         notify.warning(t('translate.listTranslatePagePartial', { ok: okCount, failed: failCount }))
       } else {

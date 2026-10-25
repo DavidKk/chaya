@@ -5,7 +5,8 @@ import { ensureGameContentDir, gameContentReadPath } from '@/lib/game/content-fi
 import { fixKnownBadGameTermTranslation, lookupGameTerm } from '@/lib/translate/game-terms'
 import { detectSourceLanguage, isSourceText, type SourceLanguageOption } from '@/lib/translate/source-text'
 import { unpackAceArchive } from '@/services/game/rgss-archive'
-import { loadRgssTranslationLookup, resolveRgssTranslation } from '@/services/translate/game-lookup'
+import { loadRgssTranslationLookup, resolveRgssTranslationWithEngine } from '@/services/translate/game-lookup'
+import { attachSeedFailures, writeSeedFailure } from '@/services/translate/seed-failures'
 
 import { compareWithManual } from './compare'
 import { extractDataFields } from './data-fields'
@@ -238,29 +239,38 @@ export function runRgssExtract(contentRoot: string, options?: { sourceLanguage?:
 export function writeRgssTranslations(contentRoot: string, translations: Record<string, string>) {
   const dataDir = rgssDataDir(contentRoot)
   if (!dataDir) throw new Error('RGSS Data/ directory not found')
-  return writeRgssData(dataDir, translations)
+  const result = writeRgssData(dataDir, translations)
+  for (const src of Object.keys(translations)) writeSeedFailure(contentRoot, src, null)
+  return result
 }
 
-function resolveRgssItemZh(src: string, current: string, translations: ReturnType<typeof loadRgssTranslationLookup>): string {
-  const raw = resolveRgssTranslation(src, current, translations)
-  return fixKnownBadGameTermTranslation(src, raw) ?? (raw || lookupGameTerm(src) || '')
+function resolveRgssItemZh(src: string, current: string, translations: ReturnType<typeof loadRgssTranslationLookup>): { zh: string; engine?: string } {
+  const resolved = resolveRgssTranslationWithEngine(src, current, translations)
+  const termFixed = fixKnownBadGameTermTranslation(src, resolved.zh)
+  if (termFixed != null) {
+    return { zh: termFixed, engine: resolved.engine }
+  }
+  if (resolved.zh) return resolved
+  const term = lookupGameTerm(src)
+  if (term) return { zh: term, engine: 'cache' }
+  return { zh: '', engine: undefined }
 }
 
 function attachLookup(contentRoot: string, dataItems: ReturnType<typeof loadRgssItems>) {
   const translations = loadRgssTranslationLookup(contentRoot)
   const { lookup } = translations
   const withZh = dataItems.map((item) => {
-    const zh = resolveRgssItemZh(item.src, item.zh || '', translations)
-    return { ...item, zh, savedZh: zh || undefined, initialZh: item.initialZh || zh || undefined }
+    const res = resolveRgssItemZh(item.src, item.zh || '', translations)
+    return { ...item, zh: res.zh, engine: res.engine, savedZh: res.zh || undefined, initialZh: item.initialZh || res.zh || undefined }
   })
   const known = new Set(withZh.map((item) => item.src))
   const scriptItems = loadRgssScriptTranslationItems(contentRoot, lookup, withZh.length + 1)
     .filter((item) => !known.has(item.src))
     .map((item) => {
-      const zh = resolveRgssItemZh(item.src, item.zh || '', translations)
-      return { ...item, zh, savedZh: zh || undefined, initialZh: zh || undefined }
+      const res = resolveRgssItemZh(item.src, item.zh || '', translations)
+      return { ...item, zh: res.zh, engine: res.engine, savedZh: res.zh || undefined, initialZh: res.zh || undefined }
     })
-  return [...withZh, ...scriptItems]
+  return attachSeedFailures(contentRoot, [...withZh, ...scriptItems])
 }
 
 async function attachLookupAsync(contentRoot: string, dataItems: ReturnType<typeof loadRgssItems>) {
@@ -271,8 +281,8 @@ async function attachLookupAsync(contentRoot: string, dataItems: ReturnType<type
   const withZh: ReturnType<typeof attachLookup> = []
   for (let i = 0; i < dataItems.length; i++) {
     const item = dataItems[i]!
-    const zh = resolveRgssItemZh(item.src, item.zh || '', translations)
-    withZh.push({ ...item, zh, savedZh: zh || undefined, initialZh: item.initialZh || zh || undefined })
+    const res = resolveRgssItemZh(item.src, item.zh || '', translations)
+    withZh.push({ ...item, zh: res.zh, engine: res.engine, savedZh: res.zh || undefined, initialZh: item.initialZh || res.zh || undefined })
     if (i % 200 === 199) await new Promise<void>((r) => setTimeout(r, 0))
   }
   await new Promise<void>((r) => setTimeout(r, 0))
@@ -280,10 +290,10 @@ async function attachLookupAsync(contentRoot: string, dataItems: ReturnType<type
   const scriptItems = loadRgssScriptTranslationItems(contentRoot, lookup, withZh.length + 1)
     .filter((item) => !known.has(item.src))
     .map((item) => {
-      const zh = resolveRgssItemZh(item.src, item.zh || '', translations)
-      return { ...item, zh, savedZh: zh || undefined, initialZh: zh || undefined }
+      const res = resolveRgssItemZh(item.src, item.zh || '', translations)
+      return { ...item, zh: res.zh, engine: res.engine, savedZh: res.zh || undefined, initialZh: res.zh || undefined }
     })
-  return [...withZh, ...scriptItems]
+  return attachSeedFailures(contentRoot, [...withZh, ...scriptItems])
 }
 
 export function loadRgssTranslationItems(contentRoot: string) {

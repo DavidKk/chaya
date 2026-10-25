@@ -29,6 +29,12 @@ export function createPublicGameStore(db: SharedCacheDb, dataDir: string) {
     CREATE TABLE IF NOT EXISTS game_mutation_receipts(game_id TEXT NOT NULL,key TEXT NOT NULL,hash TEXT NOT NULL,PRIMARY KEY(game_id,key));`)
   const mounted = new Map<string, { gameId: string; directory: string; signature: string }>()
   function atomic(file: string, body: string) {
+    // Readers use file identity to invalidate inventories; unchanged views must stay stable.
+    try {
+      if (fs.readFileSync(file, 'utf8') === body) return
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
     fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 })
     const tmp = `${file}.${process.pid}.tmp`
     fs.writeFileSync(tmp, body, { mode: 0o600 })

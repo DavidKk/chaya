@@ -198,6 +198,31 @@ test('new log entries scroll only the log viewport even when the retained log co
   }
 })
 
+test('live status replaces the session count in the compact activity log header', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const host = document.createElement('div')
+  document.body.append(host)
+  const root = createRoot(host)
+  try {
+    await act(async () =>
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateActivityLog entries={[]} liveStatus="已暂停 · 本会话已译 74,356 条" sessionDone={74393} />
+        </LocaleProvider>
+      )
+    )
+    const header = host.querySelector('h3')?.parentElement
+    expect(header?.textContent).toContain('已暂停 · 本会话已译 74,356 条')
+    expect(header?.textContent).not.toContain('74,393')
+    expect(header?.querySelector('p')).toBeNull()
+    expect(header?.querySelector('.text-accent')).not.toBeNull()
+    expect(host.textContent).not.toContain('开始翻译后显示每段进度与样例。')
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
+})
+
 test.each([
   ['zh', 4, 0, 2, '[缓存] #8400：4/4 条（80 字符）完成（2 条命中缓存）', 'text-ok'],
   ['zh', 3, 1, 2, '[缓存] #8400：3/4 条（80 字符）成功，1 条失败（2 条命中缓存）', 'text-warn'],

@@ -33,7 +33,6 @@ it('runs the production bundle off-thread and reuses current shared, local and n
   const worker = new Worker(path.resolve('native/bin/chaya-cache-worker.mjs'), { workerData: { contentRoot: root, file }, env: { ...process.env, CHAYA_ROOT: process.cwd() } })
   try {
     const results = await new Promise<CacheScanResult[]>((resolve, reject) => {
-      let started = false
       const items: CacheScanResult[] = []
       worker.on('error', reject)
       worker.on('exit', (code) => {
@@ -41,11 +40,13 @@ it('runs the production bundle off-thread and reuses current shared, local and n
       })
       worker.on('message', (message) => {
         if (message.type === 'failed') reject(new Error(message.error))
-        if (message.type === 'item') items.push(message.result)
-        if (message.type === 'ready' && !started) {
-          started = true
-          worker.postMessage(['Hello', 'Welcome', 'Thunder7', 'Goodbye'].map((src, id) => ({ src, id })))
-        } else if (message.type === 'ready') resolve(items)
+        if (message.type === 'ready' && message.protocolVersion >= 1) {
+          worker.postMessage({ batchId: 1, leaseId: 'lease-1', tasks: ['Hello', 'Welcome', 'Thunder7', 'Goodbye'].map((src, id) => ({ src, id })) })
+        } else if (message.type === 'item') {
+          items.push(message.result)
+        } else if (message.type === 'done') {
+          resolve(items)
+        }
       })
     })
     expect(results.map((result) => result.plan.zh)).toEqual(['本作你好', '欢迎', '雷霆7', null])

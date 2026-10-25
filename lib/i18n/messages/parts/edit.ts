@@ -323,6 +323,8 @@ export const editZh = {
     region: '插件日志',
     regionDesc: '实时查看、筛选并管理 Chaya 插件运行日志。',
     live: '实时',
+    liveEnable: '开启实时',
+    liveDisable: '取消实时',
     streamDown: '中断',
     searchPh: '搜索来源 / 消息…',
     searchAria: '搜索日志',

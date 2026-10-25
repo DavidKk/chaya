@@ -1147,14 +1147,14 @@ var require_util = __commonJS({
         }
         const port2 = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
         let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port2}`;
-        let path27 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        let path28 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
         if (origin[origin.length - 1] === "/") {
           origin = origin.slice(0, origin.length - 1);
         }
-        if (path27 && path27[0] !== "/") {
-          path27 = `/${path27}`;
+        if (path28 && path28[0] !== "/") {
+          path28 = `/${path28}`;
         }
-        return new URL(`${origin}${path27}`);
+        return new URL(`${origin}${path28}`);
       }
       if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
@@ -1975,9 +1975,9 @@ var require_diagnostics = __commonJS({
         "undici:client:sendHeaders",
         (evt) => {
           const {
-            request: { method, path: path27, origin }
+            request: { method, path: path28, origin }
           } = evt;
-          debugLog("sending request to %s %s%s", method, origin, path27);
+          debugLog("sending request to %s %s%s", method, origin, path28);
         }
       );
     }
@@ -1995,14 +1995,14 @@ var require_diagnostics = __commonJS({
         "undici:request:headers",
         (evt) => {
           const {
-            request: { method, path: path27, origin },
+            request: { method, path: path28, origin },
             response: { statusCode }
           } = evt;
           debugLog(
             "received response to %s %s%s - HTTP %d",
             method,
             origin,
-            path27,
+            path28,
             statusCode
           );
         }
@@ -2011,23 +2011,23 @@ var require_diagnostics = __commonJS({
         "undici:request:trailers",
         (evt) => {
           const {
-            request: { method, path: path27, origin }
+            request: { method, path: path28, origin }
           } = evt;
-          debugLog("trailers received from %s %s%s", method, origin, path27);
+          debugLog("trailers received from %s %s%s", method, origin, path28);
         }
       );
       diagnosticsChannel.subscribe(
         "undici:request:error",
         (evt) => {
           const {
-            request: { method, path: path27, origin },
+            request: { method, path: path28, origin },
             error
           } = evt;
           debugLog(
             "request to %s %s%s errored - %s",
             method,
             origin,
-            path27,
+            path28,
             error.message
           );
         }
@@ -2142,7 +2142,7 @@ var require_request = __commonJS({
     var kHandler = /* @__PURE__ */ Symbol("handler");
     var Request = class {
       constructor(origin, {
-        path: path27,
+        path: path28,
         method,
         body,
         headers,
@@ -2159,11 +2159,11 @@ var require_request = __commonJS({
         maxRedirections,
         typeOfService
       }, handler) {
-        if (typeof path27 !== "string") {
+        if (typeof path28 !== "string") {
           throw new InvalidArgumentError("path must be a string");
-        } else if (path27[0] !== "/" && !(path27.startsWith("http://") || path27.startsWith("https://")) && method !== "CONNECT") {
+        } else if (path28[0] !== "/" && !(path28.startsWith("http://") || path28.startsWith("https://")) && method !== "CONNECT") {
           throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-        } else if (invalidPathRegex.test(path27)) {
+        } else if (invalidPathRegex.test(path28)) {
           throw new InvalidArgumentError("invalid request path");
         }
         if (typeof method !== "string") {
@@ -2238,7 +2238,7 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? serializePathWithQuery(path27, query) : path27;
+        this.path = query ? serializePathWithQuery(path28, query) : path28;
         this.origin = origin;
         this.protocol = getProtocolFromUrlString(origin);
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
@@ -7420,7 +7420,7 @@ var require_client_h1 = __commonJS({
       return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE" && method !== "CONNECT";
     }
     function writeH1(client, request) {
-      const { method, path: path27, host, upgrade, blocking, reset } = request;
+      const { method, path: path28, host, upgrade, blocking, reset } = request;
       let { body, headers, contentLength } = request;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
       if (util.isFormDataLike(body)) {
@@ -7498,7 +7498,7 @@ var require_client_h1 = __commonJS({
       if (socket.setTypeOfService) {
         socket.setTypeOfService(request.typeOfService);
       }
-      let header = `${method} ${path27} HTTP/1.1\r
+      let header = `${method} ${path28} HTTP/1.1\r
 `;
       if (typeof host === "string") {
         header += `host: ${host}\r
@@ -8177,7 +8177,7 @@ var require_client_h2 = __commonJS({
       const headersTimeout = request.headersTimeout ?? client[kHeadersTimeout];
       const bodyTimeout = request.bodyTimeout ?? client[kBodyTimeout];
       const session = client[kHTTP2Session];
-      const { method, path: path27, host, upgrade, expectContinue, signal, protocol, headers: reqHeaders } = request;
+      const { method, path: path28, host, upgrade, expectContinue, signal, protocol, headers: reqHeaders } = request;
       let { body } = request;
       if (upgrade != null && upgrade !== "websocket") {
         util.errorRequest(client, request, new InvalidArgumentError(`Custom upgrade "${upgrade}" not supported over HTTP/2`));
@@ -8246,7 +8246,7 @@ var require_client_h2 = __commonJS({
           }
           headers[HTTP2_HEADER_METHOD] = "CONNECT";
           headers[HTTP2_HEADER_PROTOCOL] = "websocket";
-          headers[HTTP2_HEADER_PATH] = path27;
+          headers[HTTP2_HEADER_PATH] = path28;
           if (protocol === "ws:" || protocol === "wss:") {
             headers[HTTP2_HEADER_SCHEME] = protocol === "ws:" ? "http" : "https";
           } else {
@@ -8288,7 +8288,7 @@ var require_client_h2 = __commonJS({
         stream.setTimeout(headersTimeout);
         return true;
       }
-      headers[HTTP2_HEADER_PATH] = path27;
+      headers[HTTP2_HEADER_PATH] = path28;
       headers[HTTP2_HEADER_SCHEME] = protocol === "http:" ? "http" : "https";
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
@@ -10640,10 +10640,10 @@ var require_proxy_agent = __commonJS({
         };
         const {
           origin,
-          path: path27 = "/",
+          path: path28 = "/",
           headers = {}
         } = opts;
-        opts.path = origin + path27;
+        opts.path = origin + path28;
         if (!("host" in headers) && !("Host" in headers)) {
           const { host } = new URL(origin);
           headers.host = host;
@@ -12752,20 +12752,20 @@ var require_mock_utils = __commonJS({
       }
       return normalizedQp;
     }
-    function safeUrl(path27) {
-      if (typeof path27 !== "string") {
-        return path27;
+    function safeUrl(path28) {
+      if (typeof path28 !== "string") {
+        return path28;
       }
-      const pathSegments = path27.split("?", 3);
+      const pathSegments = path28.split("?", 3);
       if (pathSegments.length !== 2) {
-        return path27;
+        return path28;
       }
       const qp = new URLSearchParams(pathSegments.pop());
       qp.sort();
       return [...pathSegments, qp.toString()].join("?");
     }
-    function matchKey(mockDispatch2, { path: path27, method, body, headers }) {
-      const pathMatch = matchValue(mockDispatch2.path, path27);
+    function matchKey(mockDispatch2, { path: path28, method, body, headers }) {
+      const pathMatch = matchValue(mockDispatch2.path, path28);
       const methodMatch = matchValue(mockDispatch2.method, method);
       const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
       const headersMatch = matchHeaders(mockDispatch2, headers);
@@ -12790,8 +12790,8 @@ var require_mock_utils = __commonJS({
       const basePath = key2.query ? serializePathWithQuery(key2.path, key2.query) : key2.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
       const resolvedPathWithoutTrailingSlash = removeTrailingSlash(resolvedPath);
-      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path27, ignoreTrailingSlash }) => {
-        return ignoreTrailingSlash ? matchValue(removeTrailingSlash(safeUrl(path27)), resolvedPathWithoutTrailingSlash) : matchValue(safeUrl(path27), resolvedPath);
+      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path28, ignoreTrailingSlash }) => {
+        return ignoreTrailingSlash ? matchValue(removeTrailingSlash(safeUrl(path28)), resolvedPathWithoutTrailingSlash) : matchValue(safeUrl(path28), resolvedPath);
       });
       if (matchedMockDispatches.length === 0) {
         throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
@@ -12830,19 +12830,19 @@ var require_mock_utils = __commonJS({
         mockDispatches.splice(index2, 1);
       }
     }
-    function removeTrailingSlash(path27) {
-      while (path27.endsWith("/")) {
-        path27 = path27.slice(0, -1);
+    function removeTrailingSlash(path28) {
+      while (path28.endsWith("/")) {
+        path28 = path28.slice(0, -1);
       }
-      if (path27.length === 0) {
-        path27 = "/";
+      if (path28.length === 0) {
+        path28 = "/";
       }
-      return path27;
+      return path28;
     }
     function buildKey(opts) {
-      const { path: path27, method, body, headers, query } = opts;
+      const { path: path28, method, body, headers, query } = opts;
       return {
-        path: path27,
+        path: path28,
         method,
         body,
         headers,
@@ -13532,10 +13532,10 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path: path27, data: { statusCode }, persist: persist2, times, timesInvoked, origin }) => ({
+          ({ method, path: path28, data: { statusCode }, persist: persist2, times, timesInvoked, origin }) => ({
             Method: method,
             Origin: origin,
-            Path: path27,
+            Path: path28,
             "Status code": statusCode,
             Persistent: persist2 ? PERSISTENT : NOT_PERSISTENT,
             Invocations: timesInvoked,
@@ -13617,9 +13617,9 @@ var require_mock_agent = __commonJS({
         const acceptNonStandardSearchParameters = this[kMockAgentAcceptsNonStandardSearchParameters];
         const dispatchOpts = { ...opts };
         if (acceptNonStandardSearchParameters && dispatchOpts.path) {
-          const [path27, searchParams] = dispatchOpts.path.split("?");
+          const [path28, searchParams] = dispatchOpts.path.split("?");
           const normalizedSearchParams = normalizeSearchParams(searchParams, acceptNonStandardSearchParameters);
-          dispatchOpts.path = `${path27}?${normalizedSearchParams}`;
+          dispatchOpts.path = `${path28}?${normalizedSearchParams}`;
         }
         return this[kAgent].dispatch(dispatchOpts, handler);
       }
@@ -14020,12 +14020,12 @@ var require_snapshot_recorder = __commonJS({
        * @return {Promise<void>} - Resolves when snapshots are loaded
        */
       async loadSnapshots(filePath2) {
-        const path27 = filePath2 || this.#snapshotPath;
-        if (!path27) {
+        const path28 = filePath2 || this.#snapshotPath;
+        if (!path28) {
           throw new InvalidArgumentError("Snapshot path is required");
         }
         try {
-          const data = await readFile2(resolve3(path27), "utf8");
+          const data = await readFile2(resolve3(path28), "utf8");
           const parsed = JSON.parse(data);
           if (Array.isArray(parsed)) {
             this.#snapshots.clear();
@@ -14039,7 +14039,7 @@ var require_snapshot_recorder = __commonJS({
           if (error.code === "ENOENT") {
             this.#snapshots.clear();
           } else {
-            throw new UndiciError(`Failed to load snapshots from ${path27}`, { cause: error });
+            throw new UndiciError(`Failed to load snapshots from ${path28}`, { cause: error });
           }
         }
       }
@@ -14050,11 +14050,11 @@ var require_snapshot_recorder = __commonJS({
        * @returns {Promise<void>} - Resolves when snapshots are saved
        */
       async saveSnapshots(filePath2) {
-        const path27 = filePath2 || this.#snapshotPath;
-        if (!path27) {
+        const path28 = filePath2 || this.#snapshotPath;
+        if (!path28) {
           throw new InvalidArgumentError("Snapshot path is required");
         }
-        const resolvedPath = resolve3(path27);
+        const resolvedPath = resolve3(path28);
         await mkdir(dirname2(resolvedPath), { recursive: true });
         const data = Array.from(this.#snapshots.entries()).map(([hash, snapshot]) => ({
           hash,
@@ -14686,15 +14686,15 @@ var require_redirect_handler = __commonJS({
           return;
         }
         const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-        const path27 = search ? `${pathname}${search}` : pathname;
-        const redirectUrlString = `${origin}${path27}`;
+        const path28 = search ? `${pathname}${search}` : pathname;
+        const redirectUrlString = `${origin}${path28}`;
         for (const historyUrl of this.history) {
           if (historyUrl.toString() === redirectUrlString) {
             throw new InvalidArgumentError(`Redirect loop detected. Cannot redirect to ${origin}. This typically happens when using a Client or Pool with cross-origin redirects. Use an Agent for cross-origin redirects.`);
           }
         }
         this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-        this.opts.path = path27;
+        this.opts.path = path28;
         this.opts.origin = origin;
         this.opts.query = null;
       }
@@ -16454,10 +16454,10 @@ var require_cache_handler = __commonJS({
       }
       return locationUrl.pathname + locationUrl.search;
     }
-    function deleteCachedUri(store2, cacheKey, path27) {
+    function deleteCachedUri(store2, cacheKey, path28) {
       deleteCachedValue(store2, {
         ...cacheKey,
-        path: path27
+        path: path28
       });
       for (let i = 0; i < util.safeHTTPMethods.length; i++) {
         const method = util.safeHTTPMethods[i];
@@ -16465,7 +16465,7 @@ var require_cache_handler = __commonJS({
           deleteCachedValue(store2, {
             ...cacheKey,
             method,
-            path: path27
+            path: path28
           });
         }
       }
@@ -16476,9 +16476,9 @@ var require_cache_handler = __commonJS({
       }
       const values = Array.isArray(headerValue) ? headerValue : [headerValue];
       for (let i = 0; i < values.length; i++) {
-        const path27 = getSameOriginPath(cacheKey, values[i]);
-        if (path27 !== void 0) {
-          deleteCachedUri(store2, cacheKey, path27);
+        const path28 = getSameOriginPath(cacheKey, values[i]);
+        if (path28 !== void 0) {
+          deleteCachedUri(store2, cacheKey, path28);
         }
       }
     }
@@ -21478,11 +21478,11 @@ var require_fetch = __commonJS({
       function dispatch({ body }) {
         const url = requestCurrentURL(request);
         const agent = fetchParams.controller.dispatcher;
-        const path27 = url.pathname + url.search;
+        const path28 = url.pathname + url.search;
         const hasTrailingQuestionMark = url.search.length === 0 && url.href[url.href.length - url.hash.length - 1] === "?";
         return new Promise((resolve3, reject) => agent.dispatch(
           {
-            path: hasTrailingQuestionMark ? `${path27}?` : path27,
+            path: hasTrailingQuestionMark ? `${path28}?` : path28,
             origin: url.origin,
             method: request.method,
             body: agent.isMockActive ? request.body && (request.body.source || request.body.stream) : body,
@@ -22429,9 +22429,9 @@ var require_util4 = __commonJS({
         }
       }
     }
-    function validateCookiePath(path27) {
-      for (let i = 0; i < path27.length; ++i) {
-        const code = path27.charCodeAt(i);
+    function validateCookiePath(path28) {
+      for (let i = 0; i < path28.length; ++i) {
+        const code = path28.charCodeAt(i);
         if (code < 32 || // exclude CTLs (0-31)
         code > 126 || // exclude DEL and non-ascii
         code === 59) {
@@ -25779,11 +25779,11 @@ var require_undici = __commonJS({
           if (typeof opts.path !== "string") {
             throw new InvalidArgumentError("invalid opts.path");
           }
-          let path27 = opts.path;
+          let path28 = opts.path;
           if (!opts.path.startsWith("/")) {
-            path27 = `/${path27}`;
+            path28 = `/${path28}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path27);
+          url = new URL(util.parseOrigin(url).origin + path28);
         } else {
           if (!opts) {
             opts = typeof url === "object" ? url : {};
@@ -30454,7 +30454,7 @@ import { parentPort } from "node:worker_threads";
 var SEED_JOB_WORKER_VERSION = 1;
 
 // services/translate/seed-job-runtime.ts
-import fs33 from "node:fs";
+import fs34 from "node:fs";
 
 // lib/format-compact-count.ts
 function formatCompactCount(n) {
@@ -30506,6 +30506,52 @@ function smoothTranslationPerformance(previous, next, alpha = 0.2) {
     charsPerSecond: previous.charsPerSecond * (1 - weight) + next.charsPerSecond * weight,
     cacheMs: next.cacheMs
   };
+}
+
+// lib/translate/result-sources.ts
+function replannedResultSources(plan, writes) {
+  return [
+    ...new Set(
+      plan.matches.flatMap(({ record }) => {
+        const own = writes.find(
+          ({ record: written }) => written.id === record.id && written.revision === record.revision || record.local && written.src === record.src && written.zh === record.zh && written.engine === record.engine
+        );
+        return own?.sources ?? ["cache"];
+      })
+    )
+  ];
+}
+function resultSources(item) {
+  if (item.resultSources) return item.resultSources;
+  if (item.engine === "cache:partial") return ["cache", "unknown"];
+  return item.engine ? [item.engine] : [];
+}
+function isCacheResult(item) {
+  const sources2 = resultSources(item);
+  return sources2.length > 0 && sources2.every((source) => source === "cache" || source.startsWith("cache:"));
+}
+function isCacheExecution(item) {
+  return isCacheResult(item) && !item.engineWork;
+}
+function batchSource(name2) {
+  const raw = name2.trim().toLowerCase().replace(/^live:/, "");
+  if (raw === "cache" || raw.startsWith("cache:")) return "cache";
+  if (raw === "apple" || raw.startsWith("apple:")) return "apple";
+  if (raw === "agent" || raw.startsWith("agent:")) return "agent";
+  if (raw === "bergamot" || raw.startsWith("bergamot:")) return "bergamot";
+  if (raw === "ollama" || raw.startsWith("ollama:")) return "ollama";
+  if (raw === "platform" || raw.startsWith("google") || raw.startsWith("bing") || raw.startsWith("platform:")) return "platform";
+  return "unknown";
+}
+function batchSources(items) {
+  const order = ["apple", "agent", "platform", "bergamot", "ollama", "unknown", "cache"];
+  const present = new Set(
+    items.flatMap((item) => {
+      const sources2 = resultSources(item);
+      return sources2.length ? sources2.map(batchSource) : ["unknown"];
+    })
+  );
+  return order.filter((source) => present.has(source));
 }
 
 // lib/game/content-files.ts
@@ -32029,7 +32075,7 @@ function getTranslateEngineSwitches(contentRoot = resolveContentRoot(false)) {
 }
 
 // services/translate/fill-missing.ts
-import fs30 from "node:fs";
+import fs32 from "node:fs";
 
 // lib/translate/dynamic-template.ts
 var DYNAMIC_VARIABLE = /_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/g;
@@ -32153,8 +32199,8 @@ function resolveCacheLangPair(opts) {
 }
 
 // services/extract/lib/rgss.ts
-import fs15 from "node:fs";
-import path13 from "node:path";
+import fs17 from "node:fs";
+import path15 from "node:path";
 
 // lib/translate/choice-meta.ts
 function callEnd(text3, start) {
@@ -33646,7 +33692,7 @@ function planSentenceTranslationView(src, records, opts, unwrap) {
   const units = sentenceQueryViewUnits(src, opts);
   const expanded = expandRecords(records);
   const normal = candidates(src, expanded, opts);
-  const initial = chooseSentencePlan(src, units, normal, normal.limited === true);
+  const initial = chooseSentencePlan(src, units, normal, normal.limited === true, opts?.category);
   if (initial.status === "full" || initial.limited || opts?.structure?.mode === "disabled") return initial;
   const views = unwrap ? sentenceQueryViews(src, opts) : [];
   if (views.length > 1 && !initial.ambiguous) {
@@ -33668,7 +33714,7 @@ function planSentenceTranslationView(src, records, opts, unwrap) {
           src,
           opts
         ).filter((m) => m.from >= 0 && m.to > m.from);
-        const merged = chooseSentencePlan(src, units, [...initial.matches, ...additions2], !!shifted.limited);
+        const merged = chooseSentencePlan(src, units, [...initial.matches, ...additions2], !!shifted.limited, opts?.category);
         merged.ambiguous ||= shifted.ambiguous;
         if (merged.status === "full" || merged.limited || merged.ambiguous) return merged;
         const chars2 = merged.matches.reduce((sum2, m) => sum2 + m.end - m.start, 0);
@@ -33695,7 +33741,7 @@ function planSentenceTranslationView(src, records, opts, unwrap) {
   const inferred = structure.units.length || structure.diagnostics.length ? [] : candidates(src, expanded, opts, true);
   if (inferred.limited) return { ...initial, limited: true };
   const additions = inferred.filter((m) => normal.every((hit) => m.end <= hit.start || m.start >= hit.end));
-  const result = chooseSentencePlan(src, units, [...initial.matches, ...additions], false);
+  const result = chooseSentencePlan(src, units, [...initial.matches, ...additions], false, opts?.category);
   result.ambiguous ||= initial.ambiguous;
   return applyLineFallback(src, expanded, result, normal, opts);
 }
@@ -33724,11 +33770,11 @@ function applyLineFallback(src, records, plan, normal, opts) {
   const additions = selected.filter(
     (m) => lines.some((line) => line.start === m.start && wholeSentenceKey(src.slice(m.start, m.end)) === wholeSentenceKey(line.text)) && normal.every((hit) => m.end <= hit.start || m.start >= hit.end) && plan.matches.every((hit) => m.end <= hit.start || m.start >= hit.end)
   );
-  const result = chooseSentencePlan(src, units, [...previous, ...additions], false);
+  const result = chooseSentencePlan(src, units, [...previous, ...additions], false, opts?.category);
   result.ambiguous ||= plan.ambiguous;
   return result;
 }
-function chooseSentencePlan(src, units, possible, limited) {
+function chooseSentencePlan(src, units, possible, limited, category) {
   const locked = possible.filter((m) => m.alignment !== "inferred" && m.record.local && m.record.engine === "manual" && !m.record.derived);
   possible = possible.filter(
     (m) => locked.every((lock) => {
@@ -33743,41 +33789,13 @@ function chooseSentencePlan(src, units, possible, limited) {
     ranges.set(key2, [...ranges.get(key2) || [], m]);
   }
   possible = [];
-  const output = (m) => joinSentenceBlock(src.slice(m.start, m.end), m.text, /[,，、;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd)));
-  for (let group of ranges.values()) {
-    const proven = group.filter((m) => m.alignment !== "inferred");
-    if (proven.length) group = proven;
-    else if (new Set(group.map(output)).size > 1) {
+  for (const group of ranges.values()) {
+    const chosen = chooseAuthorityMatch(group, src, category);
+    if (chosen.ambiguous) {
       ambiguous = true;
       continue;
     }
-    const locals = group.filter((m) => m.record.local);
-    if (locals.length) group = locals;
-    const explicit = group.filter((match) => !match.record.structuralAlias);
-    if (explicit.length) group = explicit;
-    else {
-      const context = Math.min(...group.map((match) => match.record.structureContext || 0));
-      group = group.filter((match) => (match.record.structureContext || 0) === context);
-      const rank = Math.max(...group.map((match) => cacheEngineRank(match.record.engine)));
-      group = group.filter((match) => cacheEngineRank(match.record.engine) === rank);
-    }
-    const equivalentBeforeExact = group.every((m) => !m.record.derived && wholeSentenceKey(m.record.src) === wholeSentenceKey(group[0].record.src));
-    if (equivalentBeforeExact) {
-      const rank = Math.max(...group.map((m) => cacheEngineRank(m.record.engine)));
-      group = group.filter((m) => cacheEngineRank(m.record.engine) === rank);
-    }
-    const exact = group.filter((m) => !m.record.derived && m.record.src === src && m.start === 0 && m.end === src.length);
-    if (exact.length) group = exact;
-    const equivalent = group.every((m) => !m.record.derived && wholeSentenceKey(m.record.src) === wholeSentenceKey(group[0].record.src));
-    if (equivalent) {
-      const rank = Math.max(...group.map((m) => cacheEngineRank(m.record.engine)));
-      group = group.filter((m) => cacheEngineRank(m.record.engine) === rank);
-    }
-    if (new Set(group.map(output)).size > 1) {
-      ambiguous = true;
-      continue;
-    }
-    possible.push(group.sort((a, b) => (a.kind === "extracted" ? 1 : 0) - (b.kind === "extracted" ? 1 : 0) || a.record.id.localeCompare(b.record.id))[0]);
+    possible.push(chosen.match);
   }
   const best = Array.from({ length: units.length + 1 }, () => ({ matches: [], covered: 0, chars: 0 }));
   for (let i2 = units.length - 1; i2 >= 0; i2--) {
@@ -33808,6 +33826,34 @@ function chooseSentencePlan(src, units, possible, limited) {
   const plan = { src, status, matches, gaps, zh: null, coverage: units.length ? best[0].covered / units.length : 0, ambiguous, limited };
   if (status === "full") plan.zh = renderSentencePlan(plan);
   return plan;
+}
+function chooseAuthorityMatch(group, src, category) {
+  const output = (m) => joinSentenceBlock(src.slice(m.start, m.end), m.text, /[,，、;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd)));
+  const proven = group.filter((m) => m.alignment !== "inferred");
+  let pool = proven.length ? proven : group;
+  if (!proven.length && new Set(pool.map(output)).size > 1) return { ambiguous: true };
+  const explicit = pool.filter((m) => !m.record.structuralAlias);
+  if (explicit.length) pool = explicit;
+  else {
+    const context = Math.min(...pool.map((m) => m.record.structureContext || 0));
+    pool = pool.filter((m) => (m.record.structureContext || 0) === context);
+  }
+  const rank = Math.max(...pool.map((m) => cacheEngineRank(m.record.engine)));
+  pool = pool.filter((m) => cacheEngineRank(m.record.engine) === rank);
+  const exact = pool.filter((m) => !m.record.derived && m.record.src === src && m.start === 0 && m.end === src.length);
+  if (exact.length) pool = exact;
+  const want = String(category || "").trim();
+  if (want) {
+    const matched = pool.filter((m) => m.record.category === want);
+    if (matched.length) pool = matched;
+  }
+  if (new Set(pool.map(output)).size === 1) {
+    const ordered = [...pool].sort(
+      (a, b) => (a.record.local ? 0 : 1) - (b.record.local ? 0 : 1) || (a.kind === "extracted" ? 1 : 0) - (b.kind === "extracted" ? 1 : 0) || a.record.id.localeCompare(b.record.id)
+    );
+    return { match: ordered[0], ambiguous: false };
+  }
+  return { ambiguous: true };
 }
 function createSentenceResolver(records) {
   const inverted = /* @__PURE__ */ new Map();
@@ -34175,6 +34221,20 @@ function loadGameTranslateLookup(contentRoot) {
     return /* @__PURE__ */ Object.create(null);
   }
 }
+function createGameTranslateEngines(records) {
+  const engines = /* @__PURE__ */ Object.create(null);
+  try {
+    for (const record of records) {
+      if (record.src && record.engine) {
+        engines[record.src] = record.engine;
+        const nk = normalizeTranslateKey(record.src);
+        if (nk && nk !== record.src && !engines[nk]) engines[nk] = record.engine;
+      }
+    }
+  } catch {
+  }
+  return engines;
+}
 function loadRgssTranslationLookup(contentRoot) {
   const records = loadGameTranslationRecords(contentRoot);
   const lookup = createGameTranslateLookup(records);
@@ -34183,10 +34243,152 @@ function loadRgssTranslationLookup(contentRoot) {
       ({ engine }) => engine === "manual" || engine === "import" || engine?.startsWith("import:") || engine === "live:optimize" || engine?.startsWith("live:optimize:")
     )
   );
-  return { lookup, overrides };
+  const engines = createGameTranslateEngines(records);
+  return { lookup, overrides, engines };
 }
 function resolveRgssTranslation(src, current, translations2) {
   return translations2.overrides[src] || current || translations2.lookup[src] || "";
+}
+
+// services/translate/seed-failures.ts
+import fs14 from "node:fs";
+import path12 from "node:path";
+
+// services/translate/seed-job-state.ts
+import { createHash } from "node:crypto";
+import fs13 from "node:fs";
+import path11 from "node:path";
+var MAX_SEED_JOB_LOGS = 120;
+function idleSeedJob(contentRoot = "") {
+  return {
+    contentRoot,
+    status: "idle",
+    startedAt: null,
+    updatedAt: Date.now(),
+    sessionDone: 0,
+    rounds: 0,
+    performance: null,
+    liveStatus: "",
+    error: null,
+    engines: [],
+    logs: [],
+    failedSources: [],
+    inventoryPreparing: false
+  };
+}
+function emptySeedProgress(contentRoot) {
+  return {
+    contentRoot,
+    hasSeed: false,
+    total: 0,
+    done: 0,
+    missing: 0,
+    needCount: 0,
+    skipCount: 0,
+    needChars: 0,
+    skipChars: 0,
+    missingChars: 0,
+    doneChars: 0,
+    lines: 0,
+    batchSize: 40,
+    batchesLeft: 0
+  };
+}
+function seedJobKey(contentRoot) {
+  return createHash("sha1").update(path11.resolve(contentRoot)).digest("hex").slice(0, 16);
+}
+function seedJobFile(contentRoot) {
+  return path11.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
+}
+function readSeedJobState(contentRoot) {
+  const file = seedJobFile(contentRoot);
+  if (!fs13.existsSync(file)) return null;
+  try {
+    const raw = JSON.parse(fs13.readFileSync(file, "utf8"));
+    if (!raw || typeof raw !== "object") return null;
+    return {
+      ...idleSeedJob(contentRoot),
+      ...raw,
+      contentRoot,
+      failedSources: Array.isArray(raw.failedSources) ? raw.failedSources.filter((s) => typeof s === "string") : [],
+      logs: Array.isArray(raw.logs) ? raw.logs.slice(-MAX_SEED_JOB_LOGS) : []
+    };
+  } catch {
+    return null;
+  }
+}
+function writeSeedJobState(state) {
+  fs13.mkdirSync(TRANSLATE_JOBS_DIR, { recursive: true });
+  const file = seedJobFile(state.contentRoot);
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs13.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}
+`, "utf8");
+  fs13.renameSync(tmp, file);
+}
+function isObsoleteCacheWorkerLog(text3) {
+  if (/Cannot find module .+chaya-cache-worker/i.test(text3)) return true;
+  if (fs13.existsSync(CACHE_WORKER_PATH) && /Cache scan unavailable:.*(?:worker not built|CACHE_WORKER_MISSING|chaya-cache-worker)/i.test(text3)) return true;
+  return false;
+}
+function visibleSeedJobState(state) {
+  const logs = process.env.CHAYA_TRANSLATE_DEBUG === "1" ? state.logs : state.logs.filter(
+    (entry) => !isObsoleteCacheWorkerLog(entry.text) && !/^\[translation-timing\]|^Requesting batch |^\.\.\. \d+ additional items omitted|^Skipping \d+ failed items this round/.test(entry.text) && !(entry.level === "ok" && entry.text.includes(" \u2192 "))
+  );
+  return { ...state, logs: [...logs] };
+}
+function scrubSeedJobLogs(state) {
+  const next = state.logs.filter((entry) => !/Cannot find module .+chaya-cache-worker/i.test(entry.text));
+  if (next.length === state.logs.length) return false;
+  state.logs = next;
+  return true;
+}
+
+// services/translate/seed-failures.ts
+function seedFailureFile(contentRoot) {
+  return seedJobFile(contentRoot).replace(/\.json$/, ".failures.ndjson");
+}
+function readSeedFailures(contentRoot) {
+  const failures = new Map((readSeedJobState(contentRoot)?.failedSources ?? []).map((src) => [src, ""]));
+  const file = seedFailureFile(contentRoot);
+  let text3;
+  try {
+    text3 = fs14.readFileSync(file, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return failures;
+    throw error;
+  }
+  for (const line of text3.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const event = JSON.parse(line);
+      if (event.error === null) failures.delete(event.src);
+      else failures.set(event.src, event.error);
+    } catch {
+    }
+  }
+  return failures;
+}
+function writeSeedFailure(contentRoot, src, error) {
+  const file = seedFailureFile(contentRoot);
+  fs14.mkdirSync(path12.dirname(file), { recursive: true });
+  fs14.appendFileSync(file, `${JSON.stringify({ src, error, at: Date.now() })}
+`, "utf8");
+}
+function isSeedTarget(target2) {
+  return !target2 || /^(?:ch|zh|zh-cn|zh-hans)$/i.test(target2);
+}
+function attachSeedFailures(contentRoot, items, target2) {
+  const failures = isSeedTarget(target2) ? readSeedFailures(contentRoot) : /* @__PURE__ */ new Map();
+  return items.map(
+    (item) => !item.savedZh?.trim() && failures.has(item.src) ? { ...item, translationFailure: { error: failures.get(item.src) } } : item
+  );
+}
+function recordSeedFailure(contentRoot, item, progress) {
+  writeSeedFailure(contentRoot, item.src, item.error || "No valid translation returned");
+  progress.failedCount = (progress.failedCount ?? 0) + 1;
+  progress.failedChars = (progress.failedChars ?? 0) + charCount(item.src);
+  progress.missing--;
+  progress.missingChars -= charCount(item.src);
 }
 
 // services/extract/lib/data-fields.ts
@@ -34196,8 +34398,8 @@ var isTextField = (field) => TEXT_FIELD.test(field);
 var isTechnicalField = (field) => TECH_FIELD.test(field);
 
 // services/extract/lib/rgss/writeback.ts
-import fs13 from "node:fs";
-import path11 from "node:path";
+import fs15 from "node:fs";
+import path13 from "node:path";
 
 // lib/translate/name-glossary.ts
 var NAME_GLOSSARY_CATEGORIES = ["actor", "actor_nickname", "item", "weapon", "armor", "skill", "enemy", "state", "map"];
@@ -34428,10 +34630,10 @@ function fieldCategory(className, field, fallback) {
   return category;
 }
 function loadOneDataFile(dataDir, name2) {
-  const file = path11.join(dataDir, name2);
-  const value = parseRubyMarshal(fs13.readFileSync(file));
+  const file = path13.join(dataDir, name2);
+  const value = parseRubyMarshal(fs15.readFileSync(file));
   const backup = `${file}.chaya.bak`;
-  const original = fs13.existsSync(backup) ? parseRubyMarshal(fs13.readFileSync(backup)) : value;
+  const original = fs15.existsSync(backup) ? parseRubyMarshal(fs15.readFileSync(backup)) : value;
   const current = strings(value);
   const texts = [];
   for (const [location, source] of strings(original)) {
@@ -34444,7 +34646,7 @@ function loadOneDataFile(dataDir, name2) {
 }
 var SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i;
 function listDataFileNames(dataDir) {
-  const names = fs13.readdirSync(dataDir).filter((name2) => /\.rvdata2?$/i.test(name2) && !SKIP_DATA_STEMS.test(name2)).sort();
+  const names = fs15.readdirSync(dataDir).filter((name2) => /\.rvdata2?$/i.test(name2) && !SKIP_DATA_STEMS.test(name2)).sort();
   if (!names.length) throw new Error("RGSS data is unavailable. Unpack the encrypted archive into Data/ first.");
   return names;
 }
@@ -34478,13 +34680,13 @@ function loadRgssItems(dataDir) {
 }
 
 // services/extract/lib/rgss-sources-index.ts
-import fs14 from "node:fs";
-import path12 from "node:path";
+import fs16 from "node:fs";
+import path14 from "node:path";
 function rgssDataSignature(dataDir) {
-  const files2 = fs14.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
+  const files2 = fs16.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
   return JSON.stringify(
     files2.map((name2) => {
-      const stat = fs14.statSync(path12.join(dataDir, name2));
+      const stat = fs16.statSync(path14.join(dataDir, name2));
       return [name2, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   );
@@ -34493,7 +34695,7 @@ function readIndex(contentRoot) {
   const file = localGameContentFile(contentRoot, "rgssSourcesIndex");
   if (!file) return null;
   try {
-    const raw = JSON.parse(fs14.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs16.readFileSync(file, "utf8"));
     if (!raw || typeof raw.signature !== "string" || !Array.isArray(raw.sources)) return null;
     return raw;
   } catch {
@@ -34507,7 +34709,7 @@ function writeRgssSourcesIndex(contentRoot, signature, sources2) {
     sources: [...sources2],
     updatedAt: Date.now()
   };
-  fs14.writeFileSync(file, `${JSON.stringify(payload)}
+  fs16.writeFileSync(file, `${JSON.stringify(payload)}
 `);
 }
 function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
@@ -34522,15 +34724,15 @@ function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
 // services/extract/lib/rgss.ts
 function findChild(dir, name2) {
   try {
-    const hit = fs15.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
-    return hit ? path13.join(dir, hit) : null;
+    const hit = fs17.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
+    return hit ? path15.join(dir, hit) : null;
   } catch {
     return null;
   }
 }
 function extensionFor(dataDir) {
   try {
-    const names = fs15.readdirSync(dataDir).map((name2) => name2.toLowerCase());
+    const names = fs17.readdirSync(dataDir).map((name2) => name2.toLowerCase());
     if (names.some((name2) => name2.endsWith(".rvdata2"))) return ".rvdata2";
     if (names.some((name2) => name2.endsWith(".rvdata"))) return ".rvdata";
   } catch {
@@ -34646,15 +34848,15 @@ function lookupGameTranslation(localGet, sharedGet, src) {
 }
 
 // services/translate/game-cache-context.ts
-import { createHash } from "node:crypto";
-import fs16 from "node:fs";
+import { createHash as createHash2 } from "node:crypto";
+import fs18 from "node:fs";
 var contexts = /* @__PURE__ */ new Map();
 function buildContext(contentRoot) {
   const records = loadGameTranslationRecords(contentRoot, () => false);
   const blocked = /* @__PURE__ */ new Set();
   const file = gameTranslationFiles(contentRoot).cache;
-  if (file && fs16.existsSync(file))
-    for (const line of fs16.readFileSync(file, "utf8").split("\n")) {
+  if (file && fs18.existsSync(file))
+    for (const line of fs18.readFileSync(file, "utf8").split("\n")) {
       if (!line.trim()) continue;
       const row = parseCacheRow(JSON.parse(line));
       if (!row?.origin) {
@@ -34668,7 +34870,7 @@ function buildContext(contentRoot) {
     if (family) numeric2.set(family, [...numeric2.get(family) || [], record]);
   }
   const { seed } = gameTranslationFiles(contentRoot);
-  const authorityVersion = createHash("sha256").update(JSON.stringify([seed, records.filter((record) => record.local), [...blocked].sort()])).digest("hex");
+  const authorityVersion = createHash2("sha256").update(JSON.stringify([seed, records.filter((record) => record.local), [...blocked].sort()])).digest("hex");
   return {
     records,
     blocked: (src) => blocked.has(src),
@@ -34795,7 +34997,7 @@ async function requestGoogle(http2, text3, signal, pair) {
 }
 
 // services/game-agent/model-cache.ts
-import path14 from "node:path";
+import path16 from "node:path";
 
 // services/game-agent/ollama-client.ts
 var DEFAULT_GAME_AGENT_MODEL = "qwen3:4b";
@@ -34840,7 +35042,7 @@ function pickAvailableModel(models, preferred) {
 }
 
 // services/game-agent/model-cache.ts
-var GAME_AGENT_MODEL_CACHE_PATH = path14.join(DATA_DIR, "game-agent", "models.json");
+var GAME_AGENT_MODEL_CACHE_PATH = path16.join(DATA_DIR, "game-agent", "models.json");
 
 // services/game-agent/proxy/agent-proxy.ts
 var import_undici = __toESM(require_undici());
@@ -35191,30 +35393,30 @@ function ollamaFetch(profile) {
 
 // services/game-agent/secrets.ts
 import { createCipheriv, createDecipheriv, randomBytes as randomBytes2 } from "node:crypto";
-import fs17 from "node:fs";
-import path15 from "node:path";
-var GAME_AGENT_SECRETS_PATH = path15.join(DATA_DIR, "game-agent", "secrets.json");
-var GAME_AGENT_SECRET_KEY_PATH = path15.join(DATA_DIR, "game-agent", "secret.key");
+import fs19 from "node:fs";
+import path17 from "node:path";
+var GAME_AGENT_SECRETS_PATH = path17.join(DATA_DIR, "game-agent", "secrets.json");
+var GAME_AGENT_SECRET_KEY_PATH = path17.join(DATA_DIR, "game-agent", "secret.key");
 function files(input = {}) {
   return { secretsFile: input.secretsFile || GAME_AGENT_SECRETS_PATH, keyFile: input.keyFile || GAME_AGENT_SECRET_KEY_PATH };
 }
 function ensureKey(file) {
-  fs17.mkdirSync(path15.dirname(file), { recursive: true, mode: 448 });
-  if (!fs17.existsSync(file)) {
+  fs19.mkdirSync(path17.dirname(file), { recursive: true, mode: 448 });
+  if (!fs19.existsSync(file)) {
     try {
-      fs17.writeFileSync(file, randomBytes2(32).toString("base64"), { flag: "wx", mode: 384 });
+      fs19.writeFileSync(file, randomBytes2(32).toString("base64"), { flag: "wx", mode: 384 });
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
     }
   }
-  const key2 = Buffer.from(fs17.readFileSync(file, "utf8").trim(), "base64");
+  const key2 = Buffer.from(fs19.readFileSync(file, "utf8").trim(), "base64");
   if (key2.length !== 32) throw new Error("Invalid agent credentials secret key");
   return key2;
 }
 function readDocument(file) {
   try {
-    if (!fs17.existsSync(file)) return { version: 1, tokens: {} };
-    const value = JSON.parse(fs17.readFileSync(file, "utf8"));
+    if (!fs19.existsSync(file)) return { version: 1, tokens: {} };
+    const value = JSON.parse(fs19.readFileSync(file, "utf8"));
     if (value?.version !== 1 || !value.tokens || typeof value.tokens !== "object" || Array.isArray(value.tokens)) throw new Error("Invalid agent credentials file format");
     return value;
   } catch (error) {
@@ -35243,8 +35445,8 @@ function readGameAgentToken(profileId, input = {}) {
 
 // services/game-agent/settings.ts
 import { randomUUID as randomUUID3 } from "node:crypto";
-import fs18 from "node:fs";
-import path16 from "node:path";
+import fs20 from "node:fs";
+import path18 from "node:path";
 
 // lib/game-agent/providers.ts
 var GAME_AGENT_PROVIDERS = ["ollama", "cursor", "codex", "claude", "gemini", "cc", "codex-api", "gemini-api"];
@@ -35295,33 +35497,33 @@ function normalizeAgentTimeouts(value) {
 }
 
 // services/game-agent/settings.ts
-var GAME_AGENT_SETTINGS_PATH = path16.join(GAME_AGENT_DIR, "settings.json");
-var GAME_AGENT_SYNC_PATH = path16.join(GAME_AGENT_DIR, "settings.sync.json");
-var _LEGACY_GAME_AGENT_SETTINGS_PATH = path16.join(DATA_DIR, "game-agent-settings.json");
-var _LEGACY_GAME_AGENT_SYNC_PATH = path16.join(DATA_DIR, "game-agent-settings.sync.json");
+var GAME_AGENT_SETTINGS_PATH = path18.join(GAME_AGENT_DIR, "settings.json");
+var GAME_AGENT_SYNC_PATH = path18.join(GAME_AGENT_DIR, "settings.sync.json");
+var _LEGACY_GAME_AGENT_SETTINGS_PATH = path18.join(DATA_DIR, "game-agent-settings.json");
+var _LEGACY_GAME_AGENT_SYNC_PATH = path18.join(DATA_DIR, "game-agent-settings.sync.json");
 function migrateLegacyAgentFile(from, to) {
   try {
-    if (!fs18.existsSync(from) || fs18.existsSync(to)) return;
-    fs18.mkdirSync(path16.dirname(to), { recursive: true });
-    fs18.renameSync(from, to);
+    if (!fs20.existsSync(from) || fs20.existsSync(to)) return;
+    fs20.mkdirSync(path18.dirname(to), { recursive: true });
+    fs20.renameSync(from, to);
   } catch {
     try {
-      if (!fs18.existsSync(from) || fs18.existsSync(to)) return;
-      fs18.mkdirSync(path16.dirname(to), { recursive: true });
-      fs18.copyFileSync(from, to);
-      fs18.rmSync(from, { force: true });
+      if (!fs20.existsSync(from) || fs20.existsSync(to)) return;
+      fs20.mkdirSync(path18.dirname(to), { recursive: true });
+      fs20.copyFileSync(from, to);
+      fs20.rmSync(from, { force: true });
     } catch {
     }
   }
 }
 function resolveAgentSettingsFile(preferred, legacy) {
   migrateLegacyAgentFile(legacy, preferred);
-  if (fs18.existsSync(preferred)) return preferred;
-  if (fs18.existsSync(legacy)) return legacy;
+  if (fs20.existsSync(preferred)) return preferred;
+  if (fs20.existsSync(legacy)) return legacy;
   return preferred;
 }
 function legacyAgentFile(file, name2) {
-  return path16.join(path16.dirname(path16.dirname(file)), name2);
+  return path18.join(path18.dirname(path18.dirname(file)), name2);
 }
 function settingsFilePath(file = GAME_AGENT_SETTINGS_PATH) {
   return resolveAgentSettingsFile(file, legacyAgentFile(file, "game-agent-settings.json"));
@@ -35423,8 +35625,8 @@ function normalizeGameAgentSettings(value) {
 function loadOwnedGameAgentSettings(file = GAME_AGENT_SETTINGS_PATH) {
   const resolved = settingsFilePath(file);
   try {
-    if (!fs18.existsSync(resolved)) return defaultGameAgentSettings();
-    return normalizeGameAgentSettings(JSON.parse(fs18.readFileSync(resolved, "utf8")));
+    if (!fs20.existsSync(resolved)) return defaultGameAgentSettings();
+    return normalizeGameAgentSettings(JSON.parse(fs20.readFileSync(resolved, "utf8")));
   } catch (error) {
     if (error instanceof SyntaxError) throw new Error("Agent configuration file is not valid JSON");
     throw error;
@@ -35566,23 +35768,23 @@ function bergamotLanguage(input) {
 }
 
 // services/translate/bergamot/binary.ts
-import fs19 from "node:fs";
+import fs21 from "node:fs";
 import os2 from "node:os";
-import path17 from "node:path";
+import path19 from "node:path";
 function resolveBergamotBinary() {
   if (!["darwin", "linux"].includes(process.platform)) throw new Error("BERGAMOT_PLATFORM_UNSUPPORTED");
   const platform = process.platform === "darwin" ? "macos" : "linux";
   const candidates2 = [
-    ...process.env.CHAYA_BERGAMOT_BINARY ? [path17.resolve(process.env.CHAYA_BERGAMOT_BINARY)] : [],
-    path17.resolve(process.cwd(), `native/bin/${platform}-${process.arch}/chaya-bergamot-translator`),
-    path17.resolve(process.cwd(), "native/bin/chaya-bergamot-translator"),
-    path17.join(os2.homedir(), ".local/bin/chaya-bergamot-translator"),
-    ...(process.env.PATH || "").split(path17.delimiter).filter(Boolean).map((dir) => path17.join(dir, "chaya-bergamot-translator"))
+    ...process.env.CHAYA_BERGAMOT_BINARY ? [path19.resolve(process.env.CHAYA_BERGAMOT_BINARY)] : [],
+    path19.resolve(process.cwd(), `native/bin/${platform}-${process.arch}/chaya-bergamot-translator`),
+    path19.resolve(process.cwd(), "native/bin/chaya-bergamot-translator"),
+    path19.join(os2.homedir(), ".local/bin/chaya-bergamot-translator"),
+    ...(process.env.PATH || "").split(path19.delimiter).filter(Boolean).map((dir) => path19.join(dir, "chaya-bergamot-translator"))
   ];
   const binary = candidates2.find((file) => {
     try {
-      fs19.accessSync(file, fs19.constants.X_OK);
-      return fs19.statSync(file).isFile();
+      fs21.accessSync(file, fs21.constants.X_OK);
+      return fs21.statSync(file).isFile();
     } catch {
       return false;
     }
@@ -35592,8 +35794,8 @@ function resolveBergamotBinary() {
 }
 
 // services/translate/bergamot/readiness.ts
-import fs21 from "node:fs";
-import path19 from "node:path";
+import fs23 from "node:fs";
+import path21 from "node:path";
 
 // services/translate/bergamot/models.json
 var models_default = [
@@ -35657,10 +35859,10 @@ function findPack(source, target2) {
 }
 
 // services/translate/bergamot/download.ts
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 async function hashFile(file) {
-  const hash = createHash2("sha256");
+  const hash = createHash3("sha256");
   for await (const chunk of createReadStream(file)) hash.update(chunk);
   return hash.digest("hex");
 }
@@ -35710,27 +35912,27 @@ function validateBergamotPack(root, source, target2, sample, signal) {
 }
 
 // services/translate/bergamot/store.ts
-import { createHash as createHash3, randomUUID as randomUUID4 } from "node:crypto";
-import fs20 from "node:fs";
+import { createHash as createHash4, randomUUID as randomUUID4 } from "node:crypto";
+import fs22 from "node:fs";
 import os3 from "node:os";
-import path18 from "node:path";
+import path20 from "node:path";
 function legacyPacksRoot() {
-  return path18.join(process.env.XDG_DATA_HOME || path18.join(os3.homedir(), ".local/share"), "chaya/translation-packs");
+  return path20.join(process.env.XDG_DATA_HOME || path20.join(os3.homedir(), ".local/share"), "chaya/translation-packs");
 }
 function adoptLegacyPacks(preferred, legacy) {
   try {
-    if (fs20.existsSync(preferred) || !fs20.existsSync(legacy)) return;
-    fs20.mkdirSync(path18.dirname(preferred), { recursive: true });
-    fs20.renameSync(legacy, preferred);
+    if (fs22.existsSync(preferred) || !fs22.existsSync(legacy)) return;
+    fs22.mkdirSync(path20.dirname(preferred), { recursive: true });
+    fs22.renameSync(legacy, preferred);
   } catch {
   }
 }
 function packsRoot() {
-  if (process.env.CHAYA_BERGAMOT_PACKS_DIR) return path18.resolve(process.env.CHAYA_BERGAMOT_PACKS_DIR);
-  const preferred = path18.resolve(TRANSLATION_PACKS_DIR);
-  const legacy = path18.resolve(legacyPacksRoot());
+  if (process.env.CHAYA_BERGAMOT_PACKS_DIR) return path20.resolve(process.env.CHAYA_BERGAMOT_PACKS_DIR);
+  const preferred = path20.resolve(TRANSLATION_PACKS_DIR);
+  const legacy = path20.resolve(legacyPacksRoot());
   adoptLegacyPacks(preferred, legacy);
-  if (!fs20.existsSync(preferred) && fs20.existsSync(legacy)) return legacy;
+  if (!fs22.existsSync(preferred) && fs22.existsSync(legacy)) return legacy;
   return preferred;
 }
 function safeId(value) {
@@ -35738,7 +35940,7 @@ function safeId(value) {
   return value;
 }
 function installationRoot(ref) {
-  return path18.join(packsRoot(), "packs", safeId(ref.packId), safeId(ref.version), safeId(ref.installId));
+  return path20.join(packsRoot(), "packs", safeId(ref.packId), safeId(ref.version), safeId(ref.installId));
 }
 function pairFolder(source, target2) {
   return `${safeId(bergamotLanguage(source))}_${safeId(bergamotLanguage(target2))}`;
@@ -35746,26 +35948,26 @@ function pairFolder(source, target2) {
 function installedPack(source, target2) {
   try {
     const packId = `${bergamotLanguage(source)}-${bergamotLanguage(target2)}`;
-    const ref = JSON.parse(fs20.readFileSync(path18.join(packsRoot(), "active", `${safeId(packId)}.json`), "utf8"));
+    const ref = JSON.parse(fs22.readFileSync(path20.join(packsRoot(), "active", `${safeId(packId)}.json`), "utf8"));
     if (ref.packId !== packId) return;
     const root = installationRoot(ref);
-    if (!fs20.realpathSync(root).startsWith(fs20.realpathSync(packsRoot()) + path18.sep)) return;
-    const manifest = JSON.parse(fs20.readFileSync(path18.join(root, "manifest.json"), "utf8"));
+    if (!fs22.realpathSync(root).startsWith(fs22.realpathSync(packsRoot()) + path20.sep)) return;
+    const manifest = JSON.parse(fs22.readFileSync(path20.join(root, "manifest.json"), "utf8"));
     if (JSON.stringify(manifest.reference) !== JSON.stringify(ref) || manifest.source !== bergamotLanguage(source) || manifest.target !== bergamotLanguage(target2)) return;
     const pack = findPack(source, target2);
     if (!pack || ref.version !== pack.version || manifest.files.length !== pack.files.length + 1) return;
     const expected = new Map([
       ...pack.files.map((file) => [file.name, file.unpackedSha256]),
-      ["config.yml", createHash3("sha256").update(pack.config).digest("hex")]
+      ["config.yml", createHash4("sha256").update(pack.config).digest("hex")]
     ]);
-    const folder = path18.join(root, pairFolder(source, target2));
-    if (fs20.lstatSync(folder).isSymbolicLink() || fs20.realpathSync(folder) !== path18.join(fs20.realpathSync(root), pairFolder(source, target2))) return;
+    const folder = path20.join(root, pairFolder(source, target2));
+    if (fs22.lstatSync(folder).isSymbolicLink() || fs22.realpathSync(folder) !== path20.join(fs22.realpathSync(root), pairFolder(source, target2))) return;
     for (const item of manifest.files) {
       if (expected.get(item.name) !== item.sha256) return;
       expected.delete(item.name);
-      const file = path18.join(root, pairFolder(source, target2), item.name);
+      const file = path20.join(root, pairFolder(source, target2), item.name);
       safeId(item.name.replaceAll(".", "_"));
-      const stat = fs20.lstatSync(file);
+      const stat = fs22.lstatSync(file);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== item.bytes || stat.mtimeMs !== item.mtimeMs) return;
     }
     if (expected.size) return;
@@ -35775,7 +35977,7 @@ function installedPack(source, target2) {
   }
 }
 function contentId(value) {
-  return createHash3("sha256").update(JSON.stringify(value)).digest("hex");
+  return createHash4("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 // services/translate/bergamot/readiness.ts
@@ -35791,7 +35993,7 @@ async function verifiedPack(source, target2, refresh = false) {
   } catch {
     return;
   }
-  const stat = fs21.statSync(binary);
+  const stat = fs23.statSync(binary);
   const key2 = contentId({ installed, binary, size: stat.size, mtime: stat.mtimeMs });
   if (refresh) checks.delete(key2);
   let check = checks.get(key2);
@@ -35799,7 +36001,7 @@ async function verifiedPack(source, target2, refresh = false) {
     check = queue2.then(async () => {
       if (await hashFile(binary) !== installed.manifest.binaryHash) return false;
       for (const item of installed.manifest.files) {
-        if (await hashFile(path19.join(installed.root, pairFolder(source, target2), item.name)) !== item.sha256) return false;
+        if (await hashFile(path21.join(installed.root, pairFolder(source, target2), item.name)) !== item.sha256) return false;
       }
       await validateBergamotPack(installed.root, pack.source, pack.target, pack.sample);
       return true;
@@ -36282,28 +36484,28 @@ function trackLiveTranslateRequest(fn) {
 }
 
 // services/translate/name-glossary-game.ts
-import fs24 from "node:fs";
+import fs26 from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
-import path21 from "node:path";
+import path23 from "node:path";
 
 // services/extract/lib/extract-items.ts
-import fs23 from "node:fs";
+import fs25 from "node:fs";
 
 // services/extract/lib/game-locales.ts
-import fs22 from "node:fs";
-import path20 from "node:path";
+import fs24 from "node:fs";
+import path22 from "node:path";
 function isValidLocalesDir(dirPath) {
-  if (!fs22.existsSync(dirPath) || !fs22.statSync(dirPath).isDirectory()) return false;
-  const entries = fs22.readdirSync(dirPath, { withFileTypes: true });
+  if (!fs24.existsSync(dirPath) || !fs24.statSync(dirPath).isDirectory()) return false;
+  const entries = fs24.readdirSync(dirPath, { withFileTypes: true });
   const subDirs = entries.filter((e) => e.isDirectory());
   if (!subDirs.length) {
     const jsonFiles = entries.filter((e) => e.isFile() && /\.(json|csv)$/i.test(e.name));
     return jsonFiles.length > 0;
   }
   for (const sub of subDirs) {
-    const subPath = path20.join(dirPath, sub.name);
+    const subPath = path22.join(dirPath, sub.name);
     try {
-      const files2 = fs22.readdirSync(subPath);
+      const files2 = fs24.readdirSync(subPath);
       if (files2.some((f) => /\.(json|csv)$/i.test(f))) {
         return true;
       }
@@ -36314,25 +36516,25 @@ function isValidLocalesDir(dirPath) {
 }
 function findLocalesDirectory(contentRoot) {
   const candidates2 = [
-    path20.join(contentRoot, "locales"),
-    path20.join(contentRoot, "www", "locales"),
-    path20.join(contentRoot, "localization"),
-    path20.join(contentRoot, "www", "localization"),
-    path20.join(contentRoot, "languages"),
-    path20.join(contentRoot, "www", "languages"),
-    path20.join(contentRoot, "data", "locales"),
-    path20.join(contentRoot, "data", "localization")
+    path22.join(contentRoot, "locales"),
+    path22.join(contentRoot, "www", "locales"),
+    path22.join(contentRoot, "localization"),
+    path22.join(contentRoot, "www", "localization"),
+    path22.join(contentRoot, "languages"),
+    path22.join(contentRoot, "www", "languages"),
+    path22.join(contentRoot, "data", "locales"),
+    path22.join(contentRoot, "data", "localization")
   ];
-  const pluginsPaths = [path20.join(contentRoot, "js", "plugins.js"), path20.join(contentRoot, "www", "js", "plugins.js")];
+  const pluginsPaths = [path22.join(contentRoot, "js", "plugins.js"), path22.join(contentRoot, "www", "js", "plugins.js")];
   for (const pp of pluginsPaths) {
-    if (fs22.existsSync(pp)) {
+    if (fs24.existsSync(pp)) {
       try {
-        const text3 = fs22.readFileSync(pp, "utf8");
+        const text3 = fs24.readFileSync(pp, "utf8");
         const locMatch = text3.match(/"Localization Folder"\s*:\s*"([^"]+)"/);
         if (locMatch && locMatch[1]) {
           const folder = locMatch[1].replace(/^[\\/]+|[\\/]+$/g, "");
-          candidates2.unshift(path20.join(path20.dirname(path20.dirname(pp)), folder));
-          candidates2.unshift(path20.join(contentRoot, folder));
+          candidates2.unshift(path22.join(path22.dirname(path22.dirname(pp)), folder));
+          candidates2.unshift(path22.join(contentRoot, folder));
         }
       } catch {
       }
@@ -36360,19 +36562,19 @@ function loadGameLocalesCatalog(contentRoot) {
       keyToFileMap: {}
     };
   }
-  const entries = fs22.readdirSync(localesDir, { withFileTypes: true });
+  const entries = fs24.readdirSync(localesDir, { withFileTypes: true });
   const langDirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
   const dictionaries = {};
   const keyToFileMap = {};
   for (const lang of langDirs) {
-    const langPath = path20.join(localesDir, lang);
+    const langPath = path22.join(localesDir, lang);
     dictionaries[lang] = {};
     try {
-      const files2 = fs22.readdirSync(langPath).filter((f) => /\.json$/i.test(f));
+      const files2 = fs24.readdirSync(langPath).filter((f) => /\.json$/i.test(f));
       for (const file of files2) {
-        const filePath2 = path20.join(langPath, file);
+        const filePath2 = path22.join(langPath, file);
         try {
-          const data = JSON.parse(fs22.readFileSync(filePath2, "utf8"));
+          const data = JSON.parse(fs24.readFileSync(filePath2, "utf8"));
           if (data && typeof data === "object") {
             for (const [k, v] of Object.entries(data)) {
               if (typeof v === "string") {
@@ -36410,17 +36612,17 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
   const seedPath = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
   const extractPath = gameContentReadPath(contentRoot, "extractStrings", { alsoParent: true });
   let seed = {};
-  if (seedPath && fs23.existsSync(seedPath)) {
+  if (seedPath && fs25.existsSync(seedPath)) {
     try {
-      seed = JSON.parse(fs23.readFileSync(seedPath, "utf8"));
+      seed = JSON.parse(fs25.readFileSync(seedPath, "utf8"));
     } catch {
       seed = {};
     }
   }
   let extractData = null;
-  if (extractPath && fs23.existsSync(extractPath)) {
+  if (extractPath && fs25.existsSync(extractPath)) {
     try {
-      extractData = JSON.parse(fs23.readFileSync(extractPath, "utf8"));
+      extractData = JSON.parse(fs25.readFileSync(extractPath, "utf8"));
     } catch {
       extractData = null;
     }
@@ -36568,7 +36770,9 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
       record(r, { category: "resource", label: "\u6587\u672C\u8D44\u6E90" });
     }
   }
-  const lookup = loadGameTranslateLookup(contentRoot);
+  const records = loadGameTranslationRecords(contentRoot);
+  const lookup = createGameTranslateLookup(records);
+  const engines = createGameTranslateEngines(records);
   const items = [];
   let index2 = 0;
   const seen = /* @__PURE__ */ new Set();
@@ -36620,13 +36824,16 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
     seen.add(src);
     const baseMeta = metaMap.get(src);
     const resolved = resolveTextAndMeta(src, baseMeta);
-    const currentZh = resolved.zh || lookup[resolved.src] || lookup[src] || seedZh || "";
+    const fromLookup = lookup[resolved.src] || lookup[src];
+    const currentZh = resolved.zh || fromLookup || seedZh || "";
+    const currentEngine = resolved.zh ? resolved.meta?.engine || "game:locales" : fromLookup ? engines[resolved.src] || engines[src] || "cache" : seedZh && currentZh === seedZh ? "seed" : void 0;
     items.push({
       id: String(index2),
       src: resolved.src,
       zh: currentZh,
       savedZh: currentZh || void 0,
       initialZh: currentZh || void 0,
+      engine: currentEngine,
       meta: resolved.meta
     });
   }
@@ -36635,13 +36842,16 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
     index2++;
     seen.add(src);
     const resolved = resolveTextAndMeta(src, meta);
-    const currentZh = resolved.zh || lookup[resolved.src] || lookup[src] || "";
+    const fromLookup = lookup[resolved.src] || lookup[src];
+    const currentZh = resolved.zh || fromLookup || "";
+    const currentEngine = resolved.zh ? resolved.meta?.engine || "game:locales" : fromLookup ? engines[resolved.src] || engines[src] || "cache" : void 0;
     items.push({
       id: String(index2),
       src: resolved.src,
       zh: currentZh,
       savedZh: currentZh || void 0,
       initialZh: currentZh || void 0,
+      engine: currentEngine,
       meta: resolved.meta
     });
   }
@@ -36681,19 +36891,22 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
       };
       const candidateSrc = currentSourceLang && catalog.dictionaries[currentSourceLang]?.[key2] || catalog.primaryLanguage && catalog.dictionaries[catalog.primaryLanguage]?.[key2] || catalog.dictionaries["en"]?.[key2] || catalog.dictionaries["ru"]?.[key2] || key2;
       const candidateZh = currentTargetLang ? catalog.dictionaries[currentTargetLang]?.[key2] : "";
-      const finalZh = candidateZh || lookup[candidateSrc] || lookup[key2] || "";
+      const fromLookup = lookup[candidateSrc] || lookup[key2];
+      const finalZh = candidateZh || fromLookup || "";
+      const finalEngine = candidateZh ? "game:locales" : fromLookup ? engines[candidateSrc] || engines[key2] || "cache" : void 0;
       items.push({
         id: String(index2),
         src: candidateSrc,
         zh: finalZh,
         savedZh: finalZh || void 0,
         initialZh: finalZh || void 0,
+        engine: finalEngine,
         meta
       });
     }
   }
   return {
-    items,
+    items: attachSeedFailures(contentRoot, items, currentTargetLang || opts?.targetLang),
     locales: catalog.hasLocales ? {
       hasLocales: true,
       availableLanguages: catalog.languages,
@@ -36711,14 +36924,14 @@ function loadExtractedItems(contentRoot) {
 var tables = /* @__PURE__ */ new Map();
 var sources = /* @__PURE__ */ new Map();
 function rgssSourceStamp(root) {
-  const dir = fs24.readdirSync(root).find((name2) => name2.toLowerCase() === "data");
+  const dir = fs26.readdirSync(root).find((name2) => name2.toLowerCase() === "data");
   if (!dir) return null;
-  const dataDir = path21.join(root, dir);
-  const names = fs24.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
+  const dataDir = path23.join(root, dir);
+  const names = fs26.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
   if (!names.length) return null;
   return JSON.stringify(
     names.map((name2) => {
-      const stat = fs24.statSync(path21.join(dataDir, name2));
+      const stat = fs26.statSync(path23.join(dataDir, name2));
       return [name2, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   );
@@ -37402,8 +37615,8 @@ function isNsfwCacheRow(src, engine) {
 }
 
 // services/translate/shared-cache/index.ts
-import fs28 from "node:fs";
-import path24 from "node:path";
+import fs30 from "node:fs";
+import path26 from "node:path";
 
 // node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/entity.js
 var entityKind = /* @__PURE__ */ Symbol.for("drizzle:entityKind");
@@ -38333,7 +38546,7 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
   const objectIds = {};
   const decodes = Array.from({ length: columns.length });
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { field, path: path27, codec, arrayDimensions } = columns[idx];
+    const { field, path: path28, codec, arrayDimensions } = columns[idx];
     let decoder;
     let decoderStr;
     let decoderFieldDestructure;
@@ -38361,26 +38574,26 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
     if (codec) decodedValue = `codec${idx}(${decodedValue}, ${arrayDimensions})`;
     if (decoderStr) decodedValue = `${decoderStr}(${decodedValue})`;
     decodes[idx] = colStr === decodedValue ? `${colStr}` : `${colStr} === null ? ${colStr} : ${decodedValue}`;
-    if (path27.length !== 2 || !isColumn) continue;
-    if (objectIds[path27[0]] === void 0) objectIds[path27[0]] = [`c${idx}`];
-    else objectIds[path27[0]]?.push(`c${idx}`);
-    const [objectName] = path27;
+    if (path28.length !== 2 || !isColumn) continue;
+    if (objectIds[path28[0]] === void 0) objectIds[path28[0]] = [`c${idx}`];
+    else objectIds[path28[0]]?.push(`c${idx}`);
+    const [objectName] = path28;
     const tableName = getTableName(field.table);
     nullifyMap[objectName] = joinsNotNullableMap[tableName] ? false : typeof nullifyMap[objectName] === "string" ? nullifyMap[objectName] === tableName ? tableName : false : tableName;
   }
   fn.push(`mapped[i] = {`);
   let currentObjectPath = [];
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { path: path27 } = columns[idx];
-    const jsonPath = path27.map((e) => JSON.stringify(e));
+    const { path: path28 } = columns[idx];
+    const jsonPath = path28.map((e) => JSON.stringify(e));
     const decodedValue = decodes[idx];
-    const objectPath = path27.slice(0, -1);
+    const objectPath = path28.slice(0, -1);
     let commonLen = 0;
     while (commonLen < currentObjectPath.length && commonLen < objectPath.length && currentObjectPath[commonLen] === objectPath[commonLen]) commonLen++;
     for (let d = currentObjectPath.length - 1; d >= commonLen; --d) fn.push(`${"	".repeat(d + 1)}},`);
-    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path27[0]] === "string" ? `${objectIds[path27[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
+    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path28[0]] === "string" ? `${objectIds[path28[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
     currentObjectPath = objectPath;
-    fn.push(`${"	".repeat(path27.length)}${jsonPath[path27.length - 1]}: ${decodedValue},`);
+    fn.push(`${"	".repeat(path28.length)}${jsonPath[path28.length - 1]}: ${decodedValue},`);
   }
   for (let d = currentObjectPath.length - 1; d >= 0; --d) fn.push(`${"	".repeat(d + 1)}},`);
   fn.push(`};`);
@@ -38417,13 +38630,13 @@ function jitCompatCheck(isEnabled) {
   }
 }
 function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
-  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path27 }) => {
+  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path28 }) => {
     let processNullifyMap;
     let decoderSrc;
     if (is(field, Column)) {
       decoderSrc = field;
-      if (joinsNotNullableMap && path27.length === 2) {
-        const objectName = path27[0];
+      if (joinsNotNullableMap && path28.length === 2) {
+        const objectName = path28[0];
         processNullifyMap = (nullifyMap, value) => {
           if (!(objectName in nullifyMap)) nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
           else if (typeof nullifyMap[objectName] === "string" && nullifyMap[objectName] !== getTableName(field.table)) nullifyMap[objectName] = false;
@@ -38439,9 +38652,9 @@ function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
   });
   return ((rows) => rows.map((row) => {
     const nullifyMap = {};
-    const result = columns.reduce((result2, { path: path27 }, columnIndex) => {
+    const result = columns.reduce((result2, { path: path28 }, columnIndex) => {
       let node = result2;
-      for (const [pathChunkIndex, pathChunk] of path27.entries()) if (pathChunkIndex < path27.length - 1) {
+      for (const [pathChunkIndex, pathChunk] of path28.entries()) if (pathChunkIndex < path28.length - 1) {
         if (!(pathChunk in node)) node[pathChunk] = {};
         node = node[pathChunk];
       } else {
@@ -39339,49 +39552,49 @@ function normalizeCacheCategory(raw) {
 }
 
 // services/translate/shared-cache/backfill.ts
-import fs25 from "node:fs";
+import fs27 from "node:fs";
 
 // lib/translate/cache-file-lock.ts
-function lockCacheFile(fs34, file) {
+function lockCacheFile(fs35, file) {
   const name2 = `${file}.lock`;
   let fd;
   try {
-    fd = fs34.openSync(name2, "wx");
+    fd = fs35.openSync(name2, "wx");
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
     let stale = false;
     try {
-      const pid = Number(fs34.readFileSync(name2, "utf8"));
+      const pid = Number(fs35.readFileSync(name2, "utf8"));
       if (Number.isInteger(pid) && pid > 0) {
         try {
           process.kill(pid, 0);
         } catch (e) {
           stale = e.code === "ESRCH";
         }
-      } else stale = Date.now() - fs34.statSync(name2).mtimeMs > 3e4;
+      } else stale = Date.now() - fs35.statSync(name2).mtimeMs > 3e4;
     } catch {
     }
     if (!stale) throw new Error("Translation cache is being written, please try again later");
-    fs34.unlinkSync(name2);
-    fd = fs34.openSync(name2, "wx");
+    fs35.unlinkSync(name2);
+    fd = fs35.openSync(name2, "wx");
   }
   try {
-    fs34.writeFileSync(fd, String(process.pid));
+    fs35.writeFileSync(fd, String(process.pid));
   } catch (e) {
-    fs34.closeSync(fd);
-    fs34.unlinkSync(name2);
+    fs35.closeSync(fd);
+    fs35.unlinkSync(name2);
     throw e;
   }
   return () => {
-    fs34.closeSync(fd);
-    fs34.unlinkSync(name2);
+    fs35.closeSync(fd);
+    fs35.unlinkSync(name2);
   };
 }
-function appendCacheLines(fs34, file, lines) {
+function appendCacheLines(fs35, file, lines) {
   if (!lines.length) return;
   let text3 = "";
   try {
-    text3 = fs34.readFileSync(file, "utf8");
+    text3 = fs35.readFileSync(file, "utf8");
   } catch (e) {
     if (e.code !== "ENOENT") throw e;
   }
@@ -39389,30 +39602,30 @@ function appendCacheLines(fs34, file, lines) {
     const end = text3.lastIndexOf("\n") + 1;
     try {
       JSON.parse(text3.slice(end));
-      fs34.appendFileSync(file, "\n");
+      fs35.appendFileSync(file, "\n");
     } catch {
-      fs34.truncateSync(file, Buffer.byteLength(text3.slice(0, end)));
+      fs35.truncateSync(file, Buffer.byteLength(text3.slice(0, end)));
     }
   }
-  fs34.appendFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
-  const fd = fs34.openSync(file, "r+");
+  fs35.appendFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+  const fd = fs35.openSync(file, "r+");
   try {
-    fs34.fsyncSync(fd);
+    fs35.fsyncSync(fd);
   } finally {
-    fs34.closeSync(fd);
+    fs35.closeSync(fd);
   }
 }
 
 // services/translate/shared-cache/backfill.ts
 var fileSnapshots = /* @__PURE__ */ new Map();
 function fileStamp(file) {
-  const stat = fs25.statSync(file, { throwIfNoEntry: false });
+  const stat = fs27.statSync(file, { throwIfNoEntry: false });
   return JSON.stringify([stat?.ino, stat?.size, stat?.mtimeMs, stat?.ctimeMs]);
 }
 function readBackfillSnapshot(file) {
   const stamp = fileStamp(file);
   const rows = /* @__PURE__ */ new Map(), seen = /* @__PURE__ */ new Set();
-  for (const line of (fs25.existsSync(file) ? fs25.readFileSync(file, "utf8") : "").split("\n")) {
+  for (const line of (fs27.existsSync(file) ? fs27.readFileSync(file, "utf8") : "").split("\n")) {
     try {
       const row = parseCacheRow(JSON.parse(line));
       if (row) {
@@ -39455,7 +39668,7 @@ function ownedSharedAppend(file, before, events) {
 }
 function appendCacheEvents(file, events) {
   if (appendPublicCacheFile(file, events)) return;
-  appendCacheLines(fs25, file, events);
+  appendCacheLines(fs27, file, events);
 }
 function createGameBackfill(client, index2, database) {
   client.exec(`CREATE TABLE IF NOT EXISTS game_backfills (root TEXT NOT NULL,src TEXT NOT NULL,record_id INTEGER NOT NULL,revision INTEGER NOT NULL,PRIMARY KEY(root,src));
@@ -39482,8 +39695,12 @@ function createGameBackfill(client, index2, database) {
             `INSERT INTO game_backfill_tasks(root,src,record_id,revision)
                SELECT ?,?,?,? WHERE NOT EXISTS (
                  SELECT 1 FROM game_backfill_tasks WHERE root=? AND src=? AND record_id=? AND revision=?
+               ) AND NOT EXISTS (
+                 SELECT 1 FROM game_backfills WHERE root=? AND src=? AND record_id=? AND revision=?
+               ) AND NOT EXISTS (
+                 SELECT 1 FROM translation_outbox WHERE record_id=? AND revision=?
                )`
-          ).run(root, r.src, r.id, r.revision, root, r.src, r.id, r.revision);
+          ).run(root, r.src, r.id, r.revision, root, r.src, r.id, r.revision, root, r.src, r.id, r.revision, r.id, r.revision);
         }
         client.exec("COMMIT");
       } catch (e) {
@@ -39493,10 +39710,14 @@ function createGameBackfill(client, index2, database) {
     },
     flush(root) {
       const pending = client.prepare("SELECT 1 FROM game_backfill_tasks WHERE root=? LIMIT 1").get(root);
-      const stale = client.prepare("SELECT 1 FROM game_backfills b LEFT JOIN translation_records r ON r.id=b.record_id WHERE b.root=? AND (r.id IS NULL OR r.revision<>b.revision) LIMIT 1").get(root);
+      const stale = client.prepare(
+        `SELECT 1 FROM game_backfills b WHERE b.root=? AND NOT EXISTS (
+             SELECT 1 FROM translation_records r WHERE r.id=b.record_id AND r.revision=b.revision
+           ) LIMIT 1`
+      ).get(root);
       if (!pending && !stale) return { sharedOnly: false };
       const file = ensureGameContentDir(root, "cacheNdjson");
-      const release = lockCacheFile(fs25, file);
+      const release = lockCacheFile(fs27, file);
       try {
         const filesBefore = gameTranslationFiles(root);
         const previousStamp = filesBefore.stamp;
@@ -39506,7 +39727,7 @@ function createGameBackfill(client, index2, database) {
         const acknowledgements = [];
         const tasks = client.prepare("SELECT * FROM game_backfill_tasks WHERE root=? ORDER BY id").all(root);
         for (const task of tasks) {
-          const event = `${database}:fill:${task.id}`;
+          const event = `${database}:fill:${task.record_id}:${task.revision}`;
           const record = client.prepare(joined).get(task.record_id);
           if (!seen.has(event) && record?.revision === task.revision) {
             const meta = rowMeta(task.record_id, task.revision);
@@ -39530,7 +39751,11 @@ function createGameBackfill(client, index2, database) {
             client.prepare("DELETE FROM game_backfill_tasks WHERE id=?").run(task.id);
           });
         }
-        const links = client.prepare("SELECT b.* FROM game_backfills b LEFT JOIN translation_records r ON r.id=b.record_id WHERE b.root=? AND (r.id IS NULL OR r.revision<>b.revision)").all(root);
+        const links = client.prepare(
+          `SELECT b.* FROM game_backfills b WHERE b.root=? AND NOT EXISTS (
+               SELECT 1 FROM translation_records r WHERE r.id=b.record_id AND r.revision=b.revision
+             )`
+        ).all(root);
         for (const link of links) {
           const old = rows.get(link.src);
           if (!old?.origin || old.origin.database !== database || old.origin.id !== String(link.record_id)) {
@@ -39666,8 +39891,8 @@ function confirmRecordSegments(index2, parent, pairs, pair, opts) {
 }
 
 // services/translate/shared-cache/db.ts
-import fs27 from "node:fs";
-import path23 from "node:path";
+import fs29 from "node:fs";
+import path25 from "node:path";
 import { DatabaseSync as DatabaseSync4 } from "node:sqlite";
 
 // node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/count.js
@@ -42653,8 +42878,8 @@ function drizzle(...params) {
   const { connection, client, ...config } = params[0];
   if (client) return construct(client, config);
   if (typeof connection === "object") {
-    const { path: path27, ...options } = connection;
-    return construct(new DatabaseSync2(path27 ?? ":memory:", options), config);
+    const { path: path28, ...options } = connection;
+    return construct(new DatabaseSync2(path28 ?? ":memory:", options), config);
   }
   return construct(new DatabaseSync2(connection ?? ":memory:"), config);
 }
@@ -43066,8 +43291,8 @@ function createMatchIndex(client) {
 }
 
 // services/translate/shared-cache/migrate-bg.ts
-import fs26 from "node:fs";
-import path22 from "node:path";
+import fs28 from "node:fs";
+import path24 from "node:path";
 import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
 var flights = /* @__PURE__ */ new Map();
 var migrating = /* @__PURE__ */ new Set();
@@ -43078,8 +43303,8 @@ function isSharedIdenticalPair(src, tgt) {
   return Boolean(a) && isIdenticalTranslation(a, b);
 }
 function runSharedCacheHeavyMigrateSync(dbPath) {
-  const resolved = path22.resolve(dbPath);
-  if (!fs26.existsSync(resolved)) return;
+  const resolved = path24.resolve(dbPath);
+  if (!fs28.existsSync(resolved)) return;
   const client = new DatabaseSync3(resolved);
   try {
     client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000");
@@ -43095,8 +43320,8 @@ function runSharedCacheHeavyMigrateSync(dbPath) {
   }
 }
 function scheduleSharedCacheHeavyMigrate(dbPath) {
-  const resolved = path22.resolve(dbPath);
-  if (!fs26.existsSync(resolved)) return;
+  const resolved = path24.resolve(dbPath);
+  if (!fs28.existsSync(resolved)) return;
   if (process.env.JEST_WORKER_ID) {
     runSharedCacheHeavyMigrateSync(resolved);
     return;
@@ -43404,8 +43629,8 @@ function ensureSchema(db, client) {
   db.insert(cacheMeta).values({ key: "nsfw_backfill", value: "1" }).onConflictDoUpdate({ target: cacheMeta.key, set: { value: "1" } }).run();
 }
 function openSharedCacheDb(dbPath = defaultSharedDbPath()) {
-  const resolved = path23.resolve(dbPath);
-  fs27.mkdirSync(path23.dirname(resolved), { recursive: true });
+  const resolved = path25.resolve(dbPath);
+  fs29.mkdirSync(path25.dirname(resolved), { recursive: true });
   const client = new DatabaseSync4(resolved);
   client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON");
   const db = drizzle({ client });
@@ -43789,7 +44014,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       const n = Number(db.select({ n: count() }).from(translations).get()?.n || 0);
       let sizeBytes = 0;
       try {
-        sizeBytes = fs28.statSync(resolved).size;
+        sizeBytes = fs30.statSync(resolved).size;
       } catch {
       }
       return { entries: n, sizeBytes, file: resolved };
@@ -43802,7 +44027,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
   return cache2;
 }
 function openSharedCache(dbPath = defaultSharedDbPath()) {
-  if (process.env.NODE_ENV === "test" || path24.resolve(dbPath) !== path24.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
+  if (process.env.NODE_ENV === "test" || path26.resolve(dbPath) !== path26.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
     return openOwnedSharedCache(dbPath);
   return new Proxy({ path: dbPath }, {
     get(target2, name2) {
@@ -43990,6 +44215,11 @@ async function liveTranslateTexts(texts, opts) {
           const itemStarted = performance.now();
           const parentSignal = opts?.local?.signal;
           const itemSignal = opts?.itemTimeoutMs ? AbortSignal.any([AbortSignal.timeout(opts.itemTimeoutMs), ...parentSignal ? [parentSignal] : []]) : parentSignal;
+          let engineWork = false;
+          const onEngineDispatch = (engine) => {
+            engineWork = true;
+            opts?.onEngineDispatch?.(engine);
+          };
           let item;
           try {
             item = await (async () => {
@@ -44013,12 +44243,19 @@ async function liveTranslateTexts(texts, opts) {
                 }
                 if (plan.status === "partial") {
                   const translated = /* @__PURE__ */ new Map();
+                  const sources2 = /* @__PURE__ */ new Set(["cache"]);
+                  const writes = [];
                   for (let offset = 0; offset < plan.gaps.length; offset += MAX_BATCH) {
                     const gaps = plan.gaps.slice(offset, offset + MAX_BATCH);
                     const result = await liveTranslateTexts(
                       gaps.map((gap) => gap.text),
                       {
                         ...opts,
+                        onEngineDispatch,
+                        onCacheWrite: (records, sources3) => {
+                          writes.push(...records.map((record) => ({ record, sources: sources3 })));
+                          opts?.onCacheWrite?.(records, sources3);
+                        },
                         onItem: void 0,
                         preparedPlan: void 0,
                         onTrace: trace ? (message) => trace(`Item ${itemId} gaps: ${message}`) : void 0,
@@ -44029,10 +44266,12 @@ async function liveTranslateTexts(texts, opts) {
                         trackLiveActivity: false
                       }
                     );
+                    engineWork ||= result.items.some((entry) => entry.engineWork);
                     for (const gap of gaps) {
                       const item2 = result.items.find((entry) => entry.src === gap.text);
                       if (item2?.zh && !item2.error) {
                         translated.set(gap.id, item2.zh);
+                        if (item2.engine !== "skip") for (const source of resultSources(item2)) sources2.add(source);
                       }
                     }
                   }
@@ -44051,6 +44290,7 @@ async function liveTranslateTexts(texts, opts) {
                       src,
                       zh: current.zh,
                       engine: "cache:changed",
+                      resultSources: replannedResultSources(current, writes),
                       status: current.status,
                       plan: current,
                       error: current.status === "full" ? void 0 : "Translation library changed; retry missing segments"
@@ -44063,6 +44303,7 @@ async function liveTranslateTexts(texts, opts) {
                     src,
                     zh: resolved.zh ?? renderSentencePlan(resolved),
                     engine: "cache:partial",
+                    resultSources: [...sources2],
                     status: full ? "full" : "partial",
                     plan: resolved,
                     error: full ? void 0 : "Some text segments could not be translated"
@@ -44090,12 +44331,14 @@ async function liveTranslateTexts(texts, opts) {
               const namePlan = planLockedNames(src, nameEntries, { sourceLang: opts?.sourceLang, targetLang: opts?.targetLang || "zh" });
               if (namePlan && (!namePlan.wholeName || !opts?.optimizeWholeName)) {
                 const gapZh = /* @__PURE__ */ new Map();
+                const sources2 = /* @__PURE__ */ new Set(["cache"]);
                 let remainderEngine = "";
                 if (namePlan.translatable.length) {
                   const remainder = await liveTranslateTexts(
                     namePlan.translatable.map((gap) => gap.text),
                     {
                       ...opts,
+                      onEngineDispatch,
                       onItem: void 0,
                       preparedPlan: void 0,
                       onTrace: trace ? (message) => trace(`Item ${itemId} name gaps: ${message}`) : void 0,
@@ -44106,6 +44349,7 @@ async function liveTranslateTexts(texts, opts) {
                       trackLiveActivity: false
                     }
                   );
+                  engineWork ||= remainder.items.some((entry) => entry.engineWork);
                   for (const gap of namePlan.translatable) {
                     const hit = remainder.items.find((entry) => entry.src === gap.text);
                     if (!hit?.zh || hit.error) {
@@ -44114,6 +44358,7 @@ async function liveTranslateTexts(texts, opts) {
                     }
                     gapZh.set(gap.id, hit.zh);
                     if (hit.engine) remainderEngine = hit.engine;
+                    if (hit.engine !== "skip") for (const source of resultSources(hit)) sources2.add(source);
                   }
                 }
                 const zh = stitchLockedNamePlan(src, namePlan, gapZh);
@@ -44123,6 +44368,7 @@ async function liveTranslateTexts(texts, opts) {
                     `Item ${itemId} name-lock write`,
                     () => getCache().writeMany([[src, zh]], tag, { from: detectCacheLang(src), to: "zh", category: opts?.category })
                   );
+                  opts?.onCacheWrite?.(written.records, [...sources2]);
                   if (contentRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records));
                   if (written.rejected.length) {
                     const current = lookupCached(src);
@@ -44130,7 +44376,7 @@ async function liveTranslateTexts(texts, opts) {
                     return { src, zh: null, error: "Translation result rejected by current authority; review conflicting cache entries" };
                   }
                 }
-                items2.push({ src, zh, engine: tag, status: "full" });
+                items2.push({ src, zh, engine: tag, resultSources: [...sources2], status: "full" });
                 return items2[0];
               }
               if (!shouldTranslate(labelCore || src, opts?.sourceLang)) {
@@ -44160,13 +44406,14 @@ async function liveTranslateTexts(texts, opts) {
                     const identity = `${engineSourceTag(engine, agents)}:${findAgentEntry(agents, engine)?.model || ""}`;
                     const key2 = JSON.stringify([contentRoot, identity, langPair, sendText, Boolean(opts?.local?.interactive)]);
                     const sourceChars = Array.from(sendText).length;
+                    engineWork = true;
                     const rawZh = await joinTranslationRequest(
                       key2,
                       (signal) => withEngineCapacity(
                         engine,
                         identity,
                         () => {
-                          opts?.onEngineDispatch?.();
+                          onEngineDispatch(engine);
                           trace?.(
                             `Item ${itemId} engine requested: engine=${engine}, sourceChars=${sourceChars}, from=${langPair.from}, to=${langPair.to}, pipelineElapsedMs=${Math.round(performance.now() - started)}`
                           );
@@ -44249,6 +44496,7 @@ async function liveTranslateTexts(texts, opts) {
                     `Item ${itemId} shared cache write`,
                     () => getCache().writeMany(pairs, tag, { from: detectCacheLang(src), to: "zh", category: opts?.category })
                   );
+                  opts?.onCacheWrite?.(written.records, [tag]);
                   if (contentRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records));
                   if (written.rejected.length) {
                     const current = currentAuthority();
@@ -44269,6 +44517,7 @@ async function liveTranslateTexts(texts, opts) {
             if (!itemSignal?.aborted) throw error;
             item = { src, zh: null, error: "Translation item deadline exceeded; saved results are retained" };
           }
+          item = { ...item, resultSources: resultSources(item), engineWork };
           timed(`Item ${itemId} progress checkpoint`, () => opts?.onItem?.(item));
           trace?.(`Item ${itemId} finished: engine=${item.engine || "none"}, success=${item.zh != null && !item.error}, elapsedMs=${Math.round(performance.now() - itemStarted)}`);
           return item;
@@ -44294,16 +44543,18 @@ async function liveTranslateTexts(texts, opts) {
 }
 
 // services/translate/scheduler/seed-inventory.ts
-import fs29 from "node:fs";
+import fs31 from "node:fs";
 import { DatabaseSync as DatabaseSync5 } from "node:sqlite";
 function seedFileStamp(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
-  const stat = file ? fs29.statSync(file, { throwIfNoEntry: false }) : void 0;
+  const stat = file ? fs31.statSync(file, { throwIfNoEntry: false }) : void 0;
   return JSON.stringify([file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
 }
 function readSeedInventory(contentRoot) {
+  const stamp = seedFileStamp(contentRoot);
+  const progressStamp = seedProgressStamp(contentRoot);
   const file = localGameContentFile(contentRoot, "seed");
-  const data = file ? JSON.parse(fs29.readFileSync(file, "utf8")) : {};
+  const data = file ? JSON.parse(fs31.readFileSync(file, "utf8")) : {};
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Seed must be an object mapping source text to translation");
   const entries = data;
   const keys = filterRgssSeedKeys(
@@ -44340,7 +44591,7 @@ function readSeedInventory(contentRoot) {
         if (!revisions.has(key2)) {
           try {
             if (!client) {
-              if (!fs29.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
+              if (!fs31.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
               client = new DatabaseSync5(TRANSLATE_CACHE_DB_PATH, { readOnly: true });
               client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250; BEGIN");
               revisionQuery = client.prepare("SELECT revision FROM translation_records WHERE id=?");
@@ -44363,6 +44614,7 @@ function readSeedInventory(contentRoot) {
   const local = createGameTranslateLookup(records);
   const numeric2 = createNumericLabelIndex(records);
   const pending = [];
+  const failures = readSeedFailures(contentRoot);
   for (const key2 of keys) {
     const chars = charCount(key2);
     progress.lines += lineCount(key2);
@@ -44375,6 +44627,9 @@ function readSeedInventory(contentRoot) {
       if (local[key2] != null || numeric2.resolve(key2) != null) {
         progress.done++;
         progress.doneChars += chars;
+      } else if (failures.has(key2)) {
+        progress.failedCount = (progress.failedCount ?? 0) + 1;
+        progress.failedChars = (progress.failedChars ?? 0) + chars;
       } else {
         progress.missing++;
         progress.missingChars += chars;
@@ -44383,18 +44638,21 @@ function readSeedInventory(contentRoot) {
     }
   }
   progress.batchesLeft = Math.ceil(progress.missing / 40);
-  return { progress, pending, stamp: seedFileStamp(contentRoot) };
+  return { progress, pending, stamp, progressStamp };
 }
 function seedProgressStamp(contentRoot) {
-  const files2 = [localGameContentFile(contentRoot, "seed"), localGameContentFile(contentRoot, "cacheNdjson")];
+  const files2 = [localGameContentFile(contentRoot, "seed"), localGameContentFile(contentRoot, "cacheNdjson"), seedFailureFile(contentRoot)];
   return JSON.stringify([
-    4,
+    5,
     files2.map((file) => {
-      const stat = file ? fs29.statSync(file, { throwIfNoEntry: false }) : void 0;
+      const stat = file ? fs31.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   ]);
 }
+
+// services/translate/scheduler/seed-session.ts
+import { randomUUID as randomUUID5 } from "node:crypto";
 
 // services/translate/scheduler/cache-lane.ts
 import { existsSync as existsSync2, statSync as statSync2 } from "node:fs";
@@ -44410,11 +44668,16 @@ function startCacheLane(options) {
     }
   };
   let stamp = fileStamp2();
-  let closed = false, idle = false;
+  let closed = false;
+  let idle = false;
   let stopping;
   let watchdog;
   const retiring = /* @__PURE__ */ new Set();
   let worker2;
+  let ready = false;
+  let currentLease = "";
+  let batchSeq = 0;
+  let inFlight;
   const arm = () => {
     if (watchdog) clearTimeout(watchdog);
     watchdog = setTimeout(() => {
@@ -44422,34 +44685,81 @@ function startCacheLane(options) {
     }, 5e3);
     watchdog.unref?.();
   };
+  function disarm() {
+    if (watchdog) clearTimeout(watchdog);
+    watchdog = void 0;
+  }
   function fail(error) {
-    options.onError(error);
-    void close();
+    try {
+      options.onError(error);
+    } finally {
+      void close();
+    }
   }
   function spawn5() {
     if (!existsSync2(entry)) {
       fail("CACHE_WORKER_MISSING");
       return;
     }
-    const own = new Worker3(entry, { workerData: { contentRoot: options.contentRoot, file: defaultSharedDbPath() }, env: { ...process.env, CHAYA_ROOT: ROOT_PATH } });
+    const own = new Worker3(entry, {
+      workerData: { contentRoot: options.contentRoot, file: defaultSharedDbPath() },
+      env: { ...process.env, CHAYA_ROOT: ROOT_PATH }
+    });
     worker2 = own;
     idle = false;
+    ready = false;
+    inFlight = void 0;
     arm();
     own.on("message", (message) => {
       if (closed || own !== worker2) return;
-      if (message.type === "item" && message.result) {
-        arm();
-        try {
-          options.onResult(message.result);
-        } catch (error) {
-          fail(error instanceof Error ? error.message : String(error));
+      try {
+        const lease = String(message.leaseId || "");
+        const batchId = Number(message.batchId) || 0;
+        const ownsBatch = inFlight?.batchId === batchId && inFlight.leaseId === lease;
+        switch (message.type) {
+          case "ready": {
+            const protocolVersion = Number(message.protocolVersion) || 0;
+            if (protocolVersion < 1) {
+              fail(`Cache worker protocol unsupported: ${protocolVersion || "missing"}`);
+              return;
+            }
+            ready = true;
+            idle = true;
+            disarm();
+            void wake();
+            return;
+          }
+          case "item":
+            if (ownsBatch && lease === currentLease && message.result != null) {
+              arm();
+              options.onResult(message.result, batchId, lease);
+            }
+            return;
+          case "itemError":
+            if (ownsBatch && lease === currentLease) {
+              arm();
+              options.onItemError(Number(message.id) || 0, message.src || "", String(message.error || "Cache scan failed"), batchId, lease);
+            }
+            return;
+          case "done":
+            if (!ownsBatch) return;
+            inFlight = void 0;
+            idle = true;
+            disarm();
+            if (lease === currentLease) options.onBatchDone(batchId, lease, Number(message.elapsedMs) || 0);
+            void wake();
+            return;
+          case "stampAdvanced":
+            if (lease === currentLease) {
+              options.onStampAdvanced(String(message.beforeStamp || ""), String(message.afterStamp || ""), message.applied !== false);
+            }
+            return;
+          case "failed":
+            fail(String(message.error || "Cache worker failed"));
+            return;
         }
-      }
-      if (message.type === "failed") fail(message.error || "Cache worker failed");
-      if (message.type === "ready") {
-        if (watchdog) clearTimeout(watchdog);
-        idle = true;
-        wake();
+      } catch (error) {
+        fail(error instanceof Error ? error.message : String(error));
       }
     });
     own.on("error", (error) => {
@@ -44457,12 +44767,12 @@ function startCacheLane(options) {
     });
     own.on("exit", (code) => {
       if (own !== worker2) return;
-      if (watchdog) clearTimeout(watchdog);
+      disarm();
       if (!closed) fail(`Cache worker exited unexpectedly: code=${code}`);
     });
   }
   function wake() {
-    if (!idle || closed || !worker2) return;
+    if (closed || !worker2 || !idle || !ready) return;
     try {
       const currentStamp = fileStamp2();
       if (stamp !== currentStamp) {
@@ -44473,46 +44783,45 @@ function startCacheLane(options) {
           () => retiring.delete(retired),
           () => retiring.delete(retired)
         );
+        worker2 = void 0;
+        idle = false;
+        ready = false;
+        inFlight = void 0;
         spawn5();
         return;
       }
-      const tasks = options.next();
-      if (tasks == null) return;
-      if (!tasks.length) {
-        void close();
-        return;
-      }
+      const tasks = options.next(currentLease);
+      if (tasks == null || !tasks.length) return;
+      batchSeq += 1;
+      const batchId = batchSeq;
       idle = false;
+      inFlight = { batchId, leaseId: currentLease };
+      worker2.postMessage({ batchId, leaseId: currentLease, tasks });
       arm();
-      worker2.postMessage(tasks);
     } catch (error) {
       fail(error instanceof Error ? error.message : String(error));
     }
   }
+  function setLease(leaseId) {
+    currentLease = leaseId;
+  }
+  function stampAdvance(leaseId, beforeStamp, afterStamp) {
+    if (closed || !worker2) return;
+    worker2.postMessage({ type: "stampAdvance", leaseId, beforeStamp, afterStamp });
+  }
   function close() {
     if (stopping) return stopping;
     closed = true;
-    if (watchdog) clearTimeout(watchdog);
+    disarm();
     stopping = Promise.allSettled([...retiring, worker2?.terminate() ?? Promise.resolve(0)]).then(() => {
     });
     return stopping;
   }
   spawn5();
-  return { close, wake };
+  return { close, wake, setLease, stampAdvance };
 }
 
-// services/translate/scheduler/seed-session.ts
-var UNKNOWN = 0;
-var MISS = 1;
-var RUNNING = 2;
-var DONE = 3;
-var FAILED = 4;
-var WAIT_CACHE = 5;
-var RECHECK = 6;
-var MAX_BUFFER = 64;
-var CACHE_RESULT_LIMIT = 40;
-var CACHE_RESULT_MAX_CHARS = 1e4;
-var MAX_RECHECKS = 2;
+// services/translate/scheduler/owned-stamps.ts
 function followsOwnedStampChain(from, to, transitions) {
   let current = from;
   const seen = /* @__PURE__ */ new Set();
@@ -44525,6 +44834,51 @@ function followsOwnedStampChain(from, to, transitions) {
   }
   return true;
 }
+
+// services/translate/scheduler/result-window.ts
+function createResultWindow(limit, onItem) {
+  const selected = [];
+  let chars = 0;
+  let cacheCount = 0;
+  const cacheOnly = () => cacheCount === selected.length;
+  const full = () => selected.length >= (cacheOnly() ? 40 : limit);
+  return {
+    selected,
+    cacheOnly,
+    full,
+    take(completed) {
+      while (completed.length && !full()) {
+        const entry = completed.shift();
+        const size = charCount(entry.item.src);
+        const cached = isCacheExecution(entry.item);
+        if (selected.length && cached && cacheOnly() && chars + size > 1e4) {
+          completed.unshift(entry);
+          break;
+        }
+        selected.push(entry);
+        chars += size;
+        if (cached) cacheCount++;
+        onItem?.(entry.item);
+      }
+    }
+  };
+}
+
+// services/translate/scheduler/seed-session.ts
+var UNKNOWN = 0;
+var MISS = 1;
+var RUNNING = 2;
+var DONE = 3;
+var FAILED = 4;
+var WAIT_CACHE = 5;
+var RECHECK = 6;
+var MAX_BUFFER = 64;
+var MAX_RECHECKS = 2;
+var MAX_CACHE_PENDING = 64;
+var CACHE_SHARD = 32;
+var CACHE_CLASSIFY_WINDOW_MS = 1500;
+var CACHE_ADMISSION_TIMEOUT_MS = 1500;
+var CACHE_STALL_FALLBACK_MS = 1500;
 function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   let inventory = opts?.inventory ?? readSeedInventory(contentRoot);
   let progress = { ...inventory.progress };
@@ -44551,13 +44905,22 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   let cacheLane;
   let resolveWait;
   let flushTimer;
+  let deadlineTimer;
+  let leaseId = "";
+  let cacheBatchDoneSeq = 0;
   const active2 = /* @__PURE__ */ new Map();
   const retries = /* @__PURE__ */ new Map();
   const ready = /* @__PURE__ */ new Map();
   const completed = [];
   const ownedFileTransitions = /* @__PURE__ */ new Map();
+  const pendingBackfill = /* @__PURE__ */ new Map();
   const recheckQueue = [];
   let recheckAttempts = new Uint8Array(states.length);
+  const cachePending = /* @__PURE__ */ new Set();
+  const cacheInFlight = /* @__PURE__ */ new Set();
+  let cacheEnteredAt = new Float64Array(states.length);
+  let cacheDeadline = new Float64Array(states.length);
+  let lastCacheProgressAt = 0;
   const counters = {
     cacheHit: 0,
     cacheMiss: 0,
@@ -44566,6 +44929,9 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     cacheCancelled: 0,
     cacheRecheck: 0,
     cacheRecheckMiss: 0,
+    cacheAdmissionTimeout: 0,
+    cacheClassifyTimeout: 0,
+    cacheScanError: 0,
     engineSubmitted: 0,
     duplicateInFlight: 0
   };
@@ -44573,14 +44939,28 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   const cache2 = () => store2 ??= openSharedCache();
   const notify = () => resolveWait?.();
   const cap = () => Math.min(40, Math.max(1, options.limit || 12));
+  const nowMs = () => performance.now();
+  function inCacheWindow(id) {
+    return cachePending.has(id) || cacheInFlight.has(id) || cacheEnteredAt[id] !== 0 || cacheDeadline[id] !== 0;
+  }
+  function canEngineClaimUnknown() {
+    if (cacheUnavailable) return true;
+    return cachePending.size >= MAX_CACHE_PENDING && nowMs() - lastCacheProgressAt > CACHE_STALL_FALLBACK_MS;
+  }
   function finish(id, item, cacheMs = 0) {
     if (closed || states[id] === DONE || states[id] === FAILED) return;
+    if (retries.get(id)?.engineWork) item = { ...item, engineWork: true };
     pendingCount--;
     const success = item.zh != null && !item.error && item.status !== "partial";
+    if (!success && !paused && item.engineWork && !retries.get(id)?.interrupted) recordSeedFailure(contentRoot, item, progress);
     states[id] = success ? DONE : FAILED;
     retries.delete(id);
     ready.delete(id);
     waitingCache.delete(id);
+    cachePending.delete(id);
+    cacheInFlight.delete(id);
+    cacheEnteredAt[id] = 0;
+    cacheDeadline[id] = 0;
     if (success) {
       processed++;
       const chars = charCount(item.src);
@@ -44613,12 +44993,24 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     }
     recheckQueue.length = 0;
   }
+  function releaseToEngine(id, reason) {
+    cachePending.delete(id);
+    cacheInFlight.delete(id);
+    cacheEnteredAt[id] = 0;
+    cacheDeadline[id] = 0;
+    if (states[id] === UNKNOWN) states[id] = MISS;
+    if (reason === "admission") counters.cacheAdmissionTimeout++;
+    else if (reason === "classify") counters.cacheClassifyTimeout++;
+    if (states[id] === MISS && misses.length < 2048 && !misses.includes(id)) misses.push(id);
+  }
   function cacheFailed(error) {
     cacheAvailable = false;
     cacheUnavailable = true;
     const soft = error === "CACHE_WORKER_MISSING" || /chaya-cache-worker|Cache worker missing/i.test(error);
     trace(soft ? "Cache scan unavailable: worker not built \u2014 continuing with engines only (run pnpm build:translate)" : `Cache scan unavailable: ${error}`);
     for (const [id, item] of waitingCache) finish(id, item);
+    for (const id of [...cachePending]) releaseToEngine(id, "stall");
+    for (const id of [...cacheInFlight]) releaseToEngine(id, "stall");
     releaseRechecks();
     notify();
   }
@@ -44639,8 +45031,21 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     if (ownedFileTransitions.size >= 256) ownedFileTransitions.delete(ownedFileTransitions.keys().next().value);
     ownedFileTransitions.set(before, after);
   }
+  function rememberBackfill(records) {
+    for (const record of records || []) pendingBackfill.set(`${record.from}:${record.to}:${record.id}:${record.revision}`, record);
+  }
   function flushBackfill() {
     if (!store2) return;
+    if (pendingBackfill.size) {
+      const records = [...pendingBackfill.values()];
+      try {
+        store2.queueBackfill(contentRoot, records);
+        pendingBackfill.clear();
+      } catch (error) {
+        trace(`Cache backfill queue failed: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+    }
     const before = gameTranslationFiles(contentRoot).stamp;
     let flushed;
     try {
@@ -44651,16 +45056,20 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     }
     const after = gameTranslationFiles(contentRoot).stamp;
     if (flushed?.sharedOnly) rememberOwnedTransition(before, after);
+    if (flushed?.sharedOnly && before !== after && cacheLane) cacheLane.stampAdvance(leaseId, before, after);
   }
-  function onCache(result) {
+  function onResult(result) {
     pendingCacheMs += result.elapsedMs;
+    lastCacheProgressAt = nowMs();
     const id = result.id;
+    cacheInFlight.delete(id);
+    cacheDeadline[id] = 0;
     if (paused || closed || result.src !== inventory.pending[id] || states[id] === DONE || states[id] === FAILED) return;
     cacheSeen[id] = 1;
     if (result.plan.status === "full" && result.plan.zh != null) {
       if (valid(result)) {
         counters.cacheHit++;
-        if (result.records?.length) cache2().queueBackfill(contentRoot, result.records);
+        rememberBackfill(result.records);
         finish(id, { src: result.src, zh: result.plan.zh, status: "full", engine: "cache:scan", plan: result.plan }, result.elapsedMs);
         if (active2.has(id)) {
           counters.cacheCancelled++;
@@ -44703,6 +45112,27 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       if (result.plan.status === "partial" && !result.plan.limited && ready.size < 128) ready.set(id, result);
     }
     pump();
+    scheduleDeadlineTimer();
+  }
+  function onBatchDone() {
+    cacheBatchDoneSeq++;
+    lastCacheProgressAt = nowMs();
+    pump();
+    scheduleDeadlineTimer();
+    notify();
+  }
+  function onItemError(id, _error) {
+    lastCacheProgressAt = nowMs();
+    cacheInFlight.delete(id);
+    cacheDeadline[id] = 0;
+    if (paused || closed || states[id] === DONE || states[id] === FAILED) return;
+    counters.cacheScanError++;
+    releaseToEngine(id, "classify");
+    pump();
+    scheduleDeadlineTimer();
+  }
+  function onStampAdvanced(before, after, applied) {
+    if (applied) rememberOwnedTransition(before, after);
   }
   function hasPending() {
     return pendingCount > 0;
@@ -44747,7 +45177,11 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
           delayed.delete(id);
           continue;
         }
-        if (states[id] !== UNKNOWN && states[id] !== MISS || retries.has(id)) {
+        if (states[id] === UNKNOWN) {
+          if (inCacheWindow(id) || !canEngineClaimUnknown()) {
+            continue;
+          }
+        } else if (states[id] !== MISS || retries.has(id)) {
           delayed.delete(id);
           continue;
         }
@@ -44760,7 +45194,11 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       while (cursor < states.length && delayed.size < 64) {
         const id = cursor++;
         freshCursors.set(engine, cursor);
-        if (states[id] !== UNKNOWN && states[id] !== MISS || retries.has(id)) continue;
+        if (states[id] === UNKNOWN) {
+          if (inCacheWindow(id) || !canEngineClaimUnknown()) continue;
+        } else if (states[id] !== MISS || retries.has(id)) {
+          continue;
+        }
         if (options.exclude?.has(inventory.pending[id])) {
           states[id] = FAILED;
           pendingCount--;
@@ -44792,7 +45230,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     const prepared = ready.get(id);
     ready.delete(id);
     const plan = prepared && valid(prepared) ? prepared.plan : void 0;
-    if (plan && prepared?.records?.length) cache2().queueBackfill(contentRoot, prepared.records);
+    if (plan) rememberBackfill(prepared?.records);
     const attempt = retries.get(id) || {
       order: translationFallbackOrder([engine, ...engines.filter((value) => value !== engine && (!sensitive(id) || engineAcceptsSensitive(value)))]),
       next: 0,
@@ -44815,16 +45253,19 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
           local: { signal: controller.signal },
           itemTimeoutMs: 15e3,
           onTrace: trace,
-          onEngineDispatch: () => {
+          onEngineDispatch: (actualEngine) => {
+            attempt.engineWork = true;
             counters.engineSubmitted++;
-            submittedEngines.add(engine);
+            submittedEngines.add(actualEngine);
           },
           onDuplicateInFlight: () => {
+            attempt.engineWork = true;
             counters.duplicateInFlight++;
           }
         });
         if (closed || ownGeneration !== generation || states[id] === DONE || states[id] === RECHECK) return;
         const item = result.items[0] || { src, zh: null, error: "No translation result returned" };
+        attempt.engineWork ||= item.engineWork;
         if (item.zh != null && !item.error && item.status !== "partial") finish(id, item);
         else {
           attempt.errors.push(item.error || "Translation failed");
@@ -44880,51 +45321,110 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     }
     if (!active2.size) {
       for (let id = 0; id < states.length && completed.length < MAX_BUFFER; id++) {
-        if ((states[id] === UNKNOWN || states[id] === MISS) && !options.exclude?.has(inventory.pending[id]) && !engines.some((engine) => !sensitive(id) || engineAcceptsSensitive(engine))) {
+        if ((states[id] === UNKNOWN || states[id] === MISS) && !inCacheWindow(id) && !options.exclude?.has(inventory.pending[id]) && !engines.some((engine) => !sensitive(id) || engineAcceptsSensitive(engine))) {
           failOrWait(id, { src: inventory.pending[id], zh: null, error: "No eligible translation engines are enabled" });
         }
       }
       if (completed.length || !hasPending()) notify();
     }
   }
+  function releaseExpiredCache() {
+    if (paused || closed) return;
+    const now = nowMs();
+    for (const id of [...cachePending]) {
+      if (cacheEnteredAt[id] !== 0 && now - cacheEnteredAt[id] >= CACHE_ADMISSION_TIMEOUT_MS) releaseToEngine(id, "admission");
+    }
+    for (const id of [...cacheInFlight]) {
+      if (cacheDeadline[id] !== 0 && now >= cacheDeadline[id]) releaseToEngine(id, "classify");
+    }
+    pump();
+    scheduleDeadlineTimer();
+    notify();
+  }
+  function scheduleDeadlineTimer() {
+    if (deadlineTimer || paused || closed) return;
+    const now = nowMs();
+    let earliest = Infinity;
+    for (const id of cachePending) if (cacheEnteredAt[id] !== 0) earliest = Math.min(earliest, cacheEnteredAt[id] + CACHE_ADMISSION_TIMEOUT_MS);
+    for (const id of cacheInFlight) if (cacheDeadline[id] !== 0) earliest = Math.min(earliest, cacheDeadline[id]);
+    if (cachePending.size >= MAX_CACHE_PENDING) earliest = Math.min(earliest, lastCacheProgressAt + CACHE_STALL_FALLBACK_MS);
+    if (!Number.isFinite(earliest)) return;
+    const delay = Math.max(0, earliest - now);
+    deadlineTimer = setTimeout(() => {
+      deadlineTimer = void 0;
+      releaseExpiredCache();
+    }, delay);
+    deadlineTimer.unref?.();
+  }
+  function cacheNext() {
+    if (paused || closed) return [];
+    if (completed.length >= MAX_BUFFER) return [];
+    while (cachePending.size < MAX_CACHE_PENDING && scanCursor < states.length) {
+      const id = scanCursor++;
+      if (states[id] === UNKNOWN && !options.exclude?.has(inventory.pending[id])) {
+        cachePending.add(id);
+        cacheEnteredAt[id] = nowMs();
+      }
+    }
+    const tasks = [];
+    while (recheckQueue.length && tasks.length < CACHE_SHARD) {
+      const id = recheckQueue.shift();
+      if (states[id] === RECHECK) {
+        cacheInFlight.add(id);
+        cacheDeadline[id] = nowMs() + CACHE_CLASSIFY_WINDOW_MS;
+        tasks.push({ id, src: inventory.pending[id] });
+      }
+    }
+    for (const id of [...cachePending]) {
+      if (tasks.length >= CACHE_SHARD) break;
+      if (states[id] !== UNKNOWN) {
+        cachePending.delete(id);
+        cacheEnteredAt[id] = 0;
+        continue;
+      }
+      cachePending.delete(id);
+      cacheEnteredAt[id] = 0;
+      cacheInFlight.add(id);
+      cacheDeadline[id] = nowMs() + CACHE_CLASSIFY_WINDOW_MS;
+      tasks.push({ id, src: inventory.pending[id] });
+    }
+    return tasks;
+  }
   function start() {
     paused = false;
     if (started) return;
     started = true;
+    if (!leaseId) leaseId = randomUUID5();
     for (let id = 0; id < states.length; id++) {
       if (states[id] === RECHECK && !recheckQueue.includes(id)) recheckQueue.push(id);
     }
     engines = getTranslateEngineSwitches(contentRoot).enabled;
-    if (cacheAvailable) {
+    if (cacheAvailable && !cacheLane) {
       try {
         cacheLane = startCacheLane({
           contentRoot,
-          onResult: onCache,
-          onError: cacheFailed,
-          next: () => {
-            if (paused || closed) return [];
-            if (completed.length >= MAX_BUFFER) return null;
-            const tasks = [];
-            while (recheckQueue.length && tasks.length < 32) {
-              const id = recheckQueue.shift();
-              if (states[id] === RECHECK) tasks.push({ id, src: inventory.pending[id] });
-            }
-            while (scanCursor < states.length && tasks.length < 32) {
-              const id = scanCursor++;
-              if (states[id] !== DONE && states[id] !== FAILED && states[id] !== RECHECK) tasks.push({ id, src: inventory.pending[id] });
-            }
-            return tasks;
-          }
+          next: cacheNext,
+          onResult,
+          onBatchDone,
+          onItemError,
+          onStampAdvanced,
+          onError: cacheFailed
         });
+        cacheLane.setLease(leaseId);
       } catch (error) {
         cacheFailed(error instanceof Error ? error.message : String(error));
       }
     }
+    lastCacheProgressAt = nowMs();
+    cacheLane?.wake();
+    scheduleDeadlineTimer();
     pump();
   }
   async function drain2() {
     paused = true;
     started = false;
+    if (deadlineTimer) clearTimeout(deadlineTimer);
+    deadlineTimer = void 0;
     for (const [id, item] of waitingCache) finish(id, item);
     await cacheLane?.close();
     cacheLane = void 0;
@@ -44944,9 +45444,20 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     pause() {
       paused = true;
       started = false;
+      if (deadlineTimer) clearTimeout(deadlineTimer);
+      deadlineTimer = void 0;
       for (const [id, item] of waitingCache) finish(id, item);
-      void cacheLane?.close();
-      cacheLane = void 0;
+      for (const id of [...cacheInFlight]) {
+        cacheInFlight.delete(id);
+        cacheDeadline[id] = 0;
+        if (states[id] === RECHECK && !recheckQueue.includes(id)) recheckQueue.push(id);
+        else if (states[id] === UNKNOWN) {
+          cachePending.add(id);
+          cacheEnteredAt[id] = nowMs();
+        }
+      }
+      leaseId = "";
+      cacheLane?.setLease("");
       notify();
     },
     async close() {
@@ -44986,10 +45497,22 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         retries.clear();
         ready.clear();
         completed.length = 0;
+        cachePending.clear();
+        cacheInFlight.clear();
+        pendingBackfill.clear();
+        cacheEnteredAt = new Float64Array(states.length);
+        cacheDeadline = new Float64Array(states.length);
+        lastCacheProgressAt = 0;
         started = paused = false;
+        leaseId = "";
       }
       engines = getTranslateEngineSwitches(contentRoot).enabled;
-      for (const entry of active2.values()) if (!engines.includes(entry.engine)) entry.controller.abort(new Error("Translation engine was disabled"));
+      for (const [id, entry] of active2)
+        if (!engines.includes(entry.engine)) {
+          const attempt = retries.get(id);
+          if (attempt) attempt.interrupted = true;
+          entry.controller.abort(new Error("Translation engine was disabled"));
+        }
       for (const [id, attempt] of retries) {
         if (states[id] !== MISS && states[id] !== WAIT_CACHE) continue;
         refreshAttempt(attempt, id);
@@ -45001,45 +45524,24 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       options = opts2;
       progress.batchSize = cap();
       const elapsed = performance.now();
+      const cacheDoneAtStart = cacheBatchDoneSeq;
       start();
-      const selected = [];
-      let selectedChars = 0;
-      let selectedCache = 0;
-      const windowLimit = () => selectedCache === selected.length ? CACHE_RESULT_LIMIT : cap();
-      const canSelect = () => {
-        if (!selected.length) return true;
-        if (selectedCache === selected.length) return selected.length < CACHE_RESULT_LIMIT;
-        return selected.length < cap();
-      };
-      const selectReady = () => {
-        while (completed.length && canSelect()) {
-          const entry = completed.shift();
-          const chars = charCount(entry.item.src);
-          const isCache = entry.item.engine?.startsWith("cache:") === true;
-          if (selected.length && isCache && selectedCache === selected.length && selectedChars + chars > CACHE_RESULT_MAX_CHARS) {
-            completed.unshift(entry);
-            break;
-          }
-          selected.push(entry);
-          selectedChars += chars;
-          if (isCache) selectedCache++;
-          opts2.onItem?.(entry.item);
-        }
-      };
+      const window = createResultWindow(cap(), opts2.onItem);
+      const { selected } = window;
       while (true) {
-        selectReady();
+        window.take(completed);
         cacheLane?.wake();
         pump();
-        selectReady();
-        if (selected.length >= windowLimit() || !active2.size && (paused || !hasPending()) || selected.length && performance.now() - elapsed >= 5e3) break;
+        window.take(completed);
+        const queuedEngineResult = completed.some((entry) => !isCacheExecution(entry.item));
+        const selectedEngineResult = !window.cacheOnly();
+        const cacheShardSettled = cacheBatchDoneSeq > cacheDoneAtStart && completed.length === 0;
+        if (window.full() || selectedEngineResult || selected.length >= cap() && (active2.size > 0 || queuedEngineResult) || selected.length > 0 && window.cacheOnly() && cacheShardSettled || !active2.size && (paused || !hasPending()) || selected.length && performance.now() - elapsed >= 5e3)
+          break;
         await new Promise((resolve3) => {
           resolveWait = resolve3;
         });
         resolveWait = void 0;
-        if (selected.length || completed.length) {
-          selectReady();
-          break;
-        }
       }
       const items = selected.map((entry) => entry.item);
       const unresolved = items.filter((item) => item.zh == null || item.error || item.status === "partial").map((item) => item.src);
@@ -45063,8 +45565,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         submittedEngines: submitted,
         cacheUnavailable: unavailable,
         performance: {
-          // Exclude cache hits so the throughput estimate reflects live engine work, not near-instant lookups.
-          completedChars: items.filter((item) => !unresolved.includes(item.src) && !item.engine?.startsWith("cache:")).reduce((sum2, item) => sum2 + charCount(item.src), 0),
+          completedChars: items.filter((item) => !unresolved.includes(item.src) && !isCacheResult(item)).reduce((sum2, item) => sum2 + charCount(item.src), 0),
           cacheMs
         }
       };
@@ -45077,8 +45578,8 @@ var DEFAULT_BATCH = 40;
 var scans = /* @__PURE__ */ new Map();
 function loadSeedKeys(contentRoot) {
   const file = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
-  if (!file || !fs30.existsSync(file)) return [];
-  const raw = JSON.parse(fs30.readFileSync(file, "utf8"));
+  if (!file || !fs32.existsSync(file)) return [];
+  const raw = JSON.parse(fs32.readFileSync(file, "utf8"));
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("seed must be an object mapping source text to translation");
   return filterRgssSeedKeys(
     contentRoot,
@@ -45119,9 +45620,11 @@ function scanSeed(contentRoot, fresh = false) {
       cache2.path,
       cache2.version(),
       keys,
+      fs32.statSync(seedFailureFile(contentRoot), { throwIfNoEntry: false })?.mtimeMs,
+      [...readSeedFailures(contentRoot).keys()],
       ...["seed", "cacheNdjson"].map((kind) => {
         const file = gameContentReadPath(contentRoot, kind, { alsoParent: true });
-        const stat = file ? fs30.statSync(file, { throwIfNoEntry: false }) : void 0;
+        const stat = file ? fs32.statSync(file, { throwIfNoEntry: false }) : void 0;
         return [file, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
       })
     ]);
@@ -45147,6 +45650,7 @@ function scanSeed(contentRoot, fresh = false) {
       batchesLeft: 0
     };
     const missingKeys = [];
+    const failures = readSeedFailures(contentRoot);
     for (const key2 of keys) {
       const chars = charCount(key2);
       progress.lines += lineCount(key2);
@@ -45161,6 +45665,9 @@ function scanSeed(contentRoot, fresh = false) {
       if (hit != null) {
         progress.done++;
         progress.doneChars += chars;
+      } else if (failures.has(key2)) {
+        progress.failedCount = (progress.failedCount ?? 0) + 1;
+        progress.failedChars = (progress.failedChars ?? 0) + chars;
       } else {
         progress.missing++;
         progress.missingChars += chars;
@@ -45186,7 +45693,7 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
   let cursor = 0;
   function seedStamp() {
     const file = localGameContentFile(contentRoot, "seed");
-    const stat = file ? fs30.statSync(file, { throwIfNoEntry: false }) : void 0;
+    const stat = file ? fs32.statSync(file, { throwIfNoEntry: false }) : void 0;
     return JSON.stringify([file, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
   }
   let stamp = seedStamp();
@@ -45243,6 +45750,7 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
       const translateStarted = performance.now();
       const deadline = AbortSignal.timeout(15e3);
       let items = [];
+      const terminalFailures = /* @__PURE__ */ new Map();
       try {
         const result = await liveTranslateTexts(batch, {
           contentRoot,
@@ -45258,6 +45766,11 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
           }
         });
         items = result.items;
+        for (const item of result.items) {
+          if (item.engineWork && (item.zh == null || item.error || item.status === "partial") && !deadline.aborted) {
+            terminalFailures.set(item.src, item);
+          }
+        }
       } catch (error) {
         if (!deadline.aborted) throw error;
         const received = new Set(items.map((item) => item.src));
@@ -45279,6 +45792,10 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
         progress.batchesLeft = Math.ceil(progress.missing / limit);
         progress.batchSize = limit;
         const unresolved = batch.filter((key2) => !hits.has(key2));
+        for (const key2 of unresolved) {
+          const item = terminalFailures.get(key2);
+          if (item) recordSeedFailure(contentRoot, item, progress);
+        }
         trace?.(`Batch coverage verified: elapsedMs=${Math.round(performance.now() - verifyStarted)}, covered=${hits.size}, unresolved=${unresolved.length}`);
         if (!progress.missing) {
           const reconcileStarted = performance.now();
@@ -45303,12 +45820,12 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
 }
 
 // services/translate/scheduler/seed-prepare.ts
-import fs31 from "node:fs";
-import path25 from "node:path";
+import fs33 from "node:fs";
+import path27 from "node:path";
 var flights2 = /* @__PURE__ */ new Map();
 var cache = /* @__PURE__ */ new Map();
 function keyFor(contentRoot) {
-  return path25.resolve(contentRoot);
+  return path27.resolve(contentRoot);
 }
 function peekSeedInventory(contentRoot) {
   return cache.get(keyFor(contentRoot)) ?? null;
@@ -45323,9 +45840,9 @@ async function runSeedInventoryWorker(contentRoot) {
     missingError: "SEED_INVENTORY_WORKER_MISSING"
   });
   try {
-    return JSON.parse(fs31.readFileSync(out, "utf8"));
+    return JSON.parse(fs33.readFileSync(out, "utf8"));
   } finally {
-    fs31.unlink(out, () => {
+    fs33.unlink(out, () => {
     });
   }
 }
@@ -45339,7 +45856,7 @@ function prepareSeedInventory(contentRoot) {
     } catch {
       await yieldEventLoop();
       const inv = readSeedInventory(contentRoot);
-      bundle = { progress: inv.progress, pending: inv.pending, stamp: inv.stamp };
+      bundle = inv;
     }
     cache.set(key2, bundle);
     return bundle;
@@ -45361,95 +45878,6 @@ function createSeedBatchBudget(initialLimit = 12) {
       maxChars = Math.max(500, Math.min(1e4, Math.floor(maxChars * factor)));
     }
   };
-}
-
-// services/translate/seed-job-state.ts
-import { createHash as createHash4 } from "node:crypto";
-import fs32 from "node:fs";
-import path26 from "node:path";
-var MAX_SEED_JOB_LOGS = 120;
-function idleSeedJob(contentRoot = "") {
-  return {
-    contentRoot,
-    status: "idle",
-    startedAt: null,
-    updatedAt: Date.now(),
-    sessionDone: 0,
-    rounds: 0,
-    performance: null,
-    liveStatus: "",
-    error: null,
-    engines: [],
-    logs: [],
-    failedSources: [],
-    inventoryPreparing: false
-  };
-}
-function emptySeedProgress(contentRoot) {
-  return {
-    contentRoot,
-    hasSeed: false,
-    total: 0,
-    done: 0,
-    missing: 0,
-    needCount: 0,
-    skipCount: 0,
-    needChars: 0,
-    skipChars: 0,
-    missingChars: 0,
-    doneChars: 0,
-    lines: 0,
-    batchSize: 40,
-    batchesLeft: 0
-  };
-}
-function seedJobKey(contentRoot) {
-  return createHash4("sha1").update(path26.resolve(contentRoot)).digest("hex").slice(0, 16);
-}
-function seedJobFile(contentRoot) {
-  return path26.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
-}
-function readSeedJobState(contentRoot) {
-  const file = seedJobFile(contentRoot);
-  if (!fs32.existsSync(file)) return null;
-  try {
-    const raw = JSON.parse(fs32.readFileSync(file, "utf8"));
-    if (!raw || typeof raw !== "object") return null;
-    return {
-      ...idleSeedJob(contentRoot),
-      ...raw,
-      contentRoot,
-      failedSources: Array.isArray(raw.failedSources) ? raw.failedSources.filter((s) => typeof s === "string") : [],
-      logs: Array.isArray(raw.logs) ? raw.logs.slice(-MAX_SEED_JOB_LOGS) : []
-    };
-  } catch {
-    return null;
-  }
-}
-function writeSeedJobState(state) {
-  fs32.mkdirSync(TRANSLATE_JOBS_DIR, { recursive: true });
-  const file = seedJobFile(state.contentRoot);
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs32.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}
-`, "utf8");
-  fs32.renameSync(tmp, file);
-}
-function isObsoleteCacheWorkerLog(text3) {
-  if (/Cannot find module .+chaya-cache-worker/i.test(text3)) return true;
-  if (fs32.existsSync(CACHE_WORKER_PATH) && /Cache scan unavailable:.*(?:worker not built|CACHE_WORKER_MISSING|chaya-cache-worker)/i.test(text3)) return true;
-  return false;
-}
-function visibleSeedJobState(state) {
-  const logs = process.env.CHAYA_TRANSLATE_DEBUG === "1" ? state.logs : state.logs.filter(
-    (entry) => !isObsoleteCacheWorkerLog(entry.text) && !/^\[translation-timing\]|^Requesting batch |^\.\.\. \d+ additional items omitted|^Skipping \d+ failed items this round/.test(entry.text) && !(entry.level === "ok" && entry.text.includes(" \u2192 "))
-  );
-  return { ...state, logs: [...logs] };
-}
-function scrubSeedJobLogs(state) {
-  const next = state.logs.filter((entry) => !/Cannot find module .+chaya-cache-worker/i.test(entry.text));
-  if (next.length === state.logs.length) return false;
-  state.logs = next;
-  return true;
 }
 
 // services/translate/seed-job-runtime.ts
@@ -45515,7 +45943,7 @@ function getRuntime(contentRoot) {
 function peekHasSeed(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
   if (!file) return false;
-  const stat = fs33.statSync(file, { throwIfNoEntry: false });
+  const stat = fs34.statSync(file, { throwIfNoEntry: false });
   return !!stat && stat.size > 2;
 }
 function pushLog(rt, level, text3, batch) {
@@ -45528,21 +45956,6 @@ function shortEngine(name2) {
   if (raw.startsWith("agent:")) return "agent";
   if (raw.startsWith("cache")) return "cache";
   return raw.length > 10 ? `${raw.slice(0, 9)}\u2026` : raw;
-}
-function batchSource(name2) {
-  const raw = (name2 || "").trim().toLowerCase().replace(/^live:/, "");
-  if (raw === "cache" || raw.startsWith("cache:")) return "cache";
-  if (raw === "apple" || raw.startsWith("apple:")) return "apple";
-  if (raw === "agent" || raw.startsWith("agent:")) return "agent";
-  if (raw === "bergamot" || raw.startsWith("bergamot:")) return "bergamot";
-  if (raw === "ollama" || raw.startsWith("ollama:")) return "ollama";
-  if (raw === "platform" || raw.startsWith("google") || raw.startsWith("bing") || raw.startsWith("platform:")) return "platform";
-  return "unknown";
-}
-function batchSources(items) {
-  const order = ["apple", "agent", "platform", "bergamot", "ollama", "unknown", "cache"];
-  const present = new Set(items.map((item) => batchSource(item.engine)));
-  return order.filter((source) => present.has(source));
 }
 function batchLabel(batch) {
   const final = batchSources(batch.finalSources.map((engine) => ({ engine })));
@@ -45611,7 +46024,6 @@ async function runLoop(contentRoot) {
         let checkpointAt = 0;
         result = await rt.session.fill({
           ...slice,
-          exclude: new Set(rt.state.failedSources),
           onTrace: trace,
           onItem: (item) => {
             if (rt.session) rt.progress = rt.session.progress;
@@ -45661,7 +46073,7 @@ async function runLoop(contentRoot) {
           total: result.scanned,
           failed: result.failed,
           chars: result.items.reduce((sum2, item) => sum2 + charCount(item.src), 0),
-          cacheHits: accepted.filter((item) => item.engine?.startsWith("cache")).length,
+          cacheHits: accepted.filter(isCacheResult).length,
           submittedSources,
           finalSources,
           cacheUnavailable: result.cacheUnavailable === true
@@ -45680,11 +46092,10 @@ async function runLoop(contentRoot) {
         return;
       }
       const failed = result.unresolved;
-      rt.state.failedSources = [.../* @__PURE__ */ new Set([...rt.state.failedSources, ...failed])];
       if (!result.scanned || !failed.length && !result.translated) {
         rt.state.status = "paused";
-        rt.state.liveStatus = `\u672C\u8F6E\u7ED3\u675F \xB7 \u4ECD\u7F3A ${result.missing} \u6761\uFF0C\u7EE7\u7EED\u53EF\u91CD\u8BD5`;
-        pushLog(rt, "warn", `No progress this round: ${formatCompactCount(result.missing)} items still missing; retry to continue.`);
+        rt.state.liveStatus = `\u672C\u8F6E\u7ED3\u675F \xB7 \u4ECD\u6709 ${result.missing} \u6761\u672A\u5904\u7406`;
+        pushLog(rt, "warn", `No progress this round: ${formatCompactCount(result.missing)} items not yet processed.`);
         persist(rt);
         return;
       }
@@ -45778,8 +46189,8 @@ function applyInventoryBundle(rt, bundle) {
   const progress = bundle.progress;
   rt.progress = progress;
   rt.state.progress = progress;
-  rt.state.progressStamp = seedProgressStamp(rt.state.contentRoot);
-  rt.state.seedStamp = seedFileStamp(rt.state.contentRoot);
+  rt.state.progressStamp = bundle.progressStamp ?? seedProgressStamp(rt.state.contentRoot);
+  rt.state.seedStamp = bundle.stamp;
   if (!progress.hasSeed || !progress.total) {
     rt.state.status = "idle";
     rt.state.liveStatus = "";
@@ -45796,7 +46207,7 @@ function refreshSeedJobProgress() {
   if (rt.running) return getSeedJobSnapshot();
   const peeked = peekSeedInventory(contentRoot);
   const seedStampNow = seedFileStamp(contentRoot);
-  if (peeked && peeked.stamp === seedStampNow) {
+  if (peeked && peeked.stamp === seedStampNow && peeked.progressStamp === seedProgressStamp(contentRoot)) {
     applyInventoryBundle(rt, peeked);
     return { ...peeked.progress, job: visibleSeedJobState(rt.state) };
   }
@@ -45827,8 +46238,8 @@ function beginSeedLoop(contentRoot, inventory) {
   if (rt.running) return;
   rt.progress = progress;
   rt.state.progress = progress;
-  rt.state.progressStamp = seedProgressStamp(contentRoot);
-  rt.state.seedStamp = seedFileStamp(contentRoot);
+  rt.state.progressStamp = inventory.progressStamp ?? seedProgressStamp(contentRoot);
+  rt.state.seedStamp = inventory.stamp;
   if (!progress.hasSeed || !progress.total) {
     rt.state.status = "error";
     rt.state.error = "Seed not found (please extract text first or provide *-trans.seed.json)";
@@ -45854,7 +46265,6 @@ function beginSeedLoop(contentRoot, inventory) {
     persist(rt);
     return;
   }
-  rt.state.failedSources = [];
   const resume = rt.state.status === "paused" || rt.state.status === "running";
   rt.stopRequested = false;
   rt.state.contentRoot = contentRoot;
@@ -45890,7 +46300,7 @@ function startSeedJob() {
   if (!engines.length) throw new Error("No translation engines are enabled");
   const peeked = peekSeedInventory(contentRoot);
   const seedStampNow = seedFileStamp(contentRoot);
-  if (peeked && peeked.stamp === seedStampNow) {
+  if (peeked && peeked.stamp === seedStampNow && peeked.progressStamp === seedProgressStamp(contentRoot)) {
     beginSeedLoop(contentRoot, peeked);
     const rt2 = getRuntime(contentRoot);
     return { ...rt2.progress ?? peeked.progress, job: visibleSeedJobState(rt2.state) };

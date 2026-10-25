@@ -1,9 +1,9 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // services/extract/lib/rgss/items-worker.ts
-import fs13 from "node:fs";
+import fs15 from "node:fs";
 import os2 from "node:os";
-import path12 from "node:path";
+import path13 from "node:path";
 import { parentPort, workerData } from "node:worker_threads";
 
 // lib/game/resolve.ts
@@ -628,8 +628,8 @@ function detectSourceLanguage(texts, locale = "") {
 }
 
 // services/extract/lib/rgss.ts
-import fs12 from "node:fs";
-import path11 from "node:path";
+import fs14 from "node:fs";
+import path12 from "node:path";
 
 // lib/game/content-files.ts
 import fs7 from "node:fs";
@@ -2200,6 +2200,20 @@ function createGameTranslateLookup(records) {
   }
   return lookup;
 }
+function createGameTranslateEngines(records) {
+  const engines = /* @__PURE__ */ Object.create(null);
+  try {
+    for (const record of records) {
+      if (record.src && record.engine) {
+        engines[record.src] = record.engine;
+        const nk = normalizeTranslateKey(record.src);
+        if (nk && nk !== record.src && !engines[nk]) engines[nk] = record.engine;
+      }
+    }
+  } catch {
+  }
+  return engines;
+}
 function loadRgssTranslationLookup(contentRoot) {
   const records = loadGameTranslationRecords(contentRoot);
   const lookup = createGameTranslateLookup(records);
@@ -2208,10 +2222,104 @@ function loadRgssTranslationLookup(contentRoot) {
       ({ engine }) => engine === "manual" || engine === "import" || engine?.startsWith("import:") || engine === "live:optimize" || engine?.startsWith("live:optimize:")
     )
   );
-  return { lookup, overrides };
+  const engines = createGameTranslateEngines(records);
+  return { lookup, overrides, engines };
 }
-function resolveRgssTranslation(src, current, translations) {
-  return translations.overrides[src] || current || translations.lookup[src] || "";
+function resolveRgssTranslationWithEngine(src, current, translations) {
+  if (translations.overrides[src]) {
+    return { zh: translations.overrides[src], engine: translations.engines?.[src] || "manual" };
+  }
+  if (current) {
+    return { zh: current, engine: "manual" };
+  }
+  if (translations.lookup[src]) {
+    return { zh: translations.lookup[src], engine: translations.engines?.[src] || "cache" };
+  }
+  return { zh: "", engine: void 0 };
+}
+
+// services/translate/seed-failures.ts
+import fs11 from "node:fs";
+
+// services/translate/seed-job-state.ts
+import { createHash } from "node:crypto";
+import fs10 from "node:fs";
+import path9 from "node:path";
+var MAX_SEED_JOB_LOGS = 120;
+function idleSeedJob(contentRoot = "") {
+  return {
+    contentRoot,
+    status: "idle",
+    startedAt: null,
+    updatedAt: Date.now(),
+    sessionDone: 0,
+    rounds: 0,
+    performance: null,
+    liveStatus: "",
+    error: null,
+    engines: [],
+    logs: [],
+    failedSources: [],
+    inventoryPreparing: false
+  };
+}
+function seedJobKey(contentRoot) {
+  return createHash("sha1").update(path9.resolve(contentRoot)).digest("hex").slice(0, 16);
+}
+function seedJobFile(contentRoot) {
+  return path9.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
+}
+function readSeedJobState(contentRoot) {
+  const file = seedJobFile(contentRoot);
+  if (!fs10.existsSync(file)) return null;
+  try {
+    const raw = JSON.parse(fs10.readFileSync(file, "utf8"));
+    if (!raw || typeof raw !== "object") return null;
+    return {
+      ...idleSeedJob(contentRoot),
+      ...raw,
+      contentRoot,
+      failedSources: Array.isArray(raw.failedSources) ? raw.failedSources.filter((s) => typeof s === "string") : [],
+      logs: Array.isArray(raw.logs) ? raw.logs.slice(-MAX_SEED_JOB_LOGS) : []
+    };
+  } catch {
+    return null;
+  }
+}
+
+// services/translate/seed-failures.ts
+function seedFailureFile(contentRoot) {
+  return seedJobFile(contentRoot).replace(/\.json$/, ".failures.ndjson");
+}
+function readSeedFailures(contentRoot) {
+  const failures = new Map((readSeedJobState(contentRoot)?.failedSources ?? []).map((src) => [src, ""]));
+  const file = seedFailureFile(contentRoot);
+  let text;
+  try {
+    text = fs11.readFileSync(file, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return failures;
+    throw error;
+  }
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const event = JSON.parse(line);
+      if (event.error === null) failures.delete(event.src);
+      else failures.set(event.src, event.error);
+    } catch {
+    }
+  }
+  return failures;
+}
+function isSeedTarget(target) {
+  return !target || /^(?:ch|zh|zh-cn|zh-hans)$/i.test(target);
+}
+function attachSeedFailures(contentRoot, items, target) {
+  const failures = isSeedTarget(target) ? readSeedFailures(contentRoot) : /* @__PURE__ */ new Map();
+  return items.map(
+    (item) => !item.savedZh?.trim() && failures.has(item.src) ? { ...item, translationFailure: { error: failures.get(item.src) } } : item
+  );
 }
 
 // services/extract/lib/data-fields.ts
@@ -2271,8 +2379,8 @@ function loadRgssScriptTranslationItems(contentRoot, lookup, startId = 1) {
 }
 
 // services/extract/lib/rgss/writeback.ts
-import fs10 from "node:fs";
-import path9 from "node:path";
+import fs12 from "node:fs";
+import path10 from "node:path";
 
 // lib/translate/name-glossary.ts
 var NAME_GLOSSARY_CATEGORIES = ["actor", "actor_nickname", "item", "weapon", "armor", "skill", "enemy", "state", "map"];
@@ -2381,10 +2489,10 @@ function fieldCategory(className, field, fallback) {
   return category;
 }
 function loadOneDataFile(dataDir, name) {
-  const file = path9.join(dataDir, name);
-  const value = parseRubyMarshal(fs10.readFileSync(file));
+  const file = path10.join(dataDir, name);
+  const value = parseRubyMarshal(fs12.readFileSync(file));
   const backup = `${file}.chaya.bak`;
-  const original = fs10.existsSync(backup) ? parseRubyMarshal(fs10.readFileSync(backup)) : value;
+  const original = fs12.existsSync(backup) ? parseRubyMarshal(fs12.readFileSync(backup)) : value;
   const current = strings(value);
   const texts = [];
   for (const [location, source] of strings(original)) {
@@ -2397,7 +2505,7 @@ function loadOneDataFile(dataDir, name) {
 }
 var SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i;
 function listDataFileNames(dataDir) {
-  const names = fs10.readdirSync(dataDir).filter((name) => /\.rvdata2?$/i.test(name) && !SKIP_DATA_STEMS.test(name)).sort();
+  const names = fs12.readdirSync(dataDir).filter((name) => /\.rvdata2?$/i.test(name) && !SKIP_DATA_STEMS.test(name)).sort();
   if (!names.length) throw new Error("RGSS data is unavailable. Unpack the encrypted archive into Data/ first.");
   return names;
 }
@@ -2435,13 +2543,13 @@ function loadRgssNameItems(dataDir) {
 }
 
 // services/extract/lib/rgss-sources-index.ts
-import fs11 from "node:fs";
-import path10 from "node:path";
+import fs13 from "node:fs";
+import path11 from "node:path";
 function rgssDataSignature(dataDir) {
-  const files = fs11.readdirSync(dataDir).filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name)).sort();
+  const files = fs13.readdirSync(dataDir).filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name)).sort();
   return JSON.stringify(
     files.map((name) => {
-      const stat = fs11.statSync(path10.join(dataDir, name));
+      const stat = fs13.statSync(path11.join(dataDir, name));
       return [name, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   );
@@ -2453,37 +2561,37 @@ function writeRgssSourcesIndex(contentRoot, signature, sources) {
     sources: [...sources],
     updatedAt: Date.now()
   };
-  fs11.writeFileSync(file, `${JSON.stringify(payload)}
+  fs13.writeFileSync(file, `${JSON.stringify(payload)}
 `);
 }
 
 // services/extract/lib/rgss.ts
 function findChild(dir, name) {
   try {
-    const hit = fs12.readdirSync(dir).find((entry) => entry.toLowerCase() === name.toLowerCase());
-    return hit ? path11.join(dir, hit) : null;
+    const hit = fs14.readdirSync(dir).find((entry) => entry.toLowerCase() === name.toLowerCase());
+    return hit ? path12.join(dir, hit) : null;
   } catch {
     return null;
   }
 }
 function rgssDataDir(contentRoot) {
   const dir = findChild(contentRoot, "data");
-  if (dir && fs12.statSync(dir).isDirectory() && extensionFor(dir)) return dir;
+  if (dir && fs14.statSync(dir).isDirectory() && extensionFor(dir)) return dir;
   try {
-    const names = fs12.readdirSync(contentRoot);
+    const names = fs14.readdirSync(contentRoot);
     const archive = names.find((name) => /^game\.rgss3a$/i.test(name));
     if (archive) {
-      unpackAceArchive(path11.join(contentRoot, archive), contentRoot, (m) => m.toLowerCase().startsWith("data/"));
+      unpackAceArchive(path12.join(contentRoot, archive), contentRoot, (m) => m.toLowerCase().startsWith("data/"));
       const extracted = findChild(contentRoot, "data");
-      if (extracted && fs12.statSync(extracted).isDirectory() && extensionFor(extracted)) return extracted;
+      if (extracted && fs14.statSync(extracted).isDirectory() && extensionFor(extracted)) return extracted;
     }
   } catch {
   }
-  return dir && fs12.statSync(dir).isDirectory() ? dir : null;
+  return dir && fs14.statSync(dir).isDirectory() ? dir : null;
 }
 function extensionFor(dataDir) {
   try {
-    const names = fs12.readdirSync(dataDir).map((name) => name.toLowerCase());
+    const names = fs14.readdirSync(dataDir).map((name) => name.toLowerCase());
     if (names.some((name) => name.endsWith(".rvdata2"))) return ".rvdata2";
     if (names.some((name) => name.endsWith(".rvdata"))) return ".rvdata";
   } catch {
@@ -2491,22 +2599,29 @@ function extensionFor(dataDir) {
   return null;
 }
 function resolveRgssItemZh(src, current, translations) {
-  const raw = resolveRgssTranslation(src, current, translations);
-  return fixKnownBadGameTermTranslation(src, raw) ?? (raw || lookupGameTerm(src) || "");
+  const resolved = resolveRgssTranslationWithEngine(src, current, translations);
+  const termFixed = fixKnownBadGameTermTranslation(src, resolved.zh);
+  if (termFixed != null) {
+    return { zh: termFixed, engine: resolved.engine };
+  }
+  if (resolved.zh) return resolved;
+  const term = lookupGameTerm(src);
+  if (term) return { zh: term, engine: "cache" };
+  return { zh: "", engine: void 0 };
 }
 function attachLookup(contentRoot, dataItems) {
   const translations = loadRgssTranslationLookup(contentRoot);
   const { lookup } = translations;
   const withZh = dataItems.map((item) => {
-    const zh = resolveRgssItemZh(item.src, item.zh || "", translations);
-    return { ...item, zh, savedZh: zh || void 0, initialZh: item.initialZh || zh || void 0 };
+    const res = resolveRgssItemZh(item.src, item.zh || "", translations);
+    return { ...item, zh: res.zh, engine: res.engine, savedZh: res.zh || void 0, initialZh: item.initialZh || res.zh || void 0 };
   });
   const known = new Set(withZh.map((item) => item.src));
   const scriptItems = loadRgssScriptTranslationItems(contentRoot, lookup, withZh.length + 1).filter((item) => !known.has(item.src)).map((item) => {
-    const zh = resolveRgssItemZh(item.src, item.zh || "", translations);
-    return { ...item, zh, savedZh: zh || void 0, initialZh: zh || void 0 };
+    const res = resolveRgssItemZh(item.src, item.zh || "", translations);
+    return { ...item, zh: res.zh, engine: res.engine, savedZh: res.zh || void 0, initialZh: res.zh || void 0 };
   });
-  return [...withZh, ...scriptItems];
+  return attachSeedFailures(contentRoot, [...withZh, ...scriptItems]);
 }
 function loadRgssTranslationItems(contentRoot) {
   const dataDir = rgssDataDir(contentRoot);
@@ -2548,8 +2663,8 @@ try {
       availableLanguages: [.../* @__PURE__ */ new Set([detected, "zh"])]
     }
   };
-  const out = path12.join(os2.tmpdir(), `chaya-rgss-list-${process.pid}-${Date.now()}.json`);
-  fs13.writeFileSync(out, JSON.stringify(body));
+  const out = path13.join(os2.tmpdir(), `chaya-rgss-list-${process.pid}-${Date.now()}.json`);
+  fs15.writeFileSync(out, JSON.stringify(body));
   parentPort?.postMessage({ ok: true, path: out, count: items.length });
 } catch (error) {
   parentPort?.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });

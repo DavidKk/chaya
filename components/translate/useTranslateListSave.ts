@@ -70,6 +70,8 @@ export function useTranslateListSave({ rgssEngine, contentRoot, sourceLang, targ
         if (!response.ok || !data?.ok) throw new Error(readApiErrorMessage(data))
 
         item.savedZh = item.zh
+        item.translationFailure = undefined
+        item.engine = 'manual'
         refreshUI()
         const backup = data.backupCreated ? t('translate.listSingleSaveBackup') : ''
         notify.success(t('translate.listSingleSaveSuccess', { backup }))
@@ -140,6 +142,8 @@ export function useTranslateListSave({ rgssEngine, contentRoot, sourceLang, targ
           if (!response.ok || !data.ok) throw new Error(readApiErrorMessage(data))
           for (const item of writebackItems) {
             item.savedZh = item.zh
+            item.translationFailure = undefined
+            item.engine = 'manual'
             savedCount++
           }
         } catch (error) {
@@ -157,6 +161,8 @@ export function useTranslateListSave({ rgssEngine, contentRoot, sourceLang, targ
           const data = (await res.json()) as { ok?: boolean }
           if (data?.ok) {
             item.savedZh = item.zh
+            item.translationFailure = undefined
+            item.engine = 'manual'
             savedCount++
           } else {
             failCount++

@@ -3,9 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { useT } from '@/components/i18n/LocaleProvider'
-import { Modal, ScrollArea, TextInput, TruncateText } from '@/components/sk'
-import { filterToggle, filterToggleOn } from '@/components/sk/control'
-import { cn } from '@/lib/utils'
+import { FilterToggle, Modal, ScrollArea, TextInput, TruncateText } from '@/components/sk'
 
 import { refLink } from './CommonEventDetail'
 
@@ -63,15 +61,9 @@ export function EnemyPicker({ open, title, note, enemies, exclude, search, empty
             aria-label={search ?? t('events.troop.pickerSearch')}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <button
-            type="button"
-            role="switch"
-            aria-checked={showUnnamed}
-            className={cn(filterToggle, 'shrink-0', showUnnamed && filterToggleOn)}
-            onClick={() => setShowUnnamed(!showUnnamed)}
-          >
+          <FilterToggle pressed={showUnnamed} onPressedChange={setShowUnnamed}>
             {t('events.troop.pickerShowUnnamed')}
-          </button>
+          </FilterToggle>
         </div>
         {matches.length ? (
           <ScrollArea className="h-[min(20rem,50vh)]" indicator="vertical" scrollProps={{ 'aria-label': t('events.troop.pickerAria') }}>

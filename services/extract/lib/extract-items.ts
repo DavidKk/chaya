@@ -2,7 +2,9 @@ import fs from 'node:fs'
 
 import { gameContentReadPath } from '@/lib/game/content-files'
 import { translationSources } from '@/lib/translate/segments'
-import { loadGameTranslateLookup } from '@/services/translate/game-lookup'
+import { createGameTranslateEngines, createGameTranslateLookup } from '@/services/translate/game-lookup'
+import { loadGameTranslationRecords } from '@/services/translate/game-records'
+import { attachSeedFailures } from '@/services/translate/seed-failures'
 
 import { loadGameLocalesCatalog, normalizeLocalesKey } from './game-locales'
 
@@ -48,6 +50,8 @@ export type ExtractedTranslationItem = {
   zh: string
   savedZh?: string
   initialZh?: string
+  engine?: string
+  translationFailure?: { error: string }
   meta: ExtractedItemMeta
 }
 
@@ -249,7 +253,9 @@ export function loadExtractedItemsWithLocales(contentRoot: string, opts?: { sour
   }
 
   // Load current local lookup (which includes cache.ndjson taking precedence over seed)
-  const lookup = loadGameTranslateLookup(contentRoot)
+  const records = loadGameTranslationRecords(contentRoot)
+  const lookup = createGameTranslateLookup(records)
+  const engines = createGameTranslateEngines(records)
 
   const items: ExtractedTranslationItem[] = []
   let index = 0
@@ -331,13 +337,23 @@ export function loadExtractedItemsWithLocales(contentRoot: string, opts?: { sour
     const baseMeta = metaMap.get(src)
     const resolved = resolveTextAndMeta(src, baseMeta)
 
-    const currentZh = resolved.zh || lookup[resolved.src] || lookup[src] || seedZh || ''
+    const fromLookup = lookup[resolved.src] || lookup[src]
+    const currentZh = resolved.zh || fromLookup || seedZh || ''
+    const currentEngine = resolved.zh
+      ? (resolved.meta as { engine?: string })?.engine || 'game:locales'
+      : fromLookup
+        ? engines[resolved.src] || engines[src] || 'cache'
+        : seedZh && currentZh === seedZh
+          ? 'seed'
+          : undefined
+
     items.push({
       id: String(index),
       src: resolved.src,
       zh: currentZh,
       savedZh: currentZh || undefined,
       initialZh: currentZh || undefined,
+      engine: currentEngine,
       meta: resolved.meta,
     })
   }
@@ -348,13 +364,17 @@ export function loadExtractedItemsWithLocales(contentRoot: string, opts?: { sour
     seen.add(src)
     const resolved = resolveTextAndMeta(src, meta)
 
-    const currentZh = resolved.zh || lookup[resolved.src] || lookup[src] || ''
+    const fromLookup = lookup[resolved.src] || lookup[src]
+    const currentZh = resolved.zh || fromLookup || ''
+    const currentEngine = resolved.zh ? (resolved.meta as { engine?: string })?.engine || 'game:locales' : fromLookup ? engines[resolved.src] || engines[src] || 'cache' : undefined
+
     items.push({
       id: String(index),
       src: resolved.src,
       zh: currentZh,
       savedZh: currentZh || undefined,
       initialZh: currentZh || undefined,
+      engine: currentEngine,
       meta: resolved.meta,
     })
   }
@@ -405,7 +425,9 @@ export function loadExtractedItemsWithLocales(contentRoot: string, opts?: { sour
         key
 
       const candidateZh = currentTargetLang ? catalog.dictionaries[currentTargetLang]?.[key] : ''
-      const finalZh = candidateZh || lookup[candidateSrc] || lookup[key] || ''
+      const fromLookup = lookup[candidateSrc] || lookup[key]
+      const finalZh = candidateZh || fromLookup || ''
+      const finalEngine = candidateZh ? 'game:locales' : fromLookup ? engines[candidateSrc] || engines[key] || 'cache' : undefined
 
       items.push({
         id: String(index),
@@ -413,13 +435,14 @@ export function loadExtractedItemsWithLocales(contentRoot: string, opts?: { sour
         zh: finalZh,
         savedZh: finalZh || undefined,
         initialZh: finalZh || undefined,
+        engine: finalEngine,
         meta,
       })
     }
   }
 
   return {
-    items,
+    items: attachSeedFailures(contentRoot, items, currentTargetLang || opts?.targetLang),
     locales: catalog.hasLocales
       ? {
           hasLocales: true,

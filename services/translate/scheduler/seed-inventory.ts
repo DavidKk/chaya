@@ -10,6 +10,7 @@ import { filterRgssSeedKeys } from '@/services/extract/lib/rgss'
 import type { SeedProgress } from '../fill-missing'
 import { createGameTranslateLookup } from '../game-lookup'
 import { loadGameTranslationRecords } from '../game-records'
+import { readSeedFailures, seedFailureFile } from '../seed-failures'
 import { charCount, lineCount, shouldTranslate } from '../text-classify'
 
 export { localGameContentFile } from '@/lib/game/content-files'
@@ -21,6 +22,9 @@ export function seedFileStamp(contentRoot: string): string {
 }
 
 export function readSeedInventory(contentRoot: string) {
+  // Capture before reading so concurrent writes cannot make an older inventory appear fresh.
+  const stamp = seedFileStamp(contentRoot)
+  const progressStamp = seedProgressStamp(contentRoot)
   // Local fs only — never publicGameFile (Atomics.wait freezes Next on sync fallback / worker prep).
   const file = localGameContentFile(contentRoot, 'seed')
   const data: unknown = file ? JSON.parse(fs.readFileSync(file, 'utf8')) : {}
@@ -90,6 +94,7 @@ export function readSeedInventory(contentRoot: string) {
   const local = createGameTranslateLookup(records)
   const numeric = createNumericLabelIndex(records)
   const pending: string[] = []
+  const failures = readSeedFailures(contentRoot)
   for (const key of keys) {
     const chars = charCount(key)
     progress.lines += lineCount(key)
@@ -102,6 +107,9 @@ export function readSeedInventory(contentRoot: string) {
       if (local[key] != null || numeric.resolve(key) != null) {
         progress.done++
         progress.doneChars += chars
+      } else if (failures.has(key)) {
+        progress.failedCount = (progress.failedCount ?? 0) + 1
+        progress.failedChars = (progress.failedChars ?? 0) + chars
       } else {
         progress.missing++
         progress.missingChars += chars
@@ -110,7 +118,7 @@ export function readSeedInventory(contentRoot: string) {
     }
   }
   progress.batchesLeft = Math.ceil(progress.missing / 40)
-  return { progress, pending, stamp: seedFileStamp(contentRoot) }
+  return { progress, pending, stamp, progressStamp }
 }
 
 /**
@@ -120,9 +128,9 @@ export function readSeedInventory(contentRoot: string) {
  * which used to invalidate this stamp on every progress poll and freeze `/translate/seed`.
  */
 export function seedProgressStamp(contentRoot: string): string {
-  const files = [localGameContentFile(contentRoot, 'seed'), localGameContentFile(contentRoot, 'cacheNdjson')]
+  const files = [localGameContentFile(contentRoot, 'seed'), localGameContentFile(contentRoot, 'cacheNdjson'), seedFailureFile(contentRoot)]
   return JSON.stringify([
-    4,
+    5,
     files.map((file) => {
       const stat = file ? fs.statSync(file, { throwIfNoEntry: false }) : undefined
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]

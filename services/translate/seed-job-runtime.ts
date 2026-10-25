@@ -3,7 +3,8 @@ import fs from 'node:fs'
 
 import { formatCompactCount } from '@/lib/format-compact-count'
 import { type LiveTranslationSample, rollingTranslationPerformance, smoothTranslationPerformance, translationPerformance, type TranslationSample } from '@/lib/translate/remain-eta'
-import type { BatchExecutionSource, TranslationBatchLog } from '@/lib/translate/runtime-api'
+import { batchSources, isCacheResult } from '@/lib/translate/result-sources'
+import type { TranslationBatchLog } from '@/lib/translate/runtime-api'
 import { getResolvedFromConfig } from '@/services/game/binding'
 import { shouldDemoteOrphanRunning } from '@/services/jobs'
 
@@ -140,26 +141,6 @@ function shortEngine(name: string): string {
   return raw.length > 10 ? `${raw.slice(0, 9)}…` : raw
 }
 
-function batchSource(name: string | undefined): BatchExecutionSource {
-  const raw = (name || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^live:/, '')
-  if (raw === 'cache' || raw.startsWith('cache:')) return 'cache'
-  if (raw === 'apple' || raw.startsWith('apple:')) return 'apple'
-  if (raw === 'agent' || raw.startsWith('agent:')) return 'agent'
-  if (raw === 'bergamot' || raw.startsWith('bergamot:')) return 'bergamot'
-  if (raw === 'ollama' || raw.startsWith('ollama:')) return 'ollama'
-  if (raw === 'platform' || raw.startsWith('google') || raw.startsWith('bing') || raw.startsWith('platform:')) return 'platform'
-  return 'unknown'
-}
-
-function batchSources(items: Array<{ engine?: string }>): BatchExecutionSource[] {
-  const order: BatchExecutionSource[] = ['apple', 'agent', 'platform', 'bergamot', 'ollama', 'unknown', 'cache']
-  const present = new Set(items.map((item) => batchSource(item.engine)))
-  return order.filter((source) => present.has(source))
-}
-
 function batchLabel(batch: TranslationBatchLog): string {
   const final = batchSources(batch.finalSources.map((engine) => ({ engine })))
   const submitted = batchSources(batch.submittedSources.map((engine) => ({ engine })))
@@ -233,7 +214,6 @@ async function runLoop(contentRoot: string) {
         let checkpointAt = 0
         result = await rt.session.fill({
           ...slice,
-          exclude: new Set(rt.state.failedSources),
           onTrace: trace,
           onItem: (item) => {
             if (rt.session) rt.progress = rt.session.progress
@@ -284,7 +264,7 @@ async function runLoop(contentRoot: string) {
           total: result.scanned,
           failed: result.failed,
           chars: result.items.reduce((sum, item) => sum + charCount(item.src), 0),
-          cacheHits: accepted.filter((item) => item.engine?.startsWith('cache')).length,
+          cacheHits: accepted.filter(isCacheResult).length,
           submittedSources,
           finalSources,
           cacheUnavailable: result.cacheUnavailable === true,
@@ -310,11 +290,10 @@ async function runLoop(contentRoot: string) {
       }
 
       const failed = result.unresolved
-      rt.state.failedSources = [...new Set([...rt.state.failedSources, ...failed])]
       if (!result.scanned || (!failed.length && !result.translated)) {
         rt.state.status = 'paused'
-        rt.state.liveStatus = `本轮结束 · 仍缺 ${result.missing} 条，继续可重试`
-        pushLog(rt, 'warn', `No progress this round: ${formatCompactCount(result.missing)} items still missing; retry to continue.`)
+        rt.state.liveStatus = `本轮结束 · 仍有 ${result.missing} 条未处理`
+        pushLog(rt, 'warn', `No progress this round: ${formatCompactCount(result.missing)} items not yet processed.`)
         persist(rt)
         return
       }
@@ -428,8 +407,8 @@ function applyInventoryBundle(rt: Runtime, bundle: import('./scheduler/seed-prep
   const progress = bundle.progress
   rt.progress = progress
   rt.state.progress = progress
-  rt.state.progressStamp = seedProgressStamp(rt.state.contentRoot)
-  rt.state.seedStamp = seedFileStamp(rt.state.contentRoot)
+  rt.state.progressStamp = bundle.progressStamp ?? seedProgressStamp(rt.state.contentRoot)
+  rt.state.seedStamp = bundle.stamp
   if (!progress.hasSeed || !progress.total) {
     rt.state.status = 'idle'
     rt.state.liveStatus = ''
@@ -449,7 +428,7 @@ export function refreshSeedJobProgress(): SeedJobSnapshot {
 
   const peeked = peekSeedInventory(contentRoot)
   const seedStampNow = seedFileStamp(contentRoot)
-  if (peeked && peeked.stamp === seedStampNow) {
+  if (peeked && peeked.stamp === seedStampNow && peeked.progressStamp === seedProgressStamp(contentRoot)) {
     applyInventoryBundle(rt, peeked)
     return { ...peeked.progress, job: visibleSeedJobState(rt.state) }
   }
@@ -486,8 +465,8 @@ function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-
   if (rt.running) return
   rt.progress = progress
   rt.state.progress = progress
-  rt.state.progressStamp = seedProgressStamp(contentRoot)
-  rt.state.seedStamp = seedFileStamp(contentRoot)
+  rt.state.progressStamp = inventory.progressStamp ?? seedProgressStamp(contentRoot)
+  rt.state.seedStamp = inventory.stamp
   if (!progress.hasSeed || !progress.total) {
     rt.state.status = 'error'
     rt.state.error = 'Seed not found (please extract text first or provide *-trans.seed.json)'
@@ -513,7 +492,6 @@ function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-
     persist(rt)
     return
   }
-  rt.state.failedSources = []
   const resume = rt.state.status === 'paused' || rt.state.status === 'running'
   rt.stopRequested = false
   rt.state.contentRoot = contentRoot
@@ -553,7 +531,7 @@ export function startSeedJob(): SeedJobSnapshot {
 
   const peeked = peekSeedInventory(contentRoot)
   const seedStampNow = seedFileStamp(contentRoot)
-  if (peeked && peeked.stamp === seedStampNow) {
+  if (peeked && peeked.stamp === seedStampNow && peeked.progressStamp === seedProgressStamp(contentRoot)) {
     beginSeedLoop(contentRoot, peeked)
     const rt = getRuntime(contentRoot)
     return { ...(rt.progress ?? peeked.progress), job: visibleSeedJobState(rt.state) }

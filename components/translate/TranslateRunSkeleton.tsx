@@ -37,12 +37,9 @@ function ActivityLogSkeleton() {
   const t = useT()
   return (
     <div className="mt-4 flex w-full flex-col overflow-hidden rounded-[0.35rem] border border-line bg-panel" aria-label={t('translate.loadActivity')}>
-      <div className="px-4 pt-3 pb-2">
-        <div className="flex items-baseline justify-between gap-3">
-          <Skeleton className="h-[0.8125rem] w-20" />
-          <Skeleton className="h-[0.7rem] w-28" />
-        </div>
-        <Skeleton className="mt-2 h-[0.75rem] w-[58%]" />
+      <div className="flex items-baseline justify-between gap-3 px-4 py-2">
+        <Skeleton className="h-[0.8125rem] w-20" />
+        <Skeleton className="h-[0.7rem] w-28" />
       </div>
       <div className="border-t border-[var(--line-soft)] p-3">
         <div className="flex h-[28rem] flex-col gap-2.5">

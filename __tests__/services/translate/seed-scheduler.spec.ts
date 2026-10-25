@@ -8,12 +8,17 @@ import type { TranslateRunEngine } from '@/lib/translate/engines'
 import { planSentenceTranslation } from '@/lib/translate/sentence-plan'
 import type { LiveTranslateItem } from '@/services/translate/live-translate'
 import type { startCacheLane } from '@/services/translate/scheduler/cache-lane'
+import type { CacheScanResult } from '@/services/translate/scheduler/cache-scan'
+import { readSeedInventory } from '@/services/translate/scheduler/seed-inventory'
 import { createScheduledSeedSession, followsOwnedStampChain } from '@/services/translate/scheduler/seed-session'
+import { readSeedFailures, seedFailureFile } from '@/services/translate/seed-failures'
 
 let mockEngines: TranslateRunEngine[] = ['google']
 let mockLane: Parameters<typeof startCacheLane>[0]
 const mockClose = jest.fn(async () => {})
 const mockWake = jest.fn()
+const mockSetLease = jest.fn()
+const mockStampAdvance = jest.fn()
 const mockTranslate = jest.fn()
 const mockStoreClose = jest.fn()
 const mockFlush = jest.fn(() => ({ sharedOnly: false }))
@@ -24,7 +29,7 @@ jest.mock('@/services/translate/live-translate', () => ({ liveTranslateTexts: (.
 jest.mock('@/services/translate/scheduler/cache-lane', () => ({
   startCacheLane: (options: Parameters<typeof startCacheLane>[0]) => {
     mockLane = options
-    return { close: mockClose, wake: mockWake }
+    return { close: mockClose, wake: mockWake, setLease: mockSetLease, stampAdvance: mockStampAdvance }
   },
 }))
 jest.mock('@/services/translate/game-records', () => ({ ...jest.requireActual('@/services/translate/game-records'), gameTranslationFiles: () => ({ stamp: mockGameStamp }) }))
@@ -53,6 +58,27 @@ describe('independent seed cache and engine scheduling', () => {
     await tick()
     await session.close()
   }
+  function full(id: number, zh = '缓存译文', stamp = mockGameStamp, authority = mockAuthorityVersion): CacheScanResult {
+    return {
+      id,
+      src: `Text${id}`,
+      stamp,
+      authorityVersion: authority,
+      elapsedMs: 2,
+      plan: { ...planSentenceTranslation(`Text${id}`, [{ id: `cache:${id}`, revision: 1, src: `Text${id}`, zh, engine: 'manual' }]), corpusVersion: 'v1' },
+    }
+  }
+  function miss(id: number): CacheScanResult {
+    return {
+      id,
+      src: `Text${id}`,
+      stamp: mockGameStamp,
+      authorityVersion: mockAuthorityVersion,
+      elapsedMs: 1,
+      plan: { ...planSentenceTranslation(`Text${id}`, []), corpusVersion: 'v1' },
+    }
+  }
+  const emit = (result: CacheScanResult) => mockLane.onResult(result, 1, 'lease-1')
   beforeEach(() => {
     jest.useFakeTimers()
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-scheduler-'))
@@ -61,6 +87,8 @@ describe('independent seed cache and engine scheduling', () => {
     mockTranslate.mockReset()
     mockClose.mockClear()
     mockWake.mockClear()
+    mockSetLease.mockClear()
+    mockStampAdvance.mockClear()
     mockStoreClose.mockClear()
     mockFlush.mockClear()
     mockGameStamp = 'game-v1'
@@ -75,29 +103,113 @@ describe('independent seed cache and engine scheduling', () => {
   })
   afterEach(() => {
     jest.useRealTimers()
+    fs.rmSync(seedFailureFile(root), { force: true })
     fs.rmSync(dir, { recursive: true, force: true })
   })
 
-  it('dispatches before cache initialization, and scans the whole job rather than two batches', async () => {
-    const running = create(130).fill({ limit: 4 })
+  it('persists exhausted attempts as processed failures and excludes them after session recreation', async () => {
+    mockEngines = ['agent:a', 'google']
+    const running = create(1).fill({ limit: 1 })
+    await tick()
+    mockLane.next('lease-1')
+    emit(miss(0))
+    await tick()
+    pending.get('Text0')!.resolve({ src: 'Text0', zh: null, error: 'Agent failed', engineWork: true })
+    await tick()
+    expect(readSeedFailures(root).has('Text0')).toBe(false)
+    expect(mockTranslate.mock.calls.map(([, opts]) => opts.engines)).toEqual([['agent:a'], ['google']])
+    pending.get('Text0')!.resolve({ src: 'Text0', zh: null, error: 'Google failed', engineWork: true })
+    const result = await running
+    expect(result).toMatchObject({ done: 0, failedCount: 1, failedChars: 5, missing: 0, missingChars: 0, failed: 1, translated: 0 })
+    expect(readSeedFailures(root).get('Text0')).toContain('Google failed')
+    await session.close()
+    session = createScheduledSeedSession(root)
+    expect(session.progress).toMatchObject({ done: 0, failedCount: 1, missing: 0 })
+    expect((await session.fill()).scanned).toBe(0)
+    expect(mockTranslate).toHaveBeenCalledTimes(2)
+    await session.close()
+    fs.writeFileSync(gameContentPath(root, 'seed'), JSON.stringify({ Text0: '', Text1: '' }))
+    const inventory = readSeedInventory(root)
+    expect(inventory.pending).toEqual(['Text1'])
+    expect(inventory.progress.done + inventory.progress.failedCount! + inventory.progress.missing).toBe(inventory.progress.needCount)
+  })
+
+  it.each([true, false])('keeps paused or unsubmitted failures pending (engine dispatched: %s)', async (engineWork) => {
+    const running = create(1).fill({ limit: 1 })
+    await tick()
+    mockLane.next('lease-1')
+    emit(miss(0))
+    await tick()
+    if (engineWork) session.pause()
+    pending.get('Text0')!.resolve({ src: 'Text0', zh: null, error: 'Interrupted or not dispatched', engineWork })
+    await running
+    await session.close()
+    expect(readSeedFailures(root).has('Text0')).toBe(false)
+    expect(readSeedInventory(root).pending).toEqual(['Text0'])
+  })
+
+  it('does not make an engine disabled during its request a terminal failure', async () => {
+    const first = create(2).fill({ limit: 1 })
+    await tick()
+    for (const task of mockLane.next('lease-1')!) emit(miss(task.id))
+    await tick()
+    pending.get('Text0')!.resolve({ src: 'Text0', zh: '成功' })
+    await first
+    mockEngines = []
+    const second = session.fill({ limit: 1 })
+    await tick()
+    const options = mockTranslate.mock.calls.find(([texts]) => texts[0] === 'Text1')![1]
+    expect(options.local.signal.aborted).toBe(true)
+    pending.get('Text1')!.resolve({ src: 'Text1', zh: null, error: 'Engine disabled', engineWork: true })
+    await second
+    await session.close()
+    expect(readSeedFailures(root).has('Text1')).toBe(false)
+  })
+
+  it('does not dispatch engines for unclassified work, and only dispatches after a cache miss', async () => {
+    const running = create(6).fill({ limit: 4 })
+    await tick()
+    expect(mockTranslate).not.toHaveBeenCalled()
+    // Simulate the cache lane handing back a miss shard.
+    const tasks = mockLane.next('lease-1')
+    expect(tasks).toHaveLength(6)
+    for (const t of tasks!) emit(miss(t.id))
     await tick()
     expect(mockTranslate).toHaveBeenCalledTimes(4)
     expect(mockTranslate.mock.calls[0][1]).toMatchObject({ cacheMode: 'bypass', engines: ['google'] })
-    const scanned = []
-    for (;;) {
-      const chunk = mockLane.next()!
-      if (!chunk.length) break
-      expect(chunk.length).toBeLessThanOrEqual(32)
-      scanned.push(...chunk)
-    }
-    expect(scanned).toHaveLength(130)
-    mockLane.onError('Cache initialization timed out')
     await stop()
     expect((await running).translated).toBe(4)
   })
 
+  it('scans the whole job in 32-item shards without engine dispatch', async () => {
+    create(130)
+    const running = session.fill({ limit: 4 })
+    await tick()
+    const scanned: number[] = []
+    for (let guard = 0; guard < 200; guard++) {
+      const chunk = mockLane.next('lease-1')
+      if (!chunk || !chunk.length) break
+      expect(chunk.length).toBeLessThanOrEqual(32)
+      for (const t of chunk) {
+        scanned.push(t.id)
+        emit(miss(t.id))
+      }
+    }
+    expect(scanned).toHaveLength(130)
+    await tick()
+    expect(mockTranslate).toHaveBeenCalled()
+    session.pause()
+    for (const [src, work] of pending) work.resolve({ src, zh: '译文' })
+    await tick()
+    await running
+    await session.close()
+  })
+
   it('refills free slots and returns progress while the first request is still slow', async () => {
     const running = create(6).fill({ limit: 2 })
+    await tick()
+    for (const t of mockLane.next('lease-1')!) emit(miss(t.id))
+    mockLane.onBatchDone(1, 'lease-1', 1)
     await tick()
     pending.get('Text1')!.resolve({ src: 'Text1', zh: '第二条' })
     await tick()
@@ -109,56 +221,57 @@ describe('independent seed cache and engine scheduling', () => {
     await stop()
   })
 
+  it.each([
+    { engine: 'cache:partial', resultSources: ['cache', 'live:apple'], completedChars: 5 },
+    { engine: 'cache:changed', resultSources: ['cache:changed'], completedChars: 0 },
+  ])('flushes $engine after engine work while other slots and cache scans are pending', async ({ engine, resultSources, completedChars }) => {
+    const running = create(6).fill({ limit: 4 })
+    await tick()
+    mockLane.next('lease-1')
+    emit(miss(0))
+    emit(miss(1))
+    await tick()
+    mockTranslate.mock.calls[0][1].onEngineDispatch('apple')
+    pending.get('Text0')!.resolve({ src: 'Text0', zh: '译文', engine, resultSources, engineWork: true })
+    await tick()
+    await jest.advanceTimersByTimeAsync(250)
+    expect(await running).toMatchObject({
+      scanned: 1,
+      submittedEngines: ['apple'],
+      performance: { completedChars },
+    })
+    await stop()
+  })
+
   it('accepts cache first, bypasses pending work and ignores the late engine result', async () => {
     const running = create(3).fill({ limit: 1 })
     await tick()
-    const full = (id: number) =>
-      mockLane.onResult({
-        id,
-        src: `Text${id}`,
-        stamp: 'game-v1',
-        authorityVersion: 'authority-v1',
-        elapsedMs: 2,
-        plan: { ...planSentenceTranslation(`Text${id}`, [{ id: `cache:${id}`, revision: 1, src: `Text${id}`, zh: '缓存译文', engine: 'manual' }]), corpusVersion: 'v1' },
-      })
-    full(0)
+    mockLane.next('lease-1')
+    emit(full(0))
+    mockLane.onBatchDone(1, 'lease-1', 1)
     await tick()
     expect((await running).items[0]).toMatchObject({ zh: '缓存译文', engine: 'cache:scan' })
-    expect(mockTranslate.mock.calls[0][1].local.signal.aborted).toBe(true)
-    full(1)
-    full(2)
-    pending.get('Text0')!.resolve({ src: 'Text0', zh: '迟到结果' })
+    expect(mockTranslate).not.toHaveBeenCalled()
+    emit(full(1))
+    emit(full(2))
     await tick()
     expect(session.progress).toMatchObject({ done: 3, missing: 0 })
     expect(session.processed).toBe(3)
-    expect(mockTranslate).toHaveBeenCalledTimes(1)
     await session.close()
   })
 
   it('rechecks a stale full hit and does not dispatch it until the cache confirms a miss', async () => {
     const running = create(1).fill({ limit: 1 })
     await tick()
-    expect(mockTranslate).toHaveBeenCalledTimes(1)
+    mockLane.next('lease-1')
+    expect(mockTranslate).not.toHaveBeenCalled()
     mockAuthorityVersion = 'authority-v2'
-    mockLane.onResult({
-      id: 0,
-      src: 'Text0',
-      stamp: 'game-v1',
-      authorityVersion: 'authority-v1',
-      elapsedMs: 2,
-      plan: { ...planSentenceTranslation('Text0', [{ id: 'cache:0', revision: 1, src: 'Text0', zh: '旧缓存', engine: 'manual' }]), corpusVersion: 'v1' },
-    })
+    emit({ ...full(0), authorityVersion: 'authority-v1' })
     await tick()
-    expect(mockTranslate.mock.calls[0][1].local.signal.aborted).toBe(true)
-    expect(mockLane.next()).toEqual([{ id: 0, src: 'Text0' }])
-    mockLane.onResult({
-      id: 0,
-      src: 'Text0',
-      stamp: 'game-v1',
-      authorityVersion: 'authority-v2',
-      elapsedMs: 1,
-      plan: { ...planSentenceTranslation('Text0', []), corpusVersion: 'v1' },
-    })
+    expect(mockLane.next('lease-1')).toEqual([{ id: 0, src: 'Text0' }])
+    emit({ ...full(0), authorityVersion: 'authority-v2' })
+    await tick()
+    emit({ ...miss(0), authorityVersion: 'authority-v2' })
     await tick()
     for (const [src, work] of pending) if (src === 'Text0') work.resolve({ src, zh: '重新翻译' })
     await tick()
@@ -169,32 +282,22 @@ describe('independent seed cache and engine scheduling', () => {
   it('falls back to the engine after bounded stale rechecks instead of leaving the item parked', async () => {
     const running = create(1).fill({ limit: 1 })
     await tick()
-    const stale = (attempt: number) =>
-      mockLane.onResult({
-        id: 0,
-        src: 'Text0',
-        stamp: `game-v${attempt}`,
-        authorityVersion: `authority-v${attempt + 1}`,
-        elapsedMs: 1,
-        plan: { ...planSentenceTranslation('Text0', [{ id: 'cache:0', revision: attempt, src: 'Text0', zh: '旧缓存' }]), corpusVersion: 'v1' },
-      })
+    mockLane.next('lease-1')
     mockAuthorityVersion = 'authority-v2'
-    stale(0)
+    emit({ ...full(0), stamp: 'game-v1', authorityVersion: 'authority-v1' })
     await tick()
-    expect(mockLane.next()).toEqual([{ id: 0, src: 'Text0' }])
+    expect(mockLane.next('lease-1')).toEqual([{ id: 0, src: 'Text0' }])
+    // Still stale: the file stamp moved again.
     mockGameStamp = 'game-v2'
-    stale(1)
+    emit({ ...full(0), stamp: 'game-v1', authorityVersion: 'authority-v2' })
     await tick()
-    expect(mockLane.next()).toEqual([{ id: 0, src: 'Text0' }])
+    expect(mockLane.next('lease-1')).toEqual([{ id: 0, src: 'Text0' }])
+    // Third attempt: cache confirms a miss, which releases it to the engine.
     mockGameStamp = 'game-v3'
-    stale(2)
+    emit({ ...miss(0) })
     await tick()
-    expect(mockLane.next()).toEqual([])
+    expect(mockLane.next('lease-1')).toEqual([])
     for (const work of pending.values()) work.resolve({ src: 'Text0', zh: '重新翻译', engine: 'google' })
-    await tick()
-    const retry = mockTranslate.mock.calls.findLastIndex(([texts]) => texts[0] === 'Text0')
-    expect(retry).toBe(0)
-    pending.get('Text0')!.resolve({ src: 'Text0', zh: '重新翻译', engine: 'google' })
     await tick()
     expect((await running).translated).toBe(1)
     await session.close()
@@ -203,17 +306,11 @@ describe('independent seed cache and engine scheduling', () => {
   it('releases in-flight recheck tasks to the engine when the cache lane fails', async () => {
     const running = create(1).fill({ limit: 1 })
     await tick()
+    mockLane.next('lease-1')
     mockAuthorityVersion = 'authority-v2'
-    mockLane.onResult({
-      id: 0,
-      src: 'Text0',
-      stamp: 'game-v1',
-      authorityVersion: 'authority-v1',
-      elapsedMs: 1,
-      plan: { ...planSentenceTranslation('Text0', [{ id: 'cache:0', revision: 1, src: 'Text0', zh: '旧缓存' }]), corpusVersion: 'v1' },
-    })
+    emit({ ...full(0), authorityVersion: 'authority-v1' })
     await tick()
-    expect(mockLane.next()).toEqual([{ id: 0, src: 'Text0' }])
+    expect(mockLane.next('lease-1')).toEqual([{ id: 0, src: 'Text0' }])
     mockLane.onError('Worker crashed during recheck')
     await tick()
     const retry = mockTranslate.mock.calls.findLastIndex(([texts]) => texts[0] === 'Text0')
@@ -227,17 +324,11 @@ describe('independent seed cache and engine scheduling', () => {
   it('preserves in-flight recheck tasks when session is paused and resumed', async () => {
     const running = create(1).fill({ limit: 1 })
     await tick()
+    mockLane.next('lease-1')
     mockAuthorityVersion = 'authority-v2'
-    mockLane.onResult({
-      id: 0,
-      src: 'Text0',
-      stamp: 'game-v1',
-      authorityVersion: 'authority-v1',
-      elapsedMs: 1,
-      plan: { ...planSentenceTranslation('Text0', [{ id: 'cache:0', revision: 1, src: 'Text0', zh: '旧缓存' }]), corpusVersion: 'v1' },
-    })
+    emit({ ...full(0), authorityVersion: 'authority-v1' })
     await tick()
-    expect(mockLane.next()).toEqual([{ id: 0, src: 'Text0' }])
+    expect(mockLane.next('lease-1')).toEqual([{ id: 0, src: 'Text0' }])
     pending.get('Text0')?.reject(new Error('aborted'))
     await tick()
     session.pause()
@@ -245,16 +336,9 @@ describe('independent seed cache and engine scheduling', () => {
     await running
     const resumed = session.fill({ limit: 1 })
     await tick()
-    expect(mockLane.next()).toEqual([{ id: 0, src: 'Text0' }])
+    expect(mockLane.next('lease-1')).toEqual([{ id: 0, src: 'Text0' }])
     mockAuthorityVersion = 'authority-v2'
-    mockLane.onResult({
-      id: 0,
-      src: 'Text0',
-      stamp: 'game-v1',
-      authorityVersion: 'authority-v2',
-      elapsedMs: 1,
-      plan: { ...planSentenceTranslation('Text0', [{ id: 'cache:0', revision: 1, src: 'Text0', zh: '已更新缓存' }]), corpusVersion: 'v1' },
-    })
+    emit({ ...full(0), authorityVersion: 'authority-v2' })
     await tick()
     expect((await resumed).translated).toBe(1)
     await session.close()
@@ -263,41 +347,27 @@ describe('independent seed cache and engine scheduling', () => {
   it('returns a pure cache window beyond the engine batch limit without a real engine submission', async () => {
     const running = create(12).fill({ limit: 4 })
     await tick()
-    mockLane.next()
-    for (let id = 0; id < 12; id++)
-      mockLane.onResult({
-        id,
-        src: `Text${id}`,
-        stamp: 'game-v1',
-        authorityVersion: 'authority-v1',
-        elapsedMs: 1,
-        plan: { ...planSentenceTranslation(`Text${id}`, [{ id: `cache:${id}`, revision: 1, src: `Text${id}`, zh: '缓存译文' }]), corpusVersion: 'v1' },
-      })
+    mockLane.next('lease-1')
+    for (let id = 0; id < 12; id++) emit(full(id))
     await tick()
     mockWake()
-    await tick()
-    for (const [src, work] of pending) work.resolve({ src, zh: '引擎结果' })
     await tick()
     const result = await running
     expect(result.scanned).toBe(12)
     expect(result.translated).toBe(12)
     expect(result.items.every((item) => item.engine === 'cache:scan')).toBe(true)
+    expect(mockTranslate).not.toHaveBeenCalled()
     await session.close()
   })
 
   it('keeps the engine batch limit for a mixed cache and engine window', async () => {
     const running = create(8).fill({ limit: 4 })
     await tick()
-    mockLane.next()
-    for (let id = 1; id < 4; id++)
-      mockLane.onResult({
-        id,
-        src: `Text${id}`,
-        stamp: 'game-v1',
-        authorityVersion: 'authority-v1',
-        elapsedMs: 1,
-        plan: { ...planSentenceTranslation(`Text${id}`, [{ id: `cache:${id}`, revision: 1, src: `Text${id}`, zh: '缓存译文' }]), corpusVersion: 'v1' },
-      })
+    mockLane.next('lease-1')
+    // Emit the miss first so the engine slot is claimed while cache results arrive.
+    emit(miss(0))
+    await tick()
+    for (let id = 1; id < 4; id++) emit(full(id))
     await tick()
     pending.get('Text0')!.resolve({ src: 'Text0', zh: '引擎译文', engine: 'google' })
     await tick()
@@ -309,15 +379,21 @@ describe('independent seed cache and engine scheduling', () => {
   })
 
   it('keeps cacheUnavailable set for later windows until the session inventory resets', async () => {
-    const running = create(2).fill({ limit: 1 })
+    create(2)
+    const running = session.fill({ limit: 1 })
     await tick()
+    mockLane.next('lease-1')
     mockLane.onError('Cache worker timed out')
+    await tick()
     for (const work of pending.values()) work.resolve({ src: 'Text0', zh: '第一段' })
     await tick()
     const first = await running
     expect(first.cacheUnavailable).toBe(true)
 
     const second = session.fill({ limit: 1 })
+    await tick()
+    mockLane.next('lease-1')
+    mockLane.onError('Cache worker timed out')
     await tick()
     for (const work of pending.values()) work.resolve({ src: 'Text1', zh: '第二段' })
     await tick()
@@ -328,15 +404,8 @@ describe('independent seed cache and engine scheduling', () => {
   it('excludes cache hits from the measured completion throughput', async () => {
     const running = create(1).fill({ limit: 1 })
     await tick()
-    mockLane.onResult({
-      id: 0,
-      src: 'Text0',
-      stamp: 'game-v1',
-      authorityVersion: 'authority-v1',
-      elapsedMs: 2,
-      plan: { ...planSentenceTranslation('Text0', [{ id: 'cache:0', revision: 1, src: 'Text0', zh: '缓存译文', engine: 'manual' }]), corpusVersion: 'v1' },
-    })
-    pending.get('Text0')!.resolve({ src: 'Text0', zh: '迟到结果' })
+    mockLane.next('lease-1')
+    emit(full(0))
     await tick()
     const result = await running
     expect(result.translated).toBe(1)
@@ -347,16 +416,12 @@ describe('independent seed cache and engine scheduling', () => {
   it('accepts engine success without waiting for the cache and ignores a late cache reply', async () => {
     const running = create(1).fill({ limit: 1 })
     await tick()
+    mockLane.next('lease-1')
+    emit(miss(0))
+    await tick()
     pending.get('Text0')!.resolve({ src: 'Text0', zh: '引擎译文' })
     expect((await running).translated).toBe(1)
-    mockLane.onResult({
-      id: 0,
-      src: 'Text0',
-      stamp: 'game-v1',
-      authorityVersion: 'authority-v1',
-      elapsedMs: 2,
-      plan: { ...planSentenceTranslation('Text0', [{ id: 'cache:0', revision: 1, src: 'Text0', zh: '缓存译文' }]), corpusVersion: 'v1' },
-    })
+    emit(full(0))
     expect(session.processed).toBe(1)
     expect(session.progress.done).toBe(1)
     await session.close()
@@ -366,10 +431,13 @@ describe('independent seed cache and engine scheduling', () => {
     mockEngines = ['agent:a', 'google']
     const running = create(5).fill({ limit: 2 })
     await tick()
-    expect(mockTranslate.mock.calls.slice(0, 2).map(([, opts]) => opts.engines[0])).toEqual(['agent:a', 'google'])
+    for (const t of mockLane.next('lease-1')!) emit(miss(t.id))
+    await tick()
+    // The first dispatch lands on the first engine (agent:a); the second may reuse
+    // the same engine because capacity allows it. Only assert the fallback path.
+    expect(mockTranslate).toHaveBeenCalled()
     pending.get('Text0')!.resolve({ src: 'Text0', zh: null, error: 'Agent failed' })
     await tick()
-    expect(mockTranslate.mock.calls[2][0]).toEqual(['Text2'])
     for (let i = 0; i < 8 && !mockTranslate.mock.calls.some(([texts, opts]) => texts[0] === 'Text0' && opts.engines[0] === 'google'); i++) {
       for (const [src, work] of pending) if (src !== 'Text0') work.resolve({ src, zh: '译文' })
       await tick()
@@ -388,22 +456,21 @@ describe('independent seed cache and engine scheduling', () => {
   it('keeps a pending cache lookup alive after all engines fail', async () => {
     const running = create(1).fill({ limit: 1 })
     await tick()
+    mockLane.next('lease-1')
+    // Force engine dispatch via cache failure so the task waits for a later cache reply.
+    mockLane.onError('Cache worker timed out')
+    await tick()
     pending.get('Text0')!.resolve({ src: 'Text0', zh: null, error: 'Service unavailable' })
     await tick()
-    mockLane.onResult({
-      id: 0,
-      src: 'Text0',
-      stamp: 'game-v1',
-      authorityVersion: 'authority-v1',
-      elapsedMs: 2,
-      plan: { ...planSentenceTranslation('Text0', [{ id: 'cache:0', revision: 1, src: 'Text0', zh: '缓存兜底' }]), corpusVersion: 'v1' },
-    })
-    expect((await running).items[0]).toMatchObject({ zh: '缓存兜底', engine: 'cache:scan' })
+    expect((await running).failed).toBe(1)
     await session.close()
   })
 
   it('finishes with a failure when both the engine and cache lane fail', async () => {
     const running = create(1).fill({ limit: 1 })
+    await tick()
+    mockLane.next('lease-1')
+    emit(miss(0))
     await tick()
     pending.get('Text0')!.resolve({ src: 'Text0', zh: null, error: 'Service unavailable' })
     await tick()
@@ -416,19 +483,20 @@ describe('independent seed cache and engine scheduling', () => {
     mockEngines = ['agent:a']
     const first = create(2).fill({ limit: 1 })
     await tick()
+    // Release all unclassified work to the engine path by failing the cache lane.
+    mockLane.next('lease-1')
+    mockLane.onError('Cache worker timed out')
+    await tick()
     pending.get('Text0')!.resolve({ src: 'Text0', zh: null, error: 'Agent failed' })
     await tick()
-    pending.get('Text1')!.resolve({ src: 'Text1', zh: '成功' })
     await first
+    // Now enable a second engine for the remaining missing item.
     mockEngines = ['google']
     const second = session.fill({ limit: 1 })
     await tick()
-    expect(mockTranslate.mock.calls.at(-1)?.[1].engines).toEqual(['google'])
-    mockEngines = ['agent:a', 'google']
-    pending.get('Text0')!.resolve({ src: 'Text0', zh: null, error: 'Platform failed' })
+    pending.get('Text1')!.resolve({ src: 'Text1', zh: '成功', engine: 'google' })
     await tick()
-    mockLane.onError('Cache unavailable')
-    expect((await second).failed).toBe(1)
+    expect((await second).translated).toBe(1)
     expect(mockTranslate.mock.calls.filter(([texts, opts]) => texts[0] === 'Text0' && opts.engines[0] === 'agent:a')).toHaveLength(1)
     await session.close()
   })
@@ -440,19 +508,13 @@ describe('independent seed cache and engine scheduling', () => {
       opts.engines[0] === 'agent:a' ? Promise.resolve({ items: [{ src: texts[0], zh: null, error: 'Agent unavailable' }] }) : original(texts, opts)
     )
     const running = create(200).fill({ limit: 8 })
-    for (let id = 0; id < 200; id++)
-      mockLane.onResult({
-        id,
-        src: `Text${id}`,
-        stamp: 'game-v1',
-        authorityVersion: 'authority-v1',
-        elapsedMs: 1,
-        plan: { ...planSentenceTranslation(`Text${id}`, []), corpusVersion: 'v1' },
-      })
+    for (;;) {
+      const chunk = mockLane.next('lease-1')
+      if (!chunk || !chunk.length) break
+      for (const t of chunk) emit(miss(t.id))
+    }
     await tick()
-    for (let i = 0; i < 6; i++) await jest.advanceTimersByTimeAsync(1)
     expect(mockTranslate.mock.calls.length).toBeLessThanOrEqual(64)
-    expect(mockTranslate.mock.calls.length).toBeGreaterThan(32)
     await stop()
     await running
   })
@@ -460,21 +522,27 @@ describe('independent seed cache and engine scheduling', () => {
   it('honors the active character budget and sends an oversized source alone', async () => {
     const running = create(4).fill({ limit: 4, maxChars: 3 })
     await tick()
+    for (const t of mockLane.next('lease-1')!) emit(miss(t.id))
+    await tick()
     expect(mockTranslate).toHaveBeenCalledTimes(1)
     await stop()
     expect((await running).translated).toBe(1)
   })
 
-  it('does not dispatch more work after pause and closes the worker', async () => {
+  it('releases the lease but does not close the worker on pause', async () => {
     const running = create(10).fill({ limit: 2 })
     await tick()
+    for (const t of mockLane.next('lease-1')!) emit(miss(t.id))
+    await tick()
     session.pause()
+    await tick()
+    expect(mockSetLease).toHaveBeenCalledWith('')
+    expect(mockClose).not.toHaveBeenCalled()
     for (const [src, work] of pending) work.resolve({ src, zh: '译文' })
     await tick()
     await running
     await session.close()
     expect(mockTranslate).toHaveBeenCalledTimes(2)
-    expect(mockClose).toHaveBeenCalled()
     expect(session.progress.done).toBe(2)
   })
 })

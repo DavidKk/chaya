@@ -324,6 +324,8 @@ export const editJa = {
     region: 'ログ',
     regionDesc: 'Chaya プラグインの実行ログをリアルタイムで表示、絞り込み、管理します。',
     live: 'ライブ',
+    liveEnable: 'ライブを開始',
+    liveDisable: 'ライブを停止',
     streamDown: '切断',
     searchPh: 'ソース / メッセージ…',
     searchAria: 'ログ検索',

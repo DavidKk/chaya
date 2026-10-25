@@ -36,6 +36,8 @@ type Progress = {
   skipChars: number
   missingChars: number
   doneChars: number
+  failedCount?: number
+  failedChars?: number
   lines: number
   batchSize: number
   batchesLeft: number
@@ -97,6 +99,8 @@ function readProgress(json: Partial<Progress> & { preparing?: boolean }): Progre
     skipChars: json.skipChars ?? 0,
     missingChars: json.missingChars ?? 0,
     doneChars: json.doneChars ?? 0,
+    failedCount: json.failedCount ?? 0,
+    failedChars: json.failedChars ?? 0,
     lines: json.lines ?? 0,
     batchSize: json.batchSize ?? 40,
     batchesLeft: json.batchesLeft ?? 0,
@@ -421,7 +425,7 @@ export function TranslateRunPane({
   }
 
   const extractPct = progress.hasSeed ? 100 : 0
-  const translatePct = progress.needCount > 0 ? Math.min(100, Math.round((progress.done / progress.needCount) * 100)) : progress.hasSeed ? 100 : 0
+  const translatePct = progress.needCount > 0 ? Math.min(100, Math.round(((progress.done + (progress.failedCount ?? 0)) / progress.needCount) * 100)) : progress.hasSeed ? 100 : 0
   const batchesTotal = progress.needCount > 0 ? Math.ceil(progress.needCount / (progress.batchSize || 40)) : 0
   const batchesDone = Math.max(0, batchesTotal - progress.batchesLeft)
   const liveStatus = job.liveStatus || (extracting ? t('translate.extractingText') : preparing ? t('translate.preparingInventory') : '')
@@ -530,7 +534,7 @@ export function TranslateRunPane({
                           />
                         </div>
                         <div>
-                          <ProgressMeter label={t('translate.tabRun')} pct={translatePct} hint={statusHint} />
+                          <ProgressMeter label={t('translate.processedLabel')} pct={translatePct} hint={statusHint} />
                         </div>
                       </>
                     ) : null}

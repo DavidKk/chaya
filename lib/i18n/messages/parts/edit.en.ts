@@ -324,6 +324,8 @@ export const editEn = {
     region: 'Plugin logs',
     regionDesc: 'View, filter, and manage Chaya plugin logs in real time.',
     live: 'Live',
+    liveEnable: 'Turn live on',
+    liveDisable: 'Turn live off',
     streamDown: 'Down',
     searchPh: 'Search source / message…',
     searchAria: 'Search logs',

@@ -11,6 +11,7 @@ import { loadExtractedItemsWithLocales } from '@/services/extract/lib/extract-it
 import { extractParallelCorpus, findLocalesDirectory, loadGameLocalesCatalog } from '@/services/extract/lib/game-locales'
 import { resetExtractedItem, saveExtractedItem } from '@/services/extract/lib/save-items'
 import { saveLocalesItem } from '@/services/extract/lib/save-locales-item'
+import { readSeedFailures, seedFailureFile, writeSeedFailure } from '@/services/translate/seed-failures'
 
 describe('extract-items and save-items', () => {
   let tmpDir: string
@@ -20,7 +21,31 @@ describe('extract-items and save-items', () => {
   })
 
   afterEach(() => {
+    fs.rmSync(seedFailureFile(tmpDir), { force: true })
     fs.rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('shows failed seed sources in the list and clears the failure after manual saving', () => {
+    fs.writeFileSync(ensureGameContentDir(tmpDir, 'extractStrings'), JSON.stringify({ dialogue: [{ lines: ['Hello, traveler!'], map: 1 }] }))
+    fs.writeFileSync(ensureGameContentDir(tmpDir, 'seed'), JSON.stringify({ 'Hello, traveler!': '' }))
+    writeSeedFailure(tmpDir, 'Hello, traveler!', 'All engines failed')
+    expect(loadExtractedItems(tmpDir).find((item) => item.src === 'Hello, traveler!')?.translationFailure).toBeDefined()
+    expect(saveExtractedItem(tmpDir, 'Hello, traveler!', '你好，旅人！').ok).toBe(true)
+    expect(readSeedFailures(tmpDir).has('Hello, traveler!')).toBe(false)
+    expect(loadExtractedItems(tmpDir).find((item) => item.src === 'Hello, traveler!')?.translationFailure).toBeUndefined()
+  })
+
+  it('retains failures after unsuccessful locale saves and saves to other target languages', () => {
+    writeSeedFailure(tmpDir, 'Hello', 'All engines failed')
+    expect(saveLocalesItem({ contentRoot: tmpDir, localesKey: 'hello', text: 'Hello', zh: '你好' }).ok).toBe(false)
+    expect(readSeedFailures(tmpDir).has('Hello')).toBe(true)
+    const locales = path.join(tmpDir, 'locales', 'en')
+    fs.mkdirSync(locales, { recursive: true })
+    fs.writeFileSync(path.join(locales, 'Manual.json'), JSON.stringify({ hello: 'Hello' }))
+    expect(saveLocalesItem({ contentRoot: tmpDir, localesKey: 'hello', text: 'Hello', zh: 'Bonjour', targetLang: 'fr' }).ok).toBe(true)
+    expect(readSeedFailures(tmpDir).has('Hello')).toBe(true)
+    expect(saveLocalesItem({ contentRoot: tmpDir, localesKey: 'hello', text: 'Hello', zh: '你好', targetLang: 'ch' }).ok).toBe(true)
+    expect(readSeedFailures(tmpDir).has('Hello')).toBe(false)
   })
 
   it('loads extracted items with correct categories and speakers', () => {

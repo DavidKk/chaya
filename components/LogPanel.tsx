@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { IoPauseOutline, IoPlayOutline, IoTrashOutline } from 'react-icons/io5'
+import { IoTrashOutline } from 'react-icons/io5'
 
 import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
@@ -10,7 +10,7 @@ import { LogEntriesSkeleton, LogEntriesView, matchesLogQuery } from '@/component
 import { LogLevelMultiSelect } from '@/components/LogLevelMultiSelect'
 import { useFollowBottomScroll } from '@/components/logs/useFollowBottomScroll'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
-import { Badge, Button, TextInput } from '@/components/sk'
+import { Button, FilterToggle, TextInput } from '@/components/sk'
 import { clearLinkLogs, readLinkLogs, subscribeLinkLogs } from '@/lib/log/link-log-store'
 import { LOG_LEVELS, type LogEntry, type LogLevel } from '@/lib/log/types'
 import { useQueryPatch } from '@/lib/url/use-query-patch'
@@ -121,7 +121,6 @@ export function LogPanel() {
       <div className={panelHead}>
         <PanelHeadTitle title={t('logs.region')} description={t('logs.regionDesc')} />
         <div className={panelHeadEnd}>
-          <Badge tone={connected ? 'ok' : 'neutral'}>{connected ? t('logs.live') : browserMode ? t('logs.waitGame') : t('logs.streamDown')}</Badge>
           <TextInput
             search
             className="w-52 max-w-full shrink"
@@ -135,15 +134,16 @@ export function LogPanel() {
             onBlur={() => commitQ(qInput)}
           />
           <LogLevelMultiSelect value={levelFilter} onChange={setLevelFilter} />
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={paused ? t('common.resume') : t('common.pause')}
-            tooltip={paused ? t('common.resume') : t('common.pause')}
-            onClick={togglePaused}
+          <FilterToggle
+            pressed={!paused}
+            onPressedChange={() => togglePaused()}
+            role="button"
+            tone="ok"
+            aria-label={t('logs.live')}
+            tooltip={paused ? t('logs.liveEnable') : t('logs.liveDisable')}
           >
-            {paused ? <IoPlayOutline size={16} aria-hidden /> : <IoPauseOutline size={16} aria-hidden />}
-          </Button>
+            {t('logs.live')}
+          </FilterToggle>
           <Button variant="ghost" size="icon" aria-label={t('logs.clear')} tooltip={t('logs.clear')} onClick={() => void clearAll()}>
             <IoTrashOutline size={16} aria-hidden />
           </Button>

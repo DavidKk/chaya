@@ -5,10 +5,18 @@ import { deflateSync } from 'node:zlib'
 
 import { resolveGame } from '@/lib/game/resolve'
 import { runExtract } from '@/services/extract/lib/main'
-import { filterRgssSeedKeys, loadRgssTranslationItems, looksLikeRgssProject, runRgssExtract, writeRgssTranslations } from '@/services/extract/lib/rgss'
+import {
+  filterRgssSeedKeys,
+  loadRgssTranslationItems,
+  loadRgssTranslationItemsAsync,
+  looksLikeRgssProject,
+  runRgssExtract,
+  writeRgssTranslations,
+} from '@/services/extract/lib/rgss'
 import { parseRubyMarshal, type RubyArray, rubyToPlain, type RubyValue, writeRubyMarshal } from '@/services/extract/lib/rgss/marshal'
 import { appendPublicGameCache } from '@/services/storage/game-files'
 import { describeRgssPreview, setRgssPreviewView } from '@/services/translate/rgss-preview'
+import { readSeedFailures, seedFailureFile, writeSeedFailure } from '@/services/translate/seed-failures'
 
 function object(className: string, fields: Record<string, RubyValue>): RubyValue {
   return {
@@ -55,6 +63,24 @@ function makeProject(ext = '.rvdata2') {
 }
 
 describe('RGSS VX/VX Ace support', () => {
+  it('includes terminal failures in both list loaders and clears them only after successful writeback', async () => {
+    const root = makeProject()
+    try {
+      const src = 'こんにちは、勇者！'
+      writeSeedFailure(root, src, 'All engines failed')
+      expect(loadRgssTranslationItems(root).find((item) => item.src === src)?.translationFailure).toEqual({ error: 'All engines failed' })
+      expect((await loadRgssTranslationItemsAsync(root)).find((item) => item.src === src)?.translationFailure).toBeDefined()
+      expect(() => writeRgssTranslations(root, { [src]: '' })).toThrow()
+      expect(readSeedFailures(root).has(src)).toBe(true)
+      writeRgssTranslations(root, { [src]: '你好，勇者！' })
+      expect(readSeedFailures(root).has(src)).toBe(false)
+      expect(loadRgssTranslationItems(root).find((item) => item.src === src)).toMatchObject({ savedZh: '你好，勇者！' })
+    } finally {
+      fs.rmSync(seedFailureFile(root), { force: true })
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('keeps Data names over machine cache while exposing saved name-sync and manual overrides', () => {
     const root = makeProject()
     try {

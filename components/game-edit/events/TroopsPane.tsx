@@ -6,8 +6,7 @@ import { createPortal } from 'react-dom'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { padXDense } from '@/components/layoutClasses'
 import { useNavigationBooleanState } from '@/components/navigation/useNavigationViewState'
-import { EmptyState, ScrollArea, TruncateText } from '@/components/sk'
-import { filterToggle, filterToggleOn } from '@/components/sk/control'
+import { EmptyState, FilterToggle, ScrollArea, TruncateText } from '@/components/sk'
 import { matchesTroop, type TroopInfo } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
@@ -65,18 +64,12 @@ export function TroopsPane({ slot, filter, headSlot }: Props) {
   const incomplete = !data.mapsScanned || data.mapsFailed > 0
   const filters = (
     <div className="flex shrink-0 items-center gap-2">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={onlyEncounter}
-        className={cn(filterToggle, 'shrink-0', onlyEncounter && filterToggleOn)}
-        onClick={() => setOnlyEncounter(!onlyEncounter)}
-      >
+      <FilterToggle pressed={onlyEncounter} onPressedChange={setOnlyEncounter}>
         {t('events.troop.onlyEncounter')}
-      </button>
-      <button type="button" role="switch" aria-checked={showEmpty} className={cn(filterToggle, 'shrink-0', showEmpty && filterToggleOn)} onClick={() => setShowEmpty(!showEmpty)}>
+      </FilterToggle>
+      <FilterToggle pressed={showEmpty} onPressedChange={setShowEmpty}>
         {t('events.troop.showEmpty')}
-      </button>
+      </FilterToggle>
     </div>
   )
 

@@ -7,8 +7,37 @@ import { LuFileText, LuKey, LuTriangleAlert, LuUser } from 'react-icons/lu'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Button, PlainTextEditor, Tooltip } from '@/components/sk'
 import { isNameGlossaryCategory } from '@/lib/translate/name-glossary'
+import { resolveItemSourceKind, type TranslationSourceKind } from '@/lib/translate/translation-source'
 import { cn } from '@/lib/utils'
 import type { ExtractedTextCategory, ExtractedTranslationItem } from '@/services/extract/lib/extract-items'
+
+export const SOURCE_STYLES: Record<TranslationSourceKind, { badgeClass: string; i18nLabel: string; i18nTooltip: string }> = {
+  manual: {
+    badgeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+    i18nLabel: 'sourceManual',
+    i18nTooltip: 'sourceManualTooltip',
+  },
+  agent: {
+    badgeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+    i18nLabel: 'sourceAgent',
+    i18nTooltip: 'sourceAgentTooltip',
+  },
+  platform: {
+    badgeClass: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+    i18nLabel: 'sourcePlatform',
+    i18nTooltip: 'sourcePlatformTooltip',
+  },
+  offline: {
+    badgeClass: 'bg-teal-500/15 text-teal-300 border-teal-500/30',
+    i18nLabel: 'sourceOffline',
+    i18nTooltip: 'sourceOfflineTooltip',
+  },
+  cache: {
+    badgeClass: 'bg-zinc-500/15 text-zinc-300 border-zinc-500/30',
+    i18nLabel: 'sourceCache',
+    i18nTooltip: 'sourceCacheTooltip',
+  },
+}
 
 export const CATEGORY_STYLES: Record<ExtractedTextCategory, { label: string; badgeClass: string }> = {
   dialogue: { label: '对话', badgeClass: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30' },
@@ -128,6 +157,9 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
   const canReset = Boolean(originalText && (currentZh !== originalText || hasSavedVersion))
   const isName = isNameGlossaryCategory(item.meta.category)
 
+  const sourceKind = resolveItemSourceKind({ ...item, zh: currentZh })
+  const sourceInfo = sourceKind ? SOURCE_STYLES[sourceKind] : null
+
   return (
     <div className="flex h-[150px] flex-col min-w-0">
       {/* 1. Header: metadata (left) | Reset + Translate + Save (right) */}
@@ -136,6 +168,11 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
           <Tooltip content={t('translate.listRowItemIndex', { id: item.id })} placement="top">
             <span className="shrink-0 font-mono text-[0.6875rem] text-ink-soft select-none cursor-default">#{item.id}</span>
           </Tooltip>
+          {item.translationFailure ? (
+            <Tooltip content={`${t('translate.failureHint')}${item.translationFailure.error ? `\n${item.translationFailure.error}` : ''}`} placement="top">
+              <span className="shrink-0 rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-red-300">{t('translate.statusFailed')}</span>
+            </Tooltip>
+          ) : null}
           {item.meta.localesKey ? (
             <Tooltip
               content={`${t('translate.listRowLocalesKey', { key: item.meta.localesKey })}${item.meta.localesFile ? t('translate.listRowLocalesFile', { file: item.meta.localesFile }) : ''}`}
@@ -174,6 +211,13 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
           <Tooltip content={t('translate.listRowCategoryTooltip', { category: catLabel })} placement="top">
             <span className={cn('shrink-0 rounded-[0.2rem] border px-1.5 py-0.5 text-[0.6875rem] font-medium leading-none cursor-default', catInfo.badgeClass)}>{catLabel}</span>
           </Tooltip>
+          {sourceInfo ? (
+            <Tooltip content={t(`translate.${sourceInfo.i18nTooltip}` as any)} placement="top">
+              <span className={cn('shrink-0 rounded-[0.2rem] border px-1.5 py-0.5 text-[0.6875rem] font-medium leading-none cursor-default select-none', sourceInfo.badgeClass)}>
+                {t(`translate.${sourceInfo.i18nLabel}` as any)}
+              </span>
+            </Tooltip>
+          ) : null}
           {item.meta.file ? (
             <Tooltip content={t('translate.listRowFileTooltip', { file: item.meta.file })} placement="top">
               <span className="inline-flex shrink-0 items-center gap-1 rounded-[0.2rem] bg-inset px-1.5 py-0.5 text-[0.6875rem] text-ink-soft select-all cursor-default">
@@ -250,7 +294,7 @@ export const TranslateListItemRow = memo(function TranslateListItemRow({
             className="h-6 px-2.5 text-[0.6875rem]"
             onClick={() => onTranslate(item)}
           >
-            {t('translate.listSingleTransBtn')}
+            {item.translationFailure ? t('translate.cacheRetranslate') : t('translate.listSingleTransBtn')}
           </Button>
 
           <Button

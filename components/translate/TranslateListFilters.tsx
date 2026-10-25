@@ -73,7 +73,9 @@ export function TranslateListFilters(props: {
         options={[
           { value: 'all', label: t('translate.statusAll') },
           { value: 'untranslated', label: t('translate.statusUntranslated') },
+          { value: 'failed', label: t('translate.statusFailed') },
           { value: 'translated', label: t('translate.statusTranslated') },
+          { value: 'manual', label: t('translate.statusManual') },
         ]}
         aria-label={t('translate.listStatusFilterAria')}
         tooltip={t('translate.listStatusFilterTooltip')}

@@ -155,3 +155,13 @@ it('only removes an open parenthetical when both cached sides share the opening 
   expect(createSentenceResolver([record('（前半、', '（前文）')]).plan('前半、後半').status).toBe('miss')
   expect(createSentenceResolver([record('（前半、後半', '（前文、后文')]).plan('前半、変更').status).toBe('miss')
 })
+
+describe('authority category selection', () => {
+  const row = (id: string, zh: string, category: string): SentenceRecord => ({ id, revision: 1, src: 'Open', zh, engine: 'manual', category })
+
+  it('uses the query-side category only after rank and exact source match', () => {
+    const rows = [row('item', '打开物品', 'item'), row('menu', '打开菜单', 'menu')]
+    expect(planSentenceTranslation('Open', rows, { category: 'menu' })).toMatchObject({ status: 'full', zh: '打开菜单' })
+    expect(planSentenceTranslation('Open', rows)).toMatchObject({ status: 'miss', ambiguous: true })
+  })
+})

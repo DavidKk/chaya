@@ -5,6 +5,25 @@ export type TranslationRequestFn = (request: TranslationRequest, signal?: AbortS
 
 export type TranslationRuntime = { request: TranslationRequestFn; dispose: () => void }
 
+export type SeedProgress = {
+  contentRoot: string
+  hasSeed: boolean
+  total: number
+  done: number
+  missing: number
+  needCount: number
+  skipCount: number
+  needChars: number
+  skipChars: number
+  missingChars: number
+  doneChars: number
+  failedCount?: number
+  failedChars?: number
+  lines: number
+  batchSize: number
+  batchesLeft: number
+}
+
 export type BatchExecutionSource = 'cache' | 'apple' | 'agent' | 'platform' | 'bergamot' | 'ollama' | 'unknown'
 
 export type TranslationBatchLog = {

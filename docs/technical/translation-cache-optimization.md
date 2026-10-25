@@ -4,9 +4,10 @@
 - 日期：2026-10-17。
 - 搜索流程补充：2026-10-22；§10 的索引等值查询与快照复用首版已接入；在线影子重建及完整规模验收仍为后续目标。
 - 批次性能补充：2026-10-25；§11 的 P0–P1 已实施，P2 指标待补充，需求见 [缓存批处理性能](../translation-cache-batch-performance.md)。
+- 缓存优先预取补充：2026-10-25；§12 的主体已接入，纯缓存结果聚合、缓存优先零引擎提交和旧租约回收已实现，剩余为真实语料性能验收；需求见 [缓存批处理性能 §9](../translation-cache-batch-performance.md#9-缓存优先预取来源权重与长驻-worker2026-10-25主体已接入验收未完成)。
 - 需求：[翻译缓存语义分段与优化需求](../translation-cache-optimization.md)。
 - 后续扩展：[结构化分段与缓存测试设计](translation-structured-segmentation.md)（待实现）。
-- 基础：[翻译管线 §14](translation-pipeline.md#14-缓存落地方案核心已接入--扩展状态见-149)（稳定锚：同文件「## 14」）。
+- 基础：[翻译管线 §14](translation-pipeline.md#14-缓存落地方案核心已接入--扩展状态见-149)（稳定锚：同文件「## 14」；本地校验器对全角括号锚点有误报，链接保持现有 GitHub 形式）。
 
 ## 1. 当前实现与缺口
 
@@ -260,7 +261,7 @@
 
 后台 seed 作业已采用独立缓存 worker 与引擎消费线路，缓存属于可跳过的加速步骤，不是派发前置条件。实现与验收以 [调度基线 §14](../translation-scheduling.md#14-非阻塞缓存扫描与翻译派发2026-10-23) 为准：
 
-1. 缓存可扫描全程，IPC 分片 32 项且只有一个分片在途，受结果缓冲反压约束。引擎有空位优先领取已知缺口 / miss，没有就直接领取尚未扫描的文本，不等待初始化、全量扫描或旧批次最慢项。
+1. 缓存可扫描全程，IPC 分片 32 项且只有一个分片在途，受结果缓冲反压约束。§12 已接入有界缓存分类窗口：窗口内的未分类任务不得由引擎领取，明确 miss / partial 才进入引擎；缓存不可用或停滞时仍有界降级。当前纯缓存结果消费仍可能提前结束，需继续修复聚合。
 2. 不新增完整 L1 正负缓存，继续复用本作上下文和等值索引；索引更新后后续扫描可见。扫描结果接受时核验文件指纹、语料版本和依赖 revision，旧结果可保守放弃。没有把整个共享库加载到内存。
 3. 引擎结果先核验相关等值权威键并持久化，再完成任务；不强制重跑整段匹配。成功结果和汇总进度持久化；扫描位置和逐项尝试状态尚不持久化，恢复会重建扫描。
 4. 服务端同游戏 / 同配置 / 同语言对 / 同受保护原文的在途请求共享传输 Promise，接受与持久化各自核验；失败不会成为永久 miss。底层未真正结束的不可取消请求仍占配额。
@@ -367,11 +368,17 @@ type TranslationBatchLog = {
 字段语义：
 
 - `submittedSources`：本窗口实际提交过请求的真实翻译来源；缓存扫描、缓存重校验和缓存回填不得加入。
-- `finalSources`：最终被接受结果的实际来源；采用共享 / 本作缓存时包含 `cache`。
-- `cacheHits`：最终采用缓存权威译文的条目数，不等同于 `submittedSources` 是否为空。
+- `finalSources`：最终被接受结果的实际来源；采用共享 / 本作缓存时包含 `cache`。每条结果用 `resultSources` 保留组成来源；部分缓存拼接 Apple 补译时为 `cache + live:apple`，不得从兼容字段 `engine: cache:partial` 推断为纯缓存。失败或被权威译文替换的引擎输出不进入最终来源。
+- `cacheHits`：最终全文采用缓存权威译文的条目数，不等同于 `submittedSources` 是否为空。部分缓存加引擎补译不计作整条缓存命中。
 - `cacheUnavailable`：当前会话缓存线路不可用；与是否有真实引擎结果分别统计。该标记跨结果窗口保留，直到 seed 清单重建或会话重建，避免后续窗口误显示为健康缓存。
 
 `success`、`failed` 只按任务最终结果计数，不按缓存线路健康状态计数。缓存不可用时，有真实引擎结果的条目按结果成功 / 失败；没有真实引擎且未完成的条目计入 `failed`。`cacheUnavailable` 只影响标签和诊断，不得把未完成条目伪装成缓存 miss 或成功。
+
+`onEngineDispatch(engine)` 在实际提交时携带真实引擎 ID，嵌套缺口补译原样向上传递；不得用外层预选引擎代替实际请求引擎。`submittedSources` 按提交所在窗口统计，可能包含仍在执行的其他条目，不能据此推断当前窗口每条缓存结果都调用过引擎。
+
+调度另用每条结果的 `engineWork` 记录是否等待过引擎（含合并等待已有请求、失败尝试和嵌套补译），并跨同一任务的重试保留。只有最终来源全部为缓存且没有引擎等待的结果，才进入独立的纯缓存大窗口；经过引擎后被人工缓存替换的结果仍及时释放，但用户标签只显示最终采用的缓存。旧结果若仅有 `cache:partial` 而无组成来源，按未知来源加缓存保守处理。吞吐统计排除最终全文采用缓存的条目，混合补译计入完成字符数。
+
+缺口补译写入共享库后，再匹配可能立即读到本次新记录，不能把这类自写回读一律改成缓存来源。嵌套调用通过内部 `onCacheWrite` 传递本次接受写入的记录和组成来源；重新匹配按记录 ID + revision 对照，本作镜像按原文、译文和引擎标签对照。只给当前计划真正采用的自写记录保留引擎来源；已有记录或后来产生的人工修订仍归缓存。此关联仅在单次调用内保存，不追溯历史缓存原本由哪个引擎生成。
 
 用户标签由结构化字段投影，不解析英文日志正文。标签只表达最终采用的工具，`submittedSources` 仅作为诊断数据，以及整批失败时的回退来源：
 
@@ -402,6 +409,18 @@ i18n 至少提供缓存、缓存不可用、Apple、Agent 和组合连接符的�
 - 已登记 owned transition 只允许推进文件 stamp，不允许跳过共享 revision 检查；回填后 `authorityVersion` 不变。
 - 若回填写入和人工修改并发发生，版本链无法形成完整的 owned 链，后续缓存结果必须重新校验。
 - 回填 flush 返回 `{ sharedOnly }`；只有写入内容差集、事件集合、seed / fallback 身份和上下文版本全部可证明时才为 `true`。
+
+#### 原文库存与译文进度的失效边界
+
+存储守护进程的 `materialize()` 在保存译文、写入游戏设置、恢复读视图和重新挂载时都会生成公开文件。生成内容与现有文件相同必须保留原文件的 inode 和时间戳；仅内容变化或文件缺失时才原子替换。否则每次保存译文都会使 `seedFileStamp()` 改变，`seed-session.fill()` 将误判为原文更新，清空完成状态并重建待译队列，导致剩余字符回跳及缓存反复处理。
+
+- 原文内容真正变化时仍更新文件身份，运行中的会话按现有规则重建库存。
+- 原文未变、译文变化时，不重置正在执行的会话；暂停后继续或显式刷新必须重新判断待译清单。
+- 准备好的库存同时记录 `stamp`（原文）和 `progressStamp`（原文与本作缓存），仅两者均匹配当前文件时才可复用；旧 bundle 缺少进度标记时重新准备。
+- 两个标记在读取库存前采集，不能在读取完成后用新标记给旧数据补签；持久化进度沿用这份快照的标记。
+- 此处不把共享数据库 WAL 纳入文件标记；共享记录的权威校验仍遵循现有 revision 规则。
+
+回归验证覆盖：追加译文、写入无关设置、修复读视图与守护进程重启不改变未变原文的文件身份；真实更新原文会改变身份，原文视图缺失后可恢复；原文未变但缓存变化时，开始 / 继续和刷新均不得复用旧库存。
 
 ### 11.5 指标与验收边界
 
@@ -456,3 +475,409 @@ i18n 至少提供缓存、缓存不可用、Apple、Agent 和组合连接符的�
 | `__tests__/services/translate/seed-scheduler.spec.ts` / `cache-index-performance.spec.ts` / `cache-backfill.spec.ts` | 覆盖 §11.5 的并发版本、回填、批次和日志回归                                               |
 
 实施顺序按需求 P0 → P1 → P2：先修 owned 链和 `RECHECK`，再拆纯缓存结果批次，最后接结构化日志和完整指标。任何阶段都不得通过跳过人工保护、共享 revision 或回填持久化来换取性能数字。
+
+## 12. 缓存优先预取、权重与长驻协调（2026-10-25，主体已接入）
+
+状态：主体已接入，验收未完成。需求契约见 [缓存批处理性能 §9](../translation-cache-batch-performance.md#9-缓存优先预取来源权重与长驻-worker2026-10-25主体已接入验收未完成)。本节补充实现边界，不替代 §11 的快照、`RECHECK`、回填和日志契约。
+
+### 12.1 当前接线与缺口
+
+当前实现已经具备：
+
+- `seed-job` 独立 worker 作为后台作业协调者；
+- 独立 `cache-lane` / `cache-worker`，扫描逻辑不阻塞 Next.js；
+- 32 项扫描分片、64 项结果缓冲、40 项 / 10,000 字符纯缓存结果批次；
+- `cacheEngineRank` 来源权重及写入、查询侧权威选择；
+- Apple / Bergamot 长驻子进程，空闲 60 秒回收；
+- storage daemon 和回填持久化队列。
+
+仍存在的调度缺口：
+
+1. `seed-session.start()` 启动缓存 lane 后立即 `pump()`；`UNKNOWN` 任务可以被引擎直接领取。
+2. 没有缓存 plan 时使用 `cacheMode: 'bypass'`，引擎请求不等待缓存分类。
+3. 缓存命中只 abort 已经提交的请求；不可取消适配器仍占用配额直到真正结束。
+4. 缓存 worker 在一次 seed session 内长驻，但暂停会关闭；恢复会重新启动并重建索引。
+5. 缓存命中逐条 `queueBackfill`，结果窗口结束统一 flush，但事件和文件快照处理仍可能重复。
+
+### 12.2 目标状态机
+
+在现有 `UNKNOWN / MISS / RUNNING / DONE / FAILED / WAIT_CACHE / RECHECK` 之外，引入逻辑状态 `CACHE_PENDING` 和 `PARTIAL`。实现可复用 `UNKNOWN` 加 `cacheDeadline`、`MISS` 加已保存的缺口计划，不必扩展持久化状态位，但调试快照必须能区分 `CACHE_PENDING`、`PARTIAL` 和普通 `MISS`。
+
+`cacheDeadline` 只在任务实际投递给 cache worker 时设置，不从进入缓存优先窗口时开始。等待 worker 空闲的排队时间由 `cacheAdmissionWaitMs` 单独统计，不能算作缓存扫描超时。进入窗口超过 1500ms 仍无法投递时，协调者标记 `cacheAdmissionTimeout` 并允许引擎领取；任务已被领取后不得再投递。
+
+| 状态            | 含义                                 | 可被引擎领取           | 退出条件                                                             |
+| --------------- | ------------------------------------ | ---------------------- | -------------------------------------------------------------------- |
+| `CACHE_PENDING` | 已进入缓存优先窗口，尚未得到缓存分类 | 分类窗口内否；到期后可 | `full` / `partial` / `miss` / `RECHECK` / `CACHE_UNAVAILABLE` / 超时 |
+| `PARTIAL`       | 已保存安全缺口计划，只允许派发缺口   | 是，仅缺口             | 计划消费、任务完成、线路失败或重新校验                               |
+| `UNKNOWN`       | 尚未进入缓存优先窗口                 | 仅缓存不可用或停滞兜底 | 进入窗口时转 `CACHE_PENDING`，或由引擎兜底领取                       |
+| `WAIT_CACHE`    | 引擎已失败，等待尚未返回的缓存结果   | 否                     | 缓存结果、超时或线路失败                                             |
+| `RECHECK`       | 完整命中但快照待复核                 | 否                     | 复核有效、重扫 `miss`、重试耗尽或线路失败                            |
+
+状态转换要求：
+
+1. `CACHE_PENDING -> DONE` 只允许经过 §11.1 的完整校验。
+2. `CACHE_PENDING -> MISS` 才能进入普通引擎队列；`CACHE_PENDING -> PARTIAL` 只允许派发缺口，不得派发完整原文。`RECHECK` 不得直接当普通 miss，仅允许重试耗尽后按既有规则降级。
+3. 分类窗口到期只解除引擎领取限制，不伪造 `miss`；调试状态记为 `cacheTimedOut`。
+4. 超时后缓存结果仍可返回；若任务尚未提交，按缓存优先完成；若引擎已提交，继续按首个有效结果竞争和现有 abort 规则处理。
+5. 缓存线路失败时批量释放 `CACHE_PENDING`、`WAIT_CACHE` 和 `RECHECK`，设置会话级 `cacheUnavailable`，不得逐项等待分类超时。
+6. 单个任务扫描异常不得返回 `miss`；应保留错误原因并按有界降级规则进入引擎，避免把故障伪装成缓存不存在。
+7. `CACHE_PENDING` 达到 64 项且连续 1500ms 没有新的分类结果时，`UNKNOWN` 可以绕过窗口由引擎兜底领取；这不是 `MISS`，也不得参与缓存命中率统计。
+8. 分类或准入超时只解除领取限制，不关闭健康 worker；只有 watchdog 无进展、进程退出或协议致命错误才设置 `cacheUnavailable`。
+9. `limited` 表示候选或计划超出预算，不是普通 `miss`；允许有界降级到引擎，但提交前必须重新校验当前权威。
+
+### 12.3 缓存优先窗口与领取协议
+
+#### 12.3.1 窗口预算
+
+| 项目            |              首期值 | 约束                                       |
+| --------------- | ------------------: | ------------------------------------------ |
+| 缓存优先窗口    |               64 项 | 最多 64 项 `CACHE_PENDING`，含在途和待投递 |
+| IPC 分片        |               32 项 | 只保留一个在途分片                         |
+| 结果缓冲        |               64 项 | 达到阈值停止领取新分片；在途 32 项可收尾   |
+| 分类窗口        |              1500ms | 从投递 worker 开始；32 项热态分片约 678ms  |
+| worker 准入上限 |              1500ms | 从进入窗口到可投递，超时允许引擎领取       |
+| 停滞兜底        |              1500ms | 无分类进展时允许引擎领取窗口外 `UNKNOWN`   |
+| 纯缓存消费批次  | 40 项 / 10,000 字符 | 沿用 §11.2，不继承引擎预算                 |
+
+窗口是上限，不是屏障。缓存 worker 已就绪且缓冲未满时持续领取；主线程处理速度不足时通过 `next()` 返回 `null` 形成反压。64 项包含在途和待投递任务，不额外增加第三个队列；慢任务不能阻止已确认的 `miss` 立即派发。结果缓冲达到 64 项后不再领取新分片，但已投递的 32 项分片允许收尾，因此瞬时最多 96 项已分类结果，随后必须消费后再继续。
+
+#### 12.3.2 领取顺序
+
+每次 `next()` 按以下优先级生成任务：
+
+1. `RECHECK` 队列；
+2. 已进入缓存优先窗口但尚未提交给 worker 的任务；
+3. 新任务，按稳定游标领取；实际投递 worker 时写入 `cacheDeadline = now + 1500ms`；
+4. `WAIT_CACHE` 的兜底重扫。
+
+同一任务只能存在一个缓存扫描请求。当前实现尚未合并重复 `src` 的扫描结果；后续共享查询结果时，状态、完成计数和日志字符数仍须按任务条目计算。
+
+#### 12.3.3 worker 消息
+
+目标协议保留逐项进度，同时用分片结束标记维护反压：
+
+```ts
+type CacheScanRequest = {
+  batchId: number
+  leaseId: string
+  tasks: Array<{ id: number; src: string }>
+}
+
+type CacheScanReady = {
+  type: 'ready'
+  workerVersion?: string
+  /** Required. Absent / 0 is rejected; ready never doubles as batch completion. */
+  protocolVersion?: number
+}
+
+type CacheScanItem = {
+  type: 'item'
+  batchId: number
+  leaseId: string
+  result: CacheScanResult
+}
+
+type CacheScanDone = {
+  type: 'done'
+  batchId: number
+  leaseId: string
+  elapsedMs: number
+}
+
+type CacheScanItemError = {
+  type: 'itemError'
+  batchId: number
+  leaseId: string
+  id: number
+  src: string
+  error: string
+}
+
+type CacheStampAdvance = {
+  type: 'stampAdvance'
+  leaseId: string
+  beforeStamp: string
+  afterStamp: string
+}
+
+type CacheStampAdvanceAck = {
+  type: 'stampAdvanced'
+  leaseId: string
+  beforeStamp: string
+  afterStamp: string
+  applied: boolean
+  reason?: string
+}
+```
+
+兼容要求：
+
+- 主线程按微任务 / 时间片聚合同一 `batchId` 的结果，不能每条消息都完整执行 `onCache()`、`pump()` 和日志刷新。
+- 只有 `done` 才解除在途分片并允许投递下一片；逐项 `item` 可以提前释放完整命中，不等待分片末尾。
+- 每个已接受分片必须在所有 `item` / `itemError` 之后收到一次 `done`；致命错误则走线路失败。
+- 启动握手 `ready` 只表示初始化，不能作为完成标记；分片完成必须是 `done`。worker 必须发送 `protocolVersion>=1`；缺失或为 0 时直接软失败，不保留无效的旧版完成分支。
+- `stampAdvance` 必须由 worker 回 `stampAdvanced`；`applied=false` 时协调者保留原上下文并等待下一次正常重建，不能假定 stamp 已推进。
+- 协调者按 `leaseId + batchId` 归属结果；旧租约的结果一律丢弃，不能用任务 ID 代替租约身份。
+- 不允许每项都单独回传完整快照或重复 resolver 数据；共享只读上下文可在 worker 内按扫描窗口复用。
+- 单项扫描异常发送 `itemError`，不得伪装成 `miss`；该任务保留错误原因并走有界降级。只有 worker 致命错误才关闭整条线路。
+
+### 12.4 调度接线
+
+`seed-session` 的职责调整：
+
+1. `start()` 启动缓存 lane 后不再无条件 `pump()`；先让缓存 lane 领取缓存优先窗口。cache worker 缺失、初始化失败或进入 `CACHE_UNAVAILABLE` 时，立即 `pump()` 走引擎降级。
+2. `pump()` 的 `nextTask()` 只允许领取 `MISS`、`PARTIAL`、超时的 `CACHE_PENDING` 和满足停滞兜底的 `UNKNOWN`，不领取窗口内未到期的 `CACHE_PENDING`。
+3. 新增 deadline 检查：每次 pump、缓存结果到达和定时唤醒时，释放已到期的 `CACHE_PENDING`。
+4. `CACHE_PENDING -> partial` 时先保存 plan，再只派发缺口；不能派发完整原文。
+5. 缓存返回 `full` 时取消尚未发送的引擎占位；已发送请求按现有 abort 和配额规则处理。
+6. `fill()` 的结果窗口继续按完成项聚合，不等待缓存优先窗口全部完成。
+
+建议使用单个短定时器维护最早的 `cacheDeadline` 和窗口停滞时间，不要为每个任务创建独立 `setTimeout`。定时器只负责唤醒 `pump()` 和 deadline 扫描，不执行缓存查询。
+
+1500ms 分类与准入上限不得直接复用现有 5 秒 watchdog。前者是任务调度放行时间，后者只判断 worker 是否完全无进展；否则慢分片会被误判为线路故障。
+
+### 12.5 权重与权威
+
+权重真源继续为 `lib/translate/cache-engine-rank.ts`。调度、写入和查询不得各自维护另一套权重表。
+
+#### 12.5.1 选择顺序
+
+```text
+authority rank desc
+  -> exact src match
+  -> category match (same rank only)
+  -> local record before shared mirror
+  -> stable record id (only to order equal translations)
+```
+
+- `updated_at` 不参与权威选择，只用于展示、清理策略或诊断。
+- 完成时间、缓存命中时间和批次顺序均不参与权威选择。
+- 高权重旧记录优先于低权重新记录。
+- 本作记录与共享记录必须在同一候选集比较权重；不能因为当前查找先本作后共享，就让低权重本作记录压过高权重共享记录。
+- 同权重译文一致时保留现有记录；同权重冲突时先比较精确 `src`，仍冲突再比较 category，之后才允许本作优先。若译文仍不一致，返回冲突，不静默选择；稳定记录 ID 只用于相同译文的确定性排序。`manual` 对同一精确 `src` 的明确改译按现有写入冲突规则处理，不能被“本作优先”或“返回冲突”永久挡住；该例外必须限定到同权重的精确 `src` 人工写入。
+- 候选或计划 `limited` 不是普通 miss；应返回 `cacheLimited`，不得通过 bypass 绕过当前权威检查。
+
+建议把本作与共享候选合并封装为一个只读 resolver，供 cache scan、引擎提交前复核和回填共用。它输出 `{ zh, engine, rank, local, recordId, revision }`，调度层不自行复制权重比较逻辑。共享来源镜像仍按 origin / revision 校验，不能用本作镜像绕过共享记录 revision。
+
+#### 12.5.2 引擎结果竞争
+
+引擎结果在持久化前必须复核当前权威：
+
+- 当前存在更高权重权威时，接受高权重译文，拒绝低权重写入；本作低权重记录不能覆盖共享高权重记录；
+- 当前权威与引擎结果同权重且冲突时，按现有写入冲突规则处理；普通引擎不得借冲突绕过同权重人工定稿；
+- 当前权威 revision 已变化时，重新校验，不得用旧扫描 plan 覆盖；
+- 缓存命中只撤销同一任务尚未接受的候选，不全局替换其他任务的引擎结果。
+
+#### 12.5.3 重复与清理
+
+- 重复译文不视为错误；高权重记录可以在前，低权重记录暂时保留。
+- 不在本阶段自动删除低权重记录。
+- 若后续增加清理，必须是独立需求，并明确人工保护、回滚、备份和审计。
+
+### 12.6 长驻生命周期
+
+#### 12.6.1 协调者与子 worker
+
+```text
+seed job worker（唯一协调者）
+  -> cache worker（SQLite / 匹配，长驻）
+  -> engine adapters（按 miss / partial 调用）
+       -> Apple daemon（60s idle）
+       -> Bergamot daemon（60s idle）
+       -> Agent / platform HTTP
+  -> storage daemon（回填 / 文件写入）
+```
+
+协调者不把模型推理放入 cache worker，也不让 cache worker 直接提交权威或写本作文件。cache worker 只返回扫描结果和依赖记录。
+
+#### 12.6.2 复用规则
+
+| 事件                       | cache worker         | Apple / Bergamot                |
+| -------------------------- | -------------------- | ------------------------------- |
+| 批次边界                   | 复用                 | 复用                            |
+| 用户暂停                   | 停止领取，保留进程   | 允许在途收尾，空闲后按 TTL 回收 |
+| 恢复                       | 优先复用；失效才重建 | 需要时复用或重建                |
+| 切换游戏                   | 关闭并重建           | 关闭或按配置重建                |
+| worker 代码 / 索引版本更新 | 排空当前分片后重建   | 排空当前请求后重建              |
+| 致命错误                   | 关闭并软失败降级     | 对应引擎失败转移                |
+| 空闲 TTL                   | 建议 5–10 分钟，可调 | 维持 60 秒                      |
+
+缓存 worker 应由 seed job worker 按 `contentRoot + database` 持有，而不是由单次 `fill()` 会话独占。暂停只释放会话租约，worker 在空闲 TTL 内继续驻留；切换游戏、数据库身份变化或代码版本更新时关闭。这样不需要把旧会话对象永久保留，也不会在暂停后泄漏在途任务。
+
+本作 `ownedFileTransitions` 目前只存在于协调者，缓存 worker 无法据此推进自己的 `getGameCacheContext()`。实现必须把已验证的 `beforeStamp -> afterStamp` 通过 worker 协议同步给 cache worker，并仅在该 worker 自己的当前 stamp 等于 `beforeStamp` 时推进；无法证明归属或出现并发外部变化时仍按现有逻辑重建。否则自身回填后 worker 会反复重建 resolver，抵消长驻收益。
+
+每次会话租约使用新的 `leaseId`；worker 的扫描结果和 `done` 消息必须回传 `leaseId`。协调者丢弃旧租约结果，worker 收到租约释放后停止领取新分片，但允许已投递分片完成并丢弃结果。长驻 worker 不得仅靠任务 ID 判断结果归属，因为恢复后的任务 ID 可能重复。
+
+若实现上必须随会话销毁，应在暂停日志中记录 `cacheWorkerSpawnCount`，并单独报告恢复冷启动耗时；此时需求中的“暂停后复用”视为未达成，不能只在文档中声明。
+
+#### 12.6.3 启动策略
+
+- 首次 `start()` 创建 cache worker 并完成索引打开 / 迁移。
+- 纯缓存任务不主动启动 Apple / Bergamot。
+- 只有确认 `miss` / `partial` 后才按引擎开关和就绪检查启动相应 daemon。
+- Bing / Google 没有本地进程，不能宣称其网络和平台侧缓存可预热。
+
+### 12.7 回填与持久化
+
+#### 12.7.1 批量入队
+
+缓存分片结果先聚合为窗口级候选：
+
+```ts
+type BackfillCandidate = {
+  root: string
+  src: string
+  recordId: number
+  revision: number
+}
+```
+
+- 入队键为 `(root, src, recordId, revision)`；事件身份使用 `(database, recordId, revision)`，不能用自增 task id，否则同一 origin 会生成不同事件。事件 ID 还需避开 `game_backfills` 已确认版本和 `translation_outbox` 已排队版本，否则同 revision 删除后重建时可能被旧 `seen` 集合误判为已回填。
+- 同一窗口内重复键只保留一次。
+- 已存在等价的 `game_backfill_tasks` 或已完成的 `game_backfills` 不重复追加；`queue` 和 `flush` 都要检查。
+- 同一 `src` 对应多个任务条目时只回填一次，完成计数仍按任务条目。
+
+#### 12.7.2 flush 边界
+
+- 正常批次边界可以 flush，但必须按窗口合并，不按单条命中 flush。
+- 暂停、任务结束和正常退出必须 flush。
+- 异常退出允许保留待办，恢复后重试；不得标记为已回填。
+- 空队列且无 revision 失效项时直接返回，不读取 `cache.ndjson`。
+- flush 后只允许通过 §11.1 的 owned transition 推进 stamp，不能跳过权威和 revision 校验。
+
+#### 12.7.3 文件成本
+
+当前 `flushBackfill()` 在存在待办时会读取并解析本作缓存快照，追加事件后再重新读取核验。优化目标是：
+
+- 维持有界文件快照缓存，文件身份不变时复用；
+- 同一窗口的事件合并追加；
+- 只有需要确认 owned 写入时才重读差异；
+- 避免因不同任务 ID 为同一 origin / revision 反复生成等价事件；
+- 保留锁、fsync、幂等和崩溃恢复语义。
+
+### 12.8 指标
+
+新增指标只进入调试日志或诊断界面，默认不展示给普通用户：
+
+| 指标                             | 说明                                   |
+| -------------------------------- | -------------------------------------- |
+| `cachePendingCount`              | 当前 `CACHE_PENDING` 任务数            |
+| `cachePendingPeak`               | `CACHE_PENDING` 峰值任务数             |
+| `cacheAdmissionWaitMs`           | 任务等待投递 cache worker 的累计时长   |
+| `cacheClassifiedBeforeEngine`    | 引擎提交前已完成分类的任务数           |
+| `engineSubmittedBeforeCache`     | 缓存结果返回前已提交引擎的任务数       |
+| `cacheClassifyTimeout`           | 分类窗口到期仍未返回的任务数           |
+| `cacheAdmissionTimeout`          | worker 准入等待超时、放行引擎的任务数  |
+| `cacheWorkerSpawnCount`          | cache worker 启动次数                  |
+| `cacheWorkerReuseCount`          | 跨 fill / 暂停恢复复用次数             |
+| `cacheWorkerContextRebuildCount` | worker 本作上下文 / resolver 重建次数  |
+| `cacheWorkerStampAdvanceCount`   | worker 接受已验证自身回填 stamp 的次数 |
+| `cacheChunkResponseMs`           | 32 项分片从投递到整片返回的耗时        |
+| `cacheChunkFirstItemMs`          | 分片首条结果耗时                       |
+| `backfillBatchCount`             | 每次 flush 的事件 / 任务数             |
+| `backfillDedupCount`             | 被去重的回填候选数                     |
+| `backfillFlushMs`                | 回填锁、读取、追加、fsync 和确认耗时   |
+| `engineAfterCacheHitCount`       | 最终采用缓存但仍提交引擎的次数         |
+
+性能口径沿用 §11.5。新增预取后仍需分别报告：
+
+- 冷启动：worker 创建、数据库打开、索引迁移；
+- 热查询：32 项分片扫描和 40 项结果消费；
+- 分类等待：任务在 `CACHE_PENDING` 的实际等待；
+- 引擎：排队、提交、首条结果、全部结束；
+- 回填：入队、flush、文件读取和 fsync；
+- 持久化：作业状态检查和批次边界写入。
+
+### 12.9 迁移与兼容
+
+1. 先引入 `CACHE_PENDING` 和 deadline，不改变现有持久化状态格式；运行中恢复仍从已完成译文重建。
+2. 保留现有 `UNKNOWN` 行为作为 feature flag / 回退路径，确认预取没有降低缓存故障时的吞吐后再移除。
+3. 逐项 + `done` 协议要求 `protocolVersion>=1`；未声明版本的 worker 软失败并降级到引擎，不把启动 `ready` 当作分片完成。
+4. 暂停复用 cache worker 时，确保旧 generation 的结果被丢弃；复用不能绕过会话代次检查。
+5. 回填去重必须使用现有 origin / revision 身份，不能只按 `src` 去重而忽略不同 revision。
+6. 日志和 UI 只消费结构化字段，不从新增调试指标反推用户文案。
+7. `CACHE_PENDING`、deadline 和缓存优先窗口只保存在协调者内存；暂停恢复或进程重启后从持久化译文重建，不能把 `CACHE_PENDING` 当成失败或 miss 持久化。
+8. 新增 worker 消息必须向后兼容：启动 `ready`、结果 `item` / `itemError`、完成 `done` 和 stamp 推进分别处理，不能把任一消息误当成分片完成。
+
+### 12.10 测试矩阵
+
+自动化至少覆盖：
+
+1. 64 项缓存优先窗口全部命中时，引擎提交数为 0；结果缓冲达到 64 项后停止领取新分片，在途 32 项收尾后最多 96 项，内存不得无界增长。
+2. 前 3 项命中、后 3 项 miss 时，只有 miss 项提交引擎。
+3. 预取结果在 1500ms 内返回，引擎未提前提交。
+4. 预取超过 1500ms，任务按 deadline 放行，不等待整个窗口。
+5. 缓存 worker 初始化卡住，窗口到期后引擎可继续。
+6. 缓存返回 `RECHECK` 时首次不进入普通 miss 队列，重试耗尽后按既有规则降级。
+7. 缓存命中 abort 已提交引擎请求后，不重复完成、不重复计数。
+8. 高权重旧记录优先于低权重新记录。
+9. 低权重本作记录不能压过高权重共享记录。
+10. 同权重冲突时精确 `src` 优先，再比较 category；仍冲突时返回冲突，不任意选择。
+11. 暂停后恢复复用 cache worker，旧 generation 结果被丢弃。
+12. 32 项分片结果只触发一次窗口级回填入队。
+13. 同一 origin / revision 的重复候选只追加一次事件。
+14. 空回填队列不读取完整 `cache.ndjson`。
+15. 回填与人工修改并发时，owned 链不成立，旧结果失效。
+16. 纯缓存批次不启动 Apple / Bergamot，也不把缓存扫描计入 `submittedSources`。
+17. 缓存线路失败后 `CACHE_PENDING`、`WAIT_CACHE` 和 `RECHECK` 均有界释放。
+18. 单个任务扫描异常不会被记录为缓存 miss。
+19. 缓存优先窗口无分类进展 1500ms 后，引擎可领取窗口外任务且统计口径不误报缓存命中。
+20. worker 准入等待超过 1500ms 时任务可被引擎领取，且不记为缓存 miss。
+21. 复用 cache worker 后旧 `leaseId` 的结果和 `done` 被丢弃，不影响新会话计数。
+22. 主线程登记自身回填后，worker 接受对应 stamp 推进且不重建 resolver；并发人工修改时仍重建或保守失效。
+23. 候选 / 计划 `limited` 不被记录为普通 miss，引擎提交前仍复核权威。
+24. 启动 `ready` 不被当作分片完成；未声明版本的 worker 被拒绝并软失败。
+25. `stampAdvance` 的 `applied=true / false` 都按确认处理；失败时不得假定 worker 已推进。
+
+性能回归至少记录：
+
+- 40 项 / 10,000 字符热态查询 p50 / p95 / max；
+- 64 项缓存优先窗口、32 项分片和 64 / 96 项结果缓冲边界的首条、首批和全部结果时间；
+- 连续 10 个纯缓存批次的引擎提交数、批次间隔和回填次数；
+- cache worker 启动 / 复用次数；
+- 本作记录规模、共享语料规模和硬件信息。
+
+### 12.11 实施顺序
+
+1. **P0：预取门控**
+   - 增加 `CACHE_PENDING` / deadline；
+   - `pump()` 不领取窗口内任务；
+   - 缓存线路失败批量降级。
+2. **P0：缓存优先释放**
+   - `full` 直接完成；
+   - `partial` 只派缺口；
+   - `miss` 立即派发；
+   - `RECHECK` 继续重扫。
+3. **P1：分片协议**
+   - 逐项 / 小批结果 + `done` 完成标记；
+   - 窗口级校验、去重和日志聚合；
+   - 反压按分片而不是逐条消息。
+4. **P1：回填聚合**
+   - 窗口级 `queueBackfill`；
+   - origin / revision 去重；
+   - 快照复用和分段计时。
+5. **P1：worker 复用**
+   - 暂停不销毁 cache worker；
+   - 跨 fill 复用；
+   - 版本更新、切换游戏和空闲 TTL 明确关闭。
+6. **P2：参数与回放**
+   - 用真实语料验证 1500ms 分类窗口及其可调范围；
+   - 验证 64 项缓存优先窗口和 32 / 64 缓冲边界；
+   - 根据指标调优，不为未验证的设备差异增加用户配置。
+
+### 12.12 回滚与边界
+
+- 预取门控可通过开关回退到当前 `UNKNOWN` 直接派发，但回退状态必须保留结构化日志和缓存故障降级。
+- 逐项 + `done` 协议异常时可以回退逐项消息；不得同时运行两套提交路径导致重复完成。
+- 回填去重错误时优先保守失效和重新校验，不得用删除事件或忽略 revision 的方式修复。
+- 任何性能优化都不得绕过人工保护、`authorityVersion`、共享 revision、来源权重或正常退出 flush。
+
+### 一次自动处理的终态失败（2026-10-25）
+
+- 成功译文仍由现有缓存保存；终态失败单独写入 `translate-jobs/<game-key>.failures.ndjson`。原文为键，seed 目标语言固定为简体中文；其它目标语言列表不读取此标记。
+- 每条记录使用一次追加写入，保存 `src/error/at`；`error=null` 为手动保存成功后的清除事件。追加日志避免 Web 保存与任务 worker 相互覆盖整个 job JSON。旧 job 的 `failedSources` 作为兼容基线，清除事件优先。
+- 调度器在最终结果确认时保存失败，即使结果尚未进入日志汇总窗口，暂停或重启也不会丢失已确认的终态。仅实际触发过翻译、耗尽工具、无暂停/禁用中断的失败可持久化；无工具、缓存错误和中途暂停不作终态失败。
+- 库存优先判定有效译文，再判定失败；余下进入 pending。计数满足 `needCount=done+failedCount+missing`，字符数同理。失败不会增加 `done` 或写入成功缓存。任务在 `missing=0` 且无待汇总结果时完成。
+- 失败日志文件签名纳入进度与列表准备缓存失效键，不能用频繁更新的 job JSON 签名触发全量扫描。继续任务仍在 worker 内重建库存，HTTP 轮询只读取快照。
+- 列表失败标记保持到译文真正保存成功；重新翻译沿用显式 `force=true,persist=false` 预览，再由保存清除标记。失败筛选与未翻译筛选分开，手动重试失败不解除自动任务限制。
+- 验证：全工具失败后重建库存不再入队；暂停/无派发不写失败；手动保存清除失败，另一个游戏与其它语言不受影响；成功、失败、剩余统计守恒。

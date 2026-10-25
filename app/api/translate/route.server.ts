@@ -430,7 +430,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       }
       const { writeRgssTranslations } = await import('@/services/extract/lib/rgss')
       try {
-        return apiOk({ engine: resolved.engine, ...writeRgssTranslations(root, translations as Record<string, string>) })
+        const result = writeRgssTranslations(root, translations as Record<string, string>)
+        return apiOk({ engine: resolved.engine, ...result })
       } catch (error) {
         return apiError(409, 'RGSS_WRITE_FAILED', error instanceof Error ? error.message : String(error))
       }

@@ -6,6 +6,7 @@ let mockRoot = ''
 let mockJobs = ''
 const mockFill = jest.fn()
 const mockProgress = jest.fn()
+const mockPeek = jest.fn()
 const mockSwitches = jest.fn(() => ({ enabled: ['google'] }))
 const progress = () => ({ contentRoot: mockRoot, hasSeed: true, total: 2, needCount: 2, done: 0, missing: 2 })
 jest.mock('@/constants/paths', () => ({
@@ -54,11 +55,12 @@ const mockPrepare = jest.fn(async (root: string) => ({
   stamp: 'test-stamp',
 }))
 jest.mock('@/services/translate/scheduler/seed-prepare', () => ({
-  peekSeedInventory: () => null,
+  peekSeedInventory: (...args: unknown[]) => mockPeek(...args),
   isSeedInventoryPreparing: () => false,
   prepareSeedInventory: (...args: unknown[]) => mockPrepare(...(args as [string])),
 }))
 
+import { seedFileStamp, seedProgressStamp } from '@/services/translate/scheduler/seed-inventory'
 import { getSeedJobSnapshot, pauseSeedJob, refreshSeedJobProgress, startSeedJob } from '@/services/translate/seed-job-runtime'
 
 /** startSeedJob schedules prepare off the HTTP path; flush so beginSeedLoop attaches the fill session. */
@@ -77,6 +79,7 @@ describe('seed job failures', () => {
     mockJobs = path.join(dir, 'jobs')
     mockRoot = path.join(dir, 'A')
     mockFill.mockReset()
+    mockPeek.mockReset().mockReturnValue(null)
     mockProgress.mockReset().mockImplementation(progress)
     mockPrepare.mockReset().mockImplementation(async (root: string) => ({
       progress: {
@@ -104,6 +107,28 @@ describe('seed job failures', () => {
     fs.rmSync(dir, { recursive: true, force: true })
   })
 
+  it.each(['start', 'refresh'])('reprepares stale translation progress on %s even when the seed has not changed', async (action) => {
+    const bundle = await mockPrepare(mockRoot)
+    mockPrepare.mockClear()
+    mockPeek.mockReturnValue({ ...bundle, stamp: seedFileStamp(mockRoot), progressStamp: 'outdated-cache' })
+    mockFill.mockResolvedValue({ ...progress(), translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] })
+    if (action === 'start') startSeedJob()
+    else refreshSeedJobProgress()
+    expect(mockPrepare).toHaveBeenCalledTimes(1)
+    await jest.runAllTimersAsync()
+  })
+
+  it.each(['start', 'refresh'])('reuses inventory with matching seed and translation progress on %s', async (action) => {
+    const bundle = await mockPrepare(mockRoot)
+    mockPrepare.mockClear()
+    mockPeek.mockReturnValue({ ...bundle, stamp: seedFileStamp(mockRoot), progressStamp: seedProgressStamp(mockRoot) })
+    mockFill.mockResolvedValue({ ...progress(), translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] })
+    if (action === 'start') startSeedJob()
+    else refreshSeedJobProgress()
+    expect(mockPrepare).not.toHaveBeenCalled()
+    await jest.runAllTimersAsync()
+  })
+
   it('keeps polls free of inventory scans and only rescans on explicit refresh', async () => {
     mockPrepare.mockResolvedValueOnce({
       progress: { ...progress(), done: 1, missing: 1, skipCount: 0, needChars: 0, skipChars: 0, missingChars: 0, doneChars: 0, lines: 0, batchSize: 40, batchesLeft: 1 },
@@ -124,15 +149,32 @@ describe('seed job failures', () => {
     expect(checkpoint.progressStamp).toBeTruthy()
   })
 
-  it('processes later items once, then pauses; manual resume retries failures', async () => {
+  it('finishes when all sources succeeded or terminally failed, without retrying on resume', async () => {
     mockFill
-      .mockResolvedValueOnce({ ...progress(), translated: 0, failed: 1, scanned: 1, unresolved: ['こんにちは'], items: [{ src: 'こんにちは', zh: null }] })
-      .mockResolvedValueOnce({ ...progress(), translated: 1, failed: 0, scanned: 1, unresolved: [], items: [{ src: 'さようなら', zh: '再见', engine: 'cache:shared' }] })
+      .mockImplementationOnce(async () => {
+        const batch = { ...progress(), missing: 1, failedCount: 1, translated: 0, failed: 1, scanned: 1, unresolved: ['こんにちは'], items: [{ src: 'こんにちは', zh: null }] }
+        mockProgress.mockReturnValue(batch)
+        return batch
+      })
+      .mockImplementationOnce(async () => {
+        const batch = {
+          ...progress(),
+          done: 1,
+          missing: 0,
+          failedCount: 1,
+          translated: 1,
+          failed: 0,
+          scanned: 1,
+          unresolved: [],
+          items: [{ src: 'さようなら', zh: '再见', engine: 'cache:shared' }],
+        }
+        mockProgress.mockReturnValue(batch)
+        return batch
+      })
       .mockResolvedValue({ ...progress(), translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] })
     await startSeedJobReady()
-    expect(mockFill).toHaveBeenCalledTimes(3)
-    expect(mockFill.mock.calls[1][0]).toMatchObject({ contentRoot: mockRoot, exclude: new Set(['こんにちは']) })
-    expect(getSeedJobSnapshot().job).toMatchObject({ status: 'paused', failedSources: ['こんにちは'] })
+    expect(mockFill).toHaveBeenCalledTimes(2)
+    expect(getSeedJobSnapshot()).toMatchObject({ done: 1, failedCount: 1, missing: 0, job: { status: 'done', sessionDone: 1 } })
     const logs = getSeedJobSnapshot().job.logs
     expect(logs).toEqual(
       expect.arrayContaining([
@@ -152,8 +194,11 @@ describe('seed job failures', () => {
       if (savedDebug == null) delete process.env.CHAYA_TRANSLATE_DEBUG
       else process.env.CHAYA_TRANSLATE_DEBUG = savedDebug
     }
+    const bundle = await mockPrepare(mockRoot)
+    const completed = { ...bundle, progress: { ...bundle.progress, done: 1, failedCount: 1, missing: 0 }, pending: [] }
+    mockPrepare.mockResolvedValue(completed)
     await startSeedJobReady()
-    expect(mockFill.mock.calls[3][0].exclude.size).toBe(0)
+    expect(mockFill).toHaveBeenCalledTimes(2)
     expect(mockSwitches).toHaveBeenCalledWith(mockRoot)
   })
 
@@ -175,6 +220,47 @@ describe('seed job failures', () => {
     expect(batch).toMatchObject({ submittedSources: ['platform'], finalSources: ['platform'], cacheUnavailable: true })
     expect(getSeedJobSnapshot().job.logs.find((entry) => entry.batch)?.text).toContain('[platform]')
     expect(getSeedJobSnapshot().job.logs.find((entry) => entry.batch)?.text).not.toContain('Cache unavailable')
+  })
+
+  it('labels partial-cache completions with their accepted engine and counts only whole cache hits', async () => {
+    mockFill
+      .mockResolvedValueOnce({
+        ...progress(),
+        translated: 2,
+        failed: 0,
+        scanned: 2,
+        unresolved: [],
+        items: [
+          { src: 'こんにちは', zh: '你好', engine: 'cache:partial', resultSources: ['cache', 'live:apple'], engineWork: true },
+          { src: 'さようなら', zh: '再见', engine: 'cache:remote' },
+        ],
+        submittedEngines: ['apple'],
+      })
+      .mockResolvedValue({ ...progress(), translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] })
+    await startSeedJobReady()
+    const log = getSeedJobSnapshot().job.logs.find((entry) => entry.batch)
+    expect(log?.batch).toMatchObject({ finalSources: ['apple', 'cache'], submittedSources: ['apple'], cacheHits: 1 })
+    expect(log?.text).toContain('[apple+cache]')
+  })
+
+  it('does not label a discarded engine result as an accepted source', async () => {
+    mockFill
+      .mockResolvedValueOnce({
+        ...progress(),
+        translated: 1,
+        failed: 0,
+        scanned: 1,
+        unresolved: [],
+        items: [{ src: 'こんにちは', zh: '人工译文', engine: 'cache:changed', resultSources: ['cache:changed'], engineWork: true }],
+        submittedEngines: ['apple'],
+      })
+      .mockResolvedValue({ ...progress(), translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] })
+    await startSeedJobReady()
+    expect(getSeedJobSnapshot().job.logs.find((entry) => entry.batch)?.batch).toMatchObject({
+      finalSources: ['cache'],
+      submittedSources: ['apple'],
+      cacheHits: 1,
+    })
   })
 
   it('polls snapshots without rescanning while a batch is in flight and pauses at its boundary', async () => {

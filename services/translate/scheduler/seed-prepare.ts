@@ -15,6 +15,7 @@ export type SeedInventoryBundle = {
   progress: SeedProgress
   pending: string[]
   stamp: string
+  progressStamp?: string
 }
 
 const flights = new Map<string, Promise<SeedInventoryBundle>>()
@@ -57,7 +58,7 @@ export function prepareSeedInventory(contentRoot: string): Promise<SeedInventory
       // Worker missing / crash: fall back on this background task only (still off the HTTP return).
       await yieldEventLoop()
       const inv = readSeedInventory(contentRoot)
-      bundle = { progress: inv.progress, pending: inv.pending, stamp: inv.stamp }
+      bundle = inv
     }
     cache.set(key, bundle)
     return bundle

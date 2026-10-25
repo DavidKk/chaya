@@ -1,13 +1,13 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // services/translate/scheduler/seed-inventory-worker.ts
-import fs10 from "node:fs";
+import fs12 from "node:fs";
 import os2 from "node:os";
-import path8 from "node:path";
+import path9 from "node:path";
 import { parentPort, workerData } from "node:worker_threads";
 
 // services/translate/scheduler/seed-inventory.ts
-import fs9 from "node:fs";
+import fs11 from "node:fs";
 import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
 
 // constants/paths.ts
@@ -488,8 +488,8 @@ function createNumericLabelIndex(records = []) {
 }
 
 // services/extract/lib/rgss.ts
-import fs8 from "node:fs";
-import path7 from "node:path";
+import fs10 from "node:fs";
+import path8 from "node:path";
 
 // lib/translate/rm-escape.ts
 var RM_DIGIT_CODE_SRC = String.raw`\\[A-Za-z]+\[\d+\]`;
@@ -1498,6 +1498,81 @@ function createGameTranslateLookup(records) {
   return lookup;
 }
 
+// services/translate/seed-failures.ts
+import fs7 from "node:fs";
+
+// services/translate/seed-job-state.ts
+import { createHash } from "node:crypto";
+import fs6 from "node:fs";
+import path5 from "node:path";
+var MAX_SEED_JOB_LOGS = 120;
+function idleSeedJob(contentRoot = "") {
+  return {
+    contentRoot,
+    status: "idle",
+    startedAt: null,
+    updatedAt: Date.now(),
+    sessionDone: 0,
+    rounds: 0,
+    performance: null,
+    liveStatus: "",
+    error: null,
+    engines: [],
+    logs: [],
+    failedSources: [],
+    inventoryPreparing: false
+  };
+}
+function seedJobKey(contentRoot) {
+  return createHash("sha1").update(path5.resolve(contentRoot)).digest("hex").slice(0, 16);
+}
+function seedJobFile(contentRoot) {
+  return path5.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
+}
+function readSeedJobState(contentRoot) {
+  const file = seedJobFile(contentRoot);
+  if (!fs6.existsSync(file)) return null;
+  try {
+    const raw = JSON.parse(fs6.readFileSync(file, "utf8"));
+    if (!raw || typeof raw !== "object") return null;
+    return {
+      ...idleSeedJob(contentRoot),
+      ...raw,
+      contentRoot,
+      failedSources: Array.isArray(raw.failedSources) ? raw.failedSources.filter((s) => typeof s === "string") : [],
+      logs: Array.isArray(raw.logs) ? raw.logs.slice(-MAX_SEED_JOB_LOGS) : []
+    };
+  } catch {
+    return null;
+  }
+}
+
+// services/translate/seed-failures.ts
+function seedFailureFile(contentRoot) {
+  return seedJobFile(contentRoot).replace(/\.json$/, ".failures.ndjson");
+}
+function readSeedFailures(contentRoot) {
+  const failures = new Map((readSeedJobState(contentRoot)?.failedSources ?? []).map((src) => [src, ""]));
+  const file = seedFailureFile(contentRoot);
+  let text;
+  try {
+    text = fs7.readFileSync(file, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return failures;
+    throw error;
+  }
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const event = JSON.parse(line);
+      if (event.error === null) failures.delete(event.src);
+      else failures.set(event.src, event.error);
+    } catch {
+    }
+  }
+  return failures;
+}
+
 // services/extract/lib/data-fields.ts
 var TEXT_FIELD = /^(?:name|displayName|nickname|description|profile|message\d*|text|label|title|help|caption|summary|dialogue|.*[ _-](?:text|message|label|title|description|name|help))$/i;
 var TECH_FIELD = /^(?:.*(?:path|url|script|formula|texture)|file(?:name)?|code|eval|callback|handler|condition|expression|Battle Show List|mode|blendMode|spawnType|(?:character|battler|face|picture|animation\d*|battleback\d*|title\d*|parallax)Name|tilesetNames|bgm|bgs|se|me|audio|image|sound|parameters|params|meta|frames|data|flags|traits|effects|damage|timings)$/i;
@@ -1505,8 +1580,8 @@ var isTextField = (field) => TEXT_FIELD.test(field);
 var isTechnicalField = (field) => TECH_FIELD.test(field);
 
 // services/extract/lib/rgss/writeback.ts
-import fs6 from "node:fs";
-import path5 from "node:path";
+import fs8 from "node:fs";
+import path6 from "node:path";
 
 // lib/translate/name-glossary.ts
 var TOKEN_RE2 = new RegExp(SENTENCE_TOKEN_SOURCE, "g");
@@ -1611,10 +1686,10 @@ function fieldCategory(className, field, fallback) {
   return category;
 }
 function loadOneDataFile(dataDir, name) {
-  const file = path5.join(dataDir, name);
-  const value = parseRubyMarshal(fs6.readFileSync(file));
+  const file = path6.join(dataDir, name);
+  const value = parseRubyMarshal(fs8.readFileSync(file));
   const backup = `${file}.chaya.bak`;
-  const original = fs6.existsSync(backup) ? parseRubyMarshal(fs6.readFileSync(backup)) : value;
+  const original = fs8.existsSync(backup) ? parseRubyMarshal(fs8.readFileSync(backup)) : value;
   const current = strings(value);
   const texts = [];
   for (const [location, source] of strings(original)) {
@@ -1627,7 +1702,7 @@ function loadOneDataFile(dataDir, name) {
 }
 var SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i;
 function listDataFileNames(dataDir) {
-  const names = fs6.readdirSync(dataDir).filter((name) => /\.rvdata2?$/i.test(name) && !SKIP_DATA_STEMS.test(name)).sort();
+  const names = fs8.readdirSync(dataDir).filter((name) => /\.rvdata2?$/i.test(name) && !SKIP_DATA_STEMS.test(name)).sort();
   if (!names.length) throw new Error("RGSS data is unavailable. Unpack the encrypted archive into Data/ first.");
   return names;
 }
@@ -1661,13 +1736,13 @@ function loadRgssItems(dataDir) {
 }
 
 // services/extract/lib/rgss-sources-index.ts
-import fs7 from "node:fs";
-import path6 from "node:path";
+import fs9 from "node:fs";
+import path7 from "node:path";
 function rgssDataSignature(dataDir) {
-  const files = fs7.readdirSync(dataDir).filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name)).sort();
+  const files = fs9.readdirSync(dataDir).filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name)).sort();
   return JSON.stringify(
     files.map((name) => {
-      const stat = fs7.statSync(path6.join(dataDir, name));
+      const stat = fs9.statSync(path7.join(dataDir, name));
       return [name, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   );
@@ -1676,7 +1751,7 @@ function readIndex(contentRoot) {
   const file = localGameContentFile(contentRoot, "rgssSourcesIndex");
   if (!file) return null;
   try {
-    const raw = JSON.parse(fs7.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs9.readFileSync(file, "utf8"));
     if (!raw || typeof raw.signature !== "string" || !Array.isArray(raw.sources)) return null;
     return raw;
   } catch {
@@ -1690,7 +1765,7 @@ function writeRgssSourcesIndex(contentRoot, signature, sources) {
     sources: [...sources],
     updatedAt: Date.now()
   };
-  fs7.writeFileSync(file, `${JSON.stringify(payload)}
+  fs9.writeFileSync(file, `${JSON.stringify(payload)}
 `);
 }
 function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
@@ -1705,15 +1780,15 @@ function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
 // services/extract/lib/rgss.ts
 function findChild(dir, name) {
   try {
-    const hit = fs8.readdirSync(dir).find((entry) => entry.toLowerCase() === name.toLowerCase());
-    return hit ? path7.join(dir, hit) : null;
+    const hit = fs10.readdirSync(dir).find((entry) => entry.toLowerCase() === name.toLowerCase());
+    return hit ? path8.join(dir, hit) : null;
   } catch {
     return null;
   }
 }
 function extensionFor(dataDir) {
   try {
-    const names = fs8.readdirSync(dataDir).map((name) => name.toLowerCase());
+    const names = fs10.readdirSync(dataDir).map((name) => name.toLowerCase());
     if (names.some((name) => name.endsWith(".rvdata2"))) return ".rvdata2";
     if (names.some((name) => name.endsWith(".rvdata"))) return ".rvdata";
   } catch {
@@ -1738,12 +1813,14 @@ function filterRgssSeedKeys(contentRoot, keys) {
 // services/translate/scheduler/seed-inventory.ts
 function seedFileStamp(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
-  const stat = file ? fs9.statSync(file, { throwIfNoEntry: false }) : void 0;
+  const stat = file ? fs11.statSync(file, { throwIfNoEntry: false }) : void 0;
   return JSON.stringify([file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
 }
 function readSeedInventory(contentRoot) {
+  const stamp = seedFileStamp(contentRoot);
+  const progressStamp = seedProgressStamp(contentRoot);
   const file = localGameContentFile(contentRoot, "seed");
-  const data = file ? JSON.parse(fs9.readFileSync(file, "utf8")) : {};
+  const data = file ? JSON.parse(fs11.readFileSync(file, "utf8")) : {};
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Seed must be an object mapping source text to translation");
   const entries = data;
   const keys = filterRgssSeedKeys(
@@ -1780,7 +1857,7 @@ function readSeedInventory(contentRoot) {
         if (!revisions.has(key2)) {
           try {
             if (!client) {
-              if (!fs9.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
+              if (!fs11.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
               client = new DatabaseSync2(TRANSLATE_CACHE_DB_PATH, { readOnly: true });
               client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250; BEGIN");
               revisionQuery = client.prepare("SELECT revision FROM translation_records WHERE id=?");
@@ -1803,6 +1880,7 @@ function readSeedInventory(contentRoot) {
   const local = createGameTranslateLookup(records);
   const numeric = createNumericLabelIndex(records);
   const pending = [];
+  const failures = readSeedFailures(contentRoot);
   for (const key2 of keys) {
     const chars = charCount(key2);
     progress.lines += lineCount(key2);
@@ -1815,6 +1893,9 @@ function readSeedInventory(contentRoot) {
       if (local[key2] != null || numeric.resolve(key2) != null) {
         progress.done++;
         progress.doneChars += chars;
+      } else if (failures.has(key2)) {
+        progress.failedCount = (progress.failedCount ?? 0) + 1;
+        progress.failedChars = (progress.failedChars ?? 0) + chars;
       } else {
         progress.missing++;
         progress.missingChars += chars;
@@ -1823,7 +1904,17 @@ function readSeedInventory(contentRoot) {
     }
   }
   progress.batchesLeft = Math.ceil(progress.missing / 40);
-  return { progress, pending, stamp: seedFileStamp(contentRoot) };
+  return { progress, pending, stamp, progressStamp };
+}
+function seedProgressStamp(contentRoot) {
+  const files = [localGameContentFile(contentRoot, "seed"), localGameContentFile(contentRoot, "cacheNdjson"), seedFailureFile(contentRoot)];
+  return JSON.stringify([
+    5,
+    files.map((file) => {
+      const stat = file ? fs11.statSync(file, { throwIfNoEntry: false }) : void 0;
+      return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
+    })
+  ]);
 }
 
 // services/translate/scheduler/seed-inventory-worker.ts
@@ -1831,8 +1922,8 @@ try {
   const contentRoot = String(workerData?.contentRoot || "");
   if (!contentRoot) throw new Error("seed-inventory-worker: missing contentRoot");
   const inv = readSeedInventory(contentRoot);
-  const out = path8.join(os2.tmpdir(), `chaya-seed-inv-${process.pid}-${Date.now()}.json`);
-  fs10.writeFileSync(out, JSON.stringify(inv));
+  const out = path9.join(os2.tmpdir(), `chaya-seed-inv-${process.pid}-${Date.now()}.json`);
+  fs12.writeFileSync(out, JSON.stringify(inv));
   parentPort?.postMessage({ ok: true, path: out, pending: inv.pending.length, total: inv.progress.total });
 } catch (error) {
   parentPort?.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });

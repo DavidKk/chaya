@@ -8,8 +8,7 @@ import { countKey, type SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Badge, Button, EmptyState, ScrollArea, Select, TruncateText } from '@/components/sk'
-import { filterToggle, filterToggleOn } from '@/components/sk/control'
+import { Badge, Button, EmptyState, FilterToggle, ScrollArea, Select, TruncateText } from '@/components/sk'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { type CommonEventsData, estimateActivePage, type MapDetailData, type MapEventInfo, type MapNode, type SelfSwitchLetter } from '@/lib/game/events'
 import type { MapOperationItem, MapOperationValue } from '@/lib/runtime/game-link-protocol'
@@ -62,16 +61,9 @@ export function NearToggle({ near, onChange }: { near: boolean; onChange: (near:
   const t = useT()
   return (
     <Tooltip content={t('events.map.teleportNear')}>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={near}
-        aria-label={t('events.map.teleportNear')}
-        className={cn(filterToggle, 'shrink-0', near && filterToggleOn)}
-        onClick={() => onChange(!near)}
-      >
+      <FilterToggle pressed={near} onPressedChange={onChange} aria-label={t('events.map.teleportNear')}>
         {t('events.map.teleportNearShort')}
-      </button>
+      </FilterToggle>
     </Tooltip>
   )
 }

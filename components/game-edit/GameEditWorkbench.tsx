@@ -12,8 +12,7 @@ import { editCell, editHeadCell, legalBar, panelBody, panelHead, panelHeadEnd, p
 import { LegalNotice, type LegalNoticeKind } from '@/components/legal/LegalNotice'
 import { NavigationScope } from '@/components/navigation/NavigationScope'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
-import { Button, EmptyState, NumberInput, ScrollArea, Spinner, SwitchToggle, TruncateText } from '@/components/sk'
-import { filterToggle, filterToggleOn } from '@/components/sk/control'
+import { Button, EmptyState, FilterToggle, NumberInput, ScrollArea, Spinner, SwitchToggle, TruncateText } from '@/components/sk'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import type { TranslateRunMode, TranslateTabId } from '@/components/translate/tabs'
 import type { CatalogEntry, GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
@@ -394,27 +393,13 @@ export function GameEditWorkbench({
                     >
                       <div className="ml-auto inline-flex h-8 w-max flex-nowrap items-center justify-end gap-2 pr-0.5 pl-1">
                         {showOwnedFilter ? (
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={onlyOwned}
-                            aria-label={t('edit.onlyOwned')}
-                            className={cn(filterToggle, onlyOwned && filterToggleOn)}
-                            onClick={() => setOnlyOwned(!onlyOwned)}
-                          >
+                          <FilterToggle pressed={onlyOwned} onPressedChange={setOnlyOwned} aria-label={t('edit.onlyOwned')}>
                             {t('edit.onlyOwned')}
-                          </button>
+                          </FilterToggle>
                         ) : null}
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={onlyNamed}
-                          aria-label={t('edit.onlyNamed')}
-                          className={cn(filterToggle, onlyNamed && filterToggleOn)}
-                          onClick={() => setOnlyNamed(!onlyNamed)}
-                        >
+                        <FilterToggle pressed={onlyNamed} onPressedChange={setOnlyNamed} aria-label={t('edit.onlyNamed')}>
                           {t('edit.onlyNamed')}
-                        </button>
+                        </FilterToggle>
                       </div>
                     </ScrollArea>
                   ) : null}
