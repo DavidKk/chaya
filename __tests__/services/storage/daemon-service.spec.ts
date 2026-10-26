@@ -65,6 +65,59 @@ describe('daemon-service', () => {
     })
   }
 
+  it('imports resource versions and deduplicates observations through the authenticated RPC endpoint', async () => {
+    daemon = await startStorageDaemon({ dataDir: tmpDir, port: 0 })
+    const call = async (method: string, args: unknown[]) => {
+      const result = await makeRequest(daemon!.port, '/api/storage/rpc', 'POST', daemon!.authToken, JSON.stringify({ method, args }))
+      expect(result.status).toBe(200)
+      return result.data.value
+    }
+    const content = [
+      { type: 'manifest', schemaVersion: 1, packId: 'test.fr', version: '1', languages: [{ tag: 'fr', name: 'French' }] },
+      {
+        type: 'entry',
+        entryId: 'aie',
+        sourceLanguage: 'fr',
+        targetLanguage: 'zh',
+        scope: { kind: 'global' },
+        reviewStatus: 'reviewed',
+        provenance: { kind: 'manual-example' },
+        sourceText: 'Aïe',
+        targetText: '哎哟',
+        match: { kind: 'exact' },
+      },
+    ]
+      .map((record) => JSON.stringify(record))
+      .join('\n')
+    const preview = (await call('resources.preview', [content])) as { token: string }
+    await call('resources.apply', [content, preview.token])
+    expect(await call('resources.list', [])).toEqual(expect.arrayContaining([expect.objectContaining({ packId: 'test.fr', active: 1 })]))
+    expect(await call('resources.export', ['test.fr', '1'])).toContain('哎哟')
+    const nextContent = content
+      .split('\n')
+      .map((line) => {
+        const record = JSON.parse(line)
+        return JSON.stringify(record.type === 'manifest' ? { ...record, version: '2' } : record)
+      })
+      .join('\n')
+    const nextPreview = (await call('resources.preview', [nextContent])) as { token: string }
+    await call('resources.install', [nextContent, nextPreview.token])
+    expect(await call('resources.list', [])).toEqual(
+      expect.arrayContaining([expect.objectContaining({ packId: 'test.fr', version: '1', active: 1 }), expect.objectContaining({ packId: 'test.fr', version: '2', active: 0 })])
+    )
+    await call('resources.activate', ['test.fr', '2'])
+    expect(await call('resources.list', [])).toEqual(
+      expect.arrayContaining([expect.objectContaining({ packId: 'test.fr', version: '1', active: 0 }), expect.objectContaining({ packId: 'test.fr', version: '2', active: 1 })])
+    )
+    await call('resources.disable', ['test.fr'])
+    expect(await call('resources.list', [])).toEqual(expect.arrayContaining([expect.objectContaining({ packId: 'test.fr', active: 0 })]))
+    await call('resources.activate', ['test.fr', '1'])
+    const event = { eventId: 'rpc-test-event', occurredAt: 1, sourceText: 'Aïe', targetText: null, sourceLanguage: 'fr', targetLanguage: 'zh', error: 'No engine' }
+    expect(await call('observations.append', [[event]])).toEqual({ inserted: 1 })
+    expect(await call('observations.append', [[event]])).toEqual({ inserted: 0 })
+    expect(await call('observations.export', [{ sourceLanguage: 'fr' }])).toEqual({ nextCursor: 1, items: [event] })
+  })
+
   it('uses the production RPC path, preserves legacy sources and recovers stale public views on retry', async () => {
     const root = path.join(tmpDir, 'game')
     fs.mkdirSync(path.join(root, 'data'), { recursive: true })

@@ -10,7 +10,7 @@ import { readSeedFailures, seedFailureFile, writeSeedFailure } from '@/services/
 
 let mockRoot = ''
 const mockShared = new Map<string, string>()
-jest.mock('@/services/translate/shared-cache', () => ({ openSharedCache: () => ({ get: (key: string) => mockShared.get(key) ?? null, close: jest.fn() }) }))
+jest.mock('@/services/translate/shared-cache', () => ({ openSharedCache: () => ({ path: '', get: (key: string) => mockShared.get(key) ?? null, close: jest.fn() }) }))
 jest.mock('@/services/game/binding', () => ({ getResolvedFromConfig: () => ({ ok: true, remote: false, contentRoot: mockRoot }) }))
 
 beforeEach(() => {

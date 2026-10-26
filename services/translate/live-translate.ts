@@ -1,5 +1,7 @@
 /** Server-side Japanese-to-Chinese live translation using enabled Google, Bing, Ollama or AI agent engines. Used for plugin cache misses and translation-page fill jobs. */
 
+import { randomUUID } from 'node:crypto'
+
 import { detectCacheLang, resolveCacheLangPair } from '@/lib/translate/cache-lang'
 import { peelChoiceMetaShell } from '@/lib/translate/choice-meta'
 import { createNumericLabelIndex, numericLabelFamily } from '@/lib/translate/dynamic-template'
@@ -17,12 +19,13 @@ import {
   translationFallbackOrder,
 } from '@/lib/translate/engines'
 import { lookupTranslationRecord } from '@/lib/translate/lookup'
+import type { TranslationObservation } from '@/lib/translate/observation'
 import { replannedResultSources, resultSources, type ResultWrite, type TranslationProvenance } from '@/lib/translate/result-sources'
 import { hasRmDigitCodes, toRmDigitTemplate } from '@/lib/translate/rm-escape'
 import { renderSentencePlan, resolveSentenceGaps, type SentencePlan, type SentenceRecord } from '@/lib/translate/sentence-plan'
 import { createSentenceResolver } from '@/lib/translate/sentence-plan'
 import { getResolvedFromConfig } from '@/services/game/binding'
-import { appendPublicGameCache } from '@/services/storage/game-files'
+import { appendPublicGameCache, publicGameFiles } from '@/services/storage/game-files'
 
 import { agentJaToZh } from './agent-translate'
 import { lookupGameTranslation } from './cache-lookup'
@@ -34,7 +37,9 @@ import { appleTranslate } from './lib/macos-translate'
 import { trackLiveTranslateRequest } from './live-activity'
 import { loadGameNameEntries } from './name-glossary-game'
 import { planLockedNames, stitchLockedNamePlan } from './name-lock'
+import { spoolTranslationObservations } from './observations/spool'
 import { type LocalTranslateOptions, ollamaJaToZh } from './ollama-translate'
+import { loadResourceMatcher } from './resources/snapshot'
 import { engineConfiguredCapacity, withEngineCapacity } from './scheduler/engine-capacity'
 import { joinTranslationRequest } from './scheduler/in-flight'
 import { isSensitiveForCloud } from './sensitive-text'
@@ -160,6 +165,8 @@ export async function liveTranslateTexts(
     local?: LocalTranslateOptions
     sourceLang?: string
     targetLang?: string
+    gameId?: string
+    scene?: string
     category?: string
     speaker?: string
     context?: string
@@ -178,6 +185,7 @@ export async function liveTranslateTexts(
   items: LiveTranslateItem[]
   contentRoot: string | null
   engines: TranslateRunEngine[]
+  collectionError?: string
 }> {
   if (opts?.trackLiveActivity !== false) {
     return trackLiveTranslateRequest(() => liveTranslateTexts(texts, { ...opts, trackLiveActivity: false }))
@@ -231,57 +239,63 @@ export async function liveTranslateTexts(
     `Pipeline configured: items=${unique.length}, sourceChars=${unique.reduce((sum, src) => sum + Array.from(src).length, 0)}, engines=${engines.join(',')}, elapsedMs=${Math.round(performance.now() - started)}`
   )
   const bypassCache = opts?.cacheMode === 'bypass'
+  const pairFor = (src: string) => resolveCacheLangPair({ from: opts?.sourceLang, to: opts?.targetLang, src })
+  const chineseTarget = pairFor('').to === 'zh'
   let cacheStore: ReturnType<typeof openSharedCache> | undefined
   const getCache = () => (cacheStore ??= timed('Shared cache opened', () => (opts?.sharedCache ? opts.sharedCache() : openSharedCache())))
-  if (!bypassCache) {
-    getCache()
-    if (!opts?.sharedCache && contentRoot && opts?.persist !== false) timed('Pending backfill flushed', () => getCache().flushBackfill(contentRoot))
-  }
-  const gameContext = timed('Game indexes loaded', () => (contentRoot && !bypassCache ? getGameCacheContext(contentRoot) : null))
-  const localRecords = gameContext?.records || []
-  const numericIndexes = new Map<string, ReturnType<typeof createNumericLabelIndex> | null>()
-  let numericSignature = ''
-  function numericIndex(src: string) {
-    const signature = JSON.stringify([getCache().version(), contentRoot ? getGameCacheContext(contentRoot).stamp : ''])
-    if (numericSignature !== signature) {
-      numericIndexes.clear()
-      numericSignature = signature
-    }
-    const from = detectCacheLang(src)
-    const family = numericLabelFamily(src)
-    if (!family) return null
-    const key = JSON.stringify([from, family])
-    if (!numericIndexes.has(key)) {
-      const shared = getCache().numericRecords({ from, to: 'zh' }, src)
-      const currentLocal = contentRoot ? getGameCacheContext(contentRoot).numericRecords(src) : []
-      numericIndexes.set(key, shared.limited ? null : createNumericLabelIndex([...shared, ...currentLocal]))
-    }
-    return numericIndexes.get(key) || null
-  }
   const items: LiveTranslateItem[] = []
+  const observations: TranslationObservation[] = []
+  let collectionError: string | undefined
   const toWrite: Array<[string, string]> = []
-  /** Prefer this game's translations; the shared cache only fills missing entries. */
-  const localLookup = gameContext?.lookup || null
-  trace?.(`Pipeline ready: localRecords=${localRecords.length}, elapsedMs=${Math.round(performance.now() - started)}`)
-
-  function lookupLocal(src: string): string | null {
-    if (!localLookup) return null
-    if (Object.prototype.hasOwnProperty.call(localLookup, src)) return localLookup[src] ?? null
-    const norm = normalizeTranslateKey(src)
-    if (norm !== src && Object.prototype.hasOwnProperty.call(localLookup, norm)) return localLookup[norm] ?? null
-    return lookupTranslationRecord(localLookup, src)
-  }
-
-  /** Strip choice conditions during lookup to avoid legacy translations of executable keywords; preserve the full source when writing back. */
-  function lookupCached(src: string): { zh: string; engine: 'cache:remote' | 'cache:local' } | null {
-    if (gameContext?.blocked(src)) return null
-    return lookupGameTranslation(lookupLocal, (key) => getCache().get(key), src)
-  }
-
-  const force = Boolean(opts?.force) || bypassCache
-  const persist = opts?.persist !== false
-
   try {
+    if (!bypassCache) {
+      getCache()
+      if (!opts?.sharedCache && contentRoot && opts?.persist !== false) timed('Pending backfill flushed', () => getCache().flushBackfill(contentRoot))
+    }
+    const gameContext = timed('Game indexes loaded', () => (contentRoot && !bypassCache && chineseTarget ? getGameCacheContext(contentRoot) : null))
+    const resourceMatcher = !opts?.force && !bypassCache ? loadResourceMatcher(getCache().path) : null
+    const resourceGameId = opts?.gameId ?? (contentRoot && resourceMatcher ? publicGameFiles(contentRoot).gameId : undefined)
+    const localRecords = gameContext?.records || []
+    const numericIndexes = new Map<string, ReturnType<typeof createNumericLabelIndex> | null>()
+    let numericSignature = ''
+    function numericIndex(src: string) {
+      const signature = JSON.stringify([getCache().version(), contentRoot ? getGameCacheContext(contentRoot).stamp : ''])
+      if (numericSignature !== signature) {
+        numericIndexes.clear()
+        numericSignature = signature
+      }
+      const from = pairFor(src).from
+      const family = numericLabelFamily(src)
+      if (!family) return null
+      const key = JSON.stringify([from, family])
+      if (!numericIndexes.has(key)) {
+        const shared = getCache().numericRecords({ from, to: 'zh' }, src)
+        const currentLocal = contentRoot ? getGameCacheContext(contentRoot).numericRecords(src) : []
+        numericIndexes.set(key, shared.limited ? null : createNumericLabelIndex([...shared, ...currentLocal]))
+      }
+      return numericIndexes.get(key) || null
+    }
+    /** Prefer this game's translations; the shared cache only fills missing entries. */
+    const localLookup = gameContext?.lookup || null
+    trace?.(`Pipeline ready: localRecords=${localRecords.length}, elapsedMs=${Math.round(performance.now() - started)}`)
+
+    function lookupLocal(src: string): string | null {
+      if (!localLookup) return null
+      if (Object.prototype.hasOwnProperty.call(localLookup, src)) return localLookup[src] ?? null
+      const norm = normalizeTranslateKey(src)
+      if (norm !== src && Object.prototype.hasOwnProperty.call(localLookup, norm)) return localLookup[norm] ?? null
+      return lookupTranslationRecord(localLookup, src)
+    }
+
+    /** Strip choice conditions during lookup to avoid legacy translations of executable keywords; preserve the full source when writing back. */
+    function lookupCached(src: string): { zh: string; engine: 'cache:remote' | 'cache:local' } | null {
+      if (gameContext?.blocked(src)) return null
+      return lookupGameTranslation(lookupLocal, (key) => getCache().get(key, pairFor(src)), src, { resources: false })
+    }
+
+    const force = Boolean(opts?.force) || bypassCache
+    const persist = opts?.persist !== false
+
     items.push(
       ...(await mapTranslationBatch(
         unique,
@@ -302,7 +316,7 @@ export async function liveTranslateTexts(
               itemSignal?.throwIfAborted()
               const { core: labelCore } = peelChoiceMetaShell(src)
               if (!force) {
-                const pair = { from: detectCacheLang(src), to: 'zh' as const }
+                const pair = pairFor(src)
                 const plan = gameContext?.blocked(src)
                   ? createSentenceResolver([]).plan(src)
                   : opts?.preparedPlan && unique.length === 1
@@ -311,7 +325,7 @@ export async function liveTranslateTexts(
                 trace?.(`Item ${itemId} cache result: status=${plan.status}, gaps=${plan.gaps.length}`)
                 if (plan.status === 'full') {
                   items.push({ src, zh: plan.zh, engine: plan.matches.every((m) => m.record.local) ? 'cache:local' : 'cache:remote', status: 'full', plan })
-                  if (persist && contentRoot) {
+                  if (persist && contentRoot && chineseTarget) {
                     const records = plan.matches
                       .filter((m) => !m.record.local)
                       .map((m) => getCache().record(m.record.src, pair))
@@ -359,7 +373,7 @@ export async function liveTranslateTexts(
                     }
                   }
                   const deps = plan.matches.filter((m) => !m.record.local).map((m) => m.record)
-                  const currentContext = contentRoot ? getGameCacheContext(contentRoot) : null
+                  const currentContext = contentRoot && chineseTarget ? getGameCacheContext(contentRoot) : null
                   const currentLocal = currentContext?.records || []
                   const localCandidates = currentContext?.resolver.select(src) || []
                   const localChanged = plan.matches.some(
@@ -416,6 +430,18 @@ export async function liveTranslateTexts(
                   return items[0]
                 }
               }
+              if (!force && !gameContext?.blocked(src)) {
+                const pair = pairFor(src)
+                const resource = resourceMatcher?.match(src, {
+                  sourceLanguage: pair.from,
+                  targetLanguage: pair.to,
+                  gameId: resourceGameId,
+                  category: opts?.category,
+                  speaker: opts?.speaker,
+                  scene: opts?.scene,
+                })
+                if (resource) return { src, zh: resource.targetText, engine: 'resource', resource, status: 'full' as const }
+              }
               const nameEntries = contentRoot ? await loadGameNameEntries(contentRoot, opts?.targetLang || 'zh') : []
               const namePlan = planLockedNames(src, nameEntries, { sourceLang: opts?.sourceLang, targetLang: opts?.targetLang || 'zh' })
               if (namePlan && (!namePlan.wholeName || !opts?.optimizeWholeName)) {
@@ -453,11 +479,9 @@ export async function liveTranslateTexts(
                 const zh = stitchLockedNamePlan(src, namePlan, gapZh)
                 const tag = remainderEngine || 'live:optimize:names'
                 if (persist && isStorableTranslation(src, zh, opts?.targetLang)) {
-                  const written = timed(`Item ${itemId} name-lock write`, () =>
-                    getCache().writeMany([[src, zh]], tag, { from: detectCacheLang(src), to: 'zh', category: opts?.category })
-                  )
+                  const written = timed(`Item ${itemId} name-lock write`, () => getCache().writeMany([[src, zh]], tag, { ...pairFor(src), category: opts?.category }))
                   opts?.onCacheWrite?.(written.records, [...sources])
-                  if (contentRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records))
+                  if (contentRoot && chineseTarget) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records))
                   if (written.rejected.length) {
                     const current = lookupCached(src)
                     if (current) return { src, zh: current.zh, engine: current.engine, status: 'full' as const }
@@ -546,7 +570,9 @@ export async function liveTranslateTexts(
                 if (!winner) throw new AggregateError(errors, 'All translation engines failed')
                 // Whole/alias authority only: never rerun sentence coverage on the dispatch lane.
                 const currentAuthority = () => {
-                  const local = contentRoot ? getGameCacheContext(contentRoot).lookup : null
+                  const currentContext = contentRoot && chineseTarget ? getGameCacheContext(contentRoot) : null
+                  if (currentContext?.blocked(src)) return null
+                  const local = currentContext?.lookup
                   const pair = resolveCacheLangPair({ ...langPair, src })
                   const categoryHint = opts?.category
                   const used = new Map<string, NonNullable<ReturnType<ReturnType<typeof openSharedCache>['authority']>>>()
@@ -558,7 +584,8 @@ export async function liveTranslateTexts(
                       if (record) used.set(record.id!, record)
                       return value
                     },
-                    src
+                    src,
+                    { resources: false }
                   )
                   if (hit && bypassCache && contentRoot && persist && used.size) getCache().queueBackfill(contentRoot, [...used.values()])
                   return hit
@@ -587,11 +614,9 @@ export async function liveTranslateTexts(
                   pushPair(labelKey, winner.zhCore)
                 }
                 if (pairs.length && persist) {
-                  const written = timed(`Item ${itemId} shared cache write`, () =>
-                    getCache().writeMany(pairs, tag, { from: detectCacheLang(src), to: 'zh', category: opts?.category })
-                  )
+                  const written = timed(`Item ${itemId} shared cache write`, () => getCache().writeMany(pairs, tag, { ...pairFor(src), category: opts?.category }))
                   opts?.onCacheWrite?.(written.records, [tag])
-                  if (contentRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records))
+                  if (contentRoot && chineseTarget) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records))
                   if (written.rejected.length) {
                     const current = currentAuthority()
                     if (current) return { src, zh: current.zh, engine: current.engine, status: 'full' as const }
@@ -612,6 +637,24 @@ export async function liveTranslateTexts(
             item = { src, zh: null, error: 'Translation item deadline exceeded; saved results are retained' }
           }
           item = { ...item, resultSources: resultSources(item), engineWork }
+          if (persist && item.error) {
+            const pair = pairFor(src)
+            observations.push({
+              eventId: randomUUID(),
+              occurredAt: Date.now(),
+              sourceText: src,
+              targetText: item.zh,
+              sourceLanguage: pair.from,
+              targetLanguage: pair.to,
+              engine: item.engine,
+              gameId: resourceGameId,
+              contentRoot: contentRoot || undefined,
+              speaker: opts?.speaker,
+              context: opts?.context,
+              error: item.error,
+              resource: item.resource,
+            })
+          }
           timed(`Item ${itemId} progress checkpoint`, () => opts?.onItem?.(item))
           trace?.(`Item ${itemId} finished: engine=${item.engine || 'none'}, success=${item.zh != null && !item.error}, elapsedMs=${Math.round(performance.now() - itemStarted)}`)
           return item
@@ -620,6 +663,12 @@ export async function liveTranslateTexts(
       ))
     )
   } finally {
+    try {
+      spoolTranslationObservations(observations)
+    } catch (error) {
+      collectionError = `Translation evidence could not be saved: ${error instanceof Error ? error.message : String(error)}`
+      trace?.(collectionError)
+    }
     try {
       if (!opts?.sharedCache && cacheStore && contentRoot && opts?.persist !== false) timed('Final backfill flushed', () => cacheStore!.flushBackfill(contentRoot))
     } finally {
@@ -636,5 +685,5 @@ export async function liveTranslateTexts(
     trace?.(`Pipeline finished: elapsedMs=${Math.round(performance.now() - started)}`)
   }
 
-  return { items, contentRoot, engines }
+  return { items, contentRoot, engines, ...(collectionError ? { collectionError } : {}) }
 }

@@ -11,6 +11,7 @@ export const downloadsZh = {
     channelBrowser: '浏览器',
     nwShell: 'NW.js {version}',
     nwShellUnknown: 'NW.js',
+    updatePackage: '更新包 · {package} {version}',
     phase: {
       resolve: '查询版本',
       download: '下载中',
@@ -31,6 +32,8 @@ export const downloadsZh = {
     awaitFileCard: '安装壳：浏览器下载完 {name} 后选择它继续',
     action: { openDownload: '打开官方下载', pickFile: '选择已下载的压缩包', abandon: '放弃安装' },
     toast: {
+      updateDone: '已安装 {package} {version}；启用后供新批次使用',
+      updateFailed: '更新包安装失败：{error}',
       shellDone: '已安装 NW.js {version}',
       shellFailed: '下载 NW.js 失败：{error}',
       retryHint: '重新下载会接着上次进度',
@@ -52,6 +55,7 @@ export const downloadsEn = {
     channelBrowser: 'Browser',
     nwShell: 'NW.js {version}',
     nwShellUnknown: 'NW.js',
+    updatePackage: 'Update · {package} {version}',
     phase: {
       resolve: 'Checking version',
       download: 'Downloading',
@@ -72,6 +76,8 @@ export const downloadsEn = {
     awaitFileCard: 'Shell install: choose {name} once the browser finishes downloading it',
     action: { openDownload: 'Open official download', pickFile: 'Choose downloaded archive', abandon: 'Cancel install' },
     toast: {
+      updateDone: '{package} {version} installed; activate it for new batches',
+      updateFailed: 'Update installation failed: {error}',
       shellDone: 'NW.js {version} installed',
       shellFailed: 'NW.js download failed: {error}',
       retryHint: 'Downloading again resumes where it stopped',
@@ -93,6 +99,7 @@ export const downloadsJa = {
     channelBrowser: 'ブラウザ',
     nwShell: 'NW.js {version}',
     nwShellUnknown: 'NW.js',
+    updatePackage: '更新 · {package} {version}',
     phase: {
       resolve: 'バージョン確認中',
       download: 'ダウンロード中',
@@ -113,6 +120,8 @@ export const downloadsJa = {
     awaitFileCard: 'シェルのインストール：{name} のダウンロードが終わったら選択して続行',
     action: { openDownload: '公式ダウンロードを開く', pickFile: 'ダウンロードしたアーカイブを選択', abandon: 'インストールをやめる' },
     toast: {
+      updateDone: '{package} {version} をインストールしました。有効にすると新しいバッチに適用されます',
+      updateFailed: '更新のインストールに失敗しました：{error}',
       shellDone: 'NW.js {version} をインストールしました',
       shellFailed: 'NW.js のダウンロードに失敗しました：{error}',
       retryHint: 'もう一度ダウンロードすると続きから再開します',
@@ -134,6 +143,7 @@ export const downloadsKo = {
     channelBrowser: '브라우저',
     nwShell: 'NW.js {version}',
     nwShellUnknown: 'NW.js',
+    updatePackage: '업데이트 · {package} {version}',
     phase: {
       resolve: '버전 확인 중',
       download: '다운로드 중',
@@ -154,6 +164,8 @@ export const downloadsKo = {
     awaitFileCard: '셸 설치: {name} 다운로드가 끝나면 선택해서 계속하세요',
     action: { openDownload: '공식 다운로드 열기', pickFile: '다운로드한 압축 파일 선택', abandon: '설치 취소' },
     toast: {
+      updateDone: '{package} {version} 설치됨. 활성화하면 새 배치에 적용됩니다',
+      updateFailed: '업데이트 설치 실패: {error}',
       shellDone: 'NW.js {version} 설치됨',
       shellFailed: 'NW.js 다운로드 실패: {error}',
       retryHint: '다시 다운로드하면 이어서 받습니다',

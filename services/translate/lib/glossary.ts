@@ -1,7 +1,8 @@
 // @ts-nocheck
 import { path, rt } from './env'
 import { TOKEN } from './constants'
-import { hasJapanese, isOnlyPunctuation, loadJson, peelNoise, translateVoiceOnlyLine, wrapNoise, classifyTerm } from './text-cache'
+import HONORIFICS from '../resources/defaults/honorifics.json'
+import { hasJapanese, isOnlyPunctuation, loadJson, peelNoise, wrapNoise, classifyTerm } from './text-cache'
 
 export function readDbNames(file, fields) {
   const rows = loadJson(path.join(rt().P.DATA, file), []) || []
@@ -69,19 +70,7 @@ export function unmaskGlossary(text, slots, zhMap) {
   return out
 }
 
-// If masking leaves only titles, punctuation or stuttering, compose locally without an API request.
-const HONORIFICS = [
-  ['先生', '老师'],
-  ['さん', ''],
-  ['ちゃん', ''],
-  ['くん', ''],
-  ['君', ''],
-  ['様', '大人'],
-  ['殿', '大人'],
-  ['氏', ''],
-]
-
-/** After glossary masking, compose a translation locally when only titles, punctuation or brief stuttering remain, skipping the API. */
+/** Compose only confirmed names, supported titles and punctuation; unknown residue falls back. */
 export function tryComposeGlossaryShell(src, entries, zhMap) {
   const { core, prefix, suffix } = peelNoise(src)
   const { masked, slots } = maskGlossary(core, entries)
@@ -97,8 +86,9 @@ export function tryComposeGlossaryShell(src, entries, zhMap) {
 
   const leftover = work.replace(/\0H\0|\0T\0/g, '').replace(/[「」『』""''“”‘’（）()【】\[\]\s\u3000…！!？?、。｡･・～〜ー\-♡♥]/g, '')
 
-  // Allow very short kana stutters but reject other remaining content words.
-  if (leftover && !/^[ぁ-んァ-ン]{1,4}$/u.test(leftover)) return null
+  // Unknown kana may carry meaning; never translate them character by character.
+  if (leftover) return null
+  if (slots.some((slot) => !zhMap[slot.jp])) return null
 
   let out = masked
   for (const slot of slots) {
@@ -108,7 +98,6 @@ export function tryComposeGlossaryShell(src, entries, zhMap) {
     out = out.split(jp).join(zh)
   }
 
-  out = translateVoiceOnlyLine(out)
   out = out.trim()
   if (!out) return null
   return wrapNoise(out, prefix, suffix)

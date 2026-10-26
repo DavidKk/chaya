@@ -1,7 +1,7 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // services/extract/lib/rgss/items-worker.ts
-import fs17 from "node:fs";
+import fs18 from "node:fs";
 import os2 from "node:os";
 import path13 from "node:path";
 import { parentPort, workerData } from "node:worker_threads";
@@ -53,6 +53,7 @@ var COMPANION_MEMORY_DIR_NAME = "companion-memory";
 var COMPANION_MEMORY_DB_NAME = "companion.sqlite";
 var GAME_AGENT_DIR_NAME = "game-agent";
 var TRANSLATION_PACKS_DIR_NAME = "translation-packs";
+var UPDATES_DIR_NAME = "updates";
 var DOWNLOAD_JOBS_FILE_NAME = "download-jobs.json";
 var PLUGINS_DIR_NAME = "plugins";
 var NODE_MODULES_DIR_NAME = "node_modules";
@@ -99,6 +100,7 @@ var SEED_INVENTORY_WORKER_PATH = join(ROOT_PATH, "native", "bin", "chaya-seed-in
 var SEED_JOB_WORKER_PATH = join(ROOT_PATH, "native", "bin", "chaya-seed-job-worker.mjs");
 var TRANSLATION_PACKS_DIR = join(DATA_DIR, TRANSLATION_PACKS_DIR_NAME);
 var DOWNLOAD_JOBS_PATH = join(DATA_DIR, DOWNLOAD_JOBS_FILE_NAME);
+var UPDATES_DIR = join(DATA_DIR, UPDATES_DIR_NAME);
 var GAME_AGENT_DIR = join(DATA_DIR, GAME_AGENT_DIR_NAME);
 var LOGS_DIR = process.env.CHAYA_LOGS_DIR ? resolve(process.env.CHAYA_LOGS_DIR) : join(ROOT_PATH, LOGS_DIR_NAME);
 var PLUGIN_LOGS_DIR = join(LOGS_DIR, PLUGIN_LOGS_DIR_NAME);
@@ -563,11 +565,11 @@ function resolveGame(input, toolkitRoot = ROOT_PATH) {
 
 // lib/translate/dynamic-template.ts
 var DYNAMIC_VARIABLE = /_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/g;
-function isDynamicTemplate(text) {
-  return new RegExp(DYNAMIC_VARIABLE.source).test(text);
+function isDynamicTemplate(text2) {
+  return new RegExp(DYNAMIC_VARIABLE.source).test(text2);
 }
-function sortedTokens(text, re) {
-  return JSON.stringify((text.match(re) || []).sort());
+function sortedTokens(text2, re) {
+  return JSON.stringify((text2.match(re) || []).sort());
 }
 var CONTROLS = /\\[A-Za-z]+(?:\[[^\]]*\])?|\\[^A-Za-z\s]|_se\[[^\]]*\]/g;
 function validDynamicTranslation(source, target2) {
@@ -582,7 +584,7 @@ var numericLabelParts = (src) => src.match(/^([A-Za-z]{2,60} ?)(\d{1,6})$/);
 function numericLabelFamily(src) {
   return numericLabelParts(src)?.[1] || null;
 }
-function createNumericLabelIndex(records = []) {
+function createNumericLabelIndex(records2 = []) {
   const groups = /* @__PURE__ */ new Map();
   const parse = numericLabelParts;
   function note(record) {
@@ -592,7 +594,7 @@ function createNumericLabelIndex(records = []) {
     group.set(record.id || record.src, record);
     groups.set(match[1], group);
   }
-  records.forEach(note);
+  records2.forEach(note);
   return {
     note,
     resolve(src) {
@@ -628,19 +630,19 @@ function sourceTextBody(value) {
 }
 function isSourceText(value, language = "all") {
   if (typeof value !== "string") return false;
-  const text = value.trim();
-  if (!text || /^(?:true|false|null|undefined|EV\d+|#[\da-f]{3,8})$/i.test(text)) return false;
-  if (/^(?:https?:\/\/|[a-z]:[\\/]|\/|(?:\.\.?[\\/])|(?:img|audio|movies|fonts|js|data|assets|images|sounds)[\\/])/i.test(text)) return false;
-  if (/\.(?:png|jpe?g|webp|gif|ogg|wav|mp3|m4a|mp4|webm|js|json|csv|txt|rpgmvp|rpgmvo)$/i.test(text)) return false;
-  if (/^[A-Za-z_]\w*\[\d+\]$/.test(text)) return false;
-  if (/^(?:HP|MP|TP|EXP|LV|FPS|ATK|DEF|MAT|MDF|AGI|LUK)\s*[:=]?\s*[\d.,/%+\s-]+$/i.test(text)) return false;
+  const text2 = value.trim();
+  if (!text2 || /^(?:true|false|null|undefined|EV\d+|#[\da-f]{3,8})$/i.test(text2)) return false;
+  if (/^(?:https?:\/\/|[a-z]:[\\/]|\/|(?:\.\.?[\\/])|(?:img|audio|movies|fonts|js|data|assets|images|sounds)[\\/])/i.test(text2)) return false;
+  if (/\.(?:png|jpe?g|webp|gif|ogg|wav|mp3|m4a|mp4|webm|js|json|csv|txt|rpgmvp|rpgmvo)$/i.test(text2)) return false;
+  if (/^[A-Za-z_]\w*\[\d+\]$/.test(text2)) return false;
+  if (/^(?:HP|MP|TP|EXP|LV|FPS|ATK|DEF|MAT|MDF|AGI|LUK)\s*[:=]?\s*[\d.,/%+\s-]+$/i.test(text2)) return false;
   if (/^(?:(?:async\s+)?function\b|(?:if|for|while)\s*\(|(?:const|let|var)\s+[$\w]+\s*[=:;]|return\s+(?:['"`$({]|[A-Za-z_$][\w$]*[.(])|return\b[^\n]*;|\$[A-Za-z_]|\(?[\w,\s]*\)?\s*=>)/.test(
-    text
+    text2
   ))
     return false;
-  if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*(?:[+*/-]=|=(?!=)|\+\+|--)/.test(text) || /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+\s*\(/.test(text)) return false;
-  if (!isDynamicTemplate(text) && /^\S*_\S*$/.test(text)) return false;
-  const body = sourceTextBody(text);
+  if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*(?:[+*/-]=|=(?!=)|\+\+|--)/.test(text2) || /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+\s*\(/.test(text2)) return false;
+  if (!isDynamicTemplate(text2) && /^\S*_\S*$/.test(text2)) return false;
+  const body = sourceTextBody(text2);
   const kana = KANA.test(body);
   const han = HAN.test(body);
   const latin = LATIN.test(body);
@@ -651,9 +653,9 @@ function isSourceText(value, language = "all") {
 }
 function detectSourceLanguage(texts, locale = "") {
   const scores = { ja: 0, en: 0, zh: 0 };
-  for (const text of texts) {
-    if (!isSourceText(text)) continue;
-    const body = sourceTextBody(text);
+  for (const text2 of texts) {
+    if (!isSourceText(text2)) continue;
+    const body = sourceTextBody(text2);
     const weight = Math.min(body.length, 120);
     if (KANA.test(body)) scores.ja += weight;
     else if (HAN.test(body)) scores.zh += weight;
@@ -666,7 +668,7 @@ function detectSourceLanguage(texts, locale = "") {
 }
 
 // services/extract/lib/rgss.ts
-import fs16 from "node:fs";
+import fs17 from "node:fs";
 import path12 from "node:path";
 
 // lib/game/content-files.ts
@@ -872,16 +874,16 @@ function storageCall(method, args = []) {
 var ownerDirectories = /* @__PURE__ */ new Map();
 var mountedDirectories = /* @__PURE__ */ new Map();
 function publicGameFiles(contentRoot) {
-  const key2 = path6.resolve(contentRoot);
-  const local = ownerDirectories.get(key2) ?? mountedDirectories.get(key2);
+  const key3 = path6.resolve(contentRoot);
+  const local = ownerDirectories.get(key3) ?? mountedDirectories.get(key3);
   if (local) return local;
   if (process.env.CHAYA_STORAGE_OWNER === "1") {
-    const mounted = ownerDirectories.get(key2);
+    const mounted = ownerDirectories.get(key3);
     if (!mounted) throw new Error("Game storage must be mounted before accessing its read views");
     return mounted;
   }
   const remote = storageCall("game.mount", [contentRoot]);
-  mountedDirectories.set(key2, remote);
+  mountedDirectories.set(key3, remote);
   return remote;
 }
 function publicGameFile(contentRoot, kind) {
@@ -932,8 +934,8 @@ function storageDirectoryRegistry() {
 function storageGameDirectory(contentRoot) {
   const registry = storageDirectoryRegistry();
   if (!registry) return null;
-  const key2 = path7.resolve(contentRoot);
-  const direct = registry.byRoot.get(key2);
+  const key3 = path7.resolve(contentRoot);
+  const direct = registry.byRoot.get(key3);
   if (direct) return direct;
   try {
     const real = fs7.realpathSync(contentRoot);
@@ -994,497 +996,32 @@ function ensureGameContentDir(contentRoot, kind) {
   return file;
 }
 
-// lib/translate/choice-meta.ts
-function callEnd(text, start) {
-  const name = /^(?:if|en)\s*\(/i.exec(text.slice(start));
-  if (!name) return null;
-  let depth = 1;
-  let quote = "";
-  for (let i = start + name[0].length; i < text.length; i++) {
-    const ch = text[i];
-    if (quote) {
-      if (ch === "\\") i++;
-      else if (ch === quote) quote = "";
-    } else if (ch === '"' || ch === "'" || ch === "`") quote = ch;
-    else if (ch === "(") depth++;
-    else if (ch === ")" && --depth === 0) return i + 1;
+// lib/translate/resource-types.ts
+function canonicalResourceLanguage(value) {
+  try {
+    const [tag] = Intl.getCanonicalLocales(value);
+    if (tag && tag.length <= 100) return tag;
+  } catch {
   }
-  return null;
-}
-function peelChoiceMetaTrail(text) {
-  let core = String(text ?? "");
-  let trail = "";
-  for (; ; ) {
-    const end = core.trimEnd().length;
-    let start = null;
-    for (const match of core.matchAll(/(?:if|en)\s*\(/gi)) {
-      const at = match.index;
-      if (at > 0 && /[A-Za-z0-9_]/.test(core[at - 1])) continue;
-      if (callEnd(core, at) === end) {
-        start = at;
-        break;
-      }
-    }
-    if (start == null) break;
-    start = core.slice(0, start).trimEnd().length;
-    trail = core.slice(start) + trail;
-    core = core.slice(0, start);
-  }
-  return { core, trail };
-}
-function peelChoiceMetaShell(text) {
-  const trailing = peelChoiceMetaTrail(text);
-  let core = trailing.core;
-  const trail = trailing.trail;
-  let lead = "";
-  for (; ; ) {
-    const start = core.length - core.trimStart().length;
-    const end = callEnd(core, start);
-    if (end == null) break;
-    const next = end + (core.slice(end).match(/^\s*/)?.[0].length || 0);
-    lead += core.slice(0, next);
-    core = core.slice(next);
-  }
-  return { lead, core, trail };
+  throw new TypeError(`Invalid language identifier: ${value}`);
 }
 
-// lib/translate/rm-escape.ts
-var RM_DIGIT_CODE_SRC = String.raw`\\[A-Za-z]+\[\d+\]`;
-function rmDigitCodeRe() {
-  return new RegExp(RM_DIGIT_CODE_SRC, "g");
-}
-var RM_ESCAPE_RE = /\\[A-Za-z]+(?:\[[^\]]*\])?/g;
-function isSemanticPlaceholder(token) {
-  if (!token) return false;
-  if (/^\\[NPV]\[[^\]]*\]$/i.test(token) || /^\\[Gg]$/.test(token)) return true;
-  if (/^%[0-9]+$/i.test(token) || /^%[sdifSc]$/.test(token)) return true;
-  if (/^\{[0-9A-Za-z_]+\}$/.test(token)) return true;
-  if (/^_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/i.test(token)) return true;
-  if (/^[A-Za-z_][A-Za-z0-9_]*\[\d+\]$/.test(token)) return true;
-  return false;
-}
-function hasRmDigitCodes(text) {
-  return rmDigitCodeRe().test(String(text ?? ""));
-}
-function extractRmDigitCodes(text) {
-  return [...String(text ?? "").matchAll(rmDigitCodeRe())].map((m) => m[0]);
-}
-function toRmDigitTemplate(text) {
-  const src = String(text ?? "");
-  if (!hasRmDigitCodes(src)) return src;
-  return src.replace(rmDigitCodeRe(), (m) => {
-    const letter = m.match(/^\\([A-Za-z]+)/)?.[1] ?? "";
-    return `\\${letter.toLowerCase()}[#]`;
-  });
-}
-function applyRmDigitCodes(template, codes) {
-  if (!codes.length) return String(template ?? "");
-  let i = 0;
-  return String(template ?? "").replace(/\\[A-Za-z]+\[#\]/g, (slot) => {
-    const code = codes[i++];
-    return code != null ? code : slot;
-  });
-}
-function lookupWithRmDigitTemplate(get, text) {
-  const src = String(text ?? "");
-  if (!src) return null;
-  const direct = get(src);
-  if (direct != null && direct !== "") return direct;
-  const codes = extractRmDigitCodes(src);
-  if (!codes.length) return null;
-  const tpl = toRmDigitTemplate(src);
-  if (tpl === src) return null;
-  const hit = get(tpl);
-  if (hit == null || hit === "") return null;
-  return applyRmDigitCodes(hit, codes);
-}
-
-// lib/translate/segments.ts
-var WRAPPERS = {
-  "\u300C": "\u300D",
-  "\u300E": "\u300F",
-  "(": ")",
-  "\uFF08": "\uFF09",
-  "<": ">",
-  "\uFF1C": "\uFF1E",
-  "\u3010": "\u3011",
-  "\u300A": "\u300B",
-  "\u3008": "\u3009",
-  "[": "]",
-  "\uFF3B": "\uFF3D",
-  "{": "}",
-  "\uFF5B": "\uFF5D",
-  "\u201C": "\u201D",
-  "\u2018": "\u2019"
-};
-var SEPARATE_WRAPPERS = /* @__PURE__ */ new Set(["\u300C", "\u300E", "<", "\uFF1C"]);
-var FRAGMENT_QUOTES = { "\u300C": "\u300D", "\u300E": "\u300F", "\u201C": "\u201D", "\u2018": "\u2019" };
-function isOuterWrapper(text) {
-  if (text.length < 2 || WRAPPERS[text[0]] !== text[text.length - 1]) return false;
-  if (/^\{[A-Za-z0-9_]+\}$/.test(text) || /^<\/?(?:br|span|div|p|b|i|img|ruby|rt)(?:\s[^>]*)?\s*\/?>$/i.test(text)) return false;
-  const stack = [];
-  const controls = new Map([...text.matchAll(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"))].map((match) => [match.index, match[0].length]));
-  for (let i = 0; i < text.length; i++) {
-    const length = controls.get(i);
-    if (length) {
-      i += length - 1;
-      continue;
-    }
-    if (WRAPPERS[text[i]]) stack.push(WRAPPERS[text[i]]);
-    else if (stack[stack.length - 1] === text[i]) {
-      stack.pop();
-      if (!stack.length) return i === text.length - 1;
-    }
-  }
-  return false;
-}
-function splitSegments(text, splitOrphanQuotes) {
-  if (isDynamicTemplate(text)) return [text];
-  const choice = peelChoiceMetaShell(text);
-  if (choice.lead || choice.trail) {
-    const parts2 = splitSegments(choice.core, splitOrphanQuotes);
-    if (!parts2.length) return [choice.lead + choice.trail];
-    parts2[0] = choice.lead + parts2[0];
-    parts2[parts2.length - 1] += choice.trail;
-    return parts2;
-  }
-  const controls = new Map([...text.matchAll(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"))].map((match) => [match.index, match[0].length]));
-  const stack = [];
-  const parts = [];
-  let start = 0;
-  for (let i = 0; i < text.length; i++) {
-    const controlLength = controls.get(i);
-    if (controlLength) {
-      i += controlLength - 1;
-      continue;
-    }
-    const char = text[i];
-    if (/[.．,，]/.test(char) && /[0-9０-９]/.test(text[i - 1] || "") && /[0-9０-９]/.test(text[i + 1] || "")) continue;
-    let closed = false;
-    if (WRAPPERS[char]) {
-      const separate = SEPARATE_WRAPPERS.has(char);
-      if (separate && !stack.length && i > start && translationSegmentContent(text.slice(start, i)).core.trim()) {
-        parts.push(text.slice(start, i));
-        start = i;
-      }
-      stack.push({ close: WRAPPERS[char], separate });
-    } else if (stack[stack.length - 1]?.close === char) {
-      const wrapper = stack.pop();
-      closed = stack.length === 0 && wrapper.separate;
-    } else if (splitOrphanQuotes && !stack.length && /[」』]/.test(char)) {
-      closed = true;
-    }
-    if (stack.length || !closed && !/[，,。．.!！?？]/.test(char)) continue;
-    while (i + 1 < text.length && /[，,。．.!！?？]/.test(text[i + 1])) i++;
-    parts.push(text.slice(start, i + 1));
-    start = i + 1;
-  }
-  if (start < text.length) parts.push(text.slice(start));
-  return parts;
-}
-function translationSegments(text) {
-  return splitSegments(text, false);
-}
-function segmentContent(text, keepChoiceMeta) {
-  if (isDynamicTemplate(text)) return { lead: "", core: text, trail: "" };
-  const control = new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g");
-  const choice = peelChoiceMetaShell(text);
-  let core = choice.core;
-  let lead = keepChoiceMeta ? choice.lead : "";
-  let trail = keepChoiceMeta ? choice.trail : "";
-  for (; ; ) {
-    const before = core;
-    const meta = peelChoiceMetaShell(core);
-    if (keepChoiceMeta) {
-      lead += meta.lead;
-      trail = meta.trail + trail;
-    }
-    core = meta.core;
-    const prefix = core.match(/^[\s、，,。．.!！?？…]+/)?.[0] || [...core.matchAll(control)].find((match) => match.index === 0 && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0];
-    if (prefix) {
-      lead += prefix;
-      core = core.slice(prefix.length);
-    }
-    const suffix = core.match(/[\s、，,。．.!！?？…]+$/)?.[0] || [...core.matchAll(control)].find((match) => match.index + match[0].length === core.length && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0];
-    if (suffix) {
-      trail = suffix + trail;
-      core = core.slice(0, -suffix.length);
-    }
-    if (isOuterWrapper(core)) {
-      lead += core[0];
-      trail = core[core.length - 1] + trail;
-      core = core.slice(1, -1);
-    } else {
-      const close = FRAGMENT_QUOTES[core[0]];
-      if (close && !core.includes(close)) {
-        lead += core[0];
-        core = core.slice(1);
-      }
-      const open = Object.keys(FRAGMENT_QUOTES).find((key2) => FRAGMENT_QUOTES[key2] === core[core.length - 1]);
-      if (open && !core.includes(open)) {
-        trail = core[core.length - 1] + trail;
-        core = core.slice(0, -1);
-      }
-    }
-    if (core === before) break;
-  }
-  return { lead, core, trail };
-}
-function translationSegmentContent(text) {
-  return segmentContent(text, true);
-}
-function translationRubyChunks(text) {
-  if (isDynamicTemplate(text)) return [{ text, ruby: false }];
-  const chunks = [];
-  let start = 0;
-  const controls = [...text.matchAll(new RegExp(RM_ESCAPE_RE.source, "g"))];
-  for (const match of text.matchAll(/\\RB\[([^,\[\]\r\n]+),([^,\[\]\r\n]+)\]|\\ruby\[([^\[\]\r\n]+)\]\(([^)\r\n]+)\)/gi)) {
-    const at = match.index;
-    if (controls.some((control) => control.index < at && control.index + control[0].length > at)) continue;
-    if (at > start) chunks.push({ text: text.slice(start, at), ruby: false });
-    const paren = match[3] != null;
-    chunks.push({
-      text: match[0],
-      ruby: true,
-      base: paren ? match[3] : match[1],
-      reading: paren ? match[4] : match[2],
-      prefix: match[0].slice(0, match[0].indexOf("[")),
-      paren
-    });
-    start = at + match[0].length;
-  }
-  if (start < text.length) chunks.push({ text: text.slice(start), ruby: false });
-  return chunks;
-}
-function matchingTranslationRubyPairs(source, target2) {
-  const left = translationRubyChunks(source);
-  const right = translationRubyChunks(target2);
-  if (!left.some((chunk) => chunk.ruby) && !right.some((chunk) => chunk.ruby)) return null;
-  if (left.length !== right.length || left.some((chunk, index) => chunk.ruby !== right[index].ruby)) return [];
-  return left.flatMap((chunk, index) => {
-    const other = right[index];
-    if (chunk.ruby)
-      return [
-        { source: chunk.base, target: other.base },
-        { source: chunk.reading, target: other.reading }
-      ];
-    if (!/[\p{L}\p{N}]/u.test(chunk.text) && !/[\p{L}\p{N}]/u.test(other.text)) return [];
-    return [{ source: chunk.text, target: other.text }];
-  });
-}
-function mapTranslationRubySegments(text, translate) {
-  const chunks = translationRubyChunks(text);
-  if (!chunks.some((part) => part.ruby)) return null;
-  let result = "";
-  let changed = false;
-  for (const part of chunks) {
-    if (!part.ruby) {
-      const hit = translate(part.text);
-      if (hit == null) {
-        if (/[\p{L}]/u.test(translationSegmentContent(part.text).core)) return null;
-        result += part.text;
-        continue;
-      }
-      changed = true;
-      result += hit;
-      continue;
-    }
-    const base = translate(part.base);
-    const reading = translate(part.reading);
-    if (base == null || reading == null) {
-      result += part.text;
-      continue;
-    }
-    if (/[,\[\]\r\n]/.test(base + reading)) return null;
-    changed = true;
-    result += part.paren ? `${part.prefix}[${base}](${reading})` : `${part.prefix}[${base},${reading}]`;
-  }
-  return changed ? result : null;
-}
-function translationNumberedPrefixPair(source, target2) {
-  const prefix = source.match(/^(?:[A-Za-z]+\d+_)+/)?.[0];
-  if (!prefix || !target2.startsWith(prefix)) return null;
-  const src = source.slice(prefix.length);
-  const zh = target2.slice(prefix.length);
-  if (/[_/\\]/.test(src) || /[_/\\]/.test(zh)) return null;
-  if (!/[\p{L}\p{N}]/u.test(src) || !/[\p{L}\p{N}]/u.test(zh)) return null;
-  return { source: src, target: zh };
-}
-function translationCacheLines(text) {
-  if (isDynamicTemplate(text)) return [text];
-  const { lead, core, trail } = translationSegmentContent(text);
-  const controls = [...core.matchAll(RM_ESCAPE_RE)].filter((match) => match[0] !== "\\n");
-  const lines = [];
-  let start = 0;
-  for (const match of core.matchAll(/\r\n|[\r\n]|\\n(?![A-Za-z]|\[)/g)) {
-    const at = match.index;
-    if (controls.some((control) => at >= control.index && at < control.index + control[0].length)) continue;
-    const end = at + match[0].length;
-    lines.push(core.slice(start, end));
-    start = end;
-  }
-  if (!lines.length) return [text];
-  lines.push(core.slice(start));
-  lines[0] = lead + lines[0];
-  lines[lines.length - 1] += trail;
-  return lines;
-}
-function translationDisplayChunks(text) {
-  if (isDynamicTemplate(text)) return [{ text, display: false }];
-  const chunks = [];
-  const controls = [...text.matchAll(new RegExp(RM_ESCAPE_RE.source, "g"))];
-  let start = 0;
-  for (const match of text.matchAll(/\\(?:RC\[(?:\d+|#[0-9a-f]+)\]|C\[(?:\d+|#[0-9a-f]+)\]|FS\[\d+\]|CL|FB|DF|G)(?![A-Za-z])/gi)) {
-    const at = match.index;
-    if (controls.some((control) => control.index < at && control.index + control[0].length > at)) continue;
-    if (at > start) chunks.push({ text: text.slice(start, at), display: false });
-    chunks.push({ text: match[0], display: true });
-    start = at + match[0].length;
-  }
-  if (start < text.length) chunks.push({ text: text.slice(start), display: false });
-  return chunks;
-}
-function mapTranslationDisplaySegments(text, translate) {
-  const choice = peelChoiceMetaShell(text);
-  const chunks = translationDisplayChunks(choice.core);
-  if (!chunks.some((chunk) => chunk.display)) return text;
-  return choice.lead + chunks.map((chunk) => chunk.display ? chunk.text : translate(chunk.text)).join("") + choice.trail;
-}
-function translationExportText(text) {
-  if (isDynamicTemplate(text)) return text;
-  const { lead, core, trail } = translationSegmentContent(text);
-  const strip = (shell) => shell.replace(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"), (code) => /^\\(?:[nbr]|C\[(?:\d+|#[0-9a-f]+)\]|FS\[\d+\]|[.!|><^{}$])$/i.test(code) ? "" : code);
-  return strip(lead) + core + strip(trail);
-}
-function mapTranslationSegments(text, translate) {
-  return mapSegments(translationSegments(text), translate);
-}
-function mapTranslationCacheLines(text, translate) {
-  return mapSegments(translationCacheLines(text), translate);
-}
-function mapSegments(parts, translate) {
-  return parts.map((part) => {
-    const { lead, core, trail } = translationSegmentContent(part);
-    return core ? lead + translate(core, part) + trail : part;
-  }).join("");
-}
-
-// lib/translate/game-terms.ts
-var GAME_TERM_LANGUAGES = ["zh", "en", "ja", "ko"];
-var GAME_TERMS = {
-  flame: { translations: { zh: "\u708E", en: "Flame", ja: "\u708E", ko: "\uD654\uC5FC" }, aliases: { en: ["Fire"] } },
-  lightning: { translations: { zh: "\u96F7", en: "Lightning", ja: "\u96F7", ko: "\uBC88\uAC1C" } },
-  water: { translations: { zh: "\u6C34", en: "Water", ja: "\u6C34", ko: "\uBB3C" } },
-  earth: { translations: { zh: "\u571F", en: "Earth", ja: "\u571F", ko: "\uB300\uC9C0" } },
-  light: { translations: { zh: "\u5149", en: "Light", ja: "\u5149", ko: "\uBE5B" } },
-  sword: { translations: { zh: "\u5251", en: "Sword", ja: "\u5263", ko: "\uAC80" } },
-  axe: { translations: { zh: "\u65A7", en: "Axe", ja: "\u65A7", ko: "\uB3C4\uB07C" } },
-  staff: { translations: { zh: "\u6756", en: "Staff", ja: "\u6756", ko: "\uC9C0\uD321\uC774" } },
-  bow: { translations: { zh: "\u5F13", en: "Bow", ja: "\u5F13", ko: "\uD65C" } },
-  gun: { translations: { zh: "\u67AA", en: "Gun", ja: "\u9283", ko: "\uCD1D" } },
-  claw: { translations: { zh: "\u722A", en: "Claw", ja: "\u722A", ko: "\uBC1C\uD1B1" } },
-  spear: { translations: { zh: "\u957F\u67AA", en: "Spear", ja: "\u69CD", ko: "\uCC3D" } },
-  // System & Menu terms
-  save: {
-    translations: { zh: "\u4FDD\u5B58", en: "Save", ja: "\u30BB\u30FC\u30D6", ko: "\uC800\uC7A5" },
-    aliases: { en: ["Save Game"], ja: ["\u30BB\u30FC\u30D6\u3059\u308B"] },
-    badTranslations: { zh: ["\u8282\u7701", "\u62EF\u6551", "\u7701\u4E0B", "\u5B58\u76D8"] }
-  },
-  load: {
-    translations: { zh: "\u8BFB\u53D6", en: "Load", ja: "\u30ED\u30FC\u30C9", ko: "\uBD88\uB7EC\uC624\uAE30" },
-    aliases: { en: ["Load Game"], ja: ["\u30ED\u30FC\u30C9\u3059\u308B"] },
-    badTranslations: { zh: ["\u8D1F\u8377", "\u4F9B\u7535\u91CF", "\u8D1F\u8F7D", "\u88C5\u8F7D", "\u52A0\u8F7D", "\u88C5\u5165"] }
-  },
-  new_game: {
-    translations: { zh: "\u65B0\u6E38\u620F", en: "New Game", ja: "\u30CB\u30E5\u30FC\u30B2\u30FC\u30E0", ko: "\uC0C8 \uAC8C\uC784" },
-    badTranslations: { zh: ["\u65B0\u7684\u6E38\u620F", "\u65B0\u6BD4\u8D5B"] }
-  },
-  continue: {
-    translations: { zh: "\u7EE7\u7EED\u6E38\u620F", en: "Continue", ja: "\u30B3\u30F3\u30C6\u30A3\u30CB\u30E5\u30FC", ko: "\uC774\uC5B4\uD558\uAE30" },
-    aliases: { ja: ["\u3064\u3065\u304D\u304B\u3089"] },
-    badTranslations: { zh: ["\u7EE7\u7EED", "\u5EF6\u62D3"] }
-  },
-  options: {
-    translations: { zh: "\u8BBE\u7F6E", en: "Options", ja: "\u8A2D\u5B9A", ko: "\uC124\uC815" },
-    aliases: { en: ["Option", "Config", "Settings"], ja: ["\u30AA\u30D7\u30B7\u30E7\u30F3"] },
-    badTranslations: { zh: ["\u9009\u9879", "\u671F\u6743"] }
-  },
-  item: {
-    translations: { zh: "\u9053\u5177", en: "Item", ja: "\u30A2\u30A4\u30C6\u30E0", ko: "\uC544\uC774\uD15C" },
-    aliases: { en: ["Items"] },
-    badTranslations: { zh: ["\u9879\u76EE", "\u6761\u6B3E", "\u7269\u4EF6"] }
-  },
-  skill: {
-    translations: { zh: "\u6280\u80FD", en: "Skill", ja: "\u30B9\u30AD\u30EB", ko: "\uC2A4\uD0AC" },
-    aliases: { en: ["Skills"] },
-    badTranslations: { zh: ["\u6280\u672F", "\u6280\u80FD\u6761"] }
-  },
-  equip: {
-    translations: { zh: "\u88C5\u5907", en: "Equip", ja: "\u88C5\u5099", ko: "\uC7A5\uBE44" },
-    aliases: { en: ["Equipment"] },
-    badTranslations: { zh: ["\u914D\u5907", "\u88C5\u8BBE"] }
-  },
-  status: {
-    translations: { zh: "\u72B6\u6001", en: "Status", ja: "\u30B9\u30C6\u30FC\u30BF\u30B9", ko: "\uC0C1\uD0DC" },
-    badTranslations: { zh: ["\u5730\u4F4D", "\u8EAB\u5206", "\u72B6\u51B5"] }
-  },
-  quit: {
-    translations: { zh: "\u9000\u51FA", en: "Quit", ja: "\u7D42\u4E86", ko: "\uC885\uB8CC" },
-    aliases: { en: ["Exit", "Game Over"] },
-    badTranslations: { zh: ["\u505C\u6B62", "\u653E\u5F03", "\u79BB\u5F00\u6E38\u620F"] }
-  },
-  gold: {
-    translations: { zh: "\u91D1\u5E01", en: "Gold", ja: "\u6240\u6301\u91D1", ko: "\uC18C\uC9C0\uAE08" },
-    aliases: { en: ["Money"] },
-    badTranslations: { zh: ["\u9EC4\u91D1", "\u91D1\u8272"] }
-  }
-};
-function key(text) {
-  return text.normalize("NFKC").toLowerCase();
-}
-var indexes = Object.fromEntries(GAME_TERM_LANGUAGES.map((language) => [language, /* @__PURE__ */ new Map()]));
-for (const [id, entry] of Object.entries(GAME_TERMS)) {
-  for (const language of GAME_TERM_LANGUAGES) {
-    for (const source of [entry.translations[language], ...entry.aliases?.[language] || []]) {
-      const normalized = key(source);
-      const ids = indexes[language].get(normalized) || /* @__PURE__ */ new Set();
-      ids.add(id);
-      indexes[language].set(normalized, ids);
-    }
-  }
-}
-function lookupGameTerm(source, targetLanguage = "zh", sourceLanguage) {
-  if (!GAME_TERM_LANGUAGES.includes(targetLanguage) || sourceLanguage && !GAME_TERM_LANGUAGES.includes(sourceLanguage)) return null;
-  const { lead, core, trail } = translationSegmentContent(source);
-  const normalized = key(core);
-  const languages = sourceLanguage ? [sourceLanguage] : GAME_TERM_LANGUAGES;
-  const targets = /* @__PURE__ */ new Set();
-  for (const language of languages) {
-    for (const id of indexes[language].get(normalized) || []) targets.add(GAME_TERMS[id].translations[targetLanguage]);
-  }
-  return targets.size === 1 ? lead + [...targets][0] + trail : null;
-}
-function fixKnownBadGameTermTranslation(source, currentTarget, targetLanguage = "zh") {
-  if (!currentTarget || !source) return null;
-  const { core } = translationSegmentContent(source);
-  const normalizedSource = key(core);
-  for (const [_id, entry] of Object.entries(GAME_TERMS)) {
-    const isMatch = GAME_TERM_LANGUAGES.some((lang) => {
-      const candidates2 = [entry.translations[lang], ...entry.aliases?.[lang] || []];
-      return candidates2.some((cand) => key(cand) === normalizedSource);
-    });
-    if (!isMatch) continue;
-    const correctTarget = entry.translations[targetLanguage];
-    if (!correctTarget) continue;
-    const targetContent = translationSegmentContent(currentTarget);
-    const targetCoreNorm = key(targetContent.core);
-    const badList = entry.badTranslations?.[targetLanguage] || [];
-    const isBad = badList.some((bad) => key(bad) === targetCoreNorm);
-    if (isBad) {
-      return targetContent.lead + correctTarget + targetContent.trail;
-    }
-  }
-  return null;
+// lib/translate/cache-lang.ts
+var DEFAULT_CACHE_SRC_LANG = "ja";
+var KANA2 = /[\u3041-\u3096\u30A1-\u30FA\u31F0-\u31FF\uFF66-\uFF9D]/;
+var HAN2 = /[\u3400-\u9FFF]/;
+var LATIN2 = /[A-Za-z]/;
+var HANGUL = /[\uAC00-\uD7A3]/;
+var CYRILLIC = /[\u0400-\u04FF]/;
+function detectCacheLang(text2, fallback = DEFAULT_CACHE_SRC_LANG) {
+  const body = sourceTextBody(String(text2 || ""));
+  if (!body) return fallback;
+  if (CYRILLIC.test(body)) return "ru";
+  if (HANGUL.test(body)) return "ko";
+  if (KANA2.test(body)) return "ja";
+  if (LATIN2.test(body) && !HAN2.test(body) && !KANA2.test(body)) return "en";
+  if (HAN2.test(body)) return fallback;
+  return fallback;
 }
 
 // services/game/rgss-archive.ts
@@ -1726,17 +1263,17 @@ function readAceMember(archive, member) {
   try {
     const header = read(12);
     if (!header.subarray(0, 8).equals(Buffer.from("RGSSAD\0", "binary"))) throw new Error("Unsupported RGSS archive version");
-    const key2 = Math.imul(header.readUInt32LE(8), 9) + 3 >>> 0;
+    const key3 = Math.imul(header.readUInt32LE(8), 9) + 3 >>> 0;
     for (let count = 0; count < 1e5; count++) {
       const record = read(16);
-      const offset = (record.readUInt32LE(0) ^ key2) >>> 0;
+      const offset = (record.readUInt32LE(0) ^ key3) >>> 0;
       if (!offset) return null;
-      const size = (record.readUInt32LE(4) ^ key2) >>> 0;
-      let fileKey = (record.readUInt32LE(8) ^ key2) >>> 0;
-      const nameSize = (record.readUInt32LE(12) ^ key2) >>> 0;
+      const size = (record.readUInt32LE(4) ^ key3) >>> 0;
+      let fileKey = (record.readUInt32LE(8) ^ key3) >>> 0;
+      const nameSize = (record.readUInt32LE(12) ^ key3) >>> 0;
       if (nameSize > 4096) throw new Error("Invalid RGSS archive filename");
       const name = read(nameSize);
-      for (let i = 0; i < name.length; i++) name[i] ^= key2 >>> i % 4 * 8 & 255;
+      for (let i = 0; i < name.length; i++) name[i] ^= key3 >>> i % 4 * 8 & 255;
       if (name.toString().replaceAll("\\", "/").toLowerCase() !== member.toLowerCase()) continue;
       if (size > 32 * 1024 * 1024) throw new Error("RGSS script archive exceeds 32 MiB");
       const bytes = read(size, offset);
@@ -1787,17 +1324,17 @@ function unpackAceArchive(archive, destinationDir, filter) {
   try {
     const header = read(12);
     if (!header.subarray(0, 8).equals(Buffer.from("RGSSAD\0", "binary"))) throw new Error("Unsupported RGSS archive version");
-    const key2 = Math.imul(header.readUInt32LE(8), 9) + 3 >>> 0;
+    const key3 = Math.imul(header.readUInt32LE(8), 9) + 3 >>> 0;
     for (let count = 0; count < 1e5; count++) {
       const record = read(16);
-      const offset = (record.readUInt32LE(0) ^ key2) >>> 0;
+      const offset = (record.readUInt32LE(0) ^ key3) >>> 0;
       if (!offset) break;
-      const size = (record.readUInt32LE(4) ^ key2) >>> 0;
-      let fileKey = (record.readUInt32LE(8) ^ key2) >>> 0;
-      const nameSize = (record.readUInt32LE(12) ^ key2) >>> 0;
+      const size = (record.readUInt32LE(4) ^ key3) >>> 0;
+      let fileKey = (record.readUInt32LE(8) ^ key3) >>> 0;
+      const nameSize = (record.readUInt32LE(12) ^ key3) >>> 0;
       if (nameSize > 4096) throw new Error("Invalid RGSS archive filename");
       const name = read(nameSize);
-      for (let i = 0; i < name.length; i++) name[i] ^= key2 >>> i % 4 * 8 & 255;
+      for (let i = 0; i < name.length; i++) name[i] ^= key3 >>> i % 4 * 8 & 255;
       const member = name.toString().replaceAll("\\", "/");
       if (filter && !filter(member)) continue;
       const bytes = read(size, offset);
@@ -1820,22 +1357,55 @@ function unpackAceArchive(archive, destinationDir, filter) {
 import { createHash } from "node:crypto";
 import fs10 from "node:fs";
 
-// lib/translate/cache-lang.ts
-var DEFAULT_CACHE_SRC_LANG = "ja";
-var KANA2 = /[\u3041-\u3096\u30A1-\u30FA\u31F0-\u31FF\uFF66-\uFF9D]/;
-var HAN2 = /[\u3400-\u9FFF]/;
-var LATIN2 = /[A-Za-z]/;
-var HANGUL = /[\uAC00-\uD7A3]/;
-var CYRILLIC = /[\u0400-\u04FF]/;
-function detectCacheLang(text, fallback = DEFAULT_CACHE_SRC_LANG) {
-  const body = sourceTextBody(String(text || ""));
-  if (!body) return fallback;
-  if (CYRILLIC.test(body)) return "ru";
-  if (HANGUL.test(body)) return "ko";
-  if (KANA2.test(body)) return "ja";
-  if (LATIN2.test(body) && !HAN2.test(body) && !KANA2.test(body)) return "en";
-  if (HAN2.test(body)) return fallback;
-  return fallback;
+// lib/translate/rm-escape.ts
+var RM_DIGIT_CODE_SRC = String.raw`\\[A-Za-z]+\[\d+\]`;
+function rmDigitCodeRe() {
+  return new RegExp(RM_DIGIT_CODE_SRC, "g");
+}
+var RM_ESCAPE_RE = /\\[A-Za-z]+(?:\[[^\]]*\])?/g;
+function isSemanticPlaceholder(token) {
+  if (!token) return false;
+  if (/^\\[NPV]\[[^\]]*\]$/i.test(token) || /^\\[Gg]$/.test(token)) return true;
+  if (/^%[0-9]+$/i.test(token) || /^%[sdifSc]$/.test(token)) return true;
+  if (/^\{[0-9A-Za-z_]+\}$/.test(token)) return true;
+  if (/^_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/i.test(token)) return true;
+  if (/^[A-Za-z_][A-Za-z0-9_]*\[\d+\]$/.test(token)) return true;
+  return false;
+}
+function hasRmDigitCodes(text2) {
+  return rmDigitCodeRe().test(String(text2 ?? ""));
+}
+function extractRmDigitCodes(text2) {
+  return [...String(text2 ?? "").matchAll(rmDigitCodeRe())].map((m) => m[0]);
+}
+function toRmDigitTemplate(text2) {
+  const src = String(text2 ?? "");
+  if (!hasRmDigitCodes(src)) return src;
+  return src.replace(rmDigitCodeRe(), (m) => {
+    const letter = m.match(/^\\([A-Za-z]+)/)?.[1] ?? "";
+    return `\\${letter.toLowerCase()}[#]`;
+  });
+}
+function applyRmDigitCodes(template, codes) {
+  if (!codes.length) return String(template ?? "");
+  let i = 0;
+  return String(template ?? "").replace(/\\[A-Za-z]+\[#\]/g, (slot) => {
+    const code = codes[i++];
+    return code != null ? code : slot;
+  });
+}
+function lookupWithRmDigitTemplate(get, text2) {
+  const src = String(text2 ?? "");
+  if (!src) return null;
+  const direct = get(src);
+  if (direct != null && direct !== "") return direct;
+  const codes = extractRmDigitCodes(src);
+  if (!codes.length) return null;
+  const tpl = toRmDigitTemplate(src);
+  if (tpl === src) return null;
+  const hit = get(tpl);
+  if (hit == null || hit === "") return null;
+  return applyRmDigitCodes(hit, codes);
 }
 
 // lib/translate/logic-text.ts
@@ -1844,8 +1414,8 @@ var INDENT = /[\t \u3000]/;
 var WORD = /[A-Za-z0-9']/;
 var SENTENCE_END = /[。．.!！?？;；]/;
 var WORDISH = /[\p{L}\p{N}]/u;
-function inferNewlineKind(text, start, end) {
-  const src = String(text ?? "");
+function inferNewlineKind(text2, start, end) {
+  const src = String(text2 ?? "");
   if (start < 0 || end <= start || end > src.length) return "unknown";
   let left = start - 1;
   while (left >= 0 && INDENT.test(src[left])) left -= 1;
@@ -1858,14 +1428,14 @@ function inferNewlineKind(text, start, end) {
   if (WORDISH.test(L) && WORDISH.test(R)) return "soft";
   return "unknown";
 }
-function newlineKindAt(start, end, annotations, text) {
+function newlineKindAt(start, end, annotations, text2) {
   if (annotations?.length) {
     for (const note of annotations) {
       if (note.start === start && note.end === end) return note.kind;
       if (note.start <= start && end <= note.end) return note.kind;
     }
   }
-  return text != null ? inferNewlineKind(text, start, end) : "unknown";
+  return text2 != null ? inferNewlineKind(text2, start, end) : "unknown";
 }
 function usesSpacedSoftBreaks(srcLang, sample) {
   const lang = srcLang || detectCacheLang(sample, "en");
@@ -1877,13 +1447,13 @@ function shouldInsertSpace(left, right, spaced) {
   return WORD.test(left) && WORD.test(right);
 }
 function buildLogicText(original, opts) {
-  const text = String(original ?? "");
-  const spaced = usesSpacedSoftBreaks(opts?.srcLang, text);
-  const controls = new Map([...text.matchAll(TOKEN_RE)].map((m) => [m.index, m[0]]));
+  const text2 = String(original ?? "");
+  const spaced = usesSpacedSoftBreaks(opts?.srcLang, text2);
+  const controls = new Map([...text2.matchAll(TOKEN_RE)].map((m) => [m.index, m[0]]));
   const logicToOriginal = [];
   const logicNewlines = [];
   let logic = "";
-  for (let i = 0; i < text.length; ) {
+  for (let i = 0; i < text2.length; ) {
     const code = controls.get(i);
     if (code && !/^\\[nr]$/i.test(code)) {
       for (let k = 0; k < code.length; k++) {
@@ -1893,16 +1463,16 @@ function buildLogicText(original, opts) {
       i += code.length;
       continue;
     }
-    const c = text[i];
+    const c = text2[i];
     const literalLine = Boolean(code && /^\\[nr]$/i.test(code));
     if (c === "\n" || c === "\r" || literalLine) {
-      const end = literalLine ? i + code.length : c === "\r" && text[i + 1] === "\n" ? i + 2 : i + 1;
-      const kind = newlineKindAt(i, end, opts?.newlines, text);
+      const end = literalLine ? i + code.length : c === "\r" && text2[i + 1] === "\n" ? i + 2 : i + 1;
+      const kind = newlineKindAt(i, end, opts?.newlines, text2);
       if (kind === "soft") {
         let j = end;
-        while (j < text.length && INDENT.test(text[j])) j += 1;
+        while (j < text2.length && INDENT.test(text2[j])) j += 1;
         const left = logic.length ? logic[logic.length - 1] : void 0;
-        const right = j < text.length ? text[j] : void 0;
+        const right = j < text2.length ? text2[j] : void 0;
         if (shouldInsertSpace(left, right, spaced)) {
           logic += " ";
           logicToOriginal.push(-1);
@@ -1912,7 +1482,7 @@ function buildLogicText(original, opts) {
       }
       const logicStart = logic.length;
       for (let k = i; k < end; k++) {
-        logic += text[k];
+        logic += text2[k];
         logicToOriginal.push(k);
       }
       logicNewlines.push({ start: logicStart, end: logic.length, kind });
@@ -1923,10 +1493,10 @@ function buildLogicText(original, opts) {
     logicToOriginal.push(i);
     i += 1;
   }
-  return { original: text, logic, logicToOriginal, logicNewlines };
+  return { original: text2, logic, logicToOriginal, logicNewlines };
 }
-function listNewlineSpans(text) {
-  const src = String(text ?? "");
+function listNewlineSpans(text2) {
+  const src = String(text2 ?? "");
   const controls = new Map([...src.matchAll(TOKEN_RE)].map((m) => [m.index, m[0]]));
   const spans = [];
   for (let i = 0; i < src.length; ) {
@@ -1947,10 +1517,10 @@ function listNewlineSpans(text) {
   }
   return spans;
 }
-function validateNewlineAnnotations(text, annotations) {
+function validateNewlineAnnotations(text2, annotations) {
   if (!annotations) return true;
   if (!Array.isArray(annotations) || annotations.length > 500) return false;
-  const allowed = new Set(listNewlineSpans(text).map((s) => `${s.start}:${s.end}`));
+  const allowed = new Set(listNewlineSpans(text2).map((s) => `${s.start}:${s.end}`));
   for (const note of annotations) {
     if (!note || typeof note !== "object") return false;
     if (!["soft", "hard", "unknown"].includes(note.kind)) return false;
@@ -1983,6 +1553,330 @@ function cacheEngineRank(engine) {
   return 1;
 }
 
+// lib/translate/choice-meta.ts
+function callEnd(text2, start) {
+  const name = /^(?:if|en)\s*\(/i.exec(text2.slice(start));
+  if (!name) return null;
+  let depth = 1;
+  let quote = "";
+  for (let i = start + name[0].length; i < text2.length; i++) {
+    const ch = text2[i];
+    if (quote) {
+      if (ch === "\\") i++;
+      else if (ch === quote) quote = "";
+    } else if (ch === '"' || ch === "'" || ch === "`") quote = ch;
+    else if (ch === "(") depth++;
+    else if (ch === ")" && --depth === 0) return i + 1;
+  }
+  return null;
+}
+function peelChoiceMetaTrail(text2) {
+  let core = String(text2 ?? "");
+  let trail = "";
+  for (; ; ) {
+    const end = core.trimEnd().length;
+    let start = null;
+    for (const match of core.matchAll(/(?:if|en)\s*\(/gi)) {
+      const at = match.index;
+      if (at > 0 && /[A-Za-z0-9_]/.test(core[at - 1])) continue;
+      if (callEnd(core, at) === end) {
+        start = at;
+        break;
+      }
+    }
+    if (start == null) break;
+    start = core.slice(0, start).trimEnd().length;
+    trail = core.slice(start) + trail;
+    core = core.slice(0, start);
+  }
+  return { core, trail };
+}
+function peelChoiceMetaShell(text2) {
+  const trailing = peelChoiceMetaTrail(text2);
+  let core = trailing.core;
+  const trail = trailing.trail;
+  let lead = "";
+  for (; ; ) {
+    const start = core.length - core.trimStart().length;
+    const end = callEnd(core, start);
+    if (end == null) break;
+    const next = end + (core.slice(end).match(/^\s*/)?.[0].length || 0);
+    lead += core.slice(0, next);
+    core = core.slice(next);
+  }
+  return { lead, core, trail };
+}
+
+// lib/translate/segments.ts
+var WRAPPERS = {
+  "\u300C": "\u300D",
+  "\u300E": "\u300F",
+  "(": ")",
+  "\uFF08": "\uFF09",
+  "<": ">",
+  "\uFF1C": "\uFF1E",
+  "\u3010": "\u3011",
+  "\u300A": "\u300B",
+  "\u3008": "\u3009",
+  "[": "]",
+  "\uFF3B": "\uFF3D",
+  "{": "}",
+  "\uFF5B": "\uFF5D",
+  "\u201C": "\u201D",
+  "\u2018": "\u2019"
+};
+var SEPARATE_WRAPPERS = /* @__PURE__ */ new Set(["\u300C", "\u300E", "<", "\uFF1C"]);
+var FRAGMENT_QUOTES = { "\u300C": "\u300D", "\u300E": "\u300F", "\u201C": "\u201D", "\u2018": "\u2019" };
+function isOuterWrapper(text2) {
+  if (text2.length < 2 || WRAPPERS[text2[0]] !== text2[text2.length - 1]) return false;
+  if (/^\{[A-Za-z0-9_]+\}$/.test(text2) || /^<\/?(?:br|span|div|p|b|i|img|ruby|rt)(?:\s[^>]*)?\s*\/?>$/i.test(text2)) return false;
+  const stack = [];
+  const controls = new Map([...text2.matchAll(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"))].map((match) => [match.index, match[0].length]));
+  for (let i = 0; i < text2.length; i++) {
+    const length = controls.get(i);
+    if (length) {
+      i += length - 1;
+      continue;
+    }
+    if (WRAPPERS[text2[i]]) stack.push(WRAPPERS[text2[i]]);
+    else if (stack[stack.length - 1] === text2[i]) {
+      stack.pop();
+      if (!stack.length) return i === text2.length - 1;
+    }
+  }
+  return false;
+}
+function splitSegments(text2, splitOrphanQuotes) {
+  if (isDynamicTemplate(text2)) return [text2];
+  const choice = peelChoiceMetaShell(text2);
+  if (choice.lead || choice.trail) {
+    const parts2 = splitSegments(choice.core, splitOrphanQuotes);
+    if (!parts2.length) return [choice.lead + choice.trail];
+    parts2[0] = choice.lead + parts2[0];
+    parts2[parts2.length - 1] += choice.trail;
+    return parts2;
+  }
+  const controls = new Map([...text2.matchAll(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"))].map((match) => [match.index, match[0].length]));
+  const stack = [];
+  const parts = [];
+  let start = 0;
+  for (let i = 0; i < text2.length; i++) {
+    const controlLength = controls.get(i);
+    if (controlLength) {
+      i += controlLength - 1;
+      continue;
+    }
+    const char = text2[i];
+    if (/[.．,，]/.test(char) && /[0-9０-９]/.test(text2[i - 1] || "") && /[0-9０-９]/.test(text2[i + 1] || "")) continue;
+    let closed = false;
+    if (WRAPPERS[char]) {
+      const separate = SEPARATE_WRAPPERS.has(char);
+      if (separate && !stack.length && i > start && translationSegmentContent(text2.slice(start, i)).core.trim()) {
+        parts.push(text2.slice(start, i));
+        start = i;
+      }
+      stack.push({ close: WRAPPERS[char], separate });
+    } else if (stack[stack.length - 1]?.close === char) {
+      const wrapper = stack.pop();
+      closed = stack.length === 0 && wrapper.separate;
+    } else if (splitOrphanQuotes && !stack.length && /[」』]/.test(char)) {
+      closed = true;
+    }
+    if (stack.length || !closed && !/[，,。．.!！?？]/.test(char)) continue;
+    while (i + 1 < text2.length && /[，,。．.!！?？]/.test(text2[i + 1])) i++;
+    parts.push(text2.slice(start, i + 1));
+    start = i + 1;
+  }
+  if (start < text2.length) parts.push(text2.slice(start));
+  return parts;
+}
+function translationSegments(text2) {
+  return splitSegments(text2, false);
+}
+function segmentContent(text2, keepChoiceMeta) {
+  if (isDynamicTemplate(text2)) return { lead: "", core: text2, trail: "" };
+  const control = new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g");
+  const choice = peelChoiceMetaShell(text2);
+  let core = choice.core;
+  let lead = keepChoiceMeta ? choice.lead : "";
+  let trail = keepChoiceMeta ? choice.trail : "";
+  for (; ; ) {
+    const before = core;
+    const meta = peelChoiceMetaShell(core);
+    if (keepChoiceMeta) {
+      lead += meta.lead;
+      trail = meta.trail + trail;
+    }
+    core = meta.core;
+    const prefix = core.match(/^[\s、，,。．.!！?？…]+/)?.[0] || [...core.matchAll(control)].find((match) => match.index === 0 && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0];
+    if (prefix) {
+      lead += prefix;
+      core = core.slice(prefix.length);
+    }
+    const suffix = core.match(/[\s、，,。．.!！?？…]+$/)?.[0] || [...core.matchAll(control)].find((match) => match.index + match[0].length === core.length && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0];
+    if (suffix) {
+      trail = suffix + trail;
+      core = core.slice(0, -suffix.length);
+    }
+    if (isOuterWrapper(core)) {
+      lead += core[0];
+      trail = core[core.length - 1] + trail;
+      core = core.slice(1, -1);
+    } else {
+      const close = FRAGMENT_QUOTES[core[0]];
+      if (close && !core.includes(close)) {
+        lead += core[0];
+        core = core.slice(1);
+      }
+      const open = Object.keys(FRAGMENT_QUOTES).find((key3) => FRAGMENT_QUOTES[key3] === core[core.length - 1]);
+      if (open && !core.includes(open)) {
+        trail = core[core.length - 1] + trail;
+        core = core.slice(0, -1);
+      }
+    }
+    if (core === before) break;
+  }
+  return { lead, core, trail };
+}
+function translationSegmentContent(text2) {
+  return segmentContent(text2, true);
+}
+function translationRubyChunks(text2) {
+  if (isDynamicTemplate(text2)) return [{ text: text2, ruby: false }];
+  const chunks = [];
+  let start = 0;
+  const controls = [...text2.matchAll(new RegExp(RM_ESCAPE_RE.source, "g"))];
+  for (const match of text2.matchAll(/\\RB\[([^,\[\]\r\n]+),([^,\[\]\r\n]+)\]|\\ruby\[([^\[\]\r\n]+)\]\(([^)\r\n]+)\)/gi)) {
+    const at = match.index;
+    if (controls.some((control) => control.index < at && control.index + control[0].length > at)) continue;
+    if (at > start) chunks.push({ text: text2.slice(start, at), ruby: false });
+    const paren = match[3] != null;
+    chunks.push({
+      text: match[0],
+      ruby: true,
+      base: paren ? match[3] : match[1],
+      reading: paren ? match[4] : match[2],
+      prefix: match[0].slice(0, match[0].indexOf("[")),
+      paren
+    });
+    start = at + match[0].length;
+  }
+  if (start < text2.length) chunks.push({ text: text2.slice(start), ruby: false });
+  return chunks;
+}
+function matchingTranslationRubyPairs(source, target2) {
+  const left = translationRubyChunks(source);
+  const right = translationRubyChunks(target2);
+  if (!left.some((chunk) => chunk.ruby) && !right.some((chunk) => chunk.ruby)) return null;
+  if (left.length !== right.length || left.some((chunk, index) => chunk.ruby !== right[index].ruby)) return [];
+  return left.flatMap((chunk, index) => {
+    const other = right[index];
+    if (chunk.ruby)
+      return [
+        { source: chunk.base, target: other.base },
+        { source: chunk.reading, target: other.reading }
+      ];
+    if (!/[\p{L}\p{N}]/u.test(chunk.text) && !/[\p{L}\p{N}]/u.test(other.text)) return [];
+    return [{ source: chunk.text, target: other.text }];
+  });
+}
+function mapTranslationRubySegments(text2, translate) {
+  const chunks = translationRubyChunks(text2);
+  if (!chunks.some((part) => part.ruby)) return null;
+  let result = "";
+  let changed = false;
+  for (const part of chunks) {
+    if (!part.ruby) {
+      const hit = translate(part.text);
+      if (hit == null) {
+        if (/[\p{L}]/u.test(translationSegmentContent(part.text).core)) return null;
+        result += part.text;
+        continue;
+      }
+      changed = true;
+      result += hit;
+      continue;
+    }
+    const base = translate(part.base);
+    const reading = translate(part.reading);
+    if (base == null || reading == null) {
+      result += part.text;
+      continue;
+    }
+    if (/[,\[\]\r\n]/.test(base + reading)) return null;
+    changed = true;
+    result += part.paren ? `${part.prefix}[${base}](${reading})` : `${part.prefix}[${base},${reading}]`;
+  }
+  return changed ? result : null;
+}
+function translationNumberedPrefixPair(source, target2) {
+  const prefix = source.match(/^(?:[A-Za-z]+\d+_)+/)?.[0];
+  if (!prefix || !target2.startsWith(prefix)) return null;
+  const src = source.slice(prefix.length);
+  const zh = target2.slice(prefix.length);
+  if (/[_/\\]/.test(src) || /[_/\\]/.test(zh)) return null;
+  if (!/[\p{L}\p{N}]/u.test(src) || !/[\p{L}\p{N}]/u.test(zh)) return null;
+  return { source: src, target: zh };
+}
+function translationCacheLines(text2) {
+  if (isDynamicTemplate(text2)) return [text2];
+  const { lead, core, trail } = translationSegmentContent(text2);
+  const controls = [...core.matchAll(RM_ESCAPE_RE)].filter((match) => match[0] !== "\\n");
+  const lines = [];
+  let start = 0;
+  for (const match of core.matchAll(/\r\n|[\r\n]|\\n(?![A-Za-z]|\[)/g)) {
+    const at = match.index;
+    if (controls.some((control) => at >= control.index && at < control.index + control[0].length)) continue;
+    const end = at + match[0].length;
+    lines.push(core.slice(start, end));
+    start = end;
+  }
+  if (!lines.length) return [text2];
+  lines.push(core.slice(start));
+  lines[0] = lead + lines[0];
+  lines[lines.length - 1] += trail;
+  return lines;
+}
+function translationDisplayChunks(text2) {
+  if (isDynamicTemplate(text2)) return [{ text: text2, display: false }];
+  const chunks = [];
+  const controls = [...text2.matchAll(new RegExp(RM_ESCAPE_RE.source, "g"))];
+  let start = 0;
+  for (const match of text2.matchAll(/\\(?:RC\[(?:\d+|#[0-9a-f]+)\]|C\[(?:\d+|#[0-9a-f]+)\]|FS\[\d+\]|CL|FB|DF|G)(?![A-Za-z])/gi)) {
+    const at = match.index;
+    if (controls.some((control) => control.index < at && control.index + control[0].length > at)) continue;
+    if (at > start) chunks.push({ text: text2.slice(start, at), display: false });
+    chunks.push({ text: match[0], display: true });
+    start = at + match[0].length;
+  }
+  if (start < text2.length) chunks.push({ text: text2.slice(start), display: false });
+  return chunks;
+}
+function mapTranslationDisplaySegments(text2, translate) {
+  const choice = peelChoiceMetaShell(text2);
+  const chunks = translationDisplayChunks(choice.core);
+  if (!chunks.some((chunk) => chunk.display)) return text2;
+  return choice.lead + chunks.map((chunk) => chunk.display ? chunk.text : translate(chunk.text)).join("") + choice.trail;
+}
+function translationExportText(text2) {
+  if (isDynamicTemplate(text2)) return text2;
+  const { lead, core, trail } = translationSegmentContent(text2);
+  const strip = (shell) => shell.replace(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"), (code) => /^\\(?:[nbr]|C\[(?:\d+|#[0-9a-f]+)\]|FS\[\d+\]|[.!|><^{}$])$/i.test(code) ? "" : code);
+  return strip(lead) + core + strip(trail);
+}
+function mapTranslationSegments(text2, translate) {
+  return mapSegments(translationSegments(text2), translate);
+}
+function mapTranslationCacheLines(text2, translate) {
+  return mapSegments(translationCacheLines(text2), translate);
+}
+function mapSegments(parts, translate) {
+  return parts.map((part) => {
+    const { lead, core, trail } = translationSegmentContent(part);
+    return core ? lead + translate(core, part) + trail : part;
+  }).join("");
+}
+
 // lib/translate/structured-segments.ts
 var STRUCTURE_MAX_UNITS = 200;
 var CIRCLED = "\u2460\u2461\u2462\u2463\u2464\u2465\u2466\u2467\u2468\u2469\u246A\u246B\u246C\u246D\u246E\u246F\u2470\u2471\u2472\u2473";
@@ -2006,37 +1900,37 @@ function validRecordStructure(value) {
   const r = value;
   return (r.source === void 0 || validStructureAnnotation(r.source)) && (r.target === void 0 || validStructureAnnotation(r.target));
 }
-function scanStructuredText(text, annotation) {
-  const result = { units: [], layout: text ? [{ kind: "literal", start: 0, end: text.length }] : [], diagnostics: [] };
-  if (!text || annotation?.mode === "disabled") return result;
-  if (/\\(?:[A-Za-z]+\[|[^A-Za-z\s])/.test(text) || /<[^>]*>/.test(text)) {
-    result.diagnostics.push({ code: "protected_token", start: 0, end: text.length });
+function scanStructuredText(text2, annotation) {
+  const result = { units: [], layout: text2 ? [{ kind: "literal", start: 0, end: text2.length }] : [], diagnostics: [] };
+  if (!text2 || annotation?.mode === "disabled") return result;
+  if (/\\(?:[A-Za-z]+\[|[^A-Za-z\s])/.test(text2) || /<[^>]*>/.test(text2)) {
+    result.diagnostics.push({ code: "protected_token", start: 0, end: text2.length });
     return result;
   }
-  const protectedAt = new Map([...text.matchAll(TOKEN)].map((m) => [m.index, m[0].length]));
+  const protectedAt = new Map([...text2.matchAll(TOKEN)].map((m) => [m.index, m[0].length]));
   let markers = [];
   const stack = [];
-  for (let i = 0; i < text.length; ) {
+  for (let i = 0; i < text2.length; ) {
     const token = protectedAt.get(i);
     if (token) {
       i += token;
       continue;
     }
-    const before = text[i - 1] || "";
-    const boundary = i === 0 || /[\s:：,，、;；]/.test(before) || /[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]/.test(text[i]);
+    const before = text2[i - 1] || "";
+    const boundary = i === 0 || /[\s:：,，、;；]/.test(before) || /[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]/.test(text2[i]);
     let marker;
-    const circled = CIRCLED.indexOf(text[i]);
+    const circled = CIRCLED.indexOf(text2[i]);
     if (!stack.length && circled >= 0) marker = { start: i, end: i + 1, family: "circled", ordinal: circled + 1 };
-    if (!stack.length && /[·•]/.test(text[i])) marker = { start: i, end: i + 1, family: "bullet" };
+    if (!stack.length && /[·•]/.test(text2[i])) marker = { start: i, end: i + 1, family: "bullet" };
     if (!stack.length && boundary) {
-      const match = text.slice(i).match(
+      const match = text2.slice(i).match(
         /^(?:([（(])([0-9０-９]+|[ivxlcdmIVXLCDM]+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]+)[）)]|([0-9０-９]+|[ivxlcdmIVXLCDM]+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]+)([.．、):：]|(?=\s)|(?=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])))/u
       );
       if (match) {
         const raw = match[2] || match[3];
         const n = ordinal(raw);
         const suffix = match[4] || "";
-        if (n !== void 0 && !(/[.．]/.test(suffix) && /[0-9０-９]/.test(text[i + match[0].length] || ""))) {
+        if (n !== void 0 && !(/[.．]/.test(suffix) && /[0-9０-９]/.test(text2[i + match[0].length] || ""))) {
           const family = /^\d+$/.test(raw.normalize("NFKC")) ? "arabic" : "roman";
           marker = {
             start: i,
@@ -2053,34 +1947,34 @@ function scanStructuredText(text, annotation) {
       i = marker.end;
       continue;
     }
-    if (PAIRS[text[i]]) stack.push(PAIRS[text[i]]);
-    else if (stack.at(-1) === text[i]) stack.pop();
+    if (PAIRS[text2[i]]) stack.push(PAIRS[text2[i]]);
+    else if (stack.at(-1) === text2[i]) stack.pop();
     i++;
   }
   if (markers.some((m) => !m.weak)) markers = markers.filter((m) => !m.weak);
-  if (markers.length >= 2 && markers.every((m) => m.family === "bullet") && !/^\s*$/.test(text.slice(0, markers[0].start))) {
-    const colon = text.slice(0, markers[0].start).match(/[:：]/);
-    if (colon && text.slice(colon.index + 1, markers[0].start).trim()) markers.unshift({ start: colon.index + 1, end: colon.index + 1, family: "bullet" });
+  if (markers.length >= 2 && markers.every((m) => m.family === "bullet") && !/^\s*$/.test(text2.slice(0, markers[0].start))) {
+    const colon = text2.slice(0, markers[0].start).match(/[:：]/);
+    if (colon && text2.slice(colon.index + 1, markers[0].start).trim()) markers.unshift({ start: colon.index + 1, end: colon.index + 1, family: "bullet" });
   }
   if (!markers.length) return result;
   if (markers.length > STRUCTURE_MAX_UNITS - 1) {
-    result.diagnostics.push({ code: "candidate_limit", start: 0, end: text.length });
+    result.diagnostics.push({ code: "candidate_limit", start: 0, end: text2.length });
     return result;
   }
-  const prefix = text.slice(0, markers[0].start);
+  const prefix = text2.slice(0, markers[0].start);
   const labelMatch = prefix.match(/(?:^|\n)([^\n:：]+)[:：]\s*$/u);
   if (prefix.trim() && !labelMatch) return result;
   if (markers.length < 2) return result;
   const numbered = markers.filter((m) => m.ordinal !== void 0);
   const sameFamily = markers.every((m) => m.family === markers[0].family);
   const sequence = numbered.every((m, i) => !i || m.ordinal === numbered[i - 1].ordinal + 1);
-  const bulletStrong = markers[0].family !== "bullet" || markers.every((m) => /^\s*$/.test(text.slice(text.lastIndexOf("\n", m.start - 1) + 1, m.start)));
+  const bulletStrong = markers[0].family !== "bullet" || markers.every((m) => /^\s*$/.test(text2.slice(text2.lastIndexOf("\n", m.start - 1) + 1, m.start)));
   const strong = sameFamily && sequence && bulletStrong && markers.every((m) => !m.weak);
   const state = strong || annotation?.mode === "accept" ? "accepted" : "suggested";
-  if (!sequence || !sameFamily) result.diagnostics.push({ code: "invalid_sequence", start: markers[0].start, end: text.length });
-  else if (!strong) result.diagnostics.push({ code: "ambiguous_marker", start: markers[0].start, end: text.length });
+  if (!sequence || !sameFamily) result.diagnostics.push({ code: "invalid_sequence", start: markers[0].start, end: text2.length });
+  else if (!strong) result.diagnostics.push({ code: "ambiguous_marker", start: markers[0].start, end: text2.length });
   const add = (start, end, kind, n) => {
-    const raw = text.slice(start, end);
+    const raw = text2.slice(start, end);
     const leading = raw.match(/^\s*/)?.[0].length || 0;
     const trailing = raw.match(/[\s,，、;；]*$/)?.[0].length || 0;
     start += leading;
@@ -2095,14 +1989,14 @@ function scanStructuredText(text, annotation) {
     add(labelStart, labelStart + labelMatch[1].length, "label");
   }
   for (let i = 0; i < markers.length; i++) {
-    if (!add(markers[i].end, markers[i + 1]?.start ?? text.length, "item", markers[i].ordinal)) {
+    if (!add(markers[i].end, markers[i + 1]?.start ?? text2.length, "item", markers[i].ordinal)) {
       result.units = [];
       return result;
     }
   }
   if (result.units.length > STRUCTURE_MAX_UNITS) {
     result.units = [];
-    result.diagnostics.push({ code: "candidate_limit", start: 0, end: text.length });
+    result.diagnostics.push({ code: "candidate_limit", start: 0, end: text2.length });
     return result;
   }
   result.layout = [];
@@ -2112,7 +2006,7 @@ function scanStructuredText(text, annotation) {
     result.layout.push({ kind: "unit", unitId: unit.id, start: unit.start, end: unit.end });
     cursor = unit.end;
   }
-  if (cursor < text.length) result.layout.push({ kind: "literal", start: cursor, end: text.length });
+  if (cursor < text2.length) result.layout.push({ kind: "literal", start: cursor, end: text2.length });
   return result;
 }
 
@@ -2121,14 +2015,14 @@ var SENTENCE_TOKEN_SOURCE = `${RM_ESCAPE_RE.source}|${TEXT_MARKUP_RE.source}|htt
 var SENTENCE_RULE_VERSION = 10;
 var PAIRS2 = { "<": ">", "\u300C": "\u300D", "\u300E": "\u300F", "\u3010": "\u3011", "\u300A": "\u300B", "\u3008": "\u3009", "\uFF08": "\uFF09", "(": ")", "[": "]", "{": "}", "\u201C": "\u201D" };
 var WIDTH = { "\uFF1F": "?", "\uFF01": "!", "\uFF0C": ",", "\u3002": ".", "\uFF0E": ".", "\uFF1B": ";" };
-function punctuationKey(text) {
-  return text.replace(/(?:…|[.．]{3,})+/g, "...").replace(/[？！，。．；]/g, (c) => WIDTH[c]).replace(/([!?])\1{2,}/g, "$1$1");
+function punctuationKey(text2) {
+  return text2.replace(/(?:…|[.．]{3,})+/g, "...").replace(/[？！，。．；]/g, (c) => WIDTH[c]).replace(/([!?])\1{2,}/g, "$1$1");
 }
-function controlSignature(text) {
-  return JSON.stringify(text.match(new RegExp(`${SENTENCE_TOKEN_SOURCE}|%\\d+|\\{[A-Za-z0-9_]+\\}|__[A-Za-z]\\d+__`, "g")) || []);
+function controlSignature(text2) {
+  return JSON.stringify(text2.match(new RegExp(`${SENTENCE_TOKEN_SOURCE}|%\\d+|\\{[A-Za-z0-9_]+\\}|__[A-Za-z]\\d+__`, "g")) || []);
 }
-function wholeSentenceKey(text) {
-  const normalized = text.trim();
+function wholeSentenceKey(text2) {
+  const normalized = text2.trim();
   const plainKey = (part) => punctuationKey(part.replace(/\r\n?/g, "\n").replace(/[\t \u3000]*\n[\t \u3000]*/g, "\n"));
   let out = "", at = 0;
   for (const match of normalized.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))) {
@@ -2137,13 +2031,13 @@ function wholeSentenceKey(text) {
   }
   return out + plainKey(normalized.slice(at));
 }
-function sentenceBodyKey(text) {
+function sentenceBodyKey(text2) {
   let out = "", at = 0;
-  for (const match of text.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))) {
-    out += punctuationKey(text.slice(at, match.index).normalize("NFKC")) + match[0];
+  for (const match of text2.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))) {
+    out += punctuationKey(text2.slice(at, match.index).normalize("NFKC")) + match[0];
     at = match.index + match[0].length;
   }
-  return out + punctuationKey(text.slice(at).normalize("NFKC"));
+  return out + punctuationKey(text2.slice(at).normalize("NFKC"));
 }
 function newlineKindOnLogic(start, end, annotations) {
   for (const note of annotations) {
@@ -2152,36 +2046,36 @@ function newlineKindOnLogic(start, end, annotations) {
   }
   return "unknown";
 }
-function ellipsisEndAt(text, index) {
-  if (!/[.．…]/.test(text[index] || "")) return null;
-  const match = text.slice(index).match(/^(?:…|[.．]{3,})+/);
+function ellipsisEndAt(text2, index) {
+  if (!/[.．…]/.test(text2[index] || "")) return null;
+  const match = text2.slice(index).match(/^(?:…|[.．]{3,})+/);
   return match ? index + match[0].length : null;
 }
-function sentenceTail(text) {
-  const tail = text.match(/[,.!?;，、。．！？；…\s]+$/u)?.[0] || "";
+function sentenceTail(text2) {
+  const tail = text2.match(/[,.!?;，、。．！？；…\s]+$/u)?.[0] || "";
   let afterEllipsis = 0;
   for (const match of tail.matchAll(/(?:…|[.．]{3,})+/g)) afterEllipsis = match.index + match[0].length;
   return tail.slice(afterEllipsis);
 }
-function sentenceBoundaryAt(text, index) {
-  const c = text[index];
+function sentenceBoundaryAt(text2, index) {
+  const c = text2[index];
   if (!/[,，、。．.!！?？;；]/.test(c || "")) return null;
-  if (/[,.，．]/.test(c) && /[0-9０-９]/.test(text[index - 1] || "") && /[0-9０-９]/.test(text[index + 1] || "")) return null;
-  if (/[.．]/.test(c) && (/[.．]/.test(text[index - 1] || "") || /[.．]/.test(text[index + 1] || ""))) return null;
+  if (/[,.，．]/.test(c) && /[0-9０-９]/.test(text2[index - 1] || "") && /[0-9０-９]/.test(text2[index + 1] || "")) return null;
+  if (/[.．]/.test(c) && (/[.．]/.test(text2[index - 1] || "") || /[.．]/.test(text2[index + 1] || ""))) return null;
   let end = index + 1;
-  while (end < text.length && /[,，、。．.!！?？;；]/.test(text[end]) && !ellipsisEndAt(text, end)) end++;
+  while (end < text2.length && /[,，、。．.!！?？;；]/.test(text2[end]) && !ellipsisEndAt(text2, end)) end++;
   return { end, boundary: /[,，、]/.test(c) ? "," : /[;；]/.test(c) ? ";" : "stop" };
 }
-function splitSentenceUnitsOn(text, hardOrUnknown) {
+function splitSentenceUnitsOn(text2, hardOrUnknown) {
   const units = [];
-  const controls = new Map([...text.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))].map((m) => [m.index, m[0]]));
+  const controls = new Map([...text2.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))].map((m) => [m.index, m[0]]));
   const stack = [];
-  const opening = text.match(/^\s*[「『“]/)?.[0];
-  const openDialogueAt = opening && !text.includes(PAIRS2[opening.at(-1)]) ? opening.length - 1 : -1;
+  const opening = text2.match(/^\s*[「『“]/)?.[0];
+  const openDialogueAt = opening && !text2.includes(PAIRS2[opening.at(-1)]) ? opening.length - 1 : -1;
   let start = 0;
   let block = 0;
   function push(end, boundary) {
-    const raw = text.slice(start, end);
+    const raw = text2.slice(start, end);
     const tail = sentenceTail(raw);
     const body = raw.slice(0, raw.length - tail.length).trim();
     const marks = punctuationKey(tail.replace(/\s/g, ""));
@@ -2189,19 +2083,19 @@ function splitSentenceUnitsOn(text, hardOrUnknown) {
     if (body) units.push({ start: start + (raw.match(/^\s*/)?.[0].length || 0), end, key: sentenceBodyKey(body), tone, boundary, controls: controlSignature(raw), block });
     start = end;
   }
-  for (let i = 0; i < text.length; i++) {
+  for (let i = 0; i < text2.length; i++) {
     const code = controls.get(i);
     if (code && !/^\\[nr]$/i.test(code)) {
       i += code.length - 1;
       continue;
     }
-    const c = text[i];
+    const c = text2[i];
     if (PAIRS2[c] && i !== openDialogueAt) stack.push(PAIRS2[c]);
     else if (stack.at(-1) === c) stack.pop();
     if (stack.length) continue;
     const literalLine = code && /^\\[nr]$/i.test(code);
     if (c === "\n" || c === "\r" || literalLine) {
-      const end = i + (literalLine ? code.length : c === "\r" && text[i + 1] === "\n" ? 2 : 1);
+      const end = i + (literalLine ? code.length : c === "\r" && text2[i + 1] === "\n" ? 2 : 1);
       const kind = newlineKindOnLogic(i, end, hardOrUnknown);
       if (kind === "hard") {
         push(end, "line");
@@ -2210,32 +2104,32 @@ function splitSentenceUnitsOn(text, hardOrUnknown) {
       i = end - 1;
       continue;
     }
-    const ellipsis = ellipsisEndAt(text, i);
+    const ellipsis = ellipsisEndAt(text2, i);
     if (ellipsis != null) {
       i = ellipsis - 1;
       continue;
     }
-    const seam = sentenceBoundaryAt(text, i);
+    const seam = sentenceBoundaryAt(text2, i);
     if (!seam) continue;
     push(seam.end, seam.boundary);
     i = seam.end - 1;
   }
-  if (start < text.length) push(text.length, "end");
+  if (start < text2.length) push(text2.length, "end");
   return units;
 }
-function sentenceUnits(text, opts) {
+function sentenceUnits(text2, opts) {
   if (opts?.structure?.mode === "disabled")
-    return text.trim() ? [{ start: 0, end: text.length, key: sentenceBodyKey(text), tone: "", boundary: "end", controls: controlSignature(text), block: 0 }] : [];
-  const opening = text.match(/^(?:\s*[(（])+/)?.[0];
-  if (opening && !/[)）]/.test(text)) {
+    return text2.trim() ? [{ start: 0, end: text2.length, key: sentenceBodyKey(text2), tone: "", boundary: "end", controls: controlSignature(text2), block: 0 }] : [];
+  const opening = text2.match(/^(?:\s*[(（])+/)?.[0];
+  if (opening && !/[)）]/.test(text2)) {
     const offset = opening.length;
     const innerOpts = { ...opts, newlines: opts?.newlines?.filter((n) => n.start >= offset).map((n) => ({ ...n, start: n.start - offset, end: n.end - offset })) };
-    return sentenceUnits(text.slice(offset), innerOpts).map((u) => ({ ...u, start: u.start + offset, end: u.end + offset }));
+    return sentenceUnits(text2.slice(offset), innerOpts).map((u) => ({ ...u, start: u.start + offset, end: u.end + offset }));
   }
-  const structured = scanStructuredText(text, opts?.structure);
+  const structured = scanStructuredText(text2, opts?.structure);
   if (structured.units.length && structured.units.every((unit) => unit.state === "accepted")) {
     return structured.units.map((unit, block) => {
-      const raw = text.slice(unit.start, unit.end);
+      const raw = text2.slice(unit.start, unit.end);
       const logic = buildLogicText(raw, {
         srcLang: opts?.srcLang,
         newlines: opts?.newlines?.filter((n) => n.start >= unit.start && n.end <= unit.end).map((n) => ({ ...n, start: n.start - unit.start, end: n.end - unit.start }))
@@ -2254,9 +2148,9 @@ function sentenceUnits(text, opts) {
       };
     });
   }
-  const view = buildLogicText(text, { newlines: opts?.newlines, srcLang: opts?.srcLang });
+  const view = buildLogicText(text2, { newlines: opts?.newlines, srcLang: opts?.srcLang });
   const units = splitSentenceUnitsOn(view.logic, view.logicNewlines);
-  if (view.logic === text) return units;
+  if (view.logic === text2) return units;
   return units.map((unit) => {
     const span = mapLogicRangeToOriginal(view, unit.start, unit.end);
     return { ...unit, start: span.start, end: span.end };
@@ -2265,21 +2159,21 @@ function sentenceUnits(text, opts) {
 function sameSentence(a, b) {
   return a.key === b.key && a.tone === b.tone && a.controls === b.controls;
 }
-function sentenceOuterShell(text) {
-  const visible = text.trim();
+function sentenceOuterShell(text2) {
+  const visible = text2.trim();
   const trimmed = visible.replace(/[,，。．.!！?？;；]+$/, "");
   const suffix = visible.slice(trimmed.length);
-  if (!trimmed || PAIRS2[trimmed[0]] !== trimmed.at(-1)) return { lead: "", core: text, trail: "" };
+  if (!trimmed || PAIRS2[trimmed[0]] !== trimmed.at(-1)) return { lead: "", core: text2, trail: "" };
   const stack = [];
   for (let i = 0; i < trimmed.length; i++) {
     if (PAIRS2[trimmed[i]]) stack.push(PAIRS2[trimmed[i]]);
     else if (stack.at(-1) === trimmed[i]) {
       stack.pop();
-      if (!stack.length && i !== trimmed.length - 1) return { lead: "", core: text, trail: "" };
+      if (!stack.length && i !== trimmed.length - 1) return { lead: "", core: text2, trail: "" };
     }
   }
-  const space = text.indexOf(trimmed);
-  return { lead: text.slice(0, space) + trimmed[0], core: trimmed.slice(1, -1), trail: trimmed.at(-1) + suffix + text.slice(space + visible.length) };
+  const space = text2.indexOf(trimmed);
+  return { lead: text2.slice(0, space) + trimmed[0], core: trimmed.slice(1, -1), trail: trimmed.at(-1) + suffix + text2.slice(space + visible.length) };
 }
 
 // lib/translate/sentence-aliases.ts
@@ -2320,8 +2214,8 @@ function structuredSentenceAliases(src, zh, structure) {
 }
 
 // lib/translate/sentence-auto-alignment.ts
-function completeSentences(text, units) {
-  if (!units.length || text.slice(0, units[0].start).trim() || text.slice(units.at(-1).end).trim()) return null;
+function completeSentences(text2, units) {
+  if (!units.length || text2.slice(0, units[0].start).trim() || text2.slice(units.at(-1).end).trim()) return null;
   const out = [];
   let from = 0;
   for (let i = 0; i < units.length; i++) {
@@ -2329,13 +2223,13 @@ function completeSentences(text, units) {
     if (unit.boundary === "structure") return null;
     if (unit.boundary !== "stop") continue;
     const start = units[from].start, end = unit.end;
-    out.push({ from, to: i + 1, start, end, tone: unit.tone, controls: JSON.stringify([controlSignature(text.slice(start, end)), text.slice(start, end).match(/%[sdif]/g) || []]) });
+    out.push({ from, to: i + 1, start, end, tone: unit.tone, controls: JSON.stringify([controlSignature(text2.slice(start, end)), text2.slice(start, end).match(/%[sdif]/g) || []]) });
     from = i + 1;
   }
   return from === units.length && out.length >= 2 ? out : null;
 }
-function hasComplexControls(text) {
-  return [...text.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))].some((match) => !/^\\(?:[VNP]\[\d+\]|G)$/i.test(match[0]));
+function hasComplexControls(text2) {
+  return [...text2.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))].some((match) => !/^\\(?:[VNP]\[\d+\]|G)$/i.test(match[0]));
 }
 function inferSentenceAlignment(record, units) {
   if (record.derived || record.alignments?.length || record.structure?.source?.mode === "disabled" || record.structure?.target?.mode === "disabled") return [];
@@ -2353,7 +2247,7 @@ function inferSentenceAlignment(record, units) {
 }
 function inferEllipsisClauses(record, source, target2) {
   if (source.length < 2 || source.length !== target2.length) return [];
-  const signature = (text, unit) => JSON.stringify([unit.controls, text.slice(unit.start, unit.end).match(/%[sdif]/g) || []]);
+  const signature = (text2, unit) => JSON.stringify([unit.controls, text2.slice(unit.start, unit.end).match(/%[sdif]/g) || []]);
   if (source.some(
     (unit, i) => unit.boundary !== target2[i].boundary || unit.tone !== target2[i].tone || unit.key.includes("...") !== target2[i].key.includes("...") || signature(record.src, unit) !== signature(record.zh, target2[i])
   ))
@@ -2434,8 +2328,8 @@ function sentenceQueryUnits(src, opts) {
 function recordUnitOpts(record) {
   return { newlines: record.newlines, structure: record.structure?.source };
 }
-function expandRecords(records) {
-  return records.flatMap((record) => [
+function expandRecords(records2) {
+  return records2.flatMap((record) => [
     record,
     ...sentenceAliases(record.src, record.zh).map((alias) => ({ ...record, ...alias, derived: true, alignments: void 0, newlines: void 0 })),
     ...structuredSentenceAliases(record.src, record.zh, record.structure).map(({ context, ...alias }) => ({
@@ -2450,8 +2344,8 @@ function expandRecords(records) {
     }))
   ]);
 }
-function logicAuthorityKey(text, opts) {
-  return wholeSentenceKey(buildLogicText(text, { newlines: opts?.newlines, srcLang: opts?.srcLang }).logic);
+function logicAuthorityKey(text2, opts) {
+  return wholeSentenceKey(buildLogicText(text2, { newlines: opts?.newlines, srcLang: opts?.srcLang }).logic);
 }
 function target(record, units, from, to) {
   if (from === 0 && to === units.length && units[0]?.start === 0 && units.at(-1)?.end === record.src.length) return record.zh;
@@ -2462,9 +2356,9 @@ function target(record, units, from, to) {
   for (let i = 1; i < groups.length; i++) if (groups[i - 1].sourceEnd !== groups[i].sourceStart || groups[i - 1].targetEnd !== groups[i].targetStart) return null;
   return record.zh.slice(groups[0].targetStart, groups.at(-1).targetEnd);
 }
-function cutsSurrogate(text, index) {
-  if (index <= 0 || index >= text.length) return false;
-  const c = text.charCodeAt(index);
+function cutsSurrogate(text2, index) {
+  if (index <= 0 || index >= text2.length) return false;
+  const c = text2.charCodeAt(index);
   return c >= 56320 && c <= 57343;
 }
 function validateAlignments(record, groups) {
@@ -2497,13 +2391,13 @@ function validateAlignments(record, groups) {
   }
   return true;
 }
-function candidates(src, records, queryOpts, automaticOnly = false, budget) {
+function candidates(src, records2, queryOpts, automaticOnly = false, budget) {
   const query = sentenceQueryViewUnits(src, queryOpts);
   const queryKey = logicAuthorityKey(src, queryOpts);
   const fragmentKeys = query.map((unit) => wholeSentenceKey(src.slice(unit.start, unit.end)));
   const out = [];
   let work = 0;
-  for (const record of records) {
+  for (const record of records2) {
     const unitOpts = recordUnitOpts(record);
     const units = sentenceUnits(record.src, unitOpts);
     const recordKey = logicAuthorityKey(record.src, unitOpts);
@@ -2554,14 +2448,14 @@ function candidates(src, records, queryOpts, automaticOnly = false, budget) {
           length++;
           const ellipsis = automaticOnly && inferred.some((g) => g.kind === "ellipsis" && g.from === r && g.to === r + length);
           if (automaticOnly && !ellipsis && (q > 0 && query[q - 1].boundary !== "stop" || query[q + length - 1].boundary !== "stop")) continue;
-          const text = automaticOnly ? inferredSentenceTarget(record, inferred, r, r + length) : target(record, units, r, r + length);
-          if (text == null) continue;
+          const text2 = automaticOnly ? inferredSentenceTarget(record, inferred, r, r + length) : target(record, units, r, r + length);
+          if (text2 == null) continue;
           out.push({
             start: query[q].start,
             end: query[q + length - 1].end,
             from: q,
             to: q + length,
-            text,
+            text: text2,
             ...automaticOnly ? { alignment: "inferred" } : {},
             ...ellipsis ? { alignmentBasis: "ellipsis" } : {},
             queryCoverage: length / query.length,
@@ -2600,12 +2494,12 @@ function renderSentencePlan(plan, gaps = /* @__PURE__ */ new Map()) {
   }
   return out + plan.src.slice(at);
 }
-function planSentenceTranslation(src, records, opts) {
-  return planSentenceTranslationView(src, records, opts, true);
+function planSentenceTranslation(src, records2, opts) {
+  return planSentenceTranslationView(src, records2, opts, true);
 }
-function planSentenceTranslationView(src, records, opts, unwrap) {
+function planSentenceTranslationView(src, records2, opts, unwrap) {
   const units = sentenceQueryViewUnits(src, opts);
-  const expanded = expandRecords(records);
+  const expanded = expandRecords(records2);
   const normal = candidates(src, expanded, opts);
   const initial = chooseSentencePlan(src, units, normal, normal.limited === true, opts?.category);
   if (initial.status === "full" || initial.limited || opts?.structure?.mode === "disabled") return initial;
@@ -2614,7 +2508,7 @@ function planSentenceTranslationView(src, records, opts, unwrap) {
     let best = initial;
     let covered = initial.matches.reduce((sum, m) => sum + m.end - m.start, 0);
     for (const body of views.slice(1)) {
-      const inner = planSentenceTranslationView(body.text, records, body.opts, false);
+      const inner = planSentenceTranslationView(body.text, records2, body.opts, false);
       const shifted = {
         ...inner,
         src,
@@ -2668,12 +2562,12 @@ function remapSentenceMatches(matches, units, src, opts) {
     to: units.findIndex((u) => u.end === m.end || u.end === src.length && bodies.some((v) => m.end === v.offset + v.text.length)) + 1
   }));
 }
-function applyLineFallback(src, records, plan, normal, opts) {
+function applyLineFallback(src, records2, plan, normal, opts) {
   if (plan.status === "full" || plan.limited) return plan;
   const lines = queryLines(src);
   if (!lines.length) return plan;
   const keys = new Set(lines.map((line) => wholeSentenceKey(line.text)));
-  const independent = records.filter((r) => keys.has(logicAuthorityKey(r.src, recordUnitOpts(r))));
+  const independent = records2.filter((r) => keys.has(logicAuthorityKey(r.src, recordUnitOpts(r))));
   if (!independent.length) return plan;
   const newlines = listNewlineSpans(src).map((br) => ({ ...br, kind: "hard" }));
   const lineOpts = { ...opts, newlines: [...opts?.newlines || [], ...newlines] };
@@ -2700,8 +2594,8 @@ function chooseSentencePlan(src, units, possible, limited, category) {
   let ambiguous = false;
   const ranges = /* @__PURE__ */ new Map();
   for (const m of possible) {
-    const key2 = `${m.from}:${m.to}`;
-    ranges.set(key2, [...ranges.get(key2) || [], m]);
+    const key3 = `${m.from}:${m.to}`;
+    ranges.set(key3, [...ranges.get(key3) || [], m]);
   }
   possible = [];
   for (const group of ranges.values()) {
@@ -2770,21 +2664,21 @@ function chooseAuthorityMatch(group, src, category) {
   }
   return { ambiguous: true };
 }
-function createSentenceResolver(records) {
+function createSentenceResolver(records2) {
   const inverted = /* @__PURE__ */ new Map();
   const whole = /* @__PURE__ */ new Map();
-  const key2 = (s) => JSON.stringify([s.key, s.tone, s.controls]);
+  const key3 = (s) => JSON.stringify([s.key, s.tone, s.controls]);
   const addWhole = (k, record) => {
     whole.set(k, [...whole.get(k) || [], record]);
   };
-  for (const record of expandRecords(records)) {
+  for (const record of expandRecords(records2)) {
     const unitOpts = recordUnitOpts(record);
     const raw = wholeSentenceKey(record.src);
     addWhole(raw, record);
     const logic = logicAuthorityKey(record.src, unitOpts);
     if (logic !== raw) addWhole(logic, record);
     for (const unit of sentenceUnits(record.src, unitOpts)) {
-      const k = key2(unit), bucket = inverted.get(k) || /* @__PURE__ */ new Set();
+      const k = key3(unit), bucket = inverted.get(k) || /* @__PURE__ */ new Set();
       bucket.add(record);
       inverted.set(k, bucket);
     }
@@ -2802,7 +2696,7 @@ function createSentenceResolver(records) {
     for (const unit of sentenceQueryUnits(src, opts)) {
       if (unit.boundary === "structure") for (const r of whole.get(wholeSentenceKey(src.slice(unit.start, unit.end))) || []) selected.add(r);
       if (selected.size > 500) return Object.assign([...exact], { limited: true });
-      const bucket = inverted.get(key2(unit));
+      const bucket = inverted.get(key3(unit));
       if ((bucket?.size || 0) > 500) {
         limited = true;
         continue;
@@ -2848,9 +2742,281 @@ function applyCacheRow(rows, row) {
   } else rows.set(row.s, row);
 }
 
+// lib/translate/default-game-terms.json
+var default_game_terms_default = {
+  flame: {
+    translations: {
+      zh: "\u708E",
+      en: "Flame",
+      ja: "\u708E",
+      ko: "\uD654\uC5FC"
+    },
+    aliases: {
+      en: ["Fire"]
+    }
+  },
+  lightning: {
+    translations: {
+      zh: "\u96F7",
+      en: "Lightning",
+      ja: "\u96F7",
+      ko: "\uBC88\uAC1C"
+    }
+  },
+  water: {
+    translations: {
+      zh: "\u6C34",
+      en: "Water",
+      ja: "\u6C34",
+      ko: "\uBB3C"
+    }
+  },
+  earth: {
+    translations: {
+      zh: "\u571F",
+      en: "Earth",
+      ja: "\u571F",
+      ko: "\uB300\uC9C0"
+    }
+  },
+  light: {
+    translations: {
+      zh: "\u5149",
+      en: "Light",
+      ja: "\u5149",
+      ko: "\uBE5B"
+    }
+  },
+  sword: {
+    translations: {
+      zh: "\u5251",
+      en: "Sword",
+      ja: "\u5263",
+      ko: "\uAC80"
+    }
+  },
+  axe: {
+    translations: {
+      zh: "\u65A7",
+      en: "Axe",
+      ja: "\u65A7",
+      ko: "\uB3C4\uB07C"
+    }
+  },
+  staff: {
+    translations: {
+      zh: "\u6756",
+      en: "Staff",
+      ja: "\u6756",
+      ko: "\uC9C0\uD321\uC774"
+    }
+  },
+  bow: {
+    translations: {
+      zh: "\u5F13",
+      en: "Bow",
+      ja: "\u5F13",
+      ko: "\uD65C"
+    }
+  },
+  gun: {
+    translations: {
+      zh: "\u67AA",
+      en: "Gun",
+      ja: "\u9283",
+      ko: "\uCD1D"
+    }
+  },
+  claw: {
+    translations: {
+      zh: "\u722A",
+      en: "Claw",
+      ja: "\u722A",
+      ko: "\uBC1C\uD1B1"
+    }
+  },
+  spear: {
+    translations: {
+      zh: "\u957F\u67AA",
+      en: "Spear",
+      ja: "\u69CD",
+      ko: "\uCC3D"
+    }
+  },
+  save: {
+    translations: {
+      zh: "\u4FDD\u5B58",
+      en: "Save",
+      ja: "\u30BB\u30FC\u30D6",
+      ko: "\uC800\uC7A5"
+    },
+    aliases: {
+      en: ["Save Game"],
+      ja: ["\u30BB\u30FC\u30D6\u3059\u308B"]
+    },
+    badTranslations: {
+      zh: ["\u8282\u7701", "\u62EF\u6551", "\u7701\u4E0B", "\u5B58\u76D8"]
+    }
+  },
+  load: {
+    translations: {
+      zh: "\u8BFB\u53D6",
+      en: "Load",
+      ja: "\u30ED\u30FC\u30C9",
+      ko: "\uBD88\uB7EC\uC624\uAE30"
+    },
+    aliases: {
+      en: ["Load Game"],
+      ja: ["\u30ED\u30FC\u30C9\u3059\u308B"]
+    },
+    badTranslations: {
+      zh: ["\u8D1F\u8377", "\u4F9B\u7535\u91CF", "\u8D1F\u8F7D", "\u88C5\u8F7D", "\u52A0\u8F7D", "\u88C5\u5165"]
+    }
+  },
+  new_game: {
+    translations: {
+      zh: "\u65B0\u6E38\u620F",
+      en: "New Game",
+      ja: "\u30CB\u30E5\u30FC\u30B2\u30FC\u30E0",
+      ko: "\uC0C8 \uAC8C\uC784"
+    },
+    badTranslations: {
+      zh: ["\u65B0\u7684\u6E38\u620F", "\u65B0\u6BD4\u8D5B"]
+    }
+  },
+  continue: {
+    translations: {
+      zh: "\u7EE7\u7EED\u6E38\u620F",
+      en: "Continue",
+      ja: "\u30B3\u30F3\u30C6\u30A3\u30CB\u30E5\u30FC",
+      ko: "\uC774\uC5B4\uD558\uAE30"
+    },
+    aliases: {
+      ja: ["\u3064\u3065\u304D\u304B\u3089"]
+    },
+    badTranslations: {
+      zh: ["\u7EE7\u7EED", "\u5EF6\u62D3"]
+    }
+  },
+  options: {
+    translations: {
+      zh: "\u8BBE\u7F6E",
+      en: "Options",
+      ja: "\u8A2D\u5B9A",
+      ko: "\uC124\uC815"
+    },
+    aliases: {
+      en: ["Option", "Config", "Settings"],
+      ja: ["\u30AA\u30D7\u30B7\u30E7\u30F3"]
+    },
+    badTranslations: {
+      zh: ["\u9009\u9879", "\u671F\u6743"]
+    }
+  },
+  item: {
+    translations: {
+      zh: "\u9053\u5177",
+      en: "Item",
+      ja: "\u30A2\u30A4\u30C6\u30E0",
+      ko: "\uC544\uC774\uD15C"
+    },
+    aliases: {
+      en: ["Items"]
+    },
+    badTranslations: {
+      zh: ["\u9879\u76EE", "\u6761\u6B3E", "\u7269\u4EF6"]
+    }
+  },
+  skill: {
+    translations: {
+      zh: "\u6280\u80FD",
+      en: "Skill",
+      ja: "\u30B9\u30AD\u30EB",
+      ko: "\uC2A4\uD0AC"
+    },
+    aliases: {
+      en: ["Skills"]
+    },
+    badTranslations: {
+      zh: ["\u6280\u672F", "\u6280\u80FD\u6761"]
+    }
+  },
+  equip: {
+    translations: {
+      zh: "\u88C5\u5907",
+      en: "Equip",
+      ja: "\u88C5\u5099",
+      ko: "\uC7A5\uBE44"
+    },
+    aliases: {
+      en: ["Equipment"]
+    },
+    badTranslations: {
+      zh: ["\u914D\u5907", "\u88C5\u8BBE"]
+    }
+  },
+  status: {
+    translations: {
+      zh: "\u72B6\u6001",
+      en: "Status",
+      ja: "\u30B9\u30C6\u30FC\u30BF\u30B9",
+      ko: "\uC0C1\uD0DC"
+    },
+    badTranslations: {
+      zh: ["\u5730\u4F4D", "\u8EAB\u5206", "\u72B6\u51B5"]
+    }
+  },
+  quit: {
+    translations: {
+      zh: "\u9000\u51FA",
+      en: "Quit",
+      ja: "\u7D42\u4E86",
+      ko: "\uC885\uB8CC"
+    },
+    aliases: {
+      en: ["Exit", "Game Over"]
+    },
+    badTranslations: {
+      zh: ["\u505C\u6B62", "\u653E\u5F03", "\u79BB\u5F00\u6E38\u620F"]
+    }
+  },
+  gold: {
+    translations: {
+      zh: "\u91D1\u5E01",
+      en: "Gold",
+      ja: "\u6240\u6301\u91D1",
+      ko: "\uC18C\uC9C0\uAE08"
+    },
+    aliases: {
+      en: ["Money"]
+    },
+    badTranslations: {
+      zh: ["\u9EC4\u91D1", "\u91D1\u8272"]
+    }
+  }
+};
+
+// lib/translate/game-terms.ts
+var GAME_TERM_LANGUAGES = ["zh", "en", "ja", "ko"];
+var GAME_TERMS = default_game_terms_default;
+function key(text2) {
+  return text2.normalize("NFKC").toLowerCase();
+}
+var indexes = Object.fromEntries(GAME_TERM_LANGUAGES.map((language) => [language, /* @__PURE__ */ new Map()]));
+for (const [id, entry] of Object.entries(GAME_TERMS)) {
+  for (const language of GAME_TERM_LANGUAGES) {
+    for (const source of [entry.translations[language], ...entry.aliases?.[language] || []]) {
+      const normalized = key(source);
+      const ids = indexes[language].get(normalized) || /* @__PURE__ */ new Set();
+      ids.add(id);
+      indexes[language].set(normalized, ids);
+    }
+  }
+}
+
 // lib/translate/lookup.ts
-function normalizeTranslateKey(text) {
-  let s = String(text ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+function normalizeTranslateKey(text2) {
+  let s = String(text2 ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   s = s.replace(/^"+/, "").replace(/("\);|"\))$/, "");
   try {
     s = s.normalize("NFKC");
@@ -2862,8 +3028,8 @@ function normalizeTranslateKey(text) {
 // services/translate/text-classify.ts
 var JAPANESE = /[\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FD-\u30FF\u31F0-\u31FF\uFF66-\uFF9D]/;
 var HAN3 = /[\u4e00-\u9fff]/;
-function containsJapaneseText(text) {
-  return JAPANESE.test(String(text ?? ""));
+function containsJapaneseText(text2) {
+  return JAPANESE.test(String(text2 ?? ""));
 }
 function retainsJapaneseHanPhrase(src, zh) {
   if (!containsJapaneseText(src)) return false;
@@ -2876,23 +3042,23 @@ function normCmp(s) {
   return s.normalize("NFKC").replace(/\s+/g, " ").trim();
 }
 var CONTROL_AFFIX = /^(?:\\[A-Za-z]+(?:\[[^\]]*\])?|\\\[[^\]]*\]|\\[^A-Za-z\s]|[A-Za-z_][A-Za-z0-9_]*\[\d+\])/;
-function matchControlAffixAt(text, atEnd) {
+function matchControlAffixAt(text2, atEnd) {
   if (!atEnd) {
-    const m = text.match(CONTROL_AFFIX);
+    const m = text2.match(CONTROL_AFFIX);
     return m && !/^\\RB\[/i.test(m[0]) && !isSemanticPlaceholder(m[0]) ? m[0] : null;
   }
   const re = /\\[A-Za-z]+(?:\[[^\]]*\])?|\\\[[^\]]*\]|\\[^A-Za-z\s]|[A-Za-z_][A-Za-z0-9_]*\[\d+\]/g;
   let hit = null;
-  for (const m of text.matchAll(re)) {
+  for (const m of text2.matchAll(re)) {
     if (/^\\RB\[/i.test(m[0])) continue;
     if (isSemanticPlaceholder(m[0])) continue;
     const i = m.index ?? 0;
-    if (i + m[0].length === text.length) hit = m[0];
+    if (i + m[0].length === text2.length) hit = m[0];
   }
   return hit;
 }
-function peelControlShell(text) {
-  let rest = String(text ?? "");
+function peelControlShell(text2) {
+  let rest = String(text2 ?? "");
   let lead = "";
   let trail = "";
   for (; ; ) {
@@ -2921,11 +3087,11 @@ function peelControlShell(text) {
   }
   return { lead, core: rest, trail };
 }
-function stripControlNoise(text) {
-  return String(text ?? "").replace(PROTECT_TOKEN, " ").replace(/[\s\u3000]+/g, " ").trim();
+function stripControlNoise(text2) {
+  return String(text2 ?? "").replace(PROTECT_TOKEN, " ").replace(/[\s\u3000]+/g, " ").trim();
 }
-function protectSentenceForTranslate(text) {
-  const choice = peelChoiceMetaShell(text);
+function protectSentenceForTranslate(text2) {
+  const choice = peelChoiceMetaShell(text2);
   const shell = peelControlShell(choice.core);
   const tokens = [];
   const plain = shell.core.replace(new RegExp(`${SENTENCE_TOKEN_SOURCE}|${PROTECT_TOKEN.source}`, "g"), (token) => {
@@ -2959,9 +3125,9 @@ function isReusableTranslation(src, zh) {
   const body = stripControlNoise(src);
   return !JAPANESE.test(body) && /[A-Za-z\u4e00-\u9fff]/.test(body);
 }
-function shouldTranslate(text, sourceLang) {
+function shouldTranslate(text2, sourceLang) {
   if (typeof sourceLang === "number") sourceLang = void 0;
-  const core = stripControlNoise(text);
+  const core = stripControlNoise(text2);
   if (!core) return false;
   if (sourceLang && sourceLang !== "ja" && sourceLang !== "en") {
     const compact2 = core.replace(/[\s\u3000]+/g, "");
@@ -3043,18 +3209,18 @@ function applyPair(lookup, src, zh) {
   const nk = normalizeTranslateKey(k);
   if (nk && nk !== k) lookup[nk] = v;
 }
-function createGameTranslateLookup(records) {
+function createGameTranslateLookup(records2) {
   const lookup = /* @__PURE__ */ Object.create(null);
   try {
-    for (const record of records) applyPair(lookup, record.src, record.zh);
+    for (const record of records2) applyPair(lookup, record.src, record.zh);
   } catch {
   }
   return lookup;
 }
-function createGameTranslateEngines(records) {
+function createGameTranslateEngines(records2) {
   const engines = /* @__PURE__ */ Object.create(null);
   try {
-    for (const record of records) {
+    for (const record of records2) {
       if (record.src && record.engine) {
         engines[record.src] = record.engine;
         const nk = normalizeTranslateKey(record.src);
@@ -3066,14 +3232,14 @@ function createGameTranslateEngines(records) {
   return engines;
 }
 function loadRgssTranslationLookup(contentRoot) {
-  const records = loadGameTranslationRecords(contentRoot);
-  const lookup = createGameTranslateLookup(records);
+  const records2 = loadGameTranslationRecords(contentRoot);
+  const lookup = createGameTranslateLookup(records2);
   const overrides = createGameTranslateLookup(
-    records.filter(
+    records2.filter(
       ({ engine }) => engine === "manual" || engine === "import" || engine?.startsWith("import:") || engine === "live:optimize" || engine?.startsWith("live:optimize:")
     )
   );
-  const engines = createGameTranslateEngines(records);
+  const engines = createGameTranslateEngines(records2);
   return { lookup, overrides, engines };
 }
 function resolveRgssTranslationWithEngine(src, current, translations) {
@@ -3092,7 +3258,7 @@ function resolveRgssTranslationWithEngine(src, current, translations) {
 // services/translate/game-cache-context.ts
 var contexts = /* @__PURE__ */ new Map();
 function buildContext(contentRoot) {
-  const records = loadGameTranslationRecords(contentRoot, () => false);
+  const records2 = loadGameTranslationRecords(contentRoot, () => false);
   const blocked = /* @__PURE__ */ new Set();
   const file = gameTranslationFiles(contentRoot).cache;
   if (file && fs10.existsSync(file))
@@ -3105,17 +3271,17 @@ function buildContext(contentRoot) {
       }
     }
   const numeric = /* @__PURE__ */ new Map();
-  for (const record of records) {
+  for (const record of records2) {
     const family = numericLabelFamily(record.src);
     if (family) numeric.set(family, [...numeric.get(family) || [], record]);
   }
   const { seed } = gameTranslationFiles(contentRoot);
-  const authorityVersion = createHash("sha256").update(JSON.stringify([seed, records.filter((record) => record.local), [...blocked].sort()])).digest("hex");
+  const authorityVersion = createHash("sha256").update(JSON.stringify([seed, records2.filter((record) => record.local), [...blocked].sort()])).digest("hex");
   return {
-    records,
+    records: records2,
     blocked: (src) => blocked.has(src),
-    resolver: createSentenceResolver(records),
-    lookup: createGameTranslateLookup(records),
+    resolver: createSentenceResolver(records2),
+    lookup: createGameTranslateLookup(records2),
     numericRecords: (src) => numeric.get(numericLabelFamily(src) || "") || [],
     authorityVersion
   };
@@ -3138,38 +3304,38 @@ import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
 // services/translate/cache-lookup.ts
 function lookupCandidates(src) {
   const choice = peelChoiceMetaShell(src);
-  const key2 = choice.core || src;
+  const key3 = choice.core || src;
   const guard = protectSentenceForTranslate(src);
-  const display = translationExportText(key2);
-  const shell = sentenceOuterShell(key2);
-  const displayShell = translationSegmentContent(key2);
-  const leadSpace = key2.match(/^\s*/)?.[0] ?? "";
-  const trailSpace = key2.match(/\s*$/)?.[0] ?? "";
-  const trimmed = key2.slice(leadSpace.length, key2.length - trailSpace.length);
-  const description = key2.match(/^<SG説明:/);
+  const display = translationExportText(key3);
+  const shell = sentenceOuterShell(key3);
+  const displayShell = translationSegmentContent(key3);
+  const leadSpace = key3.match(/^\s*/)?.[0] ?? "";
+  const trailSpace = key3.match(/\s*$/)?.[0] ?? "";
+  const trimmed = key3.slice(leadSpace.length, key3.length - trailSpace.length);
+  const description = key3.match(/^<SG説明:/);
   return [
-    { key: key2, lead: choice.lead, trail: choice.trail },
-    { key: normalizeTranslateKey(key2), lead: choice.lead, trail: choice.trail },
-    ...trimmed && trimmed !== key2 ? [{ key: trimmed, lead: choice.lead + leadSpace, trail: trailSpace + choice.trail }] : [],
-    ...description ? [{ key: key2.slice(description[0].length), lead: choice.lead + description[0], trail: choice.trail }] : [],
-    ...display === key2 ? [] : [display, normalizeTranslateKey(display)].map((candidate) => ({
+    { key: key3, lead: choice.lead, trail: choice.trail },
+    { key: normalizeTranslateKey(key3), lead: choice.lead, trail: choice.trail },
+    ...trimmed && trimmed !== key3 ? [{ key: trimmed, lead: choice.lead + leadSpace, trail: trailSpace + choice.trail }] : [],
+    ...description ? [{ key: key3.slice(description[0].length), lead: choice.lead + description[0], trail: choice.trail }] : [],
+    ...display === key3 ? [] : [display, normalizeTranslateKey(display)].map((candidate) => ({
       key: candidate,
       lead: choice.lead + displayShell.lead,
       trail: displayShell.trail + choice.trail,
       displayOnly: true
     })),
-    ...shell.core !== key2 && !/[!?！？]/.test(shell.trail) ? [{ key: shell.core, lead: choice.lead + shell.lead, trail: shell.trail + choice.trail, bodyOnly: true }] : [],
+    ...shell.core !== key3 && !/[!?！？]/.test(shell.trail) ? [{ key: shell.core, lead: choice.lead + shell.lead, trail: shell.trail + choice.trail, bodyOnly: true }] : [],
     { key: guard.core, lead: guard.lead, trail: guard.trail },
     { key: normalizeTranslateKey(guard.core), lead: guard.lead, trail: guard.trail }
   ];
 }
 function lookupWholeTranslation(get, src) {
-  for (const { key: key2, lead, trail, bodyOnly, displayOnly } of lookupCandidates(src)) {
-    if (!key2) continue;
+  for (const { key: key3, lead, trail, bodyOnly, displayOnly } of lookupCandidates(src)) {
+    if (!key3) continue;
     const hit = lookupWithRmDigitTemplate((k) => {
       const value = get(k);
       return value && isReusableTranslation(k, value) ? value : null;
-    }, key2);
+    }, key3);
     if (hit != null) {
       const restored = lead + (displayOnly ? translationSegmentContent(hit).core : bodyOnly ? sentenceOuterShell(hit).core : hit) + trail;
       if (isReusableTranslation(src, restored)) return restored;
@@ -3267,15 +3433,15 @@ function createMatchIndex(client) {
     return r ? attach(r) : null;
   }
   function equivalent(src, pair) {
-    const key2 = wholeSentenceKey(src);
-    return client.prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(key2, pair.from, pair.to).map(attach);
+    const key3 = wholeSentenceKey(src);
+    return client.prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(key3, pair.from, pair.to).map(attach);
   }
   function candidates2(src, pair, opts) {
     const found = /* @__PURE__ */ new Map();
     const keyQuery = prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? LIMIT 501");
     const lookupKeys = sentenceQueryKeys(src, opts);
-    for (const key2 of lookupKeys) {
-      for (const row of keyQuery.all(key2, pair.from, pair.to)) {
+    for (const key3 of lookupKeys) {
+      for (const row of keyQuery.all(key3, pair.from, pair.to)) {
         if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
         if (found.size > 500) return { records: [], limited: true };
       }
@@ -3313,8 +3479,8 @@ function createMatchIndex(client) {
       return Object.assign(rows.map(attach), { limited: rows.length > 500 });
     },
     version: () => String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value),
-    current(records) {
-      return records.every((r) => Number(prepare("SELECT revision FROM translation_records WHERE id=?").get(r.id)?.revision) === r.revision);
+    current(records2) {
+      return records2.every((r) => Number(prepare("SELECT revision FROM translation_records WHERE id=?").get(r.id)?.revision) === r.revision);
     },
     plan(src, pair, local = [], opts) {
       client.exec("BEGIN");
@@ -3366,10 +3532,10 @@ function createMatchIndex(client) {
       }
     },
     authority(src, pair, opts) {
-      const records = equivalent(src, pair);
-      if (!records.length || records.length > 500) return null;
-      const rank = Math.max(...records.map((r) => cacheEngineRank(r.engine)));
-      let top = records.filter((r) => cacheEngineRank(r.engine) === rank);
+      const records2 = equivalent(src, pair);
+      if (!records2.length || records2.length > 500) return null;
+      const rank = Math.max(...records2.map((r) => cacheEngineRank(r.engine)));
+      let top = records2.filter((r) => cacheEngineRank(r.engine) === rank);
       const want = String(opts?.category || "").trim();
       if (want) {
         const matched = top.filter((r) => r.category === want);
@@ -3382,10 +3548,10 @@ function createMatchIndex(client) {
 }
 
 // services/translate/game-coverage.ts
-function createGameCoverage(records, opts) {
-  const lookup = createGameTranslateLookup(records);
-  const resolver = createSentenceResolver(records);
-  const numeric = createNumericLabelIndex(records);
+function createGameCoverage(records2, opts) {
+  const lookup = createGameTranslateLookup(records2);
+  const resolver = createSentenceResolver(records2);
+  const numeric = createNumericLabelIndex(records2);
   let client;
   let shared;
   let opened = false;
@@ -3411,10 +3577,10 @@ function createGameCoverage(records, opts) {
           hit = plan.status === "full" ? plan.zh : null;
           if (hit == null && shared && numericLabelFamily(src)) {
             const rows = shared.numericRecords(pair, src);
-            if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records]).resolve(src);
+            if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records2]).resolve(src);
           }
           if (hit == null && /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src)) {
-            hit = lookupCachedTranslation((key2) => lookup[key2] ?? shared?.record(key2, pair)?.zh, src);
+            hit = lookupCachedTranslation((key3) => lookup[key3] ?? shared?.record(key3, pair)?.zh, src);
           }
         }
       }
@@ -3427,12 +3593,313 @@ function createGameCoverage(records, opts) {
   };
 }
 
+// services/translate/resources/snapshot.ts
+import fs12 from "node:fs";
+import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
+
+// lib/translate/resource-matcher.ts
+var key2 = (text2) => text2.normalize("NFC");
+function matchVocalRule(text2, rule) {
+  const source = key2(text2);
+  if (Array.from(source).length > rule.modifiers.maxInputLength) return null;
+  const units = Object.entries(rule.units).sort(([a], [b]) => b.length - a.length);
+  const punctuation = [...rule.modifiers.punctuation].sort((a, b) => b.length - a.length);
+  const states = Array.from({ length: source.length + 1 }, () => /* @__PURE__ */ new Map());
+  states[0].set(0, /* @__PURE__ */ new Set([""]));
+  let stateCount = 0;
+  for (let at = 0; at < source.length; at++) {
+    for (const [count, outputs] of states[at]) {
+      const choices = units.filter(([unit]) => source.startsWith(unit, at)).map(([unit, target2]) => [unit, target2, 1]);
+      for (const mark of punctuation) if (source.startsWith(mark, at)) choices.push([mark, mark, 0]);
+      for (const [part, target2, increment] of choices) {
+        const nextCount = count + increment;
+        if (nextCount > rule.modifiers.maxUnits) continue;
+        const next = states[at + part.length];
+        const values = next.get(nextCount) || /* @__PURE__ */ new Set();
+        for (const output of outputs) {
+          const value = output + target2;
+          if (value.length > 16e3) return null;
+          values.add(value);
+          if (++stateCount > 4096 || values.size > 8) return null;
+        }
+        next.set(nextCount, values);
+      }
+    }
+  }
+  const results = /* @__PURE__ */ new Set();
+  for (const [count, outputs] of states[source.length]) if (count >= rule.modifiers.minUnits) for (const output of outputs) results.add(output);
+  return results.size === 1 ? [...results][0] : null;
+}
+function createResourceMatcher(snapshot) {
+  const exact = /* @__PURE__ */ new Map();
+  const vocal = [];
+  for (const pack of snapshot.packs) {
+    for (const record of pack.records) {
+      if (record.reviewStatus !== "reviewed") continue;
+      const candidate = { pack, record };
+      if (record.type === "vocal_rule") vocal.push(candidate);
+      else
+        for (const text2 of [record.sourceText, ...record.aliases || []]) {
+          const id = JSON.stringify([record.sourceLanguage, record.targetLanguage, key2(text2)]);
+          exact.set(id, [...exact.get(id) || [], candidate]);
+        }
+    }
+  }
+  function eligible(record, context) {
+    return record.sourceLanguage === context.sourceLanguage && record.targetLanguage === context.targetLanguage && (record.scope.kind === "global" || record.scope.gameId === context.gameId) && Object.entries(record.conditions || {}).every(([name, value]) => context[name] === value);
+  }
+  function choose(candidates2, context) {
+    const available = candidates2.filter(({ record: record2 }) => eligible(record2, context));
+    const score = ({ record: record2 }) => (record2.scope.kind === "game" ? 100 : 0) + Object.keys(record2.conditions || {}).length;
+    const best = Math.max(-1, ...available.map(score));
+    const winners = available.filter((candidate) => score(candidate) === best);
+    if (!winners.length) return { hit: null, conflict: false };
+    if (new Set(winners.map(({ output: output2 }) => output2)).size !== 1) return { hit: null, conflict: true };
+    const { pack, record, output } = winners[0];
+    return {
+      conflict: false,
+      hit: {
+        targetText: output,
+        packId: pack.manifest.packId,
+        version: pack.manifest.version,
+        entryId: record.entryId,
+        revision: snapshot.revision,
+        matchKind: record.type === "entry" ? "exact" : "vocal-template"
+      }
+    };
+  }
+  return {
+    revision: snapshot.revision,
+    match(text2, context) {
+      const candidates2 = (source) => exact.get(JSON.stringify([context.sourceLanguage, context.targetLanguage, key2(source)])) || [];
+      const full = choose(
+        candidates2(text2).map((candidate) => ({ ...candidate, output: candidate.record.targetText })),
+        context
+      );
+      if (full.hit || full.conflict) return full.hit;
+      const shell = translationSegmentContent(text2);
+      if (shell.core !== text2) {
+        const wrapped = choose(
+          candidates2(shell.core).filter(({ record }) => record.type === "entry" && record.match.allowBoundary).map((candidate) => ({ ...candidate, output: shell.lead + candidate.record.targetText + shell.trail })),
+          context
+        );
+        if (wrapped.hit || wrapped.conflict) return wrapped.hit;
+      }
+      const generated = vocal.filter(({ record }) => eligible(record, context)).flatMap((candidate) => {
+        const output = matchVocalRule(text2, candidate.record);
+        return output == null ? [] : [{ ...candidate, output }];
+      });
+      return choose(generated, context).hit;
+    }
+  };
+}
+
+// services/translate/resources/defaults/fixed-phrases.json
+var fixed_phrases_default = {
+  \u306F\u3044: "\u662F",
+  \u3044\u3044\u3048: "\u5426",
+  \u3046\u3093: "\u55EF",
+  \u3059\u308B: "\u505A",
+  \u3057\u306A\u3044: "\u4E0D\u505A",
+  \u30B9\u30AD\u30C3\u30D7: "\u8DF3\u8FC7",
+  \u30C0\u30C3\u30B7\u30E5\u8A31\u53EF: "\u5141\u8BB8\u51B2\u523A",
+  \u30C0\u30C3\u30B7\u30E5\u7981\u6B62: "\u7981\u6B62\u51B2\u523A",
+  \u30B9\u30C6\u30FC\u30C8\u78BA\u8A8D: "\u72B6\u6001\u786E\u8BA4",
+  \u30D1\u30FC\u30C6\u30A3\u30FC\u30B3\u30DE\u30F3\u30C9: "\u961F\u4F0D\u6307\u4EE4",
+  \uFF33\u30DC\u30BF\u30F3: "S\u6309\u94AE",
+  \u30B8\u30E3\u30F3\u30D7: "\u8DF3\u8DC3",
+  \u30D5\u30A9\u30B0\u30B9\u30AD\u30C3\u30D7: "\u8FF7\u96FE\u8DF3\u8FC7",
+  \u623B\u308B: "\u8FD4\u56DE",
+  \u9032\u3080: "\u524D\u8FDB",
+  \u8A71\u3059: "\u4EA4\u8C08",
+  \u805E\u304F: "\u503E\u542C",
+  \u898B\u308B: "\u67E5\u770B",
+  \u5F85\u3064: "\u7B49\u5F85",
+  \u958B\u3051\u308B: "\u6253\u5F00",
+  \u9589\u3058\u308B: "\u5173\u95ED",
+  \u4F7F\u3046: "\u4F7F\u7528",
+  \u88C5\u5099: "\u88C5\u5907",
+  \u6368\u3066\u308B: "\u4E22\u5F03",
+  \u8CB7\u3046: "\u8D2D\u4E70",
+  \u58F2\u308B: "\u51FA\u552E"
+};
+
+// services/translate/resources/defaults.ts
+var languages = [
+  { tag: "ja", name: "\u65E5\u672C\u8A9E" },
+  { tag: "en", name: "English" },
+  { tag: "ru", name: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439" },
+  { tag: "ko", name: "\uD55C\uAD6D\uC5B4" },
+  { tag: "zh", name: "\u4E2D\u6587" }
+];
+var records = [];
+for (const [id, term] of Object.entries(default_game_terms_default)) {
+  for (const [sourceLanguage, sourceText] of Object.entries(term.translations)) {
+    for (const [targetLanguage, targetText] of Object.entries(term.translations)) {
+      if (sourceLanguage === targetLanguage) continue;
+      const aliases = "aliases" in term ? term.aliases[sourceLanguage] : void 0;
+      records.push({
+        type: "entry",
+        entryId: `term.${id}.${sourceLanguage}.${targetLanguage}`,
+        sourceLanguage,
+        targetLanguage,
+        sourceText,
+        targetText,
+        aliases,
+        scope: { kind: "global" },
+        reviewStatus: "reviewed",
+        provenance: { kind: "legacy-game-term" },
+        match: { kind: "exact", allowBoundary: true }
+      });
+    }
+  }
+}
+for (const [index, [sourceText, targetText]] of Object.entries(fixed_phrases_default).entries()) {
+  records.push({
+    type: "entry",
+    entryId: `fixed.${index}`,
+    sourceLanguage: "ja",
+    targetLanguage: "zh",
+    sourceText,
+    targetText,
+    scope: { kind: "global" },
+    reviewStatus: "reviewed",
+    provenance: { kind: "legacy-fixed-phrase" },
+    match: { kind: "exact", allowBoundary: true }
+  });
+}
+var defaultResourcePack = {
+  manifest: { type: "manifest", schemaVersion: 1, packId: "chaya.defaults", version: "1", languages },
+  records
+};
+function bundledResourceSnapshot() {
+  return { revision: 0, languages, packs: [{ ...defaultResourcePack, hash: "bundled", revision: 0 }] };
+}
+
+// services/translate/resources/validate.ts
+var RESOURCE_LIMITS = { bytes: 7e5, records: 1e3, lineLength: 32e3 };
+var object = (value) => !!value && typeof value === "object" && !Array.isArray(value);
+var text = (value, max = 16e3) => typeof value === "string" && !!value.trim() && value.length <= max;
+var identifier = (value) => text(value, 100) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value);
+function fail(message) {
+  throw new TypeError(message);
+}
+function placeholders(value) {
+  return JSON.stringify([controlSignature(value), value.match(/%(?:\d+\$)?[-+#0 ]*(?:\d+|\*)?(?:\.(?:\d+|\*))?[sdifouxXeEgGc%]/g) || []]);
+}
+function parseResourcePack(input) {
+  if (Buffer.byteLength(input, "utf8") > RESOURCE_LIMITS.bytes) fail("Resource package exceeds size limit");
+  const lines = input.split(/\r?\n/).filter((line) => line.trim());
+  if (lines.length < 1 || lines.length > RESOURCE_LIMITS.records + 1) fail("Invalid resource record count");
+  const rows = lines.map((line, index) => {
+    if (line.length > RESOURCE_LIMITS.lineLength) fail(`Resource line ${index + 1} is too long`);
+    let value;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      return fail(`Invalid JSON at resource line ${index + 1}`);
+    }
+    if (!object(value)) fail(`Invalid object at resource line ${index + 1}`);
+    const queue = [[value, 0]];
+    while (queue.length) {
+      const [item, depth] = queue.pop();
+      if (depth > 16) fail("Resource nesting limit exceeded");
+      if (item && typeof item === "object") for (const child of Object.values(item)) queue.push([child, depth + 1]);
+    }
+    return value;
+  });
+  const [manifest, ...records2] = rows;
+  if (manifest.type !== "manifest" || manifest.schemaVersion !== 1 || !identifier(manifest.packId) || !identifier(manifest.version)) fail("Invalid resource manifest");
+  if (!Array.isArray(manifest.languages) || manifest.languages.length > 100) fail("Invalid resource languages");
+  const languages2 = /* @__PURE__ */ new Set();
+  for (const language of manifest.languages) {
+    if (!object(language) || !text(language.tag, 100) || !text(language.name, 100)) fail("Invalid resource language");
+    if (canonicalResourceLanguage(language.tag) !== language.tag || languages2.has(language.tag)) fail("Languages must be canonical and unique");
+    languages2.add(language.tag);
+  }
+  const ids = /* @__PURE__ */ new Set();
+  for (const record of records2) {
+    if (!identifier(record.entryId) || ids.has(String(record.entryId))) fail("Invalid or duplicate resource entry ID");
+    ids.add(String(record.entryId));
+    for (const field of ["sourceLanguage", "targetLanguage"]) {
+      if (!text(record[field], 100) || canonicalResourceLanguage(record[field]) !== record[field]) fail("Invalid resource language pair");
+    }
+    if (!object(record.scope) || !["global", "game"].includes(String(record.scope.kind)) || record.scope.kind === "game" && !text(record.scope.gameId, 200))
+      fail("Invalid resource scope");
+    if (!["candidate", "reviewed"].includes(String(record.reviewStatus)) || !object(record.provenance) || !text(record.provenance.kind, 100)) fail("Invalid resource provenance");
+    if (record.conditions !== void 0 && (!object(record.conditions) || Object.entries(record.conditions).some(([name, value]) => !["category", "speaker", "scene"].includes(name) || !text(value, 200))))
+      fail("Invalid resource conditions");
+    if (record.type === "entry") {
+      if (!text(record.sourceText) || !text(record.targetText) || !object(record.match) || record.match.kind !== "exact") fail("Invalid exact resource entry");
+      if (record.match.allowBoundary !== void 0 && typeof record.match.allowBoundary !== "boolean") fail("Invalid boundary matching flag");
+      for (const name of ["aliases", "badTranslations"]) {
+        const values = record[name];
+        if (values !== void 0 && (!Array.isArray(values) || values.length > 100 || values.some((value) => !text(value)))) fail(`Invalid ${name}`);
+      }
+      for (const source of [record.sourceText, ...record.aliases || []]) {
+        if (placeholders(source) !== placeholders(record.targetText)) fail("Resource controls or placeholders differ");
+      }
+    } else if (record.type === "vocal_rule") {
+      if (record.templateKind !== "vocal-sequence" || !object(record.units) || !object(record.modifiers)) fail("Invalid vocal template");
+      const units = Object.entries(record.units);
+      if (!units.length || units.length > 100 || units.some(([unit, target2]) => !text(unit, 40) || !new RegExp("^\\p{L}[\\p{L}\\p{M}]*$", "u").test(unit) || unit.normalize("NFC") !== unit || !text(target2, 100) || /[\\%{}<>]/.test(target2)))
+        fail("Invalid vocal units");
+      const modifiers = record.modifiers;
+      if (!Array.isArray(modifiers.punctuation) || modifiers.punctuation.length > 100 || modifiers.punctuation.some((mark) => typeof mark !== "string" || !mark.length || mark.length > 20 || !/^[\p{P}\p{Zs}]+$/u.test(mark) || /[\\%{}<>[\]]/.test(mark)))
+        fail("Invalid vocal punctuation");
+      if (![modifiers.minUnits, modifiers.maxUnits, modifiers.maxInputLength].every(Number.isSafeInteger) || Number(modifiers.minUnits) < 1 || Number(modifiers.maxUnits) < Number(modifiers.minUnits) || Number(modifiers.maxUnits) > 256 || Number(modifiers.maxInputLength) < 1 || Number(modifiers.maxInputLength) > 512)
+        fail("Invalid vocal bounds");
+    } else fail("Unknown resource record type");
+  }
+  return { manifest, records: records2 };
+}
+
+// services/storage/translation-resource-store.ts
+function readResourceRevision(db) {
+  return Number(db.prepare("SELECT revision FROM translation_resource_state WHERE id=1").get().revision);
+}
+function readResourceSnapshot(db) {
+  const revision = readResourceRevision(db);
+  const languages2 = db.prepare("SELECT tag, name FROM translation_languages ORDER BY tag").all();
+  const rows = db.prepare(
+    `SELECT v.* FROM translation_resource_versions v
+    JOIN translation_resource_activations a ON a.pack_id=v.pack_id AND a.version=v.version
+    WHERE a.enabled=1 ORDER BY v.pack_id`
+  ).all();
+  const packs = rows.map((row) => ({ ...parseResourcePack(row.content), hash: row.hash, revision }));
+  return { revision, languages: languages2, packs };
+}
+
+// services/translate/resources/snapshot.ts
+var matchers = /* @__PURE__ */ new Map();
+function loadResourceMatcher(file = TRANSLATE_CACHE_DB_PATH) {
+  if (!fs12.existsSync(file)) return createResourceMatcher(bundledResourceSnapshot());
+  const db = new DatabaseSync3(file, { readOnly: true });
+  try {
+    db.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=5000; BEGIN");
+    const ready = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='translation_resource_state'").get();
+    if (!ready || !db.prepare("SELECT 1 FROM translation_resource_state WHERE id=1").get()) return createResourceMatcher(bundledResourceSnapshot());
+    const revision = readResourceRevision(db);
+    const stat = fs12.statSync(file);
+    const identity = `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
+    const previous = matchers.get(file);
+    if (previous?.identity === identity && previous.revision === revision) return previous.matcher;
+    const matcher = createResourceMatcher(readResourceSnapshot(db));
+    if (matchers.size >= 8) matchers.clear();
+    matchers.set(file, { identity, revision, matcher });
+    return matcher;
+  } finally {
+    db.exec("ROLLBACK");
+    db.close();
+  }
+}
+
 // services/translate/seed-failures.ts
-import fs13 from "node:fs";
+import fs14 from "node:fs";
 
 // services/translate/seed-job-state.ts
 import { createHash as createHash2 } from "node:crypto";
-import fs12 from "node:fs";
+import fs13 from "node:fs";
 import path9 from "node:path";
 var MAX_SEED_JOB_LOGS = 120;
 function idleSeedJob(contentRoot = "") {
@@ -3460,9 +3927,9 @@ function seedJobFile(contentRoot) {
 }
 function readSeedJobState(contentRoot) {
   const file = seedJobFile(contentRoot);
-  if (!fs12.existsSync(file)) return null;
+  if (!fs13.existsSync(file)) return null;
   try {
-    const raw = JSON.parse(fs12.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs13.readFileSync(file, "utf8"));
     if (!raw || typeof raw !== "object") return null;
     return {
       ...idleSeedJob(contentRoot),
@@ -3483,14 +3950,14 @@ function seedFailureFile(contentRoot) {
 function readSeedFailures(contentRoot) {
   const failures = new Map((readSeedJobState(contentRoot)?.failedSources ?? []).map((src) => [src, ""]));
   const file = seedFailureFile(contentRoot);
-  let text;
+  let text2;
   try {
-    text = fs13.readFileSync(file, "utf8");
+    text2 = fs14.readFileSync(file, "utf8");
   } catch (error) {
     if (error.code === "ENOENT") return failures;
     throw error;
   }
-  for (const line of text.split("\n")) {
+  for (const line of text2.split("\n")) {
     if (!line.trim()) continue;
     try {
       const event = JSON.parse(line);
@@ -3528,11 +3995,11 @@ function unescapeRubyLiteral(raw) {
 }
 function consider(raw, script, found) {
   if (!raw) return;
-  const text = unescapeRubyLiteral(raw).trim();
-  if (!text || text.length < 2 || text.length > 200) return;
-  if (PATHISH.test(text) || CODEISH.test(text)) return;
-  if (!isSourceText(text)) return;
-  if (!found.has(text)) found.set(text, script);
+  const text2 = unescapeRubyLiteral(raw).trim();
+  if (!text2 || text2.length < 2 || text2.length > 200) return;
+  if (PATHISH.test(text2) || CODEISH.test(text2)) return;
+  if (!isSourceText(text2)) return;
+  if (!found.has(text2)) found.set(text2, script);
 }
 function extractRgssScriptUiStrings(contentRoot) {
   const found = /* @__PURE__ */ new Map();
@@ -3568,7 +4035,7 @@ function loadRgssScriptTranslationItems(contentRoot, lookup, startId = 1) {
 }
 
 // services/extract/lib/rgss/writeback.ts
-import fs14 from "node:fs";
+import fs15 from "node:fs";
 import path10 from "node:path";
 
 // lib/translate/name-glossary.ts
@@ -3582,10 +4049,10 @@ function isNameGlossaryCategory(value) {
 function strings(value) {
   const result = /* @__PURE__ */ new Map();
   const seen = /* @__PURE__ */ new WeakSet();
-  const walk = (entry, slot, text, set, category = "other") => {
+  const walk = (entry, slot, text2, set, category = "other") => {
     if (!entry || typeof entry !== "object") return;
     if (entry.kind === "string") {
-      if (text) result.set(slot, { value: entry, set, category });
+      if (text2) result.set(slot, { value: entry, set, category });
       return;
     }
     if (seen.has(entry)) return;
@@ -3595,7 +4062,7 @@ function strings(value) {
         (child, index) => walk(
           child,
           `${slot}/${index}`,
-          text,
+          text2,
           (next) => {
             entry.items[index] = next;
           },
@@ -3608,7 +4075,7 @@ function strings(value) {
         walk(
           pair.value,
           `${slot}/h${index}`,
-          !isTechnicalField(name) && (text || isTextField(name)),
+          !isTechnicalField(name) && (text2 || isTextField(name)),
           (next) => {
             pair.value = next;
           },
@@ -3643,7 +4110,7 @@ function strings(value) {
           walk(
             pair.value,
             `${slot}/o${index}`,
-            (systemText || !isTechnicalField(name)) && (isTextField(name) || systemText || text),
+            (systemText || !isTechnicalField(name)) && (isTextField(name) || systemText || text2),
             (next) => {
               pair.value = next;
             },
@@ -3679,9 +4146,9 @@ function fieldCategory(className, field, fallback) {
 }
 function loadOneDataFile(dataDir, name) {
   const file = path10.join(dataDir, name);
-  const value = parseRubyMarshal(fs14.readFileSync(file));
+  const value = parseRubyMarshal(fs15.readFileSync(file));
   const backup = `${file}.chaya.bak`;
-  const original = fs14.existsSync(backup) ? parseRubyMarshal(fs14.readFileSync(backup)) : value;
+  const original = fs15.existsSync(backup) ? parseRubyMarshal(fs15.readFileSync(backup)) : value;
   const current = strings(value);
   const texts = [];
   for (const [location, source] of strings(original)) {
@@ -3694,7 +4161,7 @@ function loadOneDataFile(dataDir, name) {
 }
 var SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i;
 function listDataFileNames(dataDir) {
-  const names = fs14.readdirSync(dataDir).filter((name) => /\.rvdata2?$/i.test(name) && !SKIP_DATA_STEMS.test(name)).sort();
+  const names = fs15.readdirSync(dataDir).filter((name) => /\.rvdata2?$/i.test(name) && !SKIP_DATA_STEMS.test(name)).sort();
   if (!names.length) throw new Error("RGSS data is unavailable. Unpack the encrypted archive into Data/ first.");
   return names;
 }
@@ -3704,10 +4171,10 @@ function loadFiles(dataDir) {
 function itemsFromFiles(files) {
   const groups = /* @__PURE__ */ new Map();
   for (const file of files) {
-    for (const text of file.texts) {
-      const group = groups.get(text.source) ?? [];
-      group.push(text);
-      groups.set(text.source, group);
+    for (const text2 of file.texts) {
+      const group = groups.get(text2.source) ?? [];
+      group.push(text2);
+      groups.set(text2.source, group);
     }
   }
   return [...groups].map(([src, locations], index) => {
@@ -3732,13 +4199,13 @@ function loadRgssNameItems(dataDir) {
 }
 
 // services/extract/lib/rgss-sources-index.ts
-import fs15 from "node:fs";
+import fs16 from "node:fs";
 import path11 from "node:path";
 function rgssDataSignature(dataDir) {
-  const files = fs15.readdirSync(dataDir).filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name)).sort();
+  const files = fs16.readdirSync(dataDir).filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name)).sort();
   return JSON.stringify(
     files.map((name) => {
-      const stat = fs15.statSync(path11.join(dataDir, name));
+      const stat = fs16.statSync(path11.join(dataDir, name));
       return [name, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   );
@@ -3750,14 +4217,14 @@ function writeRgssSourcesIndex(contentRoot, signature, sources) {
     sources: [...sources],
     updatedAt: Date.now()
   };
-  fs15.writeFileSync(file, `${JSON.stringify(payload)}
+  fs16.writeFileSync(file, `${JSON.stringify(payload)}
 `);
 }
 
 // services/extract/lib/rgss.ts
 function findChild(dir, name) {
   try {
-    const hit = fs16.readdirSync(dir).find((entry) => entry.toLowerCase() === name.toLowerCase());
+    const hit = fs17.readdirSync(dir).find((entry) => entry.toLowerCase() === name.toLowerCase());
     return hit ? path12.join(dir, hit) : null;
   } catch {
     return null;
@@ -3765,49 +4232,51 @@ function findChild(dir, name) {
 }
 function rgssDataDir(contentRoot) {
   const dir = findChild(contentRoot, "data");
-  if (dir && fs16.statSync(dir).isDirectory() && extensionFor(dir)) return dir;
+  if (dir && fs17.statSync(dir).isDirectory() && extensionFor(dir)) return dir;
   try {
-    const names = fs16.readdirSync(contentRoot);
+    const names = fs17.readdirSync(contentRoot);
     const archive = names.find((name) => /^game\.rgss3a$/i.test(name));
     if (archive) {
       unpackAceArchive(path12.join(contentRoot, archive), contentRoot, (m) => m.toLowerCase().startsWith("data/"));
       const extracted = findChild(contentRoot, "data");
-      if (extracted && fs16.statSync(extracted).isDirectory() && extensionFor(extracted)) return extracted;
+      if (extracted && fs17.statSync(extracted).isDirectory() && extensionFor(extracted)) return extracted;
     }
   } catch {
   }
-  return dir && fs16.statSync(dir).isDirectory() ? dir : null;
+  return dir && fs17.statSync(dir).isDirectory() ? dir : null;
 }
 function extensionFor(dataDir) {
   try {
-    const names = fs16.readdirSync(dataDir).map((name) => name.toLowerCase());
+    const names = fs17.readdirSync(dataDir).map((name) => name.toLowerCase());
     if (names.some((name) => name.endsWith(".rvdata2"))) return ".rvdata2";
     if (names.some((name) => name.endsWith(".rvdata"))) return ".rvdata";
   } catch {
   }
   return null;
 }
-function resolveRgssItemZh(src, current, translations) {
-  const resolved = resolveRgssTranslationWithEngine(src, current, translations);
-  const termFixed = fixKnownBadGameTermTranslation(src, resolved.zh);
-  if (termFixed != null) {
-    return { zh: termFixed, engine: resolved.engine };
-  }
-  if (resolved.zh) return resolved;
-  const term = lookupGameTerm(src);
-  if (term) return { zh: term, engine: "cache" };
-  return { zh: "", engine: void 0 };
+function createRgssItemResolver(contentRoot, translations) {
+  const resources = loadResourceMatcher();
+  const gameId = publicGameFiles(contentRoot).gameId;
+  const context = getGameCacheContext(contentRoot);
+  return (src, current) => {
+    if (context.blocked(src)) return { zh: "" };
+    const resolved = resolveRgssTranslationWithEngine(src, current, translations);
+    if (resolved.zh) return resolved;
+    const hit = resources.match(src, { sourceLanguage: detectCacheLang(src), targetLanguage: "zh", gameId });
+    return hit ? { zh: hit.targetText, engine: "resource" } : { zh: "" };
+  };
 }
 function attachLookup(contentRoot, dataItems) {
   const translations = loadRgssTranslationLookup(contentRoot);
+  const resolveItem = createRgssItemResolver(contentRoot, translations);
   const { lookup } = translations;
   const withZh = dataItems.map((item) => {
-    const res = resolveRgssItemZh(item.src, item.zh || "", translations);
+    const res = resolveItem(item.src, item.zh || "");
     return { ...item, zh: res.zh, engine: res.engine, savedZh: res.zh || void 0, initialZh: item.initialZh || res.zh || void 0 };
   });
   const known = new Set(withZh.map((item) => item.src));
   const scriptItems = loadRgssScriptTranslationItems(contentRoot, lookup, withZh.length + 1).filter((item) => !known.has(item.src)).map((item) => {
-    const res = resolveRgssItemZh(item.src, item.zh || "", translations);
+    const res = resolveItem(item.src, item.zh || "");
     return { ...item, zh: res.zh, engine: res.engine, savedZh: res.zh || void 0, initialZh: res.zh || void 0 };
   });
   return attachCoverage(contentRoot, [...withZh, ...scriptItems]);
@@ -3868,7 +4337,7 @@ try {
     }
   };
   const out = path13.join(os2.tmpdir(), `chaya-rgss-list-${process.pid}-${Date.now()}.json`);
-  fs17.writeFileSync(out, JSON.stringify(body));
+  fs18.writeFileSync(out, JSON.stringify(body));
   parentPort?.postMessage({ ok: true, path: out, count: items.length });
 } catch (error) {
   parentPort?.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });

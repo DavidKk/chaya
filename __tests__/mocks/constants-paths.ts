@@ -62,6 +62,7 @@ export const TRANSLATE_CACHE_DB_PATH = join(TRANSLATE_CACHE_DIR, TRANSLATE_CACHE
 export const TRANSLATE_JOBS_DIR = join(DATA_DIR, TRANSLATE_JOBS_DIR_NAME)
 export const TRANSLATION_PACKS_DIR = join(DATA_DIR, TRANSLATION_PACKS_DIR_NAME)
 export const DOWNLOAD_JOBS_PATH = join(DATA_DIR, DOWNLOAD_JOBS_FILE_NAME)
+export const UPDATES_DIR = join(DATA_DIR, 'updates')
 export const GAME_AGENT_DIR = join(DATA_DIR, GAME_AGENT_DIR_NAME)
 export const CACHE_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-cache-worker.mjs')
 export const RGSS_EXTRACT_WORKER_PATH = join(ROOT_PATH, 'native', 'bin', 'chaya-rgss-extract-worker.mjs')

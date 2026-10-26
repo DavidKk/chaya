@@ -3,15 +3,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { ensureGameContentDir, gameContentReadPath } from '@/lib/game/content-files'
+import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { buildTranslationExport } from '@/lib/translate/export'
 import { lookupTranslationRecord } from '@/lib/translate/lookup'
 import { reconcileTranslationSeed } from '@/lib/translate/segments'
 import type { SourceLanguageOption } from '@/lib/translate/source-text'
 import { getResolvedFromConfig } from '@/services/game/binding'
-import { writePublicGameDocument } from '@/services/storage/game-files'
+import { publicGameFiles, writePublicGameDocument } from '@/services/storage/game-files'
 import { lookupGameTranslation } from '@/services/translate/cache-lookup'
 import { getGameCacheContext } from '@/services/translate/game-cache-context'
 import { loadGameTranslateLookup } from '@/services/translate/game-lookup'
+import { loadResourceMatcher } from '@/services/translate/resources/snapshot'
 import { openSharedCache } from '@/services/translate/shared-cache'
 
 import { runExtract } from './lib/main'
@@ -61,6 +63,9 @@ export function extractAndEnsureSeed(options?: { entries?: boolean; sourceLangua
     const local = loadGameTranslateLookup(contentRoot)
     const shared = openSharedCache()
     try {
+      const resources = loadResourceMatcher(shared.path)
+      const gameId = publicGameFiles(contentRoot).gameId
+      const context = getGameCacheContext(contentRoot)
       exportEntries = buildTranslationExport(
         entries,
         (source) =>
@@ -69,9 +74,19 @@ export function extractAndEnsureSeed(options?: { entries?: boolean; sourceLangua
             : lookupGameTranslation(
                 (key) => lookupTranslationRecord(local, key),
                 (key) => shared.get(key),
-                source
+                source,
+                { resources: false }
               )?.zh,
-        originalStrings
+        originalStrings,
+        {
+          blocked: context.blocked,
+          fallback: (source) =>
+            resources.match(source, {
+              sourceLanguage: options.sourceLanguage && options.sourceLanguage !== 'auto' ? options.sourceLanguage : detectCacheLang(source),
+              targetLanguage: 'zh',
+              gameId,
+            })?.targetText,
+        }
       )
     } finally {
       shared.close()

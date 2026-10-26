@@ -1325,6 +1325,7 @@ export const de: MessageTree = {
     channelBrowser: 'Browser',
     nwShell: 'NW.js {version}',
     nwShellUnknown: 'NW.js',
+    updatePackage: 'Update · {package} {version}',
     phase: {
       resolve: 'Checking version',
       download: 'Downloading',
@@ -1349,6 +1350,8 @@ export const de: MessageTree = {
       abandon: 'Cancel install',
     },
     toast: {
+      updateDone: '{package} {version} installiert; für neue Stapel aktivieren',
+      updateFailed: 'Update-Installation fehlgeschlagen: {error}',
       shellDone: 'NW.js {version} installed',
       shellFailed: 'NW.js download failed: {error}',
       retryHint: 'Downloading again resumes where it stopped',

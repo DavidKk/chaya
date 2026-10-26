@@ -46,6 +46,17 @@ test('同种类重复发起返回运行中的任务', async () => {
   expect(findRunningJob('nw-shell')).toBeUndefined()
 })
 
+test('update downloads deduplicate by package identity without merging different packages', async () => {
+  const gate = deferred()
+  const first = startDownloadJob('update-package', async () => gate.promise, { dedupeKey: 'ja-zh@1.0.0' })
+  const duplicate = startDownloadJob('update-package', async () => ({}), { dedupeKey: 'ja-zh@1.0.0' })
+  const other = startDownloadJob('update-package', async () => gate.promise, { dedupeKey: 'en-zh@1.0.0' })
+  expect(duplicate.job.id).toBe(first.job.id)
+  expect(other.job.id).not.toBe(first.job.id)
+  gate.resolve()
+  await Promise.all([first.done, other.done])
+})
+
 test('进度节流 250 ms；阶段变化与结束立即推送', async () => {
   jest.useFakeTimers()
   const events: JobEvent[] = []

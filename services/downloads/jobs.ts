@@ -1,6 +1,6 @@
 /**
  * 服务端后台下载任务注册表：请求立即返回，页面经 SSE（`/api/downloads/stream`）看进度。
- * 同种类同时只跑一个；结束的任务保留一段时间供页面展示结果。
+ * 按种类与可选 dedupeKey 复用运行任务；结束的任务保留一段时间供页面展示结果。
  * 快照写入 `data/download-jobs.json`，进程重启后恢复列表；未完成的 running → error（不可续跑）。
  *
  * 有意不进 `services/jobs`：这是下载注册表 + SSE，不是 one-shot worker / paused 孤儿语义
@@ -131,7 +131,7 @@ function hydrate(b: Board): void {
   }
 }
 
-export type DownloadJobPatch = Partial<Pick<ServerDownloadJob, 'phase' | 'version' | 'receivedBytes' | 'totalBytes' | 'resumedFrom'>>
+export type DownloadJobPatch = Partial<Pick<ServerDownloadJob, 'phase' | 'version' | 'packageId' | 'receivedBytes' | 'totalBytes' | 'resumedFrom'>>
 
 export type DownloadJobControl = {
   signal: AbortSignal
@@ -141,13 +141,14 @@ export type DownloadJobControl = {
 /** 已有同种类任务在跑时直接返回它（不重复下载） */
 export function startDownloadJob(
   kind: ServerDownloadKind,
-  run: (ctl: DownloadJobControl) => Promise<Record<string, unknown> | void>
+  run: (ctl: DownloadJobControl) => Promise<Record<string, unknown> | void>,
+  options?: { dedupeKey: string }
 ): { job: ServerDownloadJob; done: Promise<ServerDownloadJob>; reused: boolean } {
   prune()
-  const running = findRunningEntry(kind)
+  const running = findRunningEntry(kind, options?.dedupeKey)
   if (running) return { job: { ...running.job }, done: running.done, reused: true }
 
-  const job: ServerDownloadJob = { id: randomUUID(), kind, status: 'running', phase: 'resolve', startedAt: Date.now() }
+  const job: ServerDownloadJob = { id: randomUUID(), kind, status: 'running', phase: 'resolve', startedAt: Date.now(), ...(options ? { dedupeKey: options.dedupeKey } : {}) }
   const abort = new AbortController()
   const entry = { job, abort } as Entry
   const finish = (status: DownloadStatus, extra: Partial<ServerDownloadJob> = {}) => {
@@ -179,9 +180,9 @@ export function startDownloadJob(
   return { job: { ...job }, done: entry.done, reused: false }
 }
 
-function findRunningEntry(kind: ServerDownloadKind): Entry | undefined {
+function findRunningEntry(kind: ServerDownloadKind, dedupeKey?: string): Entry | undefined {
   for (const e of board().entries.values()) {
-    if (e.job.kind === kind && e.job.status === 'running') return e
+    if (e.job.kind === kind && e.job.status === 'running' && (dedupeKey === undefined || e.job.dedupeKey === dedupeKey)) return e
   }
   return undefined
 }

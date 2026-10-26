@@ -21,6 +21,7 @@ export type DownloadItem = {
   source?: string
   target?: string
   version?: string
+  packageId?: string
   gameId?: string
   gameName?: string
   receivedBytes?: number

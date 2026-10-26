@@ -4,6 +4,17 @@ import { translationExportText, translationOriginalSources } from '@/lib/transla
 import { lookupCachedTranslation } from '@/services/translate/cache-lookup'
 import { parseTranslateImportText } from '@/services/translate/import-text'
 
+it('uses injected resources and keeps deleted entries blocked even when a saved translation exists', () => {
+  const fallback = jest.fn((source: string) => (source === 'Save' ? '保存' : null))
+  expect(buildTranslationExport({ Save: '', Load: '旧译文', Quit: '' }, () => null, undefined, { fallback, blocked: (source) => source === 'Load' })).toEqual({
+    Save: '保存',
+    Load: '',
+    Quit: '',
+  })
+  expect(fallback).not.toHaveBeenCalledWith('Load')
+  expect(buildTranslationExport({ Save: '' }, () => null, undefined, { fallback: () => null })).toEqual({ Save: '' })
+})
+
 it('fills translations from the current lookup and retains existing values on a miss', () => {
   const seed = { こんにちは: '', さようなら: '再见', 待って: '' }
   const entries = buildTranslationExport(seed, (source) => (source === 'こんにちは' ? '你好' : null))

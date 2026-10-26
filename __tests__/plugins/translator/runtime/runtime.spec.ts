@@ -5,10 +5,13 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { gameContentRelPath } from '@/lib/game/content-paths'
+import { detectCacheLang } from '@/lib/translate/cache-lang'
+import { createResourceMatcher } from '@/lib/translate/resource-matcher'
 import { chayaFetch } from '@/plugins/mv/src/helpers/net/http'
 import { createTranslationRuntime } from '@/plugins/mv/src/translator/runtime'
 import { engineFetch } from '@/plugins/mv/src/translator/runtime/engine-fetch'
 import { createTranslationStore } from '@/plugins/mv/src/translator/runtime/store'
+import { bundledResourceSnapshot } from '@/services/translate/resources/defaults'
 
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 
@@ -172,19 +175,42 @@ it('imports unchanged Han labels as translations and preserves them across resta
   )
 })
 
-it('fills standalone Japanese game labels locally while preferring imported translations', async () => {
-  const result = await runtime.translate(['炎', '剣', '銃', '槍'], { remote: false })
+function mockResourceLookup() {
+  const matcher = createResourceMatcher(bundledResourceSnapshot())
+  jest.mocked(chayaFetch).mockImplementation(async (_url, init) => {
+    const body = JSON.parse(String(init?.body))
+    return new Response(
+      JSON.stringify({
+        available: true,
+        items: body.texts.map((src: string) => {
+          const resource = matcher.match(src, { sourceLanguage: body.from ?? detectCacheLang(src), targetLanguage: body.to ?? 'zh' })
+          return { src, zh: resource?.targetText ?? null, resource }
+        }),
+      })
+    )
+  })
+}
+
+it('queries versioned Japanese resources while preferring imported translations', async () => {
+  mockResourceLookup()
+  const result = await runtime.translate(['炎', '剣', '銃', '槍'])
   expect(result.map((item) => item.zh)).toEqual(['炎', '剑', '枪', '长枪'])
-  expect(result.every((item) => item.engine === 'builtin:terms')).toBe(true)
+  expect(result.every((item) => item.engine === 'resource' && item.resource?.packId === 'chaya.defaults')).toBe(true)
   expect(engineFetch).not.toHaveBeenCalled()
   await call('/api/translate-cache', { text: JSON.stringify({ 槍: '矛' }) })
   expect((await runtime.translate(['槍'], { remote: false }))[0]).toMatchObject({ zh: '矛', engine: 'cache:local' })
 })
 
-it('recognizes supported English and Korean term labels without using a translation engine', async () => {
-  const result = await runtime.translate(['Sword', '검', '창'], { remote: false })
+it('queries English and Korean resources without using a translation engine', async () => {
+  mockResourceLookup()
+  const result = await runtime.translate(['Sword', '검', '창'])
   expect(result.map((item) => item.zh)).toEqual(['剑', '剑', '长枪'])
-  expect(result.every((item) => item.engine === 'builtin:terms')).toBe(true)
+  expect(result.every((item) => item.engine === 'resource')).toBe(true)
+  expect(engineFetch).not.toHaveBeenCalled()
+})
+
+it('does not revive a disabled resource through offline built-in terms', async () => {
+  expect((await runtime.translate(['Sword'], { remote: false, engines: [] }))[0].zh).toBeNull()
   expect(engineFetch).not.toHaveBeenCalled()
 })
 

@@ -3,7 +3,7 @@
 export type DownloadStatus = 'running' | 'done' | 'error' | 'canceled'
 
 /** 服务端后台下载的种类；前端按种类组装本地化标题 */
-export type ServerDownloadKind = 'nw-shell' | 'rgss-shell' | 'bergamot-pack'
+export type ServerDownloadKind = 'nw-shell' | 'rgss-shell' | 'bergamot-pack' | 'update-package'
 
 /** 服务端阶段：resolve 查版本 → download 下载 → extract 解压 → install 安装 */
 export type ServerDownloadPhase = 'resolve' | 'download' | 'extract' | 'install'
@@ -17,6 +17,9 @@ export type ServerDownloadJob = {
   source?: string
   target?: string
   version?: string
+  /** Independent updates are deduplicated by immutable package identity. */
+  packageId?: string
+  dedupeKey?: string
   receivedBytes?: number
   totalBytes?: number
   /** 本次从多少字节续传（0 / 缺省表示从头） */

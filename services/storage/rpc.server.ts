@@ -26,6 +26,8 @@ import { storageLibraryEntries } from './game-library'
 import { createPublicGameStore } from './game-store'
 import { importLegacyAgentSettings } from './migration/agent-settings'
 import { migrateCompanionMemory } from './migration/companion-migrator.server'
+import { createTranslationObservationStore } from './translation-observation-store'
+import { createTranslationResourceStore } from './translation-resource-store'
 import { commitTranslations, type TranslationCommitInput } from './translation-store'
 
 export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, dataDir: string) {
@@ -35,6 +37,8 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
   const traces = createAgentTraceFileStore()
   let migration: Promise<unknown> | undefined
   let cache: ReturnType<typeof openOwnedSharedCache> | undefined
+  let resources: ReturnType<typeof createTranslationResourceStore> | undefined
+  let observations: ReturnType<typeof createTranslationObservationStore> | undefined
   let queue: Promise<unknown> = Promise.resolve()
   const settingsFile = path.join(dataDir, 'game-agent/settings.json')
   const syncFile = path.join(dataDir, 'game-agent/settings.sync.json')
@@ -49,6 +53,35 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
     }))
   async function execute(method: string, args: unknown[]) {
     if (method === 'ping') return { ok: true }
+    if (method.startsWith('observations.')) {
+      observations ??= createTranslationObservationStore(shared.$client)
+      if (method === 'observations.append') return observations.append(args[0] as unknown[])
+      if (method === 'observations.export') return observations.export(args[0] as Parameters<typeof observations.export>[0])
+      throw new Error('Unknown observation operation')
+    }
+    if (method.startsWith('resources.')) {
+      resources ??= createTranslationResourceStore(shared.$client)
+      switch (method) {
+        case 'resources.preview':
+          return resources.preview(String(args[0]))
+        case 'resources.apply':
+          return resources.apply(String(args[0]), String(args[1]))
+        case 'resources.install':
+          return resources.apply(String(args[0]), String(args[1]), false)
+        case 'resources.activate':
+          return resources.activate(String(args[0]), String(args[1]))
+        case 'resources.disable':
+          return resources.disable(String(args[0]))
+        case 'resources.list':
+          return resources.list()
+        case 'resources.export':
+          return resources.export(String(args[0]), String(args[1]))
+        case 'resources.snapshot':
+          return resources.snapshot()
+        default:
+          throw new Error('Unknown resource operation')
+      }
+    }
     if (method === 'translations.commit') {
       const input = args[0] as TranslationCommitInput
       const result = commitTranslations(shared, input)

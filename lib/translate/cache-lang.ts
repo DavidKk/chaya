@@ -1,8 +1,10 @@
 import { sourceTextBody } from '@/lib/translate/source-text'
 
+import { canonicalResourceLanguage } from './resource-types'
+
 /** Languages stored on shared-cache rows. Catalog filters and pair badges use these. */
 export const CACHE_LANGS = ['ja', 'en', 'zh', 'ko', 'ru'] as const
-export type CacheLang = (typeof CACHE_LANGS)[number]
+export type CacheLang = string
 
 export const DEFAULT_CACHE_SRC_LANG: CacheLang = 'ja'
 export const DEFAULT_CACHE_TGT_LANG: CacheLang = 'zh'
@@ -53,7 +55,7 @@ export function detectCacheTargetLang(text: string, fallback: CacheLang = DEFAUL
 export type CacheLangPair = { from: CacheLang; to: CacheLang }
 
 export function resolveCacheLangPair(opts?: { from?: string | null; to?: string | null; src?: string }): CacheLangPair {
-  const from = parseCacheLang(opts?.from) || (opts?.src != null ? detectCacheLang(opts.src) : DEFAULT_CACHE_SRC_LANG)
-  const to = parseCacheLang(opts?.to) || DEFAULT_CACHE_TGT_LANG
+  const from = opts?.from != null ? canonicalResourceLanguage(opts.from) : opts?.src != null ? detectCacheLang(opts.src) : DEFAULT_CACHE_SRC_LANG
+  const to = opts?.to != null ? canonicalResourceLanguage(opts.to) : DEFAULT_CACHE_TGT_LANG
   return { from, to }
 }

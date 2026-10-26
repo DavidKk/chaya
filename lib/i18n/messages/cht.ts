@@ -1315,6 +1315,7 @@ export const cht: MessageTree = {
     channelBrowser: '浏览器',
     nwShell: 'NW.js {version}',
     nwShellUnknown: 'NW.js',
+    updatePackage: '更新包 · {package} {version}',
     phase: {
       resolve: '查询版本',
       download: '下載中',
@@ -1339,6 +1340,8 @@ export const cht: MessageTree = {
       abandon: '放弃安裝',
     },
     toast: {
+      updateDone: '已安裝 {package} {version}；啟用後供新批次使用',
+      updateFailed: '更新包安裝失敗：{error}',
       shellDone: '已安裝 NW.js {version}',
       shellFailed: '下載 NW.js 失敗：{error}',
       retryHint: '重新下載会接着上次进度',

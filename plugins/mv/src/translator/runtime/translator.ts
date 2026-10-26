@@ -12,8 +12,8 @@ import {
   type TranslateRunEngine,
   translationFallbackOrder,
 } from '@/lib/translate/engines'
-import { lookupGameTerm } from '@/lib/translate/game-terms'
 import { nameEntriesFromLookup } from '@/lib/translate/name-glossary'
+import type { ResourceHit } from '@/lib/translate/resource-types'
 import { toRmDigitTemplate } from '@/lib/translate/rm-escape'
 import { planSentenceTranslation, renderSentencePlan, resolveSentenceGaps, type SentencePlan, validateAlignments } from '@/lib/translate/sentence-plan'
 import { planLockedNames, stitchLockedNamePlan } from '@/services/translate/name-lock'
@@ -35,7 +35,7 @@ import { engineFetch } from './engine-fetch'
 import type { TranslationStore } from './store'
 
 export type EngineId = TranslateEngineId
-export type TranslateItem = { src: string; zh: string | null; engine?: string; error?: string; plan?: SentencePlan; status?: SentencePlan['status'] }
+export type TranslateItem = { src: string; zh: string | null; engine?: string; error?: string; plan?: SentencePlan; status?: SentencePlan['status']; resource?: ResourceHit }
 export type TranslateOptions = {
   signal?: AbortSignal
   model?: string
@@ -55,7 +55,7 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
   let retryRemoteAt = 0
   let remoteOnline: boolean | null = null
 
-  async function remoteLookup(texts: string[], signal: AbortSignal) {
+  async function remoteLookup(texts: string[], signal: AbortSignal, options: TranslateOptions = {}) {
     if (typeof window !== 'undefined' && (window as Window & { CHAYA_LOG_TRANSPORT?: string }).CHAYA_LOG_TRANSPORT === 'link') return [] as TranslateItem[]
     if (Date.now() < retryRemoteAt) return [] as TranslateItem[]
     const abort = new AbortController()
@@ -67,7 +67,7 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: abort.signal,
-        body: JSON.stringify({ mode: 'lookup', texts, origins: store.references(texts) }),
+        body: JSON.stringify({ mode: 'lookup', texts, origins: store.references(texts), from: options.sourceLang, to: options.targetLang }),
       })
       if (!response.ok) throw new Error('共享翻译库不可用')
       const data = await response.json()
@@ -81,7 +81,11 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
         )
       return (data.items as TranslateItem[]).filter(
         (item) =>
-          texts.includes(item.src) && ((typeof item.zh === 'string' && item.zh.length <= 20_000 && isReusableTranslation(item.src, item.zh)) || item.plan?.status === 'partial')
+          texts.includes(item.src) &&
+          ((typeof item.zh === 'string' &&
+            item.zh.length <= 20_000 &&
+            (options.targetLang && options.targetLang !== 'zh' ? !!item.resource : isReusableTranslation(item.src, item.zh))) ||
+            item.plan?.status === 'partial')
       )
     } catch {
       remoteOnline = false
@@ -170,6 +174,7 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
   async function translate(texts: string[], options: TranslateOptions = {}): Promise<TranslateItem[]> {
     const target = options.targetLang || 'zh'
     const chinese = ['zh', 'ch', 'zh-cn', 'zh-hans'].includes(target.toLowerCase())
+    const resourceLookup = !options.force && options.remote !== false
     if (!chinese) options = { ...options, force: true, persist: false, remote: false, engines: options.engines?.filter((engine) => engine === 'apple' || engine === 'bergamot') }
     const signal = options.signal || new AbortController().signal
     await store.load()
@@ -179,7 +184,7 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
     const missing = unique.filter((src) => options.force || !store.lookup(src))
     const hasBackfills = store.references(unique).length > 0
     const remoteTexts = (hasBackfills ? unique : missing).filter((src) => !store.blocked(src))
-    const remote = !options.force && options.remote !== false && remoteTexts.length ? await remoteLookup(remoteTexts, signal) : []
+    const remote = resourceLookup && remoteTexts.length ? await remoteLookup(remoteTexts, signal, options) : []
     const lookup: Record<string, string> = Object.create(null)
     for (const record of store.records()) lookup[record.src] = record.zh
     const nameEntries = nameEntriesFromLookup(collectGameNameSources(), lookup, target)
@@ -222,7 +227,7 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
           let freshRemote = remoteRecords
           let remoteChanged = false
           if (remoteRecords.length && options.remote !== false) {
-            const refreshed = await remoteLookup([src], signal)
+            const refreshed = await remoteLookup([src], signal, options)
             if (remoteOnline) {
               freshRemote = (refreshed.find((r) => r.src === src)?.plan?.matches || []).map((m) => ({ ...m.record, local: false }))
               remoteChanged = remoteRecords.some((r) => !freshRemote.some((n) => n.id === r.id && n.revision === r.revision && n.zh === r.zh))
@@ -255,10 +260,16 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
         }
       }
       const local = !options.force ? store.lookup(src, true) : null
-      const shared = remote.find((item) => item.src === src)?.zh
+      const remoteItem = remote.find((item) => item.src === src)
+      const shared = remoteItem?.zh
       if (local || shared) {
         // Remote results remain server-owned; do not persist an unversioned local copy.
-        items.push({ src, zh: local || shared || null, engine: local ? 'cache:local' : 'cache:remote' })
+        items.push({
+          src,
+          zh: local || shared || null,
+          engine: local ? 'cache:local' : remoteItem?.resource ? 'resource' : 'cache:remote',
+          resource: local ? undefined : remoteItem?.resource,
+        })
         return items[0]
       }
       const namePlan = planLockedNames(src, nameEntries, {
@@ -290,11 +301,6 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
         return items[0]
       }
       const guard = protectForTranslate(src)
-      const term = !options.force ? lookupGameTerm(src) : null
-      if (term != null) {
-        items.push({ src, zh: term, engine: 'builtin:terms' })
-        return items[0]
-      }
       if (!shouldTranslate(guard.core)) {
         items.push({ src, zh: src, engine: 'skip' })
         return items[0]

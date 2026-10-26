@@ -30,6 +30,7 @@ jest.mock('@/services/translate/shared-cache', () => {
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 
 import { gameContentPath } from '@/lib/game/content-files'
 import { requestGoogle } from '@/lib/translate/engine-http'
@@ -37,12 +38,14 @@ import type { TranslateRunEngine } from '@/lib/translate/engines'
 import { writeRgssTranslations } from '@/services/extract/lib/rgss'
 import { type RubyValue, writeRubyMarshal } from '@/services/extract/lib/rgss/marshal'
 import { appendPublicGameCache } from '@/services/storage/game-files'
+import { createTranslationResourceStore } from '@/services/storage/translation-resource-store'
 import { agentJaToZh } from '@/services/translate/agent-translate'
 import { loadGameTranslationRecords } from '@/services/translate/game-records'
 import { bergamotTranslate } from '@/services/translate/lib/bergamot-translate'
 import { appleTranslate } from '@/services/translate/lib/macos-translate'
 import { liveTranslateTexts } from '@/services/translate/live-translate'
 import { openSharedCache } from '@/services/translate/shared-cache'
+import { lookupSharedTranslationSnapshot } from '@/services/translate/shared-lookup'
 
 describe('live short-sentence integration', () => {
   let dir: string, root: string
@@ -57,6 +60,56 @@ describe('live short-sentence integration', () => {
     jest.mocked(agentJaToZh).mockReset()
   })
   afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+  it('returns versioned resource results without engine calls or ordinary cache writes', async () => {
+    const result = await liveTranslateTexts(['Save'], { contentRoot: null, engines: ['google'], sourceLang: 'en' })
+    expect(result.items[0]).toMatchObject({ zh: '保存', engine: 'resource', engineWork: false, resource: { packId: 'chaya.defaults', version: '1' } })
+    expect(requestGoogle).not.toHaveBeenCalled()
+    const cache = openSharedCache()
+    try {
+      expect(cache.get('Save', { from: 'en', to: 'zh' })).toBeNull()
+    } finally {
+      cache.close()
+    }
+  })
+  it('observes default deactivation on the next batch and falls back to the engine', async () => {
+    const cache = openSharedCache()
+    cache.close()
+    const writer = new DatabaseSync(mockDb)
+    try {
+      createTranslationResourceStore(writer).disable('chaya.defaults')
+    } finally {
+      writer.close()
+    }
+    jest.mocked(requestGoogle).mockResolvedValue('存储游戏')
+    const result = await liveTranslateTexts(['Save'], { contentRoot: null, engines: ['google'], sourceLang: 'en', persist: false })
+    expect(result.items[0].zh).toBe('存储游戏')
+    expect(result.items[0].resource).toBeUndefined()
+    expect(requestGoogle).toHaveBeenCalledTimes(1)
+  })
+  it('keeps manual authority above resources and preserves the explicit target language', async () => {
+    const cache = openSharedCache()
+    try {
+      cache.writeMany([['Save', '人工菜单']], 'manual', { from: 'en', to: 'zh' })
+    } finally {
+      cache.close()
+    }
+    const chinese = await liveTranslateTexts(['Save'], { contentRoot: null, engines: ['google'], sourceLang: 'en', persist: false })
+    expect(chinese.items[0].zh).toBe('人工菜单')
+    const korean = await liveTranslateTexts(['Save'], { contentRoot: null, engines: ['google'], sourceLang: 'en', targetLang: 'ko', persist: false })
+    expect(korean.items[0]).toMatchObject({ zh: '저장', engine: 'resource', engineWork: false })
+    expect(requestGoogle).not.toHaveBeenCalled()
+  })
+  it('keeps explicit pairs in the plugin shared lookup and rejects malformed tags', () => {
+    expect(lookupSharedTranslationSnapshot(['Save'], [], { sourceLang: 'en', targetLang: 'ko' }).items[0]).toMatchObject({ zh: '저장', resource: { packId: 'chaya.defaults' } })
+    expect(lookupSharedTranslationSnapshot(['Save'], [], { sourceLang: 'en', targetLang: 'zh-Hant' }).items[0].zh).toBeNull()
+    expect(() => lookupSharedTranslationSnapshot(['Save'], [], { sourceLang: 'en_invalid' })).toThrow()
+  })
+  it('does not restore deleted terms from a resource', async () => {
+    appendPublicGameCache(root, [{ s: 'Save', t: null, engine: 'manual' }])
+    const result = await liveTranslateTexts(['Save'], { contentRoot: root, engines: [], sourceLang: 'en', persist: false })
+    expect(result.items[0].resource).toBeUndefined()
+    expect(result.items[0].zh).toBeNull()
+  })
   function rgssNames() {
     fs.mkdirSync(path.join(root, 'Data'))
     const fields = { name: 'Rei', description: "Rei's mother." }

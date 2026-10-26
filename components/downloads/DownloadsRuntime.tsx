@@ -29,6 +29,11 @@ export function DownloadsRuntime() {
     () =>
       onDownloadFinished((item) => {
         if (item.preview) return
+        if (item.kind === 'update-package') {
+          if (item.status === 'done') notify.success(t('downloads.toast.updateDone', { package: item.packageId ?? '', version: item.version ?? '' }))
+          else if (item.status === 'error') notify.error(t('downloads.toast.updateFailed', { error: item.error ?? '' }))
+          return
+        }
         if (item.kind === 'bergamot-pack') {
           if (item.status === 'done') notify.success(`Bergamot · ${t('translate.offlineReadyHint')}`)
           else if (item.status === 'error') notify.error(`Bergamot · ${t('translate.packRetryHint')}`)

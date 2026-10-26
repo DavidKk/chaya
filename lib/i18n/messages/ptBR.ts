@@ -1325,6 +1325,7 @@ export const ptBR: MessageTree = {
     channelBrowser: 'Browser',
     nwShell: 'NW.js {version}',
     nwShellUnknown: 'NW.js',
+    updatePackage: 'Atualização · {package} {version}',
     phase: {
       resolve: 'Checking version',
       download: 'Downloading',
@@ -1349,6 +1350,8 @@ export const ptBR: MessageTree = {
       abandon: 'Cancel install',
     },
     toast: {
+      updateDone: '{package} {version} instalado; ative para novos lotes',
+      updateFailed: 'Falha na instalação da atualização: {error}',
       shellDone: 'NW.js {version} installed',
       shellFailed: 'NW.js download failed: {error}',
       retryHint: 'Downloading again resumes where it stopped',

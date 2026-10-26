@@ -22,6 +22,10 @@ export type ResumableDownloadOpts = {
   sha256?: string
   /** 错误文案里的名称 */
   label?: string
+  /** Signed size bound; enforced while streaming, including resumed bytes. */
+  expectedBytes?: number
+  /** Update packages use a redirect-restricted transport. Other callers keep native fetch. */
+  fetch?: typeof fetch
 }
 
 function fileSize(p: string): number {
@@ -73,6 +77,7 @@ export async function downloadToFile(url: string, dest: string, opts: ResumableD
   const label = opts.label ?? path.basename(dest)
   const idleMs = opts.idleTimeoutMs ?? DOWNLOAD_IDLE_TIMEOUT_MS
   const tmp = `${dest}.part`
+  if (opts.expectedBytes !== undefined && (!Number.isSafeInteger(opts.expectedBytes) || opts.expectedBytes < 1)) throw new Error('Invalid expected download size')
   fs.mkdirSync(path.dirname(dest), { recursive: true })
 
   const ctl = new AbortController()
@@ -88,8 +93,9 @@ export async function downloadToFile(url: string, dest: string, opts: ResumableD
   /** 返回 `.part` 的期望总长（未知为 undefined）与续传起点 */
   const fetchToPart = async (): Promise<{ total?: number; resumedFrom: number }> => {
     const existing = fileSize(tmp)
+    if (opts.expectedBytes !== undefined && existing > opts.expectedBytes) throw new RangeMismatch()
     armIdle()
-    const res = await fetch(url, { redirect: 'follow', signal: ctl.signal, headers: existing > 0 ? { Range: `bytes=${existing}-` } : undefined })
+    const res = await (opts.fetch ?? fetch)(url, { redirect: 'follow', signal: ctl.signal, headers: existing > 0 ? { Range: `bytes=${existing}-` } : undefined })
 
     if (res.status === 416 && existing > 0) {
       await res.body?.cancel()
@@ -113,11 +119,16 @@ export async function downloadToFile(url: string, dest: string, opts: ResumableD
     const append = res.status === 206 && existing > 0
     const resumedFrom = append ? existing : 0
     const total = res.status === 206 ? parseContentRange(res.headers.get('content-range'))?.total : lengthFromHeaders(res)
+    if (opts.expectedBytes !== undefined && total !== undefined && total !== opts.expectedBytes) {
+      await res.body.cancel()
+      throw new RangeMismatch()
+    }
     let received = resumedFrom
     opts.onBytes?.({ receivedBytes: received, totalBytes: total, resumedFrom })
     const counter = new Transform({
       transform(chunk: Buffer, _enc, cb) {
         received += chunk.length
+        if (opts.expectedBytes !== undefined && received > opts.expectedBytes) return cb(new RangeMismatch())
         armIdle()
         opts.onBytes?.({ receivedBytes: received, totalBytes: total, resumedFrom })
         cb(null, chunk)
@@ -138,7 +149,10 @@ export async function downloadToFile(url: string, dest: string, opts: ResumableD
       try {
         got = await fetchToPart()
       } catch (e2) {
-        if (e2 instanceof RangeMismatch) throw new Error(`Failed to download ${label}: origin returned invalid byte range`)
+        if (e2 instanceof RangeMismatch) {
+          fs.rmSync(tmp, { force: true })
+          throw new Error(`Failed to download ${label}: origin returned invalid byte range or signed size`)
+        }
         throw e2
       }
     }
@@ -148,6 +162,7 @@ export async function downloadToFile(url: string, dest: string, opts: ResumableD
     if (got.total != null && size !== got.total) {
       throw new Error(`Download of ${label} incomplete (${size}/${got.total} bytes); will resume on retry`)
     }
+    if (opts.expectedBytes !== undefined && size !== opts.expectedBytes) throw new Error(`Download of ${label} incomplete (${size}/${opts.expectedBytes} bytes)`)
     await verifyOrDiscard(tmp, opts, label)
     fs.renameSync(tmp, dest)
     return { resumedFrom: got.resumedFrom }

@@ -1323,6 +1323,7 @@ export const ru: MessageTree = {
     channelBrowser: 'Browser',
     nwShell: 'NW.js {version}',
     nwShellUnknown: 'NW.js',
+    updatePackage: 'Обновление · {package} {version}',
     phase: {
       resolve: 'Checking version',
       download: 'Downloading',
@@ -1347,6 +1348,8 @@ export const ru: MessageTree = {
       abandon: 'Cancel install',
     },
     toast: {
+      updateDone: '{package} {version} установлен; активируйте для новых пакетов',
+      updateFailed: 'Ошибка установки обновления: {error}',
       shellDone: 'NW.js {version} installed',
       shellFailed: 'NW.js download failed: {error}',
       retryHint: 'Downloading again resumes where it stopped',

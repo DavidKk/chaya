@@ -12,11 +12,13 @@ export function DownloadItemRow({ item }: { item: DownloadItem }) {
   const { t } = useLocale()
 
   const title =
-    item.kind === 'bergamot-pack'
-      ? `Bergamot · ${item.source ?? ''} → ${item.target ?? ''}`
-      : item.version
-        ? t('downloads.nwShell', { version: item.version })
-        : t('downloads.nwShellUnknown')
+    item.kind === 'update-package'
+      ? t('downloads.updatePackage', { package: item.packageId ?? '', version: item.version ?? '' })
+      : item.kind === 'bergamot-pack'
+        ? `Bergamot · ${item.source ?? ''} → ${item.target ?? ''}`
+        : item.version
+          ? t('downloads.nwShell', { version: item.version })
+          : t('downloads.nwShellUnknown')
   const channel = item.preview ? t('debug.preview') : item.channel === 'server' ? t('downloads.channelServer') : t('downloads.channelBrowser')
   const percent = itemPercent(item)
 

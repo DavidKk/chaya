@@ -182,7 +182,13 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       if (body.origins != null && (!Array.isArray(body.origins) || body.origins.length > 500)) return apiBadLookup()
       if (denied) return apiOk({ available: false, items: [] })
       const { lookupSharedTranslationSnapshot } = await import('@/services/translate/shared-lookup')
-      return apiOk({ available: true, ...lookupSharedTranslationSnapshot(texts, body.origins) })
+      if ((body.from !== undefined && typeof body.from !== 'string') || (body.to !== undefined && typeof body.to !== 'string')) return apiBadLookup()
+      try {
+        return apiOk({ available: true, ...lookupSharedTranslationSnapshot(texts, body.origins, { sourceLang: body.from, targetLang: body.to }) })
+      } catch (error) {
+        if (error instanceof TypeError) return apiBadLookup()
+        throw error
+      }
     }
     if (denied) return denied
 

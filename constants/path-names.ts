@@ -24,6 +24,7 @@ export const COMPANION_MEMORY_DB_NAME = 'companion.sqlite'
 export const GAME_AGENT_DIR_NAME = 'game-agent'
 /** Bergamot / offline translation packs (under `data/translation-packs/`) */
 export const TRANSLATION_PACKS_DIR_NAME = 'translation-packs'
+export const UPDATES_DIR_NAME = 'updates'
 /** Server download-center job snapshots (NW / RGSS; Bergamot has its own jobs/) */
 export const DOWNLOAD_JOBS_FILE_NAME = 'download-jobs.json'
 /** In-game plugin source + build directory at repo root */

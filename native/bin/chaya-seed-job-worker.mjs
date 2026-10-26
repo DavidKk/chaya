@@ -24,9 +24,9 @@ var __export = (target2, all) => {
 };
 var __copyProps = (to, from, except2, desc2) => {
   if (from && typeof from === "object" || typeof from === "function") {
-    for (let key2 of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key2) && key2 !== except2)
-        __defProp(to, key2, { get: () => from[key2], enumerable: !(desc2 = __getOwnPropDesc(from, key2)) || desc2.enumerable });
+    for (let key3 of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key3) && key3 !== except2)
+        __defProp(to, key3, { get: () => from[key3], enumerable: !(desc2 = __getOwnPropDesc(from, key3)) || desc2.enumerable });
   }
   return to;
 };
@@ -39,9 +39,9 @@ var __toESM = (mod, isNodeMode, target2) => (target2 = mod != null ? __create(__
   mod
 ));
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/symbols.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/symbols.js
 var require_symbols = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/symbols.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/symbols.js"(exports, module) {
     "use strict";
     module.exports = {
       kClose: /* @__PURE__ */ Symbol("close"),
@@ -119,9 +119,9 @@ var require_symbols = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/timers.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/timers.js
 var require_timers = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/timers.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/timers.js"(exports, module) {
     "use strict";
     var fastNow = 0;
     var RESOLUTION_MS = 1e3;
@@ -348,9 +348,9 @@ var require_timers = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/errors.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/errors.js
 var require_errors = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/errors.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/errors.js"(exports, module) {
     "use strict";
     var kUndiciError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR");
     var UndiciError = class extends Error {
@@ -757,9 +757,9 @@ var require_errors = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/constants.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/constants.js
 var require_constants = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/constants.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/constants.js"(exports, module) {
     "use strict";
     var wellknownHeaderNames = (
       /** @type {const} */
@@ -873,9 +873,9 @@ var require_constants = __commonJS({
       return buffer;
     }
     for (let i = 0; i < wellknownHeaderNames.length; ++i) {
-      const key2 = wellknownHeaderNames[i];
-      const lowerCasedKey = key2.toLowerCase();
-      headerNameLowerCasedRecord[key2] = headerNameLowerCasedRecord[lowerCasedKey] = lowerCasedKey;
+      const key3 = wellknownHeaderNames[i];
+      const lowerCasedKey = key3.toLowerCase();
+      headerNameLowerCasedRecord[key3] = headerNameLowerCasedRecord[lowerCasedKey] = lowerCasedKey;
     }
     module.exports = {
       wellknownHeaderNames,
@@ -885,9 +885,9 @@ var require_constants = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/tree.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/tree.js
 var require_tree = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/tree.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/tree.js"(exports, module) {
     "use strict";
     var {
       wellknownHeaderNames,
@@ -909,16 +909,16 @@ var require_tree = __commonJS({
        * @param {any} value
        * @param {number} index
        */
-      constructor(key2, value, index2) {
-        if (index2 === void 0 || index2 >= key2.length) {
+      constructor(key3, value, index2) {
+        if (index2 === void 0 || index2 >= key3.length) {
           throw new TypeError("Unreachable");
         }
-        const code = this.code = key2.charCodeAt(index2);
+        const code = this.code = key3.charCodeAt(index2);
         if (code > 127) {
           throw new TypeError("key must be ascii string");
         }
-        if (key2.length !== ++index2) {
-          this.middle = new _TstNode(key2, value, index2);
+        if (key3.length !== ++index2) {
+          this.middle = new _TstNode(key3, value, index2);
         } else {
           this.value = value;
         }
@@ -928,15 +928,15 @@ var require_tree = __commonJS({
        * @param {any} value
        * @returns {void}
        */
-      add(key2, value) {
-        const length = key2.length;
+      add(key3, value) {
+        const length = key3.length;
         if (length === 0) {
           throw new TypeError("Unreachable");
         }
         let index2 = 0;
         let node = this;
         while (true) {
-          const code = key2.charCodeAt(index2);
+          const code = key3.charCodeAt(index2);
           if (code > 127) {
             throw new TypeError("key must be ascii string");
           }
@@ -947,20 +947,20 @@ var require_tree = __commonJS({
             } else if (node.middle !== null) {
               node = node.middle;
             } else {
-              node.middle = new _TstNode(key2, value, index2);
+              node.middle = new _TstNode(key3, value, index2);
               break;
             }
           } else if (node.code < code) {
             if (node.left !== null) {
               node = node.left;
             } else {
-              node.left = new _TstNode(key2, value, index2);
+              node.left = new _TstNode(key3, value, index2);
               break;
             }
           } else if (node.right !== null) {
             node = node.right;
           } else {
-            node.right = new _TstNode(key2, value, index2);
+            node.right = new _TstNode(key3, value, index2);
             break;
           }
         }
@@ -969,12 +969,12 @@ var require_tree = __commonJS({
        * @param {Uint8Array} key
        * @returns {TstNode | null}
        */
-      search(key2) {
-        const keylength = key2.length;
+      search(key3) {
+        const keylength = key3.length;
         let index2 = 0;
         let node = this;
         while (node !== null && index2 < keylength) {
-          let code = key2[index2];
+          let code = key3[index2];
           if (code <= 90 && code >= 65) {
             code |= 32;
           }
@@ -1000,25 +1000,25 @@ var require_tree = __commonJS({
        * @param {any} value
        * @returns {void}
        * */
-      insert(key2, value) {
+      insert(key3, value) {
         if (this.node === null) {
-          this.node = new TstNode(key2, value, 0);
+          this.node = new TstNode(key3, value, 0);
         } else {
-          this.node.add(key2, value);
+          this.node.add(key3, value);
         }
       }
       /**
        * @param {Uint8Array} key
        * @returns {any}
        */
-      lookup(key2) {
-        return this.node?.search(key2)?.value ?? null;
+      lookup(key3) {
+        return this.node?.search(key3)?.value ?? null;
       }
     };
     var tree = new TernarySearchTree();
     for (let i = 0; i < wellknownHeaderNames.length; ++i) {
-      const key2 = headerNameLowerCasedRecord[wellknownHeaderNames[i]];
-      tree.insert(key2, key2);
+      const key3 = headerNameLowerCasedRecord[wellknownHeaderNames[i]];
+      tree.insert(key3, key3);
     }
     module.exports = {
       TernarySearchTree,
@@ -1027,9 +1027,9 @@ var require_tree = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/util.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/util.js
 var require_util = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/util.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/util.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { kDestroyed, kBodyUsed, kListeners, kBody } = require_symbols();
@@ -1083,16 +1083,16 @@ var require_util = __commonJS({
     function isStream(obj) {
       return obj && typeof obj === "object" && typeof obj.pipe === "function" && typeof obj.on === "function";
     }
-    function isBlobLike(object) {
-      if (object === null) {
+    function isBlobLike(object2) {
+      if (object2 === null) {
         return false;
-      } else if (object instanceof Blob) {
+      } else if (object2 instanceof Blob) {
         return true;
-      } else if (typeof object !== "object") {
+      } else if (typeof object2 !== "object") {
         return false;
       } else {
-        const sTag = object[Symbol.toStringTag];
-        return (sTag === "Blob" || sTag === "File") && ("stream" in object && typeof object.stream === "function" || "arrayBuffer" in object && typeof object.arrayBuffer === "function");
+        const sTag = object2[Symbol.toStringTag];
+        return (sTag === "Blob" || sTag === "File") && ("stream" in object2 && typeof object2.stream === "function" || "arrayBuffer" in object2 && typeof object2.arrayBuffer === "function");
       }
     }
     function pathHasQueryOrFragment(url) {
@@ -1147,14 +1147,14 @@ var require_util = __commonJS({
         }
         const port2 = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
         let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port2}`;
-        let path29 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        let path30 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
         if (origin[origin.length - 1] === "/") {
           origin = origin.slice(0, origin.length - 1);
         }
-        if (path29 && path29[0] !== "/") {
-          path29 = `/${path29}`;
+        if (path30 && path30[0] !== "/") {
+          path30 = `/${path30}`;
         }
-        return new URL(`${origin}${path29}`);
+        return new URL(`${origin}${path30}`);
       }
       if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
@@ -1251,31 +1251,31 @@ var require_util = __commonJS({
     function parseHeaders(headers, obj) {
       if (obj === void 0) obj = {};
       for (let i = 0; i < headers.length; i += 2) {
-        const key2 = headerNameToString(headers[i]);
-        let val = obj[key2];
+        const key3 = headerNameToString(headers[i]);
+        let val = obj[key3];
         if (val !== void 0) {
-          if (!Object.hasOwn(obj, key2)) {
+          if (!Object.hasOwn(obj, key3)) {
             const headersValue = typeof headers[i + 1] === "string" ? headers[i + 1] : Array.isArray(headers[i + 1]) ? headers[i + 1].map((x) => x.toString("latin1")) : headers[i + 1].toString("latin1");
-            if (key2 === "__proto__") {
-              Object.defineProperty(obj, key2, {
+            if (key3 === "__proto__") {
+              Object.defineProperty(obj, key3, {
                 value: headersValue,
                 enumerable: true,
                 configurable: true,
                 writable: true
               });
             } else {
-              obj[key2] = headersValue;
+              obj[key3] = headersValue;
             }
           } else {
             if (typeof val === "string") {
               val = [val];
-              obj[key2] = val;
+              obj[key3] = val;
             }
             val.push(headers[i + 1].toString("latin1"));
           }
         } else {
           const headersValue = typeof headers[i + 1] === "string" ? headers[i + 1] : Array.isArray(headers[i + 1]) ? headers[i + 1].map((x) => x.toString("latin1")) : headers[i + 1].toString("latin1");
-          obj[key2] = headersValue;
+          obj[key3] = headersValue;
         }
       }
       return obj;
@@ -1283,14 +1283,14 @@ var require_util = __commonJS({
     function parseRawHeaders(headers) {
       const headersLength = headers.length;
       const ret = new Array(headersLength);
-      let key2;
+      let key3;
       let val;
       for (let n = 0; n < headersLength; n += 2) {
-        key2 = headers[n];
+        key3 = headers[n];
         val = headers[n + 1];
-        typeof key2 !== "string" && (key2 = key2.toString());
+        typeof key3 !== "string" && (key3 = key3.toString());
         typeof val !== "string" && (val = val.toString("latin1"));
-        ret[n] = key2;
+        ret[n] = key3;
         ret[n + 1] = val;
       }
       return ret;
@@ -1382,8 +1382,8 @@ var require_util = __commonJS({
         }
       );
     }
-    function isFormDataLike(object) {
-      return object && typeof object === "object" && typeof object.append === "function" && typeof object.delete === "function" && typeof object.get === "function" && typeof object.getAll === "function" && typeof object.has === "function" && typeof object.set === "function" && object[Symbol.toStringTag] === "FormData";
+    function isFormDataLike(object2) {
+      return object2 && typeof object2 === "object" && typeof object2.append === "function" && typeof object2.delete === "function" && typeof object2.get === "function" && typeof object2.getAll === "function" && typeof object2.has === "function" && typeof object2.set === "function" && object2[Symbol.toStringTag] === "FormData";
     }
     function addAbortListener(signal, listener) {
       if ("addEventListener" in signal) {
@@ -1848,9 +1848,9 @@ var require_util = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/stats.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/stats.js
 var require_stats = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/stats.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/stats.js"(exports, module) {
     "use strict";
     var {
       kConnected,
@@ -1882,9 +1882,9 @@ var require_stats = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/diagnostics.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/diagnostics.js
 var require_diagnostics = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/diagnostics.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/diagnostics.js"(exports, module) {
     "use strict";
     var diagnosticsChannel = __require("node:diagnostics_channel");
     var util = __require("node:util");
@@ -1975,9 +1975,9 @@ var require_diagnostics = __commonJS({
         "undici:client:sendHeaders",
         (evt) => {
           const {
-            request: { method, path: path29, origin }
+            request: { method, path: path30, origin }
           } = evt;
-          debugLog("sending request to %s %s%s", method, origin, path29);
+          debugLog("sending request to %s %s%s", method, origin, path30);
         }
       );
     }
@@ -1995,14 +1995,14 @@ var require_diagnostics = __commonJS({
         "undici:request:headers",
         (evt) => {
           const {
-            request: { method, path: path29, origin },
+            request: { method, path: path30, origin },
             response: { statusCode }
           } = evt;
           debugLog(
             "received response to %s %s%s - HTTP %d",
             method,
             origin,
-            path29,
+            path30,
             statusCode
           );
         }
@@ -2011,23 +2011,23 @@ var require_diagnostics = __commonJS({
         "undici:request:trailers",
         (evt) => {
           const {
-            request: { method, path: path29, origin }
+            request: { method, path: path30, origin }
           } = evt;
-          debugLog("trailers received from %s %s%s", method, origin, path29);
+          debugLog("trailers received from %s %s%s", method, origin, path30);
         }
       );
       diagnosticsChannel.subscribe(
         "undici:request:error",
         (evt) => {
           const {
-            request: { method, path: path29, origin },
+            request: { method, path: path30, origin },
             error
           } = evt;
           debugLog(
             "request to %s %s%s errored - %s",
             method,
             origin,
-            path29,
+            path30,
             error.message
           );
         }
@@ -2099,9 +2099,9 @@ var require_diagnostics = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/request.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/request.js
 var require_request = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/request.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/request.js"(exports, module) {
     "use strict";
     var {
       InvalidArgumentError,
@@ -2142,7 +2142,7 @@ var require_request = __commonJS({
     var kHandler = /* @__PURE__ */ Symbol("handler");
     var Request = class {
       constructor(origin, {
-        path: path29,
+        path: path30,
         method,
         body,
         headers,
@@ -2159,11 +2159,11 @@ var require_request = __commonJS({
         maxRedirections,
         typeOfService
       }, handler) {
-        if (typeof path29 !== "string") {
+        if (typeof path30 !== "string") {
           throw new InvalidArgumentError("path must be a string");
-        } else if (path29[0] !== "/" && !(path29.startsWith("http://") || path29.startsWith("https://")) && method !== "CONNECT") {
+        } else if (path30[0] !== "/" && !(path30.startsWith("http://") || path30.startsWith("https://")) && method !== "CONNECT") {
           throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-        } else if (invalidPathRegex.test(path29)) {
+        } else if (invalidPathRegex.test(path30)) {
           throw new InvalidArgumentError("invalid request path");
         }
         if (typeof method !== "string") {
@@ -2238,7 +2238,7 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? serializePathWithQuery(path29, query) : path29;
+        this.path = query ? serializePathWithQuery(path30, query) : path30;
         this.origin = origin;
         this.protocol = getProtocolFromUrlString(origin);
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
@@ -2382,20 +2382,20 @@ var require_request = __commonJS({
           this.endHandler = null;
         }
       }
-      addHeader(key2, value) {
-        processHeader(this, key2, value);
+      addHeader(key3, value) {
+        processHeader(this, key3, value);
         return this;
       }
     };
-    function processHeader(request, key2, val) {
+    function processHeader(request, key3, val) {
       if (val && (typeof val === "object" && !Array.isArray(val))) {
-        throw new InvalidArgumentError(`invalid ${key2} header`);
+        throw new InvalidArgumentError(`invalid ${key3} header`);
       } else if (val === void 0) {
         return;
       }
-      let headerName = headerNameLowerCasedRecord[key2];
+      let headerName = headerNameLowerCasedRecord[key3];
       if (headerName === void 0) {
-        headerName = key2.toLowerCase();
+        headerName = key3.toLowerCase();
         if (headerNameLowerCasedRecord[headerName] === void 0 && !isValidHTTPToken(headerName)) {
           throw new InvalidArgumentError("invalid header key");
         }
@@ -2405,17 +2405,17 @@ var require_request = __commonJS({
         for (let i = 0; i < val.length; i++) {
           if (typeof val[i] === "string") {
             if (!isValidHeaderValue(val[i])) {
-              throw new InvalidArgumentError(`invalid ${key2} header`);
+              throw new InvalidArgumentError(`invalid ${key3} header`);
             }
             arr.push(val[i]);
           } else if (val[i] === null) {
             arr.push("");
           } else if (typeof val[i] === "object") {
-            throw new InvalidArgumentError(`invalid ${key2} header`);
+            throw new InvalidArgumentError(`invalid ${key3} header`);
           } else {
             const str = `${val[i]}`;
             if (!isValidHeaderValue(str)) {
-              throw new InvalidArgumentError(`invalid ${key2} header`);
+              throw new InvalidArgumentError(`invalid ${key3} header`);
             }
             arr.push(str);
           }
@@ -2423,14 +2423,14 @@ var require_request = __commonJS({
         val = arr;
       } else if (typeof val === "string") {
         if (!isValidHeaderValue(val)) {
-          throw new InvalidArgumentError(`invalid ${key2} header`);
+          throw new InvalidArgumentError(`invalid ${key3} header`);
         }
       } else if (val === null) {
         val = "";
       } else {
         val = `${val}`;
         if (!isValidHeaderValue(val)) {
-          throw new InvalidArgumentError(`invalid ${key2} header`);
+          throw new InvalidArgumentError(`invalid ${key3} header`);
         }
       }
       if (headerName === "host") {
@@ -2451,7 +2451,7 @@ var require_request = __commonJS({
         request.contentLength = parseInt(val, 10);
       } else if (request.contentType === null && headerName === "content-type") {
         request.contentType = val;
-        request.headers.push(key2, val);
+        request.headers.push(key3, val);
       } else if (headerName === "transfer-encoding" || headerName === "keep-alive" || headerName === "upgrade") {
         throw new InvalidArgumentError(`invalid ${headerName} header`);
       } else if (headerName === "connection") {
@@ -2471,16 +2471,16 @@ var require_request = __commonJS({
       } else if (headerName === "expect") {
         throw new NotSupportedError("expect header not supported");
       } else {
-        request.headers.push(key2, val);
+        request.headers.push(key3, val);
       }
     }
     module.exports = Request;
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/wrap-handler.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/wrap-handler.js
 var require_wrap_handler = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/wrap-handler.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/wrap-handler.js"(exports, module) {
     "use strict";
     var { InvalidArgumentError } = require_errors();
     module.exports = class WrapHandler {
@@ -2522,15 +2522,15 @@ var require_wrap_handler = __commonJS({
       }
       onRequestUpgrade(controller, statusCode, headers, socket) {
         const rawHeaders = [];
-        for (const [key2, val] of Object.entries(headers)) {
-          rawHeaders.push(Buffer.from(key2, "latin1"), toRawHeaderValue(val));
+        for (const [key3, val] of Object.entries(headers)) {
+          rawHeaders.push(Buffer.from(key3, "latin1"), toRawHeaderValue(val));
         }
         this.#handler.onUpgrade?.(statusCode, rawHeaders, socket);
       }
       onResponseStart(controller, statusCode, headers, statusMessage) {
         const rawHeaders = [];
-        for (const [key2, val] of Object.entries(headers)) {
-          rawHeaders.push(Buffer.from(key2, "latin1"), toRawHeaderValue(val));
+        for (const [key3, val] of Object.entries(headers)) {
+          rawHeaders.push(Buffer.from(key3, "latin1"), toRawHeaderValue(val));
         }
         if (this.#handler.onHeaders?.(statusCode, rawHeaders, () => controller.resume(), statusMessage) === false) {
           controller.pause();
@@ -2543,8 +2543,8 @@ var require_wrap_handler = __commonJS({
       }
       onResponseEnd(controller, trailers) {
         const rawTrailers = [];
-        for (const [key2, val] of Object.entries(trailers)) {
-          rawTrailers.push(Buffer.from(key2, "latin1"), toRawHeaderValue(val));
+        for (const [key3, val] of Object.entries(trailers)) {
+          rawTrailers.push(Buffer.from(key3, "latin1"), toRawHeaderValue(val));
         }
         this.#handler.onComplete?.(rawTrailers);
       }
@@ -2561,9 +2561,9 @@ var require_wrap_handler = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/dispatcher.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/dispatcher.js
 var require_dispatcher = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/dispatcher.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/dispatcher.js"(exports, module) {
     "use strict";
     var EventEmitter = __require("node:events");
     var WrapHandler = require_wrap_handler();
@@ -2595,7 +2595,7 @@ var require_dispatcher = __commonJS({
           }
         }
         return new Proxy(this, {
-          get: (target2, key2) => key2 === "dispatch" ? dispatch : target2[key2]
+          get: (target2, key3) => key3 === "dispatch" ? dispatch : target2[key3]
         });
       }
     };
@@ -2603,9 +2603,9 @@ var require_dispatcher = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/unwrap-handler.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/unwrap-handler.js
 var require_unwrap_handler = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/unwrap-handler.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/unwrap-handler.js"(exports, module) {
     "use strict";
     var { parseHeaders } = require_util();
     var { InvalidArgumentError } = require_errors();
@@ -2691,9 +2691,9 @@ var require_unwrap_handler = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/dispatcher-base.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/dispatcher-base.js
 var require_dispatcher_base = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/dispatcher-base.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/dispatcher-base.js"(exports, module) {
     "use strict";
     var Dispatcher = require_dispatcher();
     var UnwrapHandler = require_unwrap_handler();
@@ -2843,9 +2843,9 @@ var require_dispatcher_base = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/connect.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/connect.js
 var require_connect = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/connect.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/connect.js"(exports, module) {
     "use strict";
     var net = __require("node:net");
     var assert2 = __require("node:assert");
@@ -2856,13 +2856,13 @@ var require_connect = __commonJS({
       constructor(maxCachedSessions) {
         this._maxCachedSessions = maxCachedSessions;
         this._sessionCache = /* @__PURE__ */ new Map();
-        this._sessionRegistry = new FinalizationRegistry((key2) => {
+        this._sessionRegistry = new FinalizationRegistry((key3) => {
           if (this._sessionCache.size < this._maxCachedSessions) {
             return;
           }
-          const ref = this._sessionCache.get(key2);
+          const ref = this._sessionCache.get(key3);
           if (ref !== void 0 && ref.deref() === void 0) {
-            this._sessionCache.delete(key2);
+            this._sessionCache.delete(key3);
           }
         });
       }
@@ -2877,9 +2877,9 @@ var require_connect = __commonJS({
         if (this._sessionCache.has(sessionKey)) {
           this._sessionCache.delete(sessionKey);
         } else if (this._sessionCache.size >= this._maxCachedSessions) {
-          for (const [key2, ref] of this._sessionCache) {
+          for (const [key3, ref] of this._sessionCache) {
             if (ref.deref() === void 0) {
-              this._sessionCache.delete(key2);
+              this._sessionCache.delete(key3);
               return;
             }
           }
@@ -2969,9 +2969,9 @@ var require_connect = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/utils.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/utils.js
 var require_utils = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/utils.js"(exports) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/utils.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.enumToMap = enumToMap;
@@ -2985,9 +2985,9 @@ var require_utils = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/constants.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/constants.js
 var require_constants2 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/constants.js"(exports) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/constants.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SPECIAL_HEADERS = exports.MINOR = exports.MAJOR = exports.HTAB_SP_VCHAR_OBS_TEXT = exports.QUOTED_STRING = exports.CONNECTION_TOKEN_CHARS = exports.HEADER_CHARS = exports.TOKEN = exports.HEX = exports.URL_CHAR = exports.USERINFO_CHARS = exports.MARK = exports.ALPHANUM = exports.NUM = exports.HEX_MAP = exports.NUM_MAP = exports.ALPHA = exports.STATUSES_HTTP = exports.H_METHOD_MAP = exports.METHOD_MAP = exports.METHODS_RTSP = exports.METHODS_ICE = exports.METHODS_HTTP = exports.HEADER_STATE = exports.FINISH = exports.STATUSES = exports.METHODS = exports.LENIENT_FLAGS = exports.FLAGS = exports.TYPE = exports.ERROR = void 0;
@@ -3608,9 +3608,9 @@ var require_constants2 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/llhttp-wasm.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/llhttp-wasm.js
 var require_llhttp_wasm = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/llhttp-wasm.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/llhttp-wasm.js"(exports, module) {
     "use strict";
     var { Buffer: Buffer2 } = __require("node:buffer");
     var wasmBase64 = "AGFzbQEAAAABJwdgAX8Bf2ADf39/AX9gAn9/AGABfwBgBH9/f38Bf2AAAGADf39/AALLAQgDZW52GHdhc21fb25faGVhZGVyc19jb21wbGV0ZQAEA2VudhV3YXNtX29uX21lc3NhZ2VfYmVnaW4AAANlbnYLd2FzbV9vbl91cmwAAQNlbnYOd2FzbV9vbl9zdGF0dXMAAQNlbnYUd2FzbV9vbl9oZWFkZXJfZmllbGQAAQNlbnYUd2FzbV9vbl9oZWFkZXJfdmFsdWUAAQNlbnYMd2FzbV9vbl9ib2R5AAEDZW52GHdhc21fb25fbWVzc2FnZV9jb21wbGV0ZQAAAzU0BQYAAAMAAAAAAAADAQMAAwMDAAACAAAAAAICAgICAgICAgIBAQEBAQEBAQEBAwAAAwAAAAQFAXABExMFAwEAAgYIAX8BQcDZBAsHxQcoBm1lbW9yeQIAC19pbml0aWFsaXplAAgZX19pbmRpcmVjdF9mdW5jdGlvbl90YWJsZQEAC2xsaHR0cF9pbml0AAkYbGxodHRwX3Nob3VsZF9rZWVwX2FsaXZlADcMbGxodHRwX2FsbG9jAAsGbWFsbG9jADkLbGxodHRwX2ZyZWUADARmcmVlAAwPbGxodHRwX2dldF90eXBlAA0VbGxodHRwX2dldF9odHRwX21ham9yAA4VbGxodHRwX2dldF9odHRwX21pbm9yAA8RbGxodHRwX2dldF9tZXRob2QAEBZsbGh0dHBfZ2V0X3N0YXR1c19jb2RlABESbGxodHRwX2dldF91cGdyYWRlABIMbGxodHRwX3Jlc2V0ABMObGxodHRwX2V4ZWN1dGUAFBRsbGh0dHBfc2V0dGluZ3NfaW5pdAAVDWxsaHR0cF9maW5pc2gAFgxsbGh0dHBfcGF1c2UAFw1sbGh0dHBfcmVzdW1lABgbbGxodHRwX3Jlc3VtZV9hZnRlcl91cGdyYWRlABkQbGxodHRwX2dldF9lcnJubwAaF2xsaHR0cF9nZXRfZXJyb3JfcmVhc29uABsXbGxodHRwX3NldF9lcnJvcl9yZWFzb24AHBRsbGh0dHBfZ2V0X2Vycm9yX3BvcwAdEWxsaHR0cF9lcnJub19uYW1lAB4SbGxodHRwX21ldGhvZF9uYW1lAB8SbGxodHRwX3N0YXR1c19uYW1lACAabGxodHRw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AXRrQT5qIQILIAEgAjYCHCABQgA3AhAgAkECdEH01wBqIQACQEHI1QAoAgAiA0EBIAJ0IgdxRQRAIAAgATYCAEHI1QAgAyAHcjYCACABIAA2AhggASABNgIIIAEgATYCDAwBCyAEQRkgAkEBdmtBACACQR9HG3QhAiAAKAIAIQACQANAIAAiAygCBEF4cSAERg0BIAJBHXYhACACQQF0IQIgAyAAQQRxakEQaiIHKAIAIgANAAsgByABNgIAIAEgAzYCGCABIAE2AgwgASABNgIIDAELIAMoAggiACABNgIMIAMgATYCCCABQQA2AhggASADNgIMIAEgADYCCAtB5NUAQeTVACgCAEEBayIAQX8gABs2AgALCwcAIAAtACgLBwAgAC0AKgsHACAALQArCwcAIAAtACkLBwAgAC8BNAsHACAALQAwC0ABBH8gACgCGCEBIAAvAS4hAiAALQAoIQMgACgCOCEEIAAQOCAAIAQ2AjggACADOgAoIAAgAjsBLiAAIAE2AhgL5YUCAgd/A34gASACaiEEAkAgACIDKAIMIgANACADKAIEBEAgAyABNgIECyMAQRBrIgkkAAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAn8CQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkAC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C0HjAQwHC0HXAQwGC0HYAQwFC0HZAQwEC0HaAQwDC0HbAQwCC0HdAQwBC0HcAQshAgNAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQCADAn8CQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAn8CQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAn8CQAJAAkACQAJAAkACQAJ/AkACQAJAAn8CQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAIAMCfwJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACfwJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkAg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ogKiAqICogKiAqICogKiAqICogKiAqICogIAogILIAQgAUEBaiIBRw0AC0HJACECDOwCCyABQQFqIQEgA0Evai0AAEEBcQ2lAiADQQA2AhwgAyABNgIUIANBlxA2AhAgA0EKNgIMQQAhAgzrAgsgASAERwRAA0AgAS0AAEEgRw0VIAQgAUEBaiIBRw0AC0H4ACECDOsCC0H4ACECDOoCCyADQQI6ACgMOAtBACECIANBADYCHCADQb8LNgIQIANBAjYCDCADIAFBAWo2AhQM6AILQQAhAgzOAgtBDSECDM0CC0ETIQIMzAILQRUhAgzLAgtBFiECDMoCC0EYIQIMyQILQRkhAgzIAgtBGiECDMcCC0EbIQIMxgILQRwhAgzFAgtBHSECDMQCC0EeIQIMwwILQR8hAgzCAgtBICECDMECC0EiIQIMwAILQSMhAgy/AgtBJSECDL4CC0HlACECDL0CCyADQT02AhwgAyABNgIUIAMgADYCDEEAIQIM1QILIANBGzYCHCADIAE2AhQgA0GkHDYCECADQRU2AgxBACECDNQCCyADQSA2AhwgAyABNgIUIANBmBo2AhAgA0EVNgIMQQAhAgzTAgsgA0ETNgIcIAMgATYCFCADQZgaNgIQIANBFTYCDEEAIQIM0gILIANBCzYCHCADIAE2AhQgA0GYGjYCECADQRU2AgxBACECDNECCyADQRA2AhwgAyABNgIUIANBmBo2AhAgA0EVNgIMQQAhAgzQAgsgA0EgNgIcIAMgATYCFCADQaQcNgIQIANBFTYCDEEAIQIMzwILIANBCzYCHCADIAE2AhQgA0GkHDYCECADQRU2AgxBACECDM4CCyADQQw2AhwgAyABNgIUIANBpBw2AhAgA0EVNgIMQQAhAgzNAgtBACECIANBADYCHCADIAE2AhQgA0HdDjYCECADQRI2AgwMzAILAkADQAJAIAEtAABBCmsOBAACAgACCyAEIAFBAWoiAUcNAAtB/QEhAgzMAgsCQAJAIAMtADZBAUcNAEEAIQACQCADKAI4IgJFDQAgAigCYCICRQ0AIAMgAhEAACEACyAARQ0AIABBFUcNASADQfwBNgIcIAMgATYCFCADQdwZNgIQIANBFTYCDEEAIQIMzQILQdwBIQIMswILIANBADYCHCADIAE2AhQgA0H5CzYCECADQR82AgxBACECDMsCCwJAAkAgAy0AKEEBaw4CBAEAC0HbASECDLICC0HUASECDLECCyADQQI6ADFBACEAAkAgAygCOCICRQ0AIAIoAgAiAkUNACADIAIRAAAhAAsgAEUEQEHdASECDLECCyAAQRVHBEAgA0EANgIcIAMgATYCFCADQbQMNgIQIANBEDYCDEEAIQIMygILIANB+wE2AhwgAyABNgIUIANBgRo2AhAgA0EVNgIMQQAhAgzJAgsgASAERgRAQfoBIQIMyQILIAEtAABByABGDQEgA0EBOgAoC0HAASECDK4CC0HaASECDK0CCyABIARHBEAgA0EMNgIIIAMgATYCBEHZASECDK0CC0H5ASECDMUCCyABIARGBEBB+AEhAgzFAgsgAS0AAEHIAEcNBCABQQFqIQFB2AEhAgyrAgsgASAERgRAQfcBIQIMxAILAkACQCABLQAAQcUAaw4QAAUFBQUFBQUFBQUFBQUFAQULIAFBAWohAUHWASECDKsCCyABQQFqIQFB1wEhAgyqAgtB9gEhAiABIARGDcICIAMoAgAiACAEIAFraiEFIAEgAGtBAmohBgJAA0AgAS0AACAAQbrVAGotAABHDQMgAEECRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADMMCCyADKAIEIQAgA0IANwMAIAMgACAGQQFqIgEQLiIARQRAQeMBIQIMqgILIANB9QE2AhwgAyABNgIUIAMgADYCDEEAIQIMwgILQfQBIQIgASAERg3BAiADKAIAIgAgBCABa2ohBSABIABrQQFqIQYCQANAIAEtAAAgAEG41QBqLQAARw0CIABBAUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAzCAgsgA0GBBDsBKCADKAIEIQAgA0IANwMAIAMgACAGQQFqIgEQLiIADQMMAgsgA0EANgIAC0EAIQIgA0EANgIcIAMgATYCFCADQeUfNgIQIANBCDYCDAy/AgtB1QEhAgylAgsgA0HzATYCHCADIAE2AhQgAyAANgIMQQAhAgy9AgtBACEAAkAgAygCOCICRQ0AIAIoAkAiAkUNACADIAIRAAAhAAsgAEUNbiAAQRVHBEAgA0EANgIcIAMgATYCFCADQYIPNgIQIANBIDYCDEEAIQIMvQILIANBjwE2AhwgAyABNgIUIANB7Bs2AhAgA0EVNgIMQQAhAgy8AgsgASAERwRAIANBDTYCCCADIAE2AgRB0wEhAgyjAgtB8gEhAgy7AgsgASAERgRAQfEBIQIMuwILAkACQAJAIAEtAABByABrDgsAAQgICAgICAgIAggLIAFBAWohAUHQASECDKMCCyABQQFqIQFB0QEhAgyiAgsgAUEBaiEBQdIBIQIMoQILQfABIQIgASAERg25AiADKAIAIgAgBCABa2ohBiABIABrQQJqIQUDQCABLQAAIABBtdUAai0AAEcNBCAAQQJGDQMgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAY2AgAMuQILQe8BIQIgASAERg24AiADKAIAIgAgBCABa2ohBiABIABrQQFqIQUDQCABLQAAIABBs9UAai0AAEcNAyAAQQFGDQIgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAY2AgAMuAILQe4BIQIgASAERg23AiADKAIAIgAgBCABa2ohBiABIABrQQJqIQUDQCABLQAAIABBsNUAai0AAEcNAiAAQQJGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAY2AgAMtwILIAMoAgQhACADQgA3AwAgAyAAIAVBAWoiARArIgBFDQIgA0HsATYCHCADIAE2AhQgAyAANgIMQQAhAgy2AgsgA0EANgIACyADKAIEIQAgA0EANgIEIAMgACABECsiAEUNnAIgA0HtATYCHCADIAE2AhQgAyAANgIMQQAhAgy0AgtBzwEhAgyaAgtBACEAAkAgAygCOCICRQ0AIAIoAjQiAkUNACADIAIRAAAhAAsCQCAABEAgAEEVRg0BIANBADYCHCADIAE2AhQgA0HqDTYCECADQSY2AgxBACECDLQCC0HOASECDJoCCyADQesBNgIcIAMgATYCFCADQYAbNgIQIANBFTYCDEEAIQIMsgILIAEgBEYEQEHrASECDLICCyABLQAAQS9GBEAgAUEBaiEBDAELIANBADYCHCADIAE2AhQgA0GyODYCECADQQg2AgxBACECDLECC0HNASECDJcCCyABIARHBEAgA0EONgIIIAMgATYCBEHMASECDJcCC0HqASECDK8CCyABIARGBEBB6QEhAgyvAgsgAS0AAEEwayIAQf8BcUEKSQRAIAMgADoAKiABQQFqIQFBywEhAgyWAgsgAygCBCEAIANBADYCBCADIAAgARAvIgBFDZcCIANB6AE2AhwgAyABNgIUIAMgADYCDEEAIQIMrgILIAEgBEYEQEHnASECDK4CCwJAIAEtAABBLkYEQCABQQFqIQEMAQsgAygCBCEAIANBADYCBCADIAAgARAvIgBFDZgCIANB5gE2AhwgAyABNgIUIAMgADYCDEEAIQIMrgILQcoBIQIMlAILIAEgBEYEQEHlASECDK0CC0EAIQBBASEFQQEhB0EAIQICQAJAAkACQAJAAn8CQAJAAkACQAJAAkACQCABLQAAQTBrDgoKCQABAgMEBQYICwtBAgwGC0EDDAULQQQMBAtBBQwDC0EGDAILQQcMAQtBCAshAkEAIQVBACEHDAILQQkhAkEBIQBBACEFQQAhBwwBC0EAIQVBASECCyADIAI6ACsgAUEBaiEBAkACQCADLQAuQRBxDQACQAJAAkAgAy0AKg4DAQACBAsgB0UNAwwCCyAADQEMAgsgBUUNAQsgAygCBCEAIANBADYCBCADIAAgARAvIgBFDQIgA0HiATYCHCADIAE2AhQgAyAANgIMQQAhAgyvAgsgAygCBCEAIANBADYCBCADIAAgARAvIgBFDZoCIANB4wE2AhwgAyABNgIUIAMgADYCDEEAIQIMrgILIAMoAgQhACADQQA2AgQgAyAAIAEQLyIARQ2YAiADQeQBNgIcIAMgATYCFCADIAA2AgwMrQILQckBIQIMkwILQQAhAAJAIAMoAjgiAkUNACACKAJEIgJFDQAgAyACEQAAIQALAkAgAARAIABBFUYNASADQQA2AhwgAyABNgIUIANBpA02AhAgA0EhNgIMQQAhAgytAgtByAEhAgyTAgsgA0HhATYCHCADIAE2AhQgA0HQGjYCECADQRU2AgxBACECDKsCCyABIARGBEBB4QEhAgyrAgsCQCABLQAAQSBGBEAgA0EAOwE0IAFBAWohAQwBCyADQQA2AhwgAyABNgIUIANBmRE2AhAgA0EJNgIMQQAhAgyrAgtBxwEhAgyRAgsgASAERgRAQeABIQIMqgILAkAgAS0AAEEwa0H/AXEiAkEKSQRAIAFBAWohAQJAIAMvATQiAEGZM0sNACADIABBCmwiADsBNCAAQf7/A3EgAkH//wNzSw0AIAMgACACajsBNAwCC0EAIQIgA0EANgIcIAMgATYCFCADQZUeNgIQIANBDTYCDAyrAgsgA0EANgIcIAMgATYCFCADQZUeNgIQIANBDTYCDEEAIQIMqgILQcYBIQIMkAILIAEgBEYEQEHfASECDKkCCwJAIAEtAABBMGtB/wFxIgJBCkkEQCABQQFqIQECQCADLwE0IgBBmTNLDQAgAyAAQQpsIgA7ATQgAEH+/wNxIAJB//8Dc0sNACADIAAgAmo7ATQMAgtBACECIANBADYCHCADIAE2AhQgA0GVHjYCECADQQ02AgwMqgILIANBADYCHCADIAE2AhQgA0GVHjYCECADQQ02AgxBACECDKkCC0HFASECDI8CCyABIARGBEBB3gEhAgyoAgsCQCABLQAAQTBrQf8BcSICQQpJBEAgAUEBaiEBAkAgAy8BNCIAQZkzSw0AIAMgAEEKbCIAOwE0IABB/v8DcSACQf//A3NLDQAgAyAAIAJqOwE0DAILQQAhAiADQQA2AhwgAyABNgIUIANBlR42AhAgA0ENNgIMDKkCCyADQQA2AhwgAyABNgIUIANBlR42AhAgA0ENNgIMQQAhAgyoAgtBxAEhAgyOAgsgASAERgRAQd0BIQIMpwILAkACQAJAAkAgAS0AAEEKaw4XAgMDAAMDAwMDAwMDAwMDAwMDAwMDAwEDCyABQQFqDAULIAFBAWohAUHDASECDI8CCyABQQFqIQEgA0Evai0AAEEBcQ0IIANBADYCHCADIAE2AhQgA0GNCzYCECADQQ02AgxBACECDKcCCyADQQA2AhwgAyABNgIUIANBjQs2AhAgA0ENNgIMQQAhAgymAgsgASAERwRAIANBDzYCCCADIAE2AgRBASECDI0CC0HcASECDKUCCwJAAkADQAJAIAEtAABBCmsOBAIAAAMACyAEIAFBAWoiAUcNAAtB2wEhAgymAgsgAygCBCEAIANBADYCBCADIAAgARAtIgBFBEAgAUEBaiEBDAQLIANB2gE2AhwgAyAANgIMIAMgAUEBajYCFEEAIQIMpQILIAMoAgQhACADQQA2AgQgAyAAIAEQLSIADQEgAUEBagshAUHBASECDIoCCyADQdkBNgIcIAMgADYCDCADIAFBAWo2AhRBACECDKICC0HCASECDIgCCyADQS9qLQAAQQFxDQEgA0EANgIcIAMgATYCFCADQeQcNgIQIANBGTYCDEEAIQIMoAILIAEgBEYEQEHZASEC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IAFBAWohAUGeASECDOQBCyABQQFqIQFBnwEhAgzjAQtBtwEhAiABIARGDfsBIAMoAgAiACAEIAFraiEFIAEgAGtBA2ohBgJAA0AgAS0AACAAQezUAGotAABHDSggAEEDRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADPwBCyADQQA2AgAgBkEBaiEBQQ0MKAtBtgEhAiABIARGDfoBIAMoAgAiACAEIAFraiEFIAEgAGtBAmohBgJAA0AgAS0AACAAQaHVAGotAABHDScgAEECRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADPsBCyADQQA2AgAgBkEBaiEBQQwMJwtBtQEhAiABIARGDfkBIAMoAgAiACAEIAFraiEFIAEgAGtBAWohBgJAA0AgAS0AACAAQerUAGotAABHDSYgAEEBRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADPoBCyADQQA2AgAgBkEBaiEBQQMMJgtBtAEhAiABIARGDfgBIAMoAgAiACAEIAFraiEFIAEgAGtBAWohBgJAA0AgAS0AACAAQejUAGotAABHDSUgAEEBRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADPkBCyADQQA2AgAgBkEBaiEBQSYMJQsgASAERgRAQbMBIQIM+AELAkACQCABLQAAQdQAaw4CAAEnCyABQQFqIQFBmQEhAgzfAQsgAUEBaiEBQZoBIQIM3gELQbIBIQIgASAERg32ASADKAIAIgAgBCABa2ohBSABIABrQQFqIQYCQANAIAEtAAAgAEHm1ABqLQAARw0jIABBAUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAz3AQsgA0EANgIAIAZBAWohAUEnDCMLQbEBIQIgASAERg31ASADKAIAIgAgBCABa2ohBSABIABrQQFqIQYCQANAIAEtAAAgAEHk1ABqLQAARw0iIABBAUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAz2AQsgA0EANgIAIAZBAWohAUEcDCILQbABIQIgASAERg30ASADKAIAIgAgBCABa2ohBSABIABrQQVqIQYCQANAIAEtAAAgAEHe1ABqLQAARw0hIABBBUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAz1AQsgA0EANgIAIAZBAWohAUEGDCELQa8BIQIgASAERg3zASADKAIAIgAgBCABa2ohBSABIABrQQRqIQYCQANAIAEtAAAgAEHZ1ABqLQAARw0gIABBBEYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAz0AQsgA0EANgIAIAZBAWohAUEZDCALIAEgBEYEQEGuASECDPMBCwJAAkACQAJAIAEtAABBLWsOIwAkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJAEkJCQkJAIkJCQDJAsgAUEBaiEBQY4BIQIM3AELIAFBAWohAUGPASECDNsBCyABQQFqIQFBlAEhAgzaAQsgAUEBaiEBQZUBIQIM2QELQa0BIQIgASAERg3xASADKAIAIgAgBCABa2ohBSABIABrQQFqIQYCQANAIAEtAAAgAEHX1ABqLQAARw0eIABBAUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAzyAQsgA0EANgIAIAZBAWohAUELDB4LIAEgBEYEQEGsASECDPEBCwJAAkAgAS0AAEHBAGsOAwAgASALIAFBAWohAUGQASECDNgBCyABQQFqIQFBkwEhAgzXAQsgASAERgRAQasBIQIM8AELAkACQCABLQAAQcEAaw4PAB8fHx8fHx8fHx8fHx8BHwsgAUEBaiEBQZEBIQIM1wELIAFBAWohAUGSASECDNYBCyABIARGBEBBqgEhAgzvAQsgAS0AAEHMAEcNHCABQQFqIQFBCgwbC0GpASECIAEgBEYN7QEgAygCACIAIAQgAWtqIQUgASAAa0EFaiEGAkADQCABLQAAIABB0dQAai0AAEcNGiAAQQVGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAM7gELIANBADYCACAGQQFqIQFBHgwaC0GoASECIAEgBEYN7AEgAygCACIAIAQgAWtqIQUgASAAa0EGaiEGAkADQCABLQAAIABBytQAai0AAEcNGSAAQQZGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAM7QELIANBADYCACAGQQFqIQFBFQwZC0GnASECIAEgBEYN6wEgAygCACIAIAQgAWtqIQUgASAAa0ECaiEGAkADQCABLQAAIABBx9QAai0AAEcNGCAAQQJGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAM7AELIANBADYCACAGQQFqIQFBFwwYC0GmASECIAEgBEYN6gEgAygCACIAIAQgAWtqIQUgASAAa0EFaiEGAkADQCABLQAAIABBwdQAai0AAEcNFyAAQQVGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAM6wELIANBADYCACAGQQFqIQFBGAwXCyABIARGBEBBpQEhAgzqAQsCQAJAIAEtAABByQBrDgcAGRkZGRkBGQsgAUEBaiEBQYsBIQIM0QELIAFBAWohAUGMASECDNABC0GkASECIAEgBEYN6AEgAygCACIAIAQgAWtqIQUgASAAa0EBaiEGAkADQCABLQAAIABBptUAai0AAEcNFSAAQQFGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAM6QELIANBADYCACAGQQFqIQFBCQwVC0GjASECIAEgBEYN5wEgAygCACIAIAQgAWtqIQUgASAAa0EBaiEGAkADQCABLQAAIABBpNUAai0AAEcNFCAAQQFGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAM6AELIANBADYCACAGQQFqIQFBHwwUC0GiASECIAEgBEYN5gEgAygCACIAIAQgAWtqIQUgASAAa0ECaiEGAkADQCABLQAAIABBvtQAai0AAEcNEyAAQQJGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAM5wELIANBADYCACAGQQFqIQFBAgwTC0GhASECIAEgBEYN5QEgAygCACIAIAQgAWtqIQUgASAAa0EBaiEGA0AgAS0AACAAQbzUAGotAABHDREgAEEBRg0CIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADOUBCyABIARGBEBBoAEhAgzlAQtBASABLQAAQd8ARw0RGiABQQFqIQFBhwEhAgzLAQsgA0EANgIAIAZBAWohAUGIASECDMoBC0GfASECIAEgBEYN4gEgAygCACIAIAQgAWtqIQUgASAAa0EIaiEGAkADQCABLQAAIABBhNUAai0AAEcNDyAAQQhGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAM4wELIANBADYCACAGQQFqIQFBKQwPC0GeASECIAEgBEYN4QEgAygCACIAIAQgAWtqIQUgASAAa0EDaiEGAkADQCABLQAAIABBuNQAai0AAEcNDiAAQQNGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAM4gELIANBADYCACAGQQFqIQFBLQwOCyABIARGBEBBnQEhAgzhAQsgAS0AAEHFAEcNDiABQQFqIQFBhAEhAgzHAQsgASAERgRAQZwBIQIM4AELAkACQCABLQAAQcwAaw4IAA8PDw8PDwEPCyABQQFqIQFBggEhAgzHAQsgAUEBaiEBQYMBIQIMxgELQZsBIQIgASAERg3eASADKAIAIgAgBCABa2ohBSABIABrQQRqIQYCQANAIAEtAAAgAEGz1ABqLQAARw0LIABBBEYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAzfAQsgA0EANgIAIAZBAWohAUEjDAsLQZoBIQIgASAERg3dASADKAIAIgAgBCABa2ohBSABIABrQQJqIQYCQANAIAEtAAAgAEGw1ABqLQAARw0KIABBAkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAzeAQsgA0EANgIAIAZBAWohAUEADAoLIAEgBEYEQEGZASECDN0BCwJAAkAgAS0AAEHIAGsOCAAMDAwMDAwBDAsgAUEBaiEBQf0AIQIMxAELIAFBAWohAUGAASECDMMBCyABIARGBEBBmAEhAgzcAQsCQAJAIAEtAABBzgBrDgMACwELCyABQQFqIQFB/gAhAgzDAQsgAUEBaiEBQf8AIQIMwgELIAEgBEYEQEGXASECDNsBCyABLQAAQdkARw0IIAFBAWohAUEIDAcLQZYBIQIgASAERg3ZASADKAIAIgAgBCABa2ohBSABIABrQQNqIQYCQANAIAEtAAAgAEGs1ABqLQAARw0GIABBA0YNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAzaAQsgA0EANgIAIAZBAWohAUEFDAYLQZUBIQIgASAERg3YASADKAIAIgAgBCABa2ohBSABIABrQQVqIQYCQANAIAEtAAAgAEGm1ABqLQAARw0FIABBBUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAzZAQsgA0EANgIAIAZBAWohAUEWDAULQZQBIQIgASAERg3XASADKAIAIgAgBCABa2ohBSABIABrQQJqIQYCQANAIAEtAAAgAEGh1QBqLQAARw0EIABBAkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAzYAQsgA0EANgIAIAZBAWohAUEQDAQLIAEgBEYEQEGTASECDNcBCwJAAkAgAS0AAEHDAGsODAAGBgYGBgYGBgYGAQYLIAFBAWohAUH5ACECDL4BCyABQQFqIQFB+gAhAgy9AQtBkgEhAiABIARGDdUBIAMoAgAiACAEIAFraiEFIAEgAGtBBWohBgJAA0AgAS0AACAAQaDUAGotAABHDQIgAEEFRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADNYBCyADQQA2AgAgBkEBaiEBQSQMAgsgA0EANgIADAILIAEgBEYEQEGRASECDNQBCyABLQAAQcwARw0BIAFBAWohAUETCzoAKSADKAIEIQAgA0EANgIEIAMgACABEC4iAA0CDAELQQAhAiADQQA2AhwgAyABNgIUIANB/h82AhAgA0EGNgIMDNEBC0H4ACECDLcBCyADQZABNgIcIAMgATYCFCADIAA2AgxBACECDM8BC0EAIQACQCADKAI4IgJFDQAgAigCQCICRQ0AIAMgAhEAACEACyAARQ0AIABBFUYNASADQQA2AhwgAyABNgIUIANBgg82AhAgA0EgNgIMQQAhAgzOAQtB9wAhAgy0AQsgA0GPATYCHCADIAE2AhQgA0HsGzYCECADQRU2AgxBACECDMwBCyABIARGBEBBjwEhAgzMAQsCQCABLQAAQSBGBEAgAUEBaiEBDAELIANBADYCHCADIAE2AhQgA0GbHzYCECADQQY2AgxBACECDMwBC0ECIQIMsgELA0AgAS0AAEEgRw0CIAQgAUEBaiIBRw0AC0GOASECDMoBCyABIARGBEBBjQEhAgzKAQsCQCABLQAAQQlrDgRKAABKAAtB9QAhAgywAQsgAy0AKUEFRgRAQfYAIQIMsAELQfQAIQIMrwELIAEgBEYEQEGMASECDMgBCyADQRA2AgggAyABNgIEDAoLIAEgBEYEQEGLASECDMcBCwJAIAEtAABBCWsOBEcAAEcAC0HzACECDK0BCyABIARHBEAgA0EQNgIIIAMgATYCBEHxACECDK0BC0GKASECDMUBCwJAIAEgBEcEQANAIAEtAABBoNAAai0AACIAQQNHBEACQCAAQQFrDgJJAAQLQfAAIQIMrwELIAQgAUEBaiIBRw0AC0GIASECDMYBC0GIASECDMUBCyADQQA2AhwgAyABNgIUIANB2yA2AhAgA0EHNgIMQQAhAgzEAQsgASAERgRAQYkBIQIMxAELAkACQAJAIAEtAABBoNIAai0AAEEBaw4DRgIAAQtB8gAhAgysAQsgA0EANgIcIAMgATYCFCADQbQSNgIQIANBBzYCDEEAIQIMxAELQeoAIQIMqgELIAEgBEcEQCABQQFqIQFB7wAhAgyqAQtBhwEhAgzCAQsgBCABIgBGBEBBhgEhAgzCAQsgAC0AACIBQS9GBEAgAEEBaiEBQe4AIQIMqQELIAFBCWsiAkEXSw0BIAAhAUEBIAJ0QZuAgARxDUEMAQsgBCABIgBGBEBBhQEhAgzBAQsgAC0AAEEvRw0AIABBAWohAQwDC0EAIQIgA0EANgIcIAMgADYCFCADQdsgNgIQIANBBzYCDAy/AQsCQAJAAkACQAJAA0AgAS0AAEGgzgBqLQAAIgBBBUcEQAJAAkAgAEEBaw4IRwUGBwgABAEIC0HrACECDK0BCyABQQFqIQFB7QAhAgysAQsgBCABQQFqIgFHDQALQYQBIQIMwwELIAFBAWoMFAsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDR4gA0HbADYCHCADIAE2AhQgAyAANgIMQQAhAgzBAQsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDR4gA0HdADYCHCADIAE2AhQgAyAANgIMQQAhAgzAAQsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDR4gA0H6ADYCHCADIAE2AhQgAyAANgIMQQAhAgy/AQsgA0EANgIcIAMgATYCFCADQfkPNgIQIANBBzYCDEEAIQIMvgELIAEgBEYEQEGDASECDL4BCwJAIAEtAABBoM4Aai0AAEEBaw4IPgQFBgAIAgMHCyABQQFqIQELQQMhAgyjAQsgAUEBagwNC0EAIQIgA0EANgIcIANB0RI2AhAgA0EHNgIMIAMgAUEBajYCFAy6AQsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDRYgA0HbADYCHCADIAE2AhQgAyAANgIMQQAhAgy5AQsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDRYgA0HdADYCHCADIAE2AhQgAyAANgIMQQAhAgy4AQsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDRYgA0H6ADYCHCADIAE2AhQgAyAANgIMQQAhAgy3AQsgA0EANgIcIAMgATYCFCADQfkPNgIQIANBBzYCDEEAIQIMtgELQewAIQIMnAELIAEgBEYEQEGCASECDLUBCyABQQFqDAILIAEgBEYEQEGBASECDLQBCyABQQFqDAELIAEgBEYNASABQQFqCyEBQQQhAgyYAQtBgAEhAgywAQsDQCABLQAAQaDMAGotAAAiAEECRwRAIABBAUcEQEHpACECDJkBCwwxCyAEIAFBAWoiAUcNAAtB/wAhAgyvAQsgASAERgRAQf4AIQIMrwELAkAgAS0AAEEJaw43LwMGLwQGBgYGBgYGBgYGBgYGBgYGBgYFBgYCBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGAAYLIAFBAWoLIQFBBSECDJQBCyABQQFqDAYLIAMoAgQhACADQQA2AgQgAyAAIAEQLCIARQ0IIANB2wA2AhwgAyABNgIUIAMgADYCDEEAIQIMqwELIAMoAgQhACADQQA2AgQgAyAAIAEQLCIARQ0IIANB3QA2AhwgAyABNgIUIAMgADYCDEEAIQIMqgELIAMoAgQhACADQQA2AgQgAyAAIAEQLCIARQ0IIANB+gA2AhwgAyABNgIUIAMgADYCDEEAIQIMqQELIANBADYCHCADIAE2AhQgA0GNFDYCECADQQc2AgxBACECDKgBCwJAAkACQAJAA0AgAS0AAEGgygBqLQAAIgBBBUcEQAJAIABBAWsOBi4DBAUGAAYLQegAIQIMlAELIAQgAUEBaiIBRw0AC0H9ACECDKsBCyADKAIEIQAgA0EANgIEIAMgACABECwiAEUNByADQdsANgIcIAMgATYCFCADIAA2AgxBACECDKoBCyADKAIEIQAgA0EANgIEIAMgACABECwiAEUNByADQd0ANgIcIAMgATYCFCADIAA2AgxBACECDKkBCyADKAIEIQAgA0EANgIEIAMgACABECwiAEUNByADQfoANgIcIAMgATYCFCADIAA2AgxBACECDKgBCyADQQA2AhwgAyABNgIUIANB5Ag2AhAgA0EHNgIMQQAhAgynAQsgASAERg0BIAFBAWoLIQFBBiECDIwBC0H8ACECDKQBCwJAAkACQAJAA0AgAS0AAEGgyABqLQAAIgBBBUcEQCAAQQFrDgQpAgMEBQsgBCABQQFqIgFHDQALQfsAIQIMpwELIAMoAgQhACADQQA2AgQgAyAAIAEQLCIARQ0DIANB2wA2AhwgAyABNgIUIAMgADYCDEEAIQIMpgELIAMoAgQhACADQQA2AgQgAyAAIAEQLCIARQ0DIANB3QA2AhwgAyABNgIUIAMgADYCDEEAIQIMpQELIAMoAgQhACADQQA2AgQgAyAAIAEQLCIARQ0DIANB+gA2AhwgAyABNgIUIAMgADYCDEEAIQIMpAELIANBADYCHCADIAE2AhQgA0G8CjYCECADQQc2AgxBACECDKMBC0HPACECDIkBC0HRACECDIgBC0HnACECDIcBCyABIARGBEBB+gAhAgygAQsCQCABLQAAQQlrDgQgAAAgAAsgAUEBaiEBQeYAIQIMhgELIAEgBEYEQEH5ACECDJ8BCwJAIAEtAABBCWsOBB8AAB8AC0EAIQACQCADKAI4IgJFDQAgAigCOCICRQ0AIAMgAhEAACEACyAARQRAQeIBIQIMhgELIABBFUcEQCADQQA2AhwgAyABNgIUIANByQ02AhAgA0EaNgIMQQAhAgyfAQsgA0H4ADYCHCADIAE2AhQgA0HqGjYCECADQRU2AgxBACECDJ4BCyABIARHBEAgA0ENNgIIIAMgATYCBEHkACECDIUBC0H3ACECDJ0BCyABIARGBEBB9gAhAgydAQsCQAJAAkAgAS0AAEHIAGsOCwABCwsLCwsLCwsCCwsgAUEBaiEBQd0AIQIMhQELIAFBAWohAUHgACECDIQBCyABQQFqIQFB4wAhAgyDAQtB9QAhAiABIARGDZsBIAMoAgAiACAEIAFraiEFIAEgAGtBAmohBgJAA0AgAS0AACAAQbXVAGotAABHDQggAEECRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADJwBCyADKAIEIQAgA0IANwMAIAMgACAGQQFqIgEQKyIABEAgA0H0ADYCHCADIAE2AhQgAyAANgIMQQAhAgycAQtB4gAhAgyCAQtBACEAAkAgAygCOCICRQ0AIAIoAjQiAkUNACADIAIRAAAhAAsCQCAABEAgAEEVRg0BIANBADYCHCADIAE2AhQgA0HqDTYCECADQSY2AgxBACECDJwBC0HhACECDIIBCyADQfMANgIcIAMgATYCFCADQYAbNgIQIANBFTYCDEEAIQIMmgELIAMtACkiAEEja0ELSQ0JAkAgAEEGSw0AQQEgAHRBygBxRQ0ADAoLQQAhAiADQQA2AhwgAyABNgIUIANB7Qk2AhAgA0EINgIMDJkBC0HyACECIAEgBEYNmAEgAygCACIAIAQgAWtqIQUgASAAa0EBaiEGAkADQCABLQAAIABBs9UAai0AAEcNBSAAQQFGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAMmQELIAMoAgQhACADQgA3AwAgAyAAIAZBAWoiARArIgAEQCADQfEANgIcIAMgATYCFCADIAA2AgxBACECDJkBC0HfACECDH8LQQAhAAJAIAMoAjgiAkUNACACKAI0IgJFDQAgAyACEQAAIQALAkAgAARAIABBFUYNASADQQA2AhwgAyABNgIUIANB6g02AhAgA0EmNgIMQQAhAgyZAQtB3gAhAgx/CyADQfAANgIcIAMgATYCFCADQYAbNgIQIANBFTYCDEEAIQIMlwELIAMtAClBIUYNBiADQQA2AhwgAyABNgIUIANBkQo2AhAgA0EINgIMQQAhAgyWAQtB7wAhAiABIARGDZUBIAMoAgAiACAEIAFraiEFIAEgAGtBAmohBgJAA0AgAS0AACAAQbDVAGotAABHDQIgAEECRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADJYBCyADKAIEIQAgA0IANwMAIAMgACAGQQFqIgEQKyIARQ0CIANB7QA2AhwgAyABNgIUIAMgADYCDEEAIQIMlQELIANBADYCAAsgAygCBCEAIANBADYCBCADIAAgARArIgBFDYABIANB7gA2AhwgAyABNgIUIAMgADYCDEEAIQIMkwELQdwAIQIMeQtBACEAAkAgAygCOCICRQ0AIAIoAjQiAkUNACADIAIRAAAhAAsCQCAABEAgAEEVRg0BIANBADYCHCADIAE2AhQgA0HqDTYCECADQSY2AgxBACECDJMBC0HbACECDHkLIANB7AA2AhwgAyABNgIUIANBgBs2AhAgA0EVNgIMQQAhAgyRAQsgAy0AKSIAQSNJDQAgAEEuRg0AIANBADYCHCADIAE2AhQgA0HJCTYCECADQQg2AgxBACECDJABC0HaACECDHYLIAEgBEYEQEHrACECDI8BCwJAIAEtAABBL0YEQCABQQFqIQEMAQsgA0EANgIcIAMgATYCFCADQbI4NgIQIANBCDYCDEEAIQIMjwELQdkAIQIMdQsgASAERwRAIANBDjYCCCADIAE2AgRB2AAhAgx1C0HqACECDI0BCyABIARGBEBB6QAhAgyNAQsgAS0AAEEwayIAQf8BcUEKSQRAIAMgADoAKiABQQFqIQFB1wAhAgx0CyADKAIEIQAgA0EANgIEIAMgACABEC8iAEUNeiADQegANgIcIAMgATYCFCADIAA2AgxBACECDIwBCyABIARGBEBB5wAhAgyMAQsCQCABLQAAQS5GBEAgAUEBaiEBDAELIAMoAgQhACADQQA2AgQgAyAAIAEQLyIARQ17IANB5gA2AhwgAyABNgIUIAMgADYCDEEAIQIMjAELQdYAIQIMcgsgASAERgRAQeUAIQIMiwELQQAhAEEBIQVBASEHQQAhAgJAAkACQAJAAkACfwJAAkACQAJAAkACQAJAIAEtAABBMGsOCgoJAAECAwQFBggLC0ECDAYLQQMMBQtBBAwEC0EFDAMLQQYMAgtBBwwBC0EICyECQQAhBUEAIQcMAgtBCSECQQEhAEEAIQVBACEHDAELQQAhBUEBIQILIAMgAjoAKyABQQFqIQECQAJAIAMtAC5BEHENAAJAAkACQCADLQAqDgMBAAIECyAHRQ0DDAILIAANAQwCCyAFRQ0BCyADKAIEIQAgA0EANgIEIAMgACABEC8iAEUNAiADQeIANgIcIAMgATYCFCADIAA2AgxBACECDI0BCyADKAIEIQAgA0EANgIEIAMgACABEC8iAEUNfSADQeMANgIcIAMgATYCFCADIAA2AgxBACECDIwBCyADKAIEIQAgA0EANgIEIAMgACABEC8iAEUNeyADQeQANgIcIAMgATYCFCADIAA2AgwMiwELQdQAIQIMcQsgAy0AKUEiRg2GAUHTACECDHALQQAhAAJAIAMoAjgiAkUNACACKAJEIgJFDQAgAyACEQAAIQALIABFBEBB1QAhAgxwCyAAQRVHBEAgA0EANgIcIAMgATYCFCADQaQNNgIQIANBITYCDEEAIQIMiQELIANB4QA2AhwgAyABNgIUIANB0Bo2AhAgA0EVNgIMQQAhAgyIAQsgASAERgRAQeAAIQIMiAELAkACQAJAAkACQCABLQAAQQprDgQBBAQABAsgAUEBaiEBDAELIAFBAWohASADQS9qLQAAQQFxRQ0BC0HSACECDHALIANBADYCHCADIAE2AhQgA0G2ETYCECADQQk2AgxBACECDIgBCyADQQA2AhwgAyABNgIUIANBthE2AhAgA0EJNgIMQQAhAgyHAQsgASAERgRAQd8AIQIMhwELIAEtAABBCkYEQCABQQFqIQEMCQsgAy0ALkHAAHENCCADQQA2AhwgAyABNgIUIANBthE2AhAgA0ECNgIMQQAhAgyGAQsgASAERgRAQd0AIQIMhgELIAEtAAAiAkENRgRAIAFBAWohAUHQACECDG0LIAEhACACQQlrDgQFAQEFAQsgBCABIgBGBEBB3AAhAgyFAQsgAC0AAEEKRw0AIABBAWoMAgtBACECIANBADYCHCADIAA2AhQgA0HKLTYCECADQQc2AgwMgwELIAEgBEYEQEHbACECDIMBCwJAIAEtAABBCWsOBAMAAAMACyABQQFqCyEBQc4AIQIMaAsgASAERgRAQdoAIQIMgQELIAEtAABBCWsOBAABAQABC0EAIQIgA0EANgIcIANBmhI2AhAgA0EHNgIMIAMgAUEBajYCFAx/CyADQYASOwEqQQAhAAJAIAMoAjgiAkUNACACKAI4IgJFDQAgAyACEQAAIQALIABFDQAgAEEVRw0BIANB2QA2AhwgAyABNgIUIANB6ho2AhAgA0EVNgIMQQAhAgx+C0HNACECDGQLIANBADYCHCADIAE2AhQgA0HJDTYCECADQRo2AgxBACECDHwLIAEgBEYEQEHZACECDHwLIAEtAABBIEcNPSABQQFqIQEgAy0ALkEBcQ09IANBADYCHCADIAE2AhQgA0HCHDYCECADQR42AgxBACECDHsLIAEgBEYEQEHYACECDHsLAkACQAJAAkACQCABLQAAIgBBCmsOBAIDAwABCyABQQFqIQFBLCECDGULIABBOkcNASADQQA2AhwgAyABNgIUIANB5xE2AhAgA0EKNgIMQQAhAgx9CyABQQFqIQEgA0Evai0AAEEBcUUNcyADLQAyQYABcUUEQCADQTJqIQIgAxA1QQAhAAJAIAMoAjgiBkUNACAGKAIoIgZFDQAgAyAGEQAAIQALAkACQCAADhZNTEsBAQEBAQEBAQEBAQEBAQEBAQEAAQsgA0EpNgIcIAMgATYCFCADQawZNgIQIANBFTYCDEEAIQIMfgsg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c3BvbnNlIHN0YXR1cwBFeHBlY3RlZCBMRiBhZnRlciBoZWFkZXJzAEludmFsaWQgY2hhcmFjdGVyIGluIGNodW5rIGV4dGVuc2lvbnMAVXNlciBjYWxsYmFjayBlcnJvcgBgb25fcmVzZXRgIGNhbGxiYWNrIGVycm9yAGBvbl9jaHVua19oZWFkZXJgIGNhbGxiYWNrIGVycm9yAGBvbl9tZXNzYWdlX2JlZ2luYCBjYWxsYmFjayBlcnJvcgBgb25fY2h1bmtfZXh0ZW5zaW9uX3ZhbHVlYCBjYWxsYmFjayBlcnJvcgBgb25fc3RhdHVzX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fdmVyc2lvbl9jb21wbGV0ZWAgY2FsbGJhY2sgZXJyb3IAYG9uX3VybF9jb21wbGV0ZWAgY2FsbGJhY2sgZXJyb3IAYG9uX3Byb3RvY29sX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fY2h1bmtfY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl9oZWFkZXJfdmFsdWVfY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl9tZXNzYWdlX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fbWV0aG9kX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25faGVhZGVyX2ZpZWxkX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fY2h1bmtfZXh0ZW5zaW9uX25hbWVgIGNhbGxiYWNrIGVycm9yAFVuZXhwZWN0ZWQgY2hhciBpbiB1cmwgc2VydmVyAEludmFsaWQgaGVhZGVyIHZhbHVlIGNoYXIASW52YWxpZCBoZWFkZXIgZmllbGQgY2hhcgBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX3ZlcnNpb24ASW52YWxpZCBtaW5vciB2ZXJzaW9uAEludmFsaWQgbWFqb3IgdmVyc2lvbgBFeHBlY3RlZCBzcGFjZSBhZnRlciB2ZXJzaW9uAEV4cGVjdGVkIENSTEYgYWZ0ZXIgdmVyc2lvbgBJbnZhbGlkIEhUVFAgdmVyc2lvbgBJbnZhbGlkIGhlYWRlciB0b2tlbgBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX3VybABJbnZhbGlkIGNoYXJhY3RlcnMgaW4gdXJsAFVuZXhwZWN0ZWQgc3RhcnQgY2hhciBpbiB1cmwARG91YmxlIEAgaW4gdXJsAFNwYW4gY2FsbGJhY2sgZXJyb3IgaW4gb25fcHJvdG9jb2wARW1wdHkgQ29udGVudC1MZW5ndGgASW52YWxpZCBjaGFyYWN0ZXIgaW4gQ29udGVudC1MZW5ndGgAVHJhbnNmZXItRW5jb2RpbmcgY2FuJ3QgYmUgcHJlc2VudCB3aXRoIENvbnRlbnQtTGVuZ3RoAER1cGxpY2F0ZSBDb250ZW50LUxlbmd0aABJbnZhbGlkIGNoYXIgaW4gdXJsIHBhdGgAQ29udGVudC1MZW5ndGggY2FuJ3QgYmUgcHJlc2VudCB3aXRoIFRyYW5zZmVyLUVuY29kaW5nAE1pc3NpbmcgZXhwZWN0ZWQgQ1IgYWZ0ZXIgY2h1bmsgc2l6ZQBFeHBlY3RlZCBMRiBhZnRlciBjaHVuayBzaXplAEludmFsaWQgY2hhcmFjdGVyIGluIGNodW5rIHNpemUAU3BhbiBjYWxsYmFjayBlcnJvciBpbiBvbl9oZWFkZXJfdmFsdWUAU3BhbiBjYWxsYmFjayBlcnJvciBpbiBvbl9jaHVua19leHRlbnNpb25fdmFsdWUASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgZXh0ZW5zaW9ucyB2YWx1ZQBVbmV4cGVjdGVkIHdoaXRlc3BhY2UgYWZ0ZXIgaGVhZGVyIHZhbHVlAE1pc3NpbmcgZXhwZWN0ZWQgQ1IgYWZ0ZXIgaGVhZGVyIHZhbHVlAE1pc3NpbmcgZXhwZWN0ZWQgTEYgYWZ0ZXIgaGVhZGVyIHZhbHVlAEludmFsaWQgYFRyYW5zZmVyLUVuY29kaW5nYCBoZWFkZXIgdmFsdWUATWlzc2luZyBleHBlY3RlZCBDUiBhZnRlciBjaHVuayBleHRlbnNpb24gdmFsdWUASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgZXh0ZW5zaW9ucyBxdW90ZSB2YWx1ZQBJbnZhbGlkIHF1b3RlZC1wYWlyIGluIGNodW5rIGV4dGVuc2lvbnMgcXVvdGVkIHZhbHVlAEludmFsaWQgY2hhcmFjdGVyIGluIGNodW5rIGV4dGVuc2lvbnMgcXVvdGVkIHZhbHVlAFBhdXNlZCBieSBvbl9oZWFkZXJzX2NvbXBsZXRlAEludmFsaWQgRU9GIHN0YXRlAG9uX3Jlc2V0IHBhdXNlAG9uX2NodW5rX2hlYWRlciBwYXVzZQBvbl9tZXNzYWdlX2JlZ2luIHBhdXNlAG9uX2NodW5rX2V4dGVuc2lvbl92YWx1ZSBwYXVzZQBvbl9zdGF0dXNfY29tcGxldGUgcGF1c2UAb25fdmVyc2lvbl9jb21wbGV0ZSBwYXVzZQBvbl91cmxfY29tcGxldGUgcGF1c2UAb25fcHJvdG9jb2xfY29tcGxldGUgcGF1c2UAb25fY2h1bmtfY29tcGxldGUgcGF1c2UAb25faGVhZGVyX3ZhbHVlX2NvbXBsZXRlIHBhdXNlAG9uX21lc3NhZ2VfY29tcGxldGUgcGF1c2UAb25fbWV0aG9kX2NvbXBsZXRlIHBhdXNlAG9uX2hlYWRlcl9maWVsZF9jb21wbGV0ZSBwYXVzZQBvbl9jaHVua19leHRlbnNpb25fbmFtZSBwYXVzZQBVbmV4cGVjdGVkIHNwYWNlIGFmdGVyIHN0YXJ0IGxpbmUATWlzc2luZyBleHBlY3RlZCBDUiBhZnRlciByZXNwb25zZSBsaW5lAFNwYW4gY2FsbGJhY2sgZXJyb3IgaW4gb25fY2h1bmtfZXh0ZW5zaW9uX25hbWUASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgZXh0ZW5zaW9ucyBuYW1lAE1pc3NpbmcgZXhwZWN0ZWQgQ1IgYWZ0ZXIgY2h1bmsgZXh0ZW5zaW9uIG5hbWUASW52YWxpZCBzdGF0dXMgY29kZQBQYXVzZSBvbiBDT05ORUNUL1VwZ3JhZGUAUGF1c2Ugb24gUFJJL1VwZ3JhZGUARXhwZWN0ZWQgSFRUUC8yIENvbm5lY3Rpb24gUHJlZmFjZQBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX21ldGhvZABFeHBlY3RlZCBzcGFjZSBhZnRlciBtZXRob2QAU3BhbiBjYWxsYmFjayBlcnJvciBpbiBvbl9oZWFkZXJfZmllbGQAUGF1c2VkAEludmFsaWQgd29yZCBlbmNvdW50ZXJlZABJbnZhbGlkIG1ldGhvZCBlbmNvdW50ZXJlZABNaXNzaW5nIGV4cGVjdGVkIENSIGFmdGVyIGNodW5rIGRhdGEARXhwZWN0ZWQgTEYgYWZ0ZXIgY2h1bmsgZGF0YQBVbmV4cGVjdGVkIGNoYXIgaW4gdXJsIHNjaGVtYQBSZXF1ZXN0IGhhcyBpbnZhbGlkIGBUcmFuc2Zlci1FbmNvZGluZ2AARGF0YSBhZnRlciBgQ29ubmVjdGlvbjogY2xvc2VgAFNXSVRDSF9QUk9YWQBVU0VfUFJPWFkATUtBQ1RJVklUWQBVTlBST0NFU1NBQkxFX0VOVElUWQBRVUVSWQBDT1BZAE1PVkVEX1BFUk1BTkVOVExZAFRPT19FQVJMWQBOT1RJRlkARkFJTEVEX0RFUEVOREVOQ1kAQkFEX0dBVEVXQVkAUExBWQBQVVQAQ0hFQ0tPVVQAR0FURVdBWV9USU1FT1VUAFJFUVVFU1RfVElNRU9VVABORVRXT1JLX0NPTk5FQ1RfVElNRU9VVABDT05ORUNUSU9OX1RJTUVPVVQATE9HSU5fVElNRU9VVABORVRXT1JLX1JFQURfVElNRU9VVABQT1NUAE1JU0RJUkVDVEVEX1JFUVVFU1QAQ0xJRU5UX0NMT1NFRF9SRVFVRVNUAENMSUVOVF9DTE9TRURfTE9BRF9CQUxBTkNFRF9SRVFVRVNUAEJBRF9SRVFVRVNUAEhUVFBfUkVRVUVTVF9TRU5UX1RPX0hUVFBTX1BPUlQAUkVQT1JUAElNX0FfVEVBUE9UAFJFU0VUX0NPTlRFTlQATk9fQ09OVEVOVABQQVJUSUFMX0NPTlRFTlQASFBFX0lOVkFMSURfQ09OU1RBTlQASFBFX0NCX1JFU0VUAEdFVABIUEVfU1RSSUNUAENPTkZMSUNUAFRFTVBPUkFSWV9SRURJUkVDVABQRVJNQU5FTlRfUkVESVJFQ1QAQ09OTkVDVABNVUxUSV9TVEFUVVMASFBFX0lOVkFMSURfU1RBVFVTAFRPT19NQU5ZX1JFUVVFU1RTAEVBUkxZX0hJTlRTAFVOQVZBSUxBQkxFX0ZPUl9MRUdBTF9SRUFTT05TAE9QVElPTlMAU1dJVENISU5HX1BST1RPQ09MUwBWQVJJQU5UX0FMU09fTkVHT1RJQVRFUwBNVUxUSVBMRV9DSE9JQ0VTAElOVEVSTkFMX1NFUlZFUl9FUlJPUgBXRUJfU0VSVkVSX1VOS05PV05fRVJST1IAUkFJTEdVTl9FUlJPUgBJREVOVElUWV9QUk9WSURFUl9BVVRIRU5USUNBVElPTl9FUlJPUgBTU0xfQ0VSVElGSUNBVEVfRVJST1IASU5WQUxJRF9YX0ZPUldBUkRFRF9GT1IAU0VUX1BBUkFNRVRFUgBHRVRfUEFSQU1FVEVSAEhQRV9VU0VSAFNFRV9PVEhFUgBIUEVfQ0JfQ0hVTktfSEVBREVSAEV4cGVjdGVkIExGIGFmdGVyIENSAE1LQ0FMRU5EQVIAU0VUVVAAV0VCX1NFUlZFUl9JU19ET1dOAFRFQVJET1dOAEhQRV9DTE9TRURfQ09OTkVDVElPTgBIRVVSSVNUSUNfRVhQSVJBVElPTgBESVNDT05ORUNURURfT1BFUkFUSU9OAE5PTl9BVVRIT1JJVEFUSVZFX0lORk9STUFUSU9OAEhQRV9JTlZBTElEX1ZFUlNJT04ASFBFX0NCX01FU1NBR0VfQkVHSU4AU0lURV9JU19GUk9aRU4ASFBFX0lOVkFMSURfSEVBREVSX1RPS0VOAElOVkFMSURfVE9LRU4ARk9SQklEREVOAEVOSEFOQ0VfWU9VUl9DQUxNAEhQRV9JTlZBTElEX1VSTABCTE9DS0VEX0JZX1BBUkVOVEFMX0NPTlRST0wATUtDT0wAQUNMAEhQRV9JTlRFUk5BTABSRVFVRVNUX0hFQURFUl9GSUVMRFNfVE9PX0xBUkdFX1VOT0ZGSUNJQUwASFBFX09LAFVOTElOSwBVTkxPQ0sAUFJJAFJFVFJZX1dJVEgASFBFX0lOVkFMSURfQ09OVEVOVF9MRU5HVEgASFBFX1VORVhQRUNURURfQ09OVEVOVF9MRU5HVEgARkxVU0gAUFJPUFBBVENIAE0tU0VBUkNIAFVSSV9UT09fTE9ORwBQUk9DRVNTSU5HAE1JU0NFTExBTkVPVVNfUEVSU0lTVEVOVF9XQVJOSU5HAE1JU0NFTExBTkVPVVNfV0FSTklORwBIUEVfSU5WQUxJRF9UUkFOU0ZFUl9FTkNPRElORwBFeHBlY3RlZCBDUkxGAEhQRV9JTlZBTElEX0NIVU5LX1NJWkUATU9WRQBDT05USU5VRQBIUEVfQ0JfU1RBVFVTX0NPTVBMRVRFAEhQRV9DQl9IRUFERVJTX0NPTVBMRVRFAEhQRV9DQl9WRVJTSU9OX0NPTVBMRVRFAEhQRV9DQl9VUkxfQ09NUExFVEUASFBFX0NCX1BST1RPQ09MX0NPTVBMRVRFAEhQRV9DQl9DSFVOS19DT01QTEVURQBIUEVfQ0JfSEVBREVSX1ZBTFVFX0NPTVBMRVRFAEhQRV9DQl9DSFVOS19FWFRFTlNJT05fVkFMVUVfQ09NUExFVEUASFBFX0NCX0NIVU5LX0VYVEVOU0lPTl9OQU1FX0NPTVBMRVRFAEhQRV9DQl9NRVNTQUdFX0NPTVBMRVRFAEhQRV9DQl9NRVRIT0RfQ09NUExFVEUASFBFX0NCX0hFQURFUl9GSUVMRF9DT01QTEVURQBERUxFVEUASFBFX0lOVkFMSURfRU9GX1NUQVRFAElOVkFMSURfU1NMX0NFUlRJRklDQVRFAFBBVVNFAE5PX1JFU1BPTlNFAFVOU1VQUE9SVEVEX01FRElBX1RZUEUAR09ORQBOT1RfQUNDRVBUQUJMRQBTRVJWSUNFX1VOQVZBSUxBQkxFAFJBTkdFX05PVF9TQVRJU0ZJQUJMRQBPUklHSU5fSVNfVU5SRUFDSEFCTEUAUkVTUE9OU0VfSVNfU1RBTEUAUFVSR0UATUVSR0UAUkVRVUVTVF9IRUFERVJfRklFTERTX1RPT19MQVJHRQBSRVFVRVNUX0hFQURFUl9UT09fTEFSR0UAUEFZTE9BRF9UT09fTEFSR0UASU5TVUZGSUNJRU5UX1NUT1JBR0UASFBFX1BBVVNFRF9VUEdSQURFAEhQRV9QQVVTRURfSDJfVVBHUkFERQBTT1VSQ0UAQU5OT1VOQ0UAVFJBQ0UASFBFX1VORVhQRUNURURfU1BBQ0UAREVTQ1JJQkUAVU5TVUJTQ1JJQkUAUkVDT1JEAEhQRV9JTlZBTElEX01FVEhPRABOT1RfRk9VTkQAUFJPUEZJTkQAVU5CSU5EAFJFQklORABVTkFVVEhPUklaRUQATUVUSE9EX05PVF9BTExPV0VEAEhUVFBfVkVSU0lPTl9OT1RfU1VQUE9SVEVEAEFMUkVBRFlfUkVQT1JURUQAQUNDRVBURUQATk9UX0lNUExFTUVOVEVEAExPT1BfREVURUNURUQASFBFX0NSX0VYUEVDVEVEAEhQRV9MRl9FWFBFQ1RFRABDUkVBVEVEAElNX1VTRUQASFBFX1BBVVNFRABUSU1FT1VUX09DQ1VSRUQAUEFZTUVOVF9SRVFVSVJFRABQUkVDT05ESVRJT05fUkVRVUlSRUQAUFJPWFlfQVVUSEVOVElDQVRJT05fUkVRVUlSRUQATkVUV09SS19BVVRIRU5USUNBVElPTl9SRVFVSVJFRABMRU5HVEhfUkVRVUlSRUQAU1NMX0NFUlRJRklDQVRFX1JFUVVJUkVEAFVQR1JBREVfUkVRVUlSRUQAUEFHRV9FWFBJUkVEAFBSRUNPTkRJVElPTl9GQUlMRUQARVhQRUNUQVRJT05fRkFJTEVEAFJFVkFMSURBVElPTl9GQUlMRUQAU1NMX0hBTkRTSEFLRV9GQUlMRUQATE9DS0VEAFRSQU5TRk9STUFUSU9OX0FQUExJRUQATk9UX01PRElGSUVEAE5PVF9FWFRFTkRFRABCQU5EV0lEVEhfTElNSVRfRVhDRUVERUQAU0lURV9JU19PVkVSTE9BREVEAEhFQUQARXhwZWN0ZWQgSFRUUC8sIFJUU1AvIG9yIElDRS8A5xUAAK8VAACkEgAAkhoAACYWAACeFAAA2xkAAHkVAAB+EgAA/hQAADYVAAALFgAA2BYAAPMSAABCGAAArBYAABIVAAAUFwAA7xcAAEgUAABxFwAAshoAAGsZAAB+GQAANRQAAIIaAABEFwAA/RYAAB4YAACHFwAAqhkAAJMSAAAHGAAALBcAAMoXAACkFwAA5xUAAOcVAABYFwAAOxgAAKASAAAtHAAAwxEAAEgRAADeEgAAQhMAAKQZAAD9EAAA9xUAAKUVAADvFgAA+BkAAEoWAABWFgAA9RUAAAoaAAAIGgAAARoAAKsVAABCEgAA1xAAAEwRAAAFGQAAVBYAAB4RAADKGQAAyBkAAE4WAAD/GAAAcRQAAPAVAADuFQAAlBkAAPwVAAC/GQAAmxkAAHwUAABDEQAAcBgAAJUUAAAnFAAAGRQAANUSAADUGQAARBYAAPcQAEG5OwsBAQBB0DsL4AEBAQIBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQBBuj0LBAEAAAIAQdE9C14DBAMDAwMDAAADAwADAwADAwMDAwMDAwMDAAUAAAAAAAMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAAAAAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAAwADAEG6PwsEAQAAAgBB0T8LXgMAAwMDAwMAAAMDAAMDAAMDAwMDAwMDAwMABAAFAAAAAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAAAADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwADAAMAQbDBAAsNbG9zZWVlcC1hbGl2ZQBBycEACwEBAEHgwQAL4AEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQBBycMACwEBAEHgwwAL5wEBAQEBAQEBAQEBAQECAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAWNodW5rZWQAQfHFAAteAQABAQEBAQAAAQEAAQEAAQEBAQEBAQEBAQAAAAAAAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAEAAQBB0McACyFlY3Rpb25lbnQtbGVuZ3Rob25yb3h5LWNvbm5lY3Rpb24AQYDIAAsgcmFuc2Zlci1lbmNvZGluZ3BncmFkZQ0KDQpTTQ0KDQoAQanIAAsFAQIAAQMAQcDIAAtfBAUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUAQanKAAsFAQIAAQMAQcDKAAtfBAUFBgUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUAQanMAAsEAQAAAQBBwcwAC14CAgACAgICAgICAgICAgICAgICAgICAgICAgICAgIAAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAEGpzgALBQECAAEDAEHAzgALXwQFAAAFBQUFBQUFBQUFBQYFBQUFBQUFBQUFBQUABQAHCAUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQAFAAUABQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUAAAAFAEGp0AALBQEBAAEBAEHA0AALAQEAQdrQAAtBAgAAAAAAAAMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAAAAAAAAAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAQanSAAsFAQEAAQEAQcDSAAsBAQBBytIACwYCAAAAAAIAQeHSAAs6AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAAAAAAAADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwBBoNQAC50BTk9VTkNFRUNLT1VUTkVDVEVURUNSSUJFTFVTSEVURUFEU0VBUkNIUkdFQ1RJVklUWUxFTkRBUlZFT1RJRllQVElPTlNDSFNFQVlTVEFUQ0hHRVVFUllPUkRJUkVDVE9SVFJDSFBBUkFNRVRFUlVSQ0VCU0NSSUJFQVJET1dOQUNFSU5ETktDS1VCU0NSSUJFVFRQQ0VUU1BBRFRQLw==";
@@ -3623,9 +3623,9 @@ var require_llhttp_wasm = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/llhttp_simd-wasm.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/llhttp_simd-wasm.js
 var require_llhttp_simd_wasm = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/llhttp_simd-wasm.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/llhttp/llhttp_simd-wasm.js"(exports, module) {
     "use strict";
     var { Buffer: Buffer2 } = __require("node:buffer");
     var wasmBase64 = "AGFzbQEAAAABJwdgAX8Bf2ADf39/AX9gAn9/AGABfwBgBH9/f38Bf2AAAGADf39/AALLAQgDZW52GHdhc21fb25faGVhZGVyc19jb21wbGV0ZQAEA2VudhV3YXNtX29uX21lc3NhZ2VfYmVnaW4AAANlbnYLd2FzbV9vbl91cmwAAQNlbnYOd2FzbV9vbl9zdGF0dXMAAQNlbnYUd2FzbV9vbl9oZWFkZXJfZmllbGQAAQNlbnYUd2FzbV9vbl9oZWFkZXJfdmFsdWUAAQNlbnYMd2FzbV9vbl9ib2R5AAEDZW52GHdhc21fb25fbWVzc2FnZV9jb21wbGV0ZQAAAzU0BQYAAAMAAAAAAAADAQMAAwMDAAACAAAAAAICAgICAgICAgIBAQEBAQEBAQEBAwAAAwAAAAQFAXABExMFAwEAAgYIAX8BQcDZBAsHxQcoBm1lbW9yeQIAC19pbml0aWFsaXplAAgZX19pbmRpcmVjdF9mdW5jdGlvbl90YWJsZQEAC2xsaHR0cF9pbml0AAkYbGxodHRwX3Nob3VsZF9rZWVwX2FsaXZlADcMbGxodHRwX2FsbG9jAAsGbWFsbG9jADkLbGxodHRwX2ZyZWUADARmcmVlAAwPbGxodHRwX2dldF90eXBlAA0VbGxodHRwX2dldF9odHRwX21ham9yAA4VbGxodHRwX2dldF9odHRwX21pbm9yAA8RbGxodHRwX2dldF9tZXRob2QAEBZsbGh0dHBfZ2V0X3N0YXR1c19jb2RlABESbGxodHRwX2dldF91cGdyYWRlABIMbGxodHRwX3Jlc2V0ABMObGxodHRwX2V4ZWN1dGUAFBRsbGh0dHBfc2V0dGluZ3NfaW5pdAAVDWxsaHR0cF9maW5pc2gAFgxsbGh0dHBfcGF1c2UAFw1sbGh0dHBfcmVzdW1lABgbbGxodHRwX3Jlc3VtZV9hZnRlcl91cGdyYWRlABkQbGxodHRwX2dldF9lcnJubwAaF2xsaHR0cF9nZXRfZXJyb3JfcmVhc29uABsXbGxodHRwX3NldF9lcnJvcl9yZWFzb24AHBRsbGh0dHBfZ2V0X2Vycm9yX3BvcwAdEWxsaHR0cF9lcnJub19uYW1lAB4SbGxodHRwX21ldGhvZF9uYW1lAB8SbGxodHRwX3N0YXR1c19uYW1lACAabGxodHRw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AXRrQT5qIQILIAEgAjYCHCABQgA3AhAgAkECdEH01wBqIQACQEHI1QAoAgAiA0EBIAJ0IgdxRQRAIAAgATYCAEHI1QAgAyAHcjYCACABIAA2AhggASABNgIIIAEgATYCDAwBCyAEQRkgAkEBdmtBACACQR9HG3QhAiAAKAIAIQACQANAIAAiAygCBEF4cSAERg0BIAJBHXYhACACQQF0IQIgAyAAQQRxakEQaiIHKAIAIgANAAsgByABNgIAIAEgAzYCGCABIAE2AgwgASABNgIIDAELIAMoAggiACABNgIMIAMgATYCCCABQQA2AhggASADNgIMIAEgADYCCAtB5NUAQeTVACgCAEEBayIAQX8gABs2AgALCwcAIAAtACgLBwAgAC0AKgsHACAALQArCwcAIAAtACkLBwAgAC8BNAsHACAALQAwC0ABBH8gACgCGCEBIAAvAS4hAiAALQAoIQMgACgCOCEEIAAQOCAAIAQ2AjggACADOgAoIAAgAjsBLiAAIAE2AhgLhocCAwd/A34BeyABIAJqIQQCQCAAIgMoAgwiAA0AIAMoAgQEQCADIAE2AgQLIwBBEGsiCSQAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACfwJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkAC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DAgLQeMBDAcLQdcBDAYLQdgBDAULQdkBDAQLQdoBDAMLQdsBDAILQd0BDAELQdwBCyECA0ACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAIAMCfwJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACfwJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACfwJAAkACQAJAAkACQAJAAn8CQAJAAkACfwJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkAgAwJ/AkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJ/AkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkAC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A0EXNgIcIAMgADYCDCADIAFBAWo2AhQM+AILIABBFUYNI0EAIQIgA0EANgIcIAMgATYCFCADQdYMNgIQIANBIzYCDAz3AgsgAygCBCEAQQAhAiADQQA2AgQgAyAAIAEQNCIARQRAIAFBAWohAQwdCyADQRk2AhwgAyAANgIMIAMgAUEBajYCFAz2AgsgAygCBCEAQQAhAiADQQA2AgQgAyAAIAEQNCIARQRAIAFBAWohAQzvAgsgA0EaNgIcIAMgADYCDCADIAFBAWo2AhQM9QILIABBFUYNH0EAIQIgA0EANgIcIAMgATYCFCADQdAPNgIQIANBIjYCDAz0AgsgAygCBCEAIANBADYCBCADIAAgARAzIgBFBEAgAUEBaiEBDBsLIANBHDYCHCADIAA2AgwgAyABQQFqNgIUQQAhAgzzAgsgAygCBCEAIANBADYCBCADIAAgARAzIgBFBEAgAUEBaiEBDOsCCyADQR02AhwgAyAANgIMIAMgAUEBajYCFEEAIQIM8gILIABBO0cNASABQQFqIQELQSYhAgzXAgtBACECIANBADYCHCADIAE2AhQgA0GfFTYCECADQQw2AgwM7wILIAEgBEcEQANAIAEtAABBIEcNhAIgBCABQQFqIgFHDQALQSwhAgzvAgtBLCECDO4CCyABIARGBEBBNCECDO4CCwJAAkADQAJAIAEtAABBCmsOBAIAAAMACyAEIAFBAWoiAUcNAAtBNCECDO8CCyADKAIEIQAgA0EANgIEIAMgACABEDEiAEUNnwIgA0EyNgIcIAMgATYCFCADIAA2AgxBACECDO4CCyADKAIEIQAgA0EANgIEIAMgACABEDEiAEUEQCABQQFqIQEMnwILIANBMjYCHCADIAA2AgwgAyABQQFqNgIUQQAhAgztAgsgASAERwRAAkADQCABLQAAQTBrIgBB/wFxQQpPBEBBOiECDNcCCyADKQMgIgtCmbPmzJmz5swZVg0BIAMgC0IKfiIKNwMgIAogAK1C/wGDIgtCf4VWDQEgAyAKIAt8NwMgIAQgAUEBaiIBRw0AC0HAACECDO4CCyADKAIEIQAgA0EANgIEIAMgACABQQFqIgEQMSIADRcM4gILQcAAIQIM7AILIAEgBEYEQEHJACECDOwCCwJAA0ACQCABLQAAQQlrDhgAAqICogKpAqICogKiAqICogKiAqICogKiAqICogKiAqICogKiAqICogKiAgCiAgsgBCABQQFqIgFHDQALQckAIQIM7AILIAFBAWohASADQS9qLQAAQQFxDaUCIANBADYCHCADIAE2AhQgA0GXEDYCECADQQo2AgxBACECDOsCCyABIARHBEADQCABLQAAQSBHDRUgBCABQQFqIgFHDQALQfgAIQIM6wILQfgAIQIM6gILIANBAjoAKAw4C0EAIQIgA0EANgIcIANBvws2AhAgA0ECNgIMIAMgAUEBajYCFAzoAgtBACECDM4CC0ENIQIMzQILQRMhAgzMAgtBFSECDMsCC0EWIQIMygILQRghAgzJAgtBGSECDMgCC0EaIQIMxwILQRshAgzGAgtBHCECDMUCC0EdIQIMxAILQR4hAgzDAgtBHyECDMICC0EgIQIMwQILQSIhAgzAAgtBIyECDL8CC0ElIQIMvgILQeUAIQIMvQILIANBPTYCHCADIAE2AhQgAyAANgIMQQAhAgzVAgsgA0EbNgIcIAMgATYCFCADQaQcNgIQIANBFTYCDEEAIQIM1AILIANBIDYCHCADIAE2AhQgA0GYGjYCECADQRU2AgxBACECDNMCCyADQRM2AhwgAyABNgIUIANBmBo2AhAgA0EVNgIMQQAhAgzSAgsgA0ELNgIcIAMgATYCFCADQZgaNgIQIANBFTYCDEEAIQIM0QILIANBEDYCHCADIAE2AhQgA0GYGjYCECADQRU2AgxBACECDNACCyADQSA2AhwgAyABNgIUIANBpBw2AhAgA0EVNgIMQQAhAgzPAgsgA0ELNgIcIAMgATYCFCADQaQcNgIQIANBFTYCDEEAIQIMzgILIANBDDYCHCADIAE2AhQgA0GkHDYCECADQRU2AgxBACECDM0CC0EAIQIgA0EANgIcIAMgATYCFCADQd0ONgIQIANBEjYCDAzMAgsCQANAAkAgAS0AAEEKaw4EAAICAAILIAQgAUEBaiIBRw0AC0H9ASECDMwCCwJAAkAgAy0ANkEBRw0AQQAhAAJAIAMoAjgiAkUNACACKAJgIgJFDQAgAyACEQAAIQALIABFDQAgAEEVRw0BIANB/AE2AhwgAyABNgIUIANB3Bk2AhAgA0EVNgIMQQAhAgzNAgtB3AEhAgyzAgsgA0EANgIcIAMgATYCFCADQfkLNgIQIANBHzYCDEEAIQIMywILAkACQCADLQAoQQFrDgIEAQALQdsBIQIMsgILQdQBIQIMsQILIANBAjoAMUEAIQACQCADKAI4IgJFDQAgAigCACICRQ0AIAMgAhEAACEACyAARQRAQd0BIQIMsQILIABBFUcEQCADQQA2AhwgAyABNgIUIANBtAw2AhAgA0EQNgIMQQAhAgzKAgsgA0H7ATYCHCADIAE2AhQgA0GBGjYCECADQRU2AgxBACECDMkCCyABIARGBEBB+gEhAgzJAgsgAS0AAEHIAEYNASADQQE6ACgLQcABIQIMrgILQdoBIQIMrQILIAEgBEcEQCADQQw2AgggAyABNgIEQdkBIQIMrQILQfkBIQIMxQILIAEgBEYEQEH4ASECDMUCCyABLQAAQcgARw0EIAFBAWohAUHYASECDKsCCyABIARGBEBB9wEhAgzEAgsCQAJAIAEtAABBxQBrDhAABQUFBQUFBQUFBQUFBQUBBQsgAUEBaiEBQdYBIQIMqwILIAFBAWohAUHXASECDKoCC0H2ASECIAEgBEYNwgIgAygCACIAIAQgAWtqIQUgASAAa0ECaiEGAkADQCABLQAAIABButUAai0AAEcNAyAAQQJGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAMwwILIAMoAgQhACADQgA3AwAgAyAAIAZBAWoiARAuIgBFBEBB4wEhAgyqAgsgA0H1ATYCHCADIAE2AhQgAyAANgIMQQAhAgzCAgtB9AEhAiABIARGDcECIAMoAgAiACAEIAFraiEFIAEgAGtBAWohBgJAA0AgAS0AACAAQbjVAGotAABHDQIgAEEBRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADMICCyADQYEEOwEoIAMoAgQhACADQgA3AwAgAyAAIAZBAWoiARAuIgANAwwCCyADQQA2AgALQQAhAiADQQA2AhwgAyABNgIUIANB5R82AhAgA0EINgIMDL8CC0HVASECDKUCCyADQfMBNgIcIAMgATYCFCADIAA2AgxBACECDL0CC0EAIQACQCADKAI4IgJFDQAgAigCQCICRQ0AIAMgAhEAACEACyAARQ1uIABBFUcEQCADQQA2AhwgAyABNgIUIANBgg82AhAgA0EgNgIMQQAhAgy9AgsgA0GPATYCHCADIAE2AhQgA0HsGzYCECADQRU2AgxBACECDLwCCyABIARHBEAgA0ENNgIIIAMgATYCBEHTASECDKMCC0HyASECDLsCCyABIARGBEBB8QEhAgy7AgsCQAJAAkAgAS0AAEHIAGsOCwABCAgICAgICAgCCAsgAUEBaiEBQdABIQIMowILIAFBAWohAUHRASECDKICCyABQQFqIQFB0gEhAgyhAgtB8AEhAiABIARGDbkCIAMoAgAiACAEIAFraiEGIAEgAGtBAmohBQNAIAEtAAAgAEG11QBqLQAARw0EIABBAkYNAyAAQQFqIQAgBCABQQFqIgFHDQALIAMgBjYCAAy5AgtB7wEhAiABIARGDbgCIAMoAgAiACAEIAFraiEGIAEgAGtBAWohBQNAIAEtAAAgAEGz1QBqLQAARw0DIABBAUYNAiAAQQFqIQAgBCABQQFqIgFHDQALIAMgBjYCAAy4AgtB7gEhAiABIARGDbcCIAMoAgAiACAEIAFraiEGIAEgAGtBAmohBQNAIAEtAAAgAEGw1QBqLQAARw0CIABBAkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBjYCAAy3AgsgAygCBCEAIANCADcDACADIAAgBUEBaiIBECsiAEUNAiADQewBNgIcIAMgATYCFCADIAA2AgxBACECDLYCCyADQQA2AgALIAMoAgQhACADQQA2AgQgAyAAIAEQKyIARQ2cAiADQe0BNgIcIAMgATYCFCADIAA2AgxBACECDLQCC0HPASECDJoCC0EAIQACQCADKAI4IgJFDQAgAigCNCICRQ0AIAMgAhEAACEACwJAIAAEQCAAQRVGDQEgA0EANgIcIAMgATYCFCADQeoNNgIQIANBJjYCDEEAIQIMtAILQc4BIQIMmgILIANB6wE2AhwgAyABNgIUIANBgBs2AhAgA0EVNgIMQQAhAgyyAgsgASAERgRAQesBIQIMsgILIAEtAABBL0YEQCABQQFqIQEMAQsgA0EANgIcIAMgATYCFCADQbI4NgIQIANBCDYCDEEAIQIMsQILQc0BIQIMlwILIAEgBEcEQCADQQ42AgggAyABNgIEQcwBIQIMlwILQeoBIQIMrwILIAEgBEYEQEHpASECDK8CCyABLQAAQTBrIgBB/wFxQQpJBEAgAyAAOgAqIAFBAWohAUHLASECDJYCCyADKAIEIQAgA0EANgIEIAMgACABEC8iAEUNlwIgA0HoATYCHCADIAE2AhQgAyAANgIMQQAhAgyuAgsgASAERgRAQecBIQIMrgILAkAgAS0AAEEuRgRAIAFBAWohAQwBCyADKAIEIQAgA0EANgIEIAMgACABEC8iAEUNmAIgA0HmATYCHCADIAE2AhQgAyAANgIMQQAhAgyuAgtBygEhAgyUAgsgASAERgRAQeUBIQIMrQILQQAhAEEBIQVBASEHQQAhAgJAAkACQAJAAkACfwJAAkACQAJAAkACQAJAIAEtAABBMGsOCgoJAAECAwQFBggLC0ECDAYLQQMMBQtBBAwEC0EFDAMLQQYMAgtBBwwBC0EICyECQQAhBUEAIQcMAgtBCSECQQEhAEEAIQVBACEHDAELQQAhBUEBIQILIAMgAjoAKyABQQFqIQECQAJAIAMtAC5BEHENAAJAAkACQCADLQAqDgMBAAIECyAHRQ0DDAILIAANAQwCCyAFRQ0BCyADKAIEIQAgA0EANgIEIAMgACABEC8iAEUNAiADQeIBNgIcIAMgATYCFCADIAA2AgxBACECDK8CCyADKAIEIQAgA0EANgIEIAMgACABEC8iAEUNmgIgA0HjATYCHCADIAE2AhQgAyAANgIMQQAhAgyuAgsgAygCBCEAIANBADYCBCADIAAgARAvIgBFDZgCIANB5AE2AhwgAyABNgIUIAMgADYCDAytAgtByQEhAgyTAgtBACEAAkAgAygCOCICRQ0AIAIoAkQiAkUNACADIAIRAAAhAAsCQCAABEAgAEEVRg0BIANBADYCHCADIAE2AhQgA0GkDTYCECADQSE2AgxBACECDK0CC0HIASECDJMCCyADQeEBNgIcIAMgATYCFCADQdAaNgIQIANBFTYCDEEAIQIMqwILIAEgBEYEQEHhASECDKsCCwJAIAEtAABBIEYEQCADQQA7ATQgAUEBaiEBDAELIANBADYCHCADIAE2AhQgA0GZETYCECADQQk2AgxBACECDKsCC0HHASECDJECCyABIARGBEBB4AEhAgyqAgsCQCABLQAAQTBrQf8BcSICQQpJBEAgAUEBaiEBAkAgAy8BNCIAQZkzSw0AIAMgAEEKbCIAOwE0IABB/v8DcSACQf//A3NLDQAgAyAAIAJqOwE0DAILQQAhAiADQQA2AhwgAyABNgIUIANBlR42AhAgA0ENNgIMDKsCCyADQQA2AhwgAyABNgIUIANBlR42AhAgA0ENNgIMQQAhAgyqAgtBxgEhAgyQAgsgASAERgRAQd8BIQIMqQILAkAgAS0AAEEwa0H/AXEiAkEKSQRAIAFBAWohAQJAIAMvATQiAEGZM0sNACADIABBCmwiADsBNCAAQf7/A3EgAkH//wNzSw0AIAMgACACajsBNAwCC0EAIQIgA0EANgIcIAMgATYCFCADQZUeNgIQIANBDTYCDAyqAgsgA0EANgIcIAMgATYCFCADQZUeNgIQIANBDTYCDEEAIQIMqQILQcUBIQIMjwILIAEgBEYEQEHeASECDKgCCwJAIAEtAABBMGtB/wFxIgJBCkkEQCABQQFqIQECQCADLwE0IgBBmTNLDQAgAyAAQQpsIgA7ATQgAEH+/wNxIAJB//8Dc0sNACADIAAgAmo7ATQMAgtBACECIANBADYCHCADIAE2AhQgA0GVHjYCECADQQ02AgwMqQILIANBADYCHCADIAE2AhQgA0GVHjYCECADQQ02AgxBACECDKgCC0HEASECDI4CCyABIARGBEBB3QEhAgynAgsCQAJAAkACQCABLQAAQQprDhcCAwMAAwMDAwMDAwMDAwMDAwMDAwMDAQMLIAFBAWoMBQsgAUEBaiEBQcMBIQIMjwILIAFBAWohASADQS9qLQAAQQFxDQggA0EANgIcIAMgATYCFCADQY0LNgIQIANBDTYCDEEAIQIMpwILIANBADYCHCADIAE2AhQgA0GNCzYCECADQQ02AgxBACECDKYCCyABIARHBEAgA0EPNgIIIAMgATYCBEEBIQIMjQILQdwBIQIMpQILAkACQANAAkAgAS0AAEEKaw4EAgAAAwALIAQgAUEBaiIBRw0AC0HbASECDKYCCyADKAIEIQAgA0EANgIEIAMgACABEC0iAEUEQCABQQFqIQEMBAsgA0HaATYCHCADIAA2AgwgAyABQQFqNgIUQQAhAgylAgsgAygCBCEAIANBADYCBCADIAAgARAtIgANASABQQFqCyEBQcEBIQIMigILIANB2QE2AhwgAyAANgIMIAMgAUEBajYCFEEAIQIMogILQcIBIQIMiAILIANBL2otAABBAXENASADQQA2AhwgAyABNgIUIANB5Bw2AhAgA0EZNgIMQQAhAgygAgsgASAERgRAQdkB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CyADIAU2AgAMkAILIANBADYCACAGQQFqIQFBGgw8C0HKASECIAEgBEYNjgIgAygCACIAIAQgAWtqIQUgASAAa0EDaiEGAkADQCABLQAAIABBjdUAai0AAEcNOyAAQQNGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAMjwILIANBADYCACAGQQFqIQFBIQw7CyABIARGBEBByQEhAgyOAgsCQAJAIAEtAABBwQBrDhQAPT09PT09PT09PT09PT09PT09AT0LIAFBAWohAUGtASECDPUBCyABQQFqIQFBsAEhAgz0AQsgASAERgRAQcgBIQIMjQILAkACQCABLQAAQdUAaw4LADw8PDw8PDw8PAE8CyABQQFqIQFBrgEhAgz0AQsgAUEBaiEBQa8BIQIM8wELQccBIQIgASAERg2LAiADKAIAIgAgBCABa2ohBSABIABrQQhqIQYCQANAIAEtAAAgAEGE1QBqLQAARw04IABBCEYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAyMAgsgA0EANgIAIAZBAWohAUEqDDgLIAEgBEYEQEHGASECDIsCCyABLQAAQdAARw04IAFBAWohAUElDDcLQcUBIQIgASAERg2JAiADKAIAIgAgBCABa2ohBSABIABrQQJqIQYCQANAIAEtAAAgAEGB1QBqLQAARw02IABBAkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAyKAgsgA0EANgIAIAZBAWohAUEODDYLIAEgBEYEQEHEASECDIkCCyABLQAAQcUARw02IAFBAWohAUGrASECDO8BCyABIARGBEBBwwEhAgyIAgsCQAJAAkACQCABLQAAQcIAaw4PAAECOTk5OTk5OTk5OTkDOQsgAUEBaiEBQacBIQIM8QELIAFBAWohAUGoASECDPABCyABQQFqIQFBqQEhAgzvAQsgAUEBaiEBQaoBIQIM7gELQcIBIQIgASAERg2GAiADKAIAIgAgBCABa2ohBSABIABrQQJqIQYCQANAIAEtAAAgAEH+1ABqLQAARw0zIABBAkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAyHAgsgA0EANgIAIAZBAWohAUEUDDMLQcEBIQIgASAERg2FAiADKAIAIgAgBCABa2ohBSABIABrQQRqIQYCQANA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BTYCAAzsAQsgA0EANgIAIAZBAWohAUEXDBgLQaYBIQIgASAERg3qASADKAIAIgAgBCABa2ohBSABIABrQQVqIQYCQANAIAEtAAAgAEHB1ABqLQAARw0XIABBBUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAzrAQsgA0EANgIAIAZBAWohAUEYDBcLIAEgBEYEQEGlASECDOoBCwJAAkAgAS0AAEHJAGsOBwAZGRkZGQEZCyABQQFqIQFBiwEhAgzRAQsgAUEBaiEBQYwBIQIM0AELQaQBIQIgASAERg3oASADKAIAIgAgBCABa2ohBSABIABrQQFqIQYCQANAIAEtAAAgAEGm1QBqLQAARw0VIABBAUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAzpAQsgA0EANgIAIAZBAWohAUEJDBULQaMBIQIgASAERg3nASADKAIAIgAgBCABa2ohBSABIABrQQFqIQYCQANAIAEtAAAgAEGk1QBqLQAARw0UIABBAUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAzoAQsgA0EANgIAIAZBAWohAUEfDBQLQaIBIQIgASAERg3mASADKAIAIgAgBCABa2ohBSABIABrQQJqIQYCQANAIAEtAAAgAEG+1ABqLQAARw0TIABBAkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAznAQsgA0EANgIAIAZBAWohAUECDBMLQaEBIQIgASAERg3lASADKAIAIgAgBCABa2ohBSABIABrQQFqIQYDQCABLQAAIABBvNQAai0AAEcNESAAQQFGDQIgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAM5QELIAEgBEYEQEGgASECDOUBC0EBIAEtAABB3wBHDREaIAFBAWohAUGHASECDMsBCyADQQA2AgAgBkEBaiEBQYgBIQIMygELQZ8BIQIgASAERg3iASADKAIAIgAgBCABa2ohBSABIABrQQhqIQYCQANAIAEtAAAgAEGE1QBqLQAARw0PIABBCEYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAzjAQsgA0EANgIAIAZBAWohAUEpDA8LQZ4BIQIgASAERg3hASADKAIAIgAgBCABa2ohBSABIABrQQNqIQYCQANAIAEtAAAgAEG41ABqLQAARw0OIABBA0YNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAziAQsgA0EANgIAIAZBAWohAUEtDA4LIAEgBEYEQEGdASECDOEBCyABLQAAQcUARw0OIAFBAWohAUGEASECDMcBCyABIARGBEBBnAEhAgzgAQsCQAJAIAEtAABBzABrDggADw8PDw8PAQ8LIAFBAWohAUGCASECDMcBCyABQQFqIQFBgwEhAgzGAQtBmwEhAiABIARGDd4BIAMoAgAiACAEIAFraiEFIAEgAGtBBGohBgJAA0AgAS0AACAAQbPUAGotAABHDQsgAEEERg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADN8BCyADQQA2AgAgBkEBaiEBQSMMCwtBmgEhAiABIARGDd0BIAMoAgAiACAEIAFraiEFIAEgAGtBAmohBgJAA0AgAS0AACAAQbDUAGotAABHDQogAEECRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADN4BCyADQQA2AgAgBkEBaiEBQQAMCgsgASAERgRAQZkBIQIM3QELAkACQCABLQAAQcgAaw4IAAwMDAwMDAEMCyABQQFqIQFB/QAhAgzEAQsgAUEBaiEBQYABIQIMwwELIAEgBEYEQEGYASECDNwBCwJAAkAgAS0AAEHOAGsOAwALAQsLIAFBAWohAUH+ACECDMMBCyABQQFqIQFB/wAhAgzCAQsgASAERgRAQZcBIQIM2wELIAEtAABB2QBHDQggAUEBaiEBQQgMBwtBlgEhAiABIARGDdkBIAMoAgAiACAEIAFraiEFIAEgAGtBA2ohBgJAA0AgAS0AACAAQazUAGotAABHDQYgAEEDRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADNoBCyADQQA2AgAgBkEBaiEBQQUMBgtBlQEhAiABIARGDdgBIAMoAgAiACAEIAFraiEFIAEgAGtBBWohBgJAA0AgAS0AACAAQabUAGotAABHDQUgAEEFRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADNkBCyADQQA2AgAgBkEBaiEBQRYMBQtBlAEhAiABIARGDdcBIAMoAgAiACAEIAFraiEFIAEgAGtBAmohBgJAA0AgAS0AACAAQaHVAGotAABHDQQgAEECRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAyAFNgIADNgBCyADQQA2AgAgBkEBaiEBQRAMBAsgASAERgRAQZMBIQIM1wELAkACQCABLQAAQcMAaw4MAAYGBgYGBgYGBgYBBgsgAUEBaiEBQfkAIQIMvgELIAFBAWohAUH6ACECDL0BC0GSASECIAEgBEYN1QEgAygCACIAIAQgAWtqIQUgASAAa0EFaiEGAkADQCABLQAAIABBoNQAai0AAEcNAiAAQQVGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAM1gELIANBADYCACAGQQFqIQFBJAwCCyADQQA2AgAMAgsgASAERgRAQZEBIQIM1AELIAEtAABBzABHDQEgAUEBaiEBQRMLOgApIAMoAgQhACADQQA2AgQgAyAAIAEQLiIADQIMAQtBACECIANBADYCHCADIAE2AhQgA0H+HzYCECADQQY2AgwM0QELQfgAIQIMtwELIANBkAE2AhwgAyABNgIUIAMgADYCDEEAIQIMzwELQQAhAAJAIAMoAjgiAkUNACACKAJAIgJFDQAgAyACEQAAIQALIABFDQAgAEEVRg0BIANBADYCHCADIAE2AhQgA0GCDzYCECADQSA2AgxBACECDM4BC0H3ACECDLQBCyADQY8BNgIcIAMgATYCFCADQewbNgIQIANBFTYCDEEAIQIMzAELIAEgBEYEQEGPASECDMwBCwJAIAEtAABBIEYEQCABQQFqIQEMAQsgA0EANgIcIAMgATYCFCADQZsfNgIQIANBBjYCDEEAIQIMzAELQQIhAgyyAQsDQCABLQAAQSBHDQIgBCABQQFqIgFHDQALQY4BIQIMygELIAEgBEYEQEGNASECDMoBCwJAIAEtAABBCWsOBEoAAEoAC0H1ACECDLABCyADLQApQQVGBEBB9gAhAgywAQtB9AAhAgyvAQsgASAERgRAQYwBIQIMyAELIANBEDYCCCADIAE2AgQMCgsgASAERgRAQYsBIQIMxwELAkAgAS0AAEEJaw4ERwAARwALQfMAIQIMrQELIAEgBEcEQCADQRA2AgggAyABNgIEQfEAIQIMrQELQYoBIQIMxQELAkAgASAERwRAA0AgAS0AAEGg0ABqLQAAIgBBA0cEQAJAIABBAWsOAkkABAtB8AAhAgyvAQsgBCABQQFqIgFHDQALQYgBIQIMxgELQYgBIQIMxQELIANBADYCHCADIAE2AhQgA0HbIDYCECADQQc2AgxBACECDMQBCyABIARGBEBBiQEhAgzEAQsCQAJAAkAgAS0AAEGg0gBqLQAAQQFrDgNGAgABC0HyACECDKwBCyADQQA2AhwgAyABNgIUIANBtBI2AhAgA0EHNgIMQQAhAgzEAQtB6gAhAgyqAQsgASAERwRAIAFBAWohAUHvACECDKoBC0GHASECDMIBCyAEIAEiAEYEQEGGASECDMIBCyAALQAAIgFBL0YEQCAAQQFqIQFB7gAhAgypAQsgAUEJayICQRdLDQEgACEBQQEgAnRBm4CABHENQQwBCyAEIAEiAEYEQEGFASECDMEBCyAALQAAQS9HDQAgAEEBaiEBDAMLQQAhAiADQQA2AhwgAyAANgIUIANB2yA2AhAgA0EHNgIMDL8BCwJAAkACQAJAAkADQCABLQAAQaDOAGotAAAiAEEFRwRAAkACQCAAQQFrDghHBQYHCAAEAQgLQesAIQIMrQELIAFBAWohAUHtACECDKwBCyAEIAFBAWoiAUcNAAtBhAEhAgzDAQsgAUEBagwUCyADKAIEIQAgA0EANgIEIAMgACABECwiAEUNHiADQdsANgIcIAMgATYCFCADIAA2AgxBACECDMEBCyADKAIEIQAgA0EANgIEIAMgACABECwiAEUNHiADQd0ANgIcIAMgATYCFCADIAA2AgxBACECDMABCyADKAIEIQAgA0EANgIEIAMgACABECwiAEUNHiADQfoANgIcIAMgATYCFCADIAA2AgxBACECDL8BCyADQQA2AhwgAyABNgIUIANB+Q82AhAgA0EHNgIMQQAhAgy+AQsgASAERgRAQYMBIQIMvgELAkAgAS0AAEGgzgBqLQAAQQFrDgg+BAUGAAgCAwcLIAFBAWohAQtBAyECDKMBCyABQQFqDA0LQQAhAiADQQA2AhwgA0HREjYCECADQQc2AgwgAyABQQFqNgIUDLoBCyADKAIEIQAgA0EANgIEIAMgACABECwiAEUNFiADQdsANgIcIAMgATYCFCADIAA2AgxBACECDLkBCyADKAIEIQAgA0EANgIEIAMgACABECwiAEUNFiADQd0ANgIcIAMgATYCFCADIAA2AgxBACECDLgBCyADKAIEIQAgA0EANgIEIAMgACABECwiAEUNFiADQfoANgIcIAMgATYCFCADIAA2AgxBACECDLcBCyADQQA2AhwgAyABNgIUIANB+Q82AhAgA0EHNgIMQQAhAgy2AQtB7AAhAgycAQsgASAERgRAQYIBIQIMtQELIAFBAWoMAgsgASAERgRAQYEBIQIMtAELIAFBAWoMAQsgASAERg0BIAFBAWoLIQFBBCECDJgBC0GAASECDLABCwNAIAEtAABBoMwAai0AACIAQQJHBEAgAEEBRwRAQekAIQIMmQELDDELIAQgAUEBaiIBRw0AC0H/ACECDK8BCyABIARGBEBB/gAhAgyvAQsCQCABLQAAQQlrDjcvAwYvBAYGBgYGBgYGBgYGBgYGBgYGBgUGBgIGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYABgsgAUEBagshAUEFIQIMlAELIAFBAWoMBgsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDQggA0HbADYCHCADIAE2AhQgAyAANgIMQQAhAgyrAQsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDQggA0HdADYCHCADIAE2AhQgAyAANgIMQQAhAgyqAQsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDQggA0H6ADYCHCADIAE2AhQgAyAANgIMQQAhAgypAQsgA0EANgIcIAMgATYCFCADQY0UNgIQIANBBzYCDEEAIQIMqAELAkACQAJAAkADQCABLQAAQaDKAGotAAAiAEEFRwRAAkAgAEEBaw4GLgMEBQYABgtB6AAhAgyUAQsgBCABQQFqIgFHDQALQf0AIQIMqwELIAMoAgQhACADQQA2AgQgAyAAIAEQLCIARQ0HIANB2wA2AhwgAyABNgIUIAMgADYCDEEAIQIMqgELIAMoAgQhACADQQA2AgQgAyAAIAEQLCIARQ0HIANB3QA2AhwgAyABNgIUIAMgADYCDEEAIQIMqQELIAMoAgQhACADQQA2AgQgAyAAIAEQLCIARQ0HIANB+gA2AhwgAyABNgIUIAMgADYCDEEAIQIMqAELIANBADYCHCADIAE2AhQgA0HkCDYCECADQQc2AgxBACECDKcBCyABIARGDQEgAUEBagshAUEGIQIMjAELQfwAIQIMpAELAkACQAJAAkADQCABLQAAQaDIAGotAAAiAEEFRwRAIABBAWsOBCkCAwQFCyAEIAFBAWoiAUcNAAtB+wAhAgynAQsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDQMgA0HbADYCHCADIAE2AhQgAyAANgIMQQAhAgymAQsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDQMgA0HdADYCHCADIAE2AhQgAyAANgIMQQAhAgylAQsgAygCBCEAIANBADYCBCADIAAgARAsIgBFDQMgA0H6ADYCHCADIAE2AhQgAyAANgIMQQAhAgykAQsgA0EANgIcIAMgATYCFCADQbwKNgIQIANBBzYCDEEAIQIMowELQc8AIQIMiQELQdEAIQIMiAELQecAIQIMhwELIAEgBEYEQEH6ACECDKABCwJAIAEtAABBCWsOBCAAACAACyABQQFqIQFB5gAhAgyGAQsgASAERgRAQfkAIQIMnwELAkAgAS0AAEEJaw4EHwAAHwALQQAhAAJAIAMoAjgiAkUNACACKAI4IgJFDQAgAyACEQAAIQALIABFBEBB4gEhAgyGAQsgAEEVRwRAIANBADYCHCADIAE2AhQgA0HJDTYCECADQRo2AgxBACECDJ8BCyADQfgANgIcIAMgATYCFCADQeoaNgIQIANBFTYCDEEAIQIMngELIAEgBEcEQCADQQ02AgggAyABNgIEQeQAIQIMhQELQfcAIQIMnQELIAEgBEYEQEH2ACECDJ0BCwJAAkACQCABLQAAQcgAaw4LAAELCwsLCwsLCwILCyABQQFqIQFB3QAhAgyFAQsgAUEBaiEBQeAAIQIMhAELIAFBAWohAUHjACECDIMBC0H1ACECIAEgBEYNmwEgAygCACIAIAQgAWtqIQUgASAAa0ECaiEGAkADQCABLQAAIABBtdUAai0AAEcNCCAAQQJGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAMnAELIAMoAgQhACADQgA3AwAgAyAAIAZBAWoiARArIgAEQCADQfQANgIcIAMgATYCFCADIAA2AgxBACECDJwBC0HiACECDIIBC0EAIQACQCADKAI4IgJFDQAgAigCNCICRQ0AIAMgAhEAACEACwJAIAAEQCAAQRVGDQEgA0EANgIcIAMgATYCFCADQeoNNgIQIANBJjYCDEEAIQIMnAELQeEAIQIMggELIANB8wA2AhwgAyABNgIUIANBgBs2AhAgA0EVNgIMQQAhAgyaAQsgAy0AKSIAQSNrQQtJDQkCQCAAQQZLDQBBASAAdEHKAHFFDQAMCgtBACECIANBADYCHCADIAE2AhQgA0HtCTYCECADQQg2AgwMmQELQfIAIQIgASAERg2YASADKAIAIgAgBCABa2ohBSABIABrQQFqIQYCQANAIAEtAAAgAEGz1QBqLQAARw0FIABBAUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAMgBTYCAAyZAQsgAygCBCEAIANCADcDACADIAAgBkEBaiIBECsiAARAIANB8QA2AhwgAyABNgIUIAMgADYCDEEAIQIMmQELQd8AIQIMfwtBACEAAkAgAygCOCICRQ0AIAIoAjQiAkUNACADIAIRAAAhAAsCQCAABEAgAEEVRg0BIANBADYCHCADIAE2AhQgA0HqDTYCECADQSY2AgxBACECDJkBC0HeACECDH8LIANB8AA2AhwgAyABNgIUIANBgBs2AhAgA0EVNgIMQQAhAgyXAQsgAy0AKUEhRg0GIANBADYCHCADIAE2AhQgA0GRCjYCECADQQg2AgxBACECDJYBC0HvACECIAEgBEYNlQEgAygCACIAIAQgAWtqIQUgASAAa0ECaiEGAkADQCABLQAAIABBsNUAai0AAEcNAiAAQQJGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyADIAU2AgAMlgELIAMoAgQhACADQgA3AwAgAyAAIAZBAWoiARArIgBFDQIgA0HtADYCHCADIAE2AhQgAyAANgIMQQAhAgyVAQsgA0EANgIACyADKAIEIQAgA0EANgIEIAMgACABECsiAEUNgAEgA0HuADYCHCADIAE2AhQgAyAANgIMQQAhAgyTAQtB3AAhAgx5C0EAIQACQCADKAI4IgJFDQAgAigCNCICRQ0AIAMgAhEAACEACwJAIAAEQCAAQRVGDQEgA0EANgIcIAMgATYCFCADQeoNNgIQIANBJjYCDEEAIQIMkwELQdsAIQIMeQsgA0HsADYCHCADIAE2AhQgA0GAGzYCECADQRU2AgxBACECDJEBCyADLQApIgBBI0kNACAAQS5GDQAgA0EANgIcIAMgATYCFCADQckJNgIQIANBCDYCDEEAIQIMkAELQdoAIQIMdgsgASAERgRAQesAIQIMjwELAkAgAS0AAEEvRgRAIAFBAWohAQwBCyAD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ciBIVFRQL3gueCByZXF1ZXN0AEludmFsaWQgbWV0aG9kIGZvciBSVFNQL3gueCByZXF1ZXN0AEV4cGVjdGVkIFNPVVJDRSBtZXRob2QgZm9yIElDRS94LnggcmVxdWVzdABJbnZhbGlkIGNoYXIgaW4gdXJsIGZyYWdtZW50IHN0YXJ0AEV4cGVjdGVkIGRvdABTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX3N0YXR1cwBJbnZhbGlkIHJlc3BvbnNlIHN0YXR1cwBFeHBlY3RlZCBMRiBhZnRlciBoZWFkZXJzAEludmFsaWQgY2hhcmFjdGVyIGluIGNodW5rIGV4dGVuc2lvbnMAVXNlciBjYWxsYmFjayBlcnJvcgBgb25fcmVzZXRgIGNhbGxiYWNrIGVycm9yAGBvbl9jaHVua19oZWFkZXJgIGNhbGxiYWNrIGVycm9yAGBvbl9tZXNzYWdlX2JlZ2luYCBjYWxsYmFjayBlcnJvcgBgb25fY2h1bmtfZXh0ZW5zaW9uX3ZhbHVlYCBjYWxsYmFjayBlcnJvcgBgb25fc3RhdHVzX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fdmVyc2lvbl9jb21wbGV0ZWAgY2FsbGJhY2sgZXJyb3IAYG9uX3VybF9jb21wbGV0ZWAgY2FsbGJhY2sgZXJyb3IAYG9uX3Byb3RvY29sX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fY2h1bmtfY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl9oZWFkZXJfdmFsdWVfY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl9tZXNzYWdlX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fbWV0aG9kX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25faGVhZGVyX2ZpZWxkX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fY2h1bmtfZXh0ZW5zaW9uX25hbWVgIGNhbGxiYWNrIGVycm9yAFVuZXhwZWN0ZWQgY2hhciBpbiB1cmwgc2VydmVyAEludmFsaWQgaGVhZGVyIHZhbHVlIGNoYXIASW52YWxpZCBoZWFkZXIgZmllbGQgY2hhcgBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX3ZlcnNpb24ASW52YWxpZCBtaW5vciB2ZXJzaW9uAEludmFsaWQgbWFqb3IgdmVyc2lvbgBFeHBlY3RlZCBzcGFjZSBhZnRlciB2ZXJzaW9uAEV4cGVjdGVkIENSTEYgYWZ0ZXIgdmVyc2lvbgBJbnZhbGlkIEhUVFAgdmVyc2lvbgBJbnZhbGlkIGhlYWRlciB0b2tlbgBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX3VybABJbnZhbGlkIGNoYXJhY3RlcnMgaW4gdXJsAFVuZXhwZWN0ZWQgc3RhcnQgY2hhciBpbiB1cmwARG91YmxlIEAgaW4gdXJsAFNwYW4gY2FsbGJhY2sgZXJyb3IgaW4gb25fcHJvdG9jb2wARW1wdHkgQ29udGVudC1MZW5ndGgASW52YWxpZCBjaGFyYWN0ZXIgaW4gQ29udGVudC1MZW5ndGgAVHJhbnNmZXItRW5jb2RpbmcgY2FuJ3QgYmUgcHJlc2VudCB3aXRoIENvbnRlbnQtTGVuZ3RoAER1cGxpY2F0ZSBDb250ZW50LUxlbmd0aABJbnZhbGlkIGNoYXIgaW4gdXJsIHBhdGgAQ29udGVudC1MZW5ndGggY2FuJ3QgYmUgcHJlc2VudCB3aXRoIFRyYW5zZmVyLUVuY29kaW5nAE1pc3NpbmcgZXhwZWN0ZWQgQ1IgYWZ0ZXIgY2h1bmsgc2l6ZQBFeHBlY3RlZCBMRiBhZnRlciBjaHVuayBzaXplAEludmFsaWQgY2hhcmFjdGVyIGluIGNodW5rIHNpemUAU3BhbiBjYWxsYmFjayBlcnJvciBpbiBvbl9oZWFkZXJfdmFsdWUAU3BhbiBjYWxsYmFjayBlcnJvciBpbiBvbl9jaHVua19leHRlbnNpb25fdmFsdWUASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgZXh0ZW5zaW9ucyB2YWx1ZQBVbmV4cGVjdGVkIHdoaXRlc3BhY2UgYWZ0ZXIgaGVhZGVyIHZhbHVlAE1pc3NpbmcgZXhwZWN0ZWQgQ1IgYWZ0ZXIgaGVhZGVyIHZhbHVlAE1pc3NpbmcgZXhwZWN0ZWQgTEYgYWZ0ZXIgaGVhZGVyIHZhbHVlAEludmFsaWQgYFRyYW5zZmVyLUVuY29kaW5nYCBoZWFkZXIgdmFsdWUATWlzc2luZyBleHBlY3RlZCBDUiBhZnRlciBjaHVuayBleHRlbnNpb24gdmFsdWUASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgZXh0ZW5zaW9ucyBxdW90ZSB2YWx1ZQBJbnZhbGlkIHF1b3RlZC1wYWlyIGluIGNodW5rIGV4dGVuc2lvbnMgcXVvdGVkIHZhbHVlAEludmFsaWQgY2hhcmFjdGVyIGluIGNodW5rIGV4dGVuc2lvbnMgcXVvdGVkIHZhbHVlAFBhdXNlZCBieSBvbl9oZWFkZXJzX2NvbXBsZXRlAEludmFsaWQgRU9GIHN0YXRlAG9uX3Jlc2V0IHBhdXNlAG9uX2NodW5rX2hlYWRlciBwYXVzZQBvbl9tZXNzYWdlX2JlZ2luIHBhdXNlAG9uX2NodW5rX2V4dGVuc2lvbl92YWx1ZSBwYXVzZQBvbl9zdGF0dXNfY29tcGxldGUgcGF1c2UAb25fdmVyc2lvbl9jb21wbGV0ZSBwYXVzZQBvbl91cmxfY29tcGxldGUgcGF1c2UAb25fcHJvdG9jb2xfY29tcGxldGUgcGF1c2UAb25fY2h1bmtfY29tcGxldGUgcGF1c2UAb25faGVhZGVyX3ZhbHVlX2NvbXBsZXRlIHBhdXNlAG9uX21lc3NhZ2VfY29tcGxldGUgcGF1c2UAb25fbWV0aG9kX2NvbXBsZXRlIHBhdXNlAG9uX2hlYWRlcl9maWVsZF9jb21wbGV0ZSBwYXVzZQBvbl9jaHVua19leHRlbnNpb25fbmFtZSBwYXVzZQBVbmV4cGVjdGVkIHNwYWNlIGFmdGVyIHN0YXJ0IGxpbmUATWlzc2luZyBleHBlY3RlZCBDUiBhZnRlciByZXNwb25zZSBsaW5lAFNwYW4gY2FsbGJhY2sgZXJyb3IgaW4gb25fY2h1bmtfZXh0ZW5zaW9uX25hbWUASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgZXh0ZW5zaW9ucyBuYW1lAE1pc3NpbmcgZXhwZWN0ZWQgQ1IgYWZ0ZXIgY2h1bmsgZXh0ZW5zaW9uIG5hbWUASW52YWxpZCBzdGF0dXMgY29kZQBQYXVzZSBvbiBDT05ORUNUL1VwZ3JhZGUAUGF1c2Ugb24gUFJJL1VwZ3JhZGUARXhwZWN0ZWQgSFRUUC8yIENvbm5lY3Rpb24gUHJlZmFjZQBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX21ldGhvZABFeHBlY3RlZCBzcGFjZSBhZnRlciBtZXRob2QAU3BhbiBjYWxsYmFjayBlcnJvciBpbiBvbl9oZWFkZXJfZmllbGQAUGF1c2VkAEludmFsaWQgd29yZCBlbmNvdW50ZXJlZABJbnZhbGlkIG1ldGhvZCBlbmNvdW50ZXJlZABNaXNzaW5nIGV4cGVjdGVkIENSIGFmdGVyIGNodW5rIGRhdGEARXhwZWN0ZWQgTEYgYWZ0ZXIgY2h1bmsgZGF0YQBVbmV4cGVjdGVkIGNoYXIgaW4gdXJsIHNjaGVtYQBSZXF1ZXN0IGhhcyBpbnZhbGlkIGBUcmFuc2Zlci1FbmNvZGluZ2AARGF0YSBhZnRlciBgQ29ubmVjdGlvbjogY2xvc2VgAFNXSVRDSF9QUk9YWQBVU0VfUFJPWFkATUtBQ1RJVklUWQBVTlBST0NFU1NBQkxFX0VOVElUWQBRVUVSWQBDT1BZAE1PVkVEX1BFUk1BTkVOVExZAFRPT19FQVJMWQBOT1RJRlkARkFJTEVEX0RFUEVOREVOQ1kAQkFEX0dBVEVXQVkAUExBWQBQVVQAQ0hFQ0tPVVQAR0FURVdBWV9USU1FT1VUAFJFUVVFU1RfVElNRU9VVABORVRXT1JLX0NPTk5FQ1RfVElNRU9VVABDT05ORUNUSU9OX1RJTUVPVVQATE9HSU5fVElNRU9VVABORVRXT1JLX1JFQURfVElNRU9VVABQT1NUAE1JU0RJUkVDVEVEX1JFUVVFU1QAQ0xJRU5UX0NMT1NFRF9SRVFVRVNUAENMSUVOVF9DTE9TRURfTE9BRF9CQUxBTkNFRF9SRVFVRVNUAEJBRF9SRVFVRVNUAEhUVFBfUkVRVUVTVF9TRU5UX1RPX0hUVFBTX1BPUlQAUkVQT1JUAElNX0FfVEVBUE9UAFJFU0VUX0NPTlRFTlQATk9fQ09OVEVOVABQQVJUSUFMX0NPTlRFTlQASFBFX0lOVkFMSURfQ09OU1RBTlQASFBFX0NCX1JFU0VUAEdFVABIUEVfU1RSSUNUAENPTkZMSUNUAFRFTVBPUkFSWV9SRURJUkVDVABQRVJNQU5FTlRfUkVESVJFQ1QAQ09OTkVDVABNVUxUSV9TVEFUVVMASFBFX0lOVkFMSURfU1RBVFVTAFRPT19NQU5ZX1JFUVVFU1RTAEVBUkxZX0hJTlRTAFVOQVZBSUxBQkxFX0ZPUl9MRUdBTF9SRUFTT05TAE9QVElPTlMAU1dJVENISU5HX1BST1RPQ09MUwBWQVJJQU5UX0FMU09fTkVHT1RJQVRFUwBNVUxUSVBMRV9DSE9JQ0VTAElOVEVSTkFMX1NFUlZFUl9FUlJPUgBXRUJfU0VSVkVSX1VOS05PV05fRVJST1IAUkFJTEdVTl9FUlJPUgBJREVOVElUWV9QUk9WSURFUl9BVVRIRU5USUNBVElPTl9FUlJPUgBTU0xfQ0VSVElGSUNBVEVfRVJST1IASU5WQUxJRF9YX0ZPUldBUkRFRF9GT1IAU0VUX1BBUkFNRVRFUgBHRVRfUEFSQU1FVEVSAEhQRV9VU0VSAFNFRV9PVEhFUgBIUEVfQ0JfQ0hVTktfSEVBREVSAEV4cGVjdGVkIExGIGFmdGVyIENSAE1LQ0FMRU5EQVIAU0VUVVAAV0VCX1NFUlZFUl9JU19ET1dOAFRFQVJET1dOAEhQRV9DTE9TRURfQ09OTkVDVElPTgBIRVVSSVNUSUNfRVhQSVJBVElPTgBESVNDT05ORUNURURfT1BFUkFUSU9OAE5PTl9BVVRIT1JJVEFUSVZFX0lORk9STUFUSU9OAEhQRV9JTlZBTElEX1ZFUlNJT04ASFBFX0NCX01FU1NBR0VfQkVHSU4AU0lURV9JU19GUk9aRU4ASFBFX0lOVkFMSURfSEVBREVSX1RPS0VOAElOVkFMSURfVE9LRU4ARk9SQklEREVOAEVOSEFOQ0VfWU9VUl9DQUxNAEhQRV9JTlZBTElEX1VSTABCTE9DS0VEX0JZX1BBUkVOVEFMX0NPTlRST0wATUtDT0wAQUNMAEhQRV9JTlRFUk5BTABSRVFVRVNUX0hFQURFUl9GSUVMRFNfVE9PX0xBUkdFX1VOT0ZGSUNJQUwASFBFX09LAFVOTElOSwBVTkxPQ0sAUFJJAFJFVFJZX1dJVEgASFBFX0lOVkFMSURfQ09OVEVOVF9MRU5HVEgASFBFX1VORVhQRUNURURfQ09OVEVOVF9MRU5HVEgARkxVU0gAUFJPUFBBVENIAE0tU0VBUkNIAFVSSV9UT09fTE9ORwBQUk9DRVNTSU5HAE1JU0NFTExBTkVPVVNfUEVSU0lTVEVOVF9XQVJOSU5HAE1JU0NFTExBTkVPVVNfV0FSTklORwBIUEVfSU5WQUxJRF9UUkFOU0ZFUl9FTkNPRElORwBFeHBlY3RlZCBDUkxGAEhQRV9JTlZBTElEX0NIVU5LX1NJWkUATU9WRQBDT05USU5VRQBIUEVfQ0JfU1RBVFVTX0NPTVBMRVRFAEhQRV9DQl9IRUFERVJTX0NPTVBMRVRFAEhQRV9DQl9WRVJTSU9OX0NPTVBMRVRFAEhQRV9DQl9VUkxfQ09NUExFVEUASFBFX0NCX1BST1RPQ09MX0NPTVBMRVRFAEhQRV9DQl9DSFVOS19DT01QTEVURQBIUEVfQ0JfSEVBREVSX1ZBTFVFX0NPTVBMRVRFAEhQRV9DQl9DSFVOS19FWFRFTlNJT05fVkFMVUVfQ09NUExFVEUASFBFX0NCX0NIVU5LX0VYVEVOU0lPTl9OQU1FX0NPTVBMRVRFAEhQRV9DQl9NRVNTQUdFX0NPTVBMRVRFAEhQRV9DQl9NRVRIT0RfQ09NUExFVEUASFBFX0NCX0hFQURFUl9GSUVMRF9DT01QTEVURQBERUxFVEUASFBFX0lOVkFMSURfRU9GX1NUQVRFAElOVkFMSURfU1NMX0NFUlRJRklDQVRFAFBBVVNFAE5PX1JFU1BPTlNFAFVOU1VQUE9SVEVEX01FRElBX1RZUEUAR09ORQBOT1RfQUNDRVBUQUJMRQBTRVJWSUNFX1VOQVZBSUxBQkxFAFJBTkdFX05PVF9TQVRJU0ZJQUJMRQBPUklHSU5fSVNfVU5SRUFDSEFCTEUAUkVTUE9OU0VfSVNfU1RBTEUAUFVSR0UATUVSR0UAUkVRVUVTVF9IRUFERVJfRklFTERTX1RPT19MQVJHRQBSRVFVRVNUX0hFQURFUl9UT09fTEFSR0UAUEFZTE9BRF9UT09fTEFSR0UASU5TVUZGSUNJRU5UX1NUT1JBR0UASFBFX1BBVVNFRF9VUEdSQURFAEhQRV9QQVVTRURfSDJfVVBHUkFERQBTT1VSQ0UAQU5OT1VOQ0UAVFJBQ0UASFBFX1VORVhQRUNURURfU1BBQ0UAREVTQ1JJQkUAVU5TVUJTQ1JJQkUAUkVDT1JEAEhQRV9JTlZBTElEX01FVEhPRABOT1RfRk9VTkQAUFJPUEZJTkQAVU5CSU5EAFJFQklORABVTkFVVEhPUklaRUQATUVUSE9EX05PVF9BTExPV0VEAEhUVFBfVkVSU0lPTl9OT1RfU1VQUE9SVEVEAEFMUkVBRFlfUkVQT1JURUQAQUNDRVBURUQATk9UX0lNUExFTUVOVEVEAExPT1BfREVURUNURUQASFBFX0NSX0VYUEVDVEVEAEhQRV9MRl9FWFBFQ1RFRABDUkVBVEVEAElNX1VTRUQASFBFX1BBVVNFRABUSU1FT1VUX09DQ1VSRUQAUEFZTUVOVF9SRVFVSVJFRABQUkVDT05ESVRJT05fUkVRVUlSRUQAUFJPWFlfQVVUSEVOVElDQVRJT05fUkVRVUlSRUQATkVUV09SS19BVVRIRU5USUNBVElPTl9SRVFVSVJFRABMRU5HVEhfUkVRVUlSRUQAU1NMX0NFUlRJRklDQVRFX1JFUVVJUkVEAFVQR1JBREVfUkVRVUlSRUQAUEFHRV9FWFBJUkVEAFBSRUNPTkRJVElPTl9GQUlMRUQARVhQRUNUQVRJT05fRkFJTEVEAFJFVkFMSURBVElPTl9GQUlMRUQAU1NMX0hBTkRTSEFLRV9GQUlMRUQATE9DS0VEAFRSQU5TRk9STUFUSU9OX0FQUExJRUQATk9UX01PRElGSUVEAE5PVF9FWFRFTkRFRABCQU5EV0lEVEhfTElNSVRfRVhDRUVERUQAU0lURV9JU19PVkVSTE9BREVEAEhFQUQARXhwZWN0ZWQgSFRUUC8sIFJUU1AvIG9yIElDRS8A5xUAAK8VAACkEgAAkhoAACYWAACeFAAA2xkAAHkVAAB+EgAA/hQAADYVAAALFgAA2BYAAPMSAABCGAAArBYAABIVAAAUFwAA7xcAAEgUAABxFwAAshoAAGsZAAB+GQAANRQAAIIaAABEFwAA/RYAAB4YAACHFwAAqhkAAJMSAAAHGAAALBcAAMoXAACkFwAA5xUAAOcVAABYFwAAOxgAAKASAAAtHAAAwxEAAEgRAADeEgAAQhMAAKQZAAD9EAAA9xUAAKUVAADvFgAA+BkAAEoWAABWFgAA9RUAAAoaAAAIGgAAARoAAKsVAABCEgAA1xAAAEwRAAAFGQAAVBYAAB4RAADKGQAAyBkAAE4WAAD/GAAAcRQAAPAVAADuFQAAlBkAAPwVAAC/GQAAmxkAAHwUAABDEQAAcBgAAJUUAAAnFAAAGRQAANUSAADUGQAARBYAAPcQAEG5OwsBAQBB0DsL4AEBAQIBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQBBuj0LBAEAAAIAQdE9C14DBAMDAwMDAAADAwADAwADAwMDAwMDAwMDAAUAAAAAAAMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAAAAAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAAwADAEG6PwsEAQAAAgBB0T8LXgMAAwMDAwMAAAMDAAMDAAMDAwMDAwMDAwMABAAFAAAAAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAAAADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwADAAMAQbDBAAsNbG9zZWVlcC1hbGl2ZQBBycEACwEBAEHgwQAL4AEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQBBycMACwEBAEHgwwAL5wEBAQEBAQEBAQEBAQECAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAWNodW5rZWQAQfHFAAteAQABAQEBAQAAAQEAAQEAAQEBAQEBAQEBAQAAAAAAAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAEAAQBB0McACyFlY3Rpb25lbnQtbGVuZ3Rob25yb3h5LWNvbm5lY3Rpb24AQYDIAAsgcmFuc2Zlci1lbmNvZGluZ3BncmFkZQ0KDQpTTQ0KDQoAQanIAAsFAQIAAQMAQcDIAAtfBAUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUAQanKAAsFAQIAAQMAQcDKAAtfBAUFBgUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUAQanMAAsEAQAAAQBBwcwAC14CAgACAgICAgICAgICAgICAgICAgICAgICAgICAgIAAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAEGpzgALBQECAAEDAEHAzgALXwQFAAAFBQUFBQUFBQUFBQYFBQUFBQUFBQUFBQUABQAHCAUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQAFAAUABQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUAAAAFAEGp0AALBQEBAAEBAEHA0AALAQEAQdrQAAtBAgAAAAAAAAMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAAAAAAAAAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAQanSAAsFAQEAAQEAQcDSAAsBAQBBytIACwYCAAAAAAIAQeHSAAs6AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAAAAAAAADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwBBoNQAC50BTk9VTkNFRUNLT1VUTkVDVEVURUNSSUJFTFVTSEVURUFEU0VBUkNIUkdFQ1RJVklUWUxFTkRBUlZFT1RJRllQVElPTlNDSFNFQVlTVEFUQ0hHRVVFUllPUkRJUkVDVE9SVFJDSFBBUkFNRVRFUlVSQ0VCU0NSSUJFQVJET1dOQUNFSU5ETktDS1VCU0NSSUJFVFRQQ0VUU1BBRFRQLw==";
@@ -3638,9 +3638,9 @@ var require_llhttp_simd_wasm = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/constants.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/constants.js
 var require_constants3 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/constants.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/constants.js"(exports, module) {
     "use strict";
     var corsSafeListedMethods = (
       /** @type {const} */
@@ -3862,9 +3862,9 @@ var require_constants3 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/global.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/global.js
 var require_global = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/global.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/global.js"(exports, module) {
     "use strict";
     var globalOrigin = /* @__PURE__ */ Symbol.for("undici.globalOrigin.1");
     function getGlobalOrigin() {
@@ -3898,9 +3898,9 @@ var require_global = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/encoding/index.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/encoding/index.js
 var require_encoding = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/encoding/index.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/encoding/index.js"(exports, module) {
     "use strict";
     var textDecoder2 = new TextDecoder();
     function utf8DecodeBytes(buffer) {
@@ -3919,9 +3919,9 @@ var require_encoding = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/infra/index.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/infra/index.js
 var require_infra = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/infra/index.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/infra/index.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { utf8DecodeBytes } = require_encoding();
@@ -4032,9 +4032,9 @@ var require_infra = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/data-url.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/data-url.js
 var require_data_url = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/data-url.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/data-url.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { forgivingBase64, collectASequenceOfCodePoints, collectASequenceOfCodePointsFast, isomorphicDecode, removeASCIIWhitespace, removeChars } = require_infra();
@@ -4311,9 +4311,9 @@ var require_data_url = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/runtime-features.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/runtime-features.js
 var require_runtime_features = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/runtime-features.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/runtime-features.js"(exports, module) {
     "use strict";
     var lazyLoaders = {
       __proto__: null,
@@ -4413,9 +4413,9 @@ var require_runtime_features = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/webidl/index.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/webidl/index.js
 var require_webidl = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/webidl/index.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/webidl/index.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { types, inspect } = __require("node:util");
@@ -4672,20 +4672,20 @@ var require_webidl = __commonJS({
         const result = {};
         if (!types.isProxy(O)) {
           const keys2 = [...Object.getOwnPropertyNames(O), ...Object.getOwnPropertySymbols(O)];
-          for (const key2 of keys2) {
-            const keyName = webidl.util.Stringify(key2);
-            const typedKey = keyConverter(key2, prefix, `Key ${keyName} in ${argument}`);
-            const typedValue = valueConverter(O[key2], prefix, `${argument}[${keyName}]`);
+          for (const key3 of keys2) {
+            const keyName = webidl.util.Stringify(key3);
+            const typedKey = keyConverter(key3, prefix, `Key ${keyName} in ${argument}`);
+            const typedValue = valueConverter(O[key3], prefix, `${argument}[${keyName}]`);
             result[typedKey] = typedValue;
           }
           return result;
         }
         const keys = Reflect.ownKeys(O);
-        for (const key2 of keys) {
-          const desc2 = Reflect.getOwnPropertyDescriptor(O, key2);
+        for (const key3 of keys) {
+          const desc2 = Reflect.getOwnPropertyDescriptor(O, key3);
           if (desc2?.enumerable) {
-            const typedKey = keyConverter(key2, prefix, argument);
-            const typedValue = valueConverter(O[key2], prefix, argument);
+            const typedKey = keyConverter(key3, prefix, argument);
+            const typedValue = valueConverter(O[key3], prefix, argument);
             result[typedKey] = typedValue;
           }
         }
@@ -4714,29 +4714,29 @@ var require_webidl = __commonJS({
           });
         }
         for (const options of converters) {
-          const { key: key2, defaultValue, required, converter } = options;
+          const { key: key3, defaultValue, required, converter } = options;
           if (required === true) {
-            if (dictionary == null || !Object.hasOwn(dictionary, key2)) {
+            if (dictionary == null || !Object.hasOwn(dictionary, key3)) {
               throw webidl.errors.exception({
                 header: prefix,
-                message: `Missing required key "${key2}".`
+                message: `Missing required key "${key3}".`
               });
             }
           }
-          let value = dictionary?.[key2];
+          let value = dictionary?.[key3];
           const hasDefault = defaultValue !== void 0;
           if (hasDefault && value === void 0) {
             value = defaultValue();
           }
           if (required || hasDefault || value !== void 0) {
-            value = converter(value, prefix, `${argument}.${key2}`);
+            value = converter(value, prefix, `${argument}.${key3}`);
             if (options.allowedValues && !options.allowedValues.includes(value)) {
               throw webidl.errors.exception({
                 header: prefix,
                 message: `${value} is not an accepted type. Expected one of ${options.allowedValues.join(", ")}.`
               });
             }
-            dict[key2] = value;
+            dict[key3] = value;
           }
         }
         return dict;
@@ -5015,9 +5015,9 @@ var require_webidl = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/util.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/util.js
 var require_util2 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/util.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/util.js"(exports, module) {
     "use strict";
     var { Transform } = __require("node:stream");
     var zlib = __require("node:zlib");
@@ -5074,8 +5074,8 @@ var require_util2 = __commonJS({
       }
       return "allowed";
     }
-    function isErrorLike(object) {
-      return object instanceof Error || (object?.constructor?.name === "Error" || object?.constructor?.name === "DOMException");
+    function isErrorLike(object2) {
+      return object2 instanceof Error || (object2?.constructor?.name === "Error" || object2?.constructor?.name === "DOMException");
     }
     function isValidReasonPhrase(statusText) {
       for (let i = 0; i < statusText.length; ++i) {
@@ -5383,18 +5383,18 @@ var require_util2 = __commonJS({
               done: true
             };
           }
-          const { [keyIndex]: key2, [valueIndex]: value } = values[index2];
+          const { [keyIndex]: key3, [valueIndex]: value } = values[index2];
           this.#index = index2 + 1;
           let result;
           switch (this.#kind) {
             case "key":
-              result = key2;
+              result = key3;
               break;
             case "value":
               result = value;
               break;
             case "key+value":
-              result = [key2, value];
+              result = [key3, value];
               break;
           }
           return {
@@ -5418,7 +5418,7 @@ var require_util2 = __commonJS({
         return new FastIterableIterator(target2, kind);
       };
     }
-    function iteratorMixin(name2, object, kInternalIterator, keyIndex = 0, valueIndex = 1) {
+    function iteratorMixin(name2, object2, kInternalIterator, keyIndex = 0, valueIndex = 1) {
       const makeIterator = createIterator(name2, kInternalIterator, keyIndex, valueIndex);
       const properties = {
         keys: {
@@ -5426,7 +5426,7 @@ var require_util2 = __commonJS({
           enumerable: true,
           configurable: true,
           value: function keys() {
-            webidl.brandCheck(this, object);
+            webidl.brandCheck(this, object2);
             return makeIterator(this, "key");
           }
         },
@@ -5435,7 +5435,7 @@ var require_util2 = __commonJS({
           enumerable: true,
           configurable: true,
           value: function values() {
-            webidl.brandCheck(this, object);
+            webidl.brandCheck(this, object2);
             return makeIterator(this, "value");
           }
         },
@@ -5444,7 +5444,7 @@ var require_util2 = __commonJS({
           enumerable: true,
           configurable: true,
           value: function entries() {
-            webidl.brandCheck(this, object);
+            webidl.brandCheck(this, object2);
             return makeIterator(this, "key+value");
           }
         },
@@ -5453,20 +5453,20 @@ var require_util2 = __commonJS({
           enumerable: true,
           configurable: true,
           value: function forEach(callbackfn, thisArg = globalThis) {
-            webidl.brandCheck(this, object);
+            webidl.brandCheck(this, object2);
             webidl.argumentLengthCheck(arguments, 1, `${name2}.forEach`);
             if (typeof callbackfn !== "function") {
               throw new TypeError(
                 `Failed to execute 'forEach' on '${name2}': parameter 1 is not of type 'Function'.`
               );
             }
-            for (const { 0: key2, 1: value } of makeIterator(this, "key+value")) {
-              callbackfn.call(thisArg, value, key2, this);
+            for (const { 0: key3, 1: value } of makeIterator(this, "key+value")) {
+              callbackfn.call(thisArg, value, key3, this);
             }
           }
         }
       };
-      return Object.defineProperties(object.prototype, {
+      return Object.defineProperties(object2.prototype, {
         ...properties,
         [Symbol.iterator]: {
           writable: true,
@@ -5782,9 +5782,9 @@ var require_util2 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/formdata.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/formdata.js
 var require_formdata = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/formdata.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/formdata.js"(exports, module) {
     "use strict";
     var { iteratorMixin } = require_util2();
     var { kEnumerableProperty } = require_util();
@@ -5944,9 +5944,9 @@ var require_formdata = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/formdata-parser.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/formdata-parser.js
 var require_formdata_parser = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/formdata-parser.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/formdata-parser.js"(exports, module) {
     "use strict";
     var { bufferToLowerCasedHeaderName } = require_util();
     var { HTTP_TOKEN_CODEPOINTS } = require_data_url();
@@ -6274,9 +6274,9 @@ var require_formdata_parser = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/promise.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/promise.js
 var require_promise = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/promise.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/promise.js"(exports, module) {
     "use strict";
     function createDeferredPromise() {
       let res;
@@ -6293,9 +6293,9 @@ var require_promise = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/body.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/body.js
 var require_body = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/body.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/body.js"(exports, module) {
     "use strict";
     var util = require_util();
     var {
@@ -6325,13 +6325,13 @@ var require_body = __commonJS({
         stream.cancel("Response object has been garbage collected").catch(noop2);
       }
     });
-    function extractBody(object, keepalive = false) {
+    function extractBody(object2, keepalive = false) {
       let stream = null;
       let controller = null;
-      if (webidl.is.ReadableStream(object)) {
-        stream = object;
-      } else if (webidl.is.Blob(object)) {
-        stream = object.stream();
+      if (webidl.is.ReadableStream(object2)) {
+        stream = object2;
+      } else if (webidl.is.Blob(object2)) {
+        stream = object2.stream();
       } else {
         stream = new ReadableStream({
           pull() {
@@ -6349,15 +6349,15 @@ var require_body = __commonJS({
       let source = null;
       let length = null;
       let type = null;
-      if (typeof object === "string") {
-        source = object;
+      if (typeof object2 === "string") {
+        source = object2;
         type = "text/plain;charset=UTF-8";
-      } else if (webidl.is.URLSearchParams(object)) {
-        source = object.toString();
+      } else if (webidl.is.URLSearchParams(object2)) {
+        source = object2.toString();
         type = "application/x-www-form-urlencoded;charset=UTF-8";
-      } else if (webidl.is.BufferSource(object)) {
-        source = webidl.util.getCopyOfBytesHeldByBufferSource(object);
-      } else if (webidl.is.FormData(object)) {
+      } else if (webidl.is.BufferSource(object2)) {
+        source = webidl.util.getCopyOfBytesHeldByBufferSource(object2);
+      } else if (webidl.is.FormData(object2)) {
         const boundary = `----formdata-undici-0${`${random(1e11)}`.padStart(11, "0")}`;
         const prefix = `--${boundary}\r
 Content-Disposition: form-data`;
@@ -6367,7 +6367,7 @@ Content-Disposition: form-data`;
         const rn = new Uint8Array([13, 10]);
         length = 0;
         let hasUnknownSizeValue = false;
-        for (const [name2, value] of object) {
+        for (const [name2, value] of object2) {
           if (typeof value === "string") {
             const chunk2 = textEncoder.encode(prefix + `; name="${formdataEscape(normalizeLinefeeds(name2))}"\r
 \r
@@ -6395,7 +6395,7 @@ Content-Type: ${value.type || "application/octet-stream"}\r
         if (hasUnknownSizeValue) {
           length = null;
         }
-        source = object;
+        source = object2;
         action = async function* () {
           for (const part of blobParts) {
             if (part.stream) {
@@ -6406,22 +6406,22 @@ Content-Type: ${value.type || "application/octet-stream"}\r
           }
         };
         type = `multipart/form-data; boundary=${boundary}`;
-      } else if (webidl.is.Blob(object)) {
-        source = object;
-        length = object.size;
-        if (object.type) {
-          type = object.type;
+      } else if (webidl.is.Blob(object2)) {
+        source = object2;
+        length = object2.size;
+        if (object2.type) {
+          type = object2.type;
         }
-      } else if (typeof object[Symbol.asyncIterator] === "function") {
+      } else if (typeof object2[Symbol.asyncIterator] === "function") {
         if (keepalive) {
           throw new TypeError("keepalive");
         }
-        if (util.isDisturbed(object) || object.locked) {
+        if (util.isDisturbed(object2) || object2.locked) {
           throw new TypeError(
             "Response body object should not be disturbed or locked"
           );
         }
-        stream = webidl.is.ReadableStream(object) ? object : ReadableStreamFrom(object);
+        stream = webidl.is.ReadableStream(object2) ? object2 : ReadableStreamFrom(object2);
       }
       if (typeof source === "string" || isUint8Array(source)) {
         action = () => {
@@ -6450,12 +6450,12 @@ Content-Type: ${value.type || "application/octet-stream"}\r
       const body = { stream, source, length };
       return [body, type];
     }
-    function safelyExtractBody(object, keepalive = false) {
-      if (webidl.is.ReadableStream(object)) {
-        assert2(!util.isDisturbed(object), "The body has already been consumed.");
-        assert2(!object.locked, "The stream is locked.");
+    function safelyExtractBody(object2, keepalive = false) {
+      if (webidl.is.ReadableStream(object2)) {
+        assert2(!util.isDisturbed(object2), "The body has already been consumed.");
+        assert2(!object2.locked, "The stream is locked.");
       }
-      return extractBody(object, keepalive);
+      return extractBody(object2, keepalive);
     }
     function cloneBody(body) {
       const { 0: out1, 1: out2 } = body.stream.tee();
@@ -6527,14 +6527,14 @@ Content-Type: ${value.type || "application/octet-stream"}\r
     function mixinBody(prototype, getInternalState) {
       Object.assign(prototype.prototype, bodyMixinMethods(prototype, getInternalState));
     }
-    function consumeBody(object, convertBytesToJSValue, instance, getInternalState) {
+    function consumeBody(object2, convertBytesToJSValue, instance, getInternalState) {
       try {
-        webidl.brandCheck(object, instance);
+        webidl.brandCheck(object2, instance);
       } catch (e) {
         return Promise.reject(e);
       }
-      object = getInternalState(object);
-      if (bodyUnusable(object)) {
+      object2 = getInternalState(object2);
+      if (bodyUnusable(object2)) {
         return Promise.reject(new TypeError("Body is unusable: Body has already been read"));
       }
       const promise = createDeferredPromise();
@@ -6546,15 +6546,15 @@ Content-Type: ${value.type || "application/octet-stream"}\r
           errorSteps(e);
         }
       };
-      if (object.body == null) {
+      if (object2.body == null) {
         successSteps(Buffer.allocUnsafe(0));
         return promise.promise;
       }
-      fullyReadBody(object.body, successSteps, errorSteps);
+      fullyReadBody(object2.body, successSteps, errorSteps);
       return promise.promise;
     }
-    function bodyUnusable(object) {
-      const body = object.body;
+    function bodyUnusable(object2) {
+      const body = object2.body;
       return body != null && (body.stream.locked || util.isDisturbed(body.stream));
     }
     function bodyMimeType(requestOrResponse) {
@@ -6576,9 +6576,9 @@ Content-Type: ${value.type || "application/octet-stream"}\r
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client-h1.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client-h1.js
 var require_client_h1 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client-h1.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client-h1.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var util = require_util();
@@ -6969,15 +6969,15 @@ var require_client_h1 = __commonJS({
         } else {
           this.headers[len - 1] = Buffer.concat([this.headers[len - 1], buf]);
         }
-        const key2 = this.headers[len - 2];
-        if (key2.length === 10) {
-          const headerName = util.bufferToLowerCasedHeaderName(key2);
+        const key3 = this.headers[len - 2];
+        if (key3.length === 10) {
+          const headerName = util.bufferToLowerCasedHeaderName(key3);
           if (headerName === "keep-alive") {
             this.keepAlive += buf.toString();
           } else if (headerName === "connection") {
             this.connection += buf.toString();
           }
-        } else if (key2.length === 14 && util.bufferToLowerCasedHeaderName(key2) === "content-length") {
+        } else if (key3.length === 14 && util.bufferToLowerCasedHeaderName(key3) === "content-length") {
           this.contentLength += buf.toString();
         }
         this.trackHeader(buf.length);
@@ -7420,7 +7420,7 @@ var require_client_h1 = __commonJS({
       return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE" && method !== "CONNECT";
     }
     function writeH1(client, request) {
-      const { method, path: path29, host, upgrade, blocking, reset } = request;
+      const { method, path: path30, host, upgrade, blocking, reset } = request;
       let { body, headers, contentLength } = request;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
       if (util.isFormDataLike(body)) {
@@ -7498,7 +7498,7 @@ var require_client_h1 = __commonJS({
       if (socket.setTypeOfService) {
         socket.setTypeOfService(request.typeOfService);
       }
-      let header = `${method} ${path29} HTTP/1.1\r
+      let header = `${method} ${path30} HTTP/1.1\r
 `;
       if (typeof host === "string") {
         header += `host: ${host}\r
@@ -7517,15 +7517,15 @@ upgrade: ${upgrade}\r
       }
       if (Array.isArray(headers)) {
         for (let n = 0; n < headers.length; n += 2) {
-          const key2 = headers[n + 0];
+          const key3 = headers[n + 0];
           const val = headers[n + 1];
           if (Array.isArray(val)) {
             for (let i = 0; i < val.length; i++) {
-              header += `${key2}: ${val[i]}\r
+              header += `${key3}: ${val[i]}\r
 `;
             }
           } else {
-            header += `${key2}: ${val}\r
+            header += `${key3}: ${val}\r
 `;
           }
         }
@@ -7844,9 +7844,9 @@ ${len.toString(16)}\r
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client-h2.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client-h2.js
 var require_client_h2 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client-h2.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client-h2.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { pipeline } = __require("node:stream");
@@ -8177,7 +8177,7 @@ var require_client_h2 = __commonJS({
       const headersTimeout = request.headersTimeout ?? client[kHeadersTimeout];
       const bodyTimeout = request.bodyTimeout ?? client[kBodyTimeout];
       const session = client[kHTTP2Session];
-      const { method, path: path29, host, upgrade, expectContinue, signal, protocol, headers: reqHeaders } = request;
+      const { method, path: path30, host, upgrade, expectContinue, signal, protocol, headers: reqHeaders } = request;
       let { body } = request;
       if (upgrade != null && upgrade !== "websocket") {
         util.errorRequest(client, request, new InvalidArgumentError(`Custom upgrade "${upgrade}" not supported over HTTP/2`));
@@ -8185,28 +8185,28 @@ var require_client_h2 = __commonJS({
       }
       const headers = {};
       for (let n = 0; n < reqHeaders.length; n += 2) {
-        const key2 = reqHeaders[n + 0];
+        const key3 = reqHeaders[n + 0];
         const val = reqHeaders[n + 1];
-        if (key2 === "cookie") {
-          if (headers[key2] != null) {
-            headers[key2] = Array.isArray(headers[key2]) ? (headers[key2].push(val), headers[key2]) : [headers[key2], val];
+        if (key3 === "cookie") {
+          if (headers[key3] != null) {
+            headers[key3] = Array.isArray(headers[key3]) ? (headers[key3].push(val), headers[key3]) : [headers[key3], val];
           } else {
-            headers[key2] = val;
+            headers[key3] = val;
           }
           continue;
         }
         if (Array.isArray(val)) {
           for (let i = 0; i < val.length; i++) {
-            if (headers[key2]) {
-              headers[key2] += `, ${val[i]}`;
+            if (headers[key3]) {
+              headers[key3] += `, ${val[i]}`;
             } else {
-              headers[key2] = val[i];
+              headers[key3] = val[i];
             }
           }
-        } else if (headers[key2]) {
-          headers[key2] += `, ${val}`;
+        } else if (headers[key3]) {
+          headers[key3] += `, ${val}`;
         } else {
-          headers[key2] = val;
+          headers[key3] = val;
         }
       }
       let stream = null;
@@ -8246,7 +8246,7 @@ var require_client_h2 = __commonJS({
           }
           headers[HTTP2_HEADER_METHOD] = "CONNECT";
           headers[HTTP2_HEADER_PROTOCOL] = "websocket";
-          headers[HTTP2_HEADER_PATH] = path29;
+          headers[HTTP2_HEADER_PATH] = path30;
           if (protocol === "ws:" || protocol === "wss:") {
             headers[HTTP2_HEADER_SCHEME] = protocol === "ws:" ? "http" : "https";
           } else {
@@ -8288,7 +8288,7 @@ var require_client_h2 = __commonJS({
         stream.setTimeout(headersTimeout);
         return true;
       }
-      headers[HTTP2_HEADER_PATH] = path29;
+      headers[HTTP2_HEADER_PATH] = path30;
       headers[HTTP2_HEADER_SCHEME] = protocol === "http:" ? "http" : "https";
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
@@ -8322,8 +8322,8 @@ var require_client_h2 = __commonJS({
       session.ref();
       if (channels.sendHeaders.hasSubscribers) {
         let header = "";
-        for (const key2 in headers) {
-          header += `${key2}: ${headers[key2]}\r
+        for (const key3 in headers) {
+          header += `${key3}: ${headers[key3]}\r
 `;
         }
         channels.sendHeaders.publish({ request, headers: header, socket: session[kSocket] });
@@ -8602,9 +8602,9 @@ var require_client_h2 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client.js
 var require_client = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/client.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var net = __require("node:net");
@@ -9133,9 +9133,9 @@ var require_client = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/fixed-queue.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/fixed-queue.js
 var require_fixed_queue = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/fixed-queue.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/fixed-queue.js"(exports, module) {
     "use strict";
     var kSize = 2048;
     var kMask = kSize - 1;
@@ -9204,9 +9204,9 @@ var require_fixed_queue = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/pool-base.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/pool-base.js
 var require_pool_base = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/pool-base.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/pool-base.js"(exports, module) {
     "use strict";
     var { PoolStats } = require_stats();
     var DispatcherBase = require_dispatcher_base();
@@ -9380,9 +9380,9 @@ var require_pool_base = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/pool.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/pool.js
 var require_pool = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/pool.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/pool.js"(exports, module) {
     "use strict";
     var {
       PoolBase,
@@ -9482,9 +9482,9 @@ var require_pool = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/balanced-pool.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/balanced-pool.js
 var require_balanced_pool = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/balanced-pool.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/balanced-pool.js"(exports, module) {
     "use strict";
     var {
       BalancedPoolMissingUpstreamError,
@@ -9632,9 +9632,9 @@ var require_balanced_pool = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/round-robin-pool.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/round-robin-pool.js
 var require_round_robin_pool = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/round-robin-pool.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/round-robin-pool.js"(exports, module) {
     "use strict";
     var {
       PoolBase,
@@ -9749,9 +9749,9 @@ var require_round_robin_pool = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/agent.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/agent.js
 var require_agent = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/agent.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/agent.js"(exports, module) {
     "use strict";
     var { InvalidArgumentError, MaxOriginsReachedError } = require_errors();
     var { kClients, kRunning, kClose, kDestroy, kDispatch, kUrl } = require_symbols();
@@ -9809,33 +9809,33 @@ var require_agent = __commonJS({
         return ret;
       }
       [kDispatch](opts, handler) {
-        let key2;
+        let key3;
         if (opts.origin && (typeof opts.origin === "string" || opts.origin instanceof URL)) {
-          key2 = String(opts.origin);
+          key3 = String(opts.origin);
         } else {
           throw new InvalidArgumentError("opts.origin must be a non-empty string or URL.");
         }
-        if (this[kOrigins].size >= this[kOptions].maxOrigins && !this[kOrigins].has(key2)) {
+        if (this[kOrigins].size >= this[kOptions].maxOrigins && !this[kOrigins].has(key3)) {
           throw new MaxOriginsReachedError();
         }
-        const result = this[kClients].get(key2);
+        const result = this[kClients].get(key3);
         let dispatcher = result && result.dispatcher;
         if (!dispatcher) {
           const closeClientIfUnused = (connected) => {
-            const result2 = this[kClients].get(key2);
+            const result2 = this[kClients].get(key3);
             if (result2) {
               if (connected) result2.count -= 1;
               if (result2.count <= 0) {
-                this[kClients].delete(key2);
+                this[kClients].delete(key3);
                 if (!result2.dispatcher.destroyed) {
                   result2.dispatcher.close();
                 }
               }
-              this[kOrigins].delete(key2);
+              this[kOrigins].delete(key3);
             }
           };
           dispatcher = this[kFactory](opts.origin, this[kOptions]).on("drain", this[kOnDrain]).on("connect", (origin, targets) => {
-            const result2 = this[kClients].get(key2);
+            const result2 = this[kClients].get(key3);
             if (result2) {
               result2.count += 1;
             }
@@ -9847,8 +9847,8 @@ var require_agent = __commonJS({
             closeClientIfUnused(false);
             this[kOnConnectionError](origin, targets, err);
           });
-          this[kClients].set(key2, { count: 0, dispatcher });
-          this[kOrigins].add(key2);
+          this[kClients].set(key3, { count: 0, dispatcher });
+          this[kOrigins].add(key3);
         }
         return dispatcher.dispatch(opts, handler);
       }
@@ -9882,9 +9882,9 @@ var require_agent = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/socks5-utils.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/socks5-utils.js
 var require_socks5_utils = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/socks5-utils.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/socks5-utils.js"(exports, module) {
     "use strict";
     var { Buffer: Buffer2 } = __require("node:buffer");
     var net = __require("node:net");
@@ -10043,9 +10043,9 @@ var require_socks5_utils = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/socks5-client.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/socks5-client.js
 var require_socks5_client = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/socks5-client.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/core/socks5-client.js"(exports, module) {
     "use strict";
     var { EventEmitter } = __require("node:events");
     var { Buffer: Buffer2 } = __require("node:buffer");
@@ -10376,9 +10376,9 @@ var require_socks5_client = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/socks5-proxy-agent.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/socks5-proxy-agent.js
 var require_socks5_proxy_agent = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/socks5-proxy-agent.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/socks5-proxy-agent.js"(exports, module) {
     "use strict";
     var { URL: URL2 } = __require("node:url");
     var tls;
@@ -10579,9 +10579,9 @@ var require_socks5_proxy_agent = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/proxy-agent.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/proxy-agent.js
 var require_proxy_agent = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/proxy-agent.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/proxy-agent.js"(exports, module) {
     "use strict";
     var { kProxy, kClose, kDestroy, kDispatch } = require_symbols();
     var Agent = require_agent();
@@ -10640,10 +10640,10 @@ var require_proxy_agent = __commonJS({
         };
         const {
           origin,
-          path: path29 = "/",
+          path: path30 = "/",
           headers = {}
         } = opts;
-        opts.path = origin + path29;
+        opts.path = origin + path30;
         if (!("host" in headers) && !("Host" in headers)) {
           const { host } = new URL(origin);
           headers.host = host;
@@ -10827,7 +10827,7 @@ var require_proxy_agent = __commonJS({
       return headers;
     }
     function throwIfProxyAuthIsSent(headers) {
-      const existProxyAuth = headers && Object.keys(headers).find((key2) => key2.toLowerCase() === "proxy-authorization");
+      const existProxyAuth = headers && Object.keys(headers).find((key3) => key3.toLowerCase() === "proxy-authorization");
       if (existProxyAuth) {
         throw new InvalidArgumentError("Proxy-Authorization should be sent in ProxyAgent constructor");
       }
@@ -10836,9 +10836,9 @@ var require_proxy_agent = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/env-http-proxy-agent.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/env-http-proxy-agent.js
 var require_env_http_proxy_agent = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/env-http-proxy-agent.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/env-http-proxy-agent.js"(exports, module) {
     "use strict";
     var DispatcherBase = require_dispatcher_base();
     var { kClose, kDestroy, kClosed, kDestroyed, kDispatch, kNoProxyAgent, kHttpProxyAgent, kHttpsProxyAgent } = require_symbols();
@@ -10959,9 +10959,9 @@ var require_env_http_proxy_agent = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/retry-handler.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/retry-handler.js
 var require_retry_handler = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/retry-handler.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/retry-handler.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { kRetryHandlerDefaultRetry } = require_symbols();
@@ -11313,9 +11313,9 @@ var require_retry_handler = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/retry-agent.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/retry-agent.js
 var require_retry_agent = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/retry-agent.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/retry-agent.js"(exports, module) {
     "use strict";
     var Dispatcher = require_dispatcher();
     var RetryHandler = require_retry_handler();
@@ -11348,9 +11348,9 @@ var require_retry_agent = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/h2c-client.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/h2c-client.js
 var require_h2c_client = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/h2c-client.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/dispatcher/h2c-client.js"(exports, module) {
     "use strict";
     var { InvalidArgumentError } = require_errors();
     var Client = require_client();
@@ -11391,9 +11391,9 @@ var require_h2c_client = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/readable.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/readable.js
 var require_readable = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/readable.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/readable.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { Readable } = __require("node:stream");
@@ -11793,9 +11793,9 @@ var require_readable = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-request.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-request.js
 var require_api_request = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-request.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-request.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { AsyncResource } = __require("node:async_hooks");
@@ -11971,9 +11971,9 @@ var require_api_request = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/abort-signal.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/abort-signal.js
 var require_abort_signal = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/abort-signal.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/abort-signal.js"(exports, module) {
     "use strict";
     var { addAbortListener } = require_util();
     var { RequestAbortedError } = require_errors();
@@ -12023,9 +12023,9 @@ var require_abort_signal = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-stream.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-stream.js
 var require_api_stream = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-stream.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-stream.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { finished } = __require("node:stream");
@@ -12184,9 +12184,9 @@ var require_api_stream = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-pipeline.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-pipeline.js
 var require_api_pipeline = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-pipeline.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-pipeline.js"(exports, module) {
     "use strict";
     var {
       Readable,
@@ -12385,9 +12385,9 @@ var require_api_pipeline = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-upgrade.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-upgrade.js
 var require_api_upgrade = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-upgrade.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-upgrade.js"(exports, module) {
     "use strict";
     var { InvalidArgumentError, SocketError } = require_errors();
     var { AsyncResource } = __require("node:async_hooks");
@@ -12479,9 +12479,9 @@ var require_api_upgrade = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-connect.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-connect.js
 var require_api_connect = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-connect.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/api-connect.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { AsyncResource } = __require("node:async_hooks");
@@ -12570,9 +12570,9 @@ var require_api_connect = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/index.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/index.js
 var require_api = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/index.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/api/index.js"(exports, module) {
     "use strict";
     module.exports.request = require_api_request();
     module.exports.stream = require_api_stream();
@@ -12582,9 +12582,9 @@ var require_api = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-errors.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-errors.js
 var require_mock_errors = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-errors.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-errors.js"(exports, module) {
     "use strict";
     var { UndiciError } = require_errors();
     var kMockNotMatchedError = /* @__PURE__ */ Symbol.for("undici.error.UND_MOCK_ERR_MOCK_NOT_MATCHED");
@@ -12608,9 +12608,9 @@ var require_mock_errors = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-symbols.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-symbols.js
 var require_mock_symbols = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-symbols.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-symbols.js"(exports, module) {
     "use strict";
     module.exports = {
       kAgent: /* @__PURE__ */ Symbol("agent"),
@@ -12645,9 +12645,9 @@ var require_mock_symbols = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-utils.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-utils.js
 var require_mock_utils = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-utils.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-utils.js"(exports, module) {
     "use strict";
     var { MockNotMatchedError } = require_mock_errors();
     var {
@@ -12685,18 +12685,18 @@ var require_mock_utils = __commonJS({
         })
       );
     }
-    function getHeaderByName(headers, key2) {
+    function getHeaderByName(headers, key3) {
       if (Array.isArray(headers)) {
         for (let i = 0; i < headers.length; i += 2) {
-          if (headers[i].toLocaleLowerCase() === key2.toLocaleLowerCase()) {
+          if (headers[i].toLocaleLowerCase() === key3.toLocaleLowerCase()) {
             return headers[i + 1];
           }
         }
         return void 0;
       } else if (typeof headers.get === "function") {
-        return headers.get(key2);
+        return headers.get(key3);
       } else {
-        return lowerCaseEntries(headers)[key2.toLocaleLowerCase()];
+        return lowerCaseEntries(headers)[key3.toLocaleLowerCase()];
       }
     }
     function buildHeadersFromArray(headers) {
@@ -12734,38 +12734,38 @@ var require_mock_utils = __commonJS({
       }
       const originalQp = new URLSearchParams(query);
       const normalizedQp = new URLSearchParams();
-      for (let [key2, value] of originalQp.entries()) {
-        key2 = key2.replace("[]", "");
+      for (let [key3, value] of originalQp.entries()) {
+        key3 = key3.replace("[]", "");
         const valueRepresentsString = /^(['"]).*\1$/.test(value);
         if (valueRepresentsString) {
-          normalizedQp.append(key2, value);
+          normalizedQp.append(key3, value);
           continue;
         }
         if (value.includes(",")) {
           const values = value.split(",");
           for (const v of values) {
-            normalizedQp.append(key2, v);
+            normalizedQp.append(key3, v);
           }
           continue;
         }
-        normalizedQp.append(key2, value);
+        normalizedQp.append(key3, value);
       }
       return normalizedQp;
     }
-    function safeUrl(path29) {
-      if (typeof path29 !== "string") {
-        return path29;
+    function safeUrl(path30) {
+      if (typeof path30 !== "string") {
+        return path30;
       }
-      const pathSegments = path29.split("?", 3);
+      const pathSegments = path30.split("?", 3);
       if (pathSegments.length !== 2) {
-        return path29;
+        return path30;
       }
       const qp = new URLSearchParams(pathSegments.pop());
       qp.sort();
       return [...pathSegments, qp.toString()].join("?");
     }
-    function matchKey(mockDispatch2, { path: path29, method, body, headers }) {
-      const pathMatch = matchValue(mockDispatch2.path, path29);
+    function matchKey(mockDispatch2, { path: path30, method, body, headers }) {
+      const pathMatch = matchValue(mockDispatch2.path, path30);
       const methodMatch = matchValue(mockDispatch2.method, method);
       const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
       const headersMatch = matchHeaders(mockDispatch2, headers);
@@ -12786,63 +12786,63 @@ var require_mock_utils = __commonJS({
         return "";
       }
     }
-    function getMockDispatch(mockDispatches, key2) {
-      const basePath = key2.query ? serializePathWithQuery(key2.path, key2.query) : key2.path;
+    function getMockDispatch(mockDispatches, key3) {
+      const basePath = key3.query ? serializePathWithQuery(key3.path, key3.query) : key3.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
       const resolvedPathWithoutTrailingSlash = removeTrailingSlash(resolvedPath);
-      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path29, ignoreTrailingSlash }) => {
-        return ignoreTrailingSlash ? matchValue(removeTrailingSlash(safeUrl(path29)), resolvedPathWithoutTrailingSlash) : matchValue(safeUrl(path29), resolvedPath);
+      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path30, ignoreTrailingSlash }) => {
+        return ignoreTrailingSlash ? matchValue(removeTrailingSlash(safeUrl(path30)), resolvedPathWithoutTrailingSlash) : matchValue(safeUrl(path30), resolvedPath);
       });
       if (matchedMockDispatches.length === 0) {
         throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
       }
-      matchedMockDispatches = matchedMockDispatches.filter(({ method }) => matchValue(method, key2.method));
+      matchedMockDispatches = matchedMockDispatches.filter(({ method }) => matchValue(method, key3.method));
       if (matchedMockDispatches.length === 0) {
-        throw new MockNotMatchedError(`Mock dispatch not matched for method '${key2.method}' on path '${resolvedPath}'`);
+        throw new MockNotMatchedError(`Mock dispatch not matched for method '${key3.method}' on path '${resolvedPath}'`);
       }
-      matchedMockDispatches = matchedMockDispatches.filter(({ body }) => typeof body !== "undefined" ? matchValue(body, key2.body) : true);
+      matchedMockDispatches = matchedMockDispatches.filter(({ body }) => typeof body !== "undefined" ? matchValue(body, key3.body) : true);
       if (matchedMockDispatches.length === 0) {
-        throw new MockNotMatchedError(`Mock dispatch not matched for body '${key2.body}' on path '${resolvedPath}'`);
+        throw new MockNotMatchedError(`Mock dispatch not matched for body '${key3.body}' on path '${resolvedPath}'`);
       }
-      matchedMockDispatches = matchedMockDispatches.filter((mockDispatch2) => matchHeaders(mockDispatch2, key2.headers));
+      matchedMockDispatches = matchedMockDispatches.filter((mockDispatch2) => matchHeaders(mockDispatch2, key3.headers));
       if (matchedMockDispatches.length === 0) {
-        const headers = typeof key2.headers === "object" ? JSON.stringify(key2.headers) : key2.headers;
+        const headers = typeof key3.headers === "object" ? JSON.stringify(key3.headers) : key3.headers;
         throw new MockNotMatchedError(`Mock dispatch not matched for headers '${headers}' on path '${resolvedPath}'`);
       }
       return matchedMockDispatches[0];
     }
-    function addMockDispatch(mockDispatches, key2, data, opts) {
+    function addMockDispatch(mockDispatches, key3, data, opts) {
       const baseData = { timesInvoked: 0, times: 1, persist: false, consumed: false, ...opts };
       const replyData = typeof data === "function" ? { callback: data } : { ...data };
-      const newMockDispatch = { ...baseData, ...key2, pending: true, data: { error: null, ...replyData } };
+      const newMockDispatch = { ...baseData, ...key3, pending: true, data: { error: null, ...replyData } };
       mockDispatches.push(newMockDispatch);
       mockDispatches[kTotalDispatchCount] = (mockDispatches[kTotalDispatchCount] || 0) + 1;
       return newMockDispatch;
     }
-    function deleteMockDispatch(mockDispatches, key2) {
+    function deleteMockDispatch(mockDispatches, key3) {
       const index2 = mockDispatches.findIndex((dispatch) => {
         if (!dispatch.consumed) {
           return false;
         }
-        return matchKey(dispatch, key2);
+        return matchKey(dispatch, key3);
       });
       if (index2 !== -1) {
         mockDispatches.splice(index2, 1);
       }
     }
-    function removeTrailingSlash(path29) {
-      while (path29.endsWith("/")) {
-        path29 = path29.slice(0, -1);
+    function removeTrailingSlash(path30) {
+      while (path30.endsWith("/")) {
+        path30 = path30.slice(0, -1);
       }
-      if (path29.length === 0) {
-        path29 = "/";
+      if (path30.length === 0) {
+        path30 = "/";
       }
-      return path29;
+      return path30;
     }
     function buildKey(opts) {
-      const { path: path29, method, body, headers, query } = opts;
+      const { path: path30, method, body, headers, query } = opts;
       return {
-        path: path29,
+        path: path30,
         method,
         body,
         headers,
@@ -12853,9 +12853,9 @@ var require_mock_utils = __commonJS({
       const keys = Object.keys(data);
       const result = [];
       for (let i = 0; i < keys.length; ++i) {
-        const key2 = keys[i];
-        const value = data[key2];
-        const name2 = Buffer.from(`${key2}`);
+        const key3 = keys[i];
+        const value = data[key3];
+        const name2 = Buffer.from(`${key3}`);
         if (Array.isArray(value)) {
           for (let j = 0; j < value.length; ++j) {
             result.push(name2, Buffer.from(`${value[j]}`));
@@ -12877,8 +12877,8 @@ var require_mock_utils = __commonJS({
       return Buffer.concat(buffers).toString("utf8");
     }
     function mockDispatch(opts, handler) {
-      const key2 = buildKey(opts);
-      const mockDispatch2 = getMockDispatch(this[kDispatches], key2);
+      const key3 = buildKey(opts);
+      const mockDispatch2 = getMockDispatch(this[kDispatches], key3);
       mockDispatch2.timesInvoked++;
       if (mockDispatch2.data.callback) {
         mockDispatch2.data = { ...mockDispatch2.data, ...mockDispatch2.data.callback(opts) };
@@ -12888,7 +12888,7 @@ var require_mock_utils = __commonJS({
       mockDispatch2.consumed = !persist2 && timesInvoked >= times;
       mockDispatch2.pending = timesInvoked < times;
       if (error !== null) {
-        deleteMockDispatch(this[kDispatches], key2);
+        deleteMockDispatch(this[kDispatches], key3);
         handler.onError(error);
         return true;
       }
@@ -12932,7 +12932,7 @@ var require_mock_utils = __commonJS({
         handler.onHeaders?.(statusCode, responseHeaders, resume, getStatusText(statusCode));
         handler.onData?.(Buffer.from(responseData));
         handler.onComplete?.(responseTrailers);
-        deleteMockDispatch(mockDispatches, key2);
+        deleteMockDispatch(mockDispatches, key3);
       }
       function resume() {
       }
@@ -13022,9 +13022,9 @@ var require_mock_utils = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-interceptor.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-interceptor.js
 var require_mock_interceptor = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-interceptor.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-interceptor.js"(exports, module) {
     "use strict";
     var { getResponseData, buildKey, addMockDispatch } = require_mock_utils();
     var {
@@ -13186,9 +13186,9 @@ var require_mock_interceptor = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-client.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-client.js
 var require_mock_client = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-client.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-client.js"(exports, module) {
     "use strict";
     var { promisify } = __require("node:util");
     var Client = require_client();
@@ -13247,9 +13247,9 @@ var require_mock_client = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-call-history.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-call-history.js
 var require_mock_call_history = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-call-history.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-call-history.js"(exports, module) {
     "use strict";
     var { kMockCallHistoryAddLog } = require_mock_symbols();
     var { InvalidArgumentError } = require_errors();
@@ -13339,12 +13339,12 @@ var require_mock_call_history = __commonJS({
       toString() {
         const options = { betweenKeyValueSeparator: "->", betweenPairSeparator: "|" };
         let result = "";
-        this.toMap().forEach((value, key2) => {
+        this.toMap().forEach((value, key3) => {
           if (typeof value === "string" || value === void 0 || value === null) {
-            result = `${result}${key2}${options.betweenKeyValueSeparator}${value}${options.betweenPairSeparator}`;
+            result = `${result}${key3}${options.betweenKeyValueSeparator}${value}${options.betweenPairSeparator}`;
           }
           if (typeof value === "object" && value !== null || Array.isArray(value)) {
-            result = `${result}${key2}${options.betweenKeyValueSeparator}${JSON.stringify(value)}${options.betweenPairSeparator}`;
+            result = `${result}${key3}${options.betweenKeyValueSeparator}${JSON.stringify(value)}${options.betweenPairSeparator}`;
           }
         });
         return result.slice(0, -1);
@@ -13447,9 +13447,9 @@ var require_mock_call_history = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-pool.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-pool.js
 var require_mock_pool = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-pool.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-pool.js"(exports, module) {
     "use strict";
     var { promisify } = __require("node:util");
     var Pool = require_pool();
@@ -13508,9 +13508,9 @@ var require_mock_pool = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/pending-interceptors-formatter.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/pending-interceptors-formatter.js
 var require_pending_interceptors_formatter = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/pending-interceptors-formatter.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/pending-interceptors-formatter.js"(exports, module) {
     "use strict";
     var { Transform } = __require("node:stream");
     var { Console } = __require("node:console");
@@ -13532,10 +13532,10 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path: path29, data: { statusCode }, persist: persist2, times, timesInvoked, origin }) => ({
+          ({ method, path: path30, data: { statusCode }, persist: persist2, times, timesInvoked, origin }) => ({
             Method: method,
             Origin: origin,
-            Path: path29,
+            Path: path30,
             "Status code": statusCode,
             Persistent: persist2 ? PERSISTENT : NOT_PERSISTENT,
             Invocations: timesInvoked,
@@ -13549,9 +13549,9 @@ var require_pending_interceptors_formatter = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-agent.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-agent.js
 var require_mock_agent = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-agent.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/mock-agent.js"(exports, module) {
     "use strict";
     var { kClients } = require_symbols();
     var Agent = require_agent();
@@ -13617,9 +13617,9 @@ var require_mock_agent = __commonJS({
         const acceptNonStandardSearchParameters = this[kMockAgentAcceptsNonStandardSearchParameters];
         const dispatchOpts = { ...opts };
         if (acceptNonStandardSearchParameters && dispatchOpts.path) {
-          const [path29, searchParams] = dispatchOpts.path.split("?");
+          const [path30, searchParams] = dispatchOpts.path.split("?");
           const normalizedSearchParams = normalizeSearchParams(searchParams, acceptNonStandardSearchParameters);
-          dispatchOpts.path = `${path29}?${normalizedSearchParams}`;
+          dispatchOpts.path = `${path30}?${normalizedSearchParams}`;
         }
         return this[kAgent].dispatch(dispatchOpts, handler);
       }
@@ -13733,9 +13733,9 @@ ${pendingInterceptorsFormatter.format(pending)}`.trim()
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-utils.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-utils.js
 var require_snapshot_utils = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-utils.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-utils.js"(exports, module) {
     "use strict";
     var { InvalidArgumentError } = require_errors();
     var { runtimeFeatures } = require_runtime_features();
@@ -13780,10 +13780,10 @@ var require_snapshot_utils = __commonJS({
       if (!headers) return normalizedHeaders;
       if (isUndiciHeaders(headers)) {
         for (let i = 0; i < headers.length; i += 2) {
-          const key2 = headers[i];
+          const key3 = headers[i];
           const value = headers[i + 1];
-          if (key2 && value !== void 0) {
-            const keyStr = Buffer.isBuffer(key2) ? key2.toString() : key2;
+          if (key3 && value !== void 0) {
+            const keyStr = Buffer.isBuffer(key3) ? key3.toString() : key3;
             const valueStr = Buffer.isBuffer(value) ? value.toString() : value;
             normalizedHeaders[keyStr.toLowerCase()] = valueStr;
           }
@@ -13791,9 +13791,9 @@ var require_snapshot_utils = __commonJS({
         return normalizedHeaders;
       }
       if (headers && typeof headers === "object") {
-        for (const [key2, value] of Object.entries(headers)) {
-          if (key2 && typeof key2 === "string") {
-            normalizedHeaders[key2.toLowerCase()] = Array.isArray(value) ? value.join(", ") : String(value);
+        for (const [key3, value] of Object.entries(headers)) {
+          if (key3 && typeof key3 === "string") {
+            normalizedHeaders[key3.toLowerCase()] = Array.isArray(value) ? value.join(", ") : String(value);
           }
         }
       }
@@ -13819,9 +13819,9 @@ var require_snapshot_utils = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-recorder.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-recorder.js
 var require_snapshot_recorder = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-recorder.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-recorder.js"(exports, module) {
     "use strict";
     var { writeFile, readFile: readFile2, mkdir } = __require("node:fs/promises");
     var { dirname: dirname2, resolve: resolve3 } = __require("node:path");
@@ -13848,8 +13848,8 @@ var require_snapshot_recorder = __commonJS({
       } = matchOptions;
       const filtered = {};
       const { ignore, exclude, match } = headerFilters;
-      for (const [key2, value] of Object.entries(headers)) {
-        const headerKey = caseSensitive ? key2 : key2.toLowerCase();
+      for (const [key3, value] of Object.entries(headers)) {
+        const headerKey = caseSensitive ? key3 : key3.toLowerCase();
         if (exclude.has(headerKey)) continue;
         if (ignore.has(headerKey)) continue;
         if (match.size !== 0) {
@@ -13866,8 +13866,8 @@ var require_snapshot_recorder = __commonJS({
       } = matchOptions;
       const filtered = {};
       const { exclude: excludeSet } = headerFilters;
-      for (const [key2, value] of Object.entries(headers)) {
-        const headerKey = caseSensitive ? key2 : key2.toLowerCase();
+      for (const [key3, value] of Object.entries(headers)) {
+        const headerKey = caseSensitive ? key3 : key3.toLowerCase();
         if (excludeSet.has(headerKey)) continue;
         filtered[headerKey] = value;
       }
@@ -13880,9 +13880,9 @@ var require_snapshot_recorder = __commonJS({
       ];
       if (formattedRequest.headers && typeof formattedRequest.headers === "object") {
         const headerKeys = Object.keys(formattedRequest.headers).sort();
-        for (const key2 of headerKeys) {
-          const values = Array.isArray(formattedRequest.headers[key2]) ? formattedRequest.headers[key2] : [formattedRequest.headers[key2]];
-          parts.push(key2);
+        for (const key3 of headerKeys) {
+          const values = Array.isArray(formattedRequest.headers[key3]) ? formattedRequest.headers[key3] : [formattedRequest.headers[key3]];
+          parts.push(key3);
           for (const value of values.sort()) {
             parts.push(String(value));
           }
@@ -14020,12 +14020,12 @@ var require_snapshot_recorder = __commonJS({
        * @return {Promise<void>} - Resolves when snapshots are loaded
        */
       async loadSnapshots(filePath2) {
-        const path29 = filePath2 || this.#snapshotPath;
-        if (!path29) {
+        const path30 = filePath2 || this.#snapshotPath;
+        if (!path30) {
           throw new InvalidArgumentError("Snapshot path is required");
         }
         try {
-          const data = await readFile2(resolve3(path29), "utf8");
+          const data = await readFile2(resolve3(path30), "utf8");
           const parsed = JSON.parse(data);
           if (Array.isArray(parsed)) {
             this.#snapshots.clear();
@@ -14039,7 +14039,7 @@ var require_snapshot_recorder = __commonJS({
           if (error.code === "ENOENT") {
             this.#snapshots.clear();
           } else {
-            throw new UndiciError(`Failed to load snapshots from ${path29}`, { cause: error });
+            throw new UndiciError(`Failed to load snapshots from ${path30}`, { cause: error });
           }
         }
       }
@@ -14050,11 +14050,11 @@ var require_snapshot_recorder = __commonJS({
        * @returns {Promise<void>} - Resolves when snapshots are saved
        */
       async saveSnapshots(filePath2) {
-        const path29 = filePath2 || this.#snapshotPath;
-        if (!path29) {
+        const path30 = filePath2 || this.#snapshotPath;
+        if (!path30) {
           throw new InvalidArgumentError("Snapshot path is required");
         }
-        const resolvedPath = resolve3(path29);
+        const resolvedPath = resolve3(path30);
         await mkdir(dirname2(resolvedPath), { recursive: true });
         const data = Array.from(this.#snapshots.entries()).map(([hash, snapshot]) => ({
           hash,
@@ -14195,9 +14195,9 @@ var require_snapshot_recorder = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-agent.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-agent.js
 var require_snapshot_agent = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-agent.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/mock/snapshot-agent.js"(exports, module) {
     "use strict";
     var Agent = require_agent();
     var MockAgent = require_mock_agent();
@@ -14482,9 +14482,9 @@ var require_snapshot_agent = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/global.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/global.js
 var require_global2 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/global.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/global.js"(exports, module) {
     "use strict";
     var globalDispatcher = /* @__PURE__ */ Symbol.for("undici.globalDispatcher.2");
     var legacyGlobalDispatcher = /* @__PURE__ */ Symbol.for("undici.globalDispatcher.1");
@@ -14536,9 +14536,9 @@ var require_global2 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/decorator-handler.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/decorator-handler.js
 var require_decorator_handler = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/decorator-handler.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/decorator-handler.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var WrapHandler = require_wrap_handler();
@@ -14592,9 +14592,9 @@ var require_decorator_handler = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/redirect-handler.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/redirect-handler.js
 var require_redirect_handler = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/redirect-handler.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/redirect-handler.js"(exports, module) {
     "use strict";
     var util = require_util();
     var { kBodyUsed } = require_symbols();
@@ -14686,15 +14686,15 @@ var require_redirect_handler = __commonJS({
           return;
         }
         const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-        const path29 = search ? `${pathname}${search}` : pathname;
-        const redirectUrlString = `${origin}${path29}`;
+        const path30 = search ? `${pathname}${search}` : pathname;
+        const redirectUrlString = `${origin}${path30}`;
         for (const historyUrl of this.history) {
           if (historyUrl.toString() === redirectUrlString) {
             throw new InvalidArgumentError(`Redirect loop detected. Cannot redirect to ${origin}. This typically happens when using a Client or Pool with cross-origin redirects. Use an Agent for cross-origin redirects.`);
           }
         }
         this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-        this.opts.path = path29;
+        this.opts.path = path30;
         this.opts.origin = origin;
         this.opts.query = null;
       }
@@ -14738,9 +14738,9 @@ var require_redirect_handler = __commonJS({
         }
       } else if (headers && typeof headers === "object") {
         const entries = util.hasSafeIterator(headers) ? headers : Object.entries(headers);
-        for (const [key2, value] of entries) {
-          if (!shouldRemoveHeader(key2, removeContent, unknownOrigin)) {
-            ret.push(key2, value);
+        for (const [key3, value] of entries) {
+          if (!shouldRemoveHeader(key3, removeContent, unknownOrigin)) {
+            ret.push(key3, value);
           }
         }
       } else {
@@ -14752,9 +14752,9 @@ var require_redirect_handler = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/redirect.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/redirect.js
 var require_redirect = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/redirect.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/redirect.js"(exports, module) {
     "use strict";
     var RedirectHandler = require_redirect_handler();
     function createRedirectInterceptor({ maxRedirections: defaultMaxRedirections } = {}) {
@@ -14774,9 +14774,9 @@ var require_redirect = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/response-error.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/response-error.js
 var require_response_error = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/response-error.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/response-error.js"(exports, module) {
     "use strict";
     var DecoratorHandler = require_decorator_handler();
     var { ResponseError } = require_errors();
@@ -14856,9 +14856,9 @@ var require_response_error = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/retry.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/retry.js
 var require_retry = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/retry.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/retry.js"(exports, module) {
     "use strict";
     var RetryHandler = require_retry_handler();
     module.exports = (globalOpts) => {
@@ -14880,9 +14880,9 @@ var require_retry = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/dump.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/dump.js
 var require_dump = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/dump.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/dump.js"(exports, module) {
     "use strict";
     var { InvalidArgumentError, RequestAbortedError } = require_errors();
     var DecoratorHandler = require_decorator_handler();
@@ -14957,9 +14957,9 @@ var require_dump = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/dns.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/dns.js
 var require_dns = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/dns.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/dns.js"(exports, module) {
     "use strict";
     var { isIP } = __require("node:net");
     var { lookup } = __require("node:dns");
@@ -14971,8 +14971,8 @@ var require_dns = __commonJS({
       const ownIterator = Object.prototype.hasOwnProperty.call(headers, Symbol.iterator);
       return ownIterator || prototype != null && prototype !== Object.prototype && typeof headers[Symbol.iterator] === "function";
     }
-    function isHostHeader(key2) {
-      return typeof key2 === "string" && key2.toLowerCase() === "host";
+    function isHostHeader(key3) {
+      return typeof key3 === "string" && key3.toLowerCase() === "host";
     }
     function normalizeHeaders(headers) {
       if (headers == null) {
@@ -15021,8 +15021,8 @@ var require_dns = __commonJS({
         return false;
       }
       if (typeof headers === "object") {
-        for (const key2 in headers) {
-          if (isHostHeader(key2)) {
+        for (const key3 in headers) {
+          if (isHostHeader(key3)) {
             return true;
           }
         }
@@ -15057,8 +15057,8 @@ var require_dns = __commonJS({
       get(hostname) {
         return this.#records.get(hostname) ?? null;
       }
-      set(hostname, records) {
-        this.#records.set(hostname, records);
+      set(hostname, records2) {
+        this.#records.set(hostname, records2);
       }
       delete(hostname) {
         this.#records.delete(hostname);
@@ -15107,10 +15107,10 @@ var require_dns = __commonJS({
               return;
             }
             this.setRecords(origin, addresses);
-            const records = this.storage.get(origin.hostname);
+            const records2 = this.storage.get(origin.hostname);
             const ip = this.pick(
               origin,
-              records,
+              records2,
               newOpts.affinity
             );
             let port2;
@@ -15173,7 +15173,7 @@ var require_dns = __commonJS({
       }
       #defaultPick(origin, hostnameRecords, affinity) {
         let ip = null;
-        const { records, offset } = hostnameRecords;
+        const { records: records2, offset } = hostnameRecords;
         let family;
         if (this.dualStack) {
           if (affinity == null) {
@@ -15185,13 +15185,13 @@ var require_dns = __commonJS({
               affinity = (hostnameRecords.offset & 1) === 1 ? 6 : 4;
             }
           }
-          if (records[affinity] != null && records[affinity].ips.length > 0) {
-            family = records[affinity];
+          if (records2[affinity] != null && records2[affinity].ips.length > 0) {
+            family = records2[affinity];
           } else {
-            family = records[affinity === 4 ? 6 : 4];
+            family = records2[affinity === 4 ? 6 : 4];
           }
         } else {
-          family = records[affinity];
+          family = records2[affinity];
         }
         if (family == null || family.ips.length === 0) {
           return ip;
@@ -15213,11 +15213,11 @@ var require_dns = __commonJS({
         return ip;
       }
       pickFamily(origin, ipFamily) {
-        const records = this.storage.get(origin.hostname)?.records;
-        if (!records) {
+        const records2 = this.storage.get(origin.hostname)?.records;
+        if (!records2) {
           return null;
         }
-        const family = records[ipFamily];
+        const family = records2[ipFamily];
         if (!family) {
           return null;
         }
@@ -15238,7 +15238,7 @@ var require_dns = __commonJS({
       }
       setRecords(origin, addresses) {
         const timestamp = Date.now();
-        const records = { records: { 4: null, 6: null } };
+        const records2 = { records: { 4: null, 6: null } };
         let minTTL = this.#maxTTL;
         for (const record of addresses) {
           record.timestamp = timestamp;
@@ -15248,11 +15248,11 @@ var require_dns = __commonJS({
           } else {
             record.ttl = this.#maxTTL;
           }
-          const familyRecords = records.records[record.family] ?? { ips: [] };
+          const familyRecords = records2.records[record.family] ?? { ips: [] };
           familyRecords.ips.push(record);
-          records.records[record.family] = familyRecords;
+          records2.records[record.family] = familyRecords;
         }
-        this.storage.set(origin.hostname, records, { ttl: minTTL });
+        this.storage.set(origin.hostname, records2, { ttl: minTTL });
       }
       deleteRecords(origin) {
         this.storage.delete(origin.hostname);
@@ -15396,9 +15396,9 @@ var require_dns = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/cache.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/cache.js
 var require_cache = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/cache.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/cache.js"(exports, module) {
     "use strict";
     var {
       safeHTTPMethods,
@@ -15486,7 +15486,7 @@ var require_cache = __commonJS({
       });
       return directives;
     }
-    function markInvalidCacheControlDirective(directives, key2) {
+    function markInvalidCacheControlDirective(directives, key3) {
       let invalidDirectives = directives[kInvalidCacheControlDirectives];
       if (invalidDirectives === void 0) {
         invalidDirectives = /* @__PURE__ */ new Set();
@@ -15494,22 +15494,22 @@ var require_cache = __commonJS({
           value: invalidDirectives
         });
       }
-      invalidDirectives.add(key2);
+      invalidDirectives.add(key3);
     }
-    function hasInvalidCacheControlDirective(directives, key2) {
-      return directives[kInvalidCacheControlDirectives]?.has(key2) === true;
+    function hasInvalidCacheControlDirective(directives, key3) {
+      return directives[kInvalidCacheControlDirectives]?.has(key3) === true;
     }
-    function getMalformedRestrictiveDirectiveName(key2) {
+    function getMalformedRestrictiveDirectiveName(key3) {
       for (const directiveName of RESTRICTIVE_DIRECTIVE_NAMES) {
-        if (key2.startsWith(directiveName) && key2.length > directiveName.length && !isValidHTTPToken(key2[directiveName.length])) {
+        if (key3.startsWith(directiveName) && key3.length > directiveName.length && !isValidHTTPToken(key3[directiveName.length])) {
           return directiveName;
         }
       }
       let tokenOnlyKey = "";
       let hasInvalidTokenChar = false;
-      for (let i = 0; i < key2.length; i++) {
-        if (isValidHTTPToken(key2[i])) {
-          tokenOnlyKey += key2[i];
+      for (let i = 0; i < key3.length; i++) {
+        if (isValidHTTPToken(key3[i])) {
+          tokenOnlyKey += key3[i];
         } else {
           hasInvalidTokenChar = true;
         }
@@ -15533,8 +15533,8 @@ var require_cache = __commonJS({
         headers: opts.headers
       };
     }
-    function appendHeader(headers, key2, val) {
-      const headerName = key2.toLowerCase();
+    function appendHeader(headers, key3, val) {
+      const headerName = key3.toLowerCase();
       const current = headers[headerName];
       const values = Array.isArray(val) ? val : [val];
       if (current === void 0) {
@@ -15556,15 +15556,15 @@ var require_cache = __commonJS({
             if (!Array.isArray(x)) {
               throw new Error("opts.headers is not a valid header map");
             }
-            const [key2, val] = x;
-            if (typeof key2 !== "string" || typeof val !== "string") {
+            const [key3, val] = x;
+            if (typeof key3 !== "string" || typeof val !== "string") {
               throw new Error("opts.headers is not a valid header map");
             }
-            appendHeader(headers, key2, val);
+            appendHeader(headers, key3, val);
           }
         } else {
-          for (const key2 of Object.keys(opts.headers)) {
-            appendHeader(headers, key2, opts.headers[key2]);
+          for (const key3 of Object.keys(opts.headers)) {
+            appendHeader(headers, key3, opts.headers[key3]);
           }
         }
       } else {
@@ -15572,17 +15572,17 @@ var require_cache = __commonJS({
       }
       return headers;
     }
-    function assertCacheKey(key2) {
-      if (typeof key2 !== "object") {
-        throw new TypeError(`expected key to be object, got ${typeof key2}`);
+    function assertCacheKey(key3) {
+      if (typeof key3 !== "object") {
+        throw new TypeError(`expected key to be object, got ${typeof key3}`);
       }
       for (const property of ["origin", "method", "path"]) {
-        if (typeof key2[property] !== "string") {
-          throw new TypeError(`expected key.${property} to be string, got ${typeof key2[property]}`);
+        if (typeof key3[property] !== "string") {
+          throw new TypeError(`expected key.${property} to be string, got ${typeof key3[property]}`);
         }
       }
-      if (key2.headers !== void 0 && typeof key2.headers !== "object") {
-        throw new TypeError(`expected headers to be object, got ${typeof key2}`);
+      if (key3.headers !== void 0 && typeof key3.headers !== "object") {
+        throw new TypeError(`expected headers to be object, got ${typeof key3}`);
       }
     }
     function assertCacheValue(value) {
@@ -15617,7 +15617,7 @@ var require_cache = __commonJS({
         const directive = directiveRecord.value.toLowerCase();
         const fromMalformedQuote = directiveRecord.fromMalformedQuote;
         const keyValueDelimiter = directive.indexOf("=");
-        let key2;
+        let key3;
         let value;
         let keyHasTrailingWhitespace = false;
         let valueHasLeadingWhitespace = false;
@@ -15626,59 +15626,59 @@ var require_cache = __commonJS({
           const rawValue = directive.substring(keyValueDelimiter + 1);
           keyHasTrailingWhitespace = trimOWSEnd(rawKey) !== rawKey;
           valueHasLeadingWhitespace = trimOWSStart(rawValue) !== rawValue;
-          key2 = trimOWS(rawKey);
+          key3 = trimOWS(rawKey);
           value = trimOWSStart(rawValue);
         } else {
-          key2 = trimOWS(directive);
+          key3 = trimOWS(directive);
         }
-        const malformedRestrictiveDirectiveName = getMalformedRestrictiveDirectiveName(key2);
+        const malformedRestrictiveDirectiveName = getMalformedRestrictiveDirectiveName(key3);
         if (malformedRestrictiveDirectiveName !== void 0) {
           output[malformedRestrictiveDirectiveName] = true;
           continue;
         }
-        switch (key2) {
+        switch (key3) {
           case "min-fresh":
           case "max-stale":
           case "max-age":
           case "s-maxage":
           case "stale-while-revalidate":
           case "stale-if-error": {
-            if (fromMalformedQuote || invalidNumericDirectives.has(key2)) {
+            if (fromMalformedQuote || invalidNumericDirectives.has(key3)) {
               continue;
             }
             if (value === void 0 || keyHasTrailingWhitespace || valueHasLeadingWhitespace) {
-              delete output[key2];
-              invalidNumericDirectives.add(key2);
-              markInvalidCacheControlDirective(output, key2);
+              delete output[key3];
+              invalidNumericDirectives.add(key3);
+              markInvalidCacheControlDirective(output, key3);
               continue;
             }
             if (value.length >= 2 && value[0] === '"' && value[value.length - 1] === '"') {
               value = value.substring(1, value.length - 1);
             }
             if (!/^[0-9]+$/.test(value)) {
-              delete output[key2];
-              invalidNumericDirectives.add(key2);
-              markInvalidCacheControlDirective(output, key2);
+              delete output[key3];
+              invalidNumericDirectives.add(key3);
+              markInvalidCacheControlDirective(output, key3);
               continue;
             }
             const parsedValue = Math.min(parseInt(value, 10), MAX_DELTA_SECONDS);
-            if (key2 === "min-fresh") {
-              if (!(key2 in output) || output[key2] < parsedValue) {
-                output[key2] = parsedValue;
+            if (key3 === "min-fresh") {
+              if (!(key3 in output) || output[key3] < parsedValue) {
+                output[key3] = parsedValue;
               }
-            } else if (!(key2 in output) || output[key2] > parsedValue) {
-              output[key2] = parsedValue;
+            } else if (!(key3 in output) || output[key3] > parsedValue) {
+              output[key3] = parsedValue;
             }
             break;
           }
           case "private":
           case "no-cache": {
             if (fromMalformedQuote) {
-              output[key2] = true;
+              output[key3] = true;
               break;
             }
             if (value !== void 0 && value.length === 0) {
-              output[key2] = true;
+              output[key3] = true;
               break;
             }
             if (value) {
@@ -15707,7 +15707,7 @@ var require_cache = __commonJS({
                   fieldList = fieldListParts.join(",");
                 }
                 if (!foundEndingQuote) {
-                  output[key2] = true;
+                  output[key3] = true;
                   break;
                 }
                 i = lastQuotedPart;
@@ -15720,23 +15720,23 @@ var require_cache = __commonJS({
                   }
                 }
                 if (!validFieldNames) {
-                  output[key2] = true;
-                } else if (output[key2] !== true) {
-                  if (key2 in output) {
-                    output[key2] = output[key2].concat(headers);
+                  output[key3] = true;
+                } else if (output[key3] !== true) {
+                  if (key3 in output) {
+                    output[key3] = output[key3].concat(headers);
                   } else {
-                    output[key2] = headers;
+                    output[key3] = headers;
                   }
                 }
               } else {
                 const fieldName = trimOWS(value);
                 if (!isValidHTTPToken(fieldName)) {
-                  output[key2] = true;
-                } else if (output[key2] !== true) {
-                  if (key2 in output) {
-                    output[key2] = output[key2].concat(fieldName);
+                  output[key3] = true;
+                } else if (output[key3] !== true) {
+                  if (key3 in output) {
+                    output[key3] = output[key3].concat(fieldName);
                   } else {
-                    output[key2] = [fieldName];
+                    output[key3] = [fieldName];
                   }
                 }
               }
@@ -15751,18 +15751,18 @@ var require_cache = __commonJS({
           case "no-transform":
           case "must-understand":
           case "only-if-cached":
-            if (fromMalformedQuote || invalidNoArgumentDirectives.has(key2)) {
+            if (fromMalformedQuote || invalidNoArgumentDirectives.has(key3)) {
               continue;
             }
             if (value !== void 0) {
-              delete output[key2];
-              invalidNoArgumentDirectives.add(key2);
+              delete output[key3];
+              invalidNoArgumentDirectives.add(key3);
               continue;
             }
-            output[key2] = true;
+            output[key3] = true;
             break;
           case "no-store":
-            output[key2] = true;
+            output[key3] = true;
             break;
           default:
             continue;
@@ -15881,9 +15881,9 @@ var require_cache = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/date.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/date.js
 var require_date = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/date.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/util/date.js"(exports, module) {
     "use strict";
     function parseHttpDate(date) {
       switch (date[3]) {
@@ -16381,9 +16381,9 @@ var require_date = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/cache-handler.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/cache-handler.js
 var require_cache_handler = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/cache-handler.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/cache-handler.js"(exports, module) {
     "use strict";
     var util = require_util();
     var {
@@ -16454,10 +16454,10 @@ var require_cache_handler = __commonJS({
       }
       return locationUrl.pathname + locationUrl.search;
     }
-    function deleteCachedUri(store2, cacheKey, path29) {
+    function deleteCachedUri(store2, cacheKey, path30) {
       deleteCachedValue(store2, {
         ...cacheKey,
-        path: path29
+        path: path30
       });
       for (let i = 0; i < util.safeHTTPMethods.length; i++) {
         const method = util.safeHTTPMethods[i];
@@ -16465,7 +16465,7 @@ var require_cache_handler = __commonJS({
           deleteCachedValue(store2, {
             ...cacheKey,
             method,
-            path: path29
+            path: path30
           });
         }
       }
@@ -16476,9 +16476,9 @@ var require_cache_handler = __commonJS({
       }
       const values = Array.isArray(headerValue) ? headerValue : [headerValue];
       for (let i = 0; i < values.length; i++) {
-        const path29 = getSameOriginPath(cacheKey, values[i]);
-        if (path29 !== void 0) {
-          deleteCachedUri(store2, cacheKey, path29);
+        const path30 = getSameOriginPath(cacheKey, values[i]);
+        if (path30 !== void 0) {
+          deleteCachedUri(store2, cacheKey, path30);
         }
       }
     }
@@ -16904,9 +16904,9 @@ var require_cache_handler = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/cache/memory-cache-store.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/cache/memory-cache-store.js
 var require_memory_cache_store = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/cache/memory-cache-store.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/cache/memory-cache-store.js"(exports, module) {
     "use strict";
     var { Writable } = __require("node:stream");
     var { EventEmitter } = __require("node:events");
@@ -16968,12 +16968,12 @@ var require_memory_cache_store = __commonJS({
        * @param {import('../../types/cache-interceptor.d.ts').default.CacheKey} req
        * @returns {import('../../types/cache-interceptor.d.ts').default.GetResult | undefined}
        */
-      get(key2) {
-        assertCacheKey(key2);
-        const topLevelKey = `${key2.origin}:${key2.path}`;
+      get(key3) {
+        assertCacheKey(key3);
+        const topLevelKey = `${key3.origin}:${key3.path}`;
         const now = Date.now();
         const entries = this.#entries.get(topLevelKey);
-        const entry = entries ? findEntry(key2, entries, now) : null;
+        const entry = entries ? findEntry(key3, entries, now) : null;
         return entry == null ? void 0 : {
           statusMessage: entry.statusMessage,
           statusCode: entry.statusCode,
@@ -16992,12 +16992,12 @@ var require_memory_cache_store = __commonJS({
        * @param {import('../../types/cache-interceptor.d.ts').default.CacheValue} val
        * @returns {Writable | undefined}
        */
-      createWriteStream(key2, val) {
-        assertCacheKey(key2);
+      createWriteStream(key3, val) {
+        assertCacheKey(key3);
         assertCacheValue(val);
-        const topLevelKey = `${key2.origin}:${key2.path}`;
+        const topLevelKey = `${key3.origin}:${key3.path}`;
         const store2 = this;
-        const entry = { ...key2, ...val, body: [], size: 0 };
+        const entry = { ...key3, ...val, body: [], size: 0 };
         return new Writable({
           write(chunk, encoding, callback) {
             if (typeof chunk === "string") {
@@ -17017,7 +17017,7 @@ var require_memory_cache_store = __commonJS({
               entries = [];
               store2.#entries.set(topLevelKey, entries);
             }
-            const previousEntry = findEntry(key2, entries, Date.now());
+            const previousEntry = findEntry(key3, entries, Date.now());
             if (previousEntry) {
               const index2 = entries.indexOf(previousEntry);
               entries.splice(index2, 1, entry);
@@ -17037,13 +17037,13 @@ var require_memory_cache_store = __commonJS({
                 });
                 store2.#hasEmittedMaxSizeEvent = true;
               }
-              for (const [key3, entries2] of store2.#entries) {
+              for (const [key4, entries2] of store2.#entries) {
                 for (const entry2 of entries2.splice(0, entries2.length / 2)) {
                   store2.#size -= entry2.size;
                   store2.#count -= 1;
                 }
                 if (entries2.length === 0) {
-                  store2.#entries.delete(key3);
+                  store2.#entries.delete(key4);
                 }
               }
               if (store2.#size < store2.#maxSize && store2.#count < store2.#maxCount) {
@@ -17057,11 +17057,11 @@ var require_memory_cache_store = __commonJS({
       /**
        * @param {CacheKey} key
        */
-      delete(key2) {
-        if (typeof key2 !== "object") {
-          throw new TypeError(`expected key to be object, got ${typeof key2}`);
+      delete(key3) {
+        if (typeof key3 !== "object") {
+          throw new TypeError(`expected key to be object, got ${typeof key3}`);
         }
-        const topLevelKey = `${key2.origin}:${key2.path}`;
+        const topLevelKey = `${key3.origin}:${key3.path}`;
         for (const entry of this.#entries.get(topLevelKey) ?? []) {
           this.#size -= entry.size;
           this.#count -= 1;
@@ -17069,20 +17069,20 @@ var require_memory_cache_store = __commonJS({
         this.#entries.delete(topLevelKey);
       }
     };
-    function findEntry(key2, entries, now) {
+    function findEntry(key3, entries, now) {
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
-        if (entry.deleteAt > now && entry.method === key2.method && varyMatches(key2, entry)) {
+        if (entry.deleteAt > now && entry.method === key3.method && varyMatches(key3, entry)) {
           return entry;
         }
       }
     }
-    function varyMatches(key2, entry) {
+    function varyMatches(key3, entry) {
       if (entry.vary == null) {
         return true;
       }
       for (const headerName in entry.vary) {
-        if (Object.hasOwn(entry.vary, headerName) && !headerValueEquals(key2.headers?.[headerName], entry.vary[headerName])) {
+        if (Object.hasOwn(entry.vary, headerName) && !headerValueEquals(key3.headers?.[headerName], entry.vary[headerName])) {
           return false;
         }
       }
@@ -17112,9 +17112,9 @@ var require_memory_cache_store = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/cache-revalidation-handler.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/cache-revalidation-handler.js
 var require_cache_revalidation_handler = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/cache-revalidation-handler.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/cache-revalidation-handler.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var CacheRevalidationHandler = class {
@@ -17199,9 +17199,9 @@ var require_cache_revalidation_handler = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/cache.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/cache.js
 var require_cache2 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/cache.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/cache.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { Readable } = __require("node:stream");
@@ -17309,9 +17309,9 @@ var require_cache2 = __commonJS({
         headers["if-none-match"] = result.etag;
       }
       if (result.vary) {
-        for (const key2 in result.vary) {
-          if (result.vary[key2] != null) {
-            headers[key2] = result.vary[key2];
+        for (const key3 in result.vary) {
+          if (result.vary[key3] != null) {
+            headers[key3] = result.vary[key3];
           }
         }
       }
@@ -17617,9 +17617,9 @@ var require_cache2 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/decompress.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/decompress.js
 var require_decompress = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/decompress.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/decompress.js"(exports, module) {
     "use strict";
     var { createInflate, createGunzip, createBrotliDecompress, createZstdDecompress } = __require("node:zlib");
     var { pipeline, Transform: TransformStream2 } = __require("node:stream");
@@ -17936,9 +17936,9 @@ var require_decompress = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/deduplication-handler.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/deduplication-handler.js
 var require_deduplication_handler = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/deduplication-handler.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/handler/deduplication-handler.js"(exports, module) {
     "use strict";
     var { RequestAbortedError } = require_errors();
     var DEFAULT_MAX_BUFFER_SIZE = 5 * 1024 * 1024;
@@ -18295,9 +18295,9 @@ var require_deduplication_handler = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/deduplicate.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/deduplicate.js
 var require_deduplicate = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/deduplicate.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/interceptor/deduplicate.js"(exports, module) {
     "use strict";
     var diagnosticsChannel = __require("node:diagnostics_channel");
     var util = require_util();
@@ -18380,13 +18380,13 @@ var require_deduplicate = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/cache/sqlite-cache-store.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/cache/sqlite-cache-store.js
 var require_sqlite_cache_store = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/cache/sqlite-cache-store.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/cache/sqlite-cache-store.js"(exports, module) {
     "use strict";
     var { Writable } = __require("node:stream");
     var { assertCacheKey, assertCacheValue } = require_cache();
-    var DatabaseSync7;
+    var DatabaseSync8;
     var VERSION = 3;
     var MAX_ENTRY_SIZE = 2 * 1e3 * 1e3 * 1e3;
     module.exports = class SqliteCacheStore {
@@ -18448,10 +18448,10 @@ var require_sqlite_cache_store = __commonJS({
             this.#maxCount = opts.maxCount;
           }
         }
-        if (!DatabaseSync7) {
-          DatabaseSync7 = __require("node:sqlite").DatabaseSync;
+        if (!DatabaseSync8) {
+          DatabaseSync8 = __require("node:sqlite").DatabaseSync;
         }
-        this.#db = new DatabaseSync7(opts?.location ?? ":memory:");
+        this.#db = new DatabaseSync8(opts?.location ?? ":memory:");
         this.#db.exec(`
       PRAGMA journal_mode = WAL;
       PRAGMA synchronous = NORMAL;
@@ -18557,9 +18557,9 @@ var require_sqlite_cache_store = __commonJS({
        * @param {import('../../types/cache-interceptor.d.ts').default.CacheKey} key
        * @returns {(import('../../types/cache-interceptor.d.ts').default.GetResult & { body?: Buffer }) | undefined}
        */
-      get(key2) {
-        assertCacheKey(key2);
-        const value = this.#findValue(key2);
+      get(key3) {
+        assertCacheKey(key3);
+        const value = this.#findValue(key3);
         return value ? {
           body: value.body ? Buffer.from(value.body.buffer, value.body.byteOffset, value.body.byteLength) : void 0,
           statusCode: value.statusCode,
@@ -18577,15 +18577,15 @@ var require_sqlite_cache_store = __commonJS({
        * @param {import('../../types/cache-interceptor.d.ts').default.CacheKey} key
        * @param {import('../../types/cache-interceptor.d.ts').default.CacheValue & { body: null | Buffer | Array<Buffer>}} value
        */
-      set(key2, value) {
-        assertCacheKey(key2);
-        const url = this.#makeValueUrl(key2);
+      set(key3, value) {
+        assertCacheKey(key3);
+        const url = this.#makeValueUrl(key3);
         const body = Array.isArray(value.body) ? Buffer.concat(value.body) : value.body;
         const size = body?.byteLength;
         if (size && size > this.#maxEntrySize) {
           return;
         }
-        const existingValue = this.#findValue(key2, true);
+        const existingValue = this.#findValue(key3, true);
         if (existingValue) {
           this.#updateValueQuery.run(
             body,
@@ -18602,7 +18602,7 @@ var require_sqlite_cache_store = __commonJS({
         } else {
           this.#insertValueQuery.run(
             url,
-            key2.method,
+            key3.method,
             body,
             value.deleteAt,
             value.statusCode,
@@ -18622,8 +18622,8 @@ var require_sqlite_cache_store = __commonJS({
        * @param {import('../../types/cache-interceptor.d.ts').default.CacheValue} value
        * @returns {Writable | undefined}
        */
-      createWriteStream(key2, value) {
-        assertCacheKey(key2);
+      createWriteStream(key3, value) {
+        assertCacheKey(key3);
         assertCacheValue(value);
         let size = 0;
         const body = [];
@@ -18640,7 +18640,7 @@ var require_sqlite_cache_store = __commonJS({
             callback();
           },
           final(callback) {
-            store2.set(key2, { ...value, body });
+            store2.set(key3, { ...value, body });
             callback();
           }
         });
@@ -18648,11 +18648,11 @@ var require_sqlite_cache_store = __commonJS({
       /**
        * @param {import('../../types/cache-interceptor.d.ts').default.CacheKey} key
        */
-      delete(key2) {
-        if (typeof key2 !== "object") {
-          throw new TypeError(`expected key to be object, got ${typeof key2}`);
+      delete(key3) {
+        if (typeof key3 !== "object") {
+          throw new TypeError(`expected key to be object, got ${typeof key3}`);
         }
-        this.#deleteByUrlQuery.run(this.#makeValueUrl(key2));
+        this.#deleteByUrlQuery.run(this.#makeValueUrl(key3));
       }
       #prune() {
         if (Number.isFinite(this.#maxCount) && this.size <= this.#maxCount) {
@@ -18684,17 +18684,17 @@ var require_sqlite_cache_store = __commonJS({
        * @param {import('../../types/cache-interceptor.d.ts').default.CacheKey} key
        * @returns {string}
        */
-      #makeValueUrl(key2) {
-        return `${key2.origin}/${key2.path}`;
+      #makeValueUrl(key3) {
+        return `${key3.origin}/${key3.path}`;
       }
       /**
        * @param {import('../../types/cache-interceptor.d.ts').default.CacheKey} key
        * @param {boolean} [canBeExpired=false]
        * @returns {SqliteStoreValue | undefined}
        */
-      #findValue(key2, canBeExpired = false) {
-        const url = this.#makeValueUrl(key2);
-        const { headers, method } = key2;
+      #findValue(key3, canBeExpired = false) {
+        const url = this.#makeValueUrl(key3);
+        const { headers, method } = key3;
         const values = this.#getValuesQuery.all(url, method);
         if (values.length === 0) {
           return void 0;
@@ -18744,9 +18744,9 @@ var require_sqlite_cache_store = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/headers.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/headers.js
 var require_headers = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/headers.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/headers.js"(exports, module) {
     "use strict";
     var { kConstruct } = require_symbols();
     var { kEnumerableProperty } = require_util();
@@ -18768,10 +18768,10 @@ var require_headers = __commonJS({
       while (j > i && isHTTPWhiteSpaceCharCode(potentialValue.charCodeAt(i))) ++i;
       return i === 0 && j === potentialValue.length ? potentialValue : potentialValue.substring(i, j);
     }
-    function fill(headers, object) {
-      if (Array.isArray(object)) {
-        for (let i = 0; i < object.length; ++i) {
-          const header = object[i];
+    function fill(headers, object2) {
+      if (Array.isArray(object2)) {
+        for (let i = 0; i < object2.length; ++i) {
+          const header = object2[i];
           if (header.length !== 2) {
             throw webidl.errors.exception({
               header: "Headers constructor",
@@ -18780,10 +18780,10 @@ var require_headers = __commonJS({
           }
           appendHeader(headers, header[0], header[1]);
         }
-      } else if (typeof object === "object" && object !== null) {
-        const keys = Object.keys(object);
+      } else if (typeof object2 === "object" && object2 !== null) {
+        const keys = Object.keys(object2);
         for (let i = 0; i < keys.length; ++i) {
-          appendHeader(headers, keys[i], object[keys[i]]);
+          appendHeader(headers, keys[i], object2[keys[i]]);
         }
       } else {
         throw webidl.errors.conversionFailed({
@@ -19205,9 +19205,9 @@ var require_headers = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/response.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/response.js
 var require_response = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/response.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/response.js"(exports, module) {
     "use strict";
     var { Headers, HeadersList, fill, getHeadersGuard, setHeadersGuard, setHeadersList } = require_headers();
     var { extractBody, cloneBody, mixinBody, streamRegistry, bodyUnusable } = require_body();
@@ -19627,9 +19627,9 @@ var require_response = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/request.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/request.js
 var require_request2 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/request.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/request.js"(exports, module) {
     "use strict";
     var { extractBody, mixinBody, cloneBody, bodyUnusable } = require_body();
     var { Headers, fill: fillHeaders, HeadersList, setHeadersGuard, getHeadersGuard, setHeadersList, getHeadersList } = require_headers();
@@ -20383,9 +20383,9 @@ var require_request2 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/subresource-integrity/subresource-integrity.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/subresource-integrity/subresource-integrity.js
 var require_subresource_integrity = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/subresource-integrity/subresource-integrity.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/subresource-integrity/subresource-integrity.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { runtimeFeatures } = require_runtime_features();
@@ -20522,9 +20522,9 @@ var require_subresource_integrity = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/index.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/index.js
 var require_fetch = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/index.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/fetch/index.js"(exports, module) {
     "use strict";
     var {
       makeNetworkError,
@@ -21478,11 +21478,11 @@ var require_fetch = __commonJS({
       function dispatch({ body }) {
         const url = requestCurrentURL(request);
         const agent = fetchParams.controller.dispatcher;
-        const path29 = url.pathname + url.search;
+        const path30 = url.pathname + url.search;
         const hasTrailingQuestionMark = url.search.length === 0 && url.href[url.href.length - url.hash.length - 1] === "?";
         return new Promise((resolve3, reject) => agent.dispatch(
           {
-            path: hasTrailingQuestionMark ? `${path29}?` : path29,
+            path: hasTrailingQuestionMark ? `${path30}?` : path30,
             origin: url.origin,
             method: request.method,
             body: agent.isMockActive ? request.body && (request.body.source || request.body.stream) : body,
@@ -21666,9 +21666,9 @@ var require_fetch = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/util.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/util.js
 var require_util3 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/util.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/util.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { URLSerializer } = require_data_url();
@@ -21696,9 +21696,9 @@ var require_util3 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/cache.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/cache.js
 var require_cache3 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/cache.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/cache.js"(exports, module) {
     "use strict";
     var assert2 = __require("node:assert");
     var { kConstruct } = require_symbols();
@@ -22245,9 +22245,9 @@ var require_cache3 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/cachestorage.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/cachestorage.js
 var require_cachestorage = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/cachestorage.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cache/cachestorage.js"(exports, module) {
     "use strict";
     var { Cache: Cache2 } = require_cache3();
     var { webidl } = require_webidl();
@@ -22355,9 +22355,9 @@ var require_cachestorage = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/constants.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/constants.js
 var require_constants4 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/constants.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/constants.js"(exports, module) {
     "use strict";
     var maxAttributeValueSize = 1024;
     var maxNameValuePairSize = 4096;
@@ -22368,9 +22368,9 @@ var require_constants4 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/util.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/util.js
 var require_util4 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/util.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/util.js"(exports, module) {
     "use strict";
     function isCTLExcludingHtab(value) {
       for (let i = 0; i < value.length; ++i) {
@@ -22429,9 +22429,9 @@ var require_util4 = __commonJS({
         }
       }
     }
-    function validateCookiePath(path29) {
-      for (let i = 0; i < path29.length; ++i) {
-        const code = path29.charCodeAt(i);
+    function validateCookiePath(path30) {
+      for (let i = 0; i < path30.length; ++i) {
+        const code = path30.charCodeAt(i);
         if (code < 32 || // exclude CTLs (0-31)
         code > 126 || // exclude DEL and non-ascii
         code === 59) {
@@ -22556,8 +22556,8 @@ var require_util4 = __commonJS({
         if (!part.includes("=")) {
           throw new Error("Invalid unparsed");
         }
-        const [key2, ...value] = part.split("=");
-        const trimmedKey = key2.trim();
+        const [key3, ...value] = part.split("=");
+        const trimmedKey = key3.trim();
         const joinedValue = value.join("=");
         validateCookieName(trimmedKey);
         validateCookieValue(joinedValue);
@@ -22576,9 +22576,9 @@ var require_util4 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/parse.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/parse.js
 var require_parse = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/parse.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/parse.js"(exports, module) {
     "use strict";
     var { collectASequenceOfCodePointsFast } = require_infra();
     var { maxNameValuePairSize, maxAttributeValueSize } = require_constants4();
@@ -22712,9 +22712,9 @@ var require_parse = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/index.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/index.js
 var require_cookies = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/index.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/cookies/index.js"(exports, module) {
     "use strict";
     var { parseSetCookie } = require_parse();
     var { stringify } = require_util4();
@@ -22847,9 +22847,9 @@ var require_cookies = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/events.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/events.js
 var require_events = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/events.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/events.js"(exports, module) {
     "use strict";
     var { webidl } = require_webidl();
     var { kEnumerableProperty } = require_util();
@@ -23115,9 +23115,9 @@ var require_events = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/constants.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/constants.js
 var require_constants5 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/constants.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/constants.js"(exports, module) {
     "use strict";
     var uid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     var staticPropertyDescriptors = {
@@ -23171,9 +23171,9 @@ var require_constants5 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/util.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/util.js
 var require_util5 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/util.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/util.js"(exports, module) {
     "use strict";
     var { states, opcodes } = require_constants5();
     var { isUtf8 } = __require("node:buffer");
@@ -23348,9 +23348,9 @@ var require_util5 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/frame.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/frame.js
 var require_frame = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/frame.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/frame.js"(exports, module) {
     "use strict";
     var { runtimeFeatures } = require_runtime_features();
     var { maxUnsigned16Bit, opcodes } = require_constants5();
@@ -23453,9 +23453,9 @@ var require_frame = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/connection.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/connection.js
 var require_connection = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/connection.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/connection.js"(exports, module) {
     "use strict";
     var { uid, states, sentCloseFrameState, emptyBuffer, opcodes } = require_constants5();
     var { parseExtensions, isClosed, isClosing, isEstablished, isConnecting, validateCloseCodeAndReason } = require_util5();
@@ -23557,15 +23557,15 @@ var require_connection = __commonJS({
       });
       return controller;
     }
-    function closeWebSocketConnection(object, code, reason, validate = false) {
+    function closeWebSocketConnection(object2, code, reason, validate = false) {
       code ??= null;
       reason ??= "";
       if (validate) validateCloseCodeAndReason(code, reason);
-      if (isClosed(object.readyState) || isClosing(object.readyState)) {
-      } else if (!isEstablished(object.readyState)) {
-        failWebsocketConnection(object);
-        object.readyState = states.CLOSING;
-      } else if (!object.closeState.has(sentCloseFrameState.SENT) && !object.closeState.has(sentCloseFrameState.RECEIVED)) {
+      if (isClosed(object2.readyState) || isClosing(object2.readyState)) {
+      } else if (!isEstablished(object2.readyState)) {
+        failWebsocketConnection(object2);
+        object2.readyState = states.CLOSING;
+      } else if (!object2.closeState.has(sentCloseFrameState.SENT) && !object2.closeState.has(sentCloseFrameState.RECEIVED)) {
         const frame = new WebsocketFrameSend();
         if (reason.length !== 0 && code === null) {
           code = 1e3;
@@ -23583,11 +23583,11 @@ var require_connection = __commonJS({
         } else {
           frame.frameData = emptyBuffer;
         }
-        object.socket.write(frame.createFrame(opcodes.CLOSE));
-        object.closeState.add(sentCloseFrameState.SENT);
-        object.readyState = states.CLOSING;
+        object2.socket.write(frame.createFrame(opcodes.CLOSE));
+        object2.closeState.add(sentCloseFrameState.SENT);
+        object2.readyState = states.CLOSING;
       } else {
-        object.readyState = states.CLOSING;
+        object2.readyState = states.CLOSING;
       }
     }
     function failWebsocketConnection(handler, code, reason, cause) {
@@ -23609,9 +23609,9 @@ var require_connection = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/permessage-deflate.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/permessage-deflate.js
 var require_permessage_deflate = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/permessage-deflate.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/permessage-deflate.js"(exports, module) {
     "use strict";
     var { createInflateRaw, Z_DEFAULT_WINDOWBITS } = __require("node:zlib");
     var { isValidClientWindowBits } = require_util5();
@@ -23691,9 +23691,9 @@ var require_permessage_deflate = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/receiver.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/receiver.js
 var require_receiver = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/receiver.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/receiver.js"(exports, module) {
     "use strict";
     var { Writable } = __require("node:stream");
     var assert2 = __require("node:assert");
@@ -24050,9 +24050,9 @@ var require_receiver = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/sender.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/sender.js
 var require_sender = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/sender.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/sender.js"(exports, module) {
     "use strict";
     var { WebsocketFrameSend } = require_frame();
     var { opcodes, sendHints } = require_constants5();
@@ -24137,9 +24137,9 @@ var require_sender = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/websocket.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/websocket.js
 var require_websocket = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/websocket.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/websocket.js"(exports, module) {
     "use strict";
     var { isArrayBuffer } = __require("node:util/types");
     var { webidl } = require_webidl();
@@ -24627,9 +24627,9 @@ var require_websocket = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/stream/websocketerror.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/stream/websocketerror.js
 var require_websocketerror = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/stream/websocketerror.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/stream/websocketerror.js"(exports, module) {
     "use strict";
     var { webidl } = require_webidl();
     var { validateCloseCodeAndReason } = require_util5();
@@ -24707,9 +24707,9 @@ var require_websocketerror = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/stream/websocketstream.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/stream/websocketstream.js
 var require_websocketstream = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/stream/websocketstream.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/websocket/stream/websocketstream.js"(exports, module) {
     "use strict";
     var { createDeferredPromise } = require_promise();
     var { environmentSettingsObject } = require_util2();
@@ -25018,9 +25018,9 @@ var require_websocketstream = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/util.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/util.js
 var require_util6 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/util.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/util.js"(exports, module) {
     "use strict";
     function isValidLastEventId(value) {
       return value.indexOf("\0") === -1;
@@ -25039,9 +25039,9 @@ var require_util6 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/eventsource-stream.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/eventsource-stream.js
 var require_eventsource_stream = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/eventsource-stream.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/eventsource-stream.js"(exports, module) {
     "use strict";
     var { Transform } = __require("node:stream");
     var { isASCIINumber, isValidLastEventId } = require_util6();
@@ -25380,9 +25380,9 @@ ${value}`;
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/eventsource.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/eventsource.js
 var require_eventsource = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/eventsource.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/web/eventsource/eventsource.js"(exports, module) {
     "use strict";
     var { pipeline } = __require("node:stream");
     var { fetching } = require_fetch();
@@ -25697,9 +25697,9 @@ var require_eventsource = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/index.js
+// node_modules/.pnpm/undici@7.29.1/node_modules/undici/index.js
 var require_undici = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/undici@7.29.1/node_modules/undici/index.js"(exports, module) {
+  "node_modules/.pnpm/undici@7.29.1/node_modules/undici/index.js"(exports, module) {
     "use strict";
     var Client = require_client();
     var Dispatcher = require_dispatcher();
@@ -25779,11 +25779,11 @@ var require_undici = __commonJS({
           if (typeof opts.path !== "string") {
             throw new InvalidArgumentError("invalid opts.path");
           }
-          let path29 = opts.path;
+          let path30 = opts.path;
           if (!opts.path.startsWith("/")) {
-            path29 = `/${path29}`;
+            path30 = `/${path30}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path29);
+          url = new URL(util.parseOrigin(url).origin + path30);
         } else {
           if (!opts) {
             opts = typeof url === "object" ? url : {};
@@ -25892,9 +25892,9 @@ ${captureLines}` : capture.stack;
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/smart-buffer@4.2.0/node_modules/smart-buffer/build/utils.js
+// node_modules/.pnpm/smart-buffer@4.2.0/node_modules/smart-buffer/build/utils.js
 var require_utils2 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/smart-buffer@4.2.0/node_modules/smart-buffer/build/utils.js"(exports) {
+  "node_modules/.pnpm/smart-buffer@4.2.0/node_modules/smart-buffer/build/utils.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var buffer_1 = __require("buffer");
@@ -25961,9 +25961,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/smart-buffer@4.2.0/node_modules/smart-buffer/build/smartbuffer.js
+// node_modules/.pnpm/smart-buffer@4.2.0/node_modules/smart-buffer/build/smartbuffer.js
 var require_smartbuffer = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/smart-buffer@4.2.0/node_modules/smart-buffer/build/smartbuffer.js"(exports) {
+  "node_modules/.pnpm/smart-buffer@4.2.0/node_modules/smart-buffer/build/smartbuffer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var utils_1 = require_utils2();
@@ -27119,9 +27119,9 @@ var require_smartbuffer = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/constants.js
+// node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/constants.js
 var require_constants6 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/constants.js"(exports) {
+  "node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/constants.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SOCKS5_NO_ACCEPTABLE_AUTH = exports.SOCKS5_CUSTOM_AUTH_END = exports.SOCKS5_CUSTOM_AUTH_START = exports.SOCKS_INCOMING_PACKET_SIZES = exports.SocksClientState = exports.Socks5Response = exports.Socks5HostType = exports.Socks5Auth = exports.Socks4Response = exports.SocksCommand = exports.ERRORS = exports.DEFAULT_TIMEOUT = void 0;
@@ -27236,9 +27236,9 @@ var require_constants6 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/util.js
+// node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/util.js
 var require_util7 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/util.js"(exports) {
+  "node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/util.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SocksClientError = void 0;
@@ -27259,9 +27259,9 @@ var require_util7 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/address-error.js
+// node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/address-error.js
 var require_address_error = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/address-error.js"(exports) {
+  "node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/address-error.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AddressError = void 0;
@@ -27276,9 +27276,9 @@ var require_address_error = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/common.js
+// node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/common.js
 var require_common = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/common.js"(exports) {
+  "node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/common.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.isInSubnet = isInSubnet;
@@ -27379,9 +27379,9 @@ var require_common = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v4/constants.js
+// node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v4/constants.js
 var require_constants7 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v4/constants.js"(exports) {
+  "node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v4/constants.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SPECIAL_PURPOSE = exports.RE_SUBNET_STRING = exports.RE_ADDRESS = exports.GROUPS = exports.BITS = void 0;
@@ -27420,9 +27420,9 @@ var require_constants7 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ipv4.js
+// node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ipv4.js
 var require_ipv4 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ipv4.js"(exports) {
+  "node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ipv4.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -27985,9 +27985,9 @@ var require_ipv4 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/constants.js
+// node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/constants.js
 var require_constants8 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/constants.js"(exports) {
+  "node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/constants.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SPECIAL_PURPOSE = exports.RE_URL_WITH_PORT = exports.RE_URL = exports.RE_ZONE_STRING = exports.RE_SUBNET_STRING = exports.RE_BAD_ADDRESS = exports.RE_BAD_CHARACTERS = exports.TYPES = exports.SCOPES = exports.GROUPS = exports.BITS = void 0;
@@ -28075,9 +28075,9 @@ var require_constants8 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/helpers.js
+// node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/helpers.js
 var require_helpers = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/helpers.js"(exports) {
+  "node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/helpers.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.escapeHtml = escapeHtml;
@@ -28114,9 +28114,9 @@ var require_helpers = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/regular-expressions.js
+// node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/regular-expressions.js
 var require_regular_expressions = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/regular-expressions.js"(exports) {
+  "node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/v6/regular-expressions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -28206,9 +28206,9 @@ var require_regular_expressions = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ipv6.js
+// node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ipv6.js
 var require_ipv6 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ipv6.js"(exports) {
+  "node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ipv6.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -29539,9 +29539,9 @@ var require_ipv6 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ip-address.js
+// node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ip-address.js
 var require_ip_address = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ip-address.js"(exports) {
+  "node_modules/.pnpm/ip-address@10.7.2/node_modules/ip-address/dist/ip-address.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -29589,9 +29589,9 @@ var require_ip_address = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/helpers.js
+// node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/helpers.js
 var require_helpers2 = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/helpers.js"(exports) {
+  "node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/helpers.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.validateSocksClientOptions = validateSocksClientOptions;
@@ -29695,9 +29695,9 @@ var require_helpers2 = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/receivebuffer.js
+// node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/receivebuffer.js
 var require_receivebuffer = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/receivebuffer.js"(exports) {
+  "node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/common/receivebuffer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReceiveBuffer = void 0;
@@ -29743,9 +29743,9 @@ var require_receivebuffer = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/client/socksclient.js
+// node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/client/socksclient.js
 var require_socksclient = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/client/socksclient.js"(exports) {
+  "node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/client/socksclient.js"(exports) {
     "use strict";
     var __awaiter = exports && exports.__awaiter || function(thisArg, _arguments, P, generator) {
       function adopt(value) {
@@ -30422,9 +30422,9 @@ var require_socksclient = __commonJS({
   }
 });
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/index.js
+// node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/index.js
 var require_build = __commonJS({
-  "../../../../Develop/ops/apps/chaya/node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/index.js"(exports) {
+  "node_modules/.pnpm/socks@2.8.10/node_modules/socks/build/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -30454,7 +30454,7 @@ import { parentPort } from "node:worker_threads";
 var SEED_JOB_WORKER_VERSION = 1;
 
 // services/translate/seed-job-runtime.ts
-import fs36 from "node:fs";
+import fs38 from "node:fs";
 
 // lib/format-compact-count.ts
 function formatCompactCount(n) {
@@ -30601,6 +30601,7 @@ var COMPANION_MEMORY_DIR_NAME = "companion-memory";
 var COMPANION_MEMORY_DB_NAME = "companion.sqlite";
 var GAME_AGENT_DIR_NAME = "game-agent";
 var TRANSLATION_PACKS_DIR_NAME = "translation-packs";
+var UPDATES_DIR_NAME = "updates";
 var DOWNLOAD_JOBS_FILE_NAME = "download-jobs.json";
 var PLUGINS_DIR_NAME = "plugins";
 var NODE_MODULES_DIR_NAME = "node_modules";
@@ -30647,6 +30648,7 @@ var SEED_INVENTORY_WORKER_PATH = join(ROOT_PATH, "native", "bin", "chaya-seed-in
 var SEED_JOB_WORKER_PATH = join(ROOT_PATH, "native", "bin", "chaya-seed-job-worker.mjs");
 var TRANSLATION_PACKS_DIR = join(DATA_DIR, TRANSLATION_PACKS_DIR_NAME);
 var DOWNLOAD_JOBS_PATH = join(DATA_DIR, DOWNLOAD_JOBS_FILE_NAME);
+var UPDATES_DIR = join(DATA_DIR, UPDATES_DIR_NAME);
 var GAME_AGENT_DIR = join(DATA_DIR, GAME_AGENT_DIR_NAME);
 var LOGS_DIR = process.env.CHAYA_LOGS_DIR ? resolve(process.env.CHAYA_LOGS_DIR) : join(ROOT_PATH, LOGS_DIR_NAME);
 var PLUGIN_LOGS_DIR = join(LOGS_DIR, PLUGIN_LOGS_DIR_NAME);
@@ -30866,16 +30868,16 @@ function appendPublicCacheFile(file, rows) {
   return true;
 }
 function publicGameFiles(contentRoot) {
-  const key2 = path3.resolve(contentRoot);
-  const local = ownerDirectories.get(key2) ?? mountedDirectories.get(key2);
+  const key3 = path3.resolve(contentRoot);
+  const local = ownerDirectories.get(key3) ?? mountedDirectories.get(key3);
   if (local) return local;
   if (process.env.CHAYA_STORAGE_OWNER === "1") {
-    const mounted = ownerDirectories.get(key2);
+    const mounted = ownerDirectories.get(key3);
     if (!mounted) throw new Error("Game storage must be mounted before accessing its read views");
     return mounted;
   }
   const remote = storageCall("game.mount", [contentRoot]);
-  mountedDirectories.set(key2, remote);
+  mountedDirectories.set(key3, remote);
   return remote;
 }
 function publicGameFile(contentRoot, kind) {
@@ -30932,8 +30934,8 @@ function storageDirectoryRegistry() {
 function storageGameDirectory(contentRoot) {
   const registry = storageDirectoryRegistry();
   if (!registry) return null;
-  const key2 = path4.resolve(contentRoot);
-  const direct = registry.byRoot.get(key2);
+  const key3 = path4.resolve(contentRoot);
+  const direct = registry.byRoot.get(key3);
   if (direct) return direct;
   try {
     const real2 = fs4.realpathSync(contentRoot);
@@ -31730,13 +31732,13 @@ function runWorkerOnce(options) {
 }
 
 // services/jobs/single-flight.ts
-function singleFlight(flights3, key2, run) {
-  const existing = flights3.get(key2);
+function singleFlight(flights3, key3, run) {
+  const existing = flights3.get(key3);
   if (existing) return existing;
   const pending = run().finally(() => {
-    if (flights3.get(key2) === pending) flights3.delete(key2);
+    if (flights3.get(key3) === pending) flights3.delete(key3);
   });
-  flights3.set(key2, pending);
+  flights3.set(key3, pending);
   return pending;
 }
 function yieldEventLoop() {
@@ -31776,12 +31778,12 @@ function isEngineEntryId(v) {
 function agentEngineKey(entryId) {
   return `${AGENT_PREFIX}${entryId}`;
 }
-function agentEntryId(key2) {
-  return key2.startsWith(AGENT_PREFIX) ? key2.slice(AGENT_PREFIX.length) : null;
+function agentEntryId(key3) {
+  return key3.startsWith(AGENT_PREFIX) ? key3.slice(AGENT_PREFIX.length) : null;
 }
-function engineGroup(key2) {
-  if (key2 === "apple" || key2 === "bergamot") return "system";
-  return isBuiltinEngineId(key2) ? "platform" : "agent";
+function engineGroup(key3) {
+  if (key3 === "apple" || key3 === "bergamot") return "system";
+  return isBuiltinEngineId(key3) ? "platform" : "agent";
 }
 function translationFallbackOrder(engines) {
   const unique = [...new Set(engines)];
@@ -31805,8 +31807,8 @@ async function mapTranslationBatch(texts, translate, concurrency = 4) {
   if (failed?.status === "rejected") throw failed.reason;
   return results;
 }
-function engineAcceptsSensitive(key2) {
-  return key2 === "ollama" || engineGroup(key2) === "agent";
+function engineAcceptsSensitive(key3) {
+  return key3 === "ollama" || engineGroup(key3) === "agent";
 }
 function isBuiltinEngineId(v) {
   return typeof v === "string" && TRANSLATE_ENGINE_IDS.includes(v);
@@ -31910,14 +31912,14 @@ function normalizeEngineOrder(raw, agents = []) {
     seen.add(item);
     out.push(item);
   }
-  for (const key2 of [...DEFAULT_ENGINE_ORDER, ...agents.map((a) => agentEngineKey(a.id))]) {
-    if (!seen.has(key2)) out.push(key2);
+  for (const key3 of [...DEFAULT_ENGINE_ORDER, ...agents.map((a) => agentEngineKey(a.id))]) {
+    if (!seen.has(key3)) out.push(key3);
   }
   return out;
 }
-function isOn(key2, switches, agents) {
-  if (isBuiltinEngineId(key2)) return switches[key2];
-  const id = agentEntryId(key2);
+function isOn(key3, switches, agents) {
+  if (isBuiltinEngineId(key3)) return switches[key3];
+  const id = agentEntryId(key3);
   return !!agents.find((a) => a.id === id)?.enabled;
 }
 function mergeEngineState(raw, patch) {
@@ -31925,9 +31927,9 @@ function mergeEngineState(raw, patch) {
   const current = normalizeEngineSwitches(extractRawSwitches(raw));
   const switchesPatch = { ...patch?.switches || {} };
   if (patch?.configs) {
-    for (const [key2, cfg] of Object.entries(patch.configs)) {
-      if (isBuiltinEngineId(key2) && typeof cfg?.enabled === "boolean") {
-        switchesPatch[key2] = cfg.enabled;
+    for (const [key3, cfg] of Object.entries(patch.configs)) {
+      if (isBuiltinEngineId(key3) && typeof cfg?.enabled === "boolean") {
+        switchesPatch[key3] = cfg.enabled;
       }
     }
   }
@@ -31939,11 +31941,11 @@ function mergeEngineState(raw, patch) {
   for (const id of TRANSLATE_ENGINE_IDS) {
     configs[id].enabled = switches[id];
   }
-  const enabled = TRANSLATE_GROUP_ORDER.flatMap((group) => order.filter((key2) => engineGroup(key2) === group && isOn(key2, switches, agents)));
+  const enabled = TRANSLATE_GROUP_ORDER.flatMap((group) => order.filter((key3) => engineGroup(key3) === group && isOn(key3, switches, agents)));
   return { switches, agents, order, enabled, configs };
 }
-function findAgentEntry(agents, key2) {
-  const id = agentEntryId(key2);
+function findAgentEntry(agents, key3) {
+  const id = agentEntryId(key3);
   return id && agents?.find((a) => a.id === id) || null;
 }
 function resolveEngineCapacitySettings(engine, configs, agents) {
@@ -31964,9 +31966,9 @@ function resolveEngineCapacitySettings(engine, configs, agents) {
     maxConcurrentChars: entry.maxConcurrentChars
   };
 }
-function engineSourceTag(key2, agents) {
-  const entry = findAgentEntry(agents, key2);
-  return entry ? `agent:${entry.profileId}` : key2;
+function engineSourceTag(key3, agents) {
+  const entry = findAgentEntry(agents, key3);
+  return entry ? `agent:${entry.profileId}` : key3;
 }
 
 // services/translate/shared-agents.ts
@@ -32075,15 +32077,15 @@ function getTranslateEngineSwitches(contentRoot = resolveContentRoot(false)) {
 }
 
 // services/translate/fill-missing.ts
-import fs34 from "node:fs";
+import fs36 from "node:fs";
 
 // lib/translate/dynamic-template.ts
 var DYNAMIC_VARIABLE = /_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/g;
-function isDynamicTemplate(text3) {
-  return new RegExp(DYNAMIC_VARIABLE.source).test(text3);
+function isDynamicTemplate(text4) {
+  return new RegExp(DYNAMIC_VARIABLE.source).test(text4);
 }
-function sortedTokens(text3, re) {
-  return JSON.stringify((text3.match(re) || []).sort());
+function sortedTokens(text4, re) {
+  return JSON.stringify((text4.match(re) || []).sort());
 }
 var CONTROLS = /\\[A-Za-z]+(?:\[[^\]]*\])?|\\[^A-Za-z\s]|_se\[[^\]]*\]/g;
 function validDynamicTranslation(source, target2) {
@@ -32098,7 +32100,7 @@ var numericLabelParts = (src) => src.match(/^([A-Za-z]{2,60} ?)(\d{1,6})$/);
 function numericLabelFamily(src) {
   return numericLabelParts(src)?.[1] || null;
 }
-function createNumericLabelIndex(records = []) {
+function createNumericLabelIndex(records2 = []) {
   const groups = /* @__PURE__ */ new Map();
   const parse = numericLabelParts;
   function note(record) {
@@ -32108,7 +32110,7 @@ function createNumericLabelIndex(records = []) {
     group.set(record.id || record.src, record);
     groups.set(match[1], group);
   }
-  records.forEach(note);
+  records2.forEach(note);
   return {
     note,
     resolve(src) {
@@ -32144,19 +32146,19 @@ function sourceTextBody(value) {
 }
 function isSourceText(value, language = "all") {
   if (typeof value !== "string") return false;
-  const text3 = value.trim();
-  if (!text3 || /^(?:true|false|null|undefined|EV\d+|#[\da-f]{3,8})$/i.test(text3)) return false;
-  if (/^(?:https?:\/\/|[a-z]:[\\/]|\/|(?:\.\.?[\\/])|(?:img|audio|movies|fonts|js|data|assets|images|sounds)[\\/])/i.test(text3)) return false;
-  if (/\.(?:png|jpe?g|webp|gif|ogg|wav|mp3|m4a|mp4|webm|js|json|csv|txt|rpgmvp|rpgmvo)$/i.test(text3)) return false;
-  if (/^[A-Za-z_]\w*\[\d+\]$/.test(text3)) return false;
-  if (/^(?:HP|MP|TP|EXP|LV|FPS|ATK|DEF|MAT|MDF|AGI|LUK)\s*[:=]?\s*[\d.,/%+\s-]+$/i.test(text3)) return false;
+  const text4 = value.trim();
+  if (!text4 || /^(?:true|false|null|undefined|EV\d+|#[\da-f]{3,8})$/i.test(text4)) return false;
+  if (/^(?:https?:\/\/|[a-z]:[\\/]|\/|(?:\.\.?[\\/])|(?:img|audio|movies|fonts|js|data|assets|images|sounds)[\\/])/i.test(text4)) return false;
+  if (/\.(?:png|jpe?g|webp|gif|ogg|wav|mp3|m4a|mp4|webm|js|json|csv|txt|rpgmvp|rpgmvo)$/i.test(text4)) return false;
+  if (/^[A-Za-z_]\w*\[\d+\]$/.test(text4)) return false;
+  if (/^(?:HP|MP|TP|EXP|LV|FPS|ATK|DEF|MAT|MDF|AGI|LUK)\s*[:=]?\s*[\d.,/%+\s-]+$/i.test(text4)) return false;
   if (/^(?:(?:async\s+)?function\b|(?:if|for|while)\s*\(|(?:const|let|var)\s+[$\w]+\s*[=:;]|return\s+(?:['"`$({]|[A-Za-z_$][\w$]*[.(])|return\b[^\n]*;|\$[A-Za-z_]|\(?[\w,\s]*\)?\s*=>)/.test(
-    text3
+    text4
   ))
     return false;
-  if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*(?:[+*/-]=|=(?!=)|\+\+|--)/.test(text3) || /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+\s*\(/.test(text3)) return false;
-  if (!isDynamicTemplate(text3) && /^\S*_\S*$/.test(text3)) return false;
-  const body = sourceTextBody(text3);
+  if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*(?:[+*/-]=|=(?!=)|\+\+|--)/.test(text4) || /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+\s*\(/.test(text4)) return false;
+  if (!isDynamicTemplate(text4) && /^\S*_\S*$/.test(text4)) return false;
+  const body = sourceTextBody(text4);
   const kana = KANA.test(body);
   const han = HAN.test(body);
   const latin = LATIN.test(body);
@@ -32164,6 +32166,16 @@ function isSourceText(value, language = "all") {
   if (language === "zh") return han && !kana;
   if (language === "en") return latin && !kana && !han;
   return kana || han || latin;
+}
+
+// lib/translate/resource-types.ts
+function canonicalResourceLanguage(value) {
+  try {
+    const [tag] = Intl.getCanonicalLocales(value);
+    if (tag && tag.length <= 100) return tag;
+  } catch {
+  }
+  throw new TypeError(`Invalid language identifier: ${value}`);
 }
 
 // lib/translate/cache-lang.ts
@@ -32182,8 +32194,8 @@ function parseCacheLang(raw) {
 function normalizeCacheLang(raw, fallback) {
   return parseCacheLang(raw) || fallback;
 }
-function detectCacheLang(text3, fallback = DEFAULT_CACHE_SRC_LANG) {
-  const body = sourceTextBody(String(text3 || ""));
+function detectCacheLang(text4, fallback = DEFAULT_CACHE_SRC_LANG) {
+  const body = sourceTextBody(String(text4 || ""));
   if (!body) return fallback;
   if (CYRILLIC.test(body)) return "ru";
   if (HANGUL.test(body)) return "ko";
@@ -32193,516 +32205,14 @@ function detectCacheLang(text3, fallback = DEFAULT_CACHE_SRC_LANG) {
   return fallback;
 }
 function resolveCacheLangPair(opts) {
-  const from = parseCacheLang(opts?.from) || (opts?.src != null ? detectCacheLang(opts.src) : DEFAULT_CACHE_SRC_LANG);
-  const to = parseCacheLang(opts?.to) || DEFAULT_CACHE_TGT_LANG;
+  const from = opts?.from != null ? canonicalResourceLanguage(opts.from) : opts?.src != null ? detectCacheLang(opts.src) : DEFAULT_CACHE_SRC_LANG;
+  const to = opts?.to != null ? canonicalResourceLanguage(opts.to) : DEFAULT_CACHE_TGT_LANG;
   return { from, to };
 }
 
 // services/extract/lib/rgss.ts
-import fs20 from "node:fs";
+import fs21 from "node:fs";
 import path16 from "node:path";
-
-// lib/translate/choice-meta.ts
-function callEnd(text3, start) {
-  const name2 = /^(?:if|en)\s*\(/i.exec(text3.slice(start));
-  if (!name2) return null;
-  let depth = 1;
-  let quote = "";
-  for (let i = start + name2[0].length; i < text3.length; i++) {
-    const ch = text3[i];
-    if (quote) {
-      if (ch === "\\") i++;
-      else if (ch === quote) quote = "";
-    } else if (ch === '"' || ch === "'" || ch === "`") quote = ch;
-    else if (ch === "(") depth++;
-    else if (ch === ")" && --depth === 0) return i + 1;
-  }
-  return null;
-}
-function peelChoiceMetaTrail(text3) {
-  let core = String(text3 ?? "");
-  let trail = "";
-  for (; ; ) {
-    const end = core.trimEnd().length;
-    let start = null;
-    for (const match of core.matchAll(/(?:if|en)\s*\(/gi)) {
-      const at = match.index;
-      if (at > 0 && /[A-Za-z0-9_]/.test(core[at - 1])) continue;
-      if (callEnd(core, at) === end) {
-        start = at;
-        break;
-      }
-    }
-    if (start == null) break;
-    start = core.slice(0, start).trimEnd().length;
-    trail = core.slice(start) + trail;
-    core = core.slice(0, start);
-  }
-  return { core, trail };
-}
-function peelChoiceMetaShell(text3) {
-  const trailing = peelChoiceMetaTrail(text3);
-  let core = trailing.core;
-  const trail = trailing.trail;
-  let lead = "";
-  for (; ; ) {
-    const start = core.length - core.trimStart().length;
-    const end = callEnd(core, start);
-    if (end == null) break;
-    const next = end + (core.slice(end).match(/^\s*/)?.[0].length || 0);
-    lead += core.slice(0, next);
-    core = core.slice(next);
-  }
-  return { lead, core, trail };
-}
-
-// lib/translate/rm-escape.ts
-var RM_DIGIT_CODE_SRC = String.raw`\\[A-Za-z]+\[\d+\]`;
-function rmDigitCodeRe() {
-  return new RegExp(RM_DIGIT_CODE_SRC, "g");
-}
-var RM_ESCAPE_RE = /\\[A-Za-z]+(?:\[[^\]]*\])?/g;
-function isSemanticPlaceholder(token) {
-  if (!token) return false;
-  if (/^\\[NPV]\[[^\]]*\]$/i.test(token) || /^\\[Gg]$/.test(token)) return true;
-  if (/^%[0-9]+$/i.test(token) || /^%[sdifSc]$/.test(token)) return true;
-  if (/^\{[0-9A-Za-z_]+\}$/.test(token)) return true;
-  if (/^_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/i.test(token)) return true;
-  if (/^[A-Za-z_][A-Za-z0-9_]*\[\d+\]$/.test(token)) return true;
-  return false;
-}
-function hasRmDigitCodes(text3) {
-  return rmDigitCodeRe().test(String(text3 ?? ""));
-}
-function extractRmDigitCodes(text3) {
-  return [...String(text3 ?? "").matchAll(rmDigitCodeRe())].map((m) => m[0]);
-}
-function toRmDigitTemplate(text3) {
-  const src = String(text3 ?? "");
-  if (!hasRmDigitCodes(src)) return src;
-  return src.replace(rmDigitCodeRe(), (m) => {
-    const letter = m.match(/^\\([A-Za-z]+)/)?.[1] ?? "";
-    return `\\${letter.toLowerCase()}[#]`;
-  });
-}
-function applyRmDigitCodes(template, codes) {
-  if (!codes.length) return String(template ?? "");
-  let i = 0;
-  return String(template ?? "").replace(/\\[A-Za-z]+\[#\]/g, (slot) => {
-    const code = codes[i++];
-    return code != null ? code : slot;
-  });
-}
-function lookupWithRmDigitTemplate(get, text3) {
-  const src = String(text3 ?? "");
-  if (!src) return null;
-  const direct = get(src);
-  if (direct != null && direct !== "") return direct;
-  const codes = extractRmDigitCodes(src);
-  if (!codes.length) return null;
-  const tpl = toRmDigitTemplate(src);
-  if (tpl === src) return null;
-  const hit = get(tpl);
-  if (hit == null || hit === "") return null;
-  return applyRmDigitCodes(hit, codes);
-}
-
-// lib/translate/segments.ts
-var WRAPPERS = {
-  "\u300C": "\u300D",
-  "\u300E": "\u300F",
-  "(": ")",
-  "\uFF08": "\uFF09",
-  "<": ">",
-  "\uFF1C": "\uFF1E",
-  "\u3010": "\u3011",
-  "\u300A": "\u300B",
-  "\u3008": "\u3009",
-  "[": "]",
-  "\uFF3B": "\uFF3D",
-  "{": "}",
-  "\uFF5B": "\uFF5D",
-  "\u201C": "\u201D",
-  "\u2018": "\u2019"
-};
-var SEPARATE_WRAPPERS = /* @__PURE__ */ new Set(["\u300C", "\u300E", "<", "\uFF1C"]);
-var FRAGMENT_QUOTES = { "\u300C": "\u300D", "\u300E": "\u300F", "\u201C": "\u201D", "\u2018": "\u2019" };
-function isOuterWrapper(text3) {
-  if (text3.length < 2 || WRAPPERS[text3[0]] !== text3[text3.length - 1]) return false;
-  if (/^\{[A-Za-z0-9_]+\}$/.test(text3) || /^<\/?(?:br|span|div|p|b|i|img|ruby|rt)(?:\s[^>]*)?\s*\/?>$/i.test(text3)) return false;
-  const stack = [];
-  const controls = new Map([...text3.matchAll(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"))].map((match) => [match.index, match[0].length]));
-  for (let i = 0; i < text3.length; i++) {
-    const length = controls.get(i);
-    if (length) {
-      i += length - 1;
-      continue;
-    }
-    if (WRAPPERS[text3[i]]) stack.push(WRAPPERS[text3[i]]);
-    else if (stack[stack.length - 1] === text3[i]) {
-      stack.pop();
-      if (!stack.length) return i === text3.length - 1;
-    }
-  }
-  return false;
-}
-function splitSegments(text3, splitOrphanQuotes) {
-  if (isDynamicTemplate(text3)) return [text3];
-  const choice = peelChoiceMetaShell(text3);
-  if (choice.lead || choice.trail) {
-    const parts2 = splitSegments(choice.core, splitOrphanQuotes);
-    if (!parts2.length) return [choice.lead + choice.trail];
-    parts2[0] = choice.lead + parts2[0];
-    parts2[parts2.length - 1] += choice.trail;
-    return parts2;
-  }
-  const controls = new Map([...text3.matchAll(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"))].map((match) => [match.index, match[0].length]));
-  const stack = [];
-  const parts = [];
-  let start = 0;
-  for (let i = 0; i < text3.length; i++) {
-    const controlLength = controls.get(i);
-    if (controlLength) {
-      i += controlLength - 1;
-      continue;
-    }
-    const char = text3[i];
-    if (/[.．,，]/.test(char) && /[0-9０-９]/.test(text3[i - 1] || "") && /[0-9０-９]/.test(text3[i + 1] || "")) continue;
-    let closed = false;
-    if (WRAPPERS[char]) {
-      const separate = SEPARATE_WRAPPERS.has(char);
-      if (separate && !stack.length && i > start && translationSegmentContent(text3.slice(start, i)).core.trim()) {
-        parts.push(text3.slice(start, i));
-        start = i;
-      }
-      stack.push({ close: WRAPPERS[char], separate });
-    } else if (stack[stack.length - 1]?.close === char) {
-      const wrapper = stack.pop();
-      closed = stack.length === 0 && wrapper.separate;
-    } else if (splitOrphanQuotes && !stack.length && /[」』]/.test(char)) {
-      closed = true;
-    }
-    if (stack.length || !closed && !/[，,。．.!！?？]/.test(char)) continue;
-    while (i + 1 < text3.length && /[，,。．.!！?？]/.test(text3[i + 1])) i++;
-    parts.push(text3.slice(start, i + 1));
-    start = i + 1;
-  }
-  if (start < text3.length) parts.push(text3.slice(start));
-  return parts;
-}
-function translationSegments(text3) {
-  return splitSegments(text3, false);
-}
-function segmentContent(text3, keepChoiceMeta) {
-  if (isDynamicTemplate(text3)) return { lead: "", core: text3, trail: "" };
-  const control = new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g");
-  const choice = peelChoiceMetaShell(text3);
-  let core = choice.core;
-  let lead = keepChoiceMeta ? choice.lead : "";
-  let trail = keepChoiceMeta ? choice.trail : "";
-  for (; ; ) {
-    const before = core;
-    const meta = peelChoiceMetaShell(core);
-    if (keepChoiceMeta) {
-      lead += meta.lead;
-      trail = meta.trail + trail;
-    }
-    core = meta.core;
-    const prefix = core.match(/^[\s、，,。．.!！?？…]+/)?.[0] || [...core.matchAll(control)].find((match) => match.index === 0 && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0];
-    if (prefix) {
-      lead += prefix;
-      core = core.slice(prefix.length);
-    }
-    const suffix = core.match(/[\s、，,。．.!！?？…]+$/)?.[0] || [...core.matchAll(control)].find((match) => match.index + match[0].length === core.length && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0];
-    if (suffix) {
-      trail = suffix + trail;
-      core = core.slice(0, -suffix.length);
-    }
-    if (isOuterWrapper(core)) {
-      lead += core[0];
-      trail = core[core.length - 1] + trail;
-      core = core.slice(1, -1);
-    } else {
-      const close = FRAGMENT_QUOTES[core[0]];
-      if (close && !core.includes(close)) {
-        lead += core[0];
-        core = core.slice(1);
-      }
-      const open = Object.keys(FRAGMENT_QUOTES).find((key2) => FRAGMENT_QUOTES[key2] === core[core.length - 1]);
-      if (open && !core.includes(open)) {
-        trail = core[core.length - 1] + trail;
-        core = core.slice(0, -1);
-      }
-    }
-    if (core === before) break;
-  }
-  return { lead, core, trail };
-}
-function translationSegmentContent(text3) {
-  return segmentContent(text3, true);
-}
-function translationSources(text3) {
-  const parts = translationSegments(text3).map((part) => translationSegmentContent(part).core).filter(Boolean);
-  return [.../* @__PURE__ */ new Set([...parts, ...rubyFragmentSources(text3, translationSources)])];
-}
-function translationRubyChunks(text3) {
-  if (isDynamicTemplate(text3)) return [{ text: text3, ruby: false }];
-  const chunks = [];
-  let start = 0;
-  const controls = [...text3.matchAll(new RegExp(RM_ESCAPE_RE.source, "g"))];
-  for (const match of text3.matchAll(/\\RB\[([^,\[\]\r\n]+),([^,\[\]\r\n]+)\]|\\ruby\[([^\[\]\r\n]+)\]\(([^)\r\n]+)\)/gi)) {
-    const at = match.index;
-    if (controls.some((control) => control.index < at && control.index + control[0].length > at)) continue;
-    if (at > start) chunks.push({ text: text3.slice(start, at), ruby: false });
-    const paren = match[3] != null;
-    chunks.push({
-      text: match[0],
-      ruby: true,
-      base: paren ? match[3] : match[1],
-      reading: paren ? match[4] : match[2],
-      prefix: match[0].slice(0, match[0].indexOf("[")),
-      paren
-    });
-    start = at + match[0].length;
-  }
-  if (start < text3.length) chunks.push({ text: text3.slice(start), ruby: false });
-  return chunks;
-}
-function matchingTranslationRubyPairs(source, target2) {
-  const left = translationRubyChunks(source);
-  const right = translationRubyChunks(target2);
-  if (!left.some((chunk) => chunk.ruby) && !right.some((chunk) => chunk.ruby)) return null;
-  if (left.length !== right.length || left.some((chunk, index2) => chunk.ruby !== right[index2].ruby)) return [];
-  return left.flatMap((chunk, index2) => {
-    const other = right[index2];
-    if (chunk.ruby)
-      return [
-        { source: chunk.base, target: other.base },
-        { source: chunk.reading, target: other.reading }
-      ];
-    if (!/[\p{L}\p{N}]/u.test(chunk.text) && !/[\p{L}\p{N}]/u.test(other.text)) return [];
-    return [{ source: chunk.text, target: other.text }];
-  });
-}
-function rubyFragmentSources(text3, sources2) {
-  const chunks = translationRubyChunks(text3);
-  if (!chunks.some((chunk) => chunk.ruby)) return [];
-  return chunks.flatMap((chunk) => chunk.ruby ? [chunk.base, chunk.reading] : sources2(chunk.text));
-}
-function mapTranslationRubySegments(text3, translate) {
-  const chunks = translationRubyChunks(text3);
-  if (!chunks.some((part) => part.ruby)) return null;
-  let result = "";
-  let changed = false;
-  for (const part of chunks) {
-    if (!part.ruby) {
-      const hit = translate(part.text);
-      if (hit == null) {
-        if (/[\p{L}]/u.test(translationSegmentContent(part.text).core)) return null;
-        result += part.text;
-        continue;
-      }
-      changed = true;
-      result += hit;
-      continue;
-    }
-    const base = translate(part.base);
-    const reading = translate(part.reading);
-    if (base == null || reading == null) {
-      result += part.text;
-      continue;
-    }
-    if (/[,\[\]\r\n]/.test(base + reading)) return null;
-    changed = true;
-    result += part.paren ? `${part.prefix}[${base}](${reading})` : `${part.prefix}[${base},${reading}]`;
-  }
-  return changed ? result : null;
-}
-function translationNumberedPrefixPair(source, target2) {
-  const prefix = source.match(/^(?:[A-Za-z]+\d+_)+/)?.[0];
-  if (!prefix || !target2.startsWith(prefix)) return null;
-  const src = source.slice(prefix.length);
-  const zh = target2.slice(prefix.length);
-  if (/[_/\\]/.test(src) || /[_/\\]/.test(zh)) return null;
-  if (!/[\p{L}\p{N}]/u.test(src) || !/[\p{L}\p{N}]/u.test(zh)) return null;
-  return { source: src, target: zh };
-}
-function translationCacheLines(text3) {
-  if (isDynamicTemplate(text3)) return [text3];
-  const { lead, core, trail } = translationSegmentContent(text3);
-  const controls = [...core.matchAll(RM_ESCAPE_RE)].filter((match) => match[0] !== "\\n");
-  const lines = [];
-  let start = 0;
-  for (const match of core.matchAll(/\r\n|[\r\n]|\\n(?![A-Za-z]|\[)/g)) {
-    const at = match.index;
-    if (controls.some((control) => at >= control.index && at < control.index + control[0].length)) continue;
-    const end = at + match[0].length;
-    lines.push(core.slice(start, end));
-    start = end;
-  }
-  if (!lines.length) return [text3];
-  lines.push(core.slice(start));
-  lines[0] = lead + lines[0];
-  lines[lines.length - 1] += trail;
-  return lines;
-}
-function translationDisplayChunks(text3) {
-  if (isDynamicTemplate(text3)) return [{ text: text3, display: false }];
-  const chunks = [];
-  const controls = [...text3.matchAll(new RegExp(RM_ESCAPE_RE.source, "g"))];
-  let start = 0;
-  for (const match of text3.matchAll(/\\(?:RC\[(?:\d+|#[0-9a-f]+)\]|C\[(?:\d+|#[0-9a-f]+)\]|FS\[\d+\]|CL|FB|DF|G)(?![A-Za-z])/gi)) {
-    const at = match.index;
-    if (controls.some((control) => control.index < at && control.index + control[0].length > at)) continue;
-    if (at > start) chunks.push({ text: text3.slice(start, at), display: false });
-    chunks.push({ text: match[0], display: true });
-    start = at + match[0].length;
-  }
-  if (start < text3.length) chunks.push({ text: text3.slice(start), display: false });
-  return chunks;
-}
-function mapTranslationDisplaySegments(text3, translate) {
-  const choice = peelChoiceMetaShell(text3);
-  const chunks = translationDisplayChunks(choice.core);
-  if (!chunks.some((chunk) => chunk.display)) return text3;
-  return choice.lead + chunks.map((chunk) => chunk.display ? chunk.text : translate(chunk.text)).join("") + choice.trail;
-}
-function translationExportText(text3) {
-  if (isDynamicTemplate(text3)) return text3;
-  const { lead, core, trail } = translationSegmentContent(text3);
-  const strip = (shell) => shell.replace(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"), (code) => /^\\(?:[nbr]|C\[(?:\d+|#[0-9a-f]+)\]|FS\[\d+\]|[.!|><^{}$])$/i.test(code) ? "" : code);
-  return strip(lead) + core + strip(trail);
-}
-function mapTranslationSegments(text3, translate) {
-  return mapSegments(translationSegments(text3), translate);
-}
-function mapTranslationCacheLines(text3, translate) {
-  return mapSegments(translationCacheLines(text3), translate);
-}
-function mapSegments(parts, translate) {
-  return parts.map((part) => {
-    const { lead, core, trail } = translationSegmentContent(part);
-    return core ? lead + translate(core, part) + trail : part;
-  }).join("");
-}
-
-// lib/translate/game-terms.ts
-var GAME_TERM_LANGUAGES = ["zh", "en", "ja", "ko"];
-var GAME_TERMS = {
-  flame: { translations: { zh: "\u708E", en: "Flame", ja: "\u708E", ko: "\uD654\uC5FC" }, aliases: { en: ["Fire"] } },
-  lightning: { translations: { zh: "\u96F7", en: "Lightning", ja: "\u96F7", ko: "\uBC88\uAC1C" } },
-  water: { translations: { zh: "\u6C34", en: "Water", ja: "\u6C34", ko: "\uBB3C" } },
-  earth: { translations: { zh: "\u571F", en: "Earth", ja: "\u571F", ko: "\uB300\uC9C0" } },
-  light: { translations: { zh: "\u5149", en: "Light", ja: "\u5149", ko: "\uBE5B" } },
-  sword: { translations: { zh: "\u5251", en: "Sword", ja: "\u5263", ko: "\uAC80" } },
-  axe: { translations: { zh: "\u65A7", en: "Axe", ja: "\u65A7", ko: "\uB3C4\uB07C" } },
-  staff: { translations: { zh: "\u6756", en: "Staff", ja: "\u6756", ko: "\uC9C0\uD321\uC774" } },
-  bow: { translations: { zh: "\u5F13", en: "Bow", ja: "\u5F13", ko: "\uD65C" } },
-  gun: { translations: { zh: "\u67AA", en: "Gun", ja: "\u9283", ko: "\uCD1D" } },
-  claw: { translations: { zh: "\u722A", en: "Claw", ja: "\u722A", ko: "\uBC1C\uD1B1" } },
-  spear: { translations: { zh: "\u957F\u67AA", en: "Spear", ja: "\u69CD", ko: "\uCC3D" } },
-  // System & Menu terms
-  save: {
-    translations: { zh: "\u4FDD\u5B58", en: "Save", ja: "\u30BB\u30FC\u30D6", ko: "\uC800\uC7A5" },
-    aliases: { en: ["Save Game"], ja: ["\u30BB\u30FC\u30D6\u3059\u308B"] },
-    badTranslations: { zh: ["\u8282\u7701", "\u62EF\u6551", "\u7701\u4E0B", "\u5B58\u76D8"] }
-  },
-  load: {
-    translations: { zh: "\u8BFB\u53D6", en: "Load", ja: "\u30ED\u30FC\u30C9", ko: "\uBD88\uB7EC\uC624\uAE30" },
-    aliases: { en: ["Load Game"], ja: ["\u30ED\u30FC\u30C9\u3059\u308B"] },
-    badTranslations: { zh: ["\u8D1F\u8377", "\u4F9B\u7535\u91CF", "\u8D1F\u8F7D", "\u88C5\u8F7D", "\u52A0\u8F7D", "\u88C5\u5165"] }
-  },
-  new_game: {
-    translations: { zh: "\u65B0\u6E38\u620F", en: "New Game", ja: "\u30CB\u30E5\u30FC\u30B2\u30FC\u30E0", ko: "\uC0C8 \uAC8C\uC784" },
-    badTranslations: { zh: ["\u65B0\u7684\u6E38\u620F", "\u65B0\u6BD4\u8D5B"] }
-  },
-  continue: {
-    translations: { zh: "\u7EE7\u7EED\u6E38\u620F", en: "Continue", ja: "\u30B3\u30F3\u30C6\u30A3\u30CB\u30E5\u30FC", ko: "\uC774\uC5B4\uD558\uAE30" },
-    aliases: { ja: ["\u3064\u3065\u304D\u304B\u3089"] },
-    badTranslations: { zh: ["\u7EE7\u7EED", "\u5EF6\u62D3"] }
-  },
-  options: {
-    translations: { zh: "\u8BBE\u7F6E", en: "Options", ja: "\u8A2D\u5B9A", ko: "\uC124\uC815" },
-    aliases: { en: ["Option", "Config", "Settings"], ja: ["\u30AA\u30D7\u30B7\u30E7\u30F3"] },
-    badTranslations: { zh: ["\u9009\u9879", "\u671F\u6743"] }
-  },
-  item: {
-    translations: { zh: "\u9053\u5177", en: "Item", ja: "\u30A2\u30A4\u30C6\u30E0", ko: "\uC544\uC774\uD15C" },
-    aliases: { en: ["Items"] },
-    badTranslations: { zh: ["\u9879\u76EE", "\u6761\u6B3E", "\u7269\u4EF6"] }
-  },
-  skill: {
-    translations: { zh: "\u6280\u80FD", en: "Skill", ja: "\u30B9\u30AD\u30EB", ko: "\uC2A4\uD0AC" },
-    aliases: { en: ["Skills"] },
-    badTranslations: { zh: ["\u6280\u672F", "\u6280\u80FD\u6761"] }
-  },
-  equip: {
-    translations: { zh: "\u88C5\u5907", en: "Equip", ja: "\u88C5\u5099", ko: "\uC7A5\uBE44" },
-    aliases: { en: ["Equipment"] },
-    badTranslations: { zh: ["\u914D\u5907", "\u88C5\u8BBE"] }
-  },
-  status: {
-    translations: { zh: "\u72B6\u6001", en: "Status", ja: "\u30B9\u30C6\u30FC\u30BF\u30B9", ko: "\uC0C1\uD0DC" },
-    badTranslations: { zh: ["\u5730\u4F4D", "\u8EAB\u5206", "\u72B6\u51B5"] }
-  },
-  quit: {
-    translations: { zh: "\u9000\u51FA", en: "Quit", ja: "\u7D42\u4E86", ko: "\uC885\uB8CC" },
-    aliases: { en: ["Exit", "Game Over"] },
-    badTranslations: { zh: ["\u505C\u6B62", "\u653E\u5F03", "\u79BB\u5F00\u6E38\u620F"] }
-  },
-  gold: {
-    translations: { zh: "\u91D1\u5E01", en: "Gold", ja: "\u6240\u6301\u91D1", ko: "\uC18C\uC9C0\uAE08" },
-    aliases: { en: ["Money"] },
-    badTranslations: { zh: ["\u9EC4\u91D1", "\u91D1\u8272"] }
-  }
-};
-function key(text3) {
-  return text3.normalize("NFKC").toLowerCase();
-}
-var indexes = Object.fromEntries(GAME_TERM_LANGUAGES.map((language) => [language, /* @__PURE__ */ new Map()]));
-for (const [id, entry] of Object.entries(GAME_TERMS)) {
-  for (const language of GAME_TERM_LANGUAGES) {
-    for (const source of [entry.translations[language], ...entry.aliases?.[language] || []]) {
-      const normalized = key(source);
-      const ids = indexes[language].get(normalized) || /* @__PURE__ */ new Set();
-      ids.add(id);
-      indexes[language].set(normalized, ids);
-    }
-  }
-}
-function lookupGameTerm(source, targetLanguage = "zh", sourceLanguage) {
-  if (!GAME_TERM_LANGUAGES.includes(targetLanguage) || sourceLanguage && !GAME_TERM_LANGUAGES.includes(sourceLanguage)) return null;
-  const { lead, core, trail } = translationSegmentContent(source);
-  const normalized = key(core);
-  const languages2 = sourceLanguage ? [sourceLanguage] : GAME_TERM_LANGUAGES;
-  const targets = /* @__PURE__ */ new Set();
-  for (const language of languages2) {
-    for (const id of indexes[language].get(normalized) || []) targets.add(GAME_TERMS[id].translations[targetLanguage]);
-  }
-  return targets.size === 1 ? lead + [...targets][0] + trail : null;
-}
-function fixKnownBadGameTermTranslation(source, currentTarget, targetLanguage = "zh") {
-  if (!currentTarget || !source) return null;
-  const { core } = translationSegmentContent(source);
-  const normalizedSource = key(core);
-  for (const [_id, entry] of Object.entries(GAME_TERMS)) {
-    const isMatch = GAME_TERM_LANGUAGES.some((lang) => {
-      const candidates2 = [entry.translations[lang], ...entry.aliases?.[lang] || []];
-      return candidates2.some((cand) => key(cand) === normalizedSource);
-    });
-    if (!isMatch) continue;
-    const correctTarget = entry.translations[targetLanguage];
-    if (!correctTarget) continue;
-    const targetContent = translationSegmentContent(currentTarget);
-    const targetCoreNorm = key(targetContent.core);
-    const badList = entry.badTranslations?.[targetLanguage] || [];
-    const isBad = badList.some((bad) => key(bad) === targetCoreNorm);
-    if (isBad) {
-      return targetContent.lead + correctTarget + targetContent.trail;
-    }
-  }
-  return null;
-}
 
 // services/game/rgss-archive.ts
 import fs12 from "node:fs";
@@ -32943,17 +32453,17 @@ function readAceMember(archive, member) {
   try {
     const header = read(12);
     if (!header.subarray(0, 8).equals(Buffer.from("RGSSAD\0", "binary"))) throw new Error("Unsupported RGSS archive version");
-    const key2 = Math.imul(header.readUInt32LE(8), 9) + 3 >>> 0;
+    const key3 = Math.imul(header.readUInt32LE(8), 9) + 3 >>> 0;
     for (let count2 = 0; count2 < 1e5; count2++) {
       const record = read(16);
-      const offset = (record.readUInt32LE(0) ^ key2) >>> 0;
+      const offset = (record.readUInt32LE(0) ^ key3) >>> 0;
       if (!offset) return null;
-      const size = (record.readUInt32LE(4) ^ key2) >>> 0;
-      let fileKey = (record.readUInt32LE(8) ^ key2) >>> 0;
-      const nameSize = (record.readUInt32LE(12) ^ key2) >>> 0;
+      const size = (record.readUInt32LE(4) ^ key3) >>> 0;
+      let fileKey = (record.readUInt32LE(8) ^ key3) >>> 0;
+      const nameSize = (record.readUInt32LE(12) ^ key3) >>> 0;
       if (nameSize > 4096) throw new Error("Invalid RGSS archive filename");
       const name2 = read(nameSize);
-      for (let i = 0; i < name2.length; i++) name2[i] ^= key2 >>> i % 4 * 8 & 255;
+      for (let i = 0; i < name2.length; i++) name2[i] ^= key3 >>> i % 4 * 8 & 255;
       if (name2.toString().replaceAll("\\", "/").toLowerCase() !== member.toLowerCase()) continue;
       if (size > 32 * 1024 * 1024) throw new Error("RGSS script archive exceeds 32 MiB");
       const bytes = read(size, offset);
@@ -32994,14 +32504,65 @@ function readRgssScripts(contentRoot) {
 import { createHash } from "node:crypto";
 import fs14 from "node:fs";
 
+// lib/translate/rm-escape.ts
+var RM_DIGIT_CODE_SRC = String.raw`\\[A-Za-z]+\[\d+\]`;
+function rmDigitCodeRe() {
+  return new RegExp(RM_DIGIT_CODE_SRC, "g");
+}
+var RM_ESCAPE_RE = /\\[A-Za-z]+(?:\[[^\]]*\])?/g;
+function isSemanticPlaceholder(token) {
+  if (!token) return false;
+  if (/^\\[NPV]\[[^\]]*\]$/i.test(token) || /^\\[Gg]$/.test(token)) return true;
+  if (/^%[0-9]+$/i.test(token) || /^%[sdifSc]$/.test(token)) return true;
+  if (/^\{[0-9A-Za-z_]+\}$/.test(token)) return true;
+  if (/^_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/i.test(token)) return true;
+  if (/^[A-Za-z_][A-Za-z0-9_]*\[\d+\]$/.test(token)) return true;
+  return false;
+}
+function hasRmDigitCodes(text4) {
+  return rmDigitCodeRe().test(String(text4 ?? ""));
+}
+function extractRmDigitCodes(text4) {
+  return [...String(text4 ?? "").matchAll(rmDigitCodeRe())].map((m) => m[0]);
+}
+function toRmDigitTemplate(text4) {
+  const src = String(text4 ?? "");
+  if (!hasRmDigitCodes(src)) return src;
+  return src.replace(rmDigitCodeRe(), (m) => {
+    const letter = m.match(/^\\([A-Za-z]+)/)?.[1] ?? "";
+    return `\\${letter.toLowerCase()}[#]`;
+  });
+}
+function applyRmDigitCodes(template, codes) {
+  if (!codes.length) return String(template ?? "");
+  let i = 0;
+  return String(template ?? "").replace(/\\[A-Za-z]+\[#\]/g, (slot) => {
+    const code = codes[i++];
+    return code != null ? code : slot;
+  });
+}
+function lookupWithRmDigitTemplate(get, text4) {
+  const src = String(text4 ?? "");
+  if (!src) return null;
+  const direct = get(src);
+  if (direct != null && direct !== "") return direct;
+  const codes = extractRmDigitCodes(src);
+  if (!codes.length) return null;
+  const tpl = toRmDigitTemplate(src);
+  if (tpl === src) return null;
+  const hit = get(tpl);
+  if (hit == null || hit === "") return null;
+  return applyRmDigitCodes(hit, codes);
+}
+
 // lib/translate/logic-text.ts
 var TOKEN_RE = new RegExp(`${RM_ESCAPE_RE.source}|${TEXT_MARKUP_RE.source}|https?:\\/\\/[^\\s<>]+`, "g");
 var INDENT = /[\t \u3000]/;
 var WORD = /[A-Za-z0-9']/;
 var SENTENCE_END = /[。．.!！?？;；]/;
 var WORDISH = /[\p{L}\p{N}]/u;
-function inferNewlineKind(text3, start, end) {
-  const src = String(text3 ?? "");
+function inferNewlineKind(text4, start, end) {
+  const src = String(text4 ?? "");
   if (start < 0 || end <= start || end > src.length) return "unknown";
   let left = start - 1;
   while (left >= 0 && INDENT.test(src[left])) left -= 1;
@@ -33014,14 +32575,14 @@ function inferNewlineKind(text3, start, end) {
   if (WORDISH.test(L) && WORDISH.test(R)) return "soft";
   return "unknown";
 }
-function newlineKindAt(start, end, annotations, text3) {
+function newlineKindAt(start, end, annotations, text4) {
   if (annotations?.length) {
     for (const note of annotations) {
       if (note.start === start && note.end === end) return note.kind;
       if (note.start <= start && end <= note.end) return note.kind;
     }
   }
-  return text3 != null ? inferNewlineKind(text3, start, end) : "unknown";
+  return text4 != null ? inferNewlineKind(text4, start, end) : "unknown";
 }
 function usesSpacedSoftBreaks(srcLang, sample) {
   const lang = srcLang || detectCacheLang(sample, "en");
@@ -33033,13 +32594,13 @@ function shouldInsertSpace(left, right, spaced) {
   return WORD.test(left) && WORD.test(right);
 }
 function buildLogicText(original, opts) {
-  const text3 = String(original ?? "");
-  const spaced = usesSpacedSoftBreaks(opts?.srcLang, text3);
-  const controls = new Map([...text3.matchAll(TOKEN_RE)].map((m) => [m.index, m[0]]));
+  const text4 = String(original ?? "");
+  const spaced = usesSpacedSoftBreaks(opts?.srcLang, text4);
+  const controls = new Map([...text4.matchAll(TOKEN_RE)].map((m) => [m.index, m[0]]));
   const logicToOriginal = [];
   const logicNewlines = [];
   let logic = "";
-  for (let i = 0; i < text3.length; ) {
+  for (let i = 0; i < text4.length; ) {
     const code = controls.get(i);
     if (code && !/^\\[nr]$/i.test(code)) {
       for (let k = 0; k < code.length; k++) {
@@ -33049,16 +32610,16 @@ function buildLogicText(original, opts) {
       i += code.length;
       continue;
     }
-    const c = text3[i];
+    const c = text4[i];
     const literalLine = Boolean(code && /^\\[nr]$/i.test(code));
     if (c === "\n" || c === "\r" || literalLine) {
-      const end = literalLine ? i + code.length : c === "\r" && text3[i + 1] === "\n" ? i + 2 : i + 1;
-      const kind = newlineKindAt(i, end, opts?.newlines, text3);
+      const end = literalLine ? i + code.length : c === "\r" && text4[i + 1] === "\n" ? i + 2 : i + 1;
+      const kind = newlineKindAt(i, end, opts?.newlines, text4);
       if (kind === "soft") {
         let j = end;
-        while (j < text3.length && INDENT.test(text3[j])) j += 1;
+        while (j < text4.length && INDENT.test(text4[j])) j += 1;
         const left = logic.length ? logic[logic.length - 1] : void 0;
-        const right = j < text3.length ? text3[j] : void 0;
+        const right = j < text4.length ? text4[j] : void 0;
         if (shouldInsertSpace(left, right, spaced)) {
           logic += " ";
           logicToOriginal.push(-1);
@@ -33068,7 +32629,7 @@ function buildLogicText(original, opts) {
       }
       const logicStart = logic.length;
       for (let k = i; k < end; k++) {
-        logic += text3[k];
+        logic += text4[k];
         logicToOriginal.push(k);
       }
       logicNewlines.push({ start: logicStart, end: logic.length, kind });
@@ -33079,10 +32640,10 @@ function buildLogicText(original, opts) {
     logicToOriginal.push(i);
     i += 1;
   }
-  return { original: text3, logic, logicToOriginal, logicNewlines };
+  return { original: text4, logic, logicToOriginal, logicNewlines };
 }
-function listNewlineSpans(text3) {
-  const src = String(text3 ?? "");
+function listNewlineSpans(text4) {
+  const src = String(text4 ?? "");
   const controls = new Map([...src.matchAll(TOKEN_RE)].map((m) => [m.index, m[0]]));
   const spans = [];
   for (let i = 0; i < src.length; ) {
@@ -33103,10 +32664,10 @@ function listNewlineSpans(text3) {
   }
   return spans;
 }
-function validateNewlineAnnotations(text3, annotations) {
+function validateNewlineAnnotations(text4, annotations) {
   if (!annotations) return true;
   if (!Array.isArray(annotations) || annotations.length > 500) return false;
-  const allowed = new Set(listNewlineSpans(text3).map((s) => `${s.start}:${s.end}`));
+  const allowed = new Set(listNewlineSpans(text4).map((s) => `${s.start}:${s.end}`));
   for (const note of annotations) {
     if (!note || typeof note !== "object") return false;
     if (!["soft", "hard", "unknown"].includes(note.kind)) return false;
@@ -33139,6 +32700,339 @@ function cacheEngineRank(engine) {
   return 1;
 }
 
+// lib/translate/choice-meta.ts
+function callEnd(text4, start) {
+  const name2 = /^(?:if|en)\s*\(/i.exec(text4.slice(start));
+  if (!name2) return null;
+  let depth = 1;
+  let quote = "";
+  for (let i = start + name2[0].length; i < text4.length; i++) {
+    const ch = text4[i];
+    if (quote) {
+      if (ch === "\\") i++;
+      else if (ch === quote) quote = "";
+    } else if (ch === '"' || ch === "'" || ch === "`") quote = ch;
+    else if (ch === "(") depth++;
+    else if (ch === ")" && --depth === 0) return i + 1;
+  }
+  return null;
+}
+function peelChoiceMetaTrail(text4) {
+  let core = String(text4 ?? "");
+  let trail = "";
+  for (; ; ) {
+    const end = core.trimEnd().length;
+    let start = null;
+    for (const match of core.matchAll(/(?:if|en)\s*\(/gi)) {
+      const at = match.index;
+      if (at > 0 && /[A-Za-z0-9_]/.test(core[at - 1])) continue;
+      if (callEnd(core, at) === end) {
+        start = at;
+        break;
+      }
+    }
+    if (start == null) break;
+    start = core.slice(0, start).trimEnd().length;
+    trail = core.slice(start) + trail;
+    core = core.slice(0, start);
+  }
+  return { core, trail };
+}
+function peelChoiceMetaShell(text4) {
+  const trailing = peelChoiceMetaTrail(text4);
+  let core = trailing.core;
+  const trail = trailing.trail;
+  let lead = "";
+  for (; ; ) {
+    const start = core.length - core.trimStart().length;
+    const end = callEnd(core, start);
+    if (end == null) break;
+    const next = end + (core.slice(end).match(/^\s*/)?.[0].length || 0);
+    lead += core.slice(0, next);
+    core = core.slice(next);
+  }
+  return { lead, core, trail };
+}
+
+// lib/translate/segments.ts
+var WRAPPERS = {
+  "\u300C": "\u300D",
+  "\u300E": "\u300F",
+  "(": ")",
+  "\uFF08": "\uFF09",
+  "<": ">",
+  "\uFF1C": "\uFF1E",
+  "\u3010": "\u3011",
+  "\u300A": "\u300B",
+  "\u3008": "\u3009",
+  "[": "]",
+  "\uFF3B": "\uFF3D",
+  "{": "}",
+  "\uFF5B": "\uFF5D",
+  "\u201C": "\u201D",
+  "\u2018": "\u2019"
+};
+var SEPARATE_WRAPPERS = /* @__PURE__ */ new Set(["\u300C", "\u300E", "<", "\uFF1C"]);
+var FRAGMENT_QUOTES = { "\u300C": "\u300D", "\u300E": "\u300F", "\u201C": "\u201D", "\u2018": "\u2019" };
+function isOuterWrapper(text4) {
+  if (text4.length < 2 || WRAPPERS[text4[0]] !== text4[text4.length - 1]) return false;
+  if (/^\{[A-Za-z0-9_]+\}$/.test(text4) || /^<\/?(?:br|span|div|p|b|i|img|ruby|rt)(?:\s[^>]*)?\s*\/?>$/i.test(text4)) return false;
+  const stack = [];
+  const controls = new Map([...text4.matchAll(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"))].map((match) => [match.index, match[0].length]));
+  for (let i = 0; i < text4.length; i++) {
+    const length = controls.get(i);
+    if (length) {
+      i += length - 1;
+      continue;
+    }
+    if (WRAPPERS[text4[i]]) stack.push(WRAPPERS[text4[i]]);
+    else if (stack[stack.length - 1] === text4[i]) {
+      stack.pop();
+      if (!stack.length) return i === text4.length - 1;
+    }
+  }
+  return false;
+}
+function splitSegments(text4, splitOrphanQuotes) {
+  if (isDynamicTemplate(text4)) return [text4];
+  const choice = peelChoiceMetaShell(text4);
+  if (choice.lead || choice.trail) {
+    const parts2 = splitSegments(choice.core, splitOrphanQuotes);
+    if (!parts2.length) return [choice.lead + choice.trail];
+    parts2[0] = choice.lead + parts2[0];
+    parts2[parts2.length - 1] += choice.trail;
+    return parts2;
+  }
+  const controls = new Map([...text4.matchAll(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"))].map((match) => [match.index, match[0].length]));
+  const stack = [];
+  const parts = [];
+  let start = 0;
+  for (let i = 0; i < text4.length; i++) {
+    const controlLength = controls.get(i);
+    if (controlLength) {
+      i += controlLength - 1;
+      continue;
+    }
+    const char = text4[i];
+    if (/[.．,，]/.test(char) && /[0-9０-９]/.test(text4[i - 1] || "") && /[0-9０-９]/.test(text4[i + 1] || "")) continue;
+    let closed = false;
+    if (WRAPPERS[char]) {
+      const separate = SEPARATE_WRAPPERS.has(char);
+      if (separate && !stack.length && i > start && translationSegmentContent(text4.slice(start, i)).core.trim()) {
+        parts.push(text4.slice(start, i));
+        start = i;
+      }
+      stack.push({ close: WRAPPERS[char], separate });
+    } else if (stack[stack.length - 1]?.close === char) {
+      const wrapper = stack.pop();
+      closed = stack.length === 0 && wrapper.separate;
+    } else if (splitOrphanQuotes && !stack.length && /[」』]/.test(char)) {
+      closed = true;
+    }
+    if (stack.length || !closed && !/[，,。．.!！?？]/.test(char)) continue;
+    while (i + 1 < text4.length && /[，,。．.!！?？]/.test(text4[i + 1])) i++;
+    parts.push(text4.slice(start, i + 1));
+    start = i + 1;
+  }
+  if (start < text4.length) parts.push(text4.slice(start));
+  return parts;
+}
+function translationSegments(text4) {
+  return splitSegments(text4, false);
+}
+function segmentContent(text4, keepChoiceMeta) {
+  if (isDynamicTemplate(text4)) return { lead: "", core: text4, trail: "" };
+  const control = new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g");
+  const choice = peelChoiceMetaShell(text4);
+  let core = choice.core;
+  let lead = keepChoiceMeta ? choice.lead : "";
+  let trail = keepChoiceMeta ? choice.trail : "";
+  for (; ; ) {
+    const before = core;
+    const meta = peelChoiceMetaShell(core);
+    if (keepChoiceMeta) {
+      lead += meta.lead;
+      trail = meta.trail + trail;
+    }
+    core = meta.core;
+    const prefix = core.match(/^[\s、，,。．.!！?？…]+/)?.[0] || [...core.matchAll(control)].find((match) => match.index === 0 && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0];
+    if (prefix) {
+      lead += prefix;
+      core = core.slice(prefix.length);
+    }
+    const suffix = core.match(/[\s、，,。．.!！?？…]+$/)?.[0] || [...core.matchAll(control)].find((match) => match.index + match[0].length === core.length && !/^\\RB\[/i.test(match[0]) && !isSemanticPlaceholder(match[0]))?.[0];
+    if (suffix) {
+      trail = suffix + trail;
+      core = core.slice(0, -suffix.length);
+    }
+    if (isOuterWrapper(core)) {
+      lead += core[0];
+      trail = core[core.length - 1] + trail;
+      core = core.slice(1, -1);
+    } else {
+      const close = FRAGMENT_QUOTES[core[0]];
+      if (close && !core.includes(close)) {
+        lead += core[0];
+        core = core.slice(1);
+      }
+      const open = Object.keys(FRAGMENT_QUOTES).find((key3) => FRAGMENT_QUOTES[key3] === core[core.length - 1]);
+      if (open && !core.includes(open)) {
+        trail = core[core.length - 1] + trail;
+        core = core.slice(0, -1);
+      }
+    }
+    if (core === before) break;
+  }
+  return { lead, core, trail };
+}
+function translationSegmentContent(text4) {
+  return segmentContent(text4, true);
+}
+function translationSources(text4) {
+  const parts = translationSegments(text4).map((part) => translationSegmentContent(part).core).filter(Boolean);
+  return [.../* @__PURE__ */ new Set([...parts, ...rubyFragmentSources(text4, translationSources)])];
+}
+function translationRubyChunks(text4) {
+  if (isDynamicTemplate(text4)) return [{ text: text4, ruby: false }];
+  const chunks = [];
+  let start = 0;
+  const controls = [...text4.matchAll(new RegExp(RM_ESCAPE_RE.source, "g"))];
+  for (const match of text4.matchAll(/\\RB\[([^,\[\]\r\n]+),([^,\[\]\r\n]+)\]|\\ruby\[([^\[\]\r\n]+)\]\(([^)\r\n]+)\)/gi)) {
+    const at = match.index;
+    if (controls.some((control) => control.index < at && control.index + control[0].length > at)) continue;
+    if (at > start) chunks.push({ text: text4.slice(start, at), ruby: false });
+    const paren = match[3] != null;
+    chunks.push({
+      text: match[0],
+      ruby: true,
+      base: paren ? match[3] : match[1],
+      reading: paren ? match[4] : match[2],
+      prefix: match[0].slice(0, match[0].indexOf("[")),
+      paren
+    });
+    start = at + match[0].length;
+  }
+  if (start < text4.length) chunks.push({ text: text4.slice(start), ruby: false });
+  return chunks;
+}
+function matchingTranslationRubyPairs(source, target2) {
+  const left = translationRubyChunks(source);
+  const right = translationRubyChunks(target2);
+  if (!left.some((chunk) => chunk.ruby) && !right.some((chunk) => chunk.ruby)) return null;
+  if (left.length !== right.length || left.some((chunk, index2) => chunk.ruby !== right[index2].ruby)) return [];
+  return left.flatMap((chunk, index2) => {
+    const other = right[index2];
+    if (chunk.ruby)
+      return [
+        { source: chunk.base, target: other.base },
+        { source: chunk.reading, target: other.reading }
+      ];
+    if (!/[\p{L}\p{N}]/u.test(chunk.text) && !/[\p{L}\p{N}]/u.test(other.text)) return [];
+    return [{ source: chunk.text, target: other.text }];
+  });
+}
+function rubyFragmentSources(text4, sources2) {
+  const chunks = translationRubyChunks(text4);
+  if (!chunks.some((chunk) => chunk.ruby)) return [];
+  return chunks.flatMap((chunk) => chunk.ruby ? [chunk.base, chunk.reading] : sources2(chunk.text));
+}
+function mapTranslationRubySegments(text4, translate) {
+  const chunks = translationRubyChunks(text4);
+  if (!chunks.some((part) => part.ruby)) return null;
+  let result = "";
+  let changed = false;
+  for (const part of chunks) {
+    if (!part.ruby) {
+      const hit = translate(part.text);
+      if (hit == null) {
+        if (/[\p{L}]/u.test(translationSegmentContent(part.text).core)) return null;
+        result += part.text;
+        continue;
+      }
+      changed = true;
+      result += hit;
+      continue;
+    }
+    const base = translate(part.base);
+    const reading = translate(part.reading);
+    if (base == null || reading == null) {
+      result += part.text;
+      continue;
+    }
+    if (/[,\[\]\r\n]/.test(base + reading)) return null;
+    changed = true;
+    result += part.paren ? `${part.prefix}[${base}](${reading})` : `${part.prefix}[${base},${reading}]`;
+  }
+  return changed ? result : null;
+}
+function translationNumberedPrefixPair(source, target2) {
+  const prefix = source.match(/^(?:[A-Za-z]+\d+_)+/)?.[0];
+  if (!prefix || !target2.startsWith(prefix)) return null;
+  const src = source.slice(prefix.length);
+  const zh = target2.slice(prefix.length);
+  if (/[_/\\]/.test(src) || /[_/\\]/.test(zh)) return null;
+  if (!/[\p{L}\p{N}]/u.test(src) || !/[\p{L}\p{N}]/u.test(zh)) return null;
+  return { source: src, target: zh };
+}
+function translationCacheLines(text4) {
+  if (isDynamicTemplate(text4)) return [text4];
+  const { lead, core, trail } = translationSegmentContent(text4);
+  const controls = [...core.matchAll(RM_ESCAPE_RE)].filter((match) => match[0] !== "\\n");
+  const lines = [];
+  let start = 0;
+  for (const match of core.matchAll(/\r\n|[\r\n]|\\n(?![A-Za-z]|\[)/g)) {
+    const at = match.index;
+    if (controls.some((control) => at >= control.index && at < control.index + control[0].length)) continue;
+    const end = at + match[0].length;
+    lines.push(core.slice(start, end));
+    start = end;
+  }
+  if (!lines.length) return [text4];
+  lines.push(core.slice(start));
+  lines[0] = lead + lines[0];
+  lines[lines.length - 1] += trail;
+  return lines;
+}
+function translationDisplayChunks(text4) {
+  if (isDynamicTemplate(text4)) return [{ text: text4, display: false }];
+  const chunks = [];
+  const controls = [...text4.matchAll(new RegExp(RM_ESCAPE_RE.source, "g"))];
+  let start = 0;
+  for (const match of text4.matchAll(/\\(?:RC\[(?:\d+|#[0-9a-f]+)\]|C\[(?:\d+|#[0-9a-f]+)\]|FS\[\d+\]|CL|FB|DF|G)(?![A-Za-z])/gi)) {
+    const at = match.index;
+    if (controls.some((control) => control.index < at && control.index + control[0].length > at)) continue;
+    if (at > start) chunks.push({ text: text4.slice(start, at), display: false });
+    chunks.push({ text: match[0], display: true });
+    start = at + match[0].length;
+  }
+  if (start < text4.length) chunks.push({ text: text4.slice(start), display: false });
+  return chunks;
+}
+function mapTranslationDisplaySegments(text4, translate) {
+  const choice = peelChoiceMetaShell(text4);
+  const chunks = translationDisplayChunks(choice.core);
+  if (!chunks.some((chunk) => chunk.display)) return text4;
+  return choice.lead + chunks.map((chunk) => chunk.display ? chunk.text : translate(chunk.text)).join("") + choice.trail;
+}
+function translationExportText(text4) {
+  if (isDynamicTemplate(text4)) return text4;
+  const { lead, core, trail } = translationSegmentContent(text4);
+  const strip = (shell) => shell.replace(new RegExp(`${RM_ESCAPE_RE.source}|\\\\[^A-Za-z\\s]`, "g"), (code) => /^\\(?:[nbr]|C\[(?:\d+|#[0-9a-f]+)\]|FS\[\d+\]|[.!|><^{}$])$/i.test(code) ? "" : code);
+  return strip(lead) + core + strip(trail);
+}
+function mapTranslationSegments(text4, translate) {
+  return mapSegments(translationSegments(text4), translate);
+}
+function mapTranslationCacheLines(text4, translate) {
+  return mapSegments(translationCacheLines(text4), translate);
+}
+function mapSegments(parts, translate) {
+  return parts.map((part) => {
+    const { lead, core, trail } = translationSegmentContent(part);
+    return core ? lead + translate(core, part) + trail : part;
+  }).join("");
+}
+
 // lib/translate/structured-segments.ts
 var STRUCTURE_MAX_UNITS = 200;
 var CIRCLED = "\u2460\u2461\u2462\u2463\u2464\u2465\u2466\u2467\u2468\u2469\u246A\u246B\u246C\u246D\u246E\u246F\u2470\u2471\u2472\u2473";
@@ -33162,37 +33056,37 @@ function validRecordStructure(value) {
   const r = value;
   return (r.source === void 0 || validStructureAnnotation(r.source)) && (r.target === void 0 || validStructureAnnotation(r.target));
 }
-function scanStructuredText(text3, annotation) {
-  const result = { units: [], layout: text3 ? [{ kind: "literal", start: 0, end: text3.length }] : [], diagnostics: [] };
-  if (!text3 || annotation?.mode === "disabled") return result;
-  if (/\\(?:[A-Za-z]+\[|[^A-Za-z\s])/.test(text3) || /<[^>]*>/.test(text3)) {
-    result.diagnostics.push({ code: "protected_token", start: 0, end: text3.length });
+function scanStructuredText(text4, annotation) {
+  const result = { units: [], layout: text4 ? [{ kind: "literal", start: 0, end: text4.length }] : [], diagnostics: [] };
+  if (!text4 || annotation?.mode === "disabled") return result;
+  if (/\\(?:[A-Za-z]+\[|[^A-Za-z\s])/.test(text4) || /<[^>]*>/.test(text4)) {
+    result.diagnostics.push({ code: "protected_token", start: 0, end: text4.length });
     return result;
   }
-  const protectedAt = new Map([...text3.matchAll(TOKEN)].map((m) => [m.index, m[0].length]));
+  const protectedAt = new Map([...text4.matchAll(TOKEN)].map((m) => [m.index, m[0].length]));
   let markers = [];
   const stack = [];
-  for (let i = 0; i < text3.length; ) {
+  for (let i = 0; i < text4.length; ) {
     const token = protectedAt.get(i);
     if (token) {
       i += token;
       continue;
     }
-    const before = text3[i - 1] || "";
-    const boundary = i === 0 || /[\s:：,，、;；]/.test(before) || /[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]/.test(text3[i]);
+    const before = text4[i - 1] || "";
+    const boundary = i === 0 || /[\s:：,，、;；]/.test(before) || /[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]/.test(text4[i]);
     let marker;
-    const circled = CIRCLED.indexOf(text3[i]);
+    const circled = CIRCLED.indexOf(text4[i]);
     if (!stack.length && circled >= 0) marker = { start: i, end: i + 1, family: "circled", ordinal: circled + 1 };
-    if (!stack.length && /[·•]/.test(text3[i])) marker = { start: i, end: i + 1, family: "bullet" };
+    if (!stack.length && /[·•]/.test(text4[i])) marker = { start: i, end: i + 1, family: "bullet" };
     if (!stack.length && boundary) {
-      const match = text3.slice(i).match(
+      const match = text4.slice(i).match(
         /^(?:([（(])([0-9０-９]+|[ivxlcdmIVXLCDM]+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]+)[）)]|([0-9０-９]+|[ivxlcdmIVXLCDM]+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]+)([.．、):：]|(?=\s)|(?=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])))/u
       );
       if (match) {
         const raw = match[2] || match[3];
         const n = ordinal(raw);
         const suffix = match[4] || "";
-        if (n !== void 0 && !(/[.．]/.test(suffix) && /[0-9０-９]/.test(text3[i + match[0].length] || ""))) {
+        if (n !== void 0 && !(/[.．]/.test(suffix) && /[0-9０-９]/.test(text4[i + match[0].length] || ""))) {
           const family = /^\d+$/.test(raw.normalize("NFKC")) ? "arabic" : "roman";
           marker = {
             start: i,
@@ -33209,34 +33103,34 @@ function scanStructuredText(text3, annotation) {
       i = marker.end;
       continue;
     }
-    if (PAIRS[text3[i]]) stack.push(PAIRS[text3[i]]);
-    else if (stack.at(-1) === text3[i]) stack.pop();
+    if (PAIRS[text4[i]]) stack.push(PAIRS[text4[i]]);
+    else if (stack.at(-1) === text4[i]) stack.pop();
     i++;
   }
   if (markers.some((m) => !m.weak)) markers = markers.filter((m) => !m.weak);
-  if (markers.length >= 2 && markers.every((m) => m.family === "bullet") && !/^\s*$/.test(text3.slice(0, markers[0].start))) {
-    const colon = text3.slice(0, markers[0].start).match(/[:：]/);
-    if (colon && text3.slice(colon.index + 1, markers[0].start).trim()) markers.unshift({ start: colon.index + 1, end: colon.index + 1, family: "bullet" });
+  if (markers.length >= 2 && markers.every((m) => m.family === "bullet") && !/^\s*$/.test(text4.slice(0, markers[0].start))) {
+    const colon = text4.slice(0, markers[0].start).match(/[:：]/);
+    if (colon && text4.slice(colon.index + 1, markers[0].start).trim()) markers.unshift({ start: colon.index + 1, end: colon.index + 1, family: "bullet" });
   }
   if (!markers.length) return result;
   if (markers.length > STRUCTURE_MAX_UNITS - 1) {
-    result.diagnostics.push({ code: "candidate_limit", start: 0, end: text3.length });
+    result.diagnostics.push({ code: "candidate_limit", start: 0, end: text4.length });
     return result;
   }
-  const prefix = text3.slice(0, markers[0].start);
+  const prefix = text4.slice(0, markers[0].start);
   const labelMatch = prefix.match(/(?:^|\n)([^\n:：]+)[:：]\s*$/u);
   if (prefix.trim() && !labelMatch) return result;
   if (markers.length < 2) return result;
   const numbered = markers.filter((m) => m.ordinal !== void 0);
   const sameFamily = markers.every((m) => m.family === markers[0].family);
   const sequence = numbered.every((m, i) => !i || m.ordinal === numbered[i - 1].ordinal + 1);
-  const bulletStrong = markers[0].family !== "bullet" || markers.every((m) => /^\s*$/.test(text3.slice(text3.lastIndexOf("\n", m.start - 1) + 1, m.start)));
+  const bulletStrong = markers[0].family !== "bullet" || markers.every((m) => /^\s*$/.test(text4.slice(text4.lastIndexOf("\n", m.start - 1) + 1, m.start)));
   const strong = sameFamily && sequence && bulletStrong && markers.every((m) => !m.weak);
   const state = strong || annotation?.mode === "accept" ? "accepted" : "suggested";
-  if (!sequence || !sameFamily) result.diagnostics.push({ code: "invalid_sequence", start: markers[0].start, end: text3.length });
-  else if (!strong) result.diagnostics.push({ code: "ambiguous_marker", start: markers[0].start, end: text3.length });
+  if (!sequence || !sameFamily) result.diagnostics.push({ code: "invalid_sequence", start: markers[0].start, end: text4.length });
+  else if (!strong) result.diagnostics.push({ code: "ambiguous_marker", start: markers[0].start, end: text4.length });
   const add = (start, end, kind, n) => {
-    const raw = text3.slice(start, end);
+    const raw = text4.slice(start, end);
     const leading = raw.match(/^\s*/)?.[0].length || 0;
     const trailing = raw.match(/[\s,，、;；]*$/)?.[0].length || 0;
     start += leading;
@@ -33251,14 +33145,14 @@ function scanStructuredText(text3, annotation) {
     add(labelStart, labelStart + labelMatch[1].length, "label");
   }
   for (let i = 0; i < markers.length; i++) {
-    if (!add(markers[i].end, markers[i + 1]?.start ?? text3.length, "item", markers[i].ordinal)) {
+    if (!add(markers[i].end, markers[i + 1]?.start ?? text4.length, "item", markers[i].ordinal)) {
       result.units = [];
       return result;
     }
   }
   if (result.units.length > STRUCTURE_MAX_UNITS) {
     result.units = [];
-    result.diagnostics.push({ code: "candidate_limit", start: 0, end: text3.length });
+    result.diagnostics.push({ code: "candidate_limit", start: 0, end: text4.length });
     return result;
   }
   result.layout = [];
@@ -33268,7 +33162,7 @@ function scanStructuredText(text3, annotation) {
     result.layout.push({ kind: "unit", unitId: unit.id, start: unit.start, end: unit.end });
     cursor = unit.end;
   }
-  if (cursor < text3.length) result.layout.push({ kind: "literal", start: cursor, end: text3.length });
+  if (cursor < text4.length) result.layout.push({ kind: "literal", start: cursor, end: text4.length });
   return result;
 }
 
@@ -33277,14 +33171,14 @@ var SENTENCE_TOKEN_SOURCE = `${RM_ESCAPE_RE.source}|${TEXT_MARKUP_RE.source}|htt
 var SENTENCE_RULE_VERSION = 10;
 var PAIRS2 = { "<": ">", "\u300C": "\u300D", "\u300E": "\u300F", "\u3010": "\u3011", "\u300A": "\u300B", "\u3008": "\u3009", "\uFF08": "\uFF09", "(": ")", "[": "]", "{": "}", "\u201C": "\u201D" };
 var WIDTH = { "\uFF1F": "?", "\uFF01": "!", "\uFF0C": ",", "\u3002": ".", "\uFF0E": ".", "\uFF1B": ";" };
-function punctuationKey(text3) {
-  return text3.replace(/(?:…|[.．]{3,})+/g, "...").replace(/[？！，。．；]/g, (c) => WIDTH[c]).replace(/([!?])\1{2,}/g, "$1$1");
+function punctuationKey(text4) {
+  return text4.replace(/(?:…|[.．]{3,})+/g, "...").replace(/[？！，。．；]/g, (c) => WIDTH[c]).replace(/([!?])\1{2,}/g, "$1$1");
 }
-function controlSignature(text3) {
-  return JSON.stringify(text3.match(new RegExp(`${SENTENCE_TOKEN_SOURCE}|%\\d+|\\{[A-Za-z0-9_]+\\}|__[A-Za-z]\\d+__`, "g")) || []);
+function controlSignature(text4) {
+  return JSON.stringify(text4.match(new RegExp(`${SENTENCE_TOKEN_SOURCE}|%\\d+|\\{[A-Za-z0-9_]+\\}|__[A-Za-z]\\d+__`, "g")) || []);
 }
-function wholeSentenceKey(text3) {
-  const normalized = text3.trim();
+function wholeSentenceKey(text4) {
+  const normalized = text4.trim();
   const plainKey = (part) => punctuationKey(part.replace(/\r\n?/g, "\n").replace(/[\t \u3000]*\n[\t \u3000]*/g, "\n"));
   let out = "", at = 0;
   for (const match of normalized.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))) {
@@ -33293,13 +33187,13 @@ function wholeSentenceKey(text3) {
   }
   return out + plainKey(normalized.slice(at));
 }
-function sentenceBodyKey(text3) {
+function sentenceBodyKey(text4) {
   let out = "", at = 0;
-  for (const match of text3.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))) {
-    out += punctuationKey(text3.slice(at, match.index).normalize("NFKC")) + match[0];
+  for (const match of text4.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))) {
+    out += punctuationKey(text4.slice(at, match.index).normalize("NFKC")) + match[0];
     at = match.index + match[0].length;
   }
-  return out + punctuationKey(text3.slice(at).normalize("NFKC"));
+  return out + punctuationKey(text4.slice(at).normalize("NFKC"));
 }
 function newlineKindOnLogic(start, end, annotations) {
   for (const note of annotations) {
@@ -33308,36 +33202,36 @@ function newlineKindOnLogic(start, end, annotations) {
   }
   return "unknown";
 }
-function ellipsisEndAt(text3, index2) {
-  if (!/[.．…]/.test(text3[index2] || "")) return null;
-  const match = text3.slice(index2).match(/^(?:…|[.．]{3,})+/);
+function ellipsisEndAt(text4, index2) {
+  if (!/[.．…]/.test(text4[index2] || "")) return null;
+  const match = text4.slice(index2).match(/^(?:…|[.．]{3,})+/);
   return match ? index2 + match[0].length : null;
 }
-function sentenceTail(text3) {
-  const tail = text3.match(/[,.!?;，、。．！？；…\s]+$/u)?.[0] || "";
+function sentenceTail(text4) {
+  const tail = text4.match(/[,.!?;，、。．！？；…\s]+$/u)?.[0] || "";
   let afterEllipsis = 0;
   for (const match of tail.matchAll(/(?:…|[.．]{3,})+/g)) afterEllipsis = match.index + match[0].length;
   return tail.slice(afterEllipsis);
 }
-function sentenceBoundaryAt(text3, index2) {
-  const c = text3[index2];
+function sentenceBoundaryAt(text4, index2) {
+  const c = text4[index2];
   if (!/[,，、。．.!！?？;；]/.test(c || "")) return null;
-  if (/[,.，．]/.test(c) && /[0-9０-９]/.test(text3[index2 - 1] || "") && /[0-9０-９]/.test(text3[index2 + 1] || "")) return null;
-  if (/[.．]/.test(c) && (/[.．]/.test(text3[index2 - 1] || "") || /[.．]/.test(text3[index2 + 1] || ""))) return null;
+  if (/[,.，．]/.test(c) && /[0-9０-９]/.test(text4[index2 - 1] || "") && /[0-9０-９]/.test(text4[index2 + 1] || "")) return null;
+  if (/[.．]/.test(c) && (/[.．]/.test(text4[index2 - 1] || "") || /[.．]/.test(text4[index2 + 1] || ""))) return null;
   let end = index2 + 1;
-  while (end < text3.length && /[,，、。．.!！?？;；]/.test(text3[end]) && !ellipsisEndAt(text3, end)) end++;
+  while (end < text4.length && /[,，、。．.!！?？;；]/.test(text4[end]) && !ellipsisEndAt(text4, end)) end++;
   return { end, boundary: /[,，、]/.test(c) ? "," : /[;；]/.test(c) ? ";" : "stop" };
 }
-function splitSentenceUnitsOn(text3, hardOrUnknown) {
+function splitSentenceUnitsOn(text4, hardOrUnknown) {
   const units = [];
-  const controls = new Map([...text3.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))].map((m) => [m.index, m[0]]));
+  const controls = new Map([...text4.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))].map((m) => [m.index, m[0]]));
   const stack = [];
-  const opening = text3.match(/^\s*[「『“]/)?.[0];
-  const openDialogueAt = opening && !text3.includes(PAIRS2[opening.at(-1)]) ? opening.length - 1 : -1;
+  const opening = text4.match(/^\s*[「『“]/)?.[0];
+  const openDialogueAt = opening && !text4.includes(PAIRS2[opening.at(-1)]) ? opening.length - 1 : -1;
   let start = 0;
   let block = 0;
   function push(end, boundary) {
-    const raw = text3.slice(start, end);
+    const raw = text4.slice(start, end);
     const tail = sentenceTail(raw);
     const body = raw.slice(0, raw.length - tail.length).trim();
     const marks = punctuationKey(tail.replace(/\s/g, ""));
@@ -33345,19 +33239,19 @@ function splitSentenceUnitsOn(text3, hardOrUnknown) {
     if (body) units.push({ start: start + (raw.match(/^\s*/)?.[0].length || 0), end, key: sentenceBodyKey(body), tone, boundary, controls: controlSignature(raw), block });
     start = end;
   }
-  for (let i = 0; i < text3.length; i++) {
+  for (let i = 0; i < text4.length; i++) {
     const code = controls.get(i);
     if (code && !/^\\[nr]$/i.test(code)) {
       i += code.length - 1;
       continue;
     }
-    const c = text3[i];
+    const c = text4[i];
     if (PAIRS2[c] && i !== openDialogueAt) stack.push(PAIRS2[c]);
     else if (stack.at(-1) === c) stack.pop();
     if (stack.length) continue;
     const literalLine = code && /^\\[nr]$/i.test(code);
     if (c === "\n" || c === "\r" || literalLine) {
-      const end = i + (literalLine ? code.length : c === "\r" && text3[i + 1] === "\n" ? 2 : 1);
+      const end = i + (literalLine ? code.length : c === "\r" && text4[i + 1] === "\n" ? 2 : 1);
       const kind = newlineKindOnLogic(i, end, hardOrUnknown);
       if (kind === "hard") {
         push(end, "line");
@@ -33366,32 +33260,32 @@ function splitSentenceUnitsOn(text3, hardOrUnknown) {
       i = end - 1;
       continue;
     }
-    const ellipsis = ellipsisEndAt(text3, i);
+    const ellipsis = ellipsisEndAt(text4, i);
     if (ellipsis != null) {
       i = ellipsis - 1;
       continue;
     }
-    const seam = sentenceBoundaryAt(text3, i);
+    const seam = sentenceBoundaryAt(text4, i);
     if (!seam) continue;
     push(seam.end, seam.boundary);
     i = seam.end - 1;
   }
-  if (start < text3.length) push(text3.length, "end");
+  if (start < text4.length) push(text4.length, "end");
   return units;
 }
-function sentenceUnits(text3, opts) {
+function sentenceUnits(text4, opts) {
   if (opts?.structure?.mode === "disabled")
-    return text3.trim() ? [{ start: 0, end: text3.length, key: sentenceBodyKey(text3), tone: "", boundary: "end", controls: controlSignature(text3), block: 0 }] : [];
-  const opening = text3.match(/^(?:\s*[(（])+/)?.[0];
-  if (opening && !/[)）]/.test(text3)) {
+    return text4.trim() ? [{ start: 0, end: text4.length, key: sentenceBodyKey(text4), tone: "", boundary: "end", controls: controlSignature(text4), block: 0 }] : [];
+  const opening = text4.match(/^(?:\s*[(（])+/)?.[0];
+  if (opening && !/[)）]/.test(text4)) {
     const offset = opening.length;
     const innerOpts = { ...opts, newlines: opts?.newlines?.filter((n) => n.start >= offset).map((n) => ({ ...n, start: n.start - offset, end: n.end - offset })) };
-    return sentenceUnits(text3.slice(offset), innerOpts).map((u) => ({ ...u, start: u.start + offset, end: u.end + offset }));
+    return sentenceUnits(text4.slice(offset), innerOpts).map((u) => ({ ...u, start: u.start + offset, end: u.end + offset }));
   }
-  const structured = scanStructuredText(text3, opts?.structure);
+  const structured = scanStructuredText(text4, opts?.structure);
   if (structured.units.length && structured.units.every((unit) => unit.state === "accepted")) {
     return structured.units.map((unit, block) => {
-      const raw = text3.slice(unit.start, unit.end);
+      const raw = text4.slice(unit.start, unit.end);
       const logic = buildLogicText(raw, {
         srcLang: opts?.srcLang,
         newlines: opts?.newlines?.filter((n) => n.start >= unit.start && n.end <= unit.end).map((n) => ({ ...n, start: n.start - unit.start, end: n.end - unit.start }))
@@ -33410,9 +33304,9 @@ function sentenceUnits(text3, opts) {
       };
     });
   }
-  const view = buildLogicText(text3, { newlines: opts?.newlines, srcLang: opts?.srcLang });
+  const view = buildLogicText(text4, { newlines: opts?.newlines, srcLang: opts?.srcLang });
   const units = splitSentenceUnitsOn(view.logic, view.logicNewlines);
-  if (view.logic === text3) return units;
+  if (view.logic === text4) return units;
   return units.map((unit) => {
     const span = mapLogicRangeToOriginal(view, unit.start, unit.end);
     return { ...unit, start: span.start, end: span.end };
@@ -33421,21 +33315,21 @@ function sentenceUnits(text3, opts) {
 function sameSentence(a, b) {
   return a.key === b.key && a.tone === b.tone && a.controls === b.controls;
 }
-function sentenceOuterShell(text3) {
-  const visible = text3.trim();
+function sentenceOuterShell(text4) {
+  const visible = text4.trim();
   const trimmed = visible.replace(/[,，。．.!！?？;；]+$/, "");
   const suffix = visible.slice(trimmed.length);
-  if (!trimmed || PAIRS2[trimmed[0]] !== trimmed.at(-1)) return { lead: "", core: text3, trail: "" };
+  if (!trimmed || PAIRS2[trimmed[0]] !== trimmed.at(-1)) return { lead: "", core: text4, trail: "" };
   const stack = [];
   for (let i = 0; i < trimmed.length; i++) {
     if (PAIRS2[trimmed[i]]) stack.push(PAIRS2[trimmed[i]]);
     else if (stack.at(-1) === trimmed[i]) {
       stack.pop();
-      if (!stack.length && i !== trimmed.length - 1) return { lead: "", core: text3, trail: "" };
+      if (!stack.length && i !== trimmed.length - 1) return { lead: "", core: text4, trail: "" };
     }
   }
-  const space = text3.indexOf(trimmed);
-  return { lead: text3.slice(0, space) + trimmed[0], core: trimmed.slice(1, -1), trail: trimmed.at(-1) + suffix + text3.slice(space + visible.length) };
+  const space = text4.indexOf(trimmed);
+  return { lead: text4.slice(0, space) + trimmed[0], core: trimmed.slice(1, -1), trail: trimmed.at(-1) + suffix + text4.slice(space + visible.length) };
 }
 
 // lib/translate/sentence-aliases.ts
@@ -33476,8 +33370,8 @@ function structuredSentenceAliases(src, zh, structure) {
 }
 
 // lib/translate/sentence-auto-alignment.ts
-function completeSentences(text3, units) {
-  if (!units.length || text3.slice(0, units[0].start).trim() || text3.slice(units.at(-1).end).trim()) return null;
+function completeSentences(text4, units) {
+  if (!units.length || text4.slice(0, units[0].start).trim() || text4.slice(units.at(-1).end).trim()) return null;
   const out = [];
   let from = 0;
   for (let i = 0; i < units.length; i++) {
@@ -33485,13 +33379,13 @@ function completeSentences(text3, units) {
     if (unit.boundary === "structure") return null;
     if (unit.boundary !== "stop") continue;
     const start = units[from].start, end = unit.end;
-    out.push({ from, to: i + 1, start, end, tone: unit.tone, controls: JSON.stringify([controlSignature(text3.slice(start, end)), text3.slice(start, end).match(/%[sdif]/g) || []]) });
+    out.push({ from, to: i + 1, start, end, tone: unit.tone, controls: JSON.stringify([controlSignature(text4.slice(start, end)), text4.slice(start, end).match(/%[sdif]/g) || []]) });
     from = i + 1;
   }
   return from === units.length && out.length >= 2 ? out : null;
 }
-function hasComplexControls(text3) {
-  return [...text3.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))].some((match) => !/^\\(?:[VNP]\[\d+\]|G)$/i.test(match[0]));
+function hasComplexControls(text4) {
+  return [...text4.matchAll(new RegExp(SENTENCE_TOKEN_SOURCE, "g"))].some((match) => !/^\\(?:[VNP]\[\d+\]|G)$/i.test(match[0]));
 }
 function inferSentenceAlignment(record, units) {
   if (record.derived || record.alignments?.length || record.structure?.source?.mode === "disabled" || record.structure?.target?.mode === "disabled") return [];
@@ -33509,7 +33403,7 @@ function inferSentenceAlignment(record, units) {
 }
 function inferEllipsisClauses(record, source, target2) {
   if (source.length < 2 || source.length !== target2.length) return [];
-  const signature = (text3, unit) => JSON.stringify([unit.controls, text3.slice(unit.start, unit.end).match(/%[sdif]/g) || []]);
+  const signature = (text4, unit) => JSON.stringify([unit.controls, text4.slice(unit.start, unit.end).match(/%[sdif]/g) || []]);
   if (source.some(
     (unit, i) => unit.boundary !== target2[i].boundary || unit.tone !== target2[i].tone || unit.key.includes("...") !== target2[i].key.includes("...") || signature(record.src, unit) !== signature(record.zh, target2[i])
   ))
@@ -33590,8 +33484,8 @@ function sentenceQueryUnits(src, opts) {
 function recordUnitOpts(record) {
   return { newlines: record.newlines, structure: record.structure?.source };
 }
-function expandRecords(records) {
-  return records.flatMap((record) => [
+function expandRecords(records2) {
+  return records2.flatMap((record) => [
     record,
     ...sentenceAliases(record.src, record.zh).map((alias) => ({ ...record, ...alias, derived: true, alignments: void 0, newlines: void 0 })),
     ...structuredSentenceAliases(record.src, record.zh, record.structure).map(({ context, ...alias }) => ({
@@ -33606,8 +33500,8 @@ function expandRecords(records) {
     }))
   ]);
 }
-function logicAuthorityKey(text3, opts) {
-  return wholeSentenceKey(buildLogicText(text3, { newlines: opts?.newlines, srcLang: opts?.srcLang }).logic);
+function logicAuthorityKey(text4, opts) {
+  return wholeSentenceKey(buildLogicText(text4, { newlines: opts?.newlines, srcLang: opts?.srcLang }).logic);
 }
 function target(record, units, from, to) {
   if (from === 0 && to === units.length && units[0]?.start === 0 && units.at(-1)?.end === record.src.length) return record.zh;
@@ -33618,9 +33512,9 @@ function target(record, units, from, to) {
   for (let i = 1; i < groups.length; i++) if (groups[i - 1].sourceEnd !== groups[i].sourceStart || groups[i - 1].targetEnd !== groups[i].targetStart) return null;
   return record.zh.slice(groups[0].targetStart, groups.at(-1).targetEnd);
 }
-function cutsSurrogate(text3, index2) {
-  if (index2 <= 0 || index2 >= text3.length) return false;
-  const c = text3.charCodeAt(index2);
+function cutsSurrogate(text4, index2) {
+  if (index2 <= 0 || index2 >= text4.length) return false;
+  const c = text4.charCodeAt(index2);
   return c >= 56320 && c <= 57343;
 }
 function validateAlignments(record, groups) {
@@ -33653,13 +33547,13 @@ function validateAlignments(record, groups) {
   }
   return true;
 }
-function candidates(src, records, queryOpts, automaticOnly = false, budget) {
+function candidates(src, records2, queryOpts, automaticOnly = false, budget) {
   const query = sentenceQueryViewUnits(src, queryOpts);
   const queryKey = logicAuthorityKey(src, queryOpts);
   const fragmentKeys = query.map((unit) => wholeSentenceKey(src.slice(unit.start, unit.end)));
   const out = [];
   let work = 0;
-  for (const record of records) {
+  for (const record of records2) {
     const unitOpts = recordUnitOpts(record);
     const units = sentenceUnits(record.src, unitOpts);
     const recordKey = logicAuthorityKey(record.src, unitOpts);
@@ -33710,14 +33604,14 @@ function candidates(src, records, queryOpts, automaticOnly = false, budget) {
           length++;
           const ellipsis = automaticOnly && inferred.some((g) => g.kind === "ellipsis" && g.from === r && g.to === r + length);
           if (automaticOnly && !ellipsis && (q > 0 && query[q - 1].boundary !== "stop" || query[q + length - 1].boundary !== "stop")) continue;
-          const text3 = automaticOnly ? inferredSentenceTarget(record, inferred, r, r + length) : target(record, units, r, r + length);
-          if (text3 == null) continue;
+          const text4 = automaticOnly ? inferredSentenceTarget(record, inferred, r, r + length) : target(record, units, r, r + length);
+          if (text4 == null) continue;
           out.push({
             start: query[q].start,
             end: query[q + length - 1].end,
             from: q,
             to: q + length,
-            text: text3,
+            text: text4,
             ...automaticOnly ? { alignment: "inferred" } : {},
             ...ellipsis ? { alignmentBasis: "ellipsis" } : {},
             queryCoverage: length / query.length,
@@ -33756,12 +33650,12 @@ function renderSentencePlan(plan, gaps = /* @__PURE__ */ new Map()) {
   }
   return out + plan.src.slice(at);
 }
-function planSentenceTranslation(src, records, opts) {
-  return planSentenceTranslationView(src, records, opts, true);
+function planSentenceTranslation(src, records2, opts) {
+  return planSentenceTranslationView(src, records2, opts, true);
 }
-function planSentenceTranslationView(src, records, opts, unwrap) {
+function planSentenceTranslationView(src, records2, opts, unwrap) {
   const units = sentenceQueryViewUnits(src, opts);
-  const expanded = expandRecords(records);
+  const expanded = expandRecords(records2);
   const normal = candidates(src, expanded, opts);
   const initial = chooseSentencePlan(src, units, normal, normal.limited === true, opts?.category);
   if (initial.status === "full" || initial.limited || opts?.structure?.mode === "disabled") return initial;
@@ -33770,7 +33664,7 @@ function planSentenceTranslationView(src, records, opts, unwrap) {
     let best = initial;
     let covered = initial.matches.reduce((sum2, m) => sum2 + m.end - m.start, 0);
     for (const body of views.slice(1)) {
-      const inner = planSentenceTranslationView(body.text, records, body.opts, false);
+      const inner = planSentenceTranslationView(body.text, records2, body.opts, false);
       const shifted = {
         ...inner,
         src,
@@ -33824,12 +33718,12 @@ function remapSentenceMatches(matches, units, src, opts) {
     to: units.findIndex((u) => u.end === m.end || u.end === src.length && bodies.some((v) => m.end === v.offset + v.text.length)) + 1
   }));
 }
-function applyLineFallback(src, records, plan, normal, opts) {
+function applyLineFallback(src, records2, plan, normal, opts) {
   if (plan.status === "full" || plan.limited) return plan;
   const lines = queryLines(src);
   if (!lines.length) return plan;
   const keys = new Set(lines.map((line) => wholeSentenceKey(line.text)));
-  const independent = records.filter((r) => keys.has(logicAuthorityKey(r.src, recordUnitOpts(r))));
+  const independent = records2.filter((r) => keys.has(logicAuthorityKey(r.src, recordUnitOpts(r))));
   if (!independent.length) return plan;
   const newlines = listNewlineSpans(src).map((br) => ({ ...br, kind: "hard" }));
   const lineOpts = { ...opts, newlines: [...opts?.newlines || [], ...newlines] };
@@ -33856,8 +33750,8 @@ function chooseSentencePlan(src, units, possible, limited, category) {
   let ambiguous = false;
   const ranges = /* @__PURE__ */ new Map();
   for (const m of possible) {
-    const key2 = `${m.from}:${m.to}`;
-    ranges.set(key2, [...ranges.get(key2) || [], m]);
+    const key3 = `${m.from}:${m.to}`;
+    ranges.set(key3, [...ranges.get(key3) || [], m]);
   }
   possible = [];
   for (const group of ranges.values()) {
@@ -33926,21 +33820,21 @@ function chooseAuthorityMatch(group, src, category) {
   }
   return { ambiguous: true };
 }
-function createSentenceResolver(records) {
+function createSentenceResolver(records2) {
   const inverted = /* @__PURE__ */ new Map();
   const whole = /* @__PURE__ */ new Map();
-  const key2 = (s) => JSON.stringify([s.key, s.tone, s.controls]);
+  const key3 = (s) => JSON.stringify([s.key, s.tone, s.controls]);
   const addWhole = (k, record) => {
     whole.set(k, [...whole.get(k) || [], record]);
   };
-  for (const record of expandRecords(records)) {
+  for (const record of expandRecords(records2)) {
     const unitOpts = recordUnitOpts(record);
     const raw = wholeSentenceKey(record.src);
     addWhole(raw, record);
     const logic = logicAuthorityKey(record.src, unitOpts);
     if (logic !== raw) addWhole(logic, record);
     for (const unit of sentenceUnits(record.src, unitOpts)) {
-      const k = key2(unit), bucket = inverted.get(k) || /* @__PURE__ */ new Set();
+      const k = key3(unit), bucket = inverted.get(k) || /* @__PURE__ */ new Set();
       bucket.add(record);
       inverted.set(k, bucket);
     }
@@ -33958,7 +33852,7 @@ function createSentenceResolver(records) {
     for (const unit of sentenceQueryUnits(src, opts)) {
       if (unit.boundary === "structure") for (const r of whole.get(wholeSentenceKey(src.slice(unit.start, unit.end))) || []) selected.add(r);
       if (selected.size > 500) return Object.assign([...exact], { limited: true });
-      const bucket = inverted.get(key2(unit));
+      const bucket = inverted.get(key3(unit));
       if ((bucket?.size || 0) > 500) {
         limited = true;
         continue;
@@ -33980,12 +33874,12 @@ function createSentenceResolver(records) {
   };
 }
 function resolveSentenceGaps(plan, values) {
-  const records = new Map(plan.matches.map((m) => [`${m.record.id}:${m.record.revision}:${m.record.src}`, m.record]));
+  const records2 = new Map(plan.matches.map((m) => [`${m.record.id}:${m.record.revision}:${m.record.src}`, m.record]));
   for (const gap of plan.gaps) {
     const zh = values.get(gap.id);
-    if (zh) records.set(`gap:${gap.id}`, { id: `gap:${gap.id}`, revision: 0, src: gap.text, zh, local: true, engine: "transient:gap" });
+    if (zh) records2.set(`gap:${gap.id}`, { id: `gap:${gap.id}`, revision: 0, src: gap.text, zh, local: true, engine: "transient:gap" });
   }
-  return { ...plan, ...planSentenceTranslation(plan.src, [...records.values()]) };
+  return { ...plan, ...planSentenceTranslation(plan.src, [...records2.values()]) };
 }
 
 // lib/translate/cache-row.ts
@@ -34012,9 +33906,314 @@ function applyCacheRow(rows, row) {
   } else rows.set(row.s, row);
 }
 
+// lib/translate/default-game-terms.json
+var default_game_terms_default = {
+  flame: {
+    translations: {
+      zh: "\u708E",
+      en: "Flame",
+      ja: "\u708E",
+      ko: "\uD654\uC5FC"
+    },
+    aliases: {
+      en: ["Fire"]
+    }
+  },
+  lightning: {
+    translations: {
+      zh: "\u96F7",
+      en: "Lightning",
+      ja: "\u96F7",
+      ko: "\uBC88\uAC1C"
+    }
+  },
+  water: {
+    translations: {
+      zh: "\u6C34",
+      en: "Water",
+      ja: "\u6C34",
+      ko: "\uBB3C"
+    }
+  },
+  earth: {
+    translations: {
+      zh: "\u571F",
+      en: "Earth",
+      ja: "\u571F",
+      ko: "\uB300\uC9C0"
+    }
+  },
+  light: {
+    translations: {
+      zh: "\u5149",
+      en: "Light",
+      ja: "\u5149",
+      ko: "\uBE5B"
+    }
+  },
+  sword: {
+    translations: {
+      zh: "\u5251",
+      en: "Sword",
+      ja: "\u5263",
+      ko: "\uAC80"
+    }
+  },
+  axe: {
+    translations: {
+      zh: "\u65A7",
+      en: "Axe",
+      ja: "\u65A7",
+      ko: "\uB3C4\uB07C"
+    }
+  },
+  staff: {
+    translations: {
+      zh: "\u6756",
+      en: "Staff",
+      ja: "\u6756",
+      ko: "\uC9C0\uD321\uC774"
+    }
+  },
+  bow: {
+    translations: {
+      zh: "\u5F13",
+      en: "Bow",
+      ja: "\u5F13",
+      ko: "\uD65C"
+    }
+  },
+  gun: {
+    translations: {
+      zh: "\u67AA",
+      en: "Gun",
+      ja: "\u9283",
+      ko: "\uCD1D"
+    }
+  },
+  claw: {
+    translations: {
+      zh: "\u722A",
+      en: "Claw",
+      ja: "\u722A",
+      ko: "\uBC1C\uD1B1"
+    }
+  },
+  spear: {
+    translations: {
+      zh: "\u957F\u67AA",
+      en: "Spear",
+      ja: "\u69CD",
+      ko: "\uCC3D"
+    }
+  },
+  save: {
+    translations: {
+      zh: "\u4FDD\u5B58",
+      en: "Save",
+      ja: "\u30BB\u30FC\u30D6",
+      ko: "\uC800\uC7A5"
+    },
+    aliases: {
+      en: ["Save Game"],
+      ja: ["\u30BB\u30FC\u30D6\u3059\u308B"]
+    },
+    badTranslations: {
+      zh: ["\u8282\u7701", "\u62EF\u6551", "\u7701\u4E0B", "\u5B58\u76D8"]
+    }
+  },
+  load: {
+    translations: {
+      zh: "\u8BFB\u53D6",
+      en: "Load",
+      ja: "\u30ED\u30FC\u30C9",
+      ko: "\uBD88\uB7EC\uC624\uAE30"
+    },
+    aliases: {
+      en: ["Load Game"],
+      ja: ["\u30ED\u30FC\u30C9\u3059\u308B"]
+    },
+    badTranslations: {
+      zh: ["\u8D1F\u8377", "\u4F9B\u7535\u91CF", "\u8D1F\u8F7D", "\u88C5\u8F7D", "\u52A0\u8F7D", "\u88C5\u5165"]
+    }
+  },
+  new_game: {
+    translations: {
+      zh: "\u65B0\u6E38\u620F",
+      en: "New Game",
+      ja: "\u30CB\u30E5\u30FC\u30B2\u30FC\u30E0",
+      ko: "\uC0C8 \uAC8C\uC784"
+    },
+    badTranslations: {
+      zh: ["\u65B0\u7684\u6E38\u620F", "\u65B0\u6BD4\u8D5B"]
+    }
+  },
+  continue: {
+    translations: {
+      zh: "\u7EE7\u7EED\u6E38\u620F",
+      en: "Continue",
+      ja: "\u30B3\u30F3\u30C6\u30A3\u30CB\u30E5\u30FC",
+      ko: "\uC774\uC5B4\uD558\uAE30"
+    },
+    aliases: {
+      ja: ["\u3064\u3065\u304D\u304B\u3089"]
+    },
+    badTranslations: {
+      zh: ["\u7EE7\u7EED", "\u5EF6\u62D3"]
+    }
+  },
+  options: {
+    translations: {
+      zh: "\u8BBE\u7F6E",
+      en: "Options",
+      ja: "\u8A2D\u5B9A",
+      ko: "\uC124\uC815"
+    },
+    aliases: {
+      en: ["Option", "Config", "Settings"],
+      ja: ["\u30AA\u30D7\u30B7\u30E7\u30F3"]
+    },
+    badTranslations: {
+      zh: ["\u9009\u9879", "\u671F\u6743"]
+    }
+  },
+  item: {
+    translations: {
+      zh: "\u9053\u5177",
+      en: "Item",
+      ja: "\u30A2\u30A4\u30C6\u30E0",
+      ko: "\uC544\uC774\uD15C"
+    },
+    aliases: {
+      en: ["Items"]
+    },
+    badTranslations: {
+      zh: ["\u9879\u76EE", "\u6761\u6B3E", "\u7269\u4EF6"]
+    }
+  },
+  skill: {
+    translations: {
+      zh: "\u6280\u80FD",
+      en: "Skill",
+      ja: "\u30B9\u30AD\u30EB",
+      ko: "\uC2A4\uD0AC"
+    },
+    aliases: {
+      en: ["Skills"]
+    },
+    badTranslations: {
+      zh: ["\u6280\u672F", "\u6280\u80FD\u6761"]
+    }
+  },
+  equip: {
+    translations: {
+      zh: "\u88C5\u5907",
+      en: "Equip",
+      ja: "\u88C5\u5099",
+      ko: "\uC7A5\uBE44"
+    },
+    aliases: {
+      en: ["Equipment"]
+    },
+    badTranslations: {
+      zh: ["\u914D\u5907", "\u88C5\u8BBE"]
+    }
+  },
+  status: {
+    translations: {
+      zh: "\u72B6\u6001",
+      en: "Status",
+      ja: "\u30B9\u30C6\u30FC\u30BF\u30B9",
+      ko: "\uC0C1\uD0DC"
+    },
+    badTranslations: {
+      zh: ["\u5730\u4F4D", "\u8EAB\u5206", "\u72B6\u51B5"]
+    }
+  },
+  quit: {
+    translations: {
+      zh: "\u9000\u51FA",
+      en: "Quit",
+      ja: "\u7D42\u4E86",
+      ko: "\uC885\uB8CC"
+    },
+    aliases: {
+      en: ["Exit", "Game Over"]
+    },
+    badTranslations: {
+      zh: ["\u505C\u6B62", "\u653E\u5F03", "\u79BB\u5F00\u6E38\u620F"]
+    }
+  },
+  gold: {
+    translations: {
+      zh: "\u91D1\u5E01",
+      en: "Gold",
+      ja: "\u6240\u6301\u91D1",
+      ko: "\uC18C\uC9C0\uAE08"
+    },
+    aliases: {
+      en: ["Money"]
+    },
+    badTranslations: {
+      zh: ["\u9EC4\u91D1", "\u91D1\u8272"]
+    }
+  }
+};
+
+// lib/translate/game-terms.ts
+var GAME_TERM_LANGUAGES = ["zh", "en", "ja", "ko"];
+var GAME_TERMS = default_game_terms_default;
+function key(text4) {
+  return text4.normalize("NFKC").toLowerCase();
+}
+var indexes = Object.fromEntries(GAME_TERM_LANGUAGES.map((language) => [language, /* @__PURE__ */ new Map()]));
+for (const [id, entry] of Object.entries(GAME_TERMS)) {
+  for (const language of GAME_TERM_LANGUAGES) {
+    for (const source of [entry.translations[language], ...entry.aliases?.[language] || []]) {
+      const normalized = key(source);
+      const ids = indexes[language].get(normalized) || /* @__PURE__ */ new Set();
+      ids.add(id);
+      indexes[language].set(normalized, ids);
+    }
+  }
+}
+function lookupGameTerm(source, targetLanguage = "zh", sourceLanguage) {
+  if (!GAME_TERM_LANGUAGES.includes(targetLanguage) || sourceLanguage && !GAME_TERM_LANGUAGES.includes(sourceLanguage)) return null;
+  const { lead, core, trail } = translationSegmentContent(source);
+  const normalized = key(core);
+  const languages3 = sourceLanguage ? [sourceLanguage] : GAME_TERM_LANGUAGES;
+  const targets = /* @__PURE__ */ new Set();
+  for (const language of languages3) {
+    for (const id of indexes[language].get(normalized) || []) targets.add(GAME_TERMS[id].translations[targetLanguage]);
+  }
+  return targets.size === 1 ? lead + [...targets][0] + trail : null;
+}
+function fixKnownBadGameTermTranslation(source, currentTarget, targetLanguage = "zh") {
+  if (!currentTarget || !source) return null;
+  const { core } = translationSegmentContent(source);
+  const normalizedSource = key(core);
+  for (const [_id, entry] of Object.entries(GAME_TERMS)) {
+    const isMatch = GAME_TERM_LANGUAGES.some((lang) => {
+      const candidates2 = [entry.translations[lang], ...entry.aliases?.[lang] || []];
+      return candidates2.some((cand) => key(cand) === normalizedSource);
+    });
+    if (!isMatch) continue;
+    const correctTarget = entry.translations[targetLanguage];
+    if (!correctTarget) continue;
+    const targetContent = translationSegmentContent(currentTarget);
+    const targetCoreNorm = key(targetContent.core);
+    const badList = entry.badTranslations?.[targetLanguage] || [];
+    const isBad = badList.some((bad) => key(bad) === targetCoreNorm);
+    if (isBad) {
+      return targetContent.lead + correctTarget + targetContent.trail;
+    }
+  }
+  return null;
+}
+
 // lib/translate/lookup.ts
-function normalizeTranslateKey(text3) {
-  let s = String(text3 ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+function normalizeTranslateKey(text4) {
+  let s = String(text4 ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   s = s.replace(/^"+/, "").replace(/("\);|"\))$/, "");
   try {
     s = s.normalize("NFKC");
@@ -34023,9 +34222,9 @@ function normalizeTranslateKey(text3) {
   return s;
 }
 function createWhitespaceLookup(entries) {
-  const records = [];
+  const records2 = [];
   const add = (src, zh) => {
-    if (src && zh) records.push({ id: `local:${records.length}`, revision: 0, src, zh, local: true });
+    if (src && zh) records2.push({ id: `local:${records2.length}`, revision: 0, src, zh, local: true });
   };
   const wrappers = { "\u300C": "\u300D", "\u300E": "\u300F", "\u3010": "\u3011", "\u300A": "\u300B", "\uFF08": "\uFF09", "(": ")" };
   for (const [src, zh] of entries) {
@@ -34039,7 +34238,7 @@ function createWhitespaceLookup(entries) {
     const ruby = matchingTranslationRubyPairs(src, zh);
     if (ruby) for (const pair of ruby) add(pair.source, pair.target);
   }
-  const resolver = createSentenceResolver(records);
+  const resolver = createSentenceResolver(records2);
   return (src) => resolver.plan(src).zh;
 }
 var whitespaceIndexes = /* @__PURE__ */ new WeakMap();
@@ -34056,8 +34255,8 @@ function lookupTranslationRecord(lookup, source) {
 // services/translate/text-classify.ts
 var JAPANESE = /[\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FD-\u30FF\u31F0-\u31FF\uFF66-\uFF9D]/;
 var HAN3 = /[\u4e00-\u9fff]/;
-function containsJapaneseText(text3) {
-  return JAPANESE.test(String(text3 ?? ""));
+function containsJapaneseText(text4) {
+  return JAPANESE.test(String(text4 ?? ""));
 }
 function retainsJapaneseHanPhrase(src, zh) {
   if (!containsJapaneseText(src)) return false;
@@ -34070,23 +34269,23 @@ function normCmp(s) {
   return s.normalize("NFKC").replace(/\s+/g, " ").trim();
 }
 var CONTROL_AFFIX = /^(?:\\[A-Za-z]+(?:\[[^\]]*\])?|\\\[[^\]]*\]|\\[^A-Za-z\s]|[A-Za-z_][A-Za-z0-9_]*\[\d+\])/;
-function matchControlAffixAt(text3, atEnd) {
+function matchControlAffixAt(text4, atEnd) {
   if (!atEnd) {
-    const m = text3.match(CONTROL_AFFIX);
+    const m = text4.match(CONTROL_AFFIX);
     return m && !/^\\RB\[/i.test(m[0]) && !isSemanticPlaceholder(m[0]) ? m[0] : null;
   }
   const re = /\\[A-Za-z]+(?:\[[^\]]*\])?|\\\[[^\]]*\]|\\[^A-Za-z\s]|[A-Za-z_][A-Za-z0-9_]*\[\d+\]/g;
   let hit = null;
-  for (const m of text3.matchAll(re)) {
+  for (const m of text4.matchAll(re)) {
     if (/^\\RB\[/i.test(m[0])) continue;
     if (isSemanticPlaceholder(m[0])) continue;
     const i = m.index ?? 0;
-    if (i + m[0].length === text3.length) hit = m[0];
+    if (i + m[0].length === text4.length) hit = m[0];
   }
   return hit;
 }
-function peelControlShell(text3) {
-  let rest = String(text3 ?? "");
+function peelControlShell(text4) {
+  let rest = String(text4 ?? "");
   let lead = "";
   let trail = "";
   for (; ; ) {
@@ -34115,8 +34314,8 @@ function peelControlShell(text3) {
   }
   return { lead, core: rest, trail };
 }
-function stripControlNoise(text3) {
-  return String(text3 ?? "").replace(PROTECT_TOKEN, " ").replace(/[\s\u3000]+/g, " ").trim();
+function stripControlNoise(text4) {
+  return String(text4 ?? "").replace(PROTECT_TOKEN, " ").replace(/[\s\u3000]+/g, " ").trim();
 }
 var PLACEHOLDER_RE = /__C(\d+)__/g;
 var PLACEHOLDER_FALLBACK_RE = /__Ｃ(\d+)__|＿＿C(\d+)＿＿|\[\[C(\d+)\]\]/g;
@@ -34130,8 +34329,8 @@ function restoreControlCodes(translated, tokens) {
   out = out.replace(PLACEHOLDER_FALLBACK_RE, (m, a, b, c) => pick2(a || b || c) ?? m);
   return out;
 }
-function protectSentenceForTranslate(text3) {
-  const choice = peelChoiceMetaShell(text3);
+function protectSentenceForTranslate(text4) {
+  const choice = peelChoiceMetaShell(text4);
   const shell = peelControlShell(choice.core);
   const tokens = [];
   const plain = shell.core.replace(new RegExp(`${SENTENCE_TOKEN_SOURCE}|${PROTECT_TOKEN.source}`, "g"), (token) => {
@@ -34175,17 +34374,17 @@ function isUsefulTranslation(src, send, raw, zh, targetLang = "zh") {
   if (!String(raw ?? "").trim() || !String(zh ?? "").trim()) return false;
   if (!isStorableTranslation(src, zh, targetLang)) return false;
   if (normCmp(raw) === normCmp(send)) return false;
-  const placeholders = send.match(/__C\d+__/g) || [];
-  if (JSON.stringify([...placeholders].sort()) !== JSON.stringify((raw.match(/__C\d+__/g) || []).sort())) return false;
+  const placeholders2 = send.match(/__C\d+__/g) || [];
+  if (JSON.stringify([...placeholders2].sort()) !== JSON.stringify((raw.match(/__C\d+__/g) || []).sort())) return false;
   if (/__C\d+____C\d+__/.test(raw) && !/__C\d+____C\d+__/.test(send)) return false;
   const srcNeedsZh = JAPANESE.test(src) || HAN3.test(stripControlNoise(src));
   const isTargetZh = !targetLang || targetLang === "zh" || targetLang === "ch" || targetLang === "zh-CN" || targetLang === "zh-Hans" || targetLang === "zh-TW" || targetLang === "cht";
   if (isTargetZh && srcNeedsZh && !HAN3.test(zh)) return false;
   return true;
 }
-function shouldTranslate(text3, sourceLang) {
+function shouldTranslate(text4, sourceLang) {
   if (typeof sourceLang === "number") sourceLang = void 0;
-  const core = stripControlNoise(text3);
+  const core = stripControlNoise(text4);
   if (!core) return false;
   if (sourceLang && sourceLang !== "ja" && sourceLang !== "en") {
     const compact2 = core.replace(/[\s\u3000]+/g, "");
@@ -34195,11 +34394,11 @@ function shouldTranslate(text3, sourceLang) {
   const compact = core.replace(/[\s\u3000]+/g, "");
   return !(compact.length > 0 && /^[\p{P}\p{S}]+$/u.test(compact));
 }
-function charCount(text3) {
-  return Array.from(String(text3 ?? "")).length;
+function charCount(text4) {
+  return Array.from(String(text4 ?? "")).length;
 }
-function lineCount(text3) {
-  const src = String(text3 ?? "");
+function lineCount(text4) {
+  const src = String(text4 ?? "");
   if (!src) return 0;
   return src.split(/\r\n|\n|\r/).length;
 }
@@ -34275,10 +34474,10 @@ function applyPair(lookup, src, zh) {
   const nk = normalizeTranslateKey(k);
   if (nk && nk !== k) lookup[nk] = v;
 }
-function createGameTranslateLookup(records) {
+function createGameTranslateLookup(records2) {
   const lookup = /* @__PURE__ */ Object.create(null);
   try {
-    for (const record of records) applyPair(lookup, record.src, record.zh);
+    for (const record of records2) applyPair(lookup, record.src, record.zh);
   } catch {
   }
   return lookup;
@@ -34290,10 +34489,10 @@ function loadGameTranslateLookup(contentRoot) {
     return /* @__PURE__ */ Object.create(null);
   }
 }
-function createGameTranslateEngines(records) {
+function createGameTranslateEngines(records2) {
   const engines = /* @__PURE__ */ Object.create(null);
   try {
-    for (const record of records) {
+    for (const record of records2) {
       if (record.src && record.engine) {
         engines[record.src] = record.engine;
         const nk = normalizeTranslateKey(record.src);
@@ -34305,14 +34504,14 @@ function createGameTranslateEngines(records) {
   return engines;
 }
 function loadRgssTranslationLookup(contentRoot) {
-  const records = loadGameTranslationRecords(contentRoot);
-  const lookup = createGameTranslateLookup(records);
+  const records2 = loadGameTranslationRecords(contentRoot);
+  const lookup = createGameTranslateLookup(records2);
   const overrides = createGameTranslateLookup(
-    records.filter(
+    records2.filter(
       ({ engine }) => engine === "manual" || engine === "import" || engine?.startsWith("import:") || engine === "live:optimize" || engine?.startsWith("live:optimize:")
     )
   );
-  const engines = createGameTranslateEngines(records);
+  const engines = createGameTranslateEngines(records2);
   return { lookup, overrides, engines };
 }
 function resolveRgssTranslation(src, current, translations2) {
@@ -34322,7 +34521,7 @@ function resolveRgssTranslation(src, current, translations2) {
 // services/translate/game-cache-context.ts
 var contexts = /* @__PURE__ */ new Map();
 function buildContext(contentRoot) {
-  const records = loadGameTranslationRecords(contentRoot, () => false);
+  const records2 = loadGameTranslationRecords(contentRoot, () => false);
   const blocked = /* @__PURE__ */ new Set();
   const file = gameTranslationFiles(contentRoot).cache;
   if (file && fs14.existsSync(file))
@@ -34335,17 +34534,17 @@ function buildContext(contentRoot) {
       }
     }
   const numeric2 = /* @__PURE__ */ new Map();
-  for (const record of records) {
+  for (const record of records2) {
     const family = numericLabelFamily(record.src);
     if (family) numeric2.set(family, [...numeric2.get(family) || [], record]);
   }
   const { seed } = gameTranslationFiles(contentRoot);
-  const authorityVersion = createHash("sha256").update(JSON.stringify([seed, records.filter((record) => record.local), [...blocked].sort()])).digest("hex");
+  const authorityVersion = createHash("sha256").update(JSON.stringify([seed, records2.filter((record) => record.local), [...blocked].sort()])).digest("hex");
   return {
-    records,
+    records: records2,
     blocked: (src) => blocked.has(src),
-    resolver: createSentenceResolver(records),
-    lookup: createGameTranslateLookup(records),
+    resolver: createSentenceResolver(records2),
+    lookup: createGameTranslateLookup(records2),
     numericRecords: (src) => numeric2.get(numericLabelFamily(src) || "") || [],
     authorityVersion
   };
@@ -34380,38 +34579,38 @@ import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
 // services/translate/cache-lookup.ts
 function lookupCandidates(src) {
   const choice = peelChoiceMetaShell(src);
-  const key2 = choice.core || src;
+  const key3 = choice.core || src;
   const guard = protectSentenceForTranslate(src);
-  const display = translationExportText(key2);
-  const shell = sentenceOuterShell(key2);
-  const displayShell = translationSegmentContent(key2);
-  const leadSpace = key2.match(/^\s*/)?.[0] ?? "";
-  const trailSpace = key2.match(/\s*$/)?.[0] ?? "";
-  const trimmed = key2.slice(leadSpace.length, key2.length - trailSpace.length);
-  const description = key2.match(/^<SG説明:/);
+  const display = translationExportText(key3);
+  const shell = sentenceOuterShell(key3);
+  const displayShell = translationSegmentContent(key3);
+  const leadSpace = key3.match(/^\s*/)?.[0] ?? "";
+  const trailSpace = key3.match(/\s*$/)?.[0] ?? "";
+  const trimmed = key3.slice(leadSpace.length, key3.length - trailSpace.length);
+  const description = key3.match(/^<SG説明:/);
   return [
-    { key: key2, lead: choice.lead, trail: choice.trail },
-    { key: normalizeTranslateKey(key2), lead: choice.lead, trail: choice.trail },
-    ...trimmed && trimmed !== key2 ? [{ key: trimmed, lead: choice.lead + leadSpace, trail: trailSpace + choice.trail }] : [],
-    ...description ? [{ key: key2.slice(description[0].length), lead: choice.lead + description[0], trail: choice.trail }] : [],
-    ...display === key2 ? [] : [display, normalizeTranslateKey(display)].map((candidate) => ({
+    { key: key3, lead: choice.lead, trail: choice.trail },
+    { key: normalizeTranslateKey(key3), lead: choice.lead, trail: choice.trail },
+    ...trimmed && trimmed !== key3 ? [{ key: trimmed, lead: choice.lead + leadSpace, trail: trailSpace + choice.trail }] : [],
+    ...description ? [{ key: key3.slice(description[0].length), lead: choice.lead + description[0], trail: choice.trail }] : [],
+    ...display === key3 ? [] : [display, normalizeTranslateKey(display)].map((candidate) => ({
       key: candidate,
       lead: choice.lead + displayShell.lead,
       trail: displayShell.trail + choice.trail,
       displayOnly: true
     })),
-    ...shell.core !== key2 && !/[!?！？]/.test(shell.trail) ? [{ key: shell.core, lead: choice.lead + shell.lead, trail: shell.trail + choice.trail, bodyOnly: true }] : [],
+    ...shell.core !== key3 && !/[!?！？]/.test(shell.trail) ? [{ key: shell.core, lead: choice.lead + shell.lead, trail: shell.trail + choice.trail, bodyOnly: true }] : [],
     { key: guard.core, lead: guard.lead, trail: guard.trail },
     { key: normalizeTranslateKey(guard.core), lead: guard.lead, trail: guard.trail }
   ];
 }
 function lookupWholeTranslation(get, src) {
-  for (const { key: key2, lead, trail, bodyOnly, displayOnly } of lookupCandidates(src)) {
-    if (!key2) continue;
+  for (const { key: key3, lead, trail, bodyOnly, displayOnly } of lookupCandidates(src)) {
+    if (!key3) continue;
     const hit = lookupWithRmDigitTemplate((k) => {
       const value = get(k);
       return value && isReusableTranslation(k, value) ? value : null;
-    }, key2);
+    }, key3);
     if (hit != null) {
       const restored = lead + (displayOnly ? translationSegmentContent(hit).core : bodyOnly ? sentenceOuterShell(hit).core : hit) + trail;
       if (isReusableTranslation(src, restored)) return restored;
@@ -34455,18 +34654,18 @@ function lookupParts(get, src, map) {
   });
   return complete && changed ? result : null;
 }
-function lookupGameTranslation(localGet, sharedGet, src) {
+function lookupGameTranslation(localGet, sharedGet, src, opts) {
   const local = lookupCachedTranslation(localGet, src);
   if (local != null) {
-    const fixed = fixKnownBadGameTermTranslation(src, local);
+    const fixed = opts?.resources === false ? null : fixKnownBadGameTermTranslation(src, local);
     return { zh: fixed ?? local, engine: "cache:local" };
   }
   const shared = lookupCachedTranslation(sharedGet, src);
   if (shared != null) {
-    const fixed = fixKnownBadGameTermTranslation(src, shared);
+    const fixed = opts?.resources === false ? null : fixKnownBadGameTermTranslation(src, shared);
     return { zh: fixed ?? shared, engine: "cache:remote" };
   }
-  const term = lookupGameTerm(src);
+  const term = opts?.resources === false ? null : lookupGameTerm(src);
   return term == null ? null : { zh: term, engine: "cache:local" };
 }
 
@@ -34756,15 +34955,15 @@ function createMatchIndex(client) {
     return r ? attach(r) : null;
   }
   function equivalent(src, pair) {
-    const key2 = wholeSentenceKey(src);
-    return client.prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(key2, pair.from, pair.to).map(attach);
+    const key3 = wholeSentenceKey(src);
+    return client.prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(key3, pair.from, pair.to).map(attach);
   }
   function candidates2(src, pair, opts) {
     const found = /* @__PURE__ */ new Map();
     const keyQuery = prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? LIMIT 501");
     const lookupKeys = sentenceQueryKeys(src, opts);
-    for (const key2 of lookupKeys) {
-      for (const row of keyQuery.all(key2, pair.from, pair.to)) {
+    for (const key3 of lookupKeys) {
+      for (const row of keyQuery.all(key3, pair.from, pair.to)) {
         if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
         if (found.size > 500) return { records: [], limited: true };
       }
@@ -34802,8 +35001,8 @@ function createMatchIndex(client) {
       return Object.assign(rows.map(attach), { limited: rows.length > 500 });
     },
     version: () => String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value),
-    current(records) {
-      return records.every((r) => Number(prepare("SELECT revision FROM translation_records WHERE id=?").get(r.id)?.revision) === r.revision);
+    current(records2) {
+      return records2.every((r) => Number(prepare("SELECT revision FROM translation_records WHERE id=?").get(r.id)?.revision) === r.revision);
     },
     plan(src, pair, local = [], opts) {
       client.exec("BEGIN");
@@ -34855,10 +35054,10 @@ function createMatchIndex(client) {
       }
     },
     authority(src, pair, opts) {
-      const records = equivalent(src, pair);
-      if (!records.length || records.length > 500) return null;
-      const rank = Math.max(...records.map((r) => cacheEngineRank(r.engine)));
-      let top = records.filter((r) => cacheEngineRank(r.engine) === rank);
+      const records2 = equivalent(src, pair);
+      if (!records2.length || records2.length > 500) return null;
+      const rank = Math.max(...records2.map((r) => cacheEngineRank(r.engine)));
+      let top = records2.filter((r) => cacheEngineRank(r.engine) === rank);
       const want = String(opts?.category || "").trim();
       if (want) {
         const matched = top.filter((r) => r.category === want);
@@ -34871,10 +35070,10 @@ function createMatchIndex(client) {
 }
 
 // services/translate/game-coverage.ts
-function createGameCoverage(records, opts) {
-  const lookup = createGameTranslateLookup(records);
-  const resolver = createSentenceResolver(records);
-  const numeric2 = createNumericLabelIndex(records);
+function createGameCoverage(records2, opts) {
+  const lookup = createGameTranslateLookup(records2);
+  const resolver = createSentenceResolver(records2);
+  const numeric2 = createNumericLabelIndex(records2);
   let client;
   let shared;
   let opened = false;
@@ -34900,10 +35099,10 @@ function createGameCoverage(records, opts) {
           hit = plan.status === "full" ? plan.zh : null;
           if (hit == null && shared && numericLabelFamily(src)) {
             const rows = shared.numericRecords(pair, src);
-            if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records]).resolve(src);
+            if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records2]).resolve(src);
           }
           if (hit == null && /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src)) {
-            hit = lookupCachedTranslation((key2) => lookup[key2] ?? shared?.record(key2, pair)?.zh, src);
+            hit = lookupCachedTranslation((key3) => lookup[key3] ?? shared?.record(key3, pair)?.zh, src);
           }
         }
       }
@@ -34916,13 +35115,314 @@ function createGameCoverage(records, opts) {
   };
 }
 
+// services/translate/resources/snapshot.ts
+import fs16 from "node:fs";
+import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
+
+// lib/translate/resource-matcher.ts
+var key2 = (text4) => text4.normalize("NFC");
+function matchVocalRule(text4, rule) {
+  const source = key2(text4);
+  if (Array.from(source).length > rule.modifiers.maxInputLength) return null;
+  const units = Object.entries(rule.units).sort(([a], [b]) => b.length - a.length);
+  const punctuation = [...rule.modifiers.punctuation].sort((a, b) => b.length - a.length);
+  const states = Array.from({ length: source.length + 1 }, () => /* @__PURE__ */ new Map());
+  states[0].set(0, /* @__PURE__ */ new Set([""]));
+  let stateCount = 0;
+  for (let at = 0; at < source.length; at++) {
+    for (const [count2, outputs] of states[at]) {
+      const choices = units.filter(([unit]) => source.startsWith(unit, at)).map(([unit, target2]) => [unit, target2, 1]);
+      for (const mark of punctuation) if (source.startsWith(mark, at)) choices.push([mark, mark, 0]);
+      for (const [part, target2, increment] of choices) {
+        const nextCount = count2 + increment;
+        if (nextCount > rule.modifiers.maxUnits) continue;
+        const next = states[at + part.length];
+        const values = next.get(nextCount) || /* @__PURE__ */ new Set();
+        for (const output of outputs) {
+          const value = output + target2;
+          if (value.length > 16e3) return null;
+          values.add(value);
+          if (++stateCount > 4096 || values.size > 8) return null;
+        }
+        next.set(nextCount, values);
+      }
+    }
+  }
+  const results = /* @__PURE__ */ new Set();
+  for (const [count2, outputs] of states[source.length]) if (count2 >= rule.modifiers.minUnits) for (const output of outputs) results.add(output);
+  return results.size === 1 ? [...results][0] : null;
+}
+function createResourceMatcher(snapshot) {
+  const exact = /* @__PURE__ */ new Map();
+  const vocal = [];
+  for (const pack of snapshot.packs) {
+    for (const record of pack.records) {
+      if (record.reviewStatus !== "reviewed") continue;
+      const candidate = { pack, record };
+      if (record.type === "vocal_rule") vocal.push(candidate);
+      else
+        for (const text4 of [record.sourceText, ...record.aliases || []]) {
+          const id = JSON.stringify([record.sourceLanguage, record.targetLanguage, key2(text4)]);
+          exact.set(id, [...exact.get(id) || [], candidate]);
+        }
+    }
+  }
+  function eligible(record, context) {
+    return record.sourceLanguage === context.sourceLanguage && record.targetLanguage === context.targetLanguage && (record.scope.kind === "global" || record.scope.gameId === context.gameId) && Object.entries(record.conditions || {}).every(([name2, value]) => context[name2] === value);
+  }
+  function choose(candidates2, context) {
+    const available = candidates2.filter(({ record: record2 }) => eligible(record2, context));
+    const score = ({ record: record2 }) => (record2.scope.kind === "game" ? 100 : 0) + Object.keys(record2.conditions || {}).length;
+    const best = Math.max(-1, ...available.map(score));
+    const winners = available.filter((candidate) => score(candidate) === best);
+    if (!winners.length) return { hit: null, conflict: false };
+    if (new Set(winners.map(({ output: output2 }) => output2)).size !== 1) return { hit: null, conflict: true };
+    const { pack, record, output } = winners[0];
+    return {
+      conflict: false,
+      hit: {
+        targetText: output,
+        packId: pack.manifest.packId,
+        version: pack.manifest.version,
+        entryId: record.entryId,
+        revision: snapshot.revision,
+        matchKind: record.type === "entry" ? "exact" : "vocal-template"
+      }
+    };
+  }
+  return {
+    revision: snapshot.revision,
+    match(text4, context) {
+      const candidates2 = (source) => exact.get(JSON.stringify([context.sourceLanguage, context.targetLanguage, key2(source)])) || [];
+      const full = choose(
+        candidates2(text4).map((candidate) => ({ ...candidate, output: candidate.record.targetText })),
+        context
+      );
+      if (full.hit || full.conflict) return full.hit;
+      const shell = translationSegmentContent(text4);
+      if (shell.core !== text4) {
+        const wrapped = choose(
+          candidates2(shell.core).filter(({ record }) => record.type === "entry" && record.match.allowBoundary).map((candidate) => ({ ...candidate, output: shell.lead + candidate.record.targetText + shell.trail })),
+          context
+        );
+        if (wrapped.hit || wrapped.conflict) return wrapped.hit;
+      }
+      const generated = vocal.filter(({ record }) => eligible(record, context)).flatMap((candidate) => {
+        const output = matchVocalRule(text4, candidate.record);
+        return output == null ? [] : [{ ...candidate, output }];
+      });
+      return choose(generated, context).hit;
+    }
+  };
+}
+
+// services/translate/resources/defaults/fixed-phrases.json
+var fixed_phrases_default = {
+  \u306F\u3044: "\u662F",
+  \u3044\u3044\u3048: "\u5426",
+  \u3046\u3093: "\u55EF",
+  \u3059\u308B: "\u505A",
+  \u3057\u306A\u3044: "\u4E0D\u505A",
+  \u30B9\u30AD\u30C3\u30D7: "\u8DF3\u8FC7",
+  \u30C0\u30C3\u30B7\u30E5\u8A31\u53EF: "\u5141\u8BB8\u51B2\u523A",
+  \u30C0\u30C3\u30B7\u30E5\u7981\u6B62: "\u7981\u6B62\u51B2\u523A",
+  \u30B9\u30C6\u30FC\u30C8\u78BA\u8A8D: "\u72B6\u6001\u786E\u8BA4",
+  \u30D1\u30FC\u30C6\u30A3\u30FC\u30B3\u30DE\u30F3\u30C9: "\u961F\u4F0D\u6307\u4EE4",
+  \uFF33\u30DC\u30BF\u30F3: "S\u6309\u94AE",
+  \u30B8\u30E3\u30F3\u30D7: "\u8DF3\u8DC3",
+  \u30D5\u30A9\u30B0\u30B9\u30AD\u30C3\u30D7: "\u8FF7\u96FE\u8DF3\u8FC7",
+  \u623B\u308B: "\u8FD4\u56DE",
+  \u9032\u3080: "\u524D\u8FDB",
+  \u8A71\u3059: "\u4EA4\u8C08",
+  \u805E\u304F: "\u503E\u542C",
+  \u898B\u308B: "\u67E5\u770B",
+  \u5F85\u3064: "\u7B49\u5F85",
+  \u958B\u3051\u308B: "\u6253\u5F00",
+  \u9589\u3058\u308B: "\u5173\u95ED",
+  \u4F7F\u3046: "\u4F7F\u7528",
+  \u88C5\u5099: "\u88C5\u5907",
+  \u6368\u3066\u308B: "\u4E22\u5F03",
+  \u8CB7\u3046: "\u8D2D\u4E70",
+  \u58F2\u308B: "\u51FA\u552E"
+};
+
+// services/translate/resources/defaults.ts
+var languages = [
+  { tag: "ja", name: "\u65E5\u672C\u8A9E" },
+  { tag: "en", name: "English" },
+  { tag: "ru", name: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439" },
+  { tag: "ko", name: "\uD55C\uAD6D\uC5B4" },
+  { tag: "zh", name: "\u4E2D\u6587" }
+];
+var records = [];
+for (const [id, term] of Object.entries(default_game_terms_default)) {
+  for (const [sourceLanguage, sourceText] of Object.entries(term.translations)) {
+    for (const [targetLanguage, targetText] of Object.entries(term.translations)) {
+      if (sourceLanguage === targetLanguage) continue;
+      const aliases = "aliases" in term ? term.aliases[sourceLanguage] : void 0;
+      records.push({
+        type: "entry",
+        entryId: `term.${id}.${sourceLanguage}.${targetLanguage}`,
+        sourceLanguage,
+        targetLanguage,
+        sourceText,
+        targetText,
+        aliases,
+        scope: { kind: "global" },
+        reviewStatus: "reviewed",
+        provenance: { kind: "legacy-game-term" },
+        match: { kind: "exact", allowBoundary: true }
+      });
+    }
+  }
+}
+for (const [index2, [sourceText, targetText]] of Object.entries(fixed_phrases_default).entries()) {
+  records.push({
+    type: "entry",
+    entryId: `fixed.${index2}`,
+    sourceLanguage: "ja",
+    targetLanguage: "zh",
+    sourceText,
+    targetText,
+    scope: { kind: "global" },
+    reviewStatus: "reviewed",
+    provenance: { kind: "legacy-fixed-phrase" },
+    match: { kind: "exact", allowBoundary: true }
+  });
+}
+var defaultResourcePack = {
+  manifest: { type: "manifest", schemaVersion: 1, packId: "chaya.defaults", version: "1", languages },
+  records
+};
+function bundledResourceSnapshot() {
+  return { revision: 0, languages, packs: [{ ...defaultResourcePack, hash: "bundled", revision: 0 }] };
+}
+
+// services/translate/resources/validate.ts
+var RESOURCE_LIMITS = { bytes: 7e5, records: 1e3, lineLength: 32e3 };
+var object = (value) => !!value && typeof value === "object" && !Array.isArray(value);
+var text = (value, max2 = 16e3) => typeof value === "string" && !!value.trim() && value.length <= max2;
+var identifier = (value) => text(value, 100) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value);
+function fail(message) {
+  throw new TypeError(message);
+}
+function placeholders(value) {
+  return JSON.stringify([controlSignature(value), value.match(/%(?:\d+\$)?[-+#0 ]*(?:\d+|\*)?(?:\.(?:\d+|\*))?[sdifouxXeEgGc%]/g) || []]);
+}
+function parseResourcePack(input) {
+  if (Buffer.byteLength(input, "utf8") > RESOURCE_LIMITS.bytes) fail("Resource package exceeds size limit");
+  const lines = input.split(/\r?\n/).filter((line) => line.trim());
+  if (lines.length < 1 || lines.length > RESOURCE_LIMITS.records + 1) fail("Invalid resource record count");
+  const rows = lines.map((line, index2) => {
+    if (line.length > RESOURCE_LIMITS.lineLength) fail(`Resource line ${index2 + 1} is too long`);
+    let value;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      return fail(`Invalid JSON at resource line ${index2 + 1}`);
+    }
+    if (!object(value)) fail(`Invalid object at resource line ${index2 + 1}`);
+    const queue3 = [[value, 0]];
+    while (queue3.length) {
+      const [item, depth] = queue3.pop();
+      if (depth > 16) fail("Resource nesting limit exceeded");
+      if (item && typeof item === "object") for (const child of Object.values(item)) queue3.push([child, depth + 1]);
+    }
+    return value;
+  });
+  const [manifest, ...records2] = rows;
+  if (manifest.type !== "manifest" || manifest.schemaVersion !== 1 || !identifier(manifest.packId) || !identifier(manifest.version)) fail("Invalid resource manifest");
+  if (!Array.isArray(manifest.languages) || manifest.languages.length > 100) fail("Invalid resource languages");
+  const languages3 = /* @__PURE__ */ new Set();
+  for (const language of manifest.languages) {
+    if (!object(language) || !text(language.tag, 100) || !text(language.name, 100)) fail("Invalid resource language");
+    if (canonicalResourceLanguage(language.tag) !== language.tag || languages3.has(language.tag)) fail("Languages must be canonical and unique");
+    languages3.add(language.tag);
+  }
+  const ids = /* @__PURE__ */ new Set();
+  for (const record of records2) {
+    if (!identifier(record.entryId) || ids.has(String(record.entryId))) fail("Invalid or duplicate resource entry ID");
+    ids.add(String(record.entryId));
+    for (const field of ["sourceLanguage", "targetLanguage"]) {
+      if (!text(record[field], 100) || canonicalResourceLanguage(record[field]) !== record[field]) fail("Invalid resource language pair");
+    }
+    if (!object(record.scope) || !["global", "game"].includes(String(record.scope.kind)) || record.scope.kind === "game" && !text(record.scope.gameId, 200))
+      fail("Invalid resource scope");
+    if (!["candidate", "reviewed"].includes(String(record.reviewStatus)) || !object(record.provenance) || !text(record.provenance.kind, 100)) fail("Invalid resource provenance");
+    if (record.conditions !== void 0 && (!object(record.conditions) || Object.entries(record.conditions).some(([name2, value]) => !["category", "speaker", "scene"].includes(name2) || !text(value, 200))))
+      fail("Invalid resource conditions");
+    if (record.type === "entry") {
+      if (!text(record.sourceText) || !text(record.targetText) || !object(record.match) || record.match.kind !== "exact") fail("Invalid exact resource entry");
+      if (record.match.allowBoundary !== void 0 && typeof record.match.allowBoundary !== "boolean") fail("Invalid boundary matching flag");
+      for (const name2 of ["aliases", "badTranslations"]) {
+        const values = record[name2];
+        if (values !== void 0 && (!Array.isArray(values) || values.length > 100 || values.some((value) => !text(value)))) fail(`Invalid ${name2}`);
+      }
+      for (const source of [record.sourceText, ...record.aliases || []]) {
+        if (placeholders(source) !== placeholders(record.targetText)) fail("Resource controls or placeholders differ");
+      }
+    } else if (record.type === "vocal_rule") {
+      if (record.templateKind !== "vocal-sequence" || !object(record.units) || !object(record.modifiers)) fail("Invalid vocal template");
+      const units = Object.entries(record.units);
+      if (!units.length || units.length > 100 || units.some(([unit, target2]) => !text(unit, 40) || !new RegExp("^\\p{L}[\\p{L}\\p{M}]*$", "u").test(unit) || unit.normalize("NFC") !== unit || !text(target2, 100) || /[\\%{}<>]/.test(target2)))
+        fail("Invalid vocal units");
+      const modifiers = record.modifiers;
+      if (!Array.isArray(modifiers.punctuation) || modifiers.punctuation.length > 100 || modifiers.punctuation.some((mark) => typeof mark !== "string" || !mark.length || mark.length > 20 || !/^[\p{P}\p{Zs}]+$/u.test(mark) || /[\\%{}<>[\]]/.test(mark)))
+        fail("Invalid vocal punctuation");
+      if (![modifiers.minUnits, modifiers.maxUnits, modifiers.maxInputLength].every(Number.isSafeInteger) || Number(modifiers.minUnits) < 1 || Number(modifiers.maxUnits) < Number(modifiers.minUnits) || Number(modifiers.maxUnits) > 256 || Number(modifiers.maxInputLength) < 1 || Number(modifiers.maxInputLength) > 512)
+        fail("Invalid vocal bounds");
+    } else fail("Unknown resource record type");
+  }
+  return { manifest, records: records2 };
+}
+
+// services/storage/translation-resource-store.ts
+function readResourceRevision(db) {
+  return Number(db.prepare("SELECT revision FROM translation_resource_state WHERE id=1").get().revision);
+}
+function readResourceSnapshot(db) {
+  const revision = readResourceRevision(db);
+  const languages3 = db.prepare("SELECT tag, name FROM translation_languages ORDER BY tag").all();
+  const rows = db.prepare(
+    `SELECT v.* FROM translation_resource_versions v
+    JOIN translation_resource_activations a ON a.pack_id=v.pack_id AND a.version=v.version
+    WHERE a.enabled=1 ORDER BY v.pack_id`
+  ).all();
+  const packs = rows.map((row) => ({ ...parseResourcePack(row.content), hash: row.hash, revision }));
+  return { revision, languages: languages3, packs };
+}
+
+// services/translate/resources/snapshot.ts
+var matchers = /* @__PURE__ */ new Map();
+function loadResourceMatcher(file = TRANSLATE_CACHE_DB_PATH) {
+  if (!fs16.existsSync(file)) return createResourceMatcher(bundledResourceSnapshot());
+  const db = new DatabaseSync3(file, { readOnly: true });
+  try {
+    db.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=5000; BEGIN");
+    const ready = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='translation_resource_state'").get();
+    if (!ready || !db.prepare("SELECT 1 FROM translation_resource_state WHERE id=1").get()) return createResourceMatcher(bundledResourceSnapshot());
+    const revision = readResourceRevision(db);
+    const stat = fs16.statSync(file);
+    const identity = `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
+    const previous = matchers.get(file);
+    if (previous?.identity === identity && previous.revision === revision) return previous.matcher;
+    const matcher = createResourceMatcher(readResourceSnapshot(db));
+    if (matchers.size >= 8) matchers.clear();
+    matchers.set(file, { identity, revision, matcher });
+    return matcher;
+  } finally {
+    db.exec("ROLLBACK");
+    db.close();
+  }
+}
+
 // services/translate/seed-failures.ts
-import fs17 from "node:fs";
+import fs18 from "node:fs";
 import path13 from "node:path";
 
 // services/translate/seed-job-state.ts
 import { createHash as createHash2 } from "node:crypto";
-import fs16 from "node:fs";
+import fs17 from "node:fs";
 import path12 from "node:path";
 var MAX_SEED_JOB_LOGS = 120;
 function idleSeedJob(contentRoot = "") {
@@ -34968,9 +35468,9 @@ function seedJobFile(contentRoot) {
 }
 function readSeedJobState(contentRoot) {
   const file = seedJobFile(contentRoot);
-  if (!fs16.existsSync(file)) return null;
+  if (!fs17.existsSync(file)) return null;
   try {
-    const raw = JSON.parse(fs16.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs17.readFileSync(file, "utf8"));
     if (!raw || typeof raw !== "object") return null;
     return {
       ...idleSeedJob(contentRoot),
@@ -34984,16 +35484,16 @@ function readSeedJobState(contentRoot) {
   }
 }
 function writeSeedJobState(state) {
-  fs16.mkdirSync(TRANSLATE_JOBS_DIR, { recursive: true });
+  fs17.mkdirSync(TRANSLATE_JOBS_DIR, { recursive: true });
   const file = seedJobFile(state.contentRoot);
   const tmp = `${file}.${process.pid}.tmp`;
-  fs16.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}
+  fs17.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}
 `, "utf8");
-  fs16.renameSync(tmp, file);
+  fs17.renameSync(tmp, file);
 }
-function isObsoleteCacheWorkerLog(text3) {
-  if (/Cannot find module .+chaya-cache-worker/i.test(text3)) return true;
-  if (fs16.existsSync(CACHE_WORKER_PATH) && /Cache scan unavailable:.*(?:worker not built|CACHE_WORKER_MISSING|chaya-cache-worker)/i.test(text3)) return true;
+function isObsoleteCacheWorkerLog(text4) {
+  if (/Cannot find module .+chaya-cache-worker/i.test(text4)) return true;
+  if (fs17.existsSync(CACHE_WORKER_PATH) && /Cache scan unavailable:.*(?:worker not built|CACHE_WORKER_MISSING|chaya-cache-worker)/i.test(text4)) return true;
   return false;
 }
 function visibleSeedJobState(state) {
@@ -35016,14 +35516,14 @@ function seedFailureFile(contentRoot) {
 function readSeedFailures(contentRoot) {
   const failures = new Map((readSeedJobState(contentRoot)?.failedSources ?? []).map((src) => [src, ""]));
   const file = seedFailureFile(contentRoot);
-  let text3;
+  let text4;
   try {
-    text3 = fs17.readFileSync(file, "utf8");
+    text4 = fs18.readFileSync(file, "utf8");
   } catch (error) {
     if (error.code === "ENOENT") return failures;
     throw error;
   }
-  for (const line of text3.split("\n")) {
+  for (const line of text4.split("\n")) {
     if (!line.trim()) continue;
     try {
       const event = JSON.parse(line);
@@ -35036,8 +35536,8 @@ function readSeedFailures(contentRoot) {
 }
 function writeSeedFailure(contentRoot, src, error) {
   const file = seedFailureFile(contentRoot);
-  fs17.mkdirSync(path13.dirname(file), { recursive: true });
-  fs17.appendFileSync(file, `${JSON.stringify({ src, error, at: Date.now() })}
+  fs18.mkdirSync(path13.dirname(file), { recursive: true });
+  fs18.appendFileSync(file, `${JSON.stringify({ src, error, at: Date.now() })}
 `, "utf8");
 }
 function isSeedTarget(target2) {
@@ -35074,11 +35574,11 @@ function unescapeRubyLiteral(raw) {
 }
 function consider(raw, script, found) {
   if (!raw) return;
-  const text3 = unescapeRubyLiteral(raw).trim();
-  if (!text3 || text3.length < 2 || text3.length > 200) return;
-  if (PATHISH.test(text3) || CODEISH.test(text3)) return;
-  if (!isSourceText(text3)) return;
-  if (!found.has(text3)) found.set(text3, script);
+  const text4 = unescapeRubyLiteral(raw).trim();
+  if (!text4 || text4.length < 2 || text4.length > 200) return;
+  if (PATHISH.test(text4) || CODEISH.test(text4)) return;
+  if (!isSourceText(text4)) return;
+  if (!found.has(text4)) found.set(text4, script);
 }
 function extractRgssScriptUiStrings(contentRoot) {
   const found = /* @__PURE__ */ new Map();
@@ -35095,7 +35595,7 @@ function extractRgssScriptUiStrings(contentRoot) {
 }
 
 // services/extract/lib/rgss/writeback.ts
-import fs18 from "node:fs";
+import fs19 from "node:fs";
 import path14 from "node:path";
 
 // lib/translate/name-glossary.ts
@@ -35144,10 +35644,10 @@ function entriesFromNamePairs(pairs, toLang) {
   }
   return [...bySrc.values()].sort((a, b) => b.src.length - a.src.length || a.src.localeCompare(b.src));
 }
-function tokenRanges(text3) {
+function tokenRanges(text4) {
   const ranges = [];
   TOKEN_RE2.lastIndex = 0;
-  for (const match of text3.matchAll(TOKEN_RE2)) {
+  for (const match of text4.matchAll(TOKEN_RE2)) {
     const start = match.index ?? 0;
     ranges.push({ start, end: start + match[0].length });
   }
@@ -35156,16 +35656,16 @@ function tokenRanges(text3) {
 function overlaps(start, end, ranges) {
   return ranges.some((range) => start < range.end && end > range.start);
 }
-function latinBoundary(text3, start, end, src) {
+function latinBoundary(text4, start, end, src) {
   if (!LATIN3.test(src)) return true;
-  const left = text3[start - 1] || "";
-  const right = text3[end] || "";
-  if (LATIN_OR_DIGIT.test(text3[start] || "") && LATIN_OR_DIGIT.test(left)) return false;
-  if (LATIN_OR_DIGIT.test(text3[end - 1] || "") && LATIN_OR_DIGIT.test(right)) return false;
+  const left = text4[start - 1] || "";
+  const right = text4[end] || "";
+  if (LATIN_OR_DIGIT.test(text4[start] || "") && LATIN_OR_DIGIT.test(left)) return false;
+  if (LATIN_OR_DIGIT.test(text4[end - 1] || "") && LATIN_OR_DIGIT.test(right)) return false;
   return true;
 }
-function findNameSpans(text3, entries, toLang) {
-  const source = String(text3 ?? "");
+function findNameSpans(text4, entries, toLang) {
+  const source = String(text4 ?? "");
   if (!source || !entries.length) return [];
   const variants = entriesFromNamePairs(entries, toLang);
   const blocked = tokenRanges(source);
@@ -35195,8 +35695,8 @@ function nameGaps(src, spans) {
   if (at < src.length) gaps.push({ id: `${at}:${src.length}`, start: at, end: src.length, text: src.slice(at) });
   return gaps;
 }
-function isLiteralNameGap(text3) {
-  return !text3 || !text3.replace(/\s+/g, "") || /^[\s\p{P}\p{S}]+$/u.test(text3);
+function isLiteralNameGap(text4) {
+  return !text4 || !text4.replace(/\s+/g, "") || /^[\s\p{P}\p{S}]+$/u.test(text4);
 }
 function padGapTranslation(original, translated) {
   if (isLiteralNameGap(original)) return original;
@@ -35211,12 +35711,12 @@ function stitchNameLocks(src, spans, gapZh) {
   function appendGap(end, nextName = "") {
     const gap = src.slice(at, end);
     const translated = gapZh.get(`${at}:${end}`);
-    let text3 = padGapTranslation(gap, translated ?? gap);
+    let text4 = padGapTranslation(gap, translated ?? gap);
     if (translated !== void 0 && !isLiteralNameGap(gap)) {
-      if (/[\u3400-\u9fff]$/u.test(out)) text3 = text3.replace(/^ +(?=[\u3400-\u9fff])/u, "");
-      if (/^[\u3400-\u9fff]/u.test(nextName)) text3 = text3.replace(/([\u3400-\u9fff]) +$/u, "$1");
+      if (/[\u3400-\u9fff]$/u.test(out)) text4 = text4.replace(/^ +(?=[\u3400-\u9fff])/u, "");
+      if (/^[\u3400-\u9fff]/u.test(nextName)) text4 = text4.replace(/([\u3400-\u9fff]) +$/u, "$1");
     }
-    out += text3;
+    out += text4;
   }
   for (const span of ordered) {
     if (span.start > at) appendGap(span.start, span.zh);
@@ -35231,10 +35731,10 @@ function stitchNameLocks(src, spans, gapZh) {
 function strings(value) {
   const result = /* @__PURE__ */ new Map();
   const seen = /* @__PURE__ */ new WeakSet();
-  const walk = (entry, slot, text3, set, category = "other") => {
+  const walk = (entry, slot, text4, set, category = "other") => {
     if (!entry || typeof entry !== "object") return;
     if (entry.kind === "string") {
-      if (text3) result.set(slot, { value: entry, set, category });
+      if (text4) result.set(slot, { value: entry, set, category });
       return;
     }
     if (seen.has(entry)) return;
@@ -35244,7 +35744,7 @@ function strings(value) {
         (child, index2) => walk(
           child,
           `${slot}/${index2}`,
-          text3,
+          text4,
           (next) => {
             entry.items[index2] = next;
           },
@@ -35257,7 +35757,7 @@ function strings(value) {
         walk(
           pair.value,
           `${slot}/h${index2}`,
-          !isTechnicalField(name2) && (text3 || isTextField(name2)),
+          !isTechnicalField(name2) && (text4 || isTextField(name2)),
           (next) => {
             pair.value = next;
           },
@@ -35292,7 +35792,7 @@ function strings(value) {
           walk(
             pair.value,
             `${slot}/o${index2}`,
-            (systemText || !isTechnicalField(name2)) && (isTextField(name2) || systemText || text3),
+            (systemText || !isTechnicalField(name2)) && (isTextField(name2) || systemText || text4),
             (next) => {
               pair.value = next;
             },
@@ -35328,9 +35828,9 @@ function fieldCategory(className, field, fallback) {
 }
 function loadOneDataFile(dataDir, name2) {
   const file = path14.join(dataDir, name2);
-  const value = parseRubyMarshal(fs18.readFileSync(file));
+  const value = parseRubyMarshal(fs19.readFileSync(file));
   const backup = `${file}.chaya.bak`;
-  const original = fs18.existsSync(backup) ? parseRubyMarshal(fs18.readFileSync(backup)) : value;
+  const original = fs19.existsSync(backup) ? parseRubyMarshal(fs19.readFileSync(backup)) : value;
   const current = strings(value);
   const texts = [];
   for (const [location, source] of strings(original)) {
@@ -35343,7 +35843,7 @@ function loadOneDataFile(dataDir, name2) {
 }
 var SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i;
 function listDataFileNames(dataDir) {
-  const names = fs18.readdirSync(dataDir).filter((name2) => /\.rvdata2?$/i.test(name2) && !SKIP_DATA_STEMS.test(name2)).sort();
+  const names = fs19.readdirSync(dataDir).filter((name2) => /\.rvdata2?$/i.test(name2) && !SKIP_DATA_STEMS.test(name2)).sort();
   if (!names.length) throw new Error("RGSS data is unavailable. Unpack the encrypted archive into Data/ first.");
   return names;
 }
@@ -35353,10 +35853,10 @@ function loadFiles(dataDir) {
 function itemsFromFiles(files2) {
   const groups = /* @__PURE__ */ new Map();
   for (const file of files2) {
-    for (const text3 of file.texts) {
-      const group = groups.get(text3.source) ?? [];
-      group.push(text3);
-      groups.set(text3.source, group);
+    for (const text4 of file.texts) {
+      const group = groups.get(text4.source) ?? [];
+      group.push(text4);
+      groups.set(text4.source, group);
     }
   }
   return [...groups].map(([src, locations], index2) => {
@@ -35377,13 +35877,13 @@ function loadRgssItems(dataDir) {
 }
 
 // services/extract/lib/rgss-sources-index.ts
-import fs19 from "node:fs";
+import fs20 from "node:fs";
 import path15 from "node:path";
 function rgssDataSignature(dataDir) {
-  const files2 = fs19.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
+  const files2 = fs20.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
   return JSON.stringify(
     files2.map((name2) => {
-      const stat = fs19.statSync(path15.join(dataDir, name2));
+      const stat = fs20.statSync(path15.join(dataDir, name2));
       return [name2, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   );
@@ -35392,7 +35892,7 @@ function readIndex(contentRoot) {
   const file = localGameContentFile(contentRoot, "rgssSourcesIndex");
   if (!file) return null;
   try {
-    const raw = JSON.parse(fs19.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs20.readFileSync(file, "utf8"));
     if (!raw || typeof raw.signature !== "string" || !Array.isArray(raw.sources)) return null;
     return raw;
   } catch {
@@ -35406,7 +35906,7 @@ function writeRgssSourcesIndex(contentRoot, signature, sources2) {
     sources: [...sources2],
     updatedAt: Date.now()
   };
-  fs19.writeFileSync(file, `${JSON.stringify(payload)}
+  fs20.writeFileSync(file, `${JSON.stringify(payload)}
 `);
 }
 function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
@@ -35421,7 +35921,7 @@ function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
 // services/extract/lib/rgss.ts
 function findChild(dir, name2) {
   try {
-    const hit = fs20.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
+    const hit = fs21.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
     return hit ? path16.join(dir, hit) : null;
   } catch {
     return null;
@@ -35429,7 +35929,7 @@ function findChild(dir, name2) {
 }
 function extensionFor(dataDir) {
   try {
-    const names = fs20.readdirSync(dataDir).map((name2) => name2.toLowerCase());
+    const names = fs21.readdirSync(dataDir).map((name2) => name2.toLowerCase());
     if (names.some((name2) => name2.endsWith(".rvdata2"))) return ".rvdata2";
     if (names.some((name2) => name2.endsWith(".rvdata"))) return ".rvdata";
   } catch {
@@ -35449,8 +35949,11 @@ function filterRgssSeedKeys(contentRoot, keys) {
     seedSources.set(contentRoot, entry);
   }
   const scripts = new Set(extractRgssScriptUiStrings(contentRoot).map((item) => item.src));
-  return keys.filter((key2) => entry.sources.has(key2) || scripts.has(key2));
+  return keys.filter((key3) => entry.sources.has(key3) || scripts.has(key3));
 }
+
+// services/translate/live-translate.ts
+import { randomUUID as randomUUID6 } from "node:crypto";
 
 // lib/translate/engine-http.ts
 var DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434";
@@ -35491,7 +35994,7 @@ function buildTranslateSystemPrompt(ctx) {
   if (ctx.context) parts.push(`\u3010\u6765\u6E90/\u4E0A\u4E0B\u6587\u3011\uFF1A${ctx.context}`);
   return parts.join("\n");
 }
-var translationNeedsReasoning = (text3) => text3.length > 140 || text3.split("\n").filter(Boolean).length >= 3;
+var translationNeedsReasoning = (text4) => text4.length > 140 || text4.split("\n").filter(Boolean).length >= 3;
 async function requestOllama(http2, input) {
   const defaultSystem = buildTranslateSystemPrompt({ category: input.category, speaker: input.speaker, context: input.context });
   const system = input.system || defaultSystem;
@@ -35526,10 +36029,10 @@ ${input.text}
   if (body.error) throw new Error(body.error);
   return String(body.message?.content || body.response || "").replace(/^\s*<think>[\s\S]*?<\/think>\s*/i, "").replace(/^\s*(?:简体)?中文[:：]\s*/, "").replace(/^["「『]+|["」』]+$/g, "").trim();
 }
-async function requestGoogle(http2, text3, signal, pair) {
+async function requestGoogle(http2, text4, signal, pair) {
   const sl = pair?.from === "zh" || pair?.from === "ch" ? "zh-CN" : pair?.from || "auto";
   const tl = pair?.to === "zh" || pair?.to === "ch" ? "zh-CN" : pair?.to === "cht" ? "zh-TW" : pair?.to || "zh-CN";
-  const params = new URLSearchParams({ client: "gtx", sl, tl, hl: tl, dt: "t", ie: "UTF-8", oe: "UTF-8", q: text3 });
+  const params = new URLSearchParams({ client: "gtx", sl, tl, hl: tl, dt: "t", ie: "UTF-8", oe: "UTF-8", q: text4 });
   const res = await http2(`https://translate.google.com/translate_a/single?${params}`, {
     signal,
     headers: {
@@ -35627,9 +36130,9 @@ function normalizeAgentProxy(value) {
 function resolveAgentProxySlots(defaultProxy, overrides = {}) {
   const base = normalizeAgentProxy(defaultProxy);
   const slots = { http: "", https: "", socks5: "", all: "", ftp: "" };
-  for (const key2 of AGENT_PROXY_PROTOCOLS) {
-    const override = typeof overrides?.[key2] === "string" ? overrides[key2].trim() : "";
-    slots[key2] = override ? normalizeAgentProxy(override) : base;
+  for (const key3 of AGENT_PROXY_PROTOCOLS) {
+    const override = typeof overrides?.[key3] === "string" ? overrides[key3].trim() : "";
+    slots[key3] = override ? normalizeAgentProxy(override) : base;
   }
   return slots;
 }
@@ -35638,13 +36141,13 @@ function normalizeAgentProxyProtocols(defaultProxy, overrides) {
   if (overrides == null || overrides === "") return {};
   if (typeof overrides !== "object" || Array.isArray(overrides)) throw new Error("Protocol proxy overrides format is invalid");
   const next = {};
-  for (const key2 of AGENT_PROXY_PROTOCOLS) {
-    const raw = overrides[key2];
+  for (const key3 of AGENT_PROXY_PROTOCOLS) {
+    const raw = overrides[key3];
     if (raw == null || raw === "") continue;
-    if (typeof raw !== "string") throw new Error(`Proxy "${key2}" must be a string`);
+    if (typeof raw !== "string") throw new Error(`Proxy "${key3}" must be a string`);
     const normalized = normalizeAgentProxy(raw);
     if (!normalized || normalized === base) continue;
-    next[key2] = normalized;
+    next[key3] = normalized;
   }
   return next;
 }
@@ -35663,9 +36166,9 @@ function proxyHeaderEntriesFromObject(value) {
     return [name2, headerValue];
   });
 }
-function proxyHeaderEntriesFromLines(text3) {
+function proxyHeaderEntriesFromLines(text4) {
   const entries = [];
-  for (const line of text3.split(/\r?\n/)) {
+  for (const line of text4.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     const match = trimmed.match(/^([^:=]+)\s*[:=]\s*(.*)$/);
@@ -35869,9 +36372,9 @@ Content-Length: 0\r
     });
   });
   server.unref();
-  const key2 = bridgeKey(upstream, headers);
-  server.on("error", () => bridges.delete(key2));
-  server.on("close", () => bridges.delete(key2));
+  const key3 = bridgeKey(upstream, headers);
+  server.on("error", () => bridges.delete(key3));
+  server.on("close", () => bridges.delete(key3));
   const { port: port2 } = server.address();
   return {
     url: `http://${USER}:${token}@127.0.0.1:${port2}`,
@@ -35880,12 +36383,12 @@ Content-Length: 0\r
 }
 async function socksBridgeUrl(upstream, headers = {}) {
   const kind = isSocksProxy(upstream) ? "socks5" : /^https:/i.test(upstream) ? "https" : "http";
-  const key2 = bridgeKey(upstream, headers);
-  let bridge = bridges.get(key2);
+  const key3 = bridgeKey(upstream, headers);
+  let bridge = bridges.get(key3);
   if (!bridge) {
     bridge = startBridge(upstream, headers, kind);
-    bridges.set(key2, bridge);
-    bridge.catch(() => bridges.delete(key2));
+    bridges.set(key3, bridge);
+    bridge.catch(() => bridges.delete(key3));
   }
   return (await bridge).url;
 }
@@ -35899,17 +36402,17 @@ function slotsOf(profile) {
   return resolveAgentProxySlots(defaults, overrides);
 }
 function dispatcherFor(proxy, headers) {
-  const key2 = `${proxy}
+  const key3 = `${proxy}
 ${agentProxyHeadersKey(headers)}`;
-  let dispatcher = dispatchers.get(key2);
+  let dispatcher = dispatchers.get(key3);
   if (!dispatcher) {
     dispatcher = (async () => {
       if (isSocksProxy(proxy)) return new import_undici.ProxyAgent(await socksBridgeUrl(proxy, headers));
       if (Object.keys(headers).length) return new import_undici.ProxyAgent({ uri: proxy, headers });
       return new import_undici.ProxyAgent(proxy);
     })();
-    dispatchers.set(key2, dispatcher);
-    dispatcher.catch(() => dispatchers.delete(key2));
+    dispatchers.set(key3, dispatcher);
+    dispatcher.catch(() => dispatchers.delete(key3));
   }
   return dispatcher;
 }
@@ -35942,7 +36445,7 @@ function ollamaFetch(profile) {
 
 // services/game-agent/secrets.ts
 import { createCipheriv, createDecipheriv, randomBytes as randomBytes2 } from "node:crypto";
-import fs21 from "node:fs";
+import fs22 from "node:fs";
 import path18 from "node:path";
 var GAME_AGENT_SECRETS_PATH = path18.join(DATA_DIR, "game-agent", "secrets.json");
 var GAME_AGENT_SECRET_KEY_PATH = path18.join(DATA_DIR, "game-agent", "secret.key");
@@ -35950,22 +36453,22 @@ function files(input = {}) {
   return { secretsFile: input.secretsFile || GAME_AGENT_SECRETS_PATH, keyFile: input.keyFile || GAME_AGENT_SECRET_KEY_PATH };
 }
 function ensureKey(file) {
-  fs21.mkdirSync(path18.dirname(file), { recursive: true, mode: 448 });
-  if (!fs21.existsSync(file)) {
+  fs22.mkdirSync(path18.dirname(file), { recursive: true, mode: 448 });
+  if (!fs22.existsSync(file)) {
     try {
-      fs21.writeFileSync(file, randomBytes2(32).toString("base64"), { flag: "wx", mode: 384 });
+      fs22.writeFileSync(file, randomBytes2(32).toString("base64"), { flag: "wx", mode: 384 });
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
     }
   }
-  const key2 = Buffer.from(fs21.readFileSync(file, "utf8").trim(), "base64");
-  if (key2.length !== 32) throw new Error("Invalid agent credentials secret key");
-  return key2;
+  const key3 = Buffer.from(fs22.readFileSync(file, "utf8").trim(), "base64");
+  if (key3.length !== 32) throw new Error("Invalid agent credentials secret key");
+  return key3;
 }
 function readDocument(file) {
   try {
-    if (!fs21.existsSync(file)) return { version: 1, tokens: {} };
-    const value = JSON.parse(fs21.readFileSync(file, "utf8"));
+    if (!fs22.existsSync(file)) return { version: 1, tokens: {} };
+    const value = JSON.parse(fs22.readFileSync(file, "utf8"));
     if (value?.version !== 1 || !value.tokens || typeof value.tokens !== "object" || Array.isArray(value.tokens)) throw new Error("Invalid agent credentials file format");
     return value;
   } catch (error) {
@@ -35973,15 +36476,15 @@ function readDocument(file) {
     throw error;
   }
 }
-function decryptGameAgentSecret(value, aad, key2) {
-  const decipher = createDecipheriv("aes-256-gcm", key2, Buffer.from(value.iv, "base64"));
+function decryptGameAgentSecret(value, aad, key3) {
+  const decipher = createDecipheriv("aes-256-gcm", key3, Buffer.from(value.iv, "base64"));
   decipher.setAAD(Buffer.from(aad));
   decipher.setAuthTag(Buffer.from(value.tag, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(value.data, "base64")), decipher.final()]).toString("utf8");
 }
-function decrypt(value, profileId, key2) {
+function decrypt(value, profileId, key3) {
   try {
-    return decryptGameAgentSecret(value, profileId, key2);
+    return decryptGameAgentSecret(value, profileId, key3);
   } catch {
     throw new Error(`Credentials for agent ${profileId} could not be decrypted`);
   }
@@ -35994,7 +36497,7 @@ function readGameAgentToken(profileId, input = {}) {
 
 // services/game-agent/settings.ts
 import { randomUUID as randomUUID3 } from "node:crypto";
-import fs22 from "node:fs";
+import fs23 from "node:fs";
 import path19 from "node:path";
 
 // lib/game-agent/providers.ts
@@ -36052,23 +36555,23 @@ var _LEGACY_GAME_AGENT_SETTINGS_PATH = path19.join(DATA_DIR, "game-agent-setting
 var _LEGACY_GAME_AGENT_SYNC_PATH = path19.join(DATA_DIR, "game-agent-settings.sync.json");
 function migrateLegacyAgentFile(from, to) {
   try {
-    if (!fs22.existsSync(from) || fs22.existsSync(to)) return;
-    fs22.mkdirSync(path19.dirname(to), { recursive: true });
-    fs22.renameSync(from, to);
+    if (!fs23.existsSync(from) || fs23.existsSync(to)) return;
+    fs23.mkdirSync(path19.dirname(to), { recursive: true });
+    fs23.renameSync(from, to);
   } catch {
     try {
-      if (!fs22.existsSync(from) || fs22.existsSync(to)) return;
-      fs22.mkdirSync(path19.dirname(to), { recursive: true });
-      fs22.copyFileSync(from, to);
-      fs22.rmSync(from, { force: true });
+      if (!fs23.existsSync(from) || fs23.existsSync(to)) return;
+      fs23.mkdirSync(path19.dirname(to), { recursive: true });
+      fs23.copyFileSync(from, to);
+      fs23.rmSync(from, { force: true });
     } catch {
     }
   }
 }
 function resolveAgentSettingsFile(preferred, legacy) {
   migrateLegacyAgentFile(legacy, preferred);
-  if (fs22.existsSync(preferred)) return preferred;
-  if (fs22.existsSync(legacy)) return legacy;
+  if (fs23.existsSync(preferred)) return preferred;
+  if (fs23.existsSync(legacy)) return legacy;
   return preferred;
 }
 function legacyAgentFile(file, name2) {
@@ -36096,11 +36599,11 @@ function defaultGameAgentSettings() {
   const profile = defaultGameAgentProfile();
   return { version: 1, defaultProfileId: profile.id, profiles: [profile] };
 }
-function text(value, fallback) {
+function text2(value, fallback) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 function normalizeGameAgentEndpoint(value) {
-  const raw = text(value, DEFAULT_OLLAMA_HOST2);
+  const raw = text2(value, DEFAULT_OLLAMA_HOST2);
   let url;
   try {
     url = new URL(raw);
@@ -36119,8 +36622,8 @@ function normalizeGameAgentProfile(value, fallbackId = randomUUID3()) {
   const proxyHeaders = normalizeAgentProxyHeaders(value.proxyHeaders);
   if (isCliProvider(provider)) {
     return {
-      id: text(value.id, fallbackId),
-      label: text(value.label, PROVIDER_META[provider].label),
+      id: text2(value.id, fallbackId),
+      label: text2(value.label, PROVIDER_META[provider].label),
       provider,
       endpoint: "",
       defaultModel: typeof value.defaultModel === "string" ? value.defaultModel.trim() : "",
@@ -36134,12 +36637,12 @@ function normalizeGameAgentProfile(value, fallbackId = randomUUID3()) {
   }
   const temperature = Number(value.temperature ?? 0.2);
   if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new Error("Temperature must be between 0 and 2");
-  const keepAlive = text(value.keepAlive, "10m");
+  const keepAlive = text2(value.keepAlive, "10m");
   if (!/^(?:-1|0|\d+(?:\.\d+)?(?:ms|s|m|h))$/.test(keepAlive)) throw new Error("Invalid Keep Alive format, e.g. 10m, 1h, 0, or -1");
   if (isOpenApiProvider(provider)) {
     return {
-      id: text(value.id, fallbackId),
-      label: text(value.label, PROVIDER_META[provider].label),
+      id: text2(value.id, fallbackId),
+      label: text2(value.label, PROVIDER_META[provider].label),
       provider,
       endpoint: normalizeGameAgentEndpoint(value.endpoint || PROVIDER_META[provider].defaultEndpoint || ""),
       defaultModel: typeof value.defaultModel === "string" ? value.defaultModel.trim() : "",
@@ -36152,8 +36655,8 @@ function normalizeGameAgentProfile(value, fallbackId = randomUUID3()) {
     };
   }
   return {
-    id: text(value.id, fallbackId),
-    label: text(value.label, "Ollama"),
+    id: text2(value.id, fallbackId),
+    label: text2(value.label, "Ollama"),
     provider: "ollama",
     endpoint: normalizeGameAgentEndpoint(value.endpoint),
     defaultModel: typeof value.defaultModel === "string" ? value.defaultModel.trim() : "",
@@ -36174,8 +36677,8 @@ function normalizeGameAgentSettings(value) {
 function loadOwnedGameAgentSettings(file = GAME_AGENT_SETTINGS_PATH) {
   const resolved = settingsFilePath(file);
   try {
-    if (!fs22.existsSync(resolved)) return defaultGameAgentSettings();
-    return normalizeGameAgentSettings(JSON.parse(fs22.readFileSync(resolved, "utf8")));
+    if (!fs23.existsSync(resolved)) return defaultGameAgentSettings();
+    return normalizeGameAgentSettings(JSON.parse(fs23.readFileSync(resolved, "utf8")));
   } catch (error) {
     if (error instanceof SyntaxError) throw new Error("Agent configuration file is not valid JSON");
     throw error;
@@ -36261,7 +36764,7 @@ function scheduleOllama(run, options = false, legacySignal) {
 }
 
 // services/translate/agent-translate.ts
-async function agentJaToZh(text3, config, options = {}) {
+async function agentJaToZh(text4, config, options = {}) {
   const settings = loadGameAgentSettings();
   const profile = config.profileId && profileById(settings, config.profileId) || ollamaProfiles(settings)[0];
   if (!profile) throw new Error("No available Ollama agent profile found");
@@ -36279,7 +36782,7 @@ async function agentJaToZh(text3, config, options = {}) {
       const request = {
         host: profile.endpoint,
         model,
-        text: text3,
+        text: text4,
         category: options.category,
         speaker: options.speaker,
         context: options.context,
@@ -36289,10 +36792,10 @@ async function agentJaToZh(text3, config, options = {}) {
         interactive: options.interactive,
         signal
       };
-      const translated = await requestOllama(http2, { ...request, think: !options.interactive && translationNeedsReasoning(text3) });
-      if (translated && translated.normalize("NFKC").trim() !== text3.normalize("NFKC").trim()) return translated;
+      const translated = await requestOllama(http2, { ...request, think: !options.interactive && translationNeedsReasoning(text4) });
+      if (translated && translated.normalize("NFKC").trim() !== text4.normalize("NFKC").trim()) return translated;
       return requestOllama(http2, { ...request, text: `\u8BD1\u6587\uFF1A
-${text3}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true });
+${text4}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true });
     },
     {
       interactive: options.interactive,
@@ -36317,7 +36820,7 @@ function bergamotLanguage(input) {
 }
 
 // services/translate/bergamot/binary.ts
-import fs23 from "node:fs";
+import fs24 from "node:fs";
 import os2 from "node:os";
 import path20 from "node:path";
 function resolveBergamotBinary() {
@@ -36332,8 +36835,8 @@ function resolveBergamotBinary() {
   ];
   const binary = candidates2.find((file) => {
     try {
-      fs23.accessSync(file, fs23.constants.X_OK);
-      return fs23.statSync(file).isFile();
+      fs24.accessSync(file, fs24.constants.X_OK);
+      return fs24.statSync(file).isFile();
     } catch {
       return false;
     }
@@ -36343,7 +36846,7 @@ function resolveBergamotBinary() {
 }
 
 // services/translate/bergamot/readiness.ts
-import fs25 from "node:fs";
+import fs26 from "node:fs";
 import path22 from "node:path";
 
 // services/translate/bergamot/models.json
@@ -36462,7 +36965,7 @@ function validateBergamotPack(root, source, target2, sample, signal) {
 
 // services/translate/bergamot/store.ts
 import { createHash as createHash4, randomUUID as randomUUID4 } from "node:crypto";
-import fs24 from "node:fs";
+import fs25 from "node:fs";
 import os3 from "node:os";
 import path21 from "node:path";
 function legacyPacksRoot() {
@@ -36470,9 +36973,9 @@ function legacyPacksRoot() {
 }
 function adoptLegacyPacks(preferred, legacy) {
   try {
-    if (fs24.existsSync(preferred) || !fs24.existsSync(legacy)) return;
-    fs24.mkdirSync(path21.dirname(preferred), { recursive: true });
-    fs24.renameSync(legacy, preferred);
+    if (fs25.existsSync(preferred) || !fs25.existsSync(legacy)) return;
+    fs25.mkdirSync(path21.dirname(preferred), { recursive: true });
+    fs25.renameSync(legacy, preferred);
   } catch {
   }
 }
@@ -36481,7 +36984,7 @@ function packsRoot() {
   const preferred = path21.resolve(TRANSLATION_PACKS_DIR);
   const legacy = path21.resolve(legacyPacksRoot());
   adoptLegacyPacks(preferred, legacy);
-  if (!fs24.existsSync(preferred) && fs24.existsSync(legacy)) return legacy;
+  if (!fs25.existsSync(preferred) && fs25.existsSync(legacy)) return legacy;
   return preferred;
 }
 function safeId(value) {
@@ -36497,11 +37000,11 @@ function pairFolder(source, target2) {
 function installedPack(source, target2) {
   try {
     const packId = `${bergamotLanguage(source)}-${bergamotLanguage(target2)}`;
-    const ref = JSON.parse(fs24.readFileSync(path21.join(packsRoot(), "active", `${safeId(packId)}.json`), "utf8"));
+    const ref = JSON.parse(fs25.readFileSync(path21.join(packsRoot(), "active", `${safeId(packId)}.json`), "utf8"));
     if (ref.packId !== packId) return;
     const root = installationRoot(ref);
-    if (!fs24.realpathSync(root).startsWith(fs24.realpathSync(packsRoot()) + path21.sep)) return;
-    const manifest = JSON.parse(fs24.readFileSync(path21.join(root, "manifest.json"), "utf8"));
+    if (!fs25.realpathSync(root).startsWith(fs25.realpathSync(packsRoot()) + path21.sep)) return;
+    const manifest = JSON.parse(fs25.readFileSync(path21.join(root, "manifest.json"), "utf8"));
     if (JSON.stringify(manifest.reference) !== JSON.stringify(ref) || manifest.source !== bergamotLanguage(source) || manifest.target !== bergamotLanguage(target2)) return;
     const pack = findPack(source, target2);
     if (!pack || ref.version !== pack.version || manifest.files.length !== pack.files.length + 1) return;
@@ -36510,13 +37013,13 @@ function installedPack(source, target2) {
       ["config.yml", createHash4("sha256").update(pack.config).digest("hex")]
     ]);
     const folder = path21.join(root, pairFolder(source, target2));
-    if (fs24.lstatSync(folder).isSymbolicLink() || fs24.realpathSync(folder) !== path21.join(fs24.realpathSync(root), pairFolder(source, target2))) return;
+    if (fs25.lstatSync(folder).isSymbolicLink() || fs25.realpathSync(folder) !== path21.join(fs25.realpathSync(root), pairFolder(source, target2))) return;
     for (const item of manifest.files) {
       if (expected.get(item.name) !== item.sha256) return;
       expected.delete(item.name);
       const file = path21.join(root, pairFolder(source, target2), item.name);
       safeId(item.name.replaceAll(".", "_"));
-      const stat = fs24.lstatSync(file);
+      const stat = fs25.lstatSync(file);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== item.bytes || stat.mtimeMs !== item.mtimeMs) return;
     }
     if (expected.size) return;
@@ -36542,10 +37045,10 @@ async function verifiedPack(source, target2, refresh = false) {
   } catch {
     return;
   }
-  const stat = fs25.statSync(binary);
-  const key2 = contentId({ installed, binary, size: stat.size, mtime: stat.mtimeMs });
-  if (refresh) checks.delete(key2);
-  let check = checks.get(key2);
+  const stat = fs26.statSync(binary);
+  const key3 = contentId({ installed, binary, size: stat.size, mtime: stat.mtimeMs });
+  if (refresh) checks.delete(key3);
+  let check = checks.get(key3);
   if (!check) {
     check = queue2.then(async () => {
       if (await hashFile(binary) !== installed.manifest.binaryHash) return false;
@@ -36557,7 +37060,7 @@ async function verifiedPack(source, target2, refresh = false) {
     }).catch(() => false);
     queue2 = check;
     if (checks.size > 32) checks.clear();
-    checks.set(key2, check);
+    checks.set(key3, check);
   }
   return await check ? installed : void 0;
 }
@@ -36592,13 +37095,13 @@ var BergamotTranslatorClient = class {
     });
     child.stderr.on("data", () => {
     });
-    const fail = (error) => {
+    const fail2 = (error) => {
       if (this.child === child) this.stopDaemon(error);
     };
-    child.on("error", fail);
-    child.stdin.on("error", fail);
-    child.stdout.on("error", fail);
-    child.on("exit", () => fail(new Error("Bergamot translator process exited")));
+    child.on("error", fail2);
+    child.stdin.on("error", fail2);
+    child.stdout.on("error", fail2);
+    child.on("exit", () => fail2(new Error("Bergamot translator process exited")));
     this.child = child;
     this.lines = lines;
     return child;
@@ -36643,13 +37146,13 @@ var BergamotTranslatorClient = class {
       this.idleTimer.unref();
     }
   }
-  async request(action, options, text3) {
+  async request(action, options, text4) {
     if (!this.packRoot) {
       const root = installedPack(options?.source || "ja", options?.target || "zh")?.root;
       if (root) {
         const verified = await verifiedPack(options?.source || "ja", options?.target || "zh");
         if (!verified) throw new Error("PACK_MODEL_INVALID");
-        return managedClient(verified.root).request(action, options, text3);
+        return managedClient(verified.root).request(action, options, text4);
       }
     }
     const child = this.start();
@@ -36662,7 +37165,7 @@ var BergamotTranslatorClient = class {
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve3, reject, timer });
       child.stdin.write(
-        `${JSON.stringify({ id, action, from: this.packRoot ? bergamotLanguage(options?.source || "ja") : toBergamotLanguage(options?.source, "ja"), to: this.packRoot ? bergamotLanguage(options?.target || "zh") : toBergamotLanguage(options?.target, "zh"), text: text3 })}
+        `${JSON.stringify({ id, action, from: this.packRoot ? bergamotLanguage(options?.source || "ja") : toBergamotLanguage(options?.source, "ja"), to: this.packRoot ? bergamotLanguage(options?.target || "zh") : toBergamotLanguage(options?.target, "zh"), text: text4 })}
 `,
         (error) => {
           if (!error) return;
@@ -36685,9 +37188,9 @@ var BergamotTranslatorClient = class {
       return { status: "unavailable", installed: false, message: error instanceof Error ? error.message : String(error) };
     }
   }
-  async translate(text3, options) {
-    if (!text3.trim()) return text3;
-    const response = await this.request("translate", options, text3);
+  async translate(text4, options) {
+    if (!text4.trim()) return text4;
+    const response = await this.request("translate", options, text4);
     const result = response.translatedText ?? response.result;
     if (response.success !== true || typeof result !== "string") throw new Error(response.message || response.error || "Bergamot translation failed");
     return result;
@@ -36704,8 +37207,8 @@ function managedClient(root) {
   return client;
 }
 var bergamotTranslator = new BergamotTranslatorClient();
-function bergamotTranslate(text3, options) {
-  return bergamotTranslator.translate(text3, options);
+function bergamotTranslate(text4, options) {
+  return bergamotTranslator.translate(text4, options);
 }
 
 // services/translate/lib/macos-translate.ts
@@ -36891,8 +37394,8 @@ var AppleTranslatorClient = class {
       this.batchQueue = [];
       const groups = /* @__PURE__ */ new Map();
       for (const item of queue3) {
-        const key2 = JSON.stringify([item.source, item.target]);
-        groups.set(key2, [...groups.get(key2) || [], item]);
+        const key3 = JSON.stringify([item.source, item.target]);
+        groups.set(key3, [...groups.get(key3) || [], item]);
       }
       for (const items of groups.values()) {
         let batch = [];
@@ -36987,13 +37490,13 @@ var AppleTranslatorClient = class {
       };
     }
   }
-  async translate(text3, options) {
-    if (!text3 || !text3.trim()) return text3;
-    if (text3.length > 2e4) throw new Error("Apple translation text exceeds 20000 characters");
+  async translate(text4, options) {
+    if (!text4 || !text4.trim()) return text4;
+    if (text4.length > 2e4) throw new Error("Apple translation text exceeds 20000 characters");
     const res = await this.sendRequest(
       {
         type: "translate",
-        text: text3,
+        text: text4,
         source: toAppleLanguage(options?.source, "ja"),
         target: toAppleLanguage(options?.target, "zh-Hans")
       },
@@ -37013,8 +37516,8 @@ var AppleTranslatorClient = class {
   }
 };
 var appleTranslator = new AppleTranslatorClient();
-async function appleTranslate(text3, options) {
-  return appleTranslator.translate(text3, options);
+async function appleTranslate(text4, options) {
+  return appleTranslator.translate(text4, options);
 }
 
 // services/translate/live-activity.ts
@@ -37033,19 +37536,19 @@ function trackLiveTranslateRequest(fn) {
 }
 
 // services/translate/name-glossary-game.ts
-import fs28 from "node:fs";
+import fs29 from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
 import path24 from "node:path";
 
 // services/extract/lib/extract-items.ts
-import fs27 from "node:fs";
+import fs28 from "node:fs";
 
 // services/extract/lib/game-locales.ts
-import fs26 from "node:fs";
+import fs27 from "node:fs";
 import path23 from "node:path";
 function isValidLocalesDir(dirPath) {
-  if (!fs26.existsSync(dirPath) || !fs26.statSync(dirPath).isDirectory()) return false;
-  const entries = fs26.readdirSync(dirPath, { withFileTypes: true });
+  if (!fs27.existsSync(dirPath) || !fs27.statSync(dirPath).isDirectory()) return false;
+  const entries = fs27.readdirSync(dirPath, { withFileTypes: true });
   const subDirs = entries.filter((e) => e.isDirectory());
   if (!subDirs.length) {
     const jsonFiles = entries.filter((e) => e.isFile() && /\.(json|csv)$/i.test(e.name));
@@ -37054,7 +37557,7 @@ function isValidLocalesDir(dirPath) {
   for (const sub of subDirs) {
     const subPath = path23.join(dirPath, sub.name);
     try {
-      const files2 = fs26.readdirSync(subPath);
+      const files2 = fs27.readdirSync(subPath);
       if (files2.some((f) => /\.(json|csv)$/i.test(f))) {
         return true;
       }
@@ -37076,10 +37579,10 @@ function findLocalesDirectory(contentRoot) {
   ];
   const pluginsPaths = [path23.join(contentRoot, "js", "plugins.js"), path23.join(contentRoot, "www", "js", "plugins.js")];
   for (const pp of pluginsPaths) {
-    if (fs26.existsSync(pp)) {
+    if (fs27.existsSync(pp)) {
       try {
-        const text3 = fs26.readFileSync(pp, "utf8");
-        const locMatch = text3.match(/"Localization Folder"\s*:\s*"([^"]+)"/);
+        const text4 = fs27.readFileSync(pp, "utf8");
+        const locMatch = text4.match(/"Localization Folder"\s*:\s*"([^"]+)"/);
         if (locMatch && locMatch[1]) {
           const folder = locMatch[1].replace(/^[\\/]+|[\\/]+$/g, "");
           candidates2.unshift(path23.join(path23.dirname(path23.dirname(pp)), folder));
@@ -37111,7 +37614,7 @@ function loadGameLocalesCatalog(contentRoot) {
       keyToFileMap: {}
     };
   }
-  const entries = fs26.readdirSync(localesDir, { withFileTypes: true });
+  const entries = fs27.readdirSync(localesDir, { withFileTypes: true });
   const langDirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
   const dictionaries = {};
   const keyToFileMap = {};
@@ -37119,11 +37622,11 @@ function loadGameLocalesCatalog(contentRoot) {
     const langPath = path23.join(localesDir, lang);
     dictionaries[lang] = {};
     try {
-      const files2 = fs26.readdirSync(langPath).filter((f) => /\.json$/i.test(f));
+      const files2 = fs27.readdirSync(langPath).filter((f) => /\.json$/i.test(f));
       for (const file of files2) {
         const filePath2 = path23.join(langPath, file);
         try {
-          const data = JSON.parse(fs26.readFileSync(filePath2, "utf8"));
+          const data = JSON.parse(fs27.readFileSync(filePath2, "utf8"));
           if (data && typeof data === "object") {
             for (const [k, v] of Object.entries(data)) {
               if (typeof v === "string") {
@@ -37142,14 +37645,14 @@ function loadGameLocalesCatalog(contentRoot) {
     } catch {
     }
   }
-  const languages2 = Object.keys(dictionaries).filter((l) => Object.keys(dictionaries[l]).length > 0);
-  let primaryLanguage = languages2[0] || "";
-  if (languages2.includes("ru")) primaryLanguage = "ru";
-  else if (languages2.includes("en")) primaryLanguage = "en";
+  const languages3 = Object.keys(dictionaries).filter((l) => Object.keys(dictionaries[l]).length > 0);
+  let primaryLanguage = languages3[0] || "";
+  if (languages3.includes("ru")) primaryLanguage = "ru";
+  else if (languages3.includes("en")) primaryLanguage = "en";
   return {
-    hasLocales: languages2.length > 0,
+    hasLocales: languages3.length > 0,
     localesDir,
-    languages: languages2,
+    languages: languages3,
     primaryLanguage,
     dictionaries,
     keyToFileMap
@@ -37161,17 +37664,17 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
   const seedPath = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
   const extractPath = gameContentReadPath(contentRoot, "extractStrings", { alsoParent: true });
   let seed = {};
-  if (seedPath && fs27.existsSync(seedPath)) {
+  if (seedPath && fs28.existsSync(seedPath)) {
     try {
-      seed = JSON.parse(fs27.readFileSync(seedPath, "utf8"));
+      seed = JSON.parse(fs28.readFileSync(seedPath, "utf8"));
     } catch {
       seed = {};
     }
   }
   let extractData = null;
-  if (extractPath && fs27.existsSync(extractPath)) {
+  if (extractPath && fs28.existsSync(extractPath)) {
     try {
-      extractData = JSON.parse(fs27.readFileSync(extractPath, "utf8"));
+      extractData = JSON.parse(fs28.readFileSync(extractPath, "utf8"));
     } catch {
       extractData = null;
     }
@@ -37200,13 +37703,13 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
     }
   }
   const metaMap = /* @__PURE__ */ new Map();
-  function record(text3, meta) {
-    if (typeof text3 !== "string" || !text3) return;
-    const raw = text3.trim();
+  function record(text4, meta) {
+    if (typeof text4 !== "string" || !text4) return;
+    const raw = text4.trim();
     if (raw && !metaMap.has(raw)) {
       metaMap.set(raw, meta);
     }
-    for (const part of translationSources(text3)) {
+    for (const part of translationSources(text4)) {
       const k = part.trim();
       if (!k) continue;
       if (!metaMap.has(k)) {
@@ -37214,9 +37717,9 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
       }
     }
   }
-  function isSystemPrompt(text3) {
-    if (typeof text3 !== "string") return false;
-    const t = text3.trim();
+  function isSystemPrompt(text4) {
+    if (typeof text4 !== "string") return false;
+    const t = text4.trim();
     if (/^[+-]\s*[\{\[\<]?.+[\}\]\>]?/.test(t)) return true;
     if (/^SystemText-\d+$/i.test(t)) return true;
     if (/(?:手に入れた|入手|獲得|失った|消費|残高|所持金|ゴールド|\bEXP\b|\bHP\b|\bMP\b|\bTP\b)/i.test(t)) return true;
@@ -37251,12 +37754,12 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
       } else {
         const lines = Array.isArray(block.lines) ? block.lines : typeof block.src === "string" ? [block.src] : [];
         const fullText = lines.join("\n");
-        const registerText = (text3) => {
-          if (!text3 || typeof text3 !== "string") return;
-          const trimmed = text3.trim();
+        const registerText = (text4) => {
+          if (!text4 || typeof text4 !== "string") return;
+          const trimmed = text4.trim();
           if (!trimmed) return;
           if (isSystemPrompt(trimmed)) {
-            record(text3, { category: "system", label: "\u7CFB\u7EDF\u6587\u6848", context, file });
+            record(text4, { category: "system", label: "\u7CFB\u7EDF\u6587\u6848", context, file });
             return;
           }
           const hasDialogueQuote = /(?:^[「『"“]|【[^】]+】)/.test(trimmed);
@@ -37264,10 +37767,10 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
           if (isDialogue) {
             const speaker = cleanSpeaker(block.face, block.speaker);
             const label = speaker ? `\u5BF9\u8BDD (${speaker})` : "\u5BF9\u8BDD";
-            record(text3, { category: "dialogue", label, speaker, context, file });
+            record(text4, { category: "dialogue", label, speaker, context, file });
           } else {
             const label = block.kind === "s" ? "\u6EDA\u52A8\u5B57\u5E55" : "\u5267\u60C5/\u65C1\u767D";
-            record(text3, { category: "story", label, context, file });
+            record(text4, { category: "story", label, context, file });
           }
         };
         registerText(fullText);
@@ -37319,9 +37822,9 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
       record(r, { category: "resource", label: "\u6587\u672C\u8D44\u6E90" });
     }
   }
-  const records = loadGameTranslationRecords(contentRoot);
-  const lookup = createGameTranslateLookup(records);
-  const engines = createGameTranslateEngines(records);
+  const records2 = loadGameTranslationRecords(contentRoot);
+  const lookup = createGameTranslateLookup(records2);
+  const engines = createGameTranslateEngines(records2);
   const items = [];
   let index2 = 0;
   const seen = /* @__PURE__ */ new Set();
@@ -37406,43 +37909,43 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
   }
   if (items.length === 0 && catalog.hasLocales) {
     const keys = Object.keys(catalog.keyToFileMap);
-    for (const key2 of keys) {
+    for (const key3 of keys) {
       index2++;
-      const file = catalog.keyToFileMap[key2];
+      const file = catalog.keyToFileMap[key3];
       let category = "other";
       let label = "\u672C\u5730\u5316\u6587\u672C";
-      if (/^Map\d+/i.test(key2)) {
+      if (/^Map\d+/i.test(key3)) {
         category = "story";
         label = "\u5267\u60C5/\u65C1\u767D";
-      } else if (/^HINT/i.test(key2)) {
+      } else if (/^HINT/i.test(key3)) {
         category = "system";
         label = "\u7CFB\u7EDF\u63D0\u793A";
-      } else if (/^(?:Item|Weapon|Armor)/i.test(key2)) {
+      } else if (/^(?:Item|Weapon|Armor)/i.test(key3)) {
         category = "item";
         label = "\u7269\u54C1\u9053\u5177";
-      } else if (/^Skill/i.test(key2)) {
+      } else if (/^Skill/i.test(key3)) {
         category = "skill";
         label = "\u6280\u80FD";
-      } else if (/^Actor/i.test(key2)) {
+      } else if (/^Actor/i.test(key3)) {
         category = "actor";
         label = "\u89D2\u8272";
-      } else if (/^GOS/i.test(key2)) {
+      } else if (/^GOS/i.test(key3)) {
         category = "story";
         label = "\u5267\u60C5\u8BF4\u660E";
       }
       const meta = {
         category,
         label,
-        localesKey: key2,
+        localesKey: key3,
         localesFile: file,
         file: file ? `locales/${currentSourceLang || catalog.primaryLanguage || "en"}/${file}` : void 0,
-        context: key2
+        context: key3
       };
-      const candidateSrc = currentSourceLang && catalog.dictionaries[currentSourceLang]?.[key2] || catalog.primaryLanguage && catalog.dictionaries[catalog.primaryLanguage]?.[key2] || catalog.dictionaries["en"]?.[key2] || catalog.dictionaries["ru"]?.[key2] || key2;
-      const candidateZh = currentTargetLang ? catalog.dictionaries[currentTargetLang]?.[key2] : "";
-      const fromLookup = lookup[candidateSrc] || lookup[key2];
+      const candidateSrc = currentSourceLang && catalog.dictionaries[currentSourceLang]?.[key3] || catalog.primaryLanguage && catalog.dictionaries[catalog.primaryLanguage]?.[key3] || catalog.dictionaries["en"]?.[key3] || catalog.dictionaries["ru"]?.[key3] || key3;
+      const candidateZh = currentTargetLang ? catalog.dictionaries[currentTargetLang]?.[key3] : "";
+      const fromLookup = lookup[candidateSrc] || lookup[key3];
       const finalZh = candidateZh || fromLookup || "";
-      const finalEngine = candidateZh ? "game:locales" : fromLookup ? engines[candidateSrc] || engines[key2] || "cache" : void 0;
+      const finalEngine = candidateZh ? "game:locales" : fromLookup ? engines[candidateSrc] || engines[key3] || "cache" : void 0;
       items.push({
         id: String(index2),
         src: candidateSrc,
@@ -37473,14 +37976,14 @@ function loadExtractedItems(contentRoot) {
 var tables = /* @__PURE__ */ new Map();
 var sources = /* @__PURE__ */ new Map();
 function rgssSourceStamp(root) {
-  const dir = fs28.readdirSync(root).find((name2) => name2.toLowerCase() === "data");
+  const dir = fs29.readdirSync(root).find((name2) => name2.toLowerCase() === "data");
   if (!dir) return null;
   const dataDir = path24.join(root, dir);
-  const names = fs28.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
+  const names = fs29.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
   if (!names.length) return null;
   return JSON.stringify(
     names.map((name2) => {
-      const stat = fs28.statSync(path24.join(dataDir, name2));
+      const stat = fs29.statSync(path24.join(dataDir, name2));
       return [name2, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   );
@@ -37559,6 +38062,26 @@ function stitchLockedNamePlan(src, plan, gapZh) {
   return stitchNameLocks(src, plan.spans, filled);
 }
 
+// services/translate/observations/spool.ts
+import { randomUUID as randomUUID5 } from "node:crypto";
+import fs30 from "node:fs";
+import path25 from "node:path";
+var observationSpoolDirectory = () => path25.join(DATA_DIR, "translation-observations", "pending");
+function spoolTranslationObservations(events, directory = observationSpoolDirectory()) {
+  if (!events.length) return;
+  fs30.mkdirSync(directory, { recursive: true });
+  const file = path25.join(directory, `${Date.now()}-${randomUUID5()}.jsonl`);
+  const partial = `${file}.partial`;
+  const fd = fs30.openSync(partial, "wx", 384);
+  try {
+    fs30.writeFileSync(fd, events.map((event) => JSON.stringify(event)).join("\n") + "\n");
+    fs30.fsyncSync(fd);
+  } finally {
+    fs30.closeSync(fd);
+  }
+  fs30.renameSync(partial, file);
+}
+
 // services/translate/ollama-translate.ts
 var OLLAMA_HOST = process.env.OLLAMA_HOST || DEFAULT_OLLAMA_HOST;
 var OLLAMA_MODEL = process.env.OLLAMA_MODEL || DEFAULT_OLLAMA_MODEL;
@@ -37587,8 +38110,8 @@ async function ollamaChat(system, user, temperature, think, options) {
 function sameText(a, b) {
   return a.normalize("NFKC").replace(/\s+/g, " ").trim() === b.normalize("NFKC").replace(/\s+/g, " ").trim();
 }
-async function ollamaJaToZh(text3, options) {
-  const q = String(text3 ?? "").trim();
+async function ollamaJaToZh(text4, options) {
+  const q = String(text4 ?? "").trim();
   if (!q) return q;
   const defaultSystem = buildTranslateSystemPrompt({ category: options?.category, speaker: options?.speaker, context: options?.context });
   const attempts = [
@@ -37694,9 +38217,9 @@ function withEngineCapacity(engine, identity, work, signal, customSettings) {
 // services/translate/scheduler/in-flight.ts
 var globalRequests = globalThis;
 var requests = globalRequests.__chayaTranslationRequests ??= /* @__PURE__ */ new Map();
-function joinTranslationRequest(key2, work, signal, onJoin) {
+function joinTranslationRequest(key3, work, signal, onJoin) {
   if (signal?.aborted) return Promise.reject(signal.reason);
-  let entry = requests.get(key2);
+  let entry = requests.get(key3);
   if (!entry || entry.controller.signal.aborted) {
     const controller = new AbortController();
     let resolveWork;
@@ -37707,10 +38230,10 @@ function joinTranslationRequest(key2, work, signal, onJoin) {
     });
     entry = { controller, promise, subscribers: 0, settled: false };
     const own2 = entry;
-    requests.set(key2, own2);
+    requests.set(key3, own2);
     const settled = () => {
       own2.settled = true;
-      if (requests.get(key2) === own2) requests.delete(key2);
+      if (requests.get(key3) === own2) requests.delete(key3);
     };
     void own2.promise.then(settled, settled);
     try {
@@ -37747,7 +38270,7 @@ function joinTranslationRequest(key2, work, signal, onJoin) {
   });
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/normalize.js
+// node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/normalize.js
 var MASK_CHAR = "\0";
 var SMALL_KANA = {
   \u3041: "\u3042",
@@ -37817,13 +38340,13 @@ function preNormalize(input, mode) {
   }
   return { text: out.join(""), map };
 }
-function collapse(text3, map) {
+function collapse(text4, map) {
   const kept = [];
   const keptMap = [];
-  for (let i = 0; i < text3.length; i++) {
-    if (PROLONGED.test(text3[i]))
+  for (let i = 0; i < text4.length; i++) {
+    if (PROLONGED.test(text4[i]))
       continue;
-    kept.push(text3[i]);
+    kept.push(text4[i]);
     keptMap.push(map[i]);
   }
   const out = [];
@@ -37849,9 +38372,9 @@ function hasAdjacentLetter(chars, i) {
   }
   return false;
 }
-function normalizeWithMap(text3, options = {}) {
+function normalizeWithMap(text4, options = {}) {
   const { mode = "ja", stage = "full" } = typeof options === "string" ? { mode: options } : options;
-  const pre = preNormalize(text3, mode);
+  const pre = preNormalize(text4, mode);
   if (stage === "pre")
     return pre;
   const full = collapse(pre.text, pre.map);
@@ -37861,7 +38384,7 @@ function detectMode(word) {
   return /^[\x20-\x7e]+$/.test(word) ? "en" : "ja";
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/filter.js
+// node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/filter.js
 function createFilter({ lists, allowlist = [] }) {
   const jaEntries = [];
   const enTokens = /* @__PURE__ */ new Map();
@@ -37874,10 +38397,10 @@ function createFilter({ lists, allowlist = [] }) {
       const norm = normalizeWithMap(word, mode).text;
       if (!norm)
         continue;
-      const key2 = `${mode}:${norm}`;
-      if (seen.has(key2))
+      const key3 = `${mode}:${norm}`;
+      if (seen.has(key3))
         continue;
-      seen.add(key2);
+      seen.add(key3);
       const entry = { norm, word, list: name2 };
       if (mode === "ja")
         jaEntries.push(entry);
@@ -37899,8 +38422,8 @@ function createFilter({ lists, allowlist = [] }) {
   const byLengthDesc = (a, b) => b.length - a.length;
   jaMasks.sort(byLengthDesc);
   enMasks.sort(byLengthDesc);
-  const prepare = (text3, mode, masks) => {
-    const pre = normalizeWithMap(text3, { mode, stage: "pre" });
+  const prepare = (text4, mode, masks) => {
+    const pre = normalizeWithMap(text4, { mode, stage: "pre" });
     let masked = pre.text;
     for (const m of masks) {
       if (masked.includes(m))
@@ -37908,11 +38431,11 @@ function createFilter({ lists, allowlist = [] }) {
     }
     return collapse(masked, pre.map);
   };
-  const scan = (text3, stopAtFirst) => {
+  const scan = (text4, stopAtFirst) => {
     const found = [];
     const at = (map, i) => map[i] ?? 0;
     if (jaEntries.length > 0) {
-      const ja2 = prepare(text3, "ja", jaMasks);
+      const ja2 = prepare(text4, "ja", jaMasks);
       for (const e of jaEntries) {
         const i = ja2.text.indexOf(e.norm);
         if (i === -1)
@@ -37928,7 +38451,7 @@ function createFilter({ lists, allowlist = [] }) {
       }
     }
     if (enTokens.size > 0 || enPhrases.length > 0) {
-      const en2 = prepare(text3, "en", enMasks);
+      const en2 = prepare(text4, "en", enMasks);
       const t = en2.text;
       if (enTokens.size > 0) {
         let i = 0;
@@ -37979,14 +38502,14 @@ function createFilter({ lists, allowlist = [] }) {
   };
   return {
     size: jaEntries.length + enTokens.size + enPhrases.length,
-    test: (text3) => scan(text3, true).length > 0,
-    match: (text3) => scan(text3, true)[0] ?? null,
-    matchAll: (text3) => scan(text3, false),
-    clean(text3, replacement = "*") {
-      const hits = scan(text3, false);
+    test: (text4) => scan(text4, true).length > 0,
+    match: (text4) => scan(text4, true)[0] ?? null,
+    matchAll: (text4) => scan(text4, false),
+    clean(text4, replacement = "*") {
+      const hits = scan(text4, false);
       if (hits.length === 0)
-        return text3;
-      const chars = [...text3];
+        return text4;
+      const chars = [...text4];
       for (const h of hits) {
         for (let i = h.start; i < h.end && i < chars.length; i++)
           chars[i] = replacement;
@@ -37996,12 +38519,12 @@ function createFilter({ lists, allowlist = [] }) {
   };
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/generated/data.js
+// node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/generated/data.js
 var data_exports = {};
 __export(data_exports, {
   en: () => en,
   ja: () => ja,
-  languages: () => languages
+  languages: () => languages2
 });
 var en = {
   abuse: { name: "en/abuse", words: ["a**hole", "ape shit", "apeshit", "arsehole", "asshat", "asshole", "b*tch", "bastard", "bellend", "better off dead", "bitch", "bitches", "brain dead", "braindead", "brainless", "bull shit", "bullshit", "c*nt", "cluster fuck", "clusterfuck", "cocksucker", "cunt", "cunts", "d*ck", "dingleberries", "dingleberry", "dipshit", "dog shit", "dogshit", "douchebag", "drop dead", "dumb ass", "dumbass", "dumbfuck", "dumbshit", "eat shit", "everybody hates you", "everyone hates you", "f**k", "f*ck", "f*cking", "fu*k", "fuck", "fuck off", "fuck you", "fucken", "fucker", "fuckers", "fuckface", "fuckhead", "fuckheads", "fuckin", "fucking", "fucks", "fucktard", "fucktards", "fuckwad", "fuckwads", "fuckwhit", "fuckwit", "fuckwits", "go die", "go kill yourself", "hope you die", "horse shit", "horseshit", "human garbage", "human trash", "i hope you die", "just die", "kill ur self", "kill urself", "kill yourself", "kunt", "kunts", "kys", "kyss", "lowlife", "mf*er", "motherfucker", "mouth breather", "neck yourself", "no one likes you", "nobody cares about you", "nobody likes you", "off yourself", "p*ssy", "piece of garbage", "piece of shit", "piece of trash", "pieces of shit", "piss off", "pissed off", "pussy", "rope yourself", "screw you", "scumbag", "sh**", "sh*t", "shit", "shit head", "shitbag", "shitface", "shithead", "shitty", "shouldnt have been born", "shut the fuck up", "sod off", "son of a bitch", "sonofabitch", "stfu", "tosser", "twat", "unalive yourself", "waste of air", "waste of life", "waste of oxygen", "waste of space", "whore", "you are a mistake", "you should die"] },
@@ -38020,13 +38543,13 @@ var ja = {
   sexual: { name: "ja/sexual", words: ["AV\u5973\u512A", "G\u30B9\u30DD\u30C3\u30C8", "NTR", "T\u30D0\u30C3\u30AF", "\u3048\u3063\u3061", "\u304A\u3061\u3093\u3061\u3093", "\u304A\u3063\u03C0", "\u304A\u3063\u3071\u3044", "\u304A\u306A\u306B\u30FC", "\u304A\u306D\u30B7\u30E7\u30BF", "\u304A\u307E\u3093\u3053", "\u304A\u3081\u3053", "\u304A\u6383\u9664\u30D5\u30A7\u30E9", "\u304D\u3093\u305F\u307E", "\u3055\u304B\u3055\u690B\u9CE5", "\u3057\u307C\u308A\u8299\u84C9", "\u3059\u3051\u3079", "\u305B\u304D\u308C\u3044\u672C\u624B", "\u305B\u3063\u304F\u3059", "\u3060\u3044\u3057\u3085\u304D\u30DB\u30FC\u30EB\u30C9", "\u3061\u3093\u3053", "\u3061\u3093\u307D", "\u3072\u3068\u308A\u3048\u3063\u3061", "\u3075\u305F\u306A\u308A", "\u307E\u3093\u3050\u308A\u8FD4\u3057", "\u307E\u3093\u3053", "\u307E\u3093\u307E\u3093", "\u30A2\u30AF\u30E1", "\u30A2\u30B2\u30DE\u30F3", "\u30A2\u30C0\u30EB\u30C8\u30D3\u30C7\u30AA", "\u30A2\u30CA\u30CB\u30FC", "\u30A2\u30CA\u30EB", "\u30A2\u30CA\u30EB\u30BB\u30C3\u30AF\u30B9", "\u30A2\u30CA\u30EB\u30D3\u30FC\u30BA", "\u30A2\u30CA\u30EB\u30D7\u30E9\u30B0", "\u30A2\u30CA\u30EB\u62E1\u5F35", "\u30A2\u30CA\u30EB\u958B\u767A", "\u30A2\u30CA\u30EB\uFF33\uFF25\uFF38", "\u30A2\u30D8\u9854", "\u30A4\u30C1\u30E2\u30C4", "\u30A4\u30C1\u30E3\u30A4\u30C1\u30E3\u30BB\u30C3\u30AF\u30B9", "\u30A4\u30C1\u30E3\u30E9\u30D6\u30BB\u30C3\u30AF\u30B9", "\u30A4\u30E1\u30AF\u30E9", "\u30A4\u30E1\u30FC\u30B8\u30D3\u30C7\u30AA", "\u30A4\u30E9\u30DE\u30C1\u30AA", "\u30A4\u30F3\u30DD", "\u30A4\u30F3\u30DD\u30C6\u30F3\u30C4", "\u30A8\u30AF\u30B9\u30BF\u30B7\u30FC", "\u30A8\u30ED", "\u30A8\u30ED\u3044", "\u30A8\u30ED\u540C\u4EBA", "\u30A8\u30ED\u540C\u4EBA\u8A8C", "\u30A8\u30ED\u672C", "\u30AA\u30CA\u30DA", "\u30AA\u30CA\u30DA\u30C3\u30C8", "\u30AA\u30CA\u30DB", "\u30AA\u30CA\u30DB\u30FC\u30EB", "\u30AA\u30FC\u30AC\u30BA\u30E0", "\u30AB\u30A6\u30D1\u30FC", "\u30AB\u30F3\u30C8\u30F3\u5305\u830E", "\u30AE\u30E3\u30B0\u30DC\u30FC\u30EB", "\u30AF\u30EA\u30C8\u30EA\u30B9", "\u30AF\u30F3\u30CB", "\u30AF\u30F3\u30CB\u30EA\u30F3\u30B0\u30B9", "\u30B1\u30C4\u30DE\u30F3\u30B3", "\u30B3\u30F3\u30C9\u30FC\u30E0", "\u30B5\u30B2\u30DE\u30F3", "\u30B6\u30FC\u30E1\u30F3", "\u30B7\u30C3\u30AF\u30B9\u30CA\u30A4\u30F3", "\u30B7\u30E7\u30BF\u304A\u306D", "\u30B9\u30AB\u30C8\u30ED", "\u30B9\u30B1\u30D9\u6905\u5B50", "\u30B9\u30DA\u30EB\u30DE", "\u30B9\u30EF\u30C3\u30D4\u30F3\u30B0", "\u30BB\u30D5\u30EC", "\u30BB\u30F3\u30BA\u30EA", "\u30BD\u30D5\u30C8\u30FB\u30AA\u30F3\u30FB\u30C7\u30DE\u30F3\u30C9", "\u30BD\u30FC\u30D7\u30E9\u30F3\u30C9", "\u30BD\u30FC\u30D7\u5B22", "\u30C0\u30C3\u30C1\u30EF\u30A4\u30D5", "\u30C7\u30A3\u30EB\u30C9", "\u30C7\u30A3\u30FC\u30D7\u30B9\u30ED\u30FC\u30C8", "\u30C7\u30AB\u30C1\u30F3", "\u30C7\u30EA\u30D0\u30EA\u30FC\u30D8\u30EB\u30B9", "\u30C7\u30EA\u30D8\u30EB", "\u30C8\u30ED\u9854", "\u30CE\u30FC\u30D1\u30F3", "\u30CF\u30E1\u64AE\u308A", "\u30D0\u30A4\u30A2\u30B0\u30E9", "\u30D0\u30AD\u30E5\u30FC\u30E0\u30D5\u30A7\u30E9", "\u30D1\u30A4\u30BA\u30EA", "\u30D1\u30A4\u30D1\u30F3", "\u30D1\u30D1\u6D3B", "\u30D1\u30F3\u30C1\u30E9", "\u30D3\u30C3\u30C1", "\u30D5\u30A3\u30B9\u30C8\u30D5\u30A1\u30C3\u30AF", "\u30D5\u30A7\u30E9", "\u30D5\u30A7\u30E9\u30C1\u30AA", "\u30D5\u30A7\u30E9\u629C\u304D", "\u30D6\u30EB\u30BB\u30E9", "\u30DA\u30C3\u30C6\u30A3\u30F3\u30B0", "\u30DA\u30CB\u30D0\u30F3", "\u30DB\u5225", "\u30DC\u30C6\u8179", "\u30DD\u30B3\u30C1\u30F3", "\u30DD\u30EB\u30C1\u30AA", "\u30DE\u30B9\u30BF\u30FC\u30D9\u30FC\u30B7\u30E7\u30F3", "\u30E4\u30EA\u30C1\u30F3", "\u30E4\u30EA\u30DE\u30F3", "\u30E9\u30D6\u30C9\u30FC\u30EB", "\u30E9\u30D6\u30DB", "\u30E9\u30D6\u30DB\u30C6\u30EB", "\u30EC\u30A4\u30D7", "\u30ED\u30EA\u30B3\u30F3", "\u4E00\u4EBA\uFF28", "\u4E2D\u51FA\u3057", "\u4E59\u03C0", "\u4E71\u308C\u7261\u4E39", "\u4E71\u4EA4", "\u4E80\u7532\u7E1B\u308A", "\u4E80\u982D", "\u4E8C\u7A74", "\u4E8C\u7A74\u540C\u6642", "\u4EEE\u6027\u5305\u830E", "\u515C\u5408\u308F\u305B", "\u5165\u8239\u672C\u624B", "\u5186\u5149", "\u5305\u830E", "\u53E3\u5185\u5C04\u7CBE", "\u53E3\u5185\u767A\u5C04", "\u5510\u8349\u5C45\u8336\u81FC", "\u5598\u304E\u58F0", "\u56DB\u5341\u516B\u624B", "\u592A\u3082\u3082\u30B3\u30AD", "\u59EB\u59CB\u3081", "\u5A9A\u85AC", "\u5B55\u307E\u305B", "\u5BDD\u53D6\u3089\u308C", "\u5BDD\u53D6\u308A", "\u5BFF\u672C\u624B", "\u5C04\u7CBE", "\u5C4D\u59E6", "\u5DE8\u4E73", "\u5DE8\u5C3B", "\u5DE8\u6839", "\u5E06\u304B\u3051\u8336\u81FC", "\u5F37\u59E6", "\u5F8C\u80CC\u4F4D", "\u5FAE\u4E73", "\u5FCD\u3073\u5C45\u8336\u81FC", "\u5FEB\u697D\u5815\u3061", "\u6027\u4EA4", "\u6027\u51E6\u7406", "\u6027\u5974\u96B7", "\u6027\u611F\u30DE\u30C3\u30B5\u30FC\u30B8", "\u6027\u611F\u5E2F", "\u6027\u884C\u70BA", "\u611B\u64AB", "\u611B\u6DB2", "\u6211\u6162\u6C41", "\u624B\u30B3\u30AD", "\u624B\u30DE\u30F3", "\u624B\u6DEB", "\u62B1\u304D\u5730\u8535", "\u63DA\u7FBD\u672C\u624B", "\u63F4\u4EA4", "\u63F4\u52A9\u4EA4\u969B", "\u653E\u5C3F", "\u653E\u7F6E\u30D7\u30EC\u30A4", "\u65E9\u6F0F", "\u6642\u96E8\u8336\u81FC", "\u6708\u898B\u8336\u81FC", "\u671D\u52C3\u3061", "\u671D\u8D77\u3061", "\u677E\u8449\u5D29\u3057", "\u6A5F\u7E54\u8336\u81FC", "\u6B63\u5E38\u4F4D", "\u6C41\u7537\u512A", "\u6CE1\u59EB", "\u6D1E\u5165\u308A\u672C\u624B", "\u6DEB\u4E71", "\u6DEB\u884C", "\u6DEB\u8A9E", "\u6DEB\u9761", "\u7206\u4E73", "\u7363\u59E6", "\u7389\u8210\u3081", "\u751F\u30CF\u30E1", "\u7537\u5A3C", "\u75F4\u5973", "\u771F\u6027\u5305\u830E", "\u7761\u59E6", "\u777E\u4E38", "\u7A2E\u4ED8\u3051\u30D7\u30EC\u30B9", "\u7A74\u5144\u5F1F", "\u7ACB\u3061\u3093\u307C", "\u7AE5\u8C9E", "\u7B20\u821F\u672C\u624B", "\u7B46\u304A\u308D\u3057", "\u7B4F\u672C\u624B", "\u7C97\u30C1\u30F3", "\u7D20\u80A1", "\u7D76\u502B", "\u7DB2\u4EE3\u672C\u624B", "\u7DCA\u7E1B", "\u8089\u4FBF\u5668", "\u80F8\u30C1\u30E9", "\u8107\u30B3\u30AD", "\u81EA\u6170", "\u83CA\u9580", "\u87FB\u306E\u6238\u6E21\u308A", "\u88CF\u7B4B", "\u8C9D\u5408\u308F\u305B", "\u8CA7\u4E73", "\u8DB3\u30B3\u30AD", "\u8F2A\u59E6", "\u8FD1\u89AA\u76F8\u59E6", "\u9006\u30A2\u30CA\u30EB", "\u9006\u30EC\u30A4\u30D7", "\u9045\u6F0F", "\u91D1\u7389", "\u9670\u5507", "\u9670\u56A2", "\u9670\u6838", "\u9670\u6BDB", "\u9670\u830E", "\u9670\u90E8", "\u9675\u8FB1", "\u96C1\u304C\u9996", "\u96FB\u30DE", "\u9752\u59E6", "\u9854\u5C04", "\u98DF\u7CDE", "\u98F2\u5C3F", "\u9996\u5F15\u304D\u604B\u6155", "\u9A0E\u4E57\u4F4D", "\u9DAF\u306E\u8C37\u6E21\u308A", "\u9EC4\u91D1\u6C34", "\uFF33\uFF2D\u30D7\u30EC\u30A4"] },
   slur: { name: "ja/slur", words: ["\u3044\u3056\u308A", "\u304B\u305F\u308F", "\u304D\u3061\u304C\u3044", "\u304E\u3063\u3061\u3087", "\u305B\u3080\u3057", "\u3061\u3093\u3070", "\u3064\u3093\u307C", "\u3064\u3093\u307C\u685F\u6577", "\u3069\u3082\u308A", "\u3073\u3063\u3053", "\u3081\u304F\u3089", "\u3081\u304F\u3089\u5224", "\u3081\u304F\u3089\u6EC5\u6CD5", "\u3081\u3063\u304B\u3061", "\u3089\u3044\u75C5", "\u30A2\u30B9\u30DA", "\u30A2\u30DB", "\u30AC\u30A4\u30B8", "\u30AD\u30E0\u30C1\u91CE\u90CE", "\u30AF\u30BD", "\u30AF\u30BD\u304F\u3089\u3048", "\u30AF\u30BD\u30A2\u30DE", "\u30AF\u30BD\u30AC\u30AD", "\u30AF\u30BD\u30B4\u30DF", "\u30B8\u30B8\u30A4", "\u30B8\u30E3\u30C3\u30D7", "\u30B9\u30C6\u30CF\u30B2", "\u30C1\u30E7\u30F3", "\u30C1\u30E7\u30F3\u30B3", "\u30C7\u30D6", "\u30CA\u30DE\u30DD", "\u30CB\u30B0\u30ED", "\u30CD\u30C8\u30A6\u30E8", "\u30CF\u30B2", "\u30D0\u30AB", "\u30D0\u30AB\u30E4\u30ED\u30A6", "\u30D0\u30AB\u30E4\u30ED\u30FC", "\u30D0\u30D0\u30A2", "\u30D1\u30E8\u30AF", "\u30D4\u30CD\u30AC\u30AD", "\u30D6\u30B9", "\u30DD\u30EA\u516C", "\u30DE\u30CC\u30B1", "\u4E09\u56FD\u4EBA", "\u4E0D\u5177\u8005", "\u4F4E\u80FD\u5150", "\u4F4E\u8133\u5150", "\u50B4\u50C2", "\u5206\u88C2\u75C5", "\u534A\u5CF6\u4EBA", "\u5516", "\u571F\u4EBA", "\u5947\u5F62\u5150", "\u5C0F\u4F7F\u3044", "\u5EC3\u75BE", "\u652F\u90A3", "\u652F\u90A3\u4EBA", "\u696D\u75C5", "\u6BDB\u5510", "\u6C17\u72C2\u3044", "\u6C17\u9055\u3044", "\u6C17\u9055\u3044\u306B\u5203\u7269", "\u6C60\u6CBC", "\u6C96\u4EF2\u4ED5", "\u7279\u6B8A\u90E8\u843D", "\u72C2\u4EBA", "\u7669\u75C5", "\u77E5\u6075\u9045\u308C", "\u7A62\u591A", "\u7CBE\u795E\u5206\u88C2\u75C5", "\u7CBE\u8584", "\u7CDE\u304F\u3089\u3048", "\u7CDE\u98DF\u3089\u3048", "\u8499\u53E4\u75C7", "\u8C5A\u91CE\u90CE", "\u90E8\u843D\u6C11", "\u9732\u52A9", "\u99AC\u9E7F\u91CE\u90CE", "\u9BAE\u4EBA", "\u9ED2\u3093\u307C"] }
 };
-var languages = ["en", "ja"];
+var languages2 = ["en", "ja"];
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/wordguard.js
+// node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/wordguard.js
 var DEFAULT_CATEGORIES = ["sexual", "slur", "abuse"];
-function pick(languages2, categories) {
+function pick(languages3, categories) {
   const lists = [];
-  for (const lang of languages2) {
+  for (const lang of languages3) {
     const bundle = data_exports[lang];
     for (const category of categories) {
       const list = bundle[category];
@@ -38036,22 +38559,22 @@ function pick(languages2, categories) {
   }
   return lists;
 }
-function allowlistFor(languages2) {
-  return languages2.flatMap((lang) => {
+function allowlistFor(languages3) {
+  return languages3.flatMap((lang) => {
     const bundle = data_exports[lang];
     return bundle.allowlist?.words ?? [];
   });
 }
 function wordguard(options = {}) {
-  const languages2 = options.languages ?? [...languages];
+  const languages3 = options.languages ?? [...languages2];
   const categories = options.categories ?? DEFAULT_CATEGORIES;
-  const lists = pick(languages2, categories);
+  const lists = pick(languages3, categories);
   if (options.words?.length)
     lists.push({ name: "custom", words: options.words });
   return createFilter({
     lists,
     allowlist: [
-      ...options.builtinAllowlist === false ? [] : allowlistFor(languages2),
+      ...options.builtinAllowlist === false ? [] : allowlistFor(languages3),
       ...options.allowlist ?? []
     ]
   });
@@ -38127,8 +38650,8 @@ var filter = wordguard({
   words: EXTRA_WORDS
 });
 var DECO_SIGNAL = /[♡♥❤💕]|はぁ+|あっ+|んっ+|ぅぅ+|ァ+|ッ+/g;
-function inspectSensitiveText(text3) {
-  const raw = String(text3 ?? "");
+function inspectSensitiveText(text4) {
+  const raw = String(text4 ?? "");
   if (!raw.trim()) return { sensitive: false, score: 0, reasons: [] };
   const core = stripControlNoise(raw);
   let score = 0;
@@ -38151,8 +38674,8 @@ function inspectSensitiveText(text3) {
   }
   return { sensitive: score >= 2, score, reasons };
 }
-function isSensitiveForCloud(text3) {
-  return inspectSensitiveText(text3).sensitive;
+function isSensitiveForCloud(text4) {
+  return inspectSensitiveText(text4).sensitive;
 }
 function isNsfwTaggedEngine(engine) {
   const e = String(engine || "");
@@ -38164,10 +38687,10 @@ function isNsfwCacheRow(src, engine) {
 }
 
 // services/translate/shared-cache/index.ts
-import fs32 from "node:fs";
-import path27 from "node:path";
+import fs34 from "node:fs";
+import path28 from "node:path";
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/entity.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/entity.js
 var entityKind = /* @__PURE__ */ Symbol.for("drizzle:entityKind");
 function is(value, type) {
   if (!value || typeof value !== "object") return false;
@@ -38181,7 +38704,7 @@ function is(value, type) {
   return false;
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/query-promise.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/query-promise.js
 var QueryPromise = class {
   static [entityKind] = "QueryPromise";
   [Symbol.toStringTag] = "QueryPromise";
@@ -38202,10 +38725,10 @@ var QueryPromise = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column-common.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column-common.js
 var OriginalColumn = /* @__PURE__ */ Symbol.for("drizzle:OriginalColumn");
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column.js
 var noop = (v) => v;
 noop.isNoop = true;
 var Column = class {
@@ -38277,10 +38800,10 @@ var Column = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/table.utils.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/table.utils.js
 var TableName = /* @__PURE__ */ Symbol.for("drizzle:Name");
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/table.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/table.js
 var TableSchema = /* @__PURE__ */ Symbol.for("drizzle:Schema");
 var TableColumns = /* @__PURE__ */ Symbol.for("drizzle:Columns");
 var ExtraConfigColumns = /* @__PURE__ */ Symbol.for("drizzle:ExtraConfigColumns");
@@ -38339,7 +38862,7 @@ function getTableName(table) {
   return table[TableName];
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/subquery.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/subquery.js
 var Subquery = class {
   static [entityKind] = "Subquery";
   constructor(sql2, fields, alias, isWith = false, usedTables = []) {
@@ -38357,15 +38880,15 @@ var WithSubquery = class extends Subquery {
   static [entityKind] = "WithSubquery";
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/tracing.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/tracing.js
 var tracer = { startActiveSpan(name2, fn) {
   return fn();
 } };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/view-common.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/view-common.js
 var ViewBaseConfig = /* @__PURE__ */ Symbol.for("drizzle:ViewBaseConfig");
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/sql.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/sql.js
 var FakePrimitiveParam = class {
   static [entityKind] = "FakePrimitiveParam";
 };
@@ -38681,10 +39204,10 @@ function sql(strings2, ...params) {
     return new SQL(result);
   }
   _sql.join = join2;
-  function identifier(value) {
+  function identifier2(value) {
     return new Name(value);
   }
-  _sql.identifier = identifier;
+  _sql.identifier = identifier2;
   function placeholder2(name2) {
     return new Placeholder(name2);
   }
@@ -38726,9 +39249,9 @@ function sqlCommenter(input) {
       return sanitizeStringInput(input);
     }
     const parts = [];
-    for (const [key2, value] of Object.entries(input)) {
+    for (const [key3, value] of Object.entries(input)) {
       if (value === null || value === void 0 || value === "") continue;
-      const encodedKey = sanitizeObjectElement(key2);
+      const encodedKey = sanitizeObjectElement(key3);
       const encodedValue = sanitizeObjectElement(String(value));
       parts.push(`${encodedKey}='${encodedValue}'`);
     }
@@ -38736,8 +39259,8 @@ function sqlCommenter(input) {
     return parts.sort().join(",");
   }
   _sqlCommenter.encodeInput = encodeInput;
-  function sanitizeObjectElement(key2) {
-    return encodeURIComponent(key2).replace(/'/g, `\\'`);
+  function sanitizeObjectElement(key3) {
+    return encodeURIComponent(key3).replace(/'/g, `\\'`);
   }
   _sqlCommenter.sanitizeObjectElement = sanitizeObjectElement;
   function sanitizeStringInput(input) {
@@ -38837,7 +39360,7 @@ Subquery.prototype.getSQL = function() {
   return new SQL([this]);
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/errors.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/errors.js
 var DrizzleError = class extends Error {
   static [entityKind] = "DrizzleError";
   constructor({ message, cause }) {
@@ -38867,7 +39390,7 @@ var TransactionRollbackError = class extends DrizzleError {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/expressions/conditions.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/expressions/conditions.js
 function bindIfParam(value, column) {
   if (isDriverValueEncoder(column) && !isSQLWrapper(value) && !is(value, Param) && !is(value, Placeholder) && !is(value, Column) && !is(value, Table) && !is(value, View)) return new Param(value, column);
   return value;
@@ -38982,7 +39505,7 @@ function arrayOverlaps(column, values) {
   return sql`${column} && ${bindIfParam(values, column)}`;
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/expressions/select.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/expressions/select.js
 function asc(column) {
   return sql`${column} asc`;
 }
@@ -38990,7 +39513,7 @@ function desc(column) {
   return sql`${column} desc`;
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/alias.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/alias.js
 var ColumnTableAliasProxyHandler = class {
   static [entityKind] = "ColumnTableAliasProxyHandler";
   constructor(table, ignoreColumnAlias) {
@@ -39039,8 +39562,8 @@ var TableAliasProxyHandler = class {
       if (!columns) return columns;
       if (is(target2, View)) return new Proxy(target2[Table.Symbol.Columns], new ViewSelectionAliasProxyHandler(new Proxy(target2, this), target2[Table.Symbol.Columns], this.ignoreColumnAlias));
       const proxiedColumns = {};
-      Object.keys(columns).map((key2) => {
-        proxiedColumns[key2] = new Proxy(columns[key2], new ColumnTableAliasProxyHandler(new Proxy(target2, this), this.ignoreColumnAlias));
+      Object.keys(columns).map((key3) => {
+        proxiedColumns[key3] = new Proxy(columns[key3], new ColumnTableAliasProxyHandler(new Proxy(target2, this), this.ignoreColumnAlias));
       });
       return proxiedColumns;
     }
@@ -39085,7 +39608,7 @@ function getOriginalColumnFromAlias(column) {
   return column[OriginalColumn]();
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/utils.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/utils.js
 var FnConstructor = Object.getPrototypeOf(() => null).constructor;
 function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
   const preFn = [];
@@ -39095,7 +39618,7 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
   const objectIds = {};
   const decodes = Array.from({ length: columns.length });
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { field, path: path29, codec, arrayDimensions } = columns[idx];
+    const { field, path: path30, codec, arrayDimensions } = columns[idx];
     let decoder;
     let decoderStr;
     let decoderFieldDestructure;
@@ -39123,26 +39646,26 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
     if (codec) decodedValue = `codec${idx}(${decodedValue}, ${arrayDimensions})`;
     if (decoderStr) decodedValue = `${decoderStr}(${decodedValue})`;
     decodes[idx] = colStr === decodedValue ? `${colStr}` : `${colStr} === null ? ${colStr} : ${decodedValue}`;
-    if (path29.length !== 2 || !isColumn) continue;
-    if (objectIds[path29[0]] === void 0) objectIds[path29[0]] = [`c${idx}`];
-    else objectIds[path29[0]]?.push(`c${idx}`);
-    const [objectName] = path29;
+    if (path30.length !== 2 || !isColumn) continue;
+    if (objectIds[path30[0]] === void 0) objectIds[path30[0]] = [`c${idx}`];
+    else objectIds[path30[0]]?.push(`c${idx}`);
+    const [objectName] = path30;
     const tableName = getTableName(field.table);
     nullifyMap[objectName] = joinsNotNullableMap[tableName] ? false : typeof nullifyMap[objectName] === "string" ? nullifyMap[objectName] === tableName ? tableName : false : tableName;
   }
   fn.push(`mapped[i] = {`);
   let currentObjectPath = [];
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { path: path29 } = columns[idx];
-    const jsonPath = path29.map((e) => JSON.stringify(e));
+    const { path: path30 } = columns[idx];
+    const jsonPath = path30.map((e) => JSON.stringify(e));
     const decodedValue = decodes[idx];
-    const objectPath = path29.slice(0, -1);
+    const objectPath = path30.slice(0, -1);
     let commonLen = 0;
     while (commonLen < currentObjectPath.length && commonLen < objectPath.length && currentObjectPath[commonLen] === objectPath[commonLen]) commonLen++;
     for (let d = currentObjectPath.length - 1; d >= commonLen; --d) fn.push(`${"	".repeat(d + 1)}},`);
-    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path29[0]] === "string" ? `${objectIds[path29[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
+    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path30[0]] === "string" ? `${objectIds[path30[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
     currentObjectPath = objectPath;
-    fn.push(`${"	".repeat(path29.length)}${jsonPath[path29.length - 1]}: ${decodedValue},`);
+    fn.push(`${"	".repeat(path30.length)}${jsonPath[path30.length - 1]}: ${decodedValue},`);
   }
   for (let d = currentObjectPath.length - 1; d >= 0; --d) fn.push(`${"	".repeat(d + 1)}},`);
   fn.push(`};`);
@@ -39179,13 +39702,13 @@ function jitCompatCheck(isEnabled) {
   }
 }
 function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
-  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path29 }) => {
+  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path30 }) => {
     let processNullifyMap;
     let decoderSrc;
     if (is(field, Column)) {
       decoderSrc = field;
-      if (joinsNotNullableMap && path29.length === 2) {
-        const objectName = path29[0];
+      if (joinsNotNullableMap && path30.length === 2) {
+        const objectName = path30[0];
         processNullifyMap = (nullifyMap, value) => {
           if (!(objectName in nullifyMap)) nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
           else if (typeof nullifyMap[objectName] === "string" && nullifyMap[objectName] !== getTableName(field.table)) nullifyMap[objectName] = false;
@@ -39201,9 +39724,9 @@ function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
   });
   return ((rows) => rows.map((row) => {
     const nullifyMap = {};
-    const result = columns.reduce((result2, { path: path29 }, columnIndex) => {
+    const result = columns.reduce((result2, { path: path30 }, columnIndex) => {
       let node = result2;
-      for (const [pathChunkIndex, pathChunk] of path29.entries()) if (pathChunkIndex < path29.length - 1) {
+      for (const [pathChunkIndex, pathChunk] of path30.entries()) if (pathChunkIndex < path30.length - 1) {
         if (!(pathChunk in node)) node[pathChunk] = {};
         node = node[pathChunk];
       } else {
@@ -39281,13 +39804,13 @@ function haveSameKeys(left, right) {
   const leftKeys = Object.keys(left);
   const rightKeys = Object.keys(right);
   if (leftKeys.length !== rightKeys.length) return false;
-  for (const [index2, key2] of leftKeys.entries()) if (key2 !== rightKeys[index2]) return false;
+  for (const [index2, key3] of leftKeys.entries()) if (key3 !== rightKeys[index2]) return false;
   return true;
 }
 function mapUpdateSet(table, values) {
-  const entries = Object.entries(values).filter(([, value]) => value !== void 0).map(([key2, value]) => {
-    if (is(value, SQL) || is(value, Column)) return [key2, value];
-    else return [key2, new Param(value, table[Table.Symbol.Columns][key2])];
+  const entries = Object.entries(values).filter(([, value]) => value !== void 0).map(([key3, value]) => {
+    if (is(value, SQL) || is(value, Column)) return [key3, value];
+    else return [key3, new Param(value, table[Table.Symbol.Columns][key3])];
   });
   if (entries.length === 0) throw new Error("No values to set");
   return Object.fromEntries(entries);
@@ -39315,7 +39838,7 @@ function assertUnreachable(_x) {
   throw new Error("Didn't expect to get here");
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/relations.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/relations.js
 var Relation = class {
   static [entityKind] = "RelationV2";
   fieldName;
@@ -39533,9 +40056,9 @@ function makeJitRqbMapperInner(selection, rowExpr, selectionVar, parseJson, pars
   const fieldVars = selection.map(() => `c${counter.n++}`);
   const destructurePieces = selection.map((item, idx) => accessByIdx ? fieldVars[idx] : `${JSON.stringify(item.key)}: ${fieldVars[idx]}`);
   bodyStmts.push(accessByIdx ? `let [ ${destructurePieces.join(", ")} ] = ${rowExpr};` : `let { ${destructurePieces.join(", ")} } = ${rowExpr};`);
-  for (const [idx, { field, key: key2, codec, isArray, selection: innerSelection, arrayDimensions }] of selection.entries()) {
+  for (const [idx, { field, key: key3, codec, isArray, selection: innerSelection, arrayDimensions }] of selection.entries()) {
     const sel = `${selectionVar}[${idx}]`;
-    const keyStr = JSON.stringify(key2);
+    const keyStr = JSON.stringify(key3);
     const slot = fieldVars[idx];
     if (innerSelection) {
       if (parseJson) {
@@ -39701,11 +40224,11 @@ var RelationsBuilderTable = class {
 var RelationsBuilderColumn = class {
   static [entityKind] = "RelationsBuilderColumn";
   _;
-  constructor(column, tableName, key2) {
+  constructor(column, tableName, key3) {
     this._ = {
       tableName,
       column,
-      key: key2
+      key: key3
     };
   }
   through(column) {
@@ -39715,12 +40238,12 @@ var RelationsBuilderColumn = class {
 var RelationsBuilderJunctionColumn = class {
   static [entityKind] = "RelationsBuilderColumn";
   _;
-  constructor(column, tableName, key2, through) {
+  constructor(column, tableName, key3, through) {
     this._ = {
       tableName,
       column,
       through,
-      key: key2
+      key: key3
     };
   }
 };
@@ -39853,20 +40376,20 @@ function relationsOrderToSQL(table, orders) {
 function relationExtrasToSQL(table, extras, codecs, inJson) {
   const subqueries = [];
   const selection = [];
-  for (const [key2, field] of Object.entries(extras)) {
+  for (const [key3, field] of Object.entries(extras)) {
     if (!field) continue;
     const subq = (typeof field === "function" ? field(table, { sql: operators.sql }) : field).getSQL();
     const column = codecs ? getColumnFromDecoder(subq) : void 0;
-    const query = column && (!inJson || !column.jsonSelectIdentifier) ? sql`${codecs.apply(column, inJson ? "castInJson" : "cast", sql`(${subq})`)} as ${sql.identifier(key2)}` : sql`(${subq}) as ${sql.identifier(key2)}`;
+    const query = column && (!inJson || !column.jsonSelectIdentifier) ? sql`${codecs.apply(column, inJson ? "castInJson" : "cast", sql`(${subq})`)} as ${sql.identifier(key3)}` : sql`(${subq}) as ${sql.identifier(key3)}`;
     query.decoder = subq.decoder;
     subqueries.push(query);
     selection.push(column && (!inJson || !column.mapFromJsonValue) ? {
-      key: key2,
+      key: key3,
       field: query,
       codec: codecs.get(column, inJson ? "normalizeInJson" : "normalize"),
       arrayDimensions: column.dimensions
     } : {
-      key: key2,
+      key: key3,
       field: query
     });
   }
@@ -39899,7 +40422,7 @@ function getTableAsAliasSQL(table) {
   return sql`${table[IsAlias] ? sql`${sql`${sql.identifier(table[TableSchema] ?? "")}.`.if(table[TableSchema])}${sql.identifier(table[OriginalName])} as ${table}` : table}`;
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column-builder.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column-builder.js
 var ColumnBuilder = class {
   static [entityKind] = "ColumnBuilder";
   /** @internal */
@@ -40003,7 +40526,7 @@ var ColumnBuilder = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/logger.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/logger.js
 var ConsoleLogWriter = class {
   static [entityKind] = "ConsoleLogWriter";
   write(message) {
@@ -40034,7 +40557,7 @@ var NoopLogger = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/functions/aggregate.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/functions/aggregate.js
 function count(expression) {
   return sql`count(${expression || sql.raw("*")})`.mapWith(Number);
 }
@@ -40101,80 +40624,80 @@ function normalizeCacheCategory(raw) {
 }
 
 // services/translate/shared-cache/backfill.ts
-import fs29 from "node:fs";
+import fs31 from "node:fs";
 
 // lib/translate/cache-file-lock.ts
-function lockCacheFile(fs37, file) {
+function lockCacheFile(fs39, file) {
   const name2 = `${file}.lock`;
   let fd;
   try {
-    fd = fs37.openSync(name2, "wx");
+    fd = fs39.openSync(name2, "wx");
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
     let stale = false;
     try {
-      const pid = Number(fs37.readFileSync(name2, "utf8"));
+      const pid = Number(fs39.readFileSync(name2, "utf8"));
       if (Number.isInteger(pid) && pid > 0) {
         try {
           process.kill(pid, 0);
         } catch (e) {
           stale = e.code === "ESRCH";
         }
-      } else stale = Date.now() - fs37.statSync(name2).mtimeMs > 3e4;
+      } else stale = Date.now() - fs39.statSync(name2).mtimeMs > 3e4;
     } catch {
     }
     if (!stale) throw new Error("Translation cache is being written, please try again later");
-    fs37.unlinkSync(name2);
-    fd = fs37.openSync(name2, "wx");
+    fs39.unlinkSync(name2);
+    fd = fs39.openSync(name2, "wx");
   }
   try {
-    fs37.writeFileSync(fd, String(process.pid));
+    fs39.writeFileSync(fd, String(process.pid));
   } catch (e) {
-    fs37.closeSync(fd);
-    fs37.unlinkSync(name2);
+    fs39.closeSync(fd);
+    fs39.unlinkSync(name2);
     throw e;
   }
   return () => {
-    fs37.closeSync(fd);
-    fs37.unlinkSync(name2);
+    fs39.closeSync(fd);
+    fs39.unlinkSync(name2);
   };
 }
-function appendCacheLines(fs37, file, lines) {
+function appendCacheLines(fs39, file, lines) {
   if (!lines.length) return;
-  let text3 = "";
+  let text4 = "";
   try {
-    text3 = fs37.readFileSync(file, "utf8");
+    text4 = fs39.readFileSync(file, "utf8");
   } catch (e) {
     if (e.code !== "ENOENT") throw e;
   }
-  if (text3 && !text3.endsWith("\n")) {
-    const end = text3.lastIndexOf("\n") + 1;
+  if (text4 && !text4.endsWith("\n")) {
+    const end = text4.lastIndexOf("\n") + 1;
     try {
-      JSON.parse(text3.slice(end));
-      fs37.appendFileSync(file, "\n");
+      JSON.parse(text4.slice(end));
+      fs39.appendFileSync(file, "\n");
     } catch {
-      fs37.truncateSync(file, Buffer.byteLength(text3.slice(0, end)));
+      fs39.truncateSync(file, Buffer.byteLength(text4.slice(0, end)));
     }
   }
-  fs37.appendFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
-  const fd = fs37.openSync(file, "r+");
+  fs39.appendFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+  const fd = fs39.openSync(file, "r+");
   try {
-    fs37.fsyncSync(fd);
+    fs39.fsyncSync(fd);
   } finally {
-    fs37.closeSync(fd);
+    fs39.closeSync(fd);
   }
 }
 
 // services/translate/shared-cache/backfill.ts
 var fileSnapshots = /* @__PURE__ */ new Map();
 function fileStamp(file) {
-  const stat = fs29.statSync(file, { throwIfNoEntry: false });
+  const stat = fs31.statSync(file, { throwIfNoEntry: false });
   return JSON.stringify([stat?.ino, stat?.size, stat?.mtimeMs, stat?.ctimeMs]);
 }
 function readBackfillSnapshot(file) {
   const stamp = fileStamp(file);
   const rows = /* @__PURE__ */ new Map(), seen = /* @__PURE__ */ new Set();
-  for (const line of (fs29.existsSync(file) ? fs29.readFileSync(file, "utf8") : "").split("\n")) {
+  for (const line of (fs31.existsSync(file) ? fs31.readFileSync(file, "utf8") : "").split("\n")) {
     try {
       const row = parseCacheRow(JSON.parse(line));
       if (row) {
@@ -40217,7 +40740,7 @@ function ownedSharedAppend(file, before, events) {
 }
 function appendCacheEvents(file, events) {
   if (appendPublicCacheFile(file, events)) return;
-  appendCacheLines(fs29, file, events);
+  appendCacheLines(fs31, file, events);
 }
 function createGameBackfill(client, index2, database) {
   client.exec(`CREATE TABLE IF NOT EXISTS game_backfills (root TEXT NOT NULL,src TEXT NOT NULL,record_id INTEGER NOT NULL,revision INTEGER NOT NULL,PRIMARY KEY(root,src));
@@ -40234,11 +40757,11 @@ function createGameBackfill(client, index2, database) {
     };
   }
   return {
-    queue(root, records) {
-      if (!records.length) return;
+    queue(root, records2) {
+      if (!records2.length) return;
       client.exec("BEGIN IMMEDIATE");
       try {
-        for (const r of records) {
+        for (const r of records2) {
           if (!index2.current([r])) continue;
           client.prepare(
             `INSERT INTO game_backfill_tasks(root,src,record_id,revision)
@@ -40266,7 +40789,7 @@ function createGameBackfill(client, index2, database) {
       ).get(root);
       if (!pending && !stale) return { sharedOnly: false };
       const file = ensureGameContentDir(root, "cacheNdjson");
-      const release = lockCacheFile(fs29, file);
+      const release = lockCacheFile(fs31, file);
       try {
         const filesBefore = gameTranslationFiles(root);
         const previousStamp = filesBefore.stamp;
@@ -40352,8 +40875,8 @@ function createGameBackfill(client, index2, database) {
 }
 
 // services/translate/shared-cache/confirm-segments.ts
-function uniqueSpan(text3, fragment, newlines, structure) {
-  const units = sentenceUnits(text3, { newlines, structure });
+function uniqueSpan(text4, fragment, newlines, structure) {
+  const units = sentenceUnits(text4, { newlines, structure });
   const parts = sentenceUnits(fragment);
   if (!parts.length) return null;
   const hits = [];
@@ -40440,11 +40963,11 @@ function confirmRecordSegments(index2, parent, pairs, pair, opts) {
 }
 
 // services/translate/shared-cache/db.ts
-import fs31 from "node:fs";
-import path26 from "node:path";
-import { DatabaseSync as DatabaseSync5 } from "node:sqlite";
+import fs33 from "node:fs";
+import path27 from "node:path";
+import { DatabaseSync as DatabaseSync6 } from "node:sqlite";
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/count.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/count.js
 var SQLiteCountBuilder = class SQLiteCountBuilder2 extends SQL {
   static [entityKind] = "SQLiteCountBuilder";
   dialect;
@@ -40473,7 +40996,7 @@ var SQLiteCountBuilder = class SQLiteCountBuilder2 extends SQL {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/count.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/count.js
 var SQLiteAsyncCountBuilder = class extends SQLiteCountBuilder {
   static [entityKind] = "SQLiteAsyncCountBuilder";
   constructor(countConfig) {
@@ -40499,7 +41022,7 @@ var SQLiteSyncCountBuilder = class extends SQLiteAsyncCountBuilder {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/query.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/query.js
 var RelationalQueryBuilder = class {
   static [entityKind] = "SQLiteRelationalQueryBuilderV2";
   constructor(mode, schema, table, tableConfig, dialect, session, forbidJsonb, builder = SQLiteRelationalQuery) {
@@ -40564,7 +41087,7 @@ var SQLiteRelationalQuery = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/query.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/query.js
 var SQLiteAsyncRelationalQuery = class extends SQLiteRelationalQuery {
   static [entityKind] = "SQLiteAsyncRelationalQueryV2";
   /** @internal */
@@ -40595,7 +41118,7 @@ var SQLiteSyncRelationalQuery = class extends SQLiteAsyncRelationalQuery {
 };
 applyMixins(SQLiteAsyncRelationalQuery, [QueryPromise]);
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/selection-proxy.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/selection-proxy.js
 var SelectionProxyHandler = class SelectionProxyHandler2 {
   static [entityKind] = "SelectionProxyHandler";
   config;
@@ -40633,7 +41156,7 @@ var SelectionProxyHandler = class SelectionProxyHandler2 {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/foreign-keys.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/foreign-keys.js
 var ForeignKeyBuilder = class {
   static [entityKind] = "SQLiteForeignKeyBuilder";
   /** @internal */
@@ -40698,7 +41221,7 @@ var ForeignKey = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/common.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/common.js
 var SQLiteColumnBuilder = class extends ColumnBuilder {
   static [entityKind] = "SQLiteColumnBuilder";
   foreignKeyConfigs = [];
@@ -40750,7 +41273,7 @@ var SQLiteColumn = class extends Column {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/blob.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/blob.js
 function hexToText(hexString) {
   let result = "";
   for (let i = 0; i < hexString.length; i += 2) {
@@ -40842,7 +41365,7 @@ function blob(a, b) {
   return new SQLiteBlobJsonBuilder(name2);
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/custom.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/custom.js
 var SQLiteCustomColumnBuilder = class extends SQLiteColumnBuilder {
   static [entityKind] = "SQLiteCustomColumnBuilder";
   constructor(name2, fieldConfig, customTypeParams) {
@@ -40879,19 +41402,19 @@ var SQLiteCustomColumn = class extends SQLiteColumn {
   mapFromJsonValue(value) {
     return typeof this.mapJson === "function" ? this.mapJson(value) : this.mapFromDriverValue(value);
   }
-  jsonSelectIdentifier(identifier, sql2) {
-    if (typeof this.forJsonSelect === "function") return this.forJsonSelect(identifier, sql2);
+  jsonSelectIdentifier(identifier2, sql2) {
+    if (typeof this.forJsonSelect === "function") return this.forJsonSelect(identifier2, sql2);
     const rawType = this.getSQLType().toLowerCase();
     const parenPos = rawType.indexOf("(");
     switch (parenPos + 1 ? rawType.slice(0, parenPos) : rawType) {
       case "numeric":
       case "decimal":
       case "bigint":
-        return sql2`cast(${identifier} as text)`;
+        return sql2`cast(${identifier2} as text)`;
       case "blob":
-        return sql2`hex(${identifier})`;
+        return sql2`hex(${identifier2})`;
       default:
-        return identifier;
+        return identifier2;
     }
   }
   mapToDriverValue = (value) => {
@@ -40905,7 +41428,7 @@ function customType(customTypeParams) {
   };
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/integer.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/integer.js
 var SQLiteBaseIntegerBuilder = class extends SQLiteColumnBuilder {
   static [entityKind] = "SQLiteBaseIntegerBuilder";
   constructor(name2, dataType, columnType) {
@@ -40997,7 +41520,7 @@ function integer(a, b) {
   return new SQLiteIntegerBuilder(name2);
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/numeric.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/numeric.js
 var SQLiteNumericBuilder = class extends SQLiteColumnBuilder {
   static [entityKind] = "SQLiteNumericBuilder";
   constructor(name2) {
@@ -41063,7 +41586,7 @@ function numeric(a, b) {
   return mode === "number" ? new SQLiteNumericNumberBuilder(name2) : mode === "bigint" ? new SQLiteNumericBigIntBuilder(name2) : new SQLiteNumericBuilder(name2);
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/real.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/real.js
 var SQLiteRealBuilder = class extends SQLiteColumnBuilder {
   static [entityKind] = "SQLiteRealBuilder";
   constructor(name2) {
@@ -41084,7 +41607,7 @@ function real(name2) {
   return new SQLiteRealBuilder(name2 ?? "");
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/text.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/text.js
 var SQLiteTextBuilder = class extends SQLiteColumnBuilder {
   static [entityKind] = "SQLiteTextBuilder";
   constructor(name2, config) {
@@ -41129,13 +41652,13 @@ var SQLiteTextJson = class extends SQLiteColumn {
     return JSON.stringify(value);
   };
 };
-function text2(a, b = {}) {
+function text3(a, b = {}) {
   const { name: name2, config } = getColumnNameAndConfig(a, b);
   if (config.mode === "json") return new SQLiteTextJsonBuilder(name2);
   return new SQLiteTextBuilder(name2, config);
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/all.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/all.js
 function getSQLiteColumnBuilders() {
   return {
     blob,
@@ -41143,11 +41666,11 @@ function getSQLiteColumnBuilders() {
     integer,
     numeric,
     real,
-    text: text2
+    text: text3
   };
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/casing.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/casing.js
 function toSnakeCase(input) {
   return (input.replace(/['\u2019]/g, "").match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? []).map((word) => word.toLowerCase()).join("_");
 }
@@ -41162,7 +41685,7 @@ function getCasingFn(casing) {
   return (name2) => name2;
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/table.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/table.js
 var InlineForeignKeys = /* @__PURE__ */ Symbol.for("drizzle:SQLiteInlineForeignKeys");
 var SQLiteTable = class extends Table {
   static [entityKind] = "SQLiteTable";
@@ -41197,7 +41720,7 @@ function sqliteTableWithCasing(casing) {
 }
 var sqliteTable = sqliteTableWithCasing(void 0);
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/indexes.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/indexes.js
 var IndexBuilderOn = class {
   static [entityKind] = "SQLiteIndexBuilderOn";
   constructor(name2, unique) {
@@ -41248,7 +41771,7 @@ function index(name2) {
   return new IndexBuilderOn(name2, false);
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/primary-keys.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/primary-keys.js
 function primaryKey(...config) {
   if (config[0].columns) return new PrimaryKeyBuilder(config[0].columns, config[0].name);
   return new PrimaryKeyBuilder(config);
@@ -41284,7 +41807,7 @@ var PrimaryKey = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/utils.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/utils.js
 function extractUsedTable(table) {
   if (is(table, SQLiteTable)) return [`${table[Table.Symbol.BaseName]}`];
   if (is(table, Subquery)) return table._.usedTables ?? [];
@@ -41292,7 +41815,7 @@ function extractUsedTable(table) {
   return [];
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/delete.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/delete.js
 var SQLiteDeleteBase = class {
   static [entityKind] = "SQLiteDelete";
   /** @internal */
@@ -41372,7 +41895,7 @@ var SQLiteDeleteBase = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/delete.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/delete.js
 var SQLiteAsyncDeleteBase = class extends SQLiteDeleteBase {
   static [entityKind] = "SQLiteAsyncDelete";
   /** @internal */
@@ -41403,12 +41926,12 @@ var SQLiteAsyncDeleteBase = class extends SQLiteDeleteBase {
 };
 applyMixins(SQLiteAsyncDeleteBase, [QueryPromise]);
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/view-base.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/view-base.js
 var SQLiteViewBase = class extends View {
   static [entityKind] = "SQLiteViewBase";
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/query-builders/query-builder.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/query-builders/query-builder.js
 var TypedQueryBuilder = class {
   static [entityKind] = "TypedQueryBuilder";
   /** @internal */
@@ -41421,7 +41944,7 @@ var TypedQueryBuilder = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/select.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/select.js
 var SQLiteSelectBuilder = class {
   static [entityKind] = "SQLiteSelectBuilder";
   fields;
@@ -41441,7 +41964,7 @@ var SQLiteSelectBuilder = class {
     const isPartialSelect = !!this.fields;
     let fields;
     if (this.fields) fields = this.fields;
-    else if (is(source, Subquery)) fields = Object.fromEntries(Object.keys(source._.selectedFields).map((key2) => [key2, source[key2]]));
+    else if (is(source, Subquery)) fields = Object.fromEntries(Object.keys(source._.selectedFields).map((key3) => [key3, source[key3]]));
     else if (is(source, SQLiteViewBase)) fields = source[ViewBaseConfig].selectedFields;
     else if (is(source, SQL)) fields = {};
     else fields = getTableColumns(source);
@@ -41521,7 +42044,7 @@ var SQLiteSelectBase = class extends TypedQueryBuilder {
           this.joinsNotNullableMap[tableName] = false;
           break;
         case "right":
-          this.joinsNotNullableMap = Object.fromEntries(Object.entries(this.joinsNotNullableMap).map(([key2]) => [key2, false]));
+          this.joinsNotNullableMap = Object.fromEntries(Object.entries(this.joinsNotNullableMap).map(([key3]) => [key3, false]));
           this.joinsNotNullableMap[tableName] = true;
           break;
         case "cross":
@@ -41529,7 +42052,7 @@ var SQLiteSelectBase = class extends TypedQueryBuilder {
           this.joinsNotNullableMap[tableName] = true;
           break;
         case "full":
-          this.joinsNotNullableMap = Object.fromEntries(Object.entries(this.joinsNotNullableMap).map(([key2]) => [key2, false]));
+          this.joinsNotNullableMap = Object.fromEntries(Object.entries(this.joinsNotNullableMap).map(([key3]) => [key3, false]));
           this.joinsNotNullableMap[tableName] = false;
           break;
       }
@@ -41998,7 +42521,7 @@ var unionAll = createSetOperator("union", true);
 var intersect = createSetOperator("intersect", false);
 var except = createSetOperator("except", false);
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/dialect.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/dialect.js
 var SQLiteDialect = class {
   static [entityKind] = "SQLiteDialect";
   mapperGenerators;
@@ -42203,7 +42726,7 @@ var SQLiteDialect = class {
     const valuesSqlList = [];
     const columns = table[Table.Symbol.Columns];
     const colEntries = Object.entries(columns);
-    const colEntriesFiltered = select && !is(valuesOrSelect, SQL) ? Object.keys(valuesOrSelect.getSelectedFields()).map((key2) => [key2, columns[key2]]) : colEntries.filter(([_, col]) => !col.shouldDisableInsert());
+    const colEntriesFiltered = select && !is(valuesOrSelect, SQL) ? Object.keys(valuesOrSelect.getSelectedFields()).map((key3) => [key3, columns[key3]]) : colEntries.filter(([_, col]) => !col.shouldDisableInsert());
     const insertOrder = colEntriesFiltered.map(([, column]) => sql.identifier(column.name));
     if (select) {
       const select2 = valuesOrSelect;
@@ -42249,27 +42772,27 @@ var SQLiteDialect = class {
   nestedSelectionerror() {
     throw new DrizzleError({ message: `Views with nested selections are not supported by the relational query builder` });
   }
-  buildRqbColumn(table, column, key2, inJson) {
+  buildRqbColumn(table, column, key3, inJson) {
     if (is(column, Column)) {
       const name2 = sql`${table}.${sql.identifier(column.name)}`;
       switch (column.columnType) {
         case "SQLiteBigInt":
         case "SQLiteBlobJson":
         case "SQLiteBlobBuffer":
-          if (!inJson) return sql`${name2} as ${sql.identifier(key2)}`;
-          return sql`hex(${name2}) as ${sql.identifier(key2)}`;
+          if (!inJson) return sql`${name2} as ${sql.identifier(key3)}`;
+          return sql`hex(${name2}) as ${sql.identifier(key3)}`;
         case "SQLiteNumeric":
         case "SQLiteNumericNumber":
         case "SQLiteNumericBigInt":
-          return sql`cast(${name2} as text) as ${sql.identifier(key2)}`;
+          return sql`cast(${name2} as text) as ${sql.identifier(key3)}`;
         case "SQLiteCustomColumn":
-          if (!inJson) return sql`${name2} as ${sql.identifier(key2)}`;
-          return sql`${column.jsonSelectIdentifier(name2, sql)} as ${sql.identifier(key2)}`;
+          if (!inJson) return sql`${name2} as ${sql.identifier(key3)}`;
+          return sql`${column.jsonSelectIdentifier(name2, sql)} as ${sql.identifier(key3)}`;
         default:
-          return sql`${name2} as ${sql.identifier(key2)}`;
+          return sql`${name2} as ${sql.identifier(key3)}`;
       }
     }
-    return sql`${table}.${is(column, SQL.Aliased) ? sql.identifier(column.fieldAlias) : isSQLWrapper(column) ? sql.identifier(key2) : this.nestedSelectionerror()} as ${sql.identifier(key2)}`;
+    return sql`${table}.${is(column, SQL.Aliased) ? sql.identifier(column.fieldAlias) : isSQLWrapper(column) ? sql.identifier(key3) : this.nestedSelectionerror()} as ${sql.identifier(key3)}`;
   }
   unwrapAllColumns = (table, selection, inJson) => {
     return sql.join(Object.entries(table[TableColumns]).map(([k, v]) => {
@@ -42383,7 +42906,7 @@ var SQLiteDialect = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/query-builder.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/query-builder.js
 var QueryBuilder = class {
   static [entityKind] = "SQLiteQueryBuilder";
   dialect;
@@ -42449,7 +42972,7 @@ var QueryBuilder = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/insert.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/insert.js
 var SQLiteInsertBuilder = class {
   static [entityKind] = "SQLiteInsertBuilder";
   constructor(table, session, dialect, withList, builder = SQLiteInsertBase) {
@@ -42584,7 +43107,7 @@ var SQLiteInsertBase = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/insert.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/insert.js
 var SQLiteAsyncInsertBase = class extends SQLiteInsertBase {
   static [entityKind] = "SQLiteAsyncInsert";
   /** @internal */
@@ -42615,7 +43138,7 @@ var SQLiteAsyncInsertBase = class extends SQLiteInsertBase {
 };
 applyMixins(SQLiteAsyncInsertBase, [QueryPromise]);
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/raw.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/raw.js
 var SQLiteRaw = class {
   static [entityKind] = "SQLiteRaw";
   constructor(prepared, sql2, query) {
@@ -42634,7 +43157,7 @@ var SQLiteRaw = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/raw.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/raw.js
 var SQLiteAsyncRaw = class extends SQLiteRaw {
   static [entityKind] = "SQLiteAsyncRaw";
   constructor(prepared, sql2, query) {
@@ -42646,7 +43169,7 @@ var SQLiteAsyncRaw = class extends SQLiteRaw {
 };
 applyMixins(SQLiteAsyncRaw, [QueryPromise]);
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/select.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/select.js
 var SQLiteAsyncSelectBase = class extends SQLiteSelectBase {
   static [entityKind] = "SQLiteAsyncSelect";
   /** @internal */
@@ -42680,7 +43203,7 @@ var SQLiteAsyncSelectBase = class extends SQLiteSelectBase {
 };
 applyMixins(SQLiteAsyncSelectBase, [QueryPromise]);
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/update.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/update.js
 var SQLiteUpdateBuilder = class {
   static [entityKind] = "SQLiteUpdateBuilder";
   constructor(table, session, dialect, withList, builder = SQLiteUpdateBase) {
@@ -42809,7 +43332,7 @@ var SQLiteUpdateBase = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/update.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/update.js
 var SQLiteAsyncUpdateBase = class extends SQLiteUpdateBase {
   static [entityKind] = "SQLiteAsyncUpdate";
   /** @internal */
@@ -42840,7 +43363,7 @@ var SQLiteAsyncUpdateBase = class extends SQLiteUpdateBase {
 };
 applyMixins(SQLiteAsyncUpdateBase, [QueryPromise]);
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/db.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/db.js
 var SQLiteAsyncDatabase = class {
   static [entityKind] = "BaseSQLiteDatabase";
   query;
@@ -43104,7 +43627,7 @@ var SQLiteAsyncDatabase = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/cache/core/cache.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/cache/core/cache.js
 var Cache = class {
   static [entityKind] = "Cache";
 };
@@ -43146,7 +43669,7 @@ async function hashQuery(sql2, params) {
   return [...new Uint8Array(hashBuffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/session.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/session.js
 var SQLitePreparedQuery = class {
   static [entityKind] = "SQLiteBasePreparedQuery";
   /** @internal */
@@ -43170,7 +43693,7 @@ var SQLiteSession = class {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/session.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/session.js
 var ExecuteResultSync = class extends QueryPromise {
   static [entityKind] = "ExecuteResultSync";
   constructor(resultCb) {
@@ -43214,13 +43737,13 @@ var SQLiteAsyncPreparedQuery = class extends SQLitePreparedQuery {
     });
     if (cacheStrat.type === "try") {
       const { tables: tables2, key: _key, isTag, autoInvalidate, config } = cacheStrat;
-      const key2 = `${executeMethod}_${_key}`;
-      const fromCache = await cache2.get(key2, tables2, isTag, autoInvalidate);
+      const key3 = `${executeMethod}_${_key}`;
+      const fromCache = await cache2.get(key3, tables2, isTag, autoInvalidate);
       if (fromCache === void 0) {
         const result = await query().catch((e) => {
           throw new DrizzleQueryError(queryString, params, e);
         });
-        await cache2.put(key2, result, autoInvalidate ? tables2 : [], isTag, config);
+        await cache2.put(key3, result, autoInvalidate ? tables2 : [], isTag, config);
         return result;
       }
       return fromCache;
@@ -43336,7 +43859,7 @@ var SQLiteAsyncTransaction = class extends SQLiteAsyncDatabase {
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/node-sqlite/session.js
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/node-sqlite/session.js
 var NodeSQLiteSession = class extends SQLiteAsyncSession {
   static [entityKind] = "SQLJsSession";
   logger;
@@ -43407,8 +43930,8 @@ var NodeSQLiteTransaction = class NodeSQLiteTransaction2 extends SQLiteAsyncTran
   }
 };
 
-// ../../../../Develop/ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/node-sqlite/driver.js
-import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
+// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/node-sqlite/driver.js
+import { DatabaseSync as DatabaseSync4 } from "node:sqlite";
 var NodeSQLiteDatabase = class extends SQLiteAsyncDatabase {
   static [entityKind] = "NodeSQLiteDatabase";
 };
@@ -43423,14 +43946,14 @@ function construct(client, config = {}) {
   return db;
 }
 function drizzle(...params) {
-  if (params[0] === void 0 || typeof params[0] === "string") return construct(params[0] === void 0 ? new DatabaseSync3(":memory:") : new DatabaseSync3(params[0]), params[1]);
+  if (params[0] === void 0 || typeof params[0] === "string") return construct(params[0] === void 0 ? new DatabaseSync4(":memory:") : new DatabaseSync4(params[0]), params[1]);
   const { connection, client, ...config } = params[0];
   if (client) return construct(client, config);
   if (typeof connection === "object") {
-    const { path: path29, ...options } = connection;
-    return construct(new DatabaseSync3(path29 ?? ":memory:", options), config);
+    const { path: path30, ...options } = connection;
+    return construct(new DatabaseSync4(path30 ?? ":memory:", options), config);
   }
-  return construct(new DatabaseSync3(connection ?? ":memory:"), config);
+  return construct(new DatabaseSync4(connection ?? ":memory:"), config);
 }
 (function(_drizzle) {
   function mock(config) {
@@ -43440,9 +43963,9 @@ function drizzle(...params) {
 })(drizzle || (drizzle = {}));
 
 // services/translate/shared-cache/migrate-bg.ts
-import fs30 from "node:fs";
-import path25 from "node:path";
-import { DatabaseSync as DatabaseSync4 } from "node:sqlite";
+import fs32 from "node:fs";
+import path26 from "node:path";
+import { DatabaseSync as DatabaseSync5 } from "node:sqlite";
 var flights = /* @__PURE__ */ new Map();
 var migrating = /* @__PURE__ */ new Set();
 function isSharedIdenticalPair(src, tgt) {
@@ -43452,9 +43975,9 @@ function isSharedIdenticalPair(src, tgt) {
   return Boolean(a) && isIdenticalTranslation(a, b);
 }
 function runSharedCacheHeavyMigrateSync(dbPath) {
-  const resolved = path25.resolve(dbPath);
-  if (!fs30.existsSync(resolved)) return;
-  const client = new DatabaseSync4(resolved);
+  const resolved = path26.resolve(dbPath);
+  if (!fs32.existsSync(resolved)) return;
+  const client = new DatabaseSync5(resolved);
   try {
     client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000");
     ensureMatchIndex(client);
@@ -43469,8 +43992,8 @@ function runSharedCacheHeavyMigrateSync(dbPath) {
   }
 }
 function scheduleSharedCacheHeavyMigrate(dbPath) {
-  const resolved = path25.resolve(dbPath);
-  if (!fs30.existsSync(resolved)) return;
+  const resolved = path26.resolve(dbPath);
+  if (!fs32.existsSync(resolved)) return;
   if (process.env.JEST_WORKER_ID) {
     runSharedCacheHeavyMigrateSync(resolved);
     return;
@@ -43479,7 +44002,7 @@ function scheduleSharedCacheHeavyMigrate(dbPath) {
     migrating.add(resolved);
     try {
       await yieldEventLoop();
-      const client = new DatabaseSync4(resolved);
+      const client = new DatabaseSync5(resolved);
       try {
         client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000");
         ensureMatchIndex(client);
@@ -43552,15 +44075,15 @@ async function scrubIdenticalChunked(client) {
 var translations = sqliteTable(
   "translations",
   {
-    src: text2("src").notNull(),
-    zh: text2("zh").notNull(),
+    src: text3("src").notNull(),
+    zh: text3("zh").notNull(),
     /** Source language of `src` (ja / en / zh / ko). */
-    srcLang: text2("src_lang").notNull().default("ja"),
+    srcLang: text3("src_lang").notNull().default("ja"),
     /** Target language of `zh` (ja / en / zh / ko). */
-    tgtLang: text2("tgt_lang").notNull().default("zh"),
-    engine: text2("engine"),
+    tgtLang: text3("tgt_lang").notNull().default("zh"),
+    engine: text3("engine"),
     /** Optional extract/live text category (dialogue, item, …); imports may leave null. */
-    category: text2("category"),
+    category: text3("category"),
     updatedAt: integer("updated_at").notNull(),
     hitCount: integer("hit_count").notNull().default(0),
     nsfw: integer("nsfw").notNull().default(0)
@@ -43568,21 +44091,21 @@ var translations = sqliteTable(
   (table) => [primaryKey({ columns: [table.src, table.srcLang, table.tgtLang] })]
 );
 var cacheMeta = sqliteTable("cache_meta", {
-  key: text2("key").primaryKey().notNull(),
-  value: text2("value").notNull()
+  key: text3("key").primaryKey().notNull(),
+  value: text3("value").notNull()
 });
 var gameTranslations = sqliteTable(
   "game_translations",
   {
-    gameId: text2("game_id").notNull(),
-    src: text2("src").notNull(),
-    srcLang: text2("src_lang").notNull().default("ja"),
-    tgtLang: text2("tgt_lang").notNull().default("zh"),
-    zh: text2("zh"),
-    engine: text2("engine").notNull().default("manual"),
-    category: text2("category"),
+    gameId: text3("game_id").notNull(),
+    src: text3("src").notNull(),
+    srcLang: text3("src_lang").notNull().default("ja"),
+    tgtLang: text3("tgt_lang").notNull().default("zh"),
+    zh: text3("zh"),
+    engine: text3("engine").notNull().default("manual"),
+    category: text3("category"),
     isDeleted: integer("is_deleted").notNull().default(0),
-    recordJson: text2("record_json"),
+    recordJson: text3("record_json"),
     hitCount: integer("hit_count").notNull().default(0),
     updatedAt: integer("updated_at").notNull()
   },
@@ -43593,21 +44116,21 @@ var gameTranslations = sqliteTable(
   ]
 );
 var gameIdentities = sqliteTable("game_identities", {
-  gameId: text2("game_id").primaryKey().notNull(),
-  engine: text2("engine").notNull(),
-  title: text2("title").notNull(),
-  signatureBaseline: text2("signature_baseline").notNull(),
+  gameId: text3("game_id").primaryKey().notNull(),
+  engine: text3("engine").notNull(),
+  title: text3("title").notNull(),
+  signatureBaseline: text3("signature_baseline").notNull(),
   signatureVersion: integer("signature_version").notNull().default(1),
-  boundPath: text2("bound_path").notNull(),
+  boundPath: text3("bound_path").notNull(),
   firstBoundAt: integer("first_bound_at").notNull(),
   lastVerifiedAt: integer("last_verified_at").notNull()
 });
 var mutationLog = sqliteTable("mutation_log", {
-  idempotencyKey: text2("idempotency_key").primaryKey().notNull(),
-  actor: text2("actor").notNull(),
-  action: text2("action").notNull(),
-  requestHash: text2("request_hash").notNull().default(""),
-  resultJson: text2("result_json").notNull().default("{}"),
+  idempotencyKey: text3("idempotency_key").primaryKey().notNull(),
+  actor: text3("actor").notNull(),
+  action: text3("action").notNull(),
+  requestHash: text3("request_hash").notNull().default(""),
+  resultJson: text3("result_json").notNull().default("{}"),
   createdAt: integer("created_at").notNull()
 });
 
@@ -43778,9 +44301,9 @@ function ensureSchema(db, client) {
   db.insert(cacheMeta).values({ key: "nsfw_backfill", value: "1" }).onConflictDoUpdate({ target: cacheMeta.key, set: { value: "1" } }).run();
 }
 function openSharedCacheDb(dbPath = defaultSharedDbPath()) {
-  const resolved = path26.resolve(dbPath);
-  fs31.mkdirSync(path26.dirname(resolved), { recursive: true });
-  const client = new DatabaseSync5(resolved);
+  const resolved = path27.resolve(dbPath);
+  fs33.mkdirSync(path27.dirname(resolved), { recursive: true });
+  const client = new DatabaseSync6(resolved);
   client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON");
   const db = drizzle({ client });
   ensureSchema(db, client);
@@ -43950,9 +44473,9 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
     },
     getMany(keys, pairOpts) {
       const out = /* @__PURE__ */ new Map();
-      for (const key2 of new Set(keys)) {
-        const hit = cache2.get(key2, pairOpts);
-        if (hit != null) out.set(key2, hit);
+      for (const key3 of new Set(keys)) {
+        const hit = cache2.get(key3, pairOpts);
+        if (hit != null) out.set(key3, hit);
       }
       return out;
     },
@@ -44163,7 +44686,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       const n = Number(db.select({ n: count() }).from(translations).get()?.n || 0);
       let sizeBytes = 0;
       try {
-        sizeBytes = fs32.statSync(resolved).size;
+        sizeBytes = fs34.statSync(resolved).size;
       } catch {
       }
       return { entries: n, sizeBytes, file: resolved };
@@ -44176,7 +44699,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
   return cache2;
 }
 function openSharedCache(dbPath = defaultSharedDbPath()) {
-  if (process.env.NODE_ENV === "test" || path27.resolve(dbPath) !== path27.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
+  if (process.env.NODE_ENV === "test" || path28.resolve(dbPath) !== path28.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
     return openOwnedSharedCache(dbPath);
   return new Proxy({ path: dbPath }, {
     get(target2, name2) {
@@ -44198,12 +44721,12 @@ function openSharedCache(dbPath = defaultSharedDbPath()) {
 
 // services/translate/live-translate.ts
 var MAX_BATCH = 40;
-async function googleTranslateText(text3, pair, signal) {
-  const q = String(text3 ?? "");
+async function googleTranslateText(text4, pair, signal) {
+  const q = String(text4 ?? "");
   if (!q.trim()) return q;
   return requestGoogle(fetch, q, signal || AbortSignal.timeout(3e4), pair);
 }
-async function bingTranslateText(text3, pair) {
+async function bingTranslateText(text4, pair) {
   const pkg = ["bing", "translate", "api"].join("-");
   let translate;
   try {
@@ -44226,20 +44749,20 @@ async function bingTranslateText(text3, pair) {
   };
   const toLang = normalizeBingLang(pair?.to, "zh-Hans");
   const fromLang = normalizeBingLang(pair?.from, "auto-detect");
-  const res = await translate(text3, fromLang, toLang, false, false);
+  const res = await translate(text4, fromLang, toLang, false, false);
   if (!res?.translation) throw new Error("empty translation");
   return res.translation;
 }
-async function translateWithEngine(engine, text3, options, agents, pair) {
-  if (engine === "google") return googleTranslateText(text3, pair, options?.signal);
-  if (engine === "bing") return bingTranslateText(text3, pair);
-  if (engine === "apple") return appleTranslate(text3, { source: pair?.from, target: pair?.to, ...options?.signal ? { signal: options.signal } : {} });
-  if (engine === "bergamot") return bergamotTranslate(text3, { source: pair?.from, target: pair?.to });
-  if (engine === "ollama") return ollamaJaToZh(text3, options);
+async function translateWithEngine(engine, text4, options, agents, pair) {
+  if (engine === "google") return googleTranslateText(text4, pair, options?.signal);
+  if (engine === "bing") return bingTranslateText(text4, pair);
+  if (engine === "apple") return appleTranslate(text4, { source: pair?.from, target: pair?.to, ...options?.signal ? { signal: options.signal } : {} });
+  if (engine === "bergamot") return bergamotTranslate(text4, { source: pair?.from, target: pair?.to });
+  if (engine === "ollama") return ollamaJaToZh(text4, options);
   const entry = findAgentEntry(agents, engine);
   if (!entry) throw new Error("Agent translation entry removed");
   const capacity = resolveEngineCapacitySettings(engine, void 0, agents);
-  return agentJaToZh(text3, entry, {
+  return agentJaToZh(text4, entry, {
     interactive: options?.interactive,
     signal: options?.signal,
     category: options?.category,
@@ -44311,51 +44834,56 @@ async function liveTranslateTexts(texts, opts) {
     `Pipeline configured: items=${unique.length}, sourceChars=${unique.reduce((sum2, src) => sum2 + Array.from(src).length, 0)}, engines=${engines.join(",")}, elapsedMs=${Math.round(performance.now() - started)}`
   );
   const bypassCache = opts?.cacheMode === "bypass";
+  const pairFor = (src) => resolveCacheLangPair({ from: opts?.sourceLang, to: opts?.targetLang, src });
+  const chineseTarget = pairFor("").to === "zh";
   let cacheStore;
   const getCache = () => cacheStore ??= timed("Shared cache opened", () => opts?.sharedCache ? opts.sharedCache() : openSharedCache());
-  if (!bypassCache) {
-    getCache();
-    if (!opts?.sharedCache && contentRoot && opts?.persist !== false) timed("Pending backfill flushed", () => getCache().flushBackfill(contentRoot));
-  }
-  const gameContext = timed("Game indexes loaded", () => contentRoot && !bypassCache ? getGameCacheContext(contentRoot) : null);
-  const localRecords = gameContext?.records || [];
-  const numericIndexes = /* @__PURE__ */ new Map();
-  let numericSignature = "";
-  function numericIndex(src) {
-    const signature = JSON.stringify([getCache().version(), contentRoot ? getGameCacheContext(contentRoot).stamp : ""]);
-    if (numericSignature !== signature) {
-      numericIndexes.clear();
-      numericSignature = signature;
-    }
-    const from = detectCacheLang(src);
-    const family = numericLabelFamily(src);
-    if (!family) return null;
-    const key2 = JSON.stringify([from, family]);
-    if (!numericIndexes.has(key2)) {
-      const shared = getCache().numericRecords({ from, to: "zh" }, src);
-      const currentLocal = contentRoot ? getGameCacheContext(contentRoot).numericRecords(src) : [];
-      numericIndexes.set(key2, shared.limited ? null : createNumericLabelIndex([...shared, ...currentLocal]));
-    }
-    return numericIndexes.get(key2) || null;
-  }
   const items = [];
+  const observations = [];
+  let collectionError;
   const toWrite = [];
-  const localLookup = gameContext?.lookup || null;
-  trace?.(`Pipeline ready: localRecords=${localRecords.length}, elapsedMs=${Math.round(performance.now() - started)}`);
-  function lookupLocal(src) {
-    if (!localLookup) return null;
-    if (Object.prototype.hasOwnProperty.call(localLookup, src)) return localLookup[src] ?? null;
-    const norm = normalizeTranslateKey(src);
-    if (norm !== src && Object.prototype.hasOwnProperty.call(localLookup, norm)) return localLookup[norm] ?? null;
-    return lookupTranslationRecord(localLookup, src);
-  }
-  function lookupCached(src) {
-    if (gameContext?.blocked(src)) return null;
-    return lookupGameTranslation(lookupLocal, (key2) => getCache().get(key2), src);
-  }
-  const force = Boolean(opts?.force) || bypassCache;
-  const persist2 = opts?.persist !== false;
   try {
+    let numericIndex2 = function(src) {
+      const signature = JSON.stringify([getCache().version(), contentRoot ? getGameCacheContext(contentRoot).stamp : ""]);
+      if (numericSignature !== signature) {
+        numericIndexes.clear();
+        numericSignature = signature;
+      }
+      const from = pairFor(src).from;
+      const family = numericLabelFamily(src);
+      if (!family) return null;
+      const key3 = JSON.stringify([from, family]);
+      if (!numericIndexes.has(key3)) {
+        const shared = getCache().numericRecords({ from, to: "zh" }, src);
+        const currentLocal = contentRoot ? getGameCacheContext(contentRoot).numericRecords(src) : [];
+        numericIndexes.set(key3, shared.limited ? null : createNumericLabelIndex([...shared, ...currentLocal]));
+      }
+      return numericIndexes.get(key3) || null;
+    }, lookupLocal2 = function(src) {
+      if (!localLookup) return null;
+      if (Object.prototype.hasOwnProperty.call(localLookup, src)) return localLookup[src] ?? null;
+      const norm = normalizeTranslateKey(src);
+      if (norm !== src && Object.prototype.hasOwnProperty.call(localLookup, norm)) return localLookup[norm] ?? null;
+      return lookupTranslationRecord(localLookup, src);
+    }, lookupCached2 = function(src) {
+      if (gameContext?.blocked(src)) return null;
+      return lookupGameTranslation(lookupLocal2, (key3) => getCache().get(key3, pairFor(src)), src, { resources: false });
+    };
+    var numericIndex = numericIndex2, lookupLocal = lookupLocal2, lookupCached = lookupCached2;
+    if (!bypassCache) {
+      getCache();
+      if (!opts?.sharedCache && contentRoot && opts?.persist !== false) timed("Pending backfill flushed", () => getCache().flushBackfill(contentRoot));
+    }
+    const gameContext = timed("Game indexes loaded", () => contentRoot && !bypassCache && chineseTarget ? getGameCacheContext(contentRoot) : null);
+    const resourceMatcher = !opts?.force && !bypassCache ? loadResourceMatcher(getCache().path) : null;
+    const resourceGameId = opts?.gameId ?? (contentRoot && resourceMatcher ? publicGameFiles(contentRoot).gameId : void 0);
+    const localRecords = gameContext?.records || [];
+    const numericIndexes = /* @__PURE__ */ new Map();
+    let numericSignature = "";
+    const localLookup = gameContext?.lookup || null;
+    trace?.(`Pipeline ready: localRecords=${localRecords.length}, elapsedMs=${Math.round(performance.now() - started)}`);
+    const force = Boolean(opts?.force) || bypassCache;
+    const persist2 = opts?.persist !== false;
     items.push(
       ...await mapTranslationBatch(
         unique,
@@ -44376,14 +44904,14 @@ async function liveTranslateTexts(texts, opts) {
               itemSignal?.throwIfAborted();
               const { core: labelCore } = peelChoiceMetaShell(src);
               if (!force) {
-                const pair = { from: detectCacheLang(src), to: "zh" };
+                const pair = pairFor(src);
                 const plan = gameContext?.blocked(src) ? createSentenceResolver([]).plan(src) : opts?.preparedPlan && unique.length === 1 ? opts.preparedPlan : timed(`Item ${itemId} cache plan`, () => matchCache(() => getCache().plan(src, pair, gameContext?.resolver.select(src) || [])));
                 trace?.(`Item ${itemId} cache result: status=${plan.status}, gaps=${plan.gaps.length}`);
                 if (plan.status === "full") {
                   items2.push({ src, zh: plan.zh, engine: plan.matches.every((m) => m.record.local) ? "cache:local" : "cache:remote", status: "full", plan });
-                  if (persist2 && contentRoot) {
-                    const records = plan.matches.filter((m) => !m.record.local).map((m) => getCache().record(m.record.src, pair)).filter((r) => r != null);
-                    getCache().queueBackfill(contentRoot, records);
+                  if (persist2 && contentRoot && chineseTarget) {
+                    const records2 = plan.matches.filter((m) => !m.record.local).map((m) => getCache().record(m.record.src, pair)).filter((r) => r != null);
+                    getCache().queueBackfill(contentRoot, records2);
                   }
                   return items2[0];
                 }
@@ -44401,9 +44929,9 @@ async function liveTranslateTexts(texts, opts) {
                       {
                         ...opts,
                         onEngineDispatch,
-                        onCacheWrite: (records, sources3) => {
-                          writes.push(...records.map((record) => ({ record, sources: sources3 })));
-                          opts?.onCacheWrite?.(records, sources3);
+                        onCacheWrite: (records2, sources3) => {
+                          writes.push(...records2.map((record) => ({ record, sources: sources3 })));
+                          opts?.onCacheWrite?.(records2, sources3);
                         },
                         onItem: void 0,
                         preparedPlan: void 0,
@@ -44425,7 +44953,7 @@ async function liveTranslateTexts(texts, opts) {
                     }
                   }
                   const deps = plan.matches.filter((m) => !m.record.local).map((m) => m.record);
-                  const currentContext = contentRoot ? getGameCacheContext(contentRoot) : null;
+                  const currentContext = contentRoot && chineseTarget ? getGameCacheContext(contentRoot) : null;
                   const currentLocal = currentContext?.records || [];
                   const localCandidates = currentContext?.resolver.select(src) || [];
                   const localChanged = plan.matches.some(
@@ -44459,22 +44987,34 @@ async function liveTranslateTexts(texts, opts) {
                   });
                   return items2[0];
                 }
-                const numeric2 = !gameContext?.blocked(src) && (!opts?.targetLang || opts.targetLang === "zh") && /[0-9]$/.test(src) ? timed(`Item ${itemId} numeric lookup`, () => matchCache(() => numericIndex(src)?.resolve(src))) : null;
+                const numeric2 = !gameContext?.blocked(src) && (!opts?.targetLang || opts.targetLang === "zh") && /[0-9]$/.test(src) ? timed(`Item ${itemId} numeric lookup`, () => matchCache(() => numericIndex2(src)?.resolve(src))) : null;
                 if (numeric2) return { src, zh: numeric2, engine: "cache:numeric", status: "full" };
-                const cached = /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src) ? lookupCached(src) : null;
+                const cached = /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src) ? lookupCached2(src) : null;
                 if (cached != null) {
                   items2.push({ src, zh: cached.zh, engine: cached.engine });
                   if (persist2 && cached.engine === "cache:local") {
-                    if (lookupLocal(src) == null && isReusableTranslation(src, cached.zh)) toWrite.push([src, cached.zh]);
+                    if (lookupLocal2(src) == null && isReusableTranslation(src, cached.zh)) toWrite.push([src, cached.zh]);
                     if (labelCore && labelCore !== src) {
                       const labelZh = peelChoiceMetaShell(cached.zh).core || cached.zh;
-                      if (lookupLocal(labelCore) == null && isReusableTranslation(labelCore, labelZh)) {
+                      if (lookupLocal2(labelCore) == null && isReusableTranslation(labelCore, labelZh)) {
                         toWrite.push([labelCore, labelZh]);
                       }
                     }
                   }
                   return items2[0];
                 }
+              }
+              if (!force && !gameContext?.blocked(src)) {
+                const pair = pairFor(src);
+                const resource = resourceMatcher?.match(src, {
+                  sourceLanguage: pair.from,
+                  targetLanguage: pair.to,
+                  gameId: resourceGameId,
+                  category: opts?.category,
+                  speaker: opts?.speaker,
+                  scene: opts?.scene
+                });
+                if (resource) return { src, zh: resource.targetText, engine: "resource", resource, status: "full" };
               }
               const nameEntries = contentRoot ? await loadGameNameEntries(contentRoot, opts?.targetLang || "zh") : [];
               const namePlan = planLockedNames(src, nameEntries, { sourceLang: opts?.sourceLang, targetLang: opts?.targetLang || "zh" });
@@ -44513,14 +45053,11 @@ async function liveTranslateTexts(texts, opts) {
                 const zh = stitchLockedNamePlan(src, namePlan, gapZh);
                 const tag = remainderEngine || "live:optimize:names";
                 if (persist2 && isStorableTranslation(src, zh, opts?.targetLang)) {
-                  const written = timed(
-                    `Item ${itemId} name-lock write`,
-                    () => getCache().writeMany([[src, zh]], tag, { from: detectCacheLang(src), to: "zh", category: opts?.category })
-                  );
+                  const written = timed(`Item ${itemId} name-lock write`, () => getCache().writeMany([[src, zh]], tag, { ...pairFor(src), category: opts?.category }));
                   opts?.onCacheWrite?.(written.records, [...sources2]);
-                  if (contentRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records));
+                  if (contentRoot && chineseTarget) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records));
                   if (written.rejected.length) {
-                    const current = lookupCached(src);
+                    const current = lookupCached2(src);
                     if (current) return { src, zh: current.zh, engine: current.engine, status: "full" };
                     return { src, zh: null, error: "Translation result rejected by current authority; review conflicting cache entries" };
                   }
@@ -44553,11 +45090,11 @@ async function liveTranslateTexts(texts, opts) {
                   const engineStarted = performance.now();
                   try {
                     const identity = `${engineSourceTag(engine, agents)}:${findAgentEntry(agents, engine)?.model || ""}`;
-                    const key2 = JSON.stringify([contentRoot, identity, langPair, sendText, Boolean(opts?.local?.interactive)]);
+                    const key3 = JSON.stringify([contentRoot, identity, langPair, sendText, Boolean(opts?.local?.interactive)]);
                     const sourceChars = Array.from(sendText).length;
                     engineWork = true;
                     const rawZh = await joinTranslationRequest(
-                      key2,
+                      key3,
                       (signal) => withEngineCapacity(
                         engine,
                         identity,
@@ -44600,19 +45137,22 @@ async function liveTranslateTexts(texts, opts) {
                 }
                 if (!winner) throw new AggregateError(errors, "All translation engines failed");
                 const currentAuthority = () => {
-                  const local = contentRoot ? getGameCacheContext(contentRoot).lookup : null;
+                  const currentContext = contentRoot && chineseTarget ? getGameCacheContext(contentRoot) : null;
+                  if (currentContext?.blocked(src)) return null;
+                  const local = currentContext?.lookup;
                   const pair = resolveCacheLangPair({ ...langPair, src });
                   const categoryHint = opts?.category;
                   const used = /* @__PURE__ */ new Map();
                   const hit = lookupGameTranslation(
-                    (key2) => local?.[key2],
-                    (key2) => {
-                      const value = getCache().get(key2, { ...pair, category: categoryHint });
-                      const record = value != null ? getCache().authority(key2, pair, { category: categoryHint }) : null;
+                    (key3) => local?.[key3],
+                    (key3) => {
+                      const value = getCache().get(key3, { ...pair, category: categoryHint });
+                      const record = value != null ? getCache().authority(key3, pair, { category: categoryHint }) : null;
                       if (record) used.set(record.id, record);
                       return value;
                     },
-                    src
+                    src,
+                    { resources: false }
                   );
                   if (hit && bypassCache && contentRoot && persist2 && used.size) getCache().queueBackfill(contentRoot, [...used.values()]);
                   return hit;
@@ -44624,13 +45164,13 @@ async function liveTranslateTexts(texts, opts) {
                 const source = engineSourceTag(winner.engine, agents);
                 const tag = sensitive ? `live:${source}:nsfw` : `live:${source}`;
                 const pairs = [];
-                const pushPair = (key2, value) => {
-                  if (!isStorableTranslation(key2, value)) return;
-                  pairs.push([key2, value]);
-                  if (hasRmDigitCodes(key2)) {
-                    const tplKey = toRmDigitTemplate(key2);
+                const pushPair = (key3, value) => {
+                  if (!isStorableTranslation(key3, value)) return;
+                  pairs.push([key3, value]);
+                  if (hasRmDigitCodes(key3)) {
+                    const tplKey = toRmDigitTemplate(key3);
                     const tplZh = toRmDigitTemplate(value);
-                    if (tplKey !== key2 && isStorableTranslation(tplKey, tplZh)) {
+                    if (tplKey !== key3 && isStorableTranslation(tplKey, tplZh)) {
                       pairs.push([tplKey, tplZh]);
                     }
                   }
@@ -44641,12 +45181,9 @@ async function liveTranslateTexts(texts, opts) {
                   pushPair(labelKey, winner.zhCore);
                 }
                 if (pairs.length && persist2) {
-                  const written = timed(
-                    `Item ${itemId} shared cache write`,
-                    () => getCache().writeMany(pairs, tag, { from: detectCacheLang(src), to: "zh", category: opts?.category })
-                  );
+                  const written = timed(`Item ${itemId} shared cache write`, () => getCache().writeMany(pairs, tag, { ...pairFor(src), category: opts?.category }));
                   opts?.onCacheWrite?.(written.records, [tag]);
-                  if (contentRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records));
+                  if (contentRoot && chineseTarget) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records));
                   if (written.rejected.length) {
                     const current = currentAuthority();
                     if (current) return { src, zh: current.zh, engine: current.engine, status: "full" };
@@ -44667,6 +45204,24 @@ async function liveTranslateTexts(texts, opts) {
             item = { src, zh: null, error: "Translation item deadline exceeded; saved results are retained" };
           }
           item = { ...item, resultSources: resultSources(item), engineWork };
+          if (persist2 && item.error) {
+            const pair = pairFor(src);
+            observations.push({
+              eventId: randomUUID6(),
+              occurredAt: Date.now(),
+              sourceText: src,
+              targetText: item.zh,
+              sourceLanguage: pair.from,
+              targetLanguage: pair.to,
+              engine: item.engine,
+              gameId: resourceGameId,
+              contentRoot: contentRoot || void 0,
+              speaker: opts?.speaker,
+              context: opts?.context,
+              error: item.error,
+              resource: item.resource
+            });
+          }
           timed(`Item ${itemId} progress checkpoint`, () => opts?.onItem?.(item));
           trace?.(`Item ${itemId} finished: engine=${item.engine || "none"}, success=${item.zh != null && !item.error}, elapsedMs=${Math.round(performance.now() - itemStarted)}`);
           return item;
@@ -44675,6 +45230,12 @@ async function liveTranslateTexts(texts, opts) {
       )
     );
   } finally {
+    try {
+      spoolTranslationObservations(observations);
+    } catch (error) {
+      collectionError = `Translation evidence could not be saved: ${error instanceof Error ? error.message : String(error)}`;
+      trace?.(collectionError);
+    }
     try {
       if (!opts?.sharedCache && cacheStore && contentRoot && opts?.persist !== false) timed("Final backfill flushed", () => cacheStore.flushBackfill(contentRoot));
     } finally {
@@ -44688,27 +45249,27 @@ async function liveTranslateTexts(texts, opts) {
     }
     trace?.(`Pipeline finished: elapsedMs=${Math.round(performance.now() - started)}`);
   }
-  return { items, contentRoot, engines };
+  return { items, contentRoot, engines, ...collectionError ? { collectionError } : {} };
 }
 
 // services/translate/scheduler/seed-inventory.ts
-import fs33 from "node:fs";
-import { DatabaseSync as DatabaseSync6 } from "node:sqlite";
+import fs35 from "node:fs";
+import { DatabaseSync as DatabaseSync7 } from "node:sqlite";
 function seedFileStamp(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
-  const stat = file ? fs33.statSync(file, { throwIfNoEntry: false }) : void 0;
+  const stat = file ? fs35.statSync(file, { throwIfNoEntry: false }) : void 0;
   return JSON.stringify([file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
 }
 function readSeedInventory(contentRoot) {
   const stamp = seedFileStamp(contentRoot);
   const progressStamp = seedProgressStamp(contentRoot);
   const file = localGameContentFile(contentRoot, "seed");
-  const data = file ? JSON.parse(fs33.readFileSync(file, "utf8")) : {};
+  const data = file ? JSON.parse(fs35.readFileSync(file, "utf8")) : {};
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Seed must be an object mapping source text to translation");
   const entries = data;
   const keys = filterRgssSeedKeys(
     contentRoot,
-    Object.keys(entries).filter((key2) => key2.trim())
+    Object.keys(entries).filter((key3) => key3.trim())
   );
   const progress = {
     contentRoot,
@@ -44730,59 +45291,59 @@ function readSeedInventory(contentRoot) {
   let revisionQuery;
   let unavailable = false;
   const revisions = /* @__PURE__ */ new Map();
-  let records;
+  let records2;
   try {
-    records = loadGameTranslationRecords(
+    records2 = loadGameTranslationRecords(
       contentRoot,
       (origin) => {
         if (unavailable || !TRANSLATE_CACHE_DB_PATH || origin.database !== TRANSLATE_CACHE_DB_PATH) return false;
-        const key2 = `${origin.id}:${origin.revision}`;
-        if (!revisions.has(key2)) {
+        const key3 = `${origin.id}:${origin.revision}`;
+        if (!revisions.has(key3)) {
           try {
             if (!client) {
-              if (!fs33.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
-              client = new DatabaseSync6(TRANSLATE_CACHE_DB_PATH, { readOnly: true });
+              if (!fs35.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
+              client = new DatabaseSync7(TRANSLATE_CACHE_DB_PATH, { readOnly: true });
               client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250; BEGIN");
               revisionQuery = client.prepare("SELECT revision FROM translation_records WHERE id=?");
             }
             const row = revisionQuery.get(origin.id);
-            revisions.set(key2, row?.revision === origin.revision);
+            revisions.set(key3, row?.revision === origin.revision);
           } catch (error) {
             unavailable = true;
             console.warn("Saved translation revision check unavailable:", error instanceof Error ? error.message : String(error));
             return false;
           }
         }
-        return revisions.get(key2);
+        return revisions.get(key3);
       },
       { localOnly: true }
     );
   } finally {
     client?.close();
   }
-  const coverage = createGameCoverage(records, { blocked: getGameCacheContext(contentRoot).blocked });
+  const coverage = createGameCoverage(records2, { blocked: getGameCacheContext(contentRoot).blocked });
   const pending = [];
   const failures = readSeedFailures(contentRoot);
   try {
-    for (const key2 of keys) {
-      const chars = charCount(key2);
-      progress.lines += lineCount(key2);
-      if (!shouldTranslate(key2)) {
+    for (const key3 of keys) {
+      const chars = charCount(key3);
+      progress.lines += lineCount(key3);
+      if (!shouldTranslate(key3)) {
         progress.skipCount++;
         progress.skipChars += chars;
       } else {
         progress.needCount++;
         progress.needChars += chars;
-        if (coverage.resolve(key2) != null) {
+        if (coverage.resolve(key3) != null) {
           progress.done++;
           progress.doneChars += chars;
-        } else if (failures.has(key2)) {
+        } else if (failures.has(key3)) {
           progress.failedCount = (progress.failedCount ?? 0) + 1;
           progress.failedChars = (progress.failedChars ?? 0) + chars;
         } else {
           progress.missing++;
           progress.missingChars += chars;
-          pending.push(key2);
+          pending.push(key3);
         }
       }
     }
@@ -44797,14 +45358,14 @@ function seedProgressStamp(contentRoot) {
   return JSON.stringify([
     6,
     files2.map((file) => {
-      const stat = file ? fs33.statSync(file, { throwIfNoEntry: false }) : void 0;
+      const stat = file ? fs35.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   ]);
 }
 
 // services/translate/scheduler/seed-session.ts
-import { randomUUID as randomUUID5 } from "node:crypto";
+import { randomUUID as randomUUID7 } from "node:crypto";
 
 // services/translate/scheduler/cache-lane.ts
 import { existsSync as existsSync2, statSync as statSync2 } from "node:fs";
@@ -44833,7 +45394,7 @@ function startCacheLane(options) {
   const arm = () => {
     if (watchdog) clearTimeout(watchdog);
     watchdog = setTimeout(() => {
-      if (!closed) fail("Cache worker made no progress for 5000ms");
+      if (!closed) fail2("Cache worker made no progress for 5000ms");
     }, 5e3);
     watchdog.unref?.();
   };
@@ -44841,7 +45402,7 @@ function startCacheLane(options) {
     if (watchdog) clearTimeout(watchdog);
     watchdog = void 0;
   }
-  function fail(error) {
+  function fail2(error) {
     try {
       options.onError(error);
     } finally {
@@ -44850,7 +45411,7 @@ function startCacheLane(options) {
   }
   function spawn5() {
     if (!existsSync2(entry)) {
-      fail("CACHE_WORKER_MISSING");
+      fail2("CACHE_WORKER_MISSING");
       return;
     }
     const own = new Worker3(entry, {
@@ -44872,7 +45433,7 @@ function startCacheLane(options) {
           case "ready": {
             const protocolVersion = Number(message.protocolVersion) || 0;
             if (protocolVersion < 1) {
-              fail(`Cache worker protocol unsupported: ${protocolVersion || "missing"}`);
+              fail2(`Cache worker protocol unsupported: ${protocolVersion || "missing"}`);
               return;
             }
             ready = true;
@@ -44907,20 +45468,20 @@ function startCacheLane(options) {
             }
             return;
           case "failed":
-            fail(String(message.error || "Cache worker failed"));
+            fail2(String(message.error || "Cache worker failed"));
             return;
         }
       } catch (error) {
-        fail(error instanceof Error ? error.message : String(error));
+        fail2(error instanceof Error ? error.message : String(error));
       }
     });
     own.on("error", (error) => {
-      if (!closed && own === worker2) fail(error.message);
+      if (!closed && own === worker2) fail2(error.message);
     });
     own.on("exit", (code) => {
       if (own !== worker2) return;
       disarm();
-      if (!closed) fail(`Cache worker exited unexpectedly: code=${code}`);
+      if (!closed) fail2(`Cache worker exited unexpectedly: code=${code}`);
     });
   }
   function wake() {
@@ -44951,7 +45512,7 @@ function startCacheLane(options) {
       worker2.postMessage({ batchId, leaseId: currentLease, tasks });
       arm();
     } catch (error) {
-      fail(error instanceof Error ? error.message : String(error));
+      fail2(error instanceof Error ? error.message : String(error));
     }
   }
   function setLease(leaseId) {
@@ -45189,15 +45750,15 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     if (ownedFileTransitions.size >= 256) ownedFileTransitions.delete(ownedFileTransitions.keys().next().value);
     ownedFileTransitions.set(before, after);
   }
-  function rememberBackfill(records) {
-    for (const record of records || []) pendingBackfill.set(`${record.from}:${record.to}:${record.id}:${record.revision}`, record);
+  function rememberBackfill(records2) {
+    for (const record of records2 || []) pendingBackfill.set(`${record.from}:${record.to}:${record.id}:${record.revision}`, record);
   }
   function flushBackfill() {
     if (!store2) return;
     if (pendingBackfill.size) {
-      const records = [...pendingBackfill.values()];
+      const records2 = [...pendingBackfill.values()];
       try {
-        store2.queueBackfill(contentRoot, records);
+        store2.queueBackfill(contentRoot, records2);
         pendingBackfill.clear();
       } catch (error) {
         trace(`Cache backfill queue failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -45301,7 +45862,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   }
   function canFit(id) {
     if (!active2.size) return true;
-    const chars = [...active2.keys()].reduce((sum2, key2) => sum2 + inventory.pending[key2].length, 0);
+    const chars = [...active2.keys()].reduce((sum2, key3) => sum2 + inventory.pending[key3].length, 0);
     return chars + inventory.pending[id].length <= (options.maxChars || 3e3);
   }
   function nextTask(engine) {
@@ -45552,7 +46113,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     paused = false;
     if (started) return;
     started = true;
-    if (!leaseId) leaseId = randomUUID5();
+    if (!leaseId) leaseId = randomUUID7();
     for (let id = 0; id < states.length; id++) {
       if (states[id] === RECHECK && !recheckQueue.includes(id)) recheckQueue.push(id);
     }
@@ -45748,7 +46309,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       submittedEngines = /* @__PURE__ */ new Set();
       const unavailable = cacheUnavailable;
       trace(
-        `Scheduler progress: ${Object.entries(counters).map(([key2, value]) => `${key2}=${value}`).join(", ")}, active=${active2.size}`
+        `Scheduler progress: ${Object.entries(counters).map(([key3, value]) => `${key3}=${value}`).join(", ")}, active=${active2.size}`
       );
       return {
         ...progress,
@@ -45775,36 +46336,36 @@ var DEFAULT_BATCH = 40;
 var scans = /* @__PURE__ */ new Map();
 function loadSeedKeys(contentRoot) {
   const file = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
-  if (!file || !fs34.existsSync(file)) return [];
-  const raw = JSON.parse(fs34.readFileSync(file, "utf8"));
+  if (!file || !fs36.existsSync(file)) return [];
+  const raw = JSON.parse(fs36.readFileSync(file, "utf8"));
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("seed must be an object mapping source text to translation");
   return filterRgssSeedKeys(
     contentRoot,
-    Object.keys(raw).filter((key2) => key2.trim())
+    Object.keys(raw).filter((key3) => key3.trim())
   );
 }
 function seedCoverage(contentRoot, keys, cache2, trace) {
   const started = performance.now();
   const context = getGameCacheContext(contentRoot);
   const local = context.lookup;
-  const records = context.records;
+  const records2 = context.records;
   const resolver = context.resolver;
-  trace?.(`Coverage game indexes loaded: records=${records.length}, elapsedMs=${Math.round(performance.now() - started)}`);
+  trace?.(`Coverage game indexes loaded: records=${records2.length}, elapsedMs=${Math.round(performance.now() - started)}`);
   const plansStarted = performance.now();
   const hits = /* @__PURE__ */ new Map();
   const numeric2 = /* @__PURE__ */ new Map();
-  for (const key2 of keys) {
-    const plan = cache2.plan(key2, { from: detectCacheLang(key2), to: "zh" }, resolver.select(key2));
+  for (const key3 of keys) {
+    const plan = cache2.plan(key3, { from: detectCacheLang(key3), to: "zh" }, resolver.select(key3));
     if (plan.limited) continue;
-    const from = detectCacheLang(key2);
-    const family = numericLabelFamily(key2);
+    const from = detectCacheLang(key3);
+    const family = numericLabelFamily(key3);
     const numericKey = JSON.stringify([from, family]);
     if (family && !numeric2.has(numericKey)) {
-      const shared = cache2.numericRecords({ from, to: "zh" }, key2);
-      numeric2.set(numericKey, shared.limited ? null : createNumericLabelIndex([...shared, ...context.numericRecords(key2)]));
+      const shared = cache2.numericRecords({ from, to: "zh" }, key3);
+      numeric2.set(numericKey, shared.limited ? null : createNumericLabelIndex([...shared, ...context.numericRecords(key3)]));
     }
-    const hit = plan.zh ?? numeric2.get(numericKey)?.resolve(key2) ?? (/\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(key2) ? lookupCachedTranslation((k) => local[k] ?? cache2.get(k, { from: detectCacheLang(key2), to: "zh" }), key2) : null);
-    if (hit != null) hits.set(key2, hit);
+    const hit = plan.zh ?? numeric2.get(numericKey)?.resolve(key3) ?? (/\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(key3) ? lookupCachedTranslation((k) => local[k] ?? cache2.get(k, { from: detectCacheLang(key3), to: "zh" }), key3) : null);
+    if (hit != null) hits.set(key3, hit);
   }
   trace?.(`Coverage cache plans resolved: items=${keys.length}, elapsedMs=${Math.round(performance.now() - plansStarted)}`);
   return hits;
@@ -45817,11 +46378,11 @@ function scanSeed(contentRoot, fresh = false) {
       cache2.path,
       cache2.version(),
       keys,
-      fs34.statSync(seedFailureFile(contentRoot), { throwIfNoEntry: false })?.mtimeMs,
+      fs36.statSync(seedFailureFile(contentRoot), { throwIfNoEntry: false })?.mtimeMs,
       [...readSeedFailures(contentRoot).keys()],
       ...["seed", "cacheNdjson"].map((kind) => {
         const file = gameContentReadPath(contentRoot, kind, { alsoParent: true });
-        const stat = file ? fs34.statSync(file, { throwIfNoEntry: false }) : void 0;
+        const stat = file ? fs36.statSync(file, { throwIfNoEntry: false }) : void 0;
         return [file, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
       })
     ]);
@@ -45848,27 +46409,27 @@ function scanSeed(contentRoot, fresh = false) {
     };
     const missingKeys = [];
     const failures = readSeedFailures(contentRoot);
-    for (const key2 of keys) {
-      const chars = charCount(key2);
-      progress.lines += lineCount(key2);
-      if (!shouldTranslate(key2)) {
+    for (const key3 of keys) {
+      const chars = charCount(key3);
+      progress.lines += lineCount(key3);
+      if (!shouldTranslate(key3)) {
         progress.skipCount++;
         progress.skipChars += chars;
         continue;
       }
       progress.needCount++;
       progress.needChars += chars;
-      const hit = hits.get(key2);
+      const hit = hits.get(key3);
       if (hit != null) {
         progress.done++;
         progress.doneChars += chars;
-      } else if (failures.has(key2)) {
+      } else if (failures.has(key3)) {
         progress.failedCount = (progress.failedCount ?? 0) + 1;
         progress.failedChars = (progress.failedChars ?? 0) + chars;
       } else {
         progress.missing++;
         progress.missingChars += chars;
-        missingKeys.push(key2);
+        missingKeys.push(key3);
       }
     }
     progress.batchesLeft = Math.ceil(progress.missing / DEFAULT_BATCH);
@@ -45890,7 +46451,7 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
   let cursor = 0;
   function seedStamp() {
     const file = localGameContentFile(contentRoot, "seed");
-    const stat = file ? fs34.statSync(file, { throwIfNoEntry: false }) : void 0;
+    const stat = file ? fs36.statSync(file, { throwIfNoEntry: false }) : void 0;
     return JSON.stringify([file, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
   }
   let stamp = seedStamp();
@@ -45923,21 +46484,21 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
       const batch = [];
       let chars = 0;
       while (cursor < queue3.length && batch.length < limit) {
-        const key2 = queue3[cursor];
-        if (opts2.exclude?.has(key2)) {
+        const key3 = queue3[cursor];
+        if (opts2.exclude?.has(key3)) {
           cursor++;
           continue;
         }
-        if (batch.length && chars + key2.length > maxChars) break;
+        if (batch.length && chars + key3.length > maxChars) break;
         cursor++;
-        batch.push(key2);
-        chars += key2.length;
+        batch.push(key3);
+        chars += key3.length;
       }
       if (!batch.length) {
         const reconcileStarted = performance.now();
         refresh();
         trace?.(`Full reconciliation: elapsedMs=${Math.round(performance.now() - reconcileStarted)}, missing=${progress.missing}`);
-        if (queue3.some((key2) => !opts2.exclude?.has(key2))) return this.fill(opts2);
+        if (queue3.some((key3) => !opts2.exclude?.has(key3))) return this.fill(opts2);
         return { ...progress, translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] };
       }
       trace?.(
@@ -45980,17 +46541,17 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
         const cacheStarted = performance.now();
         const hits = seedCoverage(contentRoot, batch, cache2, trace);
         cacheMs += performance.now() - cacheStarted;
-        for (const key2 of hits.keys()) {
+        for (const key3 of hits.keys()) {
           progress.done++;
           progress.missing--;
-          progress.doneChars += charCount(key2);
-          progress.missingChars -= charCount(key2);
+          progress.doneChars += charCount(key3);
+          progress.missingChars -= charCount(key3);
         }
         progress.batchesLeft = Math.ceil(progress.missing / limit);
         progress.batchSize = limit;
-        const unresolved = batch.filter((key2) => !hits.has(key2));
-        for (const key2 of unresolved) {
-          const item = terminalFailures.get(key2);
+        const unresolved = batch.filter((key3) => !hits.has(key3));
+        for (const key3 of unresolved) {
+          const item = terminalFailures.get(key3);
           if (item) recordSeedFailure(contentRoot, item, progress);
         }
         trace?.(`Batch coverage verified: elapsedMs=${Math.round(performance.now() - verifyStarted)}, covered=${hits.size}, unresolved=${unresolved.length}`);
@@ -46007,7 +46568,7 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
           failed: unresolved.length,
           unresolved,
           items,
-          performance: { completedChars: [...hits.keys()].reduce((sum2, key2) => sum2 + charCount(key2), 0), cacheMs }
+          performance: { completedChars: [...hits.keys()].reduce((sum2, key3) => sum2 + charCount(key3), 0), cacheMs }
         };
       } finally {
         cache2.close();
@@ -46017,12 +46578,12 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
 }
 
 // services/translate/scheduler/seed-prepare.ts
-import fs35 from "node:fs";
-import path28 from "node:path";
+import fs37 from "node:fs";
+import path29 from "node:path";
 var flights2 = /* @__PURE__ */ new Map();
 var cache = /* @__PURE__ */ new Map();
 function keyFor(contentRoot) {
-  return path28.resolve(contentRoot);
+  return path29.resolve(contentRoot);
 }
 function peekSeedInventory(contentRoot) {
   return cache.get(keyFor(contentRoot)) ?? null;
@@ -46037,15 +46598,15 @@ async function runSeedInventoryWorker(contentRoot) {
     missingError: "SEED_INVENTORY_WORKER_MISSING"
   });
   try {
-    return JSON.parse(fs35.readFileSync(out, "utf8"));
+    return JSON.parse(fs37.readFileSync(out, "utf8"));
   } finally {
-    fs35.unlink(out, () => {
+    fs37.unlink(out, () => {
     });
   }
 }
 function prepareSeedInventory(contentRoot) {
-  const key2 = keyFor(contentRoot);
-  return singleFlight(flights2, key2, async () => {
+  const key3 = keyFor(contentRoot);
+  return singleFlight(flights2, key3, async () => {
     await yieldEventLoop();
     let bundle;
     try {
@@ -46055,7 +46616,7 @@ function prepareSeedInventory(contentRoot) {
       const inv = readSeedInventory(contentRoot);
       bundle = inv;
     }
-    cache.set(key2, bundle);
+    cache.set(key3, bundle);
     return bundle;
   });
 }
@@ -46140,12 +46701,12 @@ function getRuntime(contentRoot) {
 function peekHasSeed(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
   if (!file) return false;
-  const stat = fs36.statSync(file, { throwIfNoEntry: false });
+  const stat = fs38.statSync(file, { throwIfNoEntry: false });
   return !!stat && stat.size > 2;
 }
-function pushLog(rt, level, text3, batch) {
+function pushLog(rt, level, text4, batch) {
   rt.logSeq += 1;
-  rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text: text3, ...batch ? { batch } : {} }].slice(-MAX_SEED_JOB_LOGS);
+  rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text: text4, ...batch ? { batch } : {} }].slice(-MAX_SEED_JOB_LOGS);
 }
 function shortEngine(name2) {
   const raw = name2.trim().replace(/^live:/, "");
@@ -46192,9 +46753,9 @@ async function runLoop(contentRoot) {
       );
     }
     if (process.env.CHAYA_TRANSLATE_DEBUG !== "1") return;
-    const text3 = `[translation-timing] batch=${rt.state.rounds + 1} ${message}`;
-    pushLog(rt, "info", text3);
-    console.info(text3);
+    const text4 = `[translation-timing] batch=${rt.state.rounds + 1} ${message}`;
+    pushLog(rt, "info", text4);
+    console.info(text4);
   };
   try {
     if (!rt.session) {
@@ -46279,8 +46840,8 @@ async function runLoop(contentRoot) {
           cacheUnavailable: result.cacheUnavailable === true
         };
         const prefix = `[${batchLabel(batch)}] #${batch.batch}`;
-        const text3 = batch.failed === 0 ? `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) complete${batch.cacheHits > 0 && batch.cacheHits !== batch.success ? ` (${batch.cacheHits} cache hits)` : ""}` : batch.success === 0 ? `${prefix}: All failed (${batch.total} items / ${batch.chars} chars)` : `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) succeeded, ${batch.failed} failed${batch.cacheHits > 0 ? ` (${batch.cacheHits} cache hits)` : ""}`;
-        pushLog(rt, batch.failed === 0 ? "ok" : batch.success === 0 ? "fail" : "warn", text3, batch);
+        const text4 = batch.failed === 0 ? `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) complete${batch.cacheHits > 0 && batch.cacheHits !== batch.success ? ` (${batch.cacheHits} cache hits)` : ""}` : batch.success === 0 ? `${prefix}: All failed (${batch.total} items / ${batch.chars} chars)` : `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) succeeded, ${batch.failed} failed${batch.cacheHits > 0 ? ` (${batch.cacheHits} cache hits)` : ""}`;
+        pushLog(rt, batch.failed === 0 ? "ok" : batch.success === 0 ? "fail" : "warn", text4, batch);
       }
       const failures = result.items.filter((item) => item.error || item.zh == null).slice(0, 1);
       for (const item of failures) pushLog(rt, "warn", `Translation failed: ${item.src} (${item.error || "no translation returned"})`);

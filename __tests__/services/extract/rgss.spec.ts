@@ -1,4 +1,5 @@
 jest.mock('@/constants/paths', () => ({ ...jest.requireActual('@/constants/paths'), TRANSLATE_CACHE_DB_PATH: '' }))
+jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -366,7 +367,7 @@ describe('RGSS VX/VX Ace support', () => {
     }
   })
 
-  it('lists UI string constants from Scripts and corrects Load→供电量', () => {
+  it('lists UI string constants from Scripts and preserves saved translations before resource fallback', () => {
     const root = makeProject()
     try {
       const source = [
@@ -402,13 +403,14 @@ describe('RGSS VX/VX Ace support', () => {
         expect.arrayContaining([
           expect.objectContaining({
             src: 'Load',
-            zh: '读取',
+            zh: '供电量',
             meta: expect.objectContaining({ category: 'plugin', isHardcoded: true, file: 'Scripts/NeoSave' }),
           }),
           expect.objectContaining({
             src: "Don't load",
             meta: expect.objectContaining({ category: 'plugin', isHardcoded: true }),
           }),
+          expect.objectContaining({ src: 'Save', zh: '保存' }),
           expect.objectContaining({
             src: 'Current EXP',
             meta: expect.objectContaining({ category: 'plugin', isHardcoded: true }),

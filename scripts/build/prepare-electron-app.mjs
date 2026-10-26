@@ -70,6 +70,13 @@ if (existsSync(publicDir)) {
   copyDir(publicDir, path.join(outRoot, 'public'))
 }
 
+// The official root is provisioned by the release owner, never downloaded on first use.
+const updateRoot = path.join(root, 'resources', 'updates', 'root.json')
+if (existsSync(updateRoot)) {
+  mkdirSync(path.join(outRoot, 'resources', 'updates'), { recursive: true })
+  cpSync(updateRoot, path.join(outRoot, 'resources', 'updates', 'root.json'))
+}
+
 const pluginsDist = path.join(root, 'plugins', 'mv', 'dist')
 if (!existsSync(pluginsDist)) {
   console.error('Missing plugins/mv/dist. Run pnpm build:plugins first.')

@@ -9,15 +9,21 @@ export type TranslationExportMode = 'all' | 'untranslated'
 export function buildTranslationExport(
   entries: Record<string, string>,
   lookup: (source: string) => string | null | undefined,
-  originals: Iterable<string> = Object.keys(entries)
+  originals: Iterable<string> = Object.keys(entries),
+  options: { fallback?: (source: string) => string | null | undefined; blocked?: (source: string) => boolean } = {}
 ): Record<string, string> {
   const output = new Map<string, string>()
   for (const original of originals) {
     const source = translationExportText(original)
+    if (options.blocked?.(original) || options.blocked?.(source)) {
+      if (source) output.set(source, '')
+      continue
+    }
     const exact = lookup(original) || lookupTranslationRecord(entries, original) || (original !== source ? lookup(source) || lookupTranslationRecord(entries, source) : null)
     const { lead, core, trail } = sentenceOuterShell(source)
     const body = !exact && core !== source && !/[!?！？]/.test(trail) ? (lookup(core) ?? entries[core]) : null
-    const value = translationExportText(exact || (body ? lead + body + trail : (lookupGameTerm(source) ?? '')))
+    const fallback = options.fallback ?? lookupGameTerm
+    const value = translationExportText(exact || (body ? lead + body + trail : (fallback(source) ?? '')))
     if (source && (value || !output.has(source))) output.set(source, value)
   }
   return Object.fromEntries(output)

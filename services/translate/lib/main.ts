@@ -1,5 +1,7 @@
 // @ts-nocheck
 import { glossary, path, rt } from './env'
+import { loadResourceMatcher } from '../resources/snapshot'
+import { publicGameFiles } from '@/services/storage/game-files'
 import { getGameCacheContext } from '@/services/translate/game-cache-context'
 import { BING_CHUNK_CHARS, GOOGLE_CHUNK_CHARS, NET_GAP_MAX_MS, NET_GAP_MIN_MS, OLLAMA_CHUNK_CHARS, OLLAMA_CHUNK_LINES } from './constants'
 import { bingTranslate, googleTranslate, runNetWorker, runOllama } from './engines'
@@ -9,18 +11,13 @@ import { createFailLedger, enabledEngineNames, ensureSwitchesFile, parseCliSwitc
 import {
   appendNdjsonPairs,
   classifyTerm,
-  isVoiceOnlyLine,
   loadJson,
   loadNdjsonCache,
   loadTokenizer,
-  peelNoise,
   purgeBadCacheEntries,
   shouldTranslate,
   swapTrailingNumber,
   trailingNumberParts,
-  translateVoiceOnlyLine,
-  tryFixedPhrase,
-  wrapNoise,
 } from './text-cache'
 
 export async function main() {
@@ -111,24 +108,7 @@ export async function main() {
     }
   }
 
-  // Fixed short UI phrases and responses.
-  let fixedHit = 0
-  const fixedPairs = []
-  for (const src of allJa) {
-    if (seed[src]) continue
-    const zh = tryFixedPhrase(src)
-    if (!zh) continue
-    seed[src] = zh
-    fixedPairs.push([src, zh])
-    fixedHit += 1
-  }
-  if (fixedPairs.length) {
-    appendNdjsonPairs(rt().CACHE_NDJSON, fixedPairs)
-    rt().SHARED_CACHE.upsertMany(fixedPairs, 'fixed-phrase')
-    console.log(`Fixed phrases directly resolved: ${fixedHit} (no API calls)`)
-  }
-
-  // If masking leaves only titles, punctuation or stuttering, compose locally without an API request.
+  // Compose only confirmed glossary titles and punctuation without an API request.
   let shellHit = 0
   const shellPairs = []
   for (const src of allJa) {
@@ -143,24 +123,6 @@ export async function main() {
     appendNdjsonPairs(rt().CACHE_NDJSON, shellPairs)
     rt().SHARED_CACHE.upsertMany(shellPairs, 'glossary-shell')
     console.log(`Glossary template sentences resolved locally: ${shellHit} (no API calls)`)
-  }
-
-  // Map vocalizations with phoneme rules without using public engines or Ollama.
-  let voiceHit = 0
-  const voicePairs = []
-  for (const src of allJa) {
-    if (seed[src]) continue
-    const { core, prefix, suffix } = peelNoise(src)
-    if (!isVoiceOnlyLine(core)) continue
-    const zh = wrapNoise(translateVoiceOnlyLine(core), prefix, suffix)
-    seed[src] = zh
-    voicePairs.push([src, zh])
-    voiceHit += 1
-  }
-  if (voicePairs.length) {
-    appendNdjsonPairs(rt().CACHE_NDJSON, voicePairs)
-    rt().SHARED_CACHE.upsertMany(voicePairs, 'voice-rule')
-    console.log(`Voice/sound effects resolved directly: ${voiceHit} (no API calls)`)
   }
 
   const stemGroups = new Map()
@@ -293,6 +255,20 @@ export async function main() {
     templateSaved += Math.max(0, members.length - 1)
   }
   todo = collapsed
+
+  // Resolve after family expansion: versioned data must not seed unversioned derivatives.
+  const resources = loadResourceMatcher(rt().P.SHARED_CACHE_DB)
+  const resourceGameId = publicGameFiles(rt().CONTENT_ROOT).gameId
+  let resourceHits = 0
+  for (const src of allJa) {
+    if (seed[src]) continue
+    const hit = resources.match(src, { sourceLanguage: 'ja', targetLanguage: 'zh', gameId: resourceGameId })
+    if (hit) {
+      seed[src] = hit.targetText
+      resourceHits++
+    }
+  }
+  console.log(`Resource matches: ${resourceHits}, revision=${resources.revision} (no API calls; not copied into shared cache)`)
 
   const pending = new Set()
   for (const src of allJa) {

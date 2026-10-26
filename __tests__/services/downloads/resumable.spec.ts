@@ -67,6 +67,22 @@ test('parseContentRange', () => {
   expect(parseContentRange(null)).toBeNull()
 })
 
+test('signed size rejects an oversized chunked response and discards it after retry', async () => {
+  handler = (_req, res) => {
+    res.writeHead(200)
+    res.end(BODY)
+  }
+  await expect(downloadToFile(base, dest(), { expectedBytes: BODY.length - 1 })).rejects.toThrow('signed size')
+  expect(fs.existsSync(dest())).toBe(false)
+  expect(fs.existsSync(part())).toBe(false)
+})
+
+test('signed size rejects advertised size mismatches before writing', async () => {
+  handler = rangeServer
+  await expect(downloadToFile(base, dest(), { expectedBytes: BODY.length + 1 })).rejects.toThrow('signed size')
+  expect(fs.existsSync(dest())).toBe(false)
+})
+
 test('206 续传追加到已有 .part', async () => {
   handler = rangeServer
   fs.writeFileSync(part(), BODY.subarray(0, 50))

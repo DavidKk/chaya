@@ -129,18 +129,19 @@ function lookupParts(get: (key: string) => string | null | undefined, src: strin
 export function lookupGameTranslation(
   localGet: (key: string) => string | null | undefined,
   sharedGet: (key: string) => string | null | undefined,
-  src: string
+  src: string,
+  opts?: { resources?: boolean }
 ): { zh: string; engine: 'cache:local' | 'cache:remote' } | null {
   const local = lookupCachedTranslation(localGet, src)
   if (local != null) {
-    const fixed = fixKnownBadGameTermTranslation(src, local)
+    const fixed = opts?.resources === false ? null : fixKnownBadGameTermTranslation(src, local)
     return { zh: fixed ?? local, engine: 'cache:local' }
   }
   const shared = lookupCachedTranslation(sharedGet, src)
   if (shared != null) {
-    const fixed = fixKnownBadGameTermTranslation(src, shared)
+    const fixed = opts?.resources === false ? null : fixKnownBadGameTermTranslation(src, shared)
     return { zh: fixed ?? shared, engine: 'cache:remote' }
   }
-  const term = lookupGameTerm(src)
+  const term = opts?.resources === false ? null : lookupGameTerm(src)
   return term == null ? null : { zh: term, engine: 'cache:local' }
 }

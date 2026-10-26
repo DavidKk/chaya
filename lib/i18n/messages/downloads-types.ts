@@ -7,6 +7,7 @@ export type DownloadsMessages = {
   channelBrowser: string
   nwShell: string
   nwShellUnknown: string
+  updatePackage: string
   phase: {
     resolve: string
     download: string
@@ -27,6 +28,6 @@ export type DownloadsMessages = {
   /** 游戏卡片上等待选压缩包的提示 */
   awaitFileCard: string
   action: { openDownload: string; pickFile: string; abandon: string }
-  toast: { shellDone: string; shellFailed: string; retryHint: string; smartScreen: string }
+  toast: { updateDone: string; updateFailed: string; shellDone: string; shellFailed: string; retryHint: string; smartScreen: string }
   error: { interrupted: string; requestFailed: string }
 }

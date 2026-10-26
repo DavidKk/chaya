@@ -20,6 +20,7 @@ export function replannedResultSources(plan: SentencePlan, writes: ResultWrite[]
 }
 
 export type TranslationProvenance = {
+  resource?: import('./resource-types').ResourceHit
   engine?: string
   /** Sources of accepted text, independently of requests that were discarded. */
   resultSources?: string[]
