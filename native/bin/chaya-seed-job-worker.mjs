@@ -37002,7 +37002,7 @@ var AppleTranslatorClient = class {
     );
     if (!res.success) {
       let message = res.message || res.error || "Apple translation failed";
-      if (res.error === "not_installed" || message === "Unable to Translate") {
+      if (res.error === "not_installed") {
         message = "Apple offline language pack not installed. Please download the language pack in macOS System Settings -> General -> Language & Region -> Translation Languages.";
       }
       const err = new Error(message);

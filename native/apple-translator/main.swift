@@ -74,6 +74,22 @@ actor TranslationCoordinator {
         return session
     }
 
+    nonisolated func classifyError(_ error: Error) -> (code: String, message: String) {
+        if let transErr = error as? TranslationError {
+            switch transErr {
+            case .notInstalled:
+                return ("not_installed", "Apple offline language pack not installed. Please download the language pack in macOS System Settings -> General -> Language & Region -> Translation Languages.")
+            default:
+                break
+            }
+        }
+        let errDesc = String(describing: error)
+        if errDesc.contains("notInstalled") {
+            return ("not_installed", "Apple offline language pack not installed. Please download the language pack in macOS System Settings -> General -> Language & Region -> Translation Languages.")
+        }
+        return ("translation_error", error.localizedDescription)
+    }
+
     func translateBatch(id: String, items: [BatchItem], source: String, target: String) async {
         let started = ProcessInfo.processInfo.systemUptime
         let reused = sessions[sessionKey(source: source, target: target)] != nil
@@ -96,9 +112,10 @@ actor TranslationCoordinator {
                                       status: nil, error: nil, message: nil))
             }
         } catch {
+            let (errCode, message) = classifyError(error)
             for itemId in pending {
                 sendResponse(Response(id: itemId, success: false, result: nil, status: nil,
-                                      error: "translation_error", message: error.localizedDescription))
+                                      error: errCode, message: message))
             }
             pending.removeAll()
         }
@@ -216,13 +233,7 @@ struct TranslatorDaemon {
                         message: nil
                     ))
                 } catch {
-                    let errDesc = String(describing: error)
-                    var errCode = "translation_error"
-                    var message = error.localizedDescription
-                    if errDesc.contains("notInstalled") {
-                        errCode = "not_installed"
-                        message = "Apple offline language pack not installed. Please download the language pack in macOS System Settings -> General -> Language & Region -> Translation Languages."
-                    }
+                    let (errCode, message) = coordinator.classifyError(error)
                     sendResponse(Response(
                         id: req.id,
                         success: false,

@@ -66,6 +66,18 @@ describe('Apple native batch protocol', () => {
   function respond(id: string, body: object) {
     daemon.stdout.write(JSON.stringify({ id, ...body }) + '\n')
   }
+  it.each([
+    ['translation_error', 'Unable to Translate', 'Unable to Translate'],
+    ['not_installed', 'Language model supported but offline pack not installed', 'Apple offline language pack not installed.'],
+  ])('reports %s without confusing translation failures with missing packs', async (code, message, expected) => {
+    const result = expect(appleTranslator.translate('Hello', { source: 'en' })).rejects.toMatchObject({
+      code,
+      message: expect.stringContaining(expected),
+    })
+    await flush()
+    respond(requests[0].items[0].id, { success: false, error: code, message })
+    await result
+  })
   it('sends one array, matches out-of-order IDs and isolates failed items', async () => {
     const results = Promise.allSettled(['Hello', 'Goodbye', 'Welcome'].map((text) => appleTranslator.translate(text, { source: 'en' })))
     await flush()

@@ -33,6 +33,7 @@
 | 翻译列表搜索、多语言分词、相关度排序 | [列表相关度搜索](translation-list-search-ranking.md) | [多语言分词排序设计](technical/translation-list-search-ranking.md) |
 | 专名/名称优化、术语纠偏、闲时润色 | [质量优化](translation-optimization.md) UI §3 · 入口 §5 · MVP §6 | [质量设计](technical/translation-optimization.md) 秩 §2 · 候选 §3 · 开工清单 §8 |
 | 专名句内一致、Rei/蕾漂移、同步到句子 | [专名一致性](translation-name-consistency.md) **适用 §3** · 人名表 §4 · 锁 span §5 | [专名设计](technical/translation-name-consistency.md) 表 §2 · 锁点 §3 · 接线 §4 |
+| 特殊文本、情绪发声、多维分类打标、数据沉淀分期 | [特殊文本分类与分期](translation-game-special-classification.md) §4 里程碑 · §3 Schema | 双轨解耦设计；技术方案待立项 |
 | 引擎独立开关、探活、徽标 | [有效约定](translation-concurrency-and-badges.md) §2.2–2.3、§4 | [探活与徽标](technical/translation-concurrency-and-badges.md)；调度示例为历史 |
 | Apple / Bergamot / Windows 离线翻译 | [Apple](apple-native-translation.md) / [Bergamot](linux-offline-translation.md) / [Windows](windows-native-translation.md) | 仅选相应需求页头的技术方案；实现进度以各页为准 |
 | 游戏语言包、语料回写 | [语言包](game-multilingual-locales.md) | [语言包设计](technical/game-multilingual-locales.md) |
