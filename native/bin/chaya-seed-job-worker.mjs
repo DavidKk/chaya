@@ -36765,7 +36765,7 @@ function scheduleOllama(run, options = false, legacySignal) {
 }
 
 // services/translate/agent-translate.ts
-async function agentJaToZh(text4, config, options = {}) {
+async function agentSingleJaToZh(text4, config, options = {}) {
   const settings = loadGameAgentSettings();
   const profile = config.profileId && profileById(settings, config.profileId) || ollamaProfiles(settings)[0];
   if (!profile) throw new Error("No available Ollama agent profile found");
@@ -36805,6 +36805,260 @@ ${text4}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true });
       signal
     }
   );
+}
+function hasAllControlTokens(src, zh) {
+  const tokens = src.match(/__C\d+__/g) || [];
+  return tokens.every((token) => zh.includes(token));
+}
+function splitSentenceByNaturalBoundaries(text4, maxChars) {
+  if (Array.from(text4).length <= maxChars) return [text4];
+  const protectedRanges = [];
+  const tokenRegex = /(__C\d+__|\\(?:[A-Za-z]+)\[[^\]]*\])/g;
+  let match;
+  while ((match = tokenRegex.exec(text4)) !== null) {
+    protectedRanges.push({ start: match.index, end: match.index + match[0].length });
+  }
+  const isProtected = (pos) => protectedRanges.some((r) => pos > r.start && pos < r.end);
+  const patterns = [/\r?\n+/g, /[。！？!?……]+|\.{3,}/g, /[；;，,、]+/g, /\s+/g];
+  const chunks = [];
+  let remaining = text4;
+  while (Array.from(remaining).length > maxChars) {
+    let splitIndex = -1;
+    for (const pattern of patterns) {
+      pattern.lastIndex = 0;
+      let m;
+      let bestPos = -1;
+      while ((m = pattern.exec(remaining)) !== null) {
+        const candidate = m.index + m[0].length;
+        if (candidate > 0 && Array.from(remaining.slice(0, candidate)).length <= maxChars && !isProtected(candidate)) {
+          bestPos = candidate;
+        } else if (Array.from(remaining.slice(0, candidate)).length > maxChars) {
+          break;
+        }
+      }
+      if (bestPos > 0) {
+        splitIndex = bestPos;
+        break;
+      }
+    }
+    if (splitIndex <= 0) {
+      const chars = Array.from(remaining);
+      const target2 = Math.min(chars.length, maxChars);
+      const sliceStr = chars.slice(0, target2).join("");
+      let candidate = sliceStr.length;
+      while (candidate > 0 && isProtected(candidate)) {
+        candidate--;
+      }
+      if (candidate <= 0) {
+        const nextRange = protectedRanges.find((r) => r.start < maxChars && r.end > maxChars);
+        candidate = nextRange ? nextRange.end : Math.max(1, sliceStr.length);
+      }
+      splitIndex = candidate;
+    }
+    chunks.push(remaining.slice(0, splitIndex));
+    remaining = remaining.slice(splitIndex);
+  }
+  if (remaining.length > 0) {
+    chunks.push(remaining);
+  }
+  return chunks.filter((c) => c.length > 0);
+}
+function packBatches(items, maxChars) {
+  const batches = [];
+  let current = [];
+  let currentChars = 0;
+  for (const item of items) {
+    const chars = Array.from(item.text).length;
+    if (current.length && currentChars + chars > maxChars) {
+      batches.push(current);
+      current = [];
+      currentChars = 0;
+    }
+    current.push(item);
+    currentChars += chars;
+  }
+  if (current.length) batches.push(current);
+  return batches;
+}
+function buildBatchTranslatePrompt(texts) {
+  const system = [
+    "\u4F60\u662F\u4E13\u7CBE\u6E38\u620F\u672C\u5730\u5316\u7684\u7FFB\u8BD1\u5668\uFF0C\u5C06\u65E5\u6587\u6216\u82F1\u6587\u539F\u6587\u9010\u884C\u7FFB\u8BD1\u4E3A\u7B80\u4F53\u4E2D\u6587\u3002",
+    "\u5FC5\u987B\u4E25\u683C\u9075\u5FAA\u4EE5\u4E0B\u89C4\u5219\uFF1A",
+    "1. \u5360\u4F4D\u7B26\uFF08\u4F8B\u5982 __C0__\u3001__C1__ \u7B49\uFF09\u5FC5\u987B\u5B8C\u5168\u539F\u6837\u4FDD\u7559\uFF0C\u4E0D\u5F97\u4FEE\u6539\u3001\u9057\u6F0F\u6216\u79FB\u52A8\u3002",
+    "2. \u4E25\u683C\u6309 [\u5E8F\u53F7] \u683C\u5F0F\u9010\u6761\u8F93\u51FA\u5BF9\u5E94\u7684\u7B80\u4F53\u4E2D\u6587\u8BD1\u6587\uFF0C\u5E8F\u53F7\u5FC5\u987B\u4E0E\u8F93\u5165\u4E00\u4E00\u5BF9\u5E94\u3002",
+    "3. \u4FDD\u6301\u4E0E\u8F93\u5165\u76F8\u540C\u7684\u6761\u76EE\u6570\u91CF\uFF0C\u7EDD\u4E0D\u80FD\u5408\u5E76\u3001\u9057\u6F0F\u6216\u8DF3\u8FC7\u4EFB\u4F55\u4E00\u6761\u3002",
+    "4. \u4EC5\u8F93\u51FA\u7FFB\u8BD1\u7ED3\u679C\uFF0C\u4E0D\u8981\u8F93\u51FA\u4EFB\u4F55\u524D\u8A00\u3001\u603B\u7ED3\u3001\u601D\u8003\u8FC7\u7A0B\u6216\u89E3\u91CA\u8BF4\u660E\u3002"
+  ].join("\n");
+  const lines = texts.map((text4, i) => `[${i + 1}] ${text4}`);
+  const user = `\u8BF7\u6309 [\u5E8F\u53F7] \u683C\u5F0F\u5C06\u4EE5\u4E0B\u6BCF\u6761\u6587\u672C\u7FFB\u8BD1\u4E3A\u7B80\u4F53\u4E2D\u6587\uFF1A
+${lines.join("\n")}`;
+  return { system, user };
+}
+function parseBatchResponse(raw, count2) {
+  const cleaned = raw.replace(/^\s*<think>[\s\S]*?<\/think>\s*/i, "").trim();
+  const lines = cleaned.split(/\r?\n/);
+  const result = new Array(count2).fill(null);
+  let currentIndex = -1;
+  const linePattern = /^\s*(?:\[(\d+)\]|(\d+)[\.、：:]|\((\d+)\))\s*(.*)$/;
+  for (const line of lines) {
+    const match = linePattern.exec(line);
+    if (match) {
+      const idxStr = match[1] || match[2] || match[3];
+      const idx = parseInt(idxStr, 10);
+      if (idx >= 1 && idx <= count2) {
+        currentIndex = idx - 1;
+        result[currentIndex] = match[4].trim();
+        continue;
+      }
+    }
+    if (currentIndex >= 0 && result[currentIndex] !== null) {
+      result[currentIndex] += "\n" + line;
+    }
+  }
+  for (let i = 0; i < count2; i++) {
+    if (result[i] !== null) {
+      result[i] = result[i].replace(/^["「『]+|["」』]+$/g, "").trim();
+    }
+  }
+  return result;
+}
+var buckets = /* @__PURE__ */ new Map();
+async function processAgentBatch(batch) {
+  if (batch.length === 1) {
+    const single = batch[0];
+    agentSingleJaToZh(single.text, single.config, single.options).then(single.resolve, single.reject);
+    return;
+  }
+  const { system, user } = buildBatchTranslatePrompt(batch.map((b) => b.text));
+  const sample = batch[0];
+  const config = sample.config;
+  const options = sample.options;
+  try {
+    const settings = loadGameAgentSettings();
+    const profile = config.profileId && profileById(settings, config.profileId) || ollamaProfiles(settings)[0];
+    if (!profile) throw new Error("No available Ollama agent profile found");
+    if (config.profileId && profile.id !== config.profileId) throw new Error("Selected agent profile no longer exists, please reselect");
+    if (profile.provider !== "ollama") throw new Error("AI translation only supports Ollama agent profiles");
+    const signal = options.signal ?? AbortSignal.timeout(5 * 60 * 1e3);
+    const token = readGameAgentToken(profile.id);
+    const http2 = ollamaFetch(profile);
+    const lane = options.lane || `agent:${profile.id}`;
+    let model = config.model || profile.defaultModel;
+    if (!model) model = pickAvailableModel(await listOllamaModels(profile.endpoint, http2, signal, token));
+    if (!model) throw new Error(`Agent profile "${profile.label}" has no available models`);
+    const raw = await scheduleOllama(
+      async () => {
+        const request = {
+          host: profile.endpoint,
+          model,
+          text: user,
+          system,
+          category: options.category,
+          speaker: options.speaker,
+          context: options.context,
+          temperature: profile.temperature,
+          keepAlive: profile.keepAlive,
+          token,
+          interactive: false,
+          signal
+        };
+        return requestOllama(http2, request);
+      },
+      {
+        interactive: false,
+        concurrency: options.concurrency,
+        lane,
+        signal
+      }
+    );
+    const parsed = parseBatchResponse(raw, batch.length);
+    for (let i = 0; i < batch.length; i++) {
+      const item = batch[i];
+      const zh = parsed[i];
+      if (zh && hasAllControlTokens(item.text, zh) && isUsefulTranslation(item.text, item.text, zh, zh, "zh")) {
+        item.resolve(zh);
+      } else {
+        agentSingleJaToZh(item.text, item.config, item.options).then(item.resolve, item.reject);
+      }
+    }
+  } catch {
+    for (const item of batch) {
+      agentSingleJaToZh(item.text, item.config, item.options).then(item.resolve, item.reject);
+    }
+  }
+}
+function flushBucket(key3) {
+  const bucket = buckets.get(key3);
+  if (!bucket || !bucket.queue.length) return;
+  bucket.scheduled = false;
+  const items = bucket.queue.splice(0, bucket.queue.length);
+  bucket.totalChars = 0;
+  const maxChars = items[0]?.maxChars ?? 3e3;
+  const batches = packBatches(items, maxChars);
+  for (const batch of batches) {
+    void processAgentBatch(batch);
+  }
+}
+function enqueueAgentRequest(item, bucketKey) {
+  let bucket = buckets.get(bucketKey);
+  if (!bucket) {
+    bucket = { queue: [], scheduled: false, totalChars: 0 };
+    buckets.set(bucketKey, bucket);
+  }
+  bucket.queue.push(item);
+  bucket.totalChars += Array.from(item.text).length;
+  if (bucket.totalChars >= item.maxChars) {
+    flushBucket(bucketKey);
+  } else if (!bucket.scheduled) {
+    bucket.scheduled = true;
+    queueMicrotask(() => flushBucket(bucketKey));
+  }
+}
+async function agentJaToZh(text4, config, options = {}) {
+  if (options.interactive) {
+    return agentSingleJaToZh(text4, config, options);
+  }
+  const maxChars = typeof options.maxChars === "number" && Number.isFinite(options.maxChars) ? Math.max(1, Math.min(4e4, Math.floor(options.maxChars))) : 3e3;
+  const chars = Array.from(text4).length;
+  if (chars > maxChars) {
+    const parts = splitSentenceByNaturalBoundaries(text4, maxChars);
+    if (parts.length > 1) {
+      const translatedParts = await Promise.all(parts.map((part) => agentJaToZh(part, config, options)));
+      const combined = translatedParts.join("");
+      if (hasAllControlTokens(text4, combined)) {
+        return combined;
+      }
+      return agentSingleJaToZh(text4, config, options);
+    }
+  }
+  const bucketKey = `${config.profileId || "default"}:${config.model || "default"}`;
+  return new Promise((resolve3, reject) => {
+    if (options.signal?.aborted) {
+      reject(options.signal.reason);
+      return;
+    }
+    const item = {
+      text: text4,
+      config,
+      options,
+      maxChars,
+      resolve: resolve3,
+      reject
+    };
+    const onAbort = () => {
+      const bucket = buckets.get(bucketKey);
+      if (bucket) {
+        const idx = bucket.queue.indexOf(item);
+        if (idx >= 0) {
+          bucket.queue.splice(idx, 1);
+          bucket.totalChars = Math.max(0, bucket.totalChars - Array.from(item.text).length);
+        }
+      }
+      reject(options.signal?.reason);
+    };
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    enqueueAgentRequest(item, bucketKey);
+  });
 }
 
 // services/translate/lib/bergamot-translate.ts
@@ -38143,13 +38397,17 @@ function engineCapacity(engine) {
   return engineConfiguredCapacity(engine);
 }
 function engineConfiguredCapacity(engine, customSettings) {
+  const isAgent = engine !== "ollama" && engineGroup(engine) === "agent";
   if (customSettings?.allowConcurrency === false) return 1;
   if (typeof customSettings?.concurrencyLimit === "number" && customSettings.concurrencyLimit > 0) {
+    if (isAgent) {
+      return Math.max(40, Math.min(100, Math.floor(customSettings.concurrencyLimit * 40)));
+    }
     return Math.max(1, Math.min(40, Math.floor(customSettings.concurrencyLimit)));
   }
   if (engine === "apple") return 40;
   if (engine === "bergamot" || engine === "ollama") return 1;
-  return engineGroup(engine) === "agent" ? 2 : 4;
+  return isAgent ? 40 : 4;
 }
 var globalLanes = globalThis;
 var lanes = globalLanes.__chayaTranslationCapacity ??= /* @__PURE__ */ new Map();
@@ -38160,7 +38418,12 @@ function requestChars(settings) {
 function canDispatch(lane, engine, waiter) {
   if (lane.active >= engineConfiguredCapacity(engine, waiter.settings)) return false;
   const maxChars = waiter.settings?.maxConcurrentChars;
-  if (typeof maxChars === "number" && maxChars > 0 && lane.active > 0 && lane.activeChars + waiter.chars > maxChars) return false;
+  if (typeof maxChars === "number" && maxChars > 0 && lane.active > 0) {
+    const isAgent = engine !== "ollama" && engineGroup(engine) === "agent";
+    const concurrency = waiter.settings?.concurrencyLimit || 1;
+    const maxLaneChars = isAgent ? maxChars * concurrency : maxChars;
+    if (lane.activeChars + waiter.chars > maxLaneChars) return false;
+  }
   return true;
 }
 function withEngineCapacity(engine, identity, work, signal, customSettings) {
@@ -44769,7 +45032,8 @@ async function translateWithEngine(engine, text4, options, agents, pair) {
     category: options?.category,
     speaker: options?.speaker,
     context: options?.context,
-    concurrency: engineConfiguredCapacity(engine, capacity),
+    concurrency: capacity.concurrencyLimit ?? 1,
+    maxChars: capacity.maxConcurrentChars ?? 3e3,
     lane: `agent:${entry.profileId}`
   });
 }
@@ -46754,7 +47018,8 @@ async function runLoop(contentRoot) {
   rt.liveSamples = [{ at: Date.now(), chars: 0 }];
   rt.state.performance = null;
   const initialSessionDone = rt.state.sessionDone;
-  const budget = createSeedBatchBudget(rt.state.engines.length === 1 && rt.state.engines[0] === "apple" ? 12 : 4);
+  const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.every((e) => e === "apple" || e.startsWith("agent:"));
+  const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4);
   const trace = (message) => {
     if (message.startsWith("Cache scan unavailable:")) {
       pushLog(

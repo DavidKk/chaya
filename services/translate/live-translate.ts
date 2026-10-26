@@ -40,7 +40,7 @@ import { planLockedNames, stitchLockedNamePlan } from './name-lock'
 import { spoolTranslationObservations } from './observations/spool'
 import { type LocalTranslateOptions, ollamaJaToZh } from './ollama-translate'
 import { loadResourceMatcher } from './resources/snapshot'
-import { engineConfiguredCapacity, withEngineCapacity } from './scheduler/engine-capacity'
+import { withEngineCapacity } from './scheduler/engine-capacity'
 import { joinTranslationRequest } from './scheduler/in-flight'
 import { isSensitiveForCloud } from './sensitive-text'
 import { openSharedCache } from './shared-cache'
@@ -116,7 +116,8 @@ async function translateWithEngine(
     category: options?.category,
     speaker: options?.speaker,
     context: options?.context,
-    concurrency: engineConfiguredCapacity(engine, capacity),
+    concurrency: capacity.concurrencyLimit ?? 1,
+    maxChars: capacity.maxConcurrentChars ?? 3000,
     lane: `agent:${entry.profileId}`,
   })
 }

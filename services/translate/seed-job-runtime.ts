@@ -171,7 +171,8 @@ async function runLoop(contentRoot: string) {
   rt.liveSamples = [{ at: Date.now(), chars: 0 }]
   rt.state.performance = null
   const initialSessionDone = rt.state.sessionDone
-  const budget = createSeedBatchBudget(rt.state.engines.length === 1 && rt.state.engines[0] === 'apple' ? 12 : 4)
+  const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.every((e) => e === 'apple' || e.startsWith('agent:'))
+  const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4)
   const trace = (message: string) => {
     if (message.startsWith('Cache scan unavailable:')) {
       pushLog(

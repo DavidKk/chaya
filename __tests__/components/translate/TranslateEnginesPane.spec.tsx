@@ -223,7 +223,7 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     expect(host.querySelector('button[aria-label="返回翻译工具列表"]')?.textContent).toBe('返回')
     expect(host.textContent).toContain('是否允许并发')
     expect(host.textContent).toContain('并发请求数上限')
-    expect(host.textContent).toContain('并发最多多少个字符')
+    expect(host.textContent).toContain('单次请求最多字符数')
 
     await act(async () => {
       host.querySelector<HTMLButtonElement>('button[aria-label="返回翻译工具列表"]')!.click()
@@ -257,7 +257,7 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     })
     await act(async () => {})
 
-    const charsInput = host.querySelector<HTMLInputElement>('input[aria-label="并发最多多少个字符"]')
+    const charsInput = host.querySelector<HTMLInputElement>('input[aria-label="单次请求最多字符数"]')
     expect(charsInput).not.toBeNull()
 
     await act(async () => {

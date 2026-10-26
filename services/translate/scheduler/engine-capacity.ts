@@ -11,13 +11,17 @@ export function engineCapacity(engine: TranslateRunEngine): number {
 }
 
 export function engineConfiguredCapacity(engine: TranslateRunEngine, customSettings?: EngineCapacitySettings): number {
+  const isAgent = engine !== 'ollama' && engineGroup(engine) === 'agent'
   if (customSettings?.allowConcurrency === false) return 1
   if (typeof customSettings?.concurrencyLimit === 'number' && customSettings.concurrencyLimit > 0) {
+    if (isAgent) {
+      return Math.max(40, Math.min(100, Math.floor(customSettings.concurrencyLimit * 40)))
+    }
     return Math.max(1, Math.min(40, Math.floor(customSettings.concurrencyLimit)))
   }
   if (engine === 'apple') return 40
   if (engine === 'bergamot' || engine === 'ollama') return 1
-  return engineGroup(engine) === 'agent' ? 2 : 4
+  return isAgent ? 40 : 4
 }
 
 type Waiter = { run: () => void; cancel: () => void; chars: number; settings?: CapacityRequestSettings }
@@ -33,7 +37,12 @@ function requestChars(settings?: CapacityRequestSettings) {
 function canDispatch(lane: Lane, engine: TranslateRunEngine, waiter: Waiter) {
   if (lane.active >= engineConfiguredCapacity(engine, waiter.settings)) return false
   const maxChars = waiter.settings?.maxConcurrentChars
-  if (typeof maxChars === 'number' && maxChars > 0 && lane.active > 0 && lane.activeChars + waiter.chars > maxChars) return false
+  if (typeof maxChars === 'number' && maxChars > 0 && lane.active > 0) {
+    const isAgent = engine !== 'ollama' && engineGroup(engine) === 'agent'
+    const concurrency = waiter.settings?.concurrencyLimit || 1
+    const maxLaneChars = isAgent ? maxChars * concurrency : maxChars
+    if (lane.activeChars + waiter.chars > maxLaneChars) return false
+  }
   return true
 }
 

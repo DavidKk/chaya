@@ -3,7 +3,14 @@
  */
 import { readGameAgentToken } from '@/services/game-agent/secrets'
 import { loadGameAgentSettings } from '@/services/game-agent/settings'
-import { agentJaToZh, listTranslateAgents } from '@/services/translate/agent-translate'
+import {
+  agentJaToZh,
+  buildBatchTranslatePrompt,
+  listTranslateAgents,
+  packBatches,
+  parseBatchResponse,
+  splitSentenceByNaturalBoundaries,
+} from '@/services/translate/agent-translate'
 
 jest.mock('@/services/game-agent/secrets', () => ({ readGameAgentToken: jest.fn() }))
 jest.mock('@/services/game-agent/model-cache', () => ({ loadAgentModelCache: () => ({ a: [{ name: 'gemma', size: 1 }] }) }))
@@ -83,4 +90,80 @@ it('refuses a deleted instance instead of silently switching', async () => {
 it('lists instances with names and cached models only', () => {
   jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
   expect(listTranslateAgents()).toEqual({ profiles: [{ id: 'a', label: 'a', defaultModel: 'base' }], models: { a: [{ name: 'gemma' }] } })
+})
+
+describe('batch packing and parsing', () => {
+  it('packs items greedily until maxChars is reached', () => {
+    const items = [
+      { text: '12345' }, // 5
+      { text: '67890' }, // 5 -> 10
+      { text: 'abcde' }, // 5 -> 15 (exceeds 12, moves to batch 2)
+      { text: 'fgh' }, // 3 -> 8
+    ]
+    const batches = packBatches(items, 12)
+    expect(batches).toHaveLength(2)
+    expect(batches[0].map((b) => b.text)).toEqual(['12345', '67890'])
+    expect(batches[1].map((b) => b.text)).toEqual(['abcde', 'fgh'])
+  })
+
+  it('splits long sentence at natural punctuation without cutting control codes', () => {
+    const longText = 'こんにちは。今日はいい天気ですね！散歩に行きましょうか？'
+    const chunks = splitSentenceByNaturalBoundaries(longText, 12)
+    expect(chunks.join('')).toBe(longText)
+    expect(chunks).toEqual(['こんにちは。', '今日はいい天気ですね！', '散歩に行きましょうか？'])
+
+    const textWithTokens = 'あいうえお__C0__かきくけこ。さしすせそ'
+    const chunksWithTokens = splitSentenceByNaturalBoundaries(textWithTokens, 12)
+    expect(chunksWithTokens.join('')).toBe(textWithTokens)
+    expect(chunksWithTokens.every((c) => !c.includes('__C0') || c.includes('__C0__'))).toBe(true)
+  })
+
+  it('builds multi-item numbered prompt and parses various model response styles', () => {
+    const texts = ['森３', '森１５', 'はい']
+    const { system, user } = buildBatchTranslatePrompt(texts)
+    expect(system).toContain('占位符')
+    expect(user).toContain('[1] 森３')
+    expect(user).toContain('[2] 森１５')
+    expect(user).toContain('[3] はい')
+
+    const standardResp = '[1] 森林3\n[2] 森林15\n[3] 是'
+    expect(parseBatchResponse(standardResp, 3)).toEqual(['森林3', '森林15', '是'])
+
+    const dotResp = '1. 森林3\n2. 森林15\n3. 是'
+    expect(parseBatchResponse(dotResp, 3)).toEqual(['森林3', '森林15', '是'])
+
+    const multiLineResp = '[1] 森林3\n第二行\n[2] 森林15\n[3] 是'
+    expect(parseBatchResponse(multiLineResp, 3)).toEqual(['森林3\n第二行', '森林15', '是'])
+  })
+
+  it('translates multiple items in a single request and maps them back', async () => {
+    jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ message: { content: '[1] 森林3\n[2] 森林15' } })))
+
+    const results = await Promise.all([agentJaToZh('森３', { profileId: 'a', model: 'qwen' }), agentJaToZh('森１５', { profileId: 'a', model: 'qwen' })])
+
+    expect(results).toEqual(['森林3', '森林15'])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to single-sentence retry when a batch item is missing from response', async () => {
+    jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: { content: '[1] 森林3' } }))) // Item 2 missing
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: { content: '森林15' } }))) // Fallback for item 2
+
+    const results = await Promise.all([agentJaToZh('森３', { profileId: 'a', model: 'qwen' }), agentJaToZh('森１５', { profileId: 'a', model: 'qwen' })])
+
+    expect(results).toEqual(['森林3', '森林15'])
+  })
+  it('automatically splits a sentence exceeding maxChars by natural boundaries and rejoins it', async () => {
+    jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: { content: '你好。' } })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: { content: '今天！' } })))
+
+    const longText = 'こんにちは。今日は！'
+    const res = await agentJaToZh(longText, { profileId: 'a', model: 'qwen' }, { maxChars: 8 })
+    expect(res).toBe('你好。今天！')
+  })
 })
