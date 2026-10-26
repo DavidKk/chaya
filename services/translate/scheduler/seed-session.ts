@@ -127,7 +127,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
 
   function finish(id: number, item: LiveTranslateItem, cacheMs = 0) {
     if (closed || states[id] === DONE || states[id] === FAILED) return
-    if (retries.get(id)?.engineWork) item = { ...item, engineWork: true }
+    if (item.engine !== 'cache:scan' && retries.get(id)?.engineWork) item = { ...item, engineWork: true }
     pendingCount--
     const success = item.zh != null && !item.error && item.status !== 'partial'
     if (!success && !paused && item.engineWork && !retries.get(id)?.interrupted) recordSeedFailure(contentRoot, item, progress)

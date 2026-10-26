@@ -261,6 +261,66 @@ describe('independent seed cache and engine scheduling', () => {
     await session.close()
   })
 
+  it('does not taint cache:scan with engineWork when cache resolves while engine is in flight', async () => {
+    create(3)
+    const running = session.fill({ limit: 4 })
+    await tick()
+    mockLane.next('lease-1')
+    emit(miss(0))
+    await tick()
+    expect(mockTranslate).toHaveBeenCalledTimes(1)
+    mockTranslate.mock.calls[0][1].onEngineDispatch('apple')
+
+    emit(full(0))
+    emit(full(1))
+    emit(full(2))
+    mockLane.onBatchDone(1, 'lease-1', 1)
+    await tick()
+    await jest.advanceTimersByTimeAsync(250)
+
+    const result = await running
+    expect(result.scanned).toBe(3)
+    expect(result.cacheOnly).toBe(true)
+    expect(result.items.every((item) => item.engine === 'cache:scan')).toBe(true)
+    expect(result.items.every((item) => !item.engineWork)).toBe(true)
+    await stop()
+  })
+
+  it('aggregates 40 items across shards into one cache window even if engine work was claimed', async () => {
+    create(40)
+    const running = session.fill({ limit: 4 })
+    await tick()
+
+    const shard1 = mockLane.next('lease-1')!
+    expect(shard1).toHaveLength(32)
+
+    // Task 0 claimed by engine
+    emit(miss(0))
+    await tick()
+    expect(mockTranslate).toHaveBeenCalledTimes(1)
+    mockTranslate.mock.calls[0][1].onEngineDispatch('apple')
+
+    // Shard 1 all hit cache
+    for (const t of shard1) emit(full(t.id))
+    mockLane.onBatchDone(1, 'lease-1', 1)
+    await tick()
+
+    // Shard 2 arrives
+    const shard2 = mockLane.next('lease-1')!
+    expect(shard2).toHaveLength(8)
+    for (const t of shard2) emit(full(t.id))
+    mockLane.onBatchDone(2, 'lease-1', 1)
+    await tick()
+
+    const result = await running
+    expect(result.scanned).toBe(40)
+    expect(result.translated).toBe(40)
+    expect(result.cacheOnly).toBe(true)
+    expect(result.items.every((item) => item.engine === 'cache:scan')).toBe(true)
+    expect(result.items.every((item) => !item.engineWork)).toBe(true)
+    await stop()
+  })
+
   it('rechecks a stale full hit and does not dispatch it until the cache confirms a miss', async () => {
     const running = create(1).fill({ limit: 1 })
     await tick()
