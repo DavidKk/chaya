@@ -35097,6 +35097,7 @@ function createGameCoverage(records2, opts) {
         const plan = shared ? shared.plan(src, pair, resolver.select(src)) : resolver.plan(src);
         if (!plan.limited) {
           hit = plan.status === "full" ? plan.zh : null;
+          if (hit == null) hit = lookupCachedTranslation((key3) => lookup[key3], src);
           if (hit == null && shared && numericLabelFamily(src)) {
             const rows = shared.numericRecords(pair, src);
             if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records2]).resolve(src);
@@ -45124,15 +45125,18 @@ async function liveTranslateTexts(texts, opts) {
                     itemSignal?.throwIfAborted();
                     const zhCore = translationCoreForCache(rawZh, guard);
                     const zh = restoreForTranslate(rawZh, guard);
-                    if (!isUsefulTranslation(src, sendText, rawZh, zh, opts?.targetLang) || guard.tokens.some((_, index2) => !rawZh.includes(`__C${index2}__`))) {
-                      throw new Error("No valid translation returned or control tokens missing");
+                    if (guard.tokens.some((_, index2) => !rawZh.includes(`__C${index2}__`))) {
+                      throw new Error("Translation control tokens missing");
+                    }
+                    if (!isUsefulTranslation(src, sendText, rawZh, zh, opts?.targetLang)) {
+                      throw new Error("No valid translation returned");
                     }
                     winner = { engine, rawZh, zhCore, zh };
                     break;
                   } catch (error) {
                     trace?.(`Item ${itemId} engine failed: engine=${engine}, elapsedMs=${Math.round(performance.now() - engineStarted)}`);
                     parentSignal?.throwIfAborted();
-                    errors.push(new Error(`${engine}: ${error instanceof Error ? error.message : String(error)}`));
+                    errors.push(new Error(`${engine}: [${langPair.from} -> ${langPair.to}] ${error instanceof Error ? error.message : String(error)}`));
                   }
                 }
                 if (!winner) throw new AggregateError(errors, "All translation engines failed");
@@ -45579,6 +45583,50 @@ function createResultWindow(limit, onItem) {
     }
   };
 }
+async function collectResultWindow(completed, options) {
+  const window = createResultWindow(options.limit, options.onItem);
+  const { selected } = window;
+  const elapsed = performance.now();
+  let drainingSince;
+  let drainTimer;
+  const safetyTimer = setTimeout(options.notify, 5e3);
+  const resetDrainTimer = () => {
+    if (drainTimer) clearTimeout(drainTimer);
+    drainTimer = setTimeout(options.notify, 250);
+  };
+  try {
+    while (true) {
+      const prevCount = selected.length;
+      window.take(completed);
+      options.wake();
+      options.pump();
+      window.take(completed);
+      if (selected.length > prevCount && drainingSince != null) {
+        drainingSince = performance.now();
+        resetDrainTimer();
+      }
+      const queuedEngineResult = completed.some((entry) => !isCacheExecution(entry.item));
+      const exhausted = options.cacheWorkExhausted();
+      if (exhausted && window.cacheOnly() && selected.length > 0) {
+        if (drainingSince == null) {
+          drainingSince = performance.now();
+          resetDrainTimer();
+        }
+      } else if (!exhausted && drainingSince != null) {
+        drainingSince = void 0;
+        if (drainTimer) clearTimeout(drainTimer);
+        drainTimer = void 0;
+      }
+      const drainingExpired = selected.length > 0 && window.cacheOnly() && exhausted && drainingSince != null && performance.now() - drainingSince >= 250;
+      if (window.full() || !window.cacheOnly() || selected.length >= options.limit && queuedEngineResult || drainingExpired || options.terminal() || selected.length > 0 && (options.flush() || performance.now() - elapsed >= 5e3))
+        return window;
+      await options.wait();
+    }
+  } finally {
+    if (drainTimer) clearTimeout(drainTimer);
+    clearTimeout(safetyTimer);
+  }
+}
 
 // services/translate/scheduler/seed-session.ts
 var UNKNOWN = 0;
@@ -45623,7 +45671,6 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   let flushTimer;
   let deadlineTimer;
   let leaseId = "";
-  let cacheBatchDoneSeq = 0;
   const active2 = /* @__PURE__ */ new Map();
   const retries = /* @__PURE__ */ new Map();
   const ready = /* @__PURE__ */ new Map();
@@ -45713,8 +45760,10 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     recheckQueue.length = 0;
   }
   function releaseToEngine(id, reason) {
-    cachePending.delete(id);
-    cacheInFlight.delete(id);
+    if (!cacheAvailable) {
+      cachePending.delete(id);
+      cacheInFlight.delete(id);
+    }
     cacheEnteredAt[id] = 0;
     cacheDeadline[id] = 0;
     if (states[id] === UNKNOWN) states[id] = MISS;
@@ -45739,7 +45788,8 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       if (currentStamp !== result.stamp && !followsOwnedStampChain(result.stamp, currentStamp, ownedFileTransitions)) return false;
       if (getGameCacheContext(contentRoot).authorityVersion !== result.authorityVersion) return false;
       const shared = cache2();
-      return shared.version() === result.plan.corpusVersion && shared.current(result.plan.matches.filter((m) => !m.record.local).map((m) => m.record));
+      const dependencies = [...result.plan.matches.filter((m) => !m.record.local).map((m) => m.record), ...result.records || []];
+      return shared.version() === result.plan.corpusVersion && shared.current(dependencies);
     } catch (error) {
       trace(`Cache result rejected: reason=${error instanceof Error ? error.message : String(error)}`);
       return false;
@@ -45834,7 +45884,6 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     scheduleDeadlineTimer();
   }
   function onBatchDone() {
-    cacheBatchDoneSeq++;
     lastCacheProgressAt = nowMs();
     pump();
     scheduleDeadlineTimer();
@@ -45846,6 +45895,8 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     cacheDeadline[id] = 0;
     if (paused || closed || states[id] === DONE || states[id] === FAILED) return;
     counters.cacheScanError++;
+    cacheSeen[id] = 1;
+    if (waitingCache.has(id)) finish(id, waitingCache.get(id));
     releaseToEngine(id, "classify");
     pump();
     scheduleDeadlineTimer();
@@ -46066,7 +46117,6 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     let earliest = Infinity;
     for (const id of cachePending) if (cacheEnteredAt[id] !== 0) earliest = Math.min(earliest, cacheEnteredAt[id] + CACHE_ADMISSION_TIMEOUT_MS);
     for (const id of cacheInFlight) if (cacheDeadline[id] !== 0) earliest = Math.min(earliest, cacheDeadline[id]);
-    if (cachePending.size >= MAX_CACHE_PENDING) earliest = Math.min(earliest, lastCacheProgressAt + CACHE_STALL_FALLBACK_MS);
     if (!Number.isFinite(earliest)) return;
     const delay = Math.max(0, earliest - now);
     deadlineTimer = setTimeout(() => {
@@ -46080,7 +46130,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     if (completed.length >= MAX_BUFFER) return [];
     while (cachePending.size < MAX_CACHE_PENDING && scanCursor < states.length) {
       const id = scanCursor++;
-      if (states[id] === UNKNOWN && !options.exclude?.has(inventory.pending[id])) {
+      if (!cacheSeen[id] && states[id] !== DONE && states[id] !== FAILED && states[id] !== RECHECK && !options.exclude?.has(inventory.pending[id])) {
         cachePending.add(id);
         cacheEnteredAt[id] = nowMs();
       }
@@ -46096,7 +46146,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     }
     for (const id of [...cachePending]) {
       if (tasks.length >= CACHE_SHARD) break;
-      if (states[id] !== UNKNOWN) {
+      if (states[id] === DONE || states[id] === FAILED || cacheSeen[id]) {
         cachePending.delete(id);
         cacheEnteredAt[id] = 0;
         continue;
@@ -46107,6 +46157,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       cacheDeadline[id] = nowMs() + CACHE_CLASSIFY_WINDOW_MS;
       tasks.push({ id, src: inventory.pending[id] });
     }
+    scheduleDeadlineTimer();
     return tasks;
   }
   function start() {
@@ -46170,7 +46221,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         cacheInFlight.delete(id);
         cacheDeadline[id] = 0;
         if (states[id] === RECHECK && !recheckQueue.includes(id)) recheckQueue.push(id);
-        else if (states[id] === UNKNOWN) {
+        else if (!cacheSeen[id] && states[id] !== DONE && states[id] !== FAILED) {
           cachePending.add(id);
           cacheEnteredAt[id] = nowMs();
         }
@@ -46242,64 +46293,24 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       }
       options = opts2;
       progress.batchSize = cap();
-      const elapsed = performance.now();
       start();
-      const window = createResultWindow(cap(), opts2.onItem);
+      const window = await collectResultWindow(completed, {
+        limit: cap(),
+        onItem: opts2.onItem,
+        wake: () => cacheLane?.wake(),
+        pump,
+        cacheWorkExhausted,
+        terminal: () => !active2.size && (paused || !hasPending()),
+        flush: () => paused || closed || !cacheAvailable,
+        notify,
+        wait: async () => {
+          await new Promise((resolve3) => {
+            resolveWait = resolve3;
+          });
+          resolveWait = void 0;
+        }
+      });
       const { selected } = window;
-      let drainingSince;
-      let drainTimer;
-      const safetyTimer = setTimeout(() => notify(), 5e3);
-      const cleanupTimers = () => {
-        if (drainTimer) {
-          clearTimeout(drainTimer);
-          drainTimer = void 0;
-        }
-        clearTimeout(safetyTimer);
-      };
-      while (true) {
-        const prevCount = selected.length;
-        window.take(completed);
-        if (selected.length > prevCount && drainingSince != null) {
-          drainingSince = performance.now();
-          if (drainTimer) {
-            clearTimeout(drainTimer);
-            drainTimer = setTimeout(() => notify(), 250);
-          }
-        }
-        cacheLane?.wake();
-        pump();
-        window.take(completed);
-        if (selected.length > prevCount && drainingSince != null) {
-          drainingSince = performance.now();
-          if (drainTimer) {
-            clearTimeout(drainTimer);
-            drainTimer = setTimeout(() => notify(), 250);
-          }
-        }
-        const queuedEngineResult = completed.some((entry) => !isCacheExecution(entry.item));
-        const selectedEngineResult = !window.cacheOnly();
-        const exhausted = cacheWorkExhausted();
-        if (exhausted && window.cacheOnly() && selected.length > 0) {
-          if (drainingSince == null) {
-            drainingSince = performance.now();
-            drainTimer = setTimeout(() => notify(), 250);
-          }
-        } else if (!exhausted && drainingSince != null) {
-          drainingSince = void 0;
-          if (drainTimer) {
-            clearTimeout(drainTimer);
-            drainTimer = void 0;
-          }
-        }
-        const drainingExpired = selected.length > 0 && window.cacheOnly() && exhausted && drainingSince != null && performance.now() - drainingSince >= 250;
-        if (window.full() || selectedEngineResult || !window.cacheOnly() && selected.length >= cap() || selected.length >= cap() && queuedEngineResult || drainingExpired || !active2.size && (paused || !hasPending()) || selected.length > 0 && (paused || closed || !cacheAvailable) || selected.length > 0 && performance.now() - elapsed >= 5e3)
-          break;
-        await new Promise((resolve3) => {
-          resolveWait = resolve3;
-        });
-        resolveWait = void 0;
-      }
-      cleanupTimers();
       const items = selected.map((entry) => entry.item);
       const unresolved = items.filter((item) => item.zh == null || item.error || item.status === "partial").map((item) => item.src);
       flushBackfill();
@@ -46704,9 +46715,9 @@ function peekHasSeed(contentRoot) {
   const stat = fs38.statSync(file, { throwIfNoEntry: false });
   return !!stat && stat.size > 2;
 }
-function pushLog(rt, level, text4, batch) {
+function pushLog(rt, level, text4, metadata) {
   rt.logSeq += 1;
-  rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text: text4, ...batch ? { batch } : {} }].slice(-MAX_SEED_JOB_LOGS);
+  rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text: text4, ...metadata }].slice(-MAX_SEED_JOB_LOGS);
 }
 function shortEngine(name2) {
   const raw = name2.trim().replace(/^live:/, "");
@@ -46841,10 +46852,13 @@ async function runLoop(contentRoot) {
         };
         const prefix = `[${batchLabel(batch)}] #${batch.batch}`;
         const text4 = batch.failed === 0 ? `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) complete${batch.cacheHits > 0 && batch.cacheHits !== batch.success ? ` (${batch.cacheHits} cache hits)` : ""}` : batch.success === 0 ? `${prefix}: All failed (${batch.total} items / ${batch.chars} chars)` : `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) succeeded, ${batch.failed} failed${batch.cacheHits > 0 ? ` (${batch.cacheHits} cache hits)` : ""}`;
-        pushLog(rt, batch.failed === 0 ? "ok" : batch.success === 0 ? "fail" : "warn", text4, batch);
+        pushLog(rt, batch.failed === 0 ? "ok" : batch.success === 0 ? "fail" : "warn", text4, { batch });
       }
       const failures = result.items.filter((item) => item.error || item.zh == null).slice(0, 1);
-      for (const item of failures) pushLog(rt, "warn", `Translation failed: ${item.src} (${item.error || "no translation returned"})`);
+      for (const item of failures) {
+        const failure = { source: item.src, error: item.error || "no translation returned" };
+        pushLog(rt, "warn", `Translation failed: ${failure.source} (${failure.error})`, { failure });
+      }
       if (!result.missing && !result.pendingResults) {
         rt.state.status = "done";
         rt.state.liveStatus = `\u5DF2\u5B8C\u6210 \xB7 \u672C\u4F1A\u8BDD\u5DF2\u8BD1 ${rt.state.sessionDone} \u6761`;

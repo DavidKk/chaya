@@ -267,6 +267,32 @@ test.each([
   }
 })
 
+test.each([false, true])('failure log localizes reasons and retains raw diagnostics (structured=%s)', async (structured) => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const host = document.createElement('div')
+  document.body.append(host)
+  const root = createRoot(host)
+  const source = '70 森３ (入口)'
+  const error = 'agent:a: No valid translation returned; apple: Apple offline language pack not installed. Please download the language pack.'
+  const raw = `Translation failed: ${source} (${error})`
+  try {
+    await act(async () =>
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateActivityLog entries={[{ id: 1, at: 0, level: 'warn', text: raw, ...(structured ? { failure: { source, error } } : {}) }]} />
+        </LocaleProvider>
+      )
+    )
+    expect(host.textContent).toContain(`翻译失败：${source}\nAgent (a)：未返回有效译文`)
+    expect(host.textContent).toContain('\nApple：缺少本次翻译所需的离线语言包')
+    expect(host.querySelector('[title]')?.getAttribute('title')).toBe(raw)
+    expect(host.textContent).not.toContain('Please download')
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
+})
+
 test('batch log shows the accepted tool instead of every attempted engine', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const host = document.createElement('div')

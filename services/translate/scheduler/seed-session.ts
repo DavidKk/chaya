@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { engineAcceptsSensitive, type TranslateRunEngine, translationFallbackOrder } from '@/lib/translate/engines'
-import { isCacheExecution, isCacheResult } from '@/lib/translate/result-sources'
+import { isCacheResult } from '@/lib/translate/result-sources'
 import type { SentencePlan } from '@/lib/translate/sentence-plan'
 
 import { getTranslateEngineSwitches } from '../engine-switches'
@@ -19,7 +19,7 @@ import { type CacheLane, type CacheScanBatch, startCacheLane } from './cache-lan
 import type { CacheScanResult } from './cache-scan'
 import { engineCapacity } from './engine-capacity'
 import { followsOwnedStampChain } from './owned-stamps'
-import { type Completed, createResultWindow } from './result-window'
+import { collectResultWindow, type Completed } from './result-window'
 import { readSeedInventory, seedFileStamp } from './seed-inventory'
 import type { SeedInventoryBundle } from './seed-prepare'
 
@@ -76,7 +76,6 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
   let flushTimer: ReturnType<typeof setTimeout> | undefined
   let deadlineTimer: ReturnType<typeof setTimeout> | undefined
   let leaseId = ''
-  let cacheBatchDoneSeq = 0
   const active = new Map<number, Active>()
   const retries = new Map<number, Attempt>()
   const ready = new Map<number, CacheScanResult>()
@@ -175,8 +174,12 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
   }
 
   function releaseToEngine(id: number, reason: 'admission' | 'classify' | 'stall') {
-    cachePending.delete(id)
-    cacheInFlight.delete(id)
+    // A deadline grants engine eligibility; it does not cancel independent
+    // cache work. In particular, queued items must still reach the scanner.
+    if (!cacheAvailable) {
+      cachePending.delete(id)
+      cacheInFlight.delete(id)
+    }
     cacheEnteredAt[id] = 0
     cacheDeadline[id] = 0
     if (states[id] === UNKNOWN) states[id] = MISS
@@ -203,7 +206,8 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
       if (currentStamp !== result.stamp && !followsOwnedStampChain(result.stamp, currentStamp, ownedFileTransitions)) return false
       if (getGameCacheContext(contentRoot).authorityVersion !== result.authorityVersion) return false
       const shared = cache()
-      return shared.version() === result.plan.corpusVersion && shared.current(result.plan.matches.filter((m) => !m.record.local).map((m) => m.record))
+      const dependencies = [...result.plan.matches.filter((m) => !m.record.local).map((m) => m.record), ...(result.records || [])]
+      return shared.version() === result.plan.corpusVersion && shared.current(dependencies)
     } catch (error) {
       trace(`Cache result rejected: reason=${error instanceof Error ? error.message : String(error)}`)
       return false
@@ -303,7 +307,6 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
   }
 
   function onBatchDone() {
-    cacheBatchDoneSeq++
     lastCacheProgressAt = nowMs()
     pump()
     scheduleDeadlineTimer()
@@ -316,7 +319,9 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
     cacheDeadline[id] = 0
     if (paused || closed || states[id] === DONE || states[id] === FAILED) return
     counters.cacheScanError++
+    cacheSeen[id] = 1
     // A per-item scan error must not be faked as a cache miss; bounded-degrade to engine.
+    if (waitingCache.has(id)) finish(id, waitingCache.get(id)!)
     releaseToEngine(id, 'classify')
     pump()
     scheduleDeadlineTimer()
@@ -550,7 +555,6 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
     let earliest = Infinity
     for (const id of cachePending) if (cacheEnteredAt[id] !== 0) earliest = Math.min(earliest, cacheEnteredAt[id] + CACHE_ADMISSION_TIMEOUT_MS)
     for (const id of cacheInFlight) if (cacheDeadline[id] !== 0) earliest = Math.min(earliest, cacheDeadline[id])
-    if (cachePending.size >= MAX_CACHE_PENDING) earliest = Math.min(earliest, lastCacheProgressAt + CACHE_STALL_FALLBACK_MS)
     if (!Number.isFinite(earliest)) return
     const delay = Math.max(0, earliest - now)
     deadlineTimer = setTimeout(() => {
@@ -566,7 +570,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
     // Top up the cache-first window from the stable cursor.
     while (cachePending.size < MAX_CACHE_PENDING && scanCursor < states.length) {
       const id = scanCursor++
-      if (states[id] === UNKNOWN && !options.exclude?.has(inventory.pending[id])) {
+      if (!cacheSeen[id] && states[id] !== DONE && states[id] !== FAILED && states[id] !== RECHECK && !options.exclude?.has(inventory.pending[id])) {
         cachePending.add(id)
         cacheEnteredAt[id] = nowMs()
       }
@@ -582,7 +586,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
     }
     for (const id of [...cachePending]) {
       if (tasks.length >= CACHE_SHARD) break
-      if (states[id] !== UNKNOWN) {
+      if (states[id] === DONE || states[id] === FAILED || cacheSeen[id]) {
         cachePending.delete(id)
         cacheEnteredAt[id] = 0
         continue
@@ -593,6 +597,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
       cacheDeadline[id] = nowMs() + CACHE_CLASSIFY_WINDOW_MS
       tasks.push({ id, src: inventory.pending[id] })
     }
+    scheduleDeadlineTimer()
     return tasks
   }
 
@@ -661,7 +666,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
         cacheInFlight.delete(id)
         cacheDeadline[id] = 0
         if (states[id] === RECHECK && !recheckQueue.includes(id)) recheckQueue.push(id)
-        else if (states[id] === UNKNOWN) {
+        else if (!cacheSeen[id] && states[id] !== DONE && states[id] !== FAILED) {
           cachePending.add(id)
           cacheEnteredAt[id] = nowMs()
         }
@@ -734,78 +739,24 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
       }
       options = opts
       progress.batchSize = cap()
-      const elapsed = performance.now()
       start()
-      const window = createResultWindow(cap(), opts.onItem)
+      const window = await collectResultWindow(completed, {
+        limit: cap(),
+        onItem: opts.onItem,
+        wake: () => cacheLane?.wake(),
+        pump,
+        cacheWorkExhausted,
+        terminal: () => !active.size && (paused || !hasPending()),
+        flush: () => paused || closed || !cacheAvailable,
+        notify,
+        wait: async () => {
+          await new Promise<void>((resolve) => {
+            resolveWait = resolve
+          })
+          resolveWait = undefined
+        },
+      })
       const { selected } = window
-      let drainingSince: number | undefined
-      let drainTimer: NodeJS.Timeout | undefined
-      const safetyTimer = setTimeout(() => notify(), 5000)
-
-      const cleanupTimers = () => {
-        if (drainTimer) {
-          clearTimeout(drainTimer)
-          drainTimer = undefined
-        }
-        clearTimeout(safetyTimer)
-      }
-
-      while (true) {
-        const prevCount = selected.length
-        window.take(completed)
-        if (selected.length > prevCount && drainingSince != null) {
-          drainingSince = performance.now()
-          if (drainTimer) {
-            clearTimeout(drainTimer)
-            drainTimer = setTimeout(() => notify(), 250)
-          }
-        }
-        cacheLane?.wake()
-        pump()
-        window.take(completed)
-        if (selected.length > prevCount && drainingSince != null) {
-          drainingSince = performance.now()
-          if (drainTimer) {
-            clearTimeout(drainTimer)
-            drainTimer = setTimeout(() => notify(), 250)
-          }
-        }
-        const queuedEngineResult = completed.some((entry) => !isCacheExecution(entry.item))
-        const selectedEngineResult = !window.cacheOnly()
-        const exhausted = cacheWorkExhausted()
-
-        if (exhausted && window.cacheOnly() && selected.length > 0) {
-          if (drainingSince == null) {
-            drainingSince = performance.now()
-            drainTimer = setTimeout(() => notify(), 250)
-          }
-        } else if (!exhausted && drainingSince != null) {
-          drainingSince = undefined
-          if (drainTimer) {
-            clearTimeout(drainTimer)
-            drainTimer = undefined
-          }
-        }
-
-        const drainingExpired = selected.length > 0 && window.cacheOnly() && exhausted && drainingSince != null && performance.now() - drainingSince >= 250
-
-        if (
-          window.full() ||
-          selectedEngineResult ||
-          (!window.cacheOnly() && selected.length >= cap()) ||
-          (selected.length >= cap() && queuedEngineResult) ||
-          drainingExpired ||
-          (!active.size && (paused || !hasPending())) ||
-          (selected.length > 0 && (paused || closed || !cacheAvailable)) ||
-          (selected.length > 0 && performance.now() - elapsed >= 5000)
-        )
-          break
-        await new Promise<void>((resolve) => {
-          resolveWait = resolve
-        })
-        resolveWait = undefined
-      }
-      cleanupTimers()
       const items = selected.map((entry) => entry.item)
       const unresolved = items.filter((item) => item.zh == null || item.error || item.status === 'partial').map((item) => item.src)
       flushBackfill()

@@ -38,6 +38,8 @@ export function createGameCoverage(records: SentenceRecord[], opts?: { database?
         const plan = shared ? shared.plan(src, pair, resolver.select(src)) : resolver.plan(src)
         if (!plan.limited) {
           hit = plan.status === 'full' ? plan.zh : null
+          // Durable control/template mirrors must still count after a job resumes.
+          if (hit == null) hit = lookupCachedTranslation((key) => lookup[key], src)
           if (hit == null && shared && numericLabelFamily(src)) {
             const rows = shared.numericRecords(pair, src)
             if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records]).resolve(src)

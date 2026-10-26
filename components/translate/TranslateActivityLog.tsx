@@ -4,7 +4,8 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { formTitle } from '@/components/layoutClasses'
 import { FollowScrollLogList } from '@/components/logs/FollowScrollLogList'
 import { TruncateText } from '@/components/sk'
-import type { BatchExecutionSource, TranslationBatchLog } from '@/lib/translate/runtime-api'
+import { formatTranslationFailure, readTranslationFailure } from '@/lib/translate/failure-log'
+import type { BatchExecutionSource, TranslationBatchLog, TranslationFailureLog } from '@/lib/translate/runtime-api'
 import { cn } from '@/lib/utils'
 
 export type TranslateLogLevel = 'info' | 'ok' | 'warn' | 'fail'
@@ -15,6 +16,7 @@ export type TranslateLogEntry = {
   level: TranslateLogLevel
   text: string
   batch?: TranslationBatchLog
+  failure?: TranslationFailureLog
 }
 
 type Props = {
@@ -53,7 +55,10 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
       <div className="relative min-h-0 border-t border-[var(--line-soft)]">
         <FollowScrollLogList
           entries={entries.map((entry) => {
-            if (!entry.batch) return entry
+            if (!entry.batch) {
+              const failure = entry.failure ?? readTranslationFailure(entry.text)
+              return failure ? { ...entry, text: formatTranslationFailure(failure, t), detail: entry.text } : entry
+            }
             const batch = entry.batch
             const submitted = Array.isArray(batch.submittedSources) ? batch.submittedSources : []
             const final = Array.isArray(batch.finalSources)

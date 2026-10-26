@@ -179,9 +179,12 @@ describe('seed job failures', () => {
     expect(logs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ level: 'fail', batch: expect.objectContaining({ batch: 1, success: 0, total: 1, failed: 1, chars: 5, cacheHits: 0 }) }),
+        expect.objectContaining({ text: 'Translation failed: こんにちは (no translation returned)', failure: { source: 'こんにちは', error: 'no translation returned' } }),
         expect.objectContaining({ level: 'ok', batch: expect.objectContaining({ batch: 2, success: 1, total: 1, failed: 0, chars: 5, cacheHits: 1, finalSources: ['cache'] }) }),
       ])
     )
+    const checkpoint = JSON.parse(fs.readFileSync(path.join(mockJobs, fs.readdirSync(mockJobs)[0]), 'utf8'))
+    expect(checkpoint.logs.find((entry: { failure?: unknown }) => entry.failure)?.failure).toEqual({ source: 'こんにちは', error: 'no translation returned' })
     expect(logs.some((entry) => /Requesting batch| → |additional items omitted/.test(entry.text))).toBe(false)
     const savedDebug = process.env.CHAYA_TRANSLATE_DEBUG
     delete process.env.CHAYA_TRANSLATE_DEBUG

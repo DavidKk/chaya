@@ -445,6 +445,22 @@ describe('live short-sentence integration', () => {
     expect(result.items[0]).toMatchObject({ zh: '有效译文', engine: 'live:apple' })
   })
 
+  it('reports invalid output separately from missing required control tokens without saving either', async () => {
+    jest.mocked(agentJaToZh).mockResolvedValue('')
+    const invalid = await liveTranslateTexts(['こんにちは世界'], { contentRoot: root, engines: ['agent:a'] })
+    expect(invalid.items[0]).toMatchObject({ zh: null, error: 'agent:a: [ja -> zh] No valid translation returned' })
+    jest.mocked(agentJaToZh).mockResolvedValue('前往村庄')
+    const controls = await liveTranslateTexts(['村\\C[3]へ行く'], { contentRoot: root, engines: ['agent:a'] })
+    expect(controls.items[0]).toMatchObject({ zh: null, error: 'agent:a: [ja -> zh] Translation control tokens missing' })
+    const cache = openSharedCache()
+    try {
+      expect(cache.get('こんにちは世界')).toBeNull()
+      expect(cache.get('村\\C[3]へ行く')).toBeNull()
+    } finally {
+      cache.close()
+    }
+  })
+
   it('uses the fallback chain for a partial-cache gap', async () => {
     const cache = openSharedCache()
     cache.writeMany([['村へ行く,休む', '前往村庄，休息']], 'import')

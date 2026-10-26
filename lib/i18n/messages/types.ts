@@ -610,6 +610,13 @@ export type MessageTree = {
     activityLogEmpty: string
     activityLogHint: string
     activityLogJumpLatest: string
+    failureLog: string
+    failureLogEngine: string
+    failureInvalidTranslation: string
+    failureMissingControls: string
+    failureLegacyValidation: string
+    failureApplePack: string
+    failureBergamotPack: string
     batchLogComplete: string
     batchLogPartial: string
     batchLogFailed: string

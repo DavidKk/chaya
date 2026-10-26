@@ -12,6 +12,7 @@ export type FollowScrollLogEntry = {
   at: number
   level: FollowScrollLogLevel
   text: string
+  detail?: string
 }
 
 const levelClass: Record<string, string> = {
@@ -72,7 +73,7 @@ export function FollowScrollLogList({
             entries.map((entry) => (
               <li key={entry.id} className="flex items-start gap-2">
                 <span className="shrink-0 pt-px tabular-nums text-ink-soft/80">{fmtTime(entry.at)}</span>
-                <span className={cn('min-w-0 flex-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere]', levelClass[entry.level] || levelClass.info)}>
+                <span title={entry.detail} className={cn('min-w-0 flex-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere]', levelClass[entry.level] || levelClass.info)}>
                   {entry.text}
                 </span>
               </li>

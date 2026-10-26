@@ -52,8 +52,18 @@ export function createCacheScanner(contentRoot: string, file: string) {
             }
           }
         }
-        if (hit == null && /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src)) {
-          hit = lookupCachedTranslation((key) => context.lookup[key] ?? index.authority(key, pair)?.zh, src)
+        if (hit == null) {
+          const used = new Map<string, IndexedRecord>()
+          // Use the same control/template restoration as live lookup before
+          // declaring a miss. Keep every shared dependency for validation/backfill.
+          hit = lookupCachedTranslation((key) => {
+            if (context.lookup[key] != null) return context.lookup[key]
+            const record = index.authority(key, pair)
+            if (!record || (record.src !== key && record.engine !== 'manual')) return null
+            used.set(record.id!, record)
+            return record.zh
+          }, src)
+          if (hit != null) records = [...used.values()]
         }
         if (hit != null) plan = { ...plan, status: 'full', zh: hit, gaps: [] }
       }

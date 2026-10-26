@@ -3026,6 +3026,7 @@ function createGameCoverage(records2, opts) {
         const plan = shared ? shared.plan(src, pair, resolver.select(src)) : resolver.plan(src);
         if (!plan.limited) {
           hit = plan.status === "full" ? plan.zh : null;
+          if (hit == null) hit = lookupCachedTranslation((key2) => lookup[key2], src);
           if (hit == null && shared && numericLabelFamily(src)) {
             const rows = shared.numericRecords(pair, src);
             if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records2]).resolve(src);

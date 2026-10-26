@@ -127,9 +127,9 @@ function peekHasSeed(contentRoot: string): boolean {
   return !!stat && stat.size > 2
 }
 
-function pushLog(rt: Runtime, level: SeedJobLogLevel, text: string, batch?: SeedJobLogEntry['batch']) {
+function pushLog(rt: Runtime, level: SeedJobLogLevel, text: string, metadata?: Pick<SeedJobLogEntry, 'batch' | 'failure'>) {
   rt.logSeq += 1
-  rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text, ...(batch ? { batch } : {}) }].slice(-MAX_SEED_JOB_LOGS)
+  rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text, ...metadata }].slice(-MAX_SEED_JOB_LOGS)
 }
 
 /** Short engine tag for one-line logs. */
@@ -279,10 +279,13 @@ async function runLoop(contentRoot: string) {
             : batch.success === 0
               ? `${prefix}: All failed (${batch.total} items / ${batch.chars} chars)`
               : `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) succeeded, ${batch.failed} failed${batch.cacheHits > 0 ? ` (${batch.cacheHits} cache hits)` : ''}`
-        pushLog(rt, batch.failed === 0 ? 'ok' : batch.success === 0 ? 'fail' : 'warn', text, batch)
+        pushLog(rt, batch.failed === 0 ? 'ok' : batch.success === 0 ? 'fail' : 'warn', text, { batch })
       }
       const failures = result.items.filter((item) => item.error || item.zh == null).slice(0, 1)
-      for (const item of failures) pushLog(rt, 'warn', `Translation failed: ${item.src} (${item.error || 'no translation returned'})`)
+      for (const item of failures) {
+        const failure = { source: item.src, error: item.error || 'no translation returned' }
+        pushLog(rt, 'warn', `Translation failed: ${failure.source} (${failure.error})`, { failure })
+      }
 
       if (!result.missing && !result.pendingResults) {
         rt.state.status = 'done'

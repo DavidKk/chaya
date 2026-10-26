@@ -26,6 +26,11 @@ export type SeedProgress = {
 
 export type BatchExecutionSource = 'cache' | 'apple' | 'agent' | 'platform' | 'bergamot' | 'ollama' | 'unknown'
 
+export type TranslationFailureLog = {
+  source: string
+  error: string
+}
+
 export type TranslationBatchLog = {
   batch: number
   success: number

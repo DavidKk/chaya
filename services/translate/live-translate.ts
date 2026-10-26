@@ -556,15 +556,18 @@ export async function liveTranslateTexts(
                     itemSignal?.throwIfAborted()
                     const zhCore = translationCoreForCache(rawZh, guard)
                     const zh = restoreForTranslate(rawZh, guard)
-                    if (!isUsefulTranslation(src, sendText, rawZh, zh, opts?.targetLang) || guard.tokens.some((_, index) => !rawZh.includes(`__C${index}__`))) {
-                      throw new Error('No valid translation returned or control tokens missing')
+                    if (guard.tokens.some((_, index) => !rawZh.includes(`__C${index}__`))) {
+                      throw new Error('Translation control tokens missing')
+                    }
+                    if (!isUsefulTranslation(src, sendText, rawZh, zh, opts?.targetLang)) {
+                      throw new Error('No valid translation returned')
                     }
                     winner = { engine, rawZh, zhCore, zh }
                     break
                   } catch (error) {
                     trace?.(`Item ${itemId} engine failed: engine=${engine}, elapsedMs=${Math.round(performance.now() - engineStarted)}`)
                     parentSignal?.throwIfAborted()
-                    errors.push(new Error(`${engine}: ${error instanceof Error ? error.message : String(error)}`))
+                    errors.push(new Error(`${engine}: [${langPair.from} -> ${langPair.to}] ${error instanceof Error ? error.message : String(error)}`))
                   }
                 }
                 if (!winner) throw new AggregateError(errors, 'All translation engines failed')
