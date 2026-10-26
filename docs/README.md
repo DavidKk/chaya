@@ -28,6 +28,7 @@
 | 翻译主线程卡死、多 Tab、list/seed 库存与 shared 后台化 | [主线程卸载](translation-mainthread-offload.md) | 现行（P0–P2 已落地）；技术方案未立页前以需求文为准 |
 | 缓存匹配、语义分段、索引 | [缓存优化](translation-cache-optimization.md) | [缓存设计](technical/translation-cache-optimization.md)；底层存储才读 [管线](technical/translation-pipeline.md) §14 |
 | 缓存批次慢、命中后仍跑引擎、回填假过期、缓存优先预取 | [缓存批处理性能](translation-cache-batch-performance.md) §5–9 | [缓存批次设计](technical/translation-cache-optimization.md) §11–12；调度边界见 [调度基线](translation-scheduling.md) §14 |
+| 缓存小窗口、结果跨分片聚合、缓存批次吞吐 | [结果窗口聚合](translation-cache-result-window-batching.md) | [窗口聚合设计](technical/translation-cache-result-window-batching.md)；先看页头的替代边界 |
 | 标签、列表、结构化分段编辑 | [结构化分段](translation-structured-segmentation.md) | [分段设计](technical/translation-structured-segmentation.md) |
 | 整句缓存对齐回退 | [整句回退](translation-sentence-fallback.md) | [回退算法](technical/translation-sentence-fallback.md) |
 | 翻译列表搜索、多语言分词、相关度排序 | [列表相关度搜索](translation-list-search-ranking.md) | [多语言分词排序设计](technical/translation-list-search-ranking.md) |

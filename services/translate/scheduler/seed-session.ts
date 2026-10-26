@@ -112,6 +112,10 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
   const cap = () => Math.min(40, Math.max(1, options.limit || 12))
   const nowMs = () => performance.now()
 
+  function cacheWorkExhausted(): boolean {
+    return !paused && !closed && cacheAvailable && cachePending.size === 0 && cacheInFlight.size === 0 && recheckQueue.length === 0 && scanCursor >= states.length
+  }
+
   function inCacheWindow(id: number): boolean {
     return cachePending.has(id) || cacheInFlight.has(id) || cacheEnteredAt[id] !== 0 || cacheDeadline[id] !== 0
   }
@@ -731,25 +735,69 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
       options = opts
       progress.batchSize = cap()
       const elapsed = performance.now()
-      const cacheDoneAtStart = cacheBatchDoneSeq
       start()
       const window = createResultWindow(cap(), opts.onItem)
       const { selected } = window
+      let drainingSince: number | undefined
+      let drainTimer: NodeJS.Timeout | undefined
+      const safetyTimer = setTimeout(() => notify(), 5000)
+
+      const cleanupTimers = () => {
+        if (drainTimer) {
+          clearTimeout(drainTimer)
+          drainTimer = undefined
+        }
+        clearTimeout(safetyTimer)
+      }
+
       while (true) {
+        const prevCount = selected.length
         window.take(completed)
+        if (selected.length > prevCount && drainingSince != null) {
+          drainingSince = performance.now()
+          if (drainTimer) {
+            clearTimeout(drainTimer)
+            drainTimer = setTimeout(() => notify(), 250)
+          }
+        }
         cacheLane?.wake()
         pump()
         window.take(completed)
+        if (selected.length > prevCount && drainingSince != null) {
+          drainingSince = performance.now()
+          if (drainTimer) {
+            clearTimeout(drainTimer)
+            drainTimer = setTimeout(() => notify(), 250)
+          }
+        }
         const queuedEngineResult = completed.some((entry) => !isCacheExecution(entry.item))
         const selectedEngineResult = !window.cacheOnly()
-        const cacheShardSettled = cacheBatchDoneSeq > cacheDoneAtStart && completed.length === 0
+        const exhausted = cacheWorkExhausted()
+
+        if (exhausted && window.cacheOnly() && selected.length > 0) {
+          if (drainingSince == null) {
+            drainingSince = performance.now()
+            drainTimer = setTimeout(() => notify(), 250)
+          }
+        } else if (!exhausted && drainingSince != null) {
+          drainingSince = undefined
+          if (drainTimer) {
+            clearTimeout(drainTimer)
+            drainTimer = undefined
+          }
+        }
+
+        const drainingExpired = selected.length > 0 && window.cacheOnly() && exhausted && drainingSince != null && performance.now() - drainingSince >= 250
+
         if (
           window.full() ||
           selectedEngineResult ||
-          (selected.length >= cap() && (active.size > 0 || queuedEngineResult)) ||
-          (selected.length > 0 && window.cacheOnly() && cacheShardSettled) ||
+          (!window.cacheOnly() && selected.length >= cap()) ||
+          (selected.length >= cap() && queuedEngineResult) ||
+          drainingExpired ||
           (!active.size && (paused || !hasPending())) ||
-          (selected.length && performance.now() - elapsed >= 5000)
+          (selected.length > 0 && (paused || closed || !cacheAvailable)) ||
+          (selected.length > 0 && performance.now() - elapsed >= 5000)
         )
           break
         await new Promise<void>((resolve) => {
@@ -757,6 +805,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
         })
         resolveWait = undefined
       }
+      cleanupTimers()
       const items = selected.map((entry) => entry.item)
       const unresolved = items.filter((item) => item.zh == null || item.error || item.status === 'partial').map((item) => item.src)
       flushBackfill()
@@ -778,6 +827,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
         failed: unresolved.length,
         unresolved,
         items,
+        cacheOnly: window.cacheOnly(),
         submittedEngines: submitted,
         cacheUnavailable: unavailable,
         performance: {

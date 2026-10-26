@@ -3,7 +3,7 @@ import fs from 'node:fs'
 
 import { formatCompactCount } from '@/lib/format-compact-count'
 import { type LiveTranslationSample, rollingTranslationPerformance, smoothTranslationPerformance, translationPerformance, type TranslationSample } from '@/lib/translate/remain-eta'
-import { batchSources, isCacheResult } from '@/lib/translate/result-sources'
+import { batchSources, isCacheExecution, isCacheResult } from '@/lib/translate/result-sources'
 import type { TranslationBatchLog } from '@/lib/translate/runtime-api'
 import { getResolvedFromConfig } from '@/services/game/binding'
 import { shouldDemoteOrphanRunning } from '@/services/jobs'
@@ -235,7 +235,10 @@ async function runLoop(contentRoot: string) {
         const elapsedMs = measuredNow - started
         const sampleElapsedMs = measuredNow - measuredAt
         measuredAt = measuredNow
-        budget.observe(elapsedMs, result.failed, result.scanned)
+        const isPureCache = result.cacheOnly ?? (result.items.length > 0 && result.items.every(isCacheExecution))
+        if (!isPureCache) {
+          budget.observe(elapsedMs, result.failed, result.scanned)
+        }
         if (result.scanned && result.performance) {
           rt.samples = [...(rt.samples || []), { elapsedMs: sampleElapsedMs, ...result.performance }].slice(-8)
           const measured = rollingTranslationPerformance(rt.liveSamples || [], { cacheMs: result.performance.cacheMs }) ?? translationPerformance(rt.samples)

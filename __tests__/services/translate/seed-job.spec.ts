@@ -430,4 +430,34 @@ describe('seed job failures', () => {
     await jest.runAllTimersAsync()
     expect(mockFill).toHaveBeenCalledTimes(1)
   })
+
+  it('does not inflate engine adaptive budget from pure cache batches', async () => {
+    mockFill
+      .mockResolvedValueOnce({
+        ...progress(),
+        translated: 40,
+        failed: 0,
+        scanned: 40,
+        unresolved: [],
+        items: Array.from({ length: 40 }, (_, i) => ({ src: `Text${i}`, zh: `译文${i}`, engine: 'cache:scan' })),
+        cacheOnly: true,
+      })
+      .mockResolvedValueOnce({
+        ...progress(),
+        translated: 40,
+        failed: 0,
+        scanned: 40,
+        unresolved: [],
+        items: Array.from({ length: 40 }, (_, i) => ({ src: `Text${i + 40}`, zh: `译文${i + 40}`, engine: 'cache:scan' })),
+        cacheOnly: true,
+      })
+      .mockResolvedValue({ ...progress(), translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] })
+
+    await startSeedJobReady()
+
+    expect(mockFill).toHaveBeenCalledTimes(3)
+    expect(mockFill.mock.calls[0][0]).toMatchObject({ limit: 4, maxChars: 3000 })
+    expect(mockFill.mock.calls[1][0]).toMatchObject({ limit: 4, maxChars: 3000 })
+    expect(mockFill.mock.calls[2][0]).toMatchObject({ limit: 4, maxChars: 3000 })
+  })
 })

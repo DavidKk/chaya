@@ -10,12 +10,14 @@ export function createResultWindow(limit: number, onItem?: (item: LiveTranslateI
   const selected: Completed[] = []
   let chars = 0
   let cacheCount = 0
+  let hitCharCap = false
   const cacheOnly = () => cacheCount === selected.length
-  const full = () => selected.length >= (cacheOnly() ? 40 : limit)
+  const full = () => selected.length >= (cacheOnly() ? 40 : limit) || (cacheOnly() && (chars >= 10_000 || hitCharCap))
   return {
     selected,
     cacheOnly,
     full,
+    chars: () => chars,
     take(completed: Completed[]) {
       while (completed.length && !full()) {
         const entry = completed.shift()!
@@ -23,6 +25,7 @@ export function createResultWindow(limit: number, onItem?: (item: LiveTranslateI
         const cached = isCacheExecution(entry.item)
         if (selected.length && cached && cacheOnly() && chars + size > 10_000) {
           completed.unshift(entry)
+          hitCharCap = true
           break
         }
         selected.push(entry)

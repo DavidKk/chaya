@@ -249,13 +249,13 @@ describe('independent seed cache and engine scheduling', () => {
     await tick()
     mockLane.next('lease-1')
     emit(full(0))
-    mockLane.onBatchDone(1, 'lease-1', 1)
-    await tick()
-    expect((await running).items[0]).toMatchObject({ zh: '缓存译文', engine: 'cache:scan' })
-    expect(mockTranslate).not.toHaveBeenCalled()
     emit(full(1))
     emit(full(2))
+    mockLane.onBatchDone(1, 'lease-1', 1)
     await tick()
+    const result = await running
+    expect(result.items[0]).toMatchObject({ zh: '缓存译文', engine: 'cache:scan' })
+    expect(mockTranslate).not.toHaveBeenCalled()
     expect(session.progress).toMatchObject({ done: 3, missing: 0 })
     expect(session.processed).toBe(3)
     await session.close()
@@ -545,6 +545,184 @@ describe('independent seed cache and engine scheduling', () => {
     await session.close()
     expect(mockTranslate).toHaveBeenCalledTimes(2)
     expect(session.progress.done).toBe(2)
+  })
+
+  it('aggregates pure cache hits across multiple 32-item shards into 40-item windows', async () => {
+    create(96)
+    const firstRunning = session.fill({ limit: 4 })
+    await tick()
+
+    const shard1 = mockLane.next('lease-1')!
+    expect(shard1).toHaveLength(32)
+    for (const t of shard1) emit(full(t.id))
+    mockLane.onBatchDone(1, 'lease-1', 1)
+    await tick()
+
+    const shard2 = mockLane.next('lease-1')!
+    expect(shard2).toHaveLength(32)
+    for (const t of shard2) emit(full(t.id))
+    mockLane.onBatchDone(2, 'lease-1', 1)
+    await tick()
+
+    const firstResult = await firstRunning
+    expect(firstResult.scanned).toBe(40)
+    expect(firstResult.translated).toBe(40)
+    expect(firstResult.cacheOnly).toBe(true)
+
+    const secondRunning = session.fill({ limit: 4 })
+    await tick()
+
+    const shard3 = mockLane.next('lease-1')!
+    expect(shard3).toHaveLength(32)
+    for (const t of shard3) emit(full(t.id))
+    mockLane.onBatchDone(3, 'lease-1', 1)
+    await tick()
+
+    const secondResult = await secondRunning
+    expect(secondResult.scanned).toBe(40)
+    expect(secondResult.translated).toBe(40)
+    expect(secondResult.cacheOnly).toBe(true)
+
+    const thirdRunning = session.fill({ limit: 4 })
+    await tick()
+    const thirdResult = await thirdRunning
+    expect(thirdResult.scanned).toBe(16)
+    expect(thirdResult.translated).toBe(16)
+    expect(thirdResult.cacheOnly).toBe(true)
+
+    expect(mockTranslate).not.toHaveBeenCalled()
+    await session.close()
+  })
+
+  it('does not commit a 1-item window when first shard finishes but more work remains', async () => {
+    create(40)
+    const running = session.fill({ limit: 4 })
+    await tick()
+
+    const shard1 = mockLane.next('lease-1')!
+    expect(shard1).toHaveLength(32)
+    emit(full(0))
+    for (let id = 1; id < 32; id++) emit(miss(id))
+    mockLane.onBatchDone(1, 'lease-1', 1)
+    await tick()
+
+    const shard2 = mockLane.next('lease-1')!
+    expect(shard2).toHaveLength(8)
+    for (const t of shard2) emit(full(t.id))
+    mockLane.onBatchDone(2, 'lease-1', 1)
+    await tick()
+
+    await jest.advanceTimersByTimeAsync(250)
+    const result = await running
+    expect(result.scanned).toBe(9)
+    expect(result.items.filter((item) => item.engine === 'cache:scan')).toHaveLength(9)
+    await stop()
+  })
+
+  it('waits for 250ms quiet draining window after work exhaustion before committing', async () => {
+    create(20)
+    const running = session.fill({ limit: 4 })
+    await tick()
+
+    const shard = mockLane.next('lease-1')!
+    expect(shard).toHaveLength(20)
+    for (let id = 0; id < 10; id++) emit(full(id))
+    for (let id = 10; id < 20; id++) emit(miss(id))
+    mockLane.onBatchDone(1, 'lease-1', 1)
+    await tick()
+
+    let resolved = false
+    void running.then(() => {
+      resolved = true
+    })
+    await jest.advanceTimersByTimeAsync(100)
+    expect(resolved).toBe(false)
+
+    await jest.advanceTimersByTimeAsync(150)
+    expect(resolved).toBe(true)
+    const result = await running
+    expect(result.scanned).toBe(10)
+    expect(result.cacheOnly).toBe(true)
+    await stop()
+  })
+
+  it('commits pure cache window after 250ms draining even while active slow engine is in flight', async () => {
+    create(15)
+    const running = session.fill({ limit: 4 })
+    await tick()
+
+    const shard = mockLane.next('lease-1')!
+    expect(shard).toHaveLength(15)
+    emit(miss(0))
+    await tick()
+    expect(mockTranslate).toHaveBeenCalledTimes(1)
+
+    for (let id = 1; id < 15; id++) emit(full(id))
+    mockLane.onBatchDone(1, 'lease-1', 1)
+    await tick()
+
+    await jest.advanceTimersByTimeAsync(250)
+    const result = await running
+    expect(result.scanned).toBe(14)
+    expect(result.cacheOnly).toBe(true)
+    expect(result.items.every((item) => item.engine === 'cache:scan')).toBe(true)
+
+    pending.get('Text0')!.resolve({ src: 'Text0', zh: '引擎终于返回', engine: 'google' })
+    await tick()
+    await stop()
+  })
+
+  it('caps pure cache window at 10,000 characters and commits an oversized single item alone', async () => {
+    const longText = 'A'.repeat(12000)
+    const file = gameContentPath(root, 'seed')
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, JSON.stringify({ [longText]: '', Normal: '' }))
+    session = createScheduledSeedSession(root)
+
+    const running = session.fill({ limit: 4 })
+    await tick()
+
+    const shard = mockLane.next('lease-1')!
+    expect(shard).toHaveLength(2)
+    mockLane.onResult(
+      {
+        id: 0,
+        src: longText,
+        stamp: mockGameStamp,
+        authorityVersion: mockAuthorityVersion,
+        elapsedMs: 2,
+        plan: { ...planSentenceTranslation(longText, [{ id: 'cache:0', revision: 1, src: longText, zh: '超长译文', engine: 'manual' }]), corpusVersion: 'v1' },
+      },
+      1,
+      'lease-1'
+    )
+    mockLane.onResult(
+      {
+        id: 1,
+        src: 'Normal',
+        stamp: mockGameStamp,
+        authorityVersion: mockAuthorityVersion,
+        elapsedMs: 2,
+        plan: { ...planSentenceTranslation('Normal', [{ id: 'cache:1', revision: 1, src: 'Normal', zh: '正常译文', engine: 'manual' }]), corpusVersion: 'v1' },
+      },
+      1,
+      'lease-1'
+    )
+    mockLane.onBatchDone(1, 'lease-1', 1)
+    await tick()
+
+    const result = await running
+    expect(result.scanned).toBe(1)
+    expect(result.items[0].src).toBe(longText)
+    expect(result.cacheOnly).toBe(true)
+
+    const nextRunning = session.fill({ limit: 4 })
+    await tick()
+    const nextResult = await nextRunning
+    expect(nextResult.scanned).toBe(1)
+    expect(nextResult.items[0].src).toBe('Normal')
+
+    await session.close()
   })
 })
 

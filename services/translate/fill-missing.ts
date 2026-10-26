@@ -32,6 +32,8 @@ export type FillMissingResult = SeedProgress & {
   submittedEngines?: string[]
   /** Cache lane was unavailable during this result window. */
   cacheUnavailable?: boolean
+  /** Whether all items returned in this result window were pure cache hits without engine work. */
+  cacheOnly?: boolean
   unresolved: string[]
   items: Array<{ src: string; zh: string | null; error?: string; engine?: string }>
 }
