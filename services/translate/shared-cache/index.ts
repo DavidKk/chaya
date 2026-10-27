@@ -24,8 +24,12 @@ import {
 } from '@/lib/translate/cache-lang'
 import { parseSharedCacheSortDir, parseSharedCacheSortKey, type SharedCacheSortDir, type SharedCacheSortKey } from '@/lib/translate/cache-query'
 import { normalizeTranslateKey } from '@/lib/translate/lookup'
+import { SENTENCE_RULE_VERSION } from '@/lib/translate/sentence-units'
 import { categoriesForNature, normalizeCacheCategory, parseTextNature } from '@/lib/translate/text-nature'
 import { storageCall } from '@/services/storage/client'
+import { getGameCacheContext } from '@/services/translate/game-cache-context'
+import { planGameCache } from '@/services/translate/game-cache-plan'
+import { gameTranslationFiles } from '@/services/translate/game-records'
 import { isNsfwCacheRow } from '@/services/translate/sensitive-text'
 import { isIdenticalTranslation, isReusableTranslation, isStorableTranslation } from '@/services/translate/text-classify'
 
@@ -33,7 +37,7 @@ import { createGameBackfill } from './backfill'
 import { confirmRecordSegments } from './confirm-segments'
 import { defaultSharedDbPath, openSharedCacheDb } from './db'
 import { createMatchIndex } from './match-index'
-import { translations } from './schema'
+import { cacheMeta, translations } from './schema'
 import { writeCachePairs } from './write-pairs'
 
 export { defaultSharedDbPath, defaultSharedDir } from './db'
@@ -182,7 +186,40 @@ export function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
     plan: index.plan,
     numericRecords: index.numericRecords,
     queueBackfill: backfill.queue,
+    queueGameProjections: backfill.queueProjections,
+    gameCacheRoots: backfill.roots,
     flushBackfill: backfill.flush,
+    /** Explicit preparation/launch repair, including entries already counted as complete. No engines. */
+    syncGameCache(root: string) {
+      const key = `game-projection-sync:${root}`
+      const signature = () => JSON.stringify([SENTENCE_RULE_VERSION, index.version(), gameTranslationFiles(root).stamp])
+      const startedWith = signature()
+      const previous = db.select().from(cacheMeta).where(eq(cacheMeta.key, key)).get()?.value
+      if (previous === startedWith) return backfill.flush(root)
+      const file = gameTranslationFiles(root).seed
+      const seed: unknown = file ? JSON.parse(fs.readFileSync(file, 'utf8')) : {}
+      if (!seed || typeof seed !== 'object' || Array.isArray(seed)) throw new Error('Seed must be an object mapping source text to translation')
+      const context = getGameCacheContext(root)
+      const records = []
+      const sources = []
+      for (const src of Object.keys(seed)) {
+        if (!src.trim() || context.blocked(src) || context.lookup[src] != null) continue
+        const pair = resolveCacheLangPair({ src, to: 'zh' })
+        const exact = index.record(src, pair)
+        if (exact) records.push(exact)
+        else {
+          const { plan } = planGameCache(src, pair, index, context)
+          if (!plan.limited && plan.status === 'full') sources.push({ src, pair })
+        }
+      }
+      backfill.queue(root, records)
+      backfill.queueProjections(root, sources)
+      const result = backfill.flush(root)
+      const value = signature()
+      // Do not certify a concurrent external edit as repaired by this snapshot.
+      if (value === startedWith || result.sharedOnly) db.insert(cacheMeta).values({ key, value }).onConflictDoUpdate({ target: cacheMeta.key, set: { value } }).run()
+      return result
+    },
     record: index.record,
     current: index.current,
     authority: index.authority,

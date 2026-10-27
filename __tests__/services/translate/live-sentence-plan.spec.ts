@@ -60,6 +60,23 @@ describe('live short-sentence integration', () => {
     jest.mocked(agentJaToZh).mockReset()
   })
   afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+  it.each([false, true])('persists a complete runtime sentence after cache reuse (translate gap=%s)', async (gap) => {
+    const src = 'Yeah. I can do 22 pushups in a row now.'
+    const tail = 'I can do 22 pushups in a row now.'
+    const cache = openSharedCache()
+    cache.writeMany([['Yeah.', '是的。'], ...(gap ? [] : [[tail, '我现在可以连续做22个俯卧撑。'] as [string, string]])], 'import', { from: 'en', to: 'zh' })
+    cache.close()
+    jest.mocked(requestGoogle).mockResolvedValue('我现在可以连续做22个俯卧撑。')
+    const result = await liveTranslateTexts([src], { contentRoot: root, sourceLang: 'en', engines: ['google'] })
+    expect(result.items[0]).toMatchObject({ zh: '是的。 我现在可以连续做22个俯卧撑。', status: 'full' })
+    const rows = fs
+      .readFileSync(gameContentPath(root, 'cacheNdjson'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(rows.find((row) => row.s === src)).toMatchObject({ t: result.items[0].zh, engine: 'derived:sentence' })
+    expect(requestGoogle).toHaveBeenCalledTimes(gap ? 1 : 0)
+  })
   it('returns versioned resource results without engine calls or ordinary cache writes', async () => {
     const result = await liveTranslateTexts(['Save'], { contentRoot: null, engines: ['google'], sourceLang: 'en' })
     expect(result.items[0]).toMatchObject({ zh: '保存', engine: 'resource', engineWork: false, resource: { packId: 'chaya.defaults', version: '1' } })

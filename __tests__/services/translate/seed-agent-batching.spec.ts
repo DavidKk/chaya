@@ -20,7 +20,7 @@ jest.mock('@/services/translate/scheduler/seed-inventory', () => ({ seedFileStam
 jest.mock('@/services/translate/game-records', () => ({ gameTranslationFiles: () => ({ stamp: 'game' }) }))
 jest.mock('@/services/translate/game-cache-context', () => ({ getGameCacheContext: () => ({ authorityVersion: 'authority' }) }))
 jest.mock('@/services/translate/shared-cache', () => ({
-  openSharedCache: () => ({ version: () => 'v1', current: () => true, close: () => {}, flushBackfill: () => ({ sharedOnly: false }) }),
+  openSharedCache: () => ({ version: () => 'v1', current: () => true, close: () => {}, flushBackfill: () => ({ sharedOnly: false }), queueGameProjections: jest.fn() }),
 }))
 jest.mock('@/services/translate/sensitive-text', () => ({ isSensitiveForCloud: () => false }))
 jest.mock('@/services/translate/live-translate', () => ({

@@ -13,6 +13,7 @@ import { lookupCachedTranslation } from './cache-lookup'
 import { getGameCacheContext } from './game-cache-context'
 import { liveTranslateTexts } from './live-translate'
 import { readSeedInventory } from './scheduler/seed-inventory'
+import { prepareSeedInventory } from './scheduler/seed-prepare'
 import { createScheduledSeedSession } from './scheduler/seed-session'
 import { readSeedFailures, recordSeedFailure, seedFailureFile, writeSeedFailure } from './seed-failures'
 import { openSharedCache } from './shared-cache'
@@ -95,9 +96,10 @@ function seedCoverage(contentRoot: string, keys: string[], cache: ReturnType<typ
   return hits
 }
 
-function scanSeed(contentRoot: string, fresh = false): Scan {
+function scanSeed(contentRoot: string, fresh = false, repair = false): Scan {
   const cache = openSharedCache()
   try {
+    if (repair) cache.syncGameCache(contentRoot)
     const keys = loadSeedKeys(contentRoot)
     const signature = JSON.stringify([
       cache.path,
@@ -183,7 +185,7 @@ export function getSeedTranslateProgress(contentRoot = resolveTranslateContentRo
  */
 export async function fillMissingFromSeed(opts?: { contentRoot?: string; limit?: number; exclude?: ReadonlySet<string> }): Promise<FillMissingResult> {
   const contentRoot = opts?.contentRoot ?? resolveTranslateContentRoot()
-  const inventory = readSeedInventory(contentRoot)
+  const inventory = await prepareSeedInventory(contentRoot)
   if (!inventory.progress.hasSeed) throw new Error('Seed not found (please extract text first or provide *-trans.seed.json)')
   const limit = Math.min(Math.max(1, Math.floor(opts?.limit || DEFAULT_BATCH)), DEFAULT_BATCH)
   const batch = inventory.pending.filter((key) => !opts?.exclude?.has(key)).slice(0, limit)
@@ -231,7 +233,7 @@ export function createSeedFillSession(
 ) {
   if (opts?.nonBlocking) return createScheduledSeedSession(contentRoot, onTrace, { inventory: opts.inventory })
   const prepareStarted = performance.now()
-  let scan = scanSeed(contentRoot)
+  let scan = scanSeed(contentRoot, false, true)
   onTrace?.(`Session prepared: items=${scan.progress.total}, missing=${scan.progress.missing}, elapsedMs=${Math.round(performance.now() - prepareStarted)}`)
   let progress = { ...scan.progress }
   let queue = [...scan.missingKeys]
@@ -243,7 +245,7 @@ export function createSeedFillSession(
   }
   let stamp = seedStamp()
   function refresh() {
-    scan = scanSeed(contentRoot, true)
+    scan = scanSeed(contentRoot, true, true)
     if (!scan.progress.hasSeed) throw new Error('Seed not found (please extract text first or provide *-trans.seed.json)')
     progress = { ...scan.progress }
     queue = [...scan.missingKeys]

@@ -15,6 +15,10 @@ let mockDb = ''
 jest.mock('@/constants/paths', () => Object.defineProperty({ ...jest.requireActual('@/constants/paths') }, 'TRANSLATE_CACHE_DB_PATH', { get: () => mockDb }))
 jest.mock('@/services/game/binding', () => ({ getResolvedFromConfig: () => ({ ok: true, contentRoot: mockRoot }) }))
 jest.mock('@/services/translate/live-translate', () => ({ liveTranslateTexts: jest.fn() }))
+jest.mock('@/services/jobs', () => ({
+  ...jest.requireActual('@/services/jobs'),
+  runWorkerOnce: jest.fn().mockRejectedValue(new Error('worker unavailable in fixture')),
+}))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 jest.mock('@/services/translate/shared-cache', () => {
   const actual = jest.requireActual('@/services/translate/shared-cache')
@@ -43,6 +47,30 @@ describe('seed translation context and cache contract', () => {
       progress: { total: 4, done: 3, missing: 1 },
       pending: ['Hello,Goodbye'],
     })
+  })
+  it.each(['one-shot', 'session'])('repairs complete composed sources in the %s fill entry without engine work', async (entry) => {
+    const source = 'Yeah. I can do 22 pushups in a row now.'
+    const target = '是的。 我现在可以连续做22个俯卧撑。'
+    seed(mockRoot, { [source]: '' })
+    const cache = openSharedCache()
+    cache.writeMany(
+      [
+        ['Yeah.', '是的。'],
+        ['I can do 22 pushups in a row now.', '我现在可以连续做22个俯卧撑。'],
+      ],
+      'import',
+      { from: 'en', to: 'zh' }
+    )
+    cache.close()
+    const result = entry === 'one-shot' ? await fillMissingFromSeed({ contentRoot: mockRoot }) : await createSeedFillSession(mockRoot).fill()
+    expect(result).toMatchObject({ done: 1, missing: 0, scanned: 0 })
+    const events = fs
+      .readFileSync(gameContentPath(mockRoot, 'cacheNdjson'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(events).toContainEqual(expect.objectContaining({ s: source, t: target, engine: 'derived:sentence' }))
+    expect(liveTranslateTexts).not.toHaveBeenCalled()
   })
 
   it('shares composed cache coverage with inventory and list and respects edits and deletions', () => {

@@ -65,6 +65,56 @@ describe('daemon-service', () => {
     })
   }
 
+  it('repairs old composed dialogue and refreshes it after shared and local edits without another translation run', async () => {
+    const root = path.join(tmpDir, 'game')
+    fs.mkdirSync(path.join(root, 'data'), { recursive: true })
+    fs.mkdirSync(path.join(root, 'js'))
+    fs.writeFileSync(path.join(root, 'index.html'), '')
+    fs.writeFileSync(path.join(root, 'data/System.json'), JSON.stringify({ gameTitle: 'Projection RPC Test', versionId: 1 }))
+    const src = 'Yeah. I can do 22 pushups in a row now.'
+    const tail = 'I can do 22 pushups in a row now.'
+    fs.writeFileSync(path.join(root, 'chaya-trans.seed.json'), JSON.stringify({ [src]: '' }))
+    daemon = await startStorageDaemon({ dataDir: path.join(tmpDir, 'public'), port: 0 })
+    const call = async (method: string, args: unknown[]) => {
+      const result = await makeRequest(daemon!.port, '/api/storage/rpc', 'POST', daemon!.authToken, JSON.stringify({ method, args }))
+      expect(result.status).toBe(200)
+      return result.data.value
+    }
+    const state = (await call('game.mount', [root])) as { directory: string }
+    const file = path.join(state.directory, 'translate/cache.ndjson')
+    const pair = { from: 'en', to: 'zh' }
+    const current = () =>
+      fs.existsSync(file)
+        ? fs
+            .readFileSync(file, 'utf8')
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => JSON.parse(line))
+            .find((row) => row.s === src)?.t
+        : undefined
+    const waitFor = async (expected: string | undefined) => {
+      const deadline = Date.now() + 3000
+      while (current() !== expected && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(current()).toBe(expected)
+    }
+    await call('shared.writeMany', [
+      [
+        ['Yeah.', '是的。'],
+        [tail, '我现在可以连续做22个俯卧撑。'],
+      ],
+      'import',
+      pair,
+    ])
+    await call('shared.syncGameCache', [root])
+    await waitFor('是的。 我现在可以连续做22个俯卧撑。')
+    await call('shared.update', [tail, '我能连续做二十二个俯卧撑了。', 'manual', pair])
+    await waitFor('是的。 我能连续做二十二个俯卧撑了。')
+    await call('game.append', [root, [{ s: 'Yeah.', t: '没错。', engine: 'manual' }]])
+    await waitFor('没错。 我能连续做二十二个俯卧撑了。')
+    await call('shared.remove', [tail, pair])
+    await waitFor(undefined)
+  })
+
   it('imports resource versions and deduplicates observations through the authenticated RPC endpoint', async () => {
     daemon = await startStorageDaemon({ dataDir: tmpDir, port: 0 })
     const call = async (method: string, args: unknown[]) => {

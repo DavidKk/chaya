@@ -5,6 +5,9 @@ class Win32API
   TOLERATE_ERRORS = false
 end
 
+# A controlling terminal may disappear independently of the native game.
+Signal.trap('HUP', 'IGNORE') rescue nil
+
 runtime = ENV.fetch('CHAYA_RGSS_RUNTIME')
 load File.join(runtime, 'scripts/preload/ruby_classic_wrap.rb')
 load File.join(runtime, 'scripts/preload/win32_wrap.rb')

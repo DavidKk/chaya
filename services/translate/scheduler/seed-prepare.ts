@@ -57,6 +57,13 @@ export function prepareSeedInventory(contentRoot: string): Promise<SeedInventory
     } catch {
       // Worker missing / crash: fall back on this background task only (still off the HTTP return).
       await yieldEventLoop()
+      const { openSharedCache } = await import('@/services/translate/shared-cache')
+      const store = openSharedCache()
+      try {
+        store.syncGameCache(contentRoot)
+      } finally {
+        store.close()
+      }
       const inv = readSeedInventory(contentRoot)
       bundle = inv
     }

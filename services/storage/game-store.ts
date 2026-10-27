@@ -99,6 +99,7 @@ export function createPublicGameStore(db: SharedCacheDb, dataDir: string) {
     const root = safeRealpath(rawRoot)
     const existing = mounted.get(root)
     if (existing) {
+      registerPublicGameDirectory(rawRoot, existing)
       ensureViews(existing)
       return existing
     }
@@ -124,6 +125,7 @@ export function createPublicGameStore(db: SharedCacheDb, dataDir: string) {
       materialize(syntheticId, state.directory)
       mounted.set(root, state)
       registerPublicGameDirectory(root, state)
+      registerPublicGameDirectory(rawRoot, state)
       registerPublicGameWriter(path.resolve(state.directory), (values, key) => appendMounted(state, values, key))
       return state
     }
@@ -188,6 +190,7 @@ export function createPublicGameStore(db: SharedCacheDb, dataDir: string) {
     mounted.set(root, state)
     mounted.set(canonicalRoot, state)
     registerPublicGameDirectory(root, state)
+    registerPublicGameDirectory(rawRoot, state)
     registerPublicGameDirectory(canonicalRoot, state)
     registerPublicGameWriter(path.resolve(state.directory), (values, key) => appendMounted(state, values, key))
     const registryFile = path.join(dataDir, 'runtime/game-directories.json')

@@ -48,7 +48,8 @@ export function loadGameTranslationRecords(contentRoot: string, current?: (origi
         if (!line.trim()) continue
         try {
           const row = parseCacheRow(JSON.parse(line))
-          if (row) applyCacheRow(rows, row)
+          // Runtime projections must never become local authority or planner dependencies.
+          if (row && row.engine !== 'derived:sentence') applyCacheRow(rows, row)
         } catch {
           /* Ignore incomplete legacy tails. */
         }

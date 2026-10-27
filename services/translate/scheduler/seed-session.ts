@@ -1,6 +1,7 @@
 /** A continuous job: cache scanning and engine slots share task ownership, never a batch barrier. */
 import { randomUUID } from 'node:crypto'
 
+import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { engineAcceptsSensitive, type TranslateAgentEntry, type TranslateRunEngine, translationFallbackOrder } from '@/lib/translate/engines'
 import { isCacheResult } from '@/lib/translate/result-sources'
 import type { SentencePlan } from '@/lib/translate/sentence-plan'
@@ -80,6 +81,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
   const completed: Completed[] = []
   const ownedFileTransitions = new Map<string, string>()
   const pendingBackfill = new Map<string, IndexedRecord>()
+  const pendingProjections = new Set<string>()
   const recheckQueue: number[] = []
   let recheckAttempts = new Uint8Array(states.length)
   // Cache-first window bookkeeping. `CACHE_PENDING` is represented as UNKNOWN with
@@ -137,6 +139,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
     cacheEnteredAt[id] = 0
     cacheDeadline[id] = 0
     if (success) {
+      pendingProjections.add(item.src)
       processed++
       const chars = charCount(item.src)
       progress.done++
@@ -223,21 +226,28 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
   }
 
   function flushBackfill() {
-    if (!store) return
-    if (pendingBackfill.size) {
-      const records = [...pendingBackfill.values()]
-      try {
-        store.queueBackfill(contentRoot, records)
-        pendingBackfill.clear()
-      } catch (error) {
-        trace(`Cache backfill queue failed: ${error instanceof Error ? error.message : String(error)}`)
-        return
+    if (!store && !pendingProjections.size) return
+    const writer = cache()
+    try {
+      if (pendingProjections.size) {
+        writer.queueGameProjections(
+          contentRoot,
+          [...pendingProjections].map((src) => ({ src, pair: { from: detectCacheLang(src), to: 'zh' } }))
+        )
+        pendingProjections.clear()
       }
+      if (pendingBackfill.size) {
+        writer.queueBackfill(contentRoot, [...pendingBackfill.values()])
+        pendingBackfill.clear()
+      }
+    } catch (error) {
+      trace(`Cache backfill queue failed: ${error instanceof Error ? error.message : String(error)}`)
+      return
     }
     const before = gameTranslationFiles(contentRoot).stamp
     let flushed: { sharedOnly?: boolean } | undefined
     try {
-      flushed = store.flushBackfill(contentRoot)
+      flushed = writer.flushBackfill(contentRoot)
     } catch (error) {
       trace(`Cache backfill flush failed: ${error instanceof Error ? error.message : String(error)}`)
       return

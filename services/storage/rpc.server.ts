@@ -40,6 +40,30 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
   let resources: ReturnType<typeof createTranslationResourceStore> | undefined
   let observations: ReturnType<typeof createTranslationObservationStore> | undefined
   let queue: Promise<unknown> = Promise.resolve()
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined
+  const refreshRoots = new Set<string>()
+  let refreshAll = false
+  async function refreshGameCaches() {
+    cache ??= openOwnedSharedCache(path.join(dataDir, 'translate-cache/shared.sqlite'))
+    const roots = refreshAll ? new Set([...cache.gameCacheRoots(), ...refreshRoots]) : new Set(refreshRoots)
+    refreshAll = false
+    refreshRoots.clear()
+    for (const root of roots) {
+      await games.mount(root)
+      cache.flushBackfill(root)
+    }
+  }
+  function scheduleGameCacheRefresh(root?: string) {
+    if (root) refreshRoots.add(root)
+    else refreshAll = true
+    if (refreshTimer) return
+    // Engine batches can write many times. Replan once after the burst, on the storage owner.
+    refreshTimer = setTimeout(() => {
+      refreshTimer = undefined
+      queue = queue.then(refreshGameCaches).catch((error) => process.emitWarning(String(error), { code: 'CHAYA_GAME_CACHE_REFRESH' }))
+    }, 100)
+    refreshTimer.unref()
+  }
   const settingsFile = path.join(dataDir, 'game-agent/settings.json')
   const syncFile = path.join(dataDir, 'game-agent/settings.sync.json')
   importLegacyAgentSettings(dataDir)
@@ -86,13 +110,18 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
       const input = args[0] as TranslationCommitInput
       const result = commitTranslations(shared, input)
       games.refresh(input.gameId)
+      scheduleGameCacheRefresh()
       return result
     }
     if (method === 'config.get') return configuration.read(String(args[0]))
     if (method === 'config.set') return configuration.write(String(args[0]), args[1], args[2] as number | undefined)
     if (method === 'game.mount') return games.mount(String(args[0]))
-    if (method === 'game.append') return games.append(String(args[0]), args[1] as unknown[], args[2] as string | undefined)
-    if (method === 'game.write') return games.write(String(args[0]), String(args[1]), args[2])
+    if (method === 'game.append' || method === 'game.write') {
+      const root = String(args[0])
+      const result = method === 'game.append' ? await games.append(root, args[1] as unknown[], args[2] as string | undefined) : await games.write(root, String(args[1]), args[2])
+      scheduleGameCacheRefresh(root)
+      return result
+    }
     if (method === 'game.read') return games.read(String(args[0]), String(args[1]))
     if (method === 'companion.load' || method === 'companion.commit') {
       await migrate()
@@ -141,10 +170,13 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
       const name = method.slice(7)
       if (name === 'close' || name === '__proto__' || name === 'constructor') throw new Error('Unsupported shared operation')
       if (!Object.hasOwn(cache, name)) throw new Error('Unknown shared operation')
-      if ((name === 'queueBackfill' || name === 'flushBackfill') && typeof args[0] === 'string') await games.mount(args[0])
+      if (['queueBackfill', 'flushBackfill', 'queueGameProjections', 'syncGameCache'].includes(name) && typeof args[0] === 'string') await games.mount(args[0])
       const operation = cache[name as keyof typeof cache]
       if (typeof operation !== 'function') return operation
       const result = (operation as (...values: unknown[]) => unknown)(...args)
+      if (['writeMany', 'upsertMany', 'upsertOptimizeMany', 'importIgnoreExisting', 'update', 'remove', 'scrubDirty', 'setAlignment', 'confirmSegments'].includes(name)) {
+        scheduleGameCacheRefresh()
+      }
       if (result instanceof Map) return { storageMap: [...result] }
       if (name === 'numericRecords') return { items: result, limited: Boolean((result as { limited?: boolean }).limited) }
       return result
@@ -159,6 +191,8 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
     },
     async close() {
       await queue
+      if (refreshTimer) clearTimeout(refreshTimer)
+      if (refreshAll || refreshRoots.size) await refreshGameCaches()
       cache?.close()
     },
   }

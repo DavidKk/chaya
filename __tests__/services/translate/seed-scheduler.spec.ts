@@ -35,7 +35,9 @@ jest.mock('@/services/translate/scheduler/cache-lane', () => ({
 }))
 jest.mock('@/services/translate/game-records', () => ({ ...jest.requireActual('@/services/translate/game-records'), gameTranslationFiles: () => ({ stamp: mockGameStamp }) }))
 jest.mock('@/services/translate/game-cache-context', () => ({ getGameCacheContext: () => ({ authorityVersion: mockAuthorityVersion }) }))
-jest.mock('@/services/translate/shared-cache', () => ({ openSharedCache: () => ({ version: () => 'v1', current: () => true, close: mockStoreClose, flushBackfill: mockFlush }) }))
+jest.mock('@/services/translate/shared-cache', () => ({
+  openSharedCache: () => ({ version: () => 'v1', current: () => true, close: mockStoreClose, flushBackfill: mockFlush, queueGameProjections: jest.fn() }),
+}))
 jest.mock('@/services/translate/sensitive-text', () => ({ isSensitiveForCloud: () => false }))
 
 const tick = async () => {

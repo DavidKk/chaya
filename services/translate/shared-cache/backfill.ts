@@ -8,6 +8,7 @@ import { appendPublicCacheFile } from '@/services/storage/game-files'
 
 import { noteGameSharedBackfill } from '../game-cache-context'
 import { gameTranslationFiles } from '../game-records'
+import { createGameProjections } from './game-projections'
 import type { IndexedRecord, MatchIndex } from './match-index'
 
 type BackfillSnapshot = { stamp: string; rows: Map<string, CacheRow>; seen: Set<string> }
@@ -83,6 +84,7 @@ export function appendCacheEvents(file: string, events: CacheRow[]): void {
 }
 
 export function createGameBackfill(client: DatabaseSync, index: MatchIndex, database: string) {
+  const projections = createGameProjections(client, index, database)
   client.exec(`CREATE TABLE IF NOT EXISTS game_backfills (root TEXT NOT NULL,src TEXT NOT NULL,record_id INTEGER NOT NULL,revision INTEGER NOT NULL,PRIMARY KEY(root,src));
     CREATE TABLE IF NOT EXISTS game_backfill_tasks(id INTEGER PRIMARY KEY AUTOINCREMENT,root TEXT NOT NULL,src TEXT NOT NULL,record_id INTEGER NOT NULL,revision INTEGER NOT NULL);`)
   const joined =
@@ -100,6 +102,10 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
     }
   }
   return {
+    roots() {
+      return (client.prepare('SELECT root FROM game_projections UNION SELECT root FROM game_backfills').all() as Array<{ root: string }>).map((row) => row.root)
+    },
+    queueProjections: projections.queue,
     queue(root: string, records: IndexedRecord[]) {
       if (!records.length) return
       client.exec('BEGIN IMMEDIATE')
@@ -138,7 +144,7 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
            ) LIMIT 1`
         )
         .get(root)
-      if (!pending && !stale) return { sharedOnly: false }
+      if (!pending && !stale && !projections.pending(root)) return { sharedOnly: false }
       const file = ensureGameContentDir(root, 'cacheNdjson')
       const release = lockCacheFile(fs, file)
       try {
@@ -220,6 +226,9 @@ export function createGameBackfill(client: DatabaseSync, index: MatchIndex, data
             else client.prepare('DELETE FROM game_backfills WHERE root=? AND src=? AND record_id=?').run(root, link.src, link.record_id)
           })
         }
+        const projected = projections.collect(root, rows)
+        events.push(...projected.events)
+        acknowledgements.push(...projected.acknowledge)
         for (let offset = 0; offset < events.length; offset += 500) appendCacheEvents(file, events.slice(offset, offset + 500))
         for (const acknowledge of acknowledgements) acknowledge()
         client.exec(

@@ -3174,7 +3174,7 @@ function loadGameTranslationRecords(contentRoot, current, opts) {
         if (!line.trim()) continue;
         try {
           const row = parseCacheRow(JSON.parse(line));
-          if (row) applyCacheRow(rows, row);
+          if (row && row.engine !== "derived:sentence") applyCacheRow(rows, row);
         } catch {
         }
       }
@@ -3264,10 +3264,13 @@ function buildContext(contentRoot) {
   if (file && fs10.existsSync(file))
     for (const line of fs10.readFileSync(file, "utf8").split("\n")) {
       if (!line.trim()) continue;
-      const row = parseCacheRow(JSON.parse(line));
-      if (!row?.origin) {
-        if (row?.t === null) blocked.add(row.s);
-        else if (row) blocked.delete(row.s);
+      try {
+        const row = parseCacheRow(JSON.parse(line));
+        if (!row?.origin) {
+          if (row?.t === null) blocked.add(row.s);
+          else if (row) blocked.delete(row.s);
+        }
+      } catch {
       }
     }
   const numeric = /* @__PURE__ */ new Map();

@@ -642,6 +642,9 @@ export async function liveTranslateTexts(
             item = { src, zh: null, error: 'Translation item deadline exceeded; saved results are retained' }
           }
           item = { ...item, resultSources: resultSources(item), engineWork }
+          if (persist && contentRoot && chineseTarget && item.zh != null && !item.error && item.status !== 'partial') {
+            getCache().queueGameProjections(contentRoot, [{ src, pair: pairFor(src) }])
+          }
           if (persist && item.error) {
             const pair = pairFor(src)
             observations.push({

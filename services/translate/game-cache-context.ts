@@ -18,10 +18,14 @@ function buildContext(contentRoot: string) {
   if (file && fs.existsSync(file))
     for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
       if (!line.trim()) continue
-      const row = parseCacheRow(JSON.parse(line))
-      if (!row?.origin) {
-        if (row?.t === null) blocked.add(row.s)
-        else if (row) blocked.delete(row.s)
+      try {
+        const row = parseCacheRow(JSON.parse(line))
+        if (!row?.origin) {
+          if (row?.t === null) blocked.add(row.s)
+          else if (row) blocked.delete(row.s)
+        }
+      } catch {
+        /* A concurrent append may leave an incomplete final line. */
       }
     }
   const numeric = new Map<string, SentenceRecord[]>()
