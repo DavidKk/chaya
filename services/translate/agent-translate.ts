@@ -7,6 +7,9 @@ import { ollamaFetch } from '@/services/game-agent/proxy/agent-proxy'
 import { readGameAgentToken } from '@/services/game-agent/secrets'
 import { loadGameAgentSettings, ollamaProfiles, profileById } from '@/services/game-agent/settings'
 
+import { buildBatchTranslatePrompt, hasAllControlTokens, packBatches, parseBatchResponse, splitSentenceByNaturalBoundaries } from './agent-batching'
+export { buildBatchTranslatePrompt, packBatches, parseBatchResponse, splitSentenceByNaturalBoundaries } from './agent-batching'
+
 import { scheduleOllama } from './ollama-queue'
 import { isUsefulTranslation } from './text-classify'
 
@@ -22,7 +25,12 @@ export type AgentTranslateOptions = {
   maxChars?: number
   /** Concurrency is scoped per lane; distinct endpoints/models should use distinct lanes. */
   lane?: string
+  /** Seed jobs may keep a partial request open while their independent cache scan supplies more misses. */
+  batchScope?: AgentBatchScope
+  onTrace?: (message: string) => void
 }
+
+export type AgentBatchScope = { waitForMore: () => boolean }
 
 export async function agentSingleJaToZh(text: string, config: TranslateAiConfig, options: AgentTranslateOptions = {}): Promise<string> {
   const settings = loadGameAgentSettings()
@@ -39,6 +47,7 @@ export async function agentSingleJaToZh(text: string, config: TranslateAiConfig,
   if (!model) throw new Error(`Agent profile "${profile.label}" has no available models`)
   return scheduleOllama(
     async () => {
+      options.onTrace?.(`Agent request submitted: items=1, sourceChars=${Array.from(text).length}`)
       const request = {
         host: profile.endpoint,
         model,
@@ -54,6 +63,7 @@ export async function agentSingleJaToZh(text: string, config: TranslateAiConfig,
       }
       const translated = await requestOllama(http, { ...request, think: !options.interactive && translationNeedsReasoning(text) })
       if (translated && translated.normalize('NFKC').trim() !== text.normalize('NFKC').trim()) return translated
+      options.onTrace?.(`Agent request submitted: items=1, sourceChars=${Array.from(text).length}`)
       return requestOllama(http, { ...request, text: `译文：\n${text}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true })
     },
     {
@@ -63,147 +73,6 @@ export async function agentSingleJaToZh(text: string, config: TranslateAiConfig,
       signal,
     }
   )
-}
-
-function hasAllControlTokens(src: string, zh: string): boolean {
-  const tokens = src.match(/__C\d+__/g) || []
-  return tokens.every((token) => zh.includes(token))
-}
-
-/** Split a long text into natural sentence/clause chunks under maxChars without cutting mid-sentence or mid-control code. */
-export function splitSentenceByNaturalBoundaries(text: string, maxChars: number): string[] {
-  if (Array.from(text).length <= maxChars) return [text]
-
-  const protectedRanges: Array<{ start: number; end: number }> = []
-  const tokenRegex = /(__C\d+__|\\(?:[A-Za-z]+)\[[^\]]*\])/g
-  let match: RegExpExecArray | null
-  while ((match = tokenRegex.exec(text)) !== null) {
-    protectedRanges.push({ start: match.index, end: match.index + match[0].length })
-  }
-
-  const isProtected = (pos: number) => protectedRanges.some((r) => pos > r.start && pos < r.end)
-
-  const patterns = [/\r?\n+/g, /[。！？!?……]+|\.{3,}/g, /[；;，,、]+/g, /\s+/g]
-
-  const chunks: string[] = []
-  let remaining = text
-
-  while (Array.from(remaining).length > maxChars) {
-    let splitIndex = -1
-
-    for (const pattern of patterns) {
-      pattern.lastIndex = 0
-      let m: RegExpExecArray | null
-      let bestPos = -1
-
-      while ((m = pattern.exec(remaining)) !== null) {
-        const candidate = m.index + m[0].length
-        if (candidate > 0 && Array.from(remaining.slice(0, candidate)).length <= maxChars && !isProtected(candidate)) {
-          bestPos = candidate
-        } else if (Array.from(remaining.slice(0, candidate)).length > maxChars) {
-          break
-        }
-      }
-
-      if (bestPos > 0) {
-        splitIndex = bestPos
-        break
-      }
-    }
-
-    if (splitIndex <= 0) {
-      const chars = Array.from(remaining)
-      const target = Math.min(chars.length, maxChars)
-      const sliceStr = chars.slice(0, target).join('')
-      let candidate = sliceStr.length
-
-      while (candidate > 0 && isProtected(candidate)) {
-        candidate--
-      }
-      if (candidate <= 0) {
-        const nextRange = protectedRanges.find((r) => r.start < maxChars && r.end > maxChars)
-        candidate = nextRange ? nextRange.end : Math.max(1, sliceStr.length)
-      }
-      splitIndex = candidate
-    }
-
-    chunks.push(remaining.slice(0, splitIndex))
-    remaining = remaining.slice(splitIndex)
-  }
-
-  if (remaining.length > 0) {
-    chunks.push(remaining)
-  }
-
-  return chunks.filter((c) => c.length > 0)
-}
-
-export function packBatches<T extends { text: string }>(items: T[], maxChars: number): T[][] {
-  const batches: T[][] = []
-  let current: T[] = []
-  let currentChars = 0
-
-  for (const item of items) {
-    const chars = Array.from(item.text).length
-    if (current.length && currentChars + chars > maxChars) {
-      batches.push(current)
-      current = []
-      currentChars = 0
-    }
-    current.push(item)
-    currentChars += chars
-  }
-  if (current.length) batches.push(current)
-  return batches
-}
-
-export function buildBatchTranslatePrompt(texts: string[]): { system: string; user: string } {
-  const system = [
-    '你是专精游戏本地化的翻译器，将日文或英文原文逐行翻译为简体中文。',
-    '必须严格遵循以下规则：',
-    '1. 占位符（例如 __C0__、__C1__ 等）必须完全原样保留，不得修改、遗漏或移动。',
-    '2. 严格按 [序号] 格式逐条输出对应的简体中文译文，序号必须与输入一一对应。',
-    '3. 保持与输入相同的条目数量，绝不能合并、遗漏或跳过任何一条。',
-    '4. 仅输出翻译结果，不要输出任何前言、总结、思考过程或解释说明。',
-  ].join('\n')
-
-  const lines = texts.map((text, i) => `[${i + 1}] ${text}`)
-  const user = `请按 [序号] 格式将以下每条文本翻译为简体中文：\n${lines.join('\n')}`
-
-  return { system, user }
-}
-
-export function parseBatchResponse(raw: string, count: number): Array<string | null> {
-  const cleaned = raw.replace(/^\s*<think>[\s\S]*?<\/think>\s*/i, '').trim()
-  const lines = cleaned.split(/\r?\n/)
-  const result: Array<string | null> = new Array(count).fill(null)
-
-  let currentIndex = -1
-  const linePattern = /^\s*(?:\[(\d+)\]|(\d+)[\.、：:]|\((\d+)\))\s*(.*)$/
-
-  for (const line of lines) {
-    const match = linePattern.exec(line)
-    if (match) {
-      const idxStr = match[1] || match[2] || match[3]
-      const idx = parseInt(idxStr, 10)
-      if (idx >= 1 && idx <= count) {
-        currentIndex = idx - 1
-        result[currentIndex] = match[4].trim()
-        continue
-      }
-    }
-    if (currentIndex >= 0 && result[currentIndex] !== null) {
-      result[currentIndex] += '\n' + line
-    }
-  }
-
-  for (let i = 0; i < count; i++) {
-    if (result[i] !== null) {
-      result[i] = result[i]!.replace(/^["「『]+|["」』]+$/g, '').trim()
-    }
-  }
-
-  return result
 }
 
 type QueuedAgentItem = {
@@ -217,13 +86,33 @@ type QueuedAgentItem = {
 
 type AgentLaneBucket = {
   queue: QueuedAgentItem[]
-  scheduled: boolean
   totalChars: number
+  startedAt: number
+  timer?: ReturnType<typeof setTimeout>
 }
 
 const buckets = new Map<string, AgentLaneBucket>()
+const scopeIds = new WeakMap<AgentBatchScope, number>()
+let scopeSequence = 0
+
+function batchSignal(batch: QueuedAgentItem[]) {
+  const controller = new AbortController()
+  const cancel = () => {
+    if (batch.every((item) => item.options.signal?.aborted)) controller.abort(new Error('All Agent request items cancelled'))
+  }
+  for (const item of batch) item.options.signal?.addEventListener('abort', cancel, { once: true })
+  cancel()
+  return {
+    signal: AbortSignal.any([controller.signal, AbortSignal.timeout(5 * 60 * 1000)]),
+    dispose: () => {
+      for (const item of batch) item.options.signal?.removeEventListener('abort', cancel)
+    },
+  }
+}
 
 async function processAgentBatch(batch: QueuedAgentItem[]) {
+  batch = batch.filter((item) => !item.options.signal?.aborted)
+  if (!batch.length) return
   if (batch.length === 1) {
     const single = batch[0]
     agentSingleJaToZh(single.text, single.config, single.options).then(single.resolve, single.reject)
@@ -234,6 +123,10 @@ async function processAgentBatch(batch: QueuedAgentItem[]) {
   const sample = batch[0]
   const config = sample.config
   const options = sample.options
+  const transport = batchSignal(batch)
+  const retry = (item: QueuedAgentItem) => {
+    if (!item.options.signal?.aborted) agentSingleJaToZh(item.text, item.config, item.options).then(item.resolve, item.reject)
+  }
 
   try {
     const settings = loadGameAgentSettings()
@@ -242,7 +135,7 @@ async function processAgentBatch(batch: QueuedAgentItem[]) {
     if (config.profileId && profile.id !== config.profileId) throw new Error('Selected agent profile no longer exists, please reselect')
     if (profile.provider !== 'ollama') throw new Error('AI translation only supports Ollama agent profiles')
 
-    const signal = options.signal ?? AbortSignal.timeout(5 * 60 * 1000)
+    const signal = transport.signal
     const token = readGameAgentToken(profile.id)
     const http = ollamaFetch(profile)
     const lane = options.lane || `agent:${profile.id}`
@@ -252,6 +145,7 @@ async function processAgentBatch(batch: QueuedAgentItem[]) {
 
     const raw = await scheduleOllama(
       async () => {
+        options.onTrace?.(`Agent request submitted: items=${batch.length}, sourceChars=${batch.reduce((sum, item) => sum + Array.from(item.text).length, 0)}`)
         const request = {
           host: profile.endpoint,
           model,
@@ -279,48 +173,67 @@ async function processAgentBatch(batch: QueuedAgentItem[]) {
     const parsed = parseBatchResponse(raw, batch.length)
     for (let i = 0; i < batch.length; i++) {
       const item = batch[i]
+      if (item.options.signal?.aborted) continue
       const zh = parsed[i]
       if (zh && hasAllControlTokens(item.text, zh) && isUsefulTranslation(item.text, item.text, zh, zh, 'zh')) {
         item.resolve(zh)
       } else {
-        agentSingleJaToZh(item.text, item.config, item.options).then(item.resolve, item.reject)
+        retry(item)
       }
     }
   } catch {
-    for (const item of batch) {
-      agentSingleJaToZh(item.text, item.config, item.options).then(item.resolve, item.reject)
-    }
+    for (const item of batch) retry(item)
+  } finally {
+    transport.dispose()
   }
 }
 
-function flushBucket(key: string) {
+function flushBucket(key: string, reason: string) {
   const bucket = buckets.get(key)
-  if (!bucket || !bucket.queue.length) return
-  bucket.scheduled = false
+  if (!bucket) return
+  buckets.delete(key)
+  if (bucket.timer) clearTimeout(bucket.timer)
+  if (!bucket.queue.length) return
   const items = bucket.queue.splice(0, bucket.queue.length)
   bucket.totalChars = 0
   const maxChars = items[0]?.maxChars ?? 3000
   const batches = packBatches(items, maxChars)
+  items[0].options.onTrace?.(`Agent queue flushed: reason=${reason}, items=${items.length}, sourceChars=${items.reduce((sum, item) => sum + Array.from(item.text).length, 0)}`)
   for (const batch of batches) {
     void processAgentBatch(batch)
   }
 }
 
+function scheduleBucket(key: string, bucket: AgentLaneBucket) {
+  if (bucket.timer) clearTimeout(bucket.timer)
+  bucket.timer = setTimeout(
+    () => {
+      if (buckets.get(key) !== bucket) return
+      const waiting = bucket.queue[0]?.options.batchScope?.waitForMore()
+      if (waiting && performance.now() - bucket.startedAt < 5000) scheduleBucket(key, bucket)
+      else flushBucket(key, waiting ? 'timeout' : 'drained')
+    },
+    Math.max(0, Math.min(250, 5000 - (performance.now() - bucket.startedAt)))
+  )
+}
+
 function enqueueAgentRequest(item: QueuedAgentItem, bucketKey: string) {
   let bucket = buckets.get(bucketKey)
+  const chars = Array.from(item.text).length
+  if (bucket?.queue.length && bucket.totalChars + chars > item.maxChars) {
+    flushBucket(bucketKey, 'capacity')
+    bucket = undefined
+  }
   if (!bucket) {
-    bucket = { queue: [], scheduled: false, totalChars: 0 }
+    bucket = { queue: [], totalChars: 0, startedAt: performance.now() }
     buckets.set(bucketKey, bucket)
   }
   bucket.queue.push(item)
-  bucket.totalChars += Array.from(item.text).length
+  bucket.totalChars += chars
 
   if (bucket.totalChars >= item.maxChars) {
-    flushBucket(bucketKey)
-  } else if (!bucket.scheduled) {
-    bucket.scheduled = true
-    queueMicrotask(() => flushBucket(bucketKey))
-  }
+    flushBucket(bucketKey, 'capacity')
+  } else scheduleBucket(bucketKey, bucket)
 }
 
 export async function agentJaToZh(text: string, config: TranslateAiConfig, options: AgentTranslateOptions = {}): Promise<string> {
@@ -338,23 +251,41 @@ export async function agentJaToZh(text: string, config: TranslateAiConfig, optio
       if (hasAllControlTokens(text, combined)) {
         return combined
       }
-      return agentSingleJaToZh(text, config, options)
+      throw new Error('Translation control tokens missing after sentence reassembly')
     }
   }
 
-  const bucketKey = `${config.profileId || 'default'}:${config.model || 'default'}`
+  if (options.batchScope && !scopeIds.has(options.batchScope)) scopeIds.set(options.batchScope, ++scopeSequence)
+  const bucketKey = JSON.stringify([
+    config.profileId,
+    config.model,
+    options.lane,
+    maxChars,
+    options.concurrency,
+    options.category,
+    options.speaker,
+    options.context,
+    options.batchScope ? scopeIds.get(options.batchScope) : null,
+  ])
   return new Promise<string>((resolve, reject) => {
     if (options.signal?.aborted) {
       reject(options.signal.reason)
       return
     }
+    const cleanup = () => options.signal?.removeEventListener('abort', onAbort)
     const item: QueuedAgentItem = {
       text,
       config,
       options,
       maxChars,
-      resolve,
-      reject,
+      resolve: (zh) => {
+        cleanup()
+        resolve(zh)
+      },
+      reject: (err) => {
+        cleanup()
+        reject(err)
+      },
     }
     const onAbort = () => {
       const bucket = buckets.get(bucketKey)
@@ -363,9 +294,10 @@ export async function agentJaToZh(text: string, config: TranslateAiConfig, optio
         if (idx >= 0) {
           bucket.queue.splice(idx, 1)
           bucket.totalChars = Math.max(0, bucket.totalChars - Array.from(item.text).length)
+          if (!bucket.queue.length) flushBucket(bucketKey, 'cancelled')
         }
       }
-      reject(options.signal?.reason)
+      item.reject(options.signal?.reason)
     }
     options.signal?.addEventListener('abort', onAbort, { once: true })
     enqueueAgentRequest(item, bucketKey)

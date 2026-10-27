@@ -1,4 +1,5 @@
 import { isCacheExecution } from '@/lib/translate/result-sources'
+import type { TranslationWindowReason } from '@/lib/translate/runtime-api'
 
 import type { LiveTranslateItem } from '../live-translate'
 import { charCount } from '../text-classify'
@@ -86,15 +87,20 @@ export async function collectResultWindow(
         drainTimer = undefined
       }
       const drainingExpired = selected.length > 0 && window.cacheOnly() && exhausted && drainingSince != null && performance.now() - drainingSince >= 250
-      if (
-        window.full() ||
-        !window.cacheOnly() ||
-        (selected.length >= options.limit && queuedEngineResult) ||
-        drainingExpired ||
-        options.terminal() ||
-        (selected.length > 0 && (options.flush() || performance.now() - elapsed >= 5000))
-      )
-        return window
+      const reason: TranslationWindowReason | undefined = window.full()
+        ? 'capacity'
+        : !window.cacheOnly() || (selected.length >= options.limit && queuedEngineResult)
+          ? 'engine-result'
+          : options.terminal()
+            ? 'finished'
+            : selected.length > 0 && options.flush()
+              ? 'interrupted'
+              : drainingExpired
+                ? 'cache-drained'
+                : selected.length > 0 && performance.now() - elapsed >= 5000
+                  ? 'timeout'
+                  : undefined
+      if (reason) return { ...window, reason }
       await options.wait()
     }
   } finally {

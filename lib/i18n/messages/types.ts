@@ -617,6 +617,14 @@ export type MessageTree = {
     failureLegacyValidation: string
     failureApplePack: string
     failureBergamotPack: string
+    agentRequestLog: string
+    batchLogWindow: string
+    windowReasonCapacity: string
+    windowReasonCacheDrained: string
+    windowReasonEngineResult: string
+    windowReasonFinished: string
+    windowReasonInterrupted: string
+    windowReasonTimeout: string
     batchLogComplete: string
     batchLogPartial: string
     batchLogFailed: string

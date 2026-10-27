@@ -31,6 +31,9 @@ export type TranslationFailureLog = {
   error: string
 }
 
+export type TranslationWindowReason = 'capacity' | 'cache-drained' | 'engine-result' | 'finished' | 'interrupted' | 'timeout'
+export type TranslationAgentRequestLog = { items: number; chars: number }
+
 export type TranslationBatchLog = {
   batch: number
   success: number
@@ -41,6 +44,7 @@ export type TranslationBatchLog = {
   submittedSources: BatchExecutionSource[]
   finalSources: BatchExecutionSource[]
   cacheUnavailable: boolean
+  windowReason?: TranslationWindowReason
 }
 
 export function installedTranslationRuntime(): TranslationRuntime | undefined {

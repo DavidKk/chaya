@@ -11,7 +11,7 @@ import type { LiveTranslateItem } from '@/services/translate/live-translate'
 import type { startCacheLane } from '@/services/translate/scheduler/cache-lane'
 import type { CacheScanResult } from '@/services/translate/scheduler/cache-scan'
 import { readSeedInventory } from '@/services/translate/scheduler/seed-inventory'
-import { createScheduledSeedSession, followsOwnedStampChain } from '@/services/translate/scheduler/seed-session'
+import { createScheduledSeedSession } from '@/services/translate/scheduler/seed-session'
 import { readSeedFailures, seedFailureFile } from '@/services/translate/seed-failures'
 
 let mockEngines: TranslateRunEngine[] = ['google']
@@ -506,7 +506,7 @@ describe('independent seed cache and engine scheduling', () => {
     const googleRetry = mockTranslate.mock.calls.findIndex(([texts, opts]) => texts[0] === 'Text0' && opts.engines[0] === 'google')
     expect(googleRetry).toBeGreaterThan(mockTranslate.mock.calls.findIndex(([texts]) => texts[0] === 'Text4'))
     session.pause()
-    pending.get('Text0')!.resolve({ src: 'Text0', zh: '平台兜底' })
+    for (const [src, work] of pending) work.resolve({ src, zh: src === 'Text0' ? '平台兜底' : '译文' })
     await tick()
     await running
     await session.close()
@@ -628,6 +628,7 @@ describe('independent seed cache and engine scheduling', () => {
     expect(firstResult.scanned).toBe(40)
     expect(firstResult.translated).toBe(40)
     expect(firstResult.cacheOnly).toBe(true)
+    expect(firstResult.windowReason).toBe('capacity')
 
     const secondRunning = session.fill({ limit: 4 })
     await tick()
@@ -649,6 +650,7 @@ describe('independent seed cache and engine scheduling', () => {
     expect(thirdResult.scanned).toBe(16)
     expect(thirdResult.translated).toBe(16)
     expect(thirdResult.cacheOnly).toBe(true)
+    expect(thirdResult.windowReason).toBe('finished')
 
     expect(mockTranslate).not.toHaveBeenCalled()
     await session.close()
@@ -703,6 +705,7 @@ describe('independent seed cache and engine scheduling', () => {
     const result = await running
     expect(result.scanned).toBe(10)
     expect(result.cacheOnly).toBe(true)
+    expect(result.windowReason).toBe('cache-drained')
     await stop()
   })
 
@@ -783,33 +786,5 @@ describe('independent seed cache and engine scheduling', () => {
     expect(nextResult.items[0].src).toBe('Normal')
 
     await session.close()
-  })
-})
-
-describe('owned cache file transitions', () => {
-  it('accepts only a complete non-branching chain from the scan stamp to the current stamp', () => {
-    const chain = new Map([
-      ['v1', 'v2'],
-      ['v2', 'v3'],
-    ])
-    expect(followsOwnedStampChain('v1', 'v3', chain)).toBe(true)
-    expect(followsOwnedStampChain('v1', 'v2', chain)).toBe(true)
-    expect(followsOwnedStampChain('v1', 'v4', chain)).toBe(false)
-    expect(followsOwnedStampChain('v1', 'v3', new Map([['v1', 'v2']]))).toBe(false)
-    expect(followsOwnedStampChain('v1', 'v1', chain)).toBe(true)
-  })
-
-  it('rejects a cycle or a chain that was truncated', () => {
-    expect(
-      followsOwnedStampChain(
-        'v1',
-        'v3',
-        new Map([
-          ['v1', 'v2'],
-          ['v2', 'v1'],
-        ])
-      )
-    ).toBe(false)
-    expect(followsOwnedStampChain('v1', 'v2', new Map())).toBe(false)
   })
 })

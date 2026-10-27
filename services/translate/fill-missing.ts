@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import { gameContentReadPath, localGameContentFile } from '@/lib/game/content-files'
 import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { createNumericLabelIndex, numericLabelFamily } from '@/lib/translate/dynamic-template'
-import type { SeedProgress } from '@/lib/translate/runtime-api'
+import type { SeedProgress, TranslationWindowReason } from '@/lib/translate/runtime-api'
 import { detectSourceLanguage } from '@/lib/translate/source-text'
 import { filterRgssSeedKeys } from '@/services/extract/lib/rgss'
 import { getResolvedFromConfig } from '@/services/game/binding'
@@ -23,6 +23,7 @@ const DEFAULT_BATCH = 40
 export type { SeedProgress } from '@/lib/translate/runtime-api'
 
 export type FillMissingResult = SeedProgress & {
+  windowReason?: TranslationWindowReason
   translated: number
   failed: number
   scanned: number

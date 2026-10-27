@@ -5,7 +5,7 @@ import { formTitle } from '@/components/layoutClasses'
 import { FollowScrollLogList } from '@/components/logs/FollowScrollLogList'
 import { TruncateText } from '@/components/sk'
 import { formatTranslationFailure, readTranslationFailure } from '@/lib/translate/failure-log'
-import type { BatchExecutionSource, TranslationBatchLog, TranslationFailureLog } from '@/lib/translate/runtime-api'
+import type { BatchExecutionSource, TranslationAgentRequestLog, TranslationBatchLog, TranslationFailureLog, TranslationWindowReason } from '@/lib/translate/runtime-api'
 import { cn } from '@/lib/utils'
 
 export type TranslateLogLevel = 'info' | 'ok' | 'warn' | 'fail'
@@ -16,6 +16,7 @@ export type TranslateLogEntry = {
   level: TranslateLogLevel
   text: string
   batch?: TranslationBatchLog
+  request?: TranslationAgentRequestLog
   failure?: TranslationFailureLog
 }
 
@@ -36,6 +37,15 @@ function sourceLabel(source: BatchExecutionSource, t: ReturnType<typeof useT>): 
   return t('translate.batchLogUnknown')
 }
 
+const reasonKeys = {
+  capacity: 'translate.windowReasonCapacity',
+  'cache-drained': 'translate.windowReasonCacheDrained',
+  'engine-result': 'translate.windowReasonEngineResult',
+  finished: 'translate.windowReasonFinished',
+  interrupted: 'translate.windowReasonInterrupted',
+  timeout: 'translate.windowReasonTimeout',
+} as const satisfies Record<TranslationWindowReason, string>
+
 /**
  * 不用 formCard 子项统一 padding（会把滚动条挤进内侧）。
  * 标题区自带边距；日志区左右底顶满卡片边，指示条贴右缘。
@@ -55,6 +65,7 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
       <div className="relative min-h-0 border-t border-[var(--line-soft)]">
         <FollowScrollLogList
           entries={entries.map((entry) => {
+            if (entry.request) return { ...entry, text: t('translate.agentRequestLog', { total: entry.request.items, chars: entry.request.chars }) }
             if (!entry.batch) {
               const failure = entry.failure ?? readTranslationFailure(entry.text)
               return failure ? { ...entry, text: formatTranslationFailure(failure, t), detail: entry.text } : entry
@@ -81,19 +92,20 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
               t('translate.batchLogCache')
             // A pure-cache label already conveys that every accepted item came from cache.
             const cacheInfo = cacheHits > 0 && cacheHits !== batch.success ? t('translate.batchLogCacheInfo', { cache: cacheHits }) : ''
+            const text = t(key, {
+              batch: batch.batch,
+              success: batch.success,
+              total: batch.total,
+              failed: batch.failed,
+              chars: batch.chars,
+              cache: cacheHits,
+              cache_info: cacheInfo,
+              engine,
+            })
             return {
               ...entry,
               level: batch.failed === 0 ? 'ok' : batch.success === 0 ? 'fail' : 'warn',
-              text: t(key, {
-                batch: batch.batch,
-                success: batch.success,
-                total: batch.total,
-                failed: batch.failed,
-                chars: batch.chars,
-                cache: cacheHits,
-                cache_info: cacheInfo,
-                engine,
-              }),
+              text: batch.windowReason && reasonKeys[batch.windowReason] ? t('translate.batchLogWindow', { text, reason: t(reasonKeys[batch.windowReason]) }) : text,
             }
           })}
           ariaLabel={t('translate.loadActivity')}

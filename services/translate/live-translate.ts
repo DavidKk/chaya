@@ -116,9 +116,11 @@ async function translateWithEngine(
     category: options?.category,
     speaker: options?.speaker,
     context: options?.context,
-    concurrency: capacity.concurrencyLimit ?? 1,
+    concurrency: capacity.allowConcurrency === false ? 1 : (capacity.concurrencyLimit ?? 1),
     maxChars: capacity.maxConcurrentChars ?? 3000,
     lane: `agent:${entry.profileId}`,
+    batchScope: options?.batchScope,
+    onTrace: options?.onTrace,
   })
 }
 
@@ -357,7 +359,7 @@ export async function liveTranslateTexts(
                         onItem: undefined,
                         preparedPlan: undefined,
                         onTrace: trace ? (message) => trace(`Item ${itemId} gaps: ${message}`) : undefined,
-                        local: { ...opts?.local, signal: itemSignal },
+                        local: { ...opts?.local, onTrace: opts?.local?.onTrace || trace, signal: itemSignal },
                         force: true,
                         persist,
                         engines,
@@ -458,7 +460,7 @@ export async function liveTranslateTexts(
                       onItem: undefined,
                       preparedPlan: undefined,
                       onTrace: trace ? (message) => trace(`Item ${itemId} name gaps: ${message}`) : undefined,
-                      local: { ...opts?.local, signal: itemSignal },
+                      local: { ...opts?.local, onTrace: opts?.local?.onTrace || trace, signal: itemSignal },
                       force: false,
                       persist: false,
                       cacheMode: undefined,
@@ -527,26 +529,25 @@ export async function liveTranslateTexts(
                     engineWork = true
                     const rawZh = await joinTranslationRequest(
                       key,
-                      (signal) =>
-                        withEngineCapacity(
-                          engine,
-                          identity,
-                          () => {
-                            onEngineDispatch(engine)
-                            trace?.(
-                              `Item ${itemId} engine requested: engine=${engine}, sourceChars=${sourceChars}, from=${langPair.from}, to=${langPair.to}, pipelineElapsedMs=${Math.round(performance.now() - started)}`
-                            )
-                            return translateWithEngine(
-                              engine,
-                              sendText,
-                              { category: opts?.category, speaker: opts?.speaker, context: opts?.context, ...opts?.local, signal },
-                              agents,
-                              langPair
-                            )
-                          },
-                          signal,
-                          { ...resolveEngineCapacitySettings(engine, configs, agents), chars: sourceChars }
-                        ),
+                      (signal) => {
+                        const execute = () => {
+                          onEngineDispatch(engine)
+                          trace?.(
+                            `Item ${itemId} engine requested: engine=${engine}, sourceChars=${sourceChars}, from=${langPair.from}, to=${langPair.to}, pipelineElapsedMs=${Math.round(performance.now() - started)}`
+                          )
+                          return translateWithEngine(
+                            engine,
+                            sendText,
+                            { category: opts?.category, speaker: opts?.speaker, context: opts?.context, onTrace: trace, ...opts?.local, signal },
+                            agents,
+                            langPair
+                          )
+                        }
+                        // Agent admission collects source items; scheduleOllama limits the packed HTTP requests.
+                        return engine.startsWith('agent:')
+                          ? execute()
+                          : withEngineCapacity(engine, identity, execute, signal, { ...resolveEngineCapacitySettings(engine, configs, agents), chars: sourceChars })
+                      },
                       itemSignal,
                       () => {
                         opts?.onDuplicateInFlight?.()

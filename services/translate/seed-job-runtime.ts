@@ -50,7 +50,7 @@ const globalStore = globalThis as typeof globalThis & {
   __chayaSeedWorker?: (root: string) => void
 }
 const runtimes = (globalStore.__chayaSeedJobs ??= new Map<string, Runtime>())
-const WORKER_VERSION = 14
+const WORKER_VERSION = 15
 globalStore.__chayaSeedWorker = (root) => {
   void runLoop(root)
 }
@@ -127,7 +127,7 @@ function peekHasSeed(contentRoot: string): boolean {
   return !!stat && stat.size > 2
 }
 
-function pushLog(rt: Runtime, level: SeedJobLogLevel, text: string, metadata?: Pick<SeedJobLogEntry, 'batch' | 'failure'>) {
+function pushLog(rt: Runtime, level: SeedJobLogLevel, text: string, metadata?: Pick<SeedJobLogEntry, 'batch' | 'failure' | 'request'>) {
   rt.logSeq += 1
   rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text, ...metadata }].slice(-MAX_SEED_JOB_LOGS)
 }
@@ -174,6 +174,8 @@ async function runLoop(contentRoot: string) {
   const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.every((e) => e === 'apple' || e.startsWith('agent:'))
   const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4)
   const trace = (message: string) => {
+    const request = /^Agent request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message)
+    if (request) pushLog(rt, 'info', message, { request: { items: Number(request[1]), chars: Number(request[2]) } })
     if (message.startsWith('Cache scan unavailable:')) {
       pushLog(
         rt,
@@ -272,6 +274,7 @@ async function runLoop(contentRoot: string) {
           submittedSources,
           finalSources,
           cacheUnavailable: result.cacheUnavailable === true,
+          windowReason: result.windowReason,
         }
         const prefix = `[${batchLabel(batch)}] #${batch.batch}`
         const text =
@@ -280,7 +283,7 @@ async function runLoop(contentRoot: string) {
             : batch.success === 0
               ? `${prefix}: All failed (${batch.total} items / ${batch.chars} chars)`
               : `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) succeeded, ${batch.failed} failed${batch.cacheHits > 0 ? ` (${batch.cacheHits} cache hits)` : ''}`
-        pushLog(rt, batch.failed === 0 ? 'ok' : batch.success === 0 ? 'fail' : 'warn', text, { batch })
+        pushLog(rt, batch.failed === 0 ? 'ok' : batch.success === 0 ? 'fail' : 'warn', `${text} [result-window${batch.windowReason ? `: ${batch.windowReason}` : ''}]`, { batch })
       }
       const failures = result.items.filter((item) => item.error || item.zh == null).slice(0, 1)
       for (const item of failures) {

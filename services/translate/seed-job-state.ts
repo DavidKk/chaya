@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { CACHE_WORKER_PATH, TRANSLATE_JOBS_DIR } from '@/constants/paths'
-import type { SeedProgress, TranslationBatchLog, TranslationFailureLog } from '@/lib/translate/runtime-api'
+import type { SeedProgress, TranslationAgentRequestLog, TranslationBatchLog, TranslationFailureLog } from '@/lib/translate/runtime-api'
 
 export type SeedJobStatus = 'idle' | 'running' | 'paused' | 'done' | 'error'
 
@@ -15,6 +15,7 @@ export type SeedJobLogEntry = {
   level: SeedJobLogLevel
   text: string
   batch?: TranslationBatchLog
+  request?: TranslationAgentRequestLog
   failure?: TranslationFailureLog
 }
 

@@ -11,17 +11,13 @@ export function engineCapacity(engine: TranslateRunEngine): number {
 }
 
 export function engineConfiguredCapacity(engine: TranslateRunEngine, customSettings?: EngineCapacitySettings): number {
-  const isAgent = engine !== 'ollama' && engineGroup(engine) === 'agent'
   if (customSettings?.allowConcurrency === false) return 1
   if (typeof customSettings?.concurrencyLimit === 'number' && customSettings.concurrencyLimit > 0) {
-    if (isAgent) {
-      return Math.max(40, Math.min(100, Math.floor(customSettings.concurrencyLimit * 40)))
-    }
     return Math.max(1, Math.min(40, Math.floor(customSettings.concurrencyLimit)))
   }
   if (engine === 'apple') return 40
   if (engine === 'bergamot' || engine === 'ollama') return 1
-  return isAgent ? 40 : 4
+  return engineGroup(engine) === 'agent' ? 1 : 4
 }
 
 type Waiter = { run: () => void; cancel: () => void; chars: number; settings?: CapacityRequestSettings }

@@ -35,4 +35,9 @@ it.each(LOCALES)('formats batch counts and cache details in %s without unresolve
     expect(text).toContain('120')
     expect(text).not.toMatch(/\{|\}|translate\./)
   }
+  expect(translate(tree, 'translate.agentRequestLog', params)).not.toMatch(/\{|\}|translate\./)
+  const reason = translate(tree, 'translate.windowReasonTimeout')
+  const window = translate(tree, 'translate.batchLogWindow', { text: '10/10', reason })
+  expect(window).toContain('10/10')
+  expect(window).not.toMatch(/\{|\}|translate\./)
 })

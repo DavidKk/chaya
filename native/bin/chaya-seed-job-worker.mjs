@@ -36698,6 +36698,106 @@ function loadGameAgentSettings(file = GAME_AGENT_SETTINGS_PATH) {
   return remoteSettings(GAME_AGENT_SYNC_PATH, file) ? storageCall("settings.get") : loadOwnedGameAgentSettings(file);
 }
 
+// services/translate/agent-batching.ts
+function hasAllControlTokens(src, zh) {
+  const tokens = src.match(/__C\d+__/g) || [];
+  return tokens.every((token) => zh.includes(token));
+}
+function splitSentenceByNaturalBoundaries(text4, maxChars) {
+  if (!Number.isInteger(maxChars) || maxChars < 1) throw new Error("Invalid Agent request character limit");
+  if (Array.from(text4).length <= maxChars) return [text4];
+  const protectedRanges = [];
+  const tokenRegex = /(__C\d+__|\\(?:[A-Za-z]+)\[[^\]]*\])/g;
+  let match;
+  while ((match = tokenRegex.exec(text4)) !== null) {
+    protectedRanges.push({ start: match.index, end: match.index + match[0].length });
+  }
+  const isProtected = (pos) => protectedRanges.some((r) => pos > r.start && pos < r.end);
+  const charOffsets = new Uint32Array(text4.length + 1);
+  let offset = 0, count2 = 0;
+  for (const char of text4) {
+    offset += char.length;
+    charOffsets[offset] = ++count2;
+  }
+  const boundaries = [...text4.matchAll(/\r?\n+|[。！？!?…；;，,、]+|\.{3,}|\.(?=\s|$)/g)].map((entry) => entry.index + entry[0].length).filter((end) => !isProtected(end));
+  boundaries.push(text4.length);
+  const chunks = [];
+  let start = 0;
+  while (start < text4.length) {
+    let splitIndex = -1;
+    for (const end of boundaries) {
+      if (end <= start) continue;
+      if (charOffsets[end] - charOffsets[start] > maxChars) break;
+      splitIndex = end;
+    }
+    if (splitIndex < 0) {
+      throw new Error(`A text clause exceeds the Agent request limit (${maxChars} characters) and has no safe sentence boundary; increase the request character limit`);
+    }
+    chunks.push(text4.slice(start, splitIndex));
+    start = splitIndex;
+  }
+  return chunks;
+}
+function packBatches(items, maxChars) {
+  const batches = [];
+  let current = [];
+  let currentChars = 0;
+  for (const item of items) {
+    const chars = Array.from(item.text).length;
+    if (current.length && currentChars + chars > maxChars) {
+      batches.push(current);
+      current = [];
+      currentChars = 0;
+    }
+    current.push(item);
+    currentChars += chars;
+  }
+  if (current.length) batches.push(current);
+  return batches;
+}
+function buildBatchTranslatePrompt(texts) {
+  const system = [
+    "\u4F60\u662F\u4E13\u7CBE\u6E38\u620F\u672C\u5730\u5316\u7684\u7FFB\u8BD1\u5668\uFF0C\u5C06\u65E5\u6587\u6216\u82F1\u6587\u539F\u6587\u9010\u884C\u7FFB\u8BD1\u4E3A\u7B80\u4F53\u4E2D\u6587\u3002",
+    "\u5FC5\u987B\u4E25\u683C\u9075\u5FAA\u4EE5\u4E0B\u89C4\u5219\uFF1A",
+    "1. \u5360\u4F4D\u7B26\uFF08\u4F8B\u5982 __C0__\u3001__C1__ \u7B49\uFF09\u5FC5\u987B\u5B8C\u5168\u539F\u6837\u4FDD\u7559\uFF0C\u4E0D\u5F97\u4FEE\u6539\u3001\u9057\u6F0F\u6216\u79FB\u52A8\u3002",
+    "2. \u4E25\u683C\u6309 [\u5E8F\u53F7] \u683C\u5F0F\u9010\u6761\u8F93\u51FA\u5BF9\u5E94\u7684\u7B80\u4F53\u4E2D\u6587\u8BD1\u6587\uFF0C\u5E8F\u53F7\u5FC5\u987B\u4E0E\u8F93\u5165\u4E00\u4E00\u5BF9\u5E94\u3002",
+    "3. \u4FDD\u6301\u4E0E\u8F93\u5165\u76F8\u540C\u7684\u6761\u76EE\u6570\u91CF\uFF0C\u7EDD\u4E0D\u80FD\u5408\u5E76\u3001\u9057\u6F0F\u6216\u8DF3\u8FC7\u4EFB\u4F55\u4E00\u6761\u3002",
+    "4. \u4EC5\u8F93\u51FA\u7FFB\u8BD1\u7ED3\u679C\uFF0C\u4E0D\u8981\u8F93\u51FA\u4EFB\u4F55\u524D\u8A00\u3001\u603B\u7ED3\u3001\u601D\u8003\u8FC7\u7A0B\u6216\u89E3\u91CA\u8BF4\u660E\u3002"
+  ].join("\n");
+  const lines = texts.map((text4, i) => `[${i + 1}] ${text4}`);
+  const user = `\u8BF7\u6309 [\u5E8F\u53F7] \u683C\u5F0F\u5C06\u4EE5\u4E0B\u6BCF\u6761\u6587\u672C\u7FFB\u8BD1\u4E3A\u7B80\u4F53\u4E2D\u6587\uFF1A
+${lines.join("\n")}`;
+  return { system, user };
+}
+function parseBatchResponse(raw, count2) {
+  const cleaned = raw.replace(/^\s*<think>[\s\S]*?<\/think>\s*/i, "").trim();
+  const lines = cleaned.split(/\r?\n/);
+  const result = new Array(count2).fill(null);
+  let currentIndex = -1;
+  const linePattern = /^\s*(?:\[(\d+)\]|(\d+)[\.、：:]|\((\d+)\))\s*(.*)$/;
+  for (const line of lines) {
+    const match = linePattern.exec(line);
+    if (match) {
+      const idxStr = match[1] || match[2] || match[3];
+      const idx = parseInt(idxStr, 10);
+      if (idx >= 1 && idx <= count2) {
+        currentIndex = idx - 1;
+        result[currentIndex] = match[4].trim();
+        continue;
+      }
+    }
+    if (currentIndex >= 0 && result[currentIndex] !== null) {
+      result[currentIndex] += "\n" + line;
+    }
+  }
+  for (let i = 0; i < count2; i++) {
+    if (result[i] !== null) {
+      result[i] = result[i].replace(/^["「『]+|["」』]+$/g, "").trim();
+    }
+  }
+  return result;
+}
+
 // services/translate/ollama-queue.ts
 var DEFAULT_LANE = "ollama";
 var queue = [];
@@ -36780,6 +36880,7 @@ async function agentSingleJaToZh(text4, config, options = {}) {
   if (!model) throw new Error(`Agent profile "${profile.label}" has no available models`);
   return scheduleOllama(
     async () => {
+      options.onTrace?.(`Agent request submitted: items=1, sourceChars=${Array.from(text4).length}`);
       const request = {
         host: profile.endpoint,
         model,
@@ -36795,6 +36896,7 @@ async function agentSingleJaToZh(text4, config, options = {}) {
       };
       const translated = await requestOllama(http2, { ...request, think: !options.interactive && translationNeedsReasoning(text4) });
       if (translated && translated.normalize("NFKC").trim() !== text4.normalize("NFKC").trim()) return translated;
+      options.onTrace?.(`Agent request submitted: items=1, sourceChars=${Array.from(text4).length}`);
       return requestOllama(http2, { ...request, text: `\u8BD1\u6587\uFF1A
 ${text4}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true });
     },
@@ -36806,124 +36908,26 @@ ${text4}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true });
     }
   );
 }
-function hasAllControlTokens(src, zh) {
-  const tokens = src.match(/__C\d+__/g) || [];
-  return tokens.every((token) => zh.includes(token));
-}
-function splitSentenceByNaturalBoundaries(text4, maxChars) {
-  if (Array.from(text4).length <= maxChars) return [text4];
-  const protectedRanges = [];
-  const tokenRegex = /(__C\d+__|\\(?:[A-Za-z]+)\[[^\]]*\])/g;
-  let match;
-  while ((match = tokenRegex.exec(text4)) !== null) {
-    protectedRanges.push({ start: match.index, end: match.index + match[0].length });
-  }
-  const isProtected = (pos) => protectedRanges.some((r) => pos > r.start && pos < r.end);
-  const patterns = [/\r?\n+/g, /[。！？!?……]+|\.{3,}/g, /[；;，,、]+/g, /\s+/g];
-  const chunks = [];
-  let remaining = text4;
-  while (Array.from(remaining).length > maxChars) {
-    let splitIndex = -1;
-    for (const pattern of patterns) {
-      pattern.lastIndex = 0;
-      let m;
-      let bestPos = -1;
-      while ((m = pattern.exec(remaining)) !== null) {
-        const candidate = m.index + m[0].length;
-        if (candidate > 0 && Array.from(remaining.slice(0, candidate)).length <= maxChars && !isProtected(candidate)) {
-          bestPos = candidate;
-        } else if (Array.from(remaining.slice(0, candidate)).length > maxChars) {
-          break;
-        }
-      }
-      if (bestPos > 0) {
-        splitIndex = bestPos;
-        break;
-      }
-    }
-    if (splitIndex <= 0) {
-      const chars = Array.from(remaining);
-      const target2 = Math.min(chars.length, maxChars);
-      const sliceStr = chars.slice(0, target2).join("");
-      let candidate = sliceStr.length;
-      while (candidate > 0 && isProtected(candidate)) {
-        candidate--;
-      }
-      if (candidate <= 0) {
-        const nextRange = protectedRanges.find((r) => r.start < maxChars && r.end > maxChars);
-        candidate = nextRange ? nextRange.end : Math.max(1, sliceStr.length);
-      }
-      splitIndex = candidate;
-    }
-    chunks.push(remaining.slice(0, splitIndex));
-    remaining = remaining.slice(splitIndex);
-  }
-  if (remaining.length > 0) {
-    chunks.push(remaining);
-  }
-  return chunks.filter((c) => c.length > 0);
-}
-function packBatches(items, maxChars) {
-  const batches = [];
-  let current = [];
-  let currentChars = 0;
-  for (const item of items) {
-    const chars = Array.from(item.text).length;
-    if (current.length && currentChars + chars > maxChars) {
-      batches.push(current);
-      current = [];
-      currentChars = 0;
-    }
-    current.push(item);
-    currentChars += chars;
-  }
-  if (current.length) batches.push(current);
-  return batches;
-}
-function buildBatchTranslatePrompt(texts) {
-  const system = [
-    "\u4F60\u662F\u4E13\u7CBE\u6E38\u620F\u672C\u5730\u5316\u7684\u7FFB\u8BD1\u5668\uFF0C\u5C06\u65E5\u6587\u6216\u82F1\u6587\u539F\u6587\u9010\u884C\u7FFB\u8BD1\u4E3A\u7B80\u4F53\u4E2D\u6587\u3002",
-    "\u5FC5\u987B\u4E25\u683C\u9075\u5FAA\u4EE5\u4E0B\u89C4\u5219\uFF1A",
-    "1. \u5360\u4F4D\u7B26\uFF08\u4F8B\u5982 __C0__\u3001__C1__ \u7B49\uFF09\u5FC5\u987B\u5B8C\u5168\u539F\u6837\u4FDD\u7559\uFF0C\u4E0D\u5F97\u4FEE\u6539\u3001\u9057\u6F0F\u6216\u79FB\u52A8\u3002",
-    "2. \u4E25\u683C\u6309 [\u5E8F\u53F7] \u683C\u5F0F\u9010\u6761\u8F93\u51FA\u5BF9\u5E94\u7684\u7B80\u4F53\u4E2D\u6587\u8BD1\u6587\uFF0C\u5E8F\u53F7\u5FC5\u987B\u4E0E\u8F93\u5165\u4E00\u4E00\u5BF9\u5E94\u3002",
-    "3. \u4FDD\u6301\u4E0E\u8F93\u5165\u76F8\u540C\u7684\u6761\u76EE\u6570\u91CF\uFF0C\u7EDD\u4E0D\u80FD\u5408\u5E76\u3001\u9057\u6F0F\u6216\u8DF3\u8FC7\u4EFB\u4F55\u4E00\u6761\u3002",
-    "4. \u4EC5\u8F93\u51FA\u7FFB\u8BD1\u7ED3\u679C\uFF0C\u4E0D\u8981\u8F93\u51FA\u4EFB\u4F55\u524D\u8A00\u3001\u603B\u7ED3\u3001\u601D\u8003\u8FC7\u7A0B\u6216\u89E3\u91CA\u8BF4\u660E\u3002"
-  ].join("\n");
-  const lines = texts.map((text4, i) => `[${i + 1}] ${text4}`);
-  const user = `\u8BF7\u6309 [\u5E8F\u53F7] \u683C\u5F0F\u5C06\u4EE5\u4E0B\u6BCF\u6761\u6587\u672C\u7FFB\u8BD1\u4E3A\u7B80\u4F53\u4E2D\u6587\uFF1A
-${lines.join("\n")}`;
-  return { system, user };
-}
-function parseBatchResponse(raw, count2) {
-  const cleaned = raw.replace(/^\s*<think>[\s\S]*?<\/think>\s*/i, "").trim();
-  const lines = cleaned.split(/\r?\n/);
-  const result = new Array(count2).fill(null);
-  let currentIndex = -1;
-  const linePattern = /^\s*(?:\[(\d+)\]|(\d+)[\.、：:]|\((\d+)\))\s*(.*)$/;
-  for (const line of lines) {
-    const match = linePattern.exec(line);
-    if (match) {
-      const idxStr = match[1] || match[2] || match[3];
-      const idx = parseInt(idxStr, 10);
-      if (idx >= 1 && idx <= count2) {
-        currentIndex = idx - 1;
-        result[currentIndex] = match[4].trim();
-        continue;
-      }
-    }
-    if (currentIndex >= 0 && result[currentIndex] !== null) {
-      result[currentIndex] += "\n" + line;
-    }
-  }
-  for (let i = 0; i < count2; i++) {
-    if (result[i] !== null) {
-      result[i] = result[i].replace(/^["「『]+|["」』]+$/g, "").trim();
-    }
-  }
-  return result;
-}
 var buckets = /* @__PURE__ */ new Map();
+var scopeIds = /* @__PURE__ */ new WeakMap();
+var scopeSequence = 0;
+function batchSignal(batch) {
+  const controller = new AbortController();
+  const cancel = () => {
+    if (batch.every((item) => item.options.signal?.aborted)) controller.abort(new Error("All Agent request items cancelled"));
+  };
+  for (const item of batch) item.options.signal?.addEventListener("abort", cancel, { once: true });
+  cancel();
+  return {
+    signal: AbortSignal.any([controller.signal, AbortSignal.timeout(5 * 60 * 1e3)]),
+    dispose: () => {
+      for (const item of batch) item.options.signal?.removeEventListener("abort", cancel);
+    }
+  };
+}
 async function processAgentBatch(batch) {
+  batch = batch.filter((item) => !item.options.signal?.aborted);
+  if (!batch.length) return;
   if (batch.length === 1) {
     const single = batch[0];
     agentSingleJaToZh(single.text, single.config, single.options).then(single.resolve, single.reject);
@@ -36933,13 +36937,17 @@ async function processAgentBatch(batch) {
   const sample = batch[0];
   const config = sample.config;
   const options = sample.options;
+  const transport = batchSignal(batch);
+  const retry = (item) => {
+    if (!item.options.signal?.aborted) agentSingleJaToZh(item.text, item.config, item.options).then(item.resolve, item.reject);
+  };
   try {
     const settings = loadGameAgentSettings();
     const profile = config.profileId && profileById(settings, config.profileId) || ollamaProfiles(settings)[0];
     if (!profile) throw new Error("No available Ollama agent profile found");
     if (config.profileId && profile.id !== config.profileId) throw new Error("Selected agent profile no longer exists, please reselect");
     if (profile.provider !== "ollama") throw new Error("AI translation only supports Ollama agent profiles");
-    const signal = options.signal ?? AbortSignal.timeout(5 * 60 * 1e3);
+    const signal = transport.signal;
     const token = readGameAgentToken(profile.id);
     const http2 = ollamaFetch(profile);
     const lane = options.lane || `agent:${profile.id}`;
@@ -36948,6 +36956,7 @@ async function processAgentBatch(batch) {
     if (!model) throw new Error(`Agent profile "${profile.label}" has no available models`);
     const raw = await scheduleOllama(
       async () => {
+        options.onTrace?.(`Agent request submitted: items=${batch.length}, sourceChars=${batch.reduce((sum2, item) => sum2 + Array.from(item.text).length, 0)}`);
         const request = {
           host: profile.endpoint,
           model,
@@ -36974,45 +36983,63 @@ async function processAgentBatch(batch) {
     const parsed = parseBatchResponse(raw, batch.length);
     for (let i = 0; i < batch.length; i++) {
       const item = batch[i];
+      if (item.options.signal?.aborted) continue;
       const zh = parsed[i];
       if (zh && hasAllControlTokens(item.text, zh) && isUsefulTranslation(item.text, item.text, zh, zh, "zh")) {
         item.resolve(zh);
       } else {
-        agentSingleJaToZh(item.text, item.config, item.options).then(item.resolve, item.reject);
+        retry(item);
       }
     }
   } catch {
-    for (const item of batch) {
-      agentSingleJaToZh(item.text, item.config, item.options).then(item.resolve, item.reject);
-    }
+    for (const item of batch) retry(item);
+  } finally {
+    transport.dispose();
   }
 }
-function flushBucket(key3) {
+function flushBucket(key3, reason) {
   const bucket = buckets.get(key3);
-  if (!bucket || !bucket.queue.length) return;
-  bucket.scheduled = false;
+  if (!bucket) return;
+  buckets.delete(key3);
+  if (bucket.timer) clearTimeout(bucket.timer);
+  if (!bucket.queue.length) return;
   const items = bucket.queue.splice(0, bucket.queue.length);
   bucket.totalChars = 0;
   const maxChars = items[0]?.maxChars ?? 3e3;
   const batches = packBatches(items, maxChars);
+  items[0].options.onTrace?.(`Agent queue flushed: reason=${reason}, items=${items.length}, sourceChars=${items.reduce((sum2, item) => sum2 + Array.from(item.text).length, 0)}`);
   for (const batch of batches) {
     void processAgentBatch(batch);
   }
 }
+function scheduleBucket(key3, bucket) {
+  if (bucket.timer) clearTimeout(bucket.timer);
+  bucket.timer = setTimeout(
+    () => {
+      if (buckets.get(key3) !== bucket) return;
+      const waiting = bucket.queue[0]?.options.batchScope?.waitForMore();
+      if (waiting && performance.now() - bucket.startedAt < 5e3) scheduleBucket(key3, bucket);
+      else flushBucket(key3, waiting ? "timeout" : "drained");
+    },
+    Math.max(0, Math.min(250, 5e3 - (performance.now() - bucket.startedAt)))
+  );
+}
 function enqueueAgentRequest(item, bucketKey) {
   let bucket = buckets.get(bucketKey);
+  const chars = Array.from(item.text).length;
+  if (bucket?.queue.length && bucket.totalChars + chars > item.maxChars) {
+    flushBucket(bucketKey, "capacity");
+    bucket = void 0;
+  }
   if (!bucket) {
-    bucket = { queue: [], scheduled: false, totalChars: 0 };
+    bucket = { queue: [], totalChars: 0, startedAt: performance.now() };
     buckets.set(bucketKey, bucket);
   }
   bucket.queue.push(item);
-  bucket.totalChars += Array.from(item.text).length;
+  bucket.totalChars += chars;
   if (bucket.totalChars >= item.maxChars) {
-    flushBucket(bucketKey);
-  } else if (!bucket.scheduled) {
-    bucket.scheduled = true;
-    queueMicrotask(() => flushBucket(bucketKey));
-  }
+    flushBucket(bucketKey, "capacity");
+  } else scheduleBucket(bucketKey, bucket);
 }
 async function agentJaToZh(text4, config, options = {}) {
   if (options.interactive) {
@@ -37028,22 +37055,40 @@ async function agentJaToZh(text4, config, options = {}) {
       if (hasAllControlTokens(text4, combined)) {
         return combined;
       }
-      return agentSingleJaToZh(text4, config, options);
+      throw new Error("Translation control tokens missing after sentence reassembly");
     }
   }
-  const bucketKey = `${config.profileId || "default"}:${config.model || "default"}`;
+  if (options.batchScope && !scopeIds.has(options.batchScope)) scopeIds.set(options.batchScope, ++scopeSequence);
+  const bucketKey = JSON.stringify([
+    config.profileId,
+    config.model,
+    options.lane,
+    maxChars,
+    options.concurrency,
+    options.category,
+    options.speaker,
+    options.context,
+    options.batchScope ? scopeIds.get(options.batchScope) : null
+  ]);
   return new Promise((resolve3, reject) => {
     if (options.signal?.aborted) {
       reject(options.signal.reason);
       return;
     }
+    const cleanup = () => options.signal?.removeEventListener("abort", onAbort);
     const item = {
       text: text4,
       config,
       options,
       maxChars,
-      resolve: resolve3,
-      reject
+      resolve: (zh) => {
+        cleanup();
+        resolve3(zh);
+      },
+      reject: (err) => {
+        cleanup();
+        reject(err);
+      }
     };
     const onAbort = () => {
       const bucket = buckets.get(bucketKey);
@@ -37052,9 +37097,10 @@ async function agentJaToZh(text4, config, options = {}) {
         if (idx >= 0) {
           bucket.queue.splice(idx, 1);
           bucket.totalChars = Math.max(0, bucket.totalChars - Array.from(item.text).length);
+          if (!bucket.queue.length) flushBucket(bucketKey, "cancelled");
         }
       }
-      reject(options.signal?.reason);
+      item.reject(options.signal?.reason);
     };
     options.signal?.addEventListener("abort", onAbort, { once: true });
     enqueueAgentRequest(item, bucketKey);
@@ -38397,17 +38443,13 @@ function engineCapacity(engine) {
   return engineConfiguredCapacity(engine);
 }
 function engineConfiguredCapacity(engine, customSettings) {
-  const isAgent = engine !== "ollama" && engineGroup(engine) === "agent";
   if (customSettings?.allowConcurrency === false) return 1;
   if (typeof customSettings?.concurrencyLimit === "number" && customSettings.concurrencyLimit > 0) {
-    if (isAgent) {
-      return Math.max(40, Math.min(100, Math.floor(customSettings.concurrencyLimit * 40)));
-    }
     return Math.max(1, Math.min(40, Math.floor(customSettings.concurrencyLimit)));
   }
   if (engine === "apple") return 40;
   if (engine === "bergamot" || engine === "ollama") return 1;
-  return isAgent ? 40 : 4;
+  return engineGroup(engine) === "agent" ? 1 : 4;
 }
 var globalLanes = globalThis;
 var lanes = globalLanes.__chayaTranslationCapacity ??= /* @__PURE__ */ new Map();
@@ -45032,9 +45074,11 @@ async function translateWithEngine(engine, text4, options, agents, pair) {
     category: options?.category,
     speaker: options?.speaker,
     context: options?.context,
-    concurrency: capacity.concurrencyLimit ?? 1,
+    concurrency: capacity.allowConcurrency === false ? 1 : capacity.concurrencyLimit ?? 1,
     maxChars: capacity.maxConcurrentChars ?? 3e3,
-    lane: `agent:${entry.profileId}`
+    lane: `agent:${entry.profileId}`,
+    batchScope: options?.batchScope,
+    onTrace: options?.onTrace
   });
 }
 function appendGameNdjson(contentRoot, pairs) {
@@ -45201,7 +45245,7 @@ async function liveTranslateTexts(texts, opts) {
                         onItem: void 0,
                         preparedPlan: void 0,
                         onTrace: trace ? (message) => trace(`Item ${itemId} gaps: ${message}`) : void 0,
-                        local: { ...opts?.local, signal: itemSignal },
+                        local: { ...opts?.local, onTrace: opts?.local?.onTrace || trace, signal: itemSignal },
                         force: true,
                         persist: persist2,
                         engines,
@@ -45296,7 +45340,7 @@ async function liveTranslateTexts(texts, opts) {
                       onItem: void 0,
                       preparedPlan: void 0,
                       onTrace: trace ? (message) => trace(`Item ${itemId} name gaps: ${message}`) : void 0,
-                      local: { ...opts?.local, signal: itemSignal },
+                      local: { ...opts?.local, onTrace: opts?.local?.onTrace || trace, signal: itemSignal },
                       force: false,
                       persist: false,
                       cacheMode: void 0,
@@ -45360,10 +45404,8 @@ async function liveTranslateTexts(texts, opts) {
                     engineWork = true;
                     const rawZh = await joinTranslationRequest(
                       key3,
-                      (signal) => withEngineCapacity(
-                        engine,
-                        identity,
-                        () => {
+                      (signal) => {
+                        const execute = () => {
                           onEngineDispatch(engine);
                           trace?.(
                             `Item ${itemId} engine requested: engine=${engine}, sourceChars=${sourceChars}, from=${langPair.from}, to=${langPair.to}, pipelineElapsedMs=${Math.round(performance.now() - started)}`
@@ -45371,14 +45413,13 @@ async function liveTranslateTexts(texts, opts) {
                           return translateWithEngine(
                             engine,
                             sendText,
-                            { category: opts?.category, speaker: opts?.speaker, context: opts?.context, ...opts?.local, signal },
+                            { category: opts?.category, speaker: opts?.speaker, context: opts?.context, onTrace: trace, ...opts?.local, signal },
                             agents,
                             langPair
                           );
-                        },
-                        signal,
-                        { ...resolveEngineCapacitySettings(engine, configs, agents), chars: sourceChars }
-                      ),
+                        };
+                        return engine.startsWith("agent:") ? execute() : withEngineCapacity(engine, identity, execute, signal, { ...resolveEngineCapacitySettings(engine, configs, agents), chars: sourceChars });
+                      },
                       itemSignal,
                       () => {
                         opts?.onDuplicateInFlight?.();
@@ -45882,8 +45923,8 @@ async function collectResultWindow(completed, options) {
         drainTimer = void 0;
       }
       const drainingExpired = selected.length > 0 && window.cacheOnly() && exhausted && drainingSince != null && performance.now() - drainingSince >= 250;
-      if (window.full() || !window.cacheOnly() || selected.length >= options.limit && queuedEngineResult || drainingExpired || options.terminal() || selected.length > 0 && (options.flush() || performance.now() - elapsed >= 5e3))
-        return window;
+      const reason = window.full() ? "capacity" : !window.cacheOnly() || selected.length >= options.limit && queuedEngineResult ? "engine-result" : options.terminal() ? "finished" : selected.length > 0 && options.flush() ? "interrupted" : drainingExpired ? "cache-drained" : selected.length > 0 && performance.now() - elapsed >= 5e3 ? "timeout" : void 0;
+      if (reason) return { ...window, reason };
       await options.wait();
     }
   } finally {
@@ -45892,7 +45933,16 @@ async function collectResultWindow(completed, options) {
   }
 }
 
-// services/translate/scheduler/seed-session.ts
+// services/translate/scheduler/seed-engine-budget.ts
+function seedEngineBudget(engine, agents) {
+  if (!engine.startsWith("agent:")) return null;
+  const settings = resolveEngineCapacitySettings(engine, void 0, agents);
+  const concurrency = settings.allowConcurrency === false ? 1 : settings.concurrencyLimit ?? 1;
+  const maxChars = settings.maxConcurrentChars ?? 3e3;
+  return { items: 4096, chars: maxChars * (concurrency + 1) };
+}
+
+// services/translate/scheduler/seed-engine-queue.ts
 var UNKNOWN = 0;
 var MISS = 1;
 var RUNNING = 2;
@@ -45900,6 +45950,71 @@ var DONE = 3;
 var FAILED = 4;
 var WAIT_CACHE = 5;
 var RECHECK = 6;
+function takeSeedEngineTask(engine, queue3) {
+  const { states, misses, retries, deferred, cursors, canFit, sensitive, inCacheWindow } = queue3;
+  for (let i = 0; retries.size < queue3.maxPending && i < misses.length; ) {
+    const id = misses[i];
+    if (states[id] !== MISS || retries.has(id)) {
+      misses.splice(i, 1);
+      continue;
+    }
+    if (queue3.excluded(id)) {
+      queue3.exclude(id);
+      misses.splice(i, 1);
+      continue;
+    }
+    if (canFit(id) && (!sensitive(id) || engineAcceptsSensitive(engine))) {
+      misses.splice(i, 1);
+      return id;
+    }
+    i++;
+  }
+  const delayed = deferred.get(engine) || /* @__PURE__ */ new Set();
+  deferred.set(engine, delayed);
+  if (retries.size < queue3.maxPending) {
+    for (const id of delayed) {
+      if (queue3.excluded(id)) {
+        queue3.exclude(id);
+        delayed.delete(id);
+        continue;
+      }
+      if (states[id] === UNKNOWN) {
+        if (inCacheWindow(id) || !queue3.canClaimUnknown()) continue;
+      } else if (states[id] !== MISS || retries.has(id)) {
+        delayed.delete(id);
+        continue;
+      }
+      if (canFit(id)) {
+        delayed.delete(id);
+        return id;
+      }
+    }
+    let cursor = cursors.get(engine) || 0;
+    while (cursor < states.length && delayed.size < 64) {
+      const id = cursor++;
+      cursors.set(engine, cursor);
+      if (states[id] === UNKNOWN) {
+        if (inCacheWindow(id) || !queue3.canClaimUnknown()) continue;
+      } else if (states[id] !== MISS || retries.has(id)) continue;
+      if (queue3.excluded(id)) {
+        queue3.exclude(id);
+        continue;
+      }
+      if (sensitive(id) && !engineAcceptsSensitive(engine)) continue;
+      if (!canFit(id)) {
+        delayed.add(id);
+        continue;
+      }
+      return id;
+    }
+  }
+  for (const [id, attempt] of retries) {
+    if (states[id] === MISS && attempt.order[attempt.next] === engine && canFit(id)) return id;
+  }
+  return void 0;
+}
+
+// services/translate/scheduler/seed-session.ts
 var MAX_BUFFER = 64;
 var MAX_RECHECKS = 2;
 var MAX_CACHE_PENDING = 64;
@@ -45929,6 +46044,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   let started = false, paused = false, closed = false;
   let options = {};
   let engines = [];
+  let agents = [];
   let store2;
   let cacheLane;
   let resolveWait;
@@ -45936,6 +46052,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   let deadlineTimer;
   let leaseId = "";
   const active2 = /* @__PURE__ */ new Map();
+  const loads = /* @__PURE__ */ new Map();
   const retries = /* @__PURE__ */ new Map();
   const ready = /* @__PURE__ */ new Map();
   const completed = [];
@@ -46033,7 +46150,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     if (states[id] === UNKNOWN) states[id] = MISS;
     if (reason === "admission") counters.cacheAdmissionTimeout++;
     else if (reason === "classify") counters.cacheClassifyTimeout++;
-    if (states[id] === MISS && misses.length < 2048 && !misses.includes(id)) misses.push(id);
+    if (states[id] === MISS && !misses.includes(id)) misses.push(id);
   }
   function cacheFailed(error) {
     cacheAvailable = false;
@@ -46140,7 +46257,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         states[id] = MISS;
         if (result.plan.status === "partial") counters.cachePartial++;
         else if (!result.plan.limited) counters.cacheMiss++;
-        if (misses.length < 2048) misses.push(id);
+        misses.push(id);
       }
       if (result.plan.status === "partial" && !result.plan.limited && ready.size < 128) ready.set(id, result);
     }
@@ -46175,81 +46292,36 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     if (!sensitiveFlags[id]) sensitiveFlags[id] = isSensitiveForCloud(inventory.pending[id]) ? 2 : 1;
     return sensitiveFlags[id] === 2;
   }
-  function canFit(id) {
-    if (!active2.size) return true;
-    const chars = [...active2.keys()].reduce((sum2, key3) => sum2 + inventory.pending[key3].length, 0);
-    return chars + inventory.pending[id].length <= (options.maxChars || 3e3);
+  function canFit(id, engine) {
+    const budget = seedEngineBudget(engine, agents);
+    const entries = [...loads].filter(([key3]) => budget ? key3 === engine : !key3.startsWith("agent:"));
+    if (!entries.some(([, load]) => load.items)) return true;
+    const chars = entries.reduce((sum2, [, load]) => sum2 + load.chars, 0);
+    return chars + charCount(inventory.pending[id]) <= (budget?.chars ?? options.maxChars ?? 3e3);
   }
+  const batchScope = {
+    waitForMore: () => !paused && !closed && cacheAvailable && !cacheWorkExhausted() && completed.length < MAX_BUFFER && [...loads].filter(([engine]) => engine.startsWith("agent:")).every(([, load]) => load.items < 4096)
+  };
   function nextTask(engine) {
-    for (let i = 0; retries.size < MAX_BUFFER && i < misses.length; ) {
-      const id = misses[i];
-      if (states[id] !== MISS || retries.has(id)) {
-        misses.splice(i, 1);
-        continue;
-      }
-      if (options.exclude?.has(inventory.pending[id])) {
-        states[id] = FAILED;
-        pendingCount--;
-        misses.splice(i, 1);
-        continue;
-      }
-      if (canFit(id) && (!sensitive(id) || engineAcceptsSensitive(engine))) {
-        misses.splice(i, 1);
-        return id;
-      }
-      i++;
-    }
-    const delayed = deferred.get(engine) || /* @__PURE__ */ new Set();
-    deferred.set(engine, delayed);
-    if (retries.size < MAX_BUFFER) {
-      for (const id of delayed) {
-        if (options.exclude?.has(inventory.pending[id])) {
-          if (states[id] === UNKNOWN || states[id] === MISS) {
-            states[id] = FAILED;
-            pendingCount--;
-          }
-          delayed.delete(id);
-          continue;
-        }
-        if (states[id] === UNKNOWN) {
-          if (inCacheWindow(id) || !canEngineClaimUnknown()) {
-            continue;
-          }
-        } else if (states[id] !== MISS || retries.has(id)) {
-          delayed.delete(id);
-          continue;
-        }
-        if (canFit(id)) {
-          delayed.delete(id);
-          return id;
-        }
-      }
-      let cursor = freshCursors.get(engine) || 0;
-      while (cursor < states.length && delayed.size < 64) {
-        const id = cursor++;
-        freshCursors.set(engine, cursor);
-        if (states[id] === UNKNOWN) {
-          if (inCacheWindow(id) || !canEngineClaimUnknown()) continue;
-        } else if (states[id] !== MISS || retries.has(id)) {
-          continue;
-        }
-        if (options.exclude?.has(inventory.pending[id])) {
+    return takeSeedEngineTask(engine, {
+      states,
+      misses,
+      retries,
+      deferred,
+      cursors: freshCursors,
+      maxPending: seedEngineBudget(engine, agents) ? 4096 : MAX_BUFFER,
+      excluded: (id) => Boolean(options.exclude?.has(inventory.pending[id])),
+      exclude: (id) => {
+        if (states[id] === UNKNOWN || states[id] === MISS) {
           states[id] = FAILED;
           pendingCount--;
-          continue;
         }
-        if (sensitive(id) && !engineAcceptsSensitive(engine)) continue;
-        if (!canFit(id)) {
-          delayed.add(id);
-          continue;
-        }
-        return id;
-      }
-    }
-    for (const [id, attempt] of retries) {
-      if (states[id] === MISS && attempt.order[attempt.next] === engine && canFit(id)) return id;
-    }
-    return void 0;
+      },
+      canFit: (id) => canFit(id, engine),
+      sensitive,
+      inCacheWindow,
+      canClaimUnknown: canEngineClaimUnknown
+    });
   }
   function refreshAttempt(attempt, id) {
     const candidates2 = [...attempt.order, ...engines.filter((engine) => !attempt.order.includes(engine))];
@@ -46261,6 +46333,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   function dispatch(id, engine) {
     dispatchedSinceYield++;
     const src = inventory.pending[id];
+    const sourceChars = charCount(src);
     const prepared = ready.get(id);
     ready.delete(id);
     const plan = prepared && valid(prepared) ? prepared.plan : void 0;
@@ -46284,8 +46357,8 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
           sharedCache: cache2,
           cacheMode: plan ? void 0 : "bypass",
           preparedPlan: plan,
-          local: { signal: controller.signal },
-          itemTimeoutMs: 15e3,
+          local: { signal: controller.signal, batchScope },
+          itemTimeoutMs: engine.startsWith("agent:") ? 5 * 60 * 1e3 : 15e3,
           onTrace: trace,
           onEngineDispatch: (actualEngine) => {
             attempt.engineWork = true;
@@ -46322,6 +46395,9 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         }
       } finally {
         active2.delete(id);
+        const load2 = loads.get(engine);
+        load2.items--;
+        load2.chars -= sourceChars;
         if (!closed && ownGeneration === generation) {
           pump();
           if (!active2.size) notify();
@@ -46329,6 +46405,10 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       }
     });
     active2.set(id, { engine, controller, work });
+    const load = loads.get(engine) || { items: 0, chars: 0 };
+    load.items++;
+    load.chars += sourceChars;
+    loads.set(engine, load);
   }
   function pump() {
     if (paused || closed || !started || pumpTimer) return;
@@ -46340,18 +46420,24 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       });
       return;
     }
-    while (active2.size < cap() && completed.length + active2.size < MAX_BUFFER) {
+    while (completed.length < MAX_BUFFER) {
       let dispatched = false;
       for (const engine of engines) {
-        if (active2.size >= cap()) break;
-        const count2 = [...active2.values()].filter((entry) => entry.engine === engine).length;
-        if (count2 >= engineCapacity(engine)) continue;
+        const budget = seedEngineBudget(engine, agents);
+        const ordinary = [...loads].filter(([key3]) => !key3.startsWith("agent:")).reduce((sum2, [, load]) => sum2 + load.items, 0);
+        if (!budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue;
+        const count2 = loads.get(engine)?.items || 0;
+        if (count2 >= (budget?.items ?? engineCapacity(engine))) continue;
         const id = nextTask(engine);
         if (id === void 0) continue;
         dispatch(id, engine);
         dispatched = true;
       }
       if (!dispatched) break;
+      if (dispatchedSinceYield >= 32) {
+        pump();
+        break;
+      }
     }
     if (!active2.size) {
       for (let id = 0; id < states.length && completed.length < MAX_BUFFER; id++) {
@@ -46540,7 +46626,9 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         started = paused = false;
         leaseId = "";
       }
-      engines = getTranslateEngineSwitches(contentRoot).enabled;
+      const switches = getTranslateEngineSwitches(contentRoot);
+      engines = switches.enabled;
+      agents = switches.agents || [];
       for (const [id, entry] of active2)
         if (!engines.includes(entry.engine)) {
           const attempt = retries.get(id);
@@ -46595,6 +46683,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         unresolved,
         items,
         cacheOnly: window.cacheOnly(),
+        windowReason: window.reason,
         submittedEngines: submitted,
         cacheUnavailable: unavailable,
         performance: {
@@ -46916,7 +47005,7 @@ function createSeedBatchBudget(initialLimit = 12) {
 // services/translate/seed-job-runtime.ts
 var globalStore = globalThis;
 var runtimes = globalStore.__chayaSeedJobs ??= /* @__PURE__ */ new Map();
-var WORKER_VERSION = 14;
+var WORKER_VERSION = 15;
 globalStore.__chayaSeedWorker = (root) => {
   void runLoop(root);
 };
@@ -47021,6 +47110,8 @@ async function runLoop(contentRoot) {
   const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.every((e) => e === "apple" || e.startsWith("agent:"));
   const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4);
   const trace = (message) => {
+    const request = /^Agent request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message);
+    if (request) pushLog(rt, "info", message, { request: { items: Number(request[1]), chars: Number(request[2]) } });
     if (message.startsWith("Cache scan unavailable:")) {
       pushLog(
         rt,
@@ -47113,11 +47204,12 @@ async function runLoop(contentRoot) {
           cacheHits: accepted.filter(isCacheResult).length,
           submittedSources,
           finalSources,
-          cacheUnavailable: result.cacheUnavailable === true
+          cacheUnavailable: result.cacheUnavailable === true,
+          windowReason: result.windowReason
         };
         const prefix = `[${batchLabel(batch)}] #${batch.batch}`;
         const text4 = batch.failed === 0 ? `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) complete${batch.cacheHits > 0 && batch.cacheHits !== batch.success ? ` (${batch.cacheHits} cache hits)` : ""}` : batch.success === 0 ? `${prefix}: All failed (${batch.total} items / ${batch.chars} chars)` : `${prefix}: ${batch.success}/${batch.total} items (${batch.chars} chars) succeeded, ${batch.failed} failed${batch.cacheHits > 0 ? ` (${batch.cacheHits} cache hits)` : ""}`;
-        pushLog(rt, batch.failed === 0 ? "ok" : batch.success === 0 ? "fail" : "warn", text4, { batch });
+        pushLog(rt, batch.failed === 0 ? "ok" : batch.success === 0 ? "fail" : "warn", `${text4} [result-window${batch.windowReason ? `: ${batch.windowReason}` : ""}]`, { batch });
       }
       const failures = result.items.filter((item) => item.error || item.zh == null).slice(0, 1);
       for (const item of failures) {

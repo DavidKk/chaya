@@ -49,6 +49,8 @@ it('continues to count a running adapter after its signal is aborted', async () 
 })
 
 it('honours configured concurrency limits and character budgets', async () => {
+  expect(engineConfiguredCapacity('agent:a', { concurrencyLimit: 2 })).toBe(2)
+  expect(engineConfiguredCapacity('agent:a', { concurrencyLimit: 10, allowConcurrency: false })).toBe(1)
   expect(engineConfiguredCapacity('google', { allowConcurrency: false })).toBe(1)
   expect(engineConfiguredCapacity('google', { concurrencyLimit: 2 })).toBe(2)
 

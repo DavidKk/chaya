@@ -191,6 +191,8 @@ describe('seed job failures', () => {
     try {
       mockFill.mock.calls[0][0].onTrace('Item 1 engine requested: engine=google')
       expect(getSeedJobSnapshot().job.logs).toHaveLength(logs.length)
+      mockFill.mock.calls[0][0].onTrace('Agent request submitted: items=100, sourceChars=3000')
+      expect(getSeedJobSnapshot().job.logs.at(-1)).toMatchObject({ level: 'info', request: { items: 100, chars: 3000 } })
       mockFill.mock.calls[0][0].onTrace('Cache scan unavailable: Worker timed out')
       expect(getSeedJobSnapshot().job.logs.at(-1)).toMatchObject({ level: 'warn', text: 'Cache scan failed: Worker timed out' })
     } finally {

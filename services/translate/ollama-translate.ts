@@ -8,6 +8,7 @@ import {
   translationNeedsReasoning,
 } from '@/lib/translate/engine-http'
 
+import type { AgentBatchScope } from './agent-translate'
 import { scheduleOllama } from './ollama-queue'
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST || DEFAULT_OLLAMA_HOST
@@ -23,6 +24,8 @@ export type LocalTranslateOptions = {
   concurrency?: number
   /** Concurrency is scoped per lane; distinct endpoints/models should use distinct lanes. */
   lane?: string
+  batchScope?: AgentBatchScope
+  onTrace?: (message: string) => void
 }
 
 async function ollamaChat(system: string, user: string, temperature: number, think: boolean, options?: LocalTranslateOptions): Promise<string> {

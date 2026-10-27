@@ -56,9 +56,11 @@ it('retries an echoed translation with thinking on the selected instance', async
     .mockResolvedValueOnce(new Response(JSON.stringify({ message: { content: 'こんにちは' } })))
     .mockResolvedValueOnce(new Response(JSON.stringify({ message: { content: '你好' } })))
 
-  await expect(agentJaToZh('こんにちは', { profileId: 'a', model: 'qwen' }, { interactive: true })).resolves.toBe('你好')
+  const onTrace = jest.fn()
+  await expect(agentJaToZh('こんにちは', { profileId: 'a', model: 'qwen' }, { interactive: true, onTrace })).resolves.toBe('你好')
   expect(JSON.parse(fetchMock.mock.calls[0][1].body).think).toBe(false)
   expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ think: true, model: 'qwen' })
+  expect(onTrace.mock.calls).toEqual([['Agent request submitted: items=1, sourceChars=5'], ['Agent request submitted: items=1, sourceChars=5']])
 })
 
 it('falls back to the default instance and its default model', async () => {
@@ -112,10 +114,27 @@ describe('batch packing and parsing', () => {
     expect(chunks.join('')).toBe(longText)
     expect(chunks).toEqual(['こんにちは。', '今日はいい天気ですね！', '散歩に行きましょうか？'])
 
-    const textWithTokens = 'あいうえお__C0__かきくけこ。さしすせそ'
+    const textWithTokens = 'あいうえお。__C0__かき。さしすせそ。__C1__たち。'
     const chunksWithTokens = splitSentenceByNaturalBoundaries(textWithTokens, 12)
     expect(chunksWithTokens.join('')).toBe(textWithTokens)
     expect(chunksWithTokens.every((c) => !c.includes('__C0') || c.includes('__C0__'))).toBe(true)
+    expect(chunksWithTokens.every((c) => Array.from(c).length <= 12)).toBe(true)
+    expect(chunksWithTokens).toContain('__C1__たち。')
+  })
+
+  it('rejects indivisible clauses instead of cutting text or sending an oversized request', async () => {
+    expect(() => splitSentenceByNaturalBoundaries('あ'.repeat(20), 12)).toThrow('no safe sentence boundary')
+    expect(() => splitSentenceByNaturalBoundaries('あ。\\V[1,234567890]い。', 12)).toThrow('no safe sentence boundary')
+    await expect(agentJaToZh('あ'.repeat(20), { profileId: 'a', model: 'qwen' }, { maxChars: 12 })).rejects.toThrow('no safe sentence boundary')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('counts Unicode characters and preserves punctuation inside control codes', () => {
+    const text = '😀あ。\\N[名,前]い。😀う。'
+    const chunks = splitSentenceByNaturalBoundaries(text, 11)
+    expect(chunks.join('')).toBe(text)
+    expect(chunks.every((chunk) => Array.from(chunk).length <= 11)).toBe(true)
+    expect(chunks.some((chunk) => chunk.includes('\\N[名,前]'))).toBe(true)
   })
 
   it('builds multi-item numbered prompt and parses various model response styles', () => {
@@ -165,5 +184,118 @@ describe('batch packing and parsing', () => {
     const longText = 'こんにちは。今日は！'
     const res = await agentJaToZh(longText, { profileId: 'a', model: 'qwen' }, { maxChars: 8 })
     expect(res).toBe('你好。今天！')
+  })
+
+  it('collects small arrivals from different event-loop turns into one request', async () => {
+    jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ message: { content: Array.from({ length: 10 }, (_, i) => `[${i + 1}] 译文${i}`).join('\n') } })))
+    const trace = jest.fn()
+    const requests: Array<Promise<string>> = []
+    for (let i = 0; i < 10; i++) {
+      requests.push(agentJaToZh(`あいうえおかきく${i}`, { profileId: 'a', model: 'qwen' }, { onTrace: trace }))
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(await Promise.all(requests)).toHaveLength(10)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(trace).toHaveBeenCalledWith('Agent request submitted: items=10, sourceChars=90')
+  })
+
+  it('does not let cancellation of the first source abort other items in the shared request', async () => {
+    jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
+    const first = new AbortController()
+    let signal: AbortSignal | undefined
+    let finish!: (response: Response) => void
+    fetchMock.mockImplementation((_url, init) => {
+      signal = init.signal
+      return new Promise<Response>((resolve) => {
+        finish = resolve
+      })
+    })
+    const cancelled = agentJaToZh('あいうえ', { profileId: 'a', model: 'qwen' }, { maxChars: 8, signal: first.signal }).catch((error: Error) => error.message)
+    const second = agentJaToZh('かきくけ', { profileId: 'a', model: 'qwen' }, { maxChars: 8 })
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    first.abort(new Error('Cache won'))
+    expect(await cancelled).toBe('Cache won')
+    expect(signal?.aborted).toBe(false)
+    finish(new Response(JSON.stringify({ message: { content: '[1] 缓存先命中\n[2] 保留翻译' } })))
+    expect(await second).toBe('保留翻译')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([1, 3])('limits actual packed HTTP concurrency to %i while filling requests', async (concurrency) => {
+    jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
+    const finishes: Array<() => void> = []
+    let active = 0
+    let peak = 0
+    fetchMock.mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          peak = Math.max(peak, ++active)
+          finishes.push(() => {
+            active--
+            resolve(new Response(JSON.stringify({ message: { content: '[1] 译文一\n[2] 译文二' } })))
+          })
+        })
+    )
+    const trace = jest.fn()
+    const requests = Array.from({ length: 6 }, (_, i) =>
+      agentJaToZh(`あいうえ${i}`, { profileId: 'a', model: 'qwen' }, { maxChars: 10, concurrency, lane: `test:${concurrency}`, onTrace: trace })
+    )
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(concurrency)
+    for (let i = 0; i < 3; i++) {
+      finishes[i]()
+      for (let n = 0; n < 30; n++) await Promise.resolve()
+    }
+    expect(await Promise.all(requests)).toHaveLength(6)
+    expect(peak).toBe(concurrency)
+    expect(trace.mock.calls.filter(([line]) => line === 'Agent request submitted: items=2, sourceChars=10')).toHaveLength(3)
+  })
+
+  it('flushes within five seconds of the first item even when new items keep arriving', async () => {
+    jest.useFakeTimers()
+    jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
+    fetchMock.mockImplementation(async (_url, init) => {
+      const content = JSON.parse(init.body).messages.at(-1).content as string
+      const lines = content.split('\n').filter((line) => /^\[\d+\]/.test(line))
+      return new Response(JSON.stringify({ message: { content: lines.map((_, i) => `[${i + 1}] 翻译${i}`).join('\n') } }))
+    })
+    const requests: Array<Promise<string>> = []
+    const batchScope = { waitForMore: () => true }
+    try {
+      for (let i = 0; i < 50; i++) {
+        requests.push(agentJaToZh(`あいうえ${i}`, { profileId: 'a', model: 'qwen' }, { batchScope }))
+        await jest.advanceTimersByTimeAsync(100)
+        if (i < 49) expect(fetchMock).not.toHaveBeenCalled()
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(await Promise.all(requests)).toHaveLength(50)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('aborts a shared transport only after all of its sources are cancelled and skips retries', async () => {
+    jest.mocked(loadGameAgentSettings).mockReturnValue({ version: 1, defaultProfileId: 'a', profiles: [profile('a')] } as never)
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true })
+        })
+    )
+    const controllers = [new AbortController(), new AbortController()]
+    const requests = controllers.map((controller, i) =>
+      agentJaToZh(`あいう${i}`, { profileId: 'a', model: 'qwen' }, { maxChars: 8, signal: controller.signal }).catch((error: Error) => error.message)
+    )
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    controllers[0].abort(new Error('Cache won'))
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(false)
+    controllers[1].abort(new Error('Cache won'))
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true)
+    expect(await Promise.all(requests)).toEqual(['Cache won', 'Cache won'])
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
