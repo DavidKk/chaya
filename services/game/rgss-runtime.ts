@@ -20,6 +20,33 @@ type Session = { child?: ChildProcess; running: boolean; starting: boolean; logP
 const globalSessions = globalThis as typeof globalThis & { __chayaRgssSessions?: Map<string, Session> }
 const sessions = () => (globalSessions.__chayaRgssSessions ??= new Map())
 
+export type RgssRuntimeChangeEvent = {
+  root: string
+  running: boolean
+  starting: boolean
+}
+type RuntimeListener = (event: RgssRuntimeChangeEvent) => void
+
+const globalListeners = globalThis as typeof globalThis & { __chayaRgssRuntimeListeners?: Set<RuntimeListener> }
+const runtimeListeners = () => (globalListeners.__chayaRgssRuntimeListeners ??= new Set())
+
+function notifyRuntimeChange(root: string, running: boolean, starting = false) {
+  for (const listener of [...runtimeListeners()]) {
+    try {
+      listener({ root, running, starting })
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+export function onRgssRuntimeChange(listener: RuntimeListener): () => void {
+  runtimeListeners().add(listener)
+  return () => {
+    runtimeListeners().delete(listener)
+  }
+}
+
 function stopProcess(session: Session): boolean {
   const child = session.child
   if (!child || !session.running) return false
@@ -71,6 +98,7 @@ export async function launchRgss(resolved: ResolvedGame) {
   fs.mkdirSync(sessionDir, { recursive: true })
   const state: Session = { starting: true, running: false, logPath: path.join(sessionDir, 'runtime.log'), tail: '' }
   sessions().set(root, state)
+  notifyRuntimeChange(root, false, true)
   try {
     let binary = resolved.shellApp
     if (process.platform === 'darwin') {
@@ -227,9 +255,11 @@ export async function launchRgss(resolved: ResolvedGame) {
       state.error = error.message
       state.running = false
       state.starting = false
+      notifyRuntimeChange(root, false, false)
     })
     child.once('spawn', () => {
       state.running = true
+      notifyRuntimeChange(root, true, false)
     })
     child.once('close', (code, signal) => {
       releaseBridge()
@@ -237,6 +267,7 @@ export async function launchRgss(resolved: ResolvedGame) {
       state.starting = false
       if (code !== 0 && !state.quitting) state.error = `${state.tail.trim() || 'Native RGSS exited'} (exit ${code ?? signal})`
       fs.appendFileSync(state.logPath, `\nProcess exited: ${code ?? signal}\n`)
+      notifyRuntimeChange(root, false, false)
     })
     await new Promise((resolve) => setTimeout(resolve, 1_500))
     state.starting = false
@@ -247,6 +278,7 @@ export async function launchRgss(resolved: ResolvedGame) {
     if (state.roomId) disconnectAgentGame(state.roomId)
     state.starting = false
     state.error = error instanceof Error ? error.message : String(error)
+    notifyRuntimeChange(root, false, false)
     throw error
   }
 }

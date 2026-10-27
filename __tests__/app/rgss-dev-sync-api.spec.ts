@@ -1,4 +1,4 @@
-import { POST } from '@/app/api/dev/rgss-sync/route.dev'
+import { GET, POST } from '@/app/api/dev/rgss-sync/route.dev'
 import { getResolvedFromConfig } from '@/services/game/binding'
 import { detectRgssPlugins, installRgssPlugins, listRgssPluginOutdatedFiles, syncRgssHotReloadFiles } from '@/services/game/rgss-plugins'
 import { rgssRuntimeStatus } from '@/services/game/rgss-runtime'
@@ -12,7 +12,10 @@ jest.mock('@/services/game/rgss-plugins', () => ({
   listRgssPluginOutdatedFiles: jest.fn(),
   syncRgssHotReloadFiles: jest.fn(),
 }))
-jest.mock('@/services/game/rgss-runtime', () => ({ rgssRuntimeStatus: jest.fn() }))
+jest.mock('@/services/game/rgss-runtime', () => ({
+  rgssRuntimeStatus: jest.fn(),
+  onRgssRuntimeChange: jest.fn(() => () => {}),
+}))
 
 const context = { params: Promise.resolve({}) }
 const request = () => new Request('http://localhost/api/dev/rgss-sync', { method: 'POST' })
@@ -89,4 +92,24 @@ test('surfaces install failures so the watcher can retry', async () => {
   const response = await POST(request(), context)
   expect(response.status).toBe(500)
   expect(await response.json()).toMatchObject({ ok: false, error: { code: 'RGSS_SYNC_FAILED', message: 'disk full' } })
+})
+
+test('GET is unavailable outside development', async () => {
+  jest.replaceProperty(process, 'env', { ...process.env, NODE_ENV: 'production' })
+  const res = await GET(new Request('http://localhost/api/dev/rgss-sync'), context)
+  expect(res.status).toBe(400)
+})
+
+test('GET returns text/event-stream and streams initial sync state', async () => {
+  const abort = new AbortController()
+  const res = await GET(new Request('http://localhost/api/dev/rgss-sync', { signal: abort.signal }), context)
+  expect(res.status).toBe(200)
+  expect(res.headers.get('Content-Type')).toContain('text/event-stream')
+  const reader = res.body!.getReader()
+  const { value } = await reader.read()
+  const text = new TextDecoder().decode(value)
+  expect(text).toContain('event: sync\n')
+  expect(text).toContain('"action":"idle"')
+  await reader.cancel()
+  abort.abort()
 })

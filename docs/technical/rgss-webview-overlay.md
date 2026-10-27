@@ -193,7 +193,7 @@ plugins/
 - 根 `pnpm build:plugins` 只调度两个子模块，每边只清理自己的 dist。
 - 两个子模块分别使用自己的 Vite 与 TypeScript 配置。RGSS 不得导入 MV 的源码或游戏全局对象；可复用组件放 shared 或现有 components/lib。
 - Ruby 接收 WebView 消息使用有界队列，在 `Graphics.update` 消费；WebKit 的创建、执行脚本与销毁均派发到 AppKit 主线程，原生回调不直接执行 Ruby。
-- `pnpm dev` 额外启动 `rgss-sync` 轮询 `/api/dev/rgss-sync`。运行态必须由 Next 服务进程判定，独立 watcher 不能读取自己的空会话表；游戏未运行时完整安装，运行且 bridge 已连接时只同步 `bridge.rb` 会重新 `load` 的 Ruby。`Scripts.rvdata2`、overlay/native 资源和非热重载 Ruby 在运行期间保持不动，退出后的下一次轮询自动完整安装。
+- `pnpm dev` 额外启动 `rgss-sync`，通过 SSE 长连接监听 `/api/dev/rgss-sync`。运行态必须由 Next 服务进程判定，由服务端监听源码目录变动及进程启停推送同步事件，避免盲目轮询刷屏；游戏未运行时完整安装，运行且 bridge 已连接时只同步 `bridge.rb` 会重新 `load` 的 Ruby。`Scripts.rvdata2`、overlay/native 资源和非热重载 Ruby 在运行期间保持不动，退出后触发完整安装。
 
 ---
 
