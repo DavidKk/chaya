@@ -7,7 +7,6 @@
 import type { AgentRuntimeIdentity, SourceGameEvent } from '@/lib/game-agent/audit'
 import type {
   ActionGameEvent,
-  BattleResultGameEvent,
   BattleStartGameEvent,
   CapabilitySupport,
   CompanionDomainEvent,
@@ -25,6 +24,8 @@ import type {
 } from '@/lib/game-agent/companion/types'
 
 import { hookMethod } from '../../helpers/game/method-hook'
+import { readBattleCommand } from './companion-core/battle-command-binding'
+import { installBattleOutcomeHooks } from './companion-facts-battle-outcomes'
 import { checkGameIsPaused, currentSceneKind, detectDataRevision, generateUuid, readCurrentMapInfo } from './companion-facts-helpers'
 import { call, readBoundedMechanics, readEnemyFacts, readLegalActions, readPartyFacts } from './companion-facts-mechanics'
 import { captureNativeLoadRollback, clearStagedSaveMetadata, currentBattleContext, installNativeFactsHooks, popStagedSaveMetadata } from './companion-facts-native'
@@ -266,6 +267,7 @@ export function createCompanionFacts(identity: AgentRuntimeIdentity, producerEpo
 
               const actionEv: ActionGameEvent = {
                 kind: 'action',
+                commandId: attribution === 'observed_action' ? readBattleCommand(this as object, currentEncounterId, stamp()) : undefined,
                 actionId: activeActionId,
                 resultId,
                 source: {
@@ -368,82 +370,13 @@ export function createCompanionFacts(identity: AgentRuntimeIdentity, producerEpo
     )
 
     unhooks.push(
-      hookMethod(
+      ...installBattleOutcomeHooks(
         battle,
-        'processVictory',
-        (original) =>
-          function (this: unknown, ...args: unknown[]) {
-            if (currentEncounterId) {
-              const party = call<unknown[]>(w.$gameParty, 'aliveMembers') ?? []
-              const survivorActorIds = party.map((m) => Number(call<number>(m, 'actorId') ?? 0))
-              const troop = w.$gameTroop as Loose | undefined
-              const turns = Number(call<number>(troop, 'turnCount') ?? 0)
-              const ev: BattleResultGameEvent = {
-                kind: 'battle_result',
-                encounterId: currentEncounterId,
-                outcome: 'win',
-                turns,
-                survivorActorIds,
-                at: Date.now(),
-              }
-              notify(ev)
-            }
-            currentEncounterId = null
-            return original.apply(this, args)
-          }
-      )
-    )
-
-    unhooks.push(
-      hookMethod(
-        battle,
-        'processDefeat',
-        (original) =>
-          function (this: unknown, ...args: unknown[]) {
-            if (currentEncounterId) {
-              const canLoseFlag = Boolean((battle as Loose)._canLose)
-              const troop = w.$gameTroop as Loose | undefined
-              const turns = Number(call<number>(troop, 'turnCount') ?? 0)
-              const ev: BattleResultGameEvent = {
-                kind: 'battle_result',
-                encounterId: currentEncounterId,
-                outcome: 'lose',
-                canLose: canLoseFlag,
-                turns,
-                survivorActorIds: [],
-                at: Date.now(),
-              }
-              notify(ev)
-            }
-            currentEncounterId = null
-            return original.apply(this, args)
-          }
-      )
-    )
-
-    unhooks.push(
-      hookMethod(
-        battle,
-        'processEscape',
-        (original) =>
-          function (this: unknown, ...args: unknown[]) {
-            const ret = original.apply(this, args)
-            if (currentEncounterId && ret !== false) {
-              const troop = w.$gameTroop as Loose | undefined
-              const turns = Number(call<number>(troop, 'turnCount') ?? 0)
-              const ev: BattleResultGameEvent = {
-                kind: 'battle_result',
-                encounterId: currentEncounterId,
-                outcome: 'escape',
-                turns,
-                survivorActorIds: [],
-                at: Date.now(),
-              }
-              notify(ev)
-              currentEncounterId = null
-            }
-            return ret
-          }
+        () => currentEncounterId,
+        () => {
+          currentEncounterId = null
+        },
+        notify
       )
     )
   }

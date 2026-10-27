@@ -1,0 +1,226 @@
+/**
+ * MV / MZ Battle Adapter for Companion Core.
+ * Extracts BattleFrame, CommandOpportunity, and ActionOffer contracts from RPG Maker.
+ */
+
+import type {
+  ActionOffer,
+  BattleEnemyEntity,
+  BattleFrame,
+  BattlePartyEntity,
+  BattlePhase,
+  CommandOpportunity,
+  ObservedOrDeclaredEffect,
+  SupportedTargetRule,
+} from '@/lib/game-agent/companion/core/types'
+import type { ContextStamp } from '@/lib/game-agent/companion/types'
+
+import { call, g, getBattleScene, type Loose } from './battle-engine'
+
+function parseSkillTargetRule(scopeNum: number): SupportedTargetRule {
+  if (scopeNum === 1) return 'one_enemy'
+  if (scopeNum === 2) return 'all_enemies'
+  if (scopeNum === 7) return 'one_ally'
+  if (scopeNum === 8) return 'all_allies'
+  if (scopeNum === 11) return 'user'
+  if (scopeNum === 0) return 'none'
+  return 'unsupported'
+}
+
+function parseSkillEffect(skill: Loose): ObservedOrDeclaredEffect {
+  const damage = skill.damage as Loose | undefined
+  const damageType = Number(damage?.type ?? 0)
+
+  // Type 3 in RPG Maker is HP Recover
+  if (damageType === 3 || (Array.isArray(skill.effects) && skill.effects.some((e: Loose) => e.code === 11 && (Number(e.value1) > 0 || Number(e.value2) > 0)))) {
+    return { kind: 'heal' }
+  }
+  if (damageType === 1 || damageType === 5) {
+    return { kind: 'damage' }
+  }
+  if (damageType === 2 || damageType === 4 || damageType === 6) {
+    return { kind: 'damage' }
+  }
+  return { kind: 'other' }
+}
+
+export function readLiveBattleFrame(stamp: ContextStamp, capabilitiesRevision: number, encounterId: string): BattleFrame | null {
+  const scene = getBattleScene()
+  if (!scene || !encounterId) return null
+
+  const bm = g().BattleManager as Loose | undefined
+  if (!bm) return null
+
+  const isBattleEnd = Boolean(call<boolean>(bm, 'isBattleEnd') || bm._phase === 'battleEnd')
+  const isInputting = Boolean(call<boolean>(bm, 'isInputting'))
+  const isInTurn = Boolean(call<boolean>(bm, 'isInTurn') || bm._phase === 'turn')
+  const currentActor = call<Loose>(bm, 'actor') ?? null
+  const turnCount = Number(call<number>(g().$gameTroop, 'turnCount') ?? 0)
+
+  let phase: BattlePhase = 'resolving'
+  if (isBattleEnd) {
+    phase = 'result'
+  } else if (isInputting) {
+    phase = currentActor ? 'actor_command' : 'party_command'
+  } else if (isInTurn) {
+    phase = 'resolving'
+  }
+
+  // Party members
+  const gp = g().$gameParty as Loose | undefined
+  const battleMembers = (call<Loose[]>(gp, 'battleMembers') ?? []).slice(0, 16)
+  const party: BattlePartyEntity[] = battleMembers.map((member, index) => {
+    const actorId = call<number>(member, 'actorId') ?? index + 1
+    const name = String(call<string>(member, 'name') ?? `Actor ${actorId}`)
+    const hp = Number(call<number>(member, 'hp') ?? member?.hp ?? 0)
+    const hpMax = Number(call<number>(member, 'mhp') ?? member?.mhp ?? 1)
+    const mp = Number(call<number>(member, 'mp') ?? member?.mp ?? 0)
+    const mpMax = Number(call<number>(member, 'mmp') ?? member?.mmp ?? 0)
+    const tp = Number(call<number>(member, 'tp') ?? member?.tp ?? 0)
+    const isDead = Boolean(call<boolean>(member, 'isDead') ?? hp <= 0)
+    const statesRaw = (call<Loose[]>(member, 'states') ?? []).slice(0, 8)
+    const states = statesRaw.map((s) => ({
+      id: Number(s?.id ?? 0),
+      name: String(s?.name ?? ''),
+    }))
+
+    return {
+      actorId,
+      name,
+      index,
+      hp,
+      hpMax,
+      mp,
+      mpMax,
+      tp,
+      isDead,
+      states,
+    }
+  })
+
+  // Enemies
+  const gt = g().$gameTroop as Loose | undefined
+  const troopMembers = (call<Loose[]>(gt, 'members') ?? []).slice(0, 16)
+  const enemies: BattleEnemyEntity[] = troopMembers.map((enemy, index) => {
+    const enemyId = Number(call<number>(enemy, 'enemyId') ?? (enemy?.enemyId as number) ?? index + 1)
+    const name = String(call<string>(enemy, 'name') ?? `Enemy ${index + 1}`)
+    const hp = Number(call<number>(enemy, 'hp') ?? enemy?.hp ?? 0)
+    const hpMax = Number(call<number>(enemy, 'mhp') ?? enemy?.mhp ?? 1)
+    const isDead = Boolean(call<boolean>(enemy, 'isDead') ?? hp <= 0)
+    const statesRaw = (call<Loose[]>(enemy, 'states') ?? []).slice(0, 8)
+    const states = statesRaw.map((s) => ({
+      id: Number(s?.id ?? 0),
+      name: String(s?.name ?? ''),
+    }))
+
+    return {
+      enemyId,
+      instanceId: `enemy:${index}`,
+      name,
+      index,
+      hp,
+      hpMax,
+      isDead,
+      states,
+    }
+  })
+
+  // Opportunities & Offers
+  let opportunity: CommandOpportunity | null = null
+  const offers: ActionOffer[] = []
+
+  if (phase === 'party_command') {
+    opportunity = {
+      opportunityId: `${encounterId}:turn:${turnCount}:party`,
+      actor: null,
+      actionSlot: null,
+      kind: 'party',
+    }
+    offers.push({
+      actionKey: 'party:fight',
+      actor: null,
+      kind: 'attack',
+      name: '战斗',
+      targetRule: 'none',
+      costs: { mp: 0, tp: 0 },
+      effect: { kind: 'other' },
+    })
+  } else if (phase === 'actor_command' && currentActor) {
+    const actorId = call<number>(currentActor, 'actorId') ?? 1
+    const actionSlot = Number(currentActor._actionInputIndex ?? call<number>(currentActor, 'actionInputIndex'))
+    if (!Number.isInteger(actionSlot) || actionSlot < 0) return null
+    const actorRef = { kind: 'actor' as const, id: actorId, instance: `actor:${actorId}` }
+
+    opportunity = {
+      opportunityId: `${encounterId}:turn:${turnCount}:actor:${actorId}:slot:${actionSlot}`,
+      actor: actorRef,
+      actionSlot,
+      kind: 'actor',
+    }
+
+    if (call<boolean>(currentActor, 'canAttack') === true) {
+      offers.push({
+        actionKey: `actor:${actorId}:attack`,
+        actor: actorRef,
+        kind: 'attack',
+        abilityId: call<number>(currentActor, 'attackSkillId') ?? 1,
+        name: '攻击',
+        targetRule: 'one_enemy',
+        costs: { mp: 0, tp: 0 },
+        effect: { kind: 'damage' },
+      })
+    }
+
+    if (call<boolean>(currentActor, 'canGuard') === true) {
+      offers.push({
+        actionKey: `actor:${actorId}:guard`,
+        actor: actorRef,
+        kind: 'guard',
+        abilityId: call<number>(currentActor, 'guardSkillId') ?? 2,
+        name: '防御',
+        targetRule: 'user',
+        costs: { mp: 0, tp: 0 },
+        effect: { kind: 'guard' },
+      })
+    }
+
+    const skills = (call<Loose[]>(currentActor, 'skills') ?? []).slice(0, 64)
+    for (const skill of skills) {
+      if (!skill || typeof skill !== 'object') continue
+      const skillId = Number(skill.id)
+      if (!Number.isFinite(skillId) || skillId <= 0) continue
+      if (!call<boolean>(currentActor, 'canUse', skill)) continue
+
+      const mpCost = call<number>(currentActor, 'skillMpCost', skill) ?? Number(skill.mpCost ?? 0)
+      const tpCost = call<number>(currentActor, 'skillTpCost', skill) ?? Number(skill.tpCost ?? 0)
+      const name = String(skill.name ?? `Skill ${skillId}`)
+      const scopeNum = Number(skill.scope ?? 1)
+      const targetRule = parseSkillTargetRule(scopeNum)
+      const effect = parseSkillEffect(skill)
+
+      offers.push({
+        actionKey: `actor:${actorId}:skill:${skillId}`,
+        actor: actorRef,
+        kind: 'skill',
+        abilityId: skillId,
+        skillTypeId: Number(skill.stypeId),
+        name,
+        targetRule,
+        costs: { mp: mpCost, tp: tpCost },
+        effect,
+      })
+    }
+  }
+
+  return {
+    stamp,
+    encounterId,
+    turnCount,
+    phase,
+    opportunity,
+    party,
+    enemies,
+    offers,
+    capabilitiesRevision,
+  }
+}

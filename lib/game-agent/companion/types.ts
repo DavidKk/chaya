@@ -161,6 +161,7 @@ export type FactView = {
 
 export type ActionGameEvent = {
   kind: 'action'
+  commandId?: string
   actionId: string
   resultId: string
   source: { kind: 'actor' | 'enemy' | 'unknown'; id?: number; instance?: string }
