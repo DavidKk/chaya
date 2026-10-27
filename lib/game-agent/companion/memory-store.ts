@@ -16,6 +16,7 @@ import {
   MEMORY_WRITE_RETRY_BASE_MS,
   MEMORY_WRITE_RETRY_MAX,
 } from './memory-limits'
+import { type ManagementAction, MemoryManagementSession } from './memory-management'
 import { buildWriteBatch, enqueuePending, invalidatePendingQueue, type MemoryPendingItem, preferenceStorageKey, usedMemoryBytes } from './memory-queue'
 import { episodeStableKey, mergeEpisodeIdempotent, resolveLinkedLoadEpisodes, toLegacyEpisodes, trimQueryText } from './memory-reduce'
 import { MemoryConflictError, MemoryPersistenceError, MemorySchemaError, validateEpisode, validatePreference, validateSaveLink } from './memory-schema'
@@ -84,6 +85,8 @@ export class GameplayMemoryStore {
   private readonly backend: MemoryBackend | null
   /** False until a successful backend load; prevents empty overwrite after bootstrap failure. */
   private backendWritable = false
+  private readonly management = new MemoryManagementSession()
+  private flushOperation?: Promise<void>
 
   constructor(options?: { maxEpisodes?: number; backend?: MemoryBackend | null }) {
     this.maxEpisodes = options?.maxEpisodes ?? 4096
@@ -158,7 +161,7 @@ export class GameplayMemoryStore {
 
   async ingest(input: MemoryInput): Promise<MemoryIngestResult> {
     await this.ready()
-    if (this.closed) return { accepted: false, pendingEpisodeIds: [] }
+    if (this.closed || this.management.blocked) return { accepted: false, pendingEpisodeIds: [] }
     if (input.memoryEpoch !== this.memoryEpoch) return { accepted: false, pendingEpisodeIds: [] }
     if (input.recordingRevision !== this.recordingRevision) return { accepted: false, pendingEpisodeIds: [] }
 
@@ -246,6 +249,7 @@ export class GameplayMemoryStore {
 
   async applyPreference(userScope: string, pref: UserPreference): Promise<{ applied: boolean; revision: number }> {
     await this.ready()
+    if (this.closed || this.management.blocked) return { applied: false, revision: pref.revision }
     try {
       const source = (pref as MemoryPreferenceRecord).source
       if (source && source !== 'user_settings' && source !== 'user_instruction') {
@@ -289,6 +293,7 @@ export class GameplayMemoryStore {
 
   async rememberSaveLink(input: MemorySaveLink): Promise<{ accepted: boolean; reason?: string }> {
     await this.ready()
+    if (this.closed || this.management.blocked || !this.recordingEnabled) return { accepted: false, reason: 'recording_unavailable' }
     const link = validateSaveLink({ ...input, memoryEpoch: input.memoryEpoch || this.memoryEpoch })
     if (link.memoryEpoch !== this.memoryEpoch) return { accepted: false, reason: 'stale_epoch' }
     if (this.saveLinks.some((item) => item.id === link.id)) return { accepted: false, reason: 'duplicate' }
@@ -303,6 +308,10 @@ export class GameplayMemoryStore {
   async setRecording(scopeOrEnabled: RuntimeScope | boolean, enabled?: boolean, _requestId?: string): Promise<MemoryStatus | { recordingRevision: number }> {
     await this.ready()
     const nextEnabled = typeof scopeOrEnabled === 'boolean' ? scopeOrEnabled : Boolean(enabled)
+    if (this.backend?.manage) {
+      await this.manageMemory({ action: 'set_recording', enabled: nextEnabled }, _requestId)
+      return typeof scopeOrEnabled === 'boolean' ? this.getStatus() : { recordingRevision: this.recordingRevision }
+    }
     this.recordingRevision += 1
     this.recordingEnabled = nextEnabled
     this.actionRing = []
@@ -320,13 +329,17 @@ export class GameplayMemoryStore {
   clear(scope: RuntimeScope, requestId: string): Promise<{ newMemoryEpoch: number }>
   clear(scope?: RuntimeScope, requestId?: string): void | Promise<{ newMemoryEpoch: number }> {
     if (scope && typeof requestId === 'string') {
-      return this.clearMemory({ libraryGameId: scope.libraryGameId, preferences: false }).then((status) => ({ newMemoryEpoch: status.memoryEpoch }))
+      return this.clearMemory({ libraryGameId: scope.libraryGameId, preferences: false }, requestId).then((status) => ({ newMemoryEpoch: status.memoryEpoch }))
     }
     void this.clearMemory()
   }
 
-  async clearMemory(options?: { libraryGameId?: string; preferences?: boolean }): Promise<MemoryStatus> {
+  async clearMemory(options?: { libraryGameId?: string; preferences?: boolean }, requestId?: string): Promise<MemoryStatus> {
     await this.ready()
+    if (this.backend?.manage) {
+      await this.manageMemory({ action: 'clear', preferences: options?.preferences === true }, requestId)
+      return this.getStatus()
+    }
     this.memoryEpoch += 1
     this.generation += 1
     this.actionRing = []
@@ -404,7 +417,35 @@ export class GameplayMemoryStore {
     }
   }
 
+  /** Discards local overlays and reloads authoritative state after a remote barrier or failed management. */
+  async synchronize(): Promise<void> {
+    await this.ready()
+    if (!this.backend) return
+    this.management.block()
+    await this.writeChain
+    await this.flushOperation?.catch(() => undefined)
+    try {
+      const snapshot = await this.backend.loadSnapshot()
+      if (!snapshot) throw new MemoryPersistenceError('Memory management state unavailable')
+      this.pending = []
+      this.pendingBytes = 0
+      this.actionRing = []
+      this.actionRingBytes = 0
+      this.coveredCursors.clear()
+      this.applySnapshot(snapshot)
+      this.management.synchronized()
+      this.backendWritable = true
+      this.persistence = 'ready'
+      this.persistenceError = undefined
+    } catch (error) {
+      this.persistence = 'degraded'
+      this.persistenceError = error instanceof Error ? error.message : 'Memory synchronization failed'
+      throw error
+    }
+  }
+
   private async acceptEpisode(input: MemoryEpisodeRecord): Promise<{ accepted: boolean; reason?: string }> {
+    if (this.closed || this.management.blocked) return { accepted: false, reason: 'management_pending' }
     if (!this.recordingEnabled) return { accepted: false, reason: 'recording_paused' }
     if (input.memoryEpoch !== this.memoryEpoch) return { accepted: false, reason: 'stale_epoch' }
     const record: MemoryEpisodeRecord = { ...input, persistence: 'pending', bytes: input.bytes ?? estimateRecordBytes(input) }
@@ -474,6 +515,15 @@ export class GameplayMemoryStore {
   }
 
   private mergeSnapshot(snapshot: MemoryStoreSnapshot): void {
+    if (snapshot.memoryEpoch !== this.memoryEpoch || snapshot.recordingRevision !== this.recordingRevision) {
+      this.pending = []
+      this.pendingBytes = 0
+      this.actionRing = []
+      this.actionRingBytes = 0
+      this.coveredCursors.clear()
+      this.applySnapshot(snapshot)
+      return
+    }
     const overlayEpisodes = this.episodes.filter((item) => item.persistence === 'pending')
     const overlayLinks = this.saveLinks.slice()
     const overlayPrefs = [...this.preferences.values()]
@@ -551,8 +601,18 @@ export class GameplayMemoryStore {
       .catch(() => undefined)
   }
 
-  private async flushOnce(): Promise<void> {
+  private flushOnce(): Promise<void> {
+    if (this.flushOperation) return this.flushOperation
+    const operation = this.flushBatch().finally(() => {
+      this.flushOperation = undefined
+    })
+    this.flushOperation = operation
+    return operation
+  }
+
+  private async flushBatch(): Promise<void> {
     if (!this.backend || !this.pending.length) return
+    if (this.management.blocked) throw this.degradedError()
     if (!this.backendWritable) {
       this.persistence = 'degraded'
       this.persistenceError = this.persistenceError || 'memory persistence unavailable'
@@ -564,7 +624,8 @@ export class GameplayMemoryStore {
     while (true) {
       try {
         await this.backend.commitBatch(batch)
-        this.pending = this.pending.slice(batchItems.length)
+        const committed = new Set(batchItems)
+        this.pending = this.pending.filter((item) => !committed.has(item))
         this.pendingBytes = this.pending.reduce((sum, item) => sum + item.bytes, 0)
         if (batch.episodes?.length) {
           const ids = new Set(batch.episodes.map((item) => item.episodeId))
@@ -574,6 +635,15 @@ export class GameplayMemoryStore {
         this.persistenceError = undefined
         return
       } catch (error) {
+        if (this.backend.manage && !this.management.blocked) {
+          const snapshot = await this.backend.loadSnapshot().catch(() => null)
+          if (snapshot && (snapshot.memoryEpoch !== this.memoryEpoch || snapshot.recordingRevision !== this.recordingRevision)) {
+            this.mergeSnapshot(snapshot)
+            this.persistence = 'ready'
+            this.persistenceError = undefined
+            return
+          }
+        }
         attempt += 1
         if (attempt > MEMORY_WRITE_RETRY_MAX) {
           this.persistence = 'degraded'
@@ -582,6 +652,33 @@ export class GameplayMemoryStore {
         }
         await new Promise((resolve) => setTimeout(resolve, MEMORY_WRITE_RETRY_BASE_MS * attempt))
       }
+    }
+  }
+
+  private async manageMemory(action: ManagementAction, requestId?: string): Promise<void> {
+    try {
+      await this.management.run(action, { memoryEpoch: this.memoryEpoch, recordingRevision: this.recordingRevision }, requestId, async (request) => {
+        this.recordingEnabled = false
+        this.actionRing = []
+        this.actionRingBytes = 0
+        this.pending = []
+        this.pendingBytes = 0
+        await this.writeChain
+        await this.flushOperation?.catch(() => undefined)
+        await this.backend!.manage!(request)
+        // A retried response may predate another window's newer operation.
+        const snapshot = await this.backend!.loadSnapshot()
+        if (!snapshot) throw new MemoryPersistenceError('Memory management state unavailable')
+        this.applySnapshot(snapshot)
+        this.coveredCursors.clear()
+        this.backendWritable = true
+        this.persistence = 'ready'
+        this.persistenceError = undefined
+      })
+    } catch (error) {
+      this.persistence = 'degraded'
+      this.persistenceError = error instanceof Error ? error.message : 'Memory management failed'
+      throw error
     }
   }
 

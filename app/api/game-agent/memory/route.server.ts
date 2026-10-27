@@ -1,9 +1,16 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiBadRequest, apiError, apiOk } from '@/initializer/response'
+import { validateMemoryManagement } from '@/lib/game-agent/companion/core/recording-schema'
 import { bindWriteBatchToGame } from '@/lib/game-agent/companion/memory-durable'
 import { MemoryConflictError, MemorySchemaError, MemoryStaleError, validateWriteBatch } from '@/lib/game-agent/companion/memory-schema'
 import { canUseDisk } from '@/lib/service-mode/mode'
-import { barrierCompanionMemory, commitCompanionMemoryBatch, flushCompanionMemory, getCompanionMemorySnapshot } from '@/services/game-agent/companion-memory.server'
+import {
+  barrierCompanionMemory,
+  commitCompanionMemoryBatch,
+  flushCompanionMemory,
+  getCompanionMemorySnapshot,
+  manageCompanionMemory,
+} from '@/services/game-agent/companion-memory.server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -69,7 +76,8 @@ export const POST = defineApiRoute('post:/api/game-agent/memory', async ({ reque
   const parsed = await readJsonBody(request)
   if (!parsed.ok) return parsed.response
   const body = parsed.body as {
-    action?: 'commit' | 'barrier' | 'flush'
+    action?: 'commit' | 'barrier' | 'flush' | 'manage'
+    management?: unknown
     gameId?: string
     runtimeInstanceId?: string
     batch?: unknown
@@ -82,6 +90,10 @@ export const POST = defineApiRoute('post:/api/game-agent/memory', async ({ reque
   const runtimeInstanceId = (body?.runtimeInstanceId || search.get('runtimeInstanceId') || undefined)?.trim() || undefined
   const action = body?.action || 'commit'
   try {
+    if (action === 'manage') {
+      const state = await manageCompanionMemory(gameId, validateMemoryManagement(body?.management))
+      return apiOk({ state })
+    }
     if (action === 'flush') {
       await flushCompanionMemory(gameId, runtimeInstanceId)
       return apiOk({ flushed: true })

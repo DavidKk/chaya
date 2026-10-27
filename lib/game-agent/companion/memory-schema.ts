@@ -1,5 +1,7 @@
 /** Schema validation for companion memory records. Rejects oversized / malformed payloads. */
 
+import { validateBattleRecording } from './core/recording-schema'
+import { MemorySchemaError } from './memory-errors'
 import {
   clampText,
   estimateRecordBytes,
@@ -21,41 +23,7 @@ import {
 } from './memory-types'
 import type { ActionEvidence, RuntimeScope } from './types'
 
-export class MemorySchemaError extends Error {
-  readonly code = 'MEMORY_SCHEMA_INVALID'
-
-  constructor(message: string) {
-    super(message)
-    this.name = 'MemorySchemaError'
-  }
-}
-
-export class MemoryConflictError extends Error {
-  readonly code = 'REQUEST_CONFLICT' as const
-
-  constructor(message = 'Memory request conflict') {
-    super(message)
-    this.name = 'MemoryConflictError'
-  }
-}
-
-export class MemoryStaleError extends Error {
-  readonly code = 'MEMORY_EPOCH_CHANGED' as const
-
-  constructor(message = 'stale memory epoch') {
-    super(message)
-    this.name = 'MemoryStaleError'
-  }
-}
-
-export class MemoryPersistenceError extends Error {
-  readonly code = 'PERSISTENCE_DEGRADED' as const
-
-  constructor(message = 'memory persistence unavailable') {
-    super(message)
-    this.name = 'MemoryPersistenceError'
-  }
-}
+export { MemoryConflictError, MemoryPersistenceError, MemorySchemaError, MemoryStaleError } from './memory-errors'
 
 const EPISODE_KINDS = new Set(['knockout', 'battle_result', 'defense_attempt', 'milestone', 'load', 'save'])
 const COMPLETENESS = new Set(['complete_for_claim', 'partial', 'unknown'])
@@ -318,6 +286,7 @@ export function validateWriteBatch(value: unknown): MemoryWriteBatch {
     saveLinks: Array.isArray(value.saveLinks) ? value.saveLinks.map(validateSaveLink) : undefined,
     preferences: Array.isArray(value.preferences) ? value.preferences.map(validatePreference) : undefined,
     projections: Array.isArray(value.projections) ? value.projections.map(validateProjection) : undefined,
+    battleRecording: value.battleRecording === undefined ? undefined : validateBattleRecording(value.battleRecording),
     clear: isObject(value.clear)
       ? {
           libraryGameId: optionalString(value.clear.libraryGameId, 'batch.clear.libraryGameId', MEMORY_ID_FIELD_MAX),

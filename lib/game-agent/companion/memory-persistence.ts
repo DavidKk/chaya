@@ -3,6 +3,7 @@
  * Browser → local service adapter; Node-only callers use temporary memory.
  */
 
+import type { MemoryManagementState } from './core/recording-types'
 import { applyWriteBatch, emptyMemorySnapshot } from './memory-durable'
 import { createGameplayMemoryStore } from './memory-store'
 import { MEMORY_SCHEMA_VERSION, type MemoryBackend, type MemoryStoreSnapshot, type MemoryWriteBatch } from './memory-types'
@@ -53,6 +54,23 @@ function createServiceBackend(gameId: string, runtimeInstanceId: string | undefi
       queue = operation.catch(() => undefined)
       await operation
     },
+    async manage(request) {
+      const operation = queue.then(async () => {
+        const body = await json<{ state: MemoryManagementState }>(
+          await fetchImpl(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'manage', management: request }),
+          })
+        )
+        return body.state
+      })
+      queue = operation.then(
+        () => undefined,
+        () => undefined
+      )
+      return operation
+    },
     async clearQueueBarrier(memoryEpoch, recordingRevision, clear) {
       const operation = queue.then(async () => {
         await json(
@@ -78,6 +96,7 @@ function createMemoryOnlyBackend(gameId?: string): MemoryBackend {
       return snapshot
     },
     async commitBatch(batch) {
+      if (batch.battleRecording) throw new Error('Battle recording requires the storage service')
       snapshot = applyWriteBatch(snapshot || emptyMemorySnapshot(), batch, { boundGameId: gameId, onConflict: 'throw' })
     },
     async clearQueueBarrier(memoryEpoch, recordingRevision, clear) {

@@ -1,5 +1,5 @@
 import type { ObservedActionResult } from '@/lib/game-agent/companion/core/types'
-import type { CompanionDomainEvent } from '@/lib/game-agent/companion/types'
+import type { BattleResultGameEvent, CompanionDomainEvent } from '@/lib/game-agent/companion/types'
 
 export type BattleEventSource = {
   subscribe(listener: (event: CompanionDomainEvent) => void): () => void
@@ -9,11 +9,11 @@ export type BattleEventSource = {
 export function installBattleResultHook(
   source: BattleEventSource,
   onResult: (result: ObservedActionResult) => void,
-  onEncounterResult: (encounterId: string, outcome: 'win' | 'lose' | 'escape' | 'abort', turns: number) => void
+  onEncounterResult: (encounterId: string, outcome: 'win' | 'lose' | 'escape' | 'abort', turns: number, event: BattleResultGameEvent) => void
 ): () => void {
   return source.subscribe((event) => {
     if (event.kind === 'battle_result') {
-      onEncounterResult(event.encounterId, event.outcome, event.turns)
+      onEncounterResult(event.encounterId, event.outcome, event.turns, event)
       return
     }
     if (event.kind !== 'action') return

@@ -1,5 +1,8 @@
+import type { RuntimeScope } from '../types'
 import { chooseAction } from './action-selector'
 import { CompanionActionLedger } from './ledger'
+import { CompanionRecordingEmitter } from './recording-emitter'
+import type { BattleRecordEvent } from './recording-types'
 import { evaluateSituation } from './situation'
 import { clonePlan, validateTacticPlan } from './tactic-validation'
 import { applyTacticPatch, consumeTactic, DEFAULT_TACTIC_PLAN, expireTactics } from './tactics'
@@ -24,6 +27,7 @@ export type CoordinatorOptions = {
   onDispatchIntent?: (intent: ActionIntent, lease: ControlLease) => void
   onRequestDecision?: (ticket: DecisionTicket) => void | Promise<void>
   onStatusChange?: (status: CompanionRunStatus) => void
+  onRecord?: (event: BattleRecordEvent) => void
 }
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
@@ -48,8 +52,10 @@ export class CompanionCoordinator {
   private decisionAttempts = 0
   private nextDecisionAt = 0
   public readonly ledger = new CompanionActionLedger()
+  private readonly recording: CompanionRecordingEmitter
 
   constructor(private readonly options: CoordinatorOptions) {
+    this.recording = new CompanionRecordingEmitter(options.onRecord)
     const plan = options.initialTactic || DEFAULT_TACTIC_PLAN
     if (!validateTacticPlan(plan)) throw new Error('INVALID_INITIAL_TACTIC')
     this.tacticPlan = clonePlan(plan)
@@ -135,7 +141,10 @@ export class CompanionCoordinator {
       return null
     }
     if (this.observedContext && this.observedContext !== contextKey(frame)) {
-      if (this.previousEncounter) this.ledger.finishEncounter(this.previousEncounter.id, 'unknown', this.previousEncounter.turn)
+      if (this.previousEncounter) {
+        this.ledger.finishEncounter(this.previousEncounter.id, 'unknown', this.previousEncounter.turn)
+        this.recording.finish(this.previousEncounter.id, 'unknown', this.previousEncounter.turn)
+      }
       this.pendingDecisionTicket = null
       this.recentResults = []
       this.occupied.clear()
@@ -152,6 +161,7 @@ export class CompanionCoordinator {
     }
 
     this.ledger.startEncounter(frame.encounterId, frame.stamp.scope.libraryGameId, frame.stamp.scope.playthroughId)
+    this.recording.observe(frame)
     const plan = expireTactics(this.tacticPlan, frame)
     if (plan !== this.tacticPlan) this.pendingDecisionTicket = null
     this.tacticPlan = plan
@@ -191,6 +201,7 @@ export class CompanionCoordinator {
       // Reserve before invoking callbacks, including the uncertain-confirmation path.
       this.occupied.set(key, { commandId: selection.intent.commandId, turn: frame.turnCount })
       this.ledger.recordPlanned(selection.intent)
+      this.recording.planned(selection.intent, frame.stamp.scope)
       try {
         this.options.onDispatchIntent?.(clone(selection.intent), { ...this.activeLease })
       } catch {
@@ -314,13 +325,15 @@ export class CompanionCoordinator {
   onCommandCommitted(commandId: string): void {
     const command = this.ledger.getCommand(commandId)
     if (!command || !this.ledger.recordCommitted(commandId)) return
+    this.recording.committed(command.intent, this.ledger.getCommand(commandId)!.committedAt!)
     if (command.intent.encounterId) this.ledger.incrementCommandsCommitted(command.intent.encounterId)
     const next = consumeTactic(this.tacticPlan, command.intent)
     if (next !== this.tacticPlan) this.pendingDecisionTicket = null
     this.tacticPlan = next
   }
 
-  onCommandResult(result: ObservedActionResult): void {
+  onCommandResult(result: ObservedActionResult, scope?: RuntimeScope): void {
+    this.recording.result(result, scope)
     if (!this.ledger.ingestResult(result)) return
     // A correlated result is also proof that this command was committed.
     if (result.commandId) {
@@ -332,7 +345,8 @@ export class CompanionCoordinator {
     if (this.recentResults.length > 50) this.recentResults.shift()
   }
 
-  onEncounterResult(encounterId: string, outcome: EncounterOutcome, turns: number): void {
+  onEncounterResult(encounterId: string, outcome: EncounterOutcome, turns: number, scope?: RuntimeScope, at?: number): void {
+    this.recording.finish(encounterId, outcome, turns, scope, at)
     this.ledger.finishEncounter(encounterId, outcome, turns)
     if (active(this.status) && encounterId === this.latestFrame?.encounterId) {
       this.pendingDecisionTicket = null

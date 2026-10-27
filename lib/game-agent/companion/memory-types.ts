@@ -3,6 +3,7 @@
  * Keep these separate from T0 `types.ts` so schema can evolve without colliding.
  */
 
+import type { BattleRecordingBatch, BattleRecordingSnapshot, MemoryManagementRequest, MemoryManagementState } from './core/recording-types'
 import type { ActionEvidence, MemoryEpisode, RuntimeScope, UserPreference } from './types'
 
 export const MEMORY_SCHEMA_VERSION = 1 as const
@@ -106,6 +107,8 @@ export type MemoryWriteBatch = {
   saveLinks?: MemorySaveLink[]
   preferences?: MemoryPreferenceRecord[]
   projections?: MemoryProjectionStats[]
+  /** Versioned extension; committed atomically with the existing memory collections. */
+  battleRecording?: BattleRecordingBatch
   clear?: {
     libraryGameId?: string
     preferences?: boolean
@@ -125,6 +128,7 @@ export type MemoryStoreSnapshot = {
   preferences: MemoryPreferenceRecord[]
   projections: MemoryProjectionStats[]
   generation: number
+  battleRecording?: BattleRecordingSnapshot
 }
 
 export type MemoryStatus = {
@@ -171,6 +175,7 @@ export type MemoryBackend = {
   flush(): Promise<void>
   loadSnapshot(): Promise<MemoryStoreSnapshot | null>
   commitBatch(batch: MemoryWriteBatch): Promise<void>
+  manage?(request: MemoryManagementRequest): Promise<MemoryManagementState>
   clearQueueBarrier(memoryEpoch: number, recordingRevision: number, clear?: { libraryGameId?: string; preferences?: boolean; episodes?: boolean }): Promise<void>
 }
 

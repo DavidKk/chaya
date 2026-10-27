@@ -51,6 +51,7 @@ export function batchFingerprint(batch: MemoryWriteBatch): string {
     preferences: batch.preferences || [],
     evidence: batch.evidence || [],
     projections: batch.projections || [],
+    ...(batch.battleRecording ? { battleRecording: batch.battleRecording } : {}),
   })
 }
 
@@ -75,6 +76,9 @@ function cloneSnapshot(snapshot: MemoryStoreSnapshot): MemoryStoreSnapshot {
 }
 
 export function bindWriteBatchToGame(batch: MemoryWriteBatch, gameId: string): MemoryWriteBatch {
+  for (const event of batch.battleRecording?.events || []) {
+    if (event.scope.libraryGameId !== gameId) throw new MemoryConflictError('Write batch recording is not bound to the request game')
+  }
   for (const episode of batch.episodes || []) {
     if (episode.scope.libraryGameId !== gameId) throw new MemoryConflictError('Write batch episode is not bound to the request game')
   }

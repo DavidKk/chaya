@@ -6,7 +6,7 @@
 import { bindWriteBatchToGame } from '@/lib/game-agent/companion/memory-durable'
 import { type CompanionMemoryPersistence, createCompanionMemoryPersistence, createGameplayMemoryStoreWithPersistence } from '@/lib/game-agent/companion/memory-persistence'
 import { createGameplayMemoryStore, type GameplayMemoryStore } from '@/lib/game-agent/companion/memory-store'
-import { MEMORY_SCHEMA_VERSION, type MemoryStoreSnapshot } from '@/lib/game-agent/companion/memory-types'
+import type { MemoryStoreSnapshot } from '@/lib/game-agent/companion/memory-types'
 
 import { detectGameIdentity } from '../../helpers/game/game-identity'
 import { pluginStorageCall } from '../../helpers/storage/client'
@@ -49,14 +49,18 @@ export function createCompanionMemoryRuntime(gameId: string, runtimeInstanceId?:
       if (!root) throw new Error('Cannot persist memory without a verified local game root')
       await queueStorageMutation(root, 'companion.commit', [gameId, bindWriteBatchToGame(batch, gameId), root])
     },
+    async manage(request) {
+      if (!root) throw new Error('Cannot manage memory without a verified local game root')
+      return pluginStorageCall('companion.manage', [gameId, request, root])
+    },
     async clearQueueBarrier(memoryEpoch, recordingRevision, clear) {
-      await this.commitBatch({
-        schemaVersion: MEMORY_SCHEMA_VERSION,
-        batchId: `barrier-${memoryEpoch}-${recordingRevision}`,
-        memoryEpoch,
-        recordingRevision,
-        at: Date.now(),
-        clear: { libraryGameId: clear?.libraryGameId || gameId, preferences: clear?.preferences === true, episodes: clear?.episodes !== false },
+      await this.manage!({
+        requestId: `barrier-${memoryEpoch}-${recordingRevision}`,
+        action: 'clear',
+        expectedMemoryEpoch: memoryEpoch - 1,
+        expectedRecordingRevision: recordingRevision,
+        preferences: clear?.preferences === true,
+        episodes: clear?.episodes !== false,
       })
     },
   }

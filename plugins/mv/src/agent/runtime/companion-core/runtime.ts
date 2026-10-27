@@ -1,4 +1,5 @@
 import { CompanionCoordinator } from '@/lib/game-agent/companion/core/coordinator'
+import type { BattleRecordEvent } from '@/lib/game-agent/companion/core/recording-types'
 import type {
   ActionIntent,
   BattleFrame,
@@ -25,6 +26,7 @@ export type CompanionRuntimeDeps = {
   getDecisionVersions?: () => { memoryEpoch: number; recordingRevision: number }
   onRequestDecision?: (ticket: DecisionTicket) => void | Promise<void>
   onStatusChange?: (status: CompanionRunStatus) => void
+  onRecord?: (event: BattleRecordEvent) => void
 }
 
 export class CompanionBattleRuntime {
@@ -54,12 +56,13 @@ export class CompanionBattleRuntime {
       },
       onRequestDecision: deps.onRequestDecision,
       onStatusChange: deps.onStatusChange,
+      onRecord: deps.onRecord,
     })
     this.removeListeners.push(
       installBattleResultHook(
         deps.facts,
-        (result) => this.coordinator.onCommandResult(result),
-        (id, outcome, turns) => this.coordinator.onEncounterResult(id, outcome, turns)
+        (result) => this.coordinator.onCommandResult(result, deps.facts.current().stamp.scope),
+        (id, outcome, turns, event) => this.coordinator.onEncounterResult(id, outcome, turns, deps.facts.current().stamp.scope, event.at)
       )
     )
     if (typeof window !== 'undefined') {

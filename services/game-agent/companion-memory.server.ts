@@ -1,6 +1,6 @@
+import type { MemoryManagementRequest, MemoryManagementState } from '@/lib/game-agent/companion/core/recording-types'
 import { bindWriteBatchToGame } from '@/lib/game-agent/companion/memory-durable'
 import type { MemoryBackend, MemoryStoreSnapshot, MemoryWriteBatch } from '@/lib/game-agent/companion/memory-types'
-import { MEMORY_SCHEMA_VERSION } from '@/lib/game-agent/companion/memory-types'
 import { storageCall } from '@/services/storage/client'
 
 /** One durable backend per library game. runtimeInstanceId is writer identity only. */
@@ -20,14 +20,17 @@ function backendFor(gameId: string): MemoryBackend {
     async commitBatch(batch) {
       storageCall('companion.commit', [gameId, bindWriteBatchToGame(batch, gameId)])
     },
+    async manage(request) {
+      return storageCall<MemoryManagementState>('companion.manage', [gameId, request])
+    },
     async clearQueueBarrier(memoryEpoch, recordingRevision, clear) {
-      await this.commitBatch({
-        schemaVersion: MEMORY_SCHEMA_VERSION,
-        batchId: `barrier-${memoryEpoch}-${recordingRevision}`,
-        memoryEpoch,
-        recordingRevision,
-        at: Date.now(),
-        clear: { libraryGameId: clear?.libraryGameId || gameId, preferences: clear?.preferences === true, episodes: clear?.episodes !== false },
+      await this.manage!({
+        action: 'clear',
+        requestId: `barrier-${memoryEpoch}-${recordingRevision}`,
+        expectedMemoryEpoch: memoryEpoch - 1,
+        expectedRecordingRevision: recordingRevision,
+        preferences: clear?.preferences === true,
+        episodes: clear?.episodes !== false,
       })
     },
   }
@@ -47,6 +50,10 @@ export async function commitCompanionMemoryBatch(gameId: string, batch: MemoryWr
   await backend.commitBatch(bindWriteBatchToGame(batch, gameId))
 }
 
+export async function manageCompanionMemory(gameId: string, request: MemoryManagementRequest): Promise<MemoryManagementState> {
+  return backendFor(gameId).manage!(request)
+}
+
 export async function barrierCompanionMemory(
   gameId: string,
   memoryEpoch: number,
@@ -56,8 +63,11 @@ export async function barrierCompanionMemory(
 ): Promise<void> {
   const backend = backendFor(gameId)
   await backend.ready()
-  await backend.clearQueueBarrier(memoryEpoch, recordingRevision, {
-    libraryGameId: clear?.libraryGameId || gameId,
+  await backend.manage!({
+    requestId: `barrier-${memoryEpoch}-${recordingRevision}`,
+    action: 'clear',
+    expectedMemoryEpoch: memoryEpoch - 1,
+    expectedRecordingRevision: recordingRevision,
     preferences: clear?.preferences === true,
     episodes: clear?.episodes !== false,
   })

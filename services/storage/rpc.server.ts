@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import type { SourceGameEvent } from '@/lib/game-agent/audit'
+import type { MemoryManagementRequest } from '@/lib/game-agent/companion/core/recording-types'
 import { bindWriteBatchToGame } from '@/lib/game-agent/companion/memory-durable'
 import type { MemoryWriteBatch } from '@/lib/game-agent/companion/memory-types'
 import type { AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
@@ -94,7 +95,7 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
     if (method === 'game.append') return games.append(String(args[0]), args[1] as unknown[], args[2] as string | undefined)
     if (method === 'game.write') return games.write(String(args[0]), String(args[1]), args[2])
     if (method === 'game.read') return games.read(String(args[0]), String(args[1]))
-    if (method === 'companion.load' || method === 'companion.commit') {
+    if (method === 'companion.load' || method === 'companion.commit' || method === 'companion.manage') {
       await migrate()
       let gameId = String(args[0])
       if (!gameId || gameId.length > 200) throw new Error('Invalid companion game ID')
@@ -102,7 +103,9 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
       const root = typeof args[2] === 'string' ? args[2] : entry?.gameRoot
       if (root) gameId = (await games.mount(root)).gameId
       if (gameId === 'default') throw new Error('Companion memory requires a verified game identity')
-      return method === 'companion.load' ? memory.load(gameId) : memory.commit(gameId, bindWriteBatchToGame(args[1] as MemoryWriteBatch, gameId))
+      if (method === 'companion.load') return memory.load(gameId)
+      if (method === 'companion.manage') return memory.manage(gameId, args[1] as MemoryManagementRequest)
+      return memory.commit(gameId, bindWriteBatchToGame(args[1] as MemoryWriteBatch, gameId))
     }
     if (method === 'settings.get') return loadOwnedGameAgentSettings(settingsFile)
     if (method === 'settings.set') return saveOwnedGameAgentSettings(args[0] as Partial<import('@/services/game-agent/settings').GameAgentSettings>, settingsFile)

@@ -104,9 +104,9 @@ export class CompanionActionLedger {
 
   finishEncounter(encounterId: string, outcome: EncounterOutcome, turnsCount?: number): void {
     const enc = this.encounters.get(encounterId)
-    if (enc && enc.finishedAt === undefined) {
+    if (enc && (enc.finishedAt === undefined || (enc.outcome === 'unknown' && outcome !== 'unknown'))) {
       enc.outcome = outcome
-      enc.finishedAt = Date.now()
+      enc.finishedAt ??= Date.now()
       if (turnsCount !== undefined) enc.turnsCount = turnsCount
     }
   }
