@@ -461,6 +461,11 @@ export const ptBR: MessageTree = {
     packVerifying: 'Verificando e testando tradução',
     packRetryHint: 'A instalação não terminou. Tente novamente.',
     packInstall: 'Instalar pacote',
+    packReinstall: 'Baixar novamente',
+    packDownload: 'Baixar pacote de idioma',
+    bergamotGamePairUnsupported:
+      'O par de idiomas do jogo atual ({gamePair}) não é compatível com este mecanismo. O Bergamot atualmente fornece apenas um modelo offline de inglês para chinês.',
+    bergamotAvailablePacks: 'Pacotes de idiomas offline disponíveis',
     offlineGuide: 'Guia de configuração',
     offlineRecheck: 'Verificar',
     offlineReadyHint: 'Pronto. Você pode ativar este mecanismo.',

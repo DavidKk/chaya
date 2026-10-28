@@ -93,6 +93,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       settings?: unknown
       contentRoot?: string
       action?:
+        | 'catalog'
         | 'start'
         | 'pause'
         | 'resume'
@@ -160,12 +161,34 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (body.mode === 'bergamot-packs') {
       if (denied) return denied
       if (!hasManagementAccess(request)) return apiError(403, 'MANAGEMENT_REQUIRED', 'Open the local console to manage language packs')
-      if (typeof body.from !== 'string' || typeof body.to !== 'string' || !/^[a-zA-Z-]{2,16}$/.test(body.from) || !/^[a-zA-Z-]{2,16}$/.test(body.to))
-        return apiError(400, 'PACK_INVALID_PAIR', 'Choose a source and target language')
       const { packManager } = await import('@/services/translate/bergamot/manager')
       const manager = packManager()
+      if (body.action === 'catalog') {
+        const { bergamotPacks } = await import('@/services/translate/bergamot/catalog')
+        const packs = await Promise.all(
+          bergamotPacks.map(async (p) => {
+            const plan = await manager.plan(p.source, p.target)
+            return {
+              id: p.id,
+              source: p.source,
+              target: p.target,
+              attribution: p.attribution,
+              license: p.license,
+              licenseUrl: p.licenseUrl,
+              installed: plan.installed,
+              canInstall: plan.canInstall,
+              downloadBytes: plan.downloadBytes,
+              status: plan.status,
+              job: plan.job,
+            }
+          })
+        )
+        return apiOk({ packs })
+      }
+      if (typeof body.from !== 'string' || typeof body.to !== 'string' || !/^[a-zA-Z-]{2,16}$/.test(body.from) || !/^[a-zA-Z-]{2,16}$/.test(body.to))
+        return apiError(400, 'PACK_INVALID_PAIR', 'Choose a source and target language')
       try {
-        if (body.action === 'install' && typeof body.planId === 'string') return apiOk(await manager.install(body.from, body.to, body.planId))
+        if (body.action === 'install' && typeof body.planId === 'string') return apiOk(await manager.install(body.from, body.to, body.planId, body.force === true))
         if (body.action === 'cancel' && typeof body.jobId === 'string') return apiOk(await manager.cancel(body.from, body.to, body.jobId))
         if (body.action === 'plan' || body.action === 'status') return apiOk(await manager.plan(body.from, body.to))
         return apiError(400, 'PACK_INVALID_ACTION', 'Invalid language pack action')
@@ -320,13 +343,20 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       if (body.switches?.apple === true || body.switches?.bergamot === true) {
         const current = getTranslateEngineSwitches()
         const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
+        let seedLang: string | undefined
+        try {
+          seedLang = getSeedSourceLanguage()
+        } catch {
+          seedLang = undefined
+        }
         for (const id of ['apple', 'bergamot'] as const) {
           if (body.switches[id] !== true || current.switches[id]) continue
           const translator =
             id === 'apple'
               ? (await import('@/services/translate/lib/macos-translate')).appleTranslator
               : (await import('@/services/translate/lib/bergamot-translate')).bergamotTranslator
-          const status = await translator.checkStatus(getSeedSourceLanguage(), 'zh')
+          const from = seedLang || (id === 'bergamot' ? 'en' : 'ja')
+          const status = await translator.checkStatus(from, 'zh')
           if (!status.installed) return apiError(409, 'TRANSLATE_ENGINE_NOT_READY', status.message || `${id} translation is not ready`)
         }
       }
@@ -471,7 +501,13 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (body.mode === 'apple-status') {
       const { appleTranslator } = await import('@/services/translate/lib/macos-translate')
       const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
-      const source = typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : getSeedSourceLanguage(game?.ok ? game.contentRoot : undefined)
+      let seedLang: string | undefined
+      try {
+        if (game?.ok) seedLang = getSeedSourceLanguage(game.contentRoot)
+      } catch {
+        seedLang = undefined
+      }
+      const source = typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : seedLang || 'en'
       const target = typeof (body.to ?? body.target) === 'string' ? (body.to ?? body.target) : 'zh-Hans'
       return apiOk({ ...(await appleTranslator.checkStatus(source, target)), source, target })
     }
@@ -482,9 +518,17 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       const { bergamotTranslator } = await import('@/services/translate/lib/bergamot-translate')
       if (body.mode === 'bergamot-status') {
         const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
-        const from = source || getSeedSourceLanguage(game?.ok ? game.contentRoot : undefined)
+        let seedLang: string | undefined
+        try {
+          if (game?.ok) seedLang = getSeedSourceLanguage(game.contentRoot)
+        } catch {
+          seedLang = undefined
+        }
+        const from = source || seedLang || 'en'
         const to = target || 'zh'
-        return apiOk({ ...(await bergamotTranslator.checkStatus(from, to)), source: from, target: to })
+        const { bergamotPacks } = await import('@/services/translate/bergamot/catalog')
+        const supportedPairs = bergamotPacks.map((p) => ({ source: p.source, target: p.target, id: p.id }))
+        return apiOk({ ...(await bergamotTranslator.checkStatus(from, to)), source: from, target: to, supportedPairs })
       }
       const text = typeof body.text === 'string' ? body.text : ''
       if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_BERGAMOT_INPUT', 'Bergamot offline translation requires text of 1-20000 characters')

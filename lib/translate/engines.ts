@@ -236,11 +236,13 @@ export function assignMissingEngineEntryIds(configs: Record<TranslateBuiltinId, 
 }
 
 export function builtinEngineByEntryId(configs: Record<TranslateBuiltinId, TranslateEngineSettings> | undefined, entryId: string): TranslateBuiltinId | null {
+  if (isBuiltinEngineId(entryId)) return entryId
+  if (entryId === 'mvsd812nzmca') return 'bergamot'
   if (!configs) return null
   for (const id of TRANSLATE_ENGINE_IDS) {
     if (configs[id]?.id === entryId) return id
   }
-  return isBuiltinEngineId(entryId) ? entryId : null
+  return null
 }
 
 export function engineRouteId(key: TranslateEngineId, configs?: Record<TranslateBuiltinId, TranslateEngineSettings>, agents?: TranslateAgentEntry[]): string {

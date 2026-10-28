@@ -147,6 +147,11 @@ export const translateJa = {
     packVerifying: '検証・翻訳テスト中',
     packRetryHint: 'インストールが完了しませんでした。再試行できます。',
     packInstall: '言語パックをインストール',
+    packReinstall: '再ダウンロード',
+    packDownload: '言語パックをダウンロード',
+    bergamotGamePairUnsupported:
+      '現在のゲーム言語ペア（{gamePair}）はこのエンジンでサポートされていません。Bergamot は現在、英語から中国語へのオフラインモデルのみ提供しています。',
+    bergamotAvailablePacks: '利用可能なオフライン言語パック',
     offlineGuide: '設定ガイド',
     offlineRecheck: '確認',
     offlineReadyHint: '準備完了です。このエンジンを有効にできます。',

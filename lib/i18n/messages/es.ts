@@ -462,6 +462,11 @@ export const es: MessageTree = {
     packVerifying: 'Verificando y probando traducción',
     packRetryHint: 'La instalación no terminó. Puedes reintentarlo.',
     packInstall: 'Instalar paquete',
+    packReinstall: 'Volver a descargar',
+    packDownload: 'Descargar paquete de idioma',
+    bergamotGamePairUnsupported:
+      'El par de idiomas del juego actual ({gamePair}) no es compatible con este motor. Bergamot actualmente solo ofrece un modelo sin conexión de inglés a chino.',
+    bergamotAvailablePacks: 'Paquetes de idiomas sin conexión disponibles',
     offlineGuide: 'Guía de configuración',
     offlineRecheck: 'Comprobar',
     offlineReadyHint: 'Listo. Puede activar este motor.',

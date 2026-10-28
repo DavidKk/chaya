@@ -4641,14 +4641,14 @@ var require_util = __commonJS({
         }
         const port2 = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
         let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port2}`;
-        let path30 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        let path31 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
         if (origin[origin.length - 1] === "/") {
           origin = origin.slice(0, origin.length - 1);
         }
-        if (path30 && path30[0] !== "/") {
-          path30 = `/${path30}`;
+        if (path31 && path31[0] !== "/") {
+          path31 = `/${path31}`;
         }
-        return new URL(`${origin}${path30}`);
+        return new URL(`${origin}${path31}`);
       }
       if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
@@ -5469,9 +5469,9 @@ var require_diagnostics = __commonJS({
         "undici:client:sendHeaders",
         (evt) => {
           const {
-            request: { method, path: path30, origin }
+            request: { method, path: path31, origin }
           } = evt;
-          debugLog("sending request to %s %s%s", method, origin, path30);
+          debugLog("sending request to %s %s%s", method, origin, path31);
         }
       );
     }
@@ -5489,14 +5489,14 @@ var require_diagnostics = __commonJS({
         "undici:request:headers",
         (evt) => {
           const {
-            request: { method, path: path30, origin },
+            request: { method, path: path31, origin },
             response: { statusCode }
           } = evt;
           debugLog(
             "received response to %s %s%s - HTTP %d",
             method,
             origin,
-            path30,
+            path31,
             statusCode
           );
         }
@@ -5505,23 +5505,23 @@ var require_diagnostics = __commonJS({
         "undici:request:trailers",
         (evt) => {
           const {
-            request: { method, path: path30, origin }
+            request: { method, path: path31, origin }
           } = evt;
-          debugLog("trailers received from %s %s%s", method, origin, path30);
+          debugLog("trailers received from %s %s%s", method, origin, path31);
         }
       );
       diagnosticsChannel.subscribe(
         "undici:request:error",
         (evt) => {
           const {
-            request: { method, path: path30, origin },
+            request: { method, path: path31, origin },
             error
           } = evt;
           debugLog(
             "request to %s %s%s errored - %s",
             method,
             origin,
-            path30,
+            path31,
             error.message
           );
         }
@@ -5636,7 +5636,7 @@ var require_request = __commonJS({
     var kHandler = /* @__PURE__ */ Symbol("handler");
     var Request = class {
       constructor(origin, {
-        path: path30,
+        path: path31,
         method,
         body,
         headers,
@@ -5653,11 +5653,11 @@ var require_request = __commonJS({
         maxRedirections,
         typeOfService
       }, handler) {
-        if (typeof path30 !== "string") {
+        if (typeof path31 !== "string") {
           throw new InvalidArgumentError("path must be a string");
-        } else if (path30[0] !== "/" && !(path30.startsWith("http://") || path30.startsWith("https://")) && method !== "CONNECT") {
+        } else if (path31[0] !== "/" && !(path31.startsWith("http://") || path31.startsWith("https://")) && method !== "CONNECT") {
           throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-        } else if (invalidPathRegex.test(path30)) {
+        } else if (invalidPathRegex.test(path31)) {
           throw new InvalidArgumentError("invalid request path");
         }
         if (typeof method !== "string") {
@@ -5732,7 +5732,7 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? serializePathWithQuery(path30, query) : path30;
+        this.path = query ? serializePathWithQuery(path31, query) : path31;
         this.origin = origin;
         this.protocol = getProtocolFromUrlString(origin);
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
@@ -10914,7 +10914,7 @@ var require_client_h1 = __commonJS({
       return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE" && method !== "CONNECT";
     }
     function writeH1(client, request) {
-      const { method, path: path30, host, upgrade, blocking, reset } = request;
+      const { method, path: path31, host, upgrade, blocking, reset } = request;
       let { body, headers, contentLength } = request;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
       if (util.isFormDataLike(body)) {
@@ -10992,7 +10992,7 @@ var require_client_h1 = __commonJS({
       if (socket.setTypeOfService) {
         socket.setTypeOfService(request.typeOfService);
       }
-      let header = `${method} ${path30} HTTP/1.1\r
+      let header = `${method} ${path31} HTTP/1.1\r
 `;
       if (typeof host === "string") {
         header += `host: ${host}\r
@@ -11671,7 +11671,7 @@ var require_client_h2 = __commonJS({
       const headersTimeout = request.headersTimeout ?? client[kHeadersTimeout];
       const bodyTimeout = request.bodyTimeout ?? client[kBodyTimeout];
       const session = client[kHTTP2Session];
-      const { method, path: path30, host, upgrade, expectContinue, signal, protocol, headers: reqHeaders } = request;
+      const { method, path: path31, host, upgrade, expectContinue, signal, protocol, headers: reqHeaders } = request;
       let { body } = request;
       if (upgrade != null && upgrade !== "websocket") {
         util.errorRequest(client, request, new InvalidArgumentError(`Custom upgrade "${upgrade}" not supported over HTTP/2`));
@@ -11740,7 +11740,7 @@ var require_client_h2 = __commonJS({
           }
           headers[HTTP2_HEADER_METHOD] = "CONNECT";
           headers[HTTP2_HEADER_PROTOCOL] = "websocket";
-          headers[HTTP2_HEADER_PATH] = path30;
+          headers[HTTP2_HEADER_PATH] = path31;
           if (protocol === "ws:" || protocol === "wss:") {
             headers[HTTP2_HEADER_SCHEME] = protocol === "ws:" ? "http" : "https";
           } else {
@@ -11782,7 +11782,7 @@ var require_client_h2 = __commonJS({
         stream.setTimeout(headersTimeout);
         return true;
       }
-      headers[HTTP2_HEADER_PATH] = path30;
+      headers[HTTP2_HEADER_PATH] = path31;
       headers[HTTP2_HEADER_SCHEME] = protocol === "http:" ? "http" : "https";
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
@@ -14134,10 +14134,10 @@ var require_proxy_agent = __commonJS({
         };
         const {
           origin,
-          path: path30 = "/",
+          path: path31 = "/",
           headers = {}
         } = opts;
-        opts.path = origin + path30;
+        opts.path = origin + path31;
         if (!("host" in headers) && !("Host" in headers)) {
           const { host } = new URL(origin);
           headers.host = host;
@@ -16246,20 +16246,20 @@ var require_mock_utils = __commonJS({
       }
       return normalizedQp;
     }
-    function safeUrl(path30) {
-      if (typeof path30 !== "string") {
-        return path30;
+    function safeUrl(path31) {
+      if (typeof path31 !== "string") {
+        return path31;
       }
-      const pathSegments = path30.split("?", 3);
+      const pathSegments = path31.split("?", 3);
       if (pathSegments.length !== 2) {
-        return path30;
+        return path31;
       }
       const qp = new URLSearchParams(pathSegments.pop());
       qp.sort();
       return [...pathSegments, qp.toString()].join("?");
     }
-    function matchKey(mockDispatch2, { path: path30, method, body, headers }) {
-      const pathMatch = matchValue(mockDispatch2.path, path30);
+    function matchKey(mockDispatch2, { path: path31, method, body, headers }) {
+      const pathMatch = matchValue(mockDispatch2.path, path31);
       const methodMatch = matchValue(mockDispatch2.method, method);
       const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
       const headersMatch = matchHeaders(mockDispatch2, headers);
@@ -16284,8 +16284,8 @@ var require_mock_utils = __commonJS({
       const basePath = key3.query ? serializePathWithQuery(key3.path, key3.query) : key3.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
       const resolvedPathWithoutTrailingSlash = removeTrailingSlash(resolvedPath);
-      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path30, ignoreTrailingSlash }) => {
-        return ignoreTrailingSlash ? matchValue(removeTrailingSlash(safeUrl(path30)), resolvedPathWithoutTrailingSlash) : matchValue(safeUrl(path30), resolvedPath);
+      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path31, ignoreTrailingSlash }) => {
+        return ignoreTrailingSlash ? matchValue(removeTrailingSlash(safeUrl(path31)), resolvedPathWithoutTrailingSlash) : matchValue(safeUrl(path31), resolvedPath);
       });
       if (matchedMockDispatches.length === 0) {
         throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
@@ -16324,19 +16324,19 @@ var require_mock_utils = __commonJS({
         mockDispatches.splice(index2, 1);
       }
     }
-    function removeTrailingSlash(path30) {
-      while (path30.endsWith("/")) {
-        path30 = path30.slice(0, -1);
+    function removeTrailingSlash(path31) {
+      while (path31.endsWith("/")) {
+        path31 = path31.slice(0, -1);
       }
-      if (path30.length === 0) {
-        path30 = "/";
+      if (path31.length === 0) {
+        path31 = "/";
       }
-      return path30;
+      return path31;
     }
     function buildKey(opts) {
-      const { path: path30, method, body, headers, query } = opts;
+      const { path: path31, method, body, headers, query } = opts;
       return {
-        path: path30,
+        path: path31,
         method,
         body,
         headers,
@@ -17026,10 +17026,10 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path: path30, data: { statusCode }, persist: persist2, times, timesInvoked, origin }) => ({
+          ({ method, path: path31, data: { statusCode }, persist: persist2, times, timesInvoked, origin }) => ({
             Method: method,
             Origin: origin,
-            Path: path30,
+            Path: path31,
             "Status code": statusCode,
             Persistent: persist2 ? PERSISTENT : NOT_PERSISTENT,
             Invocations: timesInvoked,
@@ -17111,9 +17111,9 @@ var require_mock_agent = __commonJS({
         const acceptNonStandardSearchParameters = this[kMockAgentAcceptsNonStandardSearchParameters];
         const dispatchOpts = { ...opts };
         if (acceptNonStandardSearchParameters && dispatchOpts.path) {
-          const [path30, searchParams] = dispatchOpts.path.split("?");
+          const [path31, searchParams] = dispatchOpts.path.split("?");
           const normalizedSearchParams = normalizeSearchParams(searchParams, acceptNonStandardSearchParameters);
-          dispatchOpts.path = `${path30}?${normalizedSearchParams}`;
+          dispatchOpts.path = `${path31}?${normalizedSearchParams}`;
         }
         return this[kAgent].dispatch(dispatchOpts, handler);
       }
@@ -17514,12 +17514,12 @@ var require_snapshot_recorder = __commonJS({
        * @return {Promise<void>} - Resolves when snapshots are loaded
        */
       async loadSnapshots(filePath2) {
-        const path30 = filePath2 || this.#snapshotPath;
-        if (!path30) {
+        const path31 = filePath2 || this.#snapshotPath;
+        if (!path31) {
           throw new InvalidArgumentError("Snapshot path is required");
         }
         try {
-          const data = await readFile2(resolve3(path30), "utf8");
+          const data = await readFile2(resolve3(path31), "utf8");
           const parsed = JSON.parse(data);
           if (Array.isArray(parsed)) {
             this.#snapshots.clear();
@@ -17533,7 +17533,7 @@ var require_snapshot_recorder = __commonJS({
           if (error.code === "ENOENT") {
             this.#snapshots.clear();
           } else {
-            throw new UndiciError(`Failed to load snapshots from ${path30}`, { cause: error });
+            throw new UndiciError(`Failed to load snapshots from ${path31}`, { cause: error });
           }
         }
       }
@@ -17544,11 +17544,11 @@ var require_snapshot_recorder = __commonJS({
        * @returns {Promise<void>} - Resolves when snapshots are saved
        */
       async saveSnapshots(filePath2) {
-        const path30 = filePath2 || this.#snapshotPath;
-        if (!path30) {
+        const path31 = filePath2 || this.#snapshotPath;
+        if (!path31) {
           throw new InvalidArgumentError("Snapshot path is required");
         }
-        const resolvedPath = resolve3(path30);
+        const resolvedPath = resolve3(path31);
         await mkdir(dirname2(resolvedPath), { recursive: true });
         const data = Array.from(this.#snapshots.entries()).map(([hash, snapshot]) => ({
           hash,
@@ -18180,15 +18180,15 @@ var require_redirect_handler = __commonJS({
           return;
         }
         const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-        const path30 = search ? `${pathname}${search}` : pathname;
-        const redirectUrlString = `${origin}${path30}`;
+        const path31 = search ? `${pathname}${search}` : pathname;
+        const redirectUrlString = `${origin}${path31}`;
         for (const historyUrl of this.history) {
           if (historyUrl.toString() === redirectUrlString) {
             throw new InvalidArgumentError(`Redirect loop detected. Cannot redirect to ${origin}. This typically happens when using a Client or Pool with cross-origin redirects. Use an Agent for cross-origin redirects.`);
           }
         }
         this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-        this.opts.path = path30;
+        this.opts.path = path31;
         this.opts.origin = origin;
         this.opts.query = null;
       }
@@ -19948,10 +19948,10 @@ var require_cache_handler = __commonJS({
       }
       return locationUrl.pathname + locationUrl.search;
     }
-    function deleteCachedUri(store2, cacheKey, path30) {
+    function deleteCachedUri(store2, cacheKey, path31) {
       deleteCachedValue(store2, {
         ...cacheKey,
-        path: path30
+        path: path31
       });
       for (let i = 0; i < util.safeHTTPMethods.length; i++) {
         const method = util.safeHTTPMethods[i];
@@ -19959,7 +19959,7 @@ var require_cache_handler = __commonJS({
           deleteCachedValue(store2, {
             ...cacheKey,
             method,
-            path: path30
+            path: path31
           });
         }
       }
@@ -19970,9 +19970,9 @@ var require_cache_handler = __commonJS({
       }
       const values = Array.isArray(headerValue) ? headerValue : [headerValue];
       for (let i = 0; i < values.length; i++) {
-        const path30 = getSameOriginPath(cacheKey, values[i]);
-        if (path30 !== void 0) {
-          deleteCachedUri(store2, cacheKey, path30);
+        const path31 = getSameOriginPath(cacheKey, values[i]);
+        if (path31 !== void 0) {
+          deleteCachedUri(store2, cacheKey, path31);
         }
       }
     }
@@ -24972,11 +24972,11 @@ var require_fetch = __commonJS({
       function dispatch({ body }) {
         const url = requestCurrentURL(request);
         const agent = fetchParams.controller.dispatcher;
-        const path30 = url.pathname + url.search;
+        const path31 = url.pathname + url.search;
         const hasTrailingQuestionMark = url.search.length === 0 && url.href[url.href.length - url.hash.length - 1] === "?";
         return new Promise((resolve3, reject) => agent.dispatch(
           {
-            path: hasTrailingQuestionMark ? `${path30}?` : path30,
+            path: hasTrailingQuestionMark ? `${path31}?` : path31,
             origin: url.origin,
             method: request.method,
             body: agent.isMockActive ? request.body && (request.body.source || request.body.stream) : body,
@@ -25923,9 +25923,9 @@ var require_util4 = __commonJS({
         }
       }
     }
-    function validateCookiePath(path30) {
-      for (let i = 0; i < path30.length; ++i) {
-        const code = path30.charCodeAt(i);
+    function validateCookiePath(path31) {
+      for (let i = 0; i < path31.length; ++i) {
+        const code = path31.charCodeAt(i);
         if (code < 32 || // exclude CTLs (0-31)
         code > 126 || // exclude DEL and non-ascii
         code === 59) {
@@ -29273,11 +29273,11 @@ var require_undici = __commonJS({
           if (typeof opts.path !== "string") {
             throw new InvalidArgumentError("invalid opts.path");
           }
-          let path30 = opts.path;
+          let path31 = opts.path;
           if (!opts.path.startsWith("/")) {
-            path30 = `/${path30}`;
+            path31 = `/${path31}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path30);
+          url = new URL(util.parseOrigin(url).origin + path31);
         } else {
           if (!opts) {
             opts = typeof url === "object" ? url : {};
@@ -35417,7 +35417,7 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
   const objectIds = {};
   const decodes = Array.from({ length: columns.length });
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { field, path: path30, codec, arrayDimensions } = columns[idx];
+    const { field, path: path31, codec, arrayDimensions } = columns[idx];
     let decoder;
     let decoderStr;
     let decoderFieldDestructure;
@@ -35445,26 +35445,26 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
     if (codec) decodedValue = `codec${idx}(${decodedValue}, ${arrayDimensions})`;
     if (decoderStr) decodedValue = `${decoderStr}(${decodedValue})`;
     decodes[idx] = colStr === decodedValue ? `${colStr}` : `${colStr} === null ? ${colStr} : ${decodedValue}`;
-    if (path30.length !== 2 || !isColumn) continue;
-    if (objectIds[path30[0]] === void 0) objectIds[path30[0]] = [`c${idx}`];
-    else objectIds[path30[0]]?.push(`c${idx}`);
-    const [objectName] = path30;
+    if (path31.length !== 2 || !isColumn) continue;
+    if (objectIds[path31[0]] === void 0) objectIds[path31[0]] = [`c${idx}`];
+    else objectIds[path31[0]]?.push(`c${idx}`);
+    const [objectName] = path31;
     const tableName = getTableName(field.table);
     nullifyMap[objectName] = joinsNotNullableMap[tableName] ? false : typeof nullifyMap[objectName] === "string" ? nullifyMap[objectName] === tableName ? tableName : false : tableName;
   }
   fn.push(`mapped[i] = {`);
   let currentObjectPath = [];
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { path: path30 } = columns[idx];
-    const jsonPath = path30.map((e) => JSON.stringify(e));
+    const { path: path31 } = columns[idx];
+    const jsonPath = path31.map((e) => JSON.stringify(e));
     const decodedValue = decodes[idx];
-    const objectPath = path30.slice(0, -1);
+    const objectPath = path31.slice(0, -1);
     let commonLen = 0;
     while (commonLen < currentObjectPath.length && commonLen < objectPath.length && currentObjectPath[commonLen] === objectPath[commonLen]) commonLen++;
     for (let d = currentObjectPath.length - 1; d >= commonLen; --d) fn.push(`${"	".repeat(d + 1)}},`);
-    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path30[0]] === "string" ? `${objectIds[path30[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
+    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path31[0]] === "string" ? `${objectIds[path31[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
     currentObjectPath = objectPath;
-    fn.push(`${"	".repeat(path30.length)}${jsonPath[path30.length - 1]}: ${decodedValue},`);
+    fn.push(`${"	".repeat(path31.length)}${jsonPath[path31.length - 1]}: ${decodedValue},`);
   }
   for (let d = currentObjectPath.length - 1; d >= 0; --d) fn.push(`${"	".repeat(d + 1)}},`);
   fn.push(`};`);
@@ -35501,13 +35501,13 @@ function jitCompatCheck(isEnabled) {
   }
 }
 function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
-  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path30 }) => {
+  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path31 }) => {
     let processNullifyMap;
     let decoderSrc;
     if (is(field, Column)) {
       decoderSrc = field;
-      if (joinsNotNullableMap && path30.length === 2) {
-        const objectName = path30[0];
+      if (joinsNotNullableMap && path31.length === 2) {
+        const objectName = path31[0];
         processNullifyMap = (nullifyMap, value) => {
           if (!(objectName in nullifyMap)) nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
           else if (typeof nullifyMap[objectName] === "string" && nullifyMap[objectName] !== getTableName(field.table)) nullifyMap[objectName] = false;
@@ -35523,9 +35523,9 @@ function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
   });
   return ((rows) => rows.map((row) => {
     const nullifyMap = {};
-    const result = columns.reduce((result2, { path: path30 }, columnIndex) => {
+    const result = columns.reduce((result2, { path: path31 }, columnIndex) => {
       let node = result2;
-      for (const [pathChunkIndex, pathChunk] of path30.entries()) if (pathChunkIndex < path30.length - 1) {
+      for (const [pathChunkIndex, pathChunk] of path31.entries()) if (pathChunkIndex < path31.length - 1) {
         if (!(pathChunk in node)) node[pathChunk] = {};
         node = node[pathChunk];
       } else {
@@ -40328,8 +40328,8 @@ function drizzle(...params) {
   const { connection, client, ...config } = params[0];
   if (client) return construct(client, config);
   if (typeof connection === "object") {
-    const { path: path30, ...options } = connection;
-    return construct(new DatabaseSync4(path30 ?? ":memory:", options), config);
+    const { path: path31, ...options } = connection;
+    return construct(new DatabaseSync4(path31 ?? ":memory:", options), config);
   }
   return construct(new DatabaseSync4(connection ?? ":memory:"), config);
 }
@@ -40363,7 +40363,7 @@ var init_node_sqlite = __esm({
 
 // services/translate/shared-cache/migrate-bg.ts
 import fs32 from "node:fs";
-import path26 from "node:path";
+import path27 from "node:path";
 import { DatabaseSync as DatabaseSync5 } from "node:sqlite";
 function isSharedIdenticalPair(src, tgt) {
   if (isIdenticalTranslation(src, tgt)) return true;
@@ -40372,7 +40372,7 @@ function isSharedIdenticalPair(src, tgt) {
   return Boolean(a) && isIdenticalTranslation(a, b);
 }
 function runSharedCacheHeavyMigrateSync(dbPath) {
-  const resolved = path26.resolve(dbPath);
+  const resolved = path27.resolve(dbPath);
   if (!fs32.existsSync(resolved)) return;
   const client = new DatabaseSync5(resolved);
   try {
@@ -40389,7 +40389,7 @@ function runSharedCacheHeavyMigrateSync(dbPath) {
   }
 }
 function scheduleSharedCacheHeavyMigrate(dbPath) {
-  const resolved = path26.resolve(dbPath);
+  const resolved = path27.resolve(dbPath);
   if (!fs32.existsSync(resolved)) return;
   if (process.env.JEST_WORKER_ID) {
     runSharedCacheHeavyMigrateSync(resolved);
@@ -40570,7 +40570,7 @@ var init_schema = __esm({
 
 // services/translate/shared-cache/db.ts
 import fs33 from "node:fs";
-import path27 from "node:path";
+import path28 from "node:path";
 import { DatabaseSync as DatabaseSync6 } from "node:sqlite";
 function defaultSharedDir() {
   return TRANSLATE_CACHE_DIR;
@@ -40741,8 +40741,8 @@ function ensureSchema(db, client) {
   db.insert(cacheMeta).values({ key: "nsfw_backfill", value: "1" }).onConflictDoUpdate({ target: cacheMeta.key, set: { value: "1" } }).run();
 }
 function openSharedCacheDb(dbPath = defaultSharedDbPath()) {
-  const resolved = path27.resolve(dbPath);
-  fs33.mkdirSync(path27.dirname(resolved), { recursive: true });
+  const resolved = path28.resolve(dbPath);
+  fs33.mkdirSync(path28.dirname(resolved), { recursive: true });
   const client = new DatabaseSync6(resolved);
   client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON");
   const db = drizzle({ client });
@@ -40835,7 +40835,7 @@ __export(shared_cache_exports, {
   translations: () => translations
 });
 import fs34 from "node:fs";
-import path28 from "node:path";
+import path29 from "node:path";
 function nsfwBit(src, engine) {
   return isNsfwCacheRow(src, engine) ? 1 : 0;
 }
@@ -41206,7 +41206,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
   return cache2;
 }
 function openSharedCache(dbPath = defaultSharedDbPath()) {
-  if (process.env.NODE_ENV === "test" || path28.resolve(dbPath) !== path28.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
+  if (process.env.NODE_ENV === "test" || path29.resolve(dbPath) !== path29.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
     return openOwnedSharedCache(dbPath);
   return new Proxy({ path: dbPath }, {
     get(target2, name2) {
@@ -42088,6 +42088,7 @@ init_jobs();
 // services/translate/engine-switches.ts
 init_content_files();
 import fs11 from "node:fs";
+import path11 from "node:path";
 
 // lib/translate/engines.ts
 var TRANSLATE_ENGINE_IDS = ["bing", "google", "apple", "bergamot"];
@@ -42375,6 +42376,24 @@ function readRaw(contentRoot) {
 function platformOrder(order) {
   return order.filter((id) => isBuiltinEngineId(id));
 }
+function sharedSwitchesFile() {
+  return path11.join(toolkitDataDir(), "translate", "switches.json");
+}
+function readSharedSwitches() {
+  const file = sharedSwitchesFile();
+  if (!fs11.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs11.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function writeSharedSwitches(data) {
+  const file = sharedSwitchesFile();
+  fs11.mkdirSync(path11.dirname(file), { recursive: true });
+  fs11.writeFileSync(file, `${JSON.stringify(data, null, 2)}
+`, "utf8");
+}
 function withEntryIds(contentRoot, state) {
   const assigned = assignMissingEngineEntryIds(state.configs);
   const next = assigned.changed ? { ...state, configs: assigned.configs } : state;
@@ -42403,14 +42422,27 @@ function writePlatformFile(contentRoot, state) {
 }
 function getTranslateEngineSwitches(contentRoot = resolveContentRoot(false)) {
   if (!contentRoot) {
-    const shared = readSharedTranslateAgents() || { agents: [], order: [] };
+    const sharedAgents = readSharedTranslateAgents() || { agents: [], order: [] };
+    const sharedSwitches = readSharedSwitches();
+    const initialConfigs = sharedSwitches?.configs || {
+      ...DEFAULT_ENGINE_SETTINGS,
+      bergamot: { ...DEFAULT_ENGINE_SETTINGS.bergamot, id: "mvsd812nzmca" }
+    };
     const combined = mergeEngineState({
       ...DEFAULT_ENGINE_SWITCHES,
-      configs: DEFAULT_ENGINE_SETTINGS,
-      agents: shared.agents,
-      order: [...shared.order, ...DEFAULT_ENGINE_ORDER]
+      ...sharedSwitches?.switches || {},
+      configs: initialConfigs,
+      agents: sharedAgents.agents,
+      order: sharedSwitches?.order || [...sharedAgents.order, ...DEFAULT_ENGINE_ORDER]
     });
     const assigned = assignMissingEngineEntryIds(combined.configs);
+    if (assigned.changed || !sharedSwitches) {
+      writeSharedSwitches({
+        switches: combined.switches,
+        configs: assigned.configs,
+        order: platformOrder(combined.order)
+      });
+    }
     return { contentRoot: "", file: "", ...combined, configs: assigned.configs };
   }
   const { raw } = readRaw(contentRoot);
@@ -42430,11 +42462,11 @@ init_content_files();
 init_cache_lang();
 init_source_text();
 import fs21 from "node:fs";
-import path16 from "node:path";
+import path17 from "node:path";
 
 // services/game/rgss-archive.ts
 import fs12 from "node:fs";
-import path11 from "node:path";
+import path12 from "node:path";
 import { inflateSync } from "node:zlib";
 
 // services/extract/lib/rgss/marshal.ts
@@ -42699,9 +42731,9 @@ function readAceMember(archive, member) {
 function readRgssScripts(contentRoot) {
   const names = fs12.readdirSync(contentRoot);
   const data = names.find((name2) => name2.toLowerCase() === "data");
-  const script = data && fs12.readdirSync(path11.join(contentRoot, data)).find((name2) => /^scripts\.rvdata2?$/i.test(name2));
+  const script = data && fs12.readdirSync(path12.join(contentRoot, data)).find((name2) => /^scripts\.rvdata2?$/i.test(name2));
   const archive = names.find((name2) => name2.toLowerCase() === "game.rgss3a");
-  const bytes = script ? fs12.readFileSync(path11.join(contentRoot, data, script)) : archive ? readAceMember(path11.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
+  const bytes = script ? fs12.readFileSync(path12.join(contentRoot, data, script)) : archive ? readAceMember(path12.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
   if (!bytes) return [];
   const value = parseRubyMarshal(bytes);
   if (!value || typeof value !== "object" || value.kind !== "array") return [];
@@ -43092,13 +43124,13 @@ function loadResourceMatcher(file = TRANSLATE_CACHE_DB_PATH) {
 
 // services/translate/seed-failures.ts
 import fs18 from "node:fs";
-import path13 from "node:path";
+import path14 from "node:path";
 
 // services/translate/seed-job-state.ts
 init_paths();
 import { createHash as createHash2 } from "node:crypto";
 import fs17 from "node:fs";
-import path12 from "node:path";
+import path13 from "node:path";
 var MAX_SEED_JOB_LOGS = 120;
 function idleSeedJob(contentRoot = "") {
   return {
@@ -43136,10 +43168,10 @@ function emptySeedProgress(contentRoot) {
   };
 }
 function seedJobKey(contentRoot) {
-  return createHash2("sha1").update(path12.resolve(contentRoot)).digest("hex").slice(0, 16);
+  return createHash2("sha1").update(path13.resolve(contentRoot)).digest("hex").slice(0, 16);
 }
 function seedJobFile(contentRoot) {
-  return path12.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
+  return path13.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
 }
 function readSeedJobState(contentRoot) {
   const file = seedJobFile(contentRoot);
@@ -43212,7 +43244,7 @@ function readSeedFailures(contentRoot) {
 }
 function writeSeedFailure(contentRoot, src, error) {
   const file = seedFailureFile(contentRoot);
-  fs18.mkdirSync(path13.dirname(file), { recursive: true });
+  fs18.mkdirSync(path14.dirname(file), { recursive: true });
   fs18.appendFileSync(file, `${JSON.stringify({ src, error, at: Date.now() })}
 `, "utf8");
 }
@@ -43330,7 +43362,7 @@ function extractRgssScriptUiStrings(contentRoot) {
 
 // services/extract/lib/rgss/writeback.ts
 import fs19 from "node:fs";
-import path14 from "node:path";
+import path15 from "node:path";
 
 // lib/translate/name-glossary.ts
 init_sentence_units();
@@ -43628,7 +43660,7 @@ function fieldCategory(className, field, fallback) {
   return category;
 }
 function loadOneDataFile(dataDir, name2) {
-  const file = path14.join(dataDir, name2);
+  const file = path15.join(dataDir, name2);
   const value = parseRubyMarshal(fs19.readFileSync(file));
   const backup = `${file}.chaya.bak`;
   const original = fs19.existsSync(backup) ? parseRubyMarshal(fs19.readFileSync(backup)) : value;
@@ -43680,14 +43712,14 @@ function loadRgssItems(dataDir) {
 // services/extract/lib/rgss-sources-index.ts
 init_content_files();
 import fs20 from "node:fs";
-import path15 from "node:path";
+import path16 from "node:path";
 var SOURCE_INDEX_VERSION = 2;
 function rgssDataSignature(dataDir) {
   const files2 = fs20.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
   return JSON.stringify([
     SOURCE_INDEX_VERSION,
     ...files2.map((name2) => {
-      const stat = fs20.statSync(path15.join(dataDir, name2));
+      const stat = fs20.statSync(path16.join(dataDir, name2));
       return [name2, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   ]);
@@ -43726,7 +43758,7 @@ function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
 function findChild(dir, name2) {
   try {
     const hit = fs21.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
-    return hit ? path16.join(dir, hit) : null;
+    return hit ? path17.join(dir, hit) : null;
   } catch {
     return null;
   }
@@ -43869,7 +43901,7 @@ init_game_files();
 
 // services/game-agent/model-cache.ts
 init_paths();
-import path17 from "node:path";
+import path18 from "node:path";
 
 // services/game-agent/ollama-client.ts
 var DEFAULT_GAME_AGENT_MODEL = "qwen3:4b";
@@ -43914,7 +43946,7 @@ function pickAvailableModel(models, preferred) {
 }
 
 // services/game-agent/model-cache.ts
-var GAME_AGENT_MODEL_CACHE_PATH = path17.join(DATA_DIR, "game-agent", "models.json");
+var GAME_AGENT_MODEL_CACHE_PATH = path18.join(DATA_DIR, "game-agent", "models.json");
 
 // services/game-agent/proxy/agent-proxy.ts
 var import_undici = __toESM(require_undici());
@@ -44267,14 +44299,14 @@ function ollamaFetch(profile) {
 init_paths();
 import { createCipheriv, createDecipheriv, randomBytes as randomBytes2 } from "node:crypto";
 import fs22 from "node:fs";
-import path18 from "node:path";
-var GAME_AGENT_SECRETS_PATH = path18.join(DATA_DIR, "game-agent", "secrets.json");
-var GAME_AGENT_SECRET_KEY_PATH = path18.join(DATA_DIR, "game-agent", "secret.key");
+import path19 from "node:path";
+var GAME_AGENT_SECRETS_PATH = path19.join(DATA_DIR, "game-agent", "secrets.json");
+var GAME_AGENT_SECRET_KEY_PATH = path19.join(DATA_DIR, "game-agent", "secret.key");
 function files(input = {}) {
   return { secretsFile: input.secretsFile || GAME_AGENT_SECRETS_PATH, keyFile: input.keyFile || GAME_AGENT_SECRET_KEY_PATH };
 }
 function ensureKey(file) {
-  fs22.mkdirSync(path18.dirname(file), { recursive: true, mode: 448 });
+  fs22.mkdirSync(path19.dirname(file), { recursive: true, mode: 448 });
   if (!fs22.existsSync(file)) {
     try {
       fs22.writeFileSync(file, randomBytes2(32).toString("base64"), { flag: "wx", mode: 384 });
@@ -44320,7 +44352,7 @@ function readGameAgentToken(profileId, input = {}) {
 init_paths();
 import { randomUUID as randomUUID3 } from "node:crypto";
 import fs23 from "node:fs";
-import path19 from "node:path";
+import path20 from "node:path";
 
 // lib/game-agent/providers.ts
 var GAME_AGENT_PROVIDERS = ["ollama", "cursor", "codex", "claude", "gemini", "cc", "codex-api", "gemini-api"];
@@ -44372,19 +44404,19 @@ function normalizeAgentTimeouts(value) {
 
 // services/game-agent/settings.ts
 init_client();
-var GAME_AGENT_SETTINGS_PATH = path19.join(GAME_AGENT_DIR, "settings.json");
-var GAME_AGENT_SYNC_PATH = path19.join(GAME_AGENT_DIR, "settings.sync.json");
-var _LEGACY_GAME_AGENT_SETTINGS_PATH = path19.join(DATA_DIR, "game-agent-settings.json");
-var _LEGACY_GAME_AGENT_SYNC_PATH = path19.join(DATA_DIR, "game-agent-settings.sync.json");
+var GAME_AGENT_SETTINGS_PATH = path20.join(GAME_AGENT_DIR, "settings.json");
+var GAME_AGENT_SYNC_PATH = path20.join(GAME_AGENT_DIR, "settings.sync.json");
+var _LEGACY_GAME_AGENT_SETTINGS_PATH = path20.join(DATA_DIR, "game-agent-settings.json");
+var _LEGACY_GAME_AGENT_SYNC_PATH = path20.join(DATA_DIR, "game-agent-settings.sync.json");
 function migrateLegacyAgentFile(from, to) {
   try {
     if (!fs23.existsSync(from) || fs23.existsSync(to)) return;
-    fs23.mkdirSync(path19.dirname(to), { recursive: true });
+    fs23.mkdirSync(path20.dirname(to), { recursive: true });
     fs23.renameSync(from, to);
   } catch {
     try {
       if (!fs23.existsSync(from) || fs23.existsSync(to)) return;
-      fs23.mkdirSync(path19.dirname(to), { recursive: true });
+      fs23.mkdirSync(path20.dirname(to), { recursive: true });
       fs23.copyFileSync(from, to);
       fs23.rmSync(from, { force: true });
     } catch {
@@ -44398,7 +44430,7 @@ function resolveAgentSettingsFile(preferred, legacy) {
   return preferred;
 }
 function legacyAgentFile(file, name2) {
-  return path19.join(path19.dirname(path19.dirname(file)), name2);
+  return path20.join(path20.dirname(path20.dirname(file)), name2);
 }
 function settingsFilePath(file = GAME_AGENT_SETTINGS_PATH) {
   return resolveAgentSettingsFile(file, legacyAgentFile(file, "game-agent-settings.json"));
@@ -44951,16 +44983,16 @@ function bergamotLanguage(input) {
 // services/translate/bergamot/binary.ts
 import fs24 from "node:fs";
 import os2 from "node:os";
-import path20 from "node:path";
+import path21 from "node:path";
 function resolveBergamotBinary() {
   if (!["darwin", "linux"].includes(process.platform)) throw new Error("BERGAMOT_PLATFORM_UNSUPPORTED");
   const platform = process.platform === "darwin" ? "macos" : "linux";
   const candidates2 = [
-    ...process.env.CHAYA_BERGAMOT_BINARY ? [path20.resolve(process.env.CHAYA_BERGAMOT_BINARY)] : [],
-    path20.resolve(process.cwd(), `native/bin/${platform}-${process.arch}/chaya-bergamot-translator`),
-    path20.resolve(process.cwd(), "native/bin/chaya-bergamot-translator"),
-    path20.join(os2.homedir(), ".local/bin/chaya-bergamot-translator"),
-    ...(process.env.PATH || "").split(path20.delimiter).filter(Boolean).map((dir) => path20.join(dir, "chaya-bergamot-translator"))
+    ...process.env.CHAYA_BERGAMOT_BINARY ? [path21.resolve(process.env.CHAYA_BERGAMOT_BINARY)] : [],
+    path21.resolve(process.cwd(), `native/bin/${platform}-${process.arch}/chaya-bergamot-translator`),
+    path21.resolve(process.cwd(), "native/bin/chaya-bergamot-translator"),
+    path21.join(os2.homedir(), ".local/bin/chaya-bergamot-translator"),
+    ...(process.env.PATH || "").split(path21.delimiter).filter(Boolean).map((dir) => path21.join(dir, "chaya-bergamot-translator"))
   ];
   const binary = candidates2.find((file) => {
     try {
@@ -44976,7 +45008,7 @@ function resolveBergamotBinary() {
 
 // services/translate/bergamot/readiness.ts
 import fs26 from "node:fs";
-import path22 from "node:path";
+import path23 from "node:path";
 
 // services/translate/bergamot/models.json
 var models_default = [
@@ -45097,22 +45129,22 @@ init_paths();
 import { createHash as createHash4, randomUUID as randomUUID4 } from "node:crypto";
 import fs25 from "node:fs";
 import os3 from "node:os";
-import path21 from "node:path";
+import path22 from "node:path";
 function legacyPacksRoot() {
-  return path21.join(process.env.XDG_DATA_HOME || path21.join(os3.homedir(), ".local/share"), "chaya/translation-packs");
+  return path22.join(process.env.XDG_DATA_HOME || path22.join(os3.homedir(), ".local/share"), "chaya/translation-packs");
 }
 function adoptLegacyPacks(preferred, legacy) {
   try {
     if (fs25.existsSync(preferred) || !fs25.existsSync(legacy)) return;
-    fs25.mkdirSync(path21.dirname(preferred), { recursive: true });
+    fs25.mkdirSync(path22.dirname(preferred), { recursive: true });
     fs25.renameSync(legacy, preferred);
   } catch {
   }
 }
 function packsRoot() {
-  if (process.env.CHAYA_BERGAMOT_PACKS_DIR) return path21.resolve(process.env.CHAYA_BERGAMOT_PACKS_DIR);
-  const preferred = path21.resolve(TRANSLATION_PACKS_DIR);
-  const legacy = path21.resolve(legacyPacksRoot());
+  if (process.env.CHAYA_BERGAMOT_PACKS_DIR) return path22.resolve(process.env.CHAYA_BERGAMOT_PACKS_DIR);
+  const preferred = path22.resolve(TRANSLATION_PACKS_DIR);
+  const legacy = path22.resolve(legacyPacksRoot());
   adoptLegacyPacks(preferred, legacy);
   if (!fs25.existsSync(preferred) && fs25.existsSync(legacy)) return legacy;
   return preferred;
@@ -45122,7 +45154,7 @@ function safeId(value) {
   return value;
 }
 function installationRoot(ref) {
-  return path21.join(packsRoot(), "packs", safeId(ref.packId), safeId(ref.version), safeId(ref.installId));
+  return path22.join(packsRoot(), "packs", safeId(ref.packId), safeId(ref.version), safeId(ref.installId));
 }
 function pairFolder(source, target2) {
   return `${safeId(bergamotLanguage(source))}_${safeId(bergamotLanguage(target2))}`;
@@ -45130,11 +45162,11 @@ function pairFolder(source, target2) {
 function installedPack(source, target2) {
   try {
     const packId = `${bergamotLanguage(source)}-${bergamotLanguage(target2)}`;
-    const ref = JSON.parse(fs25.readFileSync(path21.join(packsRoot(), "active", `${safeId(packId)}.json`), "utf8"));
+    const ref = JSON.parse(fs25.readFileSync(path22.join(packsRoot(), "active", `${safeId(packId)}.json`), "utf8"));
     if (ref.packId !== packId) return;
     const root = installationRoot(ref);
-    if (!fs25.realpathSync(root).startsWith(fs25.realpathSync(packsRoot()) + path21.sep)) return;
-    const manifest = JSON.parse(fs25.readFileSync(path21.join(root, "manifest.json"), "utf8"));
+    if (!fs25.realpathSync(root).startsWith(fs25.realpathSync(packsRoot()) + path22.sep)) return;
+    const manifest = JSON.parse(fs25.readFileSync(path22.join(root, "manifest.json"), "utf8"));
     if (JSON.stringify(manifest.reference) !== JSON.stringify(ref) || manifest.source !== bergamotLanguage(source) || manifest.target !== bergamotLanguage(target2)) return;
     const pack = findPack(source, target2);
     if (!pack || ref.version !== pack.version || manifest.files.length !== pack.files.length + 1) return;
@@ -45142,12 +45174,12 @@ function installedPack(source, target2) {
       ...pack.files.map((file) => [file.name, file.unpackedSha256]),
       ["config.yml", createHash4("sha256").update(pack.config).digest("hex")]
     ]);
-    const folder = path21.join(root, pairFolder(source, target2));
-    if (fs25.lstatSync(folder).isSymbolicLink() || fs25.realpathSync(folder) !== path21.join(fs25.realpathSync(root), pairFolder(source, target2))) return;
+    const folder = path22.join(root, pairFolder(source, target2));
+    if (fs25.lstatSync(folder).isSymbolicLink() || fs25.realpathSync(folder) !== path22.join(fs25.realpathSync(root), pairFolder(source, target2))) return;
     for (const item of manifest.files) {
       if (expected.get(item.name) !== item.sha256) return;
       expected.delete(item.name);
-      const file = path21.join(root, pairFolder(source, target2), item.name);
+      const file = path22.join(root, pairFolder(source, target2), item.name);
       safeId(item.name.replaceAll(".", "_"));
       const stat = fs25.lstatSync(file);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== item.bytes || stat.mtimeMs !== item.mtimeMs) return;
@@ -45183,7 +45215,7 @@ async function verifiedPack(source, target2, refresh = false) {
     check = queue2.then(async () => {
       if (await hashFile(binary) !== installed.manifest.binaryHash) return false;
       for (const item of installed.manifest.files) {
-        if (await hashFile(path22.join(installed.root, pairFolder(source, target2), item.name)) !== item.sha256) return false;
+        if (await hashFile(path23.join(installed.root, pairFolder(source, target2), item.name)) !== item.sha256) return false;
       }
       await validateBergamotPack(installed.root, pack.source, pack.target, pack.sample);
       return true;
@@ -45669,7 +45701,7 @@ function trackLiveTranslateRequest(fn) {
 init_paths();
 import fs29 from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
-import path24 from "node:path";
+import path25 from "node:path";
 
 // services/extract/lib/extract-items.ts
 init_content_files();
@@ -45680,7 +45712,7 @@ import fs28 from "node:fs";
 
 // services/extract/lib/game-locales.ts
 import fs27 from "node:fs";
-import path23 from "node:path";
+import path24 from "node:path";
 function isValidLocalesDir(dirPath) {
   if (!fs27.existsSync(dirPath) || !fs27.statSync(dirPath).isDirectory()) return false;
   const entries = fs27.readdirSync(dirPath, { withFileTypes: true });
@@ -45690,7 +45722,7 @@ function isValidLocalesDir(dirPath) {
     return jsonFiles.length > 0;
   }
   for (const sub of subDirs) {
-    const subPath = path23.join(dirPath, sub.name);
+    const subPath = path24.join(dirPath, sub.name);
     try {
       const files2 = fs27.readdirSync(subPath);
       if (files2.some((f) => /\.(json|csv)$/i.test(f))) {
@@ -45703,16 +45735,16 @@ function isValidLocalesDir(dirPath) {
 }
 function findLocalesDirectory(contentRoot) {
   const candidates2 = [
-    path23.join(contentRoot, "locales"),
-    path23.join(contentRoot, "www", "locales"),
-    path23.join(contentRoot, "localization"),
-    path23.join(contentRoot, "www", "localization"),
-    path23.join(contentRoot, "languages"),
-    path23.join(contentRoot, "www", "languages"),
-    path23.join(contentRoot, "data", "locales"),
-    path23.join(contentRoot, "data", "localization")
+    path24.join(contentRoot, "locales"),
+    path24.join(contentRoot, "www", "locales"),
+    path24.join(contentRoot, "localization"),
+    path24.join(contentRoot, "www", "localization"),
+    path24.join(contentRoot, "languages"),
+    path24.join(contentRoot, "www", "languages"),
+    path24.join(contentRoot, "data", "locales"),
+    path24.join(contentRoot, "data", "localization")
   ];
-  const pluginsPaths = [path23.join(contentRoot, "js", "plugins.js"), path23.join(contentRoot, "www", "js", "plugins.js")];
+  const pluginsPaths = [path24.join(contentRoot, "js", "plugins.js"), path24.join(contentRoot, "www", "js", "plugins.js")];
   for (const pp of pluginsPaths) {
     if (fs27.existsSync(pp)) {
       try {
@@ -45720,8 +45752,8 @@ function findLocalesDirectory(contentRoot) {
         const locMatch = text4.match(/"Localization Folder"\s*:\s*"([^"]+)"/);
         if (locMatch && locMatch[1]) {
           const folder = locMatch[1].replace(/^[\\/]+|[\\/]+$/g, "");
-          candidates2.unshift(path23.join(path23.dirname(path23.dirname(pp)), folder));
-          candidates2.unshift(path23.join(contentRoot, folder));
+          candidates2.unshift(path24.join(path24.dirname(path24.dirname(pp)), folder));
+          candidates2.unshift(path24.join(contentRoot, folder));
         }
       } catch {
       }
@@ -45754,12 +45786,12 @@ function loadGameLocalesCatalog(contentRoot) {
   const dictionaries = {};
   const keyToFileMap = {};
   for (const lang of langDirs) {
-    const langPath = path23.join(localesDir, lang);
+    const langPath = path24.join(localesDir, lang);
     dictionaries[lang] = {};
     try {
       const files2 = fs27.readdirSync(langPath).filter((f) => /\.json$/i.test(f));
       for (const file of files2) {
-        const filePath2 = path23.join(langPath, file);
+        const filePath2 = path24.join(langPath, file);
         try {
           const data = JSON.parse(fs27.readFileSync(filePath2, "utf8"));
           if (data && typeof data === "object") {
@@ -46116,12 +46148,12 @@ var sources = /* @__PURE__ */ new Map();
 function rgssSourceStamp(root) {
   const dir = fs29.readdirSync(root).find((name2) => name2.toLowerCase() === "data");
   if (!dir) return null;
-  const dataDir = path24.join(root, dir);
+  const dataDir = path25.join(root, dir);
   const names = fs29.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
   if (!names.length) return null;
   return JSON.stringify(
     names.map((name2) => {
-      const stat = fs29.statSync(path24.join(dataDir, name2));
+      const stat = fs29.statSync(path25.join(dataDir, name2));
       return [name2, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   );
@@ -46206,12 +46238,12 @@ function stitchLockedNamePlan(src, plan, gapZh) {
 init_paths();
 import { randomUUID as randomUUID5 } from "node:crypto";
 import fs30 from "node:fs";
-import path25 from "node:path";
-var observationSpoolDirectory = () => path25.join(DATA_DIR, "translation-observations", "pending");
+import path26 from "node:path";
+var observationSpoolDirectory = () => path26.join(DATA_DIR, "translation-observations", "pending");
 function spoolTranslationObservations(events, directory = observationSpoolDirectory()) {
   if (!events.length) return;
   fs30.mkdirSync(directory, { recursive: true });
-  const file = path25.join(directory, `${Date.now()}-${randomUUID5()}.jsonl`);
+  const file = path26.join(directory, `${Date.now()}-${randomUUID5()}.jsonl`);
   const partial = `${file}.partial`;
   const fd = fs30.openSync(partial, "wx", 384);
   try {
@@ -47080,11 +47112,11 @@ function seedProgressStamp(contentRoot) {
 init_paths();
 init_jobs();
 import fs36 from "node:fs";
-import path29 from "node:path";
+import path30 from "node:path";
 var flights2 = /* @__PURE__ */ new Map();
 var cache = /* @__PURE__ */ new Map();
 function keyFor(contentRoot) {
-  return path29.resolve(contentRoot);
+  return path30.resolve(contentRoot);
 }
 function peekSeedInventory(contentRoot) {
   return cache.get(keyFor(contentRoot)) ?? null;

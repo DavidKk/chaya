@@ -17,7 +17,7 @@ export function BergamotPackGuide({
   error?: string
   busy?: boolean
   embedded?: boolean
-  onAction: (action: 'install' | 'cancel' | 'plan') => void
+  onAction: (action: 'install' | 'reinstall' | 'cancel' | 'plan') => void
 }) {
   const t = useT()
   const active = !!plan?.job && isActivePackJob(plan.job)
@@ -27,7 +27,7 @@ export function BergamotPackGuide({
   const checking = !plan && !error
   /** Checking state lives on the 检测 button — no separate spinner / badge copy. */
   const showRecheck = !embedded && !active
-  const showActions = active || !!plan?.canInstall || showRecheck
+  const showActions = active || !!plan?.canInstall || !!plan?.installed || showRecheck
   return (
     <div
       className={
@@ -131,6 +131,10 @@ export function BergamotPackGuide({
           ) : plan?.canInstall ? (
             <Button size="xs" variant="accent" loading={busy} onClick={() => onAction('install')}>
               {t('translate.packInstall')}
+            </Button>
+          ) : plan?.installed ? (
+            <Button size="xs" loading={busy} onClick={() => onAction('reinstall')}>
+              {t('translate.packReinstall')}
             </Button>
           ) : null}
           {showRecheck ? (

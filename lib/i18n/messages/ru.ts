@@ -461,6 +461,11 @@ export const ru: MessageTree = {
     packVerifying: 'Проверка и тест перевода',
     packRetryHint: 'Установка не завершена. Повторите попытку.',
     packInstall: 'Установить пакет',
+    packReinstall: 'Скачать повторно',
+    packDownload: 'Скачать языковой пакет',
+    bergamotGamePairUnsupported:
+      'Текущая языковая пара игры ({gamePair}) не поддерживается этим движком. Bergamot в настоящее время предоставляет только офлайн-модель англо-китайского перевода.',
+    bergamotAvailablePacks: 'Доступные автономные языковые пакеты',
     offlineGuide: 'Настройка',
     offlineRecheck: 'Проверить',
     offlineReadyHint: 'Готово. Можно включить этот движок.',

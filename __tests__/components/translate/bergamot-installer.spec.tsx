@@ -111,3 +111,18 @@ it('does not refresh in a loop when opening a previously completed installation'
   expect(mockFetch).toHaveBeenCalledTimes(1)
   expect(installed).not.toHaveBeenCalled()
 })
+it('shows reinstall button when already installed and clicking sends force install', async () => {
+  mockFetch.mockImplementation(async (_path, init) => {
+    const body = JSON.parse(init.body)
+    if (body.action === 'install' && body.force) {
+      return response({ ...plan, job })
+    }
+    return response({ ...plan, installed: true, canInstall: false })
+  })
+  await render()
+  expect(host.textContent).toContain('重新下载')
+  await click('重新下载')
+  const installCall = mockFetch.mock.calls.find(([, init]) => JSON.parse(init.body).action === 'install')
+  expect(installCall).toBeDefined()
+  expect(JSON.parse(installCall![1].body).force).toBe(true)
+})

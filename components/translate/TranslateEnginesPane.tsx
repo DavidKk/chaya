@@ -146,14 +146,14 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
   }, [onEnginesRoute, pathEntryId, router, searchParams, view.agents, view.configs])
 
   const checkSystemStatus = useCallback(
-    async (id: OfflineEngine, signal: AbortSignal) => {
+    async (id: OfflineEngine, signal: AbortSignal, pair?: { source?: string; target?: string }) => {
       setSystemStatus((prev) => ({ ...prev, [id]: undefined }))
       try {
         const res = await translationFetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal,
-          body: JSON.stringify({ mode: `${id}-status` }),
+          body: JSON.stringify({ mode: `${id}-status`, from: pair?.source, to: pair?.target }),
         })
         const status = await res.json()
         if (!res.ok || status.ok === false) throw new Error(readApiErrorMessage(status, t('translate.offlineCheckFailed')))
@@ -353,14 +353,14 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
           takenProfileIds={view.agents.filter((a) => agentEngineKey(a.id) !== selectedEngineId).map((a) => a.profileId)}
           systemStatus={offlineStatus}
           offlineGuide={bergamotPreview != null ? <BergamotDebugGuide scenario={bergamotPreview} /> : undefined}
-          onCheckSystemStatus={() => {
+          onCheckSystemStatus={(pair) => {
             if (bergamotPreview != null) {
               bergamotDebug?.setScenario('checking')
               return
             }
             if (selectedEngineId === 'apple' || selectedEngineId === 'bergamot') {
               const ctrl = new AbortController()
-              void checkSystemStatus(selectedEngineId, ctrl.signal)
+              void checkSystemStatus(selectedEngineId, ctrl.signal, pair)
             }
           }}
           saving={saving}

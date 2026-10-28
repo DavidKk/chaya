@@ -93,11 +93,12 @@ class PackManager {
       job: this.latest(id),
     }
   }
-  async install(source: string, target: string, planId: string) {
+  async install(source: string, target: string, planId: string, force = false) {
     const plan = await this.plan(source, target)
     if (plan.id !== planId) throw new Error('PACK_PLAN_CHANGED')
     if (plan.job && isActivePackJob(plan.job)) return plan
-    if (!plan.canInstall) throw new Error('PACK_NOT_INSTALLABLE')
+    const canProceed = plan.canInstall || (force && plan.packs.length > 0 && plan.status !== 'component_unavailable' && plan.status !== 'platform_unsupported')
+    if (!canProceed) throw new Error('PACK_NOT_INSTALLABLE')
     fs.mkdirSync(packsRoot(), { recursive: true, mode: 0o700 })
     if (fs.existsSync(this.lock)) {
       if (this.ownerAlive()) throw new Error('PACK_INSTALL_BUSY')
@@ -255,7 +256,7 @@ export function packManager() {
   const managers = (globalPacks.chayaPackManagers ??= new Map())
   const root = packsRoot()
   let manager = managers.get(root)
-  if (!manager) {
+  if (!manager || !(manager instanceof PackManager)) {
     manager = new PackManager()
     managers.set(root, manager)
   }

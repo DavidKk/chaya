@@ -457,6 +457,10 @@ export type MessageTree = {
     packVerifying: string
     packRetryHint: string
     packInstall: string
+    packReinstall: string
+    packDownload: string
+    bergamotGamePairUnsupported: string
+    bergamotAvailablePacks: string
     offlineGuide: string
     offlineRecheck: string
     offlineReadyHint: string

@@ -1,7 +1,9 @@
 /** Translation engine switches and fill order. Store Bing and Google settings in each game's *-trans.switches.json; share agent entries across games in data/translate/agents.json. */
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { ensureGameContentDir, gameContentPath, gameContentReadPath } from '@/lib/game/content-files'
+import { toolkitDataDir } from '@/lib/game/toolkit-data'
 import {
   assignMissingEngineEntryIds,
   DEFAULT_ENGINE_ORDER,
@@ -9,9 +11,12 @@ import {
   DEFAULT_ENGINE_SWITCHES,
   isBuiltinEngineId,
   mergeEngineState,
+  type TranslateBuiltinId,
   type TranslateEngineId,
   type TranslateEnginePatch,
+  type TranslateEngineSettings,
   type TranslateEngineState,
+  type TranslateEngineSwitches,
 } from '@/lib/translate/engines'
 import { getResolvedFromConfig } from '@/services/game/binding'
 import { writePublicGameDocument } from '@/services/storage/game-files'
@@ -73,6 +78,26 @@ function platformOrder(order: TranslateEngineId[]): TranslateEngineId[] {
   return order.filter((id) => isBuiltinEngineId(id))
 }
 
+function sharedSwitchesFile() {
+  return path.join(toolkitDataDir(), 'translate', 'switches.json')
+}
+
+function readSharedSwitches(): { switches?: Partial<TranslateEngineSwitches>; configs?: Record<TranslateBuiltinId, TranslateEngineSettings>; order?: TranslateEngineId[] } | null {
+  const file = sharedSwitchesFile()
+  if (!fs.existsSync(file)) return null
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function writeSharedSwitches(data: { switches?: Partial<TranslateEngineSwitches>; configs?: Record<TranslateBuiltinId, TranslateEngineSettings>; order?: TranslateEngineId[] }) {
+  const file = sharedSwitchesFile()
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`, 'utf8')
+}
+
 /** Combine per-game platform switches with shared agent entries. Migrate legacy per-game agents only when the shared file does not exist. */
 function withEntryIds(contentRoot: string, state: TranslateEngineState): TranslateEngineState {
   const assigned = assignMissingEngineEntryIds(state.configs)
@@ -106,14 +131,27 @@ function writePlatformFile(contentRoot: string, state: TranslateEngineState) {
 /** Read engine switches and order for the bound game, using defaults when no file exists. */
 export function getTranslateEngineSwitches(contentRoot = resolveContentRoot(false)): EngineSwitchesState {
   if (!contentRoot) {
-    const shared = readSharedTranslateAgents() || { agents: [], order: [] }
+    const sharedAgents = readSharedTranslateAgents() || { agents: [], order: [] }
+    const sharedSwitches = readSharedSwitches()
+    const initialConfigs = sharedSwitches?.configs || {
+      ...DEFAULT_ENGINE_SETTINGS,
+      bergamot: { ...DEFAULT_ENGINE_SETTINGS.bergamot, id: 'mvsd812nzmca' },
+    }
     const combined = mergeEngineState({
       ...DEFAULT_ENGINE_SWITCHES,
-      configs: DEFAULT_ENGINE_SETTINGS,
-      agents: shared.agents,
-      order: [...shared.order, ...DEFAULT_ENGINE_ORDER],
+      ...(sharedSwitches?.switches || {}),
+      configs: initialConfigs,
+      agents: sharedAgents.agents,
+      order: sharedSwitches?.order || [...sharedAgents.order, ...DEFAULT_ENGINE_ORDER],
     })
     const assigned = assignMissingEngineEntryIds(combined.configs)
+    if (assigned.changed || !sharedSwitches) {
+      writeSharedSwitches({
+        switches: combined.switches,
+        configs: assigned.configs,
+        order: platformOrder(combined.order),
+      })
+    }
     return { contentRoot: '', file: '', ...combined, configs: assigned.configs }
   }
   const { raw } = readRaw(contentRoot)
@@ -126,20 +164,26 @@ export type SetEngineSwitchesInput = TranslateEnginePatch
 export function setTranslateEngineSwitches(input: SetEngineSwitchesInput): EngineSwitchesState {
   const contentRoot = resolveContentRoot(false)
   if (!contentRoot) {
-    const shared = readSharedTranslateAgents() || { agents: [], order: [] }
-    const state = withEntryIds(
-      '',
-      mergeEngineState(
-        {
-          ...DEFAULT_ENGINE_SWITCHES,
-          configs: DEFAULT_ENGINE_SETTINGS,
-          agents: shared.agents,
-          order: [...shared.order, ...DEFAULT_ENGINE_ORDER],
-        },
-        input
-      )
-    )
+    const sharedAgents = readSharedTranslateAgents() || { agents: [], order: [] }
+    const sharedSwitches = readSharedSwitches()
+    const initialConfigs = sharedSwitches?.configs || {
+      ...DEFAULT_ENGINE_SETTINGS,
+      bergamot: { ...DEFAULT_ENGINE_SETTINGS.bergamot, id: 'mvsd812nzmca' },
+    }
+    const base = mergeEngineState({
+      ...DEFAULT_ENGINE_SWITCHES,
+      ...(sharedSwitches?.switches || {}),
+      configs: initialConfigs,
+      agents: sharedAgents.agents,
+      order: sharedSwitches?.order || [...sharedAgents.order, ...DEFAULT_ENGINE_ORDER],
+    })
+    const state = withEntryIds('', mergeEngineState(base, input))
     writeSharedTranslateAgents({ agents: state.agents, order: state.order })
+    writeSharedSwitches({
+      switches: state.switches,
+      configs: state.configs,
+      order: platformOrder(state.order),
+    })
     return { contentRoot: '', file: '', ...state }
   }
   const { raw } = readRaw(contentRoot)
