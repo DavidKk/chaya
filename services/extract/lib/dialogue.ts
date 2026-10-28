@@ -1,6 +1,7 @@
 import { mvPluginText } from '@/lib/translate/mv-plugin-text'
 
 import { extractPluginText } from './plugin-text'
+import { parseRgssExtendedChoices } from './rgss/extended-choices'
 import { clean, isUseful } from './text'
 
 function paramsOf(cmd: { parameters?: unknown[]; params?: unknown[] }) {
@@ -77,12 +78,18 @@ export function extractDialogueFromEvents(events: any[] | undefined, loc: Dialog
         return row
       }
 
-      walkEventList(page.list, (cmd) => {
+      walkEventList(page.list, (cmd, index) => {
         const p = paramsOf(cmd) as any[]
 
-        // MPP_ChoiceEX stores visible choice help in designated comment blocks; ordinary comments are not game copy.
+        // Only recognized plugin protocols contribute visible copy from comments.
         if (cmd.code === 108) {
           flush()
+          let comment = String(p[0] ?? '')
+          for (let i = index + 1; page.list[i]?.code === 408; i++) comment += String(paramsOf(page.list[i])[0] ?? '')
+          const choices = parseRgssExtendedChoices(comment)
+            ?.map((choice) => choice.text)
+            .filter(isUseful)
+          if (choices?.length) ordered.push({ ...base(), kind: 'c', choices })
           choiceHelp = /^(?:ChoiceHelp|<ChoiceHelp>|選択肢ヘルプ|<選択肢ヘルプ>)$/.test(String(p[0] || '').trim())
           return
         }

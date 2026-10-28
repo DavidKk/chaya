@@ -6,11 +6,81 @@ import { isSourceText } from '@/lib/translate/source-text'
 
 import { isTechnicalField, isTextField } from '../data-fields'
 import type { ExtractedTextCategory, ExtractedTranslationItem } from '../extract-items'
-import { parseRubyMarshal, rubyObjectField, type RubyString, type RubyValue, writeRubyMarshal } from './marshal'
+import { assertExtendedChoiceTranslation, parseRgssExtendedChoices } from './extended-choices'
+import { parseRubyMarshal, type RubyArray, rubyObjectField, type RubyString, type RubyValue, writeRubyMarshal } from './marshal'
 
 type StringSlot = { value: RubyString; set: (value: RubyString) => void; category: ExtractedTextCategory }
 type TextLocation = { source: string; current: StringSlot; file: string; location: string }
 type DataFile = { file: string; value: RubyValue; texts: TextLocation[] }
+
+function translatedString(source: RubyString, value: string): RubyString {
+  const next: RubyString = { kind: 'string', value }
+  if (source.ivars) {
+    next.ivars = {
+      kind: 'hash',
+      pairs: source.ivars.pairs.filter((pair) => !(pair.key && typeof pair.key === 'object' && pair.key.kind === 'symbol' && ['E', 'encoding'].includes(pair.key.value))),
+    }
+    next.ivars.pairs.push({ key: { kind: 'symbol', value: 'E' }, value: true })
+  }
+  return next
+}
+
+function commentCommand(value: RubyValue) {
+  if (!value || typeof value !== 'object' || value.kind !== 'object' || value.className !== 'RPG::EventCommand') return null
+  const code = rubyObjectField(value, 'code')
+  const parameters = rubyObjectField(value, 'parameters')
+  if ((code !== 108 && code !== 408) || !parameters || typeof parameters !== 'object' || parameters.kind !== 'array') return null
+  const text = parameters.items[0]
+  return text && typeof text === 'object' && text.kind === 'string' ? { code, parameters, text } : null
+}
+
+/** Virtual choice slots share a comment block; reassemble all edits before splitting it back into the same commands. */
+function extendedChoiceSlots(list: RubyArray, slot: string, result: Map<string, StringSlot>) {
+  for (let i = 0; i < list.items.length; i++) {
+    const first = commentCommand(list.items[i]!)
+    if (first?.code !== 108) continue
+    const start = i
+    const comments = [first]
+    while (i + 1 < list.items.length) {
+      const next = commentCommand(list.items[i + 1]!)
+      if (next?.code !== 408) break
+      comments.push(next)
+      i++
+    }
+    const raw = comments.map((comment) => comment.text.value).join('')
+    const choices = parseRgssExtendedChoices(raw)
+    if (!choices) continue
+    const values = choices.map((choice): RubyString => ({ kind: 'string', value: choice.text }))
+    const lengths = comments.map((comment) => comment.text.value.length)
+    for (const [index, choice] of choices.entries()) {
+      result.set(`${slot}/${start}/choice/${index}`, {
+        get value() {
+          return values[index]!
+        },
+        category: 'choice',
+        set(next) {
+          assertExtendedChoiceTranslation(choice.text, next.value)
+          values[index] = next
+          let text = ''
+          let offset = 0
+          for (const [j, span] of choices.entries()) {
+            text += raw.slice(offset, span.start) + values[j]!.value
+            offset = span.end
+          }
+          text += raw.slice(offset)
+          offset = 0
+          comments.forEach((comment, j) => {
+            let end = j === comments.length - 1 ? text.length : Math.min(offset + lengths[j]!, text.length)
+            // Marshal encodes each fragment separately; keep surrogate pairs in the same fragment.
+            if (end < text.length && /[\uD800-\uDBFF]/.test(text[end - 1] ?? '') && /[\uDC00-\uDFFF]/.test(text[end]!)) end--
+            comment.parameters.items[0] = translatedString(comment.text, text.slice(offset, end))
+            offset = end
+          })
+        },
+      })
+    }
+  }
+}
 
 /** Paths refer to Marshal slots in the first-write backup, never translated text. */
 function strings(value: RubyValue): Map<string, StringSlot> {
@@ -25,6 +95,7 @@ function strings(value: RubyValue): Map<string, StringSlot> {
     if (seen.has(entry)) return
     seen.add(entry)
     if (entry.kind === 'array') {
+      extendedChoiceSlots(entry, slot, result)
       entry.items.forEach((child, index) =>
         walk(
           child,
@@ -246,18 +317,8 @@ export function writeRgssData(dataDir: string, translations: Record<string, stri
       matched += 1
       const target = translations[text.source]!
       if (text.current.value.value === target) continue
-      const next: RubyString = { kind: 'string', value: target }
       // Ruby 1.9 strings must advertise the encoding of the new UTF-8 bytes.
-      if (text.current.value.ivars) {
-        next.ivars = {
-          kind: 'hash',
-          pairs: text.current.value.ivars.pairs.filter(
-            (pair) => !(pair.key && typeof pair.key === 'object' && pair.key.kind === 'symbol' && ['E', 'encoding'].includes(pair.key.value))
-          ),
-        }
-        next.ivars.pairs.push({ key: { kind: 'symbol', value: 'E' }, value: true })
-      }
-      text.current.set(next)
+      text.current.set(translatedString(text.current.value, target))
       replacements += 1
     }
     if (replacements) prepared.push({ file: file.file, bytes: writeRubyMarshal(file.value), before: fs.readFileSync(file.file), replacements })

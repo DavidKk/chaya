@@ -12,7 +12,7 @@ export function createPluginsViteConfig(entry, emptyOutDir = false, opts = {}) {
         type: 'asset',
         fileName: 'rgss-overlay.html',
         source:
-          '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chaya RGSS</title><style>html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden}</style></head><body><script src="./ChayaRGSSOverlay.js"></script></body></html>',
+          '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chaya RGSS</title><style>html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;outline:none}:focus,:focus-visible,#chaya-rgss-overlay-container,#chaya-rgss-overlay-container:focus,#chaya-rgss-overlay-container:focus-visible{outline:none!important}</style></head><body><script src="./ChayaRGSSOverlay.js"></script></body></html>',
       })
     },
   })

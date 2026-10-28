@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { IoSearchOutline } from 'react-icons/io5'
 
@@ -24,6 +24,16 @@ export function GameEditSearch({ value, onChange }: Props) {
   const [open, setOpen] = useState(false)
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null)
   const panelStyle = useFloatingPanel({ open: compact && open, anchorRef: rootRef, panelRef, widthMode: 'content' })
+
+  const commitSearch = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing || event.keyCode === 229) return
+    event.preventDefault()
+    onChange(event.currentTarget.value)
+    if (compact) {
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
+  }
 
   useEffect(() => {
     const toolbar = rootRef.current?.parentElement
@@ -91,6 +101,7 @@ export function GameEditSearch({ value, onChange }: Props) {
           placeholder={t('edit.searchPh')}
           aria-label={t('edit.search')}
           onChange={(event) => onChange(event.target.value)}
+          onKeyDown={commitSearch}
         />
       )}
       {compact && open && portalRoot
@@ -112,6 +123,7 @@ export function GameEditSearch({ value, onChange }: Props) {
                 placeholder={t('edit.searchPh')}
                 aria-label={t('edit.searchNameId')}
                 onChange={(event) => onChange(event.target.value)}
+                onKeyDown={commitSearch}
               />
             </div>,
             portalRoot

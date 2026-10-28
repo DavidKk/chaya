@@ -1,6 +1,34 @@
 #import <Cocoa/Cocoa.h>
+#import <WebKit/WebKit.h>
 #include <dlfcn.h>
 #include <stdio.h>
+
+static id readJS(WKWebView *view, NSString *source) {
+  __block BOOL done = NO;
+  __block id result = nil;
+  [view evaluateJavaScript:source completionHandler:^(id value, NSError *error) {
+    if (error) fprintf(stderr, "JavaScript error: %s\n", error.description.UTF8String);
+    result = value;
+    done = YES;
+  }];
+  NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:3];
+  while (!done && deadline.timeIntervalSinceNow > 0)
+    [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+  return result;
+}
+
+static void sendKey(NSWindow *window, NSString *text, unsigned short code, NSEventModifierFlags modifiers) {
+  for (NSNumber *type in @[@(NSEventTypeKeyDown), @(NSEventTypeKeyUp)]) {
+    NSEvent *event = [NSEvent keyEventWithType:(NSEventType)type.integerValue location:NSZeroPoint
+      modifierFlags:modifiers timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:window.windowNumber
+      context:nil characters:text charactersIgnoringModifiers:text isARepeat:NO keyCode:code];
+    if (type.integerValue == NSEventTypeKeyDown && (modifiers & NSEventModifierFlagCommand) && [text isEqualToString:@"a"]) {
+      [window.firstResponder selectAll:nil];
+      continue;
+    }
+    [NSApp sendEvent:event];
+  }
+}
 
 // Optional real-WebKit smoke test; requires a macOS GUI login, but no installed game.
 int main(int argc, const char **argv) {
@@ -21,7 +49,12 @@ int main(int argc, const char **argv) {
     NSString *directory = [NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
     [[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil];
     NSString *file = [directory stringByAppendingPathComponent:@"smoke.html"];
-    [@"<!doctype html><title>Native smoke</title>" writeToFile:file atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    [@"<!doctype html><title>Native smoke</title><div id='host'></div><script>"
+      "const root = document.querySelector('#host').attachShadow({mode:'open'});"
+      "root.innerHTML = '<input type=\"search\" value=\"query\"><textarea>notes</textarea><div contenteditable>editable</div>';"
+      "root.addEventListener('keydown', e => e.stopPropagation());"
+      "root.querySelector('input').addEventListener('keydown', e => {if(e.key==='Enter') e.target.dataset.submitted=e.target.value});"
+      "</script>" writeToFile:file atomically:YES encoding:NSUTF8StringEncoding error:nil];
     if (!create(file.UTF8String, "{\"roomId\":\"native-smoke\"}")) return 2;
     bool ready = false, roundTrip = false;
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:20];
@@ -67,6 +100,21 @@ int main(int argc, const char **argv) {
         bool captures = [view hitTest:NSMakePoint(5, window.contentView.bounds.size.height - 5)] != nil;
         fprintf(stderr, "Native hit-test: passThrough=%d captures=%d DataChannel=%d\n", passThrough, captures, roundTrip);
         roundTrip = roundTrip && passThrough && captures;
+        WKWebView *web = (WKWebView *)view;
+        [window makeKeyAndOrderFront:nil];
+        [window makeFirstResponder:web];
+        for (NSString *selector in @[@"input", @"textarea", @"[contenteditable]"]) {
+          readJS(web, [NSString stringWithFormat:@"window.field=document.querySelector('#host').shadowRoot.querySelector('%@');field.focus();true", selector]);
+          sendKey(window, @"a", 0, NSEventModifierFlagCommand);
+          BOOL selected = [readJS(web, @"field.matches('[contenteditable]') ? window.getSelection().toString() === field.textContent : field.selectionStart === 0 && field.selectionEnd === field.value.length") boolValue];
+          fprintf(stderr, "Native Cmd+A in %s: %d\n", selector.UTF8String, selected);
+          roundTrip = roundTrip && selected;
+        }
+        readJS(web, @"window.field=document.querySelector('#host').shadowRoot.querySelector('input');field.focus();true");
+        sendKey(window, @"\r", 36, 0);
+        BOOL submitted = [readJS(web, @"field.dataset.submitted === 'query'") boolValue];
+        fprintf(stderr, "Native Enter search: %d\n", submitted);
+        roundTrip = roundTrip && submitted;
       }
     }
     dispose();

@@ -71,6 +71,7 @@
 :host *::before,
 :host *::after {
   box-sizing: border-box;
+  outline: none !important;
 }
 
 :host * {

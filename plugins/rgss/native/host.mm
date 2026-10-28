@@ -19,6 +19,8 @@ static void enqueue(NSString *text) {
 @property(nonatomic, copy) NSArray<NSValue *> *regions;
 + (NSCursor *)blankCursor;
 - (NSView *)gameView;
+- (NSFocusRingType)focusRingType;
+- (BOOL)containsInteractivePoint:(NSPoint)point;
 @end
 @implementation ChayaWebView
 + (NSCursor *)blankCursor {
@@ -30,11 +32,14 @@ static void enqueue(NSString *text) {
   });
   return cursor;
 }
+- (NSFocusRingType)focusRingType {
+  return NSFocusRingTypeNone;
+}
 - (NSView *)gameView {
   for (NSView *sub in self.superview.subviews) {
     if (sub != self) return sub;
   }
-  return nil;
+  return self.superview;
 }
 - (void)resetCursorRects {
   [self discardCursorRects];
@@ -45,14 +50,17 @@ static void enqueue(NSString *text) {
     [self addCursorRect:r cursor:[NSCursor arrowCursor]];
   }
 }
-- (NSView *)hitTest:(NSPoint)point {
+- (BOOL)containsInteractivePoint:(NSPoint)point {
   NSPoint local = [self convertPoint:point fromView:self.superview];
   // DOM coordinates have a top-left origin.
   if (!self.isFlipped) local.y = self.bounds.size.height - local.y;
   for (NSValue *value in self.regions) {
-    if (NSPointInRect(local, value.rectValue)) return [super hitTest:point];
+    if (NSPointInRect(local, value.rectValue)) return YES;
   }
-  return nil;
+  return NO;
+}
+- (NSView *)hitTest:(NSPoint)point {
+  return [self containsInteractivePoint:point] ? [super hitTest:point] : nil;
 }
 - (void)mouseUp:(NSEvent *)event {
   [super mouseUp:event];
@@ -66,8 +74,39 @@ static void enqueue(NSString *text) {
 @property(nonatomic, strong) id keyMonitor;
 @property(nonatomic, copy) NSString *configuration;
 @property(nonatomic, assign) BOOL overlayOpen;
+@property(nonatomic, strong) NSTimer *pointerTimer;
+@property(nonatomic, strong) NSNumber *pointerActive;
+@property(nonatomic, strong) NSMenuItem *editMenuItem;
 @end
 @implementation ChayaHost
+- (void)updatePointer {
+  NSWindow *window = self.view.window;
+  NSPoint point = [window convertPointFromScreen:NSEvent.mouseLocation];
+  point = [window.contentView convertPoint:point fromView:nil];
+  BOOL active = window.isKeyWindow && [self.view containsInteractivePoint:point];
+  if (self.pointerActive && self.pointerActive.boolValue == active) return;
+  self.pointerActive = @(active);
+  enqueue(active ? @"{\"type\":\"host.pointer\",\"active\":true}" : @"{\"type\":\"host.pointer\",\"active\":false}");
+}
+- (void)installEditMenu {
+  // Standard AppKit actions reach the focused WebKit editor through the responder chain.
+  for (NSMenuItem *item in NSApp.mainMenu.itemArray) {
+    if ([item.submenu indexOfItemWithTarget:nil andAction:@selector(selectAll:)] >= 0 && item.submenu) return;
+  }
+  if (!NSApp.mainMenu) NSApp.mainMenu = [[NSMenu alloc] initWithTitle:@""];
+  self.editMenuItem = [[NSMenuItem alloc] initWithTitle:@"Edit" action:nil keyEquivalent:@""];
+  NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Edit"];
+  [menu addItemWithTitle:@"Undo" action:@selector(undo:) keyEquivalent:@"z"];
+  NSMenuItem *redo = [menu addItemWithTitle:@"Redo" action:@selector(redo:) keyEquivalent:@"z"];
+  redo.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
+  [menu addItem:NSMenuItem.separatorItem];
+  [menu addItemWithTitle:@"Cut" action:@selector(cut:) keyEquivalent:@"x"];
+  [menu addItemWithTitle:@"Copy" action:@selector(copy:) keyEquivalent:@"c"];
+  [menu addItemWithTitle:@"Paste" action:@selector(paste:) keyEquivalent:@"v"];
+  [menu addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@"a"];
+  self.editMenuItem.submenu = menu;
+  [NSApp.mainMenu addItem:self.editMenuItem];
+}
 - (void)userContentController:(WKUserContentController *)controller didReceiveScriptMessage:(WKScriptMessage *)message {
   if (![message.body isKindOfClass:NSString.class] || message.webView != self.view || !message.frameInfo.mainFrame) return;
   NSData *data = [message.body dataUsingEncoding:NSUTF8StringEncoding];
@@ -86,6 +125,7 @@ static void enqueue(NSString *text) {
     }
     self.view.regions = regions;
     [self.view.window resetCursorRects];
+    [self updatePointer];
     return;
   }
   if ([packet[@"type"] isEqual:@"host.overlay"]) {
@@ -96,6 +136,7 @@ static void enqueue(NSString *text) {
     } else {
       NSView *game = [self.view gameView];
       if (game) [self.view.window makeFirstResponder:game];
+      else if (self.view.window.contentView) [self.view.window makeFirstResponder:self.view.window.contentView];
     }
     return;
   }
@@ -122,7 +163,10 @@ static void enqueue(NSString *text) {
   self.view.regions = @[];
   self.view.navigationDelegate = self;
   [self.view setValue:@NO forKey:@"drawsBackground"];
+  [self.view setFocusRingType:NSFocusRingTypeNone];
   [window.contentView addSubview:self.view];
+  [self installEditMenu];
+  self.pointerTimer = [NSTimer scheduledTimerWithTimeInterval:1.0 / 60.0 target:self selector:@selector(updatePointer) userInfo:nil repeats:YES];
   __weak ChayaHost *weakHost = self;
   self.keyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:(NSEventMaskKeyDown | NSEventMaskKeyUp) handler:^NSEvent *(NSEvent *event) {
     ChayaHost *owner = weakHost;
@@ -143,8 +187,7 @@ static void enqueue(NSString *text) {
     BOOL focusedInWeb = [firstResponder isKindOfClass:[NSView class]] && [(NSView *)firstResponder isDescendantOf:owner.view];
     if (owner.overlayOpen || focusedInWeb) {
       if (!focusedInWeb) {
-        if (event.type == NSEventTypeKeyDown) [event.window makeFirstResponder:owner.view];
-        return nil;
+        if (event.type != NSEventTypeKeyDown || ![event.window makeFirstResponder:owner.view]) return nil;
       }
       return event;
     }
@@ -160,6 +203,9 @@ static void enqueue(NSString *text) {
 }
 - (void)dispose {
   [self.attachTimer invalidate]; self.attachTimer = nil;
+  [self.pointerTimer invalidate]; self.pointerTimer = nil;
+  if (self.editMenuItem) [NSApp.mainMenu removeItem:self.editMenuItem];
+  self.editMenuItem = nil;
   if (self.keyMonitor) [NSEvent removeMonitor:self.keyMonitor]; self.keyMonitor = nil;
   [self.view.configuration.userContentController removeScriptMessageHandlerForName:@"chaya"];
   [self.view stopLoading]; [self.view removeFromSuperview]; self.view = nil;

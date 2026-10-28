@@ -14,17 +14,20 @@ export type RgssSourcesIndexFile = {
   updatedAt: number
 }
 
+const SOURCE_INDEX_VERSION = 2
+
 export function rgssDataSignature(dataDir: string): string {
   const files = fs
     .readdirSync(dataDir)
     .filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name))
     .sort()
-  return JSON.stringify(
-    files.map((name) => {
+  return JSON.stringify([
+    SOURCE_INDEX_VERSION,
+    ...files.map((name) => {
       const stat = fs.statSync(path.join(dataDir, name))
       return [name, stat.size, stat.mtimeMs, stat.ctimeMs]
-    })
-  )
+    }),
+  ])
 }
 
 function readIndex(contentRoot: string): RgssSourcesIndexFile | null {

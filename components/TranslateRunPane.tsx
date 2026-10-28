@@ -86,6 +86,7 @@ const emptyJob: JobState = {
 }
 
 const POLL_MS = 750
+const IDLE_POLL_MS = 3000
 
 function readProgress(json: Partial<Progress> & { preparing?: boolean }): Progress {
   return {
@@ -220,15 +221,11 @@ export function TranslateRunPane({
         const json = (await res.json()) as Progress & { ok?: boolean; job?: JobState; activity?: ActivityState; error?: unknown }
         if (!res.ok || json.ok === false) {
           setStatus(readApiErrorMessage(json, t('translate.progressFailed')))
-          setProgress(emptyProgress)
-          setJob(emptyJob)
           return
         }
         applySnapshot(json)
       } catch (err) {
         setStatus(err instanceof Error ? err.message : t('translate.progressFailed'))
-        setProgress(emptyProgress)
-        setJob(emptyJob)
       } finally {
         refreshing.current = false
       }
@@ -248,12 +245,13 @@ export function TranslateRunPane({
     }
   }, [refresh])
 
-  /** Poll while running or preparing; polling stops when leaving this view, while the task continues in background */
+  /** Keep retrying snapshots so transient failures and background starts cannot leave the view stale. */
   useEffect(() => {
-    if (!running && !preparing && !(surface === 'overlay' && tab === 'play')) return
+    if (tab === 'list') return
+    const interval = running || preparing || (surface === 'overlay' && tab === 'play') ? POLL_MS : IDLE_POLL_MS
     const timer = window.setInterval(() => {
       void refresh()
-    }, POLL_MS)
+    }, interval)
     return () => window.clearInterval(timer)
   }, [running, preparing, refresh, surface, tab])
 

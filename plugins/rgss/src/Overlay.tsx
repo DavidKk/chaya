@@ -49,8 +49,27 @@ export function RgssOverlayRoot() {
   useEffect(() => {
     const host = document.getElementById('chaya-rgss-overlay-container')
     if (host) {
-      if (open) host.setAttribute('data-open', '')
-      else host.removeAttribute('data-open')
+      if (open) {
+        host.setAttribute('data-open', '')
+      } else {
+        host.removeAttribute('data-open')
+        const shadowAe = host.shadowRoot?.activeElement as HTMLElement | null
+        if (shadowAe && typeof shadowAe.blur === 'function') {
+          try {
+            shadowAe.blur()
+          } catch {
+            /* */
+          }
+        }
+        const ae = document.activeElement
+        if (ae && (ae === host || host.contains(ae)) && typeof (ae as HTMLElement).blur === 'function') {
+          try {
+            ;(ae as HTMLElement).blur()
+          } catch {
+            /* */
+          }
+        }
+      }
     }
     const nativeHost = window as Window & {
       webkit?: { messageHandlers?: { chaya?: { postMessage: (json: string) => void } } }

@@ -173,6 +173,8 @@ module ChayaRGSS
               dispatch_reply(full_session_state)
             elsif cmd['type'] == 'overlay.open'
               ChayaRGSS.overlay_active = !!cmd['open'] if defined?(ChayaRGSS) && ChayaRGSS.respond_to?(:overlay_active=)
+            elsif cmd['type'] == 'host.pointer'
+              ChayaRGSS.pointer_active = !!cmd['active'] if ChayaRGSS.respond_to?(:pointer_active=)
             elsif cmd['type'] == 'translation.dialogue.result'
               if defined?(ChayaRGSS::Translation) && ChayaRGSS::Translation.respond_to?(:handle_dialogue_result)
                 ChayaRGSS::Translation.handle_dialogue_result(cmd)
@@ -226,7 +228,7 @@ module ChayaRGSS
 
       def reload_plugins
         root = File.dirname(__FILE__)
-        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'data_translation.rb', 'translation.rb'].each do |file|
+        ['input.rb', 'user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'data_translation.rb', 'translation.rb'].each do |file|
           path = File.join(root, file)
           load path if File.file?(path)
         end
@@ -240,7 +242,7 @@ module ChayaRGSS
         @last_reload_check = now
         root = File.dirname(__FILE__)
         changed = false
-        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'data_translation.rb', 'translation.rb'].each do |file|
+        ['input.rb', 'user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'data_translation.rb', 'translation.rb'].each do |file|
           path = File.join(root, file)
           next unless File.file?(path)
           mtime = File.mtime(path).to_f rescue 0
@@ -259,7 +261,7 @@ module ChayaRGSS
         @logs = Queue.new
         @reload_mtimes = {}
         root = File.dirname(__FILE__)
-        ['user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'data_translation.rb', 'translation.rb'].each do |file|
+        ['input.rb', 'user32.rb', 'tktk_bitmap.rb', 'mouse_movement.rb', 'map.rb', 'saves.rb', 'edit_actors.rb', 'edit_runtime.rb', 'translation_store.rb', 'data_translation.rb', 'translation.rb'].each do |file|
           path = File.join(root, file)
           @reload_mtimes[file] = File.mtime(path).to_f if File.file?(path) rescue 0
         end

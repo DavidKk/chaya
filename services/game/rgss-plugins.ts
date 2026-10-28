@@ -15,6 +15,7 @@ const SCRIPT_PATH = 'chaya/plugins/rgss/Scripts.rvdata2'
 const BOOTSTRAP = "load File.join(Dir.pwd, 'chaya', 'plugins', 'rgss', 'native.rb')\n"
 export const RGSS_BUNDLE_FILES = [
   'preload.rb',
+  'input.rb',
   'native.rb',
   'translation.rb',
   'translation_store.rb',
@@ -36,6 +37,7 @@ export const RGSS_BUNDLE_FILES = [
 export const RGSS_ASSET_FILES = ['rgss-overlay.html', 'ChayaRGSSOverlay.js', 'libchaya-overlay.dylib'] as const
 /** Files loaded again by bridge.rb's in-process hot reload loop. */
 export const RGSS_HOT_RELOAD_FILES = [
+  'input.rb',
   'user32.rb',
   'tktk_bitmap.rb',
   'mouse_movement.rb',

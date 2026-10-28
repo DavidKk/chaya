@@ -101,6 +101,7 @@ test('restores focus from the hidden overlay to the canvas so Space reaches the 
 
   expect(canvas.tabIndex).toBe(-1)
   expect(canvas.style.outline).toBe('none')
+  expect(document.getElementById('chaya-no-focus-outline')).not.toBeNull()
   expect(document.activeElement).toBe(canvas)
   expect(host.shadow.activeElement).toBeNull()
   const gameKeyDown = jest.fn()

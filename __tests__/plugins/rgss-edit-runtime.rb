@@ -238,6 +238,10 @@ bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'mhp' => 250, 'mmp' => 9
 hero = bridge.full_session_state['session']['actors'][1]
 check(hero['mhp'] == 250 && hero['mmp'] == 90 && hero['mat'] == 35 && hero['mdf'] == 35, 'VX parameter aliases failed')
 check(hero['exp'] == 1234 && hero['classId'] == 2 && hero['hp'] == 200, 'VX actor values did not round trip')
+bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'hp' => 10_000, 'mp' => 10_000 } })
+check($game_actors[1].hp == 250 && $game_actors[1].mp == 90, 'VX vitals must clamp to maxhp/maxmp')
+bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'hp' => 0, 'mp' => 0 } })
+check($game_actors[1].hp == 0 && $game_actors[1].mp == 0, 'zero vitals must remain editable')
 begin
   bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'luk' => 100 } })
   raise 'unsupported VX actor field falsely reported success'
@@ -248,6 +252,16 @@ $game_actors[1] = AceEditActor.new
 bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'mhp' => 300, 'atk' => 80, 'classId' => 2 } })
 check($game_actors[1].param_changes == [[0, 200], [2, 70]], 'VX Ace parameters must use add_param with the current-value delta')
 check($game_actors[1].class_id == 2, 'VX Ace change_class was not used')
+bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'hp' => 10_000, 'mp' => 10_000 } })
+check($game_actors[1].hp == 300 && $game_actors[1].mp == 30, 'Ace vitals must clamp to mhp/mmp')
+[-1, 1.5, '100'].each do |invalid|
+  begin
+    bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'hp' => invalid } })
+    raise 'invalid vital falsely accepted'
+  rescue RuntimeError => error
+    check(error.message == 'Expected non-negative integer', 'invalid vitals must still be rejected')
+  end
+end
 
 lock_ops = [
   { 'op' => 'goldLock', 'value' => 500 },

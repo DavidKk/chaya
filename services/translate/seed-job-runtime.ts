@@ -174,6 +174,7 @@ async function runLoop(contentRoot: string) {
   const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.every((e) => e === 'apple' || e.startsWith('agent:'))
   const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4)
   const trace = (message: string) => {
+    const previousLogSeq = rt.logSeq
     const request = /^Agent request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message)
     if (request) pushLog(rt, 'info', message, { request: { items: Number(request[1]), chars: Number(request[2]) } })
     if (message.startsWith('Cache scan unavailable:')) {
@@ -183,11 +184,14 @@ async function runLoop(contentRoot: string) {
         message.includes('worker not built') ? 'Cache scan failed: cache worker is not built.' : `Cache scan failed: ${message.replace(/^Cache scan unavailable:\s*/i, '')}`
       )
     }
-    if (process.env.CHAYA_TRANSLATE_DEBUG !== '1') return
-    const text = `[translation-timing] batch=${rt.state.rounds + 1} ${message}`
-    pushLog(rt, 'info', text)
-    // eslint-disable-next-line no-console -- Detailed timings are explicitly enabled for diagnostics.
-    console.info(text)
+    if (process.env.CHAYA_TRANSLATE_DEBUG === '1') {
+      const text = `[translation-timing] batch=${rt.state.rounds + 1} ${message}`
+      pushLog(rt, 'info', text)
+      // eslint-disable-next-line no-console -- Detailed timings are explicitly enabled for diagnostics.
+      console.info(text)
+    }
+    // HTTP polls read disk while fill may still be waiting for engine results.
+    if (rt.logSeq !== previousLogSeq) persist(rt)
   }
   try {
     // Never invent inventory on the main thread — beginSeedLoop always passes a bundle;

@@ -12,52 +12,7 @@ runtime = ENV.fetch('CHAYA_RGSS_RUNTIME')
 load File.join(runtime, 'scripts/preload/ruby_classic_wrap.rb')
 load File.join(runtime, 'scripts/preload/win32_wrap.rb')
 
-module ChayaRGSS
-  @overlay_active = false
-  class << self
-    def overlay_active?
-      !!@overlay_active
-    end
-    def overlay_active=(val)
-      @overlay_active = !!val
-    end
-  end
-end
-
-if defined?(Input)
-  class << Input
-    alias_method :chaya_raw_press?, :press? unless method_defined?(:chaya_raw_press?)
-    alias_method :chaya_raw_trigger?, :trigger? unless method_defined?(:chaya_raw_trigger?)
-    alias_method :chaya_raw_repeat?, :repeat? if method_defined?(:repeat?) && !method_defined?(:chaya_raw_repeat?)
-    alias_method :chaya_raw_dir4, :dir4 if method_defined?(:dir4) && !method_defined?(:chaya_raw_dir4)
-    alias_method :chaya_raw_dir8, :dir8 if method_defined?(:dir8) && !method_defined?(:chaya_raw_dir8)
-
-    def press?(sym)
-      return false if defined?(ChayaRGSS) && ChayaRGSS.overlay_active?
-      chaya_raw_press?(sym)
-    end
-
-    def trigger?(sym)
-      return false if defined?(ChayaRGSS) && ChayaRGSS.overlay_active?
-      chaya_raw_trigger?(sym)
-    end
-
-    def repeat?(sym)
-      return false if defined?(ChayaRGSS) && ChayaRGSS.overlay_active?
-      defined?(chaya_raw_repeat?) ? chaya_raw_repeat?(sym) : false
-    end
-
-    def dir4
-      return 0 if defined?(ChayaRGSS) && ChayaRGSS.overlay_active?
-      defined?(chaya_raw_dir4) ? chaya_raw_dir4 : 0
-    end
-
-    def dir8
-      return 0 if defined?(ChayaRGSS) && ChayaRGSS.overlay_active?
-      defined?(chaya_raw_dir8) ? chaya_raw_dir8 : 0
-    end
-  end
-end
+load File.join(File.dirname(__FILE__), 'input.rb')
 
 module ChayaRGSS
   class Function

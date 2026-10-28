@@ -102,7 +102,8 @@ module ChayaRGSS
             end
           elsif key == 'hp' || key == 'mp'
             maximum = read(value, key == 'hp' ? 'mhp' : 'mmp')
-            value.public_send("#{key}=", Bridge.integer(target, 0, maximum))
+            raise 'Expected non-negative integer' unless target.is_a?(Integer) && target >= 0
+            value.public_send("#{key}=", [target, maximum].min)
           else
             write_owned(value, key == 'skillIds' ? :skills : :states, target)
           end

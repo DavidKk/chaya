@@ -25,6 +25,7 @@
 | 存档、键鼠、迷你面板、寻路 | [存档](game-saves.md) / [键鼠](input-assistance.md) / [面板](mini-panels.md) / [寻路](smart-path.md) | 各需求页头链接到对应技术方案，仅选相关功能 |
 | RGSS、内嵌 WebView、WebRTC | [RGSS 重构](rgss-webview-overlay.md) | [宿主与通信](technical/rgss-webview-overlay.md) |
 | RGSS 游玩实时翻译、悬浮字幕 | [游玩翻译](rgss-play-realtime-translation.md) | [实时翻译技术设计](technical/rgss-play-realtime-translation.md) |
+| RGSS 游戏加速、移动倍率、一键胜利与运行动作 | [RGSS 加速与动作](rgss-boost-and-actions.md) | [RGSS 加速与动作技术方案](technical/rgss-boost-and-actions.md) |
 | 翻译调度、并发、重试、限流 | [调度基线](translation-scheduling.md) §9 差距、§13–14 性能与接线 | [管线](technical/translation-pipeline.md) 相关章节 |
 | Agent 翻译单请求多句打包、字符上限、超长拆句 | [Agent 打包需求](translation-agent-prompt-batching.md) | [Agent 打包技术方案](technical/translation-agent-prompt-batching.md) |
 | 翻译主线程卡死、多 Tab、list/seed 库存与 shared 后台化 | [主线程卸载](translation-mainthread-offload.md) | 现行（P0–P2 已落地）；技术方案未立页前以需求文为准 |

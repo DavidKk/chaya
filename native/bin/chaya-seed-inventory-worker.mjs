@@ -190,11 +190,11 @@ function getTableName(table) {
 // node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/subquery.js
 var Subquery = class {
   static [entityKind] = "Subquery";
-  constructor(sql2, fields, alias, isWith = false, usedTables = []) {
+  constructor(sql2, fields2, alias, isWith = false, usedTables = []) {
     this._ = {
       brand: "Subquery",
       sql: sql2,
-      selectedFields: fields,
+      selectedFields: fields2,
       alias,
       isWith,
       usedTables
@@ -1068,8 +1068,8 @@ function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
     return result;
   }));
 }
-function orderSelectedFields(fields, pathPrefix, codecs) {
-  return Object.entries(fields).reduce((result, [name2, field]) => {
+function orderSelectedFields(fields2, pathPrefix, codecs) {
+  return Object.entries(fields2).reduce((result, [name2, field]) => {
     if (typeof name2 !== "string") return result;
     const newPath = pathPrefix ? [...pathPrefix, name2] : [name2];
     if (is(field, Column)) result.push({
@@ -6295,8 +6295,8 @@ var SQLiteDeleteBase = class {
     this.config.limit = limit;
     return this;
   }
-  returning(fields = this.table[SQLiteTable.Symbol.Columns]) {
-    this.config.returning = orderSelectedFields(fields);
+  returning(fields2 = this.table[SQLiteTable.Symbol.Columns]) {
+    this.config.returning = orderSelectedFields(fields2);
     return this;
   }
   getSQL() {
@@ -6377,15 +6377,15 @@ var SQLiteSelectBuilder = class {
   }
   from(source) {
     const isPartialSelect = !!this.fields;
-    let fields;
-    if (this.fields) fields = this.fields;
-    else if (is(source, Subquery)) fields = Object.fromEntries(Object.keys(source._.selectedFields).map((key2) => [key2, source[key2]]));
-    else if (is(source, SQLiteViewBase)) fields = source[ViewBaseConfig].selectedFields;
-    else if (is(source, SQL)) fields = {};
-    else fields = getTableColumns(source);
+    let fields2;
+    if (this.fields) fields2 = this.fields;
+    else if (is(source, Subquery)) fields2 = Object.fromEntries(Object.keys(source._.selectedFields).map((key2) => [key2, source[key2]]));
+    else if (is(source, SQLiteViewBase)) fields2 = source[ViewBaseConfig].selectedFields;
+    else if (is(source, SQL)) fields2 = {};
+    else fields2 = getTableColumns(source);
     return new this.builder({
       table: source,
-      fields,
+      fields: fields2,
       isPartialSelect,
       session: this.session,
       dialect: this.dialect,
@@ -6406,12 +6406,12 @@ var SQLiteSelectBase = class extends TypedQueryBuilder {
   dialect;
   cacheConfig = void 0;
   usedTables = /* @__PURE__ */ new Set();
-  constructor({ table, fields, isPartialSelect, session, dialect, withList, distinct }) {
+  constructor({ table, fields: fields2, isPartialSelect, session, dialect, withList, distinct }) {
     super();
     this.config = {
       withList,
       table,
-      fields: { ...fields },
+      fields: { ...fields2 },
       distinct,
       setOperators: []
     };
@@ -6419,7 +6419,7 @@ var SQLiteSelectBase = class extends TypedQueryBuilder {
     this.session = session;
     this.dialect = dialect;
     this._ = {
-      selectedFields: fields,
+      selectedFields: fields2,
       config: this.config
     };
     this.tableName = getTableLikeName(table);
@@ -7005,9 +7005,9 @@ var SQLiteDialect = class {
   *
   * If `isSingleTable` is true, then columns won't be prefixed with table name
   */
-  buildSelection(fields, { isSingleTable = false } = {}) {
-    const columnsLen = fields.length;
-    const chunks = fields.flatMap(({ field }, i) => {
+  buildSelection(fields2, { isSingleTable = false } = {}) {
+    const columnsLen = fields2.length;
+    const chunks = fields2.flatMap(({ field }, i) => {
       const chunk = [];
       if (is(field, SQL.Aliased)) if (field.isSelectionField) {
         if (!isSingleTable && field.origin !== void 0) chunk.push(sql.identifier(field.origin), sql.raw("."));
@@ -7081,8 +7081,8 @@ var SQLiteDialect = class {
     }
     return table;
   }
-  buildSelectQuery({ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset, distinct, setOperators }) {
-    const fieldsList = fieldsFlat ?? orderSelectedFields(fields);
+  buildSelectQuery({ withList, fields: fields2, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset, distinct, setOperators }) {
+    const fieldsList = fieldsFlat ?? orderSelectedFields(fields2);
     for (const f of fieldsList) if (is(f.field, Column) && getTableName(f.field.table) !== (is(table, Subquery) ? table._.alias : is(table, SQLiteViewBase) ? table[ViewBaseConfig].name : is(table, SQL) ? void 0 : getTableName(table)) && !((table2) => joins?.some(({ alias }) => alias === (table2[Table.Symbol.IsAlias] ? getTableName(table2) : table2[Table.Symbol.BaseName])))(f.field.table)) {
       const tableName = getTableName(f.field.table);
       throw new Error(`Your "${f.path.join("->")}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`);
@@ -7344,17 +7344,17 @@ var QueryBuilder = class {
   };
   with(...queries) {
     const self = this;
-    function select(fields) {
+    function select(fields2) {
       return new SQLiteSelectBuilder({
-        fields: fields ?? void 0,
+        fields: fields2 ?? void 0,
         session: void 0,
         dialect: self.getDialect(),
         withList: queries
       });
     }
-    function selectDistinct(fields) {
+    function selectDistinct(fields2) {
       return new SQLiteSelectBuilder({
-        fields: fields ?? void 0,
+        fields: fields2 ?? void 0,
         session: void 0,
         dialect: self.getDialect(),
         withList: queries,
@@ -7366,16 +7366,16 @@ var QueryBuilder = class {
       selectDistinct
     };
   }
-  select(fields) {
+  select(fields2) {
     return new SQLiteSelectBuilder({
-      fields: fields ?? void 0,
+      fields: fields2 ?? void 0,
       session: void 0,
       dialect: this.getDialect()
     });
   }
-  selectDistinct(fields) {
+  selectDistinct(fields2) {
     return new SQLiteSelectBuilder({
-      fields: fields ?? void 0,
+      fields: fields2 ?? void 0,
       session: void 0,
       dialect: this.getDialect(),
       distinct: true
@@ -7435,8 +7435,8 @@ var SQLiteInsertBase = class {
       select
     };
   }
-  returning(fields = this.config.table[SQLiteTable.Symbol.Columns]) {
-    this.config.returning = orderSelectedFields(fields);
+  returning(fields2 = this.config.table[SQLiteTable.Symbol.Columns]) {
+    this.config.returning = orderSelectedFields(fields2);
     return this;
   }
   /**
@@ -7732,8 +7732,8 @@ var SQLiteUpdateBase = class {
     this.config.limit = limit;
     return this;
   }
-  returning(fields = this.config.table[SQLiteTable.Symbol.Columns]) {
-    this.config.returning = orderSelectedFields(fields);
+  returning(fields2 = this.config.table[SQLiteTable.Symbol.Columns]) {
+    this.config.returning = orderSelectedFields(fields2);
     return this;
   }
   getSQL() {
@@ -7875,17 +7875,17 @@ var SQLiteAsyncDatabase = class {
   */
   with(...queries) {
     const self = this;
-    function select(fields) {
+    function select(fields2) {
       return new SQLiteSelectBuilder({
-        fields: fields ?? void 0,
+        fields: fields2 ?? void 0,
         session: self.session,
         dialect: self.dialect,
         withList: queries
       }, SQLiteAsyncSelectBase);
     }
-    function selectDistinct(fields) {
+    function selectDistinct(fields2) {
       return new SQLiteSelectBuilder({
-        fields: fields ?? void 0,
+        fields: fields2 ?? void 0,
         session: self.session,
         dialect: self.dialect,
         withList: queries,
@@ -7909,16 +7909,16 @@ var SQLiteAsyncDatabase = class {
       delete: delete_
     };
   }
-  select(fields) {
+  select(fields2) {
     return new SQLiteSelectBuilder({
-      fields: fields ?? void 0,
+      fields: fields2 ?? void 0,
       session: this.session,
       dialect: this.dialect
     }, SQLiteAsyncSelectBase);
   }
-  selectDistinct(fields) {
+  selectDistinct(fields2) {
     return new SQLiteSelectBuilder({
-      fields: fields ?? void 0,
+      fields: fields2 ?? void 0,
       session: this.session,
       dialect: this.dialect,
       distinct: true
@@ -10079,6 +10079,54 @@ var TECH_FIELD = /^(?:.*(?:path|url|script|formula|texture)|file(?:name)?|code|e
 var isTextField = (field) => TEXT_FIELD.test(field);
 var isTechnicalField = (field) => TECH_FIELD.test(field);
 
+// services/extract/lib/rgss/extended-choices.ts
+var CONTROLS2 = /\\(?:[A-Za-z]+(?:\[[^\]\r\n]*\])?|[^A-Za-z\r\n])/g;
+function literal(text2) {
+  return !/[,[\]\r\n]/.test(text2.replace(CONTROLS2, "")) && !/@m\(|<s>/i.test(text2);
+}
+function fields(raw, start, end) {
+  const result = [];
+  let depth = 0;
+  let from = start;
+  const push = (to) => {
+    const value = raw.slice(from, to);
+    const text2 = value.trim();
+    const offset = value.length - value.trimStart().length;
+    result.push({ text: text2, start: from + offset, end: from + offset + text2.length });
+  };
+  for (let i = start; i < end; i++) {
+    if (raw[i] === "[") depth++;
+    else if (raw[i] === "]" && --depth < 0) return null;
+    else if (raw[i] === "," && depth === 0) {
+      push(i);
+      from = i + 1;
+    }
+  }
+  if (depth !== 0) return null;
+  push(end);
+  return result;
+}
+function parseRgssExtendedChoices(raw) {
+  if (raw.length > 1e5) return null;
+  const header = /^拡張選択肢[ \t]+/.exec(raw);
+  if (!header) return null;
+  const args = fields(raw, header[0].length, raw.length);
+  if (!args || args.length < 3 || !/^-?\d+$/.test(args[0].text) || !/^\d*$/.test(args[1].text)) return null;
+  const third = args[2];
+  let choices;
+  if (third.text.startsWith("[")) {
+    if (!third.text.endsWith("]") || args.length > 5) return null;
+    if (args.slice(3).some((arg) => !/^(?:-?\d+|左|中|右|上|下)?$/.test(arg.text))) return null;
+    choices = fields(raw, third.start + 1, third.end - 1);
+  } else choices = args.slice(2);
+  return choices && choices.every((choice) => literal(choice.text)) ? choices : null;
+}
+function assertExtendedChoiceTranslation(source, target2) {
+  if (!literal(target2) || JSON.stringify(source.match(CONTROLS2) || []) !== JSON.stringify(target2.match(CONTROLS2) || [])) {
+    throw new Error("Extended choice translation must preserve escape controls and cannot contain commas, brackets or executable expressions");
+  }
+}
+
 // services/extract/lib/rgss/script-strings.ts
 var ASSIGN_RE = /^\s*(?:[A-Z][\w:]*::)*[A-Z]\w*\s*=\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/;
 var RETURN_RE = /^\s*return\s+("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*(?:#.*)?$/;
@@ -10118,6 +10166,70 @@ import path10 from "node:path";
 var TOKEN_RE2 = new RegExp(SENTENCE_TOKEN_SOURCE, "g");
 
 // services/extract/lib/rgss/writeback.ts
+function translatedString(source, value) {
+  const next = { kind: "string", value };
+  if (source.ivars) {
+    next.ivars = {
+      kind: "hash",
+      pairs: source.ivars.pairs.filter((pair) => !(pair.key && typeof pair.key === "object" && pair.key.kind === "symbol" && ["E", "encoding"].includes(pair.key.value)))
+    };
+    next.ivars.pairs.push({ key: { kind: "symbol", value: "E" }, value: true });
+  }
+  return next;
+}
+function commentCommand(value) {
+  if (!value || typeof value !== "object" || value.kind !== "object" || value.className !== "RPG::EventCommand") return null;
+  const code = rubyObjectField(value, "code");
+  const parameters = rubyObjectField(value, "parameters");
+  if (code !== 108 && code !== 408 || !parameters || typeof parameters !== "object" || parameters.kind !== "array") return null;
+  const text2 = parameters.items[0];
+  return text2 && typeof text2 === "object" && text2.kind === "string" ? { code, parameters, text: text2 } : null;
+}
+function extendedChoiceSlots(list, slot, result) {
+  for (let i = 0; i < list.items.length; i++) {
+    const first = commentCommand(list.items[i]);
+    if (first?.code !== 108) continue;
+    const start = i;
+    const comments = [first];
+    while (i + 1 < list.items.length) {
+      const next = commentCommand(list.items[i + 1]);
+      if (next?.code !== 408) break;
+      comments.push(next);
+      i++;
+    }
+    const raw = comments.map((comment) => comment.text.value).join("");
+    const choices = parseRgssExtendedChoices(raw);
+    if (!choices) continue;
+    const values = choices.map((choice) => ({ kind: "string", value: choice.text }));
+    const lengths = comments.map((comment) => comment.text.value.length);
+    for (const [index2, choice] of choices.entries()) {
+      result.set(`${slot}/${start}/choice/${index2}`, {
+        get value() {
+          return values[index2];
+        },
+        category: "choice",
+        set(next) {
+          assertExtendedChoiceTranslation(choice.text, next.value);
+          values[index2] = next;
+          let text2 = "";
+          let offset = 0;
+          for (const [j, span] of choices.entries()) {
+            text2 += raw.slice(offset, span.start) + values[j].value;
+            offset = span.end;
+          }
+          text2 += raw.slice(offset);
+          offset = 0;
+          comments.forEach((comment, j) => {
+            let end = j === comments.length - 1 ? text2.length : Math.min(offset + lengths[j], text2.length);
+            if (end < text2.length && /[\uD800-\uDBFF]/.test(text2[end - 1] ?? "") && /[\uDC00-\uDFFF]/.test(text2[end])) end--;
+            comment.parameters.items[0] = translatedString(comment.text, text2.slice(offset, end));
+            offset = end;
+          });
+        }
+      });
+    }
+  }
+}
 function strings(value) {
   const result = /* @__PURE__ */ new Map();
   const seen = /* @__PURE__ */ new WeakSet();
@@ -10130,6 +10242,7 @@ function strings(value) {
     if (seen.has(entry)) return;
     seen.add(entry);
     if (entry.kind === "array") {
+      extendedChoiceSlots(entry, slot, result);
       entry.items.forEach(
         (child, index2) => walk(
           child,
@@ -10269,14 +10382,16 @@ function loadRgssItems(dataDir) {
 // services/extract/lib/rgss-sources-index.ts
 import fs16 from "node:fs";
 import path11 from "node:path";
+var SOURCE_INDEX_VERSION = 2;
 function rgssDataSignature(dataDir) {
   const files = fs16.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
-  return JSON.stringify(
-    files.map((name2) => {
+  return JSON.stringify([
+    SOURCE_INDEX_VERSION,
+    ...files.map((name2) => {
       const stat = fs16.statSync(path11.join(dataDir, name2));
       return [name2, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
-  );
+  ]);
 }
 function readIndex(contentRoot) {
   const file = localGameContentFile(contentRoot, "rgssSourcesIndex");
