@@ -21,6 +21,12 @@ module ChayaRGSS
         value
       end
 
+      def number(value, min, max)
+        num = value.is_a?(Numeric) ? value.to_f : nil
+        raise 'Expected bounded number' unless num && num >= min && num <= max
+        num
+      end
+
       def names(kind)
         raise 'Game database is not ready' unless $data_system
         kind == 'var' ? $data_system.variables : $data_system.switches
@@ -52,9 +58,9 @@ module ChayaRGSS
           'switches' => switches,
           'locks' => EditRuntime.lock_values,
           'actors' => read_actors_session,
-          'walkRate' => 1,
-          'runRate' => 1,
-          'gameSpeed' => 1,
+          'walkRate' => EditRuntime.walk_rate,
+          'runRate' => EditRuntime.run_rate,
+          'gameSpeed' => EditRuntime.game_speed,
           'fullscreen' => false,
           'alwaysDash' => false,
           'god' => false,

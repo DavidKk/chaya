@@ -20,6 +20,7 @@ import {
   parseDataSegments,
   parseTabId,
   RGSS_SUPPORTED_EDIT_TABS,
+  RGSS_SUPPORTED_RUN_ACTIONS,
   RGSS_SUPPORTED_RUN_FLAGS,
   saveGameStoredHotkeys,
   saveGlobalHotkeys,
@@ -327,8 +328,9 @@ export function GameEditPage() {
         syncing={connected && !linked}
         supportedTabs={isRgss ? RGSS_SUPPORTED_EDIT_TABS : undefined}
         supportedFlags={isRgss ? RGSS_SUPPORTED_RUN_FLAGS : undefined}
-        hideRunTools={isRgss}
-        hideSpeedSliders={isRgss}
+        supportedActions={isRgss ? RGSS_SUPPORTED_RUN_ACTIONS : undefined}
+        hideRunTools={false}
+        hideSpeedSliders={false}
         onOpenLibrary={() => router.push('/game')}
         events={eventsSlot}
         saveData={saveDataSlot}

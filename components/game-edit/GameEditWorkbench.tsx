@@ -141,6 +141,8 @@ export type GameEditWorkbenchProps = {
   supportedTabs?: ReadonlySet<TabId> | ((tab: TabId) => boolean)
   /** 支持的运行标记开关，未指定的隐藏 */
   supportedFlags?: ReadonlySet<RunFlagKey> | ((key: RunFlagKey) => boolean)
+  /** 支持的瞬时动作，未指定的隐藏 */
+  supportedActions?: ReadonlySet<RunActionId> | ((id: RunActionId) => boolean)
   /** 隐藏运行设置右侧快捷工具箱（如 RGSS 下不支持的场面跳转/排错） */
   hideRunTools?: boolean
   /** 隐藏倍速/移动速度滑块 */
@@ -255,11 +257,17 @@ export function GameEditWorkbench({
   saveData,
   supportedTabs,
   supportedFlags,
+  supportedActions,
   hideRunTools,
   hideSpeedSliders,
 }: GameEditWorkbenchProps) {
   const t = useT()
   const q = filter.trim().toLowerCase()
+
+  const isBattleSupported = useMemo(() => {
+    if (!supportedTabs) return true
+    return typeof supportedTabs === 'function' ? supportedTabs('battle') : supportedTabs.has('battle')
+  }, [supportedTabs])
 
   const rows = useMemo((): TableRow[] => {
     if (!catalog || tab === 'run' || tab === 'trans' || tab === 'actor') return []
@@ -450,6 +458,7 @@ export function GameEditWorkbench({
                     actionsEnabled={surface === 'overlay' || linked}
                     readOnly={readOnly}
                     supportedFlags={supportedFlags}
+                    supportedActions={supportedActions}
                     hideTools={hideRunTools}
                     hideSpeedSliders={hideSpeedSliders}
                     onGoldChange={onGoldChange}
@@ -459,7 +468,7 @@ export function GameEditWorkbench({
                     onExpRateChange={onExpRateChange}
                     onFlagChange={onRunFlagChange}
                     onAction={onRunAction}
-                    onOpenBattle={() => setTab('battle')}
+                    onOpenBattle={isBattleSupported ? () => setTab('battle') : undefined}
                   />
                 </ScrollArea>
               ) : tab === 'trans' ? (

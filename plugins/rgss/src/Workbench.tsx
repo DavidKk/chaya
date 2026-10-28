@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { GameEditWorkbench } from '@/components/game-edit/GameEditWorkbench'
-import { RGSS_SUPPORTED_EDIT_TABS, RGSS_SUPPORTED_RUN_FLAGS } from '@/components/game-edit/supported'
+import { RGSS_SUPPORTED_EDIT_TABS, RGSS_SUPPORTED_RUN_ACTIONS, RGSS_SUPPORTED_RUN_FLAGS, runActionNeedsClose } from '@/components/game-edit/supported'
 import { type ActorPaneId, isEditTab, mainNavIdForTab, type TabId } from '@/components/game-edit/tabs'
 import { emptySession } from '@/components/game-edit/types'
 import { stopGameKeys } from '@/components/game-tools/game-keys'
@@ -143,8 +143,9 @@ export function RgssWorkbench({ open: controlledOpen, onClose: controlledOnClose
         surface="overlay"
         supportedTabs={RGSS_SUPPORTED_EDIT_TABS}
         supportedFlags={RGSS_SUPPORTED_RUN_FLAGS}
-        hideRunTools={true}
-        hideSpeedSliders={true}
+        supportedActions={RGSS_SUPPORTED_RUN_ACTIONS}
+        hideRunTools={false}
+        hideSpeedSliders={false}
         onClose={() => {
           setOpen(false)
           controlledOnClose?.()
@@ -155,7 +156,12 @@ export function RgssWorkbench({ open: controlledOpen, onClose: controlledOnClose
         onGameSpeedChange={(value) => send({ op: 'gameSpeed', value })}
         onExpRateChange={(value) => send({ op: 'expRate', value })}
         onRunFlagChange={(key, value) => send({ op: 'runFlag', key, value })}
-        onRunAction={(id) => send({ op: 'runAction', id })}
+        onRunAction={(id) => {
+          send({ op: 'runAction', id })
+          if (runActionNeedsClose(id)) {
+            setOpen(false)
+          }
+        }}
         onCountChange={(kind, id, value) => send({ op: 'count', kind, id, value })}
         onVarChange={(id, value) => send({ op: 'var', id, value })}
         onSwitchChange={(id, value) => send({ op: 'sw', id, value })}

@@ -134,3 +134,43 @@ it('allows switching to top-level navigation tabs without resetting to run', asy
   expect(transTab?.getAttribute('aria-current')).toBe('page')
   expect(host.querySelector('button[data-main-nav-id="edit"]')?.getAttribute('aria-current')).toBeNull()
 })
+
+it('sends moveRate and gameSpeed updates from speed sliders', async () => {
+  const speedInput = host.querySelector<HTMLInputElement>('input[aria-label="运行倍速"]')
+  expect(speedInput).not.toBeNull()
+  await act(async () => {
+    speedInput!.focus()
+    speedInput!.value = '2.5'
+    speedInput!.dispatchEvent(new Event('change', { bubbles: true }))
+    speedInput!.blur()
+  })
+  expect(commands().some((cmd) => cmd.op === 'gameSpeed' && cmd.value === 2.5)).toBe(true)
+
+  const moveInput = host.querySelector<HTMLInputElement>('input[aria-label="移动倍速"]')
+  expect(moveInput).not.toBeNull()
+  await act(async () => {
+    moveInput!.focus()
+    moveInput!.value = '2'
+    moveInput!.dispatchEvent(new Event('change', { bubbles: true }))
+    moveInput!.blur()
+  })
+  expect(commands().some((cmd) => cmd.op === 'moveRate' && cmd.value === 2)).toBe(true)
+})
+
+it('dispatches supported run actions and closes the workbench for battle victory', async () => {
+  // Verify battle action button is rendered
+  const victoryBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '战斗胜利')
+  expect(victoryBtn).toBeDefined()
+
+  // Party heal does not close the workbench
+  const healBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '队伍恢复')
+  expect(healBtn).toBeDefined()
+  await click(healBtn!)
+  expect(commands().at(-1)).toMatchObject({ op: 'runAction', id: 'battle:partyHeal' })
+  expect(host.querySelector('[data-rgss-interactive]')).not.toBeNull()
+
+  // Battle victory closes the workbench
+  await click(victoryBtn!)
+  expect(commands().at(-1)).toMatchObject({ op: 'runAction', id: 'battle:victory' })
+  expect(host.querySelector('[data-rgss-interactive]')).toBeNull()
+})

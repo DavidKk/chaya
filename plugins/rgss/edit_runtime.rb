@@ -182,15 +182,83 @@ module ChayaRGSS
         end
       end
 
+      def game_speed
+        @game_speed || 1.0
+      end
+
+      def apply_game_speed(rate)
+        rate = [[rate.to_f, 1.0].max, 5.0].min
+        @game_speed = rate
+        if defined?(Graphics) && Graphics.respond_to?(:frame_rate)
+          target_fps = (60 * rate).round
+          Graphics.frame_rate = [target_fps, 300].min rescue 60
+        end
+      end
+
+      def walk_rate
+        @walk_rate || 1.0
+      end
+
+      def run_rate
+        @run_rate || 1.0
+      end
+
+      def apply_walk_rate(rate)
+        rate = [[rate.to_f, 0.5].max, 4.0].min
+        @walk_rate = rate
+        install_movement_hooks
+      end
+
+      def apply_run_rate(rate)
+        rate = [[rate.to_f, 0.5].max, 4.0].min
+        @run_rate = rate
+        install_movement_hooks
+      end
+
+      def apply_move_rate(rate)
+        rate = [[rate.to_f, 0.5].max, 4.0].min
+        @walk_rate = rate
+        @run_rate = rate
+        install_movement_hooks
+      end
+
+      def install_movement_hooks
+        return if @movement_hooks_installed
+        target_class = if defined?(Game_CharacterBase)
+                         Game_CharacterBase
+                       elsif defined?(Game_Character)
+                         Game_Character
+                       end
+        return unless target_class && target_class.method_defined?(:distance_per_frame)
+        return if target_class.method_defined?(:chaya_orig_distance_per_frame)
+
+        target_class.class_eval do
+          alias_method :chaya_orig_distance_per_frame, :distance_per_frame
+          def distance_per_frame
+            base = chaya_orig_distance_per_frame
+            return base unless defined?(ChayaRGSS::EditRuntime)
+
+            is_player = is_a?(Game_Player)
+            is_follower = defined?(Game_Follower) && is_a?(Game_Follower)
+            return base unless is_player || is_follower
+
+            rate = dash? ? ChayaRGSS::EditRuntime.run_rate : ChayaRGSS::EditRuntime.walk_rate
+            rate > 0 ? base * [rate, 4.0].min : base
+          end
+        end
+        @movement_hooks_installed = true
+      end
+
       def ensure_hooks
         install_selectable_hook if defined?(Window_Selectable)
         install_battle_command_guards if defined?(Scene_Battle)
         install_skip_battle_result_hook if skip_battle_result?
+        install_movement_hooks if defined?(Game_CharacterBase) || defined?(Game_Character)
         return if @hooks_installed
         install_dash_hook if defined?(Game_Player) || (defined?($game_player) && $game_player)
         install_message_hook if defined?(Window_Message)
         install_battle_hooks if defined?(Game_Actor) || (defined?($game_actors) && $game_actors) || defined?(BattleManager)
-        @hooks_installed = true if defined?(Game_Player) && defined?(Window_Message) && defined?(BattleManager)
+        @hooks_installed = true if defined?(Game_Player) && defined?(Window_Message) && (defined?(BattleManager) || defined?(Scene_Battle))
       end
 
       # Mash confirm only while MOG result flags are live — not during command select.
@@ -379,17 +447,33 @@ module ChayaRGSS
       end
 
       def safe_auto_win_phase?(phase)
+        return true if phase.nil?
         AUTO_WIN_PHASES.include?(phase)
       end
 
       def live_battle_scene
-        return nil unless defined?(BattleManager) && defined?(SceneManager) && defined?(Scene_Battle)
-        scene = SceneManager.scene rescue nil
+        return nil unless defined?(Scene_Battle)
+        scene = if defined?(SceneManager) && SceneManager.respond_to?(:scene)
+                  SceneManager.scene rescue nil
+                elsif defined?($scene)
+                  $scene
+                end
         scene.is_a?(Scene_Battle) ? scene : nil
       end
 
       def window_usable?(win)
         win && (!win.respond_to?(:disposed?) || !win.disposed?)
+      end
+
+      def close_battle_windows(scene)
+        return unless scene
+        [:@party_command_window, :@actor_command_window, :@skill_window, :@item_window,
+         :@actor_window, :@enemy_window, :@target_window, :@help_window].each do |var|
+          win = scene.instance_variable_get(var) rescue nil
+          next unless window_usable?(win)
+          win.close if win.respond_to?(:close)
+          win.deactivate if win.respond_to?(:deactivate)
+        end
       end
 
       def install_battle_hooks
@@ -461,7 +545,7 @@ module ChayaRGSS
       end
 
       def auto_win_ready?
-        return false if @resolving_auto_win || !auto_win?
+        return false if @resolving_auto_win || @resolving_action || !auto_win?
         scene = live_battle_scene
         return false unless scene
         return false if scene.equal?(@auto_win_scene)
@@ -478,11 +562,227 @@ module ChayaRGSS
         begin
           @resolving_auto_win = true
           $game_troop.members.each { |enemy| enemy.hp = 0 if enemy.respond_to?(:hp=) }
-          result = BattleManager.process_victory
+          close_battle_windows(scene)
+          result = if defined?(BattleManager) && BattleManager.respond_to?(:process_victory)
+                     BattleManager.process_victory
+                   elsif scene.respond_to?(:process_victory)
+                     scene.process_victory
+                   elsif scene.respond_to?(:battle_end)
+                     scene.battle_end(0)
+                   end
           @auto_win_scene = scene
           result
         ensure
           @resolving_auto_win = false
+        end
+      end
+
+      def execute_battle_victory
+        return false if @resolving_action || @resolving_auto_win
+        scene = live_battle_scene
+        return false unless scene && defined?($game_troop) && $game_troop
+        return false if troop_event_running? || battle_message_busy?
+        phase = BattleManager.instance_variable_get(:@phase) rescue nil if defined?(BattleManager)
+        return false if defined?(BattleManager) && !safe_auto_win_phase?(phase)
+
+        begin
+          @resolving_action = true
+          $game_troop.members.each { |enemy| enemy.hp = 0 if enemy.respond_to?(:hp=) }
+          close_battle_windows(scene)
+          if defined?(BattleManager) && BattleManager.respond_to?(:process_victory)
+            BattleManager.process_victory
+          elsif scene.respond_to?(:process_victory)
+            scene.process_victory
+          elsif scene.respond_to?(:battle_end)
+            scene.battle_end(0)
+          end
+          true
+        ensure
+          @resolving_action = false
+        end
+      end
+
+      def execute_battle_escape
+        scene = live_battle_scene
+        return false unless scene
+        close_battle_windows(scene)
+        if defined?(BattleManager) && BattleManager.respond_to?(:process_abort)
+          if defined?(Vocab::EscapeStart) && defined?($game_party) && defined?($game_message)
+            $game_message.add(sprintf(Vocab::EscapeStart, $game_party.name)) rescue nil
+          end
+          BattleManager.process_abort
+          true
+        elsif scene.respond_to?(:battle_end)
+          scene.battle_end(1)
+          true
+        else
+          false
+        end
+      end
+
+      def execute_battle_defeat
+        scene = live_battle_scene
+        return false unless scene && defined?($game_party) && $game_party
+        $game_party.members.each { |m| m.hp = 0 if m.respond_to?(:hp=) }
+        close_battle_windows(scene)
+        if defined?(BattleManager) && BattleManager.respond_to?(:process_defeat)
+          BattleManager.process_defeat
+        elsif scene.respond_to?(:battle_end)
+          scene.battle_end(2)
+        end
+        true
+      end
+
+      def execute_battle_abort
+        scene = live_battle_scene
+        return false unless scene
+        close_battle_windows(scene)
+        if defined?(BattleManager) && BattleManager.respond_to?(:process_abort)
+          BattleManager.process_abort
+          true
+        elsif scene.respond_to?(:battle_end)
+          scene.battle_end(1)
+          true
+        else
+          false
+        end
+      end
+
+      def execute_battle_enemy_hp1
+        return false unless defined?($game_troop) && $game_troop
+        $game_troop.members.each do |enemy|
+          next unless enemy.respond_to?(:hp) && enemy.respond_to?(:hp=)
+          enemy.hp = 1 if enemy.hp > 0
+        end
+        true
+      end
+
+      def execute_battle_party_heal
+        return false unless defined?($game_party) && $game_party
+        $game_party.members.each do |actor|
+          if actor.respond_to?(:recover_all)
+            actor.recover_all
+          else
+            max_hp = if actor.respond_to?(:mhp) then actor.mhp
+                     elsif actor.respond_to?(:maxhp) then actor.maxhp
+                     end
+            max_mp = if actor.respond_to?(:mmp) then actor.mmp
+                     elsif actor.respond_to?(:maxmp) then actor.maxmp
+                     end
+            actor.hp = max_hp if actor.respond_to?(:hp=) && max_hp
+            actor.mp = max_mp if actor.respond_to?(:mp=) && max_mp
+          end
+        end
+        true
+      end
+
+      def execute_battle_party_hp1
+        return false unless defined?($game_party) && $game_party
+        $game_party.members.each do |actor|
+          next unless actor.respond_to?(:hp) && actor.respond_to?(:hp=)
+          actor.hp = 1 if actor.hp > 0
+        end
+        true
+      end
+
+      def execute_battle_party_hp0
+        return false unless defined?($game_party) && $game_party
+        $game_party.members.each do |actor|
+          actor.hp = 0 if actor.respond_to?(:hp=)
+        end
+        true
+      end
+
+      def goto_scene(cls)
+        return false unless cls
+        if defined?(SceneManager) && SceneManager.respond_to?(:goto)
+          SceneManager.goto(cls)
+          true
+        elsif defined?($scene)
+          $scene = cls.new rescue nil
+          true
+        else
+          false
+        end
+      end
+
+      def execute_fix_map
+        defined?(Scene_Map) && goto_scene(Scene_Map)
+      end
+
+      def execute_fix_title
+        defined?(Scene_Title) && goto_scene(Scene_Title)
+      end
+
+      def execute_fix_clear_event
+        if defined?($game_map) && $game_map
+          interp = $game_map.respond_to?(:interpreter) ? $game_map.interpreter : $game_map.instance_variable_get(:@interpreter)
+          interp.clear if interp && interp.respond_to?(:clear)
+        end
+        $game_message.clear if defined?($game_message) && $game_message.respond_to?(:clear)
+        $game_player.clear_move_route if defined?($game_player) && $game_player.respond_to?(:clear_move_route)
+        true
+      end
+
+      def execute_fix_clear_move_route
+        $game_player.clear_move_route if defined?($game_player) && $game_player.respond_to?(:clear_move_route)
+        if defined?($game_map) && $game_map && $game_map.respond_to?(:events)
+          $game_map.events.values.each { |ev| ev.clear_move_route if ev.respond_to?(:clear_move_route) }
+        end
+        true
+      end
+
+      def execute_fix_close_windows
+        scene = if defined?(SceneManager) && SceneManager.respond_to?(:scene)
+                  SceneManager.scene rescue nil
+                elsif defined?($scene)
+                  $scene
+                end
+        return false unless scene
+        scene.instance_variables.each do |var|
+          val = scene.instance_variable_get(var) rescue nil
+          next unless window_usable?(val)
+          val.close if val.respond_to?(:close)
+          val.deactivate if val.respond_to?(:deactivate)
+        end
+        true
+      end
+
+      def execute_fix_fade_in
+        if defined?(Graphics) && Graphics.respond_to?(:fadein)
+          Graphics.fadein(1) rescue nil
+          true
+        else
+          false
+        end
+      end
+
+      def handle_run_action(id)
+        case id
+        when 'battle:victory' then execute_battle_victory
+        when 'battle:escape' then execute_battle_escape
+        when 'battle:defeat' then execute_battle_defeat
+        when 'battle:abort' then execute_battle_abort
+        when 'battle:enemyHp1' then execute_battle_enemy_hp1
+        when 'battle:partyHeal' then execute_battle_party_heal
+        when 'battle:partyHp1' then execute_battle_party_hp1
+        when 'battle:partyHp0' then execute_battle_party_hp0
+        when 'fix:map' then execute_fix_map
+        when 'fix:title' then execute_fix_title
+        when 'fix:clearEvent' then execute_fix_clear_event
+        when 'fix:clearMoveRoute' then execute_fix_clear_move_route
+        when 'fix:closeWindows' then execute_fix_close_windows
+        when 'fix:fadeIn' then execute_fix_fade_in
+        when 'scene:item' then goto_scene(defined?(Scene_Item) ? Scene_Item : nil)
+        when 'scene:skill' then goto_scene(defined?(Scene_Skill) ? Scene_Skill : nil)
+        when 'scene:equip' then goto_scene(defined?(Scene_Equip) ? Scene_Equip : nil)
+        when 'scene:save' then goto_scene(defined?(Scene_Save) ? Scene_Save : nil)
+        when 'scene:menu' then goto_scene(defined?(Scene_Menu) ? Scene_Menu : nil)
+        when 'scene:load' then goto_scene(defined?(Scene_Load) ? Scene_Load : nil)
+        when 'scene:status' then goto_scene(defined?(Scene_Status) ? Scene_Status : nil)
+        when 'scene:debug' then goto_scene(defined?(Scene_Debug) ? Scene_Debug : nil)
+        else
+          raise "Unsupported RGSS run action: #{id}"
         end
       end
 
@@ -541,6 +841,25 @@ module ChayaRGSS
         when 'runFlag'
           set_run_flag(op['key'], op['value'])
           [op['key']]
+        when 'moveRate'
+          rate = Bridge.number(op['value'], 0.5, 4.0)
+          apply_move_rate(rate)
+          ['walkRate:0', 'runRate:0']
+        when 'walkRate'
+          rate = Bridge.number(op['value'], 0.5, 4.0)
+          apply_walk_rate(rate)
+          ['walkRate:0']
+        when 'runRate'
+          rate = Bridge.number(op['value'], 0.5, 4.0)
+          apply_run_rate(rate)
+          ['runRate:0']
+        when 'gameSpeed'
+          rate = Bridge.number(op['value'], 1.0, 5.0)
+          apply_game_speed(rate)
+          ['gameSpeed:0']
+        when 'runAction'
+          handle_run_action(op['id'])
+          [op['id']]
         else
           raise "Unsupported RGSS operation: #{op['op']}"
         end
@@ -581,6 +900,9 @@ module ChayaRGSS
         when 'count' then ["count:#{op['kind']}:#{op['id']}"]
         when 'actor' then ["actor:#{op['id']}"]
         when 'runFlag' then ["runFlag:#{op['key']}"]
+        when 'moveRate', 'walkRate', 'runRate' then ['moveRate']
+        when 'gameSpeed' then ['gameSpeed']
+        when 'runAction' then ["runAction:#{op['id']}"]
         else fields
         end
       end
