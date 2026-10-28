@@ -165,6 +165,7 @@ describe('extended choice protocol parsing', () => {
     [String.raw`拡張選択肢 0,20,[\I[255]Change music,\N[10]'s stats],左,下`, [String.raw`\I[255]Change music`, String.raw`\N[10]'s stats`]],
     ['拡張選択肢 0,20,[Cancel,Confirm],12,-40', ['Cancel', 'Confirm']],
     ['拡張選択肢 0,20,[Cancel,Confirm],', ['Cancel', 'Confirm']],
+    ['拡張選択肢\u30000,20,[Cancel,Confirm]', ['Cancel', 'Confirm']],
   ])('parses literal choices with stable spans: %s', (raw, expected) => {
     const choices = parseRgssExtendedChoices(raw)!
     expect(choices.map((choice) => choice.text)).toEqual(expected)

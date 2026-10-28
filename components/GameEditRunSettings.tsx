@@ -427,7 +427,7 @@ export function GameEditRunSettings({
           />
           <ActionCard
             title={t('edit.battleTitle')}
-            description={t('events.battle.runMoved')}
+            description={onOpenBattle ? t('events.battle.runMoved') : t('edit.battleDesc')}
             groups={BATTLE_GROUPS}
             disabled={!canAct}
             disabledReason={readOnly ? readOnlyTip : previewDisabled}

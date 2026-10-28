@@ -32,7 +32,7 @@ function fields(raw: string, start: number, end: number): ExtendedChoice[] | nul
 /** A1_ExChoice concatenates 108/408 comments without separators before splitting its arguments. */
 export function parseRgssExtendedChoices(raw: string): ExtendedChoice[] | null {
   if (raw.length > 100_000) return null
-  const header = /^拡張選択肢[ \t]+/.exec(raw)
+  const header = /^拡張選択肢[ \t\u3000]+/.exec(raw)
   if (!header) return null
   const args = fields(raw, header[0].length, raw.length)
   if (!args || args.length < 3 || !/^-?\d+$/.test(args[0]!.text) || !/^\d*$/.test(args[1]!.text)) return null

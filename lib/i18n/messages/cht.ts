@@ -953,6 +953,7 @@ export const cht: MessageTree = {
     fixTitle: '修复',
     fixDesc: '清理异常画面/事件，或从卡死恢复',
     battleTitle: '战斗',
+    battleDesc: '战斗快捷操作；局内可直接执行',
     previewDisabled: '網頁预览不可用，請在局内打开 ChayaEdit 操作',
     groupCharacter: '角色界面',
     groupSystem: '系统',

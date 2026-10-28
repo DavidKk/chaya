@@ -50,7 +50,7 @@
 | **场景管理容器** | `SceneManager.scene` / `SceneManager.goto(cls)`                   | 无 `SceneManager`；全局变量 `$scene` 持有当前场景，切场景直接 `$scene = cls.new` | 提供统一的 `live_battle_scene` 与 `goto_scene` 抽象方法，优先探测 `SceneManager`，回退到 `$scene`                             |
 | **战斗调度中枢** | 独立静态类 `BattleManager`，掌控 phase 状态与胜负脱战结算         | 无 `BattleManager`；战斗状态机、窗口与胜负流程全部内聚在 `Scene_Battle` 实例内部 | 检查 `defined?(BattleManager)`：存在则调用 `BattleManager`，否则在 `Scene_Battle` 实例上调用 `process_victory` / `battle_end` |
 | **角色基类**     | `Game_CharacterBase`（`Game_Character` 的父类）                   | 无 `Game_CharacterBase`；角色基类为 `Game_Character`                             | 动态解析基类：`defined?(Game_CharacterBase) ? Game_CharacterBase : Game_Character`                                            |
-| **移动速度计算** | `distance_per_frame`（`2 ** real_move_speed / 256.0`）            | `distance_per_frame`（`2 ** real_move_speed / 256.0`）                           | 两者数学计算一致，均可在基类的 `distance_per_frame` 上叠乘线性倍率                                                            |
+| **移动速度计算** | `distance_per_frame`（`2 ** real_move_speed / 256.0`）            | 原版在 `update_move` 内使用定点整数步长（`2 ** move_speed`）                     | RGSS3 挂钩 `distance_per_frame`；RGSS2 挂钩 `update_move` 按倍率缩放单步像素距离                                              |
 | **随从队列**     | 原生 `Game_Followers` / `Game_Follower`，随从自动跟随队长移动速度 | 原版无随从队伍（单人行走；第三方脚本扩展）                                       | 对随从加保护：`defined?(Game_Follower) && is_a?(Game_Follower)`，防止常量未定义                                               |
 | **帧率上限限制** | mkxp-z 无限制；Windows 官方 dll 锁 `10..120`                      | mkxp-z 无限制；Windows 官方 dll 锁 `10..120`                                     | 跨平台双轨调度：1x–2x 调帧率，高倍率降级为主循环多重 `update`                                                                 |
 
@@ -135,8 +135,34 @@ if target_class && !target_class.method_defined?(:chaya_orig_distance_per_frame)
       is_follower = defined?(Game_Follower) && is_a?(Game_Follower)
       return base unless is_player || is_follower
 
-      rate = dash? ? ChayaRGSS::EditRuntime.run_rate : ChayaRGSS::EditRuntime.walk_rate
+      is_dashing = if is_player
+                     respond_to?(:dash?) && dash?
+                   elsif is_follower
+                     defined?($game_player) && $game_player && $game_player.respond_to?(:dash?) && $game_player.dash?
+                   else
+                     false
+                   end
+      rate = is_dashing ? ChayaRGSS::EditRuntime.run_rate : ChayaRGSS::EditRuntime.walk_rate
       rate > 0 ? base * [rate, 4.0].min : base
+    end
+  end
+elsif target_class && target_class.method_defined?(:update_move) && !target_class.method_defined?(:chaya_orig_update_move)
+  # RGSS2（VX 原版）无 distance_per_frame，步长直接在 update_move 中计算
+  target_class.class_eval do
+    alias_method :chaya_orig_update_move, :update_move
+    def update_move
+      return chaya_orig_update_move unless defined?(ChayaRGSS::EditRuntime) && is_a?(Game_Player)
+      rate = (respond_to?(:dash?) && dash?) ? ChayaRGSS::EditRuntime.run_rate : ChayaRGSS::EditRuntime.walk_rate
+      if rate == 1.0
+        chaya_orig_update_move
+      else
+        distance = [(2 ** @move_speed * (@dash ? 2 : 1) * [rate, 4.0].min).round, 256].min
+        @real_x = [@real_x - distance, @x * 256].max if @x * 256 < @real_x
+        @real_x = [@real_x + distance, @x * 256].min if @x * 256 > @real_x
+        @real_y = [@real_y - distance, @y * 256].max if @y * 256 < @real_y
+        @real_y = [@real_y + distance, @y * 256].min if @y * 256 > @real_y
+        @anime_count += 1
+      end
     end
   end
 end

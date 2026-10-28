@@ -4017,7 +4017,7 @@ function fields(raw, start, end) {
 }
 function parseRgssExtendedChoices(raw) {
   if (raw.length > 1e5) return null;
-  const header = /^拡張選択肢[ \t]+/.exec(raw);
+  const header = /^拡張選択肢[ \t\u3000]+/.exec(raw);
   if (!header) return null;
   const args = fields(raw, header[0].length, raw.length);
   if (!args || args.length < 3 || !/^-?\d+$/.test(args[0].text) || !/^\d*$/.test(args[1].text)) return null;

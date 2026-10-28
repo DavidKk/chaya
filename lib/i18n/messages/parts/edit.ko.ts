@@ -126,6 +126,7 @@ export const editKo = {
     fixTitle: '복구',
     fixDesc: 'Clear odd UI/events or recover after errors.',
     battleTitle: '전투',
+    battleDesc: 'Quick battle actions; execute directly in-game.',
     previewDisabled: 'Web preview unavailable — use in-game ChayaEdit.',
     groupCharacter: 'Character',
     groupSystem: 'System',

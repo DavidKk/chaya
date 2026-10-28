@@ -960,6 +960,7 @@ export const ptBR: MessageTree = {
     fixTitle: 'Fix',
     fixDesc: 'Clear bad UI/events, or recover from freezes',
     battleTitle: 'Battle',
+    battleDesc: 'Quick battle actions; execute directly in-game',
     previewDisabled: 'Web preview unavailable — use in-game ChayaEdit.',
     groupCharacter: 'Character',
     groupSystem: 'System',

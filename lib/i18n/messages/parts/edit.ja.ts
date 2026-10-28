@@ -126,6 +126,7 @@ export const editJa = {
     fixTitle: '修復',
     fixDesc: 'Clear odd UI/events or recover after errors.',
     battleTitle: '戦闘',
+    battleDesc: 'Quick battle actions; execute directly in-game.',
     previewDisabled: 'Web preview unavailable — use in-game ChayaEdit.',
     groupCharacter: 'キャラ',
     groupSystem: 'システム',

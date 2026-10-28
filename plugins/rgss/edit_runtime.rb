@@ -229,24 +229,56 @@ module ChayaRGSS
                        elsif defined?(Game_Character)
                          Game_Character
                        end
-        return unless target_class && target_class.method_defined?(:distance_per_frame)
-        return if target_class.method_defined?(:chaya_orig_distance_per_frame)
+        return unless target_class
 
-        target_class.class_eval do
-          alias_method :chaya_orig_distance_per_frame, :distance_per_frame
-          def distance_per_frame
-            base = chaya_orig_distance_per_frame
-            return base unless defined?(ChayaRGSS::EditRuntime)
+        if target_class.method_defined?(:distance_per_frame)
+          return if target_class.method_defined?(:chaya_orig_distance_per_frame)
+          target_class.class_eval do
+            alias_method :chaya_orig_distance_per_frame, :distance_per_frame
+            def distance_per_frame
+              base = chaya_orig_distance_per_frame
+              return base unless defined?(ChayaRGSS::EditRuntime)
 
-            is_player = is_a?(Game_Player)
-            is_follower = defined?(Game_Follower) && is_a?(Game_Follower)
-            return base unless is_player || is_follower
+              is_player = is_a?(Game_Player)
+              is_follower = defined?(Game_Follower) && is_a?(Game_Follower)
+              return base unless is_player || is_follower
 
-            rate = dash? ? ChayaRGSS::EditRuntime.run_rate : ChayaRGSS::EditRuntime.walk_rate
-            rate > 0 ? base * [rate, 4.0].min : base
+              is_dashing = if is_player
+                             respond_to?(:dash?) && dash?
+                           elsif is_follower
+                             defined?($game_player) && $game_player && $game_player.respond_to?(:dash?) && $game_player.dash?
+                           else
+                             false
+                           end
+              rate = is_dashing ? ChayaRGSS::EditRuntime.run_rate : ChayaRGSS::EditRuntime.walk_rate
+              rate > 0 ? base * [rate, 4.0].min : base
+            end
           end
+          @movement_hooks_installed = true
+        elsif target_class.method_defined?(:update_move)
+          return if target_class.method_defined?(:chaya_orig_update_move)
+          target_class.class_eval do
+            alias_method :chaya_orig_update_move, :update_move
+            def update_move
+              return chaya_orig_update_move unless defined?(ChayaRGSS::EditRuntime) && is_a?(Game_Player)
+
+              rate = (respond_to?(:dash?) && dash?) ? ChayaRGSS::EditRuntime.run_rate : ChayaRGSS::EditRuntime.walk_rate
+              if rate == 1.0
+                chaya_orig_update_move
+              else
+                distance = 2 ** @move_speed
+                distance *= 2 if @dash
+                distance = [(distance * [rate, 4.0].min).round, 256].min
+                @real_x = [@real_x - distance, @x * 256].max if @x * 256 < @real_x
+                @real_x = [@real_x + distance, @x * 256].min if @x * 256 > @real_x
+                @real_y = [@real_y - distance, @y * 256].max if @y * 256 < @real_y
+                @real_y = [@real_y + distance, @y * 256].min if @y * 256 > @real_y
+                @anime_count += 1
+              end
+            end
+          end
+          @movement_hooks_installed = true
         end
-        @movement_hooks_installed = true
       end
 
       def ensure_hooks
@@ -596,6 +628,7 @@ module ChayaRGSS
           elsif scene.respond_to?(:battle_end)
             scene.battle_end(0)
           end
+          @auto_win_scene = scene
           true
         ensure
           @resolving_action = false

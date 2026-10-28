@@ -156,10 +156,35 @@ it('filters run actions according to supportedActions and triggers onAction', as
   const mapBtn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === '转至地图')
   expect(mapBtn).toBeDefined()
 
+  // When onOpenBattle is absent, general battle description is used
+  expect(document.body.textContent).toContain('战斗快捷操作；局内可直接执行')
+  expect(document.body.textContent).not.toContain('都在「战斗」页')
+
   // Unsupported actions in the same group are filtered out
   const escapeBtn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === '战斗逃跑')
   expect(escapeBtn).toBeUndefined()
 
   await act(async () => victoryBtn?.click())
   expect(onAction).toHaveBeenCalledWith('battle:victory')
+
+  // When onOpenBattle is provided, it links to battle page
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <GameEditRunSettings
+          value={{ ...emptySession(), goldLocked: false }}
+          onGoldChange={noop}
+          onGoldLockChange={noop}
+          onMoveRateChange={noop}
+          onGameSpeedChange={noop}
+          onExpRateChange={noop}
+          onFlagChange={noop}
+          supportedActions={new Set(['battle:victory'])}
+          onAction={onAction}
+          onOpenBattle={() => {}}
+        />
+      </LocaleProvider>
+    )
+  )
+  expect(document.body.textContent).toContain('结束战斗、改敌我数值都在「战斗」页。')
 })

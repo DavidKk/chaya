@@ -331,6 +331,17 @@ runtime.install_movement_hooks
 test_player = Game_Player.new
 check(test_player.distance_per_frame == 4.0 * 1.5, 'distance_per_frame did not scale by walk_rate')
 
+# Test follower without dash? method does not crash and syncs with player dash
+class Game_Follower < Game_CharacterBase
+end
+bridge.apply({ 'op' => 'runFlag', 'key' => 'alwaysDash', 'value' => false })
+$game_player = test_player
+test_follower = Game_Follower.new
+check(test_follower.distance_per_frame == 4.0 * 1.5, 'follower distance_per_frame did not scale by walk_rate')
+test_player.define_singleton_method(:dash?) { true }
+check(test_follower.distance_per_frame == 4.0 * 3.0, 'follower distance_per_frame did not scale by run_rate when player dashes')
+test_player.define_singleton_method(:dash?) { false }
+
 # Test runAction: battle:victory in RGSS3 (BattleManager)
 SceneManager.instance_variable_set(:@scene, Scene_Battle.new)
 $game_troop = Struct.new(:members).new([MockEnemy.new])
@@ -341,6 +352,10 @@ fields = bridge.apply({ 'op' => 'runAction', 'id' => 'battle:victory' })
 check(fields == ['runAction:battle:victory'], 'wrong reply for battle:victory')
 check($game_troop.members.first.hp == 0, 'battle:victory did not zero enemy hp')
 check(BattleManager.victory_calls == 1, 'battle:victory did not invoke process_victory')
+check(runtime.instance_variable_get(:@auto_win_scene) == SceneManager.scene, 'battle:victory did not record @auto_win_scene')
+runtime.set_run_flag('autoWin', true)
+check(!runtime.auto_win_ready?, 'auto_win_ready? should be suppressed for current victory scene')
+runtime.set_run_flag('autoWin', false)
 
 # Test runAction: battle:enemyHp1 & partyHeal
 $game_troop.members.first.hp = 100
@@ -395,6 +410,35 @@ check(vx_scene.end_result == 1, 'RGSS2 escape did not call battle_end(1)')
 
 runtime.execute_battle_defeat
 check(vx_scene.end_result == 2, 'RGSS2 defeat did not call battle_end(2)')
+
+# Test RGSS2 update_move hook
+class VxCharacter
+  attr_accessor :x, :y, :real_x, :real_y, :move_speed, :dash, :anime_count
+  def initialize
+    @x = 5; @y = 5; @real_x = 4 * 256; @real_y = 5 * 256; @move_speed = 4; @dash = false; @anime_count = 0
+  end
+  def update_move
+    distance = 2 ** @move_speed
+    distance *= 2 if @dash
+    @real_x = [@real_x - distance, @x * 256].max if @x * 256 < @real_x
+    @real_x = [@real_x + distance, @x * 256].min if @x * 256 > @real_x
+    @real_y = [@real_y - distance, @y * 256].max if @y * 256 < @real_y
+    @real_y = [@real_y + distance, @y * 256].min if @y * 256 > @real_y
+    @anime_count += 1
+  end
+end
+class VxPlayer < VxCharacter
+  def dash?; false; end
+end
+Object.send(:remove_const, :Game_CharacterBase) if defined?(Game_CharacterBase)
+Object.const_set(:Game_Character, VxCharacter)
+Object.send(:remove_const, :Game_Player) if defined?(Game_Player)
+Object.const_set(:Game_Player, VxPlayer)
+runtime.instance_variable_set(:@movement_hooks_installed, false)
+runtime.install_movement_hooks
+vx_player = VxPlayer.new
+vx_player.update_move
+check(vx_player.real_x == 4 * 256 + 24, "RGSS2 update_move did not scale by walk_rate: #{vx_player.real_x}")
 
 # Restore BattleManager for any subsequent suites
 module BattleManager
