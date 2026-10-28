@@ -87,6 +87,13 @@
   color: var(--ink);
   color-scheme: dark;
   pointer-events: none;
+  outline: none !important;
+}
+
+:host:focus,
+:host:focus-visible,
+:host:focus-within {
+  outline: none !important;
 }
 
 :host *,
@@ -198,4 +205,10 @@
   flex: 1;
   min-height: 0;
   flex-direction: column;
+  outline: none !important;
+}
+
+.mount-root:focus,
+.mount-root:focus-visible {
+  outline: none !important;
 }

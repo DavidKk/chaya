@@ -17,6 +17,7 @@
 | 活动日志、游戏操作轨迹 | [活动记录](agent-activity-log.md) / [操作轨迹](agent-gameplay-trace.md) | [日志实现](technical/agent-activity-log.md)；覆盖范围见轨迹页头 |
 | Agent 分层任务、batch | [助手](game-agent.md) / [托管](game-assistance.md) | [任务执行](technical/game-agent-jobs.md)；只覆盖执行层 |
 | 旅伴陪玩、反射引擎、情绪反馈 | [旅伴](companion.md) / [现状问题](companion-optimization.md) | [陪玩实现](technical/companion.md) |
+| 旅伴核心重构、本地执行、动态战术、并发决策与多模型预留 | [重构需求](companion-core-rebuild.md)（草案；下一阶段目标） | [重构技术方案](technical/companion-core-rebuild.md)；现有实现不代表已按重构目标交付 |
 | 旅伴游玩记忆、死亡 / 读档采集 | [游玩记忆](companion-memory.md) | [记忆实现](technical/companion-memory.md) |
 | 本波补齐、可恢复性、冻结清单 | [能力补齐](capability-supplement.md) §3–9 | [补齐设计](technical/capability-supplement.md)；排期才读 [backlog](backlog-2026-10-08.md) |
 | 数据修改、地图事件 | [数据](edit-save-data.md) / [地图](edit-map-events.md) | [数据设计](technical/edit-save-data.md) / [地图设计](technical/edit-map-events.md) |
@@ -33,6 +34,7 @@
 | 标签、列表、结构化分段编辑 | [结构化分段](translation-structured-segmentation.md) | [分段设计](technical/translation-structured-segmentation.md) |
 | 整句缓存对齐回退 | [整句回退](translation-sentence-fallback.md) | [回退算法](technical/translation-sentence-fallback.md) |
 | 翻译列表搜索、多语言分词、相关度排序 | [列表相关度搜索](translation-list-search-ranking.md) | [多语言分词排序设计](technical/translation-list-search-ranking.md) |
+| RPG Maker 文本来源、说话人与剧情上下文抽取 | [上下文抽取](translation-rpgmaker-context-extraction.md) | [上下文抽取设计](technical/translation-rpgmaker-context-extraction.md) |
 | 专名/名称优化、术语纠偏、闲时润色 | [质量优化](translation-optimization.md) UI §3 · 入口 §5 · MVP §6 | [质量设计](technical/translation-optimization.md) 秩 §2 · 候选 §3 · 开工清单 §8 |
 | 专名句内一致、Rei/蕾漂移、同步到句子 | [专名一致性](translation-name-consistency.md) **适用 §3** · 人名表 §4 · 锁 span §5 | [专名设计](technical/translation-name-consistency.md) 表 §2 · 锁点 §3 · 接线 §4 |
 | 游戏翻译多语言、外置译文、特殊发声、分类采集 | [翻译优化与分类](translation-game-special-classification.md) 当前交付 §10 · 第一期 §7–9 · 分类 §3；排期才读 §4 | [多语言与数据设计](technical/translation-game-special-classification.md) 实现/操作/限制 §10 · 目标设计 §2–6 |

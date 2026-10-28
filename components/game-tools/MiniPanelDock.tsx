@@ -132,7 +132,7 @@ export function MiniPanelDock({ settings, update }: Props) {
       aria-label={t('panels.bar.aria')}
       data-orientation={vertical ? 'vertical' : 'horizontal'}
       className={cn(
-        'pointer-events-auto fixed z-[60] flex items-center gap-0.5 rounded-md bg-panel p-1 text-ink shadow-lg',
+        'pointer-events-auto fixed z-[60] flex items-center gap-0.5 rounded-md bg-panel p-1 text-ink shadow-lg outline-none focus:outline-none focus-visible:outline-none',
         MINI_PANEL_VISIBILITY_CLASS,
         vertical ? 'flex-col' : 'flex-row'
       )}

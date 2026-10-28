@@ -275,7 +275,7 @@ export function FloatingToolPanel({ title, children, headerTools, opacity, onClo
       onKeyDown={stopGameKeys}
       onKeyUp={stopGameKeys}
       className={cn(
-        'pointer-events-auto fixed z-[60] flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-md bg-panel text-ink shadow-lg',
+        'pointer-events-auto fixed z-[60] flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-md bg-panel text-ink shadow-lg outline-none focus:outline-none focus-visible:outline-none',
         MINI_PANEL_VISIBILITY_CLASS,
         className
       )}

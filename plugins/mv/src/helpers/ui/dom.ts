@@ -25,3 +25,33 @@ export function setInnerHTML(element: Element | ShadowRoot, html: string): void 
     element.appendChild(fragment.firstChild)
   }
 }
+
+/**
+ * 将焦点安全交还给游戏画布或 document.body，并确保不残留浏览器默认 focus outline。
+ */
+export function restoreGameFocus(): void {
+  try {
+    const graphics = (window as Window & { Graphics?: { _canvas?: HTMLElement } }).Graphics
+    const el = graphics?._canvas ?? document.querySelector<HTMLElement>('canvas')
+    if (el) {
+      if (typeof el.getAttribute === 'function' && !el.hasAttribute('tabindex')) {
+        el.tabIndex = -1
+      }
+      el.style.outline = 'none'
+      if (typeof el.focus === 'function') {
+        el.focus()
+        return
+      }
+    }
+    if (document.body) {
+      if (typeof document.body.getAttribute === 'function' && !document.body.hasAttribute('tabindex')) {
+        document.body.tabIndex = -1
+      }
+      document.body.style.outline = 'none'
+      document.body.focus?.()
+    }
+    window.focus?.()
+  } catch {
+    /* */
+  }
+}

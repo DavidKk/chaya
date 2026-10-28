@@ -32,9 +32,10 @@ export function ensureGameEditHost(cssText: string): GameEditHost {
   if (!host) {
     host = document.createElement('div')
     host.id = GAME_EDIT_HOST_ID
-    host.tabIndex = -1
     ;(document.documentElement || document.body).appendChild(host)
   }
+  host.removeAttribute('tabindex')
+  host.style.outline = 'none'
   const releasePointerInput = isolateGamePointerInput(host)
   const releaseHostKeyboard = isolateHostKeyboard(host)
 
@@ -50,6 +51,7 @@ export function ensureGameEditHost(cssText: string): GameEditHost {
     mount = document.createElement('div')
     mount.id = GAME_EDIT_MOUNT_ID
     mount.className = 'mount-root'
+    mount.style.outline = 'none'
     shadow.appendChild(mount)
   }
 

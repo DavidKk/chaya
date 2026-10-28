@@ -8,9 +8,10 @@ export function ensureGameAgentHost(cssText: string) {
   if (!host) {
     host = document.createElement('div')
     host.id = HOST_ID
-    host.tabIndex = -1
     ;(document.documentElement || document.body).appendChild(host)
   }
+  host.removeAttribute('tabindex')
+  host.style.outline = 'none'
   isolateGamePointerInput(host)
   isolateHostKeyboard(host)
   const shadow = host.shadowRoot || host.attachShadow({ mode: 'open' })
@@ -21,6 +22,7 @@ export function ensureGameAgentHost(cssText: string) {
     mount = document.createElement('div')
     mount.id = MOUNT_ID
     mount.className = 'agent-mount-root'
+    mount.style.outline = 'none'
     shadow.appendChild(mount)
   }
   return { host, mount, shadow }

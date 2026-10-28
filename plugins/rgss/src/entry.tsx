@@ -11,7 +11,8 @@ export function mountRgssOverlay() {
     container.id = 'chaya-rgss-overlay-container'
     document.body.appendChild(container)
   }
-  container.tabIndex = -1
+  container.removeAttribute('tabindex')
+  container.style.outline = 'none'
   const shadow = container.shadowRoot ?? container.attachShadow({ mode: 'open' })
   const stop = (e: Event) => e.stopPropagation()
   container.addEventListener('keydown', stop)
@@ -26,6 +27,7 @@ export function mountRgssOverlay() {
   style.textContent = overlayCss
   mount = document.createElement('div')
   mount.className = 'mount-root'
+  mount.style.outline = 'none'
   shadow.append(style, mount)
   const root = createRoot(mount)
   root.render(<RgssOverlayRoot />)

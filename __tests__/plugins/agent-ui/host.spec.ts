@@ -50,3 +50,15 @@ test('stops companion panel keyboard events from bubbling to the game document',
   document.removeEventListener('keydown', gameKeyDown)
   document.removeEventListener('keyup', gameKeyUp)
 })
+
+test('removes a stale host tabindex when reusing the companion overlay', () => {
+  const { host } = ensureGameAgentHost('')
+  host.tabIndex = -1
+
+  const reused = ensureGameAgentHost('')
+
+  expect(reused.host).toBe(host)
+  expect(host.hasAttribute('tabindex')).toBe(false)
+  expect(host.style.outline).toBe('none')
+  expect(reused.mount.style.outline).toBe('none')
+})
