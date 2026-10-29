@@ -92,7 +92,7 @@ export function storageCall<T = unknown>(method: string, args: unknown[] = []): 
   Atomics.store(signal, 0, 0)
   Atomics.store(signal, 1, 0)
   worker.postMessage({ port: meta.port, token: meta.authToken, body: { method, args }, shared })
-  if (Atomics.wait(signal, 0, 0, 25000) === 'timed-out') {
+  if (Atomics.wait(signal, 0, 0, 125000) === 'timed-out') {
     // A late worker response must never overwrite the next request's buffer.
     responseBuffer = undefined
     throw new Error('Storage request timed out; retry with the same mutation key')

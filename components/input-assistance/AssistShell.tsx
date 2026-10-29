@@ -9,6 +9,7 @@ import { legalBar, pageMainFlush, panelBody, panelShell } from '@/components/lay
 import { LegalNotice } from '@/components/legal/LegalNotice'
 import { SectionSideNav, sectionSideNavItemClass, SectionSideNavItemContent } from '@/components/SectionSideNav'
 import { Tooltip } from '@/components/sk'
+import { useSafeSearchParams } from '@/components/translate/safe-navigation'
 
 import { ASSIST_SECTIONS } from './assist-sections'
 
@@ -16,6 +17,8 @@ const sections = ASSIST_SECTIONS.map((section) => ({ ...section, path: `/assist/
 
 export function AssistShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
+  const searchParams = useSafeSearchParams()
+  const urlGameId = searchParams?.get('game') || ''
   const t = useT()
 
   return (
@@ -29,7 +32,12 @@ export function AssistShell({ children }: { children: ReactNode }) {
               return (
                 <li key={path}>
                   <Tooltip content={label} placement="right">
-                    <Link href={path} aria-label={label} aria-current={active ? 'page' : undefined} className={sectionSideNavItemClass(active)}>
+                    <Link
+                      href={urlGameId ? `${path}?game=${encodeURIComponent(urlGameId)}` : path}
+                      aria-label={label}
+                      aria-current={active ? 'page' : undefined}
+                      className={sectionSideNavItemClass(active)}
+                    >
                       <SectionSideNavItemContent active={active} icon={<Icon size={17} />} />
                     </Link>
                   </Tooltip>

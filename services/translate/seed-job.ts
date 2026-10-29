@@ -68,8 +68,9 @@ function legacyRuntimeDrained(): Promise<void> {
   })
 }
 
-function resolveBoundRoot(): string {
-  const resolved = getResolvedFromConfig()
+function resolveBoundRoot(options?: { gameId?: string; contentRoot?: string }): string {
+  if (options?.contentRoot) return options.contentRoot
+  const resolved = getResolvedFromConfig(options?.gameId ? { gameId: options.gameId } : undefined)
   if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
   if (resolved.remote) throw new Error('Remote games must be bound locally before translating')
   return resolved.contentRoot
@@ -130,33 +131,35 @@ function diskSnapshot(contentRoot: string): SeedJobSnapshot {
  * Progress poll: disk snapshot only. The worker owns live counters; polling never
  * blocks on translation or inventory work.
  */
-export function getSeedJobSnapshot(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function getSeedJobSnapshot(options?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(options)
   return diskSnapshot(contentRoot)
 }
 
 /** Explicit refresh: the worker rescans inventory without blocking Next.js. */
-export function refreshSeedJobProgress(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function refreshSeedJobProgress(options?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(options)
   const snapshot = diskSnapshot(contentRoot)
   pendingCommands.set(contentRoot, { command: 'refresh', at: Date.now() })
   const clear = () => clearPendingCommand(contentRoot, 'refresh')
+  const explicitRoot = options?.contentRoot || (options?.gameId ? contentRoot : undefined)
   void legacyRuntimeDrained()
-    .then(() => commandSeedJobWorker('refresh'))
+    .then(() => (explicitRoot ? commandSeedJobWorker('refresh', explicitRoot) : commandSeedJobWorker('refresh')))
     .then(clear, clear)
   return { ...snapshot, preparing: true }
 }
 
 /** Start or resume the fill loop inside the worker. */
-export function startSeedJob(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function startSeedJob(options?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(options)
   const snapshot = diskSnapshot(contentRoot)
   const state = readSeedJobState(contentRoot)
   if (state?.status === 'running' && state.inventoryPreparing) return { ...snapshot, preparing: true }
   pendingCommands.set(contentRoot, { command: 'start', at: Date.now() })
   const clear = () => clearPendingCommand(contentRoot, 'start')
+  const explicitRoot = options?.contentRoot || (options?.gameId ? contentRoot : undefined)
   void legacyRuntimeDrained()
-    .then(() => commandSeedJobWorker('start'))
+    .then(() => (explicitRoot ? commandSeedJobWorker('start', explicitRoot) : commandSeedJobWorker('start')))
     .then(clear)
     .catch((error) => {
       clear()
@@ -175,11 +178,12 @@ export function startSeedJob(): SeedJobSnapshot {
 }
 
 /** Pause after the worker finishes its current batch. */
-export function pauseSeedJob(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function pauseSeedJob(options?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(options)
   const snapshot = diskSnapshot(contentRoot)
+  const explicitRoot = options?.contentRoot || (options?.gameId ? contentRoot : undefined)
   void legacyRuntimeDrained()
-    .then(() => commandSeedJobWorker('pause'))
+    .then(() => (explicitRoot ? commandSeedJobWorker('pause', explicitRoot) : commandSeedJobWorker('pause')))
     .catch(() => {})
   return snapshot
 }

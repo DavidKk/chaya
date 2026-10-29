@@ -10,6 +10,7 @@ import { PanelHeadEndHost, PanelHeadStartHost } from '@/components/PanelHeadEnd'
 import { PanelHeadTitle } from '@/components/PanelHeadTitle'
 import { SectionSideNav, sectionSideNavItemClass, SectionSideNavItemContent } from '@/components/SectionSideNav'
 import { ScrollArea, Tooltip } from '@/components/sk'
+import { useSafeSearchParams } from '@/components/translate/safe-navigation'
 import { DEFAULT_TRANSLATE_TAB, isTranslateCacheDetailPath, TRANSLATE_TABS, translateTabHref, type TranslateTabId } from '@/components/translate/tabs'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +30,8 @@ type NavProps = {
 /** 网页与局内共用的翻译区二级 Icon Rail。 */
 export function TranslateSubNav({ tab, onSelect }: NavProps) {
   const t = useT()
+  const searchParams = useSafeSearchParams()
+  const urlGameId = searchParams?.get('game') || ''
   const activeTab = tab === 'test' ? 'cache' : tab || DEFAULT_TRANSLATE_TAB
 
   return (
@@ -55,7 +58,7 @@ export function TranslateSubNav({ tab, onSelect }: NavProps) {
                   </button>
                 ) : (
                   <Link
-                    href={translateTabHref(item.id)}
+                    href={urlGameId ? `${translateTabHref(item.id)}?game=${encodeURIComponent(urlGameId)}` : translateTabHref(item.id)}
                     data-nav-id={item.id}
                     aria-label={label}
                     aria-current={active ? 'page' : undefined}

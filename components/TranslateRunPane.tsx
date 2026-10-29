@@ -8,6 +8,7 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { formCardDense } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, ScrollArea, TruncateText } from '@/components/sk'
+import { useSafeSearchParams } from '@/components/translate/safe-navigation'
 import type { TranslateRunMode } from '@/components/translate/tabs'
 import { TranslateActivityLog, type TranslateLogEntry } from '@/components/translate/TranslateActivityLog'
 import { TranslateExportMenu } from '@/components/translate/TranslateExportMenu'
@@ -171,6 +172,8 @@ export function TranslateRunPane({
 }: { tab?: TranslateRunMode; onTabChange?: (tab: TranslateRunMode) => void; surface?: 'page' | 'overlay' } = {}) {
   const t = useT()
   const panelId = useId()
+  const searchParams = useSafeSearchParams()
+  const urlGameId = searchParams?.get('game') || ''
   const translationFetch = useTranslationFetch()
   const { running: optimizingNames, runOptimizeNames } = useOptimizeNames()
   const { running: syncingNames, runSyncNames } = useSyncNames()
@@ -216,7 +219,7 @@ export function TranslateRunPane({
         const res = await translationFetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'progress', ...(opts?.rescan ? { refresh: true } : {}) }),
+          body: JSON.stringify({ mode: 'progress', ...(urlGameId ? { game: urlGameId } : {}), ...(opts?.rescan ? { refresh: true } : {}) }),
         })
         const json = (await res.json()) as Progress & { ok?: boolean; job?: JobState; activity?: ActivityState; error?: unknown }
         if (!res.ok || json.ok === false) {
@@ -230,7 +233,7 @@ export function TranslateRunPane({
         refreshing.current = false
       }
     },
-    [applySnapshot, t, translationFetch]
+    [applySnapshot, t, translationFetch, urlGameId]
   )
 
   useEffect(() => {
@@ -289,7 +292,11 @@ export function TranslateRunPane({
   async function runExtract() {
     setExtracting(true)
     try {
-      const res = await translationFetch('/api/extract', { method: 'POST' })
+      const res = await translationFetch('/api/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(urlGameId ? { game: urlGameId } : {}),
+      })
       const json = (await res.json()) as { ok?: boolean; unique?: number; added?: number; total?: number; error?: unknown }
       if (!res.ok || json.ok === false) {
         notify.error(readApiErrorMessage(json, t('translate.extractFailed')))
@@ -312,7 +319,7 @@ export function TranslateRunPane({
       const res = await translationFetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'job', action: 'start' }),
+        body: JSON.stringify({ mode: 'job', action: 'start', ...(urlGameId ? { game: urlGameId } : {}) }),
       })
       const json = (await res.json()) as Progress & { ok?: boolean; job?: JobState; error?: unknown }
       if (!res.ok || json.ok === false) {
@@ -339,7 +346,7 @@ export function TranslateRunPane({
       const res = await translationFetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'job', action: 'pause' }),
+        body: JSON.stringify({ mode: 'job', action: 'pause', ...(urlGameId ? { game: urlGameId } : {}) }),
       })
       const json = (await res.json()) as Progress & { ok?: boolean; job?: JobState; error?: unknown }
       if (!res.ok || json.ok === false) {

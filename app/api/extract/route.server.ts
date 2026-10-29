@@ -11,18 +11,24 @@ export const POST = defineApiRoute('post:/api/extract', async ({ request }) => {
   if (denied) return denied
 
   let includeEntries = false
+  let gameId: string | undefined
   const raw = await request.text()
   if (raw.trim()) {
     try {
-      const body = JSON.parse(raw) as { export?: unknown }
+      const body = JSON.parse(raw) as { export?: unknown; game?: string; gameId?: string }
       includeEntries = body.export === true
+      gameId = body.game || body.gameId
     } catch {
       return apiError(400, 'EXTRACT_BODY', 'Request body must be valid JSON')
     }
   }
+  if (!gameId && request.url) {
+    const url = new URL(request.url)
+    gameId = url.searchParams.get('game') || url.searchParams.get('gameId') || undefined
+  }
 
   try {
-    const result = extractAndEnsureSeed({ entries: includeEntries })
+    const result = extractAndEnsureSeed({ entries: includeEntries, gameId })
     return apiOk(result)
   } catch (err) {
     return apiError(500, 'EXTRACT_FAILED', err instanceof Error ? err.message : String(err))

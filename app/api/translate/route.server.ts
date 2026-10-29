@@ -153,6 +153,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       jobId?: string
       key?: string
       q?: string
+      game?: string
+      gameId?: string
       page?: number
       pageSize?: number
       onlyDone?: boolean
@@ -215,8 +217,15 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
     if (denied) return denied
 
+    const gameId =
+      (typeof body.game === 'string' ? body.game : undefined) ||
+      (typeof (body as any).gameId === 'string' ? (body as any).gameId : undefined) ||
+      (request.url ? new URL(request.url).searchParams.get('game') || undefined : undefined)
+    const targetContentRoot = gameId ? resolveTranslateContentRoot({ gameId }) : undefined
+    const seedJobOpts = targetContentRoot ? { contentRoot: targetContentRoot } : gameId ? { gameId } : undefined
+
     if (body.mode === 'play-settings') {
-      const contentRoot = resolveTranslateContentRoot()
+      const contentRoot = targetContentRoot || resolveTranslateContentRoot()
       if (body.settings !== undefined && !pathEquals(body.contentRoot || '', contentRoot)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload settings')
       const settings = body.settings === undefined ? getTranslationPlaySettings(contentRoot) : setTranslationPlaySettings(contentRoot, body.settings)
       const { looksLikeRgssProject } = await import('@/services/extract/lib/rgss')
@@ -226,13 +235,13 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (body.mode === 'benchmark') return apiOk(await benchmarkLocalModel(body.settings, request.signal))
 
     if (body.mode === 'progress') {
-      if (body.refresh === true) return apiOk(refreshSeedJobProgress())
-      return apiOk(getSeedJobSnapshot())
+      if (body.refresh === true) return apiOk(refreshSeedJobProgress(seedJobOpts))
+      return apiOk(getSeedJobSnapshot(seedJobOpts))
     }
 
     if (body.mode === 'job') {
-      if (body.action === 'pause') return apiOk(pauseSeedJob())
-      if (body.action === 'start') return apiOk(startSeedJob())
+      if (body.action === 'pause') return apiOk(pauseSeedJob(seedJobOpts))
+      if (body.action === 'start') return apiOk(startSeedJob(seedJobOpts))
       return apiError(400, 'TRANSLATE_JOB_ACTION', 'Missing action: start | pause')
     }
 
@@ -379,7 +388,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'seed') {
-      const result = await fillMissingFromSeed({ limit: body.limit })
+      const result = await fillMissingFromSeed({ limit: body.limit, contentRoot: targetContentRoot })
       return apiOk(result)
     }
 
@@ -388,7 +397,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (session && (!game?.ok || game.remote)) return apiError(400, 'GAME_UNAVAILABLE', 'Game path unavailable')
 
     if (body.mode === 'extract-items') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       const sourceLang = typeof body.sourceLang === 'string' ? body.sourceLang : undefined
       const targetLang = typeof body.targetLang === 'string' ? body.targetLang : undefined
       const { pollListExtract, requestListExtract } = await import('@/services/extract/list-extract-prepare')
@@ -421,7 +430,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'import-locales-corpus') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       const { importGameLocalesCorpus } = await import('@/services/translate/locales-corpus')
       const limit = typeof body.limit === 'number' ? body.limit : undefined
       const result = importGameLocalesCorpus(root, { limit })
@@ -429,7 +438,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'save-item') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       const text = typeof body.text === 'string' ? body.text : ''
       const zh = typeof body.zh === 'string' ? body.zh : ''
       if (!text && !body.localesKey) return apiError(400, 'SAVE_ITEM_EMPTY', 'Missing source text or localesKey')
@@ -491,7 +500,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'reset-item') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       const text = typeof body.text === 'string' ? body.text : ''
       if (!text) return apiError(400, 'RESET_ITEM_EMPTY', 'Missing source text')
       const { resetExtractedItem } = await import('@/services/extract/lib/save-items')

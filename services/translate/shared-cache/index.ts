@@ -41,6 +41,8 @@ import { cacheMeta, translations } from './schema'
 import { writeCachePairs } from './write-pairs'
 
 export { defaultSharedDbPath, defaultSharedDir } from './db'
+
+const PROJECTION_CANDIDATE_RE = /[\s\d０-９,，、。．.!！?？;；\n\r…~～\\<%{]/
 export { cacheMeta, sharedCacheSchema, translations } from './schema'
 export type { CacheLang, CacheLangPair } from '@/lib/translate/cache-lang'
 export type { SharedCacheSortDir, SharedCacheSortKey } from '@/lib/translate/cache-query'
@@ -207,7 +209,7 @@ export function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
         const pair = resolveCacheLangPair({ src, to: 'zh' })
         const exact = index.record(src, pair)
         if (exact) records.push(exact)
-        else {
+        else if (PROJECTION_CANDIDATE_RE.test(src)) {
           const { plan } = planGameCache(src, pair, index, context)
           if (!plan.limited && plan.status === 'full') sources.push({ src, pair })
         }

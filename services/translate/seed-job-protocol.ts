@@ -8,6 +8,7 @@ export type SeedJobWorkerRequest = {
   type: 'request'
   id: number
   command: SeedJobWorkerCommand
+  contentRoot?: string
 }
 
 export type SeedJobWorkerMessage =

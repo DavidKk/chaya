@@ -3965,7 +3965,7 @@ function storageCall(method, args = []) {
   Atomics.store(signal, 0, 0);
   Atomics.store(signal, 1, 0);
   worker.postMessage({ port: meta.port, token: meta.authToken, body: { method, args }, shared });
-  if (Atomics.wait(signal, 0, 0, 25e3) === "timed-out") {
+  if (Atomics.wait(signal, 0, 0, 125e3) === "timed-out") {
     responseBuffer = void 0;
     throw new Error("Storage request timed out; retry with the same mutation key");
   }
@@ -5067,6 +5067,7 @@ function createGameProjections(client, index2, database) {
       const context = getGameCacheContext(root);
       const nextSignature = signature(root);
       const pending = client.prepare("SELECT * FROM game_projections WHERE root=? AND signature<>?").all(root, nextSignature);
+      const updateProjection = client.prepare("UPDATE game_projections SET signature=?,revision=? WHERE root=? AND src=? AND src_lang=? AND tgt_lang=?");
       const events = [];
       const acknowledge = [];
       for (const entry of pending) {
@@ -5087,7 +5088,7 @@ function createGameProjections(client, index2, database) {
           });
         }
         acknowledge.push(() => {
-          client.prepare("UPDATE game_projections SET signature=?,revision=? WHERE root=? AND src=? AND src_lang=? AND tgt_lang=?").run(nextSignature, revision, root, entry.src, entry.src_lang, entry.tgt_lang);
+          updateProjection.run(nextSignature, revision, root, entry.src, entry.src_lang, entry.tgt_lang);
         });
       }
       return { events, acknowledge };
@@ -8664,7 +8665,11 @@ function createMatchIndex(client) {
   }
   function equivalent(src, pair) {
     const key2 = wholeSentenceKey(src);
-    return client.prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(key2, pair.from, pair.to).map(attach);
+    return prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(
+      key2,
+      pair.from,
+      pair.to
+    ).map(attach);
   }
   function candidates2(src, pair, opts) {
     const found = /* @__PURE__ */ new Map();
@@ -8686,7 +8691,12 @@ function createMatchIndex(client) {
           if (found.size > 500) return { records: [], limited: true };
         }
       }
-      const rows = client.prepare(joined + " JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501").all(unit.key, unit.tone, pair.from, pair.to);
+      const rows = prepare(joined + " JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501").all(
+        unit.key,
+        unit.tone,
+        pair.from,
+        pair.to
+      );
       if (new Set(rows.map((r) => r.id)).size > 500 || found.size > 500) return { records: whole.length > 500 ? [] : whole, limited: true };
       for (const row of rows) {
         if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
@@ -9193,6 +9203,7 @@ function writeCachePairs(client, index2, pairs, engine, opts, valid, nsfw) {
 }
 
 // services/translate/shared-cache/index.ts
+var PROJECTION_CANDIDATE_RE = /[\s\d０-９,，、。．.!！?？;；\n\r…~～\\<%{]/;
 var scrubbedDbPaths = /* @__PURE__ */ new Set();
 function nsfwBit(src, engine) {
   return isNsfwCacheRow(src, engine) ? 1 : 0;
@@ -9300,7 +9311,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
         const pair = resolveCacheLangPair({ src, to: "zh" });
         const exact = index2.record(src, pair);
         if (exact) records2.push(exact);
-        else {
+        else if (PROJECTION_CANDIDATE_RE.test(src)) {
           const { plan } = planGameCache(src, pair, index2, context);
           if (!plan.limited && plan.status === "full") sources.push({ src, pair });
         }
@@ -10574,6 +10585,8 @@ try {
   const cache = openSharedCache();
   try {
     cache.syncGameCache(contentRoot);
+  } catch (error) {
+    console.warn("seed-inventory-worker: syncGameCache non-fatal error:", error);
   } finally {
     cache.close();
   }

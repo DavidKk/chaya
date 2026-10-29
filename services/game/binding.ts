@@ -21,20 +21,26 @@ function remoteResolved(gameRoot: string, config: ChayaConfig): ResolvedGame & {
   }
 }
 
-export function getResolvedFromConfig(): (ResolvedGame | ResolveError) & {
+export function getResolvedFromConfig(options?: { gameId?: string; gameRoot?: string }): (ResolvedGame | ResolveError) & {
   config: ChayaConfig
 } {
   const config = loadConfig()
-  if (!config.gameRoot) {
+  let targetRoot = options?.gameRoot
+  if (!targetRoot && options?.gameId) {
+    const entry = config.library.find((item) => item.id === options.gameId)
+    if (entry) targetRoot = entry.gameRoot
+  }
+  if (!targetRoot) targetRoot = config.gameRoot
+  if (!targetRoot) {
     return { ok: false, error: '', config }
   }
 
-  const entry = findLibraryEntry(config.library, config.gameRoot)
+  const entry = findLibraryEntry(config.library, targetRoot)
   if (entry?.remote) {
     return remoteResolved(entry.gameRoot, config)
   }
 
-  const resolved = resolveGame(config.gameRoot)
+  const resolved = resolveGame(targetRoot)
   if (resolved.ok) {
     return { ...resolved, remote: false, config }
   }

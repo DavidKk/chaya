@@ -40,6 +40,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
   const router = useSafeRouter()
   const pathname = useSafePathname()
   const searchParams = useSafeSearchParams()
+  const urlGameId = searchParams?.get('game') || ''
 
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
@@ -125,7 +126,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
       const res = await translationFetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'switches' }),
+        body: JSON.stringify({ mode: 'switches', ...(urlGameId ? { game: urlGameId } : {}) }),
       })
       const data = (await res.json()) as { ok?: boolean; switches?: Record<string, boolean>; agents?: Array<{ id: string; profileId?: string; enabled?: boolean }> }
       if (data?.ok && data.switches) {
@@ -146,7 +147,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     } catch {
       // ignore
     }
-  }, [translationFetch, t])
+  }, [translationFetch, t, urlGameId])
 
   // 2. Load extracted items (server may return preparing — poll until ready; never block other APIs)
   const loadData = useCallback(
@@ -158,6 +159,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
         mode: 'extract-items' as const,
         sourceLang: srcL || undefined,
         targetLang: tgtL || undefined,
+        ...(urlGameId ? { game: urlGameId } : {}),
       }
       try {
         const deadline = Date.now() + 120_000
@@ -210,7 +212,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
         setLoading(false)
       }
     },
-    [sourceLang, targetLang, fromLangParam, toLangParam, translationFetch, notify, t]
+    [sourceLang, targetLang, fromLangParam, toLangParam, translationFetch, notify, t, urlGameId]
   )
 
   const initialLoadedRef = useRef(false)

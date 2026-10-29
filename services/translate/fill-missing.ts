@@ -43,8 +43,9 @@ export type FillMissingResult = SeedProgress & {
 type Scan = { progress: SeedProgress; missingKeys: string[]; signature: string }
 const scans = new Map<string, Scan>()
 
-export function resolveTranslateContentRoot(): string {
-  const resolved = getResolvedFromConfig()
+export function resolveTranslateContentRoot(options?: { gameId?: string; contentRoot?: string }): string {
+  if (options?.contentRoot) return options.contentRoot
+  const resolved = getResolvedFromConfig(options?.gameId ? { gameId: options.gameId } : undefined)
   if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
   if (resolved.remote) throw new Error('Remote games must be bound locally before translating')
   return resolved.contentRoot

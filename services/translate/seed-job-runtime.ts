@@ -95,8 +95,9 @@ function scheduleHandoff(rt: Runtime) {
   rt.handoffTimer.unref?.()
 }
 
-function resolveBoundRoot(): string {
-  const resolved = getResolvedFromConfig()
+function resolveBoundRoot(opts?: { gameId?: string; contentRoot?: string }): string {
+  if (opts?.contentRoot) return opts.contentRoot
+  const resolved = getResolvedFromConfig(opts?.gameId ? { gameId: opts.gameId } : undefined)
   if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
   if (resolved.remote) throw new Error('Remote games must be bound locally before translating')
   return resolved.contentRoot
@@ -367,8 +368,8 @@ function ensureLoop(contentRoot: string) {
  * Orphaned disk `running` (process bounce) demotes to paused; startSeedJob resumes.
  * Stamp drift is not probed here (docs: no stale UX; Start/refresh recompute in a worker).
  */
-export function getSeedJobSnapshot(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function getSeedJobSnapshot(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(opts)
   const rt = getRuntime(contentRoot)
   if (rt.handoffPending && !rt.running) {
     rt.handoffPending = false
@@ -438,8 +439,8 @@ function applyInventoryBundle(rt: Runtime, bundle: import('./scheduler/seed-prep
 }
 
 /** Explicit full inventory (button). Starts a worker; polls see `preparing` until ready. */
-export function refreshSeedJobProgress(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function refreshSeedJobProgress(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(opts)
   const rt = getRuntime(contentRoot)
   if (rt.running) return getSeedJobSnapshot()
 
@@ -533,8 +534,8 @@ function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-
 }
 
 /** Start or resume the server-side fill loop. Inventory runs single-flight off the HTTP return path. */
-export function startSeedJob(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function startSeedJob(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(opts)
   const current = getRuntime(contentRoot)
   if (current.running) return getSeedJobSnapshot()
 
@@ -593,8 +594,8 @@ export function startSeedJob(): SeedJobSnapshot {
 }
 
 /** Pause after the current segment finishes. */
-export function pauseSeedJob(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function pauseSeedJob(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(opts)
   const rt = getRuntime(contentRoot)
   rt.handoffPending = false
   if (rt.state.status !== 'running') {

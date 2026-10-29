@@ -12,8 +12,15 @@ const post = (message: SeedJobWorkerMessage) => port.postMessage(message)
 port.on('message', (request: SeedJobWorkerRequest) => {
   if (!request || request.type !== 'request') return
   try {
+    const opts = request.contentRoot ? { contentRoot: request.contentRoot } : undefined
     const snapshot =
-      request.command === 'refresh' ? refreshSeedJobProgress() : request.command === 'start' ? startSeedJob() : request.command === 'pause' ? pauseSeedJob() : getSeedJobSnapshot()
+      request.command === 'refresh'
+        ? refreshSeedJobProgress(opts)
+        : request.command === 'start'
+          ? startSeedJob(opts)
+          : request.command === 'pause'
+            ? pauseSeedJob(opts)
+            : getSeedJobSnapshot(opts)
     post({ type: 'response', id: request.id, ok: true, snapshot })
   } catch (error) {
     post({ type: 'response', id: request.id, ok: false, error: error instanceof Error ? error.message : String(error) })

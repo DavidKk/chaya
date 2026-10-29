@@ -328,9 +328,11 @@ export function createMatchIndex(client: DatabaseSync) {
   function equivalent(src: string, pair: CacheLangPair): IndexedRecord[] {
     const key = wholeSentenceKey(src)
     return (
-      client
-        .prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501")
-        .all(key, pair.from, pair.to) as RecordRow[]
+      prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(
+        key,
+        pair.from,
+        pair.to
+      ) as RecordRow[]
     ).map(attach)
   }
   function candidates(src: string, pair: CacheLangPair, opts?: PlanSentenceOptions): { records: IndexedRecord[]; limited: boolean } {
@@ -353,9 +355,12 @@ export function createMatchIndex(client: DatabaseSync) {
           if (found.size > 500) return { records: [], limited: true }
         }
       }
-      const rows = client
-        .prepare(joined + ' JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501')
-        .all(unit.key, unit.tone, pair.from, pair.to) as RecordRow[]
+      const rows = prepare(joined + ' JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501').all(
+        unit.key,
+        unit.tone,
+        pair.from,
+        pair.to
+      ) as RecordRow[]
       if (new Set(rows.map((r) => r.id)).size > 500 || found.size > 500) return { records: whole.length > 500 ? [] : whole, limited: true }
       for (const row of rows) {
         if (!found.has(String(row.id))) found.set(String(row.id), attach(row))

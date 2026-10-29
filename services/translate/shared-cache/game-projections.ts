@@ -43,6 +43,7 @@ export function createGameProjections(client: DatabaseSync, index: MatchIndex, d
       const context = getGameCacheContext(root)
       const nextSignature = signature(root)
       const pending = client.prepare('SELECT * FROM game_projections WHERE root=? AND signature<>?').all(root, nextSignature) as Projection[]
+      const updateProjection = client.prepare('UPDATE game_projections SET signature=?,revision=? WHERE root=? AND src=? AND src_lang=? AND tgt_lang=?')
       const events: CacheRow[] = []
       const acknowledge: Array<() => void> = []
       for (const entry of pending) {
@@ -67,9 +68,7 @@ export function createGameProjections(client: DatabaseSync, index: MatchIndex, d
         }
         // Advance only after the file append succeeds, so a crash is safely replayed.
         acknowledge.push(() => {
-          client
-            .prepare('UPDATE game_projections SET signature=?,revision=? WHERE root=? AND src=? AND src_lang=? AND tgt_lang=?')
-            .run(nextSignature, revision, root, entry.src, entry.src_lang, entry.tgt_lang)
+          updateProjection.run(nextSignature, revision, root, entry.src, entry.src_lang, entry.tgt_lang)
         })
       }
       return { events, acknowledge }

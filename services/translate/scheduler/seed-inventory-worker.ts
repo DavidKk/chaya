@@ -16,6 +16,9 @@ try {
   const cache = openSharedCache()
   try {
     cache.syncGameCache(contentRoot)
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('seed-inventory-worker: syncGameCache non-fatal error:', error)
   } finally {
     cache.close()
   }

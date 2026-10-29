@@ -8,7 +8,7 @@ parentPort!.on('message', async ({ port, token, body, shared }: { port: number; 
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Chaya-Auth-Token': token },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(120000),
     })
     result = await response.json()
   } catch (error) {

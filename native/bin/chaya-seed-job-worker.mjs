@@ -362,7 +362,7 @@ function storageCall(method, args = []) {
   Atomics.store(signal, 0, 0);
   Atomics.store(signal, 1, 0);
   worker.postMessage({ port: meta.port, token: meta.authToken, body: { method, args }, shared });
-  if (Atomics.wait(signal, 0, 0, 25e3) === "timed-out") {
+  if (Atomics.wait(signal, 0, 0, 125e3) === "timed-out") {
     responseBuffer = void 0;
     throw new Error("Storage request timed out; retry with the same mutation key");
   }
@@ -3395,7 +3395,11 @@ function createMatchIndex(client) {
   }
   function equivalent(src, pair) {
     const key3 = wholeSentenceKey(src);
-    return client.prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(key3, pair.from, pair.to).map(attach);
+    return prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(
+      key3,
+      pair.from,
+      pair.to
+    ).map(attach);
   }
   function candidates2(src, pair, opts) {
     const found = /* @__PURE__ */ new Map();
@@ -3417,7 +3421,12 @@ function createMatchIndex(client) {
           if (found.size > 500) return { records: [], limited: true };
         }
       }
-      const rows = client.prepare(joined + " JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501").all(unit.key, unit.tone, pair.from, pair.to);
+      const rows = prepare(joined + " JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501").all(
+        unit.key,
+        unit.tone,
+        pair.from,
+        pair.to
+      );
       if (new Set(rows.map((r) => r.id)).size > 500 || found.size > 500) return { records: whole.length > 500 ? [] : whole, limited: true };
       for (const row of rows) {
         if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
@@ -36632,6 +36641,7 @@ function createGameProjections(client, index2, database) {
       const context = getGameCacheContext(root);
       const nextSignature = signature(root);
       const pending = client.prepare("SELECT * FROM game_projections WHERE root=? AND signature<>?").all(root, nextSignature);
+      const updateProjection = client.prepare("UPDATE game_projections SET signature=?,revision=? WHERE root=? AND src=? AND src_lang=? AND tgt_lang=?");
       const events = [];
       const acknowledge = [];
       for (const entry of pending) {
@@ -36652,7 +36662,7 @@ function createGameProjections(client, index2, database) {
           });
         }
         acknowledge.push(() => {
-          client.prepare("UPDATE game_projections SET signature=?,revision=? WHERE root=? AND src=? AND src_lang=? AND tgt_lang=?").run(nextSignature, revision, root, entry.src, entry.src_lang, entry.tgt_lang);
+          updateProjection.run(nextSignature, revision, root, entry.src, entry.src_lang, entry.tgt_lang);
         });
       }
       return { events, acknowledge };
@@ -40942,7 +40952,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
         const pair = resolveCacheLangPair({ src, to: "zh" });
         const exact = index2.record(src, pair);
         if (exact) records2.push(exact);
-        else {
+        else if (PROJECTION_CANDIDATE_RE.test(src)) {
           const { plan } = planGameCache(src, pair, index2, context);
           if (!plan.limited && plan.status === "full") sources2.push({ src, pair });
         }
@@ -41228,7 +41238,7 @@ function openSharedCache(dbPath = defaultSharedDbPath()) {
 function resetSharedCacheScrubGuardForTests() {
   scrubbedDbPaths.clear();
 }
-var scrubbedDbPaths;
+var PROJECTION_CANDIDATE_RE, scrubbedDbPaths;
 var init_shared_cache = __esm({
   "services/translate/shared-cache/index.ts"() {
     "use strict";
@@ -41254,6 +41264,7 @@ var init_shared_cache = __esm({
     init_db2();
     init_schema();
     init_cache_query();
+    PROJECTION_CANDIDATE_RE = /[\s\d０-９,，、。．.!！?？;；\n\r…~～\\<%{]/;
     scrubbedDbPaths = /* @__PURE__ */ new Set();
   }
 });
@@ -42066,16 +42077,22 @@ function remoteResolved(gameRoot, config) {
     config
   };
 }
-function getResolvedFromConfig() {
+function getResolvedFromConfig(options) {
   const config = loadConfig();
-  if (!config.gameRoot) {
+  let targetRoot = options?.gameRoot;
+  if (!targetRoot && options?.gameId) {
+    const entry2 = config.library.find((item) => item.id === options.gameId);
+    if (entry2) targetRoot = entry2.gameRoot;
+  }
+  if (!targetRoot) targetRoot = config.gameRoot;
+  if (!targetRoot) {
     return { ok: false, error: "", config };
   }
-  const entry = findLibraryEntry(config.library, config.gameRoot);
+  const entry = findLibraryEntry(config.library, targetRoot);
   if (entry?.remote) {
     return remoteResolved(entry.gameRoot, config);
   }
-  const resolved = resolveGame(config.gameRoot);
+  const resolved = resolveGame(targetRoot);
   if (resolved.ok) {
     return { ...resolved, remote: false, config };
   }
@@ -48507,8 +48524,9 @@ function scheduleHandoff(rt) {
   rt.handoffTimer = setTimeout(check, 100);
   rt.handoffTimer.unref?.();
 }
-function resolveBoundRoot() {
-  const resolved = getResolvedFromConfig();
+function resolveBoundRoot(opts) {
+  if (opts?.contentRoot) return opts.contentRoot;
+  const resolved = getResolvedFromConfig(opts?.gameId ? { gameId: opts.gameId } : void 0);
   if (!resolved.ok) throw new Error("Please bind a local game in the game library first");
   if (resolved.remote) throw new Error("Remote games must be bound locally before translating");
   return resolved.contentRoot;
@@ -48741,8 +48759,8 @@ function ensureLoop(contentRoot) {
   if (rt.running || rt.state.status !== "running") return;
   globalStore.__chayaSeedWorker?.(contentRoot);
 }
-function getSeedJobSnapshot() {
-  const contentRoot = resolveBoundRoot();
+function getSeedJobSnapshot(opts) {
+  const contentRoot = resolveBoundRoot(opts);
   const rt = getRuntime(contentRoot);
   if (rt.handoffPending && !rt.running) {
     rt.handoffPending = false;
@@ -48805,8 +48823,8 @@ function applyInventoryBundle(rt, bundle) {
   }
   persist(rt);
 }
-function refreshSeedJobProgress() {
-  const contentRoot = resolveBoundRoot();
+function refreshSeedJobProgress(opts) {
+  const contentRoot = resolveBoundRoot(opts);
   const rt = getRuntime(contentRoot);
   if (rt.running) return getSeedJobSnapshot();
   const peeked = peekSeedInventory(contentRoot);
@@ -48891,8 +48909,8 @@ function beginSeedLoop(contentRoot, inventory) {
   rt.progress = rt.session.progress;
   ensureLoop(contentRoot);
 }
-function startSeedJob() {
-  const contentRoot = resolveBoundRoot();
+function startSeedJob(opts) {
+  const contentRoot = resolveBoundRoot(opts);
   const current = getRuntime(contentRoot);
   if (current.running) return getSeedJobSnapshot();
   let engines = [];
@@ -48942,8 +48960,8 @@ function startSeedJob() {
     job: visibleSeedJobState(rt.state)
   };
 }
-function pauseSeedJob() {
-  const contentRoot = resolveBoundRoot();
+function pauseSeedJob(opts) {
+  const contentRoot = resolveBoundRoot(opts);
   const rt = getRuntime(contentRoot);
   rt.handoffPending = false;
   if (rt.state.status !== "running") {
@@ -48964,7 +48982,8 @@ var post = (message) => port.postMessage(message);
 port.on("message", (request) => {
   if (!request || request.type !== "request") return;
   try {
-    const snapshot = request.command === "refresh" ? refreshSeedJobProgress() : request.command === "start" ? startSeedJob() : request.command === "pause" ? pauseSeedJob() : getSeedJobSnapshot();
+    const opts = request.contentRoot ? { contentRoot: request.contentRoot } : void 0;
+    const snapshot = request.command === "refresh" ? refreshSeedJobProgress(opts) : request.command === "start" ? startSeedJob(opts) : request.command === "pause" ? pauseSeedJob(opts) : getSeedJobSnapshot(opts);
     post({ type: "response", id: request.id, ok: true, snapshot });
   } catch (error) {
     post({ type: "response", id: request.id, ok: false, error: error instanceof Error ? error.message : String(error) });

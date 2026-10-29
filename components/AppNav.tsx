@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LuChevronDown, LuMenu, LuX } from 'react-icons/lu'
 
@@ -13,6 +13,7 @@ import { INTEGRATION_TABS } from '@/components/integration/tabs'
 import { LOGS_SECTIONS, logsSectionHref } from '@/components/logs/sections'
 import { mainNavFor, type MainNavId } from '@/components/main-nav'
 import { Button } from '@/components/sk'
+import { useSafeSearchParams } from '@/components/translate/safe-navigation'
 import { TRANSLATE_TABS, translateTabHref } from '@/components/translate/tabs'
 import type { MessageKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -77,15 +78,26 @@ function measureIndicator(nav: HTMLElement, target: HTMLElement): IndicatorState
   }
 }
 
+const GAME_RELATED_SECTIONS = new Set<MainNavId>(['library', 'edit', 'translate', 'assist'])
+
+function withGameQuery(href: string, gameId: string | null): string {
+  if (!gameId) return href
+  const [base, query] = href.split('?')
+  const params = new URLSearchParams(query || '')
+  params.set('game', gameId)
+  return `${base}?${params.toString()}`
+}
+
 function navActive(current: AppNavPath, href: string) {
-  if (href === '/cheat/run') return current === '/cheat' || current === '/cheat/run' || current.startsWith('/cheat/')
-  if (href === '/translate/seed' || href === '/translate/run')
+  const cleanHref = href.split('?')[0]
+  if (cleanHref === '/cheat/run') return current === '/cheat' || current === '/cheat/run' || current.startsWith('/cheat/')
+  if (cleanHref === '/translate/seed' || cleanHref === '/translate/run')
     return current === '/translate' || current === '/translate/seed' || current === '/translate/run' || current.startsWith('/translate/')
-  if (href === '/integration/skills') return current === '/integration' || current.startsWith('/integration/')
-  if (href === '/game') return current === '/game'
-  if (href === '/assist/hotkeys') return current === '/assist' || current === '/settings'
-  if (href.startsWith('/logs')) return current === '/logs' || current.startsWith('/logs')
-  return current === href
+  if (cleanHref === '/integration/skills') return current === '/integration' || current.startsWith('/integration/')
+  if (cleanHref === '/game') return current === '/game'
+  if (cleanHref === '/assist/hotkeys') return current === '/assist' || current === '/settings'
+  if (cleanHref.startsWith('/logs')) return current === '/logs' || current.startsWith('/logs')
+  return current === cleanHref
 }
 
 function childActive(pathname: string, href: string) {
@@ -112,6 +124,21 @@ export function AppNav({
 }) {
   const t = useT()
   const pathname = usePathname() || ''
+  const searchParams = useSafeSearchParams()
+  const urlGameId = searchParams?.get('game') || ''
+
+  const navItems = useMemo(() => {
+    return APP_NAV_ITEMS.map((item) => {
+      const isGameRelated = GAME_RELATED_SECTIONS.has(item.id)
+      const href = isGameRelated && urlGameId ? withGameQuery(item.href, urlGameId) : item.href
+      const children = item.children?.map((child) => ({
+        ...child,
+        href: isGameRelated && urlGameId ? withGameQuery(child.href, urlGameId) : child.href,
+      }))
+      return { ...item, href, children }
+    })
+  }, [urlGameId])
+
   const navRef = useRef<HTMLElement>(null)
   const mobileTriggerRef = useRef<HTMLButtonElement>(null)
   const mobilePanelRef = useRef<HTMLDivElement>(null)
@@ -198,7 +225,7 @@ export function AppNav({
   useEffect(() => {
     if (!mobileOpen) return
 
-    const active = APP_NAV_ITEMS.find((item) => navActive(current, item.href))
+    const active = navItems.find((item) => navActive(current, item.href))
     setExpandedIds(active?.children?.length ? new Set([active.id]) : new Set())
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -236,7 +263,7 @@ export function AppNav({
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = previousOverflow
     }
-  }, [closeMobileNav, current, mobileOpen])
+  }, [closeMobileNav, current, mobileOpen, navItems])
 
   function toggleSection(id: string) {
     setExpandedIds((currentIds) => {
@@ -272,7 +299,7 @@ export function AppNav({
           )}
           style={{ left: indicator.left, width: indicator.width, opacity: indicator.opacity }}
         />
-        {APP_NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const active = navActive(current, item.href)
           return (
             <Link
@@ -324,7 +351,7 @@ export function AppNav({
                 </div>
                 <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2" aria-label={t('nav.main')}>
                   {mobileActions ? <div className="mb-1 flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-1 pb-2">{mobileActions}</div> : null}
-                  {APP_NAV_ITEMS.map((item) => {
+                  {navItems.map((item) => {
                     const active = navActive(current, item.href)
                     if (!item.children?.length) {
                       return (

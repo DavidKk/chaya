@@ -225,7 +225,8 @@ export function GameEditPage() {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const statusResponse = await fetch('/api/status')
+      const statusUrl = searchParams.get('game') ? `/api/status?game=${encodeURIComponent(searchParams.get('game')!)}` : '/api/status'
+      const statusResponse = await fetch(statusUrl)
       const status = await statusResponse.json()
       const isRgssGame = Boolean(status.kind === 'rgss' || status.engine === 'VX Ace' || status.engine === 'VX')
       setIsRgss(isRgssGame)
@@ -331,7 +332,7 @@ export function GameEditPage() {
         supportedActions={isRgss ? RGSS_SUPPORTED_RUN_ACTIONS : undefined}
         hideRunTools={false}
         hideSpeedSliders={false}
-        onOpenLibrary={() => router.push('/game')}
+        onOpenLibrary={() => router.push(searchParams.get('game') ? `/game?game=${encodeURIComponent(searchParams.get('game')!)}` : '/game')}
         events={eventsSlot}
         saveData={saveDataSlot}
       />

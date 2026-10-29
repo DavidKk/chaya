@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import type { ReactNode } from 'react'
+import { type ReactNode, Suspense } from 'react'
 
 import { AppNav, type AppNavPath } from '@/components/AppNav'
 import { BrandLogo } from '@/components/BrandLogo'
@@ -45,22 +45,28 @@ export function AppTopBar({ current, end, className }: Props) {
           <BrandLogo href="/" className={brand} />
         </div>
         <div className={cn(topBarNav, 'max-md:ml-auto max-md:h-full max-md:self-center max-md:items-center')}>
-          <AppNav
-            current={resolved}
-            mobileActions={resolved === '/cheat' ? <LinkedGameBadge /> : undefined}
-            mobileFooter={
-              <>
-                {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
-                <LocaleSwitcher />
-              </>
-            }
-            mobileEnd={end}
-          />
+          <Suspense fallback={null}>
+            <AppNav
+              current={resolved}
+              mobileActions={resolved === '/cheat' ? <LinkedGameBadge /> : undefined}
+              mobileFooter={
+                <>
+                  {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
+                  <LocaleSwitcher />
+                </>
+              }
+              mobileEnd={end}
+            />
+          </Suspense>
         </div>
         {/* Mobile: dissolve wrapper so an empty slot does not add gap-4 after the menu. */}
         <div className={cn(topRight, 'self-center max-md:contents')}>
           <div className="hidden items-center gap-3 md:flex">
-            {resolved === '/cheat' ? <LinkedGameBadge /> : null}
+            {resolved === '/cheat' ? (
+              <Suspense fallback={null}>
+                <LinkedGameBadge />
+              </Suspense>
+            ) : null}
             {BUILD_TARGET === 'dev' ? <DevTargetSwitch /> : null}
           </div>
           <DownloadCenter />

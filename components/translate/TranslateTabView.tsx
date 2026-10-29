@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import { Suspense } from 'react'
 
+import { useSafeSearchParams } from '@/components/translate/safe-navigation'
 import type { TranslateRunMode, TranslateTabId } from '@/components/translate/tabs'
 import { isTranslateEngineDetailPath } from '@/components/translate/tabs'
 import { TranslateCachePageSkeleton } from '@/components/translate/TranslateCachePageSkeleton'
@@ -34,6 +35,8 @@ function TranslateEnginesRouteSkeleton() {
 export function TranslateTabView({ tab, mode = 'seed' }: { tab: TranslateTabId; mode?: TranslateRunMode }) {
   const router = useRouter()
   const pathname = usePathname() || ''
+  const searchParams = useSafeSearchParams()
+  const urlGameId = searchParams?.get('game') || ''
 
   const activeRunMode: TranslateRunMode = tab === 'list' ? 'list' : tab === 'play' ? 'play' : mode
   const fallback =
@@ -56,7 +59,7 @@ export function TranslateTabView({ tab, mode = 'seed' }: { tab: TranslateTabId; 
       ) : tab === 'engines' ? (
         <TranslateEnginesPane />
       ) : tab === 'list' ? (
-        <TranslateListContent onExtract={() => router.push('/translate/seed')} />
+        <TranslateListContent onExtract={() => router.push(urlGameId ? `/translate/seed?game=${encodeURIComponent(urlGameId)}` : '/translate/seed')} />
       ) : tab === 'play' ? (
         <TranslateRunPane tab="play" />
       ) : (
