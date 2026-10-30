@@ -17,11 +17,28 @@ type SpeedActor = {
   _walkSpeedRate?: number
   _runSpeedRate?: number
   _dashing?: boolean
+  _driving?: boolean
+  _memberIndex?: number
   canMove?: () => boolean
   isInVehicle?: () => boolean
   isDashing?: () => boolean
+  realMoveSpeed?: () => number
   vehicle?: () => { _driving?: boolean; _moveSpeedRate?: number } | null
   followers?: () => { forEach?: (cb: (f: SpeedActor | null) => void) => void; _data?: Array<SpeedActor | null> }
+  chaseCharacter?: unknown
+}
+
+type CharacterBaseLike = {
+  prototype: {
+    distancePerFrame?: (this: SpeedActor) => number
+  }
+}
+
+type PlayerLike = {
+  prototype: {
+    moveSpeedRate?: (this: SpeedActor) => number
+    distancePerFrame?: (this: SpeedActor) => number
+  }
 }
 
 function eachFollower(player: SpeedActor, fn: (follower: SpeedActor) => void) {
@@ -38,17 +55,19 @@ function eachFollower(player: SpeedActor, fn: (follower: SpeedActor) => void) {
 }
 
 /** 非标准游戏可能没声明这些引擎全局，裸读会 ReferenceError */
-const engine = globalThis as { $gamePlayer?: SpeedActor | null; ConfigManager?: { alwaysDash: boolean } }
+const engine = globalThis as {
+  $gamePlayer?: SpeedActor | null
+  ConfigManager?: { alwaysDash: boolean }
+  Game_Player?: PlayerLike & (new (...args: unknown[]) => unknown)
+  Game_CharacterBase?: CharacterBaseLike & (new (...args: unknown[]) => unknown)
+  Game_Follower?: new (...args: unknown[]) => unknown
+  Game_Vehicle?: new (...args: unknown[]) => unknown
+}
 function gamePlayer(): SpeedActor | null {
   return engine.$gamePlayer ?? null
 }
 function alwaysDash(): boolean {
   return !!engine.ConfigManager?.alwaysDash
-}
-declare const Game_Player: {
-  prototype: {
-    moveSpeedRate: (this: SpeedActor) => number
-  }
 }
 
 type SceneManagerLike = {
@@ -62,16 +81,38 @@ const sceneEngine = globalThis as { SceneManager?: SceneManagerLike }
 const GAME_SPEED_MIN = 1
 const GAME_SPEED_MAX = 5
 
+let configuredWalkRate = DEFAULT_RATE
+let configuredRunRate = DEFAULT_RATE
+let isCalculatingDistance = false
+
 let _origPlayerMoveSpeedRate: ((this: SpeedActor) => number) | null = null
+let _origCharacterDistancePerFrame: ((this: SpeedActor) => number) | null = null
+let _origPlayerDistancePerFrame: ((this: SpeedActor) => number) | null = null
 let _origUpdateScene: ((this: SceneManagerLike) => void) | null = null
 let gameSpeed = 1
 let speedCarry = 0
 const hot = globalThis as typeof globalThis & { __chayaBoostDispose?: () => void }
 hot.__chayaBoostDispose?.()
 hot.__chayaBoostDispose = () => {
-  if (typeof Game_Player !== 'undefined' && Game_Player.prototype.moveSpeedRate === chayaPlayerMoveSpeedRate) {
-    if (_origPlayerMoveSpeedRate) Game_Player.prototype.moveSpeedRate = _origPlayerMoveSpeedRate
-    else Reflect.deleteProperty(Game_Player.prototype, 'moveSpeedRate')
+  const g = globalThis as {
+    Game_Player?: PlayerLike
+    Game_CharacterBase?: CharacterBaseLike
+  }
+  if (typeof g.Game_Player !== 'undefined') {
+    if (g.Game_Player.prototype.moveSpeedRate === chayaPlayerMoveSpeedRate) {
+      if (_origPlayerMoveSpeedRate) g.Game_Player.prototype.moveSpeedRate = _origPlayerMoveSpeedRate
+      else Reflect.deleteProperty(g.Game_Player.prototype, 'moveSpeedRate')
+    }
+    if (g.Game_Player.prototype.distancePerFrame === chayaCharacterDistancePerFrame) {
+      if (_origPlayerDistancePerFrame) g.Game_Player.prototype.distancePerFrame = _origPlayerDistancePerFrame
+      else Reflect.deleteProperty(g.Game_Player.prototype, 'distancePerFrame')
+    }
+  }
+  if (typeof g.Game_CharacterBase !== 'undefined') {
+    if (g.Game_CharacterBase.prototype.distancePerFrame === chayaCharacterDistancePerFrame) {
+      if (_origCharacterDistancePerFrame) g.Game_CharacterBase.prototype.distancePerFrame = _origCharacterDistancePerFrame
+      else Reflect.deleteProperty(g.Game_CharacterBase.prototype, 'distancePerFrame')
+    }
   }
   const sm = sceneEngine.SceneManager
   if (sm && _origUpdateScene && sm.updateScene === chayaUpdateScene) sm.updateScene = _origUpdateScene
@@ -120,31 +161,110 @@ function applyGameSpeed(rate: number): boolean {
   return true
 }
 
-function chayaPlayerMoveSpeedRate(this: SpeedActor): number {
-  if (typeof this.vehicle === 'function') {
-    const v = this.vehicle()
-    if (v && v._driving) {
-      return Number(v._moveSpeedRate) || 1
-    }
-  }
-  const dashing = typeof this.isDashing === 'function' && this.isDashing()
-  if (dashing) {
-    if (this._runSpeedRate != null) return Number(this._runSpeedRate) || 1
-  } else if (this._walkSpeedRate != null) {
-    return Number(this._walkSpeedRate) || 1
-  }
-  if (_origPlayerMoveSpeedRate) {
-    return Number(_origPlayerMoveSpeedRate.call(this)) || 1
-  }
-  return Number(this._moveSpeedRate) || 1
+function isPlayerCharacter(actor: SpeedActor | null | undefined): boolean {
+  if (!actor) return false
+  const p = gamePlayer()
+  if (actor === p) return true
+  const g = globalThis as { Game_Player?: unknown }
+  return typeof g.Game_Player === 'function' && actor instanceof (g.Game_Player as new (...args: unknown[]) => unknown)
 }
 
-/** MT_ChangeMoveSpeed may load later and overwrite the prototype; re-hook before each set */
+function isFollowerCharacter(actor: SpeedActor | null | undefined): boolean {
+  if (!actor) return false
+  const g = globalThis as { Game_Follower?: unknown }
+  if (typeof g.Game_Follower === 'function' && actor instanceof (g.Game_Follower as new (...args: unknown[]) => unknown)) return true
+  return typeof actor._memberIndex === 'number' && typeof actor.chaseCharacter === 'function'
+}
+
+function isDrivingVehicle(actor: SpeedActor | null | undefined): boolean {
+  if (!actor) return false
+  const g = globalThis as { Game_Vehicle?: unknown }
+  if (typeof g.Game_Vehicle === 'function' && actor instanceof (g.Game_Vehicle as new (...args: unknown[]) => unknown)) {
+    return Boolean(actor._driving)
+  }
+  return Boolean(actor._driving)
+}
+
+function getCharacterRate(actor: SpeedActor): number {
+  const player = gamePlayer()
+
+  if (isPlayerCharacter(actor)) {
+    if (typeof actor.vehicle === 'function') {
+      const v = actor.vehicle()
+      if (v && v._driving) {
+        return Number(v._moveSpeedRate ?? actor._moveSpeedRate ?? configuredWalkRate) || 1
+      }
+    }
+    const dashing = typeof actor.isDashing === 'function' && actor.isDashing()
+    if (dashing) {
+      return Number(actor._runSpeedRate ?? configuredRunRate) || 1
+    }
+    return Number(actor._walkSpeedRate ?? actor._moveSpeedRate ?? configuredWalkRate) || 1
+  }
+
+  if (isFollowerCharacter(actor)) {
+    const playerDashing = Boolean(player && typeof player.isDashing === 'function' && player.isDashing())
+    if (playerDashing) {
+      return Number(actor._runSpeedRate ?? player?._runSpeedRate ?? actor._moveSpeedRate ?? player?._moveSpeedRate ?? configuredRunRate) || 1
+    }
+    return Number(actor._walkSpeedRate ?? player?._walkSpeedRate ?? actor._moveSpeedRate ?? player?._moveSpeedRate ?? configuredWalkRate) || 1
+  }
+
+  if (isDrivingVehicle(actor)) {
+    return Number(actor._moveSpeedRate ?? player?._moveSpeedRate ?? player?._walkSpeedRate ?? configuredWalkRate) || 1
+  }
+
+  return 1
+}
+
+function chayaPlayerMoveSpeedRate(this: SpeedActor): number {
+  if (isCalculatingDistance) return 1
+  return getCharacterRate(this)
+}
+
+function chayaCharacterDistancePerFrame(this: SpeedActor): number {
+  if (isCalculatingDistance) {
+    return Math.pow(2, typeof this.realMoveSpeed === 'function' ? this.realMoveSpeed() : 4) / 256
+  }
+  const orig = _origCharacterDistancePerFrame ?? _origPlayerDistancePerFrame
+  let base: number
+  isCalculatingDistance = true
+  try {
+    base = orig ? orig.call(this) : Math.pow(2, typeof this.realMoveSpeed === 'function' ? this.realMoveSpeed() : 4) / 256
+  } finally {
+    isCalculatingDistance = false
+  }
+  if (!Number.isFinite(base) || base <= 0) {
+    base = Math.pow(2, typeof this.realMoveSpeed === 'function' ? this.realMoveSpeed() : 4) / 256
+  }
+  const rate = getCharacterRate(this)
+  return rate > 0 ? base * rate : base
+}
+
+/** Hook both moveSpeedRate (for fixtures / custom plugins) and distancePerFrame (for native MV/MZ engines) */
 function ensureWalkRunHook(): void {
-  if (typeof Game_Player === 'undefined') return
-  if (Game_Player.prototype.moveSpeedRate !== chayaPlayerMoveSpeedRate) {
-    _origPlayerMoveSpeedRate = Game_Player.prototype.moveSpeedRate
-    Game_Player.prototype.moveSpeedRate = chayaPlayerMoveSpeedRate
+  const g = globalThis as {
+    Game_Player?: PlayerLike
+    Game_CharacterBase?: CharacterBaseLike
+  }
+
+  if (typeof g.Game_Player !== 'undefined') {
+    if (g.Game_Player.prototype.moveSpeedRate !== chayaPlayerMoveSpeedRate) {
+      _origPlayerMoveSpeedRate = g.Game_Player.prototype.moveSpeedRate ?? null
+      g.Game_Player.prototype.moveSpeedRate = chayaPlayerMoveSpeedRate
+    }
+  }
+
+  if (typeof g.Game_CharacterBase !== 'undefined') {
+    if (g.Game_CharacterBase.prototype.distancePerFrame !== chayaCharacterDistancePerFrame) {
+      _origCharacterDistancePerFrame = g.Game_CharacterBase.prototype.distancePerFrame ?? null
+      g.Game_CharacterBase.prototype.distancePerFrame = chayaCharacterDistancePerFrame
+    }
+  } else if (typeof g.Game_Player !== 'undefined') {
+    if (g.Game_Player.prototype.distancePerFrame !== chayaCharacterDistancePerFrame) {
+      _origPlayerDistancePerFrame = g.Game_Player.prototype.distancePerFrame ?? null
+      g.Game_Player.prototype.distancePerFrame = chayaCharacterDistancePerFrame
+    }
   }
 }
 
@@ -155,26 +275,27 @@ function clampRate(rate: number): number | null {
 }
 
 function applyRates(walk: number, run: number): boolean {
-  const player = gamePlayer()
-  if (!player) {
-    log.warn('Map not ready; $gamePlayer unavailable')
-    return false
-  }
   const w = clampRate(walk)
   const r = clampRate(run)
   if (w == null || r == null) {
     log.warn('Invalid rate', { walk, run })
     return false
   }
+  configuredWalkRate = w
+  configuredRunRate = r
   ensureWalkRunHook()
-  player._walkSpeedRate = w
-  player._runSpeedRate = r
-  player._moveSpeedRate = w
-  eachFollower(player, (follower) => {
-    follower._walkSpeedRate = w
-    follower._runSpeedRate = r
-    follower._moveSpeedRate = w
-  })
+
+  const player = gamePlayer()
+  if (player) {
+    player._walkSpeedRate = w
+    player._runSpeedRate = r
+    player._moveSpeedRate = w
+    eachFollower(player, (follower) => {
+      follower._walkSpeedRate = w
+      follower._runSpeedRate = r
+      follower._moveSpeedRate = w
+    })
+  }
   return true
 }
 
@@ -199,9 +320,9 @@ function setAlwaysDash(on: boolean): boolean {
 function currentRates() {
   const p = gamePlayer()
   return {
-    walk: p?._walkSpeedRate ?? p?._moveSpeedRate ?? DEFAULT_RATE,
-    run: p?._runSpeedRate ?? p?._moveSpeedRate ?? DEFAULT_RATE,
-    moveRate: p?._moveSpeedRate ?? null,
+    walk: p?._walkSpeedRate ?? configuredWalkRate,
+    run: p?._runSpeedRate ?? configuredRunRate,
+    moveRate: p?._moveSpeedRate ?? configuredWalkRate,
     gameSpeed,
     alwaysDash: alwaysDash(),
   }
@@ -282,5 +403,7 @@ declarePluginTools('ChayaBoost', {
   off: () => ChayaBoost.off(),
   status: () => ChayaBoost.status(),
 })
+
+ensureWalkRunHook()
 
 log.ok(`Registered: ${PLUGIN_BOOST_NAME}.on()/off()/walkRate()/runRate()/rates()/speed()`)
