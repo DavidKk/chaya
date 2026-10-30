@@ -239,8 +239,12 @@ const base = {
     windowSize: '크기',
     windowSizeDesc: '시작 크기',
     changePath: '경로 변경',
+    openGamePath: '경로 열기',
+
     copyGamePath: '경로 복사',
     pickShell: '셸 선택',
+    openShellPath: '셸 원본 열기',
+
     copyShellPath: '셸 원본 복사',
     remoteNoPath: '원격 불가',
     remoteNoShell: '원격 불가',

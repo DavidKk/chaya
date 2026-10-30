@@ -6,7 +6,7 @@ import { MdOutlineExtension, MdOutlineExtensionOff, MdOutlineUpdate } from 'reac
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { LaunchHelp } from '@/components/LaunchHelp'
-import { Button } from '@/components/sk'
+import { GradientButton } from '@/components/sk'
 
 import { ShellActionsMenu } from './ShellActionsMenu'
 import { ShellAwaitFile } from './ShellAwaitFile'
@@ -29,7 +29,7 @@ export function DashboardGameActions({ nativeRuntime, busy, launch, plugins, she
   return (
     <div className="flex flex-col items-start gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Button
+        <GradientButton
           size="lg"
           className={actionButtonClass}
           variant={launch.online ? 'accent' : 'ok'}
@@ -40,10 +40,10 @@ export function DashboardGameActions({ nativeRuntime, busy, launch, plugins, she
         >
           {launch.online ? <IoPauseOutline size={19} aria-hidden /> : <IoPlayOutline size={19} aria-hidden />}
           {launch.label}
-        </Button>
+        </GradientButton>
         {/* Running games lock plugin writes; hide instead of a disabled twin of Pause. */}
         {!launch.online && plugins.state !== 'unavailable' ? (
-          <Button
+          <GradientButton
             size="lg"
             className={actionButtonClass}
             variant={plugins.state === 'ready' ? 'fail' : 'accent'}
@@ -59,7 +59,7 @@ export function DashboardGameActions({ nativeRuntime, busy, launch, plugins, she
               <MdOutlineExtension size={18} aria-hidden />
             )}
             {t(plugins.state === 'ready' ? 'gameActions.clearPlugins' : plugins.state === 'outdated' ? 'gameActions.updatePlugins' : 'gameActions.installPlugins')}
-          </Button>
+          </GradientButton>
         ) : null}
         <ShellActionsMenu {...shell} busy={busy} gameOnline={launch.online} buttonClassName={actionButtonClass} />
       </div>

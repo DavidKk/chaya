@@ -245,8 +245,12 @@ const dashboardEn = {
     windowSize: 'Size',
     windowSizeDesc: 'Launch size',
     changePath: 'Change path',
+    openGamePath: 'Open path',
+
     copyGamePath: 'Copy path',
     pickShell: 'Pick shell',
+    openShellPath: 'Open shell',
+
     copyShellPath: 'Copy shell',
     remoteNoPath: 'Remote: no path edit',
     remoteNoShell: 'Remote: no shell edit',

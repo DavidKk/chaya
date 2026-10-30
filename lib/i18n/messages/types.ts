@@ -231,8 +231,10 @@ export type MessageTree = {
     windowSize: string
     windowSizeDesc: string
     changePath: string
+    openGamePath: string
     copyGamePath: string
     pickShell: string
+    openShellPath: string
     copyShellPath: string
     remoteNoPath: string
     remoteNoShell: string

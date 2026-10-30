@@ -235,8 +235,12 @@ export const cht: MessageTree = {
     windowSize: '視窗大小',
     windowSizeDesc: '啟動宽高',
     changePath: '更换路径',
+    openGamePath: '開啟路徑',
+
     copyGamePath: '复制路径',
     pickShell: '選擇壳',
+    openShellPath: '開啟殼源',
+
     copyShellPath: '复制壳源',
     remoteNoPath: '远程不可改路径',
     remoteNoShell: '远程不可改壳源',

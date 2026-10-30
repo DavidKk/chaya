@@ -67,31 +67,59 @@ export function RgssWorkbench({ open: controlledOpen, onClose: controlledOnClose
     if (isControlled) return
     const toggle = () => setOpen((value) => !value)
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false)
-        return
+      const isField = (node: unknown): node is HTMLElement =>
+        node instanceof HTMLElement && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.tagName === 'SELECT' || node.isContentEditable)
+
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : []
+      let focusedInput: HTMLElement | null = null
+      for (const node of path) {
+        if (isField(node)) {
+          focusedInput = node
+          break
+        }
       }
-      if (event.code === 'Backquote' || event.key === '`') {
-        if (event.ctrlKey || event.metaKey || event.altKey) return
-        const target = event.composedPath()[0]
-        if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      if (!focusedInput) {
+        const ae = document.activeElement
+        if (isField(ae)) focusedInput = ae
+        else if (ae instanceof HTMLElement && ae.shadowRoot?.activeElement && isField(ae.shadowRoot.activeElement)) {
+          focusedInput = ae.shadowRoot.activeElement
+        }
+      }
+
+      if (event.key === 'Escape') {
+        if (open && focusedInput) {
+          if (typeof focusedInput.blur === 'function') {
+            focusedInput.blur()
+          }
+          event.preventDefault()
+          event.stopPropagation()
           return
         }
+        if (open) {
+          event.preventDefault()
+          event.stopPropagation()
+          setOpen(false)
+        }
+        return
+      }
+
+      if (event.code === 'Backquote' || event.key === '`') {
+        if (event.ctrlKey || event.metaKey || event.altKey) return
         event.preventDefault()
         event.stopPropagation()
         setOpen((value) => !value)
       }
     }
     const onEsc = () => setOpen(false)
-    document.addEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
     document.addEventListener('chaya:toggle', toggle)
     document.addEventListener('chaya:esc', onEsc)
     return () => {
       document.removeEventListener('chaya:toggle', toggle)
       document.removeEventListener('chaya:esc', onEsc)
-      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', onKey, true)
     }
-  }, [isControlled, setOpen])
+  }, [isControlled, open, setOpen])
   useEffect(() => {
     if (open) {
       postToGame({ type: 'edit.subscribe' })

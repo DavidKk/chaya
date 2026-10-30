@@ -239,8 +239,12 @@ const base = {
     windowSize: 'サイズ',
     windowSizeDesc: '起動サイズ',
     changePath: 'パス変更',
+    openGamePath: 'パスを開く',
+
     copyGamePath: 'パス複製',
     pickShell: 'シェル選択',
+    openShellPath: 'シェル元を開く',
+
     copyShellPath: 'シェル元複製',
     remoteNoPath: 'リモート不可',
     remoteNoShell: 'リモート不可',

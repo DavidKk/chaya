@@ -403,14 +403,15 @@ export function Dashboard() {
     else void bindGameRef.current(entry.gameRoot, { announce: false })
   }
 
-  const { chooseShell, bindShell, copyPath, saveGameRemark, removeGame, installShell, fetchLatestShell, uninstallShell, injectPlugins, clearPlugins } = useDashboardActions({
-    status,
-    shellSource,
-    setShellSource,
-    setBusy,
-    refresh,
-    pick,
-  })
+  const { chooseShell, bindShell, copyPath, openPath, saveGameRemark, removeGame, installShell, fetchLatestShell, uninstallShell, injectPlugins, clearPlugins } =
+    useDashboardActions({
+      status,
+      shellSource,
+      setShellSource,
+      setBusy,
+      refresh,
+      pick,
+    })
 
   const ready = !!(status && status.ready)
   const remote = !!(ready && status.remote)
@@ -648,7 +649,9 @@ export function Dashboard() {
                     onBindShell={(path) => void bindShell(path)}
                     onChooseGame={() => void chooseGame()}
                     onChooseShell={() => void chooseShell()}
+                    activeShellPath={status.shellApp || status.host?.shellPath}
                     onCopyPath={(text) => void copyPath(text)}
+                    onOpenPath={(text) => void openPath(text)}
                     onPatchWin={patchWin}
                     onPatchWinSize={patchWinSize}
                     autoUpdatePlugins={pluginsNeedInject || pluginsInjected ? { ...autoUpdate, hint: browserMode ? t('settings.autoUpdateBrowserHint') : undefined } : undefined}

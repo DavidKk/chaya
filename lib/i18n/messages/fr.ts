@@ -235,8 +235,12 @@ export const fr: MessageTree = {
     windowSize: 'Size',
     windowSizeDesc: 'Launch size',
     changePath: 'Change path',
+    openGamePath: 'Ouvrir le chemin',
+
     copyGamePath: 'Copy path',
     pickShell: 'Pick shell',
+    openShellPath: 'Ouvrir le shell',
+
     copyShellPath: 'Copy shell',
     remoteNoPath: 'Remote: no path edit',
     remoteNoShell: 'Remote: no shell edit',

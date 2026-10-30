@@ -7,6 +7,7 @@ import {
   HOTKEY_SYNC_CHANGED_EVENT,
   isHotkeyDisabled,
   matchKeyChord,
+  matchOpenPanelHotkey,
   parseHotkeyId,
   parseQuickSaveHotkeyId,
   saveGlobalHotkeys,
@@ -273,12 +274,59 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   useEffect(() => {
     if (!open) return
     function onKey(ev: KeyboardEvent) {
-      if (ev.key !== 'Escape' || isInputRecording()) return
-      // ShadowRoot 会把 event.target 重定向为宿主；沿真实事件路径识别输入框。
-      if (ev.composedPath().some((node) => node instanceof HTMLElement && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA'))) return
-      ev.preventDefault()
-      ev.stopPropagation()
-      onRequestClose()
+      if (isInputRecording()) return
+
+      const isField = (node: unknown): node is HTMLElement =>
+        node instanceof HTMLElement && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.tagName === 'SELECT' || node.isContentEditable)
+
+      const path = typeof ev.composedPath === 'function' ? ev.composedPath() : []
+      let focusedInput: HTMLElement | null = null
+      for (const node of path) {
+        if (isField(node)) {
+          focusedInput = node
+          break
+        }
+      }
+      if (!focusedInput) {
+        const ae = document.activeElement
+        if (isField(ae)) focusedInput = ae
+        else if (ae instanceof HTMLElement && ae.shadowRoot?.activeElement && isField(ae.shadowRoot.activeElement)) {
+          focusedInput = ae.shadowRoot.activeElement
+        } else {
+          const shadowAe = document.getElementById('chaya-game-edit-host')?.shadowRoot?.activeElement
+          if (isField(shadowAe)) focusedInput = shadowAe
+        }
+      }
+
+      if (ev.key === 'Escape') {
+        if (focusedInput) {
+          if (typeof focusedInput.blur === 'function') {
+            focusedInput.blur()
+          }
+          ev.preventDefault()
+          ev.stopPropagation()
+          return
+        }
+
+        const hostShadow = document.getElementById('chaya-game-edit-host')?.shadowRoot
+        const hasOpenDialog =
+          path.some((n) => n instanceof HTMLElement && n.getAttribute('role') === 'dialog') ||
+          Boolean(document.querySelector('[role="dialog"]')) ||
+          Boolean(hostShadow?.querySelector('[role="dialog"]'))
+        if (hasOpenDialog) return
+
+        ev.preventDefault()
+        ev.stopPropagation()
+        onRequestClose()
+        return
+      }
+
+      if (matchOpenPanelHotkey(ev)) {
+        ev.preventDefault()
+        ev.stopPropagation()
+        onRequestClose()
+        return
+      }
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)

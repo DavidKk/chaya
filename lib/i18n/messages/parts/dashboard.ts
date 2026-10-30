@@ -64,8 +64,12 @@ export const dashboardZh = {
     windowSize: '窗口大小',
     windowSizeDesc: '启动宽高',
     changePath: '更换路径',
+    openGamePath: '打开路径',
+
     copyGamePath: '复制路径',
     pickShell: '选择壳',
+    openShellPath: '打开壳源',
+
     copyShellPath: '复制壳源',
     remoteNoPath: '远程不可改路径',
     remoteNoShell: '远程不可改壳源',
