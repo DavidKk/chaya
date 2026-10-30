@@ -44,6 +44,7 @@ module ChayaRGSS
       function { |_handle, _buffer| 1 } # Virtual window origin is (0, 0).
     when 'GetAsyncKeyState'
       function do |key|
+        next 0 if ChayaRGSS.respond_to?(:pointer_blocked?) && ChayaRGSS.pointer_blocked?
         pressed = false
         if defined?(Input)
           press_method = Input.respond_to?(:chaya_raw_press?) ? :chaya_raw_press? : :press?

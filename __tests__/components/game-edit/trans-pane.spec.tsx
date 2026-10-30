@@ -226,12 +226,12 @@ test('live status replaces the session count in the compact activity log header'
 test.each([
   ['zh', 4, 0, 2, '[缓存] #8400：4/4 条（80 字符）完成（2 条命中缓存）', 'text-ok'],
   ['zh', 3, 1, 2, '[缓存] #8400：3/4 条（80 字符）成功，1 条失败（2 条命中缓存）', 'text-warn'],
-  ['zh', 3, 1, 0, '[缓存] #8400：3/4 条（80 字符）成功，1 条失败', 'text-warn'],
-  ['zh', 0, 4, 0, '[缓存] #8400：全部失败（共 4 条 / 80 字符）', 'text-fail'],
+  ['zh', 3, 1, 0, '[其他] #8400：3/4 条（80 字符）成功，1 条失败', 'text-warn'],
+  ['zh', 0, 4, 0, '[其他] #8400：全部失败（共 4 条 / 80 字符）', 'text-fail'],
   ['en', 4, 0, 2, '[Cache] #8400: 4/4 items (80 chars) complete (2 cache hits)', 'text-ok'],
   ['en', 3, 1, 2, '[Cache] #8400: 3/4 items (80 chars) succeeded, 1 failed (2 cache hits)', 'text-warn'],
-  ['en', 3, 1, 0, '[Cache] #8400: 3/4 items (80 chars) succeeded, 1 failed', 'text-warn'],
-  ['en', 0, 4, 0, '[Cache] #8400: All failed (4 items / 80 chars)', 'text-fail'],
+  ['en', 3, 1, 0, '[Other] #8400: 3/4 items (80 chars) succeeded, 1 failed', 'text-warn'],
+  ['en', 0, 4, 0, '[Other] #8400: All failed (4 items / 80 chars)', 'text-fail'],
 ] as const)('batch logs localize %s success=%i failed=%i cache=%i with wrapping and status color', async (locale, success, failed, cache, expected, color) => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const host = document.createElement('div')

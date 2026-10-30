@@ -28,7 +28,7 @@ jest.mock('@/services/translate/fill-missing', () => ({ resolveTranslateContentR
 jest.mock('@/services/translate/play-settings', () => ({ getTranslationPlaySettings: jest.fn(), setTranslationPlaySettings: jest.fn() }))
 jest.mock('@/services/translate/realtime', () => ({ translateDialogue: jest.fn(), benchmarkLocalModel: jest.fn() }))
 jest.mock('@/services/translate/agent-translate', () => ({ agentJaToZh: jest.fn(), listTranslateAgents: jest.fn() }))
-jest.mock('@/services/translate/lib/bergamot-translate', () => ({ bergamotTranslator: { translate: jest.fn(), checkStatus: jest.fn() } }))
+jest.mock('@/services/translate/lib/bergamot-translate', () => ({ bergamotTranslator: { translate: jest.fn(), checkStatus: jest.fn(), checkEngineStatus: jest.fn() } }))
 jest.mock('@/services/translate/lib/macos-translate', () => ({ appleTranslate: jest.fn(), appleTranslator: { checkStatus: jest.fn() } }))
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 let mockCacheFile = ''
@@ -150,11 +150,11 @@ it.each(['', '   ', 'x'.repeat(20001)])('bergamot mode validates text length', a
 })
 
 it('bergamot-status reports missing packs without translating', async () => {
-  jest.mocked(bergamotTranslator.checkStatus).mockResolvedValue({ status: 'model_pack_missing', installed: false })
+  jest.mocked(bergamotTranslator.checkEngineStatus).mockResolvedValue({ status: 'model_pack_missing', installed: false, source: 'ja', target: 'zh' })
   const response = await post({ mode: 'bergamot-status', source: 'ja', target: 'zh' })
   expect(response.status).toBe(200)
-  expect(await response.json()).toMatchObject({ status: 'model_pack_missing', installed: false })
-  expect(bergamotTranslator.checkStatus).toHaveBeenCalledWith('ja', 'zh')
+  expect(await response.json()).toMatchObject({ status: 'model_pack_missing', installed: false, source: 'ja', target: 'zh' })
+  expect(bergamotTranslator.checkEngineStatus).toHaveBeenCalledWith('ja', 'zh')
   expect(bergamotTranslator.translate).not.toHaveBeenCalled()
 })
 
@@ -180,6 +180,16 @@ it('cache mode rejects empty text', async () => {
   const response = await post({ mode: 'cache', text: '   ' })
   expect(response.status).toBe(400)
   expect((await response.json()).error.code).toBe('TRANSLATE_CACHE_INPUT')
+})
+
+it('checks Apple readiness against the resolved game language when no pair is supplied', async () => {
+  jest.mocked(hasManagementAccess).mockReturnValue(true)
+  jest.mocked(getSeedSourceLanguage).mockReturnValue('ja')
+  jest.mocked(appleTranslator.checkStatus).mockResolvedValue({ status: 'installed', installed: true })
+  const response = await post({ mode: 'apple-status' })
+  expect(response.status).toBe(200)
+  expect(getSeedSourceLanguage).toHaveBeenCalledWith('/games/B')
+  expect(appleTranslator.checkStatus).toHaveBeenCalledWith('ja', 'zh-Hans')
 })
 
 it('checks Apple readiness without requiring translation text', async () => {

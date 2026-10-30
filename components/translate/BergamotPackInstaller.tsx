@@ -13,12 +13,14 @@ export function BergamotPackInstaller({
   target,
   embedded = false,
   onInstalled,
+  onPlanChange,
 }: {
   source: string
   target: string
   /** Fold into parent offline-status chrome (no duplicate title/badge/pair). */
   embedded?: boolean
   onInstalled: () => void
+  onPlanChange?: (plan?: PackPlan) => void
 }) {
   const t = useT()
   const translationFetch = useTranslationFetch()
@@ -29,27 +31,31 @@ export function BergamotPackInstaller({
   const snapshot = useRef<PackPlan | undefined>(undefined)
   const callback = useRef(onInstalled)
   callback.current = onInstalled
+  const planCallback = useRef(onPlanChange)
+  planCallback.current = onPlanChange
   const lifetime = useRef<AbortController | null>(null)
   const request = useCallback(
-    async (action: string, current?: PackPlan, signal?: AbortSignal) => {
+    async (action: string, current?: PackPlan, signal?: AbortSignal, force = false) => {
       const res = await translationFetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal,
-        body: JSON.stringify({ mode: 'bergamot-packs', action, from: source, to: target, planId: current?.id, jobId: current?.job?.id }),
+        body: JSON.stringify({ mode: 'bergamot-packs', action, from: source, to: target, planId: current?.id, jobId: current?.job?.id, force }),
       })
       const data = (await res.json()) as unknown as PackPlan & { ok?: boolean; error?: unknown }
       if (!res.ok || data.ok === false) throw new Error(res.status === 403 ? t('translate.packConsoleRequired') : readApiErrorMessage(data, t('translate.offlineCheckFailed')))
       if (signal?.aborted) return
       const previous = snapshot.current
       if (
-        previous?.id === data.id &&
+        previous?.id &&
+        previous.id === data.id &&
         previous.job &&
         (!data.job || previous.job.updatedAt > data.job.updatedAt || (previous.job.id === data.job.id && previous.job.revision > data.job.revision))
       )
         return
       snapshot.current = data
       setPlan(data)
+      planCallback.current?.(data)
       setError('')
       if (action === 'status' && data.job?.state === 'completed' && completed.current !== data.job.id) {
         completed.current = data.job.id
@@ -64,6 +70,7 @@ export function BergamotPackInstaller({
     lifetime.current = controller
     snapshot.current = undefined
     setPlan(undefined)
+    planCallback.current?.(undefined)
     setError('')
     setBusy(false)
     completed.current = ''
@@ -93,11 +100,15 @@ export function BergamotPackInstaller({
     }
   }, [active, request])
 
-  async function act(action: string) {
+  async function act(action: 'install' | 'reinstall' | 'cancel' | 'plan') {
     const signal = lifetime.current?.signal
     setBusy(true)
     try {
-      await request(action, plan, signal)
+      if (action === 'reinstall') {
+        await request('install', plan, signal, true)
+      } else {
+        await request(action, plan, signal)
+      }
     } catch (error) {
       if (!signal?.aborted) setError(error instanceof Error ? error.message : String(error))
     } finally {

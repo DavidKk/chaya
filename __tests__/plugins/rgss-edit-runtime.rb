@@ -238,6 +238,10 @@ bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'mhp' => 250, 'mmp' => 9
 hero = bridge.full_session_state['session']['actors'][1]
 check(hero['mhp'] == 250 && hero['mmp'] == 90 && hero['mat'] == 35 && hero['mdf'] == 35, 'VX parameter aliases failed')
 check(hero['exp'] == 1234 && hero['classId'] == 2 && hero['hp'] == 200, 'VX actor values did not round trip')
+bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'hp' => 10_000, 'mp' => 10_000 } })
+check($game_actors[1].hp == 250 && $game_actors[1].mp == 90, 'VX vitals must clamp to maxhp/maxmp')
+bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'hp' => 0, 'mp' => 0 } })
+check($game_actors[1].hp == 0 && $game_actors[1].mp == 0, 'zero vitals must remain editable')
 begin
   bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'luk' => 100 } })
   raise 'unsupported VX actor field falsely reported success'
@@ -248,6 +252,16 @@ $game_actors[1] = AceEditActor.new
 bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'mhp' => 300, 'atk' => 80, 'classId' => 2 } })
 check($game_actors[1].param_changes == [[0, 200], [2, 70]], 'VX Ace parameters must use add_param with the current-value delta')
 check($game_actors[1].class_id == 2, 'VX Ace change_class was not used')
+bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'hp' => 10_000, 'mp' => 10_000 } })
+check($game_actors[1].hp == 300 && $game_actors[1].mp == 30, 'Ace vitals must clamp to mhp/mmp')
+[-1, 1.5, '100'].each do |invalid|
+  begin
+    bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'hp' => invalid } })
+    raise 'invalid vital falsely accepted'
+  rescue RuntimeError => error
+    check(error.message == 'Expected non-negative integer', 'invalid vitals must still be rejected')
+  end
+end
 
 lock_ops = [
   { 'op' => 'goldLock', 'value' => 500 },
@@ -289,4 +303,147 @@ $game_party = VxEditParty.new
 runtime.tick
 check($game_party.gold == 100 && runtime.lock_values.empty?, 'locks leaked into a loaded save or new game')
 
+# Test gameSpeed, walkRate, runRate, moveRate
+bridge.apply({ 'op' => 'gameSpeed', 'value' => 2.5 })
+check(runtime.game_speed == 2.5, 'game_speed not set')
+check(bridge.full_session_state['session']['gameSpeed'] == 2.5, 'gameSpeed not in session state')
+
+bridge.apply({ 'op' => 'moveRate', 'value' => 2.0 })
+check(runtime.walk_rate == 2.0 && runtime.run_rate == 2.0, 'moveRate did not update both rates')
+check(bridge.full_session_state['session']['walkRate'] == 2.0, 'walkRate not in session state')
+check(bridge.full_session_state['session']['runRate'] == 2.0, 'runRate not in session state')
+
+bridge.apply({ 'op' => 'walkRate', 'value' => 1.5 })
+check(runtime.walk_rate == 1.5 && runtime.run_rate == 2.0, 'walkRate updated runRate unexpectedly')
+
+bridge.apply({ 'op' => 'runRate', 'value' => 3.0 })
+check(runtime.walk_rate == 1.5 && runtime.run_rate == 3.0, 'runRate updated walkRate unexpectedly')
+
+# Test movement hook scaling
+class Game_CharacterBase
+  def distance_per_frame; 4.0; end
+  def dash?; false; end
+end
+class Game_Player < Game_CharacterBase
+end
+runtime.instance_variable_set(:@movement_hooks_installed, false)
+runtime.install_movement_hooks
+test_player = Game_Player.new
+check(test_player.distance_per_frame == 4.0 * 1.5, 'distance_per_frame did not scale by walk_rate')
+
+# Test follower without dash? method does not crash and syncs with player dash
+class Game_Follower < Game_CharacterBase
+end
+bridge.apply({ 'op' => 'runFlag', 'key' => 'alwaysDash', 'value' => false })
+$game_player = test_player
+test_follower = Game_Follower.new
+check(test_follower.distance_per_frame == 4.0 * 1.5, 'follower distance_per_frame did not scale by walk_rate')
+test_player.define_singleton_method(:dash?) { true }
+check(test_follower.distance_per_frame == 4.0 * 3.0, 'follower distance_per_frame did not scale by run_rate when player dashes')
+test_player.define_singleton_method(:dash?) { false }
+
+# Test runAction: battle:victory in RGSS3 (BattleManager)
+SceneManager.instance_variable_set(:@scene, Scene_Battle.new)
+$game_troop = Struct.new(:members).new([MockEnemy.new])
+$game_party = Struct.new(:members).new([VxEditActor.new])
+BattleManager.victory_calls = 0
+BattleManager.instance_variable_set(:@phase, :turn)
+fields = bridge.apply({ 'op' => 'runAction', 'id' => 'battle:victory' })
+check(fields == ['runAction:battle:victory'], 'wrong reply for battle:victory')
+check($game_troop.members.first.hp == 0, 'battle:victory did not zero enemy hp')
+check(BattleManager.victory_calls == 1, 'battle:victory did not invoke process_victory')
+check(runtime.instance_variable_get(:@auto_win_scene) == SceneManager.scene, 'battle:victory did not record @auto_win_scene')
+runtime.set_run_flag('autoWin', true)
+check(!runtime.auto_win_ready?, 'auto_win_ready? should be suppressed for current victory scene')
+runtime.set_run_flag('autoWin', false)
+
+# Test runAction: battle:enemyHp1 & partyHeal
+$game_troop.members.first.hp = 100
+bridge.apply({ 'op' => 'runAction', 'id' => 'battle:enemyHp1' })
+check($game_troop.members.first.hp == 1, 'battle:enemyHp1 did not set enemy hp to 1')
+
+$game_party.members.first.hp = 5
+bridge.apply({ 'op' => 'runAction', 'id' => 'battle:partyHeal' })
+check($game_party.members.first.hp == 100, 'battle:partyHeal did not recover party hp')
+
+# Test runAction: battle:escape in RGSS3
+BattleManager.define_singleton_method(:process_abort) { @aborted = true }
+bridge.apply({ 'op' => 'runAction', 'id' => 'battle:escape' })
+check(BattleManager.instance_variable_get(:@aborted) == true, 'battle:escape did not trigger abort')
+
+# Test runAction: battle:defeat in RGSS3
+BattleManager.define_singleton_method(:process_defeat) { @defeated = true }
+bridge.apply({ 'op' => 'runAction', 'id' => 'battle:defeat' })
+check(BattleManager.instance_variable_get(:@defeated) == true, 'battle:defeat did not trigger defeat')
+check($game_party.members.first.hp == 0, 'battle:defeat did not zero party hp')
+
+# Test runAction: fix actions
+class Scene_Map; end
+class Scene_Title; end
+class Scene_Item; end
+SceneManager.define_singleton_method(:goto) { |cls| @current_target = cls }
+bridge.apply({ 'op' => 'runAction', 'id' => 'fix:map' })
+check(SceneManager.instance_variable_get(:@current_target) == Scene_Map, 'fix:map failed')
+bridge.apply({ 'op' => 'runAction', 'id' => 'fix:title' })
+check(SceneManager.instance_variable_get(:@current_target) == Scene_Title, 'fix:title failed')
+bridge.apply({ 'op' => 'runAction', 'id' => 'scene:item' })
+check(SceneManager.instance_variable_get(:@current_target) == Scene_Item, 'scene:item failed')
+
+# Test RGSS2 mode (no BattleManager, scene handles battle_end)
+class VxSceneBattle < Scene_Battle
+  attr_reader :end_result
+  def battle_end(res)
+    @end_result = res
+  end
+end
+vx_scene = VxSceneBattle.new
+SceneManager.instance_variable_set(:@scene, vx_scene)
+Object.send(:remove_const, :BattleManager) if defined?(BattleManager)
+
+$game_troop.members.first.hp = 80
+runtime.execute_battle_victory
+check(vx_scene.end_result == 0, 'RGSS2 victory did not call battle_end(0)')
+check($game_troop.members.first.hp == 0, 'RGSS2 victory did not zero enemy hp')
+
+runtime.execute_battle_escape
+check(vx_scene.end_result == 1, 'RGSS2 escape did not call battle_end(1)')
+
+runtime.execute_battle_defeat
+check(vx_scene.end_result == 2, 'RGSS2 defeat did not call battle_end(2)')
+
+# Test RGSS2 update_move hook
+class VxCharacter
+  attr_accessor :x, :y, :real_x, :real_y, :move_speed, :dash, :anime_count
+  def initialize
+    @x = 5; @y = 5; @real_x = 4 * 256; @real_y = 5 * 256; @move_speed = 4; @dash = false; @anime_count = 0
+  end
+  def update_move
+    distance = 2 ** @move_speed
+    distance *= 2 if @dash
+    @real_x = [@real_x - distance, @x * 256].max if @x * 256 < @real_x
+    @real_x = [@real_x + distance, @x * 256].min if @x * 256 > @real_x
+    @real_y = [@real_y - distance, @y * 256].max if @y * 256 < @real_y
+    @real_y = [@real_y + distance, @y * 256].min if @y * 256 > @real_y
+    @anime_count += 1
+  end
+end
+class VxPlayer < VxCharacter
+  def dash?; false; end
+end
+Object.send(:remove_const, :Game_CharacterBase) if defined?(Game_CharacterBase)
+Object.const_set(:Game_Character, VxCharacter)
+Object.send(:remove_const, :Game_Player) if defined?(Game_Player)
+Object.const_set(:Game_Player, VxPlayer)
+runtime.instance_variable_set(:@movement_hooks_installed, false)
+runtime.install_movement_hooks
+vx_player = VxPlayer.new
+vx_player.update_move
+check(vx_player.real_x == 4 * 256 + 24, "RGSS2 update_move did not scale by walk_rate: #{vx_player.real_x}")
+
+# Restore BattleManager for any subsequent suites
+module BattleManager
+  def self.actor; nil; end
+end
+
 puts 'RGSS edit runtime assertions passed'
+

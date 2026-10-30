@@ -6,12 +6,17 @@ import { listOllamaModels, pickAvailableModel } from '@/services/game-agent/olla
 import { ollamaFetch } from '@/services/game-agent/proxy/agent-proxy'
 import { readGameAgentToken } from '@/services/game-agent/secrets'
 import { loadGameAgentSettings, ollamaProfiles, profileById } from '@/services/game-agent/settings'
+import { measureOperation, runtimeEvent, startOperation } from '@/services/log/operation'
 
 import { buildBatchTranslatePrompt, hasAllControlTokens, packBatches, parseBatchResponse, splitSentenceByNaturalBoundaries } from './agent-batching'
 export { buildBatchTranslatePrompt, packBatches, parseBatchResponse, splitSentenceByNaturalBoundaries } from './agent-batching'
 
 import { scheduleOllama } from './ollama-queue'
 import { isUsefulTranslation } from './text-classify'
+
+function timedAgentRequest(http: Parameters<typeof requestOllama>[0], request: Parameters<typeof requestOllama>[1], meta: Record<string, unknown>) {
+  return measureOperation('translate', 'agent.request', { ...meta, model: request.model, think: request.think }, () => requestOllama(http, request))
+}
 
 export type AgentTranslateOptions = {
   interactive?: boolean
@@ -61,14 +66,16 @@ export async function agentSingleJaToZh(text: string, config: TranslateAiConfig,
         interactive: options.interactive,
         signal,
       }
-      const translated = await requestOllama(http, { ...request, think: !options.interactive && translationNeedsReasoning(text) })
+      const requestMeta = { lane, items: 1, sourceChars: Array.from(text).length }
+      const translated = await timedAgentRequest(http, { ...request, think: !options.interactive && translationNeedsReasoning(text) }, { ...requestMeta, attempt: 1 })
       if (translated && translated.normalize('NFKC').trim() !== text.normalize('NFKC').trim()) return translated
       options.onTrace?.(`Agent request submitted: items=1, sourceChars=${Array.from(text).length}`)
-      return requestOllama(http, { ...request, text: `译文：\n${text}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true })
+      return timedAgentRequest(http, { ...request, text: `译文：\n${text}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true }, { ...requestMeta, attempt: 2 })
     },
     {
       interactive: options.interactive,
       concurrency: options.concurrency,
+      startTiming: (meta) => startOperation('translate', 'agent.inference', meta),
       lane,
       signal,
     }
@@ -160,17 +167,19 @@ async function processAgentBatch(batch: QueuedAgentItem[]) {
           interactive: false,
           signal,
         }
-        return requestOllama(http, request)
+        return timedAgentRequest(http, request, { lane, items: batch.length, sourceChars: batch.reduce((sum, item) => sum + Array.from(item.text).length, 0) })
       },
       {
         interactive: false,
         concurrency: options.concurrency,
+        startTiming: (meta) => startOperation('translate', 'agent.inference', meta),
         lane,
         signal,
       }
     )
 
     const parsed = parseBatchResponse(raw, batch.length)
+    let retries = 0
     for (let i = 0; i < batch.length; i++) {
       const item = batch[i]
       if (item.options.signal?.aborted) continue
@@ -178,10 +187,13 @@ async function processAgentBatch(batch: QueuedAgentItem[]) {
       if (zh && hasAllControlTokens(item.text, zh) && isUsefulTranslation(item.text, item.text, zh, zh, 'zh')) {
         item.resolve(zh)
       } else {
+        retries++
         retry(item)
       }
     }
-  } catch {
+    if (retries) runtimeEvent('warn', 'translate', 'agent.batch: retrying invalid results', { items: batch.length, retries })
+  } catch (error) {
+    runtimeEvent('warn', 'translate', 'agent.batch: retrying individual requests', { items: batch.length, errorName: error instanceof Error ? error.name : 'UnknownError' })
     for (const item of batch) retry(item)
   } finally {
     transport.dispose()
@@ -198,6 +210,15 @@ function flushBucket(key: string, reason: string) {
   bucket.totalChars = 0
   const maxChars = items[0]?.maxChars ?? 3000
   const batches = packBatches(items, maxChars)
+  runtimeEvent('debug', 'translate', 'agent.batch: packed', {
+    reason,
+    items: items.length,
+    sourceChars: items.reduce((sum, item) => sum + Array.from(item.text).length, 0),
+    batchWaitMs: Math.round(performance.now() - bucket.startedAt),
+    batches: batches.length,
+    maxChars,
+    lane: items[0].options.lane,
+  })
   items[0].options.onTrace?.(`Agent queue flushed: reason=${reason}, items=${items.length}, sourceChars=${items.reduce((sum, item) => sum + Array.from(item.text).length, 0)}`)
   for (const batch of batches) {
     void processAgentBatch(batch)

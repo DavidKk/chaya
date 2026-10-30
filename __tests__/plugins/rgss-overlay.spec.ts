@@ -1,6 +1,10 @@
 /**
  * @jest-environment jsdom
  */
+jest.mock('@/plugins/rgss/src/overlay.css?inline', () => '', { virtual: true })
+jest.mock('@/plugins/rgss/src/Overlay', () => ({ RgssOverlayRoot: () => null }))
+
+import { mountRgssOverlay } from '@/plugins/rgss/src/entry'
 import { setupHitTestManager } from '@/plugins/rgss/src/hit-test-manager'
 import { initHostBridge, onGameMessage, postToGame } from '@/plugins/rgss/src/host-bridge'
 import { RgssWebRtcGateway } from '@/plugins/rgss/src/webrtc-gateway'
@@ -162,5 +166,23 @@ describe('RGSS End-to-End Relay Pipeline', () => {
 
     unsub()
     gateway.stop()
+  })
+})
+
+describe('RGSS Mount Overlay', () => {
+  afterEach(() => {
+    document.getElementById('chaya-rgss-overlay-container')?.remove()
+    document.getElementById('chaya-rgss-global-style')?.remove()
+  })
+
+  it('mounts container without tabindex and with outline: none and installs global anti-outline style', () => {
+    mountRgssOverlay()
+    const container = document.getElementById('chaya-rgss-overlay-container')
+    expect(container).not.toBeNull()
+    expect(container!.hasAttribute('tabindex')).toBe(false)
+    expect(container!.style.outline).toBe('none')
+    const globalStyle = document.getElementById('chaya-rgss-global-style')
+    expect(globalStyle).not.toBeNull()
+    expect(globalStyle!.textContent).toContain('outline: none !important')
   })
 })

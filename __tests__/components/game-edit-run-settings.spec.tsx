@@ -123,3 +123,68 @@ it('hides unsupported flags and tools when props are set', async () => {
   expect(document.querySelector('button[role="switch"][aria-label="穿墙"]')).not.toBeNull()
   expect(document.querySelector('div[aria-label="快捷工具箱"]')).toBeNull()
 })
+
+it('filters run actions according to supportedActions and triggers onAction', async () => {
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  root = createRoot(host)
+  const noop = () => {}
+  const onAction = jest.fn()
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <GameEditRunSettings
+          value={{ ...emptySession(), goldLocked: false }}
+          onGoldChange={noop}
+          onGoldLockChange={noop}
+          onMoveRateChange={noop}
+          onGameSpeedChange={noop}
+          onExpRateChange={noop}
+          onFlagChange={noop}
+          supportedActions={new Set(['battle:victory', 'fix:map'])}
+          onAction={onAction}
+        />
+      </LocaleProvider>
+    )
+  )
+  // Scene actions card should be hidden because no scene action is in supportedActions
+  expect(document.querySelector('button[aria-label="打开物品界面"]')).toBeNull()
+
+  // Supported actions are visible
+  const victoryBtn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === '战斗胜利')
+  expect(victoryBtn).toBeDefined()
+  const mapBtn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === '转至地图')
+  expect(mapBtn).toBeDefined()
+
+  // When onOpenBattle is absent, general battle description is used
+  expect(document.body.textContent).toContain('战斗快捷操作；局内可直接执行')
+  expect(document.body.textContent).not.toContain('都在「战斗」页')
+
+  // Unsupported actions in the same group are filtered out
+  const escapeBtn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === '战斗逃跑')
+  expect(escapeBtn).toBeUndefined()
+
+  await act(async () => victoryBtn?.click())
+  expect(onAction).toHaveBeenCalledWith('battle:victory')
+
+  // When onOpenBattle is provided, it links to battle page
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <GameEditRunSettings
+          value={{ ...emptySession(), goldLocked: false }}
+          onGoldChange={noop}
+          onGoldLockChange={noop}
+          onMoveRateChange={noop}
+          onGameSpeedChange={noop}
+          onExpRateChange={noop}
+          onFlagChange={noop}
+          supportedActions={new Set(['battle:victory'])}
+          onAction={onAction}
+          onOpenBattle={() => {}}
+        />
+      </LocaleProvider>
+    )
+  )
+  expect(document.body.textContent).toContain('结束战斗、改敌我数值都在「战斗」页。')
+})

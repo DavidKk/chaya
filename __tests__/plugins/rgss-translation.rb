@@ -46,7 +46,11 @@ Dir.mktmpdir('chaya-rgss-translation') do |root|
     { 's' => 'Value: \\V[3]', 't' => '数值：\\V[3]' },
     { 's' => 'Price: \\G', 't' => '价格：\\G' },
     { 's' => 'Ambiguous \\N[8]', 't' => '别名甲' },
-    { 's' => 'Ambiguous \\P[1]', 't' => '别名乙' }
+    { 's' => 'Ambiguous \\P[1]', 't' => '别名乙' },
+    { 's' => 'Yeah.', 't' => '是的。' },
+    { 's' => 'I can do 22 pushups in a row now.', 't' => '我现在可以连续做22个俯卧撑。' },
+    { 's' => 'Yeah. I can do 22 pushups in a row now.', 't' => '是的。 我现在可以连续做22个俯卧撑。',
+      'engine' => 'derived:sentence', 'origin' => { 'database' => 'shared:game-projection', 'id' => 'whole', 'revision' => 1 } }
   ]
   File.write(cache, rows.map { |r| JSON.generate(r) }.join("\n") + "\n")
   translation = ChayaRGSS::Translation
@@ -79,6 +83,9 @@ Dir.mktmpdir('chaya-rgss-translation') do |root|
   check(translation.translate('Uncached English') == 'Uncached English', 'missing source unchanged')
   check(translation.translate('\\N[8] joins.') == '\\N[8]加入。', 'numeric control template restores original actor id')
   check(translation.translate('YesNo') == 'YesNo', 'no arbitrary substring translation')
+  check(translation.translate('Yeah. I can do 22 pushups in a row now.') == '是的。 我现在可以连续做22个俯卧撑。', 'whole projection works without the service')
+  check(translation.translate('\\C[1]Yeah. I can do 22 pushups in a row now.\\C[0]') == '\\C[1]是的。 我现在可以连续做22个俯卧撑。\\C[0]', 'whole projection preserves control codes')
+  check(translation.translate('Wait... what happened?') == 'Wait... what happened?', 'ellipses are not split into sentences')
 
   Actor = Struct.new(:name) unless defined?(Actor)
   Party = Struct.new(:members) unless defined?(Party)

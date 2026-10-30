@@ -282,17 +282,19 @@ export function CacheOptimizeContent({ target, onBack, onConfirmed }: Props) {
     }
     setSaving(true)
     try {
+      let candidateId = target.id
       if (zh !== String(target.zh).trim()) {
         const patchRes = await translationFetch('/api/translate-cache', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ src: target.src, zh, from: target.from, to: target.to }),
         })
-        const patchJson = (await patchRes.json()) as { ok?: boolean; error?: string; message?: string }
+        const patchJson = (await patchRes.json()) as { id?: number; ok?: boolean; error?: string; message?: string }
         if (!patchRes.ok || patchJson.ok === false) {
           notify.error(readApiErrorMessage(patchJson, t('translate.cacheOptimizeFailed')))
           return
         }
+        candidateId = patchJson.id || target.id
       }
 
       if (!ready.length && !markedNewlines.length && !structure) {
@@ -304,6 +306,7 @@ export function CacheOptimizeContent({ target, onBack, onConfirmed }: Props) {
 
       const body = {
         pairs: ready,
+        candidateId,
         parent: { src: target.src, zh: zh !== String(target.zh).trim() ? zh : target.zh },
         structure,
         replaceGroups: structureDirty,

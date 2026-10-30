@@ -93,20 +93,21 @@ export function scheduleSharedCacheHeavyMigrate(dbPath: string) {
 }
 
 function scrubIdenticalSync(client: DatabaseSync) {
-  const rows = client.prepare('SELECT src, zh, src_lang, tgt_lang, engine FROM translations').all() as Array<{
+  const rows = client.prepare('SELECT id, src, zh, src_lang, tgt_lang, engine FROM translations').all() as Array<{
+    id: number
     src: string
     zh: string
     src_lang: string
     tgt_lang: string
     engine: string | null
   }>
-  const del = client.prepare('DELETE FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?')
+  const del = client.prepare('DELETE FROM translations WHERE id=?')
   client.exec('BEGIN IMMEDIATE')
   try {
     for (const row of rows) {
       const engine = row.engine == null ? null : String(row.engine)
       if (engine === 'skip:control' || engine === 'skip:sensitive' || isSharedIdenticalPair(String(row.src), String(row.zh))) {
-        del.run(row.src, row.src_lang, row.tgt_lang)
+        del.run(row.id)
       }
     }
     client.exec('COMMIT')
@@ -121,21 +122,22 @@ function scrubIdenticalSync(client: DatabaseSync) {
 }
 
 async function scrubIdenticalChunked(client: DatabaseSync) {
-  const rows = client.prepare('SELECT src, zh, src_lang, tgt_lang, engine FROM translations').all() as Array<{
+  const rows = client.prepare('SELECT id, src, zh, src_lang, tgt_lang, engine FROM translations').all() as Array<{
+    id: number
     src: string
     zh: string
     src_lang: string
     tgt_lang: string
     engine: string | null
   }>
-  const del = client.prepare('DELETE FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?')
+  const del = client.prepare('DELETE FROM translations WHERE id=?')
   client.exec('BEGIN IMMEDIATE')
   try {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]!
       const engine = row.engine == null ? null : String(row.engine)
       if (engine === 'skip:control' || engine === 'skip:sensitive' || isSharedIdenticalPair(String(row.src), String(row.zh))) {
-        del.run(row.src, row.src_lang, row.tgt_lang)
+        del.run(row.id)
       }
       if (i % 200 === 199) {
         client.exec('COMMIT')

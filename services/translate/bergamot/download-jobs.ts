@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import type { ServerDownloadJob } from '@/lib/downloads/types'
-import { isActivePackJob, type PackJob } from '@/lib/translate/bergamot'
+import { isActivePackJob, type PackJob, packJobError } from '@/lib/translate/bergamot'
 
 import { installedPack, packsRoot } from './store'
 
@@ -18,6 +18,7 @@ export function packDownloadJob(job: PackJob): ServerDownloadJob {
     phase: job.state === 'queued' ? 'resolve' : job.phase === 'downloading' ? 'download' : 'install',
     receivedBytes: job.downloadedBytes,
     totalBytes: job.totalDownloadBytes,
+    ...(packJobError(job) ? { error: packJobError(job) } : {}),
     startedAt: job.startedAt ?? job.updatedAt,
     finishedAt: active ? undefined : job.updatedAt,
   }

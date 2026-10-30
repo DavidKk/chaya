@@ -3,8 +3,10 @@ import readline from 'node:readline'
 
 import { bergamotLanguage } from '@/lib/translate/bergamot'
 import { resolveBergamotBinary } from '@/services/translate/bergamot/binary'
+import { findPack } from '@/services/translate/bergamot/catalog'
 import { verifiedPack } from '@/services/translate/bergamot/readiness'
 import { installedPack } from '@/services/translate/bergamot/store'
+import { measureOperation } from '@/services/log/operation'
 
 type BergamotResponse = {
   id?: string
@@ -18,6 +20,7 @@ type BergamotResponse = {
 }
 
 type PendingRequest = { resolve: (value: BergamotResponse) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }
+type BergamotStatus = { status: 'ready' | 'model_pack_missing' | 'unavailable' | 'unsupported'; installed: boolean; message?: string; path?: string }
 
 const REQUEST_TIMEOUT_MS = 5_000
 
@@ -25,6 +28,7 @@ export function toBergamotLanguage(value: string | undefined, fallback: string):
   const code = String(value || fallback)
     .trim()
     .toLowerCase()
+  if (code === 'jp') return 'ja'
   if (code === 'ch' || code === 'zh-cn' || code === 'zh-hans') return 'zh'
   if (code === 'cht' || code === 'zh-tw' || code === 'zh-hant') return 'zh-TW'
   if (code === 'pt-br') return 'pt'
@@ -107,6 +111,20 @@ class BergamotTranslatorClient {
   }
 
   private async request(action: 'translate' | 'check', options?: { source?: string; target?: string }, text?: string): Promise<BergamotResponse> {
+    return measureOperation(
+      'communication',
+      'bergamot.native.request',
+      {
+        action,
+        source: options?.source || 'ja',
+        target: options?.target || 'zh',
+        sourceChars: Array.from(text || '').length,
+      },
+      () => this.requestOnce(action, options, text)
+    )
+  }
+
+  private async requestOnce(action: 'translate' | 'check', options?: { source?: string; target?: string }, text?: string): Promise<BergamotResponse> {
     if (!this.packRoot) {
       const root = installedPack(options?.source || 'ja', options?.target || 'zh')?.root
       if (root) {
@@ -134,7 +152,10 @@ class BergamotTranslatorClient {
     })
   }
 
-  async checkStatus(source = 'ja', target = 'zh'): Promise<{ status: 'ready' | 'model_pack_missing' | 'unavailable'; installed: boolean; message?: string; path?: string }> {
+  async checkStatus(source = 'ja', target = 'zh'): Promise<BergamotStatus> {
+    source = bergamotLanguage(source)
+    target = bergamotLanguage(target)
+    if (!findPack(source, target)) return { status: 'unsupported', installed: false }
     try {
       if (installedPack(source, target)) {
         const verified = await verifiedPack(source, target)
@@ -149,12 +170,26 @@ class BergamotTranslatorClient {
     }
   }
 
+  /** Readiness always describes the requested pair, never another installed model. */
+  async checkEngineStatus(source = 'en', target = 'zh') {
+    source = bergamotLanguage(source)
+    target = bergamotLanguage(target)
+    return { ...(await this.checkStatus(source, target)), source, target }
+  }
+
   async translate(text: string, options?: { source?: string; target?: string }): Promise<string> {
     if (!text.trim()) return text
-    const response = await this.request('translate', options, text)
-    const result = response.translatedText ?? response.result
-    if (response.success !== true || typeof result !== 'string') throw new Error(response.message || response.error || 'Bergamot translation failed')
-    return result
+    return measureOperation(
+      'translate',
+      'bergamot.request',
+      { source: options?.source || 'ja', target: options?.target || 'zh', items: 1, sourceChars: Array.from(text).length },
+      async () => {
+        const response = await this.request('translate', options, text)
+        const result = response.translatedText ?? response.result
+        if (response.success !== true || typeof result !== 'string') throw new Error(response.message || response.error || 'Bergamot translation failed')
+        return result
+      }
+    )
   }
 }
 

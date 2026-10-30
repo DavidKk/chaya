@@ -29,7 +29,7 @@ describe('shared-cache upsertOptimizeMany', () => {
     }
   })
 
-  it('inserts new children, skips conflicts, and keeps 原文=译文 out of shared', () => {
+  it('appends new candidates, selects authoritative translations, and keeps 原文=译文 out of shared', () => {
     const cache = openSharedCache(dbPath)
     expect(cache.upsertMany([['好感度', '好感度']], 'import')).toBe(0)
     cache.upsertMany([['レオン', '雷欧']], 'import')
@@ -44,7 +44,7 @@ describe('shared-cache upsertOptimizeMany', () => {
       { from: 'ja', to: 'zh' }
     )
 
-    expect(stats).toMatchObject({ inserted: 1, identical: 0, conflict: 1, total: 3 })
+    expect(stats).toMatchObject({ inserted: 2, identical: 0, conflict: 0, total: 3 })
     expect(stats.localOnly).toEqual([['好感度', '好感度']])
     expect(cache.get('好感度', { from: 'ja', to: 'zh' })).toBeNull()
     expect(cache.get('レオン', { from: 'ja', to: 'zh' })).toBe('雷欧')

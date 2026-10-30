@@ -48,7 +48,7 @@ it('continues to count a running adapter after its signal is aborted', async () 
   expect(await second).toBe('next')
 })
 
-it('honours configured concurrency limits and character budgets', async () => {
+it.each(['google', 'apple', 'agent:a'] as const)('allows ten full character batches independently for %s', async (engine) => {
   expect(engineConfiguredCapacity('agent:a', { concurrencyLimit: 2 })).toBe(2)
   expect(engineConfiguredCapacity('agent:a', { concurrencyLimit: 10, allowConcurrency: false })).toBe(1)
   expect(engineConfiguredCapacity('google', { allowConcurrency: false })).toBe(1)
@@ -56,20 +56,14 @@ it('honours configured concurrency limits and character budgets', async () => {
 
   const finishes: Array<(value: string) => void> = []
   const work = jest.fn(() => new Promise<string>((resolve) => finishes.push(resolve)))
-  const settings = { concurrencyLimit: 3, maxConcurrentChars: 100, chars: 60 }
-  const first = withEngineCapacity('google', 'test:chars', work, undefined, settings)
-  const second = withEngineCapacity('google', 'test:chars', work, undefined, settings)
-  const third = withEngineCapacity('google', 'test:chars', work, undefined, settings)
+  const settings = { concurrencyLimit: 10, maxConcurrentChars: 4000, chars: 4000 }
+  const requests = Array.from({ length: 11 }, () => withEngineCapacity(engine, `test:chars:${engine}`, work, undefined, settings))
   await tick()
-  expect(work).toHaveBeenCalledTimes(1)
+  expect(work).toHaveBeenCalledTimes(10)
   finishes[0]('a')
-  await first
+  await requests[0]
   await tick()
-  expect(work).toHaveBeenCalledTimes(2)
-  finishes[1]('b')
-  await second
-  await tick()
-  expect(work).toHaveBeenCalledTimes(3)
-  finishes[2]('c')
-  await third
+  expect(work).toHaveBeenCalledTimes(11)
+  for (const finish of finishes) finish('done')
+  await Promise.all(requests)
 })

@@ -124,6 +124,7 @@ export type EditMessages = {
   fixTitle: string
   fixDesc: string
   battleTitle: string
+  battleDesc: string
   previewDisabled: string
   groupCharacter: string
   groupSystem: string

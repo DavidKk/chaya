@@ -6,6 +6,7 @@ import { RGSS_EXTRACT_WORKER_PATH } from '@/constants/paths'
 import { entriesFromNamePairs, isNameGlossaryCategory, isUsableNamePair, type NameEntry } from '@/lib/translate/name-glossary'
 import { type ExtractedTranslationItem, loadExtractedItems } from '@/services/extract/lib/extract-items'
 import { runWorkerOnce } from '@/services/jobs'
+import { startOperation } from '@/services/log/operation'
 import { getGameCacheContext } from '@/services/translate/game-cache-context'
 import { loadGameTranslateLookup, loadRgssTranslationLookup, resolveRgssTranslation } from '@/services/translate/game-lookup'
 
@@ -55,27 +56,55 @@ async function loadNameSources(root: string, stamp: string | null): Promise<Extr
 export async function loadGameNameEntries(contentRoot: string, toLang?: string | null): Promise<NameEntry[]> {
   const root = String(contentRoot || '')
   if (!root) return []
-  const sourceStamp = rgssSourceStamp(root)
-  const context = getGameCacheContext(root)
-  const stamp = `${context.stamp}:${sourceStamp}:${toLang || 'zh'}`
-  const cached = tables.get(root)
-  if (cached?.stamp === stamp) return cached.entries
-  const items = await loadNameSources(root, sourceStamp)
-  const translations = sourceStamp === null ? null : loadRgssTranslationLookup(root)
-  const lookup = translations?.lookup ?? loadGameTranslateLookup(root)
-  const pairs: NameEntry[] = []
-  for (const item of items) {
-    const category = item.meta.category
-    if (!isNameGlossaryCategory(category) || context.blocked(item.src)) continue
-    const current = item.zh || item.savedZh || ''
-    const zh = String(translations ? resolveRgssTranslation(item.src, current, translations) : lookup[item.src] || current).trim()
-    if (!isUsableNamePair(item.src, zh)) continue
-    pairs.push({ src: item.src, zh, category })
+  const timing = startOperation('translate', 'glossary.load', { target: toLang || 'zh' }, { start: false })
+  let stampMs = 0
+  let sourcesMs = 0
+  let lookupMs = 0
+  try {
+    const sourceStamp = rgssSourceStamp(root)
+    const context = getGameCacheContext(root)
+    const stamp = `${context.stamp}:${sourceStamp}:${toLang || 'zh'}`
+    const cached = tables.get(root)
+    stampMs = timing.elapsedMs()
+    if (cached?.stamp === stamp) {
+      timing.end('completed', { cacheHit: true, entries: cached.entries.length, stampMs })
+      return cached.entries
+    }
+    const loading = performance.now()
+    const items = await loadNameSources(root, sourceStamp)
+    sourcesMs = Math.round((performance.now() - loading) * 10) / 10
+    const lookupStarted = performance.now()
+    const translations = sourceStamp === null ? null : loadRgssTranslationLookup(root)
+    const lookup = translations?.lookup ?? loadGameTranslateLookup(root)
+    lookupMs = Math.round((performance.now() - lookupStarted) * 10) / 10
+    const building = performance.now()
+    const pairs: NameEntry[] = []
+    for (const item of items) {
+      const category = item.meta.category
+      if (!isNameGlossaryCategory(category) || context.blocked(item.src)) continue
+      const current = item.zh || item.savedZh || ''
+      const zh = String(translations ? resolveRgssTranslation(item.src, current, translations) : lookup[item.src] || current).trim()
+      if (!isUsableNamePair(item.src, zh)) continue
+      pairs.push({ src: item.src, zh, category })
+    }
+    const entries = entriesFromNamePairs(pairs, toLang)
+    if (tables.size >= 8 && !tables.has(root)) tables.delete(tables.keys().next().value!)
+    tables.set(root, { stamp, entries })
+    timing.end('completed', {
+      cacheHit: false,
+      format: sourceStamp === null ? 'mv' : 'rgss',
+      items: items.length,
+      entries: entries.length,
+      stampMs,
+      sourcesMs,
+      lookupMs,
+      buildMs: Math.round((performance.now() - building) * 10) / 10,
+    })
+    return entries
+  } catch (error) {
+    timing.fail(error, { stampMs, sourcesMs, lookupMs })
+    throw error
   }
-  const entries = entriesFromNamePairs(pairs, toLang)
-  if (tables.size >= 8 && !tables.has(root)) tables.delete(tables.keys().next().value!)
-  tables.set(root, { stamp, entries })
-  return entries
 }
 
 /** Test helper: drop memoized tables after mutating extract/records mocks. */

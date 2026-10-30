@@ -139,6 +139,7 @@ function CurrentVitalField({
           className={fieldControl}
           value={value}
           min={0}
+          max={max}
           aria-label={t('edit.currentOf', { label })}
           suffix={`/ ${formatCompactNumber(max)}`}
           tooltip={`${formatExactNumber(value)} / ${formatExactNumber(max)}`}

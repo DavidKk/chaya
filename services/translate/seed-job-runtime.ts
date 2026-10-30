@@ -2,7 +2,14 @@
 import fs from 'node:fs'
 
 import { formatCompactCount } from '@/lib/format-compact-count'
-import { type LiveTranslationSample, rollingTranslationPerformance, smoothTranslationPerformance, translationPerformance, type TranslationSample } from '@/lib/translate/remain-eta'
+import {
+  freshTranslationPerformance,
+  type LiveTranslationSample,
+  rollingTranslationPerformance,
+  smoothTranslationPerformance,
+  translationPerformance,
+  type TranslationSample,
+} from '@/lib/translate/remain-eta'
 import { batchSources, isCacheExecution, isCacheResult } from '@/lib/translate/result-sources'
 import type { TranslationBatchLog } from '@/lib/translate/runtime-api'
 import { getResolvedFromConfig } from '@/services/game/binding'
@@ -10,6 +17,7 @@ import { shouldDemoteOrphanRunning } from '@/services/jobs'
 
 import { getTranslateEngineSwitches } from './engine-switches'
 import { createSeedFillSession, type SeedProgress } from './fill-missing'
+import { logTranslationEvent } from './runtime-log'
 import { localGameContentFile, seedFileStamp, seedProgressStamp } from './scheduler/seed-inventory'
 import { isSeedInventoryPreparing, peekSeedInventory, prepareSeedInventory } from './scheduler/seed-prepare'
 import { createSeedBatchBudget } from './seed-batch'
@@ -95,8 +103,9 @@ function scheduleHandoff(rt: Runtime) {
   rt.handoffTimer.unref?.()
 }
 
-function resolveBoundRoot(): string {
-  const resolved = getResolvedFromConfig()
+function resolveBoundRoot(opts?: { gameId?: string; contentRoot?: string }): string {
+  if (opts?.contentRoot) return opts.contentRoot
+  const resolved = getResolvedFromConfig(opts?.gameId ? { gameId: opts.gameId } : undefined)
   if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
   if (resolved.remote) throw new Error('Remote games must be bound locally before translating')
   return resolved.contentRoot
@@ -130,6 +139,7 @@ function peekHasSeed(contentRoot: string): boolean {
 function pushLog(rt: Runtime, level: SeedJobLogLevel, text: string, metadata?: Pick<SeedJobLogEntry, 'batch' | 'failure' | 'request'>) {
   rt.logSeq += 1
   rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text, ...metadata }].slice(-MAX_SEED_JOB_LOGS)
+  if (!metadata?.request) logTranslationEvent(level, text, { contentRoot: rt.state.contentRoot, ...metadata })
 }
 
 /** Short engine tag for one-line logs. */
@@ -174,8 +184,10 @@ async function runLoop(contentRoot: string) {
   const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.every((e) => e === 'apple' || e.startsWith('agent:'))
   const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4)
   const trace = (message: string) => {
-    const request = /^Agent request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message)
-    if (request) pushLog(rt, 'info', message, { request: { items: Number(request[1]), chars: Number(request[2]) } })
+    const previousLogSeq = rt.logSeq
+    const request = /^(Agent|Apple) request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message)
+    if (request)
+      pushLog(rt, 'info', message, { request: { items: Number(request[2]), chars: Number(request[3]), ...(request[1] === 'Apple' ? { engine: 'apple' as const } : {}) } })
     if (message.startsWith('Cache scan unavailable:')) {
       pushLog(
         rt,
@@ -183,11 +195,14 @@ async function runLoop(contentRoot: string) {
         message.includes('worker not built') ? 'Cache scan failed: cache worker is not built.' : `Cache scan failed: ${message.replace(/^Cache scan unavailable:\s*/i, '')}`
       )
     }
-    if (process.env.CHAYA_TRANSLATE_DEBUG !== '1') return
-    const text = `[translation-timing] batch=${rt.state.rounds + 1} ${message}`
-    pushLog(rt, 'info', text)
-    // eslint-disable-next-line no-console -- Detailed timings are explicitly enabled for diagnostics.
-    console.info(text)
+    if (process.env.CHAYA_TRANSLATE_DEBUG === '1') {
+      const text = `[translation-timing] batch=${rt.state.rounds + 1} ${message}`
+      pushLog(rt, 'info', text)
+      // eslint-disable-next-line no-console -- Detailed timings are explicitly enabled for diagnostics.
+      console.info(text)
+    }
+    // HTTP polls read disk while fill may still be waiting for engine results.
+    if (rt.logSeq !== previousLogSeq) persist(rt)
   }
   try {
     // Never invent inventory on the main thread — beginSeedLoop always passes a bundle;
@@ -206,27 +221,29 @@ async function runLoop(contentRoot: string) {
     rt.progress = rt.session.progress
     let measuredAt = performance.now()
     while (!rt.stopRequested) {
-      rt.state.liveStatus = `正在翻译第 ${rt.state.rounds + 1} 段…`
+      rt.state.liveStatus = '正在翻译…'
       persist(rt)
 
       let result
       try {
         const started = performance.now()
         const slice = budget.current()
-        let completed = 0
         let checkpointAt = 0
         result = await rt.session.fill({
           ...slice,
           onTrace: trace,
           onItem: (item) => {
             if (rt.session) rt.progress = rt.session.progress
+            if (rt.session?.processed != null) rt.state.sessionDone = initialSessionDone + rt.session.processed
             if (item.zh && !item.error) {
-              rt.liveSamples = [...(rt.liveSamples || []), { at: Date.now(), chars: charCount(item.src) }].slice(-120)
+              const now = Date.now()
+              rt.liveSamples = [...(rt.liveSamples || []), { at: now, chars: charCount(item.src) }].slice(-120)
               const measured = rollingTranslationPerformance(rt.liveSamples, { cacheMs: rt.state.performance?.cacheMs ?? 0 })
-              rt.state.performance = smoothTranslationPerformance(rt.state.performance, measured)
+              const previous = freshTranslationPerformance(rt.state.performance, rt.state.performance?.measuredAt ?? 0, now)
+              const smoothed = smoothTranslationPerformance(previous, measured)
+              rt.state.performance = measured && smoothed ? { ...smoothed, measuredAt: now } : previous
             }
-            completed++
-            rt.state.liveStatus = `本批已处理 ${completed} 条 · 成功译文已保存`
+            rt.state.liveStatus = `本会话已译 ${rt.state.sessionDone} 条 · ${rt.stopRequested ? '正在暂停…' : '正在翻译…'}`
             if (Date.now() - checkpointAt >= 250) {
               persist(rt)
               checkpointAt = Date.now()
@@ -245,7 +262,8 @@ async function runLoop(contentRoot: string) {
         if (result.scanned && result.performance) {
           rt.samples = [...(rt.samples || []), { elapsedMs: sampleElapsedMs, ...result.performance }].slice(-8)
           const measured = rollingTranslationPerformance(rt.liveSamples || [], { cacheMs: result.performance.cacheMs }) ?? translationPerformance(rt.samples)
-          rt.state.performance = smoothTranslationPerformance(rt.state.performance, measured)
+          const smoothed = smoothTranslationPerformance(rt.state.performance, measured)
+          rt.state.performance = smoothed ? { ...smoothed, measuredAt: rt.liveSamples?.at(-1)?.at ?? Date.now() } : null
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -308,7 +326,7 @@ async function runLoop(contentRoot: string) {
         return
       }
 
-      rt.state.liveStatus = `第 ${rt.state.rounds} 段完成 · 本会话已译 ${rt.state.sessionDone} 条 · 仍缺 ${result.missing}`
+      rt.state.liveStatus = `本会话已译 ${rt.state.sessionDone} 条 · 仍缺 ${result.missing}`
       persist(rt)
 
       if (rt.stopRequested) break
@@ -363,8 +381,8 @@ function ensureLoop(contentRoot: string) {
  * Orphaned disk `running` (process bounce) demotes to paused; startSeedJob resumes.
  * Stamp drift is not probed here (docs: no stale UX; Start/refresh recompute in a worker).
  */
-export function getSeedJobSnapshot(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function getSeedJobSnapshot(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(opts)
   const rt = getRuntime(contentRoot)
   if (rt.handoffPending && !rt.running) {
     rt.handoffPending = false
@@ -434,8 +452,8 @@ function applyInventoryBundle(rt: Runtime, bundle: import('./scheduler/seed-prep
 }
 
 /** Explicit full inventory (button). Starts a worker; polls see `preparing` until ready. */
-export function refreshSeedJobProgress(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function refreshSeedJobProgress(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(opts)
   const rt = getRuntime(contentRoot)
   if (rt.running) return getSeedJobSnapshot()
 
@@ -529,8 +547,8 @@ function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-
 }
 
 /** Start or resume the server-side fill loop. Inventory runs single-flight off the HTTP return path. */
-export function startSeedJob(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function startSeedJob(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(opts)
   const current = getRuntime(contentRoot)
   if (current.running) return getSeedJobSnapshot()
 
@@ -589,8 +607,8 @@ export function startSeedJob(): SeedJobSnapshot {
 }
 
 /** Pause after the current segment finishes. */
-export function pauseSeedJob(): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot()
+export function pauseSeedJob(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+  const contentRoot = resolveBoundRoot(opts)
   const rt = getRuntime(contentRoot)
   rt.handoffPending = false
   if (rt.state.status !== 'running') {

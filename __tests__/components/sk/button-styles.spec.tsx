@@ -33,38 +33,23 @@ describe('Button styles and sizes', () => {
     host.remove()
   })
 
-  it('renders solid gradient buttons by default for colored variants', async () => {
+  it('keeps small colored buttons tinted without white text or sheen', async () => {
     await act(async () =>
       root.render(
         <>
-          <Button variant="ok">开始游戏</Button>
-          <Button variant="fail">清除插件</Button>
-          <Button variant="accent">主强调</Button>
-          <Button variant="warn">警告</Button>
+          {(['ok', 'fail', 'accent', 'warn'] as const).map((variant) => (
+            <Button key={variant} variant={variant}>
+              {variant}
+            </Button>
+          ))}
         </>
       )
     )
-
-    const buttons = host.querySelectorAll('button')
-    const [btnOk, btnFail, btnAccent, btnWarn] = [...buttons]
-
-    expect(btnOk?.className).toContain('linear-gradient')
-    expect(btnOk?.className).toContain('text-[#ecfdf5]')
-    expect(btnOk?.getAttribute('data-sheen')).toBe('true')
-
-    expect(btnFail?.className).toContain('linear-gradient')
-    expect(btnFail?.className).toContain('text-[#fef2f2]')
-    expect(btnFail?.getAttribute('data-sheen')).toBe('true')
-
-    expect(btnAccent?.className).toContain('linear-gradient')
-    expect(btnAccent?.className).toContain('text-accent-ink')
-    expect(btnAccent?.getAttribute('data-sheen')).toBe('true')
-    expect(btnAccent?.className).toContain('inset_0_0_0_1px')
-    expect(btnAccent?.className).not.toMatch(/(?:^|[,\s])0_0_0_1px/)
-
-    expect(btnWarn?.className).toContain('linear-gradient')
-    expect(btnWarn?.className).toContain('text-white')
-    expect(btnWarn?.getAttribute('data-sheen')).toBe('true')
+    for (const button of host.querySelectorAll('button')) {
+      expect(button.className).not.toContain('linear-gradient')
+      expect(button.className).not.toContain('text-white')
+      expect(button.getAttribute('data-sheen')).toBeNull()
+    }
   })
 
   it('renders outline/tinted buttons when explicitly requested via outline prop or variant', async () => {
@@ -148,11 +133,11 @@ describe('Button styles and sizes', () => {
     expect(startBtn?.getAttribute('data-size')).toBe('lg')
     expect(startBtn?.getAttribute('data-sheen')).toBe('true')
     expect(startBtn?.className).toContain('linear-gradient')
-    expect(startBtn?.className).toContain('text-[#ecfdf5]')
+    expect(startBtn?.className).toContain('text-white')
 
     expect(clearBtn?.getAttribute('data-size')).toBe('lg')
     expect(clearBtn?.getAttribute('data-sheen')).toBe('true')
     expect(clearBtn?.className).toContain('linear-gradient')
-    expect(clearBtn?.className).toContain('text-[#fef2f2]')
+    expect(clearBtn?.className).toContain('text-white')
   })
 })

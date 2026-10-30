@@ -35,8 +35,12 @@ export function DownloadsRuntime() {
           return
         }
         if (item.kind === 'bergamot-pack') {
-          if (item.status === 'done') notify.success(`Bergamot · ${t('translate.offlineReadyHint')}`)
-          else if (item.status === 'error') notify.error(`Bergamot · ${t('translate.packRetryHint')}`)
+          const label = `Bergamot · ${item.source ?? '?'} / ${item.target ?? '?'}`
+          if (item.status === 'done') notify.success(`${label} · ${t('translate.tagReady')}`)
+          else if (item.status === 'error') {
+            const reason = item.error === 'PACK_DOWNLOAD_FAILED' || item.error === 'PACK_DOWNLOAD_TIMEOUT' ? t('translate.packDownloadFailed') : item.error
+            notify.error(`${label} · ${reason || t('translate.packRetryHint')}`)
+          }
           return
         }
         if (item.status === 'done') {

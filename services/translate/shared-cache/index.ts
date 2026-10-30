@@ -24,8 +24,12 @@ import {
 } from '@/lib/translate/cache-lang'
 import { parseSharedCacheSortDir, parseSharedCacheSortKey, type SharedCacheSortDir, type SharedCacheSortKey } from '@/lib/translate/cache-query'
 import { normalizeTranslateKey } from '@/lib/translate/lookup'
+import { SENTENCE_RULE_VERSION } from '@/lib/translate/sentence-units'
 import { categoriesForNature, normalizeCacheCategory, parseTextNature } from '@/lib/translate/text-nature'
 import { storageCall } from '@/services/storage/client'
+import { getGameCacheContext } from '@/services/translate/game-cache-context'
+import { planGameCache } from '@/services/translate/game-cache-plan'
+import { gameTranslationFiles } from '@/services/translate/game-records'
 import { isNsfwCacheRow } from '@/services/translate/sensitive-text'
 import { isIdenticalTranslation, isReusableTranslation, isStorableTranslation } from '@/services/translate/text-classify'
 
@@ -33,10 +37,12 @@ import { createGameBackfill } from './backfill'
 import { confirmRecordSegments } from './confirm-segments'
 import { defaultSharedDbPath, openSharedCacheDb } from './db'
 import { createMatchIndex } from './match-index'
-import { translations } from './schema'
+import { cacheMeta, translations } from './schema'
 import { writeCachePairs } from './write-pairs'
 
 export { defaultSharedDbPath, defaultSharedDir } from './db'
+
+const PROJECTION_CANDIDATE_RE = /[\s\d０-９,，、。．.!！?？;；\n\r…~～\\<%{]/
 export { cacheMeta, sharedCacheSchema, translations } from './schema'
 export type { CacheLang, CacheLangPair } from '@/lib/translate/cache-lang'
 export type { SharedCacheSortDir, SharedCacheSortKey } from '@/lib/translate/cache-query'
@@ -182,8 +188,42 @@ export function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
     plan: index.plan,
     numericRecords: index.numericRecords,
     queueBackfill: backfill.queue,
+    queueGameProjections: backfill.queueProjections,
+    gameCacheRoots: backfill.roots,
     flushBackfill: backfill.flush,
+    /** Explicit preparation/launch repair, including entries already counted as complete. No engines. */
+    syncGameCache(root: string) {
+      const key = `game-projection-sync:${root}`
+      const signature = () => JSON.stringify([SENTENCE_RULE_VERSION, index.version(), gameTranslationFiles(root).stamp])
+      const startedWith = signature()
+      const previous = db.select().from(cacheMeta).where(eq(cacheMeta.key, key)).get()?.value
+      if (previous === startedWith) return backfill.flush(root)
+      const file = gameTranslationFiles(root).seed
+      const seed: unknown = file ? JSON.parse(fs.readFileSync(file, 'utf8')) : {}
+      if (!seed || typeof seed !== 'object' || Array.isArray(seed)) throw new Error('Seed must be an object mapping source text to translation')
+      const context = getGameCacheContext(root)
+      const records = []
+      const sources = []
+      for (const src of Object.keys(seed)) {
+        if (!src.trim() || context.blocked(src) || context.lookup[src] != null) continue
+        const pair = resolveCacheLangPair({ src, to: 'zh' })
+        const exact = index.record(src, pair)
+        if (exact) records.push(exact)
+        else if (PROJECTION_CANDIDATE_RE.test(src)) {
+          const { plan } = planGameCache(src, pair, index, context)
+          if (!plan.limited && plan.status === 'full') sources.push({ src, pair })
+        }
+      }
+      backfill.queue(root, records)
+      backfill.queueProjections(root, sources)
+      const result = backfill.flush(root)
+      const value = signature()
+      // Do not certify a concurrent external edit as repaired by this snapshot.
+      if (value === startedWith || result.sharedOnly) db.insert(cacheMeta).values({ key, value }).onConflictDoUpdate({ target: cacheMeta.key, set: { value } }).run()
+      return result
+    },
     record: index.record,
+    candidateRecord: index.inserted,
     current: index.current,
     authority: index.authority,
     version: index.version,
@@ -198,12 +238,9 @@ export function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
     loadAll(pairOpts?: Partial<CacheLangPair>): Record<string, string> {
       const pair = defaultPair(pairOpts)
       const out: Record<string, string> = Object.create(null)
-      for (const row of db
-        .select({ src: translations.src, zh: translations.zh })
-        .from(translations)
-        .where(and(eq(translations.srcLang, pair.from), eq(translations.tgtLang, pair.to)))
-        .all()) {
-        if (rowUsable(String(row.src), String(row.zh), pair.to)) out[String(row.src)] = String(row.zh)
+      const rows = db.$client.prepare('SELECT src,zh FROM selected_translations WHERE src_lang=? AND tgt_lang=?').all(pair.from, pair.to) as Array<{ src: string; zh: string }>
+      for (const row of rows) {
+        if (rowUsable(row.src, row.zh, pair.to)) out[row.src] = row.zh
       }
       return out
     },
@@ -279,7 +316,7 @@ export function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       }
       const base = db.select(rowSelect).from(translations)
       const filtered = where ? base.where(where) : base
-      const rows = filtered.orderBy(orderBy, asc(translations.src)).limit(pageSize).offset(offset).all()
+      const rows = filtered.orderBy(orderBy, asc(translations.src), desc(translations.id)).limit(pageSize).offset(offset).all()
 
       return {
         page,
@@ -364,6 +401,7 @@ export function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
         localOnly: [] as Array<[string, string]>,
       }
       if (!pairs.length) return stats
+      const candidates: Array<[string, string]> = []
       for (const [src, zh] of pairs) {
         if (!src || !zh?.trim()) continue
         stats.total++
@@ -371,76 +409,54 @@ export function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
           stats.localOnly.push([src, zh])
           continue
         }
-        const pair = resolveCacheLangPair({ ...pairOpts, src })
-        const existing = index.authority(src, pair)
-        if (existing?.zh === zh) {
-          stats.identical++
-          continue
-        }
-        const written = cache.writeMany([[src, zh.trim()]], engine, pair)
-        if (written.accepted.length) stats.inserted++
-        else if (written.rejected[0]?.reason === 'invalid') stats.skipped++
-        else stats.conflict++
+        candidates.push([src, zh.trim()])
       }
+      const written = cache.writeMany(candidates, engine, pairOpts)
+      stats.inserted = written.accepted.length
+      stats.skipped = written.rejected.length
       return stats
     },
 
     importIgnoreExisting(map: Record<string, string>, engine = 'import', pairOpts?: Partial<CacheLangPair>) {
       const entries = Object.entries(map || {})
-      let inserted = 0
-      for (const [src, zh] of entries) {
-        const pair = resolveCacheLangPair({ ...pairOpts, src })
-        if (index.record(src, pair)) continue
-        inserted += cache.writeMany([[src, zh]], engine, pair).accepted.length
-      }
+      const inserted = cache.writeMany(entries, engine, pairOpts).accepted.length
       return { inserted, total: entries.length }
     },
 
-    update(src: string, zh: string, engine = 'manual', pairOpts?: Partial<CacheLangPair>, opts?: { nsfw?: boolean }): boolean {
+    appendManual(src: string, zh: string, engine = 'manual', pairOpts?: Partial<CacheLangPair>, opts?: { nsfw?: boolean }): number | null {
       const s = String(src ?? '')
       const t = String(zh ?? '').trim()
       const pair = resolveCacheLangPair({ ...pairOpts, src: s })
-      if (!canStorePair(s, t, engine, pair.to)) return false
-      const existing = db
-        .select({ nsfw: translations.nsfw })
-        .from(translations)
-        .where(rowWhere(s, pair.from, pair.to))
-        .get()
-      if (!existing) return false
-      const nsfw = typeof opts?.nsfw === 'boolean' ? (opts.nsfw ? 1 : 0) : Math.max(Number(existing.nsfw) === 1 ? 1 : 0, nsfwBit(s, engine))
       const result = cache.writeMany([[s, t]], engine, pair)
-      if (result.accepted.length && typeof opts?.nsfw === 'boolean') cache.setNsfw(s, Boolean(nsfw), pair)
-      return result.accepted.length > 0
+      const id = result.records[0]?.candidateId
+      if (id && typeof opts?.nsfw === 'boolean') cache.setNsfw(s, opts.nsfw, pair, id)
+      return id || null
+    },
+
+    update(src: string, zh: string, engine = 'manual', pairOpts?: Partial<CacheLangPair>, opts?: { nsfw?: boolean }): boolean {
+      return cache.appendManual(src, zh, engine, pairOpts, opts) != null
     },
 
     /** Manual NSFW mark; does not change the translation text. */
-    setNsfw(src: string, nsfw: boolean, pairOpts?: Partial<CacheLangPair>): boolean {
+    setNsfw(src: string, nsfw: boolean, pairOpts?: Partial<CacheLangPair>, candidateId?: number): boolean {
       const s = String(src ?? '')
       if (!s) return false
       const pair = defaultPair(pairOpts)
-      if (
-        !db
-          .select({ src: translations.src })
-          .from(translations)
-          .where(rowWhere(s, pair.from, pair.to))
-          .get()
-      )
-        return false
       const result = db
         .update(translations)
-        .set({ nsfw: nsfw ? 1 : 0, updatedAt: Date.now() })
-        .where(rowWhere(s, pair.from, pair.to))
+        .set({ nsfw: nsfw ? 1 : 0 })
+        .where(and(rowWhere(s, pair.from, pair.to), candidateId ? eq(translations.id, candidateId) : undefined))
         .run()
       return Number(result.changes || 0) > 0
     },
 
-    remove(src: string, pairOpts?: Partial<CacheLangPair>): boolean {
+    remove(src: string, pairOpts?: Partial<CacheLangPair>, candidateId?: number): boolean {
       const s = String(src ?? '')
       if (!s) return false
       const pair = defaultPair(pairOpts)
       const result = db
         .delete(translations)
-        .where(rowWhere(s, pair.from, pair.to))
+        .where(and(rowWhere(s, pair.from, pair.to), candidateId ? eq(translations.id, candidateId) : undefined))
         .run()
       return Number(result.changes || 0) > 0
     },
@@ -456,10 +472,8 @@ export function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
         for (const row of rows) {
           const src = String(row.src)
           const zh = String(row.zh)
-          const from = normalizeCacheLang(row.srcLang, DEFAULT_CACHE_SRC_LANG)
-          const to = normalizeCacheLang(row.tgtLang, DEFAULT_CACHE_TGT_LANG)
           const engine = row.engine == null ? null : String(row.engine)
-          const where = rowWhere(src, from, to)
+          const where = eq(translations.id, row.id)
 
           if (engine === 'skip:control' || engine === 'skip:sensitive') {
             tx.delete(translations).where(where).run()

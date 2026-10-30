@@ -16,6 +16,14 @@ export function filterLogEntries(rows: readonly LogEntry[], opts?: LogQuery): Lo
   }
   if (opts?.since) out = out.filter((e) => e.ts >= opts.since!)
   const q = opts?.q?.trim().toLowerCase()
-  if (q) out = out.filter((e) => e.message.toLowerCase().includes(q) || e.source.toLowerCase().includes(q))
+  if (q)
+    out = out.filter((e) => {
+      if (e.message.toLowerCase().includes(q) || e.source.toLowerCase().includes(q)) return true
+      try {
+        return JSON.stringify(e.meta)?.toLowerCase().includes(q) ?? false
+      } catch {
+        return false
+      }
+    })
   return out.slice(-limit)
 }

@@ -60,6 +60,23 @@ describe('live short-sentence integration', () => {
     jest.mocked(agentJaToZh).mockReset()
   })
   afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+  it.each([false, true])('persists a complete runtime sentence after cache reuse (translate gap=%s)', async (gap) => {
+    const src = 'Yeah. I can do 22 pushups in a row now.'
+    const tail = 'I can do 22 pushups in a row now.'
+    const cache = openSharedCache()
+    cache.writeMany([['Yeah.', '是的。'], ...(gap ? [] : [[tail, '我现在可以连续做22个俯卧撑。'] as [string, string]])], 'import', { from: 'en', to: 'zh' })
+    cache.close()
+    jest.mocked(requestGoogle).mockResolvedValue('我现在可以连续做22个俯卧撑。')
+    const result = await liveTranslateTexts([src], { contentRoot: root, sourceLang: 'en', engines: ['google'] })
+    expect(result.items[0]).toMatchObject({ zh: '是的。 我现在可以连续做22个俯卧撑。', status: 'full' })
+    const rows = fs
+      .readFileSync(gameContentPath(root, 'cacheNdjson'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(rows.find((row) => row.s === src)).toMatchObject({ t: result.items[0].zh, engine: 'derived:sentence' })
+    expect(requestGoogle).toHaveBeenCalledTimes(gap ? 1 : 0)
+  })
   it('returns versioned resource results without engine calls or ordinary cache writes', async () => {
     const result = await liveTranslateTexts(['Save'], { contentRoot: null, engines: ['google'], sourceLang: 'en' })
     expect(result.items[0]).toMatchObject({ zh: '保存', engine: 'resource', engineWork: false, resource: { packId: 'chaya.defaults', version: '1' } })
@@ -161,7 +178,7 @@ describe('live short-sentence integration', () => {
       return '机器结果'
     })
     const result = await liveTranslateTexts(['Hello'], { contentRoot: root, engines: ['google'], cacheMode: 'bypass', onTrace: trace })
-    expect(result.items[0]).toMatchObject({ zh: '人工定稿', engine: 'cache:remote', resultSources: ['cache:remote'], engineWork: true })
+    expect(result.items[0]).toMatchObject({ zh: '机器结果', engine: 'live:google', resultSources: ['live:google'], engineWork: true })
     const cache = openSharedCache()
     expect(cache.get('Hello', { from: 'en', to: 'zh' })).toBe('人工定稿')
     cache.close()
@@ -175,7 +192,9 @@ describe('live short-sentence integration', () => {
       return '机器结果'
     })
     const result = await liveTranslateTexts(['Hello'], { contentRoot: root, engines: ['google'], cacheMode: 'bypass' })
-    expect(result.items[0]).toMatchObject({ zh: '本作人工定稿', engine: 'cache:local' })
+    expect(result.items[0]).toMatchObject({ zh: '机器结果', engine: 'live:google' })
+    const reread = await liveTranslateTexts(['Hello'], { contentRoot: root, engines: ['google'] })
+    expect(reread.items[0]).toMatchObject({ zh: '本作人工定稿', engine: 'cache:local' })
   })
 
   it('does not close or flush a borrowed writer after one item', async () => {
@@ -341,7 +360,7 @@ describe('live short-sentence integration', () => {
     cache.close()
     jest.mocked(requestGoogle).mockResolvedValue('平台译文')
     await liveTranslateTexts(['あん?'], { contentRoot: root, engines: ['google'], force: true })
-    expect(loadGameTranslationRecords(root)).toEqual([])
+    expect(loadGameTranslationRecords(root).every((record) => record.local === false)).toBe(true)
     const after = openSharedCache()
     expect(after.get('あん?')).toBe('人工译文')
     after.close()
@@ -533,7 +552,7 @@ describe('live short-sentence integration', () => {
     )
     jest.mocked(appleTranslate).mockResolvedValue('再见世界')
     const pending = liveTranslateTexts(['こんにちは世界', 'さようなら世界'], { contentRoot: root, engines: ['google', 'apple'], persist: false })
-    for (let i = 0; i < 12; i++) await Promise.resolve()
+    await new Promise<void>((resolve) => setImmediate(resolve))
     expect(requestGoogle).toHaveBeenCalledTimes(2)
     expect(appleTranslate).toHaveBeenCalledTimes(1)
     finish('你好世界')

@@ -26,7 +26,15 @@ export function takeSeedEngineTask(
   }
 ): number | undefined {
   const { states, misses, retries, deferred, cursors, canFit, sensitive, inCacheWindow } = queue
-  for (let i = 0; retries.size < queue.maxPending && i < misses.length;) {
+  // Bound fallback backlog and this engine's work, without charging another
+  // engine's active requests against an idle engine's admission window.
+  let pending = retries.size
+  if (pending >= queue.maxPending) {
+    for (const [id, attempt] of retries) {
+      if (states[id] === RUNNING && attempt.order[attempt.next] !== engine) pending--
+    }
+  }
+  for (let i = 0; pending < queue.maxPending && i < misses.length;) {
     const id = misses[i]
     if (states[id] !== MISS || retries.has(id)) {
       misses.splice(i, 1)
@@ -45,7 +53,7 @@ export function takeSeedEngineTask(
   }
   const delayed = deferred.get(engine) || new Set<number>()
   deferred.set(engine, delayed)
-  if (retries.size < queue.maxPending) {
+  if (pending < queue.maxPending) {
     for (const id of delayed) {
       if (queue.excluded(id)) {
         queue.exclude(id)
@@ -68,7 +76,12 @@ export function takeSeedEngineTask(
       const id = cursor++
       cursors.set(engine, cursor)
       if (states[id] === UNKNOWN) {
-        if (inCacheWindow(id) || !queue.canClaimUnknown()) continue
+        if (inCacheWindow(id)) continue
+        if (!queue.canClaimUnknown()) {
+          // Unscanned work must remain reachable if the cache worker later fails.
+          cursors.set(engine, id)
+          break
+        }
       } else if (states[id] !== MISS || retries.has(id)) continue
       if (queue.excluded(id)) {
         queue.exclude(id)

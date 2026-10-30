@@ -65,7 +65,7 @@ export function TranslateEngineRow({
           className={cn('pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent-glow)]', dropEdge === 'before' ? '-top-1' : '-bottom-1')}
         />
       ) : null}
-      <div className={cn('grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1 pr-3 pl-0', subtitle ? 'h-12' : 'h-11')}>
+      <div className={cn('grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1 py-2 pr-3 pl-0', subtitle ? 'min-h-12' : 'min-h-11')}>
         <button
           type="button"
           draggable={!locked}
@@ -83,7 +83,7 @@ export function TranslateEngineRow({
           <LuGripVertical size={12} aria-hidden />
         </button>
         <div className="flex min-w-0 flex-col justify-center gap-0.5">
-          <div className="flex min-w-0 items-center gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             {onEdit ? (
               <button
                 type="button"
@@ -100,7 +100,7 @@ export function TranslateEngineRow({
             ) : (
               <TruncateText text={label} className="text-[0.8125rem] font-medium leading-[1.4] text-ink" />
             )}
-            {badge ? <div className="flex shrink-0 items-center">{badge}</div> : null}
+            {badge ? <div className="flex min-w-0 max-w-full items-center">{badge}</div> : null}
           </div>
           {subtitle ? <TruncateText text={subtitle} className="text-[0.7rem] leading-[1.4] text-ink-soft" /> : null}
         </div>

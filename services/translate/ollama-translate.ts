@@ -7,6 +7,7 @@ import {
   requestOllama,
   translationNeedsReasoning,
 } from '@/lib/translate/engine-http'
+import { startOperation } from '@/services/log/operation'
 
 import type { AgentBatchScope } from './agent-translate'
 import { scheduleOllama } from './ollama-queue'
@@ -47,7 +48,13 @@ async function ollamaChat(system: string, user: string, temperature: number, thi
         signal,
       })
     },
-    { interactive: options?.interactive, concurrency: options?.concurrency, lane: options?.lane, signal: options?.signal }
+    {
+      interactive: options?.interactive,
+      concurrency: options?.concurrency,
+      lane: options?.lane,
+      signal: options?.signal,
+      startTiming: (meta) => startOperation('translate', 'agent.inference', { ...meta, model: options?.model || OLLAMA_MODEL, sourceChars: Array.from(user).length }),
+    }
   )
 }
 

@@ -15,6 +15,7 @@ export type ConfirmSegmentDiagnosis = {
 }
 
 export type ConfirmSegmentsOptions = {
+  candidateId?: number
   newlines?: NewlineAnnotation[]
   structure?: RecordStructure
   replaceGroups?: boolean
@@ -42,7 +43,7 @@ function uniqueSpan(text: string, fragment: string, newlines?: NewlineAnnotation
 
 /** A human confirms exact source/target fragments of an unchanged record; no child final records. */
 export function confirmRecordSegments(index: MatchIndex, parent: { src: string; zh: string }, pairs: Array<[string, string]>, pair: CacheLangPair, opts?: ConfirmSegmentsOptions) {
-  const record = index.record(parent.src, pair)
+  const record = opts?.candidateId ? index.inserted(opts.candidateId) : index.record(parent.src, pair)
   const diagnostics: ConfirmSegmentDiagnosis[] = []
   const stats = {
     inserted: 0,
@@ -55,7 +56,7 @@ export function confirmRecordSegments(index: MatchIndex, parent: { src: string; 
     dryRun: Boolean(opts?.dryRun),
     diagnostics,
   }
-  if (!record || record.zh !== parent.zh) return { ...stats, stale: true }
+  if (!record || record.src !== parent.src || record.from !== pair.from || record.to !== pair.to || record.zh !== parent.zh) return { ...stats, stale: true }
   if (opts?.expectedRevision !== undefined && record.revision !== opts.expectedRevision) return { ...stats, stale: true }
   if ((opts?.newlines && !validateNewlineAnnotations(record.src, opts.newlines)) || (opts?.structure && !validRecordStructure(opts.structure))) {
     return {
@@ -123,7 +124,7 @@ export function confirmRecordSegments(index: MatchIndex, parent: { src: string; 
   if (stats.conflict > 0 || stats.skipped > 0) return { ...stats, inserted: 0 }
   if (!stats.inserted && !opts?.newlines && !opts?.structure) return stats
 
-  const ok = index.setAlignment(record.src, pair, groups, record.revision, { newlines: opts?.newlines, structure: opts?.structure })
+  const ok = index.setAlignment(record.src, pair, groups, record.revision, { newlines: opts?.newlines, structure: opts?.structure, candidateId: record.candidateId })
   if (!ok) return { ...stats, inserted: 0, stale: true }
   return stats
 }

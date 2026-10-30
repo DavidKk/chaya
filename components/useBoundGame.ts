@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
+import { useSafeSearchParams } from '@/components/translate/safe-navigation'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { readUnsupportedEngine } from '@/lib/game/unsupported-engine'
 
@@ -18,7 +19,9 @@ type StatusLite = {
   ready?: boolean
   canUseDisk?: boolean
   remote?: boolean
-  library?: unknown[]
+  config?: { gameRoot?: string }
+  selected?: string
+  library?: Array<{ id: string; gameRoot: string; missing?: boolean }>
 }
 
 let cachedStatus: StatusLite | null = null
@@ -43,6 +46,8 @@ export type BoundGameState = {
 export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?: boolean } = {}): BoundGameState {
   const t = useT()
   const router = useRouter()
+  const searchParams = useSafeSearchParams()
+  const urlGameId = searchParams?.get('game') || ''
   const gameLink = useGameLinkContext()
   const notify = useNotification()
   const initialData = process.env.NODE_ENV !== 'test' ? cachedStatus : null
@@ -55,22 +60,35 @@ export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?
   const [remote, setRemote] = useState(() => initialData?.remote === true)
   const [busy, setBusy] = useState(false)
 
-  const applyStatus = useCallback((data: StatusLite) => {
-    cachedStatus = data
-    if (data.canUseDisk === false) {
-      setPhase('cloud')
-      return
-    }
-    setLibraryEmpty(!Array.isArray(data.library) || data.library.length === 0)
-    setRemote(data.remote === true)
-    setPhase(data.ready ? 'ready' : 'need-game')
-  }, [])
+  const applyStatus = useCallback(
+    (data: StatusLite, forceUpdateUrl = false) => {
+      cachedStatus = data
+      if (data.canUseDisk === false) {
+        setPhase('cloud')
+        return
+      }
+      setLibraryEmpty(!Array.isArray(data.library) || data.library.length === 0)
+      setRemote(data.remote === true)
+      setPhase(data.ready ? 'ready' : 'need-game')
+      if ((forceUpdateUrl || !urlGameId) && typeof window !== 'undefined' && data.ready) {
+        const target = data.selected || data.config?.gameRoot
+        const entry = data.library?.find((item) => item.gameRoot === target || item.id === target)
+        if (entry && !entry.missing) {
+          const u = new URL(window.location.href)
+          u.searchParams.set('game', entry.id)
+          window.history.replaceState(null, '', u.toString())
+        }
+      }
+    },
+    [urlGameId]
+  )
 
   useEffect(() => {
     let cancelled = false
     void (async () => {
       try {
-        const res = await fetch('/api/status')
+        const url = urlGameId ? `/api/status?game=${encodeURIComponent(urlGameId)}` : '/api/status'
+        const res = await fetch(url)
         const data = (await res.json()) as StatusLite
         if (!cancelled) applyStatus(data)
       } catch {
@@ -80,7 +98,7 @@ export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?
     return () => {
       cancelled = true
     }
-  }, [applyStatus])
+  }, [applyStatus, urlGameId])
 
   const pickAndBind = useCallback(async () => {
     setBusy(true)
@@ -115,7 +133,7 @@ export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?
       }
       notify.success(t('notify.addedToLibrary'))
       const res = await fetch('/api/status')
-      applyStatus((await res.json()) as StatusLite)
+      applyStatus((await res.json()) as StatusLite, true)
     } catch {
       notify.error(t('notify.pickerUnavailable'))
     } finally {
@@ -131,8 +149,8 @@ export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?
       void pickAndBind()
       return
     }
-    router.push('/game')
-  }, [chooseIntent, pickAndBind, router])
+    router.push(urlGameId ? `/game?game=${encodeURIComponent(urlGameId)}` : '/game')
+  }, [chooseIntent, pickAndBind, router, urlGameId])
 
   const hasGame = phase === 'ready' || (cloud && !!gameLink.roomId)
   let access: BoundGameAccess

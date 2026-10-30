@@ -36,10 +36,15 @@ it('distinguishes a real Agent request from a small timed cache result window', 
           },
         },
         { id: 3, at: 2, level: 'info', text: 'legacy log' },
+        { id: 4, at: 3, level: 'info', text: 'Apple request', request: { engine: 'apple', items: 20, chars: 1000 } },
+        { id: 5, at: 4, level: 'warn', text: 'Cache scan failed: Worker timed out' },
       ]}
     />
   )
   expect(html).toContain('[Agent] 请求已提交：333 条（2997 字符）')
-  expect(html).toContain('10/10 条（206 字符）完成 · 结果窗口：等待达到 5 秒')
+  expect(html).toContain('10/10 条（206 字符）完成')
+  expect(html).not.toContain('结果窗口')
+  expect(html).toContain('[Apple] 请求已提交：20 条（1000 字符）')
+  expect(html).toContain('缓存扫描暂不可用，继续使用翻译引擎：Worker timed out')
   expect(html).toContain('legacy log')
 })

@@ -7,11 +7,21 @@ import os from 'node:os'
 import path from 'node:path'
 import { parentPort, workerData } from 'node:worker_threads'
 
+import { openSharedCache } from '../shared-cache'
 import { readSeedInventory } from './seed-inventory'
 
 try {
   const contentRoot = String((workerData as { contentRoot?: string })?.contentRoot || '')
   if (!contentRoot) throw new Error('seed-inventory-worker: missing contentRoot')
+  const cache = openSharedCache()
+  try {
+    cache.syncGameCache(contentRoot)
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('seed-inventory-worker: syncGameCache non-fatal error:', error)
+  } finally {
+    cache.close()
+  }
   const inv = readSeedInventory(contentRoot)
   const out = path.join(os.tmpdir(), `chaya-seed-inv-${process.pid}-${Date.now()}.json`)
   fs.writeFileSync(out, JSON.stringify(inv))

@@ -17,7 +17,8 @@ export function withReadOnlyCache<T>(run: (cache: { index: ReturnType<typeof cre
   try {
     client.exec('PRAGMA query_only = ON; PRAGMA busy_timeout = 5000; BEGIN')
     const meta = client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v10_exact_keys'").get() as { value: string } | undefined
-    if (!meta) throw new CacheIndexNotReadyError()
+    const candidates = client.prepare("SELECT value FROM cache_meta WHERE key='translation_candidates_v1'").get()
+    if (!meta || !candidates) throw new CacheIndexNotReadyError()
     const value = run({ index: createMatchIndex(client), path: file })
     client.exec('COMMIT')
     return value

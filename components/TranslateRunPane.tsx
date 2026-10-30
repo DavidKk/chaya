@@ -8,6 +8,7 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { formCardDense } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, ScrollArea, TruncateText } from '@/components/sk'
+import { useSafeSearchParams } from '@/components/translate/safe-navigation'
 import type { TranslateRunMode } from '@/components/translate/tabs'
 import { TranslateActivityLog, type TranslateLogEntry } from '@/components/translate/TranslateActivityLog'
 import { TranslateExportMenu } from '@/components/translate/TranslateExportMenu'
@@ -22,7 +23,14 @@ import { useOptimizeNames } from '@/components/translate/useOptimizeNames'
 import { useSyncNames } from '@/components/translate/useSyncNames'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { filterTranslationExport, type TranslationExportMode } from '@/lib/translate/export'
-import { estimateRemainMs, formatRemainEta, projectRemainingChars, smoothTranslationPerformance, type TranslationPerformance } from '@/lib/translate/remain-eta'
+import {
+  estimateRemainMs,
+  formatRemainEta,
+  freshTranslationPerformance,
+  projectRemainingChars,
+  smoothTranslationPerformance,
+  type TranslationPerformance,
+} from '@/lib/translate/remain-eta'
 import { cn } from '@/lib/utils'
 
 type Progress = {
@@ -86,6 +94,7 @@ const emptyJob: JobState = {
 }
 
 const POLL_MS = 750
+const IDLE_POLL_MS = 3000
 
 function readProgress(json: Partial<Progress> & { preparing?: boolean }): Progress {
   return {
@@ -170,6 +179,8 @@ export function TranslateRunPane({
 }: { tab?: TranslateRunMode; onTabChange?: (tab: TranslateRunMode) => void; surface?: 'page' | 'overlay' } = {}) {
   const t = useT()
   const panelId = useId()
+  const searchParams = useSafeSearchParams()
+  const urlGameId = searchParams?.get('game') || ''
   const translationFetch = useTranslationFetch()
   const { running: optimizingNames, runOptimizeNames } = useOptimizeNames()
   const { running: syncingNames, runSyncNames } = useSyncNames()
@@ -215,25 +226,21 @@ export function TranslateRunPane({
         const res = await translationFetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'progress', ...(opts?.rescan ? { refresh: true } : {}) }),
+          body: JSON.stringify({ mode: 'progress', ...(urlGameId ? { game: urlGameId } : {}), ...(opts?.rescan ? { refresh: true } : {}) }),
         })
         const json = (await res.json()) as Progress & { ok?: boolean; job?: JobState; activity?: ActivityState; error?: unknown }
         if (!res.ok || json.ok === false) {
           setStatus(readApiErrorMessage(json, t('translate.progressFailed')))
-          setProgress(emptyProgress)
-          setJob(emptyJob)
           return
         }
         applySnapshot(json)
       } catch (err) {
         setStatus(err instanceof Error ? err.message : t('translate.progressFailed'))
-        setProgress(emptyProgress)
-        setJob(emptyJob)
       } finally {
         refreshing.current = false
       }
     },
-    [applySnapshot, t, translationFetch]
+    [applySnapshot, t, translationFetch, urlGameId]
   )
 
   useEffect(() => {
@@ -248,12 +255,13 @@ export function TranslateRunPane({
     }
   }, [refresh])
 
-  /** Poll while running or preparing; polling stops when leaving this view, while the task continues in background */
+  /** Keep retrying snapshots so transient failures and background starts cannot leave the view stale. */
   useEffect(() => {
-    if (!running && !preparing && !(surface === 'overlay' && tab === 'play')) return
+    if (tab === 'list') return
+    const interval = running || preparing || (surface === 'overlay' && tab === 'play') ? POLL_MS : IDLE_POLL_MS
     const timer = window.setInterval(() => {
       void refresh()
-    }, POLL_MS)
+    }, interval)
     return () => window.clearInterval(timer)
   }, [running, preparing, refresh, surface, tab])
 
@@ -262,8 +270,9 @@ export function TranslateRunPane({
       setDisplayPerformance(null)
       return
     }
-    setDisplayPerformance((previous) => smoothTranslationPerformance(previous, job.performance))
-  }, [running, job.performance])
+    const now = Date.now()
+    setDisplayPerformance((previous) => smoothTranslationPerformance(freshTranslationPerformance(previous, previous?.measuredAt ?? job.updatedAt, now), job.performance))
+  }, [running, job.performance, job.updatedAt])
 
   useEffect(() => {
     if (!running) return
@@ -291,7 +300,11 @@ export function TranslateRunPane({
   async function runExtract() {
     setExtracting(true)
     try {
-      const res = await translationFetch('/api/extract', { method: 'POST' })
+      const res = await translationFetch('/api/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(urlGameId ? { game: urlGameId } : {}),
+      })
       const json = (await res.json()) as { ok?: boolean; unique?: number; added?: number; total?: number; error?: unknown }
       if (!res.ok || json.ok === false) {
         notify.error(readApiErrorMessage(json, t('translate.extractFailed')))
@@ -314,7 +327,7 @@ export function TranslateRunPane({
       const res = await translationFetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'job', action: 'start' }),
+        body: JSON.stringify({ mode: 'job', action: 'start', ...(urlGameId ? { game: urlGameId } : {}) }),
       })
       const json = (await res.json()) as Progress & { ok?: boolean; job?: JobState; error?: unknown }
       if (!res.ok || json.ok === false) {
@@ -341,7 +354,7 @@ export function TranslateRunPane({
       const res = await translationFetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'job', action: 'pause' }),
+        body: JSON.stringify({ mode: 'job', action: 'pause', ...(urlGameId ? { game: urlGameId } : {}) }),
       })
       const json = (await res.json()) as Progress & { ok?: boolean; job?: JobState; error?: unknown }
       if (!res.ok || json.ok === false) {
@@ -436,7 +449,10 @@ export function TranslateRunPane({
   const liveStatus = job.liveStatus || (extracting ? t('translate.extractingText') : preparing ? t('translate.preparingInventory') : '')
   const canStart = progress.missing > 0 && !preparing
   const startLabel = job.status === 'paused' ? t('translate.continue') : progress.missing > 0 ? t('translate.start') : t('translate.completed')
-  const perf = running && !pausing && displayPerformance && displayPerformance.charsPerSecond > 0 ? displayPerformance : null
+  const perf =
+    running && !pausing && displayPerformance && displayPerformance.charsPerSecond > 0
+      ? freshTranslationPerformance(displayPerformance, displayPerformance.measuredAt ?? job.updatedAt, clock)
+      : null
   const elapsedSinceCheckpoint = clock > 0 && job.updatedAt > 0 ? clock - job.updatedAt : 0
   const remainingChars = projectRemainingChars({ missingChars: progress.missingChars, charsPerSecond: perf?.charsPerSecond, elapsedMs: elapsedSinceCheckpoint })
   const remainMs = estimateRemainMs({ missingChars: remainingChars, charsPerSecond: perf?.charsPerSecond, running })

@@ -141,14 +141,14 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
   }
 
   const checkSystemStatus = useCallback(
-    async (id: OfflineEngine, signal: AbortSignal) => {
+    async (id: OfflineEngine, signal: AbortSignal, pair?: { source?: string; target?: string }) => {
       setSystemStatus((previous) => ({ ...previous, [id]: undefined }))
       try {
         const res = await translationFetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal,
-          body: JSON.stringify({ mode: `${id}-status`, from: languagePair?.source || undefined, to: languagePair?.target || undefined }),
+          body: JSON.stringify({ mode: `${id}-status`, from: pair?.source || languagePair?.source || undefined, to: pair?.target || languagePair?.target || undefined }),
         })
         const status = await res.json()
         if (!res.ok || status.ok === false) throw new Error(readApiErrorMessage(status, t('translate.offlineCheckFailed')))
@@ -445,14 +445,14 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
         takenProfileIds={view.agents.filter((item) => item.id !== entry?.id).map((item) => item.profileId)}
         systemStatus={offlineStatus}
         offlineGuide={bergamotPreview != null ? <BergamotDebugGuide scenario={bergamotPreview} /> : undefined}
-        onCheckSystemStatus={() => {
+        onCheckSystemStatus={(pair) => {
           if (bergamotPreview != null) {
             bergamotDebug?.setScenario('checking')
             return
           }
           if (offline) {
             const ctrl = new AbortController()
-            void checkSystemStatus(offline, ctrl.signal)
+            void checkSystemStatus(offline, ctrl.signal, pair)
           }
         }}
         onRemove={entry ? () => removeAgent(entry.id) : undefined}

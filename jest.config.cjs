@@ -13,6 +13,7 @@ module.exports = {
   modulePathIgnorePatterns: ['<rootDir>/.mvp-demo-game/', '<rootDir>/mvp-demo-game/', '<rootDir>/demos/', '<rootDir>/release/', '<rootDir>/.electron-builder/'],
   testMatch: ['**/__tests__/**/*.spec.ts', '**/__tests__/**/*.spec.tsx'],
   moduleNameMapper: {
+    '\\.(css|less|scss)(\\?.*)?$': '<rootDir>/__tests__/mocks/style-mock.js',
     // Specific mocks before `@/*` so they win (Jest uses first matching pattern)
     '^@/constants/paths$': '<rootDir>/__tests__/mocks/constants-paths.ts',
     ...pathsToModuleNameMapper(paths, { prefix: '<rootDir>/' }),

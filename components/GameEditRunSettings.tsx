@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import { IoLockClosed, IoLockOpenOutline } from 'react-icons/io5'
 import { LuInfo } from 'react-icons/lu'
 
@@ -43,6 +43,7 @@ type Props = {
   /** 未连接游戏：数值为默认值，所有控件只看不改 */
   readOnly?: boolean
   supportedFlags?: ReadonlySet<RunFlagKey> | ((key: RunFlagKey) => boolean)
+  supportedActions?: ReadonlySet<RunActionId> | ((id: RunActionId) => boolean)
   hideTools?: boolean
   hideSpeedSliders?: boolean
   onGoldChange: (gold: number) => void
@@ -144,6 +145,27 @@ const FIX_GROUPS: ActionGroup[] = [
   },
 ]
 
+const BATTLE_GROUPS: ActionGroup[] = [
+  {
+    labelKey: 'edit.groupBattle',
+    cols: 2,
+    items: [
+      { id: 'battle:victory', labelKey: 'edit.actVictoryLong', variant: 'ok' },
+      { id: 'battle:escape', labelKey: 'edit.actEscapeLong' },
+      { id: 'battle:defeat', labelKey: 'edit.actDefeatLong' },
+      { id: 'battle:abort', labelKey: 'edit.actAbortLong' },
+      { id: 'battle:enemyHp1', labelKey: 'edit.actEnemyHp1Long' },
+      { id: 'battle:partyHeal', labelKey: 'edit.actPartyHealLong' },
+    ],
+  },
+]
+
+function isActionSupported(id: RunActionId, supported?: ReadonlySet<RunActionId> | ((id: RunActionId) => boolean)) {
+  if (!supported) return true
+  if (typeof supported === 'function') return supported(id)
+  return supported.has(id)
+}
+
 const gridCols = {
   2: 'grid-cols-2',
   3: 'grid-cols-3',
@@ -157,6 +179,7 @@ function ActionCard({
   disabled,
   disabledReason,
   onAction,
+  supportedActions,
   extra,
   t,
 }: {
@@ -166,10 +189,22 @@ function ActionCard({
   disabled: boolean
   disabledReason: string
   onAction: (id: RunActionId) => void
+  supportedActions?: ReadonlySet<RunActionId> | ((id: RunActionId) => boolean)
   /** Right of the title */
   extra?: ReactNode
   t: (key: MessageKey) => string
 }) {
+  const visibleGroups = useMemo(() => {
+    return groups
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((item) => isActionSupported(item.id, supportedActions)),
+      }))
+      .filter((g) => g.items.length > 0)
+  }, [groups, supportedActions])
+
+  if (visibleGroups.length === 0 && !extra) return null
+
   return (
     <div className={cn(formCardDense, 'm-0')}>
       <div className="flex flex-col gap-1">
@@ -179,9 +214,9 @@ function ActionCard({
         </span>
         <span className={formDesc}>{description}</span>
       </div>
-      {groups.length ? (
+      {visibleGroups.length ? (
         <div className="flex flex-col gap-3">
-          {groups.map((g) => (
+          {visibleGroups.map((g) => (
             <div key={g.labelKey} className="flex flex-col gap-2">
               <span className="text-[0.68rem] font-semibold tracking-[0.04em] text-ink-soft uppercase">{t(g.labelKey)}</span>
               <div className={cn('grid gap-2', gridCols[g.cols ?? 2])}>
@@ -213,6 +248,7 @@ export function GameEditRunSettings({
   actionsEnabled = true,
   readOnly = false,
   supportedFlags,
+  supportedActions,
   hideTools = false,
   hideSpeedSliders = false,
   onGoldChange,
@@ -376,6 +412,7 @@ export function GameEditRunSettings({
             disabled={!canAct}
             disabledReason={readOnly ? readOnlyTip : previewDisabled}
             onAction={onAction}
+            supportedActions={supportedActions}
             t={t}
           />
           <ActionCard
@@ -385,15 +422,17 @@ export function GameEditRunSettings({
             disabled={!canAct}
             disabledReason={readOnly ? readOnlyTip : previewDisabled}
             onAction={onAction}
+            supportedActions={supportedActions}
             t={t}
           />
           <ActionCard
             title={t('edit.battleTitle')}
-            description={t('events.battle.runMoved')}
-            groups={[]}
+            description={onOpenBattle ? t('events.battle.runMoved') : t('edit.battleDesc')}
+            groups={BATTLE_GROUPS}
             disabled={!canAct}
             disabledReason={readOnly ? readOnlyTip : previewDisabled}
             onAction={onAction}
+            supportedActions={supportedActions}
             extra={onOpenBattle ? <TextAction onClick={onOpenBattle}>{t('events.battle.openBattle')}</TextAction> : null}
             t={t}
           />

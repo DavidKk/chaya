@@ -20,6 +20,7 @@ import {
   parseDataSegments,
   parseTabId,
   RGSS_SUPPORTED_EDIT_TABS,
+  RGSS_SUPPORTED_RUN_ACTIONS,
   RGSS_SUPPORTED_RUN_FLAGS,
   saveGameStoredHotkeys,
   saveGlobalHotkeys,
@@ -224,7 +225,8 @@ export function GameEditPage() {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const statusResponse = await fetch('/api/status')
+      const statusUrl = searchParams.get('game') ? `/api/status?game=${encodeURIComponent(searchParams.get('game')!)}` : '/api/status'
+      const statusResponse = await fetch(statusUrl)
       const status = await statusResponse.json()
       const isRgssGame = Boolean(status.kind === 'rgss' || status.engine === 'VX Ace' || status.engine === 'VX')
       setIsRgss(isRgssGame)
@@ -327,9 +329,10 @@ export function GameEditPage() {
         syncing={connected && !linked}
         supportedTabs={isRgss ? RGSS_SUPPORTED_EDIT_TABS : undefined}
         supportedFlags={isRgss ? RGSS_SUPPORTED_RUN_FLAGS : undefined}
-        hideRunTools={isRgss}
-        hideSpeedSliders={isRgss}
-        onOpenLibrary={() => router.push('/game')}
+        supportedActions={isRgss ? RGSS_SUPPORTED_RUN_ACTIONS : undefined}
+        hideRunTools={false}
+        hideSpeedSliders={false}
+        onOpenLibrary={() => router.push(searchParams.get('game') ? `/game?game=${encodeURIComponent(searchParams.get('game')!)}` : '/game')}
         events={eventsSlot}
         saveData={saveDataSlot}
       />

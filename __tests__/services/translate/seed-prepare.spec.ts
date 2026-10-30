@@ -5,6 +5,12 @@ jest.mock('@/services/jobs', () => {
     runWorkerOnce: jest.fn(),
   }
 })
+const mockSyncGameCache = jest.fn()
+const mockCloseCache = jest.fn()
+jest.mock('@/services/translate/shared-cache', () => ({
+  openSharedCache: () => ({ syncGameCache: mockSyncGameCache, close: mockCloseCache }),
+}))
+jest.mock('@/services/translate/scheduler/seed-inventory', () => ({ readSeedInventory: () => ({ pending: [], stamp: 'fallback' }) }))
 
 import fs from 'node:fs'
 import os from 'node:os'
@@ -18,9 +24,25 @@ const mockWorker = runWorkerOnce as jest.MockedFunction<typeof runWorkerOnce>
 beforeEach(() => {
   resetSeedPrepareForTests()
   mockWorker.mockReset()
+  mockSyncGameCache.mockReset()
+  mockCloseCache.mockReset()
 })
 
 describe('prepareSeedInventory', () => {
+  it('repairs runtime projections even when the inventory worker is unavailable', async () => {
+    mockWorker.mockRejectedValueOnce(new Error('worker missing'))
+    await expect(prepareSeedInventory('/tmp/fallback-game')).resolves.toMatchObject({ stamp: 'fallback' })
+    expect(mockSyncGameCache).toHaveBeenCalledWith('/tmp/fallback-game')
+    expect(mockCloseCache).toHaveBeenCalledTimes(1)
+  })
+  it('does not silently skip a failed repair in the worker fallback', async () => {
+    mockWorker.mockRejectedValueOnce(new Error('worker missing'))
+    mockSyncGameCache.mockImplementationOnce(() => {
+      throw new Error('cache unavailable')
+    })
+    await expect(prepareSeedInventory('/tmp/fallback-game')).rejects.toThrow('cache unavailable')
+    expect(mockCloseCache).toHaveBeenCalledTimes(1)
+  })
   it('shares one in-flight worker for concurrent prepare on the same root', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-seed-prepare-'))
     const out = path.join(root, 'bundle.json')

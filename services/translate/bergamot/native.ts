@@ -1,9 +1,14 @@
 import { spawn } from 'node:child_process'
 
+import { measureOperation } from '@/services/log/operation'
 import { resolveBergamotBinary } from '@/services/translate/bergamot/binary'
 
 /** A separate process, never the in-game daemon. The fixed pack root is an internal capability. */
 export function validateBergamotPack(root: string, source: string, target: string, sample: { text: string; expected: string }, signal?: AbortSignal): Promise<void> {
+  return measureOperation('translate', 'bergamot.pack.validate', { source, target }, () => validate(root, source, target, sample, signal))
+}
+
+function validate(root: string, source: string, target: string, sample: { text: string; expected: string }, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     signal?.throwIfAborted()
     const child = spawn(resolveBergamotBinary(), [], { env: { ...process.env, CHAYA_BERGAMOT_PACKS_DIR: root }, stdio: ['pipe', 'pipe', 'pipe'] })

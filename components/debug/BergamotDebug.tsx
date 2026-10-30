@@ -101,7 +101,13 @@ export function useBergamotDebugScenario() {
 /** Inline guide for the engines detail page when a debug scenario is active. */
 export function BergamotDebugGuide({ scenario }: { scenario: BergamotDebugScenario }) {
   const debug = useBergamotDebugScenario()
-  return <BergamotPackGuide plan={previewPlan(scenario)} embedded onAction={(action) => debug?.setScenario(action === 'install' ? 'downloading' : 'missing')} />
+  return (
+    <BergamotPackGuide
+      plan={previewPlan(scenario)}
+      embedded
+      onAction={(action) => debug?.setScenario(action === 'install' || action === 'reinstall' ? 'downloading' : 'missing')}
+    />
+  )
 }
 
 /** Registers scenario switches in the debug menu; display stays on the page. */

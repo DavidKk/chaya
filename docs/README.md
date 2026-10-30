@@ -25,6 +25,7 @@
 | 存档、键鼠、迷你面板、寻路 | [存档](game-saves.md) / [键鼠](input-assistance.md) / [面板](mini-panels.md) / [寻路](smart-path.md) | 各需求页头链接到对应技术方案，仅选相关功能 |
 | RGSS、内嵌 WebView、WebRTC | [RGSS 重构](rgss-webview-overlay.md) | [宿主与通信](technical/rgss-webview-overlay.md) |
 | RGSS 游玩实时翻译、悬浮字幕 | [游玩翻译](rgss-play-realtime-translation.md) | [实时翻译技术设计](technical/rgss-play-realtime-translation.md) |
+| RGSS 游戏加速、移动倍率、一键胜利与运行动作 | [RGSS 加速与动作](rgss-boost-and-actions.md) | [RGSS 加速与动作技术方案](technical/rgss-boost-and-actions.md) |
 | 翻译调度、并发、重试、限流 | [调度基线](translation-scheduling.md) §9 差距、§13–14 性能与接线 | [管线](technical/translation-pipeline.md) 相关章节 |
 | Agent 翻译单请求多句打包、字符上限、超长拆句 | [Agent 打包需求](translation-agent-prompt-batching.md) | [Agent 打包技术方案](technical/translation-agent-prompt-batching.md) |
 | 翻译主线程卡死、多 Tab、list/seed 库存与 shared 后台化 | [主线程卸载](translation-mainthread-offload.md) | 现行（P0–P2 已落地）；技术方案未立页前以需求文为准 |
@@ -34,6 +35,7 @@
 | 标签、列表、结构化分段编辑 | [结构化分段](translation-structured-segmentation.md) | [分段设计](technical/translation-structured-segmentation.md) |
 | 整句缓存对齐回退 | [整句回退](translation-sentence-fallback.md) | [回退算法](technical/translation-sentence-fallback.md) |
 | 翻译列表搜索、多语言分词、相关度排序 | [列表相关度搜索](translation-list-search-ranking.md) | [多语言分词排序设计](technical/translation-list-search-ranking.md) |
+| RPG Maker 文本来源、说话人与剧情上下文抽取 | [上下文抽取](translation-rpgmaker-context-extraction.md) | [上下文抽取设计](technical/translation-rpgmaker-context-extraction.md) |
 | 专名/名称优化、术语纠偏、闲时润色 | [质量优化](translation-optimization.md) UI §3 · 入口 §5 · MVP §6 | [质量设计](technical/translation-optimization.md) 秩 §2 · 候选 §3 · 开工清单 §8 |
 | 专名句内一致、Rei/蕾漂移、同步到句子 | [专名一致性](translation-name-consistency.md) **适用 §3** · 人名表 §4 · 锁 span §5 | [专名设计](technical/translation-name-consistency.md) 表 §2 · 锁点 §3 · 接线 §4 |
 | 游戏翻译多语言、外置译文、特殊发声、分类采集 | [翻译优化与分类](translation-game-special-classification.md) 当前交付 §10 · 第一期 §7–9 · 分类 §3；排期才读 §4 | [多语言与数据设计](technical/translation-game-special-classification.md) 实现/操作/限制 §10 · 目标设计 §2–6 |

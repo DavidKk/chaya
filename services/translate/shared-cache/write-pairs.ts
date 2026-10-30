@@ -10,7 +10,7 @@ export type CacheWriteOpts = Partial<CacheLangPair> & { category?: string | null
 
 export type CacheWriteResult = { accepted: Array<[string, string]>; records: IndexedRecord[]; rejected: Array<{ src: string; reason: 'rank' | 'conflict' | 'invalid' }> }
 
-/** Shared writes are serialized by SQLite; source authority and the write share one transaction. */
+/** Append candidates in one transaction. Authority is resolved only by readers. */
 export function writeCachePairs(
   client: DatabaseSync,
   index: MatchIndex,
@@ -23,6 +23,10 @@ export function writeCachePairs(
   const result: CacheWriteResult = { accepted: [], records: [], rejected: [] }
   if (!pairs.length) return result
   const category = normalizeCacheCategory(opts?.category) || null
+  const insert = client.prepare(
+    `INSERT INTO translations(src,zh,src_lang,tgt_lang,engine,category,updated_at,hit_count,nsfw,engine_rank)
+      VALUES(?,?,?,?,?,?,?,0,?,?) RETURNING id`
+  )
   client.exec('BEGIN IMMEDIATE')
   try {
     for (const [src, zh] of pairs) {
@@ -31,33 +35,9 @@ export function writeCachePairs(
         result.rejected.push({ src, reason: 'invalid' })
         continue
       }
-      const group = index.equivalent(src, pair)
-      const rank = cacheEngineRank(engine)
-      const higher = group.filter((r) => cacheEngineRank(r.engine) > rank)
-      const same = group.filter((r) => r.src !== src && cacheEngineRank(r.engine) === rank && r.zh !== zh)
-      if (higher.length) {
-        result.rejected.push({ src, reason: 'rank' })
-        continue
-      }
-      if ((same.length && !(engine === 'manual' && group.some((r) => r.src === src))) || group.length > 500) {
-        result.rejected.push({ src, reason: 'conflict' })
-        continue
-      }
-      // Keep existing category when the writer did not supply one (imports / legacy live).
-      client
-        .prepare(
-          `INSERT INTO translations(src,zh,src_lang,tgt_lang,engine,category,updated_at,hit_count,nsfw) VALUES(?,?,?,?,?,?,?,0,?)
-        ON CONFLICT(src,src_lang,tgt_lang) DO UPDATE SET
-          zh=excluded.zh,
-          engine=excluded.engine,
-          updated_at=excluded.updated_at,
-          hit_count=translations.hit_count+1,
-          nsfw=MAX(translations.nsfw,excluded.nsfw),
-          category=COALESCE(excluded.category, translations.category)`
-        )
-        .run(src, zh, pair.from, pair.to, engine, category, Date.now(), nsfw(src, engine))
+      const inserted = insert.get(src, zh, pair.from, pair.to, engine, category, Date.now(), nsfw(src, engine), cacheEngineRank(engine)) as { id: number }
       result.accepted.push([src, zh])
-      const record = index.record(src, pair)
+      const record = index.inserted(inserted.id)
       if (record) result.records.push(record)
     }
     client.exec('COMMIT')

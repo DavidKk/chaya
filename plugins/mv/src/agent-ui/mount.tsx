@@ -7,7 +7,7 @@ import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import type { CompanionState } from '@/lib/game-agent/companion'
 
 import { readAgentGameState } from '../agent/handlers'
-import { gameRoomId } from '../helpers'
+import { gameRoomId, restoreGameFocus } from '../helpers'
 import { ensureGameAgentHost } from './host'
 import overlayCss from './overlay.css?inline'
 import { pluginGameAgentRequest } from './request'
@@ -59,7 +59,23 @@ export function hideGameAgentUi() {
   host?.removeAttribute('data-open')
   render()
   if (typeof Input !== 'undefined' && Input.clear) Input.clear()
-  document.body?.focus?.()
+  const shadowAe = host?.shadowRoot?.activeElement as HTMLElement | null
+  if (shadowAe && typeof shadowAe.blur === 'function') {
+    try {
+      shadowAe.blur()
+    } catch {
+      /* */
+    }
+  }
+  const ae = document.activeElement
+  if (ae && host && (ae === host || host.contains(ae)) && typeof (ae as HTMLElement).blur === 'function') {
+    try {
+      ;(ae as HTMLElement).blur()
+    } catch {
+      /* */
+    }
+  }
+  restoreGameFocus()
 }
 
 export function toggleGameAgentUi() {

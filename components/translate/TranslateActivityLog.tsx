@@ -5,7 +5,7 @@ import { formTitle } from '@/components/layoutClasses'
 import { FollowScrollLogList } from '@/components/logs/FollowScrollLogList'
 import { TruncateText } from '@/components/sk'
 import { formatTranslationFailure, readTranslationFailure } from '@/lib/translate/failure-log'
-import type { BatchExecutionSource, TranslationAgentRequestLog, TranslationBatchLog, TranslationFailureLog, TranslationWindowReason } from '@/lib/translate/runtime-api'
+import type { BatchExecutionSource, TranslationAgentRequestLog, TranslationBatchLog, TranslationFailureLog } from '@/lib/translate/runtime-api'
 import { cn } from '@/lib/utils'
 
 export type TranslateLogLevel = 'info' | 'ok' | 'warn' | 'fail'
@@ -37,15 +37,6 @@ function sourceLabel(source: BatchExecutionSource, t: ReturnType<typeof useT>): 
   return t('translate.batchLogUnknown')
 }
 
-const reasonKeys = {
-  capacity: 'translate.windowReasonCapacity',
-  'cache-drained': 'translate.windowReasonCacheDrained',
-  'engine-result': 'translate.windowReasonEngineResult',
-  finished: 'translate.windowReasonFinished',
-  interrupted: 'translate.windowReasonInterrupted',
-  timeout: 'translate.windowReasonTimeout',
-} as const satisfies Record<TranslationWindowReason, string>
-
 /**
  * 不用 formCard 子项统一 padding（会把滚动条挤进内侧）。
  * 标题区自带边距；日志区左右底顶满卡片边，指示条贴右缘。
@@ -65,8 +56,18 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
       <div className="relative min-h-0 border-t border-[var(--line-soft)]">
         <FollowScrollLogList
           entries={entries.map((entry) => {
-            if (entry.request) return { ...entry, text: t('translate.agentRequestLog', { total: entry.request.items, chars: entry.request.chars }) }
+            if (entry.request)
+              return {
+                ...entry,
+                text: t('translate.engineRequestLog', { engine: sourceLabel(entry.request.engine || 'agent', t), total: entry.request.items, chars: entry.request.chars }),
+              }
             if (!entry.batch) {
+              if (entry.text.startsWith('Cache scan failed:')) {
+                return { ...entry, text: t('translate.cacheScanFallback', { reason: entry.text.slice('Cache scan failed:'.length).trim() }), detail: entry.text }
+              }
+              if (entry.text.startsWith('Start translation · engines ')) {
+                return { ...entry, text: t('translate.enginesStarted', { engines: entry.text.slice('Start translation · engines '.length) }), detail: entry.text }
+              }
               const failure = entry.failure ?? readTranslationFailure(entry.text)
               return failure ? { ...entry, text: formatTranslationFailure(failure, t), detail: entry.text } : entry
             }
@@ -86,10 +87,8 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
             const key = batch.failed === 0 ? 'translate.batchLogComplete' : batch.success === 0 ? 'translate.batchLogFailed' : 'translate.batchLogPartial'
             // The user-facing label follows the tool that actually produced the accepted result.
             // Submitted engines are diagnostic data only; failed batches fall back to attempts.
-            const sources = [...(final.length ? final : submitted), ...(batch.cacheUnavailable && !final.length ? (['cache:unavailable'] as const) : [])]
-            const engine =
-              [...new Set(sources)].map((source) => (source === 'cache:unavailable' ? t('translate.batchLogCacheUnavailable') : sourceLabel(source, t))).join('+') ||
-              t('translate.batchLogCache')
+            const sources = final.length ? final : submitted
+            const engine = [...new Set(sources)].map((source) => sourceLabel(source, t)).join('+') || t('translate.batchLogUnknown')
             // A pure-cache label already conveys that every accepted item came from cache.
             const cacheInfo = cacheHits > 0 && cacheHits !== batch.success ? t('translate.batchLogCacheInfo', { cache: cacheHits }) : ''
             const text = t(key, {
@@ -105,7 +104,8 @@ export function TranslateActivityLog({ entries, liveStatus, sessionDone = 0, cla
             return {
               ...entry,
               level: batch.failed === 0 ? 'ok' : batch.success === 0 ? 'fail' : 'warn',
-              text: batch.windowReason && reasonKeys[batch.windowReason] ? t('translate.batchLogWindow', { text, reason: t(reasonKeys[batch.windowReason]) }) : text,
+              text,
+              detail: entry.text,
             }
           })}
           ariaLabel={t('translate.loadActivity')}

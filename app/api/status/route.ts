@@ -92,7 +92,7 @@ function remoteOnlyStatus() {
   }
 }
 
-export const GET = defineApiRoute('get:/api/status', async () => {
+export const GET = defineApiRoute('get:/api/status', async ({ request }) => {
   const service = serviceModePayload()
   if (!canUseDisk(service.serviceMode)) {
     return remoteOnlyStatus()
@@ -105,7 +105,9 @@ export const GET = defineApiRoute('get:/api/status', async () => {
   }
   const saved = loadConfig()
   const config = { ...saved, shellSourceValid: !!saved.shellSource && looksLikeNwShellSource(saved.shellSource) }
-  const resolved = getResolvedFromConfig()
+  const url = request?.url ? new URL(request.url) : null
+  const gameParam = url?.searchParams.get('game') || url?.searchParams.get('gameId') || undefined
+  const resolved = getResolvedFromConfig({ gameId: gameParam })
   const library = config.library.map(toLibraryItemView)
   const bindEpoch = peekGameBindEpoch()
 

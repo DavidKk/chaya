@@ -1,8 +1,11 @@
 'use client'
 
+import { LuArrowRight } from 'react-icons/lu'
+
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Badge, Button, Spinner } from '@/components/sk'
-import { isActivePackJob, type PackPlan } from '@/lib/translate/bergamot'
+import { isActivePackJob, packJobError, type PackPlan } from '@/lib/translate/bergamot'
+import { formatLanguageLabel } from '@/lib/translate/locales-labels'
 
 /** Presentation shared by the installer and development previews; never performs I/O. */
 export function BergamotPackGuide({
@@ -17,17 +20,19 @@ export function BergamotPackGuide({
   error?: string
   busy?: boolean
   embedded?: boolean
-  onAction: (action: 'install' | 'cancel' | 'plan') => void
+  onAction: (action: 'install' | 'reinstall' | 'cancel' | 'plan') => void
 }) {
   const t = useT()
   const active = !!plan?.job && isActivePackJob(plan.job)
   const job = plan?.job
   const failed = job?.state === 'failed' || job?.state === 'interrupted'
+  const failureCode = job ? packJobError(job) : undefined
+  const failureReason = failureCode === 'PACK_DOWNLOAD_FAILED' || failureCode === 'PACK_DOWNLOAD_TIMEOUT' ? t('translate.packDownloadFailed') : failureCode
   const percent = job?.totalDownloadBytes ? Math.min(100, Math.round((job.downloadedBytes / job.totalDownloadBytes) * 100)) : 0
   const checking = !plan && !error
   /** Checking state lives on the 检测 button — no separate spinner / badge copy. */
   const showRecheck = !embedded && !active
-  const showActions = active || !!plan?.canInstall || showRecheck
+  const showActions = !active && (!!plan?.canInstall || !!plan?.installed || showRecheck)
   return (
     <div
       className={
@@ -50,8 +55,10 @@ export function BergamotPackGuide({
         </div>
       ) : null}
       {!embedded && plan ? (
-        <div className="font-mono text-[11px] uppercase text-ink-soft">
-          {plan.source} → {plan.target}
+        <div className="inline-flex flex-wrap items-center gap-1 text-ink-soft">
+          {formatLanguageLabel(plan.source)}
+          <LuArrowRight className="size-3 shrink-0" aria-hidden />
+          {formatLanguageLabel(plan.target)}
         </div>
       ) : null}
       {error ? (
@@ -72,7 +79,7 @@ export function BergamotPackGuide({
               )}
             </p>
           ) : null}
-          {plan.packs.map((pack) => (
+          {plan.packs?.map((pack) => (
             <p key={pack.id} className="m-0 break-words text-[11px]">
               {pack.attribution} ·{' '}
               {pack.licenseUrl ? (
@@ -110,27 +117,33 @@ export function BergamotPackGuide({
                   style={job.phase === 'downloading' ? { width: `${percent}%` } : undefined}
                 />
               </div>
-              <span>
-                {(job.downloadedBytes / 1048576).toFixed(1)} / {(job.totalDownloadBytes / 1048576).toFixed(1)} MB
-              </span>
+              <div className="flex items-center justify-between gap-3">
+                <span>
+                  {(job.downloadedBytes / 1048576).toFixed(1)} / {(job.totalDownloadBytes / 1048576).toFixed(1)} MB
+                </span>
+                <Button size="xs" loading={busy} onClick={() => onAction('cancel')}>
+                  {t('common.cancel')}
+                </Button>
+              </div>
             </div>
           ) : null}
-          {job && ['failed', 'interrupted', 'cancelled'].includes(job.state) ? (
-            <p className={failed ? 'm-0 rounded-lg bg-fail/10 p-2 text-fail' : 'm-0 rounded-lg bg-inset p-2'} role="status">
-              {t('translate.packRetryHint')}
+          {failed ? (
+            <p className={plan.installed ? 'm-0 rounded-lg bg-inset p-2' : 'm-0 rounded-lg bg-fail/10 p-2 text-fail'} role="status">
+              {t(plan.installed ? 'translate.packReinstallFailed' : 'translate.packRetryHint')}
+              {failureReason ? ` ${failureReason}` : ''}
             </p>
           ) : null}
         </>
       ) : null}
       {showActions ? (
         <div className="flex flex-wrap gap-2">
-          {active ? (
-            <Button size="xs" loading={busy} onClick={() => onAction('cancel')}>
-              {t('common.cancel')}
-            </Button>
-          ) : plan?.canInstall ? (
+          {plan?.canInstall ? (
             <Button size="xs" variant="accent" loading={busy} onClick={() => onAction('install')}>
               {t('translate.packInstall')}
+            </Button>
+          ) : plan?.installed ? (
+            <Button size="xs" loading={busy} onClick={() => onAction('reinstall')}>
+              {t('translate.packReinstall')}
             </Button>
           ) : null}
           {showRecheck ? (

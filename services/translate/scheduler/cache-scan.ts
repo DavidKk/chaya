@@ -1,10 +1,9 @@
 /** Cache search runs off the service event loop. The writer still validates authority on commit. */
 import { detectCacheLang } from '@/lib/translate/cache-lang'
-import { createNumericLabelIndex, numericLabelFamily } from '@/lib/translate/dynamic-template'
-import { createSentenceResolver, type SentencePlan } from '@/lib/translate/sentence-plan'
+import { type SentencePlan } from '@/lib/translate/sentence-plan'
 
-import { lookupCachedTranslation } from '../cache-lookup'
 import { getGameCacheContext } from '../game-cache-context'
+import { planGameCache } from '../game-cache-plan'
 import { openSharedCache } from '../shared-cache'
 import type { IndexedRecord } from '../shared-cache/match-index'
 
@@ -26,52 +25,8 @@ export function createCacheScanner(contentRoot: string, file: string) {
     scan(id: number, src: string): CacheScanResult {
       const started = performance.now()
       const context = getGameCacheContext(contentRoot)
-      if (context.blocked(src))
-        return {
-          id,
-          src,
-          plan: { ...createSentenceResolver([]).plan(src), corpusVersion: index.version() },
-          records: [],
-          stamp: context.stamp,
-          authorityVersion: context.authorityVersion,
-          elapsedMs: performance.now() - started,
-        }
       const pair = { from: detectCacheLang(src), to: 'zh' as const }
-      let records: IndexedRecord[] = []
-      let plan: CacheScanResult['plan'] = index.plan(src, pair, context.resolver.select(src))
-      if (!plan.limited && plan.status !== 'full') {
-        let hit: string | null = null
-        if (numericLabelFamily(src)) {
-          const rows = index.numericRecords(pair, src)
-          if (!rows.limited) {
-            const examples = [...rows, ...context.numericRecords(src)]
-            hit = createNumericLabelIndex(examples).resolve(src)
-            if (hit != null) {
-              const distinct = new Map(examples.map((record) => [record.src.match(/[0-9]+$/)?.[0], record]))
-              records = [...distinct.values()].slice(0, 2).filter((record) => !record.local) as IndexedRecord[]
-            }
-          }
-        }
-        if (hit == null) {
-          const used = new Map<string, IndexedRecord>()
-          // Use the same control/template restoration as live lookup before
-          // declaring a miss. Keep every shared dependency for validation/backfill.
-          hit = lookupCachedTranslation((key) => {
-            if (context.lookup[key] != null) return context.lookup[key]
-            const record = index.authority(key, pair)
-            if (!record || (record.src !== key && record.engine !== 'manual')) return null
-            used.set(record.id!, record)
-            return record.zh
-          }, src)
-          if (hit != null) records = [...used.values()]
-        }
-        if (hit != null) plan = { ...plan, status: 'full', zh: hit, gaps: [] }
-      }
-      if (!records.length)
-        records = plan.matches
-          .filter((match) => !match.record.local)
-          .map((match) => index.record(match.record.src, pair))
-          .filter((record): record is IndexedRecord => record != null)
+      const { plan, records } = planGameCache(src, pair, index, context)
       return { id, src, plan, records, stamp: context.stamp, authorityVersion: context.authorityVersion, elapsedMs: performance.now() - started }
     },
   }

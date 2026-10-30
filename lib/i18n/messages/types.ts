@@ -456,7 +456,13 @@ export type MessageTree = {
     packDownloading: string
     packVerifying: string
     packRetryHint: string
+    packDownloadFailed: string
+    packReinstallFailed: string
     packInstall: string
+    packReinstall: string
+    packDownload: string
+    bergamotGamePairUnsupported: string
+    bergamotAvailablePacks: string
     offlineGuide: string
     offlineRecheck: string
     offlineReadyHint: string
@@ -618,6 +624,9 @@ export type MessageTree = {
     failureApplePack: string
     failureBergamotPack: string
     agentRequestLog: string
+    engineRequestLog: string
+    cacheScanFallback: string
+    enginesStarted: string
     batchLogWindow: string
     windowReasonCapacity: string
     windowReasonCacheDrained: string

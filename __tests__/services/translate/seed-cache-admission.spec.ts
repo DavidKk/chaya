@@ -12,7 +12,7 @@ jest.mock('@/services/translate/scheduler/seed-inventory', () => ({ seedFileStam
 jest.mock('@/services/translate/game-records', () => ({ gameTranslationFiles: () => ({ stamp: 'local' }) }))
 jest.mock('@/services/translate/game-cache-context', () => ({ getGameCacheContext: () => ({ authorityVersion: 'authority' }) }))
 jest.mock('@/services/translate/shared-cache', () => ({
-  openSharedCache: () => ({ version: () => 'shared', current: () => true, flushBackfill: () => ({}), close: () => {} }),
+  openSharedCache: () => ({ version: () => 'shared', current: () => true, flushBackfill: () => ({}), close: () => {}, queueGameProjections: jest.fn() }),
 }))
 jest.mock('@/services/translate/live-translate', () => ({ liveTranslateTexts: (...args: unknown[]) => mockTranslate(...args) }))
 jest.mock('@/services/translate/scheduler/cache-lane', () => ({

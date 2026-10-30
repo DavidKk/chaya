@@ -129,7 +129,7 @@ export function readSeedInventory(contentRoot: string) {
 export function seedProgressStamp(contentRoot: string): string {
   const files = [localGameContentFile(contentRoot, 'seed'), localGameContentFile(contentRoot, 'cacheNdjson'), seedFailureFile(contentRoot)]
   return JSON.stringify([
-    6,
+    7,
     files.map((file) => {
       const stat = file ? fs.statSync(file, { throwIfNoEntry: false }) : undefined
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]

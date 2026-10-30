@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
+import { useSafeSearchParams } from '@/components/translate/safe-navigation'
 import { cloudLibraryStorage, readCloudGameId } from '@/lib/browser/cloud-library'
 import type { LibraryItemView } from '@/lib/game'
 import { cn } from '@/lib/utils'
@@ -15,6 +16,7 @@ type StatusLite = {
   ready?: boolean
   remote?: boolean
   config?: { gameRoot?: string }
+  selected?: string
   library?: LibraryItemView[]
   nwPackage?: { name?: string; window?: { title?: string } } | null
 }
@@ -29,40 +31,53 @@ function rootsEqual(a: string, b: string) {
   return a.replace(/\/$/, '') === b.replace(/\/$/, '')
 }
 
-async function readSelectedGame(): Promise<SelectedGame> {
-  const status = (await (await fetch('/api/status')).json()) as StatusLite
+async function readSelectedGame(gameId?: string | null): Promise<{ label: SelectedGame; id?: string }> {
+  const url = gameId ? `/api/status?game=${encodeURIComponent(gameId)}` : '/api/status'
+  const status = (await (await fetch(url)).json()) as StatusLite
   if (status.canUseDisk === false) {
     const id = readCloudGameId()
-    if (!id) return null
+    if (!id) return { label: null }
     const entry = (await cloudLibraryStorage()).find((e) => e.item.id === id)?.item
-    return entry?.remark?.trim() || entry?.name?.trim() || ''
+    return { label: entry?.remark?.trim() || entry?.name?.trim() || '', id }
   }
-  if (status.remote) return REMOTE
-  if (!status.ready || !status.config?.gameRoot) return null
-  const root = status.config.gameRoot
-  const entry = status.library?.find((item) => rootsEqual(item.gameRoot, root))
-  return entry?.remark?.trim() || status.nwPackage?.window?.title?.trim() || entry?.name?.trim() || status.nwPackage?.name?.trim() || ''
+  if (status.remote) return { label: REMOTE }
+  if (!status.ready || (!status.selected && !status.config?.gameRoot)) return { label: null }
+  const root = status.selected || status.config?.gameRoot
+  const entry = (gameId ? status.library?.find((item) => item.id === gameId) : undefined) || (root ? status.library?.find((item) => rootsEqual(item.gameRoot, root)) : undefined)
+  return {
+    label: entry?.remark?.trim() || status.nwPackage?.window?.title?.trim() || entry?.name?.trim() || status.nwPackage?.name?.trim() || '',
+    id: entry?.id || (gameId ?? undefined),
+  }
 }
 
 /** 修改页顶栏：未选择（灰）/ 已选未连接（黄）/ 已连接（绿），点击去游戏库；远程模式不显示 */
 export function LinkedGameBadge() {
   const t = useT()
+  const searchParams = useSafeSearchParams()
+  const urlGameId = searchParams?.get('game') || ''
   const { roomId, connected } = useGameLinkContext()
   const [game, setGame] = useState<SelectedGame>(null)
+  const [resolvedId, setResolvedId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    readSelectedGame()
+    readSelectedGame(urlGameId)
       .then((next) => {
-        if (!cancelled) setGame(next)
+        if (!cancelled) {
+          setGame(next.label)
+          setResolvedId(next.id || urlGameId || null)
+        }
       })
       .catch(() => {
-        if (!cancelled) setGame(null)
+        if (!cancelled) {
+          setGame(null)
+          setResolvedId(null)
+        }
       })
     return () => {
       cancelled = true
     }
-  }, [roomId])
+  }, [roomId, urlGameId])
 
   if (game === REMOTE) return null
   const state = connected ? 'linked' : game === null ? 'none' : 'offline'
@@ -72,7 +87,7 @@ export function LinkedGameBadge() {
   return (
     <Tooltip content={tip}>
       <Link
-        href="/game"
+        href={resolvedId || urlGameId ? `/game?game=${encodeURIComponent(resolvedId || urlGameId)}` : '/game'}
         data-state={state}
         aria-label={`${label} · ${tip}`}
         className={cn(

@@ -25,3 +25,41 @@ export function setInnerHTML(element: Element | ShadowRoot, html: string): void 
     element.appendChild(fragment.firstChild)
   }
 }
+
+/**
+ * 将焦点安全交还给游戏画布或 document.body，并确保不残留浏览器默认 focus outline。
+ */
+export function restoreGameFocus(): void {
+  try {
+    let style = document.getElementById('chaya-no-focus-outline')
+    if (!style && typeof document !== 'undefined' && document.head) {
+      style = document.createElement('style')
+      style.id = 'chaya-no-focus-outline'
+      style.textContent =
+        'canvas:focus, canvas:focus-visible, body:focus, body:focus-visible, #chaya-game-edit-host:focus, #chaya-game-edit-host:focus-visible, #chaya-game-agent-host:focus, #chaya-game-agent-host:focus-visible, #chaya-rgss-overlay-container:focus, #chaya-rgss-overlay-container:focus-visible { outline: none !important; }'
+      document.head.appendChild(style)
+    }
+    const graphics = (window as Window & { Graphics?: { _canvas?: HTMLElement } }).Graphics
+    const el = graphics?._canvas ?? document.querySelector<HTMLElement>('canvas')
+    if (el) {
+      if (typeof el.getAttribute === 'function' && !el.hasAttribute('tabindex')) {
+        el.tabIndex = -1
+      }
+      el.style.setProperty('outline', 'none', 'important')
+      if (typeof el.focus === 'function') {
+        el.focus()
+        return
+      }
+    }
+    if (document.body) {
+      if (typeof document.body.getAttribute === 'function' && !document.body.hasAttribute('tabindex')) {
+        document.body.tabIndex = -1
+      }
+      document.body.style.setProperty('outline', 'none', 'important')
+      document.body.focus?.()
+    }
+    window.focus?.()
+  } catch {
+    /* */
+  }
+}

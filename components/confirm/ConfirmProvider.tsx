@@ -147,10 +147,11 @@ export function ConfirmProvider({
           }}
           footer={
             <>
-              <Button variant="ghost" disabled={confirming} onClick={() => settle(false)}>
+              <Button size="lg" variant="ghost" disabled={confirming} onClick={() => settle(false)}>
                 {req.cancelLabel ?? t('common.cancel')}
               </Button>
               <Button
+                size="lg"
                 variant={confirmVariant}
                 loading={confirming}
                 disabled={confirming}

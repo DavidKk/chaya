@@ -2,6 +2,7 @@ import { existsSync, statSync } from 'node:fs'
 import { Worker } from 'node:worker_threads'
 
 import { CACHE_WORKER_PATH, ROOT_PATH } from '@/constants/paths'
+import { runtimeEvent } from '@/services/log/operation'
 
 import { defaultSharedDbPath } from '../shared-cache/db'
 import type { CacheScanResult } from './cache-scan'
@@ -87,6 +88,11 @@ export function startCacheLane(options: CacheLaneOptions): CacheLane {
     arm()
     own.on('message', (message) => {
       if (closed || own !== worker) return
+      if (message.type === 'translation-log') {
+        const { level, source, message: text, meta, ts } = message.entry
+        runtimeEvent(level, source, text, meta, false, ts)
+        return
+      }
       try {
         const lease = String(message.leaseId || '')
         const batchId = Number(message.batchId) || 0

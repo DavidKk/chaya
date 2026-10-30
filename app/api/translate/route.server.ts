@@ -93,6 +93,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       settings?: unknown
       contentRoot?: string
       action?:
+        | 'catalog'
         | 'start'
         | 'pause'
         | 'resume'
@@ -110,7 +111,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'scan-names'
         | 'apply-names'
         | 'idle-status'
-      scope?: 'short-entities' | 'all'
+      scope?: 'short-entities' | 'all' | 'engine'
       includeChoices?: boolean
       planId?: string
       previewId?: string
@@ -152,6 +153,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       jobId?: string
       key?: string
       q?: string
+      game?: string
+      gameId?: string
       page?: number
       pageSize?: number
       onlyDone?: boolean
@@ -160,12 +163,34 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (body.mode === 'bergamot-packs') {
       if (denied) return denied
       if (!hasManagementAccess(request)) return apiError(403, 'MANAGEMENT_REQUIRED', 'Open the local console to manage language packs')
-      if (typeof body.from !== 'string' || typeof body.to !== 'string' || !/^[a-zA-Z-]{2,16}$/.test(body.from) || !/^[a-zA-Z-]{2,16}$/.test(body.to))
-        return apiError(400, 'PACK_INVALID_PAIR', 'Choose a source and target language')
       const { packManager } = await import('@/services/translate/bergamot/manager')
       const manager = packManager()
+      if (body.action === 'catalog') {
+        const { bergamotPacks } = await import('@/services/translate/bergamot/catalog')
+        const packs = await Promise.all(
+          bergamotPacks.map(async (p) => {
+            const plan = await manager.plan(p.source, p.target)
+            return {
+              id: p.id,
+              source: p.source,
+              target: p.target,
+              attribution: p.attribution,
+              license: p.license,
+              licenseUrl: p.licenseUrl,
+              installed: plan.installed,
+              canInstall: plan.canInstall,
+              downloadBytes: plan.downloadBytes,
+              status: plan.status,
+              job: plan.job,
+            }
+          })
+        )
+        return apiOk({ packs })
+      }
+      if (typeof body.from !== 'string' || typeof body.to !== 'string' || !/^[a-zA-Z-]{2,16}$/.test(body.from) || !/^[a-zA-Z-]{2,16}$/.test(body.to))
+        return apiError(400, 'PACK_INVALID_PAIR', 'Choose a source and target language')
       try {
-        if (body.action === 'install' && typeof body.planId === 'string') return apiOk(await manager.install(body.from, body.to, body.planId))
+        if (body.action === 'install' && typeof body.planId === 'string') return apiOk(await manager.install(body.from, body.to, body.planId, body.force === true))
         if (body.action === 'cancel' && typeof body.jobId === 'string') return apiOk(await manager.cancel(body.from, body.to, body.jobId))
         if (body.action === 'plan' || body.action === 'status') return apiOk(await manager.plan(body.from, body.to))
         return apiError(400, 'PACK_INVALID_ACTION', 'Invalid language pack action')
@@ -192,8 +217,15 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
     if (denied) return denied
 
+    const gameId =
+      (typeof body.game === 'string' ? body.game : undefined) ||
+      (typeof (body as any).gameId === 'string' ? (body as any).gameId : undefined) ||
+      (request.url ? new URL(request.url).searchParams.get('game') || undefined : undefined)
+    const targetContentRoot = gameId ? resolveTranslateContentRoot({ gameId }) : undefined
+    const seedJobOpts = targetContentRoot ? { contentRoot: targetContentRoot } : gameId ? { gameId } : undefined
+
     if (body.mode === 'play-settings') {
-      const contentRoot = resolveTranslateContentRoot()
+      const contentRoot = targetContentRoot || resolveTranslateContentRoot()
       if (body.settings !== undefined && !pathEquals(body.contentRoot || '', contentRoot)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload settings')
       const settings = body.settings === undefined ? getTranslationPlaySettings(contentRoot) : setTranslationPlaySettings(contentRoot, body.settings)
       const { looksLikeRgssProject } = await import('@/services/extract/lib/rgss')
@@ -203,13 +235,13 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (body.mode === 'benchmark') return apiOk(await benchmarkLocalModel(body.settings, request.signal))
 
     if (body.mode === 'progress') {
-      if (body.refresh === true) return apiOk(refreshSeedJobProgress())
-      return apiOk(getSeedJobSnapshot())
+      if (body.refresh === true) return apiOk(refreshSeedJobProgress(seedJobOpts))
+      return apiOk(getSeedJobSnapshot(seedJobOpts))
     }
 
     if (body.mode === 'job') {
-      if (body.action === 'pause') return apiOk(pauseSeedJob())
-      if (body.action === 'start') return apiOk(startSeedJob())
+      if (body.action === 'pause') return apiOk(pauseSeedJob(seedJobOpts))
+      if (body.action === 'start') return apiOk(startSeedJob(seedJobOpts))
       return apiError(400, 'TRANSLATE_JOB_ACTION', 'Missing action: start | pause')
     }
 
@@ -320,13 +352,19 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       if (body.switches?.apple === true || body.switches?.bergamot === true) {
         const current = getTranslateEngineSwitches()
         const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
+        let seedLang: string | undefined
+        try {
+          seedLang = getSeedSourceLanguage(targetContentRoot || resolveTranslateContentRoot())
+        } catch {
+          seedLang = undefined
+        }
         for (const id of ['apple', 'bergamot'] as const) {
           if (body.switches[id] !== true || current.switches[id]) continue
-          const translator =
+          const from = seedLang || (id === 'bergamot' ? 'en' : 'ja')
+          const status =
             id === 'apple'
-              ? (await import('@/services/translate/lib/macos-translate')).appleTranslator
-              : (await import('@/services/translate/lib/bergamot-translate')).bergamotTranslator
-          const status = await translator.checkStatus(getSeedSourceLanguage(), 'zh')
+              ? await (await import('@/services/translate/lib/macos-translate')).appleTranslator.checkStatus(from, 'zh')
+              : await (await import('@/services/translate/lib/bergamot-translate')).bergamotTranslator.checkEngineStatus(from, 'zh')
           if (!status.installed) return apiError(409, 'TRANSLATE_ENGINE_NOT_READY', status.message || `${id} translation is not ready`)
         }
       }
@@ -349,7 +387,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'seed') {
-      const result = await fillMissingFromSeed({ limit: body.limit })
+      const result = await fillMissingFromSeed({ limit: body.limit, contentRoot: targetContentRoot })
       return apiOk(result)
     }
 
@@ -358,7 +396,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (session && (!game?.ok || game.remote)) return apiError(400, 'GAME_UNAVAILABLE', 'Game path unavailable')
 
     if (body.mode === 'extract-items') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       const sourceLang = typeof body.sourceLang === 'string' ? body.sourceLang : undefined
       const targetLang = typeof body.targetLang === 'string' ? body.targetLang : undefined
       const { pollListExtract, requestListExtract } = await import('@/services/extract/list-extract-prepare')
@@ -391,7 +429,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'import-locales-corpus') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       const { importGameLocalesCorpus } = await import('@/services/translate/locales-corpus')
       const limit = typeof body.limit === 'number' ? body.limit : undefined
       const result = importGameLocalesCorpus(root, { limit })
@@ -399,7 +437,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'save-item') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       const text = typeof body.text === 'string' ? body.text : ''
       const zh = typeof body.zh === 'string' ? body.zh : ''
       if (!text && !body.localesKey) return apiError(400, 'SAVE_ITEM_EMPTY', 'Missing source text or localesKey')
@@ -423,7 +461,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'rgss-write') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       if (body.contentRoot && !pathEquals(body.contentRoot, root)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload the translation list')
       const translations = body.translations && typeof body.translations === 'object' ? body.translations : null
       if (!translations || Array.isArray(translations)) return apiError(400, 'RGSS_WRITE_INPUT', 'Missing translations')
@@ -444,7 +482,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'rgss-preview') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       if (body.contentRoot && !pathEquals(body.contentRoot, root)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload the translation page')
       const { describeRgssPreview, setRgssPreviewView } = await import('@/services/translate/rgss-preview')
       if (body.view === undefined) return apiOk({ contentRoot: root, ...describeRgssPreview(root) })
@@ -461,7 +499,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'reset-item') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       const text = typeof body.text === 'string' ? body.text : ''
       if (!text) return apiError(400, 'RESET_ITEM_EMPTY', 'Missing source text')
       const { resetExtractedItem } = await import('@/services/extract/lib/save-items')
@@ -471,7 +509,14 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     if (body.mode === 'apple-status') {
       const { appleTranslator } = await import('@/services/translate/lib/macos-translate')
       const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
-      const source = typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : getSeedSourceLanguage(game?.ok ? game.contentRoot : undefined)
+      let seedLang: string | undefined
+      try {
+        const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+        if (root) seedLang = getSeedSourceLanguage(root)
+      } catch {
+        seedLang = undefined
+      }
+      const source = typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : seedLang || 'en'
       const target = typeof (body.to ?? body.target) === 'string' ? (body.to ?? body.target) : 'zh-Hans'
       return apiOk({ ...(await appleTranslator.checkStatus(source, target)), source, target })
     }
@@ -482,9 +527,18 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       const { bergamotTranslator } = await import('@/services/translate/lib/bergamot-translate')
       if (body.mode === 'bergamot-status') {
         const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
-        const from = source || getSeedSourceLanguage(game?.ok ? game.contentRoot : undefined)
+        let seedLang: string | undefined
+        try {
+          const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+          if (root) seedLang = getSeedSourceLanguage(root)
+        } catch {
+          seedLang = undefined
+        }
+        const from = source || seedLang || 'en'
         const to = target || 'zh'
-        return apiOk({ ...(await bergamotTranslator.checkStatus(from, to)), source: from, target: to })
+        const { bergamotPacks } = await import('@/services/translate/bergamot/catalog')
+        const supportedPairs = bergamotPacks.map((p) => ({ source: p.source, target: p.target, id: p.id }))
+        return apiOk({ ...(await bergamotTranslator.checkEngineStatus(from, to)), supportedPairs })
       }
       const text = typeof body.text === 'string' ? body.text : ''
       if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_BERGAMOT_INPUT', 'Bergamot offline translation requires text of 1-20000 characters')
@@ -501,7 +555,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       if (!text.trim()) return apiError(400, 'TRANSLATE_CACHE_INPUT', 'Missing query text')
       let root: string | null = null
       try {
-        root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+        root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       } catch {
         root = null
       }
@@ -558,11 +612,11 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       })
     }
     if (body.mode === 'realtime') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       return apiOk(await translateDialogue(root, texts, request.signal))
     }
     const { items, contentRoot, engines } = await liveTranslateTexts(texts, {
-      contentRoot: game?.ok ? game.contentRoot : undefined,
+      contentRoot: game?.ok ? game.contentRoot : targetContentRoot || undefined,
       force: Boolean(body.force),
       persist: body.persist !== false,
       engines: Array.isArray(body.engines) ? body.engines : undefined,

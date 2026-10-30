@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import { Worker } from 'node:worker_threads'
 
 import { ROOT_PATH, SEED_JOB_WORKER_PATH } from '@/constants/paths'
+import { appendLog } from '@/services/log'
+import { startOperation } from '@/services/log/operation'
 
 import type { SeedJobWorkerCommand, SeedJobWorkerMessage, SeedJobWorkerRequest } from './seed-job-protocol'
 import type { SeedJobSnapshot } from './seed-job-state'
@@ -11,6 +13,7 @@ type Pending = {
   resolve: (snapshot: SeedJobSnapshot) => void
   reject: (error: Error) => void
   timer: ReturnType<typeof setTimeout>
+  onTiming: (timing: SeedJobWorkerMessage['timing']) => void
 }
 
 type Client = {
@@ -58,7 +61,7 @@ function spawn(): Client {
   // Avoid an unhandled rejection before the first command awaits it.
   void ready.catch(() => {})
   const worker = new Worker(SEED_JOB_WORKER_PATH, {
-    env: { ...process.env, CHAYA_ROOT: ROOT_PATH },
+    env: { ...process.env, CHAYA_ROOT: ROOT_PATH, CHAYA_LOG_FORWARD_TO_PARENT: '1' },
   })
   const client: Client = { worker, status: 'starting', ready, readyResolve, readyReject, pending: new Map(), nextId: 1, jobStarted: false }
   client.readyTimer = setTimeout(() => {
@@ -68,6 +71,10 @@ function spawn(): Client {
   client.readyTimer.unref?.()
   worker.unref()
   worker.on('message', (message: SeedJobWorkerMessage) => {
+    if (message.type === 'translation-log') {
+      appendLog(message.entry)
+      return
+    }
     if (message.type === 'ready') {
       if (client.status !== 'starting') return
       if (client.readyTimer) clearTimeout(client.readyTimer)
@@ -81,6 +88,7 @@ function spawn(): Client {
     if (!pending) return
     client.pending.delete(message.id)
     clearTimeout(pending.timer)
+    pending.onTiming(message.timing)
     if (message.ok) pending.resolve(message.snapshot)
     else pending.reject(new Error(message.error))
   })
@@ -113,23 +121,54 @@ export function seedJobWorkerReady(): boolean {
   return globalStore.__chayaSeedJobWorkerClient?.status === 'ready'
 }
 
-export async function commandSeedJobWorker(command: SeedJobWorkerCommand): Promise<SeedJobSnapshot> {
-  const client = ensureClient()
-  await client.ready
-  if (command === 'start') client.jobStarted = true
-  if (command === 'drain') client.jobStarted = false
-  if (command === 'pause') client.jobStarted = false
-  return new Promise<SeedJobSnapshot>((resolve, reject) => {
-    const id = client.nextId++
-    const request: SeedJobWorkerRequest = { type: 'request', id, command }
-    const timer = setTimeout(() => {
-      client.pending.delete(id)
-      reject(new Error(`Seed translation worker did not answer "${command}" in time`))
-    }, COMMAND_TIMEOUT_MS)
-    timer.unref?.()
-    client.pending.set(id, { resolve, reject, timer })
-    client.worker.postMessage(request)
-  })
+export async function commandSeedJobWorker(command: SeedJobWorkerCommand, contentRoot?: string): Promise<SeedJobSnapshot> {
+  const timing = startOperation('translate', 'seed.worker.roundtrip', { command }, { start: command !== 'snapshot' })
+  let readyMs = 0
+  let sentAt = 0
+  let remote: SeedJobWorkerMessage['timing']
+  try {
+    const client = ensureClient()
+    await client.ready
+    readyMs = timing.elapsedMs()
+    if (command === 'start') client.jobStarted = true
+    if (command === 'drain') client.jobStarted = false
+    if (command === 'pause') client.jobStarted = false
+    const snapshot = await new Promise<SeedJobSnapshot>((resolve, reject) => {
+      const id = client.nextId++
+      sentAt = Date.now()
+      const request: SeedJobWorkerRequest = { type: 'request', id, command, requestId: timing.id, sentAt, ...(contentRoot ? { contentRoot } : {}) }
+      const timer = setTimeout(() => {
+        client.pending.delete(id)
+        reject(new Error(`Seed translation worker did not answer "${command}" in time`))
+      }, COMMAND_TIMEOUT_MS)
+      timer.unref?.()
+      client.pending.set(id, {
+        resolve,
+        reject,
+        timer,
+        onTiming: (value) => {
+          remote = value
+        },
+      })
+      try {
+        client.worker.postMessage(request)
+      } catch (error) {
+        client.pending.delete(id)
+        clearTimeout(timer)
+        reject(error)
+      }
+    })
+    timing.end('completed', {
+      readyMs,
+      ...remote,
+      outboundMs: remote ? Math.max(0, remote.receivedAt - sentAt) : undefined,
+      inboundMs: remote ? Math.max(0, Date.now() - remote.respondedAt) : undefined,
+    })
+    return snapshot
+  } catch (error) {
+    timing.fail(error, { readyMs, ...remote })
+    throw error
+  }
 }
 
 export function resetSeedJobWorkerClientForTests() {

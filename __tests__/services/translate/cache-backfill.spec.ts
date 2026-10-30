@@ -66,7 +66,7 @@ describe('versioned game backfill', () => {
     const root = path.join(dir, 'game')
     const result = cache.writeMany([['村へ行く', '前往村庄']], 'live:google', pair)
     cache.queueBackfill(root, result.records)
-    expect(cache.flushBackfill(root)).toEqual({ sharedOnly: true })
+    expect(cache.flushBackfill(root)).toEqual({ sharedOnly: true, pending: false })
     expect(cache.flushBackfill(root)).toEqual({ sharedOnly: false })
     expect(cache.flushBackfill(root)).toEqual({ sharedOnly: false })
 
@@ -77,7 +77,7 @@ describe('versioned game backfill', () => {
       append(file, data, options)
       fs.writeFileSync(gameContentPath(root, 'seed'), JSON.stringify({ 村へ行く: '并发 seed 修改' }))
     })
-    expect(cache.flushBackfill(root)).toEqual({ sharedOnly: false })
+    expect(cache.flushBackfill(root)).toEqual({ sharedOnly: false, pending: false })
     expect(write).toHaveBeenCalled()
     write.mockRestore()
     cache.close()

@@ -24,6 +24,7 @@ export {
   isolateGamePointerInput,
   isolateHostKeyboard,
   mountUiTemplateShell,
+  restoreGameFocus,
   restorePluginErrors,
   setInnerHTML,
   showPluginError,

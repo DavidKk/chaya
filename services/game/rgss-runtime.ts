@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process'
+import { type ChildProcess } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -10,11 +10,13 @@ import { clearLaunchToken, issueLaunchToken } from '@/services/runtime/launch-to
 import { toolkitListenPort } from '@/services/runtime/presence'
 import { getSignalingRoom } from '@/services/runtime/webrtc-signaling'
 import { publicGameFiles } from '@/services/storage/game-files'
+import { prepareSeedInventory } from '@/services/translate/scheduler/seed-prepare'
 
 import { ensureGameAppIcon, updateSharedMacAppIcon } from './app-icon'
 import { loadConfig } from './config'
 import { findLibraryEntry } from './library'
 import { detectRgssPlugins } from './rgss-plugins'
+import { spawnRgssProcess } from './rgss-process'
 
 type Session = { child?: ChildProcess; running: boolean; starting: boolean; logPath: string; error?: string; tail: string; quitting?: boolean; roomId?: string; token?: string }
 const globalSessions = globalThis as typeof globalThis & { __chayaRgssSessions?: Map<string, Session> }
@@ -100,6 +102,7 @@ export async function launchRgss(resolved: ResolvedGame) {
   sessions().set(root, state)
   notifyRuntimeChange(root, false, true)
   try {
+    await prepareSeedInventory(root)
     let binary = resolved.shellApp
     if (process.platform === 'darwin') {
       const installed = toolkitRgssBinary()
@@ -202,6 +205,8 @@ export async function launchRgss(resolved: ResolvedGame) {
             // Upstream dev builds can crash in createPathCache on encrypted RGSS3 archives.
             pathCache: false,
             allowSymlinks: true,
+            winResizable: true,
+            fixedAspectRatio: true,
             RTP: hasMountedFont ? [fontResources] : [],
             rubyLoadpath: [path.join(path.dirname(installed), 'stdlib')],
             preloadScript: [preload],
@@ -221,36 +226,53 @@ export async function launchRgss(resolved: ResolvedGame) {
       if (state.token) clearLaunchToken(state.token)
       if (state.roomId) disconnectAgentGame(state.roomId)
     }
-    const child = spawn(binary, [], {
-      cwd: process.platform === 'darwin' ? sessionDir : root,
-      env: {
-        ...process.env,
-        MKXPZ_FOLDER_SELECT: '0',
-        CHAYA_RGSS_RUNTIME: path.dirname(toolkitRgssBinary()),
-        CHAYA_RGSS_SESSION: sessionDir,
-        CHAYA_RGSS_CONTENT_ROOT: root,
-        CHAYA_PUBLIC_GAME_DIR: publicGameFiles(root).directory,
-        CHAYA_RGSS_API: `http://127.0.0.1:${toolkitListenPort()}`,
-        CHAYA_RGSS_ROOM: state.roomId || '',
-        CHAYA_RGSS_TOKEN: state.token || '',
-        CHAYA_RGSS_TRANSLATION_DEBUG: '1',
+    let logOffset = fs.statSync(state.logPath).size
+    const child = spawnRgssProcess(
+      binary,
+      {
+        cwd: process.platform === 'darwin' ? sessionDir : root,
+        env: {
+          ...process.env,
+          MKXPZ_FOLDER_SELECT: '0',
+          CHAYA_RGSS_RUNTIME: path.dirname(toolkitRgssBinary()),
+          CHAYA_RGSS_SESSION: sessionDir,
+          CHAYA_RGSS_CONTENT_ROOT: root,
+          CHAYA_PUBLIC_GAME_DIR: publicGameFiles(root).directory,
+          CHAYA_RGSS_API: `http://127.0.0.1:${toolkitListenPort()}`,
+          CHAYA_RGSS_ROOM: state.roomId || '',
+          CHAYA_RGSS_TOKEN: state.token || '',
+          CHAYA_RGSS_TRANSLATION_DEBUG: '1',
+        },
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
+      state.logPath
+    )
     state.child = child
     const record = (chunk: Buffer) => {
       const text = chunk.toString()
       state.tail = (state.tail + text).slice(-12_000)
-      fs.appendFileSync(state.logPath, text)
       const fatal = /^.*:\d+:in .*\((?:\w*Error|\w*Exception)\)/m.exec(state.tail)
       if (fatal && !state.error) {
         state.error = state.tail.slice(fatal.index).trim()
         stopProcess(state)
       }
     }
-    child.stdout?.on('data', record)
-    child.stderr?.on('data', record)
+    const readLog = () => {
+      const size = fs.statSync(state.logPath, { throwIfNoEntry: false })?.size || 0
+      if (size <= logOffset) return
+      const file = fs.openSync(state.logPath, 'r')
+      try {
+        const buffer = Buffer.alloc(Math.min(size - logOffset, 12_000))
+        fs.readSync(file, buffer, 0, buffer.length, Math.max(logOffset, size - buffer.length))
+        record(buffer)
+        logOffset = size
+      } finally {
+        fs.closeSync(file)
+      }
+    }
+    const logTimer = setInterval(readLog, 250)
+    logTimer.unref()
     child.once('error', (error) => {
+      clearInterval(logTimer)
       releaseBridge()
       state.error = error.message
       state.running = false
@@ -262,6 +284,8 @@ export async function launchRgss(resolved: ResolvedGame) {
       notifyRuntimeChange(root, true, false)
     })
     child.once('close', (code, signal) => {
+      clearInterval(logTimer)
+      readLog()
       releaseBridge()
       state.running = false
       state.starting = false
