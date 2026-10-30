@@ -6,6 +6,7 @@ import { Worker } from 'node:worker_threads'
 
 import { DATA_DIR, ROOT_PATH } from '@/constants/paths'
 import { mcpPortConfigDir, processMcpPortEnv } from '@/lib/integration/mcp-port'
+import { startOperation } from '@/services/log/operation'
 
 import { readStorageDaemonMeta } from './daemon-lock'
 
@@ -77,28 +78,49 @@ export function ensureStorageDaemon() {
 
 /** Compatibility bridge for existing synchronous extraction/cache callers; network work runs off-thread. */
 export function storageCall<T = unknown>(method: string, args: unknown[] = []): T {
-  const meta = ensureStorageDaemon()
-  if (!worker) {
-    const entry = resolveNativeBin('chaya-storage-client.mjs')
-    // This is a separately built native entry; Next must not turn it into a bundled worker loader.
-    worker = Reflect.construct(Worker, [entry]) as Worker
-    worker.on('error', () => {
-      worker = undefined
-    })
-    worker.unref()
+  const timing = startOperation('storage', 'storage.roundtrip', { method }, { start: false })
+  let readyMs = 0
+  let waitMs = 0
+  let decodeMs = 0
+  let waiting = 0
+  let remote: Record<string, number> | undefined
+  try {
+    const meta = ensureStorageDaemon()
+    if (!worker) {
+      const entry = resolveNativeBin('chaya-storage-client.mjs')
+      // This is a separately built native entry; Next must not turn it into a bundled worker loader.
+      worker = Reflect.construct(Worker, [entry]) as Worker
+      worker.on('error', () => {
+        worker = undefined
+      })
+      worker.unref()
+    }
+    const shared = (responseBuffer ??= new SharedArrayBuffer(16 * 1024 * 1024))
+    const signal = new Int32Array(shared, 0, 2)
+    Atomics.store(signal, 0, 0)
+    Atomics.store(signal, 1, 0)
+    readyMs = timing.elapsedMs()
+    waiting = performance.now()
+    worker.postMessage({ port: meta.port, token: meta.authToken, body: { method, args, requestId: timing.id, sentAt: Date.now() }, shared })
+    if (Atomics.wait(signal, 0, 0, 125000) === 'timed-out') {
+      // A late worker response must never overwrite the next request's buffer.
+      responseBuffer = undefined
+      throw new Error('Storage request timed out; retry with the same mutation key')
+    }
+    waitMs = Math.round((performance.now() - waiting) * 10) / 10
+    const decoding = performance.now()
+    const result = JSON.parse(Buffer.from(shared, 8, Atomics.load(signal, 1)).toString('utf8')) as { value?: T; error?: string; timing?: Record<string, number> }
+    remote = result.timing
+    decodeMs = Math.round((performance.now() - decoding) * 10) / 10
+    if (result.error) throw new Error(result.error)
+    const value = result.value as T & { storageMap?: [string, string][] }
+    const restored = value?.storageMap ? (new Map(value.storageMap) as T) : value
+    decodeMs = Math.round((performance.now() - decoding) * 10) / 10
+    timing.end('completed', { readyMs, waitMs, decodeMs, responseBytes: Atomics.load(signal, 1), ...result.timing })
+    return restored
+  } catch (error) {
+    if (waiting && !waitMs) waitMs = Math.round((performance.now() - waiting) * 10) / 10
+    timing.fail(error, { readyMs, waitMs, decodeMs, ...remote })
+    throw error
   }
-  const shared = (responseBuffer ??= new SharedArrayBuffer(16 * 1024 * 1024))
-  const signal = new Int32Array(shared, 0, 2)
-  Atomics.store(signal, 0, 0)
-  Atomics.store(signal, 1, 0)
-  worker.postMessage({ port: meta.port, token: meta.authToken, body: { method, args }, shared })
-  if (Atomics.wait(signal, 0, 0, 125000) === 'timed-out') {
-    // A late worker response must never overwrite the next request's buffer.
-    responseBuffer = undefined
-    throw new Error('Storage request timed out; retry with the same mutation key')
-  }
-  const result = JSON.parse(Buffer.from(shared, 8, Atomics.load(signal, 1)).toString('utf8')) as { value?: T; error?: string }
-  if (result.error) throw new Error(result.error)
-  const value = result.value as T & { storageMap?: [string, string][] }
-  return value?.storageMap ? (new Map(value.storageMap) as T) : value
 }

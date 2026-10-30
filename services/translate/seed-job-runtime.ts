@@ -2,7 +2,14 @@
 import fs from 'node:fs'
 
 import { formatCompactCount } from '@/lib/format-compact-count'
-import { type LiveTranslationSample, rollingTranslationPerformance, smoothTranslationPerformance, translationPerformance, type TranslationSample } from '@/lib/translate/remain-eta'
+import {
+  freshTranslationPerformance,
+  type LiveTranslationSample,
+  rollingTranslationPerformance,
+  smoothTranslationPerformance,
+  translationPerformance,
+  type TranslationSample,
+} from '@/lib/translate/remain-eta'
 import { batchSources, isCacheExecution, isCacheResult } from '@/lib/translate/result-sources'
 import type { TranslationBatchLog } from '@/lib/translate/runtime-api'
 import { getResolvedFromConfig } from '@/services/game/binding'
@@ -10,6 +17,7 @@ import { shouldDemoteOrphanRunning } from '@/services/jobs'
 
 import { getTranslateEngineSwitches } from './engine-switches'
 import { createSeedFillSession, type SeedProgress } from './fill-missing'
+import { logTranslationEvent } from './runtime-log'
 import { localGameContentFile, seedFileStamp, seedProgressStamp } from './scheduler/seed-inventory'
 import { isSeedInventoryPreparing, peekSeedInventory, prepareSeedInventory } from './scheduler/seed-prepare'
 import { createSeedBatchBudget } from './seed-batch'
@@ -131,6 +139,7 @@ function peekHasSeed(contentRoot: string): boolean {
 function pushLog(rt: Runtime, level: SeedJobLogLevel, text: string, metadata?: Pick<SeedJobLogEntry, 'batch' | 'failure' | 'request'>) {
   rt.logSeq += 1
   rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text, ...metadata }].slice(-MAX_SEED_JOB_LOGS)
+  if (!metadata?.request) logTranslationEvent(level, text, { contentRoot: rt.state.contentRoot, ...metadata })
 }
 
 /** Short engine tag for one-line logs. */
@@ -176,8 +185,9 @@ async function runLoop(contentRoot: string) {
   const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4)
   const trace = (message: string) => {
     const previousLogSeq = rt.logSeq
-    const request = /^Agent request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message)
-    if (request) pushLog(rt, 'info', message, { request: { items: Number(request[1]), chars: Number(request[2]) } })
+    const request = /^(Agent|Apple) request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message)
+    if (request)
+      pushLog(rt, 'info', message, { request: { items: Number(request[2]), chars: Number(request[3]), ...(request[1] === 'Apple' ? { engine: 'apple' as const } : {}) } })
     if (message.startsWith('Cache scan unavailable:')) {
       pushLog(
         rt,
@@ -211,27 +221,29 @@ async function runLoop(contentRoot: string) {
     rt.progress = rt.session.progress
     let measuredAt = performance.now()
     while (!rt.stopRequested) {
-      rt.state.liveStatus = `正在翻译第 ${rt.state.rounds + 1} 段…`
+      rt.state.liveStatus = '正在翻译…'
       persist(rt)
 
       let result
       try {
         const started = performance.now()
         const slice = budget.current()
-        let completed = 0
         let checkpointAt = 0
         result = await rt.session.fill({
           ...slice,
           onTrace: trace,
           onItem: (item) => {
             if (rt.session) rt.progress = rt.session.progress
+            if (rt.session?.processed != null) rt.state.sessionDone = initialSessionDone + rt.session.processed
             if (item.zh && !item.error) {
-              rt.liveSamples = [...(rt.liveSamples || []), { at: Date.now(), chars: charCount(item.src) }].slice(-120)
+              const now = Date.now()
+              rt.liveSamples = [...(rt.liveSamples || []), { at: now, chars: charCount(item.src) }].slice(-120)
               const measured = rollingTranslationPerformance(rt.liveSamples, { cacheMs: rt.state.performance?.cacheMs ?? 0 })
-              rt.state.performance = smoothTranslationPerformance(rt.state.performance, measured)
+              const previous = freshTranslationPerformance(rt.state.performance, rt.state.performance?.measuredAt ?? 0, now)
+              const smoothed = smoothTranslationPerformance(previous, measured)
+              rt.state.performance = measured && smoothed ? { ...smoothed, measuredAt: now } : previous
             }
-            completed++
-            rt.state.liveStatus = `本批已处理 ${completed} 条 · 成功译文已保存`
+            rt.state.liveStatus = `本会话已译 ${rt.state.sessionDone} 条 · ${rt.stopRequested ? '正在暂停…' : '正在翻译…'}`
             if (Date.now() - checkpointAt >= 250) {
               persist(rt)
               checkpointAt = Date.now()
@@ -250,7 +262,8 @@ async function runLoop(contentRoot: string) {
         if (result.scanned && result.performance) {
           rt.samples = [...(rt.samples || []), { elapsedMs: sampleElapsedMs, ...result.performance }].slice(-8)
           const measured = rollingTranslationPerformance(rt.liveSamples || [], { cacheMs: result.performance.cacheMs }) ?? translationPerformance(rt.samples)
-          rt.state.performance = smoothTranslationPerformance(rt.state.performance, measured)
+          const smoothed = smoothTranslationPerformance(rt.state.performance, measured)
+          rt.state.performance = smoothed ? { ...smoothed, measuredAt: rt.liveSamples?.at(-1)?.at ?? Date.now() } : null
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -313,7 +326,7 @@ async function runLoop(contentRoot: string) {
         return
       }
 
-      rt.state.liveStatus = `第 ${rt.state.rounds} 段完成 · 本会话已译 ${rt.state.sessionDone} 条 · 仍缺 ${result.missing}`
+      rt.state.liveStatus = `本会话已译 ${rt.state.sessionDone} 条 · 仍缺 ${result.missing}`
       persist(rt)
 
       if (rt.stopRequested) break

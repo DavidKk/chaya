@@ -6,14 +6,14 @@ var __export = (target2, all) => {
 };
 
 // services/translate/scheduler/seed-inventory-worker.ts
-import fs19 from "node:fs";
+import fs20 from "node:fs";
 import os2 from "node:os";
-import path13 from "node:path";
-import { parentPort, workerData } from "node:worker_threads";
+import path14 from "node:path";
+import { parentPort as parentPort2, workerData } from "node:worker_threads";
 
 // services/translate/shared-cache/index.ts
-import fs10 from "node:fs";
-import path7 from "node:path";
+import fs11 from "node:fs";
+import path8 from "node:path";
 
 // node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/entity.js
 var entityKind = /* @__PURE__ */ Symbol.for("drizzle:entityKind");
@@ -943,7 +943,7 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
   const objectIds = {};
   const decodes = Array.from({ length: columns.length });
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { field, path: path14, codec, arrayDimensions } = columns[idx];
+    const { field, path: path15, codec, arrayDimensions } = columns[idx];
     let decoder;
     let decoderStr;
     let decoderFieldDestructure;
@@ -971,26 +971,26 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
     if (codec) decodedValue = `codec${idx}(${decodedValue}, ${arrayDimensions})`;
     if (decoderStr) decodedValue = `${decoderStr}(${decodedValue})`;
     decodes[idx] = colStr === decodedValue ? `${colStr}` : `${colStr} === null ? ${colStr} : ${decodedValue}`;
-    if (path14.length !== 2 || !isColumn) continue;
-    if (objectIds[path14[0]] === void 0) objectIds[path14[0]] = [`c${idx}`];
-    else objectIds[path14[0]]?.push(`c${idx}`);
-    const [objectName] = path14;
+    if (path15.length !== 2 || !isColumn) continue;
+    if (objectIds[path15[0]] === void 0) objectIds[path15[0]] = [`c${idx}`];
+    else objectIds[path15[0]]?.push(`c${idx}`);
+    const [objectName] = path15;
     const tableName = getTableName(field.table);
     nullifyMap[objectName] = joinsNotNullableMap[tableName] ? false : typeof nullifyMap[objectName] === "string" ? nullifyMap[objectName] === tableName ? tableName : false : tableName;
   }
   fn.push(`mapped[i] = {`);
   let currentObjectPath = [];
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { path: path14 } = columns[idx];
-    const jsonPath = path14.map((e) => JSON.stringify(e));
+    const { path: path15 } = columns[idx];
+    const jsonPath = path15.map((e) => JSON.stringify(e));
     const decodedValue = decodes[idx];
-    const objectPath = path14.slice(0, -1);
+    const objectPath = path15.slice(0, -1);
     let commonLen = 0;
     while (commonLen < currentObjectPath.length && commonLen < objectPath.length && currentObjectPath[commonLen] === objectPath[commonLen]) commonLen++;
     for (let d = currentObjectPath.length - 1; d >= commonLen; --d) fn.push(`${"	".repeat(d + 1)}},`);
-    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path14[0]] === "string" ? `${objectIds[path14[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
+    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path15[0]] === "string" ? `${objectIds[path15[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
     currentObjectPath = objectPath;
-    fn.push(`${"	".repeat(path14.length)}${jsonPath[path14.length - 1]}: ${decodedValue},`);
+    fn.push(`${"	".repeat(path15.length)}${jsonPath[path15.length - 1]}: ${decodedValue},`);
   }
   for (let d = currentObjectPath.length - 1; d >= 0; --d) fn.push(`${"	".repeat(d + 1)}},`);
   fn.push(`};`);
@@ -1027,13 +1027,13 @@ function jitCompatCheck(isEnabled) {
   }
 }
 function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
-  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path14 }) => {
+  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path15 }) => {
     let processNullifyMap;
     let decoderSrc;
     if (is(field, Column)) {
       decoderSrc = field;
-      if (joinsNotNullableMap && path14.length === 2) {
-        const objectName = path14[0];
+      if (joinsNotNullableMap && path15.length === 2) {
+        const objectName = path15[0];
         processNullifyMap = (nullifyMap, value) => {
           if (!(objectName in nullifyMap)) nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
           else if (typeof nullifyMap[objectName] === "string" && nullifyMap[objectName] !== getTableName(field.table)) nullifyMap[objectName] = false;
@@ -1049,9 +1049,9 @@ function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
   });
   return ((rows) => rows.map((row) => {
     const nullifyMap = {};
-    const result = columns.reduce((result2, { path: path14 }, columnIndex) => {
+    const result = columns.reduce((result2, { path: path15 }, columnIndex) => {
       let node = result2;
-      for (const [pathChunkIndex, pathChunk] of path14.entries()) if (pathChunkIndex < path14.length - 1) {
+      for (const [pathChunkIndex, pathChunk] of path15.entries()) if (pathChunkIndex < path15.length - 1) {
         if (!(pathChunk in node)) node[pathChunk] = {};
         node = node[pathChunk];
       } else {
@@ -3171,12 +3171,12 @@ function structuredSentenceAliases(src, zh, structure) {
   const label = source.units.find((unit) => unit.kind === "label");
   const translatedLabel = target2.units.find((unit) => unit.kind === "label");
   if (label && translatedLabel) pairs.unshift({ source: label, target: translatedLabel });
-  const context = source.units.filter((unit) => unit.kind === "text").reduce((length, unit) => length + unit.end - unit.start, 0);
+  const context2 = source.units.filter((unit) => unit.kind === "text").reduce((length, unit) => length + unit.end - unit.start, 0);
   return pairs.flatMap((pair) => {
     const from = src.slice(pair.source.start, pair.source.end);
     let to = zh.slice(pair.target.start, pair.target.end);
     if (/[①-⑳][\t ]*$/u.test(zh.slice(0, pair.target.start))) to = to.replace(/^[.．][\t ]*/u, "");
-    return from && to ? [{ src: from, zh: to, context }] : [];
+    return from && to ? [{ src: from, zh: to, context: context2 }] : [];
   });
 }
 
@@ -3299,12 +3299,12 @@ function expandRecords(records2) {
   return records2.flatMap((record) => [
     record,
     ...sentenceAliases(record.src, record.zh).map((alias) => ({ ...record, ...alias, derived: true, alignments: void 0, newlines: void 0 })),
-    ...structuredSentenceAliases(record.src, record.zh, record.structure).map(({ context, ...alias }) => ({
+    ...structuredSentenceAliases(record.src, record.zh, record.structure).map(({ context: context2, ...alias }) => ({
       ...record,
       ...alias,
       derived: true,
       structuralAlias: true,
-      structureContext: context,
+      structureContext: context2,
       alignments: void 0,
       newlines: void 0,
       structure: void 0
@@ -3611,8 +3611,8 @@ function chooseAuthorityMatch(group, src, category) {
   const explicit = pool.filter((m) => !m.record.structuralAlias);
   if (explicit.length) pool = explicit;
   else {
-    const context = Math.min(...pool.map((m) => m.record.structureContext || 0));
-    pool = pool.filter((m) => (m.record.structureContext || 0) === context);
+    const context2 = Math.min(...pool.map((m) => m.record.structureContext || 0));
+    pool = pool.filter((m) => (m.record.structureContext || 0) === context2);
   }
   const rank = Math.max(...pool.map((m) => cacheEngineRank(m.record.engine)));
   pool = pool.filter((m) => cacheEngineRank(m.record.engine) === rank);
@@ -3623,6 +3623,8 @@ function chooseAuthorityMatch(group, src, category) {
     const matched = pool.filter((m) => m.record.category === want);
     if (matched.length) pool = matched;
   }
+  const local = pool.filter((m) => m.record.local);
+  if (local.length) pool = local;
   if (new Set(pool.map(output)).size === 1) {
     const ordered = [...pool].sort(
       (a, b) => (a.record.local ? 0 : 1) - (b.record.local ? 0 : 1) || (a.kind === "extracted" ? 1 : 0) - (b.kind === "extracted" ? 1 : 0) || a.record.id.localeCompare(b.record.id)
@@ -3725,9 +3727,9 @@ function normalizeCacheCategory(raw) {
 
 // services/storage/client.ts
 import { spawn } from "node:child_process";
-import fs3 from "node:fs";
+import fs4 from "node:fs";
 import os from "node:os";
-import path2 from "node:path";
+import path3 from "node:path";
 import { Worker } from "node:worker_threads";
 
 // constants/paths.ts
@@ -3851,9 +3853,247 @@ function processMcpPortEnv(home) {
   };
 }
 
-// services/storage/daemon-lock.ts
+// services/log/operation.ts
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
+import { isMainThread, parentPort, threadId } from "node:worker_threads";
+
+// lib/log/types.ts
+var LOG_LEVELS = ["ok", "warn", "fail", "info", "debug"];
+var LEVEL_SET = new Set(LOG_LEVELS);
+function normalizeLogLevel(raw) {
+  const v = String(raw || "info").toLowerCase();
+  if (v === "error" || v === "fatal") return "fail";
+  if (v === "success" || v === "done") return "ok";
+  if (v === "trace" || v === "log") return "debug";
+  if (LEVEL_SET.has(v)) return v;
+  return "info";
+}
+
+// lib/service-mode/target.ts
+function parseBuildTarget(value) {
+  const target2 = value?.trim().toLowerCase() || "server";
+  if (target2 === "dev" || target2 === "cloud" || target2 === "server") return target2;
+  throw new Error(`Invalid NEXT_PUBLIC_CHAYA_TARGET configuration: ${value}; supported values: dev, cloud, server`);
+}
+var BUILD_TARGET = parseBuildTarget(process.env.NEXT_PUBLIC_CHAYA_TARGET);
+var DEV_TARGET_ENV = "CHAYA_DEV_TARGET";
+function isDevTarget(value) {
+  return value === "cloud" || value === "server";
+}
+function getDevTarget() {
+  const raw = process.env[DEV_TARGET_ENV];
+  const explicit = raw?.trim().toLowerCase();
+  if (isDevTarget(explicit)) return explicit;
+  if (explicit) throw new Error(`Invalid CHAYA_DEV_TARGET configuration: ${raw}; supported values: cloud, server`);
+  return process.env.CHAYA_SERVICE?.trim().toLowerCase() === "remote" ? "cloud" : "server";
+}
+
+// lib/service-mode/mode.ts
+function parseExplicitServiceMode() {
+  const explicit = process.env.CHAYA_SERVICE?.trim().toLowerCase();
+  if (!explicit) return void 0;
+  if (explicit === "remote" || explicit === "app" || explicit === "local") return explicit;
+  throw new Error(`Invalid CHAYA_SERVICE configuration: ${process.env.CHAYA_SERVICE}; supported values: local, app, remote`);
+}
+function getServiceMode() {
+  const explicit = parseExplicitServiceMode();
+  if (BUILD_TARGET === "cloud" || process.env.VERCEL === "1") return "remote";
+  if (BUILD_TARGET === "dev") {
+    if (getDevTarget() === "cloud") return "remote";
+    return explicit === "app" ? "app" : "local";
+  }
+  return explicit ?? "local";
+}
+function canUseDisk(mode = getServiceMode()) {
+  return mode !== "remote";
+}
+
+// services/log/file-store.ts
 import fs2 from "node:fs";
 import path from "node:path";
+var DEFAULT_RETENTION_DAYS = 14;
+var DEFAULT_HYDRATE_LIMIT = 2e3;
+function resolvePluginLogDir() {
+  const fromEnv = process.env.CHAYA_LOG_DIR;
+  if (fromEnv && fromEnv.trim()) {
+    return path.isAbsolute(fromEnv) ? fromEnv : path.resolve(ROOT_PATH, fromEnv);
+  }
+  return PLUGIN_LOGS_DIR;
+}
+function dayKey(ts) {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+function dayFile(dir, day) {
+  return path.join(dir, `${day}.ndjson`);
+}
+function ensureDir(dir) {
+  fs2.mkdirSync(dir, { recursive: true });
+}
+function appendLogToFile(entry, logDir = resolvePluginLogDir()) {
+  try {
+    ensureDir(logDir);
+    const file = dayFile(logDir, dayKey(entry.ts));
+    fs2.appendFileSync(file, `${JSON.stringify(entry)}
+`, "utf8");
+  } catch {
+  }
+}
+function parseLine(line, file, lineNo) {
+  const raw = line.trim();
+  if (!raw) return null;
+  try {
+    const o = JSON.parse(raw);
+    const ts = typeof o.ts === "number" ? o.ts : o.createdAt ? Date.parse(o.createdAt) : Date.now();
+    if (!o.source || o.message == null) return null;
+    return {
+      id: String(o.id || `${path.basename(file)}:${lineNo}`),
+      ts: Number.isFinite(ts) ? ts : Date.now(),
+      level: normalizeLogLevel(o.level),
+      source: String(o.source).slice(0, 64),
+      message: String(o.message).slice(0, 8e3),
+      meta: o.meta
+    };
+  } catch {
+    return null;
+  }
+}
+function loadLogsFromFiles(opts) {
+  const logDir = opts?.logDir ?? resolvePluginLogDir();
+  const retentionDays = opts?.retentionDays ?? DEFAULT_RETENTION_DAYS;
+  const limit = opts?.limit ?? DEFAULT_HYDRATE_LIMIT;
+  if (!fs2.existsSync(logDir)) return [];
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1e3;
+  const files = fs2.readdirSync(logDir).filter((n) => /^\d{4}-\d{2}-\d{2}\.ndjson$/.test(n)).sort();
+  const out = [];
+  for (const name2 of files) {
+    const day = name2.slice(0, 10);
+    const dayTs = Date.parse(`${day}T00:00:00.000Z`);
+    if (Number.isFinite(dayTs) && dayTs < cutoff - 24 * 60 * 60 * 1e3) {
+      continue;
+    }
+    const full = path.join(logDir, name2);
+    let text2 = "";
+    try {
+      text2 = fs2.readFileSync(full, "utf8");
+    } catch {
+      continue;
+    }
+    const lines = text2.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const entry = parseLine(lines[i], full, i + 1);
+      if (!entry) continue;
+      if (entry.ts < cutoff) continue;
+      out.push(entry);
+    }
+  }
+  out.sort((a, b) => a.ts - b.ts);
+  return out.length > limit ? out.slice(-limit) : out;
+}
+
+// services/log/bus.ts
+var MAX = 2e3;
+var buffer = [];
+var listeners = /* @__PURE__ */ new Set();
+var seq = 0;
+var hydrated = false;
+function nextId() {
+  seq += 1;
+  return `${Date.now().toString(36)}-${seq}`;
+}
+function hydrateOnce() {
+  if (hydrated) return;
+  hydrated = true;
+  if (!canUseDisk()) return;
+  try {
+    const loaded = loadLogsFromFiles({ limit: MAX });
+    buffer.push(...loaded);
+    if (buffer.length > MAX) buffer.splice(0, buffer.length - MAX);
+    seq = buffer.length;
+  } catch {
+  }
+}
+function appendLog(partial) {
+  hydrateOnce();
+  const entry = {
+    id: nextId(),
+    ts: partial.ts ?? Date.now(),
+    level: normalizeLogLevel(partial.level),
+    source: String(partial.source || "unknown").slice(0, 64),
+    message: String(partial.message ?? "").slice(0, 8e3),
+    meta: partial.meta
+  };
+  buffer.push(entry);
+  if (buffer.length > MAX) buffer.splice(0, buffer.length - MAX);
+  if (canUseDisk()) appendLogToFile(entry);
+  for (const fn of listeners) {
+    try {
+      fn(entry);
+    } catch {
+    }
+  }
+  return entry;
+}
+
+// services/log/operation.ts
+var context = new AsyncLocalStorage();
+function runtimeEvent(level, source, message, meta, forward = false, ts = Date.now()) {
+  try {
+    const entry = { level, source, message, meta, ts };
+    if (!isMainThread && parentPort && (forward || process.env.CHAYA_LOG_FORWARD_TO_PARENT === "1")) {
+      parentPort.postMessage({ type: "translation-log", entry });
+    } else appendLog(entry);
+  } catch {
+  }
+}
+function operationId(value) {
+  return value && /^[a-zA-Z0-9:_-]{1,100}$/.test(value) ? value : randomUUID();
+}
+function startOperation(source, operation, meta = {}, options = {}) {
+  const id = operationId(options.operationId);
+  const startedAt = Date.now();
+  const started = performance.now();
+  const base = { ...meta, operation, operationId: id, parentId: context.getStore()?.operationId, pid: process.pid, threadId, startedAt };
+  let ended = false;
+  const elapsedMs = () => Math.round((performance.now() - started) * 10) / 10;
+  const mark = (stage, details = {}) => runtimeEvent("debug", source, `${operation}: ${stage}`, { ...base, ...details, stage, elapsedMs: elapsedMs() });
+  if (options.start !== false) mark("started");
+  return {
+    id,
+    startedAt,
+    elapsedMs,
+    mark,
+    run(fn) {
+      return context.run({ operationId: id }, fn);
+    },
+    end(outcome = "completed", details = {}) {
+      if (ended) return;
+      ended = true;
+      const duration = elapsedMs();
+      const slow = duration >= (options.slowMs ?? 1e3);
+      runtimeEvent(outcome === "failed" ? "fail" : slow ? "warn" : options.level ?? "debug", source, `${operation}: ${outcome} (${duration}ms)`, {
+        ...base,
+        ...details,
+        outcome,
+        elapsedMs: duration,
+        slow,
+        finishedAt: Date.now()
+      });
+    },
+    fail(error, details = {}) {
+      const errorName = error && typeof error === "object" && "name" in error ? String(error.name) : "UnknownError";
+      this.end(errorName === "AbortError" ? "cancelled" : "failed", {
+        ...details,
+        errorName,
+        errorCode: error && typeof error === "object" && "code" in error ? String(error.code) : void 0
+      });
+    }
+  };
+}
+
+// services/storage/daemon-lock.ts
+import fs3 from "node:fs";
+import path2 from "node:path";
 import { DatabaseSync } from "node:sqlite";
 function isPidAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -3867,8 +4107,8 @@ function isPidAlive(pid) {
 }
 function readMetaSafe(file) {
   try {
-    if (!fs2.existsSync(file)) return null;
-    const raw = JSON.parse(fs2.readFileSync(file, "utf8"));
+    if (!fs3.existsSync(file)) return null;
+    const raw = JSON.parse(fs3.readFileSync(file, "utf8"));
     if (raw && Number.isInteger(raw.pid) && typeof raw.startedAt === "number" && typeof raw.port === "number" && typeof raw.authToken === "string" && typeof raw.dataDir === "string") {
       return raw;
     }
@@ -3878,9 +4118,9 @@ function readMetaSafe(file) {
   }
 }
 function readStorageDaemonMeta(dataDir) {
-  const resolvedDir = typeof dataDir === "string" && dataDir ? dataDir : path.join(process.cwd(), "data");
-  const metaFile = path.join(resolvedDir, "runtime", "storage-daemon.json");
-  const lockFile = path.join(resolvedDir, "runtime", "storage-daemon.lock");
+  const resolvedDir = typeof dataDir === "string" && dataDir ? dataDir : path2.join(process.cwd(), "data");
+  const metaFile = path2.join(resolvedDir, "runtime", "storage-daemon.json");
+  const lockFile = path2.join(resolvedDir, "runtime", "storage-daemon.lock");
   const meta = readMetaSafe(metaFile);
   const owner = readMetaSafe(lockFile);
   if (!meta || !owner || !meta.instanceId || meta.instanceId !== owner.instanceId) return null;
@@ -3891,14 +4131,14 @@ function readStorageDaemonMeta(dataDir) {
 // services/storage/client.ts
 function resolveNativeBin(name2) {
   const root = typeof ROOT_PATH === "string" && ROOT_PATH ? ROOT_PATH : process.cwd();
-  const direct = path2.join(root, "native/bin", name2);
-  if (fs3.existsSync(direct)) return direct;
-  const cwdCandidate = path2.join(process.cwd(), "native/bin", name2);
-  if (fs3.existsSync(cwdCandidate)) return cwdCandidate;
+  const direct = path3.join(root, "native/bin", name2);
+  if (fs4.existsSync(direct)) return direct;
+  const cwdCandidate = path3.join(process.cwd(), "native/bin", name2);
+  if (fs4.existsSync(cwdCandidate)) return cwdCandidate;
   return direct;
 }
 function resolveDataDir() {
-  return typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path2.join(process.cwd(), "data");
+  return typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path3.join(process.cwd(), "data");
 }
 var worker;
 var responseBuffer;
@@ -3907,16 +4147,16 @@ var locatorPublished = false;
 function publishLocator() {
   if (locatorPublished) return;
   const dir = mcpPortConfigDir(processMcpPortEnv(os.homedir()));
-  fs3.mkdirSync(dir, { recursive: true, mode: 448 });
-  const file = path2.join(dir, "storage-runtime.json");
+  fs4.mkdirSync(dir, { recursive: true, mode: 448 });
+  const file = path3.join(dir, "storage-runtime.json");
   const tmp = `${file}.${process.pid}.tmp`;
   const entry = resolveNativeBin("chaya-storage-daemon.mjs");
   const dataDir = resolveDataDir();
   const rootDir = typeof ROOT_PATH === "string" && ROOT_PATH ? ROOT_PATH : process.cwd();
-  fs3.writeFileSync(tmp, JSON.stringify({ dataDir, entry, executable: process.execPath, root: rootDir }), {
+  fs4.writeFileSync(tmp, JSON.stringify({ dataDir, entry, executable: process.execPath, root: rootDir }), {
     mode: 384
   });
-  fs3.renameSync(tmp, file);
+  fs4.renameSync(tmp, file);
   locatorPublished = true;
 }
 function ensureStorageDaemon() {
@@ -3925,15 +4165,15 @@ function ensureStorageDaemon() {
   let meta = readStorageDaemonMeta(dataDir);
   if (meta?.port) return meta;
   const entry = resolveNativeBin("chaya-storage-daemon.mjs");
-  if (!fs3.existsSync(entry)) throw new Error("Storage runtime is missing; run pnpm build:translate");
+  if (!fs4.existsSync(entry)) throw new Error("Storage runtime is missing; run pnpm build:translate");
   const child = spawn(process.execPath, [entry], {
     detached: true,
     stdio: "ignore",
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
-      CHAYA_ROOT: typeof ROOT_PATH === "string" && ROOT_PATH && fs3.existsSync(path2.join(ROOT_PATH, "native/bin")) ? ROOT_PATH : process.cwd(),
-      CHAYA_DATA_DIR: typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path2.join(process.cwd(), "data")
+      CHAYA_ROOT: typeof ROOT_PATH === "string" && ROOT_PATH && fs4.existsSync(path3.join(ROOT_PATH, "native/bin")) ? ROOT_PATH : process.cwd(),
+      CHAYA_DATA_DIR: typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path3.join(process.cwd(), "data")
     }
   });
   let spawnError;
@@ -3951,33 +4191,54 @@ function ensureStorageDaemon() {
   throw new Error("Storage daemon did not become ready");
 }
 function storageCall(method, args = []) {
-  const meta = ensureStorageDaemon();
-  if (!worker) {
-    const entry = resolveNativeBin("chaya-storage-client.mjs");
-    worker = Reflect.construct(Worker, [entry]);
-    worker.on("error", () => {
-      worker = void 0;
-    });
-    worker.unref();
+  const timing = startOperation("storage", "storage.roundtrip", { method }, { start: false });
+  let readyMs = 0;
+  let waitMs = 0;
+  let decodeMs = 0;
+  let waiting = 0;
+  let remote;
+  try {
+    const meta = ensureStorageDaemon();
+    if (!worker) {
+      const entry = resolveNativeBin("chaya-storage-client.mjs");
+      worker = Reflect.construct(Worker, [entry]);
+      worker.on("error", () => {
+        worker = void 0;
+      });
+      worker.unref();
+    }
+    const shared = responseBuffer ??= new SharedArrayBuffer(16 * 1024 * 1024);
+    const signal = new Int32Array(shared, 0, 2);
+    Atomics.store(signal, 0, 0);
+    Atomics.store(signal, 1, 0);
+    readyMs = timing.elapsedMs();
+    waiting = performance.now();
+    worker.postMessage({ port: meta.port, token: meta.authToken, body: { method, args, requestId: timing.id, sentAt: Date.now() }, shared });
+    if (Atomics.wait(signal, 0, 0, 125e3) === "timed-out") {
+      responseBuffer = void 0;
+      throw new Error("Storage request timed out; retry with the same mutation key");
+    }
+    waitMs = Math.round((performance.now() - waiting) * 10) / 10;
+    const decoding = performance.now();
+    const result = JSON.parse(Buffer.from(shared, 8, Atomics.load(signal, 1)).toString("utf8"));
+    remote = result.timing;
+    decodeMs = Math.round((performance.now() - decoding) * 10) / 10;
+    if (result.error) throw new Error(result.error);
+    const value = result.value;
+    const restored = value?.storageMap ? new Map(value.storageMap) : value;
+    decodeMs = Math.round((performance.now() - decoding) * 10) / 10;
+    timing.end("completed", { readyMs, waitMs, decodeMs, responseBytes: Atomics.load(signal, 1), ...result.timing });
+    return restored;
+  } catch (error) {
+    if (waiting && !waitMs) waitMs = Math.round((performance.now() - waiting) * 10) / 10;
+    timing.fail(error, { readyMs, waitMs, decodeMs, ...remote });
+    throw error;
   }
-  const shared = responseBuffer ??= new SharedArrayBuffer(16 * 1024 * 1024);
-  const signal = new Int32Array(shared, 0, 2);
-  Atomics.store(signal, 0, 0);
-  Atomics.store(signal, 1, 0);
-  worker.postMessage({ port: meta.port, token: meta.authToken, body: { method, args }, shared });
-  if (Atomics.wait(signal, 0, 0, 125e3) === "timed-out") {
-    responseBuffer = void 0;
-    throw new Error("Storage request timed out; retry with the same mutation key");
-  }
-  const result = JSON.parse(Buffer.from(shared, 8, Atomics.load(signal, 1)).toString("utf8"));
-  if (result.error) throw new Error(result.error);
-  const value = result.value;
-  return value?.storageMap ? new Map(value.storageMap) : value;
 }
 
 // services/translate/game-cache-context.ts
 import { createHash } from "node:crypto";
-import fs6 from "node:fs";
+import fs7 from "node:fs";
 
 // lib/translate/cache-row.ts
 function parseCacheRow(value) {
@@ -4125,11 +4386,11 @@ function lineCount(text2) {
 }
 
 // services/translate/game-records.ts
-import fs5 from "node:fs";
+import fs6 from "node:fs";
 
 // lib/game/content-files.ts
-import fs4 from "node:fs";
-import path4 from "node:path";
+import fs5 from "node:fs";
+import path5 from "node:path";
 
 // lib/game/content-paths.ts
 var GAME_CONTENT_DIR = CONTENT_FILE_PREFIX;
@@ -4173,7 +4434,7 @@ function gameContentRelPath(kind) {
 }
 
 // services/storage/game-files.ts
-import path3 from "node:path";
+import path4 from "node:path";
 var ownerDirectories = /* @__PURE__ */ new Map();
 var mountedDirectories = /* @__PURE__ */ new Map();
 var ownerWriters = /* @__PURE__ */ new Map();
@@ -4184,7 +4445,7 @@ function appendPublicCacheFile(file, rows) {
   return true;
 }
 function publicGameFiles(contentRoot) {
-  const key2 = path3.resolve(contentRoot);
+  const key2 = path4.resolve(contentRoot);
   const local = ownerDirectories.get(key2) ?? mountedDirectories.get(key2);
   if (local) return local;
   if (process.env.CHAYA_STORAGE_OWNER === "1") {
@@ -4197,7 +4458,7 @@ function publicGameFiles(contentRoot) {
   return remote;
 }
 function publicGameFile(contentRoot, kind) {
-  return path3.join(publicGameFiles(contentRoot).directory, GAME_CONTENT_RELS[kind]);
+  return path4.join(publicGameFiles(contentRoot).directory, GAME_CONTENT_RELS[kind]);
 }
 
 // lib/game/content-files.ts
@@ -4214,10 +4475,10 @@ var STORAGE_DOCUMENT_KINDS = /* @__PURE__ */ new Set([
 var registryCache = null;
 function storageDirectoryRegistry() {
   if (typeof DATA_DIR !== "string" || !DATA_DIR) return null;
-  const file = path4.join(DATA_DIR, "runtime", "game-directories.json");
+  const file = path5.join(DATA_DIR, "runtime", "game-directories.json");
   let mtimeMs = 0;
   try {
-    mtimeMs = fs4.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0;
+    mtimeMs = fs5.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0;
   } catch {
     mtimeMs = 0;
   }
@@ -4228,12 +4489,12 @@ function storageDirectoryRegistry() {
   if (registryCache && registryCache.file === file && registryCache.mtimeMs === mtimeMs) return registryCache;
   const byRoot = /* @__PURE__ */ new Map();
   try {
-    const raw = JSON.parse(fs4.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs5.readFileSync(file, "utf8"));
     if (raw && typeof raw === "object" && !Array.isArray(raw)) {
       for (const [root, state] of Object.entries(raw)) {
         if (!state || typeof state !== "object") continue;
         const directory = state.directory;
-        if (typeof directory === "string" && directory) byRoot.set(path4.resolve(root), path4.resolve(directory));
+        if (typeof directory === "string" && directory) byRoot.set(path5.resolve(root), path5.resolve(directory));
       }
     }
   } catch {
@@ -4244,14 +4505,14 @@ function storageDirectoryRegistry() {
 function storageGameDirectory(contentRoot) {
   const registry = storageDirectoryRegistry();
   if (!registry) return null;
-  const key2 = path4.resolve(contentRoot);
+  const key2 = path5.resolve(contentRoot);
   const direct = registry.byRoot.get(key2);
   if (direct) return direct;
   try {
-    const real2 = fs4.realpathSync(contentRoot);
+    const real2 = fs5.realpathSync(contentRoot);
     for (const [root, directory] of registry.byRoot) {
       try {
-        if (fs4.realpathSync(root) === real2) return directory;
+        if (fs5.realpathSync(root) === real2) return directory;
       } catch {
       }
     }
@@ -4261,48 +4522,48 @@ function storageGameDirectory(contentRoot) {
 }
 function gameContentPath(contentRoot, kind) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) return publicGameFile(contentRoot, kind);
-  return path4.join(path4.resolve(contentRoot), gameContentRelPath(kind));
+  return path5.join(path5.resolve(contentRoot), gameContentRelPath(kind));
 }
 function gameContentCandidatePaths(contentRoot, kind, opts) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) return [publicGameFile(contentRoot, kind)];
-  const root = path4.resolve(contentRoot);
-  const dirs = opts?.alsoParent ? [root, path4.dirname(root)] : [root];
+  const root = path5.resolve(contentRoot);
+  const dirs = opts?.alsoParent ? [root, path5.dirname(root)] : [root];
   const out = [];
   for (const dir of dirs) {
-    out.push(path4.join(dir, gameContentRelPath(kind)));
+    out.push(path5.join(dir, gameContentRelPath(kind)));
     for (const name2 of LEGACY_FLAT_FILES[kind]) {
-      out.push(path4.join(dir, name2));
+      out.push(path5.join(dir, name2));
     }
   }
   return out;
 }
 function gameContentReadPath(contentRoot, kind, opts) {
-  return gameContentCandidatePaths(contentRoot, kind, opts).find((p) => fs4.existsSync(p)) ?? null;
+  return gameContentCandidatePaths(contentRoot, kind, opts).find((p) => fs5.existsSync(p)) ?? null;
 }
 function localGameContentFile(contentRoot, kind) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) {
     const directory = storageGameDirectory(contentRoot);
     if (directory) {
-      const canonical = path4.join(directory, GAME_CONTENT_RELS[kind]);
-      if (fs4.existsSync(canonical)) return canonical;
+      const canonical = path5.join(directory, GAME_CONTENT_RELS[kind]);
+      if (fs5.existsSync(canonical)) return canonical;
     }
   }
-  const roots = [path4.resolve(contentRoot)];
-  const parent = path4.dirname(roots[0]);
+  const roots = [path5.resolve(contentRoot)];
+  const parent = path5.dirname(roots[0]);
   if (parent !== roots[0]) roots.push(parent);
   for (const root of roots) {
-    const primary = path4.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind]);
-    if (fs4.existsSync(primary)) return primary;
+    const primary = path5.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind]);
+    if (fs5.existsSync(primary)) return primary;
     for (const name2 of LEGACY_FLAT_FILES[kind]) {
-      const candidate = path4.join(root, name2);
-      if (fs4.existsSync(candidate)) return candidate;
+      const candidate = path5.join(root, name2);
+      if (fs5.existsSync(candidate)) return candidate;
     }
   }
   return null;
 }
 function ensureGameContentDir(contentRoot, kind) {
   const file = gameContentPath(contentRoot, kind);
-  fs4.mkdirSync(path4.dirname(file), { recursive: true });
+  fs5.mkdirSync(path5.dirname(file), { recursive: true });
   return file;
 }
 
@@ -4314,7 +4575,7 @@ function gameTranslationFiles(contentRoot, opts) {
   const stamp = JSON.stringify(
     [seed, cache, opts?.localOnly ? 1 : 0].map((file) => {
       if (typeof file === "number") return file;
-      const stat = file ? fs5.statSync(file, { throwIfNoEntry: false }) : void 0;
+      const stat = file ? fs6.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   );
@@ -4328,7 +4589,7 @@ function loadGameTranslationRecords(contentRoot, current, opts) {
     if (seed) {
       let data;
       try {
-        data = JSON.parse(fs5.readFileSync(seed, "utf8"));
+        data = JSON.parse(fs6.readFileSync(seed, "utf8"));
       } catch {
         data = null;
       }
@@ -4337,7 +4598,7 @@ function loadGameTranslationRecords(contentRoot, current, opts) {
       }
     }
     if (cache)
-      for (const line of fs5.readFileSync(cache, "utf8").split("\n")) {
+      for (const line of fs6.readFileSync(cache, "utf8").split("\n")) {
         if (!line.trim()) continue;
         try {
           const row = parseCacheRow(JSON.parse(line));
@@ -4391,8 +4652,8 @@ function buildContext(contentRoot) {
   const records2 = loadGameTranslationRecords(contentRoot, () => false);
   const blocked = /* @__PURE__ */ new Set();
   const file = gameTranslationFiles(contentRoot).cache;
-  if (file && fs6.existsSync(file))
-    for (const line of fs6.readFileSync(file, "utf8").split("\n")) {
+  if (file && fs7.existsSync(file))
+    for (const line of fs7.readFileSync(file, "utf8").split("\n")) {
       if (!line.trim()) continue;
       try {
         const row = parseCacheRow(JSON.parse(line));
@@ -4421,24 +4682,24 @@ function buildContext(contentRoot) {
 }
 function getGameCacheContext(contentRoot) {
   const { stamp } = gameTranslationFiles(contentRoot);
-  let context = contexts.get(contentRoot);
-  if (context?.stamp !== stamp) {
-    context = { ...buildContext(contentRoot), stamp };
+  let context2 = contexts.get(contentRoot);
+  if (context2?.stamp !== stamp) {
+    context2 = { ...buildContext(contentRoot), stamp };
     if (contexts.size >= 8 && !contexts.has(contentRoot)) contexts.delete(contexts.keys().next().value);
-    contexts.set(contentRoot, context);
+    contexts.set(contentRoot, context2);
   }
-  return context;
+  return context2;
 }
 function noteGameSharedBackfill(contentRoot, previousStamp) {
-  const context = contexts.get(contentRoot);
-  if (!context) return true;
-  if (context?.stamp !== previousStamp) return false;
+  const context2 = contexts.get(contentRoot);
+  if (!context2) return true;
+  if (context2?.stamp !== previousStamp) return false;
   const stamp = gameTranslationFiles(contentRoot).stamp;
   const before = JSON.parse(previousStamp);
   const after = JSON.parse(stamp);
   if (JSON.stringify(before[0]) !== JSON.stringify(after[0])) return false;
   if (before[1][0] != null && before[1][0] !== after[1][0]) return false;
-  context.stamp = stamp;
+  context2.stamp = stamp;
   return true;
 }
 
@@ -4522,16 +4783,16 @@ function lookupParts(get, src, map) {
 }
 
 // services/translate/game-cache-plan.ts
-function planGameCache(src, pair, index2, context) {
-  if (context.blocked(src)) return { plan: { ...createSentenceResolver([]).plan(src), corpusVersion: index2.version() }, records: [] };
+function planGameCache(src, pair, index2, context2) {
+  if (context2.blocked(src)) return { plan: { ...createSentenceResolver([]).plan(src), corpusVersion: index2.version() }, records: [] };
   let records2 = [];
-  let plan = index2.plan(src, pair, context.resolver.select(src));
+  let plan = index2.plan(src, pair, context2.resolver.select(src));
   if (!plan.limited && plan.status !== "full") {
     let hit = null;
     if (numericLabelFamily(src)) {
       const rows = index2.numericRecords(pair, src);
       if (!rows.limited) {
-        const examples = [...rows, ...context.numericRecords(src)];
+        const examples = [...rows, ...context2.numericRecords(src)];
         hit = createNumericLabelIndex(examples).resolve(src);
         if (hit != null) {
           const distinct = new Map(examples.map((record) => [record.src.match(/[0-9]+$/)?.[0], record]));
@@ -4542,7 +4803,7 @@ function planGameCache(src, pair, index2, context) {
     if (hit == null) {
       const used = /* @__PURE__ */ new Map();
       hit = lookupCachedTranslation((key2) => {
-        if (context.lookup[key2] != null) return context.lookup[key2];
+        if (context2.lookup[key2] != null) return context2.lookup[key2];
         const record = index2.authority(key2, pair);
         if (!record || record.src !== key2 && record.engine !== "manual") return null;
         used.set(record.id, record);
@@ -4974,49 +5235,49 @@ function isNsfwCacheRow(src, engine) {
 }
 
 // services/translate/shared-cache/backfill.ts
-import fs7 from "node:fs";
+import fs8 from "node:fs";
 
 // lib/translate/cache-file-lock.ts
-function lockCacheFile(fs20, file) {
+function lockCacheFile(fs21, file) {
   const name2 = `${file}.lock`;
   let fd;
   try {
-    fd = fs20.openSync(name2, "wx");
+    fd = fs21.openSync(name2, "wx");
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
     let stale = false;
     try {
-      const pid = Number(fs20.readFileSync(name2, "utf8"));
+      const pid = Number(fs21.readFileSync(name2, "utf8"));
       if (Number.isInteger(pid) && pid > 0) {
         try {
           process.kill(pid, 0);
         } catch (e) {
           stale = e.code === "ESRCH";
         }
-      } else stale = Date.now() - fs20.statSync(name2).mtimeMs > 3e4;
+      } else stale = Date.now() - fs21.statSync(name2).mtimeMs > 3e4;
     } catch {
     }
     if (!stale) throw new Error("Translation cache is being written, please try again later");
-    fs20.unlinkSync(name2);
-    fd = fs20.openSync(name2, "wx");
+    fs21.unlinkSync(name2);
+    fd = fs21.openSync(name2, "wx");
   }
   try {
-    fs20.writeFileSync(fd, String(process.pid));
+    fs21.writeFileSync(fd, String(process.pid));
   } catch (e) {
-    fs20.closeSync(fd);
-    fs20.unlinkSync(name2);
+    fs21.closeSync(fd);
+    fs21.unlinkSync(name2);
     throw e;
   }
   return () => {
-    fs20.closeSync(fd);
-    fs20.unlinkSync(name2);
+    fs21.closeSync(fd);
+    fs21.unlinkSync(name2);
   };
 }
-function appendCacheLines(fs20, file, lines) {
+function appendCacheLines(fs21, file, lines) {
   if (!lines.length) return;
   let text2 = "";
   try {
-    text2 = fs20.readFileSync(file, "utf8");
+    text2 = fs21.readFileSync(file, "utf8");
   } catch (e) {
     if (e.code !== "ENOENT") throw e;
   }
@@ -5024,17 +5285,17 @@ function appendCacheLines(fs20, file, lines) {
     const end = text2.lastIndexOf("\n") + 1;
     try {
       JSON.parse(text2.slice(end));
-      fs20.appendFileSync(file, "\n");
+      fs21.appendFileSync(file, "\n");
     } catch {
-      fs20.truncateSync(file, Buffer.byteLength(text2.slice(0, end)));
+      fs21.truncateSync(file, Buffer.byteLength(text2.slice(0, end)));
     }
   }
-  fs20.appendFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
-  const fd = fs20.openSync(file, "r+");
+  fs21.appendFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+  const fd = fs21.openSync(file, "r+");
   try {
-    fs20.fsyncSync(fd);
+    fs21.fsyncSync(fd);
   } finally {
-    fs20.closeSync(fd);
+    fs21.closeSync(fd);
   }
 }
 
@@ -5055,7 +5316,6 @@ function createGameProjections(client, index2, database) {
         ON CONFLICT(root,src,src_lang,tgt_lang) DO UPDATE SET signature=''`);
       for (const { src, pair } of sources) {
         if (!src || pair.to !== "zh") continue;
-        if (index2.record(src, pair)) continue;
         insert.run(root, src, pair.from, pair.to);
       }
     },
@@ -5063,16 +5323,19 @@ function createGameProjections(client, index2, database) {
       if (!client.prepare("SELECT 1 FROM game_projections WHERE root=? LIMIT 1").get(root)) return false;
       return Boolean(client.prepare("SELECT 1 FROM game_projections WHERE root=? AND signature<>? LIMIT 1").get(root, signature(root)));
     },
-    collect(root, rows) {
-      const context = getGameCacheContext(root);
+    collect(root, rows, budgetMs = Infinity) {
+      const started = performance.now();
+      const context2 = getGameCacheContext(root);
       const nextSignature = signature(root);
-      const pending = client.prepare("SELECT * FROM game_projections WHERE root=? AND signature<>?").all(root, nextSignature);
+      const pending = client.prepare("SELECT * FROM game_projections WHERE root=? AND signature<>? ORDER BY revision,src,src_lang,tgt_lang").all(root, nextSignature);
       const updateProjection = client.prepare("UPDATE game_projections SET signature=?,revision=? WHERE root=? AND src=? AND src_lang=? AND tgt_lang=?");
       const events = [];
       const acknowledge = [];
       for (const entry of pending) {
+        if (acknowledge.length && performance.now() - started >= budgetMs) break;
         const pair = { from: entry.src_lang, to: entry.tgt_lang };
-        const { plan } = planGameCache(entry.src, pair, index2, context);
+        const exact = !context2.blocked(entry.src) && context2.lookup[entry.src] == null ? index2.record(entry.src, pair) : null;
+        const plan = exact ? { limited: false, status: "full", zh: exact.zh } : planGameCache(entry.src, pair, index2, context2).plan;
         const zh = !plan.limited && plan.status === "full" ? plan.zh : null;
         const old = rows.get(entry.src);
         const id = createHash2("sha256").update(JSON.stringify([entry.src, pair])).digest("hex");
@@ -5091,7 +5354,7 @@ function createGameProjections(client, index2, database) {
           updateProjection.run(nextSignature, revision, root, entry.src, entry.src_lang, entry.tgt_lang);
         });
       }
-      return { events, acknowledge };
+      return { events, acknowledge, pending: acknowledge.length < pending.length };
     }
   };
 }
@@ -5099,13 +5362,13 @@ function createGameProjections(client, index2, database) {
 // services/translate/shared-cache/backfill.ts
 var fileSnapshots = /* @__PURE__ */ new Map();
 function fileStamp(file) {
-  const stat = fs7.statSync(file, { throwIfNoEntry: false });
+  const stat = fs8.statSync(file, { throwIfNoEntry: false });
   return JSON.stringify([stat?.ino, stat?.size, stat?.mtimeMs, stat?.ctimeMs]);
 }
 function readBackfillSnapshot(file) {
   const stamp = fileStamp(file);
   const rows = /* @__PURE__ */ new Map(), seen = /* @__PURE__ */ new Set();
-  for (const line of (fs7.existsSync(file) ? fs7.readFileSync(file, "utf8") : "").split("\n")) {
+  for (const line of (fs8.existsSync(file) ? fs8.readFileSync(file, "utf8") : "").split("\n")) {
     try {
       const row = parseCacheRow(JSON.parse(line));
       if (row) {
@@ -5148,22 +5411,22 @@ function ownedSharedAppend(file, before, events) {
 }
 function appendCacheEvents(file, events) {
   if (appendPublicCacheFile(file, events)) return;
-  appendCacheLines(fs7, file, events);
+  appendCacheLines(fs8, file, events);
 }
 function createGameBackfill(client, index2, database) {
   const projections = createGameProjections(client, index2, database);
   client.exec(`CREATE TABLE IF NOT EXISTS game_backfills (root TEXT NOT NULL,src TEXT NOT NULL,record_id INTEGER NOT NULL,revision INTEGER NOT NULL,PRIMARY KEY(root,src));
     CREATE TABLE IF NOT EXISTS game_backfill_tasks(id INTEGER PRIMARY KEY AUTOINCREMENT,root TEXT NOT NULL,src TEXT NOT NULL,record_id INTEGER NOT NULL,revision INTEGER NOT NULL);`);
-  const joined = "SELECT r.src,t.zh,t.engine,r.revision FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang WHERE r.id=?";
-  function rowMeta(recordId, revision) {
-    const alignment = client.prepare("SELECT groups_json FROM alignment_groups WHERE record_id=? AND revision=?").get(recordId, revision);
-    const newlines = client.prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?").get(recordId, revision);
-    const structure = client.prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?").get(recordId, revision);
-    return {
-      ...structure ? { structure: JSON.parse(structure.annotations_json) } : {},
-      ...alignment ? { alignments: JSON.parse(alignment.groups_json) } : {},
-      ...newlines ? { newlines: JSON.parse(newlines.annotations_json) } : {}
-    };
+  function selected(src, recordId) {
+    const pair = client.prepare("SELECT src_lang,tgt_lang FROM translation_records WHERE id=?").get(recordId);
+    return index2.record(src, pair ? { from: pair.src_lang, to: pair.tgt_lang } : resolveCacheLangPair({ src, to: "zh" }));
+  }
+  const staleLink = `NOT EXISTS (
+    SELECT 1 FROM translation_records r JOIN selected_translations t ON t.id=r.translation_id
+    WHERE r.id=b.record_id AND r.revision=b.revision
+  )`;
+  function meta(record) {
+    return { alignments: record.alignments, newlines: record.newlines, structure: record.structure };
   }
   return {
     roots() {
@@ -5175,7 +5438,6 @@ function createGameBackfill(client, index2, database) {
       client.exec("BEGIN IMMEDIATE");
       try {
         for (const r of records2) {
-          if (!index2.current([r])) continue;
           client.prepare(
             `INSERT INTO game_backfill_tasks(root,src,record_id,revision)
                SELECT ?,?,?,? WHERE NOT EXISTS (
@@ -5193,36 +5455,32 @@ function createGameBackfill(client, index2, database) {
         throw e;
       }
     },
-    flush(root) {
+    flush(root, opts) {
       const pending = client.prepare("SELECT 1 FROM game_backfill_tasks WHERE root=? LIMIT 1").get(root);
-      const stale = client.prepare(
-        `SELECT 1 FROM game_backfills b WHERE b.root=? AND NOT EXISTS (
-             SELECT 1 FROM translation_records r WHERE r.id=b.record_id AND r.revision=b.revision
-           ) LIMIT 1`
-      ).get(root);
+      const stale = client.prepare(`SELECT 1 FROM game_backfills b WHERE b.root=? AND ${staleLink} LIMIT 1`).get(root);
       if (!pending && !stale && !projections.pending(root)) return { sharedOnly: false };
       const file = ensureGameContentDir(root, "cacheNdjson");
-      const release = lockCacheFile(fs7, file);
+      const release = lockCacheFile(fs8, file);
       try {
         const filesBefore = gameTranslationFiles(root);
         const previousStamp = filesBefore.stamp;
         const snapshot = backfillSnapshot(file);
+        const context2 = getGameCacheContext(root);
         const rows = new Map(snapshot.rows), seen = new Set(snapshot.seen);
         const events = [];
         const acknowledgements = [];
         const tasks = client.prepare("SELECT * FROM game_backfill_tasks WHERE root=? ORDER BY id").all(root);
         for (const task of tasks) {
-          const event = `${database}:fill:${task.record_id}:${task.revision}`;
-          const record = client.prepare(joined).get(task.record_id);
-          if (!seen.has(event) && record?.revision === task.revision) {
-            const meta = rowMeta(task.record_id, task.revision);
+          const record = selected(task.src, task.record_id);
+          const event = record ? `${database}:fill:${record.id}:${record.revision}` : "";
+          if (record && !context2.blocked(task.src) && context2.lookup[task.src] == null && !seen.has(event)) {
             const value = {
               s: task.src,
               t: record.zh,
-              engine: record.engine,
-              origin: { id: String(task.record_id), revision: task.revision, database },
+              engine: record.engine ?? void 0,
+              origin: { id: record.id, revision: record.revision, database },
               event,
-              ...meta
+              ...meta(record)
             };
             const old = rows.get(task.src);
             if (!old || old.origin) {
@@ -5232,15 +5490,11 @@ function createGameBackfill(client, index2, database) {
             }
           }
           acknowledgements.push(() => {
-            client.prepare("INSERT OR REPLACE INTO game_backfills VALUES(?,?,?,?)").run(root, task.src, task.record_id, task.revision);
+            if (record) client.prepare("INSERT OR REPLACE INTO game_backfills VALUES(?,?,?,?)").run(root, task.src, record.id, record.revision);
             client.prepare("DELETE FROM game_backfill_tasks WHERE id=?").run(task.id);
           });
         }
-        const links = client.prepare(
-          `SELECT b.* FROM game_backfills b WHERE b.root=? AND NOT EXISTS (
-               SELECT 1 FROM translation_records r WHERE r.id=b.record_id AND r.revision=b.revision
-             )`
-        ).all(root);
+        const links = client.prepare(`SELECT b.* FROM game_backfills b WHERE b.root=? AND ${staleLink}`).all(root);
         for (const link of links) {
           const old = rows.get(link.src);
           if (!old?.origin || old.origin.database !== database || old.origin.id !== String(link.record_id)) {
@@ -5249,17 +5503,16 @@ function createGameBackfill(client, index2, database) {
             });
             continue;
           }
-          const record = client.prepare(joined).get(link.record_id);
-          if (record?.revision === old.origin.revision) continue;
+          const record = selected(link.src, link.record_id);
+          if (record?.id === old.origin.id && record.revision === old.origin.revision) continue;
           const revision = record?.revision || link.revision + 1;
-          const meta = record ? rowMeta(link.record_id, record.revision) : {};
           const value = {
             s: link.src,
             t: record?.zh ?? null,
-            engine: record?.engine,
-            origin: { id: String(link.record_id), revision, database },
-            event: `${database}:refresh:${link.record_id}:${record?.revision || "deleted"}`,
-            ...meta
+            engine: record?.engine ?? void 0,
+            origin: { id: record?.id || String(link.record_id), revision, database },
+            event: `${database}:refresh:${link.record_id}:${link.revision}:${record?.id || "deleted"}:${revision}`,
+            ...record ? meta(record) : {}
           };
           if (!seen.has(value.event)) {
             events.push(value);
@@ -5267,22 +5520,29 @@ function createGameBackfill(client, index2, database) {
             seen.add(value.event);
           }
           acknowledgements.push(() => {
-            if (record) client.prepare("UPDATE game_backfills SET revision=? WHERE root=? AND src=? AND record_id=?").run(record.revision, root, link.src, link.record_id);
+            if (record) client.prepare("INSERT OR REPLACE INTO game_backfills VALUES(?,?,?,?)").run(root, link.src, record.id, record.revision);
             else client.prepare("DELETE FROM game_backfills WHERE root=? AND src=? AND record_id=?").run(root, link.src, link.record_id);
           });
         }
-        const projected = projections.collect(root, rows);
+        const projected = projections.collect(root, rows, opts?.projectionBudgetMs);
         events.push(...projected.events);
         acknowledgements.push(...projected.acknowledge);
         for (let offset = 0; offset < events.length; offset += 500) appendCacheEvents(file, events.slice(offset, offset + 500));
-        for (const acknowledge of acknowledgements) acknowledge();
-        client.exec(
-          "DELETE FROM translation_outbox WHERE NOT EXISTS (SELECT 1 FROM game_backfills l WHERE l.record_id=translation_outbox.record_id AND l.revision<translation_outbox.revision)"
-        );
+        client.exec("BEGIN IMMEDIATE");
+        try {
+          for (const acknowledge of acknowledgements) acknowledge();
+          client.exec(
+            "DELETE FROM translation_outbox WHERE NOT EXISTS (SELECT 1 FROM game_backfills l WHERE l.record_id=translation_outbox.record_id AND l.revision<translation_outbox.revision)"
+          );
+          client.exec("COMMIT");
+        } catch (error) {
+          client.exec("ROLLBACK");
+          throw error;
+        }
         const filesAfter = gameTranslationFiles(root);
         const sameSeedAndFallback = JSON.stringify(filesBefore.seed) === JSON.stringify(filesAfter.seed) && (filesBefore.cache == null || filesBefore.cache === filesAfter.cache);
         const sharedOnly = sameSeedAndFallback && ownedSharedAppend(file, snapshot, events) && noteGameSharedBackfill(root, previousStamp);
-        return { sharedOnly };
+        return { sharedOnly, pending: projected.pending };
       } finally {
         release();
       }
@@ -5303,7 +5563,7 @@ function uniqueSpan(text2, fragment, newlines, structure) {
   return hits.length === 1 ? hits[0] : null;
 }
 function confirmRecordSegments(index2, parent, pairs, pair, opts) {
-  const record = index2.record(parent.src, pair);
+  const record = opts?.candidateId ? index2.inserted(opts.candidateId) : index2.record(parent.src, pair);
   const diagnostics = [];
   const stats = {
     inserted: 0,
@@ -5316,7 +5576,7 @@ function confirmRecordSegments(index2, parent, pairs, pair, opts) {
     dryRun: Boolean(opts?.dryRun),
     diagnostics
   };
-  if (!record || record.zh !== parent.zh) return { ...stats, stale: true };
+  if (!record || record.src !== parent.src || record.from !== pair.from || record.to !== pair.to || record.zh !== parent.zh) return { ...stats, stale: true };
   if (opts?.expectedRevision !== void 0 && record.revision !== opts.expectedRevision) return { ...stats, stale: true };
   if (opts?.newlines && !validateNewlineAnnotations(record.src, opts.newlines) || opts?.structure && !validRecordStructure(opts.structure)) {
     return {
@@ -5373,14 +5633,14 @@ function confirmRecordSegments(index2, parent, pairs, pair, opts) {
   if (opts?.dryRun) return stats;
   if (stats.conflict > 0 || stats.skipped > 0) return { ...stats, inserted: 0 };
   if (!stats.inserted && !opts?.newlines && !opts?.structure) return stats;
-  const ok = index2.setAlignment(record.src, pair, groups, record.revision, { newlines: opts?.newlines, structure: opts?.structure });
+  const ok = index2.setAlignment(record.src, pair, groups, record.revision, { newlines: opts?.newlines, structure: opts?.structure, candidateId: record.candidateId });
   if (!ok) return { ...stats, inserted: 0, stale: true };
   return stats;
 }
 
 // services/translate/shared-cache/db.ts
-import fs9 from "node:fs";
-import path6 from "node:path";
+import fs10 from "node:fs";
+import path7 from "node:path";
 import { DatabaseSync as DatabaseSync4 } from "node:sqlite";
 
 // node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/count.js
@@ -8366,8 +8626,8 @@ function drizzle(...params) {
   const { connection, client, ...config } = params[0];
   if (client) return construct(client, config);
   if (typeof connection === "object") {
-    const { path: path14, ...options } = connection;
-    return construct(new DatabaseSync2(path14 ?? ":memory:", options), config);
+    const { path: path15, ...options } = connection;
+    return construct(new DatabaseSync2(path15 ?? ":memory:", options), config);
   }
   return construct(new DatabaseSync2(connection ?? ":memory:"), config);
 }
@@ -8378,9 +8638,84 @@ function drizzle(...params) {
   _drizzle.mock = mock;
 })(drizzle || (drizzle = {}));
 
+// services/translate/shared-cache/candidate-schema.ts
+function ensureCandidateSchema(client) {
+  const columns = client.prepare("PRAGMA table_info(translations)").all();
+  if (!columns.some((column) => column.name === "id")) {
+    client.exec("BEGIN IMMEDIATE");
+    try {
+      client.exec(`
+        DROP TRIGGER IF EXISTS translation_match_insert;
+        DROP TRIGGER IF EXISTS translation_match_update;
+        DROP TRIGGER IF EXISTS translation_match_delete;
+        DROP TRIGGER IF EXISTS match_record_insert;
+        DROP TRIGGER IF EXISTS match_record_update;
+        DROP TRIGGER IF EXISTS match_record_delete;
+        CREATE TABLE translation_candidates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          src TEXT NOT NULL, zh TEXT NOT NULL,
+          src_lang TEXT NOT NULL DEFAULT 'ja', tgt_lang TEXT NOT NULL DEFAULT 'zh',
+          engine TEXT, category TEXT, updated_at INTEGER NOT NULL,
+          hit_count INTEGER NOT NULL DEFAULT 0, nsfw INTEGER NOT NULL DEFAULT 0,
+          engine_rank INTEGER NOT NULL DEFAULT 1
+        );
+        INSERT INTO translation_candidates
+          SELECT rowid,src,zh,src_lang,tgt_lang,engine,category,updated_at,hit_count,nsfw,
+            CASE
+              WHEN engine='manual' THEN 4
+              WHEN engine='import' OR engine LIKE 'import:%' THEN 3
+              WHEN engine='live:optimize' OR engine LIKE 'live:optimize:%' OR engine LIKE 'live:agent%' THEN 2
+              WHEN engine='manual:optimize' THEN 0
+              ELSE 1
+            END
+          FROM translations;
+      `);
+      const records2 = client.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='translation_records'").get();
+      if (records2) {
+        const sequence = client.prepare("SELECT seq FROM sqlite_sequence WHERE name='translation_records'").get();
+        client.exec(`
+          CREATE TABLE candidate_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, src TEXT NOT NULL,
+            src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
+            translation_id INTEGER NOT NULL UNIQUE
+          );
+          INSERT INTO candidate_records
+            SELECT r.id,r.src,r.src_lang,r.tgt_lang,r.revision,t.id
+            FROM translation_records r JOIN translation_candidates t
+              ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang;
+          DROP TABLE translation_records;
+          ALTER TABLE candidate_records RENAME TO translation_records;
+        `);
+        if (sequence) client.prepare("UPDATE sqlite_sequence SET seq=MAX(seq,?) WHERE name='translation_records'").run(sequence.seq);
+      }
+      client.exec(`
+        DROP TABLE translations;
+        ALTER TABLE translation_candidates RENAME TO translations;
+        INSERT OR REPLACE INTO cache_meta(key,value) VALUES('translation_candidates_v1','1');
+      `);
+      client.exec("COMMIT");
+    } catch (error) {
+      client.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  client.exec(`
+    CREATE INDEX IF NOT EXISTS idx_translation_selection
+      ON translations(src,src_lang,tgt_lang,engine_rank DESC,updated_at DESC,id DESC);
+    CREATE VIEW IF NOT EXISTS selected_translations AS
+      SELECT t.* FROM translations t
+      WHERE t.id=(
+        SELECT candidate.id FROM translations candidate
+        WHERE candidate.src=t.src AND candidate.src_lang=t.src_lang AND candidate.tgt_lang=t.tgt_lang
+        ORDER BY candidate.engine_rank DESC,candidate.updated_at DESC,candidate.id DESC LIMIT 1
+      );
+  `);
+}
+
 // services/translate/shared-cache/match-index.ts
 var toRecord = (r) => ({
   id: String(r.id),
+  candidateId: r.translation_id,
   revision: r.revision,
   src: r.src,
   zh: r.zh,
@@ -8425,8 +8760,9 @@ function ensureMatchIndex(client) {
     CREATE TABLE IF NOT EXISTS translation_records (
       id INTEGER PRIMARY KEY AUTOINCREMENT, src TEXT NOT NULL,
       src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
-      UNIQUE(src, src_lang, tgt_lang)
+      translation_id INTEGER NOT NULL UNIQUE
     );
+    CREATE INDEX IF NOT EXISTS idx_translation_record_source ON translation_records(src,src_lang,tgt_lang);
     CREATE TABLE IF NOT EXISTS match_keys (
       record_id INTEGER NOT NULL, match_key TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'canonical', PRIMARY KEY(record_id,match_key,kind)
     );
@@ -8440,7 +8776,7 @@ function ensureMatchIndex(client) {
     CREATE TABLE IF NOT EXISTS translation_records (
       id INTEGER PRIMARY KEY AUTOINCREMENT, src TEXT NOT NULL,
       src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
-      UNIQUE(src, src_lang, tgt_lang)
+      translation_id INTEGER NOT NULL UNIQUE
     );
     CREATE TABLE IF NOT EXISTS match_keys (
       record_id INTEGER NOT NULL, match_key TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'canonical', PRIMARY KEY(record_id,match_key,kind)
@@ -8474,7 +8810,7 @@ function ensureMatchIndex(client) {
       INSERT INTO numeric_label_keys SELECT NEW.id,chaya_numeric_family(NEW.src),NEW.src_lang,NEW.tgt_lang WHERE chaya_numeric_family(NEW.src)<>'';
       INSERT INTO match_keys VALUES (NEW.id,chaya_sentence_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'canonical');
       INSERT OR IGNORE INTO match_keys VALUES (NEW.id,chaya_logic_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'logic');
-      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE src=NEW.src AND src_lang=NEW.src_lang AND tgt_lang=NEW.tgt_lang))) j;
+      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE id=NEW.translation_id))) j;
       INSERT INTO sentence_positions SELECT NEW.id,CAST(j.key AS INTEGER),json_extract(j.value,'$.key'),json_extract(j.value,'$.tone'),NEW.src_lang,NEW.tgt_lang FROM json_each(chaya_sentence_units(NEW.src)) AS j;
       UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
     END;
@@ -8485,7 +8821,7 @@ function ensureMatchIndex(client) {
       DELETE FROM match_keys WHERE record_id=NEW.id AND kind IN ('alias','logic');
       DELETE FROM sentence_positions WHERE record_id=NEW.id;
       INSERT OR IGNORE INTO match_keys VALUES (NEW.id,chaya_logic_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'logic');
-      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE src=NEW.src AND src_lang=NEW.src_lang AND tgt_lang=NEW.tgt_lang))) j;
+      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE id=NEW.translation_id))) j;
       INSERT INTO sentence_positions SELECT NEW.id,CAST(j.key AS INTEGER),json_extract(j.value,'$.key'),json_extract(j.value,'$.tone'),NEW.src_lang,NEW.tgt_lang FROM json_each(chaya_sentence_units(NEW.src)) AS j;
       INSERT INTO translation_outbox(record_id,revision,kind) VALUES (NEW.id,NEW.revision,'update');
       UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
@@ -8502,20 +8838,20 @@ function ensureMatchIndex(client) {
       UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
     END;
     CREATE TRIGGER IF NOT EXISTS translation_match_insert AFTER INSERT ON translations BEGIN
-      INSERT INTO translation_records(src,src_lang,tgt_lang) VALUES(NEW.src,NEW.src_lang,NEW.tgt_lang);
+      INSERT INTO translation_records(src,src_lang,tgt_lang,translation_id) VALUES(NEW.src,NEW.src_lang,NEW.tgt_lang,NEW.id);
     END;
     CREATE TRIGGER IF NOT EXISTS translation_match_update AFTER UPDATE OF zh,engine ON translations
       WHEN OLD.zh IS NOT NEW.zh OR OLD.engine IS NOT NEW.engine BEGIN
-      UPDATE translation_records SET revision=revision+1 WHERE src=NEW.src AND src_lang=NEW.src_lang AND tgt_lang=NEW.tgt_lang;
+      UPDATE translation_records SET revision=revision+1 WHERE translation_id=NEW.id;
     END;
     CREATE TRIGGER IF NOT EXISTS translation_match_delete AFTER DELETE ON translations BEGIN
-      DELETE FROM translation_records WHERE src=OLD.src AND src_lang=OLD.src_lang AND tgt_lang=OLD.tgt_lang;
+      DELETE FROM translation_records WHERE translation_id=OLD.id;
     END;
   `);
   if (!client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v1'").get()) {
     client.exec("BEGIN IMMEDIATE");
     try {
-      client.exec(`INSERT OR IGNORE INTO translation_records(src,src_lang,tgt_lang) SELECT src,src_lang,tgt_lang FROM translations;
+      client.exec(`INSERT OR IGNORE INTO translation_records(src,src_lang,tgt_lang,translation_id) SELECT src,src_lang,tgt_lang,id FROM translations;
         INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v1','1');`);
       client.exec("COMMIT");
     } catch (e) {
@@ -8538,7 +8874,7 @@ function rebuildSentenceIndexV10Rows(client, rows) {
   const delKeys = client.prepare("DELETE FROM match_keys WHERE record_id=?");
   const insKey = client.prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)");
   const insPos = client.prepare("INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)");
-  const zhOf = client.prepare("SELECT zh FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?");
+  const zhOf = client.prepare("SELECT zh FROM translations WHERE id=?");
   const structureOf = client.prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?");
   const nlOf = client.prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?");
   for (const row of rows) {
@@ -8553,7 +8889,7 @@ function rebuildSentenceIndexV10Rows(client, rows) {
     const canon = wholeSentenceKey(row.src);
     insKey.run(row.id, canon, row.src_lang, row.tgt_lang, "canonical");
     if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, "logic");
-    const zh = zhOf.get(row.src, row.src_lang, row.tgt_lang)?.zh ?? "";
+    const zh = zhOf.get(row.translation_id)?.zh ?? "";
     for (const alias of sentenceAliases(row.src, zh)) {
       insKey.run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, "alias");
     }
@@ -8564,7 +8900,7 @@ function rebuildSentenceIndexV10(client) {
   if (!needsSentenceIndexV10(client)) return;
   client.exec("BEGIN IMMEDIATE");
   try {
-    const rows = client.prepare("SELECT id, src, src_lang, tgt_lang, revision FROM translation_records").all();
+    const rows = client.prepare("SELECT id, translation_id, src, src_lang, tgt_lang, revision FROM translation_records").all();
     rebuildSentenceIndexV10Rows(client, rows);
     client.prepare("INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v10_exact_keys','1')").run();
     client.exec("COMMIT");
@@ -8575,7 +8911,7 @@ function rebuildSentenceIndexV10(client) {
 }
 async function rebuildSentenceIndexV10Async(client, yieldEvery = 80) {
   if (!needsSentenceIndexV10(client)) return;
-  const rows = client.prepare("SELECT id, src, src_lang, tgt_lang, revision FROM translation_records").all();
+  const rows = client.prepare("SELECT id, translation_id, src, src_lang, tgt_lang, revision FROM translation_records").all();
   client.exec("BEGIN IMMEDIATE");
   try {
     client.exec(
@@ -8585,7 +8921,7 @@ async function rebuildSentenceIndexV10Async(client, yieldEvery = 80) {
     const delKeys = client.prepare("DELETE FROM match_keys WHERE record_id=?");
     const insKey = client.prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)");
     const insPos = client.prepare("INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)");
-    const zhOf = client.prepare("SELECT zh FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?");
+    const zhOf = client.prepare("SELECT zh FROM translations WHERE id=?");
     const structureOf = client.prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?");
     const nlOf = client.prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?");
     for (let i = 0; i < rows.length; i++) {
@@ -8601,7 +8937,7 @@ async function rebuildSentenceIndexV10Async(client, yieldEvery = 80) {
       const canon = wholeSentenceKey(row.src);
       insKey.run(row.id, canon, row.src_lang, row.tgt_lang, "canonical");
       if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, "logic");
-      const zh = zhOf.get(row.src, row.src_lang, row.tgt_lang)?.zh ?? "";
+      const zh = zhOf.get(row.translation_id)?.zh ?? "";
       for (const alias of sentenceAliases(row.src, zh)) {
         insKey.run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, "alias");
       }
@@ -8632,7 +8968,8 @@ function createMatchIndex(client) {
     }
     return statement;
   }
-  const joined = "SELECT DISTINCT r.*,t.zh,t.engine,t.category FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang";
+  const rawJoined = "SELECT DISTINCT r.*,t.zh,t.engine,t.category FROM translation_records r JOIN translations t ON t.id=r.translation_id";
+  const joined = rawJoined.replace("JOIN translations t", "JOIN selected_translations t");
   function reindexWithNewlines(row, newlines, structure) {
     const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang };
     prepare("DELETE FROM sentence_positions WHERE record_id=?").run(row.id);
@@ -8658,6 +8995,10 @@ function createMatchIndex(client) {
     const structure = prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?").get(row.id, row.revision);
     if (structure) record2.structure = JSON.parse(structure.annotations_json);
     return record2;
+  }
+  function inserted(translationId) {
+    const row = prepare(rawJoined + " WHERE t.id=?").get(translationId);
+    return row ? attach(row) : null;
   }
   function record(src, pair) {
     const r = prepare(joined + " WHERE r.src=? AND r.src_lang=? AND r.tgt_lang=?").get(src, pair.from, pair.to);
@@ -8707,6 +9048,7 @@ function createMatchIndex(client) {
   }
   return {
     record,
+    inserted,
     equivalent,
     candidates: candidates2,
     numericRecords(pair, src) {
@@ -8720,7 +9062,7 @@ function createMatchIndex(client) {
     },
     version: () => String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value),
     current(records2) {
-      return records2.every((r) => Number(prepare("SELECT revision FROM translation_records WHERE id=?").get(r.id)?.revision) === r.revision);
+      return records2.every((r) => Number(prepare(joined + " WHERE r.id=?").get(r.id)?.revision) === r.revision);
     },
     plan(src, pair, local = [], opts) {
       client.exec("BEGIN");
@@ -8742,7 +9084,8 @@ function createMatchIndex(client) {
       }
     },
     setAlignment(src, pair, groups, expectedRevision, opts) {
-      const r = record(src, pair);
+      const r = opts?.candidateId ? inserted(opts.candidateId) : record(src, pair);
+      if (r && (r.src !== src || r.from !== pair.from || r.to !== pair.to)) return false;
       if (!r || expectedRevision !== void 0 && r.revision !== expectedRevision || groups.length > 1e3) return false;
       const structure = opts?.structure ?? r.structure;
       if (structure && !validRecordStructure(structure)) return false;
@@ -8761,7 +9104,7 @@ function createMatchIndex(client) {
         if (nextNewlines?.length) {
           prepare("INSERT OR REPLACE INTO newline_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(nextNewlines));
         }
-        const row = prepare(joined + " WHERE r.id=?").get(r.id);
+        const row = prepare(rawJoined + " WHERE r.id=?").get(r.id);
         if (structure) prepare("INSERT OR REPLACE INTO structure_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(structure));
         reindexWithNewlines(row, nextNewlines, structure);
         client.exec("COMMIT");
@@ -8772,11 +9115,18 @@ function createMatchIndex(client) {
       }
     },
     authority(src, pair, opts) {
-      const records2 = equivalent(src, pair);
+      const want = String(opts?.category || "").trim();
+      const records2 = prepare(
+        rawJoined + ` JOIN match_keys k ON k.record_id=r.id
+        WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical'
+          AND t.id=(SELECT c.id FROM translations c
+            WHERE c.src=t.src AND c.src_lang=t.src_lang AND c.tgt_lang=t.tgt_lang
+            ORDER BY c.engine_rank DESC,CASE WHEN c.category=? THEN 1 ELSE 0 END DESC,c.updated_at DESC,c.id DESC LIMIT 1)
+        ORDER BY t.updated_at DESC,t.id DESC LIMIT 501`
+      ).all(wholeSentenceKey(src), pair.from, pair.to, want).map(attach);
       if (!records2.length || records2.length > 500) return null;
       const rank = Math.max(...records2.map((r) => cacheEngineRank(r.engine)));
       let top = records2.filter((r) => cacheEngineRank(r.engine) === rank);
-      const want = String(opts?.category || "").trim();
       if (want) {
         const matched = top.filter((r) => r.category === want);
         if (matched.length) top = matched;
@@ -8788,8 +9138,8 @@ function createMatchIndex(client) {
 }
 
 // services/translate/shared-cache/migrate-bg.ts
-import fs8 from "node:fs";
-import path5 from "node:path";
+import fs9 from "node:fs";
+import path6 from "node:path";
 import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
 
 // services/jobs/single-flight.ts
@@ -8818,8 +9168,8 @@ function isSharedIdenticalPair(src, tgt) {
   return Boolean(a) && isIdenticalTranslation(a, b);
 }
 function runSharedCacheHeavyMigrateSync(dbPath) {
-  const resolved = path5.resolve(dbPath);
-  if (!fs8.existsSync(resolved)) return;
+  const resolved = path6.resolve(dbPath);
+  if (!fs9.existsSync(resolved)) return;
   const client = new DatabaseSync3(resolved);
   try {
     client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000");
@@ -8835,8 +9185,8 @@ function runSharedCacheHeavyMigrateSync(dbPath) {
   }
 }
 function scheduleSharedCacheHeavyMigrate(dbPath) {
-  const resolved = path5.resolve(dbPath);
-  if (!fs8.existsSync(resolved)) return;
+  const resolved = path6.resolve(dbPath);
+  if (!fs9.existsSync(resolved)) return;
   if (process.env.JEST_WORKER_ID) {
     runSharedCacheHeavyMigrateSync(resolved);
     return;
@@ -8868,14 +9218,14 @@ function scheduleSharedCacheHeavyMigrate(dbPath) {
   });
 }
 function scrubIdenticalSync(client) {
-  const rows = client.prepare("SELECT src, zh, src_lang, tgt_lang, engine FROM translations").all();
-  const del = client.prepare("DELETE FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?");
+  const rows = client.prepare("SELECT id, src, zh, src_lang, tgt_lang, engine FROM translations").all();
+  const del = client.prepare("DELETE FROM translations WHERE id=?");
   client.exec("BEGIN IMMEDIATE");
   try {
     for (const row of rows) {
       const engine = row.engine == null ? null : String(row.engine);
       if (engine === "skip:control" || engine === "skip:sensitive" || isSharedIdenticalPair(String(row.src), String(row.zh))) {
-        del.run(row.src, row.src_lang, row.tgt_lang);
+        del.run(row.id);
       }
     }
     client.exec("COMMIT");
@@ -8888,15 +9238,15 @@ function scrubIdenticalSync(client) {
   }
 }
 async function scrubIdenticalChunked(client) {
-  const rows = client.prepare("SELECT src, zh, src_lang, tgt_lang, engine FROM translations").all();
-  const del = client.prepare("DELETE FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?");
+  const rows = client.prepare("SELECT id, src, zh, src_lang, tgt_lang, engine FROM translations").all();
+  const del = client.prepare("DELETE FROM translations WHERE id=?");
   client.exec("BEGIN IMMEDIATE");
   try {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const engine = row.engine == null ? null : String(row.engine);
       if (engine === "skip:control" || engine === "skip:sensitive" || isSharedIdenticalPair(String(row.src), String(row.zh))) {
-        del.run(row.src, row.src_lang, row.tgt_lang);
+        del.run(row.id);
       }
       if (i % 200 === 199) {
         client.exec("COMMIT");
@@ -8915,24 +9265,22 @@ async function scrubIdenticalChunked(client) {
 }
 
 // services/translate/shared-cache/schema.ts
-var translations = sqliteTable(
-  "translations",
-  {
-    src: text("src").notNull(),
-    zh: text("zh").notNull(),
-    /** Source language of `src` (ja / en / zh / ko). */
-    srcLang: text("src_lang").notNull().default("ja"),
-    /** Target language of `zh` (ja / en / zh / ko). */
-    tgtLang: text("tgt_lang").notNull().default("zh"),
-    engine: text("engine"),
-    /** Optional extract/live text category (dialogue, item, …); imports may leave null. */
-    category: text("category"),
-    updatedAt: integer("updated_at").notNull(),
-    hitCount: integer("hit_count").notNull().default(0),
-    nsfw: integer("nsfw").notNull().default(0)
-  },
-  (table) => [primaryKey({ columns: [table.src, table.srcLang, table.tgtLang] })]
-);
+var translations = sqliteTable("translations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  src: text("src").notNull(),
+  zh: text("zh").notNull(),
+  /** Source language of `src` (ja / en / zh / ko). */
+  srcLang: text("src_lang").notNull().default("ja"),
+  /** Target language of `zh` (ja / en / zh / ko). */
+  tgtLang: text("tgt_lang").notNull().default("zh"),
+  engine: text("engine"),
+  /** Optional extract/live text category (dialogue, item, …); imports may leave null. */
+  category: text("category"),
+  updatedAt: integer("updated_at").notNull(),
+  hitCount: integer("hit_count").notNull().default(0),
+  nsfw: integer("nsfw").notNull().default(0),
+  engineRank: integer("engine_rank").notNull().default(1)
+});
 var cacheMeta = sqliteTable("cache_meta", {
   key: text("key").primaryKey().notNull(),
   value: text("value").notNull()
@@ -9126,6 +9474,7 @@ function ensureSchema(db, client) {
   if (!cols.some((c) => c.name === "category")) {
     db.run(sql`ALTER TABLE translations ADD COLUMN category TEXT`);
   }
+  ensureCandidateSchema(client);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_updated ON translations(updated_at)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_nsfw ON translations(nsfw)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_langs ON translations(src_lang, tgt_lang)`);
@@ -9144,8 +9493,8 @@ function ensureSchema(db, client) {
   db.insert(cacheMeta).values({ key: "nsfw_backfill", value: "1" }).onConflictDoUpdate({ target: cacheMeta.key, set: { value: "1" } }).run();
 }
 function openSharedCacheDb(dbPath = defaultSharedDbPath()) {
-  const resolved = path6.resolve(dbPath);
-  fs9.mkdirSync(path6.dirname(resolved), { recursive: true });
+  const resolved = path7.resolve(dbPath);
+  fs10.mkdirSync(path7.dirname(resolved), { recursive: true });
   const client = new DatabaseSync4(resolved);
   client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON");
   const db = drizzle({ client });
@@ -9160,6 +9509,10 @@ function writeCachePairs(client, index2, pairs, engine, opts, valid, nsfw) {
   const result = { accepted: [], records: [], rejected: [] };
   if (!pairs.length) return result;
   const category = normalizeCacheCategory(opts?.category) || null;
+  const insert = client.prepare(
+    `INSERT INTO translations(src,zh,src_lang,tgt_lang,engine,category,updated_at,hit_count,nsfw,engine_rank)
+      VALUES(?,?,?,?,?,?,?,0,?,?) RETURNING id`
+  );
   client.exec("BEGIN IMMEDIATE");
   try {
     for (const [src, zh] of pairs) {
@@ -9168,30 +9521,9 @@ function writeCachePairs(client, index2, pairs, engine, opts, valid, nsfw) {
         result.rejected.push({ src, reason: "invalid" });
         continue;
       }
-      const group = index2.equivalent(src, pair);
-      const rank = cacheEngineRank(engine);
-      const higher = group.filter((r) => cacheEngineRank(r.engine) > rank);
-      const same = group.filter((r) => r.src !== src && cacheEngineRank(r.engine) === rank && r.zh !== zh);
-      if (higher.length) {
-        result.rejected.push({ src, reason: "rank" });
-        continue;
-      }
-      if (same.length && !(engine === "manual" && group.some((r) => r.src === src)) || group.length > 500) {
-        result.rejected.push({ src, reason: "conflict" });
-        continue;
-      }
-      client.prepare(
-        `INSERT INTO translations(src,zh,src_lang,tgt_lang,engine,category,updated_at,hit_count,nsfw) VALUES(?,?,?,?,?,?,?,0,?)
-        ON CONFLICT(src,src_lang,tgt_lang) DO UPDATE SET
-          zh=excluded.zh,
-          engine=excluded.engine,
-          updated_at=excluded.updated_at,
-          hit_count=translations.hit_count+1,
-          nsfw=MAX(translations.nsfw,excluded.nsfw),
-          category=COALESCE(excluded.category, translations.category)`
-      ).run(src, zh, pair.from, pair.to, engine, category, Date.now(), nsfw(src, engine));
+      const inserted = insert.get(src, zh, pair.from, pair.to, engine, category, Date.now(), nsfw(src, engine), cacheEngineRank(engine));
       result.accepted.push([src, zh]);
-      const record = index2.record(src, pair);
+      const record = index2.inserted(inserted.id);
       if (record) result.records.push(record);
     }
     client.exec("COMMIT");
@@ -9301,18 +9633,18 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       const previous = db.select().from(cacheMeta).where(eq(cacheMeta.key, key2)).get()?.value;
       if (previous === startedWith) return backfill.flush(root);
       const file = gameTranslationFiles(root).seed;
-      const seed = file ? JSON.parse(fs10.readFileSync(file, "utf8")) : {};
+      const seed = file ? JSON.parse(fs11.readFileSync(file, "utf8")) : {};
       if (!seed || typeof seed !== "object" || Array.isArray(seed)) throw new Error("Seed must be an object mapping source text to translation");
-      const context = getGameCacheContext(root);
+      const context2 = getGameCacheContext(root);
       const records2 = [];
       const sources = [];
       for (const src of Object.keys(seed)) {
-        if (!src.trim() || context.blocked(src) || context.lookup[src] != null) continue;
+        if (!src.trim() || context2.blocked(src) || context2.lookup[src] != null) continue;
         const pair = resolveCacheLangPair({ src, to: "zh" });
         const exact = index2.record(src, pair);
         if (exact) records2.push(exact);
         else if (PROJECTION_CANDIDATE_RE.test(src)) {
-          const { plan } = planGameCache(src, pair, index2, context);
+          const { plan } = planGameCache(src, pair, index2, context2);
           if (!plan.limited && plan.status === "full") sources.push({ src, pair });
         }
       }
@@ -9324,6 +9656,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       return result;
     },
     record: index2.record,
+    candidateRecord: index2.inserted,
     current: index2.current,
     authority: index2.authority,
     version: index2.version,
@@ -9337,8 +9670,9 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
     loadAll(pairOpts) {
       const pair = defaultPair(pairOpts);
       const out = /* @__PURE__ */ Object.create(null);
-      for (const row of db.select({ src: translations.src, zh: translations.zh }).from(translations).where(and(eq(translations.srcLang, pair.from), eq(translations.tgtLang, pair.to))).all()) {
-        if (rowUsable(String(row.src), String(row.zh), pair.to)) out[String(row.src)] = String(row.zh);
+      const rows = db.$client.prepare("SELECT src,zh FROM selected_translations WHERE src_lang=? AND tgt_lang=?").all(pair.from, pair.to);
+      for (const row of rows) {
+        if (rowUsable(row.src, row.zh, pair.to)) out[row.src] = row.zh;
       }
       return out;
     },
@@ -9395,7 +9729,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       };
       const base = db.select(rowSelect).from(translations);
       const filtered = where ? base.where(where) : base;
-      const rows = filtered.orderBy(orderBy, asc(translations.src)).limit(pageSize).offset(offset).all();
+      const rows = filtered.orderBy(orderBy, asc(translations.src), desc(translations.id)).limit(pageSize).offset(offset).all();
       return {
         page,
         pageSize,
@@ -9472,6 +9806,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
         localOnly: []
       };
       if (!pairs.length) return stats;
+      const candidates2 = [];
       for (const [src, zh] of pairs) {
         if (!src || !zh?.trim()) continue;
         stats.total++;
@@ -9479,56 +9814,43 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
           stats.localOnly.push([src, zh]);
           continue;
         }
-        const pair = resolveCacheLangPair({ ...pairOpts, src });
-        const existing = index2.authority(src, pair);
-        if (existing?.zh === zh) {
-          stats.identical++;
-          continue;
-        }
-        const written = cache.writeMany([[src, zh.trim()]], engine, pair);
-        if (written.accepted.length) stats.inserted++;
-        else if (written.rejected[0]?.reason === "invalid") stats.skipped++;
-        else stats.conflict++;
+        candidates2.push([src, zh.trim()]);
       }
+      const written = cache.writeMany(candidates2, engine, pairOpts);
+      stats.inserted = written.accepted.length;
+      stats.skipped = written.rejected.length;
       return stats;
     },
     importIgnoreExisting(map, engine = "import", pairOpts) {
       const entries = Object.entries(map || {});
-      let inserted = 0;
-      for (const [src, zh] of entries) {
-        const pair = resolveCacheLangPair({ ...pairOpts, src });
-        if (index2.record(src, pair)) continue;
-        inserted += cache.writeMany([[src, zh]], engine, pair).accepted.length;
-      }
+      const inserted = cache.writeMany(entries, engine, pairOpts).accepted.length;
       return { inserted, total: entries.length };
     },
-    update(src, zh, engine = "manual", pairOpts, opts) {
+    appendManual(src, zh, engine = "manual", pairOpts, opts) {
       const s = String(src ?? "");
       const t = String(zh ?? "").trim();
       const pair = resolveCacheLangPair({ ...pairOpts, src: s });
-      if (!canStorePair(s, t, engine, pair.to)) return false;
-      const existing = db.select({ nsfw: translations.nsfw }).from(translations).where(rowWhere(s, pair.from, pair.to)).get();
-      if (!existing) return false;
-      const nsfw = typeof opts?.nsfw === "boolean" ? opts.nsfw ? 1 : 0 : Math.max(Number(existing.nsfw) === 1 ? 1 : 0, nsfwBit(s, engine));
       const result = cache.writeMany([[s, t]], engine, pair);
-      if (result.accepted.length && typeof opts?.nsfw === "boolean") cache.setNsfw(s, Boolean(nsfw), pair);
-      return result.accepted.length > 0;
+      const id = result.records[0]?.candidateId;
+      if (id && typeof opts?.nsfw === "boolean") cache.setNsfw(s, opts.nsfw, pair, id);
+      return id || null;
+    },
+    update(src, zh, engine = "manual", pairOpts, opts) {
+      return cache.appendManual(src, zh, engine, pairOpts, opts) != null;
     },
     /** Manual NSFW mark; does not change the translation text. */
-    setNsfw(src, nsfw, pairOpts) {
+    setNsfw(src, nsfw, pairOpts, candidateId) {
       const s = String(src ?? "");
       if (!s) return false;
       const pair = defaultPair(pairOpts);
-      if (!db.select({ src: translations.src }).from(translations).where(rowWhere(s, pair.from, pair.to)).get())
-        return false;
-      const result = db.update(translations).set({ nsfw: nsfw ? 1 : 0, updatedAt: Date.now() }).where(rowWhere(s, pair.from, pair.to)).run();
+      const result = db.update(translations).set({ nsfw: nsfw ? 1 : 0 }).where(and(rowWhere(s, pair.from, pair.to), candidateId ? eq(translations.id, candidateId) : void 0)).run();
       return Number(result.changes || 0) > 0;
     },
-    remove(src, pairOpts) {
+    remove(src, pairOpts, candidateId) {
       const s = String(src ?? "");
       if (!s) return false;
       const pair = defaultPair(pairOpts);
-      const result = db.delete(translations).where(rowWhere(s, pair.from, pair.to)).run();
+      const result = db.delete(translations).where(and(rowWhere(s, pair.from, pair.to), candidateId ? eq(translations.id, candidateId) : void 0)).run();
       return Number(result.changes || 0) > 0;
     },
     scrubDirty() {
@@ -9540,10 +9862,8 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
         for (const row of rows) {
           const src = String(row.src);
           const zh = String(row.zh);
-          const from = normalizeCacheLang(row.srcLang, DEFAULT_CACHE_SRC_LANG);
-          const to = normalizeCacheLang(row.tgtLang, DEFAULT_CACHE_TGT_LANG);
           const engine = row.engine == null ? null : String(row.engine);
-          const where = rowWhere(src, from, to);
+          const where = eq(translations.id, row.id);
           if (engine === "skip:control" || engine === "skip:sensitive") {
             tx.delete(translations).where(where).run();
             removed += 1;
@@ -9562,7 +9882,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       const n = Number(db.select({ n: count() }).from(translations).get()?.n || 0);
       let sizeBytes = 0;
       try {
-        sizeBytes = fs10.statSync(resolved).size;
+        sizeBytes = fs11.statSync(resolved).size;
       } catch {
       }
       return { entries: n, sizeBytes, file: resolved };
@@ -9575,7 +9895,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
   return cache;
 }
 function openSharedCache(dbPath = defaultSharedDbPath()) {
-  if (process.env.NODE_ENV === "test" || path7.resolve(dbPath) !== path7.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
+  if (process.env.NODE_ENV === "test" || path8.resolve(dbPath) !== path8.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
     return openOwnedSharedCache(dbPath);
   return new Proxy({ path: dbPath }, {
     get(target2, name2) {
@@ -9596,16 +9916,16 @@ function openSharedCache(dbPath = defaultSharedDbPath()) {
 }
 
 // services/translate/scheduler/seed-inventory.ts
-import fs18 from "node:fs";
+import fs19 from "node:fs";
 import { DatabaseSync as DatabaseSync7 } from "node:sqlite";
 
 // services/extract/lib/rgss.ts
-import fs17 from "node:fs";
-import path12 from "node:path";
+import fs18 from "node:fs";
+import path13 from "node:path";
 
 // services/game/rgss-archive.ts
-import fs11 from "node:fs";
-import path8 from "node:path";
+import fs12 from "node:fs";
+import path9 from "node:path";
 import { inflateSync } from "node:zlib";
 
 // services/extract/lib/rgss/marshal.ts
@@ -9829,13 +10149,13 @@ function rubyObjectField(value, field) {
 
 // services/game/rgss-archive.ts
 function readAceMember(archive, member) {
-  const fd = fs11.openSync(archive, "r");
+  const fd = fs12.openSync(archive, "r");
   let cursor = 0;
-  const length = fs11.fstatSync(fd).size;
+  const length = fs12.fstatSync(fd).size;
   const read = (size, offset = cursor) => {
     if (size < 0 || offset + size > length) throw new Error("Truncated RGSS archive");
     const bytes = Buffer.alloc(size);
-    if (fs11.readSync(fd, bytes, 0, size, offset) !== size) throw new Error("Truncated RGSS archive");
+    if (fs12.readSync(fd, bytes, 0, size, offset) !== size) throw new Error("Truncated RGSS archive");
     cursor = offset + size;
     return bytes;
   };
@@ -9864,15 +10184,15 @@ function readAceMember(archive, member) {
     }
     throw new Error("RGSS archive has too many members");
   } finally {
-    fs11.closeSync(fd);
+    fs12.closeSync(fd);
   }
 }
 function readRgssScripts(contentRoot) {
-  const names = fs11.readdirSync(contentRoot);
+  const names = fs12.readdirSync(contentRoot);
   const data = names.find((name2) => name2.toLowerCase() === "data");
-  const script = data && fs11.readdirSync(path8.join(contentRoot, data)).find((name2) => /^scripts\.rvdata2?$/i.test(name2));
+  const script = data && fs12.readdirSync(path9.join(contentRoot, data)).find((name2) => /^scripts\.rvdata2?$/i.test(name2));
   const archive = names.find((name2) => name2.toLowerCase() === "game.rgss3a");
-  const bytes = script ? fs11.readFileSync(path8.join(contentRoot, data, script)) : archive ? readAceMember(path8.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
+  const bytes = script ? fs12.readFileSync(path9.join(contentRoot, data, script)) : archive ? readAceMember(path9.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
   if (!bytes) return [];
   const value = parseRubyMarshal(bytes);
   if (!value || typeof value !== "object" || value.kind !== "array") return [];
@@ -9890,7 +10210,7 @@ function readRgssScripts(contentRoot) {
 }
 
 // services/translate/game-coverage.ts
-import fs12 from "node:fs";
+import fs13 from "node:fs";
 import { DatabaseSync as DatabaseSync5 } from "node:sqlite";
 function createGameCoverage(records2, opts) {
   const lookup = createGameTranslateLookup(records2);
@@ -9909,7 +10229,7 @@ function createGameCoverage(records2, opts) {
         if (!opened) {
           opened = true;
           const database = opts?.database ?? TRANSLATE_CACHE_DB_PATH;
-          if (database && fs12.existsSync(database)) {
+          if (database && fs13.existsSync(database)) {
             client = new DatabaseSync5(database, { readOnly: true });
             client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250");
             if (client.prepare("SELECT 1 FROM sqlite_master WHERE name='match_keys'").get()) shared = createMatchIndex(client);
@@ -10010,12 +10330,12 @@ for (const [index2, [sourceText, targetText]] of Object.entries(fixed_phrases_de
 }
 
 // services/translate/seed-failures.ts
-import fs14 from "node:fs";
+import fs15 from "node:fs";
 
 // services/translate/seed-job-state.ts
 import { createHash as createHash3 } from "node:crypto";
-import fs13 from "node:fs";
-import path9 from "node:path";
+import fs14 from "node:fs";
+import path10 from "node:path";
 var MAX_SEED_JOB_LOGS = 120;
 function idleSeedJob(contentRoot = "") {
   return {
@@ -10035,16 +10355,16 @@ function idleSeedJob(contentRoot = "") {
   };
 }
 function seedJobKey(contentRoot) {
-  return createHash3("sha1").update(path9.resolve(contentRoot)).digest("hex").slice(0, 16);
+  return createHash3("sha1").update(path10.resolve(contentRoot)).digest("hex").slice(0, 16);
 }
 function seedJobFile(contentRoot) {
-  return path9.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
+  return path10.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
 }
 function readSeedJobState(contentRoot) {
   const file = seedJobFile(contentRoot);
-  if (!fs13.existsSync(file)) return null;
+  if (!fs14.existsSync(file)) return null;
   try {
-    const raw = JSON.parse(fs13.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs14.readFileSync(file, "utf8"));
     if (!raw || typeof raw !== "object") return null;
     return {
       ...idleSeedJob(contentRoot),
@@ -10067,7 +10387,7 @@ function readSeedFailures(contentRoot) {
   const file = seedFailureFile(contentRoot);
   let text2;
   try {
-    text2 = fs14.readFileSync(file, "utf8");
+    text2 = fs15.readFileSync(file, "utf8");
   } catch (error) {
     if (error.code === "ENOENT") return failures;
     throw error;
@@ -10170,8 +10490,8 @@ function extractRgssScriptUiStrings(contentRoot) {
 }
 
 // services/extract/lib/rgss/writeback.ts
-import fs15 from "node:fs";
-import path10 from "node:path";
+import fs16 from "node:fs";
+import path11 from "node:path";
 
 // lib/translate/name-glossary.ts
 var TOKEN_RE2 = new RegExp(SENTENCE_TOKEN_SOURCE, "g");
@@ -10341,10 +10661,10 @@ function fieldCategory(className, field, fallback) {
   return category;
 }
 function loadOneDataFile(dataDir, name2) {
-  const file = path10.join(dataDir, name2);
-  const value = parseRubyMarshal(fs15.readFileSync(file));
+  const file = path11.join(dataDir, name2);
+  const value = parseRubyMarshal(fs16.readFileSync(file));
   const backup = `${file}.chaya.bak`;
-  const original = fs15.existsSync(backup) ? parseRubyMarshal(fs15.readFileSync(backup)) : value;
+  const original = fs16.existsSync(backup) ? parseRubyMarshal(fs16.readFileSync(backup)) : value;
   const current = strings(value);
   const texts = [];
   for (const [location, source] of strings(original)) {
@@ -10357,7 +10677,7 @@ function loadOneDataFile(dataDir, name2) {
 }
 var SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i;
 function listDataFileNames(dataDir) {
-  const names = fs15.readdirSync(dataDir).filter((name2) => /\.rvdata2?$/i.test(name2) && !SKIP_DATA_STEMS.test(name2)).sort();
+  const names = fs16.readdirSync(dataDir).filter((name2) => /\.rvdata2?$/i.test(name2) && !SKIP_DATA_STEMS.test(name2)).sort();
   if (!names.length) throw new Error("RGSS data is unavailable. Unpack the encrypted archive into Data/ first.");
   return names;
 }
@@ -10391,15 +10711,15 @@ function loadRgssItems(dataDir) {
 }
 
 // services/extract/lib/rgss-sources-index.ts
-import fs16 from "node:fs";
-import path11 from "node:path";
+import fs17 from "node:fs";
+import path12 from "node:path";
 var SOURCE_INDEX_VERSION = 2;
 function rgssDataSignature(dataDir) {
-  const files = fs16.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
+  const files = fs17.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
   return JSON.stringify([
     SOURCE_INDEX_VERSION,
     ...files.map((name2) => {
-      const stat = fs16.statSync(path11.join(dataDir, name2));
+      const stat = fs17.statSync(path12.join(dataDir, name2));
       return [name2, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   ]);
@@ -10408,7 +10728,7 @@ function readIndex(contentRoot) {
   const file = localGameContentFile(contentRoot, "rgssSourcesIndex");
   if (!file) return null;
   try {
-    const raw = JSON.parse(fs16.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs17.readFileSync(file, "utf8"));
     if (!raw || typeof raw.signature !== "string" || !Array.isArray(raw.sources)) return null;
     return raw;
   } catch {
@@ -10422,7 +10742,7 @@ function writeRgssSourcesIndex(contentRoot, signature, sources) {
     sources: [...sources],
     updatedAt: Date.now()
   };
-  fs16.writeFileSync(file, `${JSON.stringify(payload)}
+  fs17.writeFileSync(file, `${JSON.stringify(payload)}
 `);
 }
 function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
@@ -10437,15 +10757,15 @@ function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
 // services/extract/lib/rgss.ts
 function findChild(dir, name2) {
   try {
-    const hit = fs17.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
-    return hit ? path12.join(dir, hit) : null;
+    const hit = fs18.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
+    return hit ? path13.join(dir, hit) : null;
   } catch {
     return null;
   }
 }
 function extensionFor(dataDir) {
   try {
-    const names = fs17.readdirSync(dataDir).map((name2) => name2.toLowerCase());
+    const names = fs18.readdirSync(dataDir).map((name2) => name2.toLowerCase());
     if (names.some((name2) => name2.endsWith(".rvdata2"))) return ".rvdata2";
     if (names.some((name2) => name2.endsWith(".rvdata"))) return ".rvdata";
   } catch {
@@ -10471,14 +10791,14 @@ function filterRgssSeedKeys(contentRoot, keys) {
 // services/translate/scheduler/seed-inventory.ts
 function seedFileStamp(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
-  const stat = file ? fs18.statSync(file, { throwIfNoEntry: false }) : void 0;
+  const stat = file ? fs19.statSync(file, { throwIfNoEntry: false }) : void 0;
   return JSON.stringify([file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
 }
 function readSeedInventory(contentRoot) {
   const stamp = seedFileStamp(contentRoot);
   const progressStamp = seedProgressStamp(contentRoot);
   const file = localGameContentFile(contentRoot, "seed");
-  const data = file ? JSON.parse(fs18.readFileSync(file, "utf8")) : {};
+  const data = file ? JSON.parse(fs19.readFileSync(file, "utf8")) : {};
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Seed must be an object mapping source text to translation");
   const entries = data;
   const keys = filterRgssSeedKeys(
@@ -10515,7 +10835,7 @@ function readSeedInventory(contentRoot) {
         if (!revisions.has(key2)) {
           try {
             if (!client) {
-              if (!fs18.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
+              if (!fs19.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
               client = new DatabaseSync7(TRANSLATE_CACHE_DB_PATH, { readOnly: true });
               client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250; BEGIN");
               revisionQuery = client.prepare("SELECT revision FROM translation_records WHERE id=?");
@@ -10572,7 +10892,7 @@ function seedProgressStamp(contentRoot) {
   return JSON.stringify([
     7,
     files.map((file) => {
-      const stat = file ? fs18.statSync(file, { throwIfNoEntry: false }) : void 0;
+      const stat = file ? fs19.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   ]);
@@ -10591,9 +10911,9 @@ try {
     cache.close();
   }
   const inv = readSeedInventory(contentRoot);
-  const out = path13.join(os2.tmpdir(), `chaya-seed-inv-${process.pid}-${Date.now()}.json`);
-  fs19.writeFileSync(out, JSON.stringify(inv));
-  parentPort?.postMessage({ ok: true, path: out, pending: inv.pending.length, total: inv.progress.total });
+  const out = path14.join(os2.tmpdir(), `chaya-seed-inv-${process.pid}-${Date.now()}.json`);
+  fs20.writeFileSync(out, JSON.stringify(inv));
+  parentPort2?.postMessage({ ok: true, path: out, pending: inv.pending.length, total: inv.progress.total });
 } catch (error) {
-  parentPort?.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });
+  parentPort2?.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });
 }

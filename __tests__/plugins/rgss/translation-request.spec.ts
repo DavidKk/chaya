@@ -12,6 +12,8 @@ describe('createRgssServiceTranslationRequest', () => {
   it('posts JSON to apiBase and injects contentRoot', async () => {
     const fetchMock = jest.fn(async () => ({
       status: 200,
+      ok: true,
+      headers: { get: () => null },
       json: async () => ({ ok: true, settings: { mode: 'pretranslated' } }),
     }))
     globalThis.fetch = fetchMock as unknown as typeof fetch
@@ -29,14 +31,14 @@ describe('createRgssServiceTranslationRequest', () => {
       'http://127.0.0.1:3920/api/translate',
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Chaya-Launch-Token': 'tok' },
+        headers: { 'Content-Type': 'application/json', 'X-Chaya-Launch-Token': 'tok', 'X-Chaya-Request-Id': expect.any(String) },
         body: JSON.stringify({ mode: 'play-settings', contentRoot: '/Games/Rei' }),
       })
     )
   })
 
   it('does not overwrite an explicit contentRoot', async () => {
-    const fetchMock = jest.fn(async () => ({ status: 200, json: async () => ({ ok: true }) }))
+    const fetchMock = jest.fn(async () => ({ status: 200, ok: true, headers: { get: () => null }, json: async () => ({ ok: true }) }))
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
     const request = createRgssServiceTranslationRequest({ apiBase: 'http://127.0.0.1:3920', contentRoot: '/Games/A' })
@@ -46,7 +48,7 @@ describe('createRgssServiceTranslationRequest', () => {
   })
 
   it('injects contentRoot on body-less POST (extract)', async () => {
-    const fetchMock = jest.fn(async () => ({ status: 200, json: async () => ({ ok: true }) }))
+    const fetchMock = jest.fn(async () => ({ status: 200, ok: true, headers: { get: () => null }, json: async () => ({ ok: true }) }))
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
     const request = createRgssServiceTranslationRequest({ apiBase: 'http://127.0.0.1:3920', contentRoot: '/Games/Rei' })
@@ -56,7 +58,7 @@ describe('createRgssServiceTranslationRequest', () => {
   })
 
   it('installs a host runtime that can be disposed', async () => {
-    globalThis.fetch = jest.fn(async () => ({ status: 200, json: async () => ({ ok: true }) })) as unknown as typeof fetch
+    globalThis.fetch = jest.fn(async () => ({ status: 200, ok: true, headers: { get: () => null }, json: async () => ({ ok: true }) })) as unknown as typeof fetch
     const dispose = installRgssOverlayTranslationRuntime({ apiBase: 'http://127.0.0.1:3920' })
     const host = globalThis as { __chayaTranslationRuntime?: { request: unknown } }
     expect(host.__chayaTranslationRuntime?.request).toEqual(expect.any(Function))

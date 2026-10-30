@@ -23,7 +23,14 @@ import { useOptimizeNames } from '@/components/translate/useOptimizeNames'
 import { useSyncNames } from '@/components/translate/useSyncNames'
 import { readApiErrorMessage } from '@/lib/api-error'
 import { filterTranslationExport, type TranslationExportMode } from '@/lib/translate/export'
-import { estimateRemainMs, formatRemainEta, projectRemainingChars, smoothTranslationPerformance, type TranslationPerformance } from '@/lib/translate/remain-eta'
+import {
+  estimateRemainMs,
+  formatRemainEta,
+  freshTranslationPerformance,
+  projectRemainingChars,
+  smoothTranslationPerformance,
+  type TranslationPerformance,
+} from '@/lib/translate/remain-eta'
 import { cn } from '@/lib/utils'
 
 type Progress = {
@@ -263,8 +270,9 @@ export function TranslateRunPane({
       setDisplayPerformance(null)
       return
     }
-    setDisplayPerformance((previous) => smoothTranslationPerformance(previous, job.performance))
-  }, [running, job.performance])
+    const now = Date.now()
+    setDisplayPerformance((previous) => smoothTranslationPerformance(freshTranslationPerformance(previous, previous?.measuredAt ?? job.updatedAt, now), job.performance))
+  }, [running, job.performance, job.updatedAt])
 
   useEffect(() => {
     if (!running) return
@@ -441,7 +449,10 @@ export function TranslateRunPane({
   const liveStatus = job.liveStatus || (extracting ? t('translate.extractingText') : preparing ? t('translate.preparingInventory') : '')
   const canStart = progress.missing > 0 && !preparing
   const startLabel = job.status === 'paused' ? t('translate.continue') : progress.missing > 0 ? t('translate.start') : t('translate.completed')
-  const perf = running && !pausing && displayPerformance && displayPerformance.charsPerSecond > 0 ? displayPerformance : null
+  const perf =
+    running && !pausing && displayPerformance && displayPerformance.charsPerSecond > 0
+      ? freshTranslationPerformance(displayPerformance, displayPerformance.measuredAt ?? job.updatedAt, clock)
+      : null
   const elapsedSinceCheckpoint = clock > 0 && job.updatedAt > 0 ? clock - job.updatedAt : 0
   const remainingChars = projectRemainingChars({ missingChars: progress.missingChars, charsPerSecond: perf?.charsPerSecond, elapsedMs: elapsedSinceCheckpoint })
   const remainMs = estimateRemainMs({ missingChars: remainingChars, charsPerSecond: perf?.charsPerSecond, running })

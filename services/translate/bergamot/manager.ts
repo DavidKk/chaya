@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { bergamotLanguage, isActivePackJob, type PackJob, type PackPlan } from '@/lib/translate/bergamot'
+import { startOperation } from '@/services/log/operation'
+import { logTranslationEvent } from '@/services/translate/runtime-log'
 
 import { resolveBergamotBinary } from './binary'
 import { bergamotPlatformSupported, findPack } from './catalog'
@@ -136,6 +138,7 @@ class PackManager {
       this.current = undefined
       throw error
     }
+    logTranslationEvent('info', 'Bergamot language pack download started', { jobId: job.id, source: job.source, target: job.target, reinstall: plan.installed })
     void this.run(job, controller, plan.requiredFreeBytes)
     return { ...plan, job: { ...job } }
   }
@@ -149,6 +152,7 @@ class PackManager {
     return plan
   }
   private async run(job: PackJob, controller: AbortController, requiredBytes: number) {
+    const timing = startOperation('translate', 'bergamot.pack.install', { jobId: job.id, source: job.source, target: job.target, bytes: job.totalDownloadBytes })
     const stage = path.join(packsRoot(), 'staging', job.id)
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30 * 60_000)])
     const cancelFile = path.join(this.jobsDir, `${job.id}.cancel`)
@@ -218,6 +222,8 @@ class PackManager {
       }
       atomicJson(path.join(packsRoot(), 'active', `${pack.id}.json`), reference)
       job.state = 'completed'
+      timing.mark('published', { downloadedBytes: job.downloadedBytes })
+      logTranslationEvent('info', 'Bergamot language pack installed', { jobId: job.id, source: job.source, target: job.target, downloadedBytes: job.downloadedBytes })
     } catch (error) {
       job.state = controller.signal.aborted ? 'cancelled' : 'failed'
       const code = (error as NodeJS.ErrnoException)?.code
@@ -229,11 +235,24 @@ class PackManager {
             ? 'PACK_PERMISSION_DENIED'
             : signal.aborted
               ? 'PACK_DOWNLOAD_TIMEOUT'
-              : error instanceof Error
-                ? error.message
-                : 'PACK_INSTALL_FAILED'
+              : error instanceof Error && error.message === 'fetch failed'
+                ? 'PACK_DOWNLOAD_FAILED'
+                : error instanceof Error
+                  ? error.message
+                  : 'PACK_INSTALL_FAILED'
+      logTranslationEvent(job.state === 'cancelled' ? 'info' : 'fail', 'Bergamot language pack installation stopped', {
+        jobId: job.id,
+        source: job.source,
+        target: job.target,
+        state: job.state,
+        phase: job.phase,
+        downloadedBytes: job.downloadedBytes,
+        error: job.error,
+        cause: error instanceof Error && error.cause && typeof error.cause === 'object' && 'code' in error.cause ? error.cause.code : undefined,
+      })
     } finally {
       clearInterval(poll)
+      const phase = job.phase
       job.phase = null
       try {
         this.save(job)
@@ -248,6 +267,11 @@ class PackManager {
         }
       }
       this.current = undefined
+      timing.end(job.state === 'completed' ? 'completed' : job.state === 'cancelled' ? 'cancelled' : 'failed', {
+        phase,
+        downloadedBytes: job.downloadedBytes,
+        errorCode: job.error,
+      })
     }
   }
 }

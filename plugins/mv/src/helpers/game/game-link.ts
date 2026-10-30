@@ -193,6 +193,10 @@ function bindDc(dc: RTCDataChannel) {
       const runtime = installedTranslationRuntime()
       if (!runtime) throw new Error('游戏翻译插件未就绪，请更新插件后重新打开游戏')
       return runtime.request(request, signal)
+    },
+    (entry) => {
+      const level = entry.level === 'debug' ? 'info' : entry.level
+      ChayaLog[level]('communication', entry.message, entry.meta)
     }
   )
   dc.onopen = () => {

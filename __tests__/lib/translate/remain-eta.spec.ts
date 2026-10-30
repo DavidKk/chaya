@@ -3,6 +3,7 @@ import { describe, expect, it } from '@jest/globals'
 import {
   estimateRemainMs,
   formatRemainEta,
+  freshTranslationPerformance,
   projectRemainingChars,
   rollingTranslationPerformance,
   smoothTranslationPerformance,
@@ -10,6 +11,12 @@ import {
 } from '@/lib/translate/remain-eta'
 
 describe('estimateRemainMs', () => {
+  it('expires throughput and ETA after no completed results arrive for 30 seconds', () => {
+    const performance = { charsPerSecond: 300, cacheMs: 0 }
+    expect(freshTranslationPerformance(performance, 1000, 31000)).toBe(performance)
+    expect(freshTranslationPerformance(performance, 1000, 31001)).toBeNull()
+    expect(estimateRemainMs({ missingChars: 1000, charsPerSecond: freshTranslationPerformance(performance, 1000, 60000)?.charsPerSecond, running: true })).toBeNull()
+  })
   it('uses remaining characters rather than the total or historical wall time', () => {
     expect(estimateRemainMs({ missingChars: 1000, charsPerSecond: 20, running: true })).toBe(50000)
     expect(estimateRemainMs({ missingChars: 600, charsPerSecond: 20, running: true })).toBe(30000)

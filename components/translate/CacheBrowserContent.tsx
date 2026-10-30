@@ -345,7 +345,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
           const res = await translationFetch('/api/translate-cache', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ src: row.src, from: row.from, to: row.to, nsfw: next }),
+            body: JSON.stringify({ id: row.id, src: row.src, from: row.from, to: row.to, nsfw: next }),
           })
           const json = (await res.json()) as { ok?: boolean; error?: string; message?: string }
           if (!res.ok || json.ok === false) {
@@ -374,7 +374,7 @@ export function CacheBrowserContent({ searchParams, replaceQuery, onOpenDetail, 
         const res = await translationFetch('/api/translate-cache', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ src: row.src, from: row.from, to: row.to }),
+          body: JSON.stringify({ id: row.id, src: row.src, from: row.from, to: row.to }),
         })
         const json = (await res.json()) as { ok?: boolean; error?: string; message?: string }
         if (!res.ok || json.ok === false) {

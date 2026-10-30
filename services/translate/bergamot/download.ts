@@ -1,20 +1,34 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { open } from 'node:fs/promises'
+import path from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { createGunzip } from 'node:zlib'
 
 import type { BergamotFile } from '@/lib/translate/bergamot'
+import { measureOperation } from '@/services/log/operation'
 
 export async function hashFile(file: string): Promise<string> {
-  const hash = createHash('sha256')
-  for await (const chunk of createReadStream(file)) hash.update(chunk)
-  return hash.digest('hex')
+  return measureOperation(
+    'translate',
+    'bergamot.pack.hash',
+    { file: path.basename(file) },
+    async () => {
+      const hash = createHash('sha256')
+      for await (const chunk of createReadStream(file)) hash.update(chunk)
+      return hash.digest('hex')
+    },
+    { start: false }
+  )
 }
 
 /** Manifest URLs only. No redirects or HTTP content decoding; digests cover stored gzip bytes. */
 export async function downloadPackFile(file: BergamotFile, destination: string, signal: AbortSignal, progress: (bytes: number) => void) {
+  return measureOperation('translate', 'bergamot.pack.download', { file: file.name, bytes: file.bytes }, () => downloadFile(file, destination, signal, progress))
+}
+
+async function downloadFile(file: BergamotFile, destination: string, signal: AbortSignal, progress: (bytes: number) => void) {
   const url = new URL(file.url)
   if (url.protocol !== 'https:' || url.hostname !== 'storage.googleapis.com' || !url.pathname.startsWith('/moz-fx-translations-data--303e-prod-translations-data/models/'))
     throw new Error('PACK_INVALID_RESOURCE')
@@ -79,6 +93,12 @@ export async function downloadPackFile(file: BergamotFile, destination: string, 
 }
 
 export async function unpackFile(file: BergamotFile, source: string, destination: string, signal: AbortSignal) {
+  return measureOperation('translate', 'bergamot.pack.unpack', { file: file.name, bytes: file.bytes, unpackedBytes: file.unpackedBytes }, () =>
+    unpack(file, source, destination, signal)
+  )
+}
+
+async function unpack(file: BergamotFile, source: string, destination: string, signal: AbortSignal) {
   let size = 0
   const hash = createHash('sha256')
   const guard = new Transform({

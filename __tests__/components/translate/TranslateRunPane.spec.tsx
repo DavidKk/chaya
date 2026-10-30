@@ -124,3 +124,21 @@ it('detects a background job after the initial idle snapshot without remounting'
   await tick(3000)
   expect(mockFetch.mock.calls).toHaveLength(callsAfterUnmount)
 })
+
+it('hides an expired rate even while request logs keep updating the job snapshot', async () => {
+  const measuredAt = Date.now()
+  mockFetch.mockImplementation(async () => {
+    const data = snapshot()
+    return respond({
+      ...data,
+      job: { ...data.job, updatedAt: Date.now(), performance: { charsPerSecond: 20, cacheMs: 0, measuredAt } },
+    })
+  })
+  await render()
+  expect(host.textContent).toContain('20.0 字/s')
+  expect(host.textContent).toContain('剩余')
+
+  await tick(31_000)
+  expect(host.textContent).not.toContain('字/s')
+  expect(host.textContent).not.toContain('剩余')
+})

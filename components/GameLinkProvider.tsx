@@ -11,6 +11,7 @@ import { appendLinkLogs, resetLinkLogs } from '@/lib/log/link-log-store'
 import type { GameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import { createTranslationRpc } from '@/lib/runtime/translation-rpc'
 import type { TranslationRequestFn } from '@/lib/translate/runtime-api'
+import { reportBrowserTiming, setBrowserTimingUploadEnabled } from '@/services/log/browser'
 
 type StatusLite = {
   canUseDisk?: boolean
@@ -72,6 +73,7 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
         let nextId: string | null = null
         let nextEnabled = false
         setBrowserMode(data.canUseDisk === false)
+        setBrowserTimingUploadEnabled(data.canUseDisk === true)
         if (data.canUseDisk === false) {
           nextId = readCloudGameId()
           nextEnabled = !!nextId
@@ -147,10 +149,14 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
     }
   }, [connected, browserMode, send])
   const translation = useMemo(() => {
-    const rpc = createTranslationRpc((packet) => {
-      if (!connected) throw new Error('请先连接游戏')
-      return send(packet)
-    })
+    const rpc = createTranslationRpc(
+      (packet) => {
+        if (!connected) throw new Error('请先连接游戏')
+        return send(packet)
+      },
+      undefined,
+      reportBrowserTiming
+    )
     return { rpc, roomId, releaseTimer: null as ReturnType<typeof setTimeout> | null }
   }, [roomId, connected, send])
   translationRef.current = translation.rpc

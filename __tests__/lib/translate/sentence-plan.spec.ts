@@ -37,6 +37,18 @@ describe('short-sentence reuse', () => {
     expect(plan.matches.map((m) => m.text)).toEqual(['人工乙'])
     expect(plan.gaps.map((g) => g.text)).toEqual(['c'])
   })
+  it('prefers local authority only after rank and exact source specificity', () => {
+    const local = record('Hello', '本作定稿', { local: true, engine: 'seed' })
+    const machine = record('Hello', '机器结果', { engine: 'live:google' })
+    for (const records of [
+      [local, machine],
+      [machine, local],
+    ]) {
+      expect(planSentenceTranslation('Hello', records).zh).toBe('本作定稿')
+    }
+    expect(planSentenceTranslation('Hello', [local, record('Hello', '人工修订', { engine: 'manual' })]).zh).toBe('人工修订')
+    expect(planSentenceTranslation('Hello', [local, record('Hello', '不同本作定稿', { local: true, engine: 'seed' })]).ambiguous).toBe(true)
+  })
   it('maximizes global coverage without duplicating overlap', () => {
     const plan = planSentenceTranslation('a,b,c,d', [record('a,b,c', '前三句'), record('a,b', '前两句'), record('c,d', '后两句')])
     expect(plan.status).toBe('full')

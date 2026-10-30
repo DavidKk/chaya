@@ -16,6 +16,7 @@ import {
   saveOwnedGameAgentSyncDocument,
   updateOwnedGameAgentSyncFromSettings,
 } from '@/services/game-agent/settings'
+import { startOperation } from '@/services/log/operation'
 import { openOwnedSharedCache } from '@/services/translate/shared-cache'
 import type { SharedCacheDb } from '@/services/translate/shared-cache/db'
 import { waitSharedCacheHeavyMigrate } from '@/services/translate/shared-cache/migrate-bg'
@@ -43,24 +44,32 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
   let refreshTimer: ReturnType<typeof setTimeout> | undefined
   const refreshRoots = new Set<string>()
   let refreshAll = false
-  async function refreshGameCaches() {
-    cache ??= openOwnedSharedCache(path.join(dataDir, 'translate-cache/shared.sqlite'))
-    const roots = refreshAll ? new Set([...cache.gameCacheRoots(), ...refreshRoots]) : new Set(refreshRoots)
-    refreshAll = false
-    refreshRoots.clear()
-    for (const root of roots) {
-      await games.mount(root)
-      cache.flushBackfill(root)
+  async function refreshGameCaches(complete = false) {
+    const timing = startOperation('storage', 'storage.cache-projections', { complete }, { start: false })
+    try {
+      cache ??= openOwnedSharedCache(path.join(dataDir, 'translate-cache/shared.sqlite'))
+      const roots = refreshAll ? new Set([...cache.gameCacheRoots(), ...refreshRoots]) : new Set(refreshRoots)
+      refreshAll = false
+      refreshRoots.clear()
+      for (const root of roots) {
+        await games.mount(root)
+        if (cache.flushBackfill(root, { projectionBudgetMs: complete ? Infinity : 25 }).pending) refreshRoots.add(root)
+      }
+      if (refreshRoots.size) scheduleGameCacheRefresh(refreshRoots.values().next().value!)
+      timing.end('completed', { roots: roots.size, pendingRoots: refreshRoots.size })
+    } catch (error) {
+      timing.fail(error)
+      throw error
     }
   }
   function scheduleGameCacheRefresh(root?: string) {
     if (root) refreshRoots.add(root)
     else refreshAll = true
     if (refreshTimer) return
-    // Engine batches can write many times. Replan once after the burst, on the storage owner.
+    // Bound each projection slice so engine reads and writes can run between refreshes.
     refreshTimer = setTimeout(() => {
       refreshTimer = undefined
-      queue = queue.then(refreshGameCaches).catch((error) => process.emitWarning(String(error), { code: 'CHAYA_GAME_CACHE_REFRESH' }))
+      queue = queue.then(() => refreshGameCaches()).catch((error) => process.emitWarning(String(error), { code: 'CHAYA_GAME_CACHE_REFRESH' }))
     }, 100)
     refreshTimer.unref()
   }
@@ -173,8 +182,17 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
       if (['queueBackfill', 'flushBackfill', 'queueGameProjections', 'syncGameCache'].includes(name) && typeof args[0] === 'string') await games.mount(args[0])
       const operation = cache[name as keyof typeof cache]
       if (typeof operation !== 'function') return operation
+      if (name === 'flushBackfill' && typeof args[0] === 'string') {
+        const result = cache.flushBackfill(args[0], { projectionBudgetMs: 25 })
+        if (result.pending) scheduleGameCacheRefresh(args[0])
+        return result
+      }
       const result = (operation as (...values: unknown[]) => unknown)(...args)
-      if (['writeMany', 'upsertMany', 'upsertOptimizeMany', 'importIgnoreExisting', 'update', 'remove', 'scrubDirty', 'setAlignment', 'confirmSegments'].includes(name)) {
+      if (
+        ['writeMany', 'upsertMany', 'upsertOptimizeMany', 'importIgnoreExisting', 'appendManual', 'update', 'remove', 'scrubDirty', 'setAlignment', 'confirmSegments'].includes(
+          name
+        )
+      ) {
         scheduleGameCacheRefresh()
       }
       if (result instanceof Map) return { storageMap: [...result] }
@@ -184,15 +202,33 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
     throw new Error('Unknown storage operation')
   }
   return {
-    call(method: string, args: unknown[]) {
-      const result = queue.then(() => execute(method, args))
+    call(method: string, args: unknown[], requestId?: string, report?: (timing: { queueMs: number; executeMs: number }) => void) {
+      const timing = startOperation('storage', 'storage.execute', { method }, { operationId: requestId, start: false })
+      const result = queue.then(() =>
+        timing.run(async () => {
+          const queueMs = timing.elapsedMs()
+          const started = performance.now()
+          try {
+            const value = await execute(method, args)
+            const executeMs = Math.round((performance.now() - started) * 10) / 10
+            report?.({ queueMs, executeMs })
+            timing.end('completed', { queueMs, executeMs })
+            return value
+          } catch (error) {
+            const executeMs = Math.round((performance.now() - started) * 10) / 10
+            report?.({ queueMs, executeMs })
+            timing.fail(error, { queueMs, executeMs })
+            throw error
+          }
+        })
+      )
       queue = result.catch(() => undefined)
       return result
     },
     async close() {
       await queue
       if (refreshTimer) clearTimeout(refreshTimer)
-      if (refreshAll || refreshRoots.size) await refreshGameCaches()
+      if (refreshAll || refreshRoots.size) await refreshGameCaches(true)
       cache?.close()
     },
   }

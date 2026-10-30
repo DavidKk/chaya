@@ -48,11 +48,11 @@ afterEach(async () => {
   host.remove()
   jest.useRealTimers()
 })
-async function render(source = 'en', onInstalled = jest.fn()) {
+async function render(source = 'en', onInstalled = jest.fn(), onPlanChange = jest.fn()) {
   await act(async () =>
     root.render(
       <LocaleProvider initialLocale="zh" initialPreference="zh">
-        <BergamotPackInstaller source={source} target="zh" onInstalled={onInstalled} />
+        <BergamotPackInstaller source={source} target="zh" onInstalled={onInstalled} onPlanChange={onPlanChange} />
       </LocaleProvider>
     )
   )
@@ -72,13 +72,19 @@ it('starts only on click, displays actual progress, and refreshes after publicat
           : plan
     )
   })
-  const installed = await render()
+  const changed = jest.fn()
+  const installed = await render('en', jest.fn(), changed)
+  expect(changed).toHaveBeenLastCalledWith(plan)
   expect(mockFetch).toHaveBeenCalledTimes(1)
   expect(installed).not.toHaveBeenCalled()
   await click('安装语言包')
   expect(host.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('25')
+  expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({ job }))
+  const progress = host.querySelector('[role="progressbar"]')!.parentElement!
+  expect([...progress.querySelectorAll('button')].some((button) => button.textContent === '取消')).toBe(true)
   await act(async () => jest.advanceTimersByTime(1000))
   expect(installed).toHaveBeenCalledTimes(1)
+  expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({ installed: true }))
   expect(host.textContent).toContain('就绪')
   expect(mockFetch.mock.calls.map(([, init]) => JSON.parse(init.body).action)).toEqual(['plan', 'install', 'status'])
 })

@@ -3,6 +3,7 @@ import http from 'node:http'
 import path from 'node:path'
 
 import { openCompanionMemoryDb } from '@/services/game-agent/companion-memory-db'
+import { operationId, startOperation } from '@/services/log/operation'
 import { openSharedCacheDb } from '@/services/translate/shared-cache/db'
 import { waitSharedCacheHeavyMigrate } from '@/services/translate/shared-cache/migrate-bg'
 
@@ -56,11 +57,21 @@ export async function startStorageDaemon(options: DaemonServerOptions): Promise<
     res.end(JSON.stringify(data))
   }
   const server = http.createServer((req, res) => {
+    const timing = startOperation(
+      'storage',
+      'storage.http',
+      { method: req.method, path: (req.url || '/').split('?')[0] },
+      {
+        start: false,
+        operationId: typeof req.headers['x-chaya-request-id'] === 'string' ? req.headers['x-chaya-request-id'] : undefined,
+      }
+    )
     activeRequests++
     lastActivity = Date.now()
     if (idleTimer) clearTimeout(idleTimer)
     idleTimer = undefined
     res.once('close', () => {
+      timing.end(res.writableFinished ? (res.statusCode >= 500 ? 'failed' : 'completed') : 'cancelled', { status: res.statusCode })
       activeRequests--
       lastActivity = Date.now()
       scheduleIdle()
@@ -164,9 +175,20 @@ export async function startStorageDaemon(options: DaemonServerOptions): Promise<
         if (bytes > 16 * MAX_BODY_BYTES) return json(res, 413, { error: 'Storage request exceeds 16 MiB' })
         chunks.push(Buffer.from(chunk))
       }
-      const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { method?: unknown; args?: unknown }
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { method?: unknown; args?: unknown; requestId?: unknown; sentAt?: unknown }
       if (typeof body.method !== 'string' || !Array.isArray(body.args)) throw new TypeError('Invalid storage request')
-      return json(res, 200, { value: await rpc!.call(body.method, body.args) })
+      const requestId = operationId(typeof body.requestId === 'string' ? body.requestId : undefined)
+      res.setHeader('X-Chaya-Request-Id', requestId)
+      const receivedAt = Date.now()
+      let execution = { queueMs: 0, executeMs: 0 }
+      try {
+        const value = await rpc!.call(body.method, body.args, requestId, (timing) => {
+          execution = timing
+        })
+        return json(res, 200, { value, timing: { ...execution, receivedAt, respondedAt: Date.now() } })
+      } catch (error) {
+        return json(res, 500, { error: error instanceof Error ? error.message : String(error), timing: { ...execution, receivedAt, respondedAt: Date.now() } })
+      }
     }
     json(res, 404, { error: 'Not Found' })
   }

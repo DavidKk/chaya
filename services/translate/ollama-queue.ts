@@ -1,3 +1,6 @@
+import { startClientOperation } from '@/lib/log/timing'
+import { reportBrowserTiming } from '@/services/log/browser'
+
 /** Serialize inference per lane with a configurable concurrency budget; prioritize interactive requests over background work and drop cancelled tasks. */
 type Task<T = unknown> = {
   interactive: boolean
@@ -15,6 +18,8 @@ export type ScheduleOllamaOptions = {
   /** Distinct endpoints/models may translate concurrently; the default lane stays serial for compatibility. */
   lane?: string
   signal?: AbortSignal
+  /** Hosts provide their own logger without importing Node APIs into the game bundle. */
+  startTiming?: (meta: Record<string, unknown>) => ReturnType<typeof startClientOperation>
 }
 
 const DEFAULT_LANE = 'ollama'
@@ -58,24 +63,43 @@ export function scheduleOllama<T>(run: () => Promise<T>, options?: ScheduleOllam
 export function scheduleOllama<T>(run: () => Promise<T>, options: boolean | ScheduleOllamaOptions = false, legacySignal?: AbortSignal): Promise<T> {
   const opts: ScheduleOllamaOptions = typeof options === 'boolean' ? { interactive: options, signal: legacySignal } : options
   const signal = opts.signal
+  const lane = opts.lane || DEFAULT_LANE
+  const meta = { lane, concurrency: opts.concurrency ?? 1, interactive: opts.interactive === true, queued: queue.length }
+  const timing = opts.startTiming?.(meta) ?? startClientOperation(reportBrowserTiming, 'agent.inference', meta)
+  let queueMs = 0
+  let started: number | undefined
   return new Promise<T>((resolve, reject) => {
-    if (signal?.aborted) return reject(signal.reason)
+    if (signal?.aborted) {
+      timing.end('cancelled', { phase: 'before-queue' })
+      return reject(signal.reason)
+    }
     const cancel = () => {
       const index = queue.indexOf(task)
       if (index >= 0) queue.splice(index, 1)
+      if (started === undefined) {
+        timing.end('cancelled', { phase: 'queued', queueMs: timing.elapsedMs(), executeMs: 0 })
+        signal?.removeEventListener('abort', cancel)
+      } else timing.mark('cancellation-requested', { queueMs })
       reject(signal?.reason)
     }
     const task: Task<T> = {
       interactive: opts.interactive === true,
       concurrency: opts.concurrency ?? 1,
-      lane: opts.lane || DEFAULT_LANE,
+      lane,
       signal,
       resolve,
       reject,
       run: async () => {
+        queueMs = timing.elapsedMs()
+        started = performance.now()
+        timing.mark('execution-started', { queueMs, active: active.get(lane) })
         try {
-          resolve(await run())
+          const value = await timing.run(run)
+          timing.end(signal?.aborted ? 'cancelled' : 'completed', { queueMs, executeMs: Math.round((performance.now() - started) * 10) / 10 })
+          resolve(value)
         } catch (error) {
+          if (signal?.aborted) timing.end('cancelled', { queueMs, executeMs: Math.round((performance.now() - started) * 10) / 10 })
+          else timing.fail(error, { queueMs, executeMs: Math.round((performance.now() - started) * 10) / 10 })
           reject(error)
         } finally {
           signal?.removeEventListener('abort', cancel)

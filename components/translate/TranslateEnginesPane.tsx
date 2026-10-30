@@ -4,6 +4,7 @@ import { Menu } from '@base-ui/react/menu'
 import Link from 'next/link'
 import { type DragEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { IoAdd } from 'react-icons/io5'
+import { LuArrowRight } from 'react-icons/lu'
 
 import { BergamotDebug, BergamotDebugGuide, statusFor, useBergamotDebugScenario } from '@/components/debug/BergamotDebug'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
@@ -48,7 +49,16 @@ import { cn } from '@/lib/utils'
 
 type EngineId = TranslateEngineId
 type OfflineEngine = 'apple' | 'bergamot'
-type OfflineStatus = { installed: boolean; status: string; message?: string; source?: string; target?: string; accessReason?: string; consoleUrl?: string }
+type OfflineStatus = {
+  installed: boolean
+  status: string
+  message?: string
+  source?: string
+  target?: string
+  supportedPairs?: Array<{ source: string; target: string; id: string }>
+  accessReason?: string
+  consoleUrl?: string
+}
 
 type EngineView = Omit<TranslateEngineState, 'enabled'>
 
@@ -81,6 +91,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
   const router = useSafeRouter()
   const pathname = useSafePathname()
   const searchParams = useSafeSearchParams()
+  const urlGameId = searchParams?.get('game') || ''
   const translationFetch = useTranslationFetch()
   const notify = useNotification()
   const agentProfiles = useTranslateAgentProfiles()
@@ -112,12 +123,13 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
       setLocalEngineId(id)
       if (!onEnginesRoute || !router) return
       const entryId = id ? engineRouteId(id, view.configs, view.agents) : ''
-      const href = entryId ? translateEngineDetailHref(entryId) : translateTabHref('engines')
+      const base = entryId ? translateEngineDetailHref(entryId) : translateTabHref('engines')
+      const href = urlGameId ? `${base}?game=${encodeURIComponent(urlGameId)}` : base
       if (id ? pathEntryId === entryId : (pathname || '') === href) return
       if (id && !entryId) return
       router.push(href)
     },
-    [onEnginesRoute, pathEntryId, pathname, router, view.agents, view.configs]
+    [onEnginesRoute, pathEntryId, pathname, router, urlGameId, view.agents, view.configs]
   )
 
   // Bergamot debug scenarios only paint on the Bergamot detail sub-card — open it when a preview is active.
@@ -130,11 +142,26 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
     if (!onEnginesRoute || !router || !pathEntryId) return
     if (isTranslateEngineId(pathEntryId)) {
       const entryId = engineRouteId(pathEntryId, view.configs, view.agents)
-      if (entryId) router.replace(translateEngineDetailHref(entryId))
+      if (entryId) {
+        const base = translateEngineDetailHref(entryId)
+        router.replace(urlGameId ? `${base}?game=${encodeURIComponent(urlGameId)}` : base)
+      }
       return
     }
-    if (!loading && !resolveEngineRouteId(pathEntryId, view.configs, view.agents)) router.replace(translateTabHref('engines'))
-  }, [loading, onEnginesRoute, pathEntryId, router, view.agents, view.configs])
+    const resolved = resolveEngineRouteId(pathEntryId, view.configs, view.agents)
+    if (!loading && !resolved) {
+      const base = translateTabHref('engines')
+      router.replace(urlGameId ? `${base}?game=${encodeURIComponent(urlGameId)}` : base)
+      return
+    }
+    if (!loading && resolved) {
+      const canonical = engineRouteId(resolved, view.configs, view.agents)
+      if (canonical && canonical !== pathEntryId) {
+        const base = translateEngineDetailHref(canonical)
+        router.replace(urlGameId ? `${base}?game=${encodeURIComponent(urlGameId)}` : base)
+      }
+    }
+  }, [loading, onEnginesRoute, pathEntryId, router, urlGameId, view.agents, view.configs])
 
   useEffect(() => {
     if (!onEnginesRoute || !router || pathEntryId) return
@@ -142,18 +169,21 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
     if (!legacy) return
     const key = isTranslateEngineId(legacy) ? legacy : resolveEngineRouteId(legacy, view.configs, view.agents)
     const entryId = key ? engineRouteId(key, view.configs, view.agents) : ''
-    if (entryId) router.replace(translateEngineDetailHref(entryId))
-  }, [onEnginesRoute, pathEntryId, router, searchParams, view.agents, view.configs])
+    if (entryId) {
+      const base = translateEngineDetailHref(entryId)
+      router.replace(urlGameId ? `${base}?game=${encodeURIComponent(urlGameId)}` : base)
+    }
+  }, [onEnginesRoute, pathEntryId, router, searchParams, urlGameId, view.agents, view.configs])
 
   const checkSystemStatus = useCallback(
     async (id: OfflineEngine, signal: AbortSignal, pair?: { source?: string; target?: string }) => {
-      setSystemStatus((prev) => ({ ...prev, [id]: undefined }))
+      if (pair) setSystemStatus((prev) => ({ ...prev, [id]: undefined }))
       try {
         const res = await translationFetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal,
-          body: JSON.stringify({ mode: `${id}-status`, from: pair?.source, to: pair?.target }),
+          body: JSON.stringify({ mode: `${id}-status`, from: pair?.source, to: pair?.target, ...(urlGameId ? { game: urlGameId } : {}) }),
         })
         const status = await res.json()
         if (!res.ok || status.ok === false) throw new Error(readApiErrorMessage(status, t('translate.offlineCheckFailed')))
@@ -164,7 +194,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
         }
       }
     },
-    [translationFetch, t]
+    [translationFetch, t, urlGameId]
   )
 
   const reportError = useEffectEvent((message: string) => notify.error(message))
@@ -179,7 +209,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
         const res = await translationFetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'switches' }),
+          body: JSON.stringify({ mode: 'switches', ...(urlGameId ? { game: urlGameId } : {}) }),
         })
         const json = (await res.json()) as Partial<EngineView> & { ok?: boolean; error?: unknown }
         if (cancelled) return
@@ -200,7 +230,37 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
       cancelled = true
       controller.abort()
     }
-  }, [t, translationFetch, checkSystemStatus])
+  }, [t, translationFetch, checkSystemStatus, urlGameId])
+
+  useEffect(() => {
+    if (loading || selectedEngineId) return
+    const controller = new AbortController()
+    let timer: ReturnType<typeof setTimeout>
+    let pending = false
+    const poll = async () => {
+      if (pending || controller.signal.aborted) return
+      clearTimeout(timer)
+      pending = true
+      try {
+        if (document.visibilityState !== 'hidden') {
+          await Promise.all((['apple', 'bergamot'] as const).map((id) => checkSystemStatus(id, controller.signal)))
+        }
+      } finally {
+        pending = false
+        if (!controller.signal.aborted) timer = setTimeout(poll, 5000)
+      }
+    }
+    const refresh = () => void poll()
+    void poll()
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      controller.abort()
+      clearTimeout(timer)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [loading, selectedEngineId, checkSystemStatus])
 
   async function persist(
     patch: { switches?: Partial<TranslateEngineSwitches>; order?: EngineId[]; agents?: TranslateAgentEntry[]; configs?: Partial<Record<string, TranslateEngineSettings>> },
@@ -211,7 +271,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
       const res = await translationFetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'switches', ...patch }),
+        body: JSON.stringify({ mode: 'switches', ...patch, ...(urlGameId ? { game: urlGameId } : {}) }),
       })
       const json = (await res.json()) as Partial<EngineView> & { ok?: boolean; error?: unknown }
       if (!res.ok || json.ok === false) {
@@ -515,7 +575,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
                         let badgeNode: React.ReactNode = null
                         if (id === 'bing' || id === 'google') {
                           badgeNode = (
-                            <div className="flex items-center gap-1">
+                            <div className="flex flex-wrap items-center gap-1">
                               <Badge size="mini" tone="accent" dot={false}>
                                 {t('translate.tagFree')}
                               </Badge>
@@ -524,12 +584,22 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
                           )
                         } else if (id === 'apple' || id === 'bergamot') {
                           const status = systemStatus[id]
-                          const ready = status?.installed === true
+                          const pair = status
+                          const unsupported = status?.status === 'unsupported'
+                          const ready = status?.installed === true && !unsupported
                           badgeNode = (
-                            <div className="flex items-center gap-1">
+                            <div className="flex flex-wrap items-center gap-1">
                               {status !== undefined ? (
-                                <Badge size="mini" tone={ready ? 'ok' : 'warn'}>
-                                  {t(ready ? 'translate.tagReady' : 'translate.tagNotReady')}
+                                <Badge size="mini" tone={ready ? 'ok' : 'warn'} title={unsupported ? t('translate.offlineUnsupportedPair') : undefined}>
+                                  {t(unsupported ? 'debug.unsupported' : ready ? 'translate.tagReady' : 'translate.tagNotReady')}
+                                  {pair?.source && pair.target ? (
+                                    <span className="inline-flex items-center gap-1">
+                                      <span aria-hidden>·</span>
+                                      {pair.source}
+                                      <LuArrowRight className="size-3 shrink-0" aria-hidden />
+                                      {pair.target}
+                                    </span>
+                                  ) : null}
                                 </Badge>
                               ) : null}
                               {concurrencyBadge}

@@ -9,6 +9,7 @@ import { TRANSLATE_CACHE_DB_PATH, TRANSLATE_CACHE_DIR } from '@/constants/paths'
 import { DEFAULT_CACHE_TGT_LANG, detectCacheLang } from '@/lib/translate/cache-lang'
 import { isNsfwCacheRow } from '@/services/translate/sensitive-text'
 
+import { ensureCandidateSchema } from './candidate-schema'
 import { ensureMatchIndexSchema } from './match-index'
 import { scheduleSharedCacheHeavyMigrate } from './migrate-bg'
 import { cacheMeta, translations } from './schema'
@@ -198,6 +199,7 @@ function ensureSchema(db: SharedCacheDb, client: DatabaseSync) {
   if (!cols.some((c) => c.name === 'category')) {
     db.run(sql`ALTER TABLE translations ADD COLUMN category TEXT`)
   }
+  ensureCandidateSchema(client)
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_updated ON translations(updated_at)`)
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_nsfw ON translations(nsfw)`)
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_langs ON translations(src_lang, tgt_lang)`)

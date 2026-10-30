@@ -16,7 +16,7 @@ import { initHostBridge, onGameMessage, postToGame } from './host-bridge'
 import { RgssMiniMap } from './MiniMap'
 import { SubtitleOverlay } from './SubtitleOverlay'
 import { requestToolSettings } from './tool-settings'
-import { createRgssServiceTranslationRequest, installRgssOverlayTranslationRuntime, readRgssOverlayConfig } from './translation-request'
+import { createRgssServiceTranslationRequest, createRgssTimingReporter, installRgssOverlayTranslationRuntime, readRgssOverlayConfig } from './translation-request'
 import { RgssWebRtcGateway } from './webrtc-gateway'
 import { RgssWorkbench } from './Workbench'
 
@@ -145,9 +145,13 @@ export function RgssOverlayRoot() {
     // 3. Connect embedded WebRTC gateway to external console
     const roomId = overlayConfig.roomId || parseQueryParam('roomId', '')
     const apiBase = overlayConfig.apiBase || parseQueryParam('apiBase', window.location.origin)
-    const translation = createTranslationRpc((packet: TranslationPacket) => {
-      gatewayInstance?.send(packet)
-    }, createRgssServiceTranslationRequest(overlayConfig))
+    const translation = createTranslationRpc(
+      (packet: TranslationPacket) => {
+        gatewayInstance?.send(packet)
+      },
+      createRgssServiceTranslationRequest(overlayConfig),
+      createRgssTimingReporter(overlayConfig)
+    )
     const gateway = new RgssWebRtcGateway(
       roomId,
       apiBase,

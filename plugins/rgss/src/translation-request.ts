@@ -1,4 +1,6 @@
+import { requestPath, startClientOperation } from '@/lib/log/timing'
 import type { TranslationRequestFn, TranslationRuntime } from '@/lib/translate/runtime-api'
+import { createBrowserTimingReporter } from '@/services/log/browser'
 
 type OverlayConfig = {
   apiBase?: string
@@ -6,6 +8,17 @@ type OverlayConfig = {
   launchToken?: string
   linkToken?: string
   roomId?: string
+}
+
+export function createRgssTimingReporter(config: OverlayConfig = readRgssOverlayConfig()) {
+  return createBrowserTimingReporter(async (entries) => {
+    await fetch(`${String(config.apiBase || '').replace(/\/+$/, '')}/api/logs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(config.launchToken ? { 'X-Chaya-Launch-Token': config.launchToken } : {}) },
+      body: JSON.stringify({ entries }),
+      signal: AbortSignal.timeout(5000),
+    })
+  })
 }
 
 /** Read overlay boot params from native inject or the page query string. */
@@ -35,6 +48,7 @@ export function createRgssServiceTranslationRequest(config: OverlayConfig = read
   const apiBase = String(config.apiBase || '').replace(/\/+$/, '')
   const contentRoot = config.contentRoot?.trim() || ''
   const launchToken = config.launchToken?.trim() || ''
+  const report = createRgssTimingReporter(config)
 
   return async (request, signal) => {
     const path = request.path.startsWith('http') ? request.path : `${apiBase}${request.path.startsWith('/') ? '' : '/'}${request.path}`
@@ -51,9 +65,34 @@ export function createRgssServiceTranslationRequest(config: OverlayConfig = read
       body = JSON.stringify(payload)
     }
 
-    const res = await fetch(path, { method, headers, body, signal })
-    const data = (await res.json().catch(() => ({ ok: false, error: { message: `翻译请求失败（${res.status}）` } }))) as Record<string, unknown>
-    return { status: res.status, data }
+    const pathname = requestPath(path)
+    const timing =
+      pathname === '/api/logs' || pathname.startsWith('/api/logs/')
+        ? undefined
+        : startClientOperation(report, 'translation.http', { method, path: pathname, transport: 'rgss', parentId: request.requestId })
+    if (timing) headers['X-Chaya-Request-Id'] = timing.id
+    let headersMs = 0
+    try {
+      const res = await fetch(path, { method, headers, body, signal })
+      headersMs = timing?.elapsedMs() ?? 0
+      let decodeFailed = false
+      const data = (await res.json().catch(() => {
+        decodeFailed = true
+        return { ok: false, error: { message: `翻译请求失败（${res.status}）` } }
+      })) as Record<string, unknown>
+      timing?.end(res.ok && !decodeFailed ? 'completed' : 'failed', {
+        status: res.status,
+        headersMs,
+        bodyMs: Math.round((timing.elapsedMs() - headersMs) * 10) / 10,
+        serverRequestId: res.headers.get('x-chaya-request-id'),
+        serverTiming: res.headers.get('server-timing'),
+        decodeFailed,
+      })
+      return { status: res.status, data }
+    } catch (error) {
+      timing?.end(signal?.aborted ? 'cancelled' : 'failed', { headersMs, errorName: error instanceof Error ? error.name : 'UnknownError' })
+      throw error
+    }
   }
 }
 

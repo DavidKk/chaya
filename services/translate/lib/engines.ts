@@ -5,6 +5,7 @@ import { createPacedGap, isNetSoftFail, peersDone, settleEngineFails } from './s
 import { isEngineEnabled, parseMarked, splitLines } from './switches'
 import { randomBetween, sleep } from './text-cache'
 import { isSensitiveForCloud } from '../sensitive-text'
+import { measureOperation } from '@/services/log/operation'
 
 export async function bingTranslate(text, gap) {
   let lastErr
@@ -17,9 +18,11 @@ export async function bingTranslate(text, gap) {
     }
     try {
       const profile = nextClientProfile()
-      const res = await loadBingApi()(text, 'auto-detect', 'zh-Hans', false, false, profile.ua)
-      if (!res || !res.translation) throw new Error('empty translation')
-      return res.translation
+      return await measureOperation('translate', 'platform.request', { engine: 'bing', attempt: attempt + 1, sourceChars: Array.from(text).length }, async () => {
+        const res = await loadBingApi()(text, 'auto-detect', 'zh-Hans', false, false, profile.ua)
+        if (!res || !res.translation) throw new Error('empty translation')
+        return res.translation
+      })
     } catch (err) {
       lastErr = err
       if (!isNetSoftFail(err)) throw err
@@ -108,7 +111,9 @@ export async function googleTranslate(text, gap) {
       await sleep(wait)
     }
     try {
-      return await googleTranslateOnce(text, nextClientProfile())
+      return await measureOperation('translate', 'platform.request', { engine: 'google', attempt: attempt + 1, sourceChars: Array.from(text).length }, () =>
+        googleTranslateOnce(text, nextClientProfile())
+      )
     } catch (err) {
       lastErr = err
       if (!isNetSoftFail(err)) throw err
@@ -140,6 +145,10 @@ export async function netChunk(tag, translateFn, items, gap, store) {
 }
 
 export async function ollamaChat(text) {
+  return measureOperation('translate', 'ollama.request', { model: MODEL, sourceChars: Array.from(text).length }, () => ollamaChatOnce(text))
+}
+
+async function ollamaChatOnce(text) {
   let res
   try {
     res = await fetch(`${OLLAMA}/api/chat`, {

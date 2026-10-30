@@ -55,6 +55,7 @@ export function BergamotPackInstaller({
         return
       snapshot.current = data
       setPlan(data)
+      planCallback.current?.(data)
       setError('')
       if (action === 'status' && data.job?.state === 'completed' && completed.current !== data.job.id) {
         completed.current = data.job.id
@@ -69,6 +70,7 @@ export function BergamotPackInstaller({
     lifetime.current = controller
     snapshot.current = undefined
     setPlan(undefined)
+    planCallback.current?.(undefined)
     setError('')
     setBusy(false)
     completed.current = ''

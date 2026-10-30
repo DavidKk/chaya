@@ -25,6 +25,7 @@ import { hasRmDigitCodes, toRmDigitTemplate } from '@/lib/translate/rm-escape'
 import { renderSentencePlan, resolveSentenceGaps, type SentencePlan, type SentenceRecord } from '@/lib/translate/sentence-plan'
 import { createSentenceResolver } from '@/lib/translate/sentence-plan'
 import { getResolvedFromConfig } from '@/services/game/binding'
+import { measureOperation } from '@/services/log/operation'
 import { appendPublicGameCache, publicGameFiles } from '@/services/storage/game-files'
 
 import { agentJaToZh } from './agent-translate'
@@ -40,10 +41,12 @@ import { planLockedNames, stitchLockedNamePlan } from './name-lock'
 import { spoolTranslationObservations } from './observations/spool'
 import { type LocalTranslateOptions, ollamaJaToZh } from './ollama-translate'
 import { loadResourceMatcher } from './resources/snapshot'
+import { logTranslationEvent } from './runtime-log'
 import { withEngineCapacity } from './scheduler/engine-capacity'
 import { joinTranslationRequest } from './scheduler/in-flight'
 import { isSensitiveForCloud } from './sensitive-text'
 import { openSharedCache } from './shared-cache'
+import { writeTranslationBatch } from './shared-cache/batch-writes'
 import {
   isReusableTranslation,
   isStorableTranslation,
@@ -62,7 +65,9 @@ export { type LocalTranslateOptions, ollamaJaToZh }
 export async function googleTranslateText(text: string, pair?: { from?: string; to?: string }, signal?: AbortSignal): Promise<string> {
   const q = String(text ?? '')
   if (!q.trim()) return q
-  return requestGoogle(fetch, q, signal || AbortSignal.timeout(30_000), pair)
+  return measureOperation('translate', 'platform.request', { engine: 'google', sourceChars: Array.from(q).length, ...pair }, () =>
+    requestGoogle(fetch, q, signal || AbortSignal.timeout(30_000), pair)
+  )
 }
 
 export async function googleJaToZh(text: string): Promise<string> {
@@ -70,6 +75,10 @@ export async function googleJaToZh(text: string): Promise<string> {
 }
 
 export async function bingTranslateText(text: string, pair?: { from?: string; to?: string }): Promise<string> {
+  return measureOperation('translate', 'platform.request', { engine: 'bing', sourceChars: Array.from(text).length, ...pair }, () => bingTranslateOnce(text, pair))
+}
+
+async function bingTranslateOnce(text: string, pair?: { from?: string; to?: string }): Promise<string> {
   // Build the optional dependency name dynamically to avoid static bundler resolution; report a clear error if it is missing.
   const pkg = ['bing', 'translate', 'api'].join('-')
   let translate: ((...args: unknown[]) => Promise<{ translation?: string }>) | undefined
@@ -104,7 +113,7 @@ async function translateWithEngine(
 ): Promise<string> {
   if (engine === 'google') return googleTranslateText(text, pair, options?.signal)
   if (engine === 'bing') return bingTranslateText(text, pair)
-  if (engine === 'apple') return appleTranslate(text, { source: pair?.from, target: pair?.to, ...(options?.signal ? { signal: options.signal } : {}) })
+  if (engine === 'apple') return appleTranslate(text, { source: pair?.from, target: pair?.to, onTrace: options?.onTrace, ...(options?.signal ? { signal: options.signal } : {}) })
   if (engine === 'bergamot') return bergamotTranslate(text, { source: pair?.from, target: pair?.to })
   if (engine === 'ollama') return ollamaJaToZh(text, options)
   const entry = findAgentEntry(agents, engine)
@@ -158,7 +167,7 @@ export async function liveTranslateTexts(
     force?: boolean
     /** Short-name optimization may replace a whole name's own glossary entry. */
     optimizeWholeName?: boolean
-    /** Dispatch without full cache search; validate current authority before accepting the result. */
+    /** Dispatch without cache search; append the result as a new candidate. */
     cacheMode?: 'bypass'
     /** Internal, dependency-validated plan from the independent cache lane. */
     preparedPlan?: SentencePlan
@@ -194,7 +203,22 @@ export async function liveTranslateTexts(
     return trackLiveTranslateRequest(() => liveTranslateTexts(texts, { ...opts, trackLiveActivity: false }))
   }
   const started = performance.now()
-  const trace = opts?.onTrace
+  const requestId = randomUUID()
+  const trace = (message: string) => {
+    const submitted = /^(Agent|Apple) request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message)
+    if (submitted) {
+      logTranslationEvent('info', message, {
+        requestId,
+        contentRoot: opts?.contentRoot,
+        engine: submitted[1] === 'Apple' ? 'apple' : 'agent',
+        items: Number(submitted[2]),
+        sourceChars: Number(submitted[3]),
+      })
+    } else if (!/engine (requested|returned|failed):/.test(message)) {
+      logTranslationEvent('debug', message, { requestId, contentRoot: opts?.contentRoot })
+    }
+    opts?.onTrace?.(message)
+  }
   const timed = <T>(action: string, work: () => T): T => {
     const begin = performance.now()
     try {
@@ -308,6 +332,7 @@ export async function liveTranslateTexts(
           const parentSignal = opts?.local?.signal
           const itemSignal = opts?.itemTimeoutMs ? AbortSignal.any([AbortSignal.timeout(opts.itemTimeoutMs), ...(parentSignal ? [parentSignal] : [])]) : parentSignal
           let engineWork = false
+          let exactBackfillQueued = false
           const onEngineDispatch = (engine: TranslateRunEngine) => {
             engineWork = true
             opts?.onEngineDispatch?.(engine)
@@ -485,10 +510,9 @@ export async function liveTranslateTexts(
                   const written = timed(`Item ${itemId} name-lock write`, () => getCache().writeMany([[src, zh]], tag, { ...pairFor(src), category: opts?.category }))
                   opts?.onCacheWrite?.(written.records, [...sources])
                   if (contentRoot && chineseTarget) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records))
+                  exactBackfillQueued = written.records.some((record) => record.src === src)
                   if (written.rejected.length) {
-                    const current = lookupCached(src)
-                    if (current) return { src, zh: current.zh, engine: current.engine, status: 'full' as const }
-                    return { src, zh: null, error: 'Translation result rejected by current authority; review conflicting cache entries' }
+                    return { src, zh: null, error: 'Translation result did not pass storage validation' }
                   }
                 }
                 items.push({ src, zh, engine: tag, resultSources: [...sources], status: 'full' })
@@ -504,7 +528,7 @@ export async function liveTranslateTexts(
               const guard = protectForTranslate(src)
               const sendText = guard.plain.trim() ? guard.plain : src
               const sensitive = isSensitiveForCloud(sendText)
-              /** Send sensitive text only to agent engines; skip this item if none are enabled, without blocking the rest of the batch. */
+              /** Keep sensitive text on configured agents or offline engines. */
               const tryEngines = sensitive ? engines.filter(engineAcceptsSensitive) : engines
               if (sensitive && !tryEngines.length) {
                 items.push({ src, zh: null, engine: 'skip:sensitive', error: 'This text requires an enabled eligible translation engine' })
@@ -535,6 +559,15 @@ export async function liveTranslateTexts(
                           trace?.(
                             `Item ${itemId} engine requested: engine=${engine}, sourceChars=${sourceChars}, from=${langPair.from}, to=${langPair.to}, pipelineElapsedMs=${Math.round(performance.now() - started)}`
                           )
+                          logTranslationEvent('info', 'Translation engine requested', {
+                            requestId,
+                            itemId,
+                            engine,
+                            contentRoot,
+                            sourceChars,
+                            ...langPair,
+                            pipelineElapsedMs: Math.round(performance.now() - started),
+                          })
                           return translateWithEngine(
                             engine,
                             sendText,
@@ -564,41 +597,37 @@ export async function liveTranslateTexts(
                     if (!isUsefulTranslation(src, sendText, rawZh, zh, opts?.targetLang)) {
                       throw new Error('No valid translation returned')
                     }
+                    logTranslationEvent('ok', 'Translation engine completed', {
+                      requestId,
+                      itemId,
+                      engine,
+                      contentRoot,
+                      sourceChars,
+                      ...langPair,
+                      elapsedMs: Math.round(performance.now() - engineStarted),
+                    })
                     winner = { engine, rawZh, zhCore, zh }
                     break
                   } catch (error) {
-                    trace?.(`Item ${itemId} engine failed: engine=${engine}, elapsedMs=${Math.round(performance.now() - engineStarted)}`)
+                    const interrupted = parentSignal?.aborted
+                    logTranslationEvent(interrupted ? 'info' : 'warn', interrupted ? 'Translation engine interrupted' : 'Translation engine failed', {
+                      requestId,
+                      itemId,
+                      engine,
+                      contentRoot,
+                      sourceChars: Array.from(sendText).length,
+                      ...langPair,
+                      elapsedMs: Math.round(performance.now() - engineStarted),
+                      error: error instanceof Error ? error.message : String(error),
+                    })
+                    trace?.(
+                      `Item ${itemId} engine failed: engine=${engine}, elapsedMs=${Math.round(performance.now() - engineStarted)}, error=${error instanceof Error ? error.message : String(error)}`
+                    )
                     parentSignal?.throwIfAborted()
                     errors.push(new Error(`${engine}: [${langPair.from} -> ${langPair.to}] ${error instanceof Error ? error.message : String(error)}`))
                   }
                 }
                 if (!winner) throw new AggregateError(errors, 'All translation engines failed')
-                // Whole/alias authority only: never rerun sentence coverage on the dispatch lane.
-                const currentAuthority = () => {
-                  const currentContext = contentRoot && chineseTarget ? getGameCacheContext(contentRoot) : null
-                  if (currentContext?.blocked(src)) return null
-                  const local = currentContext?.lookup
-                  const pair = resolveCacheLangPair({ ...langPair, src })
-                  const categoryHint = opts?.category
-                  const used = new Map<string, NonNullable<ReturnType<ReturnType<typeof openSharedCache>['authority']>>>()
-                  const hit = lookupGameTranslation(
-                    (key) => local?.[key],
-                    (key) => {
-                      const value = getCache().get(key, { ...pair, category: categoryHint })
-                      const record = value != null ? getCache().authority(key, pair, { category: categoryHint }) : null
-                      if (record) used.set(record.id!, record)
-                      return value
-                    },
-                    src,
-                    { resources: false }
-                  )
-                  if (hit && bypassCache && contentRoot && persist && used.size) getCache().queueBackfill(contentRoot, [...used.values()])
-                  return hit
-                }
-                if (bypassCache) {
-                  const current = timed(`Item ${itemId} authority checked`, currentAuthority)
-                  if (current) return { src, zh: current.zh, engine: current.engine, status: 'full' as const }
-                }
                 const source = engineSourceTag(winner.engine, agents)
                 const tag = sensitive ? `live:${source}:nsfw` : `live:${source}`
                 const pairs: Array<[string, string]> = []
@@ -619,13 +648,18 @@ export async function liveTranslateTexts(
                   pushPair(labelKey, winner.zhCore)
                 }
                 if (pairs.length && persist) {
-                  const written = timed(`Item ${itemId} shared cache write`, () => getCache().writeMany(pairs, tag, { ...pairFor(src), category: opts?.category }))
+                  const writeOpts = { ...pairFor(src), category: opts?.category }
+                  const backfillRoot = contentRoot && chineseTarget ? contentRoot : undefined
+                  const writeStarted = performance.now()
+                  const written = opts?.sharedCache
+                    ? await writeTranslationBatch(getCache(), pairs, tag, writeOpts, backfillRoot)
+                    : timed(`Item ${itemId} shared cache write`, () => getCache().writeMany(pairs, tag, writeOpts))
+                  if (opts?.sharedCache) trace?.(`Item ${itemId} shared cache batch write: elapsedMs=${Math.round(performance.now() - writeStarted)}`)
                   opts?.onCacheWrite?.(written.records, [tag])
-                  if (contentRoot && chineseTarget) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records))
+                  if (!opts?.sharedCache && backfillRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(backfillRoot, written.records))
+                  exactBackfillQueued = written.records.some((record) => record.src === src)
                   if (written.rejected.length) {
-                    const current = currentAuthority()
-                    if (current) return { src, zh: current.zh, engine: current.engine, status: 'full' as const }
-                    return { src, zh: null, error: 'Translation result rejected by current authority; review conflicting cache entries' }
+                    return { src, zh: null, error: 'Translation result did not pass storage validation' }
                   }
                 }
                 items.push({ src, zh: winner.zh, engine: tag })
@@ -642,7 +676,7 @@ export async function liveTranslateTexts(
             item = { src, zh: null, error: 'Translation item deadline exceeded; saved results are retained' }
           }
           item = { ...item, resultSources: resultSources(item), engineWork }
-          if (persist && contentRoot && chineseTarget && item.zh != null && !item.error && item.status !== 'partial') {
+          if (persist && contentRoot && chineseTarget && !exactBackfillQueued && item.zh != null && !item.error && item.status !== 'partial') {
             getCache().queueGameProjections(contentRoot, [{ src, pair: pairFor(src) }])
           }
           if (persist && item.error) {

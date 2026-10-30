@@ -150,4 +150,37 @@ describe('页面路由契约', () => {
     await expectRedirect(() => LogsIndex({ searchParams: Promise.resolve({}) }), '/logs/runtime')
     await expectRedirect(() => LogsIndex({ searchParams: Promise.resolve({ view: 'agent', taskId: 't1' }) }), '/logs/agent?taskId=t1')
   })
+
+  it('/cheat 保留 searchParams (如 ?game=g1)', async () => {
+    const { DEFAULT_TAB, editTabHref } = await import('@/components/game-edit/tabs')
+    const { default: CheatIndex } = await import('@/app/cheat/page')
+    await expectRedirect(() => CheatIndex({ searchParams: Promise.resolve({ game: 'g1' }) }), `${editTabHref(DEFAULT_TAB)}?game=g1`)
+  })
+
+  it('/translate 保留 searchParams (如 ?game=g1)', async () => {
+    const { DEFAULT_TRANSLATE_TAB, translateTabHref } = await import('@/components/translate/tabs')
+    const { default: TranslateIndex } = await import('@/app/translate/page')
+    await expectRedirect(() => TranslateIndex({ searchParams: Promise.resolve({ game: 'g1' }) }), `${translateTabHref(DEFAULT_TRANSLATE_TAB)}?game=g1`)
+  })
+
+  it('/assist 保留 searchParams (如 ?game=g1)', async () => {
+    const { default: AssistPage } = await import('@/app/assist/page')
+    await expectRedirect(() => AssistPage({ searchParams: Promise.resolve({ game: 'g1' }) }), '/assist/hotkeys?game=g1')
+  })
+
+  it('/cache 保留 searchParams (如 ?game=g1)', async () => {
+    const { translateTabHref } = await import('@/components/translate/tabs')
+    const { default: CacheRedirect } = await import('@/app/cache/page')
+    await expectRedirect(() => CacheRedirect({ searchParams: Promise.resolve({ game: 'g1' }) }), `${translateTabHref('cache')}?game=g1`)
+  })
+
+  it('/edit 保留 searchParams (如 ?game=g1)', async () => {
+    const { default: EditCompat } = await import('@/app/edit/[[...slug]]/page')
+    await expectRedirect(() => EditCompat({ params: Promise.resolve({}), searchParams: Promise.resolve({ game: 'g1' }) }), '/cheat/run?game=g1')
+  })
+
+  it('/translate/run 保留 searchParams (如 ?game=g1)', async () => {
+    const { default: TranslateTabPage } = await import('@/app/translate/[tab]/page')
+    await expectRedirect(() => TranslateTabPage({ params: Promise.resolve({ tab: 'run' }), searchParams: Promise.resolve({ game: 'g1' }) }), '/translate/seed?game=g1')
+  })
 })

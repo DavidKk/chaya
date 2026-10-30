@@ -2,7 +2,14 @@
 import { randomUUID } from 'node:crypto'
 
 import { detectCacheLang } from '@/lib/translate/cache-lang'
-import { engineAcceptsSensitive, type TranslateAgentEntry, type TranslateRunEngine, translationFallbackOrder } from '@/lib/translate/engines'
+import {
+  engineAcceptsSensitive,
+  resolveEngineCapacitySettings,
+  type TranslateAgentEntry,
+  type TranslateEngineState,
+  type TranslateRunEngine,
+  translationFallbackOrder,
+} from '@/lib/translate/engines'
 import { isCacheResult } from '@/lib/translate/result-sources'
 import type { SentencePlan } from '@/lib/translate/sentence-plan'
 
@@ -19,7 +26,7 @@ import type { IndexedRecord } from '../shared-cache/match-index'
 import { charCount } from '../text-classify'
 import { type CacheLane, type CacheScanBatch, startCacheLane } from './cache-lane'
 import type { CacheScanResult } from './cache-scan'
-import { engineCapacity } from './engine-capacity'
+import { engineConfiguredCapacity } from './engine-capacity'
 import { followsOwnedStampChain } from './owned-stamps'
 import { collectResultWindow, type Completed } from './result-window'
 import { seedEngineBudget } from './seed-engine-budget'
@@ -68,6 +75,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
   let options: SeedFillOptions = {}
   let engines: TranslateRunEngine[] = []
   let agents: TranslateAgentEntry[] = []
+  let configs: TranslateEngineState['configs'] | undefined
   let store: ReturnType<typeof openSharedCache> | undefined
   let cacheLane: CacheLane | undefined
   let resolveWait: (() => void) | undefined
@@ -491,7 +499,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
         const ordinary = [...loads].filter(([key]) => !key.startsWith('agent:')).reduce((sum, [, load]) => sum + load.items, 0)
         if (!budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue
         const count = loads.get(engine)?.items || 0
-        if (count >= (budget?.items ?? engineCapacity(engine))) continue
+        if (count >= (budget?.items ?? engineConfiguredCapacity(engine, resolveEngineCapacitySettings(engine, configs, agents)))) continue
         const id = nextTask(engine)
         if (id === undefined) continue
         dispatch(id, engine)
@@ -708,6 +716,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
       const switches = getTranslateEngineSwitches(contentRoot)
       engines = switches.enabled
       agents = switches.agents || []
+      configs = switches.configs
       for (const [id, entry] of active)
         if (!engines.includes(entry.engine)) {
           const attempt = retries.get(id)

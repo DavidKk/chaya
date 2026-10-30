@@ -47,6 +47,92 @@ var __toESM = (mod, isNodeMode, target2) => (target2 = mod != null ? __create(__
   mod
 ));
 
+// lib/log/types.ts
+function normalizeLogLevel(raw) {
+  const v = String(raw || "info").toLowerCase();
+  if (v === "error" || v === "fatal") return "fail";
+  if (v === "success" || v === "done") return "ok";
+  if (v === "trace" || v === "log") return "debug";
+  if (LEVEL_SET.has(v)) return v;
+  return "info";
+}
+var LOG_LEVELS, LEVEL_SET;
+var init_types = __esm({
+  "lib/log/types.ts"() {
+    "use strict";
+    LOG_LEVELS = ["ok", "warn", "fail", "info", "debug"];
+    LEVEL_SET = new Set(LOG_LEVELS);
+  }
+});
+
+// lib/log/filter.ts
+var init_filter = __esm({
+  "lib/log/filter.ts"() {
+    "use strict";
+    init_types();
+  }
+});
+
+// lib/log/index.ts
+var init_log = __esm({
+  "lib/log/index.ts"() {
+    "use strict";
+    init_filter();
+    init_types();
+  }
+});
+
+// lib/service-mode/target.ts
+function parseBuildTarget(value) {
+  const target2 = value?.trim().toLowerCase() || "server";
+  if (target2 === "dev" || target2 === "cloud" || target2 === "server") return target2;
+  throw new Error(`Invalid NEXT_PUBLIC_CHAYA_TARGET configuration: ${value}; supported values: dev, cloud, server`);
+}
+function isDevTarget(value) {
+  return value === "cloud" || value === "server";
+}
+function getDevTarget() {
+  const raw = process.env[DEV_TARGET_ENV];
+  const explicit = raw?.trim().toLowerCase();
+  if (isDevTarget(explicit)) return explicit;
+  if (explicit) throw new Error(`Invalid CHAYA_DEV_TARGET configuration: ${raw}; supported values: cloud, server`);
+  return process.env.CHAYA_SERVICE?.trim().toLowerCase() === "remote" ? "cloud" : "server";
+}
+var BUILD_TARGET, DEV_TARGET_ENV;
+var init_target = __esm({
+  "lib/service-mode/target.ts"() {
+    "use strict";
+    BUILD_TARGET = parseBuildTarget(process.env.NEXT_PUBLIC_CHAYA_TARGET);
+    DEV_TARGET_ENV = "CHAYA_DEV_TARGET";
+  }
+});
+
+// lib/service-mode/mode.ts
+function parseExplicitServiceMode() {
+  const explicit = process.env.CHAYA_SERVICE?.trim().toLowerCase();
+  if (!explicit) return void 0;
+  if (explicit === "remote" || explicit === "app" || explicit === "local") return explicit;
+  throw new Error(`Invalid CHAYA_SERVICE configuration: ${process.env.CHAYA_SERVICE}; supported values: local, app, remote`);
+}
+function getServiceMode() {
+  const explicit = parseExplicitServiceMode();
+  if (BUILD_TARGET === "cloud" || process.env.VERCEL === "1") return "remote";
+  if (BUILD_TARGET === "dev") {
+    if (getDevTarget() === "cloud") return "remote";
+    return explicit === "app" ? "app" : "local";
+  }
+  return explicit ?? "local";
+}
+function canUseDisk(mode = getServiceMode()) {
+  return mode !== "remote";
+}
+var init_mode = __esm({
+  "lib/service-mode/mode.ts"() {
+    "use strict";
+    init_target();
+  }
+});
+
 // constants/brand.ts
 var PRODUCT_DISPLAY_NAME, PRODUCT_SLUG, SHELL_BUNDLE_BASE, SHELL_APP_NAME, SHELL_WIN_DIR_NAME, LEGACY_SHELL_APP_NAMES, WIN_SHELL_EXE_NAMES, SHELL_LAUNCHER_WIN, SHELL_LAUNCHER_MAC, SHELL_LAUNCHER_LINUX, CONFIG_FILE_NAME, LEGACY_CONFIG_FILE_NAMES, PLUGIN_RUNTIME_NAME, PLUGIN_ENV_NAME, PLUGIN_LOADER_NAME, PLUGIN_TRANS_NAME, PLUGIN_EDIT_NAME, PLUGIN_BOOST_NAME, PLUGIN_AGENT_NAME, CONTENT_FILE_PREFIX;
 var init_brand = __esm({
@@ -169,6 +255,228 @@ var init_paths = __esm({
   }
 });
 
+// services/log/file-store.ts
+import fs2 from "node:fs";
+import path from "node:path";
+function resolvePluginLogDir() {
+  const fromEnv = process.env.CHAYA_LOG_DIR;
+  if (fromEnv && fromEnv.trim()) {
+    return path.isAbsolute(fromEnv) ? fromEnv : path.resolve(ROOT_PATH, fromEnv);
+  }
+  return PLUGIN_LOGS_DIR;
+}
+function dayKey(ts) {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+function dayFile(dir, day) {
+  return path.join(dir, `${day}.ndjson`);
+}
+function ensureDir(dir) {
+  fs2.mkdirSync(dir, { recursive: true });
+}
+function appendLogToFile(entry, logDir = resolvePluginLogDir()) {
+  try {
+    ensureDir(logDir);
+    const file = dayFile(logDir, dayKey(entry.ts));
+    fs2.appendFileSync(file, `${JSON.stringify(entry)}
+`, "utf8");
+  } catch {
+  }
+}
+function parseLine(line, file, lineNo) {
+  const raw = line.trim();
+  if (!raw) return null;
+  try {
+    const o = JSON.parse(raw);
+    const ts = typeof o.ts === "number" ? o.ts : o.createdAt ? Date.parse(o.createdAt) : Date.now();
+    if (!o.source || o.message == null) return null;
+    return {
+      id: String(o.id || `${path.basename(file)}:${lineNo}`),
+      ts: Number.isFinite(ts) ? ts : Date.now(),
+      level: normalizeLogLevel(o.level),
+      source: String(o.source).slice(0, 64),
+      message: String(o.message).slice(0, 8e3),
+      meta: o.meta
+    };
+  } catch {
+    return null;
+  }
+}
+function loadLogsFromFiles(opts) {
+  const logDir = opts?.logDir ?? resolvePluginLogDir();
+  const retentionDays = opts?.retentionDays ?? DEFAULT_RETENTION_DAYS;
+  const limit = opts?.limit ?? DEFAULT_HYDRATE_LIMIT;
+  if (!fs2.existsSync(logDir)) return [];
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1e3;
+  const files2 = fs2.readdirSync(logDir).filter((n) => /^\d{4}-\d{2}-\d{2}\.ndjson$/.test(n)).sort();
+  const out = [];
+  for (const name2 of files2) {
+    const day = name2.slice(0, 10);
+    const dayTs = Date.parse(`${day}T00:00:00.000Z`);
+    if (Number.isFinite(dayTs) && dayTs < cutoff - 24 * 60 * 60 * 1e3) {
+      continue;
+    }
+    const full = path.join(logDir, name2);
+    let text4 = "";
+    try {
+      text4 = fs2.readFileSync(full, "utf8");
+    } catch {
+      continue;
+    }
+    const lines = text4.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const entry = parseLine(lines[i], full, i + 1);
+      if (!entry) continue;
+      if (entry.ts < cutoff) continue;
+      out.push(entry);
+    }
+  }
+  out.sort((a, b) => a.ts - b.ts);
+  return out.length > limit ? out.slice(-limit) : out;
+}
+var DEFAULT_RETENTION_DAYS, DEFAULT_HYDRATE_LIMIT;
+var init_file_store = __esm({
+  "services/log/file-store.ts"() {
+    "use strict";
+    init_paths();
+    init_log();
+    DEFAULT_RETENTION_DAYS = 14;
+    DEFAULT_HYDRATE_LIMIT = 2e3;
+  }
+});
+
+// services/log/bus.ts
+function nextId() {
+  seq += 1;
+  return `${Date.now().toString(36)}-${seq}`;
+}
+function hydrateOnce() {
+  if (hydrated) return;
+  hydrated = true;
+  if (!canUseDisk()) return;
+  try {
+    const loaded = loadLogsFromFiles({ limit: MAX });
+    buffer.push(...loaded);
+    if (buffer.length > MAX) buffer.splice(0, buffer.length - MAX);
+    seq = buffer.length;
+  } catch {
+  }
+}
+function appendLog(partial) {
+  hydrateOnce();
+  const entry = {
+    id: nextId(),
+    ts: partial.ts ?? Date.now(),
+    level: normalizeLogLevel(partial.level),
+    source: String(partial.source || "unknown").slice(0, 64),
+    message: String(partial.message ?? "").slice(0, 8e3),
+    meta: partial.meta
+  };
+  buffer.push(entry);
+  if (buffer.length > MAX) buffer.splice(0, buffer.length - MAX);
+  if (canUseDisk()) appendLogToFile(entry);
+  for (const fn of listeners) {
+    try {
+      fn(entry);
+    } catch {
+    }
+  }
+  return entry;
+}
+var MAX, buffer, listeners, seq, hydrated;
+var init_bus = __esm({
+  "services/log/bus.ts"() {
+    "use strict";
+    init_log();
+    init_mode();
+    init_file_store();
+    MAX = 2e3;
+    buffer = [];
+    listeners = /* @__PURE__ */ new Set();
+    seq = 0;
+    hydrated = false;
+  }
+});
+
+// services/log/operation.ts
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
+import { isMainThread, parentPort, threadId } from "node:worker_threads";
+function runtimeEvent(level, source, message, meta, forward = false, ts = Date.now()) {
+  try {
+    const entry = { level, source, message, meta, ts };
+    if (!isMainThread && parentPort && (forward || process.env.CHAYA_LOG_FORWARD_TO_PARENT === "1")) {
+      parentPort.postMessage({ type: "translation-log", entry });
+    } else appendLog(entry);
+  } catch {
+  }
+}
+function operationId(value) {
+  return value && /^[a-zA-Z0-9:_-]{1,100}$/.test(value) ? value : randomUUID();
+}
+function startOperation(source, operation, meta = {}, options = {}) {
+  const id = operationId(options.operationId);
+  const startedAt = Date.now();
+  const started = performance.now();
+  const base = { ...meta, operation, operationId: id, parentId: context.getStore()?.operationId, pid: process.pid, threadId, startedAt };
+  let ended = false;
+  const elapsedMs = () => Math.round((performance.now() - started) * 10) / 10;
+  const mark = (stage, details = {}) => runtimeEvent("debug", source, `${operation}: ${stage}`, { ...base, ...details, stage, elapsedMs: elapsedMs() });
+  if (options.start !== false) mark("started");
+  return {
+    id,
+    startedAt,
+    elapsedMs,
+    mark,
+    run(fn) {
+      return context.run({ operationId: id }, fn);
+    },
+    end(outcome = "completed", details = {}) {
+      if (ended) return;
+      ended = true;
+      const duration = elapsedMs();
+      const slow = duration >= (options.slowMs ?? 1e3);
+      runtimeEvent(outcome === "failed" ? "fail" : slow ? "warn" : options.level ?? "debug", source, `${operation}: ${outcome} (${duration}ms)`, {
+        ...base,
+        ...details,
+        outcome,
+        elapsedMs: duration,
+        slow,
+        finishedAt: Date.now()
+      });
+    },
+    fail(error, details = {}) {
+      const errorName = error && typeof error === "object" && "name" in error ? String(error.name) : "UnknownError";
+      this.end(errorName === "AbortError" ? "cancelled" : "failed", {
+        ...details,
+        errorName,
+        errorCode: error && typeof error === "object" && "code" in error ? String(error.code) : void 0
+      });
+    }
+  };
+}
+async function measureOperation(source, operation, meta, run, options) {
+  const timing = startOperation(source, operation, meta, options);
+  return timing.run(async () => {
+    try {
+      const value = await run();
+      timing.end();
+      return value;
+    } catch (error) {
+      timing.fail(error);
+      throw error;
+    }
+  });
+}
+var context;
+var init_operation = __esm({
+  "services/log/operation.ts"() {
+    "use strict";
+    init_bus();
+    context = new AsyncLocalStorage();
+  }
+});
+
 // lib/game/content-paths.ts
 function gameContentRelPath(kind) {
   return `${GAME_CONTENT_DIR}/${GAME_CONTENT_RELS[kind]}`;
@@ -243,8 +551,8 @@ var init_mcp_port = __esm({
 });
 
 // services/storage/daemon-lock.ts
-import fs2 from "node:fs";
-import path from "node:path";
+import fs3 from "node:fs";
+import path2 from "node:path";
 import { DatabaseSync } from "node:sqlite";
 function isPidAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -258,8 +566,8 @@ function isPidAlive(pid) {
 }
 function readMetaSafe(file) {
   try {
-    if (!fs2.existsSync(file)) return null;
-    const raw = JSON.parse(fs2.readFileSync(file, "utf8"));
+    if (!fs3.existsSync(file)) return null;
+    const raw = JSON.parse(fs3.readFileSync(file, "utf8"));
     if (raw && Number.isInteger(raw.pid) && typeof raw.startedAt === "number" && typeof raw.port === "number" && typeof raw.authToken === "string" && typeof raw.dataDir === "string") {
       return raw;
     }
@@ -269,9 +577,9 @@ function readMetaSafe(file) {
   }
 }
 function readStorageDaemonMeta(dataDir) {
-  const resolvedDir = typeof dataDir === "string" && dataDir ? dataDir : path.join(process.cwd(), "data");
-  const metaFile = path.join(resolvedDir, "runtime", "storage-daemon.json");
-  const lockFile = path.join(resolvedDir, "runtime", "storage-daemon.lock");
+  const resolvedDir = typeof dataDir === "string" && dataDir ? dataDir : path2.join(process.cwd(), "data");
+  const metaFile = path2.join(resolvedDir, "runtime", "storage-daemon.json");
+  const lockFile = path2.join(resolvedDir, "runtime", "storage-daemon.lock");
   const meta = readMetaSafe(metaFile);
   const owner = readMetaSafe(lockFile);
   if (!meta || !owner || !meta.instanceId || meta.instanceId !== owner.instanceId) return null;
@@ -286,34 +594,34 @@ var init_daemon_lock = __esm({
 
 // services/storage/client.ts
 import { spawn } from "node:child_process";
-import fs3 from "node:fs";
+import fs4 from "node:fs";
 import os from "node:os";
-import path2 from "node:path";
+import path3 from "node:path";
 import { Worker } from "node:worker_threads";
 function resolveNativeBin(name2) {
   const root = typeof ROOT_PATH === "string" && ROOT_PATH ? ROOT_PATH : process.cwd();
-  const direct = path2.join(root, "native/bin", name2);
-  if (fs3.existsSync(direct)) return direct;
-  const cwdCandidate = path2.join(process.cwd(), "native/bin", name2);
-  if (fs3.existsSync(cwdCandidate)) return cwdCandidate;
+  const direct = path3.join(root, "native/bin", name2);
+  if (fs4.existsSync(direct)) return direct;
+  const cwdCandidate = path3.join(process.cwd(), "native/bin", name2);
+  if (fs4.existsSync(cwdCandidate)) return cwdCandidate;
   return direct;
 }
 function resolveDataDir() {
-  return typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path2.join(process.cwd(), "data");
+  return typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path3.join(process.cwd(), "data");
 }
 function publishLocator() {
   if (locatorPublished) return;
   const dir = mcpPortConfigDir(processMcpPortEnv(os.homedir()));
-  fs3.mkdirSync(dir, { recursive: true, mode: 448 });
-  const file = path2.join(dir, "storage-runtime.json");
+  fs4.mkdirSync(dir, { recursive: true, mode: 448 });
+  const file = path3.join(dir, "storage-runtime.json");
   const tmp = `${file}.${process.pid}.tmp`;
   const entry = resolveNativeBin("chaya-storage-daemon.mjs");
   const dataDir = resolveDataDir();
   const rootDir = typeof ROOT_PATH === "string" && ROOT_PATH ? ROOT_PATH : process.cwd();
-  fs3.writeFileSync(tmp, JSON.stringify({ dataDir, entry, executable: process.execPath, root: rootDir }), {
+  fs4.writeFileSync(tmp, JSON.stringify({ dataDir, entry, executable: process.execPath, root: rootDir }), {
     mode: 384
   });
-  fs3.renameSync(tmp, file);
+  fs4.renameSync(tmp, file);
   locatorPublished = true;
 }
 function ensureStorageDaemon() {
@@ -322,15 +630,15 @@ function ensureStorageDaemon() {
   let meta = readStorageDaemonMeta(dataDir);
   if (meta?.port) return meta;
   const entry = resolveNativeBin("chaya-storage-daemon.mjs");
-  if (!fs3.existsSync(entry)) throw new Error("Storage runtime is missing; run pnpm build:translate");
+  if (!fs4.existsSync(entry)) throw new Error("Storage runtime is missing; run pnpm build:translate");
   const child = spawn(process.execPath, [entry], {
     detached: true,
     stdio: "ignore",
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
-      CHAYA_ROOT: typeof ROOT_PATH === "string" && ROOT_PATH && fs3.existsSync(path2.join(ROOT_PATH, "native/bin")) ? ROOT_PATH : process.cwd(),
-      CHAYA_DATA_DIR: typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path2.join(process.cwd(), "data")
+      CHAYA_ROOT: typeof ROOT_PATH === "string" && ROOT_PATH && fs4.existsSync(path3.join(ROOT_PATH, "native/bin")) ? ROOT_PATH : process.cwd(),
+      CHAYA_DATA_DIR: typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path3.join(process.cwd(), "data")
     }
   });
   let spawnError;
@@ -348,28 +656,49 @@ function ensureStorageDaemon() {
   throw new Error("Storage daemon did not become ready");
 }
 function storageCall(method, args = []) {
-  const meta = ensureStorageDaemon();
-  if (!worker) {
-    const entry = resolveNativeBin("chaya-storage-client.mjs");
-    worker = Reflect.construct(Worker, [entry]);
-    worker.on("error", () => {
-      worker = void 0;
-    });
-    worker.unref();
+  const timing = startOperation("storage", "storage.roundtrip", { method }, { start: false });
+  let readyMs = 0;
+  let waitMs = 0;
+  let decodeMs = 0;
+  let waiting = 0;
+  let remote;
+  try {
+    const meta = ensureStorageDaemon();
+    if (!worker) {
+      const entry = resolveNativeBin("chaya-storage-client.mjs");
+      worker = Reflect.construct(Worker, [entry]);
+      worker.on("error", () => {
+        worker = void 0;
+      });
+      worker.unref();
+    }
+    const shared = responseBuffer ??= new SharedArrayBuffer(16 * 1024 * 1024);
+    const signal = new Int32Array(shared, 0, 2);
+    Atomics.store(signal, 0, 0);
+    Atomics.store(signal, 1, 0);
+    readyMs = timing.elapsedMs();
+    waiting = performance.now();
+    worker.postMessage({ port: meta.port, token: meta.authToken, body: { method, args, requestId: timing.id, sentAt: Date.now() }, shared });
+    if (Atomics.wait(signal, 0, 0, 125e3) === "timed-out") {
+      responseBuffer = void 0;
+      throw new Error("Storage request timed out; retry with the same mutation key");
+    }
+    waitMs = Math.round((performance.now() - waiting) * 10) / 10;
+    const decoding = performance.now();
+    const result = JSON.parse(Buffer.from(shared, 8, Atomics.load(signal, 1)).toString("utf8"));
+    remote = result.timing;
+    decodeMs = Math.round((performance.now() - decoding) * 10) / 10;
+    if (result.error) throw new Error(result.error);
+    const value = result.value;
+    const restored = value?.storageMap ? new Map(value.storageMap) : value;
+    decodeMs = Math.round((performance.now() - decoding) * 10) / 10;
+    timing.end("completed", { readyMs, waitMs, decodeMs, responseBytes: Atomics.load(signal, 1), ...result.timing });
+    return restored;
+  } catch (error) {
+    if (waiting && !waitMs) waitMs = Math.round((performance.now() - waiting) * 10) / 10;
+    timing.fail(error, { readyMs, waitMs, decodeMs, ...remote });
+    throw error;
   }
-  const shared = responseBuffer ??= new SharedArrayBuffer(16 * 1024 * 1024);
-  const signal = new Int32Array(shared, 0, 2);
-  Atomics.store(signal, 0, 0);
-  Atomics.store(signal, 1, 0);
-  worker.postMessage({ port: meta.port, token: meta.authToken, body: { method, args }, shared });
-  if (Atomics.wait(signal, 0, 0, 125e3) === "timed-out") {
-    responseBuffer = void 0;
-    throw new Error("Storage request timed out; retry with the same mutation key");
-  }
-  const result = JSON.parse(Buffer.from(shared, 8, Atomics.load(signal, 1)).toString("utf8"));
-  if (result.error) throw new Error(result.error);
-  const value = result.value;
-  return value?.storageMap ? new Map(value.storageMap) : value;
 }
 var worker, responseBuffer, pause, locatorPublished;
 var init_client = __esm({
@@ -377,6 +706,7 @@ var init_client = __esm({
     "use strict";
     init_paths();
     init_mcp_port();
+    init_operation();
     init_daemon_lock();
     pause = new Int32Array(new SharedArrayBuffer(4));
     locatorPublished = false;
@@ -384,8 +714,8 @@ var init_client = __esm({
 });
 
 // services/storage/game-files.ts
-import { randomUUID } from "node:crypto";
-import path3 from "node:path";
+import { randomUUID as randomUUID2 } from "node:crypto";
+import path4 from "node:path";
 function appendPublicCacheFile(file, rows) {
   const writer = ownerWriters.get(file);
   if (!writer) return false;
@@ -393,7 +723,7 @@ function appendPublicCacheFile(file, rows) {
   return true;
 }
 function publicGameFiles(contentRoot) {
-  const key3 = path3.resolve(contentRoot);
+  const key3 = path4.resolve(contentRoot);
   const local = ownerDirectories.get(key3) ?? mountedDirectories.get(key3);
   if (local) return local;
   if (process.env.CHAYA_STORAGE_OWNER === "1") {
@@ -406,10 +736,10 @@ function publicGameFiles(contentRoot) {
   return remote;
 }
 function publicGameFile(contentRoot, kind) {
-  return path3.join(publicGameFiles(contentRoot).directory, GAME_CONTENT_RELS[kind]);
+  return path4.join(publicGameFiles(contentRoot).directory, GAME_CONTENT_RELS[kind]);
 }
 function appendPublicGameCache(contentRoot, rows) {
-  for (let offset = 0; offset < rows.length; offset += 500) storageCall("game.append", [contentRoot, rows.slice(offset, offset + 500), randomUUID()]);
+  for (let offset = 0; offset < rows.length; offset += 500) storageCall("game.append", [contentRoot, rows.slice(offset, offset + 500), randomUUID2()]);
 }
 function writePublicGameDocument(contentRoot, kind, value) {
   return storageCall("game.write", [contentRoot, kind, value]);
@@ -427,14 +757,14 @@ var init_game_files = __esm({
 });
 
 // lib/game/content-files.ts
-import fs4 from "node:fs";
-import path4 from "node:path";
+import fs5 from "node:fs";
+import path5 from "node:path";
 function storageDirectoryRegistry() {
   if (typeof DATA_DIR !== "string" || !DATA_DIR) return null;
-  const file = path4.join(DATA_DIR, "runtime", "game-directories.json");
+  const file = path5.join(DATA_DIR, "runtime", "game-directories.json");
   let mtimeMs = 0;
   try {
-    mtimeMs = fs4.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0;
+    mtimeMs = fs5.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0;
   } catch {
     mtimeMs = 0;
   }
@@ -445,12 +775,12 @@ function storageDirectoryRegistry() {
   if (registryCache && registryCache.file === file && registryCache.mtimeMs === mtimeMs) return registryCache;
   const byRoot = /* @__PURE__ */ new Map();
   try {
-    const raw = JSON.parse(fs4.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs5.readFileSync(file, "utf8"));
     if (raw && typeof raw === "object" && !Array.isArray(raw)) {
       for (const [root, state] of Object.entries(raw)) {
         if (!state || typeof state !== "object") continue;
         const directory = state.directory;
-        if (typeof directory === "string" && directory) byRoot.set(path4.resolve(root), path4.resolve(directory));
+        if (typeof directory === "string" && directory) byRoot.set(path5.resolve(root), path5.resolve(directory));
       }
     }
   } catch {
@@ -461,14 +791,14 @@ function storageDirectoryRegistry() {
 function storageGameDirectory(contentRoot) {
   const registry = storageDirectoryRegistry();
   if (!registry) return null;
-  const key3 = path4.resolve(contentRoot);
+  const key3 = path5.resolve(contentRoot);
   const direct = registry.byRoot.get(key3);
   if (direct) return direct;
   try {
-    const real2 = fs4.realpathSync(contentRoot);
+    const real2 = fs5.realpathSync(contentRoot);
     for (const [root, directory] of registry.byRoot) {
       try {
-        if (fs4.realpathSync(root) === real2) return directory;
+        if (fs5.realpathSync(root) === real2) return directory;
       } catch {
       }
     }
@@ -478,48 +808,48 @@ function storageGameDirectory(contentRoot) {
 }
 function gameContentPath(contentRoot, kind) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) return publicGameFile(contentRoot, kind);
-  return path4.join(path4.resolve(contentRoot), gameContentRelPath(kind));
+  return path5.join(path5.resolve(contentRoot), gameContentRelPath(kind));
 }
 function gameContentCandidatePaths(contentRoot, kind, opts) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) return [publicGameFile(contentRoot, kind)];
-  const root = path4.resolve(contentRoot);
-  const dirs = opts?.alsoParent ? [root, path4.dirname(root)] : [root];
+  const root = path5.resolve(contentRoot);
+  const dirs = opts?.alsoParent ? [root, path5.dirname(root)] : [root];
   const out = [];
   for (const dir of dirs) {
-    out.push(path4.join(dir, gameContentRelPath(kind)));
+    out.push(path5.join(dir, gameContentRelPath(kind)));
     for (const name2 of LEGACY_FLAT_FILES[kind]) {
-      out.push(path4.join(dir, name2));
+      out.push(path5.join(dir, name2));
     }
   }
   return out;
 }
 function gameContentReadPath(contentRoot, kind, opts) {
-  return gameContentCandidatePaths(contentRoot, kind, opts).find((p) => fs4.existsSync(p)) ?? null;
+  return gameContentCandidatePaths(contentRoot, kind, opts).find((p) => fs5.existsSync(p)) ?? null;
 }
 function localGameContentFile(contentRoot, kind) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) {
     const directory = storageGameDirectory(contentRoot);
     if (directory) {
-      const canonical = path4.join(directory, GAME_CONTENT_RELS[kind]);
-      if (fs4.existsSync(canonical)) return canonical;
+      const canonical = path5.join(directory, GAME_CONTENT_RELS[kind]);
+      if (fs5.existsSync(canonical)) return canonical;
     }
   }
-  const roots = [path4.resolve(contentRoot)];
-  const parent = path4.dirname(roots[0]);
+  const roots = [path5.resolve(contentRoot)];
+  const parent = path5.dirname(roots[0]);
   if (parent !== roots[0]) roots.push(parent);
   for (const root of roots) {
-    const primary = path4.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind]);
-    if (fs4.existsSync(primary)) return primary;
+    const primary = path5.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind]);
+    if (fs5.existsSync(primary)) return primary;
     for (const name2 of LEGACY_FLAT_FILES[kind]) {
-      const candidate = path4.join(root, name2);
-      if (fs4.existsSync(candidate)) return candidate;
+      const candidate = path5.join(root, name2);
+      if (fs5.existsSync(candidate)) return candidate;
     }
   }
   return null;
 }
 function ensureGameContentDir(contentRoot, kind) {
   const file = gameContentPath(contentRoot, kind);
-  fs4.mkdirSync(path4.dirname(file), { recursive: true });
+  fs5.mkdirSync(path5.dirname(file), { recursive: true });
   return file;
 }
 var STORAGE_DOCUMENT_KINDS, registryCache;
@@ -554,42 +884,54 @@ var init_orphan = __esm({
 });
 
 // services/jobs/run-worker-once.ts
-import fs9 from "node:fs";
+import fs10 from "node:fs";
+import path11 from "node:path";
 import { Worker as Worker2 } from "node:worker_threads";
 function runWorkerOnce(options) {
   const { entry, workerData, env, missingError } = options;
-  return new Promise((resolve3, reject) => {
-    if (!fs9.existsSync(entry)) {
-      reject(new Error(missingError || `WORKER_MISSING:${entry}`));
-      return;
-    }
-    let settled = false;
-    const worker2 = new Worker2(entry, { workerData, ...env ? { env } : {} });
-    const finish = (fn) => {
-      if (settled) return;
-      settled = true;
-      void worker2.terminate();
-      fn();
-    };
-    worker2.once("message", (message) => {
-      finish(() => {
-        if (message && message.ok === true && typeof message.path === "string" && message.path) {
-          resolve3({ path: message.path });
+  return measureOperation(
+    "jobs",
+    "worker.run",
+    { worker: path11.basename(entry) },
+    () => new Promise((resolve3, reject) => {
+      if (!fs10.existsSync(entry)) {
+        reject(new Error(missingError || `WORKER_MISSING:${entry}`));
+        return;
+      }
+      let settled = false;
+      const worker2 = new Worker2(entry, { workerData, env: { ...process.env, ...env, CHAYA_LOG_FORWARD_TO_PARENT: "1" } });
+      const finish = (fn) => {
+        if (settled) return;
+        settled = true;
+        void worker2.terminate();
+        fn();
+      };
+      worker2.on("message", (message) => {
+        if (message && typeof message === "object" && "type" in message && message.type === "translation-log") {
+          const { level, source, message: text4, meta, ts } = message.entry;
+          runtimeEvent(level, source, text4, meta, false, ts);
           return;
         }
-        const err = message && message.ok === false ? message.error : void 0;
-        reject(new Error(err || "Worker failed"));
+        finish(() => {
+          if (message && "ok" in message && message.ok === true && typeof message.path === "string" && message.path) {
+            resolve3({ path: message.path });
+            return;
+          }
+          const err = message && "ok" in message && message.ok === false ? message.error : void 0;
+          reject(new Error(err || "Worker failed"));
+        });
       });
-    });
-    worker2.once("error", (error) => finish(() => reject(error)));
-    worker2.once("exit", (code) => {
-      if (!settled && code !== 0) finish(() => reject(new Error(`Worker exited: ${code}`)));
-    });
-  });
+      worker2.once("error", (error) => finish(() => reject(error)));
+      worker2.once("exit", (code) => {
+        if (!settled && code !== 0) finish(() => reject(new Error(`Worker exited: ${code}`)));
+      });
+    })
+  );
 }
 var init_run_worker_once = __esm({
   "services/jobs/run-worker-once.ts"() {
     "use strict";
+    init_operation();
   }
 });
 
@@ -1688,12 +2030,12 @@ function structuredSentenceAliases(src, zh, structure) {
   const label = source.units.find((unit) => unit.kind === "label");
   const translatedLabel = target2.units.find((unit) => unit.kind === "label");
   if (label && translatedLabel) pairs.unshift({ source: label, target: translatedLabel });
-  const context = source.units.filter((unit) => unit.kind === "text").reduce((length, unit) => length + unit.end - unit.start, 0);
+  const context2 = source.units.filter((unit) => unit.kind === "text").reduce((length, unit) => length + unit.end - unit.start, 0);
   return pairs.flatMap((pair) => {
     const from = src.slice(pair.source.start, pair.source.end);
     let to = zh.slice(pair.target.start, pair.target.end);
     if (/[①-⑳][\t ]*$/u.test(zh.slice(0, pair.target.start))) to = to.replace(/^[.．][\t ]*/u, "");
-    return from && to ? [{ src: from, zh: to, context }] : [];
+    return from && to ? [{ src: from, zh: to, context: context2 }] : [];
   });
 }
 var init_sentence_aliases = __esm({
@@ -1839,12 +2181,12 @@ function expandRecords(records2) {
   return records2.flatMap((record) => [
     record,
     ...sentenceAliases(record.src, record.zh).map((alias) => ({ ...record, ...alias, derived: true, alignments: void 0, newlines: void 0 })),
-    ...structuredSentenceAliases(record.src, record.zh, record.structure).map(({ context, ...alias }) => ({
+    ...structuredSentenceAliases(record.src, record.zh, record.structure).map(({ context: context2, ...alias }) => ({
       ...record,
       ...alias,
       derived: true,
       structuralAlias: true,
-      structureContext: context,
+      structureContext: context2,
       alignments: void 0,
       newlines: void 0,
       structure: void 0
@@ -2151,8 +2493,8 @@ function chooseAuthorityMatch(group, src, category) {
   const explicit = pool.filter((m) => !m.record.structuralAlias);
   if (explicit.length) pool = explicit;
   else {
-    const context = Math.min(...pool.map((m) => m.record.structureContext || 0));
-    pool = pool.filter((m) => (m.record.structureContext || 0) === context);
+    const context2 = Math.min(...pool.map((m) => m.record.structureContext || 0));
+    pool = pool.filter((m) => (m.record.structureContext || 0) === context2);
   }
   const rank = Math.max(...pool.map((m) => cacheEngineRank(m.record.engine)));
   pool = pool.filter((m) => cacheEngineRank(m.record.engine) === rank);
@@ -2163,6 +2505,8 @@ function chooseAuthorityMatch(group, src, category) {
     const matched = pool.filter((m) => m.record.category === want);
     if (matched.length) pool = matched;
   }
+  const local = pool.filter((m) => m.record.local);
+  if (local.length) pool = local;
   if (new Set(pool.map(output)).size === 1) {
     const ordered = [...pool].sort(
       (a, b) => (a.record.local ? 0 : 1) - (b.record.local ? 0 : 1) || (a.kind === "extracted" ? 1 : 0) - (b.kind === "extracted" ? 1 : 0) || a.record.id.localeCompare(b.record.id)
@@ -2605,13 +2949,13 @@ function normalizeTranslateKey(text4) {
   }
   return s;
 }
-function createWhitespaceLookup(entries) {
+function createWhitespaceLookup(entries2) {
   const records2 = [];
   const add = (src, zh) => {
     if (src && zh) records2.push({ id: `local:${records2.length}`, revision: 0, src, zh, local: true });
   };
   const wrappers = { "\u300C": "\u300D", "\u300E": "\u300F", "\u3010": "\u3011", "\u300A": "\u300B", "\uFF08": "\uFF09", "(": ")" };
-  for (const [src, zh] of entries) {
+  for (const [src, zh] of entries2) {
     if (!zh) continue;
     add(src, zh);
     const a = peelChoiceMetaShell(src), b = peelChoiceMetaShell(zh);
@@ -2812,14 +3156,14 @@ var init_text_classify = __esm({
 });
 
 // services/translate/game-records.ts
-import fs13 from "node:fs";
+import fs14 from "node:fs";
 function gameTranslationFiles(contentRoot, opts) {
   const seed = opts?.localOnly ? localGameContentFile(contentRoot, "seed") : gameContentReadPath(contentRoot, "seed", { alsoParent: true });
   const cache2 = opts?.localOnly ? localGameContentFile(contentRoot, "cacheNdjson") : gameContentReadPath(contentRoot, "cacheNdjson", { alsoParent: true });
   const stamp = JSON.stringify(
     [seed, cache2, opts?.localOnly ? 1 : 0].map((file) => {
       if (typeof file === "number") return file;
-      const stat = file ? fs13.statSync(file, { throwIfNoEntry: false }) : void 0;
+      const stat = file ? fs14.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   );
@@ -2833,7 +3177,7 @@ function loadGameTranslationRecords(contentRoot, current, opts) {
     if (seed) {
       let data;
       try {
-        data = JSON.parse(fs13.readFileSync(seed, "utf8"));
+        data = JSON.parse(fs14.readFileSync(seed, "utf8"));
       } catch {
         data = null;
       }
@@ -2842,7 +3186,7 @@ function loadGameTranslationRecords(contentRoot, current, opts) {
       }
     }
     if (cache2)
-      for (const line of fs13.readFileSync(cache2, "utf8").split("\n")) {
+      for (const line of fs14.readFileSync(cache2, "utf8").split("\n")) {
         if (!line.trim()) continue;
         try {
           const row = parseCacheRow(JSON.parse(line));
@@ -2850,7 +3194,7 @@ function loadGameTranslationRecords(contentRoot, current, opts) {
         } catch {
         }
       }
-    const entries = [...rows.values()].filter((r) => r.t && isReusableTranslation(r.s, r.t)).map((row) => ({
+    const entries2 = [...rows.values()].filter((r) => r.t && isReusableTranslation(r.s, r.t)).map((row) => ({
       row,
       record: {
         id: row.origin?.id || `local:${row.s}`,
@@ -2864,7 +3208,7 @@ function loadGameTranslationRecords(contentRoot, current, opts) {
         local: !row.origin
       }
     }));
-    snapshot = { stamp, entries };
+    snapshot = { stamp, entries: entries2 };
     if (snapshots.size >= 8 && !snapshots.has(contentRoot)) snapshots.delete(snapshots.keys().next().value);
     snapshots.set(contentRoot, snapshot);
   }
@@ -2945,13 +3289,13 @@ var init_game_lookup = __esm({
 
 // services/translate/game-cache-context.ts
 import { createHash } from "node:crypto";
-import fs14 from "node:fs";
+import fs15 from "node:fs";
 function buildContext(contentRoot) {
   const records2 = loadGameTranslationRecords(contentRoot, () => false);
   const blocked = /* @__PURE__ */ new Set();
   const file = gameTranslationFiles(contentRoot).cache;
-  if (file && fs14.existsSync(file))
-    for (const line of fs14.readFileSync(file, "utf8").split("\n")) {
+  if (file && fs15.existsSync(file))
+    for (const line of fs15.readFileSync(file, "utf8").split("\n")) {
       if (!line.trim()) continue;
       try {
         const row = parseCacheRow(JSON.parse(line));
@@ -2980,24 +3324,24 @@ function buildContext(contentRoot) {
 }
 function getGameCacheContext(contentRoot) {
   const { stamp } = gameTranslationFiles(contentRoot);
-  let context = contexts.get(contentRoot);
-  if (context?.stamp !== stamp) {
-    context = { ...buildContext(contentRoot), stamp };
+  let context2 = contexts.get(contentRoot);
+  if (context2?.stamp !== stamp) {
+    context2 = { ...buildContext(contentRoot), stamp };
     if (contexts.size >= 8 && !contexts.has(contentRoot)) contexts.delete(contexts.keys().next().value);
-    contexts.set(contentRoot, context);
+    contexts.set(contentRoot, context2);
   }
-  return context;
+  return context2;
 }
 function noteGameSharedBackfill(contentRoot, previousStamp) {
-  const context = contexts.get(contentRoot);
-  if (!context) return true;
-  if (context?.stamp !== previousStamp) return false;
+  const context2 = contexts.get(contentRoot);
+  if (!context2) return true;
+  if (context2?.stamp !== previousStamp) return false;
   const stamp = gameTranslationFiles(contentRoot).stamp;
   const before = JSON.parse(previousStamp);
   const after = JSON.parse(stamp);
   if (JSON.stringify(before[0]) !== JSON.stringify(after[0])) return false;
   if (before[1][0] != null && before[1][0] !== after[1][0]) return false;
-  context.stamp = stamp;
+  context2.stamp = stamp;
   return true;
 }
 var contexts;
@@ -3155,8 +3499,9 @@ function ensureMatchIndex(client) {
     CREATE TABLE IF NOT EXISTS translation_records (
       id INTEGER PRIMARY KEY AUTOINCREMENT, src TEXT NOT NULL,
       src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
-      UNIQUE(src, src_lang, tgt_lang)
+      translation_id INTEGER NOT NULL UNIQUE
     );
+    CREATE INDEX IF NOT EXISTS idx_translation_record_source ON translation_records(src,src_lang,tgt_lang);
     CREATE TABLE IF NOT EXISTS match_keys (
       record_id INTEGER NOT NULL, match_key TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'canonical', PRIMARY KEY(record_id,match_key,kind)
     );
@@ -3170,7 +3515,7 @@ function ensureMatchIndex(client) {
     CREATE TABLE IF NOT EXISTS translation_records (
       id INTEGER PRIMARY KEY AUTOINCREMENT, src TEXT NOT NULL,
       src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
-      UNIQUE(src, src_lang, tgt_lang)
+      translation_id INTEGER NOT NULL UNIQUE
     );
     CREATE TABLE IF NOT EXISTS match_keys (
       record_id INTEGER NOT NULL, match_key TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'canonical', PRIMARY KEY(record_id,match_key,kind)
@@ -3204,7 +3549,7 @@ function ensureMatchIndex(client) {
       INSERT INTO numeric_label_keys SELECT NEW.id,chaya_numeric_family(NEW.src),NEW.src_lang,NEW.tgt_lang WHERE chaya_numeric_family(NEW.src)<>'';
       INSERT INTO match_keys VALUES (NEW.id,chaya_sentence_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'canonical');
       INSERT OR IGNORE INTO match_keys VALUES (NEW.id,chaya_logic_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'logic');
-      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE src=NEW.src AND src_lang=NEW.src_lang AND tgt_lang=NEW.tgt_lang))) j;
+      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE id=NEW.translation_id))) j;
       INSERT INTO sentence_positions SELECT NEW.id,CAST(j.key AS INTEGER),json_extract(j.value,'$.key'),json_extract(j.value,'$.tone'),NEW.src_lang,NEW.tgt_lang FROM json_each(chaya_sentence_units(NEW.src)) AS j;
       UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
     END;
@@ -3215,7 +3560,7 @@ function ensureMatchIndex(client) {
       DELETE FROM match_keys WHERE record_id=NEW.id AND kind IN ('alias','logic');
       DELETE FROM sentence_positions WHERE record_id=NEW.id;
       INSERT OR IGNORE INTO match_keys VALUES (NEW.id,chaya_logic_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'logic');
-      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE src=NEW.src AND src_lang=NEW.src_lang AND tgt_lang=NEW.tgt_lang))) j;
+      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE id=NEW.translation_id))) j;
       INSERT INTO sentence_positions SELECT NEW.id,CAST(j.key AS INTEGER),json_extract(j.value,'$.key'),json_extract(j.value,'$.tone'),NEW.src_lang,NEW.tgt_lang FROM json_each(chaya_sentence_units(NEW.src)) AS j;
       INSERT INTO translation_outbox(record_id,revision,kind) VALUES (NEW.id,NEW.revision,'update');
       UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
@@ -3232,20 +3577,20 @@ function ensureMatchIndex(client) {
       UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
     END;
     CREATE TRIGGER IF NOT EXISTS translation_match_insert AFTER INSERT ON translations BEGIN
-      INSERT INTO translation_records(src,src_lang,tgt_lang) VALUES(NEW.src,NEW.src_lang,NEW.tgt_lang);
+      INSERT INTO translation_records(src,src_lang,tgt_lang,translation_id) VALUES(NEW.src,NEW.src_lang,NEW.tgt_lang,NEW.id);
     END;
     CREATE TRIGGER IF NOT EXISTS translation_match_update AFTER UPDATE OF zh,engine ON translations
       WHEN OLD.zh IS NOT NEW.zh OR OLD.engine IS NOT NEW.engine BEGIN
-      UPDATE translation_records SET revision=revision+1 WHERE src=NEW.src AND src_lang=NEW.src_lang AND tgt_lang=NEW.tgt_lang;
+      UPDATE translation_records SET revision=revision+1 WHERE translation_id=NEW.id;
     END;
     CREATE TRIGGER IF NOT EXISTS translation_match_delete AFTER DELETE ON translations BEGIN
-      DELETE FROM translation_records WHERE src=OLD.src AND src_lang=OLD.src_lang AND tgt_lang=OLD.tgt_lang;
+      DELETE FROM translation_records WHERE translation_id=OLD.id;
     END;
   `);
   if (!client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v1'").get()) {
     client.exec("BEGIN IMMEDIATE");
     try {
-      client.exec(`INSERT OR IGNORE INTO translation_records(src,src_lang,tgt_lang) SELECT src,src_lang,tgt_lang FROM translations;
+      client.exec(`INSERT OR IGNORE INTO translation_records(src,src_lang,tgt_lang,translation_id) SELECT src,src_lang,tgt_lang,id FROM translations;
         INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v1','1');`);
       client.exec("COMMIT");
     } catch (e) {
@@ -3268,7 +3613,7 @@ function rebuildSentenceIndexV10Rows(client, rows) {
   const delKeys = client.prepare("DELETE FROM match_keys WHERE record_id=?");
   const insKey = client.prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)");
   const insPos = client.prepare("INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)");
-  const zhOf = client.prepare("SELECT zh FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?");
+  const zhOf = client.prepare("SELECT zh FROM translations WHERE id=?");
   const structureOf = client.prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?");
   const nlOf = client.prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?");
   for (const row of rows) {
@@ -3283,7 +3628,7 @@ function rebuildSentenceIndexV10Rows(client, rows) {
     const canon = wholeSentenceKey(row.src);
     insKey.run(row.id, canon, row.src_lang, row.tgt_lang, "canonical");
     if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, "logic");
-    const zh = zhOf.get(row.src, row.src_lang, row.tgt_lang)?.zh ?? "";
+    const zh = zhOf.get(row.translation_id)?.zh ?? "";
     for (const alias of sentenceAliases(row.src, zh)) {
       insKey.run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, "alias");
     }
@@ -3294,7 +3639,7 @@ function rebuildSentenceIndexV10(client) {
   if (!needsSentenceIndexV10(client)) return;
   client.exec("BEGIN IMMEDIATE");
   try {
-    const rows = client.prepare("SELECT id, src, src_lang, tgt_lang, revision FROM translation_records").all();
+    const rows = client.prepare("SELECT id, translation_id, src, src_lang, tgt_lang, revision FROM translation_records").all();
     rebuildSentenceIndexV10Rows(client, rows);
     client.prepare("INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v10_exact_keys','1')").run();
     client.exec("COMMIT");
@@ -3305,7 +3650,7 @@ function rebuildSentenceIndexV10(client) {
 }
 async function rebuildSentenceIndexV10Async(client, yieldEvery = 80) {
   if (!needsSentenceIndexV10(client)) return;
-  const rows = client.prepare("SELECT id, src, src_lang, tgt_lang, revision FROM translation_records").all();
+  const rows = client.prepare("SELECT id, translation_id, src, src_lang, tgt_lang, revision FROM translation_records").all();
   client.exec("BEGIN IMMEDIATE");
   try {
     client.exec(
@@ -3315,7 +3660,7 @@ async function rebuildSentenceIndexV10Async(client, yieldEvery = 80) {
     const delKeys = client.prepare("DELETE FROM match_keys WHERE record_id=?");
     const insKey = client.prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)");
     const insPos = client.prepare("INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)");
-    const zhOf = client.prepare("SELECT zh FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?");
+    const zhOf = client.prepare("SELECT zh FROM translations WHERE id=?");
     const structureOf = client.prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?");
     const nlOf = client.prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?");
     for (let i = 0; i < rows.length; i++) {
@@ -3331,7 +3676,7 @@ async function rebuildSentenceIndexV10Async(client, yieldEvery = 80) {
       const canon = wholeSentenceKey(row.src);
       insKey.run(row.id, canon, row.src_lang, row.tgt_lang, "canonical");
       if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, "logic");
-      const zh = zhOf.get(row.src, row.src_lang, row.tgt_lang)?.zh ?? "";
+      const zh = zhOf.get(row.translation_id)?.zh ?? "";
       for (const alias of sentenceAliases(row.src, zh)) {
         insKey.run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, "alias");
       }
@@ -3362,7 +3707,8 @@ function createMatchIndex(client) {
     }
     return statement;
   }
-  const joined = "SELECT DISTINCT r.*,t.zh,t.engine,t.category FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang";
+  const rawJoined = "SELECT DISTINCT r.*,t.zh,t.engine,t.category FROM translation_records r JOIN translations t ON t.id=r.translation_id";
+  const joined = rawJoined.replace("JOIN translations t", "JOIN selected_translations t");
   function reindexWithNewlines(row, newlines, structure) {
     const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang };
     prepare("DELETE FROM sentence_positions WHERE record_id=?").run(row.id);
@@ -3388,6 +3734,10 @@ function createMatchIndex(client) {
     const structure = prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?").get(row.id, row.revision);
     if (structure) record2.structure = JSON.parse(structure.annotations_json);
     return record2;
+  }
+  function inserted(translationId) {
+    const row = prepare(rawJoined + " WHERE t.id=?").get(translationId);
+    return row ? attach(row) : null;
   }
   function record(src, pair) {
     const r = prepare(joined + " WHERE r.src=? AND r.src_lang=? AND r.tgt_lang=?").get(src, pair.from, pair.to);
@@ -3437,6 +3787,7 @@ function createMatchIndex(client) {
   }
   return {
     record,
+    inserted,
     equivalent,
     candidates: candidates2,
     numericRecords(pair, src) {
@@ -3450,7 +3801,7 @@ function createMatchIndex(client) {
     },
     version: () => String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value),
     current(records2) {
-      return records2.every((r) => Number(prepare("SELECT revision FROM translation_records WHERE id=?").get(r.id)?.revision) === r.revision);
+      return records2.every((r) => Number(prepare(joined + " WHERE r.id=?").get(r.id)?.revision) === r.revision);
     },
     plan(src, pair, local = [], opts) {
       client.exec("BEGIN");
@@ -3472,7 +3823,8 @@ function createMatchIndex(client) {
       }
     },
     setAlignment(src, pair, groups, expectedRevision, opts) {
-      const r = record(src, pair);
+      const r = opts?.candidateId ? inserted(opts.candidateId) : record(src, pair);
+      if (r && (r.src !== src || r.from !== pair.from || r.to !== pair.to)) return false;
       if (!r || expectedRevision !== void 0 && r.revision !== expectedRevision || groups.length > 1e3) return false;
       const structure = opts?.structure ?? r.structure;
       if (structure && !validRecordStructure(structure)) return false;
@@ -3491,7 +3843,7 @@ function createMatchIndex(client) {
         if (nextNewlines?.length) {
           prepare("INSERT OR REPLACE INTO newline_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(nextNewlines));
         }
-        const row = prepare(joined + " WHERE r.id=?").get(r.id);
+        const row = prepare(rawJoined + " WHERE r.id=?").get(r.id);
         if (structure) prepare("INSERT OR REPLACE INTO structure_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(structure));
         reindexWithNewlines(row, nextNewlines, structure);
         client.exec("COMMIT");
@@ -3502,11 +3854,18 @@ function createMatchIndex(client) {
       }
     },
     authority(src, pair, opts) {
-      const records2 = equivalent(src, pair);
+      const want = String(opts?.category || "").trim();
+      const records2 = prepare(
+        rawJoined + ` JOIN match_keys k ON k.record_id=r.id
+        WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical'
+          AND t.id=(SELECT c.id FROM translations c
+            WHERE c.src=t.src AND c.src_lang=t.src_lang AND c.tgt_lang=t.tgt_lang
+            ORDER BY c.engine_rank DESC,CASE WHEN c.category=? THEN 1 ELSE 0 END DESC,c.updated_at DESC,c.id DESC LIMIT 1)
+        ORDER BY t.updated_at DESC,t.id DESC LIMIT 501`
+      ).all(wholeSentenceKey(src), pair.from, pair.to, want).map(attach);
       if (!records2.length || records2.length > 500) return null;
       const rank = Math.max(...records2.map((r) => cacheEngineRank(r.engine)));
       let top = records2.filter((r) => cacheEngineRank(r.engine) === rank);
-      const want = String(opts?.category || "").trim();
       if (want) {
         const matched = top.filter((r) => r.category === want);
         if (matched.length) top = matched;
@@ -3531,6 +3890,7 @@ var init_match_index = __esm({
     init_text_classify();
     toRecord = (r) => ({
       id: String(r.id),
+      candidateId: r.translation_id,
       revision: r.revision,
       src: r.src,
       zh: r.zh,
@@ -4369,11 +4729,11 @@ var require_constants = __commonJS({
     var wellknownHeaderNameBuffers = {};
     Object.setPrototypeOf(wellknownHeaderNameBuffers, null);
     function getHeaderNameAsBuffer(header) {
-      let buffer = wellknownHeaderNameBuffers[header];
-      if (buffer === void 0) {
-        buffer = Buffer.from(header);
+      let buffer2 = wellknownHeaderNameBuffers[header];
+      if (buffer2 === void 0) {
+        buffer2 = Buffer.from(header);
       }
-      return buffer;
+      return buffer2;
     }
     for (let i = 0; i < wellknownHeaderNames.length; ++i) {
       const key3 = wellknownHeaderNames[i];
@@ -4650,14 +5010,14 @@ var require_util = __commonJS({
         }
         const port2 = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
         let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port2}`;
-        let path31 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        let path34 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
         if (origin[origin.length - 1] === "/") {
           origin = origin.slice(0, origin.length - 1);
         }
-        if (path31 && path31[0] !== "/") {
-          path31 = `/${path31}`;
+        if (path34 && path34[0] !== "/") {
+          path34 = `/${path34}`;
         }
-        return new URL(`${origin}${path31}`);
+        return new URL(`${origin}${path34}`);
       }
       if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
@@ -4804,8 +5164,8 @@ var require_util = __commonJS({
       }
       return headers.map((x) => Buffer.from(x));
     }
-    function isBuffer(buffer) {
-      return buffer instanceof Uint8Array || Buffer.isBuffer(buffer);
+    function isBuffer(buffer2) {
+      return buffer2 instanceof Uint8Array || Buffer.isBuffer(buffer2);
     }
     function assertRequestHandler(handler, method, upgrade) {
       if (!handler || typeof handler !== "object") {
@@ -5199,8 +5559,8 @@ var require_util = __commonJS({
       } : null;
     }
     function addListener(obj, name2, listener) {
-      const listeners = obj[kListeners] ??= [];
-      listeners.push([name2, listener]);
+      const listeners3 = obj[kListeners] ??= [];
+      listeners3.push([name2, listener]);
       obj.on(name2, listener);
       return obj;
     }
@@ -5478,9 +5838,9 @@ var require_diagnostics = __commonJS({
         "undici:client:sendHeaders",
         (evt) => {
           const {
-            request: { method, path: path31, origin }
+            request: { method, path: path34, origin }
           } = evt;
-          debugLog("sending request to %s %s%s", method, origin, path31);
+          debugLog("sending request to %s %s%s", method, origin, path34);
         }
       );
     }
@@ -5498,14 +5858,14 @@ var require_diagnostics = __commonJS({
         "undici:request:headers",
         (evt) => {
           const {
-            request: { method, path: path31, origin },
+            request: { method, path: path34, origin },
             response: { statusCode }
           } = evt;
           debugLog(
             "received response to %s %s%s - HTTP %d",
             method,
             origin,
-            path31,
+            path34,
             statusCode
           );
         }
@@ -5514,23 +5874,23 @@ var require_diagnostics = __commonJS({
         "undici:request:trailers",
         (evt) => {
           const {
-            request: { method, path: path31, origin }
+            request: { method, path: path34, origin }
           } = evt;
-          debugLog("trailers received from %s %s%s", method, origin, path31);
+          debugLog("trailers received from %s %s%s", method, origin, path34);
         }
       );
       diagnosticsChannel.subscribe(
         "undici:request:error",
         (evt) => {
           const {
-            request: { method, path: path31, origin },
+            request: { method, path: path34, origin },
             error
           } = evt;
           debugLog(
             "request to %s %s%s errored - %s",
             method,
             origin,
-            path31,
+            path34,
             error.message
           );
         }
@@ -5643,9 +6003,9 @@ var require_request = __commonJS({
       return true;
     }
     var kHandler = /* @__PURE__ */ Symbol("handler");
-    var Request = class {
+    var Request2 = class {
       constructor(origin, {
-        path: path31,
+        path: path34,
         method,
         body,
         headers,
@@ -5662,11 +6022,11 @@ var require_request = __commonJS({
         maxRedirections,
         typeOfService
       }, handler) {
-        if (typeof path31 !== "string") {
+        if (typeof path34 !== "string") {
           throw new InvalidArgumentError("path must be a string");
-        } else if (path31[0] !== "/" && !(path31.startsWith("http://") || path31.startsWith("https://")) && method !== "CONNECT") {
+        } else if (path34[0] !== "/" && !(path34.startsWith("http://") || path34.startsWith("https://")) && method !== "CONNECT") {
           throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-        } else if (invalidPathRegex.test(path31)) {
+        } else if (invalidPathRegex.test(path34)) {
           throw new InvalidArgumentError("invalid request path");
         }
         if (typeof method !== "string") {
@@ -5741,7 +6101,7 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? serializePathWithQuery(path31, query) : path31;
+        this.path = query ? serializePathWithQuery(path34, query) : path34;
         this.origin = origin;
         this.protocol = getProtocolFromUrlString(origin);
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
@@ -5977,7 +6337,7 @@ var require_request = __commonJS({
         request.headers.push(key3, val);
       }
     }
-    module.exports = Request;
+    module.exports = Request2;
   }
 });
 
@@ -5995,8 +6355,8 @@ var require_wrap_handler = __commonJS({
         return handler.onRequestStart ? handler : new WrapHandler(handler);
       }
       // Unwrap Interface
-      onConnect(abort, context) {
-        return this.#handler.onConnect?.(abort, context);
+      onConnect(abort, context2) {
+        return this.#handler.onConnect?.(abort, context2);
       }
       onResponseStarted() {
         return this.#handler.onResponseStarted?.();
@@ -6020,8 +6380,8 @@ var require_wrap_handler = __commonJS({
         return this.#handler.onError?.(err);
       }
       // Wrap Interface
-      onRequestStart(controller, context) {
-        this.#handler.onConnect?.((reason) => controller.abort(reason), context);
+      onRequestStart(controller, context2) {
+        this.#handler.onConnect?.((reason) => controller.abort(reason), context2);
       }
       onRequestUpgrade(controller, statusCode, headers, socket) {
         const rawHeaders = [];
@@ -6159,9 +6519,9 @@ var require_unwrap_handler = __commonJS({
       static unwrap(handler) {
         return !handler.onRequestStart ? handler : new UnwrapHandler(handler);
       }
-      onConnect(abort, context) {
+      onConnect(abort, context2) {
         this.#controller = new UnwrapController(abort);
-        this.#handler.onRequestStart?.(this.#controller, context);
+        this.#handler.onRequestStart?.(this.#controller, context2);
       }
       onResponseStarted() {
         return this.#handler.onResponseStarted?.();
@@ -7406,14 +7766,14 @@ var require_encoding = __commonJS({
   "node_modules/.pnpm/undici@7.29.1/node_modules/undici/lib/encoding/index.js"(exports, module) {
     "use strict";
     var textDecoder2 = new TextDecoder();
-    function utf8DecodeBytes(buffer) {
-      if (buffer.length === 0) {
+    function utf8DecodeBytes(buffer2) {
+      if (buffer2.length === 0) {
         return "";
       }
-      if (buffer[0] === 239 && buffer[1] === 187 && buffer[2] === 191) {
-        buffer = buffer.subarray(3);
+      if (buffer2[0] === 239 && buffer2[1] === 187 && buffer2[2] === 191) {
+        buffer2 = buffer2.subarray(3);
       }
-      const output = textDecoder2.decode(buffer);
+      const output = textDecoder2.decode(buffer2);
       return output;
     }
     module.exports = {
@@ -7464,8 +7824,8 @@ var require_infra = __commonJS({
       if (/[^+/0-9A-Za-z]/.test(data.length === dataLength ? data : data.substring(0, dataLength))) {
         return "failure";
       }
-      const buffer = Buffer.from(data, "base64");
-      return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+      const buffer2 = Buffer.from(data, "base64");
+      return new Uint8Array(buffer2.buffer, buffer2.byteOffset, buffer2.byteLength);
     }
     function isASCIIWhitespace(char) {
       return char === 9 || // \t
@@ -7949,10 +8309,10 @@ var require_webidl = __commonJS({
         message
       });
     };
-    webidl.errors.invalidArgument = function(context) {
+    webidl.errors.invalidArgument = function(context2) {
       return webidl.errors.exception({
-        header: context.prefix,
-        message: `"${context.value}" is an invalid ${context.type}.`
+        header: context2.prefix,
+        message: `"${context2.value}" is an invalid ${context2.type}.`
       });
     };
     webidl.brandCheck = function(V, I) {
@@ -8146,7 +8506,7 @@ var require_webidl = __commonJS({
           });
         }
         const method = typeof Iterable === "function" ? Iterable() : V?.[Symbol.iterator]?.();
-        const seq = [];
+        const seq2 = [];
         let index2 = 0;
         if (method === void 0 || typeof method.next !== "function") {
           throw webidl.errors.exception({
@@ -8159,9 +8519,9 @@ var require_webidl = __commonJS({
           if (done) {
             break;
           }
-          seq.push(converter(value, prefix, `${argument}[${index2++}]`));
+          seq2.push(converter(value, prefix, `${argument}[${index2++}]`));
         }
-        return seq;
+        return seq2;
       };
     };
     webidl.recordConverter = function(keyConverter, valueConverter) {
@@ -8946,7 +9306,7 @@ var require_util2 = __commonJS({
           writable: true,
           enumerable: true,
           configurable: true,
-          value: function entries() {
+          value: function entries2() {
             webidl.brandCheck(this, object2);
             return makeIterator(this, "key+value");
           }
@@ -9731,12 +10091,12 @@ var require_formdata_parser = __commonJS({
       }
       return lead === 0 && trail === buf.length - 1 ? buf : buf.subarray(lead, trail + 1);
     }
-    function bufferStartsWith(buffer, start, position) {
-      if (buffer.length < start.length) {
+    function bufferStartsWith(buffer2, start, position) {
+      if (buffer2.length < start.length) {
         return false;
       }
       for (let i = 0; i < start.length; i++) {
-        if (start[i] !== buffer[position.position + i]) {
+        if (start[i] !== buffer2[position.position + i]) {
           return false;
         }
       }
@@ -10005,9 +10365,9 @@ Content-Type: ${value.type || "application/octet-stream"}\r
                   return fd;
                 }
                 case "application/x-www-form-urlencoded": {
-                  const entries = new URLSearchParams(value.toString());
+                  const entries2 = new URLSearchParams(value.toString());
                   const fd = new FormData();
-                  for (const [name2, value2] of entries) {
+                  for (const [name2, value2] of entries2) {
                     fd.append(name2, value2);
                   }
                   return fd;
@@ -10923,7 +11283,7 @@ var require_client_h1 = __commonJS({
       return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE" && method !== "CONNECT";
     }
     function writeH1(client, request) {
-      const { method, path: path31, host, upgrade, blocking, reset } = request;
+      const { method, path: path34, host, upgrade, blocking, reset } = request;
       let { body, headers, contentLength } = request;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
       if (util.isFormDataLike(body)) {
@@ -11001,7 +11361,7 @@ var require_client_h1 = __commonJS({
       if (socket.setTypeOfService) {
         socket.setTypeOfService(request.typeOfService);
       }
-      let header = `${method} ${path31} HTTP/1.1\r
+      let header = `${method} ${path34} HTTP/1.1\r
 `;
       if (typeof host === "string") {
         header += `host: ${host}\r
@@ -11161,14 +11521,14 @@ upgrade: ${upgrade}\r
         if (contentLength != null && contentLength !== body.size) {
           throw new RequestContentLengthMismatchError();
         }
-        const buffer = Buffer.from(await body.arrayBuffer());
+        const buffer2 = Buffer.from(await body.arrayBuffer());
         socket.cork();
         socket.write(`${header}content-length: ${contentLength}\r
 \r
 `, "latin1");
-        socket.write(buffer);
+        socket.write(buffer2);
         socket.uncork();
-        request.onBodySent(buffer);
+        request.onBodySent(buffer2);
         request.onRequestSent();
         if (!expectsPayload && request.reset !== false) {
           socket[kReset] = true;
@@ -11680,7 +12040,7 @@ var require_client_h2 = __commonJS({
       const headersTimeout = request.headersTimeout ?? client[kHeadersTimeout];
       const bodyTimeout = request.bodyTimeout ?? client[kBodyTimeout];
       const session = client[kHTTP2Session];
-      const { method, path: path31, host, upgrade, expectContinue, signal, protocol, headers: reqHeaders } = request;
+      const { method, path: path34, host, upgrade, expectContinue, signal, protocol, headers: reqHeaders } = request;
       let { body } = request;
       if (upgrade != null && upgrade !== "websocket") {
         util.errorRequest(client, request, new InvalidArgumentError(`Custom upgrade "${upgrade}" not supported over HTTP/2`));
@@ -11749,7 +12109,7 @@ var require_client_h2 = __commonJS({
           }
           headers[HTTP2_HEADER_METHOD] = "CONNECT";
           headers[HTTP2_HEADER_PROTOCOL] = "websocket";
-          headers[HTTP2_HEADER_PATH] = path31;
+          headers[HTTP2_HEADER_PATH] = path34;
           if (protocol === "ws:" || protocol === "wss:") {
             headers[HTTP2_HEADER_SCHEME] = protocol === "ws:" ? "http" : "https";
           } else {
@@ -11791,7 +12151,7 @@ var require_client_h2 = __commonJS({
         stream.setTimeout(headersTimeout);
         return true;
       }
-      headers[HTTP2_HEADER_PATH] = path31;
+      headers[HTTP2_HEADER_PATH] = path34;
       headers[HTTP2_HEADER_SCHEME] = protocol === "http:" ? "http" : "https";
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
@@ -12044,12 +12404,12 @@ var require_client_h2 = __commonJS({
         if (contentLength != null && contentLength !== body.size) {
           throw new RequestContentLengthMismatchError();
         }
-        const buffer = Buffer.from(await body.arrayBuffer());
+        const buffer2 = Buffer.from(await body.arrayBuffer());
         h2stream.cork();
-        h2stream.write(buffer);
+        h2stream.write(buffer2);
         h2stream.uncork();
         h2stream.end();
-        request.onBodySent(buffer);
+        request.onBodySent(buffer2);
         request.onRequestSent();
         if (!expectsPayload) {
           socket[kReset] = true;
@@ -12115,7 +12475,7 @@ var require_client = __commonJS({
     var util = require_util();
     var { ClientStats } = require_stats();
     var { channels } = require_diagnostics();
-    var Request = require_request();
+    var Request2 = require_request();
     var DispatcherBase = require_dispatcher_base();
     var {
       InvalidArgumentError,
@@ -12375,7 +12735,7 @@ var require_client = __commonJS({
         this.once("connect", cb);
       }
       [kDispatch](opts, handler) {
-        const request = new Request(this[kUrl].origin, opts, handler);
+        const request = new Request2(this[kUrl].origin, opts, handler);
         this[kQueue].push(request);
         if (this[kResuming]) {
         } else if (util.bodyLength(request.body) == null && util.isIterable(request.body)) {
@@ -13419,7 +13779,7 @@ var require_socks5_utils = __commonJS({
       };
     }
     function parseIPv6(address) {
-      const buffer = Buffer2.alloc(16);
+      const buffer2 = Buffer2.alloc(16);
       let normalizedAddress = address;
       if (address.includes(".")) {
         const lastColonIndex = address.lastIndexOf(":");
@@ -13439,21 +13799,21 @@ var require_socks5_utils = __commonJS({
         const afterParts = after === "" ? [] : after.split(":");
         let bufferIndex = 0;
         for (const part of beforeParts) {
-          buffer.writeUInt16BE(parseInt(part, 16), bufferIndex);
+          buffer2.writeUInt16BE(parseInt(part, 16), bufferIndex);
           bufferIndex += 2;
         }
         bufferIndex = 16 - afterParts.length * 2;
         for (const part of afterParts) {
-          buffer.writeUInt16BE(parseInt(part, 16), bufferIndex);
+          buffer2.writeUInt16BE(parseInt(part, 16), bufferIndex);
           bufferIndex += 2;
         }
       } else {
         const parts = normalizedAddress.split(":");
         for (let i = 0; i < parts.length; i++) {
-          buffer.writeUInt16BE(parseInt(parts[i], 16), i * 2);
+          buffer2.writeUInt16BE(parseInt(parts[i], 16), i * 2);
         }
       }
-      return buffer;
+      return buffer2;
     }
     function buildAddressBuffer(type, addressBuffer, port2) {
       const portBuffer = Buffer2.allocUnsafe(2);
@@ -13464,42 +13824,42 @@ var require_socks5_utils = __commonJS({
         portBuffer
       ]);
     }
-    function parseResponseAddress(buffer, offset = 0) {
-      if (buffer.length < offset + 1) {
+    function parseResponseAddress(buffer2, offset = 0) {
+      if (buffer2.length < offset + 1) {
         throw new InvalidArgumentError("Buffer too small to contain address type");
       }
-      const addressType = buffer[offset];
+      const addressType = buffer2[offset];
       let address;
       let currentOffset = offset + 1;
       switch (addressType) {
         case 1: {
-          if (buffer.length < currentOffset + 6) {
+          if (buffer2.length < currentOffset + 6) {
             throw new InvalidArgumentError("Buffer too small for IPv4 address");
           }
-          address = Array.from(buffer.subarray(currentOffset, currentOffset + 4)).join(".");
+          address = Array.from(buffer2.subarray(currentOffset, currentOffset + 4)).join(".");
           currentOffset += 4;
           break;
         }
         case 3: {
-          if (buffer.length < currentOffset + 1) {
+          if (buffer2.length < currentOffset + 1) {
             throw new InvalidArgumentError("Buffer too small for domain length");
           }
-          const domainLength = buffer[currentOffset];
+          const domainLength = buffer2[currentOffset];
           currentOffset += 1;
-          if (buffer.length < currentOffset + domainLength + 2) {
+          if (buffer2.length < currentOffset + domainLength + 2) {
             throw new InvalidArgumentError("Buffer too small for domain address");
           }
-          address = buffer.subarray(currentOffset, currentOffset + domainLength).toString("utf8");
+          address = buffer2.subarray(currentOffset, currentOffset + domainLength).toString("utf8");
           currentOffset += domainLength;
           break;
         }
         case 4: {
-          if (buffer.length < currentOffset + 18) {
+          if (buffer2.length < currentOffset + 18) {
             throw new InvalidArgumentError("Buffer too small for IPv6 address");
           }
           const parts = [];
           for (let i = 0; i < 8; i++) {
-            const value = buffer.readUInt16BE(currentOffset + i * 2);
+            const value = buffer2.readUInt16BE(currentOffset + i * 2);
             parts.push(value.toString(16));
           }
           address = parts.join(":");
@@ -13509,10 +13869,10 @@ var require_socks5_utils = __commonJS({
         default:
           throw new InvalidArgumentError(`Invalid address type: ${addressType}`);
       }
-      if (buffer.length < currentOffset + 2) {
+      if (buffer2.length < currentOffset + 2) {
         throw new InvalidArgumentError("Buffer too small for port");
       }
-      const port2 = buffer.readUInt16BE(currentOffset);
+      const port2 = buffer2.readUInt16BE(currentOffset);
       currentOffset += 2;
       return {
         address,
@@ -14143,10 +14503,10 @@ var require_proxy_agent = __commonJS({
         };
         const {
           origin,
-          path: path31 = "/",
+          path: path34 = "/",
           headers = {}
         } = opts;
-        opts.path = origin + path31;
+        opts.path = origin + path34;
         if (!("host" in headers) && !("Host" in headers)) {
           const { host } = new URL(origin);
           headers.host = host;
@@ -14608,9 +14968,9 @@ var require_retry_handler = __commonJS({
           this.resume = this.end != null;
         }
       }
-      onRequestStart(controller, context) {
+      onRequestStart(controller, context2) {
         if (!this.headersSent) {
-          this.handler.onRequestStart?.(controller, context);
+          this.handler.onRequestStart?.(controller, context2);
         }
       }
       onRequestUpgrade(controller, statusCode, headers, socket) {
@@ -15225,13 +15585,13 @@ var require_readable = __commonJS({
       if (chunks.length === 0 || length === 0) {
         return "";
       }
-      const buffer = chunks.length === 1 ? chunks[0] : Buffer.concat(chunks, length);
-      const bufferLength = buffer.length;
-      const start = bufferLength > 2 && buffer[0] === 239 && buffer[1] === 187 && buffer[2] === 191 ? 3 : 0;
+      const buffer2 = chunks.length === 1 ? chunks[0] : Buffer.concat(chunks, length);
+      const bufferLength = buffer2.length;
+      const start = bufferLength > 2 && buffer2[0] === 239 && buffer2[1] === 187 && buffer2[2] === 191 ? 3 : 0;
       if (!encoding || encoding === "utf8" || encoding === "utf-8") {
-        return buffer.utf8Slice(start, bufferLength);
+        return buffer2.utf8Slice(start, bufferLength);
       } else {
-        return buffer.subarray(start, bufferLength).toString(encoding);
+        return buffer2.subarray(start, bufferLength).toString(encoding);
       }
     }
     function chunksConcat(chunks, length) {
@@ -15241,14 +15601,14 @@ var require_readable = __commonJS({
       if (chunks.length === 1) {
         return new Uint8Array(chunks[0]);
       }
-      const buffer = new Uint8Array(Buffer.allocUnsafeSlow(length).buffer);
+      const buffer2 = new Uint8Array(Buffer.allocUnsafeSlow(length).buffer);
       let offset = 0;
       for (let i = 0; i < chunks.length; ++i) {
         const chunk = chunks[i];
-        buffer.set(chunk, offset);
+        buffer2.set(chunk, offset);
         offset += chunk.length;
       }
-      return buffer;
+      return buffer2;
     }
     function consumeEnd(consume2, encoding) {
       const { type, body, resolve: resolve3, stream, length } = consume2;
@@ -15362,17 +15722,17 @@ var require_api_request = __commonJS({
           });
         }
       }
-      onConnect(abort, context) {
+      onConnect(abort, context2) {
         if (this.reason) {
           abort(this.reason);
           return;
         }
         assert2(this.callback);
         this.abort = abort;
-        this.context = context;
+        this.context = context2;
       }
       onHeaders(statusCode, rawHeaders, resume, statusMessage) {
-        const { callback, opaque, abort, context, responseHeaders, highWaterMark } = this;
+        const { callback, opaque, abort, context: context2, responseHeaders, highWaterMark } = this;
         const headers = responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
         if (statusCode < 200) {
           if (this.onInfo) {
@@ -15405,7 +15765,7 @@ var require_api_request = __commonJS({
               trailers: this.trailers,
               opaque,
               body: res,
-              context
+              context: context2
             });
           } catch (err) {
             this.res = null;
@@ -15584,17 +15944,17 @@ var require_api_stream = __commonJS({
         }
         addSignal(this, signal);
       }
-      onConnect(abort, context) {
+      onConnect(abort, context2) {
         if (this.reason) {
           abort(this.reason);
           return;
         }
         assert2(this.callback);
         this.abort = abort;
-        this.context = context;
+        this.context = context2;
       }
       onHeaders(statusCode, rawHeaders, resume, statusMessage) {
-        const { factory, opaque, context, responseHeaders } = this;
+        const { factory, opaque, context: context2, responseHeaders } = this;
         const headers = responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
         if (statusCode < 200) {
           if (this.onInfo) {
@@ -15610,7 +15970,7 @@ var require_api_stream = __commonJS({
           statusCode,
           headers,
           opaque,
-          context
+          context: context2
         });
         if (!res || typeof res.write !== "function" || typeof res.end !== "function" || typeof res.on !== "function") {
           throw new InvalidReturnValueError("expected Writable");
@@ -15804,7 +16164,7 @@ var require_api_pipeline = __commonJS({
         this.res = null;
         addSignal(this, signal);
       }
-      onConnect(abort, context) {
+      onConnect(abort, context2) {
         const { res } = this;
         if (this.reason) {
           abort(this.reason);
@@ -15812,10 +16172,10 @@ var require_api_pipeline = __commonJS({
         }
         assert2(!res, "pipeline cannot be retried");
         this.abort = abort;
-        this.context = context;
+        this.context = context2;
       }
       onHeaders(statusCode, rawHeaders, resume) {
-        const { opaque, handler, context } = this;
+        const { opaque, handler, context: context2 } = this;
         if (statusCode < 200) {
           if (this.onInfo) {
             const headers = this.responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
@@ -15833,7 +16193,7 @@ var require_api_pipeline = __commonJS({
             headers,
             opaque,
             body: this.res,
-            context
+            context: context2
           });
         } catch (err) {
           this.res.on("error", noop2);
@@ -15918,7 +16278,7 @@ var require_api_upgrade = __commonJS({
         this.context = null;
         addSignal(this, signal);
       }
-      onConnect(abort, context) {
+      onConnect(abort, context2) {
         if (this.reason) {
           abort(this.reason);
           return;
@@ -15932,7 +16292,7 @@ var require_api_upgrade = __commonJS({
       }
       onUpgrade(statusCode, rawHeaders, socket) {
         assert2(socket[kHTTP2Stream] === true ? statusCode === 200 : statusCode === 101);
-        const { callback, opaque, context } = this;
+        const { callback, opaque, context: context2 } = this;
         removeSignal(this);
         this.callback = null;
         const headers = this.responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
@@ -15940,7 +16300,7 @@ var require_api_upgrade = __commonJS({
           headers,
           socket,
           opaque,
-          context
+          context: context2
         });
       }
       onError(err) {
@@ -16010,20 +16370,20 @@ var require_api_connect = __commonJS({
         this.abort = null;
         addSignal(this, signal);
       }
-      onConnect(abort, context) {
+      onConnect(abort, context2) {
         if (this.reason) {
           abort(this.reason);
           return;
         }
         assert2(this.callback);
         this.abort = abort;
-        this.context = context;
+        this.context = context2;
       }
       onHeaders() {
         throw new SocketError("bad connect", null);
       }
       onUpgrade(statusCode, rawHeaders, socket) {
-        const { callback, opaque, context } = this;
+        const { callback, opaque, context: context2 } = this;
         removeSignal(this);
         this.callback = null;
         let headers = rawHeaders;
@@ -16035,7 +16395,7 @@ var require_api_connect = __commonJS({
           headers,
           socket,
           opaque,
-          context
+          context: context2
         });
       }
       onError(err) {
@@ -16204,11 +16564,11 @@ var require_mock_utils = __commonJS({
     }
     function buildHeadersFromArray(headers) {
       const clone = headers.slice();
-      const entries = [];
+      const entries2 = [];
       for (let index2 = 0; index2 < clone.length; index2 += 2) {
-        entries.push([clone[index2], clone[index2 + 1]]);
+        entries2.push([clone[index2], clone[index2 + 1]]);
       }
-      return Object.fromEntries(entries);
+      return Object.fromEntries(entries2);
     }
     function matchHeaders(mockDispatch2, headers) {
       if (typeof mockDispatch2.headers === "function") {
@@ -16255,20 +16615,20 @@ var require_mock_utils = __commonJS({
       }
       return normalizedQp;
     }
-    function safeUrl(path31) {
-      if (typeof path31 !== "string") {
-        return path31;
+    function safeUrl(path34) {
+      if (typeof path34 !== "string") {
+        return path34;
       }
-      const pathSegments = path31.split("?", 3);
+      const pathSegments = path34.split("?", 3);
       if (pathSegments.length !== 2) {
-        return path31;
+        return path34;
       }
       const qp = new URLSearchParams(pathSegments.pop());
       qp.sort();
       return [...pathSegments, qp.toString()].join("?");
     }
-    function matchKey(mockDispatch2, { path: path31, method, body, headers }) {
-      const pathMatch = matchValue(mockDispatch2.path, path31);
+    function matchKey(mockDispatch2, { path: path34, method, body, headers }) {
+      const pathMatch = matchValue(mockDispatch2.path, path34);
       const methodMatch = matchValue(mockDispatch2.method, method);
       const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
       const headersMatch = matchHeaders(mockDispatch2, headers);
@@ -16293,8 +16653,8 @@ var require_mock_utils = __commonJS({
       const basePath = key3.query ? serializePathWithQuery(key3.path, key3.query) : key3.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
       const resolvedPathWithoutTrailingSlash = removeTrailingSlash(resolvedPath);
-      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path31, ignoreTrailingSlash }) => {
-        return ignoreTrailingSlash ? matchValue(removeTrailingSlash(safeUrl(path31)), resolvedPathWithoutTrailingSlash) : matchValue(safeUrl(path31), resolvedPath);
+      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path34, ignoreTrailingSlash }) => {
+        return ignoreTrailingSlash ? matchValue(removeTrailingSlash(safeUrl(path34)), resolvedPathWithoutTrailingSlash) : matchValue(safeUrl(path34), resolvedPath);
       });
       if (matchedMockDispatches.length === 0) {
         throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
@@ -16333,19 +16693,19 @@ var require_mock_utils = __commonJS({
         mockDispatches.splice(index2, 1);
       }
     }
-    function removeTrailingSlash(path31) {
-      while (path31.endsWith("/")) {
-        path31 = path31.slice(0, -1);
+    function removeTrailingSlash(path34) {
+      while (path34.endsWith("/")) {
+        path34 = path34.slice(0, -1);
       }
-      if (path31.length === 0) {
-        path31 = "/";
+      if (path34.length === 0) {
+        path34 = "/";
       }
-      return path31;
+      return path34;
     }
     function buildKey(opts) {
-      const { path: path31, method, body, headers, query } = opts;
+      const { path: path34, method, body, headers, query } = opts;
       return {
-        path: path31,
+        path: path34,
         method,
         body,
         headers,
@@ -17035,10 +17395,10 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path: path31, data: { statusCode }, persist: persist2, times, timesInvoked, origin }) => ({
+          ({ method, path: path34, data: { statusCode }, persist: persist2, times, timesInvoked, origin }) => ({
             Method: method,
             Origin: origin,
-            Path: path31,
+            Path: path34,
             "Status code": statusCode,
             Persistent: persist2 ? PERSISTENT : NOT_PERSISTENT,
             Invocations: timesInvoked,
@@ -17120,9 +17480,9 @@ var require_mock_agent = __commonJS({
         const acceptNonStandardSearchParameters = this[kMockAgentAcceptsNonStandardSearchParameters];
         const dispatchOpts = { ...opts };
         if (acceptNonStandardSearchParameters && dispatchOpts.path) {
-          const [path31, searchParams] = dispatchOpts.path.split("?");
+          const [path34, searchParams] = dispatchOpts.path.split("?");
           const normalizedSearchParams = normalizeSearchParams(searchParams, acceptNonStandardSearchParameters);
-          dispatchOpts.path = `${path31}?${normalizedSearchParams}`;
+          dispatchOpts.path = `${path34}?${normalizedSearchParams}`;
         }
         return this[kAgent].dispatch(dispatchOpts, handler);
       }
@@ -17523,12 +17883,12 @@ var require_snapshot_recorder = __commonJS({
        * @return {Promise<void>} - Resolves when snapshots are loaded
        */
       async loadSnapshots(filePath2) {
-        const path31 = filePath2 || this.#snapshotPath;
-        if (!path31) {
+        const path34 = filePath2 || this.#snapshotPath;
+        if (!path34) {
           throw new InvalidArgumentError("Snapshot path is required");
         }
         try {
-          const data = await readFile2(resolve3(path31), "utf8");
+          const data = await readFile2(resolve3(path34), "utf8");
           const parsed = JSON.parse(data);
           if (Array.isArray(parsed)) {
             this.#snapshots.clear();
@@ -17542,7 +17902,7 @@ var require_snapshot_recorder = __commonJS({
           if (error.code === "ENOENT") {
             this.#snapshots.clear();
           } else {
-            throw new UndiciError(`Failed to load snapshots from ${path31}`, { cause: error });
+            throw new UndiciError(`Failed to load snapshots from ${path34}`, { cause: error });
           }
         }
       }
@@ -17553,11 +17913,11 @@ var require_snapshot_recorder = __commonJS({
        * @returns {Promise<void>} - Resolves when snapshots are saved
        */
       async saveSnapshots(filePath2) {
-        const path31 = filePath2 || this.#snapshotPath;
-        if (!path31) {
+        const path34 = filePath2 || this.#snapshotPath;
+        if (!path34) {
           throw new InvalidArgumentError("Snapshot path is required");
         }
-        const resolvedPath = resolve3(path31);
+        const resolvedPath = resolve3(path34);
         await mkdir(dirname2(resolvedPath), { recursive: true });
         const data = Array.from(this.#snapshots.entries()).map(([hash, snapshot]) => ({
           hash,
@@ -17806,8 +18166,8 @@ var require_snapshot_agent = __commonJS({
         };
         const self = this;
         const recordingHandler = {
-          onRequestStart(controller, context) {
-            return handler.onRequestStart(controller, { ...context, history: this.history });
+          onRequestStart(controller, context2) {
+            return handler.onRequestStart(controller, { ...context2, history: this.history });
           },
           onRequestUpgrade(controller, statusCode, headers, socket) {
             return handler.onRequestUpgrade(controller, statusCode, headers, socket);
@@ -18156,8 +18516,8 @@ var require_redirect_handler = __commonJS({
           this.opts.body = new BodyAsyncIterable(this.opts.body);
         }
       }
-      onRequestStart(controller, context) {
-        this.handler.onRequestStart?.(controller, { ...context, history: this.history });
+      onRequestStart(controller, context2) {
+        this.handler.onRequestStart?.(controller, { ...context2, history: this.history });
       }
       onRequestUpgrade(controller, statusCode, headers, socket) {
         this.handler.onRequestUpgrade?.(controller, statusCode, headers, socket);
@@ -18189,15 +18549,15 @@ var require_redirect_handler = __commonJS({
           return;
         }
         const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-        const path31 = search ? `${pathname}${search}` : pathname;
-        const redirectUrlString = `${origin}${path31}`;
+        const path34 = search ? `${pathname}${search}` : pathname;
+        const redirectUrlString = `${origin}${path34}`;
         for (const historyUrl of this.history) {
           if (historyUrl.toString() === redirectUrlString) {
             throw new InvalidArgumentError(`Redirect loop detected. Cannot redirect to ${origin}. This typically happens when using a Client or Pool with cross-origin redirects. Use an Agent for cross-origin redirects.`);
           }
         }
         this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-        this.opts.path = path31;
+        this.opts.path = path34;
         this.opts.origin = origin;
         this.opts.query = null;
       }
@@ -18240,8 +18600,8 @@ var require_redirect_handler = __commonJS({
           }
         }
       } else if (headers && typeof headers === "object") {
-        const entries = util.hasSafeIterator(headers) ? headers : Object.entries(headers);
-        for (const [key3, value] of entries) {
+        const entries2 = util.hasSafeIterator(headers) ? headers : Object.entries(headers);
+        for (const [key3, value] of entries2) {
           if (!shouldRemoveHeader(key3, removeContent, unknownOrigin)) {
             ret.push(key3, value);
           }
@@ -18295,13 +18655,13 @@ var require_response_error = __commonJS({
       #checkContentType(contentType) {
         return (this.#contentType ?? "").indexOf(contentType) === 0;
       }
-      onRequestStart(controller, context) {
+      onRequestStart(controller, context2) {
         this.#statusCode = 0;
         this.#contentType = null;
         this.#decoder = null;
         this.#headers = null;
         this.#body = "";
-        return super.onRequestStart(controller, context);
+        return super.onRequestStart(controller, context2);
       }
       onResponseStart(controller, statusCode, headers, statusMessage) {
         this.#statusCode = statusCode;
@@ -18406,9 +18766,9 @@ var require_dump = __commonJS({
         this.aborted = true;
         this.reason = reason;
       }
-      onRequestStart(controller, context) {
+      onRequestStart(controller, context2) {
         controller.abort = this.#abort.bind(this);
-        return super.onRequestStart(controller, context);
+        return super.onRequestStart(controller, context2);
       }
       onResponseStart(controller, statusCode, headers, statusMessage) {
         const contentLength = headers["content-length"];
@@ -19957,10 +20317,10 @@ var require_cache_handler = __commonJS({
       }
       return locationUrl.pathname + locationUrl.search;
     }
-    function deleteCachedUri(store2, cacheKey, path31) {
+    function deleteCachedUri(store2, cacheKey, path34) {
       deleteCachedValue(store2, {
         ...cacheKey,
-        path: path31
+        path: path34
       });
       for (let i = 0; i < util.safeHTTPMethods.length; i++) {
         const method = util.safeHTTPMethods[i];
@@ -19968,7 +20328,7 @@ var require_cache_handler = __commonJS({
           deleteCachedValue(store2, {
             ...cacheKey,
             method,
-            path: path31
+            path: path34
           });
         }
       }
@@ -19979,9 +20339,9 @@ var require_cache_handler = __commonJS({
       }
       const values = Array.isArray(headerValue) ? headerValue : [headerValue];
       for (let i = 0; i < values.length; i++) {
-        const path31 = getSameOriginPath(cacheKey, values[i]);
-        if (path31 !== void 0) {
-          deleteCachedUri(store2, cacheKey, path31);
+        const path34 = getSameOriginPath(cacheKey, values[i]);
+        if (path34 !== void 0) {
+          deleteCachedUri(store2, cacheKey, path34);
         }
       }
     }
@@ -20027,10 +20387,10 @@ var require_cache_handler = __commonJS({
         this.#cacheKey = cacheKey;
         this.#handler = handler;
       }
-      onRequestStart(controller, context) {
+      onRequestStart(controller, context2) {
         this.#writeStream?.destroy();
         this.#writeStream = void 0;
-        this.#handler.onRequestStart?.(controller, context);
+        this.#handler.onRequestStart?.(controller, context2);
       }
       onRequestUpgrade(controller, statusCode, headers, socket) {
         this.#handler.onRequestUpgrade?.(controller, statusCode, headers, socket);
@@ -20475,8 +20835,8 @@ var require_memory_cache_store = __commonJS({
         assertCacheKey(key3);
         const topLevelKey = `${key3.origin}:${key3.path}`;
         const now = Date.now();
-        const entries = this.#entries.get(topLevelKey);
-        const entry = entries ? findEntry(key3, entries, now) : null;
+        const entries2 = this.#entries.get(topLevelKey);
+        const entry = entries2 ? findEntry(key3, entries2, now) : null;
         return entry == null ? void 0 : {
           statusMessage: entry.statusMessage,
           statusCode: entry.statusCode,
@@ -20515,18 +20875,18 @@ var require_memory_cache_store = __commonJS({
             callback(null);
           },
           final(callback) {
-            let entries = store2.#entries.get(topLevelKey);
-            if (!entries) {
-              entries = [];
-              store2.#entries.set(topLevelKey, entries);
+            let entries2 = store2.#entries.get(topLevelKey);
+            if (!entries2) {
+              entries2 = [];
+              store2.#entries.set(topLevelKey, entries2);
             }
-            const previousEntry = findEntry(key3, entries, Date.now());
+            const previousEntry = findEntry(key3, entries2, Date.now());
             if (previousEntry) {
-              const index2 = entries.indexOf(previousEntry);
-              entries.splice(index2, 1, entry);
+              const index2 = entries2.indexOf(previousEntry);
+              entries2.splice(index2, 1, entry);
               store2.#size -= previousEntry.size;
             } else {
-              entries.push(entry);
+              entries2.push(entry);
               store2.#count += 1;
             }
             store2.#size += entry.size;
@@ -20540,12 +20900,12 @@ var require_memory_cache_store = __commonJS({
                 });
                 store2.#hasEmittedMaxSizeEvent = true;
               }
-              for (const [key4, entries2] of store2.#entries) {
-                for (const entry2 of entries2.splice(0, entries2.length / 2)) {
+              for (const [key4, entries3] of store2.#entries) {
+                for (const entry2 of entries3.splice(0, entries3.length / 2)) {
                   store2.#size -= entry2.size;
                   store2.#count -= 1;
                 }
-                if (entries2.length === 0) {
+                if (entries3.length === 0) {
                   store2.#entries.delete(key4);
                 }
               }
@@ -20572,9 +20932,9 @@ var require_memory_cache_store = __commonJS({
         this.#entries.delete(topLevelKey);
       }
     };
-    function findEntry(key3, entries, now) {
-      for (let i = 0; i < entries.length; i++) {
-        const entry = entries[i];
+    function findEntry(key3, entries2, now) {
+      for (let i = 0; i < entries2.length; i++) {
+        const entry = entries2[i];
         if (entry.deleteAt > now && entry.method === key3.method && varyMatches(key3, entry)) {
           return entry;
         }
@@ -20648,9 +21008,9 @@ var require_cache_revalidation_handler = __commonJS({
         this.#handler = handler;
         this.#allowErrorStatusCodes = allowErrorStatusCodes;
       }
-      onRequestStart(_, context) {
+      onRequestStart(_, context2) {
         this.#successful = false;
-        this.#context = context;
+        this.#context = context2;
       }
       onRequestUpgrade(controller, statusCode, headers, socket) {
         this.#handler.onRequestUpgrade?.(controller, statusCode, headers, socket);
@@ -20875,7 +21235,7 @@ var require_cache2 = __commonJS({
       }
       return dispatch(opts, new CacheHandler(globalOpts, cacheKey, handler));
     }
-    function sendCachedValue(handler, opts, result, age, context, isStale2) {
+    function sendCachedValue(handler, opts, result, age, context2, isStale2) {
       const stream = util.isStream(result.body) ? result.body : Readable.from(result.body ?? []);
       assert2(!stream.destroyed, "stream should not be destroyed");
       assert2(!stream.readableDidRead, "stream should not be readableDidRead");
@@ -20912,7 +21272,7 @@ var require_cache2 = __commonJS({
           handler.onResponseEnd?.(controller, {});
         }
       });
-      handler.onRequestStart?.(controller, context);
+      handler.onRequestStart?.(controller, context2);
       if (stream.destroyed) {
         return;
       }
@@ -20994,7 +21354,7 @@ var require_cache2 = __commonJS({
             headers
           },
           new CacheRevalidationHandler(
-            (success, context, statusCode, headers2) => {
+            (success, context2, statusCode, headers2) => {
               if (success) {
                 if (statusCode === 304) {
                   if (revalidationResponseDisallowsCachedReuse(globalOpts.type, headers2)) {
@@ -21008,7 +21368,7 @@ var require_cache2 = __commonJS({
                     deleteCachedValue(globalOpts.store, cacheKey);
                   }
                 }
-                sendCachedValue(handler, opts, result, age, context, stale);
+                sendCachedValue(handler, opts, result, age, context2, stale);
               } else if (util.isStream(result.body)) {
                 result.body.on("error", nop).destroy();
               }
@@ -21544,9 +21904,9 @@ var require_deduplication_handler = __commonJS({
        * @param {import('../../types/dispatcher.d.ts').default.DispatchController} controller
        * @param {any} context
        */
-      onRequestStart(controller, context) {
+      onRequestStart(controller, context2) {
         this.#controller = controller;
-        this.#primaryHandler.onRequestStart?.(controller, context);
+        this.#primaryHandler.onRequestStart?.(controller, context2);
       }
       /**
        * @param {import('../../types/dispatcher.d.ts').default.DispatchController} controller
@@ -23195,7 +23555,7 @@ var require_request2 = __commonJS({
       }
     }
     var patchMethodWarning = false;
-    var Request = class _Request {
+    var Request2 = class _Request {
       /** @type {AbortSignal} */
       #signal;
       /** @type {import('../../dispatcher/dispatcher')} */
@@ -23239,15 +23599,15 @@ var require_request2 = __commonJS({
           this.#dispatcher = init.dispatcher || input.#dispatcher;
         }
         const origin = environmentSettingsObject.settingsObject.origin;
-        let window = "client";
+        let window2 = "client";
         if (request.window?.constructor?.name === "EnvironmentSettingsObject" && sameOrigin(request.window, origin)) {
-          window = request.window;
+          window2 = request.window;
         }
         if (init.window != null) {
-          throw new TypeError(`'window' option '${window}' must be null`);
+          throw new TypeError(`'window' option '${window2}' must be null`);
         }
         if ("window" in init) {
-          window = "no-window";
+          window2 = "no-window";
         }
         request = makeRequest({
           // URL request’s URL.
@@ -23262,7 +23622,7 @@ var require_request2 = __commonJS({
           // client This’s relevant settings object.
           client: environmentSettingsObject.settingsObject,
           // window window.
-          window,
+          window: window2,
           // priority request’s priority.
           priority: request.priority,
           // origin request’s origin. The propagation of the origin is only significant for navigation requests
@@ -23681,14 +24041,14 @@ var require_request2 = __commonJS({
         request.#state = newState;
       }
     };
-    var { setRequestSignal, getRequestDispatcher, setRequestDispatcher, setRequestHeaders, getRequestState, setRequestState } = Request;
-    Reflect.deleteProperty(Request, "setRequestSignal");
-    Reflect.deleteProperty(Request, "getRequestDispatcher");
-    Reflect.deleteProperty(Request, "setRequestDispatcher");
-    Reflect.deleteProperty(Request, "setRequestHeaders");
-    Reflect.deleteProperty(Request, "getRequestState");
-    Reflect.deleteProperty(Request, "setRequestState");
-    mixinBody(Request, getRequestState);
+    var { setRequestSignal, getRequestDispatcher, setRequestDispatcher, setRequestHeaders, getRequestState, setRequestState } = Request2;
+    Reflect.deleteProperty(Request2, "setRequestSignal");
+    Reflect.deleteProperty(Request2, "getRequestDispatcher");
+    Reflect.deleteProperty(Request2, "setRequestDispatcher");
+    Reflect.deleteProperty(Request2, "setRequestHeaders");
+    Reflect.deleteProperty(Request2, "getRequestState");
+    Reflect.deleteProperty(Request2, "setRequestState");
+    mixinBody(Request2, getRequestState);
     function makeRequest(init) {
       return {
         method: init.method ?? "GET",
@@ -23741,7 +24101,7 @@ var require_request2 = __commonJS({
       return newRequest;
     }
     function fromInnerRequest(innerRequest, dispatcher, signal, guard) {
-      const request = new Request(kConstruct);
+      const request = new Request2(kConstruct);
       setRequestState(request, innerRequest);
       setRequestDispatcher(request, dispatcher);
       setRequestSignal(request, signal);
@@ -23751,7 +24111,7 @@ var require_request2 = __commonJS({
       setHeadersGuard(headers, guard);
       return request;
     }
-    Object.defineProperties(Request.prototype, {
+    Object.defineProperties(Request2.prototype, {
       method: kEnumerableProperty,
       url: kEnumerableProperty,
       headers: kEnumerableProperty,
@@ -23777,7 +24137,7 @@ var require_request2 = __commonJS({
         configurable: true
       }
     });
-    webidl.is.Request = webidl.util.MakeTypeAssertion(Request);
+    webidl.is.Request = webidl.util.MakeTypeAssertion(Request2);
     webidl.converters.RequestInfo = function(V) {
       if (typeof V === "string") {
         return webidl.converters.USVString(V);
@@ -23876,7 +24236,7 @@ var require_request2 = __commonJS({
       }
     ]);
     module.exports = {
-      Request,
+      Request: Request2,
       makeRequest,
       fromInnerRequest,
       cloneRequest,
@@ -24038,7 +24398,7 @@ var require_fetch = __commonJS({
       getResponseState
     } = require_response();
     var { HeadersList } = require_headers();
-    var { Request, cloneRequest, getRequestDispatcher, getRequestState } = require_request2();
+    var { Request: Request2, cloneRequest, getRequestDispatcher, getRequestState } = require_request2();
     var zlib = __require("node:zlib");
     var {
       makePolicyContainer,
@@ -24136,7 +24496,7 @@ var require_fetch = __commonJS({
       let p = createDeferredPromise();
       let requestObject;
       try {
-        requestObject = new Request(input, init);
+        requestObject = new Request2(input, init);
       } catch (e) {
         p.reject(e);
         return p.promise;
@@ -24947,9 +25307,9 @@ var require_fetch = __commonJS({
             fetchParams.controller.terminate(bytes);
             return;
           }
-          const buffer = new Uint8Array(bytes);
-          if (buffer.byteLength) {
-            fetchParams.controller.controller.enqueue(buffer);
+          const buffer2 = new Uint8Array(bytes);
+          if (buffer2.byteLength) {
+            fetchParams.controller.controller.enqueue(buffer2);
           }
           if (isErrored(stream)) {
             fetchParams.controller.terminate();
@@ -24981,11 +25341,11 @@ var require_fetch = __commonJS({
       function dispatch({ body }) {
         const url = requestCurrentURL(request);
         const agent = fetchParams.controller.dispatcher;
-        const path31 = url.pathname + url.search;
+        const path34 = url.pathname + url.search;
         const hasTrailingQuestionMark = url.search.length === 0 && url.href[url.href.length - url.hash.length - 1] === "?";
         return new Promise((resolve3, reject) => agent.dispatch(
           {
-            path: hasTrailingQuestionMark ? `${path31}?` : path31,
+            path: hasTrailingQuestionMark ? `${path34}?` : path34,
             origin: url.origin,
             method: request.method,
             body: agent.isMockActive ? request.body && (request.body.source || request.body.stream) : body,
@@ -25209,7 +25569,7 @@ var require_cache3 = __commonJS({
     var { kEnumerableProperty, isDisturbed } = require_util();
     var { webidl } = require_webidl();
     var { cloneResponse, fromInnerResponse, getResponseState } = require_response();
-    var { Request, fromInnerRequest, getRequestState } = require_request2();
+    var { Request: Request2, fromInnerRequest, getRequestState } = require_request2();
     var { fetching } = require_fetch();
     var { urlIsHttpHttpsScheme, readAllBytes } = require_util2();
     var { createDeferredPromise } = require_promise();
@@ -25282,7 +25642,7 @@ var require_cache3 = __commonJS({
         }
         const fetchControllers = [];
         for (const request of requests2) {
-          const r = getRequestState(new Request(request));
+          const r = getRequestState(new Request2(request));
           if (!urlIsHttpHttpsScheme(r.url)) {
             throw webidl.errors.exception({
               header: prefix,
@@ -25369,7 +25729,7 @@ var require_cache3 = __commonJS({
         if (webidl.is.Request(request)) {
           innerRequest = getRequestState(request);
         } else {
-          innerRequest = getRequestState(new Request(request));
+          innerRequest = getRequestState(new Request2(request));
         }
         if (!urlIsHttpHttpsScheme(innerRequest.url) || innerRequest.method !== "GET") {
           throw webidl.errors.exception({
@@ -25454,7 +25814,7 @@ var require_cache3 = __commonJS({
           }
         } else {
           assert2(typeof request === "string");
-          r = getRequestState(new Request(request));
+          r = getRequestState(new Request2(request));
         }
         const operations = [];
         const operation = {
@@ -25499,7 +25859,7 @@ var require_cache3 = __commonJS({
               return [];
             }
           } else if (typeof request === "string") {
-            r = getRequestState(new Request(request));
+            r = getRequestState(new Request2(request));
           }
         }
         const promise = createDeferredPromise();
@@ -25672,7 +26032,7 @@ var require_cache3 = __commonJS({
               return [];
             }
           } else if (typeof request === "string") {
-            r = getRequestState(new Request(request));
+            r = getRequestState(new Request2(request));
           }
         }
         const responses = [];
@@ -25932,9 +26292,9 @@ var require_util4 = __commonJS({
         }
       }
     }
-    function validateCookiePath(path31) {
-      for (let i = 0; i < path31.length; ++i) {
-        const code = path31.charCodeAt(i);
+    function validateCookiePath(path34) {
+      for (let i = 0; i < path34.length; ++i) {
+        const code = path34.charCodeAt(i);
         if (code < 32 || // exclude CTLs (0-31)
         code > 126 || // exclude DEL and non-ascii
         code === 59) {
@@ -26701,11 +27061,11 @@ var require_util5 = __commonJS({
     function websocketMessageReceived(handler, type, data) {
       handler.onMessage(type, data);
     }
-    function toArrayBuffer(buffer) {
-      if (buffer.byteLength === buffer.buffer.byteLength) {
-        return buffer.buffer;
+    function toArrayBuffer(buffer2) {
+      if (buffer2.byteLength === buffer2.buffer.byteLength) {
+        return buffer2.buffer;
       }
-      return new Uint8Array(buffer).buffer;
+      return new Uint8Array(buffer2).buffer;
     }
     function isValidSubprotocol(protocol) {
       if (protocol.length === 0) {
@@ -26821,9 +27181,9 @@ var require_util5 = __commonJS({
         const fatalDecoder = new TextDecoder("utf-8", { fatal: true });
         return fatalDecoder.decode.bind(fatalDecoder);
       }
-      return function(buffer) {
-        if (isUtf8(buffer)) {
-          return buffer.toString("utf-8");
+      return function(buffer2) {
+        if (isUtf8(buffer2)) {
+          return buffer2.toString("utf-8");
         }
         throw new TypeError("Invalid utf-8 received.");
       };
@@ -26858,20 +27218,20 @@ var require_frame = __commonJS({
     var { runtimeFeatures } = require_runtime_features();
     var { maxUnsigned16Bit, opcodes } = require_constants5();
     var BUFFER_SIZE = 8 * 1024;
-    var buffer = null;
+    var buffer2 = null;
     var bufIdx = BUFFER_SIZE;
-    var randomFillSync = runtimeFeatures.has("crypto") ? __require("node:crypto").randomFillSync : function randomFillSync2(buffer2, _offset, _size) {
-      for (let i = 0; i < buffer2.length; ++i) {
-        buffer2[i] = Math.random() * 255 | 0;
+    var randomFillSync = runtimeFeatures.has("crypto") ? __require("node:crypto").randomFillSync : function randomFillSync2(buffer3, _offset, _size) {
+      for (let i = 0; i < buffer3.length; ++i) {
+        buffer3[i] = Math.random() * 255 | 0;
       }
-      return buffer2;
+      return buffer3;
     };
     function generateMask() {
       if (bufIdx === BUFFER_SIZE) {
         bufIdx = 0;
-        randomFillSync(buffer ??= Buffer.allocUnsafeSlow(BUFFER_SIZE), 0, BUFFER_SIZE);
+        randomFillSync(buffer2 ??= Buffer.allocUnsafeSlow(BUFFER_SIZE), 0, BUFFER_SIZE);
       }
-      return [buffer[bufIdx++], buffer[bufIdx++], buffer[bufIdx++], buffer[bufIdx++]];
+      return [buffer2[bufIdx++], buffer2[bufIdx++], buffer2[bufIdx++], buffer2[bufIdx++]];
     }
     var WebsocketFrameSend = class {
       /**
@@ -26893,35 +27253,35 @@ var require_frame = __commonJS({
           offset += 2;
           payloadLength = 126;
         }
-        const buffer2 = Buffer.allocUnsafe(bodyLength + offset);
-        buffer2[0] = buffer2[1] = 0;
-        buffer2[0] |= 128;
-        buffer2[0] = (buffer2[0] & 240) + opcode;
-        buffer2[offset - 4] = maskKey[0];
-        buffer2[offset - 3] = maskKey[1];
-        buffer2[offset - 2] = maskKey[2];
-        buffer2[offset - 1] = maskKey[3];
-        buffer2[1] = payloadLength;
+        const buffer3 = Buffer.allocUnsafe(bodyLength + offset);
+        buffer3[0] = buffer3[1] = 0;
+        buffer3[0] |= 128;
+        buffer3[0] = (buffer3[0] & 240) + opcode;
+        buffer3[offset - 4] = maskKey[0];
+        buffer3[offset - 3] = maskKey[1];
+        buffer3[offset - 2] = maskKey[2];
+        buffer3[offset - 1] = maskKey[3];
+        buffer3[1] = payloadLength;
         if (payloadLength === 126) {
-          buffer2.writeUInt16BE(bodyLength, 2);
+          buffer3.writeUInt16BE(bodyLength, 2);
         } else if (payloadLength === 127) {
-          buffer2[2] = buffer2[3] = 0;
-          buffer2.writeUIntBE(bodyLength, 4, 6);
+          buffer3[2] = buffer3[3] = 0;
+          buffer3.writeUIntBE(bodyLength, 4, 6);
         }
-        buffer2[1] |= 128;
+        buffer3[1] |= 128;
         for (let i = 0; i < bodyLength; ++i) {
-          buffer2[offset + i] = frameData[i] ^ maskKey[i & 3];
+          buffer3[offset + i] = frameData[i] ^ maskKey[i & 3];
         }
-        return buffer2;
+        return buffer3;
       }
       /**
        * @param {Uint8Array} buffer
        */
-      static createFastTextFrame(buffer2) {
+      static createFastTextFrame(buffer3) {
         const maskKey = generateMask();
-        const bodyLength = buffer2.length;
+        const bodyLength = buffer3.length;
         for (let i = 0; i < bodyLength; ++i) {
-          buffer2[i] ^= maskKey[i & 3];
+          buffer3[i] ^= maskKey[i & 3];
         }
         let payloadLength = bodyLength;
         let offset = 6;
@@ -26945,7 +27305,7 @@ var require_frame = __commonJS({
           head[2] = head[3] = 0;
           head.writeUIntBE(bodyLength, 4, 6);
         }
-        return [head, buffer2];
+        return [head, buffer3];
       }
     };
     module.exports = {
@@ -27060,10 +27420,10 @@ var require_connection = __commonJS({
       });
       return controller;
     }
-    function closeWebSocketConnection(object2, code, reason, validate = false) {
+    function closeWebSocketConnection(object2, code, reason, validate2 = false) {
       code ??= null;
       reason ??= "";
-      if (validate) validateCloseCodeAndReason(code, reason);
+      if (validate2) validateCloseCodeAndReason(code, reason);
       if (isClosed(object2.readyState) || isClosing(object2.readyState)) {
       } else if (!isEstablished(object2.readyState)) {
         failWebsocketConnection(object2);
@@ -27273,15 +27633,15 @@ var require_receiver = __commonJS({
             if (this.#byteOffset < 2) {
               return callback();
             }
-            const buffer = this.consume(2);
-            const fin = (buffer[0] & 128) !== 0;
-            const opcode = buffer[0] & 15;
-            const masked = (buffer[1] & 128) === 128;
+            const buffer2 = this.consume(2);
+            const fin = (buffer2[0] & 128) !== 0;
+            const opcode = buffer2[0] & 15;
+            const masked = (buffer2[1] & 128) === 128;
             const fragmented = !fin && opcode !== opcodes.CONTINUATION;
-            const payloadLength = buffer[1] & 127;
-            const rsv1 = buffer[0] & 64;
-            const rsv2 = buffer[0] & 32;
-            const rsv3 = buffer[0] & 16;
+            const payloadLength = buffer2[1] & 127;
+            const rsv1 = buffer2[0] & 64;
+            const rsv2 = buffer2[0] & 32;
+            const rsv3 = buffer2[0] & 16;
             if (!isValidOpcode(opcode)) {
               failWebsocketConnection(this.#handler, 1002, "Invalid opcode received");
               return callback();
@@ -27341,8 +27701,8 @@ var require_receiver = __commonJS({
             if (this.#byteOffset < 2) {
               return callback();
             }
-            const buffer = this.consume(2);
-            this.#info.payloadLength = buffer.readUInt16BE(0);
+            const buffer2 = this.consume(2);
+            this.#info.payloadLength = buffer2.readUInt16BE(0);
             this.#state = parserStates.READ_DATA;
             if (!this.#validatePayloadLength()) {
               return;
@@ -27351,9 +27711,9 @@ var require_receiver = __commonJS({
             if (this.#byteOffset < 8) {
               return callback();
             }
-            const buffer = this.consume(8);
-            const upper = buffer.readUInt32BE(0);
-            const lower2 = buffer.readUInt32BE(4);
+            const buffer2 = this.consume(8);
+            const upper = buffer2.readUInt32BE(0);
+            const lower2 = buffer2.readUInt32BE(4);
             if (upper !== 0 || lower2 > 2 ** 31 - 1) {
               failWebsocketConnection(this.#handler, 1009, "Received payload length > 2^31 bytes.");
               return;
@@ -27437,23 +27797,23 @@ var require_receiver = __commonJS({
           return this.#buffers.shift();
         } else {
           let offset = 0;
-          const buffer = Buffer.allocUnsafeSlow(n);
+          const buffer2 = Buffer.allocUnsafeSlow(n);
           while (offset !== n) {
             const next = this.#buffers[0];
             const length = next.length;
             if (length + offset === n) {
-              buffer.set(this.#buffers.shift(), offset);
+              buffer2.set(this.#buffers.shift(), offset);
               break;
             } else if (length + offset > n) {
-              buffer.set(next.subarray(0, n - offset), offset);
+              buffer2.set(next.subarray(0, n - offset), offset);
               this.#buffers[0] = next.subarray(n - offset);
               break;
             } else {
-              buffer.set(this.#buffers.shift(), offset);
+              buffer2.set(this.#buffers.shift(), offset);
               offset += length;
             }
           }
-          return buffer;
+          return buffer2;
         }
       }
       writeFragments(fragment) {
@@ -27474,9 +27834,9 @@ var require_receiver = __commonJS({
         let offset = 0;
         const output = Buffer.allocUnsafeSlow(this.#fragmentsBytes);
         for (let i = 0; i < fragments.length; ++i) {
-          const buffer = fragments[i];
-          output.set(buffer, offset);
-          offset += buffer.length;
+          const buffer2 = fragments[i];
+          output.set(buffer2, offset);
+          offset += buffer2.length;
         }
         this.#fragments = [];
         this.#fragmentsBytes = 0;
@@ -27803,10 +28163,10 @@ var require_websocket = __commonJS({
           return;
         }
         if (typeof data === "string") {
-          const buffer = Buffer.from(data);
-          this.#bufferedAmount += buffer.byteLength;
-          this.#sendQueue.add(buffer, () => {
-            this.#bufferedAmount -= buffer.byteLength;
+          const buffer2 = Buffer.from(data);
+          this.#bufferedAmount += buffer2.byteLength;
+          this.#sendQueue.add(buffer2, () => {
+            this.#bufferedAmount -= buffer2.byteLength;
           }, sendHints.text);
         } else if (isArrayBuffer(data)) {
           this.#bufferedAmount += data.byteLength;
@@ -28030,17 +28390,17 @@ var require_websocket = __commonJS({
        * @param {WebSocket} ws
        * @param {Buffer|undefined} buffer
        */
-      static ping(ws, buffer) {
-        if (Buffer.isBuffer(buffer)) {
-          if (buffer.length > 125) {
+      static ping(ws, buffer2) {
+        if (Buffer.isBuffer(buffer2)) {
+          if (buffer2.length > 125) {
             throw new TypeError("A PING frame cannot have a body larger than 125 bytes.");
           }
-        } else if (buffer !== void 0) {
+        } else if (buffer2 !== void 0) {
           throw new TypeError("Expected buffer payload");
         }
         const readyState = ws.#handler.readyState;
         if (isEstablished(readyState) && !isClosing(readyState) && !isClosed(readyState)) {
-          const frame = new WebsocketFrameSend(buffer);
+          const frame = new WebsocketFrameSend(buffer2);
           ws.#handler.socket.write(frame.createFrame(opcodes.PING));
         }
       }
@@ -28557,20 +28917,20 @@ var require_eventsource_stream = __commonJS({
     var EVENT = Buffer.from("event");
     var ID = Buffer.from("id");
     var RETRY = Buffer.from("retry");
-    function isASCIINumberBytes(buffer, start) {
-      if (start >= buffer.length) {
+    function isASCIINumberBytes(buffer2, start) {
+      if (start >= buffer2.length) {
         return false;
       }
-      for (let i = start; i < buffer.length; i++) {
-        if (buffer[i] < 48 || buffer[i] > 57) {
+      for (let i = start; i < buffer2.length; i++) {
+        if (buffer2[i] < 48 || buffer2[i] > 57) {
           return false;
         }
       }
       return true;
     }
-    function isValidLastEventIdBytes(buffer, start) {
-      for (let i = start; i < buffer.length; i++) {
-        if (buffer[i] === 0) {
+    function isValidLastEventIdBytes(buffer2, start) {
+      for (let i = start; i < buffer2.length; i++) {
+        if (buffer2[i] === 0) {
           return false;
         }
       }
@@ -29282,11 +29642,11 @@ var require_undici = __commonJS({
           if (typeof opts.path !== "string") {
             throw new InvalidArgumentError("invalid opts.path");
           }
-          let path31 = opts.path;
+          let path34 = opts.path;
           if (!opts.path.startsWith("/")) {
-            path31 = `/${path31}`;
+            path34 = `/${path34}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path31);
+          url = new URL(util.parseOrigin(url).origin + path34);
         } else {
           if (!opts) {
             opts = typeof url === "object" ? url : {};
@@ -30807,10 +31167,10 @@ var require_common = __commonJS({
       }
       return this.mask(address.subnetMask) === address.mask();
     }
-    function isGloballyReachable(entries) {
+    function isGloballyReachable(entries2) {
       let best = null;
-      for (let i = 0; i < entries.length; i++) {
-        const entry = entries[i];
+      for (let i = 0; i < entries2.length; i++) {
+        const entry = entries2[i];
         if (entry.reachable !== null && isHostInSubnet.call(this, entry.subnet) && (best === null || entry.subnet.subnetMask > best.subnet.subnetMask)) {
           best = entry;
         }
@@ -34074,7 +34434,7 @@ function createFilter({ lists, allowlist = [] }) {
   const jaEntries = [];
   const enTokens = /* @__PURE__ */ new Map();
   const enPhrases = [];
-  const seen = /* @__PURE__ */ new Set();
+  const seen2 = /* @__PURE__ */ new Set();
   for (const list of lists) {
     const { name: name2, words } = Array.isArray(list) ? { name: "custom", words: list } : list;
     for (const word of words) {
@@ -34083,9 +34443,9 @@ function createFilter({ lists, allowlist = [] }) {
       if (!norm)
         continue;
       const key3 = `${mode}:${norm}`;
-      if (seen.has(key3))
+      if (seen2.has(key3))
         continue;
-      seen.add(key3);
+      seen2.add(key3);
       const entry = { norm, word, list: name2 };
       if (mode === "ja")
         jaEntries.push(entry);
@@ -34203,7 +34563,7 @@ function createFilter({ lists, allowlist = [] }) {
     }
   };
 }
-var init_filter = __esm({
+var init_filter2 = __esm({
   "node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/filter.js"() {
     init_normalize();
   }
@@ -34276,7 +34636,7 @@ function wordguard(options = {}) {
 var DEFAULT_CATEGORIES;
 var init_wordguard = __esm({
   "node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/wordguard.js"() {
-    init_filter();
+    init_filter2();
     init_data();
     DEFAULT_CATEGORIES = ["sexual", "slur", "abuse"];
   }
@@ -35426,7 +35786,7 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
   const objectIds = {};
   const decodes = Array.from({ length: columns.length });
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { field, path: path31, codec, arrayDimensions } = columns[idx];
+    const { field, path: path34, codec, arrayDimensions } = columns[idx];
     let decoder;
     let decoderStr;
     let decoderFieldDestructure;
@@ -35454,26 +35814,26 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
     if (codec) decodedValue = `codec${idx}(${decodedValue}, ${arrayDimensions})`;
     if (decoderStr) decodedValue = `${decoderStr}(${decodedValue})`;
     decodes[idx] = colStr === decodedValue ? `${colStr}` : `${colStr} === null ? ${colStr} : ${decodedValue}`;
-    if (path31.length !== 2 || !isColumn) continue;
-    if (objectIds[path31[0]] === void 0) objectIds[path31[0]] = [`c${idx}`];
-    else objectIds[path31[0]]?.push(`c${idx}`);
-    const [objectName] = path31;
+    if (path34.length !== 2 || !isColumn) continue;
+    if (objectIds[path34[0]] === void 0) objectIds[path34[0]] = [`c${idx}`];
+    else objectIds[path34[0]]?.push(`c${idx}`);
+    const [objectName] = path34;
     const tableName = getTableName(field.table);
     nullifyMap[objectName] = joinsNotNullableMap[tableName] ? false : typeof nullifyMap[objectName] === "string" ? nullifyMap[objectName] === tableName ? tableName : false : tableName;
   }
   fn.push(`mapped[i] = {`);
   let currentObjectPath = [];
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { path: path31 } = columns[idx];
-    const jsonPath = path31.map((e) => JSON.stringify(e));
+    const { path: path34 } = columns[idx];
+    const jsonPath = path34.map((e) => JSON.stringify(e));
     const decodedValue = decodes[idx];
-    const objectPath = path31.slice(0, -1);
+    const objectPath = path34.slice(0, -1);
     let commonLen = 0;
     while (commonLen < currentObjectPath.length && commonLen < objectPath.length && currentObjectPath[commonLen] === objectPath[commonLen]) commonLen++;
     for (let d = currentObjectPath.length - 1; d >= commonLen; --d) fn.push(`${"	".repeat(d + 1)}},`);
-    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path31[0]] === "string" ? `${objectIds[path31[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
+    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path34[0]] === "string" ? `${objectIds[path34[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
     currentObjectPath = objectPath;
-    fn.push(`${"	".repeat(path31.length)}${jsonPath[path31.length - 1]}: ${decodedValue},`);
+    fn.push(`${"	".repeat(path34.length)}${jsonPath[path34.length - 1]}: ${decodedValue},`);
   }
   for (let d = currentObjectPath.length - 1; d >= 0; --d) fn.push(`${"	".repeat(d + 1)}},`);
   fn.push(`};`);
@@ -35510,13 +35870,13 @@ function jitCompatCheck(isEnabled) {
   }
 }
 function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
-  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path31 }) => {
+  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path34 }) => {
     let processNullifyMap;
     let decoderSrc;
     if (is(field, Column)) {
       decoderSrc = field;
-      if (joinsNotNullableMap && path31.length === 2) {
-        const objectName = path31[0];
+      if (joinsNotNullableMap && path34.length === 2) {
+        const objectName = path34[0];
         processNullifyMap = (nullifyMap, value) => {
           if (!(objectName in nullifyMap)) nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
           else if (typeof nullifyMap[objectName] === "string" && nullifyMap[objectName] !== getTableName(field.table)) nullifyMap[objectName] = false;
@@ -35532,9 +35892,9 @@ function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
   });
   return ((rows) => rows.map((row) => {
     const nullifyMap = {};
-    const result = columns.reduce((result2, { path: path31 }, columnIndex) => {
+    const result = columns.reduce((result2, { path: path34 }, columnIndex) => {
       let node = result2;
-      for (const [pathChunkIndex, pathChunk] of path31.entries()) if (pathChunkIndex < path31.length - 1) {
+      for (const [pathChunkIndex, pathChunk] of path34.entries()) if (pathChunkIndex < path34.length - 1) {
         if (!(pathChunk in node)) node[pathChunk] = {};
         node = node[pathChunk];
       } else {
@@ -35616,12 +35976,12 @@ function haveSameKeys(left, right) {
   return true;
 }
 function mapUpdateSet(table, values) {
-  const entries = Object.entries(values).filter(([, value]) => value !== void 0).map(([key3, value]) => {
+  const entries2 = Object.entries(values).filter(([, value]) => value !== void 0).map(([key3, value]) => {
     if (is(value, SQL) || is(value, Column)) return [key3, value];
     else return [key3, new Param(value, table[Table.Symbol.Columns][key3])];
   });
-  if (entries.length === 0) throw new Error("No values to set");
-  return Object.fromEntries(entries);
+  if (entries2.length === 0) throw new Error("No values to set");
+  return Object.fromEntries(entries2);
 }
 function applyMixins(baseClass, extendedClasses) {
   for (const extendedClass of extendedClasses) for (const name2 of Object.getOwnPropertyNames(extendedClass.prototype)) {
@@ -35916,10 +36276,10 @@ function fieldSelectionToSQL(table, target2) {
 }
 function relationsFieldFilterToSQL(column, filter2) {
   if (typeof filter2 !== "object" || is(filter2, Placeholder)) return eq(column, filter2);
-  const entries = Object.entries(filter2);
-  if (!entries.length) return void 0;
+  const entries2 = Object.entries(filter2);
+  if (!entries2.length) return void 0;
   const parts = [];
-  for (const [target2, value] of entries) {
+  for (const [target2, value] of entries2) {
     if (value === void 0) continue;
     switch (target2) {
       case "NOT": {
@@ -35956,10 +36316,10 @@ function relationsFieldFilterToSQL(column, filter2) {
   return and(...parts);
 }
 function relationsFilterToSQL(table, filter2, tableRelations = {}, tablesRelations = {}, depth = 0) {
-  const entries = Object.entries(filter2);
-  if (!entries.length) return void 0;
+  const entries2 = Object.entries(filter2);
+  if (!entries2.length) return void 0;
   const parts = [];
-  for (const [target2, value] of entries) {
+  for (const [target2, value] of entries2) {
     if (value === void 0) continue;
     switch (target2) {
       case "RAW": {
@@ -36007,9 +36367,9 @@ function relationsOrderToSQL(table, orders) {
     const data = orders(table, orderByOperators);
     return is(data, SQL) ? data : Array.isArray(data) ? data.length ? sql.join(data.map((o) => is(o, SQL) ? o : asc(o)), sql`, `) : void 0 : is(data, Column) ? asc(data) : void 0;
   }
-  const entries = Object.entries(orders).filter(([_, value]) => value);
-  if (!entries.length) return void 0;
-  return sql.join(entries.map(([target2, value]) => (value === "asc" ? asc : desc)(fieldSelectionToSQL(table, target2))), sql`, `);
+  const entries2 = Object.entries(orders).filter(([_, value]) => value);
+  if (!entries2.length) return void 0;
+  return sql.join(entries2.map(([target2, value]) => (value === "asc" ? asc : desc)(fieldSelectionToSQL(table, target2))), sql`, `);
 }
 function relationExtrasToSQL(table, extras, codecs, inJson) {
   const subqueries = [];
@@ -36502,16 +36862,16 @@ var init_text_nature = __esm({
 });
 
 // services/translate/game-cache-plan.ts
-function planGameCache(src, pair, index2, context) {
-  if (context.blocked(src)) return { plan: { ...createSentenceResolver([]).plan(src), corpusVersion: index2.version() }, records: [] };
+function planGameCache(src, pair, index2, context2) {
+  if (context2.blocked(src)) return { plan: { ...createSentenceResolver([]).plan(src), corpusVersion: index2.version() }, records: [] };
   let records2 = [];
-  let plan = index2.plan(src, pair, context.resolver.select(src));
+  let plan = index2.plan(src, pair, context2.resolver.select(src));
   if (!plan.limited && plan.status !== "full") {
     let hit = null;
     if (numericLabelFamily(src)) {
       const rows = index2.numericRecords(pair, src);
       if (!rows.limited) {
-        const examples = [...rows, ...context.numericRecords(src)];
+        const examples = [...rows, ...context2.numericRecords(src)];
         hit = createNumericLabelIndex(examples).resolve(src);
         if (hit != null) {
           const distinct = new Map(examples.map((record) => [record.src.match(/[0-9]+$/)?.[0], record]));
@@ -36522,7 +36882,7 @@ function planGameCache(src, pair, index2, context) {
     if (hit == null) {
       const used = /* @__PURE__ */ new Map();
       hit = lookupCachedTranslation((key3) => {
-        if (context.lookup[key3] != null) return context.lookup[key3];
+        if (context2.lookup[key3] != null) return context2.lookup[key3];
         const record = index2.authority(key3, pair);
         if (!record || record.src !== key3 && record.engine !== "manual") return null;
         used.set(record.id, record);
@@ -36546,46 +36906,46 @@ var init_game_cache_plan = __esm({
 });
 
 // lib/translate/cache-file-lock.ts
-function lockCacheFile(fs39, file) {
+function lockCacheFile(fs40, file) {
   const name2 = `${file}.lock`;
   let fd;
   try {
-    fd = fs39.openSync(name2, "wx");
+    fd = fs40.openSync(name2, "wx");
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
     let stale = false;
     try {
-      const pid = Number(fs39.readFileSync(name2, "utf8"));
+      const pid = Number(fs40.readFileSync(name2, "utf8"));
       if (Number.isInteger(pid) && pid > 0) {
         try {
           process.kill(pid, 0);
         } catch (e) {
           stale = e.code === "ESRCH";
         }
-      } else stale = Date.now() - fs39.statSync(name2).mtimeMs > 3e4;
+      } else stale = Date.now() - fs40.statSync(name2).mtimeMs > 3e4;
     } catch {
     }
     if (!stale) throw new Error("Translation cache is being written, please try again later");
-    fs39.unlinkSync(name2);
-    fd = fs39.openSync(name2, "wx");
+    fs40.unlinkSync(name2);
+    fd = fs40.openSync(name2, "wx");
   }
   try {
-    fs39.writeFileSync(fd, String(process.pid));
+    fs40.writeFileSync(fd, String(process.pid));
   } catch (e) {
-    fs39.closeSync(fd);
-    fs39.unlinkSync(name2);
+    fs40.closeSync(fd);
+    fs40.unlinkSync(name2);
     throw e;
   }
   return () => {
-    fs39.closeSync(fd);
-    fs39.unlinkSync(name2);
+    fs40.closeSync(fd);
+    fs40.unlinkSync(name2);
   };
 }
-function appendCacheLines(fs39, file, lines) {
+function appendCacheLines(fs40, file, lines) {
   if (!lines.length) return;
   let text4 = "";
   try {
-    text4 = fs39.readFileSync(file, "utf8");
+    text4 = fs40.readFileSync(file, "utf8");
   } catch (e) {
     if (e.code !== "ENOENT") throw e;
   }
@@ -36593,17 +36953,17 @@ function appendCacheLines(fs39, file, lines) {
     const end = text4.lastIndexOf("\n") + 1;
     try {
       JSON.parse(text4.slice(end));
-      fs39.appendFileSync(file, "\n");
+      fs40.appendFileSync(file, "\n");
     } catch {
-      fs39.truncateSync(file, Buffer.byteLength(text4.slice(0, end)));
+      fs40.truncateSync(file, Buffer.byteLength(text4.slice(0, end)));
     }
   }
-  fs39.appendFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
-  const fd = fs39.openSync(file, "r+");
+  fs40.appendFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+  const fd = fs40.openSync(file, "r+");
   try {
-    fs39.fsyncSync(fd);
+    fs40.fsyncSync(fd);
   } finally {
-    fs39.closeSync(fd);
+    fs40.closeSync(fd);
   }
 }
 var init_cache_file_lock = __esm({
@@ -36629,7 +36989,6 @@ function createGameProjections(client, index2, database) {
         ON CONFLICT(root,src,src_lang,tgt_lang) DO UPDATE SET signature=''`);
       for (const { src, pair } of sources2) {
         if (!src || pair.to !== "zh") continue;
-        if (index2.record(src, pair)) continue;
         insert.run(root, src, pair.from, pair.to);
       }
     },
@@ -36637,16 +36996,19 @@ function createGameProjections(client, index2, database) {
       if (!client.prepare("SELECT 1 FROM game_projections WHERE root=? LIMIT 1").get(root)) return false;
       return Boolean(client.prepare("SELECT 1 FROM game_projections WHERE root=? AND signature<>? LIMIT 1").get(root, signature(root)));
     },
-    collect(root, rows) {
-      const context = getGameCacheContext(root);
+    collect(root, rows, budgetMs = Infinity) {
+      const started = performance.now();
+      const context2 = getGameCacheContext(root);
       const nextSignature = signature(root);
-      const pending = client.prepare("SELECT * FROM game_projections WHERE root=? AND signature<>?").all(root, nextSignature);
+      const pending = client.prepare("SELECT * FROM game_projections WHERE root=? AND signature<>? ORDER BY revision,src,src_lang,tgt_lang").all(root, nextSignature);
       const updateProjection = client.prepare("UPDATE game_projections SET signature=?,revision=? WHERE root=? AND src=? AND src_lang=? AND tgt_lang=?");
       const events = [];
       const acknowledge = [];
       for (const entry of pending) {
+        if (acknowledge.length && performance.now() - started >= budgetMs) break;
         const pair = { from: entry.src_lang, to: entry.tgt_lang };
-        const { plan } = planGameCache(entry.src, pair, index2, context);
+        const exact = !context2.blocked(entry.src) && context2.lookup[entry.src] == null ? index2.record(entry.src, pair) : null;
+        const plan = exact ? { limited: false, status: "full", zh: exact.zh } : planGameCache(entry.src, pair, index2, context2).plan;
         const zh = !plan.limited && plan.status === "full" ? plan.zh : null;
         const old = rows.get(entry.src);
         const id = createHash5("sha256").update(JSON.stringify([entry.src, pair])).digest("hex");
@@ -36665,7 +37027,7 @@ function createGameProjections(client, index2, database) {
           updateProjection.run(nextSignature, revision, root, entry.src, entry.src_lang, entry.tgt_lang);
         });
       }
-      return { events, acknowledge };
+      return { events, acknowledge, pending: acknowledge.length < pending.length };
     }
   };
 }
@@ -36679,25 +37041,25 @@ var init_game_projections = __esm({
 });
 
 // services/translate/shared-cache/backfill.ts
-import fs31 from "node:fs";
+import fs32 from "node:fs";
 function fileStamp(file) {
-  const stat = fs31.statSync(file, { throwIfNoEntry: false });
+  const stat = fs32.statSync(file, { throwIfNoEntry: false });
   return JSON.stringify([stat?.ino, stat?.size, stat?.mtimeMs, stat?.ctimeMs]);
 }
 function readBackfillSnapshot(file) {
   const stamp = fileStamp(file);
-  const rows = /* @__PURE__ */ new Map(), seen = /* @__PURE__ */ new Set();
-  for (const line of (fs31.existsSync(file) ? fs31.readFileSync(file, "utf8") : "").split("\n")) {
+  const rows = /* @__PURE__ */ new Map(), seen2 = /* @__PURE__ */ new Set();
+  for (const line of (fs32.existsSync(file) ? fs32.readFileSync(file, "utf8") : "").split("\n")) {
     try {
       const row = parseCacheRow(JSON.parse(line));
       if (row) {
         applyCacheRow(rows, row);
-        if (row.event) seen.add(row.event);
+        if (row.event) seen2.add(row.event);
       }
     } catch {
     }
   }
-  return { stamp, rows, seen };
+  return { stamp, rows, seen: seen2 };
 }
 function backfillSnapshot(file) {
   const stamp = fileStamp(file);
@@ -36730,22 +37092,22 @@ function ownedSharedAppend(file, before, events) {
 }
 function appendCacheEvents(file, events) {
   if (appendPublicCacheFile(file, events)) return;
-  appendCacheLines(fs31, file, events);
+  appendCacheLines(fs32, file, events);
 }
 function createGameBackfill(client, index2, database) {
   const projections = createGameProjections(client, index2, database);
   client.exec(`CREATE TABLE IF NOT EXISTS game_backfills (root TEXT NOT NULL,src TEXT NOT NULL,record_id INTEGER NOT NULL,revision INTEGER NOT NULL,PRIMARY KEY(root,src));
     CREATE TABLE IF NOT EXISTS game_backfill_tasks(id INTEGER PRIMARY KEY AUTOINCREMENT,root TEXT NOT NULL,src TEXT NOT NULL,record_id INTEGER NOT NULL,revision INTEGER NOT NULL);`);
-  const joined = "SELECT r.src,t.zh,t.engine,r.revision FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang WHERE r.id=?";
-  function rowMeta(recordId, revision) {
-    const alignment = client.prepare("SELECT groups_json FROM alignment_groups WHERE record_id=? AND revision=?").get(recordId, revision);
-    const newlines = client.prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?").get(recordId, revision);
-    const structure = client.prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?").get(recordId, revision);
-    return {
-      ...structure ? { structure: JSON.parse(structure.annotations_json) } : {},
-      ...alignment ? { alignments: JSON.parse(alignment.groups_json) } : {},
-      ...newlines ? { newlines: JSON.parse(newlines.annotations_json) } : {}
-    };
+  function selected(src, recordId) {
+    const pair = client.prepare("SELECT src_lang,tgt_lang FROM translation_records WHERE id=?").get(recordId);
+    return index2.record(src, pair ? { from: pair.src_lang, to: pair.tgt_lang } : resolveCacheLangPair({ src, to: "zh" }));
+  }
+  const staleLink = `NOT EXISTS (
+    SELECT 1 FROM translation_records r JOIN selected_translations t ON t.id=r.translation_id
+    WHERE r.id=b.record_id AND r.revision=b.revision
+  )`;
+  function meta(record) {
+    return { alignments: record.alignments, newlines: record.newlines, structure: record.structure };
   }
   return {
     roots() {
@@ -36757,7 +37119,6 @@ function createGameBackfill(client, index2, database) {
       client.exec("BEGIN IMMEDIATE");
       try {
         for (const r of records2) {
-          if (!index2.current([r])) continue;
           client.prepare(
             `INSERT INTO game_backfill_tasks(root,src,record_id,revision)
                SELECT ?,?,?,? WHERE NOT EXISTS (
@@ -36775,54 +37136,46 @@ function createGameBackfill(client, index2, database) {
         throw e;
       }
     },
-    flush(root) {
+    flush(root, opts) {
       const pending = client.prepare("SELECT 1 FROM game_backfill_tasks WHERE root=? LIMIT 1").get(root);
-      const stale = client.prepare(
-        `SELECT 1 FROM game_backfills b WHERE b.root=? AND NOT EXISTS (
-             SELECT 1 FROM translation_records r WHERE r.id=b.record_id AND r.revision=b.revision
-           ) LIMIT 1`
-      ).get(root);
+      const stale = client.prepare(`SELECT 1 FROM game_backfills b WHERE b.root=? AND ${staleLink} LIMIT 1`).get(root);
       if (!pending && !stale && !projections.pending(root)) return { sharedOnly: false };
       const file = ensureGameContentDir(root, "cacheNdjson");
-      const release = lockCacheFile(fs31, file);
+      const release = lockCacheFile(fs32, file);
       try {
         const filesBefore = gameTranslationFiles(root);
         const previousStamp = filesBefore.stamp;
         const snapshot = backfillSnapshot(file);
-        const rows = new Map(snapshot.rows), seen = new Set(snapshot.seen);
+        const context2 = getGameCacheContext(root);
+        const rows = new Map(snapshot.rows), seen2 = new Set(snapshot.seen);
         const events = [];
         const acknowledgements = [];
         const tasks = client.prepare("SELECT * FROM game_backfill_tasks WHERE root=? ORDER BY id").all(root);
         for (const task of tasks) {
-          const event = `${database}:fill:${task.record_id}:${task.revision}`;
-          const record = client.prepare(joined).get(task.record_id);
-          if (!seen.has(event) && record?.revision === task.revision) {
-            const meta = rowMeta(task.record_id, task.revision);
+          const record = selected(task.src, task.record_id);
+          const event = record ? `${database}:fill:${record.id}:${record.revision}` : "";
+          if (record && !context2.blocked(task.src) && context2.lookup[task.src] == null && !seen2.has(event)) {
             const value = {
               s: task.src,
               t: record.zh,
-              engine: record.engine,
-              origin: { id: String(task.record_id), revision: task.revision, database },
+              engine: record.engine ?? void 0,
+              origin: { id: record.id, revision: record.revision, database },
               event,
-              ...meta
+              ...meta(record)
             };
             const old = rows.get(task.src);
             if (!old || old.origin) {
               events.push(value);
               applyCacheRow(rows, value);
-              seen.add(event);
+              seen2.add(event);
             }
           }
           acknowledgements.push(() => {
-            client.prepare("INSERT OR REPLACE INTO game_backfills VALUES(?,?,?,?)").run(root, task.src, task.record_id, task.revision);
+            if (record) client.prepare("INSERT OR REPLACE INTO game_backfills VALUES(?,?,?,?)").run(root, task.src, record.id, record.revision);
             client.prepare("DELETE FROM game_backfill_tasks WHERE id=?").run(task.id);
           });
         }
-        const links = client.prepare(
-          `SELECT b.* FROM game_backfills b WHERE b.root=? AND NOT EXISTS (
-               SELECT 1 FROM translation_records r WHERE r.id=b.record_id AND r.revision=b.revision
-             )`
-        ).all(root);
+        const links = client.prepare(`SELECT b.* FROM game_backfills b WHERE b.root=? AND ${staleLink}`).all(root);
         for (const link of links) {
           const old = rows.get(link.src);
           if (!old?.origin || old.origin.database !== database || old.origin.id !== String(link.record_id)) {
@@ -36831,40 +37184,46 @@ function createGameBackfill(client, index2, database) {
             });
             continue;
           }
-          const record = client.prepare(joined).get(link.record_id);
-          if (record?.revision === old.origin.revision) continue;
+          const record = selected(link.src, link.record_id);
+          if (record?.id === old.origin.id && record.revision === old.origin.revision) continue;
           const revision = record?.revision || link.revision + 1;
-          const meta = record ? rowMeta(link.record_id, record.revision) : {};
           const value = {
             s: link.src,
             t: record?.zh ?? null,
-            engine: record?.engine,
-            origin: { id: String(link.record_id), revision, database },
-            event: `${database}:refresh:${link.record_id}:${record?.revision || "deleted"}`,
-            ...meta
+            engine: record?.engine ?? void 0,
+            origin: { id: record?.id || String(link.record_id), revision, database },
+            event: `${database}:refresh:${link.record_id}:${link.revision}:${record?.id || "deleted"}:${revision}`,
+            ...record ? meta(record) : {}
           };
-          if (!seen.has(value.event)) {
+          if (!seen2.has(value.event)) {
             events.push(value);
             applyCacheRow(rows, value);
-            seen.add(value.event);
+            seen2.add(value.event);
           }
           acknowledgements.push(() => {
-            if (record) client.prepare("UPDATE game_backfills SET revision=? WHERE root=? AND src=? AND record_id=?").run(record.revision, root, link.src, link.record_id);
+            if (record) client.prepare("INSERT OR REPLACE INTO game_backfills VALUES(?,?,?,?)").run(root, link.src, record.id, record.revision);
             else client.prepare("DELETE FROM game_backfills WHERE root=? AND src=? AND record_id=?").run(root, link.src, link.record_id);
           });
         }
-        const projected = projections.collect(root, rows);
+        const projected = projections.collect(root, rows, opts?.projectionBudgetMs);
         events.push(...projected.events);
         acknowledgements.push(...projected.acknowledge);
         for (let offset = 0; offset < events.length; offset += 500) appendCacheEvents(file, events.slice(offset, offset + 500));
-        for (const acknowledge of acknowledgements) acknowledge();
-        client.exec(
-          "DELETE FROM translation_outbox WHERE NOT EXISTS (SELECT 1 FROM game_backfills l WHERE l.record_id=translation_outbox.record_id AND l.revision<translation_outbox.revision)"
-        );
+        client.exec("BEGIN IMMEDIATE");
+        try {
+          for (const acknowledge of acknowledgements) acknowledge();
+          client.exec(
+            "DELETE FROM translation_outbox WHERE NOT EXISTS (SELECT 1 FROM game_backfills l WHERE l.record_id=translation_outbox.record_id AND l.revision<translation_outbox.revision)"
+          );
+          client.exec("COMMIT");
+        } catch (error) {
+          client.exec("ROLLBACK");
+          throw error;
+        }
         const filesAfter = gameTranslationFiles(root);
         const sameSeedAndFallback = JSON.stringify(filesBefore.seed) === JSON.stringify(filesAfter.seed) && (filesBefore.cache == null || filesBefore.cache === filesAfter.cache);
         const sharedOnly = sameSeedAndFallback && ownedSharedAppend(file, snapshot, events) && noteGameSharedBackfill(root, previousStamp);
-        return { sharedOnly };
+        return { sharedOnly, pending: projected.pending };
       } finally {
         release();
       }
@@ -36877,6 +37236,7 @@ var init_backfill = __esm({
     "use strict";
     init_content_files();
     init_cache_file_lock();
+    init_cache_lang();
     init_cache_row();
     init_game_files();
     init_game_cache_context();
@@ -36899,7 +37259,7 @@ function uniqueSpan(text4, fragment, newlines, structure) {
   return hits.length === 1 ? hits[0] : null;
 }
 function confirmRecordSegments(index2, parent, pairs, pair, opts) {
-  const record = index2.record(parent.src, pair);
+  const record = opts?.candidateId ? index2.inserted(opts.candidateId) : index2.record(parent.src, pair);
   const diagnostics = [];
   const stats = {
     inserted: 0,
@@ -36912,7 +37272,7 @@ function confirmRecordSegments(index2, parent, pairs, pair, opts) {
     dryRun: Boolean(opts?.dryRun),
     diagnostics
   };
-  if (!record || record.zh !== parent.zh) return { ...stats, stale: true };
+  if (!record || record.src !== parent.src || record.from !== pair.from || record.to !== pair.to || record.zh !== parent.zh) return { ...stats, stale: true };
   if (opts?.expectedRevision !== void 0 && record.revision !== opts.expectedRevision) return { ...stats, stale: true };
   if (opts?.newlines && !validateNewlineAnnotations(record.src, opts.newlines) || opts?.structure && !validRecordStructure(opts.structure)) {
     return {
@@ -36969,7 +37329,7 @@ function confirmRecordSegments(index2, parent, pairs, pair, opts) {
   if (opts?.dryRun) return stats;
   if (stats.conflict > 0 || stats.skipped > 0) return { ...stats, inserted: 0 };
   if (!stats.inserted && !opts?.newlines && !opts?.structure) return stats;
-  const ok = index2.setAlignment(record.src, pair, groups, record.revision, { newlines: opts?.newlines, structure: opts?.structure });
+  const ok = index2.setAlignment(record.src, pair, groups, record.revision, { newlines: opts?.newlines, structure: opts?.structure, candidateId: record.candidateId });
   if (!ok) return { ...stats, inserted: 0, stale: true };
   return stats;
 }
@@ -39054,9 +39414,9 @@ var init_dialect = __esm({
       getSelectedTableColumns = (table, columns) => {
         const selectedColumns = [];
         const columnContainer = table[TableColumns];
-        const entries = Object.entries(columns);
+        const entries2 = Object.entries(columns);
         let colSelectionMode;
-        for (const [k, v] of entries) {
+        for (const [k, v] of entries2) {
           if (v === void 0) continue;
           colSelectionMode = colSelectionMode || v;
           if (v) {
@@ -40338,8 +40698,8 @@ function drizzle(...params) {
   const { connection, client, ...config } = params[0];
   if (client) return construct(client, config);
   if (typeof connection === "object") {
-    const { path: path31, ...options } = connection;
-    return construct(new DatabaseSync4(path31 ?? ":memory:", options), config);
+    const { path: path34, ...options } = connection;
+    return construct(new DatabaseSync4(path34 ?? ":memory:", options), config);
   }
   return construct(new DatabaseSync4(connection ?? ":memory:"), config);
 }
@@ -40371,9 +40731,88 @@ var init_node_sqlite = __esm({
   }
 });
 
+// services/translate/shared-cache/candidate-schema.ts
+function ensureCandidateSchema(client) {
+  const columns = client.prepare("PRAGMA table_info(translations)").all();
+  if (!columns.some((column) => column.name === "id")) {
+    client.exec("BEGIN IMMEDIATE");
+    try {
+      client.exec(`
+        DROP TRIGGER IF EXISTS translation_match_insert;
+        DROP TRIGGER IF EXISTS translation_match_update;
+        DROP TRIGGER IF EXISTS translation_match_delete;
+        DROP TRIGGER IF EXISTS match_record_insert;
+        DROP TRIGGER IF EXISTS match_record_update;
+        DROP TRIGGER IF EXISTS match_record_delete;
+        CREATE TABLE translation_candidates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          src TEXT NOT NULL, zh TEXT NOT NULL,
+          src_lang TEXT NOT NULL DEFAULT 'ja', tgt_lang TEXT NOT NULL DEFAULT 'zh',
+          engine TEXT, category TEXT, updated_at INTEGER NOT NULL,
+          hit_count INTEGER NOT NULL DEFAULT 0, nsfw INTEGER NOT NULL DEFAULT 0,
+          engine_rank INTEGER NOT NULL DEFAULT 1
+        );
+        INSERT INTO translation_candidates
+          SELECT rowid,src,zh,src_lang,tgt_lang,engine,category,updated_at,hit_count,nsfw,
+            CASE
+              WHEN engine='manual' THEN 4
+              WHEN engine='import' OR engine LIKE 'import:%' THEN 3
+              WHEN engine='live:optimize' OR engine LIKE 'live:optimize:%' OR engine LIKE 'live:agent%' THEN 2
+              WHEN engine='manual:optimize' THEN 0
+              ELSE 1
+            END
+          FROM translations;
+      `);
+      const records2 = client.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='translation_records'").get();
+      if (records2) {
+        const sequence = client.prepare("SELECT seq FROM sqlite_sequence WHERE name='translation_records'").get();
+        client.exec(`
+          CREATE TABLE candidate_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, src TEXT NOT NULL,
+            src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
+            translation_id INTEGER NOT NULL UNIQUE
+          );
+          INSERT INTO candidate_records
+            SELECT r.id,r.src,r.src_lang,r.tgt_lang,r.revision,t.id
+            FROM translation_records r JOIN translation_candidates t
+              ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang;
+          DROP TABLE translation_records;
+          ALTER TABLE candidate_records RENAME TO translation_records;
+        `);
+        if (sequence) client.prepare("UPDATE sqlite_sequence SET seq=MAX(seq,?) WHERE name='translation_records'").run(sequence.seq);
+      }
+      client.exec(`
+        DROP TABLE translations;
+        ALTER TABLE translation_candidates RENAME TO translations;
+        INSERT OR REPLACE INTO cache_meta(key,value) VALUES('translation_candidates_v1','1');
+      `);
+      client.exec("COMMIT");
+    } catch (error) {
+      client.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  client.exec(`
+    CREATE INDEX IF NOT EXISTS idx_translation_selection
+      ON translations(src,src_lang,tgt_lang,engine_rank DESC,updated_at DESC,id DESC);
+    CREATE VIEW IF NOT EXISTS selected_translations AS
+      SELECT t.* FROM translations t
+      WHERE t.id=(
+        SELECT candidate.id FROM translations candidate
+        WHERE candidate.src=t.src AND candidate.src_lang=t.src_lang AND candidate.tgt_lang=t.tgt_lang
+        ORDER BY candidate.engine_rank DESC,candidate.updated_at DESC,candidate.id DESC LIMIT 1
+      );
+  `);
+}
+var init_candidate_schema = __esm({
+  "services/translate/shared-cache/candidate-schema.ts"() {
+    "use strict";
+  }
+});
+
 // services/translate/shared-cache/migrate-bg.ts
-import fs32 from "node:fs";
-import path27 from "node:path";
+import fs33 from "node:fs";
+import path30 from "node:path";
 import { DatabaseSync as DatabaseSync5 } from "node:sqlite";
 function isSharedIdenticalPair(src, tgt) {
   if (isIdenticalTranslation(src, tgt)) return true;
@@ -40382,8 +40821,8 @@ function isSharedIdenticalPair(src, tgt) {
   return Boolean(a) && isIdenticalTranslation(a, b);
 }
 function runSharedCacheHeavyMigrateSync(dbPath) {
-  const resolved = path27.resolve(dbPath);
-  if (!fs32.existsSync(resolved)) return;
+  const resolved = path30.resolve(dbPath);
+  if (!fs33.existsSync(resolved)) return;
   const client = new DatabaseSync5(resolved);
   try {
     client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000");
@@ -40399,8 +40838,8 @@ function runSharedCacheHeavyMigrateSync(dbPath) {
   }
 }
 function scheduleSharedCacheHeavyMigrate(dbPath) {
-  const resolved = path27.resolve(dbPath);
-  if (!fs32.existsSync(resolved)) return;
+  const resolved = path30.resolve(dbPath);
+  if (!fs33.existsSync(resolved)) return;
   if (process.env.JEST_WORKER_ID) {
     runSharedCacheHeavyMigrateSync(resolved);
     return;
@@ -40432,14 +40871,14 @@ function scheduleSharedCacheHeavyMigrate(dbPath) {
   });
 }
 function scrubIdenticalSync(client) {
-  const rows = client.prepare("SELECT src, zh, src_lang, tgt_lang, engine FROM translations").all();
-  const del = client.prepare("DELETE FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?");
+  const rows = client.prepare("SELECT id, src, zh, src_lang, tgt_lang, engine FROM translations").all();
+  const del = client.prepare("DELETE FROM translations WHERE id=?");
   client.exec("BEGIN IMMEDIATE");
   try {
     for (const row of rows) {
       const engine = row.engine == null ? null : String(row.engine);
       if (engine === "skip:control" || engine === "skip:sensitive" || isSharedIdenticalPair(String(row.src), String(row.zh))) {
-        del.run(row.src, row.src_lang, row.tgt_lang);
+        del.run(row.id);
       }
     }
     client.exec("COMMIT");
@@ -40452,15 +40891,15 @@ function scrubIdenticalSync(client) {
   }
 }
 async function scrubIdenticalChunked(client) {
-  const rows = client.prepare("SELECT src, zh, src_lang, tgt_lang, engine FROM translations").all();
-  const del = client.prepare("DELETE FROM translations WHERE src=? AND src_lang=? AND tgt_lang=?");
+  const rows = client.prepare("SELECT id, src, zh, src_lang, tgt_lang, engine FROM translations").all();
+  const del = client.prepare("DELETE FROM translations WHERE id=?");
   client.exec("BEGIN IMMEDIATE");
   try {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const engine = row.engine == null ? null : String(row.engine);
       if (engine === "skip:control" || engine === "skip:sensitive" || isSharedIdenticalPair(String(row.src), String(row.zh))) {
-        del.run(row.src, row.src_lang, row.tgt_lang);
+        del.run(row.id);
       }
       if (i % 200 === 199) {
         client.exec("COMMIT");
@@ -40507,24 +40946,22 @@ var init_schema = __esm({
   "services/translate/shared-cache/schema.ts"() {
     "use strict";
     init_sqlite_core();
-    translations = sqliteTable(
-      "translations",
-      {
-        src: text3("src").notNull(),
-        zh: text3("zh").notNull(),
-        /** Source language of `src` (ja / en / zh / ko). */
-        srcLang: text3("src_lang").notNull().default("ja"),
-        /** Target language of `zh` (ja / en / zh / ko). */
-        tgtLang: text3("tgt_lang").notNull().default("zh"),
-        engine: text3("engine"),
-        /** Optional extract/live text category (dialogue, item, …); imports may leave null. */
-        category: text3("category"),
-        updatedAt: integer("updated_at").notNull(),
-        hitCount: integer("hit_count").notNull().default(0),
-        nsfw: integer("nsfw").notNull().default(0)
-      },
-      (table) => [primaryKey({ columns: [table.src, table.srcLang, table.tgtLang] })]
-    );
+    translations = sqliteTable("translations", {
+      id: integer("id").primaryKey({ autoIncrement: true }),
+      src: text3("src").notNull(),
+      zh: text3("zh").notNull(),
+      /** Source language of `src` (ja / en / zh / ko). */
+      srcLang: text3("src_lang").notNull().default("ja"),
+      /** Target language of `zh` (ja / en / zh / ko). */
+      tgtLang: text3("tgt_lang").notNull().default("zh"),
+      engine: text3("engine"),
+      /** Optional extract/live text category (dialogue, item, …); imports may leave null. */
+      category: text3("category"),
+      updatedAt: integer("updated_at").notNull(),
+      hitCount: integer("hit_count").notNull().default(0),
+      nsfw: integer("nsfw").notNull().default(0),
+      engineRank: integer("engine_rank").notNull().default(1)
+    });
     cacheMeta = sqliteTable("cache_meta", {
       key: text3("key").primaryKey().notNull(),
       value: text3("value").notNull()
@@ -40579,8 +41016,8 @@ var init_schema = __esm({
 });
 
 // services/translate/shared-cache/db.ts
-import fs33 from "node:fs";
-import path28 from "node:path";
+import fs34 from "node:fs";
+import path31 from "node:path";
 import { DatabaseSync as DatabaseSync6 } from "node:sqlite";
 function defaultSharedDir() {
   return TRANSLATE_CACHE_DIR;
@@ -40733,6 +41170,7 @@ function ensureSchema(db, client) {
   if (!cols.some((c) => c.name === "category")) {
     db.run(sql`ALTER TABLE translations ADD COLUMN category TEXT`);
   }
+  ensureCandidateSchema(client);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_updated ON translations(updated_at)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_nsfw ON translations(nsfw)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_translations_langs ON translations(src_lang, tgt_lang)`);
@@ -40751,8 +41189,8 @@ function ensureSchema(db, client) {
   db.insert(cacheMeta).values({ key: "nsfw_backfill", value: "1" }).onConflictDoUpdate({ target: cacheMeta.key, set: { value: "1" } }).run();
 }
 function openSharedCacheDb(dbPath = defaultSharedDbPath()) {
-  const resolved = path28.resolve(dbPath);
-  fs33.mkdirSync(path28.dirname(resolved), { recursive: true });
+  const resolved = path31.resolve(dbPath);
+  fs34.mkdirSync(path31.dirname(resolved), { recursive: true });
   const client = new DatabaseSync6(resolved);
   client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON");
   const db = drizzle({ client });
@@ -40769,6 +41207,7 @@ var init_db2 = __esm({
     init_paths();
     init_cache_lang();
     init_sensitive_text();
+    init_candidate_schema();
     init_match_index();
     init_migrate_bg();
     init_schema();
@@ -40780,6 +41219,10 @@ function writeCachePairs(client, index2, pairs, engine, opts, valid, nsfw) {
   const result = { accepted: [], records: [], rejected: [] };
   if (!pairs.length) return result;
   const category = normalizeCacheCategory(opts?.category) || null;
+  const insert = client.prepare(
+    `INSERT INTO translations(src,zh,src_lang,tgt_lang,engine,category,updated_at,hit_count,nsfw,engine_rank)
+      VALUES(?,?,?,?,?,?,?,0,?,?) RETURNING id`
+  );
   client.exec("BEGIN IMMEDIATE");
   try {
     for (const [src, zh] of pairs) {
@@ -40788,30 +41231,9 @@ function writeCachePairs(client, index2, pairs, engine, opts, valid, nsfw) {
         result.rejected.push({ src, reason: "invalid" });
         continue;
       }
-      const group = index2.equivalent(src, pair);
-      const rank = cacheEngineRank(engine);
-      const higher = group.filter((r) => cacheEngineRank(r.engine) > rank);
-      const same = group.filter((r) => r.src !== src && cacheEngineRank(r.engine) === rank && r.zh !== zh);
-      if (higher.length) {
-        result.rejected.push({ src, reason: "rank" });
-        continue;
-      }
-      if (same.length && !(engine === "manual" && group.some((r) => r.src === src)) || group.length > 500) {
-        result.rejected.push({ src, reason: "conflict" });
-        continue;
-      }
-      client.prepare(
-        `INSERT INTO translations(src,zh,src_lang,tgt_lang,engine,category,updated_at,hit_count,nsfw) VALUES(?,?,?,?,?,?,?,0,?)
-        ON CONFLICT(src,src_lang,tgt_lang) DO UPDATE SET
-          zh=excluded.zh,
-          engine=excluded.engine,
-          updated_at=excluded.updated_at,
-          hit_count=translations.hit_count+1,
-          nsfw=MAX(translations.nsfw,excluded.nsfw),
-          category=COALESCE(excluded.category, translations.category)`
-      ).run(src, zh, pair.from, pair.to, engine, category, Date.now(), nsfw(src, engine));
+      const inserted = insert.get(src, zh, pair.from, pair.to, engine, category, Date.now(), nsfw(src, engine), cacheEngineRank(engine));
       result.accepted.push([src, zh]);
-      const record = index2.record(src, pair);
+      const record = index2.inserted(inserted.id);
       if (record) result.records.push(record);
     }
     client.exec("COMMIT");
@@ -40844,8 +41266,8 @@ __export(shared_cache_exports, {
   sharedCacheSchema: () => sharedCacheSchema,
   translations: () => translations
 });
-import fs34 from "node:fs";
-import path29 from "node:path";
+import fs35 from "node:fs";
+import path32 from "node:path";
 function nsfwBit(src, engine) {
   return isNsfwCacheRow(src, engine) ? 1 : 0;
 }
@@ -40942,18 +41364,18 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       const previous = db.select().from(cacheMeta).where(eq(cacheMeta.key, key3)).get()?.value;
       if (previous === startedWith) return backfill.flush(root);
       const file = gameTranslationFiles(root).seed;
-      const seed = file ? JSON.parse(fs34.readFileSync(file, "utf8")) : {};
+      const seed = file ? JSON.parse(fs35.readFileSync(file, "utf8")) : {};
       if (!seed || typeof seed !== "object" || Array.isArray(seed)) throw new Error("Seed must be an object mapping source text to translation");
-      const context = getGameCacheContext(root);
+      const context2 = getGameCacheContext(root);
       const records2 = [];
       const sources2 = [];
       for (const src of Object.keys(seed)) {
-        if (!src.trim() || context.blocked(src) || context.lookup[src] != null) continue;
+        if (!src.trim() || context2.blocked(src) || context2.lookup[src] != null) continue;
         const pair = resolveCacheLangPair({ src, to: "zh" });
         const exact = index2.record(src, pair);
         if (exact) records2.push(exact);
         else if (PROJECTION_CANDIDATE_RE.test(src)) {
-          const { plan } = planGameCache(src, pair, index2, context);
+          const { plan } = planGameCache(src, pair, index2, context2);
           if (!plan.limited && plan.status === "full") sources2.push({ src, pair });
         }
       }
@@ -40965,6 +41387,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       return result;
     },
     record: index2.record,
+    candidateRecord: index2.inserted,
     current: index2.current,
     authority: index2.authority,
     version: index2.version,
@@ -40978,8 +41401,9 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
     loadAll(pairOpts) {
       const pair = defaultPair(pairOpts);
       const out = /* @__PURE__ */ Object.create(null);
-      for (const row of db.select({ src: translations.src, zh: translations.zh }).from(translations).where(and(eq(translations.srcLang, pair.from), eq(translations.tgtLang, pair.to))).all()) {
-        if (rowUsable(String(row.src), String(row.zh), pair.to)) out[String(row.src)] = String(row.zh);
+      const rows = db.$client.prepare("SELECT src,zh FROM selected_translations WHERE src_lang=? AND tgt_lang=?").all(pair.from, pair.to);
+      for (const row of rows) {
+        if (rowUsable(row.src, row.zh, pair.to)) out[row.src] = row.zh;
       }
       return out;
     },
@@ -41036,7 +41460,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       };
       const base = db.select(rowSelect).from(translations);
       const filtered = where ? base.where(where) : base;
-      const rows = filtered.orderBy(orderBy, asc(translations.src)).limit(pageSize).offset(offset).all();
+      const rows = filtered.orderBy(orderBy, asc(translations.src), desc(translations.id)).limit(pageSize).offset(offset).all();
       return {
         page,
         pageSize,
@@ -41113,6 +41537,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
         localOnly: []
       };
       if (!pairs.length) return stats;
+      const candidates2 = [];
       for (const [src, zh] of pairs) {
         if (!src || !zh?.trim()) continue;
         stats.total++;
@@ -41120,56 +41545,43 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
           stats.localOnly.push([src, zh]);
           continue;
         }
-        const pair = resolveCacheLangPair({ ...pairOpts, src });
-        const existing = index2.authority(src, pair);
-        if (existing?.zh === zh) {
-          stats.identical++;
-          continue;
-        }
-        const written = cache2.writeMany([[src, zh.trim()]], engine, pair);
-        if (written.accepted.length) stats.inserted++;
-        else if (written.rejected[0]?.reason === "invalid") stats.skipped++;
-        else stats.conflict++;
+        candidates2.push([src, zh.trim()]);
       }
+      const written = cache2.writeMany(candidates2, engine, pairOpts);
+      stats.inserted = written.accepted.length;
+      stats.skipped = written.rejected.length;
       return stats;
     },
     importIgnoreExisting(map, engine = "import", pairOpts) {
-      const entries = Object.entries(map || {});
-      let inserted = 0;
-      for (const [src, zh] of entries) {
-        const pair = resolveCacheLangPair({ ...pairOpts, src });
-        if (index2.record(src, pair)) continue;
-        inserted += cache2.writeMany([[src, zh]], engine, pair).accepted.length;
-      }
-      return { inserted, total: entries.length };
+      const entries2 = Object.entries(map || {});
+      const inserted = cache2.writeMany(entries2, engine, pairOpts).accepted.length;
+      return { inserted, total: entries2.length };
     },
-    update(src, zh, engine = "manual", pairOpts, opts) {
+    appendManual(src, zh, engine = "manual", pairOpts, opts) {
       const s = String(src ?? "");
       const t = String(zh ?? "").trim();
       const pair = resolveCacheLangPair({ ...pairOpts, src: s });
-      if (!canStorePair(s, t, engine, pair.to)) return false;
-      const existing = db.select({ nsfw: translations.nsfw }).from(translations).where(rowWhere(s, pair.from, pair.to)).get();
-      if (!existing) return false;
-      const nsfw = typeof opts?.nsfw === "boolean" ? opts.nsfw ? 1 : 0 : Math.max(Number(existing.nsfw) === 1 ? 1 : 0, nsfwBit(s, engine));
       const result = cache2.writeMany([[s, t]], engine, pair);
-      if (result.accepted.length && typeof opts?.nsfw === "boolean") cache2.setNsfw(s, Boolean(nsfw), pair);
-      return result.accepted.length > 0;
+      const id = result.records[0]?.candidateId;
+      if (id && typeof opts?.nsfw === "boolean") cache2.setNsfw(s, opts.nsfw, pair, id);
+      return id || null;
+    },
+    update(src, zh, engine = "manual", pairOpts, opts) {
+      return cache2.appendManual(src, zh, engine, pairOpts, opts) != null;
     },
     /** Manual NSFW mark; does not change the translation text. */
-    setNsfw(src, nsfw, pairOpts) {
+    setNsfw(src, nsfw, pairOpts, candidateId) {
       const s = String(src ?? "");
       if (!s) return false;
       const pair = defaultPair(pairOpts);
-      if (!db.select({ src: translations.src }).from(translations).where(rowWhere(s, pair.from, pair.to)).get())
-        return false;
-      const result = db.update(translations).set({ nsfw: nsfw ? 1 : 0, updatedAt: Date.now() }).where(rowWhere(s, pair.from, pair.to)).run();
+      const result = db.update(translations).set({ nsfw: nsfw ? 1 : 0 }).where(and(rowWhere(s, pair.from, pair.to), candidateId ? eq(translations.id, candidateId) : void 0)).run();
       return Number(result.changes || 0) > 0;
     },
-    remove(src, pairOpts) {
+    remove(src, pairOpts, candidateId) {
       const s = String(src ?? "");
       if (!s) return false;
       const pair = defaultPair(pairOpts);
-      const result = db.delete(translations).where(rowWhere(s, pair.from, pair.to)).run();
+      const result = db.delete(translations).where(and(rowWhere(s, pair.from, pair.to), candidateId ? eq(translations.id, candidateId) : void 0)).run();
       return Number(result.changes || 0) > 0;
     },
     scrubDirty() {
@@ -41181,10 +41593,8 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
         for (const row of rows) {
           const src = String(row.src);
           const zh = String(row.zh);
-          const from = normalizeCacheLang(row.srcLang, DEFAULT_CACHE_SRC_LANG);
-          const to = normalizeCacheLang(row.tgtLang, DEFAULT_CACHE_TGT_LANG);
           const engine = row.engine == null ? null : String(row.engine);
-          const where = rowWhere(src, from, to);
+          const where = eq(translations.id, row.id);
           if (engine === "skip:control" || engine === "skip:sensitive") {
             tx.delete(translations).where(where).run();
             removed += 1;
@@ -41203,7 +41613,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       const n = Number(db.select({ n: count() }).from(translations).get()?.n || 0);
       let sizeBytes = 0;
       try {
-        sizeBytes = fs34.statSync(resolved).size;
+        sizeBytes = fs35.statSync(resolved).size;
       } catch {
       }
       return { entries: n, sizeBytes, file: resolved };
@@ -41216,7 +41626,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
   return cache2;
 }
 function openSharedCache(dbPath = defaultSharedDbPath()) {
-  if (process.env.NODE_ENV === "test" || path29.resolve(dbPath) !== path29.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
+  if (process.env.NODE_ENV === "test" || path32.resolve(dbPath) !== path32.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
     return openOwnedSharedCache(dbPath);
   return new Proxy({ path: dbPath }, {
     get(target2, name2) {
@@ -41270,13 +41680,14 @@ var init_shared_cache = __esm({
 });
 
 // services/translate/seed-job-worker.ts
-import { parentPort } from "node:worker_threads";
+init_operation();
+import { parentPort as parentPort2 } from "node:worker_threads";
 
 // services/translate/seed-job-protocol.ts
 var SEED_JOB_WORKER_VERSION = 1;
 
 // services/translate/seed-job-runtime.ts
-import fs38 from "node:fs";
+import fs39 from "node:fs";
 
 // lib/format-compact-count.ts
 function formatCompactCount(n) {
@@ -41294,6 +41705,10 @@ function formatCompactCount(n) {
 }
 
 // lib/translate/remain-eta.ts
+function freshTranslationPerformance(performance2, measuredAt, now) {
+  if (!performance2 || !Number.isFinite(measuredAt) || measuredAt <= 0 || !Number.isFinite(now) || now <= 0 || now - measuredAt > 3e4) return null;
+  return performance2;
+}
 function translationPerformance(samples) {
   const recent = samples.slice(-8);
   if (recent.some(
@@ -41326,7 +41741,8 @@ function smoothTranslationPerformance(previous, next, alpha = 0.2) {
   const weight = Math.min(1, Math.max(0, Number.isFinite(alpha) ? alpha : 0.2));
   return {
     charsPerSecond: previous.charsPerSecond * (1 - weight) + next.charsPerSecond * weight,
-    cacheMs: next.cacheMs
+    cacheMs: next.cacheMs,
+    ...(next.measuredAt ?? previous.measuredAt) != null ? { measuredAt: next.measuredAt ?? previous.measuredAt } : {}
   };
 }
 
@@ -41391,14 +41807,14 @@ var LEGACY_PROJECT_SHELL_NAMES = LEGACY_SHELL_APP_NAMES;
 
 // lib/game/resolve.ts
 init_paths();
-import fs7 from "node:fs";
-import path7 from "node:path";
+import fs8 from "node:fs";
+import path8 from "node:path";
 
 // lib/game/shell-layout.ts
 init_brand();
 init_paths();
-import fs5 from "node:fs";
-import path5 from "node:path";
+import fs6 from "node:fs";
+import path6 from "node:path";
 function isWin32(platform = process.platform) {
   if (platform === process.platform) return IS_WIN32;
   return platform === "win32";
@@ -41409,12 +41825,12 @@ function toolkitShellFolderName(platform = process.platform) {
 }
 function findNwExeInDir(dir) {
   for (const name2 of WIN_SHELL_EXE_NAMES) {
-    const p = path5.join(
+    const p = path6.join(
       /* turbopackIgnore: true */
       dir,
       name2
     );
-    if (fs5.existsSync(
+    if (fs6.existsSync(
       /* turbopackIgnore: true */
       p
     )) return p;
@@ -41424,16 +41840,16 @@ function findNwExeInDir(dir) {
 var LINUX_NW_BIN_NAMES = ["nw", "nwjs", "Game"];
 function findNwLinuxBinary(dir) {
   for (const name2 of LINUX_NW_BIN_NAMES) {
-    const p = path5.join(
+    const p = path6.join(
       /* turbopackIgnore: true */
       dir,
       name2
     );
     try {
-      if (fs5.existsSync(
+      if (fs6.existsSync(
         /* turbopackIgnore: true */
         p
-      ) && fs5.statSync(
+      ) && fs6.statSync(
         /* turbopackIgnore: true */
         p
       ).isFile()) return p;
@@ -41444,9 +41860,9 @@ function findNwLinuxBinary(dir) {
 }
 function looksLikeMacNwApp(appPath) {
   try {
-    return fs5.readdirSync(
+    return fs6.readdirSync(
       /* turbopackIgnore: true */
-      path5.join(appPath, "Contents/MacOS")
+      path6.join(appPath, "Contents/MacOS")
     ).some((b) => /nw/i.test(b) || b === "node-webkit");
   } catch {
     return false;
@@ -41454,7 +41870,7 @@ function looksLikeMacNwApp(appPath) {
 }
 function validShellExists(p) {
   try {
-    if (!fs5.statSync(
+    if (!fs6.statSync(
       /* turbopackIgnore: true */
       p
     ).isDirectory()) return false;
@@ -41465,22 +41881,22 @@ function validShellExists(p) {
   return Boolean(findNwExeInDir(p) || findNwLinuxBinary(p));
 }
 function findEnclosingWinExe(contentRoot, maxUp = 5) {
-  let cur = path5.resolve(contentRoot);
+  let cur = path6.resolve(contentRoot);
   for (let i = 0; i < maxUp; i++) {
     const exe = findNwExeInDir(cur);
     if (exe) return exe;
-    const parent = path5.dirname(cur);
+    const parent = path6.dirname(cur);
     if (parent === cur) return null;
     cur = parent;
   }
   return null;
 }
 function findEnclosingLinuxBinary(contentRoot, maxUp = 5) {
-  let cur = path5.resolve(contentRoot);
+  let cur = path6.resolve(contentRoot);
   for (let i = 0; i < maxUp; i++) {
     const bin = findNwLinuxBinary(cur);
     if (bin) return bin;
-    const parent = path5.dirname(cur);
+    const parent = path6.dirname(cur);
     if (parent === cur) return null;
     cur = parent;
   }
@@ -41491,43 +41907,43 @@ function findEnclosingLinuxBinary(contentRoot, maxUp = 5) {
 init_brand();
 init_path_names();
 init_paths();
-import fs6 from "node:fs";
-import path6 from "node:path";
+import fs7 from "node:fs";
+import path7 from "node:path";
 function toolkitDataDir(toolkitRoot = ROOT_PATH) {
   if (toolkitRoot === ROOT_PATH && DATA_DIR) return DATA_DIR;
-  return path6.join(path6.resolve(toolkitRoot || ROOT_PATH || "."), DATA_DIR_NAME || "data");
+  return path7.join(path7.resolve(toolkitRoot || ROOT_PATH || "."), DATA_DIR_NAME || "data");
 }
 function toolkitRgssDir(toolkitRoot = ROOT_PATH) {
-  return path6.join(toolkitDataDir(toolkitRoot), RGSS_RUNTIME_DIR_NAME || "rgss-runtime");
+  return path7.join(toolkitDataDir(toolkitRoot), RGSS_RUNTIME_DIR_NAME || "rgss-runtime");
 }
 function toolkitRgssBinary(toolkitRoot = ROOT_PATH) {
-  return path6.join(toolkitRgssDir(toolkitRoot), "installed", "mkxp-z");
+  return path7.join(toolkitRgssDir(toolkitRoot), "installed", "mkxp-z");
 }
 function isRgssRuntimeInstalled(toolkitRoot = ROOT_PATH) {
-  const installed = path6.dirname(toolkitRgssBinary(toolkitRoot));
+  const installed = path7.dirname(toolkitRgssBinary(toolkitRoot));
   try {
-    return fs6.statSync(toolkitRgssBinary(toolkitRoot)).isFile() && fs6.statSync(path6.join(installed, "stdlib")).isDirectory() && ["ruby_classic_wrap.rb", "win32_wrap.rb"].every((name2) => fs6.statSync(path6.join(installed, "scripts", "preload", name2)).isFile());
+    return fs7.statSync(toolkitRgssBinary(toolkitRoot)).isFile() && fs7.statSync(path7.join(installed, "stdlib")).isDirectory() && ["ruby_classic_wrap.rb", "win32_wrap.rb"].every((name2) => fs7.statSync(path7.join(installed, "scripts", "preload", name2)).isFile());
   } catch {
     return false;
   }
 }
 function toolkitShellDir(toolkitRoot = ROOT_PATH) {
   if (toolkitRoot === ROOT_PATH && SHELL_DIR) return SHELL_DIR;
-  return path6.join(toolkitDataDir(toolkitRoot), SHELL_DIR_NAME || "shell");
+  return path7.join(toolkitDataDir(toolkitRoot), SHELL_DIR_NAME || "shell");
 }
 function toolkitShellAppPath(toolkitRoot = ROOT_PATH, platform = process.platform) {
   if (toolkitRoot === ROOT_PATH && platform === process.platform && TOOLKIT_SHELL_PATH) return TOOLKIT_SHELL_PATH;
-  return path6.join(toolkitShellDir(toolkitRoot), toolkitShellFolderName(platform));
+  return path7.join(toolkitShellDir(toolkitRoot), toolkitShellFolderName(platform));
 }
 function resolveToolkitShellAppPath(toolkitRoot = ROOT_PATH, platform = process.platform) {
   const primary = toolkitShellAppPath(toolkitRoot, platform);
-  if (fs6.existsSync(primary)) return primary;
+  if (fs7.existsSync(primary)) return primary;
   if (!isWin32(platform)) {
-    const inShell = toolkitRoot === ROOT_PATH && LEGACY_SHELL_IN_SHELL_PATHS ? LEGACY_SHELL_IN_SHELL_PATHS : LEGACY_SHELL_APP_NAMES.map((n) => path6.join(toolkitShellDir(toolkitRoot), n));
-    const atData = toolkitRoot === ROOT_PATH && LEGACY_SHELL_AT_DATA_PATHS ? LEGACY_SHELL_AT_DATA_PATHS : LEGACY_SHELL_APP_NAMES.map((n) => path6.join(toolkitDataDir(toolkitRoot), n));
+    const inShell = toolkitRoot === ROOT_PATH && LEGACY_SHELL_IN_SHELL_PATHS ? LEGACY_SHELL_IN_SHELL_PATHS : LEGACY_SHELL_APP_NAMES.map((n) => path7.join(toolkitShellDir(toolkitRoot), n));
+    const atData = toolkitRoot === ROOT_PATH && LEGACY_SHELL_AT_DATA_PATHS ? LEGACY_SHELL_AT_DATA_PATHS : LEGACY_SHELL_APP_NAMES.map((n) => path7.join(toolkitDataDir(toolkitRoot), n));
     for (let i = 0; i < inShell.length; i++) {
-      if (fs6.existsSync(inShell[i])) return inShell[i];
-      if (fs6.existsSync(atData[i])) return atData[i];
+      if (fs7.existsSync(inShell[i])) return inShell[i];
+      if (fs7.existsSync(atData[i])) return atData[i];
     }
   }
   return primary;
@@ -41574,7 +41990,7 @@ function unsupportedEngineMessage(engine) {
 var RGSS_ASSET_DIRS = /* @__PURE__ */ new Set(["data", "system", "graphics", "audio", "fonts"]);
 function readNames(dir) {
   try {
-    return fs7.readdirSync(
+    return fs8.readdirSync(
       /* turbopackIgnore: true */
       dir
     );
@@ -41586,18 +42002,18 @@ function listingEngine(dir) {
   const root = readNames(dir);
   const sub = (name2) => {
     const hit = root.find((entry) => entry.toLowerCase() === name2);
-    return hit ? readNames(path7.join(dir, hit)) : [];
+    return hit ? readNames(path8.join(dir, hit)) : [];
   };
   return detectUnsupportedEngine({ root, data: sub("data"), system: sub("system") });
 }
 function listingRgssEngine(dir) {
   const root = readNames(dir);
   const dataName = root.find((entry) => entry.toLowerCase() === "data");
-  return detectRgssEngine({ root, data: dataName ? readNames(path7.join(dir, dataName)) : [] });
+  return detectRgssEngine({ root, data: dataName ? readNames(path8.join(dir, dataName)) : [] });
 }
 function rgssProjectEngine(dir) {
   try {
-    if (!fs7.statSync(dir).isDirectory()) return null;
+    if (!fs8.statSync(dir).isDirectory()) return null;
   } catch {
     return null;
   }
@@ -41608,22 +42024,22 @@ function rgssProjectEngine(dir) {
 }
 function rgssExecutable(dir) {
   const hit = readNames(dir).find((name2) => /^game\.exe$/i.test(name2));
-  return hit ? path7.join(dir, hit) : null;
+  return hit ? path8.join(dir, hit) : null;
 }
 function detectUnsupportedEngineAt(selected) {
   let dir = selected;
   try {
-    if (!fs7.statSync(
+    if (!fs8.statSync(
       /* turbopackIgnore: true */
       selected
-    ).isDirectory()) dir = path7.dirname(selected);
+    ).isDirectory()) dir = path8.dirname(selected);
   } catch {
     return null;
   }
-  if (dir.toLowerCase().endsWith(".app")) return detectUnsupportedEngine({ root: readNames(path7.join(dir, "Contents/Frameworks")) });
+  if (dir.toLowerCase().endsWith(".app")) return detectUnsupportedEngine({ root: readNames(path8.join(dir, "Contents/Frameworks")) });
   const engine = listingEngine(dir);
-  if (engine || !RGSS_ASSET_DIRS.has(path7.basename(dir).toLowerCase())) return engine;
-  return listingEngine(path7.dirname(dir));
+  if (engine || !RGSS_ASSET_DIRS.has(path8.basename(dir).toLowerCase())) return engine;
+  return listingEngine(path8.dirname(dir));
 }
 function unsupportedOr(selected, error) {
   const engine = detectUnsupportedEngineAt(selected);
@@ -41631,7 +42047,7 @@ function unsupportedOr(selected, error) {
 }
 function looksLikeContent(dir) {
   try {
-    return fs7.existsSync(path7.join(dir, "index.html")) && fs7.existsSync(path7.join(dir, "data")) && fs7.existsSync(path7.join(dir, "js"));
+    return fs8.existsSync(path8.join(dir, "index.html")) && fs8.existsSync(path8.join(dir, "data")) && fs8.existsSync(path8.join(dir, "js"));
   } catch {
     return false;
   }
@@ -41639,44 +42055,44 @@ function looksLikeContent(dir) {
 function normalizeGamePathInput(raw) {
   const s = String(raw || "").trim().replace(/^['"]+|['"]+$/g, "");
   if (!s) return "";
-  if (fs7.existsSync(s)) return path7.resolve(s);
+  if (fs8.existsSync(s)) return path8.resolve(s);
   if (!isWin32() && /\s+\//.test(s)) {
     for (const part of s.split(/\s+/).filter(Boolean)) {
-      if (part.startsWith("/") && fs7.existsSync(part)) return path7.resolve(part);
+      if (part.startsWith("/") && fs8.existsSync(part)) return path8.resolve(part);
     }
   }
   if (isWin32() && /\s+[A-Za-z]:[\\/]/.test(s)) {
     for (const part of s.split(/\s+/).filter(Boolean)) {
-      if (/^[A-Za-z]:[\\/]/.test(part) && fs7.existsSync(part)) return path7.resolve(part);
+      if (/^[A-Za-z]:[\\/]/.test(part) && fs8.existsSync(part)) return path8.resolve(part);
     }
   }
   return s;
 }
 function findEnclosingAppBundle(dir) {
-  let cur = path7.resolve(dir);
+  let cur = path8.resolve(dir);
   for (; ; ) {
-    if (cur.toLowerCase().endsWith(".app") && fs7.existsSync(path7.join(cur, "Contents"))) {
+    if (cur.toLowerCase().endsWith(".app") && fs8.existsSync(path8.join(cur, "Contents"))) {
       return cur;
     }
-    const parent = path7.dirname(cur);
+    const parent = path8.dirname(cur);
     if (parent === cur) return null;
     cur = parent;
   }
 }
 function isInsideAppContents(contentRoot, bundle) {
-  const contents = path7.join(bundle, "Contents") + path7.sep;
-  return path7.resolve(contentRoot).startsWith(contents);
+  const contents = path8.join(bundle, "Contents") + path8.sep;
+  return path8.resolve(contentRoot).startsWith(contents);
 }
 function resolveGame(input, toolkitRoot = ROOT_PATH) {
   if (!input || !String(input).trim()) {
     return { ok: false, error: "\u672A\u9009\u62E9\u6E38\u620F\u76EE\u5F55" };
   }
   const normalized = normalizeGamePathInput(input);
-  const p = path7.resolve(
+  const p = path8.resolve(
     /* turbopackIgnore: true */
     normalized
   );
-  if (!fs7.existsSync(
+  if (!fs8.existsSync(
     /* turbopackIgnore: true */
     p
   )) {
@@ -41687,7 +42103,7 @@ function resolveGame(input, toolkitRoot = ROOT_PATH) {
     return { ok: false, error: `\u8DEF\u5F84\u4E0D\u5B58\u5728: ${p}` };
   }
   const finish = (contentRoot, selected, kind) => {
-    const contentAbs = path7.resolve(contentRoot);
+    const contentAbs = path8.resolve(contentRoot);
     const bundle = findEnclosingAppBundle(contentAbs);
     if (bundle && isInsideAppContents(contentAbs, bundle)) {
       return {
@@ -41705,8 +42121,8 @@ function resolveGame(input, toolkitRoot = ROOT_PATH) {
     if (isWin32()) {
       const winExe = findEnclosingWinExe(contentAbs);
       if (winExe) {
-        const projectRoot2 = path7.dirname(winExe);
-        if (contentAbs === projectRoot2 || contentAbs.startsWith(projectRoot2 + path7.sep)) {
+        const projectRoot2 = path8.dirname(winExe);
+        if (contentAbs === projectRoot2 || contentAbs.startsWith(projectRoot2 + path8.sep)) {
           return {
             ok: true,
             selected,
@@ -41723,8 +42139,8 @@ function resolveGame(input, toolkitRoot = ROOT_PATH) {
     } else if (process.platform === "linux") {
       const linuxBin = findEnclosingLinuxBinary(contentAbs);
       if (linuxBin) {
-        const projectRoot2 = path7.dirname(linuxBin);
-        if (contentAbs === projectRoot2 || contentAbs.startsWith(projectRoot2 + path7.sep)) {
+        const projectRoot2 = path8.dirname(linuxBin);
+        if (contentAbs === projectRoot2 || contentAbs.startsWith(projectRoot2 + path8.sep)) {
           return {
             ok: true,
             selected,
@@ -41739,12 +42155,12 @@ function resolveGame(input, toolkitRoot = ROOT_PATH) {
         }
       }
     }
-    const base = path7.basename(contentAbs).toLowerCase();
-    const projectRoot = base === "www" || base === "app.nw" || base === "package.nw" ? path7.dirname(contentAbs) : contentAbs;
+    const base = path8.basename(contentAbs).toLowerCase();
+    const projectRoot = base === "www" || base === "app.nw" || base === "package.nw" ? path8.dirname(contentAbs) : contentAbs;
     const shellApp = resolveToolkitShellAppPath(toolkitRoot);
-    const legacyCandidates = [SHELL_APP_NAME, ...LEGACY_PROJECT_SHELL_NAMES].map((name2) => path7.join(projectRoot, name2));
+    const legacyCandidates = [SHELL_APP_NAME, ...LEGACY_PROJECT_SHELL_NAMES].map((name2) => path8.join(projectRoot, name2));
     const legacyHit = legacyCandidates.find((p2) => validShellExists(p2));
-    const hasShared = fs7.existsSync(shellApp);
+    const hasShared = fs8.existsSync(shellApp);
     return {
       ok: true,
       selected,
@@ -41760,34 +42176,34 @@ function resolveGame(input, toolkitRoot = ROOT_PATH) {
   const finishRgss = (projectRoot, selected, engine) => ({
     ok: true,
     selected,
-    contentRoot: path7.resolve(projectRoot),
-    projectRoot: path7.resolve(projectRoot),
+    contentRoot: path8.resolve(projectRoot),
+    projectRoot: path8.resolve(projectRoot),
     kind: "rgss",
     engine: engine === "RPG Maker VX Ace" ? "VX Ace" : "VX",
-    shellApp: process.platform === "darwin" ? toolkitRgssBinary(toolkitRoot) : rgssExecutable(projectRoot) || path7.resolve(projectRoot),
+    shellApp: process.platform === "darwin" ? toolkitRgssBinary(toolkitRoot) : rgssExecutable(projectRoot) || path8.resolve(projectRoot),
     hasShell: process.platform === "darwin" ? isRgssRuntimeInstalled(toolkitRoot) : supportsNativeRgssRuntime() && Boolean(rgssExecutable(projectRoot)),
     hasWwwLayout: false,
     bundled: process.platform === "win32"
   });
-  const baseName = path7.basename(p);
-  const looksLikeGameBinary = p.toLowerCase().endsWith(".exe") || !fs7.statSync(
+  const baseName = path8.basename(p);
+  const looksLikeGameBinary = p.toLowerCase().endsWith(".exe") || !fs8.statSync(
     /* turbopackIgnore: true */
     p
   ).isDirectory() && /^(game|nw|nwjs)(\.exe)?$/i.test(baseName);
-  if (looksLikeGameBinary && fs7.statSync(
+  if (looksLikeGameBinary && fs8.statSync(
     /* turbopackIgnore: true */
     p
   ).isFile()) {
-    const dir = path7.dirname(p);
+    const dir = path8.dirname(p);
     const rgss2 = rgssProjectEngine(dir);
     if (rgss2) return finishRgss(dir, p, rgss2);
-    for (const c of [path7.join(dir, "www"), path7.join(dir, "package.nw"), path7.join(dir, "app.nw"), dir]) {
-      if (looksLikeContent(c)) return finish(c, p, path7.basename(c).toLowerCase() === "www" ? "www" : "app.nw");
+    for (const c of [path8.join(dir, "www"), path8.join(dir, "package.nw"), path8.join(dir, "app.nw"), dir]) {
+      if (looksLikeContent(c)) return finish(c, p, path8.basename(c).toLowerCase() === "www" ? "www" : "app.nw");
     }
     return unsupportedOr(p, "\u5728\u53EF\u6267\u884C\u6587\u4EF6\u65C1\u627E\u4E0D\u5230\u5185\u5BB9\u6839\uFF08\u9700 www/ \u6216\u542B index.html + data/ + js/\uFF09");
   }
   function resolvePackagedApp(appPath, selected) {
-    const candidates2 = [path7.join(appPath, "Contents/Resources/app.nw"), path7.join(appPath, "Contents/Resources/app")];
+    const candidates2 = [path8.join(appPath, "Contents/Resources/app.nw"), path8.join(appPath, "Contents/Resources/app")];
     for (const c of candidates2) {
       if (looksLikeContent(c)) return finish(c, selected, "app.nw");
     }
@@ -41798,40 +42214,40 @@ function resolveGame(input, toolkitRoot = ROOT_PATH) {
   }
   const rgss = rgssProjectEngine(p);
   if (rgss) return finishRgss(p, p, rgss);
-  if (path7.basename(p).toLowerCase() === "data") {
-    const parentRgss = rgssProjectEngine(path7.dirname(p));
-    if (parentRgss) return finishRgss(path7.dirname(p), p, parentRgss);
+  if (path8.basename(p).toLowerCase() === "data") {
+    const parentRgss = rgssProjectEngine(path8.dirname(p));
+    if (parentRgss) return finishRgss(path8.dirname(p), p, parentRgss);
   }
   if (looksLikeContent(p)) {
-    const kind = path7.basename(p).toLowerCase() === "www" ? "www" : "content-root";
+    const kind = path8.basename(p).toLowerCase() === "www" ? "www" : "content-root";
     return finish(p, p, kind);
   }
-  const www = path7.join(p, "www");
+  const www = path8.join(p, "www");
   if (looksLikeContent(www)) return finish(www, p, "www");
-  const appNw = path7.join(p, "Contents/Resources/app.nw");
+  const appNw = path8.join(p, "Contents/Resources/app.nw");
   if (looksLikeContent(appNw)) return finish(appNw, p, "app.nw");
-  const packageNw = path7.join(p, "package.nw");
+  const packageNw = path8.join(p, "package.nw");
   if (looksLikeContent(packageNw)) return finish(packageNw, p, "app.nw");
   try {
-    if (fs7.statSync(
+    if (fs8.statSync(
       /* turbopackIgnore: true */
       p
     ).isDirectory()) {
-      const appNames = fs7.readdirSync(
+      const appNames = fs8.readdirSync(
         /* turbopackIgnore: true */
         p
       ).filter((n) => n.toLowerCase().endsWith(".app"));
       const hits = [];
       for (const name2 of appNames) {
-        const appPath = path7.join(p, name2);
-        const inner = [path7.join(appPath, "Contents/Resources/app.nw"), path7.join(appPath, "Contents/Resources/app")];
+        const appPath = path8.join(p, name2);
+        const inner = [path8.join(appPath, "Contents/Resources/app.nw"), path8.join(appPath, "Contents/Resources/app")];
         if (inner.some((c) => looksLikeContent(c))) hits.push(appPath);
       }
       if (hits.length === 1) return resolvePackagedApp(hits[0], p);
       if (hits.length > 1) {
         return {
           ok: false,
-          error: `\u76EE\u5F55\u5185\u6709\u591A\u4E2A\u53EF\u7528 .app\uFF0C\u8BF7\u76F4\u63A5\u9009\u62E9\u5176\u4E2D\u4E00\u4E2A\uFF1A${hits.map((h) => path7.basename(h)).join(", ")}`
+          error: `\u76EE\u5F55\u5185\u6709\u591A\u4E2A\u53EF\u7528 .app\uFF0C\u8BF7\u76F4\u63A5\u9009\u62E9\u5176\u4E2D\u4E00\u4E2A\uFF1A${hits.map((h) => path8.basename(h)).join(", ")}`
         };
       }
     }
@@ -41891,12 +42307,12 @@ function getGamePresence() {
 
 // services/game/config.ts
 init_paths();
-import fs8 from "node:fs";
-import path9 from "node:path";
+import fs9 from "node:fs";
+import path10 from "node:path";
 
 // services/game/library.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
-import path8 from "node:path";
+import { randomUUID as randomUUID3 } from "node:crypto";
+import path9 from "node:path";
 init_game_files();
 
 // services/game/fingerprint.ts
@@ -41922,7 +42338,7 @@ function isLibraryEntryId(id) {
   return LIBRARY_UUID_RE.test(String(id || "").trim());
 }
 function libraryEntryId(_gameRoot, _opts) {
-  return randomUUID2();
+  return randomUUID3();
 }
 function stableLibraryId(existing) {
   const id = String(existing || "").trim();
@@ -41948,7 +42364,7 @@ function pathEquals(a, b) {
   if (!left || !right) return false;
   if (left === right) return true;
   try {
-    return path8.resolve(left) === path8.resolve(right);
+    return path9.resolve(left) === path9.resolve(right);
   } catch {
     return false;
   }
@@ -41969,7 +42385,7 @@ function normalizeLibrary(raw, fallbackGameRoot = "") {
       const gameRootRaw = String(rec.gameRoot || "").trim();
       if (!gameRootRaw) continue;
       const remote = !!rec.remote;
-      const gameRoot = remote ? normalizeRootKey(gameRootRaw) : path8.resolve(gameRootRaw);
+      const gameRoot = remote ? normalizeRootKey(gameRootRaw) : path9.resolve(gameRootRaw);
       const id = stableLibraryId(String(rec.id || ""));
       const name2 = String(rec.name || "").trim() || displayNameFromPath(gameRoot);
       const remark = normalizeRemark(rec.remark);
@@ -41993,7 +42409,7 @@ function normalizeLibrary(raw, fallbackGameRoot = "") {
     const now = Date.now();
     list.push({
       id: libraryEntryId(),
-      gameRoot: path8.resolve(fallback),
+      gameRoot: path9.resolve(fallback),
       name: displayNameFromPath(fallback),
       lastOpenedAt: now,
       addedAt: now
@@ -42004,11 +42420,11 @@ function normalizeLibrary(raw, fallbackGameRoot = "") {
 
 // services/game/config.ts
 function ensureConfigDir(file) {
-  fs8.mkdirSync(path9.dirname(file), { recursive: true });
+  fs9.mkdirSync(path10.dirname(file), { recursive: true });
 }
 function readConfigFile(file) {
   try {
-    const raw = JSON.parse(fs8.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs9.readFileSync(file, "utf8"));
     const gameRoot = String(raw.gameRoot || "");
     return {
       gameRoot,
@@ -42021,7 +42437,7 @@ function readConfigFile(file) {
 }
 function persistLibraryIdMigration(file, config) {
   try {
-    const raw = JSON.parse(fs8.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs9.readFileSync(file, "utf8"));
     const disk = Array.isArray(raw.library) ? raw.library : [];
     const needsWrite = config.library.some((entry) => {
       const prev = disk.find((item) => item && typeof item === "object" && pathEquals(String(item.gameRoot || ""), entry.gameRoot));
@@ -42030,7 +42446,7 @@ function persistLibraryIdMigration(file, config) {
     });
     if (!needsWrite) return;
     ensureConfigDir(file);
-    fs8.writeFileSync(file, `${JSON.stringify(config, null, 2)}
+    fs9.writeFileSync(file, `${JSON.stringify(config, null, 2)}
 `);
   } catch {
   }
@@ -42038,9 +42454,9 @@ function persistLibraryIdMigration(file, config) {
 function writeConfigFile(file, config) {
   ensureConfigDir(file);
   const tmp = `${file}.${process.pid}.tmp`;
-  fs8.writeFileSync(tmp, `${JSON.stringify(config, null, 2)}
+  fs9.writeFileSync(tmp, `${JSON.stringify(config, null, 2)}
 `);
-  fs8.renameSync(tmp, file);
+  fs9.renameSync(tmp, file);
 }
 function loadConfig() {
   const current = readConfigFile(CONFIG_FILE_PATH);
@@ -42104,8 +42520,8 @@ init_jobs();
 
 // services/translate/engine-switches.ts
 init_content_files();
-import fs11 from "node:fs";
-import path11 from "node:path";
+import fs12 from "node:fs";
+import path13 from "node:path";
 
 // lib/translate/engines.ts
 var TRANSLATE_ENGINE_IDS = ["bing", "google", "apple", "bergamot"];
@@ -42165,7 +42581,7 @@ async function mapTranslationBatch(texts, translate, concurrency = 4) {
   return results;
 }
 function engineAcceptsSensitive(key3) {
-  return key3 === "ollama" || engineGroup(key3) === "agent";
+  return key3 === "ollama" || engineGroup(key3) !== "platform";
 }
 function isBuiltinEngineId(v) {
   return typeof v === "string" && TRANSLATE_ENGINE_IDS.includes(v);
@@ -42199,15 +42615,15 @@ function normalizeEngineSwitches(raw, base) {
 }
 function normalizeAgentEntries(raw) {
   if (!Array.isArray(raw)) return [];
-  const seen = /* @__PURE__ */ new Set();
+  const seen2 = /* @__PURE__ */ new Set();
   const usedProfiles = /* @__PURE__ */ new Set();
   const out = [];
   for (const item of raw) {
     const src = asRecord(item);
     const id = shortString(src.id);
     const profileId = shortString(src.profileId);
-    if (!ENTRY_ID.test(id) || !profileId || seen.has(id) || usedProfiles.has(profileId)) continue;
-    seen.add(id);
+    if (!ENTRY_ID.test(id) || !profileId || seen2.has(id) || usedProfiles.has(profileId)) continue;
+    seen2.add(id);
     usedProfiles.add(profileId);
     const allowConcurrency = typeof src.allowConcurrency === "boolean" ? src.allowConcurrency : void 0;
     const concurrencyLimit = typeof src.concurrencyLimit === "number" && Number.isFinite(src.concurrencyLimit) ? Math.max(1, Math.min(40, Math.floor(src.concurrencyLimit))) : void 0;
@@ -42262,15 +42678,15 @@ function assignMissingEngineEntryIds(configs) {
 }
 function normalizeEngineOrder(raw, agents = []) {
   const valid = /* @__PURE__ */ new Set([...TRANSLATE_ENGINE_IDS, ...agents.map((a) => agentEngineKey(a.id))]);
-  const seen = /* @__PURE__ */ new Set();
+  const seen2 = /* @__PURE__ */ new Set();
   const out = [];
   for (const item of Array.isArray(raw) ? raw : []) {
-    if (typeof item !== "string" || !valid.has(item) || seen.has(item)) continue;
-    seen.add(item);
+    if (typeof item !== "string" || !valid.has(item) || seen2.has(item)) continue;
+    seen2.add(item);
     out.push(item);
   }
   for (const key3 of [...DEFAULT_ENGINE_ORDER, ...agents.map((a) => agentEngineKey(a.id))]) {
-    if (!seen.has(key3)) out.push(key3);
+    if (!seen2.has(key3)) out.push(key3);
   }
   return out;
 }
@@ -42332,19 +42748,19 @@ function engineSourceTag(key3, agents) {
 init_game_files();
 
 // services/translate/shared-agents.ts
-import fs10 from "node:fs";
-import path10 from "node:path";
+import fs11 from "node:fs";
+import path12 from "node:path";
 function filePath() {
-  return path10.join(toolkitDataDir(), "translate", "agents.json");
+  return path12.join(toolkitDataDir(), "translate", "agents.json");
 }
 function agentOrder(order, agents) {
   return normalizeEngineOrder(order, agents).filter((id) => !isBuiltinEngineId(id));
 }
 function readSharedTranslateAgents() {
   const file = filePath();
-  if (!fs10.existsSync(file)) return { agents: [], order: [], stored: false };
+  if (!fs11.existsSync(file)) return { agents: [], order: [], stored: false };
   try {
-    const raw = JSON.parse(fs10.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs11.readFileSync(file, "utf8"));
     const agents = normalizeAgentEntries(raw.agents);
     return { agents, order: agentOrder(raw.order, agents), stored: true };
   } catch {
@@ -42356,8 +42772,8 @@ function writeSharedTranslateAgents(input = {}) {
   const agents = input.agents !== void 0 ? normalizeAgentEntries(input.agents) : current.agents;
   const order = agentOrder(input.order !== void 0 ? input.order : current.order, agents);
   const file = filePath();
-  fs10.mkdirSync(path10.dirname(file), { recursive: true });
-  fs10.writeFileSync(file, `${JSON.stringify({ agents, order }, null, 2)}
+  fs11.mkdirSync(path12.dirname(file), { recursive: true });
+  fs11.writeFileSync(file, `${JSON.stringify({ agents, order }, null, 2)}
 `, "utf8");
   return { agents, order, stored: true };
 }
@@ -42383,9 +42799,9 @@ function resolveContentRoot(required = true) {
 function readRaw(contentRoot) {
   const existing = gameContentReadPath(contentRoot, "switches", { alsoParent: true });
   const file = existing || gameContentPath(contentRoot, "switches");
-  if (!existing || !fs11.existsSync(existing)) return { file, raw: null };
+  if (!existing || !fs12.existsSync(existing)) return { file, raw: null };
   try {
-    return { file, raw: JSON.parse(fs11.readFileSync(existing, "utf8")) };
+    return { file, raw: JSON.parse(fs12.readFileSync(existing, "utf8")) };
   } catch {
     return { file, raw: null };
   }
@@ -42394,21 +42810,21 @@ function platformOrder(order) {
   return order.filter((id) => isBuiltinEngineId(id));
 }
 function sharedSwitchesFile() {
-  return path11.join(toolkitDataDir(), "translate", "switches.json");
+  return path13.join(toolkitDataDir(), "translate", "switches.json");
 }
 function readSharedSwitches() {
   const file = sharedSwitchesFile();
-  if (!fs11.existsSync(file)) return null;
+  if (!fs12.existsSync(file)) return null;
   try {
-    return JSON.parse(fs11.readFileSync(file, "utf8"));
+    return JSON.parse(fs12.readFileSync(file, "utf8"));
   } catch {
     return null;
   }
 }
 function writeSharedSwitches(data) {
   const file = sharedSwitchesFile();
-  fs11.mkdirSync(path11.dirname(file), { recursive: true });
-  fs11.writeFileSync(file, `${JSON.stringify(data, null, 2)}
+  fs12.mkdirSync(path13.dirname(file), { recursive: true });
+  fs12.writeFileSync(file, `${JSON.stringify(data, null, 2)}
 `, "utf8");
 }
 function withEntryIds(contentRoot, state) {
@@ -42472,18 +42888,18 @@ init_content_files();
 init_cache_lang();
 init_dynamic_template();
 init_source_text();
-import fs37 from "node:fs";
+import fs38 from "node:fs";
 
 // services/extract/lib/rgss.ts
 init_content_files();
 init_cache_lang();
 init_source_text();
-import fs21 from "node:fs";
-import path17 from "node:path";
+import fs22 from "node:fs";
+import path19 from "node:path";
 
 // services/game/rgss-archive.ts
-import fs12 from "node:fs";
-import path12 from "node:path";
+import fs13 from "node:fs";
+import path14 from "node:path";
 import { inflateSync } from "node:zlib";
 
 // services/extract/lib/rgss/marshal.ts
@@ -42707,13 +43123,13 @@ function rubyObjectField(value, field) {
 
 // services/game/rgss-archive.ts
 function readAceMember(archive, member) {
-  const fd = fs12.openSync(archive, "r");
+  const fd = fs13.openSync(archive, "r");
   let cursor = 0;
-  const length = fs12.fstatSync(fd).size;
+  const length = fs13.fstatSync(fd).size;
   const read = (size, offset = cursor) => {
     if (size < 0 || offset + size > length) throw new Error("Truncated RGSS archive");
     const bytes = Buffer.alloc(size);
-    if (fs12.readSync(fd, bytes, 0, size, offset) !== size) throw new Error("Truncated RGSS archive");
+    if (fs13.readSync(fd, bytes, 0, size, offset) !== size) throw new Error("Truncated RGSS archive");
     cursor = offset + size;
     return bytes;
   };
@@ -42742,15 +43158,15 @@ function readAceMember(archive, member) {
     }
     throw new Error("RGSS archive has too many members");
   } finally {
-    fs12.closeSync(fd);
+    fs13.closeSync(fd);
   }
 }
 function readRgssScripts(contentRoot) {
-  const names = fs12.readdirSync(contentRoot);
+  const names = fs13.readdirSync(contentRoot);
   const data = names.find((name2) => name2.toLowerCase() === "data");
-  const script = data && fs12.readdirSync(path12.join(contentRoot, data)).find((name2) => /^scripts\.rvdata2?$/i.test(name2));
+  const script = data && fs13.readdirSync(path14.join(contentRoot, data)).find((name2) => /^scripts\.rvdata2?$/i.test(name2));
   const archive = names.find((name2) => name2.toLowerCase() === "game.rgss3a");
-  const bytes = script ? fs12.readFileSync(path12.join(contentRoot, data, script)) : archive ? readAceMember(path12.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
+  const bytes = script ? fs13.readFileSync(path14.join(contentRoot, data, script)) : archive ? readAceMember(path14.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
   if (!bytes) return [];
   const value = parseRubyMarshal(bytes);
   if (!value || typeof value !== "object" || value.kind !== "array") return [];
@@ -42779,7 +43195,7 @@ init_sentence_plan();
 init_cache_lookup();
 init_game_lookup();
 init_match_index();
-import fs15 from "node:fs";
+import fs16 from "node:fs";
 import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
 function createGameCoverage(records2, opts) {
   const lookup = createGameTranslateLookup(records2);
@@ -42798,7 +43214,7 @@ function createGameCoverage(records2, opts) {
         if (!opened) {
           opened = true;
           const database = opts?.database ?? TRANSLATE_CACHE_DB_PATH;
-          if (database && fs15.existsSync(database)) {
+          if (database && fs16.existsSync(database)) {
             client = new DatabaseSync2(database, { readOnly: true });
             client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250");
             if (client.prepare("SELECT 1 FROM sqlite_master WHERE name='match_keys'").get()) shared = createMatchIndex(client);
@@ -42833,7 +43249,7 @@ init_game_records();
 
 // services/translate/resources/snapshot.ts
 init_paths();
-import fs16 from "node:fs";
+import fs17 from "node:fs";
 import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
 
 // lib/translate/resource-matcher.ts
@@ -42885,11 +43301,11 @@ function createResourceMatcher(snapshot) {
         }
     }
   }
-  function eligible(record, context) {
-    return record.sourceLanguage === context.sourceLanguage && record.targetLanguage === context.targetLanguage && (record.scope.kind === "global" || record.scope.gameId === context.gameId) && Object.entries(record.conditions || {}).every(([name2, value]) => context[name2] === value);
+  function eligible(record, context2) {
+    return record.sourceLanguage === context2.sourceLanguage && record.targetLanguage === context2.targetLanguage && (record.scope.kind === "global" || record.scope.gameId === context2.gameId) && Object.entries(record.conditions || {}).every(([name2, value]) => context2[name2] === value);
   }
-  function choose(candidates2, context) {
-    const available = candidates2.filter(({ record: record2 }) => eligible(record2, context));
+  function choose(candidates2, context2) {
+    const available = candidates2.filter(({ record: record2 }) => eligible(record2, context2));
     const score = ({ record: record2 }) => (record2.scope.kind === "game" ? 100 : 0) + Object.keys(record2.conditions || {}).length;
     const best = Math.max(-1, ...available.map(score));
     const winners = available.filter((candidate) => score(candidate) === best);
@@ -42910,26 +43326,26 @@ function createResourceMatcher(snapshot) {
   }
   return {
     revision: snapshot.revision,
-    match(text4, context) {
-      const candidates2 = (source) => exact.get(JSON.stringify([context.sourceLanguage, context.targetLanguage, key2(source)])) || [];
+    match(text4, context2) {
+      const candidates2 = (source) => exact.get(JSON.stringify([context2.sourceLanguage, context2.targetLanguage, key2(source)])) || [];
       const full = choose(
         candidates2(text4).map((candidate) => ({ ...candidate, output: candidate.record.targetText })),
-        context
+        context2
       );
       if (full.hit || full.conflict) return full.hit;
       const shell = translationSegmentContent(text4);
       if (shell.core !== text4) {
         const wrapped = choose(
           candidates2(shell.core).filter(({ record }) => record.type === "entry" && record.match.allowBoundary).map((candidate) => ({ ...candidate, output: shell.lead + candidate.record.targetText + shell.trail })),
-          context
+          context2
         );
         if (wrapped.hit || wrapped.conflict) return wrapped.hit;
       }
-      const generated = vocal.filter(({ record }) => eligible(record, context)).flatMap((candidate) => {
+      const generated = vocal.filter(({ record }) => eligible(record, context2)).flatMap((candidate) => {
         const output = matchVocalRule(text4, candidate.record);
         return output == null ? [] : [{ ...candidate, output }];
       });
-      return choose(generated, context).hit;
+      return choose(generated, context2).hit;
     }
   };
 }
@@ -43118,14 +43534,14 @@ function readResourceSnapshot(db) {
 // services/translate/resources/snapshot.ts
 var matchers = /* @__PURE__ */ new Map();
 function loadResourceMatcher(file = TRANSLATE_CACHE_DB_PATH) {
-  if (!fs16.existsSync(file)) return createResourceMatcher(bundledResourceSnapshot());
+  if (!fs17.existsSync(file)) return createResourceMatcher(bundledResourceSnapshot());
   const db = new DatabaseSync3(file, { readOnly: true });
   try {
     db.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=5000; BEGIN");
     const ready = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='translation_resource_state'").get();
     if (!ready || !db.prepare("SELECT 1 FROM translation_resource_state WHERE id=1").get()) return createResourceMatcher(bundledResourceSnapshot());
     const revision = readResourceRevision(db);
-    const stat = fs16.statSync(file);
+    const stat = fs17.statSync(file);
     const identity = `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
     const previous = matchers.get(file);
     if (previous?.identity === identity && previous.revision === revision) return previous.matcher;
@@ -43140,14 +43556,14 @@ function loadResourceMatcher(file = TRANSLATE_CACHE_DB_PATH) {
 }
 
 // services/translate/seed-failures.ts
-import fs18 from "node:fs";
-import path14 from "node:path";
+import fs19 from "node:fs";
+import path16 from "node:path";
 
 // services/translate/seed-job-state.ts
 init_paths();
 import { createHash as createHash2 } from "node:crypto";
-import fs17 from "node:fs";
-import path13 from "node:path";
+import fs18 from "node:fs";
+import path15 from "node:path";
 var MAX_SEED_JOB_LOGS = 120;
 function idleSeedJob(contentRoot = "") {
   return {
@@ -43185,16 +43601,16 @@ function emptySeedProgress(contentRoot) {
   };
 }
 function seedJobKey(contentRoot) {
-  return createHash2("sha1").update(path13.resolve(contentRoot)).digest("hex").slice(0, 16);
+  return createHash2("sha1").update(path15.resolve(contentRoot)).digest("hex").slice(0, 16);
 }
 function seedJobFile(contentRoot) {
-  return path13.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
+  return path15.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
 }
 function readSeedJobState(contentRoot) {
   const file = seedJobFile(contentRoot);
-  if (!fs17.existsSync(file)) return null;
+  if (!fs18.existsSync(file)) return null;
   try {
-    const raw = JSON.parse(fs17.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs18.readFileSync(file, "utf8"));
     if (!raw || typeof raw !== "object") return null;
     return {
       ...idleSeedJob(contentRoot),
@@ -43208,16 +43624,16 @@ function readSeedJobState(contentRoot) {
   }
 }
 function writeSeedJobState(state) {
-  fs17.mkdirSync(TRANSLATE_JOBS_DIR, { recursive: true });
+  fs18.mkdirSync(TRANSLATE_JOBS_DIR, { recursive: true });
   const file = seedJobFile(state.contentRoot);
   const tmp = `${file}.${process.pid}.tmp`;
-  fs17.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}
+  fs18.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}
 `, "utf8");
-  fs17.renameSync(tmp, file);
+  fs18.renameSync(tmp, file);
 }
 function isObsoleteCacheWorkerLog(text4) {
   if (/Cannot find module .+chaya-cache-worker/i.test(text4)) return true;
-  if (fs17.existsSync(CACHE_WORKER_PATH) && /Cache scan unavailable:.*(?:worker not built|CACHE_WORKER_MISSING|chaya-cache-worker)/i.test(text4)) return true;
+  if (fs18.existsSync(CACHE_WORKER_PATH) && /Cache scan unavailable:.*(?:worker not built|CACHE_WORKER_MISSING|chaya-cache-worker)/i.test(text4)) return true;
   return false;
 }
 function visibleSeedJobState(state) {
@@ -43243,7 +43659,7 @@ function readSeedFailures(contentRoot) {
   const file = seedFailureFile(contentRoot);
   let text4;
   try {
-    text4 = fs18.readFileSync(file, "utf8");
+    text4 = fs19.readFileSync(file, "utf8");
   } catch (error) {
     if (error.code === "ENOENT") return failures;
     throw error;
@@ -43261,8 +43677,8 @@ function readSeedFailures(contentRoot) {
 }
 function writeSeedFailure(contentRoot, src, error) {
   const file = seedFailureFile(contentRoot);
-  fs18.mkdirSync(path14.dirname(file), { recursive: true });
-  fs18.appendFileSync(file, `${JSON.stringify({ src, error, at: Date.now() })}
+  fs19.mkdirSync(path16.dirname(file), { recursive: true });
+  fs19.appendFileSync(file, `${JSON.stringify({ src, error, at: Date.now() })}
 `, "utf8");
 }
 function isSeedTarget(target2) {
@@ -43378,8 +43794,8 @@ function extractRgssScriptUiStrings(contentRoot) {
 }
 
 // services/extract/lib/rgss/writeback.ts
-import fs19 from "node:fs";
-import path15 from "node:path";
+import fs20 from "node:fs";
+import path17 from "node:path";
 
 // lib/translate/name-glossary.ts
 init_sentence_units();
@@ -43448,10 +43864,10 @@ function latinBoundary(text4, start, end, src) {
   if (LATIN_OR_DIGIT.test(text4[end - 1] || "") && LATIN_OR_DIGIT.test(right)) return false;
   return true;
 }
-function findNameSpans(text4, entries, toLang) {
+function findNameSpans(text4, entries2, toLang) {
   const source = String(text4 ?? "");
-  if (!source || !entries.length) return [];
-  const variants = entriesFromNamePairs(entries, toLang);
+  if (!source || !entries2.length) return [];
+  const variants = entriesFromNamePairs(entries2, toLang);
   const blocked = tokenRanges(source);
   const spans = [];
   for (const entry of variants) {
@@ -43579,15 +43995,15 @@ function extendedChoiceSlots(list, slot, result) {
 }
 function strings(value) {
   const result = /* @__PURE__ */ new Map();
-  const seen = /* @__PURE__ */ new WeakSet();
+  const seen2 = /* @__PURE__ */ new WeakSet();
   const walk = (entry, slot, text4, set, category = "other") => {
     if (!entry || typeof entry !== "object") return;
     if (entry.kind === "string") {
       if (text4) result.set(slot, { value: entry, set, category });
       return;
     }
-    if (seen.has(entry)) return;
-    seen.add(entry);
+    if (seen2.has(entry)) return;
+    seen2.add(entry);
     if (entry.kind === "array") {
       extendedChoiceSlots(entry, slot, result);
       entry.items.forEach(
@@ -43677,10 +44093,10 @@ function fieldCategory(className, field, fallback) {
   return category;
 }
 function loadOneDataFile(dataDir, name2) {
-  const file = path15.join(dataDir, name2);
-  const value = parseRubyMarshal(fs19.readFileSync(file));
+  const file = path17.join(dataDir, name2);
+  const value = parseRubyMarshal(fs20.readFileSync(file));
   const backup = `${file}.chaya.bak`;
-  const original = fs19.existsSync(backup) ? parseRubyMarshal(fs19.readFileSync(backup)) : value;
+  const original = fs20.existsSync(backup) ? parseRubyMarshal(fs20.readFileSync(backup)) : value;
   const current = strings(value);
   const texts = [];
   for (const [location, source] of strings(original)) {
@@ -43693,7 +44109,7 @@ function loadOneDataFile(dataDir, name2) {
 }
 var SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i;
 function listDataFileNames(dataDir) {
-  const names = fs19.readdirSync(dataDir).filter((name2) => /\.rvdata2?$/i.test(name2) && !SKIP_DATA_STEMS.test(name2)).sort();
+  const names = fs20.readdirSync(dataDir).filter((name2) => /\.rvdata2?$/i.test(name2) && !SKIP_DATA_STEMS.test(name2)).sort();
   if (!names.length) throw new Error("RGSS data is unavailable. Unpack the encrypted archive into Data/ first.");
   return names;
 }
@@ -43728,15 +44144,15 @@ function loadRgssItems(dataDir) {
 
 // services/extract/lib/rgss-sources-index.ts
 init_content_files();
-import fs20 from "node:fs";
-import path16 from "node:path";
+import fs21 from "node:fs";
+import path18 from "node:path";
 var SOURCE_INDEX_VERSION = 2;
 function rgssDataSignature(dataDir) {
-  const files2 = fs20.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
+  const files2 = fs21.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
   return JSON.stringify([
     SOURCE_INDEX_VERSION,
     ...files2.map((name2) => {
-      const stat = fs20.statSync(path16.join(dataDir, name2));
+      const stat = fs21.statSync(path18.join(dataDir, name2));
       return [name2, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   ]);
@@ -43745,7 +44161,7 @@ function readIndex(contentRoot) {
   const file = localGameContentFile(contentRoot, "rgssSourcesIndex");
   if (!file) return null;
   try {
-    const raw = JSON.parse(fs20.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs21.readFileSync(file, "utf8"));
     if (!raw || typeof raw.signature !== "string" || !Array.isArray(raw.sources)) return null;
     return raw;
   } catch {
@@ -43759,7 +44175,7 @@ function writeRgssSourcesIndex(contentRoot, signature, sources2) {
     sources: [...sources2],
     updatedAt: Date.now()
   };
-  fs20.writeFileSync(file, `${JSON.stringify(payload)}
+  fs21.writeFileSync(file, `${JSON.stringify(payload)}
 `);
 }
 function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
@@ -43774,15 +44190,15 @@ function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
 // services/extract/lib/rgss.ts
 function findChild(dir, name2) {
   try {
-    const hit = fs21.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
-    return hit ? path17.join(dir, hit) : null;
+    const hit = fs22.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
+    return hit ? path19.join(dir, hit) : null;
   } catch {
     return null;
   }
 }
 function extensionFor(dataDir) {
   try {
-    const names = fs21.readdirSync(dataDir).map((name2) => name2.toLowerCase());
+    const names = fs22.readdirSync(dataDir).map((name2) => name2.toLowerCase());
     if (names.some((name2) => name2.endsWith(".rvdata2"))) return ".rvdata2";
     if (names.some((name2) => name2.endsWith(".rvdata"))) return ".rvdata";
   } catch {
@@ -43813,7 +44229,7 @@ init_game_cache_context();
 init_cache_lang();
 init_choice_meta();
 init_dynamic_template();
-import { randomUUID as randomUUID6 } from "node:crypto";
+import { randomUUID as randomUUID7 } from "node:crypto";
 
 // lib/translate/engine-http.ts
 init_source_text();
@@ -43914,11 +44330,12 @@ init_lookup();
 init_rm_escape();
 init_sentence_plan();
 init_sentence_plan();
+init_operation();
 init_game_files();
 
 // services/game-agent/model-cache.ts
 init_paths();
-import path18 from "node:path";
+import path20 from "node:path";
 
 // services/game-agent/ollama-client.ts
 var DEFAULT_GAME_AGENT_MODEL = "qwen3:4b";
@@ -43930,10 +44347,10 @@ function authorizationHeaders(token) {
   return token ? { Authorization: `Bearer ${token}` } : void 0;
 }
 function uniqueOllamaModels(models) {
-  const seen = /* @__PURE__ */ new Set();
+  const seen2 = /* @__PURE__ */ new Set();
   return models.filter((model) => {
-    if (/^llamacpp:[0-9a-f]{64}$/i.test(model.name) || seen.has(model.name)) return false;
-    seen.add(model.name);
+    if (/^llamacpp:[0-9a-f]{64}$/i.test(model.name) || seen2.has(model.name)) return false;
+    seen2.add(model.name);
     return true;
   });
 }
@@ -43963,7 +44380,7 @@ function pickAvailableModel(models, preferred) {
 }
 
 // services/game-agent/model-cache.ts
-var GAME_AGENT_MODEL_CACHE_PATH = path18.join(DATA_DIR, "game-agent", "models.json");
+var GAME_AGENT_MODEL_CACHE_PATH = path20.join(DATA_DIR, "game-agent", "models.json");
 
 // services/game-agent/proxy/agent-proxy.ts
 var import_undici = __toESM(require_undici());
@@ -44036,19 +44453,19 @@ function proxyHeaderEntriesFromObject(value) {
   });
 }
 function proxyHeaderEntriesFromLines(text4) {
-  const entries = [];
+  const entries2 = [];
   for (const line of text4.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     const match = trimmed.match(/^([^:=]+)\s*[:=]\s*(.*)$/);
     if (!match) throw new Error("Proxy headers must be Name: value or Name=value per line, or JSON object");
-    entries.push([match[1].trim(), match[2].trim()]);
+    entries2.push([match[1].trim(), match[2].trim()]);
   }
-  return entries;
+  return entries2;
 }
 function normalizeAgentProxyHeaders(value) {
   if (value == null || value === "") return {};
-  let entries;
+  let entries2;
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return {};
@@ -44060,16 +44477,16 @@ function normalizeAgentProxyHeaders(value) {
         throw new Error("Proxy header JSON invalid, please use Name: value per line");
       }
       if (!parsed || typeof parsed !== "object") throw new Error("Proxy header JSON must be an object or array");
-      entries = proxyHeaderEntriesFromObject(parsed);
+      entries2 = proxyHeaderEntriesFromObject(parsed);
     } else {
-      entries = proxyHeaderEntriesFromLines(trimmed);
+      entries2 = proxyHeaderEntriesFromLines(trimmed);
     }
   } else if (typeof value === "object") {
-    entries = proxyHeaderEntriesFromObject(value);
+    entries2 = proxyHeaderEntriesFromObject(value);
   } else throw new Error("Proxy header format is invalid");
-  if (entries.length > MAX_PROXY_HEADERS) throw new Error(`Maximum ${MAX_PROXY_HEADERS} proxy headers allowed`);
+  if (entries2.length > MAX_PROXY_HEADERS) throw new Error(`Maximum ${MAX_PROXY_HEADERS} proxy headers allowed`);
   const headers = {};
-  for (const [rawName, rawValue] of entries) {
+  for (const [rawName, rawValue] of entries2) {
     const name2 = rawName.trim();
     const headerValue = rawValue.trim();
     if (!name2 && !headerValue) continue;
@@ -44097,6 +44514,9 @@ var LOOPBACK = /^(?:localhost|127(?:\.\d{1,3}){3}|\[?::1\]?)$/i;
 function isLoopbackHost(hostname) {
   return LOOPBACK.test(hostname);
 }
+
+// services/game-agent/proxy/agent-proxy.ts
+init_operation();
 
 // services/game-agent/proxy/socks-bridge.ts
 var import_socks = __toESM(require_build());
@@ -44296,49 +44716,65 @@ function fetchProxyForEndpoint(endpoint, slots) {
   return slots.http || slots.all || slots.https || slots.socks5;
 }
 function ollamaFetch(profile) {
-  let proxy;
-  let headers;
+  let proxy = "";
+  let headers = {};
   try {
     const slots = slotsOf(profile);
     proxy = fetchProxyForEndpoint(profile.endpoint, slots);
     headers = normalizeAgentProxyHeaders(profile.proxyHeaders);
-    if (!proxy || isLoopbackHost(new URL(profile.endpoint).hostname)) return fetch;
+    if (isLoopbackHost(new URL(profile.endpoint).hostname)) proxy = "";
   } catch {
-    return fetch;
+    proxy = "";
   }
-  return (async (input, init) => (0, import_undici.fetch)(input, {
-    ...init,
-    dispatcher: await dispatcherFor(proxy, headers)
-  }));
+  return (async (input, init) => {
+    const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+    const timing = startOperation("communication", "agent.http.headers", {
+      host: url.host,
+      path: url.pathname,
+      method: init?.method || (input instanceof Request ? input.method : "GET"),
+      proxy: !!proxy
+    });
+    try {
+      const response = proxy ? await (0, import_undici.fetch)(input, {
+        ...init,
+        dispatcher: await dispatcherFor(proxy, headers)
+      }) : await fetch(input, init);
+      timing.end(response.status >= 400 ? "failed" : "completed", { status: response.status, phase: "headers" });
+      return response;
+    } catch (error) {
+      timing.fail(error);
+      throw error;
+    }
+  });
 }
 
 // services/game-agent/secrets.ts
 init_paths();
 import { createCipheriv, createDecipheriv, randomBytes as randomBytes2 } from "node:crypto";
-import fs22 from "node:fs";
-import path19 from "node:path";
-var GAME_AGENT_SECRETS_PATH = path19.join(DATA_DIR, "game-agent", "secrets.json");
-var GAME_AGENT_SECRET_KEY_PATH = path19.join(DATA_DIR, "game-agent", "secret.key");
+import fs23 from "node:fs";
+import path21 from "node:path";
+var GAME_AGENT_SECRETS_PATH = path21.join(DATA_DIR, "game-agent", "secrets.json");
+var GAME_AGENT_SECRET_KEY_PATH = path21.join(DATA_DIR, "game-agent", "secret.key");
 function files(input = {}) {
   return { secretsFile: input.secretsFile || GAME_AGENT_SECRETS_PATH, keyFile: input.keyFile || GAME_AGENT_SECRET_KEY_PATH };
 }
 function ensureKey(file) {
-  fs22.mkdirSync(path19.dirname(file), { recursive: true, mode: 448 });
-  if (!fs22.existsSync(file)) {
+  fs23.mkdirSync(path21.dirname(file), { recursive: true, mode: 448 });
+  if (!fs23.existsSync(file)) {
     try {
-      fs22.writeFileSync(file, randomBytes2(32).toString("base64"), { flag: "wx", mode: 384 });
+      fs23.writeFileSync(file, randomBytes2(32).toString("base64"), { flag: "wx", mode: 384 });
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
     }
   }
-  const key3 = Buffer.from(fs22.readFileSync(file, "utf8").trim(), "base64");
+  const key3 = Buffer.from(fs23.readFileSync(file, "utf8").trim(), "base64");
   if (key3.length !== 32) throw new Error("Invalid agent credentials secret key");
   return key3;
 }
 function readDocument(file) {
   try {
-    if (!fs22.existsSync(file)) return { version: 1, tokens: {} };
-    const value = JSON.parse(fs22.readFileSync(file, "utf8"));
+    if (!fs23.existsSync(file)) return { version: 1, tokens: {} };
+    const value = JSON.parse(fs23.readFileSync(file, "utf8"));
     if (value?.version !== 1 || !value.tokens || typeof value.tokens !== "object" || Array.isArray(value.tokens)) throw new Error("Invalid agent credentials file format");
     return value;
   } catch (error) {
@@ -44367,9 +44803,9 @@ function readGameAgentToken(profileId, input = {}) {
 
 // services/game-agent/settings.ts
 init_paths();
-import { randomUUID as randomUUID3 } from "node:crypto";
-import fs23 from "node:fs";
-import path20 from "node:path";
+import { randomUUID as randomUUID4 } from "node:crypto";
+import fs24 from "node:fs";
+import path22 from "node:path";
 
 // lib/game-agent/providers.ts
 var GAME_AGENT_PROVIDERS = ["ollama", "cursor", "codex", "claude", "gemini", "cc", "codex-api", "gemini-api"];
@@ -44421,33 +44857,33 @@ function normalizeAgentTimeouts(value) {
 
 // services/game-agent/settings.ts
 init_client();
-var GAME_AGENT_SETTINGS_PATH = path20.join(GAME_AGENT_DIR, "settings.json");
-var GAME_AGENT_SYNC_PATH = path20.join(GAME_AGENT_DIR, "settings.sync.json");
-var _LEGACY_GAME_AGENT_SETTINGS_PATH = path20.join(DATA_DIR, "game-agent-settings.json");
-var _LEGACY_GAME_AGENT_SYNC_PATH = path20.join(DATA_DIR, "game-agent-settings.sync.json");
+var GAME_AGENT_SETTINGS_PATH = path22.join(GAME_AGENT_DIR, "settings.json");
+var GAME_AGENT_SYNC_PATH = path22.join(GAME_AGENT_DIR, "settings.sync.json");
+var _LEGACY_GAME_AGENT_SETTINGS_PATH = path22.join(DATA_DIR, "game-agent-settings.json");
+var _LEGACY_GAME_AGENT_SYNC_PATH = path22.join(DATA_DIR, "game-agent-settings.sync.json");
 function migrateLegacyAgentFile(from, to) {
   try {
-    if (!fs23.existsSync(from) || fs23.existsSync(to)) return;
-    fs23.mkdirSync(path20.dirname(to), { recursive: true });
-    fs23.renameSync(from, to);
+    if (!fs24.existsSync(from) || fs24.existsSync(to)) return;
+    fs24.mkdirSync(path22.dirname(to), { recursive: true });
+    fs24.renameSync(from, to);
   } catch {
     try {
-      if (!fs23.existsSync(from) || fs23.existsSync(to)) return;
-      fs23.mkdirSync(path20.dirname(to), { recursive: true });
-      fs23.copyFileSync(from, to);
-      fs23.rmSync(from, { force: true });
+      if (!fs24.existsSync(from) || fs24.existsSync(to)) return;
+      fs24.mkdirSync(path22.dirname(to), { recursive: true });
+      fs24.copyFileSync(from, to);
+      fs24.rmSync(from, { force: true });
     } catch {
     }
   }
 }
 function resolveAgentSettingsFile(preferred, legacy) {
   migrateLegacyAgentFile(legacy, preferred);
-  if (fs23.existsSync(preferred)) return preferred;
-  if (fs23.existsSync(legacy)) return legacy;
+  if (fs24.existsSync(preferred)) return preferred;
+  if (fs24.existsSync(legacy)) return legacy;
   return preferred;
 }
 function legacyAgentFile(file, name2) {
-  return path20.join(path20.dirname(path20.dirname(file)), name2);
+  return path22.join(path22.dirname(path22.dirname(file)), name2);
 }
 function settingsFilePath(file = GAME_AGENT_SETTINGS_PATH) {
   return resolveAgentSettingsFile(file, legacyAgentFile(file, "game-agent-settings.json"));
@@ -44486,7 +44922,7 @@ function normalizeGameAgentEndpoint(value) {
   url.pathname = url.pathname.replace(/\/+$/, "");
   return url.toString().replace(/\/$/, "");
 }
-function normalizeGameAgentProfile(value, fallbackId = randomUUID3()) {
+function normalizeGameAgentProfile(value, fallbackId = randomUUID4()) {
   if (value.provider !== void 0 && !isGameAgentProvider(value.provider)) throw new Error(`Unsupported agent provider: ${String(value.provider)}`);
   const provider = value.provider || "ollama";
   const proxy = normalizeAgentProxy(value.proxy);
@@ -44549,8 +44985,8 @@ function normalizeGameAgentSettings(value) {
 function loadOwnedGameAgentSettings(file = GAME_AGENT_SETTINGS_PATH) {
   const resolved = settingsFilePath(file);
   try {
-    if (!fs23.existsSync(resolved)) return defaultGameAgentSettings();
-    return normalizeGameAgentSettings(JSON.parse(fs23.readFileSync(resolved, "utf8")));
+    if (!fs24.existsSync(resolved)) return defaultGameAgentSettings();
+    return normalizeGameAgentSettings(JSON.parse(fs24.readFileSync(resolved, "utf8")));
   } catch (error) {
     if (error instanceof SyntaxError) throw new Error("Agent configuration file is not valid JSON");
     throw error;
@@ -44568,6 +45004,9 @@ function remoteSettings(syncFile, settingsFile) {
 function loadGameAgentSettings(file = GAME_AGENT_SETTINGS_PATH) {
   return remoteSettings(GAME_AGENT_SYNC_PATH, file) ? storageCall("settings.get") : loadOwnedGameAgentSettings(file);
 }
+
+// services/translate/agent-translate.ts
+init_operation();
 
 // services/translate/agent-batching.ts
 function hasAllControlTokens(src, zh) {
@@ -44669,6 +45108,121 @@ function parseBatchResponse(raw, count2) {
   return result;
 }
 
+// lib/log/timing.ts
+function startClientOperation(report, operation, meta, id) {
+  const startedAt = Date.now();
+  const started = performance.now();
+  const operationId2 = id || globalThis.crypto?.randomUUID?.() || `${startedAt.toString(36)}-${Math.random().toString(36).slice(2)}`;
+  const base = { ...meta, operation, operationId: operationId2, startedAt };
+  let ended = false;
+  const elapsedMs = () => Math.round((performance.now() - started) * 10) / 10;
+  const emit2 = (stage, details, level = "debug") => {
+    const duration = elapsedMs();
+    try {
+      report?.({ level, source: "communication", message: `${operation}: ${stage} (${duration}ms)`, meta: { ...base, ...details, stage, elapsedMs: duration }, ts: Date.now() });
+    } catch {
+    }
+  };
+  const end = (outcome, details = {}) => {
+    if (ended) return;
+    ended = true;
+    emit2(outcome, { ...details, outcome, slow: elapsedMs() >= 1e3, finishedAt: Date.now() }, outcome === "failed" ? "fail" : elapsedMs() >= 1e3 ? "warn" : "debug");
+  };
+  emit2("started", {});
+  return {
+    id: operationId2,
+    elapsedMs,
+    mark: emit2,
+    end,
+    run(fn) {
+      return fn();
+    },
+    fail(error, details = {}) {
+      const errorName = error && typeof error === "object" && "name" in error ? String(error.name) : "UnknownError";
+      end(errorName === "AbortError" ? "cancelled" : "failed", {
+        ...details,
+        errorName
+      });
+    }
+  };
+}
+
+// lib/log/link-log-store.ts
+init_types();
+var MAX2 = 1e3;
+var entries = [];
+var browserLogId = 0;
+var seen = /* @__PURE__ */ new Set();
+var listeners2 = /* @__PURE__ */ new Set();
+function emit() {
+  for (const fn of listeners2) {
+    try {
+      fn();
+    } catch {
+    }
+  }
+}
+function appendEntries(fresh) {
+  const next = [...entries, ...fresh].sort((a, b) => a.ts - b.ts);
+  if (next.length > MAX2) {
+    for (const dropped of next.splice(0, next.length - MAX2)) seen.delete(dropped.id);
+  }
+  entries = next;
+  emit();
+}
+function appendBrowserLog(entry) {
+  appendEntries([
+    {
+      id: `browser-${++browserLogId}`,
+      ts: Date.now(),
+      level: normalizeLogLevel(entry.level),
+      source: entry.source.slice(0, 64),
+      message: entry.message.slice(0, 8e3),
+      meta: entry.meta
+    }
+  ]);
+}
+
+// services/log/browser.ts
+var uploadEnabled = false;
+function createBrowserTimingReporter(upload) {
+  const queue3 = [];
+  let timer;
+  let uploading = false;
+  const schedule = () => {
+    if (!upload || timer || uploading || !queue3.length) return;
+    timer = setTimeout(() => {
+      timer = void 0;
+      uploading = true;
+      const entries2 = queue3.splice(0, 100);
+      void Promise.resolve().then(() => upload(entries2)).catch(() => {
+      }).finally(() => {
+        uploading = false;
+        schedule();
+      });
+    }, 150);
+  };
+  return (entry) => {
+    appendBrowserLog(entry);
+    if (!upload) return;
+    queue3.push(entry);
+    if (queue3.length > 500) queue3.splice(0, queue3.length - 500);
+    schedule();
+  };
+}
+var localReporter = createBrowserTimingReporter(async (entries2) => {
+  if (!uploadEnabled || typeof window === "undefined" || !/^https?:$/.test(window.location.protocol)) return;
+  await fetch("/api/logs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ entries: entries2 }),
+    signal: AbortSignal.timeout(5e3)
+  });
+});
+var reportBrowserTiming = (entry) => {
+  if (typeof window !== "undefined") localReporter(entry);
+};
+
 // services/translate/ollama-queue.ts
 var DEFAULT_LANE = "ollama";
 var queue = [];
@@ -44705,24 +45259,43 @@ function drain() {
 function scheduleOllama(run, options = false, legacySignal) {
   const opts = typeof options === "boolean" ? { interactive: options, signal: legacySignal } : options;
   const signal = opts.signal;
+  const lane = opts.lane || DEFAULT_LANE;
+  const meta = { lane, concurrency: opts.concurrency ?? 1, interactive: opts.interactive === true, queued: queue.length };
+  const timing = opts.startTiming?.(meta) ?? startClientOperation(reportBrowserTiming, "agent.inference", meta);
+  let queueMs = 0;
+  let started;
   return new Promise((resolve3, reject) => {
-    if (signal?.aborted) return reject(signal.reason);
+    if (signal?.aborted) {
+      timing.end("cancelled", { phase: "before-queue" });
+      return reject(signal.reason);
+    }
     const cancel = () => {
       const index2 = queue.indexOf(task);
       if (index2 >= 0) queue.splice(index2, 1);
+      if (started === void 0) {
+        timing.end("cancelled", { phase: "queued", queueMs: timing.elapsedMs(), executeMs: 0 });
+        signal?.removeEventListener("abort", cancel);
+      } else timing.mark("cancellation-requested", { queueMs });
       reject(signal?.reason);
     };
     const task = {
       interactive: opts.interactive === true,
       concurrency: opts.concurrency ?? 1,
-      lane: opts.lane || DEFAULT_LANE,
+      lane,
       signal,
       resolve: resolve3,
       reject,
       run: async () => {
+        queueMs = timing.elapsedMs();
+        started = performance.now();
+        timing.mark("execution-started", { queueMs, active: active.get(lane) });
         try {
-          resolve3(await run());
+          const value = await timing.run(run);
+          timing.end(signal?.aborted ? "cancelled" : "completed", { queueMs, executeMs: Math.round((performance.now() - started) * 10) / 10 });
+          resolve3(value);
         } catch (error) {
+          if (signal?.aborted) timing.end("cancelled", { queueMs, executeMs: Math.round((performance.now() - started) * 10) / 10 });
+          else timing.fail(error, { queueMs, executeMs: Math.round((performance.now() - started) * 10) / 10 });
           reject(error);
         } finally {
           signal?.removeEventListener("abort", cancel);
@@ -44737,6 +45310,9 @@ function scheduleOllama(run, options = false, legacySignal) {
 
 // services/translate/agent-translate.ts
 init_text_classify();
+function timedAgentRequest(http2, request, meta) {
+  return measureOperation("translate", "agent.request", { ...meta, model: request.model, think: request.think }, () => requestOllama(http2, request));
+}
 async function agentSingleJaToZh(text4, config, options = {}) {
   const settings = loadGameAgentSettings();
   const profile = config.profileId && profileById(settings, config.profileId) || ollamaProfiles(settings)[0];
@@ -44766,15 +45342,17 @@ async function agentSingleJaToZh(text4, config, options = {}) {
         interactive: options.interactive,
         signal
       };
-      const translated = await requestOllama(http2, { ...request, think: !options.interactive && translationNeedsReasoning(text4) });
+      const requestMeta = { lane, items: 1, sourceChars: Array.from(text4).length };
+      const translated = await timedAgentRequest(http2, { ...request, think: !options.interactive && translationNeedsReasoning(text4) }, { ...requestMeta, attempt: 1 });
       if (translated && translated.normalize("NFKC").trim() !== text4.normalize("NFKC").trim()) return translated;
       options.onTrace?.(`Agent request submitted: items=1, sourceChars=${Array.from(text4).length}`);
-      return requestOllama(http2, { ...request, text: `\u8BD1\u6587\uFF1A
-${text4}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true });
+      return timedAgentRequest(http2, { ...request, text: `\u8BD1\u6587\uFF1A
+${text4}`, system: OLLAMA_TRANSLATE_RETRY_SYSTEM, think: true }, { ...requestMeta, attempt: 2 });
     },
     {
       interactive: options.interactive,
       concurrency: options.concurrency,
+      startTiming: (meta) => startOperation("translate", "agent.inference", meta),
       lane,
       signal
     }
@@ -44843,16 +45421,18 @@ async function processAgentBatch(batch) {
           interactive: false,
           signal
         };
-        return requestOllama(http2, request);
+        return timedAgentRequest(http2, request, { lane, items: batch.length, sourceChars: batch.reduce((sum2, item) => sum2 + Array.from(item.text).length, 0) });
       },
       {
         interactive: false,
         concurrency: options.concurrency,
+        startTiming: (meta) => startOperation("translate", "agent.inference", meta),
         lane,
         signal
       }
     );
     const parsed = parseBatchResponse(raw, batch.length);
+    let retries = 0;
     for (let i = 0; i < batch.length; i++) {
       const item = batch[i];
       if (item.options.signal?.aborted) continue;
@@ -44860,10 +45440,13 @@ async function processAgentBatch(batch) {
       if (zh && hasAllControlTokens(item.text, zh) && isUsefulTranslation(item.text, item.text, zh, zh, "zh")) {
         item.resolve(zh);
       } else {
+        retries++;
         retry(item);
       }
     }
-  } catch {
+    if (retries) runtimeEvent("warn", "translate", "agent.batch: retrying invalid results", { items: batch.length, retries });
+  } catch (error) {
+    runtimeEvent("warn", "translate", "agent.batch: retrying individual requests", { items: batch.length, errorName: error instanceof Error ? error.name : "UnknownError" });
     for (const item of batch) retry(item);
   } finally {
     transport.dispose();
@@ -44879,6 +45462,15 @@ function flushBucket(key3, reason) {
   bucket.totalChars = 0;
   const maxChars = items[0]?.maxChars ?? 3e3;
   const batches = packBatches(items, maxChars);
+  runtimeEvent("debug", "translate", "agent.batch: packed", {
+    reason,
+    items: items.length,
+    sourceChars: items.reduce((sum2, item) => sum2 + Array.from(item.text).length, 0),
+    batchWaitMs: Math.round(performance.now() - bucket.startedAt),
+    batches: batches.length,
+    maxChars,
+    lane: items[0].options.lane
+  });
   items[0].options.onTrace?.(`Agent queue flushed: reason=${reason}, items=${items.length}, sourceChars=${items.reduce((sum2, item) => sum2 + Array.from(item.text).length, 0)}`);
   for (const batch of batches) {
     void processAgentBatch(batch);
@@ -44991,6 +45583,7 @@ import readline from "node:readline";
 // lib/translate/bergamot.ts
 function bergamotLanguage(input) {
   const value = input.trim().toLowerCase();
+  if (value === "jp") return "ja";
   if (["ch", "zh-cn", "zh-hans"].includes(value)) return "zh";
   if (["cht", "zh-tw", "zh-hant"].includes(value)) return "cht";
   if (value === "pt-br") return "pt";
@@ -44998,23 +45591,23 @@ function bergamotLanguage(input) {
 }
 
 // services/translate/bergamot/binary.ts
-import fs24 from "node:fs";
+import fs25 from "node:fs";
 import os2 from "node:os";
-import path21 from "node:path";
+import path23 from "node:path";
 function resolveBergamotBinary() {
   if (!["darwin", "linux"].includes(process.platform)) throw new Error("BERGAMOT_PLATFORM_UNSUPPORTED");
   const platform = process.platform === "darwin" ? "macos" : "linux";
   const candidates2 = [
-    ...process.env.CHAYA_BERGAMOT_BINARY ? [path21.resolve(process.env.CHAYA_BERGAMOT_BINARY)] : [],
-    path21.resolve(process.cwd(), `native/bin/${platform}-${process.arch}/chaya-bergamot-translator`),
-    path21.resolve(process.cwd(), "native/bin/chaya-bergamot-translator"),
-    path21.join(os2.homedir(), ".local/bin/chaya-bergamot-translator"),
-    ...(process.env.PATH || "").split(path21.delimiter).filter(Boolean).map((dir) => path21.join(dir, "chaya-bergamot-translator"))
+    ...process.env.CHAYA_BERGAMOT_BINARY ? [path23.resolve(process.env.CHAYA_BERGAMOT_BINARY)] : [],
+    path23.resolve(process.cwd(), `native/bin/${platform}-${process.arch}/chaya-bergamot-translator`),
+    path23.resolve(process.cwd(), "native/bin/chaya-bergamot-translator"),
+    path23.join(os2.homedir(), ".local/bin/chaya-bergamot-translator"),
+    ...(process.env.PATH || "").split(path23.delimiter).filter(Boolean).map((dir) => path23.join(dir, "chaya-bergamot-translator"))
   ];
   const binary = candidates2.find((file) => {
     try {
-      fs24.accessSync(file, fs24.constants.X_OK);
-      return fs24.statSync(file).isFile();
+      fs25.accessSync(file, fs25.constants.X_OK);
+      return fs25.statSync(file).isFile();
     } catch {
       return false;
     }
@@ -45022,10 +45615,6 @@ function resolveBergamotBinary() {
   if (!binary) throw new Error("BERGAMOT_COMPONENT_UNAVAILABLE");
   return binary;
 }
-
-// services/translate/bergamot/readiness.ts
-import fs26 from "node:fs";
-import path23 from "node:path";
 
 // services/translate/bergamot/models.json
 var models_default = [
@@ -45088,18 +45677,36 @@ function findPack(source, target2) {
   );
 }
 
+// services/translate/bergamot/readiness.ts
+import fs27 from "node:fs";
+import path26 from "node:path";
+
 // services/translate/bergamot/download.ts
 import { createHash as createHash3 } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
+import path24 from "node:path";
+init_operation();
 async function hashFile(file) {
-  const hash = createHash3("sha256");
-  for await (const chunk of createReadStream(file)) hash.update(chunk);
-  return hash.digest("hex");
+  return measureOperation(
+    "translate",
+    "bergamot.pack.hash",
+    { file: path24.basename(file) },
+    async () => {
+      const hash = createHash3("sha256");
+      for await (const chunk of createReadStream(file)) hash.update(chunk);
+      return hash.digest("hex");
+    },
+    { start: false }
+  );
 }
 
 // services/translate/bergamot/native.ts
+init_operation();
 import { spawn as spawn2 } from "node:child_process";
 function validateBergamotPack(root, source, target2, sample, signal) {
+  return measureOperation("translate", "bergamot.pack.validate", { source, target: target2 }, () => validate(root, source, target2, sample, signal));
+}
+function validate(root, source, target2, sample, signal) {
   return new Promise((resolve3, reject) => {
     signal?.throwIfAborted();
     const child = spawn2(resolveBergamotBinary(), [], { env: { ...process.env, CHAYA_BERGAMOT_PACKS_DIR: root }, stdio: ["pipe", "pipe", "pipe"] });
@@ -45143,27 +45750,27 @@ function validateBergamotPack(root, source, target2, sample, signal) {
 
 // services/translate/bergamot/store.ts
 init_paths();
-import { createHash as createHash4, randomUUID as randomUUID4 } from "node:crypto";
-import fs25 from "node:fs";
+import { createHash as createHash4, randomUUID as randomUUID5 } from "node:crypto";
+import fs26 from "node:fs";
 import os3 from "node:os";
-import path22 from "node:path";
+import path25 from "node:path";
 function legacyPacksRoot() {
-  return path22.join(process.env.XDG_DATA_HOME || path22.join(os3.homedir(), ".local/share"), "chaya/translation-packs");
+  return path25.join(process.env.XDG_DATA_HOME || path25.join(os3.homedir(), ".local/share"), "chaya/translation-packs");
 }
 function adoptLegacyPacks(preferred, legacy) {
   try {
-    if (fs25.existsSync(preferred) || !fs25.existsSync(legacy)) return;
-    fs25.mkdirSync(path22.dirname(preferred), { recursive: true });
-    fs25.renameSync(legacy, preferred);
+    if (fs26.existsSync(preferred) || !fs26.existsSync(legacy)) return;
+    fs26.mkdirSync(path25.dirname(preferred), { recursive: true });
+    fs26.renameSync(legacy, preferred);
   } catch {
   }
 }
 function packsRoot() {
-  if (process.env.CHAYA_BERGAMOT_PACKS_DIR) return path22.resolve(process.env.CHAYA_BERGAMOT_PACKS_DIR);
-  const preferred = path22.resolve(TRANSLATION_PACKS_DIR);
-  const legacy = path22.resolve(legacyPacksRoot());
+  if (process.env.CHAYA_BERGAMOT_PACKS_DIR) return path25.resolve(process.env.CHAYA_BERGAMOT_PACKS_DIR);
+  const preferred = path25.resolve(TRANSLATION_PACKS_DIR);
+  const legacy = path25.resolve(legacyPacksRoot());
   adoptLegacyPacks(preferred, legacy);
-  if (!fs25.existsSync(preferred) && fs25.existsSync(legacy)) return legacy;
+  if (!fs26.existsSync(preferred) && fs26.existsSync(legacy)) return legacy;
   return preferred;
 }
 function safeId(value) {
@@ -45171,7 +45778,7 @@ function safeId(value) {
   return value;
 }
 function installationRoot(ref) {
-  return path22.join(packsRoot(), "packs", safeId(ref.packId), safeId(ref.version), safeId(ref.installId));
+  return path25.join(packsRoot(), "packs", safeId(ref.packId), safeId(ref.version), safeId(ref.installId));
 }
 function pairFolder(source, target2) {
   return `${safeId(bergamotLanguage(source))}_${safeId(bergamotLanguage(target2))}`;
@@ -45179,11 +45786,11 @@ function pairFolder(source, target2) {
 function installedPack(source, target2) {
   try {
     const packId = `${bergamotLanguage(source)}-${bergamotLanguage(target2)}`;
-    const ref = JSON.parse(fs25.readFileSync(path22.join(packsRoot(), "active", `${safeId(packId)}.json`), "utf8"));
+    const ref = JSON.parse(fs26.readFileSync(path25.join(packsRoot(), "active", `${safeId(packId)}.json`), "utf8"));
     if (ref.packId !== packId) return;
     const root = installationRoot(ref);
-    if (!fs25.realpathSync(root).startsWith(fs25.realpathSync(packsRoot()) + path22.sep)) return;
-    const manifest = JSON.parse(fs25.readFileSync(path22.join(root, "manifest.json"), "utf8"));
+    if (!fs26.realpathSync(root).startsWith(fs26.realpathSync(packsRoot()) + path25.sep)) return;
+    const manifest = JSON.parse(fs26.readFileSync(path25.join(root, "manifest.json"), "utf8"));
     if (JSON.stringify(manifest.reference) !== JSON.stringify(ref) || manifest.source !== bergamotLanguage(source) || manifest.target !== bergamotLanguage(target2)) return;
     const pack = findPack(source, target2);
     if (!pack || ref.version !== pack.version || manifest.files.length !== pack.files.length + 1) return;
@@ -45191,14 +45798,14 @@ function installedPack(source, target2) {
       ...pack.files.map((file) => [file.name, file.unpackedSha256]),
       ["config.yml", createHash4("sha256").update(pack.config).digest("hex")]
     ]);
-    const folder = path22.join(root, pairFolder(source, target2));
-    if (fs25.lstatSync(folder).isSymbolicLink() || fs25.realpathSync(folder) !== path22.join(fs25.realpathSync(root), pairFolder(source, target2))) return;
+    const folder = path25.join(root, pairFolder(source, target2));
+    if (fs26.lstatSync(folder).isSymbolicLink() || fs26.realpathSync(folder) !== path25.join(fs26.realpathSync(root), pairFolder(source, target2))) return;
     for (const item of manifest.files) {
       if (expected.get(item.name) !== item.sha256) return;
       expected.delete(item.name);
-      const file = path22.join(root, pairFolder(source, target2), item.name);
+      const file = path25.join(root, pairFolder(source, target2), item.name);
       safeId(item.name.replaceAll(".", "_"));
-      const stat = fs25.lstatSync(file);
+      const stat = fs26.lstatSync(file);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== item.bytes || stat.mtimeMs !== item.mtimeMs) return;
     }
     if (expected.size) return;
@@ -45224,7 +45831,7 @@ async function verifiedPack(source, target2, refresh = false) {
   } catch {
     return;
   }
-  const stat = fs26.statSync(binary);
+  const stat = fs27.statSync(binary);
   const key3 = contentId({ installed, binary, size: stat.size, mtime: stat.mtimeMs });
   if (refresh) checks.delete(key3);
   let check = checks.get(key3);
@@ -45232,7 +45839,7 @@ async function verifiedPack(source, target2, refresh = false) {
     check = queue2.then(async () => {
       if (await hashFile(binary) !== installed.manifest.binaryHash) return false;
       for (const item of installed.manifest.files) {
-        if (await hashFile(path23.join(installed.root, pairFolder(source, target2), item.name)) !== item.sha256) return false;
+        if (await hashFile(path26.join(installed.root, pairFolder(source, target2), item.name)) !== item.sha256) return false;
       }
       await validateBergamotPack(installed.root, pack.source, pack.target, pack.sample);
       return true;
@@ -45245,9 +45852,11 @@ async function verifiedPack(source, target2, refresh = false) {
 }
 
 // services/translate/lib/bergamot-translate.ts
+init_operation();
 var REQUEST_TIMEOUT_MS = 5e3;
 function toBergamotLanguage(value, fallback) {
   const code = String(value || fallback).trim().toLowerCase();
+  if (code === "jp") return "ja";
   if (code === "ch" || code === "zh-cn" || code === "zh-hans") return "zh";
   if (code === "cht" || code === "zh-tw" || code === "zh-hant") return "zh-TW";
   if (code === "pt-br") return "pt";
@@ -45326,6 +45935,19 @@ var BergamotTranslatorClient = class {
     }
   }
   async request(action, options, text4) {
+    return measureOperation(
+      "communication",
+      "bergamot.native.request",
+      {
+        action,
+        source: options?.source || "ja",
+        target: options?.target || "zh",
+        sourceChars: Array.from(text4 || "").length
+      },
+      () => this.requestOnce(action, options, text4)
+    );
+  }
+  async requestOnce(action, options, text4) {
     if (!this.packRoot) {
       const root = installedPack(options?.source || "ja", options?.target || "zh")?.root;
       if (root) {
@@ -45354,6 +45976,9 @@ var BergamotTranslatorClient = class {
     });
   }
   async checkStatus(source = "ja", target2 = "zh") {
+    source = bergamotLanguage(source);
+    target2 = bergamotLanguage(target2);
+    if (!findPack(source, target2)) return { status: "unsupported", installed: false };
     try {
       if (installedPack(source, target2)) {
         const verified = await verifiedPack(source, target2);
@@ -45367,12 +45992,25 @@ var BergamotTranslatorClient = class {
       return { status: "unavailable", installed: false, message: error instanceof Error ? error.message : String(error) };
     }
   }
+  /** Readiness always describes the requested pair, never another installed model. */
+  async checkEngineStatus(source = "en", target2 = "zh") {
+    source = bergamotLanguage(source);
+    target2 = bergamotLanguage(target2);
+    return { ...await this.checkStatus(source, target2), source, target: target2 };
+  }
   async translate(text4, options) {
     if (!text4.trim()) return text4;
-    const response = await this.request("translate", options, text4);
-    const result = response.translatedText ?? response.result;
-    if (response.success !== true || typeof result !== "string") throw new Error(response.message || response.error || "Bergamot translation failed");
-    return result;
+    return measureOperation(
+      "translate",
+      "bergamot.request",
+      { source: options?.source || "ja", target: options?.target || "zh", items: 1, sourceChars: Array.from(text4).length },
+      async () => {
+        const response = await this.request("translate", options, text4);
+        const result = response.translatedText ?? response.result;
+        if (response.success !== true || typeof result !== "string") throw new Error(response.message || response.error || "Bergamot translation failed");
+        return result;
+      }
+    );
   }
 };
 var managedClients = /* @__PURE__ */ new Map();
@@ -45391,6 +46029,7 @@ function bergamotTranslate(text4, options) {
 }
 
 // services/translate/lib/macos-translate.ts
+init_operation();
 import { spawn as spawn4 } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { resolve as resolve2 } from "node:path";
@@ -45502,6 +46141,7 @@ var AppleTranslatorClient = class {
       if (timing) {
         if (!timing.first) {
           timing.first = true;
+          timing.operation.mark("first-result", { success: !error && response?.success === true });
           if (process.env.CHAYA_TRANSLATE_DEBUG === "1")
             console.info(
               `[apple-timing] First batch outcome: id=${batchId}, elapsedMs=${Math.round(performance.now() - timing.started)}, success=${!error && response?.success === true}`
@@ -45511,6 +46151,7 @@ var AppleTranslatorClient = class {
       }
       ids.delete(id);
       if (!ids.size) {
+        timing?.operation.end(timing.failed ? "failed" : "completed", { items: timing.items, failed: timing.failed });
         if (timing) {
           if (process.env.CHAYA_TRANSLATE_DEBUG === "1")
             console.info(`[apple-timing] Batch settled: id=${batchId}, items=${timing.items}, failed=${timing.failed}, elapsedMs=${Math.round(performance.now() - timing.started)}`);
@@ -45541,9 +46182,11 @@ var AppleTranslatorClient = class {
     }
     this.process = null;
     this.batchQueue = [];
-    for (const [id, timing] of this.batchTimings)
+    for (const [id, timing] of this.batchTimings) {
+      timing.operation.end("failed", { pending: this.batches.get(id)?.size ?? 0, phase: "process-exit" });
       if (process.env.CHAYA_TRANSLATE_DEBUG === "1")
         console.info(`[apple-timing] Batch interrupted: id=${id}, pending=${this.batches.get(id)?.size ?? 0}, elapsedMs=${Math.round(performance.now() - timing.started)}`);
+    }
     this.batches.clear();
     this.batchTimings.clear();
     for (const [id, req] of this.pendingRequests.entries()) {
@@ -45583,7 +46226,15 @@ var AppleTranslatorClient = class {
           if (!batch.length) return;
           const batchId = `batch:${batch[0].id}`;
           this.batches.set(batchId, new Set(batch.map((item) => item.id)));
-          this.batchTimings.set(batchId, { started: performance.now(), items: batch.length, failed: 0, first: false });
+          const operation = startOperation("translate", "apple.native.batch", {
+            nativeId: batchId,
+            nativePid: this.process?.pid,
+            items: batch.length,
+            sourceChars: batch.reduce((sum2, item) => sum2 + Array.from(item.text || "").length, 0),
+            source: batch[0].source,
+            target: batch[0].target
+          });
+          this.batchTimings.set(batchId, { started: performance.now(), items: batch.length, failed: 0, first: false, operation });
           if (process.env.CHAYA_TRANSLATE_DEBUG === "1")
             console.info(
               `[apple-timing] Batch dispatched: id=${batchId}, atMs=${Date.now()}, pid=${this.process?.pid ?? "unknown"}, items=${batch.length}, sourceChars=${batch.reduce((sum2, item) => sum2 + Array.from(item.text || "").length, 0)}, from=${batch[0].source}, to=${batch[0].target}`
@@ -45599,6 +46250,9 @@ var AppleTranslatorClient = class {
                 items: batch.map((item) => ({ id: item.id, text: item.text }))
               }) + "\n"
             );
+            const listeners3 = new Set(batch.map((item) => this.pendingRequests.get(item.id)?.onTrace).filter((listener) => listener != null));
+            const chars2 = batch.reduce((sum2, item) => sum2 + Array.from(item.text || "").length, 0);
+            for (const listener of listeners3) listener(`Apple request submitted: items=${batch.length}, sourceChars=${chars2}`);
           } catch (error) {
             for (const item of batch) this.finishRequest(item.id, void 0, error instanceof Error ? error : new Error(String(error)));
           }
@@ -45614,7 +46268,16 @@ var AppleTranslatorClient = class {
       }
     });
   }
-  async sendRequest(req, timeoutMs = 15e3, signal) {
+  async sendRequest(req, timeoutMs = 15e3, signal, onTrace) {
+    if (req.type === "translate") return this.sendRequestOnce(req, timeoutMs, signal, onTrace);
+    return measureOperation(
+      "communication",
+      "apple.native.request",
+      { action: req.type, source: req.source, target: req.target },
+      () => this.sendRequestOnce(req, timeoutMs, signal, onTrace)
+    );
+  }
+  async sendRequestOnce(req, timeoutMs, signal, onTrace) {
     if (!this.isSupportedPlatform()) {
       throw new Error("Apple Translation is only supported on macOS");
     }
@@ -45632,7 +46295,7 @@ var AppleTranslatorClient = class {
         this.finishRequest(id, void 0, signal?.reason instanceof Error ? signal.reason : new Error("Translation request cancelled"));
         if (!this.pendingRequests.size) this.stopDaemon();
       };
-      this.pendingRequests.set(id, { resolve: resolve3, reject, timer, dispose: () => signal?.removeEventListener("abort", abort) });
+      this.pendingRequests.set(id, { resolve: resolve3, reject, timer, dispose: () => signal?.removeEventListener("abort", abort), onTrace });
       signal?.addEventListener("abort", abort, { once: true });
       if (signal?.aborted) {
         abort();
@@ -45680,7 +46343,8 @@ var AppleTranslatorClient = class {
         target: toAppleLanguage(options?.target, "zh-Hans")
       },
       15e3,
-      options?.signal
+      options?.signal,
+      options?.onTrace
     );
     if (!res.success) {
       let message = res.message || res.error || "Apple translation failed";
@@ -45716,32 +46380,32 @@ function trackLiveTranslateRequest(fn) {
 
 // services/translate/name-glossary-game.ts
 init_paths();
-import fs29 from "node:fs";
+import fs30 from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
-import path25 from "node:path";
+import path28 from "node:path";
 
 // services/extract/lib/extract-items.ts
 init_content_files();
 init_segments();
 init_game_lookup();
 init_game_records();
-import fs28 from "node:fs";
+import fs29 from "node:fs";
 
 // services/extract/lib/game-locales.ts
-import fs27 from "node:fs";
-import path24 from "node:path";
+import fs28 from "node:fs";
+import path27 from "node:path";
 function isValidLocalesDir(dirPath) {
-  if (!fs27.existsSync(dirPath) || !fs27.statSync(dirPath).isDirectory()) return false;
-  const entries = fs27.readdirSync(dirPath, { withFileTypes: true });
-  const subDirs = entries.filter((e) => e.isDirectory());
+  if (!fs28.existsSync(dirPath) || !fs28.statSync(dirPath).isDirectory()) return false;
+  const entries2 = fs28.readdirSync(dirPath, { withFileTypes: true });
+  const subDirs = entries2.filter((e) => e.isDirectory());
   if (!subDirs.length) {
-    const jsonFiles = entries.filter((e) => e.isFile() && /\.(json|csv)$/i.test(e.name));
+    const jsonFiles = entries2.filter((e) => e.isFile() && /\.(json|csv)$/i.test(e.name));
     return jsonFiles.length > 0;
   }
   for (const sub of subDirs) {
-    const subPath = path24.join(dirPath, sub.name);
+    const subPath = path27.join(dirPath, sub.name);
     try {
-      const files2 = fs27.readdirSync(subPath);
+      const files2 = fs28.readdirSync(subPath);
       if (files2.some((f) => /\.(json|csv)$/i.test(f))) {
         return true;
       }
@@ -45752,25 +46416,25 @@ function isValidLocalesDir(dirPath) {
 }
 function findLocalesDirectory(contentRoot) {
   const candidates2 = [
-    path24.join(contentRoot, "locales"),
-    path24.join(contentRoot, "www", "locales"),
-    path24.join(contentRoot, "localization"),
-    path24.join(contentRoot, "www", "localization"),
-    path24.join(contentRoot, "languages"),
-    path24.join(contentRoot, "www", "languages"),
-    path24.join(contentRoot, "data", "locales"),
-    path24.join(contentRoot, "data", "localization")
+    path27.join(contentRoot, "locales"),
+    path27.join(contentRoot, "www", "locales"),
+    path27.join(contentRoot, "localization"),
+    path27.join(contentRoot, "www", "localization"),
+    path27.join(contentRoot, "languages"),
+    path27.join(contentRoot, "www", "languages"),
+    path27.join(contentRoot, "data", "locales"),
+    path27.join(contentRoot, "data", "localization")
   ];
-  const pluginsPaths = [path24.join(contentRoot, "js", "plugins.js"), path24.join(contentRoot, "www", "js", "plugins.js")];
+  const pluginsPaths = [path27.join(contentRoot, "js", "plugins.js"), path27.join(contentRoot, "www", "js", "plugins.js")];
   for (const pp of pluginsPaths) {
-    if (fs27.existsSync(pp)) {
+    if (fs28.existsSync(pp)) {
       try {
-        const text4 = fs27.readFileSync(pp, "utf8");
+        const text4 = fs28.readFileSync(pp, "utf8");
         const locMatch = text4.match(/"Localization Folder"\s*:\s*"([^"]+)"/);
         if (locMatch && locMatch[1]) {
           const folder = locMatch[1].replace(/^[\\/]+|[\\/]+$/g, "");
-          candidates2.unshift(path24.join(path24.dirname(path24.dirname(pp)), folder));
-          candidates2.unshift(path24.join(contentRoot, folder));
+          candidates2.unshift(path27.join(path27.dirname(path27.dirname(pp)), folder));
+          candidates2.unshift(path27.join(contentRoot, folder));
         }
       } catch {
       }
@@ -45798,19 +46462,19 @@ function loadGameLocalesCatalog(contentRoot) {
       keyToFileMap: {}
     };
   }
-  const entries = fs27.readdirSync(localesDir, { withFileTypes: true });
-  const langDirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  const entries2 = fs28.readdirSync(localesDir, { withFileTypes: true });
+  const langDirs = entries2.filter((e) => e.isDirectory()).map((e) => e.name);
   const dictionaries = {};
   const keyToFileMap = {};
   for (const lang of langDirs) {
-    const langPath = path24.join(localesDir, lang);
+    const langPath = path27.join(localesDir, lang);
     dictionaries[lang] = {};
     try {
-      const files2 = fs27.readdirSync(langPath).filter((f) => /\.json$/i.test(f));
+      const files2 = fs28.readdirSync(langPath).filter((f) => /\.json$/i.test(f));
       for (const file of files2) {
-        const filePath2 = path24.join(langPath, file);
+        const filePath2 = path27.join(langPath, file);
         try {
-          const data = JSON.parse(fs27.readFileSync(filePath2, "utf8"));
+          const data = JSON.parse(fs28.readFileSync(filePath2, "utf8"));
           if (data && typeof data === "object") {
             for (const [k, v] of Object.entries(data)) {
               if (typeof v === "string") {
@@ -45848,17 +46512,17 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
   const seedPath = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
   const extractPath = gameContentReadPath(contentRoot, "extractStrings", { alsoParent: true });
   let seed = {};
-  if (seedPath && fs28.existsSync(seedPath)) {
+  if (seedPath && fs29.existsSync(seedPath)) {
     try {
-      seed = JSON.parse(fs28.readFileSync(seedPath, "utf8"));
+      seed = JSON.parse(fs29.readFileSync(seedPath, "utf8"));
     } catch {
       seed = {};
     }
   }
   let extractData = null;
-  if (extractPath && fs28.existsSync(extractPath)) {
+  if (extractPath && fs29.existsSync(extractPath)) {
     try {
-      extractData = JSON.parse(fs28.readFileSync(extractPath, "utf8"));
+      extractData = JSON.parse(fs29.readFileSync(extractPath, "utf8"));
     } catch {
       extractData = null;
     }
@@ -45929,11 +46593,11 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
       const mapNum = block.map != null ? typeof block.map === "number" ? block.map : parseInt(String(block.map), 10) : void 0;
       const mapFile = mapNum != null && !Number.isNaN(mapNum) ? `data/Map${String(mapNum).padStart(3, "0")}.json` : block.map ? `data/Map${block.map}.json` : void 0;
       const file = mapFile || (block.src === "common" ? "data/CommonEvents.json" : block.src === "troop" ? "data/Troops.json" : void 0);
-      const context = block.map ? `\u5730\u56FE ${block.map}` : block.src === "common" ? "\u516C\u5171\u4E8B\u4EF6" : block.src === "troop" ? "\u6218\u6597\u4E8B\u4EF6" : void 0;
+      const context2 = block.map ? `\u5730\u56FE ${block.map}` : block.src === "common" ? "\u516C\u5171\u4E8B\u4EF6" : block.src === "troop" ? "\u6218\u6597\u4E8B\u4EF6" : void 0;
       if (block.kind === "c") {
         const speaker = cleanSpeaker(block.face, block.speaker);
         for (const c of block.choices || []) {
-          record(c, { category: "choice", label: "\u9009\u9879", speaker, context, file });
+          record(c, { category: "choice", label: "\u9009\u9879", speaker, context: context2, file });
         }
       } else {
         const lines = Array.isArray(block.lines) ? block.lines : typeof block.src === "string" ? [block.src] : [];
@@ -45943,7 +46607,7 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
           const trimmed = text4.trim();
           if (!trimmed) return;
           if (isSystemPrompt(trimmed)) {
-            record(text4, { category: "system", label: "\u7CFB\u7EDF\u6587\u6848", context, file });
+            record(text4, { category: "system", label: "\u7CFB\u7EDF\u6587\u6848", context: context2, file });
             return;
           }
           const hasDialogueQuote = /(?:^[「『"“]|【[^】]+】)/.test(trimmed);
@@ -45951,10 +46615,10 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
           if (isDialogue) {
             const speaker = cleanSpeaker(block.face, block.speaker);
             const label = speaker ? `\u5BF9\u8BDD (${speaker})` : "\u5BF9\u8BDD";
-            record(text4, { category: "dialogue", label, speaker, context, file });
+            record(text4, { category: "dialogue", label, speaker, context: context2, file });
           } else {
             const label = block.kind === "s" ? "\u6EDA\u52A8\u5B57\u5E55" : "\u5267\u60C5/\u65C1\u767D";
-            record(text4, { category: "story", label, context, file });
+            record(text4, { category: "story", label, context: context2, file });
           }
         };
         registerText(fullText);
@@ -46011,7 +46675,7 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
   const engines = createGameTranslateEngines(records2);
   const items = [];
   let index2 = 0;
-  const seen = /* @__PURE__ */ new Set();
+  const seen2 = /* @__PURE__ */ new Set();
   function resolveTextAndMeta(rawText, baseMeta) {
     const meta = baseMeta ? { ...baseMeta } : { category: "other", label: "\u5176\u4ED6\u6587\u672C" };
     let finalSrc = rawText;
@@ -46057,7 +46721,7 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
   }
   for (const [src, seedZh] of Object.entries(seed)) {
     index2++;
-    seen.add(src);
+    seen2.add(src);
     const baseMeta = metaMap.get(src);
     const resolved = resolveTextAndMeta(src, baseMeta);
     const fromLookup = lookup[resolved.src] || lookup[src];
@@ -46074,9 +46738,9 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
     });
   }
   for (const [src, meta] of metaMap.entries()) {
-    if (seen.has(src)) continue;
+    if (seen2.has(src)) continue;
     index2++;
-    seen.add(src);
+    seen2.add(src);
     const resolved = resolveTextAndMeta(src, meta);
     const fromLookup = lookup[resolved.src] || lookup[src];
     const currentZh = resolved.zh || fromLookup || "";
@@ -46158,19 +46822,20 @@ function loadExtractedItems(contentRoot) {
 
 // services/translate/name-glossary-game.ts
 init_jobs();
+init_operation();
 init_game_cache_context();
 init_game_lookup();
 var tables = /* @__PURE__ */ new Map();
 var sources = /* @__PURE__ */ new Map();
 function rgssSourceStamp(root) {
-  const dir = fs29.readdirSync(root).find((name2) => name2.toLowerCase() === "data");
+  const dir = fs30.readdirSync(root).find((name2) => name2.toLowerCase() === "data");
   if (!dir) return null;
-  const dataDir = path25.join(root, dir);
-  const names = fs29.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
+  const dataDir = path28.join(root, dir);
+  const names = fs30.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
   if (!names.length) return null;
   return JSON.stringify(
     names.map((name2) => {
-      const stat = fs29.statSync(path25.join(dataDir, name2));
+      const stat = fs30.statSync(path28.join(dataDir, name2));
       return [name2, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   );
@@ -46201,38 +46866,66 @@ async function loadNameSources(root, stamp) {
 async function loadGameNameEntries(contentRoot, toLang) {
   const root = String(contentRoot || "");
   if (!root) return [];
-  const sourceStamp = rgssSourceStamp(root);
-  const context = getGameCacheContext(root);
-  const stamp = `${context.stamp}:${sourceStamp}:${toLang || "zh"}`;
-  const cached = tables.get(root);
-  if (cached?.stamp === stamp) return cached.entries;
-  const items = await loadNameSources(root, sourceStamp);
-  const translations2 = sourceStamp === null ? null : loadRgssTranslationLookup(root);
-  const lookup = translations2?.lookup ?? loadGameTranslateLookup(root);
-  const pairs = [];
-  for (const item of items) {
-    const category = item.meta.category;
-    if (!isNameGlossaryCategory(category) || context.blocked(item.src)) continue;
-    const current = item.zh || item.savedZh || "";
-    const zh = String(translations2 ? resolveRgssTranslation(item.src, current, translations2) : lookup[item.src] || current).trim();
-    if (!isUsableNamePair(item.src, zh)) continue;
-    pairs.push({ src: item.src, zh, category });
+  const timing = startOperation("translate", "glossary.load", { target: toLang || "zh" }, { start: false });
+  let stampMs = 0;
+  let sourcesMs = 0;
+  let lookupMs = 0;
+  try {
+    const sourceStamp = rgssSourceStamp(root);
+    const context2 = getGameCacheContext(root);
+    const stamp = `${context2.stamp}:${sourceStamp}:${toLang || "zh"}`;
+    const cached = tables.get(root);
+    stampMs = timing.elapsedMs();
+    if (cached?.stamp === stamp) {
+      timing.end("completed", { cacheHit: true, entries: cached.entries.length, stampMs });
+      return cached.entries;
+    }
+    const loading = performance.now();
+    const items = await loadNameSources(root, sourceStamp);
+    sourcesMs = Math.round((performance.now() - loading) * 10) / 10;
+    const lookupStarted = performance.now();
+    const translations2 = sourceStamp === null ? null : loadRgssTranslationLookup(root);
+    const lookup = translations2?.lookup ?? loadGameTranslateLookup(root);
+    lookupMs = Math.round((performance.now() - lookupStarted) * 10) / 10;
+    const building = performance.now();
+    const pairs = [];
+    for (const item of items) {
+      const category = item.meta.category;
+      if (!isNameGlossaryCategory(category) || context2.blocked(item.src)) continue;
+      const current = item.zh || item.savedZh || "";
+      const zh = String(translations2 ? resolveRgssTranslation(item.src, current, translations2) : lookup[item.src] || current).trim();
+      if (!isUsableNamePair(item.src, zh)) continue;
+      pairs.push({ src: item.src, zh, category });
+    }
+    const entries2 = entriesFromNamePairs(pairs, toLang);
+    if (tables.size >= 8 && !tables.has(root)) tables.delete(tables.keys().next().value);
+    tables.set(root, { stamp, entries: entries2 });
+    timing.end("completed", {
+      cacheHit: false,
+      format: sourceStamp === null ? "mv" : "rgss",
+      items: items.length,
+      entries: entries2.length,
+      stampMs,
+      sourcesMs,
+      lookupMs,
+      buildMs: Math.round((performance.now() - building) * 10) / 10
+    });
+    return entries2;
+  } catch (error) {
+    timing.fail(error, { stampMs, sourcesMs, lookupMs });
+    throw error;
   }
-  const entries = entriesFromNamePairs(pairs, toLang);
-  if (tables.size >= 8 && !tables.has(root)) tables.delete(tables.keys().next().value);
-  tables.set(root, { stamp, entries });
-  return entries;
 }
 
 // services/translate/name-lock.ts
 init_choice_meta();
 init_text_classify();
-function planLockedNames(src, entries, opts) {
-  if (!entries.length || opts?.targetLang && !isZhNameTarget(opts.targetLang)) return null;
+function planLockedNames(src, entries2, opts) {
+  if (!entries2.length || opts?.targetLang && !isZhNameTarget(opts.targetLang)) return null;
   const { core } = peelChoiceMetaShell(src);
   const body = core || src;
   const offset = src.indexOf(body);
-  const spans = findNameSpans(body, entries, opts?.targetLang).map((span) => ({
+  const spans = findNameSpans(body, entries2, opts?.targetLang).map((span) => ({
     ...span,
     start: span.start + Math.max(0, offset),
     end: span.end + Math.max(0, offset)
@@ -46253,26 +46946,27 @@ function stitchLockedNamePlan(src, plan, gapZh) {
 
 // services/translate/observations/spool.ts
 init_paths();
-import { randomUUID as randomUUID5 } from "node:crypto";
-import fs30 from "node:fs";
-import path26 from "node:path";
-var observationSpoolDirectory = () => path26.join(DATA_DIR, "translation-observations", "pending");
+import { randomUUID as randomUUID6 } from "node:crypto";
+import fs31 from "node:fs";
+import path29 from "node:path";
+var observationSpoolDirectory = () => path29.join(DATA_DIR, "translation-observations", "pending");
 function spoolTranslationObservations(events, directory = observationSpoolDirectory()) {
   if (!events.length) return;
-  fs30.mkdirSync(directory, { recursive: true });
-  const file = path26.join(directory, `${Date.now()}-${randomUUID5()}.jsonl`);
+  fs31.mkdirSync(directory, { recursive: true });
+  const file = path29.join(directory, `${Date.now()}-${randomUUID6()}.jsonl`);
   const partial = `${file}.partial`;
-  const fd = fs30.openSync(partial, "wx", 384);
+  const fd = fs31.openSync(partial, "wx", 384);
   try {
-    fs30.writeFileSync(fd, events.map((event) => JSON.stringify(event)).join("\n") + "\n");
-    fs30.fsyncSync(fd);
+    fs31.writeFileSync(fd, events.map((event) => JSON.stringify(event)).join("\n") + "\n");
+    fs31.fsyncSync(fd);
   } finally {
-    fs30.closeSync(fd);
+    fs31.closeSync(fd);
   }
-  fs30.renameSync(partial, file);
+  fs31.renameSync(partial, file);
 }
 
 // services/translate/ollama-translate.ts
+init_operation();
 var OLLAMA_HOST = process.env.OLLAMA_HOST || DEFAULT_OLLAMA_HOST;
 var OLLAMA_MODEL = process.env.OLLAMA_MODEL || DEFAULT_OLLAMA_MODEL;
 async function ollamaChat(system, user, temperature, think, options) {
@@ -46294,7 +46988,13 @@ async function ollamaChat(system, user, temperature, think, options) {
         signal
       });
     },
-    { interactive: options?.interactive, concurrency: options?.concurrency, lane: options?.lane, signal: options?.signal }
+    {
+      interactive: options?.interactive,
+      concurrency: options?.concurrency,
+      lane: options?.lane,
+      signal: options?.signal,
+      startTiming: (meta) => startOperation("translate", "agent.inference", { ...meta, model: options?.model || OLLAMA_MODEL, sourceChars: Array.from(user).length })
+    }
   );
 }
 function sameText(a, b) {
@@ -46327,10 +47027,14 @@ ${q}`, temperature: 0.35, think: true }
   return last;
 }
 
-// services/translate/scheduler/engine-capacity.ts
-function engineCapacity(engine) {
-  return engineConfiguredCapacity(engine);
+// services/translate/runtime-log.ts
+init_operation();
+function logTranslationEvent(level, message, meta) {
+  runtimeEvent(level, "translate", message, meta, true);
 }
+
+// services/translate/scheduler/engine-capacity.ts
+init_operation();
 function engineConfiguredCapacity(engine, customSettings) {
   if (customSettings?.allowConcurrency === false) return 1;
   if (typeof customSettings?.concurrencyLimit === "number" && customSettings.concurrencyLimit > 0) {
@@ -46347,22 +47051,17 @@ function requestChars(settings) {
   return typeof chars === "number" && Number.isFinite(chars) && chars > 0 ? Math.floor(chars) : 1;
 }
 function canDispatch(lane, engine, waiter) {
-  if (lane.active >= engineConfiguredCapacity(engine, waiter.settings)) return false;
-  const maxChars = waiter.settings?.maxConcurrentChars;
-  if (typeof maxChars === "number" && maxChars > 0 && lane.active > 0) {
-    const isAgent = engine !== "ollama" && engineGroup(engine) === "agent";
-    const concurrency = waiter.settings?.concurrencyLimit || 1;
-    const maxLaneChars = isAgent ? maxChars * concurrency : maxChars;
-    if (lane.activeChars + waiter.chars > maxLaneChars) return false;
-  }
-  return true;
+  return lane.active < engineConfiguredCapacity(engine, waiter.settings);
 }
 function withEngineCapacity(engine, identity, work, signal, customSettings) {
   const lane = lanes.get(identity) || { active: 0, activeChars: 0, queue: /* @__PURE__ */ new Set() };
   lanes.set(identity, lane);
   const chars = requestChars(customSettings);
+  const timing = startOperation("translate", "engine.capacity", { engine, lane: identity, sourceChars: chars, queued: lane.queue.size }, { start: false });
   return new Promise((resolve3, reject) => {
     let started = false;
+    let queueMs = 0;
+    let executing = 0;
     const clear = () => signal?.removeEventListener("abort", waiter.cancel);
     const pump = () => {
       while (lane.queue.size) {
@@ -46379,6 +47078,7 @@ function withEngineCapacity(engine, identity, work, signal, customSettings) {
         if (started) return;
         lane.queue.delete(waiter);
         clear();
+        timing.end("cancelled", { phase: "queued", queueMs: timing.elapsedMs(), executeMs: 0 });
         reject(signal?.reason || new Error("Translation request cancelled"));
         pump();
       },
@@ -46386,6 +47086,7 @@ function withEngineCapacity(engine, identity, work, signal, customSettings) {
         lane.queue.delete(waiter);
         clear();
         if (signal?.aborted) {
+          timing.end("cancelled", { phase: "before-execution", queueMs: timing.elapsedMs(), executeMs: 0 });
           reject(signal.reason);
           return;
         }
@@ -46394,8 +47095,21 @@ function withEngineCapacity(engine, identity, work, signal, customSettings) {
         lane.activeChars += chars;
         void Promise.resolve().then(() => {
           signal?.throwIfAborted();
-          return work();
-        }).then(resolve3, reject).finally(() => {
+          queueMs = timing.elapsedMs();
+          executing = performance.now();
+          return timing.run(work);
+        }).then(
+          (value) => {
+            timing.end(signal?.aborted ? "cancelled" : "completed", { queueMs, executeMs: Math.round((performance.now() - executing) * 10) / 10 });
+            resolve3(value);
+          },
+          (error) => {
+            const details = { queueMs: executing ? queueMs : timing.elapsedMs(), executeMs: executing ? Math.round((performance.now() - executing) * 10) / 10 : 0 };
+            if (signal?.aborted) timing.end("cancelled", details);
+            else timing.fail(error, details);
+            reject(error);
+          }
+        ).finally(() => {
           lane.active--;
           lane.activeChars = Math.max(0, lane.activeChars - chars);
           pump();
@@ -46468,14 +47182,81 @@ function joinTranslationRequest(key3, work, signal, onJoin) {
 // services/translate/live-translate.ts
 init_sensitive_text();
 init_shared_cache();
+
+// services/translate/shared-cache/batch-writes.ts
+init_operation();
+var writers = /* @__PURE__ */ new WeakMap();
+function writeTranslationBatch(store2, pairs, engine, opts, contentRoot) {
+  const batches = writers.get(store2) ?? /* @__PURE__ */ new Map();
+  writers.set(store2, batches);
+  const key3 = JSON.stringify([engine, opts.from, opts.to, opts.category, contentRoot]);
+  const flush = () => {
+    const batch = batches.get(key3);
+    if (!batch) return;
+    batches.delete(key3);
+    clearTimeout(batch.timer);
+    const started = performance.now();
+    const queueMs = batch.timing.elapsedMs();
+    try {
+      const submitted = batch.items.flatMap((item) => item.pairs);
+      const result = batch.timing.run(() => {
+        const written = store2.writeMany(submitted, engine, opts);
+        if (contentRoot && written.records.length) store2.queueBackfill(contentRoot, written.records);
+        return written;
+      });
+      for (const item of batch.items) {
+        const sources2 = new Set(item.pairs.map(([src]) => src));
+        item.resolve({
+          accepted: result.accepted.filter(([src]) => sources2.has(src)),
+          records: result.records.filter((record) => sources2.has(record.src)),
+          rejected: result.rejected.filter((record) => sources2.has(record.src))
+        });
+      }
+      batch.timing.end("completed", {
+        engine,
+        resultItems: batch.items.length,
+        pairs: submitted.length,
+        sourceChars: submitted.reduce((sum2, [src]) => sum2 + Array.from(src).length, 0),
+        accepted: result.accepted.length,
+        rejected: result.rejected.length,
+        queueMs,
+        writeMs: Math.round((performance.now() - started) * 10) / 10
+      });
+    } catch (error) {
+      batch.timing.fail(error, { queueMs, writeMs: Math.round((performance.now() - started) * 10) / 10 });
+      for (const item of batch.items) item.reject(error);
+    }
+  };
+  if (pairs.some(([src]) => batches.get(key3)?.sources.has(src))) flush();
+  return new Promise((resolve3, reject) => {
+    let batch = batches.get(key3);
+    if (!batch) {
+      batch = { items: [], sources: /* @__PURE__ */ new Set(), timer: setTimeout(flush, 20), timing: startOperation("translate", "translation.results.persist", { engine }, { start: false }) };
+      batches.set(key3, batch);
+    }
+    batch.items.push({ pairs, resolve: resolve3, reject });
+    for (const [src] of pairs) batch.sources.add(src);
+    if (batch.sources.size >= 64) flush();
+  });
+}
+
+// services/translate/live-translate.ts
 init_text_classify();
 var MAX_BATCH = 40;
 async function googleTranslateText(text4, pair, signal) {
   const q = String(text4 ?? "");
   if (!q.trim()) return q;
-  return requestGoogle(fetch, q, signal || AbortSignal.timeout(3e4), pair);
+  return measureOperation(
+    "translate",
+    "platform.request",
+    { engine: "google", sourceChars: Array.from(q).length, ...pair },
+    () => requestGoogle(fetch, q, signal || AbortSignal.timeout(3e4), pair)
+  );
 }
 async function bingTranslateText(text4, pair) {
+  return measureOperation("translate", "platform.request", { engine: "bing", sourceChars: Array.from(text4).length, ...pair }, () => bingTranslateOnce(text4, pair));
+}
+async function bingTranslateOnce(text4, pair) {
   const pkg = ["bing", "translate", "api"].join("-");
   let translate;
   try {
@@ -46505,7 +47286,7 @@ async function bingTranslateText(text4, pair) {
 async function translateWithEngine(engine, text4, options, agents, pair) {
   if (engine === "google") return googleTranslateText(text4, pair, options?.signal);
   if (engine === "bing") return bingTranslateText(text4, pair);
-  if (engine === "apple") return appleTranslate(text4, { source: pair?.from, target: pair?.to, ...options?.signal ? { signal: options.signal } : {} });
+  if (engine === "apple") return appleTranslate(text4, { source: pair?.from, target: pair?.to, onTrace: options?.onTrace, ...options?.signal ? { signal: options.signal } : {} });
   if (engine === "bergamot") return bergamotTranslate(text4, { source: pair?.from, target: pair?.to });
   if (engine === "ollama") return ollamaJaToZh(text4, options);
   const entry = findAgentEntry(agents, engine);
@@ -46541,7 +47322,22 @@ async function liveTranslateTexts(texts, opts) {
     return trackLiveTranslateRequest(() => liveTranslateTexts(texts, { ...opts, trackLiveActivity: false }));
   }
   const started = performance.now();
-  const trace = opts?.onTrace;
+  const requestId = randomUUID7();
+  const trace = (message) => {
+    const submitted = /^(Agent|Apple) request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message);
+    if (submitted) {
+      logTranslationEvent("info", message, {
+        requestId,
+        contentRoot: opts?.contentRoot,
+        engine: submitted[1] === "Apple" ? "apple" : "agent",
+        items: Number(submitted[2]),
+        sourceChars: Number(submitted[3])
+      });
+    } else if (!/engine (requested|returned|failed):/.test(message)) {
+      logTranslationEvent("debug", message, { requestId, contentRoot: opts?.contentRoot });
+    }
+    opts?.onTrace?.(message);
+  };
   const timed = (action, work) => {
     const begin = performance.now();
     try {
@@ -46559,11 +47355,11 @@ async function liveTranslateTexts(texts, opts) {
     }
   };
   const unique = [];
-  const seen = /* @__PURE__ */ new Set();
+  const seen2 = /* @__PURE__ */ new Set();
   for (const raw of texts) {
     const src = String(raw ?? "");
-    if (!src || seen.has(src)) continue;
-    seen.add(src);
+    if (!src || seen2.has(src)) continue;
+    seen2.add(src);
     unique.push(src);
     if (unique.length >= MAX_BATCH) break;
   }
@@ -46645,6 +47441,7 @@ async function liveTranslateTexts(texts, opts) {
           const parentSignal = opts?.local?.signal;
           const itemSignal = opts?.itemTimeoutMs ? AbortSignal.any([AbortSignal.timeout(opts.itemTimeoutMs), ...parentSignal ? [parentSignal] : []]) : parentSignal;
           let engineWork = false;
+          let exactBackfillQueued = false;
           const onEngineDispatch = (engine) => {
             engineWork = true;
             opts?.onEngineDispatch?.(engine);
@@ -46808,10 +47605,9 @@ async function liveTranslateTexts(texts, opts) {
                   const written = timed(`Item ${itemId} name-lock write`, () => getCache().writeMany([[src, zh]], tag, { ...pairFor(src), category: opts?.category }));
                   opts?.onCacheWrite?.(written.records, [...sources2]);
                   if (contentRoot && chineseTarget) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records));
+                  exactBackfillQueued = written.records.some((record) => record.src === src);
                   if (written.rejected.length) {
-                    const current = lookupCached2(src);
-                    if (current) return { src, zh: current.zh, engine: current.engine, status: "full" };
-                    return { src, zh: null, error: "Translation result rejected by current authority; review conflicting cache entries" };
+                    return { src, zh: null, error: "Translation result did not pass storage validation" };
                   }
                 }
                 items2.push({ src, zh, engine: tag, resultSources: [...sources2], status: "full" });
@@ -46853,6 +47649,15 @@ async function liveTranslateTexts(texts, opts) {
                           trace?.(
                             `Item ${itemId} engine requested: engine=${engine}, sourceChars=${sourceChars}, from=${langPair.from}, to=${langPair.to}, pipelineElapsedMs=${Math.round(performance.now() - started)}`
                           );
+                          logTranslationEvent("info", "Translation engine requested", {
+                            requestId,
+                            itemId,
+                            engine,
+                            contentRoot,
+                            sourceChars,
+                            ...langPair,
+                            pipelineElapsedMs: Math.round(performance.now() - started)
+                          });
                           return translateWithEngine(
                             engine,
                             sendText,
@@ -46879,40 +47684,37 @@ async function liveTranslateTexts(texts, opts) {
                     if (!isUsefulTranslation(src, sendText, rawZh, zh, opts?.targetLang)) {
                       throw new Error("No valid translation returned");
                     }
+                    logTranslationEvent("ok", "Translation engine completed", {
+                      requestId,
+                      itemId,
+                      engine,
+                      contentRoot,
+                      sourceChars,
+                      ...langPair,
+                      elapsedMs: Math.round(performance.now() - engineStarted)
+                    });
                     winner = { engine, rawZh, zhCore, zh };
                     break;
                   } catch (error) {
-                    trace?.(`Item ${itemId} engine failed: engine=${engine}, elapsedMs=${Math.round(performance.now() - engineStarted)}`);
+                    const interrupted = parentSignal?.aborted;
+                    logTranslationEvent(interrupted ? "info" : "warn", interrupted ? "Translation engine interrupted" : "Translation engine failed", {
+                      requestId,
+                      itemId,
+                      engine,
+                      contentRoot,
+                      sourceChars: Array.from(sendText).length,
+                      ...langPair,
+                      elapsedMs: Math.round(performance.now() - engineStarted),
+                      error: error instanceof Error ? error.message : String(error)
+                    });
+                    trace?.(
+                      `Item ${itemId} engine failed: engine=${engine}, elapsedMs=${Math.round(performance.now() - engineStarted)}, error=${error instanceof Error ? error.message : String(error)}`
+                    );
                     parentSignal?.throwIfAborted();
                     errors.push(new Error(`${engine}: [${langPair.from} -> ${langPair.to}] ${error instanceof Error ? error.message : String(error)}`));
                   }
                 }
                 if (!winner) throw new AggregateError(errors, "All translation engines failed");
-                const currentAuthority = () => {
-                  const currentContext = contentRoot && chineseTarget ? getGameCacheContext(contentRoot) : null;
-                  if (currentContext?.blocked(src)) return null;
-                  const local = currentContext?.lookup;
-                  const pair = resolveCacheLangPair({ ...langPair, src });
-                  const categoryHint = opts?.category;
-                  const used = /* @__PURE__ */ new Map();
-                  const hit = lookupGameTranslation(
-                    (key3) => local?.[key3],
-                    (key3) => {
-                      const value = getCache().get(key3, { ...pair, category: categoryHint });
-                      const record = value != null ? getCache().authority(key3, pair, { category: categoryHint }) : null;
-                      if (record) used.set(record.id, record);
-                      return value;
-                    },
-                    src,
-                    { resources: false }
-                  );
-                  if (hit && bypassCache && contentRoot && persist2 && used.size) getCache().queueBackfill(contentRoot, [...used.values()]);
-                  return hit;
-                };
-                if (bypassCache) {
-                  const current = timed(`Item ${itemId} authority checked`, currentAuthority);
-                  if (current) return { src, zh: current.zh, engine: current.engine, status: "full" };
-                }
                 const source = engineSourceTag(winner.engine, agents);
                 const tag = sensitive ? `live:${source}:nsfw` : `live:${source}`;
                 const pairs = [];
@@ -46933,13 +47735,16 @@ async function liveTranslateTexts(texts, opts) {
                   pushPair(labelKey, winner.zhCore);
                 }
                 if (pairs.length && persist2) {
-                  const written = timed(`Item ${itemId} shared cache write`, () => getCache().writeMany(pairs, tag, { ...pairFor(src), category: opts?.category }));
+                  const writeOpts = { ...pairFor(src), category: opts?.category };
+                  const backfillRoot = contentRoot && chineseTarget ? contentRoot : void 0;
+                  const writeStarted = performance.now();
+                  const written = opts?.sharedCache ? await writeTranslationBatch(getCache(), pairs, tag, writeOpts, backfillRoot) : timed(`Item ${itemId} shared cache write`, () => getCache().writeMany(pairs, tag, writeOpts));
+                  if (opts?.sharedCache) trace?.(`Item ${itemId} shared cache batch write: elapsedMs=${Math.round(performance.now() - writeStarted)}`);
                   opts?.onCacheWrite?.(written.records, [tag]);
-                  if (contentRoot && chineseTarget) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records));
+                  if (!opts?.sharedCache && backfillRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(backfillRoot, written.records));
+                  exactBackfillQueued = written.records.some((record) => record.src === src);
                   if (written.rejected.length) {
-                    const current = currentAuthority();
-                    if (current) return { src, zh: current.zh, engine: current.engine, status: "full" };
-                    return { src, zh: null, error: "Translation result rejected by current authority; review conflicting cache entries" };
+                    return { src, zh: null, error: "Translation result did not pass storage validation" };
                   }
                 }
                 items2.push({ src, zh: winner.zh, engine: tag });
@@ -46956,13 +47761,13 @@ async function liveTranslateTexts(texts, opts) {
             item = { src, zh: null, error: "Translation item deadline exceeded; saved results are retained" };
           }
           item = { ...item, resultSources: resultSources(item), engineWork };
-          if (persist2 && contentRoot && chineseTarget && item.zh != null && !item.error && item.status !== "partial") {
+          if (persist2 && contentRoot && chineseTarget && !exactBackfillQueued && item.zh != null && !item.error && item.status !== "partial") {
             getCache().queueGameProjections(contentRoot, [{ src, pair: pairFor(src) }]);
           }
           if (persist2 && item.error) {
             const pair = pairFor(src);
             observations.push({
-              eventId: randomUUID6(),
+              eventId: randomUUID7(),
               occurredAt: Date.now(),
               sourceText: src,
               targetText: item.zh,
@@ -47010,7 +47815,7 @@ async function liveTranslateTexts(texts, opts) {
 // services/translate/scheduler/seed-inventory.ts
 init_paths();
 init_content_files();
-import fs35 from "node:fs";
+import fs36 from "node:fs";
 import { DatabaseSync as DatabaseSync7 } from "node:sqlite";
 init_game_cache_context();
 init_game_records();
@@ -47018,19 +47823,19 @@ init_text_classify();
 init_content_files();
 function seedFileStamp(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
-  const stat = file ? fs35.statSync(file, { throwIfNoEntry: false }) : void 0;
+  const stat = file ? fs36.statSync(file, { throwIfNoEntry: false }) : void 0;
   return JSON.stringify([file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
 }
 function readSeedInventory(contentRoot) {
   const stamp = seedFileStamp(contentRoot);
   const progressStamp = seedProgressStamp(contentRoot);
   const file = localGameContentFile(contentRoot, "seed");
-  const data = file ? JSON.parse(fs35.readFileSync(file, "utf8")) : {};
+  const data = file ? JSON.parse(fs36.readFileSync(file, "utf8")) : {};
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Seed must be an object mapping source text to translation");
-  const entries = data;
+  const entries2 = data;
   const keys = filterRgssSeedKeys(
     contentRoot,
-    Object.keys(entries).filter((key3) => key3.trim())
+    Object.keys(entries2).filter((key3) => key3.trim())
   );
   const progress = {
     contentRoot,
@@ -47062,7 +47867,7 @@ function readSeedInventory(contentRoot) {
         if (!revisions.has(key3)) {
           try {
             if (!client) {
-              if (!fs35.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
+              if (!fs36.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
               client = new DatabaseSync7(TRANSLATE_CACHE_DB_PATH, { readOnly: true });
               client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250; BEGIN");
               revisionQuery = client.prepare("SELECT revision FROM translation_records WHERE id=?");
@@ -47119,7 +47924,7 @@ function seedProgressStamp(contentRoot) {
   return JSON.stringify([
     7,
     files2.map((file) => {
-      const stat = file ? fs35.statSync(file, { throwIfNoEntry: false }) : void 0;
+      const stat = file ? fs36.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   ]);
@@ -47128,12 +47933,12 @@ function seedProgressStamp(contentRoot) {
 // services/translate/scheduler/seed-prepare.ts
 init_paths();
 init_jobs();
-import fs36 from "node:fs";
-import path30 from "node:path";
+import fs37 from "node:fs";
+import path33 from "node:path";
 var flights2 = /* @__PURE__ */ new Map();
 var cache = /* @__PURE__ */ new Map();
 function keyFor(contentRoot) {
-  return path30.resolve(contentRoot);
+  return path33.resolve(contentRoot);
 }
 function peekSeedInventory(contentRoot) {
   return cache.get(keyFor(contentRoot)) ?? null;
@@ -47148,9 +47953,9 @@ async function runSeedInventoryWorker(contentRoot) {
     missingError: "SEED_INVENTORY_WORKER_MISSING"
   });
   try {
-    return JSON.parse(fs36.readFileSync(out, "utf8"));
+    return JSON.parse(fs37.readFileSync(out, "utf8"));
   } finally {
-    fs36.unlink(out, () => {
+    fs37.unlink(out, () => {
     });
   }
 }
@@ -47180,7 +47985,7 @@ function prepareSeedInventory(contentRoot) {
 
 // services/translate/scheduler/seed-session.ts
 init_cache_lang();
-import { randomUUID as randomUUID7 } from "node:crypto";
+import { randomUUID as randomUUID8 } from "node:crypto";
 init_game_cache_context();
 init_game_records();
 init_sensitive_text();
@@ -47189,6 +47994,7 @@ init_text_classify();
 
 // services/translate/scheduler/cache-lane.ts
 init_paths();
+init_operation();
 init_db2();
 import { existsSync as existsSync2, statSync as statSync2 } from "node:fs";
 import { Worker as Worker3 } from "node:worker_threads";
@@ -47247,6 +48053,11 @@ function startCacheLane(options) {
     arm();
     own.on("message", (message) => {
       if (closed || own !== worker2) return;
+      if (message.type === "translation-log") {
+        const { level, source, message: text4, meta, ts } = message.entry;
+        runtimeEvent(level, source, text4, meta, false, ts);
+        return;
+      }
       try {
         const lease = String(message.leaseId || "");
         const batchId = Number(message.batchId) || 0;
@@ -47359,10 +48170,10 @@ function startCacheLane(options) {
 // services/translate/scheduler/owned-stamps.ts
 function followsOwnedStampChain(from, to, transitions) {
   let current = from;
-  const seen = /* @__PURE__ */ new Set();
+  const seen2 = /* @__PURE__ */ new Set();
   while (current !== to) {
-    if (seen.has(current)) return false;
-    seen.add(current);
+    if (seen2.has(current)) return false;
+    seen2.add(current);
     const next = transitions.get(current);
     if (!next) return false;
     current = next;
@@ -47403,8 +48214,8 @@ function createResultWindow(limit, onItem) {
   };
 }
 async function collectResultWindow(completed, options) {
-  const window = createResultWindow(options.limit, options.onItem);
-  const { selected } = window;
+  const window2 = createResultWindow(options.limit, options.onItem);
+  const { selected } = window2;
   const elapsed = performance.now();
   let drainingSince;
   let drainTimer;
@@ -47416,17 +48227,17 @@ async function collectResultWindow(completed, options) {
   try {
     while (true) {
       const prevCount = selected.length;
-      window.take(completed);
+      window2.take(completed);
       options.wake();
       options.pump();
-      window.take(completed);
+      window2.take(completed);
       if (selected.length > prevCount && drainingSince != null) {
         drainingSince = performance.now();
         resetDrainTimer();
       }
       const queuedEngineResult = completed.some((entry) => !isCacheExecution(entry.item));
       const exhausted = options.cacheWorkExhausted();
-      if (exhausted && window.cacheOnly() && selected.length > 0) {
+      if (exhausted && window2.cacheOnly() && selected.length > 0) {
         if (drainingSince == null) {
           drainingSince = performance.now();
           resetDrainTimer();
@@ -47436,9 +48247,9 @@ async function collectResultWindow(completed, options) {
         if (drainTimer) clearTimeout(drainTimer);
         drainTimer = void 0;
       }
-      const drainingExpired = selected.length > 0 && window.cacheOnly() && exhausted && drainingSince != null && performance.now() - drainingSince >= 250;
-      const reason = window.full() ? "capacity" : !window.cacheOnly() || selected.length >= options.limit && queuedEngineResult ? "engine-result" : options.terminal() ? "finished" : selected.length > 0 && options.flush() ? "interrupted" : drainingExpired ? "cache-drained" : selected.length > 0 && performance.now() - elapsed >= 5e3 ? "timeout" : void 0;
-      if (reason) return { ...window, reason };
+      const drainingExpired = selected.length > 0 && window2.cacheOnly() && exhausted && drainingSince != null && performance.now() - drainingSince >= 250;
+      const reason = window2.full() ? "capacity" : !window2.cacheOnly() || selected.length >= options.limit && queuedEngineResult ? "engine-result" : options.terminal() ? "finished" : selected.length > 0 && options.flush() ? "interrupted" : drainingExpired ? "cache-drained" : selected.length > 0 && performance.now() - elapsed >= 5e3 ? "timeout" : void 0;
+      if (reason) return { ...window2, reason };
       await options.wait();
     }
   } finally {
@@ -47466,7 +48277,13 @@ var WAIT_CACHE = 5;
 var RECHECK = 6;
 function takeSeedEngineTask(engine, queue3) {
   const { states, misses, retries, deferred, cursors, canFit, sensitive, inCacheWindow } = queue3;
-  for (let i = 0; retries.size < queue3.maxPending && i < misses.length; ) {
+  let pending = retries.size;
+  if (pending >= queue3.maxPending) {
+    for (const [id, attempt] of retries) {
+      if (states[id] === RUNNING && attempt.order[attempt.next] !== engine) pending--;
+    }
+  }
+  for (let i = 0; pending < queue3.maxPending && i < misses.length; ) {
     const id = misses[i];
     if (states[id] !== MISS || retries.has(id)) {
       misses.splice(i, 1);
@@ -47485,7 +48302,7 @@ function takeSeedEngineTask(engine, queue3) {
   }
   const delayed = deferred.get(engine) || /* @__PURE__ */ new Set();
   deferred.set(engine, delayed);
-  if (retries.size < queue3.maxPending) {
+  if (pending < queue3.maxPending) {
     for (const id of delayed) {
       if (queue3.excluded(id)) {
         queue3.exclude(id);
@@ -47508,7 +48325,11 @@ function takeSeedEngineTask(engine, queue3) {
       const id = cursor++;
       cursors.set(engine, cursor);
       if (states[id] === UNKNOWN) {
-        if (inCacheWindow(id) || !queue3.canClaimUnknown()) continue;
+        if (inCacheWindow(id)) continue;
+        if (!queue3.canClaimUnknown()) {
+          cursors.set(engine, id);
+          break;
+        }
       } else if (states[id] !== MISS || retries.has(id)) continue;
       if (queue3.excluded(id)) {
         queue3.exclude(id);
@@ -47559,6 +48380,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   let options = {};
   let engines = [];
   let agents = [];
+  let configs;
   let store2;
   let cacheLane;
   let resolveWait;
@@ -47817,9 +48639,9 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   }
   function canFit(id, engine) {
     const budget = seedEngineBudget(engine, agents);
-    const entries = [...loads].filter(([key3]) => budget ? key3 === engine : !key3.startsWith("agent:"));
-    if (!entries.some(([, load]) => load.items)) return true;
-    const chars = entries.reduce((sum2, [, load]) => sum2 + load.chars, 0);
+    const entries2 = [...loads].filter(([key3]) => budget ? key3 === engine : !key3.startsWith("agent:"));
+    if (!entries2.some(([, load]) => load.items)) return true;
+    const chars = entries2.reduce((sum2, [, load]) => sum2 + load.chars, 0);
     return chars + charCount(inventory.pending[id]) <= (budget?.chars ?? options.maxChars ?? 3e3);
   }
   const batchScope = {
@@ -47950,7 +48772,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         const ordinary = [...loads].filter(([key3]) => !key3.startsWith("agent:")).reduce((sum2, [, load]) => sum2 + load.items, 0);
         if (!budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue;
         const count2 = loads.get(engine)?.items || 0;
-        if (count2 >= (budget?.items ?? engineCapacity(engine))) continue;
+        if (count2 >= (budget?.items ?? engineConfiguredCapacity(engine, resolveEngineCapacitySettings(engine, configs, agents)))) continue;
         const id = nextTask(engine);
         if (id === void 0) continue;
         dispatch(id, engine);
@@ -48037,7 +48859,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     paused = false;
     if (started) return;
     started = true;
-    if (!leaseId) leaseId = randomUUID7();
+    if (!leaseId) leaseId = randomUUID8();
     for (let id = 0; id < states.length; id++) {
       if (states[id] === RECHECK && !recheckQueue.includes(id)) recheckQueue.push(id);
     }
@@ -48152,6 +48974,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       const switches = getTranslateEngineSwitches(contentRoot);
       engines = switches.enabled;
       agents = switches.agents || [];
+      configs = switches.configs;
       for (const [id, entry] of active2)
         if (!engines.includes(entry.engine)) {
           const attempt = retries.get(id);
@@ -48169,7 +48992,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       options = opts2;
       progress.batchSize = cap();
       start();
-      const window = await collectResultWindow(completed, {
+      const window2 = await collectResultWindow(completed, {
         limit: cap(),
         onItem: opts2.onItem,
         wake: () => cacheLane?.wake(),
@@ -48185,7 +49008,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
           resolveWait = void 0;
         }
       });
-      const { selected } = window;
+      const { selected } = window2;
       const items = selected.map((entry) => entry.item);
       const unresolved = items.filter((item) => item.zh == null || item.error || item.status === "partial").map((item) => item.src);
       flushBackfill();
@@ -48205,8 +49028,8 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         failed: unresolved.length,
         unresolved,
         items,
-        cacheOnly: window.cacheOnly(),
-        windowReason: window.reason,
+        cacheOnly: window2.cacheOnly(),
+        windowReason: window2.reason,
         submittedEngines: submitted,
         cacheUnavailable: unavailable,
         performance: {
@@ -48225,8 +49048,8 @@ var DEFAULT_BATCH = 40;
 var scans = /* @__PURE__ */ new Map();
 function loadSeedKeys(contentRoot) {
   const file = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
-  if (!file || !fs37.existsSync(file)) return [];
-  const raw = JSON.parse(fs37.readFileSync(file, "utf8"));
+  if (!file || !fs38.existsSync(file)) return [];
+  const raw = JSON.parse(fs38.readFileSync(file, "utf8"));
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("seed must be an object mapping source text to translation");
   return filterRgssSeedKeys(
     contentRoot,
@@ -48235,10 +49058,10 @@ function loadSeedKeys(contentRoot) {
 }
 function seedCoverage(contentRoot, keys, cache2, trace) {
   const started = performance.now();
-  const context = getGameCacheContext(contentRoot);
-  const local = context.lookup;
-  const records2 = context.records;
-  const resolver = context.resolver;
+  const context2 = getGameCacheContext(contentRoot);
+  const local = context2.lookup;
+  const records2 = context2.records;
+  const resolver = context2.resolver;
   trace?.(`Coverage game indexes loaded: records=${records2.length}, elapsedMs=${Math.round(performance.now() - started)}`);
   const plansStarted = performance.now();
   const hits = /* @__PURE__ */ new Map();
@@ -48251,7 +49074,7 @@ function seedCoverage(contentRoot, keys, cache2, trace) {
     const numericKey = JSON.stringify([from, family]);
     if (family && !numeric2.has(numericKey)) {
       const shared = cache2.numericRecords({ from, to: "zh" }, key3);
-      numeric2.set(numericKey, shared.limited ? null : createNumericLabelIndex([...shared, ...context.numericRecords(key3)]));
+      numeric2.set(numericKey, shared.limited ? null : createNumericLabelIndex([...shared, ...context2.numericRecords(key3)]));
     }
     const hit = plan.zh ?? numeric2.get(numericKey)?.resolve(key3) ?? (/\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(key3) ? lookupCachedTranslation((k) => local[k] ?? cache2.get(k, { from: detectCacheLang(key3), to: "zh" }), key3) : null);
     if (hit != null) hits.set(key3, hit);
@@ -48268,11 +49091,11 @@ function scanSeed(contentRoot, fresh = false, repair = false) {
       cache2.path,
       cache2.version(),
       keys,
-      fs37.statSync(seedFailureFile(contentRoot), { throwIfNoEntry: false })?.mtimeMs,
+      fs38.statSync(seedFailureFile(contentRoot), { throwIfNoEntry: false })?.mtimeMs,
       [...readSeedFailures(contentRoot).keys()],
       ...["seed", "cacheNdjson"].map((kind) => {
         const file = gameContentReadPath(contentRoot, kind, { alsoParent: true });
-        const stat = file ? fs37.statSync(file, { throwIfNoEntry: false }) : void 0;
+        const stat = file ? fs38.statSync(file, { throwIfNoEntry: false }) : void 0;
         return [file, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
       })
     ]);
@@ -48341,7 +49164,7 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
   let cursor = 0;
   function seedStamp() {
     const file = localGameContentFile(contentRoot, "seed");
-    const stat = file ? fs37.statSync(file, { throwIfNoEntry: false }) : void 0;
+    const stat = file ? fs38.statSync(file, { throwIfNoEntry: false }) : void 0;
     return JSON.stringify([file, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
   }
   let stamp = seedStamp();
@@ -48549,12 +49372,13 @@ function getRuntime(contentRoot) {
 function peekHasSeed(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
   if (!file) return false;
-  const stat = fs38.statSync(file, { throwIfNoEntry: false });
+  const stat = fs39.statSync(file, { throwIfNoEntry: false });
   return !!stat && stat.size > 2;
 }
 function pushLog(rt, level, text4, metadata) {
   rt.logSeq += 1;
   rt.state.logs = [...rt.state.logs, { id: rt.logSeq, at: Date.now(), level, text: text4, ...metadata }].slice(-MAX_SEED_JOB_LOGS);
+  if (!metadata?.request) logTranslationEvent(level, text4, { contentRoot: rt.state.contentRoot, ...metadata });
 }
 function shortEngine(name2) {
   const raw = name2.trim().replace(/^live:/, "");
@@ -48595,8 +49419,9 @@ async function runLoop(contentRoot) {
   const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4);
   const trace = (message) => {
     const previousLogSeq = rt.logSeq;
-    const request = /^Agent request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message);
-    if (request) pushLog(rt, "info", message, { request: { items: Number(request[1]), chars: Number(request[2]) } });
+    const request = /^(Agent|Apple) request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message);
+    if (request)
+      pushLog(rt, "info", message, { request: { items: Number(request[2]), chars: Number(request[3]), ...request[1] === "Apple" ? { engine: "apple" } : {} } });
     if (message.startsWith("Cache scan unavailable:")) {
       pushLog(
         rt,
@@ -48626,26 +49451,28 @@ async function runLoop(contentRoot) {
     rt.progress = rt.session.progress;
     let measuredAt = performance.now();
     while (!rt.stopRequested) {
-      rt.state.liveStatus = `\u6B63\u5728\u7FFB\u8BD1\u7B2C ${rt.state.rounds + 1} \u6BB5\u2026`;
+      rt.state.liveStatus = "\u6B63\u5728\u7FFB\u8BD1\u2026";
       persist(rt);
       let result;
       try {
         const started = performance.now();
         const slice = budget.current();
-        let completed = 0;
         let checkpointAt = 0;
         result = await rt.session.fill({
           ...slice,
           onTrace: trace,
           onItem: (item) => {
             if (rt.session) rt.progress = rt.session.progress;
+            if (rt.session?.processed != null) rt.state.sessionDone = initialSessionDone + rt.session.processed;
             if (item.zh && !item.error) {
-              rt.liveSamples = [...rt.liveSamples || [], { at: Date.now(), chars: charCount(item.src) }].slice(-120);
+              const now = Date.now();
+              rt.liveSamples = [...rt.liveSamples || [], { at: now, chars: charCount(item.src) }].slice(-120);
               const measured = rollingTranslationPerformance(rt.liveSamples, { cacheMs: rt.state.performance?.cacheMs ?? 0 });
-              rt.state.performance = smoothTranslationPerformance(rt.state.performance, measured);
+              const previous = freshTranslationPerformance(rt.state.performance, rt.state.performance?.measuredAt ?? 0, now);
+              const smoothed = smoothTranslationPerformance(previous, measured);
+              rt.state.performance = measured && smoothed ? { ...smoothed, measuredAt: now } : previous;
             }
-            completed++;
-            rt.state.liveStatus = `\u672C\u6279\u5DF2\u5904\u7406 ${completed} \u6761 \xB7 \u6210\u529F\u8BD1\u6587\u5DF2\u4FDD\u5B58`;
+            rt.state.liveStatus = `\u672C\u4F1A\u8BDD\u5DF2\u8BD1 ${rt.state.sessionDone} \u6761 \xB7 ${rt.stopRequested ? "\u6B63\u5728\u6682\u505C\u2026" : "\u6B63\u5728\u7FFB\u8BD1\u2026"}`;
             if (Date.now() - checkpointAt >= 250) {
               persist(rt);
               checkpointAt = Date.now();
@@ -48664,7 +49491,8 @@ async function runLoop(contentRoot) {
         if (result.scanned && result.performance) {
           rt.samples = [...rt.samples || [], { elapsedMs: sampleElapsedMs, ...result.performance }].slice(-8);
           const measured = rollingTranslationPerformance(rt.liveSamples || [], { cacheMs: result.performance.cacheMs }) ?? translationPerformance(rt.samples);
-          rt.state.performance = smoothTranslationPerformance(rt.state.performance, measured);
+          const smoothed = smoothTranslationPerformance(rt.state.performance, measured);
+          rt.state.performance = smoothed ? { ...smoothed, measuredAt: rt.liveSamples?.at(-1)?.at ?? Date.now() } : null;
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -48718,7 +49546,7 @@ async function runLoop(contentRoot) {
         persist(rt);
         return;
       }
-      rt.state.liveStatus = `\u7B2C ${rt.state.rounds} \u6BB5\u5B8C\u6210 \xB7 \u672C\u4F1A\u8BDD\u5DF2\u8BD1 ${rt.state.sessionDone} \u6761 \xB7 \u4ECD\u7F3A ${result.missing}`;
+      rt.state.liveStatus = `\u672C\u4F1A\u8BDD\u5DF2\u8BD1 ${rt.state.sessionDone} \u6761 \xB7 \u4ECD\u7F3A ${result.missing}`;
       persist(rt);
       if (rt.stopRequested) break;
       await new Promise((resolve3) => setTimeout(resolve3, 25));
@@ -48976,18 +49804,31 @@ function pauseSeedJob(opts) {
 }
 
 // services/translate/seed-job-worker.ts
-var port = parentPort;
+var port = parentPort2;
 if (!port) throw new Error("seed-job-worker: missing parent port");
 var post = (message) => port.postMessage(message);
 port.on("message", (request) => {
   if (!request || request.type !== "request") return;
-  try {
-    const opts = request.contentRoot ? { contentRoot: request.contentRoot } : void 0;
-    const snapshot = request.command === "refresh" ? refreshSeedJobProgress(opts) : request.command === "start" ? startSeedJob(opts) : request.command === "pause" ? pauseSeedJob(opts) : getSeedJobSnapshot(opts);
-    post({ type: "response", id: request.id, ok: true, snapshot });
-  } catch (error) {
-    post({ type: "response", id: request.id, ok: false, error: error instanceof Error ? error.message : String(error) });
-  }
+  const timing = startOperation("translate", "seed.worker.execute", { command: request.command, sentAt: request.sentAt }, { operationId: request.requestId, start: false });
+  const receivedAt = Date.now();
+  timing.run(() => {
+    try {
+      const opts = request.contentRoot ? { contentRoot: request.contentRoot } : void 0;
+      const snapshot = request.command === "refresh" ? refreshSeedJobProgress(opts) : request.command === "start" ? startSeedJob(opts) : request.command === "pause" ? pauseSeedJob(opts) : getSeedJobSnapshot(opts);
+      const executeMs = timing.elapsedMs();
+      post({ type: "response", id: request.id, ok: true, snapshot, timing: { executeMs, receivedAt, respondedAt: Date.now() } });
+      timing.end("completed", { executeMs });
+    } catch (error) {
+      post({
+        type: "response",
+        id: request.id,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+        timing: { executeMs: timing.elapsedMs(), receivedAt, respondedAt: Date.now() }
+      });
+      timing.fail(error);
+    }
+  });
 });
 post({ type: "ready", version: SEED_JOB_WORKER_VERSION });
 /*! Bundled license information:

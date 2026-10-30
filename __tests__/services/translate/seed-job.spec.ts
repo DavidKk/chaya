@@ -166,6 +166,8 @@ describe('seed job failures', () => {
 
     onTrace('Agent request submitted: items=196, sourceChars=2981')
     expect(readSeedJobState(mockRoot)!.logs.at(-1)).toMatchObject({ id: submitted.logs.at(-1)!.id + 1, request: { items: 196, chars: 2981 } })
+    onTrace('Apple request submitted: items=40, sourceChars=1200')
+    expect(readSeedJobState(mockRoot)!.logs.at(-1)).toMatchObject({ request: { engine: 'apple', items: 40, chars: 1200 } })
     onTrace('Cache scan unavailable: Worker timed out')
     expect(readSeedJobState(mockRoot)!.logs.at(-1)).toMatchObject({ level: 'warn', text: 'Cache scan failed: Worker timed out' })
     expect(mockFill).toHaveBeenCalledTimes(1)
@@ -314,6 +316,23 @@ describe('seed job failures', () => {
     expect(getSeedJobSnapshot().job).toMatchObject({ status: 'paused', performance: { charsPerSecond: 50, cacheMs: 5 } })
     jest.advanceTimersByTime(60_000)
     expect(getSeedJobSnapshot().job.performance?.charsPerSecond).toBe(50)
+  })
+
+  it('does not revive an expired rate when the first result after a stall arrives', async () => {
+    let finish!: (result: object) => void
+    mockFill.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
+    await startSeedJobReady()
+    const { onItem } = mockFill.mock.calls[0][0]
+    await jest.advanceTimersByTimeAsync(1000)
+    onItem({ src: 'Hello', zh: '你好' })
+    expect(getSeedJobSnapshot().job.performance?.charsPerSecond).toBeGreaterThan(0)
+
+    await jest.advanceTimersByTimeAsync(31_000)
+    onItem({ src: 'World', zh: '世界' })
+    expect(getSeedJobSnapshot().job.performance).toBeNull()
+
+    finish({ ...progress(), missing: 0, translated: 2, failed: 0, scanned: 2, unresolved: [], items: [] })
+    await jest.runAllTimersAsync()
   })
 
   it.each([false, true])('resamples speed after a one-day pause (reload persisted job: %s)', async (reload) => {

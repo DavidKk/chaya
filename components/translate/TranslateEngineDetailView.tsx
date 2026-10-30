@@ -1,6 +1,7 @@
 'use client'
 
-import { type ReactNode, useCallback, useState } from 'react'
+import { Fragment, type ReactNode, useCallback, useState } from 'react'
+import { LuArrowRight } from 'react-icons/lu'
 
 import { useUnsavedChanges } from '@/components/confirm/UnsavedChangesProvider'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
@@ -82,14 +83,16 @@ export function TranslateEngineDetailView({
   const hasSystemPair = Boolean(systemStatus?.source && systemStatus?.target)
   const gameSource = systemStatus?.source || 'ja'
   const gameTarget = systemStatus?.target || 'zh'
-  const isGamePairSupported = gameSource === 'en' && gameTarget === 'zh'
+  const isGamePairSupported = systemStatus?.status !== 'unsupported'
   const activePair = {
-    source: isGamePairSupported ? gameSource : 'en',
-    target: isGamePairSupported ? gameTarget : 'zh',
+    source: gameSource,
+    target: gameTarget,
   }
-  const [bergamotPlan, setBergamotPlan] = useState<PackPlan>()
+  const unsupportedPairMessage = t('translate.bergamotGamePairUnsupported', { gamePair: '{gamePair}' }).split('{gamePair}')
+  const [packPlan, setBergamotPlan] = useState<PackPlan>()
+  const bergamotPlan = packPlan?.source === gameSource && packPlan?.target === gameTarget ? packPlan : undefined
   const checking = group === 'system' && (systemStatus === undefined || systemStatus.status === 'checking')
-  const showingBergamotPackUi = Boolean(offlineGuide) || (engineId === 'bergamot' && hasSystemPair && systemStatus?.accessReason !== 'management_required')
+  const showingBergamotPackUi = Boolean(offlineGuide) || (engineId === 'bergamot' && systemStatus?.accessReason !== 'management_required')
 
   const offlineBadge = (() => {
     if (isBergamot && bergamotPlan) {
@@ -100,7 +103,7 @@ export function TranslateEngineDetailView({
         }
       }
       if (bergamotPlan.installed) return { tone: 'ok' as const, label: t('translate.tagReady') }
-      if (bergamotPlan.status === 'component_unavailable' || bergamotPlan.status === 'platform_unsupported') {
+      if (['component_unavailable', 'platform_unsupported', 'unsupported_pair', 'same_language'].includes(bergamotPlan.status)) {
         return { tone: 'fail' as const, label: t('debug.unsupported') }
       }
       return { tone: 'warn' as const, label: t('translate.tagNotReady') }
@@ -123,7 +126,7 @@ export function TranslateEngineDetailView({
   const recheckOffline = () => {
     if (engineId === 'bergamot') {
       setPackEpoch((n) => n + 1)
-      onCheckSystemStatus?.(activePair)
+      onCheckSystemStatus?.()
     } else {
       onCheckSystemStatus?.()
     }
@@ -180,7 +183,7 @@ export function TranslateEngineDetailView({
   const offlineNotReadyHint =
     systemStatus &&
     !systemStatus.installed &&
-    !showingBergamotPackUi &&
+    (!showingBergamotPackUi || !bergamotPlan) &&
     systemStatus.status !== 'checking' &&
     systemStatus.status !== 'downloading' &&
     systemStatus.status !== 'verifying'
@@ -308,11 +311,15 @@ export function TranslateEngineDetailView({
                     <div className="flex min-w-0 flex-col gap-0.5">
                       <span className={itemLabel}>{t('translate.offlineStatus')}</span>
                       <span className={itemDesc}>
-                        {isBergamot
-                          ? `${formatLanguageLabel(activePair.source)} → ${formatLanguageLabel(activePair.target)}`
-                          : systemStatus?.source && systemStatus?.target
-                            ? `${formatLanguageLabel(systemStatus.source)} → ${formatLanguageLabel(systemStatus.target)}`
-                            : t('translate.offlinePairHint')}
+                        {isBergamot || (systemStatus?.source && systemStatus?.target) ? (
+                          <span className="inline-flex flex-wrap items-center gap-1">
+                            {formatLanguageLabel(isBergamot ? activePair.source : systemStatus?.source || '')}
+                            <LuArrowRight className="size-3 shrink-0" aria-hidden />
+                            {formatLanguageLabel(isBergamot ? activePair.target : systemStatus?.target || '')}
+                          </span>
+                        ) : (
+                          t('translate.offlinePairHint')
+                        )}
                       </span>
                     </div>
                     {offlineBadge ? (
@@ -324,9 +331,18 @@ export function TranslateEngineDetailView({
 
                   {isBergamot && !isGamePairSupported && hasSystemPair ? (
                     <p className="m-0 text-xs text-ink-soft">
-                      {t('translate.bergamotGamePairUnsupported', {
-                        gamePair: `${formatLanguageLabel(gameSource)} → ${formatLanguageLabel(gameTarget)}`,
-                      })}
+                      {unsupportedPairMessage.map((part, index) => (
+                        <Fragment key={index}>
+                          {index > 0 ? (
+                            <span className="inline-flex items-center gap-1 align-middle">
+                              {formatLanguageLabel(gameSource)}
+                              <LuArrowRight className="size-3 shrink-0" aria-hidden />
+                              {formatLanguageLabel(gameTarget)}
+                            </span>
+                          ) : null}
+                          {part}
+                        </Fragment>
+                      ))}
                     </p>
                   ) : null}
 
@@ -343,14 +359,14 @@ export function TranslateEngineDetailView({
                           t('translate.packConsoleRequired')
                         )}
                       </p>
-                    ) : systemStatus && engineId === 'bergamot' && hasSystemPair && systemStatus.status !== 'checking' ? (
+                    ) : systemStatus && engineId === 'bergamot' && hasSystemPair && isGamePairSupported && systemStatus.status !== 'checking' ? (
                       <BergamotPackInstaller
                         key={`${activePair.source}-${activePair.target}-${packEpoch}`}
                         source={activePair.source}
                         target={activePair.target}
                         embedded
                         onPlanChange={setBergamotPlan}
-                        onInstalled={() => onCheckSystemStatus?.(activePair)}
+                        onInstalled={() => onCheckSystemStatus?.()}
                       />
                     ) : null)}
 
@@ -364,6 +380,14 @@ export function TranslateEngineDetailView({
                     </div>
                   ) : null}
                 </div>
+                {isBergamot && !offlineGuide && systemStatus?.accessReason !== 'management_required' && !isGamePairSupported && systemStatus?.supportedPairs?.length ? (
+                  <div className="mt-3 flex flex-col gap-3">
+                    <span className={itemLabel}>{t('translate.bergamotAvailablePacks')}</span>
+                    {systemStatus.supportedPairs.map((pair) => (
+                      <BergamotPackInstaller key={`${pair.id}-${packEpoch}`} source={pair.source} target={pair.target} onInstalled={() => onCheckSystemStatus?.()} />
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

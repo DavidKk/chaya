@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import readline from 'node:readline'
+import { measureOperation, startOperation, type TimedOperation } from '@/services/log/operation'
 
 export const CHAYA_TO_APPLE_LANG_MAP: Record<string, string> = {
   ja: 'ja',
@@ -57,9 +58,12 @@ interface DaemonResponse {
 class AppleTranslatorClient {
   private process: ChildProcess | null = null
   private rl: readline.Interface | null = null
-  private pendingRequests = new Map<string, { resolve: (res: DaemonResponse) => void; reject: (err: Error) => void; timer: NodeJS.Timeout; dispose?: () => void }>()
+  private pendingRequests = new Map<
+    string,
+    { resolve: (res: DaemonResponse) => void; reject: (err: Error) => void; timer: NodeJS.Timeout; dispose?: () => void; onTrace?: (message: string) => void }
+  >()
   private batches = new Map<string, Set<string>>()
-  private batchTimings = new Map<string, { started: number; items: number; failed: number; first: boolean }>()
+  private batchTimings = new Map<string, { started: number; items: number; failed: number; first: boolean; operation: TimedOperation }>()
   private batchQueue: DaemonRequest[] = []
   private batchScheduled = false
   private binaryStamp = ''
@@ -140,6 +144,7 @@ class AppleTranslatorClient {
       if (timing) {
         if (!timing.first) {
           timing.first = true
+          timing.operation.mark('first-result', { success: !error && response?.success === true })
           if (process.env.CHAYA_TRANSLATE_DEBUG === '1')
             console.info(
               `[apple-timing] First batch outcome: id=${batchId}, elapsedMs=${Math.round(performance.now() - timing.started)}, success=${!error && response?.success === true}`
@@ -149,6 +154,7 @@ class AppleTranslatorClient {
       }
       ids.delete(id)
       if (!ids.size) {
+        timing?.operation.end(timing.failed ? 'failed' : 'completed', { items: timing.items, failed: timing.failed })
         if (timing)
           if (process.env.CHAYA_TRANSLATE_DEBUG === '1')
             console.info(`[apple-timing] Batch settled: id=${batchId}, items=${timing.items}, failed=${timing.failed}, elapsedMs=${Math.round(performance.now() - timing.started)}`)
@@ -180,9 +186,11 @@ class AppleTranslatorClient {
     }
     this.process = null
     this.batchQueue = []
-    for (const [id, timing] of this.batchTimings)
+    for (const [id, timing] of this.batchTimings) {
+      timing.operation.end('failed', { pending: this.batches.get(id)?.size ?? 0, phase: 'process-exit' })
       if (process.env.CHAYA_TRANSLATE_DEBUG === '1')
         console.info(`[apple-timing] Batch interrupted: id=${id}, pending=${this.batches.get(id)?.size ?? 0}, elapsedMs=${Math.round(performance.now() - timing.started)}`)
+    }
     this.batches.clear()
     this.batchTimings.clear()
     // Reject any remaining pending requests
@@ -225,7 +233,15 @@ class AppleTranslatorClient {
           if (!batch.length) return
           const batchId = `batch:${batch[0].id}`
           this.batches.set(batchId, new Set(batch.map((item) => item.id)))
-          this.batchTimings.set(batchId, { started: performance.now(), items: batch.length, failed: 0, first: false })
+          const operation = startOperation('translate', 'apple.native.batch', {
+            nativeId: batchId,
+            nativePid: this.process?.pid,
+            items: batch.length,
+            sourceChars: batch.reduce((sum, item) => sum + Array.from(item.text || '').length, 0),
+            source: batch[0].source,
+            target: batch[0].target,
+          })
+          this.batchTimings.set(batchId, { started: performance.now(), items: batch.length, failed: 0, first: false, operation })
           if (process.env.CHAYA_TRANSLATE_DEBUG === '1')
             console.info(
               `[apple-timing] Batch dispatched: id=${batchId}, atMs=${Date.now()}, pid=${this.process?.pid ?? 'unknown'}, items=${batch.length}, sourceChars=${batch.reduce((sum, item) => sum + Array.from(item.text || '').length, 0)}, from=${batch[0].source}, to=${batch[0].target}`
@@ -241,6 +257,9 @@ class AppleTranslatorClient {
                 items: batch.map((item) => ({ id: item.id, text: item.text })),
               }) + '\n'
             )
+            const listeners = new Set(batch.map((item) => this.pendingRequests.get(item.id)?.onTrace).filter((listener) => listener != null))
+            const chars = batch.reduce((sum, item) => sum + Array.from(item.text || '').length, 0)
+            for (const listener of listeners) listener(`Apple request submitted: items=${batch.length}, sourceChars=${chars}`)
           } catch (error) {
             for (const item of batch) this.finishRequest(item.id, undefined, error instanceof Error ? error : new Error(String(error)))
           }
@@ -257,7 +276,14 @@ class AppleTranslatorClient {
     })
   }
 
-  private async sendRequest(req: Omit<DaemonRequest, 'id'>, timeoutMs = 15_000, signal?: AbortSignal): Promise<DaemonResponse> {
+  private async sendRequest(req: Omit<DaemonRequest, 'id'>, timeoutMs = 15_000, signal?: AbortSignal, onTrace?: (message: string) => void): Promise<DaemonResponse> {
+    if (req.type === 'translate') return this.sendRequestOnce(req, timeoutMs, signal, onTrace)
+    return measureOperation('communication', 'apple.native.request', { action: req.type, source: req.source, target: req.target }, () =>
+      this.sendRequestOnce(req, timeoutMs, signal, onTrace)
+    )
+  }
+
+  private async sendRequestOnce(req: Omit<DaemonRequest, 'id'>, timeoutMs: number, signal?: AbortSignal, onTrace?: (message: string) => void): Promise<DaemonResponse> {
     if (!this.isSupportedPlatform()) {
       throw new Error('Apple Translation is only supported on macOS')
     }
@@ -280,7 +306,7 @@ class AppleTranslatorClient {
         this.finishRequest(id, undefined, signal?.reason instanceof Error ? signal.reason : new Error('Translation request cancelled'))
         if (!this.pendingRequests.size) this.stopDaemon()
       }
-      this.pendingRequests.set(id, { resolve, reject, timer, dispose: () => signal?.removeEventListener('abort', abort) })
+      this.pendingRequests.set(id, { resolve, reject, timer, dispose: () => signal?.removeEventListener('abort', abort), onTrace })
       signal?.addEventListener('abort', abort, { once: true })
       if (signal?.aborted) {
         abort()
@@ -319,7 +345,7 @@ class AppleTranslatorClient {
     }
   }
 
-  async translate(text: string, options?: { source?: string; target?: string; signal?: AbortSignal }): Promise<string> {
+  async translate(text: string, options?: { source?: string; target?: string; signal?: AbortSignal; onTrace?: (message: string) => void }): Promise<string> {
     if (!text || !text.trim()) return text
     if (text.length > 20_000) throw new Error('Apple translation text exceeds 20000 characters')
 
@@ -331,7 +357,8 @@ class AppleTranslatorClient {
         target: toAppleLanguage(options?.target, 'zh-Hans'),
       },
       15_000,
-      options?.signal
+      options?.signal,
+      options?.onTrace
     )
 
     if (!res.success) {
@@ -350,6 +377,6 @@ class AppleTranslatorClient {
 
 export const appleTranslator = new AppleTranslatorClient()
 
-export async function appleTranslate(text: string, options?: { source?: string; target?: string; signal?: AbortSignal }): Promise<string> {
+export async function appleTranslate(text: string, options?: { source?: string; target?: string; signal?: AbortSignal; onTrace?: (message: string) => void }): Promise<string> {
   return appleTranslator.translate(text, options)
 }

@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { readApiErrorMessage } from '@/lib/api-error'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
+import { startClientOperation } from '@/lib/log/timing'
 import { AGENT_LINK_PATH, type AgentMethod, type AgentParams } from '@/lib/runtime/agent-protocol'
 import type { GameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import type { TranslationRequestFn } from '@/lib/translate/runtime-api'
+import { reportBrowserTiming } from '@/services/log/browser'
 
 const CATALOG_TIMEOUT_MS = 10_000
 
@@ -76,7 +78,9 @@ export function useGameLinkRpc({ connected, send, translationRequest, subscribeM
     () =>
       new Promise<GameEditCatalog>((resolve, reject) => {
         if (!connectedRef.current) return reject(new Error('游戏未连接'))
+        const timing = startClientOperation(reportBrowserTiming, 'game.catalog.roundtrip', { transport: 'webrtc' })
         const timer = window.setTimeout(() => {
+          timing.end('failed', { reason: 'timeout' })
           unsubscribe()
           reject(new Error('游戏 10 秒内未返回修改目录'))
         }, CATALOG_TIMEOUT_MS)
@@ -84,11 +88,13 @@ export function useGameLinkRpc({ connected, send, translationRequest, subscribeM
           if (msg.type !== 'edit.catalog') return
           window.clearTimeout(timer)
           unsubscribe()
+          timing.end('completed')
           resolve(msg.catalog)
         })
         try {
           sendRef.current({ type: 'edit.catalog.request' })
         } catch (error) {
+          timing.end('failed', { phase: 'send' })
           window.clearTimeout(timer)
           unsubscribe()
           reject(error)

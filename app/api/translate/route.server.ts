@@ -111,7 +111,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'scan-names'
         | 'apply-names'
         | 'idle-status'
-      scope?: 'short-entities' | 'all'
+      scope?: 'short-entities' | 'all' | 'engine'
       includeChoices?: boolean
       planId?: string
       previewId?: string
@@ -354,18 +354,17 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
         let seedLang: string | undefined
         try {
-          seedLang = getSeedSourceLanguage()
+          seedLang = getSeedSourceLanguage(targetContentRoot || resolveTranslateContentRoot())
         } catch {
           seedLang = undefined
         }
         for (const id of ['apple', 'bergamot'] as const) {
           if (body.switches[id] !== true || current.switches[id]) continue
-          const translator =
-            id === 'apple'
-              ? (await import('@/services/translate/lib/macos-translate')).appleTranslator
-              : (await import('@/services/translate/lib/bergamot-translate')).bergamotTranslator
           const from = seedLang || (id === 'bergamot' ? 'en' : 'ja')
-          const status = await translator.checkStatus(from, 'zh')
+          const status =
+            id === 'apple'
+              ? await (await import('@/services/translate/lib/macos-translate')).appleTranslator.checkStatus(from, 'zh')
+              : await (await import('@/services/translate/lib/bergamot-translate')).bergamotTranslator.checkEngineStatus(from, 'zh')
           if (!status.installed) return apiError(409, 'TRANSLATE_ENGINE_NOT_READY', status.message || `${id} translation is not ready`)
         }
       }
@@ -462,7 +461,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'rgss-write') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       if (body.contentRoot && !pathEquals(body.contentRoot, root)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload the translation list')
       const translations = body.translations && typeof body.translations === 'object' ? body.translations : null
       if (!translations || Array.isArray(translations)) return apiError(400, 'RGSS_WRITE_INPUT', 'Missing translations')
@@ -483,7 +482,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'rgss-preview') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       if (body.contentRoot && !pathEquals(body.contentRoot, root)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload the translation page')
       const { describeRgssPreview, setRgssPreviewView } = await import('@/services/translate/rgss-preview')
       if (body.view === undefined) return apiOk({ contentRoot: root, ...describeRgssPreview(root) })
@@ -512,7 +511,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
       let seedLang: string | undefined
       try {
-        if (game?.ok) seedLang = getSeedSourceLanguage(game.contentRoot)
+        const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+        if (root) seedLang = getSeedSourceLanguage(root)
       } catch {
         seedLang = undefined
       }
@@ -529,7 +529,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
         let seedLang: string | undefined
         try {
-          if (game?.ok) seedLang = getSeedSourceLanguage(game.contentRoot)
+          const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+          if (root) seedLang = getSeedSourceLanguage(root)
         } catch {
           seedLang = undefined
         }
@@ -537,7 +538,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         const to = target || 'zh'
         const { bergamotPacks } = await import('@/services/translate/bergamot/catalog')
         const supportedPairs = bergamotPacks.map((p) => ({ source: p.source, target: p.target, id: p.id }))
-        return apiOk({ ...(await bergamotTranslator.checkStatus(from, to)), source: from, target: to, supportedPairs })
+        return apiOk({ ...(await bergamotTranslator.checkEngineStatus(from, to)), supportedPairs })
       }
       const text = typeof body.text === 'string' ? body.text : ''
       if (!text.trim() || text.length > 20_000) return apiError(400, 'TRANSLATE_BERGAMOT_INPUT', 'Bergamot offline translation requires text of 1-20000 characters')
@@ -554,7 +555,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       if (!text.trim()) return apiError(400, 'TRANSLATE_CACHE_INPUT', 'Missing query text')
       let root: string | null = null
       try {
-        root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+        root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       } catch {
         root = null
       }
@@ -611,11 +612,11 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       })
     }
     if (body.mode === 'realtime') {
-      const root = game?.ok ? game.contentRoot : resolveTranslateContentRoot()
+      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
       return apiOk(await translateDialogue(root, texts, request.signal))
     }
     const { items, contentRoot, engines } = await liveTranslateTexts(texts, {
-      contentRoot: game?.ok ? game.contentRoot : undefined,
+      contentRoot: game?.ok ? game.contentRoot : targetContentRoot || undefined,
       force: Boolean(body.force),
       persist: body.persist !== false,
       engines: Array.isArray(body.engines) ? body.engines : undefined,

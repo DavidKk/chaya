@@ -79,9 +79,12 @@ describe('Apple native batch protocol', () => {
     await result
   })
   it('sends one array, matches out-of-order IDs and isolates failed items', async () => {
-    const results = Promise.allSettled(['Hello', 'Goodbye', 'Welcome'].map((text) => appleTranslator.translate(text, { source: 'en' })))
+    const trace = jest.fn()
+    const results = Promise.allSettled(['Hello', 'Goodbye', 'Welcome'].map((text) => appleTranslator.translate(text, { source: 'en', onTrace: trace })))
     await flush()
     expect(requests).toHaveLength(1)
+    expect(trace).toHaveBeenCalledTimes(1)
+    expect(trace).toHaveBeenCalledWith('Apple request submitted: items=3, sourceChars=19')
     expect(requests[0]).toMatchObject({ type: 'batch', source: 'en', items: [{ text: 'Hello' }, { text: 'Goodbye' }, { text: 'Welcome' }] })
     const ids = requests[0].items.map((item) => item.id)
     respond(ids[2], { success: true, result: '欢迎' })

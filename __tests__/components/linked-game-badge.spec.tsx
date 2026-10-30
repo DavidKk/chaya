@@ -74,3 +74,18 @@ it('shows the game name in ok colour once connected', async () => {
   expect(badge.textContent).toBe('散步游戏')
   expect(badge.getAttribute('aria-label')).toContain('已连接')
 })
+it('reads selected game from status.selected when status.config.gameRoot differs or is missing', async () => {
+  link.connected = false
+  mockStatus({
+    ready: true,
+    config: { gameRoot: '/games/default' },
+    selected: '/games/target',
+    library: [
+      { id: 'g1', gameRoot: '/games/default', name: 'default-game', remark: '默认游戏' },
+      { id: 'g2', gameRoot: '/games/target', name: 'target-game', remark: '目标游戏' },
+    ],
+  })
+  const badge = await render()
+  expect(badge.textContent).toBe('目标游戏')
+  expect(badge.getAttribute('href')).toBe('/game?game=g2')
+})

@@ -3,9 +3,13 @@ import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import { PassThrough } from 'node:stream'
 
+import { findPack } from '@/services/translate/bergamot/catalog'
+import { installedPack } from '@/services/translate/bergamot/store'
 import { bergamotTranslator, toBergamotLanguage } from '@/services/translate/lib/bergamot-translate'
 
 jest.mock('node:child_process', () => ({ spawn: jest.fn() }))
+jest.mock('@/services/translate/bergamot/catalog', () => ({ findPack: jest.fn(() => ({ id: 'test-en-zh' })) }))
+jest.mock('@/services/translate/bergamot/store', () => ({ installedPack: jest.fn() }))
 
 function daemon() {
   return Object.assign(new EventEmitter(), {
@@ -107,7 +111,15 @@ it('returns unavailable when no executable exists', async () => {
   jest.spyOn(fs, 'accessSync').mockImplementation(() => {
     throw new Error('EACCES')
   })
-  await expect(bergamotTranslator.checkStatus()).resolves.toMatchObject({ installed: false, status: 'unavailable' })
+  await expect(bergamotTranslator.checkStatus('en', 'zh')).resolves.toMatchObject({ installed: false, status: 'unavailable' })
+  expect(spawn).not.toHaveBeenCalled()
+})
+
+it('does not use an installed English pack to report Japanese readiness', async () => {
+  jest.mocked(findPack).mockReturnValueOnce(undefined)
+  const status = await bergamotTranslator.checkEngineStatus('jp', 'zh')
+  expect(status).toMatchObject({ source: 'ja', target: 'zh', installed: false, status: 'unsupported' })
+  expect(installedPack).not.toHaveBeenCalled()
   expect(spawn).not.toHaveBeenCalled()
 })
 

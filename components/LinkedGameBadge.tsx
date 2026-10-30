@@ -16,6 +16,7 @@ type StatusLite = {
   ready?: boolean
   remote?: boolean
   config?: { gameRoot?: string }
+  selected?: string
   library?: LibraryItemView[]
   nwPackage?: { name?: string; window?: { title?: string } } | null
 }
@@ -40,10 +41,13 @@ async function readSelectedGame(gameId?: string | null): Promise<{ label: Select
     return { label: entry?.remark?.trim() || entry?.name?.trim() || '', id }
   }
   if (status.remote) return { label: REMOTE }
-  if (!status.ready || !status.config?.gameRoot) return { label: null }
-  const root = status.config.gameRoot
-  const entry = status.library?.find((item) => rootsEqual(item.gameRoot, root))
-  return { label: entry?.remark?.trim() || status.nwPackage?.window?.title?.trim() || entry?.name?.trim() || status.nwPackage?.name?.trim() || '', id: entry?.id }
+  if (!status.ready || (!status.selected && !status.config?.gameRoot)) return { label: null }
+  const root = status.selected || status.config?.gameRoot
+  const entry = (gameId ? status.library?.find((item) => item.id === gameId) : undefined) || (root ? status.library?.find((item) => rootsEqual(item.gameRoot, root)) : undefined)
+  return {
+    label: entry?.remark?.trim() || status.nwPackage?.window?.title?.trim() || entry?.name?.trim() || status.nwPackage?.name?.trim() || '',
+    id: entry?.id || (gameId ?? undefined),
+  }
 }
 
 /** 修改页顶栏：未选择（灰）/ 已选未连接（黄）/ 已连接（绿），点击去游戏库；远程模式不显示 */

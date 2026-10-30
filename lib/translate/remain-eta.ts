@@ -7,9 +7,15 @@ export function estimateRemainMs(opts: { missingChars: number; charsPerSecond: n
 }
 
 /** Recent completed batches only: pauses and startup scans never reduce the measured rate. */
-export type TranslationPerformance = { charsPerSecond: number; cacheMs: number }
+export type TranslationPerformance = { charsPerSecond: number; cacheMs: number; measuredAt?: number }
 export type TranslationSample = { elapsedMs: number; completedChars: number; cacheMs: number }
 export type LiveTranslationSample = { at: number; chars: number }
+
+/** A persisted rate stops describing current throughput after results stop arriving. */
+export function freshTranslationPerformance(performance: TranslationPerformance | null | undefined, measuredAt: number, now: number): TranslationPerformance | null {
+  if (!performance || !Number.isFinite(measuredAt) || measuredAt <= 0 || !Number.isFinite(now) || now <= 0 || now - measuredAt > 30_000) return null
+  return performance
+}
 
 export function translationPerformance(samples: TranslationSample[]): TranslationPerformance | null {
   const recent = samples.slice(-8)
@@ -66,6 +72,7 @@ export function smoothTranslationPerformance(
   return {
     charsPerSecond: previous.charsPerSecond * (1 - weight) + next.charsPerSecond * weight,
     cacheMs: next.cacheMs,
+    ...((next.measuredAt ?? previous.measuredAt) != null ? { measuredAt: next.measuredAt ?? previous.measuredAt } : {}),
   }
 }
 

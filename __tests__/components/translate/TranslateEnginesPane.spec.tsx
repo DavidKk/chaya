@@ -327,4 +327,57 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     expect(header.querySelector('[role="toolbar"]')).toBeNull()
     expect(host.querySelector('section[aria-label="Agent"]')).not.toBeNull()
   })
+
+  it('refreshes offline readiness automatically without waiting for a manual recheck', async () => {
+    jest.useFakeTimers()
+    try {
+      await act(async () => {
+        root.render(
+          <LocaleProvider initialLocale="zh" initialPreference="zh">
+            <TranslateEnginesPane />
+          </LocaleProvider>
+        )
+      })
+      const system = host.querySelector('section[aria-label="离线机翻"]')!
+      expect(system.textContent).toContain('未就绪')
+      const previous = mockTranslationFetch.getMockImplementation()!
+      let resolveStatus!: (value: ReturnType<typeof json>) => void
+      mockTranslationFetch.mockImplementation((url, init) => {
+        if (JSON.parse(init.body).mode === 'bergamot-status') return new Promise((resolve) => (resolveStatus = resolve))
+        return previous(url, init)
+      })
+      await act(async () => jest.advanceTimersByTime(5000))
+      expect(system.textContent).toContain('未就绪')
+      await act(async () => resolveStatus(json({ installed: true, status: 'installed' })))
+      expect(system.textContent).not.toContain('未就绪')
+      expect(system.textContent?.match(/就绪/g)).toHaveLength(2)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('preserves gameId parameter in engine detail navigation and API requests', async () => {
+    mockSearchParams = new URLSearchParams('game=g1')
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateEnginesPane />
+        </LocaleProvider>
+      )
+    })
+    await act(async () => {})
+
+    expect(mockTranslationFetch).toHaveBeenCalledWith(
+      '/api/translate',
+      expect.objectContaining({
+        body: expect.stringContaining('"game":"g1"'),
+      })
+    )
+
+    const bingTitle = host.querySelector<HTMLButtonElement>('button[aria-label="编辑 Bing"]')
+    await act(async () => {
+      bingTitle?.click()
+    })
+    expect(mockPush).toHaveBeenCalledWith('/translate/engines/eng_bing1?game=g1')
+  })
 })

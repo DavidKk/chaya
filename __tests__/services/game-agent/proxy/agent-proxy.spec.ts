@@ -130,8 +130,10 @@ test('the bridge refuses clients without its password', async () => {
 
 test('Ollama requests go through the proxy unless the endpoint is on this machine', async () => {
   const target = await targetServer()
-  expect(ollamaFetch({ endpoint: `http://127.0.0.1:${target}`, proxy: 'http://127.0.0.1:1' })).toBe(fetch)
-  expect(ollamaFetch({ endpoint: 'http://ollama.lan:11434', proxy: '' })).toBe(fetch)
+  const local = ollamaFetch({ endpoint: `http://127.0.0.1:${target}`, proxy: 'http://127.0.0.1:1' })
+  expect(await (await local(`http://127.0.0.1:${target}/local`)).text()).toBe('hello /local')
+  const direct = ollamaFetch({ endpoint: 'http://ollama.lan:11434', proxy: '' })
+  expect(await (await direct(`http://127.0.0.1:${target}/direct`)).text()).toBe('hello /direct')
 
   const socks = await socksServer()
   const proxied = ollamaFetch({ endpoint: `http://ollama.test:${target}`, proxy: `socks5://127.0.0.1:${socks.port}` })

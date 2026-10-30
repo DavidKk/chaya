@@ -108,9 +108,9 @@ export async function mapTranslationBatch<T, R>(texts: readonly T[], translate: 
   return results
 }
 
-/** Public platforms reject sensitive text; users configure their agents and local models. */
+/** Public platforms reject sensitive text; configured agents and offline engines remain eligible. */
 export function engineAcceptsSensitive(key: TranslateRunEngine): boolean {
-  return key === 'ollama' || engineGroup(key) === 'agent'
+  return key === 'ollama' || engineGroup(key) !== 'platform'
 }
 
 export function isBuiltinEngineId(v: unknown): v is TranslateBuiltinId {
@@ -237,11 +237,12 @@ export function assignMissingEngineEntryIds(configs: Record<TranslateBuiltinId, 
 
 export function builtinEngineByEntryId(configs: Record<TranslateBuiltinId, TranslateEngineSettings> | undefined, entryId: string): TranslateBuiltinId | null {
   if (isBuiltinEngineId(entryId)) return entryId
-  if (entryId === 'mvsd812nzmca') return 'bergamot'
-  if (!configs) return null
-  for (const id of TRANSLATE_ENGINE_IDS) {
-    if (configs[id]?.id === entryId) return id
+  if (configs) {
+    for (const id of TRANSLATE_ENGINE_IDS) {
+      if (configs[id]?.id === entryId) return id
+    }
   }
+  if (entryId === 'mvsd812nzmca') return 'bergamot'
   return null
 }
 

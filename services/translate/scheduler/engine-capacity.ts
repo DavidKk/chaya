@@ -1,5 +1,6 @@
 /** Shared transport limits include abandoned requests until the adapter actually settles. */
 import { type EngineCapacitySettings, engineGroup, type TranslateRunEngine } from '@/lib/translate/engines'
+import { startOperation } from '@/services/log/operation'
 
 export type CapacityRequestSettings = EngineCapacitySettings & {
   /** Character weight of this request; used with maxConcurrentChars. */
@@ -31,15 +32,8 @@ function requestChars(settings?: CapacityRequestSettings) {
 }
 
 function canDispatch(lane: Lane, engine: TranslateRunEngine, waiter: Waiter) {
-  if (lane.active >= engineConfiguredCapacity(engine, waiter.settings)) return false
-  const maxChars = waiter.settings?.maxConcurrentChars
-  if (typeof maxChars === 'number' && maxChars > 0 && lane.active > 0) {
-    const isAgent = engine !== 'ollama' && engineGroup(engine) === 'agent'
-    const concurrency = waiter.settings?.concurrencyLimit || 1
-    const maxLaneChars = isAgent ? maxChars * concurrency : maxChars
-    if (lane.activeChars + waiter.chars > maxLaneChars) return false
-  }
-  return true
+  // Character limits apply to each packed request, independently of transport concurrency.
+  return lane.active < engineConfiguredCapacity(engine, waiter.settings)
 }
 
 export function withEngineCapacity<T>(
@@ -52,8 +46,11 @@ export function withEngineCapacity<T>(
   const lane = lanes.get(identity) || { active: 0, activeChars: 0, queue: new Set<Waiter>() }
   lanes.set(identity, lane)
   const chars = requestChars(customSettings)
+  const timing = startOperation('translate', 'engine.capacity', { engine, lane: identity, sourceChars: chars, queued: lane.queue.size }, { start: false })
   return new Promise<T>((resolve, reject) => {
     let started = false
+    let queueMs = 0
+    let executing = 0
     const clear = () => signal?.removeEventListener('abort', waiter.cancel)
     const pump = () => {
       while (lane.queue.size) {
@@ -70,6 +67,7 @@ export function withEngineCapacity<T>(
         if (started) return
         lane.queue.delete(waiter)
         clear()
+        timing.end('cancelled', { phase: 'queued', queueMs: timing.elapsedMs(), executeMs: 0 })
         reject(signal?.reason || new Error('Translation request cancelled'))
         pump()
       },
@@ -77,6 +75,7 @@ export function withEngineCapacity<T>(
         lane.queue.delete(waiter)
         clear()
         if (signal?.aborted) {
+          timing.end('cancelled', { phase: 'before-execution', queueMs: timing.elapsedMs(), executeMs: 0 })
           reject(signal.reason)
           return
         }
@@ -86,9 +85,22 @@ export function withEngineCapacity<T>(
         void Promise.resolve()
           .then(() => {
             signal?.throwIfAborted()
-            return work()
+            queueMs = timing.elapsedMs()
+            executing = performance.now()
+            return timing.run(work)
           })
-          .then(resolve, reject)
+          .then(
+            (value) => {
+              timing.end(signal?.aborted ? 'cancelled' : 'completed', { queueMs, executeMs: Math.round((performance.now() - executing) * 10) / 10 })
+              resolve(value)
+            },
+            (error) => {
+              const details = { queueMs: executing ? queueMs : timing.elapsedMs(), executeMs: executing ? Math.round((performance.now() - executing) * 10) / 10 : 0 }
+              if (signal?.aborted) timing.end('cancelled', details)
+              else timing.fail(error, details)
+              reject(error)
+            }
+          )
           .finally(() => {
             lane.active--
             lane.activeChars = Math.max(0, lane.activeChars - chars)

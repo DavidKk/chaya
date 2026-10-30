@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { defineApiRoute } from '@/initializer/controller'
 import { apiErrorBody, json } from '@/initializer/response'
+import { LOG_LEVELS } from '@/lib/log'
 import { canUseDisk } from '@/lib/service-mode'
 import { appendLog, clearLogs, listLogs, logBusStats, type LogLevel } from '@/services/log'
 
@@ -22,7 +23,7 @@ const BROWSER_MODE_NOTE = '网页版日志经游戏连接直达页面，服务�
 
 /** 最近日志 + 总线状态（本机持久化） */
 export const GET = defineApiRoute('get:/api/logs', async ({ request }) => {
-  if (!canUseDisk()) return json({ ok: true, levels: ['ok', 'warn', 'fail', 'info'], entries: [], note: BROWSER_MODE_NOTE }, { headers: CORS })
+  if (!canUseDisk()) return json({ ok: true, levels: LOG_LEVELS, entries: [], note: BROWSER_MODE_NOTE }, { headers: CORS })
   const u = new URL(request.url)
   const limit = Number(u.searchParams.get('limit') || 200)
   const source = u.searchParams.get('source') || undefined
@@ -33,7 +34,7 @@ export const GET = defineApiRoute('get:/api/logs', async ({ request }) => {
     {
       ok: true,
       stats: logBusStats(),
-      levels: ['ok', 'warn', 'fail', 'info'],
+      levels: LOG_LEVELS,
       entries: listLogs({ limit, source, level, since, q }),
     },
     { headers: CORS }

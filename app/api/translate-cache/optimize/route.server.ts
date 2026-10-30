@@ -47,6 +47,7 @@ export const POST = defineApiRoute('post:/api/translate-cache/optimize', async (
       groups?: unknown
       structure?: RecordStructure
       replaceGroups?: boolean
+      candidateId?: number
       expectedRevision?: number
       dryRun?: boolean
     }
@@ -61,6 +62,7 @@ export const POST = defineApiRoute('post:/api/translate-cache/optimize', async (
     const groups = parseGroups(body.groups)
     if (!pairs.length && !newlines?.length && !groups?.length && !body.structure) return apiBadRequest('No segments available to write', 'CACHE_OPTIMIZE_EMPTY')
 
+    if (body.candidateId !== undefined && (!Number.isSafeInteger(body.candidateId) || body.candidateId <= 0)) return apiBadRequest('Invalid cache id', 'CACHE_ID_INVALID')
     const from = parseCacheLang(body.from) || undefined
     const to = parseCacheLang(body.to) || undefined
     const result = upsertSharedTranslateCachePairs(
@@ -69,6 +71,7 @@ export const POST = defineApiRoute('post:/api/translate-cache/optimize', async (
       { from, to },
       { src: body.parent.src, zh: body.parent.zh },
       {
+        candidateId: body.candidateId,
         newlines,
         groups,
         structure: body.structure,

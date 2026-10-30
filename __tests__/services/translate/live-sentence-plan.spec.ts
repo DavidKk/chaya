@@ -178,7 +178,7 @@ describe('live short-sentence integration', () => {
       return '机器结果'
     })
     const result = await liveTranslateTexts(['Hello'], { contentRoot: root, engines: ['google'], cacheMode: 'bypass', onTrace: trace })
-    expect(result.items[0]).toMatchObject({ zh: '人工定稿', engine: 'cache:remote', resultSources: ['cache:remote'], engineWork: true })
+    expect(result.items[0]).toMatchObject({ zh: '机器结果', engine: 'live:google', resultSources: ['live:google'], engineWork: true })
     const cache = openSharedCache()
     expect(cache.get('Hello', { from: 'en', to: 'zh' })).toBe('人工定稿')
     cache.close()
@@ -192,7 +192,9 @@ describe('live short-sentence integration', () => {
       return '机器结果'
     })
     const result = await liveTranslateTexts(['Hello'], { contentRoot: root, engines: ['google'], cacheMode: 'bypass' })
-    expect(result.items[0]).toMatchObject({ zh: '本作人工定稿', engine: 'cache:local' })
+    expect(result.items[0]).toMatchObject({ zh: '机器结果', engine: 'live:google' })
+    const reread = await liveTranslateTexts(['Hello'], { contentRoot: root, engines: ['google'] })
+    expect(reread.items[0]).toMatchObject({ zh: '本作人工定稿', engine: 'cache:local' })
   })
 
   it('does not close or flush a borrowed writer after one item', async () => {
@@ -358,7 +360,7 @@ describe('live short-sentence integration', () => {
     cache.close()
     jest.mocked(requestGoogle).mockResolvedValue('平台译文')
     await liveTranslateTexts(['あん?'], { contentRoot: root, engines: ['google'], force: true })
-    expect(loadGameTranslationRecords(root)).toEqual([])
+    expect(loadGameTranslationRecords(root).every((record) => record.local === false)).toBe(true)
     const after = openSharedCache()
     expect(after.get('あん?')).toBe('人工译文')
     after.close()
@@ -550,7 +552,7 @@ describe('live short-sentence integration', () => {
     )
     jest.mocked(appleTranslate).mockResolvedValue('再见世界')
     const pending = liveTranslateTexts(['こんにちは世界', 'さようなら世界'], { contentRoot: root, engines: ['google', 'apple'], persist: false })
-    for (let i = 0; i < 12; i++) await Promise.resolve()
+    await new Promise<void>((resolve) => setImmediate(resolve))
     expect(requestGoogle).toHaveBeenCalledTimes(2)
     expect(appleTranslate).toHaveBeenCalledTimes(1)
     finish('你好世界')

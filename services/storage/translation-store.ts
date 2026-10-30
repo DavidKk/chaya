@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 
-import { and, asc, eq, gt, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm'
 
 import type { SharedCacheDb } from '@/services/translate/shared-cache/db'
 import { gameTranslations, mutationLog, translations } from '@/services/translate/shared-cache/schema'
@@ -85,6 +85,7 @@ export function lookupTranslation(db: SharedCacheDb, gameId: string, src: string
     })
     .from(translations)
     .where(and(eq(translations.src, src), eq(translations.srcLang, srcLang), eq(translations.tgtLang, tgtLang)))
+    .orderBy(desc(translations.engineRank), desc(translations.updatedAt), desc(translations.id))
     .get()
 
   if (sharedRow && sharedRow.zh) {
@@ -251,6 +252,7 @@ export function getBoundedSnapshot(
         eq(translations.srcLang, srcLang),
         eq(translations.tgtLang, tgtLang),
         inArray(translations.category, ['system', 'menu', 'common']),
+        sql`${translations.id} IN (SELECT id FROM selected_translations)`,
         options.sharedAfter ? gt(translations.src, options.sharedAfter) : undefined
       )
     )

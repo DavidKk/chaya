@@ -29,9 +29,6 @@ export function createGameProjections(client: DatabaseSync, index: MatchIndex, d
       for (const { src, pair } of sources) {
         // The game plugin currently consumes Chinese rows. Other pairs must not overwrite them.
         if (!src || pair.to !== 'zh') continue
-        // Exact shared rows already have revisioned backfills. Keep projections for composed,
-        // restored-control and alias results only (existing projections continue to track overrides).
-        if (index.record(src, pair)) continue
         insert.run(root, src, pair.from, pair.to)
       }
     },
@@ -39,16 +36,22 @@ export function createGameProjections(client: DatabaseSync, index: MatchIndex, d
       if (!client.prepare('SELECT 1 FROM game_projections WHERE root=? LIMIT 1').get(root)) return false
       return Boolean(client.prepare('SELECT 1 FROM game_projections WHERE root=? AND signature<>? LIMIT 1').get(root, signature(root)))
     },
-    collect(root: string, rows: Map<string, CacheRow>) {
+    collect(root: string, rows: Map<string, CacheRow>, budgetMs = Infinity) {
+      const started = performance.now()
       const context = getGameCacheContext(root)
       const nextSignature = signature(root)
-      const pending = client.prepare('SELECT * FROM game_projections WHERE root=? AND signature<>?').all(root, nextSignature) as Projection[]
+      // Older revisions go first so continuous corpus writes cannot starve later sources.
+      const pending = client
+        .prepare('SELECT * FROM game_projections WHERE root=? AND signature<>? ORDER BY revision,src,src_lang,tgt_lang')
+        .all(root, nextSignature) as Projection[]
       const updateProjection = client.prepare('UPDATE game_projections SET signature=?,revision=? WHERE root=? AND src=? AND src_lang=? AND tgt_lang=?')
       const events: CacheRow[] = []
       const acknowledge: Array<() => void> = []
       for (const entry of pending) {
+        if (acknowledge.length && performance.now() - started >= budgetMs) break
         const pair = { from: entry.src_lang, to: entry.tgt_lang } as CacheLangPair
-        const { plan } = planGameCache(entry.src, pair, index, context)
+        const exact = !context.blocked(entry.src) && context.lookup[entry.src] == null ? index.record(entry.src, pair) : null
+        const plan = exact ? { limited: false, status: 'full', zh: exact.zh } : planGameCache(entry.src, pair, index, context).plan
         // Never cache a bounded/ambiguous result as a complete translation.
         const zh = !plan.limited && plan.status === 'full' ? plan.zh : null
         const old = rows.get(entry.src)
@@ -71,7 +74,7 @@ export function createGameProjections(client: DatabaseSync, index: MatchIndex, d
           updateProjection.run(nextSignature, revision, root, entry.src, entry.src_lang, entry.tgt_lang)
         })
       }
-      return { events, acknowledge }
+      return { events, acknowledge, pending: acknowledge.length < pending.length }
     },
   }
 }

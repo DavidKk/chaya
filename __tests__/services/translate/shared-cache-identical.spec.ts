@@ -139,8 +139,11 @@ describe('shared-cache identical skip + scrub', () => {
     expect(cache.listPage({ page: 1, pageSize: 10 }).items[0]).toMatchObject({ zh: '去村子', nsfw: false })
     // Auto upsert must not clear a manual NSFW mark.
     expect(cache.setNsfw('村へ行く', true)).toBe(true)
+    const marked = cache.listPage({ page: 1, pageSize: 10 }).items.map((item) => item.id)
     cache.upsertMany([['村へ行く', '前往村庄']], 'live:google')
-    expect(cache.listPage({ page: 1, pageSize: 10 }).items[0]?.nsfw).toBe(true)
+    const candidates = cache.listPage({ page: 1, pageSize: 10 }).items
+    expect(candidates.filter((item) => marked.includes(item.id)).every((item) => item.nsfw)).toBe(true)
+    expect(candidates.find((item) => !marked.includes(item.id))?.nsfw).toBe(false)
     expect(cache.setNsfw('missing', true)).toBe(false)
     cache.close()
   })

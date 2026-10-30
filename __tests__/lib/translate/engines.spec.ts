@@ -18,12 +18,15 @@ import {
 } from '@/lib/translate/engines'
 
 describe('translate engines', () => {
-  it('groups agent entries apart from platforms; only agents receive sensitive text', () => {
+  it('keeps sensitive text on agents and offline engines, excluding public platforms', () => {
     expect(engineGroup('agent:x')).toBe('agent')
     expect(engineGroup('google')).toBe('platform')
     expect(engineGroup('apple')).toBe('system')
     expect(engineGroup('bergamot')).toBe('system')
     expect(engineAcceptsSensitive('agent:x')).toBe(true)
+    expect(engineAcceptsSensitive('apple')).toBe(true)
+    expect(engineAcceptsSensitive('bergamot')).toBe(true)
+    expect(engineAcceptsSensitive('google')).toBe(false)
     expect(engineAcceptsSensitive('bing')).toBe(false)
     expect(isTranslateEngineId('bing')).toBe(true)
     expect(isTranslateEngineId('agent:a1')).toBe(true)

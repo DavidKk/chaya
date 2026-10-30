@@ -17,7 +17,7 @@ type SharedStats = {
 }
 
 export type TranslateCacheItem = {
-  /** SQLite rowid — stable enough for optimize deep links within a running DB. */
+  /** Persistent candidate id; multiple candidates can share the same source. */
   id: number
   src: string
   zh: string
@@ -78,7 +78,7 @@ export function getSharedTranslateCacheById(id: number): TranslateCacheItem | nu
   try {
     const item = cache.getById(id)
     if (!item) return null
-    const record = cache.record(item.src, { from: item.from, to: item.to })
+    const record = cache.candidateRecord(item.id)
     return { ...item, revision: record?.revision, structure: record?.structure }
   } finally {
     cache.close()
@@ -154,7 +154,7 @@ export type ImportSharedTranslateResult = {
   file: string
 }
 
-/** Write parsed translations to the shared cache without overwriting existing keys by default. */
+/** Append parsed translations while preserving existing candidates. */
 export function importSharedTranslateCache(
   map: Record<string, string>,
   opts: { overwrite?: boolean; engine?: string; format?: 'json' | 'ndjson'; skippedLines?: number; alignments?: Array<{ src: string; groups: AlignmentGroup[] }> } = {}
@@ -163,33 +163,17 @@ export function importSharedTranslateCache(
   try {
     const engine = opts.engine || 'import'
     const entries = Object.entries(map)
-    function applyAlignments() {
-      for (const item of opts.alignments || []) {
-        const from = resolveCacheLangPair({ src: item.src })
-        const record = cache.record(item.src, from)
-        if (record?.engine === engine && record.zh === map[item.src]) cache.setAlignment(item.src, from, item.groups, record.revision)
-      }
+    const written = cache.writeMany(entries, engine)
+    for (const item of opts.alignments || []) {
+      const record = written.records.find((candidate) => candidate.src === item.src)
+      if (record) cache.setAlignment(item.src, { from: record.from, to: record.to }, item.groups, record.revision, { candidateId: record.candidateId })
     }
-    if (opts.overwrite) {
-      const n = cache.upsertMany(entries as Array<[string, string]>, engine)
-      applyAlignments()
-      return {
-        format: opts.format || 'json',
-        total: entries.length,
-        inserted: n,
-        skippedLines: opts.skippedLines || 0,
-        skippedExisting: Math.max(0, entries.length - n),
-        file: cache.path,
-      }
-    }
-    const { inserted, total } = cache.importIgnoreExisting(map, engine)
-    applyAlignments()
     return {
       format: opts.format || 'json',
-      total,
-      inserted,
+      total: entries.length,
+      inserted: written.accepted.length,
       skippedLines: opts.skippedLines || 0,
-      skippedExisting: Math.max(0, total - inserted),
+      skippedExisting: 0,
       file: cache.path,
     }
   } finally {
@@ -197,10 +181,10 @@ export function importSharedTranslateCache(
   }
 }
 
-export type UpdateSharedTranslateResult = { updated: boolean; file: string; src: string; zh: string; nsfw?: boolean }
+export type UpdateSharedTranslateResult = { id?: number; updated: boolean; file: string; src: string; zh: string; nsfw?: boolean }
 export type DeleteSharedTranslateResult = { deleted: boolean; file: string; src: string }
 
-/** Update a shared translation; the language pair plus source form the immutable key. */
+/** Append a manual candidate; retain every earlier translation. */
 export function updateSharedTranslateCache(
   src: string,
   zh: string,
@@ -210,18 +194,18 @@ export function updateSharedTranslateCache(
 ): UpdateSharedTranslateResult {
   const cache = openSharedCache(defaultSharedDbPath())
   try {
-    const updated = cache.update(src, zh, engine, { from: parseCacheLang(pair?.from) || undefined, to: parseCacheLang(pair?.to) || undefined }, opts)
-    return { updated, file: cache.path, src: String(src), zh: String(zh).trim(), nsfw: opts?.nsfw }
+    const id = cache.appendManual(src, zh, engine, { from: parseCacheLang(pair?.from) || undefined, to: parseCacheLang(pair?.to) || undefined }, opts)
+    return { updated: id != null, id: id || undefined, file: cache.path, src: String(src), zh: String(zh).trim(), nsfw: opts?.nsfw }
   } finally {
     cache.close()
   }
 }
 
 /** Manually mark or clear NSFW on a shared row without changing the translation. */
-export function setSharedTranslateCacheNsfw(src: string, nsfw: boolean, pair?: { from?: string; to?: string }): UpdateSharedTranslateResult {
+export function setSharedTranslateCacheNsfw(src: string, nsfw: boolean, pair?: { from?: string; to?: string }, candidateId?: number): UpdateSharedTranslateResult {
   const cache = openSharedCache(defaultSharedDbPath())
   try {
-    const updated = cache.setNsfw(src, nsfw, { from: parseCacheLang(pair?.from) || undefined, to: parseCacheLang(pair?.to) || undefined })
+    const updated = cache.setNsfw(src, nsfw, { from: parseCacheLang(pair?.from) || undefined, to: parseCacheLang(pair?.to) || undefined }, candidateId)
     return { updated, file: cache.path, src: String(src), zh: '', nsfw }
   } finally {
     cache.close()
@@ -229,10 +213,10 @@ export function setSharedTranslateCacheNsfw(src: string, nsfw: boolean, pair?: {
 }
 
 /** Delete a shared translation by source text and language pair. */
-export function deleteSharedTranslateCache(src: string, pair?: { from?: string; to?: string }): DeleteSharedTranslateResult {
+export function deleteSharedTranslateCache(src: string, pair?: { from?: string; to?: string }, candidateId?: number): DeleteSharedTranslateResult {
   const cache = openSharedCache(defaultSharedDbPath())
   try {
-    const deleted = cache.remove(src, { from: parseCacheLang(pair?.from) || undefined, to: parseCacheLang(pair?.to) || undefined })
+    const deleted = cache.remove(src, { from: parseCacheLang(pair?.from) || undefined, to: parseCacheLang(pair?.to) || undefined }, candidateId)
     return { deleted, file: cache.path, src: String(src) }
   } finally {
     cache.close()
@@ -258,6 +242,7 @@ export type UpsertSharedTranslatePairsResult = {
 }
 
 export type ConfirmSharedOptimizeOptions = {
+  candidateId?: number
   replaceGroups?: boolean
   structure?: import('@/lib/translate/structured-segments').RecordStructure
   newlines?: import('@/lib/translate/logic-text').NewlineAnnotation[]
@@ -267,8 +252,8 @@ export type ConfirmSharedOptimizeOptions = {
 }
 
 /**
- * Write optimize children: keep parent rows; insert new keys only.
- * Same key + same zh → identical; same key + different zh → conflict (skip, never overwrite).
+ * Confirm parent mappings, or append explicit optimize candidates.
+ * Existing candidate text is preserved.
  * 原文===译文 → game ndjson only (never shared).
  */
 export function upsertSharedTranslateCachePairs(

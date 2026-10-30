@@ -1,5 +1,8 @@
+import { requestPath, startClientOperation } from '@/lib/log/timing'
+import { reportBrowserTiming } from '@/services/log/browser'
+
 /** Translation operations shared by the UI and game plugin; paths identify operations, never arbitrary files. */
-export type TranslationRequest = { path: string; method: string; body?: Record<string, unknown> }
+export type TranslationRequest = { path: string; method: string; body?: Record<string, unknown>; requestId?: string }
 export type TranslationResponse = { status: number; data: Record<string, unknown> }
 export type TranslationRequestFn = (request: TranslationRequest, signal?: AbortSignal) => Promise<TranslationResponse>
 
@@ -32,7 +35,7 @@ export type TranslationFailureLog = {
 }
 
 export type TranslationWindowReason = 'capacity' | 'cache-drained' | 'engine-result' | 'finished' | 'interrupted' | 'timeout'
-export type TranslationAgentRequestLog = { items: number; chars: number }
+export type TranslationAgentRequestLog = { items: number; chars: number; engine?: BatchExecutionSource }
 
 export type TranslationBatchLog = {
   batch: number
@@ -53,14 +56,36 @@ export function installedTranslationRuntime(): TranslationRuntime | undefined {
 
 /** When the game is stopped, the local service performs the same operations against the game's content files. Browser mode must not use disk APIs. */
 export const diskTranslationRequest: TranslationRequestFn = async (request, signal) => {
-  const res = await fetch(request.path, {
-    method: request.method,
-    headers: request.body ? { 'Content-Type': 'application/json' } : undefined,
-    body: request.body ? JSON.stringify(request.body) : undefined,
-    signal,
-  })
-  const data = (await res.json().catch(() => ({ ok: false, error: { message: `翻译请求失败（${res.status}）` } }))) as Record<string, unknown>
-  return { status: res.status, data }
+  const timing = startClientOperation(reportBrowserTiming, 'translation.http', { path: requestPath(request.path), method: request.method }, request.requestId)
+  let headersMs = 0
+  try {
+    const res = await fetch(request.path, {
+      method: request.method,
+      headers: { ...(request.body ? { 'Content-Type': 'application/json' } : {}), 'X-Chaya-Request-Id': timing.id },
+      body: request.body ? JSON.stringify(request.body) : undefined,
+      signal,
+    })
+    headersMs = timing.elapsedMs()
+    const serverRequestId = res.headers.get('x-chaya-request-id')
+    const serverTiming = res.headers.get('server-timing')
+    let decodeFailed = false
+    const data = (await res.json().catch(() => {
+      decodeFailed = true
+      return { ok: false, error: { message: `翻译请求失败（${res.status}）` } }
+    })) as Record<string, unknown>
+    timing.end(res.ok && !decodeFailed ? 'completed' : 'failed', {
+      status: res.status,
+      headersMs,
+      bodyMs: Math.round((timing.elapsedMs() - headersMs) * 10) / 10,
+      serverRequestId,
+      serverTiming,
+      decodeFailed,
+    })
+    return { status: res.status, data }
+  } catch (error) {
+    timing.end(signal?.aborted ? 'cancelled' : 'failed', { headersMs, errorName: error instanceof Error ? error.name : 'UnknownError' })
+    throw error
+  }
 }
 
 /** Preserve the shared UI response contract; browser mode must never fall back to the web server's disk APIs. */

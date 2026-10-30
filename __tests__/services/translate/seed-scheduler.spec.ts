@@ -564,6 +564,25 @@ describe('independent seed cache and engine scheduling', () => {
     await session.close()
   })
 
+  it('keeps Apple dispatching while another engine holds more than 64 active texts', async () => {
+    mockEngines = ['agent:a', 'apple']
+    const running = create(1000).fill({ limit: 4 })
+    await tick()
+    mockLane.next('lease-1')
+    mockLane.onError('Cache worker timed out')
+    await jest.advanceTimersByTimeAsync(10)
+    const appleCalls = () => mockTranslate.mock.calls.filter(([, opts]) => opts.engines[0] === 'apple')
+    expect(mockTranslate.mock.calls.filter(([, opts]) => opts.engines[0] === 'agent:a').length).toBeGreaterThan(64)
+    const before = appleCalls().length
+    const src = appleCalls()[0][0][0]
+    pending.get(src)!.resolve({ src, zh: '译文', engine: 'apple' })
+    await tick()
+    await jest.advanceTimersByTimeAsync(10)
+    expect(appleCalls()).toHaveLength(before + 1)
+    await stop()
+    await running
+  })
+
   it('bounds failed backlog even when the cache has already marked the whole job missing', async () => {
     mockEngines = ['agent:a', 'google']
     const original = mockTranslate.getMockImplementation()!

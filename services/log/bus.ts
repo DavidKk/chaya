@@ -1,5 +1,5 @@
 import { filterLogEntries, type LogEntry, type LogLevel, type LogQuery, normalizeLogLevel } from '@/lib/log'
-import { canUseDisk } from '@/lib/service-mode'
+import { canUseDisk } from '@/lib/service-mode/mode'
 
 import { appendLogToFile, clearLogFiles, loadLogsFromFiles, pluginLogFileStats, resolvePluginLogDir } from './file-store'
 

@@ -460,6 +460,9 @@ function chooseAuthorityMatch(group: SentenceMatch[], src: string, category?: st
     if (matched.length) pool = matched
   }
 
+  const local = pool.filter((m) => m.record.local)
+  if (local.length) pool = local
+
   // Identical translation -> deterministic order (local before shared, then id).
   if (new Set(pool.map(output)).size === 1) {
     const ordered = [...pool].sort(

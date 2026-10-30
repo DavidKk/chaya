@@ -1,10 +1,10 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // services/extract/lib/rgss/items-worker.ts
-import fs18 from "node:fs";
+import fs19 from "node:fs";
 import os2 from "node:os";
-import path13 from "node:path";
-import { parentPort, workerData } from "node:worker_threads";
+import path14 from "node:path";
+import { parentPort as parentPort2, workerData } from "node:worker_threads";
 
 // lib/game/resolve.ts
 import fs4 from "node:fs";
@@ -668,12 +668,12 @@ function detectSourceLanguage(texts, locale = "") {
 }
 
 // services/extract/lib/rgss.ts
-import fs17 from "node:fs";
-import path12 from "node:path";
+import fs18 from "node:fs";
+import path13 from "node:path";
 
 // lib/game/content-files.ts
-import fs7 from "node:fs";
-import path7 from "node:path";
+import fs8 from "node:fs";
+import path8 from "node:path";
 
 // lib/game/content-paths.ts
 var GAME_CONTENT_DIR = CONTENT_FILE_PREFIX;
@@ -717,13 +717,13 @@ function gameContentRelPath(kind) {
 }
 
 // services/storage/game-files.ts
-import path6 from "node:path";
+import path7 from "node:path";
 
 // services/storage/client.ts
 import { spawn } from "node:child_process";
-import fs6 from "node:fs";
+import fs7 from "node:fs";
 import os from "node:os";
-import path5 from "node:path";
+import path6 from "node:path";
 import { Worker } from "node:worker_threads";
 
 // lib/integration/mcp-port.ts
@@ -746,9 +746,247 @@ function processMcpPortEnv(home) {
   };
 }
 
-// services/storage/daemon-lock.ts
+// services/log/operation.ts
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
+import { isMainThread, parentPort, threadId } from "node:worker_threads";
+
+// lib/log/types.ts
+var LOG_LEVELS = ["ok", "warn", "fail", "info", "debug"];
+var LEVEL_SET = new Set(LOG_LEVELS);
+function normalizeLogLevel(raw) {
+  const v = String(raw || "info").toLowerCase();
+  if (v === "error" || v === "fatal") return "fail";
+  if (v === "success" || v === "done") return "ok";
+  if (v === "trace" || v === "log") return "debug";
+  if (LEVEL_SET.has(v)) return v;
+  return "info";
+}
+
+// lib/service-mode/target.ts
+function parseBuildTarget(value) {
+  const target2 = value?.trim().toLowerCase() || "server";
+  if (target2 === "dev" || target2 === "cloud" || target2 === "server") return target2;
+  throw new Error(`Invalid NEXT_PUBLIC_CHAYA_TARGET configuration: ${value}; supported values: dev, cloud, server`);
+}
+var BUILD_TARGET = parseBuildTarget(process.env.NEXT_PUBLIC_CHAYA_TARGET);
+var DEV_TARGET_ENV = "CHAYA_DEV_TARGET";
+function isDevTarget(value) {
+  return value === "cloud" || value === "server";
+}
+function getDevTarget() {
+  const raw = process.env[DEV_TARGET_ENV];
+  const explicit = raw?.trim().toLowerCase();
+  if (isDevTarget(explicit)) return explicit;
+  if (explicit) throw new Error(`Invalid CHAYA_DEV_TARGET configuration: ${raw}; supported values: cloud, server`);
+  return process.env.CHAYA_SERVICE?.trim().toLowerCase() === "remote" ? "cloud" : "server";
+}
+
+// lib/service-mode/mode.ts
+function parseExplicitServiceMode() {
+  const explicit = process.env.CHAYA_SERVICE?.trim().toLowerCase();
+  if (!explicit) return void 0;
+  if (explicit === "remote" || explicit === "app" || explicit === "local") return explicit;
+  throw new Error(`Invalid CHAYA_SERVICE configuration: ${process.env.CHAYA_SERVICE}; supported values: local, app, remote`);
+}
+function getServiceMode() {
+  const explicit = parseExplicitServiceMode();
+  if (BUILD_TARGET === "cloud" || process.env.VERCEL === "1") return "remote";
+  if (BUILD_TARGET === "dev") {
+    if (getDevTarget() === "cloud") return "remote";
+    return explicit === "app" ? "app" : "local";
+  }
+  return explicit ?? "local";
+}
+function canUseDisk(mode = getServiceMode()) {
+  return mode !== "remote";
+}
+
+// services/log/file-store.ts
 import fs5 from "node:fs";
 import path4 from "node:path";
+var DEFAULT_RETENTION_DAYS = 14;
+var DEFAULT_HYDRATE_LIMIT = 2e3;
+function resolvePluginLogDir() {
+  const fromEnv = process.env.CHAYA_LOG_DIR;
+  if (fromEnv && fromEnv.trim()) {
+    return path4.isAbsolute(fromEnv) ? fromEnv : path4.resolve(ROOT_PATH, fromEnv);
+  }
+  return PLUGIN_LOGS_DIR;
+}
+function dayKey(ts) {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+function dayFile(dir, day) {
+  return path4.join(dir, `${day}.ndjson`);
+}
+function ensureDir(dir) {
+  fs5.mkdirSync(dir, { recursive: true });
+}
+function appendLogToFile(entry, logDir = resolvePluginLogDir()) {
+  try {
+    ensureDir(logDir);
+    const file = dayFile(logDir, dayKey(entry.ts));
+    fs5.appendFileSync(file, `${JSON.stringify(entry)}
+`, "utf8");
+  } catch {
+  }
+}
+function parseLine(line, file, lineNo) {
+  const raw = line.trim();
+  if (!raw) return null;
+  try {
+    const o = JSON.parse(raw);
+    const ts = typeof o.ts === "number" ? o.ts : o.createdAt ? Date.parse(o.createdAt) : Date.now();
+    if (!o.source || o.message == null) return null;
+    return {
+      id: String(o.id || `${path4.basename(file)}:${lineNo}`),
+      ts: Number.isFinite(ts) ? ts : Date.now(),
+      level: normalizeLogLevel(o.level),
+      source: String(o.source).slice(0, 64),
+      message: String(o.message).slice(0, 8e3),
+      meta: o.meta
+    };
+  } catch {
+    return null;
+  }
+}
+function loadLogsFromFiles(opts) {
+  const logDir = opts?.logDir ?? resolvePluginLogDir();
+  const retentionDays = opts?.retentionDays ?? DEFAULT_RETENTION_DAYS;
+  const limit = opts?.limit ?? DEFAULT_HYDRATE_LIMIT;
+  if (!fs5.existsSync(logDir)) return [];
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1e3;
+  const files = fs5.readdirSync(logDir).filter((n) => /^\d{4}-\d{2}-\d{2}\.ndjson$/.test(n)).sort();
+  const out = [];
+  for (const name of files) {
+    const day = name.slice(0, 10);
+    const dayTs = Date.parse(`${day}T00:00:00.000Z`);
+    if (Number.isFinite(dayTs) && dayTs < cutoff - 24 * 60 * 60 * 1e3) {
+      continue;
+    }
+    const full = path4.join(logDir, name);
+    let text2 = "";
+    try {
+      text2 = fs5.readFileSync(full, "utf8");
+    } catch {
+      continue;
+    }
+    const lines = text2.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const entry = parseLine(lines[i], full, i + 1);
+      if (!entry) continue;
+      if (entry.ts < cutoff) continue;
+      out.push(entry);
+    }
+  }
+  out.sort((a, b) => a.ts - b.ts);
+  return out.length > limit ? out.slice(-limit) : out;
+}
+
+// services/log/bus.ts
+var MAX = 2e3;
+var buffer = [];
+var listeners = /* @__PURE__ */ new Set();
+var seq = 0;
+var hydrated = false;
+function nextId() {
+  seq += 1;
+  return `${Date.now().toString(36)}-${seq}`;
+}
+function hydrateOnce() {
+  if (hydrated) return;
+  hydrated = true;
+  if (!canUseDisk()) return;
+  try {
+    const loaded = loadLogsFromFiles({ limit: MAX });
+    buffer.push(...loaded);
+    if (buffer.length > MAX) buffer.splice(0, buffer.length - MAX);
+    seq = buffer.length;
+  } catch {
+  }
+}
+function appendLog(partial) {
+  hydrateOnce();
+  const entry = {
+    id: nextId(),
+    ts: partial.ts ?? Date.now(),
+    level: normalizeLogLevel(partial.level),
+    source: String(partial.source || "unknown").slice(0, 64),
+    message: String(partial.message ?? "").slice(0, 8e3),
+    meta: partial.meta
+  };
+  buffer.push(entry);
+  if (buffer.length > MAX) buffer.splice(0, buffer.length - MAX);
+  if (canUseDisk()) appendLogToFile(entry);
+  for (const fn of listeners) {
+    try {
+      fn(entry);
+    } catch {
+    }
+  }
+  return entry;
+}
+
+// services/log/operation.ts
+var context = new AsyncLocalStorage();
+function runtimeEvent(level, source, message, meta, forward = false, ts = Date.now()) {
+  try {
+    const entry = { level, source, message, meta, ts };
+    if (!isMainThread && parentPort && (forward || process.env.CHAYA_LOG_FORWARD_TO_PARENT === "1")) {
+      parentPort.postMessage({ type: "translation-log", entry });
+    } else appendLog(entry);
+  } catch {
+  }
+}
+function operationId(value) {
+  return value && /^[a-zA-Z0-9:_-]{1,100}$/.test(value) ? value : randomUUID();
+}
+function startOperation(source, operation, meta = {}, options = {}) {
+  const id = operationId(options.operationId);
+  const startedAt = Date.now();
+  const started = performance.now();
+  const base = { ...meta, operation, operationId: id, parentId: context.getStore()?.operationId, pid: process.pid, threadId, startedAt };
+  let ended = false;
+  const elapsedMs = () => Math.round((performance.now() - started) * 10) / 10;
+  const mark = (stage, details = {}) => runtimeEvent("debug", source, `${operation}: ${stage}`, { ...base, ...details, stage, elapsedMs: elapsedMs() });
+  if (options.start !== false) mark("started");
+  return {
+    id,
+    startedAt,
+    elapsedMs,
+    mark,
+    run(fn) {
+      return context.run({ operationId: id }, fn);
+    },
+    end(outcome = "completed", details = {}) {
+      if (ended) return;
+      ended = true;
+      const duration = elapsedMs();
+      const slow = duration >= (options.slowMs ?? 1e3);
+      runtimeEvent(outcome === "failed" ? "fail" : slow ? "warn" : options.level ?? "debug", source, `${operation}: ${outcome} (${duration}ms)`, {
+        ...base,
+        ...details,
+        outcome,
+        elapsedMs: duration,
+        slow,
+        finishedAt: Date.now()
+      });
+    },
+    fail(error, details = {}) {
+      const errorName = error && typeof error === "object" && "name" in error ? String(error.name) : "UnknownError";
+      this.end(errorName === "AbortError" ? "cancelled" : "failed", {
+        ...details,
+        errorName,
+        errorCode: error && typeof error === "object" && "code" in error ? String(error.code) : void 0
+      });
+    }
+  };
+}
+
+// services/storage/daemon-lock.ts
+import fs6 from "node:fs";
+import path5 from "node:path";
 import { DatabaseSync } from "node:sqlite";
 function isPidAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -762,8 +1000,8 @@ function isPidAlive(pid) {
 }
 function readMetaSafe(file) {
   try {
-    if (!fs5.existsSync(file)) return null;
-    const raw = JSON.parse(fs5.readFileSync(file, "utf8"));
+    if (!fs6.existsSync(file)) return null;
+    const raw = JSON.parse(fs6.readFileSync(file, "utf8"));
     if (raw && Number.isInteger(raw.pid) && typeof raw.startedAt === "number" && typeof raw.port === "number" && typeof raw.authToken === "string" && typeof raw.dataDir === "string") {
       return raw;
     }
@@ -773,9 +1011,9 @@ function readMetaSafe(file) {
   }
 }
 function readStorageDaemonMeta(dataDir) {
-  const resolvedDir = typeof dataDir === "string" && dataDir ? dataDir : path4.join(process.cwd(), "data");
-  const metaFile = path4.join(resolvedDir, "runtime", "storage-daemon.json");
-  const lockFile = path4.join(resolvedDir, "runtime", "storage-daemon.lock");
+  const resolvedDir = typeof dataDir === "string" && dataDir ? dataDir : path5.join(process.cwd(), "data");
+  const metaFile = path5.join(resolvedDir, "runtime", "storage-daemon.json");
+  const lockFile = path5.join(resolvedDir, "runtime", "storage-daemon.lock");
   const meta = readMetaSafe(metaFile);
   const owner = readMetaSafe(lockFile);
   if (!meta || !owner || !meta.instanceId || meta.instanceId !== owner.instanceId) return null;
@@ -786,14 +1024,14 @@ function readStorageDaemonMeta(dataDir) {
 // services/storage/client.ts
 function resolveNativeBin(name) {
   const root = typeof ROOT_PATH === "string" && ROOT_PATH ? ROOT_PATH : process.cwd();
-  const direct = path5.join(root, "native/bin", name);
-  if (fs6.existsSync(direct)) return direct;
-  const cwdCandidate = path5.join(process.cwd(), "native/bin", name);
-  if (fs6.existsSync(cwdCandidate)) return cwdCandidate;
+  const direct = path6.join(root, "native/bin", name);
+  if (fs7.existsSync(direct)) return direct;
+  const cwdCandidate = path6.join(process.cwd(), "native/bin", name);
+  if (fs7.existsSync(cwdCandidate)) return cwdCandidate;
   return direct;
 }
 function resolveDataDir() {
-  return typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path5.join(process.cwd(), "data");
+  return typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path6.join(process.cwd(), "data");
 }
 var worker;
 var responseBuffer;
@@ -802,16 +1040,16 @@ var locatorPublished = false;
 function publishLocator() {
   if (locatorPublished) return;
   const dir = mcpPortConfigDir(processMcpPortEnv(os.homedir()));
-  fs6.mkdirSync(dir, { recursive: true, mode: 448 });
-  const file = path5.join(dir, "storage-runtime.json");
+  fs7.mkdirSync(dir, { recursive: true, mode: 448 });
+  const file = path6.join(dir, "storage-runtime.json");
   const tmp = `${file}.${process.pid}.tmp`;
   const entry = resolveNativeBin("chaya-storage-daemon.mjs");
   const dataDir = resolveDataDir();
   const rootDir = typeof ROOT_PATH === "string" && ROOT_PATH ? ROOT_PATH : process.cwd();
-  fs6.writeFileSync(tmp, JSON.stringify({ dataDir, entry, executable: process.execPath, root: rootDir }), {
+  fs7.writeFileSync(tmp, JSON.stringify({ dataDir, entry, executable: process.execPath, root: rootDir }), {
     mode: 384
   });
-  fs6.renameSync(tmp, file);
+  fs7.renameSync(tmp, file);
   locatorPublished = true;
 }
 function ensureStorageDaemon() {
@@ -820,15 +1058,15 @@ function ensureStorageDaemon() {
   let meta = readStorageDaemonMeta(dataDir);
   if (meta?.port) return meta;
   const entry = resolveNativeBin("chaya-storage-daemon.mjs");
-  if (!fs6.existsSync(entry)) throw new Error("Storage runtime is missing; run pnpm build:translate");
+  if (!fs7.existsSync(entry)) throw new Error("Storage runtime is missing; run pnpm build:translate");
   const child = spawn(process.execPath, [entry], {
     detached: true,
     stdio: "ignore",
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
-      CHAYA_ROOT: typeof ROOT_PATH === "string" && ROOT_PATH && fs6.existsSync(path5.join(ROOT_PATH, "native/bin")) ? ROOT_PATH : process.cwd(),
-      CHAYA_DATA_DIR: typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path5.join(process.cwd(), "data")
+      CHAYA_ROOT: typeof ROOT_PATH === "string" && ROOT_PATH && fs7.existsSync(path6.join(ROOT_PATH, "native/bin")) ? ROOT_PATH : process.cwd(),
+      CHAYA_DATA_DIR: typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path6.join(process.cwd(), "data")
     }
   });
   let spawnError;
@@ -846,35 +1084,56 @@ function ensureStorageDaemon() {
   throw new Error("Storage daemon did not become ready");
 }
 function storageCall(method, args = []) {
-  const meta = ensureStorageDaemon();
-  if (!worker) {
-    const entry = resolveNativeBin("chaya-storage-client.mjs");
-    worker = Reflect.construct(Worker, [entry]);
-    worker.on("error", () => {
-      worker = void 0;
-    });
-    worker.unref();
+  const timing = startOperation("storage", "storage.roundtrip", { method }, { start: false });
+  let readyMs = 0;
+  let waitMs = 0;
+  let decodeMs = 0;
+  let waiting = 0;
+  let remote;
+  try {
+    const meta = ensureStorageDaemon();
+    if (!worker) {
+      const entry = resolveNativeBin("chaya-storage-client.mjs");
+      worker = Reflect.construct(Worker, [entry]);
+      worker.on("error", () => {
+        worker = void 0;
+      });
+      worker.unref();
+    }
+    const shared = responseBuffer ??= new SharedArrayBuffer(16 * 1024 * 1024);
+    const signal = new Int32Array(shared, 0, 2);
+    Atomics.store(signal, 0, 0);
+    Atomics.store(signal, 1, 0);
+    readyMs = timing.elapsedMs();
+    waiting = performance.now();
+    worker.postMessage({ port: meta.port, token: meta.authToken, body: { method, args, requestId: timing.id, sentAt: Date.now() }, shared });
+    if (Atomics.wait(signal, 0, 0, 125e3) === "timed-out") {
+      responseBuffer = void 0;
+      throw new Error("Storage request timed out; retry with the same mutation key");
+    }
+    waitMs = Math.round((performance.now() - waiting) * 10) / 10;
+    const decoding = performance.now();
+    const result = JSON.parse(Buffer.from(shared, 8, Atomics.load(signal, 1)).toString("utf8"));
+    remote = result.timing;
+    decodeMs = Math.round((performance.now() - decoding) * 10) / 10;
+    if (result.error) throw new Error(result.error);
+    const value = result.value;
+    const restored = value?.storageMap ? new Map(value.storageMap) : value;
+    decodeMs = Math.round((performance.now() - decoding) * 10) / 10;
+    timing.end("completed", { readyMs, waitMs, decodeMs, responseBytes: Atomics.load(signal, 1), ...result.timing });
+    return restored;
+  } catch (error) {
+    if (waiting && !waitMs) waitMs = Math.round((performance.now() - waiting) * 10) / 10;
+    timing.fail(error, { readyMs, waitMs, decodeMs, ...remote });
+    throw error;
   }
-  const shared = responseBuffer ??= new SharedArrayBuffer(16 * 1024 * 1024);
-  const signal = new Int32Array(shared, 0, 2);
-  Atomics.store(signal, 0, 0);
-  Atomics.store(signal, 1, 0);
-  worker.postMessage({ port: meta.port, token: meta.authToken, body: { method, args }, shared });
-  if (Atomics.wait(signal, 0, 0, 125e3) === "timed-out") {
-    responseBuffer = void 0;
-    throw new Error("Storage request timed out; retry with the same mutation key");
-  }
-  const result = JSON.parse(Buffer.from(shared, 8, Atomics.load(signal, 1)).toString("utf8"));
-  if (result.error) throw new Error(result.error);
-  const value = result.value;
-  return value?.storageMap ? new Map(value.storageMap) : value;
 }
 
 // services/storage/game-files.ts
 var ownerDirectories = /* @__PURE__ */ new Map();
 var mountedDirectories = /* @__PURE__ */ new Map();
 function publicGameFiles(contentRoot) {
-  const key3 = path6.resolve(contentRoot);
+  const key3 = path7.resolve(contentRoot);
   const local = ownerDirectories.get(key3) ?? mountedDirectories.get(key3);
   if (local) return local;
   if (process.env.CHAYA_STORAGE_OWNER === "1") {
@@ -887,7 +1146,7 @@ function publicGameFiles(contentRoot) {
   return remote;
 }
 function publicGameFile(contentRoot, kind) {
-  return path6.join(publicGameFiles(contentRoot).directory, GAME_CONTENT_RELS[kind]);
+  return path7.join(publicGameFiles(contentRoot).directory, GAME_CONTENT_RELS[kind]);
 }
 
 // lib/game/content-files.ts
@@ -904,10 +1163,10 @@ var STORAGE_DOCUMENT_KINDS = /* @__PURE__ */ new Set([
 var registryCache = null;
 function storageDirectoryRegistry() {
   if (typeof DATA_DIR !== "string" || !DATA_DIR) return null;
-  const file = path7.join(DATA_DIR, "runtime", "game-directories.json");
+  const file = path8.join(DATA_DIR, "runtime", "game-directories.json");
   let mtimeMs = 0;
   try {
-    mtimeMs = fs7.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0;
+    mtimeMs = fs8.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0;
   } catch {
     mtimeMs = 0;
   }
@@ -918,12 +1177,12 @@ function storageDirectoryRegistry() {
   if (registryCache && registryCache.file === file && registryCache.mtimeMs === mtimeMs) return registryCache;
   const byRoot = /* @__PURE__ */ new Map();
   try {
-    const raw = JSON.parse(fs7.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs8.readFileSync(file, "utf8"));
     if (raw && typeof raw === "object" && !Array.isArray(raw)) {
       for (const [root, state] of Object.entries(raw)) {
         if (!state || typeof state !== "object") continue;
         const directory = state.directory;
-        if (typeof directory === "string" && directory) byRoot.set(path7.resolve(root), path7.resolve(directory));
+        if (typeof directory === "string" && directory) byRoot.set(path8.resolve(root), path8.resolve(directory));
       }
     }
   } catch {
@@ -934,14 +1193,14 @@ function storageDirectoryRegistry() {
 function storageGameDirectory(contentRoot) {
   const registry = storageDirectoryRegistry();
   if (!registry) return null;
-  const key3 = path7.resolve(contentRoot);
+  const key3 = path8.resolve(contentRoot);
   const direct = registry.byRoot.get(key3);
   if (direct) return direct;
   try {
-    const real = fs7.realpathSync(contentRoot);
+    const real = fs8.realpathSync(contentRoot);
     for (const [root, directory] of registry.byRoot) {
       try {
-        if (fs7.realpathSync(root) === real) return directory;
+        if (fs8.realpathSync(root) === real) return directory;
       } catch {
       }
     }
@@ -951,48 +1210,48 @@ function storageGameDirectory(contentRoot) {
 }
 function gameContentPath(contentRoot, kind) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) return publicGameFile(contentRoot, kind);
-  return path7.join(path7.resolve(contentRoot), gameContentRelPath(kind));
+  return path8.join(path8.resolve(contentRoot), gameContentRelPath(kind));
 }
 function gameContentCandidatePaths(contentRoot, kind, opts) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) return [publicGameFile(contentRoot, kind)];
-  const root = path7.resolve(contentRoot);
-  const dirs = opts?.alsoParent ? [root, path7.dirname(root)] : [root];
+  const root = path8.resolve(contentRoot);
+  const dirs = opts?.alsoParent ? [root, path8.dirname(root)] : [root];
   const out = [];
   for (const dir of dirs) {
-    out.push(path7.join(dir, gameContentRelPath(kind)));
+    out.push(path8.join(dir, gameContentRelPath(kind)));
     for (const name of LEGACY_FLAT_FILES[kind]) {
-      out.push(path7.join(dir, name));
+      out.push(path8.join(dir, name));
     }
   }
   return out;
 }
 function gameContentReadPath(contentRoot, kind, opts) {
-  return gameContentCandidatePaths(contentRoot, kind, opts).find((p) => fs7.existsSync(p)) ?? null;
+  return gameContentCandidatePaths(contentRoot, kind, opts).find((p) => fs8.existsSync(p)) ?? null;
 }
 function localGameContentFile(contentRoot, kind) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) {
     const directory = storageGameDirectory(contentRoot);
     if (directory) {
-      const canonical = path7.join(directory, GAME_CONTENT_RELS[kind]);
-      if (fs7.existsSync(canonical)) return canonical;
+      const canonical = path8.join(directory, GAME_CONTENT_RELS[kind]);
+      if (fs8.existsSync(canonical)) return canonical;
     }
   }
-  const roots = [path7.resolve(contentRoot)];
-  const parent = path7.dirname(roots[0]);
+  const roots = [path8.resolve(contentRoot)];
+  const parent = path8.dirname(roots[0]);
   if (parent !== roots[0]) roots.push(parent);
   for (const root of roots) {
-    const primary = path7.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind]);
-    if (fs7.existsSync(primary)) return primary;
+    const primary = path8.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind]);
+    if (fs8.existsSync(primary)) return primary;
     for (const name of LEGACY_FLAT_FILES[kind]) {
-      const candidate = path7.join(root, name);
-      if (fs7.existsSync(candidate)) return candidate;
+      const candidate = path8.join(root, name);
+      if (fs8.existsSync(candidate)) return candidate;
     }
   }
   return null;
 }
 function ensureGameContentDir(contentRoot, kind) {
   const file = gameContentPath(contentRoot, kind);
-  fs7.mkdirSync(path7.dirname(file), { recursive: true });
+  fs8.mkdirSync(path8.dirname(file), { recursive: true });
   return file;
 }
 
@@ -1025,8 +1284,8 @@ function detectCacheLang(text2, fallback = DEFAULT_CACHE_SRC_LANG) {
 }
 
 // services/game/rgss-archive.ts
-import fs8 from "node:fs";
-import path8 from "node:path";
+import fs9 from "node:fs";
+import path9 from "node:path";
 import { inflateSync } from "node:zlib";
 
 // services/extract/lib/rgss/marshal.ts
@@ -1250,13 +1509,13 @@ function rubyObjectField(value, field) {
 
 // services/game/rgss-archive.ts
 function readAceMember(archive, member) {
-  const fd = fs8.openSync(archive, "r");
+  const fd = fs9.openSync(archive, "r");
   let cursor = 0;
-  const length = fs8.fstatSync(fd).size;
+  const length = fs9.fstatSync(fd).size;
   const read = (size, offset = cursor) => {
     if (size < 0 || offset + size > length) throw new Error("Truncated RGSS archive");
     const bytes = Buffer.alloc(size);
-    if (fs8.readSync(fd, bytes, 0, size, offset) !== size) throw new Error("Truncated RGSS archive");
+    if (fs9.readSync(fd, bytes, 0, size, offset) !== size) throw new Error("Truncated RGSS archive");
     cursor = offset + size;
     return bytes;
   };
@@ -1285,15 +1544,15 @@ function readAceMember(archive, member) {
     }
     throw new Error("RGSS archive has too many members");
   } finally {
-    fs8.closeSync(fd);
+    fs9.closeSync(fd);
   }
 }
 function readRgssScripts(contentRoot) {
-  const names = fs8.readdirSync(contentRoot);
+  const names = fs9.readdirSync(contentRoot);
   const data = names.find((name) => name.toLowerCase() === "data");
-  const script = data && fs8.readdirSync(path8.join(contentRoot, data)).find((name) => /^scripts\.rvdata2?$/i.test(name));
+  const script = data && fs9.readdirSync(path9.join(contentRoot, data)).find((name) => /^scripts\.rvdata2?$/i.test(name));
   const archive = names.find((name) => name.toLowerCase() === "game.rgss3a");
-  const bytes = script ? fs8.readFileSync(path8.join(contentRoot, data, script)) : archive ? readAceMember(path8.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
+  const bytes = script ? fs9.readFileSync(path9.join(contentRoot, data, script)) : archive ? readAceMember(path9.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
   if (!bytes) return [];
   const value = parseRubyMarshal(bytes);
   if (!value || typeof value !== "object" || value.kind !== "array") return [];
@@ -1310,13 +1569,13 @@ function readRgssScripts(contentRoot) {
   });
 }
 function unpackAceArchive(archive, destinationDir, filter) {
-  const fd = fs8.openSync(archive, "r");
+  const fd = fs9.openSync(archive, "r");
   let cursor = 0;
-  const length = fs8.fstatSync(fd).size;
+  const length = fs9.fstatSync(fd).size;
   const read = (size, offset = cursor) => {
     if (size < 0 || offset + size > length) throw new Error("Truncated RGSS archive");
     const bytes = Buffer.alloc(size);
-    if (fs8.readSync(fd, bytes, 0, size, offset) !== size) throw new Error("Truncated RGSS archive");
+    if (fs9.readSync(fd, bytes, 0, size, offset) !== size) throw new Error("Truncated RGSS archive");
     cursor = offset + size;
     return bytes;
   };
@@ -1342,20 +1601,20 @@ function unpackAceArchive(archive, destinationDir, filter) {
         bytes[i] ^= fileKey >>> i % 4 * 8 & 255;
         if (i % 4 === 3) fileKey = Math.imul(fileKey, 7) + 3 >>> 0;
       }
-      const outPath = path8.join(destinationDir, member);
-      fs8.mkdirSync(path8.dirname(outPath), { recursive: true });
-      fs8.writeFileSync(outPath, bytes);
+      const outPath = path9.join(destinationDir, member);
+      fs9.mkdirSync(path9.dirname(outPath), { recursive: true });
+      fs9.writeFileSync(outPath, bytes);
       extracted.push(member);
     }
   } finally {
-    fs8.closeSync(fd);
+    fs9.closeSync(fd);
   }
   return extracted;
 }
 
 // services/translate/game-cache-context.ts
 import { createHash } from "node:crypto";
-import fs10 from "node:fs";
+import fs11 from "node:fs";
 
 // lib/translate/rm-escape.ts
 var RM_DIGIT_CODE_SRC = String.raw`\\[A-Za-z]+\[\d+\]`;
@@ -2204,12 +2463,12 @@ function structuredSentenceAliases(src, zh, structure) {
   const label = source.units.find((unit) => unit.kind === "label");
   const translatedLabel = target2.units.find((unit) => unit.kind === "label");
   if (label && translatedLabel) pairs.unshift({ source: label, target: translatedLabel });
-  const context = source.units.filter((unit) => unit.kind === "text").reduce((length, unit) => length + unit.end - unit.start, 0);
+  const context2 = source.units.filter((unit) => unit.kind === "text").reduce((length, unit) => length + unit.end - unit.start, 0);
   return pairs.flatMap((pair) => {
     const from = src.slice(pair.source.start, pair.source.end);
     let to = zh.slice(pair.target.start, pair.target.end);
     if (/[①-⑳][\t ]*$/u.test(zh.slice(0, pair.target.start))) to = to.replace(/^[.．][\t ]*/u, "");
-    return from && to ? [{ src: from, zh: to, context }] : [];
+    return from && to ? [{ src: from, zh: to, context: context2 }] : [];
   });
 }
 
@@ -2332,12 +2591,12 @@ function expandRecords(records2) {
   return records2.flatMap((record) => [
     record,
     ...sentenceAliases(record.src, record.zh).map((alias) => ({ ...record, ...alias, derived: true, alignments: void 0, newlines: void 0 })),
-    ...structuredSentenceAliases(record.src, record.zh, record.structure).map(({ context, ...alias }) => ({
+    ...structuredSentenceAliases(record.src, record.zh, record.structure).map(({ context: context2, ...alias }) => ({
       ...record,
       ...alias,
       derived: true,
       structuralAlias: true,
-      structureContext: context,
+      structureContext: context2,
       alignments: void 0,
       newlines: void 0,
       structure: void 0
@@ -2644,8 +2903,8 @@ function chooseAuthorityMatch(group, src, category) {
   const explicit = pool.filter((m) => !m.record.structuralAlias);
   if (explicit.length) pool = explicit;
   else {
-    const context = Math.min(...pool.map((m) => m.record.structureContext || 0));
-    pool = pool.filter((m) => (m.record.structureContext || 0) === context);
+    const context2 = Math.min(...pool.map((m) => m.record.structureContext || 0));
+    pool = pool.filter((m) => (m.record.structureContext || 0) === context2);
   }
   const rank = Math.max(...pool.map((m) => cacheEngineRank(m.record.engine)));
   pool = pool.filter((m) => cacheEngineRank(m.record.engine) === rank);
@@ -2656,6 +2915,8 @@ function chooseAuthorityMatch(group, src, category) {
     const matched = pool.filter((m) => m.record.category === want);
     if (matched.length) pool = matched;
   }
+  const local = pool.filter((m) => m.record.local);
+  if (local.length) pool = local;
   if (new Set(pool.map(output)).size === 1) {
     const ordered = [...pool].sort(
       (a, b) => (a.record.local ? 0 : 1) - (b.record.local ? 0 : 1) || (a.kind === "extracted" ? 1 : 0) - (b.kind === "extracted" ? 1 : 0) || a.record.id.localeCompare(b.record.id)
@@ -3139,7 +3400,7 @@ function shouldTranslate(text2, sourceLang) {
 }
 
 // services/translate/game-records.ts
-import fs9 from "node:fs";
+import fs10 from "node:fs";
 var snapshots = /* @__PURE__ */ new Map();
 function gameTranslationFiles(contentRoot, opts) {
   const seed = opts?.localOnly ? localGameContentFile(contentRoot, "seed") : gameContentReadPath(contentRoot, "seed", { alsoParent: true });
@@ -3147,7 +3408,7 @@ function gameTranslationFiles(contentRoot, opts) {
   const stamp = JSON.stringify(
     [seed, cache, opts?.localOnly ? 1 : 0].map((file) => {
       if (typeof file === "number") return file;
-      const stat = file ? fs9.statSync(file, { throwIfNoEntry: false }) : void 0;
+      const stat = file ? fs10.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   );
@@ -3161,7 +3422,7 @@ function loadGameTranslationRecords(contentRoot, current, opts) {
     if (seed) {
       let data;
       try {
-        data = JSON.parse(fs9.readFileSync(seed, "utf8"));
+        data = JSON.parse(fs10.readFileSync(seed, "utf8"));
       } catch {
         data = null;
       }
@@ -3170,7 +3431,7 @@ function loadGameTranslationRecords(contentRoot, current, opts) {
       }
     }
     if (cache)
-      for (const line of fs9.readFileSync(cache, "utf8").split("\n")) {
+      for (const line of fs10.readFileSync(cache, "utf8").split("\n")) {
         if (!line.trim()) continue;
         try {
           const row = parseCacheRow(JSON.parse(line));
@@ -3261,8 +3522,8 @@ function buildContext(contentRoot) {
   const records2 = loadGameTranslationRecords(contentRoot, () => false);
   const blocked = /* @__PURE__ */ new Set();
   const file = gameTranslationFiles(contentRoot).cache;
-  if (file && fs10.existsSync(file))
-    for (const line of fs10.readFileSync(file, "utf8").split("\n")) {
+  if (file && fs11.existsSync(file))
+    for (const line of fs11.readFileSync(file, "utf8").split("\n")) {
       if (!line.trim()) continue;
       try {
         const row = parseCacheRow(JSON.parse(line));
@@ -3291,17 +3552,17 @@ function buildContext(contentRoot) {
 }
 function getGameCacheContext(contentRoot) {
   const { stamp } = gameTranslationFiles(contentRoot);
-  let context = contexts.get(contentRoot);
-  if (context?.stamp !== stamp) {
-    context = { ...buildContext(contentRoot), stamp };
+  let context2 = contexts.get(contentRoot);
+  if (context2?.stamp !== stamp) {
+    context2 = { ...buildContext(contentRoot), stamp };
     if (contexts.size >= 8 && !contexts.has(contentRoot)) contexts.delete(contexts.keys().next().value);
-    contexts.set(contentRoot, context);
+    contexts.set(contentRoot, context2);
   }
-  return context;
+  return context2;
 }
 
 // services/translate/game-coverage.ts
-import fs11 from "node:fs";
+import fs12 from "node:fs";
 import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
 
 // services/translate/cache-lookup.ts
@@ -3386,6 +3647,7 @@ function lookupParts(get, src, map) {
 // services/translate/shared-cache/match-index.ts
 var toRecord = (r) => ({
   id: String(r.id),
+  candidateId: r.translation_id,
   revision: r.revision,
   src: r.src,
   zh: r.zh,
@@ -3404,7 +3666,8 @@ function createMatchIndex(client) {
     }
     return statement;
   }
-  const joined = "SELECT DISTINCT r.*,t.zh,t.engine,t.category FROM translation_records r JOIN translations t ON t.src=r.src AND t.src_lang=r.src_lang AND t.tgt_lang=r.tgt_lang";
+  const rawJoined = "SELECT DISTINCT r.*,t.zh,t.engine,t.category FROM translation_records r JOIN translations t ON t.id=r.translation_id";
+  const joined = rawJoined.replace("JOIN translations t", "JOIN selected_translations t");
   function reindexWithNewlines(row, newlines, structure) {
     const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang };
     prepare("DELETE FROM sentence_positions WHERE record_id=?").run(row.id);
@@ -3430,6 +3693,10 @@ function createMatchIndex(client) {
     const structure = prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?").get(row.id, row.revision);
     if (structure) record2.structure = JSON.parse(structure.annotations_json);
     return record2;
+  }
+  function inserted(translationId) {
+    const row = prepare(rawJoined + " WHERE t.id=?").get(translationId);
+    return row ? attach(row) : null;
   }
   function record(src, pair) {
     const r = prepare(joined + " WHERE r.src=? AND r.src_lang=? AND r.tgt_lang=?").get(src, pair.from, pair.to);
@@ -3479,6 +3746,7 @@ function createMatchIndex(client) {
   }
   return {
     record,
+    inserted,
     equivalent,
     candidates: candidates2,
     numericRecords(pair, src) {
@@ -3492,7 +3760,7 @@ function createMatchIndex(client) {
     },
     version: () => String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value),
     current(records2) {
-      return records2.every((r) => Number(prepare("SELECT revision FROM translation_records WHERE id=?").get(r.id)?.revision) === r.revision);
+      return records2.every((r) => Number(prepare(joined + " WHERE r.id=?").get(r.id)?.revision) === r.revision);
     },
     plan(src, pair, local = [], opts) {
       client.exec("BEGIN");
@@ -3514,7 +3782,8 @@ function createMatchIndex(client) {
       }
     },
     setAlignment(src, pair, groups, expectedRevision, opts) {
-      const r = record(src, pair);
+      const r = opts?.candidateId ? inserted(opts.candidateId) : record(src, pair);
+      if (r && (r.src !== src || r.from !== pair.from || r.to !== pair.to)) return false;
       if (!r || expectedRevision !== void 0 && r.revision !== expectedRevision || groups.length > 1e3) return false;
       const structure = opts?.structure ?? r.structure;
       if (structure && !validRecordStructure(structure)) return false;
@@ -3533,7 +3802,7 @@ function createMatchIndex(client) {
         if (nextNewlines?.length) {
           prepare("INSERT OR REPLACE INTO newline_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(nextNewlines));
         }
-        const row = prepare(joined + " WHERE r.id=?").get(r.id);
+        const row = prepare(rawJoined + " WHERE r.id=?").get(r.id);
         if (structure) prepare("INSERT OR REPLACE INTO structure_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(structure));
         reindexWithNewlines(row, nextNewlines, structure);
         client.exec("COMMIT");
@@ -3544,11 +3813,18 @@ function createMatchIndex(client) {
       }
     },
     authority(src, pair, opts) {
-      const records2 = equivalent(src, pair);
+      const want = String(opts?.category || "").trim();
+      const records2 = prepare(
+        rawJoined + ` JOIN match_keys k ON k.record_id=r.id
+        WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical'
+          AND t.id=(SELECT c.id FROM translations c
+            WHERE c.src=t.src AND c.src_lang=t.src_lang AND c.tgt_lang=t.tgt_lang
+            ORDER BY c.engine_rank DESC,CASE WHEN c.category=? THEN 1 ELSE 0 END DESC,c.updated_at DESC,c.id DESC LIMIT 1)
+        ORDER BY t.updated_at DESC,t.id DESC LIMIT 501`
+      ).all(wholeSentenceKey(src), pair.from, pair.to, want).map(attach);
       if (!records2.length || records2.length > 500) return null;
       const rank = Math.max(...records2.map((r) => cacheEngineRank(r.engine)));
       let top = records2.filter((r) => cacheEngineRank(r.engine) === rank);
-      const want = String(opts?.category || "").trim();
       if (want) {
         const matched = top.filter((r) => r.category === want);
         if (matched.length) top = matched;
@@ -3577,7 +3853,7 @@ function createGameCoverage(records2, opts) {
         if (!opened) {
           opened = true;
           const database = opts?.database ?? TRANSLATE_CACHE_DB_PATH;
-          if (database && fs11.existsSync(database)) {
+          if (database && fs12.existsSync(database)) {
             client = new DatabaseSync2(database, { readOnly: true });
             client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250");
             if (client.prepare("SELECT 1 FROM sqlite_master WHERE name='match_keys'").get()) shared = createMatchIndex(client);
@@ -3607,7 +3883,7 @@ function createGameCoverage(records2, opts) {
 }
 
 // services/translate/resources/snapshot.ts
-import fs12 from "node:fs";
+import fs13 from "node:fs";
 import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
 
 // lib/translate/resource-matcher.ts
@@ -3658,11 +3934,11 @@ function createResourceMatcher(snapshot) {
         }
     }
   }
-  function eligible(record, context) {
-    return record.sourceLanguage === context.sourceLanguage && record.targetLanguage === context.targetLanguage && (record.scope.kind === "global" || record.scope.gameId === context.gameId) && Object.entries(record.conditions || {}).every(([name, value]) => context[name] === value);
+  function eligible(record, context2) {
+    return record.sourceLanguage === context2.sourceLanguage && record.targetLanguage === context2.targetLanguage && (record.scope.kind === "global" || record.scope.gameId === context2.gameId) && Object.entries(record.conditions || {}).every(([name, value]) => context2[name] === value);
   }
-  function choose(candidates2, context) {
-    const available = candidates2.filter(({ record: record2 }) => eligible(record2, context));
+  function choose(candidates2, context2) {
+    const available = candidates2.filter(({ record: record2 }) => eligible(record2, context2));
     const score = ({ record: record2 }) => (record2.scope.kind === "game" ? 100 : 0) + Object.keys(record2.conditions || {}).length;
     const best = Math.max(-1, ...available.map(score));
     const winners = available.filter((candidate) => score(candidate) === best);
@@ -3683,26 +3959,26 @@ function createResourceMatcher(snapshot) {
   }
   return {
     revision: snapshot.revision,
-    match(text2, context) {
-      const candidates2 = (source) => exact.get(JSON.stringify([context.sourceLanguage, context.targetLanguage, key2(source)])) || [];
+    match(text2, context2) {
+      const candidates2 = (source) => exact.get(JSON.stringify([context2.sourceLanguage, context2.targetLanguage, key2(source)])) || [];
       const full = choose(
         candidates2(text2).map((candidate) => ({ ...candidate, output: candidate.record.targetText })),
-        context
+        context2
       );
       if (full.hit || full.conflict) return full.hit;
       const shell = translationSegmentContent(text2);
       if (shell.core !== text2) {
         const wrapped = choose(
           candidates2(shell.core).filter(({ record }) => record.type === "entry" && record.match.allowBoundary).map((candidate) => ({ ...candidate, output: shell.lead + candidate.record.targetText + shell.trail })),
-          context
+          context2
         );
         if (wrapped.hit || wrapped.conflict) return wrapped.hit;
       }
-      const generated = vocal.filter(({ record }) => eligible(record, context)).flatMap((candidate) => {
+      const generated = vocal.filter(({ record }) => eligible(record, context2)).flatMap((candidate) => {
         const output = matchVocalRule(text2, candidate.record);
         return output == null ? [] : [{ ...candidate, output }];
       });
-      return choose(generated, context).hit;
+      return choose(generated, context2).hit;
     }
   };
 }
@@ -3886,14 +4162,14 @@ function readResourceSnapshot(db) {
 // services/translate/resources/snapshot.ts
 var matchers = /* @__PURE__ */ new Map();
 function loadResourceMatcher(file = TRANSLATE_CACHE_DB_PATH) {
-  if (!fs12.existsSync(file)) return createResourceMatcher(bundledResourceSnapshot());
+  if (!fs13.existsSync(file)) return createResourceMatcher(bundledResourceSnapshot());
   const db = new DatabaseSync3(file, { readOnly: true });
   try {
     db.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=5000; BEGIN");
     const ready = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='translation_resource_state'").get();
     if (!ready || !db.prepare("SELECT 1 FROM translation_resource_state WHERE id=1").get()) return createResourceMatcher(bundledResourceSnapshot());
     const revision = readResourceRevision(db);
-    const stat = fs12.statSync(file);
+    const stat = fs13.statSync(file);
     const identity = `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
     const previous = matchers.get(file);
     if (previous?.identity === identity && previous.revision === revision) return previous.matcher;
@@ -3908,12 +4184,12 @@ function loadResourceMatcher(file = TRANSLATE_CACHE_DB_PATH) {
 }
 
 // services/translate/seed-failures.ts
-import fs14 from "node:fs";
+import fs15 from "node:fs";
 
 // services/translate/seed-job-state.ts
 import { createHash as createHash2 } from "node:crypto";
-import fs13 from "node:fs";
-import path9 from "node:path";
+import fs14 from "node:fs";
+import path10 from "node:path";
 var MAX_SEED_JOB_LOGS = 120;
 function idleSeedJob(contentRoot = "") {
   return {
@@ -3933,16 +4209,16 @@ function idleSeedJob(contentRoot = "") {
   };
 }
 function seedJobKey(contentRoot) {
-  return createHash2("sha1").update(path9.resolve(contentRoot)).digest("hex").slice(0, 16);
+  return createHash2("sha1").update(path10.resolve(contentRoot)).digest("hex").slice(0, 16);
 }
 function seedJobFile(contentRoot) {
-  return path9.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
+  return path10.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
 }
 function readSeedJobState(contentRoot) {
   const file = seedJobFile(contentRoot);
-  if (!fs13.existsSync(file)) return null;
+  if (!fs14.existsSync(file)) return null;
   try {
-    const raw = JSON.parse(fs13.readFileSync(file, "utf8"));
+    const raw = JSON.parse(fs14.readFileSync(file, "utf8"));
     if (!raw || typeof raw !== "object") return null;
     return {
       ...idleSeedJob(contentRoot),
@@ -3965,7 +4241,7 @@ function readSeedFailures(contentRoot) {
   const file = seedFailureFile(contentRoot);
   let text2;
   try {
-    text2 = fs14.readFileSync(file, "utf8");
+    text2 = fs15.readFileSync(file, "utf8");
   } catch (error) {
     if (error.code === "ENOENT") return failures;
     throw error;
@@ -4096,8 +4372,8 @@ function loadRgssScriptTranslationItems(contentRoot, lookup, startId = 1) {
 }
 
 // services/extract/lib/rgss/writeback.ts
-import fs15 from "node:fs";
-import path10 from "node:path";
+import fs16 from "node:fs";
+import path11 from "node:path";
 
 // lib/translate/name-glossary.ts
 var NAME_GLOSSARY_CATEGORIES = ["actor", "actor_nickname", "item", "weapon", "armor", "skill", "enemy", "state", "map"];
@@ -4271,10 +4547,10 @@ function fieldCategory(className, field, fallback) {
   return category;
 }
 function loadOneDataFile(dataDir, name) {
-  const file = path10.join(dataDir, name);
-  const value = parseRubyMarshal(fs15.readFileSync(file));
+  const file = path11.join(dataDir, name);
+  const value = parseRubyMarshal(fs16.readFileSync(file));
   const backup = `${file}.chaya.bak`;
-  const original = fs15.existsSync(backup) ? parseRubyMarshal(fs15.readFileSync(backup)) : value;
+  const original = fs16.existsSync(backup) ? parseRubyMarshal(fs16.readFileSync(backup)) : value;
   const current = strings(value);
   const texts = [];
   for (const [location, source] of strings(original)) {
@@ -4287,7 +4563,7 @@ function loadOneDataFile(dataDir, name) {
 }
 var SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i;
 function listDataFileNames(dataDir) {
-  const names = fs15.readdirSync(dataDir).filter((name) => /\.rvdata2?$/i.test(name) && !SKIP_DATA_STEMS.test(name)).sort();
+  const names = fs16.readdirSync(dataDir).filter((name) => /\.rvdata2?$/i.test(name) && !SKIP_DATA_STEMS.test(name)).sort();
   if (!names.length) throw new Error("RGSS data is unavailable. Unpack the encrypted archive into Data/ first.");
   return names;
 }
@@ -4325,15 +4601,15 @@ function loadRgssNameItems(dataDir) {
 }
 
 // services/extract/lib/rgss-sources-index.ts
-import fs16 from "node:fs";
-import path11 from "node:path";
+import fs17 from "node:fs";
+import path12 from "node:path";
 var SOURCE_INDEX_VERSION = 2;
 function rgssDataSignature(dataDir) {
-  const files = fs16.readdirSync(dataDir).filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name)).sort();
+  const files = fs17.readdirSync(dataDir).filter((name) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name)).sort();
   return JSON.stringify([
     SOURCE_INDEX_VERSION,
     ...files.map((name) => {
-      const stat = fs16.statSync(path11.join(dataDir, name));
+      const stat = fs17.statSync(path12.join(dataDir, name));
       return [name, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   ]);
@@ -4345,37 +4621,37 @@ function writeRgssSourcesIndex(contentRoot, signature, sources) {
     sources: [...sources],
     updatedAt: Date.now()
   };
-  fs16.writeFileSync(file, `${JSON.stringify(payload)}
+  fs17.writeFileSync(file, `${JSON.stringify(payload)}
 `);
 }
 
 // services/extract/lib/rgss.ts
 function findChild(dir, name) {
   try {
-    const hit = fs17.readdirSync(dir).find((entry) => entry.toLowerCase() === name.toLowerCase());
-    return hit ? path12.join(dir, hit) : null;
+    const hit = fs18.readdirSync(dir).find((entry) => entry.toLowerCase() === name.toLowerCase());
+    return hit ? path13.join(dir, hit) : null;
   } catch {
     return null;
   }
 }
 function rgssDataDir(contentRoot) {
   const dir = findChild(contentRoot, "data");
-  if (dir && fs17.statSync(dir).isDirectory() && extensionFor(dir)) return dir;
+  if (dir && fs18.statSync(dir).isDirectory() && extensionFor(dir)) return dir;
   try {
-    const names = fs17.readdirSync(contentRoot);
+    const names = fs18.readdirSync(contentRoot);
     const archive = names.find((name) => /^game\.rgss3a$/i.test(name));
     if (archive) {
-      unpackAceArchive(path12.join(contentRoot, archive), contentRoot, (m) => m.toLowerCase().startsWith("data/"));
+      unpackAceArchive(path13.join(contentRoot, archive), contentRoot, (m) => m.toLowerCase().startsWith("data/"));
       const extracted = findChild(contentRoot, "data");
-      if (extracted && fs17.statSync(extracted).isDirectory() && extensionFor(extracted)) return extracted;
+      if (extracted && fs18.statSync(extracted).isDirectory() && extensionFor(extracted)) return extracted;
     }
   } catch {
   }
-  return dir && fs17.statSync(dir).isDirectory() ? dir : null;
+  return dir && fs18.statSync(dir).isDirectory() ? dir : null;
 }
 function extensionFor(dataDir) {
   try {
-    const names = fs17.readdirSync(dataDir).map((name) => name.toLowerCase());
+    const names = fs18.readdirSync(dataDir).map((name) => name.toLowerCase());
     if (names.some((name) => name.endsWith(".rvdata2"))) return ".rvdata2";
     if (names.some((name) => name.endsWith(".rvdata"))) return ".rvdata";
   } catch {
@@ -4385,9 +4661,9 @@ function extensionFor(dataDir) {
 function createRgssItemResolver(contentRoot, translations) {
   const resources = loadResourceMatcher();
   const gameId = publicGameFiles(contentRoot).gameId;
-  const context = getGameCacheContext(contentRoot);
+  const context2 = getGameCacheContext(contentRoot);
   return (src, current) => {
-    if (context.blocked(src)) return { zh: "" };
+    if (context2.blocked(src)) return { zh: "" };
     const resolved = resolveRgssTranslationWithEngine(src, current, translations);
     if (resolved.zh) return resolved;
     const hit = resources.match(src, { sourceLanguage: detectCacheLang(src), targetLanguage: "zh", gameId });
@@ -4464,9 +4740,9 @@ try {
       availableLanguages: [.../* @__PURE__ */ new Set([detected, "zh"])]
     }
   };
-  const out = path13.join(os2.tmpdir(), `chaya-rgss-list-${process.pid}-${Date.now()}.json`);
-  fs18.writeFileSync(out, JSON.stringify(body));
-  parentPort?.postMessage({ ok: true, path: out, count: items.length });
+  const out = path14.join(os2.tmpdir(), `chaya-rgss-list-${process.pid}-${Date.now()}.json`);
+  fs19.writeFileSync(out, JSON.stringify(body));
+  parentPort2?.postMessage({ ok: true, path: out, count: items.length });
 } catch (error) {
-  parentPort?.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });
+  parentPort2?.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });
 }

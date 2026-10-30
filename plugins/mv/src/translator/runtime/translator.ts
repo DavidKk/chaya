@@ -1,3 +1,4 @@
+import { startClientOperation } from '@/lib/log/timing'
 import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { createBingTranslator, requestGoogle, requestOllama } from '@/lib/translate/engine-http'
 import {
@@ -30,6 +31,7 @@ import {
 
 import { resolveApiBase } from '../../helpers/env/env'
 import { chayaFetch } from '../../helpers/net/http'
+import { ChayaLog } from '../../helpers/net/logger'
 import { collectGameNameSources } from '../lookup/lookup-enrich'
 import { engineFetch } from './engine-fetch'
 import type { TranslationStore } from './store'
@@ -316,11 +318,19 @@ export function createPluginTranslator(store: TranslationStore, http = engineFet
           if (!agent && engine.startsWith('agent:')) throw new Error('Agent 翻译条目已移除')
           const raw =
             engine === 'ollama'
-              ? await scheduleOllama(
-                  () => requestOllama(http, { text: guard.plain, model: options.model, interactive: options.interactive, signal }),
-                  !!options.interactive,
-                  signal
-                )
+              ? await scheduleOllama(() => requestOllama(http, { text: guard.plain, model: options.model, interactive: options.interactive, signal }), {
+                  interactive: !!options.interactive,
+                  signal,
+                  startTiming: (meta) =>
+                    startClientOperation(
+                      (entry) => {
+                        const level = entry.level === 'debug' ? 'info' : entry.level
+                        ChayaLog[level]('translate', entry.message, entry.meta)
+                      },
+                      'agent.inference',
+                      { ...meta, model: options.model, items: 1, sourceChars: Array.from(guard.plain).length }
+                    ),
+                })
               : agent
                 ? await requestAgent(guard.plain, agent, options.interactive, signal)
                 : engine === 'apple' || engine === 'bergamot'

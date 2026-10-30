@@ -11,6 +11,7 @@ import {
   normalizeAgentProxyProtocols,
   resolveAgentProxySlots,
 } from '@/lib/game-agent/proxy'
+import { startOperation } from '@/services/log/operation'
 
 import { socksBridgeUrl } from './socks-bridge'
 
@@ -117,21 +118,39 @@ function fetchProxyForEndpoint(endpoint: string, slots: ReturnType<typeof slotsO
  * Custom `proxyHeaders` are sent to the upstream HTTP proxy (or via the SOCKS bridge when needed).
  */
 export function ollamaFetch(profile: AgentProxyProfile & { endpoint: string }): typeof fetch {
-  let proxy: string
-  let headers: Record<string, string>
+  let proxy = ''
+  let headers: Record<string, string> = {}
   try {
     const slots = slotsOf(profile)
     proxy = fetchProxyForEndpoint(profile.endpoint, slots)
     headers = normalizeAgentProxyHeaders(profile.proxyHeaders)
-    if (!proxy || isLoopbackHost(new URL(profile.endpoint).hostname)) return fetch
+    if (isLoopbackHost(new URL(profile.endpoint).hostname)) proxy = ''
   } catch {
-    return fetch
+    proxy = ''
   }
-  return (async (input: Parameters<typeof fetch>[0], init?: RequestInit) =>
-    undiciFetch(input as Parameters<typeof undiciFetch>[0], {
-      ...(init as Parameters<typeof undiciFetch>[1]),
-      dispatcher: await dispatcherFor(proxy, headers),
-    })) as unknown as typeof fetch
+  return (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url)
+    const timing = startOperation('communication', 'agent.http.headers', {
+      host: url.host,
+      path: url.pathname,
+      method: init?.method || (input instanceof Request ? input.method : 'GET'),
+      proxy: !!proxy,
+    })
+    try {
+      const response = proxy
+        ? await undiciFetch(input as Parameters<typeof undiciFetch>[0], {
+            ...(init as Parameters<typeof undiciFetch>[1]),
+            dispatcher: await dispatcherFor(proxy, headers),
+          })
+        : await fetch(input, init)
+      // Fetch resolves at headers; agent.request includes consuming and parsing the body.
+      timing.end(response.status >= 400 ? 'failed' : 'completed', { status: response.status, phase: 'headers' })
+      return response
+    } catch (error) {
+      timing.fail(error)
+      throw error
+    }
+  }) as unknown as typeof fetch
 }
 
 /** @deprecated Prefer profile-shaped calls; kept for string-only callers. */

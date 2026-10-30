@@ -127,12 +127,14 @@ describe('persistent sentence cache', () => {
     expect(cache.plan('村へ行く,待って', { from: 'ja', to: 'zh' }).status).toBe('miss')
     cache.close()
   })
-  it('rejects lower authority writes including punctuation variants', () => {
+  it('appends lower authority candidates while selecting manual punctuation equivalents', () => {
     const cache = openSharedCache(path.join(dir, 'cache.sqlite'))
     cache.writeMany([['あん？', '人工译文']], 'manual')
-    expect(cache.writeMany([['あん?', '机器译文']], 'live:google').rejected).toEqual([{ src: 'あん?', reason: 'rank' }])
+    expect(cache.writeMany([['あん?', '机器译文']], 'live:google').accepted).toEqual([['あん?', '机器译文']])
     expect(cache.get('あん?')).toBe('人工译文')
-    expect(cache.writeMany([['あん？', '导入译文']], 'import:x').accepted).toEqual([])
+    expect(cache.writeMany([['あん？', '导入译文']], 'import:x').accepted).toEqual([['あん？', '导入译文']])
+    expect(cache.get('あん？')).toBe('人工译文')
+    expect(cache.stats().entries).toBe(3)
     cache.close()
   })
   it('uses explicit language pairs and does not erase spaces or infer alignment', () => {

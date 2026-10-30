@@ -61,7 +61,7 @@ export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?
   const [busy, setBusy] = useState(false)
 
   const applyStatus = useCallback(
-    (data: StatusLite) => {
+    (data: StatusLite, forceUpdateUrl = false) => {
       cachedStatus = data
       if (data.canUseDisk === false) {
         setPhase('cloud')
@@ -70,7 +70,7 @@ export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?
       setLibraryEmpty(!Array.isArray(data.library) || data.library.length === 0)
       setRemote(data.remote === true)
       setPhase(data.ready ? 'ready' : 'need-game')
-      if (!urlGameId && typeof window !== 'undefined' && data.ready) {
+      if ((forceUpdateUrl || !urlGameId) && typeof window !== 'undefined' && data.ready) {
         const target = data.selected || data.config?.gameRoot
         const entry = data.library?.find((item) => item.gameRoot === target || item.id === target)
         if (entry && !entry.missing) {
@@ -133,7 +133,7 @@ export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?
       }
       notify.success(t('notify.addedToLibrary'))
       const res = await fetch('/api/status')
-      applyStatus((await res.json()) as StatusLite)
+      applyStatus((await res.json()) as StatusLite, true)
     } catch {
       notify.error(t('notify.pickerUnavailable'))
     } finally {
