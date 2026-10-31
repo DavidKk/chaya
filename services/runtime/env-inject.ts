@@ -3,9 +3,11 @@ import path from 'node:path'
 
 import { PLUGIN_ENV_NAME, PRODUCT_DISPLAY_NAME } from '@/constants/brand'
 import { parsePluginsJsEntries, serializePluginsJs } from '@/lib/game'
-import { buildChayaEnvJs } from '@/lib/game/plugins-merge'
+import { buildChayaEnvJs, type ChayaEnvOptions } from '@/lib/game/plugins-merge'
 
-export type ChayaEnvOptions = {
+export type { ChayaEnvOptions } from '@/lib/game/plugins-merge'
+
+export type LegacyChayaEnvOptions = {
   /** 本机启动鉴权；局内心跳携带，用于区分「本机启动」与陌生连接 */
   launchToken?: string
   /** 当前库条目 id（可选，便于局内调试） */

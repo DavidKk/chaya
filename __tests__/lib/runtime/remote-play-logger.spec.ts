@@ -115,7 +115,7 @@ describe('remote-play-logger', () => {
     logger.ok('handshake success')
 
     const text = logger.exportAsText()
-    expect(text).toContain('=== Chaya 云游戏远程游玩诊断日志 ===')
+    expect(text).toContain('=== Chaya Remote Play Diagnostic Logs ===')
     expect(text).toContain('[INFO ] handshake init')
     expect(text).toContain('[OK   ] handshake success')
   })

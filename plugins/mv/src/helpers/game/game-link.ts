@@ -16,7 +16,7 @@ import { ChayaLog, type LocalPluginLog, logsViaLink } from '../net/logger'
 import { runLinkAgentRequest } from './agent-link'
 import { dispatchGameLinkEditMessage, stopGameLinkEditBridge } from './edit-link-bridge'
 import { detectGameIdentity } from './game-identity'
-import { attachGameMediaStream, handleRemoteInput, handleRemoteTap, handleRequestKeyframe } from './remote-stream'
+import { attachGameMediaStream, handleHostAudioToggle, handleRemoteInput, handleRemoteTap, handleRequestKeyframe } from './remote-stream'
 
 const STUN = 'stun:stun.cloudflare.com:3478'
 /** Disconnected: wait for Web offer; fast poll so mobile stream handshakes in < 1.5s */
@@ -255,6 +255,10 @@ function bindDc(dc: RTCDataChannel) {
       }
       if (msg.type === 'stream.request_keyframe') {
         handleRequestKeyframe()
+        return
+      }
+      if (msg.type === 'stream.host_audio') {
+        handleHostAudioToggle(Boolean((msg as any).unmute))
         return
       }
       dispatchGameLinkEditMessage(msg, (out) => sendOnDc(dc, out))

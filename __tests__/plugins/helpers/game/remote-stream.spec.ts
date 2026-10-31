@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { attachGameMediaStream, captureGameMediaStream, handleRemoteInput, handleRemoteTap } from '@/plugins/mv/src/helpers/game/remote-stream'
+import { applySilentWindowHiding, attachGameMediaStream, captureGameMediaStream, handleHostAudioToggle, handleRemoteInput, handleRemoteTap, isolateHostAudio } from '@/plugins/mv/src/helpers/game/remote-stream'
 
 describe('remote-stream (WebRTC game streaming & input simulation)', () => {
   beforeEach(() => {
@@ -100,4 +100,52 @@ describe('remote-stream (WebRTC game streaming & input simulation)', () => {
     expect(mockTransceiver.direction).toBe('sendonly')
     expect(replaceTrackMock).toHaveBeenCalledWith(mockVideoTrack)
   })
+
+  it('isolateHostAudio disconnects physical destination (Mac mute) and pipes into MediaStreamDestination', () => {
+    const mockDestNode = { stream: { getAudioTracks: () => [{ kind: 'audio' }] } }
+    const mockCtx = {
+      destination: { id: 'physical-speaker' },
+      createMediaStreamDestination: jest.fn(() => mockDestNode),
+    }
+    const mockGain = {
+      disconnect: jest.fn(),
+      connect: jest.fn(),
+    }
+    ;(globalThis as any).WebAudio = {
+      _context: mockCtx,
+      _masterGainNode: mockGain,
+    }
+
+    // Default: mute host machine (disconnects physical speakers)
+    isolateHostAudio(false)
+    expect(mockGain.disconnect).toHaveBeenCalled()
+    expect(mockCtx.createMediaStreamDestination).toHaveBeenCalled()
+    expect(mockGain.connect).toHaveBeenCalledWith(mockDestNode)
+    expect(mockGain.connect).not.toHaveBeenCalledWith(mockCtx.destination)
+
+    // Unmute host toggle
+    handleHostAudioToggle(true)
+    expect(mockGain.connect).toHaveBeenCalledWith(mockCtx.destination)
+  })
+
+  it('applySilentWindowHiding hides NW.js desktop window when CHAYA_SILENT_MODE is active', () => {
+    const hideSpy = jest.fn()
+    const taskbarSpy = jest.fn()
+    ;(globalThis as any).nw = {
+      Window: {
+        get: () => ({
+          hide: hideSpy,
+          setShowInTaskbar: taskbarSpy,
+        }),
+      },
+    }
+    ;(globalThis as any).CHAYA_SILENT_MODE = true
+
+    applySilentWindowHiding()
+    expect(hideSpy).toHaveBeenCalled()
+    expect(taskbarSpy).toHaveBeenCalledWith(false)
+
+    delete (globalThis as any).CHAYA_SILENT_MODE
+  })
+
 })

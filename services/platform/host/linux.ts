@@ -3,7 +3,7 @@ import path from 'node:path'
 import { resolveShellLaunchTarget } from '@/lib/game/shell-layout'
 
 import { assertPathExists, spawnDetached } from './shared'
-import type { HostShellCapability } from './types'
+import type { HostShellCapability, LaunchShellOptions } from './types'
 
 /**
  * Linux：用 xdg-open / 直接 spawn nw；不再误用 macOS `open`。
@@ -24,7 +24,7 @@ export class LinuxHostShell implements HostShellCapability {
     return spawnDetached('xdg-open', [path.resolve(targetPath)])
   }
 
-  launchShell(shellApp: string, contentRoot: string): Promise<void> {
+  launchShell(shellApp: string, contentRoot: string, options?: LaunchShellOptions): Promise<void> {
     assertPathExists(shellApp)
     assertPathExists(contentRoot)
     const bin = resolveShellLaunchTarget(shellApp)

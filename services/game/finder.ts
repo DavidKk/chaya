@@ -13,6 +13,8 @@ export function openInFinder(targetPath: string): Promise<void> {
   return resolveHostShell().open(targetPath)
 }
 
-export function launchShellWithContent(shellApp: string, contentRoot: string): Promise<void> {
-  return resolveHostShell().launchShell(shellApp, contentRoot)
+import type { LaunchShellOptions } from '@/services/platform/host/types'
+
+export function launchShellWithContent(shellApp: string, contentRoot: string, options?: LaunchShellOptions): Promise<void> {
+  return resolveHostShell().launchShell(shellApp, contentRoot, options)
 }

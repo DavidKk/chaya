@@ -58,6 +58,8 @@ export type ChayaEnvOptions = {
   linkToken?: string
   /** `link`：日志只经游戏连接发给页面，不上报服务器；同时开启游戏内 MCP 网关（浏览器模式） */
   logTransport?: 'http' | 'link'
+  /** Run in silent headless mode for WebRTC streaming (mute host speaker, hide host window) */
+  silentMode?: boolean
 }
 
 /** 生成 ChayaEnv.js 正文（纯函数） */
@@ -71,6 +73,7 @@ export function buildChayaEnvJs(apiBase: string, opts?: ChayaEnvOptions): string
     ${envAssign('CHAYA_LOG_URL', viaLink ? '' : `${base}/api/logs`)}
     ${envAssign('CHAYA_LOG_TRANSPORT', viaLink ? 'link' : '')}
     ${viaLink ? 'window.CHAYA_MCP_GATEWAY = true' : 'try { delete window.CHAYA_MCP_GATEWAY } catch (e) {}'}
+    ${opts?.silentMode ? 'window.CHAYA_SILENT_MODE = true' : 'try { delete window.CHAYA_SILENT_MODE } catch (e) {}'}
     ${envAssign('CHAYA_LAUNCH_TOKEN', String(opts?.launchToken || '').trim())}
     ${envAssign('CHAYA_GAME_ID', String(opts?.gameId || '').trim())}
     ${envAssign('CHAYA_LINK_TOKEN', String(opts?.linkToken || '').trim())}

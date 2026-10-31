@@ -779,7 +779,11 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     showStatusToast('connecting', t('play.launchingLocalGame'), 8000)
 
     try {
-      const res = await fetch('/api/launch', { method: 'POST' })
+      const res = await fetch('/api/launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'silent' }),
+      })
       const data = await res.json()
       if (!res.ok || data.ok === false) {
         const errMsg = data?.error?.message || data?.error || 'Failed to launch game'

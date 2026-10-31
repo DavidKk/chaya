@@ -13,6 +13,7 @@ jest.mock('@/services/game/rgss-runtime', () => ({
 jest.mock('@/services/runtime', () => ({
   anyWebConnected: () => false,
   clearGameQuitRequest: jest.fn(),
+  clearGamePresenceKeepQuit: jest.fn(),
   getGamePresence: () => ({ online: false }),
   preferredPluginApiBase: () => 'http://127.0.0.1:3000',
   requestGameQuit: jest.fn(),
@@ -118,4 +119,22 @@ test('VX Ace 没有壳时返回 RGSS_RUNTIME_MISSING', async () => {
     message: expect.stringContaining('mkxp-z'),
   })
   expect(diskOps.launchShellWithContent).not.toHaveBeenCalled()
+})
+
+test('支持 mode: silent 启动无感静默模式 (Mac 静音 + 隐藏窗口)', async () => {
+  const req = new Request('http://localhost/api/launch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: 'silent' }),
+  })
+  const res = await POST(req, ctx)
+  expect(res.status).toBe(200)
+  const data = await res.json()
+  expect(data.mode).toBe('shared-shell-silent')
+  expect(data.silent).toBe(true)
+  expect(diskOps.launchShellWithContent).toHaveBeenCalledWith(
+    expect.any(String),
+    expect.any(String),
+    expect.objectContaining({ silent: true })
+  )
 })

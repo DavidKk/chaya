@@ -26,6 +26,113 @@ export function getGameCanvas(): HTMLCanvasElement | null {
 
 let cachedStream: MediaStream | null = null
 let audioConnected = false
+let cachedAudioDest: MediaStreamAudioDestinationNode | null = null
+
+/**
+ * Isolates WebAudio: disconnects host machine physical speakers (ctx.destination)
+ * and pipes audio exclusively into a MediaStreamDestination for WebRTC streaming.
+ */
+export function isolateHostAudio(unmuteHost = false): void {
+  try {
+    const g = globalThis as any
+    const WebAudio = g.WebAudio
+    const ctx = WebAudio?._context as AudioContext | undefined
+    const gain = WebAudio?._masterGainNode as GainNode | undefined
+    if (!ctx || !gain) return
+
+    // 1. Unless explicit unmute is requested, disconnect from host speakers (Mac 0 dB silence)
+    if (!unmuteHost) {
+      try {
+        gain.disconnect()
+      } catch {
+        /* ignore if already disconnected or not supported */
+      }
+    }
+
+    // 2. Connect to WebRTC MediaStream destination
+    if (!cachedAudioDest && typeof ctx.createMediaStreamDestination === "function") {
+      cachedAudioDest = ctx.createMediaStreamDestination()
+    }
+
+    if (cachedAudioDest) {
+      try {
+        gain.connect(cachedAudioDest)
+      } catch {
+        /* already connected */
+      }
+    }
+
+    // 3. If unmuting requested, reconnect physical speaker
+    if (unmuteHost) {
+      try {
+        gain.connect(ctx.destination)
+      } catch {
+        /* */
+      }
+    }
+  } catch (err) {
+    ChayaLog.warn("RemoteStream", "isolateHostAudio failed", err)
+  }
+}
+
+export function handleHostAudioToggle(unmute: boolean): void {
+  ;(globalThis as any).__CHAYA_UNMUTE_HOST__ = unmute
+  isolateHostAudio(unmute)
+}
+
+/**
+ * Hooks WebAudio.initialize so that audio isolation takes effect immediately
+ * when the game initializes sound, before any title BGM plays out of host speakers.
+ */
+export function hookWebAudioMuting(): void {
+  try {
+    const g = globalThis as any
+    const WebAudio = g.WebAudio
+    if (!WebAudio) return
+
+    if (typeof WebAudio.initialize === "function" && !WebAudio.__chaya_audio_hooked) {
+      WebAudio.__chaya_audio_hooked = true
+      const origInit = WebAudio.initialize
+      WebAudio.initialize = function (...args: any[]) {
+        const res = origInit.apply(this, args)
+        try {
+          isolateHostAudio(Boolean(g.__CHAYA_UNMUTE_HOST__))
+        } catch {
+          /* */
+        }
+        return res
+      }
+    }
+
+    if (WebAudio._masterGainNode) {
+      isolateHostAudio(Boolean(g.__CHAYA_UNMUTE_HOST__))
+    }
+  } catch {
+    /* */
+  }
+}
+
+/**
+ * If running inside NW.js and silentMode was requested, immediately hide the desktop window.
+ */
+export function applySilentWindowHiding(): void {
+  try {
+    const g = globalThis as any
+    const isSilent = Boolean(g.CHAYA_SILENT_MODE || g.__CHAYA_SILENT_MODE__)
+    if (!isSilent) return
+
+    const nw = g.nw
+    const win = nw?.Window?.get?.()
+    if (win && typeof win.hide === "function") {
+      win.hide()
+      if (typeof win.setShowInTaskbar === "function") {
+        win.setShowInTaskbar(false)
+      }
+    }
+  } catch {
+    /* */
+  }
+}
 
 export function captureGameMediaStream(): MediaStream | null {
   try {
@@ -46,19 +153,19 @@ export function captureGameMediaStream(): MediaStream | null {
 
     // Pipe game WebAudio if audio context is available
     try {
-      const g = globalThis as unknown as { WebAudio?: { _context?: AudioContext; _masterGainNode?: GainNode } }
-      const ctx = g.WebAudio?._context
-      const gain = g.WebAudio?._masterGainNode
-      if (ctx && gain && !audioConnected && typeof ctx.createMediaStreamDestination === 'function') {
-        const dest = ctx.createMediaStreamDestination()
-        gain.connect(dest)
-        audioConnected = true
-        for (const track of dest.stream.getAudioTracks()) {
-          stream.addTrack(track)
+      const g = globalThis as any
+      const ctx = g.WebAudio?._context as AudioContext | undefined
+      if (ctx) {
+        isolateHostAudio(Boolean(g.__CHAYA_UNMUTE_HOST__))
+        if (cachedAudioDest && !audioConnected) {
+          audioConnected = true
+          for (const track of cachedAudioDest.stream.getAudioTracks()) {
+            stream.addTrack(track)
+          }
         }
       }
     } catch (err) {
-      ChayaLog.warn('RemoteStream', 'WebAudio capture skipped', err)
+      ChayaLog.warn("RemoteStream", "WebAudio capture skipped", err)
     }
 
     return stream
@@ -92,6 +199,8 @@ function preferH264(tr: RTCRtpTransceiver) {
  * which halts canvas rendering and freezes WebRTC video capture.
  */
 export function ensureGameRenderKeepalive(): void {
+  hookWebAudioMuting()
+  applySilentWindowHiding()
   try {
     const g = globalThis as unknown as { SceneManager?: any }
     const sm = g.SceneManager
@@ -248,5 +357,18 @@ export function handleRemoteTap(normX: number, normY: number, phase: 'down' | 'm
     canvas.dispatchEvent(mouseEv)
   } catch {
     /* */
+  }
+}
+
+if (typeof window !== "undefined") {
+  hookWebAudioMuting()
+  applySilentWindowHiding()
+  if (typeof document !== "undefined") {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => {
+        hookWebAudioMuting()
+        applySilentWindowHiding()
+      })
+    }
   }
 }

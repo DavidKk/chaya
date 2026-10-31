@@ -10,6 +10,7 @@ import {
   openInFinder,
   recoverOldIfNeeded,
   requireDisk,
+  writeNwWindow,
 } from '@/services/disk-ops'
 import { findRunningJob } from '@/services/downloads/jobs'
 import { ensureGameAppIcon, updateSharedMacAppIcon } from '@/services/game/app-icon'
@@ -21,7 +22,15 @@ import { anyWebConnected, clearGameQuitRequest, getGamePresence, preferredPlugin
 export const runtime = 'nodejs'
 
 /** Launch: Ensure loader, environment, and disk cache, then launch shell or open directory. */
-export const POST = defineApiRoute('post:/api/launch', async () => {
+export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
+  let mode: 'silent' | 'windowed' = 'windowed'
+  try {
+    const raw = await request.clone().json()
+    if (raw && typeof raw === 'object' && raw.mode === 'silent') {
+      mode = 'silent'
+    }
+  } catch {}
+  const isSilent = mode === 'silent'
   const denied = requireDisk()
   if (denied) return denied
 
@@ -87,6 +96,11 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
 
   try {
     // Some Windows game packages lack package.json name which NW.js requires
+    try {
+      writeNwWindow(resolved.contentRoot, { show: !isSilent })
+    } catch {
+      /* ignore */
+    }
     const nwPackage = ensureNwPackageName(resolved.contentRoot)
     let gameIcon: string | undefined
     if (!resolved.bundled) {
@@ -107,7 +121,7 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
     if (plugins.pluginsJsParseFailed) {
       return apiError(500, 'PLUGINS_JS_PARSE_FAILED', `Failed to parse js/plugins.js ($plugins array format invalid): ${resolved.contentRoot}`)
     }
-    const { env, session } = writeLaunchEnv(resolved, apiBase)
+    const { env, session } = writeLaunchEnv(resolved, apiBase, { silentMode: isSilent })
 
     if (resolved.bundled) {
       await openInFinder(resolved.shellApp)
@@ -134,11 +148,12 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
         process.emitWarning(error instanceof Error ? error : String(error), { code: 'CHAYA_MAC_APP_ICON' })
       }
     }
-    await launchShellWithContent(resolved.shellApp, resolved.contentRoot)
+    await launchShellWithContent(resolved.shellApp, resolved.contentRoot, { silent: isSilent })
     return apiOk({
       path: resolved.shellApp,
       contentRoot: resolved.contentRoot,
-      mode: 'shared-shell',
+      mode: isSilent ? 'shared-shell-silent' : 'shared-shell',
+      silent: isSilent,
       apiBase,
       env,
       launchToken: session.token,
