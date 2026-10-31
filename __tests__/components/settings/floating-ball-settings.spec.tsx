@@ -40,19 +40,51 @@ async function render(using: GameAgentRequest = request) {
   )
 }
 
+async function drag(source: Element, target: Element, edge: 'before' | 'after') {
+  const data = new Map<string, string>()
+  const dataTransfer = {
+    setData: (type: string, value: string) => data.set(type, value),
+    getData: (type: string) => data.get(type) ?? '',
+    setDragImage: jest.fn(),
+  }
+  const dispatch = (element: Element, type: string) => {
+    const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientY: edge === 'before' ? 10 : 50 })
+    Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
+    element.dispatchEvent(event)
+  }
+  jest.spyOn(target, 'getBoundingClientRect').mockReturnValue({ top: 0, height: 60 } as DOMRect)
+  await act(async () => dispatch(source.querySelector('button')!, 'dragstart'))
+  await act(async () => dispatch(target, 'dragover'))
+  await act(async () => dispatch(target, 'drop'))
+  await act(async () => dispatch(source.querySelector('button')!, 'dragend'))
+}
+
 it('saves enable, reordering and removal while preserving other panel settings', async () => {
   await render()
   await act(async () => host.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(stored.floatingBallEnabled).toBe(true)
   const list = () => host.querySelector('ol')!
   const second = list().children[1] as HTMLElement
-  await act(async () => second.querySelector<HTMLButtonElement>('button')!.click())
+  await drag(second, list().children[0]!, 'before')
   expect(stored.floatingBallShortcuts.slice(0, 2)).toEqual(['action:scene:item', 'action:battle:victory'])
   const first = list().children[0] as HTMLElement
-  await act(async () => first.querySelectorAll<HTMLButtonElement>('button')[2]!.click())
+  await act(async () => first.querySelectorAll<HTMLButtonElement>('button')[1]!.click())
   expect(stored.floatingBallShortcuts).not.toContain('action:scene:item')
   expect(stored.miniMapEnabled).toBe(true)
   expect(button('添加快捷功能')).toBeTruthy()
+})
+
+it('inserts a dragged shortcut after the last row and supports keyboard reordering from its handle', async () => {
+  await render()
+  const list = host.querySelector('ol')!
+  const original = [...stored.floatingBallShortcuts]
+  await drag(list.children[0]!, list.lastElementChild!, 'after')
+  expect(stored.floatingBallShortcuts).toEqual([...original.slice(1), original[0]])
+  const handle = list.lastElementChild!.querySelector<HTMLButtonElement>('button')!
+  handle.focus()
+  await act(async () => handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true })))
+  expect(stored.floatingBallShortcuts.at(-2)).toBe(original[0])
+  expect(document.activeElement).toBe(handle)
 })
 
 it('locks configuration when the local service is unavailable', async () => {

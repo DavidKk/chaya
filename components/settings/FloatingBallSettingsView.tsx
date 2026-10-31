@@ -1,6 +1,7 @@
 'use client'
 
-import { LuArrowDown, LuArrowUp, LuRotateCcw, LuX } from 'react-icons/lu'
+import { type DragEvent, useState } from 'react'
+import { LuGripVertical, LuRotateCcw, LuX } from 'react-icons/lu'
 
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { FLOATING_SHORTCUT_LABELS, FLOATING_SHORTCUT_TARGETS } from '@/components/game-tools/floating-shortcuts'
@@ -13,17 +14,68 @@ import { DEFAULT_FLOATING_SHORTCUTS, type FloatingShortcutId, MAX_FLOATING_SHORT
 export function FloatingBallSettingsView({ request }: { request: GameAgentRequest }) {
   const t = useT()
   const { settings, loaded, busy, unavailable, error, update } = useToolSettings(request)
+  const [draggingId, setDraggingId] = useState<FloatingShortcutId | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ id: FloatingShortcutId; edge: 'before' | 'after' } | null>(null)
   const shortcuts = settings.floatingBallShortcuts
   const disabled = busy || unavailable
   const available = FLOATING_SHORTCUT_TARGETS.filter((target) => !shortcuts.includes(target.id as FloatingShortcutId))
 
   function move(id: FloatingShortcutId, offset: number) {
+    if (disabled) return
+    const index = shortcuts.indexOf(id)
+    if (index < 0 || index + offset < 0 || index + offset >= shortcuts.length) return
     void update((current) => {
       const next = [...current.floatingBallShortcuts]
       const index = next.indexOf(id)
       const other = index + offset
       if (index >= 0 && other >= 0 && other < next.length) [next[index], next[other]] = [next[other]!, next[index]!]
       return { floatingBallShortcuts: next }
+    })
+  }
+
+  function clearDrag() {
+    setDraggingId(null)
+    setDropTarget(null)
+  }
+
+  function onDragStart(id: FloatingShortcutId, event: DragEvent<HTMLButtonElement>) {
+    if (disabled) {
+      event.preventDefault()
+      return
+    }
+    setDraggingId(id)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', id)
+    const row = event.currentTarget.closest('li')
+    if (row) event.dataTransfer.setDragImage(row, 16, row.getBoundingClientRect().height / 2)
+  }
+
+  function onDragOver(id: FloatingShortcutId, event: DragEvent<HTMLLIElement>) {
+    if (disabled || !draggingId || draggingId === id) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    const rect = event.currentTarget.getBoundingClientRect()
+    setDropTarget({ id, edge: event.clientY < rect.top + rect.height / 2 ? 'before' : 'after' })
+  }
+
+  function onDrop(id: FloatingShortcutId, event: DragEvent<HTMLLIElement>) {
+    event.preventDefault()
+    const source = draggingId
+    const rect = event.currentTarget.getBoundingClientRect()
+    const after = event.clientY >= rect.top + rect.height / 2
+    clearDrag()
+    if (disabled || !source || source === id || event.dataTransfer.getData('text/plain') !== source) return
+    const next = shortcuts.filter((item) => item !== source)
+    const index = next.indexOf(id)
+    if (index < 0) return
+    next.splice(index + (after ? 1 : 0), 0, source)
+    if (next.every((item, at) => item === shortcuts[at])) return
+    void update((current) => {
+      const order = current.floatingBallShortcuts.filter((item) => item !== source)
+      const at = order.indexOf(id)
+      if (at < 0 || !current.floatingBallShortcuts.includes(source)) return {}
+      order.splice(at + (after ? 1 : 0), 0, source)
+      return { floatingBallShortcuts: order }
     })
   }
 
@@ -78,31 +130,48 @@ export function FloatingBallSettingsView({ request }: { request: GameAgentReques
                 <p className="m-0 text-xs text-ink-soft">{t('floatingBall.limit', { count: MAX_FLOATING_SHORTCUTS })}</p>
                 {shortcuts.length ? (
                   <ol className="m-0 grid list-none gap-2 p-0">
-                    {shortcuts.map((id, index) => {
+                    {shortcuts.map((id) => {
                       const target = FLOATING_SHORTCUT_LABELS.get(id)!
                       const name = t(target.labelKey)
                       return (
-                        <li key={id} className="flex items-center gap-2 rounded-lg border border-line bg-panel p-3">
-                          <span aria-hidden className="w-4 shrink-0 text-xs tabular-nums text-ink-soft">
-                            {index + 1}
-                          </span>
+                        <li
+                          key={id}
+                          onDragOver={(event) => onDragOver(id, event)}
+                          onDragLeave={(event) => {
+                            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget((current) => (current?.id === id ? null : current))
+                          }}
+                          onDrop={(event) => onDrop(id, event)}
+                          className={`relative flex items-center gap-2 rounded-lg border border-line bg-panel py-3 pr-3 transition-[opacity,transform,border-color] duration-150 ease-out ${draggingId === id ? 'scale-[0.985] opacity-40' : ''}`}
+                        >
+                          {dropTarget?.id === id ? (
+                            <span
+                              className={`pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent-glow)] ${dropTarget.edge === 'before' ? '-top-1' : '-bottom-1'}`}
+                            />
+                          ) : null}
+                          <Button
+                            size="icon"
+                            variant="plain"
+                            className="w-5 shrink-0 cursor-grab self-stretch text-ink-soft active:cursor-grabbing aria-disabled:cursor-default aria-disabled:opacity-50"
+                            aria-label={t('floatingBall.reorder', { name })}
+                            draggable={!disabled}
+                            disabled={unavailable}
+                            aria-disabled={disabled}
+                            tooltipSuppressed={draggingId !== null}
+                            onDragStart={(event) => onDragStart(id, event)}
+                            onDragEnd={clearDrag}
+                            onKeyDown={(event) => {
+                              if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+                              event.preventDefault()
+                              move(id, event.key === 'ArrowUp' ? -1 : 1)
+                            }}
+                          >
+                            <LuGripVertical size={12} aria-hidden />
+                          </Button>
                           <div className="grid min-w-0 flex-1 gap-1">
                             <span className="text-sm font-medium text-ink">{name}</span>
                             <span className="text-xs text-ink-soft">{t(target.descKey)}</span>
                           </div>
                           <div className="flex shrink-0 gap-1">
-                            <Button size="icon" variant="plain" aria-label={t('floatingBall.moveUp', { name })} disabled={disabled || index === 0} onClick={() => move(id, -1)}>
-                              <LuArrowUp size={15} />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="plain"
-                              aria-label={t('floatingBall.moveDown', { name })}
-                              disabled={disabled || index === shortcuts.length - 1}
-                              onClick={() => move(id, 1)}
-                            >
-                              <LuArrowDown size={15} />
-                            </Button>
                             <Button
                               size="icon"
                               variant="plain"
