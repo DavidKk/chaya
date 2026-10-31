@@ -525,6 +525,18 @@ module ChayaRGSS
             end
           end
         end
+        if actor_class && actor_class.method_defined?(:make_auto_battle_actions) && !actor_class.method_defined?(:chaya_orig_make_auto_battle_actions)
+          actor_class.class_eval do
+            alias_method :chaya_orig_make_auto_battle_actions, :make_auto_battle_actions
+            def make_auto_battle_actions
+              if defined?(ChayaRGSS::EditRuntime) && ChayaRGSS::EditRuntime.auto_battle?
+                ChayaRGSS::EditRuntime.smart_auto_battle_actions(self)
+              else
+                chaya_orig_make_auto_battle_actions
+              end
+            end
+          end
+        end
         install_battle_command_guards
         if defined?(BattleManager)
           bm_meta = class << BattleManager; self; end
@@ -837,7 +849,11 @@ module ChayaRGSS
           $game_party.battle_members.each do |actor|
             next unless actor
             next if actor.respond_to?(:movable?) && !actor.movable?
-            actor.make_auto_battle_actions if actor.respond_to?(:make_auto_battle_actions)
+            if actor.respond_to?(:make_auto_battle_actions)
+              actor.make_auto_battle_actions
+            else
+              smart_auto_battle_actions(actor)
+            end
           end
         end
         [:@party_command_window, :@actor_command_window].each do |var|
@@ -846,6 +862,334 @@ module ChayaRGSS
           win.deactivate if win.respond_to?(:deactivate)
         end
         BattleManager.start_turn if BattleManager.respond_to?(:start_turn)
+      end
+
+      def smart_auto_battle_actions(actor)
+        return unless actor
+        if actor.respond_to?(:confusion?) && actor.confusion?
+          actor.make_confusion_actions if actor.respond_to?(:make_confusion_actions)
+          return
+        end
+        action_count = 1
+        if actor.respond_to?(:current_action_num)
+          action_count = actor.current_action_num
+        elsif actor.respond_to?(:actions) && actor.actions.is_a?(Array)
+          action_count = actor.actions.size
+        end
+        action_count = 1 if action_count < 1
+
+        virtual_mp = actor.respond_to?(:mp) ? actor.mp : 9999
+        virtual_tp = actor.respond_to?(:tp) ? actor.tp : 9999
+        virtual_items = Hash.new(0)
+
+        action_count.times do |i|
+          act = select_smart_action_rgss(actor, virtual_mp, virtual_tp, virtual_items)
+          if act
+            item_or_skill = (act.item rescue nil)
+            if item_or_skill && (item_or_skill.is_a?(RPG::Skill) rescue false)
+              mp_cost = actor.respond_to?(:skill_mp_cost) ? actor.skill_mp_cost(item_or_skill) : (item_or_skill.mp_cost rescue 0)
+              tp_cost = actor.respond_to?(:skill_tp_cost) ? actor.skill_tp_cost(item_or_skill) : (item_or_skill.tp_cost rescue 0)
+              virtual_mp -= mp_cost
+              virtual_tp -= tp_cost
+            elsif item_or_skill && (item_or_skill.is_a?(RPG::Item) rescue false)
+              virtual_items[item_or_skill.id] += 1
+            elsif act.respond_to?(:item_id) && act.item_id
+              virtual_items[act.item_id] += 1
+            end
+            if actor.respond_to?(:set_action)
+              actor.set_action(i, act)
+            elsif actor.respond_to?(:actions) && actor.actions.is_a?(Array)
+              actor.actions[i] = act
+            end
+          end
+        end
+        actor.action_state = :waiting if actor.respond_to?(:action_state=)
+      rescue StandardError
+        actor.chaya_orig_make_auto_battle_actions if actor.respond_to?(:chaya_orig_make_auto_battle_actions)
+      end
+
+      # RGSS/VX/VX Ace expose a one-argument method; some plugin builds add
+      # a second critical flag. Pick the call shape from the method arity so
+      # a strict one-argument implementation is not silently estimated as 0.
+      def make_damage_value_rgss(action, target)
+        return 0 unless action && target
+        method = action.method(:make_damage_value)
+        value = method.arity == 1 ? action.make_damage_value(target) : action.make_damage_value(target, false)
+        value.is_a?(Numeric) ? value : 0
+      rescue StandardError
+        0
+      end
+
+      def estimate_hp_recovery_rgss(item, user, target)
+        return 0 unless item && target
+        total = 0
+        if item.respond_to?(:damage) && item.damage.respond_to?(:type) && item.damage.type == 3
+          act = (Game_Action.new(user) rescue nil)
+          if act
+            if (item.is_a?(RPG::Skill) rescue false) || item.respond_to?(:stype_id)
+              act.set_skill(item.id) rescue nil
+            else
+              act.set_item(item.id) rescue nil
+            end
+            val = make_damage_value_rgss(act, target)
+            total += val if val > 0
+          end
+        end
+        if item.respond_to?(:effects) && item.effects.is_a?(Array)
+          item.effects.each do |eff|
+            if eff.respond_to?(:code) && eff.code == 11
+              pct = eff.respond_to?(:value1) ? eff.value1.to_f : 0.0
+              flat = eff.respond_to?(:value2) ? eff.value2.to_i : 0
+              total += (((target.mhp rescue 1) || 1) * pct + flat).round
+            end
+          end
+        end
+        total
+      end
+
+      def estimate_mp_recovery_rgss(item, user, target)
+        return 0 unless item && target
+        total = 0
+        if item.respond_to?(:damage) && item.damage.respond_to?(:type) && item.damage.type == 4
+          act = (Game_Action.new(user) rescue nil)
+          if act
+            act.set_item(item.id) rescue nil
+            val = make_damage_value_rgss(act, target)
+            total += val if val > 0
+          end
+        end
+        if item.respond_to?(:effects) && item.effects.is_a?(Array)
+          item.effects.each do |eff|
+            if eff.respond_to?(:code) && eff.code == 12
+              pct = eff.respond_to?(:value1) ? eff.value1.to_f : 0.0
+              flat = eff.respond_to?(:value2) ? eff.value2.to_i : 0
+              total += (((target.mmp rescue 1) || 1) * pct + flat).round
+            end
+          end
+        end
+        total
+      end
+
+      def match_best_healing_item_rgss(usable_items, user, target)
+        return nil if usable_items.empty? || !target
+        target_mhp = [(target.mhp rescue 1), 1].max
+        target_hp = target.hp rescue 0
+        deficit = [target_mhp - target_hp, 1].max
+        is_self = (target == user) || (target.respond_to?(:index) && user.respond_to?(:index) && target.index == user.index)
+
+        best_item = nil
+        best_score = -1.0
+
+        usable_items.each do |item|
+          scope = item.respond_to?(:scope) ? item.scope : 7
+          next unless [7, 8, 11].include?(scope)
+          next if scope == 11 && !is_self
+          recovery = estimate_hp_recovery_rgss(item, user, target)
+          next if recovery <= 0
+
+          # 淘汰过滤：若恢复量占 MHP < 8%，且缺口 > 300，且恢复量不到缺口的 20%，视为前期过时道具予以废弃
+          if recovery < target_mhp * 0.08 && deficit > 300 && recovery < deficit * 0.2
+            next
+          end
+
+          score = if recovery <= deficit
+                    recovery.to_f / deficit
+                  else
+                    overflow = recovery - deficit
+                    [0.1, 1.0 - (overflow.to_f / recovery) * 0.5].max
+                  end
+
+          if score > best_score
+            best_score = score
+            best_item = item
+          end
+        end
+        best_item
+      end
+      def select_smart_action_rgss(actor, available_mp, available_tp, virtual_items = {})
+        act = if defined?(Game_Action)
+                Game_Action.new(actor)
+              elsif actor.respond_to?(:current_action) && actor.current_action
+                actor.current_action
+              end
+        return act unless act
+
+        can_attack = actor.respond_to?(:attack_usable?) ? actor.attack_usable? : true
+        can_guard = actor.respond_to?(:guard_usable?) ? actor.guard_usable? : true
+
+        usable_skills = []
+        if actor.respond_to?(:usable_skills)
+          usable_skills = actor.usable_skills.select do |s|
+            next false unless s
+            mp_c = actor.respond_to?(:skill_mp_cost) ? actor.skill_mp_cost(s) : (s.mp_cost rescue 0)
+            tp_c = actor.respond_to?(:skill_tp_cost) ? actor.skill_tp_cost(s) : (s.tp_cost rescue 0)
+            mp_c <= available_mp && tp_c <= available_tp
+          end
+        end
+
+        usable_items = []
+        if defined?($game_party) && $game_party.respond_to?(:items)
+          $game_party.items.each do |item|
+            next unless item
+            can_use = actor.respond_to?(:usable?) ? actor.usable?(item) : true
+            total_n = ($game_party.item_number(item) rescue 1)
+            used_n = (virtual_items && virtual_items[item.id]) ? virtual_items[item.id].to_i : 0
+            usable_items << item if can_use && (total_n - used_n) > 0
+          end
+        end
+
+        alive_allies = defined?($game_party) && $game_party.respond_to?(:alive_members) ? $game_party.alive_members : []
+        dead_allies = defined?($game_party) && $game_party.respond_to?(:dead_members) ? $game_party.dead_members : []
+        alive_enemies = defined?($game_troop) && $game_troop.respond_to?(:alive_members) ? $game_troop.alive_members : []
+
+        # 1. 救急：复活阵亡队友 (技能优先 > 道具)
+        if !dead_allies.empty?
+          revive = usable_skills.find { |s| s.respond_to?(:scope) && [9, 10].include?(s.scope) }
+          if revive
+            act.set_skill(revive.id) if act.respond_to?(:set_skill)
+            first_dead = dead_allies.first
+            act.target_index = first_dead.index if act.respond_to?(:target_index=) && first_dead.respond_to?(:index)
+            return act
+          end
+          revive_item = usable_items.find { |i| i.respond_to?(:scope) && [9, 10].include?(i.scope) }
+          if revive_item
+            act.set_item(revive_item.id) if act.respond_to?(:set_item)
+            first_dead = dead_allies.first
+            act.target_index = first_dead.index if act.respond_to?(:target_index=) && first_dead.respond_to?(:index)
+            return act
+          end
+        end
+
+        # 2. 救急：低血治疗 (< 40% HP，技能优先 > 道具缺口匹配)
+        lowest_ally = nil
+        lowest_rate = 1.0
+        if !alive_allies.empty?
+          lowest_ally = alive_allies.min_by { |a| a.hp.to_f / [a.mhp, 1].max } rescue nil
+          lowest_rate = lowest_ally ? (lowest_ally.hp.to_f / [lowest_ally.mhp, 1].max) : 1.0
+          if lowest_rate < 0.4
+            is_self = (lowest_ally == actor) || (lowest_ally.respond_to?(:index) && actor.respond_to?(:index) && lowest_ally.index == actor.index)
+            heal = usable_skills.find do |s|
+              next false unless s
+              next false if s.respond_to?(:scope) && s.scope == 11 && !is_self
+              rec = estimate_hp_recovery_rgss(s, actor, lowest_ally)
+              rec > 0 || (s.respond_to?(:damage) && s.damage.respond_to?(:type) && s.damage.type == 3)
+            end rescue nil
+            if heal
+              act.set_skill(heal.id) if act.respond_to?(:set_skill)
+              act.target_index = lowest_ally.index if act.respond_to?(:target_index=) && lowest_ally.respond_to?(:index)
+              return act
+            end
+            heal_item = match_best_healing_item_rgss(usable_items, actor, lowest_ally)
+            if heal_item
+              act.set_item(heal_item.id) if act.respond_to?(:set_item)
+              act.target_index = lowest_ally.index if act.respond_to?(:target_index=) && lowest_ally.respond_to?(:index)
+              return act
+            end
+          end
+        end
+
+        # 2.5 资源续航：MP 监听与道具回蓝
+        cur_mp = actor.respond_to?(:mp) ? actor.mp : 100
+        max_mp = [actor.respond_to?(:mmp) ? actor.mmp : 100, 1].max
+        learned_skills = actor.respond_to?(:skills) ? actor.skills : usable_skills
+        has_mp_skills = learned_skills.any? do |s|
+          next false unless s
+          mp_c = actor.respond_to?(:skill_mp_cost) ? actor.skill_mp_cost(s) : (s.mp_cost rescue 0)
+          mp_c > 0
+        end
+        if cur_mp.to_f / max_mp < 0.25 && has_mp_skills && lowest_rate >= 0.4
+          mp_item = usable_items.find do |item|
+            scope = item.respond_to?(:scope) ? item.scope : 7
+            [7, 11].include?(scope) && estimate_mp_recovery_rgss(item, actor, actor) > 0
+          end
+          if mp_item
+            act.set_item(mp_item.id) if act.respond_to?(:set_item)
+            act.target_index = actor.index if act.respond_to?(:target_index=) && actor.respond_to?(:index)
+            return act
+          end
+        end
+
+        # 3. 敌群 AOE (存活敌人 >= 2)
+        if alive_enemies.size >= 2
+          aoe = usable_skills.find do |s|
+            s.respond_to?(:scope) && s.scope == 2 && s.respond_to?(:damage) && s.damage.respond_to?(:type) && [1, 5].include?(s.damage.type)
+          end rescue nil
+          if aoe
+            act.set_skill(aoe.id) if act.respond_to?(:set_skill)
+            act.target_index = 0 if act.respond_to?(:target_index=)
+            return act
+          end
+        end
+
+        # 4. 单体集火与伤害技能 (按血量升序集火残血)
+        focus_enemy = alive_enemies.min_by { |e| e.hp } rescue alive_enemies.first
+        best_skill = nil
+        best_score = 0
+        best_target = focus_enemy
+
+        usable_skills.each do |skill|
+          next unless skill.respond_to?(:damage) && skill.damage.respond_to?(:type) && [1, 5].include?(skill.damage.type)
+          test_act = (Game_Action.new(actor) rescue nil)
+          next unless test_act && test_act.respond_to?(:set_skill)
+          test_act.set_skill(skill.id) rescue next
+          alive_enemies.each do |enemy|
+            val = make_damage_value_rgss(test_act, enemy)
+            score = val.to_f + (val >= enemy.hp && enemy.hp > 0 ? 10000 : 0)
+            if score > best_score
+              best_score = score
+              best_skill = skill
+              best_target = enemy
+            end
+          end
+        end
+
+        attack_dmg = 0
+        if can_attack && focus_enemy
+          test_atk = (Game_Action.new(actor) rescue nil)
+          if test_atk && test_atk.respond_to?(:set_attack)
+            test_atk.set_attack
+            attack_dmg = make_damage_value_rgss(test_atk, focus_enemy)
+          end
+        end
+
+        if best_skill && (!can_attack || best_score >= 10000 || best_score > attack_dmg * 1.15)
+          act.set_skill(best_skill.id) if act.respond_to?(:set_skill)
+          act.target_index = best_target.index if act.respond_to?(:target_index=) && best_target.respond_to?(:index)
+          return act
+        end
+
+        if can_attack && focus_enemy
+          act.set_attack if act.respond_to?(:set_attack)
+          act.target_index = focus_enemy.index if act.respond_to?(:target_index=) && focus_enemy.respond_to?(:index)
+          return act
+        end
+
+        # 5. 投掷类攻击道具：被缴械时使用攻击道具打击敌人
+        if !can_attack && focus_enemy
+          throw_item = usable_items.find do |i|
+            scope = i.respond_to?(:scope) ? i.scope : 1
+            [1, 2].include?(scope) && i.respond_to?(:damage) && i.damage.respond_to?(:type) && [1, 5].include?(i.damage.type)
+          end
+          if throw_item
+            act.set_item(throw_item.id) if act.respond_to?(:set_item)
+            act.target_index = focus_enemy.index if act.respond_to?(:target_index=) && focus_enemy.respond_to?(:index)
+            return act
+          end
+        end
+
+        # 6. 缴械时若有其他可用技能（如 Buff/Debuff），施放该技能
+        if !can_attack && !usable_skills.empty?
+          act.set_skill(usable_skills.first.id) if act.respond_to?(:set_skill)
+          return act
+        end
+
+        # 7. 缴械且无可用技能/道具时，防御兜底，彻底杜绝死磕平 A 与卡死！
+        if can_guard && act.respond_to?(:set_guard)
+          act.set_guard
+        elsif can_attack && act.respond_to?(:set_attack)
+          act.set_attack
+        end
+        act
       end
 
       def write(op)
@@ -864,7 +1208,7 @@ module ChayaRGSS
           end
           ["#{op['op']}:#{id}"]
         when 'count'
-          target = Bridge.integer(op['value'], 0, 999)
+          target = Bridge.integer(op['value'], 0, 99_999)
           value = item(op['kind'], op['id'])
           $game_party.gain_item(value, target - $game_party.item_number(value))
           ["#{op['kind']}:#{op['id']}"]

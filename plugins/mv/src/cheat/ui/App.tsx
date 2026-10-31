@@ -525,6 +525,16 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   }
 
   const runAction = (id: RunActionId) => {
+    setError('')
+    if (id === 'battle:start') {
+      try {
+        applyRunAction(id)
+        onRequestClose()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err))
+      }
+      return
+    }
     if (runActionNeedsClose(id)) onRequestClose()
     applyRunAction(id)
   }

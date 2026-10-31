@@ -141,7 +141,7 @@ it('filters run actions according to supportedActions and triggers onAction', as
           onGameSpeedChange={noop}
           onExpRateChange={noop}
           onFlagChange={noop}
-          supportedActions={new Set(['battle:victory', 'fix:map'])}
+          supportedActions={new Set(['battle:start', 'battle:victory', 'fix:map'])}
           onAction={onAction}
         />
       </LocaleProvider>
@@ -155,6 +155,8 @@ it('filters run actions according to supportedActions and triggers onAction', as
   expect(victoryBtn).toBeDefined()
   const mapBtn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === '转至地图')
   expect(mapBtn).toBeDefined()
+  const encounterBtn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === '立即遇敌')
+  expect(encounterBtn).toBeDefined()
 
   // When onOpenBattle is absent, general battle description is used
   expect(document.body.textContent).toContain('战斗快捷操作；局内可直接执行')
@@ -166,6 +168,8 @@ it('filters run actions according to supportedActions and triggers onAction', as
 
   await act(async () => victoryBtn?.click())
   expect(onAction).toHaveBeenCalledWith('battle:victory')
+  await act(async () => encounterBtn?.click())
+  expect(onAction).toHaveBeenCalledWith('battle:start')
 
   // When onOpenBattle is provided, it links to battle page
   await act(async () =>

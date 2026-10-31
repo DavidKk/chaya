@@ -113,10 +113,11 @@ const SCENE_GROUPS: ActionGroup[] = [
   },
   {
     labelKey: 'edit.groupOther',
-    cols: 2,
+    cols: 3,
     items: [
       { id: 'scene:debug', labelKey: 'edit.actDebug' },
       { id: 'scene:pop', labelKey: 'edit.actPop' },
+      { id: 'battle:start', labelKey: 'events.troop.encounterNow', variant: 'accent' },
     ],
   },
 ]

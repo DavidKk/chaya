@@ -62,6 +62,7 @@ export const RUN_ACTION_IDS = [
   'fix:map',
   'fix:fadeIn',
   'fix:resume',
+  'battle:start',
   'battle:victory',
   'battle:escape',
   'battle:defeat',

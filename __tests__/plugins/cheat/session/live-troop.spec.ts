@@ -14,12 +14,16 @@ describe('cheat/live-troop startTroopBattle', () => {
   let sceneManager: { _scene: unknown; _nextScene: unknown; push: jest.Mock; goto: jest.Mock }
   let battleManager: { setup: jest.Mock; setEventCallback: jest.Mock }
   let makeEncounterCount: jest.Mock
+  let clearInterpreter: jest.Mock
 
   beforeEach(() => {
     interpreterBusy = false
     messageBusy = false
     transferring = false
     makeEncounterCount = jest.fn()
+    clearInterpreter = jest.fn(() => {
+      interpreterBusy = false
+    })
     sceneManager = { _scene: new SceneMap(), _nextScene: null, push: jest.fn(), goto: jest.fn() }
     battleManager = { setup: jest.fn(), setEventCallback: jest.fn() }
     Object.assign(g, {
@@ -29,7 +33,7 @@ describe('cheat/live-troop startTroopBattle', () => {
       BattleManager: battleManager,
       $dataEnemies: [null, { name: 'Slime' }],
       $dataTroops: [null, { members: [{ enemyId: 1 }] }, { members: [{ enemyId: 9 }] }],
-      $gameMap: { _interpreter: { isRunning: () => interpreterBusy } },
+      $gameMap: { _interpreter: { isRunning: () => interpreterBusy, clear: clearInterpreter } },
       $gameMessage: { isBusy: () => messageBusy },
       $gamePlayer: { isTransferring: () => transferring, makeEncounterCount },
       $gameParty: { battleMembers: () => [{}] },
@@ -37,7 +41,19 @@ describe('cheat/live-troop startTroopBattle', () => {
   })
 
   afterEach(() => {
-    for (const key of ['Scene_Map', 'Scene_Battle', 'SceneManager', 'BattleManager', '$dataEnemies', '$dataTroops', '$gameMap', '$gameMessage', '$gamePlayer', '$gameParty'])
+    for (const key of [
+      'Scene_Map',
+      'Scene_Battle',
+      'SceneManager',
+      'BattleManager',
+      '$dataEnemies',
+      '$dataTroops',
+      '$dataMap',
+      '$gameMap',
+      '$gameMessage',
+      '$gamePlayer',
+      '$gameParty',
+    ])
       delete g[key]
   })
 
@@ -73,6 +89,39 @@ describe('cheat/live-troop startTroopBattle', () => {
   it('defaults to escapable and game over on defeat', () => {
     startTroopBattle({ id: 1 })
     expect(battleManager.setup).toHaveBeenCalledWith(1, true, false)
+  })
+
+  it('can interrupt the current map event for the debug encounter action', () => {
+    interpreterBusy = true
+    startTroopBattle({ id: 1, interruptEvent: true })
+    expect(clearInterpreter).toHaveBeenCalled()
+    expect(battleManager.setup).toHaveBeenCalledWith(1, true, false)
+    expect(sceneManager.push).toHaveBeenCalledWith(SceneBattle)
+  })
+
+  it('uses the first usable random encounter when troopId is omitted', () => {
+    Object.assign(g, {
+      $dataMap: {
+        encounterList: [{ troopId: 9 }, { troopId: 1 }],
+      },
+    })
+    startTroopBattle({})
+    expect(battleManager.setup).toHaveBeenCalledWith(1, true, false)
+  })
+
+  it('falls back to the first usable troop when the map has no random encounters', () => {
+    Object.assign(g, { $dataMap: { encounterList: [] } })
+    startTroopBattle({})
+    expect(battleManager.setup).toHaveBeenCalledWith(1, true, false)
+  })
+
+  it('reports when no usable troop exists and troopId is omitted', () => {
+    Object.assign(g, {
+      $dataMap: { encounterList: [] },
+      $dataTroops: [null, { members: [] }, { members: [{ enemyId: 1, hidden: true }] }],
+    })
+    expect(() => startTroopBattle({})).toThrow('没有可用的敌群')
+    expect(battleManager.setup).not.toHaveBeenCalled()
   })
 
   it.each([

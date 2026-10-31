@@ -282,10 +282,16 @@ test('current values slide and apply on release; the max part does not open the 
   expect(s.onAct).toHaveBeenCalledWith({ op: 'actorVital', actorId: 1, key: 'hp', value: 50 })
 })
 
-test('each battle number can be locked at its current value', async () => {
+test('party HP / MP use one lock for both current and max; enemies and TP keep their own locks', async () => {
   await render(slot())
-  await act(async () => (document.querySelector('button[aria-label="锁死 当前 HP Harold"]') as HTMLButtonElement).click())
+  expect(document.querySelector('button[aria-label="锁死 当前 HP Harold"]')).toBeNull()
+  expect(document.querySelector('button[aria-label="锁死 HP 上限 Harold"]')).toBeNull()
+  await act(async () => (document.querySelector('button[aria-label="锁死 当前 HP / HP 上限 Harold"]') as HTMLButtonElement).click())
   expect(handlers.onLock).toHaveBeenCalledWith({ side: 'actor', id: 1, kind: 'hp', on: true, value: 210 })
+  expect(handlers.onLock).toHaveBeenCalledWith({ side: 'actor', id: 1, kind: 'mhp', on: true, value: 320 })
+  await act(async () => (document.querySelector('button[aria-label="锁死 当前 MP / MP 上限 Harold"]') as HTMLButtonElement).click())
+  expect(handlers.onLock).toHaveBeenCalledWith({ side: 'actor', id: 1, kind: 'mp', on: true, value: 40 })
+  expect(handlers.onLock).toHaveBeenCalledWith({ side: 'actor', id: 1, kind: 'mmp', on: true, value: 60 })
   await act(async () => (document.querySelector('button[aria-label="锁死 HP 上限 Slime A"]') as HTMLButtonElement).click())
   expect(handlers.onLock).toHaveBeenCalledWith({ side: 'enemy', id: 0, kind: 'mhp', on: true, value: 100 })
   await act(async () => (document.querySelector('button[aria-label="锁死 TP Harold"]') as HTMLButtonElement).click())
@@ -295,7 +301,7 @@ test('each battle number can be locked at its current value', async () => {
 test('party: locked HP and invincible mode block the matching controls', async () => {
   await render(slot(), { locks: { 'hp:1': 320 }, god: false })
   expect(input('当前 HP Harold').disabled).toBe(true)
-  expect(input('HP 上限 Harold').disabled).toBe(false)
+  expect(input('HP 上限 Harold').disabled).toBe(true)
   expect(input('当前 MP Harold').disabled).toBe(false)
   expect(rowButton('Harold', '倒下')!.disabled).toBe(true)
 

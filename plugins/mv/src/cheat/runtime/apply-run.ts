@@ -4,6 +4,7 @@
 import type { RunActionId, RunFlagKey } from '@/components/game-edit/types'
 
 import { canSettleBattleEnd, settleBattleEnd } from '../session/live-battle'
+import { startTroopBattle } from '../session/live-troop'
 import { Cheats } from './cheats'
 import { RunCheats, type ScenePushId } from './cheats-run'
 
@@ -63,6 +64,7 @@ export function applyRunAction(id: RunActionId) {
   else if (id === 'fix:map') RunCheats.gotoMap()
   else if (id === 'fix:fadeIn') RunCheats.fadeIn()
   else if (id === 'fix:resume') RunCheats.resumeAfterError()
+  else if (id === 'battle:start') startTroopBattle({ interruptEvent: true })
   else if (id === 'battle:victory') Cheats.battleVictory()
   else if (id === 'battle:escape') Cheats.battleEscape()
   else if (id === 'battle:defeat') Cheats.battleDefeat()
@@ -78,7 +80,7 @@ export function applyRunAction(id: RunActionId) {
   }
 }
 
-const BATTLE_END_ACTIONS: ReadonlySet<RunActionId> = new Set(['battle:victory', 'battle:escape', 'battle:defeat', 'battle:abort'])
+const BATTLE_END_ACTIONS: ReadonlySet<RunActionId> = new Set(['battle:start', 'battle:victory', 'battle:escape', 'battle:defeat', 'battle:abort'])
 
 /** Scene changes / battle endings: the player wants to watch the game, caller closes UI first (before `applyRunAction`) */
 export function runActionNeedsClose(id: RunActionId): boolean {
