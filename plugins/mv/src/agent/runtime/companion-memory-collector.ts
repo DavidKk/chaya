@@ -1,6 +1,6 @@
 import type { SourceGameEvent } from '@/lib/game-agent/audit'
 import type { GameplayMemoryStore } from '@/lib/game-agent/companion/memory-store'
-import type { CompanionDomainEvent, FactView, MemoryInput } from '@/lib/game-agent/companion/types'
+import type { CompanionDomainEvent, ContextStamp, FactView, MemoryInput } from '@/lib/game-agent/companion/types'
 
 type Observation = Omit<MemoryInput, 'memoryEpoch' | 'recordingRevision'> & {
   memoryEpoch?: number
@@ -10,7 +10,7 @@ type Observation = Omit<MemoryInput, 'memoryEpoch' | 'recordingRevision'> & {
 
 /** Bound initialization backlog as well as normal ingestion; hooks never await storage. */
 export function collectCompanionMemory(
-  facts: { current(): FactView; subscribe(listener: (event: CompanionDomainEvent, source: SourceGameEvent) => void): () => void },
+  facts: { current(): FactView; stamp?(): ContextStamp; subscribe(listener: (event: CompanionDomainEvent, source: SourceGameEvent) => void): () => void },
   memory: GameplayMemoryStore,
   report: (message: string) => void
 ) {
@@ -60,7 +60,7 @@ export function collectCompanionMemory(
     const observation: Observation = {
       domainEvent,
       source,
-      stamp: facts.current().stamp,
+      stamp: typeof facts.stamp === 'function' ? facts.stamp() : facts.current().stamp,
       coveredSourceCursor: { producerId: source.producer.id, epoch: source.producer.epoch, sourceSeq: source.producer.sourceSeq },
       ...(initialized ? { memoryEpoch: memory.getEpoch(), recordingRevision: memory.getRecording().revision } : {}),
       bytes: 0,

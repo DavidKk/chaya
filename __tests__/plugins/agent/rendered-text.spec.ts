@@ -105,6 +105,28 @@ describe('rendered canvas text', () => {
     expect(readCommandInputs()).toEqual([{ label: '★セイバー', keys: ['up'] }])
   })
 
+  it('keeps tracking a canvas through partial clears, eviction and expiration', () => {
+    context.fillText('战斗', 10, 20)
+    context.fillText('菜单', 10, 60)
+    context.fillText('菜单更新', 10, 60)
+    context.clearRect(0, 0, 100, 40)
+    expect(readRenderedText().visible).toEqual(['菜单更新'])
+    context.clearRect(0, 40, 100, 40)
+    expect(readRenderedText().visible).toEqual([])
+
+    const other = Object.create(globals.CanvasRenderingContext2D!.prototype) as TestContext
+    for (let i = 0; i < 50; i++) {
+      other.canvas = { isConnected: true }
+      other.fillText(`标签 ${i}`, 10, 20)
+    }
+    expect(readRenderedText().visible).toHaveLength(40)
+    now += 1_001
+    expect(readRenderedText().visible).toEqual([])
+    context.fillText('新帧', 10, 20)
+    context.clearRect(0, 0, 100, 40)
+    expect(readRenderedText().visible).toEqual([])
+  })
+
   it('reports no commands for plain menu text or after a scene change', () => {
     context.fillText('攻撃 → 敵', 10, 20)
     expect(readCommandInputs()).toEqual([])

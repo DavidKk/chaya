@@ -18,11 +18,24 @@ export type GlossaryEntry = {
   token: string
 }
 
+const NON_NAME_RE = /^[\d\s+\-.,/\\:;%#!?()[\]<>=~'"*`^_]+$/
+
+function isOrderedEntries(entries: readonly GlossaryEntry[]): boolean {
+  for (let i = 1; i < entries.length; i++) {
+    const prev = entries[i - 1]
+    const cur = entries[i]
+    if (prev.jp.length < cur.jp.length) return false
+    if (prev.jp.length === cur.jp.length && prev.jp.localeCompare(cur.jp) > 0) return false
+  }
+  return true
+}
+
 export function maskGlossary(text: string, entries: readonly GlossaryEntry[]): { masked: string; slots: GlossaryEntry[] } {
   let masked = String(text)
   const slots: GlossaryEntry[] = []
+  if (!masked || NON_NAME_RE.test(masked) || !entries.length) return { masked, slots }
   // Match longer names first so shorter names cannot consume part of a longer name.
-  const ordered = [...entries].sort((a, b) => b.jp.length - a.jp.length || a.jp.localeCompare(b.jp))
+  const ordered = isOrderedEntries(entries) ? entries : [...entries].sort((a, b) => b.jp.length - a.jp.length || a.jp.localeCompare(b.jp))
   for (const entry of ordered) {
     if (!entry.jp || !masked.includes(entry.jp)) continue
     while (masked.includes(entry.jp)) {
@@ -60,7 +73,8 @@ export function translateByGlossaryTemplate(
   zhMap: Record<string, string>,
   templateZh: ReadonlyMap<string, string>
 ): string | null {
-  if (!entries.length) return null
+  if (!entries.length || !templateZh.size) return null
+  if (!text || NON_NAME_RE.test(text)) return null
   const { masked, slots } = maskGlossary(text, entries)
   if (!slots.length) return null
   const hit = templateZh.get(masked)

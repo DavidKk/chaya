@@ -1039,6 +1039,7 @@ var pause = new Int32Array(new SharedArrayBuffer(4));
 var locatorPublished = false;
 function publishLocator() {
   if (locatorPublished) return;
+  if (process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== void 0) return;
   const dir = mcpPortConfigDir(processMcpPortEnv(os.homedir()));
   fs7.mkdirSync(dir, { recursive: true, mode: 448 });
   const file = path6.join(dir, "storage-runtime.json");

@@ -611,6 +611,7 @@ function resolveDataDir() {
 }
 function publishLocator() {
   if (locatorPublished) return;
+  if (process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== void 0) return;
   const dir = mcpPortConfigDir(processMcpPortEnv(os.homedir()));
   fs4.mkdirSync(dir, { recursive: true, mode: 448 });
   const file = path3.join(dir, "storage-runtime.json");

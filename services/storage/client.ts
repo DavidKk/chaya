@@ -29,6 +29,7 @@ const pause = new Int32Array(new SharedArrayBuffer(4))
 let locatorPublished = false
 function publishLocator() {
   if (locatorPublished) return
+  if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined) return
   const dir = mcpPortConfigDir(processMcpPortEnv(os.homedir()))
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
   const file = path.join(dir, 'storage-runtime.json')
