@@ -32,6 +32,8 @@ export const de: MessageTree = {
     integration: 'Integration',
     settings: 'Einstellungen',
     remotePlay: 'Cloud Play',
+    remoteInstances: 'Instanzen',
+    remoteSettings: 'Einstellungen',
     about: 'Über',
   },
   common: {

@@ -1,20 +1,17 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
-  LuClock,
-  LuExternalLink,
   LuMaximize2,
   LuMinimize2,
-  LuPlay,
   LuPower,
-  LuRefreshCw,
-  LuSmartphone,
-  LuTv,
+  LuVolume2,
+  LuVolumeX,
   LuX,
 } from 'react-icons/lu'
 
-import { Badge, Button } from '@/components/sk'
+import { Badge, Button, Spinner } from '@/components/sk'
+import { WebGameLink } from '@/lib/runtime/web-game-link'
 import type { CloudGameInstance } from '@/services/runtime/game-instance-manager'
 
 type Props = {
@@ -25,25 +22,60 @@ type Props = {
 }
 
 export function GameObserverModal({ instance, open, onClose, onTerminate }: Props) {
-  const [refreshKey, setRefreshKey] = useState(Date.now())
-  const [autoRefresh, setAutoRefresh] = useState(true)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isMuted, setIsMuted] = useState(true)
+  const [streamReady, setStreamReady] = useState(false)
   const [terminating, setTerminating] = useState(false)
 
-  // 监看弹窗打开时，每 3 秒自动拉取最新游戏画面快照
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const frameRef = useRef<HTMLDivElement | null>(null)
+  const linkRef = useRef<WebGameLink | null>(null)
+
+  // 建立 WebRTC 画面长连接（直接接收游戏 Canvas 与 WebAudio 轨道，无轮询）
   useEffect(() => {
-    if (!open || !instance || !autoRefresh) return
-    const timer = setInterval(() => {
-      setRefreshKey(Date.now())
-    }, 3000)
-    return () => clearInterval(timer)
-  }, [open, instance, autoRefresh])
+    if (!open || !instance) {
+      setStreamReady(false)
+      if (linkRef.current) {
+        linkRef.current.stop({ silent: true })
+        linkRef.current = null
+      }
+      return
+    }
+
+    setStreamReady(false)
+    const obsRoomId = `${instance.roomId}:observer`
+    const link = new WebGameLink(obsRoomId, {
+      onTrack: (stream) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.play().catch(() => {})
+          setStreamReady(true)
+        }
+      },
+    })
+
+    linkRef.current = link
+    link.start({ enableMedia: true, takeover: true }).catch(() => {})
+
+    return () => {
+      link.stop({ silent: true })
+      if (linkRef.current === link) {
+        linkRef.current = null
+      }
+      setStreamReady(false)
+    }
+  }, [open, instance?.roomId])
+
+  // 监听全屏状态变化同步 UI
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
 
   if (!open || !instance) return null
-
-  const handleManualRefresh = () => {
-    setRefreshKey(Date.now())
-  }
 
   const handleTerminate = async () => {
     if (!window.confirm(`确定要终止游戏实例「${instance.gameTitle}」(PID: ${instance.pid}) 吗？`)) {
@@ -59,7 +91,7 @@ export function GameObserverModal({ instance, open, onClose, onTerminate }: Prop
   }
 
   const toggleFullscreen = () => {
-    const el = document.getElementById('observer-viewport-frame')
+    const el = frameRef.current
     if (!document.fullscreenElement) {
       el?.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
     } else {
@@ -67,138 +99,100 @@ export function GameObserverModal({ instance, open, onClose, onTerminate }: Prop
     }
   }
 
-  const playUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}${instance.streamUrl}`
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md">
       <div className="relative flex flex-col w-full max-w-4xl max-h-[92vh] overflow-hidden rounded-xl border border-white/10 bg-[#0c1017] shadow-2xl">
-        {/* Header */}
-        <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4 bg-white/[0.02]">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <LuTv size={17} className="text-emerald-400 shrink-0" />
-            <h2 className="text-sm font-semibold text-ink truncate m-0">{instance.gameTitle}</h2>
-            <Badge tone="neutral" className="text-[0.68rem] font-mono px-1.5 py-0">
+        {/* Header: All buttons on top-left with tooltips */}
+        <div className="flex h-11 shrink-0 items-center justify-between border-b border-white/10 px-3 bg-white/[0.03]">
+          <div className="flex items-center gap-1.5 min-w-0">
+            {/* Top-left icon buttons with tooltips */}
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="h-7 w-7 text-ink-soft hover:text-ink hover:bg-white/10"
+                aria-label="关闭监看" tooltip="关闭监看"
+              >
+                <LuX size={15} />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleFullscreen}
+                className="h-7 w-7 text-ink-soft hover:text-ink hover:bg-white/10"
+                aria-label={isFullscreen ? '退出全屏' : '全屏监看'} tooltip={isFullscreen ? '退出全屏' : '全屏监看'}
+              >
+                {isFullscreen ? <LuMinimize2 size={14} /> : <LuMaximize2 size={14} />}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsMuted((v) => !v)}
+                className="h-7 w-7 text-ink-soft hover:text-ink hover:bg-white/10"
+                aria-label={isMuted ? '开启声音' : '静音'} tooltip={isMuted ? '开启声音' : '静音'}
+              >
+                {isMuted ? <LuVolumeX size={14} /> : <LuVolume2 size={14} />}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={terminating}
+                onClick={handleTerminate}
+                className="h-7 w-7 text-fail hover:bg-fail/20"
+                aria-label="终止游戏实例" tooltip="终止游戏实例"
+              >
+                <LuPower size={14} />
+              </Button>
+            </div>
+
+            {/* Game Info */}
+            <h2 className="text-xs font-semibold text-ink truncate m-0 ml-1.5" title={instance.gameTitle}>
+              {instance.gameTitle}
+            </h2>
+            <Badge tone="neutral" size="mini" className="font-mono">
               PID: {instance.pid}
             </Badge>
             {instance.webConnected ? (
-              <Badge tone="ok" className="flex items-center gap-1 text-[0.68rem] px-1.5 py-0">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                玩家已连接
+              <Badge tone="ok" size="mini">
+                玩家在线
               </Badge>
             ) : (
-              <Badge tone="warn" className="text-[0.68rem] px-1.5 py-0">
-                闲置中 ({instance.idleSeconds}s)
+              <Badge tone="warn" size="mini">
+                闲置 {instance.idleSeconds}s
               </Badge>
             )}
-          </div>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Button
-              variant="ghost"
-              size="md"
-              onClick={handleManualRefresh}
-              className="h-7 px-2 text-xs text-ink-soft hover:text-ink gap-1"
-              title="手动抓取最新画面"
-            >
-              <LuRefreshCw size={13} className="shrink-0" />
-              <span className="hidden sm:inline">刷新快照</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleFullscreen}
-              className="h-7 w-7 text-ink-soft hover:text-ink"
-              title={isFullscreen ? '退出全屏' : '全屏监看'}
-            >
-              {isFullscreen ? <LuMinimize2 size={14} /> : <LuMaximize2 size={14} />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-7 w-7 text-ink-soft hover:text-ink"
-              title="关闭"
-            >
-              <LuX size={16} />
-            </Button>
+            <Badge tone="info" size="mini">
+              {instance.clientIp || '本机'}
+            </Badge>
           </div>
         </div>
 
-        {/* Notice banner */}
-        <div className="flex items-center justify-between bg-emerald-950/30 border-b border-emerald-500/20 px-4 py-1.5 text-xs text-emerald-300">
-          <div className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            <span className="font-medium">只读监看模式</span>
-            <span className="text-emerald-400/70 hidden sm:inline">— 不包含任何控制按键与输入捕获，绝不干扰玩家游玩</span>
-          </div>
-          <label className="flex items-center gap-1.5 text-[0.72rem] text-emerald-300/80 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-0"
-            />
-            自动刷新 (3s)
-          </label>
-        </div>
-
-        {/* Viewport Frame */}
+        {/* Viewport Frame (WebRTC Long Connection Video Stream) */}
         <div
+          ref={frameRef}
           id="observer-viewport-frame"
-          className="relative flex flex-1 items-center justify-center min-h-[280px] sm:min-h-[420px] bg-black overflow-hidden"
+          className="relative flex flex-1 items-center justify-center min-h-[300px] sm:min-h-[460px] bg-black overflow-hidden [&:fullscreen]:w-screen [&:fullscreen]:h-screen [&:fullscreen]:bg-black [&:fullscreen_video]:w-screen [&:fullscreen_video]:h-screen [&:fullscreen_video]:object-contain"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            key={refreshKey}
-            src={`${instance.screenshotUrl}&t=${refreshKey}`}
-            alt={instance.gameTitle}
-            className="max-h-full max-w-full object-contain select-none"
+          {/* Direct WebRTC Video Feed */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted={isMuted}
+            className="h-full w-full object-contain select-none pointer-events-none"
           />
 
-          <div className="absolute bottom-2 left-2 pointer-events-none rounded bg-black/70 px-2 py-0.5 text-[0.68rem] text-white/70 font-mono backdrop-blur-sm border border-white/10">
-            {new Date(refreshKey).toLocaleTimeString()} · 实时画面
-          </div>
-        </div>
-
-        {/* Footer / Telemetry */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-4 py-2.5 bg-white/[0.015] text-xs">
-          <div className="flex items-center gap-3 text-ink-soft">
-            <span className="flex items-center gap-1">
-              <LuSmartphone size={13} />
-              {instance.clientIp ? `设备: ${instance.clientIp}` : '无外部设备'}
-            </span>
-            <span className="flex items-center gap-1">
-              <LuClock size={13} />
-              {instance.webConnected
-                ? '玩家正在游玩'
-                : `闲置 ${instance.idleSeconds}s (将在 ${instance.remainingIdleSeconds}s 后自动清理)`}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="default"
-              size="md"
-              onClick={() => {
-                navigator.clipboard.writeText(playUrl)
-                alert('已复制手机端游玩连接到剪贴板！')
-              }}
-              className="h-7 text-xs gap-1"
-            >
-              <LuExternalLink size={12} />
-              复制游玩地址
-            </Button>
-            <Button
-              variant="fail"
-              size="md"
-              disabled={terminating}
-              onClick={handleTerminate}
-              className="h-7 text-xs gap-1 bg-rose-600/80 hover:bg-rose-600 text-white border-0"
-            >
-              <LuPower size={12} />
-              结束实例
-            </Button>
-          </div>
+          {/* Negotiating / Connecting overlay */}
+          {!streamReady && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 gap-2.5">
+              <Spinner size="md" />
+              <span className="text-xs text-ink-soft font-mono">正在连接 WebRTC 串流画面...</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

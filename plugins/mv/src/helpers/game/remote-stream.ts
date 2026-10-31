@@ -261,6 +261,12 @@ export async function attachGameMediaStream(peer: RTCPeerConnection): Promise<vo
   const videoTrack = stream.getVideoTracks()[0]
   const audioTrack = stream.getAudioTracks()[0]
 
+  if (videoTrack) {
+    try {
+      (videoTrack as any).contentHint = 'motion'
+    } catch {}
+  }
+
   const transceivers = typeof peer.getTransceivers === 'function' ? peer.getTransceivers() : []
   let attachedVideo = false
   let attachedAudio = false
@@ -286,6 +292,21 @@ export async function attachGameMediaStream(peer: RTCPeerConnection): Promise<vo
   }
   if (!attachedAudio && audioTrack) {
     peer.addTrack(audioTrack, stream)
+  }
+
+  // 局域网超低延迟与 60 帧锁定优化
+  for (const sender of peer.getSenders?.() || []) {
+    if (sender.track?.kind === 'video' && typeof sender.getParameters === 'function') {
+      try {
+        const p = sender.getParameters()
+        if (!p.encodings || p.encodings.length === 0) p.encodings = [{}]
+        p.encodings[0].maxBitrate = 12_000_000 // 12 Mbps
+        p.encodings[0].maxFramerate = 60
+        p.encodings[0].networkPriority = 'high'
+        p.degradationPreference = 'maintain-framerate'
+        sender.setParameters(p).catch(() => {})
+      } catch {}
+    }
   }
 }
 

@@ -38,6 +38,8 @@ const commonEn = {
     integration: 'Integrations',
     settings: 'Settings',
     remotePlay: 'Cloud Play',
+    remoteInstances: 'Instances',
+    remoteSettings: 'Settings',
     about: 'About',
   },
   common: {

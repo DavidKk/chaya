@@ -15,6 +15,7 @@ import { mainNavFor, type MainNavId } from '@/components/main-nav'
 import { Button } from '@/components/sk'
 import { useSafeSearchParams } from '@/components/translate/safe-navigation'
 import { TRANSLATE_TABS, translateTabHref } from '@/components/translate/tabs'
+import { REMOTE_TABS } from '@/components/remote-play/remote-tabs'
 import type { MessageKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -38,7 +39,7 @@ const WEB_ROUTES: Partial<Record<MainNavId, AppNavRoute>> = {
   edit: { href: '/cheat/run', children: EDIT_TABS.map((item) => ({ href: editTabHref(item.id), labelKey: item.labelKey })) },
   translate: { href: '/translate/seed', children: TRANSLATE_TABS.map((item) => ({ href: translateTabHref(item.id), labelKey: item.labelKey })) },
   assist: { href: '/assist/hotkeys', children: ASSIST_SECTIONS.map((section) => ({ href: `/assist/${section.id}`, labelKey: section.labelKey })) },
-  remote: { href: '/remote' },
+  remote: { href: '/remote/instances', children: REMOTE_TABS.map((tab) => ({ href: tab.href, labelKey: tab.labelKey })) },
   integration: { href: '/integration/skills', children: INTEGRATION_TABS },
   logs: {
     href: logsSectionHref('runtime'),
@@ -65,6 +66,8 @@ export type AppNavPath =
   | '/integration'
   | '/settings'
   | '/remote'
+  | '/remote/instances'
+  | '/remote/settings'
 
 const LINK_SELECTOR = '[data-app-nav-link]'
 
@@ -97,7 +100,7 @@ function navActive(current: AppNavPath, href: string) {
     return current === '/translate' || current === '/translate/seed' || current === '/translate/run' || current.startsWith('/translate/')
   if (cleanHref === '/integration/skills') return current === '/integration' || current.startsWith('/integration/')
   if (cleanHref === '/game') return current === '/game'
-  if (cleanHref === '/remote') return current === '/remote'
+  if (cleanHref.startsWith('/remote')) return current === '/remote' || current.startsWith('/remote')
   if (cleanHref === '/assist/hotkeys') return current === '/assist' || current === '/settings'
   if (cleanHref.startsWith('/logs')) return current === '/logs' || current.startsWith('/logs')
   return current === cleanHref

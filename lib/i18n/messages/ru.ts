@@ -32,6 +32,8 @@ export const ru: MessageTree = {
     integration: 'Интеграция',
     settings: 'Настройки',
     remotePlay: 'Cloud Play',
+    remoteInstances: 'Экземпляры',
+    remoteSettings: 'Настройки',
     about: 'О программе',
   },
   common: {

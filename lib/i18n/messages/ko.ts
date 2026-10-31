@@ -38,6 +38,8 @@ const base = {
     integration: '연동',
     settings: '설정',
     remotePlay: '클라우드',
+    remoteInstances: '인스턴스',
+    remoteSettings: '설정',
     about: '정보',
   },
   common: {

@@ -32,6 +32,8 @@ export const ptBR: MessageTree = {
     integration: 'Integrações',
     settings: 'Configurações',
     remotePlay: 'Cloud Play',
+    remoteInstances: 'Instâncias',
+    remoteSettings: 'Configurações',
     about: 'Sobre',
   },
   common: {

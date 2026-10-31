@@ -79,7 +79,7 @@ export function listCloudGameInstances(): CloudGameInstance[] {
     }
 
     // 匹配信令房间
-    const matchedRoom = rooms.find((r) => r.roomId !== 'default') || rooms[0]
+    const matchedRoom = rooms.find((r) => r.roomId !== 'default' && !r.roomId.endsWith(':observer')) || rooms.find((r) => !r.roomId.endsWith(':observer')) || rooms[0]
     const roomId = matchedRoom?.roomId || (agentGames[0]?.gameId ?? 'default')
 
     // 检查是否有 Web 客户端处于连接中（35s 新鲜度）

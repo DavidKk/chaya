@@ -20,6 +20,8 @@ export const commonZh = {
     logs: '日志',
     integration: '集成',
     remotePlay: '云游戏',
+    remoteInstances: '云游戏实例',
+    remoteSettings: '云游戏配置',
     settings: '配置',
     about: '关于',
   },

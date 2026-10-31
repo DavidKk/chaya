@@ -158,6 +158,12 @@ export class WebGameLink {
 
     let remoteStream: MediaStream | null = null
     pc.ontrack = (ev) => {
+      try {
+        if (ev.receiver) {
+          if ('playoutDelayHint' in ev.receiver) (ev.receiver as any).playoutDelayHint = 0
+          if ('jitterBufferTarget' in ev.receiver) (ev.receiver as any).jitterBufferTarget = 0
+        }
+      } catch {}
       if (ev.streams && ev.streams[0]) {
         remoteStream = ev.streams[0]
       } else {

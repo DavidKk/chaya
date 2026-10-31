@@ -30,7 +30,7 @@ import { WebGameLink } from '@/lib/runtime/web-game-link'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
-import { GradientButton } from '@/components/sk'
+import { Button, GradientButton } from '@/components/sk'
 import { IoGlobeOutline, IoHandLeftOutline, IoHandRightOutline, IoPlayOutline } from 'react-icons/io5'
 import { ConfigRow } from './ConfigRow'
 import { LuMonitor, LuPower, LuSmartphone } from 'react-icons/lu'
@@ -188,6 +188,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const launchPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const userCancelledRef = useRef<boolean>(false)
+  const gameOnlineRef = useRef<boolean>(false)
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toastExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevStatusRef = useRef(status)
@@ -352,14 +355,28 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     window.location.href = window.location.pathname + '?_t=' + Date.now()
   }, [])
 
+  const clearReconnectTimers = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+  }, [])
+
+  const updateGameOnline = useCallback((online: boolean | null) => {
+    gameOnlineRef.current = Boolean(online)
+    setGameOnline(online)
+  }, [])
+
   const executeQuitGame = useCallback(async () => {
     remotePlayLogger.info('User confirmed quitting game')
     setQuitConfirmOpen(false)
     setMenuOpen(false)
+    userCancelledRef.current = true
+    clearReconnectTimers()
     try {
       if (linkRef.current) {
         linkRef.current.send({ type: 'quit' })
-        linkRef.current.stop()
+        linkRef.current.stop({ silent: true })
         linkRef.current = null
       }
     } catch {
@@ -371,9 +388,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       /* ignore */
     }
     setStatus('disconnected')
-    setGameOnline(false)
+    updateGameOnline(false)
+    setIsCancelled(false)
     showStatusToast('info', t('play.gameExited'), 3000)
-  }, [showStatusToast, t])
+  }, [clearReconnectTimers, showStatusToast, t, updateGameOnline])
 
   const handleClearCacheAndReload = useCallback(async () => {
     remotePlayLogger.info('User triggered clear cache and reload')
@@ -394,12 +412,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     }
   }, [])
 
-  const clearReconnectTimers = useCallback(() => {
-    if (reconnectTimerRef.current) {
-      clearTimeout(reconnectTimerRef.current)
-      reconnectTimerRef.current = null
-    }
-  }, [])
+
 
   // 0. Environment diagnostics, orientation, saved cover & preferences
   useEffect(() => {
@@ -539,7 +552,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       .then((data) => {
         if (cancelled) return
         const isOnline = Boolean(data?.runtime?.gameOnline)
-        setGameOnline(isOnline)
+        updateGameOnline(isOnline)
 
         const lib = (data?.library || []) as LibraryItem[]
         setLibrary(lib)
@@ -580,6 +593,33 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     }
   }, [initialRoomId])
 
+  const handleCancelLaunch = useCallback(() => {
+    remotePlayLogger.info('User cancelled game launch')
+    if (launchPollRef.current) {
+      clearInterval(launchPollRef.current)
+      launchPollRef.current = null
+    }
+    userCancelledRef.current = true
+    setIsLaunching(false)
+    updateGameOnline(false)
+    setStatus('disconnected')
+    setIsCancelled(false)
+    clearReconnectTimers()
+  }, [clearReconnectTimers, updateGameOnline])
+
+  const handleCancelConnect = useCallback(() => {
+    remotePlayLogger.info('User cancelled connection, returning to game select')
+    userCancelledRef.current = true
+    clearReconnectTimers()
+    if (linkRef.current) {
+      linkRef.current.stop({ silent: true })
+      linkRef.current = null
+    }
+    updateGameOnline(false)
+    setStatus('disconnected')
+    setIsCancelled(false)
+  }, [clearReconnectTimers, updateGameOnline])
+
   // 3. WebRTC Link Connection & Continuous Silent Auto-reconnect
   const connect = useCallback(
     (isManual = false) => {
@@ -599,8 +639,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       linkRef.current?.stop()
 
       const scheduleSilentAutoReconnect = () => {
+        if (userCancelledRef.current || !gameOnlineRef.current) return
         clearReconnectTimers()
         reconnectTimerRef.current = setTimeout(() => {
+          if (userCancelledRef.current || !gameOnlineRef.current) return
           remotePlayLogger.info('Auto-reconnecting WebRTC stream...')
           connect(false)
         }, 2600)
@@ -613,16 +655,21 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         onConnected: () => {
           clearReconnectTimers()
           setIsCancelled(false)
+          userCancelledRef.current = false
           setStatus('connected')
-          setGameOnline(true)
+          updateGameOnline(true)
           remotePlayLogger.ok('WebRTC stream link established successfully')
           setErrorMessage(null)
         },
         onDisconnected: () => {
           setStatus('disconnected')
           setLatencyMs(null)
-          remotePlayLogger.warn('WebRTC stream disconnected, auto-reconnecting silently')
-          scheduleSilentAutoReconnect()
+          if (!userCancelledRef.current && gameOnlineRef.current) {
+            remotePlayLogger.warn('WebRTC stream disconnected, auto-reconnecting silently')
+            scheduleSilentAutoReconnect()
+          } else {
+            remotePlayLogger.info('WebRTC stream disconnected after intentional quit or cancellation')
+          }
         },
         onTrack: (stream: MediaStream) => {
           streamRef.current = stream
@@ -669,7 +716,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         scheduleSilentAutoReconnect()
       })
     },
-    [roomId, clearReconnectTimers]
+    [roomId, clearReconnectTimers, updateGameOnline]
   )
 
   useEffect(() => {
@@ -774,6 +821,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   // One-click game launch & auto-connect polling
   const handleLaunchGame = useCallback(async () => {
     if (isLaunching) return
+    userCancelledRef.current = false
+    setIsCancelled(false)
     setIsLaunching(true)
     remotePlayLogger.info('User initiated game launch via POST /api/launch...')
     showStatusToast('connecting', t('play.launchingLocalGame'), 8000)
@@ -796,7 +845,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       if (data.alreadyRunning) {
         remotePlayLogger.ok('Game already running, connecting directly to WebRTC stream')
         showStatusToast('connecting', t('play.connecting'), 3000)
-        setGameOnline(true)
+        updateGameOnline(true)
         setIsLaunching(false)
         connect(true)
         return
@@ -807,15 +856,16 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
       let attempts = 0
       const maxAttempts = 30
-      const pollInterval = setInterval(async () => {
+      const poll = setInterval(async () => {
         attempts += 1
         try {
           const stRes = await fetch('/api/status')
           const stData = await stRes.json()
           const isOnline = Boolean(stData?.runtime?.gameOnline)
           if (isOnline) {
-            clearInterval(pollInterval)
-            setGameOnline(true)
+            clearInterval(poll)
+            launchPollRef.current = null
+            updateGameOnline(true)
             setIsLaunching(false)
             remotePlayLogger.ok('Game detected online, connecting to WebRTC stream')
             connect(true)
@@ -826,19 +876,22 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         }
 
         if (attempts >= maxAttempts) {
-          clearInterval(pollInterval)
+          clearInterval(poll)
+          launchPollRef.current = null
           setIsLaunching(false)
-          remotePlayLogger.warn('Timed out waiting for game online, entering reconnection standby')
+          updateGameOnline(false)
+          remotePlayLogger.warn('Timed out waiting for game online, entering standby')
           showStatusToast('disconnected', t('play.pausedConnecting'), 4000)
         }
       }, 1200)
+      launchPollRef.current = poll
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err)
       remotePlayLogger.fail(`Launch request encountered exception: ${errMsg}`)
       showStatusToast('disconnected', `${t('play.failed')}: ${errMsg}`, 4000)
       setIsLaunching(false)
     }
-  }, [isLaunching, showStatusToast, connect])
+  }, [isLaunching, showStatusToast, connect, t, updateGameOnline])
 
   // Game switching handler
   const handleSelectGame = useCallback(
@@ -849,7 +902,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       linkRef.current?.stop()
       linkRef.current = null
       setStatus('disconnected')
-      setGameOnline(false)
+      updateGameOnline(false)
       try {
         const res = await fetch('/api/status', {
           method: 'PUT',
@@ -1914,7 +1967,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
           >
             {isLaunching ? (
-              <div className="flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex flex-col items-center gap-2.5 animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex items-center gap-2">
                   <LuLoader size={18} className="animate-spin text-sky-400" />
                   <h2 className="text-base sm:text-lg font-black tracking-widest text-sky-300 font-mono drop-shadow-[0_0_14px_rgba(56,189,248,0.85)] whitespace-nowrap shrink-0">
@@ -1924,38 +1977,61 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 <p className="text-xs text-neutral-300/80 font-medium tracking-wide">
                   {t('play.launchingLocalGame')}
                 </p>
+                <Button
+                  size="md"
+                  variant="default"
+                  onClick={handleCancelLaunch}
+                  className="rounded-[0.25rem] text-xs px-3.5 gap-1 text-neutral-300 hover:text-white mt-0.5"
+                >
+                  <LuX size={13} />
+                  <span>{t('common.cancel')}</span>
+                </Button>
               </div>
             ) : gameOnline === false ? (
               <div
                 className={`w-full animate-in fade-in zoom-in-95 duration-200 ${
                   isPortrait
                     ? 'flex flex-col items-center gap-3 max-w-sm'
-                    : 'flex items-center justify-between gap-3 max-w-2xl rounded-2xl border border-white/15 bg-neutral-900/90 px-4 py-2 backdrop-blur-md shadow-xl'
+                    : 'flex items-center justify-between gap-3 max-w-2xl rounded-md border border-white/15 bg-neutral-900/90 px-3.5 py-2 backdrop-blur-md shadow-xl'
                 }`}
               >
                 {isPortrait ? (
                   <>
                     {/* Current Game Card */}
-                    <div className="flex items-center justify-between w-full rounded-2xl border border-white/15 bg-neutral-900/85 px-4 py-2.5 backdrop-blur-md shadow-xl">
-                      <div className="flex flex-col min-w-0 pr-2">
-                        <span className="text-[10px] text-neutral-400 flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                          <span>{t('play.gameNotRunning')}</span>
-                        </span>
-                        <span className="text-xs sm:text-sm font-bold text-white truncate">
-                          {selectedGame?.name || 'RPG Maker'}
-                        </span>
+                    <div className="flex items-center justify-between w-full rounded-md border border-white/15 bg-neutral-900/85 px-3.5 py-2.5 backdrop-blur-md shadow-xl">
+                      <div className="flex items-center gap-3 min-w-0 pr-2">
+                        <div className="h-10 w-14 rounded-[0.2rem] bg-black/70 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={'/api/remote/screenshot?roomId=' + (selectedGame?.id || '')}
+                            alt=""
+                            className="h-full w-full object-contain"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none'
+                            }}
+                          />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs sm:text-sm font-bold text-white truncate">
+                            {selectedGame?.name || 'RPG Maker'}
+                          </span>
+                          <span className="text-[10px] text-neutral-400 flex items-center gap-1.5 mt-0.5">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                            <span>{t('play.gameNotRunning')}</span>
+                          </span>
+                        </div>
                       </div>
 
                       {library.length > 0 && (
-                        <button
-                          type="button"
+                        <Button
+                          size="md"
+                          variant="accent"
                           onClick={() => setGameSelectorOpen(true)}
-                          className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-neutral-300 hover:bg-white/10 hover:text-white shrink-0 active:scale-95 transition-all"
+                          className="gap-1.5 rounded-[0.25rem] text-xs font-bold shrink-0 min-h-9 px-3"
                         >
-                          <LuGamepad2 size={13} className="text-emerald-400" />
+                          <LuGamepad2 size={14} className="text-emerald-400" />
                           <span>{t('play.switchGame')}</span>
-                        </button>
+                        </Button>
                       )}
                     </div>
 
@@ -1963,84 +2039,68 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     <GradientButton
                       size="lg"
                       variant="ok"
-                      className="w-full justify-center min-h-12 shadow-[0_0_24px_rgba(16,185,129,0.5)]"
+                      className="w-full justify-center min-h-11 shadow-[0_0_24px_rgba(16,185,129,0.5)] rounded-[0.25rem] text-xs font-bold"
                       loading={isLaunching}
                       onClick={handleLaunchGame}
                     >
                       <IoPlayOutline size={19} aria-hidden />
                       <span>{t('play.launchAndStream')}</span>
                     </GradientButton>
-
-                    <div className="flex items-center justify-center gap-4 text-xs pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => connect(true)}
-                        className="text-neutral-400 hover:text-neutral-200 text-[11px] underline underline-offset-2 transition-colors"
-                      >
-                        {t('play.directConnect')}
-                      </button>
-                      <span className="text-neutral-600">·</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDrawerTab('logs')
-                          setDrawerOpen(true)
-                        }}
-                        className="text-neutral-400 hover:text-neutral-200 text-[11px] transition-colors"
-                      >
-                        {t('play.diagLogs')}
-                      </button>
-                    </div>
                   </>
                 ) : (
-                  /* Landscape: Single Line */
+                  /* Landscape / Desktop: Single Line */
                   <>
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-xs font-bold text-white truncate max-w-[200px]">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="h-9 w-12 rounded-[0.2rem] bg-black/70 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={'/api/remote/screenshot?roomId=' + (selectedGame?.id || '')}
+                          alt=""
+                          className="h-full w-full object-contain"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                          }}
+                        />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-bold text-white truncate max-w-[220px]">
                           {selectedGame?.name || 'RPG Maker'}
                         </span>
-                        <span className="text-[10px] text-neutral-400 shrink-0">{t('play.waitingLaunch')}</span>
+                        <span className="text-[10px] text-neutral-400 flex items-center gap-1 mt-0.5 shrink-0">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                          <span>{t('play.waitingLaunch')}</span>
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2.5 shrink-0">
                       {library.length > 0 && (
-                        <button
-                          type="button"
+                        <Button
+                          size="md"
+                          variant="accent"
                           onClick={() => setGameSelectorOpen(true)}
-                          className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-neutral-300 hover:bg-white/10 hover:text-white shrink-0 active:scale-95 transition-all"
+                          className="gap-1.5 rounded-[0.25rem] text-xs font-bold shrink-0 min-h-9 px-3.5"
                         >
-                          <LuGamepad2 size={13} className="text-emerald-400" />
+                          <LuGamepad2 size={14} className="text-emerald-400" />
                           <span>{t('play.switchGame')}</span>
-                        </button>
+                        </Button>
                       )}
 
                       <GradientButton
                         size="md"
                         variant="ok"
-                        className="shrink-0 min-h-8 text-xs font-bold"
+                        className="shrink-0 min-h-9 px-4 text-xs font-bold shadow-[0_0_16px_rgba(16,185,129,0.4)] rounded-[0.25rem]"
                         loading={isLaunching}
                         onClick={handleLaunchGame}
                       >
-                        <IoPlayOutline size={15} aria-hidden />
+                        <IoPlayOutline size={16} aria-hidden />
                         <span>{t('play.launchGame')}</span>
                       </GradientButton>
-
-                      <button
-                        type="button"
-                        onClick={() => connect(true)}
-                        className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-neutral-300 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
-                        title="{t('play.directConnect')}"
-                      >
-                        {t('play.directConnect')}
-                      </button>
                     </div>
                   </>
                 )}
               </div>
-            ) : !isCancelled ? (
+            ) : (
               <div className="flex flex-col items-center gap-2 select-none">
                 {/* Breathing opacity animation ONLY on the English status text (CONNECTING...) */}
                 <div
@@ -2058,53 +2118,14 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   {t('play.autoConnecting')}
                 </p>
 
-                {/* Subdued Cancel Button */}
+                {/* Subdued Cancel Button: Cancelling returns directly to game selector */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsCancelled(true)
-                    clearReconnectTimers()
-                    setStatus('disconnected')
-                  }}
-                  className="mt-2 rounded-full border border-white/10 bg-white/5 px-5 py-1.5 text-xs text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
+                  onClick={handleCancelConnect}
+                  className="mt-1.5 rounded-[0.25rem] border border-white/10 bg-white/5 px-4 py-1.5 text-xs text-neutral-300 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
                 >
                   {t('play.cancelConnect')}
                 </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2.5 animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex flex-col items-center gap-1">
-                  <h2 className="text-base sm:text-lg font-black tracking-widest text-amber-300 font-mono drop-shadow-[0_0_12px_rgba(251,191,36,0.6)] whitespace-nowrap shrink-0">
-                    PAUSED
-                  </h2>
-                  <p className="text-xs text-neutral-400">
-                    {t('play.pausedConnecting')}
-                  </p>
-                </div>
-
-                {/* Prominent Game-style Start Buttons Centered at Bottom */}
-                <div className="mt-1 flex items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => connect(true)}
-                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-2.5 text-xs sm:text-sm font-bold text-white shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:brightness-110 active:scale-95 transition-all"
-                  >
-                    <LuRotateCw size={14} />
-                    <span>{t('play.reconnect')}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDrawerTab('logs')
-                      setDrawerOpen(true)
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-neutral-900/80 px-4 py-2.5 text-xs font-semibold text-neutral-300 shadow-md hover:bg-neutral-800 active:scale-95 transition-all"
-                  >
-                    <LuScrollText size={14} />
-                    <span>{t('play.diagLogs')}</span>
-                  </button>
-                </div>
               </div>
             )}
           </div>
@@ -2135,7 +2156,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         onToggleAutoTalk={() => handleAction('flag:autotalk')}
       />
 
-      {/* 7. Game Library Selector Modal (Safe for Dynamic Island & Centered header) */}
+      {/* 7. Game Library Selector Modal: Grid of visual cards with screenshot thumbnail, title, engine */}
       {gameSelectorOpen && (
         <div
           role="dialog"
@@ -2147,65 +2168,78 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
             paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm select-none"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm select-none p-3 sm:p-6"
           onClick={() => setGameSelectorOpen(false)}
         >
           <div
-            className="relative flex flex-col rounded-lg border border-[rgb(230_238_248/0.12)] bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
-            style={{
-              width: isPortrait ? 'min(384px, 92vw)' : 'min(640px, 92vw)',
-              height: isPortrait ? 'min(420px, 75vh)' : 'min(260px, 75vh)',
-            }}
+            className="relative flex flex-col w-full max-w-2xl max-h-[85vh] rounded-md border border-white/15 bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header: No dividing line, text-sm font-semibold matching content rhythm, clean icon button (Requirement 4) */}
-            <div className="flex items-center justify-between px-4 py-2.5 shrink-0">
-              <h3 id="game-select-title" className="text-sm font-semibold text-white tracking-wide leading-none flex items-center">
-                {t('play.gameSelectorTitle')}
-              </h3>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <LuGamepad2 size={18} className="text-emerald-400" />
+                <h3 id="game-select-title" className="text-sm font-semibold text-white tracking-wide leading-none m-0">
+                  {t('play.gameSelectorTitle')}
+                </h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setGameSelectorOpen(false)}
-                className="flex items-center justify-center p-1 rounded text-neutral-400 hover:text-white hover:bg-white/5 active:scale-90 transition-all shrink-0"
+                className="flex items-center justify-center p-1 rounded-[0.2rem] text-neutral-400 hover:text-white hover:bg-white/10 active:scale-90 transition-all shrink-0"
                 aria-label={t('common.close')}
               >
                 <LuX size={16} />
               </button>
             </div>
 
-            {/* List */}
-            <div
-              className={`flex-1 min-h-0 overflow-y-auto p-3 ${
-                isPortrait ? 'space-y-2' : 'grid grid-cols-2 gap-2'
-              }`}
-            >
+            {/* List: Grid of visual cards with screenshot thumbnail, title, engine */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {library.map((item) => {
                 const isSelected = selectedGame?.gameRoot === item.gameRoot || selectedGame?.id === item.id
+                // Remove meaningless "www 内容" directory label, retain clean engine name
+                const engineName = item.fingerprint?.engine?.name || (item.kindLabel && item.kindLabel !== 'www 内容' && item.kindLabel !== 'www' ? item.kindLabel : 'RPG Maker')
                 return (
                   <button
                     key={item.id || item.gameRoot}
                     type="button"
                     onClick={() => handleSelectGame(item)}
-                    className={`flex w-full items-center justify-between rounded-xl border p-2.5 text-left transition-all active:scale-98 ${
+                    className={'group relative flex flex-col overflow-hidden cursor-pointer rounded-[0.25rem] border text-left transition-all active:scale-[0.98] ' + (
                       isSelected
-                        ? 'border-emerald-500/50 bg-emerald-950/40 text-white shadow-sm'
-                        : 'border-white/5 bg-white/[0.03] text-neutral-300 hover:bg-white/10 hover:text-white'
-                    }`}
+                        ? 'border-emerald-500/70 ring-1 ring-emerald-500/40 bg-emerald-950/30 text-white shadow-[0_0_16px_rgba(16,185,129,0.25)]'
+                        : 'border-white/10 bg-white/[0.03] text-neutral-300 hover:border-white/25 hover:bg-white/[0.06] hover:text-white'
+                    )}
                   >
-                    <div className="flex flex-col min-w-0 pr-2">
-                      <span className="text-xs font-semibold truncate">{item.name || 'Untitled Game'}</span>
-                      <span className="text-[10px] text-neutral-400 mt-0.5">
-                        {item.kindLabel || item.fingerprint?.engine?.name || 'RPG Maker'}
+                    {/* Thumbnail preview */}
+                    <div className="relative aspect-video max-h-28 w-full bg-black/80 overflow-hidden border-b border-white/10 flex items-center justify-center rounded-t-[0.25rem]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={'/api/remote/screenshot?roomId=' + (item.id || '')}
+                        alt=""
+                        className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-105"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                        }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center -z-1 text-white/20">
+                        <LuGamepad2 size={24} />
+                      </div>
+                      {isSelected && (
+                        <span className="absolute top-2 right-2 rounded-full bg-emerald-500 text-black p-0.5 shadow-md">
+                          <LuCheck size={12} strokeWidth={3} />
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Card Content */}
+                    <div className="flex flex-col p-2.5 gap-1 min-w-0">
+                      <span className="text-xs font-semibold truncate leading-tight text-neutral-100" title={item.name}>
+                        {item.name || 'Untitled Game'}
+                      </span>
+                      <span className="text-[10px] text-neutral-400 font-mono">
+                        {engineName}
                       </span>
                     </div>
-                    {isSelected ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-300 shrink-0">
-                        <LuCheck size={10} />
-                        <span>{t('play.selected')}</span>
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-neutral-500 shrink-0">{t('play.tapToSelect')}</span>
-                    )}
                   </button>
                 )
               })}

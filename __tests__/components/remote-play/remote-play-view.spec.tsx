@@ -165,6 +165,13 @@ describe('RemotePlayView Launcher & UI refinements', () => {
     const closeBtn = dialog.querySelector('button[aria-label="关闭"]') as HTMLButtonElement
     expect(closeBtn).not.toBeNull()
     expect(closeBtn.className).toContain('flex items-center justify-center')
+
+    // Verify cards have cursor-pointer, rounded-[0.25rem], and omit "www 内容"
+    const gameCards = Array.from(dialog.querySelectorAll('button')).filter((b) => b !== closeBtn)
+    expect(gameCards.length).toBeGreaterThan(0)
+    expect(gameCards[0]?.className).toContain('cursor-pointer')
+    expect(gameCards[0]?.className).toContain('rounded-[0.25rem]')
+    expect(dialog.textContent).not.toContain('www 内容')
   })
   it('renders unified ConfigRow with icon, label, and no mode descriptions', async () => {
     await act(async () => {

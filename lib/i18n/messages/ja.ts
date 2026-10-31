@@ -38,6 +38,8 @@ const base = {
     integration: '連携',
     settings: '設定',
     remotePlay: 'クラウド',
+    remoteInstances: 'インスタンス',
+    remoteSettings: '設定',
     about: '概要',
   },
   common: {

@@ -37,6 +37,8 @@ export type MessageTree = {
     logs: string
     integration: string
     remotePlay: string
+    remoteInstances: string
+    remoteSettings: string
     settings: string
     about: string
   }

@@ -271,10 +271,105 @@ function bindDc(dc: RTCDataChannel) {
 let started = false
 let timer: ReturnType<typeof setTimeout> | null = null
 let pc: RTCPeerConnection | null = null
+let observerPc: RTCPeerConnection | null = null
+let lastObserverOfferSdp: string | null = null
+let observerAnswering = false
 let activeDc: RTCDataChannel | null = null
 let lastOfferSdp: string | null = null
 let linkOpen = false
 let answering = false
+
+async function tryAnswerObserver() {
+  if (observerAnswering) return false
+  const id = gameRoomId()
+  if (id === 'default') return false
+  const obsRoomId = `${id}:observer`
+  const bases = resolveApiBaseFallbacks()
+  let room: WebrtcRoom | null = null
+  for (const base of bases) {
+    try {
+      const res = await chayaFetch(`${base}/api/runtime/webrtc?roomId=${encodeURIComponent(obsRoomId)}`, { headers: signalHeaders() })
+      if (!res.ok) continue
+      const data = (await res.json()) as { room?: WebrtcRoom | null }
+      room = data.room || null
+      break
+    } catch {
+      /* */
+    }
+  }
+  if (!started) return false
+  const offer = room?.offer
+  if (!offer?.type || !offer.sdp) {
+    if (observerPc && !offer) {
+      try {
+        observerPc.close()
+      } catch {
+        /* */
+      }
+      observerPc = null
+      lastObserverOfferSdp = null
+    }
+    return false
+  }
+  if (offer.sdp === lastObserverOfferSdp && observerPc) return false
+
+  observerAnswering = true
+  try {
+    try {
+      observerPc?.close()
+    } catch {
+      /* */
+    }
+    observerPc = null
+
+    const peer = new RTCPeerConnection({ iceServers: [{ urls: STUN }] })
+    observerPc = peer
+    lastObserverOfferSdp = offer.sdp || null
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === 'failed' || peer.connectionState === 'closed') {
+        try {
+          peer.close()
+        } catch {
+          /* */
+        }
+        if (observerPc === peer) {
+          observerPc = null
+          lastObserverOfferSdp = null
+        }
+      }
+    }
+
+    await peer.setRemoteDescription(offer)
+    try {
+      await attachGameMediaStream(peer)
+    } catch (err) {
+      ChayaLog.warn('ChayaLink', 'Failed to attach game media stream for observer', err)
+    }
+    await peer.setLocalDescription(await peer.createAnswer())
+    await waitIce(peer)
+    if (!started || observerPc !== peer) return false
+    const answer = normalizeLocalSdp(peer.localDescription!.toJSON() as Sdp)
+
+    for (const base of bases) {
+      try {
+        const res = await chayaFetch(`${base}/api/runtime/webrtc`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...signalHeaders() },
+          body: JSON.stringify({ action: 'answer', roomId: obsRoomId, sdp: answer }),
+        })
+        if (res.ok) {
+          ChayaLog.ok('ChayaLink', `Answered observer offer -> ${base}`)
+          return true
+        }
+      } catch {
+        /* */
+      }
+    }
+    return false
+  } finally {
+    observerAnswering = false
+  }
+}
 
 async function tryAnswer() {
   if (answering) return false
@@ -387,6 +482,7 @@ async function loop() {
     }
     // When connected, only low-frequency probe whether Web has a new offer
     await tryAnswer()
+    await tryAnswerObserver()
   } catch (err) {
     ChayaLog.warn('ChayaLink', `Negotiation failed: ${err instanceof Error ? err.message : String(err)}`)
     try {
@@ -441,6 +537,9 @@ export function stopGameLink() {
     /* */
   }
   pc = null
+  try { observerPc?.close() } catch {}
+  observerPc = null
+  lastObserverOfferSdp = null
   activeDc = null
   linkOpen = false
   lastOfferSdp = null
