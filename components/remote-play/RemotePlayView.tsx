@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { LuGamepad2, LuMaximize2, LuRadio, LuUnplug, LuVolume2, LuVolumeX } from 'react-icons/lu'
 
 import type { GameLinkMessage, RemoteInputKey } from '@/lib/runtime/game-link-protocol'
 import { WebGameLink } from '@/lib/runtime/web-game-link'
@@ -209,7 +210,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               muted ? 'border-amber-400/50 bg-amber-950/80 text-amber-200 animate-pulse' : 'border-white/10 bg-neutral-900/80 text-neutral-200 hover:bg-neutral-800'
             }`}
           >
-            {muted ? '🔇 点击开声' : '🔊 声音已开'}
+            {muted ? <LuVolumeX size={15} className="mr-1.5" /> : <LuVolume2 size={15} className="mr-1.5 text-emerald-400" />}
+            {muted ? '点击开声' : '声音已开'}
           </button>
 
           {/* Toggle Virtual Controller */}
@@ -217,9 +219,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             type="button"
             onClick={() => setControlsVisible((prev) => !prev)}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-neutral-900/80 text-xs font-bold text-neutral-200 shadow-md backdrop-blur-md hover:bg-neutral-800"
-            title="隐藏/显示虚拟按键"
+            title="隐藏/显示虚拟手柄"
+            aria-label="隐藏/显示虚拟手柄"
           >
-            {controlsVisible ? '🎮' : '🕹️'}
+            <LuGamepad2 size={16} className={controlsVisible ? 'text-emerald-400' : 'text-neutral-400'} />
           </button>
 
           {/* Fullscreen */}
@@ -227,9 +230,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             type="button"
             onClick={toggleFullscreen}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-neutral-900/80 text-xs text-neutral-200 shadow-md backdrop-blur-md hover:bg-neutral-800"
-            title="全屏"
+            title="全屏切换"
+            aria-label="全屏切换"
           >
-            ⛶
+            <LuMaximize2 size={15} />
           </button>
         </div>
       </header>
@@ -237,8 +241,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       {/* Error or Connecting Overlay */}
       {status !== 'connected' && (
         <div className="pointer-events-none fixed inset-0 z-20 flex flex-col items-center justify-center bg-black/75 p-6 text-center backdrop-blur-sm">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-900 border border-neutral-700 text-3xl shadow-2xl">
-            {status === 'connecting' ? '📡' : '🔌'}
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-900 border border-neutral-700 shadow-2xl">
+            {status === 'connecting' ? <LuRadio size={32} className="text-amber-400 animate-pulse" /> : <LuUnplug size={32} className="text-rose-400" />}
           </div>
           <h2 className="mt-4 text-lg font-bold text-white">{status === 'connecting' ? '正在连接电脑端游戏…' : '游戏未就绪或已断开'}</h2>
           <p className="mt-2 max-w-sm text-xs text-neutral-400 leading-relaxed">
