@@ -138,6 +138,11 @@ export function VirtualController({ onInput, visible = true, idle = false }: Vir
 
   return (
     <div
+      style={{
+        paddingLeft: "max(0.75rem, env(safe-area-inset-left))",
+        paddingRight: "max(0.75rem, env(safe-area-inset-right))",
+        paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+      }}
       className={`pointer-events-none fixed inset-0 z-40 flex select-none flex-col justify-end p-3 pb-3 sm:p-5 sm:pb-5 transition-opacity duration-300 ${
         idle && !isDragging ? 'opacity-25 hover:opacity-90' : 'opacity-85 hover:opacity-100'
       }`}

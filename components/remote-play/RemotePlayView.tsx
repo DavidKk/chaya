@@ -1,7 +1,19 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { LuActivity, LuGamepad2, LuMaximize2, LuRadio, LuRotateCw, LuScrollText, LuUnplug, LuVolume2, LuVolumeX } from 'react-icons/lu'
+import {
+  LuActivity,
+  LuGamepad2,
+  LuMaximize2,
+  LuMinimize2,
+  LuRadio,
+  LuRotateCw,
+  LuScaling,
+  LuScrollText,
+  LuUnplug,
+  LuVolume2,
+  LuVolumeX,
+} from 'react-icons/lu'
 
 import type { GameLinkMessage, RemoteInputKey } from '@/lib/runtime/game-link-protocol'
 import { initErudaMobileDevTools } from '@/lib/runtime/mobile-devtools'
@@ -9,6 +21,7 @@ import { remotePlayLogger } from '@/lib/runtime/remote-play-logger'
 import { WebGameLink } from '@/lib/runtime/web-game-link'
 
 import { FloatingBall } from './FloatingBall'
+import { IosInstallGuideModal } from './IosInstallGuideModal'
 import { PerformanceHud } from './PerformanceHud'
 import { RemoteCheatDrawer } from './RemoteCheatDrawer'
 import { VirtualController } from './VirtualController'
@@ -29,6 +42,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const [isIdle, setIsIdle] = useState(false)
   const [controlsVisible, setControlsVisible] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(false)
+  const [installGuideOpen, setInstallGuideOpen] = useState(false)
+  const [fitMode, setFitMode] = useState<'contain' | 'cover'>('contain')
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -57,6 +74,31 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     window.addEventListener('pointermove', handleActivity, { passive: true })
     window.addEventListener('keydown', handleActivity, { passive: true })
 
+    const checkDisplayState = () => {
+      if (typeof window === 'undefined') return
+      const nav = window.navigator as { standalone?: boolean }
+      const standalone = Boolean(
+        nav?.standalone === true ||
+        window.matchMedia?.('(display-mode: standalone)').matches ||
+        window.matchMedia?.('(display-mode: fullscreen)').matches
+      )
+      const doc = document as Document & { webkitFullscreenElement?: Element }
+      const standardFs = Boolean(doc.fullscreenElement || doc.webkitFullscreenElement)
+      setIsStandalone(standalone)
+      setIsFullscreen(standalone || standardFs)
+    }
+
+    checkDisplayState()
+    document.addEventListener('fullscreenchange', checkDisplayState)
+    document.addEventListener('webkitfullscreenchange', checkDisplayState)
+
+    try {
+      const mql = window.matchMedia('(display-mode: standalone)')
+      mql.addEventListener?.('change', checkDisplayState)
+    } catch {
+      /* ignore */
+    }
+
     if (typeof window !== 'undefined') {
       const q = new URLSearchParams(window.location.search)
       if (q.get('debug') === '1' || q.get('eruda') === '1' || localStorage.getItem('chaya_remote_play_devtools') === '1') {
@@ -65,8 +107,18 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       if (localStorage.getItem('chaya_remote_play_hud') === '1') {
         setHudVisible(true)
       }
+      try {
+        const savedFit = localStorage.getItem('chaya_remote_play_fit')
+        if (savedFit === 'cover' || savedFit === 'contain') {
+          setFitMode(savedFit)
+        }
+      } catch {
+        /* ignore */
+      }
     }
     return () => {
+      document.removeEventListener('fullscreenchange', checkDisplayState)
+      document.removeEventListener('webkitfullscreenchange', checkDisplayState)
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
       window.removeEventListener('pointerdown', handleActivity)
       window.removeEventListener('pointermove', handleActivity)
@@ -247,16 +299,75 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   }
 
   const toggleFullscreen = () => {
-    try {
-      if (!document.fullscreenElement) {
-        void document.documentElement.requestFullscreen?.()
-      } else {
-        void document.exitFullscreen?.()
-      }
-      remotePlayLogger.info('用户切换全屏状态')
-    } catch {
-      /* ignore */
+    resetIdleTimer()
+
+    // 1. If running as iOS Web Clip / PWA standalone, it already equals fullscreen
+    if (isStandalone) {
+      setInstallGuideOpen(true)
+      remotePlayLogger.info('检测到已处于主屏独立全屏模式 (Web App)')
+      return
     }
+
+    // 2. If in standard full screen, exit
+    const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> }
+    if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+      if (document.exitFullscreen) {
+        void document.exitFullscreen().catch(() => {})
+      } else if (doc.webkitExitFullscreen) {
+        void doc.webkitExitFullscreen().catch(() => {})
+      }
+      remotePlayLogger.info('用户退出全屏模式')
+      return
+    }
+
+    // 3. Check device and browser capabilities
+    const docEl = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void>
+    }
+    const isIos = typeof navigator !== 'undefined' && (
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    )
+
+    // On iOS Safari (or browsers without fullscreen API), prompt to Add to Home Screen
+    if (isIos || (!docEl.requestFullscreen && !docEl.webkitRequestFullscreen)) {
+      setInstallGuideOpen(true)
+      remotePlayLogger.info('触发 iOS Safari 添加到主屏幕全屏指引')
+      return
+    }
+
+    // 4. Standard fullscreen API
+    if (docEl.requestFullscreen) {
+      docEl.requestFullscreen()
+        .then(() => {
+          remotePlayLogger.ok('已成功进入网页全屏')
+        })
+        .catch(() => {
+          setInstallGuideOpen(true)
+        })
+    } else if (docEl.webkitRequestFullscreen) {
+      try {
+        void docEl.webkitRequestFullscreen()
+      } catch {
+        setInstallGuideOpen(true)
+      }
+    } else {
+      setInstallGuideOpen(true)
+    }
+  }
+
+  const toggleFitMode = () => {
+    resetIdleTimer()
+    setFitMode((prev) => {
+      const next = prev === 'contain' ? 'cover' : 'contain'
+      try {
+        localStorage.setItem('chaya_remote_play_fit', next)
+      } catch {
+        /* ignore */
+      }
+      remotePlayLogger.info(`切换画面比例模式: ${next === "cover" ? "铺满全屏" : "等比适应"}`)
+      return next
+    })
   }
 
   const handleToggleHud = () => {
@@ -308,13 +419,18 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         onPointerDown={(e) => handleVideoPointer(e, 'down')}
         onPointerMove={(e) => handleVideoPointer(e, 'move')}
         onPointerUp={(e) => handleVideoPointer(e, 'up')}
-        className="h-full w-full object-contain cursor-crosshair touch-none"
+        className={`h-full w-full cursor-crosshair touch-none transition-all duration-300 ${fitMode === 'cover' ? 'object-cover' : 'object-contain'}`}
         style={{ touchAction: 'none' }}
       />
 
       {/* Top Floating Control Bar */}
       <header
-        className={`pointer-events-none fixed top-0 inset-x-0 z-30 flex items-center justify-between p-2 sm:p-3 transition-opacity duration-300 ${
+        style={{
+          paddingLeft: "max(0.625rem, env(safe-area-inset-left))",
+          paddingRight: "max(0.625rem, env(safe-area-inset-right))",
+          paddingTop: "max(0.5rem, env(safe-area-inset-top))",
+        }}
+        className={`pointer-events-none fixed top-0 inset-x-0 z-30 flex items-center justify-between transition-opacity duration-300 ${
           effectiveIdle ? 'opacity-25 hover:opacity-100' : 'opacity-100'
         }`}
       >
@@ -390,15 +506,40 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             <LuScrollText size={14} />
           </button>
 
-          {/* Fullscreen */}
+          {/* Video Fit Mode toggle: contain vs cover */}
+          <button
+            type="button"
+            onClick={toggleFitMode}
+            className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs shadow-md backdrop-blur-md transition-colors ${
+              fitMode === 'cover'
+                ? 'border-sky-400/50 bg-sky-950/80 text-sky-300'
+                : 'border-white/10 bg-neutral-900/80 text-neutral-400 hover:text-white hover:bg-neutral-800'
+            }`}
+            title={fitMode === 'cover' ? '当前: 画面铺满 (横向填满放大，点击切换为等比适应)' : '当前: 等比适应 (完整显示，点击切换为画面铺满)'}
+            aria-label="画面比例切换"
+          >
+            <LuScaling size={14} />
+          </button>
+
+          {/* Fullscreen / PWA Standalone Mode */}
           <button
             type="button"
             onClick={toggleFullscreen}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-neutral-900/80 text-xs text-neutral-200 shadow-md backdrop-blur-md hover:bg-neutral-800"
-            title="全屏切换"
+            className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs shadow-md backdrop-blur-md transition-colors ${
+              isFullscreen
+                ? 'border-emerald-400/50 bg-emerald-950/80 text-emerald-300'
+                : 'border-white/10 bg-neutral-900/80 text-neutral-200 hover:bg-neutral-800'
+            }`}
+            title={
+              isStandalone
+                ? '已处于独立全屏模式 (iOS 主屏 Web App，点击查看详情)'
+                : isFullscreen
+                ? '退出全屏'
+                : '全屏模式 (iOS 请分享添加到主屏幕)'
+            }
             aria-label="全屏切换"
           >
-            <LuMaximize2 size={14} />
+            {isFullscreen ? <LuMinimize2 size={14} /> : <LuMaximize2 size={14} />}
           </button>
         </div>
       </header>
@@ -407,6 +548,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       <PerformanceHud
         visible={hudVisible}
         idle={effectiveIdle}
+        isStandalone={isStandalone}
         latencyMs={latencyMs}
         videoResolution={videoResolution}
         status={status}
@@ -492,6 +634,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
       {/* Virtual D-Pad & Action Buttons */}
       <VirtualController onInput={handleInput} visible={controlsVisible} idle={effectiveIdle} />
+
+      {/* iOS Safari Add to Home Screen Fullscreen Guide Modal */}
+      <IosInstallGuideModal
+        open={installGuideOpen}
+        onClose={() => setInstallGuideOpen(false)}
+        isStandalone={isStandalone}
+      />
 
       {/* Remote Modding Drawer */}
       <RemoteCheatDrawer

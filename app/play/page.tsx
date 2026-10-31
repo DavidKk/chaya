@@ -15,6 +15,16 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: 'Chaya Remote Play - 局域网串流游玩',
   description: 'RPG Maker WebRTC 局域网超低延迟串流游玩与触屏虚拟手柄控制台',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Chaya 串流',
+  },
+  icons: {
+    icon: '/brand/chaya-app-icon.png',
+    apple: '/brand/chaya-app-icon.png',
+  },
 }
 
 import { canUseDisk } from '@/lib/service-mode'
