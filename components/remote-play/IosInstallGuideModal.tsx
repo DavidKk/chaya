@@ -39,14 +39,14 @@ export function IosInstallGuideModal({
         {/* Header */}
         <div className="flex items-center justify-between pb-2.5 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-md">
-              <LuMaximize2 size={16} />
+            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-md">
+              <LuMaximize2 size={13} />
             </div>
             <div>
-              <h3 id="ios-guide-title" className="text-sm font-bold text-white">
+              <h3 id="ios-guide-title" className="text-xs sm:text-sm font-bold text-white">
                 {isStandalone ? '已处于独立全屏模式' : 'iOS Safari 全屏指引'}
               </h3>
-              <p className="text-[11px] text-neutral-400">
+              <p className="text-[10px] text-neutral-400">
                 {isStandalone ? '当前等同于原生全屏' : '添加到主屏幕解锁 100% 满屏'}
               </p>
             </div>
@@ -54,10 +54,10 @@ export function IosInstallGuideModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+            className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
             aria-label="关闭"
           >
-            <LuX size={15} />
+            <LuX size={14} />
           </button>
         </div>
 
@@ -121,7 +121,7 @@ export function IosInstallGuideModal({
                       3. 从手机桌面打开游戏
                     </div>
                     <div className="text-[11px] text-neutral-400 leading-normal mt-0.5">
-                      确认名称为「Chaya 串流」并点击添加，随后在主屏点击图标即可全屏横屏游玩。
+                      确认名称并点击添加，随后在主屏点击图标即可全屏横屏游玩。
                     </div>
                   </div>
                 </div>

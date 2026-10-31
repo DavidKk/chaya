@@ -3,11 +3,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   LuActivity,
+  LuCheck,
   LuCompass,
   LuGamepad2,
+  LuLoader,
   LuMaximize2,
   LuMinimize2,
   LuMousePointer2,
+  LuPlay,
+  LuRotateCcw,
   LuRotateCw,
   LuScaling,
   LuScrollText,
@@ -33,8 +37,23 @@ type RemotePlayViewProps = {
 }
 
 type StatusToast = {
-  type: 'connected' | 'disconnected' | 'connecting'
+  type: 'connected' | 'disconnected' | 'connecting' | 'info'
   text: string
+  exiting?: boolean
+}
+
+type LibraryItem = {
+  id: string
+  name: string
+  gameRoot: string
+  remote?: boolean
+  missing?: boolean
+  kindLabel?: string
+  pathLabel?: string
+  hasShell?: boolean
+  fingerprint?: {
+    engine?: { name?: string; version?: string }
+  }
 }
 
 export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
@@ -65,6 +84,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const [statusToast, setStatusToast] = useState<StatusToast | null>(null)
   const [coverImage, setCoverImage] = useState<string | null>(null)
 
+  // Game server status & launcher states
+  const [gameOnline, setGameOnline] = useState<boolean | null>(null)
+  const [isLaunching, setIsLaunching] = useState(false)
+  const [library, setLibrary] = useState<LibraryItem[]>([])
+  const [selectedGame, setSelectedGame] = useState<LibraryItem | null>(null)
+  const [gameSelectorOpen, setGameSelectorOpen] = useState(false)
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const linkRef = useRef<WebGameLink | null>(null)
@@ -72,6 +98,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const toastExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevStatusRef = useRef(status)
 
   const resetIdleTimer = useCallback(() => {
@@ -83,15 +110,39 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   }, [])
 
   const showStatusToast = useCallback(
-    (type: 'connected' | 'disconnected' | 'connecting', text: string, durationMs = 2800) => {
+    (type: 'connected' | 'disconnected' | 'connecting' | 'info', text: string, durationMs = 2800) => {
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
-      setStatusToast({ type, text })
-      toastTimeoutRef.current = setTimeout(() => {
-        setStatusToast(null)
-      }, durationMs)
+      if (toastExitTimerRef.current) clearTimeout(toastExitTimerRef.current)
+      setStatusToast({ type, text, exiting: false })
+      const exitDelay = Math.max(800, durationMs - 300)
+      toastExitTimerRef.current = setTimeout(() => {
+        setStatusToast((prev) => (prev ? { ...prev, exiting: true } : null))
+        toastTimeoutRef.current = setTimeout(() => {
+          setStatusToast(null)
+        }, 300)
+      }, exitDelay)
     },
     []
   )
+
+  const handleClearCacheAndReload = useCallback(async () => {
+    remotePlayLogger.info('用户触发清理缓存并重载页面')
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.clear()
+        sessionStorage.clear()
+        if ('caches' in window) {
+          const keys = await caches.keys()
+          await Promise.all(keys.map((k) => caches.delete(k)))
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    if (typeof window !== 'undefined') {
+      window.location.replace(window.location.pathname + '?_ts=' + Date.now())
+    }
+  }, [])
 
   const clearReconnectTimers = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -210,45 +261,57 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       if (status === 'connected') {
         showStatusToast('connected', '已连接游戏串流')
       } else if (status === 'disconnected') {
-        showStatusToast('disconnected', '串流已断开，正在自动重连…', 3000)
+        if (gameOnline) {
+          showStatusToast('disconnected', '串流已断开，正在自动重连…', 3000)
+        }
       } else if (status === 'connecting' && prev === 'disconnected') {
         showStatusToast('connecting', '正在重新连接…', 2000)
       }
     }
-  }, [status, showStatusToast])
+  }, [status, gameOnline, showStatusToast])
 
-  // 2. Resolve room ID if not provided
+  // 2. Resolve room ID, game library & check if game is online
   useEffect(() => {
-    if (initialRoomId) {
-      remotePlayLogger.info(`使用指定游戏房间: ${initialRoomId}`)
-      setRoomId(initialRoomId)
-      return
-    }
     let cancelled = false
-    remotePlayLogger.info('正在请求 /api/status 探测可用游戏房间…')
+    remotePlayLogger.info('正在请求 /api/status 探测可用游戏与运行状态…')
     void fetch('/api/status')
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return
+        const isOnline = Boolean(data?.runtime?.gameOnline)
+        setGameOnline(isOnline)
+
+        const lib = (data?.library || []) as LibraryItem[]
+        setLibrary(lib)
+
         const selected = data?.selected
-        const selectedGame =
-          data?.library?.find((item: { gameRoot?: string; id?: string }) => item.gameRoot === selected) ||
-          data?.library?.[0]
+        const current =
+          lib.find((item) => (initialRoomId ? item.id === initialRoomId : item.gameRoot === selected)) ||
+          lib.find((item) => item.gameRoot === selected) ||
+          lib[0] ||
+          null
+        setSelectedGame(current)
+
         const detectedId =
-          selectedGame?.id ||
+          initialRoomId ||
+          current?.id ||
           data?.config?.library?.[0]?.id ||
-          data?.library?.[0]?.id ||
           data?.resolved?.gameId ||
           'default'
-        remotePlayLogger.ok(`探测到游戏房间: ${detectedId}`, {
+
+        remotePlayLogger.ok(`探测到游戏房间与状态: ${detectedId} (在线: ${isOnline})`, {
           gameId: detectedId,
           selected,
-          name: selectedGame?.name,
+          name: current?.name,
+          online: isOnline,
         })
         setRoomId(detectedId)
+        if (!isOnline) {
+          setStatus('disconnected')
+        }
       })
       .catch((err) => {
-        const msg = `无法探测游戏房间: ${err instanceof Error ? err.message : String(err)}`
+        const msg = `无法获取游戏状态: ${err instanceof Error ? err.message : String(err)}`
         remotePlayLogger.fail(msg)
         if (!cancelled) setErrorMessage(msg)
       })
@@ -291,6 +354,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           clearReconnectTimers()
           setIsCancelled(false)
           setStatus('connected')
+          setGameOnline(true)
           remotePlayLogger.ok('云游戏 WebRTC 链路握手成功，已建立端到端连接')
           setErrorMessage(null)
         },
@@ -350,7 +414,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
   useEffect(() => {
     if (!roomId) return
-    connect(false)
+    if (gameOnline === false) {
+      setStatus('disconnected')
+      return
+    }
+    if (gameOnline === true) {
+      connect(false)
+    }
 
     pingTimerRef.current = setInterval(() => {
       if (linkRef.current?.connected) {
@@ -364,7 +434,99 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       linkRef.current?.stop()
       linkRef.current = null
     }
-  }, [roomId, connect, clearReconnectTimers])
+  }, [roomId, gameOnline, connect, clearReconnectTimers])
+
+  // One-click game launch & auto-connect polling
+  const handleLaunchGame = useCallback(async () => {
+    if (isLaunching) return
+    setIsLaunching(true)
+    remotePlayLogger.info('用户在手机端点击启动游戏，发起 POST /api/launch…')
+    showStatusToast('connecting', '正在启动游戏进程…', 8000)
+
+    try {
+      const res = await fetch('/api/launch', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok || data.ok === false) {
+        const errMsg = data?.error?.message || data?.error || '启动游戏失败'
+        remotePlayLogger.fail(`启动游戏异常: ${errMsg}`)
+        showStatusToast('disconnected', `启动失败: ${errMsg}`, 4000)
+        setIsLaunching(false)
+        return
+      }
+
+      remotePlayLogger.ok('游戏进程已拉起，等待 WebRTC 串流就绪…')
+      showStatusToast('connecting', '游戏已拉起，等待就绪…', 6000)
+
+      let attempts = 0
+      const maxAttempts = 30
+      const pollInterval = setInterval(async () => {
+        attempts += 1
+        try {
+          const stRes = await fetch('/api/status')
+          const stData = await stRes.json()
+          const isOnline = Boolean(stData?.runtime?.gameOnline)
+          if (isOnline) {
+            clearInterval(pollInterval)
+            setGameOnline(true)
+            setIsLaunching(false)
+            remotePlayLogger.ok('检测到游戏已在线，自动连入 WebRTC 串流')
+            connect(true)
+            return
+          }
+        } catch {
+          /* ignore */
+        }
+
+        if (attempts >= maxAttempts) {
+          clearInterval(pollInterval)
+          setIsLaunching(false)
+          remotePlayLogger.warn('等待游戏上线超时，进入重连待命状态')
+          showStatusToast('disconnected', '游戏启动较慢，可点击下方重连', 4000)
+        }
+      }, 1200)
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      remotePlayLogger.fail(`启动请求发生异常: ${errMsg}`)
+      showStatusToast('disconnected', `请求失败: ${errMsg}`, 4000)
+      setIsLaunching(false)
+    }
+  }, [isLaunching, showStatusToast, connect])
+
+  // Game switching handler
+  const handleSelectGame = useCallback(
+    async (game: LibraryItem) => {
+      remotePlayLogger.info(`切换目标游戏至: ${game.name} (${game.gameRoot})`)
+      try {
+        const res = await fetch('/api/status', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gameRoot: game.gameRoot }),
+        })
+        const data = await res.json()
+        if (!res.ok || data.ok === false) {
+          showStatusToast('disconnected', '切换游戏失败', 3000)
+          return
+        }
+        setSelectedGame(game)
+        setRoomId(game.id)
+        setGameSelectorOpen(false)
+        showStatusToast('info', `已切换至: ${game.name}`, 2500)
+
+        const stRes = await fetch('/api/status')
+        const stData = await stRes.json()
+        const isOnline = Boolean(stData?.runtime?.gameOnline)
+        setGameOnline(isOnline)
+        if (isOnline) {
+          connect(true)
+        } else {
+          setStatus('disconnected')
+        }
+      } catch {
+        showStatusToast('disconnected', '网络异常，切换游戏失败', 3000)
+      }
+    },
+    [showStatusToast, connect]
+  )
 
   // 4. Remote input dispatch
   const handleInput = useCallback((key: RemoteInputKey, action: 'down' | 'up') => {
@@ -752,26 +914,26 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-md">
-                  <LuSlidersHorizontal size={14} />
+            {/* Header (Compact) */}
+            <div className="flex items-center justify-between px-3.5 py-2 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <div className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-sm">
+                  <LuSlidersHorizontal size={12} />
                 </div>
-                <h3 id="menu-title" className="text-sm font-bold text-white whitespace-nowrap shrink-0">
-                  Chaya 串流控制台
+                <h3 id="menu-title" className="text-xs sm:text-sm font-bold text-white whitespace-nowrap shrink-0">
+                  串流控制台
                 </h3>
-                <span className="text-[10px] text-neutral-400 px-1.5 py-0.5 rounded bg-white/5 border border-white/5 shrink-0">
-                  {isPortrait ? '竖屏' : '横屏模式'}
+                <span className="text-[9px] text-neutral-400 px-1.5 py-0.5 rounded bg-white/5 border border-white/5 shrink-0">
+                  {isPortrait ? '竖屏' : '横屏'}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setMenuOpen(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
                 aria-label="关闭"
               >
-                <LuX size={15} />
+                <LuX size={13} />
               </button>
             </div>
 
@@ -1118,6 +1280,42 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                           </span>
                         </button>
                       )}
+
+                      {/* Game Switch Entry */}
+                      {library.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGameSelectorOpen(true)
+                            setMenuOpen(false)
+                          }}
+                          className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <LuGamepad2 size={15} className="text-emerald-400 shrink-0" />
+                            <span className="whitespace-nowrap shrink-0">切换游戏</span>
+                          </span>
+                          <span className="text-[10px] text-neutral-400 truncate max-w-[120px]">
+                            {selectedGame?.name || '选择游戏'}
+                          </span>
+                        </button>
+                      )}
+
+                      {/* Clear Cache & Hard Reload Entry */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false)
+                          void handleClearCacheAndReload()
+                        }}
+                        className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        <span className="flex items-center gap-2">
+                          <LuRotateCcw size={15} className="text-amber-400 shrink-0" />
+                          <span className="whitespace-nowrap shrink-0">清理缓存并重载</span>
+                        </span>
+                        <span className="text-[10px] text-neutral-400">重置偏好并刷新</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1141,6 +1339,25 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           {/* Dark Glassmorphic Vignette Overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-neutral-950/70 via-neutral-950/80 to-neutral-950/95 backdrop-blur-md pointer-events-none" />
 
+          {/* Top Bar with Safe Area: Top-Right Clear Cache & Hard Reload Button */}
+          <div
+            style={{
+              top: 'max(0.75rem, env(safe-area-inset-top))',
+              right: 'max(0.75rem, env(safe-area-inset-right))',
+            }}
+            className="pointer-events-auto fixed z-50 flex items-center gap-2"
+          >
+            <button
+              type="button"
+              onClick={handleClearCacheAndReload}
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-neutral-900/80 px-3 py-1.5 text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 backdrop-blur-md active:scale-95 transition-all shadow-md"
+              title="清理本地所有缓存并硬刷新页面"
+            >
+              <LuRotateCcw size={12} className="text-sky-400" />
+              <span>清理重载</span>
+            </button>
+          </div>
+
           {/* Top spacer for safe area */}
           <div
             className="relative z-10 w-full shrink-0"
@@ -1160,7 +1377,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   viewBox="205 195 650 650"
                   className="h-24 w-24 sm:h-32 sm:w-32 drop-shadow-[0_0_24px_rgba(42,212,255,0.7)]"
                   role="img"
-                  aria-label="Chaya Logo"
+                  aria-label="Logo"
                 >
                   <path
                     id="chaya-body"
@@ -1184,12 +1401,81 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             </div>
           </div>
 
-          {/* Bottom Centered Area: Classic Game Entrance "PRESS START / CONNECTING" */}
+          {/* Bottom Centered Area: Game Launcher & Stream Entrance */}
           <div
             className="relative z-10 w-full shrink-0 flex flex-col items-center justify-center px-4"
             style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
           >
-            {!isCancelled ? (
+            {isLaunching ? (
+              <div className="flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center gap-2">
+                  <LuLoader size={18} className="animate-spin text-sky-400" />
+                  <h2 className="text-base sm:text-lg font-black tracking-widest text-sky-300 font-mono animate-pulse drop-shadow-[0_0_14px_rgba(56,189,248,0.85)] whitespace-nowrap shrink-0">
+                    LAUNCHING GAME…
+                  </h2>
+                </div>
+                <p className="text-xs text-neutral-300/80 font-medium tracking-wide">
+                  正在拉起本地游戏进程并准备 WebRTC 串流…
+                </p>
+              </div>
+            ) : gameOnline === false ? (
+              <div className="flex flex-col items-center gap-3 w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
+                {/* Current Game Card */}
+                <div className="flex items-center justify-between w-full rounded-2xl border border-white/15 bg-neutral-900/85 px-4 py-2.5 backdrop-blur-md shadow-xl">
+                  <div className="flex flex-col min-w-0 pr-2">
+                    <span className="text-[10px] text-neutral-400 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                      <span>游戏未运行 · 待拉起</span>
+                    </span>
+                    <span className="text-xs sm:text-sm font-bold text-white truncate">
+                      {selectedGame?.name || 'RPG Maker 游戏'}
+                    </span>
+                  </div>
+
+                  {library.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setGameSelectorOpen(true)}
+                      className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-neutral-300 hover:bg-white/10 hover:text-white shrink-0 active:scale-95 transition-all"
+                    >
+                      <LuGamepad2 size={13} className="text-emerald-400" />
+                      <span>切换游戏</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Prominent Launch CTA Button */}
+                <button
+                  type="button"
+                  onClick={handleLaunchGame}
+                  className="inline-flex items-center justify-center gap-2 w-full rounded-full border border-emerald-400/50 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 py-3 text-sm font-black text-white shadow-[0_0_24px_rgba(16,185,129,0.5)] hover:brightness-110 active:scale-95 transition-all"
+                >
+                  <LuPlay size={15} className="fill-white" />
+                  <span>启动游戏并连入串流</span>
+                </button>
+
+                <div className="flex items-center justify-center gap-4 text-xs pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => connect(true)}
+                    className="text-neutral-400 hover:text-neutral-200 text-[11px] underline underline-offset-2 transition-colors"
+                  >
+                    直接尝试连接
+                  </button>
+                  <span className="text-neutral-600">·</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDrawerTab('logs')
+                      setDrawerOpen(true)
+                    }}
+                    className="text-neutral-400 hover:text-neutral-200 text-[11px] transition-colors"
+                  >
+                    诊断日志
+                  </button>
+                </div>
+              </div>
+            ) : !isCancelled ? (
               <div className="flex flex-col items-center gap-2">
                 {/* Glowing Pulsating Status Text */}
                 <div className="flex items-center gap-2">
@@ -1280,6 +1566,84 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         onToggleHud={handleToggleHud}
         isPortrait={isPortrait}
       />
+
+      {/* 7. Game Library Selector Modal */}
+      {gameSelectorOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="game-select-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm select-none"
+          onClick={() => setGameSelectorOpen(false)}
+        >
+          <div
+            className="relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden w-[92vw] max-w-sm max-h-[80vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header (Compact) */}
+            <div className="flex items-center justify-between px-3.5 py-2 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <div className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-sm">
+                  <LuGamepad2 size={12} />
+                </div>
+                <h3 id="game-select-title" className="text-xs sm:text-sm font-bold text-white whitespace-nowrap shrink-0">
+                  可运行游戏列表
+                </h3>
+                <span className="text-[9px] text-neutral-400 px-1.5 py-0.5 rounded bg-white/5 border border-white/5 shrink-0">
+                  {library.length} 款
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGameSelectorOpen(false)}
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+                aria-label="关闭"
+              >
+                <LuX size={13} />
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+              {library.map((item) => {
+                const isSelected = selectedGame?.gameRoot === item.gameRoot || selectedGame?.id === item.id
+                return (
+                  <button
+                    key={item.id || item.gameRoot}
+                    type="button"
+                    onClick={() => handleSelectGame(item)}
+                    className={`flex w-full items-center justify-between rounded-xl border p-2.5 text-left transition-all active:scale-98 ${
+                      isSelected
+                        ? 'border-emerald-500/50 bg-emerald-950/40 text-white shadow-sm'
+                        : 'border-white/5 bg-white/[0.03] text-neutral-300 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex flex-col min-w-0 pr-2">
+                      <span className="text-xs font-semibold truncate">{item.name || '未命名游戏'}</span>
+                      <span className="text-[10px] text-neutral-400 mt-0.5">
+                        {item.kindLabel || item.fingerprint?.engine?.name || 'RPG Maker'}
+                      </span>
+                    </div>
+                    {isSelected ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-300 shrink-0">
+                        <LuCheck size={10} />
+                        <span>当前选中</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-neutral-500 shrink-0">点击选择</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-neutral-800 px-3 py-2 text-center text-[10px] text-neutral-400 shrink-0">
+              选择目标游戏后，可在手机端一键拉起本地运行并串流
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

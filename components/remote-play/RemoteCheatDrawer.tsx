@@ -297,12 +297,12 @@ export function RemoteCheatDrawer({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-800 pb-3 shrink-0">
+        <div className="flex items-center justify-between border-b border-neutral-800 px-1 py-1.5 shrink-0">
           <div className="flex items-center space-x-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
-              {activeTab === 'cheat' ? <LuZap size={16} /> : <LuScrollText size={16} />}
+            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
+              {activeTab === 'cheat' ? <LuZap size={13} /> : <LuScrollText size={13} />}
             </div>
-            <h2 className="text-base font-bold text-white">Chaya 局内控制台</h2>
+            <h2 className="text-xs sm:text-sm font-bold text-white">局内控制台</h2>
             <span className="text-[10px] text-neutral-400 px-1.5 py-0.5 rounded bg-white/5 border border-white/5">
               {isPortraitEffective ? '竖屏' : '横屏'}
             </span>
@@ -310,15 +310,15 @@ export function RemoteCheatDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-800 hover:text-white"
+            className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-800 hover:text-white transition-colors"
             aria-label="关闭"
           >
-            <LuX size={18} />
+            <LuX size={14} />
           </button>
         </div>
 
         {/* Tab switch */}
-        <div className="mt-2.5 flex rounded-lg bg-neutral-950 p-1 border border-neutral-800 shrink-0">
+        <div className="mt-2 flex rounded-lg bg-neutral-950 p-0.5 border border-neutral-800 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('cheat')}
@@ -562,7 +562,7 @@ export function RemoteCheatDrawer({
             </div>
 
             <div className="text-[10px] text-neutral-500 text-center">
-              日志自动以 3.5s 周期或断线时批量同步至电脑端 Chaya 控制台
+              日志自动以 3.5s 周期或断线时批量同步至电脑端控制台
             </div>
           </div>
         ) : (
@@ -840,7 +840,7 @@ export function RemoteCheatDrawer({
         )}
 
         {/* Footer */}
-        <div className="border-t border-neutral-800 pt-2 shrink-0 text-center text-[10px] text-neutral-500">Chaya WebRTC Remote Play Console</div>
+        <div className="border-t border-neutral-800 pt-2 shrink-0 text-center text-[10px] text-neutral-500">WebRTC 串流控制台</div>
       </div>
     </div>
   )

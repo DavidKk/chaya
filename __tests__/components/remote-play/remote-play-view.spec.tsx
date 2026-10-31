@@ -1,0 +1,96 @@
+/**
+ * @jest-environment jsdom
+ */
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+
+import { RemotePlayView } from '@/components/remote-play/RemotePlayView'
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+
+let host: HTMLDivElement
+let root: Root
+
+beforeEach(() => {
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  root = createRoot(host)
+  window.fetch = jest.fn((url: string | URL | Request) => {
+    const urlStr = String(url)
+    if (urlStr.includes('/api/status')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          ready: true,
+          selected: '/Games/TestGame',
+          runtime: { gameOnline: false },
+          library: [
+            { id: 'game-1', name: '勇者传说', gameRoot: '/Games/TestGame', kindLabel: 'MV / MZ' },
+            { id: 'game-2', name: '魔法少女', gameRoot: '/Games/Magic', kindLabel: 'VX Ace' },
+          ],
+        }),
+      } as Response)
+    }
+    return Promise.resolve({
+      ok: true,
+      json: async () => ({}),
+    } as Response)
+  }) as jest.Mock
+})
+
+afterEach(() => {
+  act(() => {
+    root.unmount()
+  })
+  host.remove()
+  jest.restoreAllMocks()
+})
+
+describe('RemotePlayView Launcher & UI refinements', () => {
+  it('renders clear cache button on startup screen', async () => {
+    await act(async () => {
+      root.render(<RemotePlayView initialRoomId="game-1" />)
+    })
+
+    const reloadBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('清理重载'))
+    expect(reloadBtn).toBeDefined()
+  })
+
+  it('detects game not running and displays launch button with game card', async () => {
+    await act(async () => {
+      root.render(<RemotePlayView initialRoomId="game-1" />)
+    })
+
+    // Allow status fetch to resolve
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(host.textContent).toContain('游戏未运行 · 待拉起')
+    expect(host.textContent).toContain('勇者传说')
+    expect(host.textContent).toContain('启动游戏并连入串流')
+    expect(host.textContent).toContain('切换游戏')
+  })
+
+  it('opens game selector modal when clicking switch game', async () => {
+    await act(async () => {
+      root.render(<RemotePlayView initialRoomId="game-1" />)
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const switchBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('切换游戏'))
+    expect(switchBtn).toBeDefined()
+
+    await act(async () => {
+      switchBtn?.click()
+    })
+
+    expect(host.textContent).toContain('可运行游戏列表')
+    expect(host.textContent).toContain('勇者传说')
+    expect(host.textContent).toContain('魔法少女')
+    // Compact header and no "Chaya"
+    expect(host.textContent).not.toContain('Chaya 可运行游戏列表')
+  })
+})
