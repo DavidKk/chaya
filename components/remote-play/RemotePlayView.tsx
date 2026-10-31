@@ -54,16 +54,16 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const [fitMode, setFitMode] = useState<'contain' | 'cover'>('contain')
   const [isPortrait, setIsPortrait] = useState(false)
 
-  // Unified Menu Modal (Single Button trigger, Requirement 4)
+  // Unified Menu Modal (Single Button trigger)
   const [menuOpen, setMenuOpen] = useState(false)
 
-  // Control Mode: fixed, touch, dynamic (Requirement 2)
+  // Control Mode: fixed, touch, dynamic
   const [controlMode, setControlMode] = useState<ControlMode>('fixed')
 
   // Auto-reconnect & toast states
-  const [reconnectAttempt, setReconnectAttempt] = useState(0)
-  const [autoReconnectCountdown, setAutoReconnectCountdown] = useState<number | null>(null)
+  const [isCancelled, setIsCancelled] = useState(false)
   const [statusToast, setStatusToast] = useState<StatusToast | null>(null)
+  const [coverImage, setCoverImage] = useState<string | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -71,7 +71,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevStatusRef = useRef(status)
 
@@ -99,14 +98,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       clearTimeout(reconnectTimerRef.current)
       reconnectTimerRef.current = null
     }
-    if (countdownTimerRef.current) {
-      clearInterval(countdownTimerRef.current)
-      countdownTimerRef.current = null
-    }
-    setAutoReconnectCountdown(null)
   }, [])
 
-  // 0. Environment diagnostics, orientation detection & saved preferences
+  // 0. Environment diagnostics, orientation, saved cover & preferences
   useEffect(() => {
     remotePlayLogger.initEnvironmentDiagnostics()
     remotePlayLogger.installGlobalErrorHandlers()
@@ -153,6 +147,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       /* ignore */
     }
 
+    // Load saved preferences & cover image
     if (typeof window !== 'undefined') {
       const q = new URLSearchParams(window.location.search)
       if (
@@ -174,9 +169,23 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         if (savedMode === 'fixed' || savedMode === 'touch' || savedMode === 'dynamic') {
           setControlMode(savedMode)
         }
+        const cachedCover = localStorage.getItem('chaya_remote_play_cover')
+        if (cachedCover) {
+          setCoverImage(cachedCover)
+        }
       } catch {
         /* ignore */
       }
+
+      // Fetch official game cover / loading image from backend API
+      void fetch('/api/game/cover')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.cover) {
+            setCoverImage(data.cover)
+          }
+        })
+        .catch(() => {})
     }
 
     return () => {
@@ -201,9 +210,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       if (status === 'connected') {
         showStatusToast('connected', '已连接游戏串流')
       } else if (status === 'disconnected') {
-        showStatusToast('disconnected', '串流已断开，正在自动重连…', 3200)
+        showStatusToast('disconnected', '串流已断开，正在自动重连…', 3000)
       } else if (status === 'connecting' && prev === 'disconnected') {
-        showStatusToast('connecting', '正在重新连接…', 2200)
+        showStatusToast('connecting', '正在重新连接…', 2000)
       }
     }
   }, [status, showStatusToast])
@@ -248,43 +257,30 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     }
   }, [initialRoomId])
 
-  // 3. WebRTC Link Connection & Auto-reconnect
+  // 3. WebRTC Link Connection & Continuous Silent Auto-reconnect
   const connect = useCallback(
     (isManual = false) => {
       if (!roomId) return
       clearReconnectTimers()
+      setIsCancelled(false)
 
       setStatus('connecting')
       setErrorMessage(null)
 
       if (isManual) {
-        remotePlayLogger.info('用户手动点击重新连接游戏串流')
+        remotePlayLogger.info('用户手动重连游戏串流')
       } else {
         remotePlayLogger.info(`正在建立 WebRTC 串流连接 (房间: ${roomId})`)
       }
 
       linkRef.current?.stop()
 
-      const scheduleAutoReconnect = () => {
+      const scheduleSilentAutoReconnect = () => {
         clearReconnectTimers()
-        let countdown = 3
-        setAutoReconnectCountdown(countdown)
-
-        countdownTimerRef.current = setInterval(() => {
-          countdown -= 1
-          if (countdown > 0) {
-            setAutoReconnectCountdown(countdown)
-          } else {
-            if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-            setAutoReconnectCountdown(null)
-          }
-        }, 1000)
-
         reconnectTimerRef.current = setTimeout(() => {
-          setReconnectAttempt((prev) => prev + 1)
-          remotePlayLogger.info('开始执行 WebRTC 自动重连…')
+          remotePlayLogger.info('自动重新发起 WebRTC 串流连接…')
           connect(false)
-        }, 3000)
+        }, 2600)
       }
 
       const link = new WebGameLink(roomId, {
@@ -293,7 +289,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         },
         onConnected: () => {
           clearReconnectTimers()
-          setReconnectAttempt(0)
+          setIsCancelled(false)
           setStatus('connected')
           remotePlayLogger.ok('云游戏 WebRTC 链路握手成功，已建立端到端连接')
           setErrorMessage(null)
@@ -301,8 +297,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         onDisconnected: () => {
           setStatus('disconnected')
           setLatencyMs(null)
-          remotePlayLogger.warn('云游戏 WebRTC 链路断开，已进入自动重连')
-          scheduleAutoReconnect()
+          remotePlayLogger.warn('云游戏 WebRTC 链路断开，自动静默重连中')
+          scheduleSilentAutoReconnect()
         },
         onTrack: (stream: MediaStream) => {
           streamRef.current = stream
@@ -333,9 +329,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           }
         },
         onIdle: () => {
-          remotePlayLogger.warn('信令等待游戏端响应超时或未就绪，准备重试')
+          remotePlayLogger.warn('信令等待游戏端响应中，自动重试')
           setStatus((prev) => (prev === 'connected' ? prev : 'disconnected'))
-          scheduleAutoReconnect()
+          scheduleSilentAutoReconnect()
         },
       })
 
@@ -346,7 +342,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         remotePlayLogger.fail(errStr)
         setStatus('disconnected')
         setErrorMessage(errStr)
-        scheduleAutoReconnect()
+        scheduleSilentAutoReconnect()
       })
     },
     [roomId, clearReconnectTimers]
@@ -379,7 +375,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     })
   }, [])
 
-  // 5. Direct canvas touch on video (active in touch mode and canvas taps)
+  // 5. Direct canvas touch on video
   const handleVideoPointer = (e: React.PointerEvent<HTMLVideoElement>, phase: 'down' | 'move' | 'up') => {
     const video = videoRef.current
     if (!video || !linkRef.current?.connected) return
@@ -395,6 +391,26 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       y: normY,
       phase,
     })
+  }
+
+  // 6. Capture live game frame to update background cover
+  const handleCaptureVideoCover = () => {
+    const video = videoRef.current
+    if (!video || !video.videoWidth || !video.videoHeight) return
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.min(640, video.videoWidth)
+      canvas.height = Math.round((canvas.width * video.videoHeight) / video.videoWidth)
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
+        setCoverImage(dataUrl)
+        localStorage.setItem('chaya_remote_play_cover', dataUrl)
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
@@ -419,7 +435,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     }
   }
 
-  // 6. Unmute audio on user tap
+  // 7. Unmute audio on user tap
   const handleUnmute = () => {
     setMuted(false)
     remotePlayLogger.info('用户点击开启声音')
@@ -533,6 +549,17 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       onPointerDown={handleGlobalPointerDown}
       className="relative h-screen w-screen overflow-hidden bg-black select-none touch-none"
     >
+      <style>{`
+        @keyframes chaya-blink {
+          0%, 42%, 46%, 100% { transform: scaleY(1); }
+          44% { transform: scaleY(0.08); }
+        }
+        @keyframes chaya-float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+      `}</style>
+
       {/* 1. Status Change Toast */}
       {statusToast && (
         <div
@@ -580,6 +607,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 const v = videoRef.current
                 if (v && (v.videoWidth || v.videoHeight)) {
                   setVideoResolution({ width: v.videoWidth, height: v.videoHeight })
+                  setTimeout(handleCaptureVideoCover, 1500)
                 }
               }}
               onPointerDown={(e) => handleVideoPointer(e, 'down')}
@@ -591,7 +619,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               style={{ touchAction: 'none' }}
             />
 
-            {/* Performance HUD in Top-Left (Requirement 6) */}
+            {/* Performance HUD in Top-Left */}
             {status === 'connected' && (
               <PerformanceHud
                 visible={hudVisible}
@@ -605,7 +633,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               />
             )}
 
-            {/* ONLY ONE Menu Button in Top-Right (Requirement 4) */}
+            {/* ONLY ONE Menu Button in Top-Right */}
             {status === 'connected' && (
               <button
                 type="button"
@@ -637,7 +665,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           )}
         </div>
       ) : (
-        /* Landscape Layout: Fullscreen video with ONE single menu button (Requirements 3 & 4) */
+        /* Landscape Layout: Fullscreen video with ONE single menu button */
         <>
           <video
             ref={setVideoRef}
@@ -648,6 +676,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               const v = videoRef.current
               if (v && (v.videoWidth || v.videoHeight)) {
                 setVideoResolution({ width: v.videoWidth, height: v.videoHeight })
+                setTimeout(handleCaptureVideoCover, 1500)
               }
             }}
             onPointerDown={(e) => handleVideoPointer(e, 'down')}
@@ -661,7 +690,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
           {status === 'connected' && (
             <>
-              {/* Performance HUD in Top-Left (Requirement 6) */}
+              {/* Performance HUD in Top-Left */}
               <PerformanceHud
                 visible={hudVisible}
                 idle={effectiveIdle}
@@ -673,7 +702,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 onClose={() => setHudVisible(false)}
               />
 
-              {/* ONLY ONE Single Menu Button in Top-Right (Requirement 4) */}
+              {/* ONLY ONE Single Menu Button in Top-Right */}
               <button
                 type="button"
                 onClick={() => setMenuOpen(true)}
@@ -690,7 +719,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 <LuSlidersHorizontal size={15} className="text-emerald-400" />
               </button>
 
-              {/* Virtual D-Pad & Action Buttons (Configurable via mode, Requirements 2 & 5) */}
+              {/* Virtual D-Pad & Action Buttons */}
               <VirtualController
                 onInput={handleInput}
                 visible={true}
@@ -703,7 +732,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         </>
       )}
 
-      {/* 3. Unified Control Menu Modal (Requirement 4: 唯一的弹出入口) */}
+      {/* 3. Unified Control Menu Modal */}
       {menuOpen && (
         <div
           role="dialog"
@@ -736,13 +765,12 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               </button>
             </div>
 
-            {/* Section 1: 操作模式选择 (Requirement 2) */}
+            {/* Section 1: 操作模式选择 */}
             <div className="space-y-1.5">
               <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
                 操作模式
               </div>
               <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-neutral-950/70 border border-white/5">
-                {/* Mode 1: 固定手柄 */}
                 <button
                   type="button"
                   onClick={() => handleSelectControlMode('fixed')}
@@ -756,7 +784,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   <span className="text-[11px] whitespace-nowrap">固定手柄</span>
                 </button>
 
-                {/* Mode 2: 屏幕触摸 */}
                 <button
                   type="button"
                   onClick={() => handleSelectControlMode('touch')}
@@ -770,7 +797,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   <span className="text-[11px] whitespace-nowrap">屏幕触摸</span>
                 </button>
 
-                {/* Mode 3: 自由摇杆 */}
                 <button
                   type="button"
                   onClick={() => handleSelectControlMode('dynamic')}
@@ -785,7 +811,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 </button>
               </div>
 
-              {/* Mode description hint */}
               <div className="text-[10px] text-neutral-400 px-1 leading-normal">
                 {controlMode === 'fixed' && '固定手柄：左下角固定虚拟摇杆，右侧动作按键。'}
                 {controlMode === 'touch' && '屏幕触摸：隐藏所有虚拟按键，触屏点击作为鼠标/触控操作。'}
@@ -793,14 +818,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               </div>
             </div>
 
-            {/* Section 2: 核心功能与居中控制台入口 (Requirements 3 & 4) */}
+            {/* Section 2: 核心功能与居中控制台入口 */}
             <div className="space-y-1.5 pt-1">
               <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
                 功能与设置
               </div>
 
               <div className="space-y-1 text-xs">
-                {/* 常用修改 (居中控制台) */}
                 <button
                   type="button"
                   onClick={() => {
@@ -817,7 +841,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   <span className="text-[10px] text-neutral-400">打开</span>
                 </button>
 
-                {/* 诊断日志 */}
                 <button
                   type="button"
                   onClick={() => {
@@ -834,7 +857,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   <span className="text-[10px] text-neutral-400">查看</span>
                 </button>
 
-                {/* 声音开关 */}
                 <button
                   type="button"
                   onClick={muted ? handleUnmute : () => setMuted(true)}
@@ -853,7 +875,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   </span>
                 </button>
 
-                {/* 画面比例 */}
                 <button
                   type="button"
                   onClick={toggleFitMode}
@@ -868,7 +889,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   </span>
                 </button>
 
-                {/* 性能 HUD 开关 */}
                 <button
                   type="button"
                   onClick={handleToggleHud}
@@ -886,7 +906,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   </span>
                 </button>
 
-                {/* 全屏模式 (仅非 standalone 时展示) */}
                 {!isStandalone && (
                   <button
                     type="button"
@@ -915,69 +934,120 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         </div>
       )}
 
-      {/* 4. Error or Connecting Overlay */}
+      {/* 4. Cinematic Loading & Reconnecting Screen (Requirements 1, 2, 3, 4) */}
       {status !== 'connected' && (
-        <div className="pointer-events-auto fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/85 p-6 text-center backdrop-blur-md select-none">
-          <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl border border-white/10 bg-neutral-900/80 p-3 shadow-2xl backdrop-blur-md">
-            <img
-              src="/brand/chaya-mark.svg"
-              alt="Chaya Logo"
-              className={`h-14 w-14 object-contain ${
-                status === 'connecting'
-                  ? 'animate-pulse drop-shadow-[0_0_12px_rgba(42,212,255,0.45)]'
-                  : 'opacity-85'
-              }`}
+        <div className="pointer-events-auto fixed inset-0 z-50 flex flex-col items-center justify-center p-6 text-center select-none overflow-hidden">
+          {/* Blurred Background: Game Cover / Live Snapshot (Requirement 4) */}
+          {coverImage && (
+            <div
+              className="absolute inset-0 bg-cover bg-center scale-110 filter blur-2xl brightness-[0.28] contrast-125 opacity-70 transition-all duration-1000 pointer-events-none"
+              style={{ backgroundImage: `url(${coverImage})` }}
             />
-            {status === 'connecting' && (
-              <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
-                <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-sky-500" />
-              </span>
-            )}
-          </div>
-
-          <h2 className="mt-4 text-base sm:text-lg font-bold text-white whitespace-nowrap shrink-0">
-            {status === 'connecting' ? '正在连接电脑端游戏…' : '游戏未就绪或连接断开'}
-          </h2>
-
-          <p className="mt-2 max-w-sm text-xs text-neutral-400 leading-relaxed">
-            {status === 'connecting'
-              ? '请确保电脑上已启动 Chaya 并开启了游戏。WebRTC 内网点对点串流正在建立中…'
-              : errorMessage || '未检测到正在运行的游戏。请在电脑端开启游戏。'}
-          </p>
-
-          {status === 'disconnected' && autoReconnectCountdown != null && (
-            <div className="mt-3 flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-sky-950/40 px-3 py-1 text-[11px] text-sky-300 whitespace-nowrap shrink-0">
-              <LuRotateCw size={12} className="animate-spin text-sky-400 shrink-0" />
-              <span className="whitespace-nowrap shrink-0">
-                将在 {autoReconnectCountdown} 秒后自动重试{reconnectAttempt > 0 ? ` (第 ${reconnectAttempt} 次)` : ''}…
-              </span>
-            </div>
           )}
 
-          <div className="mt-5 flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => connect(true)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-600/80 px-4 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md hover:bg-emerald-500 active:scale-95 whitespace-nowrap shrink-0 transition-all"
-            >
-              <LuRotateCw size={13} className={status === 'connecting' ? 'animate-spin' : ''} />
-              <span className="whitespace-nowrap shrink-0">
-                {status === 'connecting' ? '连接中…' : '立即重连'}
-              </span>
-            </button>
+          {/* Dark Glassmorphic Vignette Overlay */}
+          <div className="absolute inset-0 bg-neutral-950/75 backdrop-blur-md pointer-events-none" />
 
-            <button
-              type="button"
-              onClick={() => {
-                setDrawerTab('logs')
-                setDrawerOpen(true)
-              }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-neutral-800/80 px-3.5 py-2 text-xs font-semibold text-neutral-300 shadow-lg backdrop-blur-md hover:bg-neutral-700 active:scale-95 whitespace-nowrap shrink-0 transition-all"
-            >
-              <LuScrollText size={13} />
-              <span className="whitespace-nowrap shrink-0">诊断日志</span>
-            </button>
+          {/* Foreground Animated Content */}
+          <div className="relative z-10 flex flex-col items-center">
+            {/* Animated Chaya SVG Logo with Blinking Eyes & Floating Effect (Requirement 1) */}
+            <div className="relative flex items-center justify-center">
+              <div className="absolute h-28 w-28 rounded-full bg-sky-500/20 blur-2xl animate-pulse" />
+              <div
+                style={{ animation: 'chaya-float 3.6s ease-in-out infinite' }}
+                className="relative flex h-24 w-24 items-center justify-center rounded-3xl border border-white/15 bg-neutral-900/80 p-3.5 shadow-2xl backdrop-blur-xl"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="205 195 650 650"
+                  className="h-16 w-16 drop-shadow-[0_0_14px_rgba(42,212,255,0.6)]"
+                  role="img"
+                  aria-label="Chaya Logo"
+                >
+                  <path
+                    id="chaya-body"
+                    d="M605.5 707.18C611.96 713.13 617.68 720.4 623.54 726.95C625.35 728.98 627.12 731.53 629.31 733.16C632.88 735.83 638.47 735.39 640.8 731.27C644.06 725.47 640.15 711.1 642.5 703.55C661.66 698.57 680.22 692.7 697.77 683.3C708.24 677.69 719.82 667.34 730.84 664.43C739.89 662.05 750.21 663.35 759.5 663.37C771.33 663.39 786.74 662.15 798.14 663.48C806.74 664.48 813.76 672.09 814.7 680.56C815.39 686.75 814.83 693.26 814.85 699.5C814.89 712.83 814.89 726.17 814.86 739.5C814.84 751.17 815.24 762.87 805.97 771.47C797.61 779.23 778.67 783.69 767.61 787.2C734.37 797.74 700.15 805.92 665.5 810.15C641.5 813.07 617.68 815.28 593.5 816.05C559.23 817.15 524.65 817.14 490.5 813.9C413.41 806.59 329.49 778.24 281.51 713.97C264.22 690.81 251.66 662.03 247.26 633.46C243.58 609.53 245.44 584.63 245.39 560.5C245.36 539.83 245.36 519.17 245.39 498.5C245.43 463.07 245.42 436.24 260.78 403.32C273.19 376.71 292.19 351.84 316.17 334.65C336.07 320.4 359.16 310.35 381.04 299.53C404.67 287.84 428.24 275.98 451.97 264.47C470.79 255.35 489.47 245.94 508.24 236.73C519.11 231.4 529.62 225.33 541.75 223.4C565.96 219.56 588.16 235.32 608.76 245.72C653.96 268.54 699.4 290.91 744.42 314.08C755.87 319.98 767.34 325.97 778.96 331.53C787.99 335.85 798.37 339.67 804.54 347.94C814.2 360.89 811.01 386.7 810.92 402.5C810.88 409.53 812.15 417.69 809.9 424.45C804.75 439.89 785.11 436.19 772.5 436.2C766.93 436.21 761.03 436.69 755.5 436C744.3 434.59 727.44 421.44 716.37 416.15C682.99 400.21 649.74 384.01 616.28 368.24C602.44 361.72 588.68 355.01 574.74 348.74C566.4 344.99 558.91 340.46 549.5 340.12C532.38 339.49 515.58 351.7 500.81 359.35C473.75 373.34 446.29 386.61 419.41 400.93C406.12 408.01 391.76 413.46 381.57 425.09C373.24 434.61 366.7 445.39 363.27 457.66C360.27 468.37 360.48 479.49 360.46 490.5C360.45 502.17 360.49 513.83 360.45 525.5C360.37 544.17 360.55 562.83 360.44 581.5C360.36 595.79 359.27 610.5 363.23 624.39C366.67 636.49 373.39 647.54 381.36 657.18C402.94 683.29 434.54 699.19 467.58 704.7C483.43 707.35 499.49 707.23 515.5 707.2C529.83 707.17 544.17 707.23 558.5 707.2C574.17 707.17 589.83 707.3 605.5 707.18Z"
+                    fill="#2AD4FF"
+                    fillRule="evenodd"
+                  />
+                  <path
+                    id="chaya-eyes"
+                    style={{
+                      transformBox: 'fill-box',
+                      transformOrigin: 'center',
+                      animation: 'chaya-blink 4.2s ease-in-out infinite',
+                    }}
+                    d="M537.25 448.5C537.61 465.12 535.84 481.89 535.23 498.5C534.13 528.47 533.7 558.63 531.36 588.53C530.03 605.39 533.33 626.66 519.25 638.72C509.62 646.97 497.34 645.75 485.5 645.75C477.83 645.74 470.17 645.75 462.5 645.75C449.53 645.76 428.18 648.43 417.07 641.44C400.93 631.29 403.1 615.13 403.06 598.5C402.98 564.83 403.06 531.17 403.06 497.5C403.06 485.79 400.08 461.49 408.55 453.04C416.66 444.93 431.14 447.7 441.5 447.74C462.83 447.8 484.17 447.75 505.5 447.73C514.54 447.72 529 446.22 537.25 448.5ZM558.5 447.82C589.1 446.84 619.89 447.58 650.5 447.71C660.68 447.76 677.53 445.02 685.69 451.85C695.69 460.21 692.35 484.18 692.34 496.5C692.31 530.5 692.38 564.5 692.35 598.5C692.33 614.35 694.06 631.61 678.74 641.26C667.69 648.21 647.34 645.55 634.5 645.58C624.5 645.6 614.5 645.56 604.5 645.58C594.13 645.61 584.08 645.93 575.81 638.66C565.86 629.91 565.48 618.86 564.89 606.5C564.63 601.16 564.16 595.85 563.97 590.5C562.84 557.85 561.39 525.13 559.75 492.5C559.29 483.17 558.85 473.83 558.31 464.5C558 459.08 557.11 453.01 558.5 447.82Z"
+                    fill="#F0F7FF"
+                    fillRule="evenodd"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Glowing Pulsating Status Text (Requirement 3: 文字闪动游戏入口效果) */}
+            <div className="mt-5 flex flex-col items-center gap-1.5 select-none">
+              {!isCancelled ? (
+                <>
+                  <h2 className="text-sm sm:text-base font-extrabold tracking-widest text-sky-300 font-mono animate-pulse drop-shadow-[0_0_12px_rgba(56,189,248,0.7)] whitespace-nowrap shrink-0">
+                    CONNECTING<span className="inline-block animate-ping">…</span>
+                  </h2>
+                  <p className="text-xs text-neutral-300/90 font-medium tracking-wide animate-pulse">
+                    正在自动建立游戏串流通道…
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-sm sm:text-base font-bold text-amber-300 font-mono whitespace-nowrap shrink-0">
+                    PAUSED
+                  </h2>
+                  <p className="text-xs text-neutral-400 leading-relaxed">
+                    已暂停自动连接。点击下方按钮恢复连接。
+                  </p>
+                </>
+              )}
+            </div>
+
+            {/* Default state: Silent auto-reconnect, only cancel button (Requirement 2) */}
+            {!isCancelled ? (
+              <div className="mt-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCancelled(true)
+                    clearReconnectTimers()
+                    setStatus('disconnected')
+                  }}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  取消连接
+                </button>
+              </div>
+            ) : (
+              /* When cancelled/failed: Show retry and diagnostic logs (Requirement 2) */
+              <div className="mt-5 flex items-center gap-2.5 animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  type="button"
+                  onClick={() => connect(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-600/80 px-4 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md hover:bg-emerald-500 active:scale-95 whitespace-nowrap shrink-0 transition-all"
+                >
+                  <LuRotateCw size={13} />
+                  <span className="whitespace-nowrap shrink-0">重新连接</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDrawerTab('logs')
+                    setDrawerOpen(true)
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-neutral-800/80 px-3.5 py-2 text-xs font-semibold text-neutral-300 shadow-lg backdrop-blur-md hover:bg-neutral-700 active:scale-95 whitespace-nowrap shrink-0 transition-all"
+                >
+                  <LuScrollText size={13} />
+                  <span className="whitespace-nowrap shrink-0">查看诊断日志</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -989,7 +1059,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         isStandalone={isStandalone}
       />
 
-      {/* 6. Centered Remote Modding & Diagnostics Console Modal (Requirement 3: 居中不走侧栏) */}
+      {/* 6. Centered Remote Modding & Diagnostics Console Modal */}
       <RemoteCheatDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
