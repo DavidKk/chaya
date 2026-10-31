@@ -113,3 +113,17 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     expect(onInput).toHaveBeenCalledWith('down', 'up')
   })
 })
+
+  it('renders correctly in portrait mode', () => {
+    const onInput = jest.fn()
+    act(() => {
+      root.render(<VirtualController onInput={onInput} visible={true} isPortrait={true} />)
+    })
+
+    const joystick = host.querySelector('[role="slider"][aria-label="虚拟摇杆"]')
+    expect(joystick).not.toBeNull()
+    expect(joystick?.className).toContain('h-32 w-32')
+
+    const confirmBtn = host.querySelector('button[aria-label="确认"]')
+    expect(confirmBtn?.className).toContain('h-15 w-15')
+  })

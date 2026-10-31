@@ -15,13 +15,12 @@ export function FloatingBall({ onClick, disabled, idle = false }: FloatingBallPr
   const dragRef = useRef({ startX: 0, startY: 0, initialX: 0, initialY: 0, moved: false })
   const ballRef = useRef<HTMLDivElement>(null)
 
-  // Initialize position to top-right
+  // Initialize position to bottom-right safe corner (avoiding vertical center where Dynamic Island lives)
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setPos({
-        x: window.innerWidth - 44,
-        y: Math.max(60, window.innerHeight * 0.35),
-      })
+      const initX = Math.max(20, window.innerWidth - 64)
+      const initY = Math.max(60, window.innerHeight - 110)
+      setPos({ x: initX, y: initY })
     }
   }, [])
 
@@ -46,8 +45,8 @@ export function FloatingBall({ onClick, disabled, idle = false }: FloatingBallPr
       dragRef.current.moved = true
     }
 
-    const newX = Math.min(Math.max(6, dragRef.current.initialX + dx), window.innerWidth - 42)
-    const newY = Math.min(Math.max(30, dragRef.current.initialY + dy), window.innerHeight - 45)
+    const newX = Math.min(Math.max(12, dragRef.current.initialX + dx), window.innerWidth - 46)
+    const newY = Math.min(Math.max(28, dragRef.current.initialY + dy), window.innerHeight - 48)
     setPos({ x: newX, y: newY })
   }
 
@@ -66,10 +65,21 @@ export function FloatingBall({ onClick, disabled, idle = false }: FloatingBallPr
       return
     }
 
-    // Auto snap to closest horizontal edge
+    // Auto snap to closest horizontal edge with safe area clearance
     const midX = window.innerWidth / 2
-    const targetX = pos.x < midX ? 6 : window.innerWidth - 42
-    setPos((prev) => ({ ...prev, x: targetX }))
+    const targetX = pos.x < midX ? 18 : window.innerWidth - 54
+
+    // Avoid the middle 32% - 68% band on side edges where Dynamic Island / camera notch rests in landscape
+    let targetY = pos.y
+    const midY = window.innerHeight / 2
+    const islandZoneTop = window.innerHeight * 0.32
+    const islandZoneBottom = window.innerHeight * 0.68
+    if (targetY > islandZoneTop && targetY < islandZoneBottom) {
+      targetY = targetY < midY ? islandZoneTop - 16 : islandZoneBottom + 16
+    }
+    targetY = Math.min(Math.max(36, targetY), window.innerHeight - 56)
+
+    setPos({ x: targetX, y: targetY })
   }
 
   return (
@@ -83,11 +93,11 @@ export function FloatingBall({ onClick, disabled, idle = false }: FloatingBallPr
         transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
         touchAction: 'none',
       }}
-      className={`fixed top-0 left-0 z-50 flex h-9 w-9 cursor-pointer select-none items-center justify-center rounded-full border border-emerald-400/50 bg-neutral-900/80 shadow-lg backdrop-blur-md transition-all duration-300 active:scale-95 ${
+      className={`fixed top-0 left-0 z-40 flex h-9 w-9 cursor-pointer select-none items-center justify-center rounded-full border border-emerald-400/50 bg-neutral-900/80 shadow-lg backdrop-blur-md transition-all duration-300 active:scale-95 ${
         isDragging ? 'shadow-emerald-500/30 opacity-100' : idle ? 'opacity-25 hover:opacity-90' : 'opacity-85 hover:opacity-100'
       }`}
       aria-label="打开 Chaya 修改器"
-      title="Chaya 悬浮球"
+      title="Chaya 悬浮球 (点击打开修改器)"
     >
       <div className="flex h-7.5 w-7.5 items-center justify-center rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-white shadow-inner">
         <LuSparkles size={15} className="text-white" />

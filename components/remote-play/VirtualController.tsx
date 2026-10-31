@@ -9,19 +9,26 @@ type VirtualControllerProps = {
   onInput: (key: RemoteInputKey, action: 'down' | 'up') => void
   visible?: boolean
   idle?: boolean
+  isPortrait?: boolean
 }
 
 type Direction = 'up' | 'down' | 'left' | 'right'
 
-const MAX_RADIUS = 34
-const DEADZONE = 8
+const DEADZONE = 7
 const THRESHOLD = 0.38
 
-export function VirtualController({ onInput, visible = true, idle = false }: VirtualControllerProps) {
+export function VirtualController({
+  onInput,
+  visible = true,
+  idle = false,
+  isPortrait = false,
+}: VirtualControllerProps) {
   const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const baseRef = useRef<HTMLDivElement>(null)
   const activeDirsRef = useRef<Set<Direction>>(new Set())
+
+  const maxRadius = isPortrait ? 38 : 28
 
   const triggerHaptic = () => {
     try {
@@ -85,14 +92,14 @@ export function VirtualController({ onInput, visible = true, idle = false }: Vir
       return
     }
 
-    const clampedDist = Math.min(dist, MAX_RADIUS)
+    const clampedDist = Math.min(dist, maxRadius)
     const angle = Math.atan2(dy, dx)
     const knobX = Math.cos(angle) * clampedDist
     const knobY = Math.sin(angle) * clampedDist
     setKnobOffset({ x: knobX, y: knobY })
 
-    const normX = knobX / MAX_RADIUS
-    const normY = knobY / MAX_RADIUS
+    const normX = knobX / maxRadius
+    const normY = knobY / maxRadius
     const nextDirs = new Set<Direction>()
     if (normY < -THRESHOLD) nextDirs.add('up')
     if (normY > THRESHOLD) nextDirs.add('down')
@@ -139,29 +146,35 @@ export function VirtualController({ onInput, visible = true, idle = false }: Vir
   return (
     <div
       style={{
-        paddingLeft: "max(0.75rem, env(safe-area-inset-left))",
-        paddingRight: "max(0.75rem, env(safe-area-inset-right))",
+        paddingLeft: "max(1.25rem, env(safe-area-inset-left))",
+        paddingRight: "max(1.25rem, env(safe-area-inset-right))",
         paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
       }}
-      className={`pointer-events-none fixed inset-0 z-40 flex select-none flex-col justify-end p-3 pb-3 sm:p-5 sm:pb-5 transition-opacity duration-300 ${
+      className={`pointer-events-none fixed inset-0 z-40 flex select-none flex-col justify-end transition-opacity duration-300 ${
         idle && !isDragging ? 'opacity-25 hover:opacity-90' : 'opacity-85 hover:opacity-100'
       }`}
     >
       <div className="flex w-full items-end justify-between">
-        {/* Left: Mobile Analog Joystick */}
+        {/* Left: Mobile Analog Joystick (scaled for orientation) */}
         <div
           ref={baseRef}
           onPointerDown={handleJoystickPointerDown}
           onPointerMove={isDragging ? handleJoystickMove : undefined}
           onPointerUp={handleJoystickPointerUp}
           onPointerCancel={handleJoystickPointerUp}
-          className="pointer-events-auto relative flex h-28 w-28 touch-none items-center justify-center rounded-full border border-white/20 bg-neutral-900/50 shadow-2xl backdrop-blur-md active:border-white/30"
+          className={`pointer-events-auto relative flex touch-none items-center justify-center rounded-full border border-white/20 bg-neutral-900/50 shadow-2xl backdrop-blur-md active:border-white/30 ${
+            isPortrait ? 'h-32 w-32' : 'h-24 w-24'
+          }`}
           style={{ touchAction: 'none' }}
           role="slider"
           aria-label="虚拟摇杆"
         >
           {/* Subtle concentric reference ring */}
-          <div className="pointer-events-none absolute h-14 w-14 rounded-full border border-white/10" />
+          <div
+            className={`pointer-events-none absolute rounded-full border border-white/10 ${
+              isPortrait ? 'h-16 w-16' : 'h-12 w-12'
+            }`}
+          />
 
           {/* 4 Directional reference notches */}
           <div className="pointer-events-none absolute top-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/25" />
@@ -171,33 +184,42 @@ export function VirtualController({ onInput, visible = true, idle = false }: Vir
 
           {/* Movable Joystick Knob */}
           <div
-            className={`pointer-events-none flex h-10 w-10 items-center justify-center rounded-full border border-white/35 bg-gradient-to-b from-neutral-700/90 to-neutral-800/95 shadow-xl ${
-              isDragging ? 'shadow-emerald-500/20' : 'transition-transform duration-150 ease-out'
-            }`}
+            className={`pointer-events-none flex items-center justify-center rounded-full border border-white/35 bg-gradient-to-b from-neutral-700/90 to-neutral-800/95 shadow-xl ${
+              isPortrait ? 'h-12 w-12' : 'h-8.5 w-8.5'
+            } ${isDragging ? 'shadow-emerald-500/20' : 'transition-transform duration-150 ease-out'}`}
             style={{
               transform: `translate3d(${knobOffset.x}px, ${knobOffset.y}px, 0)`,
             }}
           >
             {/* Center thumb tactile ring */}
-            <div className="h-4 w-4 rounded-full border border-white/25 bg-white/10 shadow-inner" />
+            <div
+              className={`rounded-full border border-white/25 bg-white/10 shadow-inner ${
+                isPortrait ? 'h-5 w-5' : 'h-3.5 w-3.5'
+              }`}
+            />
           </div>
         </div>
 
-        {/* Right: Action Buttons with Pure React Icons */}
-        <div className="pointer-events-auto relative flex flex-col items-end gap-2 touch-none" style={{ touchAction: 'none' }}>
+        {/* Right: Action Buttons with Pure React Icons (scaled for orientation) */}
+        <div
+          className="pointer-events-auto relative flex flex-col items-end gap-1.5 sm:gap-2 touch-none"
+          style={{ touchAction: 'none' }}
+        >
           {/* Top row: Menu & Dash */}
-          <div className="flex items-center gap-2 pr-1.5">
+          <div className="flex items-center gap-2 pr-1">
             {/* Menu (Esc) */}
             <button
               type="button"
               onPointerDown={(e) => handleButtonPress('menu', e)}
               onPointerUp={(e) => handleButtonRelease('menu', e)}
               onPointerCancel={(e) => handleButtonRelease('menu', e)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-purple-400/40 bg-purple-950/70 text-purple-200 shadow-md backdrop-blur-md transition-transform active:scale-90"
+              className={`flex items-center justify-center rounded-full border border-purple-400/40 bg-purple-950/70 text-purple-200 shadow-md backdrop-blur-md transition-transform active:scale-90 ${
+                isPortrait ? 'h-10 w-10' : 'h-8 w-8'
+              }`}
               aria-label="菜单"
               title="菜单"
             >
-              <LuMenu size={16} className="stroke-[2.2]" />
+              <LuMenu size={isPortrait ? 17 : 14} className="stroke-[2.2]" />
             </button>
 
             {/* Dash / Shift */}
@@ -206,27 +228,31 @@ export function VirtualController({ onInput, visible = true, idle = false }: Vir
               onPointerDown={(e) => handleButtonPress('shift', e)}
               onPointerUp={(e) => handleButtonRelease('shift', e)}
               onPointerCancel={(e) => handleButtonRelease('shift', e)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-400/40 bg-amber-950/70 text-amber-200 shadow-md backdrop-blur-md transition-transform active:scale-90"
+              className={`flex items-center justify-center rounded-full border border-amber-400/40 bg-amber-950/70 text-amber-200 shadow-md backdrop-blur-md transition-transform active:scale-90 ${
+                isPortrait ? 'h-10 w-10' : 'h-8 w-8'
+              }`}
               aria-label="加速"
               title="加速"
             >
-              <LuZap size={16} className="stroke-[2.2]" />
+              <LuZap size={isPortrait ? 17 : 14} className="stroke-[2.2]" />
             </button>
           </div>
 
           {/* Bottom row: Cancel (B) & Confirm (A) */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             {/* Cancel (B / Esc) */}
             <button
               type="button"
               onPointerDown={(e) => handleButtonPress('cancel', e)}
               onPointerUp={(e) => handleButtonRelease('cancel', e)}
               onPointerCancel={(e) => handleButtonRelease('cancel', e)}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-rose-400/50 bg-rose-950/70 text-rose-100 shadow-lg backdrop-blur-md transition-transform active:scale-90"
+              className={`flex items-center justify-center rounded-full border border-rose-400/50 bg-rose-950/70 text-rose-100 shadow-lg backdrop-blur-md transition-transform active:scale-90 ${
+                isPortrait ? 'h-12 w-12' : 'h-9.5 w-9.5'
+              }`}
               aria-label="取消"
               title="取消"
             >
-              <LuX size={18} className="stroke-[2.5]" />
+              <LuX size={isPortrait ? 20 : 16} className="stroke-[2.5]" />
             </button>
 
             {/* Confirm (A / OK) */}
@@ -235,11 +261,13 @@ export function VirtualController({ onInput, visible = true, idle = false }: Vir
               onPointerDown={(e) => handleButtonPress('ok', e)}
               onPointerUp={(e) => handleButtonRelease('ok', e)}
               onPointerCancel={(e) => handleButtonRelease('ok', e)}
-              className="flex h-13 w-13 items-center justify-center rounded-full border-2 border-emerald-400/70 bg-emerald-600/85 text-white shadow-xl shadow-emerald-950/50 backdrop-blur-md transition-transform active:scale-90"
+              className={`flex items-center justify-center rounded-full border-2 border-emerald-400/70 bg-emerald-600/85 text-white shadow-xl shadow-emerald-950/50 backdrop-blur-md transition-transform active:scale-90 ${
+                isPortrait ? 'h-15 w-15' : 'h-11.5 w-11.5'
+              }`}
               aria-label="确认"
               title="确认"
             >
-              <LuCheck size={22} className="stroke-[2.8]" />
+              <LuCheck size={isPortrait ? 26 : 20} className="stroke-[2.8]" />
             </button>
           </div>
         </div>
