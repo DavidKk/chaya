@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react'
 import { LuCheck, LuMenu, LuX, LuZap } from 'react-icons/lu'
 
 import type { RemoteInputKey } from '@/lib/runtime/game-link-protocol'
+import { haptic } from './haptic'
 
 export type ControlMode = 'fixed' | 'dynamic' | 'single-left' | 'single-right' | 'touch'
 
@@ -35,14 +36,8 @@ export function VirtualController({
 
   const maxRadius = isPortrait ? 38 : 28
 
-  const triggerHaptic = () => {
-    try {
-      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-        navigator.vibrate(10)
-      }
-    } catch {
-      /* ignore */
-    }
+  const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'selection' = 'light') => {
+    haptic.trigger(type)
   }
 
   const updateDirections = (newDirs: Set<Direction>) => {
@@ -67,7 +62,7 @@ export function VirtualController({
 
     if (changed) {
       if (newDirs.size > 0 && prev.size === 0) {
-        triggerHaptic()
+        triggerHaptic('selection')
       }
       activeDirsRef.current = newDirs
     }
@@ -79,6 +74,7 @@ export function VirtualController({
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
     setIsDragging(true)
+    triggerHaptic('selection')
     handleFixedMove(e)
   }
 
@@ -141,7 +137,7 @@ export function VirtualController({
     setDynamicOrigin({ x: e.clientX, y: e.clientY })
     setKnobOffset({ x: 0, y: 0 })
     updateDirections(new Set())
-    triggerHaptic()
+    triggerHaptic('selection')
   }
 
   const handleDynamicPointerMove = (e: React.PointerEvent) => {
@@ -196,7 +192,7 @@ export function VirtualController({
     } catch {
       /* ignore */
     }
-    triggerHaptic()
+    triggerHaptic(key === 'ok' ? 'medium' : 'light')
     onInput(key, 'down')
   }
 
@@ -323,13 +319,13 @@ export function VirtualController({
             </div>
           )
 
-          const renderActionButtons = (compact = false) => (
+          const renderActionButtons = (compact = false, align: 'start' | 'end' = 'end') => (
             <div
-              className="pointer-events-auto relative flex flex-col items-end gap-1.5 sm:gap-2 touch-none shrink-0"
+              className={`pointer-events-auto relative flex flex-col ${align === 'start' ? 'items-start' : 'items-end'} gap-1.5 sm:gap-2 touch-none shrink-0`}
               style={{ touchAction: 'none' }}
             >
               {/* Top row: Menu & Dash */}
-              <div className="flex items-center gap-2 pr-1">
+              <div className={`flex items-center gap-2 ${align === 'start' ? 'pl-1' : 'pr-1'}`}>
                 <button
                   type="button"
                   onPointerDown={(e) => handleButtonPress('menu', e)}
@@ -394,18 +390,22 @@ export function VirtualController({
 
           if (mode === 'single-right') {
             return (
-              <div className="flex w-full items-end justify-end gap-3 sm:gap-5 pr-1">
-                {renderJoystick(isPortrait ? 'h-26 w-26' : 'h-22 w-22')}
-                {renderActionButtons(true)}
+              <div className="flex w-full items-end justify-end gap-5 sm:gap-7 pr-6 sm:pr-10 pb-4 sm:pb-6">
+                {renderJoystick(isPortrait ? 'h-24 w-24' : 'h-20 w-20')}
+                <div className="mr-2 sm:mr-4">
+                  {renderActionButtons(true, 'end')}
+                </div>
               </div>
             )
           }
 
           if (mode === 'single-left') {
             return (
-              <div className="flex w-full items-end justify-start gap-3 sm:gap-5 pl-1">
-                {renderActionButtons(true)}
-                {renderJoystick(isPortrait ? 'h-26 w-26' : 'h-22 w-22')}
+              <div className="flex w-full items-end justify-start gap-5 sm:gap-7 pl-6 sm:pl-10 pb-4 sm:pb-6">
+                <div className="ml-2 sm:ml-4">
+                  {renderActionButtons(true, 'start')}
+                </div>
+                {renderJoystick(isPortrait ? 'h-24 w-24' : 'h-20 w-20')}
               </div>
             )
           }

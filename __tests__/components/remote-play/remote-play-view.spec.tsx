@@ -196,4 +196,37 @@ describe('RemotePlayView Launcher & UI refinements', () => {
     )
     expect(modeButtons.length).toBeGreaterThanOrEqual(0)
   })
+
+  it('renders haptic feedback toggle row inside gamepad settings tab', async () => {
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <RemotePlayView initialRoomId="game-1" />
+        </LocaleProvider>
+      )
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const menuBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.getAttribute('aria-label')?.includes('控制台') || b.getAttribute('title')?.includes('控制台')
+    )
+    await act(async () => {
+      menuBtn?.click()
+    })
+
+    // Switch to gamepad tab
+    const gamepadTabBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('手柄')
+    )
+    await act(async () => {
+      gamepadTabBtn?.click()
+    })
+
+    const hapticRow = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('触感震动')
+    )
+    expect(hapticRow).toBeDefined()
+  })
 })

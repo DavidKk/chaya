@@ -62,6 +62,9 @@ export type PlayMessages = {
   quitGameConfirmDesc: string
   gameExited: string
   keyboardHints: string
+  hapticFeedback: string
+  enabled: string
+  disabled: string
 }
 
 export const playEn: PlayMessages = {
@@ -128,6 +131,9 @@ export const playEn: PlayMessages = {
   quitGameConfirmDesc: 'Host game process will be closed. Unsaved progress will be lost.',
   gameExited: 'Game exited',
   keyboardHints: 'WASD / Arrows move · Enter / Z confirm · Esc / X cancel · Shift dash',
+  hapticFeedback: 'Haptics',
+  enabled: 'ON',
+  disabled: 'OFF',
 }
 
 export const playZh: PlayMessages = {
@@ -194,6 +200,9 @@ export const playZh: PlayMessages = {
   quitGameConfirmDesc: '电脑端正在运行的游戏进程将被完全关闭，未保存进度将丢失。确认退出？',
   gameExited: '游戏已退出',
   keyboardHints: 'WASD / 方向键移动 · Z / Enter 确认 · X / Esc 取消 · Shift 加速',
+  hapticFeedback: '触感震动',
+  enabled: '开启',
+  disabled: '关闭',
 }
 
 export const playCht: PlayMessages = {
@@ -260,6 +269,9 @@ export const playCht: PlayMessages = {
   quitGameConfirmDesc: '電腦端正在執行的遊戲行程將被關閉，未儲存進度將遺失。確認結束？',
   gameExited: '遊戲已結束',
   keyboardHints: 'WASD / 方向鍵移動 · Z / Enter 確認 · X / Esc 取消 · Shift 加速',
+  hapticFeedback: '觸感震動',
+  enabled: '開啟',
+  disabled: '關閉',
 }
 
 export const playJa: PlayMessages = {
@@ -326,6 +338,9 @@ export const playJa: PlayMessages = {
   quitGameConfirmDesc: 'ホスト PC のゲームを終了します。セーブしていないデータは失われます。',
   gameExited: 'ゲームを終了しました',
   keyboardHints: 'WASD / 方向キーで移動 · Enter / Z 決定 · Esc / X キャンセル · Shift ダッシュ',
+  hapticFeedback: '振動フィードバック',
+  enabled: 'オン',
+  disabled: 'オフ',
 }
 
 export const playKo: PlayMessages = { ...playEn, launchGame: '게임 시작', switchGame: '게임 변경', reconnect: '다시 연결' }

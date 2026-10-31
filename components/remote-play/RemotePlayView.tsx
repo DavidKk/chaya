@@ -16,6 +16,7 @@ import {
   LuScaling,
   LuScrollText,
   LuSlidersHorizontal,
+  LuVibrate,
   LuSparkles,
   LuVolume2,
   LuVolumeX,
@@ -37,6 +38,7 @@ import { IosInstallGuideModal } from './IosInstallGuideModal'
 import { PerformanceHud } from './PerformanceHud'
 import { RemoteCheatDrawer } from './RemoteCheatDrawer'
 import { type ControlMode, VirtualController } from './VirtualController'
+import { haptic } from './haptic'
 
 type RemotePlayViewProps = {
   initialRoomId?: string
@@ -86,6 +88,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
   // Control Mode: fixed, dynamic, single-left, single-right, touch
   const [controlMode, setControlMode] = useState<ControlMode>('fixed')
+  const [hapticEnabled, setHapticEnabled] = useState<boolean>(() => haptic.isEnabled())
   const [clientMode, setClientMode] = useState<'auto' | 'desktop' | 'mobile'>('auto')
 
   const handleSelectClientMode = useCallback((mode: 'auto' | 'desktop' | 'mobile') => {
@@ -693,6 +696,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     const rect = video.getBoundingClientRect()
     if (!rect.width || !rect.height) return
 
+    if (phase === 'down') {
+      haptic.trigger('light')
+    }
     const normX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
     const normY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
 
@@ -935,6 +941,20 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 <span className="text-[10px] whitespace-nowrap">{t('play.modeTouch')}</span>
               </button>
             </div>
+
+            <ConfigRow
+              icon={<LuVibrate size={16} className={hapticEnabled ? 'text-emerald-400' : 'text-neutral-500'} />}
+              label={t('play.hapticFeedback')}
+              control={
+                <span className={`text-[11px] font-semibold ${hapticEnabled ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                  {hapticEnabled ? t('play.enabled') : t('play.disabled')}
+                </span>
+              }
+              onClick={() => {
+                const next = haptic.toggle()
+                setHapticEnabled(next)
+              }}
+            />
           </div>
         )
       case 'quick':
@@ -2027,6 +2047,23 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           </div>
         </div>
       )}
+          {/* Hidden WebKit Switch element for iOS Safari Taptic Engine feedback */}
+      <div
+        style={{
+          position: 'fixed',
+          top: -100,
+          left: -100,
+          opacity: 0,
+          pointerEvents: 'none',
+          width: 1,
+          height: 1,
+          overflow: 'hidden',
+        }}
+        aria-hidden="true"
+      >
+        <input type="checkbox" {...{ switch: '' }} id="chaya-haptic-switch" tabIndex={-1} readOnly />
+        <label htmlFor="chaya-haptic-switch" id="chaya-haptic-label" />
+      </div>
     </main>
   )
 }

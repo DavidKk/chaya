@@ -169,4 +169,34 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     const confirmBtn = host.querySelector('button[aria-label="确认"]')
     expect(confirmBtn?.className).toContain('h-15 w-15')
   })
+
+  it('renders single-right mode with comfortable margins away from screen edge', () => {
+    const onInput = jest.fn()
+    act(() => {
+      root.render(<VirtualController onInput={onInput} visible={true} isPortrait={true} mode="single-right" />)
+    })
+
+    const confirmBtn = host.querySelector('button[aria-label="确认"]')
+    expect(confirmBtn).not.toBeNull()
+
+    const rightCluster = host.querySelector('.pr-6')
+    expect(rightCluster).not.toBeNull()
+    expect(rightCluster?.className).toContain('pb-4')
+    expect(rightCluster?.className).toContain('gap-5')
+  })
+
+  it('renders single-left mode with comfortable margins away from screen edge', () => {
+    const onInput = jest.fn()
+    act(() => {
+      root.render(<VirtualController onInput={onInput} visible={true} isPortrait={true} mode="single-left" />)
+    })
+
+    const confirmBtn = host.querySelector('button[aria-label="确认"]')
+    expect(confirmBtn).not.toBeNull()
+
+    const leftCluster = host.querySelector('.pl-6')
+    expect(leftCluster).not.toBeNull()
+    expect(leftCluster?.className).toContain('pb-4')
+    expect(leftCluster?.className).toContain('gap-5')
+  })
 })
