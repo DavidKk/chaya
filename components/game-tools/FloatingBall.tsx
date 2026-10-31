@@ -213,8 +213,8 @@ export function FloatingBall({ shortcuts, runtime }: { shortcuts: FloatingShortc
           aria-label={t(open ? 'floatingBall.close' : 'floatingBall.open')}
           aria-expanded={open}
           aria-controls={open ? groupId : undefined}
-          tooltip={t('floatingBall.drag')}
-          tooltipSuppressed={open || dragging}
+          tooltip={t(open ? 'floatingBall.close' : 'floatingBall.open')}
+          tooltipSuppressed={dragging}
           onClick={(event) => {
             if (event.detail !== 0 && consumeDragClick()) return
             if (open) close()
@@ -282,7 +282,7 @@ export function FloatingBall({ shortcuts, runtime }: { shortcuts: FloatingShortc
                     disabled={!!reason}
                     aria-disabled={!!reason || pending !== null}
                     aria-busy={pending === id || undefined}
-                    tooltip={reason ? t(reason) : undefined}
+                    tooltip={reason ? `${t(target.labelKey)}: ${t(reason)}` : t(target.labelKey)}
                     onClick={() => {
                       if (!reason && pending === null) void execute(id)
                     }}
