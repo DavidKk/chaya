@@ -295,32 +295,32 @@ export function RemoteCheatDrawer({
         className={`relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-100 shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
           isPortraitEffective
             ? 'w-full max-w-lg max-h-[85vh] p-4 sm:p-5'
-            : 'w-full max-w-2xl p-3.5 sm:p-4'
+            : 'w-full max-w-2xl px-3.5 pt-2 pb-2.5'
         }`}
         style={{
           maxHeight: isPortraitEffective ? '85vh' : 'min(370px, 88vh)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header: Centered title, no icon, no orientation badge, clean icon button */}
-        <div className="relative flex items-center justify-center border-b border-neutral-800 py-2 px-10 shrink-0">
-          <h2 className="text-xs sm:text-sm font-bold text-white text-center">局内控制台</h2>
+        {/* Header: Centered title, compressed height, clean icon button */}
+        <div className="relative flex items-center justify-center border-b border-neutral-800 py-1.5 px-8 shrink-0">
+          <h2 className="text-xs font-bold text-white text-center leading-none">局内控制台</h2>
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
             aria-label="关闭"
           >
-            <LuX size={16} />
+            <LuX size={15} />
           </button>
         </div>
 
         {/* Tab switch */}
-        <div className="mt-2 flex rounded-lg bg-neutral-950 p-0.5 border border-neutral-800 shrink-0">
+        <div className="mt-1.5 flex rounded-lg bg-neutral-950 p-0.5 border border-neutral-800 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('cheat')}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1 text-xs font-semibold transition-all ${
               activeTab === 'cheat'
                 ? 'bg-neutral-800 text-emerald-400 shadow-sm border border-emerald-500/30'
                 : 'text-neutral-400 hover:text-white'
@@ -332,7 +332,7 @@ export function RemoteCheatDrawer({
           <button
             type="button"
             onClick={() => setActiveTab('logs')}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1 text-xs font-semibold transition-all ${
               activeTab === 'logs'
                 ? 'bg-neutral-800 text-sky-400 shadow-sm border border-sky-500/30'
                 : 'text-neutral-400 hover:text-white'
@@ -353,9 +353,9 @@ export function RemoteCheatDrawer({
 
         {/* Body scroll area */}
         {activeTab === 'logs' ? (
-          <div className="flex-1 flex flex-col min-h-0 pt-3 pb-2 space-y-3">
+          <div className="flex-1 flex flex-col min-h-0 pt-2 pb-1 space-y-2">
             {/* Summary & Mobile Debugging Cards */}
-            <div className={isPortraitEffective ? 'space-y-2' : 'grid grid-cols-2 gap-2.5'}>
+            <div className={isPortraitEffective ? 'space-y-2' : 'grid grid-cols-2 gap-2'}>
               {/* Summary card */}
               <div className="rounded-xl border border-neutral-800 bg-neutral-950/70 p-2.5 text-xs space-y-1.5">
               <div className="flex items-center justify-between text-neutral-300">
@@ -564,7 +564,7 @@ export function RemoteCheatDrawer({
             </div>
           </div>
         ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto pt-3 pb-4">
+        <div className="flex-1 min-h-0 overflow-y-auto pt-2 pb-2">
           {isPortraitEffective ? (
             /* Portrait: 1 column vertical list */
             <div className="space-y-4">
@@ -837,8 +837,6 @@ export function RemoteCheatDrawer({
         </div>
         )}
 
-        {/* Footer */}
-        <div className="border-t border-neutral-800 pt-2 shrink-0 text-center text-[10px] text-neutral-500">WebRTC 串流控制台</div>
       </div>
     </div>
   )

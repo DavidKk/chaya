@@ -36,13 +36,13 @@ export function IosInstallGuideModal({
       onClick={onClose}
     >
       <div
-        className="relative flex flex-col w-full max-w-xl rounded-2xl border border-white/15 bg-neutral-900/95 p-3.5 sm:p-4 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+        className="relative flex flex-col w-full max-w-xl rounded-2xl border border-white/15 bg-neutral-900/95 px-3.5 pt-2 pb-2.5 sm:px-4 sm:pt-2 sm:pb-3 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
         style={{ maxHeight: 'min(380px, 88vh)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header: Centered title, no icon, no orientation badges, clean icon button */}
-        <div className="relative flex items-center justify-center py-2 px-10 border-b border-white/10 shrink-0">
-          <h3 id="ios-guide-title" className="text-xs sm:text-sm font-bold text-white text-center">
+        {/* Header: Centered title, compressed height, clean icon button */}
+        <div className="relative flex items-center justify-center py-1.5 px-8 border-b border-white/10 shrink-0">
+          <h3 id="ios-guide-title" className="text-xs font-bold text-white text-center leading-none">
             {isStandalone ? '已处于独立全屏模式' : 'iOS Safari 添加到主屏幕指引'}
           </h3>
           <button
@@ -51,7 +51,7 @@ export function IosInstallGuideModal({
             className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
             aria-label="关闭"
           >
-            <LuX size={16} />
+            <LuX size={15} />
           </button>
         </div>
 

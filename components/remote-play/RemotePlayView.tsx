@@ -1144,9 +1144,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header: Centered title, no icon, no orientation badges, clean icon button */}
-            <div className="relative flex items-center justify-center py-2 px-10 border-b border-white/10 shrink-0">
-              <h3 id="menu-title" className="text-xs sm:text-sm font-bold text-white text-center">
+            {/* Header: Centered title, compressed height, clean icon button */}
+            <div className="relative flex items-center justify-center py-1.5 px-8 border-b border-white/10 shrink-0">
+              <h3 id="menu-title" className="text-xs font-bold text-white text-center leading-none">
                 串流控制台
               </h3>
               <button
@@ -1155,7 +1155,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
                 aria-label="关闭"
               >
-                <LuX size={16} />
+                <LuX size={15} />
               </button>
             </div>
 
@@ -1540,9 +1540,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             className="relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden w-full max-w-sm max-h-[80vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header: Centered title, no icon, clean icon button */}
-            <div className="relative flex items-center justify-center py-2 px-10 border-b border-white/10 shrink-0">
-              <h3 id="game-select-title" className="text-xs sm:text-sm font-bold text-white text-center">
+            {/* Header: Centered title, compressed height, clean icon button */}
+            <div className="relative flex items-center justify-center py-1.5 px-8 border-b border-white/10 shrink-0">
+              <h3 id="game-select-title" className="text-xs font-bold text-white text-center leading-none">
                 可运行游戏列表
               </h3>
               <button
@@ -1551,7 +1551,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
                 aria-label="关闭"
               >
-                <LuX size={16} />
+                <LuX size={15} />
               </button>
             </div>
 
@@ -1587,11 +1587,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   </button>
                 )
               })}
-            </div>
-
-            {/* Footer */}
-            <div className="border-t border-neutral-800 px-3 py-2 text-center text-[10px] text-neutral-400 shrink-0">
-              选择目标游戏后，可在手机端一键拉起本地运行并串流
             </div>
           </div>
         </div>
