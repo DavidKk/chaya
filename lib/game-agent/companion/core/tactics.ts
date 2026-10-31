@@ -157,6 +157,7 @@ export function evaluateCondition(condition: TacticCondition, context: Condition
 
 export function applyTacticPatch(plan: TacticPlan, input: unknown): TacticPlan {
   const patch = validatedPatch(input)
+  if (!patch.operations.length) return plan
   const next = clonePlan(plan)
   for (const op of patch.operations) {
     const ruleId = op.op === 'add_rule' ? op.rule.id : op.ruleId

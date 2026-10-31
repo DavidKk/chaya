@@ -77,8 +77,13 @@ export async function startStorageDaemon(options: DaemonServerOptions): Promise<
       scheduleIdle()
     })
     void handle(req, res).catch((error: unknown) => {
-      if (!res.headersSent && !res.destroyed) json(res, error instanceof SyntaxError || error instanceof TypeError ? 400 : 500, { error: (error as Error).message })
-      else res.destroy()
+      if (!res.headersSent && !res.destroyed) {
+        const code = (error as { code?: unknown } | null)?.code
+        json(res, error instanceof SyntaxError || error instanceof TypeError ? 400 : 500, {
+          error: (error as Error).message,
+          ...(typeof code === 'string' ? { code } : {}),
+        })
+      } else res.destroy()
     })
   })
   server.requestTimeout = 15000
@@ -187,7 +192,12 @@ export async function startStorageDaemon(options: DaemonServerOptions): Promise<
         })
         return json(res, 200, { value, timing: { ...execution, receivedAt, respondedAt: Date.now() } })
       } catch (error) {
-        return json(res, 500, { error: error instanceof Error ? error.message : String(error), timing: { ...execution, receivedAt, respondedAt: Date.now() } })
+        const code = (error as { code?: unknown } | null)?.code
+        return json(res, 500, {
+          error: error instanceof Error ? error.message : String(error),
+          ...(typeof code === 'string' ? { code } : {}),
+          timing: { ...execution, receivedAt, respondedAt: Date.now() },
+        })
       }
     }
     json(res, 404, { error: 'Not Found' })

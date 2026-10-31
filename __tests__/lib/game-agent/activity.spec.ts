@@ -15,4 +15,14 @@ describe('agent activity', () => {
     expect(addTokenUsage({ input: 10, total: 12 }, { output: 5, total: 5 })).toEqual({ input: 10, output: 5, total: 17 })
     expect(addTokenUsage(undefined, undefined)).toBeUndefined()
   })
+
+  it('preserves numeric first-token timing without allowing credentials through the metric name', () => {
+    expect(sanitizeAgentActivity({ metrics: { firstTokenMs: 125.5 }, token: 123 })).toEqual({
+      metrics: { firstTokenMs: 125.5 },
+      token: '[REDACTED]',
+    })
+    for (const firstTokenMs of ['Bearer private', { token: 'private' }, NaN, Infinity, -1]) {
+      expect(sanitizeAgentActivity({ firstTokenMs })).toEqual({ firstTokenMs: '[REDACTED]' })
+    }
+  })
 })

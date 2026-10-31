@@ -56,7 +56,7 @@ function selectAllyTarget(
   if (targetRule === 'all_allies') return { kind: 'all_allies' }
   if (targetRule === 'user' || (targetRule === 'one_ally' && preference === 'self')) {
     return {
-      kind: 'actor',
+      kind: targetRule === 'user' ? 'user' : 'actor',
       targetIndex: currentActor.index,
       entityId: currentActor.actorId,
     }
@@ -109,7 +109,7 @@ export function chooseAction(frame: BattleFrame, situation: SituationEvaluation,
     if (o.costs.mp > 0 && currentActor.mp - o.costs.mp < situation.reservedMp) return false
     if (o.abilityId !== undefined) {
       if (o.kind === 'skill' && situation.forbiddenSkills.has(o.abilityId)) return false
-      if (o.kind === 'item' && situation.forbiddenItems.has(o.abilityId)) return false
+      if (o.kind === 'item' && (situation.forbiddenItems.has(0) || situation.forbiddenItems.has(o.abilityId))) return false
     }
     return true
   })
@@ -202,9 +202,14 @@ export function chooseAction(frame: BattleFrame, situation: SituationEvaluation,
       if (skillOffer) {
         let target: ActionTargetRef | null = null
         if (skillOffer.targetRule === 'one_enemy' || skillOffer.targetRule === 'all_enemies') {
-          target = skillOffer.targetRule === 'all_enemies' ? { kind: 'all_enemies' } : selectEnemyTarget(situation, 'lowest_hp')
+          target =
+            skillOffer.targetRule === 'all_enemies'
+              ? { kind: 'all_enemies' }
+              : selectEnemyTarget(situation, rule.prefer.targetPreference === 'first_enemy' ? 'first_enemy' : 'lowest_hp')
+        } else if (skillOffer.targetRule === 'none') {
+          target = { kind: 'none' }
         } else {
-          target = selectAllyTarget(situation, currentActor, skillOffer.targetRule, 'lowest_hp')
+          target = selectAllyTarget(situation, currentActor, skillOffer.targetRule, rule.prefer.targetPreference === 'self' ? 'self' : 'lowest_hp')
         }
         if (target) {
           return {

@@ -38,6 +38,14 @@ export function createCompanionSqliteStore(db: CompanionDb) {
     }
   }
 
+  function state(gameId: string): MemoryManagementState {
+    const row = client.prepare('SELECT memory_epoch,recording_revision,recording_enabled FROM companion_manifest WHERE game_id=?').get(gameId) as
+      { memory_epoch: number; recording_revision: number; recording_enabled: number } | undefined
+    if (row) return { memoryEpoch: row.memory_epoch, recordingRevision: row.recording_revision, recordingEnabled: row.recording_enabled === 1 }
+    const snapshot = loadBase(gameId)
+    return { memoryEpoch: snapshot.memoryEpoch, recordingRevision: snapshot.recordingRevision, recordingEnabled: snapshot.recordingEnabled }
+  }
+
   function writeSnapshot(gameId: string, next: MemoryStoreSnapshot) {
     const otherBytes = Number((client.prepare('SELECT COALESCE(SUM(used_bytes),0) AS n FROM companion_manifest WHERE game_id<>?').get(gameId) as { n: number }).n)
     const used = snapshotLogicalBytes(next) + recording.bytes(gameId)
@@ -144,5 +152,5 @@ export function createCompanionSqliteStore(db: CompanionDb) {
       throw error
     }
   }
-  return { load, commit, manage }
+  return { load, state, commit, manage }
 }

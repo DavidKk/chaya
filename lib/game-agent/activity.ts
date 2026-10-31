@@ -52,7 +52,10 @@ export function sanitizeAgentActivity(value: unknown, secrets: Iterable<string> 
     seen.add(item)
     if (Array.isArray(item)) return item.slice(0, 100).map((entry) => walk(entry, depth + 1))
     const result: Record<string, unknown> = {}
-    for (const [key, entry] of Object.entries(item).slice(0, 100)) result[key] = SECRET_KEY.test(key) ? '[REDACTED]' : walk(entry, depth + 1)
+    for (const [key, entry] of Object.entries(item).slice(0, 100)) {
+      const timingMetric = key === 'firstTokenMs' && typeof entry === 'number' && Number.isFinite(entry) && entry >= 0
+      result[key] = SECRET_KEY.test(key) && !timingMetric ? '[REDACTED]' : walk(entry, depth + 1)
+    }
     return result
   }
   return walk(value, 0)

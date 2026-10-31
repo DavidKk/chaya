@@ -20,6 +20,14 @@ function streamed(lines: string[]) {
 }
 
 describe('game agent Ollama client', () => {
+  it.each([-1, '-1', 0])('serializes keepAlive=%j as a numeric residency directive', async (keepAlive) => {
+    const fetcher = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body)).keep_alive).toBe(Number(keepAlive))
+      return streamed(['{"message":{"content":"ok"},"done":true}\n'])
+    }) as unknown as typeof fetch
+    await streamOllamaChat({ model: 'demo', messages: [], keepAlive }, () => {}, fetcher)
+  })
+
   it('keeps legacy Qwen reasoning out of assistant content and later conversation context', async () => {
     const fetcher = jest.fn(async () => streamed(['{"message":{"content":"Reasoning text</think>\\n\\n已装备。"}}\n'])) as unknown as typeof fetch
     await expect(streamOllamaChat({ model: 'qwen3:4b', think: false, messages: [] }, () => {}, fetcher)).resolves.toMatchObject({ content: '已装备。', thought: 'Reasoning text' })

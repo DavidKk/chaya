@@ -1,6 +1,7 @@
 import type { ActionIntent, BattleFrame, ControlArbiter, ControlLease } from '@/lib/game-agent/companion/core/types'
 
 import { runAgentCommand } from '../../handlers'
+import { isPassiveSceneWindow } from '../../window-state'
 import { bindBattleCommand } from './battle-command-binding'
 import { call, g, getBattleScene, type Loose } from './battle-engine'
 import type { BattleInputOption, BattleInputState, BattleNavigationPort } from './battle-navigator'
@@ -10,7 +11,7 @@ export function createBattleNavigationPort(arbiter: ControlArbiter, readFrame: (
     readFrame,
     onConfirming,
     bindAction(action: object, intent: ActionIntent, frame: BattleFrame) {
-      bindBattleCommand(action, intent.commandId, frame.encounterId, frame.stamp)
+      bindBattleCommand(action, intent.commandId, frame.encounterId, frame.stamp, intent)
     },
     async readInput(): Promise<BattleInputState | null> {
       const state = (await runAgentCommand({ id: 'companion-observe', method: 'game.state', params: {} })) as {
@@ -28,16 +29,19 @@ export function createBattleNavigationPort(arbiter: ControlArbiter, readFrame: (
         call<boolean>(g().$gameMessage, 'isBusy') ||
         call<boolean>(g().$gameTroop, 'isEventRunning') ||
         call<boolean>(scene, 'isBusy') ||
+        call<boolean>(g().SceneManager, 'isGameActive') === false ||
         call<boolean>(g().BattleManager, 'isBusy')
       )
         return null
       const windows = Object.entries(scene).filter(([name, value]) => {
         const w = value as Loose | undefined
-        return name.endsWith('Window') && w?.active && w.visible !== false && Number(w.openness ?? 255) > 0
+        return !isPassiveSceneWindow(name) && name.endsWith('Window') && w?.active && w.visible !== false && Number(w.openness ?? 255) > 0
       })
       if (windows.length !== 1) return null
       const [name, raw] = windows[0]
       const win = raw as Loose
+      // MV activates command windows before their opening animation has finished.
+      if (Number(win.openness ?? 255) !== 255 || call<boolean>(win, 'isOpenAndActive') === false) return null
       const kinds: Record<string, BattleInputState['kind']> = {
         _partyCommandWindow: 'party',
         _actorCommandWindow: 'command',
@@ -84,7 +88,7 @@ export function createBattleNavigationPort(arbiter: ControlArbiter, readFrame: (
         action: call<object>(g().BattleManager, 'inputtingAction'),
       }
     },
-    async press(key, input, lease: ControlLease) {
+    async press(key, input, lease: ControlLease, beforeDispatch) {
       arbiter.assertCurrent(lease)
       await runAgentCommand(
         {
@@ -96,7 +100,14 @@ export function createBattleNavigationPort(arbiter: ControlArbiter, readFrame: (
             guard: { controlToken: input.controlToken, battleInstanceId: input.battleInstanceId, allowedEffects: ['navigate', 'battle_command', 'spend_resource'] },
           },
         },
-        { inputOwner: lease.ownerId }
+        {
+          inputOwner: lease.ownerId,
+          control: { arbiter, lease },
+          beforeInput: () => {
+            arbiter.assertCurrent(lease)
+            beforeDispatch?.()
+          },
+        }
       )
     },
   }

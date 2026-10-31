@@ -115,6 +115,20 @@ export function applyCompanionMessageEvent(state: CompanionEventApplyState, even
 
   remember(state, event.seq, eventKey)
 
+  if (event.kind === 'model.status') {
+    if (!event.requestId || event.requestId !== state.chatRequestId || !event.modelStatus) return base
+    if (event.modelStatus.phase !== 'loading' && event.modelStatus.phase !== 'ready') return base
+    return {
+      ...base,
+      chatProgress:
+        event.modelStatus.phase === 'loading'
+          ? '模型需要冷启动，正在加载，首次使用可能较慢…'
+          : event.modelStatus.residency === 'unknown'
+            ? '正在连接模型，准备生成…'
+            : '模型已就绪，正在处理…',
+    }
+  }
+
   if (event.kind === 'accepted' || event.kind === 'queued') {
     if (event.requestId && event.requestId === state.chatRequestId) {
       return { ...base, afterSeq, chatProgress: event.kind === 'queued' ? '排队中…' : '生成中…' }

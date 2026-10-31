@@ -3,13 +3,17 @@
  * No tools. Real streaming only when the provider emits deltas; otherwise whole-response.
  */
 
+import { trimCompanionContext } from '@/lib/game-agent/companion/model-context'
+import { COMPANION_MODEL_STARTUP_MS, type CompanionModelStatus } from '@/lib/game-agent/companion/model-diagnostics'
 import { COMPANION_ROUTE_FORMAT, COMPANION_ROUTE_SYSTEM, parseCompanionRoute } from '@/lib/game-agent/companion/router'
 import { isCliProvider, isOpenApiProvider } from '@/lib/game-agent/providers'
 import type { RuntimeMessage } from '@/lib/game-agent/runtime'
+import { appendLog } from '@/services/log'
 
 import { completeAnthropicChat, usesAnthropicApi } from './anthropic-client'
 import { completeWithCli } from './cli/complete.server'
 import { inspectCompanionCapabilities, resolveCompanionThinking } from './companion-capabilities.server'
+import { COMPANION_KEEP_ALIVE, prepareCompanionOllama } from './companion-ollama'
 import { companionResourceKey, scheduleCompanionResource } from './companion-resource.server'
 import {
   COMPANION_DEFAULT_BUDGETS,
@@ -58,62 +62,28 @@ export type CompleteCompanionModelInput = {
 }
 
 function purposePriority(purpose: CompanionModelPurpose): CompanionModelPriority {
-  if (purpose === 'control') return 'control'
+  if (purpose === 'control' || purpose === 'companion-tactic-quick' || purpose === 'companion-tactic-deep') return 'control'
   if (purpose === 'companion-prepare') return 'background'
   return 'foreground'
 }
 
 function defaultBudgets(purpose: CompanionModelPurpose): CompanionModelBudgets {
-  if (purpose === 'companion-route') return { contextChars: COMPANION_DEFAULT_BUDGETS.contextChars, ...COMPANION_DEFAULT_BUDGETS.route }
+  if (purpose === 'companion-route' || purpose === 'companion-warmup') return { contextChars: COMPANION_DEFAULT_BUDGETS.contextChars, ...COMPANION_DEFAULT_BUDGETS.route }
   if (purpose === 'companion-prepare') return { contextChars: COMPANION_DEFAULT_BUDGETS.contextChars, ...COMPANION_DEFAULT_BUDGETS.prepare }
+  if (purpose === 'companion-tactic-quick') return { contextChars: COMPANION_DEFAULT_BUDGETS.contextChars, ...COMPANION_DEFAULT_BUDGETS.tacticQuick }
+  if (purpose === 'companion-tactic-deep') return { contextChars: COMPANION_DEFAULT_BUDGETS.contextChars, ...COMPANION_DEFAULT_BUDGETS.tacticDeep }
   if (purpose === 'control') {
     return { contextChars: COMPANION_DEFAULT_BUDGETS.contextChars, maxOutputTokens: 384, totalTimeoutMs: 120_000 }
   }
   return { contextChars: COMPANION_DEFAULT_BUDGETS.contextChars, ...COMPANION_DEFAULT_BUDGETS.chat }
 }
 
-function clipText(text: string, maxChars: number) {
-  if (text.length <= maxChars) return text
-  if (maxChars <= 1) return text.slice(0, Math.max(0, maxChars))
-  return `${text.slice(0, Math.max(0, maxChars - 1))}…`
-}
-
-function trimMessages(messages: CompanionChatMessage[], contextChars: number): CompanionChatMessage[] {
-  const budget = Math.max(0, contextChars)
-  if (!messages.length || budget === 0) return []
-  const source = messages.map((message) => ({ role: message.role, content: message.content }))
-  const systemIndex = source.findIndex((message) => message.role === 'system')
-  const system = systemIndex >= 0 ? source[systemIndex]! : null
-  const rest = systemIndex >= 0 ? source.filter((_, index) => index !== systemIndex) : source
-
-  // Reserve room for the newest user/assistant turn first, then fit system, then older turns.
-  const newest = rest.length ? [{ ...rest[rest.length - 1]! }] : []
-  if (newest[0] && newest[0].content.length > budget) newest[0].content = clipText(newest[0].content, budget)
-  let used = newest.reduce((sum, message) => sum + message.content.length, 0)
-
-  let systemMessage: CompanionChatMessage | null = null
-  if (system) {
-    const remaining = Math.max(0, budget - used)
-    if (remaining > 0) {
-      systemMessage = { role: 'system', content: clipText(system.content, remaining) }
-      used += systemMessage.content.length
-    }
+export function trimCompanionMessages(messages: CompanionChatMessage[], contextChars: number): CompanionChatMessage[] {
+  try {
+    return trimCompanionContext(messages, contextChars)
+  } catch {
+    throw new CompanionModelFailure({ code: 'REQUEST_CONFLICT', message: 'Required model context exceeds budget', retryable: false })
   }
-
-  const older: CompanionChatMessage[] = []
-  for (let i = rest.length - 2; i >= 0; i--) {
-    const item = rest[i]!
-    const remaining = budget - used
-    if (remaining <= 0) break
-    if (item.content.length > remaining) {
-      older.unshift({ role: item.role, content: clipText(item.content, remaining) })
-      used = budget
-      break
-    }
-    older.unshift({ ...item })
-    used += item.content.length
-  }
-  return [...(systemMessage ? [systemMessage] : []), ...older, ...newest]
 }
 
 function withNoThinkHint(messages: CompanionChatMessage[], applyHint: boolean): CompanionChatMessage[] {
@@ -191,7 +161,7 @@ async function invokeCompanionUpstream(
         temperature: input.temperature,
         maxTokens: input.maxTokens,
         think: input.think,
-        keepAlive: profile.keepAlive,
+        keepAlive: COMPANION_KEEP_ALIVE,
         timeoutMs: input.timeoutMs,
         token,
         signal: input.signal,
@@ -268,6 +238,7 @@ function emit(onEvent: ((event: CompanionModelEvent) => void) | undefined, event
  * Parent `/api/game-agent/model` should call this for companion-* and may also use it for control.
  */
 export async function completeCompanionModel(profile: GameAgentProfile, input: CompleteCompanionModelInput): Promise<GameAgentMessage> {
+  const contextStarted = performance.now()
   const capabilities = inspectCompanionCapabilities(profile, input.model)
   const resourceKey = capabilities.resourceKey || companionResourceKey(profile, input.model)
   const priority = input.priority || purposePriority(input.purpose)
@@ -279,15 +250,17 @@ export async function completeCompanionModel(profile: GameAgentProfile, input: C
     firstTokenTimeoutMs: input.firstTokenTimeoutMs ?? defaults.firstTokenTimeoutMs,
   }
   const thinking = resolveCompanionThinking(capabilities, input.think === true ? false : true)
+  const applyNoThinkHint = thinking.mode === 'prompt_hint_only' && thinking.requested
   const messages = withNoThinkHint(
-    trimMessages(
+    trimCompanionMessages(
       input.messages
         .filter((message) => message.role === 'system' || message.role === 'user' || message.role === 'assistant')
         .map((message) => ({ role: message.role as 'system' | 'user' | 'assistant', content: message.content })),
-      budgets.contextChars
+      budgets.contextChars - (applyNoThinkHint ? '/no_think\n'.length : 0)
     ),
-    thinking.mode === 'prompt_hint_only' && thinking.requested
+    applyNoThinkHint
   )
+  const contextMs = performance.now() - contextStarted
 
   emit(input.onEvent, { type: 'accepted', requestId: input.requestId, resourceKey, capabilities, conversationKey: input.conversationKey })
 
@@ -295,18 +268,67 @@ export async function completeCompanionModel(profile: GameAgentProfile, input: C
   let partial = ''
   let deltaSeq = 0
   let firstTokenMs: number | undefined
+  let queueMs: number | undefined
+  let generationStarted: number | undefined
+  let startup: { residency?: CompanionModelStatus['residency']; startupMs: number; startupLoadMs?: number } = { startupMs: 0 }
+  const startupAllowance = profile.provider === 'ollama' && !['companion-tactic-quick', 'companion-tactic-deep', 'control'].includes(input.purpose) ? COMPANION_MODEL_STARTUP_MS : 0
+  const diagnostic = (phase: string, meta?: Record<string, unknown>) =>
+    appendLog({
+      source: 'companion-model',
+      level: phase === 'failed' ? 'warn' : 'info',
+      message: `Model ${phase}`,
+      meta: { requestId: input.requestId, model: input.model, purpose: input.purpose, resourceKey, ...meta },
+    })
+  diagnostic('accepted')
   try {
     const result = await scheduleCompanionResource({
       resourceKey,
       requestId: input.requestId,
+      instanceId: (() => {
+        try {
+          const key: unknown = JSON.parse(input.conversationKey ?? '')
+          return Array.isArray(key) && typeof key[1] === 'string' ? key[1].slice(0, 160) : undefined
+        } catch {
+          return undefined
+        }
+      })(),
       priority,
       signal: input.signal,
-      totalTimeoutMs: budgets.totalTimeoutMs,
-      onQueued: (position) => emit(input.onEvent, { type: 'queued', requestId: input.requestId, resourceKey, position, priority }),
+      totalTimeoutMs: budgets.totalTimeoutMs + startupAllowance,
+      queueTimeoutMs: budgets.totalTimeoutMs,
+      onQueued: (position) => {
+        diagnostic('queued', { position })
+        emit(input.onEvent, { type: 'queued', requestId: input.requestId, resourceKey, position, priority })
+      },
       run: async (slotSignal) => {
         const waitedMs = Date.now() - waitedFrom
+        queueMs = waitedMs
         const remaining = Math.max(1, budgets.totalTimeoutMs - waitedMs)
-        const timeoutSignal = AbortSignal.timeout(remaining)
+        if (profile.provider === 'ollama') {
+          const startupStarted = Date.now()
+          try {
+            startup = await prepareCompanionOllama({
+              endpoint: profile.endpoint,
+              model: input.model,
+              token: readGameAgentToken(profile.id),
+              fetcher: ollamaFetch(profile),
+              signal: startupAllowance ? slotSignal : AbortSignal.any([slotSignal, AbortSignal.timeout(remaining)]),
+              onStatus: (status) => {
+                startup = { ...startup, residency: status.residency }
+                diagnostic(status.phase, { ...status, queueMs: waitedMs })
+                emit(input.onEvent, { type: 'model.status', requestId: input.requestId, ...status })
+              },
+            })
+          } finally {
+            startup.startupMs = Date.now() - startupStarted
+          }
+        }
+        slotSignal.throwIfAborted()
+        if (input.purpose === 'companion-warmup') {
+          return { waitedMs, generationMs: 0, message: { role: 'assistant' as const, content: '' }, mode: 'whole' as const }
+        }
+        const generationRemaining = startupAllowance ? remaining : Math.max(1, remaining - startup.startupMs)
+        const timeoutSignal = AbortSignal.timeout(generationRemaining)
         const combined = AbortSignal.any([slotSignal, timeoutSignal, input.signal].filter(Boolean) as AbortSignal[])
         emit(input.onEvent, {
           type: 'started',
@@ -330,6 +352,7 @@ export async function completeCompanionModel(profile: GameAgentProfile, input: C
         const upstreamSignal = AbortSignal.any([combined, firstTokenController.signal])
 
         try {
+          generationStarted = Date.now()
           const upstream = await invokeCompanionUpstream(profile, {
             model: input.model,
             messages,
@@ -338,7 +361,7 @@ export async function completeCompanionModel(profile: GameAgentProfile, input: C
             format: input.format,
             temperature: input.temperature ?? (input.purpose === 'companion-chat' ? profile.temperature : 0),
             maxTokens: budgets.maxOutputTokens,
-            timeoutMs: remaining,
+            timeoutMs: generationRemaining,
             signal: upstreamSignal,
             conversationKey: input.conversationKey,
             onDelta: (text) => {
@@ -355,7 +378,7 @@ export async function completeCompanionModel(profile: GameAgentProfile, input: C
             },
           })
           // Whole-response providers never synthesize onDelta chunks.
-          return { waitedMs, message: upstream.message, mode: upstream.mode }
+          return { waitedMs, generationMs: Date.now() - generationStarted, message: upstream.message, mode: upstream.mode }
         } finally {
           if (firstTokenTimer) clearTimeout(firstTokenTimer)
         }
@@ -363,6 +386,18 @@ export async function completeCompanionModel(profile: GameAgentProfile, input: C
     })
 
     const text = result.message.content || ''
+    const loadMs = result.message.timing?.loadDurationNs === undefined ? undefined : result.message.timing.loadDurationNs / 1_000_000
+    diagnostic('completed', {
+      totalMs: Date.now() - waitedFrom,
+      contextMs,
+      queueMs: result.waitedMs,
+      ...startup,
+      generationMs: result.generationMs,
+      firstTokenMs,
+      loadMs,
+      timing: result.message.timing,
+      usage: result.message.usage,
+    })
     emit(input.onEvent, {
       type: 'completed',
       requestId: input.requestId,
@@ -373,11 +408,25 @@ export async function completeCompanionModel(profile: GameAgentProfile, input: C
       timing: result.message.timing,
       durationMs: Date.now() - waitedFrom,
       firstTokenMs,
+      contextMs,
+      waitedMs: result.waitedMs,
+      generationMs: result.generationMs,
+      ...startup,
+      loadMs,
       thinking,
     })
     return result.message
   } catch (error) {
     const failure = asFailure(error, input.requestId, resourceKey)
+    diagnostic('failed', {
+      code: failure.error.code,
+      totalMs: Date.now() - waitedFrom,
+      contextMs,
+      queueMs: queueMs ?? Date.now() - waitedFrom,
+      ...startup,
+      generationMs: generationStarted === undefined ? undefined : Date.now() - generationStarted,
+      firstTokenMs,
+    })
     if (failure.error.code === 'CANCELLED') {
       emit(input.onEvent, {
         type: 'cancelled',

@@ -1,5 +1,6 @@
 import type { RuntimeScope } from '../types'
 import { chooseAction } from './action-selector'
+import { type BattleDiagnosticSink, emitBattleDiagnostic } from './diagnostics'
 import { CompanionActionLedger } from './ledger'
 import { CompanionRecordingEmitter } from './recording-emitter'
 import type { BattleRecordEvent } from './recording-types'
@@ -26,8 +27,10 @@ export type CoordinatorOptions = {
   initialTactic?: TacticPlan
   onDispatchIntent?: (intent: ActionIntent, lease: ControlLease) => void
   onRequestDecision?: (ticket: DecisionTicket) => void | Promise<void>
+  onDecisionExhausted?: (reason?: string) => void
   onStatusChange?: (status: CompanionRunStatus) => void
   onRecord?: (event: BattleRecordEvent) => void
+  onDiagnostic?: BattleDiagnosticSink
 }
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
@@ -51,6 +54,10 @@ export class CompanionCoordinator {
   private decisionKey = ''
   private decisionAttempts = 0
   private nextDecisionAt = 0
+  private nextReviewAt = 0
+  private reviewReason: string | null = null
+  private lastCommandId: string | null = null
+  private defensiveRound = { turn: -1, count: 0, guarded: false, other: false }
   public readonly ledger = new CompanionActionLedger()
   private readonly recording: CompanionRecordingEmitter
 
@@ -73,6 +80,22 @@ export class CompanionCoordinator {
   getGoalRevision(): number {
     return this.goalRevision
   }
+  getPlayerConstraints(): PlayerConstraint[] {
+    return clone(this.playerConstraints)
+  }
+  getCurrentAction() {
+    return this.lastCommandId ? this.ledger.getCommand(this.lastCommandId) : undefined
+  }
+  getDecisionContext(ticket: DecisionTicket) {
+    if (!this.latestFrame || JSON.stringify(ticket) !== JSON.stringify(this.pendingDecisionTicket)) return null
+    return clone({
+      reason: ticket.reason,
+      frame: this.latestFrame,
+      tactic: this.tacticPlan,
+      constraints: this.playerConstraints,
+      recentResults: this.recentResults.slice(-12),
+    })
+  }
 
   private setStatus(next: CompanionRunStatus): void {
     if (this.status !== next) {
@@ -87,6 +110,9 @@ export class CompanionCoordinator {
     this.activeLease = { ...lease }
     this.pendingDecisionTicket = null
     this.latestFrame = null
+    this.reviewReason = null
+    this.decisionKey = ''
+    this.defensiveRound = { turn: -1, count: 0, guarded: false, other: false }
     this.setStatus('running')
   }
 
@@ -122,7 +148,9 @@ export class CompanionCoordinator {
   }
 
   addPlayerConstraint(constraint: PlayerConstraint): void {
-    this.playerConstraints.push({ ...constraint })
+    const next = [...this.playerConstraints.filter((existing) => existing.id !== constraint.id), { ...constraint }]
+    if (next.length > 32) throw new Error('PLAYER_CONSTRAINT_LIMIT')
+    this.playerConstraints = next
     this.goalRevision += 1
     this.pendingDecisionTicket = null
   }
@@ -131,6 +159,65 @@ export class CompanionCoordinator {
     this.playerConstraints = []
     this.goalRevision += 1
     this.pendingDecisionTicket = null
+  }
+
+  private select(frame: BattleFrame, excludingCommandId?: string, diagnose = false): ActionSelectionResult {
+    const started = performance.now()
+    const budgetFrame = clone(frame)
+    for (const command of this.ledger.getPendingCommands()) {
+      const intent = command.intent
+      if (command.commandId === excludingCommandId || intent.encounterId !== frame.encounterId || intent.turnCount !== frame.turnCount) continue
+      const actor = budgetFrame.party.find((member) => member.actorId === intent.actorId)
+      if (actor) {
+        actor.mp = Math.max(0, actor.mp - intent.actionOffer.costs.mp)
+        actor.tp = Math.max(0, actor.tp - intent.actionOffer.costs.tp)
+      }
+    }
+    const evaluating = performance.now()
+    const situation = evaluateSituation(budgetFrame, this.recentResults, this.playerConstraints)
+    const choosing = performance.now()
+    const selection = chooseAction(budgetFrame, situation, this.tacticPlan)
+    if (diagnose) {
+      const finished = performance.now()
+      const intent = selection.kind === 'action' ? selection.intent : undefined
+      emitBattleDiagnostic(this.options.onDiagnostic, {
+        at: Date.now(),
+        stamp: frame.stamp,
+        encounterId: frame.encounterId,
+        phase: 'selection',
+        durationMs: finished - started,
+        evaluationMs: choosing - evaluating,
+        selectionMs: finished - choosing,
+        reason: intent?.reason ?? (selection.kind !== 'action' ? selection.reason : 'selected'),
+        commandId: intent?.commandId,
+        opportunityId: frame.opportunity?.opportunityId,
+        tacticRevision: this.tacticPlan.revision,
+        controlGeneration: this.activeLease?.generation,
+        ruleId: intent?.appliedRuleId,
+      })
+    }
+    return selection
+  }
+
+  validateIntent(intent: ActionIntent, frame: BattleFrame): boolean {
+    if (!active(this.status) || frame.opportunity?.opportunityId !== intent.opportunityId || contextKey(frame) !== this.observedContext) return false
+    const selection = this.select(frame, intent.commandId)
+    if (
+      selection.kind !== 'action' ||
+      JSON.stringify(selection.intent.actionOffer) !== JSON.stringify(intent.actionOffer) ||
+      JSON.stringify(selection.intent.target) !== JSON.stringify(intent.target)
+    )
+      return false
+    const refreshed = {
+      ...intent,
+      tacticRevision: selection.intent.tacticRevision,
+      appliedRuleId: selection.intent.appliedRuleId,
+      appliedRuleSignature: selection.intent.appliedRuleSignature,
+      reason: selection.intent.reason,
+    }
+    if (!this.ledger.refreshPlannedIntent(refreshed)) return false
+    Object.assign(intent, refreshed)
+    return true
   }
 
   onFrameUpdate(input: BattleFrame, allowDispatch = true): ActionSelectionResult | null {
@@ -149,10 +236,34 @@ export class CompanionCoordinator {
       this.recentResults = []
       this.occupied.clear()
       this.retryAfter.clear()
+      this.reviewReason = null
+      this.defensiveRound = { turn: -1, count: 0, guarded: false, other: false }
     }
     this.observedContext = contextKey(frame)
     this.previousEncounter = { id: frame.encounterId, turn: frame.turnCount }
+    const previousFrame = this.latestFrame
     this.latestFrame = frame
+    // MV/MZ can increment the turn while the last actor's confirmation is still settling.
+    // Keep that input round open until the next command phase so its commitment is counted.
+    if ((frame.phase === 'party_command' || frame.phase === 'actor_command') && this.defensiveRound.turn !== frame.turnCount) {
+      const previous = this.defensiveRound
+      const count = frame.turnCount === previous.turn + 1 && previous.guarded && !previous.other ? previous.count + 1 : 0
+      this.defensiveRound = { turn: frame.turnCount, count, guarded: false, other: false }
+      if (count >= 3) this.reviewReason = 'repeated_emergency_guard'
+    }
+    if (this.pendingDecisionTicket && Date.now() >= this.pendingDecisionTicket.expiresAt) this.pendingDecisionTicket = null
+    if (previousFrame?.encounterId === frame.encounterId) {
+      if (
+        frame.party.some((member) => {
+          const previous = previousFrame.party.find((candidate) => candidate.actorId === member.actorId)
+          return previous && previous.hp > 0 && (member.isDead || previous.hp - member.hp >= member.hpMax * 0.25)
+        })
+      )
+        this.reviewReason = 'sudden_party_damage'
+      else if (frame.enemies.some((enemy) => !previousFrame.enemies.some((previous) => previous.instanceId === enemy.instanceId && previous.enemyId === enemy.enemyId))) {
+        this.reviewReason = 'enemy_composition_changed'
+      }
+    }
     if (!this.activeLease || !this.options.arbiter.isCurrent(this.activeLease)) {
       this.activeLease = null
       this.pendingDecisionTicket = null
@@ -186,6 +297,11 @@ export class CompanionCoordinator {
       this.setStatus('waiting_game')
       return null
     }
+    if (this.defensiveRound.count >= 6) {
+      this.options.onDecisionExhausted?.('连续多个回合仅执行保命防御，尚未找到可继续推进的战术，已暂停托管。')
+      this.pause()
+      return null
+    }
     if (!allowDispatch || !frame.opportunity) return null
     if (this.ledger.getPendingCommands().length >= 128) {
       this.setStatus('waiting_game')
@@ -194,13 +310,20 @@ export class CompanionCoordinator {
     const key = this.opportunityKey(frame)
     if (this.occupied.has(key) || Date.now() < (this.retryAfter.get(key) || 0)) return null
 
-    const selection = chooseAction(frame, evaluateSituation(frame, this.recentResults, this.playerConstraints), this.tacticPlan)
+    const selection = this.select(frame, undefined, true)
     if (selection.kind === 'action') {
       this.setStatus('running')
+      if (this.reviewReason && Date.now() >= this.nextReviewAt && !this.pendingDecisionTicket) {
+        this.nextReviewAt = Date.now() + 20_000
+        this.checkAndTriggerDecision(frame, this.reviewReason, 'deep')
+        this.reviewReason = null
+      }
       selection.intent.encounterId = frame.encounterId
+      selection.intent.turnCount = frame.turnCount
       // Reserve before invoking callbacks, including the uncertain-confirmation path.
       this.occupied.set(key, { commandId: selection.intent.commandId, turn: frame.turnCount })
       this.ledger.recordPlanned(selection.intent)
+      this.lastCommandId = selection.intent.commandId
       this.recording.planned(selection.intent, frame.stamp.scope)
       try {
         this.options.onDispatchIntent?.(clone(selection.intent), { ...this.activeLease })
@@ -220,10 +343,11 @@ export class CompanionCoordinator {
     return `${contextKey(frame)}:${frame.opportunity?.opportunityId}`
   }
 
-  private checkAndTriggerDecision(frame: BattleFrame, reason: string): void {
+  private checkAndTriggerDecision(frame: BattleFrame, reason: string, mode: 'quick' | 'deep' = 'quick'): void {
+    if (this.pendingDecisionTicket && Date.now() < this.pendingDecisionTicket.expiresAt) return
     const key = JSON.stringify([
       contextKey(frame),
-      frame.opportunity?.opportunityId,
+      mode === 'quick' ? frame.opportunity?.opportunityId : 'encounter',
       frame.capabilitiesRevision,
       frame.decisionVersions,
       this.goalRevision,
@@ -236,8 +360,11 @@ export class CompanionCoordinator {
       this.nextDecisionAt = 0
       this.pendingDecisionTicket = null
     }
-    if (this.pendingDecisionTicket && Date.now() < this.pendingDecisionTicket.expiresAt) return
-    if (Date.now() < this.nextDecisionAt || this.decisionAttempts >= 3 || !this.options.onRequestDecision) return
+    if (Date.now() < this.nextDecisionAt || !this.options.onRequestDecision) return
+    if (this.decisionAttempts >= 3) {
+      if (mode === 'quick') this.options.onDecisionExhausted?.()
+      return
+    }
 
     this.decisionAttempts += 1
     this.decisionGeneration += 1
@@ -251,12 +378,17 @@ export class CompanionCoordinator {
       decisionGeneration: this.decisionGeneration,
       capabilitiesRevision: frame.capabilitiesRevision,
       ...frame.decisionVersions,
-      expiresAt: Date.now() + 15_000,
-      dependencies: [
-        { name: 'phase', expected: frame.phase },
-        { name: 'encounterId', expected: frame.encounterId },
-        { name: 'opportunityId', expected: frame.opportunity?.opportunityId || '' },
-      ],
+      expiresAt: Date.now() + (mode === 'deep' ? 30_000 : 8_000),
+      mode,
+      reason,
+      dependencies:
+        mode === 'quick'
+          ? [
+              { name: 'phase', expected: frame.phase },
+              { name: 'encounterId', expected: frame.encounterId },
+              { name: 'opportunityId', expected: frame.opportunity?.opportunityId || '' },
+            ]
+          : [{ name: 'encounterId', expected: frame.encounterId }],
     }
     this.pendingDecisionTicket = ticket
     this.nextDecisionAt = ticket.expiresAt + 1000 * this.decisionAttempts
@@ -326,6 +458,14 @@ export class CompanionCoordinator {
     const command = this.ledger.getCommand(commandId)
     if (!command || !this.ledger.recordCommitted(commandId)) return
     this.recording.committed(command.intent, this.ledger.getCommand(commandId)!.committedAt!)
+    const intent = command.intent
+    if (intent.actorId !== undefined && intent.encounterId === this.latestFrame?.encounterId && intent.turnCount === this.defensiveRound.turn) {
+      if (intent.actionOffer.kind === 'guard' && (!intent.appliedRuleId || intent.appliedRuleId === 'default_self_preserve_guard')) this.defensiveRound.guarded = true
+      else {
+        this.defensiveRound.other = true
+        this.defensiveRound.count = 0
+      }
+    }
     if (command.intent.encounterId) this.ledger.incrementCommandsCommitted(command.intent.encounterId)
     const next = consumeTactic(this.tacticPlan, command.intent)
     if (next !== this.tacticPlan) this.pendingDecisionTicket = null
@@ -333,12 +473,29 @@ export class CompanionCoordinator {
   }
 
   onCommandResult(result: ObservedActionResult, scope?: RuntimeScope): void {
+    const started = performance.now()
     this.recording.result(result, scope)
     if (!this.ledger.ingestResult(result)) return
     // A correlated result is also proof that this command was committed.
     if (result.commandId) {
       this.onCommandCommitted(result.commandId)
       this.ledger.recordObserved(result.commandId, result)
+    }
+    const command = result.commandId ? this.ledger.getCommand(result.commandId) : undefined
+    const frame = this.latestFrame
+    if (frame && (!result.encounterId || result.encounterId === frame.encounterId) && (!scope || JSON.stringify(scope) === JSON.stringify(frame.stamp.scope))) {
+      emitBattleDiagnostic(this.options.onDiagnostic, {
+        at: Date.now(),
+        stamp: frame.stamp,
+        encounterId: frame.encounterId,
+        phase: 'result',
+        durationMs: performance.now() - started,
+        reason: command ? 'command_correlated' : 'unattributed_result',
+        commandId: result.commandId,
+        resultId: result.resultId,
+        tacticRevision: command?.intent.tacticRevision,
+        ruleId: command?.intent.appliedRuleId,
+      })
     }
     if (result.encounterId && result.encounterId !== this.latestFrame?.encounterId) return
     this.recentResults.push({ ...result })

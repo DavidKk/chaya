@@ -26,6 +26,27 @@ describe('asynchronous recording writer', () => {
   beforeEach(() => jest.useFakeTimers())
   afterEach(() => jest.useRealTimers())
 
+  it('measures an asynchronous durable acknowledgement without blocking enqueue', async () => {
+    const commit = deferred()
+    const writer = new CompanionRecordingWriter({
+      loadSnapshot: async () => emptyMemorySnapshot(),
+      commitBatch: async () => commit.promise,
+    })
+    await writer.ready()
+    expect(writer.enqueue(event())).toBe(true)
+    const flushing = writer.flush()
+    await jest.advanceTimersByTimeAsync(125)
+    expect(writer.getStatus()).toMatchObject({ pending: 1 })
+    expect(writer.getStatus().lastCommit).toBeUndefined()
+    commit.resolve()
+    await flushing
+    expect(writer.getStatus()).toMatchObject({
+      pending: 0,
+      lastCommit: { events: 1, durationMs: 125, outcome: 'committed' },
+    })
+    await writer.close()
+  })
+
   it('does not block ordinary actions while storage is unavailable or before its initial load', async () => {
     const backend = {
       loadSnapshot: jest.fn(async (): Promise<MemoryStoreSnapshot> => {

@@ -7,6 +7,7 @@ export type ManagementAction = { action: 'clear'; preferences?: boolean } | { ac
 /** Keeps ambiguous retries on the original CAS request; a new operation cannot silently replace one. */
 export class MemoryManagementSession {
   blocked = false
+  requiresSynchronization = false
   private active = false
   private pending?: MemoryManagementRequest
   private requests = new Map<string, MemoryManagementRequest>()
@@ -19,6 +20,7 @@ export class MemoryManagementSession {
   synchronized(): void {
     this.pending = undefined
     this.blocked = false
+    this.requiresSynchronization = false
   }
 
   async run(
@@ -47,6 +49,14 @@ export class MemoryManagementSession {
     try {
       await execute(request)
       this.synchronized()
+    } catch (error) {
+      if ((error as { code?: string } | null)?.code === 'MEMORY_EPOCH_CHANGED') {
+        // A definitive CAS rejection must not pin retries to a stale request.
+        this.pending = undefined
+        this.requests.delete(request.requestId)
+        this.requiresSynchronization = true
+      }
+      throw error
     } finally {
       this.active = false
     }

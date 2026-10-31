@@ -252,6 +252,80 @@ describe('ChayaAgent handlers', () => {
     }
   })
 
+  it('waits for actual engine samples when rendering is slower than the guarded press and release delays', async () => {
+    jest.useFakeTimers()
+    const originalWindow = g.window
+    const originalDocument = g.document
+    const originalSceneManager = g.SceneManager
+    g.window = globalThis
+    g.document = { title: 'Game', body: { innerText: '' } }
+    const input = { _currentState: {} as Record<string, boolean>, _previousState: {} as Record<string, boolean> }
+    g.Input = input
+    g.SceneManager = { _scene: { constructor: { name: 'Scene_Battle' } } }
+    try {
+      const state = (await runAgentCommand({ id: 'state', method: 'game.state', params: {} })) as { controlToken: string }
+      const done = runAgentCommand({
+        id: 'press',
+        method: 'input.press',
+        params: { key: 'ok', frames: 3, guard: { controlToken: state.controlToken, allowedEffects: ['unknown'] } },
+      })
+      let settled = false
+      void done.then(() => {
+        settled = true
+      })
+      await jest.advanceTimersByTimeAsync(80)
+      expect(input._currentState.ok).toBe(true)
+      expect(settled).toBe(false)
+      input._previousState.ok = true
+      await jest.advanceTimersByTimeAsync(60)
+      expect(input._currentState.ok).toBe(false)
+      expect(settled).toBe(false)
+      input._previousState.ok = false
+      await jest.advanceTimersByTimeAsync(17)
+      await expect(done).resolves.toMatchObject({ key: 'ok', frames: 3 })
+    } finally {
+      if (originalWindow === undefined) delete g.window
+      else g.window = originalWindow
+      if (originalDocument === undefined) delete g.document
+      else g.document = originalDocument
+      if (originalSceneManager === undefined) delete g.SceneManager
+      else g.SceneManager = originalSceneManager
+      jest.useRealTimers()
+    }
+  })
+
+  it('releases a guarded key and fails when the engine never samples it', async () => {
+    jest.useFakeTimers()
+    const originalWindow = g.window
+    const originalDocument = g.document
+    const originalSceneManager = g.SceneManager
+    g.window = globalThis
+    g.document = { title: 'Game', body: { innerText: '' } }
+    const input = { _currentState: {} as Record<string, boolean>, _previousState: {} as Record<string, boolean> }
+    g.Input = input
+    g.SceneManager = { _scene: { constructor: { name: 'Scene_Battle' } } }
+    try {
+      const state = (await runAgentCommand({ id: 'state', method: 'game.state', params: {} })) as { controlToken: string }
+      const done = runAgentCommand({
+        id: 'press',
+        method: 'input.press',
+        params: { key: 'ok', frames: 3, guard: { controlToken: state.controlToken, allowedEffects: ['unknown'] } },
+      })
+      const failed = expect(done).rejects.toThrow('INPUT_NOT_OBSERVED')
+      await jest.advanceTimersByTimeAsync(1_100)
+      await failed
+      expect(input._currentState.ok).toBe(false)
+    } finally {
+      if (originalWindow === undefined) delete g.window
+      else g.window = originalWindow
+      if (originalDocument === undefined) delete g.document
+      else g.document = originalDocument
+      if (originalSceneManager === undefined) delete g.SceneManager
+      else g.SceneManager = originalSceneManager
+      jest.useRealTimers()
+    }
+  })
+
   it('rejects a guarded choice and a stale selection before dispatching input', async () => {
     const originalDocument = g.document
     const scene = {
@@ -272,6 +346,37 @@ describe('ChayaAgent handlers', () => {
       else g.document = originalDocument
       delete g.SceneManager
       delete g.$gameMessage
+    }
+  })
+
+  it.each(['_helpWindow', '_logWindow', '_nameBoxWindow'])('classifies skill confirmation with the passive %s active', async (name) => {
+    jest.useFakeTimers()
+    const originals = { document: g.document, window: g.window, SceneManager: g.SceneManager }
+    g.document = { title: 'Game', body: { innerText: '' } }
+    g.window = globalThis
+    g.Input = { _currentState: {} }
+    g.SceneManager = {
+      _scene: {
+        constructor: { name: 'Scene_Battle' },
+        [name]: { visible: true, openness: 255, active: true },
+        _skillWindow: { visible: true, openness: 255, active: true, _index: 0 },
+      },
+    }
+    try {
+      const state = readAgentGameState()
+      const done = runAgentCommand({
+        id: 'skill',
+        method: 'input.press',
+        params: { key: 'ok', frames: 3, guard: { controlToken: state.controlToken, allowedEffects: ['spend_resource'] } },
+      })
+      await jest.advanceTimersByTimeAsync(100)
+      await expect(done).resolves.toMatchObject({ key: 'ok' })
+    } finally {
+      for (const [key, value] of Object.entries(originals)) {
+        if (value === undefined) delete g[key]
+        else g[key] = value
+      }
+      jest.useRealTimers()
     }
   })
 

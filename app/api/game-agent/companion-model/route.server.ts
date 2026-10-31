@@ -1,5 +1,6 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiBadRequest, apiNotFound } from '@/initializer/response'
+import type { CompanionModelMetrics } from '@/lib/game-agent/companion/model-diagnostics'
 import { completeCompanionModel } from '@/services/game-agent/companion-api.server'
 import { CompanionModelFailure, type CompanionModelPurpose } from '@/services/game-agent/companion-types.server'
 import { loadGameAgentSettings, profileById } from '@/services/game-agent/settings'
@@ -17,7 +18,7 @@ export const POST = defineApiRoute('post:/api/game-agent/companion-model', async
     messages?: unknown
     format?: unknown
   } | null
-  const purposes = ['companion-chat', 'companion-route', 'companion-prepare']
+  const purposes = ['companion-chat', 'companion-route', 'companion-warmup', 'companion-prepare', 'companion-tactic-quick', 'companion-tactic-deep']
   if (
     !body ||
     typeof body.requestId !== 'string' ||
@@ -51,6 +52,7 @@ export const POST = defineApiRoute('post:/api/game-agent/companion-model', async
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false
+      let metrics: CompanionModelMetrics | undefined
       const send = (packet: unknown) => {
         if (!closed && !cancel.signal.aborted) controller.enqueue(encoder.encode(`${JSON.stringify(packet)}\n`))
       }
@@ -59,16 +61,29 @@ export const POST = defineApiRoute('post:/api/game-agent/companion-model', async
         model,
         purpose,
         messages,
-        think: false,
+        think: purpose === 'companion-tactic-deep',
         conversationKey: typeof body.conversationKey === 'string' ? body.conversationKey.slice(0, 500) : requestId,
         ...(body.format && typeof body.format === 'object' && !Array.isArray(body.format) ? { format: body.format as Record<string, unknown> } : {}),
         signal: AbortSignal.any([request.signal, cancel.signal]),
         onEvent(event) {
-          if (event.type === 'accepted' || event.type === 'queued' || event.type === 'started' || event.type === 'delta') send(event)
+          if (event.type === 'completed') {
+            metrics = {
+              totalMs: event.durationMs + (event.contextMs ?? 0),
+              contextMs: event.contextMs,
+              queueMs: event.waitedMs,
+              startupMs: event.startupMs,
+              startupLoadMs: event.startupLoadMs,
+              residency: event.residency,
+              loadMs: event.loadMs,
+              generationMs: event.generationMs,
+              firstTokenMs: event.firstTokenMs === undefined ? undefined : event.firstTokenMs + (event.contextMs ?? 0),
+            }
+          }
+          if (event.type === 'accepted' || event.type === 'queued' || event.type === 'started' || event.type === 'delta' || event.type === 'model.status') send(event)
         },
       })
         .then(
-          (message) => send({ type: 'completed', message: { role: 'assistant', content: message.content, usage: message.usage, timing: message.timing } }),
+          (message) => send({ type: 'completed', metrics, message: { role: 'assistant', content: message.content, usage: message.usage, timing: message.timing } }),
           (error) =>
             send({
               type: 'failed',

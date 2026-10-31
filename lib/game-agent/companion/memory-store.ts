@@ -3,6 +3,7 @@
  * MemoryPort-compatible API + ready/flush + write-queue barrier semantics.
  */
 
+import type { ExperienceQuery, ExperienceQueryResult } from './experience-types'
 import { gameRevisionKey } from './memory-durable'
 import { type ActionRingItem, isActionDomainEvent, reduceMemoryInput, toActionRingItem } from './memory-ingest'
 import {
@@ -18,6 +19,7 @@ import {
 } from './memory-limits'
 import { type ManagementAction, MemoryManagementSession } from './memory-management'
 import { buildWriteBatch, enqueuePending, invalidatePendingQueue, type MemoryPendingItem, preferenceStorageKey, usedMemoryBytes } from './memory-queue'
+import { BattleRecordingExperience } from './memory-recording'
 import { episodeStableKey, mergeEpisodeIdempotent, resolveLinkedLoadEpisodes, toLegacyEpisodes, trimQueryText } from './memory-reduce'
 import { MemoryConflictError, MemoryPersistenceError, MemorySchemaError, validateEpisode, validatePreference, validateSaveLink } from './memory-schema'
 import {
@@ -29,6 +31,7 @@ import {
   type MemorySaveLink,
   type MemoryStatus,
   type MemoryStoreSnapshot,
+  type MemoryWriteBatch,
   sameMemoryScope,
 } from './memory-types'
 import type {
@@ -86,6 +89,7 @@ export class GameplayMemoryStore {
   /** False until a successful backend load; prevents empty overwrite after bootstrap failure. */
   private backendWritable = false
   private readonly management = new MemoryManagementSession()
+  private readonly recordingExperience = new BattleRecordingExperience()
   private flushOperation?: Promise<void>
 
   constructor(options?: { maxEpisodes?: number; backend?: MemoryBackend | null }) {
@@ -128,7 +132,7 @@ export class GameplayMemoryStore {
       memoryEpoch: this.memoryEpoch,
       recordingRevision: this.recordingRevision,
       recordingEnabled: this.recordingEnabled,
-      episodeCount: this.episodes.length,
+      episodeCount: this.recordingExperience.merge(this.episodes).length,
       pendingCount: this.pending.length,
       usedBytes: this.usedBytes(),
       persistence: this.persistence,
@@ -214,13 +218,13 @@ export class GameplayMemoryStore {
 
   /** Sync query kept for CompanionPanel / history callers. */
   query(scope: RuntimeScope, filter: MemoryQueryFilter & MemoryQueryOptions = {}): MemoryEpisode[] {
-    const resolved = resolveLinkedLoadEpisodes(this.episodes, this.saveLinks, scope, filter)
+    const resolved = resolveLinkedLoadEpisodes(this.recordingExperience.merge(this.episodes), this.saveLinks, scope, filter)
     return toLegacyEpisodes(trimQueryText(resolved.episodes).episodes)
   }
 
   async queryAsync(scope: RuntimeScope, filter: MemoryQueryFilter & MemoryQueryOptions = {}): Promise<PortMemoryQueryResult> {
     await this.ready()
-    const resolved = resolveLinkedLoadEpisodes(this.episodes, this.saveLinks, scope, filter)
+    const resolved = resolveLinkedLoadEpisodes(this.recordingExperience.merge(this.episodes), this.saveLinks, scope, filter)
     const trimmed = trimQueryText(resolved.episodes)
     return {
       episodes: toLegacyEpisodes(trimmed.episodes),
@@ -231,7 +235,7 @@ export class GameplayMemoryStore {
   }
 
   queryDetailed(scope: RuntimeScope, filter: MemoryQueryFilter & MemoryQueryOptions = {}) {
-    const resolved = resolveLinkedLoadEpisodes(this.episodes, this.saveLinks, scope, filter)
+    const resolved = resolveLinkedLoadEpisodes(this.recordingExperience.merge(this.episodes), this.saveLinks, scope, filter)
     const trimmed = trimQueryText(resolved.episodes)
     return {
       scope,
@@ -241,6 +245,11 @@ export class GameplayMemoryStore {
       origin: resolved.origin || 'current',
       linkedFrom: resolved.linkedFrom || filter.linkedFrom,
     }
+  }
+
+  queryExperiences(scope: RuntimeScope, filter: ExperienceQuery = {}): ExperienceQueryResult {
+    const result = this.recordingExperience.queryExperiences(scope, filter)
+    return this.closed || this.management.blocked ? { ...result, experiences: [] } : result
   }
 
   setPreference(pref: UserPreference | MemoryPreferenceRecord): void {
@@ -341,6 +350,7 @@ export class GameplayMemoryStore {
       return this.getStatus()
     }
     this.memoryEpoch += 1
+    this.recordingExperience.clear(options?.libraryGameId, this.memoryEpoch)
     this.generation += 1
     this.actionRing = []
     this.actionRingBytes = 0
@@ -375,11 +385,19 @@ export class GameplayMemoryStore {
   }
 
   getEpisodes(): MemoryEpisode[] {
-    return toLegacyEpisodes(this.episodes)
+    return toLegacyEpisodes(this.recordingExperience.merge(this.episodes))
   }
 
   getEpisodeRecords(): MemoryEpisodeRecord[] {
-    return [...this.episodes]
+    return this.recordingExperience.merge(this.episodes)
+  }
+
+  /** Called only after the canonical writer receives a durable storage acknowledgement. */
+  acceptCommittedRecording(batch: MemoryWriteBatch): boolean {
+    if (this.closed || this.management.blocked || !this.recordingEnabled || !batch.battleRecording) return false
+    if (batch.memoryEpoch !== this.memoryEpoch || batch.recordingRevision !== this.recordingRevision) return false
+    this.recordingExperience.append(batch.battleRecording.events)
+    return true
   }
 
   loadFromEpisodes(episodes: MemoryEpisode[]): void {
@@ -507,6 +525,7 @@ export class GameplayMemoryStore {
     this.recordingEnabled = snapshot.recordingEnabled !== false
     this.generation = Math.max(1, snapshot.generation || 1)
     this.episodes = (snapshot.episodes || []).map((item) => ({ ...item, persistence: 'committed' as const }))
+    this.recordingExperience.replace(snapshot.battleRecording, this.memoryEpoch)
     this.saveLinks = snapshot.saveLinks || []
     this.preferences.clear()
     for (const pref of snapshot.preferences || []) this.preferences.set(preferenceStorageKey(pref), pref)
@@ -656,6 +675,7 @@ export class GameplayMemoryStore {
   }
 
   private async manageMemory(action: ManagementAction, requestId?: string): Promise<void> {
+    if (this.management.requiresSynchronization) await this.synchronize()
     try {
       await this.management.run(action, { memoryEpoch: this.memoryEpoch, recordingRevision: this.recordingRevision }, requestId, async (request) => {
         this.recordingEnabled = false
@@ -676,6 +696,14 @@ export class GameplayMemoryStore {
         this.persistenceError = undefined
       })
     } catch (error) {
+      if (this.management.requiresSynchronization) {
+        try {
+          await this.synchronize()
+        } catch {
+          // Keep the synchronization fence; the next management call retries it.
+        }
+        throw error
+      }
       this.persistence = 'degraded'
       this.persistenceError = error instanceof Error ? error.message : 'Memory management failed'
       throw error
@@ -730,7 +758,7 @@ export class GameplayMemoryStore {
   }
 
   private usedBytes(): number {
-    return usedMemoryBytes(this.episodes, this.preferences.values(), this.saveLinks, this.pendingBytes, this.actionRingBytes)
+    return usedMemoryBytes(this.episodes, this.preferences.values(), this.saveLinks, this.pendingBytes, this.actionRingBytes) + this.recordingExperience.usedBytes()
   }
 }
 

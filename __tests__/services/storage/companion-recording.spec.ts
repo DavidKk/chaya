@@ -2,7 +2,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { experienceBatch, hpResult } from '@/__tests__/lib/game-agent/companion/experience-fixtures'
 import type { BattleRecordEvent, MemoryManagementRequest } from '@/lib/game-agent/companion/core/recording-types'
+import { createGameplayMemoryStore } from '@/lib/game-agent/companion/memory-store'
 import type { MemoryWriteBatch } from '@/lib/game-agent/companion/memory-types'
 import { openCompanionMemoryDb } from '@/services/game-agent/companion-memory-db'
 import { createCompanionSqliteStore } from '@/services/storage/companion-store'
@@ -49,6 +51,124 @@ describe('durable companion recording', () => {
   afterEach(() => {
     connection.db.$client.close()
     fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  it('reopens canonical evidence as a retrievable experience without persisting duplicate legacy rows', async () => {
+    const action: BattleRecordEvent = {
+      ...start(),
+      kind: 'action_result',
+      eventId: 'r1',
+      result: {
+        resultId: 'r1',
+        actionId: 'a1',
+        observedAt: 12,
+        targetKind: 'enemy',
+        targetId: 10,
+        evidence: {
+          actionId: 'a1',
+          resultId: 'r1',
+          source: { kind: 'actor', id: 1 },
+          target: { kind: 'enemy', id: 10, instance: 'enemy:0' },
+          ability: { kind: 'skill', id: 3 },
+          hpBefore: null,
+          hpAfter: null,
+          reportedHpDamage: 5,
+          attribution: 'observed_action',
+        },
+      },
+    }
+    store.commit('game-a', batch('experience', [start(), action, finish()]))
+    connection.db.$client.close()
+    connection = openCompanionMemoryDb(path.join(root, 'companion.sqlite'))
+    store = createCompanionSqliteStore(connection.db)
+    const memory = createGameplayMemoryStore({
+      backend: {
+        ready: async () => {},
+        flush: async () => {},
+        loadSnapshot: async () => store.load('game-a'),
+        commitBatch: async (value) => {
+          store.commit('game-a', value)
+        },
+        clearQueueBarrier: async () => {},
+      },
+    })
+    await memory.ready()
+    const query = memory.queryDetailed(scope, { enemyIds: [10], skillIds: [3] })
+    expect(query.episodes).toEqual([
+      expect.objectContaining({ persistence: 'committed', outcome: 'win', completeness: 'partial', evidence: [expect.objectContaining({ hpBefore: null, hpAfter: null })] }),
+    ])
+    const episodeId = query.episodes[0].episodeId
+    expect(memory.acceptCommittedRecording(batch('retry', [action, finish()]))).toBe(true)
+    expect(memory.queryDetailed(scope).episodes).toEqual([expect.objectContaining({ episodeId })])
+    expect(memory.queryDetailed({ ...scope, playthroughId: 'other' }).episodes).toEqual([])
+    expect(memory.queryExperiences(scope).experiences).toEqual([])
+    expect(store.load('game-a').episodes).toEqual([])
+    expect(store.load('game-a').battleRecording!.statistics[0]).toMatchObject({ encounters: 1, win: 1 })
+    await memory.close()
+  })
+
+  it('rebuilds conditional HP experience from SQLite evidence and clears it under the same durable barrier', async () => {
+    const events = [0, 1, 2].map((i) => hpResult(i, {}, { scope }))
+    const recorded = experienceBatch(events)
+    store.commit('game-a', recorded)
+    connection.db.$client.close()
+    connection = openCompanionMemoryDb(path.join(root, 'companion.sqlite'))
+    store = createCompanionSqliteStore(connection.db)
+    const memory = createGameplayMemoryStore({
+      backend: {
+        ready: async () => {},
+        flush: async () => {},
+        loadSnapshot: async () => store.load('game-a'),
+        commitBatch: async (value) => {
+          store.commit('game-a', value)
+        },
+        clearQueueBarrier: async () => {},
+        manage: async (request) => {
+          store.manage('game-a', request)
+          return store.load('game-a')
+        },
+      },
+    })
+    try {
+      await memory.ready()
+      const before = memory.queryExperiences(scope)
+      expect(before.experiences[0]).toMatchObject({ status: 'conditionally_supported', sampleActions: 3, sampleEncounters: 2, hpLoss: { min: 10, max: 10 } })
+      store.commit('game-a', { ...recorded, batchId: 'retry' })
+      expect(memory.acceptCommittedRecording(recorded)).toBe(true)
+      expect(memory.queryExperiences(scope)).toEqual(before)
+      await memory.setRecording(false)
+      expect(memory.queryExperiences(scope)).toEqual(before)
+      expect(() => store.commit('game-a', { ...experienceBatch([hpResult(3, {}, { scope })], 1, 2), batchId: 'disabled-write' })).toThrow('disabled')
+      await memory.clearMemory()
+      expect(memory.queryExperiences(scope)).toMatchObject({ memoryEpoch: 2, experiences: [] })
+      expect(memory.acceptCommittedRecording(recorded)).toBe(false)
+      expect(store.load('game-a').battleRecording!.recentEvents).toEqual([])
+    } finally {
+      await memory.close()
+    }
+  })
+
+  it('reads management state across connections without loading history and preserves it after reopen', () => {
+    const initial = { memoryEpoch: 1, recordingRevision: 1, recordingEnabled: true }
+    expect(store.state('game-a')).toEqual(initial)
+    const second = openCompanionMemoryDb(path.join(root, 'companion.sqlite'))
+    try {
+      const other = createCompanionSqliteStore(second.db)
+      store.commit('game-a', batch('a', [start()]))
+      expect(other.state('game-a')).toEqual(initial)
+      const disabled = store.manage('game-a', management('disable', { action: 'set_recording', enabled: false }))
+      expect(other.state('game-a')).toEqual(disabled)
+      const cleared = other.manage('game-a', management('clear', { action: 'clear' }, disabled.memoryEpoch, disabled.recordingRevision))
+      expect(store.state('game-a')).toEqual(cleared)
+      expect(store.state('game-b')).toEqual(initial)
+      expect(() => store.commit('game-a', batch('stale', [finish()]))).toThrow('version changed')
+      connection.db.$client.close()
+      connection = openCompanionMemoryDb(path.join(root, 'companion.sqlite'))
+      store = createCompanionSqliteStore(connection.db)
+      expect(store.state('game-a')).toEqual(cleared)
+    } finally {
+      second.db.$client.close()
+    }
   })
 
   it('deduplicates batch and source retries, upgrades unknown once, and accepts outcome before start', () => {

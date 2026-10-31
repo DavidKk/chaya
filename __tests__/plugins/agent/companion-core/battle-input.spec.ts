@@ -32,7 +32,8 @@ test('dispatches ordinary guarded input with the shared lease owner and rechecks
   const port = createBattleNavigationPort(arbiter, battleFrame, jest.fn())
   const input = (await port.readInput())!
   expect(input.options).toMatchObject([{ symbol: 'attack', enabled: true }])
-  await port.press('ok', input, lease)
+  const beforeDispatch = jest.fn()
+  await port.press('ok', input, lease, beforeDispatch)
   expect(runAgentCommand).toHaveBeenLastCalledWith(
     {
       id: 'companion-input',
@@ -47,9 +48,15 @@ test('dispatches ordinary guarded input with the shared lease owner and rechecks
         },
       },
     },
-    { inputOwner: 'companion' }
+    { inputOwner: 'companion', control: { arbiter, lease }, beforeInput: expect.any(Function) }
   )
+  const options = jest.mocked(runAgentCommand).mock.calls.at(-1)![1]!
+  expect(beforeDispatch).not.toHaveBeenCalled()
+  options.beforeInput!()
+  expect(beforeDispatch).toHaveBeenCalledTimes(1)
   arbiter.revoke(lease, 'manual_takeover')
+  expect(() => options.beforeInput!()).toThrow()
+  expect(beforeDispatch).toHaveBeenCalledTimes(1)
   await expect(port.press('ok', input, lease)).rejects.toThrow()
   expect(runAgentCommand).toHaveBeenCalledTimes(2)
 })
@@ -66,6 +73,29 @@ test.each(['message', 'troop event', 'scene busy', 'battle busy', 'custom window
   if (kind === 'multiple windows') scene._skillWindow = { active: true }
   const port = createBattleNavigationPort(createControlArbiter(), battleFrame, jest.fn())
   expect(await port.readInput()).toBeNull()
+})
+
+test.each([0, 32, 224])('waits for an active command window to finish opening from %s', async (openness) => {
+  const win = scene._actorCommandWindow as Record<string, unknown>
+  win.openness = openness
+  const port = createBattleNavigationPort(createControlArbiter(), battleFrame, jest.fn())
+  expect(await port.readInput()).toBeNull()
+  win.openness = 255
+  expect((await port.readInput())?.kind).toBe('command')
+})
+
+test('waits while the real engine suspends scene updates without focus', async () => {
+  ;(world.SceneManager as Record<string, unknown>).isGameActive = () => false
+  const port = createBattleNavigationPort(createControlArbiter(), battleFrame, jest.fn())
+  expect(await port.readInput()).toBeNull()
+})
+
+test.each(['_helpWindow', '_logWindow', '_nameBoxWindow'])('allows the standard passive %s alongside a skill list', async (name) => {
+  delete scene._actorCommandWindow
+  scene[name] = { active: true, visible: true, openness: 255 }
+  scene._skillWindow = { active: true, _index: 0, _data: [{ id: 10 }], isEnabled: () => true }
+  const port = createBattleNavigationPort(createControlArbiter(), battleFrame, jest.fn())
+  expect((await port.readInput())?.kind).toBe('skill')
 })
 
 test('preserves disabled command options and checks skill usability', async () => {

@@ -30,6 +30,20 @@ export function installBattleResultHook(
       hpRecovery: delta !== null && delta < 0 ? -delta : undefined,
       isKnockout: event.hpBefore !== null && event.hpBefore > 0 && event.hpAfter === 0,
       observedAt: event.at,
+      evidence: {
+        actionId: event.actionId,
+        resultId: event.resultId,
+        source: event.source,
+        target: event.target,
+        ability: event.ability,
+        hpBefore: event.hpBefore,
+        hpAfter: event.hpAfter,
+        reportedHpDamage: event.reportedHpDamage,
+        hpMax: event.hpMax,
+        stateIdsBefore: event.stateIdsBefore,
+        stateIdsAfter: event.stateIdsAfter,
+        attribution: event.attribution,
+      },
     })
   })
 }

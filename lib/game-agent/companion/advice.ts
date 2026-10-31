@@ -3,6 +3,7 @@
  * Names and evidence come from persisted facts; unknown mechanics stay conditional.
  */
 
+import type { HpExperience } from './experience-types'
 import type { AdviceContext, CompletenessKind, FactLegalAction, FactView, KnownMechanics, MemoryEpisode, StructuredOutputBlock } from './types'
 
 export type ValidatedChatPayload = {
@@ -21,7 +22,7 @@ const RANK: Record<CompletenessKind, number> = {
   complete_for_claim: 2,
 }
 
-export function buildAdviceContext(input: { facts: FactView; episodes: MemoryEpisode[]; knownGaps?: string[] }): AdviceContext {
+export function buildAdviceContext(input: { facts: FactView; episodes: MemoryEpisode[]; experiences?: HpExperience[]; knownGaps?: string[] }): AdviceContext {
   const { facts } = input
   return {
     stamp: facts.stamp,
@@ -30,6 +31,7 @@ export function buildAdviceContext(input: { facts: FactView; episodes: MemoryEpi
     legalActions: facts.current.legalActions.value ?? [],
     knownMechanics: facts.mechanics,
     historicalEpisodes: input.episodes.slice(0, 3),
+    historicalExperiences: input.experiences?.slice(0, 3),
     knownGaps: input.knownGaps ?? collectKnownGaps(facts),
     spoilerFilterApplied: facts.mechanics.spoilerFilterApplied,
   }
@@ -133,6 +135,15 @@ function trustedProse(text: string): string {
 }
 
 function degradeStructuredChat(context: AdviceContext, locale: string): ValidatedChatPayload {
+  const experience = context.historicalExperiences?.[0]
+  if (experience) {
+    return {
+      text: '',
+      blocks: [{ kind: 'experience_ref', experienceId: experience.experienceId, summary: experience.summary }],
+      degraded: true,
+      mode: 'structured',
+    }
+  }
   const episode = context.historicalEpisodes[0]
   return {
     text: episodeEvidenceSummary(context.historicalEpisodes, locale),
@@ -201,7 +212,7 @@ function validateSkillAdvice(raw: Record<string, unknown>, context: AdviceContex
 
 /** Plain chat that smuggles experience / skill claims without structure is rejected. */
 export function plainTextLooksGrounded(text: string): boolean {
-  return /(episodeId|evidence_ref|skill_advice|上次|击倒|经历|skillId|【.+】)/i.test(text)
+  return /(episodeId|evidence_ref|experienceId|experience_ref|skill_advice|上次|击倒|经历|skillId|【.+】)/i.test(text)
 }
 
 export function validateStructuredChatOutput(content: string, context: AdviceContext, locale = 'zh'): ValidatedChatPayload {
@@ -232,6 +243,12 @@ export function validateStructuredChatOutput(content: string, context: AdviceCon
       continue
     }
     const raw = item as Record<string, unknown>
+    if (raw.kind === 'experience_ref') {
+      const experience = context.historicalExperiences?.find((item) => item.experienceId === raw.experienceId)
+      if (experience) blocks.push({ kind: 'experience_ref', experienceId: experience.experienceId, summary: experience.summary })
+      else invalid = true
+      continue
+    }
     if (raw.kind === 'evidence_ref') {
       const block = validateEvidenceBlock(raw, context.historicalEpisodes)
       if (block) blocks.push(block)
@@ -250,7 +267,7 @@ export function validateStructuredChatOutput(content: string, context: AdviceCon
   if ((invalid && blocks.length === 0) || (!text && blocks.length === 0)) return degradeStructuredChat(context, locale)
 
   return {
-    text,
+    text: blocks.some((block) => block.kind === 'experience_ref') ? '' : text,
     blocks,
     degraded: invalid,
     mode: 'structured',
@@ -263,6 +280,7 @@ export function renderValidatedChatText(payload: ValidatedChatPayload): string {
   const extras = payload.blocks
     .map((block) => {
       if (block.kind === 'evidence_ref') return block.summary
+      if (block.kind === 'experience_ref') return block.summary
       if (block.kind === 'skill_advice') return `${block.skillName}: ${block.rationale}`
       return ''
     })

@@ -3,6 +3,7 @@
  * Named locally so T0 can evolve `lib/game-agent/companion/types.ts` without write conflicts.
  */
 
+import type { CompanionModelStatus } from '@/lib/game-agent/companion/model-diagnostics'
 import type { CompanionErrorCode } from '@/lib/game-agent/companion/types'
 
 import type { GameAgentProfile } from './settings'
@@ -12,7 +13,7 @@ import type { GameAgentMessage } from './types'
 export type CompanionModelPriority = 'foreground' | 'control' | 'background'
 
 /** Host /api/game-agent/model purpose values (parent wiring). */
-export type CompanionModelPurpose = 'companion-chat' | 'companion-route' | 'companion-prepare' | 'control'
+export type CompanionModelPurpose = 'companion-chat' | 'companion-route' | 'companion-warmup' | 'companion-prepare' | 'companion-tactic-quick' | 'companion-tactic-deep' | 'control'
 
 export type CompanionThinkingControl =
   | { mode: 'supported'; requested: boolean; applied: boolean }
@@ -49,6 +50,8 @@ export const COMPANION_DEFAULT_BUDGETS = {
   route: { maxOutputTokens: 128, totalTimeoutMs: 5_000 } satisfies Omit<CompanionModelBudgets, 'contextChars'>,
   chat: { maxOutputTokens: 256, totalTimeoutMs: 15_000, firstTokenTimeoutMs: 5_000 } satisfies Omit<CompanionModelBudgets, 'contextChars'>,
   prepare: { maxOutputTokens: 384, totalTimeoutMs: 10_000 } satisfies Omit<CompanionModelBudgets, 'contextChars'>,
+  tacticQuick: { maxOutputTokens: 768, totalTimeoutMs: 6_000 } satisfies Omit<CompanionModelBudgets, 'contextChars'>,
+  tacticDeep: { maxOutputTokens: 768, totalTimeoutMs: 25_000 } satisfies Omit<CompanionModelBudgets, 'contextChars'>,
 } as const
 
 export const COMPANION_RESOURCE_LIMITS = {
@@ -116,6 +119,7 @@ export type CompanionModelEvent =
       waitedMs: number
     }
   | { type: 'delta'; requestId: string; seq: number; text: string }
+  | ({ type: 'model.status'; requestId: string } & CompanionModelStatus)
   | {
       type: 'completed'
       requestId: string
@@ -126,6 +130,13 @@ export type CompanionModelEvent =
       timing?: GameAgentMessage['timing']
       durationMs: number
       firstTokenMs?: number
+      contextMs?: number
+      waitedMs?: number
+      generationMs?: number
+      startupMs?: number
+      startupLoadMs?: number
+      residency?: CompanionModelStatus['residency']
+      loadMs?: number
       thinking: CompanionThinkingControl
     }
   | { type: 'cancelled'; requestId: string; partialText?: string; cancelConfirmed: boolean }

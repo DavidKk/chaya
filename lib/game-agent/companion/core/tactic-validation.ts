@@ -92,7 +92,6 @@ export function validateTacticPatch(patch: unknown): PatchValidationResult {
     patch.evidenceRefs.length > 32 ||
     !patch.evidenceRefs.every((r) => text(r, 512)) ||
     !Array.isArray(patch.operations) ||
-    !patch.operations.length ||
     patch.operations.length > 32
   ) {
     return { ok: false, reason: 'Invalid patch envelope or size' }

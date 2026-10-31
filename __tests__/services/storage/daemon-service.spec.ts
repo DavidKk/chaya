@@ -3,6 +3,7 @@ jest.mock('wordguard', () => ({
     matchAll: () => [],
   }),
 }))
+jest.mock('../../../plugins/mv/src/helpers/node/node-require', () => ({ tryNodeRequire: () => require }))
 
 import fs from 'node:fs'
 import http from 'node:http'
@@ -11,6 +12,8 @@ import path from 'node:path'
 
 import { readStorageDaemonMeta } from '@/services/storage/daemon-lock'
 import { startStorageDaemon, type StorageDaemonServer } from '@/services/storage/daemon-service.server'
+
+import { pluginStorageCall } from '../../../plugins/mv/src/helpers/storage/client'
 
 describe('daemon-service', () => {
   let tmpDir: string
@@ -113,6 +116,40 @@ describe('daemon-service', () => {
     await waitFor('没错。 我能连续做二十二个俯卧撑了。')
     await call('shared.remove', [tail, pair])
     await waitFor(undefined)
+  })
+
+  it('preserves a memory version conflict through the daemon and the actual plugin client', async () => {
+    daemon = await startStorageDaemon({ dataDir: tmpDir, port: 0 })
+    const previousDataDir = process.env.CHAYA_DATA_DIR
+    process.env.CHAYA_DATA_DIR = tmpDir
+    try {
+      await pluginStorageCall('companion.load', ['transport-test'])
+      expect(await pluginStorageCall('companion.state', ['transport-test'])).toEqual({ memoryEpoch: 1, recordingRevision: 1, recordingEnabled: true })
+      const state = await pluginStorageCall('companion.manage', [
+        'transport-test',
+        {
+          action: 'clear',
+          requestId: 'clear-1',
+          expectedMemoryEpoch: 1,
+          expectedRecordingRevision: 1,
+        },
+      ])
+      expect(await pluginStorageCall('companion.state', ['transport-test'])).toEqual(state)
+      await expect(
+        pluginStorageCall('companion.manage', [
+          'transport-test',
+          {
+            action: 'clear',
+            requestId: 'clear-2',
+            expectedMemoryEpoch: 1,
+            expectedRecordingRevision: 1,
+          },
+        ])
+      ).rejects.toMatchObject({ code: 'MEMORY_EPOCH_CHANGED' })
+    } finally {
+      if (previousDataDir === undefined) delete process.env.CHAYA_DATA_DIR
+      else process.env.CHAYA_DATA_DIR = previousDataDir
+    }
   })
 
   it('imports resource versions and deduplicates observations through the authenticated RPC endpoint', async () => {

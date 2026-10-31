@@ -373,7 +373,7 @@ export function useCompanionSession(input: {
       chatAbortRef.current = abort
       setChatBusy(true)
       setChatProgress('路由中…')
-      chatRequestIdRef.current = chatRequestId
+      chatRequestIdRef.current = routeRequestId
       try {
         const routed = await call<CompanionRouteResult>(
           {
@@ -421,6 +421,8 @@ export function useCompanionSession(input: {
           return
         }
         const stamp = routed.stamp || hostStatus?.stamp || emptyStamp(gameId)
+        chatRequestIdRef.current = chatRequestId
+        setChatProgress('生成中…')
         const ack = await call<ChatAck>(
           {
             type: 'agent.companion.chat',
@@ -438,7 +440,6 @@ export function useCompanionSession(input: {
         if (!messagesRef.current.some((line) => line.id === ack.messageId)) {
           append({ id: ack.messageId, role: 'chaya', text: '', character })
         }
-        setChatProgress('生成中…')
       } catch (error) {
         if (isCompanionAbortError(error) || generation !== generationRef.current) return
         if (isCapabilityUnsupported(error)) setHostMissing(true)

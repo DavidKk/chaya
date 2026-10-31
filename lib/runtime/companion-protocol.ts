@@ -1,3 +1,4 @@
+import type { CompanionModelMetrics, CompanionModelStatus } from '@/lib/game-agent/companion/model-diagnostics'
 import type { CompanionError, ContextStamp, Cue, MemoryEpisode, MemoryQueryFilter, RuntimeScope } from '@/lib/game-agent/companion/types'
 
 export const COMPANION_PROTOCOL_VERSION = 1
@@ -51,7 +52,7 @@ export const COMPANION_REQUEST_TYPES: ReadonlySet<string> = new Set<CompanionHos
 export type CompanionMessageEvent = {
   seq: number
   at: number
-  kind: 'cue' | 'accepted' | 'queued' | 'delta' | 'completed' | 'cancelled' | 'failed' | 'context.changed'
+  kind: 'cue' | 'accepted' | 'queued' | 'model.status' | 'delta' | 'completed' | 'cancelled' | 'failed' | 'context.changed'
   requestId?: string
   messageId: string
   conversationId?: string
@@ -60,6 +61,8 @@ export type CompanionMessageEvent = {
   text?: string
   cue?: Cue
   error?: CompanionError
+  metrics?: CompanionModelMetrics
+  modelStatus?: CompanionModelStatus
 }
 
 export type CompanionPreferenceView = {

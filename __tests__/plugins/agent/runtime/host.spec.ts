@@ -9,7 +9,14 @@ jest.mock('@/plugins/mv/src/helpers', () => ({
 jest.mock('@/plugins/mv/src/agent/handlers', () => ({ readAgentGameState: () => ({}), runAgentCommand: jest.fn() }))
 jest.mock('@/plugins/mv/src/agent/runtime/store', () => ({ createGameAgentTaskStore: () => ({ load: async () => [], save: async () => undefined }) }))
 
-import { createGameAgentRuntime } from '@/plugins/mv/src/agent/runtime/host'
+import { createGameAgentRuntime as createRuntime } from '@/plugins/mv/src/agent/runtime/host'
+
+const runtimes: ReturnType<typeof createRuntime>[] = []
+function createGameAgentRuntime() {
+  const runtime = createRuntime()
+  runtimes.push(runtime)
+  return runtime
+}
 
 const values = new Map<string, string>()
 const config = {
@@ -63,7 +70,12 @@ beforeEach(() => {
   installFetchRouter()
 })
 
-afterEach(() => jest.useRealTimers())
+afterEach(async () => {
+  for (const runtime of runtimes.splice(0)) runtime.dispose()
+  await Promise.resolve()
+  await Promise.resolve()
+  jest.useRealTimers()
+})
 
 it('classifies with a structured schema so the model names the action before deciding', async () => {
   enqueueModel({ role: 'assistant', content: '{"action":"interact","operate":true}' })

@@ -21,8 +21,12 @@ function serviceBase(gameId: string, runtimeInstanceId?: string) {
 }
 
 async function json<T>(response: Response): Promise<T> {
-  const body = (await response.json().catch(() => ({}))) as T & { error?: { message?: string } }
-  if (!response.ok) throw new Error(body.error?.message || `Companion memory request failed: HTTP ${response.status}`)
+  const body = (await response.json().catch(() => ({}))) as T & { error?: { message?: string; code?: string } }
+  if (!response.ok) {
+    throw Object.assign(new Error(body.error?.message || `Companion memory request failed: HTTP ${response.status}`), {
+      ...(typeof body.error?.code === 'string' ? { code: body.error.code } : {}),
+    })
+  }
   return body
 }
 

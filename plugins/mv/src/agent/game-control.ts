@@ -176,7 +176,12 @@ export function snapScreen({ maxWidth }: AgentParams<'game.snap'>) {
 }
 
 /** Use the same mouse handlers as player input, including pressed state and engine input rules. */
-async function clickCanvas(x: number, y: number, holdMs: number) {
+type PointerControl = {
+  beforeInput?: () => void
+  track?: (cancel: () => void) => () => void
+}
+
+async function clickCanvas(x: number, y: number, holdMs: number, control: PointerControl) {
   const { Graphics, TouchInput } = rm()
   const canvas = Graphics?._canvas ?? document.querySelector<HTMLCanvasElement>('#GameCanvas')
   if (!Graphics || !TouchInput?._onMouseDown || !TouchInput._onMouseUp || !canvas) throw new Error('鼠标输入未就绪，无法模拟地图点击')
@@ -200,10 +205,31 @@ async function clickCanvas(x: number, y: number, holdMs: number) {
     else if (type === 'mouseup') TouchInput._onMouseUp!(event)
     else TouchInput._onMouseMove?.(event)
   }
-  emit('mousemove')
-  emit('mousedown')
+  let held = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let finish: (() => void) | undefined
+  const release = () => {
+    if (held) {
+      held = false
+      emit('mouseup')
+    }
+    if (timer !== undefined) clearTimeout(timer)
+    finish?.()
+  }
+  const untrack = control.track?.(() => {
+    release()
+    clearDestination()
+  })
   try {
-    await wait(holdMs)
+    emit('mousemove')
+    control.beforeInput?.()
+    const released = new Promise<void>((resolve) => {
+      finish = resolve
+      timer = setTimeout(resolve, holdMs)
+    })
+    held = true
+    emit('mousedown')
+    await released
     return {
       pressed: TouchInput.isPressed?.(),
       pointer: { x: TouchInput.x, y: TouchInput.y },
@@ -213,17 +239,18 @@ async function clickCanvas(x: number, y: number, holdMs: number) {
       mapTouchEnabled: rm().$gameSystem?.isTouchMoveEnabled?.(),
     }
   } finally {
-    emit('mouseup')
+    release()
+    untrack?.()
   }
 }
 
-export async function tapScreen(params: AgentParams<'input.tap'>) {
+export async function tapScreen(params: AgentParams<'input.tap'>, control: PointerControl = {}) {
   const { Graphics } = rm()
   if (!Graphics) throw new Error('触摸输入不可用')
   const x = clamp(Math.round(finite(params.x, 'x')), 0, Graphics.width - 1)
   const y = clamp(Math.round(finite(params.y, 'y')), 0, Graphics.height - 1)
   const frames = Math.round(clamp(params.frames == null ? TAP_DEFAULT_FRAMES : finite(params.frames, 'frames'), 1, 120))
-  await clickCanvas(x, y, frames * FRAME_MS)
+  await clickCanvas(x, y, frames * FRAME_MS, control)
   return { tapped: { x, y }, frames }
 }
 

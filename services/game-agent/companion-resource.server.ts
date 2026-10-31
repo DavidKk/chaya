@@ -5,6 +5,7 @@
 
 import { isCliProvider, isOpenApiProvider } from '@/lib/game-agent/providers'
 
+import { readCompanionResourcePolicy } from './companion-resource-settings.server'
 import { COMPANION_RESOURCE_LIMITS, CompanionModelFailure, type CompanionModelPriority } from './companion-types.server'
 import type { GameAgentProfile } from './settings'
 
@@ -15,13 +16,16 @@ export type CompanionResourceScheduleInput<T> = {
   signal?: AbortSignal
   /** Includes queue wait. Queued requests fail with MODEL_TIMEOUT when exceeded. */
   totalTimeoutMs?: number
-  capacity?: number
+  /** Optional shorter admission deadline when startup has a separate allowance. */
+  queueTimeoutMs?: number
+  instanceId?: string
   onQueued?: (position: number) => void
   run: (slotSignal: AbortSignal) => Promise<T>
 }
 
 type QueueEntry = {
   requestId: string
+  instanceId: string
   priority: CompanionModelPriority
   enqueuedAt: number
   signal?: AbortSignal
@@ -35,6 +39,8 @@ type ResourceLane = {
   key: string
   capacity: number
   running: number
+  runningByInstance: Map<string, number>
+  lastInstance?: string
   queue: QueueEntry[]
   prefer: 'foreground' | 'control'
   lastUsedAt: number
@@ -56,7 +62,7 @@ function hostKey(endpoint: string): string {
 function isLocalHost(endpoint: string): boolean {
   try {
     const host = new URL(endpoint).hostname.toLowerCase()
-    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0.0.0.0'
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]' || host === '0.0.0.0'
   } catch {
     return false
   }
@@ -91,8 +97,9 @@ function reapIdleLanes(now = Date.now()) {
   }
 }
 
-function laneFor(resourceKey: string, capacity?: number): ResourceLane {
+function laneFor(resourceKey: string): ResourceLane {
   reapIdleLanes()
+  const policy = readCompanionResourcePolicy(resourceKey)
   let lane = lanes.get(resourceKey)
   if (!lane) {
     if (lanes.size >= MAX_LANES) {
@@ -100,11 +107,9 @@ function laneFor(resourceKey: string, capacity?: number): ResourceLane {
       if (idle) lanes.delete(idle.key)
       else throw new CompanionModelFailure({ code: 'MODEL_BUSY', message: 'Model resource limit reached', retryable: true, resourceKey })
     }
-    lane = { key: resourceKey, capacity: Math.max(1, capacity ?? COMPANION_RESOURCE_LIMITS.defaultCapacity), running: 0, queue: [], prefer: 'foreground', lastUsedAt: Date.now() }
+    lane = { key: resourceKey, capacity: policy.capacity, running: 0, runningByInstance: new Map(), queue: [], prefer: 'foreground', lastUsedAt: Date.now() }
     lanes.set(resourceKey, lane)
-  } else if ((capacity ?? 0) > lane.capacity) {
-    lane.capacity = capacity!
-  }
+  } else lane.capacity = policy.capacity
   touch(lane)
   return lane
 }
@@ -120,16 +125,23 @@ function queuePosition(lane: ResourceLane, entry: QueueEntry) {
 
 function takeNext(lane: ResourceLane): QueueEntry | undefined {
   if (!lane.queue.length) return undefined
-  const foreground = lane.queue.find((item) => item.priority === 'foreground')
-  const control = lane.queue.find((item) => item.priority === 'control')
+  const policy = readCompanionResourcePolicy(lane.key)
+  const eligible = lane.queue.filter((item) => (lane.runningByInstance.get(item.instanceId) ?? 0) < policy.maxRunningPerInstance)
+  const interactive = eligible.filter((item) => item.priority !== 'background')
+  const group = interactive.length ? interactive : eligible
+  const other = group.find((item) => item.instanceId !== lane.lastInstance)
+  const candidates = group.filter((item) => item.instanceId === (other?.instanceId ?? group[0]?.instanceId))
+  const foreground = candidates.find((item) => item.priority === 'foreground')
+  const control = candidates.find((item) => item.priority === 'control')
   let chosen: QueueEntry | undefined
   if (foreground && control) {
     chosen = lane.prefer === 'control' ? control : foreground
-    lane.prefer = chosen.priority === 'foreground' ? 'control' : 'foreground'
   } else {
-    chosen = foreground || control || lane.queue.find((item) => item.priority === 'background')
+    chosen = foreground || control || candidates.find((item) => item.priority === 'background')
   }
   if (!chosen) return undefined
+  if (chosen.priority !== 'background') lane.prefer = chosen.priority === 'foreground' ? 'control' : 'foreground'
+  lane.lastInstance = chosen.instanceId
   lane.queue = lane.queue.filter((item) => item !== chosen)
   chosen.detachQueuedAbort?.()
   chosen.detachQueuedAbort = undefined
@@ -161,6 +173,7 @@ function attachParentAbort(parent: AbortSignal | undefined, slot: AbortControlle
 
 function pump(lane: ResourceLane) {
   touch(lane)
+  lane.capacity = readCompanionResourcePolicy(lane.key).capacity
   while (lane.running < lane.capacity) {
     const next = takeNext(lane)
     if (!next) {
@@ -180,6 +193,7 @@ function pump(lane: ResourceLane) {
       continue
     }
     lane.running += 1
+    lane.runningByInstance.set(next.instanceId, (lane.runningByInstance.get(next.instanceId) ?? 0) + 1)
     next.begin()
   }
 }
@@ -189,9 +203,12 @@ function pump(lane: ResourceLane) {
  * Cancel aborts the slot signal but keeps the occupancy until `run` finishes.
  */
 export function scheduleCompanionResource<T>(input: CompanionResourceScheduleInput<T>): Promise<T> {
-  const lane = laneFor(input.resourceKey, input.capacity)
+  const lane = laneFor(input.resourceKey)
+  const instanceId = input.instanceId || 'unscoped'
+  const policy = readCompanionResourcePolicy(input.resourceKey)
   const waitedFrom = Date.now()
   const totalTimeoutMs = input.totalTimeoutMs && input.totalTimeoutMs > 0 ? input.totalTimeoutMs : undefined
+  const queueTimeoutMs = input.queueTimeoutMs ?? totalTimeoutMs
 
   if (input.signal?.aborted) {
     return Promise.reject(
@@ -220,9 +237,13 @@ export function scheduleCompanionResource<T>(input: CompanionResourceScheduleInp
     const begin = () => {
       const slot = new AbortController()
       detachSlotAbort = attachParentAbort(input.signal, slot)
+      const timeout =
+        totalTimeoutMs === undefined
+          ? undefined
+          : setTimeout(() => slot.abort(new DOMException('Model request timed out', 'TimeoutError')), Math.max(1, totalTimeoutMs - (Date.now() - waitedFrom)))
       void (async () => {
         try {
-          if (totalTimeoutMs !== undefined && Date.now() - waitedFrom >= totalTimeoutMs) {
+          if (queueTimeoutMs !== undefined && Date.now() - waitedFrom >= queueTimeoutMs) {
             throw new CompanionModelFailure({
               code: 'MODEL_TIMEOUT',
               message: 'Model request timed out while queued',
@@ -232,19 +253,27 @@ export function scheduleCompanionResource<T>(input: CompanionResourceScheduleInp
             })
           }
           const value = await input.run(slot.signal)
+          slot.signal.throwIfAborted()
           finish(() => resolve(value))
         } catch (error) {
           finish(() => reject(error))
         } finally {
+          if (timeout) clearTimeout(timeout)
           lane.running = Math.max(0, lane.running - 1)
+          const running = (lane.runningByInstance.get(instanceId) ?? 1) - 1
+          if (running) lane.runningByInstance.set(instanceId, running)
+          else lane.runningByInstance.delete(instanceId)
           touch(lane)
           pump(lane)
         }
       })()
     }
 
-    if (lane.running < lane.capacity && lane.queue.length === 0) {
+    if (lane.running < lane.capacity && lane.queue.length === 0 && (lane.runningByInstance.get(instanceId) ?? 0) < policy.maxRunningPerInstance) {
       lane.running += 1
+      lane.lastInstance = instanceId
+      if (input.priority !== 'background') lane.prefer = input.priority === 'foreground' ? 'control' : 'foreground'
+      lane.runningByInstance.set(instanceId, (lane.runningByInstance.get(instanceId) ?? 0) + 1)
       begin()
       return
     }
@@ -255,9 +284,13 @@ export function scheduleCompanionResource<T>(input: CompanionResourceScheduleInp
     if (lane.queue.length >= COMPANION_RESOURCE_LIMITS.maxQueued) {
       rejectBusy(input.requestId, input.resourceKey, 'Model resource queue is full')
     }
+    if (lane.queue.filter((entry) => entry.instanceId === instanceId).length >= policy.maxQueuedPerInstance) {
+      rejectBusy(input.requestId, input.resourceKey, 'Model queue is full for this game instance')
+    }
 
     const entry: QueueEntry = {
       requestId: input.requestId,
+      instanceId,
       priority: input.priority,
       enqueuedAt: Date.now(),
       signal: input.signal,
@@ -288,8 +321,8 @@ export function scheduleCompanionResource<T>(input: CompanionResourceScheduleInp
       entry.detachQueuedAbort = () => input.signal?.removeEventListener('abort', onQueuedAbort)
     }
 
-    if (totalTimeoutMs !== undefined) {
-      const remaining = Math.max(1, totalTimeoutMs - (Date.now() - waitedFrom))
+    if (queueTimeoutMs !== undefined) {
+      const remaining = Math.max(1, queueTimeoutMs - (Date.now() - waitedFrom))
       const timer = setTimeout(() => {
         const index = lane.queue.indexOf(entry)
         if (index < 0) return

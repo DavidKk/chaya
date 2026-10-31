@@ -14,9 +14,10 @@ export type BattleInputState = {
 export type BattleNavigationPort = {
   readFrame(): BattleFrame | null
   readInput(): Promise<BattleInputState | null>
-  press(key: AgentInputKey, input: BattleInputState, lease: ControlLease): Promise<void>
+  press(key: AgentInputKey, input: BattleInputState, lease: ControlLease, beforeDispatch?: () => void): Promise<void>
   bindAction(action: object, intent: ActionIntent, frame: BattleFrame): void
   onConfirming(commandId: string): void
+  validateIntent?(intent: ActionIntent, frame: BattleFrame): boolean
 }
 export type ExecutionResult = { ok: true; committed: boolean } | { ok: false; reason: string; unknown?: boolean }
 const context = (f: BattleFrame) => JSON.stringify([f.stamp.scope, f.stamp.contextEpoch, f.encounterId])
@@ -59,27 +60,33 @@ export class BattleNavigator {
         if (!fresh || context(fresh) !== initialContext || fresh.opportunity?.opportunityId !== intent.opportunityId) {
           return { ok: false, reason: 'STATE_CHANGED', unknown: sent }
         }
+        if (this.port.validateIntent && !this.port.validateIntent(intent, fresh)) return { ok: false, reason: 'INTENT_CHANGED', unknown: sent }
         const desired = desiredOption(input, intent)
         if (!desired?.enabled) return { ok: false, reason: 'UNSUPPORTED_OR_DISABLED_MENU', unknown: sent }
         const fingerprint = JSON.stringify([input.kind, input.index, input.options])
         // A successful key dispatch without a menu/slot transition is never replayed.
         if (lastConfirm === fingerprint) return { ok: false, reason: 'COMMITMENT_UNCONFIRMED', unknown: true }
-        let key: AgentInputKey
+        let key: AgentInputKey = 'ok'
         if (input.index !== desired.index) {
           const row = Math.floor(desired.index / input.maxCols) - Math.floor(input.index / input.maxCols)
           key = row ? (row > 0 ? 'down' : 'up') : desired.index > input.index ? 'right' : 'left'
-        } else {
-          key = 'ok'
-          const finalSelection =
-            input.kind === 'enemy' || input.kind === 'ally' || ((input.kind === 'command' || input.kind === 'skill') && !['enemy', 'actor'].includes(intent.target.kind))
-          if (input.action && finalSelection) this.port.bindAction(input.action, intent, fresh)
-          this.port.onConfirming(intent.commandId)
-          lastConfirm = fingerprint
-          // Set before the async call: a failure can occur after the engine accepted input.
-          sent = true
         }
+        const beforeDispatch =
+          input.index === desired.index
+            ? () => {
+                const finalSelection =
+                  input.kind === 'enemy' ||
+                  input.kind === 'ally' ||
+                  ((input.kind === 'skill' || (input.kind === 'command' && intent.actionOffer.kind !== 'skill')) && !['enemy', 'actor'].includes(intent.target.kind))
+                if (input.action && finalSelection) this.port.bindAction(input.action, intent, fresh)
+                this.port.onConfirming(intent.commandId)
+                lastConfirm = fingerprint
+                // Set before the async call: a failure can occur after the engine accepted input.
+                sent = true
+              }
+            : undefined
         this.arbiter.assertCurrent(lease)
-        await this.port.press(key, input, lease)
+        await this.port.press(key, input, lease, beforeDispatch)
       }
       return { ok: false, reason: 'NAVIGATION_LIMIT', unknown: sent }
     } catch (err) {

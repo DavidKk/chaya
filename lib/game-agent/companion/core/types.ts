@@ -4,7 +4,7 @@
  * Defined per docs/technical/companion-core-rebuild.md.
  */
 
-import type { ContextStamp, FactEntityRef } from '@/lib/game-agent/companion/types'
+import type { ActionEvidence, ContextStamp, FactEntityRef } from '@/lib/game-agent/companion/types'
 
 // ============================================================================
 // Control Arbiter Contracts
@@ -32,6 +32,8 @@ export interface ControlArbiter {
   assertCurrent(lease: ControlLease): void
   isCurrent(lease: ControlLease): boolean
   currentLease(): ControlLease | null
+  trackInput(lease: ControlLease, cancel: () => void): () => void
+  whenIdle(): Promise<void>
   revoke(lease: ControlLease, reason: ControlRevocationReason): void
   release(lease: ControlLease): void
 }
@@ -188,6 +190,8 @@ export type DecisionTicket = {
   recordingRevision?: number
   expiresAt: number
   dependencies: DecisionDependency[]
+  mode?: 'quick' | 'deep'
+  reason?: string
 }
 
 // ============================================================================
@@ -206,6 +210,7 @@ export type ActionTargetRef = {
 export type ActionIntent = {
   commandId: string
   encounterId?: string
+  turnCount?: number
   opportunityId: string
   actorId?: number
   actionOffer: ActionOffer
@@ -233,6 +238,8 @@ export type ObservedActionResult = {
   isCritical?: boolean
   isKnockout?: boolean
   observedAt: number
+  /** Authoritative observed facts for retrieval; older recordings may omit them. */
+  evidence?: ActionEvidence
 }
 
 // ============================================================================

@@ -10,6 +10,7 @@ export type RecordingWriterStatus = {
   dropped: number
   versions: MemoryManagementState | null
   error?: string
+  lastCommit?: { batchId: string; events: number; durationMs: number; outcome: 'committed' | 'failed' }
 }
 
 /** The execution loop only enqueues. Transport, retries and barriers run asynchronously. */
@@ -21,6 +22,7 @@ export class CompanionRecordingWriter {
   private persistence: RecordingWriterStatus['persistence'] = 'loading'
   private dropped = 0
   private error?: string
+  private lastCommit?: RecordingWriterStatus['lastCommit']
   private timer?: ReturnType<typeof setTimeout>
   private operation?: Promise<void>
   private syncing?: Promise<void>
@@ -41,7 +43,14 @@ export class CompanionRecordingWriter {
   }
 
   getStatus(): RecordingWriterStatus {
-    return { persistence: this.persistence, pending: this.events.length, dropped: this.dropped, versions: this.versions ? { ...this.versions } : null, error: this.error }
+    return {
+      persistence: this.persistence,
+      pending: this.events.length,
+      dropped: this.dropped,
+      versions: this.versions ? { ...this.versions } : null,
+      error: this.error,
+      lastCommit: this.lastCommit ? { ...this.lastCommit } : undefined,
+    }
   }
 
   enqueue(raw: BattleRecordEvent): boolean {
@@ -108,8 +117,11 @@ export class CompanionRecordingWriter {
       while (this.events.length && this.versions.recordingEnabled) {
         const batch = this.batch || this.makeBatch()
         this.batch = batch
+        const started = performance.now()
+        let outcome: 'committed' | 'failed' = 'failed'
         try {
           await this.backend.commitBatch(batch)
+          outcome = 'committed'
         } catch (error) {
           // A remote barrier can arrive even when its broadcast was missed.
           const current = await this.backend.loadSnapshot().catch(() => null)
@@ -121,6 +133,8 @@ export class CompanionRecordingWriter {
             this.versions = { memoryEpoch: current.memoryEpoch, recordingRevision: current.recordingRevision, recordingEnabled: current.recordingEnabled }
           }
           throw error
+        } finally {
+          this.lastCommit = { batchId: batch.batchId, events: batch.battleRecording!.events.length, durationMs: performance.now() - started, outcome }
         }
         const count = batch.battleRecording!.events.length
         this.events.splice(0, count)

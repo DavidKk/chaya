@@ -1,5 +1,6 @@
 /** Schema validation for companion memory records. Rejects oversized / malformed payloads. */
 
+import { validateActionEvidence } from './action-evidence-schema'
 import { validateBattleRecording } from './core/recording-schema'
 import { MemorySchemaError } from './memory-errors'
 import {
@@ -9,7 +10,6 @@ import {
   MEMORY_EVIDENCE_ARRAY_MAX,
   MEMORY_ID_FIELD_MAX,
   MEMORY_MILESTONE_DETAILS_MAX_BYTES,
-  MEMORY_STATE_IDS_MAX,
   MEMORY_STRING_FIELD_MAX,
 } from './memory-limits'
 import {
@@ -21,7 +21,7 @@ import {
   type MemorySaveLink,
   type MemoryWriteBatch,
 } from './memory-types'
-import type { ActionEvidence, RuntimeScope } from './types'
+import type { RuntimeScope } from './types'
 
 export { MemoryConflictError, MemoryPersistenceError, MemorySchemaError, MemoryStaleError } from './memory-errors'
 
@@ -74,57 +74,6 @@ function requireScope(value: unknown): RuntimeScope {
   }
 }
 
-function optionalNumberArray(value: unknown, field: string, max = MEMORY_STATE_IDS_MAX): number[] | undefined {
-  if (value == null) return undefined
-  if (!Array.isArray(value) || value.length > max) throw new MemorySchemaError(`Invalid ${field}`)
-  return value.map((item, index) => requireInt(item, `${field}[${index}]`))
-}
-
-function validateEvidenceItem(value: unknown, index: number): ActionEvidence {
-  if (!isObject(value)) throw new MemorySchemaError(`Invalid evidence[${index}]`)
-  const source = value.source
-  const target = value.target
-  if (!isObject(source) || !isObject(target)) throw new MemorySchemaError(`Invalid evidence[${index}] entity`)
-  const sourceKind = source.kind
-  const targetKind = target.kind
-  if (sourceKind !== 'actor' && sourceKind !== 'enemy' && sourceKind !== 'unknown') throw new MemorySchemaError(`Invalid evidence[${index}].source.kind`)
-  if (targetKind !== 'actor' && targetKind !== 'enemy') throw new MemorySchemaError(`Invalid evidence[${index}].target.kind`)
-  const ability = value.ability
-  let normalizedAbility: ActionEvidence['ability']
-  if (ability != null) {
-    if (!isObject(ability) || (ability.kind !== 'skill' && ability.kind !== 'item')) throw new MemorySchemaError(`Invalid evidence[${index}].ability`)
-    normalizedAbility = {
-      kind: ability.kind,
-      id: requireInt(ability.id, `evidence[${index}].ability.id`, 0),
-      name: optionalString(ability.name, `evidence[${index}].ability.name`, MEMORY_STRING_FIELD_MAX),
-    }
-  }
-  const attribution = value.attribution === 'observed_action' || value.attribution === 'unknown' ? value.attribution : null
-  if (!attribution) throw new MemorySchemaError(`Invalid evidence[${index}].attribution`)
-  return {
-    actionId: requireString(value.actionId, `evidence[${index}].actionId`, MEMORY_ID_FIELD_MAX),
-    resultId: requireString(value.resultId, `evidence[${index}].resultId`, MEMORY_ID_FIELD_MAX),
-    source: {
-      kind: sourceKind,
-      id: optionalInt(source.id, `evidence[${index}].source.id`, 0),
-      instance: optionalString(source.instance, `evidence[${index}].source.instance`, MEMORY_STRING_FIELD_MAX),
-    },
-    target: {
-      kind: targetKind,
-      id: requireInt(target.id, `evidence[${index}].target.id`, 0),
-      instance: requireString(target.instance, `evidence[${index}].target.instance`, MEMORY_STRING_FIELD_MAX),
-    },
-    ability: normalizedAbility,
-    hpBefore: value.hpBefore == null ? null : requireNumber(value.hpBefore, `evidence[${index}].hpBefore`),
-    hpAfter: value.hpAfter == null ? null : requireNumber(value.hpAfter, `evidence[${index}].hpAfter`),
-    reportedHpDamage: value.reportedHpDamage == null ? null : requireNumber(value.reportedHpDamage, `evidence[${index}].reportedHpDamage`),
-    hpMax: optionalInt(value.hpMax, `evidence[${index}].hpMax`, 0),
-    stateIdsBefore: optionalNumberArray(value.stateIdsBefore, `evidence[${index}].stateIdsBefore`),
-    stateIdsAfter: optionalNumberArray(value.stateIdsAfter, `evidence[${index}].stateIdsAfter`),
-    attribution,
-  }
-}
-
 export function validateEpisode(value: unknown): MemoryEpisodeRecord {
   if (!isObject(value)) throw new MemorySchemaError('Invalid episode')
   const kind = requireString(value.kind, 'episode.kind', 40)
@@ -135,7 +84,7 @@ export function validateEpisode(value: unknown): MemoryEpisodeRecord {
   if (!PERSISTENCE.has(persistenceRaw)) throw new MemorySchemaError('Unsupported episode.persistence')
   const evidenceRaw = value.evidence
   if (!Array.isArray(evidenceRaw) || evidenceRaw.length > MEMORY_EVIDENCE_ARRAY_MAX) throw new MemorySchemaError('Invalid episode.evidence')
-  const evidence = evidenceRaw.map(validateEvidenceItem)
+  const evidence = evidenceRaw.map(validateActionEvidence)
   const linkedFrom = value.linkedFrom
   const record: MemoryEpisodeRecord = {
     episodeId: requireString(value.episodeId, 'episode.episodeId', MEMORY_ID_FIELD_MAX),
@@ -194,7 +143,7 @@ export function validateEvidenceRecord(value: unknown): MemoryEvidenceRecord {
     completeness: completeness as MemoryEvidenceRecord['completeness'],
     persistence: persistence as MemoryEvidenceRecord['persistence'],
     summary: clampText(requireString(value.summary, 'evidence.summary', MEMORY_EPISODE_SUMMARY_MAX), MEMORY_EPISODE_SUMMARY_MAX),
-    evidence: evidenceRaw.map(validateEvidenceItem),
+    evidence: evidenceRaw.map(validateActionEvidence),
     memoryEpoch: requireInt(value.memoryEpoch, 'evidence.memoryEpoch', 1),
   }
   record.bytes = estimateRecordBytes(record)

@@ -1,3 +1,4 @@
+import { validateActionEvidence } from '../action-evidence-schema'
 import { MemorySchemaError } from '../memory-errors'
 import type { RuntimeScope } from '../types'
 import type { BattleRecordEvent, BattleRecordingBatch, MemoryManagementRequest } from './recording-types'
@@ -67,6 +68,18 @@ export function validateBattleRecord(value: unknown): BattleRecordEvent {
   if (input.targetKind !== undefined) {
     if (input.targetKind !== 'actor' && input.targetKind !== 'enemy') throw new MemorySchemaError('Invalid recording target')
     result.targetKind = input.targetKind
+  }
+  if (input.evidence !== undefined) {
+    const evidence = validateActionEvidence(input.evidence)
+    if (
+      evidence.resultId !== result.resultId ||
+      (result.actionId !== undefined && evidence.actionId !== result.actionId) ||
+      (result.targetId !== undefined && evidence.target.id !== result.targetId) ||
+      (result.targetKind !== undefined && evidence.target.kind !== result.targetKind) ||
+      (result.actorId !== undefined && (evidence.source.kind !== 'actor' || evidence.source.id !== result.actorId))
+    )
+      throw new MemorySchemaError('Result evidence identity mismatch')
+    result.evidence = evidence
   }
   return { ...base, kind: raw.kind, result }
 }

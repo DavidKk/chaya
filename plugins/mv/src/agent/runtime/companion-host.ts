@@ -5,10 +5,9 @@
 import type { SourceGameEvent } from '@/lib/game-agent/audit'
 import { canClaimDisarmUseful, hasGuardAction } from '@/lib/game-agent/companion/advice'
 import type { GameplayMemoryStore } from '@/lib/game-agent/companion/memory-store'
-import type { MemoryEpisodeRecord } from '@/lib/game-agent/companion/memory-types'
 import { createReactState, react, type ReactState } from '@/lib/game-agent/companion/reflex-engine'
 import { COMPANION_ROUTE_FORMAT, COMPANION_ROUTE_SYSTEM, parseCompanionRoute } from '@/lib/game-agent/companion/router'
-import type { SpeechBattleOutcome, SpeechMemoryOrigin } from '@/lib/game-agent/companion/speech-lines'
+import type { SpeechMemoryOrigin } from '@/lib/game-agent/companion/speech-lines'
 import type { CompanionDomainEvent, ContextStamp, Cue, FactView, MemoryEpisode, UserPreference } from '@/lib/game-agent/companion/types'
 import type { AgentTask } from '@/lib/game-agent/runtime'
 import {
@@ -17,7 +16,6 @@ import {
   type CompanionEventBatch,
   type CompanionHostRequest,
   type CompanionHostStatus,
-  type CompanionMemoryResult,
   type CompanionMessageEvent,
   type CompanionRouteResult,
   type CompanionSelection,
@@ -26,7 +24,9 @@ import { isCompanionHostRequest } from '@/lib/runtime/companion-validation'
 
 import { buildCandidateMessages, CompanionCandidateCache, parseCandidatePayload, PREPARE_FORMAT, renderCandidateTemplate } from './companion-candidates'
 import { type CompanionChatHostDeps, CompanionChatSlot, type CompanionComplete, type CompanionControlStart } from './companion-chat'
+import { BATTLE_INTENT_FORMAT, BATTLE_INTENT_SYSTEM, type BattleIntentReceipt } from './companion-core/battle-intents'
 import { CompanionRequestLedger, CONTROL_TICKET_TTL_MS, type ControlTicket } from './companion-requests'
+import { battleOutcomeOf, eventKindFromDomain, mapMemoryEpisodes, memoryOriginOf, toSpeechEpisodes } from './companion-speech-context'
 
 export type CompanionFactsPort = {
   current(): FactView
@@ -41,6 +41,9 @@ export type CompanionHostDependencies = {
   startControl: CompanionControlStart
   stopExternalControl: () => void
   libraryGameId: string
+  onMemoryChanged?: () => Promise<void>
+  getBattleContext?: () => unknown
+  beginBattleIntent?: (sourceId: string, prompt: string) => BattleIntentReceipt | null
   now?: () => number
   random?: () => number
 }
@@ -48,6 +51,7 @@ export type CompanionHostDependencies = {
 export type CompanionHost = {
   dispatch(message: CompanionHostRequest, remote: boolean, signal?: AbortSignal): Promise<unknown>
   dispose(): void
+  invalidateControl(): void
 }
 
 type HostSettings = {
@@ -61,105 +65,6 @@ type HostSettings = {
 function selectionOf(message: CompanionHostRequest): CompanionSelection | null {
   if (message.type !== 'agent.companion.route' && message.type !== 'agent.companion.chat') return null
   return { profileId: message.profileId, model: message.model, locale: message.locale, character: message.character }
-}
-
-function nearbyUnopenedChest(details: Record<string, unknown> | undefined): boolean {
-  if (!details) return false
-  // Explicit nearby + unopened flags only; battle_reward / level_up must not qualify.
-  const nearby = details.nearby === true || details.nearby === 'true'
-  if (nearby) {
-    if (details.unopened === true || details.unopened === 'true') return true
-    if (details.opened === false || details.opened === 'false') return true
-    if (details.opened === true || details.opened === 'true' || details.unopened === false || details.unopened === 'false') return false
-  }
-  const events = details.nearbyEvents ?? details.chests ?? details.nearbyChests
-  if (!Array.isArray(events)) return false
-  return events.some((item) => {
-    if (!item || typeof item !== 'object') return false
-    const row = item as Record<string, unknown>
-    if (row.opened === true || row.opened === 'true') return false
-    const unopened = row.unopened === true || row.unopened === 'true' || row.opened === false || row.opened === 'false' || row.opened == null
-    const distance = typeof row.distance === 'number' ? row.distance : Number(row.distance)
-    const near = !Number.isFinite(distance) || distance <= 6
-    return near && unopened
-  })
-}
-
-type DomainCueKind = 'battle_win' | 'battle_loss' | 'danger' | 'chest' | 'battle_start'
-
-function eventKindFromDomain(domain: CompanionDomainEvent | null, view: FactView): DomainCueKind | null {
-  if (domain?.kind === 'battle_result') {
-    if (domain.outcome === 'win') return 'battle_win'
-    if (domain.outcome === 'lose') return 'battle_loss'
-    return null
-  }
-  if (domain?.kind === 'knockout' && domain.target.kind === 'actor') return 'danger'
-  // battle_reward / level_up are claimed rewards — never treat as an unopened nearby chest.
-  if (domain?.kind === 'milestone') {
-    const name = domain.name || ''
-    if (/battle_reward|level_up/i.test(name)) return null
-    if (/^chest$/i.test(name) || name === 'nearby_chest' || name === 'unopened_chest') {
-      if (nearbyUnopenedChest(domain.details)) return 'chest'
-    }
-    return null
-  }
-  const party = view.current.party.value ?? []
-  if (party.some((member) => !member.isDead && member.hpMax > 0 && member.hp / member.hpMax <= 0.35)) return 'danger'
-  if (view.current.scene.value === 'battle' && view.current.encounterId.value) return 'battle_start'
-  return null
-}
-
-const LEGACY_EPISODE_KINDS = new Set(['knockout', 'battle_result', 'defense_attempt'])
-
-function isLegacyEpisodeKind(kind: string): kind is MemoryEpisode['kind'] {
-  return LEGACY_EPISODE_KINDS.has(kind)
-}
-
-type SpeechEpisodeExtra = MemoryEpisodeRecord & { origin?: string; outcome?: SpeechBattleOutcome }
-
-function toSpeechEpisodes(records: MemoryEpisodeRecord[]): MemoryEpisode[] {
-  const out: MemoryEpisode[] = []
-  for (const episode of records) {
-    if (!isLegacyEpisodeKind(episode.kind)) continue
-    const extra = episode as SpeechEpisodeExtra
-    out.push({
-      episodeId: episode.episodeId,
-      scope: episode.scope,
-      encounterId: episode.encounterId,
-      at: episode.at,
-      kind: episode.kind,
-      completeness: episode.completeness,
-      summary: episode.summary,
-      evidence: episode.evidence,
-      memoryEpoch: episode.memoryEpoch,
-      ...(episode.linkedFrom ? { linkedFrom: episode.linkedFrom } : {}),
-      ...(extra.origin ? { origin: extra.origin } : {}),
-      ...(extra.outcome ? { outcome: extra.outcome } : {}),
-    } as MemoryEpisode)
-  }
-  return out
-}
-
-function mapMemoryEpisodes(detailed: { scope: CompanionMemoryResult['scope']; memoryEpoch: number; episodes: MemoryEpisodeRecord[] }): CompanionMemoryResult {
-  return {
-    scope: detailed.scope,
-    memoryEpoch: detailed.memoryEpoch,
-    episodes: toSpeechEpisodes(detailed.episodes),
-  }
-}
-
-function memoryOriginOf(origin: string | undefined): SpeechMemoryOrigin | undefined {
-  if (origin === 'linked_load_context') return 'linked_load_context'
-  if (origin === 'current' || origin === 'current_playthrough') return 'current_playthrough'
-  if (origin === 'unknown') return 'unknown'
-  return undefined
-}
-
-function battleOutcomeOf(kind: DomainCueKind | null, domain: CompanionDomainEvent | null): SpeechBattleOutcome | undefined {
-  if (domain?.kind === 'battle_result') return domain.outcome
-  if (kind === 'battle_win') return 'win'
-  if (kind === 'battle_loss') return 'lose'
-  return undefined
 }
 
 export function createCompanionHost(deps: CompanionHostDependencies): CompanionHost {
@@ -180,6 +85,12 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
   let lastSelection: CompanionSelection | null = null
   let lastConversationId: string | null = null
   const routeJobs = new Map<string, { controller: AbortController; done: Promise<void> }>()
+  let routeGeneration = 0
+  function invalidateRoutes(): void {
+    routeGeneration += 1
+    for (const job of routeJobs.values()) job.controller.abort()
+    ledger.clearGenerationScoped()
+  }
 
   const publish = (partial: Omit<CompanionMessageEvent, 'seq' | 'at'> & { at?: number }) => {
     const event = ledger.appendEvent(partial)
@@ -199,8 +110,19 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
     publish,
     currentFacts: () => deps.facts.current(),
     getPreferences: () => readablePreferences(),
+    getBattleContext: deps.getBattleContext,
   }
   const chat = new CompanionChatSlot(chatDeps)
+  let memoryVersion = `${deps.memory.getEpoch()}:${deps.memory.getRecordingRevision()}`
+  function refreshMemoryContext(): void {
+    const current = `${deps.memory.getEpoch()}:${deps.memory.getRecordingRevision()}`
+    if (memoryVersion === current) return
+    memoryVersion = current
+    invalidateRoutes()
+    chat.bumpGeneration('clear')
+    ledger.clearConversation()
+    void stopPrepare()
+  }
 
   let prefsGeneration = 0
   const readyGeneration = prefsGeneration
@@ -260,11 +182,14 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
   }
 
   function rememberSelection(selection: CompanionSelection, conversationId?: string): void {
-    if (lastSelection && (lastSelection.character !== selection.character || lastSelection.locale !== selection.locale)) {
-      chat.bumpGeneration(lastSelection.character !== selection.character ? 'role' : 'locale')
+    const changed = lastSelection && JSON.stringify(lastSelection) !== JSON.stringify(selection)
+    const newConversation = conversationId && lastConversationId && conversationId !== lastConversationId
+    if (changed || newConversation) {
+      const modelChanged = lastSelection && (lastSelection.model !== selection.model || lastSelection.profileId !== selection.profileId)
+      chat.bumpGeneration(newConversation ? 'conversation' : modelChanged ? 'model' : lastSelection?.character !== selection.character ? 'role' : 'locale')
+      invalidateRoutes()
       void stopPrepare()
     }
-    if (conversationId && lastConversationId && conversationId !== lastConversationId) chat.bumpGeneration('conversation')
     lastSelection = selection
     if (conversationId) lastConversationId = conversationId
     reflex = { ...reflex, character: selection.character, locale: selection.locale }
@@ -298,8 +223,10 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
 
   function handleFacts(domainEvent: CompanionDomainEvent | null, sourceEvent: SourceGameEvent | null): void {
     if (disposed) return
+    refreshMemoryContext()
     const view = deps.facts.current()
     if (domainEvent?.kind === 'load' && domainEvent.phase === 'begin') {
+      invalidateRoutes()
       chat.bumpGeneration('load')
       candidates.clear()
       ledger.clearGenerationScoped()
@@ -424,10 +351,11 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
         model: selection.model,
         purpose: 'prepare',
         signal: prepareSignal,
-        conversationKey: `companion-prepare:${selection.character}:${selection.locale}`,
+        conversationKey: JSON.stringify(['prepare', view.stamp.scope.runtimeInstanceId, selection.profileId, selection.model, selection.character, selection.locale]),
         format: PREPARE_FORMAT as unknown as Record<string, unknown>,
       })
       .then((message) => {
+        refreshMemoryContext()
         if (disposed || ledger.visibleConsumerCount() <= 0 || prepareSignal.aborted) {
           candidates.failPrepare(line)
           return
@@ -452,6 +380,9 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
   async function routeMessage(message: Extract<CompanionHostRequest, { type: 'agent.companion.route' }>, signal?: AbortSignal): Promise<CompanionRouteResult> {
     const selection = selectionOf(message)!
     rememberSelection(selection, message.conversationId)
+    // A newer routing request supersedes any unconsumed control authorization.
+    invalidateRoutes()
+    const generation = routeGeneration
     const stamp = deps.facts.current().stamp
     const prompt = message.prompt.trim()
     if (!prompt) return { kind: 'clarification', text: '我还没确定你的意思，请说明是想聊聊，还是让我操作游戏。', stamp }
@@ -465,21 +396,82 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
     })
     routeJobs.set(message.requestId, { controller, done: routeDone })
     try {
+      const onModelStatus: NonNullable<Parameters<CompanionComplete>[1]['onModelStatus']> = (modelStatus) => {
+        if (disposed || generation !== routeGeneration || controller.signal.aborted) return
+        publish({ kind: 'model.status', requestId: message.requestId, messageId: `route-${message.requestId}`, conversationId: message.conversationId, stamp, modelStatus })
+      }
+      if (deps.complete.ensureReady) {
+        await deps.complete.ensureReady({
+          profileId: selection.profileId,
+          model: selection.model,
+          signal: controller.signal,
+          onModelStatus,
+          conversationKey: JSON.stringify(['warmup', stamp.scope.runtimeInstanceId, message.conversationId]),
+        })
+      }
+      controller.signal.throwIfAborted()
+      const readyStamp = deps.facts.current().stamp
+      if (disposed || generation !== routeGeneration || readyStamp.contextEpoch !== stamp.contextEpoch || JSON.stringify(readyStamp.scope) !== JSON.stringify(stamp.scope)) {
+        throw Object.assign(new Error('Routing context changed during model loading'), { code: 'STALE_CONTEXT' })
+      }
+      const battleIntent = deps.beginBattleIntent?.(message.requestId, prompt)
+      const format = battleIntent
+        ? {
+            ...COMPANION_ROUTE_FORMAT,
+            properties: { ...COMPANION_ROUTE_FORMAT.properties, battleIntent: BATTLE_INTENT_FORMAT },
+            required: [...COMPANION_ROUTE_FORMAT.required, 'battleIntent'],
+          }
+        : COMPANION_ROUTE_FORMAT
       const reply = await deps.complete(
         [
-          { role: 'system', content: COMPANION_ROUTE_SYSTEM },
-          { role: 'user', content: JSON.stringify({ prompt, stamp, scene: deps.facts.current().current.scene.value, locale: selection.locale }) },
+          { role: 'system', content: [COMPANION_ROUTE_SYSTEM, battleIntent ? BATTLE_INTENT_SYSTEM : ''].join('\n') },
+          {
+            role: 'user',
+            content: JSON.stringify({ prompt, stamp, scene: deps.facts.current().current.scene.value, locale: selection.locale, battleIntentContext: battleIntent?.context }),
+          },
         ],
         {
           profileId: selection.profileId,
           model: selection.model,
           purpose: 'route',
           signal: controller.signal,
-          conversationKey: `companion-route:${selection.character}:${selection.locale}`,
-          format: COMPANION_ROUTE_FORMAT as unknown as Record<string, unknown>,
+          onModelStatus,
+          conversationKey: JSON.stringify([
+            'route',
+            stamp.scope.runtimeInstanceId,
+            selection.profileId,
+            selection.model,
+            selection.character,
+            selection.locale,
+            message.conversationId,
+          ]),
+          format: format as unknown as Record<string, unknown>,
         }
       )
+      refreshMemoryContext()
+      controller.signal.throwIfAborted()
+      const current = deps.facts.current().stamp
+      if (disposed || generation !== routeGeneration || current.contextEpoch !== stamp.contextEpoch || JSON.stringify(current.scope) !== JSON.stringify(stamp.scope)) {
+        throw Object.assign(new Error('Routing context changed'), { code: 'STALE_CONTEXT' })
+      }
       const decision = parseCompanionRoute(reply.content, prompt)
+      if (battleIntent) {
+        let candidate: unknown
+        try {
+          candidate = JSON.parse(
+            reply.content
+              .trim()
+              .replace(/^```(?:json)?\s*/i, '')
+              .replace(/\s*```$/, '')
+          ).battleIntent
+        } catch {
+          /* Invalid output asks for clarification. */
+        }
+        const result = battleIntent.accept(candidate)
+        if (result === 'stale') throw Object.assign(new Error('Battle intent expired'), { code: 'STALE_CONTEXT' })
+        if (result === 'clarify') return { kind: 'clarification', text: '这项战斗要求暂时无法准确应用，请明确技能、敌人或保留的 MP 数量。', stamp }
+        if (result === 'applied') return { kind: 'clarification', text: '已更新当前战斗约束，接下来的行动会按新要求执行。', stamp }
+      }
       if (decision.target === 'companion_chat') return { kind: 'chat', stamp }
       if (decision.target === 'clarification') return { kind: 'clarification', text: decision.question, stamp }
       const ticketId = `ticket-${message.requestId}`
@@ -517,7 +509,7 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
       ledger.takeTicket(message.ticketId)
       throw Object.assign(new Error('Control ticket missing or expired'), { code: 'STALE_CARD' })
     }
-    if (ticket.stamp.contextEpoch !== stamp.contextEpoch || ticket.stamp.scope.segmentId !== stamp.scope.segmentId) {
+    if (ticket.stamp.contextEpoch !== stamp.contextEpoch || JSON.stringify(ticket.stamp.scope) !== JSON.stringify(stamp.scope)) {
       ledger.takeTicket(message.ticketId)
       throw Object.assign(new Error('Control ticket stamp is stale'), { code: 'STALE_CONTEXT' })
     }
@@ -527,6 +519,7 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
       {
         requestId: message.requestId,
         goal: consumed.goal,
+        action: consumed.action,
         shape: consumed.shape,
         lifetime: consumed.lifetime,
         profileId: consumed.selection.profileId,
@@ -556,6 +549,7 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
   async function applySettings(message: Extract<CompanionHostRequest, { type: 'agent.memory.settings' }>): Promise<CompanionHostStatus> {
     if (typeof message.recording === 'boolean') {
       await deps.memory.setRecording(message.recording)
+      await deps.onMemoryChanged?.()
       settings.recording = message.recording
     }
     if (typeof message.naturalEnhancement === 'boolean') {
@@ -581,6 +575,7 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
   async function dispatch(message: CompanionHostRequest, remote: boolean, signal?: AbortSignal): Promise<unknown> {
     if (disposed) throw Object.assign(new Error('Companion host disposed'), { code: 'CANCELLED' })
     if (!isCompanionHostRequest(message)) throw Object.assign(new Error('Invalid companion request'), { code: 'REQUEST_CONFLICT' })
+    refreshMemoryContext()
 
     const cached = ledger.peekIdempotent(message)
     if ('conflict' in cached && cached.conflict) throw Object.assign(new Error(cached.error.message), { code: cached.error.code, retryable: false })
@@ -654,12 +649,14 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
           result = await applySettings(message)
           break
         case 'agent.memory.clear': {
+          invalidateRoutes()
           prefsGeneration += 1
           chat.bumpGeneration('clear')
           await stopPrepare()
           ledger.clearGenerationScoped()
           ledger.clearConversation()
           await deps.memory.clearMemory({ libraryGameId: deps.libraryGameId, preferences: false })
+          await deps.onMemoryChanged?.()
           // Keep in-memory settings; do not resurrect preferences cleared or raced from ready().
           publish({ kind: 'context.changed', messageId: `clear-${deps.memory.getEpoch()}`, stamp: deps.facts.current().stamp })
           result = statusOf()
@@ -705,6 +702,7 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
   function dispose(): void {
     if (disposed) return
     disposed = true
+    invalidateRoutes()
     prefsGeneration += 1
     unsubscribe()
     for (const job of routeJobs.values()) {
@@ -716,5 +714,5 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
     void chat.waitForIdle()
   }
 
-  return { dispatch, dispose }
+  return { dispatch, dispose, invalidateControl: invalidateRoutes }
 }

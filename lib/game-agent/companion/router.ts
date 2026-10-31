@@ -9,7 +9,12 @@ export const COMPANION_ROUTE_SYSTEM = [
   'Chat includes greetings, feelings, strategy questions, explanations and memories. Asking how to use a skill does not authorize using it.',
   'Control requires a clear request to perform ordinary player actions in the running game. Data edits and ambiguous requests require clarification.',
   'Set shape=batch for a bounded set of map targets, single for one concrete action, open for travel/story/combat.',
+  'Use action=battle and shape=open only when asked to handle a whole battle or ongoing battles. A request for one attack, skill, or defense remains shape=single with its specific action.',
   'lifetime defaults to goal. until_stopped is allowed only if the player explicitly requests ongoing control until stopped.',
+  'Finishing the current battle and then stopping is lifetime=goal, including when the request says "stop". It never authorizes another battle.',
+  'Example request "只打完这一场就停": {"kind":"control","action":"battle","shape":"open","lifetime":"goal","question":null}.',
+  'Example request "一直代打遇到的战斗，直到我叫停": {"kind":"control","action":"battle","shape":"open","lifetime":"until_stopped","question":null}.',
+  'For control and chat, question must be null. Do not ask about optional tactics when the player clearly asks you to handle a battle.',
   'Never change or expand the player goal, invent action arguments, infer permission from past messages, or return tool calls.',
   'For clarification, ask one short question in the player language. Return JSON only.',
 ].join('\n')

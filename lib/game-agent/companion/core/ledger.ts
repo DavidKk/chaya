@@ -28,6 +28,13 @@ export class CompanionActionLedger {
     }
   }
 
+  refreshPlannedIntent(intent: ActionIntent): boolean {
+    const entry = this.commands.get(intent.commandId)
+    if (!entry || entry.committedAt !== undefined || ['cancelled', 'unknown', 'rejected'].includes(entry.lifecycle)) return false
+    entry.intent = JSON.parse(JSON.stringify(intent)) as ActionIntent
+    return true
+  }
+
   recordConfirming(commandId: string): void {
     const entry = this.commands.get(commandId)
     if (entry && (entry.lifecycle === 'navigating' || entry.lifecycle === 'planned')) {
@@ -84,7 +91,12 @@ export class CompanionActionLedger {
 
   getPendingCommands(): CommittedCommandState[] {
     return Array.from(this.commands.values())
-      .filter((c) => ['committed', 'confirming', 'unknown'].includes(c.lifecycle) && !(c.lifecycle === 'committed' && c.intent.actionOffer.actionKey === 'party:fight'))
+      .filter(
+        (c) =>
+          ['committed', 'confirming', 'unknown'].includes(c.lifecycle) &&
+          !(c.lifecycle === 'committed' && c.intent.actionOffer.actionKey === 'party:fight') &&
+          !(c.intent.encounterId && this.encounters.get(c.intent.encounterId)?.finishedAt !== undefined)
+      )
       .map((c) => this.getCommand(c.commandId)!)
   }
 
@@ -149,7 +161,12 @@ export class CompanionActionLedger {
     }
     for (const [id, entry] of this.encounters) {
       if (this.encounters.size <= maxRecords) break
-      if (entry.finishedAt !== undefined) this.encounters.delete(id)
+      if (entry.finishedAt !== undefined) {
+        for (const [commandId, command] of this.commands) {
+          if (command.intent.encounterId === id) this.commands.delete(commandId)
+        }
+        this.encounters.delete(id)
+      }
     }
   }
 }

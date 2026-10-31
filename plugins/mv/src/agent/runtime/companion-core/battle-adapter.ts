@@ -44,6 +44,14 @@ function parseSkillEffect(skill: Loose): ObservedOrDeclaredEffect {
   return { kind: 'other' }
 }
 
+function skillCosts(actor: Loose, skill: Loose | undefined): ActionOffer['costs'] {
+  if (!skill) return { mp: 0, tp: 0, hasUnknownCost: true }
+  const mp = call<number>(actor, 'skillMpCost', skill) ?? Number(skill.mpCost)
+  const tp = call<number>(actor, 'skillTpCost', skill) ?? Number(skill.tpCost)
+  if (!Number.isFinite(mp) || mp < 0 || !Number.isFinite(tp) || tp < 0) return { mp: 0, tp: 0, hasUnknownCost: true }
+  return { mp, tp }
+}
+
 export function readLiveBattleFrame(stamp: ContextStamp, capabilitiesRevision: number, encounterId: string): BattleFrame | null {
   const scene = getBattleScene()
   if (!scene || !encounterId) return null
@@ -101,7 +109,9 @@ export function readLiveBattleFrame(stamp: ContextStamp, capabilitiesRevision: n
   // Enemies
   const gt = g().$gameTroop as Loose | undefined
   const troopMembers = (call<Loose[]>(gt, 'members') ?? []).slice(0, 16)
-  const enemies: BattleEnemyEntity[] = troopMembers.map((enemy, index) => {
+  const enemies: BattleEnemyEntity[] = troopMembers.flatMap((enemy, index) => {
+    // Hidden reinforcements retain their troop index, but cannot be selected yet.
+    if (call<boolean>(enemy, 'isAppeared') === false || call<boolean>(enemy, 'isHidden') === true) return []
     const enemyId = Number(call<number>(enemy, 'enemyId') ?? (enemy?.enemyId as number) ?? index + 1)
     const name = String(call<string>(enemy, 'name') ?? `Enemy ${index + 1}`)
     const hp = Number(call<number>(enemy, 'hp') ?? enemy?.hp ?? 0)
@@ -113,16 +123,18 @@ export function readLiveBattleFrame(stamp: ContextStamp, capabilitiesRevision: n
       name: String(s?.name ?? ''),
     }))
 
-    return {
-      enemyId,
-      instanceId: `enemy:${index}`,
-      name,
-      index,
-      hp,
-      hpMax,
-      isDead,
-      states,
-    }
+    return [
+      {
+        enemyId,
+        instanceId: `enemy:${index}`,
+        name,
+        index,
+        hp,
+        hpMax,
+        isDead,
+        states,
+      },
+    ]
   })
 
   // Opportunities & Offers
@@ -159,40 +171,42 @@ export function readLiveBattleFrame(stamp: ContextStamp, capabilitiesRevision: n
     }
 
     if (call<boolean>(currentActor, 'canAttack') === true) {
+      const abilityId = call<number>(currentActor, 'attackSkillId') ?? 1
       offers.push({
         actionKey: `actor:${actorId}:attack`,
         actor: actorRef,
         kind: 'attack',
-        abilityId: call<number>(currentActor, 'attackSkillId') ?? 1,
+        abilityId,
         name: '攻击',
         targetRule: 'one_enemy',
-        costs: { mp: 0, tp: 0 },
+        costs: skillCosts(currentActor, (g().$dataSkills as Loose[] | undefined)?.[abilityId]),
         effect: { kind: 'damage' },
       })
     }
 
     if (call<boolean>(currentActor, 'canGuard') === true) {
+      const abilityId = call<number>(currentActor, 'guardSkillId') ?? 2
       offers.push({
         actionKey: `actor:${actorId}:guard`,
         actor: actorRef,
         kind: 'guard',
-        abilityId: call<number>(currentActor, 'guardSkillId') ?? 2,
+        abilityId,
         name: '防御',
         targetRule: 'user',
-        costs: { mp: 0, tp: 0 },
+        costs: skillCosts(currentActor, (g().$dataSkills as Loose[] | undefined)?.[abilityId]),
         effect: { kind: 'guard' },
       })
     }
 
+    const skillTypes = call<number[]>(currentActor, 'addedSkillTypes') ?? []
     const skills = (call<Loose[]>(currentActor, 'skills') ?? []).slice(0, 64)
     for (const skill of skills) {
       if (!skill || typeof skill !== 'object') continue
       const skillId = Number(skill.id)
       if (!Number.isFinite(skillId) || skillId <= 0) continue
+      if (!skillTypes.includes(Number(skill.stypeId))) continue
       if (!call<boolean>(currentActor, 'canUse', skill)) continue
 
-      const mpCost = call<number>(currentActor, 'skillMpCost', skill) ?? Number(skill.mpCost ?? 0)
-      const tpCost = call<number>(currentActor, 'skillTpCost', skill) ?? Number(skill.tpCost ?? 0)
       const name = String(skill.name ?? `Skill ${skillId}`)
       const scopeNum = Number(skill.scope ?? 1)
       const targetRule = parseSkillTargetRule(scopeNum)
@@ -206,7 +220,7 @@ export function readLiveBattleFrame(stamp: ContextStamp, capabilitiesRevision: n
         skillTypeId: Number(skill.stypeId),
         name,
         targetRule,
-        costs: { mp: mpCost, tp: tpCost },
+        costs: skillCosts(currentActor, skill),
         effect,
       })
     }

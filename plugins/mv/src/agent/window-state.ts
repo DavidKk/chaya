@@ -26,6 +26,11 @@ export type SceneWindow = {
   options: WindowOption[] | null
 }
 
+/** Standard display windows can retain Window_Base.active without accepting input. */
+export function isPassiveSceneWindow(name: string): boolean {
+  return ['helpWindow', 'logWindow', 'nameBoxWindow'].includes(name.replace(/^_/, ''))
+}
+
 function read<T = unknown>(obj: unknown, name: string, ...args: unknown[]): T | undefined {
   try {
     const fn = (obj as Loose | null | undefined)?.[name]

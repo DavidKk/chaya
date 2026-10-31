@@ -1,8 +1,12 @@
-import { battleFrame } from '@/__tests__/lib/game-agent/companion/core/fixtures'
+import { battleFrame, runningCoordinator } from '@/__tests__/lib/game-agent/companion/core/fixtures'
+import { chooseAction } from '@/lib/game-agent/companion/core/action-selector'
+import { evaluateSituation } from '@/lib/game-agent/companion/core/situation'
+import { DEFAULT_TACTIC_PLAN } from '@/lib/game-agent/companion/core/tactics'
+import type { ActionIntent } from '@/lib/game-agent/companion/core/types'
 import { readLiveBattleFrame } from '@/plugins/mv/src/agent/runtime/companion-core/battle-adapter'
 
 const world = globalThis as unknown as Record<string, unknown>
-const keys = ['SceneManager', 'Scene_Battle', 'BattleManager', '$gameParty', '$gameTroop']
+const keys = ['SceneManager', 'Scene_Battle', 'BattleManager', '$gameParty', '$gameTroop', '$dataSkills']
 let previous: unknown[]
 let actor: Record<string, unknown>
 let turn: number
@@ -25,10 +29,12 @@ beforeEach(() => {
     canAttack: () => true,
     canGuard: () => true,
     skills: () => skills,
+    addedSkillTypes: () => [1],
   }
   world.SceneManager = { _scene: { constructor: { name: 'Scene_Battle' } } }
   world.BattleManager = { _turnCount: 999, isInputting: () => true, actor: () => actor }
   world.$gameParty = { battleMembers: () => [actor] }
+  world.$dataSkills = [null, { id: 1, mpCost: 0, tpCost: 0 }, { id: 2, mpCost: 0, tpCost: 0 }]
   world.$gameTroop = { turnCount: () => turn, members: () => [{ enemyId: () => 10, name: () => 'Slime', hp: 100, mhp: 100 }] }
 })
 afterEach(() =>
@@ -39,6 +45,46 @@ afterEach(() =>
 )
 
 const read = (encounter = 'enc-1') => readLiveBattleFrame(battleFrame().stamp, 1, encounter)!
+
+test('does not offer a learned skill whose type has no battle command', () => {
+  skills = [{ id: 10, stypeId: 1, scope: 7, mpCost: 5, tpCost: 0, damage: { type: 3 } }]
+  expect(read().offers.some((offer) => offer.abilityId === 10)).toBe(true)
+  actor.addedSkillTypes = () => []
+  expect(read().offers.some((offer) => offer.abilityId === 10)).toBe(false)
+})
+
+test('budgets actual attack and guard costs across action slots and respects reserved MP', () => {
+  world.$dataSkills = [null, { id: 1, mpCost: 30, tpCost: 0 }, { id: 2, mpCost: 2, tpCost: 5 }]
+  actor.skillMpCost = (skill: { mpCost: number }) => skill.mpCost / 2
+  actor.skillTpCost = (skill: { tpCost: number }) => skill.tpCost
+  actor.mp = 20
+  actor.tp = 10
+  const intents: ActionIntent[] = []
+  const { coordinator } = runningCoordinator({ onDispatchIntent: (intent) => intents.push(intent) })
+  expect(read().offers.map((offer) => offer.costs)).toEqual([
+    { mp: 15, tp: 0 },
+    { mp: 1, tp: 5 },
+  ])
+  coordinator.onFrameUpdate(read())
+  coordinator.onCommandCommitted(intents[0].commandId)
+  actor._actionInputIndex = 1
+  coordinator.onFrameUpdate(read())
+  expect(intents.map((intent) => intent.actionOffer.kind)).toEqual(['attack', 'guard'])
+  coordinator.onCommandCommitted(intents[1].commandId)
+  actor._actionInputIndex = 2
+  coordinator.addPlayerConstraint({ kind: 'reserve_mp', param: 4 })
+  coordinator.onFrameUpdate(read())
+  expect(intents).toHaveLength(2)
+})
+
+test('marks unavailable or invalid skill costs unknown instead of assuming free actions', () => {
+  delete world.$dataSkills
+  expect(read().offers.every((offer) => offer.costs.hasUnknownCost)).toBe(true)
+  const frame = read()
+  expect(chooseAction(frame, evaluateSituation(frame), DEFAULT_TACTIC_PLAN).kind).toBe('blocked')
+  skills = [{ id: 10, stypeId: 1, scope: 7, mpCost: Number.NaN, tpCost: 0 }]
+  expect(read().offers.find((offer) => offer.abilityId === 10)?.costs.hasUnknownCost).toBe(true)
+})
 
 test('uses the authoritative encounter ID, troop turn and actual input slot', () => {
   const first = read()
@@ -63,6 +109,23 @@ test('requires a known action slot and does not assume missing capability method
   delete actor.canAttack
   delete actor.canGuard
   expect(read().offers).toEqual([])
+})
+
+test('does not target hidden reinforcements and preserves visible enemies original troop indices', () => {
+  world.$gameTroop = {
+    turnCount: () => turn,
+    members: () => [
+      { enemyId: () => 10, hp: 1, mhp: 100, isDead: () => false, isAppeared: () => false },
+      { enemyId: () => 11, hp: 100, mhp: 100, isDead: () => false, isAppeared: () => true },
+      { enemyId: () => 12, hp: 1, mhp: 100, isDead: () => false, isHidden: () => true },
+    ],
+  }
+  const frame = read()
+  expect(frame.enemies).toMatchObject([{ enemyId: 11, index: 1, instanceId: 'enemy:1' }])
+  expect(chooseAction(frame, evaluateSituation(frame), DEFAULT_TACTIC_PLAN)).toMatchObject({
+    kind: 'action',
+    intent: { target: { entityId: 11, targetIndex: 1, instanceId: 'enemy:1' } },
+  })
 })
 
 test('declares HP recovery from mechanics, excludes revival scopes and does not infer effects from names', () => {

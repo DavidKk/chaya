@@ -133,7 +133,7 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
       return result
     }
     if (method === 'game.read') return games.read(String(args[0]), String(args[1]))
-    if (method === 'companion.load' || method === 'companion.commit' || method === 'companion.manage') {
+    if (method === 'companion.load' || method === 'companion.state' || method === 'companion.commit' || method === 'companion.manage') {
       await migrate()
       let gameId = String(args[0])
       if (!gameId || gameId.length > 200) throw new Error('Invalid companion game ID')
@@ -142,6 +142,7 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
       if (root) gameId = (await games.mount(root)).gameId
       if (gameId === 'default') throw new Error('Companion memory requires a verified game identity')
       if (method === 'companion.load') return memory.load(gameId)
+      if (method === 'companion.state') return memory.state(gameId)
       if (method === 'companion.manage') return memory.manage(gameId, args[1] as MemoryManagementRequest)
       return memory.commit(gameId, bindWriteBatchToGame(args[1] as MemoryWriteBatch, gameId))
     }

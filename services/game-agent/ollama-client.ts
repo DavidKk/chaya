@@ -80,7 +80,7 @@ export async function streamOllamaChat(
     temperature?: number
     maxTokens?: number
     think?: boolean
-    keepAlive?: string
+    keepAlive?: string | number
     timeoutMs?: number
     token?: string
     signal?: AbortSignal
@@ -110,7 +110,7 @@ export async function streamOllamaChat(
           num_ctx: 16_384,
           ...(input.maxTokens || input.think ? { num_predict: input.think ? Math.max(input.maxTokens || 0, 2048) : input.maxTokens } : {}),
         },
-        keep_alive: input.keepAlive || '10m',
+        keep_alive: input.keepAlive === '-1' ? -1 : (input.keepAlive ?? '10m'),
       }),
       signal: requestSignal,
     })

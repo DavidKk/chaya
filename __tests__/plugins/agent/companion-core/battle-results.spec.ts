@@ -30,12 +30,20 @@ function target(enemy: boolean, id: number) {
 type Target = ReturnType<typeof target>
 const hero = target(false, 1)
 class GameAction {
+  private skillId = 1
+  _targetIndex = 0
   constructor(private damage = 10) {}
   subject() {
     return hero
   }
   item() {
-    return { id: 1, name: 'Attack' }
+    return { id: this.skillId, name: 'Attack' }
+  }
+  setSkill(id: number) {
+    this.skillId = id
+  }
+  setTarget(index: number) {
+    this._targetIndex = index
   }
   isItem() {
     return false
@@ -105,9 +113,41 @@ test('correlates exact action objects and preserves distinct repeated/multi-targ
   expect(new Set(results.map((r) => r.resultId)).size).toBe(3)
   expect(results[0]).toMatchObject({ commandId: 'cmd-1', actorId: 1, targetId: 10, hpDamage: 10, encounterId: encounterId() })
   expect(results[1]).toMatchObject({ commandId: 'cmd-1', targetId: 11, hpDamage: 10 })
+  expect(results[0].evidence).toMatchObject({
+    resultId: results[0].resultId,
+    actionId: results[0].actionId,
+    hpBefore: 50,
+    hpAfter: 40,
+    reportedHpDamage: 999,
+    source: { kind: 'actor', id: 1 },
+    target: { kind: 'enemy', id: 10 },
+    attribution: 'observed_action',
+  })
   new GameAction(-30).apply(target(false, 2))
   expect(results.at(-1)).toMatchObject({ hpRecovery: 30, targetKind: 'actor', targetId: 2 })
   expect(results.at(-1)?.commandId).toBeUndefined()
+})
+
+test.each(['skill', 'target'])('does not attribute an action edited by the player after confirmation (%s)', (edit) => {
+  const action = new GameAction()
+  bind(action)
+  if (edit === 'skill') action.setSkill(10)
+  else action.setTarget(1)
+  battle.startAction()
+  action.apply(target(true, 10))
+  expect(results[0].commandId).toBeUndefined()
+})
+
+test('allows the final authorized input to populate the skill and target before execution', () => {
+  const action = new GameAction()
+  const frame = battleFrame()
+  const intent = { actionOffer: { ...frame.offers[0], abilityId: 10 }, target: { kind: 'enemy', targetIndex: 1 } } as ActionIntent
+  bindBattleCommand(action, 'cmd-1', encounterId(), facts.stamp(), intent)
+  action.setSkill(10)
+  action.setTarget(1)
+  battle.startAction()
+  action.apply(target(true, 10))
+  expect(results[0].commandId).toBe('cmd-1')
 })
 
 test('does not attribute counters, reflections or an action from another encounter to the selected command', () => {
@@ -117,6 +157,8 @@ test('does not attribute counters, reflections or an action from another encount
   battle.invokeCounterAttack(action, target(false, 1))
   battle.invokeMagicReflection(action, target(false, 1))
   expect(results.every((r) => r.commandId === undefined && r.actorId === undefined)).toBe(true)
+  expect(results.every((r) => r.evidence?.source.kind === 'unknown' && r.evidence?.attribution === 'unknown')).toBe(true)
+  expect(results.every((r) => r.evidence?.ability?.id === 1)).toBe(true)
   battle.setup()
   battle.startAction()
   action.apply(target(true, 10))

@@ -96,8 +96,10 @@ export async function pluginStorageCall<T = unknown>(method: string, args: unkno
         response.once('error', reject)
         response.on('end', () => {
           try {
-            const value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { value: T; error?: string }
-            if (response.statusCode !== 200 || value.error) return reject(new Error(value.error || 'Storage request failed'))
+            const value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { value: T; error?: string; code?: string }
+            if (response.statusCode !== 200 || value.error) {
+              return reject(Object.assign(new Error(value.error || 'Storage request failed'), typeof value.code === 'string' ? { code: value.code } : {}))
+            }
             resolve(value.value)
           } catch (error) {
             reject(error)

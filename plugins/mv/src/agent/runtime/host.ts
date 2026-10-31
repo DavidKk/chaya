@@ -1,5 +1,6 @@
 import { PLUGIN_AGENT_NAME } from '@/constants/brand'
 import { normalizeCompanionCharacter } from '@/lib/game-agent/companion'
+import { createControlArbiter } from '@/lib/game-agent/companion/core/control-arbiter'
 import type { GameplayMemoryStore } from '@/lib/game-agent/companion/memory-store'
 import type { FactView } from '@/lib/game-agent/companion/types'
 import { parsePlayIntentResult, PLAY_INTENT_FORMAT, PLAY_INTENT_SYSTEM } from '@/lib/game-agent/intent'
@@ -37,11 +38,14 @@ import { IdempotentWriteCache } from '@/lib/runtime/recoverable-operation'
 import { buildAskMessages } from '@/services/game-agent/prompt'
 
 import { chayaFetch, createLogger, detectGameIdentity, gameRoomId } from '../../helpers'
+import { installAgentControl } from '../control'
 import { AGENT_MANUAL_INPUT_EVENT, readAgentGameState, runAgentCommand } from '../handlers'
 import { readSharedAgentSync } from '../shared-settings'
 import { tryRunInteractBatch } from './batch-jobs'
 import { runChestRoutine } from './chest-routine'
 import { assertControlStartLive, controlStartCancelled, createCompanionControlGate } from './companion-control-gate'
+import { createBattleHost } from './companion-core/battle-host'
+import { createBattleCapabilitiesRevision } from './companion-core/battle-support'
 import { createCompanionFacts } from './companion-facts'
 import { installCompanionMilestones } from './companion-facts-milestones'
 import { createCompanionHost } from './companion-host'
@@ -52,6 +56,7 @@ import { createCompanionMemoryRuntime } from './memory-persistence'
 import { createModelGate, MODEL_FAILURE_COOLDOWN_MS } from './model-gate'
 import { battleRequiresAgentDecision, createGameWatchManager, formatWatchTrigger, type WatchPhase, type WatchTrigger } from './state-watch'
 import { createGameAgentTaskStore } from './store'
+import { runWithTaskControl } from './task-control'
 import { createGameAgentTraceArchive } from './trace-archive'
 
 const log = createLogger(PLUGIN_AGENT_NAME)
@@ -165,6 +170,8 @@ function waitForNextPlayCycle(signal: AbortSignal, delay = 1_000): Promise<void>
 export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
   const identity = detectGameIdentity()
   const runtime = createAgentRuntimeIdentity(libraryGameId)
+  const arbiter = createControlArbiter()
+  const uninstallControl = installAgentControl(arbiter, runtime.identity.runtimeInstanceId)
   const traceArchive = createGameAgentTraceArchive(libraryGameId, runtime.identity.runtimeInstanceId)
   const controller = new AgentTaskController(createGameAgentTaskStore(identity?.gameRoot), {
     setInputOwner,
@@ -190,6 +197,7 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
     }
   })
   const manualTakeover = () => {
+    companion.invalidateControl()
     for (const task of controller.list()) {
       if (task.capability === 'play' && ['running', 'waiting_user', 'waiting_service'].includes(task.state)) controller.stop(task.id)
     }
@@ -225,6 +233,7 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
         ...(format ? { format } : {}),
         signal: outerSignal,
         priority: input.task ? 'control' : 'foreground',
+        instanceId: runtime.identity.runtimeInstanceId,
       })
     }
 
@@ -317,7 +326,7 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
     return playerCardAnswer(card, await controller.waitForUser(taskId, card.text, signal, card))
   }
 
-  const execute = async (task: AgentTask, signal: AbortSignal) => {
+  const executeLegacy = async (task: AgentTask, signal: AbortSignal) => {
     if (task.routine) {
       if (task.routine.kind !== 'chest') {
         const tools = toolRuntime(task.id, () => ({ matches: [], count: 0 }))
@@ -539,11 +548,26 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
     }
   }
 
+  const execute = (task: AgentTask, signal: AbortSignal) => runWithTaskControl(arbiter, runtime.identity.runtimeInstanceId, task, signal, () => executeLegacy(task, signal))
+
+  const completeCompanion = createCompanionModel(readConfig)
+  const battleHost = createBattleHost({
+    runtimeInstanceId: runtime.identity.runtimeInstanceId,
+    arbiter,
+    facts,
+    controller,
+    memory,
+    complete: completeCompanion,
+    getCapabilitiesRevision: createBattleCapabilitiesRevision(() => facts.current()),
+  })
   const companion = createCompanionHost({
     facts,
     memory: memory.store,
     libraryGameId,
-    complete: createCompanionModel(readConfig),
+    complete: completeCompanion,
+    getBattleContext: () => battleHost.chatContext(),
+    beginBattleIntent: (sourceId, prompt) => battleHost.beginIntent(sourceId, prompt),
+    onMemoryChanged: () => memory.synchronize(),
     stopExternalControl: () => controller.interruptAll(),
     startControl: async (input, remote, signal) => {
       assertControlStartLive(signal)
@@ -558,12 +582,18 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
           surface: 'companion',
         },
         remote,
-        signal
+        signal,
+        input.action === 'battle' && input.shape === 'open' ? battleHost.execute : undefined
       ) as Promise<AgentTask>
     },
   })
 
-  const dispatch = async (message: Exclude<AgentTaskMessage, { type: 'agent.task.result' }>, remote: boolean, signal?: AbortSignal): Promise<unknown> => {
+  const dispatch = async (
+    message: Exclude<AgentTaskMessage, { type: 'agent.task.result' }>,
+    remote: boolean,
+    signal?: AbortSignal,
+    trustedExecute?: (task: AgentTask, signal: AbortSignal) => Promise<void>
+  ): Promise<unknown> => {
     const tracked =
       message.type === 'agent.task.start' ? gate.trackStart(signal, message.deadlineAt) : message.type === 'agent.companion.control.start' ? gate.trackStart(signal) : null
     try {
@@ -639,14 +669,18 @@ ${PLAY_INTENT_SYSTEM}`,
           capability: routine ? 'play' : message.capability,
           ...(message.shape ? { shape: message.shape } : {}),
           lifetime,
-          execute,
+          execute: trustedExecute ?? execute,
         })
       }
       if (message.type === 'agent.task.reply') {
         return commands.run({ requestId: message.requestId, deadlineAt: Date.now() + 60_000 }, async () => controller.reply(message.taskId, message.text))
       }
       if (message.type === 'agent.task.stop') {
-        return commands.run({ requestId: message.requestId, deadlineAt: Date.now() + 60_000 }, async () => controller.stop(message.taskId))
+        return commands.run({ requestId: message.requestId, deadlineAt: Date.now() + 60_000 }, async () => {
+          companion.invalidateControl()
+          gate.abortPending(controlStartCancelled('停止执行，未开始的控制请求已取消'))
+          return controller.stop(message.taskId)
+        })
       }
       if (message.type === 'agent.task.events') return controller.events(message.taskId, message.afterSeq)
       if (message.type === 'agent.task.clear') return { cleared: await controller.clear(message.taskId) }
@@ -721,6 +755,8 @@ ${PLAY_INTENT_SYSTEM}`,
         .then(() => memory.close())
         .catch((error) => log.warn(`Gameplay memory shutdown degraded: ${String(error)}`))
       controller.interruptAll()
+      arbiter.revokeCurrent('user_stop')
+      uninstallControl()
     },
   }
 }

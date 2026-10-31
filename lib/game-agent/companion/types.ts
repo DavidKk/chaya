@@ -8,6 +8,7 @@
 import type { CompanionMessageEvent } from '@/lib/runtime/companion-protocol'
 
 import type { SourceGameEvent } from '../audit'
+import type { HpExperience } from './experience-types'
 
 export type RuntimeScope = {
   libraryGameId: string
@@ -481,6 +482,11 @@ export type CompanionChatRequest = {
 
 export type StructuredOutputBlock =
   | {
+      kind: 'experience_ref'
+      experienceId: string
+      summary: string
+    }
+  | {
       kind: 'evidence_ref'
       episodeId: string
       summary: string
@@ -517,6 +523,7 @@ export type AdviceContext = {
   legalActions: FactLegalAction[]
   knownMechanics: KnownMechanics
   historicalEpisodes: MemoryEpisode[]
+  historicalExperiences?: HpExperience[]
   knownGaps: string[]
   spoilerFilterApplied: boolean
 }

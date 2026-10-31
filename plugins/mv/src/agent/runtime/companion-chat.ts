@@ -15,27 +15,31 @@ import {
   renderValidatedChatText,
   validateStructuredChatOutput,
 } from '@/lib/game-agent/companion/advice'
+import type { HpExperience } from '@/lib/game-agent/companion/experience-types'
 import { toLegacyEpisodes } from '@/lib/game-agent/companion/memory-reduce'
 import type { GameplayMemoryStore } from '@/lib/game-agent/companion/memory-store'
+import { type CompanionModelMetrics, type CompanionModelStatus, includeCompanionContext } from '@/lib/game-agent/companion/model-diagnostics'
 import type { ContextStamp, FactView, MemoryEpisode, UserPreference } from '@/lib/game-agent/companion/types'
 import type { AgentTask, RuntimeMessage } from '@/lib/game-agent/runtime'
 import type { CompanionMessageEvent, CompanionSelection } from '@/lib/runtime/companion-protocol'
 
 import { companionError, type CompanionRequestLedger } from './companion-requests'
 
-export type CompanionComplete = (
-  messages: RuntimeMessage[],
-  options: {
-    profileId: string
-    model: string
-    purpose: 'chat' | 'route' | 'prepare'
-    signal: AbortSignal
-    onDelta?: (text: string) => void
-    onQueued?: () => void
-    conversationKey?: string
-    format?: Record<string, unknown>
-  }
-) => Promise<RuntimeMessage>
+type CompanionCompleteOptions = {
+  profileId: string
+  model: string
+  purpose: 'chat' | 'route' | 'warmup' | 'prepare' | 'tactic-quick' | 'tactic-deep'
+  signal: AbortSignal
+  onDelta?: (text: string) => void
+  onQueued?: () => void
+  onModelStatus?: (status: CompanionModelStatus) => void
+  conversationKey?: string
+  format?: Record<string, unknown>
+}
+
+export type CompanionComplete = ((messages: RuntimeMessage[], options: CompanionCompleteOptions) => Promise<RuntimeMessage & { companionMetrics?: CompanionModelMetrics }>) & {
+  ensureReady?: (options: Omit<CompanionCompleteOptions, 'purpose'>) => Promise<void>
+}
 
 export type ChatSlotStatus = {
   activeRequestId: string | null
@@ -62,10 +66,11 @@ export type CompanionChatHostDeps = {
   publish: (event: Omit<CompanionMessageEvent, 'seq' | 'at'> & { at?: number }) => CompanionMessageEvent
   currentFacts: () => FactView
   getPreferences: () => UserPreference[]
+  getBattleContext?: () => unknown
 }
 
-function conversationKeyOf(selection: CompanionSelection, conversationId: string): string {
-  return `companion:${selection.character}:${selection.locale}:${conversationId}`
+function conversationKeyOf(selection: CompanionSelection, conversationId: string, runtimeInstanceId: string): string {
+  return JSON.stringify(['companion', runtimeInstanceId, selection.profileId, selection.model, selection.character, selection.locale, conversationId])
 }
 
 function buildChatMessages(input: {
@@ -73,14 +78,17 @@ function buildChatMessages(input: {
   selection: CompanionSelection
   facts: FactView
   episodes: MemoryEpisode[]
+  experiences: HpExperience[]
+  experienceDetailsTrimmed: boolean
   history: Array<{ role: 'user' | 'assistant'; content: string }>
   preferences: UserPreference[]
-}): RuntimeMessage[] {
-  const advice = buildAdviceContext({ facts: input.facts, episodes: input.episodes })
+  battle?: unknown
+}): { messages: RuntimeMessage[]; episodes: MemoryEpisode[]; experiences: HpExperience[] } {
+  const advice = buildAdviceContext({ facts: input.facts, episodes: input.episodes, experiences: input.experiences })
   const guardAvailable = hasGuardAction(advice.legalActions)
   const disarmSkill = Object.values(advice.knownMechanics.skills).find((skill) => skill.isDisarmable.known && skill.isDisarmable.value === true)
   const disarm = disarmSkill ? canClaimDisarmUseful(advice.legalActions, advice.knownMechanics, disarmSkill.skillId) : false
-  return [
+  const messages: RuntimeMessage[] = [
     {
       role: 'system',
       content: [
@@ -88,6 +96,8 @@ function buildChatMessages(input: {
         'One short reply. No tools. Do not invent mechanics.',
         'If citing memory or skills, return ONE JSON object {"text","blocks":[...]} and nothing else. Do not stream partial JSON.',
         'evidence_ref.episodeId must exist below; skill_advice.skillId must be legal now.',
+        'For HP experiences use {"kind":"experience_ref","experienceId":"provided id"}; the system renders the observed summary.',
+        'Experiences cover retained observations only. Check conditions, applicability and counterexamples. They do not prove mechanics or predict damage.',
         'Never claim disarm or shielding will work. Use conditional wording only.',
         `guardAvailable=${guardAvailable}; disarmKnownUseful=${disarm}.`,
         guardAvailable ? conditionalDefenseText(input.selection.locale) : '',
@@ -132,11 +142,25 @@ function buildChatMessages(input: {
             target: item.target,
           })),
         })),
+        experienceCoverage: 'retained_observations',
+        experienceDetailsTrimmed: input.experienceDetailsTrimmed,
+        experiences: input.experiences.slice(0, 3),
         recentHistory: input.history.slice(-8),
         gaps: advice.knownGaps.slice(0, 8),
+        battle: input.battle,
       }),
     },
   ]
+  const payload = JSON.parse(messages[1].content) as { episodes: unknown[]; experiences: HpExperience[]; recentHistory: unknown[] }
+  const size = () => messages[0].content.length + messages[1].content.length
+  while (size() > 11_900 && (payload.episodes.length || payload.experiences.length || payload.recentHistory.length)) {
+    if (payload.episodes.length) payload.episodes.pop()
+    else if (payload.experiences.length) payload.experiences.pop()
+    else payload.recentHistory.shift()
+    messages[1].content = JSON.stringify(payload)
+  }
+  if (size() > 11_900) throw new Error('CHAT_REQUIRED_CONTEXT_EXCEEDS_BUDGET')
+  return { messages, episodes: input.episodes.slice(0, payload.episodes.length), experiences: payload.experiences }
 }
 
 export class CompanionChatSlot {
@@ -152,7 +176,7 @@ export class CompanionChatSlot {
     return { activeRequestId: this.active?.requestId ?? null, generation: this.generation }
   }
 
-  bumpGeneration(reason: 'role' | 'locale' | 'conversation' | 'load' | 'clear' | 'dispose'): void {
+  bumpGeneration(reason: 'role' | 'locale' | 'model' | 'conversation' | 'load' | 'clear' | 'dispose'): void {
     this.generation += 1
     if (this.active && !this.active.controller.signal.aborted) {
       const current = this.active
@@ -202,7 +226,7 @@ export class CompanionChatSlot {
     }
 
     const facts = this.deps.currentFacts()
-    if (input.stamp.contextEpoch !== facts.stamp.contextEpoch || input.stamp.scope.segmentId !== facts.stamp.scope.segmentId) {
+    if (input.stamp.contextEpoch !== facts.stamp.contextEpoch || JSON.stringify(input.stamp.scope) !== JSON.stringify(facts.stamp.scope)) {
       return {
         accepted: false,
         error: companionError('STALE_CONTEXT', 'Chat stamp is stale', {
@@ -282,24 +306,61 @@ export class CompanionChatSlot {
       })
 
     try {
+      const contextStarted = performance.now()
+      const memoryEpoch = this.deps.memory.getEpoch()
+      const recordingRevision = this.deps.memory.getRecordingRevision()
+      const memoryCurrent = () => {
+        if (memoryEpoch === this.deps.memory.getEpoch() && recordingRevision === this.deps.memory.getRecordingRevision()) return true
+        this.bumpGeneration('clear')
+        this.deps.ledger.clearConversation()
+        return false
+      }
       const facts = this.deps.currentFacts()
       const enemyIds = (facts.current.enemies.value ?? []).map((enemy) => enemy.enemyId)
-      const episodes = toLegacyEpisodes(
+      const queriedEpisodes = toLegacyEpisodes(
         this.deps.memory.queryDetailed(facts.stamp.scope, {
           intent: enemyIds.length ? 'rematch' : 'recent_death',
           enemyIds: enemyIds.length ? enemyIds : undefined,
           limit: 3,
         }).episodes
       )
+      const experiences = this.deps.memory.queryExperiences(facts.stamp.scope, {
+        enemyIds: enemyIds.length ? enemyIds : undefined,
+        targets:
+          facts.current.party.known && facts.current.enemies.known
+            ? [
+                ...(facts.current.party.value ?? []).map((actor) => ({
+                  kind: 'actor' as const,
+                  id: actor.actorId,
+                  hp: actor.hp,
+                  hpMax: actor.hpMax,
+                  stateIds: actor.states.map((state) => state.stateId),
+                })),
+                ...(facts.current.enemies.value ?? []).map((enemy) => ({
+                  kind: 'enemy' as const,
+                  id: enemy.enemyId,
+                  hp: enemy.hp,
+                  hpMax: enemy.hpMax,
+                  stateIds: enemy.states.map((state) => state.stateId),
+                })),
+              ]
+            : undefined,
+        limit: 3,
+      })
       const history = this.deps.ledger.recentChat(input.conversationId).map((turn) => ({ role: turn.role, content: turn.content }))
-      const messages = buildChatMessages({
+      const supplied = buildChatMessages({
         prompt: input.prompt,
         selection: input.selection,
         facts,
-        episodes,
+        episodes: queriedEpisodes,
+        experiences: experiences.experiences,
+        experienceDetailsTrimmed: experiences.detailsTrimmed,
         history,
         preferences: this.deps.getPreferences(),
+        battle: this.deps.getBattleContext?.(),
       })
+      const { messages, episodes } = supplied
+      const contextMs = performance.now() - contextStarted
 
       let streamed = ''
       let mode: 'unknown' | 'plain' | 'structured' = 'unknown'
@@ -309,10 +370,10 @@ export class CompanionChatSlot {
         model: input.selection.model,
         purpose: 'chat',
         signal: controller.signal,
-        conversationKey: conversationKeyOf(input.selection, input.conversationId),
+        conversationKey: conversationKeyOf(input.selection, input.conversationId, facts.stamp.scope.runtimeInstanceId),
         // Do not force JSON format for every turn; grounded replies self-describe as JSON.
         onDelta: (chunk) => {
-          if (generation !== this.generation || !chunk) return
+          if (generation !== this.generation || controller.signal.aborted || !chunk || !memoryCurrent()) return
           streamed += chunk
           const trimmed = streamed.trimStart()
           if (mode === 'unknown') {
@@ -328,16 +389,21 @@ export class CompanionChatSlot {
           publish('delta', { text: chunk })
         },
         onQueued: () => {
-          if (generation !== this.generation) return
+          if (generation !== this.generation || controller.signal.aborted) return
           publish('queued')
+        },
+        onModelStatus: (modelStatus) => {
+          if (generation !== this.generation || controller.signal.aborted || !memoryCurrent()) return
+          publish('model.status', { modelStatus })
         },
       })
 
-      if (generation !== this.generation) {
+      if (generation !== this.generation || !memoryCurrent()) {
         return
       }
+      controller.signal.throwIfAborted()
 
-      const advice = buildAdviceContext({ facts: this.deps.currentFacts(), episodes })
+      const advice = buildAdviceContext({ facts: this.deps.currentFacts(), episodes, experiences: supplied.experiences })
       const raw = (message.content || streamed).trim()
       if (mode === 'unknown') {
         mode = looksLikeStructuredPayload(raw) || plainTextLooksGrounded(raw) ? 'structured' : 'plain'
@@ -352,7 +418,7 @@ export class CompanionChatSlot {
       }
 
       this.deps.ledger.appendChat(input.conversationId, { role: 'assistant', content: text, at: this.now() })
-      publish('completed', { text })
+      publish('completed', { text, metrics: includeCompanionContext(message.companionMetrics, contextMs) })
     } catch (error) {
       if (generation !== this.generation) return
       const aborted = controller.signal.aborted
@@ -386,6 +452,7 @@ export type CompanionControlStart = (
   input: {
     requestId: string
     goal: string
+    action: string
     shape: 'single' | 'batch' | 'open'
     lifetime: 'goal' | 'until_stopped'
     profileId: string

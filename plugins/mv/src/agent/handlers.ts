@@ -9,6 +9,7 @@ import { isFirstPartyToolPlugin } from '@/lib/runtime/plugin-tools'
 
 import { nativeSavefileId } from '../cheat/runtime/cheats'
 import { findPluginTool, listPluginToolMetas } from '../helpers/plugin-tools'
+import { isGameWrite, withAgentControl } from './control'
 import { chestEventOpened, eventFacts, eventHint, eventLook } from './event-facts'
 import { currentVisibleBounds, movePlayer, planVisibleRoute, quitGame, snapScreen, tapScreen } from './game-control'
 import { battleProgress, originalMessageText, readHistory } from './history'
@@ -16,7 +17,7 @@ import { interactEvent } from './interact'
 import { armReaction, currentReactionCue, reactionAvailable, reactionOutcome, reactionResult, startReactionMonitor, stopReaction } from './reaction'
 import { readCommandInputs, readRenderedText } from './rendered-text'
 import { withCompanionLoadOwner } from './runtime/companion-load-context'
-import { readSceneWindows } from './window-state'
+import { isPassiveSceneWindow, readSceneWindows } from './window-state'
 
 type GameSavesAgent = { agentSnapshot: () => Promise<unknown>; agentLoad: (entryId: string, allowVersionMismatch?: boolean, initiatorTaskId?: string) => Promise<unknown> }
 
@@ -344,7 +345,7 @@ export function readAgentGameState() {
 /** Structured menu/window observation for agents; keeps the full state tool unchanged. */
 function readAgentGameUi() {
   const state = readAgentGameState()
-  const active = state.windows.find((window) => window?.active) ?? null
+  const active = state.windows.find((window) => window?.active && !isPassiveSceneWindow(window.name)) ?? null
   return {
     scene: state.scene,
     windows: state.windows,
@@ -357,7 +358,7 @@ function readAgentGameUi() {
 
 function inputEffect(key: AgentInputKey, state: ReturnType<typeof readAgentGameState>): AgentInputEffect {
   if (key !== 'ok') return 'navigate'
-  const active = state.windows.find((window) => window?.active)
+  const active = state.windows.find((window) => window?.active && !isPassiveSceneWindow(window.name))
   const name = String(active?.name || '').toLowerCase()
   if (name.includes('choice') || state.message?.choices?.length) return 'choose_branch'
   if (name.includes('save') || name.includes('load')) return 'save_load'
@@ -399,7 +400,7 @@ function checkInputGuard(key: AgentInputKey, guard: AgentInputGuard) {
 }
 
 /** Walking only navigates; touch events on the way may still fire, which the host detects by re-observing. */
-function guardedMove(params: AgentParams<'player.moveTo'>) {
+function guardedMove(params: AgentParams<'player.moveTo'>, control?: AgentRunOptions['control']) {
   const { guard } = params
   if (guard) {
     const state = readAgentGameState()
@@ -408,7 +409,7 @@ function guardedMove(params: AgentParams<'player.moveTo'>) {
     if (!Array.isArray(guard.allowedEffects) || !guard.allowedEffects.includes('navigate')) throw new Error('ACTION_REQUIRES_CONFIRMATION:navigate')
   }
   const epoch = manualInputEpoch
-  return movePlayer(params, () => manualInputEpoch !== epoch)
+  return movePlayer(params, () => manualInputEpoch !== epoch || !!(control && !control.arbiter.isCurrent(control.lease)))
 }
 
 function listPlugins(): unknown {
@@ -467,18 +468,58 @@ function waitFrames(value: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, Math.round((value * 1000) / 60)))
 }
 
-async function pressKey({ key, frames: requested, guard }: AgentParams<'input.press'>): Promise<unknown> {
+async function pressKey({ key, frames: requested, guard }: AgentParams<'input.press'>, beforeInput?: () => void, control?: AgentRunOptions['control']): Promise<unknown> {
   const historyBefore = readHistory({ limit: 1 }).lastSeq
   if (guard) checkInputGuard(key, guard)
-  const input = g().Input as { _currentState?: Record<string, boolean> } | undefined
+  const input = g().Input as { _currentState?: Record<string, boolean>; _previousState?: Record<string, boolean> } | undefined
   const n = Math.max(1, frames(requested, DEFAULT_PRESS_FRAMES))
   if (!input?._currentState && typeof document === 'undefined') throw new Error('Input 未就绪（游戏尚未启动？）')
-  if (input?._currentState) input._currentState[key] = true
-  dispatchKey('keydown', key)
-  await waitFrames(n)
-  if (input?._currentState) input._currentState[key] = false
-  dispatchKey('keyup', key)
-  if (guard && n > 2) await waitFrames(2)
+  beforeInput?.()
+  let held = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let finish: (() => void) | undefined
+  const releaseKey = () => {
+    if (held) {
+      held = false
+      if (input?._currentState) input._currentState[key] = false
+      dispatchKey('keyup', key)
+    }
+    if (timer !== undefined) clearTimeout(timer)
+    finish?.()
+  }
+  const untrack = control?.arbiter.trackInput(control.lease, releaseKey)
+  try {
+    const released = new Promise<void>((resolve) => {
+      finish = resolve
+      timer = setTimeout(resolve, Math.round((n * 1000) / 60))
+    })
+    held = true
+    if (input?._currentState) input._currentState[key] = true
+    dispatchKey('keydown', key)
+    await released
+    if (guard && n > 2 && input?._previousState) {
+      // Wall time can advance while a busy renderer has not sampled the key yet.
+      const deadline = Date.now() + 1_000
+      while (held && input._previousState[key] !== true && Date.now() < deadline) {
+        control?.arbiter.assertCurrent(control.lease)
+        await waitFrames(1)
+      }
+      if (held && input._previousState[key] !== true) throw new Error('INPUT_NOT_OBSERVED')
+    }
+  } finally {
+    releaseKey()
+    untrack?.()
+  }
+  if (guard && n > 2) {
+    await waitFrames(2)
+    // A second press before Input.update sees this release is the same held key.
+    const deadline = Date.now() + 1_000
+    while (input?._previousState?.[key] === true) {
+      control?.arbiter.assertCurrent(control.lease)
+      if (Date.now() >= deadline) throw new Error('INPUT_RELEASE_UNCONFIRMED')
+      await waitFrames(1)
+    }
+  }
   const history = readHistory({ afterSeq: historyBefore, limit: 50 })
   return { key, frames: n, ...(history.entries.length ? { history } : {}) }
 }
@@ -499,7 +540,7 @@ export function startReactionTracking(): () => void {
   )
 }
 
-async function playSequence({ steps, guard }: AgentParams<'input.sequence'>): Promise<unknown> {
+async function playSequence({ steps, guard }: AgentParams<'input.sequence'>, beforeInput?: () => void, control?: AgentRunOptions['control']): Promise<unknown> {
   if (!Array.isArray(steps) || !steps.length) throw new Error('steps 不能为空')
   if (steps.length > MAX_SEQUENCE_STEPS) throw new Error(`steps 最多 ${MAX_SEQUENCE_STEPS} 个`)
   if (guard) {
@@ -513,7 +554,7 @@ async function playSequence({ steps, guard }: AgentParams<'input.sequence'>): Pr
     if (!step || !DOM_KEYS[step.key]) throw new Error(`无效按键：${String(step?.key)}`)
     // Arrows only navigate, but once the battle ends or the player takes over they would walk the map
     if (guard && index > 0 && (manualInputEpoch !== epoch || (battle && readAgentGameState().battle?.instanceId !== battle.instanceId))) throw new Error('SCOPE_CHANGED')
-    actions.push(await pressKey(step))
+    actions.push(await pressKey(step, beforeInput, control))
     await waitFrames(frames(step.waitFrames, DEFAULT_WAIT_FRAMES))
   }
   return { actions, state: readAgentGameState() }
@@ -529,6 +570,12 @@ export type AgentRunOptions = {
   allowEval?: boolean
   /** Internal play task allowed to use input while it owns the game controls. */
   inputOwner?: string
+  /** Internal hook after guard validation and immediately before dispatch. */
+  beforeInput?: () => void
+  control?: {
+    arbiter: import('@/lib/game-agent/companion/core/types').ControlArbiter
+    lease: import('@/lib/game-agent/companion/core/types').ControlLease
+  }
 }
 
 async function withAgentInput<T>(run: () => Promise<T> | T): Promise<T> {
@@ -543,7 +590,25 @@ async function withAgentInput<T>(run: () => Promise<T> | T): Promise<T> {
   }
 }
 
-export async function runAgentCommand(cmd: AgentCommand, { allowEval = false, inputOwner }: AgentRunOptions = {}): Promise<unknown> {
+export async function runAgentCommand(cmd: AgentCommand, options: AgentRunOptions = {}): Promise<unknown> {
+  return withAgentControl(cmd, options.inputOwner, options.control, (control) => {
+    const beforeInput = () => {
+      if (control) control.arbiter.assertCurrent(control.lease)
+      options.beforeInput?.()
+      if (control) control.arbiter.assertCurrent(control.lease)
+    }
+    if (isGameWrite(cmd) && !['input.press', 'input.sequence', 'input.tap', 'player.interact'].includes(cmd.method)) beforeInput()
+    return executeAgentCommand(cmd, { ...options, control, beforeInput }, (key) =>
+      runAgentCommand({ id: `${cmd.id}:reaction`, method: 'input.press', params: { key, frames: 2 } }, { inputOwner: options.inputOwner, control: options.control })
+    )
+  })
+}
+
+async function executeAgentCommand(
+  cmd: AgentCommand,
+  { allowEval = false, inputOwner, beforeInput, control }: AgentRunOptions,
+  reactionPress: (key: AgentInputKey) => Promise<unknown>
+): Promise<unknown> {
   const activeOwner = typeof window === 'undefined' ? undefined : (window as Window & { __chayaAgentPlayTaskId?: string }).__chayaAgentPlayTaskId
   const inputMethod =
     cmd.method === 'input.press' || cmd.method === 'input.sequence' || cmd.method === 'input.tap' || cmd.method === 'player.moveTo' || cmd.method === 'player.interact'
@@ -580,20 +645,31 @@ export async function runAgentCommand(cmd: AgentCommand, { allowEval = false, in
     case 'plugin.tool':
       return callPluginTool(cmd.params)
     case 'input.press':
-      return withAgentInput(() => pressKey(cmd.params))
+      return withAgentInput(() => pressKey(cmd.params, beforeInput, control))
     case 'input.reaction.arm':
-      return armReaction(cmd.params)
+      return armReaction(cmd.params, reactionPress)
     case 'input.reaction.stop':
       return stopReaction()
     case 'input.sequence':
-      return withAgentInput(() => playSequence(cmd.params))
+      return withAgentInput(() => playSequence(cmd.params, beforeInput, control))
     case 'input.tap':
-      return withAgentInput(() => tapScreen(cmd.params))
+      return withAgentInput(() =>
+        tapScreen(cmd.params, {
+          beforeInput,
+          track: control ? (cancel) => control.arbiter.trackInput(control.lease, cancel) : undefined,
+        })
+      )
     case 'player.moveTo':
-      return withAgentInput(() => guardedMove(cmd.params))
+      return withAgentInput(() => guardedMove(cmd.params, control))
     case 'player.interact': {
       const epoch = manualInputEpoch
-      return withAgentInput(() => interactEvent(cmd.params, { press: (key) => pressKey({ key }), readState: readAgentGameState, interrupted: () => manualInputEpoch !== epoch }))
+      return withAgentInput(() =>
+        interactEvent(cmd.params, {
+          press: (key) => pressKey({ key }, beforeInput, control),
+          readState: readAgentGameState,
+          interrupted: () => manualInputEpoch !== epoch || !!(control && !control.arbiter.isCurrent(control.lease)),
+        })
+      )
     }
     case 'edit.catalog':
       return editCatalog()

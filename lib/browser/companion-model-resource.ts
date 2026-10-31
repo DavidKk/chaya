@@ -1,6 +1,6 @@
 type Priority = 'foreground' | 'control' | 'background'
-type Ticket = { id: string; priority: Priority; deadline: number }
-type Lease = { key: string; owner?: string; expiresAt: number; prefer: 'foreground' | 'control'; tickets: Ticket[] }
+type Ticket = { id: string; instanceId?: string; priority: Priority; deadline: number }
+type Lease = { key: string; owner?: string; expiresAt: number; prefer: 'foreground' | 'control'; lastInstance?: string; tickets: Ticket[] }
 
 const DB_NAME = 'chaya-model-resources'
 const STORE = 'leases'
@@ -65,10 +65,15 @@ function wait(signal: AbortSignal) {
 }
 
 function nextTicket(lease: Lease): Ticket | undefined {
-  const foreground = lease.tickets.find((item) => item.priority === 'foreground')
-  const control = lease.tickets.find((item) => item.priority === 'control')
+  const interactive = lease.tickets.filter((item) => item.priority !== 'background')
+  const group = interactive.length ? interactive : lease.tickets
+  const other = group.find((item) => (item.instanceId ?? 'unscoped') !== lease.lastInstance)
+  const instance = other?.instanceId ?? group[0]?.instanceId
+  const eligible = group.filter((item) => item.instanceId === instance)
+  const foreground = eligible.find((item) => item.priority === 'foreground')
+  const control = eligible.find((item) => item.priority === 'control')
   if (foreground && control) return lease.prefer === 'foreground' ? foreground : control
-  return foreground || control || lease.tickets.find((item) => item.priority === 'background')
+  return foreground || control || eligible.find((item) => item.priority === 'background')
 }
 
 /**
@@ -78,30 +83,43 @@ function nextTicket(lease: Lease): Ticket | undefined {
 export async function withBrowserModelResource<T>(input: {
   resourceKey: string
   priority: Priority
+  instanceId?: string
   timeoutMs: number
+  queueTimeoutMs?: number
   signal: AbortSignal
   run: (signal: AbortSignal) => Promise<T>
 }): Promise<T> {
+  if (typeof navigator === 'undefined' || !navigator.locks) {
+    throw Object.assign(new Error('This browser cannot coordinate live model calls'), { code: 'MODEL_UNAVAILABLE' })
+  }
   const id = crypto.randomUUID()
   const timeoutMs = Math.max(1, Math.min(input.timeoutMs, 10 * 60_000))
   const deadline = Date.now() + timeoutMs
+  const queueDeadline = Date.now() + (input.queueTimeoutMs ?? timeoutMs)
   const timer = new AbortController()
   const timeout = setTimeout(() => timer.abort(new DOMException('Model queue or generation timed out', 'TimeoutError')), timeoutMs)
   const signal = AbortSignal.any([input.signal, timer.signal])
   let registered = false
+  let heartbeat: ReturnType<typeof setInterval> | undefined
   try {
     while (true) {
       if (signal.aborted) throw signal.reason
+      if (Date.now() >= queueDeadline) throw new DOMException('Model queue timed out', 'TimeoutError')
       const acquired = await updateLease(input.resourceKey, (lease) => {
         if (signal.aborted) throw signal.reason
         if (!registered) {
-          if (lease.tickets.length >= 16 || (input.priority === 'background' && lease.tickets.some((item) => item.priority === 'background'))) {
+          if (
+            lease.tickets.length >= 16 ||
+            lease.tickets.filter((item) => item.instanceId === input.instanceId).length >= 4 ||
+            (input.priority === 'background' && lease.tickets.some((item) => item.priority === 'background'))
+          ) {
             throw Object.assign(new Error('Model resource queue is full'), { code: 'MODEL_BUSY', retryable: true })
           }
-          lease.tickets.push({ id, priority: input.priority, deadline })
+          lease.tickets.push({ id, instanceId: input.instanceId, priority: input.priority, deadline: queueDeadline })
         }
         if (lease.owner || nextTicket(lease)?.id !== id) return false
         lease.owner = id
+        lease.lastInstance = input.instanceId ?? 'unscoped'
         lease.expiresAt = deadline + RECLAIM_MS
         lease.tickets = lease.tickets.filter((item) => item.id !== id)
         if (input.priority !== 'background') lease.prefer = input.priority === 'foreground' ? 'control' : 'foreground'
@@ -112,10 +130,20 @@ export async function withBrowserModelResource<T>(input: {
       await wait(signal)
     }
     if (signal.aborted) throw signal.reason
+    // Keep a live, still-settling request occupied even after its abort deadline.
+    heartbeat = setInterval(() => {
+      void updateLease(input.resourceKey, (lease) => {
+        if (lease.owner === id) lease.expiresAt = Math.max(deadline, Date.now()) + RECLAIM_MS
+      }).catch(() => timer.abort(new Error('Model resource lease renewal failed')))
+    }, 1_000)
     // Deliberately await upstream settlement; abort does not logically free a live request.
-    return await input.run(signal)
+    // A suspended tab can miss renewals. The live-tab lock still fences its upstream call.
+    const result = await navigator.locks.request(`chaya-model-resource:${input.resourceKey}`, { mode: 'exclusive', signal }, () => input.run(signal))
+    signal.throwIfAborted()
+    return result
   } finally {
     clearTimeout(timeout)
+    if (heartbeat) clearInterval(heartbeat)
     if (registered) {
       await updateLease(input.resourceKey, (lease) => {
         lease.tickets = lease.tickets.filter((item) => item.id !== id)

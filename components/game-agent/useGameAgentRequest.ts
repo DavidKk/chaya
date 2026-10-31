@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from 'react'
 
 import { useOptionalGameLinkContext } from '@/components/GameLinkProvider'
+import { COMPANION_ROUTE_CALL_TIMEOUT_MS } from '@/lib/game-agent/companion/model-diagnostics'
 import { normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
 
 import { createBrowserGameAgentRequest, currentBrowserAgentSettings } from './browserRequest'
@@ -32,6 +33,7 @@ export function useGameAgentRequest() {
         } catch {
           /* Use the shared default when local browser settings are unavailable. */
         }
+        if (message.type === 'agent.companion.route') timeoutMs = Math.max(timeoutMs, COMPANION_ROUTE_CALL_TIMEOUT_MS)
         const timer = window.setTimeout(() => finish(new Error(`游戏 ${Math.round(timeoutMs / 1000)} 秒内未响应 Agent 请求`)), timeoutMs)
         const unsubscribe = subscribeMessages((reply) => {
           if (reply.type !== 'agent.task.result' || reply.requestId !== message.requestId) return

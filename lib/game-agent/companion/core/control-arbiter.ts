@@ -20,13 +20,21 @@ export function createControlArbiter(): ControlArbiter & { revokeCurrent(reason:
   let activeLease: ControlLease | null = null
   let currentGeneration = 0
   let revokedGeneration = -1
+  const inputs = new Map<symbol, { generation: number; cancel: () => void }>()
+  const idleWaiters = new Set<() => void>()
+
+  function cancelInputs(generation: number): void {
+    for (const input of inputs.values()) {
+      if (input.generation === generation) input.cancel()
+    }
+  }
 
   return {
     acquire(input: AuthorizedControlRequest): ControlLease {
       if (!input.ownerId || !input.runtimeInstanceId) {
         throw new ControlArbiterError('Invalid control request: missing ownerId or runtimeInstanceId', 'UNAUTHORIZED')
       }
-      if (activeLease) throw new ControlArbiterError('Game control is already held', 'CONTROL_BUSY')
+      if (activeLease || inputs.size) throw new ControlArbiterError('Game control is already held', 'CONTROL_BUSY')
 
       currentGeneration += 1
       const lease: ControlLease = {
@@ -64,18 +72,38 @@ export function createControlArbiter(): ControlArbiter & { revokeCurrent(reason:
       return activeLease ? { ...activeLease } : null
     },
 
+    trackInput(lease: ControlLease, cancel: () => void): () => void {
+      this.assertCurrent(lease)
+      const id = Symbol()
+      inputs.set(id, { generation: lease.generation, cancel })
+      return () => {
+        inputs.delete(id)
+        if (!inputs.size) {
+          for (const resolve of idleWaiters) resolve()
+          idleWaiters.clear()
+        }
+      }
+    },
+
+    whenIdle(): Promise<void> {
+      return inputs.size ? new Promise((resolve) => idleWaiters.add(resolve)) : Promise.resolve()
+    },
+
     revoke(lease: ControlLease, _reason: ControlRevocationReason): void {
       // Must compare full lease so old callbacks cannot revoke a newer lease
       if (activeLease && activeLease.generation === lease.generation && activeLease.ownerId === lease.ownerId && activeLease.runtimeInstanceId === lease.runtimeInstanceId) {
         revokedGeneration = Math.max(revokedGeneration, lease.generation)
         activeLease = null
+        cancelInputs(lease.generation)
       }
     },
 
     revokeCurrent(_reason: ControlRevocationReason): void {
       if (activeLease) {
-        revokedGeneration = Math.max(revokedGeneration, activeLease.generation)
+        const generation = activeLease.generation
+        revokedGeneration = Math.max(revokedGeneration, generation)
         activeLease = null
+        cancelInputs(generation)
       }
     },
 
@@ -83,6 +111,7 @@ export function createControlArbiter(): ControlArbiter & { revokeCurrent(reason:
       // Release only succeeds if the active lease is exactly this lease
       if (activeLease && activeLease.generation === lease.generation && activeLease.ownerId === lease.ownerId && activeLease.runtimeInstanceId === lease.runtimeInstanceId) {
         activeLease = null
+        cancelInputs(lease.generation)
       }
     },
   }

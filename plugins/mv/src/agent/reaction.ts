@@ -1,7 +1,7 @@
 import { AGENT_INPUT_KEYS, type AgentInputKey, type AgentParams, type AgentReactionCue } from '@/lib/runtime/agent-protocol'
 
 type Scope = { battleInstanceId: string | null; mapId: number | null; manualInputEpoch: number }
-type Arm = AgentParams<'input.reaction.arm'> & { startedAt: number; manualInputEpoch: number; seen: Set<string> }
+type Arm = AgentParams<'input.reaction.arm'> & { startedAt: number; manualInputEpoch: number; seen: Set<string>; send?: (key: AgentInputKey) => Promise<unknown> }
 type QteSource = (() => unknown) & { lastResult?: { id: string; result: string } }
 
 function source(): QteSource | undefined {
@@ -46,7 +46,7 @@ function tick() {
   if (!observation || !policy.allowedKeys.includes(observation.key) || observation.expiresAt <= Date.now() || policy.seen.has(observation.id)) return
   policy.seen.add(observation.id)
   lastReaction = { id: observation.id, key: observation.key, latencyMs: Number.isFinite(observation.startedAt) ? Date.now() - observation.startedAt! : null }
-  void press(observation.key).catch(() => {})
+  void (policy.send ?? press)(observation.key).catch(() => {})
 }
 
 export function startReactionMonitor(scope: () => Scope, send: (key: AgentInputKey) => Promise<unknown>): () => void {
@@ -74,7 +74,7 @@ export function reactionOutcome() {
   return result && typeof result.id === 'string' && ['success', 'missed'].includes(result.result) ? result : null
 }
 
-export function armReaction(params: AgentParams<'input.reaction.arm'>) {
+export function armReaction(params: AgentParams<'input.reaction.arm'>, send?: (key: AgentInputKey) => Promise<unknown>) {
   if (!getScope || !press || !reactionAvailable()) throw new Error('当前游戏没有可读取的快速反应信号')
   const scope = getScope()
   if (scope.battleInstanceId !== params.battleInstanceId || (params.mapId != null && scope.mapId !== params.mapId)) throw new Error('SCOPE_CHANGED')
@@ -82,7 +82,7 @@ export function armReaction(params: AgentParams<'input.reaction.arm'>) {
   const allowedKeys = params.allowedKeys.filter((key) => ['ok', 'cancel', 'shift', 'up', 'down', 'left', 'right'].includes(key))
   if (!allowedKeys.length || allowedKeys.length !== params.allowedKeys.length) throw new Error('没有允许的快速反应按键')
   lastReaction = null
-  active = { ...params, allowedKeys, ttlMs: Math.min(300_000, Math.max(1, params.ttlMs)), startedAt: Date.now(), manualInputEpoch: scope.manualInputEpoch, seen: new Set() }
+  active = { ...params, allowedKeys, ttlMs: Math.min(300_000, Math.max(1, params.ttlMs)), startedAt: Date.now(), manualInputEpoch: scope.manualInputEpoch, seen: new Set(), send }
   return { armed: true }
 }
 

@@ -8,6 +8,171 @@ const patch: TacticPatch = { operations: [{ op: 'modify_param', ruleId: 'default
 describe('Coordinator regressions', () => {
   afterEach(() => jest.useRealTimers())
 
+  test('reviews repeated emergency-only defense, then pauses without dispatching another endless guard', () => {
+    const request = jest.fn()
+    const exhausted = jest.fn()
+    const intents: ActionIntent[] = []
+    const { coordinator } = runningCoordinator({
+      onRequestDecision: request,
+      onDecisionExhausted: exhausted,
+      onDispatchIntent: (intent) => {
+        intents.push(intent)
+        coordinator.onCommandCommitted(intent.commandId)
+      },
+    })
+    const frame = battleFrame()
+    frame.party[0].hp = 10
+    for (let turn = 1; turn <= 7; turn++) {
+      coordinator.onFrameUpdate({ ...frame, turnCount: turn, opportunity: { ...frame.opportunity!, opportunityId: `turn:${turn}` } })
+    }
+    expect(intents).toHaveLength(6)
+    expect(intents.every((i) => i.actionOffer.kind === 'guard')).toBe(true)
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0][0]).toMatchObject({ reason: 'repeated_emergency_guard', mode: 'deep' })
+    expect(exhausted).toHaveBeenCalledWith(expect.stringContaining('保命防御'))
+    expect(coordinator.getStatus()).toBe('paused')
+    expect(coordinator.getActiveLease()).toBeNull()
+  })
+
+  test('does not consider a turn stalled when another actor attacks while a wounded ally guards', () => {
+    const request = jest.fn()
+    const { coordinator } = runningCoordinator({
+      onRequestDecision: request,
+      onDispatchIntent: (intent) => coordinator.onCommandCommitted(intent.commandId),
+    })
+    const frame = battleFrame()
+    frame.party = [
+      { ...frame.party[0], hp: 10 },
+      { ...frame.party[0], actorId: 2, index: 1 },
+    ]
+    for (let turn = 1; turn <= 9; turn++) {
+      for (const slot of [0, 1]) {
+        const actor = { kind: 'actor' as const, id: slot + 1, instance: `actor:${slot + 1}` }
+        coordinator.onFrameUpdate({
+          ...frame,
+          turnCount: turn,
+          offers: frame.offers.map((offer) => ({ ...offer, actionKey: `actor:${slot + 1}:${offer.kind}`, actor })),
+          opportunity: { ...frame.opportunity!, actor, opportunityId: `turn:${turn}:slot:${slot}`, actionSlot: slot },
+        })
+      }
+    }
+    expect(request).not.toHaveBeenCalled()
+    expect(coordinator.getStatus()).toBe('running')
+  })
+
+  test('counts defense committed after the engine advances its resolving turn', () => {
+    const request = jest.fn()
+    const exhausted = jest.fn()
+    const frame = battleFrame()
+    frame.party[0].hp = 10
+    const { coordinator } = runningCoordinator({
+      onRequestDecision: request,
+      onDecisionExhausted: exhausted,
+      onDispatchIntent: (intent) => {
+        coordinator.onFrameUpdate({ ...frame, phase: 'resolving', turnCount: intent.turnCount! + 1, opportunity: null }, false)
+        coordinator.onCommandCommitted(intent.commandId)
+      },
+    })
+    for (let turn = 0; turn <= 6; turn++) {
+      coordinator.onFrameUpdate({ ...frame, turnCount: turn, opportunity: { ...frame.opportunity!, opportunityId: `turn:${turn}` } })
+    }
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ reason: 'repeated_emergency_guard', mode: 'deep' }))
+    expect(exhausted).toHaveBeenCalledWith(expect.stringContaining('保命防御'))
+    expect(coordinator.getStatus()).toBe('paused')
+  })
+
+  test('an accepted attack adjustment clears the defensive streak through actual command commitment', () => {
+    let ticket!: DecisionTicket
+    const { coordinator } = runningCoordinator({
+      onRequestDecision: (next) => {
+        ticket = next
+      },
+      onDispatchIntent: (intent) => coordinator.onCommandCommitted(intent.commandId),
+    })
+    const frame = battleFrame()
+    frame.party[0].hp = 10
+    for (let turn = 1; turn <= 4; turn++) {
+      coordinator.onFrameUpdate({ ...frame, turnCount: turn, opportunity: { ...frame.opportunity!, opportunityId: `turn:${turn}` } })
+    }
+    expect(
+      coordinator.applyModelTacticPatch(ticket, {
+        operations: [{ op: 'remove_rule', ruleId: 'default_self_preserve_guard' }],
+        reason: 'Attack to break the stalemate',
+        evidenceRefs: [],
+      }).accepted
+    ).toBe(true)
+    for (let turn = 5; turn <= 10; turn++) {
+      coordinator.onFrameUpdate({ ...frame, turnCount: turn, opportunity: { ...frame.opportunity!, opportunityId: `turn:${turn}` } })
+    }
+    expect(coordinator.getStatus()).toBe('running')
+    expect(coordinator.getCurrentAction()?.intent.actionOffer.kind).toBe('attack')
+  })
+
+  test('refreshes the rule basis at final validation and consumes a replacement one-shot rule', () => {
+    const intents: ActionIntent[] = []
+    let ticket!: DecisionTicket
+    const rule = { id: 'guard', priority: 999, when: { kind: 'always' as const }, prefer: { kind: 'guard' as const }, lifetime: { kind: 'persistent' as const } }
+    const { coordinator } = runningCoordinator({
+      initialTactic: { schemaVersion: 1, revision: 1, rules: [rule] },
+      onDispatchIntent: (intent) => intents.push(intent),
+      onRequestDecision: (next) => {
+        ticket = next
+      },
+    })
+    const frame = battleFrame()
+    coordinator.onFrameUpdate({ ...frame, offers: [] })
+    coordinator.onFrameUpdate(frame)
+    expect(
+      coordinator.applyModelTacticPatch(ticket, {
+        operations: [{ op: 'replace_rule', ruleId: rule.id, rule: { ...rule, lifetime: { kind: 'next_matching_action' } } }],
+        reason: 'Only once',
+        evidenceRefs: [],
+      }).accepted
+    ).toBe(true)
+    expect(coordinator.validateIntent(intents[0], frame)).toBe(true)
+    expect(intents[0].tacticRevision).toBe(2)
+    expect(coordinator.ledger.getCommand(intents[0].commandId)?.intent.tacticRevision).toBe(2)
+    coordinator.onCommandCommitted(intents[0].commandId)
+    expect(coordinator.getTacticPlan().rules).toEqual([])
+  })
+
+  test('reserves same-turn MP across multiple action slots and resets the budget next turn', () => {
+    const intents: ActionIntent[] = []
+    const { coordinator } = runningCoordinator({ onDispatchIntent: (intent) => intents.push(intent) })
+    const frame = battleFrame()
+    frame.party[0].hp = 10
+    frame.offers.unshift({
+      ...frame.offers[0],
+      actionKey: 'actor:1:skill:10',
+      kind: 'skill',
+      abilityId: 10,
+      skillTypeId: 1,
+      targetRule: 'user',
+      effect: { kind: 'heal' },
+      costs: { mp: 15, tp: 0 },
+    })
+    coordinator.onFrameUpdate(frame)
+    expect(intents[0].actionOffer.kind).toBe('skill')
+    coordinator.onCommandCommitted(intents[0].commandId)
+    coordinator.onFrameUpdate({ ...frame, opportunity: { ...frame.opportunity!, opportunityId: 'slot:1', actionSlot: 1 } })
+    expect(intents[1].actionOffer.kind).toBe('guard')
+    coordinator.onFrameUpdate({ ...frame, turnCount: 2, opportunity: { ...frame.opportunity!, opportunityId: 'turn:2' } })
+    expect(intents[2].actionOffer.kind).toBe('skill')
+  })
+
+  test('finished encounters do not consume the pending command limit', () => {
+    const intents: ActionIntent[] = []
+    const { coordinator } = runningCoordinator({ onDispatchIntent: (intent) => intents.push(intent) })
+    for (let index = 0; index < 150; index++) {
+      const frame = battleFrame({ encounterId: `enc-${index}` })
+      coordinator.onFrameUpdate(frame)
+      coordinator.onCommandCommitted(intents[index].commandId)
+      coordinator.onEncounterResult(frame.encounterId, 'win', 1)
+    }
+    expect(intents).toHaveLength(150)
+    expect(coordinator.ledger.getPendingCommands()).toHaveLength(0)
+  })
+
   test('keeps observing while waiting for animations, then dispatches on the next opportunity', () => {
     const dispatch = jest.fn()
     const { coordinator: c } = runningCoordinator({ onDispatchIntent: dispatch })

@@ -22,7 +22,16 @@ function fixture() {
     action,
   }
   const press = jest.fn(async () => {})
-  const port: BattleNavigationPort = { readFrame: () => frame, readInput: async () => input, press, bindAction: jest.fn(), onConfirming: jest.fn() }
+  const port: BattleNavigationPort = {
+    readFrame: () => frame,
+    readInput: async () => input,
+    press: async (key, state, lease, beforeDispatch) => {
+      beforeDispatch?.()
+      await (press as BattleNavigationPort['press'])(key, state, lease)
+    },
+    bindAction: jest.fn(),
+    onConfirming: jest.fn(),
+  }
   return {
     arbiter,
     lease,
@@ -114,5 +123,85 @@ test('rejects a context switch during async observation even if slot IDs are reu
     return input
   }
   await expect(f.navigator.execute(f.intent, f.lease)).resolves.toMatchObject({ ok: false, reason: 'STATE_CHANGED' })
+  expect(f.press).not.toHaveBeenCalled()
+})
+
+test.each(['user', 'all_allies', 'all_enemies'] as const)('binds a %s skill only when the specific skill is confirmed', async (kind) => {
+  const f = fixture()
+  f.intent.actionOffer = { ...f.intent.actionOffer, kind: 'skill', abilityId: 10, skillTypeId: 1 }
+  f.intent.target = { kind }
+  f.setInput({
+    controlToken: 't',
+    battleInstanceId: 'b',
+    kind: 'command',
+    index: 0,
+    maxCols: 1,
+    options: [{ index: 0, enabled: true, symbol: 'skill', ext: 1 }],
+    action: f.action,
+  })
+  f.press.mockImplementation(async () => {
+    if (f.press.mock.calls.length === 1) {
+      expect(f.port.bindAction).not.toHaveBeenCalled()
+      f.setInput({
+        controlToken: 't',
+        battleInstanceId: 'b',
+        kind: 'skill',
+        index: 0,
+        maxCols: 1,
+        options: [{ index: 0, enabled: true, abilityId: 10 }],
+        action: f.action,
+      })
+    } else {
+      expect(f.port.bindAction).toHaveBeenCalledTimes(1)
+      f.frame.opportunity = null
+      f.frame.phase = 'resolving'
+    }
+  })
+  await expect(f.navigator.execute(f.intent, f.lease)).resolves.toEqual({ ok: true, committed: true })
+})
+
+test('leaves no binding when observation is blocked after opening the skill category', async () => {
+  const f = fixture()
+  f.intent.actionOffer = { ...f.intent.actionOffer, kind: 'skill', abilityId: 10, skillTypeId: 1 }
+  f.intent.target = { kind: 'user' }
+  f.setInput({
+    controlToken: 't',
+    battleInstanceId: 'b',
+    kind: 'command',
+    index: 0,
+    maxCols: 1,
+    options: [{ index: 0, enabled: true, symbol: 'skill', ext: 1 }],
+    action: f.action,
+  })
+  f.press.mockImplementation(async () => f.setInput(null))
+  await expect(f.navigator.execute(f.intent, f.lease)).resolves.toMatchObject({ ok: false, reason: 'INPUT_BLOCKED' })
+  expect(f.port.bindAction).not.toHaveBeenCalled()
+})
+
+test('leaves no binding or uncertain confirmation when the dispatch guard rejects input', async () => {
+  const f = fixture()
+  f.intent.actionOffer.kind = 'guard'
+  f.intent.target = { kind: 'user' }
+  f.setInput({
+    controlToken: 't',
+    battleInstanceId: 'b',
+    kind: 'command',
+    index: 0,
+    maxCols: 1,
+    options: [{ index: 0, enabled: true, symbol: 'guard' }],
+    action: f.action,
+  })
+  f.port.press = async () => {
+    throw new Error('STALE_INPUT_GUARD')
+  }
+  await expect(f.navigator.execute(f.intent, f.lease)).resolves.toMatchObject({ ok: false, unknown: false })
+  expect(f.port.bindAction).not.toHaveBeenCalled()
+  expect(f.port.onConfirming).not.toHaveBeenCalled()
+})
+
+test('revalidates after async observation and stops before confirming a forbidden action', async () => {
+  const f = fixture()
+  f.port.validateIntent = jest.fn(() => false)
+  await expect(f.navigator.execute(f.intent, f.lease)).resolves.toMatchObject({ ok: false, reason: 'INTENT_CHANGED', unknown: false })
   expect(f.press).not.toHaveBeenCalled()
 })

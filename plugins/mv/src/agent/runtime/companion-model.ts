@@ -1,9 +1,14 @@
 import { withBrowserModelResource } from '@/lib/browser/companion-model-resource'
+import { trimCompanionContext } from '@/lib/game-agent/companion/model-context'
+import { COMPANION_MODEL_STARTUP_MS, type CompanionModelMetrics, type CompanionModelStatus } from '@/lib/game-agent/companion/model-diagnostics'
 import type { RuntimeMessage } from '@/lib/game-agent/runtime'
 import type { AgentSyncSettings } from '@/lib/game-agent/settings-sync'
+import { COMPANION_KEEP_ALIVE, prepareCompanionOllama } from '@/services/game-agent/companion-ollama'
 import { streamOllamaChat } from '@/services/game-agent/ollama-client'
 
 import { chayaFetch } from '../../helpers'
+import { createLogger } from '../../helpers/net/logger'
+import type { CompanionComplete } from './companion-chat'
 
 /** Same-origin browser lease key for a loopback or remote Ollama endpoint. */
 export function ollamaBrowserResourceKey(endpoint: string): string {
@@ -25,10 +30,12 @@ export async function completeRemoteOllama(input: {
   format?: Record<string, unknown>
   signal: AbortSignal
   priority: 'control' | 'foreground'
+  instanceId?: string
 }): Promise<RuntimeMessage> {
   return withBrowserModelResource({
     resourceKey: ollamaBrowserResourceKey(input.endpoint),
     priority: input.priority,
+    instanceId: input.instanceId,
     timeoutMs: input.timeoutMs,
     signal: input.signal,
     run: (leaseSignal) =>
@@ -53,76 +60,158 @@ export async function completeRemoteOllama(input: {
   })
 }
 
-export type CompanionModelOptions = {
-  profileId: string
-  model: string
-  purpose: 'chat' | 'route' | 'prepare'
-  signal: AbortSignal
-  onDelta?: (text: string) => void
-  onQueued?: () => void
-  conversationKey?: string
-  format?: Record<string, unknown>
-}
+export type CompanionModelOptions = Parameters<CompanionComplete>[1]
 
 type ModelPacket = {
   type: string
   text?: string
   message?: RuntimeMessage
+  metrics?: CompanionModelMetrics
   error?: { code?: string; message?: string; retryable?: boolean }
+  phase?: CompanionModelStatus['phase']
+  residency?: CompanionModelStatus['residency']
+  startupMs?: number
+  startupLoadMs?: number
 }
 
 /** Whole-response adapters emit no deltas. The service keeps the shared inference queue. */
 export function createCompanionModel(readConfig: () => AgentSyncSettings | null) {
-  return async (messages: RuntimeMessage[], options: CompanionModelOptions): Promise<RuntimeMessage> => {
+  const complete: CompanionComplete = async (messages: RuntimeMessage[], options: CompanionModelOptions): ReturnType<CompanionComplete> => {
     const config = readConfig()
     const profile = config?.profiles.find((item) => item.id === options.profileId)
     if (!profile) throw Object.assign(new Error('请先配置陪玩模型'), { code: 'MODEL_UNAVAILABLE', retryable: true })
-    const timeoutMs = options.purpose === 'route' ? 5_000 : options.purpose === 'prepare' ? 10_000 : 15_000
+    const tactic = options.purpose === 'tactic-quick' || options.purpose === 'tactic-deep'
+    const timeoutMs =
+      options.purpose === 'route' || options.purpose === 'warmup'
+        ? 5_000
+        : options.purpose === 'prepare'
+          ? 10_000
+          : options.purpose === 'tactic-quick'
+            ? 6_000
+            : options.purpose === 'tactic-deep'
+              ? 25_000
+              : 15_000
     const startedAt = Date.now()
-    const signal = AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)])
+    const startupAllowance = profile.provider === 'ollama' && !tactic ? COMPANION_MODEL_STARTUP_MS : 0
+    const signal = AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs + startupAllowance)])
     const cloud = (window as Window & { CHAYA_MCP_GATEWAY?: boolean }).CHAYA_MCP_GATEWAY === true
     if (cloud) {
       if (profile.provider !== 'ollama') throw Object.assign(new Error('浏览器宿主当前仅支持 Ollama 陪玩模型'), { code: 'CAPABILITY_UNSUPPORTED', retryable: false })
-      return withBrowserModelResource({
-        resourceKey: ollamaBrowserResourceKey(profile.endpoint),
-        priority: options.purpose === 'prepare' ? 'background' : 'foreground',
-        timeoutMs,
-        signal,
-        run: async (leaseSignal) => {
-          const firstToken = new AbortController()
-          let first = true
-          const timer =
-            options.purpose === 'chat'
-              ? setTimeout(() => firstToken.abort(new DOMException('Model first token timed out', 'TimeoutError')), Math.max(1, 5_000 - (Date.now() - startedAt)))
-              : undefined
-          try {
-            return (await streamOllamaChat(
-              {
-                endpoint: profile.endpoint,
-                model: options.model,
-                messages,
-                tools: [],
-                think: false,
-                maxTokens: options.purpose === 'route' ? 128 : options.purpose === 'prepare' ? 384 : 256,
-                temperature: options.purpose === 'chat' ? profile.temperature : 0,
-                keepAlive: profile.keepAlive,
-                timeoutMs,
-                format: options.format,
-                signal: AbortSignal.any([leaseSignal, firstToken.signal]),
+      const requestId = crypto.randomUUID()
+      const resourceKey = ollamaBrowserResourceKey(profile.endpoint)
+      const logger = createLogger('companion-model')
+      const diagnostic = (phase: string, meta?: Record<string, unknown>) =>
+        logger[phase === 'failed' ? 'warn' : 'info'](`Model ${phase}`, { requestId, resourceKey, model: options.model, purpose: `companion-${options.purpose}`, ...meta })
+      let startupStarted: number | undefined
+      let startupMs: number | undefined
+      let queueMs: number | undefined
+      let generationStarted: number | undefined
+      let firstTokenMs: number | undefined
+      let residency: CompanionModelStatus['residency'] | undefined
+      diagnostic('accepted')
+      try {
+        const result = await withBrowserModelResource<Awaited<ReturnType<CompanionComplete>>>({
+          resourceKey,
+          instanceId: (() => {
+            try {
+              const key: unknown = JSON.parse(options.conversationKey ?? '')
+              return Array.isArray(key) && typeof key[1] === 'string' ? key[1] : undefined
+            } catch {
+              return undefined
+            }
+          })(),
+          priority: options.purpose === 'prepare' ? 'background' : tactic ? 'control' : 'foreground',
+          timeoutMs: timeoutMs + startupAllowance,
+          queueTimeoutMs: timeoutMs,
+          signal,
+          run: async (leaseSignal) => {
+            queueMs = Date.now() - startedAt
+            startupStarted = Date.now()
+            const startup = await prepareCompanionOllama({
+              endpoint: profile.endpoint,
+              model: options.model,
+              signal: leaseSignal,
+              onStatus: (status) => {
+                residency = status.residency
+                diagnostic(status.phase, { ...status, queueMs })
+                options.onModelStatus?.(status)
               },
-              (text) => {
-                if (first) {
-                  first = false
-                  if (timer) clearTimeout(timer)
+            }).finally(() => {
+              startupMs = Date.now() - startupStarted!
+            })
+            const remaining = Math.max(1, timeoutMs - queueMs - (startupAllowance ? 0 : startup.startupMs))
+            if (options.purpose === 'warmup') {
+              return { role: 'assistant', content: '', companionMetrics: { totalMs: Date.now() - startedAt, queueMs, ...startup, generationMs: 0 } }
+            }
+            const contextStarted = performance.now()
+            const trimmed = trimCompanionContext(messages, 12_000)
+            const contextMs = performance.now() - contextStarted
+            generationStarted = Date.now()
+            const firstToken = new AbortController()
+            let first = true
+            const timer =
+              options.purpose === 'chat'
+                ? setTimeout(
+                    () => firstToken.abort(new DOMException('Model first token timed out', 'TimeoutError')),
+                    Math.max(1, 5_000 - queueMs - (startupAllowance ? 0 : startup.startupMs))
+                  )
+                : undefined
+            try {
+              const message = await streamOllamaChat(
+                {
+                  endpoint: profile.endpoint,
+                  model: options.model,
+                  messages: trimmed,
+                  tools: [],
+                  think: options.purpose === 'tactic-deep',
+                  maxTokens: options.purpose === 'route' ? 128 : tactic ? 768 : options.purpose === 'prepare' ? 384 : 256,
+                  temperature: options.purpose === 'chat' ? profile.temperature : 0,
+                  keepAlive: COMPANION_KEEP_ALIVE,
+                  timeoutMs: remaining,
+                  format: options.format,
+                  signal: AbortSignal.any([leaseSignal, firstToken.signal]),
+                },
+                (text) => {
+                  if (!text) return
+                  if (first) {
+                    first = false
+                    firstTokenMs = Date.now() - startedAt
+                    if (timer) clearTimeout(timer)
+                  }
+                  options.onDelta?.(text)
                 }
-                options.onDelta?.(text)
+              )
+              return {
+                ...message,
+                companionMetrics: {
+                  totalMs: Date.now() - startedAt,
+                  queueMs,
+                  contextMs,
+                  ...startup,
+                  generationMs: Date.now() - generationStarted,
+                  firstTokenMs,
+                  loadMs: message.timing?.loadDurationNs === undefined ? undefined : message.timing.loadDurationNs / 1_000_000,
+                },
               }
-            )) as RuntimeMessage
-          } finally {
-            if (timer) clearTimeout(timer)
-          }
-        },
-      })
+            } finally {
+              if (timer) clearTimeout(timer)
+            }
+          },
+        })
+        diagnostic('completed', { ...result.companionMetrics, usage: result.usage, timing: result.timing })
+        return result
+      } catch (error) {
+        diagnostic('failed', {
+          totalMs: Date.now() - startedAt,
+          queueMs: queueMs ?? Date.now() - startedAt,
+          residency,
+          startupMs,
+          generationMs: generationStarted === undefined ? undefined : Date.now() - generationStarted,
+          firstTokenMs,
+          code: signal.aborted ? 'CANCELLED_OR_TIMEOUT' : 'MODEL_UNAVAILABLE',
+        })
+        throw error
+      }
     }
     const response = await chayaFetch('/api/game-agent/companion-model', {
       method: 'POST',
@@ -145,14 +234,22 @@ export function createCompanionModel(readConfig: () => AgentSyncSettings | null)
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
-    let result: RuntimeMessage | undefined
+    let result: Awaited<ReturnType<CompanionComplete>> | undefined
+    let firstTokenMs: number | undefined
     const consume = (line: string) => {
       if (!line.trim()) return
       const packet = JSON.parse(line) as ModelPacket
-      if (packet.type === 'delta' && typeof packet.text === 'string') options.onDelta?.(packet.text)
+      if (packet.type === 'delta' && typeof packet.text === 'string' && packet.text) {
+        firstTokenMs ??= Date.now() - startedAt
+        options.onDelta?.(packet.text)
+      }
       if (packet.type === 'queued') options.onQueued?.()
+      if (packet.type === 'model.status' && packet.phase && packet.residency)
+        options.onModelStatus?.({ phase: packet.phase, residency: packet.residency, startupMs: packet.startupMs, startupLoadMs: packet.startupLoadMs })
       if (packet.type === 'failed') throw Object.assign(new Error(packet.error?.message || '陪玩模型不可用'), packet.error)
-      if (packet.type === 'completed' && packet.message) result = packet.message
+      if (packet.type === 'completed' && packet.message) {
+        result = { ...packet.message, companionMetrics: { ...packet.metrics, totalMs: Date.now() - startedAt, firstTokenMs } }
+      }
     }
     try {
       while (true) {
@@ -168,10 +265,16 @@ export function createCompanionModel(readConfig: () => AgentSyncSettings | null)
       consume(buffer)
       if (signal.aborted) throw signal.reason
       if (!result) throw new Error('Companion model stream ended before completion')
+      if (result.companionMetrics) result.companionMetrics.totalMs = Date.now() - startedAt
       return result
     } finally {
       await reader.cancel().catch(() => undefined)
       reader.releaseLock()
     }
   }
+  complete.ensureReady = async (options) => {
+    const profile = readConfig()?.profiles.find((item) => item.id === options.profileId)
+    if (profile?.provider === 'ollama') await complete([], { ...options, purpose: 'warmup' })
+  }
+  return complete
 }
