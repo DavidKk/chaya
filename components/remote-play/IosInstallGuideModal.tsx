@@ -28,15 +28,16 @@ export function IosInstallGuideModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="ios-guide-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/80 backdrop-blur-sm select-none"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/15 bg-neutral-900/95 p-4 sm:p-5 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200"
+        className="relative flex flex-col w-[94vw] max-w-xl rounded-2xl border border-white/15 bg-neutral-900/95 p-3.5 sm:p-4 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+        style={{ maxHeight: 'min(380px, 88vh)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
+        <div className="flex items-center justify-between pb-2.5 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-md">
               <LuMaximize2 size={16} />
@@ -61,7 +62,7 @@ export function IosInstallGuideModal({
         </div>
 
         {/* Content */}
-        <div className="py-3.5 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto py-2.5 space-y-2.5">
           {isStandalone ? (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/40 p-3 text-xs text-emerald-200 space-y-2">
               <div className="flex items-center gap-2 font-semibold text-emerald-300">
@@ -74,12 +75,12 @@ export function IosInstallGuideModal({
             </div>
           ) : (
             <>
-              <div className="rounded-xl border border-amber-500/25 bg-amber-950/30 p-2.5 text-[11px] leading-relaxed text-amber-200/90">
+              <div className="rounded-xl border border-amber-500/25 bg-amber-950/30 p-2 text-[11px] leading-relaxed text-amber-200/90">
                 受 iOS 机制限制，Safari 浏览器内网页无法通过普通按钮隐藏地址栏与工具栏。只需将网页添加到主屏幕，即可去除所有浏览器边框！
               </div>
 
               {/* Steps */}
-              <div className="space-y-2 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                 {/* Step 1 */}
                 <div className="flex items-start gap-2.5 rounded-xl border border-white/5 bg-white/[0.03] p-2.5">
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400">
@@ -136,7 +137,7 @@ export function IosInstallGuideModal({
         </div>
 
         {/* Footer */}
-        <div className="pt-2 border-t border-white/10 flex justify-end">
+        <div className="pt-2 border-t border-white/10 flex justify-end shrink-0">
           <button
             type="button"
             onClick={onClose}

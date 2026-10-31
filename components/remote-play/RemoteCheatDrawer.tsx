@@ -43,6 +43,7 @@ type RemoteCheatDrawerProps = {
   videoResolution?: { width: number; height: number } | null
   hudVisible?: boolean
   onToggleHud?: () => void
+  isPortrait?: boolean
 }
 
 function generateCmdId(): string {
@@ -95,6 +96,7 @@ export function RemoteCheatDrawer({
   videoResolution,
   hudVisible = false,
   onToggleHud,
+  isPortrait,
 }: RemoteCheatDrawerProps) {
   const [activeTab, setActiveTab] = useState<'cheat' | 'logs'>(initialTab)
   const [godMode, setGodMode] = useState(false)
@@ -269,27 +271,41 @@ export function RemoteCheatDrawer({
     showFeedback('已请求在电脑端弹出插件面板')
   }
 
+  const isPortraitEffective =
+    isPortrait ??
+    (typeof window !== 'undefined' ? window.innerHeight > window.innerWidth : false)
+
   if (!open) return null
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-md transition-opacity select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5 bg-black/75 backdrop-blur-md transition-opacity select-none"
       onPointerDown={(e) => e.stopPropagation()}
       onPointerMove={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
       onClick={onClose}
     >
       <div
-        className="relative flex flex-col w-full max-w-lg max-h-[90vh] sm:max-h-[85vh] rounded-2xl border border-white/15 bg-neutral-900/95 p-4 sm:p-5 text-neutral-100 shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className={`relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-100 shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
+          isPortraitEffective
+            ? 'w-[92vw] max-w-lg max-h-[85vh] p-4 sm:p-5'
+            : 'w-[94vw] max-w-2xl p-3.5 sm:p-4'
+        }`}
+        style={{
+          maxHeight: isPortraitEffective ? '85vh' : 'min(370px, 88vh)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+        <div className="flex items-center justify-between border-b border-neutral-800 pb-3 shrink-0">
           <div className="flex items-center space-x-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
               {activeTab === 'cheat' ? <LuZap size={16} /> : <LuScrollText size={16} />}
             </div>
             <h2 className="text-base font-bold text-white">Chaya 局内控制台</h2>
+            <span className="text-[10px] text-neutral-400 px-1.5 py-0.5 rounded bg-white/5 border border-white/5">
+              {isPortraitEffective ? '竖屏' : '横屏'}
+            </span>
           </div>
           <button
             type="button"
@@ -302,7 +318,7 @@ export function RemoteCheatDrawer({
         </div>
 
         {/* Tab switch */}
-        <div className="mt-3 flex rounded-lg bg-neutral-950 p-1 border border-neutral-800">
+        <div className="mt-2.5 flex rounded-lg bg-neutral-950 p-1 border border-neutral-800 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('cheat')}
@@ -335,13 +351,15 @@ export function RemoteCheatDrawer({
         </div>
 
         {/* Feedback toast */}
-        {feedback && <div className="mt-3 rounded-lg border border-emerald-500/40 bg-emerald-950/80 px-3 py-2 text-center text-xs font-semibold text-emerald-300">{feedback}</div>}
+        {feedback && <div className="mt-2 rounded-lg border border-emerald-500/40 bg-emerald-950/80 px-3 py-1.5 text-center text-xs font-semibold text-emerald-300 shrink-0">{feedback}</div>}
 
         {/* Body scroll area */}
         {activeTab === 'logs' ? (
           <div className="flex-1 flex flex-col min-h-0 pt-3 pb-2 space-y-3">
-            {/* Summary card */}
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950/70 p-3 text-xs space-y-1.5">
+            {/* Summary & Mobile Debugging Cards */}
+            <div className={isPortraitEffective ? 'space-y-2' : 'grid grid-cols-2 gap-2.5'}>
+              {/* Summary card */}
+              <div className="rounded-xl border border-neutral-800 bg-neutral-950/70 p-2.5 text-xs space-y-1.5">
               <div className="flex items-center justify-between text-neutral-300">
                 <span className="text-neutral-400">链路状态</span>
                 <span className="flex items-center gap-1.5 font-medium">
@@ -364,7 +382,7 @@ export function RemoteCheatDrawer({
               </div>
               <div className="flex items-center justify-between text-neutral-300">
                 <span className="text-neutral-400">客户端环境</span>
-                <span className="text-neutral-300 truncate max-w-[190px]" title={diagnostics.userAgent}>
+                <span className="text-neutral-300 truncate max-w-[160px]" title={diagnostics.userAgent}>
                   {diagnostics.os} / {diagnostics.browser}
                 </span>
               </div>
@@ -374,10 +392,10 @@ export function RemoteCheatDrawer({
                   {diagnostics.h264Supported ? '硬件加速支持' : '回退/未知'}
                 </span>
               </div>
-            </div>
+              </div>
 
-            {/* Mobile Debugging Tools Box */}
-            <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-2.5 space-y-2">
+              {/* Mobile Debugging Tools Box */}
+              <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-2.5 space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="flex items-center gap-1.5 font-semibold text-sky-300">
                   <LuBug size={14} />
@@ -389,7 +407,7 @@ export function RemoteCheatDrawer({
                 <button
                   type="button"
                   onClick={handleToggleDevTools}
-                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 px-2 font-medium transition-all active:scale-95 ${
+                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-1.5 px-2 font-medium transition-all active:scale-95 ${
                     devToolsActive
                       ? 'border-emerald-500/50 bg-emerald-950/80 text-emerald-300 shadow-sm'
                       : 'border-neutral-700 bg-neutral-900/90 text-neutral-200 hover:bg-neutral-800'
@@ -402,7 +420,7 @@ export function RemoteCheatDrawer({
                 <button
                   type="button"
                   onClick={onToggleHud}
-                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 px-2 font-medium transition-all active:scale-95 ${
+                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-1.5 px-2 font-medium transition-all active:scale-95 ${
                     hudVisible
                       ? 'border-emerald-500/50 bg-emerald-950/80 text-emerald-300 shadow-sm'
                       : 'border-neutral-700 bg-neutral-900/90 text-neutral-200 hover:bg-neutral-800'
@@ -415,11 +433,12 @@ export function RemoteCheatDrawer({
                 <button
                   type="button"
                   onClick={handleCopyMacCmd}
-                  className="col-span-2 flex items-center justify-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-900/90 py-2 px-2 font-medium text-neutral-300 hover:bg-neutral-800 active:scale-95"
+                  className="col-span-2 flex items-center justify-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-900/90 py-1.5 px-2 font-medium text-neutral-300 hover:bg-neutral-800 active:scale-95"
                 >
                   {copiedMacCmd ? <LuCheck size={13} className="text-emerald-400" /> : <LuTerminal size={13} />}
-                  {copiedMacCmd ? '已复制命令' : '复制 Mac 终端实时监视命令'}
+                  {copiedMacCmd ? '已复制命令' : '复制 Mac 终端监视命令'}
                 </button>
+              </div>
               </div>
             </div>
 
@@ -547,139 +566,281 @@ export function RemoteCheatDrawer({
             </div>
           </div>
         ) : (
-        <div className="flex-1 space-y-5 overflow-y-auto pt-4 pb-6">
-          {/* 金币 */}
-          <section className="space-y-2">
-            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">金钱修改</h3>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleAddGold(10000)}
-                className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 text-xs font-medium text-emerald-400 hover:bg-neutral-700 active:scale-95"
-              >
-                +10,000 G
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddGold(100000)}
-                className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 text-xs font-medium text-emerald-400 hover:bg-neutral-700 active:scale-95"
-              >
-                +100,000 G
-              </button>
-              <button
-                type="button"
-                onClick={handleMaxGold}
-                className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 text-xs font-medium text-amber-400 hover:bg-neutral-700 active:scale-95"
-              >
-                拉满最大
-              </button>
-            </div>
-          </section>
+        <div className="flex-1 min-h-0 overflow-y-auto pt-3 pb-4">
+          {isPortraitEffective ? (
+            /* Portrait: 1 column vertical list */
+            <div className="space-y-4">
+              {/* 金币 */}
+              <section className="space-y-2">
+                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">金钱修改</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAddGold(10000)}
+                    className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 text-xs font-medium text-emerald-400 hover:bg-neutral-700 active:scale-95"
+                  >
+                    +10,000 G
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddGold(100000)}
+                    className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 text-xs font-medium text-emerald-400 hover:bg-neutral-700 active:scale-95"
+                  >
+                    +100,000 G
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleMaxGold}
+                    className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 text-xs font-medium text-amber-400 hover:bg-neutral-700 active:scale-95"
+                  >
+                    拉满最大
+                  </button>
+                </div>
+              </section>
 
-          {/* 队伍恢复 */}
-          <section className="space-y-2">
-            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">队伍生命与状态</h3>
-            <button
-              type="button"
-              onClick={handleFullRecovery}
-              className="w-full rounded-lg border border-rose-500/40 bg-rose-950/40 py-2.5 text-xs font-semibold text-rose-200 hover:bg-rose-900/60 active:scale-95"
-            >
-              <span className="flex items-center justify-center gap-1.5">
-                <LuHeart size={15} /> 全员满血满蓝 + 复活
-              </span>
-            </button>
-          </section>
-
-          {/* 常用开关 */}
-          <section className="space-y-2">
-            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">战斗与移动开关</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={handleToggleGod}
-                className={`rounded-lg border py-2.5 text-xs font-semibold transition-colors active:scale-95 ${
-                  godMode ? 'border-emerald-500 bg-emerald-600/30 text-emerald-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
-                }`}
-              >
-                <span className="flex items-center justify-center gap-1.5">
-                  <LuShield size={14} /> 无敌锁血: {godMode ? '已开启' : '关闭'}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleToggleThrough}
-                className={`rounded-lg border py-2.5 text-xs font-semibold transition-colors active:scale-95 ${
-                  throughWalls ? 'border-indigo-500 bg-indigo-600/30 text-indigo-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
-                }`}
-              >
-                <span className="flex items-center justify-center gap-1.5">
-                  <LuFootprints size={14} /> 穿墙移动: {throughWalls ? '已开启' : '关闭'}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleToggleAutoWin}
-                className={`col-span-2 rounded-lg border py-2.5 text-xs font-semibold transition-colors active:scale-95 ${
-                  autoWin ? 'border-amber-500 bg-amber-600/30 text-amber-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
-                }`}
-              >
-                <span className="flex items-center justify-center gap-1.5">
-                  <LuSwords size={14} /> 遇敌必胜: {autoWin ? '已开启' : '关闭'}
-                </span>
-              </button>
-            </div>
-          </section>
-
-          {/* 全局倍速 */}
-          <section className="space-y-2">
-            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">游戏倍速调节</h3>
-            <div className="grid grid-cols-4 gap-2">
-              {[1, 2, 3, 5].map((speed) => (
+              {/* 队伍恢复 */}
+              <section className="space-y-2">
+                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">队伍生命与状态</h3>
                 <button
-                  key={speed}
                   type="button"
-                  onClick={() => handleChangeSpeed(speed)}
-                  className={`rounded-lg border py-2 text-xs font-semibold transition-colors active:scale-95 ${
-                    gameSpeed === speed ? 'border-emerald-400 bg-emerald-500 text-neutral-950' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
-                  }`}
+                  onClick={handleFullRecovery}
+                  className="w-full rounded-lg border border-rose-500/40 bg-rose-950/40 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-900/60 active:scale-95"
                 >
-                  {speed}x
+                  <span className="flex items-center justify-center gap-1.5">
+                    <LuHeart size={15} /> 全员满血满蓝 + 复活
+                  </span>
                 </button>
-              ))}
-            </div>
-          </section>
+              </section>
 
-          {/* 快捷操作 */}
-          <section className="space-y-2">
-            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">快捷操作</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={handleQuickSave}
-                className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2.5 text-xs font-medium text-neutral-200 hover:bg-neutral-700 active:scale-95"
-              >
-                <span className="flex items-center justify-center gap-1.5">
-                  <LuSave size={14} /> 快速存档 (Slot 1)
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={handleTogglePcUi}
-                className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2.5 text-xs font-medium text-neutral-200 hover:bg-neutral-700 active:scale-95"
-              >
-                <span className="flex items-center justify-center gap-1.5">
-                  <LuMonitor size={14} /> 唤出 PC 局内面板
-                </span>
-              </button>
+              {/* 常用开关 */}
+              <section className="space-y-2">
+                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">战斗与移动开关</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleToggleGod}
+                    className={`rounded-lg border py-2 text-xs font-semibold transition-colors active:scale-95 ${
+                      godMode ? 'border-emerald-500 bg-emerald-600/30 text-emerald-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
+                    }`}
+                  >
+                    <span className="flex items-center justify-center gap-1.5">
+                      <LuShield size={14} /> 无敌锁血: {godMode ? '开启' : '关闭'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleThrough}
+                    className={`rounded-lg border py-2 text-xs font-semibold transition-colors active:scale-95 ${
+                      throughWalls ? 'border-indigo-500 bg-indigo-600/30 text-indigo-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
+                    }`}
+                  >
+                    <span className="flex items-center justify-center gap-1.5">
+                      <LuFootprints size={14} /> 穿墙移动: {throughWalls ? '开启' : '关闭'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleAutoWin}
+                    className={`col-span-2 rounded-lg border py-2 text-xs font-semibold transition-colors active:scale-95 ${
+                      autoWin ? 'border-amber-500 bg-amber-600/30 text-amber-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
+                    }`}
+                  >
+                    <span className="flex items-center justify-center gap-1.5">
+                      <LuSwords size={14} /> 遇敌必胜: {autoWin ? '开启' : '关闭'}
+                    </span>
+                  </button>
+                </div>
+              </section>
+
+              {/* 全局倍速 */}
+              <section className="space-y-2">
+                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">游戏倍速调节</h3>
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 2, 3, 5].map((speed) => (
+                    <button
+                      key={speed}
+                      type="button"
+                      onClick={() => handleChangeSpeed(speed)}
+                      className={`rounded-lg border py-1.5 text-xs font-semibold transition-colors active:scale-95 ${
+                        gameSpeed === speed ? 'border-emerald-400 bg-emerald-500 text-neutral-950' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
+                      }`}
+                    >
+                      {speed}x
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {/* 快捷操作 */}
+              <section className="space-y-2">
+                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">快捷操作</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleQuickSave}
+                    className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 text-xs font-medium text-neutral-200 hover:bg-neutral-700 active:scale-95"
+                  >
+                    <span className="flex items-center justify-center gap-1.5">
+                      <LuSave size={14} /> 快速存档 (Slot 1)
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleTogglePcUi}
+                    className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 text-xs font-medium text-neutral-200 hover:bg-neutral-700 active:scale-95"
+                  >
+                    <span className="flex items-center justify-center gap-1.5">
+                      <LuMonitor size={14} /> 唤出 PC 面板
+                    </span>
+                  </button>
+                </div>
+              </section>
             </div>
-          </section>
+          ) : (
+            /* Landscape: 2-column game pause menu layout */
+            <div className="grid grid-cols-2 gap-3.5 items-start">
+              {/* Left Column: 数值与状态 */}
+              <div className="space-y-3">
+                {/* 金币 */}
+                <section className="space-y-1.5">
+                  <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">金钱修改</h3>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleAddGold(10000)}
+                      className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-1.5 text-[11px] font-medium text-emerald-400 hover:bg-neutral-700 active:scale-95"
+                    >
+                      +10,000 G
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddGold(100000)}
+                      className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-1.5 text-[11px] font-medium text-emerald-400 hover:bg-neutral-700 active:scale-95"
+                    >
+                      +100,000 G
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleMaxGold}
+                      className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-1.5 text-[11px] font-medium text-amber-400 hover:bg-neutral-700 active:scale-95"
+                    >
+                      拉满最大
+                    </button>
+                  </div>
+                </section>
+
+                {/* 队伍恢复 */}
+                <section className="space-y-1.5">
+                  <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">队伍生命与状态</h3>
+                  <button
+                    type="button"
+                    onClick={handleFullRecovery}
+                    className="w-full rounded-lg border border-rose-500/40 bg-rose-950/40 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-900/60 active:scale-95"
+                  >
+                    <span className="flex items-center justify-center gap-1.5">
+                      <LuHeart size={14} /> 全员满血满蓝 + 复活
+                    </span>
+                  </button>
+                </section>
+
+                {/* 全局倍速 */}
+                <section className="space-y-1.5">
+                  <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">游戏倍速调节</h3>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[1, 2, 3, 5].map((speed) => (
+                      <button
+                        key={speed}
+                        type="button"
+                        onClick={() => handleChangeSpeed(speed)}
+                        className={`rounded-lg border py-1.5 text-xs font-semibold transition-colors active:scale-95 ${
+                          gameSpeed === speed ? 'border-emerald-400 bg-emerald-500 text-neutral-950 font-bold' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
+                        }`}
+                      >
+                        {speed}x
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              </div>
+
+              {/* Right Column: 开关与快捷操作 */}
+              <div className="space-y-3">
+                {/* 常用开关 */}
+                <section className="space-y-1.5">
+                  <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">战斗与移动开关</h3>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleToggleGod}
+                      className={`rounded-lg border py-2 text-[11px] font-semibold transition-colors active:scale-95 ${
+                        godMode ? 'border-emerald-500 bg-emerald-600/30 text-emerald-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
+                      }`}
+                    >
+                      <span className="flex items-center justify-center gap-1">
+                        <LuShield size={13} /> 锁血: {godMode ? '开' : '关'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleToggleThrough}
+                      className={`rounded-lg border py-2 text-[11px] font-semibold transition-colors active:scale-95 ${
+                        throughWalls ? 'border-indigo-500 bg-indigo-600/30 text-indigo-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
+                      }`}
+                    >
+                      <span className="flex items-center justify-center gap-1">
+                        <LuFootprints size={13} /> 穿墙: {throughWalls ? '开' : '关'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleToggleAutoWin}
+                      className={`col-span-2 rounded-lg border py-2 text-[11px] font-semibold transition-colors active:scale-95 ${
+                        autoWin ? 'border-amber-500 bg-amber-600/30 text-amber-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
+                      }`}
+                    >
+                      <span className="flex items-center justify-center gap-1.5">
+                        <LuSwords size={13} /> 遇敌必胜: {autoWin ? '开启' : '关闭'}
+                      </span>
+                    </button>
+                  </div>
+                </section>
+
+                {/* 快捷操作 */}
+                <section className="space-y-1.5">
+                  <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">快捷操作</h3>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleQuickSave}
+                      className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 text-[11px] font-medium text-neutral-200 hover:bg-neutral-700 active:scale-95"
+                    >
+                      <span className="flex items-center justify-center gap-1">
+                        <LuSave size={13} /> 快速存档 (Slot 1)
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleTogglePcUi}
+                      className="rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 text-[11px] font-medium text-neutral-200 hover:bg-neutral-700 active:scale-95"
+                    >
+                      <span className="flex items-center justify-center gap-1">
+                        <LuMonitor size={13} /> 唤出 PC 面板
+                      </span>
+                    </button>
+                  </div>
+                </section>
+              </div>
+            </div>
+          )}
         </div>
         )}
 
         {/* Footer */}
-        <div className="border-t border-neutral-800 pt-3 text-center text-[11px] text-neutral-500">Chaya WebRTC Remote Play Console</div>
+        <div className="border-t border-neutral-800 pt-2 shrink-0 text-center text-[10px] text-neutral-500">Chaya WebRTC Remote Play Console</div>
       </div>
     </div>
   )
