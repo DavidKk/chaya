@@ -192,13 +192,16 @@ export function FloatingBall({ shortcuts, runtime }: { shortcuts: FloatingShortc
     }
   }
 
+  const center = open ? layout.center : position
+  const slotOrigin = (FLOATING_BALL_FRAME_SIZE - FLOATING_SHORTCUT_SIZE) / 2
+
   return (
     <div ref={root} data-floating-ball="" onKeyDown={onKeyDown} onKeyUp={stopGameKeys} onKeyPress={stopGameKeys}>
       <div
-        className="pointer-events-auto fixed z-[60] opacity-[var(--mini-panel-opacity,0.4)] transition-opacity duration-150 hover:opacity-100 focus-within:opacity-100"
+        className="pointer-events-auto fixed left-0 top-0 z-[60] opacity-[var(--mini-panel-opacity,0.4)] transition-[transform,opacity] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:opacity-100 focus-within:opacity-100 motion-reduce:transition-none"
         style={{
-          left: open ? layout.center.x : position.x,
-          top: open ? layout.center.y : position.y,
+          transform: `translate3d(${center.x}px, ${center.y}px, 0)`,
+          transitionProperty: dragging ? 'opacity' : undefined,
           visibility: placed ? undefined : 'hidden',
           opacity: open || dragging ? 1 : undefined,
         }}
@@ -228,81 +231,88 @@ export function FloatingBall({ shortcuts, runtime }: { shortcuts: FloatingShortc
           {open ? <LuX size={20} className="shrink-0" /> : <LuCircleDot size={20} className="shrink-0" />}
         </Button>
       </div>
-      {open ? (
-        <div
-          ref={group}
-          id={groupId}
-          role="group"
-          aria-label={t('floatingBall.title')}
-          data-rgss-interactive=""
-          className="pointer-events-none fixed z-[70] text-ink"
-          style={{
-            left: layout.x,
-            top: layout.y,
-            width: FLOATING_BALL_FRAME_SIZE,
-            height: FLOATING_BALL_FRAME_SIZE,
-            transform: `scale(${layout.scale})`,
-            transformOrigin: 'top left',
-          }}
-        >
-          {shortcuts.length ? (
-            shortcuts.map((id, index) => {
-              const target = FLOATING_SHORTCUT_LABELS.get(id)
-              const shortcut = parseFloatingShortcut(id)
-              if (!target || !shortcut) return null
-              const on = shortcut.kind === 'flag' && snapshot.flags[shortcut.target] === true
-              const reason = floatingShortcutDisabledReason(id, snapshot, runtime.supports?.(id) ?? true)
-              const Icon =
-                id.includes('victory') || id === 'flag:autoWin'
-                  ? LuTrophy
-                  : id.includes('scene:item')
-                    ? LuPackage
-                    : id === 'flag:autotalk'
-                      ? LuMessageCircle
-                      : id.includes('battle:party')
-                        ? LuHeart
-                        : id.includes('Battle') || id.includes('battle:')
-                          ? LuSwords
-                          : id.startsWith('action:scene:')
-                            ? LuPlay
-                            : LuZap
-              return (
-                <div
-                  key={id}
-                  className="pointer-events-auto absolute motion-safe:animate-[kit-rise_0.18s_ease-out_both]"
-                  style={{ left: layout.slots[index]?.x, top: layout.slots[index]?.y, animationDelay: `${index * 18}ms` }}
+      {/* Keep the shortcuts mounted so a reversed transition starts from its current position. */}
+      <div
+        ref={group}
+        id={groupId}
+        role={open ? 'group' : undefined}
+        aria-label={t('floatingBall.title')}
+        aria-hidden={!open}
+        inert={!open}
+        data-rgss-interactive={open ? '' : undefined}
+        className={`pointer-events-none fixed left-0 top-0 z-[70] text-ink transition-[transform,visibility] duration-[240ms,0ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${open ? 'visible delay-0' : 'invisible delay-[0ms,240ms]'}`}
+        style={{
+          width: FLOATING_BALL_FRAME_SIZE,
+          height: FLOATING_BALL_FRAME_SIZE,
+          transform: `translate3d(${center.x + FLOATING_BALL_SIZE / 2 - layout.size / 2}px, ${center.y + FLOATING_BALL_SIZE / 2 - layout.size / 2}px, 0) scale(${layout.scale})`,
+          transformOrigin: 'top left',
+          transitionProperty: dragging ? 'none' : undefined,
+        }}
+      >
+        {shortcuts.length ? (
+          shortcuts.map((id, index) => {
+            const target = FLOATING_SHORTCUT_LABELS.get(id)
+            const shortcut = parseFloatingShortcut(id)
+            if (!target || !shortcut) return null
+            const on = shortcut.kind === 'flag' && snapshot.flags[shortcut.target] === true
+            const reason = floatingShortcutDisabledReason(id, snapshot, runtime.supports?.(id) ?? true)
+            const Icon =
+              id.includes('victory') || id === 'flag:autoWin'
+                ? LuTrophy
+                : id.includes('scene:item')
+                  ? LuPackage
+                  : id === 'flag:autotalk'
+                    ? LuMessageCircle
+                    : id.includes('battle:party')
+                      ? LuHeart
+                      : id.includes('Battle') || id.includes('battle:')
+                        ? LuSwords
+                        : id.startsWith('action:scene:')
+                          ? LuPlay
+                          : LuZap
+            return (
+              <div
+                key={id}
+                className={`absolute transition-[transform,opacity] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+                style={{
+                  left: slotOrigin,
+                  top: slotOrigin,
+                  transform: open
+                    ? `translate3d(${(layout.slots[index]?.x ?? slotOrigin) - slotOrigin}px, ${(layout.slots[index]?.y ?? slotOrigin) - slotOrigin}px, 0) scale(1)`
+                    : 'translate3d(0, 0, 0) scale(0.5)',
+                }}
+              >
+                <Button
+                  variant="default"
+                  className={`shrink-0 rounded-full p-0 shadow-lg backdrop-blur-md focus-visible:ring-2 focus-visible:ring-accent aria-busy:opacity-70 ${on ? 'border-accent bg-accent/15 text-accent' : 'bg-panel/95'}`}
+                  style={{ width: FLOATING_SHORTCUT_SIZE, height: FLOATING_SHORTCUT_SIZE }}
+                  aria-label={t(target.labelKey)}
+                  aria-pressed={shortcut.kind === 'flag' ? on : undefined}
+                  tabIndex={-1}
+                  disabled={!open || !!reason}
+                  aria-disabled={!open || !!reason || pending !== null}
+                  aria-busy={pending === id || undefined}
+                  tooltip={reason ? `${t(target.labelKey)}: ${t(reason)}` : t(target.labelKey)}
+                  tooltipSuppressed={!open || dragging}
+                  onClick={() => {
+                    if (open && !reason && pending === null) void execute(id)
+                  }}
                 >
-                  <Button
-                    variant="default"
-                    className={`shrink-0 rounded-full p-0 shadow-lg backdrop-blur-md focus-visible:ring-2 focus-visible:ring-accent aria-busy:opacity-70 ${on ? 'border-accent bg-accent/15 text-accent' : 'bg-panel/95'}`}
-                    style={{ width: FLOATING_SHORTCUT_SIZE, height: FLOATING_SHORTCUT_SIZE }}
-                    aria-label={t(target.labelKey)}
-                    aria-pressed={shortcut.kind === 'flag' ? on : undefined}
-                    tabIndex={-1}
-                    disabled={!!reason}
-                    aria-disabled={!!reason || pending !== null}
-                    aria-busy={pending === id || undefined}
-                    tooltip={reason ? `${t(target.labelKey)}: ${t(reason)}` : t(target.labelKey)}
-                    onClick={() => {
-                      if (!reason && pending === null) void execute(id)
-                    }}
-                  >
-                    <Icon size={20} className="shrink-0" />
-                    {shortcut.kind === 'flag' ? <span className="sr-only">{t(on ? 'floatingBall.on' : 'floatingBall.off')}</span> : null}
-                  </Button>
-                </div>
-              )
-            })
-          ) : (
-            <p className="absolute bottom-0 m-0 rounded-lg border border-line bg-panel p-3 text-xs text-ink-soft">{t('floatingBall.empty')}</p>
-          )}
-          {error ? (
-            <p role="alert" className="pointer-events-auto absolute bottom-0 m-0 max-h-20 w-full overflow-auto rounded-lg border border-line bg-panel p-2 text-xs text-fail">
-              {error}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+                  <Icon size={20} className="shrink-0" />
+                  {shortcut.kind === 'flag' ? <span className="sr-only">{t(on ? 'floatingBall.on' : 'floatingBall.off')}</span> : null}
+                </Button>
+              </div>
+            )
+          })
+        ) : (
+          <p className="absolute bottom-0 m-0 rounded-lg border border-line bg-panel p-3 text-xs text-ink-soft">{t('floatingBall.empty')}</p>
+        )}
+        {error ? (
+          <p role="alert" className="pointer-events-auto absolute bottom-0 m-0 max-h-20 w-full overflow-auto rounded-lg border border-line bg-panel p-2 text-xs text-fail">
+            {error}
+          </p>
+        ) : null}
+      </div>
     </div>
   )
 }
