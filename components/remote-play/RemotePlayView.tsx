@@ -26,6 +26,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const [drawerTab, setDrawerTab] = useState<'cheat' | 'logs'>('cheat')
   const [videoResolution, setVideoResolution] = useState<{ width: number; height: number } | null>(null)
   const [hudVisible, setHudVisible] = useState(false)
+  const [isIdle, setIsIdle] = useState(false)
   const [controlsVisible, setControlsVisible] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -33,12 +34,29 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const streamRef = useRef<MediaStream | null>(null)
   const linkRef = useRef<WebGameLink | null>(null)
   const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const resetIdleTimer = useCallback(() => {
+    setIsIdle(false)
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+    idleTimerRef.current = setTimeout(() => {
+      setIsIdle(true)
+    }, 2800)
+  }, [])
 
   // 0. Environment & error diagnostic collector
   useEffect(() => {
     remotePlayLogger.initEnvironmentDiagnostics()
     remotePlayLogger.installGlobalErrorHandlers()
     remotePlayLogger.info('远程游玩视图已挂载')
+    resetIdleTimer()
+    const handleActivity = () => {
+      resetIdleTimer()
+    }
+    window.addEventListener('pointerdown', handleActivity, { passive: true })
+    window.addEventListener('pointermove', handleActivity, { passive: true })
+    window.addEventListener('keydown', handleActivity, { passive: true })
+
     if (typeof window !== 'undefined') {
       const q = new URLSearchParams(window.location.search)
       if (q.get('debug') === '1' || q.get('eruda') === '1' || localStorage.getItem('chaya_remote_play_devtools') === '1') {
@@ -48,7 +66,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         setHudVisible(true)
       }
     }
-  }, [])
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      window.removeEventListener('pointerdown', handleActivity)
+      window.removeEventListener('pointermove', handleActivity)
+      window.removeEventListener('keydown', handleActivity)
+    }
+  }, [resetIdleTimer])
 
   // 1. Resolve room ID if not provided
   useEffect(() => {
@@ -236,6 +260,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   }
 
   const handleToggleHud = () => {
+    resetIdleTimer()
     setHudVisible((prev) => {
       const next = !prev
       try {
@@ -246,6 +271,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       return next
     })
   }
+
+  const effectiveIdle = isIdle && status === 'connected' && !drawerOpen
 
   return (
     <main
@@ -286,66 +313,59 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       />
 
       {/* Top Floating Control Bar */}
-      <header className="pointer-events-none fixed top-0 inset-x-0 z-30 flex items-center justify-between p-3 sm:p-4">
+      <header
+        className={`pointer-events-none fixed top-0 inset-x-0 z-30 flex items-center justify-between p-2 sm:p-3 transition-opacity duration-300 ${
+          effectiveIdle ? 'opacity-25 hover:opacity-100' : 'opacity-100'
+        }`}
+      >
         {/* Status indicator */}
         <div
           onClick={() => {
             setDrawerTab('logs')
             setDrawerOpen(true)
           }}
-          className="pointer-events-auto flex items-center space-x-2 rounded-full border border-white/10 bg-neutral-900/80 px-3.5 py-1.5 text-xs shadow-lg backdrop-blur-md cursor-pointer hover:bg-neutral-800/90 transition-colors"
+          className="pointer-events-auto flex items-center space-x-1.5 rounded-full border border-white/10 bg-neutral-900/80 px-2.5 py-1 text-[11px] shadow-lg backdrop-blur-md cursor-pointer hover:bg-neutral-800/90 transition-colors"
           title="点击查看连接与诊断日志"
         >
           <span
-            className={`h-2.5 w-2.5 rounded-full ${
+            className={`h-2 w-2 rounded-full ${
               status === 'connected' ? 'bg-emerald-400 animate-pulse' : status === 'connecting' ? 'bg-amber-400 animate-ping' : 'bg-rose-500'
             }`}
           />
-          <span className="font-semibold text-neutral-200">{status === 'connected' ? '已串流' : status === 'connecting' ? '连接游戏中…' : '离线'}</span>
-          {latencyMs != null && status === 'connected' && <span className="font-mono text-emerald-400 text-[11px]">{latencyMs} ms</span>}
+          <span className="font-semibold text-neutral-200">{status === 'connected' ? '已串流' : status === 'connecting' ? '连接中…' : '离线'}</span>
+          {latencyMs != null && status === 'connected' && <span className="font-mono text-emerald-400 text-[10px]">{latencyMs} ms</span>}
         </div>
 
         {/* Action icons */}
-        <div className="pointer-events-auto flex items-center space-x-2">
+        <div className="pointer-events-auto flex items-center space-x-1.5">
           {/* Mute toggle / Unmute button */}
           <button
             type="button"
             onClick={muted ? handleUnmute : () => setMuted(true)}
-            className={`flex h-8 items-center rounded-full border px-3 text-xs font-semibold shadow-md backdrop-blur-md transition-colors ${
+            className={`flex h-7 items-center rounded-full border px-2 text-[11px] font-semibold shadow-md backdrop-blur-md transition-colors ${
               muted ? 'border-amber-400/50 bg-amber-950/80 text-amber-200 animate-pulse' : 'border-white/10 bg-neutral-900/80 text-neutral-200 hover:bg-neutral-800'
             }`}
           >
-            {muted ? <LuVolumeX size={15} className="mr-1.5" /> : <LuVolume2 size={15} className="mr-1.5 text-emerald-400" />}
-            {muted ? '点击开声' : '声音已开'}
+            {muted ? <LuVolumeX size={13} className="mr-1" /> : <LuVolume2 size={13} className="mr-1 text-emerald-400" />}
+            {muted ? '开声' : '已开'}
           </button>
 
           {/* Toggle Virtual Controller */}
           <button
             type="button"
             onClick={() => setControlsVisible((prev) => !prev)}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-neutral-900/80 text-xs font-bold text-neutral-200 shadow-md backdrop-blur-md hover:bg-neutral-800"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-neutral-900/80 text-xs font-bold text-neutral-200 shadow-md backdrop-blur-md hover:bg-neutral-800"
             title="隐藏/显示虚拟手柄"
             aria-label="隐藏/显示虚拟手柄"
           >
-            <LuGamepad2 size={16} className={controlsVisible ? 'text-emerald-400' : 'text-neutral-400'} />
-          </button>
-
-          {/* Fullscreen */}
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-neutral-900/80 text-xs text-neutral-200 shadow-md backdrop-blur-md hover:bg-neutral-800"
-            title="全屏切换"
-            aria-label="全屏切换"
-          >
-            <LuMaximize2 size={15} />
+            <LuGamepad2 size={14} className={controlsVisible ? 'text-emerald-400' : 'text-neutral-400'} />
           </button>
 
           {/* Performance HUD toggle */}
           <button
             type="button"
             onClick={handleToggleHud}
-            className={`flex h-8 w-8 items-center justify-center rounded-full border shadow-md backdrop-blur-md transition-colors ${
+            className={`flex h-7 w-7 items-center justify-center rounded-full border shadow-md backdrop-blur-md transition-colors ${
               hudVisible
                 ? 'border-emerald-400/50 bg-emerald-950/80 text-emerald-300'
                 : 'border-white/10 bg-neutral-900/80 text-neutral-400 hover:text-white hover:bg-neutral-800'
@@ -353,7 +373,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             title="性能 HUD 监控 (FPS/延迟)"
             aria-label="性能 HUD 监控"
           >
-            <LuActivity size={15} />
+            <LuActivity size={14} />
           </button>
 
           {/* Log / Diagnostics button */}
@@ -363,11 +383,22 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               setDrawerTab('logs')
               setDrawerOpen(true)
             }}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-neutral-900/80 text-xs text-sky-400 shadow-md backdrop-blur-md hover:bg-neutral-800"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-neutral-900/80 text-xs text-sky-400 shadow-md backdrop-blur-md hover:bg-neutral-800"
             title="运行与诊断日志"
             aria-label="运行与诊断日志"
           >
-            <LuScrollText size={15} />
+            <LuScrollText size={14} />
+          </button>
+
+          {/* Fullscreen */}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-neutral-900/80 text-xs text-neutral-200 shadow-md backdrop-blur-md hover:bg-neutral-800"
+            title="全屏切换"
+            aria-label="全屏切换"
+          >
+            <LuMaximize2 size={14} />
           </button>
         </div>
       </header>
@@ -375,6 +406,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       {/* Floating Performance HUD */}
       <PerformanceHud
         visible={hudVisible}
+        idle={effectiveIdle}
         latencyMs={latencyMs}
         videoResolution={videoResolution}
         status={status}
@@ -451,6 +483,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
       {/* Floating Ball for In-Game Mod Drawer */}
       <FloatingBall
+        idle={effectiveIdle}
         onClick={() => {
           setDrawerTab('cheat')
           setDrawerOpen(true)
@@ -458,7 +491,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       />
 
       {/* Virtual D-Pad & Action Buttons */}
-      <VirtualController onInput={handleInput} visible={controlsVisible} />
+      <VirtualController onInput={handleInput} visible={controlsVisible} idle={effectiveIdle} />
 
       {/* Remote Modding Drawer */}
       <RemoteCheatDrawer

@@ -5,6 +5,7 @@ import { LuActivity, LuX } from 'react-icons/lu'
 
 type PerformanceHudProps = {
   visible: boolean
+  idle?: boolean
   latencyMs?: number | null
   videoResolution?: { width: number; height: number } | null
   status: 'connecting' | 'connected' | 'disconnected'
@@ -14,6 +15,7 @@ type PerformanceHudProps = {
 
 export function PerformanceHud({
   visible,
+  idle = false,
   latencyMs,
   videoResolution,
   status,
@@ -62,7 +64,11 @@ export function PerformanceHud({
   const fpsColor = fps >= 55 ? 'text-emerald-400' : fps >= 30 ? 'text-amber-400' : 'text-rose-400'
 
   return (
-    <div className="pointer-events-auto fixed top-14 left-3 sm:left-4 z-30 flex items-center gap-2 rounded-xl border border-white/10 bg-neutral-950/85 px-3 py-1.5 font-mono text-[11px] text-neutral-300 shadow-xl backdrop-blur-md select-none">
+    <div
+      className={`pointer-events-auto fixed top-12 left-2.5 sm:left-4 z-30 flex items-center gap-2 rounded-xl border border-white/10 bg-neutral-950/85 px-2.5 py-1 font-mono text-[11px] text-neutral-300 shadow-xl backdrop-blur-md select-none transition-opacity duration-300 ${
+        idle ? 'opacity-30 hover:opacity-100' : 'opacity-90 hover:opacity-100'
+      }`}
+    >
       <div className="flex items-center gap-1.5 text-neutral-400 font-sans">
         <LuActivity size={13} className="text-emerald-400" />
         <span className="font-semibold text-neutral-200">HUD</span>

@@ -6,9 +6,10 @@ import { LuSparkles } from 'react-icons/lu'
 type FloatingBallProps = {
   onClick: () => void
   disabled?: boolean
+  idle?: boolean
 }
 
-export function FloatingBall({ onClick, disabled }: FloatingBallProps) {
+export function FloatingBall({ onClick, disabled, idle = false }: FloatingBallProps) {
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const dragRef = useRef({ startX: 0, startY: 0, initialX: 0, initialY: 0, moved: false })
@@ -18,8 +19,8 @@ export function FloatingBall({ onClick, disabled }: FloatingBallProps) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setPos({
-        x: window.innerWidth - 64,
-        y: Math.max(80, window.innerHeight * 0.35),
+        x: window.innerWidth - 44,
+        y: Math.max(60, window.innerHeight * 0.35),
       })
     }
   }, [])
@@ -45,8 +46,8 @@ export function FloatingBall({ onClick, disabled }: FloatingBallProps) {
       dragRef.current.moved = true
     }
 
-    const newX = Math.min(Math.max(8, dragRef.current.initialX + dx), window.innerWidth - 60)
-    const newY = Math.min(Math.max(40, dragRef.current.initialY + dy), window.innerHeight - 60)
+    const newX = Math.min(Math.max(6, dragRef.current.initialX + dx), window.innerWidth - 42)
+    const newY = Math.min(Math.max(30, dragRef.current.initialY + dy), window.innerHeight - 45)
     setPos({ x: newX, y: newY })
   }
 
@@ -67,7 +68,7 @@ export function FloatingBall({ onClick, disabled }: FloatingBallProps) {
 
     // Auto snap to closest horizontal edge
     const midX = window.innerWidth / 2
-    const targetX = pos.x < midX ? 8 : window.innerWidth - 56
+    const targetX = pos.x < midX ? 6 : window.innerWidth - 42
     setPos((prev) => ({ ...prev, x: targetX }))
   }
 
@@ -82,14 +83,14 @@ export function FloatingBall({ onClick, disabled }: FloatingBallProps) {
         transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
         touchAction: 'none',
       }}
-      className={`fixed top-0 left-0 z-50 flex h-12 w-12 cursor-pointer select-none items-center justify-center rounded-full border border-emerald-400/50 bg-neutral-900/80 shadow-lg backdrop-blur-md transition-shadow active:scale-95 ${
-        isDragging ? 'shadow-emerald-500/30' : 'opacity-85 hover:opacity-100'
+      className={`fixed top-0 left-0 z-50 flex h-9 w-9 cursor-pointer select-none items-center justify-center rounded-full border border-emerald-400/50 bg-neutral-900/80 shadow-lg backdrop-blur-md transition-all duration-300 active:scale-95 ${
+        isDragging ? 'shadow-emerald-500/30 opacity-100' : idle ? 'opacity-25 hover:opacity-90' : 'opacity-85 hover:opacity-100'
       }`}
       aria-label="打开 Chaya 修改器"
       title="Chaya 悬浮球"
     >
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-white shadow-inner">
-        <LuSparkles size={20} className="text-white" />
+      <div className="flex h-7.5 w-7.5 items-center justify-center rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-white shadow-inner">
+        <LuSparkles size={15} className="text-white" />
       </div>
     </div>
   )
