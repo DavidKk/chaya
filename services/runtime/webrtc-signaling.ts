@@ -216,6 +216,12 @@ export function getSignalingRoom(roomId: string): SignalingRoom | null {
   return room ? publicRoom(room) : null
 }
 
+/** 遍历当前所有活跃的信令房间 */
+export function listAllSignalingRooms(): SignalingRoom[] {
+  prune()
+  return [...board().values()].map(publicRoom)
+}
+
 /** 服务端模式可直接建房；浏览器模式须先 `checkRoomToken(..., { claim: true })` */
 export function publishOffer(roomId: string, offer: SignalingSdp, clientIp?: string): SignalingRoom {
   const room = ensure(roomId)

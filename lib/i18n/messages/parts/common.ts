@@ -19,6 +19,7 @@ export const commonZh = {
     translate: '翻译',
     logs: '日志',
     integration: '集成',
+    remotePlay: '云游戏',
     settings: '配置',
     about: '关于',
   },

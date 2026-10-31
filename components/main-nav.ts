@@ -9,6 +9,7 @@ export const MAIN_NAV = [
   { id: 'edit', labelKey: 'nav.edit' },
   { id: 'translate', labelKey: 'nav.translate' },
   { id: 'assist', labelKey: 'nav.assist' },
+  { id: 'remote', labelKey: 'nav.remotePlay' },
   { id: 'logs', labelKey: 'nav.logs' },
   { id: 'integration', labelKey: 'nav.integration' },
   { id: 'about', labelKey: 'nav.about' },
@@ -21,7 +22,7 @@ export type MainNavSurface = 'web' | 'overlay'
 /** 各端不展示的模块；只列例外 */
 const HIDDEN: Record<MainNavSurface, ReadonlySet<MainNavId>> = {
   web: new Set<MainNavId>(['about']),
-  overlay: new Set<MainNavId>(['library']),
+  overlay: new Set<MainNavId>(['library', 'remote']),
 }
 
 export function mainNavFor(surface: MainNavSurface): MainNavItem[] {

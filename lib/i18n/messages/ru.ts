@@ -31,6 +31,7 @@ export const ru: MessageTree = {
     logs: 'Журналы',
     integration: 'Интеграция',
     settings: 'Настройки',
+    remotePlay: 'Cloud Play',
     about: 'О программе',
   },
   common: {

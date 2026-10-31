@@ -83,11 +83,13 @@ export function findRunningGameProcesses(targetContentRoot?: string): RunningGam
         // Try to parse contentRoot from command line parameters
         let detectedRoot: string | undefined
         if (isMain && isNwShell) {
-          // Main process argument pattern: .../nwjs /path/to/game/www
           const tokens = cmd.split(/\s+/)
-          const lastToken = tokens[tokens.length - 1]
-          if (lastToken && !lastToken.startsWith('-') && !lastToken.includes('nwjs')) {
-            detectedRoot = path.resolve(lastToken)
+          for (let i = 1; i < tokens.length; i++) {
+            const tok = tokens[i]
+            if (tok && !tok.startsWith('-') && !tok.includes('nwjs') && (tok.includes('/') || tok.includes('\\'))) {
+              detectedRoot = path.resolve(tok)
+              break
+            }
           }
         }
 

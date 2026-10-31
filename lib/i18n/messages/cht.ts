@@ -31,6 +31,7 @@ export const cht: MessageTree = {
     logs: '日誌',
     integration: '集成',
     settings: '設定',
+    remotePlay: '雲遊戲',
     about: '關於',
   },
   common: {

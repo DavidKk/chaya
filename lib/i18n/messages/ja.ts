@@ -37,6 +37,7 @@ const base = {
     logs: 'ログ',
     integration: '連携',
     settings: '設定',
+    remotePlay: 'クラウド',
     about: '概要',
   },
   common: {

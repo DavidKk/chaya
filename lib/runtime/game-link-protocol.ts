@@ -304,6 +304,10 @@ export type RemoteStreamMessage =
   | {
       type: 'stream.request_keyframe'
     }
+  | {
+      type: 'stream.host_audio'
+      unmute?: boolean
+    }
 
 export type GameLinkMessage =
   | TranslationPacket

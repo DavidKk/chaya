@@ -36,6 +36,7 @@ export type MessageTree = {
     translate: string
     logs: string
     integration: string
+    remotePlay: string
     settings: string
     about: string
   }

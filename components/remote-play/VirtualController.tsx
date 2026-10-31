@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import {
-  LuCheck,
+  LuCircle,
   LuFolderOpen,
   LuMenu,
   LuMessageSquareText,
@@ -609,60 +609,59 @@ export function VirtualController({
             </div>
           )
 
-          const renderActionButtons = (compact = false, align: 'start' | 'end' = 'end') => (
-            <div
-              className={`pointer-events-auto relative flex flex-col ${align === 'start' ? 'items-start' : 'items-end'} gap-2 sm:gap-2.5 touch-none shrink-0`}
-              style={{ touchAction: 'none' }}
-            >
-              {/* Top row: ESC / Menu Button (Preserved per user requirement) */}
-              <div className={`relative flex items-center ${align === 'start' ? 'justify-start' : 'justify-end'}`}>
-                <button
-                  type="button"
-                  onPointerDown={(e) => handleButtonPress('menu', e)}
-                  onPointerUp={(e) => handleButtonRelease('menu', e)}
-                  onPointerCancel={(e) => handleButtonRelease('menu', e)}
-                  className={`flex items-center justify-center rounded-full border border-purple-400/40 bg-purple-950/70 text-purple-200 shadow-md backdrop-blur-md transition-transform active:scale-90 ${
-                    isPortrait ? (compact ? 'h-8.5 w-8.5' : 'h-9.5 w-9.5') : 'h-8.5 w-8.5'
-                  }`}
-                  aria-label="菜单"
-                  title="菜单 (Esc)"
-                >
-                  <LuMenu size={isPortrait ? (compact ? 15 : 17) : 15} className="stroke-[2.2]" />
-                </button>
-              </div>
+          const renderActionButtons = (compact = false, align: 'start' | 'end' = 'end') => {
+            const btnSize = isPortrait ? (compact ? 'h-11 w-11' : 'h-12 w-12') : 'h-11 w-11'
+            const iconSize = isPortrait ? (compact ? 18 : 20) : 18
 
-              {/* Bottom row: Cancel (B/X) and Confirm (A/Z) */}
-              <div className="flex items-center gap-2.5 sm:gap-3">
-                <button
-                  type="button"
-                  onPointerDown={(e) => handleButtonPress('cancel', e)}
-                  onPointerUp={(e) => handleButtonRelease('cancel', e)}
-                  onPointerCancel={(e) => handleButtonRelease('cancel', e)}
-                  className={`flex items-center justify-center rounded-full border border-rose-400/50 bg-rose-950/70 text-rose-100 shadow-lg backdrop-blur-md transition-transform active:scale-90 ${
-                    isPortrait ? (compact ? 'h-10.5 w-10.5' : 'h-11.5 w-11.5') : 'h-10 w-10'
-                  }`}
-                  aria-label="取消"
-                  title="取消"
-                >
-                  <LuX size={isPortrait ? (compact ? 17 : 19) : 16} className="stroke-[2.5]" />
-                </button>
+            return (
+              <div
+                className={`pointer-events-auto relative flex flex-col ${align === 'start' ? 'items-start' : 'items-end'} gap-2 sm:gap-2.5 touch-none shrink-0`}
+                style={{ touchAction: 'none' }}
+              >
+                {/* Top row: Menu Button (≡) - Console style icon */}
+                <div className={`relative flex items-center ${align === 'start' ? 'justify-start' : 'justify-end'}`}>
+                  <button
+                    type="button"
+                    onPointerDown={(e) => handleButtonPress('menu', e)}
+                    onPointerUp={(e) => handleButtonRelease('menu', e)}
+                    onPointerCancel={(e) => handleButtonRelease('menu', e)}
+                    className={`flex items-center justify-center rounded-full border border-purple-400/40 bg-purple-950/70 text-purple-200 shadow-md backdrop-blur-md transition-transform active:scale-90 ${btnSize}`}
+                    aria-label="菜单"
+                    title="菜单"
+                  >
+                    <LuMenu size={iconSize} className="stroke-[2.5]" />
+                  </button>
+                </div>
 
-                <button
-                  type="button"
-                  onPointerDown={(e) => handleButtonPress('ok', e)}
-                  onPointerUp={(e) => handleButtonRelease('ok', e)}
-                  onPointerCancel={(e) => handleButtonRelease('ok', e)}
-                  className={`flex items-center justify-center rounded-full border-2 border-emerald-400/70 bg-emerald-600/85 text-white shadow-xl shadow-emerald-950/50 backdrop-blur-md transition-transform active:scale-90 ${
-                    isPortrait ? (compact ? 'h-13 w-13' : 'h-15 w-15') : 'h-12 w-12'
-                  }`}
-                  aria-label="确认"
-                  title="确认"
-                >
-                  <LuCheck size={isPortrait ? (compact ? 22 : 25) : 21} className="stroke-[2.8]" />
-                </button>
+                {/* Bottom row: Cancel (X) and Confirm (Circle ○) - Uniform console size */}
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <button
+                    type="button"
+                    onPointerDown={(e) => handleButtonPress('cancel', e)}
+                    onPointerUp={(e) => handleButtonRelease('cancel', e)}
+                    onPointerCancel={(e) => handleButtonRelease('cancel', e)}
+                    className={`flex items-center justify-center rounded-full border border-rose-400/50 bg-rose-950/70 text-rose-100 shadow-lg backdrop-blur-md transition-transform active:scale-90 ${btnSize}`}
+                    aria-label="取消"
+                    title="取消"
+                  >
+                    <LuX size={iconSize} className="stroke-[2.6]" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onPointerDown={(e) => handleButtonPress('ok', e)}
+                    onPointerUp={(e) => handleButtonRelease('ok', e)}
+                    onPointerCancel={(e) => handleButtonRelease('ok', e)}
+                    className={`flex items-center justify-center rounded-full border-2 border-emerald-400/70 bg-emerald-600/85 text-white shadow-xl shadow-emerald-950/50 backdrop-blur-md transition-transform active:scale-90 ${btnSize}`}
+                    aria-label="确认"
+                    title="确认"
+                  >
+                    <LuCircle size={iconSize} className="stroke-[2.8]" />
+                  </button>
+                </div>
               </div>
-            </div>
-          )
+            )
+          }
 
           if (mode === 'single-right') {
             return (

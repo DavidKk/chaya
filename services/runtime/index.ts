@@ -13,5 +13,5 @@ export {
   touchGamePresence,
 } from './presence'
 export { registerGameFromPlugin, type RegisterGameInput, type RegisterGameResult } from './register-game'
-export { anyWebConnected, getSignalingRoom, resetSignalingRoom } from './webrtc-signaling'
+export { anyWebConnected, getSignalingRoom, listAllSignalingRooms, resetSignalingRoom } from './webrtc-signaling'
 export { writeLaunchEnv } from './write-launch-env'

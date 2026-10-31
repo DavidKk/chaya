@@ -245,7 +245,7 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     expect(joystick?.className).toContain('h-32 w-32')
 
     const confirmBtn = host.querySelector('button[aria-label="确认"]')
-    expect(confirmBtn?.className).toContain('h-15 w-15')
+    expect(confirmBtn?.className).toContain('h-12 w-12')
   })
 
   it('renders single-right mode with comfortable margins away from screen edge', () => {

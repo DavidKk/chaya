@@ -37,6 +37,7 @@ const base = {
     logs: '로그',
     integration: '연동',
     settings: '설정',
+    remotePlay: '클라우드',
     about: '정보',
   },
   common: {
