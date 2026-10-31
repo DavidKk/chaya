@@ -1,15 +1,15 @@
 import { redirect } from 'next/navigation'
 
-import { DEFAULT_TAB, editActorHref, editMapHref, editTabHref, isTabId, parseActorIdSegment, parseActorPaneSegment, parseDataSegments } from '@/components/game-edit'
+import { DEFAULT_TAB, editActorHref, editMapHref, editTabHref, isTabId, parseActorIdSegment, parseActorPaneSegment, parseDataSegments } from '@/components/game-edit/tabs'
 
 type CheatTabPageProps = {
   params: Promise<{ tab: string; pane?: string[] }>
 }
 
 /**
- * 校验 `/cheat/[tab]` 与角色四级路径：
+ * Validate cheat tabs and nested actor routes:
  * `/cheat/actor` · `/cheat/actor/:id` · `/cheat/actor/:id/{states|skills}`
- * UI 在 layout。
+ * The layout renders the UI.
  */
 export default async function CheatTabPage({ params }: CheatTabPageProps) {
   const { tab, pane } = await params
@@ -21,7 +21,7 @@ export default async function CheatTabPage({ params }: CheatTabPageProps) {
   if (tab === 'actor') {
     if (segments.length === 0) return null
 
-    // 兼容旧链 `/cheat/actor/states|skills` → 回角色根，等客户端补人物 id
+    // Redirect legacy actor links to the root so the client can supply an actor ID.
     if (segments.length === 1) {
       const only = segments[0]!
       if (parseActorPaneSegment(only) != null && parseActorIdSegment(only) == null) {

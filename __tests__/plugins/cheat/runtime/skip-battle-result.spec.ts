@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { getSkipBattleResult, isBattleResultContext, setSkipBattleResult } from '@/plugins/mv/src/cheat/runtime/skip-battle-result'
+import { getSkipBattleResult, isBattleResultContext, setSkipBattleResult, trySkipBattleResult } from '@/plugins/mv/src/cheat/runtime/skip-battle-result'
 
 afterEach(() => {
   setSkipBattleResult(false)
@@ -81,4 +81,57 @@ it('reinstalls the input hook after the game replaces Input', () => {
   Object.assign(globalThis, { Input: { isTriggered: jest.fn(() => false) } })
   setSkipBattleResult(true)
   expect(globalThis.Input!.isTriggered!('ok')).toBe(true)
+})
+
+it('confirms the stock MV message window and Olivia result windows via isRepeated', () => {
+  class Scene_Battle {}
+  const processVictory = jest.fn()
+  const input = { isRepeated: jest.fn(() => false), isTriggered: jest.fn(() => false) }
+  Object.assign(globalThis, {
+    Scene_Battle,
+    SceneManager: { _scene: new Scene_Battle() },
+    BattleManager: { _phase: 'turn', processVictory },
+    Input: input,
+    $gameTemp: {},
+    $gameMessage: { isBusy: () => true, numChoices: () => 0 },
+  })
+  setSkipBattleResult(true)
+  expect(input.isRepeated('ok')).toBe(false)
+  ;(globalThis as unknown as { BattleManager: { processVictory: () => void } }).BattleManager.processVictory()
+  expect(processVictory).toHaveBeenCalledTimes(1)
+  expect(input.isRepeated('ok')).toBe(true)
+  expect(input.isRepeated('cancel')).toBe(false)
+})
+
+it('does not carry a finished battle into map dialogue or the next battle', () => {
+  class Scene_Battle {}
+  const manager = { _phase: 'battleEnd', processVictory: () => {} }
+  const input = { isRepeated: () => false }
+  const scenes: { _scene: object } = { _scene: new Scene_Battle() }
+  Object.assign(globalThis, { Scene_Battle, SceneManager: scenes, BattleManager: manager, Input: input, $gameTemp: {} })
+  setSkipBattleResult(true)
+  manager.processVictory()
+  scenes._scene = {}
+  expect(isBattleResultContext()).toBe(false)
+  trySkipBattleResult()
+  manager._phase = 'turn'
+  scenes._scene = new Scene_Battle()
+  expect(input.isRepeated('ok')).toBe(false)
+})
+
+it('preserves choices and installs hooks once even after repeated toggles and late plugin overrides', () => {
+  class Scene_Victory {}
+  const input = { isRepeated: () => false }
+  Object.assign(globalThis, { SceneManager: { _scene: new Scene_Victory() }, Input: input, $gameMessage: { numChoices: () => 2 } })
+  setSkipBattleResult(true)
+  const installed = input.isRepeated
+  setSkipBattleResult(false)
+  setSkipBattleResult(true)
+  trySkipBattleResult()
+  expect(input.isRepeated).toBe(installed)
+  expect(input.isRepeated('ok')).toBe(false)
+  Object.assign(globalThis, { $gameMessage: { numChoices: () => 0 } })
+  input.isRepeated = () => false
+  trySkipBattleResult()
+  expect(input.isRepeated('ok')).toBe(true)
 })

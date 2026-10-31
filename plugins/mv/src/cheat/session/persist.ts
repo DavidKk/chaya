@@ -216,7 +216,7 @@ export function applyGameEditDisk(disk: GameEditDiskState) {
     'resourceSkip',
   ]
   for (const key of flags) {
-    const v = run[key]
+    const v = run[key] ?? (key === 'alwaysDash' || key === 'skipBattleResult' ? true : undefined)
     if (typeof v === 'boolean') applyRunFlag(key, v)
   }
 
@@ -251,7 +251,7 @@ export function mergeDiskIntoSession(prev: SessionState, disk: GameEditDiskState
     clickTeleport: run.clickTeleport ?? prev.clickTeleport,
     resourceSkip: run.resourceSkip ?? prev.resourceSkip,
     locks: { ...disk.locks, ...prev.locks },
-    // 盘上有 hotkeys 字段则整表替换（含 {} = 已清空本游戏覆盖）
+    // Replace all per-game bindings when present; an empty object clears overrides.
     hotkeys: { ...(disk.hotkeys.game.bindings || {}) },
     hotkeysGlobal: { ...disk.hotkeys.global.bindings },
   }
@@ -278,7 +278,7 @@ export function scheduleSaveRunFlag(key: RunFlagKey, value: boolean) {
   scheduleSaveGameEditDisk({ ...current, run: { ...current.run, [key]: value } })
 }
 
-/** Load: 本游戏覆盖来自盘；全局来自 localStorage；本游戏未设则运行时用全局 */
+/** Load per-game overrides from disk and global defaults from localStorage. */
 export function bootstrapGameEditSession(): SessionState {
   const disk = loadGameEditDisk()
   hotkeySnapshot = disk?.hotkeys ?? emptyHotkeySnapshot(gameId())
@@ -307,7 +307,7 @@ let hadParty = false
 let appliedForCurrentParty = false
 let loadHooked = false
 
-/** 读档后重新套用修改锁定；不经过 `DataManager.loadGame` 的读档（游戏存档）需显式调用 */
+/** Reapply edit locks after loading; custom loaders must call this explicitly. */
 export function markGameEditNeedReapply() {
   appliedForCurrentParty = false
 }
@@ -345,6 +345,8 @@ export function ensureGameEditDiskApplied() {
     hotkeySnapshot = disk.hotkeys
     setGameHotkeysCache(disk.hotkeys.game.bindings)
     applyGameEditDisk(disk)
+  } else {
+    applyGameEditDisk({ version: 1, run: {}, locks: {}, hotkeys: hotkeySnapshot })
   }
   appliedForCurrentParty = true
 }

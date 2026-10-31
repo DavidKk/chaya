@@ -60,7 +60,7 @@ module ChayaRGSS
       end
 
       def always_dash?
-        @always_dash == true
+        @always_dash != false
       end
 
       def autotalk?
@@ -76,7 +76,7 @@ module ChayaRGSS
       end
 
       def skip_battle_result?
-        @skip_battle_result == true
+        @skip_battle_result != false
       end
 
       def set_run_flag(key, value)
@@ -440,7 +440,7 @@ module ChayaRGSS
             end
           end
         end
-        # L(2) メッセージ一時消去 calls @talker_name_window.hide; after auto-win
+        # L(2)'s message-hide command calls @talker_name_window.hide; after auto-win
         # teardown that child can already be disposed on the next battle.
         if Window_Message.method_defined?(:update_window_hide) && !Window_Message.method_defined?(:chaya_orig_update_window_hide)
           Window_Message.class_eval do
@@ -987,7 +987,7 @@ module ChayaRGSS
           recovery = estimate_hp_recovery_rgss(item, user, target)
           next if recovery <= 0
 
-          # 淘汰过滤：若恢复量占 MHP < 8%，且缺口 > 300，且恢复量不到缺口的 20%，视为前期过时道具予以废弃
+          # Skip obsolete healing items below 8% MHP and 20% of a deficit greater than 300.
           if recovery < target_mhp * 0.08 && deficit > 300 && recovery < deficit * 0.2
             next
           end
@@ -1042,7 +1042,7 @@ module ChayaRGSS
         dead_allies = defined?($game_party) && $game_party.respond_to?(:dead_members) ? $game_party.dead_members : []
         alive_enemies = defined?($game_troop) && $game_troop.respond_to?(:alive_members) ? $game_troop.alive_members : []
 
-        # 1. 救急：复活阵亡队友 (技能优先 > 道具)
+        # 1. Revive fallen allies, preferring skills over items.
         if !dead_allies.empty?
           revive = usable_skills.find { |s| s.respond_to?(:scope) && [9, 10].include?(s.scope) }
           if revive
@@ -1060,7 +1060,7 @@ module ChayaRGSS
           end
         end
 
-        # 2. 救急：低血治疗 (< 40% HP，技能优先 > 道具缺口匹配)
+        # 2. Heal allies below 40% HP, preferring skills before matching item recovery.
         lowest_ally = nil
         lowest_rate = 1.0
         if !alive_allies.empty?
@@ -1088,7 +1088,7 @@ module ChayaRGSS
           end
         end
 
-        # 2.5 资源续航：MP 监听与道具回蓝
+        # 2.5. Sustain MP with recovery items.
         cur_mp = actor.respond_to?(:mp) ? actor.mp : 100
         max_mp = [actor.respond_to?(:mmp) ? actor.mmp : 100, 1].max
         learned_skills = actor.respond_to?(:skills) ? actor.skills : usable_skills
@@ -1109,7 +1109,7 @@ module ChayaRGSS
           end
         end
 
-        # 3. 敌群 AOE (存活敌人 >= 2)
+        # 3. Use area attacks against at least two living enemies.
         if alive_enemies.size >= 2
           aoe = usable_skills.find do |s|
             s.respond_to?(:scope) && s.scope == 2 && s.respond_to?(:damage) && s.damage.respond_to?(:type) && [1, 5].include?(s.damage.type)
@@ -1121,7 +1121,7 @@ module ChayaRGSS
           end
         end
 
-        # 4. 单体集火与伤害技能 (按血量升序集火残血)
+        # 4. Focus single-target damage on enemies with the lowest HP.
         focus_enemy = alive_enemies.min_by { |e| e.hp } rescue alive_enemies.first
         best_skill = nil
         best_score = 0
@@ -1164,7 +1164,7 @@ module ChayaRGSS
           return act
         end
 
-        # 5. 投掷类攻击道具：被缴械时使用攻击道具打击敌人
+        # 5. Use attack items when disarmed.
         if !can_attack && focus_enemy
           throw_item = usable_items.find do |i|
             scope = i.respond_to?(:scope) ? i.scope : 1
@@ -1177,13 +1177,13 @@ module ChayaRGSS
           end
         end
 
-        # 6. 缴械时若有其他可用技能（如 Buff/Debuff），施放该技能
+        # 6. Use other available skills, such as buffs or debuffs, when disarmed.
         if !can_attack && !usable_skills.empty?
           act.set_skill(usable_skills.first.id) if act.respond_to?(:set_skill)
           return act
         end
 
-        # 7. 缴械且无可用技能/道具时，防御兜底，彻底杜绝死磕平 A 与卡死！
+        # 7. Guard when disarmed without usable skills or items to avoid stalled turns.
         if can_guard && act.respond_to?(:set_guard)
           act.set_guard
         elsif can_attack && act.respond_to?(:set_attack)

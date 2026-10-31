@@ -45,6 +45,7 @@
 | 游戏语言包、语料回写 | [语言包](game-multilingual-locales.md) | [语言包设计](technical/game-multilingual-locales.md) |
 | 安装、启动、外部 Agent 用法 | [setup](../skills/chaya-setup/SKILL.md) / [launch](../skills/chaya-launch/SKILL.md) / [mcp](../skills/chaya-mcp/SKILL.md) | Agent 安装英文源；`i18n` 仅页面译文，改译文时才读 |
 | 下载中心、打包、API / 日志规范 | [下载](technical/download-center.md) / [App](technical/electron-app.md) / [代码与日志规范](technical/api-and-logs-standard.md) | 独立开发文档，无需补同名需求 |
+| 页面 / API 请求慢、请求 ID、HTTP 耗时、慢请求集中查看 | [HTTP 请求追踪](technical/http-request-tracing.md) | 1 秒预警、精简汇总 API、阶段含义与日志恢复上限 |
 | GitHub 分发、资源/匹配算法下发、插件/业务包/App 更新 | [更新前置需求](application-updates.md) | [统一更新设计](technical/application-updates.md)；排期与阶段验收才读 [更新里程碑](milestones/application-updates.md) |
 | 本机 data/ 布局、备份、Agent 配置多副本 | [数据布局](technical/data-layout.md) | 与 `constants/paths`、局内 `content-paths` 对照 |
 | 存储三桶：公共 / 游戏内 / IndexedDB | [存储策略](technical/storage-policy.md) | 技术方案；公共单实例服务、SQLite 分库、身份签名与迁移自愈 |

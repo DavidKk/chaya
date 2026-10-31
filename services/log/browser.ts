@@ -1,3 +1,4 @@
+import { compactLogEntry } from '@/lib/log/entry'
 import { appendBrowserLog } from '@/lib/log/link-log-store'
 import type { TimingEntry, TimingReporter } from '@/lib/log/timing'
 
@@ -29,6 +30,8 @@ export function createBrowserTimingReporter(upload?: (entries: TimingEntry[]) =>
     }, 150)
   }
   return (entry) => {
+    const bounded = compactLogEntry({ ...entry, id: 'timing' })
+    entry = { ...bounded, meta: (bounded.meta ?? {}) as Record<string, unknown> }
     appendBrowserLog(entry)
     if (!upload) return
     queue.push(entry)

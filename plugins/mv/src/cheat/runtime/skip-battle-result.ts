@@ -15,11 +15,12 @@ type BattleGlobals = {
   Scene_Battle?: new () => object
   Input?: {
     isTriggered?: (key: string) => boolean
+    isRepeated?: (key: string) => boolean
     isPressed?: (key: string) => boolean
     __chayaSkipBattleResult?: boolean
   }
-  $gameMessage?: { isBusy?: () => boolean; numChoices?: () => number }
-  $gameTemp?: { _chayaBattleResult?: boolean }
+  $gameMessage?: { numChoices?: () => number; isChoice?: () => boolean; isNumberInput?: () => boolean; isItemChoice?: () => boolean }
+  $gameTemp?: { _chayaBattleResult?: boolean; _chayaBattleResultScene?: object | null }
 }
 
 const g = () => globalThis as unknown as BattleGlobals
@@ -38,6 +39,8 @@ function state(): SkipBattleResultState {
 }
 
 const CONFIRM_GAP_MS = 100
+const HOOK_KEY = '__chayaBattleResultHook'
+type HookedFunction = { [HOOK_KEY]?: boolean }
 
 const RESULT_SCENE = /victory|battleresult|battle[_]?end|battle[_]?result|aftermath/i
 
@@ -48,72 +51,74 @@ function sceneName(scene: object | null | undefined) {
 
 function markBattleResult() {
   const temp = g().$gameTemp
-  if (temp) temp._chayaBattleResult = true
+  if (temp) {
+    temp._chayaBattleResult = true
+    temp._chayaBattleResultScene = g().SceneManager?._scene
+  }
 }
 
 function clearBattleResultMarkIfIdle() {
-  const { SceneManager, Scene_Battle, $gameMessage, $gameTemp } = g()
+  const { SceneManager, Scene_Battle, $gameTemp } = g()
   if (!$gameTemp?._chayaBattleResult) return
-  if ($gameMessage?.isBusy?.()) return
   const scene = SceneManager?._scene
   if (scene && RESULT_SCENE.test(sceneName(scene))) return
-  if (scene && Scene_Battle && scene instanceof Scene_Battle) return
+  if (scene && Scene_Battle && scene instanceof Scene_Battle && scene === $gameTemp._chayaBattleResultScene) return
   $gameTemp._chayaBattleResult = false
+  $gameTemp._chayaBattleResultScene = null
 }
 
 function ensureBattleManagerHook() {
   const bm = g().BattleManager
-  if (!bm || bm.__chayaSkipBattleResult) return
-  bm.__chayaSkipBattleResult = true
+  if (!bm) return
   for (const key of ['processVictory', 'processDefeat'] as const) {
     const original = bm[key]
-    if (typeof original !== 'function') continue
-    bm[key] = function (this: unknown, ...args: unknown[]) {
-      markBattleResult()
-      return original.apply(this, args)
-    }
+    if (typeof original !== 'function' || (original as HookedFunction)[HOOK_KEY]) continue
+    bm[key] = Object.assign(
+      function (this: unknown, ...args: unknown[]) {
+        markBattleResult()
+        return original.apply(this, args)
+      },
+      { [HOOK_KEY]: true }
+    )
   }
 }
 
 export function isBattleResultContext() {
   const { BattleManager, SceneManager, Scene_Battle, $gameMessage, $gameTemp } = g()
-  if ($gameTemp?._chayaBattleResult) return true
+  if ($gameMessage?.isChoice?.() || ($gameMessage?.numChoices?.() ?? 0) > 0 || $gameMessage?.isNumberInput?.() || $gameMessage?.isItemChoice?.()) return false
   const scene = SceneManager?._scene
   if (scene && RESULT_SCENE.test(sceneName(scene))) return true
+  if (!scene || !Scene_Battle || !(scene instanceof Scene_Battle)) return false
+  if ($gameTemp?._chayaBattleResult && scene === $gameTemp._chayaBattleResultScene) return true
   if (BattleManager) {
     const phase = String(BattleManager._phase || '')
     if (phase === 'battleEnd' || BattleManager.isBattleEnd?.() || BattleManager.isBattleEnding?.()) return true
-  }
-  if (scene && Scene_Battle && scene instanceof Scene_Battle && $gameMessage?.isBusy?.() && (!$gameMessage.numChoices || $gameMessage.numChoices() === 0)) {
-    return true
   }
   return false
 }
 
 function ensureInputHook() {
   const Input = g().Input
-  if (!Input || Input.__chayaSkipBattleResult) return
-  const origTriggered = Input.isTriggered
-  const origPressed = Input.isPressed
-  if (!origTriggered) return
-  Input.__chayaSkipBattleResult = true
-  const shouldConfirm = (key: string) => {
+  if (!Input) return
+  const shouldConfirm = (key: string, held: boolean) => {
     const current = state()
     if (!current.enabled || key !== 'ok' || !isBattleResultContext()) return false
+    if (held) return true
     const now = Date.now()
     if (now < current.nextConfirmAt) return false
     current.nextConfirmAt = now + CONFIRM_GAP_MS
     return true
   }
-  Input.isTriggered = function (key: string) {
-    if (shouldConfirm(key)) return true
-    return origTriggered.call(this, key)
-  }
-  if (origPressed) {
-    Input.isPressed = function (key: string) {
-      if (state().enabled && key === 'ok' && isBattleResultContext()) return true
-      return origPressed.call(this, key)
-    }
+  for (const method of ['isTriggered', 'isRepeated', 'isPressed'] as const) {
+    const original = Input[method]
+    if (!original || (original as HookedFunction)[HOOK_KEY]) continue
+    Input[method] = Object.assign(
+      function (this: unknown, key: string) {
+        if (shouldConfirm(key, method === 'isPressed')) return true
+        return original.call(this, key)
+      },
+      { [HOOK_KEY]: true }
+    )
   }
 }
 
@@ -125,8 +130,6 @@ export function setSkipBattleResult(on: boolean) {
   const current = state()
   current.enabled = !!on
   current.nextConfirmAt = 0
-  const Input = g().Input
-  if (Input) Input.__chayaSkipBattleResult = false
   if (current.enabled) {
     ensureInputHook()
     ensureBattleManagerHook()
