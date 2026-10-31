@@ -50,6 +50,18 @@ export type PlayMessages = {
   audioVisualTitle: string
   inGameControlTitle: string
   failed: string
+  modeSingleLeft: string
+  modeSingleRight: string
+  platformDesktop: string
+  platformMobile: string
+  platformMode: string
+  reloadConfirmTitle: string
+  reloadConfirmDesc: string
+  quitGame: string
+  quitGameConfirmTitle: string
+  quitGameConfirmDesc: string
+  gameExited: string
+  keyboardHints: string
 }
 
 export const playEn: PlayMessages = {
@@ -104,6 +116,18 @@ export const playEn: PlayMessages = {
   audioVisualTitle: 'Audio & Video Settings',
   inGameControlTitle: 'In-Game Controls & Diagnostics',
   failed: 'Failed',
+  modeSingleLeft: 'Left Hand',
+  modeSingleRight: 'Right Hand',
+  platformDesktop: 'PC Desktop',
+  platformMobile: 'Mobile Touch',
+  platformMode: 'Client Mode',
+  reloadConfirmTitle: 'Clear Cache & Reload?',
+  reloadConfirmDesc: 'This will reset local streaming settings, purge cache, and hard reload.',
+  quitGame: 'Quit Game',
+  quitGameConfirmTitle: 'Quit Current Game?',
+  quitGameConfirmDesc: 'The game process on the host machine will be terminated. Unsaved progress will be lost.',
+  gameExited: 'Game exited',
+  keyboardHints: 'WASD / Arrows to move, Enter / Z to confirm, Esc / X to cancel, Shift to dash.',
 }
 
 export const playZh: PlayMessages = {
@@ -158,6 +182,18 @@ export const playZh: PlayMessages = {
   audioVisualTitle: '声音与画面设置',
   inGameControlTitle: '局内控制与诊断',
   failed: '失败',
+  modeSingleLeft: '左手单手',
+  modeSingleRight: '右手单手',
+  platformDesktop: 'PC 桌面模式',
+  platformMobile: '手机触屏模式',
+  platformMode: '客户端布局',
+  reloadConfirmTitle: '清理缓存并重载？',
+  reloadConfirmDesc: '将重置串流设置、清空本地缓存并重新建立连接，确认重载？',
+  quitGame: '退出游戏',
+  quitGameConfirmTitle: '退出当前游戏？',
+  quitGameConfirmDesc: '电脑端正在运行的游戏进程将被完全关闭，未保存的进度将丢失。确认退出？',
+  gameExited: '游戏已退出',
+  keyboardHints: 'WASD / 方向键移动，Z / Enter 确认，X / Esc 取消/菜单，Shift 加速。',
 }
 
 export const playCht: PlayMessages = {
@@ -212,6 +248,18 @@ export const playCht: PlayMessages = {
   audioVisualTitle: '聲音與畫面設定',
   inGameControlTitle: '局內控制與診斷',
   failed: '失敗',
+  modeSingleLeft: '左手單手',
+  modeSingleRight: '右手單手',
+  platformDesktop: 'PC 桌面模式',
+  platformMobile: '手機觸控模式',
+  platformMode: '用戶端版面',
+  reloadConfirmTitle: '清理快取並重載？',
+  reloadConfirmDesc: '將重設串流設定、清空本機快取並重新建立連線，確認重載？',
+  quitGame: '結束遊戲',
+  quitGameConfirmTitle: '結束目前遊戲？',
+  quitGameConfirmDesc: '電腦端正在執行的遊戲行程將被關閉，未儲存的進度將遺失。確認結束？',
+  gameExited: '遊戲已結束',
+  keyboardHints: 'WASD / 方向鍵移動，Z / Enter 確認，X / Esc 取消/選單，Shift 加速。',
 }
 
 export const playJa: PlayMessages = {
@@ -266,6 +314,18 @@ export const playJa: PlayMessages = {
   audioVisualTitle: '映像と音声の設定',
   inGameControlTitle: 'ゲーム内制御と診断',
   failed: '失敗',
+  modeSingleLeft: '左手片手',
+  modeSingleRight: '右手片手',
+  platformDesktop: 'PC デスクトップ',
+  platformMobile: 'モバイル タッチ',
+  platformMode: 'クライアント形式',
+  reloadConfirmTitle: 'キャッシュ削除＆再読み込み？',
+  reloadConfirmDesc: 'ストリーミング設定を初期化し、キャッシュをクリアして再接続します。',
+  quitGame: 'ゲーム終了',
+  quitGameConfirmTitle: 'ゲームを終了しますか？',
+  quitGameConfirmDesc: 'ホスト PC 上のゲームプロセスを終了します。セーブしていない進行状況は失われます。',
+  gameExited: 'ゲームを終了しました',
+  keyboardHints: 'WASD / 方向キーで移動、Enter / Z で決定、Esc / X でキャンセル、Shift でダッシュ。',
 }
 
 export const playKo: PlayMessages = { ...playEn, launchGame: '게임 시작', switchGame: '게임 변경', reconnect: '다시 연결' }

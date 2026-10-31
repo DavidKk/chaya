@@ -36,7 +36,7 @@ export function IosInstallGuideModal({
       onClick={onClose}
     >
       <div
-        className="relative flex flex-col w-full max-w-xl rounded-2xl border border-white/15 bg-neutral-900/95 px-3.5 pt-2 pb-2.5 sm:px-4 sm:pt-2 sm:pb-3 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+        className="relative flex flex-col w-full max-w-xl rounded-lg border border-[rgb(230_238_248/0.12)] bg-neutral-900/95 px-3.5 pt-2 pb-2.5 sm:px-4 sm:pt-2 sm:pb-3 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
         style={{ maxHeight: 'min(380px, 88vh)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -58,7 +58,7 @@ export function IosInstallGuideModal({
         {/* Content */}
         <div className="flex-1 min-h-0 overflow-y-auto py-2.5 space-y-2.5">
           {isStandalone ? (
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/40 p-3 text-xs text-emerald-200 space-y-2">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/40 p-3 text-xs text-emerald-200 space-y-2">
               <div className="flex items-center gap-2 font-semibold text-emerald-300">
                 <LuCheck size={16} className="text-emerald-400 shrink-0" />
                 <span>已检测到 Web App 独立运行状态</span>
@@ -69,14 +69,14 @@ export function IosInstallGuideModal({
             </div>
           ) : (
             <>
-              <div className="rounded-xl border border-amber-500/25 bg-amber-950/30 p-2 text-[11px] leading-relaxed text-amber-200/90">
+              <div className="rounded-lg border border-amber-500/25 bg-amber-950/30 p-2 text-[11px] leading-relaxed text-amber-200/90">
                 受 iOS 机制限制，Safari 浏览器内网页无法通过普通按钮隐藏地址栏与工具栏。只需将网页添加到主屏幕，即可去除所有浏览器边框！
               </div>
 
               {/* Steps */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                 {/* Step 1 */}
-                <div className="flex items-start gap-2.5 rounded-xl border border-white/5 bg-white/[0.03] p-2.5">
+                <div className="flex items-start gap-2.5 rounded-lg border border-white/5 bg-white/[0.03] p-2.5">
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400">
                     <LuShare size={15} />
                   </div>
@@ -91,7 +91,7 @@ export function IosInstallGuideModal({
                 </div>
 
                 {/* Step 2 */}
-                <div className="flex items-start gap-2.5 rounded-xl border border-white/5 bg-white/[0.03] p-2.5">
+                <div className="flex items-start gap-2.5 rounded-lg border border-white/5 bg-white/[0.03] p-2.5">
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
                     <LuSquarePlus size={15} />
                   </div>
@@ -106,7 +106,7 @@ export function IosInstallGuideModal({
                 </div>
 
                 {/* Step 3: Real app icon preview with Chaya Play title */}
-                <div className="flex items-start gap-2.5 rounded-xl border border-white/5 bg-white/[0.03] p-2.5">
+                <div className="flex items-start gap-2.5 rounded-lg border border-white/5 bg-white/[0.03] p-2.5">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg overflow-hidden bg-neutral-950 border border-white/10 shadow-sm mt-0.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img

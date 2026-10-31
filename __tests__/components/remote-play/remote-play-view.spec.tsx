@@ -73,7 +73,7 @@ describe('RemotePlayView Launcher & UI refinements', () => {
   })
 
 
-  it('renders language switcher and GradientButton for game launch', async () => {
+  it('renders language switcher inside settings modal and GradientButton for game launch', async () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
@@ -85,13 +85,42 @@ describe('RemotePlayView Launcher & UI refinements', () => {
       await Promise.resolve()
     })
 
-    // Language switcher trigger rendered
+    // Language switcher is inside preferences settings modal (Requirement 5)
+    const settingsBtn = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('title')?.includes('偏好') || b.getAttribute('aria-label')?.includes('偏好') || b.getAttribute('title')?.includes('设置'))
+    expect(settingsBtn).toBeDefined()
+    await act(async () => {
+      settingsBtn?.click()
+    })
+
     const langTrigger = host.querySelector('button[aria-label="切换语言"]')
     expect(langTrigger).not.toBeNull()
 
     // Launch button rendered with GradientButton
     const launchBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('启动游戏'))
     expect(launchBtn).toBeDefined()
+  })
+
+  it('prompts confirmation modal before hard reload', async () => {
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <RemotePlayView initialRoomId="game-1" />
+        </LocaleProvider>
+      )
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const reloadBtn = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('aria-label')?.includes('清理') || b.getAttribute('title')?.includes('清理'))
+    expect(reloadBtn).toBeDefined()
+
+    await act(async () => {
+      reloadBtn?.click()
+    })
+
+    // Confirmation modal appears (Requirement 6)
+    expect(host.textContent).toContain('清理缓存并重载？')
   })
 
   it('opens game selector modal with safe padding and centered title', async () => {

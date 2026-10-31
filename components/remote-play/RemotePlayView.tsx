@@ -30,7 +30,8 @@ import { WebGameLink } from '@/lib/runtime/web-game-link'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
 import { GradientButton } from '@/components/sk'
-import { IoPlayOutline } from 'react-icons/io5'
+import { IoHandLeftOutline, IoHandRightOutline, IoPlayOutline } from 'react-icons/io5'
+import { LuMonitor, LuPower, LuSmartphone } from 'react-icons/lu'
 import { IosInstallGuideModal } from './IosInstallGuideModal'
 import { PerformanceHud } from './PerformanceHud'
 import { RemoteCheatDrawer } from './RemoteCheatDrawer'
@@ -82,8 +83,12 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuTab, setMenuTab] = useState<'gamepad' | 'quick' | 'display' | 'system'>('gamepad')
 
-  // Control Mode: fixed, touch, dynamic
+  // Control Mode: fixed, dynamic, single-left, single-right, touch
   const [controlMode, setControlMode] = useState<ControlMode>('fixed')
+  const [clientMode, setClientMode] = useState<'auto' | 'desktop' | 'mobile'>('auto')
+  const [reloadConfirmOpen, setReloadConfirmOpen] = useState(false)
+  const [quitConfirmOpen, setQuitConfirmOpen] = useState(false)
+  const [desktopToolbarVisible, setDesktopToolbarVisible] = useState(true)
 
   // Auto-reconnect & toast states
   const [isCancelled, setIsCancelled] = useState(false)
@@ -130,6 +135,110 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     },
     []
   )
+
+  const handleInput = useCallback((key: RemoteInputKey, action: 'down' | 'up') => {
+    linkRef.current?.send({
+      type: 'remote.input',
+      key,
+      action,
+    })
+  }, [])
+
+  const isDesktop =
+    clientMode === 'desktop' ||
+    (clientMode === 'auto' && typeof window !== 'undefined' && !remotePlayLogger.getDiagnostics().isMobile)
+
+  // Keyboard handler for PC desktop streaming (Requirement 8)
+  useEffect(() => {
+    if (status !== 'connected' || !isDesktop) return
+
+    const keyMap: Record<string, RemoteInputKey> = {
+      ArrowUp: 'up',
+      KeyW: 'up',
+      ArrowDown: 'down',
+      KeyS: 'down',
+      ArrowLeft: 'left',
+      KeyA: 'left',
+      ArrowRight: 'right',
+      KeyD: 'right',
+      Enter: 'ok',
+      Space: 'ok',
+      KeyZ: 'ok',
+      Escape: 'cancel',
+      KeyX: 'cancel',
+      Numpad0: 'cancel',
+      Tab: 'menu',
+      KeyM: 'menu',
+      ShiftLeft: 'shift',
+      ShiftRight: 'shift',
+      KeyQ: 'pageup',
+      KeyE: 'pagedown',
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      const mapped = keyMap[e.code]
+      if (mapped) {
+        e.preventDefault()
+        handleInput(mapped, 'down')
+      }
+    }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      const mapped = keyMap[e.code]
+      if (mapped) {
+        e.preventDefault()
+        handleInput(mapped, 'up')
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [status, isDesktop, handleInput])
+
+  const executeHardReload = useCallback(() => {
+    remotePlayLogger.info('User confirmed clear cache and hard reload')
+    setReloadConfirmOpen(false)
+    try {
+      localStorage.removeItem('chaya_remote_control_mode')
+      localStorage.removeItem('chaya_remote_client_mode')
+      localStorage.removeItem('chaya_remote_fit_mode')
+      sessionStorage.clear()
+    } catch {
+      /* ignore */
+    }
+    window.location.href = window.location.pathname + '?_t=' + Date.now()
+  }, [])
+
+  const executeQuitGame = useCallback(async () => {
+    remotePlayLogger.info('User confirmed quitting game')
+    setQuitConfirmOpen(false)
+    setMenuOpen(false)
+    try {
+      if (linkRef.current) {
+        linkRef.current.send({ type: 'quit' })
+        linkRef.current.stop()
+        linkRef.current = null
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      await fetch('/api/launch', { method: 'DELETE' })
+    } catch {
+      /* ignore */
+    }
+    setStatus('disconnected')
+    setGameOnline(false)
+    showStatusToast('info', t('play.gameExited'), 3000)
+  }, [showStatusToast, t])
 
   const handleClearCacheAndReload = useCallback(async () => {
     remotePlayLogger.info('User triggered clear cache and reload')
@@ -549,14 +658,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     [showStatusToast, connect]
   )
 
-  // 4. Remote input dispatch
-  const handleInput = useCallback((key: RemoteInputKey, action: 'down' | 'up') => {
-    linkRef.current?.send({
-      type: 'remote.input',
-      key,
-      action,
-    })
-  }, [])
+  // 4. Remote input dispatch defined above
 
   // 5. Direct canvas touch on video
   const handleVideoPointer = (e: React.PointerEvent<HTMLVideoElement>, phase: 'down' | 'move' | 'up') => {
@@ -716,7 +818,16 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     } catch {
       /* ignore */
     }
-    const modeLabel = mode === 'fixed' ? t('play.modeFixed') : mode === 'touch' ? t('play.modeTouch') : t('play.modeDynamic')
+    const modeLabel =
+      mode === 'fixed'
+        ? t('play.modeFixed')
+        : mode === 'dynamic'
+          ? t('play.modeDynamic')
+          : mode === 'single-left'
+            ? t('play.modeSingleLeft')
+            : mode === 'single-right'
+              ? t('play.modeSingleRight')
+              : t('play.modeTouch')
     showStatusToast('connecting', modeLabel, 2000)
     remotePlayLogger.info(`Control mode switched to: ${mode}`)
   }
@@ -731,51 +842,72 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
               {t('play.controlModeTitle')}
             </div>
-            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-neutral-950/70 border border-white/5">
+            {/* Joystick modes first, touch mode last. No explanatory descriptions (Requirement 1 & 2) */}
+            <div className="grid grid-cols-5 gap-1 p-1 rounded-md bg-neutral-950/90 border border-white/10">
               <button
                 type="button"
                 onClick={() => handleSelectControlMode('fixed')}
-                className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
+                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-1 text-xs transition-all ${
                   controlMode === 'fixed'
                     ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
                     : 'text-neutral-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <LuGamepad2 size={16} />
-                <span className="text-[11px] whitespace-nowrap">{t('play.modeFixed')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectControlMode('touch')}
-                className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
-                  controlMode === 'touch'
-                    ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
-                    : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <LuMousePointer2 size={16} />
-                <span className="text-[11px] whitespace-nowrap">{t('play.modeTouch')}</span>
+                <span className="text-[10px] whitespace-nowrap">{t('play.modeFixed')}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSelectControlMode('dynamic')}
-                className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
+                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-1 text-xs transition-all ${
                   controlMode === 'dynamic'
                     ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
                     : 'text-neutral-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <LuCompass size={16} />
-                <span className="text-[11px] whitespace-nowrap">{t('play.modeDynamic')}</span>
+                <span className="text-[10px] whitespace-nowrap">{t('play.modeDynamic')}</span>
               </button>
-            </div>
 
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-[11px] text-neutral-400 leading-relaxed">
-              {controlMode === 'fixed' && t('play.modeFixedDesc')}
-              {controlMode === 'touch' && t('play.modeTouchDesc')}
-              {controlMode === 'dynamic' && t('play.modeDynamicDesc')}
+              <button
+                type="button"
+                onClick={() => handleSelectControlMode('single-left')}
+                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-1 text-xs transition-all ${
+                  controlMode === 'single-left'
+                    ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <IoHandLeftOutline size={16} />
+                <span className="text-[10px] whitespace-nowrap">{t('play.modeSingleLeft')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectControlMode('single-right')}
+                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-1 text-xs transition-all ${
+                  controlMode === 'single-right'
+                    ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <IoHandRightOutline size={16} />
+                <span className="text-[10px] whitespace-nowrap">{t('play.modeSingleRight')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectControlMode('touch')}
+                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-1 text-xs transition-all ${
+                  controlMode === 'touch'
+                    ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <LuMousePointer2 size={16} />
+                <span className="text-[10px] whitespace-nowrap">{t('play.modeTouch')}</span>
+              </button>
             </div>
           </div>
         )
@@ -903,12 +1035,57 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
               {t('play.preferencesTitle')}
             </div>
-            <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200">
+
+            {/* Language Switcher inside Preferences Dialog (Requirement 5) */}
+            <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200">
               <span className="flex items-center gap-2">
                 <span className="whitespace-nowrap shrink-0 font-medium">{t('locale.label')}</span>
               </span>
               <LocaleSwitcher className="shrink-0" />
             </div>
+
+            {/* Client Mode Layout: PC Desktop vs Mobile (Requirement 8) */}
+            <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200">
+              <div className="flex flex-col">
+                <span className="font-medium whitespace-nowrap">{t('play.platformMode')}</span>
+                <span className="text-[10px] text-neutral-400">
+                  {isDesktop ? t('play.platformDesktop') : t('play.platformMobile')}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 rounded-md border border-white/10 bg-neutral-950 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setClientMode('desktop')}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all ${
+                    clientMode === 'desktop' || (clientMode === 'auto' && isDesktop)
+                      ? 'bg-sky-500/30 text-sky-200 border border-sky-400/40'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <LuMonitor size={12} />
+                  <span>PC</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setClientMode('mobile')}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all ${
+                    clientMode === 'mobile' || (clientMode === 'auto' && !isDesktop)
+                      ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-400/40'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <LuSmartphone size={12} />
+                  <span>手机</span>
+                </button>
+              </div>
+            </div>
+
+            {isDesktop && (
+              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2 text-[10px] text-neutral-400">
+                {t('play.keyboardHints')}
+              </div>
+            )}
+
             {library.length > 0 && (
               <button
                 type="button"
@@ -916,7 +1093,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   setGameSelectorOpen(true)
                   setMenuOpen(false)
                 }}
-                className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+                className="flex w-full items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
               >
                 <span className="flex items-center gap-2">
                   <LuGamepad2 size={15} className="text-emerald-400 shrink-0" />
@@ -932,15 +1109,31 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               type="button"
               onClick={() => {
                 setMenuOpen(false)
-                void handleClearCacheAndReload()
+                setReloadConfirmOpen(true)
               }}
-              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+              className="flex w-full items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
             >
               <span className="flex items-center gap-2">
                 <LuRotateCcw size={15} className="text-amber-400 shrink-0" />
                 <span className="whitespace-nowrap shrink-0 font-medium">{t('play.clearReload')}</span>
               </span>
               <span className="text-[10px] text-neutral-400">{t('play.clearReloadDesc')}</span>
+            </button>
+
+            {/* Quit Game Button (Requirement 7) */}
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                setQuitConfirmOpen(true)
+              }}
+              className="flex w-full items-center justify-between rounded-lg border border-rose-500/30 bg-rose-950/20 px-3 py-2.5 text-rose-300 hover:bg-rose-900/30 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <LuPower size={15} className="text-rose-400 shrink-0" />
+                <span className="whitespace-nowrap shrink-0 font-medium">{t('play.quitGame')}</span>
+              </span>
+              <span className="text-[10px] text-rose-400/80">{t('common.close')}</span>
             </button>
           </div>
         )
@@ -1059,12 +1252,12 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             )}
           </div>
 
-          {/* Dedicated Gamepad Area in Portrait */}
-          {status === 'connected' && (
+          {/* Dedicated Gamepad Area in Portrait (Hidden on PC Desktop) */}
+          {status === 'connected' && !isDesktop && (
             <div className="flex-1 w-full relative">
               <VirtualController
                 onInput={handleInput}
-                visible={true}
+                visible={!isDesktop}
                 idle={effectiveIdle}
                 isPortrait={true}
                 mode={controlMode}
@@ -1110,31 +1303,122 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 onClose={() => setHudVisible(false)}
               />
 
-              {/* ONLY ONE Single Menu Button in Top-Right */}
-              <button
-                type="button"
-                onClick={() => setMenuOpen(true)}
-                style={{
-                  top: 'max(0.5rem, env(safe-area-inset-top))',
-                  right: 'max(0.75rem, env(safe-area-inset-right))',
-                }}
-                className={`pointer-events-auto fixed z-40 flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-neutral-900/85 text-neutral-300 shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-neutral-800 active:scale-95 shrink-0 ${
-                  effectiveIdle ? 'opacity-35 hover:opacity-100' : 'opacity-90 hover:opacity-100'
-                }`}
-                title={t('play.consoleTitle')}
-                aria-label={t('play.consoleTitle')}
-              >
-                <LuSlidersHorizontal size={15} className="text-emerald-400" />
-              </button>
+              {/* PC Desktop Floating Top Toolbar (Requirement 8) */}
+              {isDesktop ? (
+                <div
+                  style={{ top: 'max(0.5rem, env(safe-area-inset-top))' }}
+                  className="pointer-events-none fixed inset-x-0 z-40 flex justify-center px-4"
+                >
+                  <div
+                    onMouseEnter={() => setDesktopToolbarVisible(true)}
+                    className={`pointer-events-auto flex items-center gap-2 rounded-md border border-[rgb(230_238_248/0.15)] bg-neutral-900/90 px-3 py-1.5 shadow-2xl backdrop-blur-xl transition-all duration-300 ${
+                      effectiveIdle && !desktopToolbarVisible
+                        ? 'opacity-30 hover:opacity-100'
+                        : 'opacity-90 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 pr-2 border-r border-white/10 text-xs">
+                      <span className="flex h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+                      <span className="text-neutral-200 font-mono text-[11px] whitespace-nowrap">
+                        {latencyMs != null ? `${latencyMs}ms` : t('play.connected')}
+                      </span>
+                    </div>
 
-              {/* Virtual D-Pad & Action Buttons */}
-              <VirtualController
-                onInput={handleInput}
-                visible={true}
-                idle={effectiveIdle}
-                isPortrait={false}
-                mode={controlMode}
-              />
+                    <button
+                      type="button"
+                      onClick={muted ? handleUnmute : () => setMuted(true)}
+                      className="p-1 rounded text-neutral-300 hover:text-white hover:bg-white/10 transition-colors"
+                      title={muted ? t('play.unmuted') : t('play.muted')}
+                    >
+                      {muted ? (
+                        <LuVolumeX size={15} className="text-amber-400" />
+                      ) : (
+                        <LuVolume2 size={15} className="text-emerald-400" />
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleFitMode}
+                      className="p-1 rounded text-neutral-300 hover:text-white hover:bg-white/10 transition-colors"
+                      title={fitMode === 'cover' ? t('play.fitCover') : t('play.fitContain')}
+                    >
+                      <LuScaling size={15} className="text-sky-400" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleFullscreen}
+                      className="p-1 rounded text-neutral-300 hover:text-white hover:bg-white/10 transition-colors"
+                      title={t('play.fullscreen')}
+                    >
+                      {isFullscreen ? <LuMinimize2 size={15} /> : <LuMaximize2 size={15} />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDrawerTab('cheat')
+                        setDrawerOpen(true)
+                      }}
+                      className="p-1 rounded text-neutral-300 hover:text-white hover:bg-white/10 transition-colors"
+                      title={t('play.consoleTitle')}
+                    >
+                      <LuSparkles size={15} className="text-amber-400" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setMenuOpen(true)}
+                      className="p-1 rounded text-neutral-300 hover:text-white hover:bg-white/10 transition-colors"
+                      title={t('play.preferencesTitle')}
+                    >
+                      <LuSlidersHorizontal size={15} className="text-emerald-400" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setQuitConfirmOpen(true)}
+                      className="p-1 rounded text-rose-400 hover:text-rose-200 hover:bg-rose-950/50 transition-colors"
+                      title={t('play.quitGame')}
+                    >
+                      <LuPower size={15} />
+                    </button>
+
+                    <span className="hidden lg:inline-flex text-[10px] text-neutral-400 pl-2 border-l border-white/10 select-none whitespace-nowrap">
+                      {t('play.keyboardHints')}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                /* Mobile Single Menu Button */
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(true)}
+                  style={{
+                    top: 'max(0.5rem, env(safe-area-inset-top))',
+                    right: 'max(0.75rem, env(safe-area-inset-right))',
+                  }}
+                  className={`pointer-events-auto fixed z-40 flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-neutral-900/85 text-neutral-300 shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-neutral-800 active:scale-95 shrink-0 ${
+                    effectiveIdle ? 'opacity-35 hover:opacity-100' : 'opacity-90 hover:opacity-100'
+                  }`}
+                  title={t('play.consoleTitle')}
+                  aria-label={t('play.consoleTitle')}
+                >
+                  <LuSlidersHorizontal size={15} className="text-emerald-400" />
+                </button>
+              )}
+
+              {/* Virtual D-Pad & Action Buttons (Hidden on PC Desktop) */}
+              {!isDesktop && (
+                <VirtualController
+                  onInput={handleInput}
+                  visible={!isDesktop}
+                  idle={effectiveIdle}
+                  isPortrait={false}
+                  mode={controlMode}
+                />
+              )}
             </>
           )}
         </>
@@ -1156,7 +1440,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           onClick={() => setMenuOpen(false)}
         >
           <div
-            className={`relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden ${
+            className={`relative flex flex-col rounded-lg border border-[rgb(230_238_248/0.12)] bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden ${
               isPortrait
                 ? 'w-full max-w-sm max-h-[85vh]'
                 : 'w-full max-w-2xl'
@@ -1317,7 +1601,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           {/* Dark Glassmorphic Vignette Overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-neutral-950/70 via-neutral-950/80 to-neutral-950/95 backdrop-blur-md pointer-events-none" />
 
-          {/* Top Bar with Safe Area: Language Switcher and Clear Cache & Hard Reload Button */}
+          {/* Top Bar with Safe Area: Preferences & Clear Cache Button (Requirement 5) */}
           <div
             style={{
               top: 'max(0.75rem, env(safe-area-inset-top))',
@@ -1325,11 +1609,22 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             }}
             className="pointer-events-auto fixed z-50 flex items-center gap-2"
           >
-            <LocaleSwitcher className="shrink-0" />
             <button
               type="button"
-              onClick={handleClearCacheAndReload}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-neutral-900/80 text-sky-400 hover:text-white hover:bg-neutral-800 backdrop-blur-md active:scale-90 transition-all shadow-md"
+              onClick={() => {
+                setMenuTab('system')
+                setMenuOpen(true)
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-neutral-900/80 text-neutral-300 hover:text-white hover:bg-neutral-800 backdrop-blur-md active:scale-90 transition-all shadow-md"
+              title={t('play.preferencesTitle')}
+              aria-label={t('play.preferencesTitle')}
+            >
+              <LuSlidersHorizontal size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setReloadConfirmOpen(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-neutral-900/80 text-sky-400 hover:text-white hover:bg-neutral-800 backdrop-blur-md active:scale-90 transition-all shadow-md"
               title={t('play.clearReload')}
               aria-label={t('play.clearReload')}
             >
@@ -1618,7 +1913,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           onClick={() => setGameSelectorOpen(false)}
         >
           <div
-            className={`relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden ${
+            className={`relative flex flex-col rounded-lg border border-[rgb(230_238_248/0.12)] bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden ${
               isPortrait ? 'w-full max-w-sm max-h-[80vh]' : 'w-full max-w-xl max-h-[85vh]'
             }`}
             onClick={(e) => e.stopPropagation()}
@@ -1674,6 +1969,89 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   </button>
                 )
               })}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 8. Clear Cache & Reload Confirmation Modal (Requirement 6) */}
+      {reloadConfirmOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reload-confirm-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm select-none p-4"
+          onClick={() => setReloadConfirmOpen(false)}
+        >
+          <div
+            className="relative flex flex-col w-full max-w-sm rounded-lg border border-[rgb(230_238_248/0.15)] bg-neutral-900/95 p-4 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-2 text-amber-400">
+              <LuRotateCcw size={18} />
+              <h3 id="reload-confirm-title" className="text-sm font-bold text-white">
+                {t('play.reloadConfirmTitle')}
+              </h3>
+            </div>
+            <p className="text-xs text-neutral-300 leading-relaxed mb-4">
+              {t('play.reloadConfirmDesc')}
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReloadConfirmOpen(false)}
+                className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-neutral-300 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+              <GradientButton
+                size="md"
+                variant="ok"
+                onClick={executeHardReload}
+              >
+                {t('common.confirm')}
+              </GradientButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 9. Quit Game Confirmation Modal (Requirement 7) */}
+      {quitConfirmOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="quit-confirm-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm select-none p-4"
+          onClick={() => setQuitConfirmOpen(false)}
+        >
+          <div
+            className="relative flex flex-col w-full max-w-sm rounded-lg border border-rose-500/30 bg-neutral-900/95 p-4 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-2 text-rose-400">
+              <LuPower size={18} />
+              <h3 id="quit-confirm-title" className="text-sm font-bold text-white">
+                {t('play.quitGameConfirmTitle')}
+              </h3>
+            </div>
+            <p className="text-xs text-neutral-300 leading-relaxed mb-4">
+              {t('play.quitGameConfirmDesc')}
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setQuitConfirmOpen(false)}
+                className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-neutral-300 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+              <GradientButton
+                size="md"
+                variant="fail"
+                onClick={executeQuitGame}
+              >
+                {t('play.quitGame')}
+              </GradientButton>
             </div>
           </div>
         </div>

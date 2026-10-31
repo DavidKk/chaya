@@ -292,7 +292,7 @@ export function RemoteCheatDrawer({
       onClick={onClose}
     >
       <div
-        className={`relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-100 shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
+        className={`relative flex flex-col rounded-lg border border-[rgb(230_238_248/0.12)] bg-neutral-900/95 text-neutral-100 shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
           isPortraitEffective
             ? 'w-full max-w-lg max-h-[85vh] p-4 sm:p-5'
             : 'w-full max-w-2xl px-3.5 pt-2 pb-2.5'
@@ -316,7 +316,7 @@ export function RemoteCheatDrawer({
         </div>
 
         {/* Tab switch */}
-        <div className="mt-1.5 flex gap-2 rounded-xl bg-neutral-950 p-1 border border-neutral-800 shrink-0">
+        <div className="mt-1.5 flex gap-2 rounded-md bg-neutral-950 p-1 border border-neutral-800 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('cheat')}
@@ -357,7 +357,7 @@ export function RemoteCheatDrawer({
             {/* Summary & Mobile Debugging Cards */}
             <div className={isPortraitEffective ? 'space-y-2' : 'grid grid-cols-2 gap-2'}>
               {/* Summary card */}
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/70 p-2.5 text-xs space-y-1.5">
+              <div className="rounded-lg border border-neutral-800 bg-neutral-950/70 p-2.5 text-xs space-y-1.5">
               <div className="flex items-center justify-between text-neutral-300">
                 <span className="text-neutral-400">链路状态</span>
                 <span className="flex items-center gap-1.5 font-medium">
@@ -393,7 +393,7 @@ export function RemoteCheatDrawer({
               </div>
 
               {/* Mobile Debugging Tools Box */}
-              <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-2.5 space-y-1.5">
+              <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-2.5 space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="flex items-center gap-1.5 font-semibold text-sky-300">
                   <LuBug size={14} />
