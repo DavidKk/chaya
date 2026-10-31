@@ -1228,8 +1228,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           80%, 100% { opacity: 0.15; transform: scale(0.85); }
         }
         @keyframes connecting-breathe {
-          0%, 100% { opacity: 0.32; transform: scale(0.985); }
-          50% { opacity: 1; transform: scale(1.015); }
+          0%, 100% { opacity: 0.35; }
+          50% { opacity: 1; }
         }
       `}</style>
 
@@ -1878,17 +1878,17 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 )}
               </div>
             ) : !isCancelled ? (
-              <div
-                style={{ animation: 'connecting-breathe 2.4s ease-in-out infinite' }}
-                className="flex flex-col items-center gap-2 select-none"
-              >
-                {/* Glowing Pulsating Status Text with breathing opacity animation (Requirement 6) */}
-                <div className="flex items-center gap-1.5 font-mono text-base sm:text-lg font-black tracking-widest text-sky-300 drop-shadow-[0_0_14px_rgba(56,189,248,0.85)]">
+              <div className="flex flex-col items-center gap-2 select-none">
+                {/* Breathing opacity animation ONLY on the English status text (CONNECTING...) */}
+                <div
+                  style={{ animation: 'connecting-breathe 2.2s ease-in-out infinite' }}
+                  className="flex items-center gap-1.5 font-mono text-base sm:text-lg font-black tracking-widest text-sky-300 drop-shadow-[0_0_14px_rgba(56,189,248,0.85)]"
+                >
                   <span>CONNECTING</span>
                   <span className="inline-flex tracking-normal font-sans">
-                    <span style={{ animation: 'dot-glow 1.4s ease-in-out infinite 0s' }}>.</span>
-                    <span style={{ animation: 'dot-glow 1.4s ease-in-out infinite 0.25s' }}>.</span>
-                    <span style={{ animation: 'dot-glow 1.4s ease-in-out infinite 0.5s' }}>.</span>
+                    <span>.</span>
+                    <span>.</span>
+                    <span>.</span>
                   </span>
                 </div>
                 <p className="text-xs text-neutral-300/80 font-medium tracking-wide">
