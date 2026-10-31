@@ -36,7 +36,7 @@ afterEach(() => {
 })
 
 describe('VirtualController (analog joystick & action buttons)', () => {
-  it('renders analog joystick and exactly two action buttons plus one top config button', () => {
+  it('renders analog joystick, action buttons (Confirm, Cancel, Menu) and AssistiveTouch floating ball', () => {
     const onInput = jest.fn()
     act(() => {
       root.render(<VirtualController onInput={onInput} visible={true} mode="fixed" />)
@@ -45,18 +45,21 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     const joystick = host.querySelector('[role="slider"][aria-label="虚拟摇杆"]')
     expect(joystick).not.toBeNull()
 
-    // Primary action buttons: exactly two (Cancel & Confirm)
+    // Action buttons
     const confirmBtn = host.querySelector('button[aria-label="确认"]')
     expect(confirmBtn).not.toBeNull()
 
     const cancelBtn = host.querySelector('button[aria-label="取消"]')
     expect(cancelBtn).not.toBeNull()
 
-    // Removed buttons: Zap / Dash / Menu standalone
+    const menuBtn = host.querySelector('button[aria-label="菜单"]')
+    expect(menuBtn).not.toBeNull()
+
+    // Removed buttons: Zap / Dash
     const dashBtn = host.querySelector('button[aria-label="加速"]')
     expect(dashBtn).toBeNull()
 
-    // Top row: Single Config/Shortcuts Trigger Button
+    // Draggable AssistiveTouch Floating Ball Trigger Button
     const configBtn = host.querySelector('button[aria-label="快捷配置"]')
     expect(configBtn).not.toBeNull()
   })

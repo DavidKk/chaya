@@ -186,6 +186,11 @@ export function handleRemoteInput(key: RemoteInputKey, action: 'down' | 'up'): v
     const Input = (globalThis as unknown as { Input?: { _currentState?: Record<string, boolean>; _latestButton?: string; _date?: number } }).Input
     if (Input && Input._currentState) {
       Input._currentState[key] = action === 'down'
+      if (key === 'menu' || key === 'cancel') {
+        Input._currentState['cancel'] = action === 'down'
+        Input._currentState['escape'] = action === 'down'
+        Input._currentState['menu'] = action === 'down'
+      }
       if (action === 'down') {
         Input._latestButton = key
         Input._date = Date.now()

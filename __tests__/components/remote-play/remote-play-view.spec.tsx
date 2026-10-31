@@ -252,4 +252,26 @@ describe('RemotePlayView Launcher & UI refinements', () => {
     expect(video?.className).toContain('max-h-full')
     expect(video?.className).toContain('max-w-full')
   })
+
+  it('hijacks contextmenu on video to trigger in-game menu/cancel', async () => {
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <RemotePlayView initialRoomId="game-1" />
+        </LocaleProvider>
+      )
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const video = host.querySelector('video')
+    expect(video).not.toBeNull()
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    const preventDefault = jest.spyOn(event, 'preventDefault')
+    act(() => {
+      video?.dispatchEvent(event)
+    })
+    expect(preventDefault).toHaveBeenCalled()
+  })
 })

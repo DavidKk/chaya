@@ -73,21 +73,52 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerTab, setDrawerTab] = useState<'cheat' | 'logs'>('cheat')
   const [videoResolution, setVideoResolution] = useState<{ width: number; height: number } | null>(null)
-  const [hudVisible, setHudVisible] = useState(false)
+  const [hudVisible, setHudVisible] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('chaya_remote_play_hud') === '1'
+      } catch {
+        /* ignore */
+      }
+    }
+    return false
+  })
   const [isIdle, setIsIdle] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
   const [installGuideOpen, setInstallGuideOpen] = useState(false)
-  const [fitMode, setFitMode] = useState<'contain' | 'cover'>('contain')
+  const [fitMode, setFitMode] = useState<'contain' | 'cover'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('chaya_remote_play_fit')
+        if (saved === 'contain' || saved === 'cover') return saved
+      } catch {
+        /* ignore */
+      }
+    }
+    return 'contain'
+  })
   const [isPortrait, setIsPortrait] = useState(false)
 
   // Unified Menu Modal (Single Button trigger)
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuTab, setMenuTab] = useState<'gamepad' | 'quick' | 'display' | 'system'>('gamepad')
 
-  // Control Mode: fixed, dynamic, single-left, single-right, touch
-  const [controlMode, setControlMode] = useState<ControlMode>('fixed')
+  // Control Mode: fixed, dynamic, single-left, single-right, touch (persisted in localStorage)
+  const [controlMode, setControlMode] = useState<ControlMode>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('chaya_remote_control_mode') as ControlMode
+        if (saved === 'fixed' || saved === 'dynamic' || saved === 'single-left' || saved === 'single-right' || saved === 'touch') {
+          return saved
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return 'fixed'
+  })
   const [hapticEnabled, setHapticEnabled] = useState<boolean>(() => haptic.isEnabled())
   const [controllerOpacity, setControllerOpacity] = useState<number>(() => {
     if (typeof window !== "undefined") {
@@ -113,7 +144,18 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     }
     remotePlayLogger.info(`Controller opacity set to: ${val}`)
   }, [])
-  const [clientMode, setClientMode] = useState<'auto' | 'desktop' | 'mobile'>('auto')
+
+  const [clientMode, setClientMode] = useState<'auto' | 'desktop' | 'mobile'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('chaya_remote_client_mode')
+        if (saved === 'desktop' || saved === 'mobile' || saved === 'auto') return saved as any
+      } catch {
+        /* ignore */
+      }
+    }
+    return 'auto'
+  })
 
   const handleSelectClientMode = useCallback((mode: 'auto' | 'desktop' | 'mobile') => {
     setClientMode(mode)
@@ -273,11 +315,26 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       }
     }
 
+    // PC Desktop Right-Click Hijack: Intercept contextmenu to trigger in-game menu/cancel (Requirement 6)
+    const handleContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [role="dialog"]')) return
+      e.preventDefault()
+      e.stopPropagation()
+      remotePlayLogger.info('PC right-click intercepted: triggering game menu/cancel')
+      handleInput('menu', 'down')
+      setTimeout(() => {
+        handleInput('menu', 'up')
+      }, 50)
+    }
+
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('contextmenu', handleContextMenu)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('contextmenu', handleContextMenu)
     }
   }, [status, isDesktop, handleInput])
 
@@ -1315,18 +1372,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       className="relative h-screen w-screen overflow-hidden bg-black select-none touch-none"
     >
       <style>{`
-        @keyframes chaya-blink {
-          0%, 42%, 46%, 100% { transform: scaleY(1); }
-          44% { transform: scaleY(0.08); }
-        }
         @keyframes chaya-float {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-6px); }
-        }
-        @keyframes dot-glow {
-          0%, 20% { opacity: 0.15; transform: scale(0.85); }
-          50% { opacity: 1; transform: scale(1.1); }
-          80%, 100% { opacity: 0.15; transform: scale(0.85); }
         }
         @keyframes connecting-breathe {
           0%, 100% { opacity: 0.35; }
@@ -1349,7 +1397,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             ) : statusToast.type === 'disconnected' ? (
               <span className="flex h-2 w-2 rounded-full bg-rose-500 shrink-0" />
             ) : (
-              <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+              <span className="flex h-2 w-2 rounded-full bg-amber-400 shrink-0" />
             )}
             <span className="text-xs font-semibold text-neutral-100 whitespace-nowrap shrink-0">
               {statusToast.text}
@@ -1450,6 +1498,12 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               autoPlay
               playsInline
               muted={muted}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleInput('menu', 'down')
+                setTimeout(() => handleInput('menu', 'up'), 50)
+              }}
               onLoadedMetadata={() => {
                 const v = videoRef.current
                 if (v && (v.videoWidth || v.videoHeight)) {
@@ -1817,7 +1871,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           {/* Center Mascot Logo Area (Borderless, no card frame, no dots) */}
           <div className="relative z-10 flex flex-col items-center justify-center flex-1 px-4 my-auto">
             <div className="relative flex items-center justify-center pointer-events-none select-none">
-              <div className="absolute h-36 w-36 sm:h-44 sm:w-44 rounded-full bg-sky-400/20 blur-3xl animate-pulse pointer-events-none" />
+              <div className="absolute h-36 w-36 sm:h-44 sm:w-44 rounded-full bg-sky-400/20 blur-3xl pointer-events-none" />
               <div
                 style={{ animation: 'chaya-float 3.6s ease-in-out infinite' }}
                 className="relative flex items-center justify-center"
@@ -1840,7 +1894,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     style={{
                       transformBox: 'fill-box',
                       transformOrigin: 'center',
-                      animation: 'chaya-blink 4.2s ease-in-out infinite',
                     }}
                     d="M537.25 448.5C537.61 465.12 535.84 481.89 535.23 498.5C534.13 528.47 533.7 558.63 531.36 588.53C530.03 605.39 533.33 626.66 519.25 638.72C509.62 646.97 497.34 645.75 485.5 645.75C477.83 645.74 470.17 645.75 462.5 645.75C449.53 645.76 428.18 648.43 417.07 641.44C400.93 631.29 403.1 615.13 403.06 598.5C402.98 564.83 403.06 531.17 403.06 497.5C403.06 485.79 400.08 461.49 408.55 453.04C416.66 444.93 431.14 447.7 441.5 447.74C462.83 447.8 484.17 447.75 505.5 447.73C514.54 447.72 529 446.22 537.25 448.5ZM558.5 447.82C589.1 446.84 619.89 447.58 650.5 447.71C660.68 447.76 677.53 445.02 685.69 451.85C695.69 460.21 692.35 484.18 692.34 496.5C692.31 530.5 692.38 564.5 692.35 598.5C692.33 614.35 694.06 631.61 678.74 641.26C667.69 648.21 647.34 645.55 634.5 645.58C624.5 645.6 614.5 645.56 604.5 645.58C594.13 645.61 584.08 645.93 575.81 638.66C565.86 629.91 565.48 618.86 564.89 606.5C564.63 601.16 564.16 595.85 563.97 590.5C562.84 557.85 561.39 525.13 559.75 492.5C559.29 483.17 558.85 473.83 558.31 464.5C558 459.08 557.11 453.01 558.5 447.82Z"
                     fill="#F0F7FF"
@@ -1860,7 +1913,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               <div className="flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex items-center gap-2">
                   <LuLoader size={18} className="animate-spin text-sky-400" />
-                  <h2 className="text-base sm:text-lg font-black tracking-widest text-sky-300 font-mono animate-pulse drop-shadow-[0_0_14px_rgba(56,189,248,0.85)] whitespace-nowrap shrink-0">
+                  <h2 className="text-base sm:text-lg font-black tracking-widest text-sky-300 font-mono drop-shadow-[0_0_14px_rgba(56,189,248,0.85)] whitespace-nowrap shrink-0">
                     LAUNCHING GAME…
                   </h2>
                 </div>
@@ -1939,7 +1992,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   /* Landscape: Single Line */
                   <>
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0 animate-pulse" />
+                      <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-xs font-bold text-white truncate max-w-[200px]">
                           {selectedGame?.name || 'RPG Maker'}

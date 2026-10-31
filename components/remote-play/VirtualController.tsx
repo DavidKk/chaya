@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   LuCheck,
   LuFolderOpen,
+  LuMenu,
   LuMessageSquareText,
   LuPackage,
   LuSave,
@@ -35,6 +36,8 @@ type Direction = 'up' | 'down' | 'left' | 'right'
 const DEADZONE = 7
 const THRESHOLD = 0.38
 
+const SATELLITE_ORBIT_ANGLES = [110, 138, 166, 194, 222, 250] // Degrees fanning left into screen
+
 export function VirtualController({
   onInput,
   onAction,
@@ -54,10 +57,144 @@ export function VirtualController({
   const baseRef = useRef<HTMLDivElement>(null)
   const activeDirsRef = useRef<Set<Direction>>(new Set())
 
+  // --- AssistiveTouch-style Draggable Floating Ball State ---
+  const [ballPos, setBallPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [ballSide, setBallSide] = useState<'left' | 'right'>('right')
+  const [isBallDragging, setIsBallDragging] = useState(false)
+  const [isBallIdle, setIsBallIdle] = useState(false)
+  const ballIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ballDragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null)
+  const ballMovedDistRef = useRef(0)
+
   const maxRadius = isPortrait ? 38 : 28
+  const ballSize = isPortrait ? 42 : 38
 
   const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'selection' = 'light') => {
     haptic.trigger(type)
+  }
+
+  // Restore & initialize floating ball position from localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const updateBallDockPosition = () => {
+      try {
+        const savedSide = (localStorage.getItem('chaya_remote_ball_side') as 'left' | 'right') || 'right'
+        const savedRatioStr = localStorage.getItem('chaya_remote_ball_y_ratio')
+        const ratio = savedRatioStr ? parseFloat(savedRatioStr) : (isPortrait ? 0.46 : 0.40)
+        const clampedRatio = Math.max(0.12, Math.min(0.82, isNaN(ratio) ? 0.45 : ratio))
+
+        const targetY = Math.round(window.innerHeight * clampedRatio)
+        const targetX = savedSide === 'left' ? 14 : Math.max(14, window.innerWidth - ballSize - 14)
+
+        setBallSide(savedSide)
+        setBallPos({ x: targetX, y: targetY })
+      } catch {
+        setBallSide('right')
+        setBallPos({ x: Math.max(14, window.innerWidth - ballSize - 14), y: Math.round(window.innerHeight * 0.45) })
+      }
+    }
+
+    updateBallDockPosition()
+    window.addEventListener('resize', updateBallDockPosition)
+    window.addEventListener('orientationchange', updateBallDockPosition)
+    return () => {
+      window.removeEventListener('resize', updateBallDockPosition)
+      window.removeEventListener('orientationchange', updateBallDockPosition)
+    }
+  }, [ballSize, isPortrait])
+
+  // Ball idle auto-dimming timer (dims to semi-transparent when idle, restores on touch)
+  const resetBallIdleTimer = () => {
+    setIsBallIdle(false)
+    if (ballIdleTimerRef.current) clearTimeout(ballIdleTimerRef.current)
+    ballIdleTimerRef.current = setTimeout(() => {
+      setIsBallIdle(true)
+    }, 2800)
+  }
+
+  useEffect(() => {
+    if (shortcutsExpanded || isBallDragging) {
+      setIsBallIdle(false)
+      if (ballIdleTimerRef.current) clearTimeout(ballIdleTimerRef.current)
+    } else {
+      resetBallIdleTimer()
+    }
+    return () => {
+      if (ballIdleTimerRef.current) clearTimeout(ballIdleTimerRef.current)
+    }
+  }, [shortcutsExpanded, isBallDragging])
+
+  // --- Floating Ball Drag & Tap Handlers ---
+  const handleBallPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+    resetBallIdleTimer()
+    ballMovedDistRef.current = 0
+    ballDragStartRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      startX: ballPos.x,
+      startY: ballPos.y,
+    }
+    setIsBallDragging(true)
+  }
+
+  const handleBallPointerMove = (e: React.PointerEvent) => {
+    if (!isBallDragging || !ballDragStartRef.current) return
+    const dx = e.clientX - ballDragStartRef.current.clientX
+    const dy = e.clientY - ballDragStartRef.current.clientY
+    ballMovedDistRef.current = Math.hypot(dx, dy)
+
+    const nextX = Math.max(6, Math.min(window.innerWidth - ballSize - 6, ballDragStartRef.current.startX + dx))
+    const nextY = Math.max(48, Math.min(window.innerHeight - ballSize - 54, ballDragStartRef.current.startY + dy))
+    setBallPos({ x: nextX, y: nextY })
+  }
+
+  const handleBallPointerUp = (e: React.PointerEvent) => {
+    if (!isBallDragging) return
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+    setIsBallDragging(false)
+
+    // Tap gesture (< 7px drag distance) toggles radial menu
+    if (ballMovedDistRef.current < 7) {
+      triggerHaptic('selection')
+      setShortcutsExpanded((prev) => !prev)
+      resetBallIdleTimer()
+      return
+    }
+
+    // Drag gesture released: Snap to nearest edge (iOS AssistiveTouch style)
+    const midX = window.innerWidth / 2
+    const currentCx = ballPos.x + ballSize / 2
+    const snappedSide: 'left' | 'right' = currentCx < midX ? 'left' : 'right'
+    const snappedX = snappedSide === 'left' ? 14 : Math.max(14, window.innerWidth - ballSize - 14)
+    const clampedY = Math.max(48, Math.min(window.innerHeight - ballSize - 54, ballPos.y))
+
+    setBallSide(snappedSide)
+    setBallPos({ x: snappedX, y: clampedY })
+    triggerHaptic('light')
+    resetBallIdleTimer()
+
+    // Persist position ratio & snapped side
+    try {
+      localStorage.setItem('chaya_remote_ball_side', snappedSide)
+      const ratio = (clampedY / window.innerHeight).toFixed(4)
+      localStorage.setItem('chaya_remote_ball_y_ratio', ratio)
+    } catch {
+      /* ignore */
+    }
   }
 
   const updateDirections = (newDirs: Set<Direction>) => {
@@ -239,6 +376,18 @@ export function VirtualController({
   // If invisible or in Touch Mode (Mode 2), don't render virtual buttons
   if (!visible || mode === 'touch') return null
 
+  // Radial satellite items around the floating ball (Pure icons, zero text)
+  const satellites = [
+    { id: 'scene:item', label: '背包', icon: LuPackage, color: 'text-amber-400', border: 'border-amber-400/40 bg-neutral-900/90' },
+    { id: 'scene:equip', label: '装备', icon: LuShield, color: 'text-indigo-400', border: 'border-indigo-400/40 bg-neutral-900/90' },
+    { id: 'scene:save', label: '存档', icon: LuSave, color: 'text-emerald-400', border: 'border-emerald-400/40 bg-neutral-900/90' },
+    { id: 'scene:load', label: '读档', icon: LuFolderOpen, color: 'text-sky-400', border: 'border-sky-400/40 bg-neutral-900/90' },
+    { id: 'flag:autotalk', label: '自动对话', icon: LuMessageSquareText, color: 'text-cyan-400', border: autoTalk ? 'border-sky-400 bg-sky-950/90 text-sky-200' : 'border-cyan-400/40 bg-neutral-900/90' },
+    { id: 'console', label: '控制台', icon: LuSlidersHorizontal, color: 'text-purple-400', border: 'border-purple-400/40 bg-neutral-900/90' },
+  ]
+
+  const orbitRadius = isPortrait ? 64 : 58
+
   return (
     <>
       {/* Backdrop to dismiss expandable shortcuts dock when clicking outside */}
@@ -248,6 +397,104 @@ export function VirtualController({
           onClick={() => setShortcutsExpanded(false)}
         />
       )}
+
+      {/* AssistiveTouch-style Draggable Floating Ball & Radial Orbit */}
+      <div
+        style={{
+          transform: `translate3d(${ballPos.x}px, ${ballPos.y}px, 0)`,
+          touchAction: 'none',
+        }}
+        className={`pointer-events-auto fixed top-0 left-0 z-50 select-none ${
+          isBallDragging ? 'cursor-grabbing transition-none' : 'transition-transform duration-200 ease-out'
+        }`}
+      >
+        {/* Radial Satellite Orbit Items (Pure Icons fanning into screen) */}
+        {shortcutsExpanded && (
+          <div className="absolute inset-0 pointer-events-none">
+            {satellites.map((sat, index) => {
+              const baseAngle = SATELLITE_ORBIT_ANGLES[index] ?? (110 + index * 28)
+              const angleRad = (baseAngle * Math.PI) / 180
+              // If docked on left, mirror horizontally so satellites fan rightwards into screen
+              const dx = (ballSide === 'left' ? -Math.cos(angleRad) : Math.cos(angleRad)) * orbitRadius
+              const dy = Math.sin(angleRad) * orbitRadius
+
+              const Icon = sat.icon
+              return (
+                <button
+                  key={sat.id}
+                  type="button"
+                  data-action={sat.id}
+                  onClick={() => {
+                    if (sat.id === 'console') {
+                      triggerHaptic('medium')
+                      setShortcutsExpanded(false)
+                      onOpenDrawer?.()
+                    } else {
+                      handleShortcutClick(sat.id)
+                    }
+                  }}
+                  style={{
+                    left: `${ballSize / 2}px`,
+                    top: `${ballSize / 2}px`,
+                    transform: `translate3d(calc(-50% + ${dx}px), calc(-50% + ${dy}px), 0)`,
+                  }}
+                  className={`pointer-events-auto absolute flex h-8.5 w-8.5 sm:h-9 sm:w-9 items-center justify-center rounded-full border shadow-2xl backdrop-blur-xl transition-transform active:scale-90 animate-in fade-in zoom-in-75 duration-150 ${sat.border}`}
+                  aria-label={sat.label}
+                  title={sat.label}
+                >
+                  <Icon size={15} className={sat.color} />
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Central Floating Ball (AssistiveTouch Circle) */}
+        <button
+          type="button"
+          onPointerDown={handleBallPointerDown}
+          onPointerMove={handleBallPointerMove}
+          onPointerUp={handleBallPointerUp}
+          onPointerCancel={handleBallPointerUp}
+          onClick={() => {
+            if (ballMovedDistRef.current < 7) {
+              triggerHaptic('selection')
+              setShortcutsExpanded((prev) => !prev)
+              resetBallIdleTimer()
+            }
+          }}
+          style={{
+            touchAction: 'none',
+          }}
+          className={`flex items-center justify-center rounded-full border shadow-2xl backdrop-blur-xl transition-all duration-300 active:scale-95 ${
+            isPortrait ? 'h-10.5 w-10.5' : 'h-9.5 w-9.5'
+          } ${
+            shortcutsExpanded
+              ? 'border-emerald-400 bg-emerald-950/90 text-emerald-300 shadow-emerald-500/30'
+              : 'border-white/30 bg-neutral-900/80 text-white shadow-black/60'
+          } ${isBallIdle && !shortcutsExpanded && !isBallDragging ? 'opacity-35 hover:opacity-100' : 'opacity-100'}`}
+          aria-label="快捷配置"
+          title="快捷配置 (拖动贴边 / 点击展开)"
+          aria-expanded={shortcutsExpanded}
+        >
+          {/* iOS AssistiveTouch Style Concentric Ring */}
+          <div
+            className={`flex items-center justify-center rounded-full border transition-all duration-300 ${
+              isPortrait ? 'h-6.5 w-6.5' : 'h-5.5 w-5.5'
+            } ${
+              shortcutsExpanded
+                ? 'border-emerald-400/80 bg-emerald-500/30'
+                : 'border-white/40 bg-white/10'
+            }`}
+          >
+            <div
+              className={`rounded-full transition-all duration-300 ${
+                isPortrait ? 'h-2.5 w-2.5' : 'h-2 w-2'
+              } ${shortcutsExpanded ? 'bg-emerald-300' : 'bg-white/90 shadow-[0_0_6px_rgba(255,255,255,0.8)]'}`}
+            />
+          </div>
+        </button>
+      </div>
 
       {/* Dynamic Joystick Spawn Base (Mode 3 active drag) */}
       {mode === 'dynamic' && dynamicOrigin && (
@@ -303,12 +550,12 @@ export function VirtualController({
         />
       )}
 
-      {/* Main Controller Overlay */}
+      {/* Main Controller Overlay: Inward margins (Thumb Comfort Zone away from physical bezel) */}
       <div
         style={{
-          paddingLeft: 'max(1.25rem, env(safe-area-inset-left))',
-          paddingRight: 'max(1.25rem, env(safe-area-inset-right))',
-          paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+          paddingLeft: 'max(2.5rem, calc(env(safe-area-inset-left) + 1.25rem))',
+          paddingRight: 'max(2.5rem, calc(env(safe-area-inset-right) + 1.25rem))',
+          paddingBottom: 'max(2rem, calc(env(safe-area-inset-bottom) + 1rem))',
           opacity,
         }}
         className="pointer-events-none fixed inset-0 z-40 flex select-none flex-col justify-end transition-opacity duration-200"
@@ -360,131 +607,37 @@ export function VirtualController({
               className={`pointer-events-auto relative flex flex-col ${align === 'start' ? 'items-start' : 'items-end'} gap-2 sm:gap-2.5 touch-none shrink-0`}
               style={{ touchAction: 'none' }}
             >
-              {/* Top row: Single Config/Shortcuts Trigger Button with Expandable Quick-Dock */}
+              {/* Top row: ESC / Menu Button (Preserved per user requirement) */}
               <div className={`relative flex items-center ${align === 'start' ? 'justify-start' : 'justify-end'}`}>
-                {/* Expandable Shortcuts Dock */}
-                {shortcutsExpanded && (
-                  <div
-                    className={`absolute bottom-full mb-2.5 z-50 flex items-center gap-1 sm:gap-1.5 rounded-full border border-white/20 bg-neutral-900/92 p-1 sm:p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 max-w-[calc(100vw-2.5rem)] overflow-x-auto ${
-                      align === 'start' ? 'left-0' : 'right-0'
-                    }`}
-                    style={{ scrollbarWidth: 'none' }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleShortcutClick('scene:item')}
-                      className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-950/40 px-2 py-1 text-[11px] font-medium text-amber-200 hover:bg-amber-900/60 active:scale-95 transition-all whitespace-nowrap shadow-sm"
-                      aria-label="背包"
-                      title={t('edit.actItem') || '背包'}
-                    >
-                      <LuPackage size={13} className="text-amber-400 shrink-0" />
-                      <span>{t('edit.actItem') || '背包'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleShortcutClick('scene:equip')}
-                      className="flex items-center gap-1 rounded-full border border-indigo-500/30 bg-indigo-950/40 px-2 py-1 text-[11px] font-medium text-indigo-200 hover:bg-indigo-900/60 active:scale-95 transition-all whitespace-nowrap shadow-sm"
-                      aria-label="装备"
-                      title={t('edit.actEquip') || '装备'}
-                    >
-                      <LuShield size={13} className="text-indigo-400 shrink-0" />
-                      <span>{t('edit.actEquip') || '装备'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleShortcutClick('scene:save')}
-                      className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2 py-1 text-[11px] font-medium text-emerald-200 hover:bg-emerald-900/60 active:scale-95 transition-all whitespace-nowrap shadow-sm"
-                      aria-label="存档"
-                      title={t('edit.actSave') || '存档'}
-                    >
-                      <LuSave size={13} className="text-emerald-400 shrink-0" />
-                      <span>{t('edit.actSave') || '存档'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleShortcutClick('scene:load')}
-                      className="flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-950/40 px-2 py-1 text-[11px] font-medium text-sky-200 hover:bg-sky-900/60 active:scale-95 transition-all whitespace-nowrap shadow-sm"
-                      aria-label="读档"
-                      title={t('edit.actLoad') || '读档'}
-                    >
-                      <LuFolderOpen size={13} className="text-sky-400 shrink-0" />
-                      <span>{t('edit.actLoad') || '读档'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleShortcutClick('flag:autotalk')}
-                      className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition-all whitespace-nowrap shadow-sm active:scale-95 ${
-                        autoTalk
-                          ? 'border-sky-400/80 bg-sky-900/70 text-sky-200 shadow-sky-950/50'
-                          : 'border-sky-500/30 bg-sky-950/40 text-sky-300 hover:bg-sky-900/60'
-                      }`}
-                      aria-label="自动对话"
-                      title={autoTalk ? '自动对话 (进行中)' : '自动对话'}
-                    >
-                      <LuMessageSquareText size={13} className={autoTalk ? 'text-sky-300' : 'text-sky-400'} />
-                      <span>{autoTalk ? '对话中' : '自动对话'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerHaptic('medium')
-                        setShortcutsExpanded(false)
-                        onOpenDrawer?.()
-                      }}
-                      className="flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-950/40 px-2 py-1 text-[11px] font-medium text-purple-200 hover:bg-purple-900/60 active:scale-95 transition-all whitespace-nowrap shadow-sm"
-                      aria-label="控制台"
-                      title={t('play.consoleTitle') || '控制台'}
-                    >
-                      <LuSlidersHorizontal size={13} className="text-purple-400 shrink-0" />
-                      <span>{t('play.consoleTitle') || '控制台'}</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Single Top Config/Shortcuts Toggle Button */}
                 <button
                   type="button"
-                  onClick={() => {
-                    triggerHaptic('selection')
-                    setShortcutsExpanded((prev) => !prev)
-                  }}
-                  className={`flex items-center justify-center rounded-full border transition-all active:scale-90 ${
-                    shortcutsExpanded
-                      ? 'border-emerald-400/80 bg-emerald-950/80 text-emerald-300 shadow-lg shadow-emerald-950/50'
-                      : 'border-white/20 bg-neutral-900/70 text-neutral-300 hover:border-white/30 hover:bg-neutral-850 shadow-md backdrop-blur-md'
-                  } ${
-                    isPortrait ? (compact ? 'h-8.5 w-8.5' : 'h-10 w-10') : 'h-8.5 w-8.5'
+                  onPointerDown={(e) => handleButtonPress('menu', e)}
+                  onPointerUp={(e) => handleButtonRelease('menu', e)}
+                  onPointerCancel={(e) => handleButtonRelease('menu', e)}
+                  className={`flex items-center justify-center rounded-full border border-purple-400/40 bg-purple-950/70 text-purple-200 shadow-md backdrop-blur-md transition-transform active:scale-90 ${
+                    isPortrait ? (compact ? 'h-8.5 w-8.5' : 'h-9.5 w-9.5') : 'h-8.5 w-8.5'
                   }`}
-                  aria-label="快捷配置"
-                  title="快捷配置"
-                  aria-expanded={shortcutsExpanded}
+                  aria-label="菜单"
+                  title="菜单 (Esc)"
                 >
-                  <LuSlidersHorizontal
-                    size={isPortrait ? (compact ? 14 : 16) : 14}
-                    className={`stroke-[2.2] transition-transform duration-200 ${shortcutsExpanded ? 'rotate-90 text-emerald-300' : ''}`}
-                  />
+                  <LuMenu size={isPortrait ? (compact ? 15 : 17) : 15} className="stroke-[2.2]" />
                 </button>
               </div>
 
-              {/* Bottom row: Exactly TWO main gameplay action buttons (Cancel & Confirm) */}
-              <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* Bottom row: Cancel (B/X) and Confirm (A/Z) */}
+              <div className="flex items-center gap-2.5 sm:gap-3">
                 <button
                   type="button"
                   onPointerDown={(e) => handleButtonPress('cancel', e)}
                   onPointerUp={(e) => handleButtonRelease('cancel', e)}
                   onPointerCancel={(e) => handleButtonRelease('cancel', e)}
                   className={`flex items-center justify-center rounded-full border border-rose-400/50 bg-rose-950/70 text-rose-100 shadow-lg backdrop-blur-md transition-transform active:scale-90 ${
-                    isPortrait ? (compact ? 'h-10.5 w-10.5' : 'h-12 w-12') : 'h-9.5 w-9.5'
+                    isPortrait ? (compact ? 'h-10.5 w-10.5' : 'h-11.5 w-11.5') : 'h-10 w-10'
                   }`}
                   aria-label="取消"
                   title="取消"
                 >
-                  <LuX size={isPortrait ? (compact ? 17 : 20) : 16} className="stroke-[2.5]" />
+                  <LuX size={isPortrait ? (compact ? 17 : 19) : 16} className="stroke-[2.5]" />
                 </button>
 
                 <button
@@ -493,12 +646,12 @@ export function VirtualController({
                   onPointerUp={(e) => handleButtonRelease('ok', e)}
                   onPointerCancel={(e) => handleButtonRelease('ok', e)}
                   className={`flex items-center justify-center rounded-full border-2 border-emerald-400/70 bg-emerald-600/85 text-white shadow-xl shadow-emerald-950/50 backdrop-blur-md transition-transform active:scale-90 ${
-                    isPortrait ? (compact ? 'h-13 w-13' : 'h-15 w-15') : 'h-11.5 w-11.5'
+                    isPortrait ? (compact ? 'h-13 w-13' : 'h-15 w-15') : 'h-12 w-12'
                   }`}
                   aria-label="确认"
                   title="确认"
                 >
-                  <LuCheck size={isPortrait ? (compact ? 22 : 26) : 20} className="stroke-[2.8]" />
+                  <LuCheck size={isPortrait ? (compact ? 22 : 25) : 21} className="stroke-[2.8]" />
                 </button>
               </div>
             </div>
