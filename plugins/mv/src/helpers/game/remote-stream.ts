@@ -289,42 +289,136 @@ export async function attachGameMediaStream(peer: RTCPeerConnection): Promise<vo
   }
 }
 
-export function handleRemoteInput(key: RemoteInputKey, action: 'down' | 'up'): void {
+interface GameInputState {
+  _currentState?: Record<string, boolean>
+  _latestButton?: string | null
+  _pressedTime?: number
+  _date?: number
+  keyMapper?: Record<number, string>
+}
+
+interface GameTouchInputState {
+  _cancelled?: boolean
+  _events?: { cancelled?: boolean; triggered?: boolean; [key: string]: unknown }
+  _onCancel?: (x: number, y: number) => void
+  _x?: number
+  _y?: number
+}
+
+const activeReleaseTimers = new Map<RemoteInputKey, ReturnType<typeof setTimeout>>()
+const lastPressTime = new Map<RemoteInputKey, number>()
+const MIN_PRESS_MS = 50
+
+function applyInputState(key: RemoteInputKey, action: 'down' | 'up'): void {
   // 1. RPG Maker Input state engine
   try {
-    const Input = (globalThis as unknown as { Input?: { _currentState?: Record<string, boolean>; _latestButton?: string; _date?: number } }).Input
+    const Input = (globalThis as unknown as { Input?: GameInputState }).Input
     if (Input && Input._currentState) {
-      Input._currentState[key] = action === 'down'
-      if (key === 'menu' || key === 'cancel') {
-        Input._currentState['cancel'] = action === 'down'
-        Input._currentState['escape'] = action === 'down'
-        Input._currentState['menu'] = action === 'down'
+      const isDown = action === 'down'
+      const isCancelOrMenu = key === 'cancel' || key === 'menu'
+      const effectiveKey = isCancelOrMenu ? 'escape' : key
+
+      Input._currentState[key] = isDown
+      Input._currentState[effectiveKey] = isDown
+      if (isCancelOrMenu) {
+        Input._currentState['cancel'] = isDown
+        Input._currentState['escape'] = isDown
+        Input._currentState['menu'] = isDown
       }
-      if (action === 'down') {
-        Input._latestButton = key
+
+      if (isDown) {
+        Input._latestButton = effectiveKey
+        Input._pressedTime = 0
         Input._date = Date.now()
+      } else {
+        if (Input._latestButton === effectiveKey || Input._latestButton === key) {
+          Input._latestButton = null
+        }
       }
     }
   } catch {
-    /* */
+    /* ignore */
   }
 
-  // 2. Dispatch KeyboardEvent for RPG Maker event handlers & plugins
+  // 2. RPG Maker TouchInput cancellation (crucial for mobile plugins & touch dialogs)
+  if ((key === 'cancel' || key === 'menu') && action === 'down') {
+    try {
+      const TouchInput = (globalThis as unknown as { TouchInput?: GameTouchInputState }).TouchInput
+      if (TouchInput) {
+        TouchInput._cancelled = true
+        if (TouchInput._events) {
+          TouchInput._events.cancelled = true
+        }
+        if (typeof TouchInput._onCancel === 'function') {
+          const g = (globalThis as unknown as { Graphics?: { boxWidth?: number; boxHeight?: number } }).Graphics
+          const cx = g?.boxWidth ? g.boxWidth / 2 : (TouchInput._x || 0)
+          const cy = g?.boxHeight ? g.boxHeight / 2 : (TouchInput._y || 0)
+          TouchInput._onCancel(cx, cy)
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // 3. Dispatch KeyboardEvent for RPG Maker event handlers & plugins
   try {
     const meta = KEY_MAP[key]
     if (meta && typeof document !== 'undefined') {
-      const ev = new KeyboardEvent(action === 'down' ? 'keydown' : 'keyup', {
-        key: meta.key,
-        code: meta.code,
-        keyCode: meta.keyCode,
-        which: meta.keyCode,
-        bubbles: true,
-        cancelable: true,
-      })
-      document.dispatchEvent(ev)
+      const dispatchSyntheticKey = (k: string, c: string, kc: number) => {
+        const ev = new KeyboardEvent(action === 'down' ? 'keydown' : 'keyup', {
+          key: k,
+          code: c,
+          bubbles: true,
+          cancelable: true,
+        })
+        try {
+          Object.defineProperty(ev, 'keyCode', { value: kc, configurable: true, enumerable: true })
+          Object.defineProperty(ev, 'which', { value: kc, configurable: true, enumerable: true })
+        } catch {
+          /* ignore */
+        }
+        document.dispatchEvent(ev)
+        if (typeof window !== 'undefined' && window !== (document as unknown)) {
+          window.dispatchEvent(ev)
+        }
+      }
+
+      dispatchSyntheticKey(meta.key, meta.code, meta.keyCode)
+
+      // For cancel/escape: additionally dispatch KeyX (keyCode 88), which is standard secondary RPG Maker Cancel/Menu key
+      if ((key === 'cancel' || key === 'menu') && meta.keyCode === 27) {
+        dispatchSyntheticKey('x', 'KeyX', 88)
+      }
     }
   } catch {
-    /* */
+    /* ignore */
+  }
+}
+
+export function handleRemoteInput(key: RemoteInputKey, action: 'down' | 'up'): void {
+  const existingTimer = activeReleaseTimers.get(key)
+  if (existingTimer) {
+    clearTimeout(existingTimer)
+    activeReleaseTimers.delete(key)
+  }
+
+  if (action === 'down') {
+    lastPressTime.set(key, Date.now())
+    applyInputState(key, 'down')
+  } else {
+    const pressStart = lastPressTime.get(key) || 0
+    const elapsed = Date.now() - pressStart
+    if (elapsed < MIN_PRESS_MS && typeof process !== 'undefined' && process.env?.NODE_ENV !== 'test') {
+      const remaining = MIN_PRESS_MS - elapsed
+      const timer = setTimeout(() => {
+        activeReleaseTimers.delete(key)
+        applyInputState(key, 'up')
+      }, remaining)
+      activeReleaseTimers.set(key, timer)
+    } else {
+      applyInputState(key, 'up')
+    }
   }
 }
 

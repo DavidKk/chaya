@@ -35,6 +35,55 @@ describe('remote-stream (WebRTC game streaming & input simulation)', () => {
     document.removeEventListener('keyup', keyupSpy)
   })
 
+  it('handleRemoteInput maps cancel/menu to escape and triggers TouchInput cancellation', () => {
+    const inputObj: any = {
+      _currentState: {},
+      _latestButton: null,
+      _pressedTime: 12,
+    }
+    const touchObj: any = {
+      _cancelled: false,
+      _events: { cancelled: false },
+      _onCancel: jest.fn(),
+      _x: 400,
+      _y: 300,
+    }
+    ;(globalThis as any).Input = inputObj
+    ;(globalThis as any).TouchInput = touchObj
+
+    const dispatchedKeys: { key: string; keyCode: number }[] = []
+    const keydownListener = (e: Event) => {
+      const kev = e as KeyboardEvent
+      dispatchedKeys.push({ key: kev.key, keyCode: kev.keyCode })
+    }
+    document.addEventListener('keydown', keydownListener)
+
+    handleRemoteInput('cancel', 'down')
+
+    expect(inputObj._currentState.escape).toBe(true)
+    expect(inputObj._currentState.cancel).toBe(true)
+    expect(inputObj._currentState.menu).toBe(true)
+    expect(inputObj._latestButton).toBe('escape')
+    expect(inputObj._pressedTime).toBe(0)
+
+    expect(touchObj._cancelled).toBe(true)
+    expect(touchObj._events.cancelled).toBe(true)
+    expect(touchObj._onCancel).toHaveBeenCalledWith(400, 300)
+
+    expect(dispatchedKeys).toContainEqual({ key: 'Escape', keyCode: 27 })
+    expect(dispatchedKeys).toContainEqual({ key: 'x', keyCode: 88 })
+
+    handleRemoteInput('cancel', 'up')
+    expect(inputObj._currentState.escape).toBe(false)
+    expect(inputObj._currentState.cancel).toBe(false)
+    expect(inputObj._currentState.menu).toBe(false)
+    expect(inputObj._latestButton).toBeNull()
+
+    document.removeEventListener('keydown', keydownListener)
+    delete (globalThis as any).Input
+    delete (globalThis as any).TouchInput
+  })
+
   it('handleRemoteTap triggers mouse events on canvas based on normalized coordinates', () => {
     const canvas = document.createElement('canvas')
     canvas.id = 'GameCanvas'
