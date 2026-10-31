@@ -87,6 +87,16 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   // Control Mode: fixed, dynamic, single-left, single-right, touch
   const [controlMode, setControlMode] = useState<ControlMode>('fixed')
   const [clientMode, setClientMode] = useState<'auto' | 'desktop' | 'mobile'>('auto')
+
+  const handleSelectClientMode = useCallback((mode: 'auto' | 'desktop' | 'mobile') => {
+    setClientMode(mode)
+    try {
+      localStorage.setItem('chaya_remote_client_mode', mode)
+    } catch {
+      /* ignore */
+    }
+    remotePlayLogger.info(`Client layout mode set to: ${mode}`)
+  }, [])
   const [reloadConfirmOpen, setReloadConfirmOpen] = useState(false)
   const [quitConfirmOpen, setQuitConfirmOpen] = useState(false)
   const [desktopToolbarVisible, setDesktopToolbarVisible] = useState(true)
@@ -179,6 +189,11 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.code === 'F11') {
+        e.preventDefault()
+        toggleFullscreen()
+        return
+      }
       const mapped = keyMap[e.code]
       if (mapped) {
         e.preventDefault()
@@ -333,8 +348,18 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           setFitMode(savedFit)
         }
         const savedMode = localStorage.getItem('chaya_remote_control_mode') as ControlMode
-        if (savedMode === 'fixed' || savedMode === 'touch' || savedMode === 'dynamic') {
+        if (
+          savedMode === 'fixed' ||
+          savedMode === 'touch' ||
+          savedMode === 'dynamic' ||
+          savedMode === 'single-left' ||
+          savedMode === 'single-right'
+        ) {
           setControlMode(savedMode)
+        }
+        const savedClient = localStorage.getItem('chaya_remote_client_mode')
+        if (savedClient === 'desktop' || savedClient === 'mobile' || savedClient === 'auto') {
+          setClientMode(savedClient)
         }
         const cachedCover = localStorage.getItem('chaya_remote_play_cover')
         if (cachedCover) {
@@ -1015,7 +1040,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 <div className="flex items-center gap-1 rounded-md border border-white/10 bg-neutral-950 p-0.5">
                   <button
                     type="button"
-                    onClick={() => setClientMode('desktop')}
+                    onClick={() => handleSelectClientMode('desktop')}
                     className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all ${
                       clientMode === 'desktop' || (clientMode === 'auto' && isDesktop)
                         ? 'bg-sky-500/30 text-sky-200 border border-sky-400/40'
@@ -1027,7 +1052,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setClientMode('mobile')}
+                    onClick={() => handleSelectClientMode('mobile')}
                     className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all ${
                       clientMode === 'mobile' || (clientMode === 'auto' && !isDesktop)
                         ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-400/40'
