@@ -1578,13 +1578,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           {/* Dark Glassmorphic Vignette Overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-neutral-950/70 via-neutral-950/80 to-neutral-950/95 backdrop-blur-md pointer-events-none" />
 
-          {/* Top Bar with Safe Area: Preferences & Clear Cache Button (Requirement 5) */}
+          {/* Top-Right Unified Menu Button: identical to in-game menu button, no separate reload button */}
           <div
             style={{
-              top: 'max(0.75rem, env(safe-area-inset-top))',
+              top: 'max(0.5rem, env(safe-area-inset-top))',
               right: 'max(0.75rem, env(safe-area-inset-right))',
             }}
-            className="pointer-events-auto fixed z-50 flex items-center gap-2"
+            className="pointer-events-auto fixed z-50 flex items-center"
           >
             <button
               type="button"
@@ -1592,20 +1592,11 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 setMenuTab('system')
                 setMenuOpen(true)
               }}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-neutral-900/80 text-neutral-300 hover:text-white hover:bg-neutral-800 backdrop-blur-md active:scale-90 transition-all shadow-md"
-              title={t('play.preferencesTitle')}
-              aria-label={t('play.preferencesTitle')}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-neutral-900/85 text-neutral-300 shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-neutral-800 active:scale-95 shrink-0"
+              title={t('play.consoleTitle')}
+              aria-label={t('play.consoleTitle')}
             >
-              <LuSlidersHorizontal size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setReloadConfirmOpen(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-neutral-900/80 text-sky-400 hover:text-white hover:bg-neutral-800 backdrop-blur-md active:scale-90 transition-all shadow-md"
-              title={t('play.clearReload')}
-              aria-label={t('play.clearReload')}
-            >
-              <LuRotateCcw size={15} />
+              <LuSlidersHorizontal size={15} className="text-emerald-400" />
             </button>
           </div>
 

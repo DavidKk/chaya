@@ -48,13 +48,15 @@ afterEach(() => {
 })
 
 describe('RemotePlayView Launcher & UI refinements', () => {
-  it('renders clear cache button on startup screen', async () => {
+  it('renders unified console menu button on startup screen matching in-game button', async () => {
     await act(async () => {
       root.render(<LocaleProvider initialLocale="zh" initialPreference="zh"><RemotePlayView initialRoomId="game-1" /></LocaleProvider>)
     })
 
-    const reloadBtn = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('aria-label')?.includes('清理') || b.getAttribute('title')?.includes('清理'))
-    expect(reloadBtn).toBeDefined()
+    const menuBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.getAttribute('aria-label')?.includes('控制台') || b.getAttribute('title')?.includes('控制台')
+    )
+    expect(menuBtn).toBeDefined()
   })
 
   it('detects game not running and displays launch button with game card', async () => {
@@ -85,11 +87,13 @@ describe('RemotePlayView Launcher & UI refinements', () => {
       await Promise.resolve()
     })
 
-    // Language switcher is inside preferences settings modal (Requirement 5)
-    const settingsBtn = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('title')?.includes('偏好') || b.getAttribute('aria-label')?.includes('偏好') || b.getAttribute('title')?.includes('设置'))
-    expect(settingsBtn).toBeDefined()
+    // Language switcher is inside preferences settings modal
+    const menuBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.getAttribute('aria-label')?.includes('控制台') || b.getAttribute('title')?.includes('控制台')
+    )
+    expect(menuBtn).toBeDefined()
     await act(async () => {
-      settingsBtn?.click()
+      menuBtn?.click()
     })
 
     const langTrigger = host.querySelector('button[aria-label="切换语言"]')
@@ -100,7 +104,7 @@ describe('RemotePlayView Launcher & UI refinements', () => {
     expect(launchBtn).toBeDefined()
   })
 
-  it('prompts confirmation modal before hard reload', async () => {
+  it('prompts confirmation modal before hard reload from within menu', async () => {
     await act(async () => {
       root.render(
         <LocaleProvider initialLocale="zh" initialPreference="zh">
@@ -112,14 +116,23 @@ describe('RemotePlayView Launcher & UI refinements', () => {
       await Promise.resolve()
     })
 
-    const reloadBtn = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('aria-label')?.includes('清理') || b.getAttribute('title')?.includes('清理'))
-    expect(reloadBtn).toBeDefined()
+    const menuBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.getAttribute('aria-label')?.includes('控制台') || b.getAttribute('title')?.includes('控制台')
+    )
+    expect(menuBtn).toBeDefined()
 
     await act(async () => {
-      reloadBtn?.click()
+      menuBtn?.click()
     })
 
-    // Confirmation modal appears (Requirement 6)
+    const reloadRow = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('清理重载'))
+    expect(reloadRow).toBeDefined()
+
+    await act(async () => {
+      reloadRow?.click()
+    })
+
+    // Confirmation modal appears
     expect(host.textContent).toContain('清理缓存并重载？')
   })
 
@@ -166,9 +179,11 @@ describe('RemotePlayView Launcher & UI refinements', () => {
     })
 
     // Open settings modal
-    const settingsBtn = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('title')?.includes('偏好') || b.getAttribute('aria-label')?.includes('偏好'))
+    const menuBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.getAttribute('aria-label')?.includes('控制台') || b.getAttribute('title')?.includes('控制台')
+    )
     await act(async () => {
-      settingsBtn?.click()
+      menuBtn?.click()
     })
 
     // Check language config row has globe icon

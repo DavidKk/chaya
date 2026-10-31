@@ -39,7 +39,7 @@ export function ConfigRow({
       } ${isClickable ? 'cursor-pointer active:scale-[0.99]' : ''} ${
         disabled ? 'opacity-40 cursor-not-allowed' : ''
       } ${className}`}
-      onClick={isClickable && control ? onClick : undefined}
+      
     >
       {/* Left: Standard Icon (5x5) + Label + Optional Subtitle */}
       <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
@@ -73,7 +73,7 @@ export function ConfigRow({
     </div>
   )
 
-  if (isClickable && !control) {
+  if (isClickable) {
     return (
       <button
         type="button"
