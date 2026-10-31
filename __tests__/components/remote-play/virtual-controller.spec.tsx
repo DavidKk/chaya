@@ -36,7 +36,7 @@ afterEach(() => {
 })
 
 describe('VirtualController (analog joystick & action buttons)', () => {
-  it('renders analog joystick and action buttons with accessible labels', () => {
+  it('renders analog joystick and exactly two action buttons plus one top config button', () => {
     const onInput = jest.fn()
     act(() => {
       root.render(<VirtualController onInput={onInput} visible={true} mode="fixed" />)
@@ -45,17 +45,77 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     const joystick = host.querySelector('[role="slider"][aria-label="虚拟摇杆"]')
     expect(joystick).not.toBeNull()
 
+    // Primary action buttons: exactly two (Cancel & Confirm)
     const confirmBtn = host.querySelector('button[aria-label="确认"]')
     expect(confirmBtn).not.toBeNull()
 
     const cancelBtn = host.querySelector('button[aria-label="取消"]')
     expect(cancelBtn).not.toBeNull()
 
+    // Removed buttons: Zap / Dash / Menu standalone
     const dashBtn = host.querySelector('button[aria-label="加速"]')
-    expect(dashBtn).not.toBeNull()
+    expect(dashBtn).toBeNull()
 
-    const menuBtn = host.querySelector('button[aria-label="菜单"]')
-    expect(menuBtn).not.toBeNull()
+    // Top row: Single Config/Shortcuts Trigger Button
+    const configBtn = host.querySelector('button[aria-label="快捷配置"]')
+    expect(configBtn).not.toBeNull()
+  })
+
+  it('expands shortcut dock on tapping config button and dispatches scene/drawer actions', () => {
+    const onInput = jest.fn()
+    const onAction = jest.fn()
+    const onOpenDrawer = jest.fn()
+    act(() => {
+      root.render(
+        <VirtualController
+          onInput={onInput}
+          onAction={onAction}
+          onOpenDrawer={onOpenDrawer}
+          visible={true}
+          mode="fixed"
+        />
+      )
+    })
+
+    // Initially collapsed
+    expect(host.querySelector('button[aria-label="背包"]')).toBeNull()
+
+    const configBtn = host.querySelector('button[aria-label="快捷配置"]') as HTMLButtonElement
+    act(() => {
+      configBtn.click()
+    })
+
+    // Expanded shortcuts
+    const itemBtn = host.querySelector('button[aria-label="背包"]') as HTMLButtonElement
+    const equipBtn = host.querySelector('button[aria-label="装备"]')
+    const saveBtn = host.querySelector('button[aria-label="存档"]')
+    const loadBtn = host.querySelector('button[aria-label="读档"]')
+    const consoleBtn = host.querySelector('button[aria-label="控制台"]') as HTMLButtonElement
+
+    expect(itemBtn).not.toBeNull()
+    expect(equipBtn).not.toBeNull()
+    expect(saveBtn).not.toBeNull()
+    expect(loadBtn).not.toBeNull()
+    expect(consoleBtn).not.toBeNull()
+
+    // Tap backpack shortcut
+    act(() => {
+      itemBtn.click()
+    })
+    expect(onAction).toHaveBeenCalledWith('scene:item')
+    // Automatically collapsed
+    expect(host.querySelector('button[aria-label="背包"]')).toBeNull()
+
+    // Re-open and tap console
+    act(() => {
+      configBtn.click()
+    })
+    const consoleBtn2 = host.querySelector('button[aria-label="控制台"]') as HTMLButtonElement
+    act(() => {
+      consoleBtn2.click()
+    })
+    expect(onOpenDrawer).toHaveBeenCalled()
+    expect(host.querySelector('button[aria-label="控制台"]')).toBeNull()
   })
 
   it('handles action button press and release', () => {

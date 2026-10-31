@@ -182,6 +182,22 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     })
   }, [])
 
+  const handleAction = useCallback((id: string) => {
+    if (!linkRef.current?.connected) return
+    remotePlayLogger.info(`Triggering remote game action shortcut: ${id}`)
+    linkRef.current.send({
+      type: 'edit.cmd',
+      cmdId: `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      op: 'runAction',
+      id: id as any,
+    })
+  }, [])
+
+  const handleOpenDrawer = useCallback(() => {
+    setDrawerTab('cheat')
+    setDrawerOpen(true)
+  }, [])
+
   const isDesktop =
     clientMode === 'desktop' ||
     (clientMode === 'auto' && typeof window !== 'undefined' && !remotePlayLogger.getDiagnostics().isMobile)
@@ -1395,6 +1411,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           {status === 'connected' && !isDesktop && (
             <VirtualController
               onInput={handleInput}
+              onAction={handleAction}
+              onOpenDrawer={handleOpenDrawer}
               visible={!isDesktop}
               idle={effectiveIdle}
               isPortrait={true}
@@ -1559,6 +1577,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               {!isDesktop && (
                 <VirtualController
                   onInput={handleInput}
+                  onAction={handleAction}
+                  onOpenDrawer={handleOpenDrawer}
                   visible={!isDesktop}
                   idle={effectiveIdle}
                   isPortrait={false}

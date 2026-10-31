@@ -1,7 +1,16 @@
 'use client'
 
 import React, { useRef, useState } from 'react'
-import { LuCheck, LuMenu, LuX, LuZap } from 'react-icons/lu'
+import {
+  LuCheck,
+  LuFolderOpen,
+  LuPackage,
+  LuSave,
+  LuShield,
+  LuSlidersHorizontal,
+  LuX,
+} from 'react-icons/lu'
+import { useT } from '@/components/i18n/LocaleProvider'
 
 import type { RemoteInputKey } from '@/lib/runtime/game-link-protocol'
 import { haptic } from './haptic'
@@ -10,6 +19,8 @@ export type ControlMode = 'fixed' | 'dynamic' | 'single-left' | 'single-right' |
 
 type VirtualControllerProps = {
   onInput: (key: RemoteInputKey, action: 'down' | 'up') => void
+  onAction?: (actionId: string) => void
+  onOpenDrawer?: () => void
   visible?: boolean
   idle?: boolean
   isPortrait?: boolean
@@ -24,6 +35,8 @@ const THRESHOLD = 0.38
 
 export function VirtualController({
   onInput,
+  onAction,
+  onOpenDrawer,
   visible = true,
   idle = false,
   isPortrait = false,
@@ -33,6 +46,8 @@ export function VirtualController({
   const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dynamicOrigin, setDynamicOrigin] = useState<{ x: number; y: number } | null>(null)
+  const [shortcutsExpanded, setShortcutsExpanded] = useState(false)
+  const t = useT()
   const baseRef = useRef<HTMLDivElement>(null)
   const activeDirsRef = useRef<Set<Direction>>(new Set())
 
@@ -209,11 +224,25 @@ export function VirtualController({
     onInput(key, 'up')
   }
 
+  const handleShortcutClick = (actionId: string) => {
+    triggerHaptic('medium')
+    setShortcutsExpanded(false)
+    onAction?.(actionId)
+  }
+
   // If invisible or in Touch Mode (Mode 2), don't render virtual buttons
   if (!visible || mode === 'touch') return null
 
   return (
     <>
+      {/* Backdrop to dismiss expandable shortcuts dock when clicking outside */}
+      {shortcutsExpanded && (
+        <div
+          className="pointer-events-auto fixed inset-0 z-40 bg-transparent"
+          onClick={() => setShortcutsExpanded(false)}
+        />
+      )}
+
       {/* Dynamic Joystick Spawn Base (Mode 3 active drag) */}
       {mode === 'dynamic' && dynamicOrigin && (
         <div
@@ -322,41 +351,102 @@ export function VirtualController({
 
           const renderActionButtons = (compact = false, align: 'start' | 'end' = 'end') => (
             <div
-              className={`pointer-events-auto relative flex flex-col ${align === 'start' ? 'items-start' : 'items-end'} gap-1.5 sm:gap-2 touch-none shrink-0`}
+              className={`pointer-events-auto relative flex flex-col ${align === 'start' ? 'items-start' : 'items-end'} gap-2 sm:gap-2.5 touch-none shrink-0`}
               style={{ touchAction: 'none' }}
             >
-              {/* Top row: Menu & Dash */}
-              <div className={`flex items-center gap-2 ${align === 'start' ? 'pl-1' : 'pr-1'}`}>
-                <button
-                  type="button"
-                  onPointerDown={(e) => handleButtonPress('menu', e)}
-                  onPointerUp={(e) => handleButtonRelease('menu', e)}
-                  onPointerCancel={(e) => handleButtonRelease('menu', e)}
-                  className={`flex items-center justify-center rounded-full border border-purple-400/40 bg-purple-950/70 text-purple-200 shadow-md backdrop-blur-md transition-transform active:scale-90 ${
-                    isPortrait ? (compact ? 'h-8 w-8' : 'h-10 w-10') : 'h-8 w-8'
-                  }`}
-                  aria-label="菜单"
-                  title="菜单"
-                >
-                  <LuMenu size={isPortrait ? (compact ? 14 : 17) : 14} className="stroke-[2.2]" />
-                </button>
+              {/* Top row: Single Config/Shortcuts Trigger Button with Expandable Quick-Dock */}
+              <div className={`relative flex items-center ${align === 'start' ? 'justify-start' : 'justify-end'}`}>
+                {/* Expandable Shortcuts Dock */}
+                {shortcutsExpanded && (
+                  <div
+                    className={`absolute bottom-full mb-2.5 z-50 flex items-center gap-1 sm:gap-1.5 rounded-full border border-white/20 bg-neutral-900/90 p-1 sm:p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 ${
+                      align === 'start' ? 'left-0' : 'right-0'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleShortcutClick('scene:item')}
+                      className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-950/40 px-2 py-1 text-[11px] font-medium text-amber-200 hover:bg-amber-900/60 active:scale-95 transition-all whitespace-nowrap shadow-sm"
+                      aria-label="背包"
+                      title={t('edit.actItem') || '背包'}
+                    >
+                      <LuPackage size={13} className="text-amber-400 shrink-0" />
+                      <span>{t('edit.actItem') || '背包'}</span>
+                    </button>
 
+                    <button
+                      type="button"
+                      onClick={() => handleShortcutClick('scene:equip')}
+                      className="flex items-center gap-1 rounded-full border border-indigo-500/30 bg-indigo-950/40 px-2 py-1 text-[11px] font-medium text-indigo-200 hover:bg-indigo-900/60 active:scale-95 transition-all whitespace-nowrap shadow-sm"
+                      aria-label="装备"
+                      title={t('edit.actEquip') || '装备'}
+                    >
+                      <LuShield size={13} className="text-indigo-400 shrink-0" />
+                      <span>{t('edit.actEquip') || '装备'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleShortcutClick('scene:save')}
+                      className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2 py-1 text-[11px] font-medium text-emerald-200 hover:bg-emerald-900/60 active:scale-95 transition-all whitespace-nowrap shadow-sm"
+                      aria-label="存档"
+                      title={t('edit.actSave') || '存档'}
+                    >
+                      <LuSave size={13} className="text-emerald-400 shrink-0" />
+                      <span>{t('edit.actSave') || '存档'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleShortcutClick('scene:load')}
+                      className="flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-950/40 px-2 py-1 text-[11px] font-medium text-sky-200 hover:bg-sky-900/60 active:scale-95 transition-all whitespace-nowrap shadow-sm"
+                      aria-label="读档"
+                      title={t('edit.actLoad') || '读档'}
+                    >
+                      <LuFolderOpen size={13} className="text-sky-400 shrink-0" />
+                      <span>{t('edit.actLoad') || '读档'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('medium')
+                        setShortcutsExpanded(false)
+                        onOpenDrawer?.()
+                      }}
+                      className="flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-950/40 px-2 py-1 text-[11px] font-medium text-purple-200 hover:bg-purple-900/60 active:scale-95 transition-all whitespace-nowrap shadow-sm"
+                      aria-label="控制台"
+                      title={t('play.consoleTitle') || '控制台'}
+                    >
+                      <LuSlidersHorizontal size={13} className="text-purple-400 shrink-0" />
+                      <span>{t('play.consoleTitle') || '控制台'}</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Single Top Config/Shortcuts Toggle Button */}
                 <button
                   type="button"
-                  onPointerDown={(e) => handleButtonPress('shift', e)}
-                  onPointerUp={(e) => handleButtonRelease('shift', e)}
-                  onPointerCancel={(e) => handleButtonRelease('shift', e)}
-                  className={`flex items-center justify-center rounded-full border border-amber-400/40 bg-amber-950/70 text-amber-200 shadow-md backdrop-blur-md transition-transform active:scale-90 ${
-                    isPortrait ? (compact ? 'h-8 w-8' : 'h-10 w-10') : 'h-8 w-8'
+                  onClick={() => {
+                    triggerHaptic('selection')
+                    setShortcutsExpanded((prev) => !prev)
+                  }}
+                  className={`flex items-center justify-center rounded-full border transition-all active:scale-90 ${
+                    shortcutsExpanded
+                      ? 'border-emerald-400/80 bg-emerald-950/80 text-emerald-300 shadow-lg shadow-emerald-950/50'
+                      : 'border-white/20 bg-neutral-900/70 text-neutral-300 hover:border-white/30 hover:bg-neutral-850 shadow-md backdrop-blur-md'
+                  } ${
+                    isPortrait ? (compact ? 'h-8.5 w-8.5' : 'h-10 w-10') : 'h-8.5 w-8.5'
                   }`}
-                  aria-label="加速"
-                  title="加速"
+                  aria-label="快捷配置"
+                  title="快捷配置"
+                  aria-expanded={shortcutsExpanded}
                 >
-                  <LuZap size={isPortrait ? (compact ? 14 : 17) : 14} className="stroke-[2.2]" />
+                  <LuSlidersHorizontal size={isPortrait ? (compact ? 14 : 16) : 14} className="stroke-[2.2]" />
                 </button>
               </div>
 
-              {/* Bottom row: Cancel (B) & Confirm (A) */}
+              {/* Bottom row: Exactly TWO main gameplay action buttons (Cancel & Confirm) */}
               <div className="flex items-center gap-2 sm:gap-2.5">
                 <button
                   type="button"

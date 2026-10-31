@@ -77,7 +77,7 @@ function preferH264(tr: RTCRtpTransceiver) {
         const h264 = caps.codecs.filter((codec) => codec.mimeType.toLowerCase() === 'video/h264')
         const others = caps.codecs.filter((codec) => codec.mimeType.toLowerCase() !== 'video/h264')
         if (h264.length > 0) {
-          tr.setCodecPreferences([...h264, ...others])
+          tr.setCodecPreferences([...h264, ...others] as any)
         }
       }
     }
