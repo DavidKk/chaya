@@ -580,6 +580,81 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     }
   }, [roomId, gameOnline, connect, clearReconnectTimers])
 
+// Screen Wake Lock & Visibility Resume (prevents screen dimming and auto-recovers paused video after lock screen)
+  const wakeLockRef = useRef<any>(null)
+
+  const acquireWakeLock = useCallback(async () => {
+    if (typeof navigator !== "undefined" && "wakeLock" in navigator && (navigator as any).wakeLock) {
+      try {
+        wakeLockRef.current = await (navigator as any).wakeLock.request("screen")
+        remotePlayLogger.info("Screen Wake Lock acquired")
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [])
+
+  const releaseWakeLock = useCallback(() => {
+    if (wakeLockRef.current) {
+      try {
+        void wakeLockRef.current.release()
+      } catch {}
+      wakeLockRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (status === "connected") {
+      void acquireWakeLock()
+    } else {
+      releaseWakeLock()
+    }
+  }, [status, acquireWakeLock, releaseWakeLock])
+
+  useEffect(() => {
+    const handleResume = () => {
+      if (document.visibilityState === "visible") {
+        remotePlayLogger.info("Page resumed to visible, checking stream & video state")
+
+        if (status === "connected") {
+          void acquireWakeLock()
+        }
+
+        const video = videoRef.current
+        const stream = streamRef.current
+        if (video) {
+          if (stream && video.srcObject !== stream) {
+            video.srcObject = stream
+          }
+          if (video.paused) {
+            void video.play().catch((err) => {
+              remotePlayLogger.warn(`Failed to auto-resume video on wake: ${err}`)
+            })
+          }
+        }
+
+        if (linkRef.current?.connected) {
+          linkRef.current.send({ type: "stream.request_keyframe" })
+          linkRef.current.send({ type: "ping", t: Date.now() })
+        } else if (!isCancelled && gameOnline) {
+          remotePlayLogger.info("WebRTC link disconnected while locked; reconnecting")
+          connect()
+        }
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleResume)
+    window.addEventListener("pageshow", handleResume)
+    window.addEventListener("focus", handleResume)
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleResume)
+      window.removeEventListener("pageshow", handleResume)
+      window.removeEventListener("focus", handleResume)
+      releaseWakeLock()
+    }
+  }, [status, isCancelled, gameOnline, connect, acquireWakeLock, releaseWakeLock])
+
   // One-click game launch & auto-connect polling
   const handleLaunchGame = useCallback(async () => {
     if (isLaunching) return
@@ -1189,82 +1264,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
       {/* 2. Video Stream Rendering (Orientation adaptive) */}
       {isPortrait ? (
-        /* Portrait Layout: Video at top, Gamepad below */
-        <div className="flex h-full w-full flex-col">
-          {/* Top Video Container */}
-          <div
-            style={{ paddingTop: 'env(safe-area-inset-top)' }}
-            className="relative w-full aspect-video max-h-[46vh] bg-neutral-950 flex items-center justify-center overflow-hidden shrink-0 border-b border-white/10"
-          >
-            <video
-              ref={setVideoRef}
-              autoPlay
-              playsInline
-              muted={muted}
-              onLoadedMetadata={() => {
-                const v = videoRef.current
-                if (v && (v.videoWidth || v.videoHeight)) {
-                  setVideoResolution({ width: v.videoWidth, height: v.videoHeight })
-                  setTimeout(handleCaptureVideoCover, 1500)
-                }
-              }}
-              onPointerDown={(e) => handleVideoPointer(e, 'down')}
-              onPointerMove={(e) => handleVideoPointer(e, 'move')}
-              onPointerUp={(e) => handleVideoPointer(e, 'up')}
-              className={`h-full w-full cursor-crosshair touch-none transition-all duration-300 ${
-                fitMode === 'cover' ? 'object-cover' : 'object-contain'
-              }`}
-              style={{ touchAction: 'none' }}
-            />
-
-            {/* Performance HUD in Top-Left */}
-            {status === 'connected' && (
-              <PerformanceHud
-                visible={hudVisible}
-                idle={effectiveIdle}
-                isStandalone={isStandalone}
-                latencyMs={latencyMs}
-                videoResolution={videoResolution}
-                status={status}
-                muted={muted}
-                onClose={() => setHudVisible(false)}
-              />
-            )}
-
-            {/* ONLY ONE Menu Button in Top-Right */}
-            {status === 'connected' && (
-              <button
-                type="button"
-                onClick={() => setMenuOpen(true)}
-                style={{
-                  top: 'max(0.5rem, env(safe-area-inset-top))',
-                  right: 'max(0.75rem, env(safe-area-inset-right))',
-                }}
-                className="pointer-events-auto absolute z-40 flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-neutral-900/80 text-neutral-300 shadow-md backdrop-blur-md transition-colors hover:bg-neutral-800 active:scale-95 shrink-0"
-                title={t('play.consoleTitle')}
-                aria-label={t('play.consoleTitle')}
-              >
-                <LuSlidersHorizontal size={14} className="text-emerald-400" />
-              </button>
-            )}
-          </div>
-
-          {/* Dedicated Gamepad Area in Portrait (Hidden on PC Desktop) */}
-          {status === 'connected' && !isDesktop && (
-            <div className="flex-1 w-full relative">
-              <VirtualController
-                onInput={handleInput}
-                visible={!isDesktop}
-                idle={effectiveIdle}
-                isPortrait={true}
-                mode={controlMode}
-              />
-            </div>
-          )}
-        </div>
-      ) : (
-        /* Landscape Layout: Fullscreen video with ONE single menu button */
-        <>
+        /* Portrait Layout: Centered Game Screen, Floating Controls Below */
+        <div className="relative flex h-full w-full items-center justify-center overflow-hidden select-none">
+          {/* Centered Video Element */}
           <video
             ref={setVideoRef}
             autoPlay
@@ -1277,14 +1279,94 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 setTimeout(handleCaptureVideoCover, 1500)
               }
             }}
-            onPointerDown={(e) => handleVideoPointer(e, 'down')}
+            onPointerDown={(e) => {
+              const v = videoRef.current
+              if (v && v.paused) {
+                void v.play().catch(() => {})
+              }
+              handleVideoPointer(e, 'down')
+            }}
             onPointerMove={(e) => handleVideoPointer(e, 'move')}
             onPointerUp={(e) => handleVideoPointer(e, 'up')}
-            className={`fixed inset-0 h-full w-full cursor-crosshair touch-none transition-all duration-300 ${
-              fitMode === 'cover' ? 'object-cover' : 'object-contain'
+            className={`max-h-full max-w-full cursor-crosshair touch-none transition-all duration-300 ${
+              fitMode === 'cover' ? 'h-full w-full object-cover' : 'object-contain'
             }`}
             style={{ touchAction: 'none' }}
           />
+
+          {/* Performance HUD in Top-Left */}
+          {status === 'connected' && (
+            <PerformanceHud
+              visible={hudVisible}
+              idle={effectiveIdle}
+              isStandalone={isStandalone}
+              latencyMs={latencyMs}
+              videoResolution={videoResolution}
+              status={status}
+              muted={muted}
+              onClose={() => setHudVisible(false)}
+            />
+          )}
+
+          {/* Top-Right Unified Menu Button */}
+          {status === 'connected' && (
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              style={{
+                top: 'max(0.5rem, env(safe-area-inset-top))',
+                right: 'max(0.75rem, env(safe-area-inset-right))',
+              }}
+              className="pointer-events-auto absolute z-40 flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-neutral-900/85 text-neutral-300 shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-neutral-800 active:scale-95 shrink-0"
+              title={t('play.consoleTitle')}
+              aria-label={t('play.consoleTitle')}
+            >
+              <LuSlidersHorizontal size={15} className="text-emerald-400" />
+            </button>
+          )}
+
+          {/* Floating Virtual Controller in Portrait */}
+          {status === 'connected' && !isDesktop && (
+            <VirtualController
+              onInput={handleInput}
+              visible={!isDesktop}
+              idle={effectiveIdle}
+              isPortrait={true}
+              mode={controlMode}
+            />
+          )}
+        </div>
+      ) : (
+        /* Landscape Layout: Fullscreen video with ONE single menu button */
+        <>
+          <div className="fixed inset-0 flex items-center justify-center overflow-hidden">
+            <video
+              ref={setVideoRef}
+              autoPlay
+              playsInline
+              muted={muted}
+              onLoadedMetadata={() => {
+                const v = videoRef.current
+                if (v && (v.videoWidth || v.videoHeight)) {
+                  setVideoResolution({ width: v.videoWidth, height: v.videoHeight })
+                  setTimeout(handleCaptureVideoCover, 1500)
+                }
+              }}
+              onPointerDown={(e) => {
+                const v = videoRef.current
+                if (v && v.paused) {
+                  void v.play().catch(() => {})
+                }
+                handleVideoPointer(e, 'down')
+              }}
+              onPointerMove={(e) => handleVideoPointer(e, 'move')}
+              onPointerUp={(e) => handleVideoPointer(e, 'up')}
+              className={`max-h-full max-w-full cursor-crosshair touch-none transition-all duration-300 ${
+                fitMode === 'cover' ? 'h-full w-full object-cover' : 'object-contain'
+              }`}
+              style={{ touchAction: 'none' }}
+            />
+          </div>
 
           {status === 'connected' && (
             <>

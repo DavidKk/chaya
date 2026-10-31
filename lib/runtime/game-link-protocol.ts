@@ -299,6 +299,9 @@ export type RemoteStreamMessage =
       y: number
       phase: 'down' | 'move' | 'up'
     }
+  | {
+      type: 'stream.request_keyframe'
+    }
 
 export type GameLinkMessage =
   | TranslationPacket

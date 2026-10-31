@@ -86,6 +86,11 @@ export class WebGameLink {
   private run = 0
   private chunks = createChunkReceiver((msg) => this.handlers.onMessage?.(msg as GameLinkMessage))
   connected = false
+  private mediaStream: MediaStream | null = null
+
+  get stream(): MediaStream | null {
+    return this.mediaStream
+  }
 
   constructor(
     readonly roomId: string,
@@ -160,12 +165,17 @@ export class WebGameLink {
         remoteStream.addTrack(ev.track)
       }
       this.log('ok', `Received remote media track: ${ev.track.kind} (${ev.track.label || 'default'})`, { trackId: ev.track.id, readyState: ev.track.readyState })
+      this.mediaStream = remoteStream
       this.handlers.onTrack?.(remoteStream)
     }
 
     pc.oniceconnectionstatechange = () => {
       const ice = pc.iceConnectionState
       this.log(ice === 'failed' ? 'fail' : ice === 'connected' || ice === 'completed' ? 'ok' : 'info', `ICE connection state changed: ${ice}`)
+      if (ice === 'failed') {
+        this.clearDisconnectTimer()
+        this.markDisconnected()
+      }
     }
 
     pc.onconnectionstatechange = () => {
@@ -379,6 +389,7 @@ export class WebGameLink {
     }
     this.dc = null
     this.pc = null
+    this.mediaStream = null
     if (this.connected) {
       this.connected = false
       void postSignal({ action: 'connected', roomId: this.roomId, connected: false })

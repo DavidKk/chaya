@@ -229,4 +229,22 @@ describe('RemotePlayView Launcher & UI refinements', () => {
     )
     expect(hapticRow).toBeDefined()
   })
+
+  it('renders centered video element in portrait mode without hard top container', async () => {
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <RemotePlayView initialRoomId="game-1" />
+        </LocaleProvider>
+      )
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const video = host.querySelector('video')
+    expect(video).not.toBeNull()
+    expect(video?.className).toContain('max-h-full')
+    expect(video?.className).toContain('max-w-full')
+  })
 })

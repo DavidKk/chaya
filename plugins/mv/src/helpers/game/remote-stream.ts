@@ -86,7 +86,66 @@ function preferH264(tr: RTCRtpTransceiver) {
   }
 }
 
+/**
+ * Ensures game render loop continues ticking when host computer locks screen or minimizes.
+ * Chromium suspends requestAnimationFrame when screen is locked or window is hidden,
+ * which halts canvas rendering and freezes WebRTC video capture.
+ */
+export function ensureGameRenderKeepalive(): void {
+  try {
+    const g = globalThis as unknown as { SceneManager?: any }
+    const sm = g.SceneManager
+    if (!sm) return
+    if (sm.__chaya_stream_keepalive) return
+    sm.__chaya_stream_keepalive = true
+
+    // 1. Prevent RPG Maker from sleeping or pausing when window loses focus or screen locks
+    if (typeof sm.isGameActive === "function") {
+      sm.isGameActive = () => true
+    }
+
+    // 2. Track last frame render time
+    let lastRenderTime = Date.now()
+    const origRenderScene = sm.renderScene
+    if (typeof origRenderScene === "function") {
+      sm.renderScene = function (...args: any[]) {
+        lastRenderTime = Date.now()
+        return origRenderScene.apply(this, args)
+      }
+    }
+
+    // 3. Fallback ticker: if requestAnimationFrame is suspended for > 65ms,
+    // invoke sm.update() or sm.renderScene() to ensure canvas has fresh pixels
+    setInterval(() => {
+      if (!sm._stopped && Date.now() - lastRenderTime > 65) {
+        lastRenderTime = Date.now()
+        try {
+          if (typeof sm.update === "function") {
+            sm.update()
+          } else if (typeof sm.renderScene === "function") {
+            sm.renderScene()
+          }
+        } catch {
+          /* */
+        }
+      }
+    }, 40)
+  } catch {
+    /* */
+  }
+}
+
+export function handleRequestKeyframe(): void {
+  try {
+    const g = globalThis as unknown as { SceneManager?: { renderScene?: () => void } }
+    g.SceneManager?.renderScene?.()
+  } catch {
+    /* */
+  }
+}
+
 export async function attachGameMediaStream(peer: RTCPeerConnection): Promise<void> {
+  ensureGameRenderKeepalive()
   const stream = captureGameMediaStream()
   if (!stream) return
 
