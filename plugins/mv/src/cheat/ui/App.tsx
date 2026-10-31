@@ -58,6 +58,7 @@ import { bootstrapGameEditSession, diskStateFromSession, ensureGameEditDiskAppli
 import { publishRemoteHotkeys, syncRemoteMirror } from '../session/remote-bridge'
 import { FloatingMiniMap } from './FloatingMiniMap'
 import { FloatingPanelDock } from './FloatingPanelDock'
+import { FloatingShortcuts } from './FloatingShortcuts'
 import { createPluginGameToolTransport } from './game-tool-transport'
 import { useOverlayEvents } from './useOverlayEvents'
 import { useOverlaySaveData } from './useOverlaySaveData'
@@ -280,6 +281,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
         node instanceof HTMLElement && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.tagName === 'SELECT' || node.isContentEditable)
 
       const path = typeof ev.composedPath === 'function' ? ev.composedPath() : []
+      if (path.some((node) => node instanceof HTMLElement && node.hasAttribute('data-floating-ball'))) return
       let focusedInput: HTMLElement | null = null
       for (const node of path) {
         if (isField(node)) {
@@ -644,6 +646,9 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
       />
       <FloatingGameSaves settings={toolSettings.settings} tools={toolSettings} />
       <FloatingPanelDock tools={toolSettings} />
+      {toolSettings.loaded && !toolSettings.unavailable ? (
+        <FloatingShortcuts settings={toolSettings.settings} onClose={onRequestClose} onRunFields={(fields) => setSession((prev) => ({ ...prev, ...fields }))} />
+      ) : null}
       {hasOpened ? (
         <Activity mode={open ? 'visible' : 'hidden'}>
           <Suspense fallback={<EditTableSkeleton label={t('edit.loadPanel')} />}>

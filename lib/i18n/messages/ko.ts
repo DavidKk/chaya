@@ -7,6 +7,7 @@ import { debugKo } from '@/lib/i18n/messages/parts/debug'
 import { downloadsKo } from '@/lib/i18n/messages/parts/downloads'
 import { editKo } from '@/lib/i18n/messages/parts/edit.ko'
 import { eventsKo } from '@/lib/i18n/messages/parts/events.ko'
+import { floatingBallKo } from '@/lib/i18n/messages/parts/floating-ball'
 import { integrationKo } from '@/lib/i18n/messages/parts/integration'
 import { legalKo } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayKo } from '@/lib/i18n/messages/parts/mcp-gateway'
@@ -322,6 +323,7 @@ const base = {
 } as const
 
 export const ko: MessageTree = {
+  floatingBall: floatingBallKo,
   debug: debugKo,
   ...base,
   ...translateKo,

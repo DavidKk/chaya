@@ -9,11 +9,20 @@ type NativeWindow = Window & {
 }
 const listeners = new Set<(message: GameLinkMessage) => void>()
 
-export function postToGame(message: GameLinkMessage): void {
+function nativeSender() {
   const host = window as NativeWindow
-  const send = host.webkit?.messageHandlers?.chaya?.postMessage.bind(host.webkit.messageHandlers.chaya) ?? host.chrome?.webview?.postMessage.bind(host.chrome.webview)
+  return host.webkit?.messageHandlers?.chaya?.postMessage.bind(host.webkit.messageHandlers.chaya) ?? host.chrome?.webview?.postMessage.bind(host.chrome.webview)
+}
+
+export function postToGame(message: GameLinkMessage): void {
+  const send = nativeSender()
   if (!send) throw new Error('Chaya RGSS native host is unavailable')
   send(encodeGameLinkMessage(message))
+}
+
+/** Blurring WebKit alone does not return AppKit's first responder to the game. */
+export function restoreGameFocus(): void {
+  nativeSender()?.(JSON.stringify({ type: 'host.overlay', open: false }))
 }
 
 export function onGameMessage(handler: (message: GameLinkMessage) => void): () => void {

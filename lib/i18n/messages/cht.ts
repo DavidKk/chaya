@@ -1,8 +1,10 @@
 import { debugCht } from '@/lib/i18n/messages/parts/debug'
+import { floatingBallCht } from '@/lib/i18n/messages/parts/floating-ball'
 import { mcpGatewayCht } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const cht: MessageTree = {
+  floatingBall: floatingBallCht,
   debug: debugCht,
   locale: {
     label: '語言',

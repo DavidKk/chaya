@@ -272,6 +272,12 @@ export function scheduleSaveGameEditDisk(state: GameEditDiskState) {
   }, 400)
 }
 
+/** Shortcuts can run before the workbench bootstraps; preserve locks and hotkeys. */
+export function scheduleSaveRunFlag(key: RunFlagKey, value: boolean) {
+  const current = pending ?? loadGameEditDisk() ?? { version: 1 as const, run: {}, locks: {}, hotkeys: hotkeySnapshot }
+  scheduleSaveGameEditDisk({ ...current, run: { ...current.run, [key]: value } })
+}
+
 /** Load: 本游戏覆盖来自盘；全局来自 localStorage；本游戏未设则运行时用全局 */
 export function bootstrapGameEditSession(): SessionState {
   const disk = loadGameEditDisk()
