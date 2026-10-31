@@ -94,14 +94,17 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     const saveBtn = host.querySelector('button[aria-label="存档"]')
     const loadBtn = host.querySelector('button[aria-label="读档"]')
     const autoTalkBtn = host.querySelector('button[aria-label="自动对话"]') as HTMLButtonElement
-    const consoleBtn = host.querySelector('button[aria-label="控制台"]') as HTMLButtonElement
-
     expect(itemBtn).not.toBeNull()
     expect(equipBtn).not.toBeNull()
     expect(saveBtn).not.toBeNull()
     expect(loadBtn).not.toBeNull()
     expect(autoTalkBtn).not.toBeNull()
-    expect(consoleBtn).not.toBeNull()
+
+    // Console and Menu are dedicated elsewhere and excluded from floating shortcuts dock
+    const consoleBtn = host.querySelector('button[data-action="console"]')
+    const menuBtnInDock = host.querySelector('button[data-action="key:menu"]')
+    expect(consoleBtn).toBeNull()
+    expect(menuBtnInDock).toBeNull()
 
     // Tap backpack shortcut
     act(() => {
@@ -122,16 +125,15 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     expect(onAction).toHaveBeenCalledWith('flag:autotalk')
     expect(host.querySelector('button[aria-label="自动对话"]')).toBeNull()
 
-    // Re-open and tap console
+    // Re-open and tap center ball again to collapse without dragging
     act(() => {
       configBtn.click()
     })
-    const consoleBtn2 = host.querySelector('button[aria-label="控制台"]') as HTMLButtonElement
+    expect(host.querySelector('button[aria-label="背包"]')).not.toBeNull()
     act(() => {
-      consoleBtn2.click()
+      configBtn.click()
     })
-    expect(onOpenDrawer).toHaveBeenCalled()
-    expect(host.querySelector('button[aria-label="控制台"]')).toBeNull()
+    expect(host.querySelector('button[aria-label="背包"]')).toBeNull()
   })
 
   it('handles action button press and release', () => {

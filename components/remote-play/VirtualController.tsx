@@ -36,7 +36,7 @@ type Direction = 'up' | 'down' | 'left' | 'right'
 const DEADZONE = 7
 const THRESHOLD = 0.38
 
-const SATELLITE_ORBIT_ANGLES = [110, 138, 166, 194, 222, 250] // Degrees fanning left into screen
+const SATELLITE_ORBIT_ANGLES = [110, 145, 180, 215, 250] // 5 satellite items fanning inwards
 
 export function VirtualController({
   onInput,
@@ -85,13 +85,15 @@ export function VirtualController({
         const clampedRatio = Math.max(0.12, Math.min(0.82, isNaN(ratio) ? 0.45 : ratio))
 
         const targetY = Math.round(window.innerHeight * clampedRatio)
-        const targetX = savedSide === 'left' ? 14 : Math.max(14, window.innerWidth - ballSize - 14)
+        const edgeMargin = isPortrait ? 22 : 26
+        const targetX = savedSide === 'left' ? edgeMargin : Math.max(edgeMargin, window.innerWidth - ballSize - edgeMargin)
 
         setBallSide(savedSide)
         setBallPos({ x: targetX, y: targetY })
       } catch {
         setBallSide('right')
-        setBallPos({ x: Math.max(14, window.innerWidth - ballSize - 14), y: Math.round(window.innerHeight * 0.45) })
+        const edgeMargin = isPortrait ? 22 : 26
+        setBallPos({ x: Math.max(edgeMargin, window.innerWidth - ballSize - edgeMargin), y: Math.round(window.innerHeight * 0.45) })
       }
     }
 
@@ -129,13 +131,19 @@ export function VirtualController({
   const handleBallPointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    resetBallIdleTimer()
+    ballMovedDistRef.current = 0
+
+    // When shortcuts are expanded, lock dragging to prevent accidental movement
+    if (shortcutsExpanded) {
+      return
+    }
+
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
     } catch {
       /* ignore */
     }
-    resetBallIdleTimer()
-    ballMovedDistRef.current = 0
     ballDragStartRef.current = {
       clientX: e.clientX,
       clientY: e.clientY,
@@ -151,7 +159,8 @@ export function VirtualController({
     const dy = e.clientY - ballDragStartRef.current.clientY
     ballMovedDistRef.current = Math.hypot(dx, dy)
 
-    const nextX = Math.max(6, Math.min(window.innerWidth - ballSize - 6, ballDragStartRef.current.startX + dx))
+    const edgeMargin = isPortrait ? 22 : 26
+    const nextX = Math.max(edgeMargin, Math.min(window.innerWidth - ballSize - edgeMargin, ballDragStartRef.current.startX + dx))
     const nextY = Math.max(48, Math.min(window.innerHeight - ballSize - 54, ballDragStartRef.current.startY + dy))
     setBallPos({ x: nextX, y: nextY })
   }
@@ -179,7 +188,8 @@ export function VirtualController({
     const midX = window.innerWidth / 2
     const currentCx = ballPos.x + ballSize / 2
     const snappedSide: 'left' | 'right' = currentCx < midX ? 'left' : 'right'
-    const snappedX = snappedSide === 'left' ? 14 : Math.max(14, window.innerWidth - ballSize - 14)
+    const edgeMargin = isPortrait ? 22 : 26
+    const snappedX = snappedSide === 'left' ? edgeMargin : Math.max(edgeMargin, window.innerWidth - ballSize - edgeMargin)
     const clampedY = Math.max(48, Math.min(window.innerHeight - ballSize - 54, ballPos.y))
 
     setBallSide(snappedSide)
@@ -383,10 +393,9 @@ export function VirtualController({
     { id: 'scene:save', label: '存档', icon: LuSave, color: 'text-emerald-400', border: 'border-emerald-400/40 bg-neutral-900/90' },
     { id: 'scene:load', label: '读档', icon: LuFolderOpen, color: 'text-sky-400', border: 'border-sky-400/40 bg-neutral-900/90' },
     { id: 'flag:autotalk', label: '自动对话', icon: LuMessageSquareText, color: 'text-cyan-400', border: autoTalk ? 'border-sky-400 bg-sky-950/90 text-sky-200' : 'border-cyan-400/40 bg-neutral-900/90' },
-    { id: 'console', label: '控制台', icon: LuSlidersHorizontal, color: 'text-purple-400', border: 'border-purple-400/40 bg-neutral-900/90' },
   ]
 
-  const orbitRadius = isPortrait ? 64 : 58
+  const orbitRadius = isPortrait ? 72 : 64
 
   return (
     <>
@@ -424,15 +433,7 @@ export function VirtualController({
                   key={sat.id}
                   type="button"
                   data-action={sat.id}
-                  onClick={() => {
-                    if (sat.id === 'console') {
-                      triggerHaptic('medium')
-                      setShortcutsExpanded(false)
-                      onOpenDrawer?.()
-                    } else {
-                      handleShortcutClick(sat.id)
-                    }
-                  }}
+                  onClick={() => handleShortcutClick(sat.id)}
                   style={{
                     left: `${ballSize / 2}px`,
                     top: `${ballSize / 2}px`,
@@ -457,9 +458,15 @@ export function VirtualController({
           onPointerUp={handleBallPointerUp}
           onPointerCancel={handleBallPointerUp}
           onClick={() => {
+            if (shortcutsExpanded) {
+              triggerHaptic('selection')
+              setShortcutsExpanded(false)
+              resetBallIdleTimer()
+              return
+            }
             if (ballMovedDistRef.current < 7) {
               triggerHaptic('selection')
-              setShortcutsExpanded((prev) => !prev)
+              setShortcutsExpanded(true)
               resetBallIdleTimer()
             }
           }}
