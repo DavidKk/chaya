@@ -33,6 +33,7 @@ import {
   upsertLibraryEntry,
 } from '@/services/game'
 import { acceptGameBindEpoch, peekGameBindEpoch } from '@/services/game/bind-epoch'
+import { isAnyGameProcessRunning, terminateAllRunningGameProcesses } from '@/services/game/game-process'
 import { detectRgssPlugins, detectRgssPluginsOutdated } from '@/services/game/rgss-plugins'
 import { rgssRuntimeStatus } from '@/services/game/rgss-runtime'
 import { anyWebConnected, detectLanApiBases, getGamePresence, preferredPluginApiBase, toolkitListenPort } from '@/services/runtime'
@@ -41,13 +42,15 @@ import { gameCacheFileStats } from '@/services/translate/cache-file-stats'
 
 export const runtime = 'nodejs'
 
-function runtimePayload() {
+function runtimePayload(contentRoot?: string) {
   const port = toolkitListenPort()
   const presence = getGamePresence()
-  // 权威在线：WebRTC DataChannel；HTTP presence 仅作兼容/远程入库痕迹
-  const gameOnline = anyWebConnected() || presence.online
+  const processAlive = isAnyGameProcessRunning(contentRoot)
+  // 权威在线：WebRTC DataChannel；HTTP presence 或本地进程存活
+  const gameOnline = anyWebConnected() || presence.online || processAlive
   return {
     gameOnline,
+    processAlive,
     presence,
     apiBase: preferredPluginApiBase(port),
     lanBases: detectLanApiBases(port),
@@ -214,7 +217,7 @@ export const GET = defineApiRoute('get:/api/status', async ({ request }) => {
     pluginsOutdated: pluginsReady >= plugins.length && (rgss ? detectRgssPluginsOutdated(resolved.contentRoot) : detectPluginsOutdated(resolved.contentRoot)),
     translateSwitches: switches,
     nwPackage,
-    runtime: rgss ? { ...runtimePayload(), gameOnline: rgssRuntimeStatus(resolved.contentRoot).running, native: rgssRuntimeStatus(resolved.contentRoot) } : runtimePayload(),
+    runtime: rgss ? { ...runtimePayload(resolved.contentRoot), gameOnline: rgssRuntimeStatus(resolved.contentRoot).running, native: rgssRuntimeStatus(resolved.contentRoot) } : runtimePayload(resolved.contentRoot),
     host: platformPayload(),
   }
 })
@@ -315,6 +318,10 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
         bindEpoch: epochGate.epoch,
         unchanged: true,
       })
+    }
+    // 切换游戏不能再运行，必须关闭之前的游戏
+    if (!pathEquals(prev.gameRoot, check.selected)) {
+      await terminateAllRunningGameProcesses()
     }
     const fingerprint = getGameFingerprint(check)
     const name = resolveDisplayName(check.contentRoot, input, fingerprint?.system?.gameTitle)

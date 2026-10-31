@@ -52,7 +52,7 @@ describe('RemotePlayView Launcher & UI refinements', () => {
       root.render(<RemotePlayView initialRoomId="game-1" />)
     })
 
-    const reloadBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('清理重载'))
+    const reloadBtn = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '清理重载')
     expect(reloadBtn).toBeDefined()
   })
 
@@ -66,9 +66,8 @@ describe('RemotePlayView Launcher & UI refinements', () => {
       await Promise.resolve()
     })
 
-    expect(host.textContent).toContain('游戏未运行 · 待拉起')
     expect(host.textContent).toContain('勇者传说')
-    expect(host.textContent).toContain('启动游戏并连入串流')
+    expect(host.textContent).toContain('启动游戏')
     expect(host.textContent).toContain('切换游戏')
   })
 

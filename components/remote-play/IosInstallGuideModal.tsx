@@ -134,17 +134,6 @@ export function IosInstallGuideModal({
             </>
           )}
         </div>
-
-        {/* Footer */}
-        <div className="pt-2 border-t border-white/10 flex justify-end shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 items-center justify-center rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-500 active:scale-95 transition-all"
-          >
-            我知道了
-          </button>
-        </div>
       </div>
     </div>
   )

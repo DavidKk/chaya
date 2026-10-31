@@ -13,6 +13,8 @@ import {
 } from '@/services/disk-ops'
 import { findRunningJob } from '@/services/downloads/jobs'
 import { ensureGameAppIcon, updateSharedMacAppIcon } from '@/services/game/app-icon'
+import { findRunningGameProcesses, terminateAllRunningGameProcesses } from '@/services/game/game-process'
+import { pathEquals } from '@/services/game/library'
 import { launchRgss, quitRgss } from '@/services/game/rgss-runtime'
 import { anyWebConnected, clearGameQuitRequest, getGamePresence, preferredPluginApiBase, requestGameQuit, toolkitListenPort, writeLaunchEnv } from '@/services/runtime'
 
@@ -29,6 +31,8 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
   if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
     if (findRunningJob('rgss-shell')) return apiError(409, 'SHELL_JOB_RUNNING', 'mkxp-z installation is in progress')
     if (!resolved.hasShell) return apiBadRequest('Install the native mkxp-z runtime to launch VX / VX Ace on macOS', 'RGSS_RUNTIME_MISSING')
+    // 启动前若有其他运行中的游戏，先关闭
+    await terminateAllRunningGameProcesses()
     try {
       return apiOk(await launchRgss(resolved))
     } catch (error) {
@@ -40,8 +44,31 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
     return apiError(409, 'SHELL_JOB_RUNNING', 'Downloading and installing NW.js, please wait until the download center task finishes before launching')
   }
 
-  if (anyWebConnected()) {
-    return apiBadRequest('Game is already running (WebRTC connected)', 'ALREADY_RUNNING')
+  const runningProcesses = findRunningGameProcesses()
+  const targetContentRoot = resolved.ok ? resolved.contentRoot : undefined
+  const targetShellApp = resolved.ok ? resolved.shellApp : ''
+  const isSameGameRunning = runningProcesses.some(
+    (p) => !targetContentRoot || !p.contentRoot || pathEquals(p.contentRoot, targetContentRoot)
+  )
+  const presence = getGamePresence()
+  const isSamePresenceOnline = presence.online && (!targetContentRoot || !presence.contentRoot || pathEquals(presence.contentRoot, targetContentRoot))
+
+  // 游戏如果已经启动了但是没有被识别则不要再开游戏，直接返回就绪进入串流
+  if (isSameGameRunning || anyWebConnected() || isSamePresenceOnline) {
+    const apiBase = preferredPluginApiBase(toolkitListenPort())
+    return apiOk({
+      path: targetShellApp,
+      contentRoot: targetContentRoot,
+      mode: 'already-running',
+      alreadyRunning: true,
+      apiBase,
+    })
+  }
+
+  // 切换或启动新游戏：不能同时运行多个，必须先关闭之前运行的游戏
+  if (runningProcesses.length > 0) {
+    await terminateAllRunningGameProcesses()
+    await new Promise((resolve) => setTimeout(resolve, 500))
   }
   clearGameQuitRequest()
 
@@ -131,13 +158,11 @@ export const DELETE = defineApiRoute('delete:/api/launch', async () => {
 
   const resolved = getResolvedFromConfig()
   if (resolved.ok && !resolved.remote && (resolved.engine === 'VX Ace' || resolved.engine === 'VX')) {
-    return quitRgss(resolved.contentRoot) ? apiOk({ quit: true }) : apiBadRequest('No managed RGSS game is running', 'NOT_RUNNING')
+    quitRgss(resolved.contentRoot)
   }
 
-  if (!anyWebConnected() && !getGamePresence().online) {
-    clearGameQuitRequest()
-    return apiBadRequest('No active game session online', 'NOT_RUNNING')
-  }
+  await terminateAllRunningGameProcesses()
+  clearGameQuitRequest()
   const next = requestGameQuit()
   return apiOk({ quit: true, presence: next })
 })

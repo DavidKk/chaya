@@ -316,11 +316,11 @@ export function RemoteCheatDrawer({
         </div>
 
         {/* Tab switch */}
-        <div className="mt-1.5 flex rounded-lg bg-neutral-950 p-0.5 border border-neutral-800 shrink-0">
+        <div className="mt-1.5 flex gap-2 rounded-xl bg-neutral-950 p-1 border border-neutral-800 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('cheat')}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1 text-xs font-semibold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
               activeTab === 'cheat'
                 ? 'bg-neutral-800 text-emerald-400 shadow-sm border border-emerald-500/30'
                 : 'text-neutral-400 hover:text-white'
@@ -332,7 +332,7 @@ export function RemoteCheatDrawer({
           <button
             type="button"
             onClick={() => setActiveTab('logs')}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1 text-xs font-semibold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
               activeTab === 'logs'
                 ? 'bg-neutral-800 text-sky-400 shadow-sm border border-sky-500/30'
                 : 'text-neutral-400 hover:text-white'

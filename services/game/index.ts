@@ -3,6 +3,7 @@ export { CONFIG_FILE, loadConfig, saveConfig } from './config'
 export { formatBytes, measureDirSizeBytes } from './disk-size'
 export { launchShellWithContent, openInFinder, revealInFinder } from './finder'
 export { collectGameFingerprint, getGameFingerprint, getGameFingerprintSummary } from './fingerprint'
+export { findRunningGameProcesses, isAnyGameProcessRunning, type RunningGameProcess, terminateAllRunningGameProcesses } from './game-process'
 export {
   displayNameFromPath,
   findLibraryEntry,

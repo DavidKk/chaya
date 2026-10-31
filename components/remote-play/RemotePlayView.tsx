@@ -455,6 +455,15 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         return
       }
 
+      if (data.alreadyRunning) {
+        remotePlayLogger.ok('检测到游戏已在运行，直接连入 WebRTC 串流')
+        showStatusToast('connecting', '检测到游戏已在运行，正在接入…', 3000)
+        setGameOnline(true)
+        setIsLaunching(false)
+        connect(true)
+        return
+      }
+
       remotePlayLogger.ok('游戏进程已拉起，等待 WebRTC 串流就绪…')
       showStatusToast('connecting', '游戏已拉起，等待就绪…', 6000)
 
@@ -497,6 +506,12 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const handleSelectGame = useCallback(
     async (game: LibraryItem) => {
       remotePlayLogger.info(`切换目标游戏至: ${game.name} (${game.gameRoot})`)
+      // 切换游戏：重置连接并置为断开
+      clearReconnectTimers()
+      linkRef.current?.stop()
+      linkRef.current = null
+      setStatus('disconnected')
+      setGameOnline(false)
       try {
         const res = await fetch('/api/status', {
           method: 'PUT',
@@ -1163,7 +1178,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             {isPortrait ? (
               /* Portrait: Top Tab Bar + Scrollable Content */
               <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-950/70 border-b border-white/10 shrink-0">
+                <div className="grid grid-cols-4 gap-2 p-1.5 bg-neutral-950/70 border-b border-white/10 shrink-0">
                   <button
                     type="button"
                     onClick={() => setMenuTab('gamepad')}
@@ -1221,7 +1236,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             ) : (
               /* Landscape: Left Sidebar Tabs + Right Scrollable Content */
               <div className="flex flex-row flex-1 min-h-0 overflow-hidden">
-                <div className="w-32 shrink-0 border-r border-white/10 p-2 space-y-1 bg-neutral-950/60 flex flex-col justify-start">
+                <div className="w-32 shrink-0 border-r border-white/10 p-2 space-y-2 bg-neutral-950/60 flex flex-col justify-start">
                   <button
                     type="button"
                     onClick={() => setMenuTab('gamepad')}
@@ -1306,11 +1321,11 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             <button
               type="button"
               onClick={handleClearCacheAndReload}
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-neutral-900/80 px-3 py-1.5 text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 backdrop-blur-md active:scale-95 transition-all shadow-md"
-              title="清理本地所有缓存并硬刷新页面"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-neutral-900/80 text-sky-400 hover:text-white hover:bg-neutral-800 backdrop-blur-md active:scale-90 transition-all shadow-md"
+              title="清理缓存并重载"
+              aria-label="清理重载"
             >
-              <LuRotateCcw size={12} className="text-sky-400" />
-              <span>清理重载</span>
+              <LuRotateCcw size={15} />
             </button>
           </div>
 
@@ -1375,61 +1390,115 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 </p>
               </div>
             ) : gameOnline === false ? (
-              <div className="flex flex-col items-center gap-3 w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
-                {/* Current Game Card */}
-                <div className="flex items-center justify-between w-full rounded-2xl border border-white/15 bg-neutral-900/85 px-4 py-2.5 backdrop-blur-md shadow-xl">
-                  <div className="flex flex-col min-w-0 pr-2">
-                    <span className="text-[10px] text-neutral-400 flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                      <span>游戏未运行 · 待拉起</span>
-                    </span>
-                    <span className="text-xs sm:text-sm font-bold text-white truncate">
-                      {selectedGame?.name || 'RPG Maker 游戏'}
-                    </span>
-                  </div>
+              <div
+                className={`w-full animate-in fade-in zoom-in-95 duration-200 ${
+                  isPortrait
+                    ? 'flex flex-col items-center gap-3 max-w-sm'
+                    : 'flex items-center justify-between gap-3 max-w-2xl rounded-2xl border border-white/15 bg-neutral-900/90 px-4 py-2 backdrop-blur-md shadow-xl'
+                }`}
+              >
+                {isPortrait ? (
+                  <>
+                    {/* Current Game Card */}
+                    <div className="flex items-center justify-between w-full rounded-2xl border border-white/15 bg-neutral-900/85 px-4 py-2.5 backdrop-blur-md shadow-xl">
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="text-[10px] text-neutral-400 flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                          <span>游戏未运行 · 待拉起</span>
+                        </span>
+                        <span className="text-xs sm:text-sm font-bold text-white truncate">
+                          {selectedGame?.name || 'RPG Maker 游戏'}
+                        </span>
+                      </div>
 
-                  {library.length > 0 && (
+                      {library.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setGameSelectorOpen(true)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-neutral-300 hover:bg-white/10 hover:text-white shrink-0 active:scale-95 transition-all"
+                        >
+                          <LuGamepad2 size={13} className="text-emerald-400" />
+                          <span>切换游戏</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Prominent Launch CTA Button */}
                     <button
                       type="button"
-                      onClick={() => setGameSelectorOpen(true)}
-                      className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-neutral-300 hover:bg-white/10 hover:text-white shrink-0 active:scale-95 transition-all"
+                      onClick={handleLaunchGame}
+                      className="inline-flex items-center justify-center gap-2 w-full rounded-full border border-emerald-400/50 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 py-3 text-sm font-black text-white shadow-[0_0_24px_rgba(16,185,129,0.5)] hover:brightness-110 active:scale-95 transition-all"
                     >
-                      <LuGamepad2 size={13} className="text-emerald-400" />
-                      <span>切换游戏</span>
+                      <LuPlay size={15} className="fill-white" />
+                      <span>启动游戏并连入串流</span>
                     </button>
-                  )}
-                </div>
 
-                {/* Prominent Launch CTA Button */}
-                <button
-                  type="button"
-                  onClick={handleLaunchGame}
-                  className="inline-flex items-center justify-center gap-2 w-full rounded-full border border-emerald-400/50 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 py-3 text-sm font-black text-white shadow-[0_0_24px_rgba(16,185,129,0.5)] hover:brightness-110 active:scale-95 transition-all"
-                >
-                  <LuPlay size={15} className="fill-white" />
-                  <span>启动游戏并连入串流</span>
-                </button>
+                    <div className="flex items-center justify-center gap-4 text-xs pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => connect(true)}
+                        className="text-neutral-400 hover:text-neutral-200 text-[11px] underline underline-offset-2 transition-colors"
+                      >
+                        直接尝试连接
+                      </button>
+                      <span className="text-neutral-600">·</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDrawerTab('logs')
+                          setDrawerOpen(true)
+                        }}
+                        className="text-neutral-400 hover:text-neutral-200 text-[11px] transition-colors"
+                      >
+                        诊断日志
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  /* Landscape: Single Line (一行) */
+                  <>
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0 animate-pulse" />
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs font-bold text-white truncate max-w-[200px]">
+                          {selectedGame?.name || 'RPG Maker 游戏'}
+                        </span>
+                        <span className="text-[10px] text-neutral-400 shrink-0">待启动</span>
+                      </div>
+                    </div>
 
-                <div className="flex items-center justify-center gap-4 text-xs pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => connect(true)}
-                    className="text-neutral-400 hover:text-neutral-200 text-[11px] underline underline-offset-2 transition-colors"
-                  >
-                    直接尝试连接
-                  </button>
-                  <span className="text-neutral-600">·</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDrawerTab('logs')
-                      setDrawerOpen(true)
-                    }}
-                    className="text-neutral-400 hover:text-neutral-200 text-[11px] transition-colors"
-                  >
-                    诊断日志
-                  </button>
-                </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {library.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setGameSelectorOpen(true)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-neutral-300 hover:bg-white/10 hover:text-white shrink-0 active:scale-95 transition-all"
+                        >
+                          <LuGamepad2 size={13} className="text-emerald-400" />
+                          <span>切换游戏</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleLaunchGame}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-400/50 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-4 py-1.5 text-xs font-bold text-white shadow-[0_0_16px_rgba(16,185,129,0.4)] hover:brightness-110 active:scale-95 transition-all"
+                      >
+                        <LuPlay size={13} className="fill-white" />
+                        <span>启动游戏</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => connect(true)}
+                        className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-neutral-300 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
+                        title="直接尝试连接"
+                      >
+                        直接连接
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : !isCancelled ? (
               <div className="flex flex-col items-center gap-2">
@@ -1537,7 +1606,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           onClick={() => setGameSelectorOpen(false)}
         >
           <div
-            className="relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden w-full max-w-sm max-h-[80vh]"
+            className={`relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden ${
+              isPortrait ? 'w-full max-w-sm max-h-[80vh]' : 'w-full max-w-xl max-h-[85vh]'
+            }`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header: Centered title, compressed height, clean icon button */}
@@ -1556,7 +1627,11 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             </div>
 
             {/* List */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+            <div
+              className={`flex-1 min-h-0 overflow-y-auto p-3 ${
+                isPortrait ? 'space-y-2' : 'grid grid-cols-2 gap-2'
+              }`}
+            >
               {library.map((item) => {
                 const isSelected = selectedGame?.gameRoot === item.gameRoot || selectedGame?.id === item.id
                 return (
