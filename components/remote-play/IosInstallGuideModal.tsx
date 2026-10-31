@@ -2,9 +2,7 @@
 
 import {
   LuCheck,
-  LuMaximize2,
   LuShare,
-  LuSmartphone,
   LuSparkles,
   LuSquarePlus,
   LuX,
@@ -28,36 +26,32 @@ export function IosInstallGuideModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="ios-guide-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/80 backdrop-blur-sm select-none"
+      style={{
+        paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+        paddingRight: 'max(1rem, env(safe-area-inset-right))',
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm select-none"
       onClick={onClose}
     >
       <div
-        className="relative flex flex-col w-[94vw] max-w-xl rounded-2xl border border-white/15 bg-neutral-900/95 p-3.5 sm:p-4 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+        className="relative flex flex-col w-full max-w-xl rounded-2xl border border-white/15 bg-neutral-900/95 p-3.5 sm:p-4 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
         style={{ maxHeight: 'min(380px, 88vh)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-2.5 border-b border-white/10 shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-md">
-              <LuMaximize2 size={13} />
-            </div>
-            <div>
-              <h3 id="ios-guide-title" className="text-xs sm:text-sm font-bold text-white">
-                {isStandalone ? '已处于独立全屏模式' : 'iOS Safari 全屏指引'}
-              </h3>
-              <p className="text-[10px] text-neutral-400">
-                {isStandalone ? '当前等同于原生全屏' : '添加到主屏幕解锁 100% 满屏'}
-              </p>
-            </div>
-          </div>
+        {/* Header: Centered title, no icon, no orientation badges, clean icon button */}
+        <div className="relative flex items-center justify-center py-2 px-10 border-b border-white/10 shrink-0">
+          <h3 id="ios-guide-title" className="text-xs sm:text-sm font-bold text-white text-center">
+            {isStandalone ? '已处于独立全屏模式' : 'iOS Safari 添加到主屏幕指引'}
+          </h3>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
             aria-label="关闭"
           >
-            <LuX size={14} />
+            <LuX size={16} />
           </button>
         </div>
 
@@ -111,17 +105,22 @@ export function IosInstallGuideModal({
                   </div>
                 </div>
 
-                {/* Step 3 */}
+                {/* Step 3: Real app icon preview with Chaya Play title */}
                 <div className="flex items-start gap-2.5 rounded-xl border border-white/5 bg-white/[0.03] p-2.5">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-purple-500/20 text-purple-400">
-                    <LuSmartphone size={15} />
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg overflow-hidden bg-neutral-950 border border-white/10 shadow-sm mt-0.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/brand/chaya-app-icon.png"
+                      alt="Chaya Play 图标"
+                      className="h-full w-full object-cover"
+                    />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-white text-[12px]">
-                      3. 从手机桌面打开游戏
+                    <div className="font-semibold text-white text-[12px] flex items-center gap-1.5">
+                      <span>3. 确认名称为「Chaya Play」</span>
                     </div>
                     <div className="text-[11px] text-neutral-400 leading-normal mt-0.5">
-                      确认名称并点击添加，随后在主屏点击图标即可全屏横屏游玩。
+                      点击添加后从手机主屏打开，将直接以全屏 App 状态运行。
                     </div>
                   </div>
                 </div>

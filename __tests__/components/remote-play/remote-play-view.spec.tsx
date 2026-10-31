@@ -72,7 +72,7 @@ describe('RemotePlayView Launcher & UI refinements', () => {
     expect(host.textContent).toContain('切换游戏')
   })
 
-  it('opens game selector modal when clicking switch game', async () => {
+  it('opens game selector modal with safe padding and centered title', async () => {
     await act(async () => {
       root.render(<RemotePlayView initialRoomId="game-1" />)
     })
@@ -90,7 +90,16 @@ describe('RemotePlayView Launcher & UI refinements', () => {
     expect(host.textContent).toContain('可运行游戏列表')
     expect(host.textContent).toContain('勇者传说')
     expect(host.textContent).toContain('魔法少女')
-    // Compact header and no "Chaya"
-    expect(host.textContent).not.toContain('Chaya 可运行游戏列表')
+
+    // Verify modal overlay has safe-area-inset padding for Dynamic Island
+    const dialog = host.querySelector('div[role="dialog"]') as HTMLDivElement
+    expect(dialog).not.toBeNull()
+    expect(dialog.style.paddingLeft).toContain('safe-area-inset-left')
+    expect(dialog.style.paddingRight).toContain('safe-area-inset-right')
+
+    // Verify header title is centered and close button is an icon button
+    const closeBtn = dialog.querySelector('button[aria-label="关闭"]') as HTMLButtonElement
+    expect(closeBtn).not.toBeNull()
+    expect(closeBtn.className).toContain('absolute right-3')
   })
 })

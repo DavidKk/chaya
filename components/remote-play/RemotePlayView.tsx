@@ -75,6 +75,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
   // Unified Menu Modal (Single Button trigger)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [menuTab, setMenuTab] = useState<'gamepad' | 'quick' | 'display' | 'system'>('gamepad')
 
   // Control Mode: fixed, touch, dynamic
   const [controlMode, setControlMode] = useState<ControlMode>('fixed')
@@ -706,6 +707,224 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
   const effectiveIdle = isIdle && status === 'connected' && !drawerOpen && !menuOpen
 
+  const renderTabContent = () => {
+    switch (menuTab) {
+      case 'gamepad':
+        return (
+          <div className="space-y-3">
+            <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+              操作控制模式
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-neutral-950/70 border border-white/5">
+              <button
+                type="button"
+                onClick={() => handleSelectControlMode('fixed')}
+                className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
+                  controlMode === 'fixed'
+                    ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <LuGamepad2 size={16} />
+                <span className="text-[11px] whitespace-nowrap">固定手柄</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectControlMode('touch')}
+                className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
+                  controlMode === 'touch'
+                    ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <LuMousePointer2 size={16} />
+                <span className="text-[11px] whitespace-nowrap">屏幕触摸</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectControlMode('dynamic')}
+                className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
+                  controlMode === 'dynamic'
+                    ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <LuCompass size={16} />
+                <span className="text-[11px] whitespace-nowrap">自由摇杆</span>
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-[11px] text-neutral-400 leading-relaxed">
+              {controlMode === 'fixed' && '固定手柄：左下角固定虚拟摇杆，右侧动作按键。'}
+              {controlMode === 'touch' && '屏幕触摸：隐藏所有虚拟按键，触屏点击作为鼠标/触控操作。'}
+              {controlMode === 'dynamic' && '自由摇杆：在左半屏任意处触屏下压，即刻在该位置生成摇杆。'}
+            </div>
+          </div>
+        )
+      case 'quick':
+        return (
+          <div className="space-y-2 text-xs">
+            <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
+              局内控制与诊断
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setDrawerTab('cheat')
+                setDrawerOpen(true)
+                setMenuOpen(false)
+              }}
+              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3.5 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <LuSparkles size={16} className="text-amber-400 shrink-0" />
+                <span className="font-semibold whitespace-nowrap">局内控制台 (常用修改)</span>
+              </span>
+              <span className="text-[11px] text-neutral-400">打开面板</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setDrawerTab('logs')
+                setDrawerOpen(true)
+                setMenuOpen(false)
+              }}
+              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3.5 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <LuScrollText size={16} className="text-sky-400 shrink-0" />
+                <span className="font-semibold whitespace-nowrap">运行与诊断日志</span>
+              </span>
+              <span className="text-[11px] text-neutral-400">查看日志</span>
+            </button>
+          </div>
+        )
+      case 'display':
+        return (
+          <div className="space-y-2 text-xs">
+            <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
+              声音与画面设置
+            </div>
+            <button
+              type="button"
+              onClick={muted ? handleUnmute : () => setMuted(true)}
+              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                {muted ? (
+                  <LuVolumeX size={15} className="text-amber-400 shrink-0" />
+                ) : (
+                  <LuVolume2 size={15} className="text-emerald-400 shrink-0" />
+                )}
+                <span className="whitespace-nowrap shrink-0">声音输出</span>
+              </span>
+              <span className={`text-[10px] font-semibold ${muted ? 'text-amber-300' : 'text-emerald-400'}`}>
+                {muted ? '已静音 (点击开声)' : '已开启'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleFitMode}
+              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <LuScaling size={15} className="text-sky-400 shrink-0" />
+                <span className="whitespace-nowrap shrink-0">画面缩放模式</span>
+              </span>
+              <span className="text-[10px] text-sky-300 font-mono">
+                {fitMode === 'cover' ? '铺满全屏' : '等比适应'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleToggleHud}
+              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <LuActivity
+                  size={15}
+                  className={hudVisible ? 'text-emerald-400 shrink-0' : 'text-neutral-500 shrink-0'}
+                />
+                <span className="whitespace-nowrap shrink-0">实时性能 HUD (FPS / 延迟)</span>
+              </span>
+              <span className={`text-[10px] ${hudVisible ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                {hudVisible ? '已显示' : '已隐藏'}
+              </span>
+            </button>
+
+            {!isStandalone && (
+              <button
+                type="button"
+                onClick={() => {
+                  toggleFullscreen()
+                  setMenuOpen(false)
+                }}
+                className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  {isFullscreen ? (
+                    <LuMinimize2 size={15} className="text-emerald-400 shrink-0" />
+                  ) : (
+                    <LuMaximize2 size={15} className="text-neutral-300 shrink-0" />
+                  )}
+                  <span className="whitespace-nowrap shrink-0">全屏显示</span>
+                </span>
+                <span className="text-[10px] text-neutral-400">
+                  {isFullscreen ? '退出全屏' : 'iOS添加主屏幕'}
+                </span>
+              </button>
+            )}
+          </div>
+        )
+      case 'system':
+        return (
+          <div className="space-y-2 text-xs">
+            <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
+              游戏管理与系统偏好
+            </div>
+            {library.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setGameSelectorOpen(true)
+                  setMenuOpen(false)
+                }}
+                className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <LuGamepad2 size={15} className="text-emerald-400 shrink-0" />
+                  <span className="whitespace-nowrap shrink-0 font-medium">切换目标游戏</span>
+                </span>
+                <span className="text-[10px] text-neutral-400 truncate max-w-[130px]">
+                  {selectedGame?.name || '选择游戏'}
+                </span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                void handleClearCacheAndReload()
+              }}
+              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <LuRotateCcw size={15} className="text-amber-400 shrink-0" />
+                <span className="whitespace-nowrap shrink-0 font-medium">清理缓存并重载</span>
+              </span>
+              <span className="text-[10px] text-neutral-400">重置偏好并刷新</span>
+            </button>
+          </div>
+        )
+    }
+  }
+
   return (
     <main
       onPointerDown={handleGlobalPointerDown}
@@ -719,6 +938,11 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         @keyframes chaya-float {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-6px); }
+        }
+        @keyframes dot-glow {
+          0%, 20% { opacity: 0.15; transform: scale(0.85); }
+          50% { opacity: 1; transform: scale(1.1); }
+          80%, 100% { opacity: 0.15; transform: scale(0.85); }
         }
       `}</style>
 
@@ -894,433 +1118,165 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         </>
       )}
 
-      {/* 3. Unified Control Menu Modal */}
+      {/* 3. Unified Control Menu Modal (Safe for Dynamic Island, Sidebar navigation in Landscape, Tab bar in Portrait) */}
       {menuOpen && (
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="menu-title"
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm select-none"
+          style={{
+            paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+            paddingRight: 'max(1rem, env(safe-area-inset-right))',
+            paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+            paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm select-none"
           onClick={() => setMenuOpen(false)}
         >
           <div
             className={`relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden ${
               isPortrait
-                ? 'w-[92vw] max-w-sm max-h-[85vh]'
-                : 'w-[94vw] max-w-2xl'
+                ? 'w-full max-w-sm max-h-[85vh]'
+                : 'w-full max-w-2xl'
             }`}
             style={{
               maxHeight: isPortrait ? '85vh' : 'min(380px, 88vh)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header (Compact) */}
-            <div className="flex items-center justify-between px-3.5 py-2 border-b border-white/10 shrink-0">
-              <div className="flex items-center gap-1.5">
-                <div className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-sm">
-                  <LuSlidersHorizontal size={12} />
-                </div>
-                <h3 id="menu-title" className="text-xs sm:text-sm font-bold text-white whitespace-nowrap shrink-0">
-                  串流控制台
-                </h3>
-                <span className="text-[9px] text-neutral-400 px-1.5 py-0.5 rounded bg-white/5 border border-white/5 shrink-0">
-                  {isPortrait ? '竖屏' : '横屏'}
-                </span>
-              </div>
+            {/* Header: Centered title, no icon, no orientation badges, clean icon button */}
+            <div className="relative flex items-center justify-center py-2 px-10 border-b border-white/10 shrink-0">
+              <h3 id="menu-title" className="text-xs sm:text-sm font-bold text-white text-center">
+                串流控制台
+              </h3>
               <button
                 type="button"
                 onClick={() => setMenuOpen(false)}
-                className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
                 aria-label="关闭"
               >
-                <LuX size={13} />
+                <LuX size={16} />
               </button>
             </div>
 
-            {/* Scrollable Content Body */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-4">
-              {isPortrait ? (
-                /* === 竖屏布局：单列纵向排列 === */
-                <div className="space-y-4">
-                  {/* Section 1: 操作模式选择 */}
-                  <div className="space-y-1.5">
-                    <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-                      操作模式
-                    </div>
-                    <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-neutral-950/70 border border-white/5">
-                      <button
-                        type="button"
-                        onClick={() => handleSelectControlMode('fixed')}
-                        className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
-                          controlMode === 'fixed'
-                            ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
-                            : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                        }`}
-                      >
-                        <LuGamepad2 size={16} />
-                        <span className="text-[11px] whitespace-nowrap">固定手柄</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleSelectControlMode('touch')}
-                        className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
-                          controlMode === 'touch'
-                            ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
-                            : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                        }`}
-                      >
-                        <LuMousePointer2 size={16} />
-                        <span className="text-[11px] whitespace-nowrap">屏幕触摸</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleSelectControlMode('dynamic')}
-                        className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
-                          controlMode === 'dynamic'
-                            ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
-                            : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                        }`}
-                      >
-                        <LuCompass size={16} />
-                        <span className="text-[11px] whitespace-nowrap">自由摇杆</span>
-                      </button>
-                    </div>
-
-                    <div className="text-[10px] text-neutral-400 px-1 leading-normal">
-                      {controlMode === 'fixed' && '固定手柄：左下角固定虚拟摇杆，右侧动作按键。'}
-                      {controlMode === 'touch' && '屏幕触摸：隐藏所有虚拟按键，触屏点击作为鼠标/触控操作。'}
-                      {controlMode === 'dynamic' && '自由摇杆：在左半屏任意处触屏下压，即刻在该位置生成摇杆。'}
-                    </div>
-                  </div>
-
-                  {/* Section 2: 核心功能与设置 */}
-                  <div className="space-y-1.5 pt-1">
-                    <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-                      功能与设置
-                    </div>
-
-                    <div className="space-y-1 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDrawerTab('cheat')
-                          setDrawerOpen(true)
-                          setMenuOpen(false)
-                        }}
-                        className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          <LuSparkles size={15} className="text-amber-400 shrink-0" />
-                          <span className="whitespace-nowrap shrink-0">局内控制台 (常用修改)</span>
-                        </span>
-                        <span className="text-[10px] text-neutral-400">打开</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDrawerTab('logs')
-                          setDrawerOpen(true)
-                          setMenuOpen(false)
-                        }}
-                        className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          <LuScrollText size={15} className="text-sky-400 shrink-0" />
-                          <span className="whitespace-nowrap shrink-0">运行与诊断日志</span>
-                        </span>
-                        <span className="text-[10px] text-neutral-400">查看</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={muted ? handleUnmute : () => setMuted(true)}
-                        className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          {muted ? (
-                            <LuVolumeX size={15} className="text-amber-400 shrink-0" />
-                          ) : (
-                            <LuVolume2 size={15} className="text-emerald-400 shrink-0" />
-                          )}
-                          <span className="whitespace-nowrap shrink-0">游戏声音输出</span>
-                        </span>
-                        <span className={`text-[10px] font-semibold ${muted ? 'text-amber-300' : 'text-emerald-400'}`}>
-                          {muted ? '已静音 (点击开声)' : '已开启'}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={toggleFitMode}
-                        className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          <LuScaling size={15} className="text-sky-400 shrink-0" />
-                          <span className="whitespace-nowrap shrink-0">画面缩放模式</span>
-                        </span>
-                        <span className="text-[10px] text-sky-300 font-mono">
-                          {fitMode === 'cover' ? '铺满全屏' : '等比适应'}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleToggleHud}
-                        className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          <LuActivity
-                            size={15}
-                            className={hudVisible ? 'text-emerald-400 shrink-0' : 'text-neutral-500 shrink-0'}
-                          />
-                          <span className="whitespace-nowrap shrink-0">实时性能 HUD (FPS / 延迟)</span>
-                        </span>
-                        <span className={`text-[10px] ${hudVisible ? 'text-emerald-400' : 'text-neutral-500'}`}>
-                          {hudVisible ? '已显示' : '已隐藏'}
-                        </span>
-                      </button>
-
-                      {!isStandalone && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            toggleFullscreen()
-                            setMenuOpen(false)
-                          }}
-                          className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                        >
-                          <span className="flex items-center gap-2">
-                            {isFullscreen ? (
-                              <LuMinimize2 size={15} className="text-emerald-400 shrink-0" />
-                            ) : (
-                              <LuMaximize2 size={15} className="text-neutral-300 shrink-0" />
-                            )}
-                            <span className="whitespace-nowrap shrink-0">全屏显示</span>
-                          </span>
-                          <span className="text-[10px] text-neutral-400">
-                            {isFullscreen ? '退出全屏' : 'iOS添加主屏幕'}
-                          </span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
+            {/* Body */}
+            {isPortrait ? (
+              /* Portrait: Top Tab Bar + Scrollable Content */
+              <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-950/70 border-b border-white/10 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setMenuTab('gamepad')}
+                    className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[10px] font-semibold transition-all ${
+                      menuTab === 'gamepad'
+                        ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-400/40 shadow-sm'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <LuGamepad2 size={14} className="mb-0.5" />
+                    <span>手柄模式</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMenuTab('quick')}
+                    className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[10px] font-semibold transition-all ${
+                      menuTab === 'quick'
+                        ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-400/40 shadow-sm'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <LuSparkles size={14} className="mb-0.5 text-amber-400" />
+                    <span>快捷面板</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMenuTab('display')}
+                    className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[10px] font-semibold transition-all ${
+                      menuTab === 'display'
+                        ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-400/40 shadow-sm'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <LuSlidersHorizontal size={14} className="mb-0.5 text-sky-400" />
+                    <span>音画设置</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMenuTab('system')}
+                    className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[10px] font-semibold transition-all ${
+                      menuTab === 'system'
+                        ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-400/40 shadow-sm'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <LuRotateCcw size={14} className="mb-0.5 text-teal-400" />
+                    <span>系统偏好</span>
+                  </button>
                 </div>
-              ) : (
-                /* === 横屏布局：游戏式双列横向扩展 (Landscape 2-Column Game Menu) === */
-                <div className="grid grid-cols-2 gap-4 items-start">
-                  {/* Left Column: 操作模式与快捷入口 */}
-                  <div className="space-y-3">
-                    <div className="space-y-1.5">
-                      <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-                        操作模式
-                      </div>
-                      <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-neutral-950/70 border border-white/5">
-                        <button
-                          type="button"
-                          onClick={() => handleSelectControlMode('fixed')}
-                          className={`flex flex-col items-center justify-center gap-1 rounded-lg py-1.5 px-1 text-xs transition-all ${
-                            controlMode === 'fixed'
-                              ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
-                              : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                          }`}
-                        >
-                          <LuGamepad2 size={15} />
-                          <span className="text-[10px] whitespace-nowrap">固定手柄</span>
-                        </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleSelectControlMode('touch')}
-                          className={`flex flex-col items-center justify-center gap-1 rounded-lg py-1.5 px-1 text-xs transition-all ${
-                            controlMode === 'touch'
-                              ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
-                              : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                          }`}
-                        >
-                          <LuMousePointer2 size={15} />
-                          <span className="text-[10px] whitespace-nowrap">屏幕触摸</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleSelectControlMode('dynamic')}
-                          className={`flex flex-col items-center justify-center gap-1 rounded-lg py-1.5 px-1 text-xs transition-all ${
-                            controlMode === 'dynamic'
-                              ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
-                              : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                          }`}
-                        >
-                          <LuCompass size={15} />
-                          <span className="text-[10px] whitespace-nowrap">自由摇杆</span>
-                        </button>
-                      </div>
-
-                      <div className="text-[10px] text-neutral-400 px-1 leading-normal">
-                        {controlMode === 'fixed' && '固定手柄：左下角固定虚拟摇杆，右侧动作按键。'}
-                        {controlMode === 'touch' && '屏幕触摸：隐藏所有虚拟按键，触屏点击作为鼠标/触控操作。'}
-                        {controlMode === 'dynamic' && '自由摇杆：在左半屏任意处触屏下压，即刻在该位置生成摇杆。'}
-                      </div>
-                    </div>
-
-                    {/* Quick Modding & Diagnostic Drawer Entrances */}
-                    <div className="space-y-1.5 pt-1">
-                      <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-                        快捷面板
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDrawerTab('cheat')
-                            setDrawerOpen(true)
-                            setMenuOpen(false)
-                          }}
-                          className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/5 bg-white/[0.03] p-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                        >
-                          <LuSparkles size={16} className="text-amber-400 shrink-0" />
-                          <span className="font-semibold text-[11px] whitespace-nowrap">局内控制台</span>
-                          <span className="text-[9px] text-neutral-400">常用修改功能</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDrawerTab('logs')
-                            setDrawerOpen(true)
-                            setMenuOpen(false)
-                          }}
-                          className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/5 bg-white/[0.03] p-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                        >
-                          <LuScrollText size={16} className="text-sky-400 shrink-0" />
-                          <span className="font-semibold text-[11px] whitespace-nowrap">诊断日志</span>
-                          <span className="text-[9px] text-neutral-400">运行网络排查</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Column: 音画与系统设置 */}
-                  <div className="space-y-2">
-                    <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-                      音画与系统
-                    </div>
-
-                    <div className="space-y-1.5 text-xs">
-                      <button
-                        type="button"
-                        onClick={muted ? handleUnmute : () => setMuted(true)}
-                        className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          {muted ? (
-                            <LuVolumeX size={15} className="text-amber-400 shrink-0" />
-                          ) : (
-                            <LuVolume2 size={15} className="text-emerald-400 shrink-0" />
-                          )}
-                          <span className="whitespace-nowrap shrink-0">声音输出</span>
-                        </span>
-                        <span className={`text-[10px] font-semibold ${muted ? 'text-amber-300' : 'text-emerald-400'}`}>
-                          {muted ? '已静音 (点击开声)' : '已开启'}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={toggleFitMode}
-                        className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          <LuScaling size={15} className="text-sky-400 shrink-0" />
-                          <span className="whitespace-nowrap shrink-0">画面缩放</span>
-                        </span>
-                        <span className="text-[10px] text-sky-300 font-mono">
-                          {fitMode === 'cover' ? '铺满全屏' : '等比适应'}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleToggleHud}
-                        className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          <LuActivity
-                            size={15}
-                            className={hudVisible ? 'text-emerald-400 shrink-0' : 'text-neutral-500 shrink-0'}
-                          />
-                          <span className="whitespace-nowrap shrink-0">实时 HUD</span>
-                        </span>
-                        <span className={`text-[10px] ${hudVisible ? 'text-emerald-400' : 'text-neutral-500'}`}>
-                          {hudVisible ? '已显示' : '已隐藏'}
-                        </span>
-                      </button>
-
-                      {!isStandalone && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            toggleFullscreen()
-                            setMenuOpen(false)
-                          }}
-                          className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                        >
-                          <span className="flex items-center gap-2">
-                            {isFullscreen ? (
-                              <LuMinimize2 size={15} className="text-emerald-400 shrink-0" />
-                            ) : (
-                              <LuMaximize2 size={15} className="text-neutral-300 shrink-0" />
-                            )}
-                            <span className="whitespace-nowrap shrink-0">全屏显示</span>
-                          </span>
-                          <span className="text-[10px] text-neutral-400">
-                            {isFullscreen ? '退出全屏' : 'iOS添加主屏幕'}
-                          </span>
-                        </button>
-                      )}
-
-                      {/* Game Switch Entry */}
-                      {library.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setGameSelectorOpen(true)
-                            setMenuOpen(false)
-                          }}
-                          className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                        >
-                          <span className="flex items-center gap-2">
-                            <LuGamepad2 size={15} className="text-emerald-400 shrink-0" />
-                            <span className="whitespace-nowrap shrink-0">切换游戏</span>
-                          </span>
-                          <span className="text-[10px] text-neutral-400 truncate max-w-[120px]">
-                            {selectedGame?.name || '选择游戏'}
-                          </span>
-                        </button>
-                      )}
-
-                      {/* Clear Cache & Hard Reload Entry */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMenuOpen(false)
-                          void handleClearCacheAndReload()
-                        }}
-                        className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          <LuRotateCcw size={15} className="text-amber-400 shrink-0" />
-                          <span className="whitespace-nowrap shrink-0">清理缓存并重载</span>
-                        </span>
-                        <span className="text-[10px] text-neutral-400">重置偏好并刷新</span>
-                      </button>
-                    </div>
-                  </div>
+                <div className="flex-1 min-h-0 overflow-y-auto p-3.5">
+                  {renderTabContent()}
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              /* Landscape: Left Sidebar Tabs + Right Scrollable Content */
+              <div className="flex flex-row flex-1 min-h-0 overflow-hidden">
+                <div className="w-32 shrink-0 border-r border-white/10 p-2 space-y-1 bg-neutral-950/60 flex flex-col justify-start">
+                  <button
+                    type="button"
+                    onClick={() => setMenuTab('gamepad')}
+                    className={`flex items-center gap-2 w-full rounded-xl px-2.5 py-2 text-xs font-semibold transition-all ${
+                      menuTab === 'gamepad'
+                        ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 shadow-sm'
+                        : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <LuGamepad2 size={15} />
+                    <span className="whitespace-nowrap">操作手柄</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMenuTab('quick')}
+                    className={`flex items-center gap-2 w-full rounded-xl px-2.5 py-2 text-xs font-semibold transition-all ${
+                      menuTab === 'quick'
+                        ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 shadow-sm'
+                        : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <LuSparkles size={15} className="text-amber-400" />
+                    <span className="whitespace-nowrap">快捷面板</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMenuTab('display')}
+                    className={`flex items-center gap-2 w-full rounded-xl px-2.5 py-2 text-xs font-semibold transition-all ${
+                      menuTab === 'display'
+                        ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 shadow-sm'
+                        : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <LuSlidersHorizontal size={15} className="text-sky-400" />
+                    <span className="whitespace-nowrap">音画设置</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMenuTab('system')}
+                    className={`flex items-center gap-2 w-full rounded-xl px-2.5 py-2 text-xs font-semibold transition-all ${
+                      menuTab === 'system'
+                        ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 shadow-sm'
+                        : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <LuRotateCcw size={15} className="text-teal-400" />
+                    <span className="whitespace-nowrap">系统偏好</span>
+                  </button>
+                </div>
+
+                <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                  {renderTabContent()}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1477,15 +1433,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               </div>
             ) : !isCancelled ? (
               <div className="flex flex-col items-center gap-2">
-                {/* Glowing Pulsating Status Text */}
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base sm:text-lg font-black tracking-widest text-sky-300 font-mono animate-pulse drop-shadow-[0_0_14px_rgba(56,189,248,0.85)] whitespace-nowrap shrink-0">
-                    CONNECTING
-                  </h2>
-                  <span className="flex space-x-1 items-center">
-                    <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                {/* Glowing Pulsating Status Text with unified animated ellipsis */}
+                <div className="flex items-center gap-1.5 font-mono text-base sm:text-lg font-black tracking-widest text-sky-300 drop-shadow-[0_0_14px_rgba(56,189,248,0.85)]">
+                  <span>CONNECTING</span>
+                  <span className="inline-flex tracking-normal font-sans">
+                    <span style={{ animation: 'dot-glow 1.4s ease-in-out infinite 0s' }}>.</span>
+                    <span style={{ animation: 'dot-glow 1.4s ease-in-out infinite 0.25s' }}>.</span>
+                    <span style={{ animation: 'dot-glow 1.4s ease-in-out infinite 0.5s' }}>.</span>
                   </span>
                 </div>
                 <p className="text-xs text-neutral-300/80 font-medium tracking-wide">
@@ -1567,39 +1521,37 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         isPortrait={isPortrait}
       />
 
-      {/* 7. Game Library Selector Modal */}
+      {/* 7. Game Library Selector Modal (Safe for Dynamic Island & Centered header) */}
       {gameSelectorOpen && (
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="game-select-title"
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm select-none"
+          style={{
+            paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+            paddingRight: 'max(1rem, env(safe-area-inset-right))',
+            paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+            paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm select-none"
           onClick={() => setGameSelectorOpen(false)}
         >
           <div
-            className="relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden w-[92vw] max-w-sm max-h-[80vh]"
+            className="relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden w-full max-w-sm max-h-[80vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header (Compact) */}
-            <div className="flex items-center justify-between px-3.5 py-2 border-b border-white/10 shrink-0">
-              <div className="flex items-center gap-1.5">
-                <div className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-sm">
-                  <LuGamepad2 size={12} />
-                </div>
-                <h3 id="game-select-title" className="text-xs sm:text-sm font-bold text-white whitespace-nowrap shrink-0">
-                  可运行游戏列表
-                </h3>
-                <span className="text-[9px] text-neutral-400 px-1.5 py-0.5 rounded bg-white/5 border border-white/5 shrink-0">
-                  {library.length} 款
-                </span>
-              </div>
+            {/* Header: Centered title, no icon, clean icon button */}
+            <div className="relative flex items-center justify-center py-2 px-10 border-b border-white/10 shrink-0">
+              <h3 id="game-select-title" className="text-xs sm:text-sm font-bold text-white text-center">
+                可运行游戏列表
+              </h3>
               <button
                 type="button"
                 onClick={() => setGameSelectorOpen(false)}
-                className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
                 aria-label="关闭"
               >
-                <LuX size={13} />
+                <LuX size={16} />
               </button>
             </div>
 

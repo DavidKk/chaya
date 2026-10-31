@@ -279,7 +279,13 @@ export function RemoteCheatDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5 bg-black/75 backdrop-blur-md transition-opacity select-none"
+      style={{
+        paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+        paddingRight: 'max(1rem, env(safe-area-inset-right))',
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md transition-opacity select-none"
       onPointerDown={(e) => e.stopPropagation()}
       onPointerMove={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
@@ -288,32 +294,24 @@ export function RemoteCheatDrawer({
       <div
         className={`relative flex flex-col rounded-2xl border border-white/15 bg-neutral-900/95 text-neutral-100 shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
           isPortraitEffective
-            ? 'w-[92vw] max-w-lg max-h-[85vh] p-4 sm:p-5'
-            : 'w-[94vw] max-w-2xl p-3.5 sm:p-4'
+            ? 'w-full max-w-lg max-h-[85vh] p-4 sm:p-5'
+            : 'w-full max-w-2xl p-3.5 sm:p-4'
         }`}
         style={{
           maxHeight: isPortraitEffective ? '85vh' : 'min(370px, 88vh)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-800 px-1 py-1.5 shrink-0">
-          <div className="flex items-center space-x-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
-              {activeTab === 'cheat' ? <LuZap size={13} /> : <LuScrollText size={13} />}
-            </div>
-            <h2 className="text-xs sm:text-sm font-bold text-white">局内控制台</h2>
-            <span className="text-[10px] text-neutral-400 px-1.5 py-0.5 rounded bg-white/5 border border-white/5">
-              {isPortraitEffective ? '竖屏' : '横屏'}
-            </span>
-          </div>
+        {/* Header: Centered title, no icon, no orientation badge, clean icon button */}
+        <div className="relative flex items-center justify-center border-b border-neutral-800 py-2 px-10 shrink-0">
+          <h2 className="text-xs sm:text-sm font-bold text-white text-center">局内控制台</h2>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-800 hover:text-white transition-colors"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
             aria-label="关闭"
           >
-            <LuX size={14} />
+            <LuX size={16} />
           </button>
         </div>
 

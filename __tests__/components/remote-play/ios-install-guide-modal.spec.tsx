@@ -38,10 +38,10 @@ describe('IosInstallGuideModal', () => {
       root.render(<IosInstallGuideModal open={true} onClose={onClose} isStandalone={false} />)
     })
 
-    expect(host.textContent).toContain('iOS Safari 全屏指引')
+    expect(host.textContent).toContain('iOS Safari 添加到主屏幕指引')
     expect(host.textContent).toContain('点击 Safari「分享」按钮')
     expect(host.textContent).toContain('选择「添加到主屏幕」')
-    expect(host.textContent).toContain('从手机桌面打开游戏')
+    expect(host.textContent).toContain('确认名称为「Chaya Play」')
 
     const confirmBtn = host.querySelector('button')
     expect(confirmBtn).not.toBeNull()

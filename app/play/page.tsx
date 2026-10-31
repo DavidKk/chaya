@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Suspense } from 'react'
 
 import { RemotePlayView } from '@/components/remote-play/RemotePlayView'
+import { canUseDisk } from '@/lib/service-mode'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -13,21 +14,26 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'Chaya Remote Play - 局域网串流游玩',
+  title: 'Chaya Play - 远程串流游玩',
   description: 'RPG Maker WebRTC 局域网超低延迟串流游玩与触屏虚拟手柄控制台',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Chaya 串流',
+    title: 'Chaya Play',
   },
   icons: {
-    icon: '/brand/chaya-app-icon.png',
-    apple: '/brand/chaya-app-icon.png',
+    icon: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: '/brand/chaya-app-icon.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png' },
+      { url: '/apple-touch-icon.png', sizes: '180x180' },
+      { url: '/brand/chaya-app-icon.png', sizes: '512x512' },
+    ],
   },
 }
-
-import { canUseDisk } from '@/lib/service-mode'
 
 type Props = {
   searchParams?: Promise<{ roomId?: string; room?: string; game?: string }>
