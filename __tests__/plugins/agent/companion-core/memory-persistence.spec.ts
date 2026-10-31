@@ -55,3 +55,36 @@ test('plugin runtime projects only durable acknowledgements and recovers failed 
     await runtime.close()
   }
 })
+
+test('runtime synchronization recovers an exhausted writer at the same management versions', async () => {
+  jest.useFakeTimers()
+  const snapshot = emptyMemorySnapshot()
+  let offline = true
+  const batches: MemoryWriteBatch[] = []
+  const call = pluginStorageCall as jest.Mock
+  call.mockImplementation(async (method: string, args: unknown[]) => {
+    if (method === 'companion.load' || method === 'companion.state') return structuredClone(snapshot)
+    if (method !== 'companion.commit') throw new Error(method)
+    batches.push(args[1] as MemoryWriteBatch)
+    if (offline) throw new Error('storage offline')
+  })
+  const runtime = createCompanionMemoryRuntime('g1', 'i1', false)
+  try {
+    await runtime.ready()
+    runtime.recording.enqueue(finish)
+    await jest.advanceTimersByTimeAsync(16200)
+    expect(batches).toHaveLength(4)
+    expect(runtime.store.getEpisodeRecords()).toEqual([])
+    offline = false
+    await runtime.synchronize()
+    await jest.advanceTimersByTimeAsync(200)
+    expect(batches).toHaveLength(5)
+    expect(batches[4]).toEqual(batches[0])
+    expect(runtime.recording.getStatus()).toMatchObject({ persistence: 'ready', pending: 0 })
+    expect(runtime.store.getEpisodeRecords()).toEqual([expect.objectContaining({ outcome: 'win', persistence: 'committed' })])
+  } finally {
+    offline = false
+    await runtime.close()
+    jest.useRealTimers()
+  }
+})

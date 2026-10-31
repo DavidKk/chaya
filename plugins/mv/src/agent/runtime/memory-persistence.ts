@@ -94,6 +94,7 @@ export function createCompanionMemoryRuntime(gameId: string, runtimeInstanceId?:
     },
     storeState: () => ({ memoryEpoch: store.getEpoch(), recordingRevision: store.getRecordingRevision(), recordingEnabled: store.isRecordingEnabled() }),
     recordingState: () => recording.getStatus().versions,
+    recordingNeedsRecovery: () => recording.getStatus().persistence === 'degraded',
     synchronizeStore: () => store.synchronize(),
     synchronizeRecording: () => recording.synchronize(),
   })

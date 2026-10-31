@@ -9,23 +9,37 @@ export function createMemorySynchronization(deps: {
   state: () => Promise<MemoryManagementState>
   storeState: () => MemoryManagementState
   recordingState: () => MemoryManagementState | null
+  recordingNeedsRecovery: () => boolean
   synchronizeStore: () => Promise<void>
   synchronizeRecording: () => Promise<void>
 }) {
   let closed = false
   let timer: ReturnType<typeof setTimeout> | undefined
   let active: Promise<void> | undefined
-  const synchronize = (): Promise<void> => {
+  let recoveryRequested = false
+  let stateUnavailable = false
+  const synchronize = (recover = false): Promise<void> => {
     if (closed) return Promise.resolve()
+    recoveryRequested ||= recover
     if (active) return active
     const work = async () => {
       await deps.ready()
       if (closed) return
-      const state = await deps.state()
+      let state: MemoryManagementState
+      try {
+        state = await deps.state()
+      } catch (error) {
+        stateUnavailable = true
+        throw error
+      }
       if (closed) return
       if (!same(deps.storeState(), state)) await deps.synchronizeStore()
       if (closed) return
-      if (!same(deps.recordingState(), state)) await deps.synchronizeRecording()
+      // Reconnects may recover an exhausted writer even without a management version change.
+      // Ordinary successful probes must leave its bounded retry policy intact.
+      if (!same(deps.recordingState(), state) || ((recoveryRequested || stateUnavailable) && deps.recordingNeedsRecovery())) await deps.synchronizeRecording()
+      recoveryRequested = false
+      stateUnavailable = false
     }
     active = work().finally(() => {
       active = undefined
@@ -42,12 +56,12 @@ export function createMemorySynchronization(deps: {
     }, 2_000)
   }
   const reconnect = () => {
-    void synchronize().catch(() => undefined)
+    void synchronize(true).catch(() => undefined)
   }
   if (typeof window !== 'undefined') window.addEventListener('online', reconnect)
   poll()
   return {
-    synchronize,
+    synchronize: () => synchronize(true),
     async close() {
       closed = true
       if (timer) clearTimeout(timer)
