@@ -17,13 +17,26 @@ export const metadata: Metadata = {
   description: 'RPG Maker WebRTC 局域网超低延迟串流游玩与触屏虚拟手柄控制台',
 }
 
+import { canUseDisk } from '@/lib/service-mode'
+
 type Props = {
   searchParams?: Promise<{ roomId?: string; room?: string; game?: string }>
 }
 
 export default async function RemotePlayPage({ searchParams }: Props) {
   const query = searchParams ? await searchParams : {}
-  const initialRoomId = query?.roomId || query?.room || query?.game || ''
+  let initialRoomId = query?.roomId || query?.room || query?.game || ''
+
+  if (!initialRoomId && canUseDisk()) {
+    try {
+      const { loadConfig, findLibraryEntry } = await import('@/services/game')
+      const config = loadConfig()
+      const entry = findLibraryEntry(config.library, config.gameRoot)
+      initialRoomId = entry?.id || config.library?.[0]?.id || ''
+    } catch {
+      /* fallback to client detection */
+    }
+  }
 
   return (
     <Suspense fallback={<div className="h-screen w-screen bg-black" />}>

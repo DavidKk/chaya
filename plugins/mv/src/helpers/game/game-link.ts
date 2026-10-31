@@ -19,11 +19,11 @@ import { detectGameIdentity } from './game-identity'
 import { attachGameMediaStream, handleRemoteInput, handleRemoteTap } from './remote-stream'
 
 const STUN = 'stun:stun.cloudflare.com:3478'
-/** Disconnected: wait for Web offer; match console-side poll backoff */
-const POLL_IDLE_MS = 8_000
+/** Disconnected: wait for Web offer; fast poll so mobile stream handshakes in < 1.5s */
+const POLL_IDLE_MS = 1_500
 /** Connected: only probe whether Web swapped in a new offer */
 const POLL_LINKED_MS = 20_000
-const RECONNECT_POLL_MS = 1_000
+const RECONNECT_POLL_MS = 500
 
 type Sdp = { type: RTCSdpType; sdp?: string }
 type WebrtcRoom = { offer?: Sdp | null; answer?: Sdp | null }

@@ -58,7 +58,11 @@ async function getRoom(roomId: string): Promise<Room | null | undefined> {
 async function linkHeldElsewhere(roomId: string): Promise<boolean> {
   try {
     const room = await getRoom(roomId)
-    return !!room?.webConnected && Date.now() - Number(room.updatedAt || 0) < LIVE_LINK_MAX_AGE_MS
+    if (!room) return false
+    const age = Date.now() - Number(room.updatedAt || 0)
+    if (room.webConnected && age < LIVE_LINK_MAX_AGE_MS) return true
+    if (room.offer && age < LIVE_LINK_MAX_AGE_MS) return true
+    return false
   } catch {
     return false
   }
@@ -115,8 +119,19 @@ export class WebGameLink {
 
     if (enableMedia && typeof pc.addTransceiver === 'function') {
       try {
-        pc.addTransceiver('video', { direction: 'recvonly' })
+        const trVideo = pc.addTransceiver('video', { direction: 'recvonly' })
         pc.addTransceiver('audio', { direction: 'recvonly' })
+        const RTCCapabilities = typeof RTCRtpReceiver !== 'undefined' ? RTCRtpReceiver : null
+        if (typeof RTCCapabilities?.getCapabilities === 'function' && typeof trVideo.setCodecPreferences === 'function') {
+          const caps = RTCCapabilities.getCapabilities('video')
+          if (caps?.codecs) {
+            const h264 = caps.codecs.filter((codec) => codec.mimeType.toLowerCase() === 'video/h264')
+            const others = caps.codecs.filter((codec) => codec.mimeType.toLowerCase() !== 'video/h264')
+            if (h264.length > 0) {
+              trVideo.setCodecPreferences([...h264, ...others])
+            }
+          }
+        }
       } catch {
         /* */
       }
@@ -159,13 +174,16 @@ export class WebGameLink {
     }
     if (!this.live(run)) return
 
-    // 立刻问一次，之后慢轮询；避免亚秒级刷屏
     void this.pollAnswer()
+    setTimeout(() => { if (this.live(run) && this.pc && !this.pc.remoteDescription) void this.pollAnswer() }, 300)
+    setTimeout(() => { if (this.live(run) && this.pc && !this.pc.remoteDescription) void this.pollAnswer() }, 650)
     this.pollTimer = setInterval(() => {
-      if (Date.now() < deadline) return void this.pollAnswer()
+      if (Date.now() < deadline && !this.pc?.remoteDescription) {
+        return void this.pollAnswer()
+      }
       this.clearPoll()
       if (!this.connected) this.handlers.onIdle?.()
-    }, ANSWER_POLL_MS)
+    }, 1_000)
   }
 
   private live(run: number) {
@@ -193,21 +211,23 @@ export class WebGameLink {
 
   private clearPoll() {
     if (this.pollTimer) {
+      clearTimeout(this.pollTimer)
       clearInterval(this.pollTimer)
       this.pollTimer = null
     }
   }
 
-  private async pollAnswer() {
-    if (this.closed || !this.pc || this.pc.remoteDescription) return
+  private async pollAnswer(): Promise<boolean> {
+    if (this.closed || !this.pc || this.pc.remoteDescription) return false
     try {
       const room = await getRoom(this.roomId)
       const answer = room?.answer
-      if (!answer?.type) return
+      if (!answer?.type || !answer.sdp) return false
       await this.pc.setRemoteDescription(answer)
       this.clearPoll()
+      return true
     } catch {
-      /* ignore */
+      return false
     }
   }
 

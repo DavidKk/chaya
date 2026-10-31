@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { LuGamepad2, LuMaximize2, LuRadio, LuUnplug, LuVolume2, LuVolumeX } from 'react-icons/lu'
+import { LuGamepad2, LuMaximize2, LuRadio, LuRotateCw, LuUnplug, LuVolume2, LuVolumeX } from 'react-icons/lu'
 
 import type { GameLinkMessage, RemoteInputKey } from '@/lib/runtime/game-link-protocol'
 import { WebGameLink } from '@/lib/runtime/web-game-link'
@@ -145,11 +145,24 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
     videoRef.current = el
-    if (el && streamRef.current && el.srcObject !== streamRef.current) {
-      el.srcObject = streamRef.current
-      void el.play().catch(() => {})
+    if (el) {
+      el.muted = true
+      el.playsInline = true
+      el.setAttribute('playsinline', 'true')
+      el.setAttribute('webkit-playsinline', 'true')
+      el.setAttribute('x5-playsinline', 'true')
+      if (streamRef.current && el.srcObject !== streamRef.current) {
+        el.srcObject = streamRef.current
+        void el.play().catch(() => {})
+      }
     }
   }, [])
+
+  const handleGlobalPointerDown = () => {
+    if (videoRef.current && videoRef.current.paused && videoRef.current.srcObject) {
+      void videoRef.current.play().catch(() => {})
+    }
+  }
 
   // 5. Unmute audio on user tap
   const handleUnmute = () => {
@@ -173,7 +186,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   }
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-black select-none">
+    <main
+      onPointerDown={handleGlobalPointerDown}
+      className="relative h-screen w-screen overflow-hidden bg-black select-none"
+    >
       {/* Background Video Stream */}
       <video
         ref={setVideoRef}
@@ -250,6 +266,36 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               ? '请确保电脑上已启动 Chaya 并开启了游戏。WebRTC 内网点对点串流正在建立中…'
               : errorMessage || '未检测到正在运行的游戏。请在电脑端打开控制台启动游戏后刷新重试。'}
           </p>
+          <button
+            type="button"
+            onClick={() => {
+              if (!roomId) return
+              setStatus('connecting')
+              setErrorMessage(null)
+              linkRef.current?.stop()
+              const link = new WebGameLink(roomId, {
+                onConnected: () => setStatus('connected'),
+                onDisconnected: () => { setStatus('disconnected'); setLatencyMs(null) },
+                onTrack: (stream) => {
+                  streamRef.current = stream
+                  if (videoRef.current && videoRef.current.srcObject !== stream) {
+                    videoRef.current.srcObject = stream
+                    void videoRef.current.play().catch(() => {})
+                  }
+                },
+                onIdle: () => setStatus((p) => p === 'connected' ? p : 'disconnected'),
+              })
+              linkRef.current = link
+              void link.start({ enableMedia: true, takeover: true }).catch((err) => {
+                setStatus('disconnected')
+                setErrorMessage(`重连异常: ${err instanceof Error ? err.message : String(err)}`)
+              })
+            }}
+            className="pointer-events-auto mt-4 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-neutral-800/90 px-4 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md hover:bg-neutral-700 active:scale-95"
+          >
+            <LuRotateCw size={13} className={status === 'connecting' ? 'animate-spin' : ''} />
+            {status === 'connecting' ? '正在连接…' : '重新连接'}
+          </button>
         </div>
       )}
 

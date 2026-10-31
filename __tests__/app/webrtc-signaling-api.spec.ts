@@ -1,5 +1,5 @@
 import { GET, POST } from '@/app/api/runtime/webrtc/route'
-import { clearSignalingBoard, MAX_ROOMS_PER_OWNER, MAX_SIGNALING_ROOMS } from '@/services/runtime/webrtc-signaling'
+import { clearSignalingBoard, MAX_ROOMS_PER_OWNER, MAX_SIGNALING_ROOMS, optimizeAnswerSdp, patchOfferSdpWithLanIp } from '@/services/runtime/webrtc-signaling'
 
 const mode = { disk: false }
 jest.mock('@/services/access/api', () => ({ mayAccessApi: async () => true }))
@@ -84,5 +84,50 @@ describe('server mode signaling', () => {
     expect((await post({ action: 'answer', roomId: 'room-A', sdp: answer })).status).toBe(200)
     expect((await (await get('room-A')).json()).room).toMatchObject({ offer, answer })
     expect((await get(null)).status).toBe(400)
+  })
+})
+
+describe('SDP LAN IP patch and codec optimization', () => {
+  it('replaces mDNS .local candidate and 0.0.0.0 connection IP with client LAN IP in offer', () => {
+    const sdpWithLocal = [
+      'v=0',
+      'c=IN IP4 0.0.0.0',
+      'a=candidate:1 1 udp 2113929215 b2e46b08-356a-4b0d-bca5-b82d4dbfb261.local 54321 typ host',
+      'a=candidate:2 1 udp 16777215 175.100.196.178 61234 typ srflx raddr 0.0.0.0 rport 0',
+    ].join('\r\n')
+
+    const patched = patchOfferSdpWithLanIp(sdpWithLocal, '192.168.31.55')
+    expect(patched).toContain('c=IN IP4 192.168.31.55')
+    expect(patched).toContain('a=candidate:1 1 udp 2113929215 192.168.31.55 54321 typ host')
+    expect(patched).toContain('175.100.196.178')
+  })
+
+  it('optimizes answer SDP for LAN clients by prioritizing H264 and Mac LAN IP while filtering virtual/loopback candidates', () => {
+    const rawAnswer = [
+      'v=0',
+      'm=video 9 UDP/TLS/RTP/SAVPF 96 97',
+      'c=IN IP4 127.0.0.1',
+      'a=rtpmap:96 VP8/90000',
+      'a=rtpmap:97 H264/90000',
+      'a=candidate:1 1 udp 2113929215 127.0.0.1 50001 typ host',
+      'a=candidate:2 1 udp 2113929215 172.28.162.2 50002 typ host',
+      'a=candidate:3 1 udp 2113929215 192.168.31.89 50003 typ host',
+      'a=candidate:4 1 udp 16777215 175.100.196.178 50004 typ srflx raddr 0.0.0.0 rport 0',
+    ].join('\r\n')
+
+    const optimized = optimizeAnswerSdp(rawAnswer, '192.168.31.55', '192.168.31.89')
+    expect(optimized).toContain('m=video 9 UDP/TLS/RTP/SAVPF 97 96')
+    expect(optimized).toContain('c=IN IP4 192.168.31.89')
+    expect(optimized).toContain('a=candidate:3 1 udp 2130706431 192.168.31.89 50003 typ host')
+    expect(optimized).not.toContain('127.0.0.1 50001 typ host')
+    expect(optimized).not.toContain('172.28.162.2')
+  })
+
+  it('exposes detected clientIp on GET /api/runtime/webrtc', async () => {
+    const res = await GET(new Request('http://localhost/api/runtime/webrtc?roomId=test-room', {
+      headers: { 'X-Real-IP': '192.168.31.77', 'X-Chaya-Link-Token': OWNER },
+    }), ctx)
+    const data = await res.json()
+    expect(data.clientIp).toBe('192.168.31.77')
   })
 })

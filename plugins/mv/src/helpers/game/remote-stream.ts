@@ -68,6 +68,24 @@ export function captureGameMediaStream(): MediaStream | null {
   }
 }
 
+function preferH264(tr: RTCRtpTransceiver) {
+  try {
+    const RTCSender = (globalThis as unknown as { RTCRtpSender?: { getCapabilities?: (kind: string) => { codecs?: { mimeType: string }[] } } }).RTCRtpSender
+    if (typeof RTCSender?.getCapabilities === 'function' && typeof tr.setCodecPreferences === 'function') {
+      const caps = RTCSender.getCapabilities('video')
+      if (caps?.codecs) {
+        const h264 = caps.codecs.filter((codec) => codec.mimeType.toLowerCase() === 'video/h264')
+        const others = caps.codecs.filter((codec) => codec.mimeType.toLowerCase() !== 'video/h264')
+        if (h264.length > 0) {
+          tr.setCodecPreferences([...h264, ...others])
+        }
+      }
+    }
+  } catch {
+    /* */
+  }
+}
+
 export async function attachGameMediaStream(peer: RTCPeerConnection): Promise<void> {
   const stream = captureGameMediaStream()
   if (!stream) return
@@ -84,6 +102,7 @@ export async function attachGameMediaStream(peer: RTCPeerConnection): Promise<vo
     if (kind === 'video' && videoTrack) {
       tr.direction = 'sendonly'
       try { await tr.sender.replaceTrack(videoTrack) } catch {}
+      preferH264(tr)
       attachedVideo = true
     } else if (kind === 'audio' && audioTrack) {
       tr.direction = 'sendonly'
@@ -93,7 +112,9 @@ export async function attachGameMediaStream(peer: RTCPeerConnection): Promise<vo
   }
 
   if (!attachedVideo && videoTrack) {
-    peer.addTrack(videoTrack, stream)
+    const sender = peer.addTrack(videoTrack, stream)
+    const tr = (typeof peer.getTransceivers === 'function' ? peer.getTransceivers() : []).find((t) => t.sender === sender)
+    if (tr) preferH264(tr)
   }
   if (!attachedAudio && audioTrack) {
     peer.addTrack(audioTrack, stream)
