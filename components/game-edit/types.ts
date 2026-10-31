@@ -1,6 +1,6 @@
 export type ItemKind = 'item' | 'weapon' | 'armor'
 
-/** 角色编辑草稿（网页会话预览 / 局内同步） */
+/** Actor edit draft for web previews and in-game synchronization. */
 export type ActorDraft = {
   name: string
   nickname: string
@@ -22,7 +22,7 @@ export type ActorDraft = {
   stateIds: number[]
 }
 
-/** 运行页开关（与金钱/倍速并列） */
+/** Runtime toggles displayed alongside gold and speed controls. */
 export const RUN_FLAG_KEYS = [
   'fullscreen',
   'alwaysDash',
@@ -81,7 +81,7 @@ export type SessionState = {
   counts: Record<string, number>
   vars: Record<number, number>
   switches: Record<number, boolean>
-  /** 锁死：key → 锁定目标值；存在即防游戏改动（面板仍可改并更新该值） */
+  /** Map lock keys to target values; panel edits may update the target. */
   locks: Record<string, number>
   actors: Record<number, ActorDraft>
   walkRate: number
@@ -91,11 +91,11 @@ export type SessionState = {
   fullscreen: boolean
   alwaysDash: boolean
   god: boolean
-  /** 进入战斗即胜利，直到关闭 */
+  /** Win on entering battle until disabled. */
   autoWin: boolean
-  /** 轮到输入指令时自动选招，直到关闭 */
+  /** Select battle commands automatically until disabled. */
   autoBattle: boolean
-  /** 战斗结算界面自动连点确认 */
+  /** Automatically confirm battle result screens. */
   skipBattleResult: boolean
   through: boolean
   autotalk: boolean
@@ -107,9 +107,9 @@ export type SessionState = {
   clickTeleport: boolean
   resourceSkip: boolean
   expRate: number
-  /** 本游戏快捷键覆盖；缺省或空表示继承全局 */
+  /** Per-game hotkey overrides; missing or empty values inherit global bindings. */
   hotkeys: Record<string, string>
-  /** 全部游戏默认快捷键 */
+  /** Default hotkeys shared by all games. */
   hotkeysGlobal: Record<string, string>
 }
 
@@ -173,10 +173,10 @@ export function lockKeyForActorState(actorId: number, stateId: number) {
   return `actorState:${actorId}:${stateId}`
 }
 
-/** 角色数值锁：等级 / 经验 / HP / MP（与 Cheats LockKind 同形 `kind:actorId`） */
+/** Actor level, experience, HP and MP locks use the shared `kind:actorId` format. */
 export type ActorVitalLockKind = 'level' | 'exp' | 'hp' | 'mp'
 
-/** 战斗页还能锁的角色数值；HP / MP 与角色页共用同一把锁 */
+/** Additional battle actor locks; HP and MP share the actor editor's locks. */
 export type BattleActorLockKind = ActorVitalLockKind | 'mhp' | 'mmp' | 'tp'
 
 export function lockKeyForActorVital(kind: BattleActorLockKind, actorId: number) {
@@ -198,7 +198,7 @@ export function matchFilter(text: string, q: string) {
   return text.toLowerCase().includes(q)
 }
 
-/** 目录名非空（去空白）；「仅有名」筛选用 */
+/** Check for a nonblank catalog name when filtering named entries. */
 export function hasCatalogName(name: string | null | undefined) {
   return String(name ?? '').trim().length > 0
 }
@@ -215,11 +215,11 @@ export function emptySession(): SessionState {
     runRate: 1,
     gameSpeed: 1,
     fullscreen: false,
-    alwaysDash: false,
+    alwaysDash: true,
     god: false,
     autoWin: false,
     autoBattle: false,
-    skipBattleResult: false,
+    skipBattleResult: true,
     through: false,
     autotalk: false,
     encounter: true,
