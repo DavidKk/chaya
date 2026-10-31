@@ -30,7 +30,8 @@ import { WebGameLink } from '@/lib/runtime/web-game-link'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
 import { GradientButton } from '@/components/sk'
-import { IoHandLeftOutline, IoHandRightOutline, IoPlayOutline } from 'react-icons/io5'
+import { IoGlobeOutline, IoHandLeftOutline, IoHandRightOutline, IoPlayOutline } from 'react-icons/io5'
+import { ConfigRow } from './ConfigRow'
 import { LuMonitor, LuPower, LuSmartphone } from 'react-icons/lu'
 import { IosInstallGuideModal } from './IosInstallGuideModal'
 import { PerformanceHud } from './PerformanceHud'
@@ -838,16 +839,16 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     switch (menuTab) {
       case 'gamepad':
         return (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
               {t('play.controlModeTitle')}
             </div>
-            {/* Joystick modes first, touch mode last. No explanatory descriptions (Requirement 1 & 2) */}
+            {/* Joystick modes first, touch mode last. No descriptions under buttons (Requirements 1, 2, 3) */}
             <div className="grid grid-cols-5 gap-1 p-1 rounded-md bg-neutral-950/90 border border-white/10">
               <button
                 type="button"
                 onClick={() => handleSelectControlMode('fixed')}
-                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-1 text-xs transition-all ${
+                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-0.5 text-xs transition-all ${
                   controlMode === 'fixed'
                     ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
                     : 'text-neutral-400 hover:text-white hover:bg-white/5'
@@ -860,7 +861,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               <button
                 type="button"
                 onClick={() => handleSelectControlMode('dynamic')}
-                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-1 text-xs transition-all ${
+                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-0.5 text-xs transition-all ${
                   controlMode === 'dynamic'
                     ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
                     : 'text-neutral-400 hover:text-white hover:bg-white/5'
@@ -873,7 +874,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               <button
                 type="button"
                 onClick={() => handleSelectControlMode('single-left')}
-                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-1 text-xs transition-all ${
+                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-0.5 text-xs transition-all ${
                   controlMode === 'single-left'
                     ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
                     : 'text-neutral-400 hover:text-white hover:bg-white/5'
@@ -886,7 +887,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               <button
                 type="button"
                 onClick={() => handleSelectControlMode('single-right')}
-                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-1 text-xs transition-all ${
+                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-0.5 text-xs transition-all ${
                   controlMode === 'single-right'
                     ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
                     : 'text-neutral-400 hover:text-white hover:bg-white/5'
@@ -899,7 +900,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               <button
                 type="button"
                 onClick={() => handleSelectControlMode('touch')}
-                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-1 text-xs transition-all ${
+                className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-0.5 text-xs transition-all ${
                   controlMode === 'touch'
                     ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
                     : 'text-neutral-400 hover:text-white hover:bg-white/5'
@@ -913,228 +914,175 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         )
       case 'quick':
         return (
-          <div className="space-y-2 text-xs">
-            <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
+          <div className="space-y-2">
+            <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-0.5">
               {t('play.inGameControlTitle')}
             </div>
-            <button
-              type="button"
+            <ConfigRow
+              icon={<LuSparkles size={16} className="text-amber-400" />}
+              label={t('play.inGameConsole')}
+              control={<span className="text-[11px] text-neutral-400">{t('play.openPanel')}</span>}
               onClick={() => {
                 setDrawerTab('cheat')
                 setDrawerOpen(true)
                 setMenuOpen(false)
               }}
-              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3.5 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <LuSparkles size={16} className="text-amber-400 shrink-0" />
-                <span className="font-semibold whitespace-nowrap">{t('play.inGameConsole')}</span>
-              </span>
-              <span className="text-[11px] text-neutral-400">{t('play.openPanel')}</span>
-            </button>
-
-            <button
-              type="button"
+            />
+            <ConfigRow
+              icon={<LuScrollText size={16} className="text-sky-400" />}
+              label={t('play.diagLogs')}
+              control={<span className="text-[11px] text-neutral-400">{t('play.viewLogs')}</span>}
               onClick={() => {
                 setDrawerTab('logs')
                 setDrawerOpen(true)
                 setMenuOpen(false)
               }}
-              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3.5 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <LuScrollText size={16} className="text-sky-400 shrink-0" />
-                <span className="font-semibold whitespace-nowrap">{t('play.diagLogs')}</span>
-              </span>
-              <span className="text-[11px] text-neutral-400">{t('play.viewLogs')}</span>
-            </button>
+            />
           </div>
         )
       case 'display':
         return (
-          <div className="space-y-2 text-xs">
-            <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
+          <div className="space-y-2">
+            <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-0.5">
               {t('play.audioVisualTitle')}
             </div>
-            <button
-              type="button"
+            <ConfigRow
+              icon={muted ? <LuVolumeX size={16} className="text-amber-400" /> : <LuVolume2 size={16} className="text-emerald-400" />}
+              label={t('play.audioOutput')}
+              control={
+                <span className={`text-[11px] font-semibold ${muted ? 'text-amber-300' : 'text-emerald-400'}`}>
+                  {muted ? t('play.muted') : t('play.unmuted')}
+                </span>
+              }
               onClick={muted ? handleUnmute : () => setMuted(true)}
-              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                {muted ? (
-                  <LuVolumeX size={15} className="text-amber-400 shrink-0" />
-                ) : (
-                  <LuVolume2 size={15} className="text-emerald-400 shrink-0" />
-                )}
-                <span className="whitespace-nowrap shrink-0">{t('play.audioOutput')}</span>
-              </span>
-              <span className={`text-[10px] font-semibold ${muted ? 'text-amber-300' : 'text-emerald-400'}`}>
-                {muted ? t('play.muted') : t('play.unmuted')}
-              </span>
-            </button>
-
-            <button
-              type="button"
+            />
+            <ConfigRow
+              icon={<LuScaling size={16} className="text-sky-400" />}
+              label={t('play.scalingMode')}
+              control={
+                <span className="text-[11px] text-sky-300 font-mono">
+                  {fitMode === 'cover' ? t('play.fitCover') : t('play.fitContain')}
+                </span>
+              }
               onClick={toggleFitMode}
-              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <LuScaling size={15} className="text-sky-400 shrink-0" />
-                <span className="whitespace-nowrap shrink-0">{t('play.scalingMode')}</span>
-              </span>
-              <span className="text-[10px] text-sky-300 font-mono">
-                {fitMode === 'cover' ? t('play.fitCover') : t('play.fitContain')}
-              </span>
-            </button>
-
-            <button
-              type="button"
+            />
+            <ConfigRow
+              icon={<LuActivity size={16} className={hudVisible ? 'text-emerald-400' : 'text-neutral-500'} />}
+              label={t('play.perfHud')}
+              control={
+                <span className={`text-[11px] ${hudVisible ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                  {hudVisible ? t('play.shown') : t('play.hidden')}
+                </span>
+              }
               onClick={handleToggleHud}
-              className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <LuActivity
-                  size={15}
-                  className={hudVisible ? 'text-emerald-400 shrink-0' : 'text-neutral-500 shrink-0'}
-                />
-                <span className="whitespace-nowrap shrink-0">{t('play.perfHud')}</span>
-              </span>
-              <span className={`text-[10px] ${hudVisible ? 'text-emerald-400' : 'text-neutral-500'}`}>
-                {hudVisible ? t('play.shown') : t('play.hidden')}
-              </span>
-            </button>
-
+            />
             {!isStandalone && (
-              <button
-                type="button"
+              <ConfigRow
+                icon={isFullscreen ? <LuMinimize2 size={16} className="text-emerald-400" /> : <LuMaximize2 size={16} className="text-neutral-300" />}
+                label={t('play.fullscreen')}
+                control={
+                  <span className="text-[11px] text-neutral-400">
+                    {isFullscreen ? t('play.exitFullscreen') : t('play.iosAddHomeScreen')}
+                  </span>
+                }
                 onClick={() => {
                   toggleFullscreen()
                   setMenuOpen(false)
                 }}
-                className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  {isFullscreen ? (
-                    <LuMinimize2 size={15} className="text-emerald-400 shrink-0" />
-                  ) : (
-                    <LuMaximize2 size={15} className="text-neutral-300 shrink-0" />
-                  )}
-                  <span className="whitespace-nowrap shrink-0">{t('play.fullscreen')}</span>
-                </span>
-                <span className="text-[10px] text-neutral-400">
-                  {isFullscreen ? t('play.exitFullscreen') : t('play.iosAddHomeScreen')}
-                </span>
-              </button>
+              />
             )}
           </div>
         )
       case 'system':
         return (
-          <div className="space-y-2 text-xs">
-            <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
+          <div className="space-y-2">
+            <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-0.5">
               {t('play.preferencesTitle')}
             </div>
 
-            {/* Language Switcher inside Preferences Dialog (Requirement 5) */}
-            <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200">
-              <span className="flex items-center gap-2">
-                <span className="whitespace-nowrap shrink-0 font-medium">{t('locale.label')}</span>
-              </span>
-              <LocaleSwitcher className="shrink-0" />
-            </div>
+            {/* Language Switcher with standard Icon on Left (Requirement 2 & 5) */}
+            <ConfigRow
+              icon={<IoGlobeOutline size={16} className="text-sky-400" />}
+              label={t('locale.label')}
+              control={<LocaleSwitcher className="shrink-0" />}
+            />
 
-            {/* Client Mode Layout: PC Desktop vs Mobile (Requirement 8) */}
-            <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200">
-              <div className="flex flex-col">
-                <span className="font-medium whitespace-nowrap">{t('play.platformMode')}</span>
-                <span className="text-[10px] text-neutral-400">
-                  {isDesktop ? t('play.platformDesktop') : t('play.platformMobile')}
-                </span>
-              </div>
-              <div className="flex items-center gap-1 rounded-md border border-white/10 bg-neutral-950 p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setClientMode('desktop')}
-                  className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all ${
-                    clientMode === 'desktop' || (clientMode === 'auto' && isDesktop)
-                      ? 'bg-sky-500/30 text-sky-200 border border-sky-400/40'
-                      : 'text-neutral-400 hover:text-white'
-                  }`}
-                >
-                  <LuMonitor size={12} />
-                  <span>PC</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setClientMode('mobile')}
-                  className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all ${
-                    clientMode === 'mobile' || (clientMode === 'auto' && !isDesktop)
-                      ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-400/40'
-                      : 'text-neutral-400 hover:text-white'
-                  }`}
-                >
-                  <LuSmartphone size={12} />
-                  <span>手机</span>
-                </button>
-              </div>
-            </div>
+            {/* Platform Mode (Requirement 5) */}
+            <ConfigRow
+              icon={<LuMonitor size={16} className="text-indigo-400" />}
+              label={t('play.platformMode')}
+              control={
+                <div className="flex items-center gap-1 rounded-md border border-white/10 bg-neutral-950 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setClientMode('desktop')}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all ${
+                      clientMode === 'desktop' || (clientMode === 'auto' && isDesktop)
+                        ? 'bg-sky-500/30 text-sky-200 border border-sky-400/40'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <LuMonitor size={12} />
+                    <span>PC</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setClientMode('mobile')}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all ${
+                      clientMode === 'mobile' || (clientMode === 'auto' && !isDesktop)
+                        ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-400/40'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <LuSmartphone size={12} />
+                    <span>手机</span>
+                  </button>
+                </div>
+              }
+            />
 
             {isDesktop && (
-              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2 text-[10px] text-neutral-400">
+              <div className="rounded-md border border-white/5 bg-white/[0.02] p-2 text-[10px] text-neutral-400 leading-relaxed">
                 {t('play.keyboardHints')}
               </div>
             )}
 
             {library.length > 0 && (
-              <button
-                type="button"
+              <ConfigRow
+                icon={<LuGamepad2 size={16} className="text-emerald-400" />}
+                label={t('play.switchGame')}
+                control={
+                  <span className="text-[11px] text-neutral-400 truncate max-w-[120px]">
+                    {selectedGame?.name || t('play.tapToSelect')}
+                  </span>
+                }
                 onClick={() => {
                   setGameSelectorOpen(true)
                   setMenuOpen(false)
                 }}
-                className="flex w-full items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <LuGamepad2 size={15} className="text-emerald-400 shrink-0" />
-                  <span className="whitespace-nowrap shrink-0 font-medium">{t('play.switchGame')}</span>
-                </span>
-                <span className="text-[10px] text-neutral-400 truncate max-w-[130px]">
-                  {selectedGame?.name || t('play.tapToSelect')}
-                </span>
-              </button>
+              />
             )}
 
-            <button
-              type="button"
+            <ConfigRow
+              icon={<LuRotateCcw size={16} className="text-amber-400" />}
+              label={t('play.clearReload')}
+              control={<span className="text-[11px] text-neutral-400">{t('play.clearReloadDesc')}</span>}
               onClick={() => {
                 setMenuOpen(false)
                 setReloadConfirmOpen(true)
               }}
-              className="flex w-full items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2.5 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <LuRotateCcw size={15} className="text-amber-400 shrink-0" />
-                <span className="whitespace-nowrap shrink-0 font-medium">{t('play.clearReload')}</span>
-              </span>
-              <span className="text-[10px] text-neutral-400">{t('play.clearReloadDesc')}</span>
-            </button>
+            />
 
-            {/* Quit Game Button (Requirement 7) */}
-            <button
-              type="button"
+            <ConfigRow
+              icon={<LuPower size={16} className="text-rose-400" />}
+              label={t('play.quitGame')}
+              danger={true}
+              control={<span className="text-[11px] text-rose-400/80">{t('common.close')}</span>}
               onClick={() => {
                 setMenuOpen(false)
                 setQuitConfirmOpen(true)
               }}
-              className="flex w-full items-center justify-between rounded-lg border border-rose-500/30 bg-rose-950/20 px-3 py-2.5 text-rose-300 hover:bg-rose-900/30 transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <LuPower size={15} className="text-rose-400 shrink-0" />
-                <span className="whitespace-nowrap shrink-0 font-medium">{t('play.quitGame')}</span>
-              </span>
-              <span className="text-[10px] text-rose-400/80">{t('common.close')}</span>
-            </button>
+            />
           </div>
         )
     }
@@ -1158,6 +1106,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           0%, 20% { opacity: 0.15; transform: scale(0.85); }
           50% { opacity: 1; transform: scale(1.1); }
           80%, 100% { opacity: 0.15; transform: scale(0.85); }
+        }
+        @keyframes connecting-breathe {
+          0%, 100% { opacity: 0.32; transform: scale(0.985); }
+          50% { opacity: 1; transform: scale(1.015); }
         }
       `}</style>
 
@@ -1450,18 +1402,18 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header: Centered title, compressed height, clean icon button */}
-            <div className="relative flex items-center justify-center py-1.5 px-8 border-b border-white/10 shrink-0">
-              <h3 id="menu-title" className="text-xs font-bold text-white text-center leading-none">
+            {/* Header: No dividing line, text-sm font-semibold matching content rhythm, clean icon button (Requirement 4) */}
+            <div className="relative flex items-center justify-between px-4 pt-3 pb-1 shrink-0">
+              <h3 id="menu-title" className="text-sm font-semibold text-white tracking-wide">
                 {t('play.consoleTitle')}
               </h3>
               <button
                 type="button"
                 onClick={() => setMenuOpen(false)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded text-neutral-400 hover:text-white hover:bg-white/5 active:scale-90 transition-all"
                 aria-label={t('common.close')}
               >
-                <LuX size={15} />
+                <LuX size={16} />
               </button>
             </div>
 
@@ -1808,8 +1760,11 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 )}
               </div>
             ) : !isCancelled ? (
-              <div className="flex flex-col items-center gap-2">
-                {/* Glowing Pulsating Status Text with unified animated ellipsis */}
+              <div
+                style={{ animation: 'connecting-breathe 2.4s ease-in-out infinite' }}
+                className="flex flex-col items-center gap-2 select-none"
+              >
+                {/* Glowing Pulsating Status Text with breathing opacity animation (Requirement 6) */}
                 <div className="flex items-center gap-1.5 font-mono text-base sm:text-lg font-black tracking-widest text-sky-300 drop-shadow-[0_0_14px_rgba(56,189,248,0.85)]">
                   <span>CONNECTING</span>
                   <span className="inline-flex tracking-normal font-sans">
@@ -1918,18 +1873,18 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header: Centered title, compressed height, clean icon button */}
-            <div className="relative flex items-center justify-center py-1.5 px-8 border-b border-white/10 shrink-0">
-              <h3 id="game-select-title" className="text-xs font-bold text-white text-center leading-none">
+            {/* Header: No dividing line, text-sm font-semibold matching content rhythm, clean icon button (Requirement 4) */}
+            <div className="relative flex items-center justify-between px-4 pt-3 pb-1 shrink-0">
+              <h3 id="game-select-title" className="text-sm font-semibold text-white tracking-wide">
                 {t('play.gameSelectorTitle')}
               </h3>
               <button
                 type="button"
                 onClick={() => setGameSelectorOpen(false)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded text-neutral-400 hover:text-white hover:bg-white/5 active:scale-90 transition-all"
                 aria-label={t('common.close')}
               >
-                <LuX size={15} />
+                <LuX size={16} />
               </button>
             </div>
 

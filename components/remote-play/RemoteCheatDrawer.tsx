@@ -302,16 +302,16 @@ export function RemoteCheatDrawer({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header: Centered title, compressed height, clean icon button */}
-        <div className="relative flex items-center justify-center border-b border-neutral-800 py-1.5 px-8 shrink-0">
-          <h2 className="text-xs font-bold text-white text-center leading-none">局内控制台</h2>
+        {/* Header: No divider line, text-sm font-semibold (Requirement 4) */}
+        <div className="flex items-center justify-between px-4 pt-3 pb-1 shrink-0">
+          <h2 className="text-sm font-semibold text-white tracking-wide">局内控制台</h2>
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
+            className="p-1 rounded text-neutral-400 hover:text-white hover:bg-white/5 active:scale-90 transition-all"
             aria-label="关闭"
           >
-            <LuX size={15} />
+            <LuX size={16} />
           </button>
         </div>
 

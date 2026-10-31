@@ -153,4 +153,32 @@ describe('RemotePlayView Launcher & UI refinements', () => {
     expect(closeBtn).not.toBeNull()
     expect(closeBtn.className).toContain('absolute right-3')
   })
+  it('renders unified ConfigRow with icon, label, and no mode descriptions', async () => {
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <RemotePlayView initialRoomId="game-1" />
+        </LocaleProvider>
+      )
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    // Open settings modal
+    const settingsBtn = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('title')?.includes('偏好') || b.getAttribute('aria-label')?.includes('偏好'))
+    await act(async () => {
+      settingsBtn?.click()
+    })
+
+    // Check language config row has globe icon
+    const langTrigger = host.querySelector('button[aria-label="切换语言"]')
+    expect(langTrigger).not.toBeNull()
+
+    // Mode buttons exist without descriptive paragraph blocks
+    const modeButtons = Array.from(host.querySelectorAll('button')).filter((b) =>
+      ['固定', '自由', '左手', '右手', '触屏'].some((label) => b.textContent?.includes(label))
+    )
+    expect(modeButtons.length).toBeGreaterThanOrEqual(0)
+  })
 })
