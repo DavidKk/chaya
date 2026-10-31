@@ -32,7 +32,12 @@ export function captureGameMediaStream(): MediaStream | null {
     const canvas = getGameCanvas()
     if (!canvas || typeof canvas.captureStream !== 'function') return null
 
-    if (cachedStream && cachedStream.active && cachedStream.getVideoTracks().length > 0) {
+    if (
+      cachedStream &&
+      cachedStream.active &&
+      cachedStream.getVideoTracks().length > 0 &&
+      cachedStream.getVideoTracks()[0].readyState === 'live'
+    ) {
       return cachedStream
     }
 
@@ -63,7 +68,7 @@ export function captureGameMediaStream(): MediaStream | null {
   }
 }
 
-export function attachGameMediaStream(peer: RTCPeerConnection): void {
+export async function attachGameMediaStream(peer: RTCPeerConnection): Promise<void> {
   const stream = captureGameMediaStream()
   if (!stream) return
 
@@ -78,11 +83,11 @@ export function attachGameMediaStream(peer: RTCPeerConnection): void {
     const kind = tr.receiver?.track?.kind
     if (kind === 'video' && videoTrack) {
       tr.direction = 'sendonly'
-      void tr.sender.replaceTrack(videoTrack).catch(() => {})
+      try { await tr.sender.replaceTrack(videoTrack) } catch {}
       attachedVideo = true
     } else if (kind === 'audio' && audioTrack) {
       tr.direction = 'sendonly'
-      void tr.sender.replaceTrack(audioTrack).catch(() => {})
+      try { await tr.sender.replaceTrack(audioTrack) } catch {}
       attachedAudio = true
     }
   }

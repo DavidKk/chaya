@@ -23,6 +23,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
   const linkRef = useRef<WebGameLink | null>(null)
   const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -37,7 +38,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return
-        const detectedId = data?.resolved?.gameId || data?.config?.gameId || data?.library?.[0]?.gameId || 'default'
+        const selected = data?.selected
+        const selectedGame = data?.library?.find((item: { gameRoot?: string; id?: string }) => item.gameRoot === selected) || data?.library?.[0]
+        const detectedId = selectedGame?.id || data?.config?.library?.[0]?.id || data?.library?.[0]?.id || data?.resolved?.gameId || 'default'
         setRoomId(detectedId)
       })
       .catch((err) => {
@@ -67,8 +70,11 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         setLatencyMs(null)
       },
       onTrack: (stream: MediaStream) => {
+        streamRef.current = stream
         if (cancelled || !videoRef.current) return
-        videoRef.current.srcObject = stream
+        if (videoRef.current.srcObject !== stream) {
+          videoRef.current.srcObject = stream
+        }
         void videoRef.current.play().catch(() => {
           // Autoplay blocked without user gesture
         })
@@ -136,6 +142,14 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     })
   }
 
+  const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    videoRef.current = el
+    if (el && streamRef.current && el.srcObject !== streamRef.current) {
+      el.srcObject = streamRef.current
+      void el.play().catch(() => {})
+    }
+  }, [])
+
   // 5. Unmute audio on user tap
   const handleUnmute = () => {
     setMuted(false)
@@ -161,7 +175,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     <main className="relative h-screen w-screen overflow-hidden bg-black select-none">
       {/* Background Video Stream */}
       <video
-        ref={videoRef}
+        ref={setVideoRef}
         autoPlay
         playsInline
         muted={muted}

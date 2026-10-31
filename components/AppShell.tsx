@@ -19,7 +19,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [agentOpen, setAgentOpen] = useState(false)
   /** Cloud 官方首页、条款页与 `/sh/*` 脚本页不挂控制台顶栏 */
-  const marketing = pathname === '/' || LEGAL_HREFS.has(pathname) || pathname.startsWith('/sh/')
+  const marketing = pathname === '/' || pathname.startsWith('/play') || LEGAL_HREFS.has(pathname) || pathname.startsWith('/sh/')
 
   return (
     <DebugMenuProvider>

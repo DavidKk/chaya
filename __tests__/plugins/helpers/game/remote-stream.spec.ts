@@ -68,7 +68,7 @@ describe('remote-stream (WebRTC game streaming & input simulation)', () => {
     expect(mouseSpy).toHaveBeenCalledTimes(2)
   })
 
-  it('attachGameMediaStream attaches captured tracks to transceivers', () => {
+  it('attachGameMediaStream attaches captured tracks to transceivers', async () => {
     const canvas = document.createElement('canvas')
     canvas.id = 'GameCanvas'
     document.body.appendChild(canvas)
@@ -96,7 +96,7 @@ describe('remote-stream (WebRTC game streaming & input simulation)', () => {
       addTrack: jest.fn(),
     } as unknown as RTCPeerConnection
 
-    attachGameMediaStream(mockPeer)
+    await attachGameMediaStream(mockPeer)
     expect(mockTransceiver.direction).toBe('sendonly')
     expect(replaceTrackMock).toHaveBeenCalledWith(mockVideoTrack)
   })

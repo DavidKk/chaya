@@ -123,8 +123,8 @@ function stopLogForward() {
 function normalizeLocalSdp(description: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
   const sdp = String(description.sdp || '')
   if (!sdp.includes('candidate:')) return description
-  // If remote offer was gathered over LAN, preserve LAN candidates for mobile/cross-device connection
-  if (lastOfferSdp && /(\s)(192\.168\.|10\.|172\.(?:1[6-9]|2[0-9]|3[01])\.)/.test(lastOfferSdp)) {
+  // If remote offer is for Remote Play or gathered over LAN / mobile / mDNS, preserve actual IPs
+  if (lastOfferSdp && (/m=video|\.local|typ srflx|typ relay|(\s)(192\.168\.|10\.|172\.(?:1[6-9]|2[0-9]|3[01])\.)/.test(lastOfferSdp))) {
     return description
   }
   return {
@@ -329,7 +329,7 @@ async function tryAnswer() {
 
     await peer.setRemoteDescription(offer)
     try {
-      attachGameMediaStream(peer)
+      await attachGameMediaStream(peer)
     } catch (err) {
       ChayaLog.warn('ChayaLink', 'Failed to attach game media stream', err)
     }
